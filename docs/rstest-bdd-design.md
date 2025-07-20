@@ -1,0 +1,583 @@
+# A Proposed Design for `rstest-bdd`: A Behaviour-Driven Development Framework for Rust
+
+## Part 1: Vision and User-Facing Design
+
+This part of the report details the user-facing aspects of the proposed `rstest-bdd` framework. It outlines the core philosophy, provides a comprehensive usage example, and explores advanced features, focusing on creating an ergonomic and powerful BDD experience that is idiomatic to the Rust ecosystem.
+
+### 1.1 Introduction: A Synergistic Approach to BDD in Rust
+
+Behaviour-Driven Development (BDD) is a software development process that encourages collaboration between developers, quality assurance experts, and non-technical business participants. It achieves this by using a natural, domain-specific language to describe an application's behavior from the user's perspective.1 The proposed
+
+`rstest-bdd` framework is designed to bring this collaborative power to Rust by deeply integrating BDD principles with the `rstest` testing crate.
+
+The core philosophy of `rstest-bdd` is to fuse the human-readable, requirement-driven specifications of Gherkin 3 with the powerful, developer-centric features of
+
+`rstest`.4 The primary value proposition is the unification of high-level functional and acceptance tests with low-level unit tests. Both test types will coexist within the same project, use the same fixture model for dependency injection, and be executed by the standard
+
+`cargo test` command. This approach eliminates the need for a separate test runner, reducing CI/CD configuration complexity and lowering the barrier to adoption for teams already invested in the Rust testing ecosystem.6
+
+The design is heavily modeled on `pytest-bdd`, a successful plugin for Python's `pytest` framework.8
+
+`pytest-bdd`'s success stems from its ability to leverage the full power of its host framework—including fixtures, parameterization, and a vast plugin ecosystem—rather than replacing it.1 By emulating this model,
+
+`rstest-bdd` will provide a familiar and robust BDD experience that feels native to Rust developers who appreciate the capabilities of `rstest`.
+
+### 1.2 A Complete Usage Example: The "Web Search" Scenario
+
+To illustrate the intended workflow, this section presents a complete, narrative example of testing a web search feature. This walkthrough mirrors the structure of typical `pytest-bdd` tutorials, demonstrating the journey from a plain-language specification to an executable test.1
+
+#### 1.2.1 Step 1: The Feature File
+
+The process begins with a `.feature` file written in Gherkin. This file describes the desired functionality in a way that can be understood and validated by non-technical stakeholders.1
+
+**File:** `tests/features/web_search.feature`
+
+Gherkin
+
+```
+Feature: Web Search
+  As a user, I want to search for information,
+  so that I can find what I'm looking for.
+
+  Scenario: Simple web search
+    Given the DuckDuckGo home page is displayed
+    When I search for "Rust programming language"
+    Then the search results page is displayed
+    And the results contain "Rust Programming Language"
+```
+
+#### 1.2.2 Step 2: The Step Definition File
+
+Next, developers create a corresponding Rust test file to implement the logic for each step defined in the Gherkin scenario. This is where the core `rstest-bdd` macros come into play.
+
+A key design choice, inherited from `pytest-bdd`, is that the Rust test module is the primary entry point, not the feature file.9 A test function is explicitly bound to a Gherkin scenario using the
+
+`#[scenario]` attribute macro, which is a direct parallel to `pytest-bdd`'s `@scenario` decorator.6
+
+State is managed and passed between steps using `rstest`'s native fixture system, a cornerstone of this design. This contrasts with other BDD frameworks that often rely on a monolithic `World` object.11 By using fixtures,
+
+`rstest-bdd` allows for the reuse of setup and teardown logic already written for unit tests, promoting a Don't Repeat Yourself (DRY) approach.1
+
+**File:** `tests/test_web_search.rs`
+
+Rust
+
+```
+use rstest::fixture;
+use rstest_bdd::{scenario, given, when, then};
+// Assume 'thirtyfour' or another WebDriver crate is used for browser automation.
+use thirtyfour::prelude::*;
+
+// An rstest fixture that provides the WebDriver instance for the test.
+// This is standard rstest functionality.[4, 12]
+#[fixture]
+async fn browser() -> WebDriverResult<WebDriver> {
+    let caps = DesiredCapabilities::firefox();
+    let driver = WebDriver::new("http://localhost:4444", caps).await?;
+    // The fixture yields the driver to the test, and will handle cleanup after.
+    Ok(driver)
+}
+
+// The #[scenario] macro binds this test function to a specific scenario.
+// It will generate the necessary code to run the Gherkin steps.
+// The test attribute (e.g., #[tokio::test]) would be configured via
+// feature flags in Cargo.toml to support different async runtimes.
+#[tokio::test]
+#
+async fn test_simple_search(#[future] browser: WebDriver) {
+    // The body of this function runs *after* all Gherkin steps have passed.
+    // It can be used for final assertions or complex cleanup.[6]
+    // For this example, we'll assume the browser is implicitly closed
+    // when the 'browser' fixture goes out of scope.
+}
+
+// Step definitions are just decorated functions.
+// The #[from(fixture_name)] attribute injects the fixture into the step.
+#
+async fn go_to_home(#[from(browser)] driver: &mut WebDriver) {
+    driver.goto("https://duckduckgo.com/").await.unwrap();
+}
+
+// The framework will parse the quoted string and pass it as an argument.
+#[when("I search for \"(.*)\"")]
+async fn search_for_phrase(#[from(browser)] driver: &mut WebDriver, phrase: String) {
+    let form = driver.find(By::Id("search_form_input_homepage")).await.unwrap();
+    form.send_keys(&phrase).await.unwrap();
+    form.submit().await.unwrap();
+}
+
+#[then("the search results page is displayed")]
+async fn results_page_is_displayed(#[from(browser)] driver: &mut WebDriver) {
+    let results = driver.find(By::Id("links")).await;
+    assert!(results.is_ok(), "Search results container not found.");
+}
+
+#[then("the results contain \"(.*)\"")]
+async fn results_contain_text(#[from(browser)] driver: &mut WebDriver, text: String) {
+    let content = driver.source().await.unwrap();
+    assert!(content.contains(&text), "Result text not found in page source.");
+}
+```
+
+#### 1.2.3 Step 3: Running the Tests
+
+With the feature and step definition files in place, the user simply runs the standard Rust test command:
+
+Bash
+
+```
+cargo test
+```
+
+`rstest-bdd` ensures that `test_simple_search` is executed as a regular test. `rstest` handles the `browser` fixture setup, and the code generated by `#[scenario]` orchestrates the execution of the `given`, `when`, and `then` steps in the correct order. This seamless integration means all standard `cargo` and `rstest` features, such as test filtering and parallel execution, work out of the box.7
+
+### 1.3 Advanced Usage Patterns
+
+Beyond the basic workflow, `rstest-bdd` is designed to support the advanced Gherkin features necessary for comprehensive testing.
+
+#### 1.3.1 Parameterization with `Scenario Outline`
+
+Gherkin's `Scenario Outline` allows a single scenario to be run with multiple sets of data from an `Examples` table.13
+
+`rstest-bdd` will map this concept directly to `rstest`'s powerful parameterization capabilities. The `#[scenario]` macro will detect a `Scenario Outline` and generate code equivalent to a standard `rstest` parameterized test using multiple `#[case]` attributes.15
+
+**Feature File (**`login.feature`**):**
+
+Gherkin
+
+```
+Feature: User Login
+
+  Scenario Outline: Login with different credentials
+    Given I am on the login page
+    When I enter username "<username>" and password "<password>"
+    Then I should see the message "<message>"
+
+    Examples:
+
+| username | password | message |
+| user | correctpass | "Welcome, user!" |
+| user | wrongpass | "Invalid credentials" |
+| admin | adminpass | "Welcome, administrator!" |
+```
+
+**Step Definition (**`test_login.rs`**):**
+
+Rust
+
+```
+//...
+#[scenario(path = "features/login.feature", name = "Login with different credentials")]
+#[tokio::test]
+async fn test_login_scenarios(#[future] browser: WebDriver) {}
+
+// Placeholders from the 'Examples' table are passed as typed arguments to the step functions.
+#[when("I enter username \"<username>\" and password \"<password>\"")]
+async fn enter_credentials(
+    #[from(browser)] driver: &mut WebDriver,
+    username: String,
+    password: String,
+) {
+    //... implementation...
+}
+
+#[then("I should see the message \"<message>\"")]
+async fn see_message(#[from(browser)] driver: &mut WebDriver, message: String) {
+    //... assert message is visible...
+}
+```
+
+#### 1.3.2 Step Argument Parsing
+
+To provide an ergonomic and type-safe way of extracting parameters from step strings, `rstest-bdd` will support a `format!`-like syntax. This avoids the need for raw regular expressions in most cases and leverages Rust's existing `FromStr` trait for "magic conversion," a core feature of `rstest`.4 This is directly analogous to the
+
+`parsers` module in `pytest-bdd`.1
+
+**Example:**
+
+Rust
+
+```
+// Step in.feature file:
+// When I deposit 50 dollars
+
+// Step definition in.rs file:
+#[when("I deposit {amount:u32} dollars")]
+fn deposit_amount(#[from(account)] acc: &mut Account, amount: u32) {
+    acc.deposit(amount);
+}
+```
+
+The framework will parse the string "50", use `u32::from_str("50")` to convert it, and pass the resulting `u32` value to the `deposit_amount` function.
+
+#### 1.3.3 Using `Background`, Data Tables, and Docstrings
+
+To achieve feature parity with modern BDD tools, the framework will support other essential Gherkin constructs.
+
+- **Background:** Steps defined in a `Background` section are executed before each `Scenario` in a feature file.10 This maps naturally to common setup logic and will be handled automatically by the
+
+  `#[scenario]` macro.
+
+- **Data Tables:** A Gherkin data table provides a way to pass a structured block of data to a single step. `rstest-bdd` will make this data available as a `Vec<Vec<String>>` argument to the step function, mirroring `pytest-bdd`'s `datatable` argument.19
+
+  **Feature File:**
+
+  Gherkin
+
+  ```
+  Given the following users exist:
+  
+  | name | email |
+  | Alice | alice@example.com |
+  | Bob | bob@example.com |
+  
+  Step Definition:rust
+  
+  #[given("the following users exist:")]
+  fn create_users(db_conn: &mut DbConnection, users_table: Vec
+  // ]
+  //... implementation to populate database..
+  }
+  
+  ```
+
+- **Docstrings:** A Gherkin docstring allows a larger block of multi-line text to be passed to a step. This will be provided as a `String` argument to the step function, again mirroring `pytest-bdd`.19
+
+## Part 2: Architectural and API Specification
+
+This part transitions from the user's perspective to the technical implementation, detailing the procedural macro API, the core architectural challenges and solutions, and the end-to-end code generation process.
+
+### 2.1 Procedural Macro API Design
+
+The user-facing functionality is enabled by a suite of procedural macros. Each macro has a distinct role in the compile-time orchestration of the BDD tests.
+
+- `#[scenario(path = "...", name = "...")]`: This is an attribute macro that serves as the primary entry point and orchestrator.
+
+  - **Arguments:**
+
+    - `path: &str`: A mandatory, relative path from the crate root to the `.feature` file containing the scenario.
+
+    - `name: &str`: A mandatory string specifying the `Scenario` or `Scenario Outline` name to bind the test function to.
+
+  - **Functionality:** This macro is responsible for the heavy lifting. At compile time, it reads and parses the specified feature file, finds the matching scenario, and generates a complete, new test function annotated with `#[rstest]`. This generated function contains the runtime logic to execute the Gherkin steps.
+
+- `#[given("...")]`, `#[when("...")]`, `#[then("...")]`: These are attribute macros applied to the step implementation functions.
+
+  - **Argument:** A string literal representing the Gherkin step text. This string acts as a pattern and can include placeholders for argument parsing (e.g., `"I have {count:usize} cucumbers"`).
+
+  - **Functionality:** These macros have a single, critical purpose: to register the decorated function and its associated metadata (the pattern string, keyword, and source location) into a global, discoverable registry. They do *not* generate any executable code on their own.
+
+### 2.2 The Core Architectural Challenge: Stateless Step Discovery
+
+The most significant technical hurdle in this design is the inherent nature of Rust's procedural macros. Each macro invocation is executed by the compiler in an isolated, stateless environment.20 This means that when the
+
+`#[scenario]` macro is expanding, it has no direct way to discover the functions that have been decorated with `#[given]`, `#[when]`, or `#[then]`. It cannot scan the project's source code, reflect on other modules, or access a shared compile-time state to build a map of available steps.22 This stands in stark contrast to
+
+`pytest`, which provides a rich runtime plugin system that `pytest-bdd` hooks into to discover tests and steps dynamically during a collection phase.7
+
+This fundamental constraint of the Rust compiler forces a specific architectural choice. Several potential solutions exist, but only one aligns with the project's core goals:
+
+1. **Custom Test Runner:** The framework could provide its own test runner binary, similar to the `cucumber` crate which requires a `main` function to invoke `World::run(...)`.11 This runner would be responsible for discovering feature files and step definitions. However, this approach would completely bypass
+
+   `rstest` and `cargo test`, violating the primary design goal of seamless integration. It would effectively be a reimplementation of `cucumber-rs`, not `rstest-bdd`.
+
+2. `build.rs` **Code Generation:** A build script (`build.rs`) could be used to parse all `.rs` files in the `tests` directory before the main compilation. It could find all the step-definition attributes and generate a single, monolithic `steps.rs` file containing a registry of all steps. The `#[scenario]` macro could then `include!` this generated file. This approach is technically feasible but suffers from major drawbacks: it is complex to implement robustly, significantly slows down compilation, is notoriously brittle, and often provides a poor experience with IDE tools like `rust-analyzer` which may not be aware of the generated code.
+
+3. **Link-Time Collection:** The ideal solution is a mechanism that allows each step-definition macro to emit metadata independently, with this metadata being collected into a single registry *after* all macros have run. This can be achieved by placing the metadata in a specific linker section of the compiled object file. At runtime, the application can read this linker section to discover all the registered items.
+
+The third option, link-time collection, is the only one that satisfies all design constraints. It preserves the standard `cargo test` workflow, avoids the fragility of build scripts, and allows for fully decoupled step definitions. This leads directly to the selection of the `inventory` crate as the architectural cornerstone.
+
+### 2.3 The `inventory` Solution: A Global Step Registry
+
+The `inventory` crate provides a clean and powerful abstraction over the link-time collection mechanism described above. It offers "typed distributed plugin registration," allowing different parts of a program to submit items into a collection that can be iterated over at runtime.24
+
+For `rstest-bdd`, this pattern is used to create a global registry of all step definitions. First, a struct is defined to hold the metadata for each step. This struct will contain a type-erased function pointer to the user's implementation, the pattern string to match against Gherkin text, and source location information for generating clear error messages.
+
+**Definition of the** `Step` **struct (within the** `rstest-bdd-macros` **crate):**
+
+Rust
+
+```
+
+// A simplified representation of the step metadata.\
+pub struct Step {\
+pub keyword: &'static str, // "Given", "When", or "Then"\
+pub pattern: &'static str, // The pattern string from the attribute, e.g., "I have {count} cucumbers"
+```
+
+// A type-erased function pointer. The actual implementation will handle\
+// passing the correct arguments (fixtures, step args) to the user's function.\
+pub run: fn(&mut rstest_bdd::Context),
+
+// Location info for better error messages.\
+pub file: &'static str,\
+pub line: u32,
+
+```
+
+}
+
+// This macro call creates the global collection for 'Step' structs.\
+inventory::collect!(Step);
+```
+
+The `#[given]`, `#[when]`, and `#[then]` macros will expand into an `inventory::submit!` block. This macro call constructs an instance of the `Step` struct at compile time and registers it for collection.24
+
+At runtime, the code generated by the `#[scenario]` macro can retrieve a complete list of all step definitions across the entire application simply by calling `inventory::iter::<Step>()`. This provides an iterator over all registered `Step` instances, regardless of the file, module, or crate in which they were defined.
+
+### 2.4 The Macro Expansion Process: A Compile-Time to Runtime Journey
+
+The interaction between the user's code, the `rstest-bdd` macros, and the final test execution can be broken down into a sequence of compile-time and runtime events.
+
+**1.** `#[given]` **Expansion (Compile-Time)**
+
+- **Input Code:**
+
+  Rust
+
+```
+
+#\[given("I am a user")\]\
+fn given_i_am_a_user(mut user_context: UserContext) { /\*... \*/ }
+```
+
+- **Macro Action:** The `#[given]` proc-macro parses its attribute string (`"I am a user"`) and the function it's attached to. It then generates an `inventory::submit!` block. This block contains the static definition of a `Step` struct, where the `run` field is a type-erased pointer to a wrapper around the `given_i_am_a_user` function.
+
+**2.** `#[scenario]` **Expansion (Compile-Time)**
+
+- **Input Code:**
+
+Rust
+
+```
+
+# 
+
+fn test_my_scenario(my_fixture: MyFixture) { /\* final assertion \*/ }
+```
+
+- **Macro Action:**
+
+1. The `#[scenario]` proc-macro performs file I/O to read the contents of `f.feature`.
+
+2. It uses a Gherkin parser crate (such as `gherkin` 26) to parse the feature file content into an Abstract Syntax Tree (AST).
+
+3. It traverses the AST to find the `Scenario` with the name "My Scenario".
+
+4. It iterates through the global step registry (`inventory::iter`) *at compile time* to check if a matching step exists for every Gherkin step. If a step is missing, it emits a `compile_error!` with a helpful message, failing the build early.
+
+5. Using the `quote!` macro 28, it generates a completely new Rust function. This generated function replaces the original
+
+   `test_my_scenario` function.
+
+6. The generated function is annotated with `#[rstest]`, and it preserves the original function's signature, including the `my_fixture: MyFixture` argument. This is critical for ensuring `rstest`'s dependency injection continues to work.
+
+7. The body of this new, generated function contains the runtime logic for the BDD test:
+
+   - It initializes a context or state object for the scenario.
+
+   - It iterates through the steps of "My Scenario" as defined in the Gherkin AST.
+
+   - For each Gherkin step, it iterates through the global step registry again (this time at runtime) by calling `inventory::iter::<Step>()`.
+
+   - It finds the correct registered `Step` by matching the Gherkin step's text against the `pattern` field of each registered `Step`.
+
+   - If a match is found, it parses any arguments from the Gherkin text.
+
+   - It invokes the `run` function pointer from the matched `Step` struct, passing it the necessary context (which includes access to fixtures and step arguments).
+
+   - After the step-execution loop, it includes the user's original code from the body of `test_my_scenario`.
+
+**3. Test Execution (Runtime)**
+
+1. The user runs `cargo test`.
+
+2. The `rstest` test runner discovers the generated `test_my_scenario` function.
+
+3. `rstest` first resolves and provides the `my_fixture` dependency.
+
+4. `rstest` then executes the body of the generated function.
+
+5. The generated code runs the step-matching loop, executing each Gherkin step by calling the appropriate registered function. Fixtures like `my_fixture` are made available to these steps through the context object passed to the `run` function pointer.
+
+6. If all steps pass, the original code from the user's `test_my_scenario` function body is executed.
+
+This architecture successfully bridges the gap between the stateless compile-time world of procedural macros and the stateful, ordered execution required for a BDD scenario, all while remaining fully compatible with the `rstest` framework.
+
+## Part 3: Implementation and Strategic Analysis
+
+This final part outlines a practical implementation strategy for `rstest-bdd` and provides a critical analysis of the proposed design, including its strengths, weaknesses, limitations, and a comparison to the existing `cucumber` crate.
+
+### 3.1 Phased Implementation Strategy
+
+A phased approach is recommended to manage complexity and deliver value incrementally.
+
+- **Phase 1: Core Mechanics & Proof of Concept**
+
+- Establish the two-crate workspace: `rstest-bdd` (the runtime library) and `rstest-bdd-macros` (the proc-macro implementation).
+
+- Implement the `inventory`-based step registry. Define the `Step` struct and the `#[given]`, `#[when]`, and `#[then]` macros to populate the registry using `inventory::submit!`.
+
+- Implement a basic `#[scenario]` macro. This includes compile-time Gherkin file parsing and the runtime step-matching loop. Initially, this will support only exact string matching with no argument parsing.
+
+- The goal of this phase is to validate the core architectural choice: that a `#[scenario]` macro can successfully find and execute steps registered by other macros at runtime.
+
+- **Phase 2: Fixtures and Parameterization**
+
+- Enhance the macro system to inspect the signatures of step functions and integrate with `rstest`'s fixture system. This allows steps to request fixtures directly.
+
+- Implement support for `Scenario Outline`. The `#[scenario]` macro will be extended to detect this Gherkin construct and generate the corresponding `#[rstest]` `#[case(...)]` attributes on the test function.
+
+- Introduce the `{name:Type}` step argument parser, leveraging the `FromStr` trait for type conversion.
+
+- **Phase 3: Advanced Gherkin Features & Ergonomics**
+
+- Add support for `Background` steps, Data Tables, and Docstrings, passing them as special arguments to step functions.
+
+- Implement robust compile-time error handling. The `#[scenario]` macro should emit clear compiler errors if a feature file cannot be parsed or if no matching step definition can be found for a Gherkin step.
+
+- Develop a `scenarios!` helper macro, analogous to the one in `pytest-bdd` 9, which can automatically bind all scenarios within one or more feature files, reducing boilerplate for the user.
+
+### 3.2 Strengths and Weaknesses of the Proposed Architecture
+
+The proposed design has a distinct set of advantages and disadvantages rooted in its tight integration with the Rust compiler and `rstest`.
+
+#### 3.2.1 Advantages
+
+- **Seamless Ecosystem Integration:** The framework uses `cargo test` as its runner and `rstest` as its foundation. This means it works out-of-the-box with the entire Rust ecosystem, including CI/CD pipelines, code coverage tools, and test filtering mechanisms, without requiring a separate runner or special configuration.6
+
+- **Powerful Fixture Reuse:** By leveraging `rstest` fixtures for state management, developers can reuse existing setup/teardown logic from their unit tests for BDD scenarios. This promotes code reuse and consistency across the entire test suite.1
+
+- **Compile-Time Safety:** By validating that every Gherkin step has a corresponding implementation at compile time, the framework can fail fast with a clear `compile_error!`, preventing difficult-to-debug runtime panics from missing steps.
+
+- **High Performance:** The test code is fully compiled Rust. While there is a small runtime overhead for matching Gherkin steps to functions, the core logic executes at native speed.
+
+- **Decoupled and Reusable Steps:** Thanks to the `inventory`-based discovery, step definitions can be placed in any module (e.g., a central `tests/steps/common.rs` file, akin to `conftest.py` 9) and will be automatically available to any scenario, promoting modular and maintainable test code.
+
+#### 3.2.2 Disadvantages
+
+- **High Macro Complexity:** The implementation of the `#[scenario]` macro is non-trivial. It involves compile-time file I/O, parsing, and extensive code generation via `quote!`. Debugging and maintaining this macro will be a significant challenge.31
+
+- **Reliance on "Magic" and Portability:** The `inventory` crate's use of linker sections is powerful but potentially "magic." It abstracts away complex system-level behavior that may be a conceptual hurdle for some users and has platform-specific considerations that may not be suitable for all targets, such as some embedded systems or Windows/PE environments.24
+
+**Mitigation:** For niche targets, a `no-inventory` feature flag could be provided. This would trigger a fallback mechanism using a `build.rs` script to scan for step definitions and generate a central registry file (e.g., `OUT_DIR/steps.rs`), which is then included via `include!` by the `#[scenario]` macro.
+
+- **Compile-Time Overhead:** The `#[scenario]` macro performs file I/O and parsing during compilation. For projects with many feature files, this could introduce a noticeable overhead to compile times. **Mitigation:** This can be significantly optimized by caching the parsed Gherkin ASTs in the `OUT_DIR`. The macro would only re-parse a `.feature` file if its modification time has changed, similar to how tools like `prost-build` handle `.proto` files.
+
+- **Runtime Step Matching:** The connection between a Gherkin step and its implementing function is resolved at the beginning of each scenario's execution. This is a deliberate trade-off that enables decoupled steps, but it carries a minor performance cost compared to a fully pre-compiled approach where function calls are resolved at compile time.
+
+### 3.3 Framework Limitations
+
+The design choices lead to several inherent limitations that users should be aware of.
+
+- **Static Gherkin Files:** Feature files are dependencies that are read and processed at compile time. The framework cannot load or select `.feature` files dynamically at runtime.
+
+- **Static Step Definitions:** All step definitions must be known at compile time so they can be registered. It is not possible to dynamically generate or register new step definitions at runtime.
+
+- **IDE Support Challenges:** While test execution via `cargo test` will integrate perfectly with IDEs, more advanced features like "Go to Definition" (navigating from a Gherkin step in a `.feature` file directly to the implementing Rust function) will not work out-of-the-box. **Mitigation:** This functionality would require a dedicated IDE extension. Potential solutions include shipping a `rust-analyzer` proc-macro server stub that can surface the pattern-to-function mapping, or publishing a dedicated VS Code extension that generates virtual documents to bridge the gap between `.feature` files and Rust code.
+
+### 3.4 Comparative Analysis: `rstest-bdd` vs. `cucumber`
+
+The primary existing BDD framework in the Rust ecosystem is `cucumber`. A comparison highlights the fundamental philosophical differences between the two approaches.
+
+The core distinction lies in their integration philosophy. `cucumber-rs` provides a *Cucumber implementation in Rust*. It brings the established, cross-language Cucumber ecosystem's concepts—such as a dedicated test runner, a mandatory `World` state object, and built-in concurrency management—into a Rust project.11 It aims for consistency with
+
+`cucumber-jvm`, `cucumber-js`, etc.
+
+In contrast, the proposed `rstest-bdd` provides a *BDD layer for the native Rust testing ecosystem*. It adapts BDD principles to be idiomatic within the existing paradigms of `cargo test` and `rstest`.17 This leads to a different developer experience. A
+
+`cucumber-rs` user asks, "How do I manage state in my `World` struct?" A `rstest-bdd` user asks, "Which `rstest` fixture should I inject to provide this state?" This makes `rstest-bdd` a potentially more natural fit for teams already heavily invested in `rstest`, as they can leverage their existing knowledge and fixtures directly. `cucumber-rs` is better suited for teams seeking strict adherence to the global Cucumber standard or those who prefer a hard separation between their BDD acceptance tests and their other unit/integration tests.
+
+The following table summarizes the key differences:
+
+<table class="not-prose border-collapse table-auto w-full" style="min-width: 75px">
+<colgroup><col style="min-width: 25px"><col style="min-width: 25px"><col style="min-width: 25px"></colgroup><tbody><tr><td class="border border-neutral-300 dark:border-neutral-600 p-1.5" colspan="1" rowspan="1"><p>Feature</p></td><td class="border border-neutral-300 dark:border-neutral-600 p-1.5" colspan="1" rowspan="1"><p><code class="code-inline">rstest-bdd</code> (Proposed)</p></td><td class="border border-neutral-300 dark:border-neutral-600 p-1.5" colspan="1" rowspan="1"><p><code class="code-inline">cucumber</code></p></td></tr><tr><td class="border border-neutral-300 dark:border-neutral-600 p-1.5" colspan="1" rowspan="1"><p><strong>Test Runner</strong></p></td><td class="border border-neutral-300 dark:border-neutral-600 p-1.5" colspan="1" rowspan="1"><p>Standard <code class="code-inline">cargo test</code> (via <code class="code-inline">rstest</code> expansion)</p></td><td class="border border-neutral-300 dark:border-neutral-600 p-1.5" colspan="1" rowspan="1"><p>Custom runner invoked from a <code class="code-inline">main</code> function (<code class="code-inline">World::run(...)</code>) 23</p></td></tr><tr><td class="border border-neutral-300 dark:border-neutral-600 p-1.5" colspan="1" rowspan="1"><p><strong>State Management</strong></p></td><td class="border border-neutral-300 dark:border-neutral-600 p-1.5" colspan="1" rowspan="1"><p><code class="code-inline">rstest</code> fixtures; dependency injection model 1</p></td><td class="border border-neutral-300 dark:border-neutral-600 p-1.5" colspan="1" rowspan="1"><p>Mandatory <code class="code-inline">World</code> struct; a central state object per scenario 11</p></td></tr><tr><td class="border border-neutral-300 dark:border-neutral-600 p-1.5" colspan="1" rowspan="1"><p><strong>Step Discovery</strong></p></td><td class="border border-neutral-300 dark:border-neutral-600 p-1.5" colspan="1" rowspan="1"><p>Automatic via compile-time registration (<code class="code-inline">inventory</code>) and runtime matching</p></td><td class="border border-neutral-300 dark:border-neutral-600 p-1.5" colspan="1" rowspan="1"><p>Explicit collection in the test runner setup (<code class="code-inline">World::cucumber().steps(...)</code>) 37</p></td></tr><tr><td class="border border-neutral-300 dark:border-neutral-600 p-1.5" colspan="1" rowspan="1"><p><strong>Parameterization</strong></p></td><td class="border border-neutral-300 dark:border-neutral-600 p-1.5" colspan="1" rowspan="1"><p>Gherkin <code class="code-inline">Scenario Outline</code> maps to <code class="code-inline">rstest</code>'s <code class="code-inline">#[case]</code> parameterization 15</p></td><td class="border border-neutral-300 dark:border-neutral-600 p-1.5" colspan="1" rowspan="1"><p>Handled internally by the <code class="code-inline">cucumber</code> runner</p></td></tr><tr><td class="border border-neutral-300 dark:border-neutral-600 p-1.5" colspan="1" rowspan="1"><p><strong>Async Support</strong></p></td><td class="border border-neutral-300 dark:border-neutral-600 p-1.5" colspan="1" rowspan="1"><p>Runtime-agnostic via feature flags (e.g., <code class="code-inline">tokio</code>, <code class="code-inline">async-std</code>) which emit the appropriate test attribute (<code class="code-inline">#[tokio::test]</code>, etc.)</p></td><td class="border border-neutral-300 dark:border-neutral-600 p-1.5" colspan="1" rowspan="1"><p>Built-in; requires specifying an async runtime 11</p></td></tr><tr><td class="border border-neutral-300 dark:border-neutral-600 p-1.5" colspan="1" rowspan="1"><p><strong>Ecosystem</strong></p></td><td class="border border-neutral-300 dark:border-neutral-600 p-1.5" colspan="1" rowspan="1"><p>Seamless integration with <code class="code-inline">rstest</code> and <code class="code-inline">cargo</code> features</p></td><td class="border border-neutral-300 dark:border-neutral-600 p-1.5" colspan="1" rowspan="1"><p>Self-contained framework; can use any Rust library within steps</p></td></tr><tr><td class="border border-neutral-300 dark:border-neutral-600 p-1.5" colspan="1" rowspan="1"><p><strong>Ergonomics</strong></p></td><td class="border border-neutral-300 dark:border-neutral-600 p-1.5" colspan="1" rowspan="1"><p><code class="code-inline">pytest-bdd</code>-like; explicit <code class="code-inline">#[scenario]</code> binding links test code to features 6</p></td><td class="border border-neutral-300 dark:border-neutral-600 p-1.5" colspan="1" rowspan="1"><p><code class="code-inline">cucumber-jvm/js</code>-like; feature-driven, with a central test runner</p></td></tr><tr><td class="border border-neutral-300 dark:border-neutral-600 p-1.5" colspan="1" rowspan="1"><p><strong>Core Philosophy</strong></p></td><td class="border border-neutral-300 dark:border-neutral-600 p-1.5" colspan="1" rowspan="1"><p>BDD as an extension of the existing <code class="code-inline">rstest</code> framework</p></td><td class="border border-neutral-300 dark:border-neutral-600 p-1.5" colspan="1" rowspan="1"><p>A native Rust implementation of the Cucumber framework standard</p></td></tr></tbody>
+</table>
+
+### 3.5 Potential Extensions
+
+Based on the successful patterns of `pytest-bdd` and the needs of a growing Rust testing ecosystem, several extensions could be considered after the core functionality is implemented:
+
+- `scenarios!` **Macro:** To reduce boilerplate, a `scenarios!("path/to/features/")` macro could be introduced. This would automatically discover all `.feature` files in a directory and generate a test function for every `Scenario` found within them, mirroring `pytest-bdd`'s autogeneration feature.
+
+- **Diagnostic CLI:** A small helper utility, perhaps integrated as a cargo subcommand (`cargo bdd`), could provide diagnostic information. For example, `cargo bdd list-steps` could dump the entire registered step registry, helping developers find available steps and detect unused or duplicate definitions.
+
+- **Teardown Hooks:** While `rstest` fixtures handle teardown via `Drop`, more explicit post-scenario cleanup, especially in the case of a step panic, could be valuable. A feature like `#[fixture(after)]` could be explored, either within `rstest-bdd` or as a proposal to `rstest` itself, to attach teardown logic that is guaranteed to run after a scenario completes, regardless of its outcome.
+
+In conclusion, `rstest-bdd` is designed not to replace `cucumber` but to offer a compelling alternative for a different audience: developers who prioritize deep integration with Rust's native testing tools and want to unify their BDD and unit testing workflows under the powerful `rstest` umbrella.
+
+## **Works cited**
+
+ 1. A Complete Guide To Behavior-Driven Testing With Pytest BDD, accessed on July 20, 2025, <https://pytest-with-eric.com/bdd/pytest-bdd/>
+
+ 2. Understanding the differences between BDD & TDD - Cucumber, accessed on July 20, 2025, <https://cucumber.io/blog/bdd/bdd-vs-tdd/>
+
+ 3. Understanding Pytest BDD - BrowserStack, accessed on July 20, 2025, <https://www.browserstack.com/guide/pytest-bdd>
+
+ 4. rstest - [crates.io](http://crates.io): Rust Package Registry, accessed on July 20, 2025, <https://crates.io/crates/rstest/0.12.0>
+
+ 5. rstest - [crates.io](http://crates.io): Rust Package Registry, accessed on July 20, 2025, <https://crates.io/crates/rstest>
+
+ 6. Pytest-BDD: the BDD framework for pytest — pytest-bdd 8.1.0 documentation, accessed on July 20, 2025, <https://pytest-bdd.readthedocs.io/>
+
+ 7. Behavior-Driven Development: Python with Pytest BDD - [Testomat.io](http://Testomat.io), accessed on July 20, 2025, <https://testomat.io/blog/pytest-bdd/>
+
+ 8. Behavior-Driven Python with pytest-bdd - Test Automation University - Applitools, accessed on July 20, 2025, <https://testautomationu.applitools.com/behavior-driven-python-with-pytest-bdd/>
+
+ 9. Python Testing 101: pytest-bdd - Automation Panda, accessed on July 20, 2025, <https://automationpanda.com/2018/10/22/python-testing-101-pytest-bdd/>
+
+10. pytest-bdd - Read the Docs, accessed on July 20, 2025, <https://readthedocs.org/projects/pytest-bdd/downloads/pdf/latest/>
+
+11. Introduction - Cucumber Rust Book, accessed on July 20, 2025, <https://cucumber-rs.github.io/cucumber/main/>
+
+12. fixture in rstest - Rust - [Docs.rs](http://Docs.rs), accessed on July 20, 2025, <https://docs.rs/rstest/latest/rstest/attr.fixture.html>
+
+13. Scenario Outline in PyTest – BDD - QA Automation Expert, accessed on July 20, 2025, <https://qaautomation.expert/2024/04/11/scenario-outline-in-pytest-bdd/>
+
+14. Chapter 5 - Using Scenario Outlines - Test Automation University - Applitools, accessed on July 20, 2025, <https://testautomationu.applitools.com/behavior-driven-python-with-pytest-bdd/chapter5.html>
+
+15. How can I create parameterized tests in Rust? - Stack Overflow, accessed on July 20, 2025, <https://stackoverflow.com/questions/34662713/how-can-i-create-parameterized-tests-in-rust>
+
+16. Parameterize Tests in Rust: rstest - Qxf2 BLOG, accessed on July 20, 2025, <https://qxf2.com/blog/parameterize-tests-rust-part1/>
+
+17. la10736/rstest: Fixture-based test framework for Rust - GitHub, accessed on July 20, 2025, <https://github.com/la10736/rstest>
+
+18. Welcome to Pytest-BDD's documentation! — Pytest-BDD 4.1.0 documentation, accessed on July 20, 2025, <https://pytest-bdd.readthedocs.io/en/4.1.0/>
+
+19. pytest-bdd - PyPI, accessed on July 20, 2025, <https://pypi.org/project/pytest-bdd/>
+
+20. Procedural Macros - The Rust Reference, accessed on July 20, 2025, <https://doc.rust-lang.org/reference/procedural-macros.html>
+
+21. What is a good pattern to share state between procedural macros? : r/rust - Reddit, accessed on July 20, 2025, <https://www.reddit.com/r/rust/comments/1hwx3tn/what_is_a_good_pattern_to_share_state_between/>
+
+22. Crate local state for procedural macros? · Issue #44034 · rust-lang/rust - GitHub, accessed on July 20, 2025, <https://github.com/rust-lang/rust/issues/44034>
+
+23. Quickstart - Cucumber Rust Book, accessed on July 20, 2025, <https://cucumber-rs.github.io/cucumber/current/quickstart.html>
+
+24. inventory - Rust - [Docs.rs](http://Docs.rs), accessed on July 20, 2025, <https://docs.rs/inventory>
+
+25. inventory - [crates.io](http://crates.io): Rust Package Registry, accessed on July 20, 2025, <https://crates.io/crates/inventory>
+
+26. gherkin - [crates.io](http://crates.io): Rust Package Registry, accessed on July 20, 2025, <https://crates.io/crates/gherkin>
+
+27. gherkin - Rust - [Docs.rs](http://Docs.rs), accessed on July 20, 2025, <https://docs.rs/gherkin>
+
+28. Macro quote - Rust - [Docs.rs](http://Docs.rs), accessed on July 20, 2025, <https://docs.rs/quote/latest/quote/macro.quote.html>
+
+29. quote in quote - Rust, accessed on July 20, 2025, <https://jeltef.github.io/derive_more/quote/macro.quote.html>
+
+30. Shared Steps and Hooks with Pytest-BDD - LuizDeAguiar, accessed on July 20, 2025, <https://www.luizdeaguiar.com.br/2022/08/shared-steps-and-hooks-with-pytest-bdd/>
+
+31. Guide to Rust procedural macros | [developerlife.com](http://developerlife.com), accessed on July 20, 2025, <https://developerlife.com/2022/03/30/rust-proc-macro/>
+
+32. The Rust Macro System: Part 1 — An Introduction to Attribute Macros | by Alfred Weirich, accessed on July 20, 2025, <https://medium.com/@alfred.weirich/the-rust-macro-system-part-1-an-introduction-to-attribute-macros-73c963fd63ea>
+
+33. Cucumber testing framework for Rust. Fully native, no external test runners or dependencies. - GitHub, accessed on July 20, 2025, <https://github.com/cucumber-rs/cucumber>
+
+34. cucumber - Rust - [Docs.rs](http://Docs.rs), accessed on July 20, 2025, <https://docs.rs/cucumber>
+
+35. State | Cucumber, accessed on July 20, 2025, <https://cucumber.io/docs/cucumber/state/>
+
+36. World in cucumber - Rust - [Docs.rs](http://Docs.rs), accessed on July 20, 2025, <https://docs.rs/cucumber/latest/cucumber/trait.World.html>
+
+37. Cucumber in Rust - Beginner's Tutorial - Florianrein's Blog, accessed on July 20, 2025, <https://www.florianreinhard.de/cucumber-in-rust-beginners-tutorial/>

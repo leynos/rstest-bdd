@@ -1,0 +1,8 @@
+coverage:
+  status:
+    patch:
+      target: 80%
+    project:
+      threshold: 0.5%
+comment:
+  layout: "condensed_header, condensed_files, condensed_footer"

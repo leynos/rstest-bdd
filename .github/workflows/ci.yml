@@ -1,0 +1,38 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      CARGO_TERM_COLOR: always
+      BUILD_PROFILE: debug
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Rust
+        uses: leynos/shared-actions/.github/actions/setup-rust@v1.1.0
+      - name: Format
+        run: make check-fmt
+      - name: Lint
+        run: make lint
+      - name: Test
+        run: make test
+      - name: Install cargo-tarpaulin
+        run: cargo install cargo-tarpaulin
+      - name: Run coverage
+        run: cargo tarpaulin --out lcov
+      - name: Upload coverage data to CodeScene
+        if: ${{ secrets.CS_ACCESS_TOKEN }}
+        uses: leynos/shared-actions/.github/actions/upload-codescene-coverage@v1.1.0
+        with:
+          format: lcov
+          access-token: ${{ secrets.CS_ACCESS_TOKEN }}
+          installer-checksum: ${{ vars.CODESCENE_CLI_SHA256 }}
+
