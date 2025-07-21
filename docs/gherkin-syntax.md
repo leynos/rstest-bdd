@@ -128,9 +128,8 @@ Gherkin provides several additional keywords.
     When the search phrase "panda" is entered
     Then results for "panda" are shown
     And the related results include "Panda Express"
-    But the related results do not include "pandemonium"
-  
-  ```toml
+  But the related results do not include "pandemonium"
+```
 
 - `*` **(Asterisk)**: Gherkin also supports using an asterisk (`*`) as a
   substitute for any of the primary step keywords (`Given`, `When`, `Then`,
@@ -146,8 +145,7 @@ Gherkin provides several additional keywords.
     Given the user has an account
     * the user has a profile picture
     * the user has a bio
-  
-  ```toml
+```
 
 <!-- markdownlint-disable MD013 -->
 ### Table 1: Gherkin Keyword Reference
@@ -528,11 +526,10 @@ the team. This requires attention to documentation and consistent style.
   # Status: Confirmed
   # References:
   #   - [https://jira.example.com/browse/TICKET-123](https://jira.example.com/browse/TICKET-123)
-  
+
   Feature: User Data Security
    ...
-  
-  ```toml
+```
 
 - **Code Style and Formatting:** Consistent formatting is crucial for
   readability, especially in a collaborative environment.

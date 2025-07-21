@@ -267,20 +267,25 @@ other essential Gherkin constructs.
 
 ```gherkin
   Given the following users exist:
-  
-  | name | email |
+
+  | name  | email              |
   | Alice | alice@example.com |
-  | Bob | bob@example.com |
-  
-  Step Definition:rust
-  
-  #[given("the following users exist:")]
-  fn create_users(db_conn: &mut DbConnection, users_table: Vec
-  // ]
-  //... implementation to populate database..
-  }
-  
-  ```
+  | Bob   | bob@example.com   |
+```
+
+**Step definition (`tests/steps/create_users.rs`):**
+
+```rust
+#[given("the following users exist:")]
+fn create_users(
+    #[from(db)] conn: &mut DbConnection,
+    users_table: Vec<(String, String)>,
+) {
+    for (name, email) in users_table {
+        conn.insert_user(&name, &email);
+    }
+}
+```
 
 - **Docstrings:** A Gherkin docstring allows a larger block of multi-line text
   to be passed to a step. This will be provided as a `String` argument to the
@@ -393,26 +398,19 @@ location information for generating clear error messages.
 **crate):**
 
 ```rust
-
-// A simplified representation of the step metadata.\
-pub struct Step {\
-pub keyword: &'static str, // "Given", "When", or "Then"\
-pub pattern: &'static str, // The pattern string from the attribute, e.g., "I have {count} cucumbers"
-```
-
-// A type-erased function pointer. The actual implementation will handle\
-// passing the correct arguments (fixtures, step args) to the user's function.\
-pub run: fn(&mut rstest_bdd::Context),
-
-// Location info for better error messages.\
-pub file: &'static str,\
-pub line: u32,
-
-```rust
-
+// A simplified representation of the step metadata.
+pub struct Step {
+    pub keyword: &'static str, // "Given", "When", or "Then"
+    pub pattern: &'static str, // The pattern string from the attribute, e.g., "I have {count} cucumbers"
+    // A type-erased function pointer. The actual implementation will pass the
+    // correct arguments (fixtures, step args) to the user's function.
+    pub run: fn(&mut rstest_bdd::Context),
+    // Location info for better error messages.
+    pub file: &'static str,
+    pub line: u32,
 }
 
-// This macro call creates the global collection for 'Step' structs.\
+// This macro call creates the global collection for 'Step' structs.
 inventory::collect!(Step);
 ```
 
