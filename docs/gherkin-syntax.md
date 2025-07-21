@@ -67,8 +67,8 @@ follow a clear, logical progression: context, action, and outcome.
   serves as a free-form description. While this description is ignored by test
   automation tools during execution, it is often included in generated reports
   and serves as valuable documentation.6 A common convention is to use this
-  space for a user story narrative (e.g., "As a \[role\], I want \[feature\],
-  so that \[benefit\]").
+  space for a user story narrative (e.g., "As a \[role\], the [feature] is
+  desired, so that \[benefit\]").
 
 - `Scenario`: A `Feature` contains one or more `Scenarios`. A `Scenario`
   describes a single, concrete example of the feature's behavior—a specific use
@@ -183,14 +183,15 @@ efficient and expressive feature files.
 
 ### Section 2.1: Reducing Repetition with `Background`
 
-In many feature files, you may find that several scenarios share the exact same
-set of initial `Given` steps. For instance, multiple tests for an e-commerce
-site might all require the user to be logged in and have items in their cart.
-Repeating these steps in every scenario is inefficient and clutters the file.
+In many feature files, it is common to find that several scenarios share the
+exact same set of initial `Given` steps. For instance, multiple tests for an
+e-commerce site might all require the user to be logged in and have items in
+their cart. Repeating these steps in every scenario is inefficient and clutters
+the file.
 
-The `Background` keyword solves this problem by allowing you to define a set of
-`Given` steps that are common to all `Scenarios` within that `Feature` file.1
-These steps are automatically executed before each and every
+The `Background` keyword solves this problem by allowing definition of `Given`
+steps that are common to all `Scenarios` within that `Feature` file.1 These
+steps are automatically executed before each and every
 
 `Scenario` in the file, acting as a shared setup routine.15
 
@@ -229,20 +230,20 @@ While powerful, the Background keyword should be used judiciously.
   (e.g., creating a specific site ID), abstract them into a higher-level, more
   declarative step like `Given I am logged in as a site owner`.14
 
-- **Make it Vivid:** Use descriptive, colorful names and try to tell a coherent
+- **Make it Vivid:** Use descriptive, colourful names to tell a coherent
   story. The human brain remembers narratives better than abstract identifiers
   like "User A" or "Site 1".14
 
 ### Section 2.2: Data-Driven Testing with `Scenario Outline` and `Examples`
 
-Often, you need to test the same behavior with a variety of different inputs
-and expected outputs. For example, testing a login form requires checking valid
+Often, testing the same behavior requires a variety of different inputs and
+expected outputs. For example, testing a login form requires checking valid
 credentials, invalid passwords, invalid usernames, and empty fields. Writing a
 separate `Scenario` for each case would be highly repetitive.
 
 The `Scenario Outline` keyword is Gherkin's primary mechanism for data-driven
-testing. It allows you to define a scenario template that can be executed
-multiple times with different data sets.10
+testing. It allows a scenario template to be executed multiple times with
+different data sets.10
 
 **Syntax:**
 
@@ -284,7 +285,7 @@ numbers and expected results defined in the `Examples` table.
 ### Section 2.3: Passing Complex Data with `Data Tables`
 
 While a `Scenario Outline` is perfect for running an entire scenario with
-different data, sometimes you only need to pass a structured set of data to a
+different data, sometimes only a structured set of data needs to be passed to a
 *single step*. For example, a `Given` step might need to create multiple user
 accounts with different roles, or a `Then` step might need to verify the
 contents of a shopping cart.
@@ -315,12 +316,12 @@ maps) and use it to perform the necessary setup.22
 
 ### Section 2.4: Incorporating Block Text with `Doc Strings`
 
-Sometimes, the data you need to pass to a step is not a simple value or a
-structured table, but a larger, free-form block of text. This is common when
-working with APIs (JSON/XML payloads), email content, or snippets of code.
+Sometimes the data required by a step is not a simple value or structured
+table, but a larger, free-form block of text. This is common when working with
+APIs (JSON/XML payloads), email content, or snippets of code.
 
-`Doc Strings` are Gherkin's solution for this. A `Doc String` allows you to
-pass a multi-line string to a step definition.14
+`Doc Strings` are Gherkin's solution for this. A `Doc String` allows a
+multi-line string to be passed to a step definition.14
 
 Syntax:
 
@@ -342,7 +343,7 @@ Feature: API for creating blog posts
 ```
 
 In the step definition, the entire content of the `Doc String` is passed as a
-single string argument. Advanced Gherkin parsers also allow you to specify a
+single string argument. Advanced Gherkin parsers also allow specifying a
 content type (e.g., `"""json`) after the opening delimiter, which can help
 tools with syntax highlighting and parsing.14
 
@@ -398,9 +399,10 @@ the "how" of syntax to the "why" of effective specification.
 
 ### Section 3.1: Organizing and Filtering with `Tags`
 
-As a test suite grows, you will need a way to organize and selectively run
-subsets of your scenarios. You might want to run a quick "smoke test" suite, a
-full "regression" suite, or tests specific to a certain feature or environment.
+As a test suite grows, a method is needed to organize and selectively run
+subsets of scenarios. It might be desirable to run a quick "smoke test" suite,
+a full "regression" suite, or tests specific to a certain feature or
+environment.
 
 `Tags` are Gherkin's mechanism for this kind of organization. A tag is a simple
 annotation prefixed with an `@` symbol (e.g., `@smoke`, `@api`, `@ui`).10 Tags
@@ -447,7 +449,7 @@ They typically support boolean expressions, allowing for complex selections 21:
 
 **Best Practices for Tags:**
 
-- **Standardize:** Agree on a standard set of tag names within your team to
+- **Standardize:** Agree on a standard set of tag names within the team to
   ensure consistency.
 
 - **Formatting:** Use lowercase for tag names and separate words with hyphens
@@ -561,22 +563,22 @@ Getting started with `pytest-bdd` is straightforward for anyone familiar with
 Python's package management.
 
 - **Installation:** The necessary packages can be installed via `pip`. At a
-  minimum, you will need `pytest` and `pytest-bdd`.
+  minimum, the packages `pytest` and `pytest-bdd` are required.
 
 ```bash
   pip install pytest pytest-bdd
   
   ```
 
-  For web UI testing, you would also typically install `selenium` and
-  potentially other helper libraries.28
+  For web UI testing, `selenium` and potentially other helper libraries are
+  typically installed.28
 
 - **Directory Structure:** A conventional project structure helps keep tests
   organized:
 
-  - `features/`: This directory contains all your Gherkin `.feature` files.
+  - `features/`: This directory contains all Gherkin `.feature` files.
 
-  - `tests/`: This directory holds your Python test code.
+  - `tests/`: This directory holds Python test code.
 
     - `step_defs/`: It is a common practice to create a subdirectory within
       `tests/` to store the step definition files (e.g., `test_login.py`). This
@@ -612,7 +614,7 @@ decorators.
   step is mapped to a Python function using a corresponding decorator:
   `@given`, `@when`, or `@then`. The string argument passed to the decorator
   must exactly match the text of the step in the `.feature` file.28 For
-  readability and maintainability, you can create step aliases by stacking
+  readability and maintainability, step aliases can be created by stacking
   multiple decorators on a single function, allowing different Gherkin phrases
   to execute the same code.30
 
@@ -711,8 +713,9 @@ def final_balance_is_correct(bank_account, final_balance):
 `pytest-bdd` provides robust mechanisms for handling data passed from Gherkin
 steps.
 
-- **Step Parsers:** To extract parameters from a step's text, you use a parser
-  within the step decorator. `pytest-bdd` offers several options, including
+- **Step Parsers:** Parameters can be extracted from a step's text using a
+  parser within the step decorator. `pytest-bdd` offers several options,
+  including
   `parse` (for `string.format()` style), `cfparse` (a more powerful variant),
   and `re` (for regular expressions). The `parse` and `cfparse` styles, which
   use `{name:Type}` syntax, are generally preferred for their readability.34
@@ -748,10 +751,10 @@ and establishing a conventional directory structure.
 
 - `Cargo.toml` **Configuration:**
 
-  1. Add `cucumber` and an async runtime like `tokio` to your
+  1. Add `cucumber` and an async runtime such as `tokio` to the
      `[dev-dependencies]`.
 
-  1. Define a new test target in your `Cargo.toml`. Crucially, you must set
+  1. Define a new test target in the `Cargo.toml`. Crucially, set
      `harness = false`. This tells Rust's default test harness (`libtest`) to
      stand down, allowing `cucumber-rs` to take control of the test execution
      and output formatting.37
@@ -792,10 +795,10 @@ the `World`.
   mutable state for a single scenario. A new instance of the `World` is created
   for each scenario, ensuring that tests are isolated from one another.37
 
-- **Implementation:** To be used by the framework, your struct must derive or
+- **Implementation:** To be used by the framework, the struct must derive or
   implement the `cucumber::World` trait. The framework will then use
   `Default::default()` to create a new `World` for each scenario. If more
-  complex initialization is needed, you can specify a custom constructor using
+  complex initialization is needed, a custom constructor can be specified using
   the `#[world(init =...)]` attribute.35
 
 ```rust
