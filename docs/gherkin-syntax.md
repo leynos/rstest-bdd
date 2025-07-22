@@ -11,38 +11,38 @@ behave from the perspectives of developers, testers, and business stakeholders.
 At the heart of this process lies a critical challenge: communication. Gherkin
 was created to solve this challenge. It is not merely a testing syntax; it is a
 structured, natural language designed to be the definitive, single source of
-truth for a system's behavior.1
+truth for a system's behavior.[^1]
 
 ### Section 1.1: Gherkin as the Cornerstone of BDD
 
 Gherkin is a Domain-Specific Language (DSL) that functions as a "communication
 tool," bridging the often-significant gap between technical teams and
-non-technical business stakeholders.3 Its primary role within the BDD lifecycle
-is to enable the creation of "executable specifications".3 These
+non-technical business stakeholders.[^3] Its primary role within the BDD
+lifecycle is to enable the creation of "executable specifications".[^3] These
 specifications, written in a plain-text, human-readable format, serve a dual
 purpose: they act as living documentation for the project's features and as
-automated tests that verify those features are implemented correctly.6
+automated tests that verify those features are implemented correctly.[^6]
 
 This duality creates a powerful "closed loop" feedback system. Business
 requirements, articulated in Gherkin, are directly linked to the code that
-implements them.8 When a test passes, it provides concrete, verifiable proof
+implements them.[^8] When a test passes, it provides concrete, verifiable proof
 that the corresponding requirement has been met. This ensures that development
 work remains aligned with business goals and that the documentation never
-becomes stale, as it is continuously validated against the running software.1
+becomes stale, as it is continuously validated against the running software.[^1]
 
 The effectiveness of Gherkin, however, is not guaranteed by its syntax alone.
 Its value is directly proportional to the level of collaboration within the
 team. The language is designed to facilitate conversations among the "Three
 Amigos"—the business analyst, the developer, and the tester—who bring their
-unique perspectives to the process of defining behavior.4 When these
+unique perspectives to the process of defining behavior.[^4] When these
 stakeholders actively participate in writing, reviewing, and refining Gherkin
 specifications, the team builds a robust, shared understanding of the system's
 requirements before a single line of implementation code is written.
 
 Conversely, when this collaborative cycle is neglected, Gherkin can become an
-"unnecessary burden".11 If business stakeholders do not read or contribute to
-the feature files, the primary benefit of a business-readable format is lost.
-Developers and QA engineers are left with an additional layer of
+"unnecessary burden".[^11] If business stakeholders do not read or contribute
+to the feature files, the primary benefit of a business-readable format is
+lost. Developers and QA engineers are left with an additional layer of
 abstraction—translating tests from a constrained natural-language format into
 code—without the collaborative payoff. Therefore, the decision to adopt Gherkin
 is fundamentally a cultural and process-oriented one. Its success hinges on the
@@ -51,9 +51,9 @@ entire team's commitment to the BDD collaborative cycle.
 ### Section 1.2: The Anatomy of a `.feature` File
 
 All Gherkin specifications are stored in plain-text files with a `.feature`
-extension.1 As a best practice, each file should focus on describing a single,
-cohesive software feature.13 The structure of these files is defined by a set
-of keywords that give meaning to each line.
+extension.[^1] As a best practice, each file should focus on describing a
+single, cohesive software feature.[^13] The structure of these files is defined
+by a set of keywords that give meaning to each line.
 
 The core structure of any Gherkin test revolves around describing a specific
 example of behavior. This is accomplished through a sequence of steps that
@@ -61,51 +61,51 @@ follow a clear, logical progression: context, action, and outcome.
 
 - `Feature`: Every `.feature` file must begin with the `Feature` keyword. This
   keyword provides a high-level name and description for the functionality
-  being tested.6 The text following the
+  being tested.[^6] The text following the
 
   `Feature` keyword, up to the first `Scenario` or other structural keyword,
   serves as a free-form description. While this description is ignored by test
   automation tools during execution, it is often included in generated reports
-  and serves as valuable documentation.6 A common convention is to use this
+  and serves as valuable documentation.[^6] A common convention is to use this
   space for a user story narrative (e.g., "As a \[role\], the [feature] is
   desired, so that \[benefit\]").
 
 - `Scenario`: A `Feature` contains one or more `Scenarios`. A `Scenario`
   describes a single, concrete example of the feature's behavior—a specific use
-  case or test case.1 Each
+  case or test case.[^1] Each
 
-  `Scenario` should be independent and test one, and only one, behavior.13 This
-  focus is crucial for clarity and maintenance; when a test fails, it should
-  point to a single, specific piece of broken functionality.
+  `Scenario` should be independent and test one, and only one, behavior.[^13]
+  This focus is crucial for clarity and maintenance; when a test fails, it
+  should point to a single, specific piece of broken functionality.
 
 - `Given`: This keyword sets the initial context or preconditions for a
   `Scenario`. It describes the state of the world *before* the main event of
-  the scenario occurs.1 A
+  the scenario occurs.[^1] A
 
   `Given` step should put the system into a known state, such as preparing test
-  data in a database or ensuring a user is logged in.9 Best practices strongly
-  advise against describing user interactions in
+  data in a database or ensuring a user is logged in.[^9] Best practices
+  strongly advise against describing user interactions in
 
-  `Given` steps; they are about establishing the scene, not the action.9
+  `Given` steps; they are about establishing the scene, not the action.[^9]
 
 - `When`: This keyword describes an event or an action. This is typically an
   interaction performed by a user (e.g., "the user clicks the login button") or
-  an event triggered by an external system.1 To maintain the "one behavior per
-  scenario" rule, it is highly recommended to have only a single
+  an event triggered by an external system.[^1] To maintain the "one behavior
+  per scenario" rule, it is highly recommended to have only a single
 
-  `When` step in each `Scenario`.9 This step represents the pivotal action that
-  the scenario is designed to test.
+  `When` step in each `Scenario`.[^9] This step represents the pivotal action
+  that the scenario is designed to test.
 
 - `Then`: This keyword defines the expected outcome or result of the action
   described in the `When` step. The code that implements a `Then` step (the
   "step definition") must contain assertions to verify that the actual outcome
-  matches the expected outcome.1 A critical best practice is to ensure this
+  matches the expected outcome.[^1] A critical best practice is to ensure this
   outcome is observable from the user's perspective, such as a message on the
   screen or a change in the UI state. Verifying internal system states, like a
   database record, directly in a
 
   `Then` step is discouraged because it couples the test to implementation
-  details rather than observable behavior.9
+  details rather than observable behavior.[^9]
 
 ### Section 1.3: Enhancing Readability and Flow
 
@@ -114,10 +114,10 @@ Gherkin provides several additional keywords.
 
 - `And`, `But`: When a `Scenario` requires multiple preconditions, actions,
   or outcomes, the `And` and `But` keywords are used to chain steps together
-  without repeating `Given`, `When`, or `Then`.9 These keywords are
+  without repeating `Given`, `When`, or `Then`.[^9] These keywords are
   syntactically interchangeable and carry no special automation logic; their
   purpose is purely to improve the narrative flow and structure of the
-  scenario.18
+  scenario.[^18]
 
   `But` is often used to express a negative condition, which can enhance
   readability.
@@ -133,12 +133,12 @@ Gherkin provides several additional keywords.
 
 - `*` **(Asterisk)**: Gherkin also supports using an asterisk (`*`) as a
   substitute for any of the primary step keywords (`Given`, `When`, `Then`,
-  `And`, `But`).14 This can be particularly useful when a scenario involves a
-  list of items or conditions, as it can read more like a set of bullet points
-  than a narrative sequence. The asterisk inherits the context of the preceding
-  keyword. For example, if it follows a
+  `And`, `But`).[^14] This can be particularly useful when a scenario involves
+  a list of items or conditions, as it can read more like a set of bullet
+  points than a narrative sequence. The asterisk inherits the context of the
+  preceding keyword. For example, if it follows a
 
-  `Given`, it is treated as another `Given` step.19
+  `Given`, it is treated as another `Given` step.[^19]
 
 ```gherkin
   Scenario: Setting up a user profile
@@ -190,10 +190,10 @@ their cart. Repeating these steps in every scenario is inefficient and clutters
 the file.
 
 The `Background` keyword solves this problem by allowing definition of `Given`
-steps that are common to all `Scenarios` within that `Feature` file.1 These
+steps that are common to all `Scenarios` within that `Feature` file.[^1] These
 steps are automatically executed before each and every
 
-`Scenario` in the file, acting as a shared setup routine.15
+`Scenario` in the file, acting as a shared setup routine.[^15]
 
 ```gherkin
 Feature: User profile management
@@ -220,7 +220,7 @@ While powerful, the Background keyword should be used judiciously.
 - **Keep it Short and Relevant:** A `Background` should only contain steps that
   are truly essential for *all* scenarios in the feature. If a setup step is
   only needed for a subset of scenarios, it belongs in their respective `Given`
-  sections.9 A good rule of thumb is to keep the
+  sections.[^9] A good rule of thumb is to keep the
 
   `Background` under four lines long.14.
 
@@ -228,11 +228,11 @@ While powerful, the Background keyword should be used judiciously.
   used to set up complex states that are not immediately obvious to someone
   reading the scenarios. If the details are irrelevant to the business user
   (e.g., creating a specific site ID), abstract them into a higher-level, more
-  declarative step like `Given I am logged in as a site owner`.14
+  declarative step like `Given I am logged in as a site owner`.[^14]
 
 - **Make it Vivid:** Use descriptive, colourful names to tell a coherent
   story. The human brain remembers narratives better than abstract identifiers
-  like "User A" or "Site 1".14
+  like "User A" or "Site 1".[^14]
 
 ### Section 2.2: Data-Driven Testing with `Scenario Outline` and `Examples`
 
@@ -243,22 +243,22 @@ separate `Scenario` for each case would be highly repetitive.
 
 The `Scenario Outline` keyword is Gherkin's primary mechanism for data-driven
 testing. It allows a scenario template to be executed multiple times with
-different data sets.10
+different data sets.[^10]
 
 **Syntax:**
 
 1. Replace the `Scenario` keyword with `Scenario Outline`.
 
 2. In the steps, use angle brackets (`< >`) to define placeholders for
-   variables.13
+   variables.[^13]
 
 3. Follow the `Scenario Outline` with an `Examples` table. The first row of
    this table is the header, and its column names must exactly match the
-   variable names used in the steps.20
+   variable names used in the steps.[^20]
 
 The test runner will execute the entire scenario once for each data row in the
 `Examples` table, substituting the placeholder variables with the values from
-that row.16
+that row.[^16]
 
 ```gherkin
 Feature: Calculator Addition
@@ -291,7 +291,7 @@ accounts with different roles, or a `Then` step might need to verify the
 contents of a shopping cart.
 
 `Data Tables` provide a way to pass a table of data directly to a step
-definition.14 They are defined using pipe (
+definition.[^14] They are defined using pipe (
 
 `|`) delimiters immediately below the step they belong to.
 
@@ -312,7 +312,7 @@ Unlike an `Examples` table, this `Data Table` does not cause the scenario to
 run multiple times. Instead, the entire table is passed as a single argument to
 the step definition for "Given the following users exist in the system:". The
 automation code can then parse this table (often as a list of lists or list of
-maps) and use it to perform the necessary setup.22
+maps) and use it to perform the necessary setup.[^22]
 
 ### Section 2.4: Incorporating Block Text with `Doc Strings`
 
@@ -321,12 +321,13 @@ table, but a larger, free-form block of text. This is common when working with
 APIs (JSON/XML payloads), email content, or snippets of code.
 
 `Doc Strings` are Gherkin's solution for this. A `Doc String` allows a
-multi-line string to be passed to a step definition.14
+multi-line string to be passed to a step definition.[^14]
 
 Syntax:
 
 The text block is enclosed by a pair of triple double-quotes (""") or triple
-backticks (\`\`\`\`\`\`) on their own lines, immediately following the step.14
+backticks (\`\`\`\`\`\`) on their own lines, immediately following the
+step.[^14]
 
 ```gherkin
 Feature: API for creating blog posts
@@ -345,18 +346,18 @@ Feature: API for creating blog posts
 In the step definition, the entire content of the `Doc String` is passed as a
 single string argument. Advanced Gherkin parsers also allow specifying a
 content type (e.g., `"""json`) after the opening delimiter, which can help
-tools with syntax highlighting and parsing.14
+tools with syntax highlighting and parsing.[^14]
 
 ### Section 2.5: Grouping with the `Rule` Keyword
 
 As a `Feature` grows more complex, a flat list of scenarios can become
 difficult to navigate. To provide an additional layer of organization, Gherkin
-version 6 introduced the `Rule` keyword.14
+version 6 introduced the `Rule` keyword.[^14]
 
 The purpose of the `Rule` keyword is to group a set of related scenarios that
 together represent a single, specific business rule that the system must
-enforce.9 This is particularly useful for features that have distinct sets of
-business logic.
+enforce.[^9] This is particularly useful for features that have distinct sets
+of business logic.
 
 ```gherkin
 Feature: Bank account withdrawals
@@ -405,11 +406,11 @@ a full "regression" suite, or tests specific to a certain feature or
 environment.
 
 `Tags` are Gherkin's mechanism for this kind of organization. A tag is a simple
-annotation prefixed with an `@` symbol (e.g., `@smoke`, `@api`, `@ui`).10 Tags
-can be placed above
+annotation prefixed with an `@` symbol (e.g., `@smoke`, `@api`, `@ui`).[^10]
+Tags can be placed above
 
 `Feature`, `Scenario`, `Scenario Outline`, or even specific `Examples` tables
-to categorize them.14 A single element can have multiple tags.
+to categorize them.[^14] A single element can have multiple tags.
 
 ```gherkin
 @login @smoke
@@ -453,7 +454,7 @@ They typically support boolean expressions, allowing for complex selections 21:
   ensure consistency.
 
 - **Formatting:** Use lowercase for tag names and separate words with hyphens
-  (e.g., `@work-in-progress`) for readability.13
+  (e.g., `@work-in-progress`) for readability.[^13]
 
 ### Section 3.2: The Art of Writing Good Gherkin
 
@@ -463,13 +464,13 @@ practices is the use of a **declarative style** over an imperative one.
 
 An imperative style describes the mechanics of an interaction—the "how." It
 focuses on implementation details like clicking buttons, filling in text
-fields, or navigating to URLs.17
+fields, or navigating to URLs.[^17]
 
 - **Imperative (Avoid):** `When I type "user@example.com" into the "email"
   field and click the "submit" button`
 
 A declarative style describes the user's intent and the system's behavior—the
-"what." It abstracts away the implementation details.24
+"what." It abstracts away the implementation details.[^24]
 
 - **Declarative (Prefer):** `When the user logs in with valid credentials`
 
@@ -480,28 +481,29 @@ Declarative tests are more resilient because the implementation of "logging in"
 can change (from a UI flow to a direct API call) without requiring any
 modification to the Gherkin specification itself. This makes the feature file a
 true piece of "living documentation" that describes business value, not a
-fragile script of UI interactions.24
+fragile script of UI interactions.[^24]
 
 Building on this philosophy, several other rules contribute to high-quality
 Gherkin:
 
 - **The Cardinal Rule: One Scenario, One Behavior:** Each scenario should test
-  a single, focused business rule or use case.13 If a scenario contains multiple
+  a single, focused business rule or use case.[^13] If a scenario contains
+  multiple
 
   `When-Then` pairs, it is likely testing multiple behaviors and should be
-  split into separate, more focused scenarios.13 This makes tests easier to
+  split into separate, more focused scenarios.[^13] This makes tests easier to
   understand and debug.
 
 - **Conciseness and Clarity:** Keep scenarios short and to the point. A good
   rule of thumb is to aim for fewer than 10 steps, with 5 or fewer being
-  ideal.13 Similarly, feature files should not become monolithic; a dozen
-  scenarios per file is a reasonable guideline.13
+  ideal.[^13] Similarly, feature files should not become monolithic; a dozen
+  scenarios per file is a reasonable guideline.[^13]
 
 - **Precise Language:** Use clear, unambiguous language that is part of the
-  project's shared domain vocabulary. Avoid technical jargon.10 Steps should be
-  written as complete subject-predicate action phrases (e.g., "the user enters
-  a search term") and consistently use the present tense to maintain a clear
-  narrative.13
+  project's shared domain vocabulary. Avoid technical jargon.[^10] Steps should
+  be written as complete subject-predicate action phrases (e.g., "the user
+  enters a search term") and consistently use the present tense to maintain a
+  clear narrative.[^13]
 
 ### Section 3.3: Documentation and Maintenance
 
@@ -510,8 +512,8 @@ the team. This requires attention to documentation and consistent style.
 
 - **Comments (`#`):** Gherkin supports single-line comments, which begin with a
   hash sign (`#`). These are intended for developers or other technical readers
-  and are completely ignored by test runners.14 Gherkin does not have a syntax
-  for multi-line block comments; each line of a comment block must be
+  and are completely ignored by test runners.[^14] Gherkin does not have a
+  syntax for multi-line block comments; each line of a comment block must be
   individually prefixed with `#`.14.
 
 - **YAML Comments (An Advanced Technique):** For more structured metadata that
@@ -519,7 +521,7 @@ the team. This requires attention to documentation and consistent style.
   stories, ticket IDs, or security classifications—a useful pattern is to use
   YAML-formatted comments at the top of a feature file. This keeps the metadata
   organized, human-readable, and potentially parsable by external reporting or
-  analysis tools.27
+  analysis tools.[^27]
 
 ```gherkin
   # Id: TICKET-123
@@ -535,15 +537,15 @@ the team. This requires attention to documentation and consistent style.
   readability, especially in a collaborative environment.
 
   - **Indentation:** Use a consistent indentation style. Two spaces is the
-    recommended standard.13
+    recommended standard.[^13]
 
   - **Spacing:** Use blank lines to separate scenarios, and ensure consistent
     spacing around pipe (`|`) delimiters in tables to make them align
-    visually.13
+    visually.[^13]
 
   - **Capitalization:** Capitalize Gherkin keywords (`Given`, `When`, `Then`)
     and the first word of titles, but not other words in step phrases unless
-    they are proper nouns.13
+    they are proper nouns.[^13]
 
 ______________________________________________________________________
 
@@ -553,7 +555,7 @@ ______________________________________________________________________
 standalone test runner but a powerful plugin for the `pytest` framework. This
 design choice allows it to seamlessly integrate with and leverage the entire
 `pytest` ecosystem, including its renowned fixture system, extensive plugin
-library, and robust test execution capabilities.22
+library, and robust test execution capabilities.[^22]
 
 ### Section 4.1: Project Setup and Configuration
 
@@ -569,7 +571,7 @@ Python's package management.
   ```
 
   For web UI testing, `selenium` and potentially other helper libraries are
-  typically installed.28
+  typically installed.[^28]
 
 - **Directory Structure:** A conventional project structure helps keep tests
   organized:
@@ -592,11 +594,12 @@ decorators.
   a `.feature` file and a Python test file. It decorates a Python function,
   telling `pytest` that this function represents a specific Gherkin scenario.
   The decorator takes the path to the `.feature` file and the name of the
-  `Scenario` as arguments.29 The decorated function itself often contains just a
+  `Scenario` as arguments.[^29] The decorated function itself often contains
+  just a
 
   `pass` statement or a final, high-level assertion, as its main purpose is to
   act as a collector for the steps and to be discoverable by the `pytest`
-  runner.31
+  runner.[^31]
 
 ```python
   # tests/step_defs/test_publish_article.py
@@ -611,10 +614,10 @@ decorators.
 - **Step Decorators (**`@given`**,** `@when`**,** `@then`**):** Each Gherkin
   step is mapped to a Python function using a corresponding decorator:
   `@given`, `@when`, or `@then`. The string argument passed to the decorator
-  must exactly match the text of the step in the `.feature` file.28 For
+  must exactly match the text of the step in the `.feature` file.[^28] For
   readability and maintainability, step aliases can be created by stacking
   multiple decorators on a single function, allowing different Gherkin phrases
-  to execute the same code.30
+  to execute the same code.[^30]
 
 ```python
   from pytest_bdd import given, when, then
@@ -642,14 +645,15 @@ One of the most significant and powerful aspects of `pytest-bdd` is its
 approach to state management. Unlike many traditional Cucumber tools that use a
 mutable "World" or "Context" object that is passed between steps, `pytest-bdd`
 eschews this pattern. Instead, it fully embraces the idiomatic `pytest` fixture
-system for managing and sharing state between steps.32 This represents a
+system for managing and sharing state between steps.[^32] This represents a
 philosophical shift from explicit state passing to implicit dependency
 injection.
 
 In this model, `Given` steps act as fixture factories. A function decorated
 with `@given` can return a value. By using the `target_fixture` argument in the
 decorator, this return value is injected into the `pytest` context as a named
-fixture, available exclusively for the duration of that scenario.31 Subsequent
+fixture, available exclusively for the duration of that scenario.[^31]
+Subsequent
 
 `When` and `Then` steps can then access this state simply by declaring a
 function argument with the same name as the target fixture. `pytest` handles
@@ -716,21 +720,21 @@ steps.
   including `parse` (for `string.format()` style), `cfparse` (a more powerful
   variant), and `re` (for regular expressions). The `parse` and `cfparse`
   styles, which use `{name:Type}` syntax, are generally preferred for their
-  readability.34
+  readability.[^34]
 
 - `Scenario Outline` **Parameters:** When using a `Scenario Outline`, the
   values from the `Examples` table are automatically parsed and passed as
   arguments to the corresponding step functions. Their names must match the
-  headers in the `Examples` table.34
+  headers in the `Examples` table.[^34]
 
 - `Data Tables`**:** A step definition function can access a `Data Table` by
   including a special argument named `datatable`. `pytest-bdd` will inject the
   table's content into this argument as a list of lists, where each inner list
-  represents a row.22
+  represents a row.[^22]
 
 - `Doc Strings`**:** Similarly, a `Doc String` can be accessed by including a
   special argument named `docstring`. This argument will receive the entire
-  block text as a single, multi-line string.22
+  block text as a single, multi-line string.[^22]
 
 ______________________________________________________________________
 
@@ -740,7 +744,7 @@ For developers in the Rust ecosystem, `cucumber-rs` provides a native,
 idiomatic implementation of a Cucumber test runner. Unlike `pytest-bdd`, it is
 a self-contained framework designed from the ground up for Rust, with
 first-class support for `async` programming and a strong emphasis on type
-safety.35
+safety.[^35]
 
 ### Section 5.1: Project Setup in the Rust Ecosystem
 
@@ -755,7 +759,7 @@ and establishing a conventional directory structure.
   1. Define a new test target in the `Cargo.toml`. Crucially, set
      `harness = false`. This tells Rust's default test harness (`libtest`) to
      stand down, allowing `cucumber-rs` to take control of the test execution
-     and output formatting.37
+     and output formatting.[^37]
 
   Ini, TOML
 
@@ -791,13 +795,13 @@ the `World`.
 
 - **Core Concept:** The `World` is a user-defined struct that holds all the
   mutable state for a single scenario. A new instance of the `World` is created
-  for each scenario, ensuring that tests are isolated from one another.37
+  for each scenario, ensuring that tests are isolated from one another.[^37]
 
 - **Implementation:** To be used by the framework, the struct must derive or
   implement the `cucumber::World` trait. The framework will then use
   `Default::default()` to create a new `World` for each scenario. If more
   complex initialization is needed, a custom constructor can be specified using
-  the `#[world(init =...)]` attribute.35
+  the `#[world(init =...)]` attribute.[^35]
 
 ```rust
   // tests/cucumber_tests.rs
@@ -818,10 +822,10 @@ well-suited for testing applications involving I/O operations like database
 queries or web requests.
 
 - **Attribute Macros:** Gherkin steps are linked to Rust functions using the
-  `#[given]`, `#[when]`, and `#[then]` attribute macros.35
+  `#[given]`, `#[when]`, and `#[then]` attribute macros.[^35]
 
   `cucumber-rs` enforces a stricter separation of these step types than some
-  other Cucumber implementations to prevent ambiguity.41
+  other Cucumber implementations to prevent ambiguity.[^41]
 
 - **Async Functions:** Step definition functions are typically `async` and are
   executed by the async runtime specified in the test runner (e.g., `tokio`).
@@ -829,7 +833,7 @@ queries or web requests.
 - **Function Signature:** Every step definition function must take a mutable
   reference to the `World` struct (`&mut MyWorld`) as its first argument. This
   is how steps read and modify the shared state of the scenario. Any parameters
-  parsed from the step string follow this `World` argument.35
+  parsed from the step string follow this `World` argument.[^35]
 
 ```rust
   // tests/steps/calculator_steps.rs
@@ -862,13 +866,13 @@ into Rust types.
   either regular expressions (`regex = "..."`) or Cucumber Expressions
   (`expr = "..."`) specified in the attribute macro. The framework handles the
   conversion to the corresponding Rust type in the function signature (e.g.,
-  `{float}` maps to `f64`).35
+  `{float}` maps to `f64`).[^35]
 
 - **Accessing** `Data Tables` **and** `Doc Strings`**:** To access a
   `Data Table` or `Doc String` attached to a step, the step definition function
   must include an argument of type `&cucumber::gherkin::Step`. The table or doc
   string can then be accessed as an `Option` on this `Step` object:
-  `step.table` or `step.docstring`.40
+  `step.table` or `step.docstring`.[^40]
 
   **Feature File (**`user_creation.feature`**):**
 
@@ -901,7 +905,7 @@ into Rust types.
   ```
 
   The same principle applies to `Data Tables`, where `step.table.as_ref()`
-  would be used to access the table data, which can then be iterated over.42
+  would be used to access the table data, which can then be iterated over.[^42]
 
 ______________________________________________________________________
 
@@ -924,13 +928,13 @@ BDD capabilities into the vast and mature `pytest` world. Its greatest strength
 is this very integration; it allows developers to reuse fixtures, leverage
 thousands of plugins for tasks like parallelization (`pytest-xdist`) and
 reporting (`pytest-html`), and manage BDD scenarios as just another type of
-`pytest` test.31
+`pytest` test.[^31]
 
 `cucumber-rs`, on the other hand, is a self-contained framework that provides
 its own test runner and ecosystem. Its strength lies in its idiomatic Rust
 implementation, featuring first-class `async` support and a strong, type-safe
-approach to state management via the `World` pattern.35 A Python team already
-invested in the
+approach to state management via the `World` pattern.[^35] A Python team
+already invested in the
 
 `pytest` ecosystem will find `pytest-bdd` to be a natural and powerful
 extension. A Rust team will likely prefer the purpose-built, type-safe, and
@@ -957,13 +961,13 @@ developers should be aware of specific implementation details that can act as
   implements a *subset* of Gherkin. It has intentionally removed support for
   older or less common features like vertical `Examples` tables and
   `Feature`-level examples, focusing on compatibility with the latest core
-  Gherkin developments.30 Teams migrating from other tools may find that
+  Gherkin developments.[^30] Teams migrating from other tools may find that
   certain syntax is no longer supported.
 
 - **Step Type Strictness:** `cucumber-rs` intentionally enforces a stricter
   separation between `given`, `when`, and `then` step types than the official
   Cucumber implementation. This is a design choice to prevent ambiguity, for
-  example, by disallowing a `then` step from being used as a `given` step.41
+  example, by disallowing a `then` step from being used as a `given` step.[^41]
   While this promotes clearer scenarios, it can be a surprise for those
   accustomed to more lenient frameworks.
 
@@ -979,7 +983,7 @@ developers should be aware of specific implementation details that can act as
 
 Gherkin's syntax is deceptively simple. The true challenge and reward of
 adopting it lie not in memorizing keywords but in embracing the collaborative,
-behavior-first mindset it is designed to foster.8 When used effectively,
+behavior-first mindset it is designed to foster.[^8] When used effectively,
 Gherkin transforms testing from a purely technical, after-the-fact verification
 activity into an integral part of the requirements and design process.
 
