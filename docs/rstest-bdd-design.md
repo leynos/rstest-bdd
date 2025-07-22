@@ -449,7 +449,7 @@ fn given_i_am_a_user(mut user_context: UserContext) { /\*... \*/ }
 
 ```rust
 
-# 
+#
 
 fn test_my_scenario(my_fixture: MyFixture) { /\* final assertion \*/ }
 ```
@@ -730,93 +730,45 @@ and unit testing workflows under the powerful `rstest` umbrella.
 
 ## **Works cited**
 
-1. A Complete Guide To Behavior-Driven Testing With Pytest BDD, accessed on
-    July 20, 2025, <https://pytest-with-eric.com/bdd/pytest-bdd/>
-2. Understanding the differences between BDD & TDD - Cucumber, accessed on
-    July 20, 2025, <https://cucumber.io/blog/bdd/bdd-vs-tdd/>
-3. Understanding Pytest BDD - BrowserStack, accessed on July 20, 2025,
-    <https://www.browserstack.com/guide/pytest-bdd>
-4. rstest - [crates.io](http://crates.io): Rust Package Registry, accessed on
-    July 20, 2025, <https://crates.io/crates/rstest/0.12.0>
-5. rstest - [crates.io](http://crates.io): Rust Package Registry, accessed on
-    July 20, 2025, <https://crates.io/crates/rstest>
-6. Pytest-BDD: the BDD framework for pytest — pytest-bdd 8.1.0 documentation,
-    accessed on July 20, 2025, <https://pytest-bdd.readthedocs.io/>
-7. Behavior-Driven Development: Python with Pytest BDD -
-    [Testomat.io](http://Testomat.io), accessed on July 20, 2025,
-    <https://testomat.io/blog/pytest-bdd/>
-8. Behavior-Driven Python with pytest-bdd - Test Automation University -
-    Applitools, accessed on July 20, 2025,
-    <https://testautomationu.applitools.com/behavior-driven-python-with-pytest-bdd/>
-9. Python Testing 101: pytest-bdd - Automation Panda, accessed on July 20,
-    2025,
-    <https://automationpanda.com/2018/10/22/python-testing-101-pytest-bdd/>
-10. pytest-bdd - Read the Docs, accessed on July 20, 2025,
-    <https://readthedocs.org/projects/pytest-bdd/downloads/pdf/latest/>
-11. Introduction - Cucumber Rust Book, accessed on July 20, 2025,
-    <https://cucumber-rs.github.io/cucumber/main/>
-12. fixture in rstest - Rust - [Docs.rs](http://Docs.rs), accessed on July 20,
-    2025, <https://docs.rs/rstest/latest/rstest/attr.fixture.html>
-13. Scenario Outline in PyTest – BDD - QA Automation Expert, accessed on July
-    20, 2025,
-    <https://qaautomation.expert/2024/04/11/scenario-outline-in-pytest-bdd/>
-14. Chapter 5 - Using Scenario Outlines - Test Automation University -
-    Applitools, accessed on July 20, 2025,
-    <https://testautomationu.applitools.com/behavior-driven-python-with-pytest-bdd/chapter5.html>
-15. How can I create parameterized tests in Rust? - Stack Overflow, accessed on
-    July 20, 2025,
-    <https://stackoverflow.com/questions/34662713/how-can-i-create-parameterized-tests-in-rust>
-16. Parameterize Tests in Rust: rstest - Qxf2 BLOG, accessed on July 20, 2025,
-    <https://qxf2.com/blog/parameterize-tests-rust-part1/>
-17. la10736/rstest: Fixture-based test framework for Rust - GitHub, accessed on
-    July 20, 2025, <https://github.com/la10736/rstest>
-18. Welcome to Pytest-BDD's documentation! — Pytest-BDD 4.1.0 documentation,
-    accessed on July 20, 2025, <https://pytest-bdd.readthedocs.io/en/4.1.0/>
-19. pytest-bdd - PyPI, accessed on July 20, 2025,
-    <https://pypi.org/project/pytest-bdd/>
-20. Procedural Macros - The Rust Reference, accessed on July 20, 2025,
-    <https://doc.rust-lang.org/reference/procedural-macros.html>
-21. What is a good pattern to share state between procedural macros? : r/rust -
-    Reddit, accessed on July 20, 2025,
-    <https://www.reddit.com/r/rust/comments/1hwx3tn/what_is_a_good_pattern_to_share_state_between/>
-22. Crate local state for procedural macros? · Issue #44034 · rust-lang/rust -
-    GitHub, accessed on July 20, 2025,
-    <https://github.com/rust-lang/rust/issues/44034>
-23. Quickstart - Cucumber Rust Book, accessed on July 20, 2025,
-    <https://cucumber-rs.github.io/cucumber/current/quickstart.html>
-24. inventory - Rust - [Docs.rs](http://Docs.rs), accessed on July 20, 2025,
-    <https://docs.rs/inventory>
-25. inventory - [crates.io](http://crates.io): Rust Package Registry, accessed
-    on July 20, 2025, <https://crates.io/crates/inventory>
-26. gherkin - [crates.io](http://crates.io): Rust Package Registry, accessed on
-    July 20, 2025, <https://crates.io/crates/gherkin>
-27. gherkin - Rust - [Docs.rs](http://Docs.rs), accessed on July 20, 2025,
-    <https://docs.rs/gherkin>
-28. Macro quote - Rust - [Docs.rs](http://Docs.rs), accessed on July 20, 2025,
-    <https://docs.rs/quote/latest/quote/macro.quote.html>
-29. quote in quote - Rust, accessed on July 20, 2025,
-    <https://jeltef.github.io/derive_more/quote/macro.quote.html>
-30. Shared Steps and Hooks with Pytest-BDD - LuizDeAguiar, accessed on July 20,
-    2025,
-    <https://www.luizdeaguiar.com.br/2022/08/shared-steps-and-hooks-with-pytest-bdd/>
-31. Guide to Rust procedural macros |
-    [developerlife.com](http://developerlife.com), accessed on July 20, 2025,
-    <https://developerlife.com/2022/03/30/rust-proc-macro/>
-32. The Rust Macro System: Part 1 — An Introduction to Attribute Macros | by
-    Alfred Weirich, accessed on July 20, 2025,
-    <https://medium.com/@alfred.weirich/the-rust-macro-system-part-1-an-introduction-to-attribute-macros-73c963fd63ea>
-33. Cucumber testing framework for Rust. Fully native, no external test runners
-    or dependencies. - GitHub, accessed on July 20, 2025,
-    <https://github.com/cucumber-rs/cucumber>
-34. cucumber - Rust - [Docs.rs](http://Docs.rs), accessed on July 20, 2025,
-    <https://docs.rs/cucumber>
-35. State | Cucumber, accessed on July 20, 2025,
-    <https://cucumber.io/docs/cucumber/state/>
-36. World in cucumber - Rust - [Docs.rs](http://Docs.rs), accessed on July 20,
-    2025, <https://docs.rs/cucumber/latest/cucumber/trait.World.html>
-37. Cucumber in Rust - Beginner's Tutorial - Florianrein's Blog, accessed on
-    July 20, 2025,
-    <https://www.florianreinhard.de/cucumber-in-rust-beginners-tutorial/>
-
 [^1]: A Complete Guide To Behavior-Driven Testing With Pytest BDD, accessed on
     July 20, 2025, <https://pytest-with-eric.com/bdd/pytest-bdd/>
+[^4]: rstest - [crates.io](http://crates.io): Rust Package Registry, accessed on
+    July 20, 2025, <https://crates.io/crates/rstest/0.12.0>
+[^6]: Pytest-BDD: the BDD framework for pytest — pytest-bdd 8.1.0 documentation,
+    accessed on July 20, 2025, <https://pytest-bdd.readthedocs.io/>
+[^7]: Behavior-Driven Development: Python with Pytest BDD -
+    [Testomat.io](http://Testomat.io), accessed on July 20, 2025,
+    <https://testomat.io/blog/pytest-bdd/>
+[^8]: Behavior-Driven Python with pytest-bdd - Test Automation University -
+    Applitools, accessed on July 20, 2025,
+    <https://testautomationu.applitools.com/behavior-driven-python-with-pytest-bdd/>
+[^9]: Python Testing 101: pytest-bdd - Automation Panda, accessed on July 20,
+    2025,
+    <https://automationpanda.com/2018/10/22/python-testing-101-pytest-bdd/>
+[^10]: pytest-bdd - Read the Docs, accessed on July 20, 2025,
+    <https://readthedocs.org/projects/pytest-bdd/downloads/pdf/latest/>
+[^11]: Introduction - Cucumber Rust Book, accessed on July 20, 2025,
+    <https://cucumber-rs.github.io/cucumber/main/>
+[^13]: Scenario Outline in PyTest – BDD - QA Automation Expert, accessed on July
+    20, 2025,
+    <https://qaautomation.expert/2024/04/11/scenario-outline-in-pytest-bdd/>
+    <https://testautomationu.applitools.com/behavior-driven-python-with-pytest-bdd/chapter5.html>
+[^15]: How can I create parameterized tests in Rust? - Stack Overflow, accessed
+       on July 20, 2025,
+       <https://stackoverflow.com/questions/34662713/how-can-i-create-parameterized-tests-in-rust>
+[^17]: la10736/rstest: Fixture-based test framework for Rust - GitHub, accessed
+       on July 20, 2025, <https://github.com/la10736/rstest>
+[^19]: pytest-bdd - PyPI, accessed on July 20, 2025,
+    <https://pypi.org/project/pytest-bdd/>
+    <https://www.reddit.com/r/rust/comments/1hwx3tn/what_is_a_good_pattern_to_share_state_between/>
+     GitHub, accessed on July 20, 2025,
+    <https://github.com/rust-lang/rust/issues/44034>
+[^24]: inventory - Rust - [Docs.rs](http://Docs.rs), accessed on July 20, 2025,
+    <https://docs.rs/inventory>
+    <https://www.luizdeaguiar.com.br/2022/08/shared-steps-and-hooks-with-pytest-bdd/>
+[^31]: Guide to Rust procedural macros |
+    [developerlife.com](http://developerlife.com), accessed on July 20, 2025,
+    <https://developerlife.com/2022/03/30/rust-proc-macro/>
+    <https://medium.com/@alfred.weirich/the-rust-macro-system-part-1-an-introduction-to-attribute-macros-73c963fd63ea>
+     <https://github.com/cucumber-rs/cucumber>
+    <https://www.florianreinhard.de/cucumber-in-rust-beginners-tutorial/>
