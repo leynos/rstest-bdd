@@ -655,10 +655,10 @@ fixture, available exclusively for the duration of that scenario.31 Subsequent
 function argument with the same name as the target fixture. `pytest` handles
 the dependency injection automatically.
 
-This approach has profound benefits. It allows BDD test setup to be composed
-from the same reusable fixtures as standard unit and integration tests,
-unifying the entire test suite. It avoids the pitfalls of a single, monolithic
-context object and promotes cleaner, more modular step definitions.
+This approach has profound benefits. It allows BDD test setup to be composed of
+the same reusable fixtures as standard unit and integration tests, unifying the
+entire test suite. It avoids the pitfalls of a single, monolithic context
+object and promotes cleaner, more modular step definitions.
 
 **Practical Example:**
 
