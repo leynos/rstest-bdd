@@ -112,7 +112,7 @@ follow a clear, logical progression: context, action, and outcome.
 To make scenarios read more like natural language and avoid awkward repetition,
 Gherkin provides several additional keywords.
 
-- `And`**,** `But`: When a `Scenario` requires multiple preconditions, actions,
+- `And`, `But`: When a `Scenario` requires multiple preconditions, actions,
   or outcomes, the `And` and `But` keywords are used to chain steps together
   without repeating `Given`, `When`, or `Then`.9 These keywords are
   syntactically interchangeable and carry no special automation logic; their
@@ -165,8 +165,8 @@ primary and secondary keywords in the Gherkin language.
 | Then             | Defines the expected, observable outcome of the action. Contains assertions. 9                                     | Follows When steps to verify the result.                                    | Then the ATM should dispense $20                            |
 | And, But         | Used to chain multiple steps of the same type (Given, When, or Then) for readability. 10                           | Follows a Given, When, or Then step.                                        | And the account balance should be $80                       |
 | *                | An asterisk can be used in place of any step keyword (Given, When, etc.) to improve flow, especially for lists. 14 | Can replace any step keyword.                                               | * the card should be returned                               |
-| Examples         | A data table that provides values for the variables in a Scenario Outline. Alias: Scenarios. 14                    | Must follow a Scenario Outline.                                             | `Examples:                                                  |
-| **`              | `**                                                                                                                | Delimiter for Data Tables (passed to a single step) and Examples tables. 14 | Used to construct tables under a step or Examples keyword.  |
+| Examples         | A data table that provides values for the variables in a Scenario Outline. Alias: Scenarios. 14 | Must follow a Scenario Outline.                                             | `Examples:` |
+| \| (pipe)        | Delimiter for Data Tables and Examples tables. 14                                            | Must appear immediately under the related step or Examples header.          | See lines 296–306 |
 | """ or ```       | Delimiters for a Doc String, a multi-line block of text passed to a single step. 14                                | Placed on new lines immediately following a step.                           | Then the email body should contain: """Hello World"""       |
 | @                | Prefix for a Tag, used to organize and filter features or scenarios. 10                                            | Placed on the line(s) above Feature, Scenario, etc.                         | @smoke @regression                                          |
 | #                | Prefix for a single-line comment. Ignored by test runners. 14                                                      | Can be placed at the start of any new line.                                 | # This is a comment                                         |
@@ -222,7 +222,7 @@ While powerful, the Background keyword should be used judiciously.
   only needed for a subset of scenarios, it belongs in their respective `Given`
   sections.9 A good rule of thumb is to keep the
 
-  `Background` under four lines long.14
+  `Background` under four lines long.14.
 
 - **Focus on Prerequisite State, Not Noise:** The `Background` should not be
   used to set up complex states that are not immediately obvious to someone
