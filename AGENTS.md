@@ -9,8 +9,8 @@
 - **Clarity over cleverness.** Be concise, but favour explicit over terse or
   obscure idioms. Prefer code that's easy to follow.
 - **Use functions and composition.** Avoid repetition by extracting reusable
-  logic. Prefer generators or comprehensions, and declarative code to imperative
-  repetition when readable.
+  logic. Prefer generators or comprehensions, and declarative code to
+  imperative repetition when readable.
 - **Small, meaningful functions.** Functions must be small, clear in purpose,
   single responsibility, and obey command/query segregation.
 - **Clear commit messages.** Commit messages should be descriptive, explaining
