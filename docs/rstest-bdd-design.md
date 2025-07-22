@@ -728,6 +728,17 @@ a compelling alternative for a different audience: developers who prioritize
 deep integration with Rust's native testing tools and want to unify their BDD
 and unit testing workflows under the powerful `rstest` umbrella.
 
+### 3.6 Workspace Layout Decisions
+
+The project uses a Cargo workspace to keep the runtime and procedural macro
+crates separate. The workspace contains two members:
+
+- `rstest-bdd` – the runtime library.
+- `rstest-bdd-macros` – the crate providing attribute macros.
+
+This layout allows each crate to evolve independently while sharing common
+configuration and lints at the workspace level.
+
 ## **Works cited**
 
 [^1]: A Complete Guide To Behavior-Driven Testing With Pytest BDD, accessed on
