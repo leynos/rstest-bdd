@@ -13,8 +13,8 @@ ecosystem.
 Behaviour-Driven Development (BDD) is a software development process that
 encourages collaboration between developers, quality assurance experts, and
 non-technical business participants. It achieves this by using a natural,
-domain-specific language to describe an application's behavior from the user's
-perspective.1 The proposed
+domain-specific language to describe an application's behaviour from the user's
+perspective.[^1] The proposed
 
 `rstest-bdd` framework is designed to bring this collaborative power to Rust by
 deeply integrating BDD principles with the `rstest` testing crate.
@@ -24,13 +24,12 @@ requirement-driven specifications of Gherkin 3 with the powerful,
 developer-centric features of
 
 `rstest`.4 The primary value proposition is the unification of high-level
-functional and acceptance tests with low-level unit tests. Both test types will
+functional and acceptance tests with low-level unit tests. Both test types
 coexist within the same project, use the same fixture model for dependency
-injection, and be executed by the standard
-
-`cargo test` command. This approach eliminates the need for a separate test
-runner, reducing CI/CD configuration complexity and lowering the barrier to
-adoption for teams already invested in the Rust testing ecosystem.6
+injection, and are executed by the standard `cargo test` command. This approach
+eliminates the need for a separate test runner, reducing CI/CD configuration
+complexity and lowering the barrier to adoption for teams already invested in
+the Rust testing ecosystem.6
 
 The design is heavily modeled on `pytest-bdd`, a successful plugin for Python's
 `pytest` framework.8
@@ -116,8 +115,8 @@ async fn browser() -> WebDriverResult<WebDriver> {
 async fn test_simple_search(#[future] browser: WebDriver) {
     // The body of this function runs *after* all Gherkin steps have passed.
     // It can be used for final assertions or complex cleanup.[6]
-    // For this example, we'll assume the browser is implicitly closed
-    // when the 'browser' fixture goes out of scope.
+    // The example assumes the browser closes implicitly when the 'browser'
+    // fixture goes out of scope.
 }
 
 // Step definitions are just decorated functions.
@@ -226,10 +225,8 @@ async fn see_message(#[from(browser)] driver: &mut WebDriver, message: String) {
 To provide an ergonomic and type-safe way of extracting parameters from step
 strings, `rstest-bdd` will support a `format!`-like syntax. This avoids the
 need for raw regular expressions in most cases and leverages Rust's existing
-`FromStr` trait for "magic conversion," a core feature of `rstest`.4 This is
-directly analogous to the
-
-`parsers` module in `pytest-bdd`.1
+`FromStr` trait for "magic conversion", a core feature of `rstest`.4 This is
+directly analogous to the `parsers` module in `pytest-bdd`.1.
 
 **Example:**
 
@@ -302,8 +299,8 @@ challenges and solutions, and the end-to-end code generation process.
 The user-facing functionality is enabled by a suite of procedural macros. Each
 macro has a distinct role in the compile-time orchestration of the BDD tests.
 
-- `#[scenario(path = "...", name = "...")]`: This is an attribute macro that
-  serves as the primary entry point and orchestrator.
+- `#[scenario(path = "...", name = "...")]` - the primary entry point and
+  orchestrator.
 
   - **Arguments:**
 
@@ -319,8 +316,8 @@ macro has a distinct role in the compile-time orchestration of the BDD tests.
     with `#[rstest]`. This generated function contains the runtime logic to
     execute the Gherkin steps.
 
-- `#[given("...")]`, `#[when("...")]`, `#[then("...")]`: These are attribute
-  macros applied to the step implementation functions.
+- `#[given("...")]`, `#[when("...")]`, `#[then("...")]` - these macros attach to
+  the step implementation functions.
 
   - **Argument:** A string literal representing the Gherkin step text. This
     string acts as a pattern and can include placeholders for argument parsing
@@ -335,12 +332,12 @@ macro has a distinct role in the compile-time orchestration of the BDD tests.
 
 The most significant technical hurdle in this design is the inherent nature of
 Rust's procedural macros. Each macro invocation is executed by the compiler in
-an isolated, stateless environment.20 This means that when the
+an isolated, stateless environment.20. This means that when the
 
 `#[scenario]` macro is expanding, it has no direct way to discover the
 functions that have been decorated with `#[given]`, `#[when]`, or `#[then]`. It
 cannot scan the project's source code, reflect on other modules, or access a
-shared compile-time state to build a map of available steps.22 This stands in
+shared compile-time state to build a map of available steps.22. This stands in
 stark contrast to
 
 `pytest`, which provides a rich runtime plugin system that `pytest-bdd` hooks
@@ -436,7 +433,7 @@ events.
 
 ```rust
 
-#\[given("I am a user")\]\
+#[given("I am a user")]
 fn given_i_am_a_user(mut user_context: UserContext) { /\*... \*/ }
 ```
 
@@ -820,3 +817,6 @@ and unit testing workflows under the powerful `rstest` umbrella.
 37. Cucumber in Rust - Beginner's Tutorial - Florianrein's Blog, accessed on
     July 20, 2025,
     <https://www.florianreinhard.de/cucumber-in-rust-beginners-tutorial/>
+
+[^1]: A Complete Guide To Behavior-Driven Testing With Pytest BDD, accessed on
+    July 20, 2025, <https://pytest-with-eric.com/bdd/pytest-bdd/>

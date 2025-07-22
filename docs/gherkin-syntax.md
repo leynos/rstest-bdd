@@ -508,13 +508,11 @@ Gherkin:
 Well-maintained feature files are easy to read and understand for everyone on
 the team. This requires attention to documentation and consistent style.
 
-- **Comments (**`#`**):** Gherkin supports single-line comments, which begin
-  with a hash sign (`#`). These are intended for developers or other technical
-  readers and are completely ignored by test runners.14 Gherkin does not have a
-  syntax for multi-line block comments; each line of a comment block must be
-  individually prefixed with
-
-  `#`.14
+- **Comments (`#`):** Gherkin supports single-line comments, which begin with a
+  hash sign (`#`). These are intended for developers or other technical readers
+  and are completely ignored by test runners.14 Gherkin does not have a syntax
+  for multi-line block comments; each line of a comment block must be
+  individually prefixed with `#`.14.
 
 - **YAML Comments (An Advanced Technique):** For more structured metadata that
   doesn't belong in the behavioral specification itself—such as links to user
@@ -715,10 +713,10 @@ steps.
 
 - **Step Parsers:** Parameters can be extracted from a step's text using a
   parser within the step decorator. `pytest-bdd` offers several options,
-  including
-  `parse` (for `string.format()` style), `cfparse` (a more powerful variant),
-  and `re` (for regular expressions). The `parse` and `cfparse` styles, which
-  use `{name:Type}` syntax, are generally preferred for their readability.34
+  including `parse` (for `string.format()` style), `cfparse` (a more powerful
+  variant), and `re` (for regular expressions). The `parse` and `cfparse`
+  styles, which use `{name:Type}` syntax, are generally preferred for their
+  readability.34
 
 - `Scenario Outline` **Parameters:** When using a `Scenario Outline`, the
   values from the `Examples` table are automatically parsed and passed as
