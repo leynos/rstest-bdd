@@ -557,17 +557,24 @@ mutable "World" or "Context" object that is passed between steps, `pytest-bdd`
 eschews this pattern. Instead, it fully embraces the idiomatic `pytest` fixture
 system for managing and sharing state between steps.[^24] This represents a
 philosophical shift from explicit state passing to implicit dependency
-injection. In this model, `Given` steps act as fixture factories. A function
-decorated with `@given` can return a value. By using the `target_fixture`
-argument in the decorator, this return value is injected into the `pytest`
-context as a named fixture, available exclusively for the duration of that
-scenario.[^22] Subsequent `When` and `Then` steps can then access this state
-simply by declaring a function argument with the same name as the target
-fixture. `pytest` handles the dependency injection automatically. This approach
-has profound benefits. It allows BDD test setup to be composed from the same
-reusable fixtures as standard unit and integration tests, unifying the entire
-test suite. It avoids the pitfalls of a single, monolithic context object and
-promotes cleaner, more modular step definitions. **Practical Example:**
+injection.
+
+In this model, `Given` steps act as fixture factories. A function decorated
+with `@given` can return a value. By using the `target_fixture` argument in the
+decorator, this return value is injected into the `pytest` context as a named
+fixture, available exclusively for the duration of that scenario.[^22]
+
+Subsequent `When` and `Then` steps can then access this state simply by 
+declaring a function argument with the same name as the target fixture.
+`pytest` handles the dependency injection automatically.
+
+This approach has profound benefits. It allows BDD test setup to be composed of
+the same reusable fixtures as standard unit and integration tests, unifying the
+entire test suite. It avoids the pitfalls of a single, monolithic context
+object and promotes cleaner, more modular step definitions.
+
+**Practical Example:**
+
 **Feature File (**`bank_account.feature`**):**
 
 ```gherkin

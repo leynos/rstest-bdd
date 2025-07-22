@@ -1,0 +1,31 @@
+name: delayed-pr-comment
+on:
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: 'PR number to comment on'
+        required: true
+      delay_minutes:
+        description: 'Minutes to wait before commenting'
+        required: true
+      message:
+        description: 'Comment body'
+        required: true
+
+jobs:
+  delay_and_comment:
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write   # needed to post comments
+    steps:
+      - name: Convert minutes to seconds
+        id: calc
+        run: echo "secs=$(( ${{ github.event.inputs.delay_minutes }} * 60 ))" >> "$GITHUB_OUTPUT"
+      - name: Wait requested time
+        run: sleep ${{ steps.calc.outputs.secs }}
+        shell: bash
+      - name: Comment PR
+        uses: thollander/actions-comment-pull-request@v3
+        with:
+          pr-number: ${{ github.event.inputs.pr_number }}
+          message: ${{ github.event.inputs.message }}
