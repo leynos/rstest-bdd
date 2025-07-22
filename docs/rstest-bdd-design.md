@@ -733,8 +733,8 @@ and unit testing workflows under the powerful `rstest` umbrella.
 The project uses a Cargo workspace to keep the runtime and procedural macro
 crates separate. The workspace contains two members:
 
-- `rstest-bdd` – the runtime library.
-- `rstest-bdd-macros` – the crate providing attribute macros.
+- `rstest-bdd` — the runtime library.
+- `rstest-bdd-macros` — the crate providing attribute macros.
 
 This layout allows each crate to evolve independently while sharing common
 configuration and lints at the workspace level.
