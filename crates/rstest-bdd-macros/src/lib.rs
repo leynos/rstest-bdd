@@ -9,6 +9,9 @@ use proc_macro::TokenStream;
 
 /// No-op macro for defining a Given step.
 ///
+/// *attr* The string literal specifies the text of the `Given` step as it
+/// appears in the feature file.
+///
 /// # Examples
 ///
 /// ```
@@ -25,6 +28,9 @@ pub fn given(_attr: TokenStream, item: TokenStream) -> TokenStream {
 }
 
 /// No-op macro for defining a When step.
+///
+/// *attr* The string literal specifies the text of the `When` step as it
+/// appears in the feature file.
 ///
 /// # Examples
 ///
@@ -43,6 +49,9 @@ pub fn when(_attr: TokenStream, item: TokenStream) -> TokenStream {
 
 /// No-op macro for defining a Then step.
 ///
+/// *attr* The string literal specifies the text of the `Then` step as it
+/// appears in the feature file.
+///
 /// # Examples
 ///
 /// ```
@@ -59,6 +68,9 @@ pub fn then(_attr: TokenStream, item: TokenStream) -> TokenStream {
 }
 
 /// No-op macro for binding a scenario to a feature file.
+///
+/// *attr* The string literal gives the path to the feature file containing the
+/// scenario.
 ///
 /// # Examples
 ///
