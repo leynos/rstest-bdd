@@ -395,6 +395,7 @@ location information for generating clear error messages.
 
 ```rust
 // A simplified representation of the step metadata.
+#[derive(Copy, Clone, Debug)]
 pub struct Step {
     pub keyword: &'static str, // "Given", "When", or "Then"
     pub pattern: &'static str, // The pattern string from the attribute, e.g., "I have {count} cucumbers"
@@ -413,6 +414,10 @@ inventory::collect!(Step);
 Placing the `Step` struct in the runtime crate avoids a circular dependency
 between the procedural macros and the library. The macros will simply re-export
 the type when they begin submitting steps to the registry.
+
+A small convenience macro, `step!`, wraps `inventory::submit!` and `Step::new`.
+It captures the file and line number automatically so that users only provide
+the keyword, pattern and handler when registering a step.
 
 The `#[given]`, `#[when]`, and `#[then]` macros will expand into an
 `inventory::submit!` block. This macro call constructs an instance of the

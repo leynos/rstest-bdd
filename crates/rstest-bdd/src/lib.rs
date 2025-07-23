@@ -1,5 +1,4 @@
 //! Core library for `rstest-bdd`.
-//!
 //! This crate exposes helper utilities used by behaviour tests. It also defines
 //! the global step registry used to orchestrate behaviour-driven tests.
 
@@ -17,7 +16,7 @@ pub fn greet() -> &'static str {
     "Hello from rstest-bdd!"
 }
 
-pub use inventory;
+pub use inventory::{iter, submit};
 
 /// Represents a single step definition registered with the framework.
 ///
@@ -27,15 +26,13 @@ pub use inventory;
 /// # Examples
 ///
 /// ```
-/// use rstest_bdd::{Step, inventory};
+/// use rstest_bdd::{step, Step};
 ///
 /// fn my_step() {}
 ///
-/// inventory::submit! {
-///     Step::new("Given", "a step", my_step, file!(), line!())
-/// }
+/// step!("Given", "a step", my_step);
 /// ```
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub struct Step {
     /// The step keyword, e.g. `Given` or `When`.
     pub keyword: &'static str,
@@ -69,6 +66,29 @@ impl Step {
     }
 }
 
+/// Register a step definition with the global registry.
+///
+/// This macro hides the underlying `inventory` call and captures
+/// the source location automatically.
+///
+/// # Examples
+///
+/// ```
+/// use rstest_bdd::{step, Step};
+///
+/// fn my_step() {}
+///
+/// step!("Given", "a pattern", my_step);
+/// ```
+#[macro_export]
+macro_rules! step {
+    ($keyword:expr, $pattern:expr, $handler:path) => {
+        $crate::submit! {
+            $crate::Step::new($keyword, $pattern, $handler, file!(), line!())
+        }
+    };
+}
+
 inventory::collect!(Step);
 
 #[cfg(test)]
@@ -84,11 +104,9 @@ mod tests {
     fn collects_registered_step() {
         fn sample() {}
 
-        inventory::submit! {
-            Step::new("Given", "a pattern", sample, file!(), line!())
-        }
+        step!("Given", "a pattern", sample);
 
-        let found = inventory::iter::<Step>
+        let found = iter::<Step>
             .into_iter()
             .any(|step| step.pattern == "a pattern");
 
