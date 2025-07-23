@@ -10,13 +10,13 @@ The primary goal of this phase is to validate the core architectural decision:
 using `inventory` for link-time collection of step definitions, which are then
 discovered and executed by a procedural macro at runtime.
 
-- [ ] **Project Scaffolding**
+- [x] **Project Scaffolding**
 
-  - [ ] Create a new Cargo workspace.
+  - [x] Create a new Cargo workspace.
 
-  - [ ] Add the `rstest-bdd` library crate.
+  - [x] Add the `rstest-bdd` library crate.
 
-  - [ ] Add the `rstest-bdd-macros` procedural macro crate.
+  - [x] Add the `rstest-bdd-macros` procedural macro crate.
 
 - [ ] **Step Registry Implementation**
 

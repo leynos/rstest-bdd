@@ -1,41 +1,37 @@
-[package]
-name = "rstest-bdd"
-version = "0.1.0"
+[workspace]
+resolver = "2"
+members = [
+    "crates/rstest-bdd",
+    "crates/rstest-bdd-macros"
+]
+
+[workspace.package]
 edition = "2024"
+version = "0.1.0"
+license = "MIT OR Apache-2.0"
 
-[dependencies]
-
-[lints.clippy]
+[workspace.lints.clippy]
 pedantic = { level = "warn", priority = -1 }
-
-# 1. hygiene
-allow_attributes                    = "deny"
-allow_attributes_without_reason     = "deny"
-blanket_clippy_restriction_lints    = "deny"
-
-# 2. debugging leftovers
-dbg_macro       = "deny"
-print_stdout    = "deny"
-print_stderr    = "deny"
-
-# 3. panic-prone operations
-unwrap_used                     = "deny"
-expect_used                     = "deny"
-indexing_slicing                = "deny"
-string_slice                    = "deny"
-integer_division                = "deny"
+allow_attributes = "deny"
+allow_attributes_without_reason = "deny"
+blanket_clippy_restriction_lints = "deny"
+dbg_macro = "deny"
+print_stdout = "deny"
+print_stderr = "deny"
+unwrap_used = "deny"
+expect_used = "deny"
+indexing_slicing = "deny"
+string_slice = "deny"
+integer_division = "deny"
 integer_division_remainder_used = "deny"
-
-# 4. portability
-host_endian_bytes   = "deny"
+host_endian_bytes = "deny"
 little_endian_bytes = "deny"
-big_endian_bytes    = "deny"
-
-# 5. nursery idiom polish
-or_fun_call            = "deny"
-option_if_let_else     = "deny"
-use_self               = "deny"
-string_lit_as_bytes    = "deny"
-
-# 6. numerical foot-guns
+big_endian_bytes = "deny"
+or_fun_call = "deny"
+option_if_let_else = "deny"
+use_self = "deny"
+string_lit_as_bytes = "deny"
 float_arithmetic = "deny"
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
