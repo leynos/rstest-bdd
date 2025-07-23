@@ -18,12 +18,12 @@ discovered and executed by a procedural macro at runtime.
 
   - [x] Add the `rstest-bdd-macros` procedural macro crate.
 
-- [ ] **Step Registry Implementation**
+- [x] **Step Registry Implementation**
 
-  - [ ] Define the `Step` struct within `rstest-bdd` to hold metadata (keyword,
+  - [x] Define the `Step` struct within `rstest-bdd` to hold metadata (keyword,
     pattern, type-erased run function, source location).
 
-  - [ ] Use `inventory::collect!(Step)` to establish the global collection.
+  - [x] Use `inventory::collect!(Step)` to establish the global collection.
 
 - [ ] **Step Definition Macros**
 

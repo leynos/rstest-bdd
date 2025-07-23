@@ -391,17 +391,16 @@ This struct will contain a type-erased function pointer to the user's
 implementation, the pattern string to match against Gherkin text, and source
 location information for generating clear error messages.
 
-**Definition of the** `Step` **struct (within the** `rstest-bdd-macros`
-**crate):**
+**Definition of the** `Step` **struct (within the** `rstest-bdd` **crate):**
 
 ```rust
 // A simplified representation of the step metadata.
 pub struct Step {
     pub keyword: &'static str, // "Given", "When", or "Then"
     pub pattern: &'static str, // The pattern string from the attribute, e.g., "I have {count} cucumbers"
-    // A type-erased function pointer. The actual implementation will pass the
-    // correct arguments (fixtures, step args) to the user's function.
-    pub run: fn(&mut rstest_bdd::Context),
+    // A type-erased function pointer. Arguments will be wired up by the
+    // scenario orchestrator in later phases.
+    pub run: fn(),
     // Location info for better error messages.
     pub file: &'static str,
     pub line: u32,
@@ -410,6 +409,10 @@ pub struct Step {
 // This macro call creates the global collection for 'Step' structs.
 inventory::collect!(Step);
 ```
+
+Placing the `Step` struct in the runtime crate avoids a circular dependency
+between the procedural macros and the library. The macros will simply re-export
+the type when they begin submitting steps to the registry.
 
 The `#[given]`, `#[when]`, and `#[then]` macros will expand into an
 `inventory::submit!` block. This macro call constructs an instance of the
