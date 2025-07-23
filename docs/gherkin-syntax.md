@@ -564,7 +564,7 @@ with `@given` can return a value. By using the `target_fixture` argument in the
 decorator, this return value is injected into the `pytest` context as a named
 fixture, available exclusively for the duration of that scenario.[^22]
 
-Subsequent `When` and `Then` steps can then access this state simply by 
+Subsequent `When` and `Then` steps can then access this state simply by
 declaring a function argument with the same name as the target fixture.
 `pytest` handles the dependency injection automatically.
 
