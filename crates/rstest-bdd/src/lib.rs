@@ -32,7 +32,7 @@ pub use inventory::{iter, submit};
 ///
 /// step!("Given", "a step", my_step);
 /// ```
-#[derive(Copy, Clone, Debug)]
+#[derive(Debug)]
 pub struct Step {
     /// The step keyword, e.g. `Given` or `When`.
     pub keyword: &'static str,
@@ -44,26 +44,6 @@ pub struct Step {
     pub file: &'static str,
     /// Line number within the source file.
     pub line: u32,
-}
-
-impl Step {
-    /// Create a new `Step` instance.
-    #[must_use]
-    pub const fn new(
-        keyword: &'static str,
-        pattern: &'static str,
-        run: fn(),
-        file: &'static str,
-        line: u32,
-    ) -> Self {
-        Self {
-            keyword,
-            pattern,
-            run,
-            file,
-            line,
-        }
-    }
 }
 
 /// Register a step definition with the global registry.
@@ -84,7 +64,13 @@ impl Step {
 macro_rules! step {
     ($keyword:expr, $pattern:expr, $handler:path) => {
         $crate::submit! {
-            $crate::Step::new($keyword, $pattern, $handler, file!(), line!())
+            $crate::Step {
+                keyword: $keyword,
+                pattern: $pattern,
+                run: $handler,
+                file: file!(),
+                line: line!(),
+            }
         }
     };
 }

@@ -1,4 +1,4 @@
-//! Behavioural test for step registry
+// Behavioural test for step registry
 
 use rstest_bdd::{iter, step, Step};
 
