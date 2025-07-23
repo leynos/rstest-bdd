@@ -321,7 +321,7 @@ macro has a distinct role in the compile-time orchestration of the BDD tests.
 
   - **Argument:** A string literal representing the Gherkin step text. This
     string acts as a pattern and can include placeholders for argument parsing
-    (e.g., `"I have {count:usize} cucumbers"`).
+    (e.g., `"A user has {count:usize} cucumbers"`).
 
   - **Functionality:** These macros have a single, critical purpose: to
     register the decorated function and its associated metadata (the pattern
@@ -391,17 +391,17 @@ This struct will contain a type-erased function pointer to the user's
 implementation, the pattern string to match against Gherkin text, and source
 location information for generating clear error messages.
 
-**Definition of the** `Step` **struct (within the** `rstest-bdd-macros`
-**crate):**
+**Definition of the** `Step` **struct (within the** `rstest-bdd` **crate):**
 
 ```rust
 // A simplified representation of the step metadata.
+#[derive(Debug)]
 pub struct Step {
     pub keyword: &'static str, // "Given", "When", or "Then"
-    pub pattern: &'static str, // The pattern string from the attribute, e.g., "I have {count} cucumbers"
-    // A type-erased function pointer. The actual implementation will pass the
-    // correct arguments (fixtures, step args) to the user's function.
-    pub run: fn(&mut rstest_bdd::Context),
+    pub pattern: &'static str, // The pattern string from the attribute, e.g., "A user has {count} cucumbers"
+    // A type-erased function pointer. Arguments will be wired up by the
+    // scenario orchestrator in later phases.
+    pub run: fn(),
     // Location info for better error messages.
     pub file: &'static str,
     pub line: u32,
@@ -410,6 +410,14 @@ pub struct Step {
 // This macro call creates the global collection for 'Step' structs.
 inventory::collect!(Step);
 ```
+
+Placing the `Step` struct in the runtime crate avoids a circular dependency
+between the procedural macros and the library. The macros will simply re-export
+the type when they begin submitting steps to the registry.
+
+A small convenience macro, `step!`, wraps `inventory::submit!` and directly
+constructs a `Step`. It captures the file and line number automatically so that
+users only provide the keyword, pattern and handler when registering a step.
 
 The `#[given]`, `#[when]`, and `#[then]` macros will expand into an
 `inventory::submit!` block. This macro call constructs an instance of the
