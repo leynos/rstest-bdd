@@ -15,6 +15,7 @@ proc-macro = true
 proc-macro2 = ">=1.0, <2.0"
 quote = ">=1.0, <2.0"
 syn = { version = ">=2.0, <3.0", features = ["full"] }
+rstest-bdd = { path = "../rstest-bdd" }
 
 [dev-dependencies]
 trybuild = ">=1.0, <2.0"

@@ -645,7 +645,7 @@ mastering doctests:
 [^11]: Compile_fail doc test ignored in cfg(test) - help - The Rust Programming
    Language Forum, accessed on July 15, 2025,
    <https://users.rust-lang.org/t/compile-fail-doc-test-ignored-in-cfg-test/124927>
-   accessed on July 15, 2025,
+    accessed on July 15, 2025,
    <https://users.rust-lang.org/t/test-setup-for-doctests/50426>
 [^12]: quote_doctest - Rust - [Docs.rs](http://Docs.rs), accessed on July 15,
    2025, <https://docs.rs/quote-doctest>
@@ -654,7 +654,7 @@ mastering doctests:
 [^14]: rust - How can I conditionally execute a module-level doctest based …,
    accessed on July 15, 2025,
    <https://stackoverflow.com/questions/50312190/how-can-i-conditionally-execute-a-module-level-doctest-based-on-a-feature-flag>
-   Why have doctests?, accessed on July 15, 2025,
+    Why have doctests?, accessed on July 15, 2025,
    <https://stackoverflow.com/questions/38292741/how-would-one-achieve-conditional-compilation-with-rust-projects-that-have-docte>
 [^15]: How do you write your doc tests? : r/rust - Reddit, accessed on July 15,
    2025,
