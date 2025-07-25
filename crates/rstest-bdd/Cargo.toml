@@ -10,7 +10,3 @@ workspace = true
 
 inventory = ">=0.3, <0.4"
 
-[dev-dependencies]
-rstest-bdd-macros = { path = "../rstest-bdd-macros" }
-
-

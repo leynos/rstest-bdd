@@ -22,7 +22,8 @@ fn macros_register_steps() {
         assert!(
             iter::<Step>
                 .into_iter()
-                .any(|s| s.keyword == keyword && s.pattern == pattern)
+                .any(|s| s.keyword == keyword && s.pattern == pattern),
+            "Step not registered: {keyword} {pattern}"
         );
     }
 }

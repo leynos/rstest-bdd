@@ -1,9 +1,9 @@
 //! Procedural macros for rstest-bdd.
 //!
 //! This crate provides attribute macros for annotating BDD test steps and
-//! scenarios. The macros currently act as markers only, allowing compile-time
-//! validation that annotated functions use the expected signatures. Future
-//! versions will expand these annotations into executable test harness code.
+//! scenarios. The step macros register annotated functions with the global
+//! step inventory system, enabling runtime discovery and execution of step
+//! definitions.
 
 use proc_macro::TokenStream;
 use quote::quote;
@@ -20,7 +20,7 @@ fn step_attr(attr: TokenStream, item: TokenStream, keyword: &str) -> TokenStream
     })
 }
 
-/// No-op macro for defining a Given step.
+/// Macro for defining a Given step that registers with the step inventory.
 ///
 /// *attr* The string literal specifies the text of the `Given` step as it
 /// appears in the feature file.
@@ -40,7 +40,7 @@ pub fn given(attr: TokenStream, item: TokenStream) -> TokenStream {
     step_attr(attr, item, "Given")
 }
 
-/// No-op macro for defining a When step.
+/// Macro for defining a When step that registers with the step inventory.
 ///
 /// *attr* The string literal specifies the text of the `When` step as it
 /// appears in the feature file.
@@ -60,7 +60,7 @@ pub fn when(attr: TokenStream, item: TokenStream) -> TokenStream {
     step_attr(attr, item, "When")
 }
 
-/// No-op macro for defining a Then step.
+/// Macro for defining a Then step that registers with the step inventory.
 ///
 /// *attr* The string literal specifies the text of the `Then` step as it
 /// appears in the feature file.
