@@ -1,6 +1,6 @@
 // Behavioural test for step registry
 
-use rstest_bdd::{iter, step, Step};
+use rstest_bdd::{Step, iter, step};
 
 fn sample() {}
 

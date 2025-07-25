@@ -328,6 +328,11 @@ macro has a distinct role in the compile-time orchestration of the BDD tests.
     string, keyword, and source location) into a global, discoverable registry.
     They do *not* generate any executable code on their own.
 
+  The initial implementation delegates registration to the runtime crate's
+  `step!` helper. Each macro expands to the original function followed by a
+  call to `rstest_bdd::step!`, which internally uses `inventory::submit!` to
+  add a `Step` to the registry.
+
 ### 2.2 The Core Architectural Challenge: Stateless Step Discovery
 
 The most significant technical hurdle in this design is the inherent nature of

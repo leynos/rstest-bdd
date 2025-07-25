@@ -25,15 +25,15 @@ discovered and executed by a procedural macro at runtime.
 
   - [x] Use `inventory::collect!(Step)` to establish the global collection.
 
-- [ ] **Step Definition Macros**
+- [x] **Step Definition Macros**
 
-  - [ ] Implement the `#[given("...")]` attribute macro in `rstest-bdd-macros`.
+  - [x] Implement the `#[given("...")]` attribute macro in `rstest-bdd-macros`.
 
-  - [ ] Implement the `#[when("...")]` attribute macro.
+  - [x] Implement the `#[when("...")]` attribute macro.
 
-  - [ ] Implement the `#[then("...")]` attribute macro.
+  - [x] Implement the `#[then("...")]` attribute macro.
 
-  - [ ] Ensure each macro generates an `inventory::submit!` block that
+  - [x] Ensure each macro generates an `inventory::submit!` block that
     constructs and registers a `Step` instance.
 
 - [ ] **Scenario Orchestrator Macro (Initial Version)**
