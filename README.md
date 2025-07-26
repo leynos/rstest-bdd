@@ -256,7 +256,7 @@ If your target platform dislikes linker sections, enable the `no-inventory` feat
 
 ---
 
-## Roadmap
+## [Roadmap](docs/roadmap.md)
 
 1. **Core mechanics**: step registry, `#[scenario]`, exact matching (done/PoC).
 
