@@ -7,12 +7,106 @@
 
 use gherkin::{Feature, GherkinEnv, StepType};
 use proc_macro::TokenStream;
+use proc_macro2::TokenStream as TokenStream2;
 use quote::{format_ident, quote};
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use syn::parse::{Parse, ParseStream};
 use syn::token::{Comma, Eq};
-use syn::{ItemFn, LitInt, LitStr, Result, parse_macro_input};
+use syn::{ItemFn, LitInt, LitStr, parse_macro_input};
+
+struct FixtureArg {
+    pat: syn::Ident,
+    name: syn::Ident,
+    ty: syn::Type,
+}
+
+fn extract_fixture_args(func: &mut ItemFn) -> syn::Result<Vec<FixtureArg>> {
+    let mut args = Vec::new();
+
+    for input in &mut func.sig.inputs {
+        let syn::FnArg::Typed(arg) = input else {
+            return Err(syn::Error::new_spanned(input, "methods not supported"));
+        };
+
+        let mut fixture_name = None;
+        arg.attrs.retain(|a| {
+            if a.path().is_ident("from") {
+                fixture_name = a.parse_args::<syn::Ident>().ok();
+                false
+            } else {
+                true
+            }
+        });
+
+        let pat = match &*arg.pat {
+            syn::Pat::Ident(i) => i.ident.clone(),
+            _ => {
+                return Err(syn::Error::new_spanned(&arg.pat, "unsupported pattern"));
+            }
+        };
+
+        let name = fixture_name.unwrap_or_else(|| pat.clone());
+        args.push(FixtureArg {
+            pat,
+            name,
+            ty: (*arg.ty).clone(),
+        });
+    }
+
+    Ok(args)
+}
+
+fn generate_wrapper_code(
+    ident: &syn::Ident,
+    args: &[FixtureArg],
+    pattern: &LitStr,
+    keyword: &str,
+) -> TokenStream2 {
+    let id = COUNTER.fetch_add(1, Ordering::SeqCst);
+    let wrapper_ident = format_ident!("__rstest_bdd_wrapper_{}_{}", ident, id);
+    let const_ident = format_ident!("__rstest_bdd_fixtures_{}_{}", ident, id);
+
+    let declares = args.iter().map(|FixtureArg { pat, name, ty }| {
+        if matches!(ty, syn::Type::Reference(_)) {
+            quote! {
+                let #pat: #ty = ctx
+                    .get::<#ty>(stringify!(#name))
+                    .expect("missing fixture");
+            }
+        } else {
+            quote! {
+                let #pat: #ty = ctx
+                    .get::<#ty>(stringify!(#name))
+                    .expect("missing fixture")
+                    .clone();
+            }
+        }
+    });
+
+    let arg_idents = args.iter().map(|FixtureArg { pat, .. }| pat);
+    let fixture_names: Vec<_> = args
+        .iter()
+        .map(|FixtureArg { name, .. }| {
+            let s = name.to_string();
+            quote! { #s }
+        })
+        .collect();
+    let fixture_len = fixture_names.len();
+
+    quote! {
+        fn #wrapper_ident(ctx: &rstest_bdd::StepContext<'_>) {
+            #(#declares)*
+            #ident(#(#arg_idents),*);
+        }
+
+        #[allow(non_upper_case_globals)]
+        const #const_ident: [&'static str; #fixture_len] = [#(#fixture_names),*];
+        const _: [(); #fixture_len] = [(); #const_ident.len()];
+
+        rstest_bdd::step!(#keyword, #pattern, #wrapper_ident, &#const_ident);
+    }
+}
 
 static COUNTER: AtomicUsize = AtomicUsize::new(0);
 
@@ -22,7 +116,7 @@ struct ScenarioArgs {
 }
 
 impl Parse for ScenarioArgs {
-    fn parse(input: ParseStream<'_>) -> Result<Self> {
+    fn parse(input: ParseStream<'_>) -> syn::Result<Self> {
         if input.peek(LitStr) {
             Self::parse_bare_string(input)
         } else {
@@ -32,7 +126,7 @@ impl Parse for ScenarioArgs {
 }
 
 impl ScenarioArgs {
-    fn parse_bare_string(input: ParseStream<'_>) -> Result<Self> {
+    fn parse_bare_string(input: ParseStream<'_>) -> syn::Result<Self> {
         let path: LitStr = input.parse()?;
         let mut index = None;
 
@@ -54,7 +148,7 @@ impl ScenarioArgs {
         Ok(Self { path, index })
     }
 
-    fn parse_named_args(input: ParseStream<'_>) -> Result<Self> {
+    fn parse_named_args(input: ParseStream<'_>) -> syn::Result<Self> {
         let mut path = None;
         let mut index = None;
 
@@ -93,83 +187,19 @@ impl ScenarioArgs {
 fn step_attr(attr: TokenStream, item: TokenStream, keyword: &str) -> TokenStream {
     let pattern = parse_macro_input!(attr as LitStr);
     let mut func = parse_macro_input!(item as ItemFn);
+
+    let args = match extract_fixture_args(&mut func) {
+        Ok(args) => args,
+        Err(err) => return err.to_compile_error().into(),
+    };
+
     let ident = &func.sig.ident;
 
-    let mut args = Vec::new();
-
-    for input in &mut func.sig.inputs {
-        let syn::FnArg::Typed(arg) = input else {
-            return syn::Error::new_spanned(input, "methods not supported")
-                .to_compile_error()
-                .into();
-        };
-
-        let mut fixture_name = None;
-        arg.attrs.retain(|a| {
-            if a.path().is_ident("from") {
-                fixture_name = a.parse_args::<syn::Ident>().ok();
-                false
-            } else {
-                true
-            }
-        });
-
-        let pat = match &*arg.pat {
-            syn::Pat::Ident(i) => i.ident.clone(),
-            _ => {
-                return syn::Error::new_spanned(&arg.pat, "unsupported pattern")
-                    .to_compile_error()
-                    .into();
-            }
-        };
-
-        let name = fixture_name.unwrap_or_else(|| pat.clone());
-        args.push((pat, name, (*arg.ty).clone()));
-    }
-
-    let id = COUNTER.fetch_add(1, Ordering::SeqCst);
-    let wrapper_ident = format_ident!("__rstest_bdd_wrapper_{}_{}", ident, id);
-    let const_ident = format_ident!("__rstest_bdd_fixtures_{}_{}", ident, id);
-
-    let declares = args.iter().map(|(pat, name, ty)| {
-        if matches!(ty, syn::Type::Reference(_)) {
-            quote! {
-                let #pat: #ty = ctx
-                    .get::<#ty>(stringify!(#name))
-                    .expect("missing fixture");
-            }
-        } else {
-            quote! {
-                let #pat: #ty = ctx
-                    .get::<#ty>(stringify!(#name))
-                    .expect("missing fixture")
-                    .clone();
-            }
-        }
-    });
-    let arg_idents = args.iter().map(|(pat, _, _)| pat);
-    let fixture_names: Vec<_> = args
-        .iter()
-        .map(|(_, name, _)| {
-            let s = name.to_string();
-            quote! { #s }
-        })
-        .collect();
-    let fixture_len = fixture_names.len();
+    let wrapper_code = generate_wrapper_code(ident, &args, &pattern, keyword);
 
     TokenStream::from(quote! {
         #func
-
-        fn #wrapper_ident(ctx: &rstest_bdd::StepContext<'_>) {
-            #(#declares)*
-            #ident(#(#arg_idents),*);
-        }
-
-        #[allow(non_upper_case_globals)]
-        const #const_ident: [&'static str; #fixture_len] = [#(#fixture_names),*];
-        const _: [(); #fixture_len] = [(); #const_ident.len()];
-
-        rstest_bdd::step!(#keyword, #pattern, #wrapper_ident, &#const_ident);
+        #wrapper_code
     })
 }
 

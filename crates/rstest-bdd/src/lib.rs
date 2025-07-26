@@ -26,6 +26,19 @@ type StepKey = (&'static str, &'static str);
 /// Context passed to step functions containing references to requested fixtures.
 ///
 /// This is constructed by the `#[scenario]` macro for each step invocation.
+///
+/// # Examples
+///
+/// ```
+/// use rstest_bdd::StepContext;
+///
+/// let mut ctx = StepContext::default();
+/// let value = 42;
+/// ctx.insert("my_fixture", &value);
+///
+/// let retrieved: Option<&i32> = ctx.get("my_fixture");
+/// assert_eq!(retrieved, Some(&42));
+/// ```
 #[derive(Default)]
 pub struct StepContext<'a> {
     fixtures: HashMap<&'static str, &'a dyn Any>,

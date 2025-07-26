@@ -1,10 +1,11 @@
-// Behavioural test for step registry
+//! Behavioural test for step registry
 
 use rstest_bdd::{Step, iter, step};
 
 fn sample() {}
 fn wrapper(ctx: &rstest_bdd::StepContext<'_>) {
-    let _ = ctx; // fixture context unused
+    // Adapter for zero-argument step functions
+    let _ = ctx;
     sample();
 }
 

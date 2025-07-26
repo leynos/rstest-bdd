@@ -1,3 +1,5 @@
+//! Behavioural test for fixture context injection
+
 use rstest_bdd::{Step, StepContext, iter, step};
 
 fn needs_value(ctx: &StepContext<'_>) {
@@ -17,6 +19,9 @@ fn context_passes_fixture() {
     let step_fn = iter::<Step>
         .into_iter()
         .find(|s| s.pattern == "a value")
-        .map_or_else(|| panic!("step not registered"), |step| step.run);
+        .map_or_else(
+            || panic!("step 'a value' not found in registry"),
+            |step| step.run,
+        );
     step_fn(&ctx);
 }

@@ -1,3 +1,5 @@
+//! End-to-end test verifying fixture injection across multiple steps
+
 use rstest::fixture;
 use rstest_bdd_macros::{given, scenario, then, when};
 
