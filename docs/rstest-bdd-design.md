@@ -515,10 +515,11 @@ fn test_my_scenario(my_fixture: MyFixture) { /\* final assertion \*/ }
 2. The `rstest` test runner discovers the generated `test_my_scenario` function.
 3. `rstest` first resolves and provides the `my_fixture` dependency.
 4. `rstest` then executes the body of the generated function.
-5. The generated code runs the step-matching loop, executing each Gherkin step
-   by calling the appropriate registered function. Fixtures like `my_fixture`
-   are made available to these steps through the context object passed to the
-   `run` function pointer.
+5. The generated code looks up each step using a map built from the global step
+   registry. This map is initialised once via `LazyLock`, avoiding repeated
+   iteration over `inventory::iter`. Fixtures like `my_fixture` are made
+   available to the step functions through the context object passed to the
+   call site.
 6. If all steps pass, the original code from the user's `test_my_scenario`
    function body is executed.
 
@@ -549,7 +550,8 @@ incrementally.
   using `inventory::submit!`.
 
 - Implement a basic `#[scenario]` macro. This includes compile-time Gherkin
-  file parsing and the runtime step-matching loop. Initially, this will support
+  file parsing and a lookup map built at runtime from the step registry.
+  Initially, this map supports exact string matching with no argument parsing.
   only exact string matching with no argument parsing.
 
 - The goal of this phase is to validate the core architectural choice: that a

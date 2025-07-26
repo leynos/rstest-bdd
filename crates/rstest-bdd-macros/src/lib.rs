@@ -190,15 +190,11 @@ pub fn scenario(attr: TokenStream, item: TokenStream) -> TokenStream {
         #vis #sig {
             let steps = [#((#keywords, #values)),*];
             for (keyword, text) in steps {
-                let mut found = false;
-                for step in rstest_bdd::iter::<rstest_bdd::Step> {
-                    if step.keyword == keyword && step.pattern == text {
-                        (step.run)();
-                        found = true;
-                        break;
-                    }
+                if let Some(f) = rstest_bdd::lookup_step(keyword, text) {
+                    f();
+                } else {
+                    panic!("Step not found: {} {}", keyword, text);
                 }
-                assert!(found, "Step not found: {} {}", keyword, text);
             }
             #block
         }
