@@ -1,4 +1,4 @@
-use rstest_bdd_macros::{given, when, then, scenario};
+use rstest_bdd_macros::{given, when, then};
 
 #[given("a precondition")]
 fn precondition() {}
@@ -9,7 +9,5 @@ fn action() {}
 #[then("a result is produced")]
 fn result() {}
 
-#[scenario("basic.feature")]
-fn my_scenario() {}
 
 fn main() {}

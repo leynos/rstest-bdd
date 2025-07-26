@@ -36,29 +36,29 @@ discovered and executed by a procedural macro at runtime.
   - [x] Ensure each macro generates an `inventory::submit!` block that
     constructs and registers a `Step` instance.
 
-- [ ] **Scenario Orchestrator Macro (Initial Version)**
+- [x] **Scenario Orchestrator Macro (Initial Version)**
 
-  - [ ] Implement a basic `#[scenario(path = "...")]` attribute macro.
+  - [x] Implement a basic `#[scenario(path = "...")]` attribute macro.
 
-  - [ ] The macro must, at compile-time, read and parse the specified
+  - [x] The macro must, at compile-time, read and parse the specified
     `.feature` file using the `gherkin` crate.
 
-  - [ ] The macro must generate a new test function annotated with `#[rstest]`.
+  - [x] The macro must generate a new test function annotated with `#[rstest]`.
 
-  - [ ] The body of the generated function must, at runtime, iterate through
+  - [x] The body of the generated function must, at runtime, iterate through
     the scenario's Gherkin steps and find matching `Step` definitions from the
     `inventory::iter`.
 
-  - [ ] For this phase, only support exact, case-sensitive string matching with
+  - [x] For this phase, only support exact, case-sensitive string matching with
     no argument parsing.
 
-- [ ] **Validation**
+- [x] **Validation**
 
-  - [ ] Create a simple `web_search.feature` file.
+  - [x] Create a simple `web_search.feature` file.
 
-  - [ ] Create a `test_web_search.rs` file with corresponding step definitions.
+  - [x] Create a `test_web_search.rs` file with corresponding step definitions.
 
-  - [ ] Create a test function annotated with `#[scenario]` that successfully
+  - [x] Create a test function annotated with `#[scenario]` that successfully
     runs the steps via `cargo test`.
 
 ## Phase 2: Fixtures and Parameterization
