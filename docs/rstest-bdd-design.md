@@ -788,6 +788,12 @@ the context before executing each step via the registered wrapper. This
 preserves `rstest`'s fixture injection semantics while enabling steps to share
 state.
 
+Every wrapper function is given a unique symbol name derived from the source
+function and an atomic counter. This avoids collisions when similarly named
+steps appear in different modules. The macro also emits a compile-time array
+length assertion to ensure the generated fixture list matches the wrapper
+signature. Any mismatch is reported during compilation rather than at runtime.
+
 ## **Works cited**
 
 [^1]: A Complete Guide To Behavior-Driven Testing With Pytest BDD, accessed on

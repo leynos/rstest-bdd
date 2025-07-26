@@ -7,11 +7,14 @@
 
 use gherkin::{Feature, GherkinEnv, StepType};
 use proc_macro::TokenStream;
-use quote::quote;
+use quote::{format_ident, quote};
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use syn::parse::{Parse, ParseStream};
 use syn::token::{Comma, Eq};
 use syn::{ItemFn, LitInt, LitStr, Result, parse_macro_input};
+
+static COUNTER: AtomicUsize = AtomicUsize::new(0);
 
 struct ScenarioArgs {
     path: LitStr,
@@ -124,7 +127,9 @@ fn step_attr(attr: TokenStream, item: TokenStream, keyword: &str) -> TokenStream
         args.push((pat, name, (*arg.ty).clone()));
     }
 
-    let wrapper_ident = syn::Ident::new(&format!("__rstest_bdd_wrapper_{ident}"), ident.span());
+    let id = COUNTER.fetch_add(1, Ordering::SeqCst);
+    let wrapper_ident = format_ident!("__rstest_bdd_wrapper_{}_{}", ident, id);
+    let const_ident = format_ident!("__rstest_bdd_fixtures_{}_{}", ident, id);
 
     let declares = args.iter().map(|(pat, name, ty)| {
         if matches!(ty, syn::Type::Reference(_)) {
@@ -143,10 +148,14 @@ fn step_attr(attr: TokenStream, item: TokenStream, keyword: &str) -> TokenStream
         }
     });
     let arg_idents = args.iter().map(|(pat, _, _)| pat);
-    let fixture_names = args.iter().map(|(_, name, _)| {
-        let s = name.to_string();
-        quote! { #s }
-    });
+    let fixture_names: Vec<_> = args
+        .iter()
+        .map(|(_, name, _)| {
+            let s = name.to_string();
+            quote! { #s }
+        })
+        .collect();
+    let fixture_len = fixture_names.len();
 
     TokenStream::from(quote! {
         #func
@@ -156,7 +165,11 @@ fn step_attr(attr: TokenStream, item: TokenStream, keyword: &str) -> TokenStream
             #ident(#(#arg_idents),*);
         }
 
-        rstest_bdd::step!(#keyword, #pattern, #wrapper_ident, &[#(#fixture_names),*]);
+        #[allow(non_upper_case_globals)]
+        const #const_ident: [&'static str; #fixture_len] = [#(#fixture_names),*];
+        const _: [(); #fixture_len] = [(); #const_ident.len()];
+
+        rstest_bdd::step!(#keyword, #pattern, #wrapper_ident, &#const_ident);
     })
 }
 
