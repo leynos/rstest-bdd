@@ -9,22 +9,45 @@ use gherkin::{Feature, GherkinEnv, StepType};
 use proc_macro::TokenStream;
 use quote::quote;
 use std::path::PathBuf;
-use syn::Result;
 use syn::parse::{Parse, ParseStream};
-use syn::token::Eq;
-use syn::{ItemFn, LitStr, parse_macro_input};
+use syn::token::{Comma, Eq};
+use syn::{ItemFn, LitInt, LitStr, Result, parse_macro_input};
 
-struct PathArg(LitStr);
+struct ScenarioArgs {
+    path: LitStr,
+    index: Option<usize>,
+}
 
-impl Parse for PathArg {
+impl Parse for ScenarioArgs {
     fn parse(input: ParseStream<'_>) -> Result<Self> {
-        let ident: syn::Ident = input.parse()?;
-        input.parse::<Eq>()?;
-        if ident != "path" {
-            return Err(input.error("expected `path`"));
+        let mut path = None;
+        let mut index = None;
+
+        while !input.is_empty() {
+            let ident: syn::Ident = input.parse()?;
+            input.parse::<Eq>()?;
+            if ident == "path" {
+                let lit: LitStr = input.parse()?;
+                path = Some(lit);
+            } else if ident == "index" {
+                let lit: LitInt = input.parse()?;
+                index = Some(lit.base10_parse()?);
+            } else {
+                return Err(input.error("expected `path` or `index`"));
+            }
+
+            if input.peek(Comma) {
+                input.parse::<Comma>()?;
+            } else {
+                break;
+            }
         }
-        let lit: LitStr = input.parse()?;
-        Ok(Self(lit))
+
+        let Some(path) = path else {
+            return Err(input.error("`path` is required"));
+        };
+
+        Ok(Self { path, index })
     }
 }
 
@@ -120,8 +143,8 @@ pub fn then(attr: TokenStream, item: TokenStream) -> TokenStream {
 /// This macro does not panic. Invalid input results in a compile error.
 #[proc_macro_attribute]
 pub fn scenario(attr: TokenStream, item: TokenStream) -> TokenStream {
-    let PathArg(path_lit) = parse_macro_input!(attr as PathArg);
-    let path = PathBuf::from(path_lit.value());
+    let ScenarioArgs { path, index } = parse_macro_input!(attr as ScenarioArgs);
+    let path = PathBuf::from(path.value());
 
     let item_fn = parse_macro_input!(item as ItemFn);
     let attrs = &item_fn.attrs;
@@ -141,8 +164,8 @@ pub fn scenario(attr: TokenStream, item: TokenStream) -> TokenStream {
             return TokenStream::from(quote! { compile_error!(#msg); });
         }
     };
-    let Some(scenario) = feature.scenarios.first() else {
-        return TokenStream::from(quote! { compile_error!("feature contains no scenarios"); });
+    let Some(scenario) = feature.scenarios.get(index.unwrap_or(0)) else {
+        return TokenStream::from(quote! { compile_error!("scenario index out of range") });
     };
 
     let steps: Vec<(String, String)> = scenario

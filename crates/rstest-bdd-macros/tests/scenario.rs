@@ -37,4 +37,21 @@ fn simple_search() {
         Err(p) => p.into_inner(),
     };
     assert_eq!(events.as_slice(), ["precondition", "action", "result"]);
+    drop(events);
+    if let Ok(mut g) = EVENTS.lock() {
+        g.clear();
+    }
+}
+
+#[scenario(path = "tests/features/multi.feature", index = 1)]
+fn second_scenario() {
+    let events = match EVENTS.lock() {
+        Ok(g) => g,
+        Err(p) => p.into_inner(),
+    };
+    assert_eq!(events.as_slice(), ["precondition", "action", "result"]);
+    drop(events);
+    if let Ok(mut g) = EVENTS.lock() {
+        g.clear();
+    }
 }

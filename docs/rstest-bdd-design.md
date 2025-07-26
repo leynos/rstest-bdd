@@ -754,14 +754,15 @@ configuration and lints at the workspace level.
 
 ### 3.7 Initial Scenario Macro Implementation
 
-The first implementation of the `#[scenario]` macro keeps the scope narrow to
-validate the overall approach. The macro accepts a `path` argument pointing to
-a `*.feature` file. At compile time it reads and parses this file using the
-`gherkin` crate. Only the first `Scenario` in the file is bound to the test
-function. The generated test is annotated with `#[rstest]` and at runtime
-iterates over the scenario's steps, finding matching step definitions by exact
-string comparison. This version deliberately omits argument parsing and fixture
-handling to minimise complexity while proving the orchestration works.
+The first implementation of the `#[scenario]` macro kept the scope narrow to
+validate the overall approach. It accepted only a `path` argument pointing to a
+`*.feature` file and always executed the first `Scenario` found. The macro now
+also accepts an optional `index` argument. When provided, the macro selects the
+scenario at that zero-based position. If omitted it defaults to `0`, matching
+the behaviour of the earlier version. The generated test is annotated with
+`#[rstest]` and at runtime iterates over the selected scenario's steps, finding
+matching step definitions by exact string comparison. Argument parsing and
+fixture handling remain unimplemented to keep the orchestration simple.
 
 ## **Works cited**
 
