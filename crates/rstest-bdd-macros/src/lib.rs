@@ -89,12 +89,74 @@ impl ScenarioArgs {
 
 fn step_attr(attr: TokenStream, item: TokenStream, keyword: &str) -> TokenStream {
     let pattern = parse_macro_input!(attr as LitStr);
-    let func = parse_macro_input!(item as ItemFn);
+    let mut func = parse_macro_input!(item as ItemFn);
     let ident = &func.sig.ident;
+
+    let mut args = Vec::new();
+
+    for input in &mut func.sig.inputs {
+        let syn::FnArg::Typed(arg) = input else {
+            return syn::Error::new_spanned(input, "methods not supported")
+                .to_compile_error()
+                .into();
+        };
+
+        let mut fixture_name = None;
+        arg.attrs.retain(|a| {
+            if a.path().is_ident("from") {
+                fixture_name = a.parse_args::<syn::Ident>().ok();
+                false
+            } else {
+                true
+            }
+        });
+
+        let pat = match &*arg.pat {
+            syn::Pat::Ident(i) => i.ident.clone(),
+            _ => {
+                return syn::Error::new_spanned(&arg.pat, "unsupported pattern")
+                    .to_compile_error()
+                    .into();
+            }
+        };
+
+        let name = fixture_name.unwrap_or_else(|| pat.clone());
+        args.push((pat, name, (*arg.ty).clone()));
+    }
+
+    let wrapper_ident = syn::Ident::new(&format!("__rstest_bdd_wrapper_{ident}"), ident.span());
+
+    let declares = args.iter().map(|(pat, name, ty)| {
+        if matches!(ty, syn::Type::Reference(_)) {
+            quote! {
+                let #pat: #ty = ctx
+                    .get::<#ty>(stringify!(#name))
+                    .expect("missing fixture");
+            }
+        } else {
+            quote! {
+                let #pat: #ty = ctx
+                    .get::<#ty>(stringify!(#name))
+                    .expect("missing fixture")
+                    .clone();
+            }
+        }
+    });
+    let arg_idents = args.iter().map(|(pat, _, _)| pat);
+    let fixture_names = args.iter().map(|(_, name, _)| {
+        let s = name.to_string();
+        quote! { #s }
+    });
 
     TokenStream::from(quote! {
         #func
-        rstest_bdd::step!(#keyword, #pattern, #ident);
+
+        fn #wrapper_ident(ctx: &rstest_bdd::StepContext<'_>) {
+            #(#declares)*
+            #ident(#(#arg_idents),*);
+        }
+
+        rstest_bdd::step!(#keyword, #pattern, #wrapper_ident, &[#(#fixture_names),*]);
     })
 }
 
@@ -235,14 +297,32 @@ pub fn scenario(attr: TokenStream, item: TokenStream) -> TokenStream {
     let keywords = steps.iter().map(|(k, _)| k);
     let values = steps.iter().map(|(_, v)| v);
 
+    let arg_idents: Vec<syn::Ident> = sig
+        .inputs
+        .iter()
+        .filter_map(|arg| match arg {
+            syn::FnArg::Typed(p) => match &*p.pat {
+                syn::Pat::Ident(id) => Some(id.ident.clone()),
+                _ => None,
+            },
+            syn::FnArg::Receiver(_) => None,
+        })
+        .collect();
+
+    let ctx_inserts = arg_idents
+        .iter()
+        .map(|id| quote! { ctx.insert(stringify!(#id), &#id); });
+
     TokenStream::from(quote! {
         #(#attrs)*
         #[rstest::rstest]
         #vis #sig {
             let steps = [#((#keywords, #values)),*];
+            let mut ctx = rstest_bdd::StepContext::default();
+            #(#ctx_inserts)*
             for (index, (keyword, text)) in steps.iter().enumerate() {
                 if let Some(f) = rstest_bdd::lookup_step(keyword, text) {
-                    f();
+                    f(&ctx);
                 } else {
                     panic!(
                         "Step not found at index {}: {} {} (feature: {}, scenario: {})",

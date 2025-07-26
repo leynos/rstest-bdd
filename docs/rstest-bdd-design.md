@@ -772,6 +772,22 @@ step definitions by exact string comparison. Argument parsing and fixture
 handling remain unimplemented to minimize complexity while proving the
 orchestration works.
 
+### 3.8 Fixture Integration Implementation
+
+The second phase extends the macro system to support fixtures. Step definition
+macros now inspect the parameters of the attached function. Any argument is
+treated as a fixture request, with an optional `#[from(name)]` attribute
+allowing the argument name to differ from the fixture's. The macro generates a
+wrapper function taking a `StepContext` and registers this wrapper in the step
+registry. The wrapper retrieves the required fixtures from the context and
+calls the original step function.
+
+The `#[scenario]` macro populates a `StepContext` at runtime. It gathers all
+fixtures provided to the generated test function and inserts references into
+the context before executing each step via the registered wrapper. This
+preserves `rstest`'s fixture injection semantics while enabling steps to share
+state.
+
 ## **Works cited**
 
 [^1]: A Complete Guide To Behavior-Driven Testing With Pytest BDD, accessed on

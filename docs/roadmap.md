@@ -66,12 +66,12 @@ discovered and executed by a procedural macro at runtime.
 This phase focuses on integrating with `rstest`'s core features to manage state
 and run data-driven tests, making the framework genuinely useful.
 
-- [ ] **Fixture Integration**
+- [x] **Fixture Integration**
 
-  - [ ] Enhance the step definition macros to inspect the signature of the
+  - [x] Enhance the step definition macros to inspect the signature of the
     attached function to identify requested fixtures.
 
-  - [ ] Modify the `#[scenario]` macro's code generation to correctly manage
+  - [x] Modify the `#[scenario]` macro's code generation to correctly manage
     and pass fixtures to the step functions during execution.
 
 - [ ] **Scenario Outline Support**
