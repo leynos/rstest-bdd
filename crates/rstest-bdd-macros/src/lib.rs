@@ -21,27 +21,37 @@ struct ScenarioArgs {
 impl Parse for ScenarioArgs {
     fn parse(input: ParseStream<'_>) -> Result<Self> {
         if input.peek(LitStr) {
-            let path: LitStr = input.parse()?;
-            let mut index = None;
+            Self::parse_bare_string(input)
+        } else {
+            Self::parse_named_args(input)
+        }
+    }
+}
 
-            if input.peek(Comma) {
-                input.parse::<Comma>()?;
-                let ident: syn::Ident = input.parse()?;
-                if ident != "index" {
-                    return Err(input.error("expected `index`"));
-                }
-                input.parse::<Eq>()?;
-                let lit: LitInt = input.parse()?;
-                index = Some(lit.base10_parse()?);
+impl ScenarioArgs {
+    fn parse_bare_string(input: ParseStream<'_>) -> Result<Self> {
+        let path: LitStr = input.parse()?;
+        let mut index = None;
+
+        if input.peek(Comma) {
+            input.parse::<Comma>()?;
+            let ident: syn::Ident = input.parse()?;
+            if ident != "index" {
+                return Err(input.error("expected `index`"));
             }
-
-            if !input.is_empty() {
-                return Err(input.error("unexpected tokens"));
-            }
-
-            return Ok(Self { path, index });
+            input.parse::<Eq>()?;
+            let lit: LitInt = input.parse()?;
+            index = Some(lit.base10_parse()?);
         }
 
+        if !input.is_empty() {
+            return Err(input.error("unexpected tokens"));
+        }
+
+        Ok(Self { path, index })
+    }
+
+    fn parse_named_args(input: ParseStream<'_>) -> Result<Self> {
         let mut path = None;
         let mut index = None;
 
@@ -187,6 +197,7 @@ pub fn scenario(attr: TokenStream, item: TokenStream) -> TokenStream {
     };
     let feature_path = PathBuf::from(manifest_dir).join(&path);
 
+    let feature_path_str = feature_path.display().to_string();
     let feature = match Feature::parse_path(&feature_path, GherkinEnv::default()) {
         Ok(f) => f,
         Err(err) => {
@@ -198,6 +209,7 @@ pub fn scenario(attr: TokenStream, item: TokenStream) -> TokenStream {
         return TokenStream::from(quote! { compile_error!("scenario index out of range") });
     };
 
+    let scenario_name = scenario.name.clone();
     let steps: Vec<(String, String)> = scenario
         .steps
         .iter()
@@ -223,7 +235,13 @@ pub fn scenario(attr: TokenStream, item: TokenStream) -> TokenStream {
                 if let Some(f) = rstest_bdd::lookup_step(keyword, text) {
                     f();
                 } else {
-                    panic!("Step not found: {} {}", keyword, text);
+                    panic!(
+                        "Step not found: {} {} (feature: {}, scenario: {})",
+                        keyword,
+                        text,
+                        #feature_path_str,
+                        #scenario_name
+                    );
                 }
             }
             #block

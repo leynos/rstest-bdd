@@ -769,7 +769,8 @@ bare string literal for convenience (e.g.
 when combined with `index`. The generated test is annotated with `#[rstest]`
 and at runtime iterates over the selected scenario's steps, finding matching
 step definitions by exact string comparison. Argument parsing and fixture
-handling remain unimplemented to keep the orchestration simple.
+handling remain unimplemented to minimize complexity while proving the
+orchestration works.
 
 ## **Works cited**
 
