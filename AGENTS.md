@@ -147,7 +147,7 @@ project:
 - Use `concat!()` to combine long string literals rather than escaping newlines
   with a backslash.
 
-## Dependency Management
+### Dependency Management
 
 - **Mandate caret requirements for all dependencies.** All crate versions
   specified in `Cargo.toml` must use SemVer-compatible caret requirements
@@ -155,12 +155,22 @@ project:
   non-breaking updates to minor and patch versions while preventing breaking
   changes from new major versions. This approach is critical for ensuring
   build stability and reproducibility.
-
 - **Prohibit unstable version specifiers.** The use of wildcard (`*`) or
   open-ended inequality (`>=`) version requirements is strictly forbidden
   as they introduce unacceptable risk and unpredictability. Tilde requirements
   (`~`) should only be used where a dependency must be locked to patch-level
   updates for a specific, documented reason.
+
+### Error Handling
+
+- **Prefer semantic error enums**. Derive `std::error::Error` (via the
+  `thiserror` crate) for any condition the caller might inspect, retry, or
+  map to an HTTP status.
+- **Use an *opaque* error only at the app boundary**. Use `eyre::Report` for
+  human-readable logs; these should not be exposed in public APIs.
+- **Never export the opaque type from a library**. Convert to domain enums at
+  API boundaries, and to `eyre` only in the main `main()` entrypoint or
+  top-level async task.
 
 ## Markdown Guidance
 
