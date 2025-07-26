@@ -200,7 +200,7 @@ Feature: User Login
 
 ```rust
 //...
-#[scenario(path = "features/login.feature", name = "Login with different credentials")]
+#[scenario(path = "features/login.feature", index = 0)]
 #[tokio::test]
 async fn test_login_scenarios(#[future] browser: WebDriver) {}
 
@@ -299,16 +299,18 @@ challenges and solutions, and the end-to-end code generation process.
 The user-facing functionality is enabled by a suite of procedural macros. Each
 macro has a distinct role in the compile-time orchestration of the BDD tests.
 
-- `#[scenario(path = "...", name = "...")]` - the primary entry point and
-  orchestrator.
+- `#[scenario("...")]` or `#[scenario(path = "...", index = N)]` – the primary
+  entry point and orchestrator.
 
   - **Arguments:**
 
     - `path: &str`: A mandatory, relative path from the crate root to the
-      `.feature` file containing the scenario.
+      `.feature` file containing the scenario. The path can be provided as a
+      bare string literal or with the explicit `path =` form when other
+      arguments are used.
 
-    - `name: &str`: A mandatory string specifying the `Scenario` or
-      `Scenario Outline` name to bind the test function to.
+    - `index: usize` (optional): Selects which scenario in the feature file to
+      execute. Defaults to `0` when omitted.
 
   - **Functionality:** This macro is responsible for the heavy lifting. At
     compile time, it reads and parses the specified feature file, finds the
@@ -761,10 +763,13 @@ validate the overall approach. It accepted only a `path` argument pointing to a
 `*.feature` file and always executed the first `Scenario` found. The macro now
 also accepts an optional `index` argument. When provided, the macro selects the
 scenario at that zero-based position. If omitted it defaults to `0`, matching
-the behaviour of the earlier version. The generated test is annotated with
-`#[rstest]` and at runtime iterates over the selected scenario's steps, finding
-matching step definitions by exact string comparison. Argument parsing and
-fixture handling remain unimplemented to keep the orchestration simple.
+the behaviour of the earlier version. The `path` argument may be provided as a
+bare string literal for convenience (e.g.
+`#[scenario("tests/example.feature")]`) or using the explicit `path =` form
+when combined with `index`. The generated test is annotated with `#[rstest]`
+and at runtime iterates over the selected scenario's steps, finding matching
+step definitions by exact string comparison. Argument parsing and fixture
+handling remain unimplemented to keep the orchestration simple.
 
 ## **Works cited**
 

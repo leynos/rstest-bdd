@@ -30,7 +30,7 @@ fn result() {
     guard.push("result");
 }
 
-#[scenario(path = "tests/features/web_search.feature")]
+#[scenario("tests/features/web_search.feature")]
 fn simple_search() {
     let events = match EVENTS.lock() {
         Ok(g) => g,
@@ -45,6 +45,19 @@ fn simple_search() {
 
 #[scenario(path = "tests/features/multi.feature", index = 1)]
 fn second_scenario() {
+    let events = match EVENTS.lock() {
+        Ok(g) => g,
+        Err(p) => p.into_inner(),
+    };
+    assert_eq!(events.as_slice(), ["precondition", "action", "result"]);
+    drop(events);
+    if let Ok(mut g) = EVENTS.lock() {
+        g.clear();
+    }
+}
+
+#[scenario(path = "tests/features/web_search.feature", index = 0)]
+fn explicit_syntax() {
     let events = match EVENTS.lock() {
         Ok(g) => g,
         Err(p) => p.into_inner(),
