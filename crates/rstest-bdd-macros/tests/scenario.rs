@@ -1,46 +1,49 @@
 use rstest_bdd_macros::{given, scenario, then, when};
 use serial_test::serial;
-use std::sync::{LazyLock, Mutex};
+use std::sync::{LazyLock, Mutex, MutexGuard};
 
 static EVENTS: LazyLock<Mutex<Vec<&'static str>>> = LazyLock::new(|| Mutex::new(Vec::new()));
 
-fn clear_events() {
-    if let Ok(mut g) = EVENTS.lock() {
-        g.clear();
+fn get_events_guard() -> MutexGuard<'static, Vec<&'static str>> {
+    match EVENTS.lock() {
+        Ok(g) => g,
+        Err(p) => p.into_inner(),
     }
 }
 
-fn with_events<F, R>(f: F) -> R
+fn clear_events() {
+    let mut g = get_events_guard();
+    g.clear();
+}
+
+fn with_locked_events<F, R>(f: F) -> R
 where
     F: FnOnce(&mut Vec<&'static str>) -> R,
 {
-    let mut guard = match EVENTS.lock() {
-        Ok(g) => g,
-        Err(p) => p.into_inner(),
-    };
+    let mut guard = get_events_guard();
     f(&mut guard)
 }
 
 #[given("a precondition")]
 fn precondition() {
     clear_events();
-    with_events(|events| events.push("precondition"));
+    with_locked_events(|events| events.push("precondition"));
 }
 
 #[when("an action occurs")]
 fn action() {
-    with_events(|events| events.push("action"));
+    with_locked_events(|events| events.push("action"));
 }
 
 #[then("a result is produced")]
 fn result() {
-    with_events(|events| events.push("result"));
+    with_locked_events(|events| events.push("result"));
 }
 
 #[scenario("tests/features/web_search.feature")]
 #[serial]
 fn simple_search() {
-    with_events(|events| {
+    with_locked_events(|events| {
         assert_eq!(events.as_slice(), ["precondition", "action", "result"]);
     });
     clear_events();
@@ -49,7 +52,7 @@ fn simple_search() {
 #[scenario(path = "tests/features/multi.feature", index = 1)]
 #[serial]
 fn second_scenario() {
-    with_events(|events| {
+    with_locked_events(|events| {
         assert_eq!(events.as_slice(), ["precondition", "action", "result"]);
     });
     clear_events();
@@ -58,7 +61,7 @@ fn second_scenario() {
 #[scenario(path = "tests/features/web_search.feature", index = 0)]
 #[serial]
 fn explicit_syntax() {
-    with_events(|events| {
+    with_locked_events(|events| {
         assert_eq!(events.as_slice(), ["precondition", "action", "result"]);
     });
     clear_events();
