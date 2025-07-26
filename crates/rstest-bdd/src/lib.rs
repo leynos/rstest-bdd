@@ -82,8 +82,12 @@ macro_rules! step {
 inventory::collect!(Step);
 
 static STEP_MAP: LazyLock<HashMap<StepKey, fn()>> = LazyLock::new(|| {
-    let mut map = HashMap::new();
-    for step in iter::<Step> {
+    // Collect registered steps first so we can allocate the map with
+    // an appropriate capacity. This avoids rehashing when many steps
+    // are present.
+    let steps: Vec<_> = iter::<Step>.into_iter().collect();
+    let mut map = HashMap::with_capacity(steps.len());
+    for step in steps {
         map.insert((step.keyword, step.pattern), step.run);
     }
     map

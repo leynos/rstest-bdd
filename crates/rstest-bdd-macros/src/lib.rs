@@ -197,7 +197,12 @@ pub fn scenario(attr: TokenStream, item: TokenStream) -> TokenStream {
     let block = &item_fn.block;
 
     let Ok(manifest_dir) = std::env::var("CARGO_MANIFEST_DIR") else {
-        return TokenStream::from(quote! { compile_error!("CARGO_MANIFEST_DIR not set"); });
+        return TokenStream::from(quote! {
+            compile_error!(
+                "CARGO_MANIFEST_DIR is not set. This variable is normally provided by Cargo. \
+                 Ensure the macro runs within a Cargo build context."
+            );
+        });
     };
     let feature_path = PathBuf::from(manifest_dir).join(&path);
 
@@ -235,12 +240,13 @@ pub fn scenario(attr: TokenStream, item: TokenStream) -> TokenStream {
         #[rstest::rstest]
         #vis #sig {
             let steps = [#((#keywords, #values)),*];
-            for (keyword, text) in steps {
+            for (index, (keyword, text)) in steps.iter().enumerate() {
                 if let Some(f) = rstest_bdd::lookup_step(keyword, text) {
                     f();
                 } else {
                     panic!(
-                        "Step not found: {} {} (feature: {}, scenario: {})",
+                        "Step not found at index {}: {} {} (feature: {}, scenario: {})",
+                        index,
                         keyword,
                         text,
                         #feature_path_str,
@@ -248,6 +254,7 @@ pub fn scenario(attr: TokenStream, item: TokenStream) -> TokenStream {
                     );
                 }
             }
+            // Execute the original function body after all scenario steps complete
             #block
         }
     })

@@ -518,7 +518,7 @@ fn test_my_scenario(my_fixture: MyFixture) { /\* final assertion \*/ }
 3. `rstest` first resolves and provides the `my_fixture` dependency.
 4. `rstest` then executes the body of the generated function.
 5. The generated code looks up each step using a map built from the global step
-   registry. This map is initialised once via `LazyLock`, avoiding repeated
+   registry. This map is initialized once via `LazyLock`, avoiding repeated
    iteration over `inventory::iter`. Fixtures like `my_fixture` are made
    available to the step functions through the context object passed to the
    call site.
