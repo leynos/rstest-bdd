@@ -17,6 +17,10 @@ pub fn greet() -> &'static str {
 }
 
 pub use inventory::{iter, submit};
+use std::collections::HashMap;
+use std::sync::LazyLock;
+
+type StepKey = (&'static str, &'static str);
 
 /// Represents a single step definition registered with the framework.
 ///
@@ -76,6 +80,36 @@ macro_rules! step {
 }
 
 inventory::collect!(Step);
+
+static STEP_MAP: LazyLock<HashMap<StepKey, fn()>> = LazyLock::new(|| {
+    // Collect registered steps first so we can allocate the map with
+    // an appropriate capacity. This avoids rehashing when many steps
+    // are present.
+    let steps: Vec<_> = iter::<Step>.into_iter().collect();
+    let mut map = HashMap::with_capacity(steps.len());
+    for step in steps {
+        map.insert((step.keyword, step.pattern), step.run);
+    }
+    map
+});
+
+/// Look up a registered step by keyword and pattern.
+///
+/// # Examples
+///
+/// ```
+/// use rstest_bdd::{step, lookup_step};
+///
+/// fn dummy() {}
+/// step!("Given", "a thing", dummy);
+///
+/// let step_fn = lookup_step("Given", "a thing");
+/// assert!(step_fn.is_some());
+/// ```
+#[must_use]
+pub fn lookup_step(keyword: &str, pattern: &str) -> Option<fn()> {
+    STEP_MAP.get(&(keyword, pattern)).copied()
+}
 
 #[cfg(test)]
 mod tests {

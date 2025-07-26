@@ -200,7 +200,7 @@ Feature: User Login
 
 ```rust
 //...
-#[scenario(path = "features/login.feature", name = "Login with different credentials")]
+#[scenario(path = "features/login.feature", index = 0)]
 #[tokio::test]
 async fn test_login_scenarios(#[future] browser: WebDriver) {}
 
@@ -299,16 +299,18 @@ challenges and solutions, and the end-to-end code generation process.
 The user-facing functionality is enabled by a suite of procedural macros. Each
 macro has a distinct role in the compile-time orchestration of the BDD tests.
 
-- `#[scenario(path = "...", name = "...")]` - the primary entry point and
-  orchestrator.
+- `#[scenario("…")]` or `#[scenario(path = "…", index = N)]` – the primary
+  entry point and orchestrator.
 
   - **Arguments:**
 
     - `path: &str`: A mandatory, relative path from the crate root to the
-      `.feature` file containing the scenario.
+      `.feature` file containing the scenario. The path can be provided as a
+      bare string literal or with the explicit `path =` form when other
+      arguments are used.
 
-    - `name: &str`: A mandatory string specifying the `Scenario` or
-      `Scenario Outline` name to bind the test function to.
+    - `index: usize` (optional): Selects which scenario in the feature file to
+      execute. Defaults to `0` when omitted.
 
   - **Functionality:** This macro is responsible for the heavy lifting. At
     compile time, it reads and parses the specified feature file, finds the
@@ -515,10 +517,11 @@ fn test_my_scenario(my_fixture: MyFixture) { /\* final assertion \*/ }
 2. The `rstest` test runner discovers the generated `test_my_scenario` function.
 3. `rstest` first resolves and provides the `my_fixture` dependency.
 4. `rstest` then executes the body of the generated function.
-5. The generated code runs the step-matching loop, executing each Gherkin step
-   by calling the appropriate registered function. Fixtures like `my_fixture`
-   are made available to these steps through the context object passed to the
-   `run` function pointer.
+5. The generated code looks up each step using a map built from the global step
+   registry. This map is initialized once via `LazyLock`, avoiding repeated
+   iteration over `inventory::iter`. Fixtures like `my_fixture` are made
+   available to the step functions through the context object passed to the
+   call site.
 6. If all steps pass, the original code from the user's `test_my_scenario`
    function body is executed.
 
@@ -549,7 +552,8 @@ incrementally.
   using `inventory::submit!`.
 
 - Implement a basic `#[scenario]` macro. This includes compile-time Gherkin
-  file parsing and the runtime step-matching loop. Initially, this will support
+  file parsing and a lookup map built at runtime from the step registry.
+  Initially, this map supports exact string matching with no argument parsing.
   only exact string matching with no argument parsing.
 
 - The goal of this phase is to validate the core architectural choice: that a
@@ -751,6 +755,22 @@ crates separate. The workspace contains two members:
 
 This layout allows each crate to evolve independently while sharing common
 configuration and lints at the workspace level.
+
+### 3.7 Initial Scenario Macro Implementation
+
+The first implementation of the `#[scenario]` macro kept the scope narrow to
+validate the overall approach. It accepted only a `path` argument pointing to a
+`*.feature` file and always executed the first `Scenario` found. The macro now
+also accepts an optional `index` argument. When provided, the macro selects the
+scenario at that zero-based position. If omitted it defaults to `0`, matching
+the behaviour of the earlier version. The `path` argument may be provided as a
+bare string literal for convenience (e.g.
+`#[scenario("tests/example.feature")]`) or using the explicit `path =` form
+when combined with `index`. The generated test is annotated with `#[rstest]`
+and at runtime iterates over the selected scenario's steps, finding matching
+step definitions by exact string comparison. Argument parsing and fixture
+handling remain unimplemented to minimize complexity while proving the
+orchestration works.
 
 ## **Works cited**
 

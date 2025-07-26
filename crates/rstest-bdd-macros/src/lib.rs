@@ -5,9 +5,87 @@
 //! step inventory system, enabling runtime discovery and execution of step
 //! definitions.
 
+use gherkin::{Feature, GherkinEnv, StepType};
 use proc_macro::TokenStream;
 use quote::quote;
-use syn::{ItemFn, LitStr, parse_macro_input};
+use std::path::PathBuf;
+use syn::parse::{Parse, ParseStream};
+use syn::token::{Comma, Eq};
+use syn::{ItemFn, LitInt, LitStr, Result, parse_macro_input};
+
+struct ScenarioArgs {
+    path: LitStr,
+    index: Option<usize>,
+}
+
+impl Parse for ScenarioArgs {
+    fn parse(input: ParseStream<'_>) -> Result<Self> {
+        if input.peek(LitStr) {
+            Self::parse_bare_string(input)
+        } else {
+            Self::parse_named_args(input)
+        }
+    }
+}
+
+impl ScenarioArgs {
+    fn parse_bare_string(input: ParseStream<'_>) -> Result<Self> {
+        let path: LitStr = input.parse()?;
+        let mut index = None;
+
+        if input.peek(Comma) {
+            input.parse::<Comma>()?;
+            let ident: syn::Ident = input.parse()?;
+            if ident != "index" {
+                return Err(input.error("expected `index`"));
+            }
+            input.parse::<Eq>()?;
+            let lit: LitInt = input.parse()?;
+            index = Some(lit.base10_parse()?);
+        }
+
+        if !input.is_empty() {
+            return Err(input.error("unexpected tokens"));
+        }
+
+        Ok(Self { path, index })
+    }
+
+    fn parse_named_args(input: ParseStream<'_>) -> Result<Self> {
+        let mut path = None;
+        let mut index = None;
+
+        while !input.is_empty() {
+            let ident: syn::Ident = input.parse()?;
+            input.parse::<Eq>()?;
+            if ident == "path" {
+                let lit: LitStr = input.parse()?;
+                path = Some(lit);
+            } else if ident == "index" {
+                let lit: LitInt = input.parse()?;
+                index = Some(lit.base10_parse()?);
+            } else {
+                return Err(input.error("expected `path` or `index`"));
+            }
+
+            if input.peek(Comma) {
+                input.parse::<Comma>()?;
+            } else {
+                break;
+            }
+        }
+
+        let Some(path) = path else {
+            return Err(input.error("`path` is required"));
+        };
+
+        if !input.is_empty() {
+            return Err(input.error("unexpected tokens"));
+        }
+
+        Ok(Self { path, index })
+    }
+}
 
 fn step_attr(attr: TokenStream, item: TokenStream, keyword: &str) -> TokenStream {
     let pattern = parse_macro_input!(attr as LitStr);
@@ -80,10 +158,11 @@ pub fn then(attr: TokenStream, item: TokenStream) -> TokenStream {
     step_attr(attr, item, "Then")
 }
 
-/// No-op macro for binding a scenario to a feature file.
+/// Bind a test to a scenario defined in a feature file.
 ///
-/// *attr* The string literal gives the path to the feature file containing the
-/// scenario.
+/// *attr* Accepts either a bare string literal giving the path to the feature
+/// file or a `path = "..."` argument. An optional `index = N` argument selects
+/// which scenario to run when the file contains more than one.
 ///
 /// # Examples
 ///
@@ -94,8 +173,89 @@ pub fn then(attr: TokenStream, item: TokenStream) -> TokenStream {
 /// fn test_user_login() {
 ///     // test implementation
 /// }
+///
+/// #[scenario(path = "user_login.feature", index = 1)]
+/// fn second_case() {}
 /// ```
+///
+/// # Panics
+///
+/// This macro does not panic. Invalid input results in a compile error.
+///
+/// The generated test runs all scenario steps before executing the original
+/// function body. Use the function block for additional assertions after the
+/// steps complete.
 #[proc_macro_attribute]
-pub fn scenario(_attr: TokenStream, item: TokenStream) -> TokenStream {
-    item
+pub fn scenario(attr: TokenStream, item: TokenStream) -> TokenStream {
+    let ScenarioArgs { path, index } = parse_macro_input!(attr as ScenarioArgs);
+    let path = PathBuf::from(path.value());
+
+    let item_fn = parse_macro_input!(item as ItemFn);
+    let attrs = &item_fn.attrs;
+    let vis = &item_fn.vis;
+    let sig = &item_fn.sig;
+    let block = &item_fn.block;
+
+    let Ok(manifest_dir) = std::env::var("CARGO_MANIFEST_DIR") else {
+        return TokenStream::from(quote! {
+            compile_error!(
+                "CARGO_MANIFEST_DIR is not set. This variable is normally provided by Cargo. \
+                 Ensure the macro runs within a Cargo build context."
+            );
+        });
+    };
+    let feature_path = PathBuf::from(manifest_dir).join(&path);
+
+    let feature_path_str = feature_path.display().to_string();
+    let feature = match Feature::parse_path(&feature_path, GherkinEnv::default()) {
+        Ok(f) => f,
+        Err(err) => {
+            let msg = format!("failed to parse feature file: {err}");
+            return TokenStream::from(quote! { compile_error!(#msg); });
+        }
+    };
+    let Some(scenario) = feature.scenarios.get(index.unwrap_or(0)) else {
+        return TokenStream::from(quote! { compile_error!("scenario index out of range") });
+    };
+
+    let scenario_name = scenario.name.clone();
+    let steps: Vec<(String, String)> = scenario
+        .steps
+        .iter()
+        .map(|s| {
+            let keyword = match s.ty {
+                StepType::Given => "Given",
+                StepType::When => "When",
+                StepType::Then => "Then",
+            };
+            (keyword.to_string(), s.value.clone())
+        })
+        .collect();
+
+    let keywords = steps.iter().map(|(k, _)| k);
+    let values = steps.iter().map(|(_, v)| v);
+
+    TokenStream::from(quote! {
+        #(#attrs)*
+        #[rstest::rstest]
+        #vis #sig {
+            let steps = [#((#keywords, #values)),*];
+            for (index, (keyword, text)) in steps.iter().enumerate() {
+                if let Some(f) = rstest_bdd::lookup_step(keyword, text) {
+                    f();
+                } else {
+                    panic!(
+                        "Step not found at index {}: {} {} (feature: {}, scenario: {})",
+                        index,
+                        keyword,
+                        text,
+                        #feature_path_str,
+                        #scenario_name
+                    );
+                }
+            }
+            // Execute the original function body after all scenario steps complete
+            #block
+        }
+    })
 }
