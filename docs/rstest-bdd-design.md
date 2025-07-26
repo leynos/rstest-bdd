@@ -762,7 +762,7 @@ The first implementation of the `#[scenario]` macro kept the scope narrow to
 validate the overall approach. It accepted only a `path` argument pointing to a
 `*.feature` file and always executed the first `Scenario` found. The macro now
 also accepts an optional `index` argument. When provided, the macro selects the
-scenario at that zero-based position. If omitted it defaults to `0`, matching
+scenario at that zero-based position. If omitted, it defaults to `0`, matching
 the behaviour of the earlier version. The `path` argument may be provided as a
 bare string literal for convenience (e.g.
 `#[scenario("tests/example.feature")]`) or using the explicit `path =` form
