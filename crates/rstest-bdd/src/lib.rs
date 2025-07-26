@@ -90,6 +90,18 @@ static STEP_MAP: LazyLock<HashMap<StepKey, fn()>> = LazyLock::new(|| {
 });
 
 /// Look up a registered step by keyword and pattern.
+///
+/// # Examples
+///
+/// ```
+/// use rstest_bdd::{step, lookup_step};
+///
+/// fn dummy() {}
+/// step!("Given", "a thing", dummy);
+///
+/// let step_fn = lookup_step("Given", "a thing");
+/// assert!(step_fn.is_some());
+/// ```
 #[must_use]
 pub fn lookup_step(keyword: &str, pattern: &str) -> Option<fn()> {
     STEP_MAP.get(&(keyword, pattern)).copied()

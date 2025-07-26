@@ -181,6 +181,10 @@ pub fn then(attr: TokenStream, item: TokenStream) -> TokenStream {
 /// # Panics
 ///
 /// This macro does not panic. Invalid input results in a compile error.
+///
+/// The generated test runs all scenario steps before executing the original
+/// function body. Use the function block for additional assertions after the
+/// steps complete.
 #[proc_macro_attribute]
 pub fn scenario(attr: TokenStream, item: TokenStream) -> TokenStream {
     let ScenarioArgs { path, index } = parse_macro_input!(attr as ScenarioArgs);

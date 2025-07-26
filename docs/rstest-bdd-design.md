@@ -299,7 +299,7 @@ challenges and solutions, and the end-to-end code generation process.
 The user-facing functionality is enabled by a suite of procedural macros. Each
 macro has a distinct role in the compile-time orchestration of the BDD tests.
 
-- `#[scenario("...")]` or `#[scenario(path = "...", index = N)]` – the primary
+- `#[scenario("…")]` or `#[scenario(path = "…", index = N)]` – the primary
   entry point and orchestrator.
 
   - **Arguments:**
