@@ -1,4 +1,4 @@
-use rstest_bdd::{step, Step, StepContext, iter};
+use rstest_bdd::{Step, StepContext, iter, step};
 
 fn needs_value(ctx: &StepContext<'_>) {
     let Some(val) = ctx.get::<u32>("number") else {
