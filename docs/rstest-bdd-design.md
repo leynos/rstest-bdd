@@ -788,6 +788,21 @@ the context before executing each step via the registered wrapper. This
 preserves `rstest`'s fixture injection semantics while enabling steps to share
 state.
 
+```mermaid
+sequenceDiagram
+    participant TestFunction
+    participant ScenarioMacro
+    participant StepContext
+    participant StepWrapper
+    TestFunction->>ScenarioMacro: Call generated test (with fixtures)
+    ScenarioMacro->>StepContext: Insert fixture references
+    loop For each step
+        ScenarioMacro->>StepWrapper: Call step wrapper with StepContext
+        StepWrapper->>StepContext: Retrieve fixtures by name/type
+        StepWrapper->>StepFunction: Call original step function with fixtures
+    end
+```
+
 Every wrapper function is given a unique symbol name derived from the source
 function and an atomic counter. This avoids collisions when similarly named
 steps appear in different modules. The macro also emits a compile-time array
