@@ -30,5 +30,7 @@ fn verify_number(#[from(number)] n: i32) {
 
 #[scenario(path = "tests/features/context.feature")]
 fn scenario_steps(number: i32, multiplier: i32) {
+    // The parameters are unused here but must be present so the macro can
+    // insert these fixtures into the `StepContext` for each step.
     let _ = (number, multiplier);
 }
