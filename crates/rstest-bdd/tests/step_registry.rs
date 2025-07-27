@@ -1,10 +1,15 @@
-// Behavioural test for step registry
+//! Behavioural test for step registry
 
 use rstest_bdd::{Step, iter, step};
 
 fn sample() {}
+fn wrapper(ctx: &rstest_bdd::StepContext<'_>) {
+    // Adapter for zero-argument step functions
+    let _ = ctx;
+    sample();
+}
 
-step!("When", "behavioural", sample);
+step!("When", "behavioural", wrapper, &[]);
 
 #[test]
 fn step_is_registered() {

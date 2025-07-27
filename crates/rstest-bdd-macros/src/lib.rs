@@ -7,11 +7,108 @@
 
 use gherkin::{Feature, GherkinEnv, StepType};
 use proc_macro::TokenStream;
-use quote::quote;
-use std::path::PathBuf;
+use proc_macro2::TokenStream as TokenStream2;
+use quote::{format_ident, quote};
+use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicUsize, Ordering};
 use syn::parse::{Parse, ParseStream};
 use syn::token::{Comma, Eq};
-use syn::{ItemFn, LitInt, LitStr, Result, parse_macro_input};
+use syn::{ItemFn, LitInt, LitStr, parse_macro_input};
+
+struct FixtureArg {
+    pat: syn::Ident,
+    name: syn::Ident,
+    ty: syn::Type,
+}
+
+fn extract_fixture_args(func: &mut ItemFn) -> syn::Result<Vec<FixtureArg>> {
+    let mut args = Vec::new();
+
+    for input in &mut func.sig.inputs {
+        let syn::FnArg::Typed(arg) = input else {
+            return Err(syn::Error::new_spanned(input, "methods not supported"));
+        };
+
+        let mut fixture_name = None;
+        arg.attrs.retain(|a| {
+            if a.path().is_ident("from") {
+                fixture_name = a.parse_args::<syn::Ident>().ok();
+                false
+            } else {
+                true
+            }
+        });
+
+        let pat = match &*arg.pat {
+            syn::Pat::Ident(i) => i.ident.clone(),
+            _ => {
+                return Err(syn::Error::new_spanned(&arg.pat, "unsupported pattern"));
+            }
+        };
+
+        let name = fixture_name.unwrap_or_else(|| pat.clone());
+        args.push(FixtureArg {
+            pat,
+            name,
+            ty: (*arg.ty).clone(),
+        });
+    }
+
+    Ok(args)
+}
+
+fn generate_wrapper_code(
+    ident: &syn::Ident,
+    args: &[FixtureArg],
+    pattern: &LitStr,
+    keyword: &str,
+) -> TokenStream2 {
+    let id = COUNTER.fetch_add(1, Ordering::SeqCst);
+    let wrapper_ident = format_ident!("__rstest_bdd_wrapper_{}_{}", ident, id);
+    let const_ident = format_ident!("__rstest_bdd_fixtures_{}_{}", ident, id);
+
+    let declares = args.iter().map(|FixtureArg { pat, name, ty }| {
+        if matches!(ty, syn::Type::Reference(_)) {
+            quote! {
+                let #pat: #ty = ctx
+                    .get::<#ty>(stringify!(#name))
+                    .expect("missing fixture");
+            }
+        } else {
+            quote! {
+                let #pat: #ty = ctx
+                    .get::<#ty>(stringify!(#name))
+                    .expect("missing fixture")
+                    .clone();
+            }
+        }
+    });
+
+    let arg_idents = args.iter().map(|FixtureArg { pat, .. }| pat);
+    let fixture_names: Vec<_> = args
+        .iter()
+        .map(|FixtureArg { name, .. }| {
+            let s = name.to_string();
+            quote! { #s }
+        })
+        .collect();
+    let fixture_len = fixture_names.len();
+
+    quote! {
+        fn #wrapper_ident(ctx: &rstest_bdd::StepContext<'_>) {
+            #(#declares)*
+            #ident(#(#arg_idents),*);
+        }
+
+        #[allow(non_upper_case_globals)]
+        const #const_ident: [&'static str; #fixture_len] = [#(#fixture_names),*];
+        const _: [(); #fixture_len] = [(); #const_ident.len()];
+
+        rstest_bdd::step!(#keyword, #pattern, #wrapper_ident, &#const_ident);
+    }
+}
+
+static COUNTER: AtomicUsize = AtomicUsize::new(0);
 
 struct ScenarioArgs {
     path: LitStr,
@@ -19,7 +116,7 @@ struct ScenarioArgs {
 }
 
 impl Parse for ScenarioArgs {
-    fn parse(input: ParseStream<'_>) -> Result<Self> {
+    fn parse(input: ParseStream<'_>) -> syn::Result<Self> {
         if input.peek(LitStr) {
             Self::parse_bare_string(input)
         } else {
@@ -29,7 +126,7 @@ impl Parse for ScenarioArgs {
 }
 
 impl ScenarioArgs {
-    fn parse_bare_string(input: ParseStream<'_>) -> Result<Self> {
+    fn parse_bare_string(input: ParseStream<'_>) -> syn::Result<Self> {
         let path: LitStr = input.parse()?;
         let mut index = None;
 
@@ -51,7 +148,7 @@ impl ScenarioArgs {
         Ok(Self { path, index })
     }
 
-    fn parse_named_args(input: ParseStream<'_>) -> Result<Self> {
+    fn parse_named_args(input: ParseStream<'_>) -> syn::Result<Self> {
         let mut path = None;
         let mut index = None;
 
@@ -89,12 +186,20 @@ impl ScenarioArgs {
 
 fn step_attr(attr: TokenStream, item: TokenStream, keyword: &str) -> TokenStream {
     let pattern = parse_macro_input!(attr as LitStr);
-    let func = parse_macro_input!(item as ItemFn);
+    let mut func = parse_macro_input!(item as ItemFn);
+
+    let args = match extract_fixture_args(&mut func) {
+        Ok(args) => args,
+        Err(err) => return err.to_compile_error().into(),
+    };
+
     let ident = &func.sig.ident;
+
+    let wrapper_code = generate_wrapper_code(ident, &args, &pattern, keyword);
 
     TokenStream::from(quote! {
         #func
-        rstest_bdd::step!(#keyword, #pattern, #ident);
+        #wrapper_code
     })
 }
 
@@ -158,6 +263,116 @@ pub fn then(attr: TokenStream, item: TokenStream) -> TokenStream {
     step_attr(attr, item, "Then")
 }
 
+fn parse_and_load_feature(path: &Path) -> Result<Feature, TokenStream> {
+    let Ok(manifest_dir) = std::env::var("CARGO_MANIFEST_DIR") else {
+        return Err(TokenStream::from(quote! {
+            compile_error!(
+                "CARGO_MANIFEST_DIR is not set. This variable is normally provided by Cargo. \
+                 Ensure the macro runs within a Cargo build context."
+            );
+        }));
+    };
+    let feature_path = PathBuf::from(manifest_dir).join(path);
+    Feature::parse_path(&feature_path, GherkinEnv::default()).map_err(|err| {
+        let msg = format!("failed to parse feature file: {err}");
+        TokenStream::from(quote! { compile_error!(#msg); })
+    })
+}
+
+fn extract_scenario_steps(
+    feature: &Feature,
+    index: Option<usize>,
+) -> Result<(String, Vec<(String, String)>), TokenStream> {
+    let Some(scenario) = feature.scenarios.get(index.unwrap_or(0)) else {
+        return Err(TokenStream::from(quote! {
+            compile_error!("scenario index out of range")
+        }));
+    };
+
+    let scenario_name = scenario.name.clone();
+    let steps = scenario
+        .steps
+        .iter()
+        .map(|s| {
+            let keyword = match s.ty {
+                StepType::Given => "Given",
+                StepType::When => "When",
+                StepType::Then => "Then",
+            };
+            (keyword.to_string(), s.value.clone())
+        })
+        .collect();
+
+    Ok((scenario_name, steps))
+}
+
+fn extract_function_fixtures(
+    sig: &syn::Signature,
+) -> (Vec<syn::Ident>, impl Iterator<Item = TokenStream2>) {
+    let arg_idents: Vec<syn::Ident> = sig
+        .inputs
+        .iter()
+        .filter_map(|arg| match arg {
+            syn::FnArg::Typed(p) => match &*p.pat {
+                syn::Pat::Ident(id) => Some(id.ident.clone()),
+                _ => None,
+            },
+            syn::FnArg::Receiver(_) => None,
+        })
+        .collect();
+
+    let inserts: Vec<_> = arg_idents
+        .iter()
+        .map(|id| quote! { ctx.insert(stringify!(#id), &#id); })
+        .collect();
+
+    (arg_idents, inserts.into_iter())
+}
+
+#[expect(
+    clippy::too_many_arguments,
+    clippy::needless_pass_by_value,
+    reason = "signature defined by requirements"
+)]
+fn generate_scenario_code(
+    attrs: &[syn::Attribute],
+    vis: &syn::Visibility,
+    sig: &syn::Signature,
+    block: &syn::Block,
+    feature_path_str: String,
+    scenario_name: String,
+    steps: Vec<(String, String)>,
+    ctx_inserts: impl Iterator<Item = TokenStream2>,
+) -> TokenStream {
+    let keywords = steps.iter().map(|(k, _)| k);
+    let values = steps.iter().map(|(_, v)| v);
+
+    TokenStream::from(quote! {
+        #(#attrs)*
+        #[rstest::rstest]
+        #vis #sig {
+            let steps = [#((#keywords, #values)),*];
+            let mut ctx = rstest_bdd::StepContext::default();
+            #(#ctx_inserts)*
+            for (index, (keyword, text)) in steps.iter().enumerate() {
+                if let Some(f) = rstest_bdd::lookup_step(keyword, text) {
+                    f(&ctx);
+                } else {
+                    panic!(
+                        "Step not found at index {}: {} {} (feature: {}, scenario: {})",
+                        index,
+                        keyword,
+                        text,
+                        #feature_path_str,
+                        #scenario_name
+                    );
+                }
+            }
+            #block
+        }
+    })
+}
+
 /// Bind a test to a scenario defined in a feature file.
 ///
 /// *attr* Accepts either a bare string literal giving the path to the feature
@@ -196,66 +411,31 @@ pub fn scenario(attr: TokenStream, item: TokenStream) -> TokenStream {
     let sig = &item_fn.sig;
     let block = &item_fn.block;
 
-    let Ok(manifest_dir) = std::env::var("CARGO_MANIFEST_DIR") else {
-        return TokenStream::from(quote! {
-            compile_error!(
-                "CARGO_MANIFEST_DIR is not set. This variable is normally provided by Cargo. \
-                 Ensure the macro runs within a Cargo build context."
-            );
-        });
-    };
-    let feature_path = PathBuf::from(manifest_dir).join(&path);
-
-    let feature_path_str = feature_path.display().to_string();
-    let feature = match Feature::parse_path(&feature_path, GherkinEnv::default()) {
+    let feature = match parse_and_load_feature(&path) {
         Ok(f) => f,
-        Err(err) => {
-            let msg = format!("failed to parse feature file: {err}");
-            return TokenStream::from(quote! { compile_error!(#msg); });
-        }
+        Err(err) => return err,
     };
-    let Some(scenario) = feature.scenarios.get(index.unwrap_or(0)) else {
-        return TokenStream::from(quote! { compile_error!("scenario index out of range") });
+    let manifest_dir = std::env::var("CARGO_MANIFEST_DIR").unwrap_or_else(|_| String::new());
+    let feature_path_str = PathBuf::from(manifest_dir)
+        .join(&path)
+        .display()
+        .to_string();
+
+    let (scenario_name, steps) = match extract_scenario_steps(&feature, index) {
+        Ok(res) => res,
+        Err(err) => return err,
     };
 
-    let scenario_name = scenario.name.clone();
-    let steps: Vec<(String, String)> = scenario
-        .steps
-        .iter()
-        .map(|s| {
-            let keyword = match s.ty {
-                StepType::Given => "Given",
-                StepType::When => "When",
-                StepType::Then => "Then",
-            };
-            (keyword.to_string(), s.value.clone())
-        })
-        .collect();
+    let (_args, ctx_inserts) = extract_function_fixtures(sig);
 
-    let keywords = steps.iter().map(|(k, _)| k);
-    let values = steps.iter().map(|(_, v)| v);
-
-    TokenStream::from(quote! {
-        #(#attrs)*
-        #[rstest::rstest]
-        #vis #sig {
-            let steps = [#((#keywords, #values)),*];
-            for (index, (keyword, text)) in steps.iter().enumerate() {
-                if let Some(f) = rstest_bdd::lookup_step(keyword, text) {
-                    f();
-                } else {
-                    panic!(
-                        "Step not found at index {}: {} {} (feature: {}, scenario: {})",
-                        index,
-                        keyword,
-                        text,
-                        #feature_path_str,
-                        #scenario_name
-                    );
-                }
-            }
-            // Execute the original function body after all scenario steps complete
-            #block
-        }
-    })
+    generate_scenario_code(
+        attrs,
+        vis,
+        sig,
+        block,
+        feature_path_str,
+        scenario_name,
+        steps,
+        ctx_inserts,
+    )
 }

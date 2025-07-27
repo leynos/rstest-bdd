@@ -9,8 +9,8 @@
 - **Clarity over cleverness.** Be concise, but favour explicit over terse or
   obscure idioms. Prefer code that's easy to follow.
 - **Use functions and composition.** Avoid repetition by extracting reusable
-  logic. Prefer generators or comprehensions, and declarative code to imperative
-  repetition when readable.
+  logic. Prefer generators or comprehensions, and declarative code to
+  imperative repetition when readable.
 - **Small, meaningful functions.** Functions must be small, clear in purpose,
   single responsibility, and obey command/query segregation.
 - **Clear commit messages.** Commit messages should be descriptive, explaining
@@ -25,12 +25,13 @@
   ("-ize" / "-yse" / "-our") spelling and grammar, with the exception of
   references to external APIs.
 - **Illustrate with clear examples.** Function documentation must include clear
-  examples demonstrating the usage and outcome of the function. Test documentation
-  should omit examples where the example serves only to reiterate the test logic.
-- **Keep file size managable.** No single code file may be longer than 400 lines.
-  Long switch statements or dispatch tables should be broken up by feature and
-  constituents colocated with targets. Large blocks of test data should be moved
-  to external data files.
+  examples demonstrating the usage and outcome of the function. Test
+  documentation should omit examples where the example serves only to reiterate
+  the test logic.
+- **Keep file size managable.** No single code file may be longer than 400
+  lines. Long switch statements or dispatch tables should be broken up by
+  feature and constituents colocated with targets. Large blocks of test data
+  should be moved to external data files.
 
 ## Documentation Maintenance
 
@@ -42,8 +43,8 @@
   relevant file(s) in the `docs/` directory to reflect the latest state.
   **Ensure the documentation remains accurate and current.**
 - Documentation must use en-GB-oxendict ("-ize" / "-yse" / "-our") spelling
-  and grammar. (EXCEPTION: the naming of the "LICENSE" file, which
-  is to be left unchanged for community consistency.)
+  and grammar. (EXCEPTION: the naming of the "LICENSE" file, which is to be
+  left unchanged for community consistency.)
 
 ## Change Quality & Committing
 
@@ -153,19 +154,19 @@ project:
   specified in `Cargo.toml` must use SemVer-compatible caret requirements
   (e.g., `some-crate = "1.2.3"`). This is Cargo's default and allows for safe,
   non-breaking updates to minor and patch versions while preventing breaking
-  changes from new major versions. This approach is critical for ensuring
-  build stability and reproducibility.
+  changes from new major versions. This approach is critical for ensuring build
+  stability and reproducibility.
 - **Prohibit unstable version specifiers.** The use of wildcard (`*`) or
-  open-ended inequality (`>=`) version requirements is strictly forbidden
-  as they introduce unacceptable risk and unpredictability. Tilde requirements
+  open-ended inequality (`>=`) version requirements is strictly forbidden as
+  they introduce unacceptable risk and unpredictability. Tilde requirements
   (`~`) should only be used where a dependency must be locked to patch-level
   updates for a specific, documented reason.
 
 ### Error Handling
 
 - **Prefer semantic error enums**. Derive `std::error::Error` (via the
-  `thiserror` crate) for any condition the caller might inspect, retry, or
-  map to an HTTP status.
+  `thiserror` crate) for any condition the caller might inspect, retry, or map
+  to an HTTP status.
 - **Use an *opaque* error only at the app boundary**. Use `eyre::Report` for
   human-readable logs; these should not be exposed in public APIs.
 - **Never export the opaque type from a library**. Convert to domain enums at

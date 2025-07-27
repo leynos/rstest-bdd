@@ -17,10 +17,48 @@ pub fn greet() -> &'static str {
 }
 
 pub use inventory::{iter, submit};
+use std::any::Any;
 use std::collections::HashMap;
 use std::sync::LazyLock;
 
 type StepKey = (&'static str, &'static str);
+
+/// Context passed to step functions containing references to requested fixtures.
+///
+/// This is constructed by the `#[scenario]` macro for each step invocation.
+///
+/// # Examples
+///
+/// ```
+/// use rstest_bdd::StepContext;
+///
+/// let mut ctx = StepContext::default();
+/// let value = 42;
+/// ctx.insert("my_fixture", &value);
+///
+/// let retrieved: Option<&i32> = ctx.get("my_fixture");
+/// assert_eq!(retrieved, Some(&42));
+/// ```
+#[derive(Default)]
+pub struct StepContext<'a> {
+    fixtures: HashMap<&'static str, &'a dyn Any>,
+}
+
+impl<'a> StepContext<'a> {
+    /// Insert a fixture reference by name.
+    pub fn insert<T: Any>(&mut self, name: &'static str, value: &'a T) {
+        self.fixtures.insert(name, value);
+    }
+
+    /// Retrieve a fixture reference by name and type.
+    #[must_use]
+    pub fn get<T: Any>(&self, name: &str) -> Option<&'a T> {
+        self.fixtures.get(name)?.downcast_ref::<T>()
+    }
+}
+
+/// Type alias for the stored step function pointer.
+pub type StepFn = for<'a> fn(&StepContext<'a>);
 
 /// Represents a single step definition registered with the framework.
 ///
@@ -43,7 +81,9 @@ pub struct Step {
     /// Pattern text used to match a Gherkin step.
     pub pattern: &'static str,
     /// Function pointer executed when the step is invoked.
-    pub run: fn(),
+    pub run: StepFn,
+    /// Names of fixtures this step requires.
+    pub fixtures: &'static [&'static str],
     /// Source file where the step is defined.
     pub file: &'static str,
     /// Line number within the source file.
@@ -66,12 +106,13 @@ pub struct Step {
 /// ```
 #[macro_export]
 macro_rules! step {
-    ($keyword:expr, $pattern:expr, $handler:path) => {
+    ($keyword:expr, $pattern:expr, $handler:path, $fixtures:expr) => {
         $crate::submit! {
             $crate::Step {
                 keyword: $keyword,
                 pattern: $pattern,
                 run: $handler,
+                fixtures: $fixtures,
                 file: file!(),
                 line: line!(),
             }
@@ -81,7 +122,7 @@ macro_rules! step {
 
 inventory::collect!(Step);
 
-static STEP_MAP: LazyLock<HashMap<StepKey, fn()>> = LazyLock::new(|| {
+static STEP_MAP: LazyLock<HashMap<StepKey, StepFn>> = LazyLock::new(|| {
     // Collect registered steps first so we can allocate the map with
     // an appropriate capacity. This avoids rehashing when many steps
     // are present.
@@ -107,7 +148,7 @@ static STEP_MAP: LazyLock<HashMap<StepKey, fn()>> = LazyLock::new(|| {
 /// assert!(step_fn.is_some());
 /// ```
 #[must_use]
-pub fn lookup_step(keyword: &str, pattern: &str) -> Option<fn()> {
+pub fn lookup_step(keyword: &str, pattern: &str) -> Option<StepFn> {
     STEP_MAP.get(&(keyword, pattern)).copied()
 }
 
@@ -123,8 +164,12 @@ mod tests {
     #[test]
     fn collects_registered_step() {
         fn sample() {}
+        fn wrapper(ctx: &StepContext<'_>) {
+            let _ = ctx;
+            sample();
+        }
 
-        step!("Given", "a pattern", sample);
+        step!("Given", "a pattern", wrapper, &[]);
 
         let found = iter::<Step>
             .into_iter()
