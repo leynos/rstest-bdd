@@ -28,7 +28,7 @@
   examples demonstrating the usage and outcome of the function. Test
   documentation should omit examples where the example serves only to reiterate
   the test logic.
-- **Keep file size managable.** No single code file may be longer than 400
+- **Keep file size manageable.** No single code file may be longer than 400
   lines. Long switch statements or dispatch tables should be broken up by
   feature and constituents colocated with targets. Large blocks of test data
   should be moved to external data files.
@@ -156,8 +156,8 @@ project:
   non-breaking updates to minor and patch versions while preventing breaking
   changes from new major versions. This approach is critical for ensuring build
   stability and reproducibility.
-- **Prohibit unstable version specifiers.** The use of wildcard (`*`) or
-  open-ended inequality (`>=`) version requirements is strictly forbidden as
+- **Prohibit unstable version specifiers.** Wildcard (`*`), or
+  open-ended inequality (`>=`), version requirements are strictly forbidden as
   they introduce unacceptable risk and unpredictability. Tilde requirements
   (`~`) should only be used where a dependency must be locked to patch-level
   updates for a specific, documented reason.
