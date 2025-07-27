@@ -4,6 +4,11 @@ use std::sync::{LazyLock, Mutex, MutexGuard};
 
 static EVENTS: LazyLock<Mutex<Vec<&'static str>>> = LazyLock::new(|| Mutex::new(Vec::new()));
 
+/// Return a guard to the `EVENTS` mutex, recovering from poison.
+///
+/// If an earlier test panicked while holding the lock the mutex
+/// becomes poisoned. This helper extracts the inner guard so later
+/// tests can continue to inspect and modify the shared event list.
 fn get_events_guard() -> MutexGuard<'static, Vec<&'static str>> {
     match EVENTS.lock() {
         Ok(g) => g,
@@ -16,6 +21,11 @@ fn clear_events() {
     g.clear();
 }
 
+/// Access the events vector under a lock and run the provided closure.
+///
+/// The `f` parameter is a closure that receives a mutable reference to the
+/// vector of static string events and returns any result type. The lock is
+/// acquired via `get_events_guard` before the closure is called.
 fn with_locked_events<F, R>(f: F) -> R
 where
     F: FnOnce(&mut Vec<&'static str>) -> R,
