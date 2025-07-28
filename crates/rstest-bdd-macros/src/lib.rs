@@ -12,6 +12,7 @@ use quote::{format_ident, quote};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use syn::parse::{Parse, ParseStream};
+use syn::parse_quote;
 use syn::token::{Comma, Eq};
 use syn::{ItemFn, LitInt, LitStr, parse_macro_input};
 
@@ -279,10 +280,21 @@ fn parse_and_load_feature(path: &Path) -> Result<Feature, TokenStream> {
     })
 }
 
+#[expect(
+    clippy::type_complexity,
+    reason = "Return type defined by macro interface"
+)]
 fn extract_scenario_steps(
     feature: &Feature,
     index: Option<usize>,
-) -> Result<(String, Vec<(String, String)>), TokenStream> {
+) -> Result<
+    (
+        String,
+        Vec<(String, String)>,
+        Option<(Vec<String>, Vec<Vec<String>>)>,
+    ),
+    TokenStream,
+> {
     let Some(scenario) = feature.scenarios.get(index.unwrap_or(0)) else {
         return Err(TokenStream::from(quote! {
             compile_error!("scenario index out of range")
@@ -303,7 +315,30 @@ fn extract_scenario_steps(
         })
         .collect();
 
-    Ok((scenario_name, steps))
+    let examples = if scenario.keyword.contains("Outline") || !scenario.examples.is_empty() {
+        let Some(first) = scenario.examples.first() else {
+            return Err(TokenStream::from(quote! {
+                compile_error!("Scenario Outline missing Examples table")
+            }));
+        };
+        let Some(table) = &first.table else {
+            return Err(TokenStream::from(quote! {
+                compile_error!("Examples table missing rows")
+            }));
+        };
+        let mut rows = table.rows.clone();
+        if rows.is_empty() {
+            return Err(TokenStream::from(quote! {
+                compile_error!("Examples table must have at least one row")
+            }));
+        }
+        let header = rows.remove(0);
+        Some((header, rows))
+    } else {
+        None
+    };
+
+    Ok((scenario_name, steps, examples))
 }
 
 fn extract_function_fixtures(
@@ -342,14 +377,30 @@ fn generate_scenario_code(
     feature_path_str: String,
     scenario_name: String,
     steps: Vec<(String, String)>,
+    examples: Option<(Vec<String>, Vec<Vec<String>>)>,
     ctx_inserts: impl Iterator<Item = TokenStream2>,
 ) -> TokenStream {
     let keywords = steps.iter().map(|(k, _)| k);
     let values = steps.iter().map(|(_, v)| v);
 
+    let case_attrs = if let Some((_, rows)) = examples {
+        rows.into_iter()
+            .map(|row| {
+                let cells = row.iter().map(|v| {
+                    let lit = syn::LitStr::new(v, proc_macro2::Span::call_site());
+                    quote! { #lit }
+                });
+                quote! { #[rstest::case( #(#cells),* )] }
+            })
+            .collect::<Vec<_>>()
+    } else {
+        Vec::new()
+    };
+
     TokenStream::from(quote! {
         #(#attrs)*
         #[rstest::rstest]
+        #(#case_attrs)*
         #vis #sig {
             let steps = [#((#keywords, #values)),*];
             let mut ctx = rstest_bdd::StepContext::default();
@@ -405,10 +456,10 @@ pub fn scenario(attr: TokenStream, item: TokenStream) -> TokenStream {
     let ScenarioArgs { path, index } = parse_macro_input!(attr as ScenarioArgs);
     let path = PathBuf::from(path.value());
 
-    let item_fn = parse_macro_input!(item as ItemFn);
+    let mut item_fn = parse_macro_input!(item as ItemFn);
     let attrs = &item_fn.attrs;
     let vis = &item_fn.vis;
-    let sig = &item_fn.sig;
+    let sig = &mut item_fn.sig;
     let block = &item_fn.block;
 
     let feature = match parse_and_load_feature(&path) {
@@ -421,10 +472,29 @@ pub fn scenario(attr: TokenStream, item: TokenStream) -> TokenStream {
         .display()
         .to_string();
 
-    let (scenario_name, steps) = match extract_scenario_steps(&feature, index) {
+    let (scenario_name, steps, examples) = match extract_scenario_steps(&feature, index) {
         Ok(res) => res,
         Err(err) => return err,
     };
+
+    if let Some((headers, _)) = &examples {
+        for h in headers {
+            let Some(arg) = sig.inputs.iter_mut().find(|arg| match arg {
+                syn::FnArg::Typed(p) => match &*p.pat {
+                    syn::Pat::Ident(id) => id.ident == *h,
+                    _ => false,
+                },
+                syn::FnArg::Receiver(_) => false,
+            }) else {
+                let msg = format!("parameter `{h}` not found for scenario outline column");
+                return TokenStream::from(quote! { compile_error!(#msg); });
+            };
+            match arg {
+                syn::FnArg::Typed(p) => p.attrs.push(parse_quote!(#[rstest::case])),
+                syn::FnArg::Receiver(_) => {}
+            }
+        }
+    }
 
     let (_args, ctx_inserts) = extract_function_fixtures(sig);
 
@@ -436,6 +506,7 @@ pub fn scenario(attr: TokenStream, item: TokenStream) -> TokenStream {
         feature_path_str,
         scenario_name,
         steps,
+        examples,
         ctx_inserts,
     )
 }

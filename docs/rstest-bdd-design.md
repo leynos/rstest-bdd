@@ -566,9 +566,10 @@ incrementally.
   integrate with `rstest`'s fixture system. This allows steps to request
   fixtures directly.
 
-- Implement support for `Scenario Outline`. The `#[scenario]` macro will be
-  extended to detect this Gherkin construct and generate the corresponding
-  `#[rstest]` `#[case(...)]` attributes on the test function.
+- Implement support for `Scenario Outline`. The `#[scenario]` macro detects this
+  Gherkin construct and generates the corresponding `#[rstest]` `#[case(...)]`
+  attributes on the test function. This behaviour is now implemented and
+  verified by the test suite.
 
 - Introduce the `{name:Type}` step argument parser, leveraging the `FromStr`
   trait for type conversion.
