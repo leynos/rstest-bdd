@@ -772,6 +772,43 @@ step definitions by exact string comparison. Argument parsing and fixture
 handling remain unimplemented to minimize complexity while proving the
 orchestration works.
 
+### 3.8 Fixture Integration Implementation
+
+The second phase extends the macro system to support fixtures. Step definition
+macros now inspect the parameters of the attached function. Any argument is
+treated as a fixture request, with an optional `#[from(name)]` attribute
+allowing the argument name to differ from the fixture's. The macro generates a
+wrapper function taking a `StepContext` and registers this wrapper in the step
+registry. The wrapper retrieves the required fixtures from the context and
+calls the original step function.
+
+The `#[scenario]` macro populates a `StepContext` at runtime. It gathers all
+fixtures provided to the generated test function and inserts references into
+the context before executing each step via the registered wrapper. This
+preserves `rstest`'s fixture injection semantics while enabling steps to share
+state.
+
+```mermaid
+sequenceDiagram
+    participant TestFunction
+    participant ScenarioMacro
+    participant StepContext
+    participant StepWrapper
+    TestFunction->>ScenarioMacro: Call generated test (with fixtures)
+    ScenarioMacro->>StepContext: Insert fixture references
+    loop For each step
+        ScenarioMacro->>StepWrapper: Call step wrapper with StepContext
+        StepWrapper->>StepContext: Retrieve fixtures by name/type
+        StepWrapper->>StepFunction: Call original step function with fixtures
+    end
+```
+
+Every wrapper function is given a unique symbol name derived from the source
+function and an atomic counter. This avoids collisions when similarly named
+steps appear in different modules. The macro also emits a compile-time array
+length assertion to ensure the generated fixture list matches the wrapper
+signature. Any mismatch is reported during compilation rather than at runtime.
+
 ## **Works cited**
 
 [^1]: A Complete Guide To Behavior-Driven Testing With Pytest BDD, accessed on

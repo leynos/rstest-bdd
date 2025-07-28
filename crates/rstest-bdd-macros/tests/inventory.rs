@@ -1,3 +1,5 @@
+//! Tests for step registration via macros
+
 use rstest_bdd::{Step, iter};
 use rstest_bdd_macros::{given, then, when};
 

@@ -1,3 +1,5 @@
+//! Behavioural tests covering the `#[scenario]` macro
+
 use rstest_bdd_macros::{given, scenario, then, when};
 use serial_test::serial;
 use std::sync::{LazyLock, Mutex, MutexGuard};
