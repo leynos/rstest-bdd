@@ -30,7 +30,7 @@
   the test logic.
 - **Keep file size manageable.** No single code file may be longer than 400
   lines. Long switch statements or dispatch tables should be broken up by
-  feature and constituents colocated with targets. Large blocks of test data
+  feature, and constituents colocated with targets. Large blocks of test data
   should be moved to external data files.
 
 ## Documentation Maintenance
