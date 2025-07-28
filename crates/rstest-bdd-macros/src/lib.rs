@@ -447,6 +447,54 @@ fn generate_scenario_code(
     })
 }
 
+/// Check if a function parameter matches the given header name.
+fn parameter_matches_header(arg: &syn::FnArg, header: &str) -> bool {
+    match arg {
+        syn::FnArg::Typed(p) => match &*p.pat {
+            syn::Pat::Ident(id) => id.ident == *header,
+            _ => false,
+        },
+        syn::FnArg::Receiver(_) => false,
+    }
+}
+
+/// Find a function parameter matching the given header name.
+fn find_matching_parameter<'a>(
+    sig: &'a mut syn::Signature,
+    header: &str,
+) -> Result<&'a mut syn::FnArg, TokenStream> {
+    sig.inputs
+        .iter_mut()
+        .find(|arg| parameter_matches_header(arg, header))
+        .ok_or_else(|| {
+            let msg = format!("parameter `{header}` not found for scenario outline column");
+            TokenStream::from(quote! { compile_error!(#msg); })
+        })
+}
+
+/// Add rstest case attribute to a function parameter.
+fn add_case_attribute_to_parameter(arg: &mut syn::FnArg) {
+    if let syn::FnArg::Typed(p) = arg {
+        p.attrs.push(syn::parse_quote!(#[case]));
+    }
+}
+
+/// Process scenario outline examples and modify function parameters.
+fn process_scenario_outline_examples(
+    sig: &mut syn::Signature,
+    examples: Option<&ExampleTable>,
+) -> Result<(), TokenStream> {
+    let Some(ex) = examples else {
+        return Ok(());
+    };
+
+    for header in &ex.headers {
+        let matching_param = find_matching_parameter(sig, header)?;
+        add_case_attribute_to_parameter(matching_param);
+    }
+    Ok(())
+}
+
 /// Bind a test to a scenario defined in a feature file.
 ///
 /// *attr* Accepts either a bare string literal giving the path to the feature
@@ -504,51 +552,8 @@ pub fn scenario(attr: TokenStream, item: TokenStream) -> TokenStream {
         Err(err) => return err,
     };
 
-    if let Some(ex) = &examples {
-        for h in &ex.headers {
-            let Some(arg) = sig.inputs.iter_mut().find(|arg| match arg {
-                syn::FnArg::Typed(p) => match &*p.pat {
-                    syn::Pat::Ident(id) => id.ident == *h,
-                    _ => false,
-                },
-                syn::FnArg::Receiver(_) => false,
-            }) else {
-                let available_params: Vec<String> = sig
-                    .inputs
-                    .iter()
-                    .filter_map(|arg| match arg {
-                        syn::FnArg::Typed(p) => match &*p.pat {
-                            syn::Pat::Ident(id) => Some(id.ident.to_string()),
-                            _ => None,
-                        },
-                        syn::FnArg::Receiver(_) => None,
-                    })
-                    .collect();
-                let msg = format!(
-                    "parameter `{h}` not found for scenario outline column. Available parameters: [{}]",
-                    available_params.join(", ")
-                );
-                let err = syn::Error::new(proc_macro2::Span::call_site(), msg);
-                return err.to_compile_error().into();
-            };
-            match arg {
-                syn::FnArg::Typed(p) => {
-                    let has_case_attr = p.attrs.iter().any(|attr| {
-                        let segs: Vec<_> = attr
-                            .path()
-                            .segments
-                            .iter()
-                            .map(|s| s.ident.to_string())
-                            .collect();
-                        segs == ["case"] || segs == ["rstest", "case"]
-                    });
-                    if !has_case_attr {
-                        p.attrs.push(syn::parse_quote!(#[case]));
-                    }
-                }
-                syn::FnArg::Receiver(_) => {}
-            }
-        }
+    if let Err(err) = process_scenario_outline_examples(sig, examples.as_ref()) {
+        return err;
     }
 
     let (_args, ctx_inserts) = extract_function_fixtures(sig);
