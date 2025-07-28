@@ -567,7 +567,7 @@ incrementally.
   fixtures directly.
 
 - Implement support for `Scenario Outline`. The `#[scenario]` macro detects this
-  Gherkin construct and generates the corresponding `#[rstest]` `#[case(...)]`
+  Gherkin construct and generates the corresponding `#[rstest]` `#[case(…)]`
   attributes on the test function. This behaviour is now implemented and
   verified by the test suite.
 - Introduced lightweight `ExampleTable` and `ScenarioData` structs in the

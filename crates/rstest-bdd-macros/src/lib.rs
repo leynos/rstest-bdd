@@ -12,7 +12,6 @@ use quote::{format_ident, quote};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use syn::parse::{Parse, ParseStream};
-use syn::parse_quote;
 use syn::token::{Comma, Eq};
 use syn::{ItemFn, LitInt, LitStr, parse_macro_input};
 
@@ -544,7 +543,7 @@ pub fn scenario(attr: TokenStream, item: TokenStream) -> TokenStream {
                         segs == ["case"] || segs == ["rstest", "case"]
                     });
                     if !has_case_attr {
-                        p.attrs.push(parse_quote!(#[case]));
+                        p.attrs.push(syn::parse_quote!(#[case]));
                     }
                 }
                 syn::FnArg::Receiver(_) => {}
