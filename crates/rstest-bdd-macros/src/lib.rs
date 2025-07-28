@@ -421,9 +421,9 @@ fn generate_scenario_code(
     let case_attrs = examples.map_or_else(Vec::new, |ex| generate_case_attrs(&ex));
 
     TokenStream::from(quote! {
-        #(#attrs)*
         #[rstest::rstest]
         #(#case_attrs)*
+        #(#attrs)*
         #vis #sig {
             let steps = [#((#keywords, #values)),*];
             let mut ctx = rstest_bdd::StepContext::default();
@@ -463,19 +463,44 @@ fn find_matching_parameter<'a>(
     sig: &'a mut syn::Signature,
     header: &str,
 ) -> Result<&'a mut syn::FnArg, TokenStream> {
-    sig.inputs
-        .iter_mut()
-        .find(|arg| parameter_matches_header(arg, header))
-        .ok_or_else(|| {
-            let msg = format!("parameter `{header}` not found for scenario outline column");
-            TokenStream::from(quote! { compile_error!(#msg); })
+    let available_params: Vec<String> = sig
+        .inputs
+        .iter()
+        .filter_map(|arg| match arg {
+            syn::FnArg::Typed(p) => match &*p.pat {
+                syn::Pat::Ident(id) => Some(id.ident.to_string()),
+                _ => None,
+            },
+            syn::FnArg::Receiver(_) => None,
         })
+        .collect();
+
+    for arg in &mut sig.inputs {
+        if parameter_matches_header(arg, header) {
+            return Ok(arg);
+        }
+    }
+    let msg = format!(
+        "parameter `{header}` not found for scenario outline column. Available parameters: [{}]",
+        available_params.join(", ")
+    );
+    Err(syn::Error::new_spanned(&sig.ident, msg)
+        .to_compile_error()
+        .into())
 }
 
 /// Add rstest case attribute to a function parameter.
 fn add_case_attribute_to_parameter(arg: &mut syn::FnArg) {
     if let syn::FnArg::Typed(p) = arg {
-        p.attrs.push(syn::parse_quote!(#[case]));
+        let has_case_attr = p.attrs.iter().any(|attr| {
+            attr.path()
+                .segments
+                .last()
+                .is_some_and(|s| s.ident == "case")
+        });
+        if !has_case_attr {
+            p.attrs.push(syn::parse_quote!(#[case]));
+        }
     }
 }
 

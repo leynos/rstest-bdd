@@ -87,6 +87,7 @@ fn unmatched_feature() {
 }
 
 #[scenario(path = "tests/features/outline.feature")]
+#[serial]
 fn outline(num: String) {
     with_locked_events(|events| {
         assert_eq!(events.as_slice(), ["precondition", "action", "result"]);
