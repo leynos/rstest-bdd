@@ -566,9 +566,18 @@ incrementally.
   integrate with `rstest`'s fixture system. This allows steps to request
   fixtures directly.
 
-- Implement support for `Scenario Outline`. The `#[scenario]` macro will be
-  extended to detect this Gherkin construct and generate the corresponding
-  `#[rstest]` `#[case(...)]` attributes on the test function.
+- Implement support for `Scenario Outline`. The `#[scenario]` macro detects this
+  Gherkin construct and generates the corresponding `#[rstest]` `#[case(…)]`
+  attributes on the test function. This behaviour is now implemented and
+  verified by the test suite.
+- Introduced lightweight `ExampleTable` and `ScenarioData` structs in the
+  macros crate. They encapsulate outline table rows and scenario metadata,
+  replacing a complex tuple return and enabling clearer helper functions.
+- Improved diagnostics when a `Scenario Outline` column does not match a test
+  parameter. The macro lists available parameters, so mismatches can be
+  resolved quickly.
+- Errors for missing outline parameters use `syn::Error::new_spanned` for more
+  precise diagnostics.
 
 - Introduce the `{name:Type}` step argument parser, leveraging the `FromStr`
   trait for type conversion.

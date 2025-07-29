@@ -85,3 +85,13 @@ fn explicit_syntax() {
 fn unmatched_feature() {
     clear_events();
 }
+
+#[scenario(path = "tests/features/outline.feature")]
+#[serial]
+fn outline(num: String) {
+    with_locked_events(|events| {
+        assert_eq!(events.as_slice(), ["precondition", "action", "result"]);
+    });
+    assert!(num == "1" || num == "2");
+    clear_events();
+}

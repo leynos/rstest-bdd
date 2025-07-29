@@ -74,14 +74,14 @@ and run data-driven tests, making the framework genuinely useful.
   - [x] Modify the `#[scenario]` macro's code generation to correctly manage
     and pass fixtures to the step functions during execution.
 
-- [ ] **Scenario Outline Support**
+- [x] **Scenario Outline Support**
 
-  - [ ] Extend the `#[scenario]` macro to detect `Scenario Outline` and its
+  - [x] Extend the `#[scenario]` macro to detect `Scenario Outline` and its
     `Examples:` table in the parsed Gherkin AST.
 
-  - [ ] The macro must generate a single, parameterized `#[rstest]` function.
+  - [x] The macro generates a single, parameterized `#[rstest]` function.
 
-  - [ ] For each row in the `Examples:` table, the macro must generate a
+  - [x] For each row in the `Examples:` table, the macro generates a
     corresponding `#[case(...)]` attribute.
 
 - [ ] **Step Argument Parsing**
