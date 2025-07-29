@@ -574,8 +574,8 @@ incrementally.
   macros crate. They encapsulate outline table rows and scenario metadata,
   replacing a complex tuple return and enabling clearer helper functions.
 - Improved diagnostics when a `Scenario Outline` column does not match a test
-  parameter. The macro lists available parameters so mismatches can be resolved
-  quickly.
+  parameter. The macro lists available parameters, so mismatches can be
+  resolved quickly.
 
 - Introduce the `{name:Type}` step argument parser, leveraging the `FromStr`
   trait for type conversion.

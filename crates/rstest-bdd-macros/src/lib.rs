@@ -463,6 +463,44 @@ fn find_matching_parameter<'a>(
     sig: &'a mut syn::Signature,
     header: &str,
 ) -> Result<&'a mut syn::FnArg, TokenStream> {
+    if let Some(pos) = sig
+        .inputs
+        .iter()
+        .position(|arg| parameter_matches_header(arg, header))
+    {
+        sig.inputs
+            .iter_mut()
+            .nth(pos)
+            .map_or_else(|| unreachable!("position from earlier search exists"), Ok)
+    } else {
+        Err(create_parameter_mismatch_error(sig, header))
+    }
+}
+
+/// Add case attribute to parameter if not already present.
+fn add_case_attribute_if_missing(arg: &mut syn::FnArg) {
+    if let syn::FnArg::Typed(p) = arg {
+        if !has_case_attribute(p) {
+            p.attrs.push(syn::parse_quote!(#[case]));
+        }
+    }
+}
+
+/// Check if parameter already has a case attribute.
+fn has_case_attribute(p: &syn::PatType) -> bool {
+    p.attrs.iter().any(|attr| {
+        let segs: Vec<_> = attr
+            .path()
+            .segments
+            .iter()
+            .map(|s| s.ident.to_string())
+            .collect();
+        segs == ["case"] || segs == ["rstest", "case"]
+    })
+}
+
+/// Create error for parameter mismatch with helpful diagnostics.
+fn create_parameter_mismatch_error(sig: &syn::Signature, header: &str) -> TokenStream {
     let available_params: Vec<String> = sig
         .inputs
         .iter()
@@ -474,34 +512,13 @@ fn find_matching_parameter<'a>(
             syn::FnArg::Receiver(_) => None,
         })
         .collect();
-
-    for arg in &mut sig.inputs {
-        if parameter_matches_header(arg, header) {
-            return Ok(arg);
-        }
-    }
     let msg = format!(
         "parameter `{header}` not found for scenario outline column. Available parameters: [{}]",
         available_params.join(", ")
     );
-    Err(syn::Error::new_spanned(&sig.ident, msg)
+    syn::Error::new(proc_macro2::Span::call_site(), msg)
         .to_compile_error()
-        .into())
-}
-
-/// Add rstest case attribute to a function parameter.
-fn add_case_attribute_to_parameter(arg: &mut syn::FnArg) {
-    if let syn::FnArg::Typed(p) = arg {
-        let has_case_attr = p.attrs.iter().any(|attr| {
-            attr.path()
-                .segments
-                .last()
-                .is_some_and(|s| s.ident == "case")
-        });
-        if !has_case_attr {
-            p.attrs.push(syn::parse_quote!(#[case]));
-        }
-    }
+        .into()
 }
 
 /// Process scenario outline examples and modify function parameters.
@@ -515,7 +532,7 @@ fn process_scenario_outline_examples(
 
     for header in &ex.headers {
         let matching_param = find_matching_parameter(sig, header)?;
-        add_case_attribute_to_parameter(matching_param);
+        add_case_attribute_if_missing(matching_param);
     }
     Ok(())
 }
