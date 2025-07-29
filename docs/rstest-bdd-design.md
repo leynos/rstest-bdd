@@ -576,6 +576,8 @@ incrementally.
 - Improved diagnostics when a `Scenario Outline` column does not match a test
   parameter. The macro lists available parameters, so mismatches can be
   resolved quickly.
+- Errors for missing outline parameters use `syn::Error::new_spanned` for more
+  precise diagnostics.
 
 - Introduce the `{name:Type}` step argument parser, leveraging the `FromStr`
   trait for type conversion.

@@ -516,9 +516,7 @@ fn create_parameter_mismatch_error(sig: &syn::Signature, header: &str) -> TokenS
         "parameter `{header}` not found for scenario outline column. Available parameters: [{}]",
         available_params.join(", ")
     );
-    syn::Error::new(proc_macro2::Span::call_site(), msg)
-        .to_compile_error()
-        .into()
+    syn::Error::new_spanned(sig, msg).to_compile_error().into()
 }
 
 /// Process scenario outline examples and modify function parameters.
