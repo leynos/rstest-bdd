@@ -1,0 +1,7 @@
+error: Duplicate header 'num' found in examples table
+ --> tests/ui/outline_duplicate_headers.rs:4:1
+  |
+4 | #[scenario(path = "../../../../crates/rstest-bdd-macros/tests/features/outline_duplicate_headers.feature")]
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  |
+  = note: this error originates in the attribute macro `scenario` (in Nightly builds, run with -Z macro-backtrace for more info)

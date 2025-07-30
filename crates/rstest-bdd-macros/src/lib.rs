@@ -1,9 +1,8 @@
-//! Procedural macros for rstest-bdd.
+//! Attribute macros enabling Behaviour-Driven testing with `rstest`.
 //!
-//! This crate provides attribute macros for annotating BDD test steps and
-//! scenarios. The step macros register annotated functions with the global
-//! step inventory system, enabling runtime discovery and execution of step
-//! definitions.
+//! The macros in this crate parse Gherkin feature files and generate
+//! parameterized test functions. Step definitions are registered via an
+//! inventory to allow the runner to discover them at runtime.
 
 use gherkin::{Feature, GherkinEnv, StepType};
 use proc_macro::TokenStream;
@@ -306,72 +305,76 @@ fn extract_examples(scenario: &gherkin::Scenario) -> Result<Option<ExampleTable>
         return Ok(None);
     }
 
-    if scenario.examples.is_empty() {
-        let err = syn::Error::new(
+    // Fetch the first table to establish headers and row width
+    let ex0 = scenario
+        .examples
+        .first()
+        .and_then(|ex| ex.table.as_ref())
+        .ok_or_else(|| {
+            error_to_tokens(&syn::Error::new(
+                proc_macro2::Span::call_site(),
+                "Scenario Outline missing Examples table",
+            ))
+        })?;
+
+    let mut rows0 = ex0.rows.clone();
+    if rows0.is_empty() {
+        return Err(error_to_tokens(&syn::Error::new(
             proc_macro2::Span::call_site(),
-            "Scenario Outline missing Examples table",
-        );
-        return Err(error_to_tokens(&err));
+            "Examples table must have at least one row",
+        )));
     }
 
-    let mut headers: Option<Vec<String>> = None;
-    let mut rows: Vec<Vec<String>> = Vec::new();
+    let headers = rows0.remove(0);
+    let width = headers.len();
 
-    for ex in &scenario.examples {
-        let Some(table) = &ex.table else {
-            let err = syn::Error::new(
+    // Ensure every other block has matching headers
+    for ex in scenario.examples.iter().skip(1) {
+        let t = ex.table.as_ref().ok_or_else(|| {
+            error_to_tokens(&syn::Error::new(
                 proc_macro2::Span::call_site(),
                 "Examples table missing rows",
-            );
-            return Err(error_to_tokens(&err));
-        };
+            ))
+        })?;
 
-        if table.rows.is_empty() {
-            let err = syn::Error::new(
+        let other_headers = t.rows.first().ok_or_else(|| {
+            error_to_tokens(&syn::Error::new(
                 proc_macro2::Span::call_site(),
                 "Examples table must have at least one row",
+            ))
+        })?;
+
+        if *other_headers != headers {
+            return Err(error_to_tokens(&syn::Error::new(
+                proc_macro2::Span::call_site(),
+                "All Examples tables must have the same headers",
+            )));
+        }
+    }
+
+    let rows: Vec<Vec<String>> = scenario
+        .examples
+        .iter()
+        .filter_map(|ex| ex.table.as_ref())
+        .flat_map(|t| t.rows.iter().skip(1).cloned())
+        .collect();
+
+    for (i, row) in rows.iter().enumerate() {
+        if row.len() != width {
+            let err = syn::Error::new(
+                proc_macro2::Span::call_site(),
+                format!(
+                    "Malformed examples table: row {} has {} columns, expected {}",
+                    i + 2,
+                    row.len(),
+                    width
+                ),
             );
             return Err(error_to_tokens(&err));
         }
-
-        let mut table_rows = table.rows.clone();
-        let block_headers = table_rows.remove(0);
-        let headers_len = block_headers.len();
-
-        for (i, row) in table_rows.iter().enumerate() {
-            if row.len() != headers_len {
-                let err = syn::Error::new(
-                    proc_macro2::Span::call_site(),
-                    format!(
-                        "Malformed examples table: row {} has {} columns, expected {}",
-                        i + 2,
-                        row.len(),
-                        headers_len
-                    ),
-                );
-                return Err(error_to_tokens(&err));
-            }
-        }
-
-        match &mut headers {
-            None => {
-                headers = Some(block_headers);
-            }
-            Some(existing) => {
-                if *existing != block_headers {
-                    let err = syn::Error::new(
-                        proc_macro2::Span::call_site(),
-                        "All Examples tables must have the same headers",
-                    );
-                    return Err(error_to_tokens(&err));
-                }
-            }
-        }
-
-        rows.extend(table_rows);
     }
 
-    Ok(headers.map(|h| ExampleTable { headers: h, rows }))
+    Ok(Some(ExampleTable { headers, rows }))
 }
 
 fn extract_scenario_steps(
