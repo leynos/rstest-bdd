@@ -1,0 +1,5 @@
+error: parameter `num` not found for scenario outline column. Available parameters: []
+ --> tests/ui/outline_empty_examples.rs:4:1
+  |
+4 | fn compile_fail() {}
+  | ^^^^^^^^^^^^^^^^^

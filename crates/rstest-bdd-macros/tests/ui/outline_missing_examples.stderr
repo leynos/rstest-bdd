@@ -1,0 +1,7 @@
+error: Scenario Outline missing Examples table
+ --> tests/ui/outline_missing_examples.rs:3:1
+  |
+3 | #[scenario(path = "../../../../crates/rstest-bdd-macros/tests/features/outline_missing_examples.feature")]
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  |
+  = note: this error originates in the attribute macro `scenario` (in Nightly builds, run with -Z macro-backtrace for more info)

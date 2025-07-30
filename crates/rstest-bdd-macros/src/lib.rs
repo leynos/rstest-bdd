@@ -15,6 +15,16 @@ use syn::parse::{Parse, ParseStream};
 use syn::token::{Comma, Eq};
 use syn::{ItemFn, LitInt, LitStr, parse_macro_input};
 
+/// Convert a `syn::Error` into a `TokenStream` for macro errors.
+fn error_to_tokens(err: &syn::Error) -> TokenStream {
+    err.to_compile_error().into()
+}
+
+/// Create a `LitStr` from an examples table cell, escaping as needed.
+fn cell_to_lit(value: &str) -> syn::LitStr {
+    syn::LitStr::new(value, proc_macro2::Span::call_site())
+}
+
 struct FixtureArg {
     pat: syn::Ident,
     name: syn::Ident,
@@ -190,7 +200,7 @@ fn step_attr(attr: TokenStream, item: TokenStream, keyword: &str) -> TokenStream
 
     let args = match extract_fixture_args(&mut func) {
         Ok(args) => args,
-        Err(err) => return err.to_compile_error().into(),
+        Err(err) => return error_to_tokens(&err),
     };
 
     let ident = &func.sig.ident;
@@ -269,14 +279,12 @@ fn parse_and_load_feature(path: &Path) -> Result<Feature, TokenStream> {
             proc_macro2::Span::call_site(),
             "CARGO_MANIFEST_DIR is not set. This variable is normally provided by Cargo. Ensure the macro runs within a Cargo build context.",
         );
-        return Err(err.to_compile_error().into());
+        return Err(error_to_tokens(&err));
     };
     let feature_path = PathBuf::from(manifest_dir).join(path);
     Feature::parse_path(&feature_path, GherkinEnv::default()).map_err(|err| {
         let msg = format!("failed to parse feature file: {err}");
-        syn::Error::new(proc_macro2::Span::call_site(), msg)
-            .to_compile_error()
-            .into()
+        error_to_tokens(&syn::Error::new(proc_macro2::Span::call_site(), msg))
     })
 }
 
@@ -294,37 +302,76 @@ struct ScenarioData {
 }
 
 fn extract_examples(scenario: &gherkin::Scenario) -> Result<Option<ExampleTable>, TokenStream> {
-    if !scenario.keyword.contains("Outline") && scenario.examples.is_empty() {
+    if scenario.keyword != "Scenario Outline" && scenario.examples.is_empty() {
         return Ok(None);
     }
 
-    let Some(first) = scenario.examples.first() else {
+    if scenario.examples.is_empty() {
         let err = syn::Error::new(
             proc_macro2::Span::call_site(),
             "Scenario Outline missing Examples table",
         );
-        return Err(err.to_compile_error().into());
-    };
-
-    let Some(table) = &first.table else {
-        let err = syn::Error::new(
-            proc_macro2::Span::call_site(),
-            "Examples table missing rows",
-        );
-        return Err(err.to_compile_error().into());
-    };
-
-    let mut rows = table.rows.clone();
-    if rows.is_empty() {
-        let err = syn::Error::new(
-            proc_macro2::Span::call_site(),
-            "Examples table must have at least one row",
-        );
-        return Err(err.to_compile_error().into());
+        return Err(error_to_tokens(&err));
     }
 
-    let headers = rows.remove(0);
-    Ok(Some(ExampleTable { headers, rows }))
+    let mut headers: Option<Vec<String>> = None;
+    let mut rows: Vec<Vec<String>> = Vec::new();
+
+    for ex in &scenario.examples {
+        let Some(table) = &ex.table else {
+            let err = syn::Error::new(
+                proc_macro2::Span::call_site(),
+                "Examples table missing rows",
+            );
+            return Err(error_to_tokens(&err));
+        };
+
+        if table.rows.is_empty() {
+            let err = syn::Error::new(
+                proc_macro2::Span::call_site(),
+                "Examples table must have at least one row",
+            );
+            return Err(error_to_tokens(&err));
+        }
+
+        let mut table_rows = table.rows.clone();
+        let block_headers = table_rows.remove(0);
+        let headers_len = block_headers.len();
+
+        for (i, row) in table_rows.iter().enumerate() {
+            if row.len() != headers_len {
+                let err = syn::Error::new(
+                    proc_macro2::Span::call_site(),
+                    format!(
+                        "Malformed examples table: row {} has {} columns, expected {}",
+                        i + 2,
+                        row.len(),
+                        headers_len
+                    ),
+                );
+                return Err(error_to_tokens(&err));
+            }
+        }
+
+        match &mut headers {
+            None => {
+                headers = Some(block_headers);
+            }
+            Some(existing) => {
+                if *existing != block_headers {
+                    let err = syn::Error::new(
+                        proc_macro2::Span::call_site(),
+                        "All Examples tables must have the same headers",
+                    );
+                    return Err(error_to_tokens(&err));
+                }
+            }
+        }
+
+        rows.extend(table_rows);
+    }
+
+    Ok(headers.map(|h| ExampleTable { headers: h, rows }))
 }
 
 fn extract_scenario_steps(
@@ -336,7 +383,7 @@ fn extract_scenario_steps(
             proc_macro2::Span::call_site(),
             "scenario index out of range",
         );
-        return Err(err.to_compile_error().into());
+        return Err(error_to_tokens(&err));
     };
 
     let scenario_name = scenario.name.clone();
@@ -391,7 +438,7 @@ fn generate_case_attrs(examples: &ExampleTable) -> Vec<TokenStream2> {
         .iter()
         .map(|row| {
             let cells = row.iter().map(|v| {
-                let lit = syn::LitStr::new(v, proc_macro2::Span::call_site());
+                let lit = cell_to_lit(v);
                 quote! { #lit }
             });
             quote! { #[case( #(#cells),* )] }
@@ -516,7 +563,7 @@ fn create_parameter_mismatch_error(sig: &syn::Signature, header: &str) -> TokenS
         "parameter `{header}` not found for scenario outline column. Available parameters: [{}]",
         available_params.join(", ")
     );
-    syn::Error::new_spanned(sig, msg).to_compile_error().into()
+    error_to_tokens(&syn::Error::new_spanned(sig, msg))
 }
 
 /// Process scenario outline examples and modify function parameters.
@@ -527,6 +574,20 @@ fn process_scenario_outline_examples(
     let Some(ex) = examples else {
         return Ok(());
     };
+
+    {
+        use std::collections::HashSet;
+        let mut seen = HashSet::new();
+        for header in &ex.headers {
+            if !seen.insert(header.clone()) {
+                let err = syn::Error::new(
+                    proc_macro2::Span::call_site(),
+                    format!("Duplicate header '{header}' found in examples table"),
+                );
+                return Err(error_to_tokens(&err));
+            }
+        }
+    }
 
     for header in &ex.headers {
         let matching_param = find_matching_parameter(sig, header)?;
