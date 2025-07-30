@@ -17,6 +17,7 @@ pub fn greet() -> &'static str {
 }
 
 pub use inventory::{iter, submit};
+use regex::Regex;
 use std::any::Any;
 use std::collections::HashMap;
 use std::sync::LazyLock;
@@ -57,8 +58,39 @@ impl<'a> StepContext<'a> {
     }
 }
 
+/// Extract placeholder values from a step string using a pattern.
+///
+/// The pattern supports `format!`-style placeholders such as `{count:u32}`.
+/// Any text outside placeholders must match exactly. The returned vector
+/// contains the raw substring for each placeholder in order of appearance.
+#[must_use]
+pub fn extract_placeholders(pattern: &str, text: &str) -> Option<Vec<String>> {
+    let mut regex_source = String::from("^");
+    let mut chars = pattern.chars().peekable();
+    while let Some(ch) = chars.next() {
+        if ch == '{' {
+            for c in chars.by_ref() {
+                if c == '}' {
+                    break;
+                }
+            }
+            regex_source.push_str("(.+)");
+        } else {
+            regex_source.push_str(&regex::escape(&ch.to_string()));
+        }
+    }
+    regex_source.push('$');
+    let re = Regex::new(&regex_source).ok()?;
+    let caps = re.captures(text)?;
+    let mut values = Vec::new();
+    for i in 1..caps.len() {
+        values.push(caps[i].to_string());
+    }
+    Some(values)
+}
+
 /// Type alias for the stored step function pointer.
-pub type StepFn = for<'a> fn(&StepContext<'a>);
+pub type StepFn = for<'a> fn(&StepContext<'a>, &str);
 
 /// Represents a single step definition registered with the framework.
 ///
@@ -152,6 +184,23 @@ pub fn lookup_step(keyword: &str, pattern: &str) -> Option<StepFn> {
     STEP_MAP.get(&(keyword, pattern)).copied()
 }
 
+/// Find a registered step whose pattern matches the provided text.
+///
+/// The search first attempts an exact match via `lookup_step` and then falls
+/// back to evaluating each registered pattern for placeholders.
+#[must_use]
+pub fn find_step(keyword: &str, text: &str) -> Option<StepFn> {
+    if let Some(f) = lookup_step(keyword, text) {
+        return Some(f);
+    }
+    for step in iter::<Step> {
+        if step.keyword == keyword && extract_placeholders(step.pattern, text).is_some() {
+            return Some(step.run);
+        }
+    }
+    None
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -164,7 +213,7 @@ mod tests {
     #[test]
     fn collects_registered_step() {
         fn sample() {}
-        fn wrapper(ctx: &StepContext<'_>) {
+        fn wrapper(ctx: &StepContext<'_>, _text: &str) {
             let _ = ctx;
             sample();
         }

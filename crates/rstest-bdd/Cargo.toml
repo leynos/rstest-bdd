@@ -9,6 +9,7 @@ workspace = true
 [dependencies]
 
 inventory = ">=0.3, <0.4"
+regex = "1.10"
 
 [dev-dependencies]
 rstest = ">=0.18, <0.19"

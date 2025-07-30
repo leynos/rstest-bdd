@@ -3,7 +3,7 @@
 use rstest_bdd::{Step, iter, step};
 
 fn sample() {}
-fn wrapper(ctx: &rstest_bdd::StepContext<'_>) {
+fn wrapper(ctx: &rstest_bdd::StepContext<'_>, _text: &str) {
     // Adapter for zero-argument step functions
     let _ = ctx;
     sample();

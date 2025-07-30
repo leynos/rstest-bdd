@@ -2,7 +2,7 @@
 
 use rstest_bdd::{Step, StepContext, iter, step};
 
-fn needs_value(ctx: &StepContext<'_>) {
+fn needs_value(ctx: &StepContext<'_>, _text: &str) {
     let Some(val) = ctx.get::<u32>("number") else {
         panic!("missing fixture");
     };
@@ -23,5 +23,5 @@ fn context_passes_fixture() {
             || panic!("step 'a value' not found in registry"),
             |step| step.run,
         );
-    step_fn(&ctx);
+    step_fn(&ctx, "a value");
 }

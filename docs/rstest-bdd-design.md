@@ -818,6 +818,17 @@ steps appear in different modules. The macro also emits a compile-time array
 length assertion to ensure the generated fixture list matches the wrapper
 signature. Any mismatch is reported during compilation rather than at runtime.
 
+### 3.9 Step Argument Parsing Implementation
+
+The third phase introduces typed placeholders to step patterns. The runtime
+library exposes an `extract_placeholders` helper that converts a pattern with
+`{name:Type}` segments into a regular expression and returns the captured
+strings. Step wrapper functions parse these strings and convert them with
+`FromStr` before calling the original step. Scenario execution now searches the
+step registry using `find_step`, which falls back to placeholder matching when
+no exact pattern is present. This approach keeps the macros lightweight while
+supporting type‑safe parameters in steps.
+
 ## **Works cited**
 
 [^1]: A Complete Guide To Behavior-Driven Testing With Pytest BDD, accessed on

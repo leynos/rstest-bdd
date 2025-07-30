@@ -84,15 +84,15 @@ and run data-driven tests, making the framework genuinely useful.
   - [x] For each row in the `Examples:` table, the macro generates a
     corresponding `#[case(...)]` attribute.
 
-- [ ] **Step Argument Parsing**
+- [x] **Step Argument Parsing**
 
-  - [ ] Implement a parser for `format!`-style placeholders (e.g.,
+  - [x] Implement a parser for `format!`-style placeholders (e.g.,
     `{count:u32}`).
 
-  - [ ] The runtime step-matching logic must extract values from the Gherkin
+  - [x] The runtime step-matching logic must extract values from the Gherkin
     step text based on these placeholders.
 
-  - [ ] Use the `FromStr` trait to convert the extracted string values into the
+  - [x] Use the `FromStr` trait to convert the extracted string values into the
     types specified in the function signature.
 
 ## Phase 3: Advanced Gherkin Features & Ergonomics

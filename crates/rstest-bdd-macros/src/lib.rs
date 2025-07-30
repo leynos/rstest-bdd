@@ -21,8 +21,14 @@ struct FixtureArg {
     ty: syn::Type,
 }
 
-fn extract_fixture_args(func: &mut ItemFn) -> syn::Result<Vec<FixtureArg>> {
-    let mut args = Vec::new();
+struct StepArg {
+    pat: syn::Ident,
+    ty: syn::Type,
+}
+
+fn extract_args(func: &mut ItemFn) -> syn::Result<(Vec<FixtureArg>, Vec<StepArg>)> {
+    let mut fixtures = Vec::new();
+    let mut step_args = Vec::new();
 
     for input in &mut func.sig.inputs {
         let syn::FnArg::Typed(arg) = input else {
@@ -46,20 +52,22 @@ fn extract_fixture_args(func: &mut ItemFn) -> syn::Result<Vec<FixtureArg>> {
             }
         };
 
-        let name = fixture_name.unwrap_or_else(|| pat.clone());
-        args.push(FixtureArg {
-            pat,
-            name,
-            ty: (*arg.ty).clone(),
-        });
+        let ty = (*arg.ty).clone();
+
+        if let Some(name) = fixture_name {
+            fixtures.push(FixtureArg { pat, name, ty });
+        } else {
+            step_args.push(StepArg { pat, ty });
+        }
     }
 
-    Ok(args)
+    Ok((fixtures, step_args))
 }
 
 fn generate_wrapper_code(
     ident: &syn::Ident,
-    args: &[FixtureArg],
+    fixtures: &[FixtureArg],
+    step_args: &[StepArg],
     pattern: &LitStr,
     keyword: &str,
 ) -> TokenStream2 {
@@ -67,11 +75,12 @@ fn generate_wrapper_code(
     let wrapper_ident = format_ident!("__rstest_bdd_wrapper_{}_{}", ident, id);
     let const_ident = format_ident!("__rstest_bdd_fixtures_{}_{}", ident, id);
 
-    let declares = args.iter().map(|FixtureArg { pat, name, ty }| {
-        if matches!(ty, syn::Type::Reference(_)) {
+    let declares = fixtures.iter().map(|FixtureArg { pat, name, ty }| {
+        if let syn::Type::Reference(r) = ty {
+            let inner = &*r.elem;
             quote! {
                 let #pat: #ty = ctx
-                    .get::<#ty>(stringify!(#name))
+                    .get::<#inner>(stringify!(#name))
                     .expect("missing fixture");
             }
         } else {
@@ -84,8 +93,21 @@ fn generate_wrapper_code(
         }
     });
 
-    let arg_idents = args.iter().map(|FixtureArg { pat, .. }| pat);
-    let fixture_names: Vec<_> = args
+    let fixture_idents = fixtures.iter().map(|FixtureArg { pat, .. }| pat);
+    let step_arg_parses = step_args
+        .iter()
+        .enumerate()
+        .map(|(idx, StepArg { pat, ty })| {
+            let index = syn::Index::from(idx);
+            quote! {
+                let #pat: #ty = captures[#index].parse().expect("failed to parse argument");
+            }
+        });
+    let arg_idents = fixture_idents
+        .clone()
+        .chain(step_args.iter().map(|a| &a.pat));
+
+    let fixture_names: Vec<_> = fixtures
         .iter()
         .map(|FixtureArg { name, .. }| {
             let s = name.to_string();
@@ -95,8 +117,11 @@ fn generate_wrapper_code(
     let fixture_len = fixture_names.len();
 
     quote! {
-        fn #wrapper_ident(ctx: &rstest_bdd::StepContext<'_>) {
+        fn #wrapper_ident(ctx: &rstest_bdd::StepContext<'_>, text: &str) {
             #(#declares)*
+            let captures = rstest_bdd::extract_placeholders(#pattern, text)
+                .expect("pattern mismatch");
+            #(#step_arg_parses)*
             #ident(#(#arg_idents),*);
         }
 
@@ -188,14 +213,14 @@ fn step_attr(attr: TokenStream, item: TokenStream, keyword: &str) -> TokenStream
     let pattern = parse_macro_input!(attr as LitStr);
     let mut func = parse_macro_input!(item as ItemFn);
 
-    let args = match extract_fixture_args(&mut func) {
-        Ok(args) => args,
+    let (fixtures, step_args) = match extract_args(&mut func) {
+        Ok(res) => res,
         Err(err) => return err.to_compile_error().into(),
     };
 
     let ident = &func.sig.ident;
 
-    let wrapper_code = generate_wrapper_code(ident, &args, &pattern, keyword);
+    let wrapper_code = generate_wrapper_code(ident, &fixtures, &step_args, &pattern, keyword);
 
     TokenStream::from(quote! {
         #func
@@ -429,8 +454,8 @@ fn generate_scenario_code(
             let mut ctx = rstest_bdd::StepContext::default();
             #(#ctx_inserts)*
             for (index, (keyword, text)) in steps.iter().enumerate() {
-                if let Some(f) = rstest_bdd::lookup_step(keyword, text) {
-                    f(&ctx);
+                if let Some(f) = rstest_bdd::find_step(keyword, text) {
+                    f(&ctx, text);
                 } else {
                     panic!(
                         "Step not found at index {}: {} {} (feature: {}, scenario: {})",
