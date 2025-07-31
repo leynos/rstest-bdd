@@ -282,6 +282,33 @@ fn parse_and_load_feature(path: &Path) -> Result<Feature, TokenStream> {
     };
     let feature_path = PathBuf::from(manifest_dir).join(path);
     Feature::parse_path(&feature_path, GherkinEnv::default()).map_err(|err| {
+        if let Ok(text) = std::fs::read_to_string(&feature_path) {
+            if text.contains("Examples:") {
+                if let Some((idx, _)) = text
+                    .lines()
+                    .enumerate()
+                    .find(|(_, l)| l.trim_start().starts_with("Examples:"))
+                {
+                    let mut lines = text
+                        .lines()
+                        .skip(idx + 1)
+                        .take_while(|l| l.trim_start().starts_with('|'));
+                    if let Some(header) = lines.next() {
+                        let cols = header.split('|').filter(|c| !c.trim().is_empty()).count();
+                        for row in lines {
+                            let c = row.split('|').filter(|s| !s.trim().is_empty()).count();
+                            if c < cols {
+                                let err = syn::Error::new(
+                                    proc_macro2::Span::call_site(),
+                                    "Example row has fewer columns than header row in Examples table",
+                                );
+                                return error_to_tokens(&err);
+                            }
+                        }
+                    }
+                }
+            }
+        }
         let msg = format!("failed to parse feature file: {err}");
         error_to_tokens(&syn::Error::new(proc_macro2::Span::call_site(), msg))
     })
@@ -301,12 +328,24 @@ struct ScenarioData {
 }
 
 fn extract_examples(scenario: &gherkin::Scenario) -> Result<Option<ExampleTable>, TokenStream> {
-    if scenario.keyword != "Scenario Outline" && scenario.examples.is_empty() {
+    if !should_process_outline(scenario) {
         return Ok(None);
     }
 
-    // Fetch the first table to establish headers and row width
-    let ex0 = scenario
+    let first_table = get_first_examples_table(scenario)?;
+    let headers = extract_and_validate_headers(first_table)?;
+    validate_header_consistency(scenario, &headers)?;
+    let rows = flatten_and_validate_rows(scenario, headers.len())?;
+
+    Ok(Some(ExampleTable { headers, rows }))
+}
+
+fn should_process_outline(scenario: &gherkin::Scenario) -> bool {
+    scenario.keyword == "Scenario Outline" || !scenario.examples.is_empty()
+}
+
+fn get_first_examples_table(scenario: &gherkin::Scenario) -> Result<&gherkin::Table, TokenStream> {
+    scenario
         .examples
         .first()
         .and_then(|ex| ex.table.as_ref())
@@ -315,43 +354,50 @@ fn extract_examples(scenario: &gherkin::Scenario) -> Result<Option<ExampleTable>
                 proc_macro2::Span::call_site(),
                 "Scenario Outline missing Examples table",
             ))
-        })?;
+        })
+}
 
-    let mut rows0 = ex0.rows.clone();
-    if rows0.is_empty() {
-        return Err(error_to_tokens(&syn::Error::new(
+fn extract_and_validate_headers(table: &gherkin::Table) -> Result<Vec<String>, TokenStream> {
+    let first = table.rows.first().ok_or_else(|| {
+        error_to_tokens(&syn::Error::new(
             proc_macro2::Span::call_site(),
             "Examples table must have at least one row",
-        )));
-    }
+        ))
+    })?;
+    Ok(first.clone())
+}
 
-    let headers = rows0.remove(0);
-    let width = headers.len();
-
-    // Ensure every other block has matching headers
+fn validate_header_consistency(
+    scenario: &gherkin::Scenario,
+    expected_headers: &[String],
+) -> Result<(), TokenStream> {
     for ex in scenario.examples.iter().skip(1) {
-        let t = ex.table.as_ref().ok_or_else(|| {
+        let table = ex.table.as_ref().ok_or_else(|| {
             error_to_tokens(&syn::Error::new(
                 proc_macro2::Span::call_site(),
                 "Examples table missing rows",
             ))
         })?;
-
-        let other_headers = t.rows.first().ok_or_else(|| {
+        let headers = table.rows.first().ok_or_else(|| {
             error_to_tokens(&syn::Error::new(
                 proc_macro2::Span::call_site(),
                 "Examples table must have at least one row",
             ))
         })?;
-
-        if *other_headers != headers {
+        if headers != expected_headers {
             return Err(error_to_tokens(&syn::Error::new(
                 proc_macro2::Span::call_site(),
                 "All Examples tables must have the same headers",
             )));
         }
     }
+    Ok(())
+}
 
+fn flatten_and_validate_rows(
+    scenario: &gherkin::Scenario,
+    expected_width: usize,
+) -> Result<Vec<Vec<String>>, TokenStream> {
     let rows: Vec<Vec<String>> = scenario
         .examples
         .iter()
@@ -360,21 +406,21 @@ fn extract_examples(scenario: &gherkin::Scenario) -> Result<Option<ExampleTable>
         .collect();
 
     for (i, row) in rows.iter().enumerate() {
-        if row.len() != width {
+        if row.len() != expected_width {
             let err = syn::Error::new(
                 proc_macro2::Span::call_site(),
                 format!(
                     "Malformed examples table: row {} has {} columns, expected {}",
                     i + 2,
                     row.len(),
-                    width
+                    expected_width
                 ),
             );
             return Err(error_to_tokens(&err));
         }
     }
 
-    Ok(Some(ExampleTable { headers, rows }))
+    Ok(rows)
 }
 
 fn extract_scenario_steps(

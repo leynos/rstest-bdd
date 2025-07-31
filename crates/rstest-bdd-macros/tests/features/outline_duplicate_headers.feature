@@ -6,5 +6,5 @@ Feature: Outline errors
     Then a result is produced
 
     Examples:
-      | num | num |
-      | 1   | 1   |
+        | num | num |
+        | 1   | 1   |
