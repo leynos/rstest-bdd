@@ -827,7 +827,8 @@ strings. Step wrapper functions parse these strings and convert them with
 `FromStr` before calling the original step. Scenario execution now searches the
 step registry using `find_step`, which falls back to placeholder matching when
 no exact pattern is present. This approach keeps the macros lightweight while
-supporting type‑safe parameters in steps.
+supporting type‑safe parameters in steps. The parser does not handle nested or
+escaped braces; step patterns must contain simple, well-formed placeholders.
 
 ## **Works cited**
 

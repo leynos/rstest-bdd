@@ -72,11 +72,11 @@ code.
 Developers implement the behaviour described in a feature by writing step
 definition functions in Rust. Each step definition is an ordinary function
 annotated with one of the attribute macros `#[given]`, `#[when]` or `#[then]`.
-The annotation takes a single string literal; this string must match the text
-of the corresponding step in the feature file exactly. Unlike the aspirational
-design, the current implementation does not parse placeholders or capture
-groups from the pattern. Therefore, dynamic parameters cannot be extracted from
-step text; each unique step text requires its own definition.
+The annotation takes a single string literal that acts as a pattern. The string
+may include `format!`‑style placeholders such as `{count:u32}`. At runtime the
+framework extracts these values from the step text and converts them with
+`FromStr`. Text outside placeholders must match the step in the feature file
+exactly.
 
 The procedural macro implementation expands the annotated function into two
 parts: the original function and a wrapper function that registers the step in
@@ -226,6 +226,8 @@ document and README remain unimplemented in the current codebase:
   step keyword in Gherkin to improve readability, but step lookup is based
   strictly on the primary keyword. Using `*` in feature files will not match
   any registered step.
+- **Limited placeholder parser.** Nested or escaped braces are not supported
+  in step patterns. Placeholders must be well formed and non-overlapping.
 
 Consult the project’s roadmap or repository for updates. When new features are
 added, patterns and examples may change. Meanwhile, adopting `rstest‑bdd` in

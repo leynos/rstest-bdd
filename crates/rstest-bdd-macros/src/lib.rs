@@ -64,37 +64,39 @@ fn extract_args(func: &mut ItemFn) -> syn::Result<(Vec<FixtureArg>, Vec<StepArg>
     Ok((fixtures, step_args))
 }
 
-fn generate_wrapper_code(
-    ident: &syn::Ident,
-    fixtures: &[FixtureArg],
-    step_args: &[StepArg],
-    pattern: &LitStr,
-    keyword: &str,
-) -> TokenStream2 {
-    let id = COUNTER.fetch_add(1, Ordering::SeqCst);
-    let wrapper_ident = format_ident!("__rstest_bdd_wrapper_{}_{}", ident, id);
-    let const_ident = format_ident!("__rstest_bdd_fixtures_{}_{}", ident, id);
+struct WrapperConfig<'a> {
+    ident: &'a syn::Ident,
+    fixtures: &'a [FixtureArg],
+    step_args: &'a [StepArg],
+    pattern: &'a LitStr,
+    keyword: &'a str,
+}
 
-    let declares = fixtures.iter().map(|FixtureArg { pat, name, ty }| {
-        if let syn::Type::Reference(r) = ty {
-            let inner = &*r.elem;
-            quote! {
-                let #pat: #ty = ctx
-                    .get::<#inner>(stringify!(#name))
-                    .expect("missing fixture");
+fn gen_fixture_decls(fixtures: &[FixtureArg]) -> Vec<TokenStream2> {
+    fixtures
+        .iter()
+        .map(|FixtureArg { pat, name, ty }| {
+            if let syn::Type::Reference(r) = ty {
+                let inner = &*r.elem;
+                quote! {
+                    let #pat: #ty = ctx
+                        .get::<#inner>(stringify!(#name))
+                        .expect("missing fixture");
+                }
+            } else {
+                quote! {
+                    let #pat: #ty = ctx
+                        .get::<#ty>(stringify!(#name))
+                        .expect("missing fixture")
+                        .clone();
+                }
             }
-        } else {
-            quote! {
-                let #pat: #ty = ctx
-                    .get::<#ty>(stringify!(#name))
-                    .expect("missing fixture")
-                    .clone();
-            }
-        }
-    });
+        })
+        .collect()
+}
 
-    let fixture_idents = fixtures.iter().map(|FixtureArg { pat, .. }| pat);
-    let step_arg_parses = step_args
+fn gen_step_parses(step_args: &[StepArg]) -> Vec<TokenStream2> {
+    step_args
         .iter()
         .enumerate()
         .map(|(idx, StepArg { pat, ty })| {
@@ -102,9 +104,27 @@ fn generate_wrapper_code(
             quote! {
                 let #pat: #ty = captures[#index].parse().expect("failed to parse argument");
             }
-        });
-    let arg_idents = fixture_idents
-        .clone()
+        })
+        .collect()
+}
+
+fn generate_wrapper_code(config: &WrapperConfig<'_>) -> TokenStream2 {
+    let WrapperConfig {
+        ident,
+        fixtures,
+        step_args,
+        pattern,
+        keyword,
+    } = config;
+    let id = COUNTER.fetch_add(1, Ordering::SeqCst);
+    let wrapper_ident = format_ident!("__rstest_bdd_wrapper_{}_{}", ident, id);
+    let const_ident = format_ident!("__rstest_bdd_fixtures_{}_{}", ident, id);
+
+    let declares = gen_fixture_decls(fixtures);
+    let step_arg_parses = gen_step_parses(step_args);
+    let arg_idents = fixtures
+        .iter()
+        .map(|f| &f.pat)
         .chain(step_args.iter().map(|a| &a.pat));
 
     let fixture_names: Vec<_> = fixtures
@@ -220,7 +240,14 @@ fn step_attr(attr: TokenStream, item: TokenStream, keyword: &str) -> TokenStream
 
     let ident = &func.sig.ident;
 
-    let wrapper_code = generate_wrapper_code(ident, &fixtures, &step_args, &pattern, keyword);
+    let config = WrapperConfig {
+        ident,
+        fixtures: &fixtures,
+        step_args: &step_args,
+        pattern: &pattern,
+        keyword,
+    };
+    let wrapper_code = generate_wrapper_code(&config);
 
     TokenStream::from(quote! {
         #func

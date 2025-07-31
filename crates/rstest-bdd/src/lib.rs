@@ -65,22 +65,35 @@ impl<'a> StepContext<'a> {
 /// contains the raw substring for each placeholder in order of appearance.
 #[must_use]
 pub fn extract_placeholders(pattern: &str, text: &str) -> Option<Vec<String>> {
+    let regex_source = build_regex_from_pattern(pattern);
+    let re = Regex::new(&regex_source).ok()?;
+    extract_captured_values(&re, text)
+}
+
+fn build_regex_from_pattern(pattern: &str) -> String {
     let mut regex_source = String::from("^");
     let mut chars = pattern.chars().peekable();
     while let Some(ch) = chars.next() {
         if ch == '{' {
-            for c in chars.by_ref() {
-                if c == '}' {
-                    break;
-                }
-            }
+            consume_until_closing_brace(&mut chars);
             regex_source.push_str("(.+)");
         } else {
             regex_source.push_str(&regex::escape(&ch.to_string()));
         }
     }
     regex_source.push('$');
-    let re = Regex::new(&regex_source).ok()?;
+    regex_source
+}
+
+fn consume_until_closing_brace(chars: &mut std::iter::Peekable<std::str::Chars<'_>>) {
+    for c in chars.by_ref() {
+        if c == '}' {
+            break;
+        }
+    }
+}
+
+fn extract_captured_values(re: &Regex, text: &str) -> Option<Vec<String>> {
     let caps = re.captures(text)?;
     let mut values = Vec::new();
     for i in 1..caps.len() {
