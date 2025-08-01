@@ -272,6 +272,63 @@ pub fn then(attr: TokenStream, item: TokenStream) -> TokenStream {
     step_attr(attr, item, "Then")
 }
 
+/// Validate Examples table structure in feature file text
+fn validate_examples_in_feature_text(text: &str) -> Result<(), TokenStream> {
+    if !text.contains("Examples:") {
+        return Ok(());
+    }
+
+    let examples_idx = find_examples_table_start(text)?;
+    validate_table_column_consistency(text, examples_idx)
+}
+
+/// Find the starting line index of the Examples table
+fn find_examples_table_start(text: &str) -> Result<usize, TokenStream> {
+    text.lines()
+        .enumerate()
+        .find(|(_, line)| line.trim_start().starts_with("Examples:"))
+        .map(|(idx, _)| idx)
+        .ok_or_else(|| {
+            error_to_tokens(&syn::Error::new(
+                proc_macro2::Span::call_site(),
+                "Examples table structure error",
+            ))
+        })
+}
+
+/// Validate that all example rows have consistent column counts with header
+fn validate_table_column_consistency(text: &str, start_idx: usize) -> Result<(), TokenStream> {
+    let mut table_rows = text
+        .lines()
+        .skip(start_idx + 1)
+        .take_while(|line| line.trim_start().starts_with('|'));
+
+    let Some(header_row) = table_rows.next() else {
+        return Ok(());
+    };
+
+    let expected_columns = count_non_empty_columns(header_row);
+
+    for data_row in table_rows {
+        let actual_columns = count_non_empty_columns(data_row);
+        if actual_columns < expected_columns {
+            return Err(error_to_tokens(&syn::Error::new(
+                proc_macro2::Span::call_site(),
+                "Example row has fewer columns than header row in Examples table",
+            )));
+        }
+    }
+
+    Ok(())
+}
+
+/// Count non-empty columns in a table row by splitting on '|'
+fn count_non_empty_columns(row: &str) -> usize {
+    row.split('|')
+        .filter(|cell| !cell.trim().is_empty())
+        .count()
+}
+
 fn parse_and_load_feature(path: &Path) -> Result<Feature, TokenStream> {
     let Ok(manifest_dir) = std::env::var("CARGO_MANIFEST_DIR") else {
         let err = syn::Error::new(
@@ -283,30 +340,8 @@ fn parse_and_load_feature(path: &Path) -> Result<Feature, TokenStream> {
     let feature_path = PathBuf::from(manifest_dir).join(path);
     Feature::parse_path(&feature_path, GherkinEnv::default()).map_err(|err| {
         if let Ok(text) = std::fs::read_to_string(&feature_path) {
-            if text.contains("Examples:") {
-                if let Some((idx, _)) = text
-                    .lines()
-                    .enumerate()
-                    .find(|(_, l)| l.trim_start().starts_with("Examples:"))
-                {
-                    let mut lines = text
-                        .lines()
-                        .skip(idx + 1)
-                        .take_while(|l| l.trim_start().starts_with('|'));
-                    if let Some(header) = lines.next() {
-                        let cols = header.split('|').filter(|c| !c.trim().is_empty()).count();
-                        for row in lines {
-                            let c = row.split('|').filter(|s| !s.trim().is_empty()).count();
-                            if c < cols {
-                                let err = syn::Error::new(
-                                    proc_macro2::Span::call_site(),
-                                    "Example row has fewer columns than header row in Examples table",
-                                );
-                                return error_to_tokens(&err);
-                            }
-                        }
-                    }
-                }
+            if let Err(validation_err) = validate_examples_in_feature_text(&text) {
+                return validation_err;
             }
         }
         let msg = format!("failed to parse feature file: {err}");
