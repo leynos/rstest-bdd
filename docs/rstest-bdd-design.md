@@ -404,8 +404,8 @@ location information for generating clear error messages.
 // A simplified representation of the step metadata.
 #[derive(Debug)]
 pub struct Step {
-    pub keyword: &'static str, // "Given", "When", or "Then"
-    pub pattern: &'static str, // The pattern string from the attribute, e.g., "A user has {count} cucumbers"
+    pub keyword: StepKeyword, // e.g., Given, When or Then
+    pub pattern: &'static StepPattern, // The pattern string from the attribute, e.g., "A user has {count} cucumbers"
     // A type-erased function pointer. Arguments will be wired up by the
     // scenario orchestrator in later phases.
     pub run: fn(),

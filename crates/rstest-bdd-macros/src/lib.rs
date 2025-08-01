@@ -69,7 +69,7 @@ struct WrapperConfig<'a> {
     fixtures: &'a [FixtureArg],
     step_args: &'a [StepArg],
     pattern: &'a LitStr,
-    keyword: &'a str,
+    keyword: rstest_bdd::StepKeyword,
 }
 
 fn gen_fixture_decls(fixtures: &[FixtureArg]) -> Vec<TokenStream2> {
@@ -136,6 +136,14 @@ fn generate_wrapper_code(config: &WrapperConfig<'_>) -> TokenStream2 {
         .collect();
     let fixture_len = fixture_names.len();
 
+    let keyword_token = match keyword {
+        rstest_bdd::StepKeyword::Given => quote! { rstest_bdd::StepKeyword::Given },
+        rstest_bdd::StepKeyword::When => quote! { rstest_bdd::StepKeyword::When },
+        rstest_bdd::StepKeyword::Then => quote! { rstest_bdd::StepKeyword::Then },
+        rstest_bdd::StepKeyword::And => quote! { rstest_bdd::StepKeyword::And },
+        rstest_bdd::StepKeyword::But => quote! { rstest_bdd::StepKeyword::But },
+    };
+
     quote! {
         fn #wrapper_ident(ctx: &rstest_bdd::StepContext<'_>, text: &str) {
             #(#declares)*
@@ -149,7 +157,7 @@ fn generate_wrapper_code(config: &WrapperConfig<'_>) -> TokenStream2 {
         const #const_ident: [&'static str; #fixture_len] = [#(#fixture_names),*];
         const _: [(); #fixture_len] = [(); #const_ident.len()];
 
-        rstest_bdd::step!(#keyword, #pattern, #wrapper_ident, &#const_ident);
+        rstest_bdd::step!(#keyword_token, #pattern, #wrapper_ident, &#const_ident);
     }
 }
 
@@ -229,7 +237,11 @@ impl ScenarioArgs {
     }
 }
 
-fn step_attr(attr: TokenStream, item: TokenStream, keyword: &str) -> TokenStream {
+fn step_attr(
+    attr: TokenStream,
+    item: TokenStream,
+    keyword: rstest_bdd::StepKeyword,
+) -> TokenStream {
     let pattern = parse_macro_input!(attr as LitStr);
     let mut func = parse_macro_input!(item as ItemFn);
 
@@ -272,7 +284,7 @@ fn step_attr(attr: TokenStream, item: TokenStream, keyword: &str) -> TokenStream
 /// ```
 #[proc_macro_attribute]
 pub fn given(attr: TokenStream, item: TokenStream) -> TokenStream {
-    step_attr(attr, item, "Given")
+    step_attr(attr, item, rstest_bdd::StepKeyword::Given)
 }
 
 /// Macro for defining a When step that registers with the step inventory.
@@ -292,7 +304,7 @@ pub fn given(attr: TokenStream, item: TokenStream) -> TokenStream {
 /// ```
 #[proc_macro_attribute]
 pub fn when(attr: TokenStream, item: TokenStream) -> TokenStream {
-    step_attr(attr, item, "When")
+    step_attr(attr, item, rstest_bdd::StepKeyword::When)
 }
 
 /// Macro for defining a Then step that registers with the step inventory.
@@ -312,7 +324,7 @@ pub fn when(attr: TokenStream, item: TokenStream) -> TokenStream {
 /// ```
 #[proc_macro_attribute]
 pub fn then(attr: TokenStream, item: TokenStream) -> TokenStream {
-    step_attr(attr, item, "Then")
+    step_attr(attr, item, rstest_bdd::StepKeyword::Then)
 }
 
 fn parse_and_load_feature(path: &Path) -> Result<Feature, TokenStream> {
@@ -341,7 +353,7 @@ struct ExampleTable {
 /// Name, steps, and optional examples extracted from a Gherkin scenario.
 struct ScenarioData {
     name: String,
-    steps: Vec<(String, String)>,
+    steps: Vec<(rstest_bdd::StepKeyword, String)>,
     examples: Option<ExampleTable>,
 }
 
@@ -397,11 +409,11 @@ fn extract_scenario_steps(
         .iter()
         .map(|s| {
             let keyword = match s.ty {
-                StepType::Given => "Given",
-                StepType::When => "When",
-                StepType::Then => "Then",
+                StepType::Given => rstest_bdd::StepKeyword::Given,
+                StepType::When => rstest_bdd::StepKeyword::When,
+                StepType::Then => rstest_bdd::StepKeyword::Then,
             };
-            (keyword.to_string(), s.value.clone())
+            (keyword, s.value.clone())
         })
         .collect();
 
@@ -463,11 +475,20 @@ fn generate_scenario_code(
     block: &syn::Block,
     feature_path_str: String,
     scenario_name: String,
-    steps: Vec<(String, String)>,
+    steps: Vec<(rstest_bdd::StepKeyword, String)>,
     examples: Option<ExampleTable>,
     ctx_inserts: impl Iterator<Item = TokenStream2>,
 ) -> TokenStream {
-    let keywords = steps.iter().map(|(k, _)| k);
+    let keywords: Vec<_> = steps
+        .iter()
+        .map(|(k, _)| match k {
+            rstest_bdd::StepKeyword::Given => quote! { rstest_bdd::StepKeyword::Given },
+            rstest_bdd::StepKeyword::When => quote! { rstest_bdd::StepKeyword::When },
+            rstest_bdd::StepKeyword::Then => quote! { rstest_bdd::StepKeyword::Then },
+            rstest_bdd::StepKeyword::And => quote! { rstest_bdd::StepKeyword::And },
+            rstest_bdd::StepKeyword::But => quote! { rstest_bdd::StepKeyword::But },
+        })
+        .collect();
     let values = steps.iter().map(|(_, v)| v);
 
     let case_attrs = examples.map_or_else(Vec::new, |ex| generate_case_attrs(&ex));
@@ -481,13 +502,13 @@ fn generate_scenario_code(
             let mut ctx = rstest_bdd::StepContext::default();
             #(#ctx_inserts)*
             for (index, (keyword, text)) in steps.iter().enumerate() {
-                if let Some(f) = rstest_bdd::find_step(keyword, text) {
+                if let Some(f) = rstest_bdd::find_step(*keyword, text) {
                     f(&ctx, text);
                 } else {
                     panic!(
                         "Step not found at index {}: {} {} (feature: {}, scenario: {})",
                         index,
-                        keyword,
+                        keyword.as_str(),
                         text,
                         #feature_path_str,
                         #scenario_name

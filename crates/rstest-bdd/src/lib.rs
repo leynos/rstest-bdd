@@ -22,7 +22,73 @@ use std::any::Any;
 use std::collections::HashMap;
 use std::sync::LazyLock;
 
-type StepKey = (&'static str, &'static str);
+/// Keyword used to categorize a step definition.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum StepKeyword {
+    /// Setup preconditions for a scenario.
+    Given,
+    /// Perform an action when testing behaviour.
+    When,
+    /// Assert the expected outcome of a scenario.
+    Then,
+    /// Additional conditions that share context with the previous step.
+    And,
+    /// Negative or contrasting conditions.
+    But,
+}
+
+impl StepKeyword {
+    /// Return the keyword as a string slice.
+    #[must_use]
+    pub const fn as_str(&self) -> &'static str {
+        match self {
+            Self::Given => "Given",
+            Self::When => "When",
+            Self::Then => "Then",
+            Self::And => "And",
+            Self::But => "But",
+        }
+    }
+}
+
+impl From<&str> for StepKeyword {
+    fn from(value: &str) -> Self {
+        match value {
+            "Given" => Self::Given,
+            "When" => Self::When,
+            "Then" => Self::Then,
+            "And" => Self::And,
+            "But" => Self::But,
+            other => panic!("invalid StepKeyword: {other}"),
+        }
+    }
+}
+
+/// Pattern text used to match a step at runtime.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct StepPattern(&'static str);
+
+impl StepPattern {
+    /// Create a new pattern wrapper from a string literal.
+    #[must_use]
+    pub const fn new(value: &'static str) -> Self {
+        Self(value)
+    }
+
+    /// Access the underlying pattern string.
+    #[must_use]
+    pub const fn as_str(&self) -> &'static str {
+        self.0
+    }
+}
+
+impl From<&'static str> for StepPattern {
+    fn from(value: &'static str) -> Self {
+        Self::new(value)
+    }
+}
+
+type StepKey = (StepKeyword, &'static StepPattern);
 
 /// Context passed to step functions containing references to requested fixtures.
 ///
@@ -122,9 +188,9 @@ pub type StepFn = for<'a> fn(&StepContext<'a>, &str);
 #[derive(Debug)]
 pub struct Step {
     /// The step keyword, e.g. `Given` or `When`.
-    pub keyword: &'static str,
+    pub keyword: StepKeyword,
     /// Pattern text used to match a Gherkin step.
-    pub pattern: &'static str,
+    pub pattern: &'static StepPattern,
     /// Function pointer executed when the step is invoked.
     pub run: StepFn,
     /// Names of fixtures this step requires.
@@ -152,16 +218,19 @@ pub struct Step {
 #[macro_export]
 macro_rules! step {
     ($keyword:expr, $pattern:expr, $handler:path, $fixtures:expr) => {
-        $crate::submit! {
-            $crate::Step {
-                keyword: $keyword,
-                pattern: $pattern,
-                run: $handler,
-                fixtures: $fixtures,
-                file: file!(),
-                line: line!(),
+        const _: () = {
+            const PATTERN: $crate::StepPattern = $crate::StepPattern::new($pattern);
+            $crate::submit! {
+                $crate::Step {
+                    keyword: $keyword,
+                    pattern: &PATTERN,
+                    run: $handler,
+                    fixtures: $fixtures,
+                    file: file!(),
+                    line: line!(),
+                }
             }
-        }
+        };
     };
 }
 
@@ -193,8 +262,11 @@ static STEP_MAP: LazyLock<HashMap<StepKey, StepFn>> = LazyLock::new(|| {
 /// assert!(step_fn.is_some());
 /// ```
 #[must_use]
-pub fn lookup_step(keyword: &str, pattern: &str) -> Option<StepFn> {
-    STEP_MAP.get(&(keyword, pattern)).copied()
+pub fn lookup_step(keyword: StepKeyword, pattern: &str) -> Option<StepFn> {
+    STEP_MAP
+        .iter()
+        .find(|(key, _)| key.0 == keyword && key.1.as_str() == pattern)
+        .map(|(_, f)| *f)
 }
 
 /// Find a registered step whose pattern matches the provided text.
@@ -202,12 +274,12 @@ pub fn lookup_step(keyword: &str, pattern: &str) -> Option<StepFn> {
 /// The search first attempts an exact match via `lookup_step` and then falls
 /// back to evaluating each registered pattern for placeholders.
 #[must_use]
-pub fn find_step(keyword: &str, text: &str) -> Option<StepFn> {
+pub fn find_step(keyword: StepKeyword, text: &str) -> Option<StepFn> {
     if let Some(f) = lookup_step(keyword, text) {
         return Some(f);
     }
     for step in iter::<Step> {
-        if step.keyword == keyword && extract_placeholders(step.pattern, text).is_some() {
+        if step.keyword == keyword && extract_placeholders(step.pattern.as_str(), text).is_some() {
             return Some(step.run);
         }
     }
@@ -231,11 +303,11 @@ mod tests {
             sample();
         }
 
-        step!("Given", "a pattern", wrapper, &[]);
+        step!(StepKeyword::Given, "a pattern", wrapper, &[]);
 
         let found = iter::<Step>
             .into_iter()
-            .any(|step| step.pattern == "a pattern");
+            .any(|step| step.pattern.as_str() == "a pattern");
 
         assert!(found, "registered step was not found in the inventory");
     }

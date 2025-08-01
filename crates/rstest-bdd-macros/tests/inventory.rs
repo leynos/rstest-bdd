@@ -15,17 +15,19 @@ fn result() {}
 #[test]
 fn macros_register_steps() {
     let cases = [
-        ("Given", "a precondition"),
-        ("When", "an action"),
-        ("Then", "a result"),
+        (rstest_bdd::StepKeyword::Given, "a precondition"),
+        (rstest_bdd::StepKeyword::When, "an action"),
+        (rstest_bdd::StepKeyword::Then, "a result"),
     ];
 
     for (keyword, pattern) in cases {
         assert!(
             iter::<Step>
                 .into_iter()
-                .any(|s| s.keyword == keyword && s.pattern == pattern),
-            "Step not registered: {keyword} {pattern}"
+                .any(|s| s.keyword == keyword && s.pattern.as_str() == pattern),
+            "Step not registered: {} {}",
+            keyword.as_str(),
+            pattern
         );
     }
 }

@@ -9,12 +9,12 @@ fn wrapper(ctx: &rstest_bdd::StepContext<'_>, _text: &str) {
     sample();
 }
 
-step!("When", "behavioural", wrapper, &[]);
+step!(rstest_bdd::StepKeyword::When, "behavioural", wrapper, &[]);
 
 #[test]
 fn step_is_registered() {
-    let found = iter::<Step>
-        .into_iter()
-        .any(|step| step.pattern == "behavioural" && step.keyword == "When");
+    let found = iter::<Step>.into_iter().any(|step| {
+        step.pattern.as_str() == "behavioural" && step.keyword == rstest_bdd::StepKeyword::When
+    });
     assert!(found, "expected step not found");
 }
