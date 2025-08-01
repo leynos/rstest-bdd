@@ -830,6 +830,31 @@ no exact pattern is present. This approach keeps the macros lightweight while
 supporting type‑safe parameters in steps. The parser does not handle nested or
 escaped braces; step patterns must contain simple, well-formed placeholders.
 
+The sequence below summarises how the runner locates and executes steps when
+placeholders are present:
+
+```mermaid
+sequenceDiagram
+    participant ScenarioRunner
+    participant StepRegistry
+    participant StepWrapper
+    participant StepFunction
+
+    ScenarioRunner->>StepRegistry: find_step(keyword, text)
+    alt exact match
+        StepRegistry-->>ScenarioRunner: StepFn
+    else placeholder match
+        StepRegistry->>StepRegistry: extract_placeholders(pattern, text)
+        StepRegistry-->>ScenarioRunner: StepFn
+    end
+    ScenarioRunner->>StepWrapper: call StepFn(ctx, text)
+    StepWrapper->>StepWrapper: extract_placeholders(pattern, text)
+    StepWrapper->>StepWrapper: parse captures with FromStr
+    StepWrapper->>StepFunction: call with typed args
+    StepFunction-->>StepWrapper: returns
+    StepWrapper-->>ScenarioRunner: returns
+```
+
 ## **Works cited**
 
 [^1]: A Complete Guide To Behavior-Driven Testing With Pytest BDD, accessed on
