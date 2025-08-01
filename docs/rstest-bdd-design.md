@@ -458,8 +458,8 @@ classDiagram
         ty: Type
     }
     class Step {
-        keyword: String
-        pattern: String
+        keyword: StepKeyword
+        pattern: StepPattern
         run: StepFn
     }
     class StepFn
