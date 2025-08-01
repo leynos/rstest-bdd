@@ -142,8 +142,9 @@ impl<'a> StepContext<'a> {
 /// Extract placeholder values from a step string using a pattern.
 ///
 /// The pattern supports `format!`-style placeholders such as `{count:u32}`.
-/// Any text outside placeholders must match exactly. The returned vector
-/// contains the raw substring for each placeholder in order of appearance.
+/// Any text outside placeholders must match exactly. Nested or escaped
+/// braces are not supported. The returned vector contains the raw
+/// substring for each placeholder in order of appearance.
 #[must_use]
 pub fn extract_placeholders(pattern: &str, text: &str) -> Option<Vec<String>> {
     let regex_source = build_regex_from_pattern(pattern);
@@ -278,6 +279,10 @@ static STEP_MAP: LazyLock<HashMap<StepKey, StepFn>> = LazyLock::new(|| {
 /// ```
 #[must_use]
 pub fn lookup_step(keyword: StepKeyword, pattern: &str) -> Option<StepFn> {
+    // Step patterns are stored as `'static` references, so we cannot
+    // construct a temporary `StepPattern` for direct map lookup.
+    // Iterating avoids leaking memory while remaining efficient for the
+    // typical small step registry.
     STEP_MAP
         .iter()
         .find(|(key, _)| key.0 == keyword && key.1.as_str() == pattern)

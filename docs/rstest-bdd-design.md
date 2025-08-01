@@ -444,6 +444,36 @@ calling `inventory::iter::<Step>()`. This provides an iterator over all
 registered `Step` instances, regardless of the file, module, or crate in which
 they were defined.
 
+```mermaid
+classDiagram
+    class StepContext {
+    }
+    class StepArg {
+        pat: Ident
+        ty: Type
+    }
+    class FixtureArg {
+        pat: Ident
+        name: Ident
+        ty: Type
+    }
+    class Step {
+        keyword: String
+        pattern: String
+        run: StepFn
+    }
+    class StepFn
+    class StepWrapper
+    StepWrapper : extract_placeholders(pattern, text)
+    StepWrapper : parse captures with FromStr
+    StepWrapper : call StepFunction
+    StepFn <|-- StepWrapper
+    StepContext <.. StepWrapper
+    StepArg <.. StepWrapper
+    FixtureArg <.. StepWrapper
+    Step o-- StepFn
+```
+
 ### 2.4 The Macro Expansion Process: A Compile-Time to Runtime Journey
 
 The interaction between the user's code, the `rstest-bdd` macros, and the final
@@ -826,7 +856,7 @@ steps appear in different modules. The macro also emits a compile-time array
 length assertion to ensure the generated fixture list matches the wrapper
 signature. Any mismatch is reported during compilation rather than at runtime.
 
-### 3.9 Step Argument Parsing Implementation
+### 3.9 Step-Argument Parsing Implementation
 
 The third phase introduces typed placeholders to step patterns. The runtime
 library exposes an `extract_placeholders` helper that converts a pattern with
@@ -838,7 +868,7 @@ no exact pattern is present. This approach keeps the macros lightweight while
 supporting type‑safe parameters in steps. The parser does not handle nested or
 escaped braces; step patterns must contain simple, well-formed placeholders.
 
-The sequence below summarises how the runner locates and executes steps when
+The sequence below summarizes how the runner locates and executes steps when
 placeholders are present:
 
 ```mermaid

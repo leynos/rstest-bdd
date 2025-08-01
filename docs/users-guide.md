@@ -73,7 +73,7 @@ Developers implement the behaviour described in a feature by writing step
 definition functions in Rust. Each step definition is an ordinary function
 annotated with one of the attribute macros `#[given]`, `#[when]` or `#[then]`.
 The annotation takes a single string literal that acts as a pattern. The string
-may include `format!`‑style placeholders such as `{count:u32}`. At runtime the
+may include `format!`‑style placeholders such as `{count:u32}`. At runtime, the
 framework extracts these values from the step text and converts them with
 `FromStr`. Text outside placeholders must match the step in the feature file
 exactly.
@@ -227,7 +227,7 @@ document and README remain unimplemented in the current codebase:
   strictly on the primary keyword. Using `*` in feature files will not match
   any registered step.
 - **Limited placeholder parser.** Nested or escaped braces are not supported
-  in step patterns. Placeholders must be well formed and non-overlapping.
+  in step patterns. Placeholders must be well-formed and non-overlapping.
 
 Consult the project’s roadmap or repository for updates. When new features are
 added, patterns and examples may change. Meanwhile, adopting `rstest‑bdd` in

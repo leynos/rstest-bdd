@@ -81,13 +81,21 @@ fn gen_fixture_decls(fixtures: &[FixtureArg]) -> Vec<TokenStream2> {
                 quote! {
                     let #pat: #ty = ctx
                         .get::<#inner>(stringify!(#name))
-                        .expect("missing fixture");
+                        .unwrap_or_else(|| panic!(
+                            "missing fixture '{}' of type '{}'",
+                            stringify!(#name),
+                            stringify!(#inner)
+                        ));
                 }
             } else {
                 quote! {
                     let #pat: #ty = ctx
                         .get::<#ty>(stringify!(#name))
-                        .expect("missing fixture")
+                        .unwrap_or_else(|| panic!(
+                            "missing fixture '{}' of type '{}'",
+                            stringify!(#name),
+                            stringify!(#ty)
+                        ))
                         .clone();
                 }
             }
@@ -102,7 +110,13 @@ fn gen_step_parses(step_args: &[StepArg]) -> Vec<TokenStream2> {
         .map(|(idx, StepArg { pat, ty })| {
             let index = syn::Index::from(idx);
             quote! {
-                let #pat: #ty = captures[#index].parse().expect("failed to parse argument");
+                let #pat: #ty = captures[#index]
+                    .parse()
+                    .unwrap_or_else(|_| panic!(
+                        "failed to parse argument {} as {}",
+                        #index,
+                        stringify!(#ty)
+                    ));
             }
         })
         .collect()
