@@ -422,6 +422,10 @@ The [`StepKeyword`](../crates/rstest-bdd/src/lib.rs) enum implements `FromStr`.
 Parsing failures return a `StepKeywordParseError` to ensure invalid step
 keywords are surfaced early.
 
+The [`StepPattern`](../crates/rstest-bdd/src/lib.rs) wrapper encapsulates the
+pattern text so that step lookups cannot accidentally mix arbitrary strings
+with registered patterns.
+
 Placing the `Step` struct in the runtime crate avoids a circular dependency
 between the procedural macros and the library. The macros will simply re-export
 the type when they begin submitting steps to the registry.
