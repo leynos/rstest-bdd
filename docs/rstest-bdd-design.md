@@ -418,6 +418,10 @@ pub struct Step {
 inventory::collect!(Step);
 ```
 
+The [`StepKeyword`](../crates/rstest-bdd/src/lib.rs) enum implements `FromStr`.
+Parsing failures return a `StepKeywordParseError` to ensure invalid step
+keywords are surfaced early.
+
 Placing the `Step` struct in the runtime crate avoids a circular dependency
 between the procedural macros and the library. The macros will simply re-export
 the type when they begin submitting steps to the registry.

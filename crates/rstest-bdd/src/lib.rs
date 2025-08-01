@@ -20,6 +20,7 @@ pub use inventory::{iter, submit};
 use regex::Regex;
 use std::any::Any;
 use std::collections::HashMap;
+use std::str::FromStr;
 use std::sync::LazyLock;
 
 /// Keyword used to categorize a step definition.
@@ -51,16 +52,30 @@ impl StepKeyword {
     }
 }
 
-impl From<&str> for StepKeyword {
-    fn from(value: &str) -> Self {
-        match value {
+/// Error returned when parsing a `StepKeyword` from a string fails.
+#[derive(Debug, thiserror::Error)]
+#[error("invalid step keyword: {0}")]
+pub struct StepKeywordParseError(pub String);
+
+impl FromStr for StepKeyword {
+    type Err = StepKeywordParseError;
+
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        let kw = match value {
             "Given" => Self::Given,
             "When" => Self::When,
             "Then" => Self::Then,
             "And" => Self::And,
             "But" => Self::But,
-            other => panic!("invalid StepKeyword: {other}"),
-        }
+            other => return Err(StepKeywordParseError(other.to_string())),
+        };
+        Ok(kw)
+    }
+}
+
+impl From<&str> for StepKeyword {
+    fn from(value: &str) -> Self {
+        Self::from_str(value).unwrap_or_else(|_| panic!("invalid step keyword: {value}"))
     }
 }
 

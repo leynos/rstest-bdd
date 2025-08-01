@@ -393,6 +393,7 @@ dependencies = [
  "regex",
  "rstest",
  "rstest-bdd-macros",
+ "thiserror",
 ]
 
 [[package]]
