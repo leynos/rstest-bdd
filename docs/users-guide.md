@@ -198,7 +198,7 @@ Best practices for writing effective scenarios include:
 - **Keep patterns exact.** Because the current implementation does not support
   placeholders or capturing groups, the pattern strings in `#[given]`,
   `#[when]` and `#[then]` must match the corresponding lines in the feature
-  file character‑for‑character. Whitespace, capitalisation and punctuation must
+  file character‑for‑character. Whitespace, capitalization and punctuation must
   align.
 
 ## Limitations and roadmap
@@ -212,7 +212,7 @@ document and README remain unimplemented in the current codebase:
   pass no captured arguments to the step function. Step functions may only
   accept fixtures as arguments.
 
-- **Scenario outlines and example tables.** Parameterised scenarios using
+- **Scenario outlines and example tables.** Parameterized scenarios using
   `Scenario Outline` are supported and expand into multiple test cases based on
   the `Examples` table.
 
