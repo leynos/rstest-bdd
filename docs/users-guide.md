@@ -172,7 +172,7 @@ one may filter or run them in parallel as usual.
 Once feature files and step definitions are in place, scenarios run via the
 usual `cargo test` command. Test functions created by the `#[scenario]` macro
 behave like other `rstest` tests; they honour `#[tokio::test]` or
-`#[async_std::test]` attributes if applied on the original function. Each
+`#[async_std::test]` attributes if applied to the original function. Each
 scenario runs its steps sequentially in the order defined in the feature file.
 When a step is not found, the test will panic and report which step is missing
 and where it occurs in the feature. This strictness ensures that behaviour

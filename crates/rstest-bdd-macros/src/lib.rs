@@ -659,17 +659,14 @@ fn process_scenario_outline_examples(
         return Ok(());
     };
 
-    {
-        use std::collections::HashSet;
-        let mut seen = HashSet::new();
-        for header in &ex.headers {
-            if !seen.insert(header.clone()) {
-                let err = syn::Error::new(
-                    proc_macro2::Span::call_site(),
-                    format!("Duplicate header '{header}' found in examples table"),
-                );
-                return Err(error_to_tokens(&err));
-            }
+    let mut seen = std::collections::HashSet::new();
+    for header in &ex.headers {
+        if !seen.insert(header.clone()) {
+            let err = syn::Error::new(
+                proc_macro2::Span::call_site(),
+                format!("Duplicate header '{header}' found in examples table"),
+            );
+            return Err(error_to_tokens(&err));
         }
     }
 
