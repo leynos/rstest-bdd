@@ -23,6 +23,54 @@ use std::collections::HashMap;
 use std::str::FromStr;
 use std::sync::LazyLock;
 
+/// Wrapper for step pattern strings used in matching logic
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct PatternStr<'a>(&'a str);
+
+impl<'a> PatternStr<'a> {
+    /// Construct a new `PatternStr` from a string slice.
+    #[must_use]
+    pub const fn new(s: &'a str) -> Self {
+        Self(s)
+    }
+
+    /// Access the underlying string slice.
+    #[must_use]
+    pub const fn as_str(self) -> &'a str {
+        self.0
+    }
+}
+
+impl<'a> From<&'a str> for PatternStr<'a> {
+    fn from(s: &'a str) -> Self {
+        Self::new(s)
+    }
+}
+
+/// Wrapper for step text content from scenarios
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct StepText<'a>(&'a str);
+
+impl<'a> StepText<'a> {
+    /// Construct a new `StepText` from a string slice.
+    #[must_use]
+    pub const fn new(s: &'a str) -> Self {
+        Self(s)
+    }
+
+    /// Access the underlying string slice.
+    #[must_use]
+    pub const fn as_str(self) -> &'a str {
+        self.0
+    }
+}
+
+impl<'a> From<&'a str> for StepText<'a> {
+    fn from(s: &'a str) -> Self {
+        Self::new(s)
+    }
+}
+
 /// Keyword used to categorize a step definition.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum StepKeyword {
@@ -146,10 +194,10 @@ impl<'a> StepContext<'a> {
 /// braces are not supported. The returned vector contains the raw
 /// substring for each placeholder in order of appearance.
 #[must_use]
-pub fn extract_placeholders(pattern: &str, text: &str) -> Option<Vec<String>> {
-    let regex_source = build_regex_from_pattern(pattern);
+pub fn extract_placeholders(pattern: PatternStr<'_>, text: StepText<'_>) -> Option<Vec<String>> {
+    let regex_source = build_regex_from_pattern(pattern.as_str());
     let re = Regex::new(&regex_source).ok()?;
-    extract_captured_values(&re, text)
+    extract_captured_values(&re, text.as_str())
 }
 
 fn build_regex_from_pattern(pattern: &str) -> String {
@@ -278,14 +326,14 @@ static STEP_MAP: LazyLock<HashMap<StepKey, StepFn>> = LazyLock::new(|| {
 /// assert!(step_fn.is_some());
 /// ```
 #[must_use]
-pub fn lookup_step(keyword: StepKeyword, pattern: &str) -> Option<StepFn> {
+pub fn lookup_step(keyword: StepKeyword, pattern: PatternStr<'_>) -> Option<StepFn> {
     // Step patterns are stored as `'static` references, so we cannot
     // construct a temporary `StepPattern` for direct map lookup.
     // Iterating avoids leaking memory while remaining efficient for the
     // typical small step registry.
     STEP_MAP
         .iter()
-        .find(|(key, _)| key.0 == keyword && key.1.as_str() == pattern)
+        .find(|(key, _)| key.0 == keyword && key.1.as_str() == pattern.as_str())
         .map(|(_, f)| *f)
 }
 
@@ -294,12 +342,14 @@ pub fn lookup_step(keyword: StepKeyword, pattern: &str) -> Option<StepFn> {
 /// The search first attempts an exact match via `lookup_step` and then falls
 /// back to evaluating each registered pattern for placeholders.
 #[must_use]
-pub fn find_step(keyword: StepKeyword, text: &str) -> Option<StepFn> {
-    if let Some(f) = lookup_step(keyword, text) {
+pub fn find_step(keyword: StepKeyword, text: StepText<'_>) -> Option<StepFn> {
+    if let Some(f) = lookup_step(keyword, text.as_str().into()) {
         return Some(f);
     }
     for step in iter::<Step> {
-        if step.keyword == keyword && extract_placeholders(step.pattern.as_str(), text).is_some() {
+        if step.keyword == keyword
+            && extract_placeholders(step.pattern.as_str().into(), text).is_some()
+        {
             return Some(step.run);
         }
     }

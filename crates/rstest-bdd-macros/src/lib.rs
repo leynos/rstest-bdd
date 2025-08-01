@@ -161,7 +161,7 @@ fn generate_wrapper_code(config: &WrapperConfig<'_>) -> TokenStream2 {
     quote! {
         fn #wrapper_ident(ctx: &rstest_bdd::StepContext<'_>, text: &str) {
             #(#declares)*
-            let captures = rstest_bdd::extract_placeholders(#pattern, text)
+            let captures = rstest_bdd::extract_placeholders(#pattern.into(), text.into())
                 .expect("pattern mismatch");
             #(#step_arg_parses)*
             #ident(#(#arg_idents),*);
@@ -516,7 +516,7 @@ fn generate_scenario_code(
             let mut ctx = rstest_bdd::StepContext::default();
             #(#ctx_inserts)*
             for (index, (keyword, text)) in steps.iter().enumerate() {
-                if let Some(f) = rstest_bdd::find_step(*keyword, text) {
+                if let Some(f) = rstest_bdd::find_step(*keyword, (*text).into()) {
                     f(&ctx, text);
                 } else {
                     panic!(
