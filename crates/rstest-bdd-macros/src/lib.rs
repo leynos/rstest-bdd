@@ -1,9 +1,8 @@
-//! Procedural macros for rstest-bdd.
+//! Attribute macros enabling Behaviour-Driven testing with `rstest`.
 //!
-//! This crate provides attribute macros for annotating BDD test steps and
-//! scenarios. The step macros register annotated functions with the global
-//! step inventory system, enabling runtime discovery and execution of step
-//! definitions.
+//! The macros in this crate parse Gherkin feature files and generate
+//! parameterized test functions. Step definitions are registered via an
+//! inventory to allow the runner to discover them at runtime.
 
 use gherkin::{Feature, GherkinEnv, StepType};
 use proc_macro::TokenStream;
@@ -14,6 +13,16 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use syn::parse::{Parse, ParseStream};
 use syn::token::{Comma, Eq};
 use syn::{ItemFn, LitInt, LitStr, parse_macro_input};
+
+/// Convert a `syn::Error` into a `TokenStream` for macro errors.
+fn error_to_tokens(err: &syn::Error) -> TokenStream {
+    err.to_compile_error().into()
+}
+
+/// Create a `LitStr` from an examples table cell, escaping as needed.
+fn cell_to_lit(value: &str) -> syn::LitStr {
+    syn::LitStr::new(value, proc_macro2::Span::call_site())
+}
 
 struct FixtureArg {
     pat: syn::Ident,
@@ -260,8 +269,8 @@ fn step_attr(
     let mut func = parse_macro_input!(item as ItemFn);
 
     let (fixtures, step_args) = match extract_args(&mut func) {
-        Ok(res) => res,
-        Err(err) => return err.to_compile_error().into(),
+        Ok(args) => args,
+        Err(err) => return error_to_tokens(&err),
     };
 
     let ident = &func.sig.ident;
@@ -341,20 +350,80 @@ pub fn then(attr: TokenStream, item: TokenStream) -> TokenStream {
     step_attr(attr, item, rstest_bdd::StepKeyword::Then)
 }
 
+/// Validate Examples table structure in feature file text
+fn validate_examples_in_feature_text(text: &str) -> Result<(), TokenStream> {
+    if !text.contains("Examples:") {
+        return Ok(());
+    }
+
+    let examples_idx = find_examples_table_start(text)?;
+    validate_table_column_consistency(text, examples_idx)
+}
+
+/// Find the starting line index of the Examples table
+fn find_examples_table_start(text: &str) -> Result<usize, TokenStream> {
+    text.lines()
+        .enumerate()
+        .find(|(_, line)| line.trim_start().starts_with("Examples:"))
+        .map(|(idx, _)| idx)
+        .ok_or_else(|| {
+            error_to_tokens(&syn::Error::new(
+                proc_macro2::Span::call_site(),
+                "Examples table structure error",
+            ))
+        })
+}
+
+/// Validate that all example rows have consistent column counts with header
+fn validate_table_column_consistency(text: &str, start_idx: usize) -> Result<(), TokenStream> {
+    let mut table_rows = text
+        .lines()
+        .skip(start_idx + 1)
+        .take_while(|line| line.trim_start().starts_with('|'));
+
+    let Some(header_row) = table_rows.next() else {
+        return Ok(());
+    };
+
+    let expected_columns = count_non_empty_columns(header_row);
+
+    for data_row in table_rows {
+        let actual_columns = count_non_empty_columns(data_row);
+        if actual_columns < expected_columns {
+            return Err(error_to_tokens(&syn::Error::new(
+                proc_macro2::Span::call_site(),
+                "Example row has fewer columns than header row in Examples table",
+            )));
+        }
+    }
+
+    Ok(())
+}
+
+/// Count non-empty columns in a table row by splitting on '|'
+fn count_non_empty_columns(row: &str) -> usize {
+    row.split('|')
+        .filter(|cell| !cell.trim().is_empty())
+        .count()
+}
+
 fn parse_and_load_feature(path: &Path) -> Result<Feature, TokenStream> {
     let Ok(manifest_dir) = std::env::var("CARGO_MANIFEST_DIR") else {
         let err = syn::Error::new(
             proc_macro2::Span::call_site(),
             "CARGO_MANIFEST_DIR is not set. This variable is normally provided by Cargo. Ensure the macro runs within a Cargo build context.",
         );
-        return Err(err.to_compile_error().into());
+        return Err(error_to_tokens(&err));
     };
     let feature_path = PathBuf::from(manifest_dir).join(path);
     Feature::parse_path(&feature_path, GherkinEnv::default()).map_err(|err| {
+        if let Ok(text) = std::fs::read_to_string(&feature_path) {
+            if let Err(validation_err) = validate_examples_in_feature_text(&text) {
+                return validation_err;
+            }
+        }
         let msg = format!("failed to parse feature file: {err}");
-        syn::Error::new(proc_macro2::Span::call_site(), msg)
-            .to_compile_error()
-            .into()
+        error_to_tokens(&syn::Error::new(proc_macro2::Span::call_site(), msg))
     })
 }
 
@@ -372,37 +441,99 @@ struct ScenarioData {
 }
 
 fn extract_examples(scenario: &gherkin::Scenario) -> Result<Option<ExampleTable>, TokenStream> {
-    if !scenario.keyword.contains("Outline") && scenario.examples.is_empty() {
+    if !should_process_outline(scenario) {
         return Ok(None);
     }
 
-    let Some(first) = scenario.examples.first() else {
-        let err = syn::Error::new(
-            proc_macro2::Span::call_site(),
-            "Scenario Outline missing Examples table",
-        );
-        return Err(err.to_compile_error().into());
-    };
+    let first_table = get_first_examples_table(scenario)?;
+    let headers = extract_and_validate_headers(first_table)?;
+    validate_header_consistency(scenario, &headers)?;
+    let rows = flatten_and_validate_rows(scenario, headers.len())?;
 
-    let Some(table) = &first.table else {
-        let err = syn::Error::new(
-            proc_macro2::Span::call_site(),
-            "Examples table missing rows",
-        );
-        return Err(err.to_compile_error().into());
-    };
+    Ok(Some(ExampleTable { headers, rows }))
+}
 
-    let mut rows = table.rows.clone();
-    if rows.is_empty() {
-        let err = syn::Error::new(
+fn should_process_outline(scenario: &gherkin::Scenario) -> bool {
+    scenario.keyword == "Scenario Outline" || !scenario.examples.is_empty()
+}
+
+fn get_first_examples_table(scenario: &gherkin::Scenario) -> Result<&gherkin::Table, TokenStream> {
+    scenario
+        .examples
+        .first()
+        .and_then(|ex| ex.table.as_ref())
+        .ok_or_else(|| {
+            error_to_tokens(&syn::Error::new(
+                proc_macro2::Span::call_site(),
+                "Scenario Outline missing Examples table",
+            ))
+        })
+}
+
+fn extract_and_validate_headers(table: &gherkin::Table) -> Result<Vec<String>, TokenStream> {
+    let first = table.rows.first().ok_or_else(|| {
+        error_to_tokens(&syn::Error::new(
             proc_macro2::Span::call_site(),
             "Examples table must have at least one row",
-        );
-        return Err(err.to_compile_error().into());
+        ))
+    })?;
+    Ok(first.clone())
+}
+
+fn validate_header_consistency(
+    scenario: &gherkin::Scenario,
+    expected_headers: &[String],
+) -> Result<(), TokenStream> {
+    for ex in scenario.examples.iter().skip(1) {
+        let table = ex.table.as_ref().ok_or_else(|| {
+            error_to_tokens(&syn::Error::new(
+                proc_macro2::Span::call_site(),
+                "Examples table missing rows",
+            ))
+        })?;
+        let headers = table.rows.first().ok_or_else(|| {
+            error_to_tokens(&syn::Error::new(
+                proc_macro2::Span::call_site(),
+                "Examples table must have at least one row",
+            ))
+        })?;
+        if headers != expected_headers {
+            return Err(error_to_tokens(&syn::Error::new(
+                proc_macro2::Span::call_site(),
+                "All Examples tables must have the same headers",
+            )));
+        }
+    }
+    Ok(())
+}
+
+fn flatten_and_validate_rows(
+    scenario: &gherkin::Scenario,
+    expected_width: usize,
+) -> Result<Vec<Vec<String>>, TokenStream> {
+    let rows: Vec<Vec<String>> = scenario
+        .examples
+        .iter()
+        .filter_map(|ex| ex.table.as_ref())
+        .flat_map(|t| t.rows.iter().skip(1).cloned())
+        .collect();
+
+    for (i, row) in rows.iter().enumerate() {
+        if row.len() != expected_width {
+            let err = syn::Error::new(
+                proc_macro2::Span::call_site(),
+                format!(
+                    "Malformed examples table: row {} has {} columns, expected {}",
+                    i + 2,
+                    row.len(),
+                    expected_width
+                ),
+            );
+            return Err(error_to_tokens(&err));
+        }
     }
 
-    let headers = rows.remove(0);
-    Ok(Some(ExampleTable { headers, rows }))
+    Ok(rows)
 }
 
 fn extract_scenario_steps(
@@ -414,7 +545,7 @@ fn extract_scenario_steps(
             proc_macro2::Span::call_site(),
             "scenario index out of range",
         );
-        return Err(err.to_compile_error().into());
+        return Err(error_to_tokens(&err));
     };
 
     let scenario_name = scenario.name.clone();
@@ -469,7 +600,7 @@ fn generate_case_attrs(examples: &ExampleTable) -> Vec<TokenStream2> {
         .iter()
         .map(|row| {
             let cells = row.iter().map(|v| {
-                let lit = syn::LitStr::new(v, proc_macro2::Span::call_site());
+                let lit = cell_to_lit(v);
                 quote! { #lit }
             });
             quote! { #[case( #(#cells),* )] }
@@ -603,7 +734,7 @@ fn create_parameter_mismatch_error(sig: &syn::Signature, header: &str) -> TokenS
         "parameter `{header}` not found for scenario outline column. Available parameters: [{}]",
         available_params.join(", ")
     );
-    syn::Error::new_spanned(sig, msg).to_compile_error().into()
+    error_to_tokens(&syn::Error::new_spanned(sig, msg))
 }
 
 /// Process scenario outline examples and modify function parameters.
@@ -614,6 +745,17 @@ fn process_scenario_outline_examples(
     let Some(ex) = examples else {
         return Ok(());
     };
+
+    let mut seen = std::collections::HashSet::new();
+    for header in &ex.headers {
+        if !seen.insert(header.clone()) {
+            let err = syn::Error::new(
+                proc_macro2::Span::call_site(),
+                format!("Duplicate header '{header}' found in examples table"),
+            );
+            return Err(error_to_tokens(&err));
+        }
+    }
 
     for header in &ex.headers {
         let matching_param = find_matching_parameter(sig, header)?;

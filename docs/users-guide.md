@@ -5,8 +5,8 @@
 Behaviour‑Driven Development (BDD) is a collaborative practice that emphasizes
 a shared understanding of software behaviour across roles. The design of
 `rstest‑bdd` integrates BDD concepts with the Rust testing ecosystem. BDD
-encourages collaboration between developers, quality‑assurance specialists and
-non‑technical business participants by describing system behaviour in a
+encourages collaboration between developers, quality-assurance specialists, and
+non-technical business participants by describing system behaviour in a
 natural, domain‑specific language. `rstest‑bdd` achieves this without
 introducing a bespoke test runner; instead, it builds on the `rstest` crate so
 that unit tests and high‑level behaviour tests can co‑exist and run under
@@ -25,7 +25,7 @@ owner, the developer, and the tester.
 
 | Role ("amigo")                     | Primary concerns                                                                                                                  | Features provided by `rstest‑bdd`                                                                                                                                                                                                                                                                                                                                                                         |
 | ---------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Business analyst/product owner** | Writing and reviewing business‑readable specifications; ensuring that acceptance criteria are expressed clearly.                  | Gherkin `.feature` files are plain text and start with a `Feature` declaration; each `Scenario` describes a single behaviour. Steps are written using keywords `Given`, `When` and `Then`[GitHub](https://github.com/leynos/rstest-bdd/blob/a8ae628580788fb1ef5803419687d739b9592a34/docs/gherkin-syntax.md#L72-L91), producing living documentation that can be read by non‑technical stakeholders.      |
+| **Business analyst/product owner** | Writing and reviewing business-readable specifications; ensuring that acceptance criteria are expressed clearly.                  | Gherkin `.feature` files are plain text and start with a `Feature` declaration; each `Scenario` describes a single behaviour. Steps are written using keywords `Given`, `When`, and `Then` ([syntax](gherkin-syntax.md#L72-L91)), producing living documentation that can be read by non-technical stakeholders.      |
 | **Developer**                      | Implementing step definitions in Rust and wiring them to the business specifications; using existing fixtures for setup/teardown. | Attribute macros `#[given]`, `#[when]` and `#[then]` register step functions and their pattern strings in a global step registry. A `#[scenario]` macro reads a feature file at compile time and generates a test that drives the registered steps. Fixture values from `rstest` can be injected into step functions via `#[from(fixture_name)]`.                                                         |
 | **Tester/QA**                      | Executing behaviour tests, ensuring correct sequencing of steps and verifying outcomes observable by the user.                    | Scenarios are executed via the standard `cargo test` runner; test functions annotated with `#[scenario]` run each step in order and panic if a step is missing. Assertions belong in `Then` steps; guidelines discourage inspecting internal state and encourage verifying observable outcomes. Testers can use `cargo test` filters and parallelism because the generated tests are ordinary Rust tests. |
 
@@ -44,13 +44,10 @@ behaviour is expressed through a sequence of steps starting with `Given`
 outcome). Secondary keywords `And` and `But` may chain additional steps of the
 same type for readability.
 
-In the current implementation, scenarios must adhere to the simple
-`Given‑When‑Then` pattern; advanced Gherkin features such as **Background**,
-**Scenario Outline**, **data tables** and **docstrings** are not yet supported.
-The design document describes these constructs and anticipates their inclusion,
-but they remain on the roadmap. Consumers should therefore avoid
-`Scenario Outline` and `Examples` tables for the time being and instead
-duplicate scenarios explicitly if multiple data sets are required.
+Scenarios follow the simple `Given‑When‑Then` pattern. Support for **Scenario
+Outline** is available, enabling a single scenario to run with multiple sets of
+data from an `Examples` table. Other advanced constructs such as
+**Background**, data tables and docstrings are not yet implemented.
 
 ### Example feature file
 
@@ -72,11 +69,11 @@ code.
 Developers implement the behaviour described in a feature by writing step
 definition functions in Rust. Each step definition is an ordinary function
 annotated with one of the attribute macros `#[given]`, `#[when]` or `#[then]`.
-The annotation takes a single string literal that acts as a pattern. The string
-may include `format!`‑style placeholders such as `{count:u32}`. At runtime, the
-framework extracts these values from the step text and converts them with
-`FromStr`. Text outside placeholders must match the step in the feature file
-exactly.
+The annotation takes a single string literal; this string must match the text
+of the corresponding step in the feature file exactly. Unlike the aspirational
+design, the current implementation does not parse placeholders or capture
+groups from the pattern. Therefore, dynamic parameters cannot be extracted from
+step text; each unique step text requires a definition.
 
 The procedural macro implementation expands the annotated function into two
 parts: the original function and a wrapper function that registers the step in
@@ -144,9 +141,8 @@ scenario defined in a `.feature` file. It accepts two arguments:
 | `path: &str`   | Relative path to the feature file from the crate root. This is mandatory.                                    | **Implemented**: the macro resolves the path at compile time and parses the feature using the `gherkin` crate. |
 | `index: usize` | Optional zero‑based index selecting a scenario when the file contains multiple scenarios. Defaults to `0`.   | **Implemented**: the macro uses the index to pick the scenario.                                                |
 
-The design document proposes a `name` argument to select scenarios by name and
-support for `Scenario Outline`, but these features are not yet implemented;
-only `path` and `index` are accepted.
+The design document proposes a `name` argument to select scenarios by name, but
+only `path` and `index` are currently accepted.
 
 During macro expansion, the feature file is read and parsed. The macro
 generates a new test function annotated with `#[rstest::rstest]` that performs
@@ -176,7 +172,7 @@ one may filter or run them in parallel as usual.
 Once feature files and step definitions are in place, scenarios run via the
 usual `cargo test` command. Test functions created by the `#[scenario]` macro
 behave like other `rstest` tests; they honour `#[tokio::test]` or
-`#[async_std::test]` attributes if applied on the original function. Each
+`#[async_std::test]` attributes if applied to the original function. Each
 scenario runs its steps sequentially in the order defined in the feature file.
 When a step is not found, the test will panic and report which step is missing
 and where it occurs in the feature. This strictness ensures that behaviour
@@ -226,6 +222,7 @@ document and README remain unimplemented in the current codebase:
   step keyword in Gherkin to improve readability, but step lookup is based
   strictly on the primary keyword. Using `*` in feature files will not match
   any registered step.
+
 - **Limited placeholder parser.** Nested or escaped braces are not supported
   in step patterns. Placeholders must be well-formed and non-overlapping.
 
