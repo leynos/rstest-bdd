@@ -81,7 +81,7 @@ struct WrapperConfig<'a> {
     keyword: rstest_bdd::StepKeyword,
 }
 
-fn gen_fixture_decls(fixtures: &[FixtureArg]) -> Vec<TokenStream2> {
+fn gen_fixture_decls(fixtures: &[FixtureArg], step_ident: &syn::Ident) -> Vec<TokenStream2> {
     fixtures
         .iter()
         .map(|FixtureArg { pat, name, ty }| {
@@ -90,21 +90,23 @@ fn gen_fixture_decls(fixtures: &[FixtureArg]) -> Vec<TokenStream2> {
                 quote! {
                     let #pat: #ty = ctx
                         .get::<#inner>(stringify!(#name))
-                        .unwrap_or_else(|| panic!(
-                            "missing fixture '{}' of type '{}'",
+                        .ok_or_else(|| format!(
+                            "Missing fixture '{}' of type '{}' for step function '{}'",
                             stringify!(#name),
-                            stringify!(#inner)
-                        ));
+                            stringify!(#inner),
+                            stringify!(#step_ident)
+                        ))?;
                 }
             } else {
                 quote! {
                     let #pat: #ty = ctx
                         .get::<#ty>(stringify!(#name))
-                        .unwrap_or_else(|| panic!(
-                            "missing fixture '{}' of type '{}'",
+                        .ok_or_else(|| format!(
+                            "Missing fixture '{}' of type '{}' for step function '{}'",
                             stringify!(#name),
-                            stringify!(#ty)
-                        ))
+                            stringify!(#ty),
+                            stringify!(#step_ident)
+                        ))?
                         .clone();
                 }
             }
@@ -143,7 +145,7 @@ fn generate_wrapper_code(config: &WrapperConfig<'_>) -> TokenStream2 {
     let wrapper_ident = format_ident!("__rstest_bdd_wrapper_{}_{}", ident, id);
     let const_ident = format_ident!("__rstest_bdd_fixtures_{}_{}", ident, id);
 
-    let declares = gen_fixture_decls(fixtures);
+    let declares = gen_fixture_decls(fixtures, ident);
     let step_arg_parses = gen_step_parses(step_args);
     let arg_idents = fixtures
         .iter()
@@ -168,12 +170,13 @@ fn generate_wrapper_code(config: &WrapperConfig<'_>) -> TokenStream2 {
     };
 
     quote! {
-        fn #wrapper_ident(ctx: &rstest_bdd::StepContext<'_>, text: &str) {
+        fn #wrapper_ident(ctx: &rstest_bdd::StepContext<'_>, text: &str) -> Result<(), String> {
             #(#declares)*
             let captures = rstest_bdd::extract_placeholders(#pattern.into(), text.into())
                 .expect("pattern mismatch");
             #(#step_arg_parses)*
             #ident(#(#arg_idents),*);
+            Ok(())
         }
 
         #[allow(non_upper_case_globals)]
@@ -648,7 +651,17 @@ fn generate_scenario_code(
             #(#ctx_inserts)*
             for (index, (keyword, text)) in steps.iter().enumerate() {
                 if let Some(f) = rstest_bdd::find_step(*keyword, (*text).into()) {
-                    f(&ctx, text);
+                    if let Err(err) = f(&ctx, text) {
+                        panic!(
+                            "Step failed at index {}: {} {} - {}\n(feature: {}, scenario: {})",
+                            index,
+                            keyword.as_str(),
+                            text,
+                            err,
+                            #feature_path_str,
+                            #scenario_name
+                        );
+                    }
                 } else {
                     panic!(
                         "Step not found at index {}: {} {} (feature: {}, scenario: {})",
