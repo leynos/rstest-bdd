@@ -2,14 +2,19 @@
 
 use rstest_bdd::{Step, StepContext, iter, step};
 
-fn needs_value(ctx: &StepContext<'_>) {
+fn needs_value(ctx: &StepContext<'_>, _text: &str) {
     let Some(val) = ctx.get::<u32>("number") else {
         panic!("missing fixture");
     };
     assert_eq!(*val, 42);
 }
 
-step!("Given", "a value", needs_value, &["number"]);
+step!(
+    rstest_bdd::StepKeyword::Given,
+    "a value",
+    needs_value,
+    &["number"]
+);
 
 #[test]
 fn context_passes_fixture() {
@@ -18,10 +23,10 @@ fn context_passes_fixture() {
     ctx.insert("number", &number);
     let step_fn = iter::<Step>
         .into_iter()
-        .find(|s| s.pattern == "a value")
+        .find(|s| s.pattern.as_str() == "a value")
         .map_or_else(
             || panic!("step 'a value' not found in registry"),
             |step| step.run,
         );
-    step_fn(&ctx);
+    step_fn(&ctx, "a value");
 }

@@ -129,7 +129,7 @@ Gherkin provides several additional keywords.
 <!-- markdownlint-disable MD013 -->
 ### Table 1: Gherkin Keyword Reference
 
-For a quick and comprehensive overview, the following table summarises the
+For a quick and comprehensive overview, the following table summarizes the
 primary and secondary keywords in the Gherkin language.
 
 | Keyword          | Purpose/Description                                                                                                | Placement/Context                                                           | Example                                                     |

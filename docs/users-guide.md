@@ -195,22 +195,20 @@ Best practices for writing effective scenarios include:
   conversation between the three amigos; ensure that business stakeholders read
   and contribute to the feature files.
 
-- **Keep patterns exact.** Because the current implementation does not support
-  placeholders or capturing groups, the pattern strings in `#[given]`,
-  `#[when]` and `#[then]` must match the corresponding lines in the feature
-  file character-for-character. Whitespace, capitalization, and punctuation must
-  align.
+- **Use placeholders for dynamic values.** Pattern strings may include
+  `format!`-style placeholders such as `{count:u32}`. The framework extracts
+  the text at runtime and converts it with `FromStr`. When no placeholder is
+  present, the text must match exactly.
 
 ## Limitations and roadmap
 
 The `rstest‑bdd` project is evolving. Several features described in the design
 document and README remain unimplemented in the current codebase:
 
-- **Step argument parsing and typed placeholders.** The design envisages
-  patterns like `{"{count:u32}"}` that extract values and convert them via
-  `FromStr`, but the existing macros treat the pattern as a literal string and
-  pass no captured arguments to the step function. Step functions may only
-  accept fixtures as arguments.
+- **Scenario outlines and example tables.** Parameterised scenarios using
+  `Scenario Outline` with an `Examples` table are proposed, but there is no
+  support for expanding multiple runs from a single template. Use explicit
+  scenarios instead.
 
 - **Background sections, data tables and docstrings.** The design notes plans
   to support shared `Background` steps and to supply data tables and docstrings
@@ -224,6 +222,9 @@ document and README remain unimplemented in the current codebase:
   step keyword in Gherkin to improve readability, but step lookup is based
   strictly on the primary keyword. Using `*` in feature files will not match
   any registered step.
+
+- **Limited placeholder parser.** Nested or escaped braces are not supported
+  in step patterns. Placeholders must be well-formed and non-overlapping.
 
 Consult the project’s roadmap or repository for updates. When new features are
 added, patterns and examples may change. Meanwhile, adopting `rstest‑bdd` in
