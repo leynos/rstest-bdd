@@ -198,7 +198,7 @@ Best practices for writing effective scenarios include:
 - **Keep patterns exact.** Because the current implementation does not support
   placeholders or capturing groups, the pattern strings in `#[given]`,
   `#[when]` and `#[then]` must match the corresponding lines in the feature
-  file character‑for‑character. Whitespace, capitalization and punctuation must
+  file character-for-character. Whitespace, capitalization, and punctuation must
   align.
 
 ## Limitations and roadmap
