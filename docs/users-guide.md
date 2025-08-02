@@ -5,8 +5,8 @@
 Behaviour‑Driven Development (BDD) is a collaborative practice that emphasizes
 a shared understanding of software behaviour across roles. The design of
 `rstest‑bdd` integrates BDD concepts with the Rust testing ecosystem. BDD
-encourages collaboration between developers, quality‑assurance specialists and
-non‑technical business participants by describing system behaviour in a
+encourages collaboration between developers, quality-assurance specialists, and
+non-technical business participants by describing system behaviour in a
 natural, domain‑specific language. `rstest‑bdd` achieves this without
 introducing a bespoke test runner; instead, it builds on the `rstest` crate so
 that unit tests and high‑level behaviour tests can co‑exist and run under
