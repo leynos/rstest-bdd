@@ -73,7 +73,7 @@ The annotation takes a single string literal; this string must match the text
 of the corresponding step in the feature file exactly. Unlike the aspirational
 design, the current implementation does not parse placeholders or capture
 groups from the pattern. Therefore, dynamic parameters cannot be extracted from
-step text; each unique step text requires its own definition.
+step text; each unique step text requires a definition.
 
 The procedural macro implementation expands the annotated function into two
 parts: the original function and a wrapper function that registers the step in
