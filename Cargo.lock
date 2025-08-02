@@ -390,8 +390,10 @@ name = "rstest-bdd"
 version = "0.1.0"
 dependencies = [
  "inventory",
+ "regex",
  "rstest",
  "rstest-bdd-macros",
+ "thiserror",
 ]
 
 [[package]]

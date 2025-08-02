@@ -404,8 +404,8 @@ location information for generating clear error messages.
 // A simplified representation of the step metadata.
 #[derive(Debug)]
 pub struct Step {
-    pub keyword: &'static str, // "Given", "When", or "Then"
-    pub pattern: &'static str, // The pattern string from the attribute, e.g., "A user has {count} cucumbers"
+    pub keyword: StepKeyword, // e.g., Given, When or Then
+    pub pattern: &'static StepPattern, // The pattern string from the attribute, e.g., "A user has {count} cucumbers"
     // A type-erased function pointer. Arguments will be wired up by the
     // scenario orchestrator in later phases.
     pub run: fn(),
@@ -417,6 +417,14 @@ pub struct Step {
 // This macro call creates the global collection for 'Step' structs.
 inventory::collect!(Step);
 ```
+
+The [`StepKeyword`](../crates/rstest-bdd/src/lib.rs) enum implements `FromStr`.
+Parsing failures return a `StepKeywordParseError` to ensure invalid step
+keywords are surfaced early.
+
+The [`StepPattern`](../crates/rstest-bdd/src/lib.rs) wrapper encapsulates the
+pattern text so that step lookups cannot accidentally mix arbitrary strings
+with registered patterns.
 
 Placing the `Step` struct in the runtime crate avoids a circular dependency
 between the procedural macros and the library. The macros will simply re-export
@@ -435,6 +443,36 @@ complete list of all step definitions across the entire application simply by
 calling `inventory::iter::<Step>()`. This provides an iterator over all
 registered `Step` instances, regardless of the file, module, or crate in which
 they were defined.
+
+```mermaid
+classDiagram
+    class StepContext {
+    }
+    class StepArg {
+        pat: Ident
+        ty: Type
+    }
+    class FixtureArg {
+        pat: Ident
+        name: Ident
+        ty: Type
+    }
+    class Step {
+        keyword: StepKeyword
+        pattern: StepPattern
+        run: StepFn
+    }
+    class StepFn
+    class StepWrapper
+    StepWrapper : extract_placeholders(pattern, text)
+    StepWrapper : parse captures with FromStr
+    StepWrapper : call StepFunction
+    StepFn <|-- StepWrapper
+    StepContext <.. StepWrapper
+    StepArg <.. StepWrapper
+    FixtureArg <.. StepWrapper
+    Step o-- StepFn
+```
 
 ### 2.4 The Macro Expansion Process: A Compile-Time to Runtime Journey
 
@@ -817,6 +855,43 @@ function and an atomic counter. This avoids collisions when similarly named
 steps appear in different modules. The macro also emits a compile-time array
 length assertion to ensure the generated fixture list matches the wrapper
 signature. Any mismatch is reported during compilation rather than at runtime.
+
+### 3.9 Step-Argument Parsing Implementation
+
+The third phase introduces typed placeholders to step patterns. The runtime
+library exposes an `extract_placeholders` helper that converts a pattern with
+`{name:Type}` segments into a regular expression and returns the captured
+strings. Step wrapper functions parse these strings and convert them with
+`FromStr` before calling the original step. Scenario execution now searches the
+step registry using `find_step`, which falls back to placeholder matching when
+no exact pattern is present. This approach keeps the macros lightweight while
+supporting type‑safe parameters in steps. The parser does not handle nested or
+escaped braces; step patterns must contain simple, well-formed placeholders.
+
+The sequence below summarizes how the runner locates and executes steps when
+placeholders are present:
+
+```mermaid
+sequenceDiagram
+    participant ScenarioRunner
+    participant StepRegistry
+    participant StepWrapper
+    participant StepFunction
+
+    ScenarioRunner->>StepRegistry: find_step(keyword, text)
+    alt exact match
+        StepRegistry-->>ScenarioRunner: StepFn
+    else placeholder match
+        StepRegistry->>StepRegistry: extract_placeholders(pattern, text)
+        StepRegistry-->>ScenarioRunner: StepFn
+    end
+    ScenarioRunner->>StepWrapper: call StepFn(ctx, text)
+    StepWrapper->>StepWrapper: extract_placeholders(pattern, text)
+    StepWrapper->>StepWrapper: parse captures with FromStr
+    StepWrapper->>StepFunction: call with typed args
+    StepFunction-->>StepWrapper: returns
+    StepWrapper-->>ScenarioRunner: returns
+```
 
 ## **Works cited**
 
