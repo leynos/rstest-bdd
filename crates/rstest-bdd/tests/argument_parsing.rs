@@ -28,3 +28,9 @@ fn check_balance(#[from(account)] acc: &RefCell<u32>, expected: u32) {
 fn deposit_scenario(account: RefCell<u32>) {
     let _ = account;
 }
+
+#[scenario(path = "tests/features/argument_invalid.feature")]
+#[should_panic(expected = "failed to parse placeholder 'amount' with value '4294967296' as u32")]
+fn deposit_scenario_invalid(account: RefCell<u32>) {
+    let _ = account;
+}

@@ -21,7 +21,7 @@ use regex::Regex;
 use std::any::Any;
 use std::collections::HashMap;
 use std::str::FromStr;
-use std::sync::LazyLock;
+use std::sync::{LazyLock, OnceLock};
 
 /// Wrapper for step pattern strings used in matching logic
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -128,20 +128,56 @@ impl From<&str> for StepKeyword {
 }
 
 /// Pattern text used to match a step at runtime.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct StepPattern(&'static str);
+///
+/// The struct caches a compiled regular expression derived from the pattern so
+/// placeholder extraction does not rebuild the regex on every invocation.
+#[derive(Debug)]
+pub struct StepPattern {
+    raw: &'static str,
+    regex: OnceLock<Regex>,
+}
 
 impl StepPattern {
     /// Create a new pattern wrapper from a string literal.
     #[must_use]
     pub const fn new(value: &'static str) -> Self {
-        Self(value)
+        Self {
+            raw: value,
+            regex: OnceLock::new(),
+        }
     }
 
     /// Access the underlying pattern string.
     #[must_use]
     pub const fn as_str(&self) -> &'static str {
-        self.0
+        self.raw
+    }
+
+    fn regex(&self) -> &Regex {
+        self.regex.get_or_init(|| {
+            let src = build_regex_from_pattern(self.raw);
+            Regex::new(&src).unwrap_or_else(|e| panic!("invalid step pattern: {e}"))
+        })
+    }
+
+    /// Extract captured values from the provided text using the cached regex.
+    #[must_use]
+    pub fn captures(&self, text: StepText<'_>) -> Option<Vec<String>> {
+        extract_captured_values(self.regex(), text.as_str())
+    }
+}
+
+impl PartialEq for StepPattern {
+    fn eq(&self, other: &Self) -> bool {
+        self.raw == other.raw
+    }
+}
+
+impl Eq for StepPattern {}
+
+impl std::hash::Hash for StepPattern {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.raw.hash(state);
     }
 }
 
@@ -151,7 +187,7 @@ impl From<&'static str> for StepPattern {
     }
 }
 
-type StepKey = (StepKeyword, &'static StepPattern);
+type StepKey = (StepKeyword, &'static str);
 
 /// Context passed to step functions containing references to requested fixtures.
 ///
@@ -189,10 +225,10 @@ impl<'a> StepContext<'a> {
 
 /// Extract placeholder values from a step string using a pattern.
 ///
-/// The pattern supports `format!`-style placeholders such as `{count:u32}`.
-/// Any text outside placeholders must match exactly. Nested or escaped
-/// braces are not supported. The returned vector contains the raw
-/// substring for each placeholder in order of appearance.
+/// The pattern supports `format!`-style placeholders such as `{count:u32}` and
+/// honours escaped braces (`{{` and `}}`). Any text outside placeholders must
+/// match exactly. The returned vector contains the raw substring for each
+/// placeholder in order of appearance.
 #[must_use]
 pub fn extract_placeholders(pattern: PatternStr<'_>, text: StepText<'_>) -> Option<Vec<String>> {
     let regex_source = build_regex_from_pattern(pattern.as_str());
@@ -203,23 +239,68 @@ pub fn extract_placeholders(pattern: PatternStr<'_>, text: StepText<'_>) -> Opti
 fn build_regex_from_pattern(pattern: &str) -> String {
     let mut regex_source = String::from("^");
     let mut chars = pattern.chars().peekable();
-    while let Some(ch) = chars.next() {
-        if ch == '{' {
-            consume_until_closing_brace(&mut chars);
-            regex_source.push_str("(.+)");
-        } else {
-            regex_source.push_str(&regex::escape(&ch.to_string()));
+    loop {
+        let Some(ch) = chars.next() else {
+            break;
+        };
+        match ch {
+            '{' => {
+                if chars.peek() == Some(&'{') {
+                    chars.next();
+                    regex_source.push_str("\\{");
+                } else {
+                    let placeholder = consume_placeholder(&mut chars);
+                    let ty = placeholder.split(':').nth(1);
+                    let sub = type_subpattern(ty);
+                    regex_source.push('(');
+                    regex_source.push_str(sub);
+                    regex_source.push(')');
+                }
+            }
+            '}' => {
+                if chars.peek() == Some(&'}') {
+                    chars.next();
+                    regex_source.push_str("\\}");
+                } else {
+                    regex_source.push_str("\\}");
+                }
+            }
+            _ => regex_source.push_str(&regex::escape(&ch.to_string())),
         }
     }
     regex_source.push('$');
     regex_source
 }
 
-fn consume_until_closing_brace(chars: &mut std::iter::Peekable<std::str::Chars<'_>>) {
+fn consume_placeholder(chars: &mut std::iter::Peekable<std::str::Chars<'_>>) -> String {
+    let mut out = String::new();
+    let mut depth = 1;
     for c in chars.by_ref() {
-        if c == '}' {
-            break;
+        match c {
+            '{' => {
+                depth += 1;
+                out.push(c);
+            }
+            '}' => {
+                depth -= 1;
+                if depth == 0 {
+                    break;
+                }
+                out.push(c);
+            }
+            _ => out.push(c),
         }
+    }
+    out
+}
+
+fn type_subpattern(ty: Option<&str>) -> &'static str {
+    match ty.unwrap_or("") {
+        "u8" | "u16" | "u32" | "u64" | "u128" | "usize" => "\\d+",
+        "i8" | "i16" | "i32" | "i64" | "i128" | "isize" => "-?\\d+",
+        "f32" | "f64" => "-?\\d+(?:\\.\\d+)?",
+        "bool" => "(?:true|false)",
+        _ => "[^}]*",
     }
 }
 
@@ -283,7 +364,7 @@ pub struct Step {
 macro_rules! step {
     ($keyword:expr, $pattern:expr, $handler:path, $fixtures:expr) => {
         const _: () = {
-            const PATTERN: $crate::StepPattern = $crate::StepPattern::new($pattern);
+            static PATTERN: $crate::StepPattern = $crate::StepPattern::new($pattern);
             $crate::submit! {
                 $crate::Step {
                     keyword: $keyword,
@@ -307,7 +388,7 @@ static STEP_MAP: LazyLock<HashMap<StepKey, StepFn>> = LazyLock::new(|| {
     let steps: Vec<_> = iter::<Step>.into_iter().collect();
     let mut map = HashMap::with_capacity(steps.len());
     for step in steps {
-        map.insert((step.keyword, step.pattern), step.run);
+        map.insert((step.keyword, step.pattern.as_str()), step.run);
     }
     map
 });
@@ -327,14 +408,7 @@ static STEP_MAP: LazyLock<HashMap<StepKey, StepFn>> = LazyLock::new(|| {
 /// ```
 #[must_use]
 pub fn lookup_step(keyword: StepKeyword, pattern: PatternStr<'_>) -> Option<StepFn> {
-    // Step patterns are stored as `'static` references, so we cannot
-    // construct a temporary `StepPattern` for direct map lookup.
-    // Iterating avoids leaking memory while remaining efficient for the
-    // typical small step registry.
-    STEP_MAP
-        .iter()
-        .find(|(key, _)| key.0 == keyword && key.1.as_str() == pattern.as_str())
-        .map(|(_, f)| *f)
+    STEP_MAP.get(&(keyword, pattern.as_str())).copied()
 }
 
 /// Find a registered step whose pattern matches the provided text.
@@ -347,9 +421,7 @@ pub fn find_step(keyword: StepKeyword, text: StepText<'_>) -> Option<StepFn> {
         return Some(f);
     }
     for step in iter::<Step> {
-        if step.keyword == keyword
-            && extract_placeholders(step.pattern.as_str().into(), text).is_some()
-        {
+        if step.keyword == keyword && step.pattern.captures(text).is_some() {
             return Some(step.run);
         }
     }

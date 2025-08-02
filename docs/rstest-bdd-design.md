@@ -464,7 +464,7 @@ classDiagram
     }
     class StepFn
     class StepWrapper
-    StepWrapper : extract_placeholders(pattern, text)
+    StepWrapper : pattern.captures(text)
     StepWrapper : parse captures with FromStr
     StepWrapper : call StepFunction
     StepFn <|-- StepWrapper
@@ -859,14 +859,14 @@ signature. Any mismatch is reported during compilation rather than at runtime.
 ### 3.9 Step-Argument Parsing Implementation
 
 The third phase introduces typed placeholders to step patterns. The runtime
-library exposes an `extract_placeholders` helper that converts a pattern with
-`{name:Type}` segments into a regular expression and returns the captured
-strings. Step wrapper functions parse these strings and convert them with
-`FromStr` before calling the original step. Scenario execution now searches the
-step registry using `find_step`, which falls back to placeholder matching when
-no exact pattern is present. This approach keeps the macros lightweight while
-supporting type‑safe parameters in steps. The parser does not handle nested or
-escaped braces; step patterns must contain simple, well-formed placeholders.
+library now compiles a regular expression for each `StepPattern` once and
+reuses it to extract values. The helper understands type annotations in
+placeholders — for example `{count:u32}` becomes `\d+` — and honours escaped
+braces (`{{` and `}}`). Step wrapper functions parse the captured strings and
+convert them with `FromStr` before calling the original step. Scenario
+execution searches the step registry using `find_step`, which falls back to
+pattern matching when no exact pattern is present. This approach keeps the
+macros lightweight while supporting type‑safe parameters and resilient patterns.
 
 The sequence below summarizes how the runner locates and executes steps when
 placeholders are present:
@@ -882,11 +882,11 @@ sequenceDiagram
     alt exact match
         StepRegistry-->>ScenarioRunner: StepFn
     else placeholder match
-        StepRegistry->>StepRegistry: extract_placeholders(pattern, text)
+        StepRegistry->>StepRegistry: pattern.captures(text)
         StepRegistry-->>ScenarioRunner: StepFn
     end
     ScenarioRunner->>StepWrapper: call StepFn(ctx, text)
-    StepWrapper->>StepWrapper: extract_placeholders(pattern, text)
+    StepWrapper->>StepWrapper: pattern.captures(text)
     StepWrapper->>StepWrapper: parse captures with FromStr
     StepWrapper->>StepFunction: call with typed args
     StepFunction-->>StepWrapper: returns

@@ -15,15 +15,92 @@ use syn::parse::{Parse, ParseStream};
 use syn::token::{Comma, Eq};
 use syn::{ItemFn, LitInt, LitStr, parse_macro_input};
 
+#[derive(Clone)]
 struct FixtureArg {
     pat: syn::Ident,
     name: syn::Ident,
     ty: syn::Type,
 }
 
+#[derive(Clone)]
 struct StepArg {
     pat: syn::Ident,
     ty: syn::Type,
+}
+
+enum Arg {
+    Fixture {
+        pat: syn::Ident,
+        name: syn::Ident,
+        ty: syn::Type,
+    },
+    Step {
+        pat: syn::Ident,
+        ty: syn::Type,
+    },
+}
+
+fn quote_keyword(kw: rstest_bdd::StepKeyword) -> TokenStream2 {
+    match kw {
+        rstest_bdd::StepKeyword::Given => quote! { rstest_bdd::StepKeyword::Given },
+        rstest_bdd::StepKeyword::When => quote! { rstest_bdd::StepKeyword::When },
+        rstest_bdd::StepKeyword::Then => quote! { rstest_bdd::StepKeyword::Then },
+        rstest_bdd::StepKeyword::And => quote! { rstest_bdd::StepKeyword::And },
+        rstest_bdd::StepKeyword::But => quote! { rstest_bdd::StepKeyword::But },
+    }
+}
+
+fn gen_arg_decls_and_idents(args: &[Arg]) -> (Vec<TokenStream2>, Vec<syn::Ident>) {
+    let mut decls = Vec::with_capacity(args.len());
+    let mut idents = Vec::with_capacity(args.len());
+    let mut step_idx = 0usize;
+
+    for arg in args {
+        match arg {
+            Arg::Fixture { pat, name, ty } => {
+                if let syn::Type::Reference(r) = ty {
+                    let inner = &*r.elem;
+                    decls.push(quote! {
+                        let #pat: #ty = ctx
+                            .get::<#inner>(stringify!(#name))
+                            .unwrap_or_else(|| panic!(
+                                "missing fixture '{}' of type '{}'",
+                                stringify!(#name),
+                                stringify!(#inner)
+                            ));
+                    });
+                } else {
+                    decls.push(quote! {
+                        let #pat: #ty = ctx
+                            .get::<#ty>(stringify!(#name))
+                            .unwrap_or_else(|| panic!(
+                                "missing fixture '{}' of type '{}'",
+                                stringify!(#name),
+                                stringify!(#ty)
+                            ))
+                            .clone();
+                    });
+                }
+                idents.push(pat.clone());
+            }
+            Arg::Step { pat, ty } => {
+                let index = syn::Index::from(step_idx);
+                decls.push(quote! {
+                    let raw = &captures[#index];
+                    let #pat: #ty = raw.parse().unwrap_or_else(|_| panic!(
+                        "failed to parse placeholder '{}' with value '{}' as {}",
+                        stringify!(#pat),
+                        raw,
+                        stringify!(#ty)
+                    ));
+                });
+                idents.push(pat.clone());
+                step_idx += 1;
+            }
+        }
+    }
+
+    (decls, idents)
 }
 
 fn extract_args(func: &mut ItemFn) -> syn::Result<(Vec<FixtureArg>, Vec<StepArg>)> {
@@ -72,56 +149,6 @@ struct WrapperConfig<'a> {
     keyword: rstest_bdd::StepKeyword,
 }
 
-fn gen_fixture_decls(fixtures: &[FixtureArg]) -> Vec<TokenStream2> {
-    fixtures
-        .iter()
-        .map(|FixtureArg { pat, name, ty }| {
-            if let syn::Type::Reference(r) = ty {
-                let inner = &*r.elem;
-                quote! {
-                    let #pat: #ty = ctx
-                        .get::<#inner>(stringify!(#name))
-                        .unwrap_or_else(|| panic!(
-                            "missing fixture '{}' of type '{}'",
-                            stringify!(#name),
-                            stringify!(#inner)
-                        ));
-                }
-            } else {
-                quote! {
-                    let #pat: #ty = ctx
-                        .get::<#ty>(stringify!(#name))
-                        .unwrap_or_else(|| panic!(
-                            "missing fixture '{}' of type '{}'",
-                            stringify!(#name),
-                            stringify!(#ty)
-                        ))
-                        .clone();
-                }
-            }
-        })
-        .collect()
-}
-
-fn gen_step_parses(step_args: &[StepArg]) -> Vec<TokenStream2> {
-    step_args
-        .iter()
-        .enumerate()
-        .map(|(idx, StepArg { pat, ty })| {
-            let index = syn::Index::from(idx);
-            quote! {
-                let #pat: #ty = captures[#index]
-                    .parse()
-                    .unwrap_or_else(|_| panic!(
-                        "failed to parse argument {} as {}",
-                        #index,
-                        stringify!(#ty)
-                    ));
-            }
-        })
-        .collect()
-}
-
 fn generate_wrapper_code(config: &WrapperConfig<'_>) -> TokenStream2 {
     let WrapperConfig {
         ident,
@@ -133,13 +160,21 @@ fn generate_wrapper_code(config: &WrapperConfig<'_>) -> TokenStream2 {
     let id = COUNTER.fetch_add(1, Ordering::SeqCst);
     let wrapper_ident = format_ident!("__rstest_bdd_wrapper_{}_{}", ident, id);
     let const_ident = format_ident!("__rstest_bdd_fixtures_{}_{}", ident, id);
+    let pattern_ident = format_ident!("__rstest_bdd_pattern_{}_{}", ident, id);
 
-    let declares = gen_fixture_decls(fixtures);
-    let step_arg_parses = gen_step_parses(step_args);
-    let arg_idents = fixtures
+    let args: Vec<Arg> = fixtures
         .iter()
-        .map(|f| &f.pat)
-        .chain(step_args.iter().map(|a| &a.pat));
+        .map(|f| Arg::Fixture {
+            pat: f.pat.clone(),
+            name: f.name.clone(),
+            ty: f.ty.clone(),
+        })
+        .chain(step_args.iter().map(|a| Arg::Step {
+            pat: a.pat.clone(),
+            ty: a.ty.clone(),
+        }))
+        .collect();
+    let (declares, arg_idents) = gen_arg_decls_and_idents(&args);
 
     let fixture_names: Vec<_> = fixtures
         .iter()
@@ -150,20 +185,29 @@ fn generate_wrapper_code(config: &WrapperConfig<'_>) -> TokenStream2 {
         .collect();
     let fixture_len = fixture_names.len();
 
-    let keyword_token = match keyword {
-        rstest_bdd::StepKeyword::Given => quote! { rstest_bdd::StepKeyword::Given },
-        rstest_bdd::StepKeyword::When => quote! { rstest_bdd::StepKeyword::When },
-        rstest_bdd::StepKeyword::Then => quote! { rstest_bdd::StepKeyword::Then },
-        rstest_bdd::StepKeyword::And => quote! { rstest_bdd::StepKeyword::And },
-        rstest_bdd::StepKeyword::But => quote! { rstest_bdd::StepKeyword::But },
+    let keyword_token = quote_keyword(*keyword);
+
+    let captures_stmt = if step_args.is_empty() {
+        quote! {
+            let _ = #pattern_ident
+                .captures(text.into())
+                .expect("pattern mismatch");
+        }
+    } else {
+        quote! {
+            let captures = #pattern_ident
+                .captures(text.into())
+                .expect("pattern mismatch");
+        }
     };
 
     quote! {
+        #[allow(non_upper_case_globals)]
+        static #pattern_ident: rstest_bdd::StepPattern = rstest_bdd::StepPattern::new(#pattern);
+
         fn #wrapper_ident(ctx: &rstest_bdd::StepContext<'_>, text: &str) {
+            #captures_stmt
             #(#declares)*
-            let captures = rstest_bdd::extract_placeholders(#pattern.into(), text.into())
-                .expect("pattern mismatch");
-            #(#step_arg_parses)*
             #ident(#(#arg_idents),*);
         }
 
@@ -171,7 +215,16 @@ fn generate_wrapper_code(config: &WrapperConfig<'_>) -> TokenStream2 {
         const #const_ident: [&'static str; #fixture_len] = [#(#fixture_names),*];
         const _: [(); #fixture_len] = [(); #const_ident.len()];
 
-        rstest_bdd::step!(#keyword_token, #pattern, #wrapper_ident, &#const_ident);
+        rstest_bdd::submit! {
+            rstest_bdd::Step {
+                keyword: #keyword_token,
+                pattern: &#pattern_ident,
+                run: #wrapper_ident,
+                fixtures: &#const_ident,
+                file: file!(),
+                line: line!(),
+            }
+        }
     }
 }
 
@@ -263,6 +316,26 @@ fn step_attr(
         Ok(res) => res,
         Err(err) => return err.to_compile_error().into(),
     };
+
+    {
+        use std::collections::HashSet;
+        let fixture_names: HashSet<_> = fixtures.iter().map(|f| &f.pat).collect();
+        let step_arg_names: HashSet<_> = step_args.iter().map(|a| &a.pat).collect();
+        let duplicates: Vec<_> = fixture_names.intersection(&step_arg_names).collect();
+        if !duplicates.is_empty() {
+            let dupes = duplicates
+                .iter()
+                .map(ToString::to_string)
+                .collect::<Vec<_>>()
+                .join(", ");
+            return syn::Error::new_spanned(
+                &func.sig.ident,
+                format!("Duplicate argument name(s) between fixtures and step arguments: {dupes}"),
+            )
+            .to_compile_error()
+            .into();
+        }
+    }
 
     let ident = &func.sig.ident;
 
