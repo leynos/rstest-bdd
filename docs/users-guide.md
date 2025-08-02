@@ -212,10 +212,6 @@ document and README remain unimplemented in the current codebase:
   pass no captured arguments to the step function. Step functions may only
   accept fixtures as arguments.
 
-- **Scenario outlines and example tables.** Parameterized scenarios using
-  `Scenario Outline` are supported and expand into multiple test cases based on
-  the `Examples` table.
-
 - **Background sections, data tables and docstrings.** The design notes plans
   to support shared `Background` steps and to supply data tables and docstrings
   as arguments to step functions. These are currently not implemented.
