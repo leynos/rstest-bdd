@@ -87,7 +87,7 @@ fn unmatched_feature() {
 }
 
 #[scenario(path = "tests/features/outline.feature")]
-#[serial]
+#[serial] // EVENTS is shared, so run tests sequentially
 fn outline(num: String) {
     with_locked_events(|events| {
         assert_eq!(events.as_slice(), ["precondition", "action", "result"]);
