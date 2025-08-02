@@ -1,0 +1,5 @@
+error: complex destructuring patterns are not yet supported - pattern contains 2 identifiers but exactly 1 is required
+ --> tests/ui/step_destructure_tuple.rs:5:18
+  |
+5 | fn tuple_pattern((x, y): (i32, i32)) {}
+  |                  ^^^^^^

@@ -35,6 +35,53 @@ struct StepArg {
     ty: syn::Type,
 }
 
+/// Recursively collect identifiers from supported patterns.
+///
+/// This helper enables clearer diagnostics for complex argument patterns by
+/// returning every identifier contained within the pattern. Only simple
+/// identifiers, tuples, structs, tuple structs, and parenthesised patterns are
+/// recognised. All other pattern forms result in an error.
+///
+/// # Examples
+///
+/// ```rust,ignore
+/// use syn::parse_quote;
+/// let pat: syn::Pat = parse_quote!((a, b));
+/// let idents = extract_identifiers_from_pattern(&pat).unwrap();
+/// assert_eq!(2, idents.len());
+/// ```
+fn extract_identifiers_from_pattern(pat: &syn::Pat) -> syn::Result<Vec<syn::Ident>> {
+    match pat {
+        syn::Pat::Ident(pat_ident) => Ok(vec![pat_ident.ident.clone()]),
+        syn::Pat::Tuple(pat_tuple) => {
+            let mut idents = Vec::new();
+            for elem in &pat_tuple.elems {
+                idents.extend(extract_identifiers_from_pattern(elem)?);
+            }
+            Ok(idents)
+        }
+        syn::Pat::Struct(pat_struct) => {
+            let mut idents = Vec::new();
+            for field in &pat_struct.fields {
+                idents.extend(extract_identifiers_from_pattern(&field.pat)?);
+            }
+            Ok(idents)
+        }
+        syn::Pat::TupleStruct(pat_tuple_struct) => {
+            let mut idents = Vec::new();
+            for elem in &pat_tuple_struct.elems {
+                idents.extend(extract_identifiers_from_pattern(elem)?);
+            }
+            Ok(idents)
+        }
+        syn::Pat::Paren(pat_paren) => extract_identifiers_from_pattern(&pat_paren.pat),
+        _ => Err(syn::Error::new_spanned(
+            pat,
+            "unsupported pattern type - only identifiers, tuples, structs, and tuple structs are supported",
+        )),
+    }
+}
+
 fn extract_args(func: &mut ItemFn) -> syn::Result<(Vec<FixtureArg>, Vec<StepArg>)> {
     let mut fixtures = Vec::new();
     let mut step_args = Vec::new();
@@ -54,12 +101,23 @@ fn extract_args(func: &mut ItemFn) -> syn::Result<(Vec<FixtureArg>, Vec<StepArg>
             }
         });
 
-        let pat = match &*arg.pat {
-            syn::Pat::Ident(i) => i.ident.clone(),
-            _ => {
-                return Err(syn::Error::new_spanned(&arg.pat, "unsupported pattern"));
-            }
-        };
+        let pat_idents = extract_identifiers_from_pattern(&arg.pat)?;
+
+        // For now, only support patterns that resolve to a single identifier
+        if pat_idents.len() != 1 {
+            return Err(syn::Error::new_spanned(
+                &arg.pat,
+                format!(
+                    "complex destructuring patterns are not yet supported - pattern contains {} identifiers but exactly 1 is required",
+                    pat_idents.len(),
+                ),
+            ));
+        }
+
+        let pat = pat_idents
+            .into_iter()
+            .next()
+            .ok_or_else(|| syn::Error::new_spanned(&arg.pat, "missing identifier"))?;
 
         let ty = (*arg.ty).clone();
 
