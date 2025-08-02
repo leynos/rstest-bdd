@@ -268,9 +268,10 @@ fn step_attr(
     let pattern = parse_macro_input!(attr as LitStr);
     let mut func = parse_macro_input!(item as ItemFn);
 
-    let args = match extract_fixture_args(&mut func) {
+    let (fixtures, step_args) = match extract_args(&mut func) {
         Ok(args) => args,
         Err(err) => return error_to_tokens(&err),
+    };
 
     let ident = &func.sig.ident;
 
