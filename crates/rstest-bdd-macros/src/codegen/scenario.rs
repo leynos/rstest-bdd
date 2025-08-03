@@ -1,5 +1,6 @@
 //! Code generation for scenario tests.
 
+use super::keyword_to_token;
 use proc_macro::TokenStream;
 use proc_macro2::TokenStream as TokenStream2;
 use quote::quote;
@@ -16,6 +17,7 @@ pub(crate) fn generate_case_attrs(
     examples
         .rows
         .iter()
+        .filter(|row| row.iter().any(|cell| !cell.is_empty()))
         .map(|row| {
             let cells = row.iter().map(|v| {
                 let lit = cell_to_lit(v);
@@ -42,16 +44,7 @@ pub(crate) fn generate_scenario_code(
     examples: Option<crate::parsing::examples::ExampleTable>,
     ctx_inserts: impl Iterator<Item = TokenStream2>,
 ) -> TokenStream {
-    let keywords: Vec<_> = steps
-        .iter()
-        .map(|(k, _)| match k {
-            rstest_bdd::StepKeyword::Given => quote! { rstest_bdd::StepKeyword::Given },
-            rstest_bdd::StepKeyword::When => quote! { rstest_bdd::StepKeyword::When },
-            rstest_bdd::StepKeyword::Then => quote! { rstest_bdd::StepKeyword::Then },
-            rstest_bdd::StepKeyword::And => quote! { rstest_bdd::StepKeyword::And },
-            rstest_bdd::StepKeyword::But => quote! { rstest_bdd::StepKeyword::But },
-        })
-        .collect();
+    let keywords: Vec<_> = steps.iter().map(|(k, _)| keyword_to_token(*k)).collect();
     let values = steps.iter().map(|(_, v)| v);
 
     let case_attrs = examples.map_or_else(Vec::new, |ex| generate_case_attrs(&ex));

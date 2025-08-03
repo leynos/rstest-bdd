@@ -36,11 +36,11 @@ fn validate_table_column_consistency(text: &str, start_idx: usize) -> Result<(),
         return Ok(());
     };
 
-    let expected_columns = count_non_empty_columns(header_row);
+    let expected_columns = count_columns(header_row);
 
     for data_row in table_rows {
-        let actual_columns = count_non_empty_columns(data_row);
-        if actual_columns < expected_columns {
+        let actual_columns = count_columns(data_row);
+        if actual_columns != expected_columns {
             return Err(error_to_tokens(&syn::Error::new(
                 proc_macro2::Span::call_site(),
                 "Example row has fewer columns than header row in Examples table",
@@ -51,10 +51,8 @@ fn validate_table_column_consistency(text: &str, start_idx: usize) -> Result<(),
     Ok(())
 }
 
-fn count_non_empty_columns(row: &str) -> usize {
-    row.split('|')
-        .filter(|cell| !cell.trim().is_empty())
-        .count()
+fn count_columns(row: &str) -> usize {
+    row.split('|').count() - 1
 }
 
 pub(crate) fn extract_and_validate_headers(

@@ -22,10 +22,12 @@ fn find_matching_parameter<'a>(
         .iter()
         .position(|arg| parameter_matches_header(arg, header))
     {
-        sig.inputs
-            .iter_mut()
-            .nth(pos)
-            .map_or_else(|| unreachable!("position from earlier search exists"), Ok)
+        sig.inputs.iter_mut().nth(pos).ok_or_else(|| {
+            error_to_tokens(&syn::Error::new(
+                proc_macro2::Span::call_site(),
+                "position from earlier search exists",
+            ))
+        })
     } else {
         Err(create_parameter_mismatch_error(sig, header))
     }

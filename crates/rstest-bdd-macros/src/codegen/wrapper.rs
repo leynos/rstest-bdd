@@ -1,5 +1,6 @@
 //! Generation of wrapper functions for step definitions.
 
+use super::keyword_to_token;
 use proc_macro2::TokenStream as TokenStream2;
 use quote::{format_ident, quote};
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -70,28 +71,25 @@ fn gen_fixture_decls(fixtures: &[FixtureArg]) -> Vec<TokenStream2> {
     fixtures
         .iter()
         .map(|FixtureArg { pat, name, ty }| {
-            if let syn::Type::Reference(r) = ty {
-                let inner = &*r.elem;
-                quote! {
-                    let #pat: #ty = ctx
-                        .get::<#inner>(stringify!(#name))
-                        .unwrap_or_else(|| panic!(
-                            "missing fixture '{}' of type '{}'",
-                            stringify!(#name),
-                            stringify!(#inner)
-                        ));
-                }
+            let lookup_ty = if let syn::Type::Reference(r) = ty {
+                &*r.elem
             } else {
-                quote! {
-                    let #pat: #ty = ctx
-                        .get::<#ty>(stringify!(#name))
-                        .unwrap_or_else(|| panic!(
-                            "missing fixture '{}' of type '{}'",
-                            stringify!(#name),
-                            stringify!(#ty)
-                        ))
-                        .clone();
-                }
+                ty
+            };
+            let clone_suffix = if matches!(ty, syn::Type::Reference(_)) {
+                quote! {}
+            } else {
+                quote! { .clone() }
+            };
+            quote! {
+                let #pat: #ty = ctx
+                    .get::<#lookup_ty>(stringify!(#name))
+                    .unwrap_or_else(|| panic!(
+                        "missing fixture '{}' of type '{}'",
+                        stringify!(#name),
+                        stringify!(#lookup_ty),
+                    ))
+                    #clone_suffix;
             }
         })
         .collect()
@@ -148,21 +146,28 @@ pub(crate) fn generate_wrapper_code(config: &WrapperConfig<'_>) -> TokenStream2 
         .collect();
     let fixture_len = fixture_names.len();
 
-    let keyword_token = match keyword {
-        rstest_bdd::StepKeyword::Given => quote! { rstest_bdd::StepKeyword::Given },
-        rstest_bdd::StepKeyword::When => quote! { rstest_bdd::StepKeyword::When },
-        rstest_bdd::StepKeyword::Then => quote! { rstest_bdd::StepKeyword::Then },
-        rstest_bdd::StepKeyword::And => quote! { rstest_bdd::StepKeyword::And },
-        rstest_bdd::StepKeyword::But => quote! { rstest_bdd::StepKeyword::But },
-    };
+    let keyword_token = keyword_to_token(*keyword);
 
     quote! {
         fn #wrapper_ident(ctx: &rstest_bdd::StepContext<'_>, text: &str) {
-            #(#declares)*
-            let captures = rstest_bdd::extract_placeholders(#pattern.into(), text.into())
-                .expect("pattern mismatch");
-            #(#step_arg_parses)*
-            #ident(#(#arg_idents),*);
+            use std::panic::{catch_unwind, AssertUnwindSafe};
+
+            let result = catch_unwind(AssertUnwindSafe(|| {
+                #(#declares)*
+                let captures = rstest_bdd::extract_placeholders(#pattern.into(), text.into())
+                    .expect("pattern mismatch");
+                #(#step_arg_parses)*
+                #ident(#(#arg_idents),*);
+            }));
+
+            if let Err(e) = result {
+                panic!(
+                    "Panic in step '{}', function '{}': {:?}",
+                    #pattern,
+                    stringify!(#ident),
+                    e
+                );
+            }
         }
 
         #[allow(non_upper_case_globals)]

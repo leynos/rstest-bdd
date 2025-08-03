@@ -15,69 +15,69 @@ struct ScenarioArgs {
 
 impl syn::parse::Parse for ScenarioArgs {
     fn parse(input: syn::parse::ParseStream<'_>) -> syn::Result<Self> {
-        if input.peek(syn::LitStr) {
-            Self::parse_bare_string(input)
-        } else {
-            Self::parse_named_args(input)
-        }
-    }
-}
-
-impl ScenarioArgs {
-    fn parse_bare_string(input: syn::parse::ParseStream<'_>) -> syn::Result<Self> {
-        let path: syn::LitStr = input.parse()?;
-        let mut index = None;
-
-        if input.peek(syn::token::Comma) {
-            input.parse::<syn::token::Comma>()?;
-            let ident: syn::Ident = input.parse()?;
-            if ident != "index" {
-                return Err(input.error("expected `index`"));
-            }
-            input.parse::<syn::token::Eq>()?;
-            let lit: syn::LitInt = input.parse()?;
-            index = Some(lit.base10_parse()?);
-        }
-
-        if !input.is_empty() {
-            return Err(input.error("unexpected tokens"));
-        }
-
-        Ok(Self { path, index })
-    }
-
-    fn parse_named_args(input: syn::parse::ParseStream<'_>) -> syn::Result<Self> {
+        let args =
+            syn::punctuated::Punctuated::<syn::Expr, syn::token::Comma>::parse_terminated(input)?;
         let mut path = None;
         let mut index = None;
 
-        while !input.is_empty() {
-            let ident: syn::Ident = input.parse()?;
-            input.parse::<syn::token::Eq>()?;
-            if ident == "path" {
-                let lit: syn::LitStr = input.parse()?;
-                path = Some(lit);
-            } else if ident == "index" {
-                let lit: syn::LitInt = input.parse()?;
-                index = Some(lit.base10_parse()?);
-            } else {
-                return Err(input.error("expected `path` or `index`"));
-            }
-
-            if input.peek(syn::token::Comma) {
-                input.parse::<syn::token::Comma>()?;
-            } else {
-                break;
+        for expr in args {
+            match expr {
+                syn::Expr::Lit(syn::ExprLit {
+                    lit: syn::Lit::Str(lit),
+                    ..
+                }) if path.is_none() => {
+                    path = Some(lit);
+                }
+                syn::Expr::Assign(assign) => {
+                    let ident = if let syn::Expr::Path(p) = &*assign.left {
+                        p.path.get_ident().cloned().ok_or_else(|| {
+                            syn::Error::new_spanned(&assign.left, "expected identifier")
+                        })?
+                    } else {
+                        return Err(syn::Error::new_spanned(&assign.left, "expected identifier"));
+                    };
+                    match ident.to_string().as_str() {
+                        "path" => {
+                            let syn::Expr::Lit(syn::ExprLit {
+                                lit: syn::Lit::Str(lit),
+                                ..
+                            }) = *assign.right
+                            else {
+                                return Err(syn::Error::new_spanned(
+                                    &assign.right,
+                                    "expected string literal",
+                                ));
+                            };
+                            path = Some(lit);
+                        }
+                        "index" => {
+                            let syn::Expr::Lit(syn::ExprLit {
+                                lit: syn::Lit::Int(lit),
+                                ..
+                            }) = *assign.right
+                            else {
+                                return Err(syn::Error::new_spanned(
+                                    &assign.right,
+                                    "expected integer literal",
+                                ));
+                            };
+                            index = Some(lit.base10_parse()?);
+                        }
+                        _ => {
+                            return Err(syn::Error::new_spanned(
+                                &assign.left,
+                                "expected `path` or `index`",
+                            ));
+                        }
+                    }
+                }
+                other => {
+                    return Err(syn::Error::new_spanned(other, "unexpected argument"));
+                }
             }
         }
 
-        let Some(path) = path else {
-            return Err(input.error("`path` is required"));
-        };
-
-        if !input.is_empty() {
-            return Err(input.error("unexpected tokens"));
-        }
-
+        let path = path.ok_or_else(|| input.error("`path` is required"))?;
         Ok(Self { path, index })
     }
 }
