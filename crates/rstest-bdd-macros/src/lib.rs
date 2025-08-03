@@ -141,6 +141,56 @@ fn extract_args(func: &mut ItemFn) -> syn::Result<(Vec<FixtureArg>, Vec<StepArg>
     Ok((fixtures, step_args))
 }
 
+fn generate_identifiers(ident: &syn::Ident, id: usize) -> (syn::Ident, syn::Ident, syn::Ident) {
+    let wrapper_ident = format_ident!("__rstest_bdd_wrapper_{}_{}", ident, id);
+    let const_ident = format_ident!("__rstest_bdd_fixtures_{}_{}", ident, id);
+    let pattern_ident = format_ident!("__rstest_bdd_pattern_{}_{}", ident, id);
+    (wrapper_ident, const_ident, pattern_ident)
+}
+
+fn prepare_arguments(fixtures: &[FixtureArg], step_args: &[StepArg]) -> Vec<Arg> {
+    fixtures
+        .iter()
+        .map(|f| Arg::Fixture {
+            pat: f.pat.clone(),
+            name: f.name.clone(),
+            ty: f.ty.clone(),
+        })
+        .chain(step_args.iter().map(|a| Arg::Step {
+            pat: a.pat.clone(),
+            ty: a.ty.clone(),
+        }))
+        .collect()
+}
+
+fn fixture_metadata(fixtures: &[FixtureArg]) -> (Vec<TokenStream2>, usize) {
+    let names: Vec<_> = fixtures
+        .iter()
+        .map(|FixtureArg { name, .. }| {
+            let s = name.to_string();
+            quote! { #s }
+        })
+        .collect();
+    let len = names.len();
+    (names, len)
+}
+
+fn generate_captures_stmt(step_args: &[StepArg], pattern_ident: &syn::Ident) -> TokenStream2 {
+    if step_args.is_empty() {
+        quote! {
+            let _ = #pattern_ident
+                .captures(text.into())
+                .expect("pattern mismatch");
+        }
+    } else {
+        quote! {
+            let captures = #pattern_ident
+                .captures(text.into())
+                .expect("pattern mismatch");
+        }
+    }
+}
+
 struct WrapperConfig<'a> {
     ident: &'a syn::Ident,
     fixtures: &'a [FixtureArg],
@@ -158,48 +208,14 @@ fn generate_wrapper_code(config: &WrapperConfig<'_>) -> TokenStream2 {
         keyword,
     } = config;
     let id = COUNTER.fetch_add(1, Ordering::SeqCst);
-    let wrapper_ident = format_ident!("__rstest_bdd_wrapper_{}_{}", ident, id);
-    let const_ident = format_ident!("__rstest_bdd_fixtures_{}_{}", ident, id);
-    let pattern_ident = format_ident!("__rstest_bdd_pattern_{}_{}", ident, id);
+    let (wrapper_ident, const_ident, pattern_ident) = generate_identifiers(ident, id);
 
-    let args: Vec<Arg> = fixtures
-        .iter()
-        .map(|f| Arg::Fixture {
-            pat: f.pat.clone(),
-            name: f.name.clone(),
-            ty: f.ty.clone(),
-        })
-        .chain(step_args.iter().map(|a| Arg::Step {
-            pat: a.pat.clone(),
-            ty: a.ty.clone(),
-        }))
-        .collect();
+    let args = prepare_arguments(fixtures, step_args);
     let (declares, arg_idents) = gen_arg_decls_and_idents(&args);
 
-    let fixture_names: Vec<_> = fixtures
-        .iter()
-        .map(|FixtureArg { name, .. }| {
-            let s = name.to_string();
-            quote! { #s }
-        })
-        .collect();
-    let fixture_len = fixture_names.len();
-
+    let (fixture_names, fixture_len) = fixture_metadata(fixtures);
     let keyword_token = quote_keyword(*keyword);
-
-    let captures_stmt = if step_args.is_empty() {
-        quote! {
-            let _ = #pattern_ident
-                .captures(text.into())
-                .expect("pattern mismatch");
-        }
-    } else {
-        quote! {
-            let captures = #pattern_ident
-                .captures(text.into())
-                .expect("pattern mismatch");
-        }
-    };
+    let captures_stmt = generate_captures_stmt(step_args, &pattern_ident);
 
     quote! {
         #[allow(non_upper_case_globals)]

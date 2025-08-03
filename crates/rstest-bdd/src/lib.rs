@@ -17,6 +17,7 @@ pub fn greet() -> &'static str {
 }
 
 pub use inventory::{iter, submit};
+use phf::{Map, phf_map};
 use regex::Regex;
 use std::any::Any;
 use std::collections::HashMap;
@@ -249,7 +250,13 @@ fn build_regex_from_pattern(pattern: &str) -> String {
                     chars.next();
                     regex_source.push_str("\\{");
                 } else {
-                    let placeholder = consume_placeholder(&mut chars);
+                    let mut placeholder = String::new();
+                    for c in chars.by_ref() {
+                        if c == '}' {
+                            break;
+                        }
+                        placeholder.push(c);
+                    }
                     let ty = placeholder.split(':').nth(1);
                     let sub = type_subpattern(ty);
                     regex_source.push('(');
@@ -272,36 +279,29 @@ fn build_regex_from_pattern(pattern: &str) -> String {
     regex_source
 }
 
-fn consume_placeholder(chars: &mut std::iter::Peekable<std::str::Chars<'_>>) -> String {
-    let mut out = String::new();
-    let mut depth = 1;
-    for c in chars.by_ref() {
-        match c {
-            '{' => {
-                depth += 1;
-                out.push(c);
-            }
-            '}' => {
-                depth -= 1;
-                if depth == 0 {
-                    break;
-                }
-                out.push(c);
-            }
-            _ => out.push(c),
-        }
-    }
-    out
-}
+static TYPE_PATTERNS: Map<&'static str, &'static str> = phf_map! {
+    "u8" => "\\d+",
+    "u16" => "\\d+",
+    "u32" => "\\d+",
+    "u64" => "\\d+",
+    "u128" => "\\d+",
+    "usize" => "\\d+",
+    "i8" => "-?\\d+",
+    "i16" => "-?\\d+",
+    "i32" => "-?\\d+",
+    "i64" => "-?\\d+",
+    "i128" => "-?\\d+",
+    "isize" => "-?\\d+",
+    "f32" => "-?\\d+(?:\\.\\d+)?",
+    "f64" => "-?\\d+(?:\\.\\d+)?",
+    "bool" => "(?:true|false)",
+};
 
 fn type_subpattern(ty: Option<&str>) -> &'static str {
-    match ty.unwrap_or("") {
-        "u8" | "u16" | "u32" | "u64" | "u128" | "usize" => "\\d+",
-        "i8" | "i16" | "i32" | "i64" | "i128" | "isize" => "-?\\d+",
-        "f32" | "f64" => "-?\\d+(?:\\.\\d+)?",
-        "bool" => "(?:true|false)",
-        _ => "[^}]*",
-    }
+    TYPE_PATTERNS
+        .get(ty.unwrap_or(""))
+        .copied()
+        .unwrap_or("[^}]*")
 }
 
 fn extract_captured_values(re: &Regex, text: &str) -> Option<Vec<String>> {
