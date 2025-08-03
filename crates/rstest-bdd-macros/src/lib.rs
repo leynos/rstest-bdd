@@ -85,30 +85,21 @@ fn gen_fixture_decls(fixtures: &[FixtureArg], step_ident: &syn::Ident) -> Vec<To
     fixtures
         .iter()
         .map(|FixtureArg { pat, name, ty }| {
-            if let syn::Type::Reference(r) = ty {
-                let inner = &*r.elem;
-                quote! {
-                    let #pat: #ty = ctx
-                        .get::<#inner>(stringify!(#name))
-                        .ok_or_else(|| format!(
-                            "Missing fixture '{}' of type '{}' for step function '{}'",
-                            stringify!(#name),
-                            stringify!(#inner),
-                            stringify!(#step_ident)
-                        ))?;
-                }
+            let (fetch_ty, clone_part) = if let syn::Type::Reference(r) = ty {
+                (&*r.elem, quote! {})
             } else {
-                quote! {
-                    let #pat: #ty = ctx
-                        .get::<#ty>(stringify!(#name))
-                        .ok_or_else(|| format!(
-                            "Missing fixture '{}' of type '{}' for step function '{}'",
-                            stringify!(#name),
-                            stringify!(#ty),
-                            stringify!(#step_ident)
-                        ))?
-                        .clone();
-                }
+                (ty, quote! { .clone() })
+            };
+
+            quote! {
+                let #pat: #ty = ctx
+                    .get::<#fetch_ty>(stringify!(#name))
+                    .ok_or_else(|| rstest_bdd::StepError::MissingFixture {
+                        name: stringify!(#name),
+                        ty: stringify!(#fetch_ty),
+                        step: stringify!(#step_ident),
+                    })?
+                    #clone_part;
             }
         })
         .collect()
@@ -170,7 +161,10 @@ fn generate_wrapper_code(config: &WrapperConfig<'_>) -> TokenStream2 {
     };
 
     quote! {
-        fn #wrapper_ident(ctx: &rstest_bdd::StepContext<'_>, text: &str) -> Result<(), String> {
+        fn #wrapper_ident(
+            ctx: &rstest_bdd::StepContext<'_>,
+            text: &str,
+        ) -> rstest_bdd::StepResult {
             #(#declares)*
             let captures = rstest_bdd::extract_placeholders(#pattern.into(), text.into())
                 .expect("pattern mismatch");
@@ -612,7 +606,6 @@ fn generate_case_attrs(examples: &ExampleTable) -> Vec<TokenStream2> {
 }
 
 #[expect(
-    clippy::too_many_arguments,
     clippy::needless_pass_by_value,
     reason = "signature defined by requirements"
 )]
@@ -621,8 +614,6 @@ fn generate_scenario_code(
     vis: &syn::Visibility,
     sig: &syn::Signature,
     block: &syn::Block,
-    feature_path_str: String,
-    scenario_name: String,
     steps: Vec<(rstest_bdd::StepKeyword, String)>,
     examples: Option<ExampleTable>,
     ctx_inserts: impl Iterator<Item = TokenStream2>,
@@ -650,30 +641,24 @@ fn generate_scenario_code(
             let mut ctx = rstest_bdd::StepContext::default();
             #(#ctx_inserts)*
             for (index, (keyword, text)) in steps.iter().enumerate() {
-                if let Some(f) = rstest_bdd::find_step(*keyword, (*text).into()) {
-                    if let Err(err) = f(&ctx, text) {
-                        panic!(
-                            "Step failed at index {}: {} {} - {}\n(feature: {}, scenario: {})",
-                            index,
-                            keyword.as_str(),
-                            text,
-                            err,
-                            #feature_path_str,
-                            #scenario_name
-                        );
-                    }
-                } else {
-                    panic!(
-                        "Step not found at index {}: {} {} (feature: {}, scenario: {})",
+                match rstest_bdd::find_step(*keyword, (*text).into()) {
+                    Some(f) => f(&ctx, text).map_err(|err| rstest_bdd::ScenarioError::StepFailure {
                         index,
-                        keyword.as_str(),
+                        keyword: *keyword,
                         text,
-                        #feature_path_str,
-                        #scenario_name
-                    );
+                        source: err,
+                    })?,
+                    None => {
+                        return Err(rstest_bdd::ScenarioError::StepNotFound {
+                            index,
+                            keyword: *keyword,
+                            text,
+                        });
+                    }
                 }
             }
-            #block
+            #block;
+            Ok(())
         }
     })
 }
@@ -819,14 +804,9 @@ pub fn scenario(attr: TokenStream, item: TokenStream) -> TokenStream {
         Ok(f) => f,
         Err(err) => return err,
     };
-    let manifest_dir = std::env::var("CARGO_MANIFEST_DIR").unwrap_or_else(|_| String::new());
-    let feature_path_str = PathBuf::from(manifest_dir)
-        .join(&path)
-        .display()
-        .to_string();
 
     let ScenarioData {
-        name: scenario_name,
+        name: _scenario_name,
         steps,
         examples,
     } = match extract_scenario_steps(&feature, index) {
@@ -838,17 +818,9 @@ pub fn scenario(attr: TokenStream, item: TokenStream) -> TokenStream {
         return err;
     }
 
+    sig.output = syn::parse_quote!(-> rstest_bdd::ScenarioResult);
+
     let (_args, ctx_inserts) = extract_function_fixtures(sig);
 
-    generate_scenario_code(
-        attrs,
-        vis,
-        sig,
-        block,
-        feature_path_str,
-        scenario_name,
-        steps,
-        examples,
-        ctx_inserts,
-    )
+    generate_scenario_code(attrs, vis, sig, block, steps, examples, ctx_inserts)
 }

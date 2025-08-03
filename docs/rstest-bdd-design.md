@@ -463,7 +463,7 @@ classDiagram
         run: StepFn
     }
     class StepFn {
-        call(ctx: StepContext, text: &str) Result<(), String>
+        call(ctx: StepContext, text: &str) StepResult
     }
     class StepWrapper
     StepWrapper : extract_placeholders(pattern, text)
@@ -891,8 +891,8 @@ sequenceDiagram
     StepWrapper->>StepWrapper: extract_placeholders(pattern, text)
     StepWrapper->>StepWrapper: parse captures with FromStr
     StepWrapper->>StepFunction: call with typed args
-    StepFunction-->>StepWrapper: Result<(), String>
-    StepWrapper-->>ScenarioRunner: Result<(), String>
+    StepFunction-->>StepWrapper: ()
+    StepWrapper-->>ScenarioRunner: StepResult
 ```
 
 ## **Works cited**

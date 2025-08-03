@@ -232,8 +232,57 @@ fn extract_captured_values(re: &Regex, text: &str) -> Option<Vec<String>> {
     Some(values)
 }
 
+/// Structured error returned from step wrappers.
+#[derive(Debug, thiserror::Error, PartialEq, Eq)]
+pub enum StepError {
+    /// A required fixture was missing from the `StepContext`.
+    #[error("missing fixture '{name}' of type '{ty}' for step '{step}'")]
+    MissingFixture {
+        /// Name of the missing fixture.
+        name: &'static str,
+        /// Expected type of the missing fixture.
+        ty: &'static str,
+        /// Step function requesting the fixture.
+        step: &'static str,
+    },
+}
+
+/// Result type returned by step wrappers.
+pub type StepResult = Result<(), StepError>;
+
+/// Error returned when executing a scenario fails.
+#[derive(Debug, thiserror::Error, PartialEq, Eq)]
+pub enum ScenarioError {
+    /// A step definition could not be found.
+    #[error("step not found at index {index}: {keyword:?} {text}")]
+    StepNotFound {
+        /// Index of the failing step within the scenario.
+        index: usize,
+        /// Keyword of the missing step.
+        keyword: StepKeyword,
+        /// Text of the missing step.
+        text: &'static str,
+    },
+    /// A step definition returned an error during execution.
+    #[error("step failed at index {index}: {keyword:?} {text} - {source}")]
+    StepFailure {
+        /// Index of the failing step within the scenario.
+        index: usize,
+        /// Keyword of the failing step.
+        keyword: StepKeyword,
+        /// Text of the failing step.
+        text: &'static str,
+        /// Underlying step error.
+        #[source]
+        source: StepError,
+    },
+}
+
+/// Result type returned by the generated scenario function.
+pub type ScenarioResult = Result<(), ScenarioError>;
+
 /// Type alias for the stored step function pointer.
-pub type StepFn = for<'a> fn(&StepContext<'a>, &str) -> Result<(), String>;
+pub type StepFn = for<'a> fn(&StepContext<'a>, &str) -> StepResult;
 
 /// Represents a single step definition registered with the framework.
 ///
@@ -372,7 +421,7 @@ mod tests {
             clippy::unnecessary_wraps,
             reason = "required to match StepFn signature"
         )]
-        fn wrapper(ctx: &StepContext<'_>, _text: &str) -> Result<(), String> {
+        fn wrapper(ctx: &StepContext<'_>, _text: &str) -> Result<(), StepError> {
             let _ = ctx;
             sample();
             Ok(())

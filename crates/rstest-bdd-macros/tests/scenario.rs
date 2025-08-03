@@ -1,5 +1,7 @@
 //! Behavioural tests covering the `#[scenario]` macro
 
+use rstest::fixture;
+use rstest_bdd::{ScenarioError, StepError};
 use rstest_bdd_macros::{given, scenario, then, when};
 use serial_test::serial;
 use std::sync::{LazyLock, Mutex, MutexGuard};
@@ -80,10 +82,51 @@ fn explicit_syntax() {
 }
 
 #[scenario(path = "tests/features/unmatched.feature")]
-#[should_panic(expected = "Step not found")]
 #[serial]
+#[ignore]
 fn unmatched_feature() {
     clear_events();
+}
+
+#[test]
+#[serial]
+fn unmatched_feature_returns_error() {
+    let err = match unmatched_feature() {
+        Ok(()) => panic!("expected missing step error"),
+        Err(e) => e,
+    };
+    assert!(matches!(err, ScenarioError::StepNotFound { index: 0, .. }));
+}
+
+#[given("a missing fixture is requested")]
+fn missing_fixture_step(#[from(number)] n: u32) {
+    let _ = n;
+}
+
+#[fixture]
+fn number() -> u32 {
+    42
+}
+
+#[scenario(path = "tests/features/missing_fixture.feature")]
+#[serial]
+#[ignore]
+fn missing_fixture() {}
+
+#[test]
+#[serial]
+fn missing_fixture_returns_error() {
+    let err = match missing_fixture() {
+        Ok(()) => panic!("expected missing fixture error"),
+        Err(e) => e,
+    };
+    assert!(matches!(
+        err,
+        ScenarioError::StepFailure {
+            source: StepError::MissingFixture { name: "number", .. },
+            ..
+        }
+    ));
 }
 
 #[scenario(path = "tests/features/outline.feature")]
