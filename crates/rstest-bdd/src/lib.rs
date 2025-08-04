@@ -237,44 +237,44 @@ pub fn extract_placeholders(pattern: PatternStr<'_>, text: StepText<'_>) -> Opti
     extract_captured_values(&re, text.as_str())
 }
 
+fn handle_opening_brace(chars: &mut std::iter::Peekable<std::str::Chars<'_>>) -> String {
+    if chars.peek() == Some(&'{') {
+        chars.next();
+        "\\{".to_string()
+    } else {
+        let mut placeholder = String::new();
+        for c in chars.by_ref() {
+            if c == '}' {
+                break;
+            }
+            placeholder.push(c);
+        }
+        let ty = placeholder.split(':').nth(1);
+        let sub = type_subpattern(ty);
+        format!("({sub})")
+    }
+}
+
+fn handle_closing_brace(chars: &mut std::iter::Peekable<std::str::Chars<'_>>) -> String {
+    if chars.peek() == Some(&'}') {
+        chars.next();
+    }
+    "\\}".to_string()
+}
+
 fn build_regex_from_pattern(pattern: &str) -> String {
     let mut regex_source = String::from("^");
     let mut chars = pattern.chars().peekable();
-    loop {
-        let Some(ch) = chars.next() else {
-            break;
+
+    while let Some(ch) = chars.next() {
+        let part = match ch {
+            '{' => handle_opening_brace(&mut chars),
+            '}' => handle_closing_brace(&mut chars),
+            _ => regex::escape(&ch.to_string()),
         };
-        match ch {
-            '{' => {
-                if chars.peek() == Some(&'{') {
-                    chars.next();
-                    regex_source.push_str("\\{");
-                } else {
-                    let mut placeholder = String::new();
-                    for c in chars.by_ref() {
-                        if c == '}' {
-                            break;
-                        }
-                        placeholder.push(c);
-                    }
-                    let ty = placeholder.split(':').nth(1);
-                    let sub = type_subpattern(ty);
-                    regex_source.push('(');
-                    regex_source.push_str(sub);
-                    regex_source.push(')');
-                }
-            }
-            '}' => {
-                if chars.peek() == Some(&'}') {
-                    chars.next();
-                    regex_source.push_str("\\}");
-                } else {
-                    regex_source.push_str("\\}");
-                }
-            }
-            _ => regex_source.push_str(&regex::escape(&ch.to_string())),
-        }
+        regex_source.push_str(&part);
     }
+
     regex_source.push('$');
     regex_source
 }
@@ -324,11 +324,11 @@ pub type StepFn = for<'a> fn(&StepContext<'a>, &str);
 /// # Examples
 ///
 /// ```
-/// use rstest_bdd::{step, Step};
+/// use rstest_bdd::{step, Step, StepKeyword};
 ///
-/// fn my_step() {}
+/// fn my_step(_: &rstest_bdd::StepContext<'_>, _: &str) {}
 ///
-/// step!("Given", "a step", my_step);
+/// step!(StepKeyword::Given, "a step", my_step, &[]);
 /// ```
 #[derive(Debug)]
 pub struct Step {
@@ -354,11 +354,11 @@ pub struct Step {
 /// # Examples
 ///
 /// ```
-/// use rstest_bdd::{step, Step};
+/// use rstest_bdd::{step, StepKeyword};
 ///
-/// fn my_step() {}
+/// fn my_step(_: &rstest_bdd::StepContext<'_>, _: &str) {}
 ///
-/// step!("Given", "a pattern", my_step);
+/// step!(StepKeyword::Given, "a pattern", my_step, &[]);
 /// ```
 #[macro_export]
 macro_rules! step {
@@ -398,12 +398,12 @@ static STEP_MAP: LazyLock<HashMap<StepKey, StepFn>> = LazyLock::new(|| {
 /// # Examples
 ///
 /// ```
-/// use rstest_bdd::{step, lookup_step};
+/// use rstest_bdd::{step, StepKeyword, lookup_step};
 ///
-/// fn dummy() {}
-/// step!("Given", "a thing", dummy);
+/// fn dummy(_: &rstest_bdd::StepContext<'_>, _: &str) {}
+/// step!(StepKeyword::Given, "a thing", dummy, &[]);
 ///
-/// let step_fn = lookup_step("Given", "a thing");
+/// let step_fn = lookup_step(StepKeyword::Given, "a thing".into());
 /// assert!(step_fn.is_some());
 /// ```
 #[must_use]
