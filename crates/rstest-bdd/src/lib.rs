@@ -21,7 +21,7 @@ use regex::Regex;
 use std::any::Any;
 use std::collections::HashMap;
 use std::str::FromStr;
-use std::sync::LazyLock;
+use std::sync::{LazyLock, OnceLock};
 
 /// Wrapper for step pattern strings used in matching logic
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -128,20 +128,52 @@ impl From<&str> for StepKeyword {
 }
 
 /// Pattern text used to match a step at runtime.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct StepPattern(&'static str);
+#[derive(Debug)]
+pub struct StepPattern {
+    text: &'static str,
+    regex: OnceLock<Regex>,
+}
 
 impl StepPattern {
     /// Create a new pattern wrapper from a string literal.
     #[must_use]
     pub const fn new(value: &'static str) -> Self {
-        Self(value)
+        Self {
+            text: value,
+            regex: OnceLock::new(),
+        }
     }
 
     /// Access the underlying pattern string.
     #[must_use]
     pub const fn as_str(&self) -> &'static str {
-        self.0
+        self.text
+    }
+
+    /// Compile the pattern into a regular expression, caching the result.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the pattern cannot be converted into a valid
+    /// regular expression.
+    pub fn compile(&self) -> Result<(), regex::Error> {
+        let src = build_regex_from_pattern(self.text);
+        let regex = Regex::new(&src)?;
+        // Ignore result if already set; duplicate registration is benign.
+        let _ = self.regex.set(regex);
+        Ok(())
+    }
+
+    /// Return the cached regular expression.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the pattern has not been compiled via [`compile`].
+    #[must_use]
+    pub fn regex(&self) -> &Regex {
+        self.regex
+            .get()
+            .unwrap_or_else(|| panic!("step pattern regex must be precompiled"))
     }
 }
 
@@ -151,7 +183,7 @@ impl From<&'static str> for StepPattern {
     }
 }
 
-type StepKey = (StepKeyword, &'static StepPattern);
+type StepKey = (StepKeyword, &'static str);
 
 /// Context passed to step functions containing references to requested fixtures.
 ///
@@ -194,10 +226,8 @@ impl<'a> StepContext<'a> {
 /// braces are not supported. The returned vector contains the raw
 /// substring for each placeholder in order of appearance.
 #[must_use]
-pub fn extract_placeholders(pattern: PatternStr<'_>, text: StepText<'_>) -> Option<Vec<String>> {
-    let regex_source = build_regex_from_pattern(pattern.as_str());
-    let re = Regex::new(&regex_source).ok()?;
-    extract_captured_values(&re, text.as_str())
+pub fn extract_placeholders(pattern: &StepPattern, text: StepText<'_>) -> Option<Vec<String>> {
+    extract_captured_values(pattern.regex(), text.as_str())
 }
 
 fn build_regex_from_pattern(pattern: &str) -> String {
@@ -281,19 +311,25 @@ pub struct Step {
 /// ```
 #[macro_export]
 macro_rules! step {
-    ($keyword:expr, $pattern:expr, $handler:path, $fixtures:expr) => {
+    (@pattern $keyword:expr, $pattern:expr, $handler:path, $fixtures:expr) => {
         const _: () = {
-            const PATTERN: $crate::StepPattern = $crate::StepPattern::new($pattern);
             $crate::submit! {
                 $crate::Step {
                     keyword: $keyword,
-                    pattern: &PATTERN,
+                    pattern: $pattern,
                     run: $handler,
                     fixtures: $fixtures,
                     file: file!(),
                     line: line!(),
                 }
             }
+        };
+    };
+
+    ($keyword:expr, $pattern:expr, $handler:path, $fixtures:expr) => {
+        const _: () = {
+            static PATTERN: $crate::StepPattern = $crate::StepPattern::new($pattern);
+    $crate::step!(@pattern $keyword, &PATTERN, $handler, $fixtures);
         };
     };
 }
@@ -307,7 +343,15 @@ static STEP_MAP: LazyLock<HashMap<StepKey, StepFn>> = LazyLock::new(|| {
     let steps: Vec<_> = iter::<Step>.into_iter().collect();
     let mut map = HashMap::with_capacity(steps.len());
     for step in steps {
-        map.insert((step.keyword, step.pattern), step.run);
+        step.pattern.compile().unwrap_or_else(|e| {
+            panic!(
+                "invalid step pattern '{}' at {}:{}: {e}",
+                step.pattern.as_str(),
+                step.file,
+                step.line
+            )
+        });
+        map.insert((step.keyword, step.pattern.as_str()), step.run);
     }
     map
 });
@@ -327,14 +371,7 @@ static STEP_MAP: LazyLock<HashMap<StepKey, StepFn>> = LazyLock::new(|| {
 /// ```
 #[must_use]
 pub fn lookup_step(keyword: StepKeyword, pattern: PatternStr<'_>) -> Option<StepFn> {
-    // Step patterns are stored as `'static` references, so we cannot
-    // construct a temporary `StepPattern` for direct map lookup.
-    // Iterating avoids leaking memory while remaining efficient for the
-    // typical small step registry.
-    STEP_MAP
-        .iter()
-        .find(|(key, _)| key.0 == keyword && key.1.as_str() == pattern.as_str())
-        .map(|(_, f)| *f)
+    STEP_MAP.get(&(keyword, pattern.as_str())).copied()
 }
 
 /// Find a registered step whose pattern matches the provided text.
@@ -347,9 +384,7 @@ pub fn find_step(keyword: StepKeyword, text: StepText<'_>) -> Option<StepFn> {
         return Some(f);
     }
     for step in iter::<Step> {
-        if step.keyword == keyword
-            && extract_placeholders(step.pattern.as_str().into(), text).is_some()
-        {
+        if step.keyword == keyword && extract_placeholders(step.pattern, text).is_some() {
             return Some(step.run);
         }
     }
