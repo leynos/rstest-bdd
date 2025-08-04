@@ -235,61 +235,77 @@ fn build_regex_from_pattern(pattern: &str) -> String {
     let bytes = pattern.as_bytes();
     let mut i = 0;
     while let Some(&byte) = bytes.get(i) {
-        match byte {
-            b'\\' => {
-                if let Some(next) = bytes.get(i + 1) {
-                    if *next == b'{' || *next == b'}' {
-                        regex_source.push_str(&regex::escape(&char::from(*next).to_string()));
-                        i += 2;
-                    } else {
-                        regex_source.push_str("\\\\");
-                        i += 1;
-                    }
-                } else {
-                    regex_source.push_str("\\\\");
-                    i += 1;
-                }
-            }
-            b'{' => {
-                let start = i + 1;
-                let mut depth = 1;
-                let mut j = start;
-                while let Some(&b) = bytes.get(j) {
-                    match b {
-                        b'\\' => j += 2,
-                        b'{' => {
-                            depth += 1;
-                            j += 1;
-                        }
-                        b'}' => {
-                            depth -= 1;
-                            j += 1;
-                            if depth == 0 {
-                                break;
-                            }
-                        }
-                        _ => j += 1,
-                    }
-                }
-                if depth != 0 {
-                    regex_source.push_str(&regex::escape("{"));
-                    i += 1;
-                } else {
-                    let end = j - 1;
-                    let inner = pattern.get(start..end);
-                    let type_hint = inner.and_then(|s| s.split(':').nth(1));
-                    regex_source.push_str(placeholder_regex(type_hint));
-                    i = j;
-                }
-            }
+        let advance = match byte {
+            b'\\' => handle_escape_sequence(bytes, i, &mut regex_source),
+            b'{' => handle_brace_placeholder(pattern, bytes, i, &mut regex_source),
             _ => {
                 regex_source.push_str(&regex::escape(&char::from(byte).to_string()));
-                i += 1;
+                1
             }
-        }
+        };
+        i += advance;
     }
     regex_source.push('$');
     regex_source
+}
+
+/// Handle a backslash escape in a pattern.
+///
+/// Returns the number of bytes to advance the iterator.
+fn handle_escape_sequence(bytes: &[u8], i: usize, regex_source: &mut String) -> usize {
+    if let Some(next) = bytes.get(i + 1) {
+        if *next == b'{' || *next == b'}' {
+            regex_source.push_str(&regex::escape(&char::from(*next).to_string()));
+            2
+        } else {
+            regex_source.push_str("\\\\");
+            1
+        }
+    } else {
+        regex_source.push_str("\\\\");
+        1
+    }
+}
+
+/// Handle a brace placeholder, extracting any type hint.
+///
+/// Returns the number of bytes to advance the iterator.
+fn handle_brace_placeholder(
+    pattern: &str,
+    bytes: &[u8],
+    i: usize,
+    regex_source: &mut String,
+) -> usize {
+    let start = i + 1;
+    let mut depth = 1;
+    let mut j = start;
+    while let Some(&b) = bytes.get(j) {
+        match b {
+            b'\\' => j += 2,
+            b'{' => {
+                depth += 1;
+                j += 1;
+            }
+            b'}' => {
+                depth -= 1;
+                j += 1;
+                if depth == 0 {
+                    break;
+                }
+            }
+            _ => j += 1,
+        }
+    }
+    if depth != 0 {
+        regex_source.push_str(&regex::escape("{"));
+        1
+    } else {
+        let end = j - 1;
+        let inner = pattern.get(start..end);
+        let type_hint = inner.and_then(|s| s.split(':').nth(1));
+        regex_source.push_str(placeholder_regex(type_hint));
+        j - i
+    }
 }
 
 fn placeholder_regex(ty: Option<&str>) -> &'static str {
