@@ -1,6 +1,7 @@
 //! Implementation of the `#[scenario]` macro.
 
 use proc_macro::TokenStream;
+use proc_macro2::Span;
 use std::path::PathBuf;
 
 use crate::codegen::scenario::generate_scenario_code;
@@ -16,7 +17,7 @@ use syn::{
 };
 
 struct ScenarioArgs {
-    path: LitStr,
+    path: Option<LitStr>,
     index: Option<usize>,
 }
 
@@ -72,7 +73,6 @@ impl Parse for ScenarioArgs {
             return Err(input.error("at least one of `path` or `index` argument must be provided"));
         }
 
-        let path = path.ok_or_else(|| input.error("`path` is required"))?;
         Ok(Self { path, index })
     }
 }
@@ -80,7 +80,14 @@ impl Parse for ScenarioArgs {
 /// Bind a test to a scenario defined in a feature file.
 pub(crate) fn scenario(attr: TokenStream, item: TokenStream) -> TokenStream {
     let ScenarioArgs { path, index } = syn::parse_macro_input!(attr as ScenarioArgs);
-    let path = PathBuf::from(path.value());
+    let path = match path {
+        Some(lit) => PathBuf::from(lit.value()),
+        None => {
+            return syn::Error::new(Span::call_site(), "`path` is required")
+                .into_compile_error()
+                .into();
+        }
+    };
 
     let mut item_fn = syn::parse_macro_input!(item as syn::ItemFn);
     let attrs = &item_fn.attrs;
