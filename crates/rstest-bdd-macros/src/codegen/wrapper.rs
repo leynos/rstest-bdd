@@ -177,6 +177,6 @@ pub(crate) fn generate_wrapper_code(config: &WrapperConfig<'_>) -> TokenStream2 
         const #const_ident: [&'static str; #fixture_len] = [#(#fixture_names),*];
         const _: [(); #fixture_len] = [(); #const_ident.len()];
 
-        rstest_bdd::step!(#keyword_token, #pattern, #wrapper_ident, &#const_ident);
+        rstest_bdd::step!(@pattern #keyword_token, &#pattern_ident, #wrapper_ident, &#const_ident);
     }
 }

@@ -299,19 +299,25 @@ pub struct Step {
 /// ```
 #[macro_export]
 macro_rules! step {
-    ($keyword:expr, $pattern:expr, $handler:path, $fixtures:expr) => {
+    (@pattern $keyword:expr, $pattern:expr, $handler:path, $fixtures:expr) => {
         const _: () = {
-            static PATTERN: $crate::StepPattern = $crate::StepPattern::new($pattern);
             $crate::submit! {
                 $crate::Step {
                     keyword: $keyword,
-                    pattern: &PATTERN,
+                    pattern: $pattern,
                     run: $handler,
                     fixtures: $fixtures,
                     file: file!(),
                     line: line!(),
                 }
             }
+        };
+    };
+
+    ($keyword:expr, $pattern:expr, $handler:path, $fixtures:expr) => {
+        const _: () = {
+            static PATTERN: $crate::StepPattern = $crate::StepPattern::new($pattern);
+    $crate::step!(@pattern $keyword, &PATTERN, $handler, $fixtures);
         };
     };
 }
