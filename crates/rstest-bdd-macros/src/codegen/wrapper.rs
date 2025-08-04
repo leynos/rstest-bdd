@@ -67,7 +67,10 @@ pub(crate) struct WrapperConfig<'a> {
 }
 
 /// Generate declarations for fixture values.
-fn gen_fixture_decls(fixtures: &[FixtureArg]) -> Vec<TokenStream2> {
+///
+/// Non-reference fixtures must implement [`Clone`] because wrappers clone
+/// them to hand ownership to the step function.
+fn gen_fixture_decls(fixtures: &[FixtureArg], ident: &syn::Ident) -> Vec<TokenStream2> {
     fixtures
         .iter()
         .map(|FixtureArg { pat, name, ty }| {
@@ -79,17 +82,18 @@ fn gen_fixture_decls(fixtures: &[FixtureArg]) -> Vec<TokenStream2> {
             let clone_suffix = if matches!(ty, syn::Type::Reference(_)) {
                 quote! {}
             } else {
-                quote! { .clone() }
+                quote! { .cloned() }
             };
             quote! {
                 let #pat: #ty = ctx
                     .get::<#lookup_ty>(stringify!(#name))
-                    .unwrap_or_else(|| panic!(
-                        "missing fixture '{}' of type '{}'",
+                    #clone_suffix
+                    .ok_or_else(|| format!(
+                        "Missing fixture '{}' of type '{}' for step function '{}'",
                         stringify!(#name),
                         stringify!(#lookup_ty),
-                    ))
-                    #clone_suffix;
+                        stringify!(#ident)
+                    ))?;
             }
         })
         .collect()
@@ -132,7 +136,7 @@ pub(crate) fn generate_wrapper_code(config: &WrapperConfig<'_>) -> TokenStream2 
     let const_ident = format_ident!("__RSTEST_BDD_FIXTURES_{}_{}", ident_upper, id);
     let pattern_ident = format_ident!("__RSTEST_BDD_PATTERN_{}_{}", ident_upper, id);
 
-    let declares = gen_fixture_decls(fixtures);
+    let declares = gen_fixture_decls(fixtures, ident);
     let captured: Vec<_> = step_args
         .iter()
         .enumerate()
@@ -161,25 +165,23 @@ pub(crate) fn generate_wrapper_code(config: &WrapperConfig<'_>) -> TokenStream2 
     quote! {
         static #pattern_ident: rstest_bdd::StepPattern = rstest_bdd::StepPattern::new(#pattern);
 
-        fn #wrapper_ident(ctx: &rstest_bdd::StepContext<'_>, text: &str) {
+        fn #wrapper_ident(ctx: &rstest_bdd::StepContext<'_>, text: &str) -> Result<(), String> {
             use std::panic::{catch_unwind, AssertUnwindSafe};
 
-            let result = catch_unwind(AssertUnwindSafe(|| {
+            catch_unwind(AssertUnwindSafe(|| -> Result<(), String> {
                 #(#declares)*
                 let captures = rstest_bdd::extract_placeholders(&#pattern_ident, text.into())
                     .expect("pattern mismatch");
                 #(#step_arg_parses)*
                 #ident(#(#arg_idents),*);
-            }));
-
-            if let Err(e) = result {
-                panic!(
-                    "Panic in step '{}', function '{}': {:?}",
-                    #pattern,
-                    stringify!(#ident),
-                    e
-                );
-            }
+                Ok(())
+            }))
+            .map_err(|e| format!(
+                "Panic in step '{}', function '{}': {:?}",
+                #pattern,
+                stringify!(#ident),
+                e
+            ))?
         }
 
         const #const_ident: [&'static str; #fixture_len] = [#(#fixture_names),*];

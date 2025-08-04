@@ -1,15 +1,32 @@
 //! Behavioural test for step registry
 
-use rstest_bdd::{Step, iter, step};
+use rstest_bdd::{Step, StepContext, iter, step};
 
 fn sample() {}
-fn wrapper(ctx: &rstest_bdd::StepContext<'_>, _text: &str) {
+#[expect(
+    clippy::unnecessary_wraps,
+    reason = "wrapper must match StepFn signature"
+)]
+fn wrapper(ctx: &rstest_bdd::StepContext<'_>, _text: &str) -> Result<(), String> {
     // Adapter for zero-argument step functions
     let _ = ctx;
     sample();
+    Ok(())
 }
 
 step!(rstest_bdd::StepKeyword::When, "behavioural", wrapper, &[]);
+
+fn failing_wrapper(ctx: &StepContext<'_>, _text: &str) -> Result<(), String> {
+    let _ = ctx;
+    Err("boom".to_string())
+}
+
+step!(
+    rstest_bdd::StepKeyword::Given,
+    "fails",
+    failing_wrapper,
+    &[]
+);
 
 #[test]
 fn step_is_registered() {
@@ -17,4 +34,21 @@ fn step_is_registered() {
         step.pattern.as_str() == "behavioural" && step.keyword == rstest_bdd::StepKeyword::When
     });
     assert!(found, "expected step not found");
+}
+
+#[test]
+fn wrapper_error_propagates() {
+    let step_fn = iter::<Step>
+        .into_iter()
+        .find(|s| s.pattern.as_str() == "fails")
+        .map_or_else(
+            || panic!("step 'fails' not found in registry"),
+            |step| step.run,
+        );
+    let result = step_fn(&StepContext::default(), "fails");
+    let err = match result {
+        Ok(()) => panic!("expected error from wrapper"),
+        Err(e) => e,
+    };
+    assert_eq!(err, "boom");
 }

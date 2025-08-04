@@ -59,7 +59,17 @@ pub(crate) fn generate_scenario_code(
             #(#ctx_inserts)*
             for (index, (keyword, text)) in steps.iter().enumerate() {
                 if let Some(f) = rstest_bdd::find_step(*keyword, (*text).into()) {
-                    f(&ctx, text);
+                    if let Err(err) = f(&ctx, text) {
+                        panic!(
+                            "Step failed at index {}: {} {} - {}\n(feature: {}, scenario: {})",
+                            index,
+                            keyword.as_str(),
+                            text,
+                            err,
+                            #feature_path_str,
+                            #scenario_name
+                        );
+                    }
                 } else {
                     panic!(
                         "Step not found at index {}: {} {} (feature: {}, scenario: {})",
