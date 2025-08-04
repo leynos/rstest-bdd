@@ -128,7 +128,9 @@ pub(crate) fn generate_wrapper_code(config: &WrapperConfig<'_>) -> TokenStream2 
     } = config;
     let id = COUNTER.fetch_add(1, Ordering::SeqCst);
     let wrapper_ident = format_ident!("__rstest_bdd_wrapper_{}_{}", ident, id);
-    let const_ident = format_ident!("__rstest_bdd_fixtures_{}_{}", ident, id);
+    let ident_upper = ident.to_string().to_uppercase();
+    let const_ident = format_ident!("__RSTEST_BDD_FIXTURES_{}_{}", ident_upper, id);
+    let pattern_ident = format_ident!("__RSTEST_BDD_PATTERN_{}_{}", ident_upper, id);
 
     let declares = gen_fixture_decls(fixtures);
     let step_arg_parses = gen_step_parses(step_args);
@@ -149,12 +151,14 @@ pub(crate) fn generate_wrapper_code(config: &WrapperConfig<'_>) -> TokenStream2 
     let keyword_token = keyword_to_token(*keyword);
 
     quote! {
+        static #pattern_ident: rstest_bdd::StepPattern = rstest_bdd::StepPattern::new(#pattern);
+
         fn #wrapper_ident(ctx: &rstest_bdd::StepContext<'_>, text: &str) {
             use std::panic::{catch_unwind, AssertUnwindSafe};
 
             let result = catch_unwind(AssertUnwindSafe(|| {
                 #(#declares)*
-                let captures = rstest_bdd::extract_placeholders(#pattern.into(), text.into())
+                let captures = rstest_bdd::extract_placeholders(&#pattern_ident, text.into())
                     .expect("pattern mismatch");
                 #(#step_arg_parses)*
                 #ident(#(#arg_idents),*);
@@ -170,7 +174,6 @@ pub(crate) fn generate_wrapper_code(config: &WrapperConfig<'_>) -> TokenStream2 
             }
         }
 
-        #[allow(non_upper_case_globals)]
         const #const_ident: [&'static str; #fixture_len] = [#(#fixture_names),*];
         const _: [(); #fixture_len] = [(); #const_ident.len()];
 
