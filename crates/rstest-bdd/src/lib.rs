@@ -239,8 +239,17 @@ fn build_regex_from_pattern(pattern: &str) -> String {
             b'\\' => handle_escape_sequence(bytes, i, &mut regex_source),
             b'{' => handle_brace_placeholder(pattern, bytes, i, &mut regex_source),
             _ => {
-                regex_source.push_str(&regex::escape(&char::from(byte).to_string()));
-                1
+                let ch_opt = bytes
+                    .get(i..)
+                    .and_then(|slice| std::str::from_utf8(slice).ok())
+                    .and_then(|s| s.chars().next());
+                if let Some(ch) = ch_opt {
+                    regex_source.push_str(&regex::escape(&ch.to_string()));
+                    ch.len_utf8()
+                } else {
+                    regex_source.push_str(&regex::escape(&(byte as char).to_string()));
+                    1
+                }
             }
         };
         i += advance;
@@ -281,7 +290,17 @@ fn handle_brace_placeholder(
     let mut j = start;
     while let Some(&b) = bytes.get(j) {
         match b {
-            b'\\' => j += 2,
+            b'\\' => {
+                if let Some(&next) = bytes.get(j + 1) {
+                    if next == b'{' || next == b'}' {
+                        j += 2;
+                    } else {
+                        j += 1;
+                    }
+                } else {
+                    j += 1;
+                }
+            }
             b'{' => {
                 depth += 1;
                 j += 1;
@@ -302,7 +321,7 @@ fn handle_brace_placeholder(
     } else {
         let end = j - 1;
         let inner = pattern.get(start..end);
-        let type_hint = inner.and_then(|s| s.split(':').nth(1));
+        let type_hint = inner.and_then(|s| s.split_once(':').map(|(_, t)| t));
         regex_source.push_str(placeholder_regex(type_hint));
         j - i
     }
@@ -310,8 +329,8 @@ fn handle_brace_placeholder(
 
 fn placeholder_regex(ty: Option<&str>) -> &'static str {
     match ty {
-        Some("u32" | "usize") => "(\\d+)",
-        Some("i32" | "isize") => "([+-]?\\d+)",
+        Some("u8" | "u16" | "u32" | "u64" | "u128" | "usize") => "(\\d+)",
+        Some("i8" | "i16" | "i32" | "i64" | "i128" | "isize") => "([+-]?\\d+)",
         Some("f32" | "f64") => "([+-]?(?:\\d+\\.\\d+|\\d+))",
         _ => "(.+?)",
     }
