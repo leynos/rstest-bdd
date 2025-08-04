@@ -96,19 +96,19 @@ fn gen_fixture_decls(fixtures: &[FixtureArg]) -> Vec<TokenStream2> {
 }
 
 /// Generate code to parse step arguments from regex captures.
-fn gen_step_parses(step_args: &[StepArg]) -> Vec<TokenStream2> {
+fn gen_step_parses(step_args: &[StepArg], captured: &[TokenStream2]) -> Vec<TokenStream2> {
     step_args
         .iter()
-        .enumerate()
-        .map(|(idx, StepArg { pat, ty })| {
-            let index = syn::Index::from(idx);
+        .zip(captured.iter())
+        .map(|(StepArg { pat, ty }, capture)| {
             quote! {
-                let #pat: #ty = captures[#index]
+                let #pat: #ty = (#capture)
                     .parse()
                     .unwrap_or_else(|_| panic!(
-                        "failed to parse argument {} as {}",
-                        #index,
-                        stringify!(#ty)
+                        "failed to parse argument '{}' of type '{}' from '{}'",
+                        stringify!(#pat),
+                        stringify!(#ty),
+                        #capture,
                     ));
             }
         })
@@ -131,7 +131,15 @@ pub(crate) fn generate_wrapper_code(config: &WrapperConfig<'_>) -> TokenStream2 
     let const_ident = format_ident!("__rstest_bdd_fixtures_{}_{}", ident, id);
 
     let declares = gen_fixture_decls(fixtures);
-    let step_arg_parses = gen_step_parses(step_args);
+    let captured: Vec<_> = step_args
+        .iter()
+        .enumerate()
+        .map(|(idx, _)| {
+            let index = syn::Index::from(idx);
+            quote! { &captures[#index] }
+        })
+        .collect();
+    let step_arg_parses = gen_step_parses(step_args, &captured);
     let arg_idents = fixtures
         .iter()
         .map(|f| &f.pat)
