@@ -445,6 +445,29 @@ calling `inventory::iter::<Step>()`. This provides an iterator over all
 registered `Step` instances, regardless of the file, module, or crate in which
 they were defined.
 
+The relationships among the core step types are shown below:
+
+```mermaid
+classDiagram
+    class Step {
+        + keyword: StepKeyword
+        + pattern: &'static StepPattern
+        + run: StepFn
+    }
+    class StepKeyword
+    class StepFn
+    class StepContext
+    Step --> StepPattern : pattern
+    Step --> StepKeyword : keyword
+    Step --> StepFn : run
+    class STEP_MAP {
+        + (StepKeyword, &'static str) => StepFn
+    }
+    StepPattern : +as_str(&self) -> &'static str
+    STEP_MAP --> StepFn : maps to
+    StepContext --> Step : uses
+```
+
 ```mermaid
 classDiagram
     class StepContext {
