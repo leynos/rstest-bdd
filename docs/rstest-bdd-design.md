@@ -424,7 +424,8 @@ keywords are surfaced early.
 
 The [`StepPattern`](../crates/rstest-bdd/src/lib.rs) wrapper encapsulates the
 pattern text so that step lookups cannot accidentally mix arbitrary strings
-with registered patterns.
+with registered patterns. Each pattern is compiled into a regular expression
+when the step registry is initialised, surfacing invalid syntax immediately.
 
 Placing the `Step` struct in the runtime crate avoids a circular dependency
 between the procedural macros and the library. The macros will simply re-export

@@ -1,5 +1,6 @@
 //! Behavioural tests covering the `#[scenario]` macro
 
+use rstest::rstest;
 use rstest_bdd_macros::{given, scenario, then, when};
 use serial_test::serial;
 use std::sync::{LazyLock, Mutex, MutexGuard};
@@ -61,9 +62,13 @@ fn simple_search() {
     clear_events();
 }
 
-#[scenario(path = "tests/features/multi.feature", index = 1)]
+#[rstest]
+#[case::named_args("second_scenario")]
+#[case::bare_path("second_scenario_bare")]
+#[scenario("tests/features/multi.feature", index = 1)]
 #[serial]
-fn second_scenario() {
+fn scenario_with_index(#[case] case_name: &str) {
+    let _ = case_name;
     with_locked_events(|events| {
         assert_eq!(events.as_slice(), ["precondition", "action", "result"]);
     });
@@ -87,7 +92,7 @@ fn unmatched_feature() {
 }
 
 #[scenario(path = "tests/features/outline.feature")]
-#[serial]
+#[serial] // EVENTS is shared, so run tests sequentially
 fn outline(num: String) {
     with_locked_events(|events| {
         assert_eq!(events.as_slice(), ["precondition", "action", "result"]);
