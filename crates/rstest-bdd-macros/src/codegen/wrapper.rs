@@ -67,35 +67,33 @@ pub(crate) struct WrapperConfig<'a> {
 }
 
 /// Generate declarations for fixture values.
+///
+/// Non-reference fixtures must implement [`Clone`] because wrappers clone
+/// them to hand ownership to the step function.
 fn gen_fixture_decls(fixtures: &[FixtureArg], ident: &syn::Ident) -> Vec<TokenStream2> {
     fixtures
         .iter()
         .map(|FixtureArg { pat, name, ty }| {
-            if let syn::Type::Reference(r) = ty {
-                let lookup_ty = &*r.elem;
-                quote! {
-                    let #pat: #ty = ctx
-                        .get::<#lookup_ty>(stringify!(#name))
-                        .ok_or_else(|| format!(
-                            "Missing fixture '{}' of type '{}' for step function '{}'",
-                            stringify!(#name),
-                            stringify!(#lookup_ty),
-                            stringify!(#ident)
-                        ))?;
-                }
+            let lookup_ty = if let syn::Type::Reference(r) = ty {
+                &*r.elem
             } else {
-                let lookup_ty = ty;
-                quote! {
-                    let #pat: #ty = ctx
-                        .get::<#lookup_ty>(stringify!(#name))
-                        .cloned()
-                        .ok_or_else(|| format!(
-                            "Missing fixture '{}' of type '{}' for step function '{}'",
-                            stringify!(#name),
-                            stringify!(#lookup_ty),
-                            stringify!(#ident)
-                        ))?;
-                }
+                ty
+            };
+            let clone_suffix = if matches!(ty, syn::Type::Reference(_)) {
+                quote! {}
+            } else {
+                quote! { .cloned() }
+            };
+            quote! {
+                let #pat: #ty = ctx
+                    .get::<#lookup_ty>(stringify!(#name))
+                    #clone_suffix
+                    .ok_or_else(|| format!(
+                        "Missing fixture '{}' of type '{}' for step function '{}'",
+                        stringify!(#name),
+                        stringify!(#lookup_ty),
+                        stringify!(#ident)
+                    ))?;
             }
         })
         .collect()
@@ -166,24 +164,20 @@ pub(crate) fn generate_wrapper_code(config: &WrapperConfig<'_>) -> TokenStream2 
         fn #wrapper_ident(ctx: &rstest_bdd::StepContext<'_>, text: &str) -> Result<(), String> {
             use std::panic::{catch_unwind, AssertUnwindSafe};
 
-            let result = catch_unwind(AssertUnwindSafe(|| -> Result<(), String> {
+            catch_unwind(AssertUnwindSafe(|| -> Result<(), String> {
                 #(#declares)*
                 let captures = rstest_bdd::extract_placeholders(#pattern.into(), text.into())
                     .expect("pattern mismatch");
                 #(#step_arg_parses)*
                 #ident(#(#arg_idents),*);
                 Ok(())
-            }));
-
-            match result {
-                Ok(inner) => inner,
-                Err(e) => Err(format!(
-                    "Panic in step '{}', function '{}': {:?}",
-                    #pattern,
-                    stringify!(#ident),
-                    e
-                )),
-            }
+            }))
+            .map_err(|e| format!(
+                "Panic in step '{}', function '{}': {:?}",
+                #pattern,
+                stringify!(#ident),
+                e
+            ))?
         }
 
         #[allow(non_upper_case_globals)]
