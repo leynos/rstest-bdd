@@ -68,6 +68,10 @@ impl Parse for ScenarioArgs {
             }
         }
 
+        if path.is_none() && index.is_none() {
+            return Err(input.error("at least one of `path` or `index` argument must be provided"));
+        }
+
         let path = path.ok_or_else(|| input.error("`path` is required"))?;
         Ok(Self { path, index })
     }
