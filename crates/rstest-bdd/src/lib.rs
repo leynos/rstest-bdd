@@ -150,18 +150,30 @@ impl StepPattern {
         self.text
     }
 
-    /// Lazily compile and return the cached regular expression.
+    /// Compile the pattern into a regular expression, caching the result.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the pattern cannot be converted into a valid
+    /// regular expression.
+    pub fn compile(&self) -> Result<(), regex::Error> {
+        let src = build_regex_from_pattern(self.text);
+        let regex = Regex::new(&src)?;
+        // Ignore result if already set; duplicate registration is benign.
+        let _ = self.regex.set(regex);
+        Ok(())
+    }
+
+    /// Return the cached regular expression.
     ///
     /// # Panics
     ///
-    /// Panics if the pattern cannot be converted into a valid regular
-    /// expression.
+    /// Panics if the pattern has not been compiled via [`compile`].
     #[must_use]
     pub fn regex(&self) -> &Regex {
-        self.regex.get_or_init(|| {
-            let src = build_regex_from_pattern(self.text);
-            Regex::new(&src).unwrap_or_else(|e| panic!("invalid step pattern: {e}"))
-        })
+        self.regex
+            .get()
+            .unwrap_or_else(|| panic!("step pattern regex must be precompiled"))
     }
 }
 
@@ -331,7 +343,14 @@ static STEP_MAP: LazyLock<HashMap<StepKey, StepFn>> = LazyLock::new(|| {
     let steps: Vec<_> = iter::<Step>.into_iter().collect();
     let mut map = HashMap::with_capacity(steps.len());
     for step in steps {
-        let _ = step.pattern.regex();
+        step.pattern.compile().unwrap_or_else(|e| {
+            panic!(
+                "invalid step pattern '{}' at {}:{}: {e}",
+                step.pattern.as_str(),
+                step.file,
+                step.line
+            )
+        });
         map.insert((step.keyword, step.pattern.as_str()), step.run);
     }
     map
