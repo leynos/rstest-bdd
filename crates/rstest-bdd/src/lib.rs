@@ -233,7 +233,7 @@ fn extract_captured_values(re: &Regex, text: &str) -> Option<Vec<String>> {
 }
 
 /// Type alias for the stored step function pointer.
-pub type StepFn = for<'a> fn(&StepContext<'a>, &str);
+pub type StepFn = for<'a> fn(&StepContext<'a>, &str) -> Result<(), String>;
 
 /// Represents a single step definition registered with the framework.
 ///
@@ -368,9 +368,14 @@ mod tests {
     #[test]
     fn collects_registered_step() {
         fn sample() {}
-        fn wrapper(ctx: &StepContext<'_>, _text: &str) {
+        #[expect(
+            clippy::unnecessary_wraps,
+            reason = "wrapper must match StepFn signature"
+        )]
+        fn wrapper(ctx: &StepContext<'_>, _text: &str) -> Result<(), String> {
             let _ = ctx;
             sample();
+            Ok(())
         }
 
         step!(StepKeyword::Given, "a pattern", wrapper, &[]);

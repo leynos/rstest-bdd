@@ -67,29 +67,35 @@ pub(crate) struct WrapperConfig<'a> {
 }
 
 /// Generate declarations for fixture values.
-fn gen_fixture_decls(fixtures: &[FixtureArg]) -> Vec<TokenStream2> {
+fn gen_fixture_decls(fixtures: &[FixtureArg], ident: &syn::Ident) -> Vec<TokenStream2> {
     fixtures
         .iter()
         .map(|FixtureArg { pat, name, ty }| {
-            let lookup_ty = if let syn::Type::Reference(r) = ty {
-                &*r.elem
+            if let syn::Type::Reference(r) = ty {
+                let lookup_ty = &*r.elem;
+                quote! {
+                    let #pat: #ty = ctx
+                        .get::<#lookup_ty>(stringify!(#name))
+                        .ok_or_else(|| format!(
+                            "Missing fixture '{}' of type '{}' for step function '{}'",
+                            stringify!(#name),
+                            stringify!(#lookup_ty),
+                            stringify!(#ident)
+                        ))?;
+                }
             } else {
-                ty
-            };
-            let clone_suffix = if matches!(ty, syn::Type::Reference(_)) {
-                quote! {}
-            } else {
-                quote! { .clone() }
-            };
-            quote! {
-                let #pat: #ty = ctx
-                    .get::<#lookup_ty>(stringify!(#name))
-                    .unwrap_or_else(|| panic!(
-                        "missing fixture '{}' of type '{}'",
-                        stringify!(#name),
-                        stringify!(#lookup_ty),
-                    ))
-                    #clone_suffix;
+                let lookup_ty = ty;
+                quote! {
+                    let #pat: #ty = ctx
+                        .get::<#lookup_ty>(stringify!(#name))
+                        .cloned()
+                        .ok_or_else(|| format!(
+                            "Missing fixture '{}' of type '{}' for step function '{}'",
+                            stringify!(#name),
+                            stringify!(#lookup_ty),
+                            stringify!(#ident)
+                        ))?;
+                }
             }
         })
         .collect()
@@ -130,7 +136,7 @@ pub(crate) fn generate_wrapper_code(config: &WrapperConfig<'_>) -> TokenStream2 
     let wrapper_ident = format_ident!("__rstest_bdd_wrapper_{}_{}", ident, id);
     let const_ident = format_ident!("__rstest_bdd_fixtures_{}_{}", ident, id);
 
-    let declares = gen_fixture_decls(fixtures);
+    let declares = gen_fixture_decls(fixtures, ident);
     let captured: Vec<_> = step_args
         .iter()
         .enumerate()
@@ -157,24 +163,26 @@ pub(crate) fn generate_wrapper_code(config: &WrapperConfig<'_>) -> TokenStream2 
     let keyword_token = keyword_to_token(*keyword);
 
     quote! {
-        fn #wrapper_ident(ctx: &rstest_bdd::StepContext<'_>, text: &str) {
+        fn #wrapper_ident(ctx: &rstest_bdd::StepContext<'_>, text: &str) -> Result<(), String> {
             use std::panic::{catch_unwind, AssertUnwindSafe};
 
-            let result = catch_unwind(AssertUnwindSafe(|| {
+            let result = catch_unwind(AssertUnwindSafe(|| -> Result<(), String> {
                 #(#declares)*
                 let captures = rstest_bdd::extract_placeholders(#pattern.into(), text.into())
                     .expect("pattern mismatch");
                 #(#step_arg_parses)*
                 #ident(#(#arg_idents),*);
+                Ok(())
             }));
 
-            if let Err(e) = result {
-                panic!(
+            match result {
+                Ok(inner) => inner,
+                Err(e) => Err(format!(
                     "Panic in step '{}', function '{}': {:?}",
                     #pattern,
                     stringify!(#ident),
                     e
-                );
+                )),
             }
         }
 

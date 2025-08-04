@@ -3,10 +3,15 @@
 use rstest_bdd::{Step, iter, step};
 
 fn sample() {}
-fn wrapper(ctx: &rstest_bdd::StepContext<'_>, _text: &str) {
+#[expect(
+    clippy::unnecessary_wraps,
+    reason = "wrapper must match StepFn signature"
+)]
+fn wrapper(ctx: &rstest_bdd::StepContext<'_>, _text: &str) -> Result<(), String> {
     // Adapter for zero-argument step functions
     let _ = ctx;
     sample();
+    Ok(())
 }
 
 step!(rstest_bdd::StepKeyword::When, "behavioural", wrapper, &[]);
