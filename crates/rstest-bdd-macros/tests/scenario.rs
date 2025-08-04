@@ -70,6 +70,15 @@ fn second_scenario() {
     clear_events();
 }
 
+#[scenario("tests/features/multi.feature", index = 1)]
+#[serial]
+fn second_scenario_bare() {
+    with_locked_events(|events| {
+        assert_eq!(events.as_slice(), ["precondition", "action", "result"]);
+    });
+    clear_events();
+}
+
 #[scenario(path = "tests/features/web_search.feature", index = 0)]
 #[serial]
 fn explicit_syntax() {
