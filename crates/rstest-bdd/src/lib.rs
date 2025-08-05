@@ -276,6 +276,17 @@ fn handle_escape_sequence(bytes: &[u8], i: usize, regex_source: &mut String) -> 
     }
 }
 
+/// Handle an escape inside a brace-delimited placeholder.
+///
+/// Returns the number of bytes to advance the inner index.
+fn handle_escape_in_brace(bytes: &[u8], i: usize) -> usize {
+    if let Some(&next) = bytes.get(i + 1) {
+        if next == b'{' || next == b'}' { 2 } else { 1 }
+    } else {
+        1
+    }
+}
+
 /// Handle a brace placeholder, extracting any type hint.
 ///
 /// Returns the number of bytes to advance the iterator.
@@ -290,17 +301,7 @@ fn handle_brace_placeholder(
     let mut j = start;
     while let Some(&b) = bytes.get(j) {
         match b {
-            b'\\' => {
-                if let Some(&next) = bytes.get(j + 1) {
-                    if next == b'{' || next == b'}' {
-                        j += 2;
-                    } else {
-                        j += 1;
-                    }
-                } else {
-                    j += 1;
-                }
-            }
+            b'\\' => j += handle_escape_in_brace(bytes, j),
             b'{' => {
                 depth += 1;
                 j += 1;
