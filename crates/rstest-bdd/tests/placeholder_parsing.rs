@@ -6,6 +6,7 @@ use rstest_bdd::{StepPattern, StepText, extract_placeholders};
 fn type_hint_uses_specialised_fragment() {
     // u32: positive integer
     let pat = StepPattern::from("value {n:u32}");
+    pat.compile().expect("Failed to compile pattern");
     let text = StepText::from("value 42");
     let Some(caps) = extract_placeholders(&pat, text) else {
         panic!("match expected for u32");
@@ -18,6 +19,7 @@ fn type_hint_uses_specialised_fragment() {
 
     // i32: negative integer
     let pat = StepPattern::from("value {n:i32}");
+    pat.compile().expect("Failed to compile pattern");
     let text = StepText::from("value -42");
     let Some(caps) = extract_placeholders(&pat, text) else {
         panic!("match expected for negative i32");
@@ -30,6 +32,7 @@ fn type_hint_uses_specialised_fragment() {
 
     // isize: negative integer
     let pat = StepPattern::from("value {n:isize}");
+    pat.compile().expect("Failed to compile pattern");
     let text = StepText::from("value -7");
     let Some(caps) = extract_placeholders(&pat, text) else {
         panic!("match expected for negative isize");
@@ -38,6 +41,7 @@ fn type_hint_uses_specialised_fragment() {
 
     // f64: floating point
     let pat = StepPattern::from("value {n:f64}");
+    pat.compile().expect("Failed to compile pattern");
     let text = StepText::from("value 2.71828");
     let Some(caps) = extract_placeholders(&pat, text) else {
         panic!("match expected for f64");
@@ -56,6 +60,7 @@ fn type_hint_uses_specialised_fragment() {
 #[test]
 fn handles_escaped_braces() {
     let pat = StepPattern::from(r"literal \{ brace {v} \}");
+    pat.compile().expect("Failed to compile pattern");
     let text = StepText::from("literal { brace data }");
     let Some(caps) = extract_placeholders(&pat, text) else {
         panic!("match expected");
@@ -66,6 +71,7 @@ fn handles_escaped_braces() {
 #[test]
 fn handles_nested_braces() {
     let pat = StepPattern::from("before {outer {inner}} after");
+    pat.compile().expect("Failed to compile pattern");
     let text = StepText::from("before value after");
     let Some(caps) = extract_placeholders(&pat, text) else {
         panic!("match expected");
@@ -76,6 +82,7 @@ fn handles_nested_braces() {
 #[test]
 fn unbalanced_braces_are_literals() {
     let pat = StepPattern::from("before {outer {inner} after");
+    pat.compile().expect("Failed to compile pattern");
     assert!(
         extract_placeholders(&pat, StepText::from("before value after")).is_none(),
         "text without literal brace should not match",

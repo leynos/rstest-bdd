@@ -108,12 +108,15 @@ fn gen_step_parses(step_args: &[StepArg], captured: &[TokenStream2]) -> Vec<Toke
             quote! {
                 let #pat: #ty = (#capture)
                     .parse()
-                    .unwrap_or_else(|_| panic!(
-                        "failed to parse argument '{}' of type '{}' from '{}'",
-                        stringify!(#pat),
-                        stringify!(#ty),
-                        #capture,
-                    ));
+                    .unwrap_or_else(|_| {
+                        panic!(
+                            "failed to parse argument '{}' of type '{}' from '{}' with captured value: '{:?}'",
+                            stringify!(#pat),
+                            stringify!(#ty),
+                            #capture,
+                            #capture
+                        )
+                    });
             }
         })
         .collect()
@@ -141,8 +144,8 @@ pub(crate) fn generate_wrapper_code(config: &WrapperConfig<'_>) -> TokenStream2 
         .iter()
         .enumerate()
         .map(|(idx, _)| {
-            let index = syn::Index::from(idx);
-            quote! { &captures[#index] }
+            let index = syn::Index::from(idx + 1);  // +1 to skip the full match at index 0
+            quote! { captures.get(#index).map(|m| m.as_str()).unwrap_or_default() }
         })
         .collect();
     let step_arg_parses = gen_step_parses(step_args, &captured);
