@@ -25,7 +25,7 @@ owner, the developer, and the tester.
 
 | Role ("amigo")                     | Primary concerns                                                                                                                  | Features provided by `rstest‑bdd`                                                                                                                                                                                                                                                                                                                                                                         |
 | ---------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Business analyst/product owner** | Writing and reviewing business-readable specifications; ensuring that acceptance criteria are expressed clearly.                  | Gherkin `.feature` files are plain text and start with a `Feature` declaration; each `Scenario` describes a single behaviour. Steps are written using keywords `Given`, `When`, and `Then` ([syntax](gherkin-syntax.md#L72-L91)), producing living documentation that can be read by non-technical stakeholders.      |
+| **Business analyst/product owner** | Writing and reviewing business-readable specifications; ensuring that acceptance criteria are expressed clearly.                  | Gherkin `.feature` files are plain text and start with a `Feature` declaration; each `Scenario` describes a single behaviour. Steps are written using keywords `Given`, `When`, and `Then` ([syntax](gherkin-syntax.md#L72-L91)), producing living documentation that can be read by non-technical stakeholders.                                                                                          |
 | **Developer**                      | Implementing step definitions in Rust and wiring them to the business specifications; using existing fixtures for setup/teardown. | Attribute macros `#[given]`, `#[when]` and `#[then]` register step functions and their pattern strings in a global step registry. A `#[scenario]` macro reads a feature file at compile time and generates a test that drives the registered steps. Fixture values from `rstest` can be injected into step functions via `#[from(fixture_name)]`.                                                         |
 | **Tester/QA**                      | Executing behaviour tests, ensuring correct sequencing of steps and verifying outcomes observable by the user.                    | Scenarios are executed via the standard `cargo test` runner; test functions annotated with `#[scenario]` run each step in order and panic if a step is missing. Assertions belong in `Then` steps; guidelines discourage inspecting internal state and encourage verifying observable outcomes. Testers can use `cargo test` filters and parallelism because the generated tests are ordinary Rust tests. |
 
@@ -69,11 +69,11 @@ code.
 Developers implement the behaviour described in a feature by writing step
 definition functions in Rust. Each step definition is an ordinary function
 annotated with one of the attribute macros `#[given]`, `#[when]` or `#[then]`.
-The annotation takes a single string literal; this string must match the text
-of the corresponding step in the feature file exactly. Unlike the aspirational
-design, the current implementation does not parse placeholders or capture
-groups from the pattern. Therefore, dynamic parameters cannot be extracted from
-step text; each unique step text requires a definition.
+The annotation takes a single string literal that must match the text of the
+corresponding step in the feature file. Placeholders in the form `{name}` or
+`{name:Type}` are supported. The framework extracts matching substrings and
+converts them using `FromStr`; type hints constrain the match using specialised
+regular expressions.
 
 The procedural macro implementation expands the annotated function into two
 parts: the original function and a wrapper function that registers the step in
@@ -196,9 +196,10 @@ Best practices for writing effective scenarios include:
   and contribute to the feature files.
 
 - **Use placeholders for dynamic values.** Pattern strings may include
-  `format!`-style placeholders such as `{count:u32}`. The framework extracts
-  the text at runtime and converts it with `FromStr`. When no placeholder is
-  present, the text must match exactly.
+  `format!`-style placeholders such as `{count:u32}`. Type hints narrow the
+  match, so `u32` captures only digits. Escape literal braces with `\\{` and
+  `\\}`. Nested braces inside placeholders are permitted. When no placeholder
+  is present, the text must match exactly.
 
 ## Limitations and roadmap
 
@@ -223,8 +224,8 @@ document and README remain unimplemented in the current codebase:
   strictly on the primary keyword. Using `*` in feature files will not match
   any registered step.
 
-- **Limited placeholder parser.** Nested or escaped braces are not supported
-  in step patterns. Placeholders must be well-formed and non-overlapping.
+- **Restricted placeholder types.** Only placeholders that parse via
+  `FromStr` are supported, and they must be well-formed and non-overlapping.
 
 Consult the project’s roadmap or repository for updates. When new features are
 added, patterns and examples may change. Meanwhile, adopting `rstest‑bdd` in
