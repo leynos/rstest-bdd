@@ -68,9 +68,12 @@ fn simple_search() {
 #[scenario("tests/features/multi.feature", index = 1)]
 #[serial]
 fn scenario_with_index(#[case] case_name: &str) {
-    let _ = case_name;
     with_locked_events(|events| {
-        assert_eq!(events.as_slice(), ["precondition", "action", "result"]);
+        assert_eq!(
+            events.as_slice(),
+            ["precondition", "action", "result"],
+            "Test case: {case_name}"
+        );
     });
     clear_events();
 }
