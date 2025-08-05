@@ -108,12 +108,15 @@ fn gen_step_parses(step_args: &[StepArg], captured: &[TokenStream2]) -> Vec<Toke
             quote! {
                 let #pat: #ty = (#capture)
                     .parse()
-                    .unwrap_or_else(|_| panic!(
-                        "failed to parse argument '{}' of type '{}' from '{}'",
-                        stringify!(#pat),
-                        stringify!(#ty),
-                        #capture,
-                    ));
+                    .unwrap_or_else(|_| {
+                        panic!(
+                            "failed to parse argument '{}' of type '{}' from '{}' with captured value: '{:?}'",
+                            stringify!(#pat),
+                            stringify!(#ty),
+                            #capture,
+                            #capture
+                        )
+                    });
             }
         })
         .collect()
@@ -141,8 +144,8 @@ pub(crate) fn generate_wrapper_code(config: &WrapperConfig<'_>) -> TokenStream2 
         .iter()
         .enumerate()
         .map(|(idx, _)| {
-            let index = syn::Index::from(idx);
-            quote! { &captures[#index] }
+            let index = syn::Index::from(idx + 1); // +1 to skip the full match at index 0
+            quote! { captures.get(#index).map(|m| m.as_str()).unwrap_or_default() }
         })
         .collect();
     let step_arg_parses = gen_step_parses(step_args, &captured);
@@ -168,11 +171,15 @@ pub(crate) fn generate_wrapper_code(config: &WrapperConfig<'_>) -> TokenStream2 
         fn #wrapper_ident(ctx: &rstest_bdd::StepContext<'_>, text: &str) -> Result<(), String> {
             use std::panic::{catch_unwind, AssertUnwindSafe};
 
-            catch_unwind(AssertUnwindSafe(|| -> Result<(), String> {
-                #(#declares)*
-                let captures = rstest_bdd::extract_placeholders(&#pattern_ident, text.into())
-                    .expect("pattern mismatch");
-                #(#step_arg_parses)*
+            let captures = #pattern_ident
+                .regex()
+                .captures(text)
+                .ok_or_else(|| format!("Step text '{}' does not match pattern '{}'", text, #pattern))?;
+
+            #(#declares)*
+            #(#step_arg_parses)*
+
+            catch_unwind(AssertUnwindSafe(|| {
                 #ident(#(#arg_idents),*);
                 Ok(())
             }))

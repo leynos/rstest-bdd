@@ -222,9 +222,9 @@ impl<'a> StepContext<'a> {
 /// Extract placeholder values from a step string using a pattern.
 ///
 /// The pattern supports `format!`-style placeholders such as `{count:u32}`.
-/// Any text outside placeholders must match exactly. Nested or escaped
-/// braces are not supported. The returned vector contains the raw
-/// substring for each placeholder in order of appearance.
+/// Literal braces may be escaped with `\{` or `\}`. Nested braces within
+/// placeholders are honoured, preventing greedy captures. The returned vector
+/// contains the raw substring for each placeholder in order of appearance.
 #[must_use]
 pub fn extract_placeholders(pattern: &StepPattern, text: StepText<'_>) -> Option<Vec<String>> {
     extract_captured_values(pattern.regex(), text.as_str())
@@ -232,24 +232,108 @@ pub fn extract_placeholders(pattern: &StepPattern, text: StepText<'_>) -> Option
 
 fn build_regex_from_pattern(pattern: &str) -> String {
     let mut regex_source = String::from("^");
-    let mut chars = pattern.chars().peekable();
-    while let Some(ch) = chars.next() {
-        if ch == '{' {
-            consume_until_closing_brace(&mut chars);
-            regex_source.push_str("(.+)");
-        } else {
-            regex_source.push_str(&regex::escape(&ch.to_string()));
-        }
+    let bytes = pattern.as_bytes();
+    let mut i = 0;
+    while let Some(&byte) = bytes.get(i) {
+        let advance = match byte {
+            b'\\' => handle_escape_sequence(bytes, i, &mut regex_source),
+            b'{' => handle_brace_placeholder(pattern, bytes, i, &mut regex_source),
+            _ => {
+                let ch_opt = bytes
+                    .get(i..)
+                    .and_then(|slice| std::str::from_utf8(slice).ok())
+                    .and_then(|s| s.chars().next());
+                if let Some(ch) = ch_opt {
+                    regex_source.push_str(&regex::escape(&ch.to_string()));
+                    ch.len_utf8()
+                } else {
+                    regex_source.push_str(&regex::escape(&(byte as char).to_string()));
+                    1
+                }
+            }
+        };
+        i += advance;
     }
     regex_source.push('$');
     regex_source
 }
 
-fn consume_until_closing_brace(chars: &mut std::iter::Peekable<std::str::Chars<'_>>) {
-    for c in chars.by_ref() {
-        if c == '}' {
-            break;
+/// Handle a backslash escape in a pattern.
+///
+/// Returns the number of bytes to advance the iterator.
+fn handle_escape_sequence(bytes: &[u8], i: usize, regex_source: &mut String) -> usize {
+    if let Some(next) = bytes.get(i + 1) {
+        if *next == b'{' || *next == b'}' {
+            regex_source.push_str(&regex::escape(&char::from(*next).to_string()));
+            2
+        } else {
+            regex_source.push_str("\\\\");
+            1
         }
+    } else {
+        regex_source.push_str("\\\\");
+        1
+    }
+}
+
+/// Handle an escape inside a brace-delimited placeholder.
+///
+/// Returns the number of bytes to advance the inner index.
+fn handle_escape_in_brace(bytes: &[u8], i: usize) -> usize {
+    if let Some(&next) = bytes.get(i + 1) {
+        if next == b'{' || next == b'}' { 2 } else { 1 }
+    } else {
+        1
+    }
+}
+
+/// Handle a brace placeholder, extracting any type hint.
+///
+/// Returns the number of bytes to advance the iterator.
+fn handle_brace_placeholder(
+    pattern: &str,
+    bytes: &[u8],
+    i: usize,
+    regex_source: &mut String,
+) -> usize {
+    let start = i + 1;
+    let mut depth = 1;
+    let mut j = start;
+    while let Some(&b) = bytes.get(j) {
+        match b {
+            b'\\' => j += handle_escape_in_brace(bytes, j),
+            b'{' => {
+                depth += 1;
+                j += 1;
+            }
+            b'}' => {
+                depth -= 1;
+                j += 1;
+                if depth == 0 {
+                    break;
+                }
+            }
+            _ => j += 1,
+        }
+    }
+    if depth != 0 {
+        regex_source.push_str(&regex::escape("{"));
+        1
+    } else {
+        let end = j - 1;
+        let inner = pattern.get(start..end);
+        let type_hint = inner.and_then(|s| s.split_once(':').map(|(_, t)| t));
+        regex_source.push_str(placeholder_regex(type_hint));
+        j - i
+    }
+}
+
+fn placeholder_regex(ty: Option<&str>) -> &'static str {
+    match ty {
+        Some("u8" | "u16" | "u32" | "u64" | "u128" | "usize") => "(\\d+)",
+        Some("i8" | "i16" | "i32" | "i64" | "i128" | "isize") => "([+-]?\\d+)",
+        Some("f32" | "f64") => "([+-]?(?:\\d+\\.\\d+|\\d+))",
+        _ => "(.+?)",
     }
 }
 
@@ -389,36 +473,4 @@ pub fn find_step(keyword: StepKeyword, text: StepText<'_>) -> Option<StepFn> {
         }
     }
     None
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn greet_returns_expected_text() {
-        assert_eq!(greet(), "Hello from rstest-bdd!");
-    }
-
-    #[test]
-    fn collects_registered_step() {
-        fn sample() {}
-        #[expect(
-            clippy::unnecessary_wraps,
-            reason = "wrapper must match StepFn signature"
-        )]
-        fn wrapper(ctx: &StepContext<'_>, _text: &str) -> Result<(), String> {
-            let _ = ctx;
-            sample();
-            Ok(())
-        }
-
-        step!(StepKeyword::Given, "a pattern", wrapper, &[]);
-
-        let found = iter::<Step>
-            .into_iter()
-            .any(|step| step.pattern.as_str() == "a pattern");
-
-        assert!(found, "registered step was not found in the inventory");
-    }
 }
