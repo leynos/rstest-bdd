@@ -474,22 +474,4 @@ pub fn find_step(keyword: StepKeyword, text: StepText<'_>) -> Option<StepFn> {
     }
     None
 }
-pub use regex::{Match, Regex};
 
-/// Returns a greeting for the library.
-///
-/// # Examples
-///
-/// ```
-/// use rstest_bdd::greet;
-///
-/// assert_eq!(greet(), "Hello from rstest-bdd!");
-/// ```
-#[must_use]
-pub fn greet() -> &'static str {
-    "Hello from rstest-bdd!"
-}
-use inventory::{iter, submit};
-use std::collections::HashMap;
-use std::str::FromStr;
-use std::sync::{LazyLock, OnceLock};

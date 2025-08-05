@@ -168,7 +168,15 @@ pub(crate) fn generate_wrapper_code(config: &WrapperConfig<'_>) -> TokenStream2 
         fn #wrapper_ident(ctx: &rstest_bdd::StepContext<'_>, text: &str) -> Result<(), String> {
             use std::panic::{catch_unwind, AssertUnwindSafe};
 
-                #(#step_arg_parses)*
+            let captures = #pattern_ident
+                .regex()
+                .captures(text)
+                .ok_or_else(|| format!("Step text '{}' does not match pattern '{}'", text, #pattern))?;
+
+            #(#declares)*
+            #(#step_arg_parses)*
+
+            catch_unwind(AssertUnwindSafe(|| {
                 #ident(#(#arg_idents),*);
                 Ok(())
             }))
