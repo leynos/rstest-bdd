@@ -144,7 +144,7 @@ pub(crate) fn generate_wrapper_code(config: &WrapperConfig<'_>) -> TokenStream2 
         .iter()
         .enumerate()
         .map(|(idx, _)| {
-            let index = syn::Index::from(idx + 1);  // +1 to skip the full match at index 0
+            let index = syn::Index::from(idx + 1); // +1 to skip the full match at index 0
             quote! { captures.get(#index).map(|m| m.as_str()).unwrap_or_default() }
         })
         .collect();

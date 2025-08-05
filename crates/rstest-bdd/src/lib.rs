@@ -474,4 +474,3 @@ pub fn find_step(keyword: StepKeyword, text: StepText<'_>) -> Option<StepFn> {
     }
     None
 }
-
