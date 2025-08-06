@@ -8,7 +8,7 @@ use crate::utils::errors::error_to_tokens;
 use crate::validation::examples::validate_examples_in_feature_text;
 
 /// Name, steps, and optional examples extracted from a Gherkin scenario.
-pub struct ScenarioData {
+pub(crate) struct ScenarioData {
     pub name: String,
     pub steps: Vec<(rstest_bdd::StepKeyword, String)>,
     pub(crate) examples: Option<ExampleTable>,
@@ -25,7 +25,7 @@ fn map_step_to_keyword_and_value(step: &Step) -> (rstest_bdd::StepKeyword, Strin
 }
 
 /// Parse and load a feature file from the given path.
-pub fn parse_and_load_feature(path: &Path) -> Result<Feature, proc_macro::TokenStream> {
+pub(crate) fn parse_and_load_feature(path: &Path) -> Result<Feature, proc_macro::TokenStream> {
     let Ok(manifest_dir) = std::env::var("CARGO_MANIFEST_DIR") else {
         let err = syn::Error::new(
             proc_macro2::Span::call_site(),
@@ -46,7 +46,7 @@ pub fn parse_and_load_feature(path: &Path) -> Result<Feature, proc_macro::TokenS
 }
 
 /// Extract the scenario data for the given feature and optional index.
-pub fn extract_scenario_steps(
+pub(crate) fn extract_scenario_steps(
     feature: &Feature,
     index: Option<usize>,
 ) -> Result<ScenarioData, proc_macro::TokenStream> {
