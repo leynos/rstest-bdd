@@ -105,7 +105,7 @@ improves the developer experience.
   - [x] Implement support for `Background` steps, ensuring they are executed
     before each `Scenario`.
 
-  - [ ] Implement support for `Data Tables`, making the data available to the
+  - [x] Implement support for `Data Tables`, making the data available to the
     step function as a `Vec<Vec<String>>`.
 
   - [ ] Implement support for `DocStrings`, making the content available as a

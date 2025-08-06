@@ -40,12 +40,30 @@ pub(crate) fn generate_scenario_code(
     block: &syn::Block,
     feature_path_str: String,
     scenario_name: String,
-    steps: Vec<(rstest_bdd::StepKeyword, String)>,
+    steps: Vec<crate::parsing::feature::ParsedStep>,
     examples: Option<crate::parsing::examples::ExampleTable>,
     ctx_inserts: impl Iterator<Item = TokenStream2>,
 ) -> TokenStream {
-    let keywords: Vec<_> = steps.iter().map(|(k, _)| keyword_to_token(*k)).collect();
-    let values = steps.iter().map(|(_, v)| v);
+    let keywords: Vec<_> = steps.iter().map(|s| keyword_to_token(s.keyword)).collect();
+    let values = steps.iter().map(|s| &s.text);
+    let tables: Vec<_> = steps
+        .iter()
+        .map(|s| {
+            s.table.as_ref().map_or_else(
+                || quote! { None },
+                |rows| {
+                    let row_tokens = rows.iter().map(|row| {
+                        let cells = row.iter().map(|cell| {
+                            let lit = syn::LitStr::new(cell, proc_macro2::Span::call_site());
+                            quote! { #lit }
+                        });
+                        quote! { &[#(#cells),*][..] }
+                    });
+                    quote! { Some(&[#(#row_tokens),*][..]) }
+                },
+            )
+        })
+        .collect();
 
     let case_attrs = examples.map_or_else(Vec::new, |ex| generate_case_attrs(&ex));
 
@@ -54,12 +72,12 @@ pub(crate) fn generate_scenario_code(
         #(#case_attrs)*
         #(#attrs)*
         #vis #sig {
-            let steps = [#((#keywords, #values)),*];
+            let steps = [#((#keywords, #values, #tables)),*];
             let mut ctx = rstest_bdd::StepContext::default();
             #(#ctx_inserts)*
-            for (index, (keyword, text)) in steps.iter().enumerate() {
+            for (index, (keyword, text, table)) in steps.iter().enumerate() {
                 if let Some(f) = rstest_bdd::find_step(*keyword, (*text).into()) {
-                    if let Err(err) = f(&ctx, text) {
+                    if let Err(err) = f(&ctx, text, *table) {
                         panic!(
                             "Step failed at index {}: {} {} - {}\n(feature: {}, scenario: {})",
                             index,

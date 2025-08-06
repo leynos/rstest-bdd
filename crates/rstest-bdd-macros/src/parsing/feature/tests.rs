@@ -20,6 +20,30 @@ fn mk_step(ty: StepType, value: &str) -> Step {
     }
 }
 
+fn mk_step_with_table(ty: StepType, value: &str, rows: Vec<Vec<&str>>) -> Step {
+    Step {
+        keyword: match ty {
+            StepType::Given => "Given",
+            StepType::When => "When",
+            StepType::Then => "Then",
+        }
+        .to_string(),
+        ty,
+        value: value.to_string(),
+        docstring: None,
+        table: Some(gherkin::Table {
+            rows: rows
+                .into_iter()
+                .map(|r| r.into_iter().map(str::to_string).collect())
+                .collect(),
+            span: Span { start: 0, end: 0 },
+            position: LineCol { line: 0, col: 0 },
+        }),
+        span: Span { start: 0, end: 0 },
+        position: LineCol { line: 0, col: 0 },
+    }
+}
+
 #[test]
 fn prepends_background_steps() {
     let feature = gherkin::Feature {
@@ -59,12 +83,64 @@ fn prepends_background_steps() {
     assert_eq!(
         steps,
         vec![
-            (
-                rstest_bdd::StepKeyword::Given,
-                "a background step".to_string()
-            ),
-            (rstest_bdd::StepKeyword::When, "an action".to_string()),
-            (rstest_bdd::StepKeyword::Then, "a result".to_string()),
+            ParsedStep {
+                keyword: rstest_bdd::StepKeyword::Given,
+                text: "a background step".to_string(),
+                table: None,
+            },
+            ParsedStep {
+                keyword: rstest_bdd::StepKeyword::When,
+                text: "an action".to_string(),
+                table: None,
+            },
+            ParsedStep {
+                keyword: rstest_bdd::StepKeyword::Then,
+                text: "a result".to_string(),
+                table: None,
+            },
         ]
+    );
+}
+
+#[test]
+fn extracts_data_table() {
+    let feature = gherkin::Feature {
+        keyword: "Feature".into(),
+        name: "example".into(),
+        description: None,
+        background: None,
+        scenarios: vec![Scenario {
+            keyword: "Scenario".into(),
+            name: "table".into(),
+            description: None,
+            steps: vec![mk_step_with_table(
+                StepType::Given,
+                "numbers",
+                vec![vec!["1", "2"], vec!["3", "4"]],
+            )],
+            examples: Vec::new(),
+            tags: Vec::new(),
+            span: Span { start: 0, end: 0 },
+            position: LineCol { line: 0, col: 0 },
+        }],
+        rules: Vec::new(),
+        tags: Vec::new(),
+        span: Span { start: 0, end: 0 },
+        position: LineCol { line: 0, col: 0 },
+        path: None,
+    };
+
+    let ScenarioData { steps, .. } = extract_scenario_steps(&feature, Some(0))
+        .unwrap_or_else(|_| panic!("scenario extraction failed"));
+    assert_eq!(
+        steps,
+        vec![ParsedStep {
+            keyword: rstest_bdd::StepKeyword::Given,
+            text: "numbers".to_string(),
+            table: Some(vec![
+                vec!["1".to_string(), "2".to_string()],
+                vec!["3".to_string(), "4".to_string()],
+            ]),
+        }]
     );
 }

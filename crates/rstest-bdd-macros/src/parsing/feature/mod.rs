@@ -7,21 +7,34 @@ use crate::parsing::examples::ExampleTable;
 use crate::utils::errors::error_to_tokens;
 use crate::validation::examples::validate_examples_in_feature_text;
 
+/// Step extracted from a scenario with an optional data table.
+#[derive(Debug, PartialEq)]
+pub(crate) struct ParsedStep {
+    pub keyword: rstest_bdd::StepKeyword,
+    pub text: String,
+    pub table: Option<Vec<Vec<String>>>,
+}
+
 /// Name, steps, and optional examples extracted from a Gherkin scenario.
 pub(crate) struct ScenarioData {
     pub name: String,
-    pub steps: Vec<(rstest_bdd::StepKeyword, String)>,
+    pub steps: Vec<ParsedStep>,
     pub(crate) examples: Option<ExampleTable>,
 }
 
-/// Convert a Gherkin step to a keyword and value tuple.
-fn map_step_to_keyword_and_value(step: &Step) -> (rstest_bdd::StepKeyword, String) {
-    let kw = match step.keyword.as_str() {
+/// Convert a Gherkin step to a `ParsedStep`.
+fn map_step(step: &Step) -> ParsedStep {
+    let keyword = match step.keyword.as_str() {
         "And" => rstest_bdd::StepKeyword::And,
         "But" => rstest_bdd::StepKeyword::But,
         _ => step.ty.into(),
     };
-    (kw, step.value.clone())
+    let table = step.table.as_ref().map(|t| t.rows.clone());
+    ParsedStep {
+        keyword,
+        text: step.value.clone(),
+        table,
+    }
 }
 
 /// Parse and load a feature file from the given path.
@@ -62,9 +75,9 @@ pub(crate) fn extract_scenario_steps(
 
     let mut steps = Vec::new();
     if let Some(bg) = &feature.background {
-        steps.extend(bg.steps.iter().map(map_step_to_keyword_and_value));
+        steps.extend(bg.steps.iter().map(map_step));
     }
-    steps.extend(scenario.steps.iter().map(map_step_to_keyword_and_value));
+    steps.extend(scenario.steps.iter().map(map_step));
 
     let examples = crate::parsing::examples::extract_examples(scenario)?;
 

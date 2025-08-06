@@ -18,10 +18,18 @@ pub(crate) struct StepArg {
     pub(crate) ty: syn::Type,
 }
 
+/// Data table argument extracted from a step function.
+pub(crate) struct DataTableArg {
+    pub(crate) pat: syn::Ident,
+}
+
 /// Extract fixture and step arguments from a function signature.
-pub(crate) fn extract_args(func: &mut syn::ItemFn) -> syn::Result<(Vec<FixtureArg>, Vec<StepArg>)> {
+pub(crate) fn extract_args(
+    func: &mut syn::ItemFn,
+) -> syn::Result<(Vec<FixtureArg>, Vec<StepArg>, Option<DataTableArg>)> {
     let mut fixtures = Vec::new();
     let mut step_args = Vec::new();
+    let mut datatable = None;
 
     for input in &mut func.sig.inputs {
         let syn::FnArg::Typed(arg) = input else {
@@ -49,12 +57,45 @@ pub(crate) fn extract_args(func: &mut syn::ItemFn) -> syn::Result<(Vec<FixtureAr
 
         if let Some(name) = fixture_name {
             fixtures.push(FixtureArg { pat, name, ty });
+        } else if datatable.is_none() && pat == "datatable" && is_vec_vec_string(&ty) {
+            datatable = Some(DataTableArg { pat });
         } else {
             step_args.push(StepArg { pat, ty });
         }
     }
 
-    Ok((fixtures, step_args))
+    Ok((fixtures, step_args, datatable))
+}
+
+fn is_vec_vec_string(ty: &syn::Type) -> bool {
+    use syn::{GenericArgument, PathArguments, Type};
+
+    let Type::Path(tp) = ty else { return false };
+    let Some(seg) = tp.path.segments.first() else {
+        return false;
+    };
+    if seg.ident != "Vec" {
+        return false;
+    }
+    let PathArguments::AngleBracketed(inner) = &seg.arguments else {
+        return false;
+    };
+    let Some(GenericArgument::Type(Type::Path(inner_tp))) = inner.args.first() else {
+        return false;
+    };
+    let Some(inner_seg) = inner_tp.path.segments.first() else {
+        return false;
+    };
+    if inner_seg.ident != "Vec" {
+        return false;
+    }
+    let PathArguments::AngleBracketed(inner2) = &inner_seg.arguments else {
+        return false;
+    };
+    let Some(GenericArgument::Type(Type::Path(str_tp))) = inner2.args.first() else {
+        return false;
+    };
+    str_tp.path.is_ident("String")
 }
 
 /// Configuration required to generate a wrapper.
@@ -62,6 +103,7 @@ pub(crate) struct WrapperConfig<'a> {
     pub(crate) ident: &'a syn::Ident,
     pub(crate) fixtures: &'a [FixtureArg],
     pub(crate) step_args: &'a [StepArg],
+    pub(crate) datatable: Option<&'a DataTableArg>,
     pub(crate) pattern: &'a syn::LitStr,
     pub(crate) keyword: rstest_bdd::StepKeyword,
 }
@@ -130,6 +172,7 @@ pub(crate) fn generate_wrapper_code(config: &WrapperConfig<'_>) -> TokenStream2 
         ident,
         fixtures,
         step_args,
+        datatable,
         pattern,
         keyword,
     } = config;
@@ -149,10 +192,20 @@ pub(crate) fn generate_wrapper_code(config: &WrapperConfig<'_>) -> TokenStream2 
         })
         .collect();
     let step_arg_parses = gen_step_parses(step_args, &captured);
+    let datatable_decl = datatable.map(|DataTableArg { pat }| {
+        quote! {
+            let #pat: Vec<Vec<String>> = _table
+                .ok_or_else(|| format!("Step '{}' requires a data table", #pattern))?
+                .iter()
+                .map(|row| row.iter().map(|cell| cell.to_string()).collect())
+                .collect();
+        }
+    });
     let arg_idents = fixtures
         .iter()
         .map(|f| &f.pat)
-        .chain(step_args.iter().map(|a| &a.pat));
+        .chain(step_args.iter().map(|a| &a.pat))
+        .chain(datatable.iter().map(|d| &d.pat));
 
     let fixture_names: Vec<_> = fixtures
         .iter()
@@ -168,7 +221,11 @@ pub(crate) fn generate_wrapper_code(config: &WrapperConfig<'_>) -> TokenStream2 
     quote! {
         static #pattern_ident: rstest_bdd::StepPattern = rstest_bdd::StepPattern::new(#pattern);
 
-        fn #wrapper_ident(ctx: &rstest_bdd::StepContext<'_>, text: &str) -> Result<(), String> {
+        fn #wrapper_ident(
+            ctx: &rstest_bdd::StepContext<'_>,
+            text: &str,
+            _table: Option<&[&[&str]]>,
+        ) -> Result<(), String> {
             use std::panic::{catch_unwind, AssertUnwindSafe};
 
             let captures = #pattern_ident
@@ -178,6 +235,7 @@ pub(crate) fn generate_wrapper_code(config: &WrapperConfig<'_>) -> TokenStream2 
 
             #(#declares)*
             #(#step_arg_parses)*
+            #datatable_decl
 
             catch_unwind(AssertUnwindSafe(|| {
                 #ident(#(#arg_idents),*);

@@ -274,10 +274,12 @@ other essential Gherkin constructs.
 #[given("the following users exist:")]
 fn create_users(
     #[from(db)] conn: &mut DbConnection,
-    users_table: Vec<(String, String)>,
+    datatable: Vec<Vec<String>>,
 ) {
-    for (name, email) in users_table {
-        conn.insert_user(&name, &email);
+    for row in datatable {
+        let name = &row[0];
+        let email = &row[1];
+        conn.insert_user(name, email);
     }
 }
 ```
@@ -332,6 +334,12 @@ macro has a distinct role in the compile-time orchestration of the BDD tests.
   `step!` helper. Each macro expands to the original function followed by a
   call to `rstest_bdd::step!`, which internally uses `inventory::submit!` to
   add a `Step` to the registry.
+
+- **Data Tables:** Step functions may include a parameter named `datatable`
+  of type `Vec<Vec<String>>`. When the feature file attaches a data table to a
+  step, the generated wrapper converts the table into this structure and passes
+  it to the function. The wrapper emits an error at runtime if the table is
+  missing.
 
 ### 2.2 The Core Architectural Challenge: Stateless Step Discovery
 
@@ -908,7 +916,7 @@ sequenceDiagram
         StepRegistry->>StepRegistry: extract_placeholders(pattern, text)
         StepRegistry-->>ScenarioRunner: StepFn
     end
-    ScenarioRunner->>StepWrapper: call StepFn(ctx, text)
+    ScenarioRunner->>StepWrapper: call StepFn(ctx, text, table)
     StepWrapper->>StepWrapper: extract_placeholders(pattern, text)
     StepWrapper->>StepWrapper: parse captures with FromStr
     StepWrapper->>StepFunction: call with typed args
