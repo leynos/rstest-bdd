@@ -39,7 +39,6 @@ where
 
 #[given("a background step")]
 fn background_step() {
-    clear_events();
     with_locked_events(|events| events.push("background"));
 }
 
@@ -155,4 +154,6 @@ fn multiple_background_steps_execute_in_order() {
     with_locked_events(|events| {
         assert_eq!(events.as_slice(), ["background", "another background"]);
     });
+
+    clear_events();
 }
