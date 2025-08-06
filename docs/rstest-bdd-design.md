@@ -249,9 +249,9 @@ it, and pass the resulting `u32` value to the `deposit_amount` function.
 To achieve feature parity with modern BDD tools, the framework will support
 other essential Gherkin constructs.
 
-- **Background:** Steps defined in a `Background` section are executed before
-  each `Scenario` in a feature file.[^10] The parser prepends these steps to
-  the scenario's step list so the `#[scenario]` macro runs them first.
+- **Background:** Steps defined in a `Background` section are executed
+  before each `Scenario` in a feature file.[^10] The parser prepends these
+  steps to the scenario's step list so the `#[scenario]` macro runs them first.
 
 - **Data Tables:** A Gherkin data table provides a way to pass a structured
   block of data to a single step. `rstest-bdd` will make this data available as

@@ -1,6 +1,7 @@
 Feature: Background execution
   Background:
     Given a background step
+    And another background step
 
   Scenario: first scenario
     When an action occurs

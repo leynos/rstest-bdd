@@ -43,6 +43,11 @@ fn background_step() {
     with_locked_events(|events| events.push("background"));
 }
 
+#[given("another background step")]
+fn another_background_step() {
+    with_locked_events(|events| events.push("another background"));
+}
+
 #[given("a precondition")]
 fn precondition() {
     clear_events();
@@ -114,7 +119,10 @@ fn outline(num: String) {
 #[serial]
 fn background_first() {
     with_locked_events(|events| {
-        assert_eq!(events.as_slice(), ["background", "action", "result"]);
+        assert_eq!(
+            events.as_slice(),
+            ["background", "another background", "action", "result"]
+        );
     });
     clear_events();
 }
@@ -123,7 +131,28 @@ fn background_first() {
 #[serial]
 fn background_second() {
     with_locked_events(|events| {
-        assert_eq!(events.as_slice(), ["background", "action", "result"]);
+        assert_eq!(
+            events.as_slice(),
+            ["background", "another background", "action", "result"]
+        );
     });
     clear_events();
+}
+
+#[test]
+#[serial]
+fn multiple_background_steps_execute_in_order() {
+    clear_events();
+    background_step();
+    another_background_step();
+    with_locked_events(|events| {
+        assert_eq!(events.as_slice(), ["background", "another background"]);
+    });
+
+    clear_events();
+    background_step();
+    another_background_step();
+    with_locked_events(|events| {
+        assert_eq!(events.as_slice(), ["background", "another background"]);
+    });
 }
