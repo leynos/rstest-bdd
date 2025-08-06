@@ -389,6 +389,7 @@ dependencies = [
 name = "rstest-bdd"
 version = "0.1.0"
 dependencies = [
+ "gherkin",
  "inventory",
  "regex",
  "rstest",

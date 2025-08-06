@@ -102,7 +102,7 @@ improves the developer experience.
 
 - [ ] **Advanced Gherkin Constructs**
 
-  - [ ] Implement support for `Background` steps, ensuring they are executed
+  - [x] Implement support for `Background` steps, ensuring they are executed
     before each `Scenario`.
 
   - [ ] Implement support for `Data Tables`, making the data available to the

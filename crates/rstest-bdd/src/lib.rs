@@ -16,6 +16,7 @@ pub fn greet() -> &'static str {
     "Hello from rstest-bdd!"
 }
 
+use gherkin::StepType;
 pub use inventory::{iter, submit};
 use regex::Regex;
 use std::any::Any;
@@ -124,6 +125,16 @@ impl FromStr for StepKeyword {
 impl From<&str> for StepKeyword {
     fn from(value: &str) -> Self {
         Self::from_str(value).unwrap_or_else(|_| panic!("invalid step keyword: {value}"))
+    }
+}
+
+impl From<StepType> for StepKeyword {
+    fn from(ty: StepType) -> Self {
+        match ty {
+            StepType::Given => Self::Given,
+            StepType::When => Self::When,
+            StepType::Then => Self::Then,
+        }
     }
 }
 

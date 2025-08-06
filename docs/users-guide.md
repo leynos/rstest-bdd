@@ -46,8 +46,9 @@ same type for readability.
 
 Scenarios follow the simple `Given‑When‑Then` pattern. Support for **Scenario
 Outline** is available, enabling a single scenario to run with multiple sets of
-data from an `Examples` table. Other advanced constructs such as
-**Background**, data tables and docstrings are not yet implemented.
+data from an `Examples` table. A `Background` section may define steps that run
+before each scenario. Other advanced constructs such as data tables and
+docstrings are not yet implemented.
 
 ### Example feature file
 
@@ -207,14 +208,9 @@ Best practices for writing effective scenarios include:
 The `rstest‑bdd` project is evolving. Several features described in the design
 document and README remain unimplemented in the current codebase:
 
-- **Scenario outlines and example tables.** Parameterised scenarios using
-  `Scenario Outline` with an `Examples` table are proposed, but there is no
-  support for expanding multiple runs from a single template. Use explicit
-  scenarios instead.
-
-- **Background sections, data tables and docstrings.** The design notes plans
-  to support shared `Background` steps and to supply data tables and docstrings
-  as arguments to step functions. These are currently not implemented.
+- **Data tables and docstrings.** The design notes plans to supply data tables
+  and docstrings as arguments to step functions. These are currently not
+  implemented.
 
 - **Selecting scenarios by name.** The README hints at a `name` argument for
   the `#[scenario]` macro, but the macro only accepts `path` and optional

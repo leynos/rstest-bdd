@@ -1,6 +1,6 @@
 //! Feature file loading and scenario extraction.
 
-use gherkin::{Feature, GherkinEnv, StepType};
+use gherkin::{Feature, GherkinEnv, Step};
 use std::path::{Path, PathBuf};
 
 use crate::parsing::examples::ExampleTable;
@@ -9,9 +9,19 @@ use crate::validation::examples::validate_examples_in_feature_text;
 
 /// Name, steps, and optional examples extracted from a Gherkin scenario.
 pub(crate) struct ScenarioData {
-    pub(crate) name: String,
-    pub(crate) steps: Vec<(rstest_bdd::StepKeyword, String)>,
+    pub name: String,
+    pub steps: Vec<(rstest_bdd::StepKeyword, String)>,
     pub(crate) examples: Option<ExampleTable>,
+}
+
+/// Convert a Gherkin step to a keyword and value tuple.
+fn map_step_to_keyword_and_value(step: &Step) -> (rstest_bdd::StepKeyword, String) {
+    let kw = match step.keyword.as_str() {
+        "And" => rstest_bdd::StepKeyword::And,
+        "But" => rstest_bdd::StepKeyword::But,
+        _ => step.ty.into(),
+    };
+    (kw, step.value.clone())
 }
 
 /// Parse and load a feature file from the given path.
@@ -49,18 +59,12 @@ pub(crate) fn extract_scenario_steps(
     };
 
     let scenario_name = scenario.name.clone();
-    let steps = scenario
-        .steps
-        .iter()
-        .map(|s| {
-            let keyword = match s.ty {
-                StepType::Given => rstest_bdd::StepKeyword::Given,
-                StepType::When => rstest_bdd::StepKeyword::When,
-                StepType::Then => rstest_bdd::StepKeyword::Then,
-            };
-            (keyword, s.value.clone())
-        })
-        .collect();
+
+    let mut steps = Vec::new();
+    if let Some(bg) = &feature.background {
+        steps.extend(bg.steps.iter().map(map_step_to_keyword_and_value));
+    }
+    steps.extend(scenario.steps.iter().map(map_step_to_keyword_and_value));
 
     let examples = crate::parsing::examples::extract_examples(scenario)?;
 
@@ -70,3 +74,6 @@ pub(crate) fn extract_scenario_steps(
         examples,
     })
 }
+
+#[cfg(test)]
+mod tests;
