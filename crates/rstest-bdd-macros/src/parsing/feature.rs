@@ -14,6 +14,14 @@ pub(crate) struct ScenarioData {
     pub(crate) examples: Option<ExampleTable>,
 }
 
+fn map_step_type(ty: StepType) -> rstest_bdd::StepKeyword {
+    match ty {
+        StepType::Given => rstest_bdd::StepKeyword::Given,
+        StepType::When => rstest_bdd::StepKeyword::When,
+        StepType::Then => rstest_bdd::StepKeyword::Then,
+    }
+}
+
 /// Parse and load a feature file from the given path.
 pub(crate) fn parse_and_load_feature(path: &Path) -> Result<Feature, proc_macro::TokenStream> {
     let Ok(manifest_dir) = std::env::var("CARGO_MANIFEST_DIR") else {
@@ -49,18 +57,21 @@ pub(crate) fn extract_scenario_steps(
     };
 
     let scenario_name = scenario.name.clone();
-    let steps = scenario
-        .steps
-        .iter()
-        .map(|s| {
-            let keyword = match s.ty {
-                StepType::Given => rstest_bdd::StepKeyword::Given,
-                StepType::When => rstest_bdd::StepKeyword::When,
-                StepType::Then => rstest_bdd::StepKeyword::Then,
-            };
-            (keyword, s.value.clone())
-        })
-        .collect();
+
+    let mut steps = Vec::new();
+    if let Some(bg) = &feature.background {
+        steps.extend(
+            bg.steps
+                .iter()
+                .map(|s| (map_step_type(s.ty), s.value.clone())),
+        );
+    }
+    steps.extend(
+        scenario
+            .steps
+            .iter()
+            .map(|s| (map_step_type(s.ty), s.value.clone())),
+    );
 
     let examples = crate::parsing::examples::extract_examples(scenario)?;
 
@@ -69,4 +80,77 @@ pub(crate) fn extract_scenario_steps(
         steps,
         examples,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    //! Tests for feature parsing utilities.
+    use super::*;
+    use gherkin::{Background, LineCol, Scenario, Span, Step, StepType};
+
+    fn mk_step(ty: StepType, value: &str) -> Step {
+        Step {
+            keyword: match ty {
+                StepType::Given => "Given",
+                StepType::When => "When",
+                StepType::Then => "Then",
+            }
+            .to_string(),
+            ty,
+            value: value.to_string(),
+            docstring: None,
+            table: None,
+            span: Span { start: 0, end: 0 },
+            position: LineCol { line: 0, col: 0 },
+        }
+    }
+
+    #[test]
+    fn prepends_background_steps() {
+        let feature = Feature {
+            keyword: "Feature".into(),
+            name: "example".into(),
+            description: None,
+            background: Some(Background {
+                keyword: "Background".into(),
+                name: String::new(),
+                description: None,
+                steps: vec![mk_step(StepType::Given, "a background step")],
+                span: Span { start: 0, end: 0 },
+                position: LineCol { line: 0, col: 0 },
+            }),
+            scenarios: vec![Scenario {
+                keyword: "Scenario".into(),
+                name: "run".into(),
+                description: None,
+                steps: vec![
+                    mk_step(StepType::When, "an action"),
+                    mk_step(StepType::Then, "a result"),
+                ],
+                examples: Vec::new(),
+                tags: Vec::new(),
+                span: Span { start: 0, end: 0 },
+                position: LineCol { line: 0, col: 0 },
+            }],
+            rules: Vec::new(),
+            tags: Vec::new(),
+            span: Span { start: 0, end: 0 },
+            position: LineCol { line: 0, col: 0 },
+            path: None,
+        };
+
+        let ScenarioData { steps, .. } = extract_scenario_steps(&feature, Some(0))
+            .unwrap_or_else(|_| panic!("scenario extraction failed"));
+        assert_eq!(
+            steps,
+            vec![
+                (
+                    rstest_bdd::StepKeyword::Given,
+                    "a background step".to_string()
+                ),
+                (rstest_bdd::StepKeyword::When, "an action".to_string()),
+                (rstest_bdd::StepKeyword::Then, "a result".to_string()),
+            ]
+        );
+    }
 }

@@ -250,10 +250,8 @@ To achieve feature parity with modern BDD tools, the framework will support
 other essential Gherkin constructs.
 
 - **Background:** Steps defined in a `Background` section are executed before
-  each `Scenario` in a feature file.[^10] This maps naturally to common setup
-  logic and will be handled automatically by the
-
-  `#[scenario]` macro.
+  each `Scenario` in a feature file.[^10] The parser prepends these steps to
+  the scenario's step list so the `#[scenario]` macro runs them first.
 
 - **Data Tables:** A Gherkin data table provides a way to pass a structured
   block of data to a single step. `rstest-bdd` will make this data available as
@@ -646,8 +644,8 @@ incrementally.
 
 - **Phase 3: Advanced Gherkin Features & Ergonomics**
 
-- Add support for `Background` steps, Data Tables, and Docstrings, passing them
-  as special arguments to step functions.
+- Add support for Data Tables and Docstrings, passing them as special
+  arguments to step functions.
 
 - Implement robust compile-time error handling. The `#[scenario]` macro should
   emit clear compiler errors if a feature file cannot be parsed or if no

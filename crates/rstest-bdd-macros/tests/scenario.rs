@@ -37,6 +37,12 @@ where
     f(&mut guard)
 }
 
+#[given("a background step")]
+fn background_step() {
+    clear_events();
+    with_locked_events(|events| events.push("background"));
+}
+
 #[given("a precondition")]
 fn precondition() {
     clear_events();
@@ -101,5 +107,23 @@ fn outline(num: String) {
         assert_eq!(events.as_slice(), ["precondition", "action", "result"]);
     });
     assert!(num == "1" || num == "2");
+    clear_events();
+}
+
+#[scenario("tests/features/background.feature", index = 0)]
+#[serial]
+fn background_first() {
+    with_locked_events(|events| {
+        assert_eq!(events.as_slice(), ["background", "action", "result"]);
+    });
+    clear_events();
+}
+
+#[scenario("tests/features/background.feature", index = 1)]
+#[serial]
+fn background_second() {
+    with_locked_events(|events| {
+        assert_eq!(events.as_slice(), ["background", "action", "result"]);
+    });
     clear_events();
 }
