@@ -48,25 +48,22 @@ pub(crate) struct ScenarioConfig<'a> {
     pub(crate) examples: Option<crate::parsing::examples::ExampleTable>,
 }
 
-/// Generate the runtime test for a single scenario.
-pub(crate) fn generate_scenario_code(
-    config: ScenarioConfig<'_>,
-    ctx_inserts: impl Iterator<Item = TokenStream2>,
-) -> TokenStream {
-    let ScenarioConfig {
-        attrs,
-        vis,
-        sig,
-        block,
-        feature_path: feature_path_str,
-        scenario_name,
-        steps,
-        examples,
-    } = config;
-
-    let keywords: Vec<_> = steps.iter().map(|s| keyword_to_token(s.keyword)).collect();
-    let values = steps.iter().map(|s| &s.text);
-    let tables: Vec<_> = steps
+/// Process parsed steps into tokens for keywords, values, and tables.
+///
+/// # Examples
+/// ```rust,ignore
+/// use rstest_bdd::StepKeyword;
+/// use crate::parsing::feature::ParsedStep;
+/// let steps = vec![ParsedStep { keyword: StepKeyword::Given, text: "x".into(), table: None }];
+/// let (k, v, t) = process_steps(&steps);
+/// assert_eq!(v.len(), 1);
+/// ```
+fn process_steps(
+    steps: &[crate::parsing::feature::ParsedStep],
+) -> (Vec<TokenStream2>, Vec<&String>, Vec<TokenStream2>) {
+    let keywords = steps.iter().map(|s| keyword_to_token(s.keyword)).collect();
+    let values = steps.iter().map(|s| &s.text).collect();
+    let tables = steps
         .iter()
         .map(|s| {
             s.table.as_ref().map_or_else(
@@ -84,42 +81,96 @@ pub(crate) fn generate_scenario_code(
             )
         })
         .collect();
+    (keywords, values, tables)
+}
 
+/// Generate the inner body of the scenario test.
+///
+/// # Examples
+/// ```rust,ignore
+/// # use syn::parse_quote;
+/// let body = generate_test_tokens(
+///     &[],
+///     &[],
+///     &[],
+///     std::iter::empty(),
+///    "feature",
+///     "scenario",
+///     &parse_quote!({}),
+/// );
+/// assert!(body.to_string().contains("StepContext"));
+/// ```
+fn generate_test_tokens(
+    keywords: &[TokenStream2],
+    values: &[&String],
+    tables: &[TokenStream2],
+    ctx_inserts: impl Iterator<Item = TokenStream2>,
+    feature_path: &str,
+    scenario_name: &str,
+    block: &syn::Block,
+) -> TokenStream2 {
+    quote! {
+        let steps = [#((#keywords, #values, #tables)),*];
+        let mut ctx = rstest_bdd::StepContext::default();
+        #(#ctx_inserts)*
+        for (index, (keyword, text, table)) in steps.iter().enumerate() {
+            if let Some(f) = rstest_bdd::find_step(*keyword, (*text).into()) {
+                if let Err(err) = f(&ctx, text, *table) {
+                    panic!(
+                        "Step failed at index {}: {} {} - {}\n(feature: {}, scenario: {})",
+                        index,
+                        keyword.as_str(),
+                        text,
+                        err,
+                        #feature_path,
+                        #scenario_name
+                    );
+                }
+            } else {
+                panic!(
+                    "Step not found at index {}: {} {} (feature: {}, scenario: {})",
+                    index,
+                    keyword.as_str(),
+                    text,
+                    #feature_path,
+                    #scenario_name
+                );
+            }
+        }
+        #block
+    }
+}
+
+/// Generate the runtime test for a single scenario.
+pub(crate) fn generate_scenario_code(
+    config: ScenarioConfig<'_>,
+    ctx_inserts: impl Iterator<Item = TokenStream2>,
+) -> TokenStream {
+    let ScenarioConfig {
+        attrs,
+        vis,
+        sig,
+        block,
+        feature_path,
+        scenario_name,
+        steps,
+        examples,
+    } = config;
+    let (keywords, values, tables) = process_steps(&steps);
     let case_attrs = examples.map_or_else(Vec::new, |ex| generate_case_attrs(&ex));
-
+    let body = generate_test_tokens(
+        &keywords,
+        &values,
+        &tables,
+        ctx_inserts,
+        &feature_path,
+        &scenario_name,
+        block,
+    );
     TokenStream::from(quote! {
         #[rstest::rstest]
         #(#case_attrs)*
         #(#attrs)*
-        #vis #sig {
-            let steps = [#((#keywords, #values, #tables)),*];
-            let mut ctx = rstest_bdd::StepContext::default();
-            #(#ctx_inserts)*
-            for (index, (keyword, text, table)) in steps.iter().enumerate() {
-                if let Some(f) = rstest_bdd::find_step(*keyword, (*text).into()) {
-                    if let Err(err) = f(&ctx, text, *table) {
-                        panic!(
-                            "Step failed at index {}: {} {} - {}\n(feature: {}, scenario: {})",
-                            index,
-                            keyword.as_str(),
-                            text,
-                            err,
-                            #feature_path_str,
-                            #scenario_name
-                        );
-                    }
-                } else {
-                    panic!(
-                        "Step not found at index {}: {} {} (feature: {}, scenario: {})",
-                        index,
-                        keyword.as_str(),
-                        text,
-                        #feature_path_str,
-                        #scenario_name
-                    );
-                }
-            }
-            #block
-        }
+        #vis #sig { #body }
     })
 }

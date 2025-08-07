@@ -57,7 +57,7 @@ pub(crate) fn extract_args(
 
         if let Some(name) = fixture_name {
             fixtures.push(FixtureArg { pat, name, ty });
-        } else if datatable.is_none() && pat == "datatable" && is_vec_vec_string(&ty) {
+        } else if is_datatable_arg(datatable.as_ref(), &pat, &ty) {
             datatable = Some(DataTableArg { pat });
         } else {
             step_args.push(StepArg { pat, ty });
@@ -96,6 +96,24 @@ where
 
 fn is_string_type(ty: &syn::Type) -> bool {
     matches!(ty, syn::Type::Path(tp) if tp.path.is_ident("String"))
+}
+
+/// Determines if a function parameter should be treated as a datatable argument.
+///
+/// # Examples
+/// ```rust,ignore
+/// # use proc_macro2::Span;
+/// # use syn::{parse_quote, Ident};
+/// let ty: syn::Type = parse_quote! { Vec<Vec<String>> };
+/// let name = Ident::new("datatable", Span::call_site());
+/// assert!(is_datatable_arg(None, &name, &ty));
+/// ```
+fn is_datatable_arg(
+    existing_datatable: Option<&DataTableArg>,
+    param_name: &syn::Ident,
+    param_type: &syn::Type,
+) -> bool {
+    existing_datatable.is_none() && param_name == "datatable" && is_vec_vec_string(param_type)
 }
 
 /// Configuration required to generate a wrapper.
@@ -166,22 +184,55 @@ fn gen_step_parses(step_args: &[StepArg], captured: &[TokenStream2]) -> Vec<Toke
 
 static COUNTER: AtomicUsize = AtomicUsize::new(0);
 
-/// Generate the wrapper function and inventory registration.
-pub(crate) fn generate_wrapper_code(config: &WrapperConfig<'_>) -> TokenStream2 {
+/// Generate unique identifiers for the wrapper components.
+///
+/// Returns identifiers for the wrapper function, fixture array constant, and
+/// pattern constant.
+///
+/// # Examples
+/// ```rust,ignore
+/// # use syn::Ident;
+/// # use proc_macro2::Span;
+/// let ident = Ident::new("step_fn", Span::call_site());
+/// let (w, c, p) = generate_wrapper_identifiers(&ident, 1);
+/// assert!(w.to_string().contains("step_fn"));
+/// ```
+fn generate_wrapper_identifiers(
+    ident: &syn::Ident,
+    id: usize,
+) -> (proc_macro2::Ident, proc_macro2::Ident, proc_macro2::Ident) {
+    let wrapper_ident = format_ident!("__rstest_bdd_wrapper_{}_{}", ident, id);
+    let ident_upper = ident.to_string().to_uppercase();
+    let const_ident = format_ident!("__RSTEST_BDD_FIXTURES_{}_{}", ident_upper, id);
+    let pattern_ident = format_ident!("__RSTEST_BDD_PATTERN_{}_{}", ident_upper, id);
+    (wrapper_ident, const_ident, pattern_ident)
+}
+
+/// Generate the wrapper function body and pattern constant.
+///
+/// # Examples
+/// ```rust,ignore
+/// # use syn::parse_quote;
+/// # use proc_macro2::Ident;
+/// # let ident = Ident::new("step", proc_macro2::Span::call_site());
+/// # let config = WrapperConfig { ident: &ident, fixtures: &[], step_args: &[], datatable: None, pattern: &parse_quote!(""), keyword: rstest_bdd::StepKeyword::Given };
+/// # let (wrapper_ident, _, pattern_ident) = generate_wrapper_identifiers(config.ident, 0);
+/// let tokens = generate_wrapper_body(&config, &wrapper_ident, &pattern_ident);
+/// assert!(tokens.to_string().contains("fn"));
+/// ```
+fn generate_wrapper_body(
+    config: &WrapperConfig<'_>,
+    wrapper_ident: &proc_macro2::Ident,
+    pattern_ident: &proc_macro2::Ident,
+) -> TokenStream2 {
     let WrapperConfig {
         ident,
         fixtures,
         step_args,
         datatable,
         pattern,
-        keyword,
+        ..
     } = config;
-    let id = COUNTER.fetch_add(1, Ordering::SeqCst);
-    let wrapper_ident = format_ident!("__rstest_bdd_wrapper_{}_{}", ident, id);
-    let ident_upper = ident.to_string().to_uppercase();
-    let const_ident = format_ident!("__RSTEST_BDD_FIXTURES_{}_{}", ident_upper, id);
-    let pattern_ident = format_ident!("__RSTEST_BDD_PATTERN_{}_{}", ident_upper, id);
-
     let declares = gen_fixture_decls(fixtures, ident);
     let captured: Vec<_> = step_args
         .iter()
@@ -206,18 +257,6 @@ pub(crate) fn generate_wrapper_code(config: &WrapperConfig<'_>) -> TokenStream2 
         .map(|f| &f.pat)
         .chain(step_args.iter().map(|a| &a.pat))
         .chain(datatable.iter().map(|d| &d.pat));
-
-    let fixture_names: Vec<_> = fixtures
-        .iter()
-        .map(|FixtureArg { name, .. }| {
-            let s = name.to_string();
-            quote! { #s }
-        })
-        .collect();
-    let fixture_len = fixture_names.len();
-
-    let keyword_token = keyword_to_token(*keyword);
-
     quote! {
         static #pattern_ident: rstest_bdd::StepPattern = rstest_bdd::StepPattern::new(#pattern);
 
@@ -231,7 +270,11 @@ pub(crate) fn generate_wrapper_code(config: &WrapperConfig<'_>) -> TokenStream2 
             let captures = #pattern_ident
                 .regex()
                 .captures(text)
-                .ok_or_else(|| format!("Step text '{}' does not match pattern '{}'", text, #pattern))?;
+                .ok_or_else(|| format!(
+                    "Step text '{}' does not match pattern '{}'",
+                    text,
+                    #pattern
+                ))?;
 
             #(#declares)*
             #(#step_arg_parses)*
@@ -248,10 +291,58 @@ pub(crate) fn generate_wrapper_code(config: &WrapperConfig<'_>) -> TokenStream2 
                 e
             ))?
         }
+    }
+}
 
+/// Generate fixture registration and inventory code for the wrapper.
+///
+/// # Examples
+/// ```rust,ignore
+/// # use syn::parse_quote;
+/// # use proc_macro2::Ident;
+/// # let ident = Ident::new("step", proc_macro2::Span::call_site());
+/// # let config = WrapperConfig { ident: &ident, fixtures: &[], step_args: &[], datatable: None, pattern: &parse_quote!(""), keyword: rstest_bdd::StepKeyword::Given };
+/// # let (wrapper_ident, const_ident, pattern_ident) = generate_wrapper_identifiers(config.ident, 0);
+/// let tokens = generate_registration_code(&config, &pattern_ident, &wrapper_ident, &const_ident);
+/// assert!(tokens.to_string().contains("rstest_bdd"));
+/// ```
+fn generate_registration_code(
+    config: &WrapperConfig<'_>,
+    pattern_ident: &proc_macro2::Ident,
+    wrapper_ident: &proc_macro2::Ident,
+    const_ident: &proc_macro2::Ident,
+) -> TokenStream2 {
+    let WrapperConfig {
+        fixtures, keyword, ..
+    } = config;
+    let fixture_names: Vec<_> = fixtures
+        .iter()
+        .map(|FixtureArg { name, .. }| {
+            let s = name.to_string();
+            quote! { #s }
+        })
+        .collect();
+    let fixture_len = fixture_names.len();
+    let keyword_token = keyword_to_token(*keyword);
+    quote! {
         const #const_ident: [&'static str; #fixture_len] = [#(#fixture_names),*];
         const _: [(); #fixture_len] = [(); #const_ident.len()];
 
         rstest_bdd::step!(@pattern #keyword_token, &#pattern_ident, #wrapper_ident, &#const_ident);
+    }
+}
+
+/// Generate the wrapper function and inventory registration.
+pub(crate) fn generate_wrapper_code(config: &WrapperConfig<'_>) -> TokenStream2 {
+    let id = COUNTER.fetch_add(1, Ordering::SeqCst);
+    let (wrapper_ident, const_ident, pattern_ident) =
+        generate_wrapper_identifiers(config.ident, id);
+    let body = generate_wrapper_body(config, &wrapper_ident, &pattern_ident);
+    let registration =
+        generate_registration_code(config, &pattern_ident, &wrapper_ident, &const_ident);
+
+    quote! {
+        #body
+        #registration
     }
 }
