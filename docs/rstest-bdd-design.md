@@ -253,10 +253,10 @@ other essential Gherkin constructs.
   before each `Scenario` in a feature file.[^10] The parser prepends these
   steps to the scenario's step list so the `#[scenario]` macro runs them first.
 
-- **Data Tables:** A Gherkin data table provides a way to pass a structured
-  block of data to a single step. `rstest-bdd` will make this data available as
-  a `Vec<Vec<String>>` argument to the step function, mirroring `pytest-bdd`'s
-  `datatable` argument.[^11]
+- **Data Tables:** A Gherkin data table provides a way to pass a
+  structured block of data to a single step. `rstest-bdd` will make this data
+  available as a `Vec<Vec<String>>` argument to the step function, mirroring
+  `pytest-bdd`'s `datatable` argument.[^11]
 
   **Feature File:**
 
@@ -335,11 +335,11 @@ macro has a distinct role in the compile-time orchestration of the BDD tests.
   call to `rstest_bdd::step!`, which internally uses `inventory::submit!` to
   add a `Step` to the registry.
 
-- **Data Tables:** Step functions may include a parameter named `datatable`
-  of type `Vec<Vec<String>>`. When the feature file attaches a data table to a
-  step, the generated wrapper converts the table into this structure and passes
-  it to the function. The wrapper emits an error at runtime if the table is
-  missing.
+- **Data Tables:** Step functions may include a parameter named
+  `datatable` of type `Vec<Vec<String>>`. When the feature file attaches a data
+  table to a step, the generated wrapper converts the table into this structure
+  and passes it to the function. The wrapper emits an error at runtime if the
+  table is missing.
 
 ### 2.2 The Core Architectural Challenge: Stateless Step Discovery
 

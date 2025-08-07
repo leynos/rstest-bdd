@@ -28,22 +28,42 @@ pub(crate) fn generate_case_attrs(
         .collect()
 }
 
-#[expect(
-    clippy::too_many_arguments,
-    clippy::needless_pass_by_value,
-    reason = "signature defined by requirements"
-)]
+/// Configuration for generating code for a single scenario test.
+pub(crate) struct ScenarioConfig<'a> {
+    /// Attributes on the annotated function.
+    pub(crate) attrs: &'a [syn::Attribute],
+    /// Visibility of the function.
+    pub(crate) vis: &'a syn::Visibility,
+    /// Signature of the function.
+    pub(crate) sig: &'a syn::Signature,
+    /// Function body.
+    pub(crate) block: &'a syn::Block,
+    /// Fully qualified feature file path.
+    pub(crate) feature_path: String,
+    /// Name of the scenario.
+    pub(crate) scenario_name: String,
+    /// Steps in the scenario.
+    pub(crate) steps: Vec<crate::parsing::feature::ParsedStep>,
+    /// Examples table for scenario outlines.
+    pub(crate) examples: Option<crate::parsing::examples::ExampleTable>,
+}
+
+/// Generate the runtime test for a single scenario.
 pub(crate) fn generate_scenario_code(
-    attrs: &[syn::Attribute],
-    vis: &syn::Visibility,
-    sig: &syn::Signature,
-    block: &syn::Block,
-    feature_path_str: String,
-    scenario_name: String,
-    steps: Vec<crate::parsing::feature::ParsedStep>,
-    examples: Option<crate::parsing::examples::ExampleTable>,
+    config: ScenarioConfig<'_>,
     ctx_inserts: impl Iterator<Item = TokenStream2>,
 ) -> TokenStream {
+    let ScenarioConfig {
+        attrs,
+        vis,
+        sig,
+        block,
+        feature_path: feature_path_str,
+        scenario_name,
+        steps,
+        examples,
+    } = config;
+
     let keywords: Vec<_> = steps.iter().map(|s| keyword_to_token(s.keyword)).collect();
     let values = steps.iter().map(|s| &s.text);
     let tables: Vec<_> = steps

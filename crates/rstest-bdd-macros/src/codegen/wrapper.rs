@@ -68,6 +68,13 @@ pub(crate) fn extract_args(
 }
 
 fn is_vec_vec_string(ty: &syn::Type) -> bool {
+    is_vec_of(ty, |inner| is_vec_of(inner, is_string_type))
+}
+
+fn is_vec_of<F>(ty: &syn::Type, check_inner: F) -> bool
+where
+    F: FnOnce(&syn::Type) -> bool,
+{
     use syn::{GenericArgument, PathArguments, Type};
 
     let Type::Path(tp) = ty else { return false };
@@ -77,25 +84,18 @@ fn is_vec_vec_string(ty: &syn::Type) -> bool {
     if seg.ident != "Vec" {
         return false;
     }
-    let PathArguments::AngleBracketed(inner) = &seg.arguments else {
+    let PathArguments::AngleBracketed(args) = &seg.arguments else {
         return false;
     };
-    let Some(GenericArgument::Type(Type::Path(inner_tp))) = inner.args.first() else {
+    let Some(GenericArgument::Type(inner_ty)) = args.args.first() else {
         return false;
     };
-    let Some(inner_seg) = inner_tp.path.segments.first() else {
-        return false;
-    };
-    if inner_seg.ident != "Vec" {
-        return false;
-    }
-    let PathArguments::AngleBracketed(inner2) = &inner_seg.arguments else {
-        return false;
-    };
-    let Some(GenericArgument::Type(Type::Path(str_tp))) = inner2.args.first() else {
-        return false;
-    };
-    str_tp.path.is_ident("String")
+
+    check_inner(inner_ty)
+}
+
+fn is_string_type(ty: &syn::Type) -> bool {
+    matches!(ty, syn::Type::Path(tp) if tp.path.is_ident("String"))
 }
 
 /// Configuration required to generate a wrapper.

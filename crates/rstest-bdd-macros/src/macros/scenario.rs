@@ -4,7 +4,7 @@ use proc_macro::TokenStream;
 use proc_macro2::Span;
 use std::path::PathBuf;
 
-use crate::codegen::scenario::generate_scenario_code;
+use crate::codegen::scenario::{ScenarioConfig, generate_scenario_code};
 use crate::parsing::feature::{ScenarioData, extract_scenario_steps, parse_and_load_feature};
 use crate::utils::fixtures::extract_function_fixtures;
 use crate::validation::parameters::process_scenario_outline_examples;
@@ -121,14 +121,16 @@ pub(crate) fn scenario(attr: TokenStream, item: TokenStream) -> TokenStream {
     let (_args, ctx_inserts) = extract_function_fixtures(sig);
 
     generate_scenario_code(
-        attrs,
-        vis,
-        sig,
-        block,
-        feature_path_str,
-        scenario_name,
-        steps,
-        examples,
+        ScenarioConfig {
+            attrs,
+            vis,
+            sig,
+            block,
+            feature_path: feature_path_str,
+            scenario_name,
+            steps,
+            examples,
+        },
         ctx_inserts,
     )
 }
