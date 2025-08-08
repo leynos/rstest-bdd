@@ -108,7 +108,7 @@ improves the developer experience.
   - [x] Implement support for `Data Tables`, making the data available to the
     step function as a `Vec<Vec<String>>`.
 
-  - [ ] Implement support for `DocStrings`, making the content available as a
+  - [x] Implement support for `DocStrings`, making the content available as a
     `String` argument.
 
 - [ ] **Robust Error Handling**

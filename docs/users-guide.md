@@ -47,8 +47,8 @@ same type for readability.
 Scenarios follow the simple `Given‑When‑Then` pattern. Support for **Scenario
 Outline** is available, enabling a single scenario to run with multiple sets of
 data from an `Examples` table. A `Background` section may define steps that run
-before each scenario. Other advanced constructs such as data tables and
-docstrings are not yet implemented.
+before each scenario. Advanced constructs such as data tables and doc strings
+provide structured or free‑form arguments to steps.
 
 ### Example feature file
 
@@ -203,14 +203,20 @@ Best practices for writing effective scenarios include:
   Nested braces inside placeholders are permitted. When no placeholder is
   present, the text must match exactly.
 
+## Data tables and doc strings
+
+Steps may supply structured or free-form data via a trailing argument. A data
+table is received by including an argument named `datatable` of type
+`Vec<Vec<String>>`. A doc string is made available through an argument named
+`docstring` of type `String`. Both arguments must use these exact names and
+types to be detected by the procedural macros. At runtime the generated wrapper
+converts the table cells or copies the block text and passes them to the step
+function, panicking if the feature omits the expected content.
+
 ## Limitations and roadmap
 
 The `rstest‑bdd` project is evolving. Several features described in the design
 document and README remain unimplemented in the current codebase:
-
-- **Data tables and docstrings.** The design notes plans to supply data tables
-  and docstrings as arguments to step functions. These are currently not
-  implemented.
 
 - **Selecting scenarios by name.** The README hints at a `name` argument for
   the `#[scenario]` macro, but the macro only accepts `path` and optional

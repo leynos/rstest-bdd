@@ -7,11 +7,12 @@ use crate::parsing::examples::ExampleTable;
 use crate::utils::errors::error_to_tokens;
 use crate::validation::examples::validate_examples_in_feature_text;
 
-/// Step extracted from a scenario with an optional data table.
+/// Step extracted from a scenario with optional arguments.
 #[derive(Debug, PartialEq)]
 pub(crate) struct ParsedStep {
     pub keyword: rstest_bdd::StepKeyword,
     pub text: String,
+    pub docstring: Option<String>,
     pub table: Option<Vec<Vec<String>>>,
 }
 
@@ -30,9 +31,11 @@ fn map_step(step: &Step) -> ParsedStep {
         _ => step.ty.into(),
     };
     let table = step.table.as_ref().map(|t| t.rows.clone());
+    let docstring = step.docstring.clone();
     ParsedStep {
         keyword,
         text: step.value.clone(),
+        docstring,
         table,
     }
 }
