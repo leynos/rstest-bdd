@@ -276,7 +276,12 @@ fn create_users(
     #[from(db)] conn: &mut DbConnection,
     datatable: Vec<Vec<String>>,
 ) {
-    for row in datatable {
+    // Assume the first row is a header: ["name", "email", ...]
+    for row in datatable.into_iter().skip(1) {
+        assert!(
+            row.len() >= 2,
+            "Expected at least two columns: name and email",
+        );
         let name = &row[0];
         let email = &row[1];
         conn.insert_user(name, email);

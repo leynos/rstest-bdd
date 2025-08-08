@@ -55,17 +55,20 @@ pub(crate) struct ScenarioConfig<'a> {
 /// let tokens = generate_table_tokens(None);
 /// assert_eq!(tokens.to_string(), "None");
 /// ```
-fn generate_table_tokens(table: Option<&Vec<Vec<String>>>) -> TokenStream2 {
-    table.map_or_else(|| quote! { None }, |rows| {
-        let row_tokens = rows.iter().map(|row| {
-            let cells = row.iter().map(|cell| {
-                let lit = syn::LitStr::new(cell, proc_macro2::Span::call_site());
-                quote! { #lit }
+fn generate_table_tokens(table: Option<&[Vec<String>]>) -> TokenStream2 {
+    table.map_or_else(
+        || quote! { None },
+        |rows| {
+            let row_tokens = rows.iter().map(|row| {
+                let cells = row.iter().map(|cell| {
+                    let lit = syn::LitStr::new(cell, proc_macro2::Span::call_site());
+                    quote! { #lit }
+                });
+                quote! { &[#(#cells),*][..] }
             });
-            quote! { &[#(#cells),*][..] }
-        });
-        quote! { Some(&[#(#row_tokens),*][..]) }
-    })
+            quote! { Some(&[#(#row_tokens),*][..]) }
+        },
+    )
 }
 
 /// Process parsed steps into tokens for keywords, values, and tables.
@@ -85,7 +88,7 @@ fn process_steps(
     let values = steps.iter().map(|s| &s.text).collect();
     let tables = steps
         .iter()
-        .map(|s| generate_table_tokens(s.table.as_ref()))
+        .map(|s| generate_table_tokens(s.table.as_deref()))
         .collect();
     (keywords, values, tables)
 }

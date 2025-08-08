@@ -629,11 +629,13 @@ steps.
   values from the `Examples` table are automatically parsed and passed as
   arguments to the corresponding step functions. Their names must match the
   headers in the `Examples` table.[^25]
-- `Data Tables`**:** A step definition function can access a `Data Table` by
-  including a special argument named `datatable` of type `Vec<Vec<String>>`.
-  The name and type must match exactly; aliases or alternative names are not
-  recognised. `pytest-bdd` will inject the table's content into this argument
-  as a list of lists, where each inner list represents a row.[^16]
+- `Data Tables`**:** Step functions may include a single optional parameter
+  named `datatable` of type `Vec<Vec<String>>`. Detection relies on this exact
+  name and type; renaming the parameter or using a type alias prevents the
+  wrapper from recognizing it. When the feature file attaches a data table to a
+  step, the generated wrapper converts the table into this structure and passes
+  it to the function. The wrapper emits an error at runtime if the table is
+  missing.[^16]
 - `Doc Strings`**:** Similarly, a `Doc String` can be accessed by including a
   special argument named `docstring`. This argument will receive the entire
   block text as a single, multi-line string.[^16]
