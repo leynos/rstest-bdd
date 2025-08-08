@@ -254,9 +254,9 @@ other essential Gherkin constructs.
   steps to the scenario's step list so the `#[scenario]` macro runs them first.
 
 - **Data Tables:** A Gherkin data table provides a way to pass a structured
-  block of data to a single step. `rstest-bdd` will make this data available as
-  a `Vec<Vec<String>>` argument to the step function, mirroring `pytest-bdd`'s
-  `datatable` argument.[^11]
+  block of data to a single step. Provide it to the step function via a single
+  optional parameter named `datatable` of type `Vec<Vec<String>>`, mirroring
+  `pytest-bdd`'s `datatable` argument.[^11]
 
   **Feature File:**
 
@@ -274,10 +274,26 @@ other essential Gherkin constructs.
 #[given("the following users exist:")]
 fn create_users(
     #[from(db)] conn: &mut DbConnection,
-    users_table: Vec<(String, String)>,
+    datatable: Vec<Vec<String>>,
 ) {
-    for (name, email) in users_table {
-        conn.insert_user(&name, &email);
+    let headers = &datatable[0];
+    let name_idx = headers
+        .iter()
+        .position(|h| h == "name")
+        .expect("missing 'name' column");
+    let email_idx = headers
+        .iter()
+        .position(|h| h == "email")
+        .expect("missing 'email' column");
+
+    for row in datatable.iter().skip(1) {
+        assert!(
+            row.len() > name_idx && row.len() > email_idx,
+            "Expected 'name' and 'email' columns",
+        );
+        let name = &row[name_idx];
+        let email = &row[email_idx];
+        conn.insert_user(name, email);
     }
 }
 ```
@@ -332,6 +348,14 @@ macro has a distinct role in the compile-time orchestration of the BDD tests.
   `step!` helper. Each macro expands to the original function followed by a
   call to `rstest_bdd::step!`, which internally uses `inventory::submit!` to
   add a `Step` to the registry.
+
+- **Data Tables:** Step functions may include a single optional parameter named
+  `datatable` of type `Vec<Vec<String>>`. Detection relies on this exact name
+  and type; renaming the parameter or using a type alias will prevent the
+  wrapper from recognizing it. When the feature file attaches a data table to a
+  step, the generated wrapper converts the table into this structure and passes
+  it to the function. The wrapper emits an error at runtime if the table is
+  missing.
 
 ### 2.2 The Core Architectural Challenge: Stateless Step Discovery
 
@@ -908,7 +932,7 @@ sequenceDiagram
         StepRegistry->>StepRegistry: extract_placeholders(pattern, text)
         StepRegistry-->>ScenarioRunner: StepFn
     end
-    ScenarioRunner->>StepWrapper: call StepFn(ctx, text)
+    ScenarioRunner->>StepWrapper: call StepFn(ctx, text, table: Option<&[&[&str]]>)
     StepWrapper->>StepWrapper: extract_placeholders(pattern, text)
     StepWrapper->>StepWrapper: parse captures with FromStr
     StepWrapper->>StepFunction: call with typed args

@@ -264,10 +264,11 @@ Feature: User administration
 ```
 
 Unlike an `Examples` table, this `Data Table` does not cause the scenario to
-run multiple times. Instead, the entire table is passed as a single argument to
-the step definition for "Given the following users exist in the system:". The
-automation code can then parse this table (often as a list of lists or list of
-maps) and use it to perform the necessary setup.[^16]
+run multiple times. Instead, pass the entire table to the step definition as a
+parameter named `datatable`. The argument holds the rows as a two-dimensional
+collection (rows and cells). Parse it in the target language as appropriate
+(for example, a list of lists in Python; a `Vec<Vec<String>>` in Rust) and use
+it to perform the necessary setup.[^16]
 
 ### Section 2.4: Incorporating Block Text with `Doc Strings`
 
@@ -629,10 +630,10 @@ steps.
   values from the `Examples` table are automatically parsed and passed as
   arguments to the corresponding step functions. Their names must match the
   headers in the `Examples` table.[^25]
-- `Data Tables`**:** A step definition function can access a `Data Table` by
-  including a special argument named `datatable`. `pytest-bdd` will inject the
-  table's content into this argument as a list of lists, where each inner list
-  represents a row.[^16]
+- `Data Tables`**:** Step functions may include a single optional parameter
+  named `datatable`. The argument receives the table as a list of lists (rows
+  and cells). `pytest-bdd` injects the table content into this argument, where
+  each inner list represents a row.[^16]
 - `Doc Strings`**:** Similarly, a `Doc String` can be accessed by including a
   special argument named `docstring`. This argument will receive the entire
   block text as a single, multi-line string.[^16]
@@ -793,7 +794,7 @@ into Rust types.
 
   The same principle applies to `Data Tables`, where `step.table.as_ref()`
   would be used to access the table data, which can then be iterated over.[^30]
-______________________________________________________________________
+  ______________________________________________________________________
 
 ## Part 6: Synthesis: Implementation Variations and Quirks
 

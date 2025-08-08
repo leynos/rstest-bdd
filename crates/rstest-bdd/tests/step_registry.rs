@@ -7,7 +7,11 @@ fn sample() {}
     clippy::unnecessary_wraps,
     reason = "wrapper must match StepFn signature"
 )]
-fn wrapper(ctx: &rstest_bdd::StepContext<'_>, _text: &str) -> Result<(), String> {
+fn wrapper(
+    ctx: &rstest_bdd::StepContext<'_>,
+    _text: &str,
+    _table: Option<&[&[&str]]>,
+) -> Result<(), String> {
     // Adapter for zero-argument step functions
     let _ = ctx;
     sample();
@@ -16,7 +20,11 @@ fn wrapper(ctx: &rstest_bdd::StepContext<'_>, _text: &str) -> Result<(), String>
 
 step!(rstest_bdd::StepKeyword::When, "behavioural", wrapper, &[]);
 
-fn failing_wrapper(ctx: &StepContext<'_>, _text: &str) -> Result<(), String> {
+fn failing_wrapper(
+    ctx: &StepContext<'_>,
+    _text: &str,
+    _table: Option<&[&[&str]]>,
+) -> Result<(), String> {
     let _ = ctx;
     Err("boom".to_string())
 }
@@ -45,7 +53,7 @@ fn wrapper_error_propagates() {
             || panic!("step 'fails' not found in registry"),
             |step| step.run,
         );
-    let result = step_fn(&StepContext::default(), "fails");
+    let result = step_fn(&StepContext::default(), "fails", None);
     let err = match result {
         Ok(()) => panic!("expected error from wrapper"),
         Err(e) => e,

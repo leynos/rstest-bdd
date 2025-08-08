@@ -18,10 +18,18 @@ pub(crate) struct StepArg {
     pub(crate) ty: syn::Type,
 }
 
+/// Data table argument extracted from a step function.
+pub(crate) struct DataTableArg {
+    pub(crate) pat: syn::Ident,
+}
+
 /// Extract fixture and step arguments from a function signature.
-pub(crate) fn extract_args(func: &mut syn::ItemFn) -> syn::Result<(Vec<FixtureArg>, Vec<StepArg>)> {
+pub(crate) fn extract_args(
+    func: &mut syn::ItemFn,
+) -> syn::Result<(Vec<FixtureArg>, Vec<StepArg>, Option<DataTableArg>)> {
     let mut fixtures = Vec::new();
     let mut step_args = Vec::new();
+    let mut datatable = None;
 
     for input in &mut func.sig.inputs {
         let syn::FnArg::Typed(arg) = input else {
@@ -49,12 +57,72 @@ pub(crate) fn extract_args(func: &mut syn::ItemFn) -> syn::Result<(Vec<FixtureAr
 
         if let Some(name) = fixture_name {
             fixtures.push(FixtureArg { pat, name, ty });
+        } else if is_datatable_arg(&datatable, &pat, &ty) {
+            datatable = Some(DataTableArg { pat });
         } else {
             step_args.push(StepArg { pat, ty });
         }
     }
 
-    Ok((fixtures, step_args))
+    Ok((fixtures, step_args, datatable))
+}
+
+fn is_vec_vec_string(ty: &syn::Type) -> bool {
+    is_vec_of(ty, |inner| is_vec_of(inner, is_string_type))
+}
+
+fn is_vec_of<F>(ty: &syn::Type, check_inner: F) -> bool
+where
+    F: FnOnce(&syn::Type) -> bool,
+{
+    use syn::{GenericArgument, PathArguments, Type};
+
+    let Type::Path(tp) = ty else { return false };
+    let Some(seg) = tp.path.segments.last() else {
+        return false;
+    };
+    if seg.ident != "Vec" {
+        return false;
+    }
+    let PathArguments::AngleBracketed(args) = &seg.arguments else {
+        return false;
+    };
+    let Some(GenericArgument::Type(inner_ty)) = args.args.first() else {
+        return false;
+    };
+
+    check_inner(inner_ty)
+}
+
+fn is_string_type(ty: &syn::Type) -> bool {
+    matches!(
+        ty,
+        syn::Type::Path(tp) if tp.path.segments.last().is_some_and(|seg| seg.ident == "String")
+    )
+}
+
+/// Determines if a function parameter should be treated as a datatable argument.
+///
+/// Detection relies on the parameter being named `datatable` and having the
+/// concrete type `Vec<Vec<String>>`. Renaming the parameter or using a type alias
+/// will prevent detection.
+///
+/// # Examples
+/// ```rust,ignore
+/// # use proc_macro2::Span;
+/// # use syn::{parse_quote, Ident};
+/// let ty: syn::Type = parse_quote! { Vec<Vec<String>> };
+/// let name = Ident::new("datatable", Span::call_site());
+/// let none = None;
+/// assert!(is_datatable_arg(&none, &name, &ty));
+/// ```
+#[expect(clippy::ref_option, reason = "signature defined by requirements")]
+fn is_datatable_arg(
+    existing_datatable: &Option<DataTableArg>,
+    param_name: &syn::Ident,
+    param_type: &syn::Type,
+) -> bool {
+    existing_datatable.is_none() && param_name == "datatable" && is_vec_vec_string(param_type)
 }
 
 /// Configuration required to generate a wrapper.
@@ -62,6 +130,7 @@ pub(crate) struct WrapperConfig<'a> {
     pub(crate) ident: &'a syn::Ident,
     pub(crate) fixtures: &'a [FixtureArg],
     pub(crate) step_args: &'a [StepArg],
+    pub(crate) datatable: Option<&'a DataTableArg>,
     pub(crate) pattern: &'a syn::LitStr,
     pub(crate) keyword: rstest_bdd::StepKeyword,
 }
@@ -124,21 +193,55 @@ fn gen_step_parses(step_args: &[StepArg], captured: &[TokenStream2]) -> Vec<Toke
 
 static COUNTER: AtomicUsize = AtomicUsize::new(0);
 
-/// Generate the wrapper function and inventory registration.
-pub(crate) fn generate_wrapper_code(config: &WrapperConfig<'_>) -> TokenStream2 {
-    let WrapperConfig {
-        ident,
-        fixtures,
-        step_args,
-        pattern,
-        keyword,
-    } = config;
-    let id = COUNTER.fetch_add(1, Ordering::SeqCst);
+/// Generate unique identifiers for the wrapper components.
+///
+/// Returns identifiers for the wrapper function, fixture array constant, and
+/// pattern constant.
+///
+/// # Examples
+/// ```rust,ignore
+/// # use syn::Ident;
+/// # use proc_macro2::Span;
+/// let ident = Ident::new("step_fn", Span::call_site());
+/// let (w, c, p) = generate_wrapper_identifiers(&ident, 1);
+/// assert!(w.to_string().contains("step_fn"));
+/// ```
+fn generate_wrapper_identifiers(
+    ident: &syn::Ident,
+    id: usize,
+) -> (proc_macro2::Ident, proc_macro2::Ident, proc_macro2::Ident) {
     let wrapper_ident = format_ident!("__rstest_bdd_wrapper_{}_{}", ident, id);
     let ident_upper = ident.to_string().to_uppercase();
     let const_ident = format_ident!("__RSTEST_BDD_FIXTURES_{}_{}", ident_upper, id);
     let pattern_ident = format_ident!("__RSTEST_BDD_PATTERN_{}_{}", ident_upper, id);
+    (wrapper_ident, const_ident, pattern_ident)
+}
 
+/// Generate the wrapper function body and pattern constant.
+///
+/// # Examples
+/// ```rust,ignore
+/// # use syn::parse_quote;
+/// # use proc_macro2::Ident;
+/// # let ident = Ident::new("step", proc_macro2::Span::call_site());
+/// # let config = WrapperConfig { ident: &ident, fixtures: &[], step_args: &[], datatable: None, pattern: &parse_quote!(""), keyword: rstest_bdd::StepKeyword::Given };
+/// # let (wrapper_ident, _, pattern_ident) = generate_wrapper_identifiers(config.ident, 0);
+/// let tokens = generate_wrapper_body(&config, &wrapper_ident, &pattern_ident);
+/// assert!(tokens.to_string().contains("fn"));
+/// ```
+fn generate_wrapper_body(
+    config: &WrapperConfig<'_>,
+    wrapper_ident: &proc_macro2::Ident,
+    pattern_ident: &proc_macro2::Ident,
+) -> TokenStream2 {
+    let WrapperConfig {
+        ident,
+        fixtures,
+        step_args,
+        datatable,
+        pattern,
+        ..
+    } = config;
     let declares = gen_fixture_decls(fixtures, ident);
     let captured: Vec<_> = step_args
         .iter()
@@ -149,35 +252,42 @@ pub(crate) fn generate_wrapper_code(config: &WrapperConfig<'_>) -> TokenStream2 
         })
         .collect();
     let step_arg_parses = gen_step_parses(step_args, &captured);
+    let datatable_decl = datatable.map(|DataTableArg { pat }| {
+        quote! {
+            let #pat: Vec<Vec<String>> = _table
+                .ok_or_else(|| format!("Step '{}' requires a data table", #pattern))?
+                .iter()
+                .map(|row| row.iter().map(|cell| cell.to_string()).collect())
+                .collect();
+        }
+    });
     let arg_idents = fixtures
         .iter()
         .map(|f| &f.pat)
-        .chain(step_args.iter().map(|a| &a.pat));
-
-    let fixture_names: Vec<_> = fixtures
-        .iter()
-        .map(|FixtureArg { name, .. }| {
-            let s = name.to_string();
-            quote! { #s }
-        })
-        .collect();
-    let fixture_len = fixture_names.len();
-
-    let keyword_token = keyword_to_token(*keyword);
-
+        .chain(step_args.iter().map(|a| &a.pat))
+        .chain(datatable.iter().map(|d| &d.pat));
     quote! {
         static #pattern_ident: rstest_bdd::StepPattern = rstest_bdd::StepPattern::new(#pattern);
 
-        fn #wrapper_ident(ctx: &rstest_bdd::StepContext<'_>, text: &str) -> Result<(), String> {
+        fn #wrapper_ident(
+            ctx: &rstest_bdd::StepContext<'_>,
+            text: &str,
+            _table: Option<&[&[&str]]>,
+        ) -> Result<(), String> {
             use std::panic::{catch_unwind, AssertUnwindSafe};
 
             let captures = #pattern_ident
                 .regex()
                 .captures(text)
-                .ok_or_else(|| format!("Step text '{}' does not match pattern '{}'", text, #pattern))?;
+                .ok_or_else(|| format!(
+                    "Step text '{}' does not match pattern '{}'",
+                    text,
+                    #pattern
+                ))?;
 
             #(#declares)*
             #(#step_arg_parses)*
+            #datatable_decl
 
             catch_unwind(AssertUnwindSafe(|| {
                 #ident(#(#arg_idents),*);
@@ -190,10 +300,58 @@ pub(crate) fn generate_wrapper_code(config: &WrapperConfig<'_>) -> TokenStream2 
                 e
             ))?
         }
+    }
+}
 
+/// Generate fixture registration and inventory code for the wrapper.
+///
+/// # Examples
+/// ```rust,ignore
+/// # use syn::parse_quote;
+/// # use proc_macro2::Ident;
+/// # let ident = Ident::new("step", proc_macro2::Span::call_site());
+/// # let config = WrapperConfig { ident: &ident, fixtures: &[], step_args: &[], datatable: None, pattern: &parse_quote!(""), keyword: rstest_bdd::StepKeyword::Given };
+/// # let (wrapper_ident, const_ident, pattern_ident) = generate_wrapper_identifiers(config.ident, 0);
+/// let tokens = generate_registration_code(&config, &pattern_ident, &wrapper_ident, &const_ident);
+/// assert!(tokens.to_string().contains("rstest_bdd"));
+/// ```
+fn generate_registration_code(
+    config: &WrapperConfig<'_>,
+    pattern_ident: &proc_macro2::Ident,
+    wrapper_ident: &proc_macro2::Ident,
+    const_ident: &proc_macro2::Ident,
+) -> TokenStream2 {
+    let WrapperConfig {
+        fixtures, keyword, ..
+    } = config;
+    let fixture_names: Vec<_> = fixtures
+        .iter()
+        .map(|FixtureArg { name, .. }| {
+            let s = name.to_string();
+            quote! { #s }
+        })
+        .collect();
+    let fixture_len = fixture_names.len();
+    let keyword_token = keyword_to_token(*keyword);
+    quote! {
         const #const_ident: [&'static str; #fixture_len] = [#(#fixture_names),*];
         const _: [(); #fixture_len] = [(); #const_ident.len()];
 
         rstest_bdd::step!(@pattern #keyword_token, &#pattern_ident, #wrapper_ident, &#const_ident);
+    }
+}
+
+/// Generate the wrapper function and inventory registration.
+pub(crate) fn generate_wrapper_code(config: &WrapperConfig<'_>) -> TokenStream2 {
+    let id = COUNTER.fetch_add(1, Ordering::SeqCst);
+    let (wrapper_ident, const_ident, pattern_ident) =
+        generate_wrapper_identifiers(config.ident, id);
+    let body = generate_wrapper_body(config, &wrapper_ident, &pattern_ident);
+    let registration =
+        generate_registration_code(config, &pattern_ident, &wrapper_ident, &const_ident);
+
+    quote! {
+        #body
+        #registration
     }
 }

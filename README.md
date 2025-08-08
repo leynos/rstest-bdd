@@ -213,16 +213,26 @@ ______________________________________________________________________
 ## Background, tables, and docstrings
 
 - **Background** runs before every scenario in the feature.
-
-- **Data tables** arrive as structured values (e.g. `Vec<(String, String)>`).
+- **Data tables** arrive in a `datatable` parameter of type
+  `Vec<Vec<String>>`.
 
 - **Docstrings** arrive as a `String`.
 
 ```rust
 #[given("the following users exist:")]
-fn create_users(#[from(db)] conn: &mut DbConnection, users: Vec<(String, String)>) {
-    for (name, email) in users {
-        conn.insert_user(&name, &email);
+fn create_users(
+    #[from(db)] conn: &mut DbConnection,
+    datatable: Vec<Vec<String>>,
+) {
+    // Assume the first row is a header: ["name", "email", ...]
+    for row in datatable.into_iter().skip(1) {
+        assert!(
+            row.len() >= 2,
+            "Expected at least two columns: name and email",
+        );
+        let name = &row[0];
+        let email = &row[1];
+        conn.insert_user(name, email);
     }
 }
 ```
