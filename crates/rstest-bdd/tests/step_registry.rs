@@ -10,6 +10,7 @@ fn sample() {}
 fn wrapper(
     ctx: &rstest_bdd::StepContext<'_>,
     _text: &str,
+    _docstring: Option<&str>,
     _table: Option<&[&[&str]]>,
 ) -> Result<(), String> {
     // Adapter for zero-argument step functions
@@ -23,6 +24,7 @@ step!(rstest_bdd::StepKeyword::When, "behavioural", wrapper, &[]);
 fn failing_wrapper(
     ctx: &StepContext<'_>,
     _text: &str,
+    _docstring: Option<&str>,
     _table: Option<&[&[&str]]>,
 ) -> Result<(), String> {
     let _ = ctx;
@@ -53,7 +55,7 @@ fn wrapper_error_propagates() {
             || panic!("step 'fails' not found in registry"),
             |step| step.run,
         );
-    let result = step_fn(&StepContext::default(), "fails", None);
+    let result = step_fn(&StepContext::default(), "fails", None, None);
     let err = match result {
         Ok(()) => panic!("expected error from wrapper"),
         Err(e) => e,

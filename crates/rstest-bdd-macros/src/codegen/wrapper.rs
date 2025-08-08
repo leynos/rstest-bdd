@@ -23,13 +23,25 @@ pub(crate) struct DataTableArg {
     pub(crate) pat: syn::Ident,
 }
 
+/// Doc string argument extracted from a step function.
+pub(crate) struct DocStringArg {
+    pub(crate) pat: syn::Ident,
+}
+
 /// Extract fixture and step arguments from a function signature.
+#[expect(clippy::type_complexity, reason = "return type defined by API")]
 pub(crate) fn extract_args(
     func: &mut syn::ItemFn,
-) -> syn::Result<(Vec<FixtureArg>, Vec<StepArg>, Option<DataTableArg>)> {
+) -> syn::Result<(
+    Vec<FixtureArg>,
+    Vec<StepArg>,
+    Option<DataTableArg>,
+    Option<DocStringArg>,
+)> {
     let mut fixtures = Vec::new();
     let mut step_args = Vec::new();
     let mut datatable = None;
+    let mut docstring = None;
 
     for input in &mut func.sig.inputs {
         let syn::FnArg::Typed(arg) = input else {
@@ -59,12 +71,14 @@ pub(crate) fn extract_args(
             fixtures.push(FixtureArg { pat, name, ty });
         } else if is_datatable_arg(&datatable, &pat, &ty) {
             datatable = Some(DataTableArg { pat });
+        } else if is_docstring_arg(&docstring, &pat, &ty) {
+            docstring = Some(DocStringArg { pat });
         } else {
             step_args.push(StepArg { pat, ty });
         }
     }
 
-    Ok((fixtures, step_args, datatable))
+    Ok((fixtures, step_args, datatable, docstring))
 }
 
 fn is_vec_vec_string(ty: &syn::Type) -> bool {
@@ -101,6 +115,16 @@ fn is_string_type(ty: &syn::Type) -> bool {
     )
 }
 
+/// Determines if a function parameter should be treated as a docstring argument.
+#[expect(clippy::ref_option, reason = "signature defined by requirements")]
+fn is_docstring_arg(
+    existing_docstring: &Option<DocStringArg>,
+    param_name: &syn::Ident,
+    param_type: &syn::Type,
+) -> bool {
+    existing_docstring.is_none() && param_name == "docstring" && is_string_type(param_type)
+}
+
 /// Determines if a function parameter should be treated as a datatable argument.
 ///
 /// Detection relies on the parameter being named `datatable` and having the
@@ -131,6 +155,7 @@ pub(crate) struct WrapperConfig<'a> {
     pub(crate) fixtures: &'a [FixtureArg],
     pub(crate) step_args: &'a [StepArg],
     pub(crate) datatable: Option<&'a DataTableArg>,
+    pub(crate) docstring: Option<&'a DocStringArg>,
     pub(crate) pattern: &'a syn::LitStr,
     pub(crate) keyword: rstest_bdd::StepKeyword,
 }
@@ -239,6 +264,7 @@ fn generate_wrapper_body(
         fixtures,
         step_args,
         datatable,
+        docstring,
         pattern,
         ..
     } = config;
@@ -261,17 +287,26 @@ fn generate_wrapper_body(
                 .collect();
         }
     });
+    let docstring_decl = docstring.map(|DocStringArg { pat }| {
+        quote! {
+            let #pat: String = _docstring
+                .ok_or_else(|| format!("Step '{}' requires a doc string", #pattern))?
+                .to_string();
+        }
+    });
     let arg_idents = fixtures
         .iter()
         .map(|f| &f.pat)
         .chain(step_args.iter().map(|a| &a.pat))
-        .chain(datatable.iter().map(|d| &d.pat));
+        .chain(datatable.iter().map(|d| &d.pat))
+        .chain(docstring.iter().map(|d| &d.pat));
     quote! {
         static #pattern_ident: rstest_bdd::StepPattern = rstest_bdd::StepPattern::new(#pattern);
 
         fn #wrapper_ident(
             ctx: &rstest_bdd::StepContext<'_>,
             text: &str,
+            _docstring: Option<&str>,
             _table: Option<&[&[&str]]>,
         ) -> Result<(), String> {
             use std::panic::{catch_unwind, AssertUnwindSafe};
@@ -288,6 +323,7 @@ fn generate_wrapper_body(
             #(#declares)*
             #(#step_arg_parses)*
             #datatable_decl
+            #docstring_decl
 
             catch_unwind(AssertUnwindSafe(|| {
                 #ident(#(#arg_idents),*);

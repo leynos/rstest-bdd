@@ -358,7 +358,8 @@ fn extract_captured_values(re: &Regex, text: &str) -> Option<Vec<String>> {
 }
 
 /// Type alias for the stored step function pointer.
-pub type StepFn = for<'a> fn(&StepContext<'a>, &str, Option<&[&[&str]]>) -> Result<(), String>;
+pub type StepFn =
+    for<'a> fn(&StepContext<'a>, &str, Option<&str>, Option<&[&[&str]]>) -> Result<(), String>;
 
 /// Represents a single step definition registered with the framework.
 ///

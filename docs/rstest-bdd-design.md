@@ -357,6 +357,12 @@ macro has a distinct role in the compile-time orchestration of the BDD tests.
   it to the function. The wrapper emits an error at runtime if the table is
   missing.
 
+- **Doc Strings:** A multi-line text block immediately following a step is
+  exposed to the step function through an optional `docstring` parameter of
+  type `String`. As with data tables, the parameter must use this exact name
+  and concrete type for detection. The wrapper copies the block text into the
+  argument and fails at runtime if the doc string is absent.
+
 ### 2.2 The Core Architectural Challenge: Stateless Step Discovery
 
 The most significant technical hurdle in this design is the inherent nature of
@@ -932,7 +938,7 @@ sequenceDiagram
         StepRegistry->>StepRegistry: extract_placeholders(pattern, text)
         StepRegistry-->>ScenarioRunner: StepFn
     end
-    ScenarioRunner->>StepWrapper: call StepFn(ctx, text, table: Option<&[&[&str]]>)
+    ScenarioRunner->>StepWrapper: call StepFn(ctx, text, docstring: Option<&str>, table: Option<&[&[&str]]>)
     StepWrapper->>StepWrapper: extract_placeholders(pattern, text)
     StepWrapper->>StepWrapper: parse captures with FromStr
     StepWrapper->>StepFunction: call with typed args

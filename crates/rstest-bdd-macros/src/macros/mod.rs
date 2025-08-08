@@ -23,7 +23,7 @@ fn step_attr(
     let pattern = syn::parse_macro_input!(attr as syn::LitStr);
     let mut func = syn::parse_macro_input!(item as syn::ItemFn);
 
-    let (fixtures, step_args, datatable) = match extract_args(&mut func) {
+    let (fixtures, step_args, datatable, docstring) = match extract_args(&mut func) {
         Ok(args) => args,
         Err(err) => return error_to_tokens(&err),
     };
@@ -35,6 +35,7 @@ fn step_attr(
         fixtures: &fixtures,
         step_args: &step_args,
         datatable: datatable.as_ref(),
+        docstring: docstring.as_ref(),
         pattern: &pattern,
         keyword,
     };
