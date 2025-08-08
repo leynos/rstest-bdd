@@ -60,11 +60,12 @@ fn generate_table_tokens(table: Option<&[Vec<String>]>) -> TokenStream2 {
         || quote! { None },
         |rows| {
             if rows.is_empty() {
+                // Explicitly type the empty slice to avoid inference pitfalls when no rows exist.
                 return quote! { Some(&[] as &[&[&str]]) };
             }
             let row_tokens = rows.iter().map(|row| {
                 let cells = row.iter().map(|cell| {
-                    let lit = syn::LitStr::new(cell, proc_macro2::Span::call_site());
+                    let lit = cell_to_lit(cell);
                     quote! { #lit }
                 });
                 quote! { &[#(#cells),*][..] }
