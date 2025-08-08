@@ -253,9 +253,9 @@ other essential Gherkin constructs.
   before each `Scenario` in a feature file.[^10] The parser prepends these
   steps to the scenario's step list so the `#[scenario]` macro runs them first.
 
-- **Data Tables:** A Gherkin data table provides a way to pass a
-  structured block of data to a single step. `rstest-bdd` will make this data
-  available as a `Vec<Vec<String>>` argument to the step function, mirroring
+- **Data Tables:** A Gherkin data table provides a way to pass a structured
+  block of data to a single step. Provide it to the step function via a single
+  optional parameter named `datatable` of type `Vec<Vec<String>>`, mirroring
   `pytest-bdd`'s `datatable` argument.[^11]
 
   **Feature File:**
@@ -923,7 +923,7 @@ sequenceDiagram
         StepRegistry->>StepRegistry: extract_placeholders(pattern, text)
         StepRegistry-->>ScenarioRunner: StepFn
     end
-    ScenarioRunner->>StepWrapper: call StepFn(ctx, text, table)
+    ScenarioRunner->>StepWrapper: call StepFn(ctx, text, table: Option<&[&[&str]]>)
     StepWrapper->>StepWrapper: extract_placeholders(pattern, text)
     StepWrapper->>StepWrapper: parse captures with FromStr
     StepWrapper->>StepFunction: call with typed args

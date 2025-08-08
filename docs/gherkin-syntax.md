@@ -264,10 +264,11 @@ Feature: User administration
 ```
 
 Unlike an `Examples` table, this `Data Table` does not cause the scenario to
-run multiple times. Instead, the entire table is passed as a single argument to
-the step definition for "Given the following users exist in the system:". The
-automation code can then parse this table (often as a list of lists or list of
-maps) and use it to perform the necessary setup.[^16]
+run multiple times. Instead, the entire table is passed as a single optional
+parameter named `datatable` of type `Vec<Vec<String>>` to the step definition
+for "Given the following users exist in the system:". The automation code can
+then parse this table (often as a list of lists or list of maps) and use it to
+perform the necessary setup.[^16]
 
 ### Section 2.4: Incorporating Block Text with `Doc Strings`
 

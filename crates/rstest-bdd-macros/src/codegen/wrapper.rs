@@ -57,7 +57,7 @@ pub(crate) fn extract_args(
 
         if let Some(name) = fixture_name {
             fixtures.push(FixtureArg { pat, name, ty });
-        } else if is_datatable_arg(datatable.as_ref(), &pat, &ty) {
+        } else if is_datatable_arg(&datatable, &pat, &ty) {
             datatable = Some(DataTableArg { pat });
         } else {
             step_args.push(StepArg { pat, ty });
@@ -78,7 +78,7 @@ where
     use syn::{GenericArgument, PathArguments, Type};
 
     let Type::Path(tp) = ty else { return false };
-    let Some(seg) = tp.path.segments.first() else {
+    let Some(seg) = tp.path.segments.last() else {
         return false;
     };
     if seg.ident != "Vec" {
@@ -95,7 +95,10 @@ where
 }
 
 fn is_string_type(ty: &syn::Type) -> bool {
-    matches!(ty, syn::Type::Path(tp) if tp.path.is_ident("String"))
+    matches!(
+        ty,
+        syn::Type::Path(tp) if tp.path.segments.last().is_some_and(|seg| seg.ident == "String")
+    )
 }
 
 /// Determines if a function parameter should be treated as a datatable argument.
@@ -110,10 +113,12 @@ fn is_string_type(ty: &syn::Type) -> bool {
 /// # use syn::{parse_quote, Ident};
 /// let ty: syn::Type = parse_quote! { Vec<Vec<String>> };
 /// let name = Ident::new("datatable", Span::call_site());
-/// assert!(is_datatable_arg(None, &name, &ty));
+/// let none = None;
+/// assert!(is_datatable_arg(&none, &name, &ty));
 /// ```
+#[expect(clippy::ref_option, reason = "signature defined by requirements")]
 fn is_datatable_arg(
-    existing_datatable: Option<&DataTableArg>,
+    existing_datatable: &Option<DataTableArg>,
     param_name: &syn::Ident,
     param_type: &syn::Type,
 ) -> bool {

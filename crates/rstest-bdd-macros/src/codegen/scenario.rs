@@ -83,9 +83,15 @@ fn generate_table_tokens(table: Option<&[Vec<String>]>) -> TokenStream2 {
 /// ```
 fn process_steps(
     steps: &[crate::parsing::feature::ParsedStep],
-) -> (Vec<TokenStream2>, Vec<&String>, Vec<TokenStream2>) {
+) -> (Vec<TokenStream2>, Vec<TokenStream2>, Vec<TokenStream2>) {
     let keywords = steps.iter().map(|s| keyword_to_token(s.keyword)).collect();
-    let values = steps.iter().map(|s| &s.text).collect();
+    let values = steps
+        .iter()
+        .map(|s| {
+            let lit = syn::LitStr::new(&s.text, proc_macro2::Span::call_site());
+            quote! { #lit }
+        })
+        .collect();
     let tables = steps
         .iter()
         .map(|s| generate_table_tokens(s.table.as_deref()))
@@ -94,15 +100,15 @@ fn process_steps(
 }
 
 /// Grouped tokens for scenario steps.
-struct ProcessedSteps<'a> {
+struct ProcessedSteps {
     keywords: Vec<TokenStream2>,
-    values: Vec<&'a String>,
+    values: Vec<TokenStream2>,
     tables: Vec<TokenStream2>,
 }
 
 /// Configuration for generating test tokens.
 struct TestTokensConfig<'a> {
-    processed_steps: ProcessedSteps<'a>,
+    processed_steps: ProcessedSteps,
     feature_path: &'a str,
     scenario_name: &'a str,
     block: &'a syn::Block,
@@ -113,15 +119,18 @@ struct TestTokensConfig<'a> {
 /// # Examples
 /// ```rust,ignore
 /// # use syn::parse_quote;
-/// let body = generate_test_tokens(
-///     &[],
-///     &[],
-///     &[],
-///     std::iter::empty(),
-///    "feature",
-///     "scenario",
-///     &parse_quote!({}),
-/// );
+/// let processed = ProcessedSteps {
+///     keywords: vec![],
+///     values: vec![],
+///     tables: vec![],
+/// };
+/// let config = TestTokensConfig {
+///     processed_steps: processed,
+///     feature_path: "feature",
+///     scenario_name: "scenario",
+///     block: &parse_quote!({}),
+/// };
+/// let body = generate_test_tokens(config, std::iter::empty());
 /// assert!(body.to_string().contains("StepContext"));
 /// ```
 fn generate_test_tokens(
@@ -146,7 +155,7 @@ fn generate_test_tokens(
         #(#ctx_inserts)*
         for (index, (keyword, text, table)) in steps.iter().enumerate() {
             if let Some(f) = rstest_bdd::find_step(*keyword, (*text).into()) {
-                if let Err(err) = f(&ctx, text, *table) {
+                if let Err(err) = f(&ctx, *text, *table) {
                     panic!(
                         "Step failed at index {}: {} {} - {}\n(feature: {}, scenario: {})",
                         index,
