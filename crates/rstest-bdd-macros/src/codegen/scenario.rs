@@ -48,6 +48,26 @@ pub(crate) struct ScenarioConfig<'a> {
     pub(crate) examples: Option<crate::parsing::examples::ExampleTable>,
 }
 
+/// Generate tokens representing an optional data table.
+///
+/// # Examples
+/// ```rust,ignore
+/// let tokens = generate_table_tokens(None);
+/// assert_eq!(tokens.to_string(), "None");
+/// ```
+fn generate_table_tokens(table: Option<&Vec<Vec<String>>>) -> TokenStream2 {
+    table.map_or_else(|| quote! { None }, |rows| {
+        let row_tokens = rows.iter().map(|row| {
+            let cells = row.iter().map(|cell| {
+                let lit = syn::LitStr::new(cell, proc_macro2::Span::call_site());
+                quote! { #lit }
+            });
+            quote! { &[#(#cells),*][..] }
+        });
+        quote! { Some(&[#(#row_tokens),*][..]) }
+    })
+}
+
 /// Process parsed steps into tokens for keywords, values, and tables.
 ///
 /// # Examples
@@ -65,23 +85,24 @@ fn process_steps(
     let values = steps.iter().map(|s| &s.text).collect();
     let tables = steps
         .iter()
-        .map(|s| {
-            s.table.as_ref().map_or_else(
-                || quote! { None },
-                |rows| {
-                    let row_tokens = rows.iter().map(|row| {
-                        let cells = row.iter().map(|cell| {
-                            let lit = syn::LitStr::new(cell, proc_macro2::Span::call_site());
-                            quote! { #lit }
-                        });
-                        quote! { &[#(#cells),*][..] }
-                    });
-                    quote! { Some(&[#(#row_tokens),*][..]) }
-                },
-            )
-        })
+        .map(|s| generate_table_tokens(s.table.as_ref()))
         .collect();
     (keywords, values, tables)
+}
+
+/// Grouped tokens for scenario steps.
+struct ProcessedSteps<'a> {
+    keywords: Vec<TokenStream2>,
+    values: Vec<&'a String>,
+    tables: Vec<TokenStream2>,
+}
+
+/// Configuration for generating test tokens.
+struct TestTokensConfig<'a> {
+    processed_steps: ProcessedSteps<'a>,
+    feature_path: &'a str,
+    scenario_name: &'a str,
+    block: &'a syn::Block,
 }
 
 /// Generate the inner body of the scenario test.
@@ -101,14 +122,21 @@ fn process_steps(
 /// assert!(body.to_string().contains("StepContext"));
 /// ```
 fn generate_test_tokens(
-    keywords: &[TokenStream2],
-    values: &[&String],
-    tables: &[TokenStream2],
+    config: TestTokensConfig<'_>,
     ctx_inserts: impl Iterator<Item = TokenStream2>,
-    feature_path: &str,
-    scenario_name: &str,
-    block: &syn::Block,
 ) -> TokenStream2 {
+    let TestTokensConfig {
+        processed_steps:
+            ProcessedSteps {
+                keywords,
+                values,
+                tables,
+            },
+        feature_path,
+        scenario_name,
+        block,
+    } = config;
+
     quote! {
         let steps = [#((#keywords, #values, #tables)),*];
         let mut ctx = rstest_bdd::StepContext::default();
@@ -157,16 +185,19 @@ pub(crate) fn generate_scenario_code(
         examples,
     } = config;
     let (keywords, values, tables) = process_steps(&steps);
-    let case_attrs = examples.map_or_else(Vec::new, |ex| generate_case_attrs(&ex));
-    let body = generate_test_tokens(
-        &keywords,
-        &values,
-        &tables,
-        ctx_inserts,
-        &feature_path,
-        &scenario_name,
+    let processed_steps = ProcessedSteps {
+        keywords,
+        values,
+        tables,
+    };
+    let test_config = TestTokensConfig {
+        processed_steps,
+        feature_path: &feature_path,
+        scenario_name: &scenario_name,
         block,
-    );
+    };
+    let case_attrs = examples.map_or_else(Vec::new, |ex| generate_case_attrs(&ex));
+    let body = generate_test_tokens(test_config, ctx_inserts);
     TokenStream::from(quote! {
         #[rstest::rstest]
         #(#case_attrs)*

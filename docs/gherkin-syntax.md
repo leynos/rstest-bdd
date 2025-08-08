@@ -630,9 +630,10 @@ steps.
   arguments to the corresponding step functions. Their names must match the
   headers in the `Examples` table.[^25]
 - `Data Tables`**:** A step definition function can access a `Data Table` by
-  including a special argument named `datatable`. `pytest-bdd` will inject the
-  table's content into this argument as a list of lists, where each inner list
-  represents a row.[^16]
+  including a special argument named `datatable` of type `Vec<Vec<String>>`.
+  The name and type must match exactly; aliases or alternative names are not
+  recognised. `pytest-bdd` will inject the table's content into this argument
+  as a list of lists, where each inner list represents a row.[^16]
 - `Doc Strings`**:** Similarly, a `Doc String` can be accessed by including a
   special argument named `docstring`. This argument will receive the entire
   block text as a single, multi-line string.[^16]
@@ -793,7 +794,7 @@ into Rust types.
 
   The same principle applies to `Data Tables`, where `step.table.as_ref()`
   would be used to access the table data, which can then be iterated over.[^30]
-______________________________________________________________________
+  ______________________________________________________________________
 
 ## Part 6: Synthesis: Implementation Variations and Quirks
 

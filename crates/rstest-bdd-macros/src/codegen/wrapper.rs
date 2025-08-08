@@ -100,6 +100,10 @@ fn is_string_type(ty: &syn::Type) -> bool {
 
 /// Determines if a function parameter should be treated as a datatable argument.
 ///
+/// Detection relies on the parameter being named `datatable` and having the
+/// concrete type `Vec<Vec<String>>`. Renaming the parameter or using a type alias
+/// will prevent detection.
+///
 /// # Examples
 /// ```rust,ignore
 /// # use proc_macro2::Span;

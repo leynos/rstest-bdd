@@ -336,10 +336,12 @@ macro has a distinct role in the compile-time orchestration of the BDD tests.
   add a `Step` to the registry.
 
 - **Data Tables:** Step functions may include a parameter named
-  `datatable` of type `Vec<Vec<String>>`. When the feature file attaches a data
-  table to a step, the generated wrapper converts the table into this structure
-  and passes it to the function. The wrapper emits an error at runtime if the
-  table is missing.
+  `datatable` of type `Vec<Vec<String>>`. Detection relies on this exact name
+  and type; renaming the parameter or using a type alias will prevent the
+  wrapper from recognising it. When the feature file attaches a data table to a
+  step, the generated wrapper converts the table into this structure and passes
+  it to the function. The wrapper emits an error at runtime if the table is
+  missing.
 
 ### 2.2 The Core Architectural Challenge: Stateless Step Discovery
 
