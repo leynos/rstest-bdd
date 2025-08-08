@@ -264,11 +264,11 @@ Feature: User administration
 ```
 
 Unlike an `Examples` table, this `Data Table` does not cause the scenario to
-run multiple times. Instead, the entire table is passed as a single optional
-parameter named `datatable` of type `Vec<Vec<String>>` to the step definition
-for "Given the following users exist in the system:". The automation code can
-then parse this table (often as a list of lists or list of maps) and use it to
-perform the necessary setup.[^16]
+run multiple times. Instead, pass the entire table to the step definition as a
+parameter named `datatable`. The argument holds the rows as a two-dimensional
+collection (rows and cells). Parse it in the target language as appropriate
+(for example, a list of lists in Python; a `Vec<Vec<String>>` in Rust) and use
+it to perform the necessary setup.[^16]
 
 ### Section 2.4: Incorporating Block Text with `Doc Strings`
 
@@ -631,12 +631,9 @@ steps.
   arguments to the corresponding step functions. Their names must match the
   headers in the `Examples` table.[^25]
 - `Data Tables`**:** Step functions may include a single optional parameter
-  named `datatable` of type `Vec<Vec<String>>`. Detection relies on this exact
-  name and type; renaming the parameter or using a type alias prevents the
-  wrapper from recognizing it. When the feature file attaches a data table to a
-  step, the generated wrapper converts the table into this structure and passes
-  it to the function. The wrapper emits an error at runtime if the table is
-  missing.[^16]
+  named `datatable`. The argument receives the table as a list of lists (rows
+  and cells). `pytest-bdd` injects the table content into this argument, where
+  each inner list represents a row.[^16]
 - `Doc Strings`**:** Similarly, a `Doc String` can be accessed by including a
   special argument named `docstring`. This argument will receive the entire
   block text as a single, multi-line string.[^16]

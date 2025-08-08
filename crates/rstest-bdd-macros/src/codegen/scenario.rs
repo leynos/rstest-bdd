@@ -59,6 +59,9 @@ fn generate_table_tokens(table: Option<&[Vec<String>]>) -> TokenStream2 {
     table.map_or_else(
         || quote! { None },
         |rows| {
+            if rows.is_empty() {
+                return quote! { Some(&[][..]) };
+            }
             let row_tokens = rows.iter().map(|row| {
                 let cells = row.iter().map(|cell| {
                     let lit = syn::LitStr::new(cell, proc_macro2::Span::call_site());
