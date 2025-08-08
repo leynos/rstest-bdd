@@ -60,7 +60,7 @@ fn generate_table_tokens(table: Option<&[Vec<String>]>) -> TokenStream2 {
         || quote! { None },
         |rows| {
             if rows.is_empty() {
-                return quote! { Some(&[][..]) };
+                return quote! { Some(&[] as &[&[&str]]) };
             }
             let row_tokens = rows.iter().map(|row| {
                 let cells = row.iter().map(|cell| {
