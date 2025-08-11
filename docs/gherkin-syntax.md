@@ -269,8 +269,8 @@ parameter named `datatable`. The argument holds the rows as a two-dimensional
 collection (rows and cells). Parse it in the target language as appropriate
 (for example, a list of lists in Python; a `Vec<Vec<String>>` in Rust) and use
 it to perform the necessary setup.[^16] In `rstest-bdd`, a `Doc String` is
-retrieved in a similar fashion via a parameter named `docstring` of type
-`String`.
+retrieved similarly via a parameter named `docstring` of type `String`. These
+names and types are required for detection by the procedural macros.
 
 ### Section 2.4: Incorporating Block Text with `Doc Strings`
 

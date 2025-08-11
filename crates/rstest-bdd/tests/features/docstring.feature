@@ -5,3 +5,8 @@ Feature: DocString handling
       hello
       world
       """
+    Then the captured message equals:
+      """
+      hello
+      world
+      """

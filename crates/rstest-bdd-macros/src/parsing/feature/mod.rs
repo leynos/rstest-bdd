@@ -7,7 +7,7 @@ use crate::parsing::examples::ExampleTable;
 use crate::utils::errors::error_to_tokens;
 use crate::validation::examples::validate_examples_in_feature_text;
 
-/// Step extracted from a scenario with optional arguments.
+/// Step extracted from a scenario with optional arguments (data table and doc string).
 #[derive(Debug, PartialEq)]
 pub(crate) struct ParsedStep {
     pub keyword: rstest_bdd::StepKeyword,

@@ -47,7 +47,7 @@ same type for readability.
 Scenarios follow the simple `Given‑When‑Then` pattern. Support for **Scenario
 Outline** is available, enabling a single scenario to run with multiple sets of
 data from an `Examples` table. A `Background` section may define steps that run
-before each scenario. Advanced constructs such as data tables and doc strings
+before each scenario. Advanced constructs such as data tables and Doc Strings
 provide structured or free‑form arguments to steps.
 
 ### Example feature file
@@ -203,15 +203,15 @@ Best practices for writing effective scenarios include:
   Nested braces inside placeholders are permitted. When no placeholder is
   present, the text must match exactly.
 
-## Data tables and doc strings
+## Data tables and Doc Strings
 
 Steps may supply structured or free-form data via a trailing argument. A data
 table is received by including an argument named `datatable` of type
-`Vec<Vec<String>>`. A doc string is made available through an argument named
-`docstring` of type `String`. Both arguments must use these exact names and
-types to be detected by the procedural macros. At runtime the generated wrapper
-converts the table cells or copies the block text and passes them to the step
-function, panicking if the feature omits the expected content.
+`Vec<Vec<String>>`. A Gherkin Doc String is made available through an argument
+named `docstring` of type `String`. Both arguments must use these exact names
+and types to be detected by the procedural macros. At runtime the generated
+wrapper converts the table cells or copies the block text and passes them to
+the step function, panicking if the feature omits the expected content.
 
 ## Limitations and roadmap
 

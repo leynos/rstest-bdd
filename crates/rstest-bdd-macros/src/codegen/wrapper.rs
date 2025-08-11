@@ -30,6 +30,7 @@ pub(crate) struct DocStringArg {
 
 /// Extract fixture and step arguments from a function signature.
 #[expect(clippy::type_complexity, reason = "return type defined by API")]
+// FIXME: https://github.com/leynos/rstest-bdd/issues/54
 pub(crate) fn extract_args(
     func: &mut syn::ItemFn,
 ) -> syn::Result<(
@@ -117,6 +118,7 @@ fn is_string_type(ty: &syn::Type) -> bool {
 
 /// Determines if a function parameter should be treated as a docstring argument.
 #[expect(clippy::ref_option, reason = "signature defined by requirements")]
+// FIXME: https://github.com/leynos/rstest-bdd/issues/54
 fn is_docstring_arg(
     existing_docstring: &Option<DocStringArg>,
     param_name: &syn::Ident,
@@ -141,12 +143,43 @@ fn is_docstring_arg(
 /// assert!(is_datatable_arg(&none, &name, &ty));
 /// ```
 #[expect(clippy::ref_option, reason = "signature defined by requirements")]
+// FIXME: https://github.com/leynos/rstest-bdd/issues/54
 fn is_datatable_arg(
     existing_datatable: &Option<DataTableArg>,
     param_name: &syn::Ident,
     param_type: &syn::Type,
 ) -> bool {
     existing_datatable.is_none() && param_name == "datatable" && is_vec_vec_string(param_type)
+}
+
+/// Generate declaration for a data table argument.
+fn gen_datatable_decl(
+    datatable: Option<&DataTableArg>,
+    pattern: &syn::LitStr,
+) -> Option<TokenStream2> {
+    datatable.map(|DataTableArg { pat }| {
+        quote! {
+            let #pat: Vec<Vec<String>> = _table
+                .ok_or_else(|| format!("Step '{}' requires a data table", #pattern))?
+                .iter()
+                .map(|row| row.iter().map(|cell| cell.to_string()).collect())
+                .collect();
+        }
+    })
+}
+
+/// Generate declaration for a doc string argument.
+fn gen_docstring_decl(
+    docstring: Option<&DocStringArg>,
+    pattern: &syn::LitStr,
+) -> Option<TokenStream2> {
+    docstring.map(|DocStringArg { pat }| {
+        quote! {
+            let #pat: String = _docstring
+                .ok_or_else(|| format!("Step '{}' requires a doc string", #pattern))?
+                .to_string();
+        }
+    })
 }
 
 /// Configuration required to generate a wrapper.
@@ -267,7 +300,7 @@ fn generate_wrapper_body(
         docstring,
         pattern,
         ..
-    } = config;
+    } = *config;
     let declares = gen_fixture_decls(fixtures, ident);
     let captured: Vec<_> = step_args
         .iter()
@@ -278,22 +311,8 @@ fn generate_wrapper_body(
         })
         .collect();
     let step_arg_parses = gen_step_parses(step_args, &captured);
-    let datatable_decl = datatable.map(|DataTableArg { pat }| {
-        quote! {
-            let #pat: Vec<Vec<String>> = _table
-                .ok_or_else(|| format!("Step '{}' requires a data table", #pattern))?
-                .iter()
-                .map(|row| row.iter().map(|cell| cell.to_string()).collect())
-                .collect();
-        }
-    });
-    let docstring_decl = docstring.map(|DocStringArg { pat }| {
-        quote! {
-            let #pat: String = _docstring
-                .ok_or_else(|| format!("Step '{}' requires a doc string", #pattern))?
-                .to_string();
-        }
-    });
+    let datatable_decl = gen_datatable_decl(datatable, pattern);
+    let docstring_decl = gen_docstring_decl(docstring, pattern);
     let arg_idents = fixtures
         .iter()
         .map(|f| &f.pat)
