@@ -61,16 +61,17 @@ fn generate_table_tokens(table: Option<&[Vec<String>]>) -> TokenStream2 {
         |rows| {
             if rows.is_empty() {
                 // Explicitly type the empty slice to avoid inference pitfalls when no rows exist.
-                return quote! { Some(&[] as &[&[&str]]) };
-            }
-            let row_tokens = rows.iter().map(|row| {
-                let cells = row.iter().map(|cell| {
-                    let lit = cell_to_lit(cell);
-                    quote! { #lit }
+                quote! { Some(&[] as &[&[&str]]) }
+            } else {
+                let row_tokens = rows.iter().map(|row| {
+                    let cells = row.iter().map(|cell| {
+                        let lit = cell_to_lit(cell);
+                        quote! { #lit }
+                    });
+                    quote! { &[#(#cells),*][..] }
                 });
-                quote! { &[#(#cells),*][..] }
-            });
-            quote! { Some(&[#(#row_tokens),*][..]) }
+                quote! { Some(&[#(#row_tokens),*][..]) }
+            }
         },
     )
 }
@@ -92,7 +93,7 @@ fn process_steps(
     let values = steps
         .iter()
         .map(|s| {
-            let lit = syn::LitStr::new(&s.text, proc_macro2::Span::call_site());
+            let lit = cell_to_lit(&s.text);
             quote! { #lit }
         })
         .collect();
