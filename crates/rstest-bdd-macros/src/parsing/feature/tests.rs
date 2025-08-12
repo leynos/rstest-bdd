@@ -3,11 +3,17 @@
 use super::*;
 use gherkin::{Background, LineCol, Scenario, Span, Step, StepType};
 
+#[expect(
+    unreachable_patterns,
+    reason = "StepType currently only has three variants"
+)]
 fn kw(ty: StepType) -> String {
     match ty {
         StepType::Given => "Given",
         StepType::When => "When",
         StepType::Then => "Then",
+        // Ensure tests fail loudly if an unsupported keyword is passed.
+        _ => unreachable!("kw() only supports Given, When, and Then"),
     }
     .to_string()
 }

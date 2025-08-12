@@ -40,6 +40,9 @@ fn docstring_scenario() {}
 #[scenario(path = "tests/features/background_docstring.feature")]
 fn background_docstring_scenario() {}
 
+#[scenario(path = "tests/features/backticks_docstring.feature")]
+fn backticks_docstring_scenario() {}
+
 #[scenario(path = "tests/features/missing_docstring.feature")]
 #[should_panic(expected = "requires a doc string")]
 fn missing_docstring_scenario() {}

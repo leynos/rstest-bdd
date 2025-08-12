@@ -302,6 +302,21 @@ argument named `docstring` of type `String`. Advanced Gherkin parsers also
 allow specifying a content type (e.g., `"""json`) after the opening delimiter,
 which can help tools with syntax highlighting and parsing.[^10]
 
+An equivalent form uses backticks as the delimiters:
+
+````gherkin
+Feature: Backtick doc string
+  Scenario: uses backticks
+    Given the following message:
+      ```
+      hello world
+      ```
+    Then the captured message equals:
+      ```
+      hello world
+      ```
+````
+
 ### Section 2.5: Grouping with the `Rule` Keyword
 
 As a `Feature` grows more complex, a flat list of scenarios can become

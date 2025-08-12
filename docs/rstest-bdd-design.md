@@ -361,7 +361,9 @@ macro has a distinct role in the compile-time orchestration of the BDD tests.
   exposed to the step function through an optional `docstring` parameter of
   type `String`. As with data tables, the parameter must use this exact name
   and concrete type for detection. The wrapper copies the block text into the
-  argument and fails at runtime if the doc string is absent.
+  argument and fails at runtime if the doc string is absent. A data table must
+  precede any doc string parameter, and feature files may delimit the block
+  using either triple double-quotes or triple backticks.
 
 ### 2.2 The Core Architectural Challenge: Stateless Step Discovery
 

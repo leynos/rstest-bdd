@@ -100,7 +100,7 @@ and run data-driven tests, making the framework genuinely useful.
 This phase aims for feature-parity with other mature BDD frameworks and
 improves the developer experience.
 
-- [ ] **Advanced Gherkin Constructs**
+- [x] **Advanced Gherkin Constructs**
 
   - [x] Implement support for `Background` steps, ensuring they are executed
     before each `Scenario`.
