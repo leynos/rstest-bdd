@@ -123,6 +123,20 @@ fn is_string_type(ty: &syn::Type) -> bool {
 }
 
 /// Determines if a function parameter should be treated as a docstring argument.
+///
+/// Detection relies on the parameter being named `docstring` and having the
+/// concrete type `String`. Renaming the parameter or using a type alias will
+/// prevent detection.
+///
+/// # Examples
+/// ```rust,ignore
+/// # use proc_macro2::Span;
+/// # use syn::{parse_quote, Ident};
+/// let ty: syn::Type = parse_quote! { String };
+/// let name = Ident::new("docstring", Span::call_site());
+/// let none = None;
+/// assert!(is_docstring_arg(&none, &name, &ty));
+/// ```
 #[expect(clippy::ref_option, reason = "signature defined by requirements")]
 // FIXME: https://github.com/leynos/rstest-bdd/issues/54
 fn is_docstring_arg(
