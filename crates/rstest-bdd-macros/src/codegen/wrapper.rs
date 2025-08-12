@@ -23,13 +23,48 @@ pub(crate) struct DataTableArg {
     pub(crate) pat: syn::Ident,
 }
 
+/// Doc string argument extracted from a step function.
+pub(crate) struct DocStringArg {
+    pub(crate) pat: syn::Ident,
+}
+
+/// Collections of arguments extracted from a step function.
+///
+/// This container groups fixture, step, data table, and doc string
+/// references so functions can operate on ordered parameters without
+/// juggling multiple slices.
+pub(crate) struct ArgumentCollections<'a> {
+    pub(crate) fixtures: &'a [FixtureArg],
+    pub(crate) step_args: &'a [StepArg],
+    pub(crate) datatable: Option<&'a DataTableArg>,
+    pub(crate) docstring: Option<&'a DocStringArg>,
+}
+
+/// Argument ordering as declared in the step function signature.
+pub(crate) enum CallArg {
+    Fixture(usize),
+    StepArg(usize),
+    DataTable,
+    DocString,
+}
+
 /// Extract fixture and step arguments from a function signature.
+#[expect(clippy::type_complexity, reason = "return type defined by API")]
+// FIXME: https://github.com/leynos/rstest-bdd/issues/54
 pub(crate) fn extract_args(
     func: &mut syn::ItemFn,
-) -> syn::Result<(Vec<FixtureArg>, Vec<StepArg>, Option<DataTableArg>)> {
+) -> syn::Result<(
+    Vec<FixtureArg>,
+    Vec<StepArg>,
+    Option<DataTableArg>,
+    Option<DocStringArg>,
+    Vec<CallArg>,
+)> {
     let mut fixtures = Vec::new();
     let mut step_args = Vec::new();
     let mut datatable = None;
+    let mut docstring = None;
+    let mut call_order = Vec::new();
 
     for input in &mut func.sig.inputs {
         let syn::FnArg::Typed(arg) = input else {
@@ -56,15 +91,31 @@ pub(crate) fn extract_args(
         let ty = (*arg.ty).clone();
 
         if let Some(name) = fixture_name {
+            let idx = fixtures.len();
             fixtures.push(FixtureArg { pat, name, ty });
+            call_order.push(CallArg::Fixture(idx));
         } else if is_datatable_arg(&datatable, &pat, &ty) {
+            if docstring.is_some() {
+                // Gherkin places data tables before doc strings, so require the
+                // same order in step signatures to avoid reordering arguments.
+                return Err(syn::Error::new_spanned(
+                    &arg.pat,
+                    "datatable must be declared before docstring to match Gherkin ordering",
+                ));
+            }
             datatable = Some(DataTableArg { pat });
+            call_order.push(CallArg::DataTable);
+        } else if is_docstring_arg(&docstring, &pat, &ty) {
+            docstring = Some(DocStringArg { pat });
+            call_order.push(CallArg::DocString);
         } else {
+            let idx = step_args.len();
             step_args.push(StepArg { pat, ty });
+            call_order.push(CallArg::StepArg(idx));
         }
     }
 
-    Ok((fixtures, step_args, datatable))
+    Ok((fixtures, step_args, datatable, docstring, call_order))
 }
 
 fn is_vec_vec_string(ty: &syn::Type) -> bool {
@@ -101,6 +152,31 @@ fn is_string_type(ty: &syn::Type) -> bool {
     )
 }
 
+/// Determines if a function parameter should be treated as a docstring argument.
+///
+/// Detection relies on the parameter being named `docstring` and having the
+/// concrete type `String`. Renaming the parameter or using a type alias will
+/// prevent detection.
+///
+/// # Examples
+/// ```rust,ignore
+/// # use proc_macro2::Span;
+/// # use syn::{parse_quote, Ident};
+/// let ty: syn::Type = parse_quote! { String };
+/// let name = Ident::new("docstring", Span::call_site());
+/// let none = None;
+/// assert!(is_docstring_arg(&none, &name, &ty));
+/// ```
+#[expect(clippy::ref_option, reason = "signature defined by requirements")]
+// FIXME: https://github.com/leynos/rstest-bdd/issues/54
+fn is_docstring_arg(
+    existing_docstring: &Option<DocStringArg>,
+    param_name: &syn::Ident,
+    param_type: &syn::Type,
+) -> bool {
+    existing_docstring.is_none() && param_name == "docstring" && is_string_type(param_type)
+}
+
 /// Determines if a function parameter should be treated as a datatable argument.
 ///
 /// Detection relies on the parameter being named `datatable` and having the
@@ -117,6 +193,7 @@ fn is_string_type(ty: &syn::Type) -> bool {
 /// assert!(is_datatable_arg(&none, &name, &ty));
 /// ```
 #[expect(clippy::ref_option, reason = "signature defined by requirements")]
+// FIXME: https://github.com/leynos/rstest-bdd/issues/54
 fn is_datatable_arg(
     existing_datatable: &Option<DataTableArg>,
     param_name: &syn::Ident,
@@ -125,14 +202,48 @@ fn is_datatable_arg(
     existing_datatable.is_none() && param_name == "datatable" && is_vec_vec_string(param_type)
 }
 
+/// Generate declaration for a data table argument.
+fn gen_datatable_decl(
+    datatable: Option<&DataTableArg>,
+    pattern: &syn::LitStr,
+) -> Option<TokenStream2> {
+    datatable.map(|DataTableArg { pat }| {
+        quote! {
+            let #pat: Vec<Vec<String>> = _table
+                .ok_or_else(|| format!("Step '{}' requires a data table", #pattern))?
+                .iter()
+                .map(|row| row.iter().map(|cell| cell.to_string()).collect())
+                .collect();
+        }
+    })
+}
+
+/// Generate declaration for a doc string argument.
+///
+/// Step functions require an owned `String`, so the wrapper copies the block.
+fn gen_docstring_decl(
+    docstring: Option<&DocStringArg>,
+    pattern: &syn::LitStr,
+) -> Option<TokenStream2> {
+    docstring.map(|DocStringArg { pat }| {
+        quote! {
+            let #pat: String = _docstring
+                .ok_or_else(|| format!("Step '{}' requires a doc string", #pattern))?
+                .to_owned();
+        }
+    })
+}
+
 /// Configuration required to generate a wrapper.
 pub(crate) struct WrapperConfig<'a> {
     pub(crate) ident: &'a syn::Ident,
     pub(crate) fixtures: &'a [FixtureArg],
     pub(crate) step_args: &'a [StepArg],
     pub(crate) datatable: Option<&'a DataTableArg>,
+    pub(crate) docstring: Option<&'a DocStringArg>,
     pub(crate) pattern: &'a syn::LitStr,
     pub(crate) keyword: rstest_bdd::StepKeyword,
+    pub(crate) call_order: &'a [CallArg],
 }
 
 /// Generate declarations for fixture values.
@@ -169,23 +280,33 @@ fn gen_fixture_decls(fixtures: &[FixtureArg], ident: &syn::Ident) -> Vec<TokenSt
 }
 
 /// Generate code to parse step arguments from regex captures.
-fn gen_step_parses(step_args: &[StepArg], captured: &[TokenStream2]) -> Vec<TokenStream2> {
+fn gen_step_parses(
+    step_args: &[StepArg],
+    captured: &[TokenStream2],
+    pattern: &syn::LitStr,
+) -> Vec<TokenStream2> {
     step_args
         .iter()
-        .zip(captured.iter())
-        .map(|(StepArg { pat, ty }, capture)| {
+        .zip(captured.iter().enumerate())
+        .map(|(StepArg { pat, ty }, (idx, capture))| {
+            let raw_ident = format_ident!("__raw{}", idx);
             quote! {
-                let #pat: #ty = (#capture)
-                    .parse()
-                    .unwrap_or_else(|_| {
-                        panic!(
-                            "failed to parse argument '{}' of type '{}' from '{}' with captured value: '{:?}'",
-                            stringify!(#pat),
-                            stringify!(#ty),
-                            #capture,
-                            #capture
-                        )
-                    });
+                let #raw_ident = #capture.unwrap_or_else(|| {
+                    panic!(
+                        "pattern '{}' missing capture for argument '{}'",
+                        #pattern,
+                        stringify!(#pat),
+                    )
+                });
+                let #pat: #ty = (#raw_ident).parse().unwrap_or_else(|_| {
+                    panic!(
+                        "failed to parse argument '{}' of type '{}' from pattern '{}' with captured value: '{:?}'",
+                        stringify!(#pat),
+                        stringify!(#ty),
+                        #pattern,
+                        #raw_ident,
+                    )
+                });
             }
         })
         .collect()
@@ -217,61 +338,166 @@ fn generate_wrapper_identifiers(
     (wrapper_ident, const_ident, pattern_ident)
 }
 
-/// Generate the wrapper function body and pattern constant.
+/// Generate the `StepPattern` constant used by a wrapper.
 ///
 /// # Examples
 /// ```rust,ignore
 /// # use syn::parse_quote;
-/// # use proc_macro2::Ident;
-/// # let ident = Ident::new("step", proc_macro2::Span::call_site());
-/// # let config = WrapperConfig { ident: &ident, fixtures: &[], step_args: &[], datatable: None, pattern: &parse_quote!(""), keyword: rstest_bdd::StepKeyword::Given };
-/// # let (wrapper_ident, _, pattern_ident) = generate_wrapper_identifiers(config.ident, 0);
-/// let tokens = generate_wrapper_body(&config, &wrapper_ident, &pattern_ident);
-/// assert!(tokens.to_string().contains("fn"));
+/// # use proc_macro2::Span;
+/// # let pattern = parse_quote!("^foo$");
+/// # let pattern_ident = proc_macro2::Ident::new("PAT", Span::call_site());
+/// let tokens = generate_wrapper_signature(&pattern, &pattern_ident);
+/// assert!(tokens.to_string().contains("StepPattern"));
 /// ```
-fn generate_wrapper_body(
-    config: &WrapperConfig<'_>,
-    wrapper_ident: &proc_macro2::Ident,
+fn generate_wrapper_signature(
+    pattern: &syn::LitStr,
     pattern_ident: &proc_macro2::Ident,
 ) -> TokenStream2 {
-    let WrapperConfig {
-        ident,
-        fixtures,
-        step_args,
-        datatable,
-        pattern,
-        ..
-    } = config;
-    let declares = gen_fixture_decls(fixtures, ident);
-    let captured: Vec<_> = step_args
+    quote! {
+        static #pattern_ident: rstest_bdd::StepPattern =
+            rstest_bdd::StepPattern::new(#pattern);
+    }
+}
+
+/// Generate declarations and parsing logic for wrapper arguments.
+///
+/// The returned tuple contains fixture declarations, step argument parsers,
+/// optional data table handling, and optional doc string handling.
+///
+/// # Examples
+/// ```rust,ignore
+/// # use syn::parse_quote;
+/// # let ident = syn::Ident::new("step", proc_macro2::Span::call_site());
+/// # let pattern = parse_quote!("pattern");
+/// # let config = WrapperConfig {
+/// #     ident: &ident,
+/// #     fixtures: &[],
+/// #     step_args: &[],
+/// #     datatable: None,
+/// #     docstring: None,
+/// #     pattern: &pattern,
+/// #     keyword: rstest_bdd::StepKeyword::Given,
+/// #     call_order: &[],
+/// # };
+/// let result = generate_argument_processing(&config);
+/// assert!(result.0.is_empty());
+/// ```
+fn generate_argument_processing(
+    config: &WrapperConfig<'_>,
+) -> (
+    Vec<TokenStream2>,
+    Vec<TokenStream2>,
+    Option<TokenStream2>,
+    Option<TokenStream2>,
+) {
+    let declares = gen_fixture_decls(config.fixtures, config.ident);
+    let captured: Vec<_> = config
+        .step_args
         .iter()
         .enumerate()
         .map(|(idx, _)| {
-            let index = syn::Index::from(idx + 1); // +1 to skip the full match at index 0
-            quote! { captures.get(#index).map(|m| m.as_str()).unwrap_or_default() }
+            let index = syn::Index::from(idx + 1); // skip full match at index 0
+            quote! { captures.get(#index).map(|m| m.as_str()) }
         })
         .collect();
-    let step_arg_parses = gen_step_parses(step_args, &captured);
-    let datatable_decl = datatable.map(|DataTableArg { pat }| {
-        quote! {
-            let #pat: Vec<Vec<String>> = _table
-                .ok_or_else(|| format!("Step '{}' requires a data table", #pattern))?
-                .iter()
-                .map(|row| row.iter().map(|cell| cell.to_string()).collect())
-                .collect();
-        }
-    });
-    let arg_idents = fixtures
-        .iter()
-        .map(|f| &f.pat)
-        .chain(step_args.iter().map(|a| &a.pat))
-        .chain(datatable.iter().map(|d| &d.pat));
-    quote! {
-        static #pattern_ident: rstest_bdd::StepPattern = rstest_bdd::StepPattern::new(#pattern);
+    let step_arg_parses = gen_step_parses(config.step_args, &captured, config.pattern);
+    let datatable_decl = gen_datatable_decl(config.datatable, config.pattern);
+    let docstring_decl = gen_docstring_decl(config.docstring, config.pattern);
+    (declares, step_arg_parses, datatable_decl, docstring_decl)
+}
 
+/// Collect argument identifiers in the order declared by the step function.
+///
+/// # Examples
+/// ```rust,ignore
+/// # let args = ArgumentCollections {
+/// #     fixtures: &[],
+/// #     step_args: &[],
+/// #     datatable: None,
+/// #     docstring: None,
+/// # };
+/// let idents = collect_ordered_arguments(&[], &args);
+/// assert!(idents.is_empty());
+/// ```
+fn collect_ordered_arguments<'a>(
+    call_order: &'a [CallArg],
+    args: &ArgumentCollections<'a>,
+) -> Vec<&'a syn::Ident> {
+    call_order
+        .iter()
+        .map(|arg| match arg {
+            CallArg::Fixture(i) =>
+            {
+                #[expect(
+                    clippy::indexing_slicing,
+                    reason = "indices validated during extraction"
+                )]
+                &args.fixtures[*i].pat
+            }
+            CallArg::StepArg(i) =>
+            {
+                #[expect(
+                    clippy::indexing_slicing,
+                    reason = "indices validated during extraction"
+                )]
+                &args.step_args[*i].pat
+            }
+            CallArg::DataTable =>
+            {
+                #[expect(clippy::expect_used, reason = "variant guarantees presence")]
+                &args
+                    .datatable
+                    .expect("datatable present in call_order but not configured")
+                    .pat
+            }
+            CallArg::DocString =>
+            {
+                #[expect(clippy::expect_used, reason = "variant guarantees presence")]
+                &args
+                    .docstring
+                    .expect("docstring present in call_order but not configured")
+                    .pat
+            }
+        })
+        .collect()
+}
+
+/// Assemble the final wrapper function using prepared components.
+///
+/// # Examples
+/// ```rust,ignore
+/// # use syn::parse_quote;
+/// # let ident = syn::Ident::new("step", proc_macro2::Span::call_site());
+/// # let pattern = parse_quote!("pattern");
+/// let tokens = assemble_wrapper_function(
+///     &proc_macro2::Ident::new("wrapper", proc_macro2::Span::call_site()),
+///     &proc_macro2::Ident::new("PAT", proc_macro2::Span::call_site()),
+///     (vec![], vec![], None, None),
+///     vec![],
+///     &pattern,
+///     &ident,
+/// );
+/// assert!(tokens.to_string().contains("fn"));
+/// ```
+fn assemble_wrapper_function(
+    wrapper_ident: &proc_macro2::Ident,
+    pattern_ident: &proc_macro2::Ident,
+    arg_processing: (
+        Vec<TokenStream2>,
+        Vec<TokenStream2>,
+        Option<TokenStream2>,
+        Option<TokenStream2>,
+    ),
+    arg_idents: &[&syn::Ident],
+    pattern: &syn::LitStr,
+    ident: &syn::Ident,
+) -> TokenStream2 {
+    let (declares, step_arg_parses, datatable_decl, docstring_decl) = arg_processing;
+    quote! {
         fn #wrapper_ident(
             ctx: &rstest_bdd::StepContext<'_>,
             text: &str,
+            _docstring: Option<&str>,
             _table: Option<&[&[&str]]>,
         ) -> Result<(), String> {
             use std::panic::{catch_unwind, AssertUnwindSafe};
@@ -288,6 +514,7 @@ fn generate_wrapper_body(
             #(#declares)*
             #(#step_arg_parses)*
             #datatable_decl
+            #docstring_decl
 
             catch_unwind(AssertUnwindSafe(|| {
                 #ident(#(#arg_idents),*);
@@ -303,6 +530,66 @@ fn generate_wrapper_body(
     }
 }
 
+/// Generate the wrapper function body and pattern constant.
+///
+/// # Examples
+/// ```rust,ignore
+/// # use syn::parse_quote;
+/// # use proc_macro2::Ident;
+/// # let ident = Ident::new("step", proc_macro2::Span::call_site());
+/// # let config = WrapperConfig {
+/// #     ident: &ident,
+/// #     fixtures: &[],
+/// #     step_args: &[],
+/// #     datatable: None,
+/// #     docstring: None,
+/// #     pattern: &parse_quote!(""),
+/// #     keyword: rstest_bdd::StepKeyword::Given,
+/// #     call_order: &[],
+/// # };
+/// # let (wrapper_ident, _, pattern_ident) = generate_wrapper_identifiers(config.ident, 0);
+/// let tokens = generate_wrapper_body(&config, &wrapper_ident, &pattern_ident);
+/// assert!(tokens.to_string().contains("fn"));
+/// ```
+fn generate_wrapper_body(
+    config: &WrapperConfig<'_>,
+    wrapper_ident: &proc_macro2::Ident,
+    pattern_ident: &proc_macro2::Ident,
+) -> TokenStream2 {
+    let WrapperConfig {
+        ident,
+        fixtures,
+        step_args,
+        datatable,
+        docstring,
+        pattern,
+        call_order,
+        ..
+    } = *config;
+
+    let signature = generate_wrapper_signature(pattern, pattern_ident);
+    let arg_processing = generate_argument_processing(config);
+    let collections = ArgumentCollections {
+        fixtures,
+        step_args,
+        datatable,
+        docstring,
+    };
+    let arg_idents = collect_ordered_arguments(call_order, &collections);
+    let wrapper_fn = assemble_wrapper_function(
+        wrapper_ident,
+        pattern_ident,
+        arg_processing,
+        &arg_idents,
+        pattern,
+        ident,
+    );
+
+    quote! {
+        #signature
+        #wrapper_fn
+    }
+}
 /// Generate fixture registration and inventory code for the wrapper.
 ///
 /// # Examples
@@ -310,7 +597,16 @@ fn generate_wrapper_body(
 /// # use syn::parse_quote;
 /// # use proc_macro2::Ident;
 /// # let ident = Ident::new("step", proc_macro2::Span::call_site());
-/// # let config = WrapperConfig { ident: &ident, fixtures: &[], step_args: &[], datatable: None, pattern: &parse_quote!(""), keyword: rstest_bdd::StepKeyword::Given };
+/// # let config = WrapperConfig {
+/// #     ident: &ident,
+/// #     fixtures: &[],
+/// #     step_args: &[],
+/// #     datatable: None,
+/// #     docstring: None,
+/// #     pattern: &parse_quote!(""),
+/// #     keyword: rstest_bdd::StepKeyword::Given,
+/// #     call_order: &[],
+/// # };
 /// # let (wrapper_ident, const_ident, pattern_ident) = generate_wrapper_identifiers(config.ident, 0);
 /// let tokens = generate_registration_code(&config, &pattern_ident, &wrapper_ident, &const_ident);
 /// assert!(tokens.to_string().contains("rstest_bdd"));

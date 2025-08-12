@@ -268,7 +268,9 @@ run multiple times. Instead, pass the entire table to the step definition as a
 parameter named `datatable`. The argument holds the rows as a two-dimensional
 collection (rows and cells). Parse it in the target language as appropriate
 (for example, a list of lists in Python; a `Vec<Vec<String>>` in Rust) and use
-it to perform the necessary setup.[^16]
+it to perform the necessary setup.[^16] In `rstest-bdd`, a `Doc String` is
+retrieved similarly via a parameter named `docstring` of type `String`. These
+names and types are required for detection by the procedural macros.
 
 ### Section 2.4: Incorporating Block Text with `Doc Strings`
 
@@ -295,9 +297,25 @@ Feature: API for creating blog posts
 ```
 
 In the step definition, the entire content of the `Doc String` is passed as a
-single string argument. Advanced Gherkin parsers also allow specifying a
-content type (e.g., `"""json`) after the opening delimiter, which can help
-tools with syntax highlighting and parsing.[^10]
+single string argument. In `rstest-bdd`, this is achieved by declaring an
+argument named `docstring` of type `String`. Advanced Gherkin parsers also
+allow specifying a content type (e.g., `"""json`) after the opening delimiter,
+which can help tools with syntax highlighting and parsing.[^10]
+
+An equivalent form uses backticks as the delimiters:
+
+````gherkin
+Feature: Backtick doc string
+  Scenario: uses backticks
+    Given the following message:
+      ```
+      hello world
+      ```
+    Then the captured message equals:
+      ```
+      hello world
+      ```
+````
 
 ### Section 2.5: Grouping with the `Rule` Keyword
 

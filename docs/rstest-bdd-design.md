@@ -357,6 +357,16 @@ macro has a distinct role in the compile-time orchestration of the BDD tests.
   it to the function. The wrapper emits an error at runtime if the table is
   missing.
 
+- **Doc Strings:** A multi-line text block immediately following a step is
+  exposed to the step function through an optional `docstring` parameter of
+  type `String`. The runner passes the raw block to the wrapper as
+  `Option<&str>`, and the wrapper clones it into an owned `String` before
+  calling the step function. As with data tables, the parameter must use this
+  exact name and concrete type for detection. The wrapper fails at runtime if
+  the doc string is absent. A data table must precede any doc string parameter,
+  and feature files may delimit the block using either triple double-quotes or
+  triple backticks.
+
 ### 2.2 The Core Architectural Challenge: Stateless Step Discovery
 
 The most significant technical hurdle in this design is the inherent nature of
@@ -915,7 +925,9 @@ supporting type‑safe parameters in steps. The parser handles escaped braces an
 nested brace pairs, preventing greedy captures while still requiring
 well‑formed placeholders.
 
-The sequence below summarizes how the runner locates and executes steps when
+The runner forwards the raw doc string as `Option<&str>` and the wrapper
+converts it into an owned `String` before invoking the step function. The
+sequence below summarises how the runner locates and executes steps when
 placeholders are present:
 
 ```mermaid
@@ -932,10 +944,10 @@ sequenceDiagram
         StepRegistry->>StepRegistry: extract_placeholders(pattern, text)
         StepRegistry-->>ScenarioRunner: StepFn
     end
-    ScenarioRunner->>StepWrapper: call StepFn(ctx, text, table: Option<&[&[&str]]>)
+    ScenarioRunner->>StepWrapper: call StepFn(ctx, text, docstring: Option<&str>, table: Option<&[&[&str]]>)
     StepWrapper->>StepWrapper: extract_placeholders(pattern, text)
     StepWrapper->>StepWrapper: parse captures with FromStr
-    StepWrapper->>StepFunction: call with typed args
+    StepWrapper->>StepFunction: call with typed args (docstring: String, datatable: Vec<Vec<String>>)
     StepFunction-->>StepWrapper: returns
     StepWrapper-->>ScenarioRunner: returns
 ```

@@ -100,7 +100,7 @@ and run data-driven tests, making the framework genuinely useful.
 This phase aims for feature-parity with other mature BDD frameworks and
 improves the developer experience.
 
-- [ ] **Advanced Gherkin Constructs**
+- [x] **Advanced Gherkin Constructs**
 
   - [x] Implement support for `Background` steps, ensuring they are executed
     before each `Scenario`.
@@ -108,8 +108,8 @@ improves the developer experience.
   - [x] Implement support for `Data Tables`, making the data available to the
     step function as a `Vec<Vec<String>>`.
 
-  - [ ] Implement support for `DocStrings`, making the content available as a
-    `String` argument.
+  - [x] Implement support for `Doc Strings`, making the content available as a
+    `String` argument named `docstring`.
 
 - [ ] **Robust Error Handling**
 
