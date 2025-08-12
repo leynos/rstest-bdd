@@ -31,156 +31,184 @@ pub(crate) enum CallArg {
     DocString,
 }
 
-/// Extract fixture and step arguments from a function signature.
-#[expect(clippy::type_complexity, reason = "return type defined by API")]
+/// Collections of arguments extracted from a step function signature.
+pub(crate) struct ExtractedArgs {
+    pub(crate) fixtures: Vec<FixtureArg>,
+    pub(crate) step_args: Vec<StepArg>,
+    pub(crate) datatable: Option<DataTableArg>,
+    pub(crate) docstring: Option<DocStringArg>,
+    pub(crate) call_order: Vec<CallArg>,
+}
+
+type Classifier =
+    fn(&mut ExtractedArgs, &mut syn::PatType, syn::Ident, syn::Type) -> syn::Result<bool>;
+
+fn is_type_seq(ty: &syn::Type, seq: &[&str]) -> bool {
+    use syn::{GenericArgument, PathArguments, Type};
+
+    let mut cur = ty;
+    for &name in seq {
+        let Type::Path(tp) = cur else { return false };
+        let Some(segment) = tp.path.segments.last() else {
+            return false;
+        };
+        if segment.ident != name {
+            return false;
+        }
+        match &segment.arguments {
+            PathArguments::AngleBracketed(ab) if !ab.args.is_empty() => {
+                if let Some(GenericArgument::Type(inner)) = ab.args.get(0) {
+                    cur = inner;
+                    continue;
+                }
+                return false;
+            }
+            _ => {}
+        }
+    }
+    true
+}
+
+fn is_string(ty: &syn::Type) -> bool {
+    is_type_seq(ty, &["String"])
+}
+fn is_datatable(ty: &syn::Type) -> bool {
+    is_type_seq(ty, &["Vec", "Vec", "String"])
+}
+
+#[expect(clippy::unnecessary_wraps, reason = "conforms to classifier signature")]
+fn classify_fixture(
+    st: &mut ExtractedArgs,
+    arg: &mut syn::PatType,
+    pat: syn::Ident,
+    ty: syn::Type,
+) -> syn::Result<bool> {
+    let mut name = None;
+    arg.attrs.retain(|a| {
+        if a.path().is_ident("from") {
+            name = a.parse_args().ok();
+            false
+        } else {
+            true
+        }
+    });
+    if let Some(name) = name {
+        let idx = st.fixtures.len();
+        st.fixtures.push(FixtureArg { pat, name, ty });
+        st.call_order.push(CallArg::Fixture(idx));
+        Ok(true)
+    } else {
+        Ok(false)
+    }
+}
+
+#[expect(
+    clippy::needless_pass_by_value,
+    reason = "uniform classifier signature"
+)]
+fn classify_datatable(
+    st: &mut ExtractedArgs,
+    arg: &mut syn::PatType,
+    pat: syn::Ident,
+    ty: syn::Type,
+) -> syn::Result<bool> {
+    if st.datatable.is_none() && pat == "datatable" && is_datatable(&ty) {
+        if st.docstring.is_some() {
+            return Err(syn::Error::new_spanned(
+                arg,
+                "datatable must be declared before docstring to match Gherkin ordering",
+            ));
+        }
+        st.datatable = Some(DataTableArg { pat });
+        st.call_order.push(CallArg::DataTable);
+        Ok(true)
+    } else {
+        Ok(false)
+    }
+}
+
+#[expect(clippy::unnecessary_wraps, reason = "conforms to classifier signature")]
+#[expect(
+    clippy::needless_pass_by_value,
+    reason = "uniform classifier signature"
+)]
+fn classify_docstring(
+    st: &mut ExtractedArgs,
+    _arg: &mut syn::PatType,
+    pat: syn::Ident,
+    ty: syn::Type,
+) -> syn::Result<bool> {
+    if st.docstring.is_none() && pat == "docstring" && is_string(&ty) {
+        st.docstring = Some(DocStringArg { pat });
+        st.call_order.push(CallArg::DocString);
+        Ok(true)
+    } else {
+        Ok(false)
+    }
+}
+
+#[expect(clippy::unnecessary_wraps, reason = "conforms to classifier signature")]
+fn classify_step_arg(
+    st: &mut ExtractedArgs,
+    _arg: &mut syn::PatType,
+    pat: syn::Ident,
+    ty: syn::Type,
+) -> syn::Result<bool> {
+    let idx = st.step_args.len();
+    st.step_args.push(StepArg { pat, ty });
+    st.call_order.push(CallArg::StepArg(idx));
+    Ok(true)
+}
+
+const CLASSIFIERS: &[Classifier] = &[
+    classify_fixture,
+    classify_datatable,
+    classify_docstring,
+    classify_step_arg,
+];
+
+/// Extract fixture, step, and special arguments from a function signature.
+///
+/// # Examples
+/// ```rust,ignore
+/// use syn::parse_quote;
+///
+/// let mut func: syn::ItemFn = parse_quote! {
+///     fn step(#[from] a: usize, datatable: Vec<Vec<String>>, docstring: String, b: i32) {}
+/// };
+/// let args = extract_args(&mut func).unwrap();
+/// assert_eq!(args.fixtures.len(), 1);
+/// assert_eq!(args.step_args.len(), 1);
+/// assert!(args.datatable.is_some());
+/// assert!(args.docstring.is_some());
+/// assert_eq!(args.call_order.len(), 4);
+/// ```
 // FIXME: https://github.com/leynos/rstest-bdd/issues/54
-pub(crate) fn extract_args(
-    func: &mut syn::ItemFn,
-) -> syn::Result<(
-    Vec<FixtureArg>,
-    Vec<StepArg>,
-    Option<DataTableArg>,
-    Option<DocStringArg>,
-    Vec<CallArg>,
-)> {
-    let mut fixtures = Vec::new();
-    let mut step_args = Vec::new();
-    let mut datatable = None;
-    let mut docstring = None;
-    let mut call_order = Vec::new();
+pub(crate) fn extract_args(func: &mut syn::ItemFn) -> syn::Result<ExtractedArgs> {
+    let mut state = ExtractedArgs {
+        fixtures: vec![],
+        step_args: vec![],
+        datatable: None,
+        docstring: None,
+        call_order: vec![],
+    };
 
     for input in &mut func.sig.inputs {
         let syn::FnArg::Typed(arg) = input else {
             return Err(syn::Error::new_spanned(input, "methods not supported"));
         };
-
-        let mut fixture_name = None;
-        arg.attrs.retain(|a| {
-            if a.path().is_ident("from") {
-                fixture_name = a.parse_args::<syn::Ident>().ok();
-                false
-            } else {
-                true
-            }
-        });
-
-        let pat = match &*arg.pat {
-            syn::Pat::Ident(i) => i.ident.clone(),
-            _ => {
-                return Err(syn::Error::new_spanned(&arg.pat, "unsupported pattern"));
-            }
+        let syn::Pat::Ident(pat_ident) = &*arg.pat else {
+            return Err(syn::Error::new_spanned(&arg.pat, "unsupported pattern"));
         };
-
+        let pat = pat_ident.ident.clone();
         let ty = (*arg.ty).clone();
 
-        if let Some(name) = fixture_name {
-            let idx = fixtures.len();
-            fixtures.push(FixtureArg { pat, name, ty });
-            call_order.push(CallArg::Fixture(idx));
-        } else if is_datatable_arg(&datatable, &pat, &ty) {
-            if docstring.is_some() {
-                // Gherkin places data tables before doc strings, so require the
-                // same order in step signatures to avoid reordering arguments.
-                return Err(syn::Error::new_spanned(
-                    &arg.pat,
-                    "datatable must be declared before docstring to match Gherkin ordering",
-                ));
+        for class in CLASSIFIERS {
+            if class(&mut state, arg, pat.clone(), ty.clone())? {
+                break;
             }
-            datatable = Some(DataTableArg { pat });
-            call_order.push(CallArg::DataTable);
-        } else if is_docstring_arg(&docstring, &pat, &ty) {
-            docstring = Some(DocStringArg { pat });
-            call_order.push(CallArg::DocString);
-        } else {
-            let idx = step_args.len();
-            step_args.push(StepArg { pat, ty });
-            call_order.push(CallArg::StepArg(idx));
         }
     }
 
-    Ok((fixtures, step_args, datatable, docstring, call_order))
-}
-
-fn is_vec_vec_string(ty: &syn::Type) -> bool {
-    is_vec_of(ty, |inner| is_vec_of(inner, is_string_type))
-}
-
-fn is_vec_of<F>(ty: &syn::Type, check_inner: F) -> bool
-where
-    F: FnOnce(&syn::Type) -> bool,
-{
-    use syn::{GenericArgument, PathArguments, Type};
-
-    let Type::Path(tp) = ty else { return false };
-    let Some(seg) = tp.path.segments.last() else {
-        return false;
-    };
-    if seg.ident != "Vec" {
-        return false;
-    }
-    let PathArguments::AngleBracketed(args) = &seg.arguments else {
-        return false;
-    };
-    let Some(GenericArgument::Type(inner_ty)) = args.args.first() else {
-        return false;
-    };
-
-    check_inner(inner_ty)
-}
-
-fn is_string_type(ty: &syn::Type) -> bool {
-    matches!(
-        ty,
-        syn::Type::Path(tp) if tp.path.segments.last().is_some_and(|seg| seg.ident == "String")
-    )
-}
-
-/// Determines if a function parameter should be treated as a docstring argument.
-///
-/// Detection relies on the parameter being named `docstring` and having the
-/// concrete type `String`. Renaming the parameter or using a type alias will
-/// prevent detection.
-///
-/// # Examples
-/// ```rust,ignore
-/// # use proc_macro2::Span;
-/// # use syn::{parse_quote, Ident};
-/// let ty: syn::Type = parse_quote! { String };
-/// let name = Ident::new("docstring", Span::call_site());
-/// let none = None;
-/// assert!(is_docstring_arg(&none, &name, &ty));
-/// ```
-#[expect(clippy::ref_option, reason = "signature defined by requirements")]
-// FIXME: https://github.com/leynos/rstest-bdd/issues/54
-fn is_docstring_arg(
-    existing_docstring: &Option<DocStringArg>,
-    param_name: &syn::Ident,
-    param_type: &syn::Type,
-) -> bool {
-    existing_docstring.is_none() && param_name == "docstring" && is_string_type(param_type)
-}
-
-/// Determines if a function parameter should be treated as a datatable argument.
-///
-/// Detection relies on the parameter being named `datatable` and having the
-/// concrete type `Vec<Vec<String>>`. Renaming the parameter or using a type alias
-/// will prevent detection.
-///
-/// # Examples
-/// ```rust,ignore
-/// # use proc_macro2::Span;
-/// # use syn::{parse_quote, Ident};
-/// let ty: syn::Type = parse_quote! { Vec<Vec<String>> };
-/// let name = Ident::new("datatable", Span::call_site());
-/// let none = None;
-/// assert!(is_datatable_arg(&none, &name, &ty));
-/// ```
-#[expect(clippy::ref_option, reason = "signature defined by requirements")]
-// FIXME: https://github.com/leynos/rstest-bdd/issues/54
-fn is_datatable_arg(
-    existing_datatable: &Option<DataTableArg>,
-    param_name: &syn::Ident,
-    param_type: &syn::Type,
-) -> bool {
-    existing_datatable.is_none() && param_name == "datatable" && is_vec_vec_string(param_type)
+    Ok(state)
 }

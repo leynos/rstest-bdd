@@ -7,5 +7,7 @@ pub(crate) mod emit;
     unused_imports,
     reason = "re-exports preserve public API compatibility"
 )]
-pub(crate) use args::{CallArg, DataTableArg, DocStringArg, FixtureArg, StepArg, extract_args};
+pub(crate) use args::{
+    CallArg, DataTableArg, DocStringArg, ExtractedArgs, FixtureArg, StepArg, extract_args,
+};
 pub(crate) use emit::{WrapperConfig, generate_wrapper_code};

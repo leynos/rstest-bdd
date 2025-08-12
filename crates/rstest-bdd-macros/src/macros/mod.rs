@@ -23,7 +23,7 @@ fn step_attr(
     let pattern = syn::parse_macro_input!(attr as syn::LitStr);
     let mut func = syn::parse_macro_input!(item as syn::ItemFn);
 
-    let (fixtures, step_args, datatable, docstring, call_order) = match extract_args(&mut func) {
+    let args = match extract_args(&mut func) {
         Ok(args) => args,
         Err(err) => return error_to_tokens(&err),
     };
@@ -32,13 +32,13 @@ fn step_attr(
 
     let config = WrapperConfig {
         ident,
-        fixtures: &fixtures,
-        step_args: &step_args,
-        datatable: datatable.as_ref(),
-        docstring: docstring.as_ref(),
+        fixtures: &args.fixtures,
+        step_args: &args.step_args,
+        datatable: args.datatable.as_ref(),
+        docstring: args.docstring.as_ref(),
         pattern: &pattern,
         keyword,
-        call_order: &call_order,
+        call_order: &args.call_order,
     };
     let wrapper_code = generate_wrapper_code(&config);
 
