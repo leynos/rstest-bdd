@@ -1,0 +1,5 @@
+error: complex destructuring patterns are not yet supported - pattern resolves to 1 identifiers but a single bare identifier is required
+ --> tests/fixtures/step_struct_pattern.rs:8:21
+  |
+8 | fn step_with_struct(User { name }: User) {}
+  |                     ^^^^^^^^^^^^^

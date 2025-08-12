@@ -48,6 +48,43 @@ pub(crate) enum CallArg {
     DocString,
 }
 
+/// Recursively collect identifiers bound by a pattern.
+///
+/// Step parameters currently require a single, plain identifier so the
+/// generated wrapper can name the argument. Destructuring patterns are parsed
+/// to surface a clearer error message until full support is implemented.
+fn extract_identifiers_from_pattern(pat: &syn::Pat) -> syn::Result<Vec<syn::Ident>> {
+    match pat {
+        syn::Pat::Ident(pat_ident) => Ok(vec![pat_ident.ident.clone()]),
+        syn::Pat::Tuple(pat_tuple) => {
+            let mut idents = Vec::new();
+            for elem in &pat_tuple.elems {
+                idents.extend(extract_identifiers_from_pattern(elem)?);
+            }
+            Ok(idents)
+        }
+        syn::Pat::Struct(pat_struct) => {
+            let mut idents = Vec::new();
+            for field in &pat_struct.fields {
+                idents.extend(extract_identifiers_from_pattern(&field.pat)?);
+            }
+            Ok(idents)
+        }
+        syn::Pat::TupleStruct(pat_tuple_struct) => {
+            let mut idents = Vec::new();
+            for elem in &pat_tuple_struct.elems {
+                idents.extend(extract_identifiers_from_pattern(elem)?);
+            }
+            Ok(idents)
+        }
+        syn::Pat::Paren(pat_paren) => extract_identifiers_from_pattern(&pat_paren.pat),
+        _ => Err(syn::Error::new_spanned(
+            pat,
+            "unsupported pattern type - only identifiers, tuples, structs, and tuple structs are supported",
+        )),
+    }
+}
+
 /// Extract fixture and step arguments from a function signature.
 #[expect(clippy::type_complexity, reason = "return type defined by API")]
 // FIXME: https://github.com/leynos/rstest-bdd/issues/54
@@ -81,12 +118,23 @@ pub(crate) fn extract_args(
             }
         });
 
-        let pat = match &*arg.pat {
-            syn::Pat::Ident(i) => i.ident.clone(),
-            _ => {
-                return Err(syn::Error::new_spanned(&arg.pat, "unsupported pattern"));
-            }
-        };
+        let pat_idents = extract_identifiers_from_pattern(&arg.pat)?;
+
+        if pat_idents.len() != 1 || !matches!(&*arg.pat, syn::Pat::Ident(_)) {
+            return Err(syn::Error::new_spanned(
+                &arg.pat,
+                format!(
+                    "complex destructuring patterns are not yet supported - pattern resolves to {} identifiers but a single bare identifier is required",
+                    pat_idents.len()
+                ),
+            ));
+        }
+
+        #[expect(clippy::expect_used, reason = "length checked above")]
+        let pat = pat_idents
+            .into_iter()
+            .next()
+            .expect("pattern resolves to exactly one identifier");
 
         let ty = (*arg.ty).clone();
 
