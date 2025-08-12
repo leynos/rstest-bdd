@@ -34,6 +34,16 @@ fn assert_message(docstring: String) {
     });
 }
 
+#[given("message then value {int}:")]
+#[expect(
+    clippy::needless_pass_by_value,
+    reason = "doc string is owned to mirror user API"
+)]
+fn doc_then_value(docstring: String, value: i32) {
+    assert_eq!(docstring.trim(), "alpha");
+    assert_eq!(value, 5);
+}
+
 #[scenario(path = "tests/features/docstring.feature")]
 fn docstring_scenario() {}
 
@@ -46,3 +56,6 @@ fn backticks_docstring_scenario() {}
 #[scenario(path = "tests/features/missing_docstring.feature")]
 #[should_panic(expected = "requires a doc string")]
 fn missing_docstring_scenario() {}
+
+#[scenario(path = "tests/features/docstring_arg_order.feature")]
+fn docstring_arg_order_scenario() {}

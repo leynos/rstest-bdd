@@ -28,6 +28,14 @@ pub(crate) struct DocStringArg {
     pub(crate) pat: syn::Ident,
 }
 
+/// Argument ordering as declared in the step function signature.
+pub(crate) enum CallArg {
+    Fixture(usize),
+    StepArg(usize),
+    DataTable,
+    DocString,
+}
+
 /// Extract fixture and step arguments from a function signature.
 #[expect(clippy::type_complexity, reason = "return type defined by API")]
 // FIXME: https://github.com/leynos/rstest-bdd/issues/54
@@ -38,11 +46,13 @@ pub(crate) fn extract_args(
     Vec<StepArg>,
     Option<DataTableArg>,
     Option<DocStringArg>,
+    Vec<CallArg>,
 )> {
     let mut fixtures = Vec::new();
     let mut step_args = Vec::new();
     let mut datatable = None;
     let mut docstring = None;
+    let mut call_order = Vec::new();
 
     for input in &mut func.sig.inputs {
         let syn::FnArg::Typed(arg) = input else {
@@ -69,7 +79,9 @@ pub(crate) fn extract_args(
         let ty = (*arg.ty).clone();
 
         if let Some(name) = fixture_name {
+            let idx = fixtures.len();
             fixtures.push(FixtureArg { pat, name, ty });
+            call_order.push(CallArg::Fixture(idx));
         } else if is_datatable_arg(&datatable, &pat, &ty) {
             if docstring.is_some() {
                 // Gherkin places data tables before doc strings, so require the
@@ -80,14 +92,18 @@ pub(crate) fn extract_args(
                 ));
             }
             datatable = Some(DataTableArg { pat });
+            call_order.push(CallArg::DataTable);
         } else if is_docstring_arg(&docstring, &pat, &ty) {
             docstring = Some(DocStringArg { pat });
+            call_order.push(CallArg::DocString);
         } else {
+            let idx = step_args.len();
             step_args.push(StepArg { pat, ty });
+            call_order.push(CallArg::StepArg(idx));
         }
     }
 
-    Ok((fixtures, step_args, datatable, docstring))
+    Ok((fixtures, step_args, datatable, docstring, call_order))
 }
 
 fn is_vec_vec_string(ty: &syn::Type) -> bool {
@@ -215,6 +231,7 @@ pub(crate) struct WrapperConfig<'a> {
     pub(crate) docstring: Option<&'a DocStringArg>,
     pub(crate) pattern: &'a syn::LitStr,
     pub(crate) keyword: rstest_bdd::StepKeyword,
+    pub(crate) call_order: &'a [CallArg],
 }
 
 /// Generate declarations for fixture values.
@@ -323,6 +340,7 @@ fn generate_wrapper_body(
         datatable,
         docstring,
         pattern,
+        call_order,
         ..
     } = *config;
     let declares = gen_fixture_decls(fixtures, ident);
@@ -337,12 +355,41 @@ fn generate_wrapper_body(
     let step_arg_parses = gen_step_parses(step_args, &captured);
     let datatable_decl = gen_datatable_decl(datatable, pattern);
     let docstring_decl = gen_docstring_decl(docstring, pattern);
-    let arg_idents = fixtures
+    let arg_idents: Vec<_> = call_order
         .iter()
-        .map(|f| &f.pat)
-        .chain(step_args.iter().map(|a| &a.pat))
-        .chain(datatable.iter().map(|d| &d.pat))
-        .chain(docstring.iter().map(|d| &d.pat));
+        .map(|arg| match arg {
+            CallArg::Fixture(i) =>
+            {
+                #[expect(
+                    clippy::indexing_slicing,
+                    reason = "indices validated during extraction"
+                )]
+                &fixtures[*i].pat
+            }
+            CallArg::StepArg(i) =>
+            {
+                #[expect(
+                    clippy::indexing_slicing,
+                    reason = "indices validated during extraction"
+                )]
+                &step_args[*i].pat
+            }
+            CallArg::DataTable =>
+            {
+                #[expect(clippy::expect_used, reason = "variant guarantees presence")]
+                &datatable
+                    .expect("datatable present in call_order but not configured")
+                    .pat
+            }
+            CallArg::DocString =>
+            {
+                #[expect(clippy::expect_used, reason = "variant guarantees presence")]
+                &docstring
+                    .expect("docstring present in call_order but not configured")
+                    .pat
+            }
+        })
+        .collect();
     quote! {
         static #pattern_ident: rstest_bdd::StepPattern = rstest_bdd::StepPattern::new(#pattern);
 
