@@ -16,7 +16,7 @@ thread_local! {
 #[given("the following message:")]
 fn capture_message(docstring: String) {
     CAPTURED.with(|m| {
-        m.borrow_mut().replace(docstring);
+        m.replace(Some(docstring));
     });
 }
 
@@ -25,11 +25,13 @@ fn capture_message(docstring: String) {
     clippy::needless_pass_by_value,
     reason = "doc string is owned to mirror user API"
 )]
+#[expect(clippy::expect_used, reason = "test ensures a message was captured")]
 fn assert_message(docstring: String) {
     CAPTURED.with(|m| {
-        let Some(captured) = m.borrow_mut().take() else {
-            panic!("message should be captured before assertion");
-        };
+        let captured = m
+            .borrow_mut()
+            .take()
+            .expect("message should be captured before assertion");
         assert_eq!(captured, docstring);
     });
 }
@@ -42,6 +44,16 @@ fn assert_message(docstring: String) {
 fn doc_then_value(docstring: String, value: i32) {
     assert_eq!(docstring.trim(), "alpha");
     assert_eq!(value, 5);
+}
+
+#[given("value then message {int}:")]
+#[expect(
+    clippy::needless_pass_by_value,
+    reason = "doc string is owned to mirror user API"
+)]
+fn value_then_doc(value: i32, docstring: String) {
+    assert_eq!(value, 5);
+    assert_eq!(docstring.trim(), "alpha");
 }
 
 #[scenario(path = "tests/features/docstring.feature")]

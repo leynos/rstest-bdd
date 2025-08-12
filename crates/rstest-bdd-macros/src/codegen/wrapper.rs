@@ -280,23 +280,33 @@ fn gen_fixture_decls(fixtures: &[FixtureArg], ident: &syn::Ident) -> Vec<TokenSt
 }
 
 /// Generate code to parse step arguments from regex captures.
-fn gen_step_parses(step_args: &[StepArg], captured: &[TokenStream2]) -> Vec<TokenStream2> {
+fn gen_step_parses(
+    step_args: &[StepArg],
+    captured: &[TokenStream2],
+    pattern: &syn::LitStr,
+) -> Vec<TokenStream2> {
     step_args
         .iter()
-        .zip(captured.iter())
-        .map(|(StepArg { pat, ty }, capture)| {
+        .zip(captured.iter().enumerate())
+        .map(|(StepArg { pat, ty }, (idx, capture))| {
+            let raw_ident = format_ident!("__raw{}", idx);
             quote! {
-                let #pat: #ty = (#capture)
-                    .parse()
-                    .unwrap_or_else(|_| {
-                        panic!(
-                            "failed to parse argument '{}' of type '{}' from '{}' with captured value: '{:?}'",
-                            stringify!(#pat),
-                            stringify!(#ty),
-                            #capture,
-                            #capture
-                        )
-                    });
+                let #raw_ident = #capture.unwrap_or_else(|| {
+                    panic!(
+                        "pattern '{}' missing capture for argument '{}'",
+                        #pattern,
+                        stringify!(#pat),
+                    )
+                });
+                let #pat: #ty = (#raw_ident).parse().unwrap_or_else(|_| {
+                    panic!(
+                        "failed to parse argument '{}' of type '{}' from pattern '{}' with captured value: '{:?}'",
+                        stringify!(#pat),
+                        stringify!(#ty),
+                        #pattern,
+                        #raw_ident,
+                    )
+                });
             }
         })
         .collect()
@@ -387,10 +397,10 @@ fn generate_argument_processing(
         .enumerate()
         .map(|(idx, _)| {
             let index = syn::Index::from(idx + 1); // skip full match at index 0
-            quote! { captures.get(#index).map(|m| m.as_str()).unwrap_or_default() }
+            quote! { captures.get(#index).map(|m| m.as_str()) }
         })
         .collect();
-    let step_arg_parses = gen_step_parses(config.step_args, &captured);
+    let step_arg_parses = gen_step_parses(config.step_args, &captured, config.pattern);
     let datatable_decl = gen_datatable_decl(config.datatable, config.pattern);
     let docstring_decl = gen_docstring_decl(config.docstring, config.pattern);
     (declares, step_arg_parses, datatable_decl, docstring_decl)

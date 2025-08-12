@@ -4,3 +4,9 @@ Feature: Doc string parameter order
       """
       alpha
       """
+
+  Scenario: value precedes docstring in function signature
+    Given value then message 5:
+      """
+      alpha
+      """
