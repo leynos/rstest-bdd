@@ -316,46 +316,83 @@ fn generate_wrapper_identifiers(
     (wrapper_ident, const_ident, pattern_ident)
 }
 
-/// Generate the wrapper function body and pattern constant.
+/// Generate the `StepPattern` constant used by a wrapper.
 ///
 /// # Examples
 /// ```rust,ignore
 /// # use syn::parse_quote;
-/// # use proc_macro2::Ident;
-/// # let ident = Ident::new("step", proc_macro2::Span::call_site());
-/// # let config = WrapperConfig { ident: &ident, fixtures: &[], step_args: &[], datatable: None, pattern: &parse_quote!(""), keyword: rstest_bdd::StepKeyword::Given };
-/// # let (wrapper_ident, _, pattern_ident) = generate_wrapper_identifiers(config.ident, 0);
-/// let tokens = generate_wrapper_body(&config, &wrapper_ident, &pattern_ident);
-/// assert!(tokens.to_string().contains("fn"));
+/// # use proc_macro2::Span;
+/// # let pattern = parse_quote!("^foo$");
+/// # let pattern_ident = proc_macro2::Ident::new("PAT", Span::call_site());
+/// let tokens = generate_wrapper_signature(&pattern, &pattern_ident);
+/// assert!(tokens.to_string().contains("StepPattern"));
 /// ```
-fn generate_wrapper_body(
-    config: &WrapperConfig<'_>,
-    wrapper_ident: &proc_macro2::Ident,
+fn generate_wrapper_signature(
+    pattern: &syn::LitStr,
     pattern_ident: &proc_macro2::Ident,
 ) -> TokenStream2 {
-    let WrapperConfig {
-        ident,
-        fixtures,
-        step_args,
-        datatable,
-        docstring,
-        pattern,
-        call_order,
-        ..
-    } = *config;
+    quote! {
+        static #pattern_ident: rstest_bdd::StepPattern =
+            rstest_bdd::StepPattern::new(#pattern);
+    }
+}
+
+/// Generate declarations and parsing logic for wrapper arguments.
+///
+/// The returned tuple contains fixture declarations, step argument parsers,
+/// optional data table handling, and optional doc string handling.
+///
+/// # Examples
+/// ```rust,ignore
+/// # use syn::parse_quote;
+/// # let ident = syn::Ident::new("step", proc_macro2::Span::call_site());
+/// # let pattern = parse_quote!("pattern");
+/// let result = generate_argument_processing(&[], &[], None, None, &pattern, &ident);
+/// assert!(result.0.is_empty());
+/// ```
+fn generate_argument_processing(
+    fixtures: &[FixtureArg],
+    step_args: &[StepArg],
+    datatable: Option<&DataTableArg>,
+    docstring: Option<&DocStringArg>,
+    pattern: &syn::LitStr,
+    ident: &syn::Ident,
+) -> (
+    Vec<TokenStream2>,
+    Vec<TokenStream2>,
+    Option<TokenStream2>,
+    Option<TokenStream2>,
+) {
     let declares = gen_fixture_decls(fixtures, ident);
     let captured: Vec<_> = step_args
         .iter()
         .enumerate()
         .map(|(idx, _)| {
-            let index = syn::Index::from(idx + 1); // +1 to skip the full match at index 0
+            let index = syn::Index::from(idx + 1); // skip full match at index 0
             quote! { captures.get(#index).map(|m| m.as_str()).unwrap_or_default() }
         })
         .collect();
     let step_arg_parses = gen_step_parses(step_args, &captured);
     let datatable_decl = gen_datatable_decl(datatable, pattern);
     let docstring_decl = gen_docstring_decl(docstring, pattern);
-    let arg_idents: Vec<_> = call_order
+    (declares, step_arg_parses, datatable_decl, docstring_decl)
+}
+
+/// Collect argument identifiers in the order declared by the step function.
+///
+/// # Examples
+/// ```rust,ignore
+/// let idents = collect_ordered_arguments(&[], &[], &[], None, None);
+/// assert!(idents.is_empty());
+/// ```
+fn collect_ordered_arguments<'a>(
+    call_order: &'a [CallArg],
+    fixtures: &'a [FixtureArg],
+    step_args: &'a [StepArg],
+    datatable: Option<&'a DataTableArg>,
+    docstring: Option<&'a DocStringArg>,
+) -> Vec<&'a syn::Ident> {
+    call_order
         .iter()
         .map(|arg| match arg {
             CallArg::Fixture(i) =>
@@ -389,10 +426,41 @@ fn generate_wrapper_body(
                     .pat
             }
         })
-        .collect();
-    quote! {
-        static #pattern_ident: rstest_bdd::StepPattern = rstest_bdd::StepPattern::new(#pattern);
+        .collect()
+}
 
+/// Assemble the final wrapper function using prepared components.
+///
+/// # Examples
+/// ```rust,ignore
+/// # use syn::parse_quote;
+/// # let ident = syn::Ident::new("step", proc_macro2::Span::call_site());
+/// # let pattern = parse_quote!("pattern");
+/// let tokens = assemble_wrapper_function(
+///     &proc_macro2::Ident::new("wrapper", proc_macro2::Span::call_site()),
+///     &proc_macro2::Ident::new("PAT", proc_macro2::Span::call_site()),
+///     (vec![], vec![], None, None),
+///     vec![],
+///     &pattern,
+///     &ident,
+/// );
+/// assert!(tokens.to_string().contains("fn"));
+/// ```
+fn assemble_wrapper_function(
+    wrapper_ident: &proc_macro2::Ident,
+    pattern_ident: &proc_macro2::Ident,
+    arg_processing: (
+        Vec<TokenStream2>,
+        Vec<TokenStream2>,
+        Option<TokenStream2>,
+        Option<TokenStream2>,
+    ),
+    arg_idents: &[&syn::Ident],
+    pattern: &syn::LitStr,
+    ident: &syn::Ident,
+) -> TokenStream2 {
+    let (declares, step_arg_parses, datatable_decl, docstring_decl) = arg_processing;
+    quote! {
         fn #wrapper_ident(
             ctx: &rstest_bdd::StepContext<'_>,
             text: &str,
@@ -429,6 +497,53 @@ fn generate_wrapper_body(
     }
 }
 
+/// Generate the wrapper function body and pattern constant.
+///
+/// # Examples
+/// ```rust,ignore
+/// # use syn::parse_quote;
+/// # use proc_macro2::Ident;
+/// # let ident = Ident::new("step", proc_macro2::Span::call_site());
+/// # let config = WrapperConfig { ident: &ident, fixtures: &[], step_args: &[], datatable: None, pattern: &parse_quote!(""), keyword: rstest_bdd::StepKeyword::Given };
+/// # let (wrapper_ident, _, pattern_ident) = generate_wrapper_identifiers(config.ident, 0);
+/// let tokens = generate_wrapper_body(&config, &wrapper_ident, &pattern_ident);
+/// assert!(tokens.to_string().contains("fn"));
+/// ```
+fn generate_wrapper_body(
+    config: &WrapperConfig<'_>,
+    wrapper_ident: &proc_macro2::Ident,
+    pattern_ident: &proc_macro2::Ident,
+) -> TokenStream2 {
+    let WrapperConfig {
+        ident,
+        fixtures,
+        step_args,
+        datatable,
+        docstring,
+        pattern,
+        call_order,
+        ..
+    } = *config;
+
+    let signature = generate_wrapper_signature(pattern, pattern_ident);
+    let arg_processing =
+        generate_argument_processing(fixtures, step_args, datatable, docstring, pattern, ident);
+    let arg_idents =
+        collect_ordered_arguments(call_order, fixtures, step_args, datatable, docstring);
+    let wrapper_fn = assemble_wrapper_function(
+        wrapper_ident,
+        pattern_ident,
+        arg_processing,
+        &arg_idents,
+        pattern,
+        ident,
+    );
+
+    quote! {
+        #signature
+        #wrapper_fn
+    }
+}
 /// Generate fixture registration and inventory code for the wrapper.
 ///
 /// # Examples
