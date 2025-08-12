@@ -72,9 +72,11 @@ pub(crate) fn extract_args(
             fixtures.push(FixtureArg { pat, name, ty });
         } else if is_datatable_arg(&datatable, &pat, &ty) {
             if docstring.is_some() {
+                // Gherkin places data tables before doc strings, so require the
+                // same order in step signatures to avoid reordering arguments.
                 return Err(syn::Error::new_spanned(
                     &arg.pat,
-                    "datatable must be declared before docstring",
+                    "datatable must be declared before docstring to match Gherkin ordering",
                 ));
             }
             datatable = Some(DataTableArg { pat });
@@ -189,6 +191,8 @@ fn gen_datatable_decl(
 }
 
 /// Generate declaration for a doc string argument.
+///
+/// Step functions require an owned `String`, so the wrapper copies the block.
 fn gen_docstring_decl(
     docstring: Option<&DocStringArg>,
     pattern: &syn::LitStr,
@@ -197,7 +201,7 @@ fn gen_docstring_decl(
         quote! {
             let #pat: String = _docstring
                 .ok_or_else(|| format!("Step '{}' requires a doc string", #pattern))?
-                .to_string();
+                .to_owned();
         }
     })
 }

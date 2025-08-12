@@ -923,7 +923,9 @@ supporting type‑safe parameters in steps. The parser handles escaped braces an
 nested brace pairs, preventing greedy captures while still requiring
 well‑formed placeholders.
 
-The sequence below summarizes how the runner locates and executes steps when
+The runner forwards the raw doc string as `Option<&str>` and the wrapper
+converts it into an owned `String` before invoking the step function. The
+sequence below summarises how the runner locates and executes steps when
 placeholders are present:
 
 ```mermaid
@@ -943,7 +945,7 @@ sequenceDiagram
     ScenarioRunner->>StepWrapper: call StepFn(ctx, text, docstring: Option<&str>, table: Option<&[&[&str]]>)
     StepWrapper->>StepWrapper: extract_placeholders(pattern, text)
     StepWrapper->>StepWrapper: parse captures with FromStr
-    StepWrapper->>StepFunction: call with typed args
+    StepWrapper->>StepFunction: call with typed args (docstring: String, datatable: Vec<Vec<String>>)
     StepFunction-->>StepWrapper: returns
     StepWrapper-->>ScenarioRunner: returns
 ```
