@@ -5,7 +5,12 @@ use std::cell::RefCell;
 use rstest_bdd_macros::{given, scenario, then};
 
 thread_local! {
-    static CAPTURED: RefCell<Option<String>> = const { RefCell::new(None) };
+    #[expect(
+        clippy::missing_const_for_thread_local,
+        reason = "const RefCell::new(None) would raise MSRV"
+    )]
+    // FIXME: https://github.com/leynos/rstest-bdd/issues/54
+    static CAPTURED: RefCell<Option<String>> = RefCell::new(None);
 }
 
 #[given("the following message:")]
@@ -31,6 +36,9 @@ fn assert_message(docstring: String) {
 
 #[scenario(path = "tests/features/docstring.feature")]
 fn docstring_scenario() {}
+
+#[scenario(path = "tests/features/background_docstring.feature")]
+fn background_docstring_scenario() {}
 
 #[scenario(path = "tests/features/missing_docstring.feature")]
 #[should_panic(expected = "requires a doc string")]

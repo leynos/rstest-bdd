@@ -71,6 +71,12 @@ pub(crate) fn extract_args(
         if let Some(name) = fixture_name {
             fixtures.push(FixtureArg { pat, name, ty });
         } else if is_datatable_arg(&datatable, &pat, &ty) {
+            if docstring.is_some() {
+                return Err(syn::Error::new_spanned(
+                    &arg.pat,
+                    "datatable must be declared before docstring",
+                ));
+            }
             datatable = Some(DataTableArg { pat });
         } else if is_docstring_arg(&docstring, &pat, &ty) {
             docstring = Some(DocStringArg { pat });

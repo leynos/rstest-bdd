@@ -209,9 +209,11 @@ Steps may supply structured or free-form data via a trailing argument. A data
 table is received by including an argument named `datatable` of type
 `Vec<Vec<String>>`. A Gherkin Doc String is made available through an argument
 named `docstring` of type `String`. Both arguments must use these exact names
-and types to be detected by the procedural macros. At runtime the generated
-wrapper converts the table cells or copies the block text and passes them to
-the step function, panicking if the feature omits the expected content.
+and types to be detected by the procedural macros. When both are declared,
+place `datatable` before `docstring` at the end of the parameter list. At
+runtime, the generated wrapper converts the table cells or copies the block
+text and passes them to the step function, panicking if the feature omits the
+expected content.
 
 ## Limitations and roadmap
 

@@ -3,14 +3,18 @@
 use super::*;
 use gherkin::{Background, LineCol, Scenario, Span, Step, StepType};
 
+fn kw(ty: StepType) -> String {
+    match ty {
+        StepType::Given => "Given",
+        StepType::When => "When",
+        StepType::Then => "Then",
+    }
+    .to_string()
+}
+
 fn mk_step(ty: StepType, value: &str) -> Step {
     Step {
-        keyword: match ty {
-            StepType::Given => "Given",
-            StepType::When => "When",
-            StepType::Then => "Then",
-        }
-        .to_string(),
+        keyword: kw(ty),
         ty,
         value: value.to_string(),
         docstring: None,
@@ -22,12 +26,7 @@ fn mk_step(ty: StepType, value: &str) -> Step {
 
 fn mk_step_with_table(ty: StepType, value: &str, rows: Vec<Vec<&str>>) -> Step {
     Step {
-        keyword: match ty {
-            StepType::Given => "Given",
-            StepType::When => "When",
-            StepType::Then => "Then",
-        }
-        .to_string(),
+        keyword: kw(ty),
         ty,
         value: value.to_string(),
         docstring: None,
@@ -46,12 +45,7 @@ fn mk_step_with_table(ty: StepType, value: &str, rows: Vec<Vec<&str>>) -> Step {
 
 fn mk_step_with_docstring(ty: StepType, value: &str, doc: &str) -> Step {
     Step {
-        keyword: match ty {
-            StepType::Given => "Given",
-            StepType::When => "When",
-            StepType::Then => "Then",
-        }
-        .to_string(),
+        keyword: kw(ty),
         ty,
         value: value.to_string(),
         docstring: Some(doc.to_string()),
@@ -204,5 +198,61 @@ fn extracts_docstring() {
             docstring: Some("line1\nline2".to_string()),
             table: None,
         }]
+    );
+}
+
+#[test]
+fn background_steps_with_docstring_are_extracted() {
+    let feature = gherkin::Feature {
+        keyword: "Feature".into(),
+        name: "example".into(),
+        description: None,
+        background: Some(Background {
+            keyword: "Background".into(),
+            name: String::new(),
+            description: None,
+            steps: vec![mk_step_with_docstring(
+                StepType::Given,
+                "setup",
+                "bg line1\nbg line2",
+            )],
+            span: Span { start: 0, end: 0 },
+            position: LineCol { line: 0, col: 0 },
+        }),
+        scenarios: vec![Scenario {
+            keyword: "Scenario".into(),
+            name: "run".into(),
+            description: None,
+            steps: vec![mk_step(StepType::When, "an action")],
+            examples: Vec::new(),
+            tags: Vec::new(),
+            span: Span { start: 0, end: 0 },
+            position: LineCol { line: 0, col: 0 },
+        }],
+        rules: Vec::new(),
+        tags: Vec::new(),
+        span: Span { start: 0, end: 0 },
+        position: LineCol { line: 0, col: 0 },
+        path: None,
+    };
+
+    let ScenarioData { steps, .. } = extract_scenario_steps(&feature, Some(0))
+        .unwrap_or_else(|_| panic!("scenario extraction failed"));
+    assert_eq!(
+        steps,
+        vec![
+            ParsedStep {
+                keyword: rstest_bdd::StepKeyword::Given,
+                text: "setup".to_string(),
+                docstring: Some("bg line1\nbg line2".to_string()),
+                table: None,
+            },
+            ParsedStep {
+                keyword: rstest_bdd::StepKeyword::When,
+                text: "an action".to_string(),
+                docstring: None,
+                table: None,
+            },
+        ]
     );
 }
