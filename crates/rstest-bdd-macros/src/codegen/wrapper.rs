@@ -85,6 +85,184 @@ fn extract_identifiers_from_pattern(pat: &syn::Pat) -> syn::Result<Vec<syn::Iden
     }
 }
 
+/// Remove the `from` attribute from a parameter and return the fixture name.
+///
+/// # Examples
+/// ```rust,ignore
+/// # use syn::{parse_quote, Attribute};
+/// let mut attrs: Vec<Attribute> = vec![parse_quote!(#[from(foo)])];
+/// let name = extract_fixture_name(&mut attrs);
+/// assert_eq!(name.unwrap().to_string(), "foo");
+/// assert!(attrs.is_empty());
+/// ```
+fn extract_fixture_name(attrs: &mut Vec<syn::Attribute>) -> Option<syn::Ident> {
+    let mut fixture_name = None;
+    attrs.retain(|a| {
+        if a.path().is_ident("from") {
+            fixture_name = a.parse_args::<syn::Ident>().ok();
+            false
+        } else {
+            true
+        }
+    });
+    fixture_name
+}
+
+/// Validate that the pattern is a single bare identifier and return it.
+///
+/// # Examples
+/// ```rust,ignore
+/// # use syn::parse_quote;
+/// let pat: syn::Pat = parse_quote!(value);
+/// let ident = validate_and_extract_pattern(&pat).unwrap();
+/// assert_eq!(ident.to_string(), "value");
+/// ```
+fn validate_and_extract_pattern(pat: &syn::Pat) -> syn::Result<syn::Ident> {
+    let pat_idents = extract_identifiers_from_pattern(pat)?;
+    if pat_idents.len() != 1 || !matches!(pat, syn::Pat::Ident(_)) {
+        return Err(syn::Error::new_spanned(
+            pat,
+            format!(
+                "complex destructuring patterns are not yet supported - pattern resolves to {} identifiers but a single bare identifier is required",
+                pat_idents.len()
+            ),
+        ));
+    }
+    #[expect(clippy::expect_used, reason = "length checked above")]
+    Ok(pat_idents
+        .into_iter()
+        .next()
+        .expect("pattern resolves to exactly one identifier"))
+}
+
+/// Ensure a datatable parameter appears before any docstring parameter.
+///
+/// # Examples
+/// ```rust,ignore
+/// # use syn::parse_quote;
+/// let pat: syn::Pat = parse_quote!(datatable);
+/// let doc = Some(DocStringArg { pat: parse_quote!(docstring) });
+/// assert!(validate_datatable_ordering(&doc, &pat).is_err());
+/// ```
+fn validate_datatable_ordering(
+    existing_docstring: Option<&DocStringArg>,
+    pat: &syn::Pat,
+) -> syn::Result<()> {
+    if existing_docstring.is_some() {
+        return Err(syn::Error::new_spanned(
+            pat,
+            "datatable must be declared before docstring to match Gherkin ordering",
+        ));
+    }
+    Ok(())
+}
+
+/// Categorise an argument and store it in the appropriate collection.
+///
+/// # Examples
+/// ```rust,ignore
+/// # use syn::parse_quote;
+/// let mut fixtures = Vec::new();
+/// let mut step_args = Vec::new();
+/// let mut datatable = None;
+/// let mut docstring = None;
+/// let mut order = Vec::new();
+/// let pat: syn::Ident = parse_quote!(value);
+/// let ty: syn::Type = parse_quote!(i32);
+/// categorise_and_store_argument(
+///     pat,
+///     ty,
+///     None,
+///     &parse_quote!(value),
+///     &mut fixtures,
+///     &mut step_args,
+///     &mut datatable,
+///     &mut docstring,
+///     &mut order,
+/// )
+/// .unwrap();
+/// assert_eq!(step_args.len(), 1);
+/// ```
+#[expect(
+    clippy::too_many_arguments,
+    reason = "function distributes arguments across collections"
+)]
+fn categorise_and_store_argument(
+    pat: syn::Ident,
+    ty: syn::Type,
+    fixture_name: Option<syn::Ident>,
+    original_pat: &syn::Pat,
+    fixtures: &mut Vec<FixtureArg>,
+    step_args: &mut Vec<StepArg>,
+    datatable: &mut Option<DataTableArg>,
+    docstring: &mut Option<DocStringArg>,
+    call_order: &mut Vec<CallArg>,
+) -> syn::Result<()> {
+    if let Some(name) = fixture_name {
+        let idx = fixtures.len();
+        fixtures.push(FixtureArg { pat, name, ty });
+        call_order.push(CallArg::Fixture(idx));
+    } else if is_datatable_arg(datatable, &pat, &ty) {
+        validate_datatable_ordering(docstring.as_ref(), original_pat)?;
+        *datatable = Some(DataTableArg { pat });
+        call_order.push(CallArg::DataTable);
+    } else if is_docstring_arg(docstring, &pat, &ty) {
+        *docstring = Some(DocStringArg { pat });
+        call_order.push(CallArg::DocString);
+    } else {
+        let idx = step_args.len();
+        step_args.push(StepArg { pat, ty });
+        call_order.push(CallArg::StepArg(idx));
+    }
+    Ok(())
+}
+
+/// Process a single function argument extracted from a step definition.
+///
+/// # Examples
+/// ```rust,ignore
+/// # use syn::parse_quote;
+/// let mut arg: syn::PatType = parse_quote!(value: i32);
+/// let mut fixtures = Vec::new();
+/// let mut step_args = Vec::new();
+/// let mut datatable = None;
+/// let mut docstring = None;
+/// let mut order = Vec::new();
+/// process_function_argument(
+///     &mut arg,
+///     &mut fixtures,
+///     &mut step_args,
+///     &mut datatable,
+///     &mut docstring,
+///     &mut order,
+/// )
+/// .unwrap();
+/// assert_eq!(step_args.len(), 1);
+/// ```
+fn process_function_argument(
+    arg: &mut syn::PatType,
+    fixtures: &mut Vec<FixtureArg>,
+    step_args: &mut Vec<StepArg>,
+    datatable: &mut Option<DataTableArg>,
+    docstring: &mut Option<DocStringArg>,
+    call_order: &mut Vec<CallArg>,
+) -> syn::Result<()> {
+    let fixture_name = extract_fixture_name(&mut arg.attrs);
+    let pat = validate_and_extract_pattern(&arg.pat)?;
+    let ty = (*arg.ty).clone();
+    categorise_and_store_argument(
+        pat,
+        ty,
+        fixture_name,
+        &arg.pat,
+        fixtures,
+        step_args,
+        datatable,
+        docstring,
+        call_order,
+    )
+}
+
 /// Extract fixture and step arguments from a function signature.
 #[expect(clippy::type_complexity, reason = "return type defined by API")]
 // FIXME: https://github.com/leynos/rstest-bdd/issues/54
@@ -108,59 +286,14 @@ pub(crate) fn extract_args(
             return Err(syn::Error::new_spanned(input, "methods not supported"));
         };
 
-        let mut fixture_name = None;
-        arg.attrs.retain(|a| {
-            if a.path().is_ident("from") {
-                fixture_name = a.parse_args::<syn::Ident>().ok();
-                false
-            } else {
-                true
-            }
-        });
-
-        let pat_idents = extract_identifiers_from_pattern(&arg.pat)?;
-
-        if pat_idents.len() != 1 || !matches!(&*arg.pat, syn::Pat::Ident(_)) {
-            return Err(syn::Error::new_spanned(
-                &arg.pat,
-                format!(
-                    "complex destructuring patterns are not yet supported - pattern resolves to {} identifiers but a single bare identifier is required",
-                    pat_idents.len()
-                ),
-            ));
-        }
-
-        #[expect(clippy::expect_used, reason = "length checked above")]
-        let pat = pat_idents
-            .into_iter()
-            .next()
-            .expect("pattern resolves to exactly one identifier");
-
-        let ty = (*arg.ty).clone();
-
-        if let Some(name) = fixture_name {
-            let idx = fixtures.len();
-            fixtures.push(FixtureArg { pat, name, ty });
-            call_order.push(CallArg::Fixture(idx));
-        } else if is_datatable_arg(&datatable, &pat, &ty) {
-            if docstring.is_some() {
-                // Gherkin places data tables before doc strings, so require the
-                // same order in step signatures to avoid reordering arguments.
-                return Err(syn::Error::new_spanned(
-                    &arg.pat,
-                    "datatable must be declared before docstring to match Gherkin ordering",
-                ));
-            }
-            datatable = Some(DataTableArg { pat });
-            call_order.push(CallArg::DataTable);
-        } else if is_docstring_arg(&docstring, &pat, &ty) {
-            docstring = Some(DocStringArg { pat });
-            call_order.push(CallArg::DocString);
-        } else {
-            let idx = step_args.len();
-            step_args.push(StepArg { pat, ty });
-            call_order.push(CallArg::StepArg(idx));
-        }
+        process_function_argument(
+            arg,
+            &mut fixtures,
+            &mut step_args,
+            &mut datatable,
+            &mut docstring,
+            &mut call_order,
+        )?;
     }
 
     Ok((fixtures, step_args, datatable, docstring, call_order))
