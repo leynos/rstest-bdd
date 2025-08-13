@@ -75,7 +75,6 @@ fn is_string(ty: &syn::Type) -> bool {
 fn is_datatable(ty: &syn::Type) -> bool {
     is_type_seq(ty, &["Vec", "Vec", "String"])
 }
-
 #[expect(clippy::unnecessary_wraps, reason = "conforms to classifier signature")]
 fn classify_fixture(
     st: &mut ExtractedArgs,
@@ -126,6 +125,9 @@ fn classify_datatable(
         Ok(false)
     }
 }
+fn is_valid_docstring_arg(st: &ExtractedArgs, pat: &syn::Ident, ty: &syn::Type) -> bool {
+    st.docstring.is_none() && pat == "docstring" && is_string(ty)
+}
 
 #[expect(clippy::unnecessary_wraps, reason = "conforms to classifier signature")]
 #[expect(
@@ -138,7 +140,7 @@ fn classify_docstring(
     pat: syn::Ident,
     ty: syn::Type,
 ) -> syn::Result<bool> {
-    if st.docstring.is_none() && pat == "docstring" && is_string(&ty) {
+    if is_valid_docstring_arg(st, &pat, &ty) {
         st.docstring = Some(DocStringArg { pat });
         st.call_order.push(CallArg::DocString);
         Ok(true)
