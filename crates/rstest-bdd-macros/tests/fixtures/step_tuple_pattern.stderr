@@ -1,5 +1,5 @@
 error: unsupported pattern `(x, y)`; expected a single identifier
- --> tests/fixtures/step_tuple_pattern.rs:7:20
+ --> tests/fixtures/step_tuple_pattern.rs:8:20
   |
-7 | fn step_with_tuple((x, y): (i32, i32)) {}
+8 | fn step_with_tuple((x, y): (i32, i32)) {}
   |                    ^^^^^^

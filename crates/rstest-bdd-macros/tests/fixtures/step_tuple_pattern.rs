@@ -1,5 +1,6 @@
-//! Compile-fail fixture: tuple destructuring in a step parameter must emit an
-//! "unsupported pattern" error, enforcing the single identifier rule.
+//! Compile-fail fixture: tuple destructuring in a step parameter must emit a
+//! "complex destructuring patterns are not yet supported" error, enforcing the
+//! single bare identifier rule.
 
 use rstest_bdd_macros::given;
 
