@@ -2,7 +2,7 @@
 
 use super::keyword_to_token;
 use proc_macro2::TokenStream as TokenStream2;
-use quote::{format_ident, quote};
+use quote::{ToTokens, format_ident, quote};
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 /// Fixture argument extracted from a step function.
@@ -48,6 +48,190 @@ pub(crate) enum CallArg {
     DocString,
 }
 
+/// Processes and stores arguments extracted from a step function.
+///
+/// This helper owns collections for fixture, step, data table, and doc
+/// string arguments. Call [`process_argument`] for each parameter in order,
+/// then use [`into_parts`] to retrieve the populated vectors.
+///
+/// # Examples
+/// ```rust,ignore
+/// use syn::parse_quote;
+/// let mut arg: syn::PatType = parse_quote!(value: i32);
+/// let mut processor = ArgumentProcessor::new();
+/// processor.process_argument(&mut arg).unwrap();
+/// let (fixtures, step_args, datatable, docstring, order) = processor.into_parts();
+/// assert!(fixtures.is_empty());
+/// assert_eq!(step_args.len(), 1);
+/// assert!(datatable.is_none());
+/// assert!(docstring.is_none());
+/// assert_eq!(order.len(), 1);
+/// ```
+struct ArgumentProcessor {
+    fixtures: Vec<FixtureArg>,
+    step_args: Vec<StepArg>,
+    datatable: Option<DataTableArg>,
+    docstring: Option<DocStringArg>,
+    call_order: Vec<CallArg>,
+}
+
+impl ArgumentProcessor {
+    /// Create an empty processor ready to collect arguments.
+    ///
+    /// # Examples
+    /// ```rust,ignore
+    /// let processor = ArgumentProcessor::new();
+    /// assert!(processor.fixtures.is_empty());
+    /// ```
+    fn new() -> Self {
+        Self {
+            fixtures: Vec::new(),
+            step_args: Vec::new(),
+            datatable: None,
+            docstring: None,
+            call_order: Vec::new(),
+        }
+    }
+
+    /// Analyse and store a single function argument.
+    ///
+    /// This inspects attributes and patterns to determine whether the
+    /// parameter refers to a fixture, a regular step argument, a data table or
+    /// a doc string, preserving the original declaration order.
+    ///
+    /// # Examples
+    /// ```rust,ignore
+    /// use syn::parse_quote;
+    /// let mut arg: syn::PatType = parse_quote!(value: i32);
+    /// let mut processor = ArgumentProcessor::new();
+    /// processor.process_argument(&mut arg).unwrap();
+    /// ```
+    fn process_argument(&mut self, arg: &mut syn::PatType) -> syn::Result<()> {
+        let fixture_name = extract_fixture_name(&mut arg.attrs);
+        let pat = validate_and_extract_pattern(&arg.pat)?;
+        let ty = (*arg.ty).clone();
+
+        if let Some(name) = fixture_name {
+            let idx = self.fixtures.len();
+            self.fixtures.push(FixtureArg { pat, name, ty });
+            self.call_order.push(CallArg::Fixture(idx));
+        } else if is_datatable_arg(&self.datatable, &pat, &ty) {
+            validate_datatable_ordering(self.docstring.as_ref(), &arg.pat)?;
+            self.datatable = Some(DataTableArg { pat });
+            self.call_order.push(CallArg::DataTable);
+        } else if is_docstring_arg(&self.docstring, &pat, &ty) {
+            self.docstring = Some(DocStringArg { pat });
+            self.call_order.push(CallArg::DocString);
+        } else {
+            let idx = self.step_args.len();
+            self.step_args.push(StepArg { pat, ty });
+            self.call_order.push(CallArg::StepArg(idx));
+        }
+        Ok(())
+    }
+
+    /// Decompose the processor into its collected argument lists.
+    ///
+    /// # Examples
+    /// ```rust,ignore
+    /// let processor = ArgumentProcessor::new();
+    /// let (fixtures, step_args, datatable, docstring, order) = processor.into_parts();
+    /// assert!(fixtures.is_empty());
+    /// assert!(step_args.is_empty());
+    /// assert!(datatable.is_none());
+    /// assert!(docstring.is_none());
+    /// assert!(order.is_empty());
+    /// ```
+    #[expect(
+        clippy::type_complexity,
+        reason = "method mirrors extract_args return type"
+    )]
+    fn into_parts(
+        self,
+    ) -> (
+        Vec<FixtureArg>,
+        Vec<StepArg>,
+        Option<DataTableArg>,
+        Option<DocStringArg>,
+        Vec<CallArg>,
+    ) {
+        (
+            self.fixtures,
+            self.step_args,
+            self.datatable,
+            self.docstring,
+            self.call_order,
+        )
+    }
+}
+
+/// Remove the `from` attribute from a parameter and return the fixture name.
+///
+/// # Examples
+/// ```rust,ignore
+/// # use syn::{parse_quote, Attribute};
+/// let mut attrs: Vec<Attribute> = vec![parse_quote!(#[from(foo)])];
+/// let name = extract_fixture_name(&mut attrs);
+/// assert_eq!(name.unwrap().to_string(), "foo");
+/// assert!(attrs.is_empty());
+/// ```
+fn extract_fixture_name(attrs: &mut Vec<syn::Attribute>) -> Option<syn::Ident> {
+    let mut fixture_name = None;
+    attrs.retain(|a| {
+        if a.path().is_ident("from") {
+            fixture_name = a.parse_args::<syn::Ident>().ok();
+            false
+        } else {
+            true
+        }
+    });
+    fixture_name
+}
+
+/// Validate that the pattern is a single bare identifier and return it.
+///
+/// # Examples
+/// ```rust,ignore
+/// # use syn::parse_quote;
+/// let pat: syn::Pat = parse_quote!(value);
+/// let ident = validate_and_extract_pattern(&pat).unwrap();
+/// assert_eq!(ident.to_string(), "value");
+/// ```
+fn validate_and_extract_pattern(pat: &syn::Pat) -> syn::Result<syn::Ident> {
+    match pat {
+        syn::Pat::Ident(pi) => Ok(pi.ident.clone()),
+        _ => Err(syn::Error::new_spanned(
+            pat,
+            format!(
+                "unsupported pattern `{}`; expected a single identifier",
+                pat.to_token_stream()
+            ),
+        )),
+    }
+}
+
+/// Ensure a datatable parameter appears before any docstring parameter.
+///
+/// # Examples
+/// ```rust,ignore
+/// # use syn::parse_quote;
+/// let pat: syn::Pat = parse_quote!(datatable);
+/// let doc = Some(DocStringArg { pat: parse_quote!(docstring) });
+/// assert!(validate_datatable_ordering(&doc, &pat).is_err());
+/// ```
+fn validate_datatable_ordering(
+    existing_docstring: Option<&DocStringArg>,
+    pat: &syn::Pat,
+) -> syn::Result<()> {
+    if existing_docstring.is_some() {
+        return Err(syn::Error::new_spanned(
+            pat,
+            "datatable must be declared before docstring to match Gherkin ordering",
+        ));
+    }
+    Ok(())
+}
+
 /// Extract fixture and step arguments from a function signature.
 #[expect(clippy::type_complexity, reason = "return type defined by API")]
 // FIXME: https://github.com/leynos/rstest-bdd/issues/54
@@ -60,62 +244,17 @@ pub(crate) fn extract_args(
     Option<DocStringArg>,
     Vec<CallArg>,
 )> {
-    let mut fixtures = Vec::new();
-    let mut step_args = Vec::new();
-    let mut datatable = None;
-    let mut docstring = None;
-    let mut call_order = Vec::new();
+    let mut processor = ArgumentProcessor::new();
 
     for input in &mut func.sig.inputs {
         let syn::FnArg::Typed(arg) = input else {
             return Err(syn::Error::new_spanned(input, "methods not supported"));
         };
 
-        let mut fixture_name = None;
-        arg.attrs.retain(|a| {
-            if a.path().is_ident("from") {
-                fixture_name = a.parse_args::<syn::Ident>().ok();
-                false
-            } else {
-                true
-            }
-        });
-
-        let pat = match &*arg.pat {
-            syn::Pat::Ident(i) => i.ident.clone(),
-            _ => {
-                return Err(syn::Error::new_spanned(&arg.pat, "unsupported pattern"));
-            }
-        };
-
-        let ty = (*arg.ty).clone();
-
-        if let Some(name) = fixture_name {
-            let idx = fixtures.len();
-            fixtures.push(FixtureArg { pat, name, ty });
-            call_order.push(CallArg::Fixture(idx));
-        } else if is_datatable_arg(&datatable, &pat, &ty) {
-            if docstring.is_some() {
-                // Gherkin places data tables before doc strings, so require the
-                // same order in step signatures to avoid reordering arguments.
-                return Err(syn::Error::new_spanned(
-                    &arg.pat,
-                    "datatable must be declared before docstring to match Gherkin ordering",
-                ));
-            }
-            datatable = Some(DataTableArg { pat });
-            call_order.push(CallArg::DataTable);
-        } else if is_docstring_arg(&docstring, &pat, &ty) {
-            docstring = Some(DocStringArg { pat });
-            call_order.push(CallArg::DocString);
-        } else {
-            let idx = step_args.len();
-            step_args.push(StepArg { pat, ty });
-            call_order.push(CallArg::StepArg(idx));
-        }
+        processor.process_argument(arg)?;
     }
 
-    Ok((fixtures, step_args, datatable, docstring, call_order))
+    Ok(processor.into_parts())
 }
 
 fn is_vec_vec_string(ty: &syn::Type) -> bool {

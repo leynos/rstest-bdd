@@ -1,0 +1,5 @@
+error: unsupported pattern `User { coords : (x, y) }`; expected a single identifier
+  --> tests/fixtures/step_nested_pattern.rs:11:16
+   |
+11 | fn step_nested(User { coords: (x, y) }: User) {}
+   |                ^^^^^^^^^^^^^^^^^^^^^^^
