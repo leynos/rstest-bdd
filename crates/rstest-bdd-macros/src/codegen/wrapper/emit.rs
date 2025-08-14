@@ -1,7 +1,7 @@
 //! Code emission helpers for wrapper generation.
 
-use super::super::keyword_to_token;
 use super::args::{CallArg, DataTableArg, DocStringArg, FixtureArg, StepArg};
+use crate::codegen::keyword_to_token;
 use proc_macro2::TokenStream as TokenStream2;
 use quote::{format_ident, quote};
 use std::sync::atomic::{AtomicUsize, Ordering};
