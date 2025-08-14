@@ -14,7 +14,14 @@ fn error_when_datatable_after_docstring() {
     let mut func: syn::ItemFn = parse_quote! {
         fn step(docstring: String, datatable: Vec<Vec<String>>) {}
     };
-    assert!(extract_args(&mut func).is_err());
+    let err = extract_args(&mut func)
+        .err()
+        .unwrap_or_else(|| panic!("expected error when datatable follows docstring"));
+    let msg = err.to_string();
+    assert!(
+        msg.contains("datatable must be declared before docstring"),
+        "unexpected error message: {msg}"
+    );
 }
 
 #[rstest]

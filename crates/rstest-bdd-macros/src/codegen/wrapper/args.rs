@@ -1,6 +1,7 @@
 //! Argument extraction and classification helpers for wrapper generation.
 
 /// Fixture argument extracted from a step function.
+#[derive(Debug, Clone)]
 pub(crate) struct FixtureArg {
     pub(crate) pat: syn::Ident,
     pub(crate) name: syn::Ident,
@@ -8,22 +9,26 @@ pub(crate) struct FixtureArg {
 }
 
 /// Non-fixture argument extracted from a step function.
+#[derive(Debug, Clone)]
 pub(crate) struct StepArg {
     pub(crate) pat: syn::Ident,
     pub(crate) ty: syn::Type,
 }
 
 /// Data table argument extracted from a step function.
+#[derive(Debug, Clone)]
 pub(crate) struct DataTableArg {
     pub(crate) pat: syn::Ident,
 }
 
 /// Gherkin doc string argument extracted from a step function.
+#[derive(Debug, Clone)]
 pub(crate) struct DocStringArg {
     pub(crate) pat: syn::Ident,
 }
 
 /// Argument ordering as declared in the step function signature.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum CallArg {
     Fixture(usize),
     StepArg(usize),
@@ -32,6 +37,7 @@ pub(crate) enum CallArg {
 }
 
 /// Collections of arguments extracted from a step function signature.
+#[derive(Debug, Clone)]
 pub(crate) struct ExtractedArgs {
     pub(crate) fixtures: Vec<FixtureArg>,
     pub(crate) step_args: Vec<StepArg>,
@@ -41,6 +47,7 @@ pub(crate) struct ExtractedArgs {
 }
 
 /// References to extracted arguments for ordered processing.
+#[derive(Debug, Clone, Copy)]
 pub(crate) struct ArgumentCollections<'a> {
     pub(crate) fixtures: &'a [FixtureArg],
     pub(crate) step_args: &'a [StepArg],
@@ -210,6 +217,10 @@ const CLASSIFIERS: &[Classifier] = &[
 /// assert!(args.docstring.is_some());
 /// assert_eq!(args.call_order.len(), 4);
 /// ```
+///
+/// Note: special arguments must use the canonical names:
+/// - data table parameter must be named `datatable` and have type `Vec<Vec<String>>`
+/// - doc string parameter must be named `docstring` and have type `String`
 // FIXME: https://github.com/leynos/rstest-bdd/issues/54
 pub(crate) fn extract_args(func: &mut syn::ItemFn) -> syn::Result<ExtractedArgs> {
     let mut state = ExtractedArgs {
