@@ -1,4 +1,4 @@
-error: complex destructuring patterns are not yet supported - pattern resolves to 2 identifiers but a single bare identifier is required
+error: complex destructuring patterns are not yet supported - pattern resolves to 2 identifiers but a single bare identifier is required. Found pattern: `(x, y)`
  --> tests/fixtures/step_tuple_pattern.rs:4:20
   |
 4 | fn step_with_tuple((x, y): (i32, i32)) {}

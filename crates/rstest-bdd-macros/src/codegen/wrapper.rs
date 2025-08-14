@@ -2,7 +2,7 @@
 
 use super::keyword_to_token;
 use proc_macro2::TokenStream as TokenStream2;
-use quote::{format_ident, quote};
+use quote::{ToTokens, format_ident, quote};
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 /// Fixture argument extracted from a step function.
@@ -48,6 +48,52 @@ pub(crate) enum CallArg {
     DocString,
 }
 
+/// Mutable collections for building argument lists during processing.
+///
+/// This helper groups mutable references to the argument vectors so
+/// functions can mutate them without juggling multiple parameters.
+///
+/// # Examples
+/// ```rust,ignore
+/// let mut fixtures = Vec::<FixtureArg>::new();
+/// let mut step_args = Vec::<StepArg>::new();
+/// let mut datatable = None;
+/// let mut docstring = None;
+/// let mut order = Vec::new();
+/// let _processor = ArgumentProcessor::new(
+///     &mut fixtures,
+///     &mut step_args,
+///     &mut datatable,
+///     &mut docstring,
+///     &mut order,
+/// );
+/// ```
+struct ArgumentProcessor<'a> {
+    fixtures: &'a mut Vec<FixtureArg>,
+    step_args: &'a mut Vec<StepArg>,
+    datatable: &'a mut Option<DataTableArg>,
+    docstring: &'a mut Option<DocStringArg>,
+    call_order: &'a mut Vec<CallArg>,
+}
+
+impl<'a> ArgumentProcessor<'a> {
+    fn new(
+        fixtures: &'a mut Vec<FixtureArg>,
+        step_args: &'a mut Vec<StepArg>,
+        datatable: &'a mut Option<DataTableArg>,
+        docstring: &'a mut Option<DocStringArg>,
+        call_order: &'a mut Vec<CallArg>,
+    ) -> Self {
+        Self {
+            fixtures,
+            step_args,
+            datatable,
+            docstring,
+            call_order,
+        }
+    }
+}
+
 /// Recursively collect identifiers bound by a pattern.
 ///
 /// Step parameters currently require a single, plain identifier so the
@@ -56,27 +102,24 @@ pub(crate) enum CallArg {
 fn extract_identifiers_from_pattern(pat: &syn::Pat) -> syn::Result<Vec<syn::Ident>> {
     match pat {
         syn::Pat::Ident(pat_ident) => Ok(vec![pat_ident.ident.clone()]),
-        syn::Pat::Tuple(pat_tuple) => {
-            let mut idents = Vec::new();
-            for elem in &pat_tuple.elems {
-                idents.extend(extract_identifiers_from_pattern(elem)?);
-            }
-            Ok(idents)
-        }
-        syn::Pat::Struct(pat_struct) => {
-            let mut idents = Vec::new();
-            for field in &pat_struct.fields {
-                idents.extend(extract_identifiers_from_pattern(&field.pat)?);
-            }
-            Ok(idents)
-        }
-        syn::Pat::TupleStruct(pat_tuple_struct) => {
-            let mut idents = Vec::new();
-            for elem in &pat_tuple_struct.elems {
-                idents.extend(extract_identifiers_from_pattern(elem)?);
-            }
-            Ok(idents)
-        }
+        syn::Pat::Tuple(pat_tuple) => pat_tuple
+            .elems
+            .iter()
+            .map(extract_identifiers_from_pattern)
+            .collect::<syn::Result<Vec<_>>>()
+            .map(|v| v.into_iter().flatten().collect()),
+        syn::Pat::Struct(pat_struct) => pat_struct
+            .fields
+            .iter()
+            .map(|f| extract_identifiers_from_pattern(&f.pat))
+            .collect::<syn::Result<Vec<_>>>()
+            .map(|v| v.into_iter().flatten().collect()),
+        syn::Pat::TupleStruct(pat_tuple_struct) => pat_tuple_struct
+            .elems
+            .iter()
+            .map(extract_identifiers_from_pattern)
+            .collect::<syn::Result<Vec<_>>>()
+            .map(|v| v.into_iter().flatten().collect()),
         syn::Pat::Paren(pat_paren) => extract_identifiers_from_pattern(&pat_paren.pat),
         _ => Err(syn::Error::new_spanned(
             pat,
@@ -123,8 +166,9 @@ fn validate_and_extract_pattern(pat: &syn::Pat) -> syn::Result<syn::Ident> {
         return Err(syn::Error::new_spanned(
             pat,
             format!(
-                "complex destructuring patterns are not yet supported - pattern resolves to {} identifiers but a single bare identifier is required",
-                pat_idents.len()
+                "complex destructuring patterns are not yet supported - pattern resolves to {} identifiers but a single bare identifier is required. Found pattern: `{}`",
+                pat_idents.len(),
+                pat.to_token_stream()
             ),
         ));
     }
@@ -228,24 +272,19 @@ fn categorise_and_store_argument(
 /// let mut datatable = None;
 /// let mut docstring = None;
 /// let mut order = Vec::new();
-/// process_function_argument(
-///     &mut arg,
+/// let mut processor = ArgumentProcessor::new(
 ///     &mut fixtures,
 ///     &mut step_args,
 ///     &mut datatable,
 ///     &mut docstring,
 ///     &mut order,
-/// )
-/// .unwrap();
+/// );
+/// process_function_argument(&mut arg, &mut processor).unwrap();
 /// assert_eq!(step_args.len(), 1);
 /// ```
 fn process_function_argument(
     arg: &mut syn::PatType,
-    fixtures: &mut Vec<FixtureArg>,
-    step_args: &mut Vec<StepArg>,
-    datatable: &mut Option<DataTableArg>,
-    docstring: &mut Option<DocStringArg>,
-    call_order: &mut Vec<CallArg>,
+    processor: &mut ArgumentProcessor,
 ) -> syn::Result<()> {
     let fixture_name = extract_fixture_name(&mut arg.attrs);
     let pat = validate_and_extract_pattern(&arg.pat)?;
@@ -255,11 +294,11 @@ fn process_function_argument(
         ty,
         fixture_name,
         &arg.pat,
-        fixtures,
-        step_args,
-        datatable,
-        docstring,
-        call_order,
+        processor.fixtures,
+        processor.step_args,
+        processor.datatable,
+        processor.docstring,
+        processor.call_order,
     )
 }
 
@@ -281,19 +320,20 @@ pub(crate) fn extract_args(
     let mut docstring = None;
     let mut call_order = Vec::new();
 
+    let mut processor = ArgumentProcessor::new(
+        &mut fixtures,
+        &mut step_args,
+        &mut datatable,
+        &mut docstring,
+        &mut call_order,
+    );
+
     for input in &mut func.sig.inputs {
         let syn::FnArg::Typed(arg) = input else {
             return Err(syn::Error::new_spanned(input, "methods not supported"));
         };
 
-        process_function_argument(
-            arg,
-            &mut fixtures,
-            &mut step_args,
-            &mut datatable,
-            &mut docstring,
-            &mut call_order,
-        )?;
+        process_function_argument(arg, &mut processor)?;
     }
 
     Ok((fixtures, step_args, datatable, docstring, call_order))

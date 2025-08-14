@@ -1,0 +1,5 @@
+error: complex destructuring patterns are not yet supported - pattern resolves to 2 identifiers but a single bare identifier is required. Found pattern: `User { coords : (x, y) }`
+ --> tests/fixtures/step_nested_pattern.rs:8:16
+  |
+8 | fn step_nested(User { coords: (x, y) }: User) {}
+  |                ^^^^^^^^^^^^^^^^^^^^^^^
