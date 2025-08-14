@@ -48,49 +48,120 @@ pub(crate) enum CallArg {
     DocString,
 }
 
-/// Mutable collections for building argument lists during processing.
+/// Processes and stores arguments extracted from a step function.
 ///
-/// This helper groups mutable references to the argument vectors so
-/// functions can mutate them without juggling multiple parameters.
+/// This helper owns collections for fixture, step, data table, and doc
+/// string arguments. Call [`process_argument`] for each parameter in order,
+/// then use [`into_parts`] to retrieve the populated vectors.
 ///
 /// # Examples
 /// ```rust,ignore
-/// let mut fixtures = Vec::<FixtureArg>::new();
-/// let mut step_args = Vec::<StepArg>::new();
-/// let mut datatable = None;
-/// let mut docstring = None;
-/// let mut order = Vec::new();
-/// let _processor = ArgumentProcessor::new(
-///     &mut fixtures,
-///     &mut step_args,
-///     &mut datatable,
-///     &mut docstring,
-///     &mut order,
-/// );
+/// use syn::parse_quote;
+/// let mut arg: syn::PatType = parse_quote!(value: i32);
+/// let mut processor = ArgumentProcessor::new();
+/// processor.process_argument(&mut arg).unwrap();
+/// let (fixtures, step_args, datatable, docstring, order) = processor.into_parts();
+/// assert!(fixtures.is_empty());
+/// assert_eq!(step_args.len(), 1);
+/// assert!(datatable.is_none());
+/// assert!(docstring.is_none());
+/// assert_eq!(order.len(), 1);
 /// ```
-struct ArgumentProcessor<'a> {
-    fixtures: &'a mut Vec<FixtureArg>,
-    step_args: &'a mut Vec<StepArg>,
-    datatable: &'a mut Option<DataTableArg>,
-    docstring: &'a mut Option<DocStringArg>,
-    call_order: &'a mut Vec<CallArg>,
+struct ArgumentProcessor {
+    fixtures: Vec<FixtureArg>,
+    step_args: Vec<StepArg>,
+    datatable: Option<DataTableArg>,
+    docstring: Option<DocStringArg>,
+    call_order: Vec<CallArg>,
 }
 
-impl<'a> ArgumentProcessor<'a> {
-    fn new(
-        fixtures: &'a mut Vec<FixtureArg>,
-        step_args: &'a mut Vec<StepArg>,
-        datatable: &'a mut Option<DataTableArg>,
-        docstring: &'a mut Option<DocStringArg>,
-        call_order: &'a mut Vec<CallArg>,
-    ) -> Self {
+impl ArgumentProcessor {
+    /// Create an empty processor ready to collect arguments.
+    ///
+    /// # Examples
+    /// ```rust,ignore
+    /// let processor = ArgumentProcessor::new();
+    /// assert!(processor.fixtures.is_empty());
+    /// ```
+    fn new() -> Self {
         Self {
-            fixtures,
-            step_args,
-            datatable,
-            docstring,
-            call_order,
+            fixtures: Vec::new(),
+            step_args: Vec::new(),
+            datatable: None,
+            docstring: None,
+            call_order: Vec::new(),
         }
+    }
+
+    /// Analyse and store a single function argument.
+    ///
+    /// This inspects attributes and patterns to determine whether the
+    /// parameter refers to a fixture, a regular step argument, a data table or
+    /// a doc string, preserving the original declaration order.
+    ///
+    /// # Examples
+    /// ```rust,ignore
+    /// use syn::parse_quote;
+    /// let mut arg: syn::PatType = parse_quote!(value: i32);
+    /// let mut processor = ArgumentProcessor::new();
+    /// processor.process_argument(&mut arg).unwrap();
+    /// ```
+    fn process_argument(&mut self, arg: &mut syn::PatType) -> syn::Result<()> {
+        let fixture_name = extract_fixture_name(&mut arg.attrs);
+        let pat = validate_and_extract_pattern(&arg.pat)?;
+        let ty = (*arg.ty).clone();
+
+        if let Some(name) = fixture_name {
+            let idx = self.fixtures.len();
+            self.fixtures.push(FixtureArg { pat, name, ty });
+            self.call_order.push(CallArg::Fixture(idx));
+        } else if is_datatable_arg(&self.datatable, &pat, &ty) {
+            validate_datatable_ordering(self.docstring.as_ref(), &arg.pat)?;
+            self.datatable = Some(DataTableArg { pat });
+            self.call_order.push(CallArg::DataTable);
+        } else if is_docstring_arg(&self.docstring, &pat, &ty) {
+            self.docstring = Some(DocStringArg { pat });
+            self.call_order.push(CallArg::DocString);
+        } else {
+            let idx = self.step_args.len();
+            self.step_args.push(StepArg { pat, ty });
+            self.call_order.push(CallArg::StepArg(idx));
+        }
+        Ok(())
+    }
+
+    /// Decompose the processor into its collected argument lists.
+    ///
+    /// # Examples
+    /// ```rust,ignore
+    /// let processor = ArgumentProcessor::new();
+    /// let (fixtures, step_args, datatable, docstring, order) = processor.into_parts();
+    /// assert!(fixtures.is_empty());
+    /// assert!(step_args.is_empty());
+    /// assert!(datatable.is_none());
+    /// assert!(docstring.is_none());
+    /// assert!(order.is_empty());
+    /// ```
+    #[expect(
+        clippy::type_complexity,
+        reason = "method mirrors extract_args return type"
+    )]
+    fn into_parts(
+        self,
+    ) -> (
+        Vec<FixtureArg>,
+        Vec<StepArg>,
+        Option<DataTableArg>,
+        Option<DocStringArg>,
+        Vec<CallArg>,
+    ) {
+        (
+            self.fixtures,
+            self.step_args,
+            self.datatable,
+            self.docstring,
+            self.call_order,
+        )
     }
 }
 
@@ -201,107 +272,6 @@ fn validate_datatable_ordering(
     Ok(())
 }
 
-/// Categorise an argument and store it in the appropriate collection.
-///
-/// # Examples
-/// ```rust,ignore
-/// # use syn::parse_quote;
-/// let mut fixtures = Vec::new();
-/// let mut step_args = Vec::new();
-/// let mut datatable = None;
-/// let mut docstring = None;
-/// let mut order = Vec::new();
-/// let pat: syn::Ident = parse_quote!(value);
-/// let ty: syn::Type = parse_quote!(i32);
-/// categorise_and_store_argument(
-///     pat,
-///     ty,
-///     None,
-///     &parse_quote!(value),
-///     &mut fixtures,
-///     &mut step_args,
-///     &mut datatable,
-///     &mut docstring,
-///     &mut order,
-/// )
-/// .unwrap();
-/// assert_eq!(step_args.len(), 1);
-/// ```
-#[expect(
-    clippy::too_many_arguments,
-    reason = "function distributes arguments across collections"
-)]
-fn categorise_and_store_argument(
-    pat: syn::Ident,
-    ty: syn::Type,
-    fixture_name: Option<syn::Ident>,
-    original_pat: &syn::Pat,
-    fixtures: &mut Vec<FixtureArg>,
-    step_args: &mut Vec<StepArg>,
-    datatable: &mut Option<DataTableArg>,
-    docstring: &mut Option<DocStringArg>,
-    call_order: &mut Vec<CallArg>,
-) -> syn::Result<()> {
-    if let Some(name) = fixture_name {
-        let idx = fixtures.len();
-        fixtures.push(FixtureArg { pat, name, ty });
-        call_order.push(CallArg::Fixture(idx));
-    } else if is_datatable_arg(datatable, &pat, &ty) {
-        validate_datatable_ordering(docstring.as_ref(), original_pat)?;
-        *datatable = Some(DataTableArg { pat });
-        call_order.push(CallArg::DataTable);
-    } else if is_docstring_arg(docstring, &pat, &ty) {
-        *docstring = Some(DocStringArg { pat });
-        call_order.push(CallArg::DocString);
-    } else {
-        let idx = step_args.len();
-        step_args.push(StepArg { pat, ty });
-        call_order.push(CallArg::StepArg(idx));
-    }
-    Ok(())
-}
-
-/// Process a single function argument extracted from a step definition.
-///
-/// # Examples
-/// ```rust,ignore
-/// # use syn::parse_quote;
-/// let mut arg: syn::PatType = parse_quote!(value: i32);
-/// let mut fixtures = Vec::new();
-/// let mut step_args = Vec::new();
-/// let mut datatable = None;
-/// let mut docstring = None;
-/// let mut order = Vec::new();
-/// let mut processor = ArgumentProcessor::new(
-///     &mut fixtures,
-///     &mut step_args,
-///     &mut datatable,
-///     &mut docstring,
-///     &mut order,
-/// );
-/// process_function_argument(&mut arg, &mut processor).unwrap();
-/// assert_eq!(step_args.len(), 1);
-/// ```
-fn process_function_argument(
-    arg: &mut syn::PatType,
-    processor: &mut ArgumentProcessor,
-) -> syn::Result<()> {
-    let fixture_name = extract_fixture_name(&mut arg.attrs);
-    let pat = validate_and_extract_pattern(&arg.pat)?;
-    let ty = (*arg.ty).clone();
-    categorise_and_store_argument(
-        pat,
-        ty,
-        fixture_name,
-        &arg.pat,
-        processor.fixtures,
-        processor.step_args,
-        processor.datatable,
-        processor.docstring,
-        processor.call_order,
-    )
-}
-
 /// Extract fixture and step arguments from a function signature.
 #[expect(clippy::type_complexity, reason = "return type defined by API")]
 // FIXME: https://github.com/leynos/rstest-bdd/issues/54
@@ -314,29 +284,17 @@ pub(crate) fn extract_args(
     Option<DocStringArg>,
     Vec<CallArg>,
 )> {
-    let mut fixtures = Vec::new();
-    let mut step_args = Vec::new();
-    let mut datatable = None;
-    let mut docstring = None;
-    let mut call_order = Vec::new();
-
-    let mut processor = ArgumentProcessor::new(
-        &mut fixtures,
-        &mut step_args,
-        &mut datatable,
-        &mut docstring,
-        &mut call_order,
-    );
+    let mut processor = ArgumentProcessor::new();
 
     for input in &mut func.sig.inputs {
         let syn::FnArg::Typed(arg) = input else {
             return Err(syn::Error::new_spanned(input, "methods not supported"));
         };
 
-        process_function_argument(arg, &mut processor)?;
+        processor.process_argument(arg)?;
     }
 
-    Ok((fixtures, step_args, datatable, docstring, call_order))
+    Ok(processor.into_parts())
 }
 
 fn is_vec_vec_string(ty: &syn::Type) -> bool {
