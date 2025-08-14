@@ -40,6 +40,14 @@ pub(crate) struct ExtractedArgs {
     pub(crate) call_order: Vec<CallArg>,
 }
 
+/// References to extracted arguments for ordered processing.
+pub(crate) struct ArgumentCollections<'a> {
+    pub(crate) fixtures: &'a [FixtureArg],
+    pub(crate) step_args: &'a [StepArg],
+    pub(crate) datatable: Option<&'a DataTableArg>,
+    pub(crate) docstring: Option<&'a DocStringArg>,
+}
+
 type Classifier =
     fn(&mut ExtractedArgs, &mut syn::PatType, syn::Ident, syn::Type) -> syn::Result<bool>;
 
@@ -49,7 +57,7 @@ fn is_type_seq(ty: &syn::Type, seq: &[&str]) -> bool {
     use syn::{GenericArgument, PathArguments, Type};
 
     let mut cur = ty;
-    for &name in seq {
+    for (i, &name) in seq.iter().enumerate() {
         let Type::Path(tp) = cur else { return false };
         let Some(segment) = tp.path.segments.last() else {
             return false;
@@ -65,7 +73,11 @@ fn is_type_seq(ty: &syn::Type, seq: &[&str]) -> bool {
                 }
                 return false;
             }
-            _ => {}
+            _ => {
+                if i + 1 != seq.len() {
+                    return false;
+                }
+            }
         }
     }
     true
@@ -89,15 +101,18 @@ fn classify_fixture(
     ty: syn::Type,
 ) -> syn::Result<bool> {
     let mut name = None;
+    let mut found_from = false;
     arg.attrs.retain(|a| {
         if a.path().is_ident("from") {
+            found_from = true;
             name = a.parse_args().ok();
             false
         } else {
             true
         }
     });
-    if let Some(name) = name {
+    if found_from {
+        let name = name.unwrap_or_else(|| pat.clone());
         let idx = st.fixtures.len();
         st.fixtures.push(FixtureArg { pat, name, ty });
         st.call_order.push(CallArg::Fixture(idx));
@@ -105,6 +120,10 @@ fn classify_fixture(
     } else {
         Ok(false)
     }
+}
+
+fn should_classify_as_datatable(st: &ExtractedArgs, pat: &syn::Ident, ty: &syn::Type) -> bool {
+    st.datatable.is_none() && pat == "datatable" && is_datatable(ty)
 }
 
 #[expect(
@@ -117,7 +136,7 @@ fn classify_datatable(
     pat: syn::Ident,
     ty: syn::Type,
 ) -> syn::Result<bool> {
-    if st.datatable.is_none() && pat == "datatable" && is_datatable(&ty) {
+    if should_classify_as_datatable(st, &pat, &ty) {
         if st.docstring.is_some() {
             return Err(syn::Error::new_spanned(
                 arg,

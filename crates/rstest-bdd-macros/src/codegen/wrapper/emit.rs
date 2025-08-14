@@ -1,6 +1,6 @@
 //! Code emission helpers for wrapper generation.
 
-use super::args::{CallArg, DataTableArg, DocStringArg, FixtureArg, StepArg};
+use super::args::{ArgumentCollections, CallArg, DataTableArg, DocStringArg, FixtureArg, StepArg};
 use crate::codegen::keyword_to_token;
 use proc_macro2::TokenStream as TokenStream2;
 use quote::{format_ident, quote};
@@ -167,18 +167,6 @@ fn generate_argument_processing(
     let datatable_decl = gen_datatable_decl(config.datatable, config.pattern);
     let docstring_decl = gen_docstring_decl(config.docstring, config.pattern);
     (declares, step_arg_parses, datatable_decl, docstring_decl)
-}
-
-/// Collections of arguments extracted from a step function.
-///
-/// This container groups fixture, step, data table, and doc string references
-/// so functions can operate on ordered parameters without juggling multiple
-/// slices.
-struct ArgumentCollections<'a> {
-    fixtures: &'a [FixtureArg],
-    step_args: &'a [StepArg],
-    datatable: Option<&'a DataTableArg>,
-    docstring: Option<&'a DocStringArg>,
 }
 
 /// Collect argument identifiers in the order declared by the step function.
