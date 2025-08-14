@@ -18,7 +18,7 @@ pub(crate) struct DataTableArg {
     pub(crate) pat: syn::Ident,
 }
 
-/// Doc string argument extracted from a step function.
+/// Gherkin doc string argument extracted from a step function.
 pub(crate) struct DocStringArg {
     pub(crate) pat: syn::Ident,
 }
@@ -43,6 +43,8 @@ pub(crate) struct ExtractedArgs {
 type Classifier =
     fn(&mut ExtractedArgs, &mut syn::PatType, syn::Ident, syn::Type) -> syn::Result<bool>;
 
+/// Matches a nested path sequence like `["Vec", "Vec", "String"]` for `Vec<Vec<String>>`.
+/// Only the first generic argument at each level is inspected; the final segment may be unparameterised.
 fn is_type_seq(ty: &syn::Type, seq: &[&str]) -> bool {
     use syn::{GenericArgument, PathArguments, Type};
 
@@ -69,9 +71,13 @@ fn is_type_seq(ty: &syn::Type, seq: &[&str]) -> bool {
     true
 }
 
+/// Matches a `String` type using [`is_type_seq`].
+/// Only the first generic argument at each level is inspected; the final segment may be unparameterised.
 fn is_string(ty: &syn::Type) -> bool {
     is_type_seq(ty, &["String"])
 }
+/// Matches a `Vec<Vec<String>>` type using [`is_type_seq`].
+/// Only the first generic argument at each level is inspected; the final segment may be unparameterised.
 fn is_datatable(ty: &syn::Type) -> bool {
     is_type_seq(ty, &["Vec", "Vec", "String"])
 }
@@ -169,7 +175,7 @@ const CLASSIFIERS: &[Classifier] = &[
     classify_step_arg,
 ];
 
-/// Extract fixture, step, and special arguments from a function signature.
+/// Extract fixture, step, data table, and doc string arguments from a function signature.
 ///
 /// # Examples
 /// ```rust,ignore
