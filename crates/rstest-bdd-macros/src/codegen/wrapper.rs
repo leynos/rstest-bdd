@@ -165,40 +165,6 @@ impl ArgumentProcessor {
     }
 }
 
-/// Recursively collect identifiers bound by a pattern.
-///
-/// Step parameters currently require a single, plain identifier so the
-/// generated wrapper can name the argument. Destructuring patterns are parsed
-/// to surface a clearer error message until full support is implemented.
-fn extract_identifiers_from_pattern(pat: &syn::Pat) -> syn::Result<Vec<syn::Ident>> {
-    match pat {
-        syn::Pat::Ident(pat_ident) => Ok(vec![pat_ident.ident.clone()]),
-        syn::Pat::Tuple(pat_tuple) => pat_tuple
-            .elems
-            .iter()
-            .map(extract_identifiers_from_pattern)
-            .collect::<syn::Result<Vec<_>>>()
-            .map(|v| v.into_iter().flatten().collect()),
-        syn::Pat::Struct(pat_struct) => pat_struct
-            .fields
-            .iter()
-            .map(|f| extract_identifiers_from_pattern(&f.pat))
-            .collect::<syn::Result<Vec<_>>>()
-            .map(|v| v.into_iter().flatten().collect()),
-        syn::Pat::TupleStruct(pat_tuple_struct) => pat_tuple_struct
-            .elems
-            .iter()
-            .map(extract_identifiers_from_pattern)
-            .collect::<syn::Result<Vec<_>>>()
-            .map(|v| v.into_iter().flatten().collect()),
-        syn::Pat::Paren(pat_paren) => extract_identifiers_from_pattern(&pat_paren.pat),
-        _ => Err(syn::Error::new_spanned(
-            pat,
-            "unsupported pattern type - only identifiers, tuples, structs, and tuple structs are supported",
-        )),
-    }
-}
-
 /// Remove the `from` attribute from a parameter and return the fixture name.
 ///
 /// # Examples
@@ -232,22 +198,16 @@ fn extract_fixture_name(attrs: &mut Vec<syn::Attribute>) -> Option<syn::Ident> {
 /// assert_eq!(ident.to_string(), "value");
 /// ```
 fn validate_and_extract_pattern(pat: &syn::Pat) -> syn::Result<syn::Ident> {
-    let pat_idents = extract_identifiers_from_pattern(pat)?;
-    if pat_idents.len() != 1 || !matches!(pat, syn::Pat::Ident(_)) {
-        return Err(syn::Error::new_spanned(
+    match pat {
+        syn::Pat::Ident(pi) => Ok(pi.ident.clone()),
+        _ => Err(syn::Error::new_spanned(
             pat,
             format!(
-                "complex destructuring patterns are not yet supported - pattern resolves to {} identifiers but a single bare identifier is required. Found pattern: `{}`",
-                pat_idents.len(),
+                "unsupported pattern `{}`; expected a single identifier",
                 pat.to_token_stream()
             ),
-        ));
+        )),
     }
-    #[expect(clippy::expect_used, reason = "length checked above")]
-    Ok(pat_idents
-        .into_iter()
-        .next()
-        .expect("pattern resolves to exactly one identifier"))
 }
 
 /// Ensure a datatable parameter appears before any docstring parameter.

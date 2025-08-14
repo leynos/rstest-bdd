@@ -1,3 +1,6 @@
+//! Compile-fail fixture: nested destructuring in a step parameter must emit an
+//! "unsupported pattern" error, enforcing the single identifier rule.
+
 use rstest_bdd_macros::given;
 
 struct User {
