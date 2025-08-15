@@ -40,6 +40,21 @@ fn error_on_duplicate_datatable() {
 }
 
 #[rstest]
+fn error_when_datatable_has_wrong_type() {
+    let mut func: syn::ItemFn = parse_quote! {
+        fn step(datatable: String) {}
+    };
+    #[expect(clippy::expect_used, reason = "test asserts error message")]
+    let err = extract_args(&mut func).expect_err("expected error when datatable has wrong type");
+    assert!(
+        err.to_string().contains(
+            "only one datatable parameter is permitted and it must have type `Vec<Vec<String>>`",
+        ),
+        "unexpected error message: {err}"
+    );
+}
+
+#[rstest]
 fn error_on_duplicate_docstring() {
     let mut func: syn::ItemFn = parse_quote! {
         fn step(docstring: String, docstring: String) {}

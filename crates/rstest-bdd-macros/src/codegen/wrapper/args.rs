@@ -68,7 +68,7 @@ impl std::fmt::Debug for ExtractedArgs {
 }
 
 type Classifier =
-    fn(&mut ExtractedArgs, &mut syn::PatType, syn::Ident, syn::Type) -> syn::Result<bool>;
+    fn(&mut ExtractedArgs, &mut syn::PatType, &syn::Ident, &syn::Type) -> syn::Result<bool>;
 
 /// Matches a nested path sequence like `["Vec", "Vec", "String"]` for `Vec<Vec<String>>`.
 /// Only the first generic argument at each level is inspected; the final segment may be unparameterised.
@@ -116,8 +116,8 @@ fn is_datatable(ty: &syn::Type) -> bool {
 fn classify_fixture(
     st: &mut ExtractedArgs,
     arg: &mut syn::PatType,
-    pat: syn::Ident,
-    ty: syn::Type,
+    pat: &syn::Ident,
+    ty: &syn::Type,
 ) -> syn::Result<bool> {
     let mut name = None;
     let mut found_from = false;
@@ -133,7 +133,11 @@ fn classify_fixture(
     if found_from {
         let name = name.unwrap_or_else(|| pat.clone());
         let idx = st.fixtures.len();
-        st.fixtures.push(FixtureArg { pat, name, ty });
+        st.fixtures.push(FixtureArg {
+            pat: pat.clone(),
+            name,
+            ty: ty.clone(),
+        });
         st.call_order.push(CallArg::Fixture(idx));
         Ok(true)
     } else {
@@ -145,17 +149,13 @@ fn should_classify_as_datatable(pat: &syn::Ident, ty: &syn::Type) -> bool {
     pat == "datatable" && is_datatable(ty)
 }
 
-#[expect(
-    clippy::needless_pass_by_value,
-    reason = "uniform classifier signature"
-)]
 fn classify_datatable(
     st: &mut ExtractedArgs,
     arg: &mut syn::PatType,
-    pat: syn::Ident,
-    ty: syn::Type,
+    pat: &syn::Ident,
+    ty: &syn::Type,
 ) -> syn::Result<bool> {
-    if should_classify_as_datatable(&pat, &ty) {
+    if should_classify_as_datatable(pat, ty) {
         if st.datatable.is_some() {
             return Err(syn::Error::new_spanned(
                 arg,
@@ -168,9 +168,14 @@ fn classify_datatable(
                 "datatable must be declared before docstring to match Gherkin ordering",
             ));
         }
-        st.datatable = Some(DataTableArg { pat });
+        st.datatable = Some(DataTableArg { pat: pat.clone() });
         st.call_order.push(CallArg::DataTable);
         Ok(true)
+    } else if pat == "datatable" {
+        Err(syn::Error::new_spanned(
+            arg,
+            "only one datatable parameter is permitted and it must have type `Vec<Vec<String>>`",
+        ))
     } else {
         Ok(false)
     }
@@ -179,18 +184,14 @@ fn is_valid_docstring_arg(st: &ExtractedArgs, pat: &syn::Ident, ty: &syn::Type) 
     st.docstring.is_none() && pat == "docstring" && is_string(ty)
 }
 
-#[expect(
-    clippy::needless_pass_by_value,
-    reason = "uniform classifier signature"
-)]
 fn classify_docstring(
     st: &mut ExtractedArgs,
     arg: &mut syn::PatType,
-    pat: syn::Ident,
-    ty: syn::Type,
+    pat: &syn::Ident,
+    ty: &syn::Type,
 ) -> syn::Result<bool> {
-    if is_valid_docstring_arg(st, &pat, &ty) {
-        st.docstring = Some(DocStringArg { pat });
+    if is_valid_docstring_arg(st, pat, ty) {
+        st.docstring = Some(DocStringArg { pat: pat.clone() });
         st.call_order.push(CallArg::DocString);
         Ok(true)
     } else if pat == "docstring" {
@@ -207,11 +208,14 @@ fn classify_docstring(
 fn classify_step_arg(
     st: &mut ExtractedArgs,
     _arg: &mut syn::PatType,
-    pat: syn::Ident,
-    ty: syn::Type,
+    pat: &syn::Ident,
+    ty: &syn::Type,
 ) -> syn::Result<bool> {
     let idx = st.step_args.len();
-    st.step_args.push(StepArg { pat, ty });
+    st.step_args.push(StepArg {
+        pat: pat.clone(),
+        ty: ty.clone(),
+    });
     st.call_order.push(CallArg::StepArg(idx));
     Ok(true)
 }
@@ -272,7 +276,7 @@ pub fn extract_args(func: &mut syn::ItemFn) -> syn::Result<ExtractedArgs> {
         let ty = (*arg.ty).clone();
 
         for class in CLASSIFIERS {
-            if class(&mut state, arg, pat.clone(), ty.clone())? {
+            if class(&mut state, arg, &pat, &ty)? {
                 break;
             }
         }
