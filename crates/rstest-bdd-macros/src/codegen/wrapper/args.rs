@@ -1,7 +1,7 @@
 //! Argument extraction and classification helpers for wrapper generation.
 
 /// Fixture argument extracted from a step function.
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub(crate) struct FixtureArg {
     pub(crate) pat: syn::Ident,
     pub(crate) name: syn::Ident,
@@ -9,20 +9,20 @@ pub(crate) struct FixtureArg {
 }
 
 /// Non-fixture argument extracted from a step function.
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub(crate) struct StepArg {
     pub(crate) pat: syn::Ident,
     pub(crate) ty: syn::Type,
 }
 
 /// Data table argument extracted from a step function.
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub(crate) struct DataTableArg {
     pub(crate) pat: syn::Ident,
 }
 
 /// Gherkin doc string argument extracted from a step function.
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub(crate) struct DocStringArg {
     pub(crate) pat: syn::Ident,
 }
@@ -37,7 +37,7 @@ pub(crate) enum CallArg {
 }
 
 /// Collections of arguments extracted from a step function signature.
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub(crate) struct ExtractedArgs {
     pub(crate) fixtures: Vec<FixtureArg>,
     pub(crate) step_args: Vec<StepArg>,
@@ -47,12 +47,24 @@ pub(crate) struct ExtractedArgs {
 }
 
 /// References to extracted arguments for ordered processing.
-#[derive(Debug, Clone, Copy)]
+#[derive(Clone, Copy)]
 pub(crate) struct ArgumentCollections<'a> {
     pub(crate) fixtures: &'a [FixtureArg],
     pub(crate) step_args: &'a [StepArg],
     pub(crate) datatable: Option<&'a DataTableArg>,
     pub(crate) docstring: Option<&'a DocStringArg>,
+}
+
+impl std::fmt::Debug for ExtractedArgs {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ExtractedArgs")
+            .field("fixtures", &self.fixtures.len())
+            .field("step_args", &self.step_args.len())
+            .field("datatable", &self.datatable.is_some())
+            .field("docstring", &self.docstring.is_some())
+            .field("call_order", &self.call_order)
+            .finish()
+    }
 }
 
 type Classifier =
@@ -129,8 +141,8 @@ fn classify_fixture(
     }
 }
 
-fn should_classify_as_datatable(st: &ExtractedArgs, pat: &syn::Ident, ty: &syn::Type) -> bool {
-    st.datatable.is_none() && pat == "datatable" && is_datatable(ty)
+fn should_classify_as_datatable(pat: &syn::Ident, ty: &syn::Type) -> bool {
+    pat == "datatable" && is_datatable(ty)
 }
 
 #[expect(
@@ -143,7 +155,13 @@ fn classify_datatable(
     pat: syn::Ident,
     ty: syn::Type,
 ) -> syn::Result<bool> {
-    if should_classify_as_datatable(st, &pat, &ty) {
+    if should_classify_as_datatable(&pat, &ty) {
+        if st.datatable.is_some() {
+            return Err(syn::Error::new_spanned(
+                arg,
+                "only one datatable parameter is permitted",
+            ));
+        }
         if st.docstring.is_some() {
             return Err(syn::Error::new_spanned(
                 arg,
@@ -221,6 +239,8 @@ const CLASSIFIERS: &[Classifier] = &[
 /// Note: special arguments must use the canonical names:
 /// - data table parameter must be named `datatable` and have type `Vec<Vec<String>>`
 /// - doc string parameter must be named `docstring` and have type `String`
+///
+/// At most one `datatable` and one `docstring` parameter are permitted.
 // FIXME: https://github.com/leynos/rstest-bdd/issues/54
 pub(crate) fn extract_args(func: &mut syn::ItemFn) -> syn::Result<ExtractedArgs> {
     let mut state = ExtractedArgs {
@@ -233,10 +253,16 @@ pub(crate) fn extract_args(func: &mut syn::ItemFn) -> syn::Result<ExtractedArgs>
 
     for input in &mut func.sig.inputs {
         let syn::FnArg::Typed(arg) = input else {
-            return Err(syn::Error::new_spanned(input, "methods not supported"));
+            return Err(syn::Error::new_spanned(
+                input,
+                "methods are not supported; remove `self` from step functions",
+            ));
         };
         let syn::Pat::Ident(pat_ident) = &*arg.pat else {
-            return Err(syn::Error::new_spanned(&arg.pat, "unsupported pattern"));
+            return Err(syn::Error::new_spanned(
+                &arg.pat,
+                "unsupported parameter pattern; use a simple identifier (e.g., `arg: T`)",
+            ));
         };
         let pat = pat_ident.ident.clone();
         let ty = (*arg.ty).clone();

@@ -25,6 +25,21 @@ fn error_when_datatable_after_docstring() {
 }
 
 #[rstest]
+fn error_on_duplicate_datatable() {
+    let mut func: syn::ItemFn = parse_quote! {
+        fn step(datatable: Vec<Vec<String>>, datatable: Vec<Vec<String>>) {}
+    };
+    let err = extract_args(&mut func)
+        .err()
+        .unwrap_or_else(|| panic!("expected error when datatable is declared twice"));
+    assert!(
+        err.to_string()
+            .contains("only one datatable parameter is permitted"),
+        "unexpected error message: {err}"
+    );
+}
+
+#[rstest]
 fn from_without_ident_defaults_to_param_name() {
     let mut func: syn::ItemFn = parse_quote! {
         fn step(#[from] fixture: usize) {}
