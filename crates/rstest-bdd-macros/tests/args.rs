@@ -5,8 +5,8 @@ use syn::parse_quote;
 
 #[path = "../src/codegen/wrapper/args.rs"]
 #[expect(dead_code, reason = "test reuses only selected helpers")]
-// Proc-macro crates cannot export non-macro items, so the module is included
-// directly.
+// Proc-macro crates cannot expose non-macro items to downstream crates; include
+// the internal module directly to exercise helper APIs.
 mod args_impl;
 
 use args_impl::{CallArg, extract_args};
@@ -47,7 +47,7 @@ fn test_extract_args_errors(
     let msg = err.to_string();
     assert!(
         msg.contains(expected_error_fragment),
-        "unexpected error message: {msg}"
+        "unexpected error message for {test_description}: {msg}"
     );
 }
 
