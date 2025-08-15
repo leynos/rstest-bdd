@@ -25,7 +25,7 @@ fn step_attr(
 
     let (fixtures, step_args, datatable, docstring, call_order) = match extract_args(&mut func) {
         Ok(args) => args,
-        Err(err) => return error_to_tokens(&err).into(),
+        Err(err) => return error_to_tokens(&err).into(), // convert proc_macro2 to proc_macro
     };
 
     let ident = &func.sig.ident;

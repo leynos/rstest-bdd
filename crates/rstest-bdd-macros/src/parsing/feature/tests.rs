@@ -2,7 +2,7 @@
 
 use super::*;
 use gherkin::{Background, LineCol, Scenario, Span, Step, StepType};
-use std::path::Path;
+use rstest::rstest;
 
 #[expect(
     unreachable_patterns,
@@ -257,20 +257,13 @@ fn background_steps_with_docstring_are_extracted() {
     );
 }
 
-#[test]
-fn errors_when_feature_not_found() {
-    let path = Path::new("tests/features/does_not_exist.feature");
-    let Err(err) = parse_and_load_feature(path) else {
-        panic!("expected missing feature to error");
+#[rstest]
+#[case("tests/features/does_not_exist.feature", "feature file not found")]
+#[case("tests/features/empty.feature", "failed to parse feature file")]
+fn errors_when_feature_fails(#[case] rel_path: &str, #[case] expected_snippet: &str) {
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(rel_path);
+    let Err(err) = parse_and_load_feature(&path) else {
+        panic!("expected failure for feature path: {rel_path}");
     };
-    assert!(err.to_string().contains("feature file not found"));
-}
-
-#[test]
-fn errors_when_feature_unparseable() {
-    let path = Path::new("tests/features/empty.feature");
-    let Err(err) = parse_and_load_feature(path) else {
-        panic!("expected parse error");
-    };
-    assert!(err.to_string().contains("failed to parse feature file"));
+    assert!(err.to_string().contains(expected_snippet));
 }

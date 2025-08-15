@@ -41,6 +41,14 @@ fn map_step(step: &Step) -> ParsedStep {
 }
 
 /// Parse and load a feature file from the given path.
+///
+/// Emits a compile-time error (as tokens) when:
+/// - `CARGO_MANIFEST_DIR` is not set (macro not running under Cargo),
+/// - the feature path does not exist, or
+/// - the feature path is not a regular file.
+///
+/// On parse errors, attempts to surface validation diagnostics for Examples
+/// tables where possible.
 pub(crate) fn parse_and_load_feature(path: &Path) -> Result<Feature, proc_macro2::TokenStream> {
     let Ok(manifest_dir) = std::env::var("CARGO_MANIFEST_DIR") else {
         let err = syn::Error::new(
@@ -50,10 +58,18 @@ pub(crate) fn parse_and_load_feature(path: &Path) -> Result<Feature, proc_macro2
         return Err(error_to_tokens(&err));
     };
     let feature_path = PathBuf::from(manifest_dir).join(path);
-    if !feature_path.exists() {
-        let msg = format!("feature file not found: {}", feature_path.display());
-        let err = syn::Error::new(proc_macro2::Span::call_site(), msg);
-        return Err(error_to_tokens(&err));
+    match std::fs::metadata(&feature_path) {
+        Ok(meta) if meta.is_file() => {}
+        Ok(_) => {
+            let msg = format!("feature path is not a file: {}", feature_path.display());
+            let err = syn::Error::new(proc_macro2::Span::call_site(), msg);
+            return Err(error_to_tokens(&err));
+        }
+        Err(_) => {
+            let msg = format!("feature file not found: {}", feature_path.display());
+            let err = syn::Error::new(proc_macro2::Span::call_site(), msg);
+            return Err(error_to_tokens(&err));
+        }
     }
 
     Feature::parse_path(&feature_path, GherkinEnv::default()).map_err(|err| {
