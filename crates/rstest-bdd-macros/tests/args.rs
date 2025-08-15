@@ -5,6 +5,7 @@ use syn::parse_quote;
 
 #[path = "../src/codegen/wrapper/args.rs"]
 #[expect(dead_code, reason = "test reuses only selected helpers")]
+// Procedural macro crates cannot expose non-macro items, so include directly.
 mod args_impl;
 
 use args_impl::{CallArg, extract_args};
@@ -35,6 +36,36 @@ fn error_on_duplicate_datatable() {
     assert!(
         err.to_string()
             .contains("only one datatable parameter is permitted"),
+        "unexpected error message: {err}"
+    );
+}
+
+#[rstest]
+fn error_on_duplicate_docstring() {
+    let mut func: syn::ItemFn = parse_quote! {
+        fn step(docstring: String, docstring: String) {}
+    };
+    let err = extract_args(&mut func)
+        .err()
+        .unwrap_or_else(|| panic!("expected error when docstring is declared twice"));
+    assert!(
+        err.to_string()
+            .contains("only one docstring parameter is permitted"),
+        "unexpected error message: {err}"
+    );
+}
+
+#[rstest]
+fn error_when_docstring_has_wrong_type() {
+    let mut func: syn::ItemFn = parse_quote! {
+        fn step(docstring: usize) {}
+    };
+    let err = extract_args(&mut func)
+        .err()
+        .unwrap_or_else(|| panic!("expected error when docstring has wrong type"));
+    assert!(
+        err.to_string()
+            .contains("only one docstring parameter is permitted"),
         "unexpected error message: {err}"
     );
 }

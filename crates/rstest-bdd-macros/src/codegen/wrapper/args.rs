@@ -2,34 +2,34 @@
 
 /// Fixture argument extracted from a step function.
 #[derive(Clone)]
-pub(crate) struct FixtureArg {
-    pub(crate) pat: syn::Ident,
-    pub(crate) name: syn::Ident,
-    pub(crate) ty: syn::Type,
+pub struct FixtureArg {
+    pub pat: syn::Ident,
+    pub name: syn::Ident,
+    pub ty: syn::Type,
 }
 
 /// Non-fixture argument extracted from a step function.
 #[derive(Clone)]
-pub(crate) struct StepArg {
-    pub(crate) pat: syn::Ident,
-    pub(crate) ty: syn::Type,
+pub struct StepArg {
+    pub pat: syn::Ident,
+    pub ty: syn::Type,
 }
 
 /// Data table argument extracted from a step function.
 #[derive(Clone)]
-pub(crate) struct DataTableArg {
-    pub(crate) pat: syn::Ident,
+pub struct DataTableArg {
+    pub pat: syn::Ident,
 }
 
 /// Gherkin doc string argument extracted from a step function.
 #[derive(Clone)]
-pub(crate) struct DocStringArg {
-    pub(crate) pat: syn::Ident,
+pub struct DocStringArg {
+    pub pat: syn::Ident,
 }
 
 /// Argument ordering as declared in the step function signature.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum CallArg {
+pub enum CallArg {
     Fixture(usize),
     StepArg(usize),
     DataTable,
@@ -38,12 +38,12 @@ pub(crate) enum CallArg {
 
 /// Collections of arguments extracted from a step function signature.
 #[derive(Clone)]
-pub(crate) struct ExtractedArgs {
-    pub(crate) fixtures: Vec<FixtureArg>,
-    pub(crate) step_args: Vec<StepArg>,
-    pub(crate) datatable: Option<DataTableArg>,
-    pub(crate) docstring: Option<DocStringArg>,
-    pub(crate) call_order: Vec<CallArg>,
+pub struct ExtractedArgs {
+    pub fixtures: Vec<FixtureArg>,
+    pub step_args: Vec<StepArg>,
+    pub datatable: Option<DataTableArg>,
+    pub docstring: Option<DocStringArg>,
+    pub call_order: Vec<CallArg>,
 }
 
 /// References to extracted arguments for ordered processing.
@@ -179,14 +179,13 @@ fn is_valid_docstring_arg(st: &ExtractedArgs, pat: &syn::Ident, ty: &syn::Type) 
     st.docstring.is_none() && pat == "docstring" && is_string(ty)
 }
 
-#[expect(clippy::unnecessary_wraps, reason = "conforms to classifier signature")]
 #[expect(
     clippy::needless_pass_by_value,
     reason = "uniform classifier signature"
 )]
 fn classify_docstring(
     st: &mut ExtractedArgs,
-    _arg: &mut syn::PatType,
+    arg: &mut syn::PatType,
     pat: syn::Ident,
     ty: syn::Type,
 ) -> syn::Result<bool> {
@@ -194,6 +193,11 @@ fn classify_docstring(
         st.docstring = Some(DocStringArg { pat });
         st.call_order.push(CallArg::DocString);
         Ok(true)
+    } else if pat == "docstring" {
+        Err(syn::Error::new_spanned(
+            arg,
+            "only one docstring parameter is permitted",
+        ))
     } else {
         Ok(false)
     }
@@ -242,7 +246,7 @@ const CLASSIFIERS: &[Classifier] = &[
 ///
 /// At most one `datatable` and one `docstring` parameter are permitted.
 // FIXME: https://github.com/leynos/rstest-bdd/issues/54
-pub(crate) fn extract_args(func: &mut syn::ItemFn) -> syn::Result<ExtractedArgs> {
+pub fn extract_args(func: &mut syn::ItemFn) -> syn::Result<ExtractedArgs> {
     let mut state = ExtractedArgs {
         fixtures: vec![],
         step_args: vec![],
