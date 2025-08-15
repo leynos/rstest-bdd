@@ -12,73 +12,42 @@ mod args_impl;
 use args_impl::{CallArg, extract_args};
 
 #[rstest]
-fn error_when_datatable_after_docstring() {
-    let mut func: syn::ItemFn = parse_quote! {
-        fn step(docstring: String, datatable: Vec<Vec<String>>) {}
-    };
+#[case(
+    parse_quote! { fn step(docstring: String, datatable: Vec<Vec<String>>) {} },
+    "datatable must be declared before docstring",
+    "error when datatable follows docstring",
+)]
+#[case(
+    parse_quote! { fn step(datatable: Vec<Vec<String>>, datatable: Vec<Vec<String>>) {} },
+    "only one datatable parameter is permitted",
+    "error on duplicate datatable",
+)]
+#[case(
+    parse_quote! { fn step(datatable: String) {} },
+    "only one datatable parameter is permitted and it must have type `Vec<Vec<String>>`",
+    "error when datatable has wrong type",
+)]
+#[case(
+    parse_quote! { fn step(docstring: String, docstring: String) {} },
+    "only one docstring parameter is permitted",
+    "error on duplicate docstring",
+)]
+#[case(
+    parse_quote! { fn step(docstring: usize) {} },
+    "only one docstring parameter is permitted and it must have type `String`",
+    "error when docstring has wrong type",
+)]
+fn test_extract_args_errors(
+    #[case] mut func: syn::ItemFn,
+    #[case] expected_error_fragment: &str,
+    #[case] test_description: &str,
+) {
     #[expect(clippy::expect_used, reason = "test asserts error message")]
-    let err = extract_args(&mut func).expect_err("expected error when datatable follows docstring");
+    let err = extract_args(&mut func).expect_err(test_description);
     let msg = err.to_string();
     assert!(
-        msg.contains("datatable must be declared before docstring"),
+        msg.contains(expected_error_fragment),
         "unexpected error message: {msg}"
-    );
-}
-
-#[rstest]
-fn error_on_duplicate_datatable() {
-    let mut func: syn::ItemFn = parse_quote! {
-        fn step(datatable: Vec<Vec<String>>, datatable: Vec<Vec<String>>) {}
-    };
-    #[expect(clippy::expect_used, reason = "test asserts error message")]
-    let err = extract_args(&mut func).expect_err("expected error when datatable is declared twice");
-    assert!(
-        err.to_string()
-            .contains("only one datatable parameter is permitted"),
-        "unexpected error message: {err}"
-    );
-}
-
-#[rstest]
-fn error_when_datatable_has_wrong_type() {
-    let mut func: syn::ItemFn = parse_quote! {
-        fn step(datatable: String) {}
-    };
-    #[expect(clippy::expect_used, reason = "test asserts error message")]
-    let err = extract_args(&mut func).expect_err("expected error when datatable has wrong type");
-    assert!(
-        err.to_string().contains(
-            "only one datatable parameter is permitted and it must have type `Vec<Vec<String>>`",
-        ),
-        "unexpected error message: {err}"
-    );
-}
-
-#[rstest]
-fn error_on_duplicate_docstring() {
-    let mut func: syn::ItemFn = parse_quote! {
-        fn step(docstring: String, docstring: String) {}
-    };
-    #[expect(clippy::expect_used, reason = "test asserts error message")]
-    let err = extract_args(&mut func).expect_err("expected error when docstring is declared twice");
-    assert!(
-        err.to_string()
-            .contains("only one docstring parameter is permitted"),
-        "unexpected error message: {err}"
-    );
-}
-
-#[rstest]
-fn error_when_docstring_has_wrong_type() {
-    let mut func: syn::ItemFn = parse_quote! {
-        fn step(docstring: usize) {}
-    };
-    #[expect(clippy::expect_used, reason = "test asserts error message")]
-    let err = extract_args(&mut func).expect_err("expected error when docstring has wrong type");
-    assert!(
-        err.to_string()
-            .contains("only one docstring parameter is permitted"),
-        "unexpected error message: {err}"
     );
 }
 
