@@ -41,7 +41,7 @@ fn map_step(step: &Step) -> ParsedStep {
 }
 
 /// Parse and load a feature file from the given path.
-pub(crate) fn parse_and_load_feature(path: &Path) -> Result<Feature, proc_macro::TokenStream> {
+pub(crate) fn parse_and_load_feature(path: &Path) -> Result<Feature, proc_macro2::TokenStream> {
     let Ok(manifest_dir) = std::env::var("CARGO_MANIFEST_DIR") else {
         let err = syn::Error::new(
             proc_macro2::Span::call_site(),
@@ -50,6 +50,12 @@ pub(crate) fn parse_and_load_feature(path: &Path) -> Result<Feature, proc_macro:
         return Err(error_to_tokens(&err));
     };
     let feature_path = PathBuf::from(manifest_dir).join(path);
+    if !feature_path.exists() {
+        let msg = format!("feature file not found: {}", feature_path.display());
+        let err = syn::Error::new(proc_macro2::Span::call_site(), msg);
+        return Err(error_to_tokens(&err));
+    }
+
     Feature::parse_path(&feature_path, GherkinEnv::default()).map_err(|err| {
         if let Ok(text) = std::fs::read_to_string(&feature_path) {
             if let Err(validation_err) = validate_examples_in_feature_text(&text) {
@@ -65,7 +71,7 @@ pub(crate) fn parse_and_load_feature(path: &Path) -> Result<Feature, proc_macro:
 pub(crate) fn extract_scenario_steps(
     feature: &Feature,
     index: Option<usize>,
-) -> Result<ScenarioData, proc_macro::TokenStream> {
+) -> Result<ScenarioData, proc_macro2::TokenStream> {
     let Some(scenario) = feature.scenarios.get(index.unwrap_or(0)) else {
         let err = syn::Error::new(
             proc_macro2::Span::call_site(),

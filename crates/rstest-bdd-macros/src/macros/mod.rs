@@ -25,7 +25,7 @@ fn step_attr(
 
     let (fixtures, step_args, datatable, docstring, call_order) = match extract_args(&mut func) {
         Ok(args) => args,
-        Err(err) => return error_to_tokens(&err),
+        Err(err) => return error_to_tokens(&err).into(),
     };
 
     let ident = &func.sig.ident;

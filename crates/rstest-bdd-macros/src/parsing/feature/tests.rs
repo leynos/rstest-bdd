@@ -2,6 +2,7 @@
 
 use super::*;
 use gherkin::{Background, LineCol, Scenario, Span, Step, StepType};
+use std::path::Path;
 
 #[expect(
     unreachable_patterns,
@@ -254,4 +255,24 @@ fn background_steps_with_docstring_are_extracted() {
             },
         ],
     );
+}
+
+#[test]
+fn errors_when_feature_not_found() {
+    let path = Path::new("tests/features/does_not_exist.feature");
+    let Err(err) = parse_and_load_feature(path) else {
+        panic!("expected missing feature to error");
+    };
+    assert!(err.to_string().contains("feature file not found"));
+}
+
+#[test]
+fn errors_when_feature_unparseable() {
+    let path = Path::new("tests/features/empty.feature");
+    let Err(err) = parse_and_load_feature(path) else {
+        panic!("expected parse error");
+    };
+    assert!(err
+        .to_string()
+        .contains("failed to parse feature file"));
 }
