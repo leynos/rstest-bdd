@@ -1,4 +1,4 @@
-error: unsupported pattern `User { name }`; expected a single identifier
+error: unsupported parameter pattern; use a simple identifier (e.g., `arg: T`)
   --> tests/fixtures/step_struct_pattern.rs:11:21
    |
 11 | fn step_with_struct(User { name }: User) {}
