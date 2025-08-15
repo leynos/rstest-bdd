@@ -48,8 +48,16 @@ fn validate_feature_file_exists(feature_path: &Path) -> Result<(), syn::Error> {
             let msg = format!("feature path is not a file: {}", feature_path.display());
             Err(syn::Error::new(proc_macro2::Span::call_site(), msg))
         }
-        Err(_) => {
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
             let msg = format!("feature file not found: {}", feature_path.display());
+            Err(syn::Error::new(proc_macro2::Span::call_site(), msg))
+        }
+        Err(e) => {
+            let msg = format!(
+                "failed to access feature file ({}): {}",
+                feature_path.display(),
+                e
+            );
             Err(syn::Error::new(proc_macro2::Span::call_site(), msg))
         }
     }

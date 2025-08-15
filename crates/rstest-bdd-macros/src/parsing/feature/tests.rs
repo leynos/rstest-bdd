@@ -260,6 +260,7 @@ fn background_steps_with_docstring_are_extracted() {
 #[rstest]
 #[case("tests/features/does_not_exist.feature", "feature file not found")]
 #[case("tests/features/empty.feature", "failed to parse feature file")]
+#[case("tests/features", "feature path is not a file")]
 fn errors_when_feature_fails(#[case] rel_path: &str, #[case] expected_snippet: &str) {
     let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(rel_path);
     let Err(err) = parse_and_load_feature(&path) else {
