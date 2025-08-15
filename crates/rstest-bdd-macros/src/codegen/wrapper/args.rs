@@ -1,7 +1,7 @@
 //! Argument extraction and classification helpers for wrapper generation.
 
 /// Fixture argument extracted from a step function.
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct FixtureArg {
     pub pat: syn::Ident,
     pub name: syn::Ident,
@@ -9,20 +9,20 @@ pub struct FixtureArg {
 }
 
 /// Non-fixture argument extracted from a step function.
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct StepArg {
     pub pat: syn::Ident,
     pub ty: syn::Type,
 }
 
 /// Data table argument extracted from a step function.
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct DataTableArg {
     pub pat: syn::Ident,
 }
 
 /// Gherkin doc string argument extracted from a step function.
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct DocStringArg {
     pub pat: syn::Ident,
 }
