@@ -196,7 +196,7 @@ fn classify_docstring(
     } else if pat == "docstring" {
         Err(syn::Error::new_spanned(
             arg,
-            "only one docstring parameter is permitted",
+            "only one docstring parameter is permitted and it must have type `String`",
         ))
     } else {
         Ok(false)
