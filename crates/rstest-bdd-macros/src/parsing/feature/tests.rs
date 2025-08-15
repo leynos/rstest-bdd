@@ -272,7 +272,5 @@ fn errors_when_feature_unparseable() {
     let Err(err) = parse_and_load_feature(path) else {
         panic!("expected parse error");
     };
-    assert!(err
-        .to_string()
-        .contains("failed to parse feature file"));
+    assert!(err.to_string().contains("failed to parse feature file"));
 }

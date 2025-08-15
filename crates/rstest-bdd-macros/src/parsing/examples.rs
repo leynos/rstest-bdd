@@ -17,9 +17,7 @@ fn should_process_outline(scenario: &gherkin::Scenario) -> bool {
     scenario.keyword == "Scenario Outline" || !scenario.examples.is_empty()
 }
 
-fn get_first_examples_table(
-    scenario: &gherkin::Scenario,
-) -> Result<&gherkin::Table, TokenStream> {
+fn get_first_examples_table(scenario: &gherkin::Scenario) -> Result<&gherkin::Table, TokenStream> {
     scenario
         .examples
         .first()
