@@ -40,6 +40,21 @@ fn map_step(step: &Step) -> ParsedStep {
     }
 }
 
+/// Validate that the feature path exists and points to a file.
+fn validate_feature_file_exists(feature_path: &Path) -> Result<(), syn::Error> {
+    match std::fs::metadata(feature_path) {
+        Ok(meta) if meta.is_file() => Ok(()),
+        Ok(_) => {
+            let msg = format!("feature path is not a file: {}", feature_path.display());
+            Err(syn::Error::new(proc_macro2::Span::call_site(), msg))
+        }
+        Err(_) => {
+            let msg = format!("feature file not found: {}", feature_path.display());
+            Err(syn::Error::new(proc_macro2::Span::call_site(), msg))
+        }
+    }
+}
+
 /// Parse and load a feature file from the given path.
 ///
 /// Emits a compile-time error (as tokens) when:
@@ -58,18 +73,8 @@ pub(crate) fn parse_and_load_feature(path: &Path) -> Result<Feature, proc_macro2
         return Err(error_to_tokens(&err));
     };
     let feature_path = PathBuf::from(manifest_dir).join(path);
-    match std::fs::metadata(&feature_path) {
-        Ok(meta) if meta.is_file() => {}
-        Ok(_) => {
-            let msg = format!("feature path is not a file: {}", feature_path.display());
-            let err = syn::Error::new(proc_macro2::Span::call_site(), msg);
-            return Err(error_to_tokens(&err));
-        }
-        Err(_) => {
-            let msg = format!("feature file not found: {}", feature_path.display());
-            let err = syn::Error::new(proc_macro2::Span::call_site(), msg);
-            return Err(error_to_tokens(&err));
-        }
+    if let Err(err) = validate_feature_file_exists(&feature_path) {
+        return Err(error_to_tokens(&err));
     }
 
     Feature::parse_path(&feature_path, GherkinEnv::default()).map_err(|err| {
