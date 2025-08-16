@@ -40,8 +40,39 @@ fn map_step(step: &Step) -> ParsedStep {
     }
 }
 
+/// Validate that the feature path exists and points to a file.
+fn validate_feature_file_exists(feature_path: &Path) -> Result<(), syn::Error> {
+    match std::fs::metadata(feature_path) {
+        Ok(meta) if meta.is_file() => Ok(()),
+        Ok(_) => {
+            let msg = format!("feature path is not a file: {}", feature_path.display());
+            Err(syn::Error::new(proc_macro2::Span::call_site(), msg))
+        }
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+            let msg = format!("feature file not found: {}", feature_path.display());
+            Err(syn::Error::new(proc_macro2::Span::call_site(), msg))
+        }
+        Err(e) => {
+            let msg = format!(
+                "failed to access feature file ({}): {}",
+                feature_path.display(),
+                e
+            );
+            Err(syn::Error::new(proc_macro2::Span::call_site(), msg))
+        }
+    }
+}
+
 /// Parse and load a feature file from the given path.
-pub(crate) fn parse_and_load_feature(path: &Path) -> Result<Feature, proc_macro::TokenStream> {
+///
+/// Emits a compile-time error (as tokens) when:
+/// - `CARGO_MANIFEST_DIR` is not set (macro not running under Cargo),
+/// - the feature path does not exist, or
+/// - the feature path is not a regular file.
+///
+/// On parse errors, attempts to surface validation diagnostics for Examples
+/// tables where possible.
+pub(crate) fn parse_and_load_feature(path: &Path) -> Result<Feature, proc_macro2::TokenStream> {
     let Ok(manifest_dir) = std::env::var("CARGO_MANIFEST_DIR") else {
         let err = syn::Error::new(
             proc_macro2::Span::call_site(),
@@ -50,6 +81,10 @@ pub(crate) fn parse_and_load_feature(path: &Path) -> Result<Feature, proc_macro:
         return Err(error_to_tokens(&err));
     };
     let feature_path = PathBuf::from(manifest_dir).join(path);
+    if let Err(err) = validate_feature_file_exists(&feature_path) {
+        return Err(error_to_tokens(&err));
+    }
+
     Feature::parse_path(&feature_path, GherkinEnv::default()).map_err(|err| {
         if let Ok(text) = std::fs::read_to_string(&feature_path) {
             if let Err(validation_err) = validate_examples_in_feature_text(&text) {
@@ -65,7 +100,7 @@ pub(crate) fn parse_and_load_feature(path: &Path) -> Result<Feature, proc_macro:
 pub(crate) fn extract_scenario_steps(
     feature: &Feature,
     index: Option<usize>,
-) -> Result<ScenarioData, proc_macro::TokenStream> {
+) -> Result<ScenarioData, proc_macro2::TokenStream> {
     let Some(scenario) = feature.scenarios.get(index.unwrap_or(0)) else {
         let err = syn::Error::new(
             proc_macro2::Span::call_site(),

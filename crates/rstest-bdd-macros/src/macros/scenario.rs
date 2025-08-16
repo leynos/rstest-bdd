@@ -97,7 +97,7 @@ pub(crate) fn scenario(attr: TokenStream, item: TokenStream) -> TokenStream {
 
     let feature = match parse_and_load_feature(&path) {
         Ok(f) => f,
-        Err(err) => return err,
+        Err(err) => return err.into(),
     };
     let manifest_dir = std::env::var("CARGO_MANIFEST_DIR").unwrap_or_else(|_| String::new());
     let feature_path_str = PathBuf::from(manifest_dir)
@@ -111,11 +111,11 @@ pub(crate) fn scenario(attr: TokenStream, item: TokenStream) -> TokenStream {
         examples,
     } = match extract_scenario_steps(&feature, index) {
         Ok(res) => res,
-        Err(err) => return err,
+        Err(err) => return err.into(),
     };
 
     if let Err(err) = process_scenario_outline_examples(sig, examples.as_ref()) {
-        return err;
+        return err.into();
     }
 
     let (_args, ctx_inserts) = extract_function_fixtures(sig);

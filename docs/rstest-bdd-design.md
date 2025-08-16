@@ -683,7 +683,10 @@ incrementally.
 
 - Implement robust compile-time error handling. The `#[scenario]` macro should
   emit clear compiler errors if a feature file cannot be parsed or if no
-  matching step definition can be found for a Gherkin step.
+  matching step definition can be found for a Gherkin step. The macro now
+  validates that the referenced feature file exists before invoking the Gherkin
+  parser. Missing or malformed files cause `compile_error!` to be emitted,
+  failing fast during compilation.
 
 - Develop a `scenarios!` helper macro, analogous to the one in `pytest-bdd` 9,
   which can automatically bind all scenarios within one or more feature files,

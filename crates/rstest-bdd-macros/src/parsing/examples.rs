@@ -4,6 +4,7 @@ use crate::utils::errors::error_to_tokens;
 use crate::validation::examples::{
     extract_and_validate_headers, flatten_and_validate_rows, validate_header_consistency,
 };
+use proc_macro2::TokenStream;
 
 /// Rows parsed from a `Scenario Outline` examples table.
 #[derive(Clone)]
@@ -16,9 +17,7 @@ fn should_process_outline(scenario: &gherkin::Scenario) -> bool {
     scenario.keyword == "Scenario Outline" || !scenario.examples.is_empty()
 }
 
-fn get_first_examples_table(
-    scenario: &gherkin::Scenario,
-) -> Result<&gherkin::Table, proc_macro::TokenStream> {
+fn get_first_examples_table(scenario: &gherkin::Scenario) -> Result<&gherkin::Table, TokenStream> {
     scenario
         .examples
         .first()
@@ -34,7 +33,7 @@ fn get_first_examples_table(
 /// Extract examples table data from a scenario if present.
 pub(crate) fn extract_examples(
     scenario: &gherkin::Scenario,
-) -> Result<Option<ExampleTable>, proc_macro::TokenStream> {
+) -> Result<Option<ExampleTable>, TokenStream> {
     if !should_process_outline(scenario) {
         return Ok(None);
     }

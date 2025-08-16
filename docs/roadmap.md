@@ -113,7 +113,7 @@ improves the developer experience.
 
 - [ ] **Robust Error Handling**
 
-  - [ ] The `#[scenario]` macro must emit a `compile_error!` if the specified
+  - [x] The `#[scenario]` macro must emit a `compile_error!` if the specified
     `.feature` file cannot be found or parsed.
 
   - [ ] The `#[scenario]` macro must perform a compile-time check to ensure a
