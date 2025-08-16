@@ -18,16 +18,20 @@ fn empty_list(#[from(todo)] list: &RefCell<TodoList>) {
 
 #[when("I add the following tasks")]
 fn add_tasks(#[from(todo)] list: &RefCell<TodoList>, datatable: Vec<Vec<String>>) {
-    for row in datatable {
-        if let Some(task) = row.first() {
-            list.borrow_mut().add(task.clone());
-        }
+    for (i, row) in datatable.into_iter().enumerate() {
+        assert!(
+            !row.is_empty(),
+            "datatable row {} must have at least one column (task description)",
+            i + 1
+        );
+        list.borrow_mut().add(row[0].clone());
     }
 }
 
 #[then("the list displays")]
 fn list_displays(#[from(todo)] list: &RefCell<TodoList>, docstring: String) {
-    assert_eq!(list.borrow().display(), docstring.trim());
+    let expected = dedent(&docstring);
+    assert_eq!(list.borrow().display(), expected);
 }
 
 #[given("a todo list with {first} and {second}")]
@@ -39,20 +43,50 @@ fn list_with_two(#[from(todo)] list: &RefCell<TodoList>, first: String, second: 
 
 #[when("I complete {task}")]
 fn complete_task(#[from(todo)] list: &RefCell<TodoList>, task: String) {
-    assert!(list.borrow_mut().complete(&task), "task should exist");
+    let ok = list.borrow_mut().complete(&task);
+    assert!(
+        ok,
+        "expected to complete task '{}'; tasks present: {:?}",
+        task,
+        list.borrow().statuses()
+    );
 }
 
 #[then("the task statuses should be")]
 fn assert_statuses(#[from(todo)] list: &RefCell<TodoList>, datatable: Vec<Vec<String>>) {
     let expected: Vec<(String, bool)> = datatable
         .into_iter()
-        .filter_map(|row| {
-            let task = row.first()?.clone();
-            let done = matches!(row.get(1).map(String::as_str), Some("yes"));
-            Some((task, done))
+        .enumerate()
+        .map(|(i, row)| {
+            assert!(
+                row.len() >= 2,
+                "datatable row {} must have two columns: <task> | <yes/no>",
+                i + 1
+            );
+            let task = row[0].clone();
+            let done = matches!(row[1].to_ascii_lowercase().as_str(), "yes" | "y" | "true");
+            (task, done)
         })
         .collect();
     assert_eq!(list.borrow().statuses(), expected);
+}
+
+fn dedent(s: &str) -> String {
+    let mut min_indent: Option<usize> = None;
+    for line in s.lines() {
+        if line.trim().is_empty() {
+            continue;
+        }
+        let indent = line.chars().take_while(|c| *c == ' ' || *c == '\t').count();
+        min_indent = Some(min_indent.map_or(indent, |m| m.min(indent)));
+    }
+    let cut = min_indent.unwrap_or(0);
+    let out: String = s
+        .lines()
+        .map(|l| if l.len() >= cut { &l[cut..] } else { "" })
+        .collect::<Vec<_>>()
+        .join("\n");
+    out.trim().to_string()
 }
 
 #[scenario(path = "tests/features/add.feature")]

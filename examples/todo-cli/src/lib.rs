@@ -1,12 +1,12 @@
 //! Simple in-memory todo list used by the `todo-cli` example.
 
 /// Represents a single task within the list.
-#[derive(Clone)]
-pub struct Task {
+#[derive(Clone, Debug)]
+struct Task {
     /// Description supplied by the user.
-    pub description: String,
+    description: String,
     /// Indicates whether the task has been completed.
-    pub done: bool,
+    done: bool,
 }
 
 /// Collection of tasks with basic management operations.
@@ -23,9 +23,9 @@ impl TodoList {
     }
 
     /// Add a task with the given description.
-    pub fn add(&mut self, description: String) {
+    pub fn add<S: Into<String>>(&mut self, description: S) {
         self.tasks.push(Task {
-            description,
+            description: description.into(),
             done: false,
         });
     }
@@ -45,19 +45,21 @@ impl TodoList {
     /// Render the list into a user-facing string.
     #[must_use]
     pub fn display(&self) -> String {
-        self.tasks
-            .iter()
-            .enumerate()
-            .map(|(i, t)| {
-                format!(
-                    "{}. [{}] {}",
-                    i + 1,
-                    if t.done { "x" } else { " " },
-                    t.description
-                )
-            })
-            .collect::<Vec<_>>()
-            .join("\n")
+        let mut out = String::new();
+        for (i, t) in self.tasks.iter().enumerate() {
+            use std::fmt::Write as _;
+            let _ = writeln!(
+                out,
+                "{}. [{}] {}",
+                i + 1,
+                if t.done { "x" } else { " " },
+                t.description
+            );
+        }
+        if out.ends_with('\n') {
+            out.pop();
+        }
+        out
     }
 
     /// Return task descriptions and completion state for verification.
