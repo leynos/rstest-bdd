@@ -27,3 +27,8 @@ pub fn then(attr: TokenStream, item: TokenStream) -> TokenStream {
 pub fn scenario(attr: TokenStream, item: TokenStream) -> TokenStream {
     macros::scenario(attr, item)
 }
+
+#[proc_macro]
+pub fn scenarios(input: TokenStream) -> TokenStream {
+    macros::scenarios(input)
+}

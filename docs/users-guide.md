@@ -168,6 +168,26 @@ with `rstest` features such as parameterized tests and asynchronous fixtures.
 Tests are still discovered and executed by the standard Rust test runner, so
 one may filter or run them in parallel as usual.
 
+## Autodiscovering scenarios
+
+For large suites it is tedious to bind each scenario manually. The `scenarios!`
+macro scans a directory recursively for `.feature` files and generates a module
+with a test for every `Scenario` found. Each test is named after the feature
+file and scenario title.
+
+```rust
+use rstest_bdd_macros::{given, then, when, scenarios};
+
+#[given("a precondition")] fn precondition() {}
+#[when("an action occurs")] fn action() {}
+#[then("events are recorded")] fn events() {}
+
+scenarios!("tests/features/auto");
+```
+
+Generated tests cannot currently accept fixtures; use `#[scenario]` when
+fixture injection or custom assertions are required.
+
 ## Running and maintaining tests
 
 Once feature files and step definitions are in place, scenarios run via the

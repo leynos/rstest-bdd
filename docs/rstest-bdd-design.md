@@ -824,11 +824,11 @@ Based on the successful patterns of `pytest-bdd` and the needs of a growing
 Rust testing ecosystem, several extensions could be considered after the core
 functionality is implemented:
 
-- `scenarios!` **Macro:** To reduce boilerplate, a
-  `scenarios!("path/to/features/")` macro could be introduced. This would
-  automatically discover all `.feature` files in a directory and generate a
-  test function for every `Scenario` found within them, mirroring
-  `pytest-bdd`'s autogeneration feature.
+- `scenarios!` **Macro:** Implemented to reduce boilerplate. The macro walks a
+  directory recursively, discovers `.feature` files, and generates a module
+  containing a test for each `Scenario`. Function names derive from the feature
+  file stem and scenario title, sanitised and deduplicated. Generated tests do
+  not currently accept fixtures.
 
 - **Diagnostic CLI:** A small helper utility, perhaps integrated as a cargo
   subcommand (`cargo bdd`), could provide diagnostic information. For example,
