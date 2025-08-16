@@ -4,11 +4,13 @@ use proc_macro::TokenStream;
 
 mod given;
 mod scenario;
+mod scenarios;
 mod then;
 mod when;
 
 pub(crate) use given::given;
 pub(crate) use scenario::scenario;
+pub(crate) use scenarios::scenarios;
 pub(crate) use then::then;
 pub(crate) use when::when;
 
