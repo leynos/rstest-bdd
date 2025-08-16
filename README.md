@@ -325,6 +325,24 @@ rstest-bdd/             # Runtime crate (re-exports macros for convenience)
 rstest-bdd-macros/      # Procedural macro crate
 ```
 
+## Examples
+
+An `examples` directory hosts standalone crates demonstrating `rstest-bdd`.
+These crates are not members of the repository's root workspace and must be
+built separately from the repository root. To build and test the `todo-cli`
+example:
+
+```bash
+cd examples/todo-cli
+cargo test
+# NOTE: The CLI stores tasks only in memory per invocation. Each `cargo run`
+# starts with an empty list, so the 'list' command below will be empty.
+cargo run -- add "Buy milk"   # adds in this process, then exits
+cargo run -- list             # runs in a new process; prints an empty list
+```
+
+Lockfiles for examples are committed to provide reproducible builds.
+
 ______________________________________________________________________
 
 ## Prior art & acknowledgements
