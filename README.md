@@ -328,9 +328,9 @@ rstest-bdd-macros/      # Procedural macro crate
 ## Examples
 
 An `examples` directory hosts standalone crates demonstrating `rstest-bdd`.
-These crates are not members of the repository's root workspace and must be
-included in this workspace but can be built and tested independently. To build
-and test the `todo-cli` example:
+These crates are members of the repository's root workspace, so CI and
+workspace commands include them. Each example can also be built and tested from
+its own directory. To build and test the `todo-cli` example:
 
 ```bash
 cd examples/todo-cli
@@ -343,6 +343,9 @@ cargo run -- list             # runs in a new process; prints an empty list
 
 Dependencies for examples are captured in the repository's `Cargo.lock` to
 ensure reproducible builds.
+
+Note: `make nixie` renders Mermaid diagrams via `npx @mermaid-js/mermaid-cli`.
+Ensure Node.js is available so `npx` can fetch the CLI.
 
 ______________________________________________________________________
 

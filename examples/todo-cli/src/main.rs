@@ -21,6 +21,7 @@ enum Command {
 
 fn main() -> Result<()> {
     let cli = Cli::parse();
+    // Tasks persist only for this process; each run starts with an empty list.
     let mut list = TodoList::new();
     match cli.command {
         Command::Add { description } => list.add(description),

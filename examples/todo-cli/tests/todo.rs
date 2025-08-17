@@ -30,6 +30,7 @@ fn add_tasks(#[from(todo)] list: &RefCell<TodoList>, datatable: Vec<Vec<String>>
 
 #[then("the list displays")]
 fn list_displays(#[from(todo)] list: &RefCell<TodoList>, docstring: String) {
+    // Remove leading/trailing whitespace and per-line indentation for comparison.
     let normalised = docstring
         .trim()
         .lines()
