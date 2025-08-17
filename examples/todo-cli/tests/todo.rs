@@ -30,13 +30,13 @@ fn add_tasks(#[from(todo)] list: &RefCell<TodoList>, datatable: Vec<Vec<String>>
 
 #[then("the list displays")]
 fn list_displays(#[from(todo)] list: &RefCell<TodoList>, docstring: String) {
-    let expected = docstring
+    let normalised = docstring
         .trim()
         .lines()
         .map(str::trim_start)
         .collect::<Vec<_>>()
         .join("\n");
-    assert_eq!(list.borrow().display(), expected);
+    assert_eq!(list.borrow().display(), normalised);
 }
 
 #[given("a todo list with {first} and {second}")]

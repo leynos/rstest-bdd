@@ -16,14 +16,12 @@ clean: ## Remove build artifacts
 
 test: ## Run tests with warnings treated as errors
 	RUSTFLAGS="-D warnings" $(CARGO) test --all-targets --all-features $(BUILD_JOBS)
-	RUSTFLAGS="-D warnings" cargo test --manifest-path examples/todo-cli/Cargo.toml
 
 target/%/$(APP): ## Build binary in debug or release mode
 	$(CARGO) build $(BUILD_JOBS) $(if $(findstring release,$(@)),--release) --bin $(APP)
 
 lint: ## Run Clippy with warnings denied
 	$(CARGO) clippy $(CLIPPY_FLAGS)
-	cargo clippy --manifest-path examples/todo-cli/Cargo.toml $(CLIPPY_FLAGS)
 
 fmt: ## Format Rust and Markdown sources
 	$(CARGO) fmt --all

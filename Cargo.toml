@@ -2,9 +2,9 @@
 resolver = "2"
 members = [
     "crates/rstest-bdd",
-    "crates/rstest-bdd-macros"
+    "crates/rstest-bdd-macros",
+    "examples/todo-cli",
 ]
-exclude = ["examples/todo-cli"]
 
 [workspace.package]
 edition = "2024"
