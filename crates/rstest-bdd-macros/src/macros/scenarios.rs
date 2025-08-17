@@ -45,63 +45,26 @@ fn collect_feature_files(base: &Path) -> std::io::Result<Vec<PathBuf>> {
     Ok(files)
 }
 
-/// Parse the macro input and resolve the search directory.
-///
-/// Returns the Cargo manifest directory, the directory to search for feature
-/// files, and the original directory string.
+/// Resolve the Cargo manifest directory or return a compile error.
 ///
 /// # Examples
 ///
 /// ```rust,ignore
-/// let input = quote::quote!("features").into();
 /// std::env::set_var("CARGO_MANIFEST_DIR", "/tmp");
-/// let (manifest, search, dir) = resolve_scenario_directory(input).unwrap();
-/// assert_eq!(manifest, std::path::PathBuf::from("/tmp"));
-/// assert_eq!(search, std::path::PathBuf::from("/tmp/features"));
-/// assert_eq!(dir, "features");
+/// let path = resolve_manifest_directory().unwrap();
+/// assert_eq!(path, std::path::PathBuf::from("/tmp"));
 /// ```
-fn resolve_scenario_directory(
-    input: TokenStream,
-) -> Result<(PathBuf, PathBuf, String), TokenStream> {
-    let dir_lit: syn::LitStr = match syn::parse(input) {
-        Ok(lit) => lit,
-        Err(err) => return Err(error_to_tokens(&err)),
-    };
-    let dir_value = dir_lit.value();
-    let dir = PathBuf::from(&dir_value);
-
-    let manifest_dir = if let Ok(v) = std::env::var("CARGO_MANIFEST_DIR") {
-        PathBuf::from(v)
-    } else {
-        let err = syn::Error::new(
-            Span::call_site(),
-            "CARGO_MANIFEST_DIR is not set. This macro must run within Cargo.",
-        );
-        return Err(error_to_tokens(&err));
-    };
-
-    let search_dir = manifest_dir.join(&dir);
-    Ok((manifest_dir, search_dir, dir_value))
-}
-
-/// Collect feature files from the given directory or return a compile error.
-///
-/// # Examples
-///
-/// ```rust,ignore
-/// let paths = collect_and_validate_features(std::path::Path::new("./features"))
-///     .unwrap();
-/// assert!(!paths.is_empty());
-/// ```
-fn collect_and_validate_features(search_dir: &Path) -> Result<Vec<PathBuf>, TokenStream> {
-    match collect_feature_files(search_dir) {
-        Ok(v) => Ok(v),
-        Err(err) => {
-            let msg = format!("failed to read directory: {err}");
-            let err = syn::Error::new(Span::call_site(), msg);
+fn resolve_manifest_directory() -> Result<PathBuf, TokenStream> {
+    std::env::var("CARGO_MANIFEST_DIR").map_or_else(
+        |_| {
+            let err = syn::Error::new(
+                Span::call_site(),
+                "CARGO_MANIFEST_DIR is not set. This macro must run within Cargo.",
+            );
             Err(error_to_tokens(&err))
-        }
-    }
+        },
+        |v| Ok(PathBuf::from(v)),
+    )
 }
 
 /// Generate the test code for every scenario inside a single feature file.
@@ -113,14 +76,15 @@ fn collect_and_validate_features(search_dir: &Path) -> Result<Vec<PathBuf>, Toke
 /// ```rust,ignore
 /// # use std::collections::HashSet;
 /// let mut used = HashSet::new();
-/// let tests = generate_test_for_scenario(
+/// let tests = process_feature_file(
 ///     std::path::Path::new("alpha.feature"),
 ///     std::path::Path::new("/tmp"),
 ///     &mut used,
-/// ).unwrap();
+/// )
+/// .unwrap();
 /// assert!(!tests.is_empty());
 /// ```
-fn generate_test_for_scenario(
+fn process_feature_file(
     abs_path: &Path,
     manifest_dir: &Path,
     used_names: &mut HashSet<String>,
@@ -175,16 +139,56 @@ fn generate_test_for_scenario(
     Ok(tests)
 }
 
-/// Wrap generated tests in a module named after the directory.
+/// Generate tests for the provided feature paths.
 ///
 /// # Examples
 ///
 /// ```rust,ignore
-/// let module = create_scenarios_module("features", Vec::new());
-/// assert!(module.to_string().contains("features"));
+/// let tests = generate_tests_from_features(
+///     vec![std::path::PathBuf::from("alpha.feature")],
+///     std::path::Path::new("/tmp"),
+/// )
+/// .unwrap();
+/// assert!(!tests.is_empty());
 /// ```
-fn create_scenarios_module(dir_value: &str, tests: &[TokenStream2]) -> TokenStream {
-    let dir = PathBuf::from(dir_value);
+fn generate_tests_from_features(
+    feature_paths: Vec<PathBuf>,
+    manifest_dir: &Path,
+) -> Result<Vec<TokenStream2>, TokenStream> {
+    let mut used_names = HashSet::new();
+    let mut tests = Vec::new();
+    for abs_path in feature_paths {
+        let mut t = process_feature_file(abs_path.as_path(), manifest_dir, &mut used_names)?;
+        tests.append(&mut t);
+    }
+    Ok(tests)
+}
+
+/// Generate test modules for all scenarios within a directory of feature files.
+pub(crate) fn scenarios(input: TokenStream) -> TokenStream {
+    let dir_lit = syn::parse_macro_input!(input as syn::LitStr);
+    let dir = PathBuf::from(dir_lit.value());
+
+    let manifest_dir = match resolve_manifest_directory() {
+        Ok(dir) => dir,
+        Err(err_tokens) => return err_tokens,
+    };
+
+    let search_dir = manifest_dir.join(&dir);
+    let feature_paths = match collect_feature_files(&search_dir) {
+        Ok(v) => v,
+        Err(err) => {
+            let msg = format!("failed to read directory: {err}");
+            let err = syn::Error::new(Span::call_site(), msg);
+            return error_to_tokens(&err);
+        }
+    };
+
+    let tests = match generate_tests_from_features(feature_paths, &manifest_dir) {
+        Ok(tests) => tests,
+        Err(err_tokens) => return err_tokens,
+    };
+
     let module_ident = {
         let base = dir
             .file_name()
@@ -192,8 +196,7 @@ fn create_scenarios_module(dir_value: &str, tests: &[TokenStream2]) -> TokenStre
             .unwrap_or("scenarios");
         format_ident!("{}_scenarios", sanitize_ident(base))
     };
-
-    let module_doc = format!("Scenarios auto-generated from `{dir_value}`.");
+    let module_doc = format!("Scenarios auto-generated from `{}`.", dir_lit.value());
 
     TokenStream::from(quote! {
         #[doc = #module_doc]
@@ -202,30 +205,6 @@ fn create_scenarios_module(dir_value: &str, tests: &[TokenStream2]) -> TokenStre
             #(#tests)*
         }
     })
-}
-
-/// Generate test modules for all scenarios within a directory of feature files.
-pub(crate) fn scenarios(input: TokenStream) -> TokenStream {
-    let (manifest_dir, search_dir, dir_value) = match resolve_scenario_directory(input) {
-        Ok(v) => v,
-        Err(err) => return err,
-    };
-
-    let feature_paths = match collect_and_validate_features(&search_dir) {
-        Ok(v) => v,
-        Err(err) => return err,
-    };
-
-    let mut used_names = HashSet::new();
-    let mut tests = Vec::new();
-    for abs_path in feature_paths {
-        match generate_test_for_scenario(abs_path.as_path(), &manifest_dir, &mut used_names) {
-            Ok(mut t) => tests.append(&mut t),
-            Err(err) => return err,
-        }
-    }
-
-    create_scenarios_module(&dir_value, &tests)
 }
 
 #[cfg(test)]
