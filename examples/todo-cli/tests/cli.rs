@@ -1,3 +1,5 @@
+//! Integration tests exercising the `todo-cli` binary.
+
 use assert_cmd::Command;
 use predicates::prelude::*;
 

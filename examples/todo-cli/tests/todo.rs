@@ -41,9 +41,9 @@ fn list_displays(#[from(todo)] list: &RefCell<TodoList>, docstring: String) {
     assert_eq!(list.borrow().display(), expected);
 }
 
-fn dedent(s: &str) -> String {
+fn dedent(input: &str) -> String {
     // Normalise Windows line endings to LF to keep comparisons stable.
-    let s = s.replace("\r\n", "\n");
+    let s = input.replace("\r\n", "\n");
     // Find minimum leading spaces/tabs across non-empty lines
     let mut min_indent: Option<usize> = None;
     for line in s.lines() {
@@ -103,11 +103,7 @@ fn assert_statuses(#[from(todo)] list: &RefCell<TodoList>, datatable: Vec<Vec<St
 }
 
 #[scenario(path = "tests/features/add.feature")]
-fn add_scenario(todo: RefCell<TodoList>) {
-    let _ = todo;
-}
+fn add_scenario(todo: RefCell<TodoList>) {}
 
 #[scenario(path = "tests/features/complete.feature")]
-fn complete_scenario(todo: RefCell<TodoList>) {
-    let _ = todo;
-}
+fn complete_scenario(todo: RefCell<TodoList>) {}
