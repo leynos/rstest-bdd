@@ -9,6 +9,13 @@ members = [
 edition = "2024"
 version = "0.1.0"
 license = "MIT OR Apache-2.0"
+authors = ["Payton McIntosh <pmcintosh@df12.net>"]
+description = "A BDD testing framework for Rust, built on rstest."
+homepage = "https://github.com/leynos/rstest-bdd"
+repository = "https://github.com/leynos/rstest-bdd"
+readme = "README.md"
+keywords = ["test", "bdd", "rstest", "gherkin", "cucumber"]
+categories = ["development-tools::testing"]
 
 [workspace.lints.clippy]
 pedantic = { level = "warn", priority = -1 }
