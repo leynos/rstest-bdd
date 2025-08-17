@@ -1,0 +1,18 @@
+[package]
+name = "todo-cli"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+clap = { version = "4.5", features = ["derive"] }
+eyre = "0.6"
+
+[dev-dependencies]
+rstest = "0.18"
+rstest-bdd = { path = "../../crates/rstest-bdd" }
+rstest-bdd-macros = { path = "../../crates/rstest-bdd-macros" }
+assert_cmd = "2"
+assert_fs = "1"
+toml = "0.8"
+predicates = "3"

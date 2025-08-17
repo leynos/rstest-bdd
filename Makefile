@@ -1,11 +1,11 @@
 .PHONY: help all clean test build release lint fmt check-fmt markdownlint nixie
 
+SHELL := bash
 APP ?= rstest-bdd
 CARGO ?= cargo
 BUILD_JOBS ?=
-CLIPPY_FLAGS ?= --all-targets --all-features -- -D warnings
+CLIPPY_FLAGS ?= --workspace --all-targets --all-features -- -D warnings
 MDLINT ?= markdownlint
-NIXIE ?= nixie
 
 build: target/debug/$(APP) ## Build debug binary
 release: target/release/$(APP) ## Build release binary
@@ -16,7 +16,7 @@ clean: ## Remove build artifacts
 	$(CARGO) clean
 
 test: ## Run tests with warnings treated as errors
-	RUSTFLAGS="-D warnings" $(CARGO) test --all-targets --all-features $(BUILD_JOBS)
+	RUSTFLAGS="-D warnings" $(CARGO) test --workspace --all-targets --all-features $(BUILD_JOBS)
 
 target/%/$(APP): ## Build binary in debug or release mode
 	$(CARGO) build $(BUILD_JOBS) $(if $(findstring release,$(@)),--release) --bin $(APP)
@@ -32,10 +32,10 @@ check-fmt: ## Verify formatting
 	$(CARGO) fmt --all -- --check
 
 markdownlint: ## Lint Markdown files
-	find . -type f -name '*.md' -not -path './target/*' -print0 | xargs -0 $(MDLINT)
+	find . -type f -name '*.md' -not -path '*/target/*' -not -path '*/node_modules/*' -print0 | xargs -0 $(MDLINT)
 
-nixie: ## Validate Mermaid diagrams
-	find . -type f -name '*.md' -not -path './target/*' -print0 | xargs -0 $(NIXIE)
+nixie: ## Render Mermaid diagrams from .mmd files (writes .svg next to sources)
+	@bash scripts/nixie.sh
 
 help: ## Show available targets
 	@grep -E '^[a-zA-Z_-]+:.*?##' $(MAKEFILE_LIST) | \
