@@ -29,7 +29,12 @@ fn main() -> Result<()> {
     // Tasks persist only for this process; each run starts with an empty list.
     let mut list = TodoList::new();
     match cli.command {
-        Command::Add { description } => list.add(description),
+        Command::Add { description } => {
+            if description.trim().is_empty() {
+                eyre::bail!("task description must not be blank");
+            }
+            list.add(description)
+        }
         Command::List => println!("{}", list.display()),
     }
     Ok(())

@@ -42,6 +42,8 @@ fn list_displays(#[from(todo)] list: &RefCell<TodoList>, docstring: String) {
 }
 
 fn dedent(s: &str) -> String {
+    // Normalise Windows line endings to LF to keep comparisons stable.
+    let s = s.replace("\r\n", "\n");
     // Find minimum leading spaces/tabs across non-empty lines
     let mut min_indent: Option<usize> = None;
     for line in s.lines() {

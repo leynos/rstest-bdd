@@ -30,3 +30,13 @@ fn unknown_subcommand_fails() -> Result<(), Box<dyn std::error::Error>> {
         .stderr(predicates::str::contains("error").or(predicates::str::contains("Usage")));
     Ok(())
 }
+
+#[test]
+fn add_rejects_blank_description() -> Result<(), Box<dyn std::error::Error>> {
+    Command::cargo_bin("todo-cli")?
+        .args(["add", "   "])
+        .assert()
+        .failure()
+        .stderr(predicates::str::contains("must not be blank"));
+    Ok(())
+}

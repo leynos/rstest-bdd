@@ -17,6 +17,6 @@ while IFS= read -r -d '' f; do
         echo "Mermaid render failed: $f"
         failed=1
     fi
-done < <(find . -type f -name '*.mmd' -not -path './target/*' -not -path './node_modules/*' -print0)
+done < <(find . -type f -name '*.mmd' -not -path '*/target/*' -not -path '*/node_modules/*' -print0)
 
 test "$failed" -eq 0
