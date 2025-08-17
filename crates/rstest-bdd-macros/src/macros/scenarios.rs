@@ -72,16 +72,15 @@ fn collect_feature_files(base: &Path) -> std::io::Result<Vec<PathBuf>> {
 /// assert_eq!(path, std::path::PathBuf::from("/tmp"));
 /// ```
 fn resolve_manifest_directory() -> Result<PathBuf, TokenStream> {
-    option_env!("CARGO_MANIFEST_DIR").map_or_else(
-        || {
+    option_env!("CARGO_MANIFEST_DIR")
+        .map(PathBuf::from)
+        .ok_or_else(|| {
             let err = syn::Error::new(
                 Span::call_site(),
                 "CARGO_MANIFEST_DIR is not set. This macro must run within Cargo.",
             );
-            Err(error_to_tokens(&err))
-        },
-        |v| Ok(PathBuf::from(v)),
-    )
+            error_to_tokens(&err)
+        })
 }
 
 /// Generate the test code for every scenario inside a single feature file.
