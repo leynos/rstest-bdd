@@ -1,7 +1,7 @@
 Feature: Gamma
   Scenario Outline: outline
     Given a precondition
-    When an action occurs
+    When an action occurs with <num>
     Then events are recorded
 
     Examples:

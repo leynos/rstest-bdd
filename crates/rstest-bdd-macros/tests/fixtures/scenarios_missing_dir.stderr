@@ -1,7 +1,7 @@
 error: failed to read directory `$DIR/tests/features/does_not_exist`: No such file or directory (os error 2)
- --> tests/fixtures/scenarios_missing_dir.rs:3:1
+ --> tests/fixtures/scenarios_missing_dir.rs:6:1
   |
-3 | scenarios!("tests/features/does_not_exist");
+6 | scenarios!("tests/features/does_not_exist");
   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   |
   = note: this error originates in the macro `scenarios` (in Nightly builds, run with -Z macro-backtrace for more info)

@@ -10,6 +10,7 @@ use std::path::{Path, PathBuf};
 use crate::codegen::scenario::{ScenarioConfig, generate_scenario_code};
 use crate::parsing::feature::{extract_scenario_steps, parse_and_load_feature};
 use crate::utils::errors::error_to_tokens;
+use gherkin::Feature;
 
 /// Sanitize a string so it may be used as a Rust identifier.
 ///
@@ -37,29 +38,87 @@ fn sanitize_ident(input: &str) -> String {
 
 /// Recursively collect all `.feature` files under `base`.
 fn collect_feature_files(base: &Path) -> std::io::Result<Vec<PathBuf>> {
+    fn is_feature_file(path: &Path) -> bool {
+        path.extension().is_some_and(|e| e == "feature")
+    }
+
     let mut files = Vec::new();
     for entry in fs::read_dir(base)? {
         let entry = entry?;
         let path = entry.path();
         let metadata = fs::symlink_metadata(&path)?;
-        let file_type = metadata.file_type();
+        let ft = metadata.file_type();
 
-        if file_type.is_symlink() {
-            // Skip symlinked directories to avoid infinite recursion and
-            // collect only file symlinks that point to `.feature` files.
-            if let Ok(target) = fs::metadata(&path) {
-                let target_type = target.file_type();
-                if target_type.is_file() && path.extension().is_some_and(|e| e == "feature") {
-                    files.push(path);
-                }
+        if ft.is_symlink() {
+            if fs::metadata(&path)
+                .map(|t| t.file_type().is_file() && is_feature_file(&path))
+                .unwrap_or(false)
+            {
+                files.push(path);
             }
-        } else if file_type.is_dir() {
+            continue;
+        }
+        if ft.is_dir() {
             files.extend(collect_feature_files(&path)?);
-        } else if file_type.is_file() && path.extension().is_some_and(|e| e == "feature") {
+            continue;
+        }
+        if ft.is_file() && is_feature_file(&path) {
             files.push(path);
         }
     }
     Ok(files)
+}
+
+/// Generate the test for a single scenario within a feature.
+fn generate_scenario_test(
+    feature: &Feature,
+    scenario_idx: usize,
+    feature_stem: &str,
+    manifest_dir: &Path,
+    rel_path: &Path,
+    used_names: &mut HashSet<String>,
+) -> Result<TokenStream2, TokenStream> {
+    let data = extract_scenario_steps(feature, Some(scenario_idx))?;
+    let base_name = format!("{}_{}", feature_stem, sanitize_ident(&data.name));
+    let mut fn_name = base_name.clone();
+    let mut counter = 1usize;
+    while used_names.contains(&fn_name) {
+        fn_name = format!("{base_name}_{counter}");
+        counter += 1;
+    }
+    used_names.insert(fn_name.clone());
+    let fn_ident = format_ident!("{}", fn_name);
+
+    let attrs: Vec<syn::Attribute> = Vec::new();
+    let vis = syn::Visibility::Inherited;
+    let sig: syn::Signature = data.examples.as_ref().map_or_else(
+        || syn::parse_quote! { fn #fn_ident() },
+        |ex| {
+            let params = ex.headers.iter().map(|h| {
+                let param_ident = format_ident!("{}", sanitize_ident(h));
+                quote! { #[case] #param_ident: &str }
+            });
+            syn::parse_quote! { fn #fn_ident( #(#params),* ) }
+        },
+    );
+    let block: syn::Block = syn::parse_quote!({});
+
+    let feature_path = manifest_dir.join(rel_path).display().to_string();
+
+    let config = ScenarioConfig {
+        attrs: &attrs,
+        vis: &vis,
+        sig: &sig,
+        block: &block,
+        feature_path,
+        scenario_name: data.name,
+        steps: data.steps,
+        examples: data.examples,
+    };
+    Ok(TokenStream2::from(generate_scenario_code(
+        config,
+        std::iter::empty(),
+    )))
 }
 
 /// Resolve the Cargo manifest directory or return a compile error.
@@ -120,47 +179,15 @@ fn process_feature_file(
     let mut tests = Vec::new();
     let mut errors: Vec<TokenStream2> = Vec::new();
     for (idx, _) in feature.scenarios.iter().enumerate() {
-        match extract_scenario_steps(&feature, Some(idx)) {
-            Ok(data) => {
-                let base_name = format!("{}_{}", feature_stem, sanitize_ident(&data.name));
-                let mut fn_name = base_name.clone();
-                let mut counter = 1usize;
-                while used_names.contains(&fn_name) {
-                    fn_name = format!("{base_name}_{counter}");
-                    counter += 1;
-                }
-                used_names.insert(fn_name.clone());
-                let fn_ident = format_ident!("{}", fn_name);
-
-                let attrs: Vec<syn::Attribute> = Vec::new();
-                let vis = syn::Visibility::Inherited;
-                let sig: syn::Signature = data.examples.as_ref().map_or_else(
-                    || syn::parse_quote! { fn #fn_ident() },
-                    |ex| {
-                        let params = ex.headers.iter().map(|h| {
-                            let param_ident = format_ident!("{}", sanitize_ident(h));
-                            quote! { #[case] #param_ident: &str }
-                        });
-                        syn::parse_quote! { fn #fn_ident( #(#params),* ) }
-                    },
-                );
-                let block: syn::Block = syn::parse_quote!({});
-
-                let feature_path = manifest_dir.join(&rel_path).display().to_string();
-
-                let config = ScenarioConfig {
-                    attrs: &attrs,
-                    vis: &vis,
-                    sig: &sig,
-                    block: &block,
-                    feature_path,
-                    scenario_name: data.name,
-                    steps: data.steps,
-                    examples: data.examples,
-                };
-                let tokens = generate_scenario_code(config, std::iter::empty());
-                tests.push(TokenStream2::from(tokens));
-            }
+        match generate_scenario_test(
+            &feature,
+            idx,
+            &feature_stem,
+            manifest_dir,
+            &rel_path,
+            used_names,
+        ) {
+            Ok(ts) => tests.push(ts),
             Err(err) => errors.push(TokenStream2::from(err)),
         }
     }
