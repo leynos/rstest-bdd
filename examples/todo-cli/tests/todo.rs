@@ -30,14 +30,28 @@ fn add_tasks(#[from(todo)] list: &RefCell<TodoList>, datatable: Vec<Vec<String>>
 
 #[then("the list displays")]
 fn list_displays(#[from(todo)] list: &RefCell<TodoList>, docstring: String) {
-    // Remove per-line indentation for comparison.
-    let normalised = docstring
+    // Normalise docstring indentation to prevent false negatives.
+    let expected = dedent(&docstring);
+    assert_eq!(list.borrow().display(), expected);
+}
+
+fn dedent(s: &str) -> String {
+    // Find minimum leading spaces/tabs across non-empty lines
+    let mut min_indent: Option<usize> = None;
+    for line in s.lines() {
+        if line.trim().is_empty() {
+            continue;
+        }
+        let indent = line.chars().take_while(|c| *c == ' ' || *c == '\t').count();
+        min_indent = Some(min_indent.map_or(indent, |m| m.min(indent)));
+    }
+    let cut = min_indent.unwrap_or(0);
+    let out = s
         .lines()
-        .skip_while(|l| l.is_empty())
-        .map(str::trim_start)
+        .map(|l| if l.len() >= cut { &l[cut..] } else { "" })
         .collect::<Vec<_>>()
         .join("\n");
-    assert_eq!(list.borrow().display(), normalised);
+    out.trim().to_string()
 }
 
 #[given("a to-do list with {first} and {second}")]
@@ -70,7 +84,10 @@ fn assert_statuses(#[from(todo)] list: &RefCell<TodoList>, datatable: Vec<Vec<St
                 i + 1
             );
             let task = row[0].clone();
-            let done = matches!(row[1].to_ascii_lowercase().as_str(), "yes" | "y" | "true");
+            let done = matches!(
+                row[1].trim().to_ascii_lowercase().as_str(),
+                "yes" | "y" | "true"
+            );
             (task, done)
         })
         .collect();

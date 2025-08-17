@@ -5,6 +5,8 @@ Feature: Add tasks
       | Buy milk |
       | Write tests |
     Then the list displays
-      """1. [ ] Buy milk
-      2. [ ] Write tests"""
+      """
+      1. [ ] Buy milk
+      2. [ ] Write tests
+      """
 
