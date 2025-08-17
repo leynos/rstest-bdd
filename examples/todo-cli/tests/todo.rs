@@ -33,8 +33,8 @@ fn list_displays(#[from(todo)] list: &RefCell<TodoList>, docstring: String) {
     // Remove per-line indentation for comparison.
     let normalised = docstring
         .lines()
+        .skip_while(|l| l.is_empty())
         .map(str::trim_start)
-        .filter(|l| !l.is_empty())
         .collect::<Vec<_>>()
         .join("\n");
     assert_eq!(list.borrow().display(), normalised);

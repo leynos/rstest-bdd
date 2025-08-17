@@ -33,6 +33,7 @@ impl TodoList {
     /// Mark the first task matching `description` as complete.
     ///
     /// Returns `true` when a matching task is found.
+    #[must_use]
     pub fn complete(&mut self, description: &str) -> bool {
         if let Some(task) = self.tasks.iter_mut().find(|t| t.description == description) {
             task.done = true;

@@ -15,7 +15,11 @@ struct Cli {
 #[derive(Subcommand)]
 enum Command {
     /// Add a task to the list.
-    Add { description: String },
+    Add {
+        /// Task description (must not be empty).
+        #[arg(value_parser = clap::builder::NonEmptyStringValueParser::new())]
+        description: String,
+    },
     /// Display all tasks.
     List,
 }
