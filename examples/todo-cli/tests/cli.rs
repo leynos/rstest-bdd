@@ -1,4 +1,5 @@
 use assert_cmd::Command;
+use predicates::prelude::*;
 
 #[test]
 fn add_succeeds() -> Result<(), Box<dyn std::error::Error>> {
@@ -17,5 +18,15 @@ fn list_is_empty_by_default() -> Result<(), Box<dyn std::error::Error>> {
         .assert()
         .success()
         .stdout("\n");
+    Ok(())
+}
+
+#[test]
+fn unknown_subcommand_fails() -> Result<(), Box<dyn std::error::Error>> {
+    Command::cargo_bin("todo-cli")?
+        .arg("bogus")
+        .assert()
+        .failure()
+        .stderr(predicates::str::contains("error").or(predicates::str::contains("Usage")));
     Ok(())
 }
