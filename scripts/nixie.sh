@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
+IFS=$'\n\t'
 
 if command -v npx >/dev/null 2>&1; then
     run='npx --yes @mermaid-js/mermaid-cli'
