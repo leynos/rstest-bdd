@@ -130,11 +130,20 @@ fn process_feature_file(
                     counter += 1;
                 }
                 used_names.insert(fn_name.clone());
-                let ident = format_ident!("{}", fn_name);
+                let fn_ident = format_ident!("{}", fn_name);
 
                 let attrs: Vec<syn::Attribute> = Vec::new();
                 let vis = syn::Visibility::Inherited;
-                let sig: syn::Signature = syn::parse_quote! { fn #ident() };
+                let sig: syn::Signature = data.examples.as_ref().map_or_else(
+                    || syn::parse_quote! { fn #fn_ident() },
+                    |ex| {
+                        let params = ex.headers.iter().map(|h| {
+                            let param_ident = format_ident!("{}", sanitize_ident(h));
+                            quote! { #[case] #param_ident: &str }
+                        });
+                        syn::parse_quote! { fn #fn_ident( #(#params),* ) }
+                    },
+                );
                 let block: syn::Block = syn::parse_quote!({});
 
                 let feature_path = manifest_dir.join(&rel_path).display().to_string();
@@ -168,17 +177,17 @@ fn process_feature_file(
 /// # Examples
 ///
 /// ```rust,ignore
-/// let tests = generate_tests_from_features(
+/// let (tests, errors) = generate_tests_from_features(
 ///     vec![std::path::PathBuf::from("alpha.feature")],
 ///     std::path::Path::new("/tmp"),
-/// )
-/// .unwrap();
+/// );
 /// assert!(!tests.is_empty());
+/// assert!(errors.is_empty());
 /// ```
 fn generate_tests_from_features(
     feature_paths: Vec<PathBuf>,
     manifest_dir: &Path,
-) -> Result<Vec<TokenStream2>, TokenStream> {
+) -> (Vec<TokenStream2>, Vec<TokenStream2>) {
     let mut used_names = HashSet::new();
     let mut tests = Vec::new();
     let mut errors: Vec<TokenStream2> = Vec::new();
@@ -188,11 +197,7 @@ fn generate_tests_from_features(
             Err(err) => errors.push(TokenStream2::from(err)),
         }
     }
-    if errors.is_empty() {
-        Ok(tests)
-    } else {
-        Err(TokenStream::from(quote! { #(#errors)* }))
-    }
+    (tests, errors)
 }
 
 /// Generate test modules for all scenarios within a directory of feature files.
@@ -207,20 +212,16 @@ pub(crate) fn scenarios(input: TokenStream) -> TokenStream {
 
     let search_dir = manifest_dir.join(&dir);
     let feature_paths_res = collect_feature_files(&search_dir);
-    let feature_paths = match feature_paths_res {
-        Ok(v) => v,
-        Err(err) => {
-            let msg = format!("failed to read directory: {err}");
-            let err = syn::Error::new(Span::call_site(), msg);
-            return error_to_tokens(&err);
-        }
+    if let Err(err) = feature_paths_res {
+        let msg = format!("failed to read directory `{}`: {err}", search_dir.display());
+        let err = syn::Error::new(Span::call_site(), msg);
+        return error_to_tokens(&err);
+    }
+    let Ok(feature_paths) = feature_paths_res else {
+        unreachable!("checked Err above");
     };
 
-    let tests_res = generate_tests_from_features(feature_paths, &manifest_dir);
-    let tests = match tests_res {
-        Ok(tests) => tests,
-        Err(err_tokens) => return err_tokens,
-    };
+    let (tests, errors) = generate_tests_from_features(feature_paths, &manifest_dir);
 
     let module_ident = {
         let base = dir
@@ -236,6 +237,7 @@ pub(crate) fn scenarios(input: TokenStream) -> TokenStream {
         mod #module_ident {
             use super::*;
             #(#tests)*
+            #(#errors)*
         }
     })
 }
@@ -245,7 +247,7 @@ mod tests {
     use super::sanitize_ident;
 
     #[test]
-    fn sanitises_invalid_identifiers() {
+    fn sanitizes_invalid_identifiers() {
         assert_eq!(sanitize_ident("Hello world!"), "hello_world_");
     }
 }

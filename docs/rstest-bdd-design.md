@@ -827,10 +827,10 @@ functionality is implemented:
 - `scenarios!` **Macro:** Implemented to reduce boilerplate. The macro walks a
   directory recursively, discovers `.feature` files, and generates a module
   containing a test for each `Scenario`. Function names derive from the feature
-  file stem and scenario title, sanitised and deduplicated. Generated tests do
+  file stem and scenario title, sanitized and deduplicated. Generated tests do
   not currently accept fixtures.
 
-  The following diagram summarises the relationships between the macro and its
+  The following diagram summarizes the relationships between the macro and its
   helper modules:
 
   ```mermaid
@@ -964,7 +964,7 @@ well‑formed placeholders.
 
 The runner forwards the raw doc string as `Option<&str>` and the wrapper
 converts it into an owned `String` before invoking the step function. The
-sequence below summarises how the runner locates and executes steps when
+sequence below summarizes how the runner locates and executes steps when
 placeholders are present:
 
 ```mermaid

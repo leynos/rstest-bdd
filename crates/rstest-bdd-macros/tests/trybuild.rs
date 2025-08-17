@@ -13,4 +13,5 @@ fn step_macros_compile() {
     t.compile_fail("tests/ui/outline_empty_examples.rs");
     t.compile_fail("tests/ui/outline_missing_column.rs");
     t.compile_fail("tests/ui/outline_duplicate_headers.rs");
+    t.compile_fail("tests/fixtures/scenarios_missing_dir.rs");
 }
