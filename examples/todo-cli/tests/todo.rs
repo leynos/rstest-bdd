@@ -19,12 +19,18 @@ fn empty_list(#[from(todo)] list: &RefCell<TodoList>) {
 #[when("I add the following tasks")]
 fn add_tasks(#[from(todo)] list: &RefCell<TodoList>, datatable: Vec<Vec<String>>) {
     for (i, row) in datatable.into_iter().enumerate() {
-        assert!(
-            !row.is_empty(),
-            "datatable row {} must have at least one column (task description)",
-            i + 1
+        assert_eq!(
+            row.len(),
+            1,
+            "datatable row {} must have exactly one column (task description); got: {:?}",
+            i + 1,
+            row
         );
-        list.borrow_mut().add(row[0].clone());
+        let task = row
+            .into_iter()
+            .next()
+            .expect("row.len() == 1 just asserted");
+        list.borrow_mut().add(task);
     }
 }
 
@@ -51,7 +57,7 @@ fn dedent(s: &str) -> String {
         .map(|l| if l.len() >= cut { &l[cut..] } else { "" })
         .collect::<Vec<_>>()
         .join("\n");
-    out.trim().to_string()
+    out.trim_matches('\n').to_string()
 }
 
 #[given("a to-do list with {first} and {second}")]
