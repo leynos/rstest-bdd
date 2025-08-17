@@ -867,6 +867,36 @@ functionality is implemented:
       ScenarioConfig <.. Example
   ```
 
+  The following sequence diagram captures macro expansion and test execution:
+
+  ```mermaid
+  sequenceDiagram
+      actor Dev as Developer
+      participant RustC as Rust Compiler
+      participant Macro as scenarios! (proc-macro)
+      participant FS as Filesystem
+      participant Parser as feature parser
+      participant Gen as scenario::generate_scenario_code
+      participant TestRunner as Test Runner
+
+      Dev->>RustC: cargo test (compile)
+      RustC->>Macro: expand scenarios!("path")
+      Macro->>FS: list *.feature recursively
+      loop per feature file
+          Macro->>Parser: parse_and_load_feature(path)
+          Parser-->>Macro: Feature with Scenarios
+          loop per scenario
+              Macro->>Parser: extract_scenario_steps(feature, idx)
+              Macro->>Gen: generate_scenario_code(config)
+              Gen-->>Macro: test item tokens
+          end
+      end
+      Macro-->>RustC: emit module with generated tests
+      RustC->>Dev: build complete
+      Dev->>TestRunner: run tests
+      TestRunner->>GeneratedTests: execute steps -> step functions
+  ```
+
 - **Diagnostic CLI:** A small helper utility, perhaps integrated as a cargo
   subcommand (`cargo bdd`), could provide diagnostic information. For example,
   `cargo bdd list-steps` could dump the entire registered step registry,
