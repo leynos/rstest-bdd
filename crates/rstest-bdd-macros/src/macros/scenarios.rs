@@ -57,7 +57,8 @@ pub(crate) fn scenarios(input: TokenStream) -> TokenStream {
             Span::call_site(),
             "CARGO_MANIFEST_DIR is not set. This macro must run within Cargo.",
         );
-        return error_to_tokens(&err);
+        #[expect(clippy::useless_conversion, reason = "proc_macro expects TokenStream")]
+        return error_to_tokens(&err).into();
     };
 
     let search_dir = manifest_dir.join(&dir);
@@ -66,7 +67,8 @@ pub(crate) fn scenarios(input: TokenStream) -> TokenStream {
         Err(err) => {
             let msg = format!("failed to read directory: {err}");
             let err = syn::Error::new(Span::call_site(), msg);
-            return error_to_tokens(&err);
+            #[expect(clippy::useless_conversion, reason = "proc_macro expects TokenStream")]
+            return error_to_tokens(&err).into();
         }
     };
 
