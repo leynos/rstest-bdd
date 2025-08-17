@@ -4,6 +4,7 @@ members = [
     "crates/rstest-bdd",
     "crates/rstest-bdd-macros"
 ]
+exclude = ["examples/todo-cli"]
 
 [workspace.package]
 edition = "2024"

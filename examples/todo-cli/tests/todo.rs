@@ -30,7 +30,12 @@ fn add_tasks(#[from(todo)] list: &RefCell<TodoList>, datatable: Vec<Vec<String>>
 
 #[then("the list displays")]
 fn list_displays(#[from(todo)] list: &RefCell<TodoList>, docstring: String) {
-    let expected = dedent(&docstring);
+    let expected = docstring
+        .trim()
+        .lines()
+        .map(str::trim_start)
+        .collect::<Vec<_>>()
+        .join("\n");
     assert_eq!(list.borrow().display(), expected);
 }
 
@@ -69,24 +74,6 @@ fn assert_statuses(#[from(todo)] list: &RefCell<TodoList>, datatable: Vec<Vec<St
         })
         .collect();
     assert_eq!(list.borrow().statuses(), expected);
-}
-
-fn dedent(s: &str) -> String {
-    let mut min_indent: Option<usize> = None;
-    for line in s.lines() {
-        if line.trim().is_empty() {
-            continue;
-        }
-        let indent = line.chars().take_while(|c| *c == ' ' || *c == '\t').count();
-        min_indent = Some(min_indent.map_or(indent, |m| m.min(indent)));
-    }
-    let cut = min_indent.unwrap_or(0);
-    let out: String = s
-        .lines()
-        .map(|l| if l.len() >= cut { &l[cut..] } else { "" })
-        .collect::<Vec<_>>()
-        .join("\n");
-    out.trim().to_string()
 }
 
 #[scenario(path = "tests/features/add.feature")]
