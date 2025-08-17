@@ -830,6 +830,43 @@ functionality is implemented:
   file stem and scenario title, sanitised and deduplicated. Generated tests do
   not currently accept fixtures.
 
+  The following diagram summarises the relationships between the macro and its
+  helper modules:
+
+  ```mermaid
+  classDiagram
+      class scenarios {
+          +scenarios(input: TokenStream) TokenStream
+      }
+      class ScenarioConfig {
+          +attrs: &Vec<syn::Attribute>
+          +vis: &syn::Visibility
+          +sig: &syn::Signature
+          +block: &syn::Block
+          +feature_path: String
+          +scenario_name: String
+          +steps: Vec<Step>
+          +examples: Vec<Example>
+      }
+      class scenario {
+          +generate_scenario_code(config: ScenarioConfig, iter: Iterator) TokenStream2
+      }
+      class feature {
+          +extract_scenario_steps(feature, idx: Option<usize>) -> Result<Data, Error>
+          +parse_and_load_feature(path: &Path) -> Result<Feature, Error>
+      }
+      class errors {
+          +error_to_tokens(err: &syn::Error) -> TokenStream
+      }
+      scenarios --> scenario : uses
+      scenarios --> feature : uses
+      scenarios --> errors : uses
+      scenario <.. ScenarioConfig : uses
+      feature <.. Step
+      ScenarioConfig <.. Step
+      ScenarioConfig <.. Example
+  ```
+
 - **Diagnostic CLI:** A small helper utility, perhaps integrated as a cargo
   subcommand (`cargo bdd`), could provide diagnostic information. For example,
   `cargo bdd list-steps` could dump the entire registered step registry,
