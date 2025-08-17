@@ -1,6 +1,6 @@
 Feature: Add tasks
   Scenario: Add multiple tasks
-    Given an empty todo list
+    Given an empty to-do list
     When I add the following tasks
       | Buy milk |
       | Write tests |

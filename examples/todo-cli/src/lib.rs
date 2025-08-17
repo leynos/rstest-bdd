@@ -1,4 +1,4 @@
-//! Simple in-memory todo list used by the `todo-cli` example.
+//! Simple in-memory to-do list used by the `todo-cli` example.
 
 /// Represents a single task within the list.
 #[derive(Clone, Debug)]
@@ -16,7 +16,7 @@ pub struct TodoList {
 }
 
 impl TodoList {
-    /// Create a new, empty todo list.
+    /// Create a new, empty to-do list.
     #[must_use]
     pub fn new() -> Self {
         Self::default()
@@ -46,15 +46,16 @@ impl TodoList {
     #[must_use]
     pub fn display(&self) -> String {
         let mut out = String::new();
+        use std::fmt::Write as _;
         for (i, t) in self.tasks.iter().enumerate() {
-            use std::fmt::Write as _;
-            let _ = writeln!(
+            writeln!(
                 out,
                 "{}. [{}] {}",
                 i + 1,
                 if t.done { "x" } else { " " },
                 t.description
-            );
+            )
+            .expect("writing to a String cannot fail");
         }
         if out.ends_with('\n') {
             out.pop();

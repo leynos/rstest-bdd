@@ -1,6 +1,6 @@
 # todo-cli
 
-Minimal command-line todo list demonstrating `rstest-bdd`.
+Minimal command-line to-do list demonstrating `rstest-bdd`.
 
 ## Build and test
 

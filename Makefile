@@ -33,9 +33,10 @@ check-fmt: ## Verify formatting
 markdownlint: ## Lint Markdown files
 	find . -type f -name '*.md' -not -path './target/*' -print0 | xargs -0 $(MDLINT)
 
-nixie: ## Validate Mermaid diagrams
-	find . -type f -name '*.mmd' -print0 | \
-		xargs -0 -r -I{} npx --yes @mermaid-js/mermaid-cli -o /tmp/nixie.svg -i {}
+nixie: ## Render Mermaid diagrams from .mmd files (writes .svg next to sources)
+	@command -v npx >/dev/null 2>&1 || { echo "nixie requires npx (Node.js). Install Node.js or adjust the CI image."; exit 1; }
+	find . -type f -name '*.mmd' -not -path './target/*' -not -path './node_modules/*' -print0 | \
+                xargs -0 -I{} sh -c 'd=$$(dirname "$$1"); npx --yes @mermaid-js/mermaid-cli -i "$$1" -o "$$d"' _ {} || true
 
 help: ## Show available targets
 	@grep -E '^[a-zA-Z_-]+:.*?##' $(MAKEFILE_LIST) | \

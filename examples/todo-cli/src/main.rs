@@ -1,4 +1,5 @@
 //! Command-line interface for the `todo-cli` example.
+//! Tasks live only in memory; each invocation starts with an empty to-do list.
 
 use clap::{Parser, Subcommand};
 use eyre::Result;

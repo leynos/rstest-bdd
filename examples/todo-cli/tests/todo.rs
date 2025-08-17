@@ -11,7 +11,7 @@ fn todo() -> RefCell<TodoList> {
     RefCell::new(TodoList::new())
 }
 
-#[given("an empty todo list")]
+#[given("an empty to-do list")]
 fn empty_list(#[from(todo)] list: &RefCell<TodoList>) {
     assert!(list.borrow().is_empty(), "list should start empty");
 }
@@ -40,7 +40,7 @@ fn list_displays(#[from(todo)] list: &RefCell<TodoList>, docstring: String) {
     assert_eq!(list.borrow().display(), normalised);
 }
 
-#[given("a todo list with {first} and {second}")]
+#[given("a to-do list with {first} and {second}")]
 fn list_with_two(#[from(todo)] list: &RefCell<TodoList>, first: String, second: String) {
     let mut l = list.borrow_mut();
     l.add(first);
