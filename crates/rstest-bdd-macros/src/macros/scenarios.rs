@@ -130,6 +130,10 @@ fn generate_scenario_test(
 /// let path = resolve_manifest_directory().unwrap();
 /// assert_eq!(path, std::path::PathBuf::from("/tmp"));
 /// ```
+#[expect(
+    clippy::useless_conversion,
+    reason = "proc_macro::TokenStream is required for macro errors"
+)]
 fn resolve_manifest_directory() -> Result<PathBuf, TokenStream> {
     option_env!("CARGO_MANIFEST_DIR")
         .map(PathBuf::from)
@@ -138,7 +142,7 @@ fn resolve_manifest_directory() -> Result<PathBuf, TokenStream> {
                 Span::call_site(),
                 "CARGO_MANIFEST_DIR is not set. This macro must run within Cargo.",
             );
-            error_to_tokens(&err)
+            error_to_tokens(&err).into()
         })
 }
 
@@ -242,7 +246,11 @@ pub(crate) fn scenarios(input: TokenStream) -> TokenStream {
     if let Err(err) = feature_paths_res {
         let msg = format!("failed to read directory `{}`: {err}", search_dir.display());
         let err = syn::Error::new(Span::call_site(), msg);
-        return error_to_tokens(&err);
+        #[expect(
+            clippy::useless_conversion,
+            reason = "proc_macro::TokenStream is required for macro errors"
+        )]
+        return error_to_tokens(&err).into();
     }
     let Ok(feature_paths) = feature_paths_res else {
         unreachable!("checked Err above");
