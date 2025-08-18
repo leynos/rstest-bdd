@@ -7,7 +7,7 @@ authors.workspace = true
 description = "Procedural macros for the rstest-bdd testing framework."
 homepage.workspace = true
 repository.workspace = true
-readme = "../../README.md"
+readme.workspace = true
 keywords.workspace = true
 categories.workspace = true
 rust-version.workspace = true
@@ -20,14 +20,14 @@ proc-macro = true
 
 
 [dependencies]
-proc-macro2 = "1"
-quote = "1"
-syn = { version = "2", features = ["full", "extra-traits"] }
-rstest-bdd = { path = "../rstest-bdd", version = "0.1.0" }
-gherkin = { version = "0.14", default-features = false, features = ["parser"] }
+proc-macro2.workspace = true
+quote.workspace = true
+syn.workspace = true
+rstest-bdd.workspace = true
+gherkin.workspace = true
 
 [dev-dependencies]
-trybuild = "1"
-once_cell = "1.18"
-rstest = "0.18"
-serial_test = "2"
+trybuild.workspace = true
+once_cell.workspace = true
+rstest.workspace = true
+serial_test.workspace = true

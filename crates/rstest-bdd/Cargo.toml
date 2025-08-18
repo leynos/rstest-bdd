@@ -16,13 +16,12 @@ rust-version.workspace = true
 workspace = true
 
 [dependencies]
-
-gherkin = { version = "0.14", default-features = false, features = ["parser"] }
-inventory = "0.3"
-regex = "1.11.1"
-thiserror = "1.0"
+gherkin.workspace = true
+inventory.workspace = true
+regex.workspace = true
+thiserror.workspace = true
 
 [dev-dependencies]
-rstest = "0.18"
+rstest.workspace = true
 rstest-bdd-macros = { path = "../rstest-bdd-macros" }
 
