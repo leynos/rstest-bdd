@@ -41,24 +41,28 @@ fn collect_feature_files(base: &Path) -> std::io::Result<Vec<PathBuf>> {
     use walkdir::WalkDir;
 
     fn is_feature_file(path: &Path) -> bool {
-        matches!(
-            path.extension().and_then(|e| e.to_str()),
-            Some(ext) if ext.eq_ignore_ascii_case("feature")
-        )
+        path.extension()
+            .and_then(|e| e.to_str())
+            .is_some_and(|ext| ext.eq_ignore_ascii_case("feature"))
     }
 
-    let mut files = Vec::new();
-    for entry in WalkDir::new(base).follow_links(true) {
-        let entry = entry.map_err(|e| {
-            let msg = e.to_string();
-            e.into_io_error().unwrap_or_else(|| io::Error::other(msg))
-        })?;
-        let path = entry.into_path();
-        if path.is_file() && is_feature_file(&path) {
-            files.push(path);
-        }
-    }
-    Ok(files)
+    WalkDir::new(base)
+        .follow_links(true)
+        .into_iter()
+        .filter_map(|entry| match entry {
+            Ok(e) if e.file_type().is_file() && is_feature_file(e.path()) => {
+                Some(Ok(e.into_path()))
+            }
+            Ok(_) => None,
+            Err(e) => {
+                let err_str = e.to_string();
+                let io_err = e
+                    .into_io_error()
+                    .unwrap_or_else(|| io::Error::other(err_str));
+                Some(Err(io_err))
+            }
+        })
+        .collect()
 }
 
 /// Generate the test for a single scenario within a feature.
