@@ -349,7 +349,7 @@ Ensure a supported runner is available (listed in preferred order):
 
 - Bun: `bun x @mermaid-js/mermaid-cli`
 - pnpm: `pnpm dlx @mermaid-js/mermaid-cli`
-- Node.js: `npx @mermaid-js/mermaid-cli`
+- Node.js: `npx --yes @mermaid-js/mermaid-cli`
 
 If none is installed, install one and re-run `make nixie`.
 
