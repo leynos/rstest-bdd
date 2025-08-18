@@ -825,10 +825,10 @@ Rust testing ecosystem, several extensions could be considered after the core
 functionality is implemented:
 
 - `scenarios!` **Macro:** Implemented to reduce boilerplate. The macro walks a
-  directory recursively, discovers `.feature` files, and generates a module
-  containing a test for each `Scenario`. Function names derive from the feature
-  file stem and scenario title, sanitized and deduplicated. Generated tests do
-  not currently accept fixtures.
+  directory recursively using the `walkdir` crate, discovers `.feature` files,
+  and generates a module containing a test for each `Scenario`. Function names
+  derive from the feature file stem and scenario title, sanitised and
+  deduplicated. Generated tests do not currently accept fixtures.
 
   The following diagram summarizes the relationships between the macro and its
   helper modules:

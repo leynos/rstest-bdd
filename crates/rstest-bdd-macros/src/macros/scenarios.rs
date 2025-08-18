@@ -4,7 +4,6 @@ use proc_macro::TokenStream;
 use proc_macro2::{Span, TokenStream as TokenStream2};
 use quote::{format_ident, quote};
 use std::collections::HashSet;
-use std::fs;
 use std::path::{Path, PathBuf};
 
 use crate::codegen::scenario::{ScenarioConfig, generate_scenario_code};
@@ -38,6 +37,9 @@ fn sanitize_ident(input: &str) -> String {
 
 /// Recursively collect all `.feature` files under `base`.
 fn collect_feature_files(base: &Path) -> std::io::Result<Vec<PathBuf>> {
+    use std::io;
+    use walkdir::WalkDir;
+
     fn is_feature_file(path: &Path) -> bool {
         matches!(
             path.extension().and_then(|e| e.to_str()),
@@ -46,26 +48,13 @@ fn collect_feature_files(base: &Path) -> std::io::Result<Vec<PathBuf>> {
     }
 
     let mut files = Vec::new();
-    for entry in fs::read_dir(base)? {
-        let entry = entry?;
-        let path = entry.path();
-        let metadata = fs::symlink_metadata(&path)?;
-        let ft = metadata.file_type();
-
-        if ft.is_symlink() {
-            if fs::metadata(&path)
-                .map(|t| t.file_type().is_file() && is_feature_file(&path))
-                .unwrap_or(false)
-            {
-                files.push(path);
-            }
-            continue;
-        }
-        if ft.is_dir() {
-            files.extend(collect_feature_files(&path)?);
-            continue;
-        }
-        if ft.is_file() && is_feature_file(&path) {
+    for entry in WalkDir::new(base).follow_links(true) {
+        let entry = entry.map_err(|e| {
+            let msg = e.to_string();
+            e.into_io_error().unwrap_or_else(|| io::Error::other(msg))
+        })?;
+        let path = entry.into_path();
+        if path.is_file() && is_feature_file(&path) {
             files.push(path);
         }
     }
