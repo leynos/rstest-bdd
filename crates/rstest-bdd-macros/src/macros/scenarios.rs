@@ -46,7 +46,7 @@ fn collect_feature_files(base: &Path) -> std::io::Result<Vec<PathBuf>> {
             .is_some_and(|ext| ext.eq_ignore_ascii_case("feature"))
     }
 
-    WalkDir::new(base)
+    let mut files: Vec<PathBuf> = WalkDir::new(base)
         .follow_links(true)
         .into_iter()
         .filter_map(|entry| match entry {
@@ -62,7 +62,10 @@ fn collect_feature_files(base: &Path) -> std::io::Result<Vec<PathBuf>> {
                 Some(Err(io_err))
             }
         })
-        .collect()
+        .collect::<Result<_, _>>()?;
+
+    files.sort();
+    Ok(files)
 }
 
 /// Generate the test for a single scenario within a feature.
