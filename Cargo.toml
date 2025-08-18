@@ -16,7 +16,6 @@ homepage = "https://github.com/leynos/rstest-bdd"
 repository = "https://github.com/leynos/rstest-bdd"
 keywords = ["test", "bdd", "rstest", "gherkin", "cucumber"]
 categories = ["development-tools::testing"]
-readme = "README.md"
 
 [workspace.dependencies]
 gherkin = { version = "0.14", default-features = false, features = ["parser"] }
