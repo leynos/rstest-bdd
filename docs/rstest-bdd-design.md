@@ -849,7 +849,7 @@ functionality is implemented:
           +examples: Vec<Example>
       }
       class scenario {
-          +generate_scenario_code(config: ScenarioConfig, iter: Iterator) TokenStream2
+          +generate_scenario_code(config: ScenarioConfig, iter: Iterator) proc_macro::TokenStream
       }
       class feature {
           +extract_scenario_steps(feature, idx: Option<usize>) -> Result<Data, Error>
