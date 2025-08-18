@@ -1,4 +1,4 @@
-error: failed to read directory `$DIR/tests/features/does_not_exist`: No such file or directory (os error 2)
+error: failed to read directory `$WORKSPACE/target/tests/trybuild/rstest-bdd-macros/tests/features/does_not_exist`: No such file or directory (os error 2)
  --> tests/fixtures/scenarios_missing_dir.rs:6:1
   |
 6 | scenarios!("tests/features/does_not_exist");

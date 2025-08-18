@@ -20,7 +20,7 @@ use gherkin::Feature;
 ///
 /// Note: Unicode characters are not supported and will be replaced with
 /// underscores.
-/// TODO: Consider supporting Unicode normalisation in the future.
+/// TODO: Consider supporting Unicode normalization in the future.
 fn sanitize_ident(input: &str) -> String {
     let mut ident = String::new();
     for c in input.chars() {
@@ -127,20 +127,20 @@ fn generate_scenario_test(
 ///
 /// ```rust,ignore
 /// std::env::set_var("CARGO_MANIFEST_DIR", "/tmp");
-/// let path = resolve_manifest_directory().unwrap();
+/// let path =
+///     resolve_manifest_directory().expect("CARGO_MANIFEST_DIR is set");
 /// assert_eq!(path, std::path::PathBuf::from("/tmp"));
 /// ```
 fn resolve_manifest_directory() -> Result<PathBuf, TokenStream> {
-    option_env!("CARGO_MANIFEST_DIR").map_or_else(
-        || {
+    std::env::var("CARGO_MANIFEST_DIR")
+        .map(PathBuf::from)
+        .map_err(|_| {
             let err = syn::Error::new(
                 Span::call_site(),
                 "CARGO_MANIFEST_DIR is not set. This macro must run within Cargo.",
             );
-            Err(error_to_tokens(&err))
-        },
-        |v| Ok(PathBuf::from(v)),
-    )
+            error_to_tokens(&err)
+        })
 }
 
 /// Generate the test code for every scenario inside a single feature file.
@@ -281,5 +281,20 @@ mod tests {
     #[test]
     fn sanitizes_invalid_identifiers() {
         assert_eq!(sanitize_ident("Hello world!"), "hello_world_");
+    }
+
+    #[test]
+    fn sanitizes_leading_digit() {
+        assert_eq!(sanitize_ident("123abc"), "_123abc");
+    }
+
+    #[test]
+    fn sanitizes_empty_input() {
+        assert_eq!(sanitize_ident(""), "_");
+    }
+
+    #[test]
+    fn sanitizes_unicode() {
+        assert_eq!(sanitize_ident("Crème—brûlée"), "cr_me_br_l_e");
     }
 }
