@@ -7,7 +7,7 @@ authors.workspace = true
 description.workspace = true
 homepage.workspace = true
 repository.workspace = true
-readme = "../../README.md"
+readme.workspace = true
 keywords.workspace = true
 categories.workspace = true
 rust-version.workspace = true
@@ -18,11 +18,11 @@ workspace = true
 [dependencies]
 
 gherkin = { version = "0.14", default-features = false, features = ["parser"] }
-inventory = ">=0.3, <0.4"
+inventory = "0.3"
 regex = "1.11.1"
 thiserror = "1.0"
 
 [dev-dependencies]
-rstest = ">=0.18, <0.19"
+rstest = "0.18"
 rstest-bdd-macros = { path = "../rstest-bdd-macros" }
 
