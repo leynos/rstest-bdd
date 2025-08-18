@@ -1,19 +1,27 @@
 [package]
 name = "rstest-bdd"
-version = "0.1.0"
-edition = "2024"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+description.workspace = true
+homepage.workspace = true
+repository.workspace = true
+readme = "../../README.md"
+keywords.workspace = true
+categories.workspace = true
+rust-version.workspace = true
 
 [lints]
 workspace = true
 
 [dependencies]
-
-gherkin = { version = "0.14", default-features = false, features = ["parser"] }
-inventory = ">=0.3, <0.4"
-regex = "1.11.1"
-thiserror = "1.0"
+gherkin.workspace = true
+inventory.workspace = true
+regex.workspace = true
+thiserror.workspace = true
 
 [dev-dependencies]
-rstest = ">=0.18, <0.19"
+rstest.workspace = true
 rstest-bdd-macros = { path = "../rstest-bdd-macros" }
 
