@@ -4,21 +4,28 @@ IFS=$'\n\t'
 
 MERMAID_CLI_SPEC=${MERMAID_CLI_SPEC:-@mermaid-js/mermaid-cli}
 
-if command -v npx >/dev/null 2>&1; then
-    run=(npx --yes "$MERMAID_CLI_SPEC")
-    if [ "${NIXIE_VERBOSE:-}" = "1" ]; then
-        echo "Using npx to run $MERMAID_CLI_SPEC"
-    fi
-elif command -v bun >/dev/null 2>&1; then
+# Resolve the fastest available runner for the Mermaid CLI.
+# Bun is preferred for its speed, with pnpm and npx as fallbacks.
+if command -v bun >/dev/null 2>&1; then
     run=(bun x "$MERMAID_CLI_SPEC")
     if [ "${NIXIE_VERBOSE:-}" = "1" ]; then
         echo "Using bun x to run $MERMAID_CLI_SPEC"
     fi
+elif command -v pnpm >/dev/null 2>&1; then
+    run=(pnpm dlx "$MERMAID_CLI_SPEC")
+    if [ "${NIXIE_VERBOSE:-}" = "1" ]; then
+        echo "Using pnpm dlx to run $MERMAID_CLI_SPEC"
+    fi
+elif command -v npx >/dev/null 2>&1; then
+    run=(npx --yes "$MERMAID_CLI_SPEC")
+    if [ "${NIXIE_VERBOSE:-}" = "1" ]; then
+        echo "Using npx to run $MERMAID_CLI_SPEC"
+    fi
 else
     if [ "${NIXIE_VERBOSE:-}" = "1" ]; then
-        echo "No npx or bun found for $MERMAID_CLI_SPEC"
+        echo "No bun, pnpm or npx found for $MERMAID_CLI_SPEC"
     fi
-    echo "nixie requires npx or bun. Install one to render Mermaid diagrams." >&2
+    echo "nixie requires bun, pnpm or npx. Install one to render Mermaid diagrams." >&2
     exit 1
 fi
 

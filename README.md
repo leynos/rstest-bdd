@@ -345,12 +345,13 @@ Dependencies for examples are captured in the repository's `Cargo.lock` to
 ensure reproducible builds.
 
 Note: `make nixie` renders Mermaid diagrams via `@mermaid-js/mermaid-cli`.
-Ensure a supported runner is available:
+Ensure a supported runner is available (listed in preferred order):
 
-- Node.js: `npx @mermaid-js/mermaid-cli`
 - Bun: `bun x @mermaid-js/mermaid-cli`
+- pnpm: `pnpm dlx @mermaid-js/mermaid-cli`
+- Node.js: `npx --yes @mermaid-js/mermaid-cli`
 
-If neither is installed, install one and re-run `make nixie`.
+If none is installed, install one and re-run `make nixie`.
 
 ______________________________________________________________________
 
