@@ -30,7 +30,7 @@ fn sanitize_ident(input: &str) -> String {
             ident.push('_');
         }
     }
-    if ident.is_empty() || ident.chars().next().is_some_and(|c| c.is_ascii_digit()) {
+    if ident.is_empty() || matches!(ident.chars().next(), Some(c) if c.is_ascii_digit()) {
         ident.insert(0, '_');
     }
     ident
@@ -39,7 +39,10 @@ fn sanitize_ident(input: &str) -> String {
 /// Recursively collect all `.feature` files under `base`.
 fn collect_feature_files(base: &Path) -> std::io::Result<Vec<PathBuf>> {
     fn is_feature_file(path: &Path) -> bool {
-        path.extension().is_some_and(|e| e == "feature")
+        matches!(
+            path.extension().and_then(|e| e.to_str()),
+            Some(ext) if ext.eq_ignore_ascii_case("feature")
+        )
     }
 
     let mut files = Vec::new();
@@ -70,23 +73,33 @@ fn collect_feature_files(base: &Path) -> std::io::Result<Vec<PathBuf>> {
 }
 
 /// Generate the test for a single scenario within a feature.
-fn generate_scenario_test(
-    feature: &Feature,
+/// Context for generating a scenario test.
+struct ScenarioTestContext<'a> {
+    feature: &'a Feature,
     scenario_idx: usize,
-    feature_stem: &str,
-    manifest_dir: &Path,
-    rel_path: &Path,
-    used_names: &mut HashSet<String>,
-) -> Result<TokenStream2, TokenStream> {
-    let data = extract_scenario_steps(feature, Some(scenario_idx))?;
-    let base_name = format!("{}_{}", feature_stem, sanitize_ident(&data.name));
-    let mut fn_name = base_name.clone();
+    feature_stem: &'a str,
+    manifest_dir: &'a Path,
+    rel_path: &'a Path,
+}
+
+fn dedupe_name(base: &str, used: &mut HashSet<String>) -> String {
+    let mut name = base.to_string();
     let mut counter = 1usize;
-    while used_names.contains(&fn_name) {
-        fn_name = format!("{base_name}_{counter}");
+    while used.contains(&name) {
+        name = format!("{base}_{counter}");
         counter += 1;
     }
-    used_names.insert(fn_name.clone());
+    used.insert(name.clone());
+    name
+}
+
+fn generate_scenario_test(
+    ctx: &ScenarioTestContext<'_>,
+    used_names: &mut HashSet<String>,
+) -> Result<TokenStream2, TokenStream> {
+    let data = extract_scenario_steps(ctx.feature, Some(ctx.scenario_idx))?;
+    let base_name = format!("{}_{}", ctx.feature_stem, sanitize_ident(&data.name));
+    let fn_name = dedupe_name(&base_name, used_names);
     let fn_ident = format_ident!("{}", fn_name);
 
     let attrs: Vec<syn::Attribute> = Vec::new();
@@ -103,7 +116,7 @@ fn generate_scenario_test(
     );
     let block: syn::Block = syn::parse_quote!({});
 
-    let feature_path = manifest_dir.join(rel_path).display().to_string();
+    let feature_path = ctx.manifest_dir.join(ctx.rel_path).display().to_string();
 
     let config = ScenarioConfig {
         attrs: &attrs,
@@ -131,99 +144,81 @@ fn generate_scenario_test(
 ///     resolve_manifest_directory().expect("CARGO_MANIFEST_DIR is set");
 /// assert_eq!(path, std::path::PathBuf::from("/tmp"));
 /// ```
+#[expect(
+    clippy::single_match_else,
+    clippy::option_if_let_else,
+    reason = "explicit match clarifies control flow"
+)]
 fn resolve_manifest_directory() -> Result<PathBuf, TokenStream> {
-    std::env::var("CARGO_MANIFEST_DIR")
-        .map(PathBuf::from)
-        .map_err(|_| {
+    match std::env::var("CARGO_MANIFEST_DIR") {
+        Ok(v) => Ok(PathBuf::from(v)),
+        Err(_) => {
             let err = syn::Error::new(
                 Span::call_site(),
                 "CARGO_MANIFEST_DIR is not set. This macro must run within Cargo.",
             );
-            error_to_tokens(&err)
-        })
+            Err(error_to_tokens(&err))
+        }
+    }
 }
 
 /// Generate the test code for every scenario inside a single feature file.
 ///
-/// Deduplicates test names using `used_names`.
-///
-/// # Examples
-///
-/// ```rust,ignore
-/// # use std::collections::HashSet;
-/// let mut used = HashSet::new();
-/// let tests = process_feature_file(
-///     std::path::Path::new("alpha.feature"),
-///     std::path::Path::new("/tmp"),
-///     &mut used,
-/// )
-/// .unwrap();
-/// assert!(!tests.is_empty());
-/// ```
+/// Deduplicates test names using `used_names` and collects errors without
+/// short-circuiting.
 fn process_feature_file(
     abs_path: &Path,
     manifest_dir: &Path,
     used_names: &mut HashSet<String>,
-) -> Result<Vec<TokenStream2>, TokenStream> {
+) -> (Vec<TokenStream2>, Vec<TokenStream2>) {
     let rel_path = abs_path
         .strip_prefix(manifest_dir)
         .map_or_else(|_| abs_path.to_path_buf(), Path::to_path_buf);
 
-    let feature = parse_and_load_feature(rel_path.as_path())?;
-    let feature_stem = sanitize_ident(
-        rel_path
-            .file_stem()
-            .and_then(|s| s.to_str())
-            .unwrap_or("feature"),
-    );
-
     let mut tests = Vec::new();
-    let mut errors: Vec<TokenStream2> = Vec::new();
-    for (idx, _) in feature.scenarios.iter().enumerate() {
-        match generate_scenario_test(
-            &feature,
-            idx,
-            &feature_stem,
-            manifest_dir,
-            &rel_path,
-            used_names,
-        ) {
-            Ok(ts) => tests.push(ts),
-            Err(err) => errors.push(TokenStream2::from(err)),
+    let mut errors = Vec::new();
+
+    match parse_and_load_feature(rel_path.as_path()) {
+        Ok(feature) => {
+            let feature_stem = sanitize_ident(
+                rel_path
+                    .file_stem()
+                    .and_then(|s| s.to_str())
+                    .unwrap_or("feature"),
+            );
+            for (idx, _) in feature.scenarios.iter().enumerate() {
+                let ctx = ScenarioTestContext {
+                    feature: &feature,
+                    scenario_idx: idx,
+                    feature_stem: &feature_stem,
+                    manifest_dir,
+                    rel_path: &rel_path,
+                };
+                match generate_scenario_test(&ctx, used_names) {
+                    Ok(ts) => tests.push(ts),
+                    Err(err) => errors.push(TokenStream2::from(err)),
+                }
+            }
         }
+        Err(err) => errors.push(TokenStream2::from(err)),
     }
 
-    if errors.is_empty() {
-        Ok(tests)
-    } else {
-        Err(TokenStream::from(quote! { #(#errors)* }))
-    }
+    (tests, errors)
 }
 
-/// Generate tests for the provided feature paths.
-///
-/// # Examples
-///
-/// ```rust,ignore
-/// let (tests, errors) = generate_tests_from_features(
-///     vec![std::path::PathBuf::from("alpha.feature")],
-///     std::path::Path::new("/tmp"),
-/// );
-/// assert!(!tests.is_empty());
-/// assert!(errors.is_empty());
-/// ```
+/// Generate tests for the provided feature paths, returning any errors.
 fn generate_tests_from_features(
     feature_paths: Vec<PathBuf>,
     manifest_dir: &Path,
 ) -> (Vec<TokenStream2>, Vec<TokenStream2>) {
     let mut used_names = HashSet::new();
     let mut tests = Vec::new();
-    let mut errors: Vec<TokenStream2> = Vec::new();
+    let mut errors = Vec::new();
     for abs_path in feature_paths {
-        match process_feature_file(abs_path.as_path(), manifest_dir, &mut used_names) {
-            Ok(mut t) => tests.append(&mut t),
-            Err(err) => errors.push(TokenStream2::from(err)),
-        }
+        let (mut t, mut errs) =
+            process_feature_file(abs_path.as_path(), manifest_dir, &mut used_names);
+        tests.append(&mut t);
+        errors.append(&mut errs);
     }
     (tests, errors)
 }
@@ -276,7 +271,8 @@ pub(crate) fn scenarios(input: TokenStream) -> TokenStream {
 
 #[cfg(test)]
 mod tests {
-    use super::sanitize_ident;
+    use super::{dedupe_name, sanitize_ident};
+    use std::collections::HashSet;
 
     #[test]
     fn sanitizes_invalid_identifiers() {
@@ -296,5 +292,14 @@ mod tests {
     #[test]
     fn sanitizes_unicode() {
         assert_eq!(sanitize_ident("Crème—brûlée"), "cr_me_br_l_e");
+    }
+
+    #[test]
+    fn deduplicates_duplicate_titles() {
+        let mut used = HashSet::new();
+        let first = dedupe_name("dup_same_name", &mut used);
+        let second = dedupe_name("dup_same_name", &mut used);
+        assert_eq!(first, "dup_same_name");
+        assert_eq!(second, "dup_same_name_1");
     }
 }

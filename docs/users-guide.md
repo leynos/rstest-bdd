@@ -173,7 +173,9 @@ one may filter or run them in parallel as usual.
 For large suites, it is tedious to bind each scenario manually. The
 `scenarios!` macro scans a directory recursively for `.feature` files and
 generates a module with a test for every `Scenario` found. Each test is named
-after the feature file and scenario title.
+after the feature file and scenario title. Identifiers are sanitised
+(ASCII-only) and deduplicated by appending a numeric suffix when collisions
+occur.
 
 ```rust
 use rstest_bdd_macros::{given, then, when, scenarios};
