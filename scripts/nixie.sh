@@ -2,10 +2,12 @@
 set -euo pipefail
 IFS=$'\n\t'
 
+MERMAID_CLI_SPEC=${MERMAID_CLI_SPEC:-@mermaid-js/mermaid-cli}
+
 if command -v npx >/dev/null 2>&1; then
-    run='npx --yes @mermaid-js/mermaid-cli'
+    run=(npx --yes "$MERMAID_CLI_SPEC")
 elif command -v bun >/dev/null 2>&1; then
-    run='bun x @mermaid-js/mermaid-cli'
+    run=(bun x "$MERMAID_CLI_SPEC")
 else
     echo "nixie requires npx or bun. Install one to render Mermaid diagrams." >&2
     exit 1
@@ -14,7 +16,9 @@ fi
 failed=0
 while IFS= read -r -d '' f; do
     d="$(dirname "$f")"
-    if ! $run -i "$f" -o "$d"; then
+    base="$(basename "$f")"
+    out="$d/${base%.*}.svg"
+    if ! "${run[@]}" -i "$f" -o "$out"; then
         echo "Mermaid render failed: $f" >&2
         failed=1
     fi
