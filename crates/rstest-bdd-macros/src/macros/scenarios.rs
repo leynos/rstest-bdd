@@ -153,7 +153,7 @@ fn resolve_manifest_directory() -> Result<PathBuf, TokenStream> {
                 Span::call_site(),
                 "CARGO_MANIFEST_DIR is not set. This macro must run within Cargo.",
             );
-            Err(error_to_tokens(&err))
+            Err(error_to_tokens(&err).into())
         }
     }
 }
@@ -196,7 +196,7 @@ fn process_feature_file(
                 }
             }
         }
-        Err(err) => errors.push(TokenStream2::from(err)),
+        Err(err) => errors.push(err),
     }
 
     (tests, errors)
@@ -234,10 +234,6 @@ pub(crate) fn scenarios(input: TokenStream) -> TokenStream {
     if let Err(err) = feature_paths_res {
         let msg = format!("failed to read directory `{}`: {err}", search_dir.display());
         let err = syn::Error::new(Span::call_site(), msg);
-        #[expect(
-            clippy::useless_conversion,
-            reason = "proc_macro::TokenStream required"
-        )]
         return error_to_tokens(&err).into();
     }
     let Ok(feature_paths) = feature_paths_res else {
