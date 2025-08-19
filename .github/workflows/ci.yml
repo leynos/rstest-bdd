@@ -21,9 +21,9 @@ jobs:
       - name: Format
         run: make check-fmt
       - name: Lint
-        run: make lint
+        run: cargo clippy --workspace --all-targets -- -D warnings
       - name: Test
-        run: make test
+        run: RUSTFLAGS="-D warnings" cargo test --workspace --all-targets
       - name: Install cargo-tarpaulin
         run: cargo install cargo-tarpaulin
       - name: Run coverage

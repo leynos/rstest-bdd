@@ -1,7 +1,7 @@
 //! Validation routines for example tables in features.
 
 use crate::utils::errors::error_to_tokens;
-use proc_macro::TokenStream;
+use proc_macro2::TokenStream;
 
 /// Validate Examples table structure in feature file text.
 pub(crate) fn validate_examples_in_feature_text(text: &str) -> Result<(), TokenStream> {

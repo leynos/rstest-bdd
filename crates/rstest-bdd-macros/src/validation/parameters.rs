@@ -1,7 +1,7 @@
 //! Validation for function parameters against scenario outline headers.
 
 use crate::utils::errors::error_to_tokens;
-use proc_macro::TokenStream;
+use proc_macro2::TokenStream;
 
 fn parameter_matches_header(arg: &syn::FnArg, header: &str) -> bool {
     match arg {

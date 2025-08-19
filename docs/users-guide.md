@@ -142,6 +142,9 @@ scenario defined in a `.feature` file. It accepts two arguments:
 | `path: &str`   | Relative path to the feature file from the crate root. This is mandatory.                                    | **Implemented**: the macro resolves the path at compile time and parses the feature using the `gherkin` crate. |
 | `index: usize` | Optional zero‑based index selecting a scenario when the file contains multiple scenarios. Defaults to `0`.   | **Implemented**: the macro uses the index to pick the scenario.                                                |
 
+If the feature file cannot be found or contains invalid Gherkin, the macro
+emits a compile-time error with the offending path.
+
 The design document proposes a `name` argument to select scenarios by name, but
 only `path` and `index` are currently accepted.
 

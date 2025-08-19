@@ -1,8 +1,16 @@
 [package]
 name = "rstest-bdd-macros"
-version = "0.1.0"
-edition = "2024"
-rust-version = "1.85"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+description = "Procedural macros for the rstest-bdd testing framework."
+homepage.workspace = true
+repository.workspace = true
+readme = "../../README.md"
+keywords.workspace = true
+categories.workspace = true
+rust-version.workspace = true
 
 [lints]
 workspace = true
@@ -12,15 +20,15 @@ proc-macro = true
 
 
 [dependencies]
-proc-macro2 = ">=1.0, <2.0"
-quote = ">=1.0, <2.0"
-syn = { version = ">=2.0, <3.0", features = ["full", "extra-traits"] }
-rstest-bdd = { path = "../rstest-bdd" }
-gherkin = { version = ">=0.14, <0.15", default-features = false, features = ["parser"] }
-walkdir = ">=2.5, <3.0"
+proc-macro2.workspace = true
+quote.workspace = true
+syn.workspace = true
+rstest-bdd.workspace = true
+gherkin.workspace = true
+walkdir = "2.5.0"
 
 [dev-dependencies]
-trybuild = ">=1.0, <2.0"
-once_cell = ">=1.18, <2.0"
-rstest = ">=0.18, <0.19"
-serial_test = ">=2.0, <3.0"
+trybuild.workspace = true
+once_cell.workspace = true
+rstest.workspace = true
+serial_test.workspace = true
