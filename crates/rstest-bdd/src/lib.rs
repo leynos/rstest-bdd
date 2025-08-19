@@ -24,6 +24,12 @@ use std::collections::HashMap;
 use std::str::FromStr;
 use std::sync::{LazyLock, OnceLock};
 
+// Compile once: used by `build_regex_from_pattern` for splitting pattern text.
+static PLACEHOLDER_RE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"\{\{|}}|\{([A-Za-z_][A-Za-z0-9_]*)(?::([^}]+))?\}")
+        .unwrap_or_else(|e| panic!("invalid placeholder regex: {e}"))
+});
+
 /// Wrapper for step pattern strings used in matching logic
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct PatternStr<'a>(&'a str);
@@ -233,9 +239,10 @@ impl<'a> StepContext<'a> {
 /// Extract placeholder values from a step string using a pattern.
 ///
 /// The pattern supports `format!`-style placeholders such as `{count:u32}`.
-/// Literal braces may be escaped by doubling them: `{{` or `}}`. The returned
-/// vector contains the raw substring for each placeholder in order of
-/// appearance.
+/// Literal braces may be escaped by doubling them: `{{` or `}}`. Nested braces
+/// inside placeholders are not supported. The returned vector contains the raw
+/// substring for each placeholder in order of appearance. The entire step text
+/// must match the pattern; otherwise this returns `None`.
 #[must_use]
 pub fn extract_placeholders(pattern: &StepPattern, text: StepText<'_>) -> Option<Vec<String>> {
     extract_captured_values(pattern.regex(), text.as_str())
@@ -244,8 +251,7 @@ pub fn extract_placeholders(pattern: &StepPattern, text: StepText<'_>) -> Option
 fn build_regex_from_pattern(pat: &str) -> String {
     // Split the pattern into literal fragments and placeholders. The regex
     // matches doubled braces or a `{name[:type]}` placeholder.
-    let ph_re = Regex::new(r"\{\{|}}|\{([A-Za-z_][A-Za-z0-9_]*)(?::([^}]+))?\}")
-        .unwrap_or_else(|e| panic!("invalid placeholder regex: {e}"));
+    let ph_re = &PLACEHOLDER_RE;
     let mut regex = String::from("^");
     let mut last = 0;
     for cap in ph_re.captures_iter(pat) {
@@ -276,7 +282,9 @@ fn type_subpattern(ty: Option<&str>) -> &'static str {
     match ty {
         Some("u8" | "u16" | "u32" | "u64" | "u128" | "usize") => r"\d+",
         Some("i8" | "i16" | "i32" | "i64" | "i128" | "isize") => r"[+-]?\d+",
-        Some("f32" | "f64") => r"[+-]?(?:\d+\.\d+|\d+)",
+        // Accept integers, decimal forms with optional leading/trailing digits,
+        // and scientific notation to match `FromStr` semantics.
+        Some("f32" | "f64") => r"[+-]?(?:\d+\.\d*|\.\d+|\d+)(?:[eE][+-]?\d+)?",
         _ => r".+?",
     }
 }

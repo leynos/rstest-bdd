@@ -59,6 +59,12 @@ fn type_hint_uses_specialised_fragment() {
         extract_placeholders(&pat, StepText::from("value -0.001")).is_some(),
         "negative float should match f64",
     );
+    for text in ["value .5", "value 42.", "value 1e3", "value -1E-9"] {
+        assert!(
+            extract_placeholders(&pat, StepText::from(text)).is_some(),
+            "{text} should match f64",
+        );
+    }
 }
 
 #[test]
@@ -94,4 +100,28 @@ fn unbalanced_braces_are_literals() {
         extract_placeholders(&pat, StepText::from("before value after")).is_none(),
         "text without literal brace should not match",
     );
+}
+
+#[test]
+fn consecutive_escaped_braces() {
+    let pat = StepPattern::from("{{{{}}}}");
+    pat.compile()
+        .unwrap_or_else(|e| panic!("Failed to compile pattern: {e}"));
+    let text = StepText::from("{{}}");
+    let Some(caps) = extract_placeholders(&pat, text) else {
+        panic!("match expected");
+    };
+    assert!(caps.is_empty());
+}
+
+#[test]
+fn escaped_and_placeholder_adjacent() {
+    let pat = StepPattern::from("{{{v}}}");
+    pat.compile()
+        .unwrap_or_else(|e| panic!("Failed to compile pattern: {e}"));
+    let text = StepText::from("{data}");
+    let Some(caps) = extract_placeholders(&pat, text) else {
+        panic!("match expected");
+    };
+    assert_eq!(caps, vec!["data"]);
 }
