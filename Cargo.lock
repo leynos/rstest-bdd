@@ -753,6 +753,7 @@ dependencies = [
  "serial_test",
  "syn",
  "trybuild",
+ "walkdir",
 ]
 
 [[package]]

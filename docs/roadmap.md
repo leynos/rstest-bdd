@@ -122,7 +122,7 @@ improves the developer experience.
 
 - [ ] **Boilerplate Reduction**
 
-  - [ ] Implement the `scenarios!("path/to/features/")` macro to automatically
+  - [x] Implement the `scenarios!("path/to/features/")` macro to automatically
     discover all `.feature` files in a directory and generate a test module
     containing a test function for every `Scenario` found.
 

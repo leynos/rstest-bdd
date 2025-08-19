@@ -827,11 +827,78 @@ Based on the successful patterns of `pytest-bdd` and the needs of a growing
 Rust testing ecosystem, several extensions could be considered after the core
 functionality is implemented:
 
-- `scenarios!` **Macro:** To reduce boilerplate, a
-  `scenarios!("path/to/features/")` macro could be introduced. This would
-  automatically discover all `.feature` files in a directory and generate a
-  test function for every `Scenario` found within them, mirroring
-  `pytest-bdd`'s autogeneration feature.
+- `scenarios!` **Macro:** Implemented to reduce boilerplate. The macro walks a
+  directory recursively using the `walkdir` crate, discovers `.feature` files,
+  and generates a module containing a test for each `Scenario`. Function names
+  derive from the feature file stem and scenario title, sanitised and
+  deduplicated. Generated tests do not currently accept fixtures.
+
+  The following diagram summarizes the relationships between the macro and its
+  helper modules:
+
+  ```mermaid
+  classDiagram
+      class scenarios {
+          +scenarios(input: TokenStream) TokenStream
+      }
+      class ScenarioConfig {
+          +attrs: &Vec<syn::Attribute>
+          +vis: &syn::Visibility
+          +sig: &syn::Signature
+          +block: &syn::Block
+          +feature_path: String
+          +scenario_name: String
+          +steps: Vec<Step>
+          +examples: Vec<Example>
+      }
+      class scenario {
+          +generate_scenario_code(config: ScenarioConfig, iter: Iterator) proc_macro::TokenStream
+      }
+      class feature {
+          +extract_scenario_steps(feature, idx: Option<usize>) -> Result<Data, Error>
+          +parse_and_load_feature(path: &Path) -> Result<Feature, Error>
+      }
+      class errors {
+          +error_to_tokens(err: &syn::Error) -> TokenStream
+      }
+      scenarios --> scenario : uses
+      scenarios --> feature : uses
+      scenarios --> errors : uses
+      scenario <.. ScenarioConfig : uses
+      feature <.. Step
+      ScenarioConfig <.. Step
+      ScenarioConfig <.. Example
+  ```
+
+  The following sequence diagram captures macro expansion and test execution:
+
+  ```mermaid
+  sequenceDiagram
+      actor Dev as Developer
+      participant RustC as Rust Compiler
+      participant Macro as scenarios! (proc-macro)
+      participant FS as Filesystem
+      participant Parser as feature parser
+      participant Gen as scenario::generate_scenario_code
+      participant TestRunner as Test Runner
+
+      Dev->>RustC: cargo test (compile)
+      RustC->>Macro: expand scenarios!("path")
+      Macro->>FS: list *.feature recursively
+      loop per feature file
+          Macro->>Parser: parse_and_load_feature(path)
+          Parser-->>Macro: Feature with Scenarios
+          loop per scenario
+              Macro->>Parser: extract_scenario_steps(feature, idx)
+              Macro->>Gen: generate_scenario_code(config)
+              Gen-->>Macro: test item tokens
+          end
+      end
+      Macro-->>RustC: emit module with generated tests
+      RustC->>Dev: build complete
+      Dev->>TestRunner: run tests
+      TestRunner->>GeneratedTests: execute steps -> step functions
+  ```
 
 - **Diagnostic CLI:** A small helper utility, perhaps integrated as a cargo
   subcommand (`cargo bdd`), could provide diagnostic information. For example,
@@ -930,7 +997,7 @@ well‑formed placeholders.
 
 The runner forwards the raw doc string as `Option<&str>` and the wrapper
 converts it into an owned `String` before invoking the step function. The
-sequence below summarises how the runner locates and executes steps when
+sequence below summarizes how the runner locates and executes steps when
 placeholders are present:
 
 ```mermaid
