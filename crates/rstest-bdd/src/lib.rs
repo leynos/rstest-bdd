@@ -357,9 +357,35 @@ fn extract_captured_values(re: &Regex, text: &str) -> Option<Vec<String>> {
     Some(values)
 }
 
+/// Error type produced by step wrappers.
+///
+/// The variants categorise the possible failure modes when invoking a step.
+#[derive(Debug, thiserror::Error)]
+pub enum StepError {
+    /// Raised when a required fixture is absent from the [`StepContext`].
+    #[error("Missing fixture '{name}' of type '{ty}' for step function '{step}'")]
+    MissingFixture {
+        name: String,
+        ty: String,
+        step: String,
+    },
+
+    /// Wraps generic execution failures.
+    #[error("Step execution failed: {0}")]
+    ExecutionError(String),
+
+    /// Indicates a panic occurred inside the step function.
+    #[error("Panic in step '{pattern}', function '{function}': {message}")]
+    PanicError {
+        pattern: String,
+        function: String,
+        message: String,
+    },
+}
+
 /// Type alias for the stored step function pointer.
 pub type StepFn =
-    for<'a> fn(&StepContext<'a>, &str, Option<&str>, Option<&[&[&str]]>) -> Result<(), String>;
+    for<'a> fn(&StepContext<'a>, &str, Option<&str>, Option<&[&[&str]]>) -> Result<(), StepError>;
 
 /// Represents a single step definition registered with the framework.
 ///
