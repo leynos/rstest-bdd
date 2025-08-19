@@ -63,7 +63,7 @@ fn type_hint_uses_specialised_fragment() {
 
 #[test]
 fn handles_escaped_braces() {
-    let pat = StepPattern::from(r"literal \{ brace {v} \}");
+    let pat = StepPattern::from("literal {{ brace {v} }}");
     pat.compile()
         .unwrap_or_else(|e| panic!("Failed to compile pattern: {e}"));
     let text = StepText::from("literal { brace data }");
@@ -74,15 +74,15 @@ fn handles_escaped_braces() {
 }
 
 #[test]
-fn handles_nested_braces() {
-    let pat = StepPattern::from("before {outer {inner}} after");
+fn double_braces_without_placeholders() {
+    let pat = StepPattern::from("brace: {{}}");
     pat.compile()
         .unwrap_or_else(|e| panic!("Failed to compile pattern: {e}"));
-    let text = StepText::from("before value after");
+    let text = StepText::from("brace: {}");
     let Some(caps) = extract_placeholders(&pat, text) else {
         panic!("match expected");
     };
-    assert_eq!(caps, vec!["value"]);
+    assert!(caps.is_empty());
 }
 
 #[test]

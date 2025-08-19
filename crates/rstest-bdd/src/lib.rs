@@ -233,118 +233,51 @@ impl<'a> StepContext<'a> {
 /// Extract placeholder values from a step string using a pattern.
 ///
 /// The pattern supports `format!`-style placeholders such as `{count:u32}`.
-/// Literal braces may be escaped with `\{` or `\}`. Nested braces within
-/// placeholders are honoured, preventing greedy captures. The returned vector
-/// contains the raw substring for each placeholder in order of appearance.
+/// Literal braces may be escaped by doubling them: `{{` or `}}`. The returned
+/// vector contains the raw substring for each placeholder in order of
+/// appearance.
 #[must_use]
 pub fn extract_placeholders(pattern: &StepPattern, text: StepText<'_>) -> Option<Vec<String>> {
     extract_captured_values(pattern.regex(), text.as_str())
 }
 
-fn build_regex_from_pattern(pattern: &str) -> String {
-    let mut regex_source = String::from("^");
-    let bytes = pattern.as_bytes();
-    let mut i = 0;
-    while let Some(&byte) = bytes.get(i) {
-        let advance = match byte {
-            b'\\' => handle_escape_sequence(bytes, i, &mut regex_source),
-            b'{' => handle_brace_placeholder(pattern, bytes, i, &mut regex_source),
+fn build_regex_from_pattern(pat: &str) -> String {
+    // Split the pattern into literal fragments and placeholders. The regex
+    // matches doubled braces or a `{name[:type]}` placeholder.
+    let ph_re = Regex::new(r"\{\{|}}|\{([A-Za-z_][A-Za-z0-9_]*)(?::([^}]+))?\}")
+        .unwrap_or_else(|e| panic!("invalid placeholder regex: {e}"));
+    let mut regex = String::from("^");
+    let mut last = 0;
+    for cap in ph_re.captures_iter(pat) {
+        let m = cap.get(0).unwrap_or_else(|| panic!("capture missing"));
+        if let Some(lit) = pat.get(last..m.start()) {
+            regex.push_str(&regex::escape(lit));
+        }
+        match m.as_str() {
+            "{{" => regex.push_str(r"\{"),
+            "}}" => regex.push_str(r"\}"),
             _ => {
-                let ch_opt = bytes
-                    .get(i..)
-                    .and_then(|slice| std::str::from_utf8(slice).ok())
-                    .and_then(|s| s.chars().next());
-                if let Some(ch) = ch_opt {
-                    regex_source.push_str(&regex::escape(&ch.to_string()));
-                    ch.len_utf8()
-                } else {
-                    regex_source.push_str(&regex::escape(&(byte as char).to_string()));
-                    1
-                }
+                let ty = cap.get(2).map(|m| m.as_str());
+                regex.push('(');
+                regex.push_str(type_subpattern(ty));
+                regex.push(')');
             }
-        };
-        i += advance;
-    }
-    regex_source.push('$');
-    regex_source
-}
-
-/// Handle a backslash escape in a pattern.
-///
-/// Returns the number of bytes to advance the iterator.
-fn handle_escape_sequence(bytes: &[u8], i: usize, regex_source: &mut String) -> usize {
-    if let Some(next) = bytes.get(i + 1) {
-        if *next == b'{' || *next == b'}' {
-            regex_source.push_str(&regex::escape(&char::from(*next).to_string()));
-            2
-        } else {
-            regex_source.push_str("\\\\");
-            1
         }
-    } else {
-        regex_source.push_str("\\\\");
-        1
+        last = m.end();
     }
+    if let Some(tail) = pat.get(last..) {
+        regex.push_str(&regex::escape(tail));
+    }
+    regex.push('$');
+    regex
 }
 
-/// Handle an escape inside a brace-delimited placeholder.
-///
-/// Returns the number of bytes to advance the inner index.
-fn handle_escape_in_brace(bytes: &[u8], i: usize) -> usize {
-    if let Some(&next) = bytes.get(i + 1) {
-        if next == b'{' || next == b'}' { 2 } else { 1 }
-    } else {
-        1
-    }
-}
-
-/// Handle a brace placeholder, extracting any type hint.
-///
-/// Returns the number of bytes to advance the iterator.
-fn handle_brace_placeholder(
-    pattern: &str,
-    bytes: &[u8],
-    i: usize,
-    regex_source: &mut String,
-) -> usize {
-    let start = i + 1;
-    let mut depth = 1;
-    let mut j = start;
-    while let Some(&b) = bytes.get(j) {
-        match b {
-            b'\\' => j += handle_escape_in_brace(bytes, j),
-            b'{' => {
-                depth += 1;
-                j += 1;
-            }
-            b'}' => {
-                depth -= 1;
-                j += 1;
-                if depth == 0 {
-                    break;
-                }
-            }
-            _ => j += 1,
-        }
-    }
-    if depth != 0 {
-        regex_source.push_str(&regex::escape("{"));
-        1
-    } else {
-        let end = j - 1;
-        let inner = pattern.get(start..end);
-        let type_hint = inner.and_then(|s| s.split_once(':').map(|(_, t)| t));
-        regex_source.push_str(placeholder_regex(type_hint));
-        j - i
-    }
-}
-
-fn placeholder_regex(ty: Option<&str>) -> &'static str {
+fn type_subpattern(ty: Option<&str>) -> &'static str {
     match ty {
-        Some("u8" | "u16" | "u32" | "u64" | "u128" | "usize") => "(\\d+)",
-        Some("i8" | "i16" | "i32" | "i64" | "i128" | "isize") => "([+-]?\\d+)",
-        Some("f32" | "f64") => "([+-]?(?:\\d+\\.\\d+|\\d+))",
-        _ => "(.+?)",
+        Some("u8" | "u16" | "u32" | "u64" | "u128" | "usize") => r"\d+",
+        Some("i8" | "i16" | "i32" | "i64" | "i128" | "isize") => r"[+-]?\d+",
+        Some("f32" | "f64") => r"[+-]?(?:\d+\.\d+|\d+)",
+        _ => r".+?",
     }
 }
 
