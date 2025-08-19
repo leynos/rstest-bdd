@@ -55,7 +55,7 @@ macro_rules! step {
 
 inventory::collect!(Step);
 
-type StepKey = (StepKeyword, &'static str);
+type StepKey = (StepKeyword, &'static StepPattern);
 
 static STEP_MAP: LazyLock<HashMap<StepKey, StepFn>> = LazyLock::new(|| {
     let steps: Vec<_> = iter::<Step>.into_iter().collect();
@@ -69,7 +69,7 @@ static STEP_MAP: LazyLock<HashMap<StepKey, StepFn>> = LazyLock::new(|| {
                 step.line
             )
         });
-        map.insert((step.keyword, step.pattern.as_str()), step.run);
+        map.insert((step.keyword, step.pattern), step.run);
     }
     map
 });
@@ -77,7 +77,12 @@ static STEP_MAP: LazyLock<HashMap<StepKey, StepFn>> = LazyLock::new(|| {
 /// Look up a registered step by keyword and pattern.
 #[must_use]
 pub fn lookup_step(keyword: StepKeyword, pattern: PatternStr<'_>) -> Option<StepFn> {
-    STEP_MAP.get(&(keyword, pattern.as_str())).copied()
+    // The map is keyed by StepPattern to support regex caching keyed by
+    // the pattern object. For lookup by text we compare on `as_str()`.
+    STEP_MAP
+        .iter()
+        .find(|((kw, pat), _)| *kw == keyword && pat.as_str() == pattern.as_str())
+        .map(|(_, f)| *f)
 }
 
 /// Find a registered step whose pattern matches the provided text.

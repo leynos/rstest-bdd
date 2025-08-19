@@ -3,6 +3,7 @@
 //! literal that compiles lazily to a regular expression.
 
 use regex::Regex;
+use std::hash::{Hash, Hasher};
 use std::sync::OnceLock;
 
 /// Pattern text used to match a step at runtime.
@@ -10,6 +11,19 @@ use std::sync::OnceLock;
 pub struct StepPattern {
     text: &'static str,
     pub(crate) regex: OnceLock<Regex>,
+}
+
+// Equality and hashing are by the underlying literal text. This allows
+// `&'static StepPattern` to be used as a stable map key while keeping
+// semantics intuitive and independent of allocation identity.
+impl PartialEq for StepPattern {
+    fn eq(&self, other: &Self) -> bool { self.text == other.text }
+}
+
+impl Eq for StepPattern {}
+
+impl Hash for StepPattern {
+    fn hash<H: Hasher>(&self, state: &mut H) { self.text.hash(state); }
 }
 
 impl StepPattern {

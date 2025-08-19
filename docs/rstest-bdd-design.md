@@ -493,7 +493,7 @@ classDiagram
     Step --> StepKeyword : keyword
     Step --> StepFn : run
     class STEP_MAP {
-        + (StepKeyword, &'static str) => StepFn
+        + (StepKeyword, &'static StepPattern) => StepFn
     }
     StepPattern : +as_str(&self) -> &'static str
     STEP_MAP --> StepFn : maps to
