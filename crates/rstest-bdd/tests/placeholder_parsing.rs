@@ -1,6 +1,6 @@
 //! Tests for placeholder extraction logic.
 
-use rstest_bdd::{StepPattern, StepText, extract_placeholders};
+use rstest_bdd::{StepPattern, StepPatternCompileError, StepText, extract_placeholders};
 
 #[test]
 fn type_hint_uses_specialised_fragment() {
@@ -86,12 +86,11 @@ fn handles_nested_braces() {
 }
 
 #[test]
-fn unbalanced_braces_are_literals() {
+fn unbalanced_braces_return_error() {
     let pat = StepPattern::from("before {outer {inner} after");
-    pat.compile()
-        .unwrap_or_else(|e| panic!("Failed to compile pattern: {e}"));
+    let result = pat.compile();
     assert!(
-        extract_placeholders(&pat, StepText::from("before value after")).is_none(),
-        "text without literal brace should not match",
+        matches!(result, Err(StepPatternCompileError::UnbalancedBraces)),
+        "unbalanced braces should return error",
     );
 }

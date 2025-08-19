@@ -106,6 +106,17 @@ impl StepKeyword {
 #[error("invalid step keyword: {0}")]
 pub struct StepKeywordParseError(pub String);
 
+/// Error encountered when compiling a [`StepPattern`].
+#[derive(Debug, thiserror::Error)]
+pub enum StepPatternCompileError {
+    /// The pattern contained an opening brace without a matching closing brace.
+    #[error("unbalanced braces in step pattern")]
+    UnbalancedBraces,
+    /// The generated regular expression was invalid.
+    #[error(transparent)]
+    Regex(#[from] regex::Error),
+}
+
 impl FromStr for StepKeyword {
     type Err = StepKeywordParseError;
 
@@ -165,10 +176,10 @@ impl StepPattern {
     ///
     /// # Errors
     ///
-    /// Returns an error if the pattern cannot be converted into a valid
-    /// regular expression.
-    pub fn compile(&self) -> Result<(), regex::Error> {
-        let src = build_regex_from_pattern(self.text);
+    /// Returns an error if the pattern contains unbalanced braces or
+    /// cannot be converted into a valid regular expression.
+    pub fn compile(&self) -> Result<(), StepPatternCompileError> {
+        let src = build_regex_from_pattern(self.text)?;
         let regex = Regex::new(&src)?;
         // Ignore result if already set; duplicate registration is benign.
         let _ = self.regex.set(regex);
@@ -234,21 +245,22 @@ impl<'a> StepContext<'a> {
 ///
 /// The pattern supports `format!`-style placeholders such as `{count:u32}`.
 /// Literal braces may be escaped with `\{` or `\}`. Nested braces within
-/// placeholders are honoured, preventing greedy captures. The returned vector
-/// contains the raw substring for each placeholder in order of appearance.
+/// placeholders are honoured, preventing greedy captures, and unbalanced
+/// braces are rejected during compilation. The returned vector contains the
+/// raw substring for each placeholder in order of appearance.
 #[must_use]
 pub fn extract_placeholders(pattern: &StepPattern, text: StepText<'_>) -> Option<Vec<String>> {
     extract_captured_values(pattern.regex(), text.as_str())
 }
 
-fn build_regex_from_pattern(pattern: &str) -> String {
+fn build_regex_from_pattern(pattern: &str) -> Result<String, StepPatternCompileError> {
     let mut regex_source = String::from("^");
     let bytes = pattern.as_bytes();
     let mut i = 0;
     while let Some(&byte) = bytes.get(i) {
         let advance = match byte {
             b'\\' => handle_escape_sequence(bytes, i, &mut regex_source),
-            b'{' => handle_brace_placeholder(pattern, bytes, i, &mut regex_source),
+            b'{' => handle_brace_placeholder(pattern, bytes, i, &mut regex_source)?,
             _ => {
                 let ch_opt = bytes
                     .get(i..)
@@ -266,7 +278,7 @@ fn build_regex_from_pattern(pattern: &str) -> String {
         i += advance;
     }
     regex_source.push('$');
-    regex_source
+    Ok(regex_source)
 }
 
 /// Handle a backslash escape in a pattern.
@@ -306,7 +318,7 @@ fn handle_brace_placeholder(
     bytes: &[u8],
     i: usize,
     regex_source: &mut String,
-) -> usize {
+) -> Result<usize, StepPatternCompileError> {
     let start = i + 1;
     let mut depth = 1;
     let mut j = start;
@@ -328,15 +340,13 @@ fn handle_brace_placeholder(
         }
     }
     if depth != 0 {
-        regex_source.push_str(&regex::escape("{"));
-        1
-    } else {
-        let end = j - 1;
-        let inner = pattern.get(start..end);
-        let type_hint = inner.and_then(|s| s.split_once(':').map(|(_, t)| t));
-        regex_source.push_str(placeholder_regex(type_hint));
-        j - i
+        return Err(StepPatternCompileError::UnbalancedBraces);
     }
+    let end = j - 1;
+    let inner = pattern.get(start..end);
+    let type_hint = inner.and_then(|s| s.split_once(':').map(|(_, t)| t));
+    regex_source.push_str(placeholder_regex(type_hint));
+    Ok(j - i)
 }
 
 fn placeholder_regex(ty: Option<&str>) -> &'static str {
