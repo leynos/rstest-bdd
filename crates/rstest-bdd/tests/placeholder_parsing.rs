@@ -125,3 +125,18 @@ fn escaped_and_placeholder_adjacent() {
     };
     assert_eq!(caps, vec!["data"]);
 }
+
+#[test]
+fn nested_brace_in_placeholder_is_literal() {
+    let pat = StepPattern::from("{outer:{inner}}");
+    pat.compile()
+        .unwrap_or_else(|e| panic!("Failed to compile pattern: {e}"));
+    assert!(
+        extract_placeholders(&pat, StepText::from("value}")).is_some(),
+        "trailing brace should be matched literally",
+    );
+    assert!(
+        extract_placeholders(&pat, StepText::from("value")).is_none(),
+        "missing closing brace should not match",
+    );
+}
