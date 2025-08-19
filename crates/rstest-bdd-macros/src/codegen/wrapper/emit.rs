@@ -159,7 +159,7 @@ fn generate_argument_processing(
         .iter()
         .enumerate()
         .map(|(idx, _)| {
-            let index = syn::Index::from(idx + 1); // skip full match at index 0
+            let index = syn::Index::from(idx);
             quote! { captures.get(#index).map(|m| m.as_str()) }
         })
         .collect();
@@ -237,14 +237,15 @@ fn assemble_wrapper_function(
         ) -> Result<(), String> {
             use std::panic::{catch_unwind, AssertUnwindSafe};
 
-            let captures = #pattern_ident
-                .regex()
-                .captures(text)
-                .ok_or_else(|| format!(
-                    "Step text '{}' does not match pattern '{}'",
-                    text,
-                    #pattern
-                ))?;
+            let captures = rstest_bdd::extract_placeholders(&#pattern_ident, text.into())
+                .ok_or("pattern mismatch")
+                .map_err(|_| {
+                    format!(
+                        "Step text '{}' does not match pattern '{}'",
+                        text,
+                        #pattern
+                    )
+                })?;
 
             #(#declares)*
             #(#step_arg_parses)*
