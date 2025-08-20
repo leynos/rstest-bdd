@@ -254,41 +254,15 @@ fn build_regex_from_pattern(pat: &str) -> String {
     // treated literally rather than as placeholders.
     let ph_re = &PLACEHOLDER_RE;
     let mut regex = String::from("^");
-    let mut last = 0;
+    let mut last = 0usize;
     let mut depth = 0i32;
     for cap in ph_re.captures_iter(pat) {
         let m = cap.get(0).unwrap_or_else(|| panic!("capture missing"));
         if let Some(lit) = pat.get(last..m.start()) {
-            for ch in lit.chars() {
-                match ch {
-                    '{' => depth += 1,
-                    '}' => depth -= 1,
-                    _ => {}
-                }
-            }
-            regex.push_str(&regex::escape(lit));
+            process_literal_segment(lit, &mut depth, &mut regex);
         }
-        if depth == 0 {
-            match m.as_str() {
-                "{{" => regex.push_str(r"\{"),
-                "}}" => regex.push_str(r"\}"),
-                _ => {
-                    let ty = cap.get(2).map(|m| m.as_str().trim());
-                    regex.push('(');
-                    regex.push_str(type_subpattern(ty));
-                    regex.push(')');
-                }
-            }
-        } else {
-            for ch in m.as_str().chars() {
-                match ch {
-                    '{' => depth += 1,
-                    '}' => depth -= 1,
-                    _ => {}
-                }
-            }
-            regex.push_str(&regex::escape(m.as_str()));
-        }
+        let ty = cap.get(2).map(|m| m.as_str().trim());
+        depth += process_match(m.as_str(), ty, depth, &mut regex);
         last = m.end();
     }
     if let Some(tail) = pat.get(last..) {
@@ -296,6 +270,64 @@ fn build_regex_from_pattern(pat: &str) -> String {
     }
     regex.push('$');
     regex
+}
+
+/// Escape a literal fragment and update the brace depth counter.
+///
+/// # Examples
+///
+/// ```ignore
+/// let mut depth = 0;
+/// let mut regex = String::new();
+/// process_literal_segment("{a", &mut depth, &mut regex);
+/// assert_eq!(depth, 1);
+/// assert_eq!(regex, r"\{a");
+/// ```
+fn process_literal_segment(lit: &str, depth: &mut i32, regex: &mut String) {
+    for ch in lit.chars() {
+        match ch {
+            '{' => *depth += 1,
+            '}' => *depth -= 1,
+            _ => {}
+        }
+    }
+    regex.push_str(&regex::escape(lit));
+}
+
+/// Handle a placeholder or escaped brace match, returning the net depth change.
+///
+/// # Examples
+///
+/// ```ignore
+/// let mut regex = String::new();
+/// let delta = process_match("{{", None, 0, &mut regex);
+/// assert_eq!(delta, 0);
+/// assert_eq!(regex, r"\\{");
+/// ```
+fn process_match(m: &str, ty: Option<&str>, depth: i32, regex: &mut String) -> i32 {
+    if depth == 0 {
+        match m {
+            "{{" => regex.push_str(r"\{"),
+            "}}" => regex.push_str(r"\}"),
+            _ => {
+                regex.push('(');
+                regex.push_str(type_subpattern(ty));
+                regex.push(')');
+            }
+        }
+        0
+    } else {
+        let mut delta = 0;
+        for ch in m.chars() {
+            match ch {
+                '{' => delta += 1,
+                '}' => delta -= 1,
+                _ => {}
+            }
+        }
+        regex.push_str(&regex::escape(m));
+        delta
+    }
 }
 
 fn type_subpattern(ty: Option<&str>) -> &'static str {
