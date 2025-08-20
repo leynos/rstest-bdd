@@ -355,6 +355,8 @@ pub(crate) fn generate_wrapper_code(config: &WrapperConfig<'_>) -> TokenStream2 
 
 #[cfg(test)]
 mod tests {
+    //! Tests for wrapper code generation helpers.
+
     use super::generate_wrapper_identifiers;
     use quote::format_ident;
     use syn::parse_str;

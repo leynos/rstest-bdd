@@ -8,6 +8,7 @@ fn step_macros_compile() {
     // `scenarios!` should succeed when the directory exists.
     // t.pass("tests/fixtures/scenarios_autodiscovery.rs");
     t.compile_fail("tests/fixtures/scenario_missing_file.rs");
+    t.compile_fail("tests/fixtures/step_macros_invalid_identifier.rs");
     t.compile_fail("tests/fixtures/step_tuple_pattern.rs");
     t.compile_fail("tests/fixtures/step_struct_pattern.rs");
     t.compile_fail("tests/fixtures/step_nested_pattern.rs");
