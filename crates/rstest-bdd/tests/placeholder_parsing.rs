@@ -94,3 +94,16 @@ fn unbalanced_braces_return_error() {
         "unbalanced braces should return error",
     );
 }
+
+#[test]
+fn stray_closing_brace_is_literal() {
+    // A closing brace outside a placeholder is treated literally.
+    let pat = StepPattern::from("has a closing brace } here");
+    pat.compile()
+        .unwrap_or_else(|e| panic!("compile failed: {e}"));
+    let text = StepText::from("has a closing brace } here");
+    assert!(
+        extract_placeholders(&pat, text).is_some(),
+        "stray closing brace should be treated as literal",
+    );
+}

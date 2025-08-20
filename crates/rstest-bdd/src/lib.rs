@@ -1,6 +1,7 @@
 //! Core library for `rstest-bdd`.
 //! This crate exposes helper utilities used by behaviour tests. It also defines
-//! the global step registry used to orchestrate behaviour-driven tests.
+//! the global step registry used to orchestrate behaviour-driven tests and
+//! validates step patterns at compile time.
 
 /// Returns a greeting for the library.
 ///

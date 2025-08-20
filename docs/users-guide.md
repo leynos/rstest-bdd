@@ -223,10 +223,10 @@ Best practices for writing effective scenarios include:
 
 - **Use placeholders for dynamic values.** Pattern strings may include
 `format!`-style placeholders such as `{count:u32}`. Type hints narrow the
-match. Numeric hints support all Rust primitives (`u8..u128`, `i8..i128`,
-`usize`, `isize`, `f32`, `f64`). Escape literal braces with `\\{` and `\\}`.
-Nested braces inside placeholders are permitted, but unbalanced braces cause a
-compile-time error. When no placeholder is present, the text must match exactly.
+match. Numeric hints support all Rust primitives (u8–u128, i8–i128, usize,
+isize, f32, f64). Escape literal braces with `\\{` and `\\}`. Nested braces
+inside placeholders are permitted, but unbalanced braces cause a compile-time
+error. When no placeholder is present, the text must match exactly.
 
 ## Data tables and Doc Strings
 
