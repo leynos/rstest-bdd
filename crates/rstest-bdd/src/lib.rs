@@ -27,7 +27,7 @@ use std::sync::{LazyLock, OnceLock};
 // Compile once: used by `build_regex_from_pattern` for splitting pattern text.
 static PLACEHOLDER_RE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"\{\{|}}|\{([A-Za-z_][A-Za-z0-9_]*)(?::([^}]+))?\}")
-        .unwrap_or_else(|e| panic!("invalid placeholder regex: {e}"))
+        .expect("invalid placeholder regex")
 });
 
 /// Wrapper for step pattern strings used in matching logic
@@ -263,6 +263,7 @@ fn build_regex_from_pattern(pat: &str) -> String {
         }
         let ty = cap.get(2).map(|m| m.as_str().trim());
         depth += process_match(m.as_str(), ty, depth, &mut regex);
+        depth = depth.max(0);
         last = m.end();
     }
     if let Some(tail) = pat.get(last..) {
