@@ -1,5 +1,6 @@
 //! Tests for placeholder extraction logic.
 
+use rstest::rstest;
 use rstest_bdd::{StepPattern, StepText, extract_placeholders};
 
 #[test]
@@ -67,28 +68,23 @@ fn type_hint_uses_specialised_fragment() {
     }
 }
 
-#[test]
-fn handles_escaped_braces() {
-    let pat = StepPattern::from("literal {{ brace {v} }}");
+#[rstest]
+#[case("literal {{ brace {v} }}", "literal { brace data }", Some(vec!["data"]))]
+#[case("brace: {{}}", "brace: {}", Some(vec![]))]
+#[case("{{{{}}}}", "{{}}", Some(vec![]))]
+#[case("{{{v}}}", "{data}", Some(vec!["data"]))]
+fn test_brace_escaping_scenarios(
+    #[case] pattern: &'static str,
+    #[case] input: &'static str,
+    #[case] expected: Option<Vec<&'static str>>,
+) {
+    // Scenarios ensure escaped braces are literal and placeholders still match.
+    let pat = StepPattern::from(pattern);
     pat.compile()
         .unwrap_or_else(|e| panic!("Failed to compile pattern: {e}"));
-    let text = StepText::from("literal { brace data }");
-    let Some(caps) = extract_placeholders(&pat, text) else {
-        panic!("match expected");
-    };
-    assert_eq!(caps, vec!["data"]);
-}
-
-#[test]
-fn double_braces_without_placeholders() {
-    let pat = StepPattern::from("brace: {{}}");
-    pat.compile()
-        .unwrap_or_else(|e| panic!("Failed to compile pattern: {e}"));
-    let text = StepText::from("brace: {}");
-    let Some(caps) = extract_placeholders(&pat, text) else {
-        panic!("match expected");
-    };
-    assert!(caps.is_empty());
+    let caps = extract_placeholders(&pat, StepText::from(input));
+    let expected_owned = expected.map(|v| v.into_iter().map(String::from).collect::<Vec<_>>());
+    assert_eq!(caps, expected_owned);
 }
 
 #[test]
@@ -100,30 +96,6 @@ fn unbalanced_braces_are_literals() {
         extract_placeholders(&pat, StepText::from("before value after")).is_none(),
         "text without literal brace should not match",
     );
-}
-
-#[test]
-fn consecutive_escaped_braces() {
-    let pat = StepPattern::from("{{{{}}}}");
-    pat.compile()
-        .unwrap_or_else(|e| panic!("Failed to compile pattern: {e}"));
-    let text = StepText::from("{{}}");
-    let Some(caps) = extract_placeholders(&pat, text) else {
-        panic!("match expected");
-    };
-    assert!(caps.is_empty());
-}
-
-#[test]
-fn escaped_and_placeholder_adjacent() {
-    let pat = StepPattern::from("{{{v}}}");
-    pat.compile()
-        .unwrap_or_else(|e| panic!("Failed to compile pattern: {e}"));
-    let text = StepText::from("{data}");
-    let Some(caps) = extract_placeholders(&pat, text) else {
-        panic!("match expected");
-    };
-    assert_eq!(caps, vec!["data"]);
 }
 
 #[test]
