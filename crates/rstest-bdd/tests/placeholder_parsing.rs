@@ -3,12 +3,17 @@
 use rstest::rstest;
 use rstest_bdd::{StepPattern, StepText, extract_placeholders};
 
+fn compiled(pattern: &'static str) -> StepPattern {
+    let pat = StepPattern::from(pattern);
+    pat.compile()
+        .unwrap_or_else(|e| panic!("failed to compile pattern: {e}"));
+    pat
+}
+
 #[test]
 fn type_hint_uses_specialised_fragment() {
     // u32: positive integer
-    let pat = StepPattern::from("value {n:u32}");
-    pat.compile()
-        .unwrap_or_else(|e| panic!("Failed to compile pattern: {e}"));
+    let pat = compiled("value {n:u32}");
     let text = StepText::from("value 42");
     let Some(caps) = extract_placeholders(&pat, text) else {
         panic!("match expected for u32");
@@ -20,9 +25,7 @@ fn type_hint_uses_specialised_fragment() {
     );
 
     // i32: negative integer
-    let pat = StepPattern::from("value {n:i32}");
-    pat.compile()
-        .unwrap_or_else(|e| panic!("Failed to compile pattern: {e}"));
+    let pat = compiled("value {n:i32}");
     let text = StepText::from("value -42");
     let Some(caps) = extract_placeholders(&pat, text) else {
         panic!("match expected for negative i32");
@@ -34,9 +37,7 @@ fn type_hint_uses_specialised_fragment() {
     );
 
     // isize: negative integer
-    let pat = StepPattern::from("value {n:isize}");
-    pat.compile()
-        .unwrap_or_else(|e| panic!("Failed to compile pattern: {e}"));
+    let pat = compiled("value {n:isize}");
     let text = StepText::from("value -7");
     let Some(caps) = extract_placeholders(&pat, text) else {
         panic!("match expected for negative isize");
@@ -44,9 +45,7 @@ fn type_hint_uses_specialised_fragment() {
     assert_eq!(caps, vec!["-7"]);
 
     // f64: floating point
-    let pat = StepPattern::from("value {n:f64}");
-    pat.compile()
-        .unwrap_or_else(|e| panic!("Failed to compile pattern: {e}"));
+    let pat = compiled("value {n:f64}");
     let text = StepText::from("value 2.71828");
     let Some(caps) = extract_placeholders(&pat, text) else {
         panic!("match expected for f64");
@@ -60,10 +59,17 @@ fn type_hint_uses_specialised_fragment() {
         extract_placeholders(&pat, StepText::from("value -0.001")).is_some(),
         "negative float should match f64",
     );
-    for text in ["value .5", "value 42.", "value 1e3", "value -1E-9"] {
+    for sample in [
+        "value .5",
+        "value 42.",
+        "value 1e3",
+        "value -1E-9",
+        "value -.5",
+        "value +3.0",
+    ] {
         assert!(
-            extract_placeholders(&pat, StepText::from(text)).is_some(),
-            "{text} should match f64",
+            extract_placeholders(&pat, StepText::from(sample)).is_some(),
+            "{sample} should match f64",
         );
     }
 }
@@ -79,9 +85,7 @@ fn test_brace_escaping_scenarios(
     #[case] expected: Option<Vec<&'static str>>,
 ) {
     // Scenarios ensure escaped braces are literal and placeholders still match.
-    let pat = StepPattern::from(pattern);
-    pat.compile()
-        .unwrap_or_else(|e| panic!("Failed to compile pattern: {e}"));
+    let pat = compiled(pattern);
     let caps = extract_placeholders(&pat, StepText::from(input));
     let expected_owned = expected.map(|v| v.into_iter().map(String::from).collect::<Vec<_>>());
     assert_eq!(caps, expected_owned);
@@ -89,20 +93,19 @@ fn test_brace_escaping_scenarios(
 
 #[test]
 fn unbalanced_braces_are_literals() {
-    let pat = StepPattern::from("before {outer {inner} after");
-    pat.compile()
-        .unwrap_or_else(|e| panic!("Failed to compile pattern: {e}"));
+    let pat = compiled("before {outer {inner} after");
     assert!(
         extract_placeholders(&pat, StepText::from("before value after")).is_none(),
         "text without literal brace should not match",
     );
+    let caps = extract_placeholders(&pat, StepText::from("before {outer {inner} after"))
+        .unwrap_or_else(|| panic!("literal braces should match exactly"));
+    assert!(caps.is_empty(), "no placeholders expected");
 }
 
 #[test]
 fn nested_brace_in_placeholder_is_literal() {
-    let pat = StepPattern::from("{outer:{inner}}");
-    pat.compile()
-        .unwrap_or_else(|e| panic!("Failed to compile pattern: {e}"));
+    let pat = compiled("{outer:{inner}}");
     assert!(
         extract_placeholders(&pat, StepText::from("value}")).is_some(),
         "trailing brace should be matched literally",

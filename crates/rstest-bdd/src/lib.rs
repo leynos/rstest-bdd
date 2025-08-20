@@ -249,25 +249,45 @@ pub fn extract_placeholders(pattern: &StepPattern, text: StepText<'_>) -> Option
 }
 
 fn build_regex_from_pattern(pat: &str) -> String {
-    // Split the pattern into literal fragments and placeholders. The regex
-    // matches doubled braces or a `{name[:type]}` placeholder.
+    // Split the pattern into literal fragments and placeholders. A small depth
+    // counter ensures that an unmatched `{` causes subsequent braces to be
+    // treated literally rather than as placeholders.
     let ph_re = &PLACEHOLDER_RE;
     let mut regex = String::from("^");
     let mut last = 0;
+    let mut depth = 0i32;
     for cap in ph_re.captures_iter(pat) {
         let m = cap.get(0).unwrap_or_else(|| panic!("capture missing"));
         if let Some(lit) = pat.get(last..m.start()) {
+            for ch in lit.chars() {
+                match ch {
+                    '{' => depth += 1,
+                    '}' => depth -= 1,
+                    _ => {}
+                }
+            }
             regex.push_str(&regex::escape(lit));
         }
-        match m.as_str() {
-            "{{" => regex.push_str(r"\{"),
-            "}}" => regex.push_str(r"\}"),
-            _ => {
-                let ty = cap.get(2).map(|m| m.as_str());
-                regex.push('(');
-                regex.push_str(type_subpattern(ty));
-                regex.push(')');
+        if depth == 0 {
+            match m.as_str() {
+                "{{" => regex.push_str(r"\{"),
+                "}}" => regex.push_str(r"\}"),
+                _ => {
+                    let ty = cap.get(2).map(|m| m.as_str().trim());
+                    regex.push('(');
+                    regex.push_str(type_subpattern(ty));
+                    regex.push(')');
+                }
             }
+        } else {
+            for ch in m.as_str().chars() {
+                match ch {
+                    '{' => depth += 1,
+                    '}' => depth -= 1,
+                    _ => {}
+                }
+            }
+            regex.push_str(&regex::escape(m.as_str()));
         }
         last = m.end();
     }
