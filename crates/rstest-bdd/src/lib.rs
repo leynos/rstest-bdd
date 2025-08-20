@@ -302,32 +302,60 @@ fn process_literal_segment(lit: &str, depth: &mut i32, regex: &mut String) {
 /// let mut regex = String::new();
 /// let delta = process_match("{{", None, 0, &mut regex);
 /// assert_eq!(delta, 0);
-/// assert_eq!(regex, r"\\{");
+/// assert_eq!(regex, r"\{");
 /// ```
 fn process_match(m: &str, ty: Option<&str>, depth: i32, regex: &mut String) -> i32 {
     if depth == 0 {
-        match m {
-            "{{" => regex.push_str(r"\{"),
-            "}}" => regex.push_str(r"\}"),
-            _ => {
-                regex.push('(');
-                regex.push_str(type_subpattern(ty));
-                regex.push(')');
-            }
-        }
-        0
+        process_at_root_depth(m, ty, regex)
     } else {
-        let mut delta = 0;
-        for ch in m.chars() {
-            match ch {
-                '{' => delta += 1,
-                '}' => delta -= 1,
-                _ => {}
-            }
-        }
-        regex.push_str(&regex::escape(m));
-        delta
+        process_at_nested_depth(m, regex)
     }
+}
+
+/// Process a match when not inside an unmatched opening brace.
+///
+/// # Examples
+///
+/// ```ignore
+/// let mut regex = String::new();
+/// let delta = process_at_root_depth("{{", None, &mut regex);
+/// assert_eq!(delta, 0);
+/// assert_eq!(regex, r"\{");
+/// ```
+fn process_at_root_depth(m: &str, ty: Option<&str>, regex: &mut String) -> i32 {
+    match m {
+        "{{" => regex.push_str(r"\{"),
+        "}}" => regex.push_str(r"\}"),
+        _ => {
+            regex.push('(');
+            regex.push_str(type_subpattern(ty));
+            regex.push(')');
+        }
+    }
+    0
+}
+
+/// Process a match occurring inside unmatched braces, updating depth.
+///
+/// # Examples
+///
+/// ```ignore
+/// let mut regex = String::new();
+/// let delta = process_at_nested_depth("{{", &mut regex);
+/// assert_eq!(delta, 2);
+/// assert_eq!(regex, r"\{\{");
+/// ```
+fn process_at_nested_depth(m: &str, regex: &mut String) -> i32 {
+    let mut delta = 0;
+    for ch in m.chars() {
+        match ch {
+            '{' => delta += 1,
+            '}' => delta -= 1,
+            _ => {}
+        }
+    }
+    regex.push_str(&regex::escape(m));
+    delta
 }
 
 fn type_subpattern(ty: Option<&str>) -> &'static str {
