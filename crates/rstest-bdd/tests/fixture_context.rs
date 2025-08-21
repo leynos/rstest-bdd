@@ -24,8 +24,8 @@ step!(
 
 #[test]
 fn context_passes_fixture() {
-    let mut ctx = StepContext::default();
     let number = 42u32;
+    let mut ctx = StepContext::default();
     ctx.insert("number", &number);
     let step_fn = iter::<Step>
         .into_iter()

@@ -458,6 +458,9 @@ The [`StepPattern`](../crates/rstest-bdd/src/pattern.rs) wrapper encapsulates
 the pattern text so that step lookups cannot accidentally mix arbitrary strings
 with registered patterns. Each pattern is compiled into a regular expression
 when the step registry is initialised, surfacing invalid syntax immediately.
+The global registry stores `(StepKeyword, &'static StepPattern)` keys in a
+`hashbrown::HashMap` and uses the raw-entry API for constant-time lookups by
+hashing the pattern text directly.
 
 Placing the `Step` struct in the runtime crate avoids a circular dependency
 between the procedural macros and the library. The macros will simply re-export

@@ -6,8 +6,9 @@
 use crate::pattern::StepPattern;
 use crate::placeholder::extract_placeholders;
 use crate::types::{PatternStr, StepFn, StepKeyword, StepText};
+use hashbrown::HashMap;
 use inventory::iter;
-use std::collections::HashMap;
+use std::hash::{BuildHasher, Hash};
 use std::sync::LazyLock;
 
 /// Represents a single step definition registered with the framework.
@@ -77,12 +78,18 @@ static STEP_MAP: LazyLock<HashMap<StepKey, StepFn>> = LazyLock::new(|| {
 /// Look up a registered step by keyword and pattern.
 #[must_use]
 pub fn lookup_step(keyword: StepKeyword, pattern: PatternStr<'_>) -> Option<StepFn> {
-    // The map is keyed by StepPattern to support regex caching keyed by
-    // the pattern object. For lookup by text we compare on `as_str()`.
+    // Compute the hash as if the key were (keyword, pattern.as_str())
+    // because StepPattern hashing is by its inner text.
+    let build = STEP_MAP.hasher();
+    let mut state = build.build_hasher();
+    keyword.hash(&mut state);
+    pattern.as_str().hash(&mut state);
+    let hash = state.finish();
+
     STEP_MAP
-        .iter()
-        .find(|((kw, pat), _)| *kw == keyword && pat.as_str() == pattern.as_str())
-        .map(|(_, f)| *f)
+        .raw_entry()
+        .from_hash(hash, |(kw, pat)| *kw == keyword && pat.as_str() == pattern.as_str())
+        .map(|(_, &f)| f)
 }
 
 /// Find a registered step whose pattern matches the provided text.
