@@ -265,12 +265,12 @@ pub fn extract_placeholders(pattern: &StepPattern, text: StepText<'_>) -> Option
     extract_captured_values(pattern.regex(), text.as_str())
 }
 
-/// Update unmatched brace depth by scanning text.
+/// Update unmatched brace depth by scanning ASCII brace bytes.
 fn update_brace_depth(text: &str, mut depth: usize) -> usize {
-    for ch in text.chars() {
-        match ch {
-            '{' => depth = depth.saturating_add(1),
-            '}' => depth = depth.saturating_sub(1),
+    for b in text.bytes() {
+        match b {
+            b'{' => depth = depth.saturating_add(1),
+            b'}' => depth = depth.saturating_sub(1),
             _ => {}
         }
     }
@@ -289,13 +289,13 @@ fn get_type_pattern(type_hint: Option<&str>) -> &'static str {
     }
 }
 
-/// Append a match segment, handling placeholders or escaped braces.
+/// Append a match segment and return the updated unmatched brace depth.
 fn process_placeholder_match(
     match_text: &str,
     type_hint: Option<&str>,
     depth: usize,
     regex: &mut String,
-) {
+) -> usize {
     if depth == 0 {
         match match_text {
             "{{" => regex.push_str(r"\{"),
@@ -306,8 +306,11 @@ fn process_placeholder_match(
                 regex.push(')');
             }
         }
+        depth
     } else {
         regex.push_str(&regex::escape(match_text));
+        // Adjust depth for braces inside unmatched regions.
+        update_brace_depth(match_text, depth)
     }
 }
 
@@ -330,10 +333,7 @@ fn build_regex_from_pattern(pat: &str) -> String {
 
         let mat = m.as_str();
         let ty = cap.name("ty").map(|m| m.as_str().trim());
-        process_placeholder_match(mat, ty, depth, &mut regex);
-        if depth != 0 {
-            depth = update_brace_depth(mat, depth);
-        }
+        depth = process_placeholder_match(mat, ty, depth, &mut regex);
         last = m.end();
     }
     if let Some(tail) = pat.get(last..) {
