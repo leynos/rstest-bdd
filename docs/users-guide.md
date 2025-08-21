@@ -74,7 +74,10 @@ The annotation takes a single string literal that must match the text of the
 corresponding step in the feature file. Placeholders in the form `{name}` or
 `{name:Type}` are supported. The framework extracts matching substrings and
 converts them using `FromStr`; type hints constrain the match using specialised
-regular expressions.
+regular expressions. If the step text does not supply a capture for a declared
+argument, the wrapper panics with
+`pattern '<pattern>' missing capture for argument '<name>'`, making the
+mismatch explicit.
 
 The procedural macro implementation expands the annotated function into two
 parts: the original function and a wrapper function that registers the step in

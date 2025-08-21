@@ -993,7 +993,9 @@ step registry using `find_step`, which falls back to placeholder matching when
 no exact pattern is present. This approach keeps the macros lightweight while
 supporting type‑safe parameters in steps. The parser handles escaped braces and
 nested brace pairs, preventing greedy captures while still requiring
-well‑formed placeholders.
+well‑formed placeholders. When a placeholder lacks a corresponding capture in
+the step text, the wrapper panics with a descriptive error instead of falling
+back to a default value.
 
 The runner forwards the raw doc string as `Option<&str>` and the wrapper
 converts it into an owned `String` before invoking the step function. The
