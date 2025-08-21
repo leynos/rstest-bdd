@@ -323,13 +323,10 @@ fn build_regex_from_pattern(pat: &str) -> String {
     for cap in ph_re.captures_iter(pat) {
         #[expect(clippy::expect_used, reason = "placeholder regex guarantees a capture")]
         let m = cap.get(0).expect("placeholder capture missing");
-        #[expect(
-            clippy::expect_used,
-            reason = "placeholder regex guarantees UTF-8 bounds"
-        )]
-        let literal = pat.get(last..m.start()).expect("placeholder bounds");
-        regex.push_str(&regex::escape(literal));
-        depth = update_brace_depth(literal, depth);
+        if let Some(literal) = pat.get(last..m.start()) {
+            regex.push_str(&regex::escape(literal));
+            depth = update_brace_depth(literal, depth);
+        }
 
         let mat = m.as_str();
         let ty = cap.name("ty").map(|m| m.as_str().trim());
@@ -339,12 +336,9 @@ fn build_regex_from_pattern(pat: &str) -> String {
         }
         last = m.end();
     }
-    #[expect(
-        clippy::expect_used,
-        reason = "placeholder regex guarantees UTF-8 bounds"
-    )]
-    let tail = pat.get(last..).expect("placeholder bounds");
-    regex.push_str(&regex::escape(tail));
+    if let Some(tail) = pat.get(last..) {
+        regex.push_str(&regex::escape(tail));
+    }
     regex.push('$');
     regex
 }
