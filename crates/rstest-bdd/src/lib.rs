@@ -30,7 +30,7 @@ static PLACEHOLDER_RE: LazyLock<Regex> = LazyLock::new(|| {
         clippy::expect_used,
         reason = "pattern is verified; invalid regex indicates programmer error"
     )]
-    Regex::new(r"\{\{|\}\}|\{([A-Za-z_][A-Za-z0-9_]*)(?::([^}]+))?\}")
+    Regex::new(r"\{\{|\}\}|\{(?:[A-Za-z_][A-Za-z0-9_]*)(?::(?P<ty>[^}]+))?\}")
         .expect("invalid placeholder regex")
 });
 
@@ -279,18 +279,17 @@ fn build_regex_from_pattern(pat: &str) -> String {
         if let Some(lit) = pat.get(last..m.start()) {
             process_literal_segment(lit, &mut depth, &mut regex);
         }
-        let ty = cap.get(2).map(|m| m.as_str().trim());
+        let ty = cap.name("ty").map(|m| m.as_str().trim());
         let delta = process_match(m.as_str(), ty, depth, &mut regex);
         if delta >= 0 {
-            #[expect(clippy::expect_used, reason = "delta is non-negative")]
+            #[expect(clippy::cast_sign_loss, reason = "delta sign is checked")]
             {
-                depth =
-                    depth.saturating_add(usize::try_from(delta).expect("delta is non-negative"));
+                depth = depth.saturating_add(delta as usize);
             }
         } else {
-            #[expect(clippy::expect_used, reason = "delta is negative")]
+            #[expect(clippy::cast_sign_loss, reason = "delta sign is checked")]
             {
-                depth = depth.saturating_sub(usize::try_from(-delta).expect("delta is negative"));
+                depth = depth.saturating_sub((-delta) as usize);
             }
         }
         last = m.end();
@@ -316,7 +315,7 @@ fn build_regex_from_pattern(pat: &str) -> String {
 fn process_literal_segment(lit: &str, depth: &mut usize, regex: &mut String) {
     for ch in lit.chars() {
         match ch {
-            '{' => *depth += 1,
+            '{' => *depth = depth.saturating_add(1),
             '}' => *depth = depth.saturating_sub(1),
             _ => {}
         }
