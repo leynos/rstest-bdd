@@ -281,11 +281,16 @@ fn build_regex_from_pattern(pat: &str) -> String {
         }
         let ty = cap.get(2).map(|m| m.as_str().trim());
         let delta = process_match(m.as_str(), ty, depth, &mut regex);
-        let delta_u = delta.unsigned_abs() as usize;
         if delta >= 0 {
-            depth = depth.saturating_add(delta_u);
+            #[expect(clippy::expect_used, reason = "delta is non-negative")]
+            {
+                depth = depth.saturating_add(usize::try_from(delta).expect("delta is non-negative"));
+            }
         } else {
-            depth = depth.saturating_sub(delta_u);
+            #[expect(clippy::expect_used, reason = "delta is negative")]
+            {
+                depth = depth.saturating_sub(usize::try_from(-delta).expect("delta is negative"));
+            }
         }
         last = m.end();
     }
