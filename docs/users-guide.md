@@ -230,8 +230,9 @@ Best practices for writing effective scenarios include:
   `Infinity`. Matching is anchored: the entire step text must match the
   pattern; partial matches do not succeed. Escape literal braces with `{{` and
   `}}`. Nested braces inside placeholders are not supported. Placeholders
-  follow `{name[:type]}` with no whitespace around the colon (for example,
-  `{count:u32}`).
+  follow `{name[:type]}`; surrounding whitespace in the type hint is ignored
+  (for example, `{count:u32}` and `{count: u32}` are both accepted). Prefer the
+  compact form `{count:u32}` in new code.
 
 ## Data tables and Doc Strings
 

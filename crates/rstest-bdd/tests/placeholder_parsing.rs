@@ -3,10 +3,10 @@
 use rstest::rstest;
 use rstest_bdd::{StepPattern, StepText, extract_placeholders};
 
+#[expect(clippy::expect_used, reason = "test helper should fail loudly")]
 fn compiled(pattern: &'static str) -> StepPattern {
     let pat = StepPattern::from(pattern);
-    pat.compile()
-        .unwrap_or_else(|e| panic!("failed to compile pattern: {e}"));
+    pat.compile().expect("failed to compile pattern");
     pat
 }
 
@@ -101,8 +101,9 @@ fn unbalanced_braces_are_literals() {
         extract_placeholders(&pat, StepText::from("before value after")).is_none(),
         "text without literal brace should not match",
     );
+    #[expect(clippy::expect_used, reason = "test asserts exact match")]
     let caps = extract_placeholders(&pat, StepText::from("before {outer {inner} after"))
-        .unwrap_or_else(|| panic!("literal braces should match exactly"));
+        .expect("literal braces should match exactly");
     assert!(caps.is_empty(), "no placeholders expected");
 }
 
@@ -122,7 +123,8 @@ fn nested_brace_in_placeholder_is_literal() {
 #[test]
 fn stray_closing_brace_does_not_block_placeholders() {
     let pat = compiled("end} with {n:u32}");
+    #[expect(clippy::expect_used, reason = "test asserts placeholder match")]
     let caps = extract_placeholders(&pat, StepText::from("end} with 7"))
-        .unwrap_or_else(|| panic!("should match despite stray closing brace"));
+        .expect("should match despite stray closing brace");
     assert_eq!(caps, vec!["7"]);
 }

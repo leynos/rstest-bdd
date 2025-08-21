@@ -243,8 +243,9 @@ impl<'a> StepContext<'a> {
 /// Extract placeholder values from a step string using a pattern.
 ///
 /// The pattern supports `format!`-style placeholders such as `{count:u32}`.
-/// Placeholders follow `{name[:type]}` with no whitespace around the colon.
-/// Literal braces may be escaped by doubling them: `{{` or `}}`. Nested braces
+/// Placeholders follow `{name[:type]}`; any whitespace around the type hint is
+/// ignored, though the compact `{name:type}` form is preferred. Literal braces
+/// may be escaped by doubling them: `{{` or `}}`. Nested braces
 /// inside placeholders are not supported. The returned vector contains the raw
 /// substring for each placeholder in order of appearance. The entire step text
 /// must match the pattern; otherwise this returns `None`.
@@ -262,7 +263,8 @@ fn build_regex_from_pattern(pat: &str) -> String {
     let mut last = 0usize;
     let mut depth: usize = 0;
     for cap in ph_re.captures_iter(pat) {
-        let m = cap.get(0).unwrap_or_else(|| panic!("capture missing"));
+        #[expect(clippy::expect_used, reason = "placeholder regex guarantees a capture")]
+        let m = cap.get(0).expect("placeholder capture missing");
         if let Some(lit) = pat.get(last..m.start()) {
             process_literal_segment(lit, &mut depth, &mut regex);
         }
@@ -270,7 +272,7 @@ fn build_regex_from_pattern(pat: &str) -> String {
         let delta = process_match(m.as_str(), ty, depth, &mut regex);
         let delta_u = delta.unsigned_abs() as usize;
         if delta >= 0 {
-            depth += delta_u;
+            depth = depth.saturating_add(delta_u);
         } else {
             depth = depth.saturating_sub(delta_u);
         }
@@ -369,6 +371,14 @@ fn process_at_nested_depth(m: &str, regex: &mut String) -> i32 {
     delta
 }
 
+/// Return a regex fragment for a placeholder's type hint.
+///
+/// Type hints:
+/// - Integers (`u*`/`i*`): decimal digits with an optional sign for
+///   signed types.
+/// - Floats (`f32`/`f64`): integers, decimal forms with optional leading or
+///   trailing digits, optional scientific exponents, or `NaN`/`inf`/
+///   `Infinity` (case-insensitive).
 fn type_subpattern(ty: Option<&str>) -> &'static str {
     match ty {
         Some("u8" | "u16" | "u32" | "u64" | "u128" | "usize") => r"\d+",
