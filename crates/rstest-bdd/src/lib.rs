@@ -266,6 +266,7 @@ pub fn extract_placeholders(pattern: &StepPattern, text: StepText<'_>) -> Option
 }
 
 /// Update unmatched brace depth by scanning ASCII brace bytes.
+#[inline]
 fn update_brace_depth(text: &str, mut depth: usize) -> usize {
     for b in text.bytes() {
         match b {

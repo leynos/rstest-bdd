@@ -75,6 +75,15 @@ fn type_hint_uses_specialised_fragment() {
             "{sample} should match f64",
         );
     }
+
+    // f32: special float values
+    let pat = compiled("value {n:f32}");
+    for sample in ["value NaN", "value inf", "value Infinity"] {
+        assert!(
+            extract_placeholders(&pat, StepText::from(sample)).is_some(),
+            "{sample} should match f32",
+        );
+    }
 }
 
 #[rstest]
@@ -99,6 +108,13 @@ fn malformed_type_hint_is_literal() {
     assert!(
         extract_placeholders(&pat, StepText::from("value 123")).is_none(),
         "malformed type hint should not capture",
+    );
+
+    // Whitespace between the name and colon makes it a literal placeholder.
+    let pat2 = compiled("value {n : f64}");
+    assert!(
+        extract_placeholders(&pat2, StepText::from("value 1.0")).is_none(),
+        "whitespace before colon should make the placeholder literal",
     );
 }
 
