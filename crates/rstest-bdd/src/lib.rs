@@ -265,6 +265,52 @@ pub fn extract_placeholders(pattern: &StepPattern, text: StepText<'_>) -> Option
     extract_captured_values(pattern.regex(), text.as_str())
 }
 
+/// Update unmatched brace depth by scanning text.
+fn update_brace_depth(text: &str, mut depth: usize) -> usize {
+    for ch in text.chars() {
+        match ch {
+            '{' => depth = depth.saturating_add(1),
+            '}' => depth = depth.saturating_sub(1),
+            _ => {}
+        }
+    }
+    depth
+}
+
+/// Return the regex fragment for a placeholder type hint.
+fn get_type_pattern(type_hint: Option<&str>) -> &'static str {
+    match type_hint {
+        Some("u8" | "u16" | "u32" | "u64" | "u128" | "usize") => r"\d+",
+        Some("i8" | "i16" | "i32" | "i64" | "i128" | "isize") => r"[+-]?\d+",
+        Some("f32" | "f64") => {
+            r"(?i:(?:[+-]?(?:\d+\.\d*|\.\d+|\d+)(?:[eE][+-]?\d+)?|nan|inf|infinity))"
+        }
+        _ => r".+?",
+    }
+}
+
+/// Append a match segment, handling placeholders or escaped braces.
+fn process_placeholder_match(
+    match_text: &str,
+    type_hint: Option<&str>,
+    depth: usize,
+    regex: &mut String,
+) {
+    if depth == 0 {
+        match match_text {
+            "{{" => regex.push_str(r"\{"),
+            "}}" => regex.push_str(r"\}"),
+            _ => {
+                regex.push('(');
+                regex.push_str(get_type_pattern(type_hint));
+                regex.push(')');
+            }
+        }
+    } else {
+        regex.push_str(&regex::escape(match_text));
+    }
+}
+
 fn build_regex_from_pattern(pat: &str) -> String {
     // Precompiled regex splits the pattern into literal fragments and
     // placeholders. `depth` tracks unmatched opening braces so a stray `{`
@@ -282,42 +328,14 @@ fn build_regex_from_pattern(pat: &str) -> String {
             reason = "placeholder regex guarantees UTF-8 bounds"
         )]
         let literal = pat.get(last..m.start()).expect("placeholder bounds");
-        for ch in literal.chars() {
-            match ch {
-                '{' => depth = depth.saturating_add(1),
-                '}' => depth = depth.saturating_sub(1),
-                _ => {}
-            }
-        }
         regex.push_str(&regex::escape(literal));
+        depth = update_brace_depth(literal, depth);
+
         let mat = m.as_str();
-        if depth == 0 {
-            match mat {
-                "{{" => regex.push_str(r"\{"),
-                "}}" => regex.push_str(r"\}"),
-                _ => {
-                    let ty = cap.name("ty").map(|m| m.as_str().trim());
-                    regex.push('(');
-                    regex.push_str(match ty {
-                        Some("u8" | "u16" | "u32" | "u64" | "u128" | "usize") => r"\d+",
-                        Some("i8" | "i16" | "i32" | "i64" | "i128" | "isize") => r"[+-]?\d+",
-                        Some("f32" | "f64") => {
-                            r"(?i:(?:[+-]?(?:\d+\.\d*|\.\d+|\d+)(?:[eE][+-]?\d+)?|nan|inf|infinity))"
-                        }
-                        _ => r".+?",
-                    });
-                    regex.push(')');
-                }
-            }
-        } else {
-            regex.push_str(&regex::escape(mat));
-            for ch in mat.chars() {
-                match ch {
-                    '{' => depth = depth.saturating_add(1),
-                    '}' => depth = depth.saturating_sub(1),
-                    _ => {}
-                }
-            }
+        let ty = cap.name("ty").map(|m| m.as_str().trim());
+        process_placeholder_match(mat, ty, depth, &mut regex);
+        if depth != 0 {
+            depth = update_brace_depth(mat, depth);
         }
         last = m.end();
     }
