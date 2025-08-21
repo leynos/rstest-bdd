@@ -26,8 +26,12 @@ use std::sync::{LazyLock, OnceLock};
 
 // Compile once: used by `build_regex_from_pattern` for splitting pattern text.
 static PLACEHOLDER_RE: LazyLock<Regex> = LazyLock::new(|| {
+    #[expect(
+        clippy::expect_used,
+        reason = "pattern is verified; invalid regex indicates programmer error"
+    )]
     Regex::new(r"\{\{|\}\}|\{([A-Za-z_][A-Za-z0-9_]*)(?::([^}]+))?\}")
-        .unwrap_or_else(|e| panic!("invalid placeholder regex: {e}"))
+        .expect("invalid placeholder regex")
 });
 
 /// Wrapper for step pattern strings used in matching logic
