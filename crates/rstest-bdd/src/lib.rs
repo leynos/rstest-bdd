@@ -244,10 +244,11 @@ impl<'a> StepContext<'a> {
 ///
 /// The pattern supports `format!`-style placeholders such as `{count:u32}`.
 /// Placeholders follow `{name[:type]}`; `name` must start with a letter or
-/// underscore and may contain letters, digits, or underscores. Surrounding
-/// whitespace around the type hint is ignored, though the compact `{name:type}`
-/// form is preferred. Literal braces may be escaped by doubling them: `{{` or
-/// `}}`. Nested braces inside placeholders are not supported.
+/// underscore and may contain letters, digits, or underscores. Whitespace
+/// within the type hint is ignored (for example, `{n: f64}` and `{n:f64}` are
+/// equivalent), but whitespace is not allowed between the name and the colon.
+/// Literal braces may be escaped by doubling them: `{{` or `}}`. Nested braces
+/// inside placeholders are not supported.
 ///
 /// Type hints:
 /// - Integers (`u*`/`i*`): decimal digits with an optional sign for signed
