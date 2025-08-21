@@ -238,12 +238,12 @@ fn assemble_wrapper_function(
             use std::panic::{catch_unwind, AssertUnwindSafe};
 
             let captures = rstest_bdd::extract_placeholders(&#pattern_ident, text.into())
-                .ok_or("pattern mismatch")
-                .map_err(|_| {
+                .map_err(|e| {
                     format!(
-                        "Step text '{}' does not match pattern '{}'",
+                        "Step text '{}' does not match pattern '{}': {}",
                         text,
-                        #pattern
+                        #pattern,
+                        e
                     )
                 })?;
 

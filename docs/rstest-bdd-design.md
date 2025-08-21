@@ -987,13 +987,13 @@ signature. Any mismatch is reported during compilation rather than at runtime.
 The third phase introduces typed placeholders to step patterns. The runtime
 library exposes an `extract_placeholders` helper that converts a pattern with
 `{name:Type}` segments into a regular expression and returns the captured
-strings. Step wrapper functions parse these strings and convert them with
-`FromStr` before calling the original step. Scenario execution now searches the
-step registry using `find_step`, which falls back to placeholder matching when
-no exact pattern is present. This approach keeps the macros lightweight while
-supporting type‑safe parameters in steps. The parser handles escaped braces and
-nested brace pairs, preventing greedy captures while still requiring
-well‑formed placeholders.
+strings or a mismatch error. Step wrapper functions parse these strings and
+convert them with `FromStr` before calling the original step. Scenario
+execution now searches the step registry using `find_step`, which falls back to
+placeholder matching when no exact pattern is present. This approach keeps the
+macros lightweight while supporting type‑safe parameters in steps. The parser
+handles escaped braces and nested brace pairs, preventing greedy captures while
+still requiring well‑formed placeholders.
 
 The runner forwards the raw doc string as `Option<&str>` and the wrapper
 converts it into an owned `String` before invoking the step function. The

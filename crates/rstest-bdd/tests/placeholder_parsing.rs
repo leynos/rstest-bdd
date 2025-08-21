@@ -15,31 +15,31 @@ fn type_hint_uses_specialised_fragment() {
     // u32: positive integer
     let pat = compiled("value {n:u32}");
     let text = StepText::from("value 42");
-    let Some(caps) = extract_placeholders(&pat, text) else {
+    let Ok(caps) = extract_placeholders(&pat, text) else {
         panic!("match expected for u32");
     };
     assert_eq!(caps, vec!["42"]);
     assert!(
-        extract_placeholders(&pat, StepText::from("value none")).is_none(),
+        extract_placeholders(&pat, StepText::from("value none")).is_err(),
         "non-numeric text should not match u32",
     );
 
     // i32: negative integer
     let pat = compiled("value {n:i32}");
     let text = StepText::from("value -42");
-    let Some(caps) = extract_placeholders(&pat, text) else {
+    let Ok(caps) = extract_placeholders(&pat, text) else {
         panic!("match expected for negative i32");
     };
     assert_eq!(caps, vec!["-42"]);
     assert!(
-        extract_placeholders(&pat, StepText::from("value 42.5")).is_none(),
+        extract_placeholders(&pat, StepText::from("value 42.5")).is_err(),
         "float should not match i32",
     );
 
     // isize: negative integer
     let pat = compiled("value {n:isize}");
     let text = StepText::from("value -7");
-    let Some(caps) = extract_placeholders(&pat, text) else {
+    let Ok(caps) = extract_placeholders(&pat, text) else {
         panic!("match expected for negative isize");
     };
     assert_eq!(caps, vec!["-7"]);
@@ -47,16 +47,16 @@ fn type_hint_uses_specialised_fragment() {
     // f64: floating point
     let pat = compiled("value {n:f64}");
     let text = StepText::from("value 2.71828");
-    let Some(caps) = extract_placeholders(&pat, text) else {
+    let Ok(caps) = extract_placeholders(&pat, text) else {
         panic!("match expected for f64");
     };
     assert_eq!(caps, vec!["2.71828"]);
     assert!(
-        extract_placeholders(&pat, StepText::from("value none")).is_none(),
+        extract_placeholders(&pat, StepText::from("value none")).is_err(),
         "non-numeric text should not match f64",
     );
     assert!(
-        extract_placeholders(&pat, StepText::from("value -0.001")).is_some(),
+        extract_placeholders(&pat, StepText::from("value -0.001")).is_ok(),
         "negative float should match f64",
     );
     for sample in [
@@ -71,7 +71,7 @@ fn type_hint_uses_specialised_fragment() {
         "value Infinity",
     ] {
         assert!(
-            extract_placeholders(&pat, StepText::from(sample)).is_some(),
+            extract_placeholders(&pat, StepText::from(sample)).is_ok(),
             "{sample} should match f64",
         );
     }
@@ -80,7 +80,7 @@ fn type_hint_uses_specialised_fragment() {
     let pat = compiled("value {n:f32}");
     for sample in ["value NaN", "value inf", "value Infinity"] {
         assert!(
-            extract_placeholders(&pat, StepText::from(sample)).is_some(),
+            extract_placeholders(&pat, StepText::from(sample)).is_ok(),
             "{sample} should match f32",
         );
     }
@@ -106,16 +106,27 @@ fn malformed_type_hint_is_literal() {
     // Empty type hint is treated literally rather than as a placeholder.
     let pat = compiled("value {n:}");
     assert!(
-        extract_placeholders(&pat, StepText::from("value 123")).is_none(),
+        extract_placeholders(&pat, StepText::from("value 123")).is_err(),
         "malformed type hint should not capture",
     );
 
     // Whitespace between the name and colon makes it a literal placeholder.
     let pat2 = compiled("value {n : f64}");
     assert!(
-        extract_placeholders(&pat2, StepText::from("value 1.0")).is_none(),
+        extract_placeholders(&pat2, StepText::from("value 1.0")).is_err(),
         "whitespace before colon should make the placeholder literal",
     );
+}
+
+fn handles_escaped_braces() {
+    let pat = StepPattern::from(r"literal \{ brace {v} \}");
+    pat.compile()
+        .unwrap_or_else(|e| panic!("Failed to compile pattern: {e}"));
+    let text = StepText::from("literal { brace data }");
+    let Ok(caps) = extract_placeholders(&pat, text) else {
+        panic!("match expected");
+    };
+    assert_eq!(caps, vec!["data"]);
 }
 
 #[rstest]
@@ -130,16 +141,28 @@ fn test_brace_escaping_scenarios(
 ) {
     // Scenarios ensure escaped braces are literal and placeholders still match.
     let pat = compiled(pattern);
-    let caps = extract_placeholders(&pat, StepText::from(input));
+    let caps = extract_placeholders(&pat, StepText::from(input)).ok();
     let expected_owned = expected.map(|v| v.into_iter().map(String::from).collect::<Vec<_>>());
     assert_eq!(caps, expected_owned);
+}
+
+#[test]
+fn handles_nested_braces() {
+    let pat = StepPattern::from("before {outer {inner}} after");
+    pat.compile()
+        .unwrap_or_else(|e| panic!("Failed to compile pattern: {e}"));
+    let text = StepText::from("before value after");
+    let Ok(caps) = extract_placeholders(&pat, text) else {
+        panic!("match expected");
+    };
+    assert_eq!(caps, vec!["value"]);
 }
 
 #[test]
 fn unbalanced_braces_are_literals() {
     let pat = compiled("before {outer {inner} after");
     assert!(
-        extract_placeholders(&pat, StepText::from("before value after")).is_none(),
+        extract_placeholders(&pat, StepText::from("before value after")).is_err(),
         "text without literal brace should not match",
     );
     #[expect(clippy::expect_used, reason = "test asserts exact match")]
@@ -152,11 +175,11 @@ fn unbalanced_braces_are_literals() {
 fn nested_brace_in_placeholder_is_literal() {
     let pat = compiled("{outer:{inner}}");
     assert!(
-        extract_placeholders(&pat, StepText::from("value}")).is_some(),
+        extract_placeholders(&pat, StepText::from("value}")).is_ok(),
         "trailing brace should be matched literally",
     );
     assert!(
-        extract_placeholders(&pat, StepText::from("value")).is_none(),
+        extract_placeholders(&pat, StepText::from("value")).is_err(),
         "missing closing brace should not match",
     );
 }
@@ -174,7 +197,7 @@ fn stray_closing_brace_does_not_block_placeholders() {
 fn stray_opening_brace_blocks_placeholders() {
     let pat = compiled("start{ with {n:u32}");
     assert!(
-        extract_placeholders(&pat, StepText::from("start{ with 8")).is_none(),
+        extract_placeholders(&pat, StepText::from("start{ with 8")).is_err(),
         "placeholder should not match after stray opening brace",
     );
 }

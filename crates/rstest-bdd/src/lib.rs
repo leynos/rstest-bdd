@@ -23,6 +23,7 @@ use std::any::Any;
 use std::collections::HashMap;
 use std::str::FromStr;
 use std::sync::{LazyLock, OnceLock};
+use thiserror::Error;
 
 // Compile once: used by `build_regex_from_pattern` for splitting pattern text.
 static PLACEHOLDER_RE: LazyLock<Regex> = LazyLock::new(|| {
@@ -240,6 +241,14 @@ impl<'a> StepContext<'a> {
     }
 }
 
+/// Error conditions that may arise when extracting placeholders.
+#[derive(Debug, Error)]
+pub enum PlaceholderError {
+    /// The supplied text did not match the step pattern.
+    #[error("pattern mismatch")]
+    PatternMismatch,
+}
+
 /// Extract placeholder values from a step string using a pattern.
 ///
 /// The pattern supports `format!`-style placeholders such as `{count:u32}`.
@@ -257,12 +266,20 @@ impl<'a> StepContext<'a> {
 ///   digits, optional scientific exponents, or `NaN`/`inf`/`Infinity`
 ///   (case-insensitive).
 ///
-/// The returned vector contains the raw substring for each placeholder in order
-/// of appearance. The entire step text must match the pattern; otherwise this
-/// returns `None`.
-#[must_use]
-pub fn extract_placeholders(pattern: &StepPattern, text: StepText<'_>) -> Option<Vec<String>> {
+/// Literal braces may be escaped with `\{` or `\}`. Nested braces within
+/// placeholders are honoured, preventing greedy captures. The returned vector
+/// contains the raw substring for each placeholder in order of appearance.
+///
+/// # Errors
+/// Returns [`PlaceholderError::PatternMismatch`] if the text does not satisfy
+/// the pattern. The entire step text must match the pattern for a successful
+/// extraction.
+pub fn extract_placeholders(
+    pattern: &StepPattern,
+    text: StepText<'_>,
+) -> Result<Vec<String>, PlaceholderError> {
     extract_captured_values(pattern.regex(), text.as_str())
+        .ok_or(PlaceholderError::PatternMismatch)
 }
 
 /// Update unmatched brace depth by scanning ASCII brace bytes.
@@ -476,7 +493,7 @@ pub fn find_step(keyword: StepKeyword, text: StepText<'_>) -> Option<StepFn> {
         return Some(f);
     }
     for step in iter::<Step> {
-        if step.keyword == keyword && extract_placeholders(step.pattern, text).is_some() {
+        if step.keyword == keyword && extract_placeholders(step.pattern, text).is_ok() {
             return Some(step.run);
         }
     }
