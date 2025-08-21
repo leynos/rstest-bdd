@@ -66,6 +66,9 @@ fn type_hint_uses_specialised_fragment() {
         "value -1E-9",
         "value -.5",
         "value +3.0",
+        "value NaN",
+        "value inf",
+        "value Infinity",
     ] {
         assert!(
             extract_placeholders(&pat, StepText::from(sample)).is_some(),
@@ -114,4 +117,12 @@ fn nested_brace_in_placeholder_is_literal() {
         extract_placeholders(&pat, StepText::from("value")).is_none(),
         "missing closing brace should not match",
     );
+}
+
+#[test]
+fn stray_closing_brace_does_not_block_placeholders() {
+    let pat = compiled("end} with {n:u32}");
+    let caps = extract_placeholders(&pat, StepText::from("end} with 7"))
+        .unwrap_or_else(|| panic!("should match despite stray closing brace"));
+    assert_eq!(caps, vec!["7"]);
 }

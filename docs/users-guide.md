@@ -225,10 +225,13 @@ Best practices for writing effective scenarios include:
   `format!`-style placeholders such as `{count:u32}`. Type hints narrow the
   match. Numeric hints support all Rust primitives (`u8..u128`, `i8..i128`,
   `usize`, `isize`, `f32`, `f64`). Floating-point hints accept integers,
-  decimal forms with optional leading or trailing digits, and scientific
-  notation (for example, `1e3`, `-1E-9`). Escape literal braces with `{{` and
-  `}}`. Nested braces inside placeholders are not supported. When no
-  placeholder is present, the text must match exactly.
+  decimal forms with optional leading or trailing digits, scientific notation
+  (for example, `1e3`, `-1E-9`), and the special values `NaN`, `inf`, and
+  `Infinity`. Matching is anchored: the entire step text must match the
+  pattern; partial matches do not succeed. Escape literal braces with `{{` and
+  `}}`. Nested braces inside placeholders are not supported. Placeholders
+  follow `{name[:type]}` with no whitespace around the colon (for example,
+  `{count:u32}`).
 
 ## Data tables and Doc Strings
 

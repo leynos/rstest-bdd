@@ -26,8 +26,8 @@ use std::sync::{LazyLock, OnceLock};
 
 // Compile once: used by `build_regex_from_pattern` for splitting pattern text.
 static PLACEHOLDER_RE: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"\{\{|}}|\{([A-Za-z_][A-Za-z0-9_]*)(?::([^}]+))?\}")
-        .expect("invalid placeholder regex")
+    Regex::new(r"\{\{|\}\}|\{([A-Za-z_][A-Za-z0-9_]*)(?::([^}]+))?\}")
+        .unwrap_or_else(|e| panic!("invalid placeholder regex: {e}"))
 });
 
 /// Wrapper for step pattern strings used in matching logic
@@ -239,6 +239,7 @@ impl<'a> StepContext<'a> {
 /// Extract placeholder values from a step string using a pattern.
 ///
 /// The pattern supports `format!`-style placeholders such as `{count:u32}`.
+/// Placeholders follow `{name[:type]}` with no whitespace around the colon.
 /// Literal braces may be escaped by doubling them: `{{` or `}}`. Nested braces
 /// inside placeholders are not supported. The returned vector contains the raw
 /// substring for each placeholder in order of appearance. The entire step text
@@ -255,15 +256,20 @@ fn build_regex_from_pattern(pat: &str) -> String {
     let ph_re = &PLACEHOLDER_RE;
     let mut regex = String::from("^");
     let mut last = 0usize;
-    let mut depth = 0i32;
+    let mut depth: usize = 0;
     for cap in ph_re.captures_iter(pat) {
         let m = cap.get(0).unwrap_or_else(|| panic!("capture missing"));
         if let Some(lit) = pat.get(last..m.start()) {
             process_literal_segment(lit, &mut depth, &mut regex);
         }
         let ty = cap.get(2).map(|m| m.as_str().trim());
-        depth += process_match(m.as_str(), ty, depth, &mut regex);
-        depth = depth.max(0);
+        let delta = process_match(m.as_str(), ty, depth, &mut regex);
+        let delta_u = delta.unsigned_abs() as usize;
+        if delta >= 0 {
+            depth += delta_u;
+        } else {
+            depth = depth.saturating_sub(delta_u);
+        }
         last = m.end();
     }
     if let Some(tail) = pat.get(last..) {
@@ -284,11 +290,11 @@ fn build_regex_from_pattern(pat: &str) -> String {
 /// assert_eq!(depth, 1);
 /// assert_eq!(regex, r"\{a");
 /// ```
-fn process_literal_segment(lit: &str, depth: &mut i32, regex: &mut String) {
+fn process_literal_segment(lit: &str, depth: &mut usize, regex: &mut String) {
     for ch in lit.chars() {
         match ch {
             '{' => *depth += 1,
-            '}' => *depth -= 1,
+            '}' => *depth = depth.saturating_sub(1),
             _ => {}
         }
     }
@@ -305,7 +311,7 @@ fn process_literal_segment(lit: &str, depth: &mut i32, regex: &mut String) {
 /// assert_eq!(delta, 0);
 /// assert_eq!(regex, r"\{");
 /// ```
-fn process_match(m: &str, ty: Option<&str>, depth: i32, regex: &mut String) -> i32 {
+fn process_match(m: &str, ty: Option<&str>, depth: usize, regex: &mut String) -> i32 {
     if depth == 0 {
         process_at_root_depth(m, ty, regex)
     } else {
@@ -364,8 +370,10 @@ fn type_subpattern(ty: Option<&str>) -> &'static str {
         Some("u8" | "u16" | "u32" | "u64" | "u128" | "usize") => r"\d+",
         Some("i8" | "i16" | "i32" | "i64" | "i128" | "isize") => r"[+-]?\d+",
         // Accept integers, decimal forms with optional leading/trailing digits,
-        // and scientific notation to match `FromStr` semantics.
-        Some("f32" | "f64") => r"[+-]?(?:\d+\.\d*|\.\d+|\d+)(?:[eE][+-]?\d+)?",
+        // scientific notation, and special values recognised by `FromStr`.
+        Some("f32" | "f64") => {
+            r"(?i:(?:[+-]?(?:\d+\.\d*|\.\d+|\d+)(?:[eE][+-]?\d+)?|nan|inf|infinity))"
+        }
         _ => r".+?",
     }
 }
