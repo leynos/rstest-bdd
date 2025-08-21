@@ -282,15 +282,9 @@ fn build_regex_from_pattern(pat: &str) -> String {
         let ty = cap.name("ty").map(|m| m.as_str().trim());
         let delta = process_match(m.as_str(), ty, depth, &mut regex);
         if delta >= 0 {
-            #[expect(clippy::cast_sign_loss, reason = "delta sign is checked")]
-            {
-                depth = depth.saturating_add(delta as usize);
-            }
+            depth = depth.saturating_add(delta.unsigned_abs() as usize);
         } else {
-            #[expect(clippy::cast_sign_loss, reason = "delta sign is checked")]
-            {
-                depth = depth.saturating_sub((-delta) as usize);
-            }
+            depth = depth.saturating_sub(delta.unsigned_abs() as usize);
         }
         last = m.end();
     }
