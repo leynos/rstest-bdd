@@ -284,7 +284,8 @@ fn build_regex_from_pattern(pat: &str) -> String {
         if delta >= 0 {
             #[expect(clippy::expect_used, reason = "delta is non-negative")]
             {
-                depth = depth.saturating_add(usize::try_from(delta).expect("delta is non-negative"));
+                depth =
+                    depth.saturating_add(usize::try_from(delta).expect("delta is non-negative"));
             }
         } else {
             #[expect(clippy::expect_used, reason = "delta is negative")]
