@@ -2,7 +2,7 @@
 
 ## Introduction
 
-Behaviour‑Driven Development (BDD) is a collaborative practice that emphasizes
+Behaviour‑Driven Development (BDD) is a collaborative practice that emphasises
 a shared understanding of software behaviour across roles. The design of
 `rstest‑bdd` integrates BDD concepts with the Rust testing ecosystem. BDD
 encourages collaboration between developers, quality-assurance specialists, and
@@ -18,7 +18,7 @@ This guide explains how to consume `rstest‑bdd` at the current stage of
 development. It relies on the implemented code rather than on aspirational
 features described in the design documents. Where the design proposes advanced
 behaviour, the implementation status is noted. Examples and explanations are
-organized by the so‑called *three amigos* of BDD: the business analyst/product
+organised by the so‑called *three amigos* of BDD: the business analyst/product
 owner, the developer, and the tester.
 
 ## The three amigos
@@ -47,7 +47,7 @@ same type for readability.
 Scenarios follow the simple `Given‑When‑Then` pattern. Support for **Scenario
 Outline** is available, enabling a single scenario to run with multiple sets of
 data from an `Examples` table. A `Background` section may define steps that run
-before each scenario. Advanced constructs such as data tables and Doc Strings
+before each scenario. Advanced constructs such as data tables and Docstrings
 provide structured or free‑form arguments to steps.
 
 ### Example feature file
@@ -231,18 +231,18 @@ Best practices for writing effective scenarios include:
   Nested braces inside placeholders are permitted. When no placeholder is
   present, the text must match exactly.
 
-## Data tables and Doc Strings
+## Data tables and Docstrings
 
 Steps may supply structured or free-form data via a trailing argument. A data
 table is received by including an argument named `datatable` of type
-`Vec<Vec<String>>`. A Gherkin Doc String is made available through an argument
+`Vec<Vec<String>>`. A Gherkin Docstring is made available through an argument
 named `docstring` of type `String`. Both arguments must use these exact names
 and types to be detected by the procedural macros. When both are declared,
 place `datatable` before `docstring` at the end of the parameter list. At
 runtime, the generated wrapper converts the table cells or copies the block
 text and passes them to the step function, panicking if the feature omits the
-expected content. Doc Strings may be delimited by triple double-quotes or
-triple backticks.
+expected content. Docstrings may be delimited by triple double-quotes or triple
+backticks.
 
 ## Limitations and roadmap
 
