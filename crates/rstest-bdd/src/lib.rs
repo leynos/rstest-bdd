@@ -243,12 +243,22 @@ impl<'a> StepContext<'a> {
 /// Extract placeholder values from a step string using a pattern.
 ///
 /// The pattern supports `format!`-style placeholders such as `{count:u32}`.
-/// Placeholders follow `{name[:type]}`; any whitespace around the type hint is
-/// ignored, though the compact `{name:type}` form is preferred. Literal braces
-/// may be escaped by doubling them: `{{` or `}}`. Nested braces
-/// inside placeholders are not supported. The returned vector contains the raw
-/// substring for each placeholder in order of appearance. The entire step text
-/// must match the pattern; otherwise this returns `None`.
+/// Placeholders follow `{name[:type]}`; `name` must start with a letter or
+/// underscore and may contain letters, digits, or underscores. Surrounding
+/// whitespace around the type hint is ignored, though the compact `{name:type}`
+/// form is preferred. Literal braces may be escaped by doubling them: `{{` or
+/// `}}`. Nested braces inside placeholders are not supported.
+///
+/// Type hints:
+/// - Integers (`u*`/`i*`): decimal digits with an optional sign for signed
+///   types.
+/// - Floats (`f32`/`f64`): integers, decimals with optional leading or trailing
+///   digits, optional scientific exponents, or `NaN`/`inf`/`Infinity`
+///   (case-insensitive).
+///
+/// The returned vector contains the raw substring for each placeholder in order
+/// of appearance. The entire step text must match the pattern; otherwise this
+/// returns `None`.
 #[must_use]
 pub fn extract_placeholders(pattern: &StepPattern, text: StepText<'_>) -> Option<Vec<String>> {
     extract_captured_values(pattern.regex(), text.as_str())
@@ -259,7 +269,8 @@ fn build_regex_from_pattern(pat: &str) -> String {
     // counter ensures that an unmatched `{` causes subsequent braces to be
     // treated literally rather than as placeholders.
     let ph_re = &PLACEHOLDER_RE;
-    let mut regex = String::from("^");
+    let mut regex = String::with_capacity(pat.len().saturating_mul(2) + 2);
+    regex.push('^');
     let mut last = 0usize;
     let mut depth: usize = 0;
     for cap in ph_re.captures_iter(pat) {
