@@ -78,6 +78,31 @@ fn type_hint_uses_specialised_fragment() {
 }
 
 #[rstest]
+#[case("value {n:foo}", "value anything", "anything")]
+fn invalid_type_hint_is_generic(
+    #[case] pattern: &'static str,
+    #[case] input: &'static str,
+    #[case] expected: &'static str,
+) {
+    // Unknown type hints fall back to a greedy match.
+    let pat = compiled(pattern);
+    #[expect(clippy::expect_used, reason = "test asserts placeholder match")]
+    let caps = extract_placeholders(&pat, StepText::from(input))
+        .expect("invalid type hint should still capture");
+    assert_eq!(caps, vec![expected]);
+}
+
+#[test]
+fn malformed_type_hint_is_literal() {
+    // Empty type hint is treated literally rather than as a placeholder.
+    let pat = compiled("value {n:}");
+    assert!(
+        extract_placeholders(&pat, StepText::from("value 123")).is_none(),
+        "malformed type hint should not capture",
+    );
+}
+
+#[rstest]
 #[case("literal {{ brace {v} }}", "literal { brace data }", Some(vec!["data"]))]
 #[case("brace: {{}}", "brace: {}", Some(vec![]))]
 #[case("{{{{}}}}", "{{}}", Some(vec![]))]
@@ -127,4 +152,13 @@ fn stray_closing_brace_does_not_block_placeholders() {
     let caps = extract_placeholders(&pat, StepText::from("end} with 7"))
         .expect("should match despite stray closing brace");
     assert_eq!(caps, vec!["7"]);
+}
+
+#[test]
+fn stray_opening_brace_blocks_placeholders() {
+    let pat = compiled("start{ with {n:u32}");
+    assert!(
+        extract_placeholders(&pat, StepText::from("start{ with 8")).is_none(),
+        "placeholder should not match after stray opening brace",
+    );
 }

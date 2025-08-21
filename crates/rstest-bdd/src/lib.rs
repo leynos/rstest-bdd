@@ -266,141 +266,69 @@ pub fn extract_placeholders(pattern: &StepPattern, text: StepText<'_>) -> Option
 }
 
 fn build_regex_from_pattern(pat: &str) -> String {
-    // Split the pattern into literal fragments and placeholders. A small depth
-    // counter ensures that an unmatched `{` causes subsequent braces to be
-    // treated literally rather than as placeholders.
+    // Precompiled regex splits the pattern into literal fragments and
+    // placeholders. `depth` tracks unmatched opening braces so a stray `{`
+    // causes subsequent braces to be treated as literals.
     let ph_re = &PLACEHOLDER_RE;
     let mut regex = String::with_capacity(pat.len().saturating_mul(2) + 2);
     regex.push('^');
     let mut last = 0usize;
-    let mut depth: usize = 0;
+    let mut depth = 0usize;
     for cap in ph_re.captures_iter(pat) {
         #[expect(clippy::expect_used, reason = "placeholder regex guarantees a capture")]
         let m = cap.get(0).expect("placeholder capture missing");
-        if let Some(lit) = pat.get(last..m.start()) {
-            process_literal_segment(lit, &mut depth, &mut regex);
+        #[expect(
+            clippy::expect_used,
+            reason = "placeholder regex guarantees UTF-8 bounds"
+        )]
+        let literal = pat.get(last..m.start()).expect("placeholder bounds");
+        for ch in literal.chars() {
+            match ch {
+                '{' => depth = depth.saturating_add(1),
+                '}' => depth = depth.saturating_sub(1),
+                _ => {}
+            }
         }
-        let ty = cap.name("ty").map(|m| m.as_str().trim());
-        let delta = process_match(m.as_str(), ty, depth, &mut regex);
-        if delta >= 0 {
-            depth = depth.saturating_add(delta.unsigned_abs() as usize);
+        regex.push_str(&regex::escape(literal));
+        let mat = m.as_str();
+        if depth == 0 {
+            match mat {
+                "{{" => regex.push_str(r"\{"),
+                "}}" => regex.push_str(r"\}"),
+                _ => {
+                    let ty = cap.name("ty").map(|m| m.as_str().trim());
+                    regex.push('(');
+                    regex.push_str(match ty {
+                        Some("u8" | "u16" | "u32" | "u64" | "u128" | "usize") => r"\d+",
+                        Some("i8" | "i16" | "i32" | "i64" | "i128" | "isize") => r"[+-]?\d+",
+                        Some("f32" | "f64") => {
+                            r"(?i:(?:[+-]?(?:\d+\.\d*|\.\d+|\d+)(?:[eE][+-]?\d+)?|nan|inf|infinity))"
+                        }
+                        _ => r".+?",
+                    });
+                    regex.push(')');
+                }
+            }
         } else {
-            depth = depth.saturating_sub(delta.unsigned_abs() as usize);
+            regex.push_str(&regex::escape(mat));
+            for ch in mat.chars() {
+                match ch {
+                    '{' => depth = depth.saturating_add(1),
+                    '}' => depth = depth.saturating_sub(1),
+                    _ => {}
+                }
+            }
         }
         last = m.end();
     }
-    if let Some(tail) = pat.get(last..) {
-        regex.push_str(&regex::escape(tail));
-    }
+    #[expect(
+        clippy::expect_used,
+        reason = "placeholder regex guarantees UTF-8 bounds"
+    )]
+    let tail = pat.get(last..).expect("placeholder bounds");
+    regex.push_str(&regex::escape(tail));
     regex.push('$');
     regex
-}
-
-/// Escape a literal fragment and update the brace depth counter.
-///
-/// # Examples
-///
-/// ```ignore
-/// let mut depth = 0;
-/// let mut regex = String::new();
-/// process_literal_segment("{a", &mut depth, &mut regex);
-/// assert_eq!(depth, 1);
-/// assert_eq!(regex, r"\{a");
-/// ```
-fn process_literal_segment(lit: &str, depth: &mut usize, regex: &mut String) {
-    for ch in lit.chars() {
-        match ch {
-            '{' => *depth = depth.saturating_add(1),
-            '}' => *depth = depth.saturating_sub(1),
-            _ => {}
-        }
-    }
-    regex.push_str(&regex::escape(lit));
-}
-
-/// Handle a placeholder or escaped brace match, returning the net depth change.
-///
-/// # Examples
-///
-/// ```ignore
-/// let mut regex = String::new();
-/// let delta = process_match("{{", None, 0, &mut regex);
-/// assert_eq!(delta, 0);
-/// assert_eq!(regex, r"\{");
-/// ```
-fn process_match(m: &str, ty: Option<&str>, depth: usize, regex: &mut String) -> i32 {
-    if depth == 0 {
-        process_at_root_depth(m, ty, regex)
-    } else {
-        process_at_nested_depth(m, regex)
-    }
-}
-
-/// Process a match when not inside an unmatched opening brace.
-///
-/// # Examples
-///
-/// ```ignore
-/// let mut regex = String::new();
-/// let delta = process_at_root_depth("{{", None, &mut regex);
-/// assert_eq!(delta, 0);
-/// assert_eq!(regex, r"\{");
-/// ```
-fn process_at_root_depth(m: &str, ty: Option<&str>, regex: &mut String) -> i32 {
-    match m {
-        "{{" => regex.push_str(r"\{"),
-        "}}" => regex.push_str(r"\}"),
-        _ => {
-            regex.push('(');
-            regex.push_str(type_subpattern(ty));
-            regex.push(')');
-        }
-    }
-    0
-}
-
-/// Process a match occurring inside unmatched braces, updating depth.
-///
-/// # Examples
-///
-/// ```ignore
-/// let mut regex = String::new();
-/// let delta = process_at_nested_depth("{{", &mut regex);
-/// assert_eq!(delta, 2);
-/// assert_eq!(regex, r"\{\{");
-/// ```
-fn process_at_nested_depth(m: &str, regex: &mut String) -> i32 {
-    let mut delta = 0;
-    for ch in m.chars() {
-        match ch {
-            '{' => delta += 1,
-            '}' => delta -= 1,
-            _ => {}
-        }
-    }
-    regex.push_str(&regex::escape(m));
-    delta
-}
-
-/// Return a regex fragment for a placeholder's type hint.
-///
-/// Type hints:
-/// - Integers (`u*`/`i*`): decimal digits with an optional sign for
-///   signed types.
-/// - Floats (`f32`/`f64`): integers, decimal forms with optional leading or
-///   trailing digits, optional scientific exponents, or `NaN`/`inf`/
-///   `Infinity` (case-insensitive).
-fn type_subpattern(ty: Option<&str>) -> &'static str {
-    match ty {
-        Some("u8" | "u16" | "u32" | "u64" | "u128" | "usize") => r"\d+",
-        Some("i8" | "i16" | "i32" | "i64" | "i128" | "isize") => r"[+-]?\d+",
-        // Accept integers, decimal forms with optional leading/trailing digits,
-        // scientific notation, and special values recognised by `FromStr`.
-        Some("f32" | "f64") => {
-            r"(?i:(?:[+-]?(?:\d+\.\d*|\.\d+|\d+)(?:[eE][+-]?\d+)?|nan|inf|infinity))"
-        }
-        _ => r".+?",
-    }
 }
 
 fn extract_captured_values(re: &Regex, text: &str) -> Option<Vec<String>> {
