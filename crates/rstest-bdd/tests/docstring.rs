@@ -1,7 +1,12 @@
 //! Behavioural test for doc string support
+#![expect(
+    clippy::unnecessary_wraps,
+    reason = "step functions must return StepError"
+)]
 
 use std::cell::RefCell;
 
+use rstest_bdd::StepError;
 use rstest_bdd_macros::{given, scenario, then};
 
 thread_local! {
@@ -14,10 +19,15 @@ thread_local! {
 }
 
 #[given("the following message:")]
-fn capture_message(docstring: String) {
+#[expect(
+    clippy::unnecessary_wraps,
+    reason = "step functions must return StepError"
+)]
+fn capture_message(docstring: String) -> Result<(), StepError> {
     CAPTURED.with(|m| {
         m.replace(Some(docstring));
     });
+    Ok(())
 }
 
 #[then("the captured message equals:")]
@@ -26,7 +36,11 @@ fn capture_message(docstring: String) {
     reason = "doc string is owned to mirror user API"
 )]
 #[expect(clippy::expect_used, reason = "test ensures a message was captured")]
-fn assert_message(docstring: String) {
+#[expect(
+    clippy::unnecessary_wraps,
+    reason = "step functions must return StepError"
+)]
+fn assert_message(docstring: String) -> Result<(), StepError> {
     CAPTURED.with(|m| {
         let captured = m
             .borrow_mut()
@@ -34,6 +48,7 @@ fn assert_message(docstring: String) {
             .expect("message should be captured before assertion");
         assert_eq!(captured, docstring);
     });
+    Ok(())
 }
 
 #[given("message then value {int}:")]
@@ -41,9 +56,10 @@ fn assert_message(docstring: String) {
     clippy::needless_pass_by_value,
     reason = "doc string is owned to mirror user API"
 )]
-fn doc_then_value(docstring: String, value: i32) {
+fn doc_then_value(docstring: String, value: i32) -> Result<(), StepError> {
     assert_eq!(docstring.trim(), "alpha");
     assert_eq!(value, 5);
+    Ok(())
 }
 
 #[given("value then message {int}:")]
@@ -51,9 +67,10 @@ fn doc_then_value(docstring: String, value: i32) {
     clippy::needless_pass_by_value,
     reason = "doc string is owned to mirror user API"
 )]
-fn value_then_doc(value: i32, docstring: String) {
+fn value_then_doc(value: i32, docstring: String) -> Result<(), StepError> {
     assert_eq!(value, 5);
     assert_eq!(docstring.trim(), "alpha");
+    Ok(())
 }
 
 #[scenario(path = "tests/features/docstring.feature")]

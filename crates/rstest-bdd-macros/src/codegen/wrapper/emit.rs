@@ -10,11 +10,15 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 fn gen_datatable_decl(
     datatable: Option<&DataTableArg>,
     pattern: &syn::LitStr,
+    ident: &syn::Ident,
 ) -> Option<TokenStream2> {
     datatable.map(|DataTableArg { pat }| {
         quote! {
             let #pat: Vec<Vec<String>> = _table
-                .ok_or_else(|| format!("Step '{}' requires a data table", #pattern))?
+                .ok_or_else(|| rstest_bdd::StepError::ExecutionError {
+                    step: stringify!(#ident).to_string(),
+                    message: format!("Step '{}' requires a data table", #pattern),
+                })?
                 .iter()
                 .map(|row| row.iter().map(|cell| cell.to_string()).collect())
                 .collect();
@@ -28,11 +32,15 @@ fn gen_datatable_decl(
 fn gen_docstring_decl(
     docstring: Option<&DocStringArg>,
     pattern: &syn::LitStr,
+    ident: &syn::Ident,
 ) -> Option<TokenStream2> {
     docstring.map(|DocStringArg { pat }| {
         quote! {
             let #pat: String = _docstring
-                .ok_or_else(|| format!("Step '{}' requires a doc string", #pattern))?
+                .ok_or_else(|| rstest_bdd::StepError::ExecutionError {
+                    step: stringify!(#ident).to_string(),
+                    message: format!("Step '{}' requires a doc string", #pattern),
+                })?
                 .to_owned();
         }
     })
@@ -72,12 +80,11 @@ fn gen_fixture_decls(fixtures: &[FixtureArg], ident: &syn::Ident) -> Vec<TokenSt
                 let #pat: #ty = ctx
                     .get::<#lookup_ty>(stringify!(#name))
                     #clone_suffix
-                    .ok_or_else(|| format!(
-                        "Missing fixture '{}' of type '{}' for step function '{}'",
-                        stringify!(#name),
-                        stringify!(#lookup_ty),
-                        stringify!(#ident)
-                    ))?;
+                    .ok_or_else(|| rstest_bdd::StepError::MissingFixture {
+                        name: stringify!(#name).to_string(),
+                        ty: stringify!(#lookup_ty).to_string(),
+                        step: stringify!(#ident).to_string(),
+                    })?;
             }
         })
         .collect()
@@ -164,8 +171,8 @@ fn generate_argument_processing(
         })
         .collect();
     let step_arg_parses = gen_step_parses(config.step_args, &captured, config.pattern);
-    let datatable_decl = gen_datatable_decl(config.datatable, config.pattern);
-    let docstring_decl = gen_docstring_decl(config.docstring, config.pattern);
+    let datatable_decl = gen_datatable_decl(config.datatable, config.pattern, config.ident);
+    let docstring_decl = gen_docstring_decl(config.docstring, config.pattern, config.ident);
     (declares, step_arg_parses, datatable_decl, docstring_decl)
 }
 
@@ -234,33 +241,46 @@ fn assemble_wrapper_function(
             text: &str,
             _docstring: Option<&str>,
             _table: Option<&[&[&str]]>,
-        ) -> Result<(), String> {
+        ) -> Result<(), rstest_bdd::StepError> {
             use std::panic::{catch_unwind, AssertUnwindSafe};
 
             let captures = #pattern_ident
                 .regex()
                 .captures(text)
-                .ok_or_else(|| format!(
-                    "Step text '{}' does not match pattern '{}'",
-                    text,
-                    #pattern
-                ))?;
+                .ok_or_else(|| rstest_bdd::StepError::ExecutionError {
+                    step: stringify!(#ident).to_string(),
+                    message: format!(
+                        "Step text '{}' does not match pattern '{}'",
+                        text,
+                        #pattern
+                    ),
+                })?;
 
             #(#declares)*
             #(#step_arg_parses)*
             #datatable_decl
             #docstring_decl
 
-            catch_unwind(AssertUnwindSafe(|| {
-                #ident(#(#arg_idents),*);
+            match catch_unwind(AssertUnwindSafe(|| {
+                #ident(#(#arg_idents),*)?;
                 Ok(())
-            }))
-            .map_err(|e| format!(
-                "Panic in step '{}', function '{}': {:?}",
-                #pattern,
-                stringify!(#ident),
-                e
-            ))?
+            })) {
+                Ok(result) => result,
+                Err(e) => {
+                    let message = if let Some(s) = e.downcast_ref::<&str>() {
+                        (*s).to_string()
+                    } else if let Some(s) = e.downcast_ref::<String>() {
+                        s.clone()
+                    } else {
+                        format!("{:?}", e)
+                    };
+                    Err(rstest_bdd::StepError::PanicError {
+                        pattern: #pattern.to_string(),
+                        function: stringify!(#ident).to_string(),
+                        message,
+                    })
+                }
+            }
         }
     }
 }

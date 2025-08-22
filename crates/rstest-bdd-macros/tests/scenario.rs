@@ -1,6 +1,7 @@
 //! Behavioural tests covering the `#[scenario]` macro
 
 use rstest::rstest;
+use rstest_bdd::StepError;
 use rstest_bdd_macros::{given, scenario, then, when};
 use serial_test::serial;
 use std::sync::{LazyLock, Mutex, MutexGuard};
@@ -38,29 +39,54 @@ where
 }
 
 #[given("a background step")]
-fn background_step() {
+#[expect(
+    clippy::unnecessary_wraps,
+    reason = "step functions must return StepError"
+)]
+fn background_step() -> Result<(), StepError> {
     with_locked_events(|events| events.push("background"));
+    Ok(())
 }
 
 #[given("another background step")]
-fn another_background_step() {
+#[expect(
+    clippy::unnecessary_wraps,
+    reason = "step functions must return StepError"
+)]
+fn another_background_step() -> Result<(), StepError> {
     with_locked_events(|events| events.push("another background"));
+    Ok(())
 }
 
 #[given("a precondition")]
-fn precondition() {
+#[expect(
+    clippy::unnecessary_wraps,
+    reason = "step functions must return StepError"
+)]
+fn precondition() -> Result<(), StepError> {
     clear_events();
     with_locked_events(|events| events.push("precondition"));
+    Ok(())
 }
 
 #[when("an action occurs")]
-fn action() {
+#[expect(
+    clippy::unnecessary_wraps,
+    reason = "step functions must return StepError"
+)]
+fn action() -> Result<(), StepError> {
     with_locked_events(|events| events.push("action"));
+    Ok(())
 }
 
 #[then("a result is produced")]
-fn result() {
+#[expect(
+    clippy::unnecessary_wraps,
+    reason = "step functions must return StepError"
+)]
+fn result() -> Result<(), StepError> {
     with_locked_events(|events| events.push("result"));
+    Ok(())
 }
 
 #[scenario("tests/features/web_search.feature")]
@@ -142,15 +168,15 @@ fn background_second() {
 #[serial]
 fn multiple_background_steps_execute_in_order() {
     clear_events();
-    background_step();
-    another_background_step();
+    let _ = background_step();
+    let _ = another_background_step();
     with_locked_events(|events| {
         assert_eq!(events.as_slice(), ["background", "another background"]);
     });
 
     clear_events();
-    background_step();
-    another_background_step();
+    let _ = background_step();
+    let _ = another_background_step();
     with_locked_events(|events| {
         assert_eq!(events.as_slice(), ["background", "another background"]);
     });

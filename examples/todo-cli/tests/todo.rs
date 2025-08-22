@@ -3,6 +3,7 @@
 use std::cell::RefCell;
 
 use rstest::fixture;
+use rstest_bdd::StepError;
 use rstest_bdd_macros::{given, scenario, then, when};
 use todo_cli::TodoList;
 
@@ -12,12 +13,24 @@ fn todo_list() -> RefCell<TodoList> {
 }
 
 #[given("an empty to-do list")]
-fn empty_list(#[from(todo_list)] list: &RefCell<TodoList>) {
+#[expect(
+    clippy::unnecessary_wraps,
+    reason = "step functions must return StepError"
+)]
+fn empty_list(#[from(todo_list)] list: &RefCell<TodoList>) -> Result<(), StepError> {
     assert!(list.borrow().is_empty(), "list should start empty");
+    Ok(())
 }
 
 #[when("I add the following tasks")]
-fn add_tasks(#[from(todo_list)] list: &RefCell<TodoList>, datatable: Vec<Vec<String>>) {
+#[expect(
+    clippy::unnecessary_wraps,
+    reason = "step functions must return StepError"
+)]
+fn add_tasks(
+    #[from(todo_list)] list: &RefCell<TodoList>,
+    datatable: Vec<Vec<String>>,
+) -> Result<(), StepError> {
     for (i, row) in datatable.into_iter().enumerate() {
         assert_eq!(
             row.len(),
@@ -32,13 +45,22 @@ fn add_tasks(#[from(todo_list)] list: &RefCell<TodoList>, datatable: Vec<Vec<Str
             .expect("row.len() == 1 just asserted");
         list.borrow_mut().add(task);
     }
+    Ok(())
 }
 
 #[then("the list displays")]
-fn list_displays(#[from(todo_list)] list: &RefCell<TodoList>, docstring: String) {
+#[expect(
+    clippy::unnecessary_wraps,
+    reason = "step functions must return StepError"
+)]
+fn list_displays(
+    #[from(todo_list)] list: &RefCell<TodoList>,
+    docstring: String,
+) -> Result<(), StepError> {
     // Normalise docstring indentation to prevent false negatives.
     let expected = dedent(&docstring);
     assert_eq!(list.borrow().display(), expected);
+    Ok(())
 }
 
 fn dedent(input: &str) -> String {
@@ -63,14 +85,30 @@ fn dedent(input: &str) -> String {
 }
 
 #[given("a to-do list with {first} and {second}")]
-fn list_with_two(#[from(todo_list)] list: &RefCell<TodoList>, first: String, second: String) {
+#[expect(
+    clippy::unnecessary_wraps,
+    reason = "step functions must return StepError"
+)]
+fn list_with_two(
+    #[from(todo_list)] list: &RefCell<TodoList>,
+    first: String,
+    second: String,
+) -> Result<(), StepError> {
     let mut l = list.borrow_mut();
     l.add(first);
     l.add(second);
+    Ok(())
 }
 
 #[when("I complete {task}")]
-fn complete_task(#[from(todo_list)] list: &RefCell<TodoList>, task: String) {
+#[expect(
+    clippy::unnecessary_wraps,
+    reason = "step functions must return StepError"
+)]
+fn complete_task(
+    #[from(todo_list)] list: &RefCell<TodoList>,
+    task: String,
+) -> Result<(), StepError> {
     let ok = list.borrow_mut().complete(&task);
     assert!(
         ok,
@@ -78,10 +116,18 @@ fn complete_task(#[from(todo_list)] list: &RefCell<TodoList>, task: String) {
         task,
         list.borrow().statuses()
     );
+    Ok(())
 }
 
 #[then("the task statuses should be")]
-fn assert_statuses(#[from(todo_list)] list: &RefCell<TodoList>, datatable: Vec<Vec<String>>) {
+#[expect(
+    clippy::unnecessary_wraps,
+    reason = "step functions must return StepError"
+)]
+fn assert_statuses(
+    #[from(todo_list)] list: &RefCell<TodoList>,
+    datatable: Vec<Vec<String>>,
+) -> Result<(), StepError> {
     let expected: Vec<(String, bool)> = datatable
         .into_iter()
         .enumerate()
@@ -100,6 +146,7 @@ fn assert_statuses(#[from(todo_list)] list: &RefCell<TodoList>, datatable: Vec<V
         })
         .collect();
     assert_eq!(list.borrow().statuses(), expected);
+    Ok(())
 }
 
 #[allow(unused_variables)]

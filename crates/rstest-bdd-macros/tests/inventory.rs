@@ -1,16 +1,35 @@
 //! Tests for step registration via macros
 
+use rstest_bdd::StepError;
 use rstest_bdd::{Step, iter};
 use rstest_bdd_macros::{given, then, when};
 
 #[given("a precondition")]
-fn precondition() {}
+#[expect(
+    clippy::unnecessary_wraps,
+    reason = "step functions must return StepError"
+)]
+fn precondition() -> Result<(), StepError> {
+    Ok(())
+}
 
 #[when("an action")]
-fn action() {}
+#[expect(
+    clippy::unnecessary_wraps,
+    reason = "step functions must return StepError"
+)]
+fn action() -> Result<(), StepError> {
+    Ok(())
+}
 
 #[then("a result")]
-fn result() {}
+#[expect(
+    clippy::unnecessary_wraps,
+    reason = "step functions must return StepError"
+)]
+fn result() -> Result<(), StepError> {
+    Ok(())
+}
 
 #[test]
 fn macros_register_steps() {
