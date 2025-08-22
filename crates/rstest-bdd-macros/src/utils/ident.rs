@@ -5,13 +5,16 @@
 /// Only ASCII alphanumeric characters are retained; all other characters
 /// (including Unicode) are replaced with underscores. The result is
 /// lowercased. Identifiers starting with a digit gain a leading underscore,
-/// and keywords are likewise prefixed to avoid collisions.
+/// and keywords are likewise prefixed to avoid collisions. See
+/// [Rust Reference: Keywords](https://doc.rust-lang.org/reference/keywords.html)
+/// for the full list of reserved words.
 ///
 /// # Examples
 ///
 /// ```rust,ignore
 /// use crate::utils::ident::sanitize_ident;
 /// assert_eq!(sanitize_ident("Crème—brûlée"), "cr_me_br_l_e");
+/// assert_eq!(sanitize_ident("type"), "_type");
 /// ```
 pub(crate) fn sanitize_ident(input: &str) -> String {
     let mut ident = String::new();
@@ -22,6 +25,25 @@ pub(crate) fn sanitize_ident(input: &str) -> String {
             ident.push('_');
         }
     }
+
+    // Collapse repeated underscores to keep names tidy.
+    let mut collapsed = String::with_capacity(ident.len());
+    let mut prev_us = false;
+    for ch in ident.chars() {
+        if ch == '_' {
+            if !prev_us {
+                collapsed.push('_');
+                prev_us = true;
+            }
+        } else {
+            collapsed.push(ch);
+            prev_us = false;
+        }
+    }
+
+    // Trim trailing underscores that don't add meaning.
+    let mut ident = collapsed.trim_end_matches('_').to_string();
+
     if ident.is_empty() || matches!(ident.chars().next(), Some(c) if c.is_ascii_digit()) {
         ident.insert(0, '_');
     }
@@ -46,7 +68,7 @@ mod tests {
 
     #[test]
     fn sanitizes_invalid_identifiers() {
-        assert_eq!(sanitize_ident("Hello world!"), "hello_world_");
+        assert_eq!(sanitize_ident("Hello world!"), "hello_world");
     }
 
     #[test]
@@ -69,5 +91,10 @@ mod tests {
         assert_eq!(sanitize_ident("fn"), "_fn");
         assert_eq!(sanitize_ident("type"), "_type");
         assert_eq!(sanitize_ident("Self"), "_self");
+    }
+
+    #[test]
+    fn collapses_repeated_underscores() {
+        assert_eq!(sanitize_ident("a--b__c"), "a_b_c");
     }
 }
