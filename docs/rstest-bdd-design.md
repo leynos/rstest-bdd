@@ -1077,6 +1077,32 @@ sequenceDiagram
     StepWrapper-->>ScenarioRunner: returns
 ```
 
+### 3.10 Runtime Module Layout (for Contributors)
+
+To keep responsibilities cohesive the runtime is split into focused modules.
+Public APIs are re‑exported from `lib.rs` so consumers continue to import from
+`rstest_bdd::*` as before.
+
+- `types.rs`: Core types and errors.
+  - `PatternStr`, `StepText`: light wrappers for pattern keys and step text.
+  - `StepKeyword` (+ `FromStr`), `StepKeywordParseError`.
+  - `PlaceholderError`: semantic error enum returned by parsing helpers.
+  - `StepFn`: type alias for the step function pointer.
+- `pattern.rs`: Step pattern wrapper.
+  - `StepPattern::new`, `compile`, `regex` (plus `try_regex` for internal use).
+- `placeholder.rs`: Placeholder extraction and scanner.
+  - `extract_placeholders` (public) and the single‑pass scanner
+    `build_regex_from_pattern` with small parsing predicates and helpers.
+- `context.rs`: Fixture context.
+  - `StepContext`: simple type‑indexed store used to pass fixtures into steps.
+- `registry.rs`: Registration and lookup.
+  - `Step` record, `step!` macro, global registry map, `lookup_step`,
+    `find_step`.
+- `lib.rs`: Public API facade.
+  - Re‑exports public items and keeps the `greet()` example function.
+
+All modules use en‑GB spelling and include `//!` module‑level documentation.
+
 ## **Works cited**
 
 [^1]: A Complete Guide To Behavior-Driven Testing With Pytest BDD, accessed on
