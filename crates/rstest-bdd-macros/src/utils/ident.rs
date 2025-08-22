@@ -18,7 +18,7 @@
 /// ```
 pub(crate) fn sanitize_ident(input: &str) -> String {
     let ident = replace_non_ascii_with_underscores(input);
-    let ident = collapse_underscores(&ident);
+    let ident = collapse_repeated_underscores(&ident);
     let ident = trim_trailing_underscores(&ident);
     add_prefix_if_needed(ident)
 }
@@ -35,7 +35,7 @@ fn replace_non_ascii_with_underscores(input: &str) -> String {
     ident
 }
 
-fn collapse_underscores(input: &str) -> String {
+fn collapse_repeated_underscores(input: &str) -> String {
     // Collapse repeated underscores to keep names tidy.
     let mut collapsed = String::with_capacity(input.len());
     let mut prev_us = false;
@@ -59,13 +59,13 @@ fn trim_trailing_underscores(input: &str) -> String {
 }
 
 fn add_prefix_if_needed(mut ident: String) -> String {
-    if needs_prefix(&ident) {
+    if needs_underscore_prefix(&ident) {
         ident.insert(0, '_');
     }
     ident
 }
 
-fn needs_prefix(ident: &str) -> bool {
+fn needs_underscore_prefix(ident: &str) -> bool {
     ident.is_empty()
         || ident.chars().next().is_some_and(|c| c.is_ascii_digit())
         || RUST_KEYWORDS.contains(&ident)
