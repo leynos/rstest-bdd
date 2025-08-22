@@ -161,6 +161,9 @@ pub enum StepPatternError {
     /// Pattern contains unmatched braces.
     #[error("unbalanced braces in step pattern")]
     UnbalancedBraces,
+    /// Placeholder contains nested braces.
+    #[error("nested braces inside placeholder")]
+    NestedBracesInPlaceholder,
     /// Regex compilation failed.
     #[error(transparent)]
     Regex(#[from] regex::Error),
@@ -187,7 +190,7 @@ impl StepPattern {
     /// # Errors
     ///
     /// Returns an error if the pattern cannot be converted into a valid
-    /// regular expression or contains unbalanced braces.
+    /// regular expression or contains unmatched or nested braces.
     pub fn compile(&self) -> Result<(), StepPatternError> {
         let src = build_regex_from_pattern(self.text)?;
         let regex = Regex::new(&src)?;
@@ -314,6 +317,11 @@ fn process_placeholder_match(
     regex: &mut String,
 ) -> Result<usize, StepPatternError> {
     if depth == 0 {
+        if let Some(ty) = type_hint {
+            if ty.contains('{') || ty.contains('}') {
+                return Err(StepPatternError::NestedBracesInPlaceholder);
+            }
+        }
         match match_text {
             "{{" => regex.push_str(r"\{"),
             "}}" => regex.push_str(r"\}"),

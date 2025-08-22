@@ -1,7 +1,7 @@
 //! Tests for placeholder extraction logic.
 
 use rstest::rstest;
-use rstest_bdd::{StepPattern, StepText, extract_placeholders};
+use rstest_bdd::{StepPattern, StepPatternError, StepText, extract_placeholders};
 
 #[expect(clippy::expect_used, reason = "test helper should fail loudly")]
 fn compiled(pattern: &'static str) -> StepPattern {
@@ -148,10 +148,26 @@ fn stray_closing_brace_fails_to_compile() {
 }
 
 #[test]
-fn nested_brace_in_placeholder_fails_to_compile() {
-    let pat = StepPattern::from("{outer:{inner}}");
+fn only_closing_brace_fails_to_compile() {
+    let pat = StepPattern::from("}");
+    assert!(pat.compile().is_err(), "only closing brace should error");
+}
+
+#[test]
+fn multiple_stray_closing_braces_fail_to_compile() {
+    let pat = StepPattern::from("}}}");
     assert!(
         pat.compile().is_err(),
-        "nested brace in placeholder should error"
+        "multiple stray closing braces should error",
     );
+}
+
+#[test]
+fn nested_brace_in_placeholder_fails_to_compile() {
+    let pat = StepPattern::from("{outer:{inner}}");
+    match pat.compile() {
+        Err(StepPatternError::NestedBracesInPlaceholder | StepPatternError::UnbalancedBraces) => {}
+        Err(e) => panic!("unexpected error variant: {e}"),
+        Ok(()) => panic!("nested brace in placeholder should error"),
+    }
 }

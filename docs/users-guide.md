@@ -230,15 +230,15 @@ Best practices for writing effective scenarios include:
   `Infinity` (matched case-insensitively). Matching is anchored: the entire
   step text must match the pattern; partial matches do not succeed. Escape
   literal braces with `{{` and `}}`. Nested braces inside placeholders are not
-  supported, and patterns with unbalanced braces fail at compile time.
-  Placeholders follow `{name[:type]}`; `name` must start with a letter or
-  underscore and may contain letters, digits, or underscores
-  (`[A-Za-z_][A-Za-z0-9_]*`). Whitespace within the type hint is ignored (for
-  example, `{count: u32}` and `{count:u32}` are both accepted), but whitespace
-  is not allowed between the name and the colon. Prefer the compact form
-  `{count:u32}` in new code. When a pattern contains no placeholders, the step
-  text must match exactly. Unknown type hints are treated as generic
-  placeholders and capture any non-newline text greedily.
+  supported, and patterns with unbalanced braces are rejected during step
+  registration (before any step runs). Placeholders follow `{name[:type]}`;
+  `name` must start with a letter or underscore and may contain letters,
+  digits, or underscores (`[A-Za-z_][A-Za-z0-9_]*`). Whitespace within the type
+  hint is ignored (for example, `{count: u32}` and `{count:u32}` are both
+  accepted), but whitespace is not allowed between the name and the colon.
+  Prefer the compact form `{count:u32}` in new code. When a pattern contains no
+  placeholders, the step text must match exactly. Unknown type hints are
+  treated as generic placeholders and capture any non-newline text greedily.
 
 ## Data tables and Doc Strings
 

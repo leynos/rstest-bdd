@@ -994,7 +994,7 @@ no exact pattern is present. This approach keeps the macros lightweight while
 supporting type‑safe parameters in steps. The parser handles escaped braces and
 nested brace pairs, preventing greedy captures while still requiring
 well‑formed placeholders. Patterns with unbalanced braces are rejected during
-compilation.
+step registration (before any scenario executes).
 
 The runner forwards the raw doc string as `Option<&str>` and the wrapper
 converts it into an owned `String` before invoking the step function. The
