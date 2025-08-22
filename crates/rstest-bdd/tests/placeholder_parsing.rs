@@ -56,6 +56,10 @@ fn type_hint_uses_specialised_fragment() {
         "non-numeric text should not match f64",
     );
     assert!(
+        extract_placeholders(&pat, StepText::from("value 1e-3")).is_ok(),
+        "scientific notation should match f64",
+    );
+    assert!(
         extract_placeholders(&pat, StepText::from("value -0.001")).is_ok(),
         "negative float should match f64",
     );

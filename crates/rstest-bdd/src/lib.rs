@@ -113,7 +113,7 @@ impl StepKeyword {
 }
 
 /// Error returned when parsing a `StepKeyword` from a string fails.
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug, Error)]
 #[error("invalid step keyword: {0}")]
 pub struct StepKeywordParseError(pub String);
 
@@ -247,6 +247,12 @@ pub enum PlaceholderError {
     /// The supplied text did not match the step pattern.
     #[error("pattern mismatch")]
     PatternMismatch,
+    /// The step pattern could not be compiled into a regular expression.
+    #[error("invalid step pattern: {0}")]
+    InvalidPattern(String),
+    /// The step pattern was not compiled before use.
+    #[error("uncompiled step pattern")]
+    Uncompiled,
 }
 
 /// Extract placeholder values from a step string using a pattern.
@@ -278,8 +284,13 @@ pub fn extract_placeholders(
     pattern: &StepPattern,
     text: StepText<'_>,
 ) -> Result<Vec<String>, PlaceholderError> {
-    extract_captured_values(pattern.regex(), text.as_str())
-        .ok_or(PlaceholderError::PatternMismatch)
+    // Compile the pattern (caching the result) and map compile failures.
+    pattern
+        .compile()
+        .map_err(|e| PlaceholderError::InvalidPattern(e.to_string()))?;
+    // Retrieve the compiled regex without panicking if compilation was skipped.
+    let re = pattern.regex.get().ok_or(PlaceholderError::Uncompiled)?;
+    extract_captured_values(re, text.as_str()).ok_or(PlaceholderError::PatternMismatch)
 }
 
 /// Update unmatched brace depth by scanning ASCII brace bytes.

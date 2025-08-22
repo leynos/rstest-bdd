@@ -34,4 +34,6 @@ fn returns_error_on_pattern_mismatch() {
         panic!("expected mismatch to error");
     };
     assert!(err.contains("does not match pattern"), "{err}");
+    assert!(err.contains("unrelated text"), "{err}");
+    assert!(err.contains("number {value:u32}"), "{err}");
 }
