@@ -70,7 +70,17 @@ static STEP_MAP: LazyLock<HashMap<StepKey, StepFn>> = LazyLock::new(|| {
                 step.line
             )
         });
-        map.insert((step.keyword, step.pattern), step.run);
+        let key = (step.keyword, step.pattern);
+        if map.contains_key(&key) {
+            panic!(
+                "duplicate step for '{}' + '{}' defined at {}:{}",
+                step.keyword.as_str(),
+                step.pattern.as_str(),
+                step.file,
+                step.line
+            );
+        }
+        map.insert(key, step.run);
     }
     map
 });

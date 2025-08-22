@@ -464,6 +464,11 @@ global registry stores `(StepKeyword, &'static StepPattern)` keys in a
 `hashbrown::HashMap` and uses the raw-entry API for constant-time lookups by
 hashing the pattern text directly.
 
+Duplicate step definitions are rejected when the registry is built. Attempting
+to register the same keyword and pattern combination twice results in a panic
+that points to the conflicting definition so that errors surface early during
+test startup.
+
 Placing the `Step` struct in the runtime crate avoids a circular dependency
 between the procedural macros and the library. The macros will simply re-export
 the type when they begin submitting steps to the registry.

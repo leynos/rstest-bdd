@@ -31,7 +31,6 @@ trybuild = "1"
 once_cell = "1.18"
 serial_test = "2"
 rstest-bdd = { version = "0.1.0", path = "crates/rstest-bdd" }
-hashbrown = "0.15"
 
 [workspace.lints.clippy]
 pedantic = { level = "warn", priority = -1 }
