@@ -3,7 +3,11 @@
 //! during the refactor of `build_regex_from_pattern`. Keeping them here ensures
 //! behaviour remains stable while allowing private access from a child module.
 
-use super::*;
+use crate::placeholder::{
+    is_double_brace, is_empty_type_hint, is_escaped_brace, is_placeholder_start, parse_double_brace,
+    parse_escaped_brace, parse_literal, parse_placeholder, parse_placeholder_name,
+    RegexBuilder,
+};
 
 #[test]
 fn predicates_detect_expected_tokens() {
