@@ -261,26 +261,15 @@ fn assemble_wrapper_function(
             #datatable_decl
             #docstring_decl
 
-            match catch_unwind(AssertUnwindSafe(|| {
+            catch_unwind(AssertUnwindSafe(|| {
                 #ident(#(#arg_idents),*)?;
                 Ok(())
-            })) {
-                Ok(result) => result,
-                Err(e) => {
-                    let message = if let Some(s) = e.downcast_ref::<&str>() {
-                        (*s).to_string()
-                    } else if let Some(s) = e.downcast_ref::<String>() {
-                        s.clone()
-                    } else {
-                        format!("{:?}", e)
-                    };
-                    Err(rstest_bdd::StepError::PanicError {
-                        pattern: #pattern.to_string(),
-                        function: stringify!(#ident).to_string(),
-                        message,
-                    })
-                }
-            }
+            }))
+            .map_err(|e| rstest_bdd::StepError::PanicError {
+                pattern: #pattern.to_string(),
+                function: stringify!(#ident).to_string(),
+                message: rstest_bdd::panic_message(e.as_ref()),
+            })?
         }
     }
 }

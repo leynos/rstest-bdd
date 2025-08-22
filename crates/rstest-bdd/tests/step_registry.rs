@@ -29,8 +29,8 @@ fn failing_wrapper(
 ) -> Result<(), StepError> {
     let _ = ctx;
     Err(StepError::ExecutionError {
-        step: "failing_wrapper".to_string(),
-        message: "boom".to_string(),
+        step: "failing_wrapper".into(),
+        message: "boom".into(),
     })
 }
 

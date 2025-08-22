@@ -11,9 +11,9 @@ fn needs_value(
     let val = ctx
         .get::<u32>("number")
         .ok_or_else(|| StepError::MissingFixture {
-            name: "number".to_string(),
-            ty: "u32".to_string(),
-            step: "needs_value".to_string(),
+            name: "number".into(),
+            ty: "u32".into(),
+            step: "needs_value".into(),
         })?;
     assert_eq!(*val, 42);
     Ok(())
@@ -78,17 +78,10 @@ fn panicky_step(
     _table: Option<&[&[&str]]>,
 ) -> Result<(), StepError> {
     use std::panic::{AssertUnwindSafe, catch_unwind};
-    catch_unwind(AssertUnwindSafe(panicky_core)).map_err(|e| {
-        let message = e
-            .downcast_ref::<&str>()
-            .map(|s| (*s).to_string())
-            .or_else(|| e.downcast_ref::<String>().cloned())
-            .unwrap_or_else(|| format!("{e:?}"));
-        StepError::PanicError {
-            pattern: "it panics".to_string(),
-            function: "panicky_core".to_string(),
-            message,
-        }
+    catch_unwind(AssertUnwindSafe(panicky_core)).map_err(|e| StepError::PanicError {
+        pattern: "it panics".into(),
+        function: "panicky_core".into(),
+        message: rstest_bdd::panic_message(e.as_ref()),
     })
 }
 
@@ -96,6 +89,31 @@ step!(
     rstest_bdd::StepKeyword::When,
     "it panics",
     panicky_step,
+    &[]
+);
+
+fn panicky_core_non_string() {
+    std::panic::panic_any(42u8);
+}
+
+fn panicky_step_non_string(
+    _ctx: &StepContext<'_>,
+    text: &str,
+    _docstring: Option<&str>,
+    _table: Option<&[&[&str]]>,
+) -> Result<(), StepError> {
+    use std::panic::{AssertUnwindSafe, catch_unwind};
+    catch_unwind(AssertUnwindSafe(panicky_core_non_string)).map_err(|e| StepError::PanicError {
+        pattern: text.into(),
+        function: "panicky_core_non_string".into(),
+        message: rstest_bdd::panic_message(e.as_ref()),
+    })
+}
+
+step!(
+    rstest_bdd::StepKeyword::When,
+    "it panics (non-string)",
+    panicky_step_non_string,
     &[]
 );
 
@@ -122,6 +140,42 @@ fn panic_is_reported() {
             assert_eq!(pattern, "it panics");
             assert_eq!(function, "panicky_core");
             assert_eq!(message, "boom");
+        }
+        other => panic!("unexpected error: {other:?}"),
+    }
+}
+
+#[test]
+fn panic_non_string_payload_is_reported() {
+    let step_fn = iter::<Step>
+        .into_iter()
+        .find(|s| s.pattern.as_str() == "it panics (non-string)")
+        .map_or_else(
+            || panic!("step 'it panics (non-string)' not found in registry"),
+            |step| step.run,
+        );
+    let result = step_fn(
+        &StepContext::default(),
+        "it panics (non-string)",
+        None,
+        None,
+    );
+    let err = match result {
+        Ok(()) => panic!("expected panic error"),
+        Err(e) => e,
+    };
+    match err {
+        StepError::PanicError {
+            pattern,
+            function,
+            message,
+        } => {
+            assert_eq!(pattern, "it panics (non-string)");
+            assert_eq!(function, "panicky_core_non_string");
+            assert!(
+                message.contains("42"),
+                "message should include payload: {message}"
+            );
         }
         other => panic!("unexpected error: {other:?}"),
     }

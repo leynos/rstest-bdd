@@ -24,6 +24,9 @@ use std::collections::HashMap;
 use std::str::FromStr;
 use std::sync::{LazyLock, OnceLock};
 
+mod panic;
+pub use panic::panic_message;
+
 // Compile once: used by `build_regex_from_pattern` for splitting pattern text.
 static PLACEHOLDER_RE: LazyLock<Regex> = LazyLock::new(|| {
     #[expect(

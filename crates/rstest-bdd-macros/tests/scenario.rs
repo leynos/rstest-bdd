@@ -168,15 +168,15 @@ fn background_second() {
 #[serial]
 fn multiple_background_steps_execute_in_order() {
     clear_events();
-    let _ = background_step();
-    let _ = another_background_step();
+    assert_eq!(background_step(), Ok(()));
+    assert_eq!(another_background_step(), Ok(()));
     with_locked_events(|events| {
         assert_eq!(events.as_slice(), ["background", "another background"]);
     });
 
     clear_events();
-    let _ = background_step();
-    let _ = another_background_step();
+    assert_eq!(background_step(), Ok(()));
+    assert_eq!(another_background_step(), Ok(()));
     with_locked_events(|events| {
         assert_eq!(events.as_slice(), ["background", "another background"]);
     });

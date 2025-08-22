@@ -6,7 +6,7 @@
 
 use std::cell::RefCell;
 
-use rstest_bdd::StepError;
+use rstest_bdd::{Step, StepContext, StepError, iter};
 use rstest_bdd_macros::{given, scenario, then};
 
 thread_local! {
@@ -88,3 +88,31 @@ fn missing_docstring_scenario() {}
 
 #[scenario(path = "tests/features/docstring_arg_order.feature")]
 fn docstring_arg_order_scenario() {}
+
+#[test]
+fn missing_docstring_returns_execution_error() {
+    let step_fn = iter::<Step>
+        .into_iter()
+        .find(|s| s.pattern.as_str() == "the following message:")
+        .map_or_else(
+            || panic!("step 'the following message:' not found in registry"),
+            |step| step.run,
+        );
+    let result = step_fn(
+        &StepContext::default(),
+        "the following message:",
+        None,
+        None,
+    );
+    let err = match result {
+        Ok(()) => panic!("expected error when doc string is missing"),
+        Err(e) => e,
+    };
+    match err {
+        StepError::ExecutionError { step, message } => {
+            assert_eq!(step, "capture_message");
+            assert!(message.contains("requires a doc string"));
+        }
+        other => panic!("unexpected error: {other:?}"),
+    }
+}
