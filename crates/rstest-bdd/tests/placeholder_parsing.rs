@@ -136,45 +136,22 @@ fn test_brace_escaping_scenarios(
 }
 
 #[test]
-fn unbalanced_braces_are_literals() {
-    let pat = compiled("before {outer {inner} after");
-    assert!(
-        extract_placeholders(&pat, StepText::from("before value after")).is_none(),
-        "text without literal brace should not match",
-    );
-    #[expect(clippy::expect_used, reason = "test asserts exact match")]
-    let caps = extract_placeholders(&pat, StepText::from("before {outer {inner} after"))
-        .expect("literal braces should match exactly");
-    assert!(caps.is_empty(), "no placeholders expected");
+fn unbalanced_braces_fail_to_compile() {
+    let pat = StepPattern::from("before {outer {inner} after");
+    assert!(pat.compile().is_err(), "unbalanced braces should error");
 }
 
 #[test]
-fn nested_brace_in_placeholder_is_literal() {
-    let pat = compiled("{outer:{inner}}");
-    assert!(
-        extract_placeholders(&pat, StepText::from("value}")).is_some(),
-        "trailing brace should be matched literally",
-    );
-    assert!(
-        extract_placeholders(&pat, StepText::from("value")).is_none(),
-        "missing closing brace should not match",
-    );
+fn stray_closing_brace_fails_to_compile() {
+    let pat = StepPattern::from("end} with {n:u32}");
+    assert!(pat.compile().is_err(), "stray closing brace should error");
 }
 
 #[test]
-fn stray_closing_brace_does_not_block_placeholders() {
-    let pat = compiled("end} with {n:u32}");
-    #[expect(clippy::expect_used, reason = "test asserts placeholder match")]
-    let caps = extract_placeholders(&pat, StepText::from("end} with 7"))
-        .expect("should match despite stray closing brace");
-    assert_eq!(caps, vec!["7"]);
-}
-
-#[test]
-fn stray_opening_brace_blocks_placeholders() {
-    let pat = compiled("start{ with {n:u32}");
+fn nested_brace_in_placeholder_fails_to_compile() {
+    let pat = StepPattern::from("{outer:{inner}}");
     assert!(
-        extract_placeholders(&pat, StepText::from("start{ with 8")).is_none(),
-        "placeholder should not match after stray opening brace",
+        pat.compile().is_err(),
+        "nested brace in placeholder should error"
     );
 }

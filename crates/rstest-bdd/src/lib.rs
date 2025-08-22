@@ -155,6 +155,17 @@ pub struct StepPattern {
     regex: OnceLock<Regex>,
 }
 
+/// Error returned when compiling a [`StepPattern`] fails.
+#[derive(Debug, thiserror::Error)]
+pub enum StepPatternError {
+    /// Pattern contains unmatched braces.
+    #[error("unbalanced braces in step pattern")]
+    UnbalancedBraces,
+    /// Regex compilation failed.
+    #[error(transparent)]
+    Regex(#[from] regex::Error),
+}
+
 impl StepPattern {
     /// Create a new pattern wrapper from a string literal.
     #[must_use]
@@ -176,9 +187,9 @@ impl StepPattern {
     /// # Errors
     ///
     /// Returns an error if the pattern cannot be converted into a valid
-    /// regular expression.
-    pub fn compile(&self) -> Result<(), regex::Error> {
-        let src = build_regex_from_pattern(self.text);
+    /// regular expression or contains unbalanced braces.
+    pub fn compile(&self) -> Result<(), StepPatternError> {
+        let src = build_regex_from_pattern(self.text)?;
         let regex = Regex::new(&src)?;
         // Ignore result if already set; duplicate registration is benign.
         let _ = self.regex.set(regex);
@@ -267,15 +278,20 @@ pub fn extract_placeholders(pattern: &StepPattern, text: StepText<'_>) -> Option
 
 /// Update unmatched brace depth by scanning ASCII brace bytes.
 #[inline]
-fn update_brace_depth(text: &str, mut depth: usize) -> usize {
+fn update_brace_depth(text: &str, mut depth: usize) -> Result<usize, StepPatternError> {
     for b in text.bytes() {
         match b {
             b'{' => depth = depth.saturating_add(1),
-            b'}' => depth = depth.saturating_sub(1),
+            b'}' => {
+                if depth == 0 {
+                    return Err(StepPatternError::UnbalancedBraces);
+                }
+                depth -= 1;
+            }
             _ => {}
         }
     }
-    depth
+    Ok(depth)
 }
 
 /// Return the regex fragment for a placeholder type hint.
@@ -296,7 +312,7 @@ fn process_placeholder_match(
     type_hint: Option<&str>,
     depth: usize,
     regex: &mut String,
-) -> usize {
+) -> Result<usize, StepPatternError> {
     if depth == 0 {
         match match_text {
             "{{" => regex.push_str(r"\{"),
@@ -307,7 +323,7 @@ fn process_placeholder_match(
                 regex.push(')');
             }
         }
-        depth
+        Ok(depth)
     } else {
         regex.push_str(&regex::escape(match_text));
         // Adjust depth for braces inside unmatched regions.
@@ -315,10 +331,10 @@ fn process_placeholder_match(
     }
 }
 
-fn build_regex_from_pattern(pat: &str) -> String {
+fn build_regex_from_pattern(pat: &str) -> Result<String, StepPatternError> {
     // Precompiled regex splits the pattern into literal fragments and
-    // placeholders. `depth` tracks unmatched opening braces so a stray `{`
-    // causes subsequent braces to be treated as literals.
+    // placeholders. `depth` tracks unmatched opening braces so stray braces
+    // trigger an error.
     let ph_re = &PLACEHOLDER_RE;
     let mut regex = String::with_capacity(pat.len().saturating_mul(2) + 2);
     regex.push('^');
@@ -329,19 +345,23 @@ fn build_regex_from_pattern(pat: &str) -> String {
         let m = cap.get(0).expect("placeholder capture missing");
         if let Some(literal) = pat.get(last..m.start()) {
             regex.push_str(&regex::escape(literal));
-            depth = update_brace_depth(literal, depth);
+            depth = update_brace_depth(literal, depth)?;
         }
 
         let mat = m.as_str();
         let ty = cap.name("ty").map(|m| m.as_str().trim());
-        depth = process_placeholder_match(mat, ty, depth, &mut regex);
+        depth = process_placeholder_match(mat, ty, depth, &mut regex)?;
         last = m.end();
     }
     if let Some(tail) = pat.get(last..) {
         regex.push_str(&regex::escape(tail));
+        depth = update_brace_depth(tail, depth)?;
+    }
+    if depth != 0 {
+        return Err(StepPatternError::UnbalancedBraces);
     }
     regex.push('$');
-    regex
+    Ok(regex)
 }
 
 fn extract_captured_values(re: &Regex, text: &str) -> Option<Vec<String>> {
