@@ -458,7 +458,7 @@ The [`StepPattern`](../crates/rstest-bdd/src/pattern.rs) wrapper encapsulates
 the pattern text so that step lookups cannot accidentally mix arbitrary strings
 with registered patterns. Each pattern is compiled into a regular expression
 when the step registry is initialised, surfacing invalid syntax immediately.
-Equality and hashing rely solely on the pattern text; transient fields like the
+Equality and hashing rely solely on the pattern text. Transient fields like the
 cached `Regex` are ignored to preserve identity-by-source-text semantics. The
 global registry stores `(StepKeyword, &'static StepPattern)` keys in a
 `hashbrown::HashMap` and uses the raw-entry API for constant-time lookups by
