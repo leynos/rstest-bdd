@@ -17,6 +17,13 @@
 /// assert_eq!(sanitize_ident("type"), "_type");
 /// ```
 pub(crate) fn sanitize_ident(input: &str) -> String {
+    let ident = replace_non_ascii_with_underscores(input);
+    let ident = collapse_underscores(&ident);
+    let ident = trim_trailing_underscores(&ident);
+    add_prefix_if_needed(ident)
+}
+
+fn replace_non_ascii_with_underscores(input: &str) -> String {
     let mut ident = String::new();
     for c in input.chars() {
         if c.is_ascii_alphanumeric() {
@@ -25,11 +32,14 @@ pub(crate) fn sanitize_ident(input: &str) -> String {
             ident.push('_');
         }
     }
+    ident
+}
 
+fn collapse_underscores(input: &str) -> String {
     // Collapse repeated underscores to keep names tidy.
-    let mut collapsed = String::with_capacity(ident.len());
+    let mut collapsed = String::with_capacity(input.len());
     let mut prev_us = false;
-    for ch in ident.chars() {
+    for ch in input.chars() {
         if ch == '_' {
             if !prev_us {
                 collapsed.push('_');
@@ -40,17 +50,25 @@ pub(crate) fn sanitize_ident(input: &str) -> String {
             prev_us = false;
         }
     }
+    collapsed
+}
 
+fn trim_trailing_underscores(input: &str) -> String {
     // Trim trailing underscores that don't add meaning.
-    let mut ident = collapsed.trim_end_matches('_').to_string();
+    input.trim_end_matches('_').to_string()
+}
 
-    if ident.is_empty() || matches!(ident.chars().next(), Some(c) if c.is_ascii_digit()) {
-        ident.insert(0, '_');
-    }
-    if RUST_KEYWORDS.contains(&ident.as_str()) {
+fn add_prefix_if_needed(mut ident: String) -> String {
+    if needs_prefix(&ident) {
         ident.insert(0, '_');
     }
     ident
+}
+
+fn needs_prefix(ident: &str) -> bool {
+    ident.is_empty()
+        || ident.chars().next().is_some_and(|c| c.is_ascii_digit())
+        || RUST_KEYWORDS.contains(&ident)
 }
 
 /// Rust keywords that are invalid as identifiers.
