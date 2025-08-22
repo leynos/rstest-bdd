@@ -238,7 +238,7 @@ Best practices for writing effective scenarios include:
   accepted), but whitespace is not allowed between the name and the colon.
   Prefer the compact form `{count:u32}` in new code. When a pattern contains no
   placeholders, the step text must match exactly. Unknown type hints are
-  treated as generic placeholders and capture any non-newline text greedily.
+  treated as generic placeholders and capture non-newline text non-greedily.
 
 ## Data tables and Doc Strings
 

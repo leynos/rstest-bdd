@@ -156,17 +156,20 @@ fn only_closing_brace_fails_to_compile() {
 #[test]
 fn multiple_stray_closing_braces_fail_to_compile() {
     let pat = StepPattern::from("}}}");
-    assert!(
-        pat.compile().is_err(),
-        "multiple stray closing braces should error",
-    );
+    match pat.compile() {
+        Err(StepPatternError::UnbalancedBraces { .. }) => {}
+        Err(e) => panic!("unexpected error variant: {e}"),
+        Ok(()) => panic!("multiple stray closing braces should error"),
+    }
 }
 
 #[test]
 fn nested_brace_in_placeholder_fails_to_compile() {
     let pat = StepPattern::from("{outer:{inner}}");
     match pat.compile() {
-        Err(StepPatternError::NestedBracesInPlaceholder | StepPatternError::UnbalancedBraces) => {}
+        Err(
+            StepPatternError::NestedBracesInPlaceholder | StepPatternError::UnbalancedBraces { .. },
+        ) => {}
         Err(e) => panic!("unexpected error variant: {e}"),
         Ok(()) => panic!("nested brace in placeholder should error"),
     }

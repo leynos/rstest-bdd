@@ -158,9 +158,9 @@ pub struct StepPattern {
 /// Error returned when compiling a [`StepPattern`] fails.
 #[derive(Debug, thiserror::Error)]
 pub enum StepPatternError {
-    /// Pattern contains unmatched braces.
-    #[error("unbalanced braces in step pattern")]
-    UnbalancedBraces,
+    /// Pattern contains unmatched braces at the given byte offset.
+    #[error("unbalanced braces in step pattern at byte {pos}")]
+    UnbalancedBraces { pos: usize },
     /// Placeholder contains nested braces.
     #[error("nested braces inside placeholder")]
     NestedBracesInPlaceholder,
@@ -279,24 +279,6 @@ pub fn extract_placeholders(pattern: &StepPattern, text: StepText<'_>) -> Option
     extract_captured_values(pattern.regex(), text.as_str())
 }
 
-/// Update unmatched brace depth by scanning ASCII brace bytes.
-#[inline]
-fn update_brace_depth(text: &str, mut depth: usize) -> Result<usize, StepPatternError> {
-    for b in text.bytes() {
-        match b {
-            b'{' => depth = depth.saturating_add(1),
-            b'}' => {
-                if depth == 0 {
-                    return Err(StepPatternError::UnbalancedBraces);
-                }
-                depth -= 1;
-            }
-            _ => {}
-        }
-    }
-    Ok(depth)
-}
-
 /// Return the regex fragment for a placeholder type hint.
 fn get_type_pattern(type_hint: Option<&str>) -> &'static str {
     match type_hint {
@@ -310,63 +292,68 @@ fn get_type_pattern(type_hint: Option<&str>) -> &'static str {
 }
 
 /// Append a match segment and return the updated unmatched brace depth.
-fn process_placeholder_match(
-    match_text: &str,
-    type_hint: Option<&str>,
-    depth: usize,
-    regex: &mut String,
-) -> Result<usize, StepPatternError> {
-    if depth == 0 {
-        if let Some(ty) = type_hint {
-            if ty.contains('{') || ty.contains('}') {
-                return Err(StepPatternError::NestedBracesInPlaceholder);
-            }
-        }
-        match match_text {
-            "{{" => regex.push_str(r"\{"),
-            "}}" => regex.push_str(r"\}"),
-            _ => {
-                regex.push('(');
-                regex.push_str(get_type_pattern(type_hint));
-                regex.push(')');
-            }
-        }
-        Ok(depth)
-    } else {
-        regex.push_str(&regex::escape(match_text));
-        // Adjust depth for braces inside unmatched regions.
-        update_brace_depth(match_text, depth)
-    }
-}
-
 fn build_regex_from_pattern(pat: &str) -> Result<String, StepPatternError> {
     // Precompiled regex splits the pattern into literal fragments and
     // placeholders. `depth` tracks unmatched opening braces so stray braces
     // trigger an error.
-    let ph_re = &PLACEHOLDER_RE;
     let mut regex = String::with_capacity(pat.len().saturating_mul(2) + 2);
     regex.push('^');
     let mut last = 0usize;
     let mut depth = 0usize;
-    for cap in ph_re.captures_iter(pat) {
+    for cap in PLACEHOLDER_RE.captures_iter(pat) {
         #[expect(clippy::expect_used, reason = "placeholder regex guarantees a capture")]
         let m = cap.get(0).expect("placeholder capture missing");
-        if let Some(literal) = pat.get(last..m.start()) {
-            regex.push_str(&regex::escape(literal));
-            depth = update_brace_depth(literal, depth)?;
-        }
+        #[expect(clippy::expect_used, reason = "regex capture bounds are valid")]
+        let literal = pat.get(last..m.start()).expect("placeholder bounds");
+        regex.push_str(&regex::escape(literal));
+        depth = literal
+            .char_indices()
+            .try_fold(depth, |d, (i, c)| match c {
+                '{' => Ok(d + 1),
+                '}' if d > 0 => Ok(d - 1),
+                '}' => Err(StepPatternError::UnbalancedBraces { pos: last + i }),
+                _ => Ok(d),
+            })?;
 
         let mat = m.as_str();
         let ty = cap.name("ty").map(|m| m.as_str().trim());
-        depth = process_placeholder_match(mat, ty, depth, &mut regex)?;
+        if depth == 0 {
+            if let Some(t) = ty {
+                if t.contains('{') || t.contains('}') {
+                    return Err(StepPatternError::NestedBracesInPlaceholder);
+                }
+            }
+            match mat {
+                "{{" => regex.push_str(r"\{"),
+                "}}" => regex.push_str(r"\}"),
+                _ => {
+                    regex.push('(');
+                    regex.push_str(get_type_pattern(ty));
+                    regex.push(')');
+                }
+            }
+        } else {
+            regex.push_str(&regex::escape(mat));
+            depth = mat.char_indices().try_fold(depth, |d, (i, c)| match c {
+                '{' => Ok(d + 1),
+                '}' if d > 0 => Ok(d - 1),
+                '}' => Err(StepPatternError::UnbalancedBraces { pos: m.start() + i }),
+                _ => Ok(d),
+            })?;
+        }
         last = m.end();
     }
-    if let Some(tail) = pat.get(last..) {
-        regex.push_str(&regex::escape(tail));
-        depth = update_brace_depth(tail, depth)?;
-    }
+    #[expect(clippy::expect_used, reason = "trailing slice exists")]
+    let tail = pat.get(last..).expect("trailing slice");
+    regex.push_str(&regex::escape(tail));
+    depth = tail.char_indices().try_fold(depth, |d, (i, c)| match c {
+        '{' => Ok(d + 1),
+        '}' if d > 0 => Ok(d - 1),
+        '}' => Err(StepPatternError::UnbalancedBraces { pos: last + i }),
+        _ => Ok(d),
+    })?;
     if depth != 0 {
-        return Err(StepPatternError::UnbalancedBraces);
+        return Err(StepPatternError::UnbalancedBraces { pos: pat.len() });
     }
     regex.push('$');
     Ok(regex)
