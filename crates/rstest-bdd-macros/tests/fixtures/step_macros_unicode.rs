@@ -1,6 +1,9 @@
 //! Step definitions with Unicode identifiers used by trybuild tests, including
 //! mixed ASCII/non-ASCII and digit-prefixed names.
-#![allow(non_snake_case)] // wrapper names for digit-prefixed steps violate snake case
+#![expect(
+    non_snake_case,
+    reason = "Unicode identifiers in fixtures are intentional and not snake_case",
+)]
 use rstest_bdd_macros::{given, then, when};
 
 #[given("précondition")]
@@ -20,7 +23,11 @@ fn stepé() {}
 #[when("1er pas")]
 fn _1er_pas() {}
 
-// Unicode-only function name and emoji in label to stress sanitisation.
+// Intentional CamelCase identifier to satisfy lint expectation.
+#[then("CamelCase")]
+fn CamelCase() {}
+
+// Unicode-only function name and emoji in label to stress sanitization.
 #[then("done ✅")]
 fn 数字() {}
 

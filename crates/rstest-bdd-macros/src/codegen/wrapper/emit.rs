@@ -122,7 +122,7 @@ static COUNTER: AtomicUsize = AtomicUsize::new(0);
 /// Generate unique identifiers for the wrapper components.
 ///
 /// The provided step function identifier may contain Unicode. It is
-/// sanitised to ASCII characters before constructing constant names to avoid
+/// sanitized to ASCII characters before constructing constant names to avoid
 /// emitting invalid identifiers.
 ///
 /// Returns identifiers for the wrapper function, fixture array constant, and
@@ -399,11 +399,11 @@ mod tests {
         let ident = parse_str::<syn::Ident>(raw).expect("parse identifier");
         let (wrapper_ident, const_ident, pattern_ident) = generate_wrapper_identifiers(&ident, id);
 
-        // Verify wrapper ident derives from the sanitised base.
+        // Verify wrapper ident derives from the sanitized base.
         let base = sanitize_ident(&ident.to_string());
         assert!(
             wrapper_ident.to_string().ends_with(&format!("{base}_{id}")),
-            "wrapper ident must include sanitised base and id",
+            "wrapper ident must include sanitized base and id",
         );
 
         // Exact expectations

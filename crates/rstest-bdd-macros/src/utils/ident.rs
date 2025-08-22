@@ -3,8 +3,9 @@
 /// Sanitize a string so it may be used as a Rust identifier.
 ///
 /// Only ASCII alphanumeric characters are retained; all other characters
-/// (including Unicode) are replaced with underscores. The result is
-/// lowercased. Identifiers starting with a digit gain a leading underscore,
+/// (including Unicode) are replaced with underscores. Runs of underscores are
+/// collapsed to a single `_`, and trailing underscores are trimmed. The result
+/// is lowercased. Identifiers starting with a digit gain a leading underscore,
 /// and keywords are likewise prefixed to avoid collisions. See
 /// [Rust Reference: Keywords](https://doc.rust-lang.org/reference/keywords.html)
 /// for the full list of reserved words.
@@ -15,42 +16,35 @@
 /// use crate::utils::ident::sanitize_ident;
 /// assert_eq!(sanitize_ident("Crème—brûlée"), "cr_me_br_l_e");
 /// assert_eq!(sanitize_ident("type"), "_type");
+/// assert_eq!(sanitize_ident("hello!"), "hello");
 /// ```
 pub(crate) fn sanitize_ident(input: &str) -> String {
     let ident = replace_non_ascii_with_underscores(input);
-    let ident = collapse_repeated_underscores(&ident);
     let ident = trim_trailing_underscores(&ident);
     add_prefix_if_needed(ident)
 }
 
 fn replace_non_ascii_with_underscores(input: &str) -> String {
-    let mut ident = String::new();
-    for c in input.chars() {
-        if c.is_ascii_alphanumeric() {
-            ident.push(c.to_ascii_lowercase());
-        } else {
-            ident.push('_');
-        }
-    }
-    ident
-}
-
-fn collapse_repeated_underscores(input: &str) -> String {
-    // Collapse repeated underscores to keep names tidy.
-    let mut collapsed = String::with_capacity(input.len());
+    // Single pass: map to ASCII, collapse repeated underscores on the fly.
+    let mut ident = String::with_capacity(input.len());
     let mut prev_us = false;
-    for ch in input.chars() {
+    for c in input.chars() {
+        let ch = if c.is_ascii_alphanumeric() {
+            c.to_ascii_lowercase()
+        } else {
+            '_'
+        };
         if ch == '_' {
             if !prev_us {
-                collapsed.push('_');
+                ident.push('_');
                 prev_us = true;
             }
         } else {
-            collapsed.push(ch);
+            ident.push(ch);
             prev_us = false;
         }
     }
-    collapsed
+    ident
 }
 
 fn trim_trailing_underscores(input: &str) -> String {
@@ -114,5 +108,17 @@ mod tests {
     #[test]
     fn collapses_repeated_underscores() {
         assert_eq!(sanitize_ident("a--b__c"), "a_b_c");
+    }
+
+    #[test]
+    fn sanitizes_all_non_alnum() {
+        assert_eq!(sanitize_ident("!!!"), "_");
+        assert_eq!(sanitize_ident("🙈🙉🙊"), "_");
+    }
+
+    #[test]
+    fn trims_trailing_underscores() {
+        assert_eq!(sanitize_ident("hello!"), "hello");
+        assert_eq!(sanitize_ident("end__"), "end");
     }
 }
