@@ -389,4 +389,21 @@ mod tests {
         assert_eq!(const_ident, format_ident!("__RSTEST_BDD_FIXTURES____2"));
         assert_eq!(pattern_ident, format_ident!("__RSTEST_BDD_PATTERN____2"));
     }
+
+    #[test]
+    fn sanitizes_identifiers_with_leading_digit() {
+        let ident = match parse_str::<syn::Ident>("_1er_pas") {
+            Ok(i) => i,
+            Err(e) => panic!("parse identifier: {e}"),
+        };
+        let (_, const_ident, pattern_ident) = generate_wrapper_identifiers(&ident, 4);
+        assert_eq!(
+            const_ident,
+            format_ident!("__RSTEST_BDD_FIXTURES__1ER_PAS_4")
+        );
+        assert_eq!(
+            pattern_ident,
+            format_ident!("__RSTEST_BDD_PATTERN__1ER_PAS_4")
+        );
+    }
 }
