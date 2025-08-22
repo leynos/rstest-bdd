@@ -1,16 +1,20 @@
 //! Behavioural test for fixture context injection
 
-use rstest_bdd::{Step, StepContext, iter, step};
+use rstest_bdd::{Step, StepContext, StepError, iter, step};
 
 fn needs_value(
     ctx: &StepContext<'_>,
     _text: &str,
     _docstring: Option<&str>,
     _table: Option<&[&[&str]]>,
-) -> Result<(), String> {
-    let val = ctx.get::<u32>("number").ok_or_else(|| {
-        "Missing fixture 'number' of type 'u32' in step function 'needs_value'".to_string()
-    })?;
+) -> Result<(), StepError> {
+    let val = ctx
+        .get::<u32>("number")
+        .ok_or_else(|| StepError::MissingFixture {
+            name: "number".to_string(),
+            ty: "u32".to_string(),
+            step: "needs_value".to_string(),
+        })?;
     assert_eq!(*val, 42);
     Ok(())
 }
@@ -49,12 +53,15 @@ fn context_missing_fixture_returns_error() {
             |step| step.run,
         );
     let result = step_fn(&ctx, "a value", None, None);
-    let err = match result {
-        Ok(()) => panic!("expected error when fixture is missing"),
-        Err(e) => e,
+    let Err(err) = result else {
+        panic!("expected error when fixture is missing");
     };
-    assert!(
-        err.contains("Missing fixture 'number' of type 'u32'"),
-        "unexpected error message"
-    );
+    match err {
+        StepError::MissingFixture { name, ty, step } => {
+            assert_eq!(name, "number");
+            assert_eq!(ty, "u32");
+            assert_eq!(step, "needs_value");
+        }
+        other => panic!("unexpected error: {other:?}"),
+    }
 }

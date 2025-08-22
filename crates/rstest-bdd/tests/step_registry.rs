@@ -1,6 +1,6 @@
 //! Behavioural test for step registry
 
-use rstest_bdd::{Step, StepContext, iter, step};
+use rstest_bdd::{Step, StepContext, StepError, iter, step};
 
 fn sample() {}
 #[expect(
@@ -12,7 +12,7 @@ fn wrapper(
     _text: &str,
     _docstring: Option<&str>,
     _table: Option<&[&[&str]]>,
-) -> Result<(), String> {
+) -> Result<(), StepError> {
     // Adapter for zero-argument step functions
     let _ = ctx;
     sample();
@@ -26,9 +26,9 @@ fn failing_wrapper(
     _text: &str,
     _docstring: Option<&str>,
     _table: Option<&[&[&str]]>,
-) -> Result<(), String> {
+) -> Result<(), StepError> {
     let _ = ctx;
-    Err("boom".to_string())
+    Err(StepError::ExecutionError("boom".to_string()))
 }
 
 step!(
@@ -56,9 +56,11 @@ fn wrapper_error_propagates() {
             |step| step.run,
         );
     let result = step_fn(&StepContext::default(), "fails", None, None);
-    let err = match result {
-        Ok(()) => panic!("expected error from wrapper"),
-        Err(e) => e,
+    let Err(err) = result else {
+        panic!("expected error from wrapper");
     };
-    assert_eq!(err, "boom");
+    match err {
+        StepError::ExecutionError(msg) => assert_eq!(msg, "boom"),
+        other => panic!("unexpected error: {other:?}"),
+    }
 }

@@ -996,9 +996,10 @@ nested brace pairs, preventing greedy captures while still requiring
 well‑formed placeholders.
 
 The runner forwards the raw doc string as `Option<&str>` and the wrapper
-converts it into an owned `String` before invoking the step function. The
-sequence below summarizes how the runner locates and executes steps when
-placeholders are present:
+converts it into an owned `String` before invoking the step function. Step
+wrappers return `Result<(), StepError>` so callers can categorise missing
+fixtures, execution failures, or panics. The sequence below summarises how the
+runner locates and executes steps when placeholders are present:
 
 ```mermaid
 sequenceDiagram
@@ -1018,8 +1019,8 @@ sequenceDiagram
     StepWrapper->>StepWrapper: extract_placeholders(pattern, text)
     StepWrapper->>StepWrapper: parse captures with FromStr
     StepWrapper->>StepFunction: call with typed args (docstring: String, datatable: Vec<Vec<String>>)
-    StepFunction-->>StepWrapper: returns
-    StepWrapper-->>ScenarioRunner: returns
+    StepFunction-->>StepWrapper: Result<(), StepError>
+    StepWrapper-->>ScenarioRunner: Result<(), StepError>
 ```
 
 ## **Works cited**
