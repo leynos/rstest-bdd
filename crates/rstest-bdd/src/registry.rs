@@ -48,7 +48,7 @@ macro_rules! step {
     ($keyword:expr, $pattern:expr, $handler:path, $fixtures:expr) => {
         const _: () = {
             static PATTERN: $crate::StepPattern = $crate::StepPattern::new($pattern);
-            $crate::step!(@pattern $keyword, &PATTERN, $handler, $fixtures);
+    $crate::step!(@pattern $keyword, &PATTERN, $handler, $fixtures);
         };
     };
 }

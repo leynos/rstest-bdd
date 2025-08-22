@@ -14,15 +14,21 @@ pub struct PatternStr<'a>(pub(crate) &'a str);
 impl<'a> PatternStr<'a> {
     /// Construct a new `PatternStr` from a string slice.
     #[must_use]
-    pub const fn new(s: &'a str) -> Self { Self(s) }
+    pub const fn new(s: &'a str) -> Self {
+        Self(s)
+    }
 
     /// Access the underlying string slice.
     #[must_use]
-    pub const fn as_str(self) -> &'a str { self.0 }
+    pub const fn as_str(self) -> &'a str {
+        self.0
+    }
 }
 
 impl<'a> From<&'a str> for PatternStr<'a> {
-    fn from(s: &'a str) -> Self { Self::new(s) }
+    fn from(s: &'a str) -> Self {
+        Self::new(s)
+    }
 }
 
 /// Wrapper for step text content from scenarios.
@@ -32,15 +38,21 @@ pub struct StepText<'a>(pub(crate) &'a str);
 impl<'a> StepText<'a> {
     /// Construct a new `StepText` from a string slice.
     #[must_use]
-    pub const fn new(s: &'a str) -> Self { Self(s) }
+    pub const fn new(s: &'a str) -> Self {
+        Self(s)
+    }
 
     /// Access the underlying string slice.
     #[must_use]
-    pub const fn as_str(self) -> &'a str { self.0 }
+    pub const fn as_str(self) -> &'a str {
+        self.0
+    }
 }
 
 impl<'a> From<&'a str> for StepText<'a> {
-    fn from(s: &'a str) -> Self { Self::new(s) }
+    fn from(s: &'a str) -> Self {
+        Self::new(s)
+    }
 }
 
 /// Keyword used to categorise a step definition.
@@ -130,4 +142,3 @@ pub type StepFn = for<'a> fn(
     Option<&str>,
     Option<&[&[&str]]>,
 ) -> Result<(), String>;
-

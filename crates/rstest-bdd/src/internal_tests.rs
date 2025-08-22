@@ -4,9 +4,9 @@
 //! behaviour remains stable while allowing private access from a child module.
 
 use crate::placeholder::{
-    is_double_brace, is_empty_type_hint, is_escaped_brace, is_placeholder_start, parse_double_brace,
-    parse_escaped_brace, parse_literal, parse_placeholder, parse_placeholder_name,
-    RegexBuilder,
+    RegexBuilder, is_double_brace, is_empty_type_hint, is_escaped_brace, is_placeholder_start,
+    parse_double_brace, parse_escaped_brace, parse_literal, parse_placeholder,
+    parse_placeholder_name,
 };
 
 #[test]

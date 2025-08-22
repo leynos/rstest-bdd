@@ -38,4 +38,3 @@ impl<'a> StepContext<'a> {
         self.fixtures.get(name)?.downcast_ref::<T>()
     }
 }
-

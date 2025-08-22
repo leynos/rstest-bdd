@@ -59,18 +59,31 @@ impl<'a> RegexBuilder<'a> {
     pub(crate) fn new(pattern: &'a str) -> Self {
         let mut output = String::with_capacity(pattern.len().saturating_mul(2) + 2);
         output.push('^');
-        Self { pattern, bytes: pattern.as_bytes(), position: 0, output, stray_depth: 0 }
+        Self {
+            pattern,
+            bytes: pattern.as_bytes(),
+            position: 0,
+            output,
+            stray_depth: 0,
+        }
     }
     #[inline]
-    pub(crate) fn has_more(&self) -> bool { self.position < self.bytes.len() }
+    pub(crate) fn has_more(&self) -> bool {
+        self.position < self.bytes.len()
+    }
     #[inline]
-    pub(crate) fn advance(&mut self, n: usize) { self.position = self.position.saturating_add(n) }
+    pub(crate) fn advance(&mut self, n: usize) {
+        self.position = self.position.saturating_add(n);
+    }
     #[inline]
     pub(crate) fn push_literal_byte(&mut self, b: u8) {
-        self.output.push_str(&regex::escape(&(b as char).to_string()));
+        self.output
+            .push_str(&regex::escape(&(b as char).to_string()));
     }
     #[inline]
-    pub(crate) fn push_literal_brace(&mut self, brace: u8) { self.push_literal_byte(brace) }
+    pub(crate) fn push_literal_brace(&mut self, brace: u8) {
+        self.push_literal_byte(brace);
+    }
     #[inline]
     pub(crate) fn push_capture_for_type(&mut self, ty: Option<&str>) {
         self.output.push('(');
@@ -86,7 +99,10 @@ pub(crate) fn is_escaped_brace(bytes: &[u8], pos: usize) -> bool {
 
 #[inline]
 pub(crate) fn is_double_brace(bytes: &[u8], pos: usize) -> bool {
-    let first = match bytes.get(pos) { Some(b @ (b'{' | b'}')) => *b, _ => return false };
+    let first = match bytes.get(pos) {
+        Some(b @ (b'{' | b'}')) => *b,
+        _ => return false,
+    };
     matches!(bytes.get(pos + 1), Some(b) if *b == first)
 }
 
@@ -98,11 +114,17 @@ pub(crate) fn is_placeholder_start(bytes: &[u8], pos: usize) -> bool {
 
 #[inline]
 pub(crate) fn is_empty_type_hint(state: &RegexBuilder<'_>, name_end: usize) -> bool {
-    if !matches!(state.bytes.get(name_end), Some(b':')) { return false; }
+    if !matches!(state.bytes.get(name_end), Some(b':')) {
+        return false;
+    }
     let mut i = name_end + 1;
     while let Some(&b) = state.bytes.get(i) {
-        if b == b'}' { return true; }
-        if !(b as char).is_ascii_whitespace() { return false; }
+        if b == b'}' {
+            return true;
+        }
+        if !(b as char).is_ascii_whitespace() {
+            return false;
+        }
         i += 1;
     }
     false
@@ -120,8 +142,12 @@ pub(crate) fn parse_double_brace(state: &mut RegexBuilder<'_>) {
     let brace = state.bytes[state.position];
     state.push_literal_brace(brace);
     if state.stray_depth > 0 {
-        if brace == b'{' { state.stray_depth = state.stray_depth.saturating_add(1); }
-        if brace == b'}' { state.stray_depth = state.stray_depth.saturating_sub(1); }
+        if brace == b'{' {
+            state.stray_depth = state.stray_depth.saturating_add(1);
+        }
+        if brace == b'}' {
+            state.stray_depth = state.stray_depth.saturating_sub(1);
+        }
     }
     state.advance(2);
 }
@@ -129,7 +155,9 @@ pub(crate) fn parse_double_brace(state: &mut RegexBuilder<'_>) {
 pub(crate) fn parse_literal(state: &mut RegexBuilder<'_>) {
     #[expect(clippy::indexing_slicing, reason = "caller ensured bound")]
     let ch = state.bytes[state.position];
-    if ch == b'{' { state.stray_depth = state.stray_depth.saturating_add(1); }
+    if ch == b'{' {
+        state.stray_depth = state.stray_depth.saturating_add(1);
+    }
     state.push_literal_byte(ch);
     state.advance(1);
 }
@@ -138,27 +166,45 @@ pub(crate) fn parse_placeholder_name(state: &RegexBuilder<'_>, start: usize) -> 
     let mut i = start + 1; // skip '{'
     let mut name = String::new();
     while let Some(&b) = state.bytes.get(i) {
-        if (b as char).is_ascii_alphanumeric() || b == b'_' { name.push(b as char); i += 1; } else { break; }
+        if (b as char).is_ascii_alphanumeric() || b == b'_' {
+            name.push(b as char);
+            i += 1;
+        } else {
+            break;
+        }
     }
     (i, name)
 }
 
 pub(crate) fn parse_type_hint(state: &RegexBuilder<'_>, start: usize) -> (usize, Option<String>) {
     let mut i = start;
-    if !matches!(state.bytes.get(i), Some(b':')) { return (i, None); }
+    if !matches!(state.bytes.get(i), Some(b':')) {
+        return (i, None);
+    }
     i += 1;
     let ty_start = i;
     let mut nest = 0usize;
     while let Some(&b) = state.bytes.get(i) {
         match b {
-            b'{' => { nest += 1; i += 1; }
-            b'}' => { if nest == 0 { break; } nest -= 1; i += 1; }
+            b'{' => {
+                nest += 1;
+                i += 1;
+            }
+            b'}' => {
+                if nest == 0 {
+                    break;
+                }
+                nest -= 1;
+                i += 1;
+            }
             _ => i += 1,
         }
     }
     #[expect(clippy::string_slice, reason = "ASCII region delimited by braces")]
     let ty = state.pattern[ty_start..i].trim().to_string();
-    if ty.is_empty() { return (start, None); }
+    if ty.is_empty() {
+        return (start, None);
+    }
     (i, Some(ty))
 }
 
@@ -168,7 +214,12 @@ pub(crate) fn parse_placeholder(state: &mut RegexBuilder<'_>) {
     if let Some(b) = state.bytes.get(name_end) {
         if (*b as char).is_ascii_whitespace() {
             let mut ws = name_end;
-            while let Some(bw) = state.bytes.get(ws) { if !(*bw as char).is_ascii_whitespace() { break; } ws += 1; }
+            while let Some(bw) = state.bytes.get(ws) {
+                if !(*bw as char).is_ascii_whitespace() {
+                    break;
+                }
+                ws += 1;
+            }
             if matches!(state.bytes.get(ws), Some(b':')) {
                 state.output.push_str(r"\{");
                 state.advance(1);
@@ -190,8 +241,17 @@ pub(crate) fn parse_placeholder(state: &mut RegexBuilder<'_>) {
         let mut nest = 0usize;
         while let Some(&b) = state.bytes.get(k) {
             match b {
-                b'{' => { nest += 1; k += 1; }
-                b'}' => { if nest == 0 { break; } nest -= 1; k += 1; }
+                b'{' => {
+                    nest += 1;
+                    k += 1;
+                }
+                b'}' => {
+                    if nest == 0 {
+                        break;
+                    }
+                    nest -= 1;
+                    k += 1;
+                }
                 _ => k += 1,
             }
         }
@@ -204,7 +264,9 @@ pub(crate) fn parse_placeholder(state: &mut RegexBuilder<'_>) {
         return;
     }
     state.push_capture_for_type(ty_opt.as_deref());
-    if ty_opt.as_ref().is_some_and(|t| t.contains('{')) { state.output.push_str(r"\}"); }
+    if ty_opt.as_ref().is_some_and(|t| t.contains('{')) {
+        state.output.push_str(r"\}");
+    }
     after += 1; // skip closing brace
     state.position = after;
 }
@@ -213,19 +275,38 @@ pub(crate) fn build_regex_from_pattern(pat: &str) -> String {
     let mut st = RegexBuilder::new(pat);
     while st.has_more() {
         if st.stray_depth > 0 {
-            if is_double_brace(st.bytes, st.position) { parse_double_brace(&mut st); continue; }
-            if is_escaped_brace(st.bytes, st.position) { parse_escaped_brace(&mut st); continue; }
+            if is_double_brace(st.bytes, st.position) {
+                parse_double_brace(&mut st);
+                continue;
+            }
+            if is_escaped_brace(st.bytes, st.position) {
+                parse_escaped_brace(&mut st);
+                continue;
+            }
             #[expect(clippy::indexing_slicing, reason = "bounds checked by has_more")]
             let ch = st.bytes[st.position];
-            if ch == b'{' { st.stray_depth = st.stray_depth.saturating_add(1); }
-            if ch == b'}' { st.stray_depth = st.stray_depth.saturating_sub(1); }
+            if ch == b'{' {
+                st.stray_depth = st.stray_depth.saturating_add(1);
+            }
+            if ch == b'}' {
+                st.stray_depth = st.stray_depth.saturating_sub(1);
+            }
             st.push_literal_byte(ch);
             st.advance(1);
             continue;
         }
-        if is_double_brace(st.bytes, st.position) { parse_double_brace(&mut st); continue; }
-        if is_escaped_brace(st.bytes, st.position) { parse_escaped_brace(&mut st); continue; }
-        if is_placeholder_start(st.bytes, st.position) { parse_placeholder(&mut st); continue; }
+        if is_double_brace(st.bytes, st.position) {
+            parse_double_brace(&mut st);
+            continue;
+        }
+        if is_escaped_brace(st.bytes, st.position) {
+            parse_escaped_brace(&mut st);
+            continue;
+        }
+        if is_placeholder_start(st.bytes, st.position) {
+            parse_placeholder(&mut st);
+            continue;
+        }
         parse_literal(&mut st);
     }
     st.output.push('$');

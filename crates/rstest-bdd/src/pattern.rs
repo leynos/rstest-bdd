@@ -16,12 +16,17 @@ impl StepPattern {
     /// Create a new pattern wrapper from a string literal.
     #[must_use]
     pub const fn new(value: &'static str) -> Self {
-        Self { text: value, regex: OnceLock::new() }
+        Self {
+            text: value,
+            regex: OnceLock::new(),
+        }
     }
 
     /// Access the underlying pattern string.
     #[must_use]
-    pub const fn as_str(&self) -> &'static str { self.text }
+    pub const fn as_str(&self) -> &'static str {
+        self.text
+    }
 
     /// Compile the pattern into a regular expression, caching the result.
     ///
@@ -46,9 +51,13 @@ impl StepPattern {
     }
 
     /// Return the cached regex if available.
-    pub(crate) fn try_regex(&self) -> Option<&Regex> { self.regex.get() }
+    pub(crate) fn try_regex(&self) -> Option<&Regex> {
+        self.regex.get()
+    }
 }
 
 impl From<&'static str> for StepPattern {
-    fn from(value: &'static str) -> Self { Self::new(value) }
+    fn from(value: &'static str) -> Self {
+        Self::new(value)
+    }
 }

@@ -450,12 +450,12 @@ pub struct Step {
 inventory::collect!(Step);
 ```
 
-The [`StepKeyword`](../crates/rstest-bdd/src/lib.rs) enum implements `FromStr`.
-Parsing failures return a `StepKeywordParseError` to ensure invalid step
-keywords are surfaced early.
+The [`StepKeyword`](../crates/rstest-bdd/src/types.rs) enum implements
+`FromStr`. Parsing failures return a `StepKeywordParseError` to ensure invalid
+step keywords are surfaced early.
 
-The [`StepPattern`](../crates/rstest-bdd/src/lib.rs) wrapper encapsulates the
-pattern text so that step lookups cannot accidentally mix arbitrary strings
+The [`StepPattern`](../crates/rstest-bdd/src/pattern.rs) wrapper encapsulates
+the pattern text so that step lookups cannot accidentally mix arbitrary strings
 with registered patterns. Each pattern is compiled into a regular expression
 when the step registry is initialised, surfacing invalid syntax immediately.
 
