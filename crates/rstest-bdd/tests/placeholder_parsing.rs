@@ -122,6 +122,7 @@ fn malformed_type_hint_is_literal() {
     );
 }
 
+#[test]
 fn handles_escaped_braces() {
     let pat = StepPattern::from(r"literal \{ brace {v} \}");
     pat.compile()

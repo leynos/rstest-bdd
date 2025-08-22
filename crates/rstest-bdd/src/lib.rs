@@ -25,15 +25,7 @@ use std::str::FromStr;
 use std::sync::{LazyLock, OnceLock};
 use thiserror::Error;
 
-// Compile once: used by `build_regex_from_pattern` for splitting pattern text.
-static PLACEHOLDER_RE: LazyLock<Regex> = LazyLock::new(|| {
-    #[expect(
-        clippy::expect_used,
-        reason = "pattern is verified; invalid regex indicates programmer error"
-    )]
-    Regex::new(r"\{\{|\}\}|\{(?:[A-Za-z_][A-Za-z0-9_]*)(?::(?P<ty>[^}]+))?\}")
-        .expect("invalid placeholder regex")
-});
+//
 
 /// Wrapper for step pattern strings used in matching logic
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -293,18 +285,7 @@ pub fn extract_placeholders(
     extract_captured_values(re, text.as_str()).ok_or(PlaceholderError::PatternMismatch)
 }
 
-/// Update unmatched brace depth by scanning ASCII brace bytes.
-#[inline]
-fn update_brace_depth(text: &str, mut depth: usize) -> usize {
-    for b in text.bytes() {
-        match b {
-            b'{' => depth = depth.saturating_add(1),
-            b'}' => depth = depth.saturating_sub(1),
-            _ => {}
-        }
-    }
-    depth
-}
+//
 
 /// Return the regex fragment for a placeholder type hint.
 fn get_type_pattern(type_hint: Option<&str>) -> &'static str {
@@ -318,55 +299,205 @@ fn get_type_pattern(type_hint: Option<&str>) -> &'static str {
     }
 }
 
-/// Append a match segment and return the updated unmatched brace depth.
-fn process_placeholder_match(
-    match_text: &str,
-    type_hint: Option<&str>,
-    depth: usize,
-    regex: &mut String,
-) -> usize {
-    if depth == 0 {
-        match match_text {
-            "{{" => regex.push_str(r"\{"),
-            "}}" => regex.push_str(r"\}"),
-            _ => {
-                regex.push('(');
-                regex.push_str(get_type_pattern(type_hint));
-                regex.push(')');
-            }
-        }
-        depth
-    } else {
-        regex.push_str(&regex::escape(match_text));
-        // Adjust depth for braces inside unmatched regions.
-        update_brace_depth(match_text, depth)
-    }
-}
+//
 
+//
+
+#[expect(
+    clippy::indexing_slicing,
+    clippy::too_many_lines,
+    clippy::string_slice,
+    reason = "Scanner bounds are guarded; UTF-8 slices only occur over ASCII"
+)]
 fn build_regex_from_pattern(pat: &str) -> String {
-    // Precompiled regex splits the pattern into literal fragments and
-    // placeholders. `depth` tracks unmatched opening braces so a stray `{`
-    // causes subsequent braces to be treated as literals.
-    let ph_re = &PLACEHOLDER_RE;
+    // Single-pass scanner that supports:
+    // - Escaped braces via "\\{" and "\\}"
+    // - Escaped literal braces via "{{" and "}}"
+    // - Placeholders: `{name[:type]}` with nested braces allowed inside
+    //   the placeholder content to determine the correct closing `}`.
+    let bytes = pat.as_bytes();
+    let mut i = 0usize;
+    let len = bytes.len();
     let mut regex = String::with_capacity(pat.len().saturating_mul(2) + 2);
     regex.push('^');
-    let mut last = 0usize;
-    let mut depth = 0usize;
-    for cap in ph_re.captures_iter(pat) {
-        #[expect(clippy::expect_used, reason = "placeholder regex guarantees a capture")]
-        let m = cap.get(0).expect("placeholder capture missing");
-        if let Some(literal) = pat.get(last..m.start()) {
-            regex.push_str(&regex::escape(literal));
-            depth = update_brace_depth(literal, depth);
+    // Tracks unmatched literal opening braces that should block placeholders
+    // until balanced again.
+    let mut stray_depth: usize = 0;
+    while i < len {
+        if stray_depth > 0 {
+            // Inside a literal-brace region: emit all characters literally and
+            // maintain balance so placeholders remain disabled.
+            if i + 1 < len && bytes[i] == b'{' && bytes[i + 1] == b'{' {
+                regex.push_str(r"\{");
+                i += 2;
+                stray_depth += 1; // treat nested as additional literal brace
+                continue;
+            }
+            if i + 1 < len && bytes[i] == b'}' && bytes[i + 1] == b'}' {
+                regex.push_str(r"\}");
+                i += 2;
+                stray_depth = stray_depth.saturating_sub(1);
+                continue;
+            }
+            if i + 1 < len && bytes[i] == b'\\' && (bytes[i + 1] == b'{' || bytes[i + 1] == b'}') {
+                let ch = bytes[i + 1] as char;
+                regex.push_str(&regex::escape(&ch.to_string()));
+                i += 2;
+                continue;
+            }
+            let ch = bytes[i] as char;
+            if ch == '{' {
+                stray_depth += 1;
+            } else if ch == '}' {
+                stray_depth = stray_depth.saturating_sub(1);
+            }
+            regex.push_str(&regex::escape(&ch.to_string()));
+            i += 1;
+            continue;
+        }
+        // Double-brace escapes for literal braces
+        if i + 1 < len && bytes[i] == b'{' && bytes[i + 1] == b'{' {
+            regex.push_str(r"\{");
+            i += 2;
+            continue;
+        }
+        if i + 1 < len && bytes[i] == b'}' && bytes[i + 1] == b'}' {
+            regex.push_str(r"\}");
+            i += 2;
+            continue;
         }
 
-        let mat = m.as_str();
-        let ty = cap.name("ty").map(|m| m.as_str().trim());
-        depth = process_placeholder_match(mat, ty, depth, &mut regex);
-        last = m.end();
-    }
-    if let Some(tail) = pat.get(last..) {
-        regex.push_str(&regex::escape(tail));
+        // Backslash-escaped braces in the pattern become literal braces.
+        if i + 1 < len && bytes[i] == b'\\' && (bytes[i + 1] == b'{' || bytes[i + 1] == b'}') {
+            let ch = bytes[i + 1] as char;
+            regex.push_str(&regex::escape(&ch.to_string()));
+            i += 2;
+            continue;
+        }
+
+        // Placeholder start: `{` followed by identifier start.
+        if i + 1 < len
+            && bytes[i] == b'{'
+            && ((bytes[i + 1] as char).is_ascii_alphabetic() || bytes[i + 1] == b'_')
+        {
+            // Parse name
+            let mut j = i + 2;
+            while j < len {
+                let c = bytes[j];
+                if (c as char).is_ascii_alphanumeric() || c == b'_' {
+                    j += 1;
+                } else {
+                    break;
+                }
+            }
+
+            // Optional type hint: `:ty` up to the matching `}` (nesting allowed).
+            let mut k = j;
+            let mut type_hint: Option<String> = None;
+            let mut nest = 0usize;
+            // Whitespace immediately before ':' invalidates the placeholder.
+            if k < len && (bytes[k] as char).is_ascii_whitespace() {
+                let mut ws = k;
+                while ws < len && (bytes[ws] as char).is_ascii_whitespace() {
+                    ws += 1;
+                }
+                if ws < len && bytes[ws] == b':' {
+                    // Malformed `name : ty` -> treat `{` as literal and block placeholders.
+                    regex.push_str(r"\{");
+                    i += 1;
+                    stray_depth = stray_depth.saturating_add(1);
+                    continue;
+                }
+                k = j; // no colon; fall through to scan for matching `}`
+            }
+            if k < len && bytes[k] == b':' {
+                k += 1;
+                let ty_start = k;
+                let mut had_nested = false;
+                while k < len {
+                    match bytes[k] {
+                        b'{' => {
+                            had_nested = true;
+                            nest += 1;
+                            k += 1;
+                        }
+                        b'}' => {
+                            if nest == 0 {
+                                break;
+                            }
+                            nest -= 1;
+                            k += 1;
+                        }
+                        _ => k += 1,
+                    }
+                }
+                let ty = pat[ty_start..k].trim().to_string();
+                if ty.is_empty() {
+                    // Empty type hint -> treat as literal and block placeholders
+                    regex.push_str(r"\{");
+                    i += 1;
+                    stray_depth = stray_depth.saturating_add(1);
+                    continue;
+                }
+                type_hint = Some(ty);
+                // If nested braces were present in the placeholder content,
+                // honour a trailing literal '}' in the pattern to avoid
+                // greedy consumption.
+                if had_nested {
+                    // Emit capture now, then a literal closing brace below
+                }
+            } else {
+                // No explicit type hint; scan to matching `}` allowing nested.
+                while k < len {
+                    match bytes[k] {
+                        b'{' => {
+                            nest += 1;
+                            k += 1;
+                        }
+                        b'}' => {
+                            if nest == 0 {
+                                break;
+                            }
+                            nest -= 1;
+                            k += 1;
+                        }
+                        _ => k += 1,
+                    }
+                }
+            }
+
+            // If no closing brace found, treat `{` as literal.
+            if k >= len || bytes[k] != b'}' {
+                // Unclosed placeholder start -> treat `{` as literal and block placeholders
+                regex.push_str(r"\{");
+                i += 1;
+                stray_depth = stray_depth.saturating_add(1);
+                continue;
+            }
+
+            // Emit the capture group according to the type hint.
+            regex.push('(');
+            regex.push_str(get_type_pattern(type_hint.as_deref()));
+            regex.push(')');
+            // For placeholders with nested braces in the type section, require
+            // an extra literal closing brace in the input.
+            if let Some(ty) = &type_hint {
+                if ty.contains('{') {
+                    regex.push_str(r"\}");
+                }
+            }
+            i = k + 1;
+            continue;
+        }
+
+        // Default: emit literal char. A lone '{' opens a stray region that
+        // disables placeholders until balanced.
+        let ch = bytes[i] as char;
+        if ch == '{' {
+            stray_depth += 1;
+        }
+        regex.push_str(&regex::escape(&ch.to_string()));
+        i += 1;
     }
     regex.push('$');
     regex
