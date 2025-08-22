@@ -131,8 +131,9 @@ fn generate_wrapper_identifiers(
     ident: &syn::Ident,
     id: usize,
 ) -> (proc_macro2::Ident, proc_macro2::Ident, proc_macro2::Ident) {
-    let wrapper_ident = format_ident!("__rstest_bdd_wrapper_{}_{}", ident, id);
-    let ident_upper = sanitize_ident(&ident.to_string()).to_ascii_uppercase();
+    let ident_sanitized = sanitize_ident(&ident.to_string());
+    let wrapper_ident = format_ident!("__rstest_bdd_wrapper_{}_{}", ident_sanitized, id);
+    let ident_upper = ident_sanitized.to_ascii_uppercase();
     let const_ident = format_ident!("__RSTEST_BDD_FIXTURES_{}_{}", ident_upper, id);
     let pattern_ident = format_ident!("__RSTEST_BDD_PATTERN_{}_{}", ident_upper, id);
     (wrapper_ident, const_ident, pattern_ident)
@@ -376,5 +377,16 @@ mod tests {
             pattern_ident,
             format_ident!("__RSTEST_BDD_PATTERN_PR_F_RENCE_3")
         );
+    }
+
+    #[test]
+    fn sanitizes_identifiers_with_only_unicode_chars() {
+        let ident = match parse_str::<syn::Ident>("数字") {
+            Ok(i) => i,
+            Err(e) => panic!("parse identifier: {e}"),
+        };
+        let (_, const_ident, pattern_ident) = generate_wrapper_identifiers(&ident, 2);
+        assert_eq!(const_ident, format_ident!("__RSTEST_BDD_FIXTURES____2"));
+        assert_eq!(pattern_ident, format_ident!("__RSTEST_BDD_PATTERN____2"));
     }
 }

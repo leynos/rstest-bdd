@@ -20,4 +20,8 @@ fn stepé() {}
 #[when("1er pas")]
 fn _1er_pas() {}
 
+// Unicode-only function name and emoji in label to stress sanitisation.
+#[then("done ✅")]
+fn 数字() {}
+
 fn main() {}
