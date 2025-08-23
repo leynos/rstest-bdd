@@ -36,7 +36,7 @@ pub fn scenario(attr: TokenStream, item: TokenStream) -> TokenStream {
 /// - It is resolved relative to `CARGO_MANIFEST_DIR` at macro-expansion time.
 ///
 /// Expansion:
-/// - Emits a module named after `dir` (sanitised) containing one test function
+/// - Emits a module named after `dir` (sanitized) containing one test function
 ///   per discovered scenario.
 /// - Each generated test executes the matched steps via the registered
 ///   `#[given]`, `#[when]`, and `#[then]` functions.

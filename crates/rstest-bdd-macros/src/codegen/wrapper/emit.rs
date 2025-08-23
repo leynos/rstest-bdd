@@ -2,6 +2,7 @@
 
 use super::args::{ArgumentCollections, CallArg, DataTableArg, DocStringArg, FixtureArg, StepArg};
 use crate::codegen::keyword_to_token;
+use crate::utils::ident::sanitize_ident;
 use proc_macro2::TokenStream as TokenStream2;
 use quote::{format_ident, quote};
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -120,14 +121,19 @@ static COUNTER: AtomicUsize = AtomicUsize::new(0);
 
 /// Generate unique identifiers for the wrapper components.
 ///
+/// The provided step function identifier may contain Unicode. It is
+/// sanitized to ASCII before constructing constant names to avoid emitting
+/// invalid identifiers.
+///
 /// Returns identifiers for the wrapper function, fixture array constant, and
 /// pattern constant.
 fn generate_wrapper_identifiers(
     ident: &syn::Ident,
     id: usize,
 ) -> (proc_macro2::Ident, proc_macro2::Ident, proc_macro2::Ident) {
-    let wrapper_ident = format_ident!("__rstest_bdd_wrapper_{}_{}", ident, id);
-    let ident_upper = ident.to_string().to_uppercase();
+    let ident_sanitized = sanitize_ident(&ident.to_string());
+    let wrapper_ident = format_ident!("__rstest_bdd_wrapper_{}_{}", ident_sanitized, id);
+    let ident_upper = ident_sanitized.to_ascii_uppercase();
     let const_ident = format_ident!("__RSTEST_BDD_FIXTURES_{}_{}", ident_upper, id);
     let pattern_ident = format_ident!("__RSTEST_BDD_PATTERN_{}_{}", ident_upper, id);
     (wrapper_ident, const_ident, pattern_ident)
@@ -346,5 +352,69 @@ pub(crate) fn generate_wrapper_code(config: &WrapperConfig<'_>) -> TokenStream2 
     quote! {
         #body
         #registration
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    //! Tests for wrapper code generation helpers.
+
+    use super::generate_wrapper_identifiers;
+    use crate::utils::ident::sanitize_ident;
+    use rstest::rstest;
+    use syn::parse_str;
+
+    #[rstest]
+    #[case(
+        "préférence",
+        3,
+        "__rstest_bdd_wrapper_pr_f_rence_3",
+        "__RSTEST_BDD_FIXTURES_PR_F_RENCE_3",
+        "__RSTEST_BDD_PATTERN_PR_F_RENCE_3"
+    )]
+    #[case(
+        "数字",
+        2,
+        "__rstest_bdd_wrapper___2",
+        "__RSTEST_BDD_FIXTURES___2",
+        "__RSTEST_BDD_PATTERN___2"
+    )]
+    #[case(
+        "_1er_pas",
+        4,
+        "__rstest_bdd_wrapper__1er_pas_4",
+        "__RSTEST_BDD_FIXTURES__1ER_PAS_4",
+        "__RSTEST_BDD_PATTERN__1ER_PAS_4"
+    )]
+    fn generates_ascii_only_idents(
+        #[case] raw: &str,
+        #[case] id: usize,
+        #[case] expected_wrapper: &str,
+        #[case] expected_const: &str,
+        #[case] expected_pattern: &str,
+    ) {
+        #[expect(
+            clippy::expect_used,
+            reason = "tests ensure identifier parsing succeeds"
+        )]
+        let ident = parse_str::<syn::Ident>(raw).expect("parse identifier");
+        let (wrapper_ident, const_ident, pattern_ident) = generate_wrapper_identifiers(&ident, id);
+
+        // Verify wrapper ident derives from the sanitized base.
+        let base = sanitize_ident(&ident.to_string());
+        assert!(
+            wrapper_ident.to_string().ends_with(&format!("{base}_{id}")),
+            "wrapper ident must include sanitized base and id",
+        );
+
+        // Exact expectations
+        assert_eq!(wrapper_ident.to_string(), expected_wrapper);
+        assert_eq!(const_ident.to_string(), expected_const);
+        assert_eq!(pattern_ident.to_string(), expected_pattern);
+
+        // ASCII-only invariants
+        assert!(wrapper_ident.to_string().is_ascii());
+        assert!(const_ident.to_string().is_ascii());
+        assert!(pattern_ident.to_string().is_ascii());
     }
 }
