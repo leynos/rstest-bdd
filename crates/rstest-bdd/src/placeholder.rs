@@ -135,6 +135,17 @@ pub(crate) fn parse_escaped_brace(state: &mut RegexBuilder<'_>) {
     state.advance(2);
 }
 
+pub(crate) fn parse_escape_sequence(state: &mut RegexBuilder<'_>) {
+    if let Some(&next) = state.bytes.get(state.position + 1) {
+        state.push_literal_byte(next);
+        state.advance(2);
+    } else {
+        // Trailing backslash is treated literally.
+        state.push_literal_byte(b'\\');
+        state.advance(1);
+    }
+}
+
 pub(crate) fn parse_double_brace(state: &mut RegexBuilder<'_>) {
     #[expect(clippy::indexing_slicing, reason = "predicate ensured bound")]
     let brace = state.bytes[state.position];
@@ -259,12 +270,41 @@ pub(crate) fn parse_placeholder(state: &mut RegexBuilder<'_>) -> Result<(), rege
 pub(crate) fn build_regex_from_pattern(pat: &str) -> Result<String, regex::Error> {
     let mut st = RegexBuilder::new(pat);
     while st.has_more() {
+        if st.stray_depth > 0 {
+            if is_double_brace(st.bytes, st.position) {
+                parse_double_brace(&mut st);
+                continue;
+            }
+            if is_escaped_brace(st.bytes, st.position) {
+                parse_escaped_brace(&mut st);
+                continue;
+            }
+            if matches!(st.bytes.get(st.position), Some(b'\\')) {
+                parse_escape_sequence(&mut st);
+                continue;
+            }
+            #[expect(clippy::indexing_slicing, reason = "bounds checked by has_more")]
+            let ch = st.bytes[st.position];
+            if ch == b'{' {
+                st.stray_depth = st.stray_depth.saturating_add(1);
+            }
+            if ch == b'}' {
+                st.stray_depth = st.stray_depth.saturating_sub(1);
+            }
+            st.push_literal_byte(ch);
+            st.advance(1);
+            continue;
+        }
         if is_double_brace(st.bytes, st.position) {
             parse_double_brace(&mut st);
             continue;
         }
         if is_escaped_brace(st.bytes, st.position) {
             parse_escaped_brace(&mut st);
+            continue;
+        }
+        if matches!(st.bytes.get(st.position), Some(b'\\')) {
+            parse_escape_sequence(&mut st);
             continue;
         }
         if is_placeholder_start(st.bytes, st.position) {

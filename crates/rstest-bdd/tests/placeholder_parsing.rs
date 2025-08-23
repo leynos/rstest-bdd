@@ -131,6 +131,19 @@ fn handles_escaped_braces() {
     assert_eq!(caps, vec!["data"]);
 }
 
+#[test]
+fn unknown_escape_is_literal() {
+    let pat = compiled(r"digit \d end");
+    #[expect(clippy::expect_used, reason = "test asserts literal match")]
+    let caps =
+        extract_placeholders(&pat, StepText::from("digit d end")).expect("literal d should match");
+    assert!(caps.is_empty(), "no placeholders expected");
+    assert!(
+        extract_placeholders(&pat, StepText::from("digit 5 end")).is_err(),
+        "digit class should not match",
+    );
+}
+
 #[rstest]
 #[case("literal {{ brace {v} }}", "literal { brace data }", Some(vec!["data"]))]
 #[case("brace: {{}}", "brace: {}", Some(vec![]))]
