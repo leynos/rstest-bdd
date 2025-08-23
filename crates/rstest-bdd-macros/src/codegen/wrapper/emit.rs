@@ -16,8 +16,10 @@ fn gen_datatable_decl(
             let #pat: #ty = _table
                 .ok_or_else(|| format!("Step '{}' requires a data table", #pattern))?
                 .iter()
-                .map(|row| row.iter().map(|cell| cell.to_string()).collect())
-                .collect();
+                .map(|row| row.iter().map(|cell| cell.to_string()).collect::<Vec<String>>())
+                .collect::<Vec<Vec<String>>>()
+                .try_into()
+                .unwrap_or_else(|e| panic!("failed to convert data table for step '{}': {e}", #pattern));
         }
     })
 }

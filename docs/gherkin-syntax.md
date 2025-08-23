@@ -271,7 +271,10 @@ the target language as appropriate (for example, a list of lists in Python; a
 `Vec<Vec<String>>` in Rust) and use it to perform the necessary setup.[^16] In
 `rstest-bdd`, a `Doc String` is retrieved similarly via a parameter named
 `docstring` of type `String`. The attribute or canonical name allows the
-procedural macros to detect the data table parameter.
+procedural macros to detect the data table parameter. The data table parameter
+must precede any `docstring` argument and cannot be combined with `#[from]`.
+Its declared type must implement `TryFrom<Vec<Vec<String>>>` so the wrapper can
+convert the parsed cells.
 
 ### Section 2.4: Incorporating Block Text with `Doc Strings`
 

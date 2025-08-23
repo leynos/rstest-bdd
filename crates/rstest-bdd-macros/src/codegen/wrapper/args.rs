@@ -15,7 +15,17 @@ pub struct StepArg {
     pub ty: syn::Type,
 }
 
-/// Data table argument extracted from a step function.
+/// Represents an argument for a Gherkin data table step function.
+///
+/// The [`ty`] field preserves the user-declared Rust type, enabling the
+/// wrapper to convert the parsed table into any compatible structure. This
+/// allows callers to use type aliases or custom newtypes so long as they
+/// implement `TryFrom<Vec<Vec<String>>>`. Documenting the type here makes the
+/// intended use explicit for future maintainers.
+///
+/// # Fields
+/// - `pat`: Identifier pattern for the argument.
+/// - `ty`: User-declared Rust type used to receive the converted table.
 #[derive(Debug, Clone)]
 pub struct DataTableArg {
     pub pat: syn::Ident,
@@ -113,7 +123,6 @@ fn is_string(ty: &syn::Type) -> bool {
 fn is_datatable(ty: &syn::Type) -> bool {
     is_type_seq(ty, &["Vec", "Vec", "String"])
 }
-#[expect(clippy::unnecessary_wraps, reason = "conforms to classifier signature")]
 fn classify_fixture(
     st: &mut ExtractedArgs,
     arg: &mut syn::PatType,
@@ -122,6 +131,7 @@ fn classify_fixture(
 ) -> syn::Result<bool> {
     let mut name = None;
     let mut found_from = false;
+    let has_datatable = arg.attrs.iter().any(|a| a.path().is_ident("datatable"));
     arg.attrs.retain(|a| {
         if a.path().is_ident("from") {
             found_from = true;
@@ -132,6 +142,12 @@ fn classify_fixture(
         }
     });
     if found_from {
+        if has_datatable {
+            return Err(syn::Error::new_spanned(
+                arg,
+                "#[datatable] cannot be combined with #[from]",
+            ));
+        }
         let name = name.unwrap_or_else(|| pat.clone());
         let idx = st.fixtures.len();
         st.fixtures.push(FixtureArg {
@@ -166,6 +182,12 @@ fn classify_datatable(
         }
     });
     let is_canonical = should_classify_as_datatable(pat, ty);
+    if is_attr && pat == "docstring" {
+        return Err(syn::Error::new_spanned(
+            arg,
+            "parameter `docstring` cannot be annotated with #[datatable]",
+        ));
+    }
     if is_attr || is_canonical {
         if st.datatable.is_some() {
             return Err(syn::Error::new_spanned(

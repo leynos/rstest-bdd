@@ -256,7 +256,10 @@ other essential Gherkin constructs.
 - **Data Tables:** A Gherkin data table provides a way to pass a structured
   block of data to a single step. Provide it to the step function via a single
   optional parameter annotated with `#[datatable]` or named `datatable` of type
-  `Vec<Vec<String>>`, mirroring `pytest-bdd`'s `datatable` argument.[^11]
+  `Vec<Vec<String>>`, mirroring `pytest-bdd`'s `datatable` argument.[^11] The
+  annotated parameter must precede any `docstring` argument, cannot combine
+  `#[datatable]` with `#[from]`, and its type must implement
+  `TryFrom<Vec<Vec<String>>>` to accept the converted cells.
 
   **Feature File:**
 
@@ -353,7 +356,10 @@ macro has a distinct role in the compile-time orchestration of the BDD tests.
   annotated with `#[datatable]` or named `datatable` of type
   `Vec<Vec<String>>`. When the feature file attaches a data table to a step,
   the generated wrapper converts the table into this structure and passes it to
-  the function. The wrapper emits an error at runtime if the table is missing.
+  the function. The data table parameter must precede any `docstring` argument,
+  must not combine `#[datatable]` with `#[from]`, and the target type must
+  implement `TryFrom<Vec<Vec<String>>>` for the conversion. The wrapper emits
+  an error at runtime if the table is missing.
 
 - **Doc Strings:** A multi-line text block immediately following a step is
   exposed to the step function through an optional `docstring` parameter of

@@ -247,10 +247,13 @@ named `datatable` of type `Vec<Vec<String>>`. A Gherkin Doc String is made
 available through an argument named `docstring` of type `String`. The
 procedural macros detect a data table parameter either by the attribute or by
 the canonical name and type. When both arguments are declared, place the data
-table before the doc string at the end of the parameter list. At runtime, the
-generated wrapper converts the table cells or copies the block text and passes
-them to the step function, panicking if the feature omits the expected content.
-Doc Strings may be delimited by triple double-quotes or triple backticks.
+table before the doc string at the end of the parameter list. The data table
+parameter cannot also use `#[from]` and its type must implement
+`TryFrom<Vec<Vec<String>>>` so the wrapper can convert the parsed cells. At
+runtime, the generated wrapper converts the table cells or copies the block
+text and passes them to the step function, panicking if the feature omits the
+expected content. Doc Strings may be delimited by triple double-quotes or
+triple backticks.
 
 ## Limitations and roadmap
 

@@ -37,6 +37,26 @@ use args_impl::{CallArg, extract_args};
     "only one docstring parameter is permitted and it must have type `String`",
     "error when docstring has wrong type",
 )]
+#[case(
+    parse_quote! { fn step(docstring: String, #[datatable] data: Vec<Vec<String>>) {} },
+    "datatable must be declared before docstring",
+    "error when datatable attribute follows docstring",
+)]
+#[case(
+    parse_quote! { fn step(#[datatable] a: Vec<Vec<String>>, #[datatable] b: Vec<Vec<String>>) {} },
+    "only one datatable parameter is permitted",
+    "error on duplicate datatable attributes",
+)]
+#[case(
+    parse_quote! { fn step(#[datatable] docstring: String) {} },
+    "parameter `docstring` cannot be annotated with #[datatable]",
+    "error when docstring parameter uses datatable attribute",
+)]
+#[case(
+    parse_quote! { fn step(#[from] #[datatable] fix: Vec<Vec<String>>) {} },
+    "#[datatable] cannot be combined with #[from]",
+    "error when datatable attribute applied to fixture",
+)]
 fn test_extract_args_errors(
     #[case] mut func: syn::ItemFn,
     #[case] expected_error_fragment: &str,
