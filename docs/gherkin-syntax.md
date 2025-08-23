@@ -264,13 +264,14 @@ Feature: User administration
 ```
 
 Unlike an `Examples` table, this `Data Table` does not cause the scenario to
-run multiple times. Instead, pass the entire table to the step definition as a
-parameter named `datatable`. The argument holds the rows as a two-dimensional
-collection (rows and cells). Parse it in the target language as appropriate
-(for example, a list of lists in Python; a `Vec<Vec<String>>` in Rust) and use
-it to perform the necessary setup.[^16] In `rstest-bdd`, a `Doc String` is
-retrieved similarly via a parameter named `docstring` of type `String`. These
-names and types are required for detection by the procedural macros.
+run multiple times. Instead, pass the entire table to the step definition via a
+parameter annotated with `#[datatable]` or named `datatable`. The argument
+holds the rows as a two-dimensional collection (rows and cells). Parse it in
+the target language as appropriate (for example, a list of lists in Python; a
+`Vec<Vec<String>>` in Rust) and use it to perform the necessary setup.[^16] In
+`rstest-bdd`, a `Doc String` is retrieved similarly via a parameter named
+`docstring` of type `String`. The attribute or canonical name allows the
+procedural macros to detect the data table parameter.
 
 ### Section 2.4: Incorporating Block Text with `Doc Strings`
 
@@ -649,9 +650,9 @@ steps.
   arguments to the corresponding step functions. Their names must match the
   headers in the `Examples` table.[^25]
 - `Data Tables`**:** Step functions may include a single optional parameter
-  named `datatable`. The argument receives the table as a list of lists (rows
-  and cells). `pytest-bdd` injects the table content into this argument, where
-  each inner list represents a row.[^16]
+  annotated with `#[datatable]` or named `datatable`. The argument receives the
+  table as a list of lists (rows and cells). `pytest-bdd` injects the table
+  content into this argument, where each inner list represents a row.[^16]
 - `Doc Strings`**:** Similarly, a `Doc String` can be accessed by including a
   special argument named `docstring`. This argument will receive the entire
   block text as a single, multi-line string.[^16]
@@ -843,13 +844,13 @@ purpose-built, type-safe, and async-native design of `cucumber-rs`.
 
 ### Table 2: `pytest-bdd` vs. `cucumber-rs` Implementation Comparison
 
-| Feature                | pytest-bdd (Python)                                                                                                                       | cucumber-rs (Rust)                                                                                                                                        |
-| ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Core Philosophy        | A plugin for the pytest framework. BDD scenarios are treated as pytest tests. 30                                                          | A self-contained, native Cucumber implementation and test runner for Rust. 35                                                                             |
-| State Management       | Uses pytest's fixture system. State is shared via dependency injection. Given steps can act as fixture factories using target_fixture. 31 | Uses an explicit, mutable World struct. A new World instance is created for each scenario and passed as a mutable reference (&mut World) to each step. 37 |
-| Step Definition Syntax | Functions are decorated with @given, @when, @then. A separate @scenario decorator links a test function to a feature file scenario. 29    | async functions are decorated with #[given], #[when], #[then] attribute macros. A central main function invokes the runner. 35                            |
-| Data Table Handling    | The step function accepts a special datatable argument, which contains the data as a list of lists. 22                                    | The step function accepts a &Step argument, and the table is accessed via step.table.as_ref(). 42                                                         |
-| Ecosystem & Tooling    | Leverages the entire pytest ecosystem: fixtures, hooks, and thousands of plugins for reporting, parallelisation, etc. 28                  | Provides its own ecosystem for execution, filtering, and output formatting. Integrates with Rust's build system (cargo) and async runtimes (tokio). 35    |
+| Feature                | pytest-bdd (Python)                                                                                                                               | cucumber-rs (Rust)                                                                                                                                        |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Core Philosophy        | A plugin for the pytest framework. BDD scenarios are treated as pytest tests. 30                                                                  | A self-contained, native Cucumber implementation and test runner for Rust. 35                                                                             |
+| State Management       | Uses pytest's fixture system. State is shared via dependency injection. Given steps can act as fixture factories using target_fixture. 31         | Uses an explicit, mutable World struct. A new World instance is created for each scenario and passed as a mutable reference (&mut World) to each step. 37 |
+| Step Definition Syntax | Functions are decorated with @given, @when, @then. A separate @scenario decorator links a test function to a feature file scenario. 29            | async functions are decorated with #[given], #[when], #[then] attribute macros. A central main function invokes the runner. 35                            |
+| Data Table Handling    | The step function accepts a datatable argument annotated with `#[datatable]` or named `datatable`, which contains the data as a list of lists. 22 | The step function accepts a &Step argument, and the table is accessed via step.table.as_ref(). 42                                                         |
+| Ecosystem & Tooling    | Leverages the entire pytest ecosystem: fixtures, hooks, and thousands of plugins for reporting, parallelisation, etc. 28                          | Provides its own ecosystem for execution, filtering, and output formatting. Integrates with Rust's build system (cargo) and async runtimes (tokio). 35    |
 
 ### Section 6.2: Common Quirks and Gotchas
 

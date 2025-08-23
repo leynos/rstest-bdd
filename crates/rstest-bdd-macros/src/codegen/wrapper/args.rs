@@ -19,6 +19,7 @@ pub struct StepArg {
 #[derive(Debug, Clone)]
 pub struct DataTableArg {
     pub pat: syn::Ident,
+    pub ty: syn::Type,
 }
 
 /// Gherkin doc string argument extracted from a step function.
@@ -155,7 +156,17 @@ fn classify_datatable(
     pat: &syn::Ident,
     ty: &syn::Type,
 ) -> syn::Result<bool> {
-    if should_classify_as_datatable(pat, ty) {
+    let mut is_attr = false;
+    arg.attrs.retain(|a| {
+        if a.path().is_ident("datatable") {
+            is_attr = true;
+            false
+        } else {
+            true
+        }
+    });
+    let is_canonical = should_classify_as_datatable(pat, ty);
+    if is_attr || is_canonical {
         if st.datatable.is_some() {
             return Err(syn::Error::new_spanned(
                 arg,
@@ -168,7 +179,10 @@ fn classify_datatable(
                 "datatable must be declared before docstring to match Gherkin ordering",
             ));
         }
-        st.datatable = Some(DataTableArg { pat: pat.clone() });
+        st.datatable = Some(DataTableArg {
+            pat: pat.clone(),
+            ty: ty.clone(),
+        });
         st.call_order.push(CallArg::DataTable);
         Ok(true)
     } else if pat == "datatable" {
@@ -245,7 +259,8 @@ const CLASSIFIERS: &[Classifier] = &[
 /// ```
 ///
 /// Note: special arguments must use the canonical names:
-/// - data table parameter must be named `datatable` and have type `Vec<Vec<String>>`
+/// - data table parameter must be annotated with `#[datatable]` or be named
+///   `datatable` and have type `Vec<Vec<String>>`
 /// - doc string parameter must be named `docstring` and have type `String`
 ///
 /// At most one `datatable` and one `docstring` parameter are permitted.

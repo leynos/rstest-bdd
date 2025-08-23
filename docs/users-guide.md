@@ -242,15 +242,15 @@ Best practices for writing effective scenarios include:
 ## Data tables and Doc Strings
 
 Steps may supply structured or free-form data via a trailing argument. A data
-table is received by including an argument named `datatable` of type
-`Vec<Vec<String>>`. A Gherkin Doc String is made available through an argument
-named `docstring` of type `String`. Both arguments must use these exact names
-and types to be detected by the procedural macros. When both are declared,
-place `datatable` before `docstring` at the end of the parameter list. At
-runtime, the generated wrapper converts the table cells or copies the block
-text and passes them to the step function, panicking if the feature omits the
-expected content. Doc Strings may be delimited by triple double-quotes or
-triple backticks.
+table is received by including a parameter annotated with `#[datatable]` or
+named `datatable` of type `Vec<Vec<String>>`. A Gherkin Doc String is made
+available through an argument named `docstring` of type `String`. The
+procedural macros detect a data table parameter either by the attribute or by
+the canonical name and type. When both arguments are declared, place the data
+table before the doc string at the end of the parameter list. At runtime, the
+generated wrapper converts the table cells or copies the block text and passes
+them to the step function, panicking if the feature omits the expected content.
+Doc Strings may be delimited by triple double-quotes or triple backticks.
 
 ## Limitations and roadmap
 

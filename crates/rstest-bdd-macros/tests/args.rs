@@ -77,3 +77,36 @@ fn call_order_preserves_parameter_sequence() {
         [Fixture(0), StepArg(0), DataTable, DocString, StepArg(1)]
     ));
 }
+
+#[rstest]
+fn datatable_attribute_recognised_and_preserves_type() {
+    let mut func: syn::ItemFn = parse_quote! {
+        fn step(#[datatable] table: MyTable) {}
+    };
+    #[expect(clippy::expect_used, reason = "test asserts valid extraction")]
+    let args = extract_args(&mut func).expect("failed to extract args");
+    #[expect(clippy::expect_used, reason = "datatable presence required")]
+    let dt = args.datatable.expect("missing datatable");
+    assert_eq!(dt.pat, "table");
+    if let syn::Type::Path(tp) = &dt.ty {
+        #[expect(clippy::expect_used, reason = "path has at least one segment")]
+        let seg = tp.path.segments.last().expect("missing segment");
+        assert_eq!(seg.ident, "MyTable");
+    } else {
+        panic!("expected path type");
+    }
+}
+
+#[rstest]
+fn datatable_attribute_removed_from_signature() {
+    let mut func: syn::ItemFn = parse_quote! {
+        fn step(#[datatable] data: Vec<Vec<String>>) {}
+    };
+    #[expect(clippy::expect_used, reason = "test asserts valid extraction")]
+    let _args = extract_args(&mut func).expect("failed to extract args");
+    #[expect(clippy::expect_used, reason = "test inspects parameter attributes")]
+    let syn::FnArg::Typed(arg) = func.sig.inputs.first().expect("missing arg") else {
+        panic!("expected typed argument");
+    };
+    assert!(arg.attrs.is_empty(), "datatable attribute not stripped");
+}

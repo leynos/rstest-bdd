@@ -11,9 +11,9 @@ fn gen_datatable_decl(
     datatable: Option<&DataTableArg>,
     pattern: &syn::LitStr,
 ) -> Option<TokenStream2> {
-    datatable.map(|DataTableArg { pat }| {
+    datatable.map(|DataTableArg { pat, ty }| {
         quote! {
-            let #pat: Vec<Vec<String>> = _table
+            let #pat: #ty = _table
                 .ok_or_else(|| format!("Step '{}' requires a data table", #pattern))?
                 .iter()
                 .map(|row| row.iter().map(|cell| cell.to_string()).collect())
