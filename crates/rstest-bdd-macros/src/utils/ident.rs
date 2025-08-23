@@ -29,22 +29,22 @@ fn replace_non_ascii_with_underscores(input: &str) -> String {
     let mut ident = String::with_capacity(input.len());
     let mut prev_us = false;
     for c in input.chars() {
-        let ch = if c.is_ascii_alphanumeric() {
-            c.to_ascii_lowercase()
-        } else {
-            '_'
-        };
-        if ch == '_' {
-            if !prev_us {
-                ident.push('_');
-                prev_us = true;
-            }
-        } else {
-            ident.push(ch);
+        if c.is_ascii_alphanumeric() {
+            ident.push(c.to_ascii_lowercase());
             prev_us = false;
+        } else {
+            prev_us = should_add_underscore(&mut ident, prev_us);
         }
     }
     ident
+}
+
+fn should_add_underscore(ident: &mut String, prev_us: bool) -> bool {
+    // Append a single underscore unless the previous character already was one.
+    if !prev_us {
+        ident.push('_');
+    }
+    true
 }
 
 fn trim_trailing_underscores(input: &str) -> String {
