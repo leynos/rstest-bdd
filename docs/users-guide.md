@@ -47,7 +47,7 @@ same type for readability.
 Scenarios follow the simple `Given‑When‑Then` pattern. Support for **Scenario
 Outline** is available, enabling a single scenario to run with multiple sets of
 data from an `Examples` table. A `Background` section may define steps that run
-before each scenario. Advanced constructs such as data tables and Doc Strings
+before each scenario. Advanced constructs such as data tables and Docstrings
 provide structured or free‑form arguments to steps.
 
 ### Example feature file
@@ -73,8 +73,11 @@ annotated with one of the attribute macros `#[given]`, `#[when]` or `#[then]`.
 The annotation takes a single string literal that must match the text of the
 corresponding step in the feature file. Placeholders in the form `{name}` or
 `{name:Type}` are supported. The framework extracts matching substrings and
-converts them using `FromStr`; type hints constrain the match using specialised
-regular expressions.
+converts them using `FromStr`; type hints constrain the match using specialized
+regular expressions. If the step text does not supply a capture for a declared
+argument, the wrapper panics with
+`pattern '<pattern>' missing capture for argument '<name>'`, making the
+mismatch explicit.
 
 The procedural macro implementation expands the annotated function into two
 parts: the original function and a wrapper function that registers the step in
@@ -176,7 +179,7 @@ one may filter or run them in parallel as usual.
 For large suites, it is tedious to bind each scenario manually. The
 `scenarios!` macro scans a directory recursively for `.feature` files and
 generates a module with a test for every `Scenario` found. Each test is named
-after the feature file and scenario title. Identifiers are sanitised
+after the feature file and scenario title. Identifiers are sanitized
 (ASCII-only) and deduplicated by appending a numeric suffix when collisions
 occur.
 
@@ -239,18 +242,47 @@ Best practices for writing effective scenarios include:
   text must match exactly. Unknown type hints are treated as generic
   placeholders and capture any non-newline text greedily.
 
-## Data tables and Doc Strings
+## Data tables and Docstrings
 
 Steps may supply structured or free-form data via a trailing argument. A data
 table is received by including an argument named `datatable` of type
-`Vec<Vec<String>>`. A Gherkin Doc String is made available through an argument
-named `docstring` of type `String`. Both arguments must use these exact names
-and types to be detected by the procedural macros. When both are declared,
-place `datatable` before `docstring` at the end of the parameter list. At
-runtime, the generated wrapper converts the table cells or copies the block
-text and passes them to the step function, panicking if the feature omits the
-expected content. Doc Strings may be delimited by triple double-quotes or
-triple backticks.
+`Vec<Vec<String>>`. A Gherkin Docstring is available through an argument named
+`docstring` of type `String`. Both arguments must use these exact names and
+types to be detected by the procedural macros. When both are declared, place
+`datatable` before `docstring` at the end of the parameter list.
+
+```gherkin
+Scenario: capture table and docstring
+  Given the following numbers:
+    | a | b |
+    | 1 | 2 |
+  When I submit:
+    """
+    payload
+    """
+```
+
+```rust
+#[given("the following numbers:")]
+fn capture_table(datatable: Vec<Vec<String>>) {
+    // ...
+}
+
+#[when("I submit:")]
+fn capture_docstring(docstring: String) {
+    // ...
+}
+
+#[then("table and text:")]
+fn capture_both(datatable: Vec<Vec<String>>, docstring: String) {
+    // datatable must precede docstring
+}
+```
+
+At runtime, the generated wrapper converts the table cells or copies the block
+text and passes them to the step function. It panics if the step declares
+`datatable` or `docstring` but the feature omits the content. Docstrings may be
+delimited by triple double-quotes or triple backticks.
 
 ## Limitations and roadmap
 

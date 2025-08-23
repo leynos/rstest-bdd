@@ -357,13 +357,13 @@ macro has a distinct role in the compile-time orchestration of the BDD tests.
   it to the function. The wrapper emits an error at runtime if the table is
   missing.
 
-- **Doc Strings:** A multi-line text block immediately following a step is
+- **Docstrings:** A multi-line text block immediately following a step is
   exposed to the step function through an optional `docstring` parameter of
   type `String`. The runner passes the raw block to the wrapper as
   `Option<&str>`, and the wrapper clones it into an owned `String` before
   calling the step function. As with data tables, the parameter must use this
   exact name and concrete type for detection. The wrapper fails at runtime if
-  the doc string is absent. A data table must precede any doc string parameter,
+  the docstring is absent. A data table must precede any docstring parameter,
   and feature files may delimit the block using either triple double-quotes or
   triple backticks.
 
@@ -1058,9 +1058,12 @@ step registry using `find_step`, which falls back to placeholder matching when
 no exact pattern is present. This approach keeps the macros lightweight while
 supporting type‑safe parameters in steps. The parser handles escaped braces and
 nested brace pairs, preventing greedy captures while still requiring
-well‑formed placeholders.
+well‑formed placeholders. When a placeholder lacks a corresponding capture in
+the step text, the wrapper panics with
+`pattern '<pattern>' missing capture for argument '<name>'`, making the
+mismatch explicit instead of falling back to a default value.
 
-The runner forwards the raw doc string as `Option<&str>` and the wrapper
+The runner forwards the raw docstring as `Option<&str>` and the wrapper
 converts it into an owned `String` before invoking the step function. The
 sequence below summarizes how the runner locates and executes steps when
 placeholders are present:
