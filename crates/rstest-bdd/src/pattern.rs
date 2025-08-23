@@ -17,13 +17,17 @@ pub struct StepPattern {
 // `&'static StepPattern` to be used as a stable map key while keeping
 // semantics intuitive and independent of allocation identity.
 impl PartialEq for StepPattern {
-    fn eq(&self, other: &Self) -> bool { self.text == other.text }
+    fn eq(&self, other: &Self) -> bool {
+        self.text == other.text
+    }
 }
 
 impl Eq for StepPattern {}
 
 impl Hash for StepPattern {
-    fn hash<H: Hasher>(&self, state: &mut H) { self.text.hash(state); }
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.text.hash(state);
+    }
 }
 
 impl StepPattern {

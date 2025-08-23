@@ -8,7 +8,7 @@ use crate::placeholder::extract_placeholders;
 use crate::types::{PatternStr, StepFn, StepKeyword, StepText};
 use hashbrown::HashMap;
 use inventory::iter;
-use std::hash::{BuildHasher, Hash};
+use std::hash::{BuildHasher, Hash, Hasher};
 use std::sync::LazyLock;
 
 /// Represents a single step definition registered with the framework.
@@ -71,15 +71,14 @@ static STEP_MAP: LazyLock<HashMap<StepKey, StepFn>> = LazyLock::new(|| {
             )
         });
         let key = (step.keyword, step.pattern);
-        if map.contains_key(&key) {
-            panic!(
-                "duplicate step for '{}' + '{}' defined at {}:{}",
-                step.keyword.as_str(),
-                step.pattern.as_str(),
-                step.file,
-                step.line
-            );
-        }
+        assert!(
+            !map.contains_key(&key),
+            "duplicate step for '{}' + '{}' defined at {}:{}",
+            step.keyword.as_str(),
+            step.pattern.as_str(),
+            step.file,
+            step.line
+        );
         map.insert(key, step.run);
     }
     map
@@ -98,7 +97,9 @@ pub fn lookup_step(keyword: StepKeyword, pattern: PatternStr<'_>) -> Option<Step
 
     STEP_MAP
         .raw_entry()
-        .from_hash(hash, |(kw, pat)| *kw == keyword && pat.as_str() == pattern.as_str())
+        .from_hash(hash, |(kw, pat)| {
+            *kw == keyword && pat.as_str() == pattern.as_str()
+        })
         .map(|(_, &f)| f)
 }
 
