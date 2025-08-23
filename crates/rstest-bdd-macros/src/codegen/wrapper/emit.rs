@@ -7,6 +7,24 @@ use proc_macro2::TokenStream as TokenStream2;
 use quote::{format_ident, quote};
 use std::sync::atomic::{AtomicUsize, Ordering};
 
+/// Quote construction for [`StepError`] variants sharing `pattern`,
+/// `function` and `message` fields.
+fn step_error_tokens(
+    variant: &str,
+    pattern: &syn::LitStr,
+    ident: &syn::Ident,
+    message: &TokenStream2,
+) -> TokenStream2 {
+    let variant_ident = format_ident!("{}", variant);
+    quote! {
+        rstest_bdd::StepError::#variant_ident {
+            pattern: #pattern.to_string(),
+            function: stringify!(#ident).to_string(),
+            message: #message,
+        }
+    }
+}
+
 /// Generate declaration for a data table argument.
 fn gen_datatable_decl(
     datatable: Option<&DataTableArg>,
@@ -14,13 +32,15 @@ fn gen_datatable_decl(
     ident: &syn::Ident,
 ) -> Option<TokenStream2> {
     datatable.map(|DataTableArg { pat, ty }| {
+        let err = step_error_tokens(
+            &format_ident!("ExecutionError"),
+            pattern,
+            ident,
+            &quote! { format!("Step '{}' requires a data table", #pattern) },
+        );
         quote! {
             let #pat: #ty = _table
-                .ok_or_else(|| rstest_bdd::StepError::ExecutionError {
-                    pattern: #pattern.to_string(),
-                    function: stringify!(#ident).to_string(),
-                    message: format!("Step '{}' requires a data table", #pattern),
-                })?
+                .ok_or_else(|| #err)?
                 .iter()
                 .map(|row| row.iter().map(|cell| cell.to_string()).collect::<Vec<String>>())
                 .collect::<Vec<Vec<String>>>()
@@ -42,13 +62,15 @@ fn gen_docstring_decl(
     ident: &syn::Ident,
 ) -> Option<TokenStream2> {
     docstring.map(|DocStringArg { pat }| {
+        let err = step_error_tokens(
+            "ExecutionError",
+            pattern,
+            ident,
+            &quote! { format!("Step '{}' requires a doc string", #pattern) },
+        );
         quote! {
             let #pat: String = _docstring
-                .ok_or_else(|| rstest_bdd::StepError::ExecutionError {
-                    pattern: #pattern.to_string(),
-                    function: stringify!(#ident).to_string(),
-                    message: format!("Step '{}' requires a doc string", #pattern),
-                })?
+                .ok_or_else(|| #err)?
                 .to_owned();
         }
     })
@@ -247,6 +269,21 @@ fn assemble_wrapper_function(
     ident: &syn::Ident,
 ) -> TokenStream2 {
     let (declares, step_arg_parses, datatable_decl, docstring_decl) = arg_processing;
+    let placeholder_err = step_error_tokens(
+        "ExecutionError",
+        pattern,
+        ident,
+        &quote! {
+            format!(
+                "Step text '{}' does not match pattern '{}': {}",
+                text,
+                #pattern,
+                e
+            )
+        },
+    );
+    let panic_err = step_error_tokens("PanicError", pattern, ident, &quote! { message });
+    let exec_err = step_error_tokens("ExecutionError", pattern, ident, &quote! { message });
     quote! {
         fn #wrapper_ident(
             ctx: &rstest_bdd::StepContext<'_>,
@@ -257,16 +294,7 @@ fn assemble_wrapper_function(
             use std::panic::{catch_unwind, AssertUnwindSafe};
 
             let captures = rstest_bdd::extract_placeholders(&#pattern_ident, text.into())
-                .map_err(|e| rstest_bdd::StepError::ExecutionError {
-                    pattern: #pattern.to_string(),
-                    function: stringify!(#ident).to_string(),
-                    message: format!(
-                        "Step text '{}' does not match pattern '{}': {}",
-                        text,
-                        #pattern,
-                        e
-                    ),
-                })?;
+                .map_err(|e| #placeholder_err)?;
 
             #(#declares)*
             #(#step_arg_parses)*
@@ -281,20 +309,28 @@ fn assemble_wrapper_function(
                         s.to_string()
                     } else if let Some(s) = e.downcast_ref::<String>() {
                         s.clone()
+                    } else if let Some(i) = e.downcast_ref::<i32>() {
+                        i.to_string()
+                    } else if let Some(i) = e.downcast_ref::<u32>() {
+                        i.to_string()
+                    } else if let Some(i) = e.downcast_ref::<i64>() {
+                        i.to_string()
+                    } else if let Some(i) = e.downcast_ref::<u64>() {
+                        i.to_string()
+                    } else if let Some(i) = e.downcast_ref::<isize>() {
+                        i.to_string()
+                    } else if let Some(i) = e.downcast_ref::<usize>() {
+                        i.to_string()
+                    } else if let Some(f) = e.downcast_ref::<f64>() {
+                        f.to_string()
+                    } else if let Some(f) = e.downcast_ref::<f32>() {
+                        f.to_string()
                     } else {
                         format!("{:?}", e)
                     };
-                    rstest_bdd::StepError::PanicError {
-                        pattern: #pattern.to_string(),
-                        function: stringify!(#ident).to_string(),
-                        message,
-                    }
+                    #panic_err
                 })
-                .and_then(|res| res.map_err(|message| rstest_bdd::StepError::ExecutionError {
-                    pattern: #pattern.to_string(),
-                    function: stringify!(#ident).to_string(),
-                    message,
-                }))
+                .and_then(|res| res.map_err(|message| #exec_err))
         }
     }
 }

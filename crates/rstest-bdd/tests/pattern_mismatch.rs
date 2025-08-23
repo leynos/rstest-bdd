@@ -34,7 +34,11 @@ fn returns_error_on_pattern_mismatch() {
         panic!("expected mismatch to error");
     };
     match err {
-        StepError::ExecutionError { pattern, function, message } => {
+        StepError::ExecutionError {
+            pattern,
+            function,
+            message,
+        } => {
             assert_eq!(pattern, "number {value:u32}");
             assert_eq!(function, "number");
             assert!(message.contains("does not match pattern"));

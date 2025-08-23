@@ -85,11 +85,15 @@ pub trait IntoStepResult {
 }
 
 impl IntoStepResult for () {
-    fn into_step_result(self) -> Result<(), String> { Ok(()) }
+    fn into_step_result(self) -> Result<(), String> {
+        Ok(())
+    }
 }
 
 impl IntoStepResult for Result<(), String> {
-    fn into_step_result(self) -> Result<(), String> { self }
+    fn into_step_result(self) -> Result<(), String> {
+        self
+    }
 }
 
 #[cfg(test)]
