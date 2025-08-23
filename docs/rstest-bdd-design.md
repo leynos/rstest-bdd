@@ -450,12 +450,12 @@ pub struct Step {
 inventory::collect!(Step);
 ```
 
-The [`StepKeyword`](../crates/rstest-bdd/src/lib.rs) enum implements `FromStr`.
-Parsing failures return a `StepKeywordParseError` to ensure invalid step
-keywords are surfaced early.
+The [`StepKeyword`](../crates/rstest-bdd/src/types.rs) enum implements
+`FromStr`. Parsing failures return a `StepKeywordParseError` to ensure invalid
+step keywords are surfaced early.
 
-The [`StepPattern`](../crates/rstest-bdd/src/lib.rs) wrapper encapsulates the
-pattern text so that step lookups cannot accidentally mix arbitrary strings
+The [`StepPattern`](../crates/rstest-bdd/src/pattern.rs) wrapper encapsulates
+the pattern text so that step lookups cannot accidentally mix arbitrary strings
 with registered patterns. Each pattern is compiled into a regular expression
 when the step registry is initialised, surfacing invalid syntax immediately.
 
@@ -987,7 +987,62 @@ signature. Any mismatch is reported during compilation rather than at runtime.
 The third phase introduces typed placeholders to step patterns. The runtime
 library exposes an `extract_placeholders` helper that converts a pattern with
 `{name:Type}` segments into a regular expression and returns the captured
-strings. Step wrapper functions parse these strings and convert them with
+strings or a `PlaceholderError` detailing why extraction failed. This error
+covers pattern mismatches as well as invalid or uncompiled step patterns.
+
+PlaceholderError: API shape and examples
+
+- Purpose: human‑readable diagnostics surfaced to callers and test failures.
+- Stability: message text is intended for human display, not machine parsing.
+  Programmes should branch on the enum variant rather than parsing strings.
+- Shape: a Rust enum with the following variants and display formats:
+
+```rust
+enum PlaceholderError {
+  // Display: "pattern mismatch"
+  PatternMismatch,
+
+  // Display: "invalid step pattern: <regex_error>"
+  InvalidPattern(String),
+
+  // Display: "uncompiled step pattern"
+  Uncompiled,
+}
+```
+
+- Fields and metadata:
+  - PatternMismatch: no fields; indicates the text did not satisfy the
+    pattern. There is no separate “missing capture” error; a missing or extra
+    capture manifests as a mismatch because the entire text must match the
+    compiled regular expression for the pattern.
+  - InvalidPattern(String): carries the underlying `regex::Error` string coming
+    from the regular expression engine during compilation of the pattern. No
+    additional metadata (placeholder name, position, or line info) is captured.
+  - Uncompiled: no fields; indicates the step pattern was queried before being
+    compiled. This is a guard and should not occur in normal usage because
+    patterns are compiled during step registration.
+
+- Example error strings (exact `Display` output):
+  - Pattern mismatch: `"pattern mismatch"`
+  - Invalid pattern: `"invalid step pattern: regex parse error: error message"`
+  - Uncompiled: `"uncompiled step pattern"`
+
+- Example JSON mapping (for consumers that serialise errors). Note: this is not
+  emitted by the library; it is a suggested shape if you need to map the enum
+  to JSON at an API boundary:
+
+```json
+// Pattern mismatch
+{"code":"pattern_mismatch","message":"pattern mismatch"}
+
+// Invalid pattern
+{"code":"invalid_pattern","message":"invalid step pattern: <regex_error>"}
+
+// Uncompiled pattern
+{"code":"uncompiled","message":"uncompiled step pattern"}
+```
+
+Step wrapper functions parse the returned strings and convert them with
 `FromStr` before calling the original step. Scenario execution now searches the
 step registry using `find_step`, which falls back to placeholder matching when
 no exact pattern is present. This approach keeps the macros lightweight while
@@ -1021,6 +1076,32 @@ sequenceDiagram
     StepFunction-->>StepWrapper: returns
     StepWrapper-->>ScenarioRunner: returns
 ```
+
+### 3.10 Runtime Module Layout (for Contributors)
+
+To keep responsibilities cohesive the runtime is split into focused modules.
+Public APIs are re‑exported from `lib.rs` so consumers continue to import from
+`rstest_bdd::*` as before.
+
+- `types.rs`: Core types and errors.
+  - `PatternStr`, `StepText`: light wrappers for pattern keys and step text.
+  - `StepKeyword` (+ `FromStr`), `StepKeywordParseError`.
+  - `PlaceholderError`: semantic error enum returned by parsing helpers.
+  - `StepFn`: type alias for the step function pointer.
+- `pattern.rs`: Step pattern wrapper.
+  - `StepPattern::new`, `compile`, `regex` (plus `try_regex` for internal use).
+- `placeholder.rs`: Placeholder extraction and scanner.
+  - `extract_placeholders` (public) and the single‑pass scanner
+    `build_regex_from_pattern` with small parsing predicates and helpers.
+- `context.rs`: Fixture context.
+  - `StepContext`: simple type‑indexed store used to pass fixtures into steps.
+- `registry.rs`: Registration and lookup.
+  - `Step` record, `step!` macro, global registry map, `lookup_step`,
+    `find_step`.
+- `lib.rs`: Public API facade.
+  - Re‑exports public items and keeps the `greet()` example function.
+
+All modules use en‑GB spelling and include `//!` module‑level documentation.
 
 ## **Works cited**
 
