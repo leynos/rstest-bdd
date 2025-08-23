@@ -122,8 +122,8 @@ static COUNTER: AtomicUsize = AtomicUsize::new(0);
 /// Generate unique identifiers for the wrapper components.
 ///
 /// The provided step function identifier may contain Unicode. It is
-/// sanitized to ASCII characters before constructing constant names to avoid
-/// emitting invalid identifiers.
+/// sanitized to ASCII before constructing constant names to avoid emitting
+/// invalid identifiers.
 ///
 /// Returns identifiers for the wrapper function, fixture array constant, and
 /// pattern constant.

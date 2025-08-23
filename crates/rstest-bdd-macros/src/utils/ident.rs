@@ -20,7 +20,6 @@
 /// ```
 pub(crate) fn sanitize_ident(input: &str) -> String {
     let ident = replace_non_ascii_with_underscores(input);
-    let ident = trim_trailing_underscores(&ident);
     add_prefix_if_needed(ident)
 }
 
@@ -36,6 +35,9 @@ fn replace_non_ascii_with_underscores(input: &str) -> String {
             prev_us = should_add_underscore(&mut ident, prev_us);
         }
     }
+    while ident.ends_with('_') {
+        ident.pop();
+    }
     ident
 }
 
@@ -45,11 +47,6 @@ fn should_add_underscore(ident: &mut String, prev_us: bool) -> bool {
         ident.push('_');
     }
     true
-}
-
-fn trim_trailing_underscores(input: &str) -> String {
-    // Trim trailing underscores that don't add meaning.
-    input.trim_end_matches('_').to_string()
 }
 
 fn add_prefix_if_needed(mut ident: String) -> String {
@@ -66,6 +63,9 @@ fn needs_underscore_prefix(ident: &str) -> bool {
 }
 
 /// Rust keywords that are invalid as identifiers.
+///
+/// Entries must remain lowercase because inputs are lowercased before
+/// comparison.
 const RUST_KEYWORDS: &[&str] = &[
     "as", "break", "const", "continue", "crate", "else", "enum", "extern", "false", "fn", "for",
     "if", "impl", "in", "let", "loop", "match", "mod", "move", "mut", "pub", "ref", "return",
@@ -114,6 +114,11 @@ mod tests {
     fn sanitizes_all_non_alnum() {
         assert_eq!(sanitize_ident("!!!"), "_");
         assert_eq!(sanitize_ident("🙈🙉🙊"), "_");
+    }
+
+    #[test]
+    fn sanitizes_trailing_punctuation() {
+        assert_eq!(sanitize_ident("abc!!!"), "abc");
     }
 
     #[test]
