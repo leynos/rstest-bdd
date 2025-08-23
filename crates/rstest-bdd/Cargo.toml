@@ -20,6 +20,7 @@ gherkin.workspace = true
 inventory.workspace = true
 regex.workspace = true
 thiserror.workspace = true
+hashbrown = "0.15"
 
 [dev-dependencies]
 rstest.workspace = true

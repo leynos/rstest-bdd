@@ -6,8 +6,9 @@
 use crate::pattern::StepPattern;
 use crate::placeholder::extract_placeholders;
 use crate::types::{PatternStr, StepFn, StepKeyword, StepText};
+use hashbrown::HashMap;
 use inventory::iter;
-use std::collections::HashMap;
+use std::hash::{BuildHasher, Hash, Hasher};
 use std::sync::LazyLock;
 
 /// Represents a single step definition registered with the framework.
@@ -55,7 +56,7 @@ macro_rules! step {
 
 inventory::collect!(Step);
 
-type StepKey = (StepKeyword, &'static str);
+type StepKey = (StepKeyword, &'static StepPattern);
 
 static STEP_MAP: LazyLock<HashMap<StepKey, StepFn>> = LazyLock::new(|| {
     let steps: Vec<_> = iter::<Step>.into_iter().collect();
@@ -69,7 +70,16 @@ static STEP_MAP: LazyLock<HashMap<StepKey, StepFn>> = LazyLock::new(|| {
                 step.line
             )
         });
-        map.insert((step.keyword, step.pattern.as_str()), step.run);
+        let key = (step.keyword, step.pattern);
+        assert!(
+            !map.contains_key(&key),
+            "duplicate step for '{}' + '{}' defined at {}:{}",
+            step.keyword.as_str(),
+            step.pattern.as_str(),
+            step.file,
+            step.line
+        );
+        map.insert(key, step.run);
     }
     map
 });
@@ -77,7 +87,20 @@ static STEP_MAP: LazyLock<HashMap<StepKey, StepFn>> = LazyLock::new(|| {
 /// Look up a registered step by keyword and pattern.
 #[must_use]
 pub fn lookup_step(keyword: StepKeyword, pattern: PatternStr<'_>) -> Option<StepFn> {
-    STEP_MAP.get(&(keyword, pattern.as_str())).copied()
+    // Compute the hash as if the key were (keyword, pattern.as_str())
+    // because StepPattern hashing is by its inner text.
+    let build = STEP_MAP.hasher();
+    let mut state = build.build_hasher();
+    keyword.hash(&mut state);
+    pattern.as_str().hash(&mut state);
+    let hash = state.finish();
+
+    STEP_MAP
+        .raw_entry()
+        .from_hash(hash, |(kw, pat)| {
+            *kw == keyword && pat.as_str() == pattern.as_str()
+        })
+        .map(|(_, &f)| f)
 }
 
 /// Find a registered step whose pattern matches the provided text.

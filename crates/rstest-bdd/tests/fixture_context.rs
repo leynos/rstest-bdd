@@ -1,6 +1,6 @@
 //! Behavioural test for fixture context injection
 
-use rstest_bdd::{Step, StepContext, iter, step};
+use rstest_bdd::{StepContext, StepKeyword, step};
 
 fn needs_value(
     ctx: &StepContext<'_>,
@@ -15,25 +15,15 @@ fn needs_value(
     Ok(())
 }
 
-step!(
-    rstest_bdd::StepKeyword::Given,
-    "a value",
-    needs_value,
-    &["number"]
-);
+step!(StepKeyword::Given, "a value", needs_value, &["number"]);
 
 #[test]
 fn context_passes_fixture() {
-    let mut ctx = StepContext::default();
     let number = 42u32;
+    let mut ctx = StepContext::default();
     ctx.insert("number", &number);
-    let step_fn = iter::<Step>
-        .into_iter()
-        .find(|s| s.pattern.as_str() == "a value")
-        .map_or_else(
-            || panic!("step 'a value' not found in registry"),
-            |step| step.run,
-        );
+    let step_fn = rstest_bdd::lookup_step(StepKeyword::Given, "a value".into())
+        .unwrap_or_else(|| panic!("step 'a value' not found in registry"));
     let result = step_fn(&ctx, "a value", None, None);
     assert!(result.is_ok(), "step execution failed: {result:?}");
 }
@@ -41,13 +31,8 @@ fn context_passes_fixture() {
 #[test]
 fn context_missing_fixture_returns_error() {
     let ctx = StepContext::default();
-    let step_fn = iter::<Step>
-        .into_iter()
-        .find(|s| s.pattern.as_str() == "a value")
-        .map_or_else(
-            || panic!("step 'a value' not found in registry"),
-            |step| step.run,
-        );
+    let step_fn = rstest_bdd::lookup_step(StepKeyword::Given, "a value".into())
+        .unwrap_or_else(|| panic!("step 'a value' not found in registry"));
     let result = step_fn(&ctx, "a value", None, None);
     let err = match result {
         Ok(()) => panic!("expected error when fixture is missing"),
