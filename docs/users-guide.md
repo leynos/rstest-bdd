@@ -2,7 +2,7 @@
 
 ## Introduction
 
-Behaviour‑Driven Development (BDD) is a collaborative practice that emphasises
+Behaviour‑Driven Development (BDD) is a collaborative practice that emphasizes
 a shared understanding of software behaviour across roles. The design of
 `rstest‑bdd` integrates BDD concepts with the Rust testing ecosystem. BDD
 encourages collaboration between developers, quality-assurance specialists, and
@@ -18,7 +18,7 @@ This guide explains how to consume `rstest‑bdd` at the current stage of
 development. It relies on the implemented code rather than on aspirational
 features described in the design documents. Where the design proposes advanced
 behaviour, the implementation status is noted. Examples and explanations are
-organised by the so‑called *three amigos* of BDD: the business analyst/product
+organized by the so‑called *three amigos* of BDD: the business analyst/product
 owner, the developer, and the tester.
 
 ## The three amigos
@@ -73,7 +73,7 @@ annotated with one of the attribute macros `#[given]`, `#[when]` or `#[then]`.
 The annotation takes a single string literal that must match the text of the
 corresponding step in the feature file. Placeholders in the form `{name}` or
 `{name:Type}` are supported. The framework extracts matching substrings and
-converts them using `FromStr`; type hints constrain the match using specialised
+converts them using `FromStr`; type hints constrain the match using specialized
 regular expressions. If the step text does not supply a capture for a declared
 argument, the wrapper panics with
 `pattern '<pattern>' missing capture for argument '<name>'`, making the
@@ -179,7 +179,7 @@ one may filter or run them in parallel as usual.
 For large suites, it is tedious to bind each scenario manually. The
 `scenarios!` macro scans a directory recursively for `.feature` files and
 generates a module with a test for every `Scenario` found. Each test is named
-after the feature file and scenario title. Identifiers are sanitised
+after the feature file and scenario title. Identifiers are sanitized
 (ASCII-only) and deduplicated by appending a numeric suffix when collisions
 occur.
 
