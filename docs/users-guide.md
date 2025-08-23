@@ -235,14 +235,43 @@ Best practices for writing effective scenarios include:
 
 Steps may supply structured or free-form data via a trailing argument. A data
 table is received by including an argument named `datatable` of type
-`Vec<Vec<String>>`. A Gherkin Docstring is made available through an argument
-named `docstring` of type `String`. Both arguments must use these exact names
-and types to be detected by the procedural macros. When both are declared,
-place `datatable` before `docstring` at the end of the parameter list. At
-runtime, the generated wrapper converts the table cells or copies the block
-text and passes them to the step function, panicking if the feature omits the
-expected content. Docstrings may be delimited by triple double-quotes or triple
-backticks.
+`Vec<Vec<String>>`. A Gherkin Docstring is available through an argument named
+`docstring` of type `String`. Both arguments must use these exact names and
+types to be detected by the procedural macros. When both are declared, place
+`datatable` before `docstring` at the end of the parameter list.
+
+```gherkin
+Scenario: capture table and docstring
+  Given the following numbers:
+    | a | b |
+    | 1 | 2 |
+  When I submit:
+    """
+    payload
+    """
+```
+
+```rust
+#[given("the following numbers:")]
+fn capture_table(datatable: Vec<Vec<String>>) {
+    // ...
+}
+
+#[when("I submit:")]
+fn capture_docstring(docstring: String) {
+    // ...
+}
+
+#[then("table and text:")]
+fn capture_both(datatable: Vec<Vec<String>>, docstring: String) {
+    // datatable must precede docstring
+}
+```
+
+At runtime, the generated wrapper converts the table cells or copies the block
+text and passes them to the step function. It panics if the step declares
+`datatable` or `docstring` but the feature omits the content. Docstrings may be
+delimited by triple double-quotes or triple backticks.
 
 ## Limitations and roadmap
 
