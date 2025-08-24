@@ -51,7 +51,7 @@ impl StepPattern {
     /// # Errors
     /// Returns an error if the pattern cannot be converted into a valid regex.
     pub fn compile(&self) -> Result<(), regex::Error> {
-        let src = crate::placeholder::build_regex_from_pattern(self.text);
+        let src = crate::placeholder::build_regex_from_pattern(self.text)?;
         let regex = Regex::new(&src)?;
         let _ = self.regex.set(regex);
         Ok(())

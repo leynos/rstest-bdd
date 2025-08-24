@@ -54,20 +54,22 @@ fn parse_placeholder_without_type_and_with_type() {
     let mut st = RegexBuilder::new("before {outer {inner}} after");
     // Advance to the '{'
     st.position = "before ".len();
-    parse_placeholder(&mut st);
+    #[expect(clippy::expect_used, reason = "test helper should fail loudly")]
+    parse_placeholder(&mut st).expect("placeholder should parse");
     assert!(st.output.contains("(.+?)"));
 
     // With integer type
     let mut st2 = RegexBuilder::new("x {n:u32} y");
     st2.position = 2; // at '{'
-    parse_placeholder(&mut st2);
+    #[expect(clippy::expect_used, reason = "test helper should fail loudly")]
+    parse_placeholder(&mut st2).expect("placeholder should parse");
     assert!(st2.output.contains(r"(\d+)"));
 }
 
 #[test]
-fn parse_literal_opens_stray_on_lone_open_brace() {
-    let mut st = RegexBuilder::new("{");
+fn parse_literal_writes_char() {
+    let mut st = RegexBuilder::new("a");
     parse_literal(&mut st);
-    assert_eq!(st.stray_depth, 1);
-    assert!(st.output.ends_with(r"\{"));
+    assert_eq!(st.position, 1);
+    assert!(st.output.ends_with('a'));
 }
