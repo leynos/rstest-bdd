@@ -139,8 +139,8 @@ pub(crate) fn parse_escaped_brace(state: &mut RegexBuilder<'_>) {
 /// byte as a literal.
 ///
 /// Callers must ensure the current byte is `\` and the following byte is not a
-/// brace; `parse_escaped_brace` handles those cases. Trailing backslashes are
-/// handled by `try_parse_common_sequences`.
+/// brace; `parse_escaped_brace` handles those cases. Trailing backslashes
+/// delegate to [`try_parse_common_sequences`], which emits a literal backslash.
 ///
 /// # Examples
 /// ```
@@ -153,10 +153,12 @@ pub(crate) fn parse_escape_sequence(state: &mut RegexBuilder<'_>) {
     debug_assert!(matches!(state.bytes.get(state.position), Some(b'\\')));
     debug_assert!(!is_escaped_brace(state.bytes, state.position));
     debug_assert!(state.bytes.get(state.position + 1).is_some());
-    #[expect(clippy::indexing_slicing, reason = "preconditions ensure bound")]
-    let next = state.bytes[state.position + 1];
-    state.push_literal_byte(next);
-    state.advance(2);
+    if let Some(&next) = state.bytes.get(state.position + 1) {
+        state.push_literal_byte(next);
+        state.advance(2);
+    } else if try_parse_common_sequences(state) {
+        // Trailing backslash handled by common sequences.
+    }
 }
 
 pub(crate) fn parse_double_brace(state: &mut RegexBuilder<'_>) {
@@ -280,6 +282,9 @@ pub(crate) fn parse_placeholder(state: &mut RegexBuilder<'_>) -> Result<(), rege
     Ok(())
 }
 
+/// Parses sequences common to all contexts: doubled braces, escaped braces, or
+/// backslash escapes. Returns `true` if a recognised sequence was consumed.
+#[inline]
 pub(crate) fn try_parse_common_sequences(st: &mut RegexBuilder<'_>) -> bool {
     if is_double_brace(st.bytes, st.position) {
         parse_double_brace(st);
@@ -301,6 +306,9 @@ pub(crate) fn try_parse_common_sequences(st: &mut RegexBuilder<'_>) -> bool {
     }
 }
 
+/// Emits the current byte as a literal while adjusting `stray_depth` for
+/// nested braces.
+#[inline]
 pub(crate) fn parse_stray_character(st: &mut RegexBuilder<'_>) {
     #[expect(clippy::indexing_slicing, reason = "bounds checked by caller")]
     let ch = st.bytes[st.position];
