@@ -17,22 +17,21 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Setup Rust
-        uses: leynos/shared-actions/.github/actions/setup-rust@v1.1.0
+        uses: leynos/shared-actions/.github/actions/setup-rust@c6559452842af6a83b83429129dccaf910e34562
       - name: Format
         run: make check-fmt
       - name: Lint
-        run: cargo clippy --workspace --all-targets -- -D warnings
-      - name: Test
-        run: RUSTFLAGS="-D warnings" cargo test --workspace --all-targets
-      - name: Install cargo-tarpaulin
-        run: cargo install cargo-tarpaulin
-      - name: Run coverage
-        run: cargo tarpaulin --out lcov
+        run: make lint
+      - name: Test and Measure Coverage
+        uses: leynos/shared-actions/.github/actions/generate-coverage@c6559452842af6a83b83429129dccaf910e34562
+        with:
+          output-path: lcov.info
+          format: lcov
       - name: Upload coverage data to CodeScene
-        if: ${{ env.CS_ACCESS_TOKEN != '' }}
         env:
           CS_ACCESS_TOKEN: ${{ secrets.CS_ACCESS_TOKEN }}
-        uses: leynos/shared-actions/.github/actions/upload-codescene-coverage@v1.2.1
+        if: ${{ env.CS_ACCESS_TOKEN }}
+        uses: leynos/shared-actions/.github/actions/upload-codescene-coverage@c6559452842af6a83b83429129dccaf910e34562
         with:
           format: lcov
           access-token: ${{ env.CS_ACCESS_TOKEN }}
