@@ -58,7 +58,8 @@ pub fn panic_message(e: &(dyn std::any::Any + Send)) -> String {
     }
 
     try_downcast!(&str, String, i32, u32, i64, u64, isize, usize, f32, f64);
-    format!("{e:?}")
+    let ty = std::any::type_name_of_val(e);
+    format!("<non-debug panic payload of type {ty}>")
 }
 
 /// Error type produced by step wrappers.

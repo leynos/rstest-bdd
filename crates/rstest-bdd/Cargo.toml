@@ -19,7 +19,7 @@ workspace = true
 gherkin.workspace = true
 inventory.workspace = true
 regex.workspace = true
-thiserror = { version = "1.0", default-features = false }
+thiserror = { version = "1.0", default-features = false, features = ["std"] }
 hashbrown = "0.15"
 
 [dev-dependencies]

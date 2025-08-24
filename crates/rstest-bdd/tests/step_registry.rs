@@ -66,6 +66,29 @@ step!(
     &[]
 );
 
+fn needs_fixture_wrapper(
+    ctx: &StepContext<'_>,
+    _text: &str,
+    _docstring: Option<&str>,
+    _table: Option<&[&[&str]]>,
+) -> Result<(), StepError> {
+    ctx.get::<u32>("missing")
+        .map(|_| ())
+        .ok_or_else(|| StepError::MissingFixture {
+            name: "missing".into(),
+            ty: "u32".into(),
+            step: "needs_fixture".into(),
+        })?;
+    Ok(())
+}
+
+step!(
+    rstest_bdd::StepKeyword::Then,
+    "needs fixture",
+    needs_fixture_wrapper,
+    &["missing"]
+);
+
 #[test]
 fn step_is_registered() {
     let found = iter::<Step>
@@ -77,6 +100,13 @@ fn step_is_registered() {
 #[rstest]
 #[case(StepKeyword::Given, "fails", "failing_wrapper", "boom", true)]
 #[case(StepKeyword::When, "panics", "panicking_wrapper", "snap", false)]
+#[case(
+    StepKeyword::Then,
+    "needs fixture",
+    "needs_fixture",
+    "Missing fixture 'missing' of type 'u32' for step function 'needs_fixture'",
+    true
+)]
 fn wrapper_error_handling(
     #[case] keyword: StepKeyword,
     #[case] pattern: &str,
@@ -95,25 +125,37 @@ fn wrapper_error_handling(
         Ok(()) => panic!("expected error from wrapper '{pattern}'"),
         Err(e) => e,
     };
-    match err {
-        StepError::ExecutionError {
-            pattern: p,
-            function,
-            message,
-        } if is_execution_error => {
-            assert_eq!(p, pattern);
-            assert_eq!(function, function_name);
-            assert_eq!(message, expected_message);
+    if is_execution_error {
+        match err {
+            StepError::ExecutionError {
+                pattern: p,
+                function,
+                message,
+            } => {
+                assert_eq!(p, pattern);
+                assert_eq!(function, function_name);
+                assert_eq!(message, expected_message);
+            }
+            StepError::MissingFixture { name, ty, step } => {
+                assert_eq!(step, function_name);
+                assert_eq!(name, "missing");
+                assert_eq!(ty, "u32");
+                assert_eq!(err.to_string(), expected_message);
+            }
+            other => panic!("unexpected error for '{pattern}': {other:?}"),
         }
-        StepError::PanicError {
-            pattern: p,
-            function,
-            message,
-        } if !is_execution_error => {
-            assert_eq!(p, pattern);
-            assert_eq!(function, function_name);
-            assert_eq!(message, expected_message);
+    } else {
+        match err {
+            StepError::PanicError {
+                pattern: p,
+                function,
+                message,
+            } => {
+                assert_eq!(p, pattern);
+                assert_eq!(function, function_name);
+                assert_eq!(message, expected_message);
+            }
+            other => panic!("unexpected error for '{pattern}': {other:?}"),
         }
-        other => panic!("unexpected error for '{pattern}': {other:?}"),
     }
 }
