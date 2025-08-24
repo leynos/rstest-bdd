@@ -1,7 +1,7 @@
 //! Tests for placeholder extraction logic.
 
 use rstest::rstest;
-use rstest_bdd::{StepPattern, StepText, extract_placeholders};
+use rstest_bdd::{PlaceholderError, StepPattern, StepText, extract_placeholders};
 
 #[expect(clippy::expect_used, reason = "test helper should fail loudly")]
 fn compiled(pattern: &'static str) -> StepPattern {
@@ -163,7 +163,10 @@ fn handles_nested_braces() {
 #[test]
 fn compile_fails_on_unbalanced_braces() {
     let pat = StepPattern::from("before {outer {inner} after");
-    assert!(pat.compile().is_err(), "unbalanced braces should error");
+    assert!(
+        matches!(pat.compile(), Err(PlaceholderError::PlaceholderSyntax(_))),
+        "unbalanced braces should yield placeholder syntax error",
+    );
 }
 
 #[test]
@@ -182,11 +185,32 @@ fn nested_brace_in_placeholder_is_literal() {
 #[test]
 fn compile_fails_on_stray_closing_brace() {
     let pat = StepPattern::from("end} with {n:u32}");
-    assert!(pat.compile().is_err(), "stray closing brace should error");
+    assert!(
+        matches!(pat.compile(), Err(PlaceholderError::PlaceholderSyntax(_))),
+        "stray closing brace should yield placeholder syntax error",
+    );
 }
 
 #[test]
 fn compile_fails_on_stray_opening_brace() {
     let pat = StepPattern::from("start{ with {n:u32}");
-    assert!(pat.compile().is_err(), "stray opening brace should error");
+    assert!(
+        matches!(pat.compile(), Err(PlaceholderError::PlaceholderSyntax(_))),
+        "stray opening brace should yield placeholder syntax error",
+    );
+}
+
+#[test]
+fn placeholder_accepts_inner_escaped_and_double_braces() {
+    let pat = compiled(r"{p\{\}}");
+    assert!(
+        extract_placeholders(&pat, StepText::from("value")).is_ok(),
+        "escaped braces inside placeholder should be literal",
+    );
+
+    let pat2 = compiled("{p{{}}}");
+    assert!(
+        extract_placeholders(&pat2, StepText::from("value}")).is_ok(),
+        "double braces inside placeholder should be literal",
+    );
 }

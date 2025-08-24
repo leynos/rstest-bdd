@@ -2,6 +2,7 @@
 //! This module defines `StepPattern`, a lightweight wrapper around a pattern
 //! literal that compiles lazily to a regular expression.
 
+use crate::types::PlaceholderError;
 use regex::Regex;
 use std::hash::{Hash, Hasher};
 use std::sync::OnceLock;
@@ -49,10 +50,12 @@ impl StepPattern {
     /// Compile the pattern into a regular expression, caching the result.
     ///
     /// # Errors
-    /// Returns an error if the pattern cannot be converted into a valid regex.
-    pub fn compile(&self) -> Result<(), regex::Error> {
+    /// Returns an error if the pattern contains invalid placeholder syntax or
+    /// cannot be converted into a valid regex.
+    pub fn compile(&self) -> Result<(), PlaceholderError> {
         let src = crate::placeholder::build_regex_from_pattern(self.text)?;
-        let regex = Regex::new(&src)?;
+        let regex =
+            Regex::new(&src).map_err(|e| PlaceholderError::InvalidPattern(e.to_string()))?;
         let _ = self.regex.set(regex);
         Ok(())
     }

@@ -127,6 +127,9 @@ pub enum PlaceholderError {
     /// The supplied text did not match the step pattern.
     #[error("pattern mismatch")]
     PatternMismatch,
+    /// The step pattern contained malformed placeholder syntax.
+    #[error("invalid placeholder syntax: {0}")]
+    PlaceholderSyntax(String),
     /// The step pattern could not be compiled into a regular expression.
     #[error("invalid step pattern: {0}")]
     InvalidPattern(String),

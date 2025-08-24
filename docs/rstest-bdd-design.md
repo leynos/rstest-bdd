@@ -1040,6 +1040,9 @@ enum PlaceholderError {
   // Display: "pattern mismatch"
   PatternMismatch,
 
+  // Display: "invalid placeholder syntax: <details>"
+  PlaceholderSyntax(String),
+
   // Display: "invalid step pattern: <regex_error>"
   InvalidPattern(String),
 
@@ -1053,6 +1056,8 @@ enum PlaceholderError {
     pattern. There is no separate “missing capture” error; a missing or extra
     capture manifests as a mismatch because the entire text must match the
     compiled regular expression for the pattern.
+  - PlaceholderSyntax(String): malformed placeholder or brace sequence in the
+    pattern. Carries a human-readable message describing the error.
   - InvalidPattern(String): carries the underlying `regex::Error` string coming
     from the regular expression engine during compilation of the pattern. No
     additional metadata (placeholder name, position, or line info) is captured.
@@ -1072,6 +1077,9 @@ enum PlaceholderError {
 ```json
 // Pattern mismatch
 {"code":"pattern_mismatch","message":"pattern mismatch"}
+
+// Invalid placeholder
+{"code":"invalid_placeholder","message":"invalid placeholder syntax: <details>"}
 
 // Invalid pattern
 {"code":"invalid_pattern","message":"invalid step pattern: <regex_error>"}

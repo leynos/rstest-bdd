@@ -11,17 +11,17 @@ use regex::Regex;
 /// See crate-level docs for the accepted syntax and error cases.
 ///
 /// # Errors
-/// Returns [`PlaceholderError::InvalidPattern`] if the pattern cannot be
-/// compiled, [`PlaceholderError::Uncompiled`] if the pattern was not compiled
-/// before use (guard), and [`PlaceholderError::PatternMismatch`] when the text
-/// does not satisfy the pattern.
+/// Returns [`PlaceholderError::PlaceholderSyntax`] if the pattern contains
+/// malformed placeholders, [`PlaceholderError::InvalidPattern`] if the
+/// underlying regex fails to compile, [`PlaceholderError::Uncompiled`] if the
+/// pattern was not compiled before use (guard), and
+/// [`PlaceholderError::PatternMismatch`] when the text does not satisfy the
+/// pattern.
 pub fn extract_placeholders(
     pattern: &StepPattern,
     text: StepText<'_>,
 ) -> Result<Vec<String>, PlaceholderError> {
-    pattern
-        .compile()
-        .map_err(|e| PlaceholderError::InvalidPattern(e.to_string()))?;
+    pattern.compile()?;
     let re = pattern.try_regex().ok_or(PlaceholderError::Uncompiled)?;
     extract_captured_values(re, text.as_str()).ok_or(PlaceholderError::PatternMismatch)
 }
@@ -172,6 +172,15 @@ pub(crate) fn parse_type_hint(state: &RegexBuilder<'_>, start: usize) -> (usize,
     let ty_start = i;
     let mut nest = 0usize;
     while let Some(&b) = state.bytes.get(i) {
+        if is_escaped_brace(state.bytes, i) {
+            i += 2;
+            continue;
+        }
+        if nest == 0 && matches!(state.bytes.get(i), Some(b'{')) && is_double_brace(state.bytes, i)
+        {
+            i += 2;
+            continue;
+        }
         match b {
             b'{' => {
                 nest += 1;
@@ -195,7 +204,7 @@ pub(crate) fn parse_type_hint(state: &RegexBuilder<'_>, start: usize) -> (usize,
     (i, Some(ty))
 }
 
-pub(crate) fn parse_placeholder(state: &mut RegexBuilder<'_>) -> Result<(), regex::Error> {
+pub(crate) fn parse_placeholder(state: &mut RegexBuilder<'_>) -> Result<(), PlaceholderError> {
     let start = state.position;
     let (name_end, _name) = parse_placeholder_name(state, start + 1);
     if let Some(b) = state.bytes.get(name_end) {
@@ -208,14 +217,14 @@ pub(crate) fn parse_placeholder(state: &mut RegexBuilder<'_>) -> Result<(), rege
                 ws += 1;
             }
             if matches!(state.bytes.get(ws), Some(b':')) {
-                return Err(regex::Error::Syntax(
+                return Err(PlaceholderError::PlaceholderSyntax(
                     "invalid placeholder in step pattern".to_string(),
                 ));
             }
         }
     }
     if is_empty_type_hint(state, name_end) {
-        return Err(regex::Error::Syntax(
+        return Err(PlaceholderError::PlaceholderSyntax(
             "invalid placeholder in step pattern".to_string(),
         ));
     }
@@ -225,6 +234,17 @@ pub(crate) fn parse_placeholder(state: &mut RegexBuilder<'_>) -> Result<(), rege
         let mut k = name_end;
         let mut nest = 0usize;
         while let Some(&b) = state.bytes.get(k) {
+            if is_escaped_brace(state.bytes, k) {
+                k += 2;
+                continue;
+            }
+            if nest == 0
+                && matches!(state.bytes.get(k), Some(b'{'))
+                && is_double_brace(state.bytes, k)
+            {
+                k += 2;
+                continue;
+            }
             match b {
                 b'{' => {
                     nest += 1;
@@ -243,7 +263,7 @@ pub(crate) fn parse_placeholder(state: &mut RegexBuilder<'_>) -> Result<(), rege
         after = k;
     }
     if !matches!(state.bytes.get(after), Some(b'}')) {
-        return Err(regex::Error::Syntax(
+        return Err(PlaceholderError::PlaceholderSyntax(
             "unbalanced braces in step pattern".to_string(),
         ));
     }
@@ -256,7 +276,7 @@ pub(crate) fn parse_placeholder(state: &mut RegexBuilder<'_>) -> Result<(), rege
     Ok(())
 }
 
-pub(crate) fn build_regex_from_pattern(pat: &str) -> Result<String, regex::Error> {
+pub(crate) fn build_regex_from_pattern(pat: &str) -> Result<String, PlaceholderError> {
     let mut st = RegexBuilder::new(pat);
     while st.has_more() {
         if is_double_brace(st.bytes, st.position) {
@@ -274,7 +294,7 @@ pub(crate) fn build_regex_from_pattern(pat: &str) -> Result<String, regex::Error
         #[expect(clippy::indexing_slicing, reason = "bounds checked by has_more")]
         let ch = st.bytes[st.position];
         if ch == b'{' || ch == b'}' {
-            return Err(regex::Error::Syntax(
+            return Err(PlaceholderError::PlaceholderSyntax(
                 "unbalanced braces in step pattern".to_string(),
             ));
         }
