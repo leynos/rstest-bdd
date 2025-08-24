@@ -15,11 +15,3 @@ error[E0277]: the trait bound `String: TryFrom<Vec<Vec<String>>>` is not satisfi
   = note: required for `String` to implement `TryFrom<Vec<Vec<String>>>`
   = note: required for `Vec<Vec<String>>` to implement `TryInto<String>`
   = note: this error originates in the attribute macro `given` (in Nightly builds, run with -Z macro-backtrace for more info)
-
-warning: unused variable: `table`
- --> tests/ui/datatable_wrong_type.rs:9:22
-  |
-9 | fn step(#[datatable] table: Wrong) {}
-  |                      ^^^^^ help: if this is intentional, prefix it with an underscore: `_table`
-  |
-  = note: `#[warn(unused_variables)]` on by default

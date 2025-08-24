@@ -265,16 +265,13 @@ Feature: User administration
 
 Unlike an `Examples` table, this `Data Table` does not cause the scenario to
 run multiple times. Instead, pass the entire table to the step definition via a
-parameter annotated with `#[datatable]` or named `datatable`. The argument
-holds the rows as a two-dimensional collection (rows and cells). Parse it in
-the target language as appropriate (for example, a list of lists in Python; a
-`Vec<Vec<String>>` in Rust) and use it to perform the necessary setup.[^16] In
-`rstest-bdd`, a `Doc String` is retrieved similarly via a parameter named
-`docstring` of type `String`. The attribute or canonical name allows the
-procedural macros to detect the data table parameter. The data table parameter
-must precede any `docstring` argument and cannot be combined with `#[from]`.
-Its declared type must implement `TryFrom<Vec<Vec<String>>>` so the wrapper can
-convert the parsed cells.
+parameter annotated with `#[datatable]` or named `datatable`. During macro
+expansion the `#[datatable]` marker is stripped, but the declared parameter
+type is preserved and must implement `TryFrom<Vec<Vec<String>>>` so the wrapper
+can convert the cells. In `rstest-bdd`, a Doc String is retrieved similarly via
+a parameter named `docstring` of type `String`. The attribute or canonical name
+allows the procedural macros to detect the data table parameter. Place the data
+table before any Doc String and do not combine it with `#[from]`.
 
 ### Section 2.4: Incorporating Block Text with `Doc Strings`
 
@@ -653,12 +650,13 @@ steps.
   arguments to the corresponding step functions. Their names must match the
   headers in the `Examples` table.[^25]
 - `Data Tables`**:** Step functions may include a single optional parameter
-  annotated with `#[datatable]` or named `datatable`. The argument receives the
-  table as a list of lists (rows and cells). `pytest-bdd` injects the table
-  content into this argument, where each inner list represents a row.[^16]
-- `Doc Strings`**:** Similarly, a `Doc String` can be accessed by including a
-  special argument named `docstring`. This argument will receive the entire
-  block text as a single, multi-line string.[^16]
+  annotated with `#[datatable]` or named `datatable`. When a feature step
+  supplies a data table, the wrapper converts the cells into the declared
+  parameter type using `TryFrom<Vec<Vec<String>>>` and removes the
+  `#[datatable]` marker from the signature.[^16]
+- `Doc Strings`**:** Similarly, a Doc String can be accessed by including a
+  parameter named `docstring`. The wrapper copies the block text into an owned
+  `String` for the step.[^16]
 
 ______________________________________________________________________
 

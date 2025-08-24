@@ -6,6 +6,6 @@ use rstest_bdd_macros::given;
 type Wrong = String;
 
 #[given("a step with wrong table type")]
-fn step(#[datatable] table: Wrong) {}
+fn step(#[datatable] _table: Wrong) {}
 
 fn main() {}

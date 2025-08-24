@@ -184,11 +184,13 @@ fn extract_datatable_attribute(arg: &mut syn::PatType) -> bool {
 /// constraints, returning `true` when classification should proceed.
 fn validate_datatable_constraints(
     st: &ExtractedArgs,
-    arg: &syn::PatType,
+    arg: &mut syn::PatType,
     pat: &syn::Ident,
-    is_attr: bool,
-    is_canonical: bool,
+    ty: &syn::Type,
 ) -> syn::Result<bool> {
+    let is_attr = extract_datatable_attribute(arg);
+    let is_canonical = should_classify_as_datatable(pat, ty);
+
     if is_attr && pat == "docstring" {
         return Err(syn::Error::new_spanned(
             arg,
@@ -225,9 +227,7 @@ fn classify_datatable(
     pat: &syn::Ident,
     ty: &syn::Type,
 ) -> syn::Result<bool> {
-    let is_attr = extract_datatable_attribute(arg);
-    let is_canonical = should_classify_as_datatable(pat, ty);
-    if !validate_datatable_constraints(st, arg, pat, is_attr, is_canonical)? {
+    if !validate_datatable_constraints(st, arg, pat, ty)? {
         return Ok(false);
     }
     st.datatable = Some(DataTableArg {

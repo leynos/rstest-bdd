@@ -256,10 +256,11 @@ other essential Gherkin constructs.
 - **Data Tables:** A Gherkin data table provides a way to pass a structured
   block of data to a single step. Provide it to the step function via a single
   optional parameter annotated with `#[datatable]` or named `datatable` of type
-  `Vec<Vec<String>>`, mirroring `pytest-bdd`'s `datatable` argument.[^11] The
-  annotated parameter must precede any `docstring` argument, cannot combine
-  `#[datatable]` with `#[from]`, and its type must implement
-  `TryFrom<Vec<Vec<String>>>` to accept the converted cells.
+  `Vec<Vec<String>>`, mirroring `pytest-bdd`'s `datatable` argument.[^11]
+  During expansion the `#[datatable]` marker is removed, but the declared
+  parameter type is preserved and must implement `TryFrom<Vec<Vec<String>>>` to
+  accept the converted cells. The annotated parameter must precede any Doc
+  String argument and cannot combine `#[datatable]` with `#[from]`.
 
   **Feature File:**
 
@@ -354,12 +355,13 @@ macro has a distinct role in the compile-time orchestration of the BDD tests.
 
 - **Data Tables:** Step functions may include a single optional parameter
   annotated with `#[datatable]` or named `datatable` of type
-  `Vec<Vec<String>>`. When the feature file attaches a data table to a step,
-  the generated wrapper converts the table into this structure and passes it to
-  the function. The data table parameter must precede any `docstring` argument,
-  must not combine `#[datatable]` with `#[from]`, and the target type must
-  implement `TryFrom<Vec<Vec<String>>>` for the conversion. The wrapper emits
-  an error at runtime if the table is missing.
+  `Vec<Vec<String>>`. When a feature step includes a data table, the wrapper
+  converts the cells into this structure and passes it to the function. The
+  `#[datatable]` marker is removed from the function signature during macro
+  expansion; the declared type is preserved and must implement
+  `TryFrom<Vec<Vec<String>>>`. The data table parameter must precede any Doc
+  String argument, must not combine `#[datatable]` with `#[from]`, and the
+  wrapper emits a runtime error if the table is missing.
 
 - **Doc Strings:** A multi-line text block immediately following a step is
   exposed to the step function through an optional `docstring` parameter of
