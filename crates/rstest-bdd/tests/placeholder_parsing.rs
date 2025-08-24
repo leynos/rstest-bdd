@@ -106,19 +106,16 @@ fn invalid_type_hint_is_generic(
 }
 
 #[test]
-fn malformed_type_hint_is_literal() {
-    // Empty type hint is treated literally rather than as a placeholder.
-    let pat = compiled("value {n:}");
-    assert!(
-        extract_placeholders(&pat, StepText::from("value 123")).is_err(),
-        "malformed type hint should not capture",
-    );
+fn malformed_type_hint_is_error() {
+    // Empty type hint now yields a compilation error.
+    let pat = StepPattern::from("value {n:}");
+    assert!(pat.compile().is_err(), "empty type hint should be invalid");
 
-    // Whitespace between the name and colon makes it a literal placeholder.
-    let pat2 = compiled("value {n : f64}");
+    // Whitespace between the name and colon also produces an error.
+    let pat2 = StepPattern::from("value {n : f64}");
     assert!(
-        extract_placeholders(&pat2, StepText::from("value 1.0")).is_err(),
-        "whitespace before colon should make the placeholder literal",
+        pat2.compile().is_err(),
+        "whitespace before colon is invalid"
     );
 }
 
@@ -164,16 +161,9 @@ fn handles_nested_braces() {
 }
 
 #[test]
-fn unbalanced_braces_are_literals() {
-    let pat = compiled("before {outer {inner} after");
-    assert!(
-        extract_placeholders(&pat, StepText::from("before value after")).is_err(),
-        "text without literal brace should not match",
-    );
-    #[expect(clippy::expect_used, reason = "test asserts exact match")]
-    let caps = extract_placeholders(&pat, StepText::from("before {outer {inner} after"))
-        .expect("literal braces should match exactly");
-    assert!(caps.is_empty(), "no placeholders expected");
+fn compile_fails_on_unbalanced_braces() {
+    let pat = StepPattern::from("before {outer {inner} after");
+    assert!(pat.compile().is_err(), "unbalanced braces should error");
 }
 
 #[test]
@@ -190,19 +180,13 @@ fn nested_brace_in_placeholder_is_literal() {
 }
 
 #[test]
-fn stray_closing_brace_does_not_block_placeholders() {
-    let pat = compiled("end} with {n:u32}");
-    #[expect(clippy::expect_used, reason = "test asserts placeholder match")]
-    let caps = extract_placeholders(&pat, StepText::from("end} with 7"))
-        .expect("should match despite stray closing brace");
-    assert_eq!(caps, vec!["7"]);
+fn compile_fails_on_stray_closing_brace() {
+    let pat = StepPattern::from("end} with {n:u32}");
+    assert!(pat.compile().is_err(), "stray closing brace should error");
 }
 
 #[test]
-fn stray_opening_brace_blocks_placeholders() {
-    let pat = compiled("start{ with {n:u32}");
-    assert!(
-        extract_placeholders(&pat, StepText::from("start{ with 8")).is_err(),
-        "placeholder should not match after stray opening brace",
-    );
+fn compile_fails_on_stray_opening_brace() {
+    let pat = StepPattern::from("start{ with {n:u32}");
+    assert!(pat.compile().is_err(), "stray opening brace should error");
 }

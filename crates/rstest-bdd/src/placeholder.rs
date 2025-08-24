@@ -52,7 +52,6 @@ pub(crate) struct RegexBuilder<'a> {
     pub(crate) bytes: &'a [u8],
     pub(crate) position: usize,
     pub(crate) output: String,
-    pub(crate) stray_depth: usize,
 }
 
 impl<'a> RegexBuilder<'a> {
@@ -64,7 +63,6 @@ impl<'a> RegexBuilder<'a> {
             bytes: pattern.as_bytes(),
             position: 0,
             output,
-            stray_depth: 0,
         }
     }
     #[inline]
@@ -141,23 +139,12 @@ pub(crate) fn parse_double_brace(state: &mut RegexBuilder<'_>) {
     #[expect(clippy::indexing_slicing, reason = "predicate ensured bound")]
     let brace = state.bytes[state.position];
     state.push_literal_brace(brace);
-    if state.stray_depth > 0 {
-        if brace == b'{' {
-            state.stray_depth = state.stray_depth.saturating_add(1);
-        }
-        if brace == b'}' {
-            state.stray_depth = state.stray_depth.saturating_sub(1);
-        }
-    }
     state.advance(2);
 }
 
 pub(crate) fn parse_literal(state: &mut RegexBuilder<'_>) {
     #[expect(clippy::indexing_slicing, reason = "caller ensured bound")]
     let ch = state.bytes[state.position];
-    if ch == b'{' {
-        state.stray_depth = state.stray_depth.saturating_add(1);
-    }
     state.push_literal_byte(ch);
     state.advance(1);
 }
@@ -208,7 +195,7 @@ pub(crate) fn parse_type_hint(state: &RegexBuilder<'_>, start: usize) -> (usize,
     (i, Some(ty))
 }
 
-pub(crate) fn parse_placeholder(state: &mut RegexBuilder<'_>) {
+pub(crate) fn parse_placeholder(state: &mut RegexBuilder<'_>) -> Result<(), regex::Error> {
     let start = state.position;
     let (name_end, _name) = parse_placeholder_name(state, start + 1);
     if let Some(b) = state.bytes.get(name_end) {
@@ -221,18 +208,16 @@ pub(crate) fn parse_placeholder(state: &mut RegexBuilder<'_>) {
                 ws += 1;
             }
             if matches!(state.bytes.get(ws), Some(b':')) {
-                state.output.push_str(r"\{");
-                state.advance(1);
-                state.stray_depth = state.stray_depth.saturating_add(1);
-                return;
+                return Err(regex::Error::Syntax(
+                    "invalid placeholder in step pattern".to_string(),
+                ));
             }
         }
     }
     if is_empty_type_hint(state, name_end) {
-        state.output.push_str(r"\{");
-        state.advance(1);
-        state.stray_depth = state.stray_depth.saturating_add(1);
-        return;
+        return Err(regex::Error::Syntax(
+            "invalid placeholder in step pattern".to_string(),
+        ));
     }
     let (mut after, ty_opt) = parse_type_hint(state, name_end);
     if ty_opt.is_none() {
@@ -258,10 +243,9 @@ pub(crate) fn parse_placeholder(state: &mut RegexBuilder<'_>) {
         after = k;
     }
     if !matches!(state.bytes.get(after), Some(b'}')) {
-        state.output.push_str(r"\{");
-        state.advance(1);
-        state.stray_depth = state.stray_depth.saturating_add(1);
-        return;
+        return Err(regex::Error::Syntax(
+            "unbalanced braces in step pattern".to_string(),
+        ));
     }
     state.push_capture_for_type(ty_opt.as_deref());
     if ty_opt.as_ref().is_some_and(|t| t.contains('{')) {
@@ -269,32 +253,12 @@ pub(crate) fn parse_placeholder(state: &mut RegexBuilder<'_>) {
     }
     after += 1; // skip closing brace
     state.position = after;
+    Ok(())
 }
 
-pub(crate) fn build_regex_from_pattern(pat: &str) -> String {
+pub(crate) fn build_regex_from_pattern(pat: &str) -> Result<String, regex::Error> {
     let mut st = RegexBuilder::new(pat);
     while st.has_more() {
-        if st.stray_depth > 0 {
-            if is_double_brace(st.bytes, st.position) {
-                parse_double_brace(&mut st);
-                continue;
-            }
-            if is_escaped_brace(st.bytes, st.position) {
-                parse_escaped_brace(&mut st);
-                continue;
-            }
-            #[expect(clippy::indexing_slicing, reason = "bounds checked by has_more")]
-            let ch = st.bytes[st.position];
-            if ch == b'{' {
-                st.stray_depth = st.stray_depth.saturating_add(1);
-            }
-            if ch == b'}' {
-                st.stray_depth = st.stray_depth.saturating_sub(1);
-            }
-            st.push_literal_byte(ch);
-            st.advance(1);
-            continue;
-        }
         if is_double_brace(st.bytes, st.position) {
             parse_double_brace(&mut st);
             continue;
@@ -304,11 +268,18 @@ pub(crate) fn build_regex_from_pattern(pat: &str) -> String {
             continue;
         }
         if is_placeholder_start(st.bytes, st.position) {
-            parse_placeholder(&mut st);
+            parse_placeholder(&mut st)?;
             continue;
+        }
+        #[expect(clippy::indexing_slicing, reason = "bounds checked by has_more")]
+        let ch = st.bytes[st.position];
+        if ch == b'{' || ch == b'}' {
+            return Err(regex::Error::Syntax(
+                "unbalanced braces in step pattern".to_string(),
+            ));
         }
         parse_literal(&mut st);
     }
     st.output.push('$');
-    st.output
+    Ok(st.output)
 }

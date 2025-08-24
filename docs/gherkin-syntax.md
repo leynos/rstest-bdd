@@ -146,7 +146,7 @@ primary and secondary keywords in the Gherkin language.
 | *                | An asterisk can be used in place of any step keyword (Given, When, etc.) to improve flow, especially for lists. 14 | Can replace any step keyword.                                               | * the card should be returned                               |
 | Examples         | A data table that provides values for the variables in a Scenario Outline. Alias: Scenarios. 14 | Must follow a Scenario Outline.                                             | `Examples:` |
 | \| (pipe)        | Delimiter for Data Tables and Examples tables. 14                                            | Must appear immediately under the related step or Examples header.          | See lines 296–306 |
-| """ or ```       | Delimiters for a Doc String, a multi-line block of text passed to a single step. 14                                | Placed on new lines immediately following a step.                           | Then the email body should contain: """Hello World"""       |
+| """ or ```       | Delimiters for a Docstring, a multi-line block of text passed to a single step. 14                                | Placed on new lines immediately following a step.                           | Then the email body should contain: """Hello World"""       |
 | @                | Prefix for a Tag, used to organise and filter features or scenarios. 10                                            | Placed on the line(s) above Feature, Scenario, etc.                         | @smoke @regression                                          |
 | #                | Prefix for a single-line comment. Ignored by test runners. 14                                                      | Can be placed at the start of any new line.                                 | # This is a comment                                         |
 <!-- markdownlint-enable MD013 -->
@@ -273,12 +273,12 @@ a parameter named `docstring` of type `String`. The attribute or canonical name
 allows the procedural macros to detect the data table parameter. Place the data
 table before any Doc String, and do not combine it with `#[from]`.
 
-### Section 2.4: Incorporating Block Text with `Doc Strings`
+### Section 2.4: Incorporating Block Text with `Docstring`
 
 Sometimes the data required by a step is not a simple value or structured
 table, but a larger, free-form block of text. This is common when working with
-APIs (JSON/XML payloads), email content, or snippets of code. `Doc Strings` are
-Gherkin's solution for this. A `Doc String` allows a multi-line string to be
+APIs (JSON/XML payloads), email content, or snippets of code. `Docstrings` are
+Gherkin's solution for this. A `Docstring` allows a multi-line string to be
 passed to a step definition.[^10] Syntax: The text block is enclosed by a pair
 of triple double-quotes (""") or triple backticks (\`\`\`\`\`\`) on their own
 lines, immediately following the step.[^10]
@@ -297,7 +297,7 @@ Feature: API for creating blog posts
     Then the response status code should be "201"
 ```
 
-In the step definition, the entire content of the `Doc String` is passed as a
+In the step definition, the entire content of the `Docstring` is passed as a
 single string argument. In `rstest-bdd`, this is achieved by declaring an
 argument named `docstring` of type `String`. Advanced Gherkin parsers also
 allow specifying a content type (e.g., `"""json`) after the opening delimiter,
@@ -654,9 +654,9 @@ steps.
   supplies a data table, the wrapper converts the cells into the declared
   parameter type using `TryFrom<Vec<Vec<String>>>` and removes the
   `#[datatable]` marker from the signature.[^16]
-- `Doc Strings`**:** Similarly, a Doc String can be accessed by including a
-  parameter named `docstring`. The wrapper copies the block text into an owned
-  `String` for the step.[^16]
+- `Docstring`**:** Similarly, a `Docstring` can be accessed by including a
+  special argument named `docstring`. This argument will receive the entire
+  block text as a single, multi-line string.[^16]
 
 ______________________________________________________________________
 
@@ -777,8 +777,8 @@ into Rust types.
   (`expr = "..."`) specified in the attribute macro. The framework handles the
   conversion to the corresponding Rust type in the function signature (e.g.,
   `{float}` maps to `f64`).[^26]
-- **Accessing** `Data Tables` **and** `Doc Strings`**:** To access a
-  `Data Table` or `Doc String` attached to a step, the step definition function
+- **Accessing** `Data Tables` **and** `Docstring`**:** To access a
+  `Data Table` or `Docstring` attached to a step, the step definition function
   must include an argument of type `&cucumber::gherkin::Step`. The table or doc
   string can then be accessed as an `Option` on this `Step` object:
   `step.table` or `step.docstring`.[^29] **Feature File
