@@ -107,7 +107,7 @@ fn call_order_preserves_parameter_sequence() {
 #[rstest]
 fn datatable_attribute_recognised_and_preserves_type() {
     let mut func: syn::ItemFn = parse_quote! {
-        fn step(#[datatable] table: MyTable) {}
+        fn step(#[datatable] table: my_mod::MyTable) {}
     };
     #[expect(clippy::expect_used, reason = "test asserts valid extraction")]
     let args = extract_args(&mut func).expect("failed to extract args");
@@ -115,6 +115,14 @@ fn datatable_attribute_recognised_and_preserves_type() {
     let dt = args.datatable.expect("missing datatable");
     assert_eq!(dt.pat, "table");
     if let syn::Type::Path(tp) = &dt.ty {
+        let rendered = tp
+            .path
+            .segments
+            .iter()
+            .map(|s| s.ident.to_string())
+            .collect::<Vec<_>>()
+            .join("::");
+        assert_eq!(rendered, "my_mod::MyTable");
         #[expect(clippy::expect_used, reason = "path has at least one segment")]
         let seg = tp.path.segments.last().expect("missing segment");
         assert_eq!(seg.ident, "MyTable");
