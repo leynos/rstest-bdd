@@ -135,3 +135,28 @@ fn successful_step_execution() {
         panic!("unexpected error: {e:?}");
     }
 }
+
+#[test]
+fn datatable_is_passed_and_executes() {
+    let ctx = StepContext::default();
+    let step_fn = rstest_bdd::lookup_step(StepKeyword::Given, "a step requiring a table".into())
+        .unwrap_or_else(|| panic!("step 'a step requiring a table' not found in registry"));
+
+    // Minimal 2×2 data table
+    let table: &[&[&str]] = &[&["a", "b"], &["c", "d"]];
+    if let Err(e) = step_fn(&ctx, "a step requiring a table", None, Some(table)) {
+        panic!("unexpected error passing datatable: {e:?}");
+    }
+}
+
+#[test]
+fn docstring_is_passed_and_executes() {
+    let ctx = StepContext::default();
+    let step_fn =
+        rstest_bdd::lookup_step(StepKeyword::Given, "a step requiring a docstring".into())
+            .unwrap_or_else(|| panic!("step 'a step requiring a docstring' not found in registry"));
+
+    if let Err(e) = step_fn(&ctx, "a step requiring a docstring", Some("content"), None) {
+        panic!("unexpected error passing docstring: {e:?}");
+    }
+}

@@ -7,6 +7,12 @@ use proc_macro2::TokenStream as TokenStream2;
 use quote::{format_ident, quote};
 use std::sync::atomic::{AtomicUsize, Ordering};
 
+#[derive(Copy, Clone)]
+struct StepMeta<'a> {
+    pattern: &'a syn::LitStr,
+    ident: &'a syn::Ident,
+}
+
 /// Quote construction for [`StepError`] variants sharing `pattern`,
 /// `function` and `message` fields.
 fn step_error_tokens(
@@ -29,10 +35,16 @@ fn step_error_tokens(
 /// `StepError::ExecutionError`.
 fn gen_optional_decl<T, F>(
     arg: Option<&T>,
-    pattern: &syn::LitStr,
-    ident: &syn::Ident,
-) -> Option<TokenStream2> {
-    datatable.map(|DataTableArg { pat, ty }| {
+    meta: StepMeta<'_>,
+    error_msg: &str,
+    generator: F,
+) -> Option<TokenStream2>
+where
+    F: FnOnce(&T) -> (syn::Ident, TokenStream2, TokenStream2),
+{
+    arg.map(|arg_value| {
+        let (pat, ty, expr) = generator(arg_value);
+        let StepMeta { pattern, ident } = meta;
         let err = step_error_tokens(
             &format_ident!("ExecutionError"),
             pattern,
@@ -62,8 +74,7 @@ fn gen_datatable_decl(
 ) -> Option<TokenStream2> {
     gen_optional_decl(
         datatable,
-        pattern,
-        ident,
+        StepMeta { pattern, ident },
         "requires a data table",
         |DataTableArg { pat }| {
             let pat = pat.clone();
@@ -90,8 +101,7 @@ fn gen_docstring_decl(
 ) -> Option<TokenStream2> {
     gen_optional_decl(
         docstring,
-        pattern,
-        ident,
+        StepMeta { pattern, ident },
         "requires a doc string",
         |DocStringArg { pat }| {
             let pat = pat.clone();
