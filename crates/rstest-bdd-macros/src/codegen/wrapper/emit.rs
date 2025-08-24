@@ -19,7 +19,10 @@ fn gen_datatable_decl(
                 .map(|row| row.iter().map(|cell| cell.to_string()).collect::<Vec<String>>())
                 .collect::<Vec<Vec<String>>>()
                 .try_into()
-                .unwrap_or_else(|e| panic!("failed to convert data table for step '{}': {e}", #pattern));
+                .map_err(|e| format!(
+                    "failed to convert data table for step '{}': {e}",
+                    #pattern
+                ))?;
         }
     })
 }

@@ -833,7 +833,7 @@ The choice between `pytest-bdd` and `cucumber-rs` is less about which is
 tooling, and development philosophy. `pytest-bdd` acts as a bridge, bringing
 BDD capabilities into the vast and mature `pytest` world. Its greatest strength
 is this very integration; it allows developers to reuse fixtures, leverage
-thousands of plugins for tasks like parallelisation (`pytest-xdist`) and
+thousands of plugins for tasks like parallelization (`pytest-xdist`) and
 reporting (`pytest-html`), and manage BDD scenarios as just another type of
 `pytest` test.[^22] `cucumber-rs`, on the other hand, is a self-contained
 framework that provides its own test runner and ecosystem. Its strength lies in
@@ -851,7 +851,7 @@ purpose-built, type-safe, and async-native design of `cucumber-rs`.
 | State Management       | Uses pytest's fixture system. State is shared via dependency injection. Given steps can act as fixture factories using target_fixture. 31         | Uses an explicit, mutable World struct. A new World instance is created for each scenario and passed as a mutable reference (&mut World) to each step. 37 |
 | Step Definition Syntax | Functions are decorated with @given, @when, @then. A separate @scenario decorator links a test function to a feature file scenario. 29            | async functions are decorated with #[given], #[when], #[then] attribute macros. A central main function invokes the runner. 35                            |
 | Data Table Handling    | The step function accepts a datatable argument annotated with `#[datatable]` or named `datatable`, which contains the data as a list of lists. 22 | The step function accepts a &Step argument, and the table is accessed via step.table.as_ref(). 42                                                         |
-| Ecosystem & Tooling    | Leverages the entire pytest ecosystem: fixtures, hooks, and thousands of plugins for reporting, parallelisation, etc. 28                          | Provides its own ecosystem for execution, filtering, and output formatting. Integrates with Rust's build system (cargo) and async runtimes (tokio). 35    |
+| Ecosystem & Tooling    | Leverages the entire pytest ecosystem: fixtures, hooks, and thousands of plugins for reporting, parallelization, etc. 28                          | Provides an ecosystem for execution, filtering, and output formatting. Integrates with Rust's build system (cargo) and async runtimes (tokio). 35         |
 
 ### Section 6.2: Common Quirks and Gotchas
 

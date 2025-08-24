@@ -1,5 +1,6 @@
 //! Tests for argument extraction helpers.
 
+use quote::quote;
 use rstest::rstest;
 use syn::parse_quote;
 
@@ -56,6 +57,11 @@ use args_impl::{CallArg, extract_args};
     parse_quote! { fn step(#[from] #[datatable] fix: Vec<Vec<String>>) {} },
     "#[datatable] cannot be combined with #[from]",
     "error when datatable attribute applied to fixture",
+)]
+#[case(
+    parse_quote! { fn step(#[datatable(foo)] data: Vec<Vec<String>>) {} },
+    "`#[datatable]` does not take arguments",
+    "error when datatable attribute has tokens",
 )]
 fn test_extract_args_errors(
     #[case] mut func: syn::ItemFn,
@@ -129,4 +135,15 @@ fn datatable_attribute_removed_from_signature() {
         panic!("expected typed argument");
     };
     assert!(arg.attrs.is_empty(), "datatable attribute not stripped");
+    if let syn::Pat::Ident(p) = &*arg.pat {
+        assert_eq!(p.ident, "data");
+    } else {
+        panic!("expected ident pattern");
+    }
+    let ty = &*arg.ty;
+    let ty_str = quote!(#ty).to_string();
+    assert!(
+        ty_str.replace(' ', "") == "Vec<Vec<String>>".replace(' ', ""),
+        "unexpected type after attribute strip: {ty_str}"
+    );
 }

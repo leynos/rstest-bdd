@@ -167,17 +167,31 @@ fn should_classify_as_datatable(pat: &syn::Ident, ty: &syn::Type) -> bool {
 }
 
 /// Removes the `#[datatable]` attribute, returning `true` if present.
-fn extract_datatable_attribute(arg: &mut syn::PatType) -> bool {
+///
+/// The attribute must be bare (e.g., `#[datatable]`). Any tokens supplied will
+/// result in a parse error so callers receive precise diagnostics.
+fn extract_datatable_attribute(arg: &mut syn::PatType) -> syn::Result<bool> {
     let mut found = false;
     arg.attrs.retain(|a| {
         if a.path().is_ident("datatable") {
             found = true;
+            if a.meta.require_path_only().is_err() {
+                // Preserve the attribute so an error can be emitted using its
+                // span after iteration completes.
+                return true;
+            }
             false
         } else {
             true
         }
     });
-    found
+    if let Some(attr) = arg.attrs.iter().find(|a| a.path().is_ident("datatable")) {
+        return Err(syn::Error::new_spanned(
+            attr,
+            "`#[datatable]` does not take arguments",
+        ));
+    }
+    Ok(found)
 }
 
 /// Validates that a potential datatable argument obeys uniqueness and ordering
@@ -188,7 +202,7 @@ fn validate_datatable_constraints(
     pat: &syn::Ident,
     ty: &syn::Type,
 ) -> syn::Result<bool> {
-    let is_attr = extract_datatable_attribute(arg);
+    let is_attr = extract_datatable_attribute(arg)?;
     let is_canonical = should_classify_as_datatable(pat, ty);
 
     if is_attr && pat == "docstring" {
