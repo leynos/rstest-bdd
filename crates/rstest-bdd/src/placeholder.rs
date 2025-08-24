@@ -325,66 +325,6 @@ pub(crate) fn parse_stray_character(st: &mut RegexBuilder<'_>) {
     st.advance(1);
 }
 
-/// Parses stray text outside recognised escape sequences.
-///
-/// This simply delegates to [`parse_stray_character`]; the wrapper keeps the
-/// public API aligned with the dispatching logic and offers a stable entry
-/// point should future rules for stray text emerge.
-///
-/// # Examples
-/// ```ignore
-/// # use crate::placeholder::{parse_stray_context, RegexBuilder};
-/// let mut st = RegexBuilder::new("x");
-/// st.stray_depth = 1;
-/// parse_stray_context(&mut st).unwrap();
-/// assert_eq!(st.output, "^x");
-/// ```
-#[expect(
-    clippy::unnecessary_wraps,
-    reason = "uniform interface for parse_context_specific"
-)]
-#[inline]
-pub(crate) fn parse_stray_context(st: &mut RegexBuilder<'_>) -> Result<(), regex::Error> {
-    parse_stray_character(st);
-    Ok(())
-}
-
-/// Parses non-placeholder context outside of stray-depth.
-///
-/// # Errors
-/// Returns [`regex::Error::Syntax`] when encountering an unmatched closing
-/// brace.
-///
-/// # Examples
-/// ```ignore
-/// # use crate::placeholder::{parse_non_placeholder_context, RegexBuilder};
-/// let mut st = RegexBuilder::new("x");
-/// parse_non_placeholder_context(&mut st).unwrap();
-/// assert_eq!(st.output, "^x");
-/// ```
-#[inline]
-pub(crate) fn parse_non_placeholder_context(st: &mut RegexBuilder<'_>) -> Result<(), regex::Error> {
-    if matches!(st.bytes.get(st.position), Some(b'}')) {
-        return Err(regex::Error::Syntax(
-            "unbalanced braces in step pattern".to_string(),
-        ));
-    }
-
-    if !matches!(st.bytes.get(st.position), Some(b'{')) {
-        parse_literal(st);
-        return Ok(());
-    }
-
-    if is_placeholder_start(st.bytes, st.position) {
-        return Ok(());
-    }
-
-    st.push_literal_brace(b'{');
-    st.stray_depth = st.stray_depth.saturating_add(1);
-    st.advance(1);
-    Ok(())
-}
-
 /// Dispatches context-specific parsing after common sequences.
 ///
 /// When scanning stray text (inside unmatched braces), it emits the next
@@ -393,12 +333,28 @@ pub(crate) fn parse_non_placeholder_context(st: &mut RegexBuilder<'_>) -> Result
 #[inline]
 pub(crate) fn parse_context_specific(st: &mut RegexBuilder<'_>) -> Result<(), regex::Error> {
     if st.stray_depth > 0 {
-        return parse_stray_context(st);
+        parse_stray_character(st);
+        return Ok(());
     }
     if is_placeholder_start(st.bytes, st.position) {
         return parse_placeholder(st);
     }
-    parse_non_placeholder_context(st)
+    match st.bytes.get(st.position) {
+        Some(b'}') => Err(regex::Error::Syntax(format!(
+            "unmatched closing brace '}}' at position {} in step pattern",
+            st.position
+        ))),
+        Some(b'{') => {
+            st.push_literal_brace(b'{');
+            st.stray_depth = st.stray_depth.saturating_add(1);
+            st.advance(1);
+            Ok(())
+        }
+        _ => {
+            parse_literal(st);
+            Ok(())
+        }
+    }
 }
 
 pub(crate) fn build_regex_from_pattern(pat: &str) -> Result<String, regex::Error> {
