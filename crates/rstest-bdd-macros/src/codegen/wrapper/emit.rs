@@ -44,23 +44,23 @@ where
     arg.map(|arg_value| {
         let (pat, ty, expr) = generator(arg_value);
         let StepMeta { pattern, ident } = meta;
-        let err = step_error_tokens(
+        let missing_err = step_error_tokens(
             &format_ident!("ExecutionError"),
             pattern,
             ident,
             &quote! { format!("Step '{}' {}", #pattern, #error_msg) },
         );
+        let convert_err = step_error_tokens(
+            &format_ident!("ExecutionError"),
+            pattern,
+            ident,
+            &quote! { format!("failed to convert auxiliary argument for step '{}'", #pattern) },
+        );
         quote! {
-            let #pat: #ty = _table
-                .ok_or_else(|| #err)?
-                .iter()
-                .map(|row| row.iter().map(|cell| cell.to_string()).collect::<Vec<String>>())
-                .collect::<Vec<Vec<String>>>()
+            let #pat: #ty = #expr
+                .ok_or_else(|| #missing_err)?
                 .try_into()
-                .map_err(|e| format!(
-                    "failed to convert data table for step '{}': {e}",
-                    #pattern
-                ))?;
+                .map_err(|_e| #convert_err)?;
         }
     })
 }
@@ -75,14 +75,15 @@ fn gen_datatable_decl(
         datatable,
         StepMeta { pattern, ident },
         "requires a data table",
-        |DataTableArg { pat }| {
+        |DataTableArg { pat, ty }| {
             let pat = pat.clone();
-            let ty = quote! { Vec<Vec<String>> };
+            let declared_ty = ty.clone();
+            let ty = quote! { #declared_ty };
             let expr = quote! {
                 _table.map(|t| {
                     t.iter()
-                        .map(|row| row.iter().map(|cell| cell.to_string()).collect())
-                        .collect::<Vec<_>>()
+                        .map(|row| row.iter().map(|cell| cell.to_string()).collect::<Vec<String>>())
+                        .collect::<Vec<Vec<String>>>()
                 })
             };
             (pat, ty, expr)
