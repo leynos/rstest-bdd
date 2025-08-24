@@ -257,7 +257,7 @@ other essential Gherkin constructs.
   block of data to a single step. Provide it to the step function via a single
   optional parameter annotated with `#[datatable]` or named `datatable` of type
   `Vec<Vec<String>>`, mirroring `pytest-bdd`'s `datatable` argument.[^11]
-  During expansion the `#[datatable]` marker is removed, but the declared
+  During expansion, the `#[datatable]` marker is removed, but the declared
   parameter type is preserved and must implement `TryFrom<Vec<Vec<String>>>` to
   accept the converted cells. The annotated parameter must precede any Doc
   String argument and cannot combine `#[datatable]` with `#[from]`.
@@ -354,14 +354,14 @@ macro has a distinct role in the compile-time orchestration of the BDD tests.
   add a `Step` to the registry.
 
 - **Data Tables:** Step functions may include a single optional parameter
-  annotated with `#[datatable]` or named `datatable` of type
-  `Vec<Vec<String>>`. When a feature step includes a data table, the wrapper
-  converts the cells into this structure and passes it to the function. The
-  `#[datatable]` marker is removed from the function signature during macro
-  expansion; the declared type is preserved and must implement
-  `TryFrom<Vec<Vec<String>>>`. The data table parameter must precede any Doc
-  String argument, must not combine `#[datatable]` with `#[from]`, and the
-  wrapper emits a runtime error if the table is missing.
+  declared in one of two ways: (a) annotated with `#[datatable]` and of any
+  type `T` where `T: TryFrom<Vec<Vec<String>>>`, or (b) named `datatable` with
+  concrete type `Vec<Vec<String>>`. When a feature step includes a data table,
+  the wrapper converts the cells to `Vec<Vec<String>>` and, for (a), performs a
+  `try_into()` to the declared type. The `#[datatable]` marker is removed
+  during expansion. The data table parameter must precede any Doc String
+  argument, must not be combined with `#[from]`, and the wrapper emits a
+  runtime error if the table is missing.
 
 - **Doc Strings:** A multi-line text block immediately following a step is
   exposed to the step function through an optional `docstring` parameter of

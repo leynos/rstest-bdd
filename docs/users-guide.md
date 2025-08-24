@@ -243,7 +243,7 @@ Best practices for writing effective scenarios include:
 
 Steps may supply structured or free-form data via a trailing argument. A data
 table is received by including a parameter annotated with `#[datatable]` or
-named `datatable` of type `Vec<Vec<String>>`. During expansion the
+named `datatable` of type `Vec<Vec<String>>`. During expansion, the
 `#[datatable]` marker is removed, but the declared parameter type is preserved
 and must implement `TryFrom<Vec<Vec<String>>>` so the wrapper can convert the
 parsed cells. A Gherkin Doc String is made available through an argument named

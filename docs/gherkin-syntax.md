@@ -266,12 +266,12 @@ Feature: User administration
 Unlike an `Examples` table, this `Data Table` does not cause the scenario to
 run multiple times. Instead, pass the entire table to the step definition via a
 parameter annotated with `#[datatable]` or named `datatable`. During macro
-expansion the `#[datatable]` marker is stripped, but the declared parameter
+expansion, the `#[datatable]` marker is stripped, but the declared parameter
 type is preserved and must implement `TryFrom<Vec<Vec<String>>>` so the wrapper
 can convert the cells. In `rstest-bdd`, a Doc String is retrieved similarly via
 a parameter named `docstring` of type `String`. The attribute or canonical name
 allows the procedural macros to detect the data table parameter. Place the data
-table before any Doc String and do not combine it with `#[from]`.
+table before any Doc String, and do not combine it with `#[from]`.
 
 ### Section 2.4: Incorporating Block Text with `Doc Strings`
 

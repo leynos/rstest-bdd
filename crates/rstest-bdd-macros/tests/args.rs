@@ -119,6 +119,10 @@ fn datatable_attribute_recognised_and_preserves_type() {
     };
     #[expect(clippy::expect_used, reason = "test asserts valid extraction")]
     let args = extract_args(&mut func).expect("failed to extract args");
+    assert!(
+        matches!(&args.call_order[..], [CallArg::DataTable]),
+        "unexpected call_order for datatable-only signature"
+    );
     #[expect(clippy::expect_used, reason = "datatable presence required")]
     let dt = args.datatable.expect("missing datatable");
     assert_eq!(dt.pat, "table");
@@ -145,7 +149,10 @@ fn datatable_attribute_removed_from_signature() {
         fn step(#[datatable] data: Vec<Vec<String>>) {}
     };
     #[expect(clippy::expect_used, reason = "test asserts valid extraction")]
-    let _args = extract_args(&mut func).expect("failed to extract args");
+    let args = extract_args(&mut func).expect("failed to extract args");
+    #[expect(clippy::expect_used, reason = "datatable presence required")]
+    let dt = args.datatable.expect("missing datatable after strip");
+    assert_eq!(dt.pat, "data");
     #[expect(clippy::expect_used, reason = "test inspects parameter attributes")]
     let syn::FnArg::Typed(arg) = func.sig.inputs.first().expect("missing arg") else {
         panic!("expected typed argument");
