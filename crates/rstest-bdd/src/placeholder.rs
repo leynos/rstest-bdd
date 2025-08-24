@@ -306,17 +306,18 @@ pub(crate) fn try_parse_common_sequences(st: &mut RegexBuilder<'_>) -> bool {
     }
 }
 
-/// Emits the current byte as a literal while adjusting `stray_depth` for
-/// nested braces.
+/// Emits the current byte as a literal while inside stray-depth
+/// (`st.stray_depth > 0`), adjusting for nested braces as needed.
+///
+/// This path is reached only when `stray_depth` is non-zero.
 #[inline]
 pub(crate) fn parse_stray_character(st: &mut RegexBuilder<'_>) {
     #[expect(clippy::indexing_slicing, reason = "bounds checked by caller")]
     let ch = st.bytes[st.position];
-    if ch == b'{' {
-        st.stray_depth = st.stray_depth.saturating_add(1);
-    }
-    if ch == b'}' {
-        st.stray_depth = st.stray_depth.saturating_sub(1);
+    match ch {
+        b'{' => st.stray_depth = st.stray_depth.saturating_add(1),
+        b'}' => st.stray_depth = st.stray_depth.saturating_sub(1),
+        _ => {}
     }
     st.push_literal_byte(ch);
     st.advance(1);
