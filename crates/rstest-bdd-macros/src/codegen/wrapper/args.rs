@@ -166,22 +166,29 @@ fn should_classify_as_datatable(pat: &syn::Ident, ty: &syn::Type) -> bool {
     pat == "datatable" && is_datatable(ty)
 }
 
-fn classify_datatable(
-    st: &mut ExtractedArgs,
-    arg: &mut syn::PatType,
-    pat: &syn::Ident,
-    ty: &syn::Type,
-) -> syn::Result<bool> {
-    let mut is_attr = false;
+/// Removes the `#[datatable]` attribute, returning `true` if present.
+fn extract_datatable_attribute(arg: &mut syn::PatType) -> bool {
+    let mut found = false;
     arg.attrs.retain(|a| {
         if a.path().is_ident("datatable") {
-            is_attr = true;
+            found = true;
             false
         } else {
             true
         }
     });
-    let is_canonical = should_classify_as_datatable(pat, ty);
+    found
+}
+
+/// Validates that a potential datatable argument obeys uniqueness and ordering
+/// constraints, returning `true` when classification should proceed.
+fn validate_datatable_constraints(
+    st: &ExtractedArgs,
+    arg: &syn::PatType,
+    pat: &syn::Ident,
+    is_attr: bool,
+    is_canonical: bool,
+) -> syn::Result<bool> {
     if is_attr && pat == "docstring" {
         return Err(syn::Error::new_spanned(
             arg,
@@ -201,11 +208,6 @@ fn classify_datatable(
                 "datatable must be declared before docstring to match Gherkin ordering",
             ));
         }
-        st.datatable = Some(DataTableArg {
-            pat: pat.clone(),
-            ty: ty.clone(),
-        });
-        st.call_order.push(CallArg::DataTable);
         Ok(true)
     } else if pat == "datatable" {
         Err(syn::Error::new_spanned(
@@ -215,6 +217,25 @@ fn classify_datatable(
     } else {
         Ok(false)
     }
+}
+
+fn classify_datatable(
+    st: &mut ExtractedArgs,
+    arg: &mut syn::PatType,
+    pat: &syn::Ident,
+    ty: &syn::Type,
+) -> syn::Result<bool> {
+    let is_attr = extract_datatable_attribute(arg);
+    let is_canonical = should_classify_as_datatable(pat, ty);
+    if !validate_datatable_constraints(st, arg, pat, is_attr, is_canonical)? {
+        return Ok(false);
+    }
+    st.datatable = Some(DataTableArg {
+        pat: pat.clone(),
+        ty: ty.clone(),
+    });
+    st.call_order.push(CallArg::DataTable);
+    Ok(true)
 }
 fn is_valid_docstring_arg(st: &ExtractedArgs, pat: &syn::Ident, ty: &syn::Type) -> bool {
     st.docstring.is_none() && pat == "docstring" && is_string(ty)
