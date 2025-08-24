@@ -25,9 +25,10 @@ fn step_error_tokens(
     }
 }
 
-/// Generate declaration for a data table argument.
-fn gen_datatable_decl(
-    datatable: Option<&DataTableArg>,
+/// Generate declaration for an optional argument, mapping absence to
+/// `StepError::ExecutionError`.
+fn gen_optional_decl<T, F>(
+    arg: Option<&T>,
     pattern: &syn::LitStr,
     ident: &syn::Ident,
 ) -> Option<TokenStream2> {
@@ -36,7 +37,7 @@ fn gen_datatable_decl(
             &format_ident!("ExecutionError"),
             pattern,
             ident,
-            &quote! { format!("Step '{}' requires a data table", #pattern) },
+            &quote! { format!("Step '{}' {}", #pattern, #error_msg) },
         );
         quote! {
             let #pat: #ty = _table
@@ -53,6 +54,32 @@ fn gen_datatable_decl(
     })
 }
 
+/// Generate declaration for a data table argument.
+fn gen_datatable_decl(
+    datatable: Option<&DataTableArg>,
+    pattern: &syn::LitStr,
+    ident: &syn::Ident,
+) -> Option<TokenStream2> {
+    gen_optional_decl(
+        datatable,
+        pattern,
+        ident,
+        "requires a data table",
+        |DataTableArg { pat }| {
+            let pat = pat.clone();
+            let ty = quote! { Vec<Vec<String>> };
+            let expr = quote! {
+                _table.map(|t| {
+                    t.iter()
+                        .map(|row| row.iter().map(|cell| cell.to_string()).collect())
+                        .collect::<Vec<_>>()
+                })
+            };
+            (pat, ty, expr)
+        },
+    )
+}
+
 /// Generate declaration for a doc string argument.
 ///
 /// Step functions require an owned `String`, so the wrapper copies the block.
@@ -61,19 +88,18 @@ fn gen_docstring_decl(
     pattern: &syn::LitStr,
     ident: &syn::Ident,
 ) -> Option<TokenStream2> {
-    docstring.map(|DocStringArg { pat }| {
-        let err = step_error_tokens(
-            "ExecutionError",
-            pattern,
-            ident,
-            &quote! { format!("Step '{}' requires a doc string", #pattern) },
-        );
-        quote! {
-            let #pat: String = _docstring
-                .ok_or_else(|| #err)?
-                .to_owned();
-        }
-    })
+    gen_optional_decl(
+        docstring,
+        pattern,
+        ident,
+        "requires a doc string",
+        |DocStringArg { pat }| {
+            let pat = pat.clone();
+            let ty = quote! { String };
+            let expr = quote! { _docstring.map(|s| s.to_owned()) };
+            (pat, ty, expr)
+        },
+    )
 }
 
 /// Configuration required to generate a wrapper.
@@ -326,7 +352,7 @@ fn assemble_wrapper_function(
                     } else if let Some(f) = e.downcast_ref::<f32>() {
                         f.to_string()
                     } else {
-                        format!("{:?}", e)
+                        "non-string panic payload".to_string()
                     };
                     #panic_err
                 })

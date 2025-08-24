@@ -1,7 +1,7 @@
 //! Behavioural test for step registry
 
 use rstest::rstest;
-use rstest_bdd::{Step, StepContext, StepError, iter, step};
+use rstest_bdd::{Step, StepContext, StepError, StepKeyword, iter, step};
 
 fn sample() {}
 #[expect(
@@ -58,7 +58,7 @@ fn extract_panic_message(e: Box<dyn std::any::Any + Send>) -> String {
     }
 
     try_downcast!(&str, String, i32, u32, i64, u64, isize, usize, f32, f64);
-    format!("{any_ref:?}")
+    "non-string panic payload".to_string()
 }
 
 fn panicking_wrapper(
@@ -86,16 +86,17 @@ step!(
 
 #[test]
 fn step_is_registered() {
-    let found = iter::<Step>.into_iter().any(|step| {
-        step.pattern.as_str() == "behavioural" && step.keyword == rstest_bdd::StepKeyword::When
-    });
+    let found = iter::<Step>
+        .into_iter()
+        .any(|step| step.pattern.as_str() == "behavioural" && step.keyword == StepKeyword::When);
     assert!(found, "expected step not found");
 }
 
 #[rstest]
-#[case("fails", "failing_wrapper", "boom", true)]
-#[case("panics", "panicking_wrapper", "snap", false)]
+#[case(StepKeyword::Given, "fails", "failing_wrapper", "boom", true)]
+#[case(StepKeyword::When, "panics", "panicking_wrapper", "snap", false)]
 fn wrapper_error_handling(
+    #[case] keyword: StepKeyword,
     #[case] pattern: &str,
     #[case] function_name: &str,
     #[case] expected_message: &str,
@@ -103,7 +104,7 @@ fn wrapper_error_handling(
 ) {
     let step_fn = iter::<Step>
         .into_iter()
-        .find(|s| s.pattern.as_str() == pattern)
+        .find(|s| s.pattern.as_str() == pattern && s.keyword == keyword)
         .map_or_else(
             || panic!("step '{pattern}' not found in registry"),
             |step| step.run,
