@@ -34,8 +34,19 @@ fn step_needing_docstring(docstring: String) {
     let _ = docstring;
 }
 
+#[given("number {value}")]
+fn parse_number(value: u32) {
+    let _ = value;
+}
+
+#[given("no placeholders")]
+fn missing_capture(value: u32) {
+    let _ = value;
+}
+
 #[rstest]
 #[case(
+    "a failing step",
     "a failing step",
     "failing_step",
     StepError::ExecutionError {
@@ -46,6 +57,7 @@ fn step_needing_docstring(docstring: String) {
 )]
 #[case(
     "a panicking step",
+    "a panicking step",
     "panicking_step",
     StepError::PanicError {
         pattern: "a panicking step".into(),
@@ -54,6 +66,7 @@ fn step_needing_docstring(docstring: String) {
     },
 )]
 #[case(
+    "a non-string panicking step",
     "a non-string panicking step",
     "non_string_panicking_step",
     StepError::PanicError {
@@ -64,6 +77,7 @@ fn step_needing_docstring(docstring: String) {
 )]
 #[case(
     "a step requiring a table",
+    "a step requiring a table",
     "step_needing_table",
     StepError::ExecutionError {
         pattern: "a step requiring a table".into(),
@@ -73,6 +87,7 @@ fn step_needing_docstring(docstring: String) {
 )]
 #[case(
     "a step requiring a docstring",
+    "a step requiring a docstring",
     "step_needing_docstring",
     StepError::ExecutionError {
         pattern: "a step requiring a docstring".into(),
@@ -80,16 +95,41 @@ fn step_needing_docstring(docstring: String) {
         message: "Step 'a step requiring a docstring' requires a doc string".into(),
     },
 )]
+#[case(
+    "number {value}",
+    "number not_a_number",
+    "parse_number",
+    StepError::ExecutionError {
+        pattern: "number {value}".into(),
+        function: "parse_number".into(),
+        message: concat!(
+            "failed to parse argument 'value' of type 'u32' from pattern 'number {value}' ",
+            "with captured value: '\"not_a_number\"'",
+        )
+        .into(),
+    },
+)]
+#[case(
+    "no placeholders",
+    "no placeholders",
+    "missing_capture",
+    StepError::ExecutionError {
+        pattern: "no placeholders".into(),
+        function: "missing_capture".into(),
+        message: "pattern 'no placeholders' produced 0 captures but step 'missing_capture' expects 1".into(),
+    },
+)]
 fn step_error_scenarios(
     #[case] step_pattern: &str,
+    #[case] step_text: &str,
     #[case] expected_function: &str,
     #[case] expected_error: StepError,
 ) {
     let ctx = StepContext::default();
     let step_fn = rstest_bdd::lookup_step(StepKeyword::Given, step_pattern.into())
         .unwrap_or_else(|| panic!("step '{step_pattern}' not found in registry"));
-    let err = match step_fn(&ctx, step_pattern, None, None) {
-        Ok(()) => panic!("expected error for '{step_pattern}'"),
+    let err = match step_fn(&ctx, step_text, None, None) {
+        Ok(()) => panic!("expected error for '{step_text}'"),
         Err(e) => e,
     };
     match (err, expected_error) {

@@ -159,29 +159,43 @@ fn gen_fixture_decls(fixtures: &[FixtureArg], ident: &syn::Ident) -> Vec<TokenSt
 fn gen_step_parses(
     step_args: &[StepArg],
     captured: &[TokenStream2],
-    pattern: &syn::LitStr,
+    meta: StepMeta<'_>,
 ) -> Vec<TokenStream2> {
+    let StepMeta { pattern, ident } = meta;
     step_args
         .iter()
         .zip(captured.iter().enumerate())
         .map(|(StepArg { pat, ty }, (idx, capture))| {
             let raw_ident = format_ident!("__raw{}", idx);
-            quote! {
-                let #raw_ident = #capture
-                    .ok_or_else(|| format!(
+            let missing_cap_err = step_error_tokens(
+                &format_ident!("ExecutionError"),
+                pattern,
+                ident,
+                &quote! {
+                    format!(
                         "pattern '{}' missing capture for argument '{}'",
                         #pattern,
-                        stringify!(#pat)
-                    ))?;
-                let #pat: #ty = (#raw_ident)
-                    .parse()
-                    .map_err(|_| format!(
+                        stringify!(#pat),
+                    )
+                },
+            );
+            let parse_err = step_error_tokens(
+                &format_ident!("ExecutionError"),
+                pattern,
+                ident,
+                &quote! {
+                    format!(
                         "failed to parse argument '{}' of type '{}' from pattern '{}' with captured value: '{:?}'",
                         stringify!(#pat),
                         stringify!(#ty),
                         #pattern,
                         #raw_ident,
-                    ))?;
+                    )
+                },
+            );
+            quote! {
+                let #raw_ident = #capture.ok_or_else(|| #missing_cap_err)?;
+                let #pat: #ty = (#raw_ident).parse().map_err(|_| #parse_err)?;
             }
         })
         .collect()
@@ -239,7 +253,14 @@ fn generate_argument_processing(
             quote! { captures.get(#index).map(|m| m.as_str()) }
         })
         .collect();
-    let step_arg_parses = gen_step_parses(config.step_args, &captured, config.pattern);
+    let step_arg_parses = gen_step_parses(
+        config.step_args,
+        &captured,
+        StepMeta {
+            pattern: config.pattern,
+            ident: config.ident,
+        },
+    );
     let datatable_decl = gen_datatable_decl(config.datatable, config.pattern, config.ident);
     let docstring_decl = gen_docstring_decl(config.docstring, config.pattern, config.ident);
     (declares, step_arg_parses, datatable_decl, docstring_decl)
@@ -302,6 +323,7 @@ fn assemble_wrapper_function(
     arg_idents: &[&syn::Ident],
     pattern: &syn::LitStr,
     ident: &syn::Ident,
+    capture_count: usize,
 ) -> TokenStream2 {
     let (declares, step_arg_parses, datatable_decl, docstring_decl) = arg_processing;
     let placeholder_err = step_error_tokens(
@@ -329,6 +351,21 @@ fn assemble_wrapper_function(
         ident,
         &quote! { message },
     );
+    let expected = capture_count;
+    let capture_mismatch_err = step_error_tokens(
+        &format_ident!("ExecutionError"),
+        pattern,
+        ident,
+        &quote! {
+            format!(
+                "pattern '{}' produced {} captures but step '{}' expects {}",
+                #pattern,
+                captures.len(),
+                stringify!(#ident),
+                expected
+            )
+        },
+    );
     quote! {
         fn #wrapper_ident(
             ctx: &rstest_bdd::StepContext<'_>,
@@ -340,6 +377,10 @@ fn assemble_wrapper_function(
 
             let captures = rstest_bdd::extract_placeholders(&#pattern_ident, text.into())
                 .map_err(|e| #placeholder_err)?;
+            let expected: usize = #expected;
+            if captures.len() != expected {
+                return Err(#capture_mismatch_err);
+            }
 
             #(#declares)*
             #(#step_arg_parses)*
@@ -391,6 +432,7 @@ fn generate_wrapper_body(
         &arg_idents,
         pattern,
         ident,
+        step_args.len(),
     );
 
     quote! {

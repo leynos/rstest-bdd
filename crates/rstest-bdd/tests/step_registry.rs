@@ -9,7 +9,7 @@ fn sample() {}
     reason = "wrapper must match StepFn signature"
 )]
 fn wrapper(
-    ctx: &rstest_bdd::StepContext<'_>,
+    ctx: &StepContext<'_>,
     _text: &str,
     _docstring: Option<&str>,
     _table: Option<&[&[&str]]>,
@@ -125,6 +125,7 @@ fn wrapper_error_handling(
         Ok(()) => panic!("expected error from wrapper '{pattern}'"),
         Err(e) => e,
     };
+    let err_display = err.to_string();
     if is_execution_error {
         match err {
             StepError::ExecutionError {
@@ -140,7 +141,7 @@ fn wrapper_error_handling(
                 assert_eq!(step, function_name);
                 assert_eq!(name, "missing");
                 assert_eq!(ty, "u32");
-                assert_eq!(err.to_string(), expected_message);
+                assert_eq!(err_display, expected_message);
             }
             other => panic!("unexpected error for '{pattern}': {other:?}"),
         }
