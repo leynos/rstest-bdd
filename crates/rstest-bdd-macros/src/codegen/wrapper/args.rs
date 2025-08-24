@@ -17,15 +17,15 @@ pub struct StepArg {
 
 /// Represents an argument for a Gherkin data table step function.
 ///
-/// The [`ty`] field preserves the user-declared Rust type, enabling the
-/// wrapper to convert the parsed table into any compatible structure. This
-/// allows callers to use type aliases or custom newtypes so long as they
-/// implement `TryFrom<Vec<Vec<String>>>`. Documenting the type here makes the
-/// intended use explicit for future maintainers.
+/// The [`ty`] field stores the Rust type of the argument. This enables
+/// type-specific logic such as code generation, validation, or transformation
+/// based on the argument's type. Documenting the type here clarifies its role in
+/// macro expansion and helps future maintainers understand how type information
+/// is propagated.
 ///
 /// # Fields
-/// - `pat`: Identifier pattern for the argument.
-/// - `ty`: User-declared Rust type used to receive the converted table.
+/// - `pat`: The identifier pattern for the argument.
+/// - `ty`: The Rust type of the argument, used for type-specific logic and code generation.
 #[derive(Debug, Clone)]
 pub struct DataTableArg {
     pub pat: syn::Ident,
@@ -172,9 +172,13 @@ fn should_classify_as_datatable(pat: &syn::Ident, ty: &syn::Type) -> bool {
 /// result in a parse error so callers receive precise diagnostics.
 fn extract_datatable_attribute(arg: &mut syn::PatType) -> syn::Result<bool> {
     let mut found = false;
+    let mut duplicate = false;
     let mut err_attr: Option<syn::Attribute> = None;
     arg.attrs.retain(|a| {
         if a.path().is_ident("datatable") {
+            if found {
+                duplicate = true;
+            }
             found = true;
             if a.meta.require_path_only().is_err() {
                 err_attr = Some(a.clone());
@@ -188,6 +192,12 @@ fn extract_datatable_attribute(arg: &mut syn::PatType) -> syn::Result<bool> {
         return Err(syn::Error::new_spanned(
             attr,
             "`#[datatable]` does not take arguments",
+        ));
+    }
+    if duplicate {
+        return Err(syn::Error::new_spanned(
+            &arg.pat,
+            "duplicate `#[datatable]` attribute",
         ));
     }
     Ok(found)
@@ -227,7 +237,10 @@ fn validate_datatable_constraints(
     } else if pat == "datatable" {
         Err(syn::Error::new_spanned(
             arg,
-            "only one datatable parameter is permitted and it must have type `Vec<Vec<String>>`",
+            concat!(
+                "parameter named `datatable` must have type `Vec<Vec<String>>` ",
+                "(or use `#[datatable]` with a type that implements `TryFrom<Vec<Vec<String>>>`)",
+            ),
         ))
     } else {
         Ok(false)

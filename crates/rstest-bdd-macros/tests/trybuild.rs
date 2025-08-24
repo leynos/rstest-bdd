@@ -15,5 +15,8 @@ fn step_macros_compile() {
     t.compile_fail("tests/ui/outline_missing_column.rs");
     t.compile_fail("tests/ui/outline_duplicate_headers.rs");
     t.compile_fail("tests/ui/datatable_wrong_type.rs");
+    t.compile_fail("tests/ui/datatable_duplicate.rs");
+    t.compile_fail("tests/ui/datatable_duplicate_attr.rs");
+    t.compile_fail("tests/ui/datatable_after_docstring.rs");
     t.compile_fail("tests/fixtures/scenarios_missing_dir.rs");
 }

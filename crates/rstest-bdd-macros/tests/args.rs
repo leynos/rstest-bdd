@@ -25,7 +25,10 @@ use args_impl::{CallArg, extract_args};
 )]
 #[case(
     parse_quote! { fn step(datatable: String) {} },
-    "only one datatable parameter is permitted and it must have type `Vec<Vec<String>>`",
+    concat!(
+        "parameter named `datatable` must have type `Vec<Vec<String>>` ",
+        "(or use `#[datatable]` with a type that implements `TryFrom<Vec<Vec<String>>>`)",
+    ),
     "error when datatable has wrong type",
 )]
 #[case(
@@ -46,7 +49,12 @@ use args_impl::{CallArg, extract_args};
 #[case(
     parse_quote! { fn step(#[datatable] a: Vec<Vec<String>>, #[datatable] b: Vec<Vec<String>>) {} },
     "only one datatable parameter is permitted",
-    "error on duplicate datatable attributes",
+    "error on multiple datatable parameters",
+)]
+#[case(
+    parse_quote! { fn step(#[datatable] #[datatable] data: Vec<Vec<String>>) {} },
+    "duplicate `#[datatable]` attribute",
+    "error on duplicate datatable attribute",
 )]
 #[case(
     parse_quote! { fn step(#[datatable] docstring: String) {} },

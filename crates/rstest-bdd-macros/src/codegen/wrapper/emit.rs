@@ -100,22 +100,21 @@ fn gen_step_parses(
         .map(|(StepArg { pat, ty }, (idx, capture))| {
             let raw_ident = format_ident!("__raw{}", idx);
             quote! {
-                let #raw_ident = #capture.unwrap_or_else(|| {
-                    panic!(
+                let #raw_ident = #capture
+                    .ok_or_else(|| format!(
                         "pattern '{}' missing capture for argument '{}'",
                         #pattern,
-                        stringify!(#pat),
-                    )
-                });
-                let #pat: #ty = (#raw_ident).parse().unwrap_or_else(|_| {
-                    panic!(
+                        stringify!(#pat)
+                    ))?;
+                let #pat: #ty = (#raw_ident)
+                    .parse()
+                    .map_err(|_| format!(
                         "failed to parse argument '{}' of type '{}' from pattern '{}' with captured value: '{:?}'",
                         stringify!(#pat),
                         stringify!(#ty),
                         #pattern,
                         #raw_ident,
-                    )
-                });
+                    ))?;
             }
         })
         .collect()
