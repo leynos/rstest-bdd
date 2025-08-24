@@ -52,6 +52,7 @@ pub(crate) struct RegexBuilder<'a> {
     pub(crate) bytes: &'a [u8],
     pub(crate) position: usize,
     pub(crate) output: String,
+    pub(crate) stray_depth: usize,
 }
 
 impl<'a> RegexBuilder<'a> {
@@ -63,6 +64,7 @@ impl<'a> RegexBuilder<'a> {
             bytes: pattern.as_bytes(),
             position: 0,
             output,
+            stray_depth: 0,
         }
     }
     #[inline]
@@ -323,25 +325,58 @@ pub(crate) fn parse_stray_character(st: &mut RegexBuilder<'_>) {
     st.advance(1);
 }
 
-<<<<<<< HEAD
-pub(crate) fn parse_context_specific(st: &mut RegexBuilder<'_>) -> Result<(), regex::Error> {
-||||||| parent of 5e17738 (Document escape handling and expand tests)
-pub(crate) fn parse_context_specific(st: &mut RegexBuilder<'_>) {
-=======
 /// Dispatches context-specific parsing after common sequences.
 ///
 /// When scanning stray text (inside unmatched braces), it emits the next
 /// character as a literal. Otherwise it parses a placeholder start or a simple
 /// literal.
 #[inline]
-pub(crate) fn parse_context_specific(st: &mut RegexBuilder<'_>) {
->>>>>>> 5e17738 (Document escape handling and expand tests)
+pub(crate) fn parse_context_specific(st: &mut RegexBuilder<'_>) -> Result<(), regex::Error> {
     if st.stray_depth > 0 {
+        // Inside stray-depth, allow raw braces and escapes as literals, including unknown escapes.
+        if is_double_brace(st.bytes, st.position) {
+            parse_double_brace(st);
+            return Ok(());
+        }
+        if is_escaped_brace(st.bytes, st.position) {
+            parse_escaped_brace(st);
+            return Ok(());
+        }
+        if matches!(st.bytes.get(st.position), Some(b'\\')) {
+            // Treat unknown escapes literally in stray-depth as well.
+            if st.bytes.get(st.position + 1).is_some() {
+                parse_escape_sequence(st);
+            } else {
+                st.push_literal_byte(b'\\');
+                st.advance(1);
+            }
+            return Ok(());
+        }
         parse_stray_character(st);
         Ok(())
     } else if is_placeholder_start(st.bytes, st.position) {
         parse_placeholder(st)
     } else {
+        // Outside placeholders, encountering a raw closing brace is invalid.
+        if matches!(st.bytes.get(st.position), Some(b'}')) {
+            return Err(regex::Error::Syntax(
+                "unbalanced braces in step pattern".to_string(),
+            ));
+        }
+        // A single opening brace starts stray-depth scanning of literal text until balanced.
+        if matches!(st.bytes.get(st.position), Some(b'{')) {
+            // If this starts a placeholder, delegate to placeholder parser in next loop.
+            if is_placeholder_start(st.bytes, st.position) {
+                // Let the main loop handle parse_placeholder next iteration.
+                st.advance(0);
+                return Ok(());
+            }
+            // Otherwise treat as start of a stray-depth literal region which must balance.
+            st.stray_depth = st.stray_depth.saturating_add(1);
+            // Do not emit the '{' itself; treat it as control for stray-depth.
+            st.advance(1);
+            return Ok(());
+        }
         parse_literal(st);
         Ok(())
     }
