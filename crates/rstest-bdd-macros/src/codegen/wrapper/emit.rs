@@ -341,29 +341,7 @@ fn assemble_wrapper_function(
                 rstest_bdd::IntoStepResult::into_step_result(#ident(#(#arg_idents),*))
             }))
                 .map_err(|e| {
-                    let message = if let Some(s) = e.downcast_ref::<&str>() {
-                        s.to_string()
-                    } else if let Some(s) = e.downcast_ref::<String>() {
-                        s.clone()
-                    } else if let Some(i) = e.downcast_ref::<i32>() {
-                        i.to_string()
-                    } else if let Some(i) = e.downcast_ref::<u32>() {
-                        i.to_string()
-                    } else if let Some(i) = e.downcast_ref::<i64>() {
-                        i.to_string()
-                    } else if let Some(i) = e.downcast_ref::<u64>() {
-                        i.to_string()
-                    } else if let Some(i) = e.downcast_ref::<isize>() {
-                        i.to_string()
-                    } else if let Some(i) = e.downcast_ref::<usize>() {
-                        i.to_string()
-                    } else if let Some(f) = e.downcast_ref::<f64>() {
-                        f.to_string()
-                    } else if let Some(f) = e.downcast_ref::<f32>() {
-                        f.to_string()
-                    } else {
-                        format!("{e:?}")
-                    };
+                    let message = rstest_bdd::panic_message(e.as_ref());
                     #panic_err
                 })
                 .and_then(|res| res.map_err(|message| #exec_err))

@@ -1,7 +1,7 @@
 //! Behavioural test for step registry
 
 use rstest::rstest;
-use rstest_bdd::{Step, StepContext, StepError, StepKeyword, iter, step};
+use rstest_bdd::{Step, StepContext, StepError, StepKeyword, iter, panic_message, step};
 
 fn sample() {}
 #[expect(
@@ -43,24 +43,6 @@ step!(
     &[]
 );
 
-#[expect(clippy::needless_pass_by_value, reason = "panic payload is dropped")]
-fn extract_panic_message(e: Box<dyn std::any::Any + Send>) -> String {
-    let any_ref = e.as_ref();
-
-    macro_rules! try_downcast {
-        ($($ty:ty),*) => {
-            $(
-                if let Some(val) = any_ref.downcast_ref::<$ty>() {
-                    return val.to_string();
-                }
-            )*
-        };
-    }
-
-    try_downcast!(&str, String, i32, u32, i64, u64, isize, usize, f32, f64);
-    "non-string panic payload".to_string()
-}
-
 fn panicking_wrapper(
     ctx: &StepContext<'_>,
     _text: &str,
@@ -72,7 +54,7 @@ fn panicking_wrapper(
     catch_unwind(AssertUnwindSafe(|| panic!("snap"))).map_err(|e| StepError::PanicError {
         pattern: "panics".into(),
         function: "panicking_wrapper".into(),
-        message: extract_panic_message(e),
+        message: panic_message(e.as_ref()),
     })?;
     Ok(())
 }

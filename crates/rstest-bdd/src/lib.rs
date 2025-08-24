@@ -33,10 +33,39 @@ pub use types::{
     PatternStr, PlaceholderError, StepFn, StepKeyword, StepKeywordParseError, StepText,
 };
 
+/// Extracts a panic payload into a human-readable message.
+///
+/// Attempts to downcast common primitives before falling back to the
+/// `Debug` representation of the payload.
+///
+/// # Examples
+/// ```
+/// use rstest_bdd::panic_message;
+///
+/// let err = std::panic::catch_unwind(|| panic!("boom"))
+///     .expect_err("expected panic");
+/// assert_eq!(panic_message(err.as_ref()), "boom");
+/// ```
+pub fn panic_message(e: &(dyn std::any::Any + Send)) -> String {
+    macro_rules! try_downcast {
+        ($($ty:ty),* $(,)?) => {
+            $(
+                if let Some(val) = e.downcast_ref::<$ty>() {
+                    return val.to_string();
+                }
+            )*
+        };
+    }
+
+    try_downcast!(&str, String, i32, u32, i64, u64, isize, usize, f32, f64);
+    format!("{e:?}")
+}
+
 /// Error type produced by step wrappers.
 ///
 /// The variants categorise the possible failure modes when invoking a step.
-#[derive(Debug, Error, Clone, PartialEq)]
+#[derive(Debug, Error, Clone, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum StepError {
     /// Raised when a required fixture is absent from the [`StepContext`].
     #[error("Missing fixture '{name}' of type '{ty}' for step function '{step}'")]
