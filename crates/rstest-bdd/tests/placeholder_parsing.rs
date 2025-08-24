@@ -132,6 +132,55 @@ fn handles_escaped_braces() {
 }
 
 #[rstest]
+#[case(r"digit \d end", "digit d end", "digit 5 end")]
+#[case(r"hex \x end", "hex x end", "hex 7 end")]
+#[case(r"quote \q end", r"quote q end", r#"quote " end"#)]
+#[case(r"end \Z here", "end Z here", "end 0 here")]
+#[case(r"back \\ slash", r"back \ slash", r"back \\ slash")]
+fn unknown_escape_is_literal(
+    #[case] pattern: &'static str,
+    #[case] matching: &'static str,
+    #[case] nonmatching: &'static str,
+) {
+    let pat = compiled(pattern);
+    #[expect(clippy::expect_used, reason = "test asserts literal match")]
+    let caps = extract_placeholders(&pat, StepText::from(matching))
+        .expect("literal character should match");
+    assert!(caps.is_empty(), "no placeholders expected");
+    assert!(
+        extract_placeholders(&pat, StepText::from(nonmatching)).is_err(),
+        "escape should be treated literally",
+    );
+}
+
+#[test]
+fn trailing_backslash_is_literal() {
+    let pat = compiled(r"foo\");
+    #[expect(clippy::expect_used, reason = "test asserts literal match")]
+    let caps = extract_placeholders(&pat, StepText::from(r"foo\"))
+        .expect("literal backslash should match");
+    assert!(caps.is_empty(), "no placeholders expected");
+    assert!(
+        extract_placeholders(&pat, StepText::from("foo")).is_err(),
+        "missing trailing backslash should not match",
+    );
+}
+
+#[test]
+fn unknown_escape_inside_stray_depth_is_literal() {
+    // The opening "{" puts the scanner into stray-depth mode; "\d" must stay literal.
+    let pat = compiled(r"start{ \d }end");
+    #[expect(clippy::expect_used, reason = "test asserts literal match")]
+    let caps = extract_placeholders(&pat, StepText::from(r"start{ d }end"))
+        .expect("literal d should match inside stray depth");
+    assert!(caps.is_empty(), "no placeholders expected");
+    assert!(
+        extract_placeholders(&pat, StepText::from(r"start{ 5 }end")).is_err(),
+        "digit class must not be interpreted inside stray depth",
+    );
+}
+
+#[rstest]
 #[case("literal {{ brace {v} }}", "literal { brace data }", Some(vec!["data"]))]
 #[case("brace: {{}}", "brace: {}", Some(vec![]))]
 #[case("{{{{}}}}", "{{}}", Some(vec![]))]

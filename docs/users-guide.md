@@ -232,10 +232,11 @@ Best practices for writing effective scenarios include:
   (for example, `1e3`, `-1E-9`), and the special values `NaN`, `inf`, and
   `Infinity` (matched case-insensitively). Matching is anchored: the entire
   step text must match the pattern; partial matches do not succeed. Escape
-  literal braces with `{{` and `}}`. Unbalanced or unescaped braces produce a
-  compilation error. Nested braces inside placeholders are not supported.
-  Placeholders follow `{name[:type]}`; `name` must start with a letter or
-  underscore and may contain letters, digits, or underscores
+  literal braces with `{{` and `}}`. Use `\\` to match a single backslash. A
+  trailing `\\` or any other backslash escape is treated literally, so `\d`
+  matches the two-character sequence `\d`. Nested braces inside placeholders
+  are not supported. Placeholders follow `{name[:type]}`; `name` must start
+  with a letter or underscore and may contain letters, digits, or underscores
   (`[A-Za-z_][A-Za-z0-9_]*`). Whitespace within the type hint is ignored (for
   example, `{count: u32}` and `{count:u32}` are both accepted), but whitespace
   is not allowed between the name and the colon. Prefer the compact form
@@ -255,7 +256,7 @@ parsed cells.
 A Gherkin Docstring is available through an argument named `docstring` of type
 `String`. Both arguments must use these exact names and types to be detected by
 the procedural macros. When both are declared, place `datatable` before
-`docstring` at the end of the parameter list. 
+`docstring` at the end of the parameter list.
 
 ```gherkin
 Scenario: capture table and docstring

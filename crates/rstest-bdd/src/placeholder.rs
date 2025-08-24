@@ -52,6 +52,7 @@ pub(crate) struct RegexBuilder<'a> {
     pub(crate) bytes: &'a [u8],
     pub(crate) position: usize,
     pub(crate) output: String,
+    pub(crate) stray_depth: usize,
 }
 
 impl<'a> RegexBuilder<'a> {
@@ -63,6 +64,7 @@ impl<'a> RegexBuilder<'a> {
             bytes: pattern.as_bytes(),
             position: 0,
             output,
+            stray_depth: 0,
         }
     }
     #[inline]
@@ -133,6 +135,32 @@ pub(crate) fn parse_escaped_brace(state: &mut RegexBuilder<'_>) {
     let ch = state.bytes[state.position + 1];
     state.push_literal_brace(ch);
     state.advance(2);
+}
+
+/// Parses a backslash escape that is not an escaped brace and emits the next
+/// byte as a literal.
+///
+/// Callers must ensure the current byte is `\` and the following byte is not a
+/// brace; `parse_escaped_brace` handles those cases. Trailing backslashes
+/// delegate to [`try_parse_common_sequences`], which emits a literal backslash.
+///
+/// # Examples
+/// ```
+/// # use crate::placeholder::{parse_escape_sequence, RegexBuilder};
+/// let mut st = RegexBuilder::new(r"\x");
+/// parse_escape_sequence(&mut st);
+/// assert_eq!(st.output, "x");
+/// ```
+pub(crate) fn parse_escape_sequence(state: &mut RegexBuilder<'_>) {
+    debug_assert!(matches!(state.bytes.get(state.position), Some(b'\\')));
+    debug_assert!(!is_escaped_brace(state.bytes, state.position));
+    debug_assert!(state.bytes.get(state.position + 1).is_some());
+    if let Some(&next) = state.bytes.get(state.position + 1) {
+        state.push_literal_byte(next);
+        state.advance(2);
+    } else if try_parse_common_sequences(state) {
+        // Trailing backslash handled by common sequences.
+    }
 }
 
 pub(crate) fn parse_double_brace(state: &mut RegexBuilder<'_>) {
@@ -256,29 +284,90 @@ pub(crate) fn parse_placeholder(state: &mut RegexBuilder<'_>) -> Result<(), rege
     Ok(())
 }
 
+/// Parses sequences common to all contexts: doubled braces, escaped braces, or
+/// backslash escapes. Returns `true` if a recognised sequence was consumed.
+#[inline]
+pub(crate) fn try_parse_common_sequences(st: &mut RegexBuilder<'_>) -> bool {
+    if is_double_brace(st.bytes, st.position) {
+        parse_double_brace(st);
+        true
+    } else if is_escaped_brace(st.bytes, st.position) {
+        parse_escaped_brace(st);
+        true
+    } else if matches!(st.bytes.get(st.position), Some(b'\\')) {
+        if st.bytes.get(st.position + 1).is_some() {
+            parse_escape_sequence(st);
+        } else {
+            // Trailing backslash is treated literally.
+            st.push_literal_byte(b'\\');
+            st.advance(1);
+        }
+        true
+    } else {
+        false
+    }
+}
+
+/// Emits the current byte as a literal while inside stray-depth
+/// (`st.stray_depth > 0`), adjusting for nested braces as needed.
+///
+/// This path is reached only when `stray_depth` is non-zero.
+#[inline]
+pub(crate) fn parse_stray_character(st: &mut RegexBuilder<'_>) {
+    #[expect(clippy::indexing_slicing, reason = "bounds checked by caller")]
+    let ch = st.bytes[st.position];
+    match ch {
+        b'{' => st.stray_depth = st.stray_depth.saturating_add(1),
+        b'}' => st.stray_depth = st.stray_depth.saturating_sub(1),
+        _ => {}
+    }
+    st.push_literal_byte(ch);
+    st.advance(1);
+}
+
+/// Dispatches context-specific parsing after common sequences.
+///
+/// When scanning stray text (inside unmatched braces), it emits the next
+/// character as a literal. Otherwise it parses a placeholder start or a simple
+/// literal.
+#[inline]
+pub(crate) fn parse_context_specific(st: &mut RegexBuilder<'_>) -> Result<(), regex::Error> {
+    if st.stray_depth > 0 {
+        parse_stray_character(st);
+        return Ok(());
+    }
+    if is_placeholder_start(st.bytes, st.position) {
+        return parse_placeholder(st);
+    }
+    match st.bytes.get(st.position) {
+        Some(b'}') => Err(regex::Error::Syntax(format!(
+            "unmatched closing brace '}}' at position {} in step pattern",
+            st.position
+        ))),
+        Some(b'{') => {
+            st.push_literal_brace(b'{');
+            st.stray_depth = st.stray_depth.saturating_add(1);
+            st.advance(1);
+            Ok(())
+        }
+        _ => {
+            parse_literal(st);
+            Ok(())
+        }
+    }
+}
+
 pub(crate) fn build_regex_from_pattern(pat: &str) -> Result<String, regex::Error> {
     let mut st = RegexBuilder::new(pat);
     while st.has_more() {
-        if is_double_brace(st.bytes, st.position) {
-            parse_double_brace(&mut st);
-            continue;
+        if !try_parse_common_sequences(&mut st) {
+            parse_context_specific(&mut st)?;
         }
-        if is_escaped_brace(st.bytes, st.position) {
-            parse_escaped_brace(&mut st);
-            continue;
-        }
-        if is_placeholder_start(st.bytes, st.position) {
-            parse_placeholder(&mut st)?;
-            continue;
-        }
-        #[expect(clippy::indexing_slicing, reason = "bounds checked by has_more")]
-        let ch = st.bytes[st.position];
-        if ch == b'{' || ch == b'}' {
-            return Err(regex::Error::Syntax(
-                "unbalanced braces in step pattern".to_string(),
-            ));
-        }
-        parse_literal(&mut st);
+    }
+    if st.stray_depth != 0 {
+        return Err(regex::Error::Syntax(
+            "unbalanced braces in step pattern".to_string(),
+        ));
     }
     st.output.push('$');
     Ok(st.output)

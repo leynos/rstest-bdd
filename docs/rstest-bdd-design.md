@@ -190,10 +190,10 @@ Feature: User Login
 
     Examples:
 
-| username | password | message |
-| user | correctpass | "Welcome, user!" |
-| user | wrongpass | "Invalid credentials" |
-| admin | adminpass | "Welcome, administrator!" |
+   | username | password | message |
+   | user | correctpass | "Welcome, user!" |
+   | user | wrongpass | "Invalid credentials" |
+   | admin | adminpass | "Welcome, administrator!" |
 ```
 
 **Step Definition (**`test_login.rs`**):**
@@ -249,11 +249,11 @@ it, and pass the resulting `u32` value to the `deposit_amount` function.
 To achieve feature parity with modern BDD tools, the framework will support
 other essential Gherkin constructs.
 
-- **Background:** Steps defined in a `Background` section are executed
+- Background: Steps defined in a `Background` section are executed
   before each `Scenario` in a feature file.[^10] The parser prepends these
   steps to the scenario's step list so the `#[scenario]` macro runs them first.
 
-- **Data Tables:** A Gherkin data table provides a way to pass a structured
+- Data Tables: A Gherkin data table provides a way to pass a structured
   block of data to a single step. Provide it to the step function via a single
   optional parameter annotated with `#[datatable]` or named `datatable` of type
   `Vec<Vec<String>>`, mirroring `pytest-bdd`'s `datatable` argument.[^11]
@@ -302,7 +302,7 @@ fn create_users(
 }
 ```
 
-- **Docstrings:** A Gherkin docstring allows a larger block of multi-line text
+- Docstrings: A Gherkin docstring allows a larger block of multi-line text
   to be passed to a step. This will be provided as a `String` argument to the
   step function, again mirroring `pytest-bdd`.[^11]
 
@@ -320,7 +320,7 @@ macro has a distinct role in the compile-time orchestration of the BDD tests.
 - `#[scenario("…")]` or `#[scenario(path = "…", index = N)]` – the primary
   entry point and orchestrator.
 
-  - **Arguments:**
+  - Arguments:
 
     - `path: &str`: A mandatory, relative path from the crate root to the
       `.feature` file containing the scenario. The path can be provided as a
@@ -330,7 +330,7 @@ macro has a distinct role in the compile-time orchestration of the BDD tests.
     - `index: usize` (optional): Selects which scenario in the feature file to
       execute. Defaults to `0` when omitted.
 
-  - **Functionality:** This macro is responsible for the heavy lifting. At
+  - Functionality: This macro is responsible for the heavy lifting. At
     compile time, it reads and parses the specified feature file, finds the
     matching scenario, and generates a complete, new test function annotated
     with `#[rstest]`. This generated function contains the runtime logic to
@@ -339,21 +339,21 @@ macro has a distinct role in the compile-time orchestration of the BDD tests.
 - `#[given("...")]`, `#[when("...")]`, `#[then("...")]` - these macros attach to
   the step implementation functions.
 
-  - **Argument:** A string literal representing the Gherkin step text. This
+  - Argument: A string literal representing the Gherkin step text. This
     string acts as a pattern and can include placeholders for argument parsing
-    (e.g., `"A user has {count:usize} cucumbers"`).
+    (e.g., "A user has {count:usize} cucumbers").
 
-  - **Functionality:** These macros have a single, critical purpose: to
+  - Functionality: These macros have a single, critical purpose: to
     register the decorated function and its associated metadata (the pattern
     string, keyword, and source location) into a global, discoverable registry.
-    They do *not* generate any executable code on their own.
+    They do not generate any executable code on their own.
 
   The initial implementation delegates registration to the runtime crate's
   `step!` helper. Each macro expands to the original function followed by a
   call to `rstest_bdd::step!`, which internally uses `inventory::submit!` to
   add a `Step` to the registry.
 
-- **Data Tables:** Step functions may include a single optional parameter
+- Data Tables: Step functions may include a single optional parameter
   declared in one of two ways: (a) annotated with `#[datatable]` and of any
   type `T` where `T: TryFrom<Vec<Vec<String>>>`, or (b) named `datatable` with
   concrete type `Vec<Vec<String>>`. When a feature step includes a data table,
@@ -363,7 +363,7 @@ macro has a distinct role in the compile-time orchestration of the BDD tests.
   argument, must not be combined with `#[from]`, and the wrapper emits a
   runtime error if the table is missing.
 
-- **Docstrings:** A multi-line text block immediately following a step is
+- Docstrings: A multi-line text block immediately following a step is
   exposed to the step function through an optional `docstring` parameter of
   type `String`. The runner passes the raw block to the wrapper as
   `Option<&str>`, and the wrapper clones it into an owned `String` before
@@ -469,34 +469,6 @@ cached `Regex` are ignored to preserve identity-by-source-text semantics. The
 global registry stores `(StepKeyword, &'static StepPattern)` keys in a
 `hashbrown::HashMap` and uses the raw-entry API for constant-time lookups by
 hashing the pattern text directly.
-
-The sequence below summarises how a developer compiles a step pattern and how
-errors propagate when placeholders are malformed or braces are unbalanced:
-
-```mermaid
-sequenceDiagram
-  autonumber
-  actor Dev as Developer
-  participant SP as StepPattern
-  participant PH as placeholder::build_regex_from_pattern
-  participant PP as parse_placeholder
-  participant RX as regex::Regex
-
-  Dev->>SP: compile()
-  SP->>PH: build_regex_from_pattern(text)
-  PH->>PP: parse_placeholder(...) [loop over pattern]
-  alt Placeholder/brace OK
-    PP-->>PH: Ok(())
-  else Malformed/unbalanced
-    PP-->>PH: Err(regex::Error)
-    PH-->>SP: Err(regex::Error)
-    SP-->>Dev: Err
-  end
-  PH-->>SP: Ok(src)
-  SP->>RX: Regex::new(src)
-  RX-->>SP: Ok(Regex)
-  SP-->>Dev: Ok(())
-```
 
 Duplicate step definitions are rejected when the registry is built. Attempting
 to register the same keyword and pattern combination twice results in a panic
@@ -1090,14 +1062,11 @@ Step wrapper functions parse the returned strings and convert them with
 `FromStr` before calling the original step. Scenario execution now searches the
 step registry using `find_step`, which falls back to placeholder matching when
 no exact pattern is present. This approach keeps the macros lightweight while
-supporting type‑safe parameters in steps. The parser handles escaped braces and
-nested brace pairs, preventing greedy captures while still requiring
-well‑formed placeholders. When a placeholder lacks a corresponding capture in
-the step text, the wrapper panics with
-`pattern '<pattern>' missing capture for argument '<name>'`, making the
-mismatch explicit instead of falling back to a default value.
+supporting type‑safe parameters in steps. The parser handles escaped braces,
+nested brace pairs, and treats other backslash escapes literally, preventing
+greedy captures while still requiring well‑formed placeholders.
 
-The runner forwards the raw docstring as `Option<&str>` and the wrapper
+The runner forwards the raw doc string as `Option<&str>` and the wrapper
 converts it into an owned `String` before invoking the step function. The
 sequence below summarizes how the runner locates and executes steps when
 placeholders are present:
