@@ -132,6 +132,7 @@ fn handles_escaped_braces() {
 }
 
 #[rstest]
+#[case(r"backslash \\ end", "backslash \\ end", "backslash / end")]
 #[case(r"digit \d end", "digit d end", "digit 5 end")]
 #[case(r"hex \x end", "hex x end", "hex 7 end")]
 #[case(r"quote \q end", r"quote q end", r#"quote " end"#)]
@@ -162,6 +163,19 @@ fn trailing_backslash_is_literal() {
     assert!(
         extract_placeholders(&pat, StepText::from("foo")).is_err(),
         "missing trailing backslash should not match",
+    );
+}
+
+#[test]
+fn stray_escape_is_literal() {
+    let pat = compiled(r"open { \d");
+    #[expect(clippy::expect_used, reason = "test asserts literal match")]
+    let caps = extract_placeholders(&pat, StepText::from("open { d"))
+        .expect("literal character should match inside stray depth");
+    assert!(caps.is_empty(), "no placeholders expected");
+    assert!(
+        extract_placeholders(&pat, StepText::from("open { 5")).is_err(),
+        "escape should be treated literally inside stray depth",
     );
 }
 

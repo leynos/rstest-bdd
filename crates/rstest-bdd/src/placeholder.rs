@@ -135,15 +135,28 @@ pub(crate) fn parse_escaped_brace(state: &mut RegexBuilder<'_>) {
     state.advance(2);
 }
 
+/// Parses a backslash escape that is not an escaped brace and emits the next
+/// byte as a literal.
+///
+/// Callers must ensure the current byte is `\` and the following byte is not a
+/// brace; `parse_escaped_brace` handles those cases. Trailing backslashes are
+/// handled by `try_parse_common_sequences`.
+///
+/// # Examples
+/// ```
+/// # use crate::placeholder::{parse_escape_sequence, RegexBuilder};
+/// let mut st = RegexBuilder::new(r"\x");
+/// parse_escape_sequence(&mut st);
+/// assert_eq!(st.output, "x");
+/// ```
 pub(crate) fn parse_escape_sequence(state: &mut RegexBuilder<'_>) {
-    if let Some(&next) = state.bytes.get(state.position + 1) {
-        state.push_literal_byte(next);
-        state.advance(2);
-    } else {
-        // Trailing backslash is treated literally.
-        state.push_literal_byte(b'\\');
-        state.advance(1);
-    }
+    debug_assert!(matches!(state.bytes.get(state.position), Some(b'\\')));
+    debug_assert!(!is_escaped_brace(state.bytes, state.position));
+    debug_assert!(state.bytes.get(state.position + 1).is_some());
+    #[expect(clippy::indexing_slicing, reason = "preconditions ensure bound")]
+    let next = state.bytes[state.position + 1];
+    state.push_literal_byte(next);
+    state.advance(2);
 }
 
 pub(crate) fn parse_double_brace(state: &mut RegexBuilder<'_>) {
@@ -275,7 +288,13 @@ pub(crate) fn try_parse_common_sequences(st: &mut RegexBuilder<'_>) -> bool {
         parse_escaped_brace(st);
         true
     } else if matches!(st.bytes.get(st.position), Some(b'\\')) {
-        parse_escape_sequence(st);
+        if st.bytes.get(st.position + 1).is_some() {
+            parse_escape_sequence(st);
+        } else {
+            // Trailing backslash is treated literally.
+            st.push_literal_byte(b'\\');
+            st.advance(1);
+        }
         true
     } else {
         false
@@ -295,7 +314,19 @@ pub(crate) fn parse_stray_character(st: &mut RegexBuilder<'_>) {
     st.advance(1);
 }
 
+<<<<<<< HEAD
 pub(crate) fn parse_context_specific(st: &mut RegexBuilder<'_>) -> Result<(), regex::Error> {
+||||||| parent of 5e17738 (Document escape handling and expand tests)
+pub(crate) fn parse_context_specific(st: &mut RegexBuilder<'_>) {
+=======
+/// Dispatches context-specific parsing after common sequences.
+///
+/// When scanning stray text (inside unmatched braces), it emits the next
+/// character as a literal. Otherwise it parses a placeholder start or a simple
+/// literal.
+#[inline]
+pub(crate) fn parse_context_specific(st: &mut RegexBuilder<'_>) {
+>>>>>>> 5e17738 (Document escape handling and expand tests)
     if st.stray_depth > 0 {
         parse_stray_character(st);
         Ok(())
