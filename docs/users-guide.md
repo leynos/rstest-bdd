@@ -256,7 +256,7 @@ parsed cells.
 A Gherkin Docstring is available through an argument named `docstring` of type
 `String`. Both arguments must use these exact names and types to be detected by
 the procedural macros. When both are declared, place `datatable` before
-`docstring` at the end of the parameter list. 
+`docstring` at the end of the parameter list.
 
 ```gherkin
 Scenario: capture table and docstring
