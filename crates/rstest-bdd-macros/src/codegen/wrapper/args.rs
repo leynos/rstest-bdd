@@ -172,20 +172,19 @@ fn should_classify_as_datatable(pat: &syn::Ident, ty: &syn::Type) -> bool {
 /// result in a parse error so callers receive precise diagnostics.
 fn extract_datatable_attribute(arg: &mut syn::PatType) -> syn::Result<bool> {
     let mut found = false;
+    let mut err_attr: Option<syn::Attribute> = None;
     arg.attrs.retain(|a| {
         if a.path().is_ident("datatable") {
             found = true;
             if a.meta.require_path_only().is_err() {
-                // Preserve the attribute so an error can be emitted using its
-                // span after iteration completes.
-                return true;
+                err_attr = Some(a.clone());
             }
             false
         } else {
             true
         }
     });
-    if let Some(attr) = arg.attrs.iter().find(|a| a.path().is_ident("datatable")) {
+    if let Some(attr) = err_attr {
         return Err(syn::Error::new_spanned(
             attr,
             "`#[datatable]` does not take arguments",

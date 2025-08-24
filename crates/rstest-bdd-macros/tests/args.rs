@@ -115,6 +115,9 @@ fn datatable_attribute_recognised_and_preserves_type() {
     let dt = args.datatable.expect("missing datatable");
     assert_eq!(dt.pat, "table");
     if let syn::Type::Path(tp) = &dt.ty {
+        #[expect(clippy::expect_used, reason = "path has at least one segment")]
+        let seg = tp.path.segments.last().expect("missing segment");
+        assert_eq!(seg.ident, "MyTable");
         let rendered = tp
             .path
             .segments
@@ -123,9 +126,6 @@ fn datatable_attribute_recognised_and_preserves_type() {
             .collect::<Vec<_>>()
             .join("::");
         assert_eq!(rendered, "my_mod::MyTable");
-        #[expect(clippy::expect_used, reason = "path has at least one segment")]
-        let seg = tp.path.segments.last().expect("missing segment");
-        assert_eq!(seg.ident, "MyTable");
     } else {
         panic!("expected path type");
     }
