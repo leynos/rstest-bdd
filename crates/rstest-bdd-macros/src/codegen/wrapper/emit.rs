@@ -16,14 +16,13 @@ struct StepMeta<'a> {
 /// Quote construction for [`StepError`] variants sharing `pattern`,
 /// `function` and `message` fields.
 fn step_error_tokens(
-    variant: &str,
+    variant: &syn::Ident,
     pattern: &syn::LitStr,
     ident: &syn::Ident,
     message: &TokenStream2,
 ) -> TokenStream2 {
-    let variant_ident = format_ident!("{}", variant);
     quote! {
-        rstest_bdd::StepError::#variant_ident {
+        rstest_bdd::StepError::#variant {
             pattern: #pattern.to_string(),
             function: stringify!(#ident).to_string(),
             message: #message,
@@ -306,7 +305,7 @@ fn assemble_wrapper_function(
 ) -> TokenStream2 {
     let (declares, step_arg_parses, datatable_decl, docstring_decl) = arg_processing;
     let placeholder_err = step_error_tokens(
-        "ExecutionError",
+        &format_ident!("ExecutionError"),
         pattern,
         ident,
         &quote! {
@@ -318,8 +317,18 @@ fn assemble_wrapper_function(
             )
         },
     );
-    let panic_err = step_error_tokens("PanicError", pattern, ident, &quote! { message });
-    let exec_err = step_error_tokens("ExecutionError", pattern, ident, &quote! { message });
+    let panic_err = step_error_tokens(
+        &format_ident!("PanicError"),
+        pattern,
+        ident,
+        &quote! { message },
+    );
+    let exec_err = step_error_tokens(
+        &format_ident!("ExecutionError"),
+        pattern,
+        ident,
+        &quote! { message },
+    );
     quote! {
         fn #wrapper_ident(
             ctx: &rstest_bdd::StepContext<'_>,
