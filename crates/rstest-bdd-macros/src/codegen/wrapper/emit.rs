@@ -362,7 +362,7 @@ fn assemble_wrapper_function(
                     } else if let Some(f) = e.downcast_ref::<f32>() {
                         f.to_string()
                     } else {
-                        "non-string panic payload".to_string()
+                        format!("{e:?}")
                     };
                     #panic_err
                 })

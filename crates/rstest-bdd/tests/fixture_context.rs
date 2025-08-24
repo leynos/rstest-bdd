@@ -3,6 +3,7 @@
 use rstest_bdd::{StepContext, StepError, StepKeyword};
 use rstest_bdd_macros::given;
 
+/// Step that asserts the injected `number` fixture equals 42.
 #[given("a value")]
 #[expect(
     clippy::trivially_copy_pass_by_ref,
