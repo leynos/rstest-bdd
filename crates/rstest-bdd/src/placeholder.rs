@@ -367,13 +367,11 @@ pub(crate) fn parse_context_specific(st: &mut RegexBuilder<'_>) -> Result<(), re
         if matches!(st.bytes.get(st.position), Some(b'{')) {
             // If this starts a placeholder, delegate to placeholder parser in next loop.
             if is_placeholder_start(st.bytes, st.position) {
-                // Let the main loop handle parse_placeholder next iteration.
-                st.advance(0);
                 return Ok(());
             }
-            // Otherwise treat as start of a stray-depth literal region which must balance.
+            // Otherwise start a stray-depth literal region; emit the '{' literally and balance braces.
+            st.push_literal_brace(b'{');
             st.stray_depth = st.stray_depth.saturating_add(1);
-            // Do not emit the '{' itself; treat it as control for stray-depth.
             st.advance(1);
             return Ok(());
         }
@@ -388,6 +386,11 @@ pub(crate) fn build_regex_from_pattern(pat: &str) -> Result<String, regex::Error
         if !try_parse_common_sequences(&mut st) {
             parse_context_specific(&mut st)?;
         }
+    }
+    if st.stray_depth != 0 {
+        return Err(regex::Error::Syntax(
+            "unbalanced braces in step pattern".to_string(),
+        ));
     }
     st.output.push('$');
     Ok(st.output)
