@@ -141,4 +141,4 @@ pub type StepFn = for<'a> fn(
     &str,
     Option<&str>,
     Option<&[&[&str]]>,
-) -> Result<(), String>;
+) -> Result<(), crate::StepError>;

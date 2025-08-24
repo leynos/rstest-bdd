@@ -7,25 +7,88 @@ use proc_macro2::TokenStream as TokenStream2;
 use quote::{format_ident, quote};
 use std::sync::atomic::{AtomicUsize, Ordering};
 
+#[derive(Copy, Clone)]
+struct StepMeta<'a> {
+    pattern: &'a syn::LitStr,
+    ident: &'a syn::Ident,
+}
+
+/// Quote construction for [`StepError`] variants sharing `pattern`,
+/// `function` and `message` fields.
+fn step_error_tokens(
+    variant: &syn::Ident,
+    pattern: &syn::LitStr,
+    ident: &syn::Ident,
+    message: &TokenStream2,
+) -> TokenStream2 {
+    quote! {
+        rstest_bdd::StepError::#variant {
+            pattern: #pattern.to_string(),
+            function: stringify!(#ident).to_string(),
+            message: #message,
+        }
+    }
+}
+
+/// Generate declaration for an optional argument, mapping absence to
+/// `StepError::ExecutionError`.
+fn gen_optional_decl<T, F>(
+    arg: Option<&T>,
+    meta: StepMeta<'_>,
+    error_msg: &str,
+    generator: F,
+) -> Option<TokenStream2>
+where
+    F: FnOnce(&T) -> (syn::Ident, TokenStream2, TokenStream2),
+{
+    arg.map(|arg_value| {
+        let (pat, ty, expr) = generator(arg_value);
+        let StepMeta { pattern, ident } = meta;
+        let missing_err = step_error_tokens(
+            &format_ident!("ExecutionError"),
+            pattern,
+            ident,
+            &quote! { format!("Step '{}' {}", #pattern, #error_msg) },
+        );
+        let convert_err = step_error_tokens(
+            &format_ident!("ExecutionError"),
+            pattern,
+            ident,
+            &quote! { format!("failed to convert auxiliary argument for step '{}'", #pattern) },
+        );
+        quote! {
+            let #pat: #ty = #expr
+                .ok_or_else(|| #missing_err)?
+                .try_into()
+                .map_err(|_e| #convert_err)?;
+        }
+    })
+}
+
 /// Generate declaration for a data table argument.
 fn gen_datatable_decl(
     datatable: Option<&DataTableArg>,
     pattern: &syn::LitStr,
+    ident: &syn::Ident,
 ) -> Option<TokenStream2> {
-    datatable.map(|DataTableArg { pat, ty }| {
-        quote! {
-            let #pat: #ty = _table
-                .ok_or_else(|| format!("Step '{}' requires a data table", #pattern))?
-                .iter()
-                .map(|row| row.iter().map(|cell| cell.to_string()).collect::<Vec<String>>())
-                .collect::<Vec<Vec<String>>>()
-                .try_into()
-                .map_err(|e| format!(
-                    "failed to convert data table for step '{}': {e}",
-                    #pattern
-                ))?;
-        }
-    })
+    gen_optional_decl(
+        datatable,
+        StepMeta { pattern, ident },
+        "requires a data table",
+        |DataTableArg { pat, ty }| {
+            let pat = pat.clone();
+            let declared_ty = ty.clone();
+            let ty = quote! { #declared_ty };
+            let expr = quote! {
+                _table.map(|t| {
+                    t.iter()
+                        .map(|row| row.iter().map(|cell| cell.to_string()).collect::<Vec<String>>())
+                        .collect::<Vec<Vec<String>>>()
+                })
+            };
+            (pat, ty, expr)
+        },
+    )
 }
 
 /// Generate declaration for a doc string argument.
@@ -34,14 +97,19 @@ fn gen_datatable_decl(
 fn gen_docstring_decl(
     docstring: Option<&DocStringArg>,
     pattern: &syn::LitStr,
+    ident: &syn::Ident,
 ) -> Option<TokenStream2> {
-    docstring.map(|DocStringArg { pat }| {
-        quote! {
-            let #pat: String = _docstring
-                .ok_or_else(|| format!("Step '{}' requires a doc string", #pattern))?
-                .to_owned();
-        }
-    })
+    gen_optional_decl(
+        docstring,
+        StepMeta { pattern, ident },
+        "requires a doc string",
+        |DocStringArg { pat }| {
+            let pat = pat.clone();
+            let ty = quote! { String };
+            let expr = quote! { _docstring.map(|s| s.to_owned()) };
+            (pat, ty, expr)
+        },
+    )
 }
 
 /// Configuration required to generate a wrapper.
@@ -78,12 +146,11 @@ fn gen_fixture_decls(fixtures: &[FixtureArg], ident: &syn::Ident) -> Vec<TokenSt
                 let #pat: #ty = ctx
                     .get::<#lookup_ty>(stringify!(#name))
                     #clone_suffix
-                    .ok_or_else(|| format!(
-                        "Missing fixture '{}' of type '{}' for step function '{}'",
-                        stringify!(#name),
-                        stringify!(#lookup_ty),
-                        stringify!(#ident)
-                    ))?;
+                    .ok_or_else(|| rstest_bdd::StepError::MissingFixture {
+                        name: stringify!(#name).to_string(),
+                        ty: stringify!(#lookup_ty).to_string(),
+                        step: stringify!(#ident).to_string(),
+                    })?;
             }
         })
         .collect()
@@ -93,29 +160,43 @@ fn gen_fixture_decls(fixtures: &[FixtureArg], ident: &syn::Ident) -> Vec<TokenSt
 fn gen_step_parses(
     step_args: &[StepArg],
     captured: &[TokenStream2],
-    pattern: &syn::LitStr,
+    meta: StepMeta<'_>,
 ) -> Vec<TokenStream2> {
+    let StepMeta { pattern, ident } = meta;
     step_args
         .iter()
         .zip(captured.iter().enumerate())
         .map(|(StepArg { pat, ty }, (idx, capture))| {
             let raw_ident = format_ident!("__raw{}", idx);
-            quote! {
-                let #raw_ident = #capture
-                    .ok_or_else(|| format!(
+            let missing_cap_err = step_error_tokens(
+                &format_ident!("ExecutionError"),
+                pattern,
+                ident,
+                &quote! {
+                    format!(
                         "pattern '{}' missing capture for argument '{}'",
                         #pattern,
-                        stringify!(#pat)
-                    ))?;
-                let #pat: #ty = (#raw_ident)
-                    .parse()
-                    .map_err(|_| format!(
+                        stringify!(#pat),
+                    )
+                },
+            );
+            let parse_err = step_error_tokens(
+                &format_ident!("ExecutionError"),
+                pattern,
+                ident,
+                &quote! {
+                    format!(
                         "failed to parse argument '{}' of type '{}' from pattern '{}' with captured value: '{:?}'",
                         stringify!(#pat),
                         stringify!(#ty),
                         #pattern,
                         #raw_ident,
-                    ))?;
+                    )
+                },
+            );
+            quote! {
+                let #raw_ident = #capture.ok_or_else(|| #missing_cap_err)?;
+                let #pat: #ty = (#raw_ident).parse().map_err(|_| #parse_err)?;
             }
         })
         .collect()
@@ -173,9 +254,16 @@ fn generate_argument_processing(
             quote! { captures.get(#index).map(|m| m.as_str()) }
         })
         .collect();
-    let step_arg_parses = gen_step_parses(config.step_args, &captured, config.pattern);
-    let datatable_decl = gen_datatable_decl(config.datatable, config.pattern);
-    let docstring_decl = gen_docstring_decl(config.docstring, config.pattern);
+    let step_arg_parses = gen_step_parses(
+        config.step_args,
+        &captured,
+        StepMeta {
+            pattern: config.pattern,
+            ident: config.ident,
+        },
+    );
+    let datatable_decl = gen_datatable_decl(config.datatable, config.pattern, config.ident);
+    let docstring_decl = gen_docstring_decl(config.docstring, config.pattern, config.ident);
     (declares, step_arg_parses, datatable_decl, docstring_decl)
 }
 
@@ -236,26 +324,64 @@ fn assemble_wrapper_function(
     arg_idents: &[&syn::Ident],
     pattern: &syn::LitStr,
     ident: &syn::Ident,
+    capture_count: usize,
 ) -> TokenStream2 {
     let (declares, step_arg_parses, datatable_decl, docstring_decl) = arg_processing;
+    let placeholder_err = step_error_tokens(
+        &format_ident!("ExecutionError"),
+        pattern,
+        ident,
+        &quote! {
+            format!(
+                "Step text '{}' does not match pattern '{}': {}",
+                text,
+                #pattern,
+                e
+            )
+        },
+    );
+    let panic_err = step_error_tokens(
+        &format_ident!("PanicError"),
+        pattern,
+        ident,
+        &quote! { message },
+    );
+    let exec_err = step_error_tokens(
+        &format_ident!("ExecutionError"),
+        pattern,
+        ident,
+        &quote! { message },
+    );
+    let expected = capture_count;
+    let capture_mismatch_err = step_error_tokens(
+        &format_ident!("ExecutionError"),
+        pattern,
+        ident,
+        &quote! {
+            format!(
+                "pattern '{}' produced {} captures but step '{}' expects {}",
+                #pattern,
+                captures.len(),
+                stringify!(#ident),
+                expected
+            )
+        },
+    );
     quote! {
         fn #wrapper_ident(
             ctx: &rstest_bdd::StepContext<'_>,
             text: &str,
             _docstring: Option<&str>,
             _table: Option<&[&[&str]]>,
-        ) -> Result<(), String> {
+        ) -> Result<(), rstest_bdd::StepError> {
             use std::panic::{catch_unwind, AssertUnwindSafe};
 
             let captures = rstest_bdd::extract_placeholders(&#pattern_ident, text.into())
-                .map_err(|e| {
-                    format!(
-                        "Step text '{}' does not match pattern '{}': {}",
-                        text,
-                        #pattern,
-                        e
-                    )
-                })?;
+                .map_err(|e| #placeholder_err)?;
+            let expected: usize = #expected;
+            if captures.len() != expected {
+                return Err(#capture_mismatch_err);
+            }
 
             #(#declares)*
             #(#step_arg_parses)*
@@ -263,15 +389,13 @@ fn assemble_wrapper_function(
             #docstring_decl
 
             catch_unwind(AssertUnwindSafe(|| {
-                #ident(#(#arg_idents),*);
-                Ok(())
+                rstest_bdd::IntoStepResult::into_step_result(#ident(#(#arg_idents),*))
             }))
-            .map_err(|e| format!(
-                "Panic in step '{}', function '{}': {:?}",
-                #pattern,
-                stringify!(#ident),
-                e
-            ))?
+                .map_err(|e| {
+                    let message = rstest_bdd::panic_message(e.as_ref());
+                    #panic_err
+                })
+                .and_then(|res| res.map_err(|message| #exec_err))
         }
     }
 }
@@ -309,6 +433,7 @@ fn generate_wrapper_body(
         &arg_idents,
         pattern,
         ident,
+        step_args.len(),
     );
 
     quote! {

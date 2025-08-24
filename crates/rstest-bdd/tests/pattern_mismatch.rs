@@ -2,7 +2,7 @@
 
 use std::sync::atomic::{AtomicU32, Ordering};
 
-use rstest_bdd::{StepContext, StepKeyword, lookup_step};
+use rstest_bdd::{StepContext, StepError, StepKeyword, lookup_step};
 use rstest_bdd_macros::given;
 
 static CAPTURED: AtomicU32 = AtomicU32::new(0);
@@ -33,7 +33,18 @@ fn returns_error_on_pattern_mismatch() {
     let Err(err) = step_fn(&ctx, "unrelated text", None, None) else {
         panic!("expected mismatch to error");
     };
-    assert!(err.contains("does not match pattern"), "{err}");
-    assert!(err.contains("unrelated text"), "{err}");
-    assert!(err.contains("number {value:u32}"), "{err}");
+    match err {
+        StepError::ExecutionError {
+            pattern,
+            function,
+            message,
+        } => {
+            assert_eq!(pattern, "number {value:u32}");
+            assert_eq!(function, "number");
+            assert!(message.contains("does not match pattern"));
+            assert!(message.contains("unrelated text"));
+            assert!(message.contains("number {value:u32}"));
+        }
+        other => panic!("unexpected error: {other:?}"),
+    }
 }

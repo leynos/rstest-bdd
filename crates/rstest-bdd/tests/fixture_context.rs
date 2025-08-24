@@ -1,21 +1,27 @@
 //! Behavioural test for fixture context injection
 
-use rstest_bdd::{StepContext, StepKeyword, step};
+use rstest_bdd::{StepContext, StepError, StepKeyword};
+use rstest_bdd_macros::given;
 
-fn needs_value(
-    ctx: &StepContext<'_>,
-    _text: &str,
-    _docstring: Option<&str>,
-    _table: Option<&[&[&str]]>,
-) -> Result<(), String> {
-    let val = ctx.get::<u32>("number").ok_or_else(|| {
-        "Missing fixture 'number' of type 'u32' in step function 'needs_value'".to_string()
-    })?;
-    assert_eq!(*val, 42);
-    Ok(())
+/// Step that asserts the injected `number` fixture equals 42.
+#[given("a value")]
+#[expect(
+    clippy::trivially_copy_pass_by_ref,
+    reason = "fixture requires reference"
+)]
+fn needs_value(#[from(number)] number: &u32) {
+    assert_eq!(*number, 42);
 }
 
-step!(StepKeyword::Given, "a value", needs_value, &["number"]);
+#[given("a panicking value step")]
+#[expect(
+    clippy::trivially_copy_pass_by_ref,
+    reason = "fixture requires reference"
+)]
+fn panicking_value_step(#[from(number)] number: &u32) -> Result<(), String> {
+    let _ = number;
+    panic!("boom")
+}
 
 #[test]
 fn context_passes_fixture() {
@@ -38,8 +44,42 @@ fn context_missing_fixture_returns_error() {
         Ok(()) => panic!("expected error when fixture is missing"),
         Err(e) => e,
     };
-    assert!(
-        err.contains("Missing fixture 'number' of type 'u32'"),
-        "unexpected error message"
-    );
+    let display = err.to_string();
+    match err {
+        StepError::MissingFixture { name, ty, step } => {
+            assert_eq!(name, "number");
+            assert_eq!(ty, "u32");
+            assert_eq!(step, "needs_value");
+            assert!(
+                display.contains("Missing fixture 'number'"),
+                "unexpected Display: {display}"
+            );
+        }
+        other => panic!("unexpected error: {other:?}"),
+    }
+}
+
+#[test]
+fn fixture_step_panic_returns_panic_error() {
+    let number = 1u32;
+    let mut ctx = StepContext::default();
+    ctx.insert("number", &number);
+    let step_fn = rstest_bdd::lookup_step(StepKeyword::Given, "a panicking value step".into())
+        .unwrap_or_else(|| panic!("step 'a panicking value step' not found in registry"));
+    let err = match step_fn(&ctx, "a panicking value step", None, None) {
+        Ok(()) => panic!("expected panic error"),
+        Err(e) => e,
+    };
+    match err {
+        StepError::PanicError {
+            pattern,
+            function,
+            message,
+        } => {
+            assert_eq!(pattern, "a panicking value step");
+            assert_eq!(function, "panicking_value_step");
+            assert_eq!(message, "boom");
+        }
+        other => panic!("unexpected error: {other:?}"),
+    }
 }
