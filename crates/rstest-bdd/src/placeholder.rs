@@ -333,50 +333,27 @@ pub(crate) fn parse_stray_character(st: &mut RegexBuilder<'_>) {
 #[inline]
 pub(crate) fn parse_context_specific(st: &mut RegexBuilder<'_>) -> Result<(), regex::Error> {
     if st.stray_depth > 0 {
-        // Inside stray-depth, allow raw braces and escapes as literals, including unknown escapes.
-        if is_double_brace(st.bytes, st.position) {
-            parse_double_brace(st);
-            return Ok(());
-        }
-        if is_escaped_brace(st.bytes, st.position) {
-            parse_escaped_brace(st);
-            return Ok(());
-        }
-        if matches!(st.bytes.get(st.position), Some(b'\\')) {
-            // Treat unknown escapes literally in stray-depth as well.
-            if st.bytes.get(st.position + 1).is_some() {
-                parse_escape_sequence(st);
-            } else {
-                st.push_literal_byte(b'\\');
-                st.advance(1);
-            }
-            return Ok(());
-        }
         parse_stray_character(st);
-        Ok(())
-    } else if is_placeholder_start(st.bytes, st.position) {
-        parse_placeholder(st)
-    } else {
-        // Outside placeholders, encountering a raw closing brace is invalid.
-        if matches!(st.bytes.get(st.position), Some(b'}')) {
-            return Err(regex::Error::Syntax(
-                "unbalanced braces in step pattern".to_string(),
-            ));
-        }
-        // A single opening brace starts stray-depth scanning of literal text until balanced.
-        if matches!(st.bytes.get(st.position), Some(b'{')) {
-            // If this starts a placeholder, delegate to placeholder parser in next loop.
-            if is_placeholder_start(st.bytes, st.position) {
-                return Ok(());
-            }
-            // Otherwise start a stray-depth literal region; emit the '{' literally and balance braces.
+        return Ok(());
+    }
+    if is_placeholder_start(st.bytes, st.position) {
+        return parse_placeholder(st);
+    }
+    match st.bytes.get(st.position) {
+        Some(b'}') => Err(regex::Error::Syntax(format!(
+            "unmatched closing brace '}}' at position {} in step pattern",
+            st.position
+        ))),
+        Some(b'{') => {
             st.push_literal_brace(b'{');
             st.stray_depth = st.stray_depth.saturating_add(1);
             st.advance(1);
-            return Ok(());
+            Ok(())
         }
-        parse_literal(st);
-        Ok(())
+        _ => {
+            parse_literal(st);
+            Ok(())
+        }
     }
 }
 
