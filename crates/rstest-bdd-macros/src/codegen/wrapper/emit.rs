@@ -12,13 +12,18 @@ fn gen_datatable_decl(
     datatable: Option<&DataTableArg>,
     pattern: &syn::LitStr,
 ) -> Option<TokenStream2> {
-    datatable.map(|DataTableArg { pat }| {
+    datatable.map(|DataTableArg { pat, ty }| {
         quote! {
-            let #pat: Vec<Vec<String>> = _table
+            let #pat: #ty = _table
                 .ok_or_else(|| format!("Step '{}' requires a data table", #pattern))?
                 .iter()
-                .map(|row| row.iter().map(|cell| cell.to_string()).collect())
-                .collect();
+                .map(|row| row.iter().map(|cell| cell.to_string()).collect::<Vec<String>>())
+                .collect::<Vec<Vec<String>>>()
+                .try_into()
+                .map_err(|e| format!(
+                    "failed to convert data table for step '{}': {e}",
+                    #pattern
+                ))?;
         }
     })
 }
@@ -96,22 +101,21 @@ fn gen_step_parses(
         .map(|(StepArg { pat, ty }, (idx, capture))| {
             let raw_ident = format_ident!("__raw{}", idx);
             quote! {
-                let #raw_ident = #capture.unwrap_or_else(|| {
-                    panic!(
+                let #raw_ident = #capture
+                    .ok_or_else(|| format!(
                         "pattern '{}' missing capture for argument '{}'",
                         #pattern,
-                        stringify!(#pat),
-                    )
-                });
-                let #pat: #ty = (#raw_ident).parse().unwrap_or_else(|_| {
-                    panic!(
+                        stringify!(#pat)
+                    ))?;
+                let #pat: #ty = (#raw_ident)
+                    .parse()
+                    .map_err(|_| format!(
                         "failed to parse argument '{}' of type '{}' from pattern '{}' with captured value: '{:?}'",
                         stringify!(#pat),
                         stringify!(#ty),
                         #pattern,
                         #raw_ident,
-                    )
-                });
+                    ))?;
             }
         })
         .collect()

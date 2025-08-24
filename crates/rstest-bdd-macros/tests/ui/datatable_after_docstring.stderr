@@ -1,0 +1,5 @@
+error: datatable must be declared before docstring to match Gherkin ordering
+ --> tests/ui/datatable_after_docstring.rs:6:41
+  |
+6 | fn step(docstring: String, #[datatable] table: Vec<Vec<String>>) {}
+  |                                         ^^^^^^^^^^^^^^^^^^^^^^^

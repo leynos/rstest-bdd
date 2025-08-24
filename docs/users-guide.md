@@ -246,11 +246,16 @@ Best practices for writing effective scenarios include:
 ## Data tables and Docstrings
 
 Steps may supply structured or free-form data via a trailing argument. A data
-table is received by including an argument named `datatable` of type
-`Vec<Vec<String>>`. A Gherkin Docstring is available through an argument named
-`docstring` of type `String`. Both arguments must use these exact names and
-types to be detected by the procedural macros. When both are declared, place
-`datatable` before `docstring` at the end of the parameter list.
+table is received by including a parameter annotated with `#[datatable]` or
+named `datatable` of type `Vec<Vec<String>>`. During expansion, the
+`#[datatable]` marker is removed, but the declared parameter type is preserved
+and must implement `TryFrom<Vec<Vec<String>>>` so the wrapper can convert the
+parsed cells.
+
+A Gherkin Docstring is available through an argument named `docstring` of type
+`String`. Both arguments must use these exact names and types to be detected by
+the procedural macros. When both are declared, place `datatable` before
+`docstring` at the end of the parameter list. 
 
 ```gherkin
 Scenario: capture table and docstring

@@ -15,10 +15,21 @@ pub struct StepArg {
     pub ty: syn::Type,
 }
 
-/// Data table argument extracted from a step function.
+/// Represents an argument for a Gherkin data table step function.
+///
+/// The [`ty`] field stores the Rust type of the argument. This enables
+/// type-specific logic such as code generation, validation, or transformation
+/// based on the argument's type. Documenting the type here clarifies its role in
+/// macro expansion and helps future maintainers understand how type information
+/// is propagated.
+///
+/// # Fields
+/// - `pat`: The identifier pattern for the argument.
+/// - `ty`: The Rust type of the argument, used for type-specific logic and code generation.
 #[derive(Debug, Clone)]
 pub struct DataTableArg {
     pub pat: syn::Ident,
+    pub ty: syn::Type,
 }
 
 /// Gherkin doc string argument extracted from a step function.
@@ -112,7 +123,6 @@ fn is_string(ty: &syn::Type) -> bool {
 fn is_datatable(ty: &syn::Type) -> bool {
     is_type_seq(ty, &["Vec", "Vec", "String"])
 }
-#[expect(clippy::unnecessary_wraps, reason = "conforms to classifier signature")]
 fn classify_fixture(
     st: &mut ExtractedArgs,
     arg: &mut syn::PatType,
@@ -121,6 +131,7 @@ fn classify_fixture(
 ) -> syn::Result<bool> {
     let mut name = None;
     let mut found_from = false;
+    let has_datatable = arg.attrs.iter().any(|a| a.path().is_ident("datatable"));
     arg.attrs.retain(|a| {
         if a.path().is_ident("from") {
             found_from = true;
@@ -131,6 +142,12 @@ fn classify_fixture(
         }
     });
     if found_from {
+        if has_datatable {
+            return Err(syn::Error::new_spanned(
+                arg,
+                "#[datatable] cannot be combined with #[from]",
+            ));
+        }
         let name = name.unwrap_or_else(|| pat.clone());
         let idx = st.fixtures.len();
         st.fixtures.push(FixtureArg {
@@ -149,13 +166,61 @@ fn should_classify_as_datatable(pat: &syn::Ident, ty: &syn::Type) -> bool {
     pat == "datatable" && is_datatable(ty)
 }
 
-fn classify_datatable(
-    st: &mut ExtractedArgs,
+/// Removes the `#[datatable]` attribute, returning `true` if present.
+///
+/// The attribute must be bare (e.g., `#[datatable]`). Any tokens supplied will
+/// result in a parse error so callers receive precise diagnostics.
+fn extract_datatable_attribute(arg: &mut syn::PatType) -> syn::Result<bool> {
+    let mut found = false;
+    let mut duplicate = false;
+    let mut err_attr: Option<syn::Attribute> = None;
+    arg.attrs.retain(|a| {
+        if a.path().is_ident("datatable") {
+            if found {
+                duplicate = true;
+            }
+            found = true;
+            if a.meta.require_path_only().is_err() {
+                err_attr = Some(a.clone());
+            }
+            false
+        } else {
+            true
+        }
+    });
+    if let Some(attr) = err_attr {
+        return Err(syn::Error::new_spanned(
+            attr,
+            "`#[datatable]` does not take arguments",
+        ));
+    }
+    if duplicate {
+        return Err(syn::Error::new_spanned(
+            &arg.pat,
+            "duplicate `#[datatable]` attribute",
+        ));
+    }
+    Ok(found)
+}
+
+/// Validates that a potential datatable argument obeys uniqueness and ordering
+/// constraints, returning `true` when classification should proceed.
+fn validate_datatable_constraints(
+    st: &ExtractedArgs,
     arg: &mut syn::PatType,
     pat: &syn::Ident,
     ty: &syn::Type,
 ) -> syn::Result<bool> {
-    if should_classify_as_datatable(pat, ty) {
+    let is_attr = extract_datatable_attribute(arg)?;
+    let is_canonical = should_classify_as_datatable(pat, ty);
+
+    if is_attr && pat == "docstring" {
+        return Err(syn::Error::new_spanned(
+            arg,
+            "parameter `docstring` cannot be annotated with #[datatable]",
+        ));
+    }
+    if is_attr || is_canonical {
         if st.datatable.is_some() {
             return Err(syn::Error::new_spanned(
                 arg,
@@ -168,17 +233,35 @@ fn classify_datatable(
                 "datatable must be declared before docstring to match Gherkin ordering",
             ));
         }
-        st.datatable = Some(DataTableArg { pat: pat.clone() });
-        st.call_order.push(CallArg::DataTable);
         Ok(true)
     } else if pat == "datatable" {
         Err(syn::Error::new_spanned(
             arg,
-            "only one datatable parameter is permitted and it must have type `Vec<Vec<String>>`",
+            concat!(
+                "parameter named `datatable` must have type `Vec<Vec<String>>` ",
+                "(or use `#[datatable]` with a type that implements `TryFrom<Vec<Vec<String>>>`)",
+            ),
         ))
     } else {
         Ok(false)
     }
+}
+
+fn classify_datatable(
+    st: &mut ExtractedArgs,
+    arg: &mut syn::PatType,
+    pat: &syn::Ident,
+    ty: &syn::Type,
+) -> syn::Result<bool> {
+    if !validate_datatable_constraints(st, arg, pat, ty)? {
+        return Ok(false);
+    }
+    st.datatable = Some(DataTableArg {
+        pat: pat.clone(),
+        ty: ty.clone(),
+    });
+    st.call_order.push(CallArg::DataTable);
+    Ok(true)
 }
 fn is_valid_docstring_arg(st: &ExtractedArgs, pat: &syn::Ident, ty: &syn::Type) -> bool {
     st.docstring.is_none() && pat == "docstring" && is_string(ty)
@@ -245,7 +328,8 @@ const CLASSIFIERS: &[Classifier] = &[
 /// ```
 ///
 /// Note: special arguments must use the canonical names:
-/// - data table parameter must be named `datatable` and have type `Vec<Vec<String>>`
+/// - data table parameter must be annotated with `#[datatable]` or be named
+///   `datatable` and have type `Vec<Vec<String>>`
 /// - doc string parameter must be named `docstring` and have type `String`
 ///
 /// At most one `datatable` and one `docstring` parameter are permitted.

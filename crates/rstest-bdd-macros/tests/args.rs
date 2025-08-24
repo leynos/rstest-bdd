@@ -1,5 +1,6 @@
 //! Tests for argument extraction helpers.
 
+use quote::quote;
 use rstest::rstest;
 use syn::parse_quote;
 
@@ -24,7 +25,10 @@ use args_impl::{CallArg, extract_args};
 )]
 #[case(
     parse_quote! { fn step(datatable: String) {} },
-    "only one datatable parameter is permitted and it must have type `Vec<Vec<String>>`",
+    concat!(
+        "parameter named `datatable` must have type `Vec<Vec<String>>` ",
+        "(or use `#[datatable]` with a type that implements `TryFrom<Vec<Vec<String>>>`)",
+    ),
     "error when datatable has wrong type",
 )]
 #[case(
@@ -36,6 +40,36 @@ use args_impl::{CallArg, extract_args};
     parse_quote! { fn step(docstring: usize) {} },
     "only one docstring parameter is permitted and it must have type `String`",
     "error when docstring has wrong type",
+)]
+#[case(
+    parse_quote! { fn step(docstring: String, #[datatable] data: Vec<Vec<String>>) {} },
+    "datatable must be declared before docstring",
+    "error when datatable attribute follows docstring",
+)]
+#[case(
+    parse_quote! { fn step(#[datatable] a: Vec<Vec<String>>, #[datatable] b: Vec<Vec<String>>) {} },
+    "only one datatable parameter is permitted",
+    "error on multiple datatable parameters",
+)]
+#[case(
+    parse_quote! { fn step(#[datatable] #[datatable] data: Vec<Vec<String>>) {} },
+    "duplicate `#[datatable]` attribute",
+    "error on duplicate datatable attribute",
+)]
+#[case(
+    parse_quote! { fn step(#[datatable] docstring: String) {} },
+    "parameter `docstring` cannot be annotated with #[datatable]",
+    "error when docstring parameter uses datatable attribute",
+)]
+#[case(
+    parse_quote! { fn step(#[from] #[datatable] fix: Vec<Vec<String>>) {} },
+    "#[datatable] cannot be combined with #[from]",
+    "error when datatable attribute applied to fixture",
+)]
+#[case(
+    parse_quote! { fn step(#[datatable(foo)] data: Vec<Vec<String>>) {} },
+    "`#[datatable]` does not take arguments",
+    "error when datatable attribute has tokens",
 )]
 fn test_extract_args_errors(
     #[case] mut func: syn::ItemFn,
@@ -76,4 +110,63 @@ fn call_order_preserves_parameter_sequence() {
         &args.call_order[..],
         [Fixture(0), StepArg(0), DataTable, DocString, StepArg(1)]
     ));
+}
+
+#[rstest]
+fn datatable_attribute_recognised_and_preserves_type() {
+    let mut func: syn::ItemFn = parse_quote! {
+        fn step(#[datatable] table: my_mod::MyTable) {}
+    };
+    #[expect(clippy::expect_used, reason = "test asserts valid extraction")]
+    let args = extract_args(&mut func).expect("failed to extract args");
+    assert!(
+        matches!(&args.call_order[..], [CallArg::DataTable]),
+        "unexpected call_order for datatable-only signature"
+    );
+    #[expect(clippy::expect_used, reason = "datatable presence required")]
+    let dt = args.datatable.expect("missing datatable");
+    assert_eq!(dt.pat, "table");
+    if let syn::Type::Path(tp) = &dt.ty {
+        #[expect(clippy::expect_used, reason = "path has at least one segment")]
+        let seg = tp.path.segments.last().expect("missing segment");
+        assert_eq!(seg.ident, "MyTable");
+        let rendered = tp
+            .path
+            .segments
+            .iter()
+            .map(|s| s.ident.to_string())
+            .collect::<Vec<_>>()
+            .join("::");
+        assert_eq!(rendered, "my_mod::MyTable");
+    } else {
+        panic!("expected path type");
+    }
+}
+
+#[rstest]
+fn datatable_attribute_removed_from_signature() {
+    let mut func: syn::ItemFn = parse_quote! {
+        fn step(#[datatable] data: Vec<Vec<String>>) {}
+    };
+    #[expect(clippy::expect_used, reason = "test asserts valid extraction")]
+    let args = extract_args(&mut func).expect("failed to extract args");
+    #[expect(clippy::expect_used, reason = "datatable presence required")]
+    let dt = args.datatable.expect("missing datatable after strip");
+    assert_eq!(dt.pat, "data");
+    #[expect(clippy::expect_used, reason = "test inspects parameter attributes")]
+    let syn::FnArg::Typed(arg) = func.sig.inputs.first().expect("missing arg") else {
+        panic!("expected typed argument");
+    };
+    assert!(arg.attrs.is_empty(), "datatable attribute not stripped");
+    if let syn::Pat::Ident(p) = &*arg.pat {
+        assert_eq!(p.ident, "data");
+    } else {
+        panic!("expected ident pattern");
+    }
+    let ty = &*arg.ty;
+    let ty_str = quote!(#ty).to_string();
+    assert!(
+        ty_str.replace(' ', "") == "Vec<Vec<String>>".replace(' ', ""),
+        "unexpected type after attribute strip: {ty_str}"
+    );
 }
