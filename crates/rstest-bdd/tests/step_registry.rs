@@ -46,33 +46,19 @@ step!(
 #[expect(clippy::needless_pass_by_value, reason = "panic payload is dropped")]
 fn extract_panic_message(e: Box<dyn std::any::Any + Send>) -> String {
     let any_ref = e.as_ref();
-    #[expect(
-        clippy::option_if_let_else,
-        reason = "sequential downcasts aid readability"
-    )]
-    if let Some(s) = any_ref.downcast_ref::<&str>() {
-        (*s).to_string()
-    } else if let Some(s) = any_ref.downcast_ref::<String>() {
-        s.clone()
-    } else if let Some(i) = any_ref.downcast_ref::<i32>() {
-        i.to_string()
-    } else if let Some(i) = any_ref.downcast_ref::<u32>() {
-        i.to_string()
-    } else if let Some(i) = any_ref.downcast_ref::<i64>() {
-        i.to_string()
-    } else if let Some(i) = any_ref.downcast_ref::<u64>() {
-        i.to_string()
-    } else if let Some(i) = any_ref.downcast_ref::<isize>() {
-        i.to_string()
-    } else if let Some(i) = any_ref.downcast_ref::<usize>() {
-        i.to_string()
-    } else if let Some(f) = any_ref.downcast_ref::<f64>() {
-        f.to_string()
-    } else if let Some(f) = any_ref.downcast_ref::<f32>() {
-        f.to_string()
-    } else {
-        format!("{any_ref:?}")
+
+    macro_rules! try_downcast {
+        ($($ty:ty),*) => {
+            $(
+                if let Some(val) = any_ref.downcast_ref::<$ty>() {
+                    return val.to_string();
+                }
+            )*
+        };
     }
+
+    try_downcast!(&str, String, i32, u32, i64, u64, isize, usize, f32, f64);
+    format!("{any_ref:?}")
 }
 
 fn panicking_wrapper(
