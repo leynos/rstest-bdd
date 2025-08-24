@@ -464,6 +464,34 @@ global registry stores `(StepKeyword, &'static StepPattern)` keys in a
 `hashbrown::HashMap` and uses the raw-entry API for constant-time lookups by
 hashing the pattern text directly.
 
+The sequence below summarises how a developer compiles a step pattern and how
+errors propagate when placeholders are malformed or braces are unbalanced:
+
+```mermaid
+sequenceDiagram
+  autonumber
+  actor Dev as Developer
+  participant SP as StepPattern
+  participant PH as placeholder::build_regex_from_pattern
+  participant PP as parse_placeholder
+  participant RX as regex::Regex
+
+  Dev->>SP: compile()
+  SP->>PH: build_regex_from_pattern(text)
+  PH->>PP: parse_placeholder(...) [loop over pattern]
+  alt Placeholder/brace OK
+    PP-->>PH: Ok(())
+  else Malformed/unbalanced
+    PP-->>PH: Err(regex::Error)
+    PH-->>SP: Err(regex::Error)
+    SP-->>Dev: Err
+  end
+  PH-->>SP: Ok(src)
+  SP->>RX: Regex::new(src)
+  RX-->>SP: Ok(Regex)
+  SP-->>Dev: Ok(())
+```
+
 Duplicate step definitions are rejected when the registry is built. Attempting
 to register the same keyword and pattern combination twice results in a panic
 that points to the conflicting definition so that errors surface early during
