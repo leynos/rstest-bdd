@@ -1,5 +1,6 @@
 //! Behavioural test for step registry
 
+use rstest::rstest;
 use rstest_bdd::{Step, StepContext, StepError, iter, step};
 
 fn sample() {}
@@ -42,6 +43,38 @@ step!(
     &[]
 );
 
+#[expect(clippy::needless_pass_by_value, reason = "panic payload is dropped")]
+fn extract_panic_message(e: Box<dyn std::any::Any + Send>) -> String {
+    let any_ref = e.as_ref();
+    #[expect(
+        clippy::option_if_let_else,
+        reason = "sequential downcasts aid readability"
+    )]
+    if let Some(s) = any_ref.downcast_ref::<&str>() {
+        (*s).to_string()
+    } else if let Some(s) = any_ref.downcast_ref::<String>() {
+        s.clone()
+    } else if let Some(i) = any_ref.downcast_ref::<i32>() {
+        i.to_string()
+    } else if let Some(i) = any_ref.downcast_ref::<u32>() {
+        i.to_string()
+    } else if let Some(i) = any_ref.downcast_ref::<i64>() {
+        i.to_string()
+    } else if let Some(i) = any_ref.downcast_ref::<u64>() {
+        i.to_string()
+    } else if let Some(i) = any_ref.downcast_ref::<isize>() {
+        i.to_string()
+    } else if let Some(i) = any_ref.downcast_ref::<usize>() {
+        i.to_string()
+    } else if let Some(f) = any_ref.downcast_ref::<f64>() {
+        f.to_string()
+    } else if let Some(f) = any_ref.downcast_ref::<f32>() {
+        f.to_string()
+    } else {
+        format!("{any_ref:?}")
+    }
+}
+
 fn panicking_wrapper(
     ctx: &StepContext<'_>,
     _text: &str,
@@ -50,39 +83,10 @@ fn panicking_wrapper(
 ) -> Result<(), StepError> {
     use std::panic::{AssertUnwindSafe, catch_unwind};
     let _ = ctx;
-    catch_unwind(AssertUnwindSafe(|| panic!("snap"))).map_err(|e| {
-        #[expect(
-            clippy::option_if_let_else,
-            reason = "sequential downcasts aid readability"
-        )]
-        let message = if let Some(s) = e.downcast_ref::<&str>() {
-            (*s).to_string()
-        } else if let Some(s) = e.downcast_ref::<String>() {
-            s.clone()
-        } else if let Some(i) = e.downcast_ref::<i32>() {
-            i.to_string()
-        } else if let Some(i) = e.downcast_ref::<u32>() {
-            i.to_string()
-        } else if let Some(i) = e.downcast_ref::<i64>() {
-            i.to_string()
-        } else if let Some(i) = e.downcast_ref::<u64>() {
-            i.to_string()
-        } else if let Some(i) = e.downcast_ref::<isize>() {
-            i.to_string()
-        } else if let Some(i) = e.downcast_ref::<usize>() {
-            i.to_string()
-        } else if let Some(f) = e.downcast_ref::<f64>() {
-            f.to_string()
-        } else if let Some(f) = e.downcast_ref::<f32>() {
-            f.to_string()
-        } else {
-            format!("{e:?}")
-        };
-        StepError::PanicError {
-            pattern: "panics".into(),
-            function: "panicking_wrapper".into(),
-            message,
-        }
+    catch_unwind(AssertUnwindSafe(|| panic!("snap"))).map_err(|e| StepError::PanicError {
+        pattern: "panics".into(),
+        function: "panicking_wrapper".into(),
+        message: extract_panic_message(e),
     })?;
     Ok(())
 }
@@ -102,57 +106,45 @@ fn step_is_registered() {
     assert!(found, "expected step not found");
 }
 
-#[test]
-fn wrapper_error_propagates() {
+#[rstest]
+#[case("fails", "failing_wrapper", "boom", true)]
+#[case("panics", "panicking_wrapper", "snap", false)]
+fn wrapper_error_handling(
+    #[case] pattern: &str,
+    #[case] function_name: &str,
+    #[case] expected_message: &str,
+    #[case] is_execution_error: bool,
+) {
     let step_fn = iter::<Step>
         .into_iter()
-        .find(|s| s.pattern.as_str() == "fails")
+        .find(|s| s.pattern.as_str() == pattern)
         .map_or_else(
-            || panic!("step 'fails' not found in registry"),
+            || panic!("step '{pattern}' not found in registry"),
             |step| step.run,
         );
-    let result = step_fn(&StepContext::default(), "fails", None, None);
-    let err = match result {
-        Ok(()) => panic!("expected error from wrapper"),
+    let err = match step_fn(&StepContext::default(), pattern, None, None) {
+        Ok(()) => panic!("expected error from wrapper '{pattern}'"),
         Err(e) => e,
     };
     match err {
         StepError::ExecutionError {
-            pattern,
+            pattern: p,
             function,
             message,
-        } => {
-            assert_eq!(pattern, "fails");
-            assert_eq!(function, "failing_wrapper");
-            assert_eq!(message, "boom");
+        } if is_execution_error => {
+            assert_eq!(p, pattern);
+            assert_eq!(function, function_name);
+            assert_eq!(message, expected_message);
         }
-        other => panic!("unexpected error: {other:?}"),
-    }
-}
-
-#[test]
-fn wrapper_panic_is_captured() {
-    let step_fn = iter::<Step>
-        .into_iter()
-        .find(|s| s.pattern.as_str() == "panics")
-        .map_or_else(
-            || panic!("step 'panics' not found in registry"),
-            |step| step.run,
-        );
-    let err = match step_fn(&StepContext::default(), "panics", None, None) {
-        Ok(()) => panic!("expected error from wrapper"),
-        Err(e) => e,
-    };
-    match err {
         StepError::PanicError {
-            pattern,
+            pattern: p,
             function,
             message,
-        } => {
-            assert_eq!(pattern, "panics");
-            assert_eq!(function, "panicking_wrapper");
-            assert_eq!(message, "snap");
+        } if !is_execution_error => {
+            assert_eq!(p, pattern);
+            assert_eq!(function, function_name);
+            assert_eq!(message, expected_message);
         }
-        other => panic!("unexpected error: {other:?}"),
+        other => panic!("unexpected error for '{pattern}': {other:?}"),
     }
 }
