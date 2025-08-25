@@ -69,11 +69,6 @@ impl StepPattern {
             .get()
             .unwrap_or_else(|| panic!("step pattern regex must be precompiled"))
     }
-
-    /// Return the cached regex if available.
-    pub(crate) fn try_regex(&self) -> Option<&Regex> {
-        self.regex.get()
-    }
 }
 
 impl From<&'static str> for StepPattern {

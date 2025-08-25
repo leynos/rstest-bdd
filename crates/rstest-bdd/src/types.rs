@@ -124,7 +124,7 @@ impl From<StepType> for StepKeyword {
 }
 
 /// Detailed information about placeholder parsing failures.
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PlaceholderSyntaxError {
     /// Human‑readable reason for the failure.
     pub message: String,
@@ -166,6 +166,7 @@ impl std::error::Error for PlaceholderSyntaxError {}
 
 /// Errors that may occur when compiling a [`StepPattern`].
 #[derive(Debug, Error)]
+#[non_exhaustive]
 pub enum StepPatternError {
     /// Placeholder syntax in the pattern is invalid.
     #[error(transparent)]
@@ -187,9 +188,6 @@ pub enum PlaceholderError {
     /// The step pattern could not be compiled into a regular expression.
     #[error("invalid step pattern: {0}")]
     InvalidPattern(String),
-    /// The step pattern was not compiled before use.
-    #[error("uncompiled step pattern")]
-    Uncompiled,
 }
 
 /// Type alias for the stored step function pointer.

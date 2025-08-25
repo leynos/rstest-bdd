@@ -1004,7 +1004,7 @@ The third phase introduces typed placeholders to step patterns. The runtime
 library exposes an `extract_placeholders` helper that converts a pattern with
 `{name:Type}` segments into a regular expression and returns the captured
 strings or a `PlaceholderError` detailing why extraction failed. This error
-covers pattern mismatches as well as invalid or uncompiled step patterns.
+covers pattern mismatches and placeholder or regex compilation failures.
 
 PlaceholderError: API shape and examples
 
@@ -1023,9 +1023,6 @@ enum PlaceholderError {
 
   // Display: "invalid step pattern: <regex_error>"
   InvalidPattern(String),
-
-  // Display: "uncompiled step pattern"
-  Uncompiled,
 }
 ```
 
@@ -1040,9 +1037,6 @@ enum PlaceholderError {
   - InvalidPattern(String): carries the underlying `regex::Error` string coming
     from the regular expression engine during compilation of the pattern. No
     additional metadata (placeholder name, position, or line info) is captured.
-  - Uncompiled: no fields; indicates the step pattern was queried before being
-    compiled. This is a guard and should not occur in normal usage because
-    patterns are compiled during step registration.
 
 - Example error strings (exact `Display` output):
   - Pattern mismatch: `"pattern mismatch"`
@@ -1053,7 +1047,6 @@ enum PlaceholderError {
     ```
 
   - Invalid pattern: `"invalid step pattern: regex parse error: error message"`
-  - Uncompiled: `"uncompiled step pattern"`
 
 - Example JSON mapping (for consumers that serialise errors). Note: this is not
   emitted by the library; it is a suggested shape if you need to map the enum
@@ -1074,12 +1067,9 @@ enum PlaceholderError {
   "code": "invalid_pattern",
   "message": "invalid step pattern: <regex_error>"
 }
-
-{
-  "code": "uncompiled",
-  "message": "uncompiled step pattern"
-}
 ```
+
+Note: `code` values are stable identifiers intended for programmatic use.
 
 Step wrapper functions parse the returned strings and convert them with
 `FromStr` before calling the original step. Scenario execution now searches the
@@ -1128,7 +1118,7 @@ Public APIs are re‑exported from `lib.rs` so consumers continue to import from
   - `PlaceholderError`: semantic error enum returned by parsing helpers.
   - `StepFn`: type alias for the step function pointer.
 - `pattern.rs`: Step pattern wrapper.
-  - `StepPattern::new`, `compile`, `regex` (plus `try_regex` for internal use).
+  - `StepPattern::new`, `compile`, `regex`.
 - `placeholder.rs`: Placeholder extraction and scanner.
   - `extract_placeholders` (public) and the single‑pass scanner
     `build_regex_from_pattern` with small parsing predicates and helpers.

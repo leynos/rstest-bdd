@@ -287,16 +287,15 @@ fn compile_fails_on_multiple_unbalanced_braces() {
 }
 
 #[test]
-fn nested_brace_in_placeholder_is_literal() {
-    let pat = compiled("{outer:{inner}}");
-    assert!(
-        extract_placeholders(&pat, StepText::from("value}")).is_ok(),
-        "trailing brace should be matched literally",
-    );
-    assert!(
-        extract_placeholders(&pat, StepText::from("value")).is_err(),
-        "missing closing brace should not match",
-    );
+fn nested_brace_in_placeholder_is_error() {
+    let pat = StepPattern::from("{outer:{inner}}");
+    match pat.compile() {
+        Err(StepPatternError::PlaceholderSyntax(err)) => {
+            assert_eq!(err.position, 0);
+            assert_eq!(err.placeholder.as_deref(), Some("outer"));
+        }
+        _ => panic!("nested brace in type hint should be invalid"),
+    }
 }
 
 #[test]
@@ -315,4 +314,27 @@ fn compile_fails_on_stray_opening_brace() {
         matches!(pat.compile(), Err(StepPatternError::PlaceholderSyntax(_))),
         "stray opening brace should error"
     );
+}
+#[test]
+fn braces_in_type_hint_are_invalid() {
+    let pat = StepPattern::from("value {n:{u32}}");
+    match pat.compile() {
+        Err(StepPatternError::PlaceholderSyntax(err)) => {
+            assert_eq!(err.position, 6);
+            assert_eq!(err.placeholder.as_deref(), Some("n"));
+        }
+        _ => panic!("brace in type hint should error"),
+    }
+
+    let pat2 = StepPattern::from("value {n:Vec<{u32}>}");
+    match pat2.compile() {
+        Err(StepPatternError::PlaceholderSyntax(err)) => {
+            assert_eq!(err.position, 6);
+            assert_eq!(err.placeholder.as_deref(), Some("n"));
+        }
+        _ => panic!("brace in nested type hint should error"),
+    }
+
+    assert!(StepPattern::from("value {n:u32}").compile().is_ok());
+    assert!(StepPattern::from("value {what:String}").compile().is_ok());
 }

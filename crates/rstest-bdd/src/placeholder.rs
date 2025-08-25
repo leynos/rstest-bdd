@@ -13,8 +13,7 @@ use regex::Regex;
 /// # Errors
 /// Returns [`PlaceholderError::InvalidPlaceholder`] if the pattern contains
 /// malformed placeholders, [`PlaceholderError::InvalidPattern`] if the
-/// generated regex fails to compile, [`PlaceholderError::Uncompiled`] if the
-/// pattern was not compiled before use (guard), and
+/// generated regex fails to compile, and
 /// [`PlaceholderError::PatternMismatch`] when the text does not satisfy the
 /// pattern.
 pub fn extract_placeholders(
@@ -27,7 +26,7 @@ pub fn extract_placeholders(
         }
         StepPatternError::Regex(e) => PlaceholderError::InvalidPattern(e.to_string()),
     })?;
-    let re = pattern.try_regex().ok_or(PlaceholderError::Uncompiled)?;
+    let re = pattern.regex();
     extract_captured_values(re, text.as_str()).ok_or(PlaceholderError::PatternMismatch)
 }
 
@@ -240,15 +239,19 @@ pub(crate) fn validate_placeholder_whitespace(
     Ok(())
 }
 
-/// Ensures the raw type hint is well-formed, rejecting empty or
-/// whitespace-padded hints.
+/// Ensures the raw type hint is well-formed, rejecting empty,
+/// whitespace-padded, or brace-containing hints.
 pub(crate) fn validate_type_hint(
     ty_raw: Option<String>,
     start: usize,
     name: &str,
 ) -> Result<Option<String>, StepPatternError> {
     if let Some(ty) = ty_raw {
-        if ty.is_empty() || ty.chars().any(|c| c.is_ascii_whitespace()) {
+        if ty.is_empty()
+            || ty.chars().any(|c| c.is_ascii_whitespace())
+            || ty.contains('{')
+            || ty.contains('}')
+        {
             return Err(PlaceholderSyntaxError::new(
                 "invalid placeholder in step pattern",
                 start,
@@ -309,9 +312,6 @@ pub(crate) fn parse_placeholder(state: &mut RegexBuilder<'_>) -> Result<(), Step
         .into());
     }
     state.push_capture_for_type(ty_opt.as_deref());
-    if ty_opt.as_ref().is_some_and(|t| t.contains('{')) {
-        state.output.push_str(r"\}");
-    }
     after += 1; // skip closing brace
     state.position = after;
     Ok(())
