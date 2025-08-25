@@ -470,6 +470,57 @@ global registry stores `(StepKeyword, &'static StepPattern)` keys in a
 `hashbrown::HashMap` and uses the raw-entry API for constant-time lookups by
 hashing the pattern text directly.
 
+Placeholder parsing converts the pattern text into a regular expression using a
+single-pass scanner. The diagram below shows how `compile` invokes the scanner
+and how malformed placeholders or unbalanced braces surface as errors.
+
+```mermaid
+sequenceDiagram
+  autonumber
+  actor Dev as Developer
+  participant SP as StepPattern
+  participant RB as placeholder::build_regex_from_pattern
+  participant TC as try_parse_common_sequences
+  participant PC as parse_context_specific
+  participant PP as parse_placeholder
+  participant RX as regex::Regex
+
+  Dev->>SP: compile()
+  SP->>RB: build_regex_from_pattern(text)
+  loop over pattern bytes
+    RB->>TC: try_parse_common_sequences(...)
+    alt recognised sequence
+      TC-->>RB: consume
+    else other character
+      RB->>PC: parse_context_specific(...)
+      alt placeholder start
+        PC->>PP: parse_placeholder(...)
+        alt OK
+          PP-->>PC: Ok(())
+        else Malformed/unbalanced
+          PP-->>PC: Err(regex::Error)
+          PC-->>RB: Err(regex::Error)
+          RB-->>SP: Err(regex::Error)
+          SP-->>Dev: Err
+        end
+      else stray/unmatched brace
+        PC-->>RB: Err(regex::Error)
+        RB-->>SP: Err(regex::Error)
+        SP-->>Dev: Err
+      end
+    end
+  end
+  alt stray depth != 0
+    RB-->>SP: Err(regex::Error)
+    SP-->>Dev: Err
+  else balanced
+    RB-->>SP: Ok(src)
+    SP->>RX: Regex::new(src)
+    RX-->>SP: Ok(Regex)
+    SP-->>Dev: Ok(())
+  end
+```
+
 Duplicate step definitions are rejected when the registry is built. Attempting
 to register the same keyword and pattern combination twice results in a panic
 that points to the conflicting definition so that errors surface early during
