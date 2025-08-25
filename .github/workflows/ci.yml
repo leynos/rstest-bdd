@@ -17,13 +17,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Setup Rust
-        uses: leynos/shared-actions/.github/actions/setup-rust@c6559452842af6a83b83429129dccaf910e34562
+        uses: leynos/shared-actions/.github/actions/setup-rust@d8ec06a02063104524716eea3efdb786f8cf078e
       - name: Format
         run: make check-fmt
       - name: Lint
         run: make lint
       - name: Test and Measure Coverage
-        uses: leynos/shared-actions/.github/actions/generate-coverage@c6559452842af6a83b83429129dccaf910e34562
+        uses: leynos/shared-actions/.github/actions/generate-coverage@d8ec06a02063104524716eea3efdb786f8cf078e
         with:
           output-path: lcov.info
           format: lcov
@@ -31,7 +31,7 @@ jobs:
         env:
           CS_ACCESS_TOKEN: ${{ secrets.CS_ACCESS_TOKEN }}
         if: ${{ env.CS_ACCESS_TOKEN }}
-        uses: leynos/shared-actions/.github/actions/upload-codescene-coverage@c6559452842af6a83b83429129dccaf910e34562
+        uses: leynos/shared-actions/.github/actions/upload-codescene-coverage@d8ec06a02063104524716eea3efdb786f8cf078e
         with:
           format: lcov
           access-token: ${{ env.CS_ACCESS_TOKEN }}
