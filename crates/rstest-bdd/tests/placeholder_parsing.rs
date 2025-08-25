@@ -137,6 +137,22 @@ fn malformed_type_hint_is_error() {
 }
 
 #[test]
+fn whitespace_before_closing_brace_is_error() {
+    for pattern in ["value {n }", "value {n   }"] {
+        let pat = StepPattern::from(pattern);
+        #[expect(clippy::expect_used, reason = "test asserts error")]
+        let err = pat
+            .compile()
+            .expect_err("whitespace before closing brace should error");
+        let StepPatternError::PlaceholderSyntax(e) = err else {
+            panic!("unexpected error variant");
+        };
+        assert_eq!(e.position, 6);
+        assert_eq!(e.placeholder.as_deref(), Some("n"));
+    }
+}
+
+#[test]
 fn extraction_reports_invalid_placeholder_error() {
     let pat = StepPattern::from("value {n:}");
     #[expect(clippy::expect_used, reason = "test asserts error variant")]

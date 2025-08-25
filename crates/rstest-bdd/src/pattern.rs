@@ -59,6 +59,9 @@ impl StepPattern {
     /// - This method is thread-safe; concurrent calls may race to build a
     ///   `Regex`, but only the first successful value is cached.
     pub fn compile(&self) -> Result<(), StepPatternError> {
+        if self.regex.get().is_some() {
+            return Ok(());
+        }
         let src = crate::placeholder::build_regex_from_pattern(self.text)?;
         let regex = Regex::new(&src)?;
         let _ = self.regex.set(regex);
@@ -71,9 +74,12 @@ impl StepPattern {
     /// Panics if `compile()` was not called before this accessor.
     #[must_use]
     pub fn regex(&self) -> &Regex {
-        self.regex
-            .get()
-            .unwrap_or_else(|| panic!("step pattern regex must be precompiled"))
+        self.regex.get().unwrap_or_else(|| {
+            panic!(
+                "step pattern regex must be precompiled; call compile() first on pattern '{}'",
+                self.text
+            )
+        })
     }
 }
 

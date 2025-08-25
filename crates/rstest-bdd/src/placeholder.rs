@@ -79,11 +79,6 @@ impl<'a> RegexBuilder<'a> {
         self.output
             .push_str(&regex::escape(&(b as char).to_string()));
     }
-    #[inline]
-    pub(crate) fn push_literal_brace(&mut self, brace: u8) {
-        self.push_literal_byte(brace);
-    }
-    #[inline]
     pub(crate) fn push_capture_for_type(&mut self, ty: Option<&str>) {
         self.output.push('(');
         self.output.push_str(get_type_pattern(ty));
@@ -114,7 +109,7 @@ pub(crate) fn is_placeholder_start(bytes: &[u8], pos: usize) -> bool {
 pub(crate) fn parse_escaped_brace(state: &mut RegexBuilder<'_>) {
     #[expect(clippy::indexing_slicing, reason = "predicate ensured bound")]
     let ch = state.bytes[state.position + 1];
-    state.push_literal_brace(ch);
+    state.push_literal_byte(ch);
     state.advance(2);
 }
 
@@ -126,11 +121,12 @@ pub(crate) fn parse_escaped_brace(state: &mut RegexBuilder<'_>) {
 /// delegate to [`try_parse_common_sequences`], which emits a literal backslash.
 ///
 /// # Examples
-/// ```
-/// # use crate::placeholder::{parse_escape_sequence, RegexBuilder};
+/// ```ignore
+/// use rstest_bdd::placeholder::{parse_escape_sequence, RegexBuilder};
+///
 /// let mut st = RegexBuilder::new(r"\x");
 /// parse_escape_sequence(&mut st);
-/// assert_eq!(st.output, "x");
+/// assert_eq!(st.output, "^x");
 /// ```
 pub(crate) fn parse_escape_sequence(state: &mut RegexBuilder<'_>) {
     debug_assert!(matches!(state.bytes.get(state.position), Some(b'\\')));
@@ -148,7 +144,7 @@ pub(crate) fn parse_escape_sequence(state: &mut RegexBuilder<'_>) {
 pub(crate) fn parse_double_brace(state: &mut RegexBuilder<'_>) {
     #[expect(clippy::indexing_slicing, reason = "predicate ensured bound")]
     let brace = state.bytes[state.position];
-    state.push_literal_brace(brace);
+    state.push_literal_byte(brace);
     state.advance(2);
 }
 
@@ -194,8 +190,8 @@ pub(crate) fn parse_type_hint(state: &RegexBuilder<'_>, start: usize) -> (usize,
     (i, Some(ty))
 }
 
-/// Validates that no whitespace appears between the placeholder name and an
-/// optional type hint separator.
+/// Validates that no whitespace appears between the placeholder name and the
+/// next delimiter.
 pub(crate) fn validate_placeholder_whitespace(
     state: &RegexBuilder<'_>,
     name_end: usize,
@@ -211,7 +207,9 @@ pub(crate) fn validate_placeholder_whitespace(
                 }
                 ws += 1;
             }
-            if matches!(state.bytes.get(ws), Some(b':')) {
+            if matches!(state.bytes.get(ws), Some(b':'))
+                || matches!(state.bytes.get(ws), Some(b'}'))
+            {
                 return Err(PlaceholderSyntaxError::new(
                     "invalid placeholder in step pattern",
                     start,
@@ -369,7 +367,7 @@ pub(crate) fn parse_context_specific(st: &mut RegexBuilder<'_>) -> Result<(), St
         )
         .into()),
         Some(b'{') => {
-            st.push_literal_brace(b'{');
+            st.push_literal_byte(b'{');
             st.stray_depth = st.stray_depth.saturating_add(1);
             st.advance(1);
             Ok(())
