@@ -173,7 +173,7 @@ pub enum StepPatternError {
     PlaceholderSyntax(#[from] PlaceholderSyntaxError),
     /// The generated regular expression failed to compile.
     #[error("{0}")]
-    Regex(#[from] regex::Error),
+    InvalidPattern(#[from] regex::Error),
 }
 
 /// Error conditions that may arise when extracting placeholders.
@@ -197,7 +197,7 @@ impl From<StepPatternError> for PlaceholderError {
             StepPatternError::PlaceholderSyntax(err) => {
                 Self::InvalidPlaceholder(err.user_message())
             }
-            StepPatternError::Regex(re) => Self::InvalidPattern(re.to_string()),
+            StepPatternError::InvalidPattern(re) => Self::InvalidPattern(re.to_string()),
         }
     }
 }

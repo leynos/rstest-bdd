@@ -1112,36 +1112,36 @@ To keep responsibilities cohesive the runtime is split into focused modules.
 Public APIs are re‑exported from `lib.rs` so consumers continue to import from
 `rstest_bdd::*` as before.
 
-- types.rs — Core types and errors:
-  - PatternStr
-  - StepText
-  - StepKeyword
-  - StepKeywordParseError
-  - PlaceholderError
-  - StepFn
+- `types.rs` — Core types and errors:
+  - `PatternStr`
+  - `StepText`
+  - `StepKeyword`
+  - `StepKeywordParseError`
+  - `PlaceholderError`
+  - `StepFn`
 
-- pattern.rs — Step pattern wrapper:
-  - StepPattern.new
-  - compile
-  - regex
+- `pattern.rs` — Step pattern wrapper:
+  - `StepPattern::new`
+  - `compile`
+  - `regex`
 
-- placeholder.rs — Placeholder extraction and scanner:
-  - extract_placeholders
-  - build_regex_from_pattern
+- `placeholder.rs` — Placeholder extraction and scanner:
+  - `extract_placeholders`
+  - `build_regex_from_pattern`
 
-- context.rs — Fixture context:
-  - StepContext
+- `context.rs` — Fixture context:
+  - `StepContext`
 
-- registry.rs — Registration and lookup:
-  - Step
-  - step! macro
+- `registry.rs` — Registration and lookup:
+  - `Step`
+  - `step!` macro
   - global registry map
-  - lookup_step
-  - find_step
+  - `lookup_step`
+  - `find_step.`
 
-- lib.rs — Public API facade:
+- `lib.rs` — Public API facade:
   - Re-exports public items
-  - greet example function
+  - `greet` example function
 
 All modules use en‑GB spelling and include `//!` module‑level documentation.
 

@@ -166,6 +166,22 @@ fn extraction_reports_invalid_placeholder_error() {
 }
 
 #[test]
+fn invalid_pattern_error_display() {
+    #[expect(
+        clippy::invalid_regex,
+        clippy::expect_used,
+        reason = "deliberate invalid regex to test error display"
+    )]
+    let regex_err = regex::Regex::new("(").expect_err("invalid regex should error");
+    let err: PlaceholderError = StepPatternError::from(regex_err.clone()).into();
+    assert!(matches!(err, PlaceholderError::InvalidPattern(_)));
+    assert_eq!(
+        err.to_string(),
+        format!("invalid step pattern: {regex_err}"),
+    );
+}
+
+#[test]
 fn handles_escaped_braces() {
     let pat = StepPattern::from(r"literal \{ brace {v} \}");
     pat.compile()

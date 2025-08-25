@@ -284,7 +284,7 @@ pub(crate) fn parse_placeholder(state: &mut RegexBuilder<'_>) -> Result<(), Step
     if ty_opt.is_none() {
         after = find_closing_brace(state.bytes, name_end).ok_or_else(|| {
             PlaceholderSyntaxError::new(
-                "unbalanced braces in step pattern",
+                "missing closing '}' for placeholder",
                 start,
                 Some(name.clone()),
             )
@@ -292,7 +292,7 @@ pub(crate) fn parse_placeholder(state: &mut RegexBuilder<'_>) -> Result<(), Step
     }
     if !matches!(state.bytes.get(after), Some(b'}')) {
         return Err(PlaceholderSyntaxError::new(
-            "unbalanced braces in step pattern",
+            "missing closing '}' for placeholder",
             start,
             Some(name),
         )
