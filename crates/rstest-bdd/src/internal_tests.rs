@@ -4,9 +4,8 @@
 //! behaviour remains stable while allowing private access from a child module.
 
 use crate::placeholder::{
-    RegexBuilder, is_double_brace, is_empty_type_hint, is_escaped_brace, is_placeholder_start,
-    parse_double_brace, parse_escaped_brace, parse_literal, parse_placeholder,
-    parse_placeholder_name,
+    RegexBuilder, is_double_brace, is_escaped_brace, is_placeholder_start, parse_double_brace,
+    parse_escaped_brace, parse_literal, parse_placeholder,
 };
 
 #[test]
@@ -22,15 +21,6 @@ fn predicates_detect_expected_tokens() {
     // Placeholder start
     assert!(is_placeholder_start(s, 8)); // "{a"
     assert!(is_placeholder_start(s, 11)); // "{_"
-}
-
-#[test]
-fn empty_type_hint_is_detected() {
-    let pat = "{n:   }";
-    let st = RegexBuilder::new(pat);
-    // name_end just after "n" (index 2)
-    let (name_end, _name) = parse_placeholder_name(&st, 1);
-    assert!(is_empty_type_hint(&st, name_end));
 }
 
 #[test]

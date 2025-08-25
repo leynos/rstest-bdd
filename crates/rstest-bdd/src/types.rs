@@ -4,6 +4,8 @@
 //! aliases used by the registry and runner.
 
 use gherkin::StepType;
+use std::fmt;
+use std::fmt::Write as _;
 use std::str::FromStr;
 use thiserror::Error;
 
@@ -121,12 +123,53 @@ impl From<StepType> for StepKeyword {
     }
 }
 
+/// Detailed information about placeholder parsing failures.
+#[derive(Debug)]
+pub struct PlaceholderSyntaxError {
+    /// Human‑readable reason for the failure.
+    pub message: String,
+    /// Byte index in the original pattern where parsing failed.
+    pub position: usize,
+    /// Name of the placeholder, when known.
+    pub placeholder: Option<String>,
+}
+
+impl PlaceholderSyntaxError {
+    /// Construct a new syntax error with optional placeholder context.
+    #[must_use]
+    pub fn new(message: impl Into<String>, position: usize, placeholder: Option<String>) -> Self {
+        Self {
+            message: message.into(),
+            position,
+            placeholder,
+        }
+    }
+
+    /// Return the user‑facing message without the "invalid placeholder syntax" prefix.
+    #[must_use]
+    pub fn user_message(&self) -> String {
+        let mut msg = format!("{} at position {}", self.message, self.position);
+        if let Some(name) = &self.placeholder {
+            let _ = write!(msg, " for placeholder `{name}`");
+        }
+        msg
+    }
+}
+
+impl fmt::Display for PlaceholderSyntaxError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "invalid placeholder syntax: {}", self.user_message())
+    }
+}
+
+impl std::error::Error for PlaceholderSyntaxError {}
+
 /// Errors that may occur when compiling a [`StepPattern`].
 #[derive(Debug, Error)]
 pub enum StepPatternError {
     /// Placeholder syntax in the pattern is invalid.
-    #[error("invalid placeholder syntax: {0}")]
-    PlaceholderSyntax(String),
+    #[error(transparent)]
+    PlaceholderSyntax(#[from] PlaceholderSyntaxError),
     /// The generated regular expression failed to compile.
     #[error("{0}")]
     Regex(#[from] regex::Error),

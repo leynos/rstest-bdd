@@ -1035,7 +1035,8 @@ enum PlaceholderError {
     capture manifests as a mismatch because the entire text must match the
     compiled regular expression for the pattern.
   - InvalidPlaceholder(String): the pattern contained malformed placeholder
-    syntax and could not be parsed. No additional metadata is captured.
+    syntax and could not be parsed. The message includes the byte position and,
+    when available, the offending placeholder name.
   - InvalidPattern(String): carries the underlying `regex::Error` string coming
     from the regular expression engine during compilation of the pattern. No
     additional metadata (placeholder name, position, or line info) is captured.
@@ -1045,7 +1046,12 @@ enum PlaceholderError {
 
 - Example error strings (exact `Display` output):
   - Pattern mismatch: `"pattern mismatch"`
-  - Invalid placeholder: `"invalid placeholder syntax: reason"`
+  - Invalid placeholder:
+
+    ```text
+    "invalid placeholder syntax: invalid placeholder in step pattern at position 6 for placeholder `n`"
+    ```
+
   - Invalid pattern: `"invalid step pattern: regex parse error: error message"`
   - Uncompiled: `"uncompiled step pattern"`
 
@@ -1054,17 +1060,25 @@ enum PlaceholderError {
   to JSON at an API boundary:
 
 ```json
-// Pattern mismatch
-{"code":"pattern_mismatch","message":"pattern mismatch"}
+{
+  "code": "pattern_mismatch",
+  "message": "pattern mismatch"
+}
 
-// Invalid placeholder
-{"code":"invalid_placeholder","message":"invalid placeholder syntax: reason"}
+{
+  "code": "invalid_placeholder",
+  "message": "invalid placeholder syntax: invalid placeholder in step pattern at position 6 for placeholder `n`"
+}
 
-// Invalid pattern
-{"code":"invalid_pattern","message":"invalid step pattern: <regex_error>"}
+{
+  "code": "invalid_pattern",
+  "message": "invalid step pattern: <regex_error>"
+}
 
-// Uncompiled pattern
-{"code":"uncompiled","message":"uncompiled step pattern"}
+{
+  "code": "uncompiled",
+  "message": "uncompiled step pattern"
+}
 ```
 
 Step wrapper functions parse the returned strings and convert them with

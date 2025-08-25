@@ -120,6 +120,20 @@ fn malformed_type_hint_is_error() {
         matches!(pat2.compile(), Err(StepPatternError::PlaceholderSyntax(_))),
         "whitespace before colon is invalid"
     );
+
+    // Whitespace immediately after the colon is invalid.
+    let pat3 = StepPattern::from("value {n: f64}");
+    assert!(
+        matches!(pat3.compile(), Err(StepPatternError::PlaceholderSyntax(_))),
+        "whitespace after colon is invalid"
+    );
+
+    // Trailing whitespace before the closing brace is invalid.
+    let pat4 = StepPattern::from("value {n:f64 }");
+    assert!(
+        matches!(pat4.compile(), Err(StepPatternError::PlaceholderSyntax(_))),
+        "whitespace around type hint is invalid"
+    );
 }
 
 #[test]
@@ -129,6 +143,10 @@ fn extraction_reports_invalid_placeholder_error() {
     let err = extract_placeholders(&pat, StepText::from("value 1"))
         .expect_err("placeholder error expected");
     assert!(matches!(err, PlaceholderError::InvalidPlaceholder(_)));
+    assert_eq!(
+        err.to_string(),
+        "invalid placeholder syntax: invalid placeholder in step pattern at position 6 for placeholder `n`"
+    );
 }
 
 #[test]
@@ -227,6 +245,44 @@ fn compile_fails_on_unbalanced_braces() {
     assert!(
         matches!(pat.compile(), Err(StepPatternError::PlaceholderSyntax(_))),
         "unbalanced braces should error"
+    );
+}
+
+#[test]
+fn compile_fails_on_multiple_unbalanced_braces() {
+    // Unbalanced opening at start
+    let pat1 = StepPattern::from("{unbalanced start text");
+    assert!(
+        matches!(pat1.compile(), Err(StepPatternError::PlaceholderSyntax(_))),
+        "unbalanced opening brace at start should error",
+    );
+
+    // Unbalanced closing at end
+    let pat2 = StepPattern::from("text with unbalanced end}");
+    assert!(
+        matches!(pat2.compile(), Err(StepPatternError::PlaceholderSyntax(_))),
+        "unbalanced closing brace at end should error",
+    );
+
+    // Multiple unbalanced opening braces
+    let pat3 = StepPattern::from("text {with {multiple unbalanced");
+    assert!(
+        matches!(pat3.compile(), Err(StepPatternError::PlaceholderSyntax(_))),
+        "multiple unbalanced opening braces should error",
+    );
+
+    // Multiple unbalanced closing braces
+    let pat4 = StepPattern::from("text} with} multiple unbalanced");
+    assert!(
+        matches!(pat4.compile(), Err(StepPatternError::PlaceholderSyntax(_))),
+        "multiple unbalanced closing braces should error",
+    );
+
+    // Unbalanced braces in the middle
+    let pat5 = StepPattern::from("start {middle text} end}");
+    assert!(
+        matches!(pat5.compile(), Err(StepPatternError::PlaceholderSyntax(_))),
+        "unbalanced closing brace in the middle should error",
     );
 }
 

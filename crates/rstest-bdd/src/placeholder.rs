@@ -4,7 +4,7 @@
 //! expression. Helpers are `pub(crate)` to support internal tests.
 
 use crate::pattern::StepPattern;
-use crate::types::{PlaceholderError, StepPatternError, StepText};
+use crate::types::{PlaceholderError, PlaceholderSyntaxError, StepPatternError, StepText};
 use regex::Regex;
 
 /// Extract placeholder values from a step string using a pattern.
@@ -22,7 +22,9 @@ pub fn extract_placeholders(
     text: StepText<'_>,
 ) -> Result<Vec<String>, PlaceholderError> {
     pattern.compile().map_err(|e| match e {
-        StepPatternError::PlaceholderSyntax(s) => PlaceholderError::InvalidPlaceholder(s),
+        StepPatternError::PlaceholderSyntax(err) => {
+            PlaceholderError::InvalidPlaceholder(err.user_message())
+        }
         StepPatternError::Regex(e) => PlaceholderError::InvalidPattern(e.to_string()),
     })?;
     let re = pattern.try_regex().ok_or(PlaceholderError::Uncompiled)?;
@@ -115,24 +117,6 @@ pub(crate) fn is_placeholder_start(bytes: &[u8], pos: usize) -> bool {
         && matches!(bytes.get(pos + 1), Some(b) if (*b as char).is_ascii_alphabetic() || *b == b'_')
 }
 
-#[inline]
-pub(crate) fn is_empty_type_hint(state: &RegexBuilder<'_>, name_end: usize) -> bool {
-    if !matches!(state.bytes.get(name_end), Some(b':')) {
-        return false;
-    }
-    let mut i = name_end + 1;
-    while let Some(&b) = state.bytes.get(i) {
-        if b == b'}' {
-            return true;
-        }
-        if !(b as char).is_ascii_whitespace() {
-            return false;
-        }
-        i += 1;
-    }
-    false
-}
-
 pub(crate) fn parse_escaped_brace(state: &mut RegexBuilder<'_>) {
     #[expect(clippy::indexing_slicing, reason = "predicate ensured bound")]
     let ch = state.bytes[state.position + 1];
@@ -219,16 +203,16 @@ pub(crate) fn parse_type_hint(state: &RegexBuilder<'_>, start: usize) -> (usize,
         }
     }
     #[expect(clippy::string_slice, reason = "ASCII region delimited by braces")]
-    let ty = state.pattern[ty_start..i].trim().to_string();
+    let ty = state.pattern[ty_start..i].to_string();
     if ty.is_empty() {
-        return (start, None);
+        return (i, Some(String::new()));
     }
     (i, Some(ty))
 }
 
 pub(crate) fn parse_placeholder(state: &mut RegexBuilder<'_>) -> Result<(), StepPatternError> {
     let start = state.position;
-    let (name_end, _name) = parse_placeholder_name(state, start + 1);
+    let (name_end, name) = parse_placeholder_name(state, start);
     if let Some(b) = state.bytes.get(name_end) {
         if (*b as char).is_ascii_whitespace() {
             let mut ws = name_end;
@@ -239,18 +223,29 @@ pub(crate) fn parse_placeholder(state: &mut RegexBuilder<'_>) -> Result<(), Step
                 ws += 1;
             }
             if matches!(state.bytes.get(ws), Some(b':')) {
-                return Err(StepPatternError::PlaceholderSyntax(
-                    "invalid placeholder in step pattern".to_string(),
-                ));
+                return Err(PlaceholderSyntaxError::new(
+                    "invalid placeholder in step pattern",
+                    start,
+                    Some(name.clone()),
+                )
+                .into());
             }
         }
     }
-    if is_empty_type_hint(state, name_end) {
-        return Err(StepPatternError::PlaceholderSyntax(
-            "invalid placeholder in step pattern".to_string(),
-        ));
-    }
-    let (mut after, ty_opt) = parse_type_hint(state, name_end);
+    let (mut after, ty_raw) = parse_type_hint(state, name_end);
+    let ty_opt = if let Some(ty) = ty_raw {
+        if ty.is_empty() || ty.chars().any(|c| c.is_ascii_whitespace()) {
+            return Err(PlaceholderSyntaxError::new(
+                "invalid placeholder in step pattern",
+                start,
+                Some(name.clone()),
+            )
+            .into());
+        }
+        Some(ty)
+    } else {
+        None
+    };
     if ty_opt.is_none() {
         // No explicit type hint; scan to matching '}' allowing nested.
         let mut k = name_end;
@@ -274,9 +269,12 @@ pub(crate) fn parse_placeholder(state: &mut RegexBuilder<'_>) -> Result<(), Step
         after = k;
     }
     if !matches!(state.bytes.get(after), Some(b'}')) {
-        return Err(StepPatternError::PlaceholderSyntax(
-            "unbalanced braces in step pattern".to_string(),
-        ));
+        return Err(PlaceholderSyntaxError::new(
+            "unbalanced braces in step pattern",
+            start,
+            Some(name),
+        )
+        .into());
     }
     state.push_capture_for_type(ty_opt.as_deref());
     if ty_opt.as_ref().is_some_and(|t| t.contains('{')) {
@@ -343,10 +341,12 @@ pub(crate) fn parse_context_specific(st: &mut RegexBuilder<'_>) -> Result<(), St
         return parse_placeholder(st);
     }
     match st.bytes.get(st.position) {
-        Some(b'}') => Err(StepPatternError::PlaceholderSyntax(format!(
-            "unmatched closing brace '}}' at position {} in step pattern",
-            st.position
-        ))),
+        Some(b'}') => Err(PlaceholderSyntaxError::new(
+            "unmatched closing brace '}' in step pattern",
+            st.position,
+            None,
+        )
+        .into()),
         Some(b'{') => {
             st.push_literal_brace(b'{');
             st.stray_depth = st.stray_depth.saturating_add(1);
@@ -368,9 +368,12 @@ pub(crate) fn build_regex_from_pattern(pat: &str) -> Result<String, StepPatternE
         }
     }
     if st.stray_depth != 0 {
-        return Err(StepPatternError::PlaceholderSyntax(
-            "unbalanced braces in step pattern".to_string(),
-        ));
+        return Err(PlaceholderSyntaxError::new(
+            "unbalanced braces in step pattern",
+            st.position,
+            None,
+        )
+        .into());
     }
     st.output.push('$');
     Ok(st.output)
