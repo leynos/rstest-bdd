@@ -128,7 +128,7 @@ impl From<StepType> for StepKeyword {
 pub struct PlaceholderSyntaxError {
     /// Human‑readable reason for the failure.
     pub message: String,
-    /// Byte index in the original pattern where parsing failed.
+    /// Zero-based byte offset in the original pattern where parsing failed.
     pub position: usize,
     /// Name of the placeholder, when known.
     pub placeholder: Option<String>,
@@ -148,7 +148,7 @@ impl PlaceholderSyntaxError {
     /// Return the user‑facing message without the "invalid placeholder syntax" prefix.
     #[must_use]
     pub fn user_message(&self) -> String {
-        let mut msg = format!("{} at position {}", self.message, self.position);
+        let mut msg = format!("{} at byte {} (zero-based)", self.message, self.position);
         if let Some(name) = &self.placeholder {
             let _ = write!(msg, " for placeholder `{name}`");
         }

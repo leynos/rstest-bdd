@@ -228,6 +228,14 @@ pub(crate) fn validate_placeholder_whitespace(
     Ok(())
 }
 
+/// Returns `true` if the type hint is empty, contains whitespace, or braces.
+fn is_invalid_type_hint(ty: &str) -> bool {
+    ty.is_empty()
+        || ty.chars().any(|c| c.is_ascii_whitespace())
+        || ty.contains('{')
+        || ty.contains('}')
+}
+
 /// Ensures the raw type hint is well-formed, rejecting empty,
 /// whitespace-padded, or brace-containing hints.
 pub(crate) fn validate_type_hint(
@@ -236,11 +244,7 @@ pub(crate) fn validate_type_hint(
     name: &str,
 ) -> Result<Option<String>, StepPatternError> {
     if let Some(ty) = ty_raw {
-        if ty.is_empty()
-            || ty.chars().any(|c| c.is_ascii_whitespace())
-            || ty.contains('{')
-            || ty.contains('}')
-        {
+        if is_invalid_type_hint(&ty) {
             return Err(PlaceholderSyntaxError::new(
                 "invalid placeholder in step pattern",
                 start,

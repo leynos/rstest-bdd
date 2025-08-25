@@ -1032,8 +1032,8 @@ enum PlaceholderError {
     capture manifests as a mismatch because the entire text must match the
     compiled regular expression for the pattern.
   - InvalidPlaceholder(String): the pattern contained malformed placeholder
-    syntax and could not be parsed. The message includes the byte position and,
-    when available, the offending placeholder name.
+    syntax and could not be parsed. The message includes the zero-based byte
+    offset and, when available, the offending placeholder name.
   - InvalidPattern(String): carries the underlying `regex::Error` string coming
     from the regular expression engine during compilation of the pattern. No
     additional metadata (placeholder name, position, or line info) is captured.
@@ -1043,15 +1043,14 @@ enum PlaceholderError {
   - Invalid placeholder:
 
     ```text
-    "invalid placeholder syntax: invalid placeholder in step pattern at position 6 for placeholder `n`"
+    "invalid placeholder syntax: invalid placeholder in step pattern at byte 6 (zero-based) for placeholder `n`"
     ```
 
   - Invalid pattern: `"invalid step pattern: regex parse error: error message"`
 
   - Example JSON mapping (for consumers that serialize errors). Note: this is
-    not
-  emitted by the library; it is a suggested shape if you need to map the enum
-  to JSON at an API boundary:
+    not emitted by the library; it is a suggested shape if you need to map the
+    enum to JSON at an API boundary:
 
 ```json
 {
