@@ -8,12 +8,22 @@ on:
 
 jobs:
   build-test:
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
     permissions:
       contents: read
     env:
       CARGO_TERM_COLOR: always
+      CS_ACCESS_TOKEN: ${{ secrets.CS_ACCESS_TOKEN }}
+      CODESCENE_CLI_SHA256: ${{ vars.CODESCENE_CLI_SHA256 }}
       BUILD_PROFILE: debug
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            coverage: true
+          - os: windows-latest
+            coverage: false
     steps:
       - uses: actions/checkout@v4
       - name: Setup Rust
