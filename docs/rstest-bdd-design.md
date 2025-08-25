@@ -470,6 +470,67 @@ global registry stores `(StepKeyword, &'static StepPattern)` keys in a
 `hashbrown::HashMap` and uses the raw-entry API for constant-time lookups by
 hashing the pattern text directly.
 
+Placeholder parsing converts the pattern text into a regular expression using a
+single-pass scanner. The current implementation relies on `pub(crate)` helpers
+— `build_regex_from_pattern`, `try_parse_common_sequences`,
+`parse_context_specific`, and `parse_placeholder`. The diagram below shows how
+`compile` invokes the scanner and how malformed placeholders or unbalanced
+braces surface as errors. This single-pass scanner is the current
+implementation; issue #42 proposes replacing it with a simpler
+`regex::Regex::replace_all` based approach.
+
+```mermaid
+sequenceDiagram
+  autonumber
+  actor Dev as Developer
+  participant SP as StepPattern
+  participant RB as build_regex_from_pattern (pub(crate))
+  participant TC as try_parse_common_sequences (pub(crate))
+  participant PC as parse_context_specific (pub(crate))
+  participant PP as parse_placeholder (pub(crate))
+  participant RX as regex::Regex
+
+  Dev->>SP: compile()
+  SP->>RB: build_regex_from_pattern(text)
+  loop over pattern bytes
+    RB->>TC: try_parse_common_sequences(...)
+    alt recognised sequence
+      TC-->>RB: consume
+    else other character
+      RB->>PC: parse_context_specific(...)
+      alt placeholder start
+        PC->>PP: parse_placeholder(...)
+        alt OK
+          PP-->>PC: Ok(())
+        else Malformed/unbalanced
+          PP-->>PC: Err(regex::Error)
+          PC-->>RB: Err(regex::Error)
+          RB-->>SP: Err(regex::Error)
+          SP-->>Dev: Err
+        end
+      else stray/unmatched brace
+        PC-->>RB: Err(regex::Error)
+        RB-->>SP: Err(regex::Error)
+        SP-->>Dev: Err
+      end
+    end
+  end
+  alt stray depth != 0
+    RB-->>SP: Err(regex::Error)
+    SP-->>Dev: Err
+  else balanced
+    RB-->>SP: Ok(src)
+    SP->>RX: Regex::new(src)
+    RX-->>SP: Ok(Regex)
+    SP-->>Dev: Ok(())
+  end
+```
+
+Figure: `compile` delegates to the internal single-pass scanner. At compile
+time, `StepPattern::compile` returns a `Result<(), regex::Error>`, and
+`extract_placeholders` wraps any compile error as
+`PlaceholderError::InvalidPattern` at runtime.
+
 Duplicate step definitions are rejected when the registry is built. Attempting
 to register the same keyword and pattern combination twice results in a panic
 that points to the conflicting definition so that errors surface early during
