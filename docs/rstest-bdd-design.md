@@ -1060,7 +1060,7 @@ enum PlaceholderError {
 
 {
   "code": "invalid_placeholder",
-  "message": "invalid placeholder syntax: invalid placeholder in step pattern at position 6 for placeholder `n`"
+  "message": "invalid placeholder syntax: invalid placeholder in step pattern at byte 6 (zero-based) for placeholder `n`"
 }
 
 {
@@ -1117,18 +1117,23 @@ Public APIs are re‑exported from `lib.rs` so consumers continue to import from
   - `StepKeyword` (+ `FromStr`), `StepKeywordParseError`.
   - `PlaceholderError`: semantic error enum returned by parsing helpers.
   - `StepFn`: type alias for the step function pointer.
+
 - `pattern.rs`: Step pattern wrapper.
   - `StepPattern::new`, `compile`, `regex`.
+
 - `placeholder.rs`: Placeholder extraction and scanner.
   - `extract_placeholders` (public) and the single‑pass scanner
     `build_regex_from_pattern` with small parsing predicates and helpers.
+
 - `context.rs`: Fixture context.
   - `StepContext`: simple type‑indexed store used to pass fixtures into steps.
+
 - `registry.rs`: Registration and lookup.
   - `Step` record, `step!` macro, global registry map, `lookup_step`,
     `find_step`.
+
 - `lib.rs`: Public API facade.
-  - Re‑exports public items and keeps the `greet()` example function.
+  - Re-exports public items and keeps the `greet()` example function.
 
 All modules use en‑GB spelling and include `//!` module‑level documentation.
 

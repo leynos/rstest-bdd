@@ -20,12 +20,7 @@ pub fn extract_placeholders(
     pattern: &StepPattern,
     text: StepText<'_>,
 ) -> Result<Vec<String>, PlaceholderError> {
-    pattern.compile().map_err(|e| match e {
-        StepPatternError::PlaceholderSyntax(err) => {
-            PlaceholderError::InvalidPlaceholder(err.user_message())
-        }
-        StepPatternError::Regex(e) => PlaceholderError::InvalidPattern(e.to_string()),
-    })?;
+    pattern.compile()?;
     let re = pattern.regex();
     extract_captured_values(re, text.as_str()).ok_or(PlaceholderError::PatternMismatch)
 }

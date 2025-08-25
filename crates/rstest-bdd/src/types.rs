@@ -191,6 +191,17 @@ pub enum PlaceholderError {
     InvalidPattern(String),
 }
 
+impl From<StepPatternError> for PlaceholderError {
+    fn from(e: StepPatternError) -> Self {
+        match e {
+            StepPatternError::PlaceholderSyntax(err) => {
+                Self::InvalidPlaceholder(err.user_message())
+            }
+            StepPatternError::Regex(re) => Self::InvalidPattern(re.to_string()),
+        }
+    }
+}
+
 /// Type alias for the stored step function pointer.
 pub type StepFn = for<'a> fn(
     &crate::context::StepContext<'a>,
