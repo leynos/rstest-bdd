@@ -8,14 +8,14 @@ use crate::types::{PlaceholderError, PlaceholderSyntaxError, StepPatternError, S
 use regex::Regex;
 
 /// Extract placeholder values from a step string using a pattern.
-/// See crate-level docs for the accepted syntax and error cases.
+/// See crate-level docs for accepted syntax and error cases.
 ///
 /// # Errors
-/// Returns [`PlaceholderError::InvalidPlaceholder`] if the pattern contains
-/// malformed placeholders, [`PlaceholderError::InvalidPattern`] if the
-/// generated regex fails to compile, and
-/// [`PlaceholderError::PatternMismatch`] when the text does not satisfy the
-/// pattern.
+/// - [`PlaceholderError::InvalidPlaceholder`]: pattern contains malformed
+///   placeholders
+/// - [`PlaceholderError::InvalidPattern`]: generated regular expression failed
+///   to compile
+/// - [`PlaceholderError::PatternMismatch`]: text does not match the pattern
 pub fn extract_placeholders(
     pattern: &StepPattern,
     text: StepText<'_>,
