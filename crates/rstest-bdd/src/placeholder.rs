@@ -4,24 +4,27 @@
 //! expression. Helpers are `pub(crate)` to support internal tests.
 
 use crate::pattern::StepPattern;
-use crate::types::{PlaceholderError, StepText};
+use crate::types::{PlaceholderError, StepPatternError, StepText};
 use regex::Regex;
 
 /// Extract placeholder values from a step string using a pattern.
 /// See crate-level docs for the accepted syntax and error cases.
 ///
 /// # Errors
-/// Returns [`PlaceholderError::InvalidPattern`] if the pattern cannot be
-/// compiled, [`PlaceholderError::Uncompiled`] if the pattern was not compiled
-/// before use (guard), and [`PlaceholderError::PatternMismatch`] when the text
-/// does not satisfy the pattern.
+/// Returns [`PlaceholderError::InvalidPlaceholder`] if the pattern contains
+/// malformed placeholders, [`PlaceholderError::InvalidPattern`] if the
+/// generated regex fails to compile, [`PlaceholderError::Uncompiled`] if the
+/// pattern was not compiled before use (guard), and
+/// [`PlaceholderError::PatternMismatch`] when the text does not satisfy the
+/// pattern.
 pub fn extract_placeholders(
     pattern: &StepPattern,
     text: StepText<'_>,
 ) -> Result<Vec<String>, PlaceholderError> {
-    pattern
-        .compile()
-        .map_err(|e| PlaceholderError::InvalidPattern(e.to_string()))?;
+    pattern.compile().map_err(|e| match e {
+        StepPatternError::PlaceholderSyntax(s) => PlaceholderError::InvalidPlaceholder(s),
+        StepPatternError::Regex(e) => PlaceholderError::InvalidPattern(e.to_string()),
+    })?;
     let re = pattern.try_regex().ok_or(PlaceholderError::Uncompiled)?;
     extract_captured_values(re, text.as_str()).ok_or(PlaceholderError::PatternMismatch)
 }
@@ -223,7 +226,7 @@ pub(crate) fn parse_type_hint(state: &RegexBuilder<'_>, start: usize) -> (usize,
     (i, Some(ty))
 }
 
-pub(crate) fn parse_placeholder(state: &mut RegexBuilder<'_>) -> Result<(), regex::Error> {
+pub(crate) fn parse_placeholder(state: &mut RegexBuilder<'_>) -> Result<(), StepPatternError> {
     let start = state.position;
     let (name_end, _name) = parse_placeholder_name(state, start + 1);
     if let Some(b) = state.bytes.get(name_end) {
@@ -236,14 +239,14 @@ pub(crate) fn parse_placeholder(state: &mut RegexBuilder<'_>) -> Result<(), rege
                 ws += 1;
             }
             if matches!(state.bytes.get(ws), Some(b':')) {
-                return Err(regex::Error::Syntax(
+                return Err(StepPatternError::PlaceholderSyntax(
                     "invalid placeholder in step pattern".to_string(),
                 ));
             }
         }
     }
     if is_empty_type_hint(state, name_end) {
-        return Err(regex::Error::Syntax(
+        return Err(StepPatternError::PlaceholderSyntax(
             "invalid placeholder in step pattern".to_string(),
         ));
     }
@@ -271,7 +274,7 @@ pub(crate) fn parse_placeholder(state: &mut RegexBuilder<'_>) -> Result<(), rege
         after = k;
     }
     if !matches!(state.bytes.get(after), Some(b'}')) {
-        return Err(regex::Error::Syntax(
+        return Err(StepPatternError::PlaceholderSyntax(
             "unbalanced braces in step pattern".to_string(),
         ));
     }
@@ -331,7 +334,7 @@ pub(crate) fn parse_stray_character(st: &mut RegexBuilder<'_>) {
 /// character as a literal. Otherwise it parses a placeholder start or a simple
 /// literal.
 #[inline]
-pub(crate) fn parse_context_specific(st: &mut RegexBuilder<'_>) -> Result<(), regex::Error> {
+pub(crate) fn parse_context_specific(st: &mut RegexBuilder<'_>) -> Result<(), StepPatternError> {
     if st.stray_depth > 0 {
         parse_stray_character(st);
         return Ok(());
@@ -340,7 +343,7 @@ pub(crate) fn parse_context_specific(st: &mut RegexBuilder<'_>) -> Result<(), re
         return parse_placeholder(st);
     }
     match st.bytes.get(st.position) {
-        Some(b'}') => Err(regex::Error::Syntax(format!(
+        Some(b'}') => Err(StepPatternError::PlaceholderSyntax(format!(
             "unmatched closing brace '}}' at position {} in step pattern",
             st.position
         ))),
@@ -357,7 +360,7 @@ pub(crate) fn parse_context_specific(st: &mut RegexBuilder<'_>) -> Result<(), re
     }
 }
 
-pub(crate) fn build_regex_from_pattern(pat: &str) -> Result<String, regex::Error> {
+pub(crate) fn build_regex_from_pattern(pat: &str) -> Result<String, StepPatternError> {
     let mut st = RegexBuilder::new(pat);
     while st.has_more() {
         if !try_parse_common_sequences(&mut st) {
@@ -365,7 +368,7 @@ pub(crate) fn build_regex_from_pattern(pat: &str) -> Result<String, regex::Error
         }
     }
     if st.stray_depth != 0 {
-        return Err(regex::Error::Syntax(
+        return Err(StepPatternError::PlaceholderSyntax(
             "unbalanced braces in step pattern".to_string(),
         ));
     }

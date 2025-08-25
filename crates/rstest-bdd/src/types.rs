@@ -121,12 +121,26 @@ impl From<StepType> for StepKeyword {
     }
 }
 
+/// Errors that may occur when compiling a [`StepPattern`].
+#[derive(Debug, Error)]
+pub enum StepPatternError {
+    /// Placeholder syntax in the pattern is invalid.
+    #[error("invalid placeholder syntax: {0}")]
+    PlaceholderSyntax(String),
+    /// The generated regular expression failed to compile.
+    #[error("{0}")]
+    Regex(#[from] regex::Error),
+}
+
 /// Error conditions that may arise when extracting placeholders.
 #[derive(Debug, Error)]
 pub enum PlaceholderError {
     /// The supplied text did not match the step pattern.
     #[error("pattern mismatch")]
     PatternMismatch,
+    /// The step pattern contained invalid placeholder syntax.
+    #[error("invalid placeholder syntax: {0}")]
+    InvalidPlaceholder(String),
     /// The step pattern could not be compiled into a regular expression.
     #[error("invalid step pattern: {0}")]
     InvalidPattern(String),
