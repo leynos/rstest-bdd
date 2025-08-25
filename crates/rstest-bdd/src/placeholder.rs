@@ -210,9 +210,14 @@ pub(crate) fn parse_type_hint(state: &RegexBuilder<'_>, start: usize) -> (usize,
     (i, Some(ty))
 }
 
-pub(crate) fn parse_placeholder(state: &mut RegexBuilder<'_>) -> Result<(), StepPatternError> {
-    let start = state.position;
-    let (name_end, name) = parse_placeholder_name(state, start);
+/// Validates that no whitespace appears between the placeholder name and an
+/// optional type hint separator.
+pub(crate) fn validate_placeholder_whitespace(
+    state: &RegexBuilder<'_>,
+    name_end: usize,
+    start: usize,
+    name: &str,
+) -> Result<(), StepPatternError> {
     if let Some(b) = state.bytes.get(name_end) {
         if (*b as char).is_ascii_whitespace() {
             let mut ws = name_end;
@@ -226,47 +231,74 @@ pub(crate) fn parse_placeholder(state: &mut RegexBuilder<'_>) -> Result<(), Step
                 return Err(PlaceholderSyntaxError::new(
                     "invalid placeholder in step pattern",
                     start,
-                    Some(name.clone()),
+                    Some(name.to_string()),
                 )
                 .into());
             }
         }
     }
-    let (mut after, ty_raw) = parse_type_hint(state, name_end);
-    let ty_opt = if let Some(ty) = ty_raw {
+    Ok(())
+}
+
+/// Ensures the raw type hint is well-formed, rejecting empty or
+/// whitespace-padded hints.
+pub(crate) fn validate_type_hint(
+    ty_raw: Option<String>,
+    start: usize,
+    name: &str,
+) -> Result<Option<String>, StepPatternError> {
+    if let Some(ty) = ty_raw {
         if ty.is_empty() || ty.chars().any(|c| c.is_ascii_whitespace()) {
             return Err(PlaceholderSyntaxError::new(
                 "invalid placeholder in step pattern",
                 start,
-                Some(name.clone()),
+                Some(name.to_string()),
             )
             .into());
         }
-        Some(ty)
+        Ok(Some(ty))
     } else {
-        None
-    };
-    if ty_opt.is_none() {
-        // No explicit type hint; scan to matching '}' allowing nested.
-        let mut k = name_end;
-        let mut nest = 0usize;
-        while let Some(&b) = state.bytes.get(k) {
-            match b {
-                b'{' => {
-                    nest += 1;
-                    k += 1;
-                }
-                b'}' => {
-                    if nest == 0 {
-                        break;
-                    }
-                    nest -= 1;
-                    k += 1;
-                }
-                _ => k += 1,
+        Ok(None)
+    }
+}
+
+/// Searches for the closing `}` from `start`, handling nested braces.
+pub(crate) fn find_closing_brace(bytes: &[u8], start: usize) -> Option<usize> {
+    let mut k = start;
+    let mut nest = 0usize;
+    while let Some(&b) = bytes.get(k) {
+        match b {
+            b'{' => {
+                nest += 1;
+                k += 1;
             }
+            b'}' => {
+                if nest == 0 {
+                    return Some(k);
+                }
+                nest -= 1;
+                k += 1;
+            }
+            _ => k += 1,
         }
-        after = k;
+    }
+    None
+}
+
+pub(crate) fn parse_placeholder(state: &mut RegexBuilder<'_>) -> Result<(), StepPatternError> {
+    let start = state.position;
+    let (name_end, name) = parse_placeholder_name(state, start);
+    validate_placeholder_whitespace(state, name_end, start, &name)?;
+    let (mut after, ty_raw) = parse_type_hint(state, name_end);
+    let ty_opt = validate_type_hint(ty_raw, start, &name)?;
+    if ty_opt.is_none() {
+        after = find_closing_brace(state.bytes, name_end).ok_or_else(|| {
+            PlaceholderSyntaxError::new(
+                "unbalanced braces in step pattern",
+                start,
+                Some(name.clone()),
+            )
+        })?;
     }
     if !matches!(state.bytes.get(after), Some(b'}')) {
         return Err(PlaceholderSyntaxError::new(
