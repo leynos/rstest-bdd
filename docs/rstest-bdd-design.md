@@ -471,18 +471,23 @@ global registry stores `(StepKeyword, &'static StepPattern)` keys in a
 hashing the pattern text directly.
 
 Placeholder parsing converts the pattern text into a regular expression using a
-single-pass scanner. The diagram below shows how `compile` invokes the scanner
-and how malformed placeholders or unbalanced braces surface as errors.
+single-pass scanner. The current implementation relies on `pub(crate)` helpers
+— `build_regex_from_pattern`, `try_parse_common_sequences`,
+`parse_context_specific`, and `parse_placeholder`. The diagram below shows how
+`compile` invokes the scanner and how malformed placeholders or unbalanced
+braces surface as errors. This single-pass scanner is the current
+implementation; issue #42 proposes replacing it with a simpler
+`regex::Regex::replace_all` based approach.
 
 ```mermaid
 sequenceDiagram
   autonumber
   actor Dev as Developer
   participant SP as StepPattern
-  participant RB as placeholder::build_regex_from_pattern
-  participant TC as try_parse_common_sequences
-  participant PC as parse_context_specific
-  participant PP as parse_placeholder
+  participant RB as build_regex_from_pattern (pub(crate))
+  participant TC as try_parse_common_sequences (pub(crate))
+  participant PC as parse_context_specific (pub(crate))
+  participant PP as parse_placeholder (pub(crate))
   participant RX as regex::Regex
 
   Dev->>SP: compile()
@@ -520,6 +525,11 @@ sequenceDiagram
     SP-->>Dev: Ok(())
   end
 ```
+
+Figure: `compile` delegates to the internal single-pass scanner. At compile
+time, `StepPattern::compile` returns a `Result<(), regex::Error>`, and
+`extract_placeholders` wraps any compile error as
+`PlaceholderError::InvalidPattern` at runtime.
 
 Duplicate step definitions are rejected when the registry is built. Attempting
 to register the same keyword and pattern combination twice results in a panic
