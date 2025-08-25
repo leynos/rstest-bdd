@@ -1065,7 +1065,7 @@ The third phase introduces typed placeholders to step patterns. The runtime
 library exposes an `extract_placeholders` helper that converts a pattern with
 `{name:Type}` segments into a regular expression and returns the captured
 strings or a `PlaceholderError` detailing why extraction failed. This error
-covers pattern mismatches as well as invalid or uncompiled step patterns.
+covers pattern mismatches and placeholder or regex compilation failures.
 
 PlaceholderError: API shape and examples
 
@@ -1079,11 +1079,11 @@ enum PlaceholderError {
   // Display: "pattern mismatch"
   PatternMismatch,
 
+  // Display: "invalid placeholder syntax: <reason>"
+  InvalidPlaceholder(String),
+
   // Display: "invalid step pattern: <regex_error>"
   InvalidPattern(String),
-
-  // Display: "uncompiled step pattern"
-  Uncompiled,
 }
 ```
 
@@ -1092,32 +1092,45 @@ enum PlaceholderError {
     pattern. There is no separate “missing capture” error; a missing or extra
     capture manifests as a mismatch because the entire text must match the
     compiled regular expression for the pattern.
+  - InvalidPlaceholder(String): the pattern contained malformed placeholder
+    syntax and could not be parsed. The message includes the zero-based byte
+    offset and, when available, the offending placeholder name.
   - InvalidPattern(String): carries the underlying `regex::Error` string coming
     from the regular expression engine during compilation of the pattern. No
     additional metadata (placeholder name, position, or line info) is captured.
-  - Uncompiled: no fields; indicates the step pattern was queried before being
-    compiled. This is a guard and should not occur in normal usage because
-    patterns are compiled during step registration.
 
 - Example error strings (exact `Display` output):
   - Pattern mismatch: `"pattern mismatch"`
-  - Invalid pattern: `"invalid step pattern: regex parse error: error message"`
-  - Uncompiled: `"uncompiled step pattern"`
+  - Invalid placeholder:
 
-- Example JSON mapping (for consumers that serialise errors). Note: this is not
-  emitted by the library; it is a suggested shape if you need to map the enum
-  to JSON at an API boundary:
+    ```text
+    "invalid placeholder syntax: invalid placeholder in step pattern at byte 6 (zero-based) for placeholder `n`"
+    ```
+
+  - Invalid pattern: `"invalid step pattern: regex parse error: error message"`
+
+  - Example JSON mapping (for consumers that serialize errors). Note: this is
+    not emitted by the library; it is a suggested shape if you need to map the
+    enum to JSON at an API boundary:
 
 ```json
-// Pattern mismatch
-{"code":"pattern_mismatch","message":"pattern mismatch"}
+{
+  "code": "pattern_mismatch",
+  "message": "pattern mismatch"
+}
 
-// Invalid pattern
-{"code":"invalid_pattern","message":"invalid step pattern: <regex_error>"}
+{
+  "code": "invalid_placeholder",
+  "message": "invalid placeholder syntax: invalid placeholder in step pattern at byte 6 (zero-based) for placeholder `n`"
+}
 
-// Uncompiled pattern
-{"code":"uncompiled","message":"uncompiled step pattern"}
+{
+  "code": "invalid_pattern",
+  "message": "invalid step pattern: <regex_error>"
+}
 ```
+
+Note: `code` values are stable identifiers intended for programmatic use.
 
 Step wrapper functions parse the returned strings and convert them with
 `FromStr` before calling the original step. Scenario execution now searches the
@@ -1160,23 +1173,35 @@ To keep responsibilities cohesive the runtime is split into focused modules.
 Public APIs are re‑exported from `lib.rs` so consumers continue to import from
 `rstest_bdd::*` as before.
 
-- `types.rs`: Core types and errors.
-  - `PatternStr`, `StepText`: light wrappers for pattern keys and step text.
-  - `StepKeyword` (+ `FromStr`), `StepKeywordParseError`.
-  - `PlaceholderError`: semantic error enum returned by parsing helpers.
-  - `StepFn`: type alias for the step function pointer.
-- `pattern.rs`: Step pattern wrapper.
-  - `StepPattern::new`, `compile`, `regex` (plus `try_regex` for internal use).
-- `placeholder.rs`: Placeholder extraction and scanner.
-  - `extract_placeholders` (public) and the single‑pass scanner
-    `build_regex_from_pattern` with small parsing predicates and helpers.
-- `context.rs`: Fixture context.
-  - `StepContext`: simple type‑indexed store used to pass fixtures into steps.
-- `registry.rs`: Registration and lookup.
-  - `Step` record, `step!` macro, global registry map, `lookup_step`,
-    `find_step`.
-- `lib.rs`: Public API facade.
-  - Re‑exports public items and keeps the `greet()` example function.
+- `types.rs` — Core types and errors:
+  - `PatternStr`
+  - `StepText`
+  - `StepKeyword`
+  - `StepKeywordParseError`
+  - `PlaceholderError`
+  - `StepFn`
+
+- `pattern.rs` — Step pattern wrapper:
+  - `StepPattern::new`
+  - `compile`
+  - `regex`
+
+- `placeholder.rs` — Placeholder extraction and scanner:
+  - `extract_placeholders`
+  - `build_regex_from_pattern`
+
+- `context.rs` — Fixture context:
+  - `StepContext`
+
+- `registry.rs` — Registration and lookup:
+- `step!` macro
+- global registry map
+- `lookup_step`
+- `find_step`.
+
+- `lib.rs` — Public API facade:
+  - Re-exports public items
+  - `greet` example function
 
 All modules use en‑GB spelling and include `//!` module‑level documentation.
 

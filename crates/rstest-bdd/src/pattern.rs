@@ -2,6 +2,7 @@
 //! This module defines `StepPattern`, a lightweight wrapper around a pattern
 //! literal that compiles lazily to a regular expression.
 
+use crate::types::StepPatternError;
 use regex::Regex;
 use std::hash::{Hash, Hasher};
 use std::sync::OnceLock;
@@ -49,8 +50,18 @@ impl StepPattern {
     /// Compile the pattern into a regular expression, caching the result.
     ///
     /// # Errors
-    /// Returns an error if the pattern cannot be converted into a valid regex.
-    pub fn compile(&self) -> Result<(), regex::Error> {
+    /// Returns an error if the pattern contains invalid placeholders or the
+    /// generated regex fails to compile.
+    ///
+    /// # Notes
+    /// - This operation is idempotent. Subsequent calls after a successful
+    ///   compilation are no-ops.
+    /// - This method is thread-safe; concurrent calls may race to build a
+    ///   `Regex`, but only the first successful value is cached.
+    pub fn compile(&self) -> Result<(), StepPatternError> {
+        if self.regex.get().is_some() {
+            return Ok(());
+        }
         let src = crate::placeholder::build_regex_from_pattern(self.text)?;
         let regex = Regex::new(&src)?;
         let _ = self.regex.set(regex);
@@ -63,14 +74,12 @@ impl StepPattern {
     /// Panics if `compile()` was not called before this accessor.
     #[must_use]
     pub fn regex(&self) -> &Regex {
-        self.regex
-            .get()
-            .unwrap_or_else(|| panic!("step pattern regex must be precompiled"))
-    }
-
-    /// Return the cached regex if available.
-    pub(crate) fn try_regex(&self) -> Option<&Regex> {
-        self.regex.get()
+        self.regex.get().unwrap_or_else(|| {
+            panic!(
+                "step pattern regex must be precompiled; call compile() first on pattern '{}'",
+                self.text
+            )
+        })
     }
 }
 
