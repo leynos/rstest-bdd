@@ -184,22 +184,11 @@ pub(crate) fn parse_type_hint(state: &RegexBuilder<'_>, start: usize) -> (usize,
     }
     i += 1;
     let ty_start = i;
-    let mut nest = 0usize;
     while let Some(&b) = state.bytes.get(i) {
-        match b {
-            b'{' => {
-                nest += 1;
-                i += 1;
-            }
-            b'}' => {
-                if nest == 0 {
-                    break;
-                }
-                nest -= 1;
-                i += 1;
-            }
-            _ => i += 1,
+        if b == b'}' {
+            break;
         }
+        i += 1;
     }
     #[expect(clippy::string_slice, reason = "ASCII region delimited by braces")]
     let ty = state.pattern[ty_start..i].to_string();
@@ -318,7 +307,7 @@ pub(crate) fn parse_placeholder(state: &mut RegexBuilder<'_>) -> Result<(), Step
 }
 
 /// Parses sequences common to all contexts: doubled braces, escaped braces, or
-/// backslash escapes. Returns `true` if a recognised sequence was consumed.
+/// backslash escapes. Returns `true` if a recognized sequence was consumed.
 #[inline]
 pub(crate) fn try_parse_common_sequences(st: &mut RegexBuilder<'_>) -> bool {
     if is_double_brace(st.bytes, st.position) {

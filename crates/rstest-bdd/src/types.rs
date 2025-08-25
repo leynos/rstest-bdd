@@ -178,6 +178,7 @@ pub enum StepPatternError {
 
 /// Error conditions that may arise when extracting placeholders.
 #[derive(Debug, Error)]
+#[non_exhaustive]
 pub enum PlaceholderError {
     /// The supplied text did not match the step pattern.
     #[error("pattern mismatch")]

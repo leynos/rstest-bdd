@@ -1048,7 +1048,8 @@ enum PlaceholderError {
 
   - Invalid pattern: `"invalid step pattern: regex parse error: error message"`
 
-- Example JSON mapping (for consumers that serialise errors). Note: this is not
+  - Example JSON mapping (for consumers that serialize errors). Note: this is
+    not
   emitted by the library; it is a suggested shape if you need to map the enum
   to JSON at an API boundary:
 

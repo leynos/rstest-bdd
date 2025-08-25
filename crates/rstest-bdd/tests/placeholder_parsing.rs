@@ -239,50 +239,18 @@ fn handles_nested_braces() {
     assert_eq!(caps, vec!["value"]);
 }
 
-#[test]
-fn compile_fails_on_unbalanced_braces() {
-    let pat = StepPattern::from("before {outer {inner} after");
+#[rstest]
+#[case("before {outer {inner} after")]
+#[case("{unbalanced start text")]
+#[case("text with unbalanced end}")]
+#[case("text {with {multiple unbalanced")]
+#[case("text} with} multiple unbalanced")]
+#[case("start {middle text} end}")]
+fn compile_fails_on_unbalanced_braces(#[case] pattern: &'static str) {
+    let pat = StepPattern::from(pattern);
     assert!(
         matches!(pat.compile(), Err(StepPatternError::PlaceholderSyntax(_))),
-        "unbalanced braces should error"
-    );
-}
-
-#[test]
-fn compile_fails_on_multiple_unbalanced_braces() {
-    // Unbalanced opening at start
-    let pat1 = StepPattern::from("{unbalanced start text");
-    assert!(
-        matches!(pat1.compile(), Err(StepPatternError::PlaceholderSyntax(_))),
-        "unbalanced opening brace at start should error",
-    );
-
-    // Unbalanced closing at end
-    let pat2 = StepPattern::from("text with unbalanced end}");
-    assert!(
-        matches!(pat2.compile(), Err(StepPatternError::PlaceholderSyntax(_))),
-        "unbalanced closing brace at end should error",
-    );
-
-    // Multiple unbalanced opening braces
-    let pat3 = StepPattern::from("text {with {multiple unbalanced");
-    assert!(
-        matches!(pat3.compile(), Err(StepPatternError::PlaceholderSyntax(_))),
-        "multiple unbalanced opening braces should error",
-    );
-
-    // Multiple unbalanced closing braces
-    let pat4 = StepPattern::from("text} with} multiple unbalanced");
-    assert!(
-        matches!(pat4.compile(), Err(StepPatternError::PlaceholderSyntax(_))),
-        "multiple unbalanced closing braces should error",
-    );
-
-    // Unbalanced braces in the middle
-    let pat5 = StepPattern::from("start {middle text} end}");
-    assert!(
-        matches!(pat5.compile(), Err(StepPatternError::PlaceholderSyntax(_))),
-        "unbalanced closing brace in the middle should error",
+        "unbalanced braces should error: {pattern}"
     );
 }
 
