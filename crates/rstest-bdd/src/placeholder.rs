@@ -141,12 +141,13 @@ pub(crate) fn parse_escape_sequence(state: &mut RegexBuilder<'_>) {
     debug_assert!(matches!(state.bytes.get(state.position), Some(b'\\')));
     debug_assert!(!is_escaped_brace(state.bytes, state.position));
     debug_assert!(state.bytes.get(state.position + 1).is_some());
-    if let Some(&next) = state.bytes.get(state.position + 1) {
-        state.push_literal_byte(next);
-        state.advance(2);
-    } else if try_parse_common_sequences(state) {
-        // Trailing backslash handled by common sequences.
-    }
+    #[expect(
+        clippy::indexing_slicing,
+        reason = "preceding debug_assert ensures bound"
+    )]
+    let next = state.bytes[state.position + 1];
+    state.push_literal_byte(next);
+    state.advance(2);
 }
 
 pub(crate) fn parse_double_brace(state: &mut RegexBuilder<'_>) {

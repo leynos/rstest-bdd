@@ -185,9 +185,9 @@ fn unknown_escape_is_literal(
 
 #[test]
 fn trailing_backslash_is_literal() {
-    let pat = compiled(r"foo\");
+    let pat = compiled("foo\\");
     #[expect(clippy::expect_used, reason = "test asserts literal match")]
-    let caps = extract_placeholders(&pat, StepText::from(r"foo\"))
+    let caps = extract_placeholders(&pat, StepText::from("foo\\"))
         .expect("literal backslash should match");
     assert!(caps.is_empty(), "no placeholders expected");
     assert!(

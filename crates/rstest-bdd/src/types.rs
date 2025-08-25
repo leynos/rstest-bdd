@@ -57,7 +57,7 @@ impl<'a> From<&'a str> for StepText<'a> {
     }
 }
 
-/// Keyword used to categorise a step definition.
+/// Keyword used to categorize a step definition.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum StepKeyword {
     /// Setup preconditions for a scenario.

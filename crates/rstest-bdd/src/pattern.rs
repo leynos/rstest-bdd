@@ -52,6 +52,12 @@ impl StepPattern {
     /// # Errors
     /// Returns an error if the pattern contains invalid placeholders or the
     /// generated regex fails to compile.
+    ///
+    /// # Notes
+    /// - This operation is idempotent. Subsequent calls after a successful
+    ///   compilation are no-ops.
+    /// - This method is thread-safe; concurrent calls may race to build a
+    ///   `Regex`, but only the first successful value is cached.
     pub fn compile(&self) -> Result<(), StepPatternError> {
         let src = crate::placeholder::build_regex_from_pattern(self.text)?;
         let regex = Regex::new(&src)?;

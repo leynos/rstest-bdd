@@ -65,7 +65,7 @@ pub fn panic_message(e: &(dyn std::any::Any + Send)) -> String {
 
 /// Error type produced by step wrappers.
 ///
-/// The variants categorise the possible failure modes when invoking a step.
+/// The variants categorize the possible failure modes when invoking a step.
 #[derive(Debug, Error, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum StepError {
