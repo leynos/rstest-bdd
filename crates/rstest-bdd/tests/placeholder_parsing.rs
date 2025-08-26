@@ -272,17 +272,38 @@ fn handles_nested_braces() {
 }
 
 #[rstest]
-#[case("before {outer {inner} after")]
-#[case("{unbalanced start text")]
-#[case("text with unbalanced end}")]
-#[case("text {with {multiple unbalanced")]
-#[case("text} with} multiple unbalanced")]
-#[case("start {middle text} end}")]
-fn compile_fails_on_unbalanced_braces(#[case] pattern: &'static str) {
+#[case(
+    "before {outer {inner} after",
+    "nested unbalanced opening brace should error"
+)]
+#[case(
+    "{unbalanced start text",
+    "unbalanced opening brace at start should error"
+)]
+#[case(
+    "text with unbalanced end}",
+    "unbalanced closing brace at end should error"
+)]
+#[case(
+    "text {with {multiple unbalanced",
+    "multiple unbalanced opening braces should error"
+)]
+#[case(
+    "text} with} multiple unbalanced",
+    "multiple unbalanced closing braces should error"
+)]
+#[case(
+    "start {middle text} end}",
+    "unbalanced closing brace in middle should error"
+)]
+fn compile_fails_on_unbalanced_braces(
+    #[case] pattern: &'static str,
+    #[case] description: &'static str,
+) {
     let pat = StepPattern::from(pattern);
     assert!(
         matches!(pat.compile(), Err(StepPatternError::PlaceholderSyntax(_))),
-        "unbalanced braces should error: {pattern}"
+        "{description}"
     );
 }
 
