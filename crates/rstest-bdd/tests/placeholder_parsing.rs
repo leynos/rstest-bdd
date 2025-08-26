@@ -132,7 +132,14 @@ fn malformed_type_hint_is_error() {
     let pat4 = StepPattern::from("value {n:f64 }");
     assert!(
         matches!(pat4.compile(), Err(StepPatternError::PlaceholderSyntax(_))),
-        "whitespace around type hint is invalid"
+        "whitespace after type hint is invalid",
+    );
+
+    // Whitespace on both sides of the type hint is invalid.
+    let pat5 = StepPattern::from("value {n: f64 }");
+    assert!(
+        matches!(pat5.compile(), Err(StepPatternError::PlaceholderSyntax(_))),
+        "whitespace around type hint is invalid",
     );
 }
 
@@ -170,15 +177,13 @@ fn invalid_pattern_error_display() {
     #[expect(
         clippy::invalid_regex,
         clippy::expect_used,
-        reason = "deliberate invalid regex to test error display"
+        reason = "deliberate invalid regex to test error display",
     )]
     let regex_err = regex::Regex::new("(").expect_err("invalid regex should error");
-    let err: PlaceholderError = StepPatternError::from(regex_err.clone()).into();
+    let expected = format!("invalid step pattern: {regex_err}");
+    let err: PlaceholderError = StepPatternError::from(regex_err).into();
     assert!(matches!(err, PlaceholderError::InvalidPattern(_)));
-    assert_eq!(
-        err.to_string(),
-        format!("invalid step pattern: {regex_err}"),
-    );
+    assert_eq!(err.to_string(), expected);
 }
 
 #[test]

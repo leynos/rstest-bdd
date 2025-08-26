@@ -1133,10 +1133,10 @@ Public APIs are re‑exported from `lib.rs` so consumers continue to import from
   - `StepContext`
 
 - `registry.rs` — Registration and lookup:
-- `step!` macro
-- global registry map
-- `lookup_step`
-- `find_step`.
+  - `step!` macro
+  - global registry map
+  - `lookup_step`
+  - `find_step`.
 
 - `lib.rs` — Public API facade:
   - Re-exports public items
