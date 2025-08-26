@@ -8,7 +8,7 @@ use std::path::{Path, PathBuf};
 
 use crate::codegen::scenario::{ScenarioConfig, generate_scenario_code};
 use crate::parsing::feature::{extract_scenario_steps, parse_and_load_feature};
-use crate::utils::errors::error_to_tokens;
+use crate::utils::errors::{error_to_tokens, normalized_dir_read_error};
 use crate::utils::ident::sanitize_ident;
 use gherkin::Feature;
 
@@ -209,7 +209,7 @@ pub(crate) fn scenarios(input: TokenStream) -> TokenStream {
     let search_dir = manifest_dir.join(&dir);
     let feature_paths_res = collect_feature_files(&search_dir);
     if let Err(err) = feature_paths_res {
-        let msg = format!("failed to read directory `{}`: {err}", search_dir.display());
+        let msg = normalized_dir_read_error(&search_dir, &err);
         let err = syn::Error::new(Span::call_site(), msg);
         return error_to_tokens(&err).into();
     }
