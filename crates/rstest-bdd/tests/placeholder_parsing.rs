@@ -1,13 +1,27 @@
 //! Tests for placeholder extraction logic.
 
 use rstest::rstest;
-use rstest_bdd::{StepPattern, StepText, extract_placeholders};
+use rstest_bdd::{
+    PlaceholderError, PlaceholderSyntaxError, StepPattern, StepPatternError, StepText,
+    extract_placeholders,
+};
 
 #[expect(clippy::expect_used, reason = "test helper should fail loudly")]
 fn compiled(pattern: &'static str) -> StepPattern {
     let pat = StepPattern::from(pattern);
     pat.compile().expect("failed to compile pattern");
     pat
+}
+
+#[expect(
+    clippy::needless_pass_by_value,
+    reason = "test helper consumes pattern"
+)]
+fn expect_placeholder_syntax(pat: StepPattern) -> PlaceholderSyntaxError {
+    match pat.compile() {
+        Err(StepPatternError::PlaceholderSyntax(e)) => e,
+        other => panic!("expected PlaceholderSyntax error, got {other:?}"),
+    }
 }
 
 #[test]
@@ -108,15 +122,57 @@ fn invalid_type_hint_is_generic(
 #[test]
 fn malformed_type_hint_is_error() {
     // Empty type hint now yields a compilation error.
-    let pat = StepPattern::from("value {n:}");
-    assert!(pat.compile().is_err(), "empty type hint should be invalid");
+    let err = expect_placeholder_syntax(StepPattern::from("value {n:}"));
+    assert_eq!(err.position, 6);
+    assert_eq!(err.placeholder.as_deref(), Some("n"));
 
     // Whitespace between the name and colon also produces an error.
-    let pat2 = StepPattern::from("value {n : f64}");
-    assert!(
-        pat2.compile().is_err(),
-        "whitespace before colon is invalid"
+    expect_placeholder_syntax(StepPattern::from("value {n : f64}"));
+
+    // Whitespace immediately after the colon is invalid.
+    expect_placeholder_syntax(StepPattern::from("value {n: f64}"));
+
+    // Trailing whitespace before the closing brace is invalid.
+    expect_placeholder_syntax(StepPattern::from("value {n:f64 }"));
+
+    // Whitespace on both sides of the type hint is invalid.
+    expect_placeholder_syntax(StepPattern::from("value {n: f64 }"));
+}
+
+#[test]
+fn whitespace_before_closing_brace_is_error() {
+    for pattern in ["value {n }", "value {n   }"] {
+        let err = expect_placeholder_syntax(StepPattern::from(pattern));
+        assert_eq!(err.position, 6);
+        assert_eq!(err.placeholder.as_deref(), Some("n"));
+    }
+}
+
+#[test]
+fn extraction_reports_invalid_placeholder_error() {
+    let pat = StepPattern::from("value {n:}");
+    #[expect(clippy::expect_used, reason = "test asserts error variant")]
+    let err = extract_placeholders(&pat, StepText::from("value 1"))
+        .expect_err("placeholder error expected");
+    assert!(matches!(err, PlaceholderError::InvalidPlaceholder(_)));
+    assert_eq!(
+        err.to_string(),
+        "invalid placeholder syntax: invalid placeholder in step pattern at byte 6 (zero-based) for placeholder `n`"
     );
+}
+
+#[test]
+fn invalid_pattern_error_display() {
+    #[expect(
+        clippy::invalid_regex,
+        clippy::expect_used,
+        reason = "deliberate invalid regex to test error display"
+    )]
+    let regex_err = regex::Regex::new("(").expect_err("invalid regex should error");
+    let expected = format!("invalid step pattern: {regex_err}");
+    let err: PlaceholderError = StepPatternError::from(regex_err).into();
+    assert!(matches!(err, PlaceholderError::InvalidPattern(_)));
+    assert_eq!(err.to_string(), expected);
 }
 
 #[test]
@@ -155,9 +211,10 @@ fn unknown_escape_is_literal(
 
 #[test]
 fn trailing_backslash_is_literal() {
-    let pat = compiled(r"foo\");
+    // Use a normal string here; raw strings cannot end with a backslash.
+    let pat = compiled("foo\\");
     #[expect(clippy::expect_used, reason = "test asserts literal match")]
-    let caps = extract_placeholders(&pat, StepText::from(r"foo\"))
+    let caps = extract_placeholders(&pat, StepText::from("foo\\"))
         .expect("literal backslash should match");
     assert!(caps.is_empty(), "no placeholders expected");
     assert!(
@@ -199,6 +256,8 @@ fn test_brace_escaping_scenarios(
 
 #[test]
 fn handles_nested_braces() {
+    // The outer braces form stray text; the inner `{inner}` is a real placeholder.
+    // This ensures the scanner handles nested brace pairs without mis-parsing placeholders.
     let pat = StepPattern::from("before {outer {inner}} after");
     pat.compile()
         .unwrap_or_else(|e| panic!("Failed to compile pattern: {e}"));
@@ -209,33 +268,68 @@ fn handles_nested_braces() {
     assert_eq!(caps, vec!["value"]);
 }
 
-#[test]
-fn compile_fails_on_unbalanced_braces() {
-    let pat = StepPattern::from("before {outer {inner} after");
-    assert!(pat.compile().is_err(), "unbalanced braces should error");
+#[rstest]
+#[case(
+    "before {outer {inner} after",
+    "nested unbalanced opening brace should error"
+)]
+#[case(
+    "{unbalanced start text",
+    "unbalanced opening brace at start should error"
+)]
+#[case(
+    "text with unbalanced end}",
+    "unbalanced closing brace at end should error"
+)]
+#[case(
+    "text {with {multiple unbalanced",
+    "multiple unbalanced opening braces should error"
+)]
+#[case(
+    "text} with} multiple unbalanced",
+    "multiple unbalanced closing braces should error"
+)]
+#[case(
+    "start {middle text} end}",
+    "unbalanced closing brace in middle should error"
+)]
+fn compile_fails_on_unbalanced_braces(
+    #[case] pattern: &'static str,
+    #[case] description: &'static str,
+) {
+    let pat = StepPattern::from(pattern);
+    assert!(
+        matches!(pat.compile(), Err(StepPatternError::PlaceholderSyntax(_))),
+        "{description}"
+    );
 }
 
 #[test]
-fn nested_brace_in_placeholder_is_literal() {
-    let pat = compiled("{outer:{inner}}");
-    assert!(
-        extract_placeholders(&pat, StepText::from("value}")).is_ok(),
-        "trailing brace should be matched literally",
-    );
-    assert!(
-        extract_placeholders(&pat, StepText::from("value")).is_err(),
-        "missing closing brace should not match",
-    );
+fn nested_brace_in_placeholder_is_error() {
+    let err = expect_placeholder_syntax(StepPattern::from("{outer:{inner}}"));
+    assert_eq!(err.position, 0);
+    assert_eq!(err.placeholder.as_deref(), Some("outer"));
 }
 
 #[test]
 fn compile_fails_on_stray_closing_brace() {
-    let pat = StepPattern::from("end} with {n:u32}");
-    assert!(pat.compile().is_err(), "stray closing brace should error");
+    expect_placeholder_syntax(StepPattern::from("end} with {n:u32}"));
 }
 
 #[test]
 fn compile_fails_on_stray_opening_brace() {
-    let pat = StepPattern::from("start{ with {n:u32}");
-    assert!(pat.compile().is_err(), "stray opening brace should error");
+    expect_placeholder_syntax(StepPattern::from("start{ with {n:u32}"));
+}
+#[test]
+fn braces_in_type_hint_are_invalid() {
+    let err = expect_placeholder_syntax(StepPattern::from("value {n:{u32}}"));
+    assert_eq!(err.position, 6);
+    assert_eq!(err.placeholder.as_deref(), Some("n"));
+
+    let err2 = expect_placeholder_syntax(StepPattern::from("value {n:Vec<{u32}>}"));
+    assert_eq!(err2.position, 6);
+    assert_eq!(err2.placeholder.as_deref(), Some("n"));
+
+    assert!(StepPattern::from("value {n:u32}").compile().is_ok());
+    assert!(StepPattern::from("value {what:String}").compile().is_ok());
 }

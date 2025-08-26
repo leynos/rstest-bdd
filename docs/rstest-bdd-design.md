@@ -31,8 +31,8 @@ eliminates the need for a separate test runner, reducing CI/CD configuration
 complexity and lowering the barrier to adoption for teams already invested in
 the Rust testing ecosystem.[^3]
 
-The design is heavily modeled on `pytest-bdd`, a successful plugin for Python's
-`pytest` framework.[^4]
+The design is heavily modelled on `pytest-bdd`, a successful plugin for
+Python's `pytest` framework.[^4]
 
 `pytest-bdd`'s success stems from its ability to leverage the full power of its
 host framework—including fixtures, parameterization, and a vast plugin
@@ -111,7 +111,6 @@ async fn browser() -> WebDriverResult<WebDriver> {
 // The test attribute (e.g., #[tokio::test]) would be configured via
 // feature flags in Cargo.toml to support different async runtimes.
 #[tokio::test]
-#
 async fn test_simple_search(#[future] browser: WebDriver) {
     // The body of this function runs *after* all Gherkin steps have passed.
     // It can be used for final assertions or complex cleanup.[6]
@@ -121,7 +120,6 @@ async fn test_simple_search(#[future] browser: WebDriver) {
 
 // Step definitions are just decorated functions.
 // The #[from(fixture_name)] attribute injects the fixture into the step.
-#
 async fn go_to_home(#[from(browser)] driver: &mut WebDriver) {
     driver.goto("https://duckduckgo.com/").await.unwrap();
 }
@@ -377,13 +375,13 @@ macro has a distinct role in the compile-time orchestration of the BDD tests.
 
 The most significant technical hurdle in this design is the inherent nature of
 Rust's procedural macros. Each macro invocation is executed by the compiler in
-an isolated, stateless environment.20. This means that when the
+an isolated, stateless environment.[^20] This means that when the
 
 `#[scenario]` macro is expanding, it has no direct way to discover the
 functions that have been decorated with `#[given]`, `#[when]`, or `#[then]`. It
 cannot scan the project's source code, reflect on other modules, or access a
-shared compile-time state to build a map of available steps.22. This stands in
-stark contrast to
+shared compile-time state to build a map of available steps.[^22] This stands
+in stark contrast to
 
 `pytest`, which provides a rich runtime plugin system that `pytest-bdd` hooks
 into to discover tests and steps dynamically during a collection phase.[^7]
@@ -463,7 +461,7 @@ step keywords are surfaced early.
 The [`StepPattern`](../crates/rstest-bdd/src/pattern.rs) wrapper encapsulates
 the pattern text so that step lookups cannot accidentally mix arbitrary strings
 with registered patterns. Each pattern is compiled into a regular expression
-when the step registry is initialised, surfacing invalid syntax immediately.
+when the step registry is initialized, surfacing invalid syntax immediately.
 Equality and hashing rely solely on the pattern text. Transient fields like the
 cached `Regex` are ignored to preserve identity-by-source-text semantics. The
 global registry stores `(StepKeyword, &'static StepPattern)` keys in a
@@ -634,9 +632,6 @@ fn given_i_am_a_user(mut user_context: UserContext) { /\*... \*/ }
 - **Input Code:**
 
 ```rust
-
-#
-
 fn test_my_scenario(my_fixture: MyFixture) { /\* final assertion \*/ }
 ```
 
@@ -644,14 +639,14 @@ fn test_my_scenario(my_fixture: MyFixture) { /\* final assertion \*/ }
 
 1. The `#[scenario]` proc-macro performs file I/O to read the contents of
    `f.feature`.
-2. It uses a Gherkin parser crate (such as `gherkin` 26) to parse the feature
+2. It uses a Gherkin parser crate (such as `gherkin` [^26]) to parse the feature
    file content into an Abstract Syntax Tree (AST).
 3. It traverses the AST to find the `Scenario` with the name "My Scenario".
-4. It iterates through the global step registry (`inventory::iter`) *at compile
-   time* to check if a matching step exists for every Gherkin step. If a step
-   is missing, it emits a `compile_error!` with a helpful message, failing the
-   build early.
-5. Using the `quote!` macro 28, it generates a completely new Rust function.
+4. The macro cannot access the link-time step registry during compilation, so
+   it cannot verify step existence. Generated tests perform lookup at runtime
+   via `inventory::iter::<Step>()` and report a clear runtime error when no
+   matching pattern is found.
+5. Using the `quote!` macro [^28], it generates a completely new Rust function.
    This generated function replaces the original
 
    `test_my_scenario` function.
@@ -887,16 +882,16 @@ unit/integration tests.
 
 The following table summarizes the key differences:
 
-| Feature          | rstest-bdd (Proposed)                                                                                                        | cucumber                                                                       |
-| ---------------- | ---------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
-| Test Runner      | Standard cargo test (via rstest expansion)                                                                                   | Custom runner invoked from a main function (World::run(…)) 23                  |
-| State Management | rstest fixtures; dependency injection model 1                                                                                | Mandatory World struct; a central state object per scenario 11                 |
-| Step Discovery   | Automatic via compile-time registration (inventory) and runtime matching                                                     | Explicit collection in the test runner setup (World::cucumber().steps(…)) 37   |
-| Parameterization | Gherkin Scenario Outline maps to rstest's #[case] parameterization 15                                                        | Handled internally by the cucumber runner                                      |
-| Async Support    | Runtime-agnostic via feature flags (e.g., tokio, async-std) which emit the appropriate test attribute (#[tokio::test], etc.) | Built-in; requires specifying an async runtime 11                              |
-| Ecosystem        | Seamless integration with rstest and cargo features                                                                          | Self-contained framework; can use any Rust library within steps                |
-| Ergonomics       | pytest-bdd-like; explicit #[scenario] binding links test code to features 6                                                  | cucumber-jvm/js-like; feature-driven, with a central test runner               |
-| Core Philosophy  | BDD as an extension of the existing rstest framework                                                                         | A native Rust implementation of the Cucumber framework standard                |
+| Feature          | rstest-bdd (Proposed)                                                                                                        | cucumber                                                                          |
+| ---------------- | ---------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| Test Runner      | Standard cargo test (via rstest expansion)                                                                                   | Custom runner invoked from a main function (World::run(…)) [^23]                  |
+| State Management | rstest fixtures; dependency injection model [^1]                                                                             | Mandatory World struct; a central state object per scenario [^11]                 |
+| Step Discovery   | Automatic via compile-time registration (inventory) and runtime matching                                                     | Explicit collection in the test runner setup (World::cucumber().steps(…)) [^37]   |
+| Parameterization | Gherkin Scenario Outline maps to rstest's #[case] parameterization [^15]                                                     | Handled internally by the cucumber runner                                         |
+| Async Support    | Runtime-agnostic via feature flags (e.g., tokio, async-std) which emit the appropriate test attribute (#[tokio::test], etc.) | Built-in; requires specifying an async runtime [^11]                              |
+| Ecosystem        | Seamless integration with rstest and cargo features                                                                          | Self-contained framework; can use any Rust library within steps                   |
+| Ergonomics       | pytest-bdd-like; explicit #[scenario] binding links test code to features [^6]                                               | cucumber-jvm/js-like; feature-driven, with a central test runner                  |
+| Core Philosophy  | BDD as an extension of the existing rstest framework                                                                         | A native Rust implementation of the Cucumber framework standard                   |
 
 ### 3.5 Potential Extensions
 
@@ -1065,7 +1060,7 @@ The third phase introduces typed placeholders to step patterns. The runtime
 library exposes an `extract_placeholders` helper that converts a pattern with
 `{name:Type}` segments into a regular expression and returns the captured
 strings or a `PlaceholderError` detailing why extraction failed. This error
-covers pattern mismatches as well as invalid or uncompiled step patterns.
+covers pattern mismatches and placeholder or regex compilation failures.
 
 PlaceholderError: API shape and examples
 
@@ -1079,11 +1074,11 @@ enum PlaceholderError {
   // Display: "pattern mismatch"
   PatternMismatch,
 
+  // Display: "invalid placeholder syntax: <reason>"
+  InvalidPlaceholder(String),
+
   // Display: "invalid step pattern: <regex_error>"
   InvalidPattern(String),
-
-  // Display: "uncompiled step pattern"
-  Uncompiled,
 }
 ```
 
@@ -1092,32 +1087,45 @@ enum PlaceholderError {
     pattern. There is no separate “missing capture” error; a missing or extra
     capture manifests as a mismatch because the entire text must match the
     compiled regular expression for the pattern.
+  - InvalidPlaceholder(String): the pattern contained malformed placeholder
+    syntax and could not be parsed. The message includes the zero-based byte
+    offset and, when available, the offending placeholder name.
   - InvalidPattern(String): carries the underlying `regex::Error` string coming
     from the regular expression engine during compilation of the pattern. No
     additional metadata (placeholder name, position, or line info) is captured.
-  - Uncompiled: no fields; indicates the step pattern was queried before being
-    compiled. This is a guard and should not occur in normal usage because
-    patterns are compiled during step registration.
 
 - Example error strings (exact `Display` output):
   - Pattern mismatch: `"pattern mismatch"`
-  - Invalid pattern: `"invalid step pattern: regex parse error: error message"`
-  - Uncompiled: `"uncompiled step pattern"`
+  - Invalid placeholder:
 
-- Example JSON mapping (for consumers that serialise errors). Note: this is not
-  emitted by the library; it is a suggested shape if you need to map the enum
-  to JSON at an API boundary:
+    ```text
+    "invalid placeholder syntax: invalid placeholder in step pattern at byte 6 (zero-based) for placeholder `n`"
+    ```
+
+  - Invalid pattern: `"invalid step pattern: regex parse error: error message"`
+
+  - Example JSON mapping (for consumers that serialize errors). Note: this is
+    not emitted by the library; it is a suggested shape if you need to map the
+    enum to JSON at an API boundary:
 
 ```json
-// Pattern mismatch
-{"code":"pattern_mismatch","message":"pattern mismatch"}
+{
+  "code": "pattern_mismatch",
+  "message": "pattern mismatch"
+}
 
-// Invalid pattern
-{"code":"invalid_pattern","message":"invalid step pattern: <regex_error>"}
+{
+  "code": "invalid_placeholder",
+  "message": "invalid placeholder syntax: invalid placeholder in step pattern at byte 6 (zero-based) for placeholder `n`"
+}
 
-// Uncompiled pattern
-{"code":"uncompiled","message":"uncompiled step pattern"}
+{
+  "code": "invalid_pattern",
+  "message": "invalid step pattern: <regex_error>"
+}
 ```
+
+Note: `code` values are stable identifiers intended for programmatic use.
 
 Step wrapper functions parse the returned strings and convert them with
 `FromStr` before calling the original step. Scenario execution now searches the
@@ -1160,23 +1168,35 @@ To keep responsibilities cohesive the runtime is split into focused modules.
 Public APIs are re‑exported from `lib.rs` so consumers continue to import from
 `rstest_bdd::*` as before.
 
-- `types.rs`: Core types and errors.
-  - `PatternStr`, `StepText`: light wrappers for pattern keys and step text.
-  - `StepKeyword` (+ `FromStr`), `StepKeywordParseError`.
-  - `PlaceholderError`: semantic error enum returned by parsing helpers.
-  - `StepFn`: type alias for the step function pointer.
-- `pattern.rs`: Step pattern wrapper.
-  - `StepPattern::new`, `compile`, `regex` (plus `try_regex` for internal use).
-- `placeholder.rs`: Placeholder extraction and scanner.
-  - `extract_placeholders` (public) and the single‑pass scanner
-    `build_regex_from_pattern` with small parsing predicates and helpers.
-- `context.rs`: Fixture context.
-  - `StepContext`: simple type‑indexed store used to pass fixtures into steps.
-- `registry.rs`: Registration and lookup.
-  - `Step` record, `step!` macro, global registry map, `lookup_step`,
-    `find_step`.
-- `lib.rs`: Public API facade.
-  - Re‑exports public items and keeps the `greet()` example function.
+- `types.rs` — Core types and errors:
+  - `PatternStr`
+  - `StepText`
+  - `StepKeyword`
+  - `StepKeywordParseError`
+  - `PlaceholderError`
+  - `StepFn`
+
+- `pattern.rs` — Step pattern wrapper:
+  - `StepPattern::new`
+  - `compile`
+  - `regex`
+
+- `placeholder.rs` — Placeholder extraction and scanner:
+  - `extract_placeholders`
+  - `build_regex_from_pattern`
+
+- `context.rs` — Fixture context:
+  - `StepContext`
+
+- `registry.rs` — Registration and lookup:
+  - `step!` macro
+  - global registry map
+  - `lookup_step`
+  - `find_step`.
+
+- `lib.rs` — Public API facade:
+  - Re-exports public items
+  - `greet` example function
 
 All modules use en‑GB spelling and include `//!` module‑level documentation.
 
@@ -1224,3 +1244,20 @@ All modules use en‑GB spelling and include `//!` module‑level documentation.
     <https://www.florianreinhard.de/cucumber-in-rust-beginners-tutorial/>
 [^14]: la10736/rstest: Fixture-based test framework for Rust - GitHub, accessed
        on July 20, 2025, <https://github.com/la10736/rstest>
+
+[^15]: rstest crate documentation for `#[case]` parameterization, accessed on
+       July 20, 2025, <https://docs.rs/rstest/latest/rstest/attr.case.html>
+[^20]: Rust Reference: procedural macros operate without shared state, accessed
+       on July 20, 2025,
+       <https://doc.rust-lang.org/reference/procedural-macros.html>
+[^22]: Why macros cannot discover other macros, discussion on
+       users.rust-lang.org, accessed on July 20, 2025,
+       <https://users.rust-lang.org/t/why-cant-macros-discover-other-macros/3574>
+[^23]: cucumber crate documentation for `World::run`, accessed on July 20,
+       2025, <https://docs.rs/cucumber>
+[^26]: gherkin crate on crates.io, accessed on July 20, 2025,
+       <https://crates.io/crates/gherkin>
+[^28]: quote crate macros, accessed on July 20, 2025,
+       <https://docs.rs/quote>
+[^37]: cucumber crate step collection API, accessed on July 20, 2025,
+       <https://docs.rs/cucumber/latest/cucumber/struct.World.html#method.steps>

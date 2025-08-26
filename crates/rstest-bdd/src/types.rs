@@ -4,6 +4,8 @@
 //! aliases used by the registry and runner.
 
 use gherkin::StepType;
+use std::fmt;
+use std::fmt::Write as _;
 use std::str::FromStr;
 use thiserror::Error;
 
@@ -55,7 +57,7 @@ impl<'a> From<&'a str> for StepText<'a> {
     }
 }
 
-/// Keyword used to categorise a step definition.
+/// Keyword used to categorize a step definition.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum StepKeyword {
     /// Setup preconditions for a scenario.
@@ -121,18 +123,83 @@ impl From<StepType> for StepKeyword {
     }
 }
 
+/// Detailed information about placeholder parsing failures.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PlaceholderSyntaxError {
+    /// Human‑readable reason for the failure.
+    pub message: String,
+    /// Zero-based byte offset in the original pattern where parsing failed.
+    pub position: usize,
+    /// Name of the placeholder, when known.
+    pub placeholder: Option<String>,
+}
+
+impl PlaceholderSyntaxError {
+    /// Construct a new syntax error with optional placeholder context.
+    #[must_use]
+    pub fn new(message: impl Into<String>, position: usize, placeholder: Option<String>) -> Self {
+        Self {
+            message: message.into(),
+            position,
+            placeholder,
+        }
+    }
+
+    /// Return the user‑facing message without the "invalid placeholder syntax" prefix.
+    #[must_use]
+    pub fn user_message(&self) -> String {
+        let mut msg = format!("{} at byte {} (zero-based)", self.message, self.position);
+        if let Some(name) = &self.placeholder {
+            let _ = write!(msg, " for placeholder `{name}`");
+        }
+        msg
+    }
+}
+
+impl fmt::Display for PlaceholderSyntaxError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "invalid placeholder syntax: {}", self.user_message())
+    }
+}
+
+impl std::error::Error for PlaceholderSyntaxError {}
+
+/// Errors that may occur when compiling a [`StepPattern`].
+#[derive(Debug, Error)]
+#[non_exhaustive]
+pub enum StepPatternError {
+    /// Placeholder syntax in the pattern is invalid.
+    #[error(transparent)]
+    PlaceholderSyntax(#[from] PlaceholderSyntaxError),
+    /// The generated regular expression failed to compile.
+    #[error("{0}")]
+    InvalidPattern(#[from] regex::Error),
+}
+
 /// Error conditions that may arise when extracting placeholders.
 #[derive(Debug, Error)]
+#[non_exhaustive]
 pub enum PlaceholderError {
     /// The supplied text did not match the step pattern.
     #[error("pattern mismatch")]
     PatternMismatch,
+    /// The step pattern contained invalid placeholder syntax.
+    #[error("invalid placeholder syntax: {0}")]
+    InvalidPlaceholder(String),
     /// The step pattern could not be compiled into a regular expression.
     #[error("invalid step pattern: {0}")]
     InvalidPattern(String),
-    /// The step pattern was not compiled before use.
-    #[error("uncompiled step pattern")]
-    Uncompiled,
+}
+
+impl From<StepPatternError> for PlaceholderError {
+    fn from(e: StepPatternError) -> Self {
+        match e {
+            StepPatternError::PlaceholderSyntax(err) => {
+                Self::InvalidPlaceholder(err.user_message())
+            }
+            StepPatternError::InvalidPattern(re) => Self::InvalidPattern(re.to_string()),
+        }
+    }
 }
 
 /// Type alias for the stored step function pointer.
