@@ -7,12 +7,12 @@ pub(crate) mod scenario;
 pub(crate) mod wrapper;
 
 /// Convert a [`StepKeyword`] into a quoted token.
-pub(crate) fn keyword_to_token(keyword: rstest_bdd::StepKeyword) -> TokenStream2 {
+pub(crate) fn keyword_to_token(keyword: crate::StepKeyword) -> TokenStream2 {
     match keyword {
-        rstest_bdd::StepKeyword::Given => quote! { rstest_bdd::StepKeyword::Given },
-        rstest_bdd::StepKeyword::When => quote! { rstest_bdd::StepKeyword::When },
-        rstest_bdd::StepKeyword::Then => quote! { rstest_bdd::StepKeyword::Then },
-        rstest_bdd::StepKeyword::And => quote! { rstest_bdd::StepKeyword::And },
-        rstest_bdd::StepKeyword::But => quote! { rstest_bdd::StepKeyword::But },
+        crate::StepKeyword::Given => quote! { ::rstest_bdd::StepKeyword::Given },
+        crate::StepKeyword::When => quote! { ::rstest_bdd::StepKeyword::When },
+        crate::StepKeyword::Then => quote! { ::rstest_bdd::StepKeyword::Then },
+        crate::StepKeyword::And => quote! { ::rstest_bdd::StepKeyword::And },
+        crate::StepKeyword::But => quote! { ::rstest_bdd::StepKeyword::But },
     }
 }

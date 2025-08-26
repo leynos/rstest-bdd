@@ -17,11 +17,7 @@ pub(crate) use when::when;
 use crate::codegen::wrapper::{WrapperConfig, extract_args, generate_wrapper_code};
 use crate::utils::errors::error_to_tokens;
 
-fn step_attr(
-    attr: TokenStream,
-    item: TokenStream,
-    keyword: rstest_bdd::StepKeyword,
-) -> TokenStream {
+fn step_attr(attr: TokenStream, item: TokenStream, keyword: crate::StepKeyword) -> TokenStream {
     let pattern = syn::parse_macro_input!(attr as syn::LitStr);
     let mut func = syn::parse_macro_input!(item as syn::ItemFn);
 

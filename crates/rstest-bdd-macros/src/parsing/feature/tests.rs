@@ -152,19 +152,19 @@ fn prepends_background_steps() {
         &feature,
         &[
             ParsedStep {
-                keyword: rstest_bdd::StepKeyword::Given,
+                keyword: crate::StepKeyword::Given,
                 text: "a background step".to_string(),
                 docstring: None,
                 table: None,
             },
             ParsedStep {
-                keyword: rstest_bdd::StepKeyword::When,
+                keyword: crate::StepKeyword::When,
                 text: "an action".to_string(),
                 docstring: None,
                 table: None,
             },
             ParsedStep {
-                keyword: rstest_bdd::StepKeyword::Then,
+                keyword: crate::StepKeyword::Then,
                 text: "a result".to_string(),
                 docstring: None,
                 table: None,
@@ -189,7 +189,7 @@ fn extracts_data_table() {
     assert_extracted_steps(
         &feature,
         &[ParsedStep {
-            keyword: rstest_bdd::StepKeyword::Given,
+            keyword: crate::StepKeyword::Given,
             text: "numbers".to_string(),
             docstring: None,
             table: Some(vec![
@@ -216,7 +216,7 @@ fn extracts_docstring() {
     assert_extracted_steps(
         &feature,
         &[ParsedStep {
-            keyword: rstest_bdd::StepKeyword::Given,
+            keyword: crate::StepKeyword::Given,
             text: "text".to_string(),
             docstring: Some("line1\nline2".to_string()),
             table: None,
@@ -242,13 +242,13 @@ fn background_steps_with_docstring_are_extracted() {
         &feature,
         &[
             ParsedStep {
-                keyword: rstest_bdd::StepKeyword::Given,
+                keyword: crate::StepKeyword::Given,
                 text: "setup".to_string(),
                 docstring: Some("bg line1\nbg line2".to_string()),
                 table: None,
             },
             ParsedStep {
-                keyword: rstest_bdd::StepKeyword::When,
+                keyword: crate::StepKeyword::When,
                 text: "an action".to_string(),
                 docstring: None,
                 table: None,

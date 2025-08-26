@@ -80,7 +80,7 @@ fn generate_table_tokens(table: Option<&[Vec<String>]>) -> TokenStream2 {
 ///
 /// # Examples
 /// ```rust,ignore
-/// use rstest_bdd::StepKeyword;
+/// use crate::StepKeyword;
 /// use crate::parsing::feature::ParsedStep;
 /// let steps = vec![ParsedStep { keyword: StepKeyword::Given, text: "x".into(), table: None }];
 /// let (k, v, t) = process_steps(&steps);
@@ -175,10 +175,10 @@ fn generate_test_tokens(
 
     quote! {
         let steps = [#((#keywords, #values, #docstrings, #tables)),*];
-        let mut ctx = rstest_bdd::StepContext::default();
+        let mut ctx = ::rstest_bdd::StepContext::default();
         #(#ctx_inserts)*
         for (index, (keyword, text, docstring, table)) in steps.iter().enumerate() {
-            if let Some(f) = rstest_bdd::find_step(*keyword, (*text).into()) {
+            if let Some(f) = ::rstest_bdd::find_step(*keyword, (*text).into()) {
                 if let Err(err) = f(&ctx, *text, *docstring, *table) {
                     panic!(
                         "Step failed at index {}: {} {} - {}\n(feature: {}, scenario: {})",

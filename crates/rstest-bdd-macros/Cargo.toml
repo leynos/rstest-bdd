@@ -23,7 +23,6 @@ proc-macro = true
 proc-macro2.workspace = true
 quote.workspace = true
 syn.workspace = true
-rstest-bdd.workspace = true
 gherkin.workspace = true
 walkdir = "2.5.0"
 
@@ -32,3 +31,4 @@ trybuild.workspace = true
 once_cell.workspace = true
 rstest.workspace = true
 serial_test.workspace = true
+rstest-bdd = { path = "../rstest-bdd" }
