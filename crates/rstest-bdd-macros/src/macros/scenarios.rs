@@ -209,7 +209,19 @@ pub(crate) fn scenarios(input: TokenStream) -> TokenStream {
     let search_dir = manifest_dir.join(&dir);
     let feature_paths_res = collect_feature_files(&search_dir);
     if let Err(err) = feature_paths_res {
-        let msg = format!("failed to read directory `{}`: {err}", search_dir.display());
+        let msg = match err.kind() {
+            std::io::ErrorKind::NotFound => {
+                // Normalise missing directory messages across platforms.
+                // Windows reports error 3 (path not found) whereas Unix
+                // produces error 2 (no such file or directory). Providing
+                // a deterministic message keeps trybuild fixtures portable.
+                format!(
+                    "failed to read directory `{}`: directory not found",
+                    search_dir.display()
+                )
+            }
+            _ => format!("failed to read directory `{}`: {err}", search_dir.display()),
+        };
         let err = syn::Error::new(Span::call_site(), msg);
         return error_to_tokens(&err).into();
     }
