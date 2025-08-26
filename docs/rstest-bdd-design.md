@@ -581,10 +581,10 @@ fn test_my_scenario(my_fixture: MyFixture) { /\* final assertion \*/ }
 2. It uses a Gherkin parser crate (such as `gherkin` [^26]) to parse the feature
    file content into an Abstract Syntax Tree (AST).
 3. It traverses the AST to find the `Scenario` with the name "My Scenario".
-4. It iterates through the global step registry (`inventory::iter`) *at compile
-   time* to check if a matching step exists for every Gherkin step. If a step
-   is missing, it emits a `compile_error!` with a helpful message, failing the
-   build early.
+4. The macro cannot access the link-time step registry during compilation, so
+   it cannot verify step existence. Generated tests perform lookup at runtime
+   via `inventory::iter::<Step>()` and report a clear runtime error when no
+   matching pattern is found.
 5. Using the `quote!` macro [^28], it generates a completely new Rust function.
    This generated function replaces the original
 
@@ -1184,14 +1184,13 @@ All modules use en‑GB spelling and include `//!` module‑level documentation.
 [^14]: la10736/rstest: Fixture-based test framework for Rust - GitHub, accessed
        on July 20, 2025, <https://github.com/la10736/rstest>
 
-[^15]: rstest crate documentation for `#[case]` parameterisation, accessed on
+[^15]: rstest crate documentation for `#[case]` parameterization, accessed on
        July 20, 2025, <https://docs.rs/rstest/latest/rstest/attr.case.html>
 [^20]: Rust Reference: procedural macros operate without shared state, accessed
        on July 20, 2025,
        <https://doc.rust-lang.org/reference/procedural-macros.html>
 [^22]: Why macros cannot discover other macros, discussion on
-       users.rust-lang.org,
-       accessed on July 20, 2025,
+       users.rust-lang.org, accessed on July 20, 2025,
        <https://users.rust-lang.org/t/why-cant-macros-discover-other-macros/3574>
 [^23]: cucumber crate documentation for `World::run`, accessed on July 20,
        2025, <https://docs.rs/cucumber>

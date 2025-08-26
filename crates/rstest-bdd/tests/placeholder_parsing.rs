@@ -13,7 +13,10 @@ fn compiled(pattern: &'static str) -> StepPattern {
     pat
 }
 
-#[expect(clippy::needless_pass_by_value, reason = "test helper consumes pattern")]
+#[expect(
+    clippy::needless_pass_by_value,
+    reason = "test helper consumes pattern"
+)]
 fn expect_placeholder_syntax(pat: StepPattern) -> PlaceholderSyntaxError {
     match pat.compile() {
         Err(StepPatternError::PlaceholderSyntax(e)) => e,
@@ -119,7 +122,9 @@ fn invalid_type_hint_is_generic(
 #[test]
 fn malformed_type_hint_is_error() {
     // Empty type hint now yields a compilation error.
-    expect_placeholder_syntax(StepPattern::from("value {n:}"));
+    let err = expect_placeholder_syntax(StepPattern::from("value {n:}"));
+    assert_eq!(err.position, 6);
+    assert_eq!(err.placeholder.as_deref(), Some("n"));
 
     // Whitespace between the name and colon also produces an error.
     expect_placeholder_syntax(StepPattern::from("value {n : f64}"));
@@ -251,6 +256,8 @@ fn test_brace_escaping_scenarios(
 
 #[test]
 fn handles_nested_braces() {
+    // The outer braces form stray text; the inner `{inner}` is a real placeholder.
+    // This ensures the scanner handles nested brace pairs without mis-parsing placeholders.
     let pat = StepPattern::from("before {outer {inner}} after");
     pat.compile()
         .unwrap_or_else(|e| panic!("Failed to compile pattern: {e}"));
