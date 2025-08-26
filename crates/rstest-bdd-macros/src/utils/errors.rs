@@ -9,7 +9,7 @@ pub(crate) fn error_to_tokens(err: &syn::Error) -> TokenStream {
 
 /// Produce a deterministic message when reading a directory fails.
 ///
-/// Normalises platform-specific `NotFound` errors so tests see a consistent
+/// Normalizes platform-specific `NotFound` errors so tests see a consistent
 /// string regardless of operating system.
 ///
 /// # Examples
@@ -17,11 +17,11 @@ pub(crate) fn error_to_tokens(err: &syn::Error) -> TokenStream {
 /// ```rust,ignore
 /// use std::{io, path::Path};
 /// let err = io::Error::new(io::ErrorKind::NotFound, "missing");
-/// let msg = normalised_dir_read_error(Path::new("dir"), &err);
+/// let msg = normalized_dir_read_error(Path::new("dir"), &err);
 /// assert_eq!(msg, "failed to read directory `dir`: directory not found");
 /// ```
 #[must_use]
-pub(crate) fn normalised_dir_read_error(path: &std::path::Path, err: &std::io::Error) -> String {
+pub(crate) fn normalized_dir_read_error(path: &std::path::Path, err: &std::io::Error) -> String {
     match err.kind() {
         std::io::ErrorKind::NotFound => {
             format!(
