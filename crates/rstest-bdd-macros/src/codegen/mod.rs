@@ -1,4 +1,7 @@
 //! Code generation utilities for the proc macros.
+//!
+//! This module emits fully qualified paths (`::rstest_bdd::…`) so the macros crate
+//! does not depend on the runtime crate at compile time.
 
 use proc_macro2::TokenStream as TokenStream2;
 use quote::quote;
