@@ -1,18 +1,37 @@
 //! Code generation utilities for the proc macros.
+//!
+//! This module emits fully-qualified paths (`::rstest_bdd::…`) so the macros crate
+//! does not depend on the runtime crate at compile-time.
 
-use proc_macro2::TokenStream as TokenStream2;
+use proc_macro_crate::{FoundCrate, crate_name};
+use proc_macro2::{Ident, Span, TokenStream as TokenStream2};
 use quote::quote;
 
 pub(crate) mod scenario;
 pub(crate) mod wrapper;
 
+/// Return a token stream pointing to the `rstest_bdd` crate or its renamed form.
+pub(crate) fn rstest_bdd_path() -> TokenStream2 {
+    let found = crate_name("rstest-bdd").unwrap_or_else(|e| {
+        // The runtime crate must be present for generated code; a missing entry
+        // indicates a misconfigured build rather than a recoverable error.
+        panic!("rstest-bdd crate not found: {e}");
+    });
+    let ident = match found {
+        FoundCrate::Itself => Ident::new("rstest_bdd", Span::call_site()),
+        FoundCrate::Name(name) => Ident::new(&name, Span::call_site()),
+    };
+    quote! { ::#ident }
+}
+
 /// Convert a [`StepKeyword`] into a quoted token.
-pub(crate) fn keyword_to_token(keyword: rstest_bdd::StepKeyword) -> TokenStream2 {
+pub(crate) fn keyword_to_token(keyword: crate::StepKeyword) -> TokenStream2 {
+    let path = rstest_bdd_path();
     match keyword {
-        rstest_bdd::StepKeyword::Given => quote! { rstest_bdd::StepKeyword::Given },
-        rstest_bdd::StepKeyword::When => quote! { rstest_bdd::StepKeyword::When },
-        rstest_bdd::StepKeyword::Then => quote! { rstest_bdd::StepKeyword::Then },
-        rstest_bdd::StepKeyword::And => quote! { rstest_bdd::StepKeyword::And },
-        rstest_bdd::StepKeyword::But => quote! { rstest_bdd::StepKeyword::But },
+        crate::StepKeyword::Given => quote! { #path::StepKeyword::Given },
+        crate::StepKeyword::When => quote! { #path::StepKeyword::When },
+        crate::StepKeyword::Then => quote! { #path::StepKeyword::Then },
+        crate::StepKeyword::And => quote! { #path::StepKeyword::And },
+        crate::StepKeyword::But => quote! { #path::StepKeyword::But },
     }
 }

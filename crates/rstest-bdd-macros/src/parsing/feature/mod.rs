@@ -10,7 +10,7 @@ use crate::validation::examples::validate_examples_in_feature_text;
 /// Step extracted from a scenario with optional arguments (data table and doc string).
 #[derive(Debug, PartialEq)]
 pub(crate) struct ParsedStep {
-    pub keyword: rstest_bdd::StepKeyword,
+    pub keyword: crate::StepKeyword,
     pub text: String,
     pub docstring: Option<String>,
     pub table: Option<Vec<Vec<String>>>,
@@ -26,8 +26,8 @@ pub(crate) struct ScenarioData {
 /// Convert a Gherkin step to a `ParsedStep`.
 fn map_step(step: &Step) -> ParsedStep {
     let keyword = match step.keyword.as_str() {
-        "And" => rstest_bdd::StepKeyword::And,
-        "But" => rstest_bdd::StepKeyword::But,
+        "And" => crate::StepKeyword::And,
+        "But" => crate::StepKeyword::But,
         _ => step.ty.into(),
     };
     let table = step.table.as_ref().map(|t| t.rows.clone());
