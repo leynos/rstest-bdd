@@ -57,7 +57,10 @@ impl<'a> From<&'a str> for StepText<'a> {
     }
 }
 
-/// Keyword used to categorize a step definition.
+/// Keyword used to categorise a step definition.
+///
+/// The enum includes `And` and `But` variants for completeness, but feature
+/// parsing resolves them against the preceding `Given`/`When`/`Then`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum StepKeyword {
     /// Setup preconditions for a scenario.
@@ -95,7 +98,7 @@ impl FromStr for StepKeyword {
     type Err = StepKeywordParseError;
 
     fn from_str(value: &str) -> Result<Self, Self::Err> {
-        let kw = match value {
+        let kw = match value.trim() {
             "Given" => Self::Given,
             "When" => Self::When,
             "Then" => Self::Then,
@@ -115,10 +118,16 @@ impl From<&str> for StepKeyword {
 
 impl From<StepType> for StepKeyword {
     fn from(ty: StepType) -> Self {
+        #[expect(unreachable_patterns, reason = "panic on future StepType variants")]
         match ty {
             StepType::Given => Self::Given,
             StepType::When => Self::When,
             StepType::Then => Self::Then,
+            #[cfg(any())]
+            StepType::And => Self::And,
+            #[cfg(any())]
+            StepType::But => Self::But,
+            _ => panic!("unsupported step type: {ty:?}"),
         }
     }
 }
