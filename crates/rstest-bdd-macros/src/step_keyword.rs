@@ -6,7 +6,6 @@
 //! and `But` for completeness, feature parsing normalises them to the preceding
 //! primary keyword.
 
-use gherkin::StepType;
 use proc_macro2::TokenStream as TokenStream2;
 use quote::{ToTokens, quote};
 
@@ -25,30 +24,14 @@ pub(crate) enum StepKeyword {
     But,
 }
 
-impl From<StepType> for StepKeyword {
-    fn from(value: StepType) -> Self {
-        #[expect(unreachable_patterns, reason = "panic on future StepType variants")]
-        match value {
-            StepType::Given => Self::Given,
-            StepType::When => Self::When,
-            StepType::Then => Self::Then,
-            #[cfg(any())]
-            StepType::And => Self::And,
-            #[cfg(any())]
-            StepType::But => Self::But,
-            _ => panic!("unsupported step type: {value:?}"),
-        }
-    }
-}
-
 impl From<&str> for StepKeyword {
     fn from(value: &str) -> Self {
-        match value.trim() {
-            "Given" => Self::Given,
-            "When" => Self::When,
-            "Then" => Self::Then,
-            "And" => Self::And,
-            "But" => Self::But,
+        match value.trim().to_ascii_lowercase().as_str() {
+            "given" => Self::Given,
+            "when" => Self::When,
+            "then" => Self::Then,
+            "and" => Self::And,
+            "but" => Self::But,
             other => panic!("invalid step keyword: {other}"),
         }
     }
@@ -65,5 +48,19 @@ impl ToTokens for StepKeyword {
             Self::But => quote!(But),
         };
         tokens.extend(quote! { #path::StepKeyword::#variant });
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rstest::rstest;
+
+    #[rstest]
+    #[case("Given", StepKeyword::Given)]
+    #[case("given", StepKeyword::Given)]
+    #[case(" WhEn ", StepKeyword::When)]
+    fn parses_case_insensitively(#[case] input: &str, #[case] expected: StepKeyword) {
+        assert_eq!(StepKeyword::from(input), expected);
     }
 }

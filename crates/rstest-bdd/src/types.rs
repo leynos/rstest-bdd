@@ -98,12 +98,12 @@ impl FromStr for StepKeyword {
     type Err = StepKeywordParseError;
 
     fn from_str(value: &str) -> Result<Self, Self::Err> {
-        let kw = match value.trim() {
-            "Given" => Self::Given,
-            "When" => Self::When,
-            "Then" => Self::Then,
-            "And" => Self::And,
-            "But" => Self::But,
+        let kw = match value.trim().to_ascii_lowercase().as_str() {
+            "given" => Self::Given,
+            "when" => Self::When,
+            "then" => Self::Then,
+            "and" => Self::And,
+            "but" => Self::But,
             other => return Err(StepKeywordParseError(other.to_string())),
         };
         Ok(kw)
@@ -129,6 +129,21 @@ impl From<StepType> for StepKeyword {
             StepType::But => Self::But,
             _ => panic!("unsupported step type: {ty:?}"),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rstest::rstest;
+
+    #[rstest]
+    #[case("Given", StepKeyword::Given)]
+    #[case("given", StepKeyword::Given)]
+    #[case("\tThEn\n", StepKeyword::Then)]
+    fn parses_case_insensitively(#[case] input: &str, #[case] expected: StepKeyword) {
+        assert!(matches!(StepKeyword::from_str(input), Ok(val) if val == expected));
+        assert_eq!(StepKeyword::from(input), expected);
     }
 }
 
