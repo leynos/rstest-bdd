@@ -21,8 +21,9 @@ fn step_error_tokens(
     ident: &syn::Ident,
     message: &TokenStream2,
 ) -> TokenStream2 {
+    let path = crate::codegen::rstest_bdd_path();
     quote! {
-        ::rstest_bdd::StepError::#variant {
+        #path::StepError::#variant {
             pattern: #pattern.to_string(),
             function: stringify!(#ident).to_string(),
             message: #message,
@@ -132,6 +133,7 @@ fn gen_fixture_decls(fixtures: &[FixtureArg], ident: &syn::Ident) -> Vec<TokenSt
     fixtures
         .iter()
         .map(|FixtureArg { pat, name, ty }| {
+            let path = crate::codegen::rstest_bdd_path();
             let lookup_ty = if let syn::Type::Reference(r) = ty {
                 &*r.elem
             } else {
@@ -146,7 +148,7 @@ fn gen_fixture_decls(fixtures: &[FixtureArg], ident: &syn::Ident) -> Vec<TokenSt
                 let #pat: #ty = ctx
                     .get::<#lookup_ty>(stringify!(#name))
                     #clone_suffix
-                    .ok_or_else(|| ::rstest_bdd::StepError::MissingFixture {
+                    .ok_or_else(|| #path::StepError::MissingFixture {
                         name: stringify!(#name).to_string(),
                         ty: stringify!(#lookup_ty).to_string(),
                         step: stringify!(#ident).to_string(),
@@ -229,9 +231,10 @@ fn generate_wrapper_signature(
     pattern: &syn::LitStr,
     pattern_ident: &proc_macro2::Ident,
 ) -> TokenStream2 {
+    let path = crate::codegen::rstest_bdd_path();
     quote! {
-        static #pattern_ident: ::rstest_bdd::StepPattern =
-            ::rstest_bdd::StepPattern::new(#pattern);
+        static #pattern_ident: #path::StepPattern =
+            #path::StepPattern::new(#pattern);
     }
 }
 
@@ -367,16 +370,17 @@ fn assemble_wrapper_function(
             )
         },
     );
+    let path = crate::codegen::rstest_bdd_path();
     quote! {
         fn #wrapper_ident(
-            ctx: &::rstest_bdd::StepContext<'_>,
+            ctx: &#path::StepContext<'_>,
             text: &str,
             _docstring: Option<&str>,
             _table: Option<&[&[&str]]>,
-        ) -> Result<(), ::rstest_bdd::StepError> {
+        ) -> Result<(), #path::StepError> {
             use std::panic::{catch_unwind, AssertUnwindSafe};
 
-            let captures = ::rstest_bdd::extract_placeholders(&#pattern_ident, text.into())
+            let captures = #path::extract_placeholders(&#pattern_ident, text.into())
                 .map_err(|e| #placeholder_err)?;
             let expected: usize = #expected;
             if captures.len() != expected {
@@ -389,10 +393,10 @@ fn assemble_wrapper_function(
             #docstring_decl
 
             catch_unwind(AssertUnwindSafe(|| {
-                ::rstest_bdd::IntoStepResult::into_step_result(#ident(#(#arg_idents),*))
+                #path::IntoStepResult::into_step_result(#ident(#(#arg_idents),*))
             }))
                 .map_err(|e| {
-                    let message = ::rstest_bdd::panic_message(e.as_ref());
+                    let message = #path::panic_message(e.as_ref());
                     #panic_err
                 })
                 .and_then(|res| res.map_err(|message| #exec_err))
@@ -461,11 +465,12 @@ fn generate_registration_code(
         .collect();
     let fixture_len = fixture_names.len();
     let keyword_token = keyword_to_token(*keyword);
+    let path = crate::codegen::rstest_bdd_path();
     quote! {
         const #const_ident: [&'static str; #fixture_len] = [#(#fixture_names),*];
         const _: [(); #fixture_len] = [(); #const_ident.len()];
 
-        ::rstest_bdd::step!(@pattern #keyword_token, &#pattern_ident, #wrapper_ident, &#const_ident);
+        #path::step!(@pattern #keyword_token, &#pattern_ident, #wrapper_ident, &#const_ident);
     }
 }
 

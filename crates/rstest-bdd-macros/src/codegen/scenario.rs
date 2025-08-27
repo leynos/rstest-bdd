@@ -173,12 +173,13 @@ fn generate_test_tokens(
         block,
     } = config;
 
+    let path = crate::codegen::rstest_bdd_path();
     quote! {
         let steps = [#((#keywords, #values, #docstrings, #tables)),*];
-        let mut ctx = ::rstest_bdd::StepContext::default();
+        let mut ctx = #path::StepContext::default();
         #(#ctx_inserts)*
         for (index, (keyword, text, docstring, table)) in steps.iter().enumerate() {
-            if let Some(f) = ::rstest_bdd::find_step(*keyword, (*text).into()) {
+            if let Some(f) = #path::find_step(*keyword, (*text).into()) {
                 if let Err(err) = f(&ctx, *text, *docstring, *table) {
                     panic!(
                         "Step failed at index {}: {} {} - {}\n(feature: {}, scenario: {})",

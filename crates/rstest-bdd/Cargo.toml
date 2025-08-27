@@ -24,5 +24,5 @@ hashbrown = "0.15"
 
 [dev-dependencies]
 rstest.workspace = true
-rstest-bdd-macros = { path = "../rstest-bdd-macros", version = "0.2.0-alpha1" }
+rstest-bdd-macros.workspace = true
 
