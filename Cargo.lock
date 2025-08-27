@@ -122,6 +122,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "cargo-bdd"
+version = "0.1.0"
+dependencies = [
+ "assert_cmd",
+ "clap",
+ "eyre",
+ "gherkin",
+ "inventory",
+ "predicates",
+ "rstest-bdd",
+ "rstest-bdd-macros",
+]
+
+[[package]]
 name = "cfg-if"
 version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"

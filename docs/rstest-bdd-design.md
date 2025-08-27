@@ -1200,6 +1200,22 @@ Public APIs are re‑exported from `lib.rs` so consumers continue to import from
 
 All modules use en‑GB spelling and include `//!` module‑level documentation.
 
+### 3.11 Diagnostic Tooling
+
+To help library users understand which step definitions are available and to
+spot possible dead code, the workspace now includes a `cargo-bdd` helper
+binary. It uses `inventory` to iterate over the registry and Clap for the
+command-line interface. Three subcommands are provided:
+
+- `list-steps` prints every registered step with its source location.
+- `list-duplicates` groups steps by keyword and pattern to surface duplicate
+  definitions.
+- `list-unused` parses one or more feature paths with the `gherkin` crate and
+  reports steps that are never referenced.
+
+The binary is intentionally lightweight and delegates all heavy lifting to the
+`cargo-bdd` library, making it easy to reuse the logic in other tools.
+
 ## **Works cited**
 
 [^1]: A Complete Guide To Behavior-Driven Testing With Pytest BDD, accessed on

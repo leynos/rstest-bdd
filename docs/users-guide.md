@@ -244,6 +244,40 @@ Best practices for writing effective scenarios include:
   text must match exactly. Unknown type hints are treated as generic
   placeholders and capture any non-newline text greedily.
 
+## Diagnostic tooling
+
+The `cargo-bdd` subcommand provides insight into the compiled step registry. It
+is available once the workspace binary is built and can be invoked through
+Cargo directly.
+
+### Listing registered steps
+
+Print every known step with its source location:
+
+```sh
+cargo bdd list-steps
+```
+
+### Identifying duplicates
+
+Find conflicting step definitions grouped by keyword and pattern:
+
+```sh
+cargo bdd list-duplicates
+```
+
+### Detecting unused steps
+
+Pass one or more paths to search for `.feature` files. Any registered steps
+that do not match the parsed scenarios are reported:
+
+```sh
+cargo bdd list-unused tests/features
+```
+
+These diagnostics help keep the test suite tidy by removing dead code and
+ensuring that each feature file has a corresponding step implementation.
+
 ## Data tables and Docstrings
 
 Steps may supply structured or free-form data via a trailing argument. A data

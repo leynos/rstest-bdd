@@ -3,6 +3,7 @@ resolver = "2"
 members = [
     "crates/rstest-bdd",
     "crates/rstest-bdd-macros",
+    "crates/cargo-bdd",
     "examples/todo-cli",
 ]
 
@@ -31,6 +32,7 @@ trybuild = "1"
 once_cell = "1.18"
 serial_test = "2"
 rstest-bdd = { version = "0.1.0", path = "crates/rstest-bdd" }
+rstest-bdd-macros = { path = "crates/rstest-bdd-macros" }
 
 [workspace.lints.clippy]
 pedantic = { level = "warn", priority = -1 }
