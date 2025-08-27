@@ -135,29 +135,36 @@ impl FeatureBuilder {
     }
 }
 
-fn assert_extracted_steps(feature: &gherkin::Feature, expected: &[ParsedStep]) {
-    let ScenarioData { steps, .. } = extract_scenario_steps(feature, Some(0))
-        .unwrap_or_else(|_| panic!("scenario extraction failed"));
-    assert_eq!(steps, expected);
+// Build a feature from the provided builder, extract the steps for the scenario
+// at `scenario_index`, and assert that they match `expected_steps`.
+fn assert_feature_extraction(
+    feature_builder: FeatureBuilder,
+    expected_steps: &[ParsedStep],
+    scenario_index: Option<usize>,
+) {
+    let feature = feature_builder.build();
+    let ScenarioData { steps, .. } = extract_scenario_steps(&feature, scenario_index)
+        .unwrap_or_else(|_| panic!("failed to extract scenario steps at index {scenario_index:?}"));
+    assert_eq!(
+        steps, expected_steps,
+        "extracted steps did not match expectation"
+    );
 }
 
 #[test]
 fn prepends_background_steps() {
-    let feature = FeatureBuilder::new("example")
-        .with_background(vec![
-            StepBuilder::new(StepType::Given, "a background step").build(),
-        ])
-        .with_scenario(
-            "run",
-            vec![
-                StepBuilder::new(StepType::When, "an action").build(),
-                StepBuilder::new(StepType::Then, "a result").build(),
-            ],
-        )
-        .build();
-
-    assert_extracted_steps(
-        &feature,
+    assert_feature_extraction(
+        FeatureBuilder::new("example")
+            .with_background(vec![
+                StepBuilder::new(StepType::Given, "a background step").build(),
+            ])
+            .with_scenario(
+                "run",
+                vec![
+                    StepBuilder::new(StepType::When, "an action").build(),
+                    StepBuilder::new(StepType::Then, "a result").build(),
+                ],
+            ),
         &[
             ParsedStep {
                 keyword: crate::StepKeyword::Given,
@@ -178,24 +185,21 @@ fn prepends_background_steps() {
                 table: None,
             },
         ],
+        Some(0),
     );
 }
 
 #[test]
 fn extracts_data_table() {
-    let feature = FeatureBuilder::new("example")
-        .with_scenario(
+    assert_feature_extraction(
+        FeatureBuilder::new("example").with_scenario(
             "table",
             vec![
                 StepBuilder::new(StepType::Given, "numbers")
                     .with_table(vec![vec!["1", "2"], vec!["3", "4"]])
                     .build(),
             ],
-        )
-        .build();
-
-    assert_extracted_steps(
-        &feature,
+        ),
         &[ParsedStep {
             keyword: crate::StepKeyword::Given,
             text: "numbers".to_string(),
@@ -205,49 +209,44 @@ fn extracts_data_table() {
                 vec!["3".to_string(), "4".to_string()],
             ]),
         }],
+        Some(0),
     );
 }
 
 #[test]
 fn extracts_docstring() {
-    let feature = FeatureBuilder::new("example")
-        .with_scenario(
+    assert_feature_extraction(
+        FeatureBuilder::new("example").with_scenario(
             "doc",
             vec![
                 StepBuilder::new(StepType::Given, "text")
                     .with_docstring("line1\nline2")
                     .build(),
             ],
-        )
-        .build();
-
-    assert_extracted_steps(
-        &feature,
+        ),
         &[ParsedStep {
             keyword: crate::StepKeyword::Given,
             text: "text".to_string(),
             docstring: Some("line1\nline2".to_string()),
             table: None,
         }],
+        Some(0),
     );
 }
 
 #[test]
 fn background_steps_with_docstring_are_extracted() {
-    let feature = FeatureBuilder::new("example")
-        .with_background(vec![
-            StepBuilder::new(StepType::Given, "setup")
-                .with_docstring("bg line1\nbg line2")
-                .build(),
-        ])
-        .with_scenario(
-            "run",
-            vec![StepBuilder::new(StepType::When, "an action").build()],
-        )
-        .build();
-
-    assert_extracted_steps(
-        &feature,
+    assert_feature_extraction(
+        FeatureBuilder::new("example")
+            .with_background(vec![
+                StepBuilder::new(StepType::Given, "setup")
+                    .with_docstring("bg line1\nbg line2")
+                    .build(),
+            ])
+            .with_scenario(
+                "run",
+                vec![StepBuilder::new(StepType::When, "an action").build()],
+            ),
         &[
             ParsedStep {
                 keyword: crate::StepKeyword::Given,
@@ -262,13 +261,14 @@ fn background_steps_with_docstring_are_extracted() {
                 table: None,
             },
         ],
+        Some(0),
     );
 }
 
 #[test]
 fn maps_and_and_but_keywords() {
-    let feature = FeatureBuilder::new("example")
-        .with_scenario(
+    assert_feature_extraction(
+        FeatureBuilder::new("example").with_scenario(
             "synonyms",
             vec![
                 StepBuilder::new(StepType::When, "first").build(),
@@ -279,11 +279,7 @@ fn maps_and_and_but_keywords() {
                     .with_keyword("But")
                     .build(),
             ],
-        )
-        .build();
-
-    assert_extracted_steps(
-        &feature,
+        ),
         &[
             ParsedStep {
                 keyword: rstest_bdd::StepKeyword::When,
@@ -304,6 +300,7 @@ fn maps_and_and_but_keywords() {
                 table: None,
             },
         ],
+        Some(0),
     );
 }
 
