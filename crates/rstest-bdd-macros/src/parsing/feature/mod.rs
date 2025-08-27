@@ -25,11 +25,7 @@ pub(crate) struct ScenarioData {
 
 /// Convert a Gherkin step to a `ParsedStep`.
 fn map_step(step: &Step) -> ParsedStep {
-    let keyword = match step.keyword.as_str() {
-        "And" => rstest_bdd::StepKeyword::And,
-        "But" => rstest_bdd::StepKeyword::But,
-        _ => step.ty.into(),
-    };
+    let keyword = step.keyword.as_str().trim_end().into();
     let table = step.table.as_ref().map(|t| t.rows.clone());
     let docstring = step.docstring.clone();
     ParsedStep {

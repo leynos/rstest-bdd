@@ -1,7 +1,6 @@
 //! Code emission helpers for wrapper generation.
 
 use super::args::{ArgumentCollections, CallArg, DataTableArg, DocStringArg, FixtureArg, StepArg};
-use crate::codegen::keyword_to_token;
 use crate::utils::ident::sanitize_ident;
 use proc_macro2::TokenStream as TokenStream2;
 use quote::{format_ident, quote};
@@ -460,12 +459,11 @@ fn generate_registration_code(
         })
         .collect();
     let fixture_len = fixture_names.len();
-    let keyword_token = keyword_to_token(*keyword);
     quote! {
         const #const_ident: [&'static str; #fixture_len] = [#(#fixture_names),*];
         const _: [(); #fixture_len] = [(); #const_ident.len()];
 
-        rstest_bdd::step!(@pattern #keyword_token, &#pattern_ident, #wrapper_ident, &#const_ident);
+        rstest_bdd::step!(@pattern #keyword, &#pattern_ident, #wrapper_ident, &#const_ident);
     }
 }
 

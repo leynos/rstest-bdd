@@ -4,6 +4,8 @@
 //! aliases used by the registry and runner.
 
 use gherkin::StepType;
+use proc_macro2::TokenStream;
+use quote::ToTokens;
 use std::fmt;
 use std::fmt::Write as _;
 use std::str::FromStr;
@@ -57,7 +59,10 @@ impl<'a> From<&'a str> for StepText<'a> {
     }
 }
 
-/// Keyword used to categorize a step definition.
+/// Keyword used to categorise a step definition.
+///
+/// `And` and `But` are parsed distinctly but scenario processing resolves them
+/// to the preceding primary keyword before step lookup.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum StepKeyword {
     /// Setup preconditions for a scenario.
@@ -67,8 +72,13 @@ pub enum StepKeyword {
     /// Assert the expected outcome of a scenario.
     Then,
     /// Additional conditions that share context with the previous step.
+    ///
+    /// During scenario processing this keyword resolves to the preceding
+    /// primary keyword.
     And,
     /// Negative or contrasting conditions.
+    ///
+    /// Resolves to the preceding primary keyword like [`Self::And`].
     But,
 }
 
@@ -119,7 +129,25 @@ impl From<StepType> for StepKeyword {
             StepType::Given => Self::Given,
             StepType::When => Self::When,
             StepType::Then => Self::Then,
+            #[expect(
+                unreachable_patterns,
+                reason = "future-proof against upstream StepType variants"
+            )]
+            _ => unreachable!("unsupported step type: {ty:?}"),
         }
+    }
+}
+
+impl ToTokens for StepKeyword {
+    fn to_tokens(&self, tokens: &mut TokenStream) {
+        let t = match self {
+            Self::Given => quote::quote! { rstest_bdd::StepKeyword::Given },
+            Self::When => quote::quote! { rstest_bdd::StepKeyword::When },
+            Self::Then => quote::quote! { rstest_bdd::StepKeyword::Then },
+            Self::And => quote::quote! { rstest_bdd::StepKeyword::And },
+            Self::But => quote::quote! { rstest_bdd::StepKeyword::But },
+        };
+        tokens.extend([t]);
     }
 }
 

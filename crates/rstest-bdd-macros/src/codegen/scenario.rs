@@ -1,9 +1,8 @@
 //! Code generation for scenario tests.
 
-use super::keyword_to_token;
 use proc_macro::TokenStream;
 use proc_macro2::TokenStream as TokenStream2;
-use quote::quote;
+use quote::{ToTokens, quote};
 
 /// Create a `LitStr` from an examples table cell.
 fn cell_to_lit(value: &str) -> syn::LitStr {
@@ -94,7 +93,20 @@ fn process_steps(
     Vec<TokenStream2>,
     Vec<TokenStream2>,
 ) {
-    let keywords = steps.iter().map(|s| keyword_to_token(s.keyword)).collect();
+    let mut last_primary = rstest_bdd::StepKeyword::Given;
+    let keywords = steps
+        .iter()
+        .map(|s| {
+            let kw = match s.keyword {
+                rstest_bdd::StepKeyword::And | rstest_bdd::StepKeyword::But => last_primary,
+                other => {
+                    last_primary = other;
+                    other
+                }
+            };
+            kw.to_token_stream()
+        })
+        .collect();
     let values = steps
         .iter()
         .map(|s| {
@@ -158,7 +170,7 @@ struct TestTokensConfig<'a> {
 /// ```
 fn generate_test_tokens(
     config: TestTokensConfig<'_>,
-    ctx_inserts: impl Iterator<Item = TokenStream2>,
+    ctx_inserts_iter: impl Iterator<Item = TokenStream2>,
 ) -> TokenStream2 {
     let TestTokensConfig {
         processed_steps:
@@ -173,10 +185,19 @@ fn generate_test_tokens(
         block,
     } = config;
 
+    let ctx_inserts: Vec<TokenStream2> = ctx_inserts_iter.collect();
+    let ctx_init = if ctx_inserts.is_empty() {
+        quote! { let ctx = rstest_bdd::StepContext::default(); }
+    } else {
+        quote! {
+            let mut ctx = rstest_bdd::StepContext::default();
+            #(#ctx_inserts)*
+        }
+    };
+
     quote! {
         let steps = [#((#keywords, #values, #docstrings, #tables)),*];
-        let mut ctx = rstest_bdd::StepContext::default();
-        #(#ctx_inserts)*
+        #ctx_init
         for (index, (keyword, text, docstring, table)) in steps.iter().enumerate() {
             if let Some(f) = rstest_bdd::find_step(*keyword, (*text).into()) {
                 if let Err(err) = f(&ctx, *text, *docstring, *table) {
