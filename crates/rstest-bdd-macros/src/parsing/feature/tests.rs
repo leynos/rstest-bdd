@@ -4,6 +4,8 @@ use super::*;
 use gherkin::{Background, LineCol, Scenario, Span, Step, StepType};
 use rstest::rstest;
 
+// This `#[expect]` triggers if `gherkin::StepType` adds variants so we
+// remember to update `kw()` and the `StepKeyword` conversion.
 #[expect(
     unreachable_patterns,
     reason = "StepType currently only has three variants"
@@ -13,7 +15,6 @@ fn kw(ty: StepType) -> String {
         StepType::Given => "Given",
         StepType::When => "When",
         StepType::Then => "Then",
-        // Ensure tests fail loudly if an unsupported keyword is passed.
         _ => unreachable!("kw() only supports Given, When, and Then"),
     }
     .to_string()
@@ -24,6 +25,7 @@ struct StepBuilder {
     value: String,
     docstring: Option<String>,
     table: Option<gherkin::Table>,
+    keyword: Option<String>,
 }
 
 impl StepBuilder {
@@ -33,7 +35,13 @@ impl StepBuilder {
             value: value.to_string(),
             docstring: None,
             table: None,
+            keyword: None,
         }
+    }
+
+    fn with_keyword(mut self, kw: &str) -> Self {
+        self.keyword = Some(kw.to_string());
+        self
     }
 
     fn with_docstring(mut self, doc: &str) -> Self {
@@ -55,7 +63,7 @@ impl StepBuilder {
 
     fn build(self) -> Step {
         Step {
-            keyword: kw(self.ty),
+            keyword: self.keyword.unwrap_or_else(|| kw(self.ty)),
             ty: self.ty,
             value: self.value,
             docstring: self.docstring,
@@ -250,6 +258,48 @@ fn background_steps_with_docstring_are_extracted() {
             ParsedStep {
                 keyword: crate::StepKeyword::When,
                 text: "an action".to_string(),
+                docstring: None,
+                table: None,
+            },
+        ],
+    );
+}
+
+#[test]
+fn maps_and_and_but_keywords() {
+    let feature = FeatureBuilder::new("example")
+        .with_scenario(
+            "synonyms",
+            vec![
+                StepBuilder::new(StepType::When, "first").build(),
+                StepBuilder::new(StepType::When, "second")
+                    .with_keyword("And")
+                    .build(),
+                StepBuilder::new(StepType::Then, "negated")
+                    .with_keyword("But")
+                    .build(),
+            ],
+        )
+        .build();
+
+    assert_extracted_steps(
+        &feature,
+        &[
+            ParsedStep {
+                keyword: rstest_bdd::StepKeyword::When,
+                text: "first".into(),
+                docstring: None,
+                table: None,
+            },
+            ParsedStep {
+                keyword: rstest_bdd::StepKeyword::And,
+                text: "second".into(),
+                docstring: None,
+                table: None,
+            },
+            ParsedStep {
+                keyword: rstest_bdd::StepKeyword::But,
+                text: "negated".into(),
                 docstring: None,
                 table: None,
             },

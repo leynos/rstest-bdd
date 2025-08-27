@@ -1,4 +1,4 @@
-error: datatable must be declared before docstring to match Gherkin ordering
+error: invalid step function signature: datatable must be declared before docstring to match Gherkin ordering. Hint: use `#[given] fn name(ctx: &StepContext, ... )` and valid fixtures.
  --> tests/ui/datatable_after_docstring.rs:6:41
   |
 6 | fn step(docstring: String, #[datatable] table: Vec<Vec<String>>) {}

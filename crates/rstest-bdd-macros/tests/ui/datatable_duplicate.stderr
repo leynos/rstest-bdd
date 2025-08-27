@@ -1,4 +1,4 @@
-error: only one datatable parameter is permitted
+error: invalid step function signature: only one datatable parameter is permitted. Hint: use `#[given] fn name(ctx: &StepContext, ... )` and valid fixtures.
  --> tests/ui/datatable_duplicate.rs:6:60
   |
 6 | fn step(#[datatable] first: Vec<Vec<String>>, #[datatable] second: Vec<Vec<String>>) {}

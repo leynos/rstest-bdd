@@ -94,7 +94,22 @@ fn process_steps(
     Vec<TokenStream2>,
     Vec<TokenStream2>,
 ) {
-    let keywords = steps.iter().map(|s| keyword_to_token(s.keyword)).collect();
+    let mut prev = None;
+    let keywords = steps
+        .iter()
+        .map(|s| {
+            let kw = match s.keyword {
+                rstest_bdd::StepKeyword::And | rstest_bdd::StepKeyword::But => {
+                    prev.unwrap_or(s.keyword)
+                }
+                other => {
+                    prev = Some(other);
+                    other
+                }
+            };
+            keyword_to_token(kw)
+        })
+        .collect();
     let values = steps
         .iter()
         .map(|s| {
@@ -145,6 +160,7 @@ struct TestTokensConfig<'a> {
 /// let processed = ProcessedSteps {
 ///     keywords: vec![],
 ///     values: vec![],
+///     docstrings: vec![],
 ///     tables: vec![],
 /// };
 /// let config = TestTokensConfig {

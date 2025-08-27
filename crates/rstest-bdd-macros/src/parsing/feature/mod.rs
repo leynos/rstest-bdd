@@ -24,19 +24,30 @@ pub(crate) struct ScenarioData {
 }
 
 /// Convert a Gherkin step to a `ParsedStep`.
-fn map_step(step: &Step) -> ParsedStep {
-    let keyword = match step.keyword.as_str() {
-        "And" => crate::StepKeyword::And,
-        "But" => crate::StepKeyword::But,
-        _ => step.ty.into(),
-    };
-    let table = step.table.as_ref().map(|t| t.rows.clone());
-    let docstring = step.docstring.clone();
-    ParsedStep {
-        keyword,
-        text: step.value.clone(),
-        docstring,
-        table,
+///
+/// Uses the textual keyword when present to honour conjunctions
+/// (And/But). Falls back to the typed step when not a conjunction.
+impl From<&Step> for ParsedStep {
+    fn from(step: &Step) -> Self {
+        // The Gherkin parser exposes both a textual keyword (e.g. "And") and a
+        // typed variant (Given/When/Then). We prioritise the textual value so
+        // that conjunctions are preserved for later diagnostics and wrapper
+        // generation. Trimming avoids surprises from trailing spaces in .feature
+        // files.
+        let kw = step.keyword.trim();
+        let keyword = match kw {
+            "And" => crate::StepKeyword::And,
+            "But" => crate::StepKeyword::But,
+            _ => step.ty.into(),
+        };
+        let table = step.table.as_ref().map(|t| t.rows.clone());
+        let docstring = step.docstring.clone();
+        Self {
+            keyword,
+            text: step.value.clone(),
+            docstring,
+            table,
+        }
     }
 }
 
@@ -113,9 +124,9 @@ pub(crate) fn extract_scenario_steps(
 
     let mut steps = Vec::new();
     if let Some(bg) = &feature.background {
-        steps.extend(bg.steps.iter().map(map_step));
+        steps.extend(bg.steps.iter().map(ParsedStep::from));
     }
-    steps.extend(scenario.steps.iter().map(map_step));
+    steps.extend(scenario.steps.iter().map(ParsedStep::from));
 
     let examples = crate::parsing::examples::extract_examples(scenario)?;
 
