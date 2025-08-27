@@ -1,6 +1,6 @@
 //! Feature file loading and scenario extraction.
 
-use gherkin::{Feature, GherkinEnv, Step};
+use gherkin::{Feature, GherkinEnv, Step, StepType};
 use std::path::{Path, PathBuf};
 
 use crate::parsing::examples::ExampleTable;
@@ -23,6 +23,20 @@ pub(crate) struct ScenarioData {
     pub(crate) examples: Option<ExampleTable>,
 }
 
+/// Map a textual step keyword and `StepType` to a `StepKeyword`.
+pub(crate) fn parse_step_keyword(kw: &str, ty: StepType) -> crate::StepKeyword {
+    match kw.trim() {
+        "And" => crate::StepKeyword::And,
+        "But" => crate::StepKeyword::But,
+        _ => ty.into(),
+    }
+}
+
+/// Return `true` if the keyword is a connective such as "And" or "But".
+pub(crate) fn is_conjunction_keyword(kw: crate::StepKeyword) -> bool {
+    matches!(kw, crate::StepKeyword::And | crate::StepKeyword::But)
+}
+
 /// Convert a Gherkin step to a `ParsedStep`.
 ///
 /// Uses the textual keyword when present to honour conjunctions
@@ -31,15 +45,10 @@ impl From<&Step> for ParsedStep {
     fn from(step: &Step) -> Self {
         // The Gherkin parser exposes both a textual keyword (e.g. "And") and a
         // typed variant (Given/When/Then). We prioritise the textual value so
-        // that conjunctions are preserved for later diagnostics and wrapper
-        // generation. Trimming avoids surprises from trailing spaces in .feature
-        // files.
-        let kw = step.keyword.trim();
-        let keyword = match kw {
-            "And" => crate::StepKeyword::And,
-            "But" => crate::StepKeyword::But,
-            _ => step.ty.into(),
-        };
+        // that conjunctions are preserved and can be used to improve
+        // diagnostics. Trimming avoids surprises from trailing spaces in
+        // .feature files.
+        let keyword = parse_step_keyword(&step.keyword, step.ty);
         let table = step.table.as_ref().map(|t| t.rows.clone());
         let docstring = step.docstring.clone();
         Self {
