@@ -14,5 +14,5 @@ rstest-bdd = { path = "../../crates/rstest-bdd" }
 rstest-bdd-macros = { path = "../../crates/rstest-bdd-macros" }
 assert_cmd = "2"
 assert_fs = "1"
-toml = "0.8"
+toml = "0.9"
 predicates = "3"
