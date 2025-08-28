@@ -60,6 +60,8 @@ mod tests {
     #[case("Given", StepKeyword::Given)]
     #[case("given", StepKeyword::Given)]
     #[case(" WhEn ", StepKeyword::When)]
+    #[case("AND", StepKeyword::And)]
+    #[case(" but ", StepKeyword::But)]
     fn parses_case_insensitively(#[case] input: &str, #[case] expected: StepKeyword) {
         assert_eq!(StepKeyword::from(input), expected);
     }

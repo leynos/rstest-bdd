@@ -458,7 +458,7 @@ inventory::collect!(Step);
 The [`StepKeyword`](../crates/rstest-bdd/src/types.rs) enum implements
 `FromStr`. Parsing failures return a `StepKeywordParseError` to ensure invalid
 step keywords are surfaced early. Matching ignores case and surrounding
-whitespace. All five Gherkin keywords are recognised and `And`/`But` are
+whitespace. All five Gherkin keywords are recognized and `And`/`But` are
 resolved to the preceding primary keyword during parsing.
 
 The [`StepPattern`](../crates/rstest-bdd/src/pattern.rs) wrapper encapsulates
@@ -495,7 +495,7 @@ sequenceDiagram
   SP->>RB: build_regex_from_pattern(text)
   loop over pattern bytes
     RB->>TC: try_parse_common_sequences(...)
-    alt recognised sequence
+    alt recognized sequence
       TC-->>RB: consume
     else other character
       RB->>PC: parse_context_specific(...)

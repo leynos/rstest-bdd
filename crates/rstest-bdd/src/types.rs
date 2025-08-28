@@ -118,15 +118,13 @@ impl From<&str> for StepKeyword {
 
 impl From<StepType> for StepKeyword {
     fn from(ty: StepType) -> Self {
-        #[expect(unreachable_patterns, reason = "panic on future StepType variants")]
+        // `gherkin::StepType` currently exposes only `Given`, `When`, and `Then`.
+        // `And`/`But` steps are normalised from their string keywords earlier.
         match ty {
             StepType::Given => Self::Given,
             StepType::When => Self::When,
             StepType::Then => Self::Then,
-            #[cfg(any())]
-            StepType::And => Self::And,
-            #[cfg(any())]
-            StepType::But => Self::But,
+            #[expect(unreachable_patterns, reason = "panic on future StepType variants")]
             _ => panic!("unsupported step type: {ty:?}"),
         }
     }
@@ -141,6 +139,8 @@ mod tests {
     #[case("Given", StepKeyword::Given)]
     #[case("given", StepKeyword::Given)]
     #[case("\tThEn\n", StepKeyword::Then)]
+    #[case("AND", StepKeyword::And)]
+    #[case(" but ", StepKeyword::But)]
     fn parses_case_insensitively(#[case] input: &str, #[case] expected: StepKeyword) {
         assert!(matches!(StepKeyword::from_str(input), Ok(val) if val == expected));
         assert_eq!(StepKeyword::from(input), expected);
