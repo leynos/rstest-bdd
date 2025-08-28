@@ -24,12 +24,20 @@ fn step_attr(attr: TokenStream, item: TokenStream, keyword: crate::StepKeyword) 
     let args = match extract_args(&mut func) {
         Ok(args) => args,
         Err(err) => {
-            let enriched = syn::Error::new(
+            let kw_name = match keyword {
+                rstest_bdd::StepKeyword::Given => "given",
+                rstest_bdd::StepKeyword::When => "when",
+                rstest_bdd::StepKeyword::Then => "then",
+                rstest_bdd::StepKeyword::And => "and",
+                rstest_bdd::StepKeyword::But => "but",
+            };
+            let mut enriched = syn::Error::new(
                 err.span(),
                 format!(
-                    "invalid step function signature: {err}. Hint: use `#[given] fn name(ctx: &StepContext, ... )` and valid fixtures."
+                    "invalid step function signature: {err}. Hint: use `#[{kw_name}] fn name(ctx: &StepContext, ... )` and valid fixtures.",
                 ),
             );
+            enriched.combine(err);
             return error_to_tokens(&enriched).into();
         }
     };

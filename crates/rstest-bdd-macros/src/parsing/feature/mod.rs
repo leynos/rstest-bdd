@@ -26,6 +26,9 @@ pub(crate) struct ScenarioData {
 /// Map a textual step keyword and `StepType` to a `StepKeyword`.
 pub(crate) fn parse_step_keyword(kw: &str, ty: StepType) -> crate::StepKeyword {
     match kw.trim() {
+        // "And"/"But" inherit the semantic meaning of the preceding step at
+        // execution time, so we keep them as distinct variants for later
+        // resolution.
         "And" => crate::StepKeyword::And,
         "But" => crate::StepKeyword::But,
         _ => ty.into(),
@@ -40,9 +43,9 @@ pub(crate) fn is_conjunction_keyword(kw: crate::StepKeyword) -> bool {
 /// Replace "And"/"But" with the previous keyword, falling back to itself when
 /// no previous step exists.
 pub(crate) fn resolve_conjunction_keyword(
-    prev: &mut Option<rstest_bdd::StepKeyword>,
-    kw: rstest_bdd::StepKeyword,
-) -> rstest_bdd::StepKeyword {
+    prev: &mut Option<crate::StepKeyword>,
+    kw: crate::StepKeyword,
+) -> crate::StepKeyword {
     if is_conjunction_keyword(kw) {
         prev.unwrap_or(kw)
     } else {

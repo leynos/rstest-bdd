@@ -3,3 +3,9 @@ error: invalid step function signature: only one datatable parameter is permitte
   |
 6 | fn step(#[datatable] first: Vec<Vec<String>>, #[datatable] second: Vec<Vec<String>>) {}
   |                                                            ^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: only one datatable parameter is permitted
+ --> tests/ui/datatable_duplicate.rs:6:60
+  |
+6 | fn step(#[datatable] first: Vec<Vec<String>>, #[datatable] second: Vec<Vec<String>>) {}
+  |                                                            ^^^^^^^^^^^^^^^^^^^^^^^^

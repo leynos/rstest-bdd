@@ -182,7 +182,7 @@ fn assert_feature_extraction(
             table: None,
         },
     ],
-    Some(0)
+    None
 )]
 #[case::extracts_data_table(
     FeatureBuilder::new("example").with_scenario(
@@ -202,7 +202,7 @@ fn assert_feature_extraction(
             vec!["3".to_string(), "4".to_string()],
         ]),
     }],
-    Some(0)
+    None
 )]
 #[case::extracts_docstring(
     FeatureBuilder::new("example").with_scenario(
@@ -219,7 +219,7 @@ fn assert_feature_extraction(
         docstring: Some("line1\nline2".to_string()),
         table: None,
     }],
-    Some(0)
+    None
 )]
 #[case::background_steps_with_docstring_are_extracted(
     FeatureBuilder::new("example")
@@ -246,7 +246,7 @@ fn assert_feature_extraction(
             table: None,
         },
     ],
-    Some(0)
+    None
 )]
 #[case::maps_and_and_but_keywords(
     FeatureBuilder::new("example").with_scenario(
@@ -281,7 +281,7 @@ fn assert_feature_extraction(
             table: None,
         },
     ],
-    Some(0)
+    None
 )]
 #[case::maps_leading_and_keyword(
     FeatureBuilder::new("example").with_scenario(
@@ -307,7 +307,7 @@ fn assert_feature_extraction(
             table: None,
         },
     ],
-    Some(0)
+    None
 )]
 fn extracts_scenario_steps(
     #[case] feature: FeatureBuilder,

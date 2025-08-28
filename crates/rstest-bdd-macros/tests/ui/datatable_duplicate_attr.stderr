@@ -3,3 +3,9 @@ error: invalid step function signature: duplicate `#[datatable]` attribute. Hint
   |
 6 | fn step(#[datatable] #[datatable] table: Vec<Vec<String>>) {}
   |                                   ^^^^^
+
+error: duplicate `#[datatable]` attribute
+ --> tests/ui/datatable_duplicate_attr.rs:6:35
+  |
+6 | fn step(#[datatable] #[datatable] table: Vec<Vec<String>>) {}
+  |                                   ^^^^^
