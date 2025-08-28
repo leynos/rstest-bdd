@@ -37,6 +37,20 @@ pub(crate) fn is_conjunction_keyword(kw: crate::StepKeyword) -> bool {
     matches!(kw, crate::StepKeyword::And | crate::StepKeyword::But)
 }
 
+/// Replace "And"/"But" with the previous keyword, falling back to itself when
+/// no previous step exists.
+pub(crate) fn resolve_conjunction_keyword(
+    prev: &mut Option<rstest_bdd::StepKeyword>,
+    kw: rstest_bdd::StepKeyword,
+) -> rstest_bdd::StepKeyword {
+    if is_conjunction_keyword(kw) {
+        prev.unwrap_or(kw)
+    } else {
+        *prev = Some(kw);
+        kw
+    }
+}
+
 /// Convert a Gherkin step to a `ParsedStep`.
 ///
 /// Uses the textual keyword when present to honour conjunctions

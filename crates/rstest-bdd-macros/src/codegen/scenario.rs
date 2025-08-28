@@ -1,7 +1,7 @@
 //! Code generation for scenario tests.
 
 use super::keyword_to_token;
-use crate::parsing::feature::is_conjunction_keyword;
+use crate::parsing::feature::resolve_conjunction_keyword;
 use proc_macro::TokenStream;
 use proc_macro2::TokenStream as TokenStream2;
 use quote::quote;
@@ -99,12 +99,7 @@ fn process_steps(
     let keywords = steps
         .iter()
         .map(|s| {
-            let kw = if is_conjunction_keyword(s.keyword) {
-                prev.unwrap_or(s.keyword)
-            } else {
-                prev = Some(s.keyword);
-                s.keyword
-            };
+            let kw = resolve_conjunction_keyword(&mut prev, s.keyword);
             keyword_to_token(kw)
         })
         .collect();
