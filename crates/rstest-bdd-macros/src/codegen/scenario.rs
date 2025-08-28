@@ -1,6 +1,7 @@
 //! Code generation for scenario tests.
 
 use super::keyword_to_token;
+use crate::parsing::feature::resolve_conjunction_keyword;
 use proc_macro::TokenStream;
 use proc_macro2::TokenStream as TokenStream2;
 use quote::quote;
@@ -94,7 +95,14 @@ fn process_steps(
     Vec<TokenStream2>,
     Vec<TokenStream2>,
 ) {
-    let keywords = steps.iter().map(|s| keyword_to_token(s.keyword)).collect();
+    let mut prev = None;
+    let keywords = steps
+        .iter()
+        .map(|s| {
+            let kw = resolve_conjunction_keyword(&mut prev, s.keyword);
+            keyword_to_token(kw)
+        })
+        .collect();
     let values = steps
         .iter()
         .map(|s| {
@@ -145,6 +153,7 @@ struct TestTokensConfig<'a> {
 /// let processed = ProcessedSteps {
 ///     keywords: vec![],
 ///     values: vec![],
+///     docstrings: vec![],
 ///     tables: vec![],
 /// };
 /// let config = TestTokensConfig {

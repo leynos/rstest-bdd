@@ -1,4 +1,4 @@
-error: unsupported parameter pattern; use a simple identifier (e.g., `arg: T`)
+error: invalid step function signature: unsupported parameter pattern; use a simple identifier (e.g., `arg: T`). help: use `#[given] fn name(ctx: &StepContext, ...)` and valid fixtures.
   --> tests/fixtures/step_struct_pattern.rs:11:21
    |
 11 | fn step_with_struct(User { name }: User) {}

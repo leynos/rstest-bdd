@@ -476,7 +476,9 @@ fn generate_registration_code(
 
 /// Generate the wrapper function and inventory registration.
 pub(crate) fn generate_wrapper_code(config: &WrapperConfig<'_>) -> TokenStream2 {
-    let id = COUNTER.fetch_add(1, Ordering::SeqCst);
+    // Relaxed ordering suffices: the counter only ensures a unique suffix and
+    // is not used for synchronisation with other data.
+    let id = COUNTER.fetch_add(1, Ordering::Relaxed);
     let (wrapper_ident, const_ident, pattern_ident) =
         generate_wrapper_identifiers(config.ident, id);
     let body = generate_wrapper_body(config, &wrapper_ident, &pattern_ident);

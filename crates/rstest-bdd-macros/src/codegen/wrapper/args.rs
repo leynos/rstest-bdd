@@ -224,13 +224,13 @@ fn validate_datatable_constraints(
         if st.datatable.is_some() {
             return Err(syn::Error::new_spanned(
                 arg,
-                "only one datatable parameter is permitted",
+                "only one DataTable parameter is permitted",
             ));
         }
         if st.docstring.is_some() {
             return Err(syn::Error::new_spanned(
                 arg,
-                "datatable must be declared before docstring to match Gherkin ordering",
+                "DataTable must be declared before DocString to match Gherkin ordering",
             ));
         }
         Ok(true)

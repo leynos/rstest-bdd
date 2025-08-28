@@ -15,12 +15,12 @@ use args_impl::{CallArg, extract_args};
 #[rstest]
 #[case(
     parse_quote! { fn step(docstring: String, datatable: Vec<Vec<String>>) {} },
-    "datatable must be declared before docstring",
+    "DataTable must be declared before DocString",
     "error when datatable follows docstring",
 )]
 #[case(
     parse_quote! { fn step(datatable: Vec<Vec<String>>, datatable: Vec<Vec<String>>) {} },
-    "only one datatable parameter is permitted",
+    "only one DataTable parameter is permitted",
     "error on duplicate datatable",
 )]
 #[case(
@@ -43,12 +43,12 @@ use args_impl::{CallArg, extract_args};
 )]
 #[case(
     parse_quote! { fn step(docstring: String, #[datatable] data: Vec<Vec<String>>) {} },
-    "datatable must be declared before docstring",
+    "DataTable must be declared before DocString",
     "error when datatable attribute follows docstring",
 )]
 #[case(
     parse_quote! { fn step(#[datatable] a: Vec<Vec<String>>, #[datatable] b: Vec<Vec<String>>) {} },
-    "only one datatable parameter is permitted",
+    "only one DataTable parameter is permitted",
     "error on multiple datatable parameters",
 )]
 #[case(

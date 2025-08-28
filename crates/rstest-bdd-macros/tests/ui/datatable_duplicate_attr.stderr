@@ -1,4 +1,4 @@
-error: duplicate `#[datatable]` attribute
+error: invalid step function signature: duplicate `#[datatable]` attribute. help: use `#[given] fn name(ctx: &StepContext, ...)` and valid fixtures.
  --> tests/ui/datatable_duplicate_attr.rs:6:35
   |
 6 | fn step(#[datatable] #[datatable] table: Vec<Vec<String>>) {}

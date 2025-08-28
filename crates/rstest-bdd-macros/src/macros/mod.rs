@@ -23,7 +23,22 @@ fn step_attr(attr: TokenStream, item: TokenStream, keyword: crate::StepKeyword) 
 
     let args = match extract_args(&mut func) {
         Ok(args) => args,
-        Err(err) => return error_to_tokens(&err).into(), // convert proc_macro2 to proc_macro
+        Err(err) => {
+            let kw_name = match keyword {
+                crate::StepKeyword::Given => "given",
+                crate::StepKeyword::When => "when",
+                crate::StepKeyword::Then => "then",
+                crate::StepKeyword::And => "and",
+                crate::StepKeyword::But => "but",
+            };
+            let enriched = syn::Error::new(
+                err.span(),
+                format!(
+                    "invalid step function signature: {err}. help: use `#[{kw_name}] fn name(ctx: &StepContext, ...)` and valid fixtures.",
+                ),
+            );
+            return error_to_tokens(&enriched).into();
+        }
     };
 
     let ident = &func.sig.ident;
