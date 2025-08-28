@@ -78,6 +78,10 @@ impl StepBuilder {
 // uses the `keyword` string instead. Hard-code `ty` to `Given` so tests can
 // verify keyword resolution without upstream interference.
 fn raw_step(keyword: &str, value: &str) -> Step {
+    // Intentionally set `ty` to `Given` so tests can pass raw
+    // "And"/"But" via `keyword` without StepBuilder's auto-mapping
+    // altering them. The parser under test uses the `keyword` string
+    // (case-insensitive) and ignores `ty`.
     Step {
         keyword: keyword.to_string(),
         ty: StepType::Given,
