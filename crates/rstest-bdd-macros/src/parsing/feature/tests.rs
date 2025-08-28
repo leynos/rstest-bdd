@@ -539,6 +539,19 @@ fn rejects_leading_and_after_background() {
 }
 
 #[rstest]
+#[case("And")]
+#[case("But")]
+fn rejects_leading_conjunction_without_background(#[case] kw: &str) {
+    // A Scenario that starts with And/But should be rejected because there is
+    // no preceding primary keyword to inherit from.
+    let feature = FeatureBuilder::new("example")
+        .with_scenario("case", vec![raw_step(kw, "start")])
+        .build();
+
+    assert!(extract_scenario_steps(&feature, Some(0)).is_err());
+}
+
+#[rstest]
 #[case("tests/features/does_not_exist.feature", "feature file not found")]
 #[case("tests/features/empty.feature", "failed to parse feature file")]
 #[case("tests/features", "feature path is not a file")]
