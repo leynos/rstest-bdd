@@ -328,4 +328,3 @@ fn errors_when_feature_fails(#[case] rel_path: &str, #[case] expected_snippet: &
     };
     assert!(err.to_string().contains(expected_snippet));
 }
-

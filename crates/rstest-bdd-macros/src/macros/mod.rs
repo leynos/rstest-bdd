@@ -25,11 +25,11 @@ fn step_attr(attr: TokenStream, item: TokenStream, keyword: crate::StepKeyword) 
         Ok(args) => args,
         Err(err) => {
             let kw_name = match keyword {
-                rstest_bdd::StepKeyword::Given => "given",
-                rstest_bdd::StepKeyword::When => "when",
-                rstest_bdd::StepKeyword::Then => "then",
-                rstest_bdd::StepKeyword::And => "and",
-                rstest_bdd::StepKeyword::But => "but",
+                crate::StepKeyword::Given => "given",
+                crate::StepKeyword::When => "when",
+                crate::StepKeyword::Then => "then",
+                crate::StepKeyword::And => "and",
+                crate::StepKeyword::But => "but",
             };
             let enriched = syn::Error::new(
                 err.span(),
