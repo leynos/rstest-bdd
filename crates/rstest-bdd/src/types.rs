@@ -118,11 +118,14 @@ impl From<&str> for StepKeyword {
 
 impl From<StepType> for StepKeyword {
     fn from(ty: StepType) -> Self {
-        #[expect(unreachable_patterns, reason = "panic on future StepType variants")]
         match ty {
             StepType::Given => Self::Given,
             StepType::When => Self::When,
             StepType::Then => Self::Then,
+            #[expect(
+                unreachable_patterns,
+                reason = "keep a guard for future StepType variants"
+            )]
             _ => panic!("unsupported step type: {ty:?}"),
         }
     }
