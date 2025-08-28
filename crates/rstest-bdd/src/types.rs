@@ -87,6 +87,19 @@ impl StepKeyword {
             Self::But => "But",
         }
     }
+
+    /// Shared parsing logic normalising case and whitespace.
+    /// Returns `None` when the input does not match a known keyword.
+    fn parse_keyword_impl(value: &str) -> Option<Self> {
+        match value.trim().to_ascii_lowercase().as_str() {
+            "given" => Some(Self::Given),
+            "when" => Some(Self::When),
+            "then" => Some(Self::Then),
+            "and" => Some(Self::And),
+            "but" => Some(Self::But),
+            _ => None,
+        }
+    }
 }
 
 /// Error returned when parsing a `StepKeyword` from a string fails.
@@ -98,27 +111,13 @@ impl FromStr for StepKeyword {
     type Err = StepKeywordParseError;
 
     fn from_str(value: &str) -> Result<Self, Self::Err> {
-        match value.trim().to_ascii_lowercase().as_str() {
-            "given" => Ok(Self::Given),
-            "when" => Ok(Self::When),
-            "then" => Ok(Self::Then),
-            "and" => Ok(Self::And),
-            "but" => Ok(Self::But),
-            _ => Err(StepKeywordParseError(value.to_string())),
-        }
+        Self::parse_keyword_impl(value).ok_or_else(|| StepKeywordParseError(value.to_string()))
     }
 }
 
 impl From<&str> for StepKeyword {
     fn from(value: &str) -> Self {
-        match value.trim().to_ascii_lowercase().as_str() {
-            "given" => Self::Given,
-            "when" => Self::When,
-            "then" => Self::Then,
-            "and" => Self::And,
-            "but" => Self::But,
-            _ => panic!("invalid step keyword: {value}"),
-        }
+        Self::parse_keyword_impl(value).unwrap_or_else(|| panic!("invalid step keyword: {value}"))
     }
 }
 
