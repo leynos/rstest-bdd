@@ -3,7 +3,7 @@
 //! This lightweight enum mirrors the variants provided by `rstest-bdd` but
 //! avoids a compile-time dependency on that crate. It is only used internally
 //! for parsing feature files and generating code. While the enum includes `And`
-//! and `But` for completeness, feature parsing normalises them to the preceding
+//! and `But` for completeness, feature parsing normalizes them to the preceding
 //! primary keyword.
 
 use proc_macro2::TokenStream as TokenStream2;
