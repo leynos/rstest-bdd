@@ -23,21 +23,49 @@ pub(crate) struct ScenarioData {
     pub(crate) examples: Option<ExampleTable>,
 }
 
-/// Convert a Gherkin step to a `ParsedStep`.
-fn map_step(step: &Step) -> ParsedStep {
-    let keyword = match step.keyword.as_str() {
-        "And" => rstest_bdd::StepKeyword::And,
-        "But" => rstest_bdd::StepKeyword::But,
-        _ => step.ty.into(),
+/// Convert a Gherkin step to a `ParsedStep`, normalising `And`/`But` to the
+/// preceding primary keyword.
+fn map_step(
+    step: &Step,
+    last_primary: &mut Option<rstest_bdd::StepKeyword>,
+) -> Result<ParsedStep, proc_macro2::TokenStream> {
+    let keyword_str = step.keyword.trim();
+    let keyword = match keyword_str {
+        "Given" => {
+            *last_primary = Some(rstest_bdd::StepKeyword::Given);
+            rstest_bdd::StepKeyword::Given
+        }
+        "When" => {
+            *last_primary = Some(rstest_bdd::StepKeyword::When);
+            rstest_bdd::StepKeyword::When
+        }
+        "Then" => {
+            *last_primary = Some(rstest_bdd::StepKeyword::Then);
+            rstest_bdd::StepKeyword::Then
+        }
+        "And" | "But" => {
+            let Some(primary) = *last_primary else {
+                let msg = format!("`{keyword_str}` cannot start a scenario");
+                let err = syn::Error::new(proc_macro2::Span::call_site(), msg);
+                return Err(error_to_tokens(&err));
+            };
+            primary
+        }
+        other => {
+            let msg = format!("invalid step keyword: {other}");
+            let err = syn::Error::new(proc_macro2::Span::call_site(), msg);
+            return Err(error_to_tokens(&err));
+        }
     };
+
     let table = step.table.as_ref().map(|t| t.rows.clone());
     let docstring = step.docstring.clone();
-    ParsedStep {
+    Ok(ParsedStep {
         keyword,
         text: step.value.clone(),
         docstring,
         table,
-    }
+    })
 }
 
 /// Validate that the feature path exists and points to a file.
@@ -112,10 +140,17 @@ pub(crate) fn extract_scenario_steps(
     let scenario_name = scenario.name.clone();
 
     let mut steps = Vec::new();
+    let mut last_primary = None;
     if let Some(bg) = &feature.background {
-        steps.extend(bg.steps.iter().map(map_step));
+        for step in &bg.steps {
+            steps.push(map_step(step, &mut last_primary)?);
+        }
+        // Background context should not influence the Scenario's first step.
+        last_primary = None;
     }
-    steps.extend(scenario.steps.iter().map(map_step));
+    for step in &scenario.steps {
+        steps.push(map_step(step, &mut last_primary)?);
+    }
 
     let examples = crate::parsing::examples::extract_examples(scenario)?;
 

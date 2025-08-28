@@ -58,6 +58,9 @@ impl<'a> From<&'a str> for StepText<'a> {
 }
 
 /// Keyword used to categorize a step definition.
+///
+/// While the enum includes `And` and `But` for completeness, feature parsing
+/// normalizes them to the preceding primary keyword.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum StepKeyword {
     /// Setup preconditions for a scenario.
@@ -95,21 +98,27 @@ impl FromStr for StepKeyword {
     type Err = StepKeywordParseError;
 
     fn from_str(value: &str) -> Result<Self, Self::Err> {
-        let kw = match value {
-            "Given" => Self::Given,
-            "When" => Self::When,
-            "Then" => Self::Then,
-            "And" => Self::And,
-            "But" => Self::But,
-            other => return Err(StepKeywordParseError(other.to_string())),
-        };
-        Ok(kw)
+        match value.trim().to_ascii_lowercase().as_str() {
+            "given" => Ok(Self::Given),
+            "when" => Ok(Self::When),
+            "then" => Ok(Self::Then),
+            "and" => Ok(Self::And),
+            "but" => Ok(Self::But),
+            _ => Err(StepKeywordParseError(value.to_string())),
+        }
     }
 }
 
 impl From<&str> for StepKeyword {
     fn from(value: &str) -> Self {
-        Self::from_str(value).unwrap_or_else(|_| panic!("invalid step keyword: {value}"))
+        match value.trim().to_ascii_lowercase().as_str() {
+            "given" => Self::Given,
+            "when" => Self::When,
+            "then" => Self::Then,
+            "and" => Self::And,
+            "but" => Self::But,
+            _ => panic!("invalid step keyword: {value}"),
+        }
     }
 }
 
@@ -119,6 +128,11 @@ impl From<StepType> for StepKeyword {
             StepType::Given => Self::Given,
             StepType::When => Self::When,
             StepType::Then => Self::Then,
+            #[expect(
+                unreachable_patterns,
+                reason = "gherkin StepType has only primary variants"
+            )]
+            _ => panic!("unsupported step type: {ty:?}"),
         }
     }
 }

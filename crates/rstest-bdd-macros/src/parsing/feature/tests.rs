@@ -257,6 +257,77 @@ fn background_steps_with_docstring_are_extracted() {
     );
 }
 
+#[test]
+fn normalises_and_but_keywords() {
+    let mut and_step = StepBuilder::new(StepType::Given, "another precondition").build();
+    and_step.keyword = "And".to_string();
+    let mut but_step = StepBuilder::new(StepType::Then, "alternative outcome").build();
+    but_step.keyword = "But".to_string();
+
+    let feature = FeatureBuilder::new("example")
+        .with_scenario(
+            "run",
+            vec![
+                StepBuilder::new(StepType::Given, "a precondition").build(),
+                and_step,
+                StepBuilder::new(StepType::When, "an action").build(),
+                StepBuilder::new(StepType::Then, "a result").build(),
+                but_step,
+            ],
+        )
+        .build();
+
+    assert_extracted_steps(
+        &feature,
+        &[
+            ParsedStep {
+                keyword: rstest_bdd::StepKeyword::Given,
+                text: "a precondition".to_string(),
+                docstring: None,
+                table: None,
+            },
+            ParsedStep {
+                keyword: rstest_bdd::StepKeyword::Given,
+                text: "another precondition".to_string(),
+                docstring: None,
+                table: None,
+            },
+            ParsedStep {
+                keyword: rstest_bdd::StepKeyword::When,
+                text: "an action".to_string(),
+                docstring: None,
+                table: None,
+            },
+            ParsedStep {
+                keyword: rstest_bdd::StepKeyword::Then,
+                text: "a result".to_string(),
+                docstring: None,
+                table: None,
+            },
+            ParsedStep {
+                keyword: rstest_bdd::StepKeyword::Then,
+                text: "alternative outcome".to_string(),
+                docstring: None,
+                table: None,
+            },
+        ],
+    );
+}
+
+#[test]
+fn errors_on_leading_and() {
+    let mut and_step = StepBuilder::new(StepType::Given, "lonely").build();
+    and_step.keyword = "And".to_string();
+    let feature = FeatureBuilder::new("example")
+        .with_scenario("broken", vec![and_step])
+        .build();
+
+    let Err(err) = extract_scenario_steps(&feature, Some(0)) else {
+        panic!("expected failure for leading And");
+    };
+    assert!(err.to_string().contains("cannot start a scenario"));
+}
+
 #[rstest]
 #[case("tests/features/does_not_exist.feature", "feature file not found")]
 #[case("tests/features/empty.feature", "failed to parse feature file")]
