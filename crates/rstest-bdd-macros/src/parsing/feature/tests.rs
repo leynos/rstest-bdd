@@ -74,25 +74,6 @@ impl StepBuilder {
     }
 }
 
-// gherkin normalises "And"/"But" based on `ty`, but the parser under test
-// uses the `keyword` string instead. Hard-code `ty` to `Given` so tests can
-// verify keyword resolution without upstream interference.
-fn raw_step(keyword: &str, value: &str) -> Step {
-    // Intentionally set `ty` to `Given` so tests can pass raw
-    // "And"/"But" via `keyword` without StepBuilder's auto-mapping
-    // altering them. The parser under test uses the `keyword` string
-    // (case-insensitive) and ignores `ty`.
-    Step {
-        keyword: keyword.to_string(),
-        ty: StepType::Given,
-        value: value.to_string(),
-        docstring: None,
-        table: None,
-        span: Span { start: 0, end: 0 },
-        position: LineCol { line: 0, col: 0 },
-    }
-}
-
 struct FeatureBuilder {
     name: String,
     background: Option<Vec<Step>>,
@@ -184,7 +165,6 @@ fn assert_feature_extraction(
     vec![
         ParsedStep {
             keyword: crate::StepKeyword::Given,
-<<<<<<< HEAD
             text: "a background step".to_string(),
             docstring: None,
             table: None,
@@ -193,197 +173,6 @@ fn assert_feature_extraction(
             keyword: crate::StepKeyword::When,
             text: "an action".to_string(),
             docstring: None,
-||||||| parent of ce4ff4d (Return Result from map_step and reset keyword context)
-            text: "numbers".to_string(),
-            docstring: None,
-            table: Some(vec![
-                vec!["1".to_string(), "2".to_string()],
-                vec!["3".to_string(), "4".to_string()],
-            ]),
-        }],
-    );
-}
-
-#[test]
-fn normalises_and_but_to_previous_keyword() {
-    use gherkin::{LineCol, Span};
-
-    fn raw_step(keyword: &str, value: &str) -> Step {
-        Step {
-            keyword: keyword.to_string(),
-            ty: StepType::Given,
-            value: value.to_string(),
-            docstring: None,
-            table: None,
-            span: Span { start: 0, end: 0 },
-            position: LineCol { line: 0, col: 0 },
-        }
-    }
-
-    let steps = vec![
-        StepBuilder::new(StepType::Given, "precondition").build(),
-        raw_step("And", "another"),
-        raw_step("But", "exception"),
-        StepBuilder::new(StepType::When, "action").build(),
-        raw_step("And", "also action"),
-        StepBuilder::new(StepType::Then, "result").build(),
-    ];
-
-    let feature = FeatureBuilder::new("example")
-        .with_scenario("case", steps)
-        .build();
-
-    assert_extracted_steps(
-        &feature,
-        &[
-            ParsedStep {
-                keyword: crate::StepKeyword::Given,
-                text: "precondition".to_string(),
-                docstring: None,
-                table: None,
-            },
-            ParsedStep {
-                keyword: crate::StepKeyword::Given,
-                text: "another".to_string(),
-                docstring: None,
-                table: None,
-            },
-            ParsedStep {
-                keyword: crate::StepKeyword::Given,
-                text: "exception".to_string(),
-                docstring: None,
-                table: None,
-            },
-            ParsedStep {
-                keyword: crate::StepKeyword::When,
-                text: "action".to_string(),
-                docstring: None,
-                table: None,
-            },
-            ParsedStep {
-                keyword: crate::StepKeyword::When,
-                text: "also action".to_string(),
-                docstring: None,
-                table: None,
-            },
-            ParsedStep {
-                keyword: crate::StepKeyword::Then,
-                text: "result".to_string(),
-                docstring: None,
-                table: None,
-            },
-        ],
-    );
-}
-
-#[test]
-fn extracts_docstring() {
-    let feature = FeatureBuilder::new("example")
-        .with_scenario(
-            "doc",
-            vec![
-                StepBuilder::new(StepType::Given, "text")
-                    .with_docstring("line1\nline2")
-                    .build(),
-            ],
-        )
-        .build();
-
-    assert_extracted_steps(
-        &feature,
-        &[ParsedStep {
-            keyword: crate::StepKeyword::Given,
-            text: "text".to_string(),
-            docstring: Some("line1\nline2".to_string()),
-=======
-            text: "numbers".to_string(),
-            docstring: None,
-            table: Some(vec![
-                vec!["1".to_string(), "2".to_string()],
-                vec!["3".to_string(), "4".to_string()],
-            ]),
-        }],
-    );
-}
-
-#[test]
-fn normalises_and_but_to_previous_keyword() {
-    let steps = vec![
-        StepBuilder::new(StepType::Given, "precondition").build(),
-        raw_step("And", "another"),
-        raw_step("But", "exception"),
-        StepBuilder::new(StepType::When, "action").build(),
-        raw_step("And", "also action"),
-        StepBuilder::new(StepType::Then, "result").build(),
-    ];
-
-    let feature = FeatureBuilder::new("example")
-        .with_scenario("case", steps)
-        .build();
-
-    assert_extracted_steps(
-        &feature,
-        &[
-            ParsedStep {
-                keyword: crate::StepKeyword::Given,
-                text: "precondition".to_string(),
-                docstring: None,
-                table: None,
-            },
-            ParsedStep {
-                keyword: crate::StepKeyword::Given,
-                text: "another".to_string(),
-                docstring: None,
-                table: None,
-            },
-            ParsedStep {
-                keyword: crate::StepKeyword::Given,
-                text: "exception".to_string(),
-                docstring: None,
-                table: None,
-            },
-            ParsedStep {
-                keyword: crate::StepKeyword::When,
-                text: "action".to_string(),
-                docstring: None,
-                table: None,
-            },
-            ParsedStep {
-                keyword: crate::StepKeyword::When,
-                text: "also action".to_string(),
-                docstring: None,
-                table: None,
-            },
-            ParsedStep {
-                keyword: crate::StepKeyword::Then,
-                text: "result".to_string(),
-                docstring: None,
-                table: None,
-            },
-        ],
-    );
-}
-
-#[test]
-fn extracts_docstring() {
-    let feature = FeatureBuilder::new("example")
-        .with_scenario(
-            "doc",
-            vec![
-                StepBuilder::new(StepType::Given, "text")
-                    .with_docstring("line1\nline2")
-                    .build(),
-            ],
-        )
-        .build();
-
-    assert_extracted_steps(
-        &feature,
-        &[ParsedStep {
-            keyword: crate::StepKeyword::Given,
-            text: "text".to_string(),
-            docstring: Some("line1\nline2".to_string()),
->>>>>>> ce4ff4d (Return Result from map_step and reset keyword context)
             table: None,
         },
         ParsedStep {
@@ -528,29 +317,6 @@ fn extracts_scenario_steps(
     assert_feature_extraction(feature, &expected, index);
 }
 
-#[test]
-fn rejects_leading_and_after_background() {
-    let feature = FeatureBuilder::new("example")
-        .with_background(vec![StepBuilder::new(StepType::Given, "setup").build()])
-        .with_scenario("case", vec![raw_step("And", "continuation")])
-        .build();
-
-    assert!(extract_scenario_steps(&feature, Some(0)).is_err());
-}
-
-#[rstest]
-#[case("And")]
-#[case("But")]
-fn rejects_leading_conjunction_without_background(#[case] kw: &str) {
-    // A Scenario that starts with And/But should be rejected because there is
-    // no preceding primary keyword to inherit from.
-    let feature = FeatureBuilder::new("example")
-        .with_scenario("case", vec![raw_step(kw, "start")])
-        .build();
-
-    assert!(extract_scenario_steps(&feature, Some(0)).is_err());
-}
-
 #[rstest]
 #[case("tests/features/does_not_exist.feature", "feature file not found")]
 #[case("tests/features/empty.feature", "failed to parse feature file")]
@@ -562,4 +328,3 @@ fn errors_when_feature_fails(#[case] rel_path: &str, #[case] expected_snippet: &
     };
     assert!(err.to_string().contains(expected_snippet));
 }
-
