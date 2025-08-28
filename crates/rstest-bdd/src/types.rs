@@ -116,6 +116,9 @@ impl From<&str> for StepKeyword {
     }
 }
 
+// And/But are not present in `gherkin::StepType`; they are resolved from the
+// raw `keyword` string during feature parsing. This mapping covers only primary
+// keywords emitted by the Gherkin parser.
 impl From<StepType> for StepKeyword {
     fn from(ty: StepType) -> Self {
         match ty {
