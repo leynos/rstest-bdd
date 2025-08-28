@@ -1,10 +1,9 @@
 //! Code generation for scenario tests.
 
-use super::keyword_to_token;
 use crate::parsing::feature::resolve_conjunction_keyword;
 use proc_macro::TokenStream;
 use proc_macro2::TokenStream as TokenStream2;
-use quote::quote;
+use quote::{ToTokens, quote};
 
 /// Create a `LitStr` from an examples table cell.
 fn cell_to_lit(value: &str) -> syn::LitStr {
@@ -95,12 +94,15 @@ fn process_steps(
     Vec<TokenStream2>,
     Vec<TokenStream2>,
 ) {
+    // Preserve "And"/"But" at parse time for clearer diagnostics, but
+    // normalise them here so runtime resolution sees the intended semantic
+    // keyword. We then convert to tokens using the local ToTokens impl.
     let mut prev = None;
     let keywords = steps
         .iter()
         .map(|s| {
             let kw = resolve_conjunction_keyword(&mut prev, s.keyword);
-            keyword_to_token(kw)
+            kw.to_token_stream()
         })
         .collect();
     let values = steps
@@ -185,8 +187,11 @@ fn generate_test_tokens(
     let path = crate::codegen::rstest_bdd_path();
     quote! {
         let steps = [#((#keywords, #values, #docstrings, #tables)),*];
-        let mut ctx = #path::StepContext::default();
-        #(#ctx_inserts)*
+        let ctx = {
+            let mut ctx = #path::StepContext::default();
+            #(#ctx_inserts)*
+            ctx
+        };
         for (index, (keyword, text, docstring, table)) in steps.iter().enumerate() {
             if let Some(f) = #path::find_step(*keyword, (*text).into()) {
                 if let Err(err) = f(&ctx, *text, *docstring, *table) {

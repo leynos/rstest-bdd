@@ -23,15 +23,3 @@ pub(crate) fn rstest_bdd_path() -> TokenStream2 {
     };
     quote! { ::#ident }
 }
-
-/// Convert a [`StepKeyword`] into a quoted token.
-pub(crate) fn keyword_to_token(keyword: crate::StepKeyword) -> TokenStream2 {
-    let path = rstest_bdd_path();
-    match keyword {
-        crate::StepKeyword::Given => quote! { #path::StepKeyword::Given },
-        crate::StepKeyword::When => quote! { #path::StepKeyword::When },
-        crate::StepKeyword::Then => quote! { #path::StepKeyword::Then },
-        crate::StepKeyword::And => quote! { #path::StepKeyword::And },
-        crate::StepKeyword::But => quote! { #path::StepKeyword::But },
-    }
-}

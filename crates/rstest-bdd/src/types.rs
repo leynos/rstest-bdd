@@ -58,6 +58,9 @@ impl<'a> From<&'a str> for StepText<'a> {
 }
 
 /// Keyword used to categorize a step definition.
+///
+/// The enum includes `And` and `But` variants for completeness, but feature
+/// parsing resolves them against the preceding `Given`/`When`/`Then`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum StepKeyword {
     /// Setup preconditions for a scenario.
@@ -95,12 +98,12 @@ impl FromStr for StepKeyword {
     type Err = StepKeywordParseError;
 
     fn from_str(value: &str) -> Result<Self, Self::Err> {
-        let kw = match value {
-            "Given" => Self::Given,
-            "When" => Self::When,
-            "Then" => Self::Then,
-            "And" => Self::And,
-            "But" => Self::But,
+        let kw = match value.trim().to_ascii_lowercase().as_str() {
+            "given" => Self::Given,
+            "when" => Self::When,
+            "then" => Self::Then,
+            "and" => Self::And,
+            "but" => Self::But,
             other => return Err(StepKeywordParseError(other.to_string())),
         };
         Ok(kw)
@@ -113,13 +116,47 @@ impl From<&str> for StepKeyword {
     }
 }
 
+// And/But are not present in `gherkin::StepType`; they are resolved from the
+// raw `keyword` string during feature parsing. This mapping covers only primary
+// keywords emitted by the Gherkin parser.
 impl From<StepType> for StepKeyword {
     fn from(ty: StepType) -> Self {
         match ty {
             StepType::Given => Self::Given,
             StepType::When => Self::When,
             StepType::Then => Self::Then,
+            #[expect(
+                unreachable_patterns,
+                reason = "keep a guard for future StepType variants"
+            )]
+            _ => panic!("unsupported step type: {ty:?}"),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use gherkin::StepType;
+    use rstest::rstest;
+
+    #[rstest]
+    #[case("Given", StepKeyword::Given)]
+    #[case("given", StepKeyword::Given)]
+    #[case("\tThEn\n", StepKeyword::Then)]
+    #[case("AND", StepKeyword::And)]
+    #[case(" but ", StepKeyword::But)]
+    fn parses_case_insensitively(#[case] input: &str, #[case] expected: StepKeyword) {
+        assert!(matches!(StepKeyword::from_str(input), Ok(val) if val == expected));
+        assert_eq!(StepKeyword::from(input), expected);
+    }
+
+    #[rstest]
+    #[case(StepType::Given, StepKeyword::Given)]
+    #[case(StepType::When, StepKeyword::When)]
+    #[case(StepType::Then, StepKeyword::Then)]
+    fn maps_step_type(#[case] input: StepType, #[case] expected: StepKeyword) {
+        assert_eq!(StepKeyword::from(input), expected);
     }
 }
 

@@ -440,8 +440,9 @@ location information for generating clear error messages.
 // A simplified representation of the step metadata.
 #[derive(Debug)]
 pub struct Step {
-    pub keyword: StepKeyword, // e.g., Given, When or Then
-    pub pattern: &'static StepPattern, // The pattern string from the attribute, e.g., "A user has {count} cucumbers"
+    pub keyword: StepKeyword, // e.g., Given, When, Then, And or But
+    pub pattern: &'static StepPattern, // The pattern string from the attribute,
+                                       // e.g., "A user has {count} cucumbers"
     // A type-erased function pointer. Arguments will be wired up by the
     // scenario orchestrator in later phases.
     pub run: fn(),
@@ -456,7 +457,9 @@ inventory::collect!(Step);
 
 The [`StepKeyword`](../crates/rstest-bdd/src/types.rs) enum implements
 `FromStr`. Parsing failures return a `StepKeywordParseError` to ensure invalid
-step keywords are surfaced early.
+step keywords are surfaced early. Matching ignores case and surrounding
+whitespace. All five Gherkin keywords are recognized and `And`/`But` are
+resolved to the preceding primary keyword during parsing.
 
 The [`StepPattern`](../crates/rstest-bdd/src/pattern.rs) wrapper encapsulates
 the pattern text so that step lookups cannot accidentally mix arbitrary strings
@@ -492,7 +495,7 @@ sequenceDiagram
   SP->>RB: build_regex_from_pattern(text)
   loop over pattern bytes
     RB->>TC: try_parse_common_sequences(...)
-    alt recognised sequence
+    alt recognized sequence
       TC-->>RB: consume
     else other character
       RB->>PC: parse_context_specific(...)
