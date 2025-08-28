@@ -33,7 +33,8 @@ impl From<&str> for StepKeyword {
             "then" => Self::Then,
             "and" => Self::And,
             "but" => Self::But,
-            _ => panic!("invalid step keyword: {trimmed}"),
+            // Use the original, untrimmed `value` for clearer diagnostics.
+            _ => panic!("invalid step keyword: {value}"),
         }
     }
 }
