@@ -756,7 +756,7 @@ dependencies = [
 
 [[package]]
 name = "rstest-bdd"
-version = "0.2.0-alpha1"
+version = "0.1.0-alpha2"
 dependencies = [
  "gherkin",
  "hashbrown 0.15.4",
@@ -769,7 +769,7 @@ dependencies = [
 
 [[package]]
 name = "rstest-bdd-macros"
-version = "0.2.0-alpha1"
+version = "0.1.0-alpha2"
 dependencies = [
  "gherkin",
  "once_cell",
