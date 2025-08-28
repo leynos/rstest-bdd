@@ -1213,6 +1213,13 @@ command-line interface. Three subcommands are provided:
 - `list-unused` parses one or more feature paths with the `gherkin` crate and
   reports steps that are never referenced.
 
+Feature paths are traversed with the `walkdir` crate, which skips symlinked
+directories by default and gracefully handles permission errors. Paths are
+canonicalised and deduplicated before parsing to avoid repeated work. Duplicate
+detection normalises whitespace and placeholder names so semantically identical
+steps are grouped together. Unused-step detection indexes the registry by
+keyword to minimise repeated comparisons.
+
 The binary is intentionally lightweight and delegates all heavy lifting to the
 `cargo-bdd` library, making it easy to reuse the logic in other tools.
 

@@ -5,10 +5,14 @@
 //! definitions that are not referenced by any provided feature files.
 
 use eyre::Result;
+use once_cell::sync::Lazy;
+use regex::Regex;
 use rstest_bdd::{Step, StepKeyword, StepText, extract_placeholders};
-use std::collections::{HashMap, HashSet, VecDeque};
+use std::collections::{HashMap, HashSet};
+use std::ffi::OsStr;
 use std::fs;
 use std::path::{Path, PathBuf};
+use walkdir::WalkDir;
 
 /// Gather all registered steps sorted by source location.
 #[must_use]
@@ -21,13 +25,20 @@ pub fn steps() -> Vec<&'static Step> {
 /// Group step definitions that share the same keyword and pattern.
 #[must_use]
 pub fn duplicates() -> Vec<Vec<&'static Step>> {
-    let mut map: HashMap<(StepKeyword, &str), Vec<&'static Step>> = HashMap::new();
+    let mut map: HashMap<(StepKeyword, String), Vec<&'static Step>> = HashMap::new();
     for step in steps() {
-        map.entry((step.keyword, step.pattern.as_str()))
-            .or_default()
-            .push(step);
+        let key = (step.keyword, normalise_pattern(step.pattern.as_str()));
+        map.entry(key).or_default().push(step);
     }
     map.into_values().filter(|v| v.len() > 1).collect()
+}
+
+static PLACEHOLDER_RE: Lazy<Regex> =
+    Lazy::new(|| Regex::new(r"<[^>]+>").expect("valid placeholder regex"));
+
+fn normalise_pattern(pat: &str) -> String {
+    let collapsed = pat.split_whitespace().collect::<Vec<_>>().join(" ");
+    PLACEHOLDER_RE.replace_all(&collapsed, "<>").into_owned()
 }
 
 /// Identify step definitions that are unused in the given feature paths.
@@ -38,16 +49,22 @@ pub fn duplicates() -> Vec<Vec<&'static Step>> {
 /// Returns an error if any path cannot be read or parsed.
 pub fn unused(paths: &[PathBuf]) -> Result<Vec<&'static Step>> {
     let feature_steps = collect_feature_steps(paths)?;
+    let mut by_kw: HashMap<StepKeyword, Vec<&'static Step>> = HashMap::new();
+    for step in steps() {
+        by_kw.entry(step.keyword).or_default().push(step);
+    }
+
     let mut used: HashSet<*const Step> = HashSet::new();
     for (kw, text) in feature_steps {
-        for step in steps() {
-            if step.keyword == kw
-                && extract_placeholders(step.pattern, StepText::from(text.as_str())).is_ok()
-            {
-                used.insert(step as *const Step);
+        if let Some(candidates) = by_kw.get(&kw) {
+            for step in candidates {
+                if extract_placeholders(step.pattern, StepText::from(text.as_str())).is_ok() {
+                    used.insert(*step as *const Step);
+                }
             }
         }
     }
+
     Ok(steps()
         .into_iter()
         .filter(|s| !used.contains(&(*s as *const Step)))
@@ -55,10 +72,16 @@ pub fn unused(paths: &[PathBuf]) -> Result<Vec<&'static Step>> {
 }
 
 fn collect_feature_steps(paths: &[PathBuf]) -> Result<Vec<(StepKeyword, String)>> {
-    let mut files = Vec::new();
+    let mut files = HashSet::new();
     for path in paths {
-        gather_features(path, &mut files)?;
+        for file in gather_features(path)? {
+            files.insert(file);
+        }
     }
+
+    let mut files: Vec<PathBuf> = files.into_iter().collect();
+    files.sort();
+
     let mut out = Vec::new();
     for file in files {
         let feature = gherkin::Feature::parse_path(&file, gherkin::GherkinEnv::default())?;
@@ -72,27 +95,24 @@ fn collect_feature_steps(paths: &[PathBuf]) -> Result<Vec<(StepKeyword, String)>
     Ok(out)
 }
 
-fn gather_features(path: &Path, out: &mut Vec<PathBuf>) -> Result<()> {
+fn gather_features(path: &Path) -> Result<Vec<PathBuf>> {
     let meta = fs::metadata(path)?;
     if meta.is_file() {
-        if path.extension().is_some_and(|e| e == "feature") {
-            out.push(path.to_path_buf());
-        }
-        return Ok(());
+        return if path.extension().is_some_and(|e| e == "feature") {
+            Ok(vec![fs::canonicalize(path)?])
+        } else {
+            Ok(Vec::new())
+        };
     }
-    let mut dirs = VecDeque::from([path.to_path_buf()]);
-    while let Some(dir) = dirs.pop_front() {
-        for entry in fs::read_dir(&dir)? {
-            let entry = entry?;
-            let path = entry.path();
-            if path.is_dir() {
-                dirs.push_back(path);
-            } else if path.extension().is_some_and(|e| e == "feature") {
-                out.push(path);
-            }
+    let mut out = Vec::new();
+    for entry in WalkDir::new(path).into_iter().filter_map(Result::ok) {
+        let p = entry.path();
+        if entry.file_type().is_file() && p.extension().is_some_and(|e| e == OsStr::new("feature"))
+        {
+            out.push(fs::canonicalize(p)?);
         }
     }
-    Ok(())
+    Ok(out)
 }
 
 fn map_step(step: &gherkin::Step) -> (StepKeyword, String) {

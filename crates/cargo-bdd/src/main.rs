@@ -1,6 +1,6 @@
 //! Command-line interface for `rstest-bdd` diagnostics.
 
-use clap::{Parser, Subcommand};
+use clap::{CommandFactory, Parser, Subcommand};
 use eyre::Result;
 use std::path::PathBuf;
 
@@ -11,7 +11,7 @@ use cargo_bdd::{duplicates, steps, unused};
 #[command(version, about)]
 struct Cli {
     #[command(subcommand)]
-    command: Commands,
+    command: Option<Commands>,
 }
 
 #[derive(Subcommand)]
@@ -30,7 +30,7 @@ enum Commands {
 fn main() -> Result<()> {
     let cli = Cli::parse();
     match cli.command {
-        Commands::Steps => {
+        Some(Commands::Steps) => {
             for step in steps() {
                 println!(
                     "{} {} ({}:{})",
@@ -41,7 +41,7 @@ fn main() -> Result<()> {
                 );
             }
         }
-        Commands::Duplicates => {
+        Some(Commands::Duplicates) => {
             for group in duplicates() {
                 let first = group[0];
                 println!("{} {}", first.keyword.as_str(), first.pattern.as_str());
@@ -50,7 +50,7 @@ fn main() -> Result<()> {
                 }
             }
         }
-        Commands::Unused { paths } => {
+        Some(Commands::Unused { paths }) => {
             for step in unused(&paths)? {
                 println!(
                     "{} {} ({}:{})",
@@ -60,6 +60,10 @@ fn main() -> Result<()> {
                     step.line
                 );
             }
+        }
+        None => {
+            Cli::command().print_help()?;
+            println!();
         }
     }
     Ok(())

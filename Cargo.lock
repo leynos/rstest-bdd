@@ -130,9 +130,12 @@ dependencies = [
  "eyre",
  "gherkin",
  "inventory",
+ "once_cell",
  "predicates",
+ "regex",
  "rstest-bdd",
  "rstest-bdd-macros",
+ "walkdir",
 ]
 
 [[package]]

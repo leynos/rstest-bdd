@@ -25,7 +25,7 @@ quote.workspace = true
 syn.workspace = true
 rstest-bdd.workspace = true
 gherkin.workspace = true
-walkdir = "2.5.0"
+walkdir.workspace = true
 
 [dev-dependencies]
 trybuild.workspace = true

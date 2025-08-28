@@ -2,6 +2,15 @@ use assert_cmd::Command;
 use predicates::prelude::*;
 
 #[test]
+fn no_args_prints_help() -> Result<(), Box<dyn std::error::Error>> {
+    let mut cmd = Command::cargo_bin("cargo-bdd")?;
+    cmd.assert()
+        .success()
+        .stdout(predicate::str::contains("list-steps"));
+    Ok(())
+}
+
+#[test]
 fn list_steps_outputs_registered_steps() -> Result<(), Box<dyn std::error::Error>> {
     let mut cmd = Command::cargo_bin("cargo-bdd")?;
     cmd.arg("list-steps");
