@@ -57,7 +57,7 @@ impl<'a> From<&'a str> for StepText<'a> {
     }
 }
 
-/// Keyword used to categorise a step definition.
+/// Keyword used to categorize a step definition.
 ///
 /// The enum includes `And` and `But` variants for completeness, but feature
 /// parsing resolves them against the preceding `Given`/`When`/`Then`.
@@ -119,13 +119,12 @@ impl From<&str> for StepKeyword {
 impl From<StepType> for StepKeyword {
     fn from(ty: StepType) -> Self {
         // `gherkin::StepType` currently exposes only `Given`, `When`, and `Then`.
-        // `And`/`But` steps are normalised from their string keywords earlier.
+        // If the upstream crate adds more variants, compilation will fail until
+        // they are handled explicitly here.
         match ty {
             StepType::Given => Self::Given,
             StepType::When => Self::When,
             StepType::Then => Self::Then,
-            #[expect(unreachable_patterns, reason = "panic on future StepType variants")]
-            _ => panic!("unsupported step type: {ty:?}"),
         }
     }
 }

@@ -9,7 +9,7 @@
 use proc_macro2::TokenStream as TokenStream2;
 use quote::{ToTokens, quote};
 
-/// Keyword used to categorise a step definition.
+/// Keyword used to categorize a step definition.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub(crate) enum StepKeyword {
     /// Setup preconditions for a scenario.

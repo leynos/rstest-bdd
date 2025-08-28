@@ -370,7 +370,7 @@ a full "regression" suite, or tests specific to a certain feature or
 environment. `Tags` are Gherkin's mechanism for this kind of organisation. A
 tag is a simple annotation prefixed with an `@` symbol (e.g., `@smoke`, `@api`,
 `@ui`).[^13] Tags can be placed above `Feature`, `Scenario`,
-`Scenario Outline`, or even specific `Examples` tables to categorise them.[^10]
+`Scenario Outline`, or even specific `Examples` tables to categorize them.[^10]
 A single element can have multiple tags.
 
 ```gherkin
