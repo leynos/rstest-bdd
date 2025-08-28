@@ -31,13 +31,12 @@ fn step_attr(attr: TokenStream, item: TokenStream, keyword: crate::StepKeyword) 
                 rstest_bdd::StepKeyword::And => "and",
                 rstest_bdd::StepKeyword::But => "but",
             };
-            let mut enriched = syn::Error::new(
+            let enriched = syn::Error::new(
                 err.span(),
                 format!(
-                    "invalid step function signature: {err}. Hint: use `#[{kw_name}] fn name(ctx: &StepContext, ... )` and valid fixtures.",
+                    "invalid step function signature: {err}. help: use `#[{kw_name}] fn name(ctx: &StepContext, ...)` and valid fixtures.",
                 ),
             );
-            enriched.combine(err);
             return error_to_tokens(&enriched).into();
         }
     };

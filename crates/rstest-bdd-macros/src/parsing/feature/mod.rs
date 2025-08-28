@@ -24,13 +24,14 @@ pub(crate) struct ScenarioData {
 }
 
 /// Map a textual step keyword and `StepType` to a `StepKeyword`.
+///
+/// Conjunction keywords such as "And" and "But" inherit the semantic
+/// meaning of the preceding step but remain distinct for later resolution.
+/// Matching is case-insensitive to tolerate unusual source casing.
 pub(crate) fn parse_step_keyword(kw: &str, ty: StepType) -> crate::StepKeyword {
     match kw.trim() {
-        // "And"/"But" inherit the semantic meaning of the preceding step at
-        // execution time, so we keep them as distinct variants for later
-        // resolution.
-        "And" => crate::StepKeyword::And,
-        "But" => crate::StepKeyword::But,
+        s if s.eq_ignore_ascii_case("and") => crate::StepKeyword::And,
+        s if s.eq_ignore_ascii_case("but") => crate::StepKeyword::But,
         _ => ty.into(),
     }
 }
