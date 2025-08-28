@@ -26,13 +26,14 @@ pub(crate) enum StepKeyword {
 
 impl From<&str> for StepKeyword {
     fn from(value: &str) -> Self {
-        match value.trim().to_ascii_lowercase().as_str() {
+        let trimmed = value.trim();
+        match trimmed.to_ascii_lowercase().as_str() {
             "given" => Self::Given,
             "when" => Self::When,
             "then" => Self::Then,
             "and" => Self::And,
             "but" => Self::But,
-            other => panic!("invalid step keyword: {other}"),
+            _ => panic!("invalid step keyword: {trimmed}"),
         }
     }
 }
