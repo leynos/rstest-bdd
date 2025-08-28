@@ -32,4 +32,4 @@ trybuild.workspace = true
 once_cell.workspace = true
 rstest.workspace = true
 serial_test.workspace = true
-rstest-bdd = { path = "../rstest-bdd" }
+rstest-bdd.workspace = true

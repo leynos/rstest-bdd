@@ -1,0 +1,9 @@
+[package]
+name = "rstest-bdd-macros-ui"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+rstest-bdd = { path = "../../../rstest-bdd" }
+rstest-bdd-macros = { path = "../.." }
