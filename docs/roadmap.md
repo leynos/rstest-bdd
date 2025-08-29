@@ -122,15 +122,17 @@ improves the developer experience.
 
 - [ ] **Tag Filtering**
 
-  - [ ] Allow the `#[scenario]` macro to select scenarios by tag expression.
+  - [ ] Allow the `#[scenario]` macro to select scenarios by tag expression at
+    macro-expansion time.
 
   - [ ] Extend the `scenarios!` macro to filter scenarios using the same tag
-    syntax. (See: docs/rstest-bdd-design.md §1.3.4.)
+    syntax at macro-expansion time. (See: [design §1.3.4].)
 
   - [ ] Document tag-expression grammar and precedence (§1.3.4).
 
-  - [ ] Emit compile-time diagnostics for invalid expressions, including the
-    byte offset and a helpful message.
+  - [ ] Filter at macro expansion time and emit `compile_error!` diagnostics for
+    invalid tag expressions (empty strings, empty parentheses, dangling
+    operators) including the byte offset and a helpful message.
 
   - [ ] Define tag scope and inheritance:
     - Scenarios inherit `Feature:` tags.
@@ -138,14 +140,16 @@ improves the developer experience.
       originating `Examples:` block.
 
   - [ ] Specify associativity (`and`/`or` left-associative; `not` unary-prefix)
-    and reject empty or unknown tokens (`&&`, `||`, `!`) at compile time.
+    and reject unknown tokens (`&&`, `||`, `!`) at compile time.
 
   - [ ] Implement a single shared parser used by both macros to guarantee
     identical semantics.
 
   - [ ] Add conformance tests for precedence, associativity, and scope:
     - Valid: `@a and not (@b or @c)`
-    - Invalid: `@a && @b`, `""`, unbalanced `(@a or @b`
+    - Invalid: `@a && @b`, `""`, `()`, `@a and`, `(@a or @b`
+
+[design §1.3.4]: ./rstest-bdd-design.md#134-filtering-scenarios-with-tags
 
 - [ ] **Boilerplate Reduction**
 

@@ -342,7 +342,27 @@ Grammar and semantics:
   byte offset of the failure and a short reason.
 - Empty `tags` (missing or `""`) is invalid and emits `compile_error!`.
 - Unknown tokens (e.g., `&&`, `||`, `!`) are invalid.
+- Empty parentheses `()` and dangling operators (`@a and`, `or @b`, leading
+  `and`/`or`) are invalid.
 - Matching is set-membership only; tags do not carry values.
+
+EBNF:
+
+```ebnf
+expr      ::= or_expr
+or_expr   ::= and_expr { "or" and_expr }
+and_expr  ::= not_expr { "and" not_expr }
+not_expr  ::= [ "not" ] primary
+primary   ::= TAG | "(" expr ")"
+TAG       ::= "@" IDENT
+IDENT     ::= { A..Z | a..z | 0..9 | "_" | ":" | "-" }+
+```
+
+Example diagnostic:
+
+```text
+error: invalid tag expression at byte 7: expected tag or '(' after 'and'
+```
 
 `scenarios!` usage:
 
@@ -352,6 +372,9 @@ scenarios!("tests/features/", tags = "@smoke or (@critical and not @wip)");
 
 // Exclude slow:
 scenarios!("tests/features/", tags = "not @slow");
+
+// Operator keywords are case-insensitive:
+scenarios!("tests/features/", tags = "@SMOKE Or Not @Wip");
 ```
 
 ## Part 2: Architectural and API Specification
