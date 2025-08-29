@@ -263,9 +263,14 @@ mod tests {
     use crate::parsing::feature::ParsedStep;
 
     fn kw(ts: &TokenStream2) -> crate::StepKeyword {
-        let s = ts.to_string();
-        let variant = s.rsplit("::").next().map_or("Given", str::trim);
-        crate::StepKeyword::from(variant)
+        let path: syn::Path = syn::parse2(ts.clone()).unwrap_or_else(|_| panic!("keyword path"));
+        let ident = path
+            .segments
+            .last()
+            .unwrap_or_else(|| panic!("last"))
+            .ident
+            .to_string();
+        crate::StepKeyword::from(ident.as_str())
     }
 
     fn blank() -> ParsedStep {
@@ -291,7 +296,10 @@ mod tests {
         ];
         let (keywords, _, _, _) = process_steps(&steps);
         let parsed: Vec<_> = keywords.iter().map(kw).collect();
-        assert_eq!(parsed, vec![crate::StepKeyword::Then, crate::StepKeyword::Then]);
+        assert_eq!(
+            parsed,
+            vec![crate::StepKeyword::Then, crate::StepKeyword::Then]
+        );
     }
 
     #[test]
@@ -308,7 +316,10 @@ mod tests {
         ];
         let (keywords, _, _, _) = process_steps(&steps);
         let parsed: Vec<_> = keywords.iter().map(kw).collect();
-        assert_eq!(parsed, vec![crate::StepKeyword::Then, crate::StepKeyword::Then]);
+        assert_eq!(
+            parsed,
+            vec![crate::StepKeyword::Then, crate::StepKeyword::Then]
+        );
     }
 
     #[test]

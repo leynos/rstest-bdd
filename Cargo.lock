@@ -838,6 +838,7 @@ dependencies = [
  "rstest-bdd",
  "serial_test",
  "syn",
+ "thiserror",
  "trybuild",
  "walkdir",
 ]
