@@ -26,6 +26,7 @@ syn.workspace = true
 gherkin.workspace = true
 walkdir = "2.5.0"
 proc-macro-crate = "3"
+thiserror.workspace = true
 
 [dev-dependencies]
 trybuild.workspace = true

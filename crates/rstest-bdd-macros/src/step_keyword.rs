@@ -9,7 +9,6 @@
 use gherkin::{Step, StepType};
 use proc_macro2::TokenStream as TokenStream2;
 use quote::{ToTokens, quote};
-use std::fmt;
 
 /// Keyword used to categorize a step definition.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -27,16 +26,9 @@ pub(crate) enum StepKeyword {
 }
 
 /// Error produced when encountering an unsupported `StepType`.
-#[derive(Debug)]
+#[derive(Debug, thiserror::Error)]
+#[error("unsupported step type: {0:?}")]
 pub(crate) struct UnsupportedStepType(pub StepType);
-
-impl fmt::Display for UnsupportedStepType {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "unsupported step type: {:?}", self.0)
-    }
-}
-
-impl std::error::Error for UnsupportedStepType {}
 
 impl From<&str> for StepKeyword {
     fn from(value: &str) -> Self {
