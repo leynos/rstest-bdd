@@ -1,6 +1,6 @@
 //! Feature file loading and scenario extraction.
 
-use gherkin::{Feature, GherkinEnv, Step, StepType};
+use gherkin::{Feature, GherkinEnv, Step};
 use std::path::{Path, PathBuf};
 
 use crate::parsing::examples::ExampleTable;
@@ -27,35 +27,24 @@ pub(crate) struct ScenarioData {
 ///
 /// Uses the textual keyword when present to honour conjunctions
 /// (And/But). Falls back to the typed step when not a conjunction.
-impl From<&Step> for ParsedStep {
-    fn from(step: &Step) -> Self {
+impl TryFrom<&Step> for ParsedStep {
+    type Error = crate::step_keyword::UnsupportedStepType;
+
+    fn try_from(step: &Step) -> Result<Self, Self::Error> {
         // The Gherkin parser exposes both a textual keyword (e.g. "And") and a
         // typed variant (Given/When/Then). We prioritise the textual value so
         // that conjunctions are preserved and can be used to improve
         // diagnostics. Trimming avoids surprises from trailing spaces in
         // .feature files.
-        let keyword = match step.keyword.trim() {
-            s if s.eq_ignore_ascii_case("and") => crate::StepKeyword::And,
-            s if s.eq_ignore_ascii_case("but") => crate::StepKeyword::But,
-            _ =>
-            {
-                #[expect(unreachable_patterns, reason = "panic on future StepType variants")]
-                match step.ty {
-                    StepType::Given => crate::StepKeyword::Given,
-                    StepType::When => crate::StepKeyword::When,
-                    StepType::Then => crate::StepKeyword::Then,
-                    _ => panic!("unsupported step type: {:?}", step.ty),
-                }
-            }
-        };
+        let keyword = crate::StepKeyword::try_from(step)?;
         let table = step.table.as_ref().map(|t| t.rows.clone());
         let docstring = step.docstring.clone();
-        Self {
+        Ok(Self {
             keyword,
             text: step.value.clone(),
             docstring,
             table,
-        }
+        })
     }
 }
 
@@ -131,10 +120,20 @@ pub(crate) fn extract_scenario_steps(
     let scenario_name = scenario.name.clone();
 
     let mut steps = Vec::new();
+    let parse = |s: &Step| {
+        ParsedStep::try_from(s).map_err(|e| {
+            let err = syn::Error::new(proc_macro2::Span::call_site(), e.to_string());
+            error_to_tokens(&err)
+        })
+    };
     if let Some(bg) = &feature.background {
-        steps.extend(bg.steps.iter().map(ParsedStep::from));
+        for step in &bg.steps {
+            steps.push(parse(step)?);
+        }
     }
-    steps.extend(scenario.steps.iter().map(ParsedStep::from));
+    for step in &scenario.steps {
+        steps.push(parse(step)?);
+    }
 
     let examples = crate::parsing::examples::extract_examples(scenario)?;
 
