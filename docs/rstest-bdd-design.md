@@ -304,6 +304,24 @@ fn create_users(
   to be passed to a step. This will be provided as a `String` argument to the
   step function, again mirroring `pytest-bdd`.[^11]
 
+#### 1.3.4 Filtering Scenarios with Tags
+
+Tags provide a convenient way to organise scenarios and control which tests
+run. The `#[scenario]` macro will accept an optional `tags` argument containing
+an expression such as `"@fast and not @wip"`. Only scenarios whose tags satisfy
+this expression will expand into test functions. The `scenarios!` macro will
+offer the same argument to filter an entire directory of feature files.
+
+**Example:**
+
+```rust
+#[scenario(path = "search.feature", tags = "@fast and not @wip")]
+fn search_fast() {}
+```
+
+The macro emits a test only when the matched scenario carries the `@fast` tag
+and lacks the `@wip` tag.
+
 ## Part 2: Architectural and API Specification
 
 This part transitions from the user's perspective to the technical

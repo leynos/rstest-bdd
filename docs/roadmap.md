@@ -120,6 +120,13 @@ improves the developer experience.
     matching step definition exists for every Gherkin step in the target
     scenario, emitting a `compile_error!` if any are missing.
 
+- [ ] **Tag Filtering**
+
+  - [ ] Allow the `#[scenario]` macro to select scenarios by tag expression.
+
+  - [ ] Extend the `scenarios!` macro to filter scenarios using the same tag
+    syntax.
+
 - [ ] **Boilerplate Reduction**
 
   - [x] Implement the `scenarios!("path/to/features/")` macro to automatically
