@@ -981,6 +981,17 @@ functionality is implemented:
   helping developers find available steps and detect unused or duplicate
   definitions.
 
+  The implemented tool lives in a standalone `cargo-bdd` crate that acts as a
+  cargo subcommand. It queries the runtime step registry and exposes three
+  commands: `list-steps`, `list-unused`, and `list-duplicates`. Step usage is
+  recorded whenever a step is resolved by the registry and appended to a
+  workspace‑wide `target/.rstest-bdd-usage.json` file so usage survives across
+  test processes. This allows the CLI to report definitions that were never
+  exercised and groups of steps that share a keyword and pattern. Because
+  `inventory` operates per binary, the subcommand compiles each test target and
+  executes it with a private `--dump-steps` flag to stream the registry as
+  JSON. The tool merges these dumps so diagnostics cover the entire workspace.
+
 - **Teardown Hooks:** While `rstest` fixtures handle teardown via `Drop`, more
   explicit post-scenario cleanup, especially in the case of a step panic, could
   be valuable. A feature like `#[fixture(after)]` could be explored, either

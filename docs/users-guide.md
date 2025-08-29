@@ -313,6 +313,25 @@ added, patterns and examples may change. Meanwhile, adopting `rstest‑bdd` in
 its current form will be most effective when feature files remain simple and
 step definitions are explicit.
 
+## Diagnostic tooling
+
+`rstest-bdd` bundles a small helper binary exposed as the cargo subcommand
+`cargo bdd`. The tool inspects the runtime step registry and offers three
+commands:
+
+- `cargo bdd list-steps` prints every registered step with its source
+  location.
+- `cargo bdd list-unused` shows steps that were never executed in the latest
+  test run. Usage is tracked whenever a step is resolved and persisted in
+  `target/.rstest-bdd-usage.json` so diagnostics can span processes.
+- `cargo bdd list-duplicates` groups step definitions that share the same
+  keyword and pattern, helping to identify accidental copies.
+
+The subcommand builds each test target in the workspace and runs the resulting
+binary with a private `--dump-steps` flag to collect the registered steps as
+JSON. The merged output powers the commands above, helping to keep the step
+library tidy and discover dead code early in the development cycle.
+
 ## Summary
 
 `rstest‑bdd` seeks to bring the collaborative clarity of Behaviour‑Driven
