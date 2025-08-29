@@ -16,6 +16,7 @@ pub fn greet() -> &'static str {
     "Hello from rstest-bdd!"
 }
 
+use ctor::ctor;
 pub use inventory::{iter, submit};
 use thiserror::Error;
 
@@ -28,11 +29,30 @@ mod types;
 pub use context::StepContext;
 pub use pattern::StepPattern;
 pub use placeholder::extract_placeholders;
+pub use registry::dump_registry;
 pub use registry::{Step, duplicate_steps, find_step, lookup_step, unused_steps};
 pub use types::{
     PatternStr, PlaceholderError, PlaceholderSyntaxError, StepFn, StepKeyword,
     StepKeywordParseError, StepPatternError, StepText,
 };
+
+#[ctor]
+fn dump_steps() {
+    if std::env::args().any(|a| a == "--dump-steps") {
+        #[expect(
+            clippy::print_stdout,
+            clippy::print_stderr,
+            reason = "registry dump is written to standard streams"
+        )]
+        {
+            match dump_registry() {
+                Ok(json) => println!("{json}"),
+                Err(e) => eprintln!("failed to serialise step registry: {e}"),
+            }
+        }
+        std::process::exit(0);
+    }
+}
 
 /// Extracts a panic payload into a human-readable message.
 ///

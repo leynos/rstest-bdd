@@ -21,6 +21,9 @@ inventory.workspace = true
 regex.workspace = true
 thiserror.workspace = true
 hashbrown = "0.15"
+serde.workspace = true
+serde_json.workspace = true
+ctor.workspace = true
 
 [dev-dependencies]
 rstest.workspace = true

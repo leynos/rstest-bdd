@@ -1,7 +1,12 @@
 //! Command-line diagnostic tooling for rstest-bdd.
 
+use std::collections::HashMap;
+use std::process::Command;
+
+use cargo_metadata::Message;
 use clap::{Parser, Subcommand};
-use rstest_bdd::{Step, duplicate_steps, iter, unused_steps};
+use eyre::{Context, Result, bail};
+use serde::Deserialize;
 
 /// Cargo subcommand providing diagnostics for rstest-bdd.
 #[derive(Parser)]
@@ -22,54 +27,120 @@ enum Commands {
     Duplicates,
 }
 
-fn main() {
+#[derive(Debug, Deserialize, Clone)]
+struct Step {
+    keyword: String,
+    pattern: String,
+    file: String,
+    line: u32,
+    used: bool,
+}
+
+fn main() -> Result<()> {
     match Cli::parse().command {
-        Commands::Steps => handle_steps(),
-        Commands::Unused => handle_unused(),
-        Commands::Duplicates => handle_duplicates(),
+        Commands::Steps => handle_steps()?,
+        Commands::Unused => handle_unused()?,
+        Commands::Duplicates => handle_duplicates()?,
     }
+    Ok(())
 }
 
 /// Handle the `steps` subcommand by listing all registered steps.
 ///
-/// # Examples
+/// # Errors
 ///
-/// ```no_run
-/// handle_steps();
-/// ```
-fn handle_steps() {
-    for step in iter::<Step> {
-        print_step(step);
+/// Returns an error if the test binaries cannot be built or executed.
+fn handle_steps() -> Result<()> {
+    for step in collect_steps()? {
+        print_step(&step);
     }
+    Ok(())
 }
 
 /// Handle the `unused` subcommand by listing steps that were never executed.
 ///
-/// # Examples
+/// # Errors
 ///
-/// ```no_run
-/// handle_unused();
-/// ```
-fn handle_unused() {
-    for step in unused_steps() {
-        print_step(step);
+/// Returns an error if the test binaries cannot be built or executed.
+fn handle_unused() -> Result<()> {
+    for step in collect_steps()?.into_iter().filter(|s| !s.used) {
+        print_step(&step);
     }
+    Ok(())
 }
 
 /// Handle the `duplicates` subcommand by grouping identical step definitions.
 ///
-/// # Examples
+/// # Errors
 ///
-/// ```no_run
-/// handle_duplicates();
-/// ```
-fn handle_duplicates() {
-    for group in duplicate_steps() {
-        for step in group {
+/// Returns an error if the test binaries cannot be built or executed.
+fn handle_duplicates() -> Result<()> {
+    let mut groups: HashMap<(String, String), Vec<Step>> = HashMap::new();
+    for step in collect_steps()? {
+        groups
+            .entry((step.keyword.clone(), step.pattern.clone()))
+            .or_default()
+            .push(step);
+    }
+    for group in groups.into_values().filter(|g| g.len() > 1) {
+        for step in &group {
             print_step(step);
         }
         println!("---");
     }
+    Ok(())
+}
+
+fn collect_steps() -> Result<Vec<Step>> {
+    let metadata = cargo_metadata::MetadataCommand::new().exec()?;
+    let has_tests = metadata
+        .packages
+        .iter()
+        .flat_map(|p| &p.targets)
+        .any(|t| t.kind.iter().any(|k| k == "test"));
+    if !has_tests {
+        return Ok(Vec::new());
+    }
+
+    let output = Command::new("cargo")
+        .args(["test", "--no-run", "--message-format=json"])
+        .output()
+        .wrap_err("failed to build tests")?;
+    if !output.status.success() {
+        bail!("cargo test failed");
+    }
+
+    let mut bins = Vec::new();
+    for line in String::from_utf8_lossy(&output.stdout).lines() {
+        if let Ok(Message::CompilerArtifact(artifact)) = serde_json::from_str::<Message>(line)
+            && artifact.target.kind.iter().any(|k| k == "test")
+            && let Some(exe) = artifact.executable
+        {
+            bins.push(exe);
+        }
+    }
+    if bins.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    let mut steps = Vec::new();
+    for bin in bins {
+        let out = Command::new(&bin)
+            .arg("--dump-steps")
+            .output()
+            .with_context(|| format!("failed to run test binary {bin}"))?;
+        if !out.status.success() {
+            let err = String::from_utf8_lossy(&out.stderr);
+            if err.contains("Unrecognized option: 'dump-steps'") {
+                continue;
+            }
+            bail!("test binary {bin} failed: {err}");
+        }
+        let mut parsed: Vec<Step> = serde_json::from_slice(&out.stdout)
+            .with_context(|| format!("invalid JSON from {bin}"))?;
+        steps.append(&mut parsed);
+    }
+    Ok(steps)
 }
 
 /// Print a step definition in diagnostic output.
@@ -77,25 +148,20 @@ fn handle_duplicates() {
 /// # Examples
 ///
 /// ```ignore
-/// use rstest_bdd::{Step, StepKeyword, StepPattern};
+/// use cargo_bdd::Step;
 ///
-/// static PATTERN: StepPattern = StepPattern::new("example");
 /// let step = Step {
-///     keyword: StepKeyword::Given,
-///     pattern: &PATTERN,
-///     run: todo!(),
-///     fixtures: &[],
-///     file: "src/example.rs",
+///     keyword: "Given".into(),
+///     pattern: "example".into(),
+///     file: "src/example.rs".into(),
 ///     line: 42,
+///     used: false,
 /// };
 /// print_step(&step);
 /// ```
 fn print_step(step: &Step) {
     println!(
         "{} '{}' ({}:{})",
-        step.keyword.as_str(),
-        step.pattern.as_str(),
-        step.file,
-        step.line
+        step.keyword, step.pattern, step.file, step.line
     );
 }

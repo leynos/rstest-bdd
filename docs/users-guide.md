@@ -327,8 +327,10 @@ commands:
 - `cargo bdd list-duplicates` groups step definitions that share the same
   keyword and pattern, helping to identify accidental copies.
 
-These diagnostics assist in keeping the step library tidy and discovering dead
-code early in the development cycle.
+The subcommand builds each test target in the workspace and runs the resulting
+binary with a private `--dump-steps` flag to collect the registered steps as
+JSON. The merged output powers the commands above, helping to keep the step
+library tidy and discover dead code early in the development cycle.
 
 ## Summary
 

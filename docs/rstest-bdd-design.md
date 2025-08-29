@@ -986,7 +986,10 @@ functionality is implemented:
   commands: `list-steps`, `list-unused`, and `list-duplicates`. Step usage is
   tracked whenever a step is resolved by the registry, enabling the CLI to
   report definitions that were never exercised and groups of steps that share a
-  keyword and pattern.
+  keyword and pattern. Because `inventory` operates per binary, the subcommand
+  compiles each test target and executes it with a private `--dump-steps` flag
+  to stream the registry as JSON. The tool merges these dumps so diagnostics
+  cover the entire workspace.
 
 - **Teardown Hooks:** While `rstest` fixtures handle teardown via `Drop`, more
   explicit post-scenario cleanup, especially in the case of a step panic, could

@@ -8,6 +8,7 @@ use crate::placeholder::extract_placeholders;
 use crate::types::{PatternStr, StepFn, StepKeyword, StepText};
 use hashbrown::{HashMap, HashSet};
 use inventory::iter;
+use serde::Serialize;
 use std::hash::{BuildHasher, Hash, Hasher};
 use std::sync::{LazyLock, Mutex};
 
@@ -84,8 +85,7 @@ static STEP_MAP: LazyLock<HashMap<StepKey, StepFn>> = LazyLock::new(|| {
     map
 });
 
-static USED_STEPS: LazyLock<Mutex<HashSet<StepKey>>> =
-    LazyLock::new(|| Mutex::new(HashSet::new()));
+static USED_STEPS: LazyLock<Mutex<HashSet<StepKey>>> = LazyLock::new(|| Mutex::new(HashSet::new()));
 
 fn mark_used(key: StepKey) {
     let mut used = USED_STEPS
@@ -154,4 +154,48 @@ pub fn duplicate_steps() -> Vec<Vec<&'static Step>> {
             .push(step);
     }
     groups.into_values().filter(|v| v.len() > 1).collect()
+}
+
+#[derive(Serialize)]
+struct DumpedStep {
+    keyword: &'static str,
+    pattern: &'static str,
+    file: &'static str,
+    line: u32,
+    used: bool,
+}
+
+/// Serialise the registry to a JSON array.
+///
+/// Each entry records the step keyword, pattern, source location, and whether
+/// the step has been executed. The JSON is intended for consumption by
+/// diagnostic tooling such as `cargo bdd`.
+///
+/// # Errors
+///
+/// Returns an error if serialisation fails.
+///
+/// # Examples
+///
+/// ```
+/// use rstest_bdd::dump_registry;
+///
+/// let json = dump_registry().expect("serialise registry");
+/// assert!(json.starts_with("["));
+/// ```
+pub fn dump_registry() -> serde_json::Result<String> {
+    let used = USED_STEPS
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    let steps: Vec<_> = iter::<Step>
+        .into_iter()
+        .map(|s| DumpedStep {
+            keyword: s.keyword.as_str(),
+            pattern: s.pattern.as_str(),
+            file: s.file,
+            line: s.line,
+            used: used.contains(&(s.keyword, s.pattern)),
+        })
+        .collect();
+    serde_json::to_string(&steps)
 }
