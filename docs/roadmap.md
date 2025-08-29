@@ -132,6 +132,21 @@ improves the developer experience.
   - [ ] Emit compile-time diagnostics for invalid expressions, including the
     byte offset and a helpful message.
 
+  - [ ] Define tag scope and inheritance:
+    - Scenarios inherit `Feature:` tags.
+    - `Scenario Outline` cases inherit tags from the outline and their
+      originating `Examples:` block.
+
+  - [ ] Specify associativity (`and`/`or` left-associative; `not` unary-prefix)
+    and reject empty or unknown tokens (`&&`, `||`, `!`) at compile time.
+
+  - [ ] Implement a single shared parser used by both macros to guarantee
+    identical semantics.
+
+  - [ ] Add conformance tests for precedence, associativity, and scope:
+    - Valid: `@a and not (@b or @c)`
+    - Invalid: `@a && @b`, `""`, unbalanced `(@a or @b`
+
 - [ ] **Boilerplate Reduction**
 
   - [x] Implement the `scenarios!("path/to/features/")` macro to automatically

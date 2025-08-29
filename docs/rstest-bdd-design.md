@@ -312,6 +312,12 @@ an expression such as `"@fast and not @wip"`. Only scenarios whose tags satisfy
 this expression will expand into test functions. The `scenarios!` macro will
 offer the same argument to filter an entire directory of feature files.
 
+Tag scope:
+
+- Scenario tags inherit all tags declared at the `Feature:` level.
+- For `Scenario Outline`, tags on the outline and on each `Examples:` block
+  apply to the expanded cases produced from that block.
+
 **Example:**
 
 ```rust
@@ -329,15 +335,23 @@ Grammar and semantics:
   - Operators: `and`, `or`, `not`.
   - Parentheses `(` `)` group sub-expressions.
 - Precedence: `not` > `and` > `or`. Parentheses override precedence.
+- Associativity: `and` and `or` are left-associative; `not` is unary-prefix.
 - Whitespace is ignored between tokens.
 - Tag matching is case-sensitive; operator keywords are case-insensitive.
 - Invalid expressions cause a `compile_error!` with a message that includes the
   byte offset of the failure and a short reason.
+- Empty `tags` (missing or `""`) is invalid and emits `compile_error!`.
+- Unknown tokens (e.g., `&&`, `||`, `!`) are invalid.
+- Matching is set-membership only; tags do not carry values.
 
 `scenarios!` usage:
 
 ```rust
+// Include smoke OR (critical AND not wip):
 scenarios!("tests/features/", tags = "@smoke or (@critical and not @wip)");
+
+// Exclude slow:
+scenarios!("tests/features/", tags = "not @slow");
 ```
 
 ## Part 2: Architectural and API Specification
