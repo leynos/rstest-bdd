@@ -23,47 +23,6 @@ pub(crate) struct ScenarioData {
     pub(crate) examples: Option<ExampleTable>,
 }
 
-/// Map a textual step keyword and `StepType` to a `StepKeyword`.
-///
-/// Conjunction keywords such as "And" and "But" inherit the semantic
-/// meaning of the preceding step but remain distinct for later resolution.
-/// Matching is case-insensitive to tolerate unusual source casing.
-pub(crate) fn parse_step_keyword(kw: &str, ty: StepType) -> crate::StepKeyword {
-    match kw.trim() {
-        s if s.eq_ignore_ascii_case("and") => crate::StepKeyword::And,
-        s if s.eq_ignore_ascii_case("but") => crate::StepKeyword::But,
-        _ =>
-        {
-            #[expect(unreachable_patterns, reason = "panic on future StepType variants")]
-            match ty {
-                StepType::Given => crate::StepKeyword::Given,
-                StepType::When => crate::StepKeyword::When,
-                StepType::Then => crate::StepKeyword::Then,
-                _ => panic!("unsupported step type: {ty:?}"),
-            }
-        }
-    }
-}
-
-/// Return `true` if the keyword is a connective such as "And" or "But".
-pub(crate) fn is_conjunction_keyword(kw: crate::StepKeyword) -> bool {
-    matches!(kw, crate::StepKeyword::And | crate::StepKeyword::But)
-}
-
-/// Replace "And"/"But" with the previous keyword, falling back to itself when
-/// no previous step exists.
-pub(crate) fn resolve_conjunction_keyword(
-    prev: &mut Option<crate::StepKeyword>,
-    kw: crate::StepKeyword,
-) -> crate::StepKeyword {
-    if is_conjunction_keyword(kw) {
-        prev.unwrap_or(kw)
-    } else {
-        *prev = Some(kw);
-        kw
-    }
-}
-
 /// Convert a Gherkin step to a `ParsedStep`.
 ///
 /// Uses the textual keyword when present to honour conjunctions
@@ -75,7 +34,20 @@ impl From<&Step> for ParsedStep {
         // that conjunctions are preserved and can be used to improve
         // diagnostics. Trimming avoids surprises from trailing spaces in
         // .feature files.
-        let keyword = parse_step_keyword(&step.keyword, step.ty);
+        let keyword = match step.keyword.trim() {
+            s if s.eq_ignore_ascii_case("and") => crate::StepKeyword::And,
+            s if s.eq_ignore_ascii_case("but") => crate::StepKeyword::But,
+            _ =>
+            {
+                #[expect(unreachable_patterns, reason = "panic on future StepType variants")]
+                match step.ty {
+                    StepType::Given => crate::StepKeyword::Given,
+                    StepType::When => crate::StepKeyword::When,
+                    StepType::Then => crate::StepKeyword::Then,
+                    _ => panic!("unsupported step type: {:?}", step.ty),
+                }
+            }
+        };
         let table = step.table.as_ref().map(|t| t.rows.clone());
         let docstring = step.docstring.clone();
         Self {
