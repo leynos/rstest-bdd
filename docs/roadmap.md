@@ -125,7 +125,12 @@ improves the developer experience.
   - [ ] Allow the `#[scenario]` macro to select scenarios by tag expression.
 
   - [ ] Extend the `scenarios!` macro to filter scenarios using the same tag
-    syntax.
+    syntax. (See: docs/rstest-bdd-design.md §1.3.4.)
+
+  - [ ] Document tag-expression grammar and precedence (§1.3.4).
+
+  - [ ] Emit compile-time diagnostics for invalid expressions, including the
+    byte offset and a helpful message.
 
 - [ ] **Boilerplate Reduction**
 

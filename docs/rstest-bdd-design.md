@@ -306,7 +306,7 @@ fn create_users(
 
 #### 1.3.4 Filtering Scenarios with Tags
 
-Tags provide a convenient way to organise scenarios and control which tests
+Tags provide a convenient way to organize scenarios and control which tests
 run. The `#[scenario]` macro will accept an optional `tags` argument containing
 an expression such as `"@fast and not @wip"`. Only scenarios whose tags satisfy
 this expression will expand into test functions. The `scenarios!` macro will
@@ -321,6 +321,24 @@ fn search_fast() {}
 
 The macro emits a test only when the matched scenario carries the `@fast` tag
 and lacks the `@wip` tag.
+
+Grammar and semantics:
+
+- Tokens:
+  - Tags are identifiers prefixed with `@` and composed of `[A-Za-z0-9_:-]+`.
+  - Operators: `and`, `or`, `not`.
+  - Parentheses `(` `)` group sub-expressions.
+- Precedence: `not` > `and` > `or`. Parentheses override precedence.
+- Whitespace is ignored between tokens.
+- Tag matching is case-sensitive; operator keywords are case-insensitive.
+- Invalid expressions cause a `compile_error!` with a message that includes the
+  byte offset of the failure and a short reason.
+
+`scenarios!` usage:
+
+```rust
+scenarios!("tests/features/", tags = "@smoke or (@critical and not @wip)");
+```
 
 ## Part 2: Architectural and API Specification
 
