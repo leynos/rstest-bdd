@@ -23,29 +23,73 @@ enum Commands {
 }
 
 fn main() {
-    let cli = Cli::parse();
-    match cli.command {
-        Commands::Steps => {
-            for step in iter::<Step> {
-                print_step(step);
-            }
-        }
-        Commands::Unused => {
-                for step in unused_steps() {
-                    print_step(step);
-                }
-        }
-        Commands::Duplicates => {
-            for group in duplicate_steps() {
-                for step in group {
-                    print_step(step);
-                }
-                println!("---");
-            }
-        }
+    match Cli::parse().command {
+        Commands::Steps => handle_steps(),
+        Commands::Unused => handle_unused(),
+        Commands::Duplicates => handle_duplicates(),
     }
 }
 
+/// Handle the `steps` subcommand by listing all registered steps.
+///
+/// # Examples
+///
+/// ```no_run
+/// handle_steps();
+/// ```
+fn handle_steps() {
+    for step in iter::<Step> {
+        print_step(step);
+    }
+}
+
+/// Handle the `unused` subcommand by listing steps that were never executed.
+///
+/// # Examples
+///
+/// ```no_run
+/// handle_unused();
+/// ```
+fn handle_unused() {
+    for step in unused_steps() {
+        print_step(step);
+    }
+}
+
+/// Handle the `duplicates` subcommand by grouping identical step definitions.
+///
+/// # Examples
+///
+/// ```no_run
+/// handle_duplicates();
+/// ```
+fn handle_duplicates() {
+    for group in duplicate_steps() {
+        for step in group {
+            print_step(step);
+        }
+        println!("---");
+    }
+}
+
+/// Print a step definition in diagnostic output.
+///
+/// # Examples
+///
+/// ```ignore
+/// use rstest_bdd::{Step, StepKeyword, StepPattern};
+///
+/// static PATTERN: StepPattern = StepPattern::new("example");
+/// let step = Step {
+///     keyword: StepKeyword::Given,
+///     pattern: &PATTERN,
+///     run: todo!(),
+///     fixtures: &[],
+///     file: "src/example.rs",
+///     line: 42,
+/// };
+/// print_step(&step);
+/// ```
 fn print_step(step: &Step) {
     println!(
         "{} '{}' ({}:{})",
