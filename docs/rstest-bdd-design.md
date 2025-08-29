@@ -317,6 +317,8 @@ Tag scope:
 - Scenario tags inherit all tags declared at the `Feature:` level.
 - For `Scenario Outline`, tags on the outline and on each `Examples:` block
   apply to the expanded cases produced from that block.
+- Tag composition uses set union; duplicates are ignored. There is no implicit
+  removal or override of inherited tags.
 
 **Example:**
 
