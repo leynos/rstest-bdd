@@ -37,6 +37,8 @@ jobs:
         with:
           output-path: lcov.info
           format: lcov
+      - name: Publish dry run
+        run: make publish-check
       - name: Upload coverage data to CodeScene
         env:
           CS_ACCESS_TOKEN: ${{ secrets.CS_ACCESS_TOKEN }}

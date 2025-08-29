@@ -1,4 +1,4 @@
-.PHONY: help all clean test build release lint fmt check-fmt markdownlint nixie
+.PHONY: help all clean test build release lint fmt check-fmt markdownlint nixie publish-check
 
 SHELL := bash
 APP ?= rstest-bdd
@@ -36,6 +36,15 @@ markdownlint: ## Lint Markdown files
 
 nixie: ## Render Mermaid diagrams from .mmd files (writes .svg next to sources)
 	@bash scripts/nixie.sh
+publish-check: ## Dry-run cargo publish for all crates
+	@tmp=$$(mktemp -d); \
+	git archive --format=tar HEAD | tar -C $$tmp -xf -; \
+	sed -i '/^\[patch.crates-io\]/,$$d' $$tmp/Cargo.toml; \
+	for crate in $$tmp/crates/*; do \
+		(cd $$crate && $(CARGO) publish --dry-run --allow-dirty --no-verify); \
+	done; \
+	rm -rf $$tmp
+
 
 help: ## Show available targets
 	@grep -E '^[a-zA-Z_-]+:.*?##' $(MAKEFILE_LIST) | \
