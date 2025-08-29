@@ -3,6 +3,7 @@ resolver = "2"
 members = [
     "crates/rstest-bdd",
     "crates/rstest-bdd-macros",
+    "crates/cargo-bdd",
     "examples/todo-cli",
 ]
 

@@ -28,7 +28,7 @@ mod types;
 pub use context::StepContext;
 pub use pattern::StepPattern;
 pub use placeholder::extract_placeholders;
-pub use registry::{Step, find_step, lookup_step};
+pub use registry::{Step, duplicate_steps, find_step, lookup_step, unused_steps};
 pub use types::{
     PatternStr, PlaceholderError, PlaceholderSyntaxError, StepFn, StepKeyword,
     StepKeywordParseError, StepPatternError, StepText,

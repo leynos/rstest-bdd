@@ -6,10 +6,10 @@
 use crate::pattern::StepPattern;
 use crate::placeholder::extract_placeholders;
 use crate::types::{PatternStr, StepFn, StepKeyword, StepText};
-use hashbrown::HashMap;
+use hashbrown::{HashMap, HashSet};
 use inventory::iter;
 use std::hash::{BuildHasher, Hash, Hasher};
-use std::sync::LazyLock;
+use std::sync::{LazyLock, Mutex};
 
 /// Represents a single step definition registered with the framework.
 #[derive(Debug)]
@@ -84,6 +84,16 @@ static STEP_MAP: LazyLock<HashMap<StepKey, StepFn>> = LazyLock::new(|| {
     map
 });
 
+static USED_STEPS: LazyLock<Mutex<HashSet<StepKey>>> =
+    LazyLock::new(|| Mutex::new(HashSet::new()));
+
+fn mark_used(key: StepKey) {
+    let mut used = USED_STEPS
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    used.insert(key);
+}
+
 /// Look up a registered step by keyword and pattern.
 #[must_use]
 pub fn lookup_step(keyword: StepKeyword, pattern: PatternStr<'_>) -> Option<StepFn> {
@@ -100,7 +110,10 @@ pub fn lookup_step(keyword: StepKeyword, pattern: PatternStr<'_>) -> Option<Step
         .from_hash(hash, |(kw, pat)| {
             *kw == keyword && pat.as_str() == pattern.as_str()
         })
-        .map(|(_, &f)| f)
+        .map(|(key, &f)| {
+            mark_used(*key);
+            f
+        })
 }
 
 /// Find a registered step whose pattern matches the provided text.
@@ -111,8 +124,34 @@ pub fn find_step(keyword: StepKeyword, text: StepText<'_>) -> Option<StepFn> {
     }
     for step in iter::<Step> {
         if step.keyword == keyword && extract_placeholders(step.pattern, text).is_ok() {
+            mark_used((step.keyword, step.pattern));
             return Some(step.run);
         }
     }
     None
+}
+
+/// Return registered steps that were never executed.
+#[must_use]
+pub fn unused_steps() -> Vec<&'static Step> {
+    let used = USED_STEPS
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    iter::<Step>
+        .into_iter()
+        .filter(|s| !used.contains(&(s.keyword, s.pattern)))
+        .collect()
+}
+
+/// Group step definitions that share a keyword and pattern.
+#[must_use]
+pub fn duplicate_steps() -> Vec<Vec<&'static Step>> {
+    let mut groups: HashMap<StepKey, Vec<&'static Step>> = HashMap::new();
+    for step in iter::<Step> {
+        groups
+            .entry((step.keyword, step.pattern))
+            .or_default()
+            .push(step);
+    }
+    groups.into_values().filter(|v| v.len() > 1).collect()
 }
