@@ -130,12 +130,46 @@ fn extract_test_executable(msg: &Message) -> Option<PathBuf> {
     None
 }
 
+/// Determine whether stderr output indicates the test binary does not
+/// recognise the `--dump-steps` flag.
+///
+/// The check is case-insensitive and matches several common phrases used by
+/// argument parsers when an option is unknown.
+///
+/// # Examples
+///
+/// ```
+/// assert!(is_unrecognised_dump_steps(
+///     "error: Unrecognized option: 'dump-steps'",
+/// ));
+/// assert!(is_unrecognised_dump_steps(
+///     "error: Found argument '--dump-steps' which wasn't expected",
+/// ));
+/// assert!(!is_unrecognised_dump_steps("some other error"));
+/// ```
+fn is_unrecognised_dump_steps(stderr: &str) -> bool {
+    let lower = stderr.to_ascii_lowercase();
+    let has_flag = lower.contains("--dump-steps") || lower.contains("'dump-steps'");
+    has_flag
+        && [
+            "unrecognized option",
+            "wasn't expected",
+            "unknown option",
+            "invalid option",
+        ]
+        .iter()
+        .any(|p| lower.contains(p))
+}
+
 fn collect_steps() -> Result<Vec<Step>> {
     let metadata = cargo_metadata::MetadataCommand::new().exec()?;
-    let workspace: std::collections::HashSet<_> =
-        metadata.workspace_members.iter().collect();
+    let workspace: std::collections::HashSet<_> = metadata.workspace_members.iter().collect();
     let mut bins = Vec::new();
-    for package in metadata.packages.into_iter().filter(|p| workspace.contains(&p.id)) {
+    for package in metadata
+        .packages
+        .into_iter()
+        .filter(|p| workspace.contains(&p.id))
+    {
         for target in package.targets {
             if target.kind.iter().any(|k| k == "test") {
                 let mut cmd = Command::new("cargo");
@@ -188,7 +222,7 @@ fn collect_steps() -> Result<Vec<Step>> {
             .with_context(|| format!("failed to run test binary {}", bin.display()))?;
         if !out.status.success() {
             let err = String::from_utf8_lossy(&out.stderr);
-            if err.contains("Unrecognized option: 'dump-steps'") {
+            if is_unrecognised_dump_steps(&err) {
                 continue;
             }
             bail!("test binary {} failed: {err}", bin.display());
@@ -231,5 +265,19 @@ mod tests {
     fn ignores_non_test_artifacts() {
         let msg = Message::TextLine(String::new());
         assert!(extract_test_executable(&msg).is_none());
+    }
+
+    #[test]
+    fn recognises_unknown_flag_errors() {
+        assert!(is_unrecognised_dump_steps(
+            "error: Unrecognized option: 'dump-steps'",
+        ));
+        assert!(is_unrecognised_dump_steps(
+            "error: Found argument '--dump-steps' which wasn't expected",
+        ));
+        assert!(is_unrecognised_dump_steps(
+            "error: unknown option '--dump-steps'",
+        ));
+        assert!(!is_unrecognised_dump_steps("different failure"));
     }
 }
