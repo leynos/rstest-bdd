@@ -126,6 +126,27 @@ improves the developer experience.
     discover all `.feature` files in a directory and generate a test module
     containing a test function for every `Scenario` found.
 
+## Phase 4: Ergonomics and Developer Experience
+
+This phase focuses on reducing boilerplate and improving the developer experience by introducing more powerful and intuitive APIs.
+
+- [ ] **Ergonomic Improvements**
+
+  - [ ] **Implicit Fixture Injection:** Automatically inject fixtures when a step function's parameter name matches a fixture name, removing the need for `#[from(...)]` in most cases.
+
+  - [ ] **Inferred Step Patterns:** Allow step definition macros (`#[given]`, etc.) to be used without an explicit pattern string. The pattern will be inferred from the function's name (e.g., `fn user_logs_in()` becomes `"user logs in"`).
+  - [ ] **Streamlined **`Result`** Assertions:** Introduce helper macros like `assert_step_ok!` and `assert_step_err!` to reduce boilerplate when testing `Result`-returning steps.
+
+- [ ] **State Management and Data Flow**
+
+  - [ ] **Step Return Values:** Allow `#[when]` steps to return values, which can then be automatically injected into subsequent `#[then]` steps, enabling a more functional style of testing.
+
+  - [ ] **Scenario State Management:** Introduce a `#[scenario_state]` derive macro and a `Slot<T>` type to simplify the management of shared state across steps, reducing the need for manual `RefCell<Option<T>>` boilerplate.
+
+- [ ] **Advanced Ergonomics**
+
+  - [ ] **Struct-based Step Arguments:** Introduce a `#[step_args]` derive macro to allow multiple placeholders from a step pattern to be parsed directly into the fields of a struct, simplifying step function signatures.
+
 ### Post-Core Implementation: Extensions & Tooling
 
 These tasks can be addressed after the core framework is stable and are aimed
