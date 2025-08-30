@@ -2,6 +2,7 @@
 
 use quote::quote;
 use rstest::rstest;
+use std::collections::HashSet;
 use syn::parse_quote;
 
 #[path = "../src/codegen/wrapper/args.rs"]
@@ -77,7 +78,7 @@ fn test_extract_args_errors(
     #[case] test_description: &str,
 ) {
     #[expect(clippy::expect_used, reason = "test asserts error message")]
-    let err = extract_args(&mut func).expect_err(test_description);
+    let err = extract_args(&mut func, &mut HashSet::new()).expect_err(test_description);
     let msg = err.to_string();
     assert!(
         msg.contains(expected_error_fragment),
@@ -91,7 +92,7 @@ fn from_without_ident_defaults_to_param_name() {
         fn step(#[from] fixture: usize) {}
     };
     #[expect(clippy::expect_used, reason = "test asserts valid extraction")]
-    let args = extract_args(&mut func).expect("failed to extract args");
+    let args = extract_args(&mut func, &mut HashSet::new()).expect("failed to extract args");
     assert_eq!(args.fixtures.len(), 1);
     #[expect(clippy::expect_used, reason = "fixture presence required")]
     let fixture = args.fixtures.first().expect("missing fixture");
@@ -104,8 +105,9 @@ fn call_order_preserves_parameter_sequence() {
     let mut func: syn::ItemFn = parse_quote! {
         fn step(#[from] f: usize, a: i32, datatable: Vec<Vec<String>>, docstring: String, b: bool) {}
     };
+    let mut placeholders: HashSet<String> = ["a".into(), "b".into()].into_iter().collect();
     #[expect(clippy::expect_used, reason = "test asserts valid extraction")]
-    let args = extract_args(&mut func).expect("failed to extract args");
+    let args = extract_args(&mut func, &mut placeholders).expect("failed to extract args");
     assert!(matches!(
         &args.call_order[..],
         [Fixture(0), StepArg(0), DataTable, DocString, StepArg(1)]
@@ -118,7 +120,7 @@ fn datatable_attribute_recognised_and_preserves_type() {
         fn step(#[datatable] table: my_mod::MyTable) {}
     };
     #[expect(clippy::expect_used, reason = "test asserts valid extraction")]
-    let args = extract_args(&mut func).expect("failed to extract args");
+    let args = extract_args(&mut func, &mut HashSet::new()).expect("failed to extract args");
     assert!(
         matches!(&args.call_order[..], [CallArg::DataTable]),
         "unexpected call_order for datatable-only signature"
@@ -149,7 +151,7 @@ fn datatable_attribute_removed_from_signature() {
         fn step(#[datatable] data: Vec<Vec<String>>) {}
     };
     #[expect(clippy::expect_used, reason = "test asserts valid extraction")]
-    let args = extract_args(&mut func).expect("failed to extract args");
+    let args = extract_args(&mut func, &mut HashSet::new()).expect("failed to extract args");
     #[expect(clippy::expect_used, reason = "datatable presence required")]
     let dt = args.datatable.expect("missing datatable after strip");
     assert_eq!(dt.pat, "data");
@@ -169,4 +171,28 @@ fn datatable_attribute_removed_from_signature() {
         ty_str.replace(' ', "") == "Vec<Vec<String>>".replace(' ', ""),
         "unexpected type after attribute strip: {ty_str}"
     );
+}
+
+#[rstest]
+fn implicit_fixture_injected_without_from() {
+    let mut func: syn::ItemFn = parse_quote! {
+        fn step(fixture: usize, count: u32) {}
+    };
+    let mut placeholders: HashSet<String> = ["count".into()].into_iter().collect();
+    #[expect(clippy::expect_used, reason = "test asserts valid extraction")]
+    let args = extract_args(&mut func, &mut placeholders).expect("failed to extract args");
+    assert_eq!(args.fixtures.len(), 1);
+    assert_eq!(args.step_args.len(), 1);
+}
+
+#[rstest]
+fn error_when_placeholder_missing_parameter() {
+    let mut func: syn::ItemFn = parse_quote! {
+        fn step(fixture: usize) {}
+    };
+    let mut placeholders: HashSet<String> = ["count".into()].into_iter().collect();
+    #[expect(clippy::expect_used, reason = "test asserts error message")]
+    let err = extract_args(&mut func, &mut placeholders).expect_err("missing placeholder");
+    let msg = err.to_string();
+    assert!(msg.contains("count"), "unexpected error: {msg}");
 }

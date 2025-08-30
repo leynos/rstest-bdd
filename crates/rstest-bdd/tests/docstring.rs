@@ -36,7 +36,7 @@ fn assert_message(docstring: String) {
     });
 }
 
-#[given("message then value {int}:")]
+#[given("message then value {value}:")]
 #[expect(
     clippy::needless_pass_by_value,
     reason = "doc string is owned to mirror user API"
@@ -46,7 +46,7 @@ fn doc_then_value(docstring: String, value: i32) {
     assert_eq!(value, 5);
 }
 
-#[given("value then message {int}:")]
+#[given("value then message {value}:")]
 #[expect(
     clippy::needless_pass_by_value,
     reason = "doc string is owned to mirror user API"
