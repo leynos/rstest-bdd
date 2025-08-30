@@ -6,6 +6,7 @@
 //! and `But` for completeness, feature parsing normalizes them to the preceding
 //! primary keyword.
 
+use gherkin::{Step, StepType};
 use proc_macro2::TokenStream as TokenStream2;
 use quote::{ToTokens, quote};
 
@@ -24,17 +25,47 @@ pub(crate) enum StepKeyword {
     But,
 }
 
+/// Error produced when encountering an unsupported `StepType`.
+#[derive(Debug, thiserror::Error)]
+#[error("unsupported step type: {0:?}")]
+pub(crate) struct UnsupportedStepType(pub StepType);
+
 impl From<&str> for StepKeyword {
     fn from(value: &str) -> Self {
-        let trimmed = value.trim();
-        match trimmed.to_ascii_lowercase().as_str() {
-            "given" => Self::Given,
-            "when" => Self::When,
-            "then" => Self::Then,
-            "and" => Self::And,
-            "but" => Self::But,
+        let s = value.trim();
+        match s {
+            s if s.eq_ignore_ascii_case("given") => Self::Given,
+            s if s.eq_ignore_ascii_case("when") => Self::When,
+            s if s.eq_ignore_ascii_case("then") => Self::Then,
+            s if s.eq_ignore_ascii_case("and") => Self::And,
+            s if s.eq_ignore_ascii_case("but") => Self::But,
             // Use the original, untrimmed `value` for clearer diagnostics.
             _ => panic!("invalid step keyword: {value}"),
+        }
+    }
+}
+
+impl TryFrom<StepType> for StepKeyword {
+    type Error = UnsupportedStepType;
+
+    fn try_from(ty: StepType) -> Result<Self, Self::Error> {
+        let kw = match ty {
+            StepType::Given => Self::Given,
+            StepType::When => Self::When,
+            StepType::Then => Self::Then,
+        };
+        Ok(kw)
+    }
+}
+
+impl TryFrom<&Step> for StepKeyword {
+    type Error = UnsupportedStepType;
+
+    fn try_from(step: &Step) -> Result<Self, Self::Error> {
+        match step.keyword.trim() {
+            s if s.eq_ignore_ascii_case("and") => Ok(Self::And),
+            s if s.eq_ignore_ascii_case("but") => Ok(Self::But),
+            _ => Self::try_from(step.ty),
         }
     }
 }
@@ -50,6 +81,21 @@ impl ToTokens for StepKeyword {
             Self::But => quote!(But),
         };
         tokens.extend(quote! { #path::StepKeyword::#variant });
+    }
+}
+
+impl StepKeyword {
+    /// Resolve conjunctions to the semantic keyword of the previous step.
+    ///
+    /// Leading conjunctions default to `Given` to maintain a sensible
+    /// baseline when no prior step exists.
+    pub(crate) fn resolve(self, prev: &mut Option<Self>) -> Self {
+        if matches!(self, Self::And | Self::But) {
+            prev.unwrap_or(Self::Given)
+        } else {
+            *prev = Some(self);
+            self
+        }
     }
 }
 
