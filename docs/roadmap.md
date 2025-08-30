@@ -132,8 +132,10 @@ improves the developer experience.
 
   - [ ] Filter at macro-expansion time and emit `compile_error!` diagnostics for
     invalid tag expressions (explicit empty string `""`, empty parentheses
-    `()`, dangling operators). Omission of the `tags` argument is allowed.
-    Report the byte offset and a short reason, e.g.:
+    `()`, dangling operators). Omitting the `tags` argument applies no filter
+    (`error: missing tag (allowed)`). Diagnostics include the byte offset and a
+    short reason, e.g.:
+    `error: empty tag string is not allowed (byte offset 42)` or
     `error: invalid tag expression at byte 7: expected tag or '(' after 'and'`.
 
   - [ ] Define tag scope and inheritance:
