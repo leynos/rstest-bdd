@@ -309,8 +309,10 @@ fn create_users(
 Tags provide a convenient way to organize scenarios and control which tests
 run. The `#[scenario]` macro will accept an optional `tags` argument containing
 an expression such as `"@fast and not @wip"`. Only scenarios whose tags satisfy
-this expression will expand into test functions. The `scenarios!` macro will
-offer the same argument to filter an entire directory of feature files.
+this expression will expand into test functions. Filtering occurs at
+macro-expansion time; unmatched scenarios do not generate tests (no runtime
+skipping). The `scenarios!` macro will offer the same argument to filter an
+entire directory of feature files.
 
 Tag scope:
 

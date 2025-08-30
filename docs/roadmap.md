@@ -157,7 +157,8 @@ improves the developer experience.
 
   - [ ] Add conformance tests for precedence, associativity, and scope:
     - Valid: `@a and not (@b or @c)`
-    - Invalid: `@a && @b`, `""`, `()`, `@a and`, `(@a or @b`
+    - Invalid: `@a && @b`, `""`, `()`, `@a and`, `(@a or @b`,
+      `@a or and @b`
 
 [design §1.3.4]: ./rstest-bdd-design.md#134-filtering-scenarios-with-tags
 
@@ -194,7 +195,7 @@ at improving maintainability and IDE integration.
   - [ ] Explore adding explicit teardown hooks that are guaranteed to run after
     a scenario, even in the case of a panic (e.g., `#[after_scenario]`).
 
-- [ ] **Performance Optimisation**
+- [ ] **Performance Optimization**
 
   - [ ] Implement caching for parsed Gherkin ASTs in the `OUT_DIR` to reduce
     compile-time overhead, only re-parsing files on modification.
