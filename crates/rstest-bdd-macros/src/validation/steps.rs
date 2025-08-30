@@ -26,7 +26,9 @@ pub(crate) fn register_step(keyword: StepKeyword, pattern: &syn::LitStr) {
     // Leak the pattern string to obtain a `'static` lifetime; the small leak is
     // acceptable because macros run in a short-lived compiler process.
     let leaked: &'static str = Box::leak(pattern.value().into_boxed_str());
-    let mut reg = REGISTERED.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+    let mut reg = REGISTERED
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
     reg.push(RegisteredStep {
         keyword,
         pattern: leaked,
@@ -38,7 +40,9 @@ pub(crate) fn register_step(keyword: StepKeyword, pattern: &syn::LitStr) {
 /// # Errors
 /// Returns a `syn::Error` if a step lacks a corresponding definition.
 pub(crate) fn validate_steps_exist(steps: &[ParsedStep]) -> Result<(), syn::Error> {
-    let reg = REGISTERED.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+    let reg = REGISTERED
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
     let mut prev = None;
     'outer: for step in steps {
         let resolved = resolve_conjunction_keyword(&mut prev, step.keyword);
