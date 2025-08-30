@@ -319,13 +319,13 @@ step definitions are explicit.
 `cargo bdd`. The tool inspects the runtime step registry and offers three
 commands:
 
-- `cargo bdd list-steps` prints every registered step with its source
-  location.
-- `cargo bdd list-unused` shows steps that were never executed in the latest
-  test run. Usage is tracked whenever a step is resolved and persisted in
-  `target/.rstest-bdd-usage.json` so diagnostics can span processes.
-- `cargo bdd list-duplicates` groups step definitions that share the same
-  keyword and pattern, helping to identify accidental copies.
+- `cargo bdd steps` prints every registered step with its source location.
+- `cargo bdd unused` shows steps that were never executed in the latest test
+  run. Usage is tracked whenever a step is resolved and persisted in
+  `<target-dir>/.rstest-bdd-usage.json` so diagnostics span processes. The
+  target directory honours the `CARGO_TARGET_DIR` environment variable when set.
+- `cargo bdd duplicates` groups step definitions that share the same keyword
+  and pattern, helping to identify accidental copies.
 
 The subcommand builds each test target in the workspace and runs the resulting
 binary with a private `--dump-steps` flag to collect the registered steps as

@@ -1,8 +1,9 @@
-//! Command-line diagnostic tooling for rstest-bdd.
+//! Command line diagnostic tooling for rstest-bdd.
 
 use std::collections::HashMap;
+use std::io::BufReader;
 use std::path::PathBuf;
-use std::process::Command;
+use std::process::{Command, Stdio};
 
 use cargo_metadata::Message;
 use clap::{Parser, Subcommand};
@@ -51,11 +52,24 @@ fn main() -> Result<()> {
 /// # Errors
 ///
 /// Returns an error if the test binaries cannot be built or executed.
-fn handle_steps() -> Result<()> {
-    for step in collect_steps()? {
-        print_step(&step);
-    }
+fn list_steps<F>(filter: F) -> Result<()>
+where
+    F: Fn(&Step) -> bool,
+{
+    collect_steps()?
+        .into_iter()
+        .filter(filter)
+        .for_each(|s| print_step(&s));
     Ok(())
+}
+
+/// Handle the `steps` subcommand by listing all registered steps.
+///
+/// # Errors
+///
+/// Returns an error if the test binaries cannot be built or executed.
+fn handle_steps() -> Result<()> {
+    list_steps(|_| true)
 }
 
 /// Handle the `unused` subcommand by listing steps that were never executed.
@@ -64,10 +78,7 @@ fn handle_steps() -> Result<()> {
 ///
 /// Returns an error if the test binaries cannot be built or executed.
 fn handle_unused() -> Result<()> {
-    for step in collect_steps()?.into_iter().filter(|s| !s.used) {
-        print_step(&step);
-    }
-    Ok(())
+    list_steps(|s| !s.used)
 }
 
 /// Handle the `duplicates` subcommand by grouping identical step definitions.
@@ -92,56 +103,77 @@ fn handle_duplicates() -> Result<()> {
     Ok(())
 }
 
-/// Attempt to extract the test executable path from a Cargo JSON message line.
+/// Attempt to extract the test executable path from a Cargo message.
 ///
-/// The line is parsed as a [`Message`]. If it represents a compiler
-/// artifact for a test target and an executable was produced, the path to
-/// that executable is returned. Any failure to parse the line or match the
-/// criteria results in `None`.
+/// If the message describes a compiler artefact for a test target and an
+/// executable was produced, the path to that executable is returned. Messages
+/// for other artefacts yield `None`.
 ///
 /// # Examples
 ///
 /// ```ignore
-/// let line = r#"{
+/// use cargo_metadata::Message;
+///
+/// let msg: Message = serde_json::from_str(r#"{
 ///     "reason": "compiler-artifact",
 ///     "executable": "target/debug/my_test",
 ///     "target": { "kind": ["test"] }
-/// }"#;
-/// assert!(extract_test_executable(line).is_some());
+/// }"#).unwrap();
+/// assert!(extract_test_executable(&msg).is_some());
 /// ```
-fn extract_test_executable(line: &str) -> Option<PathBuf> {
-    let message = serde_json::from_str::<Message>(line).ok()?;
-    if let Message::CompilerArtifact(artifact) = message
+fn extract_test_executable(msg: &Message) -> Option<PathBuf> {
+    if let Message::CompilerArtifact(artifact) = msg
         && artifact.target.kind.iter().any(|k| k == "test")
     {
-        return artifact.executable.map(|p| p.into());
+        return artifact.executable.clone().map(|p| p.into());
     }
     None
 }
 
 fn collect_steps() -> Result<Vec<Step>> {
     let metadata = cargo_metadata::MetadataCommand::new().exec()?;
-    let has_tests = metadata
-        .packages
-        .iter()
-        .flat_map(|p| &p.targets)
-        .any(|t| t.kind.iter().any(|k| k == "test"));
-    if !has_tests {
-        return Ok(Vec::new());
-    }
-
-    let output = Command::new("cargo")
-        .args(["test", "--no-run", "--message-format=json"])
-        .output()
-        .wrap_err("failed to build tests")?;
-    if !output.status.success() {
-        bail!("cargo test failed");
-    }
-
+    let workspace: std::collections::HashSet<_> =
+        metadata.workspace_members.iter().collect();
     let mut bins = Vec::new();
-    for line in String::from_utf8_lossy(&output.stdout).lines() {
-        if let Some(exe) = extract_test_executable(line) {
-            bins.push(exe);
+    for package in metadata.packages.into_iter().filter(|p| workspace.contains(&p.id)) {
+        for target in package.targets {
+            if target.kind.iter().any(|k| k == "test") {
+                let mut cmd = Command::new("cargo");
+                cmd.args([
+                    "test",
+                    "--no-run",
+                    "--message-format=json",
+                    "--package",
+                    &package.name,
+                    "--test",
+                    &target.name,
+                ]);
+                let mut child = cmd.stdout(Stdio::piped()).spawn().with_context(|| {
+                    format!(
+                        "failed to build test target {} in package {}",
+                        target.name, package.name
+                    )
+                })?;
+                let reader = BufReader::new(child.stdout.take().expect("stdout"));
+                for m in Message::parse_stream(reader).flatten() {
+                    if let Some(exe) = extract_test_executable(&m) {
+                        bins.push(exe);
+                    }
+                }
+                let status = child.wait().wrap_err_with(|| {
+                    format!(
+                        "cargo test failed for target {} in package {}",
+                        target.name, package.name
+                    )
+                })?;
+                if !status.success() {
+                    bail!(
+                        "cargo test failed for target {} in package {}",
+                        target.name,
+                        package.name
+                    );
+                }
+            }
         }
     }
     if bins.is_empty() {
@@ -197,11 +229,7 @@ mod tests {
 
     #[test]
     fn ignores_non_test_artifacts() {
-        let line = r#"{
-            "reason": "compiler-artifact",
-            "executable": "/tmp/test",
-            "target": { "kind": ["lib"] }
-        }"#;
-        assert!(extract_test_executable(line).is_none());
+        let msg = Message::TextLine(String::new());
+        assert!(extract_test_executable(&msg).is_none());
     }
 }

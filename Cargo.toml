@@ -38,6 +38,8 @@ eyre = "0.6"
 ctor = "0.2"
 rstest-bdd = "0.2.0-alpha1"
 rstest-bdd-macros = "0.2.0-alpha1"
+log = "0.4"
+fs2 = "0.4"
 
 [workspace.lints.clippy]
 pedantic = { level = "warn", priority = -1 }
