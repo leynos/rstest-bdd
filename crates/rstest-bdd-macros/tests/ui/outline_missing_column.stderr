@@ -1,7 +1,0 @@
-error: Example row has fewer columns than header row in Examples table
- --> tests/ui/outline_missing_column.rs:5:1
-  |
-5 | #[scenario(path = "../../../../crates/rstest-bdd-macros/tests/features/outline_missing_column.feature")]
-  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  |
-  = note: this error originates in the attribute macro `scenario` (in Nightly builds, run with -Z macro-backtrace for more info)

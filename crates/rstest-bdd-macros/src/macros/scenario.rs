@@ -114,6 +114,11 @@ pub(crate) fn scenario(attr: TokenStream, item: TokenStream) -> TokenStream {
         Err(err) => return err.into(),
     };
 
+    let strict_validation = cfg!(feature = "strict-compile-time-validation");
+    if let Err(err) = crate::validation::steps::validate_steps_exist(&steps, strict_validation) {
+        return err.into_compile_error().into();
+    }
+
     if let Err(err) = process_scenario_outline_examples(sig, examples.as_ref()) {
         return err.into();
     }

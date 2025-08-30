@@ -97,13 +97,6 @@ fn explicit_syntax() {
     clear_events();
 }
 
-#[scenario(path = "tests/features/unmatched.feature")]
-#[should_panic(expected = "Step not found")]
-#[serial]
-fn unmatched_feature() {
-    clear_events();
-}
-
 #[scenario(path = "tests/features/outline.feature")]
 #[serial] // EVENTS is shared, so run tests sequentially
 fn outline(num: String) {

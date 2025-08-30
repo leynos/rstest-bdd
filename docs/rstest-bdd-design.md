@@ -498,8 +498,20 @@ with the project's core goals:
 The third option, link-time collection, is the only one that satisfies all
 design constraints. It preserves the standard `cargo test` workflow, avoids the
 fragility of build scripts, and allows for fully decoupled step definitions.
-This leads directly to the selection of the `inventory` crate as the
-architectural cornerstone.
+
+To surface missing steps earlier, the macros crate now maintains a small
+compile-time registry. Each `#[given]`, `#[when]`, and `#[then]` invocation
+records its keyword and pattern in this registry. When `#[scenario]` expands it
+consults the registry and emits a `compile_error!` for any Gherkin step that
+lacks a matching definition or matches more than one. Because the registry only
+sees steps from the current compilation unit, scenarios that reference steps in
+other crates would otherwise fail to compile. To preserve cross‑crate workflows
+the crate defaults to a permissive mode that prints warnings for unknown steps.
+Enabling the `strict-compile-time-validation` feature restores the error on
+missing behaviour. The registry relies on the macros executing within the same
+compiler process and introduces a build-time dependency on the runtime crate to
+reuse its pattern-matching logic. This leads directly to the selection of the
+`inventory` crate as the architectural cornerstone.
 
 ### 2.3 The `inventory` Solution: A Global Step Registry
 
