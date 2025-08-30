@@ -1,6 +1,7 @@
 //! Command-line diagnostic tooling for rstest-bdd.
 
 use std::collections::HashMap;
+use std::path::PathBuf;
 use std::process::Command;
 
 use cargo_metadata::Message;
@@ -91,6 +92,33 @@ fn handle_duplicates() -> Result<()> {
     Ok(())
 }
 
+/// Attempt to extract the test executable path from a Cargo JSON message line.
+///
+/// The line is parsed as a [`Message`]. If it represents a compiler
+/// artifact for a test target and an executable was produced, the path to
+/// that executable is returned. Any failure to parse the line or match the
+/// criteria results in `None`.
+///
+/// # Examples
+///
+/// ```ignore
+/// let line = r#"{
+///     "reason": "compiler-artifact",
+///     "executable": "target/debug/my_test",
+///     "target": { "kind": ["test"] }
+/// }"#;
+/// assert!(extract_test_executable(line).is_some());
+/// ```
+fn extract_test_executable(line: &str) -> Option<PathBuf> {
+    let message = serde_json::from_str::<Message>(line).ok()?;
+    if let Message::CompilerArtifact(artifact) = message
+        && artifact.target.kind.iter().any(|k| k == "test")
+    {
+        return artifact.executable.map(|p| p.into());
+    }
+    None
+}
+
 fn collect_steps() -> Result<Vec<Step>> {
     let metadata = cargo_metadata::MetadataCommand::new().exec()?;
     let has_tests = metadata
@@ -112,10 +140,7 @@ fn collect_steps() -> Result<Vec<Step>> {
 
     let mut bins = Vec::new();
     for line in String::from_utf8_lossy(&output.stdout).lines() {
-        if let Ok(Message::CompilerArtifact(artifact)) = serde_json::from_str::<Message>(line)
-            && artifact.target.kind.iter().any(|k| k == "test")
-            && let Some(exe) = artifact.executable
-        {
+        if let Some(exe) = extract_test_executable(line) {
             bins.push(exe);
         }
     }
@@ -128,16 +153,16 @@ fn collect_steps() -> Result<Vec<Step>> {
         let out = Command::new(&bin)
             .arg("--dump-steps")
             .output()
-            .with_context(|| format!("failed to run test binary {bin}"))?;
+            .with_context(|| format!("failed to run test binary {}", bin.display()))?;
         if !out.status.success() {
             let err = String::from_utf8_lossy(&out.stderr);
             if err.contains("Unrecognized option: 'dump-steps'") {
                 continue;
             }
-            bail!("test binary {bin} failed: {err}");
+            bail!("test binary {} failed: {err}", bin.display());
         }
         let mut parsed: Vec<Step> = serde_json::from_slice(&out.stdout)
-            .with_context(|| format!("invalid JSON from {bin}"))?;
+            .with_context(|| format!("invalid JSON from {}", bin.display()))?;
         steps.append(&mut parsed);
     }
     Ok(steps)
@@ -164,4 +189,19 @@ fn print_step(step: &Step) {
         "{} '{}' ({}:{})",
         step.keyword, step.pattern, step.file, step.line
     );
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn ignores_non_test_artifacts() {
+        let line = r#"{
+            "reason": "compiler-artifact",
+            "executable": "/tmp/test",
+            "target": { "kind": ["lib"] }
+        }"#;
+        assert!(extract_test_executable(line).is_none());
+    }
 }
