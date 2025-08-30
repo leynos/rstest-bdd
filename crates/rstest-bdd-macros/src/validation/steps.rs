@@ -16,52 +16,106 @@ use rstest_bdd::{StepPattern, StepText, extract_placeholders};
 #[derive(Clone)]
 struct RegisteredStep {
     keyword: StepKeyword,
-    pattern: &'static str,
+    pattern: String,
 }
 
 static REGISTERED: LazyLock<Mutex<Vec<RegisteredStep>>> = LazyLock::new(|| Mutex::new(Vec::new()));
 
 /// Record a step definition so scenarios can validate against it.
 pub(crate) fn register_step(keyword: StepKeyword, pattern: &syn::LitStr) {
-    // Leak the pattern string to obtain a `'static` lifetime; the small leak is
-    // acceptable because macros run in a short-lived compiler process.
-    let leaked: &'static str = Box::leak(pattern.value().into_boxed_str());
     let mut reg = REGISTERED
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);
     reg.push(RegisteredStep {
         keyword,
-        pattern: leaked,
+        pattern: pattern.value(),
     });
 }
 
 /// Ensure all parsed steps have matching definitions.
 ///
 /// # Errors
-/// Returns a `syn::Error` if a step lacks a corresponding definition.
+/// Returns a `syn::Error` if a step lacks a corresponding definition or if
+/// multiple definitions match.
 pub(crate) fn validate_steps_exist(steps: &[ParsedStep]) -> Result<(), syn::Error> {
     let reg = REGISTERED
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);
     let mut prev = None;
-    'outer: for step in steps {
+    for step in steps {
         let resolved = resolve_conjunction_keyword(&mut prev, step.keyword);
-        for def in reg.iter() {
-            if def.keyword == resolved {
-                let pattern = StepPattern::new(def.pattern);
-                if extract_placeholders(&pattern, StepText::from(step.text.as_str())).is_ok() {
-                    continue 'outer;
-                }
-            }
-        }
-        let msg = format!(
-            "step not found for: {} {}",
+        has_matching_step_definition(&reg, resolved, step)?;
+    }
+    Ok(())
+}
+
+fn has_matching_step_definition(
+    reg: &[RegisteredStep],
+    resolved: StepKeyword,
+    step: &ParsedStep,
+) -> Result<(), syn::Error> {
+    let matches: Vec<&RegisteredStep> = reg
+        .iter()
+        .filter(|def| step_matches_definition(def, resolved, step))
+        .collect();
+
+    if matches.is_empty() {
+        let available_defs: Vec<&str> = reg
+            .iter()
+            .filter(|def| def.keyword == resolved)
+            .map(|def| def.pattern.as_str())
+            .collect();
+
+        let possible_matches: Vec<&str> = available_defs
+            .iter()
+            .copied()
+            .filter(|pattern| step.text.contains(pattern) || pattern.contains(&step.text))
+            .collect();
+
+        let mut msg = format!(
+            "No matching step definition found for: {} {}\n",
             fmt_keyword(resolved),
             step.text
+        );
+        if !available_defs.is_empty() {
+            msg.push_str("Available step definitions for this keyword:\n");
+            for def in &available_defs {
+                msg.push_str("  - ");
+                msg.push_str(def);
+                msg.push('\n');
+            }
+        }
+        if !possible_matches.is_empty() {
+            msg.push_str("Possible matches:\n");
+            for m in &possible_matches {
+                msg.push_str("  - ");
+                msg.push_str(m);
+                msg.push('\n');
+            }
+        }
+        return Err(syn::Error::new(proc_macro2::Span::call_site(), msg));
+    } else if matches.len() > 1 {
+        let patterns: Vec<&str> = matches.iter().map(|def| def.pattern.as_str()).collect();
+        let msg = format!(
+            "Ambiguous step definition for '{}'. Matches: {}",
+            step.text,
+            patterns.join(", ")
         );
         return Err(syn::Error::new(proc_macro2::Span::call_site(), msg));
     }
     Ok(())
+}
+
+fn step_matches_definition(def: &RegisteredStep, resolved: StepKeyword, step: &ParsedStep) -> bool {
+    if def.keyword != resolved {
+        return false;
+    }
+    // Leak a clone of the pattern string to satisfy the `'static` lifetime
+    // expected by `StepPattern::new`. The leak is acceptable because macros run
+    // in a short-lived compiler process.
+    let leaked: &'static str = Box::leak(def.pattern.clone().into_boxed_str());
+    let pattern = StepPattern::new(leaked);
+    extract_placeholders(&pattern, StepText::from(step.text.as_str())).is_ok()
 }
 
 fn fmt_keyword(kw: StepKeyword) -> &'static str {
@@ -111,6 +165,29 @@ mod tests {
             docstring: None,
             table: None,
         }];
-        assert!(validate_steps_exist(&steps).is_err());
+        let err = match validate_steps_exist(&steps) {
+            Err(e) => e.to_string(),
+            Ok(()) => panic!("expected missing step error"),
+        };
+        assert!(err.contains("No matching step definition"));
+    }
+
+    #[rstest]
+    fn errors_when_step_ambiguous() {
+        clear_registry();
+        let lit = syn::LitStr::new("a step", proc_macro2::Span::call_site());
+        register_step(StepKeyword::Given, &lit);
+        register_step(StepKeyword::Given, &lit);
+        let steps = [ParsedStep {
+            keyword: StepKeyword::Given,
+            text: "a step".to_string(),
+            docstring: None,
+            table: None,
+        }];
+        let err = match validate_steps_exist(&steps) {
+            Err(e) => e.to_string(),
+            Ok(()) => panic!("expected ambiguous step error"),
+        };
+        assert!(err.contains("Ambiguous step definition"));
     }
 }
