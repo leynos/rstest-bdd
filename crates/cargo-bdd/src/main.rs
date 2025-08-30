@@ -140,10 +140,13 @@ fn extract_test_executable(msg: &Message) -> Option<PathBuf> {
 ///
 /// ```
 /// assert!(is_unrecognised_dump_steps(
-///     "error: Unrecognized option: 'dump-steps'",
+///     "error: Unrecognized option '--dump-steps'",
 /// ));
 /// assert!(is_unrecognised_dump_steps(
 ///     "error: Found argument '--dump-steps' which wasn't expected",
+/// ));
+/// assert!(is_unrecognised_dump_steps(
+///     "error: Unrecognized option: 'dump-steps'",
 /// ));
 /// assert!(!is_unrecognised_dump_steps("some other error"));
 /// ```
@@ -298,13 +301,16 @@ mod tests {
     #[test]
     fn recognises_unknown_flag_errors() {
         assert!(is_unrecognised_dump_steps(
-            "error: Unrecognized option: 'dump-steps'",
+            "error: Unrecognized option '--dump-steps'",
         ));
         assert!(is_unrecognised_dump_steps(
             "error: Found argument '--dump-steps' which wasn't expected",
         ));
         assert!(is_unrecognised_dump_steps(
             "error: unknown option '--dump-steps'",
+        ));
+        assert!(is_unrecognised_dump_steps(
+            "error: Unrecognized option: 'dump-steps'",
         ));
         assert!(!is_unrecognised_dump_steps("different failure"));
     }
