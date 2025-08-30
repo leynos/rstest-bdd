@@ -16,11 +16,12 @@ pub(crate) struct ParsedStep {
     pub table: Option<Vec<Vec<String>>>,
 }
 
-/// Name, steps, and optional examples extracted from a Gherkin scenario.
+/// Name, steps, optional examples, and combined tags for a scenario.
 pub(crate) struct ScenarioData {
     pub name: String,
     pub steps: Vec<ParsedStep>,
     pub(crate) examples: Option<ExampleTable>,
+    pub(crate) tags: Vec<String>,
 }
 
 /// Map a textual step keyword and `StepType` to a `StepKeyword`.
@@ -166,10 +167,17 @@ pub(crate) fn extract_scenario_steps(
 
     let examples = crate::parsing::examples::extract_examples(scenario)?;
 
+    let mut tags = feature.tags.clone();
+    tags.extend(scenario.tags.clone());
+    if let Some(ex) = scenario.examples.first() {
+        tags.extend(ex.tags.clone());
+    }
+
     Ok(ScenarioData {
         name: scenario_name,
         steps,
         examples,
+        tags,
     })
 }
 

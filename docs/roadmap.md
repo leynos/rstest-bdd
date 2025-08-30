@@ -131,8 +131,11 @@ improves the developer experience.
   - [ ] Document tag-expression grammar and precedence (§1.3.4).
 
   - [ ] Filter at macro expansion time and emit `compile_error!` diagnostics for
-    invalid tag expressions (empty strings, empty parentheses, dangling
-    operators) including the byte offset and a helpful message.
+    invalid tag expressions. Omission of the `tags` argument is allowed, but an
+    explicit empty string or empty parentheses are invalid. Diagnostics report
+    the byte offset, for example:
+    `error: empty tag string is not allowed (byte offset 42)`;
+    `error: missing tag (allowed)`.
 
   - [ ] Define tag scope and inheritance:
     - Scenarios inherit `Feature:` tags.
@@ -141,6 +144,12 @@ improves the developer experience.
 
   - [ ] Specify associativity (`and`/`or` left-associative; `not` unary-prefix)
     and reject unknown tokens (`&&`, `||`, `!`) at compile time.
+
+  - [ ] Identifiers are case-sensitive.
+
+  - [ ] Identifier grammar: must start with `A–Z`, `a–z`, or `_`; subsequent
+    characters may include `A–Z`, `a–z`, `0–9`, or `_`. Keywords (`and`, `or`,
+    `not`) are matched case-sensitively and cannot be used as identifiers.
 
   - [ ] Implement a single shared parser used by both macros to guarantee
     identical semantics.

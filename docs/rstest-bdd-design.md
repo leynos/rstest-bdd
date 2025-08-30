@@ -333,7 +333,7 @@ and lacks the `@wip` tag.
 Grammar and semantics:
 
 - Tokens:
-  - Tags are identifiers prefixed with `@` and composed of `[A-Za-z0-9_:-]+`.
+  - Tags are identifiers prefixed with `@` and match `[A-Za-z_][A-Za-z0-9_]*`.
   - Operators: `and`, `or`, `not`.
   - Parentheses `(` `)` group sub-expressions.
 - Precedence: `not` > `and` > `or`. Parentheses override precedence.
@@ -342,11 +342,14 @@ Grammar and semantics:
 - Tag matching is case-sensitive; operator keywords are case-insensitive.
 - Invalid expressions cause a `compile_error!` with a message that includes the
   byte offset of the failure and a short reason.
-- Empty `tags` (missing or `""`) is invalid and emits `compile_error!`.
-- Unknown tokens (e.g., `&&`, `||`, `!`) are invalid.
+- Omitting the `tags` argument applies no filter; an explicit `""` or unknown
+  tokens (e.g., `&&`, `||`, `!`) are invalid and emit `compile_error!`.
 - Empty parentheses `()` and dangling operators (`@a and`, `or @b`, leading
   `and`/`or`) are invalid.
 - Matching is set-membership only; tags do not carry values.
+
+Both macros delegate tag-expression parsing to a shared module so that
+`#[scenario]` and `scenarios!` share identical grammar and diagnostics.
 
 EBNF:
 
@@ -357,7 +360,7 @@ and_expr  ::= not_expr { "and" not_expr }
 not_expr  ::= [ "not" ] primary
 primary   ::= TAG | "(" expr ")"
 TAG       ::= "@" IDENT
-IDENT     ::= { A..Z | a..z | 0..9 | "_" | ":" | "-" }+
+IDENT     ::= [A..Z | a..z | "_"] { A..Z | a..z | 0..9 | "_" }*
 ```
 
 Example diagnostic:
