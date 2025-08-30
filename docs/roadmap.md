@@ -111,7 +111,7 @@ improves the developer experience.
   - [x] Implement support for `Docstring`, making the content available as a
     `String` argument named `docstring`.
 
-- [ ] **Robust Error Handling**
+- [x] **Robust Error Handling**
 
   - [x] The `#[scenario]` macro must emit a `compile_error!` if the specified
     `.feature` file cannot be found or parsed.

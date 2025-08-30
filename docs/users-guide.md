@@ -204,9 +204,19 @@ usual `cargo test` command. Test functions created by the `#[scenario]` macro
 behave like other `rstest` tests; they honour `#[tokio::test]` or
 `#[async_std::test]` attributes if applied to the original function. Each
 scenario runs its steps sequentially in the order defined in the feature file.
-When a step is not found, compilation fails with an error naming the missing
-step and its position in the feature. This strictness ensures that behaviour
-specifications do not silently drift from the code.
+By default, missing steps emit a compile‑time warning and are checked again at
+runtime so steps can live in other crates. Enabling the
+`strict-compile-time-validation` feature on `rstest-bdd-macros` turns those
+warnings into `compile_error!`s when all step definitions are local. This
+prevents behaviour specifications from silently drifting from the code while
+still permitting cross‑crate step sharing.
+
+To enable strict checking add the feature to your `dev-dependencies`:
+
+```toml
+[dev-dependencies]
+rstest-bdd-macros = { version = "0.1.0-alpha2", features = ["strict-compile-time-validation"] }
+```
 
 Best practices for writing effective scenarios include:
 

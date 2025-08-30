@@ -34,26 +34,54 @@ pub(crate) fn register_step(keyword: StepKeyword, pattern: &syn::LitStr) {
 
 /// Ensure all parsed steps have matching definitions.
 ///
+/// In strict mode, missing steps cause compilation to fail. In non-strict mode,
+/// the function emits warnings but allows compilation to continue so scenarios
+/// can reference steps from other crates. Ambiguous step definitions always
+/// produce an error.
+///
 /// # Errors
-/// Returns a `syn::Error` if a step lacks a corresponding definition or if
-/// multiple definitions match.
-pub(crate) fn validate_steps_exist(steps: &[ParsedStep]) -> Result<(), syn::Error> {
+/// Returns a `syn::Error` when `strict` is `true` and a step lacks a matching
+/// definition or when any step matches more than one definition.
+pub(crate) fn validate_steps_exist(steps: &[ParsedStep], strict: bool) -> Result<(), syn::Error> {
     let reg = REGISTERED
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);
     let mut prev = None;
+    let mut missing = Vec::new();
     for step in steps {
         let resolved = resolve_conjunction_keyword(&mut prev, step.keyword);
-        has_matching_step_definition(&reg, resolved, step)?;
+        if let Some(msg) = has_matching_step_definition(&reg, resolved, step)? {
+            missing.push(msg);
+        }
     }
-    Ok(())
+
+    if missing.is_empty() {
+        return Ok(());
+    }
+
+    if strict {
+        let msg = if missing.len() == 1 {
+            missing.remove(0)
+        } else {
+            missing.join("\n")
+        };
+        Err(syn::Error::new(proc_macro2::Span::call_site(), msg))
+    } else {
+        for msg in missing {
+            #[expect(clippy::print_stderr, reason = "proc_macro::Diagnostic is unstable")]
+            {
+                eprintln!("warning: {msg} (will be checked at runtime)");
+            }
+        }
+        Ok(())
+    }
 }
 
 fn has_matching_step_definition(
     reg: &[RegisteredStep],
     resolved: StepKeyword,
     step: &ParsedStep,
-) -> Result<(), syn::Error> {
+) -> Result<Option<String>, syn::Error> {
     let matches: Vec<&RegisteredStep> = reg
         .iter()
         .filter(|def| step_matches_definition(def, resolved, step))
@@ -73,11 +101,12 @@ fn has_matching_step_definition(
             .collect();
 
         let mut msg = format!(
-            "No matching step definition found for: {} {}\n",
+            "No matching step definition found for: {} {}",
             fmt_keyword(resolved),
             step.text
         );
         if !available_defs.is_empty() {
+            msg.push('\n');
             msg.push_str("Available step definitions for this keyword:\n");
             for def in &available_defs {
                 msg.push_str("  - ");
@@ -86,6 +115,7 @@ fn has_matching_step_definition(
             }
         }
         if !possible_matches.is_empty() {
+            msg.push('\n');
             msg.push_str("Possible matches:\n");
             for m in &possible_matches {
                 msg.push_str("  - ");
@@ -93,7 +123,7 @@ fn has_matching_step_definition(
                 msg.push('\n');
             }
         }
-        return Err(syn::Error::new(proc_macro2::Span::call_site(), msg));
+        return Ok(Some(msg));
     } else if matches.len() > 1 {
         let patterns: Vec<&str> = matches.iter().map(|def| def.pattern.as_str()).collect();
         let msg = format!(
@@ -103,7 +133,7 @@ fn has_matching_step_definition(
         );
         return Err(syn::Error::new(proc_macro2::Span::call_site(), msg));
     }
-    Ok(())
+    Ok(None)
 }
 
 fn step_matches_definition(def: &RegisteredStep, resolved: StepKeyword, step: &ParsedStep) -> bool {
@@ -153,11 +183,12 @@ mod tests {
             docstring: None,
             table: None,
         }];
-        assert!(validate_steps_exist(&steps).is_ok());
+        assert!(validate_steps_exist(&steps, true).is_ok());
+        assert!(validate_steps_exist(&steps, false).is_ok());
     }
 
     #[rstest]
-    fn errors_when_missing_step() {
+    fn errors_when_missing_step_in_strict_mode() {
         clear_registry();
         let steps = [ParsedStep {
             keyword: StepKeyword::Given,
@@ -165,11 +196,8 @@ mod tests {
             docstring: None,
             table: None,
         }];
-        let err = match validate_steps_exist(&steps) {
-            Err(e) => e.to_string(),
-            Ok(()) => panic!("expected missing step error"),
-        };
-        assert!(err.contains("No matching step definition"));
+        assert!(validate_steps_exist(&steps, true).is_err());
+        assert!(validate_steps_exist(&steps, false).is_ok());
     }
 
     #[rstest]
@@ -184,10 +212,11 @@ mod tests {
             docstring: None,
             table: None,
         }];
-        let err = match validate_steps_exist(&steps) {
+        let err = match validate_steps_exist(&steps, false) {
             Err(e) => e.to_string(),
             Ok(()) => panic!("expected ambiguous step error"),
         };
         assert!(err.contains("Ambiguous step definition"));
+        assert!(validate_steps_exist(&steps, true).is_err());
     }
 }
