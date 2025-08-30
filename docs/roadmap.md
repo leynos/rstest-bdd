@@ -120,6 +120,47 @@ improves the developer experience.
     matching step definition exists for every Gherkin step in the target
     scenario, emitting a `compile_error!` if any are missing.
 
+- [ ] **Tag Filtering**
+
+  - [ ] Allow the `#[scenario]` macro to select scenarios by tag expression at
+    macro-expansion time.
+
+  - [ ] Extend the `scenarios!` macro to filter scenarios using the same tag
+    syntax at macro-expansion time. (See: [design §1.3.4].)
+
+  - [ ] Document tag-expression grammar and precedence (§1.3.4).
+
+  - [ ] Filter at macro-expansion time and emit `compile_error!` diagnostics for
+    invalid tag expressions (explicit empty string `""`, empty parentheses
+    `()`, dangling operators). Omitting the `tags` argument applies no filter
+    (`error: missing tag (allowed)`). Diagnostics include the byte offset and a
+    short reason, e.g.:
+    `error: empty tag string is not allowed (byte offset 42)` or
+    `error: invalid tag expression at byte 7: expected tag or '(' after 'and'`.
+
+  - [ ] Define tag scope and inheritance:
+    - Scenarios inherit `Feature:` tags.
+    - `Scenario Outline` cases inherit tags from the outline and their
+      originating `Examples:` block.
+
+  - [ ] Specify associativity (`and`/`or` left-associative; `not` unary-prefix)
+    and reject unknown tokens (`&&`, `||`, `!`) at compile time.
+
+  - [ ] Specify case rules and identifier grammar:
+    - Tag identifiers are case-sensitive and match `[A-Za-z_][A-Za-z0-9_]*`.
+    - Operator keywords (`and`, `or`, `not`) are case-insensitive and
+      reserved; they cannot be used as identifiers.
+
+  - [ ] Implement a single shared parser used by both macros to guarantee
+    identical semantics.
+
+  - [ ] Add conformance tests for precedence, associativity, and scope:
+    - Valid: `@a and not (@b or @c)`
+    - Invalid: `@a && @b`, `""`, `()`, `@a and`, `(@a or @b`,
+      `@a or and @b`
+
+[design §1.3.4]: ./rstest-bdd-design.md#134-filtering-scenarios-with-tags
+
 - [ ] **Boilerplate Reduction**
 
   - [x] Implement the `scenarios!("path/to/features/")` macro to automatically
@@ -174,7 +215,7 @@ at improving maintainability and IDE integration.
   - [ ] Explore adding explicit teardown hooks that are guaranteed to run after
     a scenario, even in the case of a panic (e.g., `#[after_scenario]`).
 
-- [ ] **Performance Optimisation**
+- [ ] **Performance Optimization**
 
   - [ ] Implement caching for parsed Gherkin ASTs in the `OUT_DIR` to reduce
     compile-time overhead, only re-parsing files on modification.

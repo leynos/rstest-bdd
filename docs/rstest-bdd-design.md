@@ -304,6 +304,86 @@ fn create_users(
   to be passed to a step. This will be provided as a `String` argument to the
   step function, again mirroring `pytest-bdd`.[^11]
 
+#### 1.3.4 Filtering Scenarios with Tags
+
+Tags provide a convenient way to organize scenarios and control which tests
+run. The `#[scenario]` macro will accept an optional `tags` argument containing
+an expression such as `"@fast and not @wip"`. Only scenarios whose tags satisfy
+this expression will expand into test functions. Filtering occurs at
+macro-expansion time; unmatched scenarios do not generate tests (no runtime
+skipping). The `scenarios!` macro will offer the same argument to filter an
+entire directory of feature files.
+
+Tag scope:
+
+- Scenario tags inherit all tags declared at the `Feature:` level.
+- For `Scenario Outline`, tags on the outline and on each `Examples:` block
+  apply to the expanded cases produced from that block.
+- Tag composition uses set union; duplicates are ignored. There is no implicit
+  removal or override of inherited tags.
+
+**Example:**
+
+```rust
+#[scenario(path = "search.feature", tags = "@fast and not @wip")]
+fn search_fast() {}
+```
+
+The macro emits a test only when the matched scenario carries the `@fast` tag
+and lacks the `@wip` tag.
+
+Grammar and semantics:
+
+- Tokens:
+  - Tags are identifiers prefixed with `@` and match `[A-Za-z_][A-Za-z0-9_]*`.
+  - Operators: `and`, `or`, `not`.
+  - Parentheses `(` `)` group sub-expressions.
+- Precedence: `not` > `and` > `or`. Parentheses override precedence.
+- Associativity: `and` and `or` are left-associative; `not` is unary-prefix.
+- Whitespace is ignored between tokens.
+- Tag matching is case-sensitive; operator keywords are case-insensitive.
+- Invalid expressions cause a `compile_error!` with a message that includes the
+  byte offset of the failure and a short reason.
+- Omitting the `tags` argument applies no filter; an explicit `""` or unknown
+  tokens (e.g., `&&`, `||`, `!`) are invalid and emit `compile_error!`.
+- Empty parentheses `()` and dangling operators (`@a and`, `or @b`, leading
+  `and`/`or`) are invalid.
+- Matching is set-membership only; tags do not carry values.
+
+Both macros delegate tag-expression parsing to a shared module so that
+`#[scenario]` and `scenarios!` share identical grammar and diagnostics.
+
+EBNF:
+
+```ebnf
+expr      ::= or_expr
+or_expr   ::= and_expr { "or" and_expr }
+and_expr  ::= not_expr { "and" not_expr }
+not_expr  ::= [ "not" ] primary
+primary   ::= TAG | "(" expr ")"
+TAG       ::= "@" IDENT
+IDENT     ::= [A..Z | a..z | "_"] { A..Z | a..z | 0..9 | "_" }*
+```
+
+Example diagnostic:
+
+```text
+error: invalid tag expression at byte 7: expected tag or '(' after 'and'
+```
+
+`scenarios!` usage:
+
+```rust
+// Include smoke OR (critical AND not wip):
+scenarios!("tests/features/", tags = "@smoke or (@critical and not @wip)");
+
+// Exclude slow:
+scenarios!("tests/features/", tags = "not @slow");
+
+// Operator keywords are case-insensitive:
+scenarios!("tests/features/", tags = "@SMOKE Or Not @Wip");
+```
+
 ## Part 2: Architectural and API Specification
 
 This part transitions from the user's perspective to the technical
