@@ -52,43 +52,47 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_or(&mut self) -> Result<Expr, ParseError> {
-        let mut left = self.parse_and()?;
-        loop {
-            self.skip_ws();
-            let start = self.idx;
-            if self.consume_kw(b"or") {
-                self.skip_ws();
-                if self.peek().is_none() {
-                    return Err(ParseError {
-                        pos: self.idx,
-                        msg: "expected tag or '(' after 'or'".into(),
-                    });
-                }
-                let right = self.parse_and()?;
-                left = Expr::Or(Box::new(left), Box::new(right));
-            } else {
-                self.idx = start;
-                break;
-            }
-        }
-        Ok(left)
+        self.parse_binary(
+            Self::parse_and,
+            b"or",
+            Expr::Or,
+            "expected tag or '(' after 'or'",
+        )
     }
 
     fn parse_and(&mut self) -> Result<Expr, ParseError> {
-        let mut left = self.parse_not()?;
+        self.parse_binary(
+            Self::parse_not,
+            b"and",
+            Expr::And,
+            "expected tag or '(' after 'and'",
+        )
+    }
+
+    fn parse_binary<F>(
+        &mut self,
+        parse_lower: F,
+        kw: &[u8],
+        ctor: fn(Box<Expr>, Box<Expr>) -> Expr,
+        err_after_kw: &str,
+    ) -> Result<Expr, ParseError>
+    where
+        F: Fn(&mut Self) -> Result<Expr, ParseError>,
+    {
+        let mut left = parse_lower(self)?;
         loop {
             self.skip_ws();
             let start = self.idx;
-            if self.consume_kw(b"and") {
+            if self.consume_kw(kw) {
                 self.skip_ws();
                 if self.peek().is_none() {
                     return Err(ParseError {
                         pos: self.idx,
-                        msg: "expected tag or '(' after 'and'".into(),
+                        msg: err_after_kw.into(),
                     });
                 }
-                let right = self.parse_not()?;
-                left = Expr::And(Box::new(left), Box::new(right));
+                let right = parse_lower(self)?;
+                left = ctor(Box::new(left), Box::new(right));
             } else {
                 self.idx = start;
                 break;
@@ -174,24 +178,27 @@ impl<'a> Parser<'a> {
 
     fn consume_kw(&mut self, kw: &[u8]) -> bool {
         let end = self.idx + kw.len();
-        if end <= self.src.len()
-            && self
-                .src
-                .get(self.idx..end)
-                .is_some_and(|s| s.eq_ignore_ascii_case(kw))
-        {
-            if end < self.src.len() {
-                if let Some(b) = self.src.get(end) {
-                    if matches!(b, b'A'..=b'Z' | b'a'..=b'z' | b'_') {
-                        return false;
-                    }
+        if end > self.src.len() {
+            return false;
+        }
+
+        let Some(segment) = self.src.get(self.idx..end) else {
+            return false;
+        };
+        if !segment.eq_ignore_ascii_case(kw) {
+            return false;
+        }
+
+        if end < self.src.len() {
+            if let Some(b) = self.src.get(end) {
+                if matches!(b, b'A'..=b'Z' | b'a'..=b'z' | b'_') {
+                    return false;
                 }
             }
-            self.idx = end;
-            true
-        } else {
-            false
         }
+
+        self.idx = end;
+        true
     }
 }
 

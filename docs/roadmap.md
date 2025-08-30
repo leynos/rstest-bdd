@@ -130,12 +130,11 @@ improves the developer experience.
 
   - [ ] Document tag-expression grammar and precedence (§1.3.4).
 
-  - [ ] Filter at macro expansion time and emit `compile_error!` diagnostics for
-    invalid tag expressions. Omission of the `tags` argument is allowed, but an
-    explicit empty string or empty parentheses are invalid. Diagnostics report
-    the byte offset, for example:
-    `error: empty tag string is not allowed (byte offset 42)`;
-    `error: missing tag (allowed)`.
+  - [ ] Filter at macro-expansion time and emit `compile_error!` diagnostics for
+    invalid tag expressions (explicit empty string `""`, empty parentheses
+    `()`, dangling operators). Omission of the `tags` argument is allowed.
+    Report the byte offset and a short reason, e.g.:
+    `error: invalid tag expression at byte 7: expected tag or '(' after 'and'`.
 
   - [ ] Define tag scope and inheritance:
     - Scenarios inherit `Feature:` tags.
