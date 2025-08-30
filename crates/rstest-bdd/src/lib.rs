@@ -38,7 +38,10 @@ pub use types::{
 
 #[ctor]
 fn dump_steps() {
-    if std::env::args().any(|a| a == "--dump-steps") {
+    // Only activate when explicitly enabled by the diagnostics runner.
+    if std::env::var_os("RSTEST_BDD_DUMP_STEPS").is_some()
+        && std::env::args().any(|a| a == "--dump-steps")
+    {
         #[expect(
             clippy::print_stdout,
             clippy::print_stderr,

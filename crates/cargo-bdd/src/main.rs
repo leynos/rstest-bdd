@@ -2,7 +2,7 @@
 
 use std::collections::HashMap;
 use std::io::BufReader;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
 use cargo_metadata::Message;
@@ -163,75 +163,103 @@ fn is_unrecognised_dump_steps(stderr: &str) -> bool {
 
 fn collect_steps() -> Result<Vec<Step>> {
     let metadata = cargo_metadata::MetadataCommand::new().exec()?;
+    if !has_test_targets(&metadata) {
+        return Ok(Vec::new());
+    }
+    let bins = build_test_binaries(&metadata)?;
+    let mut steps = Vec::new();
+    for bin in bins {
+        if let Some(mut parsed) = collect_steps_from_binary(&bin)? {
+            steps.append(&mut parsed);
+        }
+    }
+    Ok(steps)
+}
+
+fn has_test_targets(metadata: &cargo_metadata::Metadata) -> bool {
+    metadata
+        .packages
+        .iter()
+        .any(|p| p.targets.iter().any(|t| t.kind.iter().any(|k| k == "test")))
+}
+
+fn build_test_binaries(metadata: &cargo_metadata::Metadata) -> Result<Vec<PathBuf>> {
     let workspace: std::collections::HashSet<_> = metadata.workspace_members.iter().collect();
     let mut bins = Vec::new();
     for package in metadata
         .packages
-        .into_iter()
+        .iter()
         .filter(|p| workspace.contains(&p.id))
     {
-        for target in package.targets {
-            if target.kind.iter().any(|k| k == "test") {
-                let mut cmd = Command::new("cargo");
-                cmd.args([
-                    "test",
-                    "--no-run",
-                    "--message-format=json",
-                    "--package",
-                    &package.name,
-                    "--test",
-                    &target.name,
-                ]);
-                let mut child = cmd.stdout(Stdio::piped()).spawn().with_context(|| {
-                    format!(
-                        "failed to build test target {} in package {}",
-                        target.name, package.name
-                    )
-                })?;
-                let reader = BufReader::new(child.stdout.take().expect("stdout"));
-                for m in Message::parse_stream(reader).flatten() {
-                    if let Some(exe) = extract_test_executable(&m) {
-                        bins.push(exe);
-                    }
+        for target in package
+            .targets
+            .iter()
+            .filter(|t| t.kind.iter().any(|k| k == "test"))
+        {
+            let mut cmd = Command::new("cargo");
+            cmd.args([
+                "test",
+                "--no-run",
+                "--message-format=json",
+                "--package",
+                &package.name,
+                "--test",
+                &target.name,
+            ]);
+            let mut child = cmd.stdout(Stdio::piped()).spawn().with_context(|| {
+                format!(
+                    "failed to build test target {} in package {}",
+                    target.name, package.name
+                )
+            })?;
+            let reader = BufReader::new(child.stdout.take().expect("stdout"));
+            for m in Message::parse_stream(reader).flatten() {
+                if let Some(exe) = extract_test_executable(&m) {
+                    bins.push(exe);
                 }
-                let status = child.wait().wrap_err_with(|| {
-                    format!(
-                        "cargo test failed for target {} in package {}",
-                        target.name, package.name
-                    )
-                })?;
-                if !status.success() {
-                    bail!(
-                        "cargo test failed for target {} in package {}",
-                        target.name,
-                        package.name
-                    );
-                }
+            }
+            let status = child.wait().wrap_err_with(|| {
+                format!(
+                    "cargo test failed for target {} in package {}",
+                    target.name, package.name
+                )
+            })?;
+            if !status.success() {
+                bail!(
+                    "cargo test failed for target {} in package {}",
+                    target.name,
+                    package.name
+                );
             }
         }
     }
-    if bins.is_empty() {
-        return Ok(Vec::new());
-    }
+    Ok(bins)
+}
 
-    let mut steps = Vec::new();
-    for bin in bins {
-        let out = Command::new(&bin)
-            .arg("--dump-steps")
-            .output()
-            .with_context(|| format!("failed to run test binary {}", bin.display()))?;
-        if !out.status.success() {
-            let err = String::from_utf8_lossy(&out.stderr);
-            if is_unrecognised_dump_steps(&err) {
-                continue;
-            }
-            bail!("test binary {} failed: {err}", bin.display());
-        }
-        let mut parsed: Vec<Step> = serde_json::from_slice(&out.stdout)
-            .with_context(|| format!("invalid JSON from {}", bin.display()))?;
-        steps.append(&mut parsed);
+fn collect_steps_from_binary(bin: &Path) -> Result<Option<Vec<Step>>> {
+    let output = Command::new(bin)
+        .arg("--dump-steps")
+        .env("RSTEST_BDD_DUMP_STEPS", "1")
+        .output()
+        .with_context(|| format!("failed to run test binary {}", bin.display()))?;
+    if !output.status.success() {
+        return handle_binary_execution_failure(bin, &output);
     }
-    Ok(steps)
+    let steps: Vec<Step> = serde_json::from_slice(&output.stdout)
+        .with_context(|| format!("invalid JSON from {}", bin.display()))?;
+    Ok(Some(steps))
+}
+
+fn handle_binary_execution_failure(
+    bin: &Path,
+    output: &std::process::Output,
+) -> Result<Option<Vec<Step>>> {
+    let err = String::from_utf8_lossy(&output.stderr);
+    if is_unrecognised_dump_steps(&err) {
+        Ok(None)
+    } else {
+        bail!("test binary {} failed: {err}", bin.display());
+    }
 }
 
 /// Print a step definition in diagnostic output.

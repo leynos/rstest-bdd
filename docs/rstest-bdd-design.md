@@ -990,8 +990,9 @@ functionality is implemented:
   variable when set. This allows the CLI to report definitions that were never
   exercised and groups of steps that share a keyword and pattern. Because
   `inventory` operates per binary, the subcommand compiles each test target and
-  executes it with a private `--dump-steps` flag to stream the registry as
-  JSON. The tool merges these dumps so diagnostics cover the entire workspace.
+  executes it with `RSTEST_BDD_DUMP_STEPS=1` and a private `--dump-steps` flag
+  to stream the registry as JSON. The tool merges these dumps so diagnostics
+  cover the entire workspace.
 
 - **Teardown Hooks:** While `rstest` fixtures handle teardown via `Drop`, more
   explicit post-scenario cleanup, especially in the case of a step panic, could

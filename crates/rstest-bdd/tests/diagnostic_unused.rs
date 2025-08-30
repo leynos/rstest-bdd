@@ -1,8 +1,11 @@
 //! Behavioural tests for step usage diagnostics.
 
-use rstest_bdd::{find_step, step, unused_steps, StepContext, StepError, StepKeyword};
+use rstest_bdd::{StepContext, StepError, StepKeyword, find_step, step, unused_steps};
 
-#[expect(clippy::unnecessary_wraps, reason = "wrapper must match StepFn signature")]
+#[expect(
+    clippy::unnecessary_wraps,
+    reason = "wrapper must match StepFn signature"
+)]
 fn used_wrapper(
     ctx: &StepContext<'_>,
     _text: &str,
@@ -15,7 +18,10 @@ fn used_wrapper(
 
 step!(StepKeyword::Given, "a used step", used_wrapper, &[]);
 
-#[expect(clippy::unnecessary_wraps, reason = "wrapper must match StepFn signature")]
+#[expect(
+    clippy::unnecessary_wraps,
+    reason = "wrapper must match StepFn signature"
+)]
 fn unused_wrapper(
     ctx: &StepContext<'_>,
     _text: &str,

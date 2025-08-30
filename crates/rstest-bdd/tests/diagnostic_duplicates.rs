@@ -1,8 +1,11 @@
 //! Behavioural test for duplicate step detection.
 
-use rstest_bdd::{duplicate_steps, step, StepContext, StepError, StepKeyword};
+use rstest_bdd::{StepContext, StepError, StepKeyword, duplicate_steps, step};
 
-#[expect(clippy::unnecessary_wraps, reason = "wrapper must match StepFn signature")]
+#[expect(
+    clippy::unnecessary_wraps,
+    reason = "wrapper must match StepFn signature"
+)]
 fn one(
     ctx: &StepContext<'_>,
     _text: &str,
@@ -13,7 +16,10 @@ fn one(
     Ok(())
 }
 
-#[expect(clippy::unnecessary_wraps, reason = "wrapper must match StepFn signature")]
+#[expect(
+    clippy::unnecessary_wraps,
+    reason = "wrapper must match StepFn signature"
+)]
 fn two(
     ctx: &StepContext<'_>,
     _text: &str,

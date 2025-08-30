@@ -101,8 +101,8 @@ struct StepUsage {
     pattern: String,
 }
 
-fn usage_file_path() -> PathBuf {
-    static PATH: LazyLock<PathBuf> = LazyLock::new(|| {
+fn usage_file_path() -> Option<PathBuf> {
+    static PATH: LazyLock<Option<PathBuf>> = LazyLock::new(|| {
         let base = env::var_os("CARGO_TARGET_DIR")
             .map(PathBuf::from)
             .or_else(|| {
@@ -111,9 +111,8 @@ fn usage_file_path() -> PathBuf {
                         .find(|p| p.file_name().is_some_and(|n| n == "target"))
                         .map(PathBuf::from)
                 })
-            })
-            .unwrap_or_else(|| PathBuf::from("target"));
-        base.join(".rstest-bdd-usage.json")
+            });
+        base.map(|b| b.join(".rstest-bdd-usage.json"))
     });
     PATH.clone()
 }
@@ -138,7 +137,9 @@ fn mark_used(key: StepKey) {
 }
 
 fn append_usage(record: &StepUsage) -> std::io::Result<()> {
-    let path = usage_file_path();
+    let Some(path) = usage_file_path() else {
+        return Ok(());
+    };
     if let Some(parent) = path.parent() {
         let _ = fs::create_dir_all(parent);
     }
@@ -155,22 +156,36 @@ fn append_usage(record: &StepUsage) -> std::io::Result<()> {
 
 fn read_used_from_file() -> HashSet<(StepKeyword, String)> {
     let mut used = HashSet::new();
-    if let Ok(file) = fs::File::open(usage_file_path()) {
-        let reader = BufReader::new(file);
-        for (idx, line_res) in reader.lines().enumerate() {
-            match line_res {
-                Ok(line) => match serde_json::from_str::<StepUsage>(&line) {
-                    Ok(rec) => match StepKeyword::from_str(&rec.keyword) {
-                        Ok(keyword) => {
-                            used.insert((keyword, rec.pattern));
-                        }
-                        Err(e) => warn!("Malformed StepKeyword at line {}: {}", idx + 1, e),
-                    },
-                    Err(e) => warn!("Malformed StepUsage at line {}: {}", idx + 1, e),
-                },
-                Err(e) => warn!("Failed to read line {}: {e}", idx + 1),
+    let Some(path) = usage_file_path() else {
+        return used;
+    };
+    let Ok(file) = fs::File::open(path) else {
+        return used;
+    };
+    let reader = BufReader::new(file);
+    for (idx, line) in reader.lines().enumerate() {
+        let line = match line {
+            Ok(l) => l,
+            Err(e) => {
+                warn!("Failed to read line {}: {e}", idx + 1);
+                continue;
             }
-        }
+        };
+        let rec: StepUsage = match serde_json::from_str(&line) {
+            Ok(r) => r,
+            Err(e) => {
+                warn!("Malformed StepUsage at line {}: {e}", idx + 1);
+                continue;
+            }
+        };
+        let keyword = match StepKeyword::from_str(&rec.keyword) {
+            Ok(k) => k,
+            Err(e) => {
+                warn!("Malformed StepKeyword at line {}: {e}", idx + 1);
+                continue;
+            }
+        };
+        used.insert((keyword, rec.pattern));
     }
     used
 }
