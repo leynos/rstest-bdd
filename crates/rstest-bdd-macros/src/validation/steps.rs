@@ -159,23 +159,39 @@ fn build_missing_step_message(
         fmt_keyword(resolved),
         step.text
     );
-    if !available_defs.is_empty() {
-        msg.push('\n');
-        msg.push_str("Available step definitions for this keyword:\n");
-        for def in available_defs {
-            msg.push_str("  - ");
-            msg.push_str(def);
-            msg.push('\n');
-        }
+    msg.push_str(&format_available_definitions(available_defs));
+    msg.push_str(&format_possible_matches(possible_matches));
+    msg
+}
+
+fn format_available_definitions(available_defs: &[&str]) -> String {
+    if available_defs.is_empty() {
+        return String::new();
     }
-    if !possible_matches.is_empty() {
+
+    let mut msg = String::new();
+    msg.push('\n');
+    msg.push_str("Available step definitions for this keyword:\n");
+    for def in available_defs {
+        msg.push_str("  - ");
+        msg.push_str(def);
         msg.push('\n');
-        msg.push_str("Possible matches:\n");
-        for m in possible_matches {
-            msg.push_str("  - ");
-            msg.push_str(m);
-            msg.push('\n');
-        }
+    }
+    msg
+}
+
+fn format_possible_matches(possible_matches: &[&str]) -> String {
+    if possible_matches.is_empty() {
+        return String::new();
+    }
+
+    let mut msg = String::new();
+    msg.push('\n');
+    msg.push_str("Possible matches:\n");
+    for m in possible_matches {
+        msg.push_str("  - ");
+        msg.push_str(m);
+        msg.push('\n');
     }
     msg
 }
