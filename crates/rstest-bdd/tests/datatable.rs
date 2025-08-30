@@ -17,7 +17,7 @@ fn check_table(datatable: Vec<Vec<String>>) {
 #[scenario(path = "tests/features/datatable.feature")]
 fn datatable_scenario() {}
 
-#[given("a table then value {word}:")]
+#[given("a table then value {value}:")]
 #[expect(clippy::needless_pass_by_value, reason = "step consumes the table")]
 fn table_then_value(datatable: Vec<Vec<String>>, value: String) {
     assert_eq!(

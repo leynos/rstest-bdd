@@ -4,6 +4,9 @@ use rstest::rstest;
 use rstest_bdd::{StepContext, StepError, StepKeyword};
 use rstest_bdd_macros::given;
 
+fn value_fixture() -> u32 { 0 }
+use value_fixture as value;
+
 #[given("a failing step")]
 fn failing_step() -> Result<(), String> {
     Err("boom".into())
@@ -113,10 +116,10 @@ fn missing_capture(value: u32) {
     "no placeholders",
     "no placeholders",
     "missing_capture",
-    StepError::ExecutionError {
-        pattern: "no placeholders".into(),
-        function: "missing_capture".into(),
-        message: "pattern 'no placeholders' produced 0 captures but step 'missing_capture' expects 1".into(),
+    StepError::MissingFixture {
+        name: "value".into(),
+        ty: "u32".into(),
+        step: "missing_capture".into(),
     },
 )]
 fn step_error_scenarios(
@@ -158,6 +161,18 @@ fn step_error_scenarios(
             assert_eq!(pattern, step_pattern);
             assert_eq!(function, expected_function);
             assert_eq!(message, expected_message);
+        }
+        (
+            StepError::MissingFixture { name, ty, step },
+            StepError::MissingFixture {
+                name: expected_name,
+                ty: expected_ty,
+                step: expected_step,
+            },
+        ) => {
+            assert_eq!(name, expected_name);
+            assert_eq!(ty, expected_ty);
+            assert_eq!(step, expected_step);
         }
         (other_actual, other_expected) => panic!(
             "unexpected error for '{step_pattern}': got {other_actual:?}, expected {other_expected:?}",
