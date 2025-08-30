@@ -82,58 +82,13 @@ fn has_matching_step_definition(
     resolved: StepKeyword,
     step: &ParsedStep,
 ) -> Result<Option<String>, syn::Error> {
-    let matches: Vec<&RegisteredStep> = reg
-        .iter()
-        .filter(|def| step_matches_definition(def, resolved, step))
-        .collect();
+    let matches = find_step_matches(reg, resolved, step);
 
-    if matches.is_empty() {
-        let available_defs: Vec<&str> = reg
-            .iter()
-            .filter(|def| def.keyword == resolved)
-            .map(|def| def.pattern.as_str())
-            .collect();
-
-        let possible_matches: Vec<&str> = available_defs
-            .iter()
-            .copied()
-            .filter(|pattern| step.text.contains(pattern) || pattern.contains(&step.text))
-            .collect();
-
-        let mut msg = format!(
-            "No matching step definition found for: {} {}",
-            fmt_keyword(resolved),
-            step.text
-        );
-        if !available_defs.is_empty() {
-            msg.push('\n');
-            msg.push_str("Available step definitions for this keyword:\n");
-            for def in &available_defs {
-                msg.push_str("  - ");
-                msg.push_str(def);
-                msg.push('\n');
-            }
-        }
-        if !possible_matches.is_empty() {
-            msg.push('\n');
-            msg.push_str("Possible matches:\n");
-            for m in &possible_matches {
-                msg.push_str("  - ");
-                msg.push_str(m);
-                msg.push('\n');
-            }
-        }
-        return Ok(Some(msg));
-    } else if matches.len() > 1 {
-        let patterns: Vec<&str> = matches.iter().map(|def| def.pattern.as_str()).collect();
-        let msg = format!(
-            "Ambiguous step definition for '{}'. Matches: {}",
-            step.text,
-            patterns.join(", ")
-        );
-        return Err(syn::Error::new(proc_macro2::Span::call_site(), msg));
+    match matches.len() {
+        0 => Ok(Some(format_missing_step_error(reg, resolved, step))),
+        1 => Ok(None),
+        _ => Err(format_ambiguous_step_error(&matches, step)),
     }
-    Ok(None)
 }
 
 fn step_matches_definition(def: &RegisteredStep, resolved: StepKeyword, step: &ParsedStep) -> bool {
@@ -146,6 +101,83 @@ fn step_matches_definition(def: &RegisteredStep, resolved: StepKeyword, step: &P
     let leaked: &'static str = Box::leak(def.pattern.clone().into_boxed_str());
     let pattern = StepPattern::new(leaked);
     extract_placeholders(&pattern, StepText::from(step.text.as_str())).is_ok()
+}
+
+fn find_step_matches<'a>(
+    reg: &'a [RegisteredStep],
+    resolved: StepKeyword,
+    step: &ParsedStep,
+) -> Vec<&'a RegisteredStep> {
+    reg.iter()
+        .filter(|def| step_matches_definition(def, resolved, step))
+        .collect()
+}
+
+fn format_missing_step_error(
+    reg: &[RegisteredStep],
+    resolved: StepKeyword,
+    step: &ParsedStep,
+) -> String {
+    let available_defs = collect_available_definitions(reg, resolved);
+    let possible_matches = find_possible_matches(&available_defs, step);
+    build_missing_step_message(resolved, step, &available_defs, &possible_matches)
+}
+
+fn format_ambiguous_step_error(matches: &[&RegisteredStep], step: &ParsedStep) -> syn::Error {
+    let patterns: Vec<&str> = matches.iter().map(|def| def.pattern.as_str()).collect();
+    let msg = format!(
+        "Ambiguous step definition for '{}'. Matches: {}",
+        step.text,
+        patterns.join(", ")
+    );
+    syn::Error::new(proc_macro2::Span::call_site(), msg)
+}
+
+fn collect_available_definitions(reg: &[RegisteredStep], resolved: StepKeyword) -> Vec<&str> {
+    reg.iter()
+        .filter(|def| def.keyword == resolved)
+        .map(|def| def.pattern.as_str())
+        .collect()
+}
+
+fn find_possible_matches<'a>(available_defs: &'a [&'a str], step: &ParsedStep) -> Vec<&'a str> {
+    available_defs
+        .iter()
+        .copied()
+        .filter(|pattern| step.text.contains(*pattern) || pattern.contains(&step.text))
+        .collect()
+}
+
+fn build_missing_step_message(
+    resolved: StepKeyword,
+    step: &ParsedStep,
+    available_defs: &[&str],
+    possible_matches: &[&str],
+) -> String {
+    let mut msg = format!(
+        "No matching step definition found for: {} {}",
+        fmt_keyword(resolved),
+        step.text
+    );
+    if !available_defs.is_empty() {
+        msg.push('\n');
+        msg.push_str("Available step definitions for this keyword:\n");
+        for def in available_defs {
+            msg.push_str("  - ");
+            msg.push_str(def);
+            msg.push('\n');
+        }
+    }
+    if !possible_matches.is_empty() {
+        msg.push('\n');
+        msg.push_str("Possible matches:\n");
+        for m in possible_matches {
+            msg.push_str("  - ");
+            msg.push_str(m);
+            msg.push('\n');
+        }
+    }
+    msg
 }
 
 fn fmt_keyword(kw: StepKeyword) -> &'static str {
