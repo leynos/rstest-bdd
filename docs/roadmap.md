@@ -174,7 +174,7 @@ experience by introducing more powerful and intuitive APIs.
 
 - [ ] **Ergonomic Improvements**
 
-  - [ ] **Implicit Fixture Injection:** Automatically inject fixtures when a
+  - [x] **Implicit Fixture Injection:** Automatically inject fixtures when a
     step function's parameter name matches a fixture name, removing the need
     for `#[from(...)]` in most cases.
 

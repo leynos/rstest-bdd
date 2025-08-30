@@ -16,6 +16,7 @@ pub(crate) use then::then;
 pub(crate) use when::when;
 
 use crate::codegen::wrapper::{WrapperConfig, extract_args, generate_wrapper_code};
+use crate::utils::{errors::error_to_tokens, pattern::placeholder_names};
 
 fn step_attr(attr: TokenStream, item: TokenStream, keyword: crate::StepKeyword) -> TokenStream {
     let pattern = syn::parse_macro_input!(attr as syn::LitStr);
@@ -23,8 +24,12 @@ fn step_attr(attr: TokenStream, item: TokenStream, keyword: crate::StepKeyword) 
     #[cfg_attr(docsrs, doc(cfg(feature = "compile-time-validation")))]
     crate::validation::steps::register_step(keyword, &pattern);
     let mut func = syn::parse_macro_input!(item as syn::ItemFn);
+    let mut placeholders = match placeholder_names(&pattern.value()) {
+        Ok(set) => set,
+        Err(err) => return error_to_tokens(&err).into(),
+    };
 
-    let args = match extract_args(&mut func) {
+    let args = match extract_args(&mut func, &mut placeholders) {
         Ok(args) => args,
         Err(err) => {
             let kw_name = match keyword {

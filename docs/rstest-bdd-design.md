@@ -1355,7 +1355,21 @@ sequenceDiagram
     StepWrapper-->>ScenarioRunner: returns
 ```
 
-### 3.10 Runtime Module Layout (for Contributors)
+### 3.10 Implicit Fixture Injection Implementation
+
+To streamline step definitions, the macro system now infers fixtures by
+analysing the step pattern during expansion. Placeholder names are extracted
+from the pattern string and any function parameter whose identifier matches a
+placeholder is treated as a typed step argument. Remaining parameters are
+assumed to be fixtures and are looked up in the [`StepContext`] at runtime.
+
+For early feedback, each inferred fixture name is referenced in the generated
+wrapper. If no fixture with that name is in scope, the wrapper fails to
+compile, surfacing the missing dependency before tests run. Conversely, if the
+pattern declares placeholders without matching parameters, macro expansion
+aborts with a clear diagnostic listing the missing arguments.
+
+### 3.11 Runtime Module Layout (for Contributors)
 
 To keep responsibilities cohesive the runtime is split into focused modules.
 Public APIs are re‑exported from `lib.rs` so consumers continue to import from

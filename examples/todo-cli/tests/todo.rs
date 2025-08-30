@@ -12,12 +12,12 @@ fn todo_list() -> RefCell<TodoList> {
 }
 
 #[given("an empty to-do list")]
-fn empty_list(#[from(todo_list)] list: &RefCell<TodoList>) {
-    assert!(list.borrow().is_empty(), "list should start empty");
+fn empty_list(todo_list: &RefCell<TodoList>) {
+    assert!(todo_list.borrow().is_empty(), "list should start empty");
 }
 
 #[when("I add the following tasks")]
-fn add_tasks(#[from(todo_list)] list: &RefCell<TodoList>, datatable: Vec<Vec<String>>) {
+fn add_tasks(todo_list: &RefCell<TodoList>, datatable: Vec<Vec<String>>) {
     for (i, row) in datatable.into_iter().enumerate() {
         assert_eq!(
             row.len(),
@@ -30,15 +30,15 @@ fn add_tasks(#[from(todo_list)] list: &RefCell<TodoList>, datatable: Vec<Vec<Str
             .into_iter()
             .next()
             .expect("row.len() == 1 just asserted");
-        list.borrow_mut().add(task);
+        todo_list.borrow_mut().add(task);
     }
 }
 
 #[then("the list displays")]
-fn list_displays(#[from(todo_list)] list: &RefCell<TodoList>, docstring: String) {
+fn list_displays(todo_list: &RefCell<TodoList>, docstring: String) {
     // Normalise docstring indentation to prevent false negatives.
     let expected = dedent(&docstring);
-    assert_eq!(list.borrow().display(), expected);
+    assert_eq!(todo_list.borrow().display(), expected);
 }
 
 fn dedent(input: &str) -> String {
@@ -63,25 +63,25 @@ fn dedent(input: &str) -> String {
 }
 
 #[given("a to-do list with {first} and {second}")]
-fn list_with_two(#[from(todo_list)] list: &RefCell<TodoList>, first: String, second: String) {
-    let mut l = list.borrow_mut();
+fn list_with_two(todo_list: &RefCell<TodoList>, first: String, second: String) {
+    let mut l = todo_list.borrow_mut();
     l.add(first);
     l.add(second);
 }
 
 #[when("I complete {task}")]
-fn complete_task(#[from(todo_list)] list: &RefCell<TodoList>, task: String) {
-    let ok = list.borrow_mut().complete(&task);
+fn complete_task(todo_list: &RefCell<TodoList>, task: String) {
+    let ok = todo_list.borrow_mut().complete(&task);
     assert!(
         ok,
         "expected to complete task '{}'; tasks present: {:?}",
         task,
-        list.borrow().statuses()
+        todo_list.borrow().statuses()
     );
 }
 
 #[then("the task statuses should be")]
-fn assert_statuses(#[from(todo_list)] list: &RefCell<TodoList>, datatable: Vec<Vec<String>>) {
+fn assert_statuses(todo_list: &RefCell<TodoList>, datatable: Vec<Vec<String>>) {
     let expected: Vec<(String, bool)> = datatable
         .into_iter()
         .enumerate()
@@ -99,7 +99,7 @@ fn assert_statuses(#[from(todo_list)] list: &RefCell<TodoList>, datatable: Vec<V
             (task, done)
         })
         .collect();
-    assert_eq!(list.borrow().statuses(), expected);
+    assert_eq!(todo_list.borrow().statuses(), expected);
 }
 
 #[allow(unused_variables)]
