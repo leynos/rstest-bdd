@@ -6,7 +6,6 @@ use std::path::PathBuf;
 
 use crate::codegen::scenario::{ScenarioConfig, generate_scenario_code};
 use crate::parsing::feature::{ScenarioData, extract_scenario_steps, parse_and_load_feature};
-use crate::parsing::tag_expr;
 use crate::utils::fixtures::extract_function_fixtures;
 use crate::validation::parameters::process_scenario_outline_examples;
 
@@ -20,13 +19,11 @@ use syn::{
 struct ScenarioArgs {
     path: Option<LitStr>,
     index: Option<usize>,
-    tags: Option<LitStr>,
 }
 
 enum ScenarioArg {
     Path(LitStr),
     Index(usize),
-    Tags(LitStr),
 }
 
 impl Parse for ScenarioArg {
@@ -42,10 +39,8 @@ impl Parse for ScenarioArg {
             } else if ident == "index" {
                 let li: LitInt = input.parse()?;
                 Ok(Self::Index(li.base10_parse()?))
-            } else if ident == "tags" {
-                Ok(Self::Tags(input.parse()?))
             } else {
-                Err(input.error("expected `path`, `index` or `tags`"))
+                Err(input.error("expected `path` or `index`"))
             }
         }
     }
@@ -56,7 +51,6 @@ impl Parse for ScenarioArgs {
         let args = Punctuated::<ScenarioArg, Comma>::parse_terminated(input)?;
         let mut path = None;
         let mut index = None;
-        let mut tags = None;
 
         for arg in args {
             match arg {
@@ -72,12 +66,6 @@ impl Parse for ScenarioArgs {
                     }
                     index = Some(i);
                 }
-                ScenarioArg::Tags(lit) => {
-                    if tags.is_some() {
-                        return Err(input.error("duplicate `tags` argument"));
-                    }
-                    tags = Some(lit);
-                }
             }
         }
 
@@ -85,17 +73,13 @@ impl Parse for ScenarioArgs {
             return Err(input.error("at least one of `path` or `index` argument must be provided"));
         }
 
-        Ok(Self { path, index, tags })
+        Ok(Self { path, index })
     }
 }
 
 /// Bind a test to a scenario defined in a feature file.
 pub(crate) fn scenario(attr: TokenStream, item: TokenStream) -> TokenStream {
-    let ScenarioArgs {
-        path,
-        index,
-        tags: tags_arg,
-    } = syn::parse_macro_input!(attr as ScenarioArgs);
+    let ScenarioArgs { path, index } = syn::parse_macro_input!(attr as ScenarioArgs);
     let path = match path {
         Some(lit) => PathBuf::from(lit.value()),
         None => {
@@ -125,26 +109,10 @@ pub(crate) fn scenario(attr: TokenStream, item: TokenStream) -> TokenStream {
         name: scenario_name,
         steps,
         examples,
-        tags,
     } = match extract_scenario_steps(&feature, index) {
         Ok(res) => res,
         Err(err) => return err.into(),
     };
-
-    if let Some(expr_lit) = tags_arg {
-        let parsed = match tag_expr::parse(&expr_lit.value()) {
-            Ok(ast) => ast,
-            Err(tag_expr::ParseError { pos, msg }) => {
-                return syn::Error::new(expr_lit.span(), format!("{msg} (byte offset {pos})"))
-                    .into_compile_error()
-                    .into();
-            }
-        };
-        let tag_set: std::collections::HashSet<&str> = tags.iter().map(String::as_str).collect();
-        if !tag_expr::eval(&parsed, &tag_set) {
-            return TokenStream::new();
-        }
-    }
 
     if let Err(err) = process_scenario_outline_examples(sig, examples.as_ref()) {
         return err.into();
