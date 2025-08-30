@@ -146,11 +146,10 @@ improves the developer experience.
   - [ ] Specify associativity (`and`/`or` left-associative; `not` unary-prefix)
     and reject unknown tokens (`&&`, `||`, `!`) at compile time.
 
-  - [ ] Identifiers are case-sensitive.
-
-  - [ ] Identifier grammar: must start with `A–Z`, `a–z`, or `_`; subsequent
-    characters may include `A–Z`, `a–z`, `0–9`, or `_`. Keywords (`and`, `or`,
-    `not`) are matched case-sensitively and cannot be used as identifiers.
+  - [ ] Specify case rules and identifier grammar:
+    - Tag identifiers are case-sensitive and match `[A-Za-z_][A-Za-z0-9_]*`.
+    - Operator keywords (`and`, `or`, `not`) are case-insensitive and
+      reserved; they cannot be used as identifiers.
 
   - [ ] Implement a single shared parser used by both macros to guarantee
     identical semantics.
