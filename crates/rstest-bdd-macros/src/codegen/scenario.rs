@@ -262,14 +262,10 @@ mod tests {
     use super::*;
     use crate::parsing::feature::ParsedStep;
 
+    #[expect(clippy::expect_used, reason = "test helper with descriptive failures")]
     fn kw(ts: &TokenStream2) -> crate::StepKeyword {
-        let path: syn::Path = syn::parse2(ts.clone()).unwrap_or_else(|_| panic!("keyword path"));
-        let ident = path
-            .segments
-            .last()
-            .unwrap_or_else(|| panic!("last"))
-            .ident
-            .to_string();
+        let path = syn::parse2::<syn::Path>(ts.clone()).expect("keyword path");
+        let ident = path.segments.last().expect("last").ident.to_string();
         crate::StepKeyword::from(ident.as_str())
     }
 
@@ -352,6 +348,34 @@ mod tests {
                 crate::StepKeyword::Given,
                 crate::StepKeyword::Then,
             ],
+        );
+    }
+
+    #[test]
+    fn normalises_all_conjunctions_to_given() {
+        let steps = vec![
+            ParsedStep {
+                keyword: crate::StepKeyword::And,
+                ..blank()
+            },
+            ParsedStep {
+                keyword: crate::StepKeyword::But,
+                ..blank()
+            },
+            ParsedStep {
+                keyword: crate::StepKeyword::And,
+                ..blank()
+            },
+        ];
+        let (keywords, _, _, _) = process_steps(&steps);
+        let parsed: Vec<_> = keywords.iter().map(kw).collect();
+        assert_eq!(
+            parsed,
+            vec![
+                crate::StepKeyword::Given,
+                crate::StepKeyword::Given,
+                crate::StepKeyword::Given,
+            ]
         );
     }
 }
