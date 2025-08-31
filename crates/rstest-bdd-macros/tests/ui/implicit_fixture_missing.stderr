@@ -1,5 +1,0 @@
-error[E0425]: cannot find value `_missing` in this scope
- --> tests/ui/implicit_fixture_missing.rs:4:9
-  |
-4 | fn step(_missing: u32) {}
-  |         ^^^^^^^^ not found in this scope

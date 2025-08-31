@@ -143,9 +143,10 @@ fn gen_fixture_decls(fixtures: &[FixtureArg], ident: &syn::Ident) -> Vec<TokenSt
             } else {
                 quote! { .cloned() }
             };
+            // Resolve fixtures solely by name at runtime. Avoid referencing the
+            // identifier directly so callers can supply fixtures dynamically or
+            // from other modules without importing the symbol.
             quote! {
-                #[allow(unused_variables)]
-                let _ = #name;
                 let #pat: #ty = ctx
                     .get::<#lookup_ty>(stringify!(#name))
                     #clone_suffix

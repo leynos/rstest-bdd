@@ -4,9 +4,6 @@ use rstest::rstest;
 use rstest_bdd::{StepContext, StepError, StepKeyword};
 use rstest_bdd_macros::given;
 
-fn value_fixture() -> u32 { 0 }
-use value_fixture as value;
-
 #[given("a failing step")]
 fn failing_step() -> Result<(), String> {
     Err("boom".into())
