@@ -424,9 +424,11 @@ compile-time registry. Each `#[given]`, `#[when]`, and `#[then]` invocation
 records its keyword and pattern in this registry. When `#[scenario]` expands it
 consults the registry and emits a `compile_error!` for any Gherkin step that
 lacks a matching definition or matches more than one. Because the registry only
-sees steps from the current compilation unit, scenarios that reference steps in
-other crates would otherwise fail to compile. To preserve cross‑crate workflows
-the crate defaults to a permissive mode that prints warnings for unknown steps.
+sees steps from the current compilation unit, each entry also stores the
+originating crate’s identifier so validation ignores steps from unrelated
+crates compiled in the same process. Scenarios that reference steps in other
+crates would otherwise fail to compile. To preserve cross‑crate workflows the
+crate defaults to a permissive mode that prints warnings for unknown steps.
 Enabling the `strict-compile-time-validation` feature restores the error on
 missing behaviour. The registry relies on the macros executing within the same
 compiler process and introduces a build-time dependency on the runtime crate to

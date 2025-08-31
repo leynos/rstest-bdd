@@ -16,7 +16,8 @@ use rstest_bdd::{StepPattern, StepText, extract_placeholders};
 #[derive(Clone)]
 struct RegisteredStep {
     keyword: StepKeyword,
-    pattern: String,
+    pattern: Box<str>,
+    crate_id: Box<str>,
 }
 
 static REGISTERED: LazyLock<Mutex<Vec<RegisteredStep>>> = LazyLock::new(|| Mutex::new(Vec::new()));
@@ -28,7 +29,8 @@ pub(crate) fn register_step(keyword: StepKeyword, pattern: &syn::LitStr) {
         .unwrap_or_else(std::sync::PoisonError::into_inner);
     reg.push(RegisteredStep {
         keyword,
-        pattern: pattern.value(),
+        pattern: pattern.value().into_boxed_str(),
+        crate_id: current_crate_id().into_boxed_str(),
     });
 }
 
@@ -46,7 +48,13 @@ pub(crate) fn validate_steps_exist(steps: &[ParsedStep], strict: bool) -> Result
     let reg = REGISTERED
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);
-    let missing = collect_missing_steps(&reg, steps)?;
+    let current = current_crate_id();
+    let scoped: Vec<_> = reg
+        .iter()
+        .filter(|d| d.crate_id.as_ref() == current.as_str())
+        .cloned()
+        .collect();
+    let missing = collect_missing_steps(&scoped, steps)?;
     handle_validation_result(missing, strict)
 }
 
@@ -116,7 +124,7 @@ fn step_matches_definition(def: &RegisteredStep, resolved: StepKeyword, step: &P
     // Leak a clone of the pattern string to satisfy the `'static` lifetime
     // expected by `StepPattern::new`. The leak is acceptable because macros run
     // in a short-lived compiler process.
-    let leaked: &'static str = Box::leak(def.pattern.clone().into_boxed_str());
+    let leaked: &'static str = Box::leak(def.pattern.clone().into_string().into_boxed_str());
     let pattern = StepPattern::new(leaked);
     extract_placeholders(&pattern, StepText::from(step.text.as_str())).is_ok()
 }
@@ -142,7 +150,7 @@ fn format_missing_step_error(
 }
 
 fn format_ambiguous_step_error(matches: &[&RegisteredStep], step: &ParsedStep) -> syn::Error {
-    let patterns: Vec<&str> = matches.iter().map(|def| def.pattern.as_str()).collect();
+    let patterns: Vec<&str> = matches.iter().map(|def| def.pattern.as_ref()).collect();
     let msg = format!(
         "Ambiguous step definition for '{}'. Matches: {}",
         step.text,
@@ -154,7 +162,7 @@ fn format_ambiguous_step_error(matches: &[&RegisteredStep], step: &ParsedStep) -
 fn collect_available_definitions(reg: &[RegisteredStep], resolved: StepKeyword) -> Vec<&str> {
     reg.iter()
         .filter(|def| def.keyword == resolved)
-        .map(|def| def.pattern.as_str())
+        .map(|def| def.pattern.as_ref())
         .collect()
 }
 
@@ -219,6 +227,12 @@ fn fmt_keyword(kw: StepKeyword) -> &'static str {
     }
 }
 
+fn current_crate_id() -> String {
+    std::env::var("CARGO_CRATE_NAME")
+        .or_else(|_| std::env::var("CARGO_PKG_NAME"))
+        .unwrap_or_else(|_| "unknown".to_owned())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -278,6 +292,26 @@ mod tests {
             Ok(()) => panic!("expected ambiguous step error"),
         };
         assert!(err.contains("Ambiguous step definition"));
+        assert!(validate_steps_exist(&steps, true).is_err());
+    }
+
+    #[rstest]
+    fn ignores_steps_from_other_crates() {
+        clear_registry();
+        REGISTERED
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .push(RegisteredStep {
+                keyword: StepKeyword::Given,
+                pattern: "a step".into(),
+                crate_id: "other".into(),
+            });
+        let steps = [ParsedStep {
+            keyword: StepKeyword::Given,
+            text: "a step".to_string(),
+            docstring: None,
+            table: None,
+        }];
         assert!(validate_steps_exist(&steps, true).is_err());
     }
 }

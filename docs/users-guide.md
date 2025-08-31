@@ -166,9 +166,10 @@ the following steps:
 
 2. For each step in the scenario (according to the `Given‑When‑Then` sequence),
    look up a matching step function by `(keyword, pattern)` in the registry. A
-   missing step or multiple matching definitions cause the macro to emit a
-   compile-time error, allowing developers to detect incomplete or ambiguous
-   implementations before tests run.
+   missing step causes the macro to emit a compile‑time error such as
+   `No matching step definition found for: Given ""`, allowing detection of
+   incomplete implementations before tests run. Multiple matching definitions
+   likewise produce an error.
 
 3. Invoke the registered step function with the `StepContext` so that fixtures
    are available inside the step.
