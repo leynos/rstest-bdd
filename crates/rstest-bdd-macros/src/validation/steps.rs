@@ -16,7 +16,7 @@ use rstest_bdd::{StepPattern, StepText, extract_placeholders};
 #[derive(Clone)]
 struct RegisteredStep {
     keyword: StepKeyword,
-    pattern: Box<str>,
+    pattern: &'static str,
     crate_id: Box<str>,
 }
 
@@ -26,10 +26,11 @@ static REGISTERED: LazyLock<Mutex<Vec<RegisteredStep>>> = LazyLock::new(|| Mutex
 pub(crate) fn register_step(keyword: StepKeyword, pattern: &syn::LitStr) {
     let mut reg = REGISTERED
         .lock()
-        .unwrap_or_else(std::sync::PoisonError::into_inner);
+        .unwrap_or_else(|e| panic!("step registry poisoned: {e}"));
+    let leaked: &'static str = Box::leak(pattern.value().into_boxed_str());
     reg.push(RegisteredStep {
         keyword,
-        pattern: pattern.value().into_boxed_str(),
+        pattern: leaked,
         crate_id: current_crate_id().into_boxed_str(),
     });
 }
@@ -47,7 +48,7 @@ pub(crate) fn register_step(keyword: StepKeyword, pattern: &syn::LitStr) {
 pub(crate) fn validate_steps_exist(steps: &[ParsedStep], strict: bool) -> Result<(), syn::Error> {
     let reg = REGISTERED
         .lock()
-        .unwrap_or_else(std::sync::PoisonError::into_inner);
+        .unwrap_or_else(|e| panic!("step registry poisoned: {e}"));
     let current = current_crate_id();
     let scoped: Vec<_> = reg
         .iter()
@@ -121,11 +122,7 @@ fn step_matches_definition(def: &RegisteredStep, resolved: StepKeyword, step: &P
     if def.keyword != resolved {
         return false;
     }
-    // Leak a clone of the pattern string to satisfy the `'static` lifetime
-    // expected by `StepPattern::new`. The leak is acceptable because macros run
-    // in a short-lived compiler process.
-    let leaked: &'static str = Box::leak(def.pattern.clone().into_string().into_boxed_str());
-    let pattern = StepPattern::new(leaked);
+    let pattern = StepPattern::new(def.pattern);
     extract_placeholders(&pattern, StepText::from(step.text.as_str())).is_ok()
 }
 
@@ -144,34 +141,27 @@ fn format_missing_step_error(
     resolved: StepKeyword,
     step: &ParsedStep,
 ) -> String {
-    let available_defs = collect_available_definitions(reg, resolved);
-    let possible_matches = find_possible_matches(&available_defs, step);
+    let available_defs: Vec<&'static str> = reg
+        .iter()
+        .filter(|d| d.keyword == resolved)
+        .map(|d| d.pattern)
+        .collect();
+    let possible_matches: Vec<&str> = available_defs
+        .iter()
+        .copied()
+        .filter(|pat| step.text.contains(*pat) || pat.contains(step.text.as_str()))
+        .collect();
     build_missing_step_message(resolved, step, &available_defs, &possible_matches)
 }
 
 fn format_ambiguous_step_error(matches: &[&RegisteredStep], step: &ParsedStep) -> syn::Error {
-    let patterns: Vec<&str> = matches.iter().map(|def| def.pattern.as_ref()).collect();
+    let patterns: Vec<&str> = matches.iter().map(|def| def.pattern).collect();
     let msg = format!(
         "Ambiguous step definition for '{}'. Matches: {}",
         step.text,
         patterns.join(", ")
     );
     syn::Error::new(proc_macro2::Span::call_site(), msg)
-}
-
-fn collect_available_definitions(reg: &[RegisteredStep], resolved: StepKeyword) -> Vec<&str> {
-    reg.iter()
-        .filter(|def| def.keyword == resolved)
-        .map(|def| def.pattern.as_ref())
-        .collect()
-}
-
-fn find_possible_matches<'a>(available_defs: &'a [&'a str], step: &ParsedStep) -> Vec<&'a str> {
-    available_defs
-        .iter()
-        .copied()
-        .filter(|pattern| step.text.contains(*pattern) || pattern.contains(&step.text))
-        .collect()
 }
 
 fn build_missing_step_message(
@@ -228,9 +218,11 @@ fn fmt_keyword(kw: StepKeyword) -> &'static str {
 }
 
 fn current_crate_id() -> String {
-    std::env::var("CARGO_CRATE_NAME")
+    let name = std::env::var("CARGO_CRATE_NAME")
         .or_else(|_| std::env::var("CARGO_PKG_NAME"))
-        .unwrap_or_else(|_| "unknown".to_owned())
+        .unwrap_or_else(|_| "unknown".to_owned());
+    let out_dir = std::env::var("OUT_DIR").unwrap_or_default();
+    format!("{name}:{out_dir}")
 }
 
 #[cfg(test)]
@@ -241,7 +233,7 @@ mod tests {
     fn clear_registry() {
         REGISTERED
             .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .unwrap_or_else(|e| panic!("step registry poisoned: {e}"))
             .clear();
     }
 
@@ -300,10 +292,10 @@ mod tests {
         clear_registry();
         REGISTERED
             .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .unwrap_or_else(|e| panic!("step registry poisoned: {e}"))
             .push(RegisteredStep {
                 keyword: StepKeyword::Given,
-                pattern: "a step".into(),
+                pattern: "a step",
                 crate_id: "other".into(),
             });
         let steps = [ParsedStep {
