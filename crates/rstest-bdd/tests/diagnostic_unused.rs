@@ -1,38 +1,12 @@
 //! Behavioural tests for step usage diagnostics.
 
-use rstest_bdd::{StepContext, StepError, StepKeyword, find_step, step, unused_steps};
+use rstest_bdd::{StepContext, StepKeyword, find_step, step, unused_steps};
 
-#[expect(
-    clippy::unnecessary_wraps,
-    reason = "wrapper must match StepFn signature"
-)]
-fn used_wrapper(
-    ctx: &StepContext<'_>,
-    _text: &str,
-    _docstring: Option<&str>,
-    _table: Option<&[&[&str]]>,
-) -> Result<(), StepError> {
-    let _ = ctx;
-    Ok(())
-}
+mod common;
+use common::noop_wrapper;
 
-step!(StepKeyword::Given, "a used step", used_wrapper, &[]);
-
-#[expect(
-    clippy::unnecessary_wraps,
-    reason = "wrapper must match StepFn signature"
-)]
-fn unused_wrapper(
-    ctx: &StepContext<'_>,
-    _text: &str,
-    _docstring: Option<&str>,
-    _table: Option<&[&[&str]]>,
-) -> Result<(), StepError> {
-    let _ = ctx;
-    Ok(())
-}
-
-step!(StepKeyword::Given, "an unused step", unused_wrapper, &[]);
+step!(StepKeyword::Given, "a used step", noop_wrapper, &[]);
+step!(StepKeyword::Given, "an unused step", noop_wrapper, &[]);
 
 #[test]
 fn reports_unused_steps() {

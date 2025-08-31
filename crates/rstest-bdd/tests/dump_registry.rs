@@ -1,24 +1,13 @@
 //! Unit tests for registry dumping.
 
-use rstest_bdd::{StepContext, StepError, StepKeyword, dump_registry, find_step, step};
+use rstest_bdd::{StepContext, StepKeyword, dump_registry, find_step, step};
 use serde_json::Value;
 
-#[expect(
-    clippy::unnecessary_wraps,
-    reason = "wrapper must match StepFn signature"
-)]
-fn wrapper(
-    ctx: &StepContext<'_>,
-    _text: &str,
-    _docstring: Option<&str>,
-    _table: Option<&[&[&str]]>,
-) -> Result<(), StepError> {
-    let _ = ctx;
-    Ok(())
-}
+mod common;
+use common::noop_wrapper;
 
-step!(StepKeyword::Given, "dump used", wrapper, &[]);
-step!(StepKeyword::Given, "dump unused", wrapper, &[]);
+step!(StepKeyword::Given, "dump used", noop_wrapper, &[]);
+step!(StepKeyword::Given, "dump unused", noop_wrapper, &[]);
 
 #[test]
 fn reports_usage_flags() {
