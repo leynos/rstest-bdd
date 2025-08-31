@@ -282,16 +282,24 @@ fn handle_binary_execution_failure(
 /// # Examples
 ///
 /// ```ignore
-/// use cargo_bdd::Step;
-///
-/// let step = Step {
-///     keyword: "Given".into(),
-///     pattern: "example".into(),
-///     file: "src/example.rs".into(),
-///     line: 42,
-///     used: false,
+/// let step = {
+///     #[derive(Debug, serde::Deserialize, Clone)]
+///     struct Step {
+///         keyword: String,
+///         pattern: String,
+///         file: String,
+///         line: u32,
+///         used: bool,
+///     }
+///     Step {
+///         keyword: "Given".into(),
+///         pattern: "example".into(),
+///         file: "src/example.rs".into(),
+///         line: 42,
+///         used: false,
+///     }
 /// };
-/// print_step(&step);
+/// print_step(&step); // same formatting as the real type
 /// ```
 fn print_step(step: &Step) {
     println!(
