@@ -22,5 +22,6 @@ fn step_macros_compile() {
     } else {
         t.pass("tests/fixtures/scenario_missing_step.rs");
     }
+    t.compile_fail("tests/fixtures/scenario_out_of_order.rs");
     t.compile_fail("tests/fixtures/scenario_ambiguous_step.rs");
 }

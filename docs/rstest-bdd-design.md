@@ -433,6 +433,12 @@ compiler process and introduces a build-time dependency on the runtime crate to
 reuse its pattern-matching logic. This leads directly to the selection of the
 `inventory` crate as the architectural cornerstone.
 
+Because registration occurs as the compiler encounters each attribute, step
+definitions must appear earlier in a module than any `#[scenario]` that uses
+them. Declaring a scenario first would trigger validation before the step is
+registered, producing a spurious "No matching step definition" error. A UI test
+(`scenario_out_of_order`) documents this requirement.
+
 ### 2.3 The `inventory` Solution: A Global Step Registry
 
 The `inventory` crate provides a clean and powerful abstraction over the
