@@ -18,6 +18,10 @@ workspace = true
 [lib]
 proc-macro = true
 
+[features]
+default = []
+strict-compile-time-validation = []
+
 
 [dependencies]
 proc-macro2.workspace = true
@@ -26,10 +30,10 @@ syn.workspace = true
 gherkin.workspace = true
 walkdir = "2.5.0"
 proc-macro-crate = "3"
+rstest-bdd.workspace = true
 
 [dev-dependencies]
 trybuild.workspace = true
 once_cell.workspace = true
 rstest.workspace = true
 serial_test.workspace = true
-rstest-bdd.workspace = true
