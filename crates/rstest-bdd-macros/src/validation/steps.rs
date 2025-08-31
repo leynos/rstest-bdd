@@ -46,34 +46,52 @@ pub(crate) fn validate_steps_exist(steps: &[ParsedStep], strict: bool) -> Result
     let reg = REGISTERED
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);
+    let missing = collect_missing_steps(&reg, steps)?;
+    handle_validation_result(missing, strict)
+}
+
+fn collect_missing_steps(
+    reg: &[RegisteredStep],
+    steps: &[ParsedStep],
+) -> Result<Vec<String>, syn::Error> {
     let mut prev = None;
     let mut missing = Vec::new();
     for step in steps {
         let resolved = resolve_conjunction_keyword(&mut prev, step.keyword);
-        if let Some(msg) = has_matching_step_definition(&reg, resolved, step)? {
+        if let Some(msg) = has_matching_step_definition(reg, resolved, step)? {
             missing.push(msg);
         }
     }
+    Ok(missing)
+}
 
+fn handle_validation_result(missing: Vec<String>, strict: bool) -> Result<(), syn::Error> {
     if missing.is_empty() {
         return Ok(());
     }
 
     if strict {
-        let msg = if missing.len() == 1 {
-            missing.remove(0)
-        } else {
-            missing.join("\n")
-        };
-        Err(syn::Error::new(proc_macro2::Span::call_site(), msg))
+        create_strict_mode_error(&missing)
     } else {
-        for msg in missing {
-            #[expect(clippy::print_stderr, reason = "proc_macro::Diagnostic is unstable")]
-            {
-                eprintln!("warning: {msg} (will be checked at runtime)");
-            }
-        }
+        emit_non_strict_warnings(missing);
         Ok(())
+    }
+}
+
+fn create_strict_mode_error(missing: &[String]) -> Result<(), syn::Error> {
+    let msg = match missing {
+        [only] => only.clone(),
+        _ => missing.join("\n"),
+    };
+    Err(syn::Error::new(proc_macro2::Span::call_site(), msg))
+}
+
+fn emit_non_strict_warnings(missing: Vec<String>) {
+    for msg in missing {
+        #[expect(clippy::print_stderr, reason = "proc_macro::Diagnostic is unstable")]
+        {
+            eprintln!("warning: {msg} (will be checked at runtime)");
+        }
     }
 }
 
