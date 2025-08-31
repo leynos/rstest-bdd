@@ -984,11 +984,11 @@ functionality is implemented:
   The implemented tool lives in a standalone `cargo-bdd` crate that acts as a
   cargo subcommand. It queries the runtime step registry and exposes three
   commands: `steps`, `unused`, and `duplicates`. Step usage is recorded
-  whenever a step is resolved by the registry. Because `inventory` operates per
-  binary, the subcommand compiles each test target and executes it with
-  `RSTEST_BDD_DUMP_STEPS=1` and a private `--dump-steps` flag to stream the
-  registry as JSON. The tool merges these dumps so diagnostics cover the entire
-  workspace.
+  in-memory whenever a step is resolved and is not persisted across binaries.
+  Because `inventory` operates per binary, the subcommand compiles each test
+  target and executes it with `RSTEST_BDD_DUMP_STEPS=1` and a private
+  `--dump-steps` flag to stream the registry as JSON. The tool merges these
+  dumps so diagnostics cover the entire workspace.
 
 - **Teardown Hooks:** While `rstest` fixtures handle teardown via `Drop`, more
   explicit post-scenario cleanup, especially in the case of a step panic, could

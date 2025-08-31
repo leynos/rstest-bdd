@@ -320,16 +320,17 @@ step definitions are explicit.
 commands:
 
 - `cargo bdd steps` prints every registered step with its source location.
-- `cargo bdd unused` shows steps that were never executed in the latest test
-  run.
+- `cargo bdd unused` lists steps that were never executed in the current
+  process.
 - `cargo bdd duplicates` groups step definitions that share the same keyword
   and pattern, helping to identify accidental copies.
 
 The subcommand builds each test target in the workspace and runs the resulting
 binary with `RSTEST_BDD_DUMP_STEPS=1` and a private `--dump-steps` flag to
-collect the registered steps as JSON. The merged output powers the commands
-above, helping to keep the step library tidy and discover dead code early in
-the development cycle.
+collect the registered steps as JSON. Because usage tracking is process local,
+`unused` only reflects steps invoked during that same execution. The merged
+output powers the commands above, helping to keep the step library tidy and
+discover dead code early in the development cycle.
 
 ## Summary
 

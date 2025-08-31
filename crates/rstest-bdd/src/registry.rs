@@ -85,6 +85,9 @@ static STEP_MAP: LazyLock<HashMap<StepKey, StepFn>> = LazyLock::new(|| {
     map
 });
 
+// Tracks step invocations for the lifetime of the current process only. The
+// data is not persisted across binaries, keeping usage bookkeeping lightweight
+// and ephemeral.
 static USED_STEPS: LazyLock<Mutex<HashSet<StepKey>>> = LazyLock::new(|| Mutex::new(HashSet::new()));
 
 fn mark_used(key: StepKey) {
