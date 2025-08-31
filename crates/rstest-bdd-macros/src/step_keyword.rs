@@ -33,14 +33,19 @@ pub(crate) struct UnsupportedStepType(pub StepType);
 impl From<&str> for StepKeyword {
     fn from(value: &str) -> Self {
         let s = value.trim();
-        match s {
-            s if s.eq_ignore_ascii_case("given") => Self::Given,
-            s if s.eq_ignore_ascii_case("when") => Self::When,
-            s if s.eq_ignore_ascii_case("then") => Self::Then,
-            s if s.eq_ignore_ascii_case("and") => Self::And,
-            s if s.eq_ignore_ascii_case("but") => Self::But,
+        if s.eq_ignore_ascii_case("given") {
+            Self::Given
+        } else if s.eq_ignore_ascii_case("when") {
+            Self::When
+        } else if s.eq_ignore_ascii_case("then") {
+            Self::Then
+        } else if s.eq_ignore_ascii_case("and") {
+            Self::And
+        } else if s.eq_ignore_ascii_case("but") {
+            Self::But
+        } else {
             // Use the original, untrimmed `value` for clearer diagnostics.
-            _ => panic!("invalid step keyword: {value}"),
+            panic!("invalid step keyword: {value}")
         }
     }
 }
