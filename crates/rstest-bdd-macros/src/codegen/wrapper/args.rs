@@ -252,6 +252,48 @@ fn classify_docstring(
     }
 }
 
+/// Classifies an argument as either a fixture or a step parameter.
+///
+/// The function removes any `#[from]` attribute from the argument before
+/// classification. Arguments without an explicit `#[from]` attribute are treated
+/// as step parameters when their identifier matches a placeholder in the step
+/// pattern; otherwise they are classified as fixtures.
+fn classify_fixture_or_step(
+    st: &mut ExtractedArgs,
+    arg: &mut syn::PatType,
+    pat: &syn::Ident,
+    ty: &syn::Type,
+    placeholders: &mut std::collections::HashSet<String>,
+) {
+    let mut from_name = None;
+    arg.attrs.retain(|a| {
+        if a.path().is_ident("from") {
+            from_name = a.parse_args().ok();
+            false
+        } else {
+            true
+        }
+    });
+
+    if from_name.is_none() && placeholders.remove(&pat.to_string()) {
+        let idx = st.step_args.len();
+        st.step_args.push(StepArg {
+            pat: pat.clone(),
+            ty: ty.clone(),
+        });
+        st.call_order.push(CallArg::StepArg(idx));
+    } else {
+        let name = from_name.unwrap_or_else(|| pat.clone());
+        let idx = st.fixtures.len();
+        st.fixtures.push(FixtureArg {
+            pat: pat.clone(),
+            name,
+            ty: ty.clone(),
+        });
+        st.call_order.push(CallArg::Fixture(idx));
+    }
+}
+
 /// Extract fixture, step, data table, and doc string arguments from a function signature.
 ///
 /// # Examples
@@ -311,34 +353,7 @@ pub fn extract_args(
         if classify_docstring(&mut state, arg, &pat, &ty)? {
             continue;
         }
-
-        let mut from_name = None;
-        arg.attrs.retain(|a| {
-            if a.path().is_ident("from") {
-                from_name = a.parse_args().ok();
-                false
-            } else {
-                true
-            }
-        });
-
-        if from_name.is_none() && placeholders.remove(&pat.to_string()) {
-            let idx = state.step_args.len();
-            state.step_args.push(StepArg {
-                pat: pat.clone(),
-                ty: ty.clone(),
-            });
-            state.call_order.push(CallArg::StepArg(idx));
-        } else {
-            let name = from_name.unwrap_or_else(|| pat.clone());
-            let idx = state.fixtures.len();
-            state.fixtures.push(FixtureArg {
-                pat: pat.clone(),
-                name,
-                ty: ty.clone(),
-            });
-            state.call_order.push(CallArg::Fixture(idx));
-        }
+        classify_fixture_or_step(&mut state, arg, &pat, &ty, placeholders);
     }
     if !placeholders.is_empty() {
         let missing = placeholders.iter().cloned().collect::<Vec<_>>().join(", ");
