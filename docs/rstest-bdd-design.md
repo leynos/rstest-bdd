@@ -499,21 +499,20 @@ The third option, link-time collection, is the only one that satisfies all
 design constraints. It preserves the standard `cargo test` workflow, avoids the
 fragility of build scripts, and allows for fully decoupled step definitions.
 
-To surface missing steps earlier, the macros crate now maintains a small
-compile-time registry. Each `#[given]`, `#[when]`, and `#[then]` invocation
-records its keyword and pattern in this registry. When `#[scenario]` expands it
-consults the registry and emits a `compile_error!` for any Gherkin step that
-lacks a matching definition or matches more than one. Because the registry only
-sees steps from the current compilation unit, each entry also stores the
-originating crate’s identifier so validation ignores steps from unrelated
-crates compiled in the same process. Scenarios that reference steps in other
-crates would otherwise fail to compile. To preserve cross‑crate workflows the
+To surface missing steps earlier, the macros crate now maintains a small,
+compile‑time registry, and each `#[given]`, `#[when]`, and `#[then]` invocation
+records its keyword and pattern there. When `#[scenario]` expands it consults
+this registry and emits a `compile_error!` for any Gherkin step that lacks a
+unique definition. Because the registry only sees steps from the current
+compilation unit, each entry stores the originating crate’s identifier to avoid
+false positives from unrelated crates compiled in the same process. Scenarios
+that reference steps in other crates would otherwise fail to compile, so the
 crate defaults to a permissive mode that prints warnings for unknown steps.
-Enabling the `strict-compile-time-validation` feature restores the error on
-missing behaviour. The registry relies on the macros executing within the same
-compiler process and introduces a build-time dependency on the runtime crate to
-reuse its pattern-matching logic. This leads directly to the selection of the
-`inventory` crate as the architectural cornerstone.
+Enabling the `strict-compile-time-validation` feature turns those warnings into
+errors. The registry simply records metadata but reuses the runtime crate’s
+pattern‑matching logic during validation, introducing a build-time dependency.
+`inventory` is employed later for runtime, cross‑crate discovery and does not
+power this compile‑time registry.
 
 Because registration occurs as the compiler encounters each attribute, step
 definitions must appear earlier in a module than any `#[scenario]` that uses
