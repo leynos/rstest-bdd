@@ -164,36 +164,35 @@ fn build_missing_step_message(
     msg
 }
 
-fn format_available_definitions(available_defs: &[&str]) -> String {
-    if available_defs.is_empty() {
+fn format_item_list<T, F>(items: &[T], header: &str, fmt_item: F) -> String
+where
+    F: Fn(&T) -> &str,
+{
+    if items.is_empty() {
         return String::new();
     }
 
     let mut msg = String::new();
     msg.push('\n');
-    msg.push_str("Available step definitions for this keyword:\n");
-    for def in available_defs {
+    msg.push_str(header);
+    for item in items {
         msg.push_str("  - ");
-        msg.push_str(def);
+        msg.push_str(fmt_item(item));
         msg.push('\n');
     }
     msg
 }
 
-fn format_possible_matches(possible_matches: &[&str]) -> String {
-    if possible_matches.is_empty() {
-        return String::new();
-    }
+fn format_available_definitions(available_defs: &[&str]) -> String {
+    format_item_list(
+        available_defs,
+        "Available step definitions for this keyword:\n",
+        |s| *s,
+    )
+}
 
-    let mut msg = String::new();
-    msg.push('\n');
-    msg.push_str("Possible matches:\n");
-    for m in possible_matches {
-        msg.push_str("  - ");
-        msg.push_str(m);
-        msg.push('\n');
-    }
-    msg
+fn format_possible_matches(possible_matches: &[&str]) -> String {
+    format_item_list(possible_matches, "Possible matches:\n", |s| *s)
 }
 
 fn fmt_keyword(kw: StepKeyword) -> &'static str {
