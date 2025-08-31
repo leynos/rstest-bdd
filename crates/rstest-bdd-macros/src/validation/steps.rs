@@ -159,8 +159,16 @@ fn build_missing_step_message(
         fmt_keyword(resolved),
         step.text
     );
-    msg.push_str(&format_available_definitions(available_defs));
-    msg.push_str(&format_possible_matches(possible_matches));
+    msg.push_str(&format_item_list(
+        available_defs,
+        "Available step definitions for this keyword:\n",
+        |s| *s,
+    ));
+    msg.push_str(&format_item_list(
+        possible_matches,
+        "Possible matches:\n",
+        |s| *s,
+    ));
     msg
 }
 
@@ -181,18 +189,6 @@ where
         msg.push('\n');
     }
     msg
-}
-
-fn format_available_definitions(available_defs: &[&str]) -> String {
-    format_item_list(
-        available_defs,
-        "Available step definitions for this keyword:\n",
-        |s| *s,
-    )
-}
-
-fn format_possible_matches(possible_matches: &[&str]) -> String {
-    format_item_list(possible_matches, "Possible matches:\n", |s| *s)
 }
 
 fn fmt_keyword(kw: StepKeyword) -> &'static str {
