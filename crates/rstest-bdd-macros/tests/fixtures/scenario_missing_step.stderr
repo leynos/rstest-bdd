@@ -4,4 +4,4 @@ error: No matching step definition found for: Given an undefined step
 3 | #[scenario(path = "../../../../crates/rstest-bdd-macros/tests/features/unmatched.feature")]
   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   |
-  = note: this error originates in the attribute macro `scenario` (in Nightly builds, run with -Z macro-backtrace for more info)
+...
