@@ -1,7 +1,7 @@
 error: No matching step definition found for: Given an undefined step
- --> tests/fixtures/scenario_missing_step.rs:4:1
+ --> tests/fixtures/scenario_missing_step.rs:3:1
   |
-4 | #[scenario(path = "../../../../crates/rstest-bdd-macros/tests/features/unmatched.feature")]
+3 | #[scenario(path = "../../../../crates/rstest-bdd-macros/tests/features/unmatched.feature")]
   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   |
   = note: this error originates in the attribute macro `scenario` (in Nightly builds, run with -Z macro-backtrace for more info)
