@@ -19,9 +19,10 @@ fn step_macros_compile() {
     t.compile_fail("tests/fixtures/scenarios_missing_dir.rs");
     if cfg!(feature = "strict-compile-time-validation") {
         t.compile_fail("tests/fixtures/scenario_missing_step.rs");
+        t.compile_fail("tests/fixtures/scenario_out_of_order.rs");
     } else {
         t.pass("tests/fixtures/scenario_missing_step.rs");
+        t.pass("tests/fixtures/scenario_out_of_order.rs");
     }
-    t.compile_fail("tests/fixtures/scenario_out_of_order.rs");
     t.compile_fail("tests/fixtures/scenario_ambiguous_step.rs");
 }
