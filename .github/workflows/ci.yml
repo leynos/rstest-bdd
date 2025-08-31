@@ -21,8 +21,20 @@ jobs:
         include:
           - os: ubuntu-latest
             coverage: true
+            features: ""
+            with-default-features: true
+          - os: ubuntu-latest
+            coverage: true
+            features: strict-compile-time-validation
+            with-default-features: false
           - os: windows-latest
             coverage: false
+            features: ""
+            with-default-features: true
+          - os: windows-latest
+            coverage: false
+            features: strict-compile-time-validation
+            with-default-features: false
     steps:
       - uses: actions/checkout@v5
       - name: Setup Rust
@@ -36,6 +48,8 @@ jobs:
         with:
           output-path: lcov.info
           format: lcov
+          features: ${{ matrix.features }}
+          with-default-features: ${{ matrix.with-default-features }}
       - name: Publish dry run
         run: make publish-check
       - name: Upload coverage data to CodeScene
