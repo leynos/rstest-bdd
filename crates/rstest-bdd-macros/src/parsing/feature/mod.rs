@@ -8,12 +8,24 @@ use crate::utils::errors::error_to_tokens;
 use crate::validation::examples::validate_examples_in_feature_text;
 
 /// Step extracted from a scenario with optional arguments (data table and doc string).
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone)]
 pub(crate) struct ParsedStep {
     pub keyword: crate::StepKeyword,
     pub text: String,
     pub docstring: Option<String>,
     pub table: Option<Vec<Vec<String>>>,
+    #[cfg(feature = "compile-time-validation")]
+    /// Approximate span for diagnostics.
+    pub span: proc_macro2::Span,
+}
+
+impl PartialEq for ParsedStep {
+    fn eq(&self, other: &Self) -> bool {
+        self.keyword == other.keyword
+            && self.text == other.text
+            && self.docstring == other.docstring
+            && self.table == other.table
+    }
 }
 
 /// Name, steps, and optional examples extracted from a Gherkin scenario.
@@ -83,6 +95,8 @@ impl From<&Step> for ParsedStep {
             text: step.value.clone(),
             docstring,
             table,
+            #[cfg(feature = "compile-time-validation")]
+            span: proc_macro2::Span::call_site(),
         }
     }
 }

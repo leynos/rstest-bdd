@@ -114,8 +114,15 @@ pub(crate) fn scenario(attr: TokenStream, item: TokenStream) -> TokenStream {
         Err(err) => return err.into(),
     };
 
-    let strict_validation = cfg!(feature = "strict-compile-time-validation");
-    if let Err(err) = crate::validation::steps::validate_steps_exist(&steps, strict_validation) {
+    #[cfg(feature = "strict-compile-time-validation")]
+    if let Err(err) = crate::validation::steps::validate_steps_exist(&steps, true) {
+        return err.into_compile_error().into();
+    }
+    #[cfg(all(
+        feature = "compile-time-validation",
+        not(feature = "strict-compile-time-validation")
+    ))]
+    if let Err(err) = crate::validation::steps::validate_steps_exist(&steps, false) {
         return err.into_compile_error().into();
     }
 

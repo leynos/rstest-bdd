@@ -62,19 +62,22 @@ pub(crate) fn validate_steps_exist(steps: &[ParsedStep], strict: bool) -> Result
 fn collect_missing_steps(
     reg: &[RegisteredStep],
     steps: &[ParsedStep],
-) -> Result<Vec<String>, syn::Error> {
+) -> Result<Vec<(proc_macro2::Span, String)>, syn::Error> {
     let mut prev = None;
     let mut missing = Vec::new();
     for step in steps {
         let resolved = resolve_conjunction_keyword(&mut prev, step.keyword);
         if let Some(msg) = has_matching_step_definition(reg, resolved, step)? {
-            missing.push(msg);
+            missing.push((step.span, msg));
         }
     }
     Ok(missing)
 }
 
-fn handle_validation_result(missing: Vec<String>, strict: bool) -> Result<(), syn::Error> {
+fn handle_validation_result(
+    missing: Vec<(proc_macro2::Span, String)>,
+    strict: bool,
+) -> Result<(), syn::Error> {
     if missing.is_empty() {
         return Ok(());
     }
@@ -82,17 +85,26 @@ fn handle_validation_result(missing: Vec<String>, strict: bool) -> Result<(), sy
     if strict {
         create_strict_mode_error(&missing)
     } else {
-        emit_non_strict_warnings(missing);
+        emit_non_strict_warnings(missing.into_iter().map(|(_, m)| m).collect());
         Ok(())
     }
 }
 
-fn create_strict_mode_error(missing: &[String]) -> Result<(), syn::Error> {
+fn create_strict_mode_error(missing: &[(proc_macro2::Span, String)]) -> Result<(), syn::Error> {
     let msg = match missing {
-        [only] => only.clone(),
-        _ => missing.join("\n"),
+        [(span, only)] => {
+            return Err(syn::Error::new(*span, only.clone()));
+        }
+        _ => missing
+            .iter()
+            .map(|(_, m)| m.clone())
+            .collect::<Vec<_>>()
+            .join("\n"),
     };
-    Err(syn::Error::new(proc_macro2::Span::call_site(), msg))
+    let span = missing
+        .first()
+        .map_or_else(proc_macro2::Span::call_site, |(s, _)| *s);
+    Err(syn::Error::new(span, msg))
 }
 
 fn emit_non_strict_warnings(missing: Vec<String>) {
@@ -161,7 +173,7 @@ fn format_ambiguous_step_error(matches: &[&RegisteredStep], step: &ParsedStep) -
         step.text,
         patterns.join(", ")
     );
-    syn::Error::new(proc_macro2::Span::call_site(), msg)
+    syn::Error::new(step.span, msg)
 }
 
 fn build_missing_step_message(
@@ -229,6 +241,7 @@ fn current_crate_id() -> String {
 mod tests {
     use super::*;
     use rstest::rstest;
+    use serial_test::serial;
 
     fn clear_registry() {
         REGISTERED
@@ -238,6 +251,7 @@ mod tests {
     }
 
     #[rstest]
+    #[serial]
     fn validates_when_step_present() {
         clear_registry();
         register_step(
@@ -249,12 +263,14 @@ mod tests {
             text: "a step".to_string(),
             docstring: None,
             table: None,
+            span: proc_macro2::Span::call_site(),
         }];
         assert!(validate_steps_exist(&steps, true).is_ok());
         assert!(validate_steps_exist(&steps, false).is_ok());
     }
 
     #[rstest]
+    #[serial]
     fn errors_when_missing_step_in_strict_mode() {
         clear_registry();
         let steps = [ParsedStep {
@@ -262,12 +278,14 @@ mod tests {
             text: "missing".to_string(),
             docstring: None,
             table: None,
+            span: proc_macro2::Span::call_site(),
         }];
         assert!(validate_steps_exist(&steps, true).is_err());
         assert!(validate_steps_exist(&steps, false).is_ok());
     }
 
     #[rstest]
+    #[serial]
     fn errors_when_step_ambiguous() {
         clear_registry();
         let lit = syn::LitStr::new("a step", proc_macro2::Span::call_site());
@@ -278,6 +296,7 @@ mod tests {
             text: "a step".to_string(),
             docstring: None,
             table: None,
+            span: proc_macro2::Span::call_site(),
         }];
         let err = match validate_steps_exist(&steps, false) {
             Err(e) => e.to_string(),
@@ -288,6 +307,7 @@ mod tests {
     }
 
     #[rstest]
+    #[serial]
     fn ignores_steps_from_other_crates() {
         clear_registry();
         REGISTERED
@@ -303,6 +323,7 @@ mod tests {
             text: "a step".to_string(),
             docstring: None,
             table: None,
+            span: proc_macro2::Span::call_site(),
         }];
         assert!(validate_steps_exist(&steps, true).is_err());
     }

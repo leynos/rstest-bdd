@@ -19,6 +19,7 @@ use crate::utils::errors::error_to_tokens;
 
 fn step_attr(attr: TokenStream, item: TokenStream, keyword: crate::StepKeyword) -> TokenStream {
     let pattern = syn::parse_macro_input!(attr as syn::LitStr);
+    #[cfg(feature = "compile-time-validation")]
     crate::validation::steps::register_step(keyword, &pattern);
     let mut func = syn::parse_macro_input!(item as syn::ItemFn);
 

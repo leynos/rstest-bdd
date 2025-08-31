@@ -20,7 +20,8 @@ proc-macro = true
 
 [features]
 default = []
-strict-compile-time-validation = []
+compile-time-validation = []
+strict-compile-time-validation = ["compile-time-validation"]
 
 
 [dependencies]
