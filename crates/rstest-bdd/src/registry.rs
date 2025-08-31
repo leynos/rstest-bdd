@@ -8,17 +8,9 @@ use crate::placeholder::extract_placeholders;
 use crate::types::{PatternStr, StepFn, StepKeyword, StepText};
 use hashbrown::{HashMap, HashSet};
 use inventory::iter;
-use serde::{Deserialize, Serialize};
-use std::env;
-use std::fs::{self, OpenOptions};
+use serde::Serialize;
 use std::hash::{BuildHasher, Hash, Hasher};
-use std::io::{BufRead, BufReader, Write};
-use std::path::PathBuf;
-use std::str::FromStr;
 use std::sync::{LazyLock, Mutex};
-
-use fs2::FileExt;
-use log::warn;
 
 /// Represents a single step definition registered with the framework.
 #[derive(Debug)]
@@ -95,108 +87,11 @@ static STEP_MAP: LazyLock<HashMap<StepKey, StepFn>> = LazyLock::new(|| {
 
 static USED_STEPS: LazyLock<Mutex<HashSet<StepKey>>> = LazyLock::new(|| Mutex::new(HashSet::new()));
 
-#[derive(Serialize, Deserialize, Eq, PartialEq, Hash)]
-struct StepUsage {
-    keyword: String,
-    pattern: String,
-}
-
-fn usage_file_path() -> Option<PathBuf> {
-    static PATH: LazyLock<Option<PathBuf>> = LazyLock::new(|| {
-        let base = env::var_os("CARGO_TARGET_DIR")
-            .map(PathBuf::from)
-            .or_else(|| {
-                env::current_exe().ok().and_then(|exe| {
-                    exe.ancestors()
-                        .find(|p| p.file_name().is_some_and(|n| n == "target"))
-                        .map(PathBuf::from)
-                })
-            });
-        base.map(|b| b.join(".rstest-bdd-usage.json"))
-    });
-    PATH.clone()
-}
-
 fn mark_used(key: StepKey) {
-    let should_persist = {
-        let mut used = USED_STEPS
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner);
-        used.insert(key)
-    };
-
-    if should_persist {
-        let record = StepUsage {
-            keyword: key.0.as_str().to_string(),
-            pattern: key.1.as_str().to_string(),
-        };
-        if let Err(e) = append_usage(&record) {
-            warn!("failed to record step usage: {e}");
-        }
-    }
-}
-
-fn append_usage(record: &StepUsage) -> std::io::Result<()> {
-    let Some(path) = usage_file_path() else {
-        return Ok(());
-    };
-    if let Some(parent) = path.parent() {
-        let _ = fs::create_dir_all(parent);
-    }
-    let mut file = OpenOptions::new().create(true).append(true).open(&path)?;
-    if let Err(e) = file.lock_exclusive() {
-        warn!("lock usage file {}: {e}", path.display());
-    }
-    match serde_json::to_string(record) {
-        Ok(line) => writeln!(file, "{line}"),
-        Err(e) => Err(std::io::Error::other(e)),
-    }?;
-    Ok(())
-}
-
-fn read_used_from_file() -> HashSet<(StepKeyword, String)> {
-    let mut used = HashSet::new();
-    let Some(path) = usage_file_path() else {
-        return used;
-    };
-    let Ok(file) = fs::File::open(path) else {
-        return used;
-    };
-    let reader = BufReader::new(file);
-    for (idx, line) in reader.lines().enumerate() {
-        let line = match line {
-            Ok(l) => l,
-            Err(e) => {
-                warn!("Failed to read line {}: {e}", idx + 1);
-                continue;
-            }
-        };
-        let rec: StepUsage = match serde_json::from_str(&line) {
-            Ok(r) => r,
-            Err(e) => {
-                warn!("Malformed StepUsage at line {}: {e}", idx + 1);
-                continue;
-            }
-        };
-        let keyword = match StepKeyword::from_str(&rec.keyword) {
-            Ok(k) => k,
-            Err(e) => {
-                warn!("Malformed StepKeyword at line {}: {e}", idx + 1);
-                continue;
-            }
-        };
-        used.insert((keyword, rec.pattern));
-    }
-    used
-}
-
-fn combined_used() -> HashSet<(StepKeyword, String)> {
-    let mut used = read_used_from_file();
-    let mem = USED_STEPS
+    USED_STEPS
         .lock()
-        .unwrap_or_else(std::sync::PoisonError::into_inner);
-    used.extend(mem.iter().map(|(kw, pat)| (*kw, pat.as_str().to_string())));
-    used
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .insert(key);
 }
 
 fn all_steps() -> Vec<&'static Step> {
@@ -243,13 +138,12 @@ pub fn find_step(keyword: StepKeyword, text: StepText<'_>) -> Option<StepFn> {
 /// Return registered steps that were never executed.
 #[must_use]
 pub fn unused_steps() -> Vec<&'static Step> {
-    let used = combined_used();
+    let used = USED_STEPS
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
     all_steps()
         .into_iter()
-        .filter(|s| {
-            let key = (s.keyword, s.pattern.as_str().to_string());
-            !used.contains(&key)
-        })
+        .filter(|s| !used.contains(&(s.keyword, s.pattern)))
         .collect()
 }
 
@@ -294,18 +188,17 @@ struct DumpedStep {
 /// assert!(json.starts_with("["));
 /// ```
 pub fn dump_registry() -> serde_json::Result<String> {
-    let used = combined_used();
+    let used = USED_STEPS
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
     let steps: Vec<_> = all_steps()
         .into_iter()
-        .map(|s| {
-            let key = (s.keyword, s.pattern.as_str().to_string());
-            DumpedStep {
-                keyword: s.keyword.as_str(),
-                pattern: s.pattern.as_str(),
-                file: s.file,
-                line: s.line,
-                used: used.contains(&key),
-            }
+        .map(|s| DumpedStep {
+            keyword: s.keyword.as_str(),
+            pattern: s.pattern.as_str(),
+            file: s.file,
+            line: s.line,
+            used: used.contains(&(s.keyword, s.pattern)),
         })
         .collect();
     serde_json::to_string(&steps)

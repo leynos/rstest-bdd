@@ -321,9 +321,7 @@ commands:
 
 - `cargo bdd steps` prints every registered step with its source location.
 - `cargo bdd unused` shows steps that were never executed in the latest test
-  run. Usage is tracked whenever a step is resolved and persisted in
-  `<target-dir>/.rstest-bdd-usage.json` so diagnostics span processes. The
-  target directory honours the `CARGO_TARGET_DIR` environment variable when set.
+  run.
 - `cargo bdd duplicates` groups step definitions that share the same keyword
   and pattern, helping to identify accidental copies.
 

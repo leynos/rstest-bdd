@@ -5,7 +5,7 @@ use std::io::BufReader;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
-use cargo_metadata::Message;
+use cargo_metadata::{Message, Package, PackageId, Target};
 use clap::{Parser, Subcommand};
 use eyre::{Context, Result, bail};
 use serde::Deserialize;
@@ -189,52 +189,64 @@ fn has_test_targets(metadata: &cargo_metadata::Metadata) -> bool {
 fn build_test_binaries(metadata: &cargo_metadata::Metadata) -> Result<Vec<PathBuf>> {
     let workspace: std::collections::HashSet<_> = metadata.workspace_members.iter().collect();
     let mut bins = Vec::new();
-    for package in metadata
-        .packages
-        .iter()
-        .filter(|p| workspace.contains(&p.id))
-    {
-        for target in package
-            .targets
-            .iter()
-            .filter(|t| t.kind.iter().any(|k| k == "test"))
-        {
-            let mut cmd = Command::new("cargo");
-            cmd.args([
-                "test",
-                "--no-run",
-                "--message-format=json",
-                "--package",
-                &package.name,
-                "--test",
-                &target.name,
-            ]);
-            let mut child = cmd.stdout(Stdio::piped()).spawn().with_context(|| {
-                format!(
-                    "failed to build test target {} in package {}",
-                    target.name, package.name
-                )
-            })?;
-            let reader = BufReader::new(child.stdout.take().expect("stdout"));
-            for m in Message::parse_stream(reader).flatten() {
-                if let Some(exe) = extract_test_executable(&m) {
-                    bins.push(exe);
-                }
-            }
-            let status = child.wait().wrap_err_with(|| {
-                format!(
-                    "cargo test failed for target {} in package {}",
-                    target.name, package.name
-                )
-            })?;
-            if !status.success() {
-                bail!(
-                    "cargo test failed for target {} in package {}",
-                    target.name,
-                    package.name
-                );
-            }
+    for package in workspace_packages(&metadata.packages, &workspace) {
+        for target in test_targets(&package.targets) {
+            let mut extracted = build_test_target(package, target)?;
+            bins.append(&mut extracted);
         }
+    }
+    Ok(bins)
+}
+
+fn workspace_packages<'a>(
+    packages: &'a [Package],
+    workspace: &'a std::collections::HashSet<&'a PackageId>,
+) -> impl Iterator<Item = &'a Package> + 'a {
+    packages.iter().filter(move |p| workspace.contains(&p.id))
+}
+
+fn test_targets<'a>(targets: &'a [Target]) -> impl Iterator<Item = &'a Target> + 'a {
+    targets
+        .iter()
+        .filter(|t| t.kind.iter().any(|k| k == "test"))
+}
+
+fn build_test_target(package: &Package, target: &Target) -> Result<Vec<PathBuf>> {
+    let mut cmd = Command::new("cargo");
+    cmd.args([
+        "test",
+        "--no-run",
+        "--message-format=json",
+        "--package",
+        &package.name,
+        "--test",
+        &target.name,
+    ]);
+    let mut child = cmd.stdout(Stdio::piped()).spawn().with_context(|| {
+        format!(
+            "failed to build test target {} in package {}",
+            target.name, package.name
+        )
+    })?;
+    let reader = BufReader::new(child.stdout.take().expect("stdout"));
+    let mut bins = Vec::new();
+    for m in Message::parse_stream(reader).flatten() {
+        if let Some(exe) = extract_test_executable(&m) {
+            bins.push(exe);
+        }
+    }
+    let status = child.wait().wrap_err_with(|| {
+        format!(
+            "cargo test failed for target {} in package {}",
+            target.name, package.name
+        )
+    })?;
+    if !status.success() {
+        bail!(
+            "cargo test failed for target {} in package {}",
+            target.name,
+            package.name
+        );
     }
     Ok(bins)
 }
