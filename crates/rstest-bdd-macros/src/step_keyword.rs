@@ -25,55 +25,49 @@ pub(crate) enum StepKeyword {
     But,
 }
 
-/// Error produced when encountering an unsupported `StepType`.
-#[derive(Debug, thiserror::Error)]
-#[error("unsupported step type: {0:?}")]
-pub(crate) struct UnsupportedStepType(pub StepType);
+// Trim and match step keywords case-insensitively, returning `None` when no
+// known keyword is found.
+fn parse_step_keyword(value: &str) -> Option<StepKeyword> {
+    let s = value.trim();
+    if s.eq_ignore_ascii_case("given") {
+        Some(StepKeyword::Given)
+    } else if s.eq_ignore_ascii_case("when") {
+        Some(StepKeyword::When)
+    } else if s.eq_ignore_ascii_case("then") {
+        Some(StepKeyword::Then)
+    } else if s.eq_ignore_ascii_case("and") {
+        Some(StepKeyword::And)
+    } else if s.eq_ignore_ascii_case("but") {
+        Some(StepKeyword::But)
+    } else {
+        None
+    }
+}
 
 impl From<&str> for StepKeyword {
     fn from(value: &str) -> Self {
-        let s = value.trim();
-        if s.eq_ignore_ascii_case("given") {
-            Self::Given
-        } else if s.eq_ignore_ascii_case("when") {
-            Self::When
-        } else if s.eq_ignore_ascii_case("then") {
-            Self::Then
-        } else if s.eq_ignore_ascii_case("and") {
-            Self::And
-        } else if s.eq_ignore_ascii_case("but") {
-            Self::But
-        } else {
-            // Use the original, untrimmed `value` for clearer diagnostics.
-            panic!("invalid step keyword: {value}")
-        }
+        parse_step_keyword(value).unwrap_or_else(|| panic!("invalid step keyword: {value}"))
     }
 }
 
-impl TryFrom<StepType> for StepKeyword {
-    type Error = UnsupportedStepType;
-
-    fn try_from(ty: StepType) -> Result<Self, Self::Error> {
+impl From<StepType> for StepKeyword {
+    fn from(ty: StepType) -> Self {
         if ty == StepType::Given {
-            Ok(Self::Given)
+            Self::Given
         } else if ty == StepType::When {
-            Ok(Self::When)
-        } else if ty == StepType::Then {
-            Ok(Self::Then)
+            Self::When
         } else {
-            Err(UnsupportedStepType(ty))
+            Self::Then
         }
     }
 }
 
-impl TryFrom<&Step> for StepKeyword {
-    type Error = UnsupportedStepType;
-
-    fn try_from(step: &Step) -> Result<Self, Self::Error> {
+impl From<&Step> for StepKeyword {
+    fn from(step: &Step) -> Self {
         match step.keyword.trim() {
-            s if s.eq_ignore_ascii_case("and") => Ok(Self::And),
-            s if s.eq_ignore_ascii_case("but") => Ok(Self::But),
-            _ => Self::try_from(step.ty),
+            s if s.eq_ignore_ascii_case("and") => Self::And,
+            s if s.eq_ignore_ascii_case("but") => Self::But,
+            _ => Self::from(step.ty),
         }
     }
 }
