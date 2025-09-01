@@ -1,7 +1,6 @@
 //! Implementation of the `#[scenario]` macro.
 
 use proc_macro::TokenStream;
-use proc_macro2::Span;
 use std::path::PathBuf;
 
 use crate::codegen::scenario::{ScenarioConfig, generate_scenario_code};
@@ -17,7 +16,7 @@ use syn::{
 };
 
 struct ScenarioArgs {
-    path: Option<LitStr>,
+    path: LitStr,
     index: Option<usize>,
 }
 
@@ -69,9 +68,7 @@ impl Parse for ScenarioArgs {
             }
         }
 
-        if path.is_none() && index.is_none() {
-            return Err(input.error("at least one of `path` or `index` argument must be provided"));
-        }
+        let path = path.ok_or_else(|| input.error("`path` is required"))?;
 
         Ok(Self { path, index })
     }
@@ -80,14 +77,7 @@ impl Parse for ScenarioArgs {
 /// Bind a test to a scenario defined in a feature file.
 pub(crate) fn scenario(attr: TokenStream, item: TokenStream) -> TokenStream {
     let ScenarioArgs { path, index } = syn::parse_macro_input!(attr as ScenarioArgs);
-    let path = match path {
-        Some(lit) => PathBuf::from(lit.value()),
-        None => {
-            return syn::Error::new(Span::call_site(), "`path` is required")
-                .into_compile_error()
-                .into();
-        }
-    };
+    let path = PathBuf::from(path.value());
 
     let mut item_fn = syn::parse_macro_input!(item as syn::ItemFn);
     let attrs = &item_fn.attrs;
@@ -99,9 +89,12 @@ pub(crate) fn scenario(attr: TokenStream, item: TokenStream) -> TokenStream {
         Ok(f) => f,
         Err(err) => return err.into(),
     };
-    let manifest_dir = std::env::var("CARGO_MANIFEST_DIR").unwrap_or_else(|_| String::new());
-    let feature_path_str = PathBuf::from(manifest_dir)
-        .join(&path)
+    let feature_path_str = std::env::var("CARGO_MANIFEST_DIR")
+        .ok()
+        .map(PathBuf::from)
+        .map(|d| d.join(&path))
+        .and_then(|p| std::fs::canonicalize(&p).ok())
+        .unwrap_or_else(|| PathBuf::from(&path))
         .display()
         .to_string();
 

@@ -1,4 +1,10 @@
-error: invalid step function signature: unsupported parameter pattern; use a simple identifier (e.g., `arg: T`). help: use `#[given] fn name(ctx: &StepContext, ...)` and valid fixtures.
+error: invalid step function signature: unsupported parameter pattern; use a simple identifier (e.g., `arg: T`)
+ --> tests/fixtures/step_tuple_pattern.rs:8:20
+  |
+8 | fn step_with_tuple((x, y): (i32, i32)) {}
+  |                    ^^^^^^
+
+error: use `#[given] fn name(ctx: &StepContext, ...)` and valid fixtures
  --> tests/fixtures/step_tuple_pattern.rs:8:20
   |
 8 | fn step_with_tuple((x, y): (i32, i32)) {}
