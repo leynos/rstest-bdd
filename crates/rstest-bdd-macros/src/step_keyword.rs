@@ -10,6 +10,7 @@
 use gherkin::{Step, StepType};
 use proc_macro2::TokenStream as TokenStream2;
 use quote::{ToTokens, quote};
+use thiserror::Error;
 
 /// Keyword used to categorize a step definition.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -25,6 +26,10 @@ pub(crate) enum StepKeyword {
     /// Negative or contrasting conditions.
     But,
 }
+
+#[derive(Debug, Error)]
+#[error("unsupported step type: {0:?}")]
+pub(crate) struct UnsupportedStepType(pub StepType);
 
 /// Trim and match step keywords case-insensitively, returning `None` when no
 /// known keyword is found.
@@ -64,14 +69,16 @@ impl From<&str> for StepKeyword {
     }
 }
 
-impl From<StepType> for StepKeyword {
-    fn from(ty: StepType) -> Self {
+impl core::convert::TryFrom<StepType> for StepKeyword {
+    type Error = UnsupportedStepType;
+
+    fn try_from(ty: StepType) -> Result<Self, Self::Error> {
         match ty {
-            StepType::Given => Self::Given,
-            StepType::When => Self::When,
-            StepType::Then => Self::Then,
-            #[expect(unreachable_patterns, reason = "guard future variants")]
-            _ => panic!("unsupported step type: {ty:?}"),
+            StepType::Given => Ok(Self::Given),
+            StepType::When => Ok(Self::When),
+            StepType::Then => Ok(Self::Then),
+            #[expect(unreachable_patterns, reason = "guard future StepType variants")]
+            _ => Err(UnsupportedStepType(ty)),
         }
     }
 }
@@ -79,13 +86,15 @@ impl From<StepType> for StepKeyword {
 /// Note: conjunction detection via `step.keyword` is English-only
 /// ("And"/"But"). Other languages rely on `StepType`; textual
 /// conjunctions are not preserved.
-impl From<&Step> for StepKeyword {
-    fn from(step: &Step) -> Self {
-        match step.keyword.trim() {
+impl core::convert::TryFrom<&Step> for StepKeyword {
+    type Error = UnsupportedStepType;
+
+    fn try_from(step: &Step) -> Result<Self, Self::Error> {
+        Ok(match step.keyword.trim() {
             s if s.eq_ignore_ascii_case("and") => Self::And,
             s if s.eq_ignore_ascii_case("but") => Self::But,
-            _ => Self::from(step.ty),
-        }
+            _ => Self::try_from(step.ty)?,
+        })
     }
 }
 

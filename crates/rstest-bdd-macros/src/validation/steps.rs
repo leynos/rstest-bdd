@@ -331,9 +331,7 @@ pub(crate) fn resolve_keywords(steps: &[ParsedStep]) -> Vec<crate::StepKeyword> 
         .find_map(|s| match s.keyword {
             crate::StepKeyword::And | crate::StepKeyword::But => None,
             other => Some(other),
-        });
-    if prev.is_none() {
-        prev = Some(crate::StepKeyword::Given);
-    }
+        })
+        .or(Some(crate::StepKeyword::Given));
     steps.iter().map(|s| s.keyword.resolve(&mut prev)).collect()
 }

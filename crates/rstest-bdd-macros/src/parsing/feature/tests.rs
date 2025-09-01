@@ -5,7 +5,7 @@ use gherkin::{Background, LineCol, Scenario, Span, Step, StepType};
 use rstest::rstest;
 
 // This `#[expect]` triggers if `gherkin::StepType` adds variants so we update
-// `kw()` and `From<StepType> for StepKeyword`.
+// `kw()` and `TryFrom<StepType> for StepKeyword`.
 #[expect(
     unreachable_patterns,
     reason = "StepType currently only has three variants"
