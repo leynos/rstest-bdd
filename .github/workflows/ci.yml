@@ -14,8 +14,8 @@ jobs:
       CARGO_TERM_COLOR: always
       CS_ACCESS_TOKEN: ${{ secrets.CS_ACCESS_TOKEN }}
       CODESCENE_CLI_SHA256: ${{ vars.CODESCENE_CLI_SHA256 }}
-      BUILD_PROFILE: debug
       RUSTFLAGS: -D warnings
+      RUSTDOCFLAGS: -D warnings
     strategy:
       fail-fast: false
       matrix:
@@ -40,13 +40,31 @@ jobs:
       - uses: actions/checkout@v5
       - name: Setup Rust
         uses: leynos/shared-actions/.github/actions/setup-rust@ebbaaa0d7a776ec3187f3940667e5c7c9379cdf5
-      - name: Install make (Windows)
-        if: ${{ startsWith(matrix.os, 'windows-') }}
-        run: choco install make -y
-      - name: Format
+      - name: Install make (Unix only)
+        if: ${{ !startsWith(matrix.os, 'windows-') }}
+        run: sudo apt-get update && sudo apt-get install -y make
+
+      - name: Format (Unix)
+        if: ${{ !startsWith(matrix.os, 'windows-') }}
         run: make check-fmt
-      - name: Lint
+      - name: Lint (Unix)
+        if: ${{ !startsWith(matrix.os, 'windows-') }}
         run: make lint
+
+      - name: Format (Windows)
+        if: ${{ startsWith(matrix.os, 'windows-') }}
+        run: cargo fmt --all -- --check
+      - name: Lint (Windows)
+        if: ${{ startsWith(matrix.os, 'windows-') }}
+        run: cargo clippy --workspace --all-targets -- -D warnings
+
+      - name: Test (no coverage, with features)
+        if: ${{ !matrix.coverage && matrix.features != null }}
+        run: cargo test --workspace --all-targets --no-default-features --features "${{ matrix.features }}" -- --test-threads=1
+
+      - name: Test (no coverage, no features)
+        if: ${{ !matrix.coverage && matrix.features == null }}
+        run: cargo test --workspace --all-targets
       - name: Test and Measure Coverage (with features)
         if: ${{ matrix.coverage && matrix.features != null }}
         uses: leynos/shared-actions/.github/actions/generate-coverage@ebbaaa0d7a776ec3187f3940667e5c7c9379cdf5
@@ -64,10 +82,9 @@ jobs:
           format: lcov
           with-default-features: ${{ matrix.with-default-features }}
       - name: Publish dry run
+        if: ${{ !startsWith(matrix.os, 'windows-') }}
         run: make publish-check
       - name: Upload coverage data to CodeScene
-        env:
-          CS_ACCESS_TOKEN: ${{ secrets.CS_ACCESS_TOKEN }}
         if: ${{ matrix.coverage && env.CS_ACCESS_TOKEN }}
         uses: leynos/shared-actions/.github/actions/upload-codescene-coverage@ebbaaa0d7a776ec3187f3940667e5c7c9379cdf5
         with:
