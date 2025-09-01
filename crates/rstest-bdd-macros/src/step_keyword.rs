@@ -3,8 +3,9 @@
 //! This lightweight enum mirrors the variants provided by `rstest-bdd` but
 //! avoids a compile-time dependency on that crate. It is only used internally
 //! for parsing feature files and generating code. While the enum includes `And`
-//! and `But` for completeness, feature parsing normalizes them to the preceding
-//! primary keyword.
+//! and `But` for completeness. Conjunction resolution happens during code
+//! generation via `StepKeyword::resolve`, typically seeded to the first primary
+//! keyword; when unseeded it falls back to `Given`.
 
 use gherkin::{Step, StepType};
 use proc_macro2::TokenStream as TokenStream2;
