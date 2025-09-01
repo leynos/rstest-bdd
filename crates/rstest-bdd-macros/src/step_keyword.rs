@@ -117,4 +117,10 @@ mod tests {
     fn parses_case_insensitively(#[case] input: &str, #[case] expected: StepKeyword) {
         assert_eq!(StepKeyword::from(input), expected);
     }
+
+    #[test]
+    #[should_panic(expected = "invalid step keyword: invalid")]
+    fn panics_on_invalid_keyword() {
+        let _ = StepKeyword::from("invalid");
+    }
 }
