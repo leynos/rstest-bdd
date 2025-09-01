@@ -136,27 +136,30 @@ async fn test_simple_search(#[future] browser: WebDriver) {
 }
 
 #[given("the DuckDuckGo home page is displayed")]
-async fn go_to_home(driver: &mut WebDriver) {
-    driver.goto("https://duckduckgo.com/").await.unwrap();
+async fn go_to_home(driver: &mut WebDriver) -> WebDriverResult<()> {
+    driver.goto("https://duckduckgo.com/").await?;
+    Ok(())
 }
 
 #[when("I search for \"(.*)\"")]
-async fn search_for_phrase(driver: &mut WebDriver, phrase: String) {
-    let form = driver.find(By::Id("search_form_input_homepage")).await.unwrap();
-    form.send_keys(&phrase).await.unwrap();
-    form.submit().await.unwrap();
+async fn search_for_phrase(driver: &mut WebDriver, phrase: String) -> WebDriverResult<()> {
+    let form = driver.find(By::Id("search_form_input_homepage")).await?;
+    form.send_keys(&phrase).await?;
+    form.submit().await?;
+    Ok(())
 }
 
 #[then("the search results page is displayed")]
-async fn results_page_is_displayed(driver: &mut WebDriver) {
-    let results = driver.find(By::Id("links")).await;
-    assert!(results.is_ok(), "Search results container not found.");
+async fn results_page_is_displayed(driver: &mut WebDriver) -> WebDriverResult<()> {
+    driver.find(By::Id("links")).await?;
+    Ok(())
 }
 
 #[then("the results contain \"(.*)\"")]
-async fn results_contain_text(driver: &mut WebDriver, text: String) {
-    let content = driver.source().await.unwrap();
+async fn results_contain_text(driver: &mut WebDriver, text: String) -> WebDriverResult<()> {
+    let content = driver.source().await?;
     assert!(content.contains(&text), "Result text not found in page source.");
+    Ok(())
 }
 ```
 

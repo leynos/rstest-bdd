@@ -92,7 +92,9 @@ lookup.
 way. When a step function parameter does not correspond to a placeholder in the
 step pattern, the macros treat it as a fixture and inject the value
 automatically. The optional `#[from(name)]` attribute remains available when a
-parameter name must differ from the fixture.
+parameter name must differ from the fixture. Importing a symbol of the same
+name is not required; do not alias a function or item just to satisfy the
+compiler. Only the key stored in `StepContext` must match.
 
 Internally, the step macros record the fixture names and generate wrapper code
 that, at runtime, retrieves references from a `StepContext`. This context is a

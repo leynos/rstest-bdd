@@ -118,29 +118,33 @@ async fn test_simple_search(#[future] browser: WebDriver) {
 }
 
 // Step definitions are just decorated functions.
-// The #[from(fixture_name)] attribute injects the fixture into the step.
-async fn go_to_home(#[from(browser)] driver: &mut WebDriver) {
-    driver.goto("https://duckduckgo.com/").await.unwrap();
+// The fixture is injected when the parameter name matches the fixture.
+#[given("the DuckDuckGo home page is displayed")]
+async fn go_to_home(driver: &mut WebDriver) -> WebDriverResult<()> {
+    driver.goto("https://duckduckgo.com/").await?;
+    Ok(())
 }
 
 // The framework will parse the quoted string and pass it as an argument.
-#[when("a user searches for \"(.*)\"")]
-async fn search_for_phrase(#[from(browser)] driver: &mut WebDriver, phrase: String) {
-    let form = driver.find(By::Id("search_form_input_homepage")).await.unwrap();
-    form.send_keys(&phrase).await.unwrap();
-    form.submit().await.unwrap();
+#[when("I search for \"(.*)\"")]
+async fn search_for_phrase(driver: &mut WebDriver, phrase: String) -> WebDriverResult<()> {
+    let form = driver.find(By::Id("search_form_input_homepage")).await?;
+    form.send_keys(&phrase).await?;
+    form.submit().await?;
+    Ok(())
 }
 
 #[then("the search results page is displayed")]
-async fn results_page_is_displayed(#[from(browser)] driver: &mut WebDriver) {
-    let results = driver.find(By::Id("links")).await;
-    assert!(results.is_ok(), "Search results container not found.");
+async fn results_page_is_displayed(driver: &mut WebDriver) -> WebDriverResult<()> {
+    driver.find(By::Id("links")).await?;
+    Ok(())
 }
 
 #[then("the results contain \"(.*)\"")]
-async fn results_contain_text(#[from(browser)] driver: &mut WebDriver, text: String) {
-    let content = driver.source().await.unwrap();
+async fn results_contain_text(driver: &mut WebDriver, text: String) -> WebDriverResult<()> {
+    let content = driver.source().await?;
     assert!(content.contains(&text), "Result text not found in page source.");
+    Ok(())
 }
 ```
 

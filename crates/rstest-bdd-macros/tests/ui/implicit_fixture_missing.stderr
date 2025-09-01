@@ -1,0 +1,5 @@
+error: invalid step function signature: missing step arguments for placeholders: value. help: use `#[given] fn name(ctx: &StepContext, ...)` and valid fixtures.
+ --> tests/ui/implicit_fixture_missing.rs:4:4
+  |
+4 | fn step(other: u32) {}
+  |    ^^^^

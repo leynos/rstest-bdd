@@ -258,13 +258,19 @@ fn classify_docstring(
 /// classification. Arguments without an explicit `#[from]` attribute are treated
 /// as step parameters when their identifier matches a placeholder in the step
 /// pattern; otherwise they are classified as fixtures.
+/// Identifier and type of a function parameter.
+struct ParamInfo {
+    pat: syn::Ident,
+    ty: syn::Type,
+}
+
 fn classify_fixture_or_step(
     st: &mut ExtractedArgs,
     arg: &mut syn::PatType,
-    pat: &syn::Ident,
-    ty: &syn::Type,
+    info: ParamInfo,
     placeholders: &mut std::collections::HashSet<String>,
 ) {
+    let ParamInfo { pat, ty } = info;
     let mut from_name = None;
     arg.attrs.retain(|a| {
         if a.path().is_ident("from") {
@@ -353,7 +359,11 @@ pub fn extract_args(
         if classify_docstring(&mut state, arg, &pat, &ty)? {
             continue;
         }
-        classify_fixture_or_step(&mut state, arg, &pat, &ty, placeholders);
+        let info = ParamInfo {
+            pat: pat.clone(),
+            ty: ty.clone(),
+        };
+        classify_fixture_or_step(&mut state, arg, info, placeholders);
     }
     if !placeholders.is_empty() {
         let missing = placeholders.iter().cloned().collect::<Vec<_>>().join(", ");
