@@ -48,9 +48,19 @@ fn parse_step_keyword(value: &str) -> Option<StepKeyword> {
     }
 }
 
+impl core::str::FromStr for StepKeyword {
+    type Err = &'static str;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        parse_step_keyword(s).ok_or("invalid step keyword")
+    }
+}
+
 impl From<&str> for StepKeyword {
     fn from(value: &str) -> Self {
-        parse_step_keyword(value).unwrap_or_else(|| panic!("invalid step keyword: {value}"))
+        value
+            .parse()
+            .unwrap_or_else(|_| panic!("invalid step keyword: {value}"))
     }
 }
 
@@ -66,8 +76,9 @@ impl From<StepType> for StepKeyword {
     }
 }
 
-/// Textual conjunction detection is English-only ("And"/"But"); other languages
-/// are handled via `StepType` provided by the parser.
+/// Note: conjunction detection via `step.keyword` is English-only
+/// ("And"/"But"). Other languages rely on `StepType`; textual
+/// conjunctions are not preserved.
 impl From<&Step> for StepKeyword {
     fn from(step: &Step) -> Self {
         match step.keyword.trim() {
@@ -125,8 +136,7 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "invalid step keyword: invalid")]
-    fn panics_on_invalid_keyword() {
-        let _ = StepKeyword::from("invalid");
+    fn rejects_invalid_keyword_via_from_str() {
+        assert!("invalid".parse::<StepKeyword>().is_err());
     }
 }
