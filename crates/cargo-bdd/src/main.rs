@@ -217,6 +217,7 @@ fn build_test_target(package: &Package, target: &Target) -> Result<Vec<PathBuf>>
         "test",
         "--no-run",
         "--message-format=json",
+        "--all-features",
         "--package",
         &package.name,
         "--test",

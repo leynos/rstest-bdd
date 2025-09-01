@@ -16,6 +16,7 @@ pub fn greet() -> &'static str {
     "Hello from rstest-bdd!"
 }
 
+#[cfg(feature = "diagnostics")]
 use ctor::ctor;
 pub use inventory::{iter, submit};
 use thiserror::Error;
@@ -29,6 +30,7 @@ mod types;
 pub use context::StepContext;
 pub use pattern::StepPattern;
 pub use placeholder::extract_placeholders;
+#[cfg(feature = "diagnostics")]
 pub use registry::dump_registry;
 pub use registry::{Step, duplicate_steps, find_step, lookup_step, unused_steps};
 pub use types::{
@@ -36,6 +38,7 @@ pub use types::{
     StepKeywordParseError, StepPatternError, StepText,
 };
 
+#[cfg(feature = "diagnostics")]
 #[ctor]
 fn dump_steps() {
     // Only activate when explicitly enabled by the diagnostics runner.

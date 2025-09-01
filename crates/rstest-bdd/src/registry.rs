@@ -8,6 +8,7 @@ use crate::placeholder::extract_placeholders;
 use crate::types::{PatternStr, StepFn, StepKeyword, StepText};
 use hashbrown::{HashMap, HashSet};
 use inventory::iter;
+#[cfg(feature = "diagnostics")]
 use serde::Serialize;
 use std::hash::{BuildHasher, Hash, Hasher};
 use std::sync::{LazyLock, Mutex};
@@ -163,6 +164,7 @@ pub fn duplicate_steps() -> Vec<Vec<&'static Step>> {
     groups.into_values().filter(|v| v.len() > 1).collect()
 }
 
+#[cfg(feature = "diagnostics")]
 #[derive(Serialize)]
 struct DumpedStep {
     keyword: &'static str,
@@ -190,6 +192,7 @@ struct DumpedStep {
 /// let json = dump_registry().expect("serialise registry");
 /// assert!(json.starts_with("["));
 /// ```
+#[cfg(feature = "diagnostics")]
 pub fn dump_registry() -> serde_json::Result<String> {
     let used = USED_STEPS
         .lock()

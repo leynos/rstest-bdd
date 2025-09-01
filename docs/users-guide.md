@@ -316,8 +316,21 @@ step definitions are explicit.
 ## Diagnostic tooling
 
 `rstest-bdd` bundles a small helper binary exposed as the cargo subcommand
-`cargo bdd`. The tool inspects the runtime step registry and offers three
-commands:
+`cargo bdd`.
+
+Synopsis
+
+- `cargo bdd steps`
+- `cargo bdd unused`
+- `cargo bdd duplicates`
+
+Examples
+
+- `cargo bdd steps`
+- `cargo bdd unused --quiet`
+- `cargo bdd duplicates --json`
+
+The tool inspects the runtime step registry and offers three commands:
 
 - `cargo bdd steps` prints every registered step with its source location.
 - `cargo bdd unused` lists steps that were never executed in the current
