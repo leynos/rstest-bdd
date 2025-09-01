@@ -9,9 +9,9 @@ members = [
 
 [workspace.package]
 edition = "2024"
-version = "0.2.0-alpha1"
+version = "0.1.0-alpha2"
 rust-version = "1.85"
-license = "MIT OR Apache-2.0"
+license = "ISC"
 authors = ["Payton McIntosh <pmcintosh@df12.net>"]
 description = "A BDD testing framework for Rust, built on rstest."
 homepage = "https://github.com/leynos/rstest-bdd"
@@ -22,7 +22,7 @@ categories = ["development-tools::testing"]
 [workspace.dependencies]
 gherkin = { version = "0.14", default-features = false, features = ["parser"] }
 inventory = "0.3"
-regex = "1.11.1"
+regex = "1.11.2"
 thiserror = "1.0"
 proc-macro2 = "1"
 quote = "1"
@@ -36,8 +36,8 @@ serde_json = "1.0"
 cargo_metadata = "0.18"
 eyre = "0.6"
 ctor = "0.2"
-rstest-bdd = "0.2.0-alpha1"
-rstest-bdd-macros = "0.2.0-alpha1"
+rstest-bdd = "0.1.0-alpha2"
+rstest-bdd-macros = "0.1.0-alpha2"
 log = "0.4"
 fs2 = "0.4"
 

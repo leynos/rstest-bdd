@@ -111,20 +111,96 @@ improves the developer experience.
   - [x] Implement support for `Docstring`, making the content available as a
     `String` argument named `docstring`.
 
-- [ ] **Robust Error Handling**
+- [x] **Robust Error Handling**
 
   - [x] The `#[scenario]` macro must emit a `compile_error!` if the specified
     `.feature` file cannot be found or parsed.
 
-  - [ ] The `#[scenario]` macro must perform a compile-time check to ensure a
+  - [x] The `#[scenario]` macro must perform a compile-time check to ensure a
     matching step definition exists for every Gherkin step in the target
     scenario, emitting a `compile_error!` if any are missing.
+
+- [ ] **Tag Filtering**
+
+  - [ ] Allow the `#[scenario]` macro to select scenarios by tag expression at
+    macro-expansion time.
+
+  - [ ] Extend the `scenarios!` macro to filter scenarios using the same tag
+    syntax at macro-expansion time. (See: [design §1.3.4].)
+
+  - [ ] Document tag-expression grammar and precedence (§1.3.4).
+
+  - [ ] Filter at macro-expansion time and emit `compile_error!` diagnostics for
+    invalid tag expressions (explicit empty string `""`, empty parentheses
+    `()`, dangling operators). Omitting the `tags` argument applies no filter
+    (`error: missing tag (allowed)`). Diagnostics include the byte offset and a
+    short reason, e.g.:
+    `error: empty tag string is not allowed (byte offset 42)` or
+    `error: invalid tag expression at byte 7: expected tag or '(' after 'and'`.
+
+  - [ ] Define tag scope and inheritance:
+    - Scenarios inherit `Feature:` tags.
+    - `Scenario Outline` cases inherit tags from the outline and their
+      originating `Examples:` block.
+
+  - [ ] Specify associativity (`and`/`or` left-associative; `not` unary-prefix)
+    and reject unknown tokens (`&&`, `||`, `!`) at compile time.
+
+  - [ ] Specify case rules and identifier grammar:
+    - Tag identifiers are case-sensitive and match `[A-Za-z_][A-Za-z0-9_]*`.
+    - Operator keywords (`and`, `or`, `not`) are case-insensitive and
+      reserved; they cannot be used as identifiers.
+
+  - [ ] Implement a single shared parser used by both macros to guarantee
+    identical semantics.
+
+  - [ ] Add conformance tests for precedence, associativity, and scope:
+    - Valid: `@a and not (@b or @c)`
+    - Invalid: `@a && @b`, `""`, `()`, `@a and`, `(@a or @b`,
+      `@a or and @b`
+
+[design §1.3.4]: ./rstest-bdd-design.md#134-filtering-scenarios-with-tags
 
 - [ ] **Boilerplate Reduction**
 
   - [x] Implement the `scenarios!("path/to/features/")` macro to automatically
     discover all `.feature` files in a directory and generate a test module
     containing a test function for every `Scenario` found.
+
+## Phase 4: Ergonomics and Developer Experience
+
+This phase focuses on reducing boilerplate and improving the developer
+experience by introducing more powerful and intuitive APIs.
+
+- [ ] **Ergonomic Improvements**
+
+  - [ ] **Implicit Fixture Injection:** Automatically inject fixtures when a
+    step function's parameter name matches a fixture name, removing the need
+    for `#[from(...)]` in most cases.
+
+  - [ ] **Inferred Step Patterns:** Allow step definition macros (`#[given]`,
+    etc.) to be used without an explicit pattern string. The pattern will be
+    inferred from the function's name (e.g., `fn user_logs_in()` becomes
+    `"user logs in"`).
+  - [ ] **Streamlined **`Result`** Assertions:** Introduce helper macros like
+    `assert_step_ok!` and `assert_step_err!` to reduce boilerplate when testing
+    `Result`-returning steps.
+
+- [ ] **State Management and Data Flow**
+
+  - [ ] **Step Return Values:** Allow `#[when]` steps to return values, which
+    can then be automatically injected into subsequent `#[then]` steps,
+    enabling a more functional style of testing.
+
+  - [ ] **Scenario State Management:** Introduce a `#[scenario_state]` derive
+    macro and a `Slot<T>` type to simplify the management of shared state
+    across steps, reducing the need for manual `RefCell<Option<T>>` boilerplate.
+
+- [ ] **Advanced Ergonomics**
+
+  - [ ] **Struct-based Step Arguments:** Introduce a `#[step_args]` derive
+    macro to allow multiple placeholders from a step pattern to be parsed
+    directly into the fields of a struct, simplifying step function signatures.
 
 ### Post-Core Implementation: Extensions & Tooling
 
@@ -155,7 +231,7 @@ at improving maintainability and IDE integration.
   - [ ] Explore adding explicit teardown hooks that are guaranteed to run after
     a scenario, even in the case of a panic (e.g., `#[after_scenario]`).
 
-- [ ] **Performance Optimisation**
+- [ ] **Performance Optimization**
 
   - [ ] Implement caching for parsed Gherkin ASTs in the `OUT_DIR` to reduce
     compile-time overhead, only re-parsing files on modification.

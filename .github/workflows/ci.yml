@@ -2,9 +2,8 @@ name: CI
 
 on:
   pull_request:
-    branches: [main]
-  push:
-    branches: [main]
+    types: [opened, synchronize, reopened]
+  workflow_dispatch:
 
 jobs:
   build-test:
@@ -25,7 +24,7 @@ jobs:
           - os: windows-latest
             coverage: false
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Setup Rust
         uses: leynos/shared-actions/.github/actions/setup-rust@ebbaaa0d7a776ec3187f3940667e5c7c9379cdf5
       - name: Format
@@ -37,6 +36,8 @@ jobs:
         with:
           output-path: lcov.info
           format: lcov
+      - name: Publish dry run
+        run: make publish-check
       - name: Upload coverage data to CodeScene
         env:
           CS_ACCESS_TOKEN: ${{ secrets.CS_ACCESS_TOKEN }}

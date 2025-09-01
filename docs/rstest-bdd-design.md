@@ -304,6 +304,86 @@ fn create_users(
   to be passed to a step. This will be provided as a `String` argument to the
   step function, again mirroring `pytest-bdd`.[^11]
 
+#### 1.3.4 Filtering Scenarios with Tags
+
+Tags provide a convenient way to organize scenarios and control which tests
+run. The `#[scenario]` macro will accept an optional `tags` argument containing
+an expression such as `"@fast and not @wip"`. Only scenarios whose tags satisfy
+this expression will expand into test functions. Filtering occurs at
+macro-expansion time; unmatched scenarios do not generate tests (no runtime
+skipping). The `scenarios!` macro will offer the same argument to filter an
+entire directory of feature files.
+
+Tag scope:
+
+- Scenario tags inherit all tags declared at the `Feature:` level.
+- For `Scenario Outline`, tags on the outline and on each `Examples:` block
+  apply to the expanded cases produced from that block.
+- Tag composition uses set union; duplicates are ignored. There is no implicit
+  removal or override of inherited tags.
+
+**Example:**
+
+```rust
+#[scenario(path = "search.feature", tags = "@fast and not @wip")]
+fn search_fast() {}
+```
+
+The macro emits a test only when the matched scenario carries the `@fast` tag
+and lacks the `@wip` tag.
+
+Grammar and semantics:
+
+- Tokens:
+  - Tags are identifiers prefixed with `@` and match `[A-Za-z_][A-Za-z0-9_]*`.
+  - Operators: `and`, `or`, `not`.
+  - Parentheses `(` `)` group sub-expressions.
+- Precedence: `not` > `and` > `or`. Parentheses override precedence.
+- Associativity: `and` and `or` are left-associative; `not` is unary-prefix.
+- Whitespace is ignored between tokens.
+- Tag matching is case-sensitive; operator keywords are case-insensitive.
+- Invalid expressions cause a `compile_error!` with a message that includes the
+  byte offset of the failure and a short reason.
+- Omitting the `tags` argument applies no filter; an explicit `""` or unknown
+  tokens (e.g., `&&`, `||`, `!`) are invalid and emit `compile_error!`.
+- Empty parentheses `()` and dangling operators (`@a and`, `or @b`, leading
+  `and`/`or`) are invalid.
+- Matching is set-membership only; tags do not carry values.
+
+Both macros delegate tag-expression parsing to a shared module so that
+`#[scenario]` and `scenarios!` share identical grammar and diagnostics.
+
+EBNF:
+
+```ebnf
+expr      ::= or_expr
+or_expr   ::= and_expr { "or" and_expr }
+and_expr  ::= not_expr { "and" not_expr }
+not_expr  ::= [ "not" ] primary
+primary   ::= TAG | "(" expr ")"
+TAG       ::= "@" IDENT
+IDENT     ::= [A..Z | a..z | "_"] { A..Z | a..z | 0..9 | "_" }*
+```
+
+Example diagnostic:
+
+```text
+error: invalid tag expression at byte 7: expected tag or '(' after 'and'
+```
+
+`scenarios!` usage:
+
+```rust
+// Include smoke OR (critical AND not wip):
+scenarios!("tests/features/", tags = "@smoke or (@critical and not @wip)");
+
+// Exclude slow:
+scenarios!("tests/features/", tags = "not @slow");
+
+// Operator keywords are case-insensitive:
+scenarios!("tests/features/", tags = "@SMOKE Or Not @Wip");
+```
+
 ## Part 2: Architectural and API Specification
 
 This part transitions from the user's perspective to the technical
@@ -418,8 +498,28 @@ with the project's core goals:
 The third option, link-time collection, is the only one that satisfies all
 design constraints. It preserves the standard `cargo test` workflow, avoids the
 fragility of build scripts, and allows for fully decoupled step definitions.
-This leads directly to the selection of the `inventory` crate as the
-architectural cornerstone.
+
+To surface missing steps earlier, the macros crate now maintains a small
+compile-time registry. Each `#[given]`, `#[when]`, and `#[then]` invocation
+records its keyword and pattern in this registry. When `#[scenario]` expands it
+consults the registry and emits a `compile_error!` for any Gherkin step that
+lacks a matching definition or matches more than one. Because the registry only
+sees steps from the current compilation unit, each entry also stores the
+originating crate’s identifier so validation ignores steps from unrelated
+crates compiled in the same process. Scenarios that reference steps in other
+crates would otherwise fail to compile. To preserve cross‑crate workflows the
+crate defaults to a permissive mode that prints warnings for unknown steps.
+Enabling the `strict-compile-time-validation` feature restores the error on
+missing behaviour. The registry relies on the macros executing within the same
+compiler process and introduces a build-time dependency on the runtime crate to
+reuse its pattern-matching logic. This leads directly to the selection of the
+`inventory` crate as the architectural cornerstone.
+
+Because registration occurs as the compiler encounters each attribute, step
+definitions must appear earlier in a module than any `#[scenario]` that uses
+them. Declaring a scenario first would trigger validation before the step is
+registered, producing a spurious "No matching step definition" error. A UI test
+(`scenario_out_of_order`) documents this requirement.
 
 ### 2.3 The `inventory` Solution: A Global Step Registry
 
@@ -645,10 +745,11 @@ fn test_my_scenario(my_fixture: MyFixture) { /\* final assertion \*/ }
 2. It uses a Gherkin parser crate (such as `gherkin` [^26]) to parse the feature
    file content into an Abstract Syntax Tree (AST).
 3. It traverses the AST to find the `Scenario` with the name "My Scenario".
-4. The macro cannot access the link-time step registry during compilation, so
-   it cannot verify step existence. Generated tests perform lookup at runtime
-   via `inventory::iter::<Step>()` and report a clear runtime error when no
-   matching pattern is found.
+4. During compilation, the macro validates that each Gherkin step has a
+   matching definition recorded by the step macros and emits `compile_error!`
+   when one is missing. At runtime, the generated test still performs lookup
+   via `inventory::iter::<Step>()` to resolve the concrete function and to
+   perform placeholder matching and argument extraction.
 5. Using the `quote!` macro [^28], it generates a completely new Rust function.
    This generated function replaces the original
 
@@ -1252,62 +1353,65 @@ All modules use en‑GB spelling and include `//!` module‑level documentation.
 
 ## **Works cited**
 
-[^1]: A Complete Guide To Behavior-Driven Testing With Pytest BDD, accessed on
-    July 20, 2025, <https://pytest-with-eric.com/bdd/pytest-bdd/>
+[^1]: A Complete Guide to Behaviour-Driven Testing With Pytest BDD, accessed on
+    20 July 2025, <https://pytest-with-eric.com/bdd/pytest-bdd/>.
 [^2]: rstest - [crates.io](http://crates.io): Rust Package Registry, accessed on
-    July 20, 2025, <https://crates.io/crates/rstest/0.12.0>
+    20 July 2025, <https://crates.io/crates/rstest/0.12.0>.
 [^3]: Pytest-BDD: the BDD framework for pytest — pytest-bdd 8.1.0 documentation,
-    accessed on July 20, 2025, <https://pytest-bdd.readthedocs.io/>
+    accessed on 20 July 2025, <https://pytest-bdd.readthedocs.io/>.
 [^4]: Behavior-Driven Python with pytest-bdd - Test Automation University -
-    Applitools, accessed on July 20, 2025,
-    <https://testautomationu.applitools.com/behaviour-driven-python-with-pytest-bdd/>
-[^5]: Python Testing 101: pytest-bdd - Automation Panda, accessed on July 20,
+    Applitools, accessed on 20 July 2025,
+    <https://testautomationu.applitools.com/behaviour-driven-python-with-pytest-bdd/>.
+[^5]: Python Testing 101: pytest-bdd - Automation Panda, accessed on 20 July
     2025,
-    <https://automationpanda.com/2018/10/22/python-testing-101-pytest-bdd/>
-[^6]: Introduction - Cucumber Rust Book, accessed on July 20, 2025,
-    <https://cucumber-rs.github.io/cucumber/main/>
+    <https://automationpanda.com/2018/10/22/python-testing-101-pytest-bdd/>.
+[^6]: Introduction - Cucumber Rust Book, accessed on 20 July 2025,
+    <https://cucumber-rs.github.io/cucumber/main/>.
 [^7]: Behavior-Driven Development: Python with Pytest BDD -
-    [Testomat.io](http://Testomat.io), accessed on July 20, 2025,
-    <https://testomat.io/blog/pytest-bdd/>
-[^8]: Scenario Outline in PyTest – BDD - QA Automation Expert, accessed on July
-    20, 2025,
-    <https://qaautomation.expert/2024/04/11/scenario-outline-in-pytest-bdd/>
-    <https://testautomationu.applitools.com/behaviour-driven-python-with-pytest-bdd/chapter5.html>
-[^9]: How can I create parameterized tests in Rust? - Stack Overflow, accessed
-       on July 20, 2025,
-       <https://stackoverflow.com/questions/34662713/how-can-i-create-parameterized-tests-in-rust>
-[^10]: pytest-bdd - Read the Docs, accessed on July 20, 2025,
-    <https://readthedocs.org/projects/pytest-bdd/downloads/pdf/latest/>
-[^11]: pytest-bdd - PyPI, accessed on July 20, 2025,
-    <https://pypi.org/project/pytest-bdd/>
-    <https://www.reddit.com/r/rust/comments/1hwx3tn/what_is_a_good_pattern_to_share_state_between/>
-     GitHub, accessed on July 20, 2025,
-    <https://github.com/rust-lang/rust/issues/44034>
-[^12]: inventory - Rust - [Docs.rs](http://Docs.rs), accessed on July 20, 2025,
-    <https://docs.rs/inventory>
-    <https://www.luizdeaguiar.com.br/2022/08/shared-steps-and-hooks-with-pytest-bdd/>
-[^13]: Guide to Rust procedural macros |
-    [developerlife.com](http://developerlife.com), accessed on July 20, 2025,
-    <https://developerlife.com/2022/03/30/rust-proc-macro/>
-    <https://medium.com/@alfred.weirich/the-rust-macro-system-part-1-an-introduction-to-attribute-macros-73c963fd63ea>
-     <https://github.com/cucumber-rs/cucumber>
-    <https://www.florianreinhard.de/cucumber-in-rust-beginners-tutorial/>
+    [Testomat.io](http://Testomat.io), accessed on 20 July 2025,
+    <https://testomat.io/blog/pytest-bdd/>.
+[^8]: Scenario Outline in PyTest – BDD - QA Automation Expert, accessed on
+    20 July 2025,
+    <https://qaautomation.expert/2024/04/11/scenario-outline-in-pytest-bdd/>.
+    See also chapter 5 of Behaviour-Driven Python with pytest-bdd,
+    <https://testautomationu.applitools.com/behaviour-driven-python-with-pytest-bdd/chapter5.html>.
+[^9]: How can I create parameterised tests in Rust? - Stack Overflow, accessed
+    on 20 July 2025,
+    <https://stackoverflow.com/questions/34662713/how-can-i-create-parameterized-tests-in-rust>.
+[^10]: pytest-bdd - Read the Docs, accessed on 20 July 2025,
+    <https://readthedocs.org/projects/pytest-bdd/downloads/pdf/latest/>.
+[^11]: pytest-bdd - PyPI, accessed on 20 July 2025,
+    <https://pypi.org/project/pytest-bdd/>. Discussion on sharing state between
+    tests,
+    <https://www.reddit.com/r/rust/comments/1hwx3tn/what_is_a_good_pattern_to_share_state_between/>.
+     Rust issue tracking shared state,
+    <https://github.com/rust-lang/rust/issues/44034>.
+[^12]: inventory - Rust - [Docs.rs](http://Docs.rs), accessed on 20 July 2025,
+    <https://docs.rs/inventory>. Shared steps and hooks with pytest-bdd,
+    <https://www.luizdeaguiar.com.br/2022/08/shared-steps-and-hooks-with-pytest-bdd/>.
+[^13]: Guide to Rust procedural macros | [developerlife.com], accessed on 20
+    July 2025, <https://developerlife.com/2022/03/30/rust-proc-macro/>. The
+    Rust macro system part 1, accessed on 20 July 2025,
+    <https://medium.com/@alfred.weirich/the-rust-macro-system-part-1-an-introduction-to-attribute-macros-73c963fd63ea>.
+     cucumber-rs repository, <https://github.com/cucumber-rs/cucumber>.
+    Cucumber in Rust beginner's tutorial,
+    <https://www.florianreinhard.de/cucumber-in-rust-beginners-tutorial/>.
 [^14]: la10736/rstest: Fixture-based test framework for Rust - GitHub, accessed
-       on July 20, 2025, <https://github.com/la10736/rstest>
+    on 20 July 2025, <https://github.com/la10736/rstest>.
 
-[^15]: rstest crate documentation for `#[case]` parameterization, accessed on
-       July 20, 2025, <https://docs.rs/rstest/latest/rstest/attr.case.html>
+[^15]: rstest crate documentation for `#[case]` parameterisation, accessed on
+    20 July 2025, <https://docs.rs/rstest/latest/rstest/attr.case.html>.
 [^20]: Rust Reference: procedural macros operate without shared state, accessed
-       on July 20, 2025,
-       <https://doc.rust-lang.org/reference/procedural-macros.html>
+    on 20 July 2025,
+    <https://doc.rust-lang.org/reference/procedural-macros.html>.
 [^22]: Why macros cannot discover other macros, discussion on
-       users.rust-lang.org, accessed on July 20, 2025,
-       <https://users.rust-lang.org/t/why-cant-macros-discover-other-macros/3574>
-[^23]: cucumber crate documentation for `World::run`, accessed on July 20,
-       2025, <https://docs.rs/cucumber>
-[^26]: gherkin crate on crates.io, accessed on July 20, 2025,
-       <https://crates.io/crates/gherkin>
-[^28]: quote crate macros, accessed on July 20, 2025,
-       <https://docs.rs/quote>
-[^37]: cucumber crate step collection API, accessed on July 20, 2025,
-       <https://docs.rs/cucumber/latest/cucumber/struct.World.html#method.steps>
+    users.rust-lang.org, accessed on 20 July 2025,
+    <https://users.rust-lang.org/t/why-cant-macros-discover-other-macros/3574>.
+[^23]: cucumber crate documentation for `World::run`, accessed on 20 July 2025,
+    <https://docs.rs/cucumber>.
+[^26]: gherkin crate on crates.io, accessed on 20 July 2025,
+    <https://crates.io/crates/gherkin>.
+[^28]: quote crate macros, accessed on 20 July 2025,
+    <https://docs.rs/quote>.
+[^37]: cucumber crate step collection API, accessed on 20 July 2025,
+    <https://docs.rs/cucumber/latest/cucumber/struct.World.html#method.steps>.

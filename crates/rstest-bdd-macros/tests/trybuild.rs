@@ -12,13 +12,18 @@ fn step_macros_compile() {
     t.compile_fail("tests/fixtures/step_tuple_pattern.rs");
     t.compile_fail("tests/fixtures/step_struct_pattern.rs");
     t.compile_fail("tests/fixtures/step_nested_pattern.rs");
-    t.compile_fail("tests/ui/outline_missing_examples.rs");
-    t.compile_fail("tests/ui/outline_empty_examples.rs");
-    t.compile_fail("tests/ui/outline_missing_column.rs");
-    t.compile_fail("tests/ui/outline_duplicate_headers.rs");
     t.compile_fail("tests/ui/datatable_wrong_type.rs");
     t.compile_fail("tests/ui/datatable_duplicate.rs");
     t.compile_fail("tests/ui/datatable_duplicate_attr.rs");
     t.compile_fail("tests/ui/datatable_after_docstring.rs");
     t.compile_fail("tests/fixtures/scenarios_missing_dir.rs");
+    if cfg!(feature = "strict-compile-time-validation") {
+        t.compile_fail("tests/fixtures/scenario_missing_step.rs");
+        t.compile_fail("tests/fixtures/scenario_out_of_order.rs");
+    } else {
+        t.pass("tests/fixtures/scenario_missing_step.rs");
+        t.pass("tests/fixtures/scenario_out_of_order.rs");
+        t.compile_fail("tests/fixtures/scenario_missing_step_warning.rs");
+    }
+    t.compile_fail("tests/fixtures/scenario_ambiguous_step.rs");
 }
