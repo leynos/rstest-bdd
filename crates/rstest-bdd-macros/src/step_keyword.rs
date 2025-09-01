@@ -54,14 +54,15 @@ impl TryFrom<StepType> for StepKeyword {
     type Error = UnsupportedStepType;
 
     fn try_from(ty: StepType) -> Result<Self, Self::Error> {
-        let kw = match ty {
-            StepType::Given => Self::Given,
-            StepType::When => Self::When,
-            StepType::Then => Self::Then,
-            #[expect(unreachable_patterns, reason = "catch future StepType variants")]
-            _ => return Err(UnsupportedStepType(ty)),
-        };
-        Ok(kw)
+        if ty == StepType::Given {
+            Ok(Self::Given)
+        } else if ty == StepType::When {
+            Ok(Self::When)
+        } else if ty == StepType::Then {
+            Ok(Self::Then)
+        } else {
+            Err(UnsupportedStepType(ty))
+        }
     }
 }
 
