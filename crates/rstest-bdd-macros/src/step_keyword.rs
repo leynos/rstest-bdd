@@ -26,8 +26,11 @@ pub(crate) enum StepKeyword {
     But,
 }
 
-// Trim and match step keywords case-insensitively, returning `None` when no
-// known keyword is found.
+/// Trim and match step keywords case-insensitively, returning `None` when no
+/// known keyword is found.
+///
+/// Note: textual conjunction detection is English-only ("And"/"But"); other
+/// locales are handled via `StepType`.
 fn parse_step_keyword(value: &str) -> Option<StepKeyword> {
     let s = value.trim();
     if s.eq_ignore_ascii_case("given") {
@@ -53,16 +56,18 @@ impl From<&str> for StepKeyword {
 
 impl From<StepType> for StepKeyword {
     fn from(ty: StepType) -> Self {
-        if ty == StepType::Given {
-            Self::Given
-        } else if ty == StepType::When {
-            Self::When
-        } else {
-            Self::Then
+        match ty {
+            StepType::Given => Self::Given,
+            StepType::When => Self::When,
+            StepType::Then => Self::Then,
+            #[expect(unreachable_patterns, reason = "guard future variants")]
+            _ => panic!("unsupported step type: {ty:?}"),
         }
     }
 }
 
+/// Textual conjunction detection is English-only ("And"/"But"); other languages
+/// are handled via `StepType` provided by the parser.
 impl From<&Step> for StepKeyword {
     fn from(step: &Step) -> Self {
         match step.keyword.trim() {
@@ -96,7 +101,7 @@ impl StepKeyword {
     /// default to `Given`.
     pub(crate) fn resolve(self, prev: &mut Option<Self>) -> Self {
         if matches!(self, Self::And | Self::But) {
-            prev.unwrap_or(Self::Given)
+            prev.as_ref().copied().unwrap_or(Self::Given)
         } else {
             *prev = Some(self);
             self
