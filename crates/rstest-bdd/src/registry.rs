@@ -6,10 +6,12 @@
 use crate::pattern::StepPattern;
 use crate::placeholder::extract_placeholders;
 use crate::types::{PatternStr, StepFn, StepKeyword, StepText};
-use hashbrown::HashMap;
+use hashbrown::{HashMap, HashSet};
 use inventory::iter;
+#[cfg(feature = "diagnostics")]
+use serde::Serialize;
 use std::hash::{BuildHasher, Hash, Hasher};
-use std::sync::LazyLock;
+use std::sync::{LazyLock, Mutex};
 
 /// Represents a single step definition registered with the framework.
 #[derive(Debug)]
@@ -84,6 +86,22 @@ static STEP_MAP: LazyLock<HashMap<StepKey, StepFn>> = LazyLock::new(|| {
     map
 });
 
+// Tracks step invocations for the lifetime of the current process only. The
+// data is not persisted across binaries, keeping usage bookkeeping lightweight
+// and ephemeral.
+static USED_STEPS: LazyLock<Mutex<HashSet<StepKey>>> = LazyLock::new(|| Mutex::new(HashSet::new()));
+
+fn mark_used(key: StepKey) {
+    USED_STEPS
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .insert(key);
+}
+
+fn all_steps() -> Vec<&'static Step> {
+    iter::<Step>.into_iter().collect()
+}
+
 /// Look up a registered step by keyword and pattern.
 #[must_use]
 pub fn lookup_step(keyword: StepKeyword, pattern: PatternStr<'_>) -> Option<StepFn> {
@@ -100,7 +118,10 @@ pub fn lookup_step(keyword: StepKeyword, pattern: PatternStr<'_>) -> Option<Step
         .from_hash(hash, |(kw, pat)| {
             *kw == keyword && pat.as_str() == pattern.as_str()
         })
-        .map(|(_, &f)| f)
+        .map(|(key, &f)| {
+            mark_used(*key);
+            f
+        })
 }
 
 /// Find a registered step whose pattern matches the provided text.
@@ -111,8 +132,80 @@ pub fn find_step(keyword: StepKeyword, text: StepText<'_>) -> Option<StepFn> {
     }
     for step in iter::<Step> {
         if step.keyword == keyword && extract_placeholders(step.pattern, text).is_ok() {
+            mark_used((step.keyword, step.pattern));
             return Some(step.run);
         }
     }
     None
+}
+
+/// Return registered steps that were never executed.
+#[must_use]
+pub fn unused_steps() -> Vec<&'static Step> {
+    let used = USED_STEPS
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    all_steps()
+        .into_iter()
+        .filter(|s| !used.contains(&(s.keyword, s.pattern)))
+        .collect()
+}
+
+/// Group step definitions that share a keyword and pattern.
+#[must_use]
+pub fn duplicate_steps() -> Vec<Vec<&'static Step>> {
+    let mut groups: HashMap<StepKey, Vec<&'static Step>> = HashMap::new();
+    for step in all_steps() {
+        groups
+            .entry((step.keyword, step.pattern))
+            .or_default()
+            .push(step);
+    }
+    groups.into_values().filter(|v| v.len() > 1).collect()
+}
+
+#[cfg(feature = "diagnostics")]
+#[derive(Serialize)]
+struct DumpedStep {
+    keyword: &'static str,
+    pattern: &'static str,
+    file: &'static str,
+    line: u32,
+    used: bool,
+}
+
+/// Serialise the registry to a JSON array.
+///
+/// Each entry records the step keyword, pattern, source location, and whether
+/// the step has been executed. The JSON is intended for consumption by
+/// diagnostic tooling such as `cargo bdd`.
+///
+/// # Errors
+///
+/// Returns an error if serialisation fails.
+///
+/// # Examples
+///
+/// ```
+/// use rstest_bdd::dump_registry;
+///
+/// let json = dump_registry().expect("serialise registry");
+/// assert!(json.starts_with("["));
+/// ```
+#[cfg(feature = "diagnostics")]
+pub fn dump_registry() -> serde_json::Result<String> {
+    let used = USED_STEPS
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    let steps: Vec<_> = all_steps()
+        .into_iter()
+        .map(|s| DumpedStep {
+            keyword: s.keyword.as_str(),
+            pattern: s.pattern.as_str(),
+            file: s.file,
+            line: s.line,
+            used: used.contains(&(s.keyword, s.pattern)),
+        })
+        .collect();
+    serde_json::to_string(&steps)
 }

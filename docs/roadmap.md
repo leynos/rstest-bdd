@@ -207,14 +207,16 @@ experience by introducing more powerful and intuitive APIs.
 These tasks can be addressed after the core framework is stable and are aimed
 at improving maintainability and IDE integration.
 
-- [ ] **Diagnostic Tooling**
+- [x] **Diagnostic Tooling**
 
-  - [ ] Create a helper binary or `cargo` subcommand (`cargo bdd`).
+  - [x] Create a helper binary or `cargo` subcommand (`cargo bdd`).
 
-  - [ ] Implement a `list-steps` command to print the entire registered step
-    registry.
+  - [x] Implement a `list-steps` command to print the entire registered step
+     registry.
 
-  - [ ] Implement commands to identify unused or duplicate step definitions.
+  - [x] Implement a `list-unused` command to report definitions never executed.
+
+  - [x] Implement a `list-duplicates` command to group duplicate definitions.
 
 - [ ] **IDE Integration**
 
