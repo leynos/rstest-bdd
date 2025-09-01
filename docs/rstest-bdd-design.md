@@ -983,12 +983,50 @@ functionality is implemented:
 
   The implemented tool lives in a standalone `cargo-bdd` crate that acts as a
   cargo subcommand. It queries the runtime step registry and exposes three
-  commands: `steps`, `unused`, and `duplicates`. Step usage is recorded
-  in-memory whenever a step is resolved and is not persisted across binaries.
-  Because `inventory` operates per binary, the subcommand compiles each test
-  target and executes it with `RSTEST_BDD_DUMP_STEPS=1` and a private
-  `--dump-steps` flag to stream the registry as JSON. The tool merges these
-  dumps so diagnostics cover the entire workspace.
+  commands: `steps`, `unused`, and `duplicates`. Step usage is tracked in
+  memory and appended to `<target-dir>/.rstest-bdd-usage.json`, allowing
+  diagnostics to persist across binaries. Because `inventory` operates per
+  binary, the subcommand compiles each test target and executes it with
+  `RSTEST_BDD_DUMP_STEPS=1` and a private `--dump-steps` flag to stream the
+  registry as JSON. The tool merges these dumps so diagnostics cover the entire
+  workspace.
+
+  The sequence below illustrates the diagnostic workflow:
+
+```mermaid
+sequenceDiagram
+  autonumber
+  actor Dev as Developer
+  participant CB as cargo-bdd
+  participant CM as cargo (metadata/build)
+  participant TB as Test Binaries
+  participant FS as target/.rstest-bdd-usage.json
+
+  Dev->>CB: cargo bdd [steps|unused|duplicates]
+  CB->>CM: cargo metadata (detect test targets)
+  alt targets found
+    CB->>CM: cargo test --no-run --message-format=json
+    CM-->>CB: compiler-artifact JSON (paths to test binaries)
+    loop per test binary
+      CB->>TB: exec test-binary --dump-steps
+      TB->>FS: append usage (on step lookups)
+      TB-->>CB: stdout JSON (registered steps + usage flags)
+    end
+    CB->>CB: merge/aggregate steps
+    opt unused
+      CB->>CB: filter used==false
+    end
+    opt duplicates
+      CB->>CB: group by (keyword, pattern) size>1
+    end
+    CB-->>Dev: print diagnostics
+  else no targets
+    CB-->>Dev: no output / empty
+  end
+```
+
+  The usage file lives under the Cargo target directory and honours the
+  `CARGO_TARGET_DIR` environment variable.
 
 - **Teardown Hooks:** While `rstest` fixtures handle teardown via `Drop`, more
   explicit post-scenario cleanup, especially in the case of a step panic, could
