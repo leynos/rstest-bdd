@@ -58,6 +58,8 @@ impl TryFrom<StepType> for StepKeyword {
             StepType::Given => Self::Given,
             StepType::When => Self::When,
             StepType::Then => Self::Then,
+            #[expect(unreachable_patterns, reason = "catch future StepType variants")]
+            _ => return Err(UnsupportedStepType(ty)),
         };
         Ok(kw)
     }
@@ -90,10 +92,12 @@ impl ToTokens for StepKeyword {
 }
 
 impl StepKeyword {
-    /// Resolve conjunctions to the semantic keyword of the previous step.
+    /// Resolve conjunctions to the semantic keyword of the previous step or a
+    /// seeded first primary keyword.
     ///
-    /// Leading conjunctions default to `Given` to maintain a sensible
-    /// baseline when no prior step exists.
+    /// `process_steps` seeds `prev` with the first primary keyword so leading
+    /// conjunctions inherit that seed. When `prev` is `None`, conjunctions
+    /// default to `Given`.
     pub(crate) fn resolve(self, prev: &mut Option<Self>) -> Self {
         if matches!(self, Self::And | Self::But) {
             prev.unwrap_or(Self::Given)
