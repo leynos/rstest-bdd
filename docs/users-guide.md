@@ -215,9 +215,10 @@ scenario runs its steps sequentially in the order defined in the feature file.
 By default, missing steps emit a compile‑time warning and are checked again at
 runtime, so steps can live in other crates. Enabling the
 `strict-compile-time-validation` feature on `rstest-bdd-macros` turns those
-warnings into `compile_error!`s when all step definitions are local, preventing
-behaviour specifications from silently drifting from the code while still
-permitting cross‑crate step sharing.
+warnings into `compile_error!`s for any step not defined in the current crate,
+preventing behaviour specifications from silently drifting from the code.
+Scenarios that rely on step definitions from other crates will therefore fail
+to compile.
 
 To enable strict checking add the feature to your `dev-dependencies`:
 
