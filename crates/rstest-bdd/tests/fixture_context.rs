@@ -3,6 +3,10 @@
 use rstest_bdd::{StepContext, StepError, StepKeyword};
 use rstest_bdd_macros::given;
 
+fn number() -> u32 {
+    unreachable!("fixture supplied via context")
+}
+
 /// Step that asserts the injected `number` fixture equals 42.
 #[given("a value")]
 #[expect(

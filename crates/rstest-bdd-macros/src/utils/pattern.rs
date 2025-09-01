@@ -24,91 +24,92 @@ pub(crate) fn placeholder_names(pattern: &str) -> Result<HashSet<String>> {
 
     while let Some(&b) = bytes.get(i) {
         match b {
-            b'\\' => {
-                // Skip escaped character like `\{` or `\x`.
-                i = i.saturating_add(2);
-            }
+            b'\\' => i = i.saturating_add(2),
             b'{' => {
                 if bytes.get(i + 1) == Some(&b'{') {
-                    // `{{` is a literal `{`.
-                    i = i.saturating_add(2);
+                    i += 2;
                     continue;
                 }
-                if let Some(next) = bytes.get(i + 1) {
-                    if next.is_ascii_alphabetic() || *next == b'_' {
-                        // Parse placeholder name.
-                        let start = i + 1;
-                        let mut j = start;
-                        while let Some(b) = bytes.get(j) {
-                            if b.is_ascii_alphanumeric() || *b == b'_' {
-                                j += 1;
-                            } else {
-                                break;
-                            }
-                        }
-                        let slice = bytes
-                            .get(start..j)
-                            .ok_or_else(|| syn::Error::new(
-                                proc_macro2::Span::call_site(),
-                                "invalid placeholder range",
-                            ))?;
-                        let name = std::str::from_utf8(slice).map_err(|_| {
-                            syn::Error::new(
-                                proc_macro2::Span::call_site(),
-                                "placeholder name must be valid UTF-8",
-                            )
-                        })?;
-                        // Skip optional type hint.
-                        if bytes.get(j) == Some(&b':') {
-                            j += 1;
-                            while let Some(b) = bytes.get(j) {
-                                if *b == b'}' {
-                                    break;
-                                }
-                                // Types cannot contain braces.
-                                if *b == b'{' {
-                                    return Err(syn::Error::new(
-                                        proc_macro2::Span::call_site(),
-                                        "unmatched '{' in type hint",
-                                    ));
-                                }
-                                j += 1;
-                            }
-                        }
-                        if bytes.get(j) != Some(&b'}') {
-                            return Err(syn::Error::new(
-                                proc_macro2::Span::call_site(),
-                                "unbalanced braces in step pattern",
-                            ));
-                        }
-                        names.insert(name.to_string());
-                        i = j + 1;
-                        continue;
-                    }
-                }
-                // Any other `{` is an error.
-                return Err(syn::Error::new(
-                    proc_macro2::Span::call_site(),
-                    "unmatched '{' in step pattern",
-                ));
+
+                let (name, next) = parse_placeholder(bytes, i)?;
+                names.insert(name);
+                i = next;
             }
             b'}' => {
                 if bytes.get(i + 1) == Some(&b'}') {
-                    // `}}` is a literal `}`.
-                    i = i.saturating_add(2);
+                    i += 2;
                     continue;
                 }
-                // Stray closing brace.
                 return Err(syn::Error::new(
                     proc_macro2::Span::call_site(),
                     "unmatched '}' in step pattern",
                 ));
             }
-            _ => {
-                i += 1;
-            }
+            _ => i += 1,
         }
     }
 
     Ok(names)
+}
+
+/// Parse a placeholder starting at `start`, returning the name and the index of
+/// the next character after the closing brace.
+fn parse_placeholder(bytes: &[u8], start: usize) -> Result<(String, usize)> {
+    let mut j = start + 1;
+
+    let first = *bytes.get(j).ok_or_else(|| {
+        syn::Error::new(
+            proc_macro2::Span::call_site(),
+            "unmatched '{' in step pattern",
+        )
+    })?;
+    if !first.is_ascii_alphabetic() && first != b'_' {
+        return Err(syn::Error::new(
+            proc_macro2::Span::call_site(),
+            "unmatched '{' in step pattern",
+        ));
+    }
+    j += 1;
+    while let Some(&b) = bytes.get(j) {
+        if b.is_ascii_alphanumeric() || b == b'_' {
+            j += 1;
+        } else {
+            break;
+        }
+    }
+
+    let slice = bytes.get(start + 1..j).ok_or_else(|| {
+        syn::Error::new(proc_macro2::Span::call_site(), "invalid placeholder range")
+    })?;
+    let name = std::str::from_utf8(slice).map_err(|_| {
+        syn::Error::new(
+            proc_macro2::Span::call_site(),
+            "placeholder name must be valid UTF-8",
+        )
+    })?;
+
+    if bytes.get(j) == Some(&b':') {
+        j += 1;
+        while let Some(&b) = bytes.get(j) {
+            if b == b'}' {
+                break;
+            }
+            if b == b'{' {
+                return Err(syn::Error::new(
+                    proc_macro2::Span::call_site(),
+                    "unmatched '{' in type hint",
+                ));
+            }
+            j += 1;
+        }
+    }
+
+    if bytes.get(j) != Some(&b'}') {
+        return Err(syn::Error::new(
+            proc_macro2::Span::call_site(),
+            "unbalanced braces in step pattern",
+        ));
+    }
+
+    Ok((name.to_string(), j + 1))
 }

@@ -136,8 +136,8 @@ async fn test_simple_search(#[future] browser: WebDriver) {
 }
 
 #[given("the DuckDuckGo home page is displayed")]
-async fn go_to_home(driver: &mut WebDriver) -> WebDriverResult<()> {
-    driver.goto("https://duckduckgo.com/").await?;
+async fn go_to_home(browser: &mut WebDriver) -> WebDriverResult<()> {
+    browser.goto("https://duckduckgo.com/").await?;
     Ok(())
 }
 

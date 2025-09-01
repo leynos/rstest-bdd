@@ -279,7 +279,7 @@ philosophy of augmenting, not obscuring, rstest.
     - This derive macro will be applied to a user-defined state struct whose
       fields are of type `Slot<T>`.
     - It will automatically generate a `Default` implementation for the struct,
-  which initialises each `Slot` to its empty state.
+  which initializes each `Slot` to its empty state.
     - This encourages a pattern where the user defines their state struct,
       derives `ScenarioState`, and then provides it as a regular `rstest`
       fixture.

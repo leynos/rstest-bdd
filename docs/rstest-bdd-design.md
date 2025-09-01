@@ -120,8 +120,8 @@ async fn test_simple_search(#[future] browser: WebDriver) {
 // Step definitions are just decorated functions.
 // The fixture is injected when the parameter name matches the fixture.
 #[given("the DuckDuckGo home page is displayed")]
-async fn go_to_home(driver: &mut WebDriver) -> WebDriverResult<()> {
-    driver.goto("https://duckduckgo.com/").await?;
+async fn go_to_home(browser: &mut WebDriver) -> WebDriverResult<()> {
+    browser.goto("https://duckduckgo.com/").await?;
     Ok(())
 }
 
@@ -1363,7 +1363,7 @@ sequenceDiagram
 
 To streamline step definitions, the macro system now infers fixtures by
 analysing the step pattern during expansion. Placeholder names are extracted
-from the pattern string and any function parameter whose identifier matches a
+from the pattern string, and any function parameter whose identifier matches a
 placeholder is treated as a typed step argument. Remaining parameters are
 assumed to be fixtures and are looked up in the [`StepContext`] at runtime.
 

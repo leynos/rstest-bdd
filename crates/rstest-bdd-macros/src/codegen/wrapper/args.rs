@@ -366,7 +366,9 @@ pub fn extract_args(
         classify_fixture_or_step(&mut state, arg, info, placeholders);
     }
     if !placeholders.is_empty() {
-        let missing = placeholders.iter().cloned().collect::<Vec<_>>().join(", ");
+        let mut missing: Vec<_> = placeholders.iter().cloned().collect();
+        missing.sort();
+        let missing = missing.join(", ");
         return Err(syn::Error::new(
             func.sig.ident.span(),
             format!("missing step arguments for placeholders: {missing}"),

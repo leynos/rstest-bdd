@@ -26,7 +26,11 @@ fn step_attr(attr: TokenStream, item: TokenStream, keyword: crate::StepKeyword) 
     let mut func = syn::parse_macro_input!(item as syn::ItemFn);
     let mut placeholders = match placeholder_names(&pattern.value()) {
         Ok(set) => set,
-        Err(err) => return error_to_tokens(&err).into(),
+        Err(mut err) => {
+            // Anchor diagnostics on the attribute literal for clarity.
+            err.combine(syn::Error::new(pattern.span(), "in this step pattern"));
+            return error_to_tokens(&err).into();
+        }
     };
 
     let args = match extract_args(&mut func, &mut placeholders) {

@@ -1,5 +1,13 @@
-error: invalid step function signature: missing step arguments for placeholders: value. help: use `#[given] fn name(ctx: &StepContext, ...)` and valid fixtures.
- --> tests/ui/implicit_fixture_missing.rs:4:4
+error[E0425]: cannot find value `value` in this scope
+ --> tests/ui/implicit_fixture_missing.rs:4:9
   |
-4 | fn step(other: u32) {}
-  |    ^^^^
+4 | fn step(value: u32) {}
+  |         ^^^^^ not found in this scope
+
+warning: unused variable: `value`
+ --> tests/ui/implicit_fixture_missing.rs:4:9
+  |
+4 | fn step(value: u32) {}
+  |         ^^^^^ help: if this is intentional, prefix it with an underscore: `_value`
+  |
+  = note: `#[warn(unused_variables)]` on by default

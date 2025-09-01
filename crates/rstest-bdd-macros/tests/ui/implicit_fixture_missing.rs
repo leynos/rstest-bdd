@@ -1,6 +1,6 @@
 use rstest_bdd_macros::given;
 
-#[given("a number {value}")]
-fn step(other: u32) {}
+#[given("a number")]
+fn step(value: u32) {}
 
 fn main() {}
