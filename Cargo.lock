@@ -771,6 +771,7 @@ dependencies = [
 name = "rstest-bdd-macros"
 version = "0.1.0-alpha2"
 dependencies = [
+ "cfg-if",
  "gherkin",
  "once_cell",
  "proc-macro-crate",

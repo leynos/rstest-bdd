@@ -15,10 +15,12 @@ pub(crate) struct ParsedStep {
     pub docstring: Option<String>,
     pub table: Option<Vec<Vec<String>>>,
     #[cfg(feature = "compile-time-validation")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "compile-time-validation")))]
     /// Approximate span for diagnostics.
-    pub span: proc_macro2::Span,
+    pub(crate) span: proc_macro2::Span,
 }
 
+// Equality intentionally ignores `span` to ease test comparisons.
 impl PartialEq for ParsedStep {
     fn eq(&self, other: &Self) -> bool {
         self.keyword == other.keyword

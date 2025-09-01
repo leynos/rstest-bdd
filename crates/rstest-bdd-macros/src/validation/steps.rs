@@ -56,7 +56,7 @@ pub(crate) fn validate_steps_exist(steps: &[ParsedStep], strict: bool) -> Result
         .cloned()
         .collect();
     let missing = collect_missing_steps(&scoped, steps)?;
-    handle_validation_result(missing, strict)
+    handle_validation_result(&missing, strict)
 }
 
 fn collect_missing_steps(
@@ -75,7 +75,7 @@ fn collect_missing_steps(
 }
 
 fn handle_validation_result(
-    missing: Vec<(proc_macro2::Span, String)>,
+    missing: &[(proc_macro2::Span, String)],
     strict: bool,
 ) -> Result<(), syn::Error> {
     if missing.is_empty() {
@@ -83,9 +83,9 @@ fn handle_validation_result(
     }
 
     if strict {
-        create_strict_mode_error(&missing)
+        create_strict_mode_error(missing)
     } else {
-        emit_non_strict_warnings(missing.into_iter().map(|(_, m)| m).collect());
+        emit_non_strict_warnings(missing);
         Ok(())
     }
 }
@@ -107,8 +107,9 @@ fn create_strict_mode_error(missing: &[(proc_macro2::Span, String)]) -> Result<(
     Err(syn::Error::new(span, msg))
 }
 
-fn emit_non_strict_warnings(missing: Vec<String>) {
-    for msg in missing {
+fn emit_non_strict_warnings(missing: &[(proc_macro2::Span, String)]) {
+    for (span, msg) in missing {
+        let _ = span; // reserved for future spanned diagnostics
         #[expect(clippy::print_stderr, reason = "proc_macro::Diagnostic is unstable")]
         {
             eprintln!("warning: {msg} (will be checked at runtime)");

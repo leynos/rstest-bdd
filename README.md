@@ -52,6 +52,12 @@ Feature flags:
 - `no-inventory` — fallback code‑gen registry for platforms where
   linker‑section collection is unwieldy.
 
+- `compile-time-validation` — registers steps at compile time and reports
+  missing or ambiguous steps with spans.
+
+- `strict-compile-time-validation` — fails compilation when steps are missing
+  or ambiguous; implies `compile-time-validation`.
+
 ______________________________________________________________________
 
 ## Quick start (end‑to‑end “Web Search”)

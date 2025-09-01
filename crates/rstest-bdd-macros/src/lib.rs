@@ -1,4 +1,10 @@
 //! Attribute macros enabling Behaviour-Driven testing with `rstest`.
+//!
+//! # Feature flags
+//! - `compile-time-validation`: registers steps at compile time and attaches
+//!   spans for diagnostics.
+//! - `strict-compile-time-validation`: escalates missing or ambiguous steps to
+//!   compile errors; implies `compile-time-validation`.
 
 mod codegen;
 mod macros;

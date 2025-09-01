@@ -1,5 +1,6 @@
 //! Implementation of the `#[scenario]` macro.
 
+use cfg_if::cfg_if;
 use proc_macro::TokenStream;
 use std::path::PathBuf;
 
@@ -107,16 +108,16 @@ pub(crate) fn scenario(attr: TokenStream, item: TokenStream) -> TokenStream {
         Err(err) => return err.into(),
     };
 
-    #[cfg(feature = "strict-compile-time-validation")]
-    if let Err(err) = crate::validation::steps::validate_steps_exist(&steps, true) {
-        return err.into_compile_error().into();
-    }
-    #[cfg(all(
-        feature = "compile-time-validation",
-        not(feature = "strict-compile-time-validation")
-    ))]
-    if let Err(err) = crate::validation::steps::validate_steps_exist(&steps, false) {
-        return err.into_compile_error().into();
+    cfg_if! {
+        if #[cfg(feature = "strict-compile-time-validation")] {
+            if let Err(err) = crate::validation::steps::validate_steps_exist(&steps, true) {
+                return err.into_compile_error().into();
+            }
+        } else if #[cfg(feature = "compile-time-validation")] {
+            if let Err(err) = crate::validation::steps::validate_steps_exist(&steps, false) {
+                return err.into_compile_error().into();
+            }
+        }
     }
 
     if let Err(err) = process_scenario_outline_examples(sig, examples.as_ref()) {

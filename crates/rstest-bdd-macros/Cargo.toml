@@ -32,9 +32,14 @@ gherkin.workspace = true
 walkdir = "2.5.0"
 proc-macro-crate = "3"
 rstest-bdd.workspace = true
+cfg-if = "1"
 
 [dev-dependencies]
 trybuild.workspace = true
 once_cell.workspace = true
 rstest.workspace = true
 serial_test.workspace = true
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
