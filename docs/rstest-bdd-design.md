@@ -501,7 +501,7 @@ fragility of build scripts, and allows for fully decoupled step definitions.
 
 To surface missing steps earlier, the macros crate now maintains a small,
 compile‑time registry, and each `#[given]`, `#[when]`, and `#[then]` invocation
-records its keyword and pattern there. When `#[scenario]` expands it consults
+records its keyword and pattern there. When `#[scenario]` expands, it consults
 this registry and emits a `compile_error!` for any Gherkin step that lacks a
 unique definition. Because the registry only sees steps from the current
 compilation unit, each entry stores the originating crate’s identifier to avoid
