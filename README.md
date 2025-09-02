@@ -114,8 +114,8 @@ use thirtyfour::prelude::*;
 #[fixture]
 async fn browser() -> WebDriverResult<WebDriver> {
     let caps = DesiredCapabilities::firefox();
-    let driver = WebDriver::new("http://localhost:4444", caps).await?;
-    Ok(driver)
+    let browser = WebDriver::new("http://localhost:4444", caps).await?;
+    Ok(browser)
 }
 
 // Bind this test to the named scenario from the feature file.
@@ -133,22 +133,22 @@ async fn go_to_home(browser: &mut WebDriver) -> WebDriverResult<()> {
 }
 
 #[when("I search for \"(.*)\"")]
-async fn search_for_phrase(driver: &mut WebDriver, phrase: String) -> WebDriverResult<()> {
-    let form = driver.find(By::Id("search_form_input_homepage")).await?;
+async fn search_for_phrase(browser: &mut WebDriver, phrase: String) -> WebDriverResult<()> {
+    let form = browser.find(By::Id("search_form_input_homepage")).await?;
     form.send_keys(&phrase).await?;
     form.submit().await?;
     Ok(())
 }
 
 #[then("the search results page is displayed")]
-async fn results_page_is_displayed(driver: &mut WebDriver) -> WebDriverResult<()> {
-    driver.find(By::Id("links")).await?;
+async fn results_page_is_displayed(browser: &mut WebDriver) -> WebDriverResult<()> {
+    browser.find(By::Id("links")).await?;
     Ok(())
 }
 
 #[then("the results contain \"(.*)\"")]
-async fn results_contain_text(driver: &mut WebDriver, text: String) -> WebDriverResult<()> {
-    let content = driver.source().await?;
+async fn results_contain_text(browser: &mut WebDriver, text: String) -> WebDriverResult<()> {
+    let content = browser.source().await?;
     assert!(content.contains(&text), "Result text not found in page source.");
     Ok(())
 }
@@ -187,6 +187,9 @@ fn assert_count(basket: &Basket, count: u32) {
     assert_eq!(basket.count(Item::Pumpkin), count);
 }
 ```
+
+Implicit fixtures such as `basket` must already be in scope in the test module;
+`#[from(name)]` only renames a fixture and does not create one.
 
 - Patterns accept **typed placeholders** like `{count:u32}`; values parse via
   `FromStr`.
@@ -228,7 +231,7 @@ async fn test_login_scenarios(#[future] browser: WebDriver) {}
 // Placeholders from <angle brackets> arrive as typed arguments.
 #[when("I enter username \"<username>\" and password \"<password>\"")]
 async fn enter_credentials(
-    driver: &mut WebDriver,
+    browser: &mut WebDriver,
     username: String,
     password: String,
 ) {
@@ -236,7 +239,7 @@ async fn enter_credentials(
 }
 
 #[then("I should see the message \"<message>\"")]
-async fn see_message(driver: &mut WebDriver, message: String) {
+async fn see_message(browser: &mut WebDriver, message: String) {
     // ...
 }
 ```

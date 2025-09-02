@@ -100,9 +100,9 @@ use thirtyfour::prelude::*;
 #[fixture]
 async fn browser() -> WebDriverResult<WebDriver> {
     let caps = DesiredCapabilities::firefox();
-    let driver = WebDriver::new("http://localhost:4444", caps).await?;
-    // The fixture yields the driver to the test, and will handle cleanup after.
-    Ok(driver)
+    let browser = WebDriver::new("http://localhost:4444", caps).await?;
+    // The fixture yields the browser to the test, and will handle cleanup after.
+    Ok(browser)
 }
 
 // The #[scenario] macro binds this test function to a specific scenario.
@@ -127,22 +127,22 @@ async fn go_to_home(browser: &mut WebDriver) -> WebDriverResult<()> {
 
 // The framework will parse the quoted string and pass it as an argument.
 #[when("I search for \"(.*)\"")]
-async fn search_for_phrase(driver: &mut WebDriver, phrase: String) -> WebDriverResult<()> {
-    let form = driver.find(By::Id("search_form_input_homepage")).await?;
+async fn search_for_phrase(browser: &mut WebDriver, phrase: String) -> WebDriverResult<()> {
+    let form = browser.find(By::Id("search_form_input_homepage")).await?;
     form.send_keys(&phrase).await?;
     form.submit().await?;
     Ok(())
 }
 
 #[then("the search results page is displayed")]
-async fn results_page_is_displayed(driver: &mut WebDriver) -> WebDriverResult<()> {
-    driver.find(By::Id("links")).await?;
+async fn results_page_is_displayed(browser: &mut WebDriver) -> WebDriverResult<()> {
+    browser.find(By::Id("links")).await?;
     Ok(())
 }
 
 #[then("the results contain \"(.*)\"")]
-async fn results_contain_text(driver: &mut WebDriver, text: String) -> WebDriverResult<()> {
-    let content = driver.source().await?;
+async fn results_contain_text(browser: &mut WebDriver, text: String) -> WebDriverResult<()> {
+    let content = browser.source().await?;
     assert!(content.contains(&text), "Result text not found in page source.");
     Ok(())
 }
