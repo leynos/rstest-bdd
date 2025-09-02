@@ -85,11 +85,11 @@ a global registry. The wrapper captures the step keyword, pattern string and
 associated fixtures and uses the `inventory` crate to publish them for later
 lookup.
 
-> **Ordering note:** Step macros expand as the compiler parses the module. A
-> `#[scenario]` must therefore appear after all of its referenced step
-> definitions in the same module; otherwise the validation pass will not see
-> those steps and compilation will fail. The [`scenario_out_of_order` UI
-> test](../crates/rstest-bdd-macros/tests/fixtures/scenario_out_of_order.rs)
+> **Ordering note:** Step macros expand as the compiler parses the module.
+> Therefore, a `#[scenario]` must appear after all of its referenced step
+> definitions in the same module; otherwise, the validation pass will not see
+> those steps and compilation will fail. The
+> [`scenario_out_of_order` UI test](../crates/rstest-bdd-macros/tests/fixtures/scenario_out_of_order.rs)
 > demonstrates this constraint.
 
 ### Fixtures and the `#[from]` attribute
@@ -167,9 +167,9 @@ the following steps:
 2. For each step in the scenario (according to the `Given‑When‑Then` sequence),
    look up a matching step function by `(keyword, pattern)` in the registry. A
    missing step causes the macro to emit a compile‑time error such as
-   `No matching step definition found for: Given ""`, allowing detection of
-   incomplete implementations before tests run. Multiple matching definitions
-   likewise produce an error.
+   `No matching step definition found for: Given an undefined step`, allowing
+   detection of incomplete implementations before tests run. Multiple matching
+   definitions likewise produce an error.
 
 3. Invoke the registered step function with the `StepContext` so that fixtures
    are available inside the step.
@@ -213,11 +213,12 @@ behave like other `rstest` tests; they honour `#[tokio::test]` or
 `#[async_std::test]` attributes if applied to the original function. Each
 scenario runs its steps sequentially in the order defined in the feature file.
 By default, missing steps emit a compile‑time warning and are checked again at
-runtime so steps can live in other crates. Enabling the
+runtime, so steps can live in other crates. Enabling the
 `strict-compile-time-validation` feature on `rstest-bdd-macros` turns those
-warnings into `compile_error!`s when all step definitions are local. This
-prevents behaviour specifications from silently drifting from the code while
-still permitting cross‑crate step sharing.
+warnings into `compile_error!`s for any step not defined in the current crate,
+preventing behaviour specifications from silently drifting from the code.
+Scenarios that rely on step definitions from other crates will therefore fail
+to compile.
 
 To enable strict checking add the feature to your `dev-dependencies`:
 
