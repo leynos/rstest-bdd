@@ -229,6 +229,7 @@ fn current_crate_id() -> String {
 mod tests {
     use super::*;
     use rstest::rstest;
+    use serial_test::serial;
 
     fn clear_registry() {
         REGISTERED
@@ -238,6 +239,7 @@ mod tests {
     }
 
     #[rstest]
+    #[serial(step_registry)]
     fn validates_when_step_present() {
         clear_registry();
         register_step(
@@ -255,6 +257,7 @@ mod tests {
     }
 
     #[rstest]
+    #[serial(step_registry)]
     fn errors_when_missing_step_in_strict_mode() {
         clear_registry();
         let steps = [ParsedStep {
@@ -268,6 +271,7 @@ mod tests {
     }
 
     #[rstest]
+    #[serial(step_registry)]
     fn errors_when_step_ambiguous() {
         clear_registry();
         let lit = syn::LitStr::new("a step", proc_macro2::Span::call_site());
@@ -288,6 +292,7 @@ mod tests {
     }
 
     #[rstest]
+    #[serial(step_registry)]
     fn ignores_steps_from_other_crates() {
         clear_registry();
         REGISTERED
