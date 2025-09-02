@@ -3,5 +3,8 @@ error: invalid step function signature: only one DataTable parameter is permitte
   |
 6 | fn step(#[datatable] first: Vec<Vec<String>>, #[datatable] second: Vec<Vec<String>>) {}
   |                                                            ^^^^^^^^^^^^^^^^^^^^^^^^
+error: help: use `#[given] fn name(ctx: &StepContext, ...)` and valid fixtures
+ --> tests/ui/datatable_duplicate.rs:6:60
   |
-  = help: use `#[given] fn name(ctx: &StepContext, ...)` and valid fixtures
+6 | fn step(#[datatable] first: Vec<Vec<String>>, #[datatable] second: Vec<Vec<String>>) {}
+  |                                                            ^^^^^^^^^^^^^^^^^^^^^^^^

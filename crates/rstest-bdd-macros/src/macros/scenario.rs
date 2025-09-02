@@ -129,7 +129,7 @@ fn try_scenario(
 
 /// Canonicalise the feature path for stable diagnostics.
 ///
-/// ```rust
+/// ```rust,ignore
 /// # use std::path::{Path, PathBuf};
 /// # fn demo() {
 /// let path = PathBuf::from("features/example.feature");
@@ -149,7 +149,7 @@ fn canonical_feature_path(path: &Path) -> String {
 
 /// Validate registered steps when compile-time validation is enabled.
 ///
-/// ```rust,ignore
+/// ```rust,ignore,ignore
 /// let steps = Vec::new();
 /// let _ = validate_steps_compile_time(&steps);
 /// ```

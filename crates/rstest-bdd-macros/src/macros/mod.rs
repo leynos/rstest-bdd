@@ -34,13 +34,16 @@ fn step_attr(attr: TokenStream, item: TokenStream, keyword: crate::StepKeyword) 
                 crate::StepKeyword::And => "and",
                 crate::StepKeyword::But => "but",
             };
-            let span = err.span().unwrap();
-            span.error(format!("invalid step function signature: {err}"))
-                .help(format!(
-                    "use `#[{kw_name}] fn name(ctx: &StepContext, ...)` and valid fixtures"
-                ))
-                .emit();
-            return TokenStream::new();
+            let span = err.span();
+            let mut enriched =
+                syn::Error::new(span, format!("invalid step function signature: {err}"));
+            enriched.combine(syn::Error::new(
+                span,
+                format!(
+                    "help: use `#[{kw_name}] fn name(ctx: &StepContext, ...)` and valid fixtures"
+                ),
+            ));
+            return enriched.into_compile_error().into();
         }
     };
 
