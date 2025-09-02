@@ -23,7 +23,6 @@ gherkin = { version = "0.14", default-features = false, features = ["parser"] }
 inventory = "0.3"
 regex = "1.11.2"
 thiserror = "1.0"
-proc-macro2 = { version = "1", features = ["span-locations"] }
 quote = "1"
 syn = { version = "2", features = ["full", "extra-traits"] }
 rstest = "0.18"

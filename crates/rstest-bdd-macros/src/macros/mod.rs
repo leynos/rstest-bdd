@@ -16,7 +16,6 @@ pub(crate) use then::then;
 pub(crate) use when::when;
 
 use crate::codegen::wrapper::{WrapperConfig, extract_args, generate_wrapper_code};
-use crate::utils::errors::error_to_tokens;
 
 fn step_attr(attr: TokenStream, item: TokenStream, keyword: crate::StepKeyword) -> TokenStream {
     let pattern = syn::parse_macro_input!(attr as syn::LitStr);
@@ -35,19 +34,13 @@ fn step_attr(attr: TokenStream, item: TokenStream, keyword: crate::StepKeyword) 
                 crate::StepKeyword::And => "and",
                 crate::StepKeyword::But => "but",
             };
-            // `proc_macro::Diagnostic` is unstable on stable toolchains, so we
-            // emit a second error with guidance instead of a help-level note.
-            let mut enriched = syn::Error::new(
-                err.span(),
-                format!("invalid step function signature: {err}"),
-            );
-            enriched.combine(syn::Error::new(
-                err.span(),
-                format!(
-                    "help: use `#[{kw_name}] fn name(ctx: &StepContext, ...)` and valid fixtures"
-                ),
-            ));
-            return error_to_tokens(&enriched).into();
+            let span = err.span().unwrap();
+            span.error(format!("invalid step function signature: {err}"))
+                .help(format!(
+                    "use `#[{kw_name}] fn name(ctx: &StepContext, ...)` and valid fixtures"
+                ))
+                .emit();
+            return TokenStream::new();
         }
     };
 

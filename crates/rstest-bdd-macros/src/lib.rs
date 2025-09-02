@@ -1,3 +1,4 @@
+#![feature(proc_macro_diagnostic)]
 #![cfg_attr(docsrs, feature(doc_cfg))]
 //! Attribute macros enabling Behaviour-Driven testing with `rstest`.
 //!

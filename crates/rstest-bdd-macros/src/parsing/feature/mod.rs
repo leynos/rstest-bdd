@@ -20,7 +20,8 @@ pub(crate) struct ParsedStep {
     pub(crate) span: proc_macro2::Span,
 }
 
-// Equality intentionally ignores `span` to ease test comparisons.
+// Equality intentionally ignores `span` as spans vary between compilations.
+// Compare only semantic fields to keep tests stable; update if new fields are added.
 impl PartialEq for ParsedStep {
     fn eq(&self, other: &Self) -> bool {
         self.keyword == other.keyword

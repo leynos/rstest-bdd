@@ -113,7 +113,7 @@ fn emit_non_strict_warnings(missing: &[(proc_macro2::Span, String)]) {
         #[expect(clippy::print_stderr, reason = "proc_macro::Diagnostic is unstable")]
         {
             eprintln!(
-                "warning: {msg}\n  --> line {} column {}\n",
+                "[rstest-bdd][non-strict] {msg}\n  --> line {} column {}\n",
                 loc.line,
                 loc.column + 1
             );

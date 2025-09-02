@@ -1,8 +1,9 @@
 //! Implementation of the `#[scenario]` macro.
+//! Binds tests to Gherkin scenarios and validates steps when compile-time flags enable it.
 
 use cfg_if::cfg_if;
 use proc_macro::TokenStream;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use crate::codegen::scenario::{ScenarioConfig, generate_scenario_code};
 use crate::parsing::feature::{ScenarioData, extract_scenario_steps, parse_and_load_feature};
@@ -129,13 +130,13 @@ fn try_scenario(
 /// Canonicalise the feature path for stable diagnostics.
 ///
 /// ```rust
-/// # use std::path::PathBuf;
+/// # use std::path::{Path, PathBuf};
 /// # fn demo() {
 /// let path = PathBuf::from("features/example.feature");
 /// let _ = canonical_feature_path(&path);
 /// # }
 /// ```
-fn canonical_feature_path(path: &PathBuf) -> String {
+fn canonical_feature_path(path: &Path) -> String {
     std::env::var("CARGO_MANIFEST_DIR")
         .ok()
         .map(PathBuf::from)
@@ -155,6 +156,7 @@ fn canonical_feature_path(path: &PathBuf) -> String {
 fn validate_steps_compile_time(
     steps: &[crate::parsing::feature::ParsedStep],
 ) -> Option<TokenStream> {
+    // When both features are enabled, strict mode wins.
     cfg_if! {
         if #[cfg(feature = "strict-compile-time-validation")] {
             crate::validation::steps::validate_steps_exist(steps, true)
@@ -167,5 +169,32 @@ fn validate_steps_compile_time(
         } else {
             None
         }
+    }
+}
+#[cfg(test)]
+mod tests {
+    use super::canonical_feature_path;
+    use rstest::rstest;
+    use std::env;
+    use std::path::{Path, PathBuf};
+
+    #[rstest]
+    fn canonicalises_with_manifest_dir() {
+        let manifest = match env::var("CARGO_MANIFEST_DIR") {
+            Ok(m) => PathBuf::from(m),
+            Err(e) => panic!("manifest dir: {e}"),
+        };
+        let path = Path::new("Cargo.toml");
+        let expected = match manifest.join(path).canonicalize() {
+            Ok(p) => p.display().to_string(),
+            Err(e) => panic!("canonical path: {e}"),
+        };
+        assert_eq!(canonical_feature_path(path), expected);
+    }
+
+    #[rstest]
+    fn falls_back_on_missing_path() {
+        let path = Path::new("does-not-exist.feature");
+        assert_eq!(canonical_feature_path(path), path.display().to_string());
     }
 }
