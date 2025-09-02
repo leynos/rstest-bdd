@@ -58,8 +58,12 @@ jobs:
         if: ${{ startsWith(matrix.os, 'windows-') }}
         run: cargo clippy --workspace --all-targets -- -D warnings
 
-      - name: Test (no coverage, with features)
-        if: ${{ !matrix.coverage && matrix.features != null }}
+      - name: Test (no coverage, with features, defaults enabled)
+        if: ${{ !matrix.coverage && matrix.features != null && matrix.with-default-features }}
+        run: cargo test --workspace --all-targets --features "${{ matrix.features }}"
+
+      - name: Test (no coverage, with features, no-default-features)
+        if: ${{ !matrix.coverage && matrix.features != null && !matrix.with-default-features }}
         run: cargo test --workspace --all-targets --no-default-features --features "${{ matrix.features }}"
 
       - name: Test (no coverage, no features)
