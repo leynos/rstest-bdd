@@ -10,7 +10,7 @@ use crate::utils::fixtures::extract_function_fixtures;
 use crate::validation::parameters::process_scenario_outline_examples;
 
 use syn::{
-    LitInt, LitStr, Result,
+    LitInt, LitStr,
     parse::{Parse, ParseStream},
     punctuated::Punctuated,
     token::Comma,
@@ -27,7 +27,7 @@ enum ScenarioArg {
 }
 
 impl Parse for ScenarioArg {
-    fn parse(input: ParseStream<'_>) -> Result<Self> {
+    fn parse(input: ParseStream<'_>) -> syn::Result<Self> {
         if input.peek(LitStr) {
             let lit: LitStr = input.parse()?;
             Ok(Self::Path(lit))
@@ -47,7 +47,7 @@ impl Parse for ScenarioArg {
 }
 
 impl Parse for ScenarioArgs {
-    fn parse(input: ParseStream<'_>) -> Result<Self> {
+    fn parse(input: ParseStream<'_>) -> syn::Result<Self> {
         let args = Punctuated::<ScenarioArg, Comma>::parse_terminated(input)?;
         let mut path = None;
         let mut index = None;
@@ -75,58 +75,43 @@ impl Parse for ScenarioArgs {
     }
 }
 
-/// Bind a test to a scenario defined in a feature file.
 pub(crate) fn scenario(attr: TokenStream, item: TokenStream) -> TokenStream {
-    let ScenarioArgs { path, index } = syn::parse_macro_input!(attr as ScenarioArgs);
-    let path = PathBuf::from(path.value());
+    let args = syn::parse_macro_input!(attr as ScenarioArgs);
+    let item_fn = syn::parse_macro_input!(item as syn::ItemFn);
+    match try_scenario(args, item_fn) {
+        Ok(tokens) => tokens,
+        Err(err) => err,
+    }
+}
 
-    let mut item_fn = syn::parse_macro_input!(item as syn::ItemFn);
+fn try_scenario(
+    ScenarioArgs { path, index }: ScenarioArgs,
+    mut item_fn: syn::ItemFn,
+) -> std::result::Result<TokenStream, TokenStream> {
+    let path = PathBuf::from(path.value());
     let attrs = &item_fn.attrs;
     let vis = &item_fn.vis;
     let sig = &mut item_fn.sig;
     let block = &item_fn.block;
 
-    let feature = match parse_and_load_feature(&path) {
-        Ok(f) => f,
-        Err(err) => return err.into(),
-    };
-    let feature_path_str = std::env::var("CARGO_MANIFEST_DIR")
-        .ok()
-        .map(PathBuf::from)
-        .map(|d| d.join(&path))
-        .and_then(|p| std::fs::canonicalize(&p).ok())
-        .unwrap_or_else(|| PathBuf::from(&path))
-        .display()
-        .to_string();
-
+    let feature = parse_and_load_feature(&path).map_err(proc_macro::TokenStream::from)?;
+    let feature_path_str = canonical_feature_path(&path);
     let ScenarioData {
         name: scenario_name,
         steps,
         examples,
-    } = match extract_scenario_steps(&feature, index) {
-        Ok(res) => res,
-        Err(err) => return err.into(),
-    };
+    } = extract_scenario_steps(&feature, index).map_err(proc_macro::TokenStream::from)?;
 
-    cfg_if! {
-        if #[cfg(feature = "strict-compile-time-validation")] {
-            if let Err(err) = crate::validation::steps::validate_steps_exist(&steps, true) {
-                return err.into_compile_error().into();
-            }
-        } else if #[cfg(feature = "compile-time-validation")] {
-            if let Err(err) = crate::validation::steps::validate_steps_exist(&steps, false) {
-                return err.into_compile_error().into();
-            }
-        }
+    if let Some(err) = validate_steps_compile_time(&steps) {
+        return Err(err);
     }
 
-    if let Err(err) = process_scenario_outline_examples(sig, examples.as_ref()) {
-        return err.into();
-    }
+    process_scenario_outline_examples(sig, examples.as_ref())
+        .map_err(proc_macro::TokenStream::from)?;
 
     let (_args, ctx_inserts) = extract_function_fixtures(sig);
 
-    generate_scenario_code(
+    Ok(generate_scenario_code(
         ScenarioConfig {
             attrs,
             vis,
@@ -138,5 +123,49 @@ pub(crate) fn scenario(attr: TokenStream, item: TokenStream) -> TokenStream {
             examples,
         },
         ctx_inserts,
-    )
+    ))
+}
+
+/// Canonicalise the feature path for stable diagnostics.
+///
+/// ```rust
+/// # use std::path::PathBuf;
+/// # fn demo() {
+/// let path = PathBuf::from("features/example.feature");
+/// let _ = canonical_feature_path(&path);
+/// # }
+/// ```
+fn canonical_feature_path(path: &PathBuf) -> String {
+    std::env::var("CARGO_MANIFEST_DIR")
+        .ok()
+        .map(PathBuf::from)
+        .map(|d| d.join(path))
+        .and_then(|p| std::fs::canonicalize(&p).ok())
+        .unwrap_or_else(|| PathBuf::from(path))
+        .display()
+        .to_string()
+}
+
+/// Validate registered steps when compile-time validation is enabled.
+///
+/// ```rust,ignore
+/// let steps = Vec::new();
+/// let _ = validate_steps_compile_time(&steps);
+/// ```
+fn validate_steps_compile_time(
+    steps: &[crate::parsing::feature::ParsedStep],
+) -> Option<TokenStream> {
+    cfg_if! {
+        if #[cfg(feature = "strict-compile-time-validation")] {
+            crate::validation::steps::validate_steps_exist(steps, true)
+                .err()
+                .map(|e| e.into_compile_error().into())
+        } else if #[cfg(feature = "compile-time-validation")] {
+            crate::validation::steps::validate_steps_exist(steps, false)
+                .err()
+                .map(|e| e.into_compile_error().into())
+        } else {
+            None
+        }
+    }
 }
