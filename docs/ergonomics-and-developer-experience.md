@@ -97,8 +97,8 @@ string argument optional.
     - The macro will take the identifier of the function it decorates.
     - It will convert the identifier from `snake_case` to a sentence-case string
   (e.g., `the_user_logs_in` becomes `"the user logs in"`).
-    - Parameter names that are valid placeholders (e.g., `_var` or `var`) will
-      be converted to `{var}` format within the inferred pattern.
+    - Treat parameter-like identifiers as placeholders and emit `{name}` in the
+      inferred pattern (e.g., `_var` or `var` -> `{var}`).
 
 3. **Doc Comment Fallback:** As a secondary mechanism, if no pattern is
    provided and the function name is ambiguous, the macro could fall back to
@@ -139,11 +139,12 @@ A new derive macro, StepArgs, will be introduced in rstest-bdd-macros.
 1. **`#[derive(StepArgs)]` Macro:**
 
     - This macro will be applied to a user-defined struct.
-    - It will generate an implementation of `TryFrom<Vec<String>>` for the
-      struct. The implementation will expect a vector of captured strings from
-      the step pattern and attempt to parse each string into the corresponding
-      struct field using `FromStr`. The order of fields will map to the order
-      of captures.
+    - It will generate `TryFrom<Vec<String>>` for the struct. The implementation
+      expects a vector of captured strings from the step pattern and parses
+      each string into the corresponding field using `FromStr`. Field order
+      maps to capture order. A field/count mismatch is a compile-time error
+      emitted by the macro with the missing or excess placeholder names and
+      span highlights.
 
 2. **Step Macro Integration:**
 

@@ -135,6 +135,9 @@ fn test_add_to_basket(#[with(basket)] _: Basket) {
 }
 ```
 
+Implicit fixtures such as `basket` must already be in scope in the test module;
+`#[from(name)]` only renames a fixture and does not create one.
+
 In this example, the step texts in the annotations must match the feature file
 verbatim. The `#[scenario]` macro binds the test function to the first scenario
 in the specified feature file and runs all registered steps before executing

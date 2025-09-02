@@ -208,15 +208,23 @@ async fn test_login_scenarios(#[future] browser: WebDriver) {}
 // Placeholders from the 'Examples' table are passed as typed arguments to the step functions.
 #[when("a user enters username \"<username>\" and password \"<password>\"")]
 async fn enter_credentials(
-    #[from(browser)] driver: &mut WebDriver,
+    browser: &mut WebDriver,
     username: String,
     password: String,
 ) {
     //... implementation...
 }
 
+<<<<<<< HEAD
 #[then("the message \"<message>\" is shown")]
 async fn see_message(#[from(browser)] driver: &mut WebDriver, message: String) {
+||||||| parent of 2cd8b08 (Clarify implicit fixture docs)
+#[then("I should see the message \"<message>\"")]
+async fn see_message(#[from(browser)] driver: &mut WebDriver, message: String) {
+=======
+#[then("I should see the message \"<message>\"")]
+async fn see_message(browser: &mut WebDriver, message: String) {
+>>>>>>> 2cd8b08 (Clarify implicit fixture docs)
     //... assert message is visible...
 }
 ```
