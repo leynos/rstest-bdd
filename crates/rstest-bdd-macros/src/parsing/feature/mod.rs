@@ -30,6 +30,8 @@ impl PartialEq for ParsedStep {
     }
 }
 
+impl Eq for ParsedStep {}
+
 /// Name, steps, and optional examples extracted from a Gherkin scenario.
 pub(crate) struct ScenarioData {
     pub name: String,

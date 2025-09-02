@@ -39,8 +39,8 @@ pub(crate) fn register_step(keyword: StepKeyword, pattern: &syn::LitStr) {
 ///
 /// In strict mode, missing steps cause compilation to fail. In non-strict mode,
 /// the function emits warnings but allows compilation to continue so scenarios
-/// can reference steps from other crates. Ambiguous step definitions always
-/// produce an error.
+/// can reference steps from other crates. Ambiguous step definitions within
+/// this crate always produce an error.
 ///
 /// # Errors
 /// Returns a `syn::Error` when `strict` is `true` and a step lacks a matching
@@ -109,10 +109,14 @@ fn create_strict_mode_error(missing: &[(proc_macro2::Span, String)]) -> Result<(
 
 fn emit_non_strict_warnings(missing: &[(proc_macro2::Span, String)]) {
     for (span, msg) in missing {
-        let _ = span; // reserved for future spanned diagnostics
+        let loc = span.start();
         #[expect(clippy::print_stderr, reason = "proc_macro::Diagnostic is unstable")]
         {
-            eprintln!("warning: {msg} (will be checked at runtime)");
+            eprintln!(
+                "warning: {msg}\n  --> line {} column {}\n",
+                loc.line,
+                loc.column + 1
+            );
         }
     }
 }

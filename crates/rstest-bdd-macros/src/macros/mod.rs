@@ -35,13 +35,17 @@ fn step_attr(attr: TokenStream, item: TokenStream, keyword: crate::StepKeyword) 
                 crate::StepKeyword::And => "and",
                 crate::StepKeyword::But => "but",
             };
+            // `proc_macro::Diagnostic` is unstable on stable toolchains, so we
+            // emit a second error with guidance instead of a help-level note.
             let mut enriched = syn::Error::new(
                 err.span(),
                 format!("invalid step function signature: {err}"),
             );
             enriched.combine(syn::Error::new(
                 err.span(),
-                format!("use `#[{kw_name}] fn name(ctx: &StepContext, ...)` and valid fixtures"),
+                format!(
+                    "help: use `#[{kw_name}] fn name(ctx: &StepContext, ...)` and valid fixtures"
+                ),
             ));
             return error_to_tokens(&enriched).into();
         }

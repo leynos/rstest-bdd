@@ -28,6 +28,9 @@ builds on the excellent `rstest` fixture and parametrisation model:
 - **Pytest‑bdd vibes**: explicit `#[scenario]` binding from test code to a
   named scenario.
 
+  The attribute now requires a `path` argument pointing to the `.feature` file;
+  index-only usage is no longer supported.
+
 Think of it as *courgette‑driven* development: crisp, versatile, and it plays
 nicely with everything else on your plate.
 
@@ -57,6 +60,13 @@ Feature flags:
 
 - `strict-compile-time-validation` — fails compilation when steps are missing
   or ambiguous; implies `compile-time-validation`.
+
+Both features are disabled by default. Enable them with:
+
+```toml
+[dependencies]
+rstest-bdd-macros = { version = "0.1.0-alpha2", features = ["compile-time-validation"] }
+```
 
 ______________________________________________________________________
 

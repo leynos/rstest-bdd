@@ -1,3 +1,4 @@
+#![cfg_attr(docsrs, feature(doc_cfg))]
 //! Attribute macros enabling Behaviour-Driven testing with `rstest`.
 //!
 //! # Feature flags
@@ -5,6 +6,8 @@
 //!   spans for diagnostics.
 //! - `strict-compile-time-validation`: escalates missing or ambiguous steps to
 //!   compile errors; implies `compile-time-validation`.
+//!
+//! Both features are disabled by default.
 
 mod codegen;
 mod macros;
