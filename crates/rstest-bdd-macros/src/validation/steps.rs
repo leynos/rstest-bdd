@@ -244,7 +244,7 @@ mod tests {
     }
 
     #[rstest]
-    #[serial]
+    #[serial(step_registry)]
     fn validates_when_step_present() {
         registry_cleared();
         register_step(
@@ -262,7 +262,7 @@ mod tests {
     }
 
     #[rstest]
-    #[serial]
+    #[serial(step_registry)]
     fn errors_when_missing_step_in_strict_mode() {
         registry_cleared();
         let steps = [ParsedStep {
@@ -276,7 +276,7 @@ mod tests {
     }
 
     #[rstest]
-    #[serial]
+    #[serial(step_registry)]
     fn errors_when_step_ambiguous() {
         registry_cleared();
         let lit = syn::LitStr::new("a step", proc_macro2::Span::call_site());
@@ -297,7 +297,7 @@ mod tests {
     }
 
     #[rstest]
-    #[serial]
+    #[serial(step_registry)]
     fn ignores_steps_from_other_crates() {
         registry_cleared();
         REGISTERED

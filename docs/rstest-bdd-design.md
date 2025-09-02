@@ -499,21 +499,20 @@ The third option, link-time collection, is the only one that satisfies all
 design constraints. It preserves the standard `cargo test` workflow, avoids the
 fragility of build scripts, and allows for fully decoupled step definitions.
 
-To surface missing steps earlier, the macros crate now maintains a small
-compile-time registry. Each `#[given]`, `#[when]`, and `#[then]` invocation
-records its keyword and pattern in this registry. When `#[scenario]` expands it
-consults the registry and emits a `compile_error!` for any Gherkin step that
-lacks a matching definition or matches more than one. Because the registry only
-sees steps from the current compilation unit, each entry also stores the
-originating crate’s identifier so validation ignores steps from unrelated
-crates compiled in the same process. Scenarios that reference steps in other
-crates would otherwise fail to compile. To preserve cross‑crate workflows the
+To surface missing steps earlier, the macros crate now maintains a small,
+compile‑time registry, and each `#[given]`, `#[when]`, and `#[then]` invocation
+records its keyword and pattern there. When `#[scenario]` expands, it consults
+this registry and emits a `compile_error!` for any Gherkin step that lacks a
+unique definition. Because the registry only sees steps from the current
+compilation unit, each entry stores the originating crate’s identifier to avoid
+false positives from unrelated crates compiled in the same process. Scenarios
+that reference steps in other crates would otherwise fail to compile, so the
 crate defaults to a permissive mode that prints warnings for unknown steps.
-Enabling the `strict-compile-time-validation` feature restores the error on
-missing behaviour. The registry relies on the macros executing within the same
-compiler process and introduces a build-time dependency on the runtime crate to
-reuse its pattern-matching logic. This leads directly to the selection of the
-`inventory` crate as the architectural cornerstone.
+Enabling the `strict-compile-time-validation` feature turns those warnings into
+errors. The registry simply records metadata but reuses the runtime crate’s
+pattern‑matching logic during validation, introducing a build-time dependency.
+`inventory` is employed later for runtime, cross‑crate discovery and does not
+power this compile‑time registry.
 
 Because registration occurs as the compiler encounters each attribute, step
 definitions must appear earlier in a module than any `#[scenario]` that uses
@@ -1081,6 +1080,53 @@ functionality is implemented:
   `cargo bdd list-steps` could dump the entire registered step registry,
   helping developers find available steps and detect unused or duplicate
   definitions.
+
+  The implemented tool lives in a standalone `cargo-bdd` crate that acts as a
+  cargo subcommand. It queries the runtime step registry and exposes three
+  commands: `steps`, `unused`, and `duplicates`. Step usage is tracked in
+  memory and appended to `<target-dir>/.rstest-bdd-usage.json`, allowing
+  diagnostics to persist across binaries. Because `inventory` operates per
+  binary, the subcommand compiles each test target and executes it with
+  `RSTEST_BDD_DUMP_STEPS=1` and a private `--dump-steps` flag to stream the
+  registry as JSON. The tool merges these dumps so diagnostics cover the entire
+  workspace.
+
+  The sequence below illustrates the diagnostic workflow:
+
+```mermaid
+sequenceDiagram
+  autonumber
+  actor Dev as Developer
+  participant CB as cargo-bdd
+  participant CM as cargo (metadata/build)
+  participant TB as Test Binaries
+  participant FS as target/.rstest-bdd-usage.json
+
+  Dev->>CB: cargo bdd [steps|unused|duplicates]
+  CB->>CM: cargo metadata (detect test targets)
+  alt targets found
+    CB->>CM: cargo test --no-run --message-format=json
+    CM-->>CB: compiler-artifact JSON (paths to test binaries)
+    loop per test binary
+      CB->>TB: exec test-binary --dump-steps
+      TB->>FS: append usage (on step lookups)
+      TB-->>CB: stdout JSON (registered steps + usage flags)
+    end
+    CB->>CB: merge/aggregate steps
+    opt unused
+      CB->>CB: filter used==false
+    end
+    opt duplicates
+      CB->>CB: group by (keyword, pattern) size>1
+    end
+    CB-->>Dev: print diagnostics
+  else no targets
+    CB-->>Dev: no output / empty
+  end
+```
+
+  The usage file lives under the Cargo target directory and honours the
+  `CARGO_TARGET_DIR` environment variable.
 
 - **Teardown Hooks:** While `rstest` fixtures handle teardown via `Drop`, more
   explicit post-scenario cleanup, especially in the case of a step panic, could
