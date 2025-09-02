@@ -9,7 +9,7 @@ members = [
 
 [workspace.package]
 edition = "2024"
-version = "0.1.0-alpha2"
+version = "0.2.0-alpha1"
 rust-version = "1.85"
 license = "ISC"
 authors = ["Payton McIntosh <pmcintosh@df12.net>"]
@@ -36,10 +36,10 @@ serde_json = "1.0"
 cargo_metadata = "0.18"
 eyre = "0.6"
 ctor = "0.2"
-rstest-bdd = "0.1.0-alpha2"
-rstest-bdd-macros = "0.1.0-alpha2"
 log = "0.4"
 fs2 = "0.4"
+rstest-bdd = "0.2.0-alpha1"
+rstest-bdd-macros = "0.2.0-alpha1"
 
 [workspace.lints.clippy]
 pedantic = { level = "warn", priority = -1 }

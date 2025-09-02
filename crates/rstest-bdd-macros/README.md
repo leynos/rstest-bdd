@@ -53,7 +53,7 @@ Add the crates to your **dev‑dependencies**:
 # Cargo.toml
 [dev-dependencies]
 rstest = "0.25"
-rstest-bdd = "0.1.0-alpha2"
+rstest-bdd = "0.2.0-alpha1"
 ```
 
 Feature flags:
