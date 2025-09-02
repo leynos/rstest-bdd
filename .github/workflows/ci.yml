@@ -60,7 +60,7 @@ jobs:
 
       - name: Test (no coverage, with features)
         if: ${{ !matrix.coverage && matrix.features != null }}
-        run: cargo test --workspace --all-targets --no-default-features --features "${{ matrix.features }}" -- --test-threads=1
+        run: cargo test --workspace --all-targets --no-default-features --features "${{ matrix.features }}"
 
       - name: Test (no coverage, no features)
         if: ${{ !matrix.coverage && matrix.features == null }}

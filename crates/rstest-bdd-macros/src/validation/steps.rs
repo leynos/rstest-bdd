@@ -227,6 +227,11 @@ fn current_crate_id() -> String {
 
 #[cfg(test)]
 mod tests {
+    #![allow(
+        clippy::used_underscore_binding,
+        reason = "rstest fixtures require unused params"
+    )]
+
     use super::*;
     use rstest::rstest;
     use serial_test::serial;
@@ -238,10 +243,14 @@ mod tests {
             .clear();
     }
 
+    #[rstest::fixture]
+    fn registry_cleared() {
+        clear_registry();
+    }
+
     #[rstest]
     #[serial]
-    fn validates_when_step_present() {
-        clear_registry();
+    fn validates_when_step_present(_registry_cleared: ()) {
         register_step(
             StepKeyword::Given,
             &syn::LitStr::new("a step", proc_macro2::Span::call_site()),
@@ -258,8 +267,7 @@ mod tests {
 
     #[rstest]
     #[serial]
-    fn errors_when_missing_step_in_strict_mode() {
-        clear_registry();
+    fn errors_when_missing_step_in_strict_mode(_registry_cleared: ()) {
         let steps = [ParsedStep {
             keyword: StepKeyword::Given,
             text: "missing".to_string(),
@@ -272,8 +280,7 @@ mod tests {
 
     #[rstest]
     #[serial]
-    fn errors_when_step_ambiguous() {
-        clear_registry();
+    fn errors_when_step_ambiguous(_registry_cleared: ()) {
         let lit = syn::LitStr::new("a step", proc_macro2::Span::call_site());
         register_step(StepKeyword::Given, &lit);
         register_step(StepKeyword::Given, &lit);
@@ -293,8 +300,7 @@ mod tests {
 
     #[rstest]
     #[serial]
-    fn ignores_steps_from_other_crates() {
-        clear_registry();
+    fn ignores_steps_from_other_crates(_registry_cleared: ()) {
         REGISTERED
             .lock()
             .unwrap_or_else(|e| panic!("step registry poisoned: {e}"))
