@@ -27,24 +27,22 @@ pub(crate) struct ScenarioData {
 ///
 /// Uses the textual keyword when present to honour conjunctions
 /// (And/But). Falls back to the typed step when not a conjunction.
-impl TryFrom<&Step> for ParsedStep {
-    type Error = crate::step_keyword::UnsupportedStepType;
-
-    fn try_from(step: &Step) -> Result<Self, Self::Error> {
+impl From<&Step> for ParsedStep {
+    fn from(step: &Step) -> Self {
         // The Gherkin parser exposes both a textual keyword (e.g. "And") and a
         // typed variant (Given/When/Then). We prioritise the textual value so
         // that conjunctions are preserved and can be used to improve
         // diagnostics. Trimming avoids surprises from trailing spaces in
         // .feature files.
-        let keyword = crate::StepKeyword::try_from(step)?;
+        let keyword = crate::StepKeyword::from(step);
         let table = step.table.as_ref().map(|t| t.rows.clone());
         let docstring = step.docstring.clone();
-        Ok(Self {
+        Self {
             keyword,
             text: step.value.clone(),
             docstring,
             table,
-        })
+        }
     }
 }
 
@@ -120,10 +118,7 @@ pub(crate) fn extract_scenario_steps(
     let scenario_name = scenario.name.clone();
 
     let parse = |step: &Step| -> Result<ParsedStep, proc_macro2::TokenStream> {
-        ParsedStep::try_from(step).map_err(|e| {
-            let err = syn::Error::new(proc_macro2::Span::call_site(), e.to_string());
-            error_to_tokens(&err)
-        })
+        Ok(ParsedStep::from(step))
     };
 
     let mut steps = Vec::new();
