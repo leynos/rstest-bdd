@@ -4,10 +4,6 @@ use rstest::rstest;
 use rstest_bdd::{StepContext, StepError, StepKeyword};
 use rstest_bdd_macros::given;
 
-fn value() -> u32 {
-    unreachable!("fixture supplied via context")
-}
-
 #[given("a failing step")]
 fn failing_step() -> Result<(), String> {
     Err("boom".into())

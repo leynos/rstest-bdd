@@ -78,6 +78,9 @@ fn add_pumpkins(basket: &mut Basket, count: u32) {
 }
 ```
 
+Implicit fixtures such as `basket` must already be in scope in the test module;
+`#[from(name)]` only renames a fixture and does not create one.
+
 ### 2.2. Inferred Step Patterns
 
 **Goal:** Remove the need for an explicit pattern string in the step attribute

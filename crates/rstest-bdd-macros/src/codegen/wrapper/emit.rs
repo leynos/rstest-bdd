@@ -144,9 +144,7 @@ fn gen_fixture_decls(fixtures: &[FixtureArg], ident: &syn::Ident) -> Vec<TokenSt
                 quote! { .cloned() }
             };
             quote! {
-                #[allow(unused_variables)]
-                let _ = #name;
-                let #pat: #ty = ctx
+                                let #pat: #ty = ctx
                     .get::<#lookup_ty>(stringify!(#name))
                     #clone_suffix
                     .ok_or_else(|| #path::StepError::MissingFixture {
