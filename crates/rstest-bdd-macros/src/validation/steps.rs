@@ -245,9 +245,8 @@ mod tests {
 
     #[rstest]
     #[serial]
-    fn validates_when_step_present(
-        #[expect(unused, reason = "rstest fixture not referenced")] registry_cleared: (),
-    ) {
+    fn validates_when_step_present() {
+        registry_cleared();
         register_step(
             StepKeyword::Given,
             &syn::LitStr::new("a step", proc_macro2::Span::call_site()),
@@ -264,9 +263,8 @@ mod tests {
 
     #[rstest]
     #[serial]
-    fn errors_when_missing_step_in_strict_mode(
-        #[expect(unused, reason = "rstest fixture not referenced")] registry_cleared: (),
-    ) {
+    fn errors_when_missing_step_in_strict_mode() {
+        registry_cleared();
         let steps = [ParsedStep {
             keyword: StepKeyword::Given,
             text: "missing".to_string(),
@@ -279,9 +277,8 @@ mod tests {
 
     #[rstest]
     #[serial]
-    fn errors_when_step_ambiguous(
-        #[expect(unused, reason = "rstest fixture not referenced")] registry_cleared: (),
-    ) {
+    fn errors_when_step_ambiguous() {
+        registry_cleared();
         let lit = syn::LitStr::new("a step", proc_macro2::Span::call_site());
         register_step(StepKeyword::Given, &lit);
         register_step(StepKeyword::Given, &lit);
@@ -301,9 +298,8 @@ mod tests {
 
     #[rstest]
     #[serial]
-    fn ignores_steps_from_other_crates(
-        #[expect(unused, reason = "rstest fixture not referenced")] registry_cleared: (),
-    ) {
+    fn ignores_steps_from_other_crates() {
+        registry_cleared();
         REGISTERED
             .lock()
             .unwrap_or_else(|e| panic!("step registry poisoned: {e}"))
