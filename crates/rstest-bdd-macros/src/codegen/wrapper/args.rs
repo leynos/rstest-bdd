@@ -212,21 +212,23 @@ fn classify_datatable(
     ty: &syn::Type,
 ) -> syn::Result<bool> {
     let has_from = arg.attrs.iter().any(|a| a.path().is_ident("from"));
-    if !validate_datatable_constraints(st, arg, pat, ty)? {
-        return Ok(false);
-    }
-    if has_from {
+    let is_datatable = validate_datatable_constraints(st, arg, pat, ty)?;
+    if has_from && is_datatable {
         return Err(syn::Error::new_spanned(
             arg,
             "#[datatable] cannot be combined with #[from]",
         ));
     }
-    st.datatable = Some(DataTableArg {
-        pat: pat.clone(),
-        ty: ty.clone(),
-    });
-    st.call_order.push(CallArg::DataTable);
-    Ok(true)
+    if is_datatable {
+        st.datatable = Some(DataTableArg {
+            pat: pat.clone(),
+            ty: ty.clone(),
+        });
+        st.call_order.push(CallArg::DataTable);
+        Ok(true)
+    } else {
+        Ok(false)
+    }
 }
 fn is_valid_docstring_arg(st: &ExtractedArgs, pat: &syn::Ident, ty: &syn::Type) -> bool {
     st.docstring.is_none() && pat == "docstring" && is_string(ty)
