@@ -1250,6 +1250,26 @@ the fixture's. The macro generates a wrapper function taking a `StepContext`
 and registers this wrapper in the step registry. The wrapper retrieves the
 required fixtures from the context and calls the original step function.
 
+```mermaid
+sequenceDiagram
+    participant MacroExpander
+    participant StepFunction
+    participant PatternParser
+    participant ArgExtractor
+    participant ErrorReporter
+    MacroExpander->>PatternParser: Extract placeholder names from pattern
+    PatternParser-->>MacroExpander: Return set of placeholders
+    MacroExpander->>ArgExtractor: Pass function signature and placeholders
+    ArgExtractor->>StepFunction: Inspect parameters
+    ArgExtractor->>ArgExtractor: Classify parameters
+    Note over ArgExtractor: If parameter matches placeholder, classify as step arg
+    Note over ArgExtractor: If parameter does not match placeholder, classify as fixture
+    ArgExtractor->>ErrorReporter: Report missing placeholders or fixture errors
+    ErrorReporter-->>MacroExpander: Emit compile-time error if needed
+    ArgExtractor-->>MacroExpander: Return argument classification
+    MacroExpander->>StepFunction: Generate wrapper code with inferred fixtures
+```
+
 The `#[scenario]` macro populates a `StepContext` at runtime. It gathers all
 fixtures provided to the generated test function and inserts references into
 the context before executing each step via the registered wrapper. This
