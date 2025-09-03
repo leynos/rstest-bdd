@@ -1,4 +1,3 @@
-#![feature(proc_macro_diagnostic)]
 #![cfg_attr(docsrs, feature(doc_cfg))]
 //! Attribute macros enabling Behaviour-Driven testing with `rstest`.
 //!
@@ -17,26 +16,30 @@ mod step_keyword;
 mod utils;
 mod validation;
 
-
 pub(crate) use step_keyword::StepKeyword;
 
 use proc_macro::TokenStream;
+use proc_macro_error::proc_macro_error;
 
+#[proc_macro_error]
 #[proc_macro_attribute]
 pub fn given(attr: TokenStream, item: TokenStream) -> TokenStream {
     macros::given(attr, item)
 }
 
+#[proc_macro_error]
 #[proc_macro_attribute]
 pub fn when(attr: TokenStream, item: TokenStream) -> TokenStream {
     macros::when(attr, item)
 }
 
+#[proc_macro_error]
 #[proc_macro_attribute]
 pub fn then(attr: TokenStream, item: TokenStream) -> TokenStream {
     macros::then(attr, item)
 }
 
+#[proc_macro_error]
 #[proc_macro_attribute]
 pub fn scenario(attr: TokenStream, item: TokenStream) -> TokenStream {
     macros::scenario(attr, item)
@@ -68,6 +71,7 @@ pub fn scenario(attr: TokenStream, item: TokenStream) -> TokenStream {
 /// Errors:
 /// - Emits a compile error if the directory does not exist, contains no
 ///   `.feature` files, or if parsing fails.
+#[proc_macro_error]
 #[proc_macro]
 pub fn scenarios(input: TokenStream) -> TokenStream {
     macros::scenarios(input)

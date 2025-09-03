@@ -5,7 +5,11 @@ use std::path::{Path, PathBuf};
 
 use crate::parsing::examples::ExampleTable;
 use crate::utils::errors::error_to_tokens;
-use crate::validation::examples::validate_examples_in_feature_text;
+cfg_if::cfg_if! {
+    if #[cfg(feature = "compile-time-validation")] {
+        use crate::validation::examples::validate_examples_in_feature_text;
+    }
+}
 
 /// Step extracted from a scenario with optional arguments (data table and doc string).
 #[derive(Debug, Clone)]
@@ -131,30 +135,25 @@ fn validate_feature_file_exists(feature_path: &Path) -> Result<(), syn::Error> {
 
 /// Parse and load a feature file from the given path.
 ///
-/// Emits a compile-time error (as tokens) when:
-/// - `CARGO_MANIFEST_DIR` is not set (macro not running under Cargo),
-/// - the feature path does not exist, or
-/// - the feature path is not a regular file.
+/// Emits a compile-time error (as tokens) when the feature path does not exist
+/// or is not a regular file.
 ///
 /// On parse errors, attempts to surface validation diagnostics for Examples
 /// tables where possible.
 pub(crate) fn parse_and_load_feature(path: &Path) -> Result<Feature, proc_macro2::TokenStream> {
-    let Ok(manifest_dir) = std::env::var("CARGO_MANIFEST_DIR") else {
-        let err = syn::Error::new(
-            proc_macro2::Span::call_site(),
-            "CARGO_MANIFEST_DIR is not set. This variable is normally provided by Cargo. Ensure the macro runs within a Cargo build context.",
-        );
-        return Err(error_to_tokens(&err));
-    };
-    let feature_path = PathBuf::from(manifest_dir).join(path);
+    let feature_path = std::env::var("CARGO_MANIFEST_DIR")
+        .map_or_else(|_| PathBuf::from(path), |dir| PathBuf::from(dir).join(path));
     if let Err(err) = validate_feature_file_exists(&feature_path) {
         return Err(error_to_tokens(&err));
     }
 
     Feature::parse_path(&feature_path, GherkinEnv::default()).map_err(|err| {
-        if let Ok(text) = std::fs::read_to_string(&feature_path) {
-            if let Err(validation_err) = validate_examples_in_feature_text(&text) {
-                return validation_err;
+        #[cfg(feature = "compile-time-validation")]
+        {
+            if let Ok(text) = std::fs::read_to_string(&feature_path) {
+                if let Err(validation_err) = validate_examples_in_feature_text(&text) {
+                    return validation_err;
+                }
             }
         }
         let msg = format!("failed to parse feature file: {err}");
