@@ -11,7 +11,18 @@ use syn::parse_quote;
 // the internal module directly to exercise helper APIs.
 mod args_impl;
 
-use args_impl::{CallArg, extract_args};
+use args_impl::{CallArg, ExtractedArgs, extract_args};
+
+/// Helper for invoking `extract_args` with placeholder names.
+/// Consolidates repeated placeholder setup across tests.
+fn test_extract_args_scenario(
+    func_def: syn::ItemFn,
+    placeholders: Vec<&str>,
+) -> syn::Result<ExtractedArgs> {
+    let mut func = func_def;
+    let mut placeholder_set: HashSet<String> = placeholders.into_iter().map(String::from).collect();
+    extract_args(&mut func, &mut placeholder_set)
+}
 
 #[rstest]
 #[case(
@@ -176,12 +187,9 @@ fn datatable_attribute_removed_from_signature() {
 #[rstest]
 fn implicit_fixture_injected_without_from() {
     use CallArg::{Fixture, StepArg};
-    let mut func: syn::ItemFn = parse_quote! {
-        fn step(fixture: usize, count: u32) {}
-    };
-    let mut placeholders: HashSet<String> = ["count".into()].into_iter().collect();
+    let func = parse_quote! { fn step(fixture: usize, count: u32) {} };
     #[expect(clippy::expect_used, reason = "test asserts valid extraction")]
-    let args = extract_args(&mut func, &mut placeholders).expect("failed to extract args");
+    let args = test_extract_args_scenario(func, vec!["count"]).expect("failed to extract args");
     assert_eq!(args.fixtures.len(), 1);
     assert_eq!(args.step_args.len(), 1);
     assert!(matches!(&args.call_order[..], [Fixture(0), StepArg(0)]));
@@ -217,12 +225,9 @@ fn placeholders_named_like_reserved_args_are_step_args() {
 #[rstest]
 fn from_attribute_targets_placeholder() {
     use CallArg::StepArg;
-    let mut func: syn::ItemFn = parse_quote! {
-        fn step(#[from(count)] renamed: u32) {}
-    };
-    let mut placeholders: HashSet<String> = ["count".into()].into_iter().collect();
+    let func = parse_quote! { fn step(#[from(count)] renamed: u32) {} };
     #[expect(clippy::expect_used, reason = "test asserts classification")]
-    let args = extract_args(&mut func, &mut placeholders).expect("failed to extract args");
+    let args = test_extract_args_scenario(func, vec!["count"]).expect("failed to extract args");
     assert_eq!(args.fixtures.len(), 0);
     assert_eq!(args.step_args.len(), 1);
     assert!(matches!(&args.call_order[..], [StepArg(0)]));
