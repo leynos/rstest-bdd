@@ -72,7 +72,17 @@ fn collect_missing_steps(
     for step in steps {
         let resolved = resolve_conjunction_keyword(&mut prev, step.keyword);
         if let Some(msg) = has_matching_step_definition(reg, resolved, step)? {
-            missing.push((step.span, msg));
+            let span = {
+                #[cfg(feature = "compile-time-validation")]
+                {
+                    step.span
+                }
+                #[cfg(not(feature = "compile-time-validation"))]
+                {
+                    proc_macro2::Span::call_site()
+                }
+            };
+            missing.push((span, msg));
         }
     }
     Ok(missing)
@@ -190,7 +200,17 @@ fn format_ambiguous_step_error(matches: &[&RegisteredStep], step: &ParsedStep) -
         step.text,
         patterns.join(", ")
     );
-    syn::Error::new(step.span, msg)
+    let span = {
+        #[cfg(feature = "compile-time-validation")]
+        {
+            step.span
+        }
+        #[cfg(not(feature = "compile-time-validation"))]
+        {
+            proc_macro2::Span::call_site()
+        }
+    };
+    syn::Error::new(span, msg)
 }
 
 fn build_missing_step_message(
@@ -303,6 +323,7 @@ mod tests {
             text: "a step".to_string(),
             docstring: None,
             table: None,
+            #[cfg(feature = "compile-time-validation")]
             span: proc_macro2::Span::call_site(),
         }];
         assert!(validate_steps_exist(&steps, true).is_ok());
@@ -336,6 +357,7 @@ mod tests {
             text: "a step".to_string(),
             docstring: None,
             table: None,
+            #[cfg(feature = "compile-time-validation")]
             span: proc_macro2::Span::call_site(),
         }];
         let err = match validate_steps_exist(&steps, false) {
@@ -363,6 +385,7 @@ mod tests {
             text: "a step".to_string(),
             docstring: None,
             table: None,
+            #[cfg(feature = "compile-time-validation")]
             span: proc_macro2::Span::call_site(),
         }];
         assert!(validate_steps_exist(&steps, true).is_err());

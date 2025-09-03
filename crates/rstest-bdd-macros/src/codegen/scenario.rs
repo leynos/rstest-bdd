@@ -282,6 +282,8 @@ mod tests {
             text: String::new(),
             docstring: None,
             table: None,
+            #[cfg(feature = "compile-time-validation")]
+            span: proc_macro2::Span::call_site(),
         }
     }
 

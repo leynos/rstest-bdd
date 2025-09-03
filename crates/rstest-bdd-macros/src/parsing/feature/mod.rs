@@ -1,6 +1,6 @@
 //! Feature file loading and scenario extraction.
 
-use gherkin::{Feature, GherkinEnv, Step};
+use gherkin::{Feature, GherkinEnv, Step, StepType};
 use std::path::{Path, PathBuf};
 
 use crate::parsing::examples::ExampleTable;
@@ -49,6 +49,7 @@ pub(crate) struct ScenarioData {
 /// Conjunction keywords such as "And" and "But" inherit the semantic
 /// meaning of the preceding step but remain distinct for later resolution.
 /// Matching is case-insensitive to tolerate unusual source casing.
+#[cfg_attr(not(test), allow(dead_code))]
 pub(crate) fn parse_step_keyword(kw: &str, ty: StepType) -> crate::StepKeyword {
     let lower = kw.trim().to_ascii_lowercase();
     if lower == "and" {
@@ -65,12 +66,14 @@ pub(crate) fn parse_step_keyword(kw: &str, ty: StepType) -> crate::StepKeyword {
 }
 
 /// Return `true` if the keyword is a connective such as "And" or "But".
+#[cfg(feature = "compile-time-validation")]
 pub(crate) fn is_conjunction_keyword(kw: crate::StepKeyword) -> bool {
     matches!(kw, crate::StepKeyword::And | crate::StepKeyword::But)
 }
 
 /// Replace "And"/"But" with the previous keyword, falling back to itself when
 /// no previous step exists.
+#[cfg(feature = "compile-time-validation")]
 pub(crate) fn resolve_conjunction_keyword(
     prev: &mut Option<crate::StepKeyword>,
     kw: crate::StepKeyword,

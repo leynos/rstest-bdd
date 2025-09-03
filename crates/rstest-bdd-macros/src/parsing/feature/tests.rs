@@ -365,12 +365,16 @@ fn parses_step_keyword_variants(
             text: "first".into(),
             docstring: None,
             table: None,
+            #[cfg(feature = "compile-time-validation")]
+            span: proc_macro2::Span::call_site(),
         },
         ParsedStep {
             keyword: crate::StepKeyword::Then,
             text: "result".into(),
             docstring: None,
             table: None,
+            #[cfg(feature = "compile-time-validation")]
+            span: proc_macro2::Span::call_site(),
         },
     ],
     None
@@ -395,24 +399,32 @@ fn parses_step_keyword_variants(
             text: "start".into(),
             docstring: None,
             table: None,
+            #[cfg(feature = "compile-time-validation")]
+            span: proc_macro2::Span::call_site(),
         },
         ParsedStep {
             keyword: crate::StepKeyword::And,
             text: "cont".into(),
             docstring: None,
             table: None,
+            #[cfg(feature = "compile-time-validation")]
+            span: proc_macro2::Span::call_site(),
         },
         ParsedStep {
             keyword: crate::StepKeyword::But,
             text: "neg".into(),
             docstring: None,
             table: None,
+            #[cfg(feature = "compile-time-validation")]
+            span: proc_macro2::Span::call_site(),
         },
         ParsedStep {
             keyword: crate::StepKeyword::Then,
             text: "end".into(),
             docstring: None,
             table: None,
+            #[cfg(feature = "compile-time-validation")]
+            span: proc_macro2::Span::call_site(),
         },
     ],
     None

@@ -159,7 +159,7 @@ fn canonical_feature_path(path: &Path) -> String {
 fn validate_steps_compile_time(
     steps: &[crate::parsing::feature::ParsedStep],
 ) -> Option<TokenStream> {
-    let res = {
+    let res: Result<(), syn::Error> = {
         cfg_if! {
             if #[cfg(feature = "strict-compile-time-validation")] {
                 crate::validation::steps::validate_steps_exist(steps, true)
@@ -171,9 +171,9 @@ fn validate_steps_compile_time(
             }
         }
     };
-    res.err().map(|e| e.into_compile_error().into())
+    res.err()
+        .map(|e| proc_macro::TokenStream::from(e.into_compile_error()))
 }
-
 
 #[cfg(test)]
 mod tests {
