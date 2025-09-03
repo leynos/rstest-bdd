@@ -123,8 +123,7 @@ use thirtyfour::prelude::*;
 #[fixture]
 async fn browser() -> WebDriverResult<WebDriver> {
     let caps = DesiredCapabilities::firefox();
-    let browser = WebDriver::new("http://localhost:4444", caps).await?;
-    Ok(browser)
+    Ok(WebDriver::new("http://localhost:4444", caps).await?)
 }
 
 // Bind this test to the named scenario from the feature file.
@@ -158,8 +157,10 @@ async fn results_page_is_displayed(browser: &mut WebDriver) -> WebDriverResult<(
 #[then("the results contain \"(.*)\"")]
 async fn results_contain_text(browser: &mut WebDriver, text: String) -> WebDriverResult<()> {
     let content = browser.source().await?;
-    assert!(content.contains(&text), "Result text not found in page source.");
-    Ok(())
+    if content.contains(&text) { Ok(()) }
+    else { Err(thirtyfour::error::WebDriverError::CustomError(
+        format!("Result text not found: expected substring '{text}'")
+    )) }
 }
 ```
 
@@ -238,18 +239,20 @@ Scenario Outline: Login with different credentials
 async fn test_login_scenarios(#[future] browser: WebDriver) {}
 
 // Placeholders from <angle brackets> arrive as typed arguments.
-#[when("I enter username \"<username>\" and password \"<password>\"")]
+#[when("I enter username {username} and password {password}")]
 async fn enter_credentials(
     browser: &mut WebDriver,
     username: String,
     password: String,
-) {
+) -> WebDriverResult<()> {
     // ...
+    Ok(())
 }
 
-#[then("I should see the message \"<message>\"")]
-async fn see_message(browser: &mut WebDriver, message: String) {
+#[then("I should see the message {message}")]
+async fn see_message(browser: &mut WebDriver, message: String) -> WebDriverResult<()> {
     // ...
+    Ok(())
 }
 ```
 

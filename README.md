@@ -114,8 +114,7 @@ use thirtyfour::prelude::*;
 #[fixture]
 async fn browser() -> WebDriverResult<WebDriver> {
     let caps = DesiredCapabilities::firefox();
-    let browser = WebDriver::new("http://localhost:4444", caps).await?;
-    Ok(browser)
+    Ok(WebDriver::new("http://localhost:4444", caps).await?)
 }
 
 // Bind this test to the named scenario from the feature file.
@@ -149,8 +148,10 @@ async fn results_page_is_displayed(browser: &mut WebDriver) -> WebDriverResult<(
 #[then("the results contain \"(.*)\"")]
 async fn results_contain_text(browser: &mut WebDriver, text: String) -> WebDriverResult<()> {
     let content = browser.source().await?;
-    assert!(content.contains(&text), "Result text not found in page source.");
-    Ok(())
+    if content.contains(&text) { Ok(()) }
+    else { Err(thirtyfour::error::WebDriverError::CustomError(
+        format!("Result text not found: expected substring '{text}'")
+    )) }
 }
 ```
 

@@ -90,7 +90,7 @@ fn parse_placeholder_name(bytes: &[u8], mut j: usize) -> Result<usize> {
     if !is_valid_name_start(first) {
         return Err(syn::Error::new(
             proc_macro2::Span::call_site(),
-            "unmatched '{' in step pattern",
+            "invalid placeholder name start (expected ASCII letter or '_')",
         ));
     }
     j += 1;
@@ -178,7 +178,7 @@ fn validate_closing_brace(bytes: &[u8], j: usize) -> Result<()> {
 /// assert!(!is_valid_name_start(b'1'));
 /// ```
 fn is_valid_name_start(b: u8) -> bool {
-    // Mirrors Rust's identifier start rules.
+    // ASCII-only: start must be a letter or underscore.
     b.is_ascii_alphabetic() || b == b'_'
 }
 

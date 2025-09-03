@@ -100,9 +100,8 @@ use thirtyfour::prelude::*;
 #[fixture]
 async fn browser() -> WebDriverResult<WebDriver> {
     let caps = DesiredCapabilities::firefox();
-    let browser = WebDriver::new("http://localhost:4444", caps).await?;
     // The fixture yields the browser to the test, and will handle cleanup after.
-    Ok(browser)
+    Ok(WebDriver::new("http://localhost:4444", caps).await?)
 }
 
 // The #[scenario] macro binds this test function to a specific scenario.
@@ -143,8 +142,10 @@ async fn results_page_is_displayed(browser: &mut WebDriver) -> WebDriverResult<(
 #[then("the results contain \"(.*)\"")]
 async fn results_contain_text(browser: &mut WebDriver, text: String) -> WebDriverResult<()> {
     let content = browser.source().await?;
-    assert!(content.contains(&text), "Result text not found in page source.");
-    Ok(())
+    if content.contains(&text) { Ok(()) }
+    else { Err(thirtyfour::error::WebDriverError::CustomError(
+        format!("Result text not found: expected substring '{text}'")
+    )) }
 }
 ```
 
@@ -206,15 +207,23 @@ Feature: User Login
 async fn test_login_scenarios(#[future] browser: WebDriver) {}
 
 // Placeholders from the 'Examples' table are passed as typed arguments to the step functions.
+<<<<<<< HEAD
 #[when("a user enters username \"<username>\" and password \"<password>\"")]
+||||||| parent of 4aac498 (Handle placeholder edge cases)
+#[when("I enter username \"<username>\" and password \"<password>\"")]
+=======
+#[when("I enter username {username} and password {password}")]
+>>>>>>> 4aac498 (Handle placeholder edge cases)
 async fn enter_credentials(
     browser: &mut WebDriver,
     username: String,
     password: String,
-) {
+) -> WebDriverResult<()> {
     //... implementation...
+    Ok(())
 }
 
+<<<<<<< HEAD
 <<<<<<< HEAD
 #[then("the message \"<message>\" is shown")]
 async fn see_message(#[from(browser)] driver: &mut WebDriver, message: String) {
@@ -225,7 +234,15 @@ async fn see_message(#[from(browser)] driver: &mut WebDriver, message: String) {
 #[then("I should see the message \"<message>\"")]
 async fn see_message(browser: &mut WebDriver, message: String) {
 >>>>>>> 2cd8b08 (Clarify implicit fixture docs)
+||||||| parent of 4aac498 (Handle placeholder edge cases)
+#[then("I should see the message \"<message>\"")]
+async fn see_message(browser: &mut WebDriver, message: String) {
+=======
+#[then("I should see the message {message}")]
+async fn see_message(browser: &mut WebDriver, message: String) -> WebDriverResult<()> {
+>>>>>>> 4aac498 (Handle placeholder edge cases)
     //... assert message is visible...
+    Ok(())
 }
 ```
 

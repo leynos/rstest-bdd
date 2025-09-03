@@ -175,6 +175,7 @@ fn datatable_attribute_removed_from_signature() {
 
 #[rstest]
 fn implicit_fixture_injected_without_from() {
+    use CallArg::{Fixture, StepArg};
     let mut func: syn::ItemFn = parse_quote! {
         fn step(fixture: usize, count: u32) {}
     };
@@ -183,6 +184,7 @@ fn implicit_fixture_injected_without_from() {
     let args = extract_args(&mut func, &mut placeholders).expect("failed to extract args");
     assert_eq!(args.fixtures.len(), 1);
     assert_eq!(args.step_args.len(), 1);
+    assert!(matches!(&args.call_order[..], [Fixture(0), StepArg(0)]));
 }
 
 #[rstest]
@@ -195,4 +197,33 @@ fn error_when_placeholder_missing_parameter() {
     let err = extract_args(&mut func, &mut placeholders).expect_err("missing placeholder");
     let msg = err.to_string();
     assert!(msg.contains("count"), "unexpected error: {msg}");
+}
+
+#[rstest]
+fn placeholders_named_like_reserved_args_are_step_args() {
+    let mut func: syn::ItemFn = parse_quote! {
+        fn step(datatable: Vec<Vec<String>>, docstring: String) {}
+    };
+    let mut placeholders: HashSet<String> = ["datatable".into(), "docstring".into()]
+        .into_iter()
+        .collect();
+    #[expect(clippy::expect_used, reason = "test asserts classification")]
+    let args = extract_args(&mut func, &mut placeholders).expect("failed to extract args");
+    assert_eq!(args.step_args.len(), 2);
+    assert!(args.datatable.is_none());
+    assert!(args.docstring.is_none());
+}
+
+#[rstest]
+fn from_attribute_targets_placeholder() {
+    use CallArg::StepArg;
+    let mut func: syn::ItemFn = parse_quote! {
+        fn step(#[from(count)] renamed: u32) {}
+    };
+    let mut placeholders: HashSet<String> = ["count".into()].into_iter().collect();
+    #[expect(clippy::expect_used, reason = "test asserts classification")]
+    let args = extract_args(&mut func, &mut placeholders).expect("failed to extract args");
+    assert_eq!(args.fixtures.len(), 0);
+    assert_eq!(args.step_args.len(), 1);
+    assert!(matches!(&args.call_order[..], [StepArg(0)]));
 }

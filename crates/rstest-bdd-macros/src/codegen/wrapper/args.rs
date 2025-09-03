@@ -281,7 +281,8 @@ fn classify_fixture_or_step(
         }
     });
 
-    if from_name.is_none() && placeholders.remove(&pat.to_string()) {
+    let target = from_name.clone().unwrap_or_else(|| pat.clone());
+    if placeholders.remove(&target.to_string()) {
         let idx = st.step_args.len();
         st.step_args.push(StepArg {
             pat: pat.clone(),
@@ -353,6 +354,15 @@ pub fn extract_args(
         };
         let pat = pat_ident.ident.clone();
         let ty = (*arg.ty).clone();
+        let pat_str = pat.to_string();
+        if placeholders.contains(&pat_str) {
+            let info = ParamInfo {
+                pat: pat.clone(),
+                ty: ty.clone(),
+            };
+            classify_fixture_or_step(&mut state, arg, info, placeholders);
+            continue;
+        }
         if classify_datatable(&mut state, arg, &pat, &ty)? {
             continue;
         }
