@@ -168,18 +168,21 @@ fn assert_feature_extraction(
             text: "a background step".to_string(),
             docstring: None,
             table: None,
+            span: proc_macro2::Span::call_site(),
         },
         ParsedStep {
             keyword: crate::StepKeyword::When,
             text: "an action".to_string(),
             docstring: None,
             table: None,
+            span: proc_macro2::Span::call_site(),
         },
         ParsedStep {
             keyword: crate::StepKeyword::Then,
             text: "a result".to_string(),
             docstring: None,
             table: None,
+            span: proc_macro2::Span::call_site(),
         },
     ],
     None
@@ -201,6 +204,7 @@ fn assert_feature_extraction(
             vec!["1".to_string(), "2".to_string()],
             vec!["3".to_string(), "4".to_string()],
         ]),
+        span: proc_macro2::Span::call_site(),
     }],
     None
 )]
@@ -218,6 +222,7 @@ fn assert_feature_extraction(
         text: "text".to_string(),
         docstring: Some("line1\nline2".to_string()),
         table: None,
+        span: proc_macro2::Span::call_site(),
     }],
     None
 )]
@@ -238,12 +243,14 @@ fn assert_feature_extraction(
             text: "setup".to_string(),
             docstring: Some("bg line1\nbg line2".to_string()),
             table: None,
+            span: proc_macro2::Span::call_site(),
         },
         ParsedStep {
             keyword: crate::StepKeyword::When,
             text: "an action".to_string(),
             docstring: None,
             table: None,
+            span: proc_macro2::Span::call_site(),
         },
     ],
     None
@@ -267,18 +274,21 @@ fn assert_feature_extraction(
             text: "first".into(),
             docstring: None,
             table: None,
+            span: proc_macro2::Span::call_site(),
         },
         ParsedStep {
             keyword: crate::StepKeyword::And,
             text: "second".into(),
             docstring: None,
             table: None,
+            span: proc_macro2::Span::call_site(),
         },
         ParsedStep {
             keyword: crate::StepKeyword::But,
             text: "negated".into(),
             docstring: None,
             table: None,
+            span: proc_macro2::Span::call_site(),
         },
     ],
     None
@@ -299,12 +309,14 @@ fn assert_feature_extraction(
             text: "first".into(),
             docstring: None,
             table: None,
+            span: proc_macro2::Span::call_site(),
         },
         ParsedStep {
             keyword: crate::StepKeyword::Then,
             text: "result".into(),
             docstring: None,
             table: None,
+            span: proc_macro2::Span::call_site(),
         },
     ],
     None

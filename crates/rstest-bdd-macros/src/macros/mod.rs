@@ -1,6 +1,7 @@
 //! Attribute macro implementations.
 
 use proc_macro::TokenStream;
+use quote::quote;
 
 mod given;
 mod scenario;
@@ -15,10 +16,11 @@ pub(crate) use then::then;
 pub(crate) use when::when;
 
 use crate::codegen::wrapper::{WrapperConfig, extract_args, generate_wrapper_code};
-use crate::utils::errors::error_to_tokens;
 
 fn step_attr(attr: TokenStream, item: TokenStream, keyword: crate::StepKeyword) -> TokenStream {
     let pattern = syn::parse_macro_input!(attr as syn::LitStr);
+    #[cfg(feature = "compile-time-validation")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "compile-time-validation")))]
     crate::validation::steps::register_step(keyword, &pattern);
     let mut func = syn::parse_macro_input!(item as syn::ItemFn);
 
@@ -32,13 +34,10 @@ fn step_attr(attr: TokenStream, item: TokenStream, keyword: crate::StepKeyword) 
                 crate::StepKeyword::And => "and",
                 crate::StepKeyword::But => "but",
             };
-            let enriched = syn::Error::new(
-                err.span(),
-                format!(
-                    "invalid step function signature: {err}. help: use `#[{kw_name}] fn name(ctx: &StepContext, ...)` and valid fixtures.",
-                ),
+            let help = format!(
+                "use `#[{kw_name}] fn name(ctx: &rstest_bdd::StepContext, ...)` and valid fixtures"
             );
-            return error_to_tokens(&enriched).into();
+            proc_macro_error::abort!(err.span(), "invalid step function signature: {}", err; help = help);
         }
     };
 
@@ -56,7 +55,7 @@ fn step_attr(attr: TokenStream, item: TokenStream, keyword: crate::StepKeyword) 
     };
     let wrapper_code = generate_wrapper_code(&config);
 
-    TokenStream::from(quote::quote! {
+    TokenStream::from(quote! {
         #func
         #wrapper_code
     })

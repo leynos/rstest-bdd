@@ -5,22 +5,82 @@ use std::path::{Path, PathBuf};
 
 use crate::parsing::examples::ExampleTable;
 use crate::utils::errors::error_to_tokens;
-use crate::validation::examples::validate_examples_in_feature_text;
+cfg_if::cfg_if! {
+    if #[cfg(feature = "compile-time-validation")] {
+        use crate::validation::examples::validate_examples_in_feature_text;
+    }
+}
 
 /// Step extracted from a scenario with optional arguments (data table and doc string).
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone)]
 pub(crate) struct ParsedStep {
     pub keyword: crate::StepKeyword,
     pub text: String,
     pub docstring: Option<String>,
     pub table: Option<Vec<Vec<String>>>,
+    #[cfg(feature = "compile-time-validation")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "compile-time-validation")))]
+    /// Approximate span for diagnostics.
+    pub(crate) span: proc_macro2::Span,
 }
+
+// Equality intentionally ignores `span` as spans vary between compilations.
+// Compare only semantic fields to keep tests stable; update if new fields are added.
+impl PartialEq for ParsedStep {
+    fn eq(&self, other: &Self) -> bool {
+        self.keyword == other.keyword
+            && self.text == other.text
+            && self.docstring == other.docstring
+            && self.table == other.table
+    }
+}
+
+impl Eq for ParsedStep {}
 
 /// Name, steps, and optional examples extracted from a Gherkin scenario.
 pub(crate) struct ScenarioData {
     pub name: String,
     pub steps: Vec<ParsedStep>,
     pub(crate) examples: Option<ExampleTable>,
+}
+
+/// Map a textual step keyword and `StepType` to a `StepKeyword`.
+///
+/// Conjunction keywords such as "And" and "But" inherit the semantic
+/// meaning of the preceding step but remain distinct for later resolution.
+/// Matching is case-insensitive to tolerate unusual source casing.
+pub(crate) fn parse_step_keyword(kw: &str, ty: StepType) -> crate::StepKeyword {
+    let lower = kw.trim().to_ascii_lowercase();
+    if lower == "and" {
+        return crate::StepKeyword::And;
+    }
+    if lower == "but" {
+        return crate::StepKeyword::But;
+    }
+    match ty {
+        StepType::Given => crate::StepKeyword::Given,
+        StepType::When => crate::StepKeyword::When,
+        StepType::Then => crate::StepKeyword::Then,
+    }
+}
+
+/// Return `true` if the keyword is a connective such as "And" or "But".
+pub(crate) fn is_conjunction_keyword(kw: crate::StepKeyword) -> bool {
+    matches!(kw, crate::StepKeyword::And | crate::StepKeyword::But)
+}
+
+/// Replace "And"/"But" with the previous keyword, falling back to itself when
+/// no previous step exists.
+pub(crate) fn resolve_conjunction_keyword(
+    prev: &mut Option<crate::StepKeyword>,
+    kw: crate::StepKeyword,
+) -> crate::StepKeyword {
+    if is_conjunction_keyword(kw) {
+        prev.unwrap_or(kw)
+    } else {
+        *prev = Some(kw);
+        kw
+    }
 }
 
 /// Convert a Gherkin step to a `ParsedStep`.
@@ -42,6 +102,8 @@ impl From<&Step> for ParsedStep {
             text: step.value.clone(),
             docstring,
             table,
+            #[cfg(feature = "compile-time-validation")]
+            span: proc_macro2::Span::call_site(),
         }
     }
 }
@@ -71,30 +133,25 @@ fn validate_feature_file_exists(feature_path: &Path) -> Result<(), syn::Error> {
 
 /// Parse and load a feature file from the given path.
 ///
-/// Emits a compile-time error (as tokens) when:
-/// - `CARGO_MANIFEST_DIR` is not set (macro not running under Cargo),
-/// - the feature path does not exist, or
-/// - the feature path is not a regular file.
+/// Emits a compile-time error (as tokens) when the feature path does not exist
+/// or is not a regular file.
 ///
 /// On parse errors, attempts to surface validation diagnostics for Examples
 /// tables where possible.
 pub(crate) fn parse_and_load_feature(path: &Path) -> Result<Feature, proc_macro2::TokenStream> {
-    let Ok(manifest_dir) = std::env::var("CARGO_MANIFEST_DIR") else {
-        let err = syn::Error::new(
-            proc_macro2::Span::call_site(),
-            "CARGO_MANIFEST_DIR is not set. This variable is normally provided by Cargo. Ensure the macro runs within a Cargo build context.",
-        );
-        return Err(error_to_tokens(&err));
-    };
-    let feature_path = PathBuf::from(manifest_dir).join(path);
+    let feature_path = std::env::var("CARGO_MANIFEST_DIR")
+        .map_or_else(|_| PathBuf::from(path), |dir| PathBuf::from(dir).join(path));
     if let Err(err) = validate_feature_file_exists(&feature_path) {
         return Err(error_to_tokens(&err));
     }
 
     Feature::parse_path(&feature_path, GherkinEnv::default()).map_err(|err| {
-        if let Ok(text) = std::fs::read_to_string(&feature_path) {
-            if let Err(validation_err) = validate_examples_in_feature_text(&text) {
-                return validation_err;
+        #[cfg(feature = "compile-time-validation")]
+        {
+            if let Ok(text) = std::fs::read_to_string(&feature_path) {
+                if let Err(validation_err) = validate_examples_in_feature_text(&text) {
+                    return validation_err;
+                }
             }
         }
         let msg = format!("failed to parse feature file: {err}");

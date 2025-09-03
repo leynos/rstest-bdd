@@ -39,8 +39,8 @@ pub(crate) fn register_step(keyword: StepKeyword, pattern: &syn::LitStr) {
 ///
 /// In strict mode, missing steps cause compilation to fail. In non-strict mode,
 /// the function emits warnings but allows compilation to continue so scenarios
-/// can reference steps from other crates. Ambiguous step definitions always
-/// produce an error.
+/// can reference steps from other crates. Ambiguous step definitions within
+/// this crate always produce an error.
 ///
 /// # Errors
 /// Returns a `syn::Error` when `strict` is `true` and a step lacks a matching
@@ -56,50 +56,67 @@ pub(crate) fn validate_steps_exist(steps: &[ParsedStep], strict: bool) -> Result
         .cloned()
         .collect();
     let missing = collect_missing_steps(&scoped, steps)?;
-    handle_validation_result(missing, strict)
+    handle_validation_result(&missing, strict)
 }
 
 fn collect_missing_steps(
     reg: &[RegisteredStep],
     steps: &[ParsedStep],
-) -> Result<Vec<String>, syn::Error> {
+) -> Result<Vec<(proc_macro2::Span, String)>, syn::Error> {
     let mut prev = None;
     let mut missing = Vec::new();
     for step in steps {
         let resolved = step.keyword.resolve(&mut prev);
         if let Some(msg) = has_matching_step_definition(reg, resolved, step)? {
-            missing.push(msg);
+            missing.push((step.span, msg));
         }
     }
     Ok(missing)
 }
 
-fn handle_validation_result(missing: Vec<String>, strict: bool) -> Result<(), syn::Error> {
+fn handle_validation_result(
+    missing: &[(proc_macro2::Span, String)],
+    strict: bool,
+) -> Result<(), syn::Error> {
     if missing.is_empty() {
         return Ok(());
     }
 
     if strict {
-        create_strict_mode_error(&missing)
+        create_strict_mode_error(missing)
     } else {
         emit_non_strict_warnings(missing);
         Ok(())
     }
 }
 
-fn create_strict_mode_error(missing: &[String]) -> Result<(), syn::Error> {
+fn create_strict_mode_error(missing: &[(proc_macro2::Span, String)]) -> Result<(), syn::Error> {
     let msg = match missing {
-        [only] => only.clone(),
-        _ => missing.join("\n"),
+        [(span, only)] => {
+            return Err(syn::Error::new(*span, only.clone()));
+        }
+        _ => missing
+            .iter()
+            .map(|(_, m)| m.clone())
+            .collect::<Vec<_>>()
+            .join("\n"),
     };
-    Err(syn::Error::new(proc_macro2::Span::call_site(), msg))
+    let span = missing
+        .first()
+        .map_or_else(proc_macro2::Span::call_site, |(s, _)| *s);
+    Err(syn::Error::new(span, msg))
 }
 
-fn emit_non_strict_warnings(missing: Vec<String>) {
-    for msg in missing {
+fn emit_non_strict_warnings(missing: &[(proc_macro2::Span, String)]) {
+    for (span, msg) in missing {
+        let loc = span.start();
         #[expect(clippy::print_stderr, reason = "proc_macro::Diagnostic is unstable")]
         {
-            eprintln!("warning: {msg} (will be checked at runtime)");
+            eprintln!(
+                "[rstest-bdd][non-strict] {msg}\n  --> line {} column {}\n",
+                loc.line,
+                loc.column + 1
+            );
         }
     }
 }
@@ -161,7 +178,7 @@ fn format_ambiguous_step_error(matches: &[&RegisteredStep], step: &ParsedStep) -
         step.text,
         patterns.join(", ")
     );
-    syn::Error::new(proc_macro2::Span::call_site(), msg)
+    syn::Error::new(step.span, msg)
 }
 
 fn build_missing_step_message(
@@ -255,13 +272,14 @@ mod tests {
             .clear();
     }
 
-    #[rstest::fixture]
+    #[rstest]
+    #[serial]
     fn registry_cleared() {
         clear_registry();
     }
 
     #[rstest]
-    #[serial(step_registry)]
+    #[serial]
     fn validates_when_step_present() {
         registry_cleared();
         register_step(
@@ -273,13 +291,14 @@ mod tests {
             text: "a step".to_string(),
             docstring: None,
             table: None,
+            span: proc_macro2::Span::call_site(),
         }];
         assert!(validate_steps_exist(&steps, true).is_ok());
         assert!(validate_steps_exist(&steps, false).is_ok());
     }
 
     #[rstest]
-    #[serial(step_registry)]
+    #[serial]
     fn errors_when_missing_step_in_strict_mode() {
         registry_cleared();
         let steps = [ParsedStep {
@@ -287,13 +306,14 @@ mod tests {
             text: "missing".to_string(),
             docstring: None,
             table: None,
+            span: proc_macro2::Span::call_site(),
         }];
         assert!(validate_steps_exist(&steps, true).is_err());
         assert!(validate_steps_exist(&steps, false).is_ok());
     }
 
     #[rstest]
-    #[serial(step_registry)]
+    #[serial]
     fn errors_when_step_ambiguous() {
         registry_cleared();
         let lit = syn::LitStr::new("a step", proc_macro2::Span::call_site());
@@ -304,6 +324,7 @@ mod tests {
             text: "a step".to_string(),
             docstring: None,
             table: None,
+            span: proc_macro2::Span::call_site(),
         }];
         let err = match validate_steps_exist(&steps, false) {
             Err(e) => e.to_string(),
@@ -314,7 +335,7 @@ mod tests {
     }
 
     #[rstest]
-    #[serial(step_registry)]
+    #[serial]
     fn ignores_steps_from_other_crates() {
         registry_cleared();
         REGISTERED
@@ -330,6 +351,7 @@ mod tests {
             text: "a step".to_string(),
             docstring: None,
             table: None,
+            span: proc_macro2::Span::call_site(),
         }];
         assert!(validate_steps_exist(&steps, true).is_err());
         assert!(validate_steps_exist(&steps, false).is_ok());

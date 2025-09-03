@@ -81,7 +81,14 @@ fn generate_table_tokens(table: Option<&[Vec<String>]>) -> TokenStream2 {
 /// ```rust,ignore
 /// use crate::StepKeyword;
 /// use crate::parsing::feature::ParsedStep;
-/// let steps = vec![ParsedStep { keyword: StepKeyword::Given, text: "x".into(), table: None }];
+/// // Note: `span` is available only with the `compile-time-validation` feature.
+/// let steps = vec![ParsedStep {
+///     keyword: StepKeyword::Given,
+///     text: "x".into(),
+///     docstring: None,
+///     table: None,
+///     span: proc_macro2::Span::call_site(),
+/// }];
 /// let (k, v, t) = process_steps(&steps);
 /// assert_eq!(v.len(), 1);
 /// ```

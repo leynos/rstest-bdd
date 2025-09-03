@@ -514,6 +514,46 @@ pattern‑matching logic during validation, introducing a build-time dependency.
 `inventory` is employed later for runtime, cross‑crate discovery and does not
 power this compile‑time registry.
 
+The following sequence diagram illustrates the feature-gated step registration
+and scenario validation flow:
+
+```mermaid
+sequenceDiagram
+  autonumber
+  actor Dev as Developer
+  participant Attr as Step attribute macro
+  participant Reg as validation::steps (gated)
+  participant Scen as Scenario macro
+
+  rect rgba(240,248,255,0.6)
+    note over Attr: Step attribute expansion
+    Dev->>Attr: define step fn(pattern)
+    alt feature compile-time-validation
+      Attr->>Reg: register_step(keyword, pattern)
+      Reg-->>Attr: Ok
+    else no feature
+      Attr--xReg: registration code not compiled
+    end
+  end
+
+  rect rgba(240,255,240,0.6)
+    note over Scen: Scenario macro expansion & validation
+    Dev->>Scen: #[scenario(...)]
+    Scen->>Scen: parse steps → ParsedStep{keyword,text,docstring,table, span?}
+    alt strict-compile-time-validation
+      Scen->>Reg: validate(steps, strict=true)
+      Reg-->>Scen: Err(missing with spans)
+      Scen-->>Dev: compile_error at missing span
+    else compile-time-validation only
+      Scen->>Reg: validate(steps, strict=false)
+      Reg-->>Scen: warnings (per-span)
+      Scen-->>Dev: expanded scenario (with warnings)
+    else no validation features
+      Scen-->>Dev: expanded scenario (no validation)
+    end
+  end
+```
+
 Because registration occurs as the compiler encounters each attribute, step
 definitions must appear earlier in a module than any `#[scenario]` that uses
 them. Declaring a scenario first would trigger validation before the step is
