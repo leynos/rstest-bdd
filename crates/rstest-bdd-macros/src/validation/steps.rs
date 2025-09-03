@@ -220,9 +220,26 @@ fn fmt_keyword(kw: StepKeyword) -> &'static str {
 fn current_crate_id() -> String {
     let name = std::env::var("CARGO_CRATE_NAME")
         .or_else(|_| std::env::var("CARGO_PKG_NAME"))
-        .unwrap_or_else(|| "unknown".to_owned());
+        .unwrap_or_else(|_| "unknown".to_owned());
     let out_dir = std::env::var("OUT_DIR").unwrap_or_default();
     format!("{name}:{out_dir}")
+}
+
+/// Resolve textual conjunctions ("And"/"But") to the semantic keyword of the
+/// preceding step.
+///
+/// Seeds the chain with the first primary keyword, defaulting to `Given` when
+/// none is found.
+#[expect(dead_code, reason = "awaiting integration with validation logic")]
+pub(crate) fn resolve_keywords(steps: &[ParsedStep]) -> Vec<crate::StepKeyword> {
+    let mut prev = steps
+        .iter()
+        .find_map(|s| match s.keyword {
+            crate::StepKeyword::And | crate::StepKeyword::But => None,
+            other => Some(other),
+        })
+        .or(Some(crate::StepKeyword::Given));
+    steps.iter().map(|s| s.keyword.resolve(&mut prev)).collect()
 }
 
 #[cfg(test)]
@@ -317,21 +334,4 @@ mod tests {
         assert!(validate_steps_exist(&steps, true).is_err());
         assert!(validate_steps_exist(&steps, false).is_ok());
     }
-}
-
-/// Resolve textual conjunctions ("And"/"But") to the semantic keyword of the
-/// preceding step.
-///
-/// Seeds the chain with the first primary keyword, defaulting to `Given` when
-/// none is found.
-#[expect(dead_code, reason = "awaiting integration with validation logic")]
-pub(crate) fn resolve_keywords(steps: &[ParsedStep]) -> Vec<crate::StepKeyword> {
-    let mut prev = steps
-        .iter()
-        .find_map(|s| match s.keyword {
-            crate::StepKeyword::And | crate::StepKeyword::But => None,
-            other => Some(other),
-        })
-        .or(Some(crate::StepKeyword::Given));
-    steps.iter().map(|s| s.keyword.resolve(&mut prev)).collect()
 }

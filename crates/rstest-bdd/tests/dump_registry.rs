@@ -1,3 +1,4 @@
+#![cfg(feature = "diagnostics")]
 //! Unit tests for registry dumping.
 
 use rstest_bdd::{StepContext, StepKeyword, dump_registry, find_step, step};
