@@ -112,11 +112,18 @@ fn emit_non_strict_warnings(missing: &[(proc_macro2::Span, String)]) {
         let loc = span.start();
         #[expect(clippy::print_stderr, reason = "proc_macro::Diagnostic is unstable")]
         {
-            eprintln!(
-                "[rstest-bdd][non-strict] {msg}\n  --> line {} column {}\n",
-                loc.line,
-                loc.column + 1
-            );
+            // Synthetic spans default to (0,0); fall back when location is unavailable.
+            if loc.line == 0 && loc.column == 0 {
+                eprintln!(
+                    "[rstest-bdd][non-strict] {msg}\n  --> location unavailable (synthetic or default span)\n",
+                );
+            } else {
+                eprintln!(
+                    "[rstest-bdd][non-strict] {msg}\n  --> line {} column {}\n",
+                    loc.line,
+                    loc.column + 1
+                );
+            }
         }
     }
 }

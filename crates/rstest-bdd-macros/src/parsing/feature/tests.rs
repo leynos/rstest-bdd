@@ -408,3 +408,25 @@ fn errors_when_feature_fails(#[case] rel_path: &str, #[case] expected_snippet: &
     };
     assert!(err.to_string().contains(expected_snippet));
 }
+
+#[cfg(feature = "compile-time-validation")]
+#[test]
+/// `ParsedStep` equality ignores span differences.
+fn parsed_step_equality_ignores_span() {
+    let a = ParsedStep {
+        keyword: crate::StepKeyword::Given,
+        text: "step".into(),
+        docstring: None,
+        table: None,
+        span: proc_macro2::Span::call_site(),
+    };
+    let mut b = a.clone();
+    b.span = proc_macro2::Span::mixed_site();
+    assert_eq!(a, b, "spans differ but equality should ignore them");
+
+    let c = ParsedStep {
+        keyword: crate::StepKeyword::When,
+        ..a
+    };
+    assert_ne!(b, c, "different keywords must not be equal");
+}
