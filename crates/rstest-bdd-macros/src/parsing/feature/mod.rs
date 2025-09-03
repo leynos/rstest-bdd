@@ -50,19 +50,17 @@ pub(crate) struct ScenarioData {
 /// meaning of the preceding step but remain distinct for later resolution.
 /// Matching is case-insensitive to tolerate unusual source casing.
 pub(crate) fn parse_step_keyword(kw: &str, ty: StepType) -> crate::StepKeyword {
-    match kw.trim() {
-        s if s.eq_ignore_ascii_case("and") => crate::StepKeyword::And,
-        s if s.eq_ignore_ascii_case("but") => crate::StepKeyword::But,
-        _ =>
-        {
-            #[expect(unreachable_patterns, reason = "panic on future StepType variants")]
-            match ty {
-                StepType::Given => crate::StepKeyword::Given,
-                StepType::When => crate::StepKeyword::When,
-                StepType::Then => crate::StepKeyword::Then,
-                _ => panic!("unsupported step type: {ty:?}"),
-            }
-        }
+    let lower = kw.trim().to_ascii_lowercase();
+    if lower == "and" {
+        return crate::StepKeyword::And;
+    }
+    if lower == "but" {
+        return crate::StepKeyword::But;
+    }
+    match ty {
+        StepType::Given => crate::StepKeyword::Given,
+        StepType::When => crate::StepKeyword::When,
+        StepType::Then => crate::StepKeyword::Then,
     }
 }
 

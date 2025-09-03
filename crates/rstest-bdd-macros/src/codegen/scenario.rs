@@ -83,7 +83,6 @@ fn generate_table_tokens(table: Option<&[Vec<String>]>) -> TokenStream2 {
 /// use crate::StepKeyword;
 /// use crate::parsing::feature::ParsedStep;
 /// // Note: `span` is available only with the `compile-time-validation` feature.
-/// #[cfg_attr(docsrs, doc(cfg(feature = "compile-time-validation")))]
 /// let steps = vec![ParsedStep {
 ///     keyword: StepKeyword::Given,
 ///     text: "x".into(),
