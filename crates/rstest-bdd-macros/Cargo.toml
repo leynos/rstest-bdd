@@ -20,8 +20,8 @@ proc-macro = true
 
 [features]
 default = []
-compile-time-validation = []
-strict-compile-time-validation = ["compile-time-validation"]
+compile-time-validation = [] # Enables span-aware parsing and compile-time step signature checks.
+strict-compile-time-validation = ["compile-time-validation"] # Treats warnings as hard errors during macro expansion.
 
 
 [dependencies]

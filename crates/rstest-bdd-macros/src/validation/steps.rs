@@ -50,12 +50,15 @@ pub(crate) fn validate_steps_exist(steps: &[ParsedStep], strict: bool) -> Result
         .lock()
         .unwrap_or_else(|e| panic!("step registry poisoned: {e}"));
     let current = current_crate_id();
-    let scoped: Vec<_> = reg
+    let owned: Vec<_> = reg
         .iter()
         .filter(|d| d.crate_id.as_ref() == current.as_str())
         .cloned()
         .collect();
-    let missing = collect_missing_steps(&scoped, steps)?;
+    if owned.is_empty() && !strict {
+        return Ok(());
+    }
+    let missing = collect_missing_steps(&owned, steps)?;
     handle_validation_result(&missing, strict)
 }
 
@@ -155,8 +158,14 @@ fn find_step_matches<'a>(
     resolved: StepKeyword,
     step: &ParsedStep,
 ) -> Vec<&'a RegisteredStep> {
+    use std::collections::HashMap;
+    let mut cache: HashMap<&'static str, bool> = HashMap::with_capacity(reg.len());
     reg.iter()
-        .filter(|def| step_matches_definition(def, resolved, step))
+        .filter(|def| {
+            *cache
+                .entry(def.pattern)
+                .or_insert_with(|| step_matches_definition(def, resolved, step))
+        })
         .collect()
 }
 
