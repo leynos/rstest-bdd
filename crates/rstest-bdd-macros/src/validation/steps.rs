@@ -10,7 +10,7 @@
 use std::sync::{LazyLock, Mutex};
 
 use crate::StepKeyword;
-use crate::parsing::feature::{ParsedStep, resolve_conjunction_keyword};
+use crate::parsing::feature::ParsedStep;
 use proc_macro_error::emit_warning;
 use rstest_bdd::{StepPattern, StepText, extract_placeholders};
 
@@ -67,11 +67,14 @@ fn collect_missing_steps(
     reg: &[RegisteredStep],
     steps: &[ParsedStep],
 ) -> Result<Vec<(proc_macro2::Span, String)>, syn::Error> {
-    let mut prev = None;
+    // Use the refactored keyword resolution from main to correctly
+    // resolve conjunctions (And/But) while preserving this branch's
+    // span-aware diagnostics for precise error reporting.
+    let resolved = resolve_keywords(steps);
     let mut missing = Vec::new();
-    for step in steps {
-        let resolved = resolve_conjunction_keyword(&mut prev, step.keyword);
-        if let Some(msg) = has_matching_step_definition(reg, resolved, step)? {
+
+    for (step, keyword) in steps.iter().zip(resolved) {
+        if let Some(msg) = has_matching_step_definition(reg, keyword, step)? {
             let span = {
                 #[cfg(feature = "compile-time-validation")]
                 {
@@ -279,7 +282,6 @@ fn current_crate_id() -> String {
 ///
 /// Seeds the chain with the first primary keyword, defaulting to `Given` when
 /// none is found.
-#[expect(dead_code, reason = "awaiting integration with validation logic")]
 pub(crate) fn resolve_keywords(steps: &[ParsedStep]) -> Vec<crate::StepKeyword> {
     let mut prev = steps
         .iter()

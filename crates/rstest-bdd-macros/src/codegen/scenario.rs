@@ -100,16 +100,9 @@ fn process_steps(
     Vec<TokenStream2>,
     Vec<TokenStream2>,
 ) {
-    // Preserve "And"/"But" at parse time for clearer diagnostics, but
-    // normalise them here so runtime resolution sees the intended semantic
-    // keyword. We then convert to tokens using the local ToTokens impl.
-    let mut prev = steps.iter().find_map(|s| match s.keyword {
-        crate::StepKeyword::And | crate::StepKeyword::But => None,
-        other => Some(other),
-    });
-    let keywords = steps
-        .iter()
-        .map(|s| s.keyword.resolve(&mut prev).to_token_stream())
+    let keywords = crate::validation::steps::resolve_keywords(steps)
+        .into_iter()
+        .map(|kw| kw.to_token_stream())
         .collect();
     let values = steps
         .iter()
