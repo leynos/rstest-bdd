@@ -70,7 +70,17 @@ Feature flags:
 - `strict-compile-time-validation` — fails compilation when steps are missing
   or ambiguous; implies `compile-time-validation`. (Disabled by default.)
 
-Both features are disabled by default. Enable them with:
+Both features live on the `rstest-bdd-macros` crate. Because `rstest-bdd`
+re-exports these macros, enable validation on that transitive crate. The
+preferred approach is to toggle features on the command line:
+
+```bash
+cargo test --features "rstest-bdd-macros/compile-time-validation"
+cargo test --features "rstest-bdd-macros/strict-compile-time-validation"
+```
+
+For CI or workspace builds that require a fixed configuration, pin the feature
+in `Cargo.toml` by adding an explicit dependency:
 
 ```toml
 [dependencies]
