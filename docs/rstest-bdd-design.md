@@ -58,12 +58,11 @@ validated by non-technical stakeholders.[^1]
 
 ```gherkin
 Feature: Web Search
-  As a user, I want to search for information,
-  so that I can find what I'm looking for.
+  In order to find information, a user performs a web search.
 
   Scenario: Simple web search
     Given the DuckDuckGo home page is displayed
-    When I search for "Rust programming language"
+    When a user searches for "Rust programming language"
     Then the search results page is displayed
     And the results contain "Rust Programming Language"
 ```
@@ -125,7 +124,7 @@ async fn go_to_home(#[from(browser)] driver: &mut WebDriver) {
 }
 
 // The framework will parse the quoted string and pass it as an argument.
-#[when("I search for \"(.*)\"")]
+#[when("a user searches for \"(.*)\"")]
 async fn search_for_phrase(#[from(browser)] driver: &mut WebDriver, phrase: String) {
     let form = driver.find(By::Id("search_form_input_homepage")).await.unwrap();
     form.send_keys(&phrase).await.unwrap();
@@ -182,9 +181,9 @@ parameterized test using multiple `#[case]` attributes.[^9]
 Feature: User Login
 
   Scenario Outline: Login with different credentials
-    Given I am on the login page
-    When I enter username "<username>" and password "<password>"
-    Then I should see the message "<message>"
+  Given the login page is displayed
+  When a user enters username "<username>" and password "<password>"
+  Then the message "<message>" is shown
 
     Examples:
 
@@ -203,7 +202,7 @@ Feature: User Login
 async fn test_login_scenarios(#[future] browser: WebDriver) {}
 
 // Placeholders from the 'Examples' table are passed as typed arguments to the step functions.
-#[when("I enter username \"<username>\" and password \"<password>\"")]
+#[when("a user enters username \"<username>\" and password \"<password>\"")]
 async fn enter_credentials(
     #[from(browser)] driver: &mut WebDriver,
     username: String,
@@ -212,7 +211,7 @@ async fn enter_credentials(
     //... implementation...
 }
 
-#[then("I should see the message \"<message>\"")]
+#[then("the message \"<message>\" is shown")]
 async fn see_message(#[from(browser)] driver: &mut WebDriver, message: String) {
     //... assert message is visible...
 }
@@ -230,10 +229,10 @@ directly analogous to the `parsers` module in `pytest-bdd`.1.
 
 ```rust
 // Step in.feature file:
-// When I deposit 50 dollars
+// When 50 dollars are deposited
 
 // Step definition in.rs file:
-#[when("I deposit {amount:u32} dollars")]
+#[when("a user deposits {amount:u32} dollars")]
 fn deposit_amount(#[from(account)] acc: &mut Account, amount: u32) {
     acc.deposit(amount);
 }
@@ -759,12 +758,12 @@ events.
 
 ```rust
 
-#[given("I am a user")]
+#[given("a user exists")]
 fn given_i_am_a_user(mut user_context: UserContext) { /\*... \*/ }
 ```
 
 - **Macro Action:** The `#[given]` proc-macro parses its attribute string
-  (`"I am a user"`) and the function it's attached to. It then generates an
+  (`"a user exists"`) and the function it's attached to. It then generates an
   `inventory::submit!` block. This block contains the static definition of a
   `Step` struct, where the `run` field is a type-erased pointer to a wrapper
   around the `given_i_am_a_user` function.
