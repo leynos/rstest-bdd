@@ -14,34 +14,81 @@ jobs:
       CARGO_TERM_COLOR: always
       CS_ACCESS_TOKEN: ${{ secrets.CS_ACCESS_TOKEN }}
       CODESCENE_CLI_SHA256: ${{ vars.CODESCENE_CLI_SHA256 }}
-      BUILD_PROFILE: debug
+      RUSTFLAGS: -D warnings
+      RUSTDOCFLAGS: -D warnings
     strategy:
       fail-fast: false
       matrix:
         include:
           - os: ubuntu-latest
             coverage: true
+            features: null
+            with-default-features: true
+          - os: ubuntu-latest
+            coverage: true
+            features: strict-compile-time-validation
+            with-default-features: false
           - os: windows-latest
             coverage: false
+            features: null
+            with-default-features: true
+          - os: windows-latest
+            coverage: false
+            features: strict-compile-time-validation
+            with-default-features: false
     steps:
       - uses: actions/checkout@v5
       - name: Setup Rust
         uses: leynos/shared-actions/.github/actions/setup-rust@ebbaaa0d7a776ec3187f3940667e5c7c9379cdf5
-      - name: Format
+      - name: Install make (Unix only)
+        if: ${{ !startsWith(matrix.os, 'windows-') }}
+        run: sudo apt-get update && sudo apt-get install -y make
+
+      - name: Format (Unix)
+        if: ${{ !startsWith(matrix.os, 'windows-') }}
         run: make check-fmt
-      - name: Lint
+      - name: Lint (Unix)
+        if: ${{ !startsWith(matrix.os, 'windows-') }}
         run: make lint
-      - name: Test and Measure Coverage
+
+      - name: Format (Windows)
+        if: ${{ startsWith(matrix.os, 'windows-') }}
+        run: cargo fmt --all -- --check
+      - name: Lint (Windows)
+        if: ${{ startsWith(matrix.os, 'windows-') }}
+        run: cargo clippy --workspace --all-targets -- -D warnings
+
+      - name: Test (no coverage, with features)
+        if: ${{ !matrix.coverage && matrix.features != null }}
+        run: >
+          cargo test --workspace --all-targets
+          ${{ matrix.with-default-features && '' || '--no-default-features' }}
+          --features "${{ matrix.features }}"
+
+      - name: Test (no coverage, no features)
+        if: ${{ !matrix.coverage && matrix.features == null }}
+        run: cargo test --workspace --all-targets
+      - name: Test and Measure Coverage (with features)
+        if: ${{ matrix.coverage && matrix.features != null }}
         uses: leynos/shared-actions/.github/actions/generate-coverage@ebbaaa0d7a776ec3187f3940667e5c7c9379cdf5
         with:
           output-path: lcov.info
           format: lcov
+          features: ${{ matrix.features }}
+          with-default-features: ${{ matrix.with-default-features }}
+
+      - name: Test and Measure Coverage (no features)
+        if: ${{ matrix.coverage && matrix.features == null }}
+        uses: leynos/shared-actions/.github/actions/generate-coverage@ebbaaa0d7a776ec3187f3940667e5c7c9379cdf5
+        with:
+          output-path: lcov.info
+          format: lcov
+          with-default-features: ${{ matrix.with-default-features }}
       - name: Publish dry run
+        if: ${{ !startsWith(matrix.os, 'windows-') }}
         run: make publish-check
       - name: Upload coverage data to CodeScene
-        env:
-          CS_ACCESS_TOKEN: ${{ secrets.CS_ACCESS_TOKEN }}
-        if: ${{ env.CS_ACCESS_TOKEN }}
+        if: ${{ matrix.coverage && env.CS_ACCESS_TOKEN }}
         uses: leynos/shared-actions/.github/actions/upload-codescene-coverage@ebbaaa0d7a776ec3187f3940667e5c7c9379cdf5
         with:
           format: lcov
