@@ -1,6 +1,5 @@
 //! Code generation for scenario tests.
 
-use crate::parsing::feature::resolve_conjunction_keyword;
 use proc_macro::TokenStream;
 use proc_macro2::TokenStream as TokenStream2;
 use quote::{ToTokens, quote};
@@ -97,13 +96,13 @@ fn process_steps(
     // Preserve "And"/"But" at parse time for clearer diagnostics, but
     // normalise them here so runtime resolution sees the intended semantic
     // keyword. We then convert to tokens using the local ToTokens impl.
-    let mut prev = None;
+    let mut prev = steps.iter().find_map(|s| match s.keyword {
+        crate::StepKeyword::And | crate::StepKeyword::But => None,
+        other => Some(other),
+    });
     let keywords = steps
         .iter()
-        .map(|s| {
-            let kw = resolve_conjunction_keyword(&mut prev, s.keyword);
-            kw.to_token_stream()
-        })
+        .map(|s| s.keyword.resolve(&mut prev).to_token_stream())
         .collect();
     let values = steps
         .iter()
@@ -256,4 +255,127 @@ pub(crate) fn generate_scenario_code(
         #(#attrs)*
         #vis #sig { #body }
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::parsing::feature::ParsedStep;
+
+    #[expect(clippy::expect_used, reason = "test helper with descriptive failures")]
+    fn kw(ts: &TokenStream2) -> crate::StepKeyword {
+        let path = syn::parse2::<syn::Path>(ts.clone()).expect("keyword path");
+        let ident = path.segments.last().expect("last").ident.to_string();
+        crate::StepKeyword::from(ident.as_str())
+    }
+
+    fn blank() -> ParsedStep {
+        ParsedStep {
+            keyword: crate::StepKeyword::Given,
+            text: String::new(),
+            docstring: None,
+            table: None,
+        }
+    }
+
+    #[test]
+    fn normalises_leading_and() {
+        let steps = vec![
+            ParsedStep {
+                keyword: crate::StepKeyword::And,
+                ..blank()
+            },
+            ParsedStep {
+                keyword: crate::StepKeyword::Then,
+                ..blank()
+            },
+        ];
+        let (keywords, _, _, _) = process_steps(&steps);
+        let parsed: Vec<_> = keywords.iter().map(kw).collect();
+        assert_eq!(
+            parsed,
+            vec![crate::StepKeyword::Then, crate::StepKeyword::Then]
+        );
+    }
+
+    #[test]
+    fn normalises_leading_but() {
+        let steps = vec![
+            ParsedStep {
+                keyword: crate::StepKeyword::But,
+                ..blank()
+            },
+            ParsedStep {
+                keyword: crate::StepKeyword::Then,
+                ..blank()
+            },
+        ];
+        let (keywords, _, _, _) = process_steps(&steps);
+        let parsed: Vec<_> = keywords.iter().map(kw).collect();
+        assert_eq!(
+            parsed,
+            vec![crate::StepKeyword::Then, crate::StepKeyword::Then]
+        );
+    }
+
+    #[test]
+    fn normalises_mixed_sequence() {
+        let steps = vec![
+            ParsedStep {
+                keyword: crate::StepKeyword::Given,
+                ..blank()
+            },
+            ParsedStep {
+                keyword: crate::StepKeyword::And,
+                ..blank()
+            },
+            ParsedStep {
+                keyword: crate::StepKeyword::But,
+                ..blank()
+            },
+            ParsedStep {
+                keyword: crate::StepKeyword::Then,
+                ..blank()
+            },
+        ];
+        let (keywords, _, _, _) = process_steps(&steps);
+        let parsed: Vec<_> = keywords.iter().map(kw).collect();
+        assert_eq!(
+            parsed,
+            vec![
+                crate::StepKeyword::Given,
+                crate::StepKeyword::Given,
+                crate::StepKeyword::Given,
+                crate::StepKeyword::Then,
+            ],
+        );
+    }
+
+    #[test]
+    fn normalises_all_conjunctions_to_given() {
+        let steps = vec![
+            ParsedStep {
+                keyword: crate::StepKeyword::And,
+                ..blank()
+            },
+            ParsedStep {
+                keyword: crate::StepKeyword::But,
+                ..blank()
+            },
+            ParsedStep {
+                keyword: crate::StepKeyword::And,
+                ..blank()
+            },
+        ];
+        let (keywords, _, _, _) = process_steps(&steps);
+        let parsed: Vec<_> = keywords.iter().map(kw).collect();
+        assert_eq!(
+            parsed,
+            vec![
+                crate::StepKeyword::Given,
+                crate::StepKeyword::Given,
+                crate::StepKeyword::Given,
+            ]
+        );
+    }
 }

@@ -10,7 +10,7 @@
 use std::sync::{LazyLock, Mutex};
 
 use crate::StepKeyword;
-use crate::parsing::feature::{ParsedStep, resolve_conjunction_keyword};
+use crate::parsing::feature::ParsedStep;
 use rstest_bdd::{StepPattern, StepText, extract_placeholders};
 
 #[derive(Clone)]
@@ -66,7 +66,7 @@ fn collect_missing_steps(
     let mut prev = None;
     let mut missing = Vec::new();
     for step in steps {
-        let resolved = resolve_conjunction_keyword(&mut prev, step.keyword);
+        let resolved = step.keyword.resolve(&mut prev);
         if let Some(msg) = has_matching_step_definition(reg, resolved, step)? {
             missing.push(msg);
         }
@@ -223,6 +223,23 @@ fn current_crate_id() -> String {
         .unwrap_or_else(|_| "unknown".to_owned());
     let out_dir = std::env::var("OUT_DIR").unwrap_or_default();
     format!("{name}:{out_dir}")
+}
+
+/// Resolve textual conjunctions ("And"/"But") to the semantic keyword of the
+/// preceding step.
+///
+/// Seeds the chain with the first primary keyword, defaulting to `Given` when
+/// none is found.
+#[expect(dead_code, reason = "awaiting integration with validation logic")]
+pub(crate) fn resolve_keywords(steps: &[ParsedStep]) -> Vec<crate::StepKeyword> {
+    let mut prev = steps
+        .iter()
+        .find_map(|s| match s.keyword {
+            crate::StepKeyword::And | crate::StepKeyword::But => None,
+            other => Some(other),
+        })
+        .or(Some(crate::StepKeyword::Given));
+    steps.iter().map(|s| s.keyword.resolve(&mut prev)).collect()
 }
 
 #[cfg(test)]

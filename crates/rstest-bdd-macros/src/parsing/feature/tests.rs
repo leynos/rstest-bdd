@@ -5,7 +5,7 @@ use gherkin::{Background, LineCol, Scenario, Span, Step, StepType};
 use rstest::rstest;
 
 // This `#[expect]` triggers if `gherkin::StepType` adds variants so we update
-// `kw()` and `From<StepType> for StepKeyword`.
+// `kw()` and `TryFrom<StepType> for StepKeyword`.
 #[expect(
     unreachable_patterns,
     reason = "StepType currently only has three variants"
@@ -303,6 +303,74 @@ fn assert_feature_extraction(
         ParsedStep {
             keyword: crate::StepKeyword::Then,
             text: "result".into(),
+            docstring: None,
+            table: None,
+        },
+    ],
+    None
+)]
+#[case::maps_leading_but_keyword(
+    FeatureBuilder::new("example").with_scenario(
+        "leading-but",
+        vec![
+            StepBuilder::new(StepType::When, "first")
+                .with_keyword("But")
+                .build(),
+            StepBuilder::new(StepType::Then, "result").build(),
+        ],
+    ),
+    vec![
+        ParsedStep {
+            keyword: crate::StepKeyword::But,
+            text: "first".into(),
+            docstring: None,
+            table: None,
+        },
+        ParsedStep {
+            keyword: crate::StepKeyword::Then,
+            text: "result".into(),
+            docstring: None,
+            table: None,
+        },
+    ],
+    None
+)]
+#[case::maps_mixed_keyword_sequence(
+    FeatureBuilder::new("example").with_scenario(
+        "mixed",
+        vec![
+            StepBuilder::new(StepType::Given, "start").build(),
+            StepBuilder::new(StepType::Given, "cont")
+                .with_keyword("And")
+                .build(),
+            StepBuilder::new(StepType::Given, "neg")
+                .with_keyword("But")
+                .build(),
+            StepBuilder::new(StepType::Then, "end").build(),
+        ],
+    ),
+    vec![
+        ParsedStep {
+            keyword: crate::StepKeyword::Given,
+            text: "start".into(),
+            docstring: None,
+            table: None,
+        },
+        ParsedStep {
+            keyword: crate::StepKeyword::And,
+            text: "cont".into(),
+            docstring: None,
+            table: None,
+        },
+        ParsedStep {
+            keyword: crate::StepKeyword::But,
+            text: "neg".into(),
+            docstring: None,
+            table: None,
+        },
+        ParsedStep {
+            keyword: crate::StepKeyword::Then,
+            text: "end".into(),
             docstring: None,
             table: None,
         },

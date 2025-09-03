@@ -2,10 +2,12 @@
 //!
 //! This lightweight enum mirrors the variants provided by `rstest-bdd` but
 //! avoids a compile-time dependency on that crate. It is only used internally
-//! for parsing feature files and generating code. While the enum includes `And`
-//! and `But` for completeness, feature parsing normalizes them to the preceding
-//! primary keyword.
+//! for parsing feature files and generating code. The enum includes `And` and
+//! `But` for completeness; conjunction resolution happens during code
+//! generation via `StepKeyword::resolve`, typically seeded to the first primary
+//! keyword; when unseeded it falls back to `Given`.
 
+use gherkin::{Step, StepType};
 use proc_macro2::TokenStream as TokenStream2;
 use quote::{ToTokens, quote};
 
@@ -24,17 +26,64 @@ pub(crate) enum StepKeyword {
     But,
 }
 
+/// Trim and match step keywords case-insensitively, returning `None` when no
+/// known keyword is found.
+///
+/// Note: textual conjunction detection is English-only ("And"/"But"); other
+/// locales are handled via `StepType`.
+fn parse_step_keyword(value: &str) -> Option<StepKeyword> {
+    let s = value.trim();
+    if s.eq_ignore_ascii_case("given") {
+        Some(StepKeyword::Given)
+    } else if s.eq_ignore_ascii_case("when") {
+        Some(StepKeyword::When)
+    } else if s.eq_ignore_ascii_case("then") {
+        Some(StepKeyword::Then)
+    } else if s.eq_ignore_ascii_case("and") {
+        Some(StepKeyword::And)
+    } else if s.eq_ignore_ascii_case("but") {
+        Some(StepKeyword::But)
+    } else {
+        None
+    }
+}
+
+impl core::str::FromStr for StepKeyword {
+    type Err = &'static str;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        parse_step_keyword(s).ok_or("invalid step keyword")
+    }
+}
+
 impl From<&str> for StepKeyword {
     fn from(value: &str) -> Self {
-        let trimmed = value.trim();
-        match trimmed.to_ascii_lowercase().as_str() {
-            "given" => Self::Given,
-            "when" => Self::When,
-            "then" => Self::Then,
-            "and" => Self::And,
-            "but" => Self::But,
-            // Use the original, untrimmed `value` for clearer diagnostics.
-            _ => panic!("invalid step keyword: {value}"),
+        value
+            .parse()
+            .unwrap_or_else(|_| panic!("invalid step keyword: {value}"))
+    }
+}
+
+impl From<StepType> for StepKeyword {
+    fn from(ty: StepType) -> Self {
+        match ty {
+            StepType::Given => Self::Given,
+            StepType::When => Self::When,
+            StepType::Then => Self::Then,
+            #[expect(unreachable_patterns, reason = "guard future StepType variants")]
+            _ => panic!("unsupported step type: {ty:?}"),
+        }
+    }
+}
+
+/// Textual conjunction detection is English-only ("And"/"But"); other
+/// languages are handled via `gherkin::StepType` provided by the parser.
+impl From<&Step> for StepKeyword {
+    fn from(step: &Step) -> Self {
+        match step.keyword.trim() {
+            s if s.eq_ignore_ascii_case("and") => Self::And,
+            s if s.eq_ignore_ascii_case("but") => Self::But,
+            _ => step.ty.into(),
         }
     }
 }
@@ -53,6 +102,23 @@ impl ToTokens for StepKeyword {
     }
 }
 
+impl StepKeyword {
+    /// Resolve conjunctions to the semantic keyword of the previous step or a
+    /// seeded first primary keyword.
+    ///
+    /// `process_steps` seeds `prev` with the first primary keyword so leading
+    /// conjunctions inherit that seed. When `prev` is `None`, conjunctions
+    /// default to `Given`.
+    pub(crate) fn resolve(self, prev: &mut Option<Self>) -> Self {
+        if matches!(self, Self::And | Self::But) {
+            prev.as_ref().copied().unwrap_or(Self::Given)
+        } else {
+            *prev = Some(self);
+            self
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -66,5 +132,10 @@ mod tests {
     #[case(" but ", StepKeyword::But)]
     fn parses_case_insensitively(#[case] input: &str, #[case] expected: StepKeyword) {
         assert_eq!(StepKeyword::from(input), expected);
+    }
+
+    #[test]
+    fn rejects_invalid_keyword_via_from_str() {
+        assert!("invalid".parse::<StepKeyword>().is_err());
     }
 }
