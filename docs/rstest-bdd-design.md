@@ -553,6 +553,10 @@ sequenceDiagram
   end
 ```
 
+Continuous integration verifies Markdown formatting and diagram rendering.
+Every pull request runs `make fmt`, `make markdownlint`, and `make nixie`; the
+job fails if formatting or Mermaid rendering errors are detected.
+
 Because registration occurs as the compiler encounters each attribute, step
 definitions must appear earlier in a module than any `#[scenario]` that uses
 them. Declaring a scenario first would trigger validation before the step is

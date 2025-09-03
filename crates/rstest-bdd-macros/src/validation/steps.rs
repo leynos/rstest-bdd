@@ -10,7 +10,8 @@
 use std::sync::{LazyLock, Mutex};
 
 use crate::StepKeyword;
-use crate::parsing::feature::ParsedStep;
+use crate::parsing::feature::{ParsedStep, resolve_conjunction_keyword};
+use proc_macro_error::emit_warning;
 use rstest_bdd::{StepPattern, StepText, extract_placeholders};
 
 #[derive(Clone)]
@@ -69,7 +70,7 @@ fn collect_missing_steps(
     let mut prev = None;
     let mut missing = Vec::new();
     for step in steps {
-        let resolved = step.keyword.resolve(&mut prev);
+        let resolved = resolve_conjunction_keyword(&mut prev, step.keyword);
         if let Some(msg) = has_matching_step_definition(reg, resolved, step)? {
             missing.push((step.span, msg));
         }
@@ -112,22 +113,7 @@ fn create_strict_mode_error(missing: &[(proc_macro2::Span, String)]) -> Result<(
 
 fn emit_non_strict_warnings(missing: &[(proc_macro2::Span, String)]) {
     for (span, msg) in missing {
-        let loc = span.start();
-        #[expect(clippy::print_stderr, reason = "proc_macro::Diagnostic is unstable")]
-        {
-            // Synthetic spans default to (0,0); fall back when location is unavailable.
-            if loc.line == 0 && loc.column == 0 {
-                eprintln!(
-                    "[rstest-bdd][non-strict] {msg}\n  --> location unavailable (synthetic or default span)\n",
-                );
-            } else {
-                eprintln!(
-                    "[rstest-bdd][non-strict] {msg}\n  --> line {} column {}\n",
-                    loc.line,
-                    loc.column + 1
-                );
-            }
-        }
+        emit_warning!(*span, "rstest-bdd[non-strict]: {}", msg);
     }
 }
 

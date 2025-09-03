@@ -1,3 +1,4 @@
+// compile-flags: --cfg feature="compile-time-validation"
 //! Compile-fail fixture asserting ambiguous step detection for duplicate `given` steps.
 use rstest_bdd_macros::{given, scenario};
 

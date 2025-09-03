@@ -1,7 +1,7 @@
 error: Ambiguous step definition for 'a step'. Matches: a step, a step
-  --> tests/fixtures/scenario_ambiguous_step.rs:10:1
+  --> tests/fixtures/scenario_ambiguous_step.rs:11:1
    |
-10 | #[scenario(path = "../../../../crates/rstest-bdd-macros/tests/features/ambiguous.feature")]
+11 | #[scenario(path = "../../../../crates/rstest-bdd-macros/tests/features/ambiguous.feature")]
    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
    |
    = note: this error originates in the attribute macro `scenario` (in Nightly builds, run with -Z macro-backtrace for more info)

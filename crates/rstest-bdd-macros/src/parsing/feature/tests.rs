@@ -184,6 +184,7 @@ fn parses_step_keyword_variants(
             text: "a background step".to_string(),
             docstring: None,
             table: None,
+            #[cfg(feature = "compile-time-validation")]
             span: proc_macro2::Span::call_site(),
         },
         ParsedStep {
@@ -191,6 +192,7 @@ fn parses_step_keyword_variants(
             text: "an action".to_string(),
             docstring: None,
             table: None,
+            #[cfg(feature = "compile-time-validation")]
             span: proc_macro2::Span::call_site(),
         },
         ParsedStep {
@@ -198,6 +200,7 @@ fn parses_step_keyword_variants(
             text: "a result".to_string(),
             docstring: None,
             table: None,
+            #[cfg(feature = "compile-time-validation")]
             span: proc_macro2::Span::call_site(),
         },
     ],
@@ -220,6 +223,7 @@ fn parses_step_keyword_variants(
             vec!["1".to_string(), "2".to_string()],
             vec!["3".to_string(), "4".to_string()],
         ]),
+        #[cfg(feature = "compile-time-validation")]
         span: proc_macro2::Span::call_site(),
     }],
     None
@@ -238,6 +242,7 @@ fn parses_step_keyword_variants(
         text: "text".to_string(),
         docstring: Some("line1\nline2".to_string()),
         table: None,
+        #[cfg(feature = "compile-time-validation")]
         span: proc_macro2::Span::call_site(),
     }],
     None
@@ -259,6 +264,7 @@ fn parses_step_keyword_variants(
             text: "setup".to_string(),
             docstring: Some("bg line1\nbg line2".to_string()),
             table: None,
+            #[cfg(feature = "compile-time-validation")]
             span: proc_macro2::Span::call_site(),
         },
         ParsedStep {
@@ -266,6 +272,7 @@ fn parses_step_keyword_variants(
             text: "an action".to_string(),
             docstring: None,
             table: None,
+            #[cfg(feature = "compile-time-validation")]
             span: proc_macro2::Span::call_site(),
         },
     ],
@@ -290,6 +297,7 @@ fn parses_step_keyword_variants(
             text: "first".into(),
             docstring: None,
             table: None,
+            #[cfg(feature = "compile-time-validation")]
             span: proc_macro2::Span::call_site(),
         },
         ParsedStep {
@@ -297,6 +305,7 @@ fn parses_step_keyword_variants(
             text: "second".into(),
             docstring: None,
             table: None,
+            #[cfg(feature = "compile-time-validation")]
             span: proc_macro2::Span::call_site(),
         },
         ParsedStep {
@@ -304,6 +313,7 @@ fn parses_step_keyword_variants(
             text: "negated".into(),
             docstring: None,
             table: None,
+            #[cfg(feature = "compile-time-validation")]
             span: proc_macro2::Span::call_site(),
         },
     ],
@@ -325,6 +335,7 @@ fn parses_step_keyword_variants(
             text: "first".into(),
             docstring: None,
             table: None,
+            #[cfg(feature = "compile-time-validation")]
             span: proc_macro2::Span::call_site(),
         },
         ParsedStep {
@@ -332,6 +343,7 @@ fn parses_step_keyword_variants(
             text: "result".into(),
             docstring: None,
             table: None,
+            #[cfg(feature = "compile-time-validation")]
             span: proc_macro2::Span::call_site(),
         },
     ],
@@ -434,6 +446,7 @@ fn parsed_step_equality_ignores_span() {
         text: "step".into(),
         docstring: None,
         table: None,
+        #[cfg(feature = "compile-time-validation")]
         span: proc_macro2::Span::call_site(),
     };
     let mut b = a.clone();
