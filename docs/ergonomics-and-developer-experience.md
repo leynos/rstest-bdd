@@ -338,7 +338,7 @@ fn test_cli_command(cli_state: CliState) {
 
 ## 4. Developer Tooling and Utilities
 
-### 4.1. Streamlined ,`Result`, Assertions
+### 4.1. Streamlined `Result` Assertions
 
 **Goal:** Simplify the common pattern of asserting that a step returning a
 `Result` is either `Ok` or `Err`.

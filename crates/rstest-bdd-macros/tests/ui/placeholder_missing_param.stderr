@@ -1,4 +1,4 @@
-error: invalid step function signature: missing step arguments for placeholders: count. help: use `#[given] fn name(ctx: &StepContext, ...)` and valid fixtures.
+error: invalid step function signature: missing step arguments for placeholders: count. help: use `#[given] fn name(...args...)` with supported step arguments/fixtures; remove self.
  --> tests/ui/placeholder_missing_param.rs:4:4
   |
 4 | fn step() {}
