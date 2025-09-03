@@ -110,26 +110,31 @@ impl FromStr for StepKeyword {
     }
 }
 
-impl From<&str> for StepKeyword {
-    fn from(value: &str) -> Self {
-        Self::from_str(value).unwrap_or_else(|_| panic!("invalid step keyword: {value}"))
+impl core::convert::TryFrom<&str> for StepKeyword {
+    type Error = StepKeywordParseError;
+
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        Self::from_str(value)
     }
 }
 
 // And/But are not present in `gherkin::StepType`; they are resolved from the
 // raw `keyword` string during feature parsing. This mapping covers only primary
 // keywords emitted by the Gherkin parser.
-impl From<StepType> for StepKeyword {
-    fn from(ty: StepType) -> Self {
+#[derive(Debug, Error)]
+#[error("unsupported step type: {0:?}")]
+pub struct UnsupportedStepType(pub StepType);
+
+impl core::convert::TryFrom<StepType> for StepKeyword {
+    type Error = UnsupportedStepType;
+
+    fn try_from(ty: StepType) -> Result<Self, Self::Error> {
         match ty {
-            StepType::Given => Self::Given,
-            StepType::When => Self::When,
-            StepType::Then => Self::Then,
-            #[expect(
-                unreachable_patterns,
-                reason = "keep a guard for future StepType variants"
-            )]
-            _ => panic!("unsupported step type: {ty:?}"),
+            StepType::Given => Ok(Self::Given),
+            StepType::When => Ok(Self::When),
+            StepType::Then => Ok(Self::Then),
+            #[expect(unreachable_patterns, reason = "guard future StepType variants")]
+            other => Err(UnsupportedStepType(other)),
         }
     }
 }
@@ -148,7 +153,10 @@ mod tests {
     #[case(" but ", StepKeyword::But)]
     fn parses_case_insensitively(#[case] input: &str, #[case] expected: StepKeyword) {
         assert!(matches!(StepKeyword::from_str(input), Ok(val) if val == expected));
-        assert_eq!(StepKeyword::from(input), expected);
+        assert_eq!(
+            StepKeyword::try_from(input).unwrap_or_else(|e| panic!("valid step keyword: {e}")),
+            expected
+        );
     }
 
     #[rstest]
@@ -156,7 +164,10 @@ mod tests {
     #[case(StepType::When, StepKeyword::When)]
     #[case(StepType::Then, StepKeyword::Then)]
     fn maps_step_type(#[case] input: StepType, #[case] expected: StepKeyword) {
-        assert_eq!(StepKeyword::from(input), expected);
+        assert_eq!(
+            StepKeyword::try_from(input).unwrap_or_else(|e| panic!("valid step type: {e}")),
+            expected
+        );
     }
 }
 

@@ -91,7 +91,6 @@ pub(crate) fn resolve_conjunction_keyword(
         kw
     }
 }
-
 /// Convert a Gherkin step to a `ParsedStep`.
 ///
 /// Uses the textual keyword when present to honour conjunctions
@@ -116,7 +115,6 @@ impl From<&Step> for ParsedStep {
         }
     }
 }
-
 /// Validate that the feature path exists and points to a file.
 fn validate_feature_file_exists(feature_path: &Path) -> Result<(), syn::Error> {
     match std::fs::metadata(feature_path) {

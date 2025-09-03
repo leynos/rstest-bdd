@@ -56,38 +56,51 @@ impl core::str::FromStr for StepKeyword {
     }
 }
 
-impl From<&str> for StepKeyword {
-    fn from(value: &str) -> Self {
-        value
-            .parse()
-            .unwrap_or_else(|_| panic!("invalid step keyword: {value}"))
+#[derive(Debug)]
+pub(crate) struct UnsupportedStepType(pub StepType);
+
+impl core::fmt::Display for UnsupportedStepType {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(f, "unsupported step type: {:?}", self.0)
     }
 }
 
-impl From<StepType> for StepKeyword {
-    fn from(ty: StepType) -> Self {
+impl core::convert::TryFrom<&str> for StepKeyword {
+    type Error = &'static str;
+
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        value.parse()
+    }
+}
+
+impl core::convert::TryFrom<StepType> for StepKeyword {
+    type Error = UnsupportedStepType;
+
+    fn try_from(ty: StepType) -> Result<Self, Self::Error> {
         match ty {
-            StepType::Given => Self::Given,
-            StepType::When => Self::When,
-            StepType::Then => Self::Then,
+            StepType::Given => Ok(Self::Given),
+            StepType::When => Ok(Self::When),
+            StepType::Then => Ok(Self::Then),
             #[expect(unreachable_patterns, reason = "guard future StepType variants")]
-            _ => panic!("unsupported step type: {ty:?}"),
+            other => Err(UnsupportedStepType(other)),
+        }
+    }
+}
+
+impl core::convert::TryFrom<&Step> for StepKeyword {
+    type Error = UnsupportedStepType;
+
+    fn try_from(step: &Step) -> Result<Self, Self::Error> {
+        match step.keyword.trim() {
+            s if s.eq_ignore_ascii_case("and") => Ok(Self::And),
+            s if s.eq_ignore_ascii_case("but") => Ok(Self::But),
+            _ => Self::try_from(step.ty),
         }
     }
 }
 
 /// Textual conjunction detection is English-only ("And"/"But"); other
 /// languages are handled via `gherkin::StepType` provided by the parser.
-impl From<&Step> for StepKeyword {
-    fn from(step: &Step) -> Self {
-        match step.keyword.trim() {
-            s if s.eq_ignore_ascii_case("and") => Self::And,
-            s if s.eq_ignore_ascii_case("but") => Self::But,
-            _ => step.ty.into(),
-        }
-    }
-}
-
 impl ToTokens for StepKeyword {
     fn to_tokens(&self, tokens: &mut TokenStream2) {
         let path = crate::codegen::rstest_bdd_path();
@@ -131,7 +144,10 @@ mod tests {
     #[case("AND", StepKeyword::And)]
     #[case(" but ", StepKeyword::But)]
     fn parses_case_insensitively(#[case] input: &str, #[case] expected: StepKeyword) {
-        assert_eq!(StepKeyword::from(input), expected);
+        assert_eq!(
+            StepKeyword::try_from(input).unwrap_or_else(|e| panic!("valid step keyword: {e}")),
+            expected
+        );
     }
 
     #[test]
