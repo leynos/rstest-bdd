@@ -3,8 +3,8 @@
 //! This lightweight enum mirrors the variants provided by `rstest-bdd` but
 //! avoids a compile-time dependency on that crate. It is only used internally
 //! for parsing feature files and generating code. The enum includes `And` and
-//! `But` for completeness; conjunction resolution is centralised in
-//! `validation::steps::resolve_keywords` and consumed by code generation,
+//! `But` for completeness; conjunction resolution is centralized in
+//! `validation::steps::resolve_keywords` and consumed by validation and code generation,
 //! falling back to `Given` when unseeded.
 
 use gherkin::{Step, StepType};
@@ -29,8 +29,8 @@ pub(crate) enum StepKeyword {
 /// Trim and match step keywords case-insensitively, returning `None` when no
 /// known keyword is found.
 ///
-/// Note: textual conjunction detection is English-only ("And"/"But"); other
-/// locales are handled via `StepType`.
+/// Note: textual conjunction detection handles English ("And"/"But");
+/// other locales rely on `StepType` and are resolved centrally.
 fn parse_step_keyword(value: &str) -> Option<StepKeyword> {
     let s = value.trim();
     if s.eq_ignore_ascii_case("given") {
@@ -99,8 +99,8 @@ impl core::convert::TryFrom<&Step> for StepKeyword {
     }
 }
 
-/// Textual conjunction detection is English-only ("And"/"But"); other
-/// languages are handled via `gherkin::StepType` provided by the parser.
+/// Textual conjunction detection handles English ("And"/"But").
+/// Non-English conjunctions rely on `gherkin::StepType` and are resolved centrally.
 impl ToTokens for StepKeyword {
     fn to_tokens(&self, tokens: &mut TokenStream2) {
         let path = crate::codegen::rstest_bdd_path();
@@ -137,6 +137,11 @@ mod tests {
     use super::*;
     use rstest::rstest;
 
+    #[expect(clippy::expect_used, reason = "test helper with descriptive failures")]
+    fn parse_kw(input: &str) -> StepKeyword {
+        StepKeyword::try_from(input).expect("valid step keyword")
+    }
+
     #[rstest]
     #[case("Given", StepKeyword::Given)]
     #[case("given", StepKeyword::Given)]
@@ -145,7 +150,7 @@ mod tests {
     #[case(" but ", StepKeyword::But)]
     fn parses_case_insensitively(#[case] input: &str, #[case] expected: StepKeyword) {
         assert_eq!(
-            StepKeyword::try_from(input).unwrap_or_else(|e| panic!("valid step keyword: {e}")),
+            parse_kw(input),
             expected
         );
     }

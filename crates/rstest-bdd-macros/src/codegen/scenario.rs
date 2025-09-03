@@ -102,7 +102,8 @@ fn process_steps(
 ) {
     let keyword_tokens = crate::validation::steps::resolve_keywords(steps)
         .map(|kw| kw.to_token_stream())
-        .collect();
+        .collect::<Vec<_>>();
+    debug_assert_eq!(keyword_tokens.len(), steps.len());
     let values = steps
         .iter()
         .map(|s| {
@@ -234,6 +235,7 @@ pub(crate) fn generate_scenario_code(
         examples,
     } = config;
     let (keyword_tokens, values, docstrings, tables) = process_steps(&steps);
+    debug_assert_eq!(keyword_tokens.len(), steps.len());
     let processed_steps = ProcessedSteps {
         keyword_tokens,
         values,

@@ -294,7 +294,9 @@ pub(crate) fn resolve_keywords(
             other => Some(other),
         })
         .or(Some(crate::StepKeyword::Given));
-    steps.iter().map(move |s| s.keyword.resolve(&mut prev))
+    let resolved = steps.iter().map(move |s| s.keyword.resolve(&mut prev));
+    debug_assert_eq!(resolved.len(), steps.len());
+    resolved
 }
 
 #[cfg(test)]
@@ -409,5 +411,46 @@ mod tests {
         }];
         let resolved: Vec<_> = resolve_keywords(&steps).collect();
         assert_eq!(resolved, vec![StepKeyword::Given]);
+    }
+    #[test]
+    fn preserves_length_with_only_conjunctions() {
+        let steps = [
+            ParsedStep {
+                keyword: StepKeyword::And,
+                text: String::new(),
+                docstring: None,
+                table: None,
+            },
+            ParsedStep {
+                keyword: StepKeyword::But,
+                text: String::new(),
+                docstring: None,
+                table: None,
+            },
+        ];
+        let resolved: Vec<_> = resolve_keywords(&steps).collect();
+        assert_eq!(resolved.len(), steps.len());
+    }
+
+    #[rstest]
+    #[case(StepKeyword::And)]
+    #[case(StepKeyword::But)]
+    fn seeds_leading_conjunction_from_first_primary(#[case] kw: StepKeyword) {
+        let steps = [
+            ParsedStep {
+                keyword: kw,
+                text: String::new(),
+                docstring: None,
+                table: None,
+            },
+            ParsedStep {
+                keyword: StepKeyword::Given,
+                text: String::new(),
+                docstring: None,
+                table: None,
+            },
+        ];
+        let resolved: Vec<_> = resolve_keywords(&steps).collect();
+        assert_eq!(resolved.first().copied(), Some(StepKeyword::Given));
     }
 }
