@@ -31,7 +31,7 @@ builds on the excellent `rstest` fixture and parametrisation model:
   The attribute now requires a `path` argument pointing to the `.feature` file;
   index-only usage is no longer supported.
 
-  Migration:
+  Migration (since 0.1.0-alpha2):
 
   ```rust
   // Before

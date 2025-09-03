@@ -32,7 +32,7 @@ gherkin.workspace = true
 walkdir = "2.5.0"
 proc-macro-crate = "3"
 rstest-bdd.workspace = true
-cfg-if = "1"
+cfg-if.workspace = true
 proc-macro-error = "1"
 
 [dev-dependencies]
