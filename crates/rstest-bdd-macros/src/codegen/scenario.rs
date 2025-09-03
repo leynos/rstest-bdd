@@ -100,8 +100,7 @@ fn process_steps(
     Vec<TokenStream2>,
     Vec<TokenStream2>,
 ) {
-    let keywords = crate::validation::steps::resolve_keywords(steps)
-        .into_iter()
+    let keyword_tokens = crate::validation::steps::resolve_keywords(steps)
         .map(|kw| kw.to_token_stream())
         .collect();
     let values = steps
@@ -127,12 +126,12 @@ fn process_steps(
         .iter()
         .map(|s| generate_table_tokens(s.table.as_deref()))
         .collect();
-    (keywords, values, docstrings, tables)
+    (keyword_tokens, values, docstrings, tables)
 }
 
 /// Grouped tokens for scenario steps.
 struct ProcessedSteps {
-    keywords: Vec<TokenStream2>,
+    keyword_tokens: Vec<TokenStream2>,
     values: Vec<TokenStream2>,
     docstrings: Vec<TokenStream2>,
     tables: Vec<TokenStream2>,
@@ -152,7 +151,7 @@ struct TestTokensConfig<'a> {
 /// ```rust,ignore
 /// # use syn::parse_quote;
 /// let processed = ProcessedSteps {
-///     keywords: vec![],
+///     keyword_tokens: vec![],
 ///     values: vec![],
 ///     docstrings: vec![],
 ///     tables: vec![],
@@ -173,7 +172,7 @@ fn generate_test_tokens(
     let TestTokensConfig {
         processed_steps:
             ProcessedSteps {
-                keywords,
+                keyword_tokens,
                 values,
                 docstrings,
                 tables,
@@ -185,7 +184,7 @@ fn generate_test_tokens(
 
     let path = crate::codegen::rstest_bdd_path();
     quote! {
-        let steps = [#((#keywords, #values, #docstrings, #tables)),*];
+        let steps = [#((#keyword_tokens, #values, #docstrings, #tables)),*];
         let ctx = {
             let mut ctx = #path::StepContext::default();
             #(#ctx_inserts)*
@@ -234,9 +233,9 @@ pub(crate) fn generate_scenario_code(
         steps,
         examples,
     } = config;
-    let (keywords, values, docstrings, tables) = process_steps(&steps);
+    let (keyword_tokens, values, docstrings, tables) = process_steps(&steps);
     let processed_steps = ProcessedSteps {
-        keywords,
+        keyword_tokens,
         values,
         docstrings,
         tables,
@@ -308,8 +307,8 @@ mod tests {
                 ..blank()
             })
             .collect();
-        let (keywords, _, _, _) = process_steps(&steps);
-        let parsed: Vec<_> = keywords.iter().map(kw).collect();
+        let (keyword_tokens, _, _, _) = process_steps(&steps);
+        let parsed: Vec<_> = keyword_tokens.iter().map(kw).collect();
         assert_eq!(parsed, expect);
     }
 }

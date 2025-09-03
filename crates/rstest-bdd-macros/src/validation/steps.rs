@@ -71,6 +71,7 @@ fn collect_missing_steps(
     // resolve conjunctions (And/But) while preserving this branch's
     // span-aware diagnostics for precise error reporting.
     let resolved = resolve_keywords(steps);
+    debug_assert_eq!(resolved.len(), steps.len());
     let mut missing = Vec::new();
 
     for (step, keyword) in steps.iter().zip(resolved) {
@@ -282,7 +283,10 @@ fn current_crate_id() -> String {
 ///
 /// Seeds the chain with the first primary keyword, defaulting to `Given` when
 /// none is found.
-pub(crate) fn resolve_keywords(steps: &[ParsedStep]) -> Vec<crate::StepKeyword> {
+/// Returns an iterator yielding one keyword per input step.
+pub(crate) fn resolve_keywords(
+    steps: &[ParsedStep],
+) -> impl ExactSizeIterator<Item = crate::StepKeyword> + '_ {
     let mut prev = steps
         .iter()
         .find_map(|s| match s.keyword {
@@ -290,7 +294,7 @@ pub(crate) fn resolve_keywords(steps: &[ParsedStep]) -> Vec<crate::StepKeyword> 
             other => Some(other),
         })
         .or(Some(crate::StepKeyword::Given));
-    steps.iter().map(|s| s.keyword.resolve(&mut prev)).collect()
+    steps.iter().map(move |s| s.keyword.resolve(&mut prev))
 }
 
 #[cfg(test)]
@@ -392,5 +396,18 @@ mod tests {
         }];
         assert!(validate_steps_exist(&steps, true).is_err());
         assert!(validate_steps_exist(&steps, false).is_ok());
+    }
+    #[rstest]
+    #[case(StepKeyword::And)]
+    #[case(StepKeyword::But)]
+    fn defaults_leading_conjunction_to_given(#[case] kw: StepKeyword) {
+        let steps = [ParsedStep {
+            keyword: kw,
+            text: String::new(),
+            docstring: None,
+            table: None,
+        }];
+        let resolved: Vec<_> = resolve_keywords(&steps).collect();
+        assert_eq!(resolved, vec![StepKeyword::Given]);
     }
 }
