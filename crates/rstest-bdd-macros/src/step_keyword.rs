@@ -149,10 +149,7 @@ mod tests {
     #[case("AND", StepKeyword::And)]
     #[case(" but ", StepKeyword::But)]
     fn parses_case_insensitively(#[case] input: &str, #[case] expected: StepKeyword) {
-        assert_eq!(
-            parse_kw(input),
-            expected
-        );
+        assert_eq!(parse_kw(input), expected);
     }
 
     #[test]

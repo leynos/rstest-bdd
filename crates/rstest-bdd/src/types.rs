@@ -145,6 +145,16 @@ mod tests {
     use gherkin::StepType;
     use rstest::rstest;
 
+    #[expect(clippy::expect_used, reason = "test helper with descriptive failures")]
+    fn parse_kw(input: &str) -> StepKeyword {
+        StepKeyword::try_from(input).expect("valid step keyword")
+    }
+
+    #[expect(clippy::expect_used, reason = "test helper with descriptive failures")]
+    fn kw_from_type(ty: StepType) -> StepKeyword {
+        StepKeyword::try_from(ty).expect("valid step type")
+    }
+
     #[rstest]
     #[case("Given", StepKeyword::Given)]
     #[case("given", StepKeyword::Given)]
@@ -153,10 +163,7 @@ mod tests {
     #[case(" but ", StepKeyword::But)]
     fn parses_case_insensitively(#[case] input: &str, #[case] expected: StepKeyword) {
         assert!(matches!(StepKeyword::from_str(input), Ok(val) if val == expected));
-        assert_eq!(
-            StepKeyword::try_from(input).unwrap_or_else(|e| panic!("valid step keyword: {e}")),
-            expected
-        );
+        assert_eq!(parse_kw(input), expected);
     }
 
     #[rstest]
@@ -164,10 +171,7 @@ mod tests {
     #[case(StepType::When, StepKeyword::When)]
     #[case(StepType::Then, StepKeyword::Then)]
     fn maps_step_type(#[case] input: StepType, #[case] expected: StepKeyword) {
-        assert_eq!(
-            StepKeyword::try_from(input).unwrap_or_else(|e| panic!("valid step type: {e}")),
-            expected
-        );
+        assert_eq!(kw_from_type(input), expected);
     }
 }
 
