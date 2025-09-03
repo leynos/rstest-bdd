@@ -101,7 +101,7 @@ fn create_strict_mode_error(missing: &[(proc_macro2::Span, String)]) -> Result<(
         }
         _ => missing
             .iter()
-            .map(|(_, m)| m.clone())
+            .map(|(_, m)| format!("• {m}"))
             .collect::<Vec<_>>()
             .join("\n"),
     };
@@ -113,7 +113,17 @@ fn create_strict_mode_error(missing: &[(proc_macro2::Span, String)]) -> Result<(
 
 fn emit_non_strict_warnings(missing: &[(proc_macro2::Span, String)]) {
     for (span, msg) in missing {
-        emit_warning!(*span, "rstest-bdd[non-strict]: {}", msg);
+        let loc = span.start();
+        if loc.line == 0 && loc.column == 0 {
+            emit_warning!(
+                proc_macro2::Span::call_site(),
+                "rstest-bdd[non-strict]: {}",
+                msg;
+                note = "location unavailable (synthetic or default span)"
+            );
+        } else {
+            emit_warning!(*span, "rstest-bdd[non-strict]: {}", msg);
+        }
     }
 }
 

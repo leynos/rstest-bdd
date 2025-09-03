@@ -159,22 +159,22 @@ fn canonical_feature_path(path: &Path) -> String {
 fn validate_steps_compile_time(
     steps: &[crate::parsing::feature::ParsedStep],
 ) -> Option<TokenStream> {
-    // When both features are enabled, strict mode wins.
-    cfg_if! {
-        if #[cfg(feature = "strict-compile-time-validation")] {
-            crate::validation::steps::validate_steps_exist(steps, true)
-                .err()
-                .map(|e| e.into_compile_error().into())
-        } else if #[cfg(feature = "compile-time-validation")] {
-            crate::validation::steps::validate_steps_exist(steps, false)
-                .err()
-                .map(|e| e.into_compile_error().into())
-        } else {
-            let _ = steps;
-            None
+    let res = {
+        cfg_if! {
+            if #[cfg(feature = "strict-compile-time-validation")] {
+                crate::validation::steps::validate_steps_exist(steps, true)
+            } else if #[cfg(feature = "compile-time-validation")] {
+                crate::validation::steps::validate_steps_exist(steps, false)
+            } else {
+                let _ = steps;
+                Ok(())
+            }
         }
-    }
+    };
+    res.err().map(|e| e.into_compile_error().into())
 }
+
+
 #[cfg(test)]
 mod tests {
     use super::canonical_feature_path;
