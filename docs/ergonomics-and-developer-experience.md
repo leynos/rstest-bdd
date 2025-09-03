@@ -48,14 +48,12 @@ context provided by the step pattern.
     - If a parameter's name matches a placeholder in the pattern, it will be
   classified as a **step argument**.
     - If a parameter's name does _not_ match any placeholder, it will be
-      classified
-  as a **fixture**.
+      classified as a **fixture**.
 
 3. **Conflict Resolution:**
 
     - The explicit `#[from(name)]` attribute will be retained to handle cases
-      where
-  a parameter name must differ from the fixture name.
+      where a parameter name must differ from the fixture name.
     - If a parameter is not found in the pattern's placeholders and is not
   explicitly marked with `#[from]`, a compile-time error will be emitted if no
   fixture with that name is in scope, preventing ambiguity.
@@ -100,8 +98,7 @@ string argument optional.
     - It will convert the identifier from `snake_case` to a sentence-case string
   (e.g., `the_user_logs_in` becomes `"the user logs in"`).
     - Parameter names that are valid placeholders (e.g., `_var` or `var`) will
-      be
-  converted to `{var}` format within the inferred pattern.
+      be converted to `{var}` format within the inferred pattern.
 
 3. **Doc Comment Fallback:** As a secondary mechanism, if no pattern is
    provided and the function name is ambiguous, the macro could fall back to
@@ -143,22 +140,20 @@ A new derive macro, StepArgs, will be introduced in rstest-bdd-macros.
 
     - This macro will be applied to a user-defined struct.
     - It will generate an implementation of `TryFrom<Vec<String>>` for the
-      struct.
-  The implementation will expect a vector of captured strings from the step
-  pattern and attempt to parse each string into the corresponding struct field
-  using `FromStr`. The order of fields will map to the order of captures.
+      struct. The implementation will expect a vector of captured strings from
+      the step pattern and attempt to parse each string into the corresponding
+      struct field using `FromStr`. The order of fields will map to the order
+      of captures.
 
 2. **Step Macro Integration:**
 
     - The `extract_args` function will be updated to detect a single parameter
   whose type derives `StepArgs`.
     - If such a parameter is found, it will consume all available placeholders
-      from
-  the pattern. No other step arguments will be permitted. Fixture arguments
-  will still be allowed.
+      from the pattern. No other step arguments will be permitted. Fixture
+      arguments will still be allowed.
     - The generated step wrapper will capture all placeholders into a
-      `Vec<String>`
-  and then call `try_into()` to populate the struct.
+      `Vec<String>` and then call `try_into()` to populate the struct.
 
 **User Experience:**
 
@@ -227,11 +222,9 @@ This requires changes to both the runtime and macro crates.
 
     - The generated wrapper for a step function will inspect its return type.
     - If the return type is not `()` or `Result<(), E>`, the wrapper will
-      capture
-  the `Ok(value)` from the step function's result.
+      capture the `Ok(value)` from the step function's result.
     - It will then insert this `value` into the `StepContext` using its
-      `TypeId` as
-  the key.
+      `TypeId` as the key.
 
 4. **Implicit Injection:** A parameter in a subsequent step that is not a
    fixture and not a step argument, but whose type matches a value stored in
@@ -284,13 +277,12 @@ philosophy of augmenting, not obscuring, rstest.
 2. `#[derive(ScenarioState)]` **Macro** (in `rstest-bdd-macros`):
 
     - This derive macro will be applied to a user-defined state struct whose
-      fields
-  are of type `Slot<T>`.
+      fields are of type `Slot<T>`.
     - It will automatically generate a `Default` implementation for the struct,
   which initialises each `Slot` to its empty state.
     - This encourages a pattern where the user defines their state struct,
-      derives
-  `ScenarioState`, and then provides it as a regular `rstest` fixture.
+      derives `ScenarioState`, and then provides it as a regular `rstest`
+      fixture.
 
 **User Experience:**
 
@@ -371,11 +363,9 @@ A new binary crate, cargo-bdd, will be created.
     - It will generate a new Rust file (e.g., `tests/steps/my_feature_steps.rs`)
   containing skeleton step functions for each unique step.
     - Placeholders in step strings will be converted into function parameters
-      with
-  `String` types as a default.
+      with `String` types as a default.
     - The generated functions will have a `todo!()` macro in their body,
-      prompting
-  the developer to provide an implementation.
+      prompting the developer to provide an implementation.
 
 **Example Output:**
 

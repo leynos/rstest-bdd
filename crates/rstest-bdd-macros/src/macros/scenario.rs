@@ -167,6 +167,7 @@ fn validate_steps_compile_time(
                 .err()
                 .map(|e| e.into_compile_error().into())
         } else {
+            let _ = steps;
             None
         }
     }
