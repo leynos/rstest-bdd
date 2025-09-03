@@ -298,6 +298,7 @@ mod tests {
         vec![crate::StepKeyword::And, crate::StepKeyword::But, crate::StepKeyword::And],
         vec![crate::StepKeyword::Given, crate::StepKeyword::Given, crate::StepKeyword::Given],
     )]
+    #[case::empty(vec![], vec![])]
     fn normalises_sequences(
         #[case] seq: Vec<crate::StepKeyword>,
         #[case] expect: Vec<crate::StepKeyword>,

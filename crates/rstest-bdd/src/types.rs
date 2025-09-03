@@ -110,11 +110,18 @@ impl FromStr for StepKeyword {
     }
 }
 
-impl core::convert::TryFrom<&str> for StepKeyword {
-    type Error = StepKeywordParseError;
-
-    fn try_from(value: &str) -> Result<Self, Self::Error> {
-        Self::from_str(value)
+impl From<&str> for StepKeyword {
+    #[deprecated(
+        since = "0.1.0",
+        note = "Use StepKeyword::try_from(...) or StepKeyword::from_str(...) instead"
+    )]
+    #[expect(useless_deprecated, reason = "trait impl deprecation has no effect")]
+    #[expect(
+        clippy::expect_used,
+        reason = "deprecated shim for backward compatibility"
+    )]
+    fn from(value: &str) -> Self {
+        Self::from_str(value).expect("valid step keyword")
     }
 }
 
@@ -144,10 +151,11 @@ mod tests {
     use super::*;
     use gherkin::StepType;
     use rstest::rstest;
+    use std::str::FromStr;
 
     #[expect(clippy::expect_used, reason = "test helper with descriptive failures")]
     fn parse_kw(input: &str) -> StepKeyword {
-        StepKeyword::try_from(input).expect("valid step keyword")
+        StepKeyword::from_str(input).expect("valid step keyword")
     }
 
     #[expect(clippy::expect_used, reason = "test helper with descriptive failures")]

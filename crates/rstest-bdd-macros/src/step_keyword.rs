@@ -10,6 +10,7 @@
 use gherkin::{Step, StepType};
 use proc_macro2::TokenStream as TokenStream2;
 use quote::{ToTokens, quote};
+use rstest_bdd::{StepKeywordParseError, UnsupportedStepType};
 
 /// Keyword used to categorize a step definition.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -49,24 +50,15 @@ fn parse_step_keyword(value: &str) -> Option<StepKeyword> {
 }
 
 impl core::str::FromStr for StepKeyword {
-    type Err = &'static str;
+    type Err = StepKeywordParseError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        parse_step_keyword(s).ok_or("invalid step keyword")
-    }
-}
-
-#[derive(Debug)]
-pub(crate) struct UnsupportedStepType(pub StepType);
-
-impl core::fmt::Display for UnsupportedStepType {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "unsupported step type: {:?}", self.0)
+        parse_step_keyword(s).ok_or_else(|| StepKeywordParseError(s.trim().to_string()))
     }
 }
 
 impl core::convert::TryFrom<&str> for StepKeyword {
-    type Error = &'static str;
+    type Error = StepKeywordParseError;
 
     fn try_from(value: &str) -> Result<Self, Self::Error> {
         value.parse()
