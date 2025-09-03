@@ -125,7 +125,7 @@ async fn go_to_home(browser: &mut WebDriver) -> WebDriverResult<()> {
 }
 
 // The framework will parse the quoted string and pass it as an argument.
-#[when("I search for \"(.*)\"")]
+#[when("I search for \"{phrase}\"")]
 async fn search_for_phrase(browser: &mut WebDriver, phrase: String) -> WebDriverResult<()> {
     let form = browser.find(By::Id("search_form_input_homepage")).await?;
     form.send_keys(&phrase).await?;

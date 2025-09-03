@@ -175,13 +175,16 @@ experience by introducing more powerful and intuitive APIs.
 - [ ] **Ergonomic Improvements**
 
   - [x] **Implicit Fixture Injection:** Automatically inject fixtures when a
-    step function's parameter name matches a fixture name, removing the need
-    for `#[from(...)]` in most cases.
+      step function's parameter name matches a fixture name, removing the need
+      for `#[from(...)]` in most cases.
+      [User guide](users-guide.md#implicit-fixture-injection) ·
+      [trybuild](../crates/rstest-bdd-macros/tests/ui/implicit_fixture_missing.rs)
 
   - [ ] **Inferred Step Patterns:** Allow step definition macros (`#[given]`,
-    etc.) to be used without an explicit pattern string. The pattern will be
-    inferred from the function's name (e.g., `fn user_logs_in()` becomes
-    `"user logs in"`).
+      etc.) to be used without an explicit pattern string. The pattern will be
+      inferred from the function's name (e.g., `fn user_logs_in()` becomes
+      `"user logs in"`).
+      ([#145](https://github.com/assert-rs/rstest-bdd/pull/145))
   - [ ] **Streamlined **`Result`** Assertions:** Introduce helper macros like
     `assert_step_ok!` and `assert_step_err!` to reduce boilerplate when testing
     `Result`-returning steps.
@@ -189,8 +192,9 @@ experience by introducing more powerful and intuitive APIs.
 - [ ] **State Management and Data Flow**
 
   - [ ] **Step Return Values:** Allow `#[when]` steps to return values, which
-    can then be automatically injected into subsequent `#[then]` steps,
-    enabling a more functional style of testing.
+      can then be automatically injected into subsequent `#[then]` steps,
+      enabling a more functional style of testing. Returned values override
+      fixtures of the same type.
 
   - [ ] **Scenario State Management:** Introduce a `#[scenario_state]` derive
     macro and a `Slot<T>` type to simplify the management of shared state

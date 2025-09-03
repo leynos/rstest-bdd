@@ -46,10 +46,10 @@ fn missing_capture(value: u32) {
 
 /// Assert that two `StepError` values represent the same failure.
 fn assert_step_error(
-    actual: StepError,
+    actual: &StepError,
     expected_function: &str,
     step_pattern: &str,
-    expected: StepError,
+    expected: &StepError,
 ) {
     match (actual, expected) {
         (
@@ -185,7 +185,7 @@ fn step_error_scenarios(
         Ok(()) => panic!("expected error for '{step_text}'"),
         Err(e) => e,
     };
-    assert_step_error(err, expected_function, step_pattern, expected_error);
+    assert_step_error(&err, expected_function, step_pattern, &expected_error);
 }
 
 #[test]

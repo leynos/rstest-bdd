@@ -135,6 +135,8 @@ fn test_add_to_basket(#[with(basket)] _: Basket) {
 }
 ```
 
+### Implicit fixture injection
+
 Implicit fixtures such as `basket` must already be in scope in the test module;
 `#[from(name)]` only renames a fixture and does not create one.
 

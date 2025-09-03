@@ -149,6 +149,13 @@ A new derive macro, StepArgs, will be introduced in rstest-bdd-macros.
       emitted by the macro with the missing or excess placeholder names and
       span highlights.
 
+      ```text
+      error: StepArgs fields do not match placeholders: missing {age}, extra field `role`
+       --> tests/steps.rs:27:10
+      27 | struct NewUser { name: String, role: String }
+         |          ^^^^^
+      ```
+
 2. **Step Macro Integration:**
 
     - The `extract_args` function will be updated to detect a single parameter
@@ -225,10 +232,12 @@ This requires changes to both the runtime and macro crates.
    **`crates/rstest-bdd-macros/src/codegen/wrapper/emit.rs`**):**
 
     - The generated wrapper for a step function will inspect its return type.
-    - If the return type is not `()` or `Result<(), E>`, the wrapper will
-      capture the `Ok(value)` from the step function's result.
-    - It will then insert this `value` into the `StepContext` using its
-      `TypeId` as the key.
+      - If the return type is not `()` or `Result<(), E>`, the wrapper will
+        capture the `Ok(value)` from the step function's result. If the step
+        returns `Err(e)` the error is propagated unchanged and nothing is
+        stored in the context.
+      - It will then insert this `value` into the `StepContext` using its
+        `TypeId` as the key.
 
 4. **Implicit Injection:** A parameter in a subsequent step that is not a
    fixture and not a step argument, but whose type matches a value stored in
@@ -368,8 +377,8 @@ A new binary crate, cargo-bdd, will be created.
   containing skeleton step functions for each unique step.
     - Placeholders in step strings will be converted into function parameters
       with `String` types as a default.
-    - The generated functions will have a `todo!()` macro in their body,
-      prompting the developer to provide an implementation.
+    - Generated functions contain a `todo!()` macro, requiring the developer to
+      implement them.
 
 **Example Output:**
 
