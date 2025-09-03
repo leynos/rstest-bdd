@@ -35,7 +35,7 @@ fn step_attr(attr: TokenStream, item: TokenStream, keyword: crate::StepKeyword) 
                 crate::StepKeyword::But => "but",
             };
             let help = format!(
-                "use `#[{kw_name}] fn name(ctx: &rstest_bdd::StepContext, ...)` and valid fixtures"
+                "Use `#[{kw_name}] fn name(ctx: &rstest_bdd::StepContext, ...)` and valid fixtures."
             );
             proc_macro_error::abort!(err.span(), "invalid step function signature: {}", err; help = help);
         }

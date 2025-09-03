@@ -4,4 +4,4 @@ error: invalid step function signature: unsupported parameter pattern; use a sim
 11 | fn step_with_struct(User { name }: User) {}
    |                     ^^^^^^^^^^^^^
    |
-   = help: use `#[given] fn name(ctx: &rstest_bdd::StepContext, ...)` and valid fixtures
+   = help: Use `#[given] fn name(ctx: &rstest_bdd::StepContext, ...)` and valid fixtures.

@@ -129,6 +129,9 @@ fn try_scenario(
 
 /// Canonicalise the feature path for stable diagnostics.
 ///
+/// Resolves symlinks via `std::fs::canonicalize` so diagnostics and generated
+/// code reference a consistent absolute path across builds and environments.
+///
 /// ```rust,ignore
 /// # use std::path::{Path, PathBuf};
 /// # fn demo() {
@@ -149,7 +152,7 @@ fn canonical_feature_path(path: &Path) -> String {
 
 /// Validate registered steps when compile-time validation is enabled.
 ///
-/// ```rust,ignore,ignore
+/// ```rust,ignore
 /// let steps = Vec::new();
 /// let _ = validate_steps_compile_time(&steps);
 /// ```

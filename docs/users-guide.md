@@ -213,19 +213,29 @@ behave like other `rstest` tests; they honour `#[tokio::test]` or
 `#[async_std::test]` attributes if applied to the original function. Each
 scenario runs its steps sequentially in the order defined in the feature file.
 By default, missing steps emit a compile‑time warning and are checked again at
-runtime, so steps can live in other crates. Enabling the
-`strict-compile-time-validation` feature on `rstest-bdd-macros` turns those
-warnings into `compile_error!`s for any step not defined in the current crate,
-preventing behaviour specifications from silently drifting from the code.
-Scenarios that rely on step definitions from other crates will therefore fail
-to compile.
+runtime so steps can live in other crates. Enabling the
+`compile-time-validation` feature on `rstest-bdd-macros` registers steps and
+performs compile‑time validation, emitting warnings for any that are missing.
+The `strict-compile-time-validation` feature builds on this and turns those
+warnings into `compile_error!`s when all step definitions are local. This
+prevents behaviour specifications from silently drifting from the code while
+still permitting cross‑crate step sharing.
 
-To enable strict checking add the feature to your `dev-dependencies`:
+To enable validation pin a feature in your `dev-dependencies`:
+
+```toml
+[dev-dependencies]
+rstest-bdd-macros = { version = "0.1.0-alpha2", features = ["compile-time-validation"] }
+```
+
+For strict checking use:
 
 ```toml
 [dev-dependencies]
 rstest-bdd-macros = { version = "0.1.0-alpha2", features = ["strict-compile-time-validation"] }
 ```
+
+Steps are only validated when one of these features is enabled.
 
 Best practices for writing effective scenarios include:
 
@@ -252,8 +262,8 @@ Best practices for writing effective scenarios include:
   (for example, `1e3`, `-1E-9`), and the special values `NaN`, `inf`, and
   `Infinity` (matched case-insensitively). Matching is anchored: the entire
   step text must match the pattern; partial matches do not succeed. Escape
-  literal braces with `{{` and `}}`. Use `\\` to match a single backslash. A
-  trailing `\\` or any other backslash escape is treated literally, so `\d`
+  literal braces with `{{` and `}}`. Use `\` to match a single backslash. A
+  trailing `\` or any other backslash escape is treated literally, so `\d`
   matches the two-character sequence `\d`. Nested braces inside placeholders
   are not supported. Placeholders follow `{name[:type]}`; `name` must start
   with a letter or underscore and may contain letters, digits, or underscores
