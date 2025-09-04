@@ -135,19 +135,33 @@ fn try_scenario(
 
 /// Normalise path components so equivalent inputs share cache entries.
 fn normalise(path: &Path) -> PathBuf {
+    use std::ffi::OsString;
     use std::path::Component;
 
-    let mut normalised = PathBuf::new();
-    for component in path.components() {
-        match component {
+    if path.is_absolute() {
+        return path.to_path_buf();
+    }
+
+    let mut segs: Vec<OsString> = Vec::new();
+    for c in path.components() {
+        match c {
             Component::CurDir => {}
             Component::ParentDir => {
-                normalised.pop();
+                if segs.last().is_some_and(|s| s != "..") {
+                    segs.pop();
+                } else {
+                    segs.push(OsString::from(".."));
+                }
             }
-            c => normalised.push(c.as_os_str()),
+            Component::Normal(s) => segs.push(s.to_os_string()),
+            _ => segs.push(c.as_os_str().to_os_string()),
         }
     }
-    normalised
+    let mut out = PathBuf::new();
+    for s in segs {
+        out.push(s);
+    }
+    out
 }
 
 /// Canonicalise the feature path for stable diagnostics.
@@ -177,9 +191,9 @@ fn canonical_feature_path(path: &Path) -> String {
     let canonical = std::env::var("CARGO_MANIFEST_DIR")
         .ok()
         .map(PathBuf::from)
-        .map(|d| d.join(&key))
+        .map(|d| d.join(path))
         .and_then(|p| std::fs::canonicalize(&p).ok())
-        .unwrap_or_else(|| PathBuf::from(&key))
+        .unwrap_or_else(|| PathBuf::from(path))
         .display()
         .to_string();
 
@@ -227,12 +241,17 @@ fn clear_feature_path_cache() {
 mod tests {
     use super::{canonical_feature_path, clear_feature_path_cache};
     use rstest::rstest;
+    use serial_test::serial;
 
     use std::env;
     use std::path::{Path, PathBuf};
 
+    #[serial]
     #[rstest]
-    #[expect(clippy::expect_used, reason = "tests require explicit failure messages")]
+    #[expect(
+        clippy::expect_used,
+        reason = "tests require explicit failure messages"
+    )]
     fn canonicalises_with_manifest_dir() {
         clear_feature_path_cache();
         let manifest = PathBuf::from(
@@ -248,6 +267,7 @@ mod tests {
         assert_eq!(canonical_feature_path(path), expected);
     }
 
+    #[serial]
     #[rstest]
     fn falls_back_on_missing_path() {
         clear_feature_path_cache();
@@ -255,8 +275,12 @@ mod tests {
         assert_eq!(canonical_feature_path(path), path.display().to_string());
     }
 
+    #[serial]
     #[rstest]
-    #[expect(clippy::expect_used, reason = "tests require explicit failure messages")]
+    #[expect(
+        clippy::expect_used,
+        reason = "tests require explicit failure messages"
+    )]
     fn caches_paths_between_calls() {
         use std::fs::{remove_file, write};
         use std::time::{SystemTime, UNIX_EPOCH};
