@@ -147,9 +147,13 @@ pub(crate) fn parse_and_load_feature(path: &Path) -> Result<Feature, proc_macro2
     // Canonicalise for stable cache keys; missing files fall back to the joined path.
     let canonical = std::fs::canonicalize(&feature_path).ok();
     if let Some(feature) = {
+        #[expect(
+            clippy::expect_used,
+            reason = "lock poisoning is unrecoverable; panic with clear message"
+        )]
         let cache = FEATURE_CACHE
             .read()
-            .unwrap_or_else(|e| panic!("feature cache poisoned: {e}"));
+            .expect("feature cache poisoned");
         canonical
             .as_ref()
             .into_iter()
@@ -177,9 +181,13 @@ pub(crate) fn parse_and_load_feature(path: &Path) -> Result<Feature, proc_macro2
     })?;
 
     let key = canonical.unwrap_or_else(|| feature_path.clone());
+    #[expect(
+        clippy::expect_used,
+        reason = "lock poisoning is unrecoverable; panic with clear message"
+    )]
     let mut cache = FEATURE_CACHE
         .write()
-        .unwrap_or_else(|e| panic!("feature cache poisoned: {e}"));
+        .expect("feature cache poisoned");
     cache.insert(key.clone(), feature.clone());
     if key != feature_path {
         cache.insert(feature_path.clone(), feature.clone());
@@ -190,10 +198,14 @@ pub(crate) fn parse_and_load_feature(path: &Path) -> Result<Feature, proc_macro2
 
 #[cfg(test)]
 pub(crate) fn clear_feature_cache() {
-    FEATURE_CACHE
+    #[expect(
+        clippy::expect_used,
+        reason = "lock poisoning is unrecoverable; panic with clear message"
+    )]
+    let mut guard = FEATURE_CACHE
         .write()
-        .unwrap_or_else(|e| panic!("feature cache poisoned: {e}"))
-        .clear();
+        .expect("feature cache poisoned");
+    guard.clear();
 }
 
 /// Extract the scenario data for the given feature and optional index.

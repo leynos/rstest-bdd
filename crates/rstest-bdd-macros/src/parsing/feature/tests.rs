@@ -471,6 +471,11 @@ fn caches_features_by_path() {
         second.scenarios.len(),
         "cached feature scenarios differ"
     );
+    assert_eq!(
+        first.scenarios.iter().map(|s| &s.name).collect::<Vec<_>>(),
+        second.scenarios.iter().map(|s| &s.name).collect::<Vec<_>>(),
+        "cached feature scenario names differ"
+    );
 }
 
 #[cfg(feature = "compile-time-validation")]
