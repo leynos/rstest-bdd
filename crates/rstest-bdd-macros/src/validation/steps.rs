@@ -57,23 +57,29 @@ pub(crate) fn register_step(keyword: StepKeyword, pattern: &syn::LitStr) {
 /// Returns a `syn::Error` when `strict` is `true` and a step lacks a matching
 /// definition or when any step matches more than one definition.
 pub(crate) fn validate_steps_exist(steps: &[ParsedStep], strict: bool) -> Result<(), syn::Error> {
-    let current = current_crate_id();
     #[expect(
         clippy::expect_used,
         reason = "lock poisoning is unrecoverable; panic with clear message"
     )]
     let reg = REGISTERED.lock().expect("step registry poisoned");
-    if !reg.iter().any(|d| d.crate_id.as_ref() == current.as_str()) && !strict {
+    let current = current_crate_id();
+    let owned: Vec<RegisteredStep> = reg
+        .iter()
+        .filter(|d| d.crate_id.as_ref() == current.as_str())
+        .cloned()
+        .collect();
+    drop(reg);
+
+    if owned.is_empty() && !strict {
         return Ok(());
     }
-    let missing = collect_missing_steps(&reg, &current, steps)?;
-    drop(reg);
+
+    let missing = collect_missing_steps(&owned, steps)?;
     handle_validation_result(&missing, strict)
 }
 
 fn collect_missing_steps(
-    reg: &[RegisteredStep],
-    current: &str,
+    defs: &[RegisteredStep],
     steps: &[ParsedStep],
 ) -> Result<Vec<(proc_macro2::Span, String)>, syn::Error> {
     // Resolve conjunctions (And/But) deterministically to the preceding
@@ -82,7 +88,7 @@ fn collect_missing_steps(
     debug_assert_eq!(resolved.len(), steps.len());
     let mut missing = Vec::new();
     for (step, keyword) in steps.iter().zip(resolved) {
-        if let Some(msg) = has_matching_step_definition(reg, current, keyword, step)? {
+        if let Some(msg) = has_matching_step_definition(defs, keyword, step)? {
             let span = {
                 #[cfg(feature = "compile-time-validation")]
                 {
@@ -159,38 +165,25 @@ fn find_step_matches<'a>(
 }
 
 fn has_matching_step_definition(
-    reg: &[RegisteredStep],
-    current: &str,
+    defs: &[RegisteredStep],
     resolved: StepKeyword,
     step: &ParsedStep,
 ) -> Result<Option<String>, syn::Error> {
-    let defs: Vec<_> = reg
-        .iter()
-        .filter(|d| d.crate_id.as_ref() == current)
-        .filter(|d| d.keyword == resolved)
-        .collect();
-    let matches = find_step_matches(&defs, step);
+    let candidates: Vec<&RegisteredStep> = defs.iter().filter(|d| d.keyword == resolved).collect();
+    let matches = find_step_matches(&candidates, step);
 
     match matches.len() {
-        0 => Ok(Some(format_missing_step_error(
-            reg, current, resolved, step,
-        ))),
+        0 => Ok(Some(format_missing_step_error(&candidates, resolved, step))),
         1 => Ok(None),
         _ => Err(format_ambiguous_step_error(&matches, step)),
     }
 }
 
 fn format_missing_step_error(
-    reg: &[RegisteredStep],
-    current: &str,
+    defs: &[&RegisteredStep],
     resolved: StepKeyword,
     step: &ParsedStep,
 ) -> String {
-    let defs: Vec<&RegisteredStep> = reg
-        .iter()
-        .filter(|d| d.crate_id.as_ref() == current)
-        .filter(|d| d.keyword == resolved)
-        .collect();
     let available_defs: Vec<&'static str> = defs.iter().map(|d| d.pattern.as_str()).collect();
     let possible_matches: Vec<&str> = defs
         .iter()

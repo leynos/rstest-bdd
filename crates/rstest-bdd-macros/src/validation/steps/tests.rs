@@ -100,3 +100,54 @@ fn ignores_steps_from_other_crates() {
     assert!(validate_steps_exist(&steps, true).is_err());
     assert!(validate_steps_exist(&steps, false).is_ok());
 }
+
+#[rstest]
+#[serial]
+fn validates_placeholder_step() {
+    registry_cleared();
+    register_step(
+        StepKeyword::Given,
+        &syn::LitStr::new("I have {item}", proc_macro2::Span::call_site()),
+    );
+    let steps = [ParsedStep {
+        keyword: StepKeyword::Given,
+        text: "I have apples".to_string(),
+        docstring: None,
+        table: None,
+        #[cfg(feature = "compile-time-validation")]
+        span: proc_macro2::Span::call_site(),
+    }];
+    assert!(validate_steps_exist(&steps, true).is_ok());
+}
+
+#[rstest]
+#[serial]
+fn validates_typed_placeholder_step() {
+    registry_cleared();
+    register_step(
+        StepKeyword::Given,
+        &syn::LitStr::new("number {n:u32}", proc_macro2::Span::call_site()),
+    );
+    let steps = [ParsedStep {
+        keyword: StepKeyword::Given,
+        text: "number 42".to_string(),
+        docstring: None,
+        table: None,
+        #[cfg(feature = "compile-time-validation")]
+        span: proc_macro2::Span::call_site(),
+    }];
+    assert!(validate_steps_exist(&steps, true).is_ok());
+}
+
+#[rstest]
+#[serial]
+fn aborts_on_invalid_step_pattern() {
+    registry_cleared();
+    let result = std::panic::catch_unwind(|| {
+        register_step(
+            StepKeyword::Given,
+            &syn::LitStr::new("unclosed {", proc_macro2::Span::call_site()),
+        );
+    });
+    assert!(result.is_err());
+}
