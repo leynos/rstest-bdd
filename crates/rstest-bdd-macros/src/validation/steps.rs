@@ -11,13 +11,14 @@ use std::sync::{LazyLock, Mutex};
 
 use crate::StepKeyword;
 use crate::parsing::feature::ParsedStep;
-use proc_macro_error::emit_warning;
-use rstest_bdd::{StepPattern, StepText, extract_placeholders};
+use proc_macro_error::{abort, emit_warning};
+use rstest_bdd::{StepPattern, extract_placeholders};
 
 #[derive(Clone)]
 struct RegisteredStep {
     keyword: StepKeyword,
-    pattern: &'static str,
+    pattern: &'static StepPattern,
+    // Regex compiled at registration to avoid repeat work.
     crate_id: Box<str>,
 }
 
@@ -25,17 +26,24 @@ static REGISTERED: LazyLock<Mutex<Vec<RegisteredStep>>> = LazyLock::new(|| Mutex
 
 /// Record a step definition so scenarios can validate against it.
 pub(crate) fn register_step(keyword: StepKeyword, pattern: &syn::LitStr) {
+    let leaked: &'static str = Box::leak(pattern.value().into_boxed_str());
+    // Leak into `static`; step count is bounded during compile time.
+    let step_pattern: &'static StepPattern = Box::leak(Box::new(StepPattern::new(leaked)));
+    if let Err(e) = step_pattern.compile() {
+        abort!(
+            pattern.span(),
+            "rstest-bdd-macros: Invalid step pattern '{}' in #[step] macro: {}",
+            leaked,
+            e
+        );
+    }
+    let crate_id = current_crate_id().into_boxed_str();
     #[expect(
         clippy::expect_used,
         reason = "lock poisoning is unrecoverable; panic with clear message"
     )]
     let mut reg = REGISTERED.lock().expect("step registry poisoned");
-    let leaked: &'static str = Box::leak(pattern.value().into_boxed_str());
-    reg.push(RegisteredStep {
-        keyword,
-        pattern: leaked,
-        crate_id: current_crate_id().into_boxed_str(),
-    });
+    reg.push(RegisteredStep { keyword, pattern: step_pattern, crate_id });
 }
 
 /// Ensure all parsed steps have matching definitions.
@@ -49,37 +57,32 @@ pub(crate) fn register_step(keyword: StepKeyword, pattern: &syn::LitStr) {
 /// Returns a `syn::Error` when `strict` is `true` and a step lacks a matching
 /// definition or when any step matches more than one definition.
 pub(crate) fn validate_steps_exist(steps: &[ParsedStep], strict: bool) -> Result<(), syn::Error> {
+    let current = current_crate_id();
     #[expect(
         clippy::expect_used,
         reason = "lock poisoning is unrecoverable; panic with clear message"
     )]
     let reg = REGISTERED.lock().expect("step registry poisoned");
-    let current = current_crate_id();
-    let owned: Vec<_> = reg
-        .iter()
-        .filter(|d| d.crate_id.as_ref() == current.as_str())
-        .cloned()
-        .collect();
-    if owned.is_empty() && !strict {
+    if !reg.iter().any(|d| d.crate_id.as_ref() == current.as_str()) && !strict {
         return Ok(());
     }
-    let missing = collect_missing_steps(&owned, steps)?;
+    let missing = collect_missing_steps(&reg, &current, steps)?;
+    drop(reg);
     handle_validation_result(&missing, strict)
 }
 
 fn collect_missing_steps(
     reg: &[RegisteredStep],
+    current: &str,
     steps: &[ParsedStep],
 ) -> Result<Vec<(proc_macro2::Span, String)>, syn::Error> {
-    // Use the refactored keyword resolution from main to correctly
-    // resolve conjunctions (And/But) while preserving this branch's
-    // span-aware diagnostics for precise error reporting.
+    // Resolve conjunctions (And/But) deterministically to the preceding
+    // primary keyword while preserving span-aware diagnostics.
     let resolved = resolve_keywords(steps);
     debug_assert_eq!(resolved.len(), steps.len());
     let mut missing = Vec::new();
-
     for (step, keyword) in steps.iter().zip(resolved) {
-        if let Some(msg) = has_matching_step_definition(reg, keyword, step)? {
+        if let Some(msg) = has_matching_step_definition(reg, current, keyword, step)? {
             let span = {
                 #[cfg(feature = "compile-time-validation")]
                 {
@@ -145,64 +148,60 @@ fn emit_non_strict_warnings(missing: &[(proc_macro2::Span, String)]) {
     }
 }
 
+fn find_step_matches<'a>(
+    defs: &'a [&RegisteredStep],
+    step: &ParsedStep,
+) -> Vec<&'a RegisteredStep> {
+    defs.iter()
+        .copied()
+        .filter(|def| extract_placeholders(def.pattern, step.text.as_str().into()).is_ok())
+        .collect()
+}
+
 fn has_matching_step_definition(
     reg: &[RegisteredStep],
+    current: &str,
     resolved: StepKeyword,
     step: &ParsedStep,
 ) -> Result<Option<String>, syn::Error> {
-    let matches = find_step_matches(reg, resolved, step);
+    let defs: Vec<_> = reg
+        .iter()
+        .filter(|d| d.crate_id.as_ref() == current)
+        .filter(|d| d.keyword == resolved)
+        .collect();
+    let matches = find_step_matches(&defs, step);
 
     match matches.len() {
-        0 => Ok(Some(format_missing_step_error(reg, resolved, step))),
+        0 => Ok(Some(format_missing_step_error(
+            reg, current, resolved, step,
+        ))),
         1 => Ok(None),
         _ => Err(format_ambiguous_step_error(&matches, step)),
     }
 }
 
-fn step_matches_definition(def: &RegisteredStep, resolved: StepKeyword, step: &ParsedStep) -> bool {
-    if def.keyword != resolved {
-        return false;
-    }
-    let pattern = StepPattern::new(def.pattern);
-    extract_placeholders(&pattern, StepText::from(step.text.as_str())).is_ok()
-}
-
-fn find_step_matches<'a>(
-    reg: &'a [RegisteredStep],
-    resolved: StepKeyword,
-    step: &ParsedStep,
-) -> Vec<&'a RegisteredStep> {
-    use std::collections::HashMap;
-    let mut cache: HashMap<&'static str, bool> = HashMap::with_capacity(reg.len());
-    reg.iter()
-        .filter(|def| {
-            *cache
-                .entry(def.pattern)
-                .or_insert_with(|| step_matches_definition(def, resolved, step))
-        })
-        .collect()
-}
-
 fn format_missing_step_error(
     reg: &[RegisteredStep],
+    current: &str,
     resolved: StepKeyword,
     step: &ParsedStep,
 ) -> String {
-    let available_defs: Vec<&'static str> = reg
+    let defs: Vec<&RegisteredStep> = reg
         .iter()
+        .filter(|d| d.crate_id.as_ref() == current)
         .filter(|d| d.keyword == resolved)
-        .map(|d| d.pattern)
         .collect();
-    let possible_matches: Vec<&str> = available_defs
+    let available_defs: Vec<&'static str> = defs.iter().map(|d| d.pattern.as_str()).collect();
+    let possible_matches: Vec<&str> = defs
         .iter()
-        .copied()
-        .filter(|pat| step.text.contains(*pat) || pat.contains(step.text.as_str()))
+        .filter(|d| d.pattern.regex().is_match(step.text.as_str()))
+        .map(|d| d.pattern.as_str())
         .collect();
     build_missing_step_message(resolved, step, &available_defs, &possible_matches)
 }
 
 fn format_ambiguous_step_error(matches: &[&RegisteredStep], step: &ParsedStep) -> syn::Error {
-    let patterns: Vec<&str> = matches.iter().map(|def| def.pattern).collect();
+    let patterns: Vec<&str> = matches.iter().map(|def| def.pattern.as_str()).collect();
     let msg = format!(
         "Ambiguous step definition for '{}'. Matches: {}",
         step.text,
@@ -302,175 +301,5 @@ pub(crate) fn resolve_keywords(
     debug_assert_eq!(resolved.len(), steps.len());
     resolved
 }
-
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use rstest::rstest;
-    use serial_test::serial;
-
-    fn clear_registry() {
-        #[expect(
-            clippy::expect_used,
-            reason = "lock poisoning is unrecoverable; panic with clear message"
-        )]
-        let mut guard = REGISTERED.lock().expect("step registry poisoned");
-        guard.clear();
-    }
-
-    #[rstest]
-    #[serial]
-    fn registry_cleared() {
-        clear_registry();
-    }
-
-    #[rstest]
-    #[serial]
-    fn validates_when_step_present() {
-        registry_cleared();
-        register_step(
-            StepKeyword::Given,
-            &syn::LitStr::new("a step", proc_macro2::Span::call_site()),
-        );
-        let steps = [ParsedStep {
-            keyword: StepKeyword::Given,
-            text: "a step".to_string(),
-            docstring: None,
-            table: None,
-            #[cfg(feature = "compile-time-validation")]
-            span: proc_macro2::Span::call_site(),
-        }];
-        assert!(validate_steps_exist(&steps, true).is_ok());
-        assert!(validate_steps_exist(&steps, false).is_ok());
-    }
-
-    #[rstest]
-    #[serial]
-    fn errors_when_missing_step_in_strict_mode() {
-        registry_cleared();
-        let steps = [ParsedStep {
-            keyword: StepKeyword::Given,
-            text: "missing".to_string(),
-            docstring: None,
-            table: None,
-            span: proc_macro2::Span::call_site(),
-        }];
-        assert!(validate_steps_exist(&steps, true).is_err());
-        assert!(validate_steps_exist(&steps, false).is_ok());
-    }
-
-    #[rstest]
-    #[serial]
-    fn errors_when_step_ambiguous() {
-        registry_cleared();
-        let lit = syn::LitStr::new("a step", proc_macro2::Span::call_site());
-        register_step(StepKeyword::Given, &lit);
-        register_step(StepKeyword::Given, &lit);
-        let steps = [ParsedStep {
-            keyword: StepKeyword::Given,
-            text: "a step".to_string(),
-            docstring: None,
-            table: None,
-            #[cfg(feature = "compile-time-validation")]
-            span: proc_macro2::Span::call_site(),
-        }];
-        let err = match validate_steps_exist(&steps, false) {
-            Err(e) => e.to_string(),
-            Ok(()) => panic!("expected ambiguous step error"),
-        };
-        assert!(err.contains("Ambiguous step definition"));
-        assert!(validate_steps_exist(&steps, true).is_err());
-    }
-
-    #[rstest]
-    #[serial]
-    fn ignores_steps_from_other_crates() {
-        registry_cleared();
-        #[expect(
-            clippy::expect_used,
-            reason = "lock poisoning is unrecoverable; panic with clear message"
-        )]
-        REGISTERED
-            .lock()
-            .expect("step registry poisoned")
-            .push(RegisteredStep {
-                keyword: StepKeyword::Given,
-                pattern: "a step",
-                crate_id: "other".into(),
-            });
-        let steps = [ParsedStep {
-            keyword: StepKeyword::Given,
-            text: "a step".to_string(),
-            docstring: None,
-            table: None,
-            #[cfg(feature = "compile-time-validation")]
-            span: proc_macro2::Span::call_site(),
-        }];
-        assert!(validate_steps_exist(&steps, true).is_err());
-        assert!(validate_steps_exist(&steps, false).is_ok());
-    }
-    #[rstest]
-    #[case(StepKeyword::And)]
-    #[case(StepKeyword::But)]
-    fn defaults_leading_conjunction_to_given(#[case] kw: StepKeyword) {
-        let steps = [ParsedStep {
-            keyword: kw,
-            text: String::new(),
-            docstring: None,
-            table: None,
-            #[cfg(feature = "compile-time-validation")]
-            span: proc_macro2::Span::call_site(),
-        }];
-        let resolved: Vec<_> = resolve_keywords(&steps).collect();
-        assert_eq!(resolved, vec![StepKeyword::Given]);
-    }
-    #[test]
-    fn preserves_length_with_only_conjunctions() {
-        let steps = [
-            ParsedStep {
-                keyword: StepKeyword::And,
-                text: String::new(),
-                docstring: None,
-                table: None,
-                #[cfg(feature = "compile-time-validation")]
-                span: proc_macro2::Span::call_site(),
-            },
-            ParsedStep {
-                keyword: StepKeyword::But,
-                text: String::new(),
-                docstring: None,
-                table: None,
-                #[cfg(feature = "compile-time-validation")]
-                span: proc_macro2::Span::call_site(),
-            },
-        ];
-        let resolved: Vec<_> = resolve_keywords(&steps).collect();
-        assert_eq!(resolved.len(), steps.len());
-    }
-
-    #[rstest]
-    #[case(StepKeyword::And)]
-    #[case(StepKeyword::But)]
-    fn seeds_leading_conjunction_from_first_primary(#[case] kw: StepKeyword) {
-        let steps = [
-            ParsedStep {
-                keyword: kw,
-                text: String::new(),
-                docstring: None,
-                table: None,
-                #[cfg(feature = "compile-time-validation")]
-                span: proc_macro2::Span::call_site(),
-            },
-            ParsedStep {
-                keyword: StepKeyword::Given,
-                text: String::new(),
-                docstring: None,
-                table: None,
-                #[cfg(feature = "compile-time-validation")]
-                span: proc_macro2::Span::call_site(),
-            },
-        ];
-        let resolved: Vec<_> = resolve_keywords(&steps).collect();
-        assert_eq!(resolved.first().copied(), Some(StepKeyword::Given));
-    }
-}
+mod tests;
