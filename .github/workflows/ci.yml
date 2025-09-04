@@ -100,7 +100,7 @@ jobs:
           features: rstest-bdd/diagnostics
           with-default-features: ${{ matrix.with-default-features }}
       - name: Publish dry run
-        if: ${{ matrix.tools }}
+        if: ${{ matrix.tools || runner.os == 'Windows' }}
         run: make publish-check
       - name: Upload coverage data to CodeScene
         if: ${{ matrix.coverage && env.CS_ACCESS_TOKEN && matrix.tools }}
