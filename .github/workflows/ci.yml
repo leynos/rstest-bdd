@@ -56,13 +56,14 @@ jobs:
         if: ${{ matrix.tools }}
         run: |
           set -euxo pipefail
-          bun install --global @mermaid-js/mermaid-cli@11.9.0
+          bun install --no-progress --global @mermaid-js/mermaid-cli@11.9.0
           bun x @puppeteer/browsers browsers install chrome-headless-shell
           mmdc --version
       - name: Debug Bun and Mermaid
         if: ${{ matrix.tools }}
         run: |
           set -euxo pipefail
+          echo "$PATH"
           which mmdc
           mmdc --version
           bun --version
@@ -105,6 +106,7 @@ jobs:
           features: rstest-bdd/diagnostics
           with-default-features: ${{ matrix.with-default-features }}
       - name: Publish dry run
+        if: ${{ matrix.tools }}
         run: make publish-check
       - name: Upload coverage data to CodeScene
         if: ${{ matrix.coverage && env.CS_ACCESS_TOKEN && matrix.tools && vars.CODESCENE_CLI_SHA256 }}
