@@ -151,6 +151,7 @@ fn process_feature_file(
     let mut tests = Vec::new();
     let mut errors = Vec::new();
 
+    // Load feature from cache, parsing once per unique path.
     match parse_and_load_feature(rel_path.as_path()) {
         Ok(feature) => {
             let feature_stem = sanitize_ident(

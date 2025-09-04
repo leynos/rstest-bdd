@@ -26,10 +26,9 @@ serde_json = { version = "1.0", optional = true }
 ctor.workspace = true
 
 [dev-dependencies]
-rstest.workspace = true
+rstest = { workspace = true }
 rstest-bdd-macros.workspace = true
 
 [features]
 default = []
 diagnostics = ["serde", "serde_json"]
-

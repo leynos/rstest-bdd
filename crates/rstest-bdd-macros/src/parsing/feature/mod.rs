@@ -1,7 +1,11 @@
 //! Feature file loading and scenario extraction.
 
 use gherkin::{Feature, GherkinEnv, Step, StepType};
-use std::path::{Path, PathBuf};
+use std::collections::HashMap;
+use std::{
+    path::{Path, PathBuf},
+    sync::{LazyLock, RwLock},
+};
 
 use crate::parsing::examples::ExampleTable;
 use crate::utils::errors::error_to_tokens;
@@ -43,6 +47,10 @@ pub(crate) struct ScenarioData {
     pub steps: Vec<ParsedStep>,
     pub(crate) examples: Option<ExampleTable>,
 }
+
+/// Cache parsed features to avoid repeated filesystem IO.
+static FEATURE_CACHE: LazyLock<RwLock<HashMap<PathBuf, Feature>>> =
+    LazyLock::new(|| RwLock::new(HashMap::new()));
 
 /// Map a textual step keyword and `StepType` to a `StepKeyword`.
 ///
@@ -135,11 +143,29 @@ fn validate_feature_file_exists(feature_path: &Path) -> Result<(), syn::Error> {
 pub(crate) fn parse_and_load_feature(path: &Path) -> Result<Feature, proc_macro2::TokenStream> {
     let feature_path = std::env::var("CARGO_MANIFEST_DIR")
         .map_or_else(|_| PathBuf::from(path), |dir| PathBuf::from(dir).join(path));
+
+    // Canonicalise for stable cache keys; missing files fall back to the joined path.
+    let canonical = std::fs::canonicalize(&feature_path).ok();
+    if let Some(feature) = {
+        #[expect(
+            clippy::expect_used,
+            reason = "lock poisoning is unrecoverable; panic with clear message"
+        )]
+        let cache = FEATURE_CACHE.read().expect("feature cache poisoned");
+        canonical
+            .as_ref()
+            .into_iter()
+            .chain(std::iter::once(&feature_path))
+            .find_map(|p| cache.get(p).cloned())
+    } {
+        return Ok(feature);
+    }
+
     if let Err(err) = validate_feature_file_exists(&feature_path) {
         return Err(error_to_tokens(&err));
     }
 
-    Feature::parse_path(&feature_path, GherkinEnv::default()).map_err(|err| {
+    let feature = Feature::parse_path(&feature_path, GherkinEnv::default()).map_err(|err| {
         #[cfg(feature = "compile-time-validation")]
         {
             if let Ok(text) = std::fs::read_to_string(&feature_path) {
@@ -150,7 +176,30 @@ pub(crate) fn parse_and_load_feature(path: &Path) -> Result<Feature, proc_macro2
         }
         let msg = format!("failed to parse feature file: {err}");
         error_to_tokens(&syn::Error::new(proc_macro2::Span::call_site(), msg))
-    })
+    })?;
+
+    let key = canonical.unwrap_or_else(|| feature_path.clone());
+    #[expect(
+        clippy::expect_used,
+        reason = "lock poisoning is unrecoverable; panic with clear message"
+    )]
+    let mut cache = FEATURE_CACHE.write().expect("feature cache poisoned");
+    cache.insert(key.clone(), feature.clone());
+    if key != feature_path {
+        cache.insert(feature_path.clone(), feature.clone());
+    }
+
+    Ok(feature)
+}
+
+#[cfg(test)]
+pub(crate) fn clear_feature_cache() {
+    #[expect(
+        clippy::expect_used,
+        reason = "lock poisoning is unrecoverable; panic with clear message"
+    )]
+    let mut guard = FEATURE_CACHE.write().expect("feature cache poisoned");
+    guard.clear();
 }
 
 /// Extract the scenario data for the given feature and optional index.

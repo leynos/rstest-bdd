@@ -52,7 +52,7 @@ Add the crates to your **dev‑dependencies**:
 ```toml
 # Cargo.toml
 [dev-dependencies]
-rstest = "0.25"
+rstest = "0.26.1"
 rstest-bdd = "0.1.0-alpha3"
 ```
 
@@ -75,7 +75,7 @@ crate. Enable them in your `Cargo.toml` with:
 
 ```toml
 [dependencies]
-rstest-bdd-macros = { version = "0.1.0-alpha2", features = ["compile-time-validation"] }
+rstest-bdd-macros = { version = "0.1.0-alpha3", features = ["compile-time-validation"] }
 ```
 
 Or via CLI:
@@ -229,8 +229,8 @@ Scenario Outline: Login with different credentials
 #[tokio::test]
 async fn test_login_scenarios(#[future] browser: WebDriver) {}
 
-// Placeholders from <angle brackets> arrive as typed arguments.
-#[when("I enter username \"<username>\" and password \"<password>\"")]
+// Use typed placeholders to bind arguments by name.
+#[when("I enter username {username} and password {password}")]
 async fn enter_credentials(
     browser: &mut WebDriver,
     username: String,
@@ -239,7 +239,7 @@ async fn enter_credentials(
     // ...
 }
 
-#[then("I should see the message \"<message>\"")]
+#[then("I should see the message {message}")]
 async fn see_message(browser: &mut WebDriver, message: String) {
     // ...
 }
