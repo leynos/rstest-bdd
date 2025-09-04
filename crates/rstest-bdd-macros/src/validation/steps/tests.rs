@@ -16,16 +16,24 @@ fn registry_cleared() {
 }
 
 #[rstest]
+#[case("a step", "a step", "basic step")]
+#[case("I have {item}", "I have apples", "placeholder step")]
+#[case("number {n:u32}", "number 42", "typed placeholder")]
 #[serial]
-fn validates_when_step_present() {
+fn validates_step_patterns(
+    #[case] pattern: &str,
+    #[case] test_text: &str,
+    #[case] description: &str,
+) {
     registry_cleared();
+    let _ = description;
     register_step(
         StepKeyword::Given,
-        &syn::LitStr::new("a step", proc_macro2::Span::call_site()),
+        &syn::LitStr::new(pattern, proc_macro2::Span::call_site()),
     );
     let steps = [ParsedStep {
         keyword: StepKeyword::Given,
-        text: "a step".to_string(),
+        text: test_text.to_string(),
         docstring: None,
         table: None,
         #[cfg(feature = "compile-time-validation")]
@@ -99,44 +107,6 @@ fn ignores_steps_from_other_crates() {
     }];
     assert!(validate_steps_exist(&steps, true).is_err());
     assert!(validate_steps_exist(&steps, false).is_ok());
-}
-
-#[rstest]
-#[serial]
-fn validates_placeholder_step() {
-    registry_cleared();
-    register_step(
-        StepKeyword::Given,
-        &syn::LitStr::new("I have {item}", proc_macro2::Span::call_site()),
-    );
-    let steps = [ParsedStep {
-        keyword: StepKeyword::Given,
-        text: "I have apples".to_string(),
-        docstring: None,
-        table: None,
-        #[cfg(feature = "compile-time-validation")]
-        span: proc_macro2::Span::call_site(),
-    }];
-    assert!(validate_steps_exist(&steps, true).is_ok());
-}
-
-#[rstest]
-#[serial]
-fn validates_typed_placeholder_step() {
-    registry_cleared();
-    register_step(
-        StepKeyword::Given,
-        &syn::LitStr::new("number {n:u32}", proc_macro2::Span::call_site()),
-    );
-    let steps = [ParsedStep {
-        keyword: StepKeyword::Given,
-        text: "number 42".to_string(),
-        docstring: None,
-        table: None,
-        #[cfg(feature = "compile-time-validation")]
-        span: proc_macro2::Span::call_site(),
-    }];
-    assert!(validate_steps_exist(&steps, true).is_ok());
 }
 
 #[rstest]
