@@ -188,9 +188,10 @@ fn canonical_feature_path(path: &Path) -> String {
         return cached;
     }
 
-    let canonical = std::env::var("CARGO_MANIFEST_DIR")
-        .ok()
-        .map(PathBuf::from)
+    let manifest_dir = std::env::var("CARGO_MANIFEST_DIR").ok().map(PathBuf::from);
+
+    let canonical = manifest_dir
+        .as_ref()
         .map(|d| d.join(path))
         .and_then(|p| std::fs::canonicalize(&p).ok())
         .unwrap_or_else(|| PathBuf::from(path))
