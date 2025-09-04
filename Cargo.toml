@@ -40,7 +40,6 @@ log = "0.4"
 fs2 = "0.4"
 rstest-bdd = "0.1.0-alpha3"
 rstest-bdd-macros = "0.1.0-alpha3"
-dashmap = "5"
 tempfile = "3.10"
 
 [workspace.lints.clippy]
