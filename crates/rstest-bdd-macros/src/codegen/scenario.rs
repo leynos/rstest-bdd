@@ -100,9 +100,21 @@ fn process_steps(
     Vec<TokenStream2>,
     Vec<TokenStream2>,
 ) {
-    let keyword_tokens = crate::validation::steps::resolve_keywords(steps)
-        .map(|kw| kw.to_token_stream())
-        .collect::<Vec<_>>();
+    // Resolve textual conjunctions (And/But) to the previous primary keyword
+    // without depending on the validation module, which is behind an optional
+    // feature. We seed with the first primary keyword or Given by default.
+    let keyword_tokens = {
+        let mut prev = steps
+            .iter()
+            .find_map(|s| match s.keyword {
+                crate::StepKeyword::And | crate::StepKeyword::But => None,
+                other => Some(other),
+            })
+            .or(Some(crate::StepKeyword::Given));
+        steps.iter().map(move |s| s.keyword.resolve(&mut prev))
+    }
+    .map(|kw| kw.to_token_stream())
+    .collect::<Vec<_>>();
     debug_assert_eq!(keyword_tokens.len(), steps.len());
     let values = steps
         .iter()

@@ -71,26 +71,8 @@ pub(crate) fn parse_step_keyword(kw: &str, ty: StepType) -> crate::StepKeyword {
     }
 }
 
-/// Return `true` if the keyword is a connective such as "And" or "But".
-#[cfg(feature = "compile-time-validation")]
-pub(crate) fn is_conjunction_keyword(kw: crate::StepKeyword) -> bool {
-    matches!(kw, crate::StepKeyword::And | crate::StepKeyword::But)
-}
-
-/// Replace "And"/"But" with the previous keyword, falling back to itself when
-/// no previous step exists.
-#[cfg(feature = "compile-time-validation")]
-pub(crate) fn resolve_conjunction_keyword(
-    prev: &mut Option<crate::StepKeyword>,
-    kw: crate::StepKeyword,
-) -> crate::StepKeyword {
-    if is_conjunction_keyword(kw) {
-        prev.unwrap_or(kw)
-    } else {
-        *prev = Some(kw);
-        kw
-    }
-}
+// Note: historic helpers for conjunction resolution lived here; the codegen
+// path now resolves conjunctions locally to avoid feature-gated deps.
 /// Convert a Gherkin step to a `ParsedStep`.
 ///
 /// Uses the textual keyword when present to honour conjunctions
@@ -102,7 +84,12 @@ impl From<&Step> for ParsedStep {
         // that conjunctions are preserved and can be used to improve
         // diagnostics. Trimming avoids surprises from trailing spaces in
         // .feature files.
-        let keyword = crate::StepKeyword::from(step);
+        #[expect(
+            clippy::expect_used,
+            reason = "gherkin::StepType is limited to Given/When/Then"
+        )]
+        let keyword =
+            crate::StepKeyword::try_from(step).expect("valid step keyword from gherkin::Step");
         let table = step.table.as_ref().map(|t| t.rows.clone());
         let docstring = step.docstring.clone();
         Self {

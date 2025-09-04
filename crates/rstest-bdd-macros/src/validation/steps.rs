@@ -408,6 +408,8 @@ mod tests {
             text: String::new(),
             docstring: None,
             table: None,
+            #[cfg(feature = "compile-time-validation")]
+            span: proc_macro2::Span::call_site(),
         }];
         let resolved: Vec<_> = resolve_keywords(&steps).collect();
         assert_eq!(resolved, vec![StepKeyword::Given]);
@@ -420,12 +422,16 @@ mod tests {
                 text: String::new(),
                 docstring: None,
                 table: None,
+                #[cfg(feature = "compile-time-validation")]
+                span: proc_macro2::Span::call_site(),
             },
             ParsedStep {
                 keyword: StepKeyword::But,
                 text: String::new(),
                 docstring: None,
                 table: None,
+                #[cfg(feature = "compile-time-validation")]
+                span: proc_macro2::Span::call_site(),
             },
         ];
         let resolved: Vec<_> = resolve_keywords(&steps).collect();
@@ -442,12 +448,16 @@ mod tests {
                 text: String::new(),
                 docstring: None,
                 table: None,
+                #[cfg(feature = "compile-time-validation")]
+                span: proc_macro2::Span::call_site(),
             },
             ParsedStep {
                 keyword: StepKeyword::Given,
                 text: String::new(),
                 docstring: None,
                 table: None,
+                #[cfg(feature = "compile-time-validation")]
+                span: proc_macro2::Span::call_site(),
             },
         ];
         let resolved: Vec<_> = resolve_keywords(&steps).collect();
