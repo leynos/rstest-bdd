@@ -12,12 +12,12 @@ use std::sync::{LazyLock, Mutex};
 use crate::StepKeyword;
 use crate::parsing::feature::{ParsedStep, resolve_conjunction_keyword};
 use proc_macro_error::emit_warning;
-use rstest_bdd::{StepPattern, StepText, extract_placeholders};
+use rstest_bdd::StepPattern;
 
 #[derive(Clone)]
 struct RegisteredStep {
     keyword: StepKeyword,
-    pattern: &'static str,
+    pattern: &'static StepPattern,
     crate_id: Box<str>,
 }
 
@@ -29,9 +29,13 @@ pub(crate) fn register_step(keyword: StepKeyword, pattern: &syn::LitStr) {
         .lock()
         .unwrap_or_else(|e| panic!("step registry poisoned: {e}"));
     let leaked: &'static str = Box::leak(pattern.value().into_boxed_str());
+    let step_pattern: &'static StepPattern = Box::leak(Box::new(StepPattern::new(leaked)));
+    step_pattern
+        .compile()
+        .unwrap_or_else(|e| panic!("invalid step pattern '{leaked}': {e}"));
     reg.push(RegisteredStep {
         keyword,
-        pattern: leaked,
+        pattern: step_pattern,
         crate_id: current_crate_id().into_boxed_str(),
     });
 }
@@ -152,11 +156,7 @@ fn has_matching_step_definition(
 }
 
 fn step_matches_definition(def: &RegisteredStep, resolved: StepKeyword, step: &ParsedStep) -> bool {
-    if def.keyword != resolved {
-        return false;
-    }
-    let pattern = StepPattern::new(def.pattern);
-    extract_placeholders(&pattern, StepText::from(step.text.as_str())).is_ok()
+    def.keyword == resolved && def.pattern.regex().is_match(step.text.as_str())
 }
 
 fn find_step_matches<'a>(
@@ -169,7 +169,7 @@ fn find_step_matches<'a>(
     reg.iter()
         .filter(|def| {
             *cache
-                .entry(def.pattern)
+                .entry(def.pattern.as_str())
                 .or_insert_with(|| step_matches_definition(def, resolved, step))
         })
         .collect()
@@ -183,7 +183,7 @@ fn format_missing_step_error(
     let available_defs: Vec<&'static str> = reg
         .iter()
         .filter(|d| d.keyword == resolved)
-        .map(|d| d.pattern)
+        .map(|d| d.pattern.as_str())
         .collect();
     let possible_matches: Vec<&str> = available_defs
         .iter()
@@ -194,7 +194,7 @@ fn format_missing_step_error(
 }
 
 fn format_ambiguous_step_error(matches: &[&RegisteredStep], step: &ParsedStep) -> syn::Error {
-    let patterns: Vec<&str> = matches.iter().map(|def| def.pattern).collect();
+    let patterns: Vec<&str> = matches.iter().map(|def| def.pattern.as_str()).collect();
     let msg = format!(
         "Ambiguous step definition for '{}'. Matches: {}",
         step.text,
@@ -372,12 +372,17 @@ mod tests {
     #[serial]
     fn ignores_steps_from_other_crates() {
         registry_cleared();
+        let pat: &'static StepPattern = {
+            let p = Box::leak(Box::new(StepPattern::new("a step")));
+            p.compile().unwrap_or_else(|e| panic!("invalid step pattern: {e}"));
+            p
+        };
         REGISTERED
             .lock()
             .unwrap_or_else(|e| panic!("step registry poisoned: {e}"))
             .push(RegisteredStep {
                 keyword: StepKeyword::Given,
-                pattern: "a step",
+                pattern: pat,
                 crate_id: "other".into(),
             });
         let steps = [ParsedStep {
