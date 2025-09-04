@@ -74,7 +74,11 @@ impl core::convert::TryFrom<StepType> for StepKeyword {
             StepType::When => Ok(Self::When),
             StepType::Then => Ok(Self::Then),
             #[expect(unreachable_patterns, reason = "guard future StepType variants")]
-            other => Err(UnsupportedStepType(other)),
+            other => match format!("{other:?}") {
+                s if s == "And" => Ok(Self::And),
+                s if s == "But" => Ok(Self::But),
+                _ => Err(UnsupportedStepType(other)),
+            },
         }
     }
 }
@@ -83,10 +87,18 @@ impl core::convert::TryFrom<&Step> for StepKeyword {
     type Error = UnsupportedStepType;
 
     fn try_from(step: &Step) -> Result<Self, Self::Error> {
-        match step.keyword.trim() {
-            s if s.eq_ignore_ascii_case("and") => Ok(Self::And),
-            s if s.eq_ignore_ascii_case("but") => Ok(Self::But),
-            _ => Self::try_from(step.ty),
+        match Self::try_from(step.ty) {
+            Ok(primary @ (Self::Given | Self::When | Self::Then)) => match step.keyword.trim() {
+                s if s.eq_ignore_ascii_case("and") => Ok(Self::And),
+                s if s.eq_ignore_ascii_case("but") => Ok(Self::But),
+                _ => Ok(primary),
+            },
+            Ok(k) => Ok(k),
+            Err(_) => match step.keyword.trim() {
+                s if s.eq_ignore_ascii_case("and") => Ok(Self::And),
+                s if s.eq_ignore_ascii_case("but") => Ok(Self::But),
+                _ => Err(UnsupportedStepType(step.ty)),
+            },
         }
     }
 }
@@ -127,6 +139,7 @@ impl StepKeyword {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use gherkin::StepType;
     use rstest::rstest;
 
     #[expect(clippy::expect_used, reason = "test helper with descriptive failures")]
@@ -147,5 +160,12 @@ mod tests {
     #[test]
     fn rejects_invalid_keyword_via_from_str() {
         assert!("invalid".parse::<StepKeyword>().is_err());
+    }
+    #[rstest::rstest]
+    #[case(StepType::Given, StepKeyword::Given)]
+    #[case(StepType::When, StepKeyword::When)]
+    #[case(StepType::Then, StepKeyword::Then)]
+    fn maps_step_type(#[case] ty: StepType, #[case] expected: StepKeyword) {
+        assert_eq!(StepKeyword::try_from(ty).ok(), Some(expected));
     }
 }

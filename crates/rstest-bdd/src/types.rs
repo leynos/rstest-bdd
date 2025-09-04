@@ -125,9 +125,8 @@ impl From<&str> for StepKeyword {
     }
 }
 
-// And/But are not present in `gherkin::StepType`; they are resolved from the
-// raw `keyword` string during feature parsing. This mapping covers only primary
-// keywords emitted by the Gherkin parser.
+// Step types resolved from the Gherkin parser. Unknown variants return
+// `UnsupportedStepType`.
 #[derive(Debug, Error)]
 #[error("unsupported step type: {0:?}")]
 pub struct UnsupportedStepType(pub StepType);
@@ -141,7 +140,11 @@ impl core::convert::TryFrom<StepType> for StepKeyword {
             StepType::When => Ok(Self::When),
             StepType::Then => Ok(Self::Then),
             #[expect(unreachable_patterns, reason = "guard future StepType variants")]
-            other => Err(UnsupportedStepType(other)),
+            other => match format!("{other:?}") {
+                s if s == "And" => Ok(Self::And),
+                s if s == "But" => Ok(Self::But),
+                _ => Err(UnsupportedStepType(other)),
+            },
         }
     }
 }
