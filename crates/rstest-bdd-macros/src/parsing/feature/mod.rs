@@ -49,7 +49,13 @@ pub(crate) struct ScenarioData {
 /// Conjunction keywords such as "And" and "But" inherit the semantic
 /// meaning of the preceding step but remain distinct for later resolution.
 /// Matching is case-insensitive to tolerate unusual source casing.
-#[cfg_attr(not(test), allow(dead_code))]
+#[cfg_attr(
+    not(test),
+    expect(
+        dead_code,
+        reason = "retained for future compile-time validation paths"
+    )
+)]
 pub(crate) fn parse_step_keyword(kw: &str, ty: StepType) -> crate::StepKeyword {
     let lower = kw.trim().to_ascii_lowercase();
     if lower == "and" {
