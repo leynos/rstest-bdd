@@ -147,7 +147,9 @@ pub(crate) fn parse_and_load_feature(path: &Path) -> Result<Feature, proc_macro2
     // Canonicalise for stable cache keys; missing files fall back to the joined path.
     let canonical = std::fs::canonicalize(&feature_path).ok();
     if let Some(feature) = {
-        let cache = FEATURE_CACHE.read().unwrap_or_else(|e| panic!("feature cache poisoned: {e}"));
+        let cache = FEATURE_CACHE
+            .read()
+            .unwrap_or_else(|e| panic!("feature cache poisoned: {e}"));
         canonical
             .as_ref()
             .into_iter()
@@ -175,7 +177,9 @@ pub(crate) fn parse_and_load_feature(path: &Path) -> Result<Feature, proc_macro2
     })?;
 
     let key = canonical.unwrap_or_else(|| feature_path.clone());
-    let mut cache = FEATURE_CACHE.write().unwrap_or_else(|e| panic!("feature cache poisoned: {e}"));
+    let mut cache = FEATURE_CACHE
+        .write()
+        .unwrap_or_else(|e| panic!("feature cache poisoned: {e}"));
     cache.insert(key.clone(), feature.clone());
     if key != feature_path {
         cache.insert(feature_path.clone(), feature.clone());
