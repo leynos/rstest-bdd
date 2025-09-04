@@ -26,7 +26,7 @@ serde_json = { version = "1.0", optional = true }
 ctor.workspace = true
 
 [dev-dependencies]
-rstest = "0.26.1"
+rstest = "^0.26.1"
 rstest-bdd-macros.workspace = true
 
 [features]

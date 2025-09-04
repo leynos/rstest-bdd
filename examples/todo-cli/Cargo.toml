@@ -9,7 +9,7 @@ clap = { version = "4.5", features = ["derive"] }
 eyre = "0.6"
 
 [dev-dependencies]
-rstest = "0.26.1"
+rstest = "^0.26.1"
 rstest-bdd.workspace = true
 rstest-bdd-macros.workspace = true
 assert_cmd = "2"
