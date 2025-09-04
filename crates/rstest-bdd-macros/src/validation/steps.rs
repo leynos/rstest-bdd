@@ -27,18 +27,19 @@ static REGISTERED: LazyLock<Mutex<HashMap<StepKeyword, Vec<RegisteredStep>>>> =
 
 /// Record a step definition so scenarios can validate against it.
 pub(crate) fn register_step(keyword: StepKeyword, pattern: &syn::LitStr) {
-    let mut reg = REGISTERED
-        .lock()
-        .unwrap_or_else(|e| panic!("step registry poisoned: {e}"));
     let leaked: &'static str = Box::leak(pattern.value().into_boxed_str());
-    // Leak into 'static; registry persists for compilation but step count is bounded.
+    // Leak into `static`; registry persists for compilation but step count is bounded.
     let step_pattern: &'static StepPattern = Box::leak(Box::new(StepPattern::new(leaked)));
     if let Err(e) = step_pattern.compile() {
         abort!(pattern.span(), "Invalid step pattern '{}': {}", leaked, e);
     }
+    let crate_id = current_crate_id().into_boxed_str();
+    let mut reg = REGISTERED
+        .lock()
+        .unwrap_or_else(|e| panic!("step registry poisoned: {e}"));
     reg.entry(keyword).or_default().push(RegisteredStep {
         pattern: step_pattern,
-        crate_id: current_crate_id().into_boxed_str(),
+        crate_id,
     });
 }
 
@@ -168,10 +169,6 @@ fn has_matching_step_definition(
     }
 }
 
-fn step_matches_definition(def: &RegisteredStep, step: &ParsedStep) -> bool {
-    extract_placeholders(def.pattern, step.text.as_str().into()).is_ok()
-}
-
 fn find_step_matches<'a>(defs: &'a [RegisteredStep], step: &ParsedStep) -> Vec<&'a RegisteredStep> {
     let mut cache: HashMap<*const StepPattern, bool> = HashMap::with_capacity(defs.len());
     // Cache by pointer to avoid collisions across distinct StepPattern instances.
@@ -179,7 +176,9 @@ fn find_step_matches<'a>(defs: &'a [RegisteredStep], step: &ParsedStep) -> Vec<&
         .filter(|def| {
             *cache
                 .entry(std::ptr::from_ref(def.pattern))
-                .or_insert_with(|| step_matches_definition(def, step))
+                .or_insert_with(|| {
+                    extract_placeholders(def.pattern, step.text.as_str().into()).is_ok()
+                })
         })
         .collect()
 }
