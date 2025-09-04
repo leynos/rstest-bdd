@@ -66,6 +66,11 @@ jobs:
           which mmdc
           mmdc --version
           bun --version
+      - name: Setup uv
+        if: ${{ matrix.tools }}
+        uses: astral-sh/setup-uv@v6
+        with:
+          version: 'latest'
       - name: Install Nixie
         if: ${{ matrix.tools }}
         run: uv tool install --from git+https://github.com/leynos/nixie nixie
@@ -100,10 +105,9 @@ jobs:
           features: rstest-bdd/diagnostics
           with-default-features: ${{ matrix.with-default-features }}
       - name: Publish dry run
-        if: ${{ matrix.tools || runner.os == 'Windows' }}
         run: make publish-check
       - name: Upload coverage data to CodeScene
-        if: ${{ matrix.coverage && env.CS_ACCESS_TOKEN && matrix.tools }}
+        if: ${{ matrix.coverage && env.CS_ACCESS_TOKEN && matrix.tools && vars.CODESCENE_CLI_SHA256 }}
         uses: leynos/shared-actions/.github/actions/upload-codescene-coverage@ebbaaa0d7a776ec3187f3940667e5c7c9379cdf5
         with:
           format: lcov
