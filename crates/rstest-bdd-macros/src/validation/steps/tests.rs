@@ -85,6 +85,7 @@ fn errors_when_step_ambiguous() {
 #[serial]
 fn aborts_on_invalid_step_pattern() {
     registry_cleared();
+    // proc-macro-error panics outside macro contexts; just assert it aborts
     let result = std::panic::catch_unwind(|| {
         register_step(
             StepKeyword::Given,
