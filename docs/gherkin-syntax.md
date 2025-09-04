@@ -305,7 +305,7 @@ which can help tools with syntax highlighting and parsing.[^10]
 
 An equivalent form uses backticks as the delimiters:
 
-````gherkin
+```gherkin
 Feature: Backtick doc string
   Scenario: uses backticks
     Given the following message:
@@ -316,7 +316,7 @@ Feature: Backtick doc string
       ```
       hello world
       ```
-````
+```
 
 ### Section 2.5: Grouping with the `Rule` Keyword
 
@@ -814,7 +814,7 @@ into Rust types.
 
   The same principle applies to `Data Tables`, where `step.table.as_ref()`
   would be used to access the table data, which can then be iterated over.[^30]
-  ______________________________________________________________________
+______________________________________________________________________
 
 ## Part 6: Synthesis: Implementation Variations and Quirks
 
