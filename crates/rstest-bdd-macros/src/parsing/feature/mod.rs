@@ -1,10 +1,10 @@
 //! Feature file loading and scenario extraction.
 
+use dashmap::DashMap;
 use gherkin::{Feature, GherkinEnv, Step, StepType};
 use std::{
-    collections::HashMap,
     path::{Path, PathBuf},
-    sync::{LazyLock, Mutex},
+    sync::LazyLock,
 };
 
 use crate::parsing::examples::ExampleTable;
@@ -49,8 +49,7 @@ pub(crate) struct ScenarioData {
 }
 
 /// Cache parsed features to avoid repeated filesystem IO.
-static FEATURE_CACHE: LazyLock<Mutex<HashMap<PathBuf, Feature>>> =
-    LazyLock::new(|| Mutex::new(HashMap::new()));
+static FEATURE_CACHE: LazyLock<DashMap<PathBuf, Feature>> = LazyLock::new(DashMap::new);
 
 /// Map a textual step keyword and `StepType` to a `StepKeyword`.
 ///
@@ -144,13 +143,13 @@ pub(crate) fn parse_and_load_feature(path: &Path) -> Result<Feature, proc_macro2
     let feature_path = std::env::var("CARGO_MANIFEST_DIR")
         .map_or_else(|_| PathBuf::from(path), |dir| PathBuf::from(dir).join(path));
 
-    {
-        let cache = FEATURE_CACHE
-            .lock()
-            .unwrap_or_else(|e| panic!("feature cache poisoned: {e}"));
-        if let Some(feature) = cache.get(&feature_path) {
-            return Ok(feature.clone());
-        }
+    // Canonicalise for stable cache keys; missing files fall back to the joined path.
+    let canonical = std::fs::canonicalize(&feature_path).ok();
+    if let Some(feature) = canonical.as_ref().and_then(|p| FEATURE_CACHE.get(p)) {
+        return Ok(feature.clone());
+    }
+    if let Some(feature) = FEATURE_CACHE.get(&feature_path) {
+        return Ok(feature.clone());
     }
 
     if let Err(err) = validate_feature_file_exists(&feature_path) {
@@ -170,10 +169,11 @@ pub(crate) fn parse_and_load_feature(path: &Path) -> Result<Feature, proc_macro2
         error_to_tokens(&syn::Error::new(proc_macro2::Span::call_site(), msg))
     })?;
 
-    FEATURE_CACHE
-        .lock()
-        .unwrap_or_else(|e| panic!("feature cache poisoned: {e}"))
-        .insert(feature_path.clone(), feature.clone());
+    let key = canonical.unwrap_or_else(|| feature_path.clone());
+    FEATURE_CACHE.insert(key.clone(), feature.clone());
+    if key != feature_path {
+        FEATURE_CACHE.insert(feature_path.clone(), feature.clone());
+    }
 
     Ok(feature)
 }

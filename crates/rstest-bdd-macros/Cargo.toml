@@ -34,12 +34,14 @@ proc-macro-crate = "3"
 rstest-bdd.workspace = true
 cfg-if.workspace = true
 proc-macro-error = "1"
+dashmap.workspace = true
 
 [dev-dependencies]
 trybuild.workspace = true
 once_cell.workspace = true
-rstest.workspace = true
+rstest = "0.21"
 serial_test.workspace = true
+tempfile.workspace = true
 
 [package.metadata.docs.rs]
 all-features = true

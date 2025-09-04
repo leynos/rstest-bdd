@@ -449,29 +449,20 @@ fn errors_when_feature_fails(#[case] rel_path: &str, #[case] expected_snippet: &
     assert!(err.to_string().contains(expected_snippet));
 }
 
+#[expect(clippy::expect_used, reason = "test asserts cache behaviour; panics simplify failures")]
 #[test]
 fn caches_features_by_path() {
-    use std::{
-        fs,
-        time::{SystemTime, UNIX_EPOCH},
-    };
-    let tmp = std::env::temp_dir();
-    let unique = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or_else(|e| panic!("time error: {e}"))
-        .as_nanos();
-    let path = tmp.join(format!("cache_{unique}.feature"));
-    fs::write(&path, concat!("Feature: cache\n", "Scenario: demo\n", "  Given step\n"))
-        .unwrap_or_else(|e| panic!("write feature: {e}"));
-    let first = parse_and_load_feature(&path)
-        .unwrap_or_else(|e| panic!("first parse: {e}"));
-    fs::remove_file(&path).unwrap_or_else(|e| panic!("remove feature: {e}"));
-    let second = parse_and_load_feature(&path)
-        .unwrap_or_else(|e| panic!("cached parse: {e}"));
+    use std::io::Write;
+    use tempfile::NamedTempFile;
+    let mut tf = NamedTempFile::new().expect("create temp feature");
+    write!(tf, "Feature: cache\nScenario: demo\n  Given step\n").expect("write feature");
+    let path = tf.path().to_path_buf();
+    let first = parse_and_load_feature(&path).expect("first parse");
+    // Close deletes the file; cached read must still succeed
+    tf.close().expect("close temp feature");
+    let second = parse_and_load_feature(&path).expect("cached parse");
     assert_eq!(first.name, second.name, "cached feature differs");
-    let _ = fs::remove_file(&path);
 }
-
 
 #[cfg(feature = "compile-time-validation")]
 #[test]
