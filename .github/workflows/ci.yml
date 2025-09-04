@@ -29,11 +29,11 @@ jobs:
             features: strict-compile-time-validation
             with-default-features: false
           - os: windows-latest
-            coverage: false
+            coverage: true
             features: null
             with-default-features: true
           - os: windows-latest
-            coverage: false
+            coverage: true
             features: strict-compile-time-validation
             with-default-features: false
     steps:
@@ -41,32 +41,40 @@ jobs:
       - name: Setup Rust
         uses: leynos/shared-actions/.github/actions/setup-rust@ebbaaa0d7a776ec3187f3940667e5c7c9379cdf5
       - name: Install bun
+        if: ${{ !startsWith(matrix.os, 'windows-') }}
         uses: oven-sh/setup-bun@735343b667d3e6f658f44d0eca948eb6282f2b76 # v2
         with:
           bun-version: '1.2.20'
       - name: Check formatting
+        if: ${{ !startsWith(matrix.os, 'windows-') }}
         run: make check-fmt
       - name: Install Mermaid CLI
+        if: ${{ !startsWith(matrix.os, 'windows-') }}
         run: |
           set -euxo pipefail
           bun install --global @mermaid-js/mermaid-cli@11.9.0
           bun x @puppeteer/browsers browsers install chrome-headless-shell
           mmdc --version
       - name: Debug Bun and Mermaid
+        if: ${{ !startsWith(matrix.os, 'windows-') }}
         run: |
           set -euxo pipefail
           which mmdc
           mmdc --version
           bun --version
       - name: Install Nixie
+        if: ${{ !startsWith(matrix.os, 'windows-') }}
         run: uv tool install --from git+https://github.com/leynos/nixie nixie
       - name: Nixie
+        if: ${{ !startsWith(matrix.os, 'windows-') }}
         run: make nixie
       - name: Markdown lint
+        if: ${{ !startsWith(matrix.os, 'windows-') }}
         uses: DavidAnson/markdownlint-cli2-action@992badcdf24e3b8eb7e87ff9287fe931bcb00c6e # v20
         with:
           globs: '**/*.md'
       - name: Lint
+        if: ${{ !startsWith(matrix.os, 'windows-') }}
         run: make lint
 
       - name: Test (no coverage, with features)
@@ -100,7 +108,7 @@ jobs:
         if: ${{ !startsWith(matrix.os, 'windows-') }}
         run: make publish-check
       - name: Upload coverage data to CodeScene
-        if: ${{ matrix.coverage && env.CS_ACCESS_TOKEN }}
+        if: ${{ matrix.coverage && env.CS_ACCESS_TOKEN && !startsWith(matrix.os, 'windows-') }}
         uses: leynos/shared-actions/.github/actions/upload-codescene-coverage@ebbaaa0d7a776ec3187f3940667e5c7c9379cdf5
         with:
           format: lcov
