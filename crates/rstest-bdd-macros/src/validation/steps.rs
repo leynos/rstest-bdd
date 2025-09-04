@@ -7,7 +7,6 @@
 //! macro expansion, preventing tests from compiling with incomplete behaviour
 //! coverage.
 
-use std::collections::HashMap;
 use std::sync::{LazyLock, Mutex};
 
 use crate::StepKeyword;
@@ -17,13 +16,13 @@ use rstest_bdd::{StepPattern, extract_placeholders};
 
 #[derive(Clone)]
 struct RegisteredStep {
+    keyword: StepKeyword,
     pattern: &'static StepPattern,
-    // Step regex compiled at registration to avoid repeat work.
+    // Regex compiled at registration to avoid repeat work.
     crate_id: Box<str>,
 }
 
-static REGISTERED: LazyLock<Mutex<HashMap<StepKeyword, Vec<RegisteredStep>>>> =
-    LazyLock::new(|| Mutex::new(HashMap::new()));
+static REGISTERED: LazyLock<Mutex<Vec<RegisteredStep>>> = LazyLock::new(|| Mutex::new(Vec::new()));
 
 /// Record a step definition so scenarios can validate against it.
 pub(crate) fn register_step(keyword: StepKeyword, pattern: &syn::LitStr) {
@@ -37,7 +36,8 @@ pub(crate) fn register_step(keyword: StepKeyword, pattern: &syn::LitStr) {
     let mut reg = REGISTERED
         .lock()
         .unwrap_or_else(|e| panic!("step registry poisoned: {e}"));
-    reg.entry(keyword).or_default().push(RegisteredStep {
+    reg.push(RegisteredStep {
+        keyword,
         pattern: step_pattern,
         crate_id,
     });
@@ -55,23 +55,13 @@ pub(crate) fn register_step(keyword: StepKeyword, pattern: &syn::LitStr) {
 /// definition or when any step matches more than one definition.
 pub(crate) fn validate_steps_exist(steps: &[ParsedStep], strict: bool) -> Result<(), syn::Error> {
     let current = current_crate_id();
-    let owned: HashMap<StepKeyword, Vec<RegisteredStep>> = {
+    let owned: Vec<RegisteredStep> = {
         let reg = REGISTERED
             .lock()
             .unwrap_or_else(|e| panic!("step registry poisoned: {e}"));
         reg.iter()
-            .filter_map(|(kw, defs)| {
-                let owned_defs: Vec<_> = defs
-                    .iter()
-                    .filter(|d| d.crate_id.as_ref() == current.as_str())
-                    .cloned()
-                    .collect();
-                if owned_defs.is_empty() {
-                    None
-                } else {
-                    Some((*kw, owned_defs))
-                }
-            })
+            .filter(|d| d.crate_id.as_ref() == current.as_str())
+            .cloned()
             .collect()
     };
     if owned.is_empty() && !strict {
@@ -82,7 +72,7 @@ pub(crate) fn validate_steps_exist(steps: &[ParsedStep], strict: bool) -> Result
 }
 
 fn collect_missing_steps(
-    reg: &HashMap<StepKeyword, Vec<RegisteredStep>>,
+    reg: &[RegisteredStep],
     steps: &[ParsedStep],
 ) -> Result<Vec<(proc_macro2::Span, String)>, syn::Error> {
     let mut prev = None;
@@ -156,12 +146,15 @@ fn emit_non_strict_warnings(missing: &[(proc_macro2::Span, String)]) {
 }
 
 fn has_matching_step_definition(
-    reg: &HashMap<StepKeyword, Vec<RegisteredStep>>,
+    reg: &[RegisteredStep],
     resolved: StepKeyword,
     step: &ParsedStep,
 ) -> Result<Option<String>, syn::Error> {
-    let defs = reg.get(&resolved).map_or(&[][..], Vec::as_slice);
-    let matches = find_step_matches(defs, step);
+    let matches: Vec<_> = reg
+        .iter()
+        .filter(|d| d.keyword == resolved)
+        .filter(|d| extract_placeholders(d.pattern, step.text.as_str().into()).is_ok())
+        .collect();
 
     match matches.len() {
         0 => Ok(Some(format_missing_step_error(reg, resolved, step))),
@@ -170,28 +163,14 @@ fn has_matching_step_definition(
     }
 }
 
-fn find_step_matches<'a>(defs: &'a [RegisteredStep], step: &ParsedStep) -> Vec<&'a RegisteredStep> {
-    let mut cache: HashMap<&'static str, bool> = HashMap::with_capacity(defs.len());
-    // Cache regex results to avoid recomputing for identical patterns.
-    defs.iter()
-        .filter(|def| {
-            let is_match = *cache
-                .entry(def.pattern.as_str())
-                .or_insert_with(|| def.pattern.regex().is_match(step.text.as_str()));
-            is_match && extract_placeholders(def.pattern, step.text.as_str().into()).is_ok()
-        })
-        .collect()
-}
-
 fn format_missing_step_error(
-    reg: &HashMap<StepKeyword, Vec<RegisteredStep>>,
+    reg: &[RegisteredStep],
     resolved: StepKeyword,
     step: &ParsedStep,
 ) -> String {
     let available_defs: Vec<&'static str> = reg
-        .get(&resolved)
-        .into_iter()
-        .flat_map(|defs| defs.iter())
+        .iter()
+        .filter(|d| d.keyword == resolved)
         .map(|d| d.pattern.as_str())
         .collect();
     let possible_matches: Vec<&str> = available_defs
@@ -390,9 +369,8 @@ mod tests {
         REGISTERED
             .lock()
             .unwrap_or_else(|e| panic!("step registry poisoned: {e}"))
-            .entry(StepKeyword::Given)
-            .or_default()
             .push(RegisteredStep {
+                keyword: StepKeyword::Given,
                 pattern: pat,
                 crate_id: "other".into(),
             });
