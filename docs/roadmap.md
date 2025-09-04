@@ -184,7 +184,6 @@ experience by introducing more powerful and intuitive APIs.
       etc.) to be used without an explicit pattern string. The pattern will be
       inferred from the function's name (e.g., `fn user_logs_in()` becomes
       `"user logs in"`).
-      ([#145](https://github.com/assert-rs/rstest-bdd/pull/145))
   - [ ] **Streamlined **`Result`** Assertions:** Introduce helper macros like
     `assert_step_ok!` and `assert_step_err!` to reduce boilerplate when testing
     `Result`-returning steps.
