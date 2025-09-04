@@ -167,15 +167,15 @@ improves the developer experience.
     discover all `.feature` files in a directory and generate a test module
     containing a test function for every `Scenario` found.
 
-## Phase 4: Internationalisation and Localisation
+## Phase 4: Internationalization and Localization
 
-This phase introduces full internationalisation (i18n) and localisation (l10n)
+This phase introduces full internationalization (i18n) and localization (l10n)
 support, enabling the use of non-English Gherkin and providing translated
 diagnostic messages.
 
-- [ ] **Foundational Gherkin Internationalisation**
+- [ ] **Foundational Gherkin Internationalization**
 
-  - [ ] Implement language detection in the feature file parser by recognising
+  - [ ] Implement language detection in the feature file parser by recognizing
     and respecting the `# language: <lang>` declaration.
 
   - [ ] Refactor keyword parsing to be language-aware, relying on the
@@ -183,29 +183,34 @@ diagnostic messages.
 
   - [ ] Add a comprehensive test suite with `.feature` files in multiple
     languages (e.g., French, German, Spanish) to validate correct parsing and
-    execution.
+    execution. These tests run in CI to maintain coverage as languages are
+    added.
 
-- [ ] **Localisation of Library Messages with Fluent**
+- [ ] **Localization of Library Messages with Fluent**
 
   - [ ] Integrate the `i18n-embed`, `rust-embed`, and `fluent` crates.
 
   - [ ] Create `.ftl` resource files under an `i18n/` directory for all
-    user-facing diagnostic messages.
+    user-facing diagnostic messages. If the macros crate also emits messages,
+    maintain a separate `i18n/` in `rstest-bdd-macros` or introduce a shared
+    `rstest-bdd-i18n` crate to host common assets.
 
-  - [ ] Use `rust-embed` to bundle the localisation resources directly into the
+  - [ ] Use `rust-embed` to bundle the localization resources directly into the
     library binary.
+
+  - [ ] Missing translation keys or unsupported locales fall back to English.
 
   - [ ] Implement the `I18nAssets` trait on a dedicated struct to make Fluent
     resources discoverable.
 
-  - [ ] Replace all hardcoded error and warning strings in procedural macros
-    with calls to a `FluentLanguageLoader`, which will be initialised at
-    compile time based on the user's environment.
+  - [ ] Keep procedural macro diagnostics in English for deterministic builds.
+    Localize user-facing runtime messages using a `FluentLanguageLoader` at
+    runtime.
 
 - [ ] **Documentation and User Guidance**
 
   - [ ] Update `README.md` and `docs/users-guide.md` with a new section
-    detailing how to use the internationalisation features.
+    detailing how to use the internationalization features.
 
   - [ ] Add a new example crate to demonstrate writing and running a BDD test
     suite using a non-English language.
