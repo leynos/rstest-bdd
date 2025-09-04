@@ -272,7 +272,7 @@ ______________________________________________________________________
 ```rust
 #[given("the following users exist:")]
 fn create_users(
-    conn: &mut DbConnection,
+    db: &mut DbConnection,
     datatable: Vec<Vec<String>>,
 ) {
     // Assume the first row is a header: ["name", "email", ...]
@@ -283,7 +283,7 @@ fn create_users(
         );
         let name = &row[0];
         let email = &row[1];
-        conn.insert_user(name, email);
+        db.insert_user(name, email);
     }
 }
 ```
