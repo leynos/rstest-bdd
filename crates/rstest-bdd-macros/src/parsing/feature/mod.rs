@@ -1,10 +1,10 @@
 //! Feature file loading and scenario extraction.
 
-use dashmap::DashMap;
 use gherkin::{Feature, GherkinEnv, Step, StepType};
+use std::collections::HashMap;
 use std::{
     path::{Path, PathBuf},
-    sync::LazyLock,
+    sync::{LazyLock, RwLock},
 };
 
 use crate::parsing::examples::ExampleTable;
@@ -49,7 +49,8 @@ pub(crate) struct ScenarioData {
 }
 
 /// Cache parsed features to avoid repeated filesystem IO.
-static FEATURE_CACHE: LazyLock<DashMap<PathBuf, Feature>> = LazyLock::new(DashMap::new);
+static FEATURE_CACHE: LazyLock<RwLock<HashMap<PathBuf, Feature>>> =
+    LazyLock::new(|| RwLock::new(HashMap::new()));
 
 /// Map a textual step keyword and `StepType` to a `StepKeyword`.
 ///
@@ -145,11 +146,15 @@ pub(crate) fn parse_and_load_feature(path: &Path) -> Result<Feature, proc_macro2
 
     // Canonicalise for stable cache keys; missing files fall back to the joined path.
     let canonical = std::fs::canonicalize(&feature_path).ok();
-    if let Some(feature) = canonical.as_ref().and_then(|p| FEATURE_CACHE.get(p)) {
-        return Ok(feature.clone());
-    }
-    if let Some(feature) = FEATURE_CACHE.get(&feature_path) {
-        return Ok(feature.clone());
+    if let Some(feature) = {
+        let cache = FEATURE_CACHE.read().unwrap_or_else(|e| panic!("feature cache poisoned: {e}"));
+        canonical
+            .as_ref()
+            .into_iter()
+            .chain(std::iter::once(&feature_path))
+            .find_map(|p| cache.get(p).cloned())
+    } {
+        return Ok(feature);
     }
 
     if let Err(err) = validate_feature_file_exists(&feature_path) {
@@ -170,9 +175,10 @@ pub(crate) fn parse_and_load_feature(path: &Path) -> Result<Feature, proc_macro2
     })?;
 
     let key = canonical.unwrap_or_else(|| feature_path.clone());
-    FEATURE_CACHE.insert(key.clone(), feature.clone());
+    let mut cache = FEATURE_CACHE.write().unwrap_or_else(|e| panic!("feature cache poisoned: {e}"));
+    cache.insert(key.clone(), feature.clone());
     if key != feature_path {
-        FEATURE_CACHE.insert(feature_path.clone(), feature.clone());
+        cache.insert(feature_path.clone(), feature.clone());
     }
 
     Ok(feature)
@@ -180,7 +186,10 @@ pub(crate) fn parse_and_load_feature(path: &Path) -> Result<Feature, proc_macro2
 
 #[cfg(test)]
 pub(crate) fn clear_feature_cache() {
-    FEATURE_CACHE.clear();
+    FEATURE_CACHE
+        .write()
+        .unwrap_or_else(|e| panic!("feature cache poisoned: {e}"))
+        .clear();
 }
 
 /// Extract the scenario data for the given feature and optional index.
