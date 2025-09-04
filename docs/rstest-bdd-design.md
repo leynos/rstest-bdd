@@ -1477,6 +1477,14 @@ All modules use en‑GB spelling and include `//!` module‑level documentation.
 
 - **Dependency integration:** Add `i18n-embed`, `rust-embed`, and `fluent` as
   dependencies to supply localization infrastructure.
+
+  ```toml
+  [dependencies]
+  i18n-embed = { version = "0.16", features = ["fluent-system", "desktop-requester"] }
+  rust-embed = "8"
+  fluent = "0.17"
+  ```
+
 - **Localization resource creation:** Create an `i18n/<locale>/` hierarchy in
   the `rstest-bdd` crate containing Fluent translation files with identifiers
   such as `error-missing-step`. If the macros crate also emits messages,

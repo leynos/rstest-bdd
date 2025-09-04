@@ -189,6 +189,10 @@ diagnostic messages.
 - [ ] **Localization of Library Messages with Fluent**
 
   - [ ] Integrate the `i18n-embed`, `rust-embed`, and `fluent` crates.
+  - [ ] Enable required features:
+        `i18n-embed = { features = ["fluent-system", "desktop-requester"] }`.
+  - [ ] Pin minimum supported versions in `Cargo.toml`.
+  - [ ] Add a minimal `Cargo.toml` example to the docs.
 
   - [ ] Create `.ftl` resource files under an `i18n/` directory for all
     user-facing diagnostic messages. If the macros crate also emits messages,
