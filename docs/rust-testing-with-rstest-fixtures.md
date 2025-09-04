@@ -11,7 +11,7 @@ document provides a comprehensive exploration of `rstest`, from fundamental
 concepts to advanced techniques, enabling Rust developers to write cleaner,
 more expressive, and robust tests.
 
-## I. Introduction to `rstest` and Test Fixtures in Rust
+## Introduction to `rstest` and Test Fixtures in Rust
 
 ### A. What are Test Fixtures and Why Use Them?
 
@@ -104,8 +104,8 @@ To begin using `rstest`, it must be added as a development dependency in the
 project's `Cargo.toml` file. This ensures that `rstest` is only compiled and
 linked when running tests, not when building the main application or library.
 
-Add the following lines to your `Cargo.toml` under the `[dev-dependencies]`
-section:
+Add the following lines to the `Cargo.toml` file under the
+`[dev-dependencies]` section:
 
 ```toml
 [dev-dependencies]
@@ -131,7 +131,7 @@ tokio = { version = "1", default-features = false, features = ["test-util"] }
 rstest = "0.26.1"
 ```
 
-### B. Your First Fixture: Defining with `#[fixture]`
+### B. First Fixture: Defining with `#[fixture]`
 
 A fixture in `rstest` is essentially a Rust function that provides some data or
 performs some setup action, with its result being injectable into tests. To
@@ -405,7 +405,7 @@ fn test_state_transitions(
     initial_state: State,
     #[values(Event::Process, Event::Error, Event::Fatal)] event: Event
 ) {
-    // In a real test, you'd have more specific assertions based on expected_next_state
+    // In production tests, assertions would target specific expected_next_state values
     let next_state = initial_state.process(event);
     println!("Testing: {:?} + {:?} -> {:?}", initial_state, event, next_state);
     // For demonstration, a generic assertion:
@@ -551,7 +551,7 @@ When using `#[once]`, there are critical warnings:
    and cannot be generic functions (neither with generic type parameters nor
    using `impl Trait` in arguments or return types).
 3. **Attribute Propagation:** `rstest` macros currently drop `#[expect]`
-   attributes. If you rely on lint expectations, use `#[allow]` instead to
+   attributes. If lint expectations are required, use `#[allow]` instead to
    silence false positives.
 
 The "never dropped" behaviour arises because `rstest` typically creates a
@@ -869,7 +869,7 @@ utilities, its fixture system integrates seamlessly with crates like `tempfile`
 or `test-temp-dir`. A fixture can create a temporary file or directory, provide
 its path or handle to the test, and ensure cleanup (often via RAII).
 
-Here's an illustrative example using the `tempfile` crate:
+An illustrative example using the `tempfile` crate:
 
 ```rust
 use rstest::*;
@@ -1027,7 +1027,7 @@ use rstest::*;
 use std::path::PathBuf;
 use std::fs;
 
-// Assume you have files in `tests/test_data/` like `file1.txt`, `file2.json`
+// Assume files exist in `tests/test_data/` such as `file1.txt`, `file2.json`
 
 #[rstest]
 #[files("tests/test_data/*.txt")] // Injects PathBuf for each.txt file
@@ -1076,7 +1076,7 @@ the definition of reusable test templates.
 
 ```rust
 // Add to Cargo.toml: rstest_reuse = "0.7" (or latest)
-// In your test module or lib.rs/main.rs for crate-wide visibility if needed:
+// In the test module or lib.rs/main.rs for crate-wide visibility if needed:
 // #[cfg(test)]
 // use rstest_reuse; // Important for template macro expansion
 
