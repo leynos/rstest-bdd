@@ -132,7 +132,7 @@ dependencies = [
 
 [[package]]
 name = "cargo-bdd"
-version = "0.1.0-alpha2"
+version = "0.1.0-alpha3"
 dependencies = [
  "assert_cmd",
  "cargo_metadata",
@@ -840,7 +840,7 @@ dependencies = [
 
 [[package]]
 name = "rstest-bdd"
-version = "0.1.0-alpha2"
+version = "0.1.0-alpha3"
 dependencies = [
  "ctor",
  "gherkin",
@@ -856,7 +856,7 @@ dependencies = [
 
 [[package]]
 name = "rstest-bdd-macros"
-version = "0.1.0-alpha2"
+version = "0.1.0-alpha3"
 dependencies = [
  "cfg-if",
  "gherkin",

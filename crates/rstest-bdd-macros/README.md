@@ -53,7 +53,7 @@ Add the crates to your **dev‑dependencies**:
 # Cargo.toml
 [dev-dependencies]
 rstest = "0.25"
-rstest-bdd = "0.1.0-alpha2"
+rstest-bdd = "0.1.0-alpha3"
 ```
 
 Feature flags:
@@ -123,8 +123,7 @@ use thirtyfour::prelude::*;
 #[fixture]
 async fn browser() -> WebDriverResult<WebDriver> {
     let caps = DesiredCapabilities::firefox();
-    let driver = WebDriver::new("http://localhost:4444", caps).await?;
-    Ok(driver)
+    Ok(WebDriver::new("http://localhost:4444", caps).await?)
 }
 
 // Bind this test to the named scenario from the feature file.
@@ -136,27 +135,32 @@ async fn test_simple_search(#[future] browser: WebDriver) {
 }
 
 #[given("the DuckDuckGo home page is displayed")]
-async fn go_to_home(#[from(browser)] driver: &mut WebDriver) {
-    driver.goto("https://duckduckgo.com/").await.unwrap();
+async fn go_to_home(browser: &mut WebDriver) -> WebDriverResult<()> {
+    browser.goto("https://duckduckgo.com/").await?;
+    Ok(())
 }
 
 #[when("I search for \"(.*)\"")]
-async fn search_for_phrase(#[from(browser)] driver: &mut WebDriver, phrase: String) {
-    let form = driver.find(By::Id("search_form_input_homepage")).await.unwrap();
-    form.send_keys(&phrase).await.unwrap();
-    form.submit().await.unwrap();
+async fn search_for_phrase(browser: &mut WebDriver, phrase: String) -> WebDriverResult<()> {
+    let form = browser.find(By::Id("search_form_input_homepage")).await?;
+    form.send_keys(&phrase).await?;
+    form.submit().await?;
+    Ok(())
 }
 
 #[then("the search results page is displayed")]
-async fn results_page_is_displayed(#[from(browser)] driver: &mut WebDriver) {
-    let results = driver.find(By::Id("links")).await;
-    assert!(results.is_ok(), "Search results container not found.");
+async fn results_page_is_displayed(browser: &mut WebDriver) -> WebDriverResult<()> {
+    browser.find(By::Id("links")).await?;
+    Ok(())
 }
 
 #[then("the results contain \"(.*)\"")]
-async fn results_contain_text(#[from(browser)] driver: &mut WebDriver, text: String) {
-    let content = driver.source().await.unwrap();
-    assert!(content.contains(&text), "Result text not found in page source.");
+async fn results_contain_text(browser: &mut WebDriver, text: String) -> WebDriverResult<()> {
+    let content = browser.source().await?;
+    if content.contains(&text) { Ok(()) }
+    else { Err(thirtyfour::error::WebDriverError::CustomError(
+        format!("Result text not found: expected substring '{text}'")
+    )) }
 }
 ```
 
@@ -179,25 +183,29 @@ Decorate plain Rust functions:
 use rstest_bdd::{given, when, then};
 
 #[given("an empty basket")]
-fn empty_basket(#[from(basket)] b: &mut Basket) {
-    b.clear();
+fn empty_basket(basket: &mut Basket) {
+    basket.clear();
 }
 
 #[when("I add {count:u32} pumpkins")]
-fn add_pumpkins(#[from(basket)] b: &mut Basket, count: u32) {
-    b.add(Item::Pumpkin, count);
+fn add_pumpkins(basket: &mut Basket, count: u32) {
+    basket.add(Item::Pumpkin, count);
 }
 
 #[then("the basket has {count:u32} pumpkins")]
-fn assert_count(#[from(basket)] b: &Basket, count: u32) {
-    assert_eq!(b.count(Item::Pumpkin), count);
+fn assert_count(basket: &Basket, count: u32) {
+    assert_eq!(basket.count(Item::Pumpkin), count);
 }
 ```
+
+Implicit fixtures such as `basket` must already be in scope in the test module;
+`#[from(name)]` only renames a fixture and does not create one.
 
 - Patterns accept **typed placeholders** like `{count:u32}`; values parse via
   `FromStr`.
 
-- Use `#[from(fixture_name)]` to inject any `rstest` fixture into a step.
+- Fixtures are injected automatically when parameter names match fixtures;
+  use `#[from(name)]` only to rename a parameter.
 
 - Prefer readable step text first; compile‑time checks ensure you don’t forget
   an implementation.
@@ -231,18 +239,20 @@ Scenario Outline: Login with different credentials
 async fn test_login_scenarios(#[future] browser: WebDriver) {}
 
 // Placeholders from <angle brackets> arrive as typed arguments.
-#[when("I enter username \"<username>\" and password \"<password>\"")]
+#[when("I enter username {username} and password {password}")]
 async fn enter_credentials(
-    #[from(browser)] driver: &mut WebDriver,
+    browser: &mut WebDriver,
     username: String,
     password: String,
-) {
+) -> WebDriverResult<()> {
     // ...
+    Ok(())
 }
 
-#[then("I should see the message \"<message>\"")]
-async fn see_message(#[from(browser)] driver: &mut WebDriver, message: String) {
+#[then("I should see the message {message}")]
+async fn see_message(browser: &mut WebDriver, message: String) -> WebDriverResult<()> {
     // ...
+    Ok(())
 }
 ```
 
@@ -262,7 +272,7 @@ ______________________________________________________________________
 ```rust
 #[given("the following users exist:")]
 fn create_users(
-    #[from(db)] conn: &mut DbConnection,
+    db: &mut DbConnection,
     datatable: Vec<Vec<String>>,
 ) {
     // Assume the first row is a header: ["name", "email", ...]
@@ -273,7 +283,7 @@ fn create_users(
         );
         let name = &row[0];
         let email = &row[1];
-        conn.insert_user(name, email);
+        db.insert_user(name, email);
     }
 }
 ```

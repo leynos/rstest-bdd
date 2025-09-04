@@ -78,9 +78,6 @@ impl std::fmt::Debug for ExtractedArgs {
     }
 }
 
-type Classifier =
-    fn(&mut ExtractedArgs, &mut syn::PatType, &syn::Ident, &syn::Type) -> syn::Result<bool>;
-
 /// Matches a nested path sequence like `["Vec", "Vec", "String"]` for `Vec<Vec<String>>`.
 /// Only the first generic argument at each level is inspected; the final segment may be unparameterised.
 fn is_type_seq(ty: &syn::Type, seq: &[&str]) -> bool {
@@ -123,45 +120,6 @@ fn is_string(ty: &syn::Type) -> bool {
 fn is_datatable(ty: &syn::Type) -> bool {
     is_type_seq(ty, &["Vec", "Vec", "String"])
 }
-fn classify_fixture(
-    st: &mut ExtractedArgs,
-    arg: &mut syn::PatType,
-    pat: &syn::Ident,
-    ty: &syn::Type,
-) -> syn::Result<bool> {
-    let mut name = None;
-    let mut found_from = false;
-    let has_datatable = arg.attrs.iter().any(|a| a.path().is_ident("datatable"));
-    arg.attrs.retain(|a| {
-        if a.path().is_ident("from") {
-            found_from = true;
-            name = a.parse_args().ok();
-            false
-        } else {
-            true
-        }
-    });
-    if found_from {
-        if has_datatable {
-            return Err(syn::Error::new_spanned(
-                arg,
-                "#[datatable] cannot be combined with #[from]",
-            ));
-        }
-        let name = name.unwrap_or_else(|| pat.clone());
-        let idx = st.fixtures.len();
-        st.fixtures.push(FixtureArg {
-            pat: pat.clone(),
-            name,
-            ty: ty.clone(),
-        });
-        st.call_order.push(CallArg::Fixture(idx));
-        Ok(true)
-    } else {
-        Ok(false)
-    }
-}
-
 fn should_classify_as_datatable(pat: &syn::Ident, ty: &syn::Type) -> bool {
     pat == "datatable" && is_datatable(ty)
 }
@@ -253,15 +211,24 @@ fn classify_datatable(
     pat: &syn::Ident,
     ty: &syn::Type,
 ) -> syn::Result<bool> {
-    if !validate_datatable_constraints(st, arg, pat, ty)? {
-        return Ok(false);
+    let has_from = arg.attrs.iter().any(|a| a.path().is_ident("from"));
+    let is_datatable = validate_datatable_constraints(st, arg, pat, ty)?;
+    if has_from && is_datatable {
+        return Err(syn::Error::new_spanned(
+            arg,
+            "#[datatable] cannot be combined with #[from]",
+        ));
     }
-    st.datatable = Some(DataTableArg {
-        pat: pat.clone(),
-        ty: ty.clone(),
-    });
-    st.call_order.push(CallArg::DataTable);
-    Ok(true)
+    if is_datatable {
+        st.datatable = Some(DataTableArg {
+            pat: pat.clone(),
+            ty: ty.clone(),
+        });
+        st.call_order.push(CallArg::DataTable);
+        Ok(true)
+    } else {
+        Ok(false)
+    }
 }
 fn is_valid_docstring_arg(st: &ExtractedArgs, pat: &syn::Ident, ty: &syn::Type) -> bool {
     st.docstring.is_none() && pat == "docstring" && is_string(ty)
@@ -287,28 +254,54 @@ fn classify_docstring(
     }
 }
 
-#[expect(clippy::unnecessary_wraps, reason = "conforms to classifier signature")]
-fn classify_step_arg(
-    st: &mut ExtractedArgs,
-    _arg: &mut syn::PatType,
-    pat: &syn::Ident,
-    ty: &syn::Type,
-) -> syn::Result<bool> {
-    let idx = st.step_args.len();
-    st.step_args.push(StepArg {
-        pat: pat.clone(),
-        ty: ty.clone(),
-    });
-    st.call_order.push(CallArg::StepArg(idx));
-    Ok(true)
+/// Classifies an argument as either a fixture or a step parameter.
+///
+/// The function removes any `#[from]` attribute from the argument before
+/// classification. Arguments without an explicit `#[from]` attribute are treated
+/// as step parameters when their identifier matches a placeholder in the step
+/// pattern; otherwise they are classified as fixtures.
+/// Identifier and type of a function parameter.
+struct ParamInfo {
+    pat: syn::Ident,
+    ty: syn::Type,
 }
 
-const CLASSIFIERS: &[Classifier] = &[
-    classify_fixture,
-    classify_datatable,
-    classify_docstring,
-    classify_step_arg,
-];
+fn classify_fixture_or_step(
+    st: &mut ExtractedArgs,
+    arg: &mut syn::PatType,
+    info: ParamInfo,
+    placeholders: &mut std::collections::HashSet<String>,
+) {
+    let ParamInfo { pat, ty } = info;
+    let mut from_name = None;
+    arg.attrs.retain(|a| {
+        if a.path().is_ident("from") {
+            from_name = a.parse_args().ok();
+            false
+        } else {
+            true
+        }
+    });
+
+    let target = from_name.clone().unwrap_or_else(|| pat.clone());
+    if placeholders.remove(&target.to_string()) {
+        let idx = st.step_args.len();
+        st.step_args.push(StepArg {
+            pat: pat.clone(),
+            ty: ty.clone(),
+        });
+        st.call_order.push(CallArg::StepArg(idx));
+    } else {
+        let name = from_name.unwrap_or_else(|| pat.clone());
+        let idx = st.fixtures.len();
+        st.fixtures.push(FixtureArg {
+            pat: pat.clone(),
+            name,
+            ty: ty.clone(),
+        });
+        st.call_order.push(CallArg::Fixture(idx));
+    }
+}
 
 /// Extract fixture, step, data table, and doc string arguments from a function signature.
 ///
@@ -319,7 +312,9 @@ const CLASSIFIERS: &[Classifier] = &[
 /// let mut func: syn::ItemFn = parse_quote! {
 ///     fn step(#[from] a: usize, datatable: Vec<Vec<String>>, docstring: String, b: i32) {}
 /// };
-/// let args = extract_args(&mut func).unwrap();
+/// let mut placeholders = std::collections::HashSet::new();
+/// placeholders.insert("b".into());
+/// let args = extract_args(&mut func, &mut placeholders).unwrap();
 /// assert_eq!(args.fixtures.len(), 1);
 /// assert_eq!(args.step_args.len(), 1);
 /// assert!(args.datatable.is_some());
@@ -334,7 +329,10 @@ const CLASSIFIERS: &[Classifier] = &[
 ///
 /// At most one `datatable` and one `docstring` parameter are permitted.
 // FIXME: https://github.com/leynos/rstest-bdd/issues/54
-pub fn extract_args(func: &mut syn::ItemFn) -> syn::Result<ExtractedArgs> {
+pub fn extract_args(
+    func: &mut syn::ItemFn,
+    placeholders: &mut std::collections::HashSet<String>,
+) -> syn::Result<ExtractedArgs> {
     let mut state = ExtractedArgs {
         fixtures: vec![],
         step_args: vec![],
@@ -358,13 +356,35 @@ pub fn extract_args(func: &mut syn::ItemFn) -> syn::Result<ExtractedArgs> {
         };
         let pat = pat_ident.ident.clone();
         let ty = (*arg.ty).clone();
-
-        for class in CLASSIFIERS {
-            if class(&mut state, arg, &pat, &ty)? {
-                break;
-            }
+        let pat_str = pat.to_string();
+        if placeholders.contains(&pat_str) {
+            let info = ParamInfo {
+                pat: pat.clone(),
+                ty: ty.clone(),
+            };
+            classify_fixture_or_step(&mut state, arg, info, placeholders);
+            continue;
         }
+        if classify_datatable(&mut state, arg, &pat, &ty)? {
+            continue;
+        }
+        if classify_docstring(&mut state, arg, &pat, &ty)? {
+            continue;
+        }
+        let info = ParamInfo {
+            pat: pat.clone(),
+            ty: ty.clone(),
+        };
+        classify_fixture_or_step(&mut state, arg, info, placeholders);
     }
-
+    if !placeholders.is_empty() {
+        let mut missing: Vec<_> = placeholders.iter().cloned().collect();
+        missing.sort();
+        let missing = missing.join(", ");
+        return Err(syn::Error::new(
+            func.sig.ident.span(),
+            format!("missing step arguments for placeholders: {missing}"),
+        ));
+    }
     Ok(state)
 }

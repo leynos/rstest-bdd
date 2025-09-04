@@ -564,7 +564,9 @@ consideration for resource management.
 
 Sometimes a fixture's function name might be long and descriptive, but a
 shorter or different name is preferred for the argument in a test or another
-fixture. The `#[from(original_fixture_name)]` attribute on an argument allows
+fixture. In `rstest-bdd`, a fixture is injected automatically when the
+parameter name matches the fixture, making the attribute optional in those
+cases. The `#[from(original_fixture_name)]` attribute on an argument allows
 renaming. This is particularly useful when destructuring the result of a
 fixture.
 

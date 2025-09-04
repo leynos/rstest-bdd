@@ -5,5 +5,5 @@ edition = "2024"
 publish = false
 
 [dependencies]
-rstest-bdd = { version = "0.1.0-alpha2", path = "../../../rstest-bdd" }
-rstest-bdd-macros = { version = "0.1.0-alpha2", path = "../.." }
+rstest-bdd = { path = "../../../rstest-bdd" }
+rstest-bdd-macros = { path = "../.." }

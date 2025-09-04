@@ -10,18 +10,18 @@ fn account() -> RefCell<u32> {
 }
 
 #[given("I start with {amount:u32} dollars")]
-fn start_balance(#[from(account)] acc: &RefCell<u32>, amount: u32) {
-    *acc.borrow_mut() = amount;
+fn start_balance(account: &RefCell<u32>, amount: u32) {
+    *account.borrow_mut() = amount;
 }
 
 #[when("I deposit {amount:u32} dollars")]
-fn deposit_amount(#[from(account)] acc: &RefCell<u32>, amount: u32) {
-    *acc.borrow_mut() += amount;
+fn deposit_amount(account: &RefCell<u32>, amount: u32) {
+    *account.borrow_mut() += amount;
 }
 
 #[then("my balance is {expected:u32} dollars")]
-fn check_balance(#[from(account)] acc: &RefCell<u32>, expected: u32) {
-    assert_eq!(*acc.borrow(), expected);
+fn check_balance(account: &RefCell<u32>, expected: u32) {
+    assert_eq!(*account.borrow(), expected);
 }
 
 #[scenario(path = "tests/features/argument.feature")]

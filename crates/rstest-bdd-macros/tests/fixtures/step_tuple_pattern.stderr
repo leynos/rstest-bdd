@@ -4,4 +4,4 @@ error: invalid step function signature: unsupported parameter pattern; use a sim
 8 | fn step_with_tuple((x, y): (i32, i32)) {}
   |                    ^^^^^^
   |
-  = help: Use `#[given] fn name(ctx: &rstest_bdd::StepContext, ...)` and valid fixtures.
+  = help: Use `#[given] fn name(...args...)` with supported step arguments/fixtures; remove self.

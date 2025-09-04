@@ -23,11 +23,11 @@ owner, the developer, and the tester.
 
 ## The three amigos
 
-| Role ("amigo")                     | Primary concerns                                                                                                                  | Features provided by `rstest‑bdd`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
-| ---------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Business analyst/product owner** | Writing and reviewing business-readable specifications; ensuring that acceptance criteria are expressed clearly.                  | Gherkin `.feature` files are plain text and start with a `Feature` declaration; each `Scenario` describes a single behaviour. Steps are written using keywords `Given`, `When`, and `Then` ([syntax](gherkin-syntax.md#L72-L91)), producing living documentation that can be read by non-technical stakeholders.                                                                                                                                                                                                                              |
-| **Developer**                      | Implementing step definitions in Rust and wiring them to the business specifications; using existing fixtures for setup/teardown. | Attribute macros `#[given]`, `#[when]` and `#[then]` register step functions and their pattern strings in a global step registry. A `#[scenario]` macro reads a feature file at compile time and generates a test that drives the registered steps. Fixture values from `rstest` can be injected into step functions via `#[from(fixture_name)]`.                                                                                                                                                                                             |
-| **Tester/QA**                      | Executing behaviour tests, ensuring correct sequencing of steps and verifying outcomes observable by the user.                    | Scenarios are executed via the standard `cargo test` runner; test functions annotated with `#[scenario]` run each step in order and fail to compile if a step is missing or ambiguous (see [`scenario_missing_step` UI test](../crates/rstest-bdd-macros/tests/fixtures/scenario_missing_step.rs)). Assertions belong in `Then` steps; guidelines discourage inspecting internal state and encourage verifying observable outcomes. Testers can use `cargo test` filters and parallelism because the generated tests are ordinary Rust tests. |
+| Role ("amigo")                     | Primary concerns                                                                                                                  | Features provided by `rstest‑bdd`                                                                                                                                                                                                                                                                                                                                                                         |
+| ---------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Business analyst/product owner** | Writing and reviewing business-readable specifications; ensuring that acceptance criteria are expressed clearly.                  | Gherkin `.feature` files are plain text and start with a `Feature` declaration; each `Scenario` describes a single behaviour. Steps are written using keywords `Given`, `When`, and `Then` ([syntax](gherkin-syntax.md#L72-L91)), producing living documentation that can be read by non-technical stakeholders.                                                                                          |
+| **Developer**                      | Implementing step definitions in Rust and wiring them to the business specifications; using existing fixtures for setup/teardown. | Attribute macros `#[given]`, `#[when]` and `#[then]` register step functions and their pattern strings in a global step registry. A `#[scenario]` macro reads a feature file at compile time and generates a test that drives the registered steps. Fixtures whose parameter names match are injected automatically; use `#[from(name)]` only when a parameter name differs from the fixture.             |
+| **Tester/QA**                      | Executing behaviour tests, ensuring correct sequencing of steps and verifying outcomes observable by the user.                    | Scenarios are executed via the standard `cargo test` runner; test functions annotated with `#[scenario]` run each step in order and panic if a step is missing. Assertions belong in `Then` steps; guidelines discourage inspecting internal state and encourage verifying observable outcomes. Testers can use `cargo test` filters and parallelism because the generated tests are ordinary Rust tests. |
 
 The following sections expand on these responsibilities and show how to use the
 current API effectively.
@@ -85,24 +85,22 @@ a global registry. The wrapper captures the step keyword, pattern string and
 associated fixtures and uses the `inventory` crate to publish them for later
 lookup.
 
-> **Ordering note:** Step macros expand as the compiler parses the module.
-> Therefore, a `#[scenario]` must appear after all of its referenced step
-> definitions in the same module; otherwise, the validation pass will not see
-> those steps and compilation will fail. The
-> [`scenario_out_of_order` UI test](../crates/rstest-bdd-macros/tests/fixtures/scenario_out_of_order.rs)
-> demonstrates this constraint.
-
-### Fixtures and the `#[from]` attribute
+### Fixtures and implicit injection
 
 `rstest‑bdd` builds on `rstest`’s fixture system rather than using a monolithic
 “world” object. Fixtures are defined using `#[rstest::fixture]` in the usual
-way, and they can be injected into step definitions through the
-`#[from(fixture_name)]` attribute. Internally, the step macros record the
-fixture names and generate wrapper code that, at runtime, retrieves references
-from a `StepContext`. This context is a key–value map of fixture names to
-type‑erased references. When a scenario runs, the generated test inserts its
-arguments (the `rstest` fixtures) into the `StepContext` before invoking each
-registered step.
+way. When a step function parameter does not correspond to a placeholder in the
+step pattern, the macros treat it as a fixture and inject the value
+automatically. The optional `#[from(name)]` attribute remains available when a
+parameter name must differ from the fixture. Importing a symbol of the same
+name is not required; do not alias a function or item just to satisfy the
+compiler. Only the key stored in `StepContext` must match.
+
+Internally, the step macros record the fixture names and generate wrapper code
+that, at runtime, retrieves references from a `StepContext`. This context is a
+key–value map of fixture names to type‑erased references. When a scenario runs,
+the generated test inserts its arguments (the `rstest` fixtures) into the
+`StepContext` before invoking each registered step.
 
 Example:
 
@@ -117,18 +115,18 @@ fn basket() -> Basket {
 }
 
 #[given("an empty basket")]
-fn empty_basket(#[from(basket)] b: &mut Basket) {
-    b.clear();
+fn empty_basket(basket: &mut Basket) {
+    basket.clear();
 }
 
 #[when("the user adds a pumpkin")]
-fn add_pumpkin(#[from(basket)] b: &mut Basket) {
-    b.add(Item::Pumpkin, 1);
+fn add_pumpkin(basket: &mut Basket) {
+    basket.add(Item::Pumpkin, 1);
 }
 
 #[then("the basket contains one pumpkin")]
-fn assert_pumpkins(#[from(basket)] b: &Basket) {
-    assert_eq!(b.count(Item::Pumpkin), 1);
+fn assert_pumpkins(basket: &Basket) {
+    assert_eq!(basket.count(Item::Pumpkin), 1);
 }
 
 #[scenario(path = "tests/features/shopping.feature")]
@@ -136,6 +134,11 @@ fn test_add_to_basket(#[with(basket)] _: Basket) {
     // optional assertions after the steps
 }
 ```
+
+### Implicit fixture injection
+
+Implicit fixtures such as `basket` must already be in scope in the test module;
+`#[from(name)]` only renames a fixture and does not create one.
 
 In this example, the step texts in the annotations must match the feature file
 verbatim. The `#[scenario]` macro binds the test function to the first scenario
@@ -381,10 +384,11 @@ discover dead code early in the development cycle.
 Development to Rust without sacrificing the ergonomics of `rstest` and the
 convenience of `cargo test`. In its present form, the framework provides a core
 workflow: write Gherkin scenarios, implement matching Rust functions with
-`#[given]`, `#[when]` and `#[then]` annotations, inject fixtures via `#[from]`,
-and bind tests to scenarios with `#[scenario]`. Step definitions are discovered
-at link time via the `inventory` crate, and scenarios execute all steps in
-sequence before running any remaining test code. While advanced Gherkin
-constructs and parameterization remain on the horizon, this foundation allows
-teams to integrate acceptance criteria into their Rust test suites and to
-engage all three amigos in the specification process.
+`#[given]`, `#[when]` and `#[then]` annotations, rely on matching parameter
+names for fixture injection (use `#[from]` when renaming), and bind tests to
+scenarios with `#[scenario]`. Step definitions are discovered at link time via
+the `inventory` crate, and scenarios execute all steps in sequence before
+running any remaining test code. While advanced Gherkin constructs and
+parameterization remain on the horizon, this foundation allows teams to
+integrate acceptance criteria into their Rust test suites and to engage all
+three amigos in the specification process.

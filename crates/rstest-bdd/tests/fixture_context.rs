@@ -9,7 +9,7 @@ use rstest_bdd_macros::given;
     clippy::trivially_copy_pass_by_ref,
     reason = "fixture requires reference"
 )]
-fn needs_value(#[from(number)] number: &u32) {
+fn needs_value(number: &u32) {
     assert_eq!(*number, 42);
 }
 
@@ -18,7 +18,7 @@ fn needs_value(#[from(number)] number: &u32) {
     clippy::trivially_copy_pass_by_ref,
     reason = "fixture requires reference"
 )]
-fn panicking_value_step(#[from(number)] number: &u32) -> Result<(), String> {
+fn panicking_value_step(number: &u32) -> Result<(), String> {
     let _ = number;
     panic!("boom")
 }

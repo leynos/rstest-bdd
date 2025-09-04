@@ -78,6 +78,9 @@ fn add_pumpkins(basket: &mut Basket, count: u32) {
 }
 ```
 
+Implicit fixtures such as `basket` must already be in scope in the test module;
+`#[from(name)]` only renames a fixture and does not create one.
+
 ### 2.2. Inferred Step Patterns
 
 **Goal:** Remove the need for an explicit pattern string in the step attribute
@@ -97,8 +100,8 @@ string argument optional.
     - The macro will take the identifier of the function it decorates.
     - It will convert the identifier from `snake_case` to a sentence-case string
   (e.g., `the_user_logs_in` becomes `"the user logs in"`).
-    - Parameter names that are valid placeholders (e.g., `_var` or `var`) will
-      be converted to `{var}` format within the inferred pattern.
+    - Treat parameter-like identifiers as placeholders and emit `{name}` in the
+      inferred pattern (e.g., `_var` or `var` -> `{var}`).
 
 3. **Doc Comment Fallback:** As a secondary mechanism, if no pattern is
    provided and the function name is ambiguous, the macro could fall back to
@@ -139,11 +142,19 @@ A new derive macro, StepArgs, will be introduced in rstest-bdd-macros.
 1. **`#[derive(StepArgs)]` Macro:**
 
     - This macro will be applied to a user-defined struct.
-    - It will generate an implementation of `TryFrom<Vec<String>>` for the
-      struct. The implementation will expect a vector of captured strings from
-      the step pattern and attempt to parse each string into the corresponding
-      struct field using `FromStr`. The order of fields will map to the order
-      of captures.
+    - It will generate `TryFrom<Vec<String>>` for the struct. The implementation
+      expects a vector of captured strings from the step pattern and parses
+      each string into the corresponding field using `FromStr`. Field order
+      maps to capture order. A field/count mismatch is a compile-time error
+      emitted by the macro with the missing or excess placeholder names and
+      span highlights.
+
+      ```text
+      error: StepArgs fields do not match placeholders: missing {age}, extra field `role`
+       --> tests/steps.rs:27:10
+      27 | struct NewUser { name: String, role: String }
+         |          ^^^^^
+      ```
 
 2. **Step Macro Integration:**
 
@@ -221,10 +232,12 @@ This requires changes to both the runtime and macro crates.
    **`crates/rstest-bdd-macros/src/codegen/wrapper/emit.rs`**):**
 
     - The generated wrapper for a step function will inspect its return type.
-    - If the return type is not `()` or `Result<(), E>`, the wrapper will
-      capture the `Ok(value)` from the step function's result.
-    - It will then insert this `value` into the `StepContext` using its
-      `TypeId` as the key.
+      - If the return type is not `()` or `Result<(), E>`, the wrapper will
+        capture the `Ok(value)` from the step function's result. If the step
+        returns `Err(e)` the error is propagated unchanged and nothing is
+        stored in the context.
+      - It will then insert this `value` into the `StepContext` using its
+        `TypeId` as the key.
 
 4. **Implicit Injection:** A parameter in a subsequent step that is not a
    fixture and not a step argument, but whose type matches a value stored in
@@ -279,7 +292,7 @@ philosophy of augmenting, not obscuring, rstest.
     - This derive macro will be applied to a user-defined state struct whose
       fields are of type `Slot<T>`.
     - It will automatically generate a `Default` implementation for the struct,
-  which initialises each `Slot` to its empty state.
+  which initializes each `Slot` to its empty state.
     - This encourages a pattern where the user defines their state struct,
       derives `ScenarioState`, and then provides it as a regular `rstest`
       fixture.
@@ -325,7 +338,7 @@ fn test_cli_command(cli_state: CliState) {
 
 ## 4. Developer Tooling and Utilities
 
-### 4.1. Streamlined ,`Result`, Assertions
+### 4.1. Streamlined `Result` Assertions
 
 **Goal:** Simplify the common pattern of asserting that a step returning a
 `Result` is either `Ok` or `Err`.
@@ -364,8 +377,8 @@ A new binary crate, cargo-bdd, will be created.
   containing skeleton step functions for each unique step.
     - Placeholders in step strings will be converted into function parameters
       with `String` types as a default.
-    - The generated functions will have a `todo!()` macro in their body,
-      prompting the developer to provide an implementation.
+    - Generated functions contain a `todo!()` macro, requiring the developer to
+      implement them.
 
 **Example Output:**
 

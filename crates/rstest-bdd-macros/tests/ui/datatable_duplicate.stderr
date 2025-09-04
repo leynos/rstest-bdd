@@ -4,4 +4,4 @@ error: invalid step function signature: only one DataTable parameter is permitte
 6 | fn step(#[datatable] first: Vec<Vec<String>>, #[datatable] second: Vec<Vec<String>>) {}
   |                                                            ^^^^^^^^^^^^^^^^^^^^^^^^
   |
-  = help: Use `#[given] fn name(ctx: &rstest_bdd::StepContext, ...)` and valid fixtures.
+  = help: Use `#[given] fn name(...args...)` with supported step arguments/fixtures; remove self.

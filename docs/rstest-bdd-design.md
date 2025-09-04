@@ -100,9 +100,8 @@ use thirtyfour::prelude::*;
 #[fixture]
 async fn browser() -> WebDriverResult<WebDriver> {
     let caps = DesiredCapabilities::firefox();
-    let driver = WebDriver::new("http://localhost:4444", caps).await?;
-    // The fixture yields the driver to the test, and will handle cleanup after.
-    Ok(driver)
+    // The fixture yields the browser to the test, and will handle cleanup after.
+    Ok(WebDriver::new("http://localhost:4444", caps).await?)
 }
 
 // The #[scenario] macro binds this test function to a specific scenario.
@@ -118,29 +117,35 @@ async fn test_simple_search(#[future] browser: WebDriver) {
 }
 
 // Step definitions are just decorated functions.
-// The #[from(fixture_name)] attribute injects the fixture into the step.
-async fn go_to_home(#[from(browser)] driver: &mut WebDriver) {
-    driver.goto("https://duckduckgo.com/").await.unwrap();
+// The fixture is injected when the parameter name matches the fixture.
+#[given("the DuckDuckGo home page is displayed")]
+async fn go_to_home(browser: &mut WebDriver) -> WebDriverResult<()> {
+    browser.goto("https://duckduckgo.com/").await?;
+    Ok(())
 }
 
 // The framework will parse the quoted string and pass it as an argument.
-#[when("a user searches for \"(.*)\"")]
-async fn search_for_phrase(#[from(browser)] driver: &mut WebDriver, phrase: String) {
-    let form = driver.find(By::Id("search_form_input_homepage")).await.unwrap();
-    form.send_keys(&phrase).await.unwrap();
-    form.submit().await.unwrap();
+#[when("I search for \"{phrase}\"")]
+async fn search_for_phrase(browser: &mut WebDriver, phrase: String) -> WebDriverResult<()> {
+    let form = browser.find(By::Id("search_form_input_homepage")).await?;
+    form.send_keys(&phrase).await?;
+    form.submit().await?;
+    Ok(())
 }
 
 #[then("the search results page is displayed")]
-async fn results_page_is_displayed(#[from(browser)] driver: &mut WebDriver) {
-    let results = driver.find(By::Id("links")).await;
-    assert!(results.is_ok(), "Search results container not found.");
+async fn results_page_is_displayed(browser: &mut WebDriver) -> WebDriverResult<()> {
+    browser.find(By::Id("links")).await?;
+    Ok(())
 }
 
 #[then("the results contain \"(.*)\"")]
-async fn results_contain_text(#[from(browser)] driver: &mut WebDriver, text: String) {
-    let content = driver.source().await.unwrap();
-    assert!(content.contains(&text), "Result text not found in page source.");
+async fn results_contain_text(browser: &mut WebDriver, text: String) -> WebDriverResult<()> {
+    let content = browser.source().await?;
+    if content.contains(&text) { Ok(()) }
+    else { Err(thirtyfour::error::WebDriverError::CustomError(
+        format!("Result text not found: expected substring '{text}'")
+    )) }
 }
 ```
 
@@ -202,18 +207,42 @@ Feature: User Login
 async fn test_login_scenarios(#[future] browser: WebDriver) {}
 
 // Placeholders from the 'Examples' table are passed as typed arguments to the step functions.
+<<<<<<< HEAD
 #[when("a user enters username \"<username>\" and password \"<password>\"")]
+||||||| parent of 4aac498 (Handle placeholder edge cases)
+#[when("I enter username \"<username>\" and password \"<password>\"")]
+=======
+#[when("I enter username {username} and password {password}")]
+>>>>>>> 4aac498 (Handle placeholder edge cases)
 async fn enter_credentials(
-    #[from(browser)] driver: &mut WebDriver,
+    browser: &mut WebDriver,
     username: String,
     password: String,
-) {
+) -> WebDriverResult<()> {
     //... implementation...
+    Ok(())
 }
 
+<<<<<<< HEAD
+<<<<<<< HEAD
 #[then("the message \"<message>\" is shown")]
 async fn see_message(#[from(browser)] driver: &mut WebDriver, message: String) {
+||||||| parent of 2cd8b08 (Clarify implicit fixture docs)
+#[then("I should see the message \"<message>\"")]
+async fn see_message(#[from(browser)] driver: &mut WebDriver, message: String) {
+=======
+#[then("I should see the message \"<message>\"")]
+async fn see_message(browser: &mut WebDriver, message: String) {
+>>>>>>> 2cd8b08 (Clarify implicit fixture docs)
+||||||| parent of 4aac498 (Handle placeholder edge cases)
+#[then("I should see the message \"<message>\"")]
+async fn see_message(browser: &mut WebDriver, message: String) {
+=======
+#[then("I should see the message {message}")]
+async fn see_message(browser: &mut WebDriver, message: String) -> WebDriverResult<()> {
+>>>>>>> 4aac498 (Handle placeholder edge cases)
     //... assert message is visible...
+    Ok(())
 }
 ```
 
@@ -1213,12 +1242,33 @@ orchestration works.
 ### 3.8 Fixture Integration Implementation
 
 The second phase extends the macro system to support fixtures. Step definition
-macros now inspect the parameters of the attached function. Any argument is
-treated as a fixture request, with an optional `#[from(name)]` attribute
-allowing the argument name to differ from the fixture's. The macro generates a
-wrapper function taking a `StepContext` and registers this wrapper in the step
-registry. The wrapper retrieves the required fixtures from the context and
-calls the original step function.
+macros now parse the pattern's `{name}` placeholders up front and inspect the
+parameters of the attached function. Parameters that match a placeholder become
+step arguments; any remaining parameters are treated as fixture requests, with
+an optional `#[from(name)]` attribute allowing the argument name to differ from
+the fixture's. The macro generates a wrapper function taking a `StepContext`
+and registers this wrapper in the step registry. The wrapper retrieves the
+required fixtures from the context and calls the original step function.
+
+```mermaid
+sequenceDiagram
+    participant MacroExpander
+    participant StepFunction
+    participant PatternParser
+    participant ArgExtractor
+    participant ErrorReporter
+    MacroExpander->>PatternParser: Extract placeholder names from pattern
+    PatternParser-->>MacroExpander: Return set of placeholders
+    MacroExpander->>ArgExtractor: Pass function signature and placeholders
+    ArgExtractor->>StepFunction: Inspect parameters
+    ArgExtractor->>ArgExtractor: Classify parameters
+    Note over ArgExtractor: If parameter matches placeholder, classify as step arg
+    Note over ArgExtractor: If parameter does not match placeholder, classify as fixture
+    ArgExtractor->>ErrorReporter: Report missing placeholders or fixture errors
+    ErrorReporter-->>MacroExpander: Emit compile-time error if needed
+    ArgExtractor-->>MacroExpander: Return argument classification
+    MacroExpander->>StepFunction: Generate wrapper code with inferred fixtures
+```
 
 The `#[scenario]` macro populates a `StepContext` at runtime. It gathers all
 fixtures provided to the generated test function and inserts references into
@@ -1355,7 +1405,21 @@ sequenceDiagram
     StepWrapper-->>ScenarioRunner: returns
 ```
 
-### 3.10 Runtime Module Layout (for Contributors)
+### 3.10 Implicit Fixture Injection Implementation
+
+To streamline step definitions, the macro system now infers fixtures by
+analysing the step pattern during expansion. Placeholder names are extracted
+from the pattern string, and any function parameter whose identifier matches a
+placeholder is treated as a typed step argument. Remaining parameters are
+assumed to be fixtures and are looked up in the [`StepContext`] at runtime.
+
+For early feedback, each inferred fixture name is referenced in the generated
+wrapper. If no fixture with that name is in scope, the wrapper fails to
+compile, surfacing the missing dependency before tests run. Conversely, if the
+pattern declares placeholders without matching parameters, macro expansion
+aborts with a clear diagnostic listing the missing arguments.
+
+### 3.11 Runtime Module Layout (for Contributors)
 
 To keep responsibilities cohesive the runtime is split into focused modules.
 Public APIs are re‑exported from `lib.rs` so consumers continue to import from

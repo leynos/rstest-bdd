@@ -16,6 +16,7 @@ pub(crate) use then::then;
 pub(crate) use when::when;
 
 use crate::codegen::wrapper::{WrapperConfig, extract_args, generate_wrapper_code};
+use crate::utils::{errors::error_to_tokens, pattern::placeholder_names};
 
 fn step_attr(attr: TokenStream, item: TokenStream, keyword: crate::StepKeyword) -> TokenStream {
     let pattern = syn::parse_macro_input!(attr as syn::LitStr);
@@ -23,8 +24,16 @@ fn step_attr(attr: TokenStream, item: TokenStream, keyword: crate::StepKeyword) 
     #[cfg_attr(docsrs, doc(cfg(feature = "compile-time-validation")))]
     crate::validation::steps::register_step(keyword, &pattern);
     let mut func = syn::parse_macro_input!(item as syn::ItemFn);
+    let mut placeholders = match placeholder_names(&pattern.value()) {
+        Ok(set) => set,
+        Err(mut err) => {
+            // Anchor diagnostics on the attribute literal for clarity.
+            err.combine(syn::Error::new(pattern.span(), "in this step pattern"));
+            return error_to_tokens(&err).into();
+        }
+    };
 
-    let args = match extract_args(&mut func) {
+    let args = match extract_args(&mut func, &mut placeholders) {
         Ok(args) => args,
         Err(err) => {
             let kw_name = match keyword {
@@ -35,7 +44,7 @@ fn step_attr(attr: TokenStream, item: TokenStream, keyword: crate::StepKeyword) 
                 crate::StepKeyword::But => "but",
             };
             let help = format!(
-                "Use `#[{kw_name}] fn name(ctx: &rstest_bdd::StepContext, ...)` and valid fixtures."
+                "Use `#[{kw_name}] fn name(...args...)` with supported step arguments/fixtures; remove self."
             );
             proc_macro_error::abort!(err.span(), "invalid step function signature: {}", err; help = help);
         }
