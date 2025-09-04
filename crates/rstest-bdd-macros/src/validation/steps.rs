@@ -10,7 +10,7 @@
 use std::sync::{LazyLock, Mutex};
 
 use crate::StepKeyword;
-use crate::parsing::feature::{ParsedStep, resolve_conjunction_keyword};
+use crate::parsing::feature::ParsedStep;
 use proc_macro_error::emit_warning;
 use rstest_bdd::{StepPattern, StepText, extract_placeholders};
 
@@ -67,11 +67,15 @@ fn collect_missing_steps(
     reg: &[RegisteredStep],
     steps: &[ParsedStep],
 ) -> Result<Vec<(proc_macro2::Span, String)>, syn::Error> {
-    let mut prev = None;
+    // Use the refactored keyword resolution from main to correctly
+    // resolve conjunctions (And/But) while preserving this branch's
+    // span-aware diagnostics for precise error reporting.
+    let resolved = resolve_keywords(steps);
+    debug_assert_eq!(resolved.len(), steps.len());
     let mut missing = Vec::new();
-    for step in steps {
-        let resolved = resolve_conjunction_keyword(&mut prev, step.keyword);
-        if let Some(msg) = has_matching_step_definition(reg, resolved, step)? {
+
+    for (step, keyword) in steps.iter().zip(resolved) {
+        if let Some(msg) = has_matching_step_definition(reg, keyword, step)? {
             let span = {
                 #[cfg(feature = "compile-time-validation")]
                 {
@@ -279,8 +283,10 @@ fn current_crate_id() -> String {
 ///
 /// Seeds the chain with the first primary keyword, defaulting to `Given` when
 /// none is found.
-#[expect(dead_code, reason = "awaiting integration with validation logic")]
-pub(crate) fn resolve_keywords(steps: &[ParsedStep]) -> Vec<crate::StepKeyword> {
+/// Returns an iterator yielding one keyword per input step.
+pub(crate) fn resolve_keywords(
+    steps: &[ParsedStep],
+) -> impl ExactSizeIterator<Item = crate::StepKeyword> + '_ {
     let mut prev = steps
         .iter()
         .find_map(|s| match s.keyword {
@@ -288,7 +294,9 @@ pub(crate) fn resolve_keywords(steps: &[ParsedStep]) -> Vec<crate::StepKeyword> 
             other => Some(other),
         })
         .or(Some(crate::StepKeyword::Given));
-    steps.iter().map(|s| s.keyword.resolve(&mut prev)).collect()
+    let resolved = steps.iter().map(move |s| s.keyword.resolve(&mut prev));
+    debug_assert_eq!(resolved.len(), steps.len());
+    resolved
 }
 
 #[cfg(test)]
@@ -390,5 +398,69 @@ mod tests {
         }];
         assert!(validate_steps_exist(&steps, true).is_err());
         assert!(validate_steps_exist(&steps, false).is_ok());
+    }
+    #[rstest]
+    #[case(StepKeyword::And)]
+    #[case(StepKeyword::But)]
+    fn defaults_leading_conjunction_to_given(#[case] kw: StepKeyword) {
+        let steps = [ParsedStep {
+            keyword: kw,
+            text: String::new(),
+            docstring: None,
+            table: None,
+            #[cfg(feature = "compile-time-validation")]
+            span: proc_macro2::Span::call_site(),
+        }];
+        let resolved: Vec<_> = resolve_keywords(&steps).collect();
+        assert_eq!(resolved, vec![StepKeyword::Given]);
+    }
+    #[test]
+    fn preserves_length_with_only_conjunctions() {
+        let steps = [
+            ParsedStep {
+                keyword: StepKeyword::And,
+                text: String::new(),
+                docstring: None,
+                table: None,
+                #[cfg(feature = "compile-time-validation")]
+                span: proc_macro2::Span::call_site(),
+            },
+            ParsedStep {
+                keyword: StepKeyword::But,
+                text: String::new(),
+                docstring: None,
+                table: None,
+                #[cfg(feature = "compile-time-validation")]
+                span: proc_macro2::Span::call_site(),
+            },
+        ];
+        let resolved: Vec<_> = resolve_keywords(&steps).collect();
+        assert_eq!(resolved.len(), steps.len());
+    }
+
+    #[rstest]
+    #[case(StepKeyword::And)]
+    #[case(StepKeyword::But)]
+    fn seeds_leading_conjunction_from_first_primary(#[case] kw: StepKeyword) {
+        let steps = [
+            ParsedStep {
+                keyword: kw,
+                text: String::new(),
+                docstring: None,
+                table: None,
+                #[cfg(feature = "compile-time-validation")]
+                span: proc_macro2::Span::call_site(),
+            },
+            ParsedStep {
+                keyword: StepKeyword::Given,
+                text: String::new(),
+                docstring: None,
+                table: None,
+                #[cfg(feature = "compile-time-validation")]
+                span: proc_macro2::Span::call_site(),
+            },
+        ];
+        let resolved: Vec<_> = resolve_keywords(&steps).collect();
+        assert_eq!(resolved.first().copied(), Some(StepKeyword::Given));
     }
 }

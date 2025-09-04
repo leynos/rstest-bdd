@@ -35,7 +35,7 @@ pub use registry::dump_registry;
 pub use registry::{Step, duplicate_steps, find_step, lookup_step, unused_steps};
 pub use types::{
     PatternStr, PlaceholderError, PlaceholderSyntaxError, StepFn, StepKeyword,
-    StepKeywordParseError, StepPatternError, StepText,
+    StepKeywordParseError, StepPatternError, StepText, UnsupportedStepType,
 };
 
 #[cfg(feature = "diagnostics")]

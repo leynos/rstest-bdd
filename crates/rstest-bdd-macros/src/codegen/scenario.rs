@@ -100,17 +100,22 @@ fn process_steps(
     Vec<TokenStream2>,
     Vec<TokenStream2>,
 ) {
-    // Preserve "And"/"But" at parse time for clearer diagnostics, but
-    // normalise them here so runtime resolution sees the intended semantic
-    // keyword. We then convert to tokens using the local ToTokens impl.
-    let mut prev = steps.iter().find_map(|s| match s.keyword {
-        crate::StepKeyword::And | crate::StepKeyword::But => None,
-        other => Some(other),
-    });
-    let keywords = steps
-        .iter()
-        .map(|s| s.keyword.resolve(&mut prev).to_token_stream())
-        .collect();
+    // Resolve textual conjunctions (And/But) to the previous primary keyword
+    // without depending on the validation module, which is behind an optional
+    // feature. We seed with the first primary keyword or Given by default.
+    let keyword_tokens = {
+        let mut prev = steps
+            .iter()
+            .find_map(|s| match s.keyword {
+                crate::StepKeyword::And | crate::StepKeyword::But => None,
+                other => Some(other),
+            })
+            .or(Some(crate::StepKeyword::Given));
+        steps.iter().map(move |s| s.keyword.resolve(&mut prev))
+    }
+    .map(|kw| kw.to_token_stream())
+    .collect::<Vec<_>>();
+    debug_assert_eq!(keyword_tokens.len(), steps.len());
     let values = steps
         .iter()
         .map(|s| {
@@ -134,12 +139,12 @@ fn process_steps(
         .iter()
         .map(|s| generate_table_tokens(s.table.as_deref()))
         .collect();
-    (keywords, values, docstrings, tables)
+    (keyword_tokens, values, docstrings, tables)
 }
 
 /// Grouped tokens for scenario steps.
 struct ProcessedSteps {
-    keywords: Vec<TokenStream2>,
+    keyword_tokens: Vec<TokenStream2>,
     values: Vec<TokenStream2>,
     docstrings: Vec<TokenStream2>,
     tables: Vec<TokenStream2>,
@@ -159,7 +164,7 @@ struct TestTokensConfig<'a> {
 /// ```rust,ignore
 /// # use syn::parse_quote;
 /// let processed = ProcessedSteps {
-///     keywords: vec![],
+///     keyword_tokens: vec![],
 ///     values: vec![],
 ///     docstrings: vec![],
 ///     tables: vec![],
@@ -180,7 +185,7 @@ fn generate_test_tokens(
     let TestTokensConfig {
         processed_steps:
             ProcessedSteps {
-                keywords,
+                keyword_tokens,
                 values,
                 docstrings,
                 tables,
@@ -192,7 +197,7 @@ fn generate_test_tokens(
 
     let path = crate::codegen::rstest_bdd_path();
     quote! {
-        let steps = [#((#keywords, #values, #docstrings, #tables)),*];
+        let steps = [#((#keyword_tokens, #values, #docstrings, #tables)),*];
         let ctx = {
             let mut ctx = #path::StepContext::default();
             #(#ctx_inserts)*
@@ -241,9 +246,10 @@ pub(crate) fn generate_scenario_code(
         steps,
         examples,
     } = config;
-    let (keywords, values, docstrings, tables) = process_steps(&steps);
+    let (keyword_tokens, values, docstrings, tables) = process_steps(&steps);
+    debug_assert_eq!(keyword_tokens.len(), steps.len());
     let processed_steps = ProcessedSteps {
-        keywords,
+        keyword_tokens,
         values,
         docstrings,
         tables,
@@ -273,7 +279,7 @@ mod tests {
     fn kw(ts: &TokenStream2) -> crate::StepKeyword {
         let path = syn::parse2::<syn::Path>(ts.clone()).expect("keyword path");
         let ident = path.segments.last().expect("last").ident.to_string();
-        crate::StepKeyword::from(ident.as_str())
+        crate::StepKeyword::try_from(ident.as_str()).expect("valid step keyword")
     }
 
     fn blank() -> ParsedStep {
@@ -287,104 +293,37 @@ mod tests {
         }
     }
 
-    #[test]
-    fn normalises_leading_and() {
-        let steps = vec![
-            ParsedStep {
-                keyword: crate::StepKeyword::And,
+    #[rstest::rstest]
+    #[case::leading_and(
+        vec![crate::StepKeyword::And, crate::StepKeyword::Then],
+        vec![crate::StepKeyword::Then, crate::StepKeyword::Then],
+    )]
+    #[case::leading_but(
+        vec![crate::StepKeyword::But, crate::StepKeyword::Then],
+        vec![crate::StepKeyword::Then, crate::StepKeyword::Then],
+    )]
+    #[case::mixed(
+        vec![crate::StepKeyword::Given, crate::StepKeyword::And, crate::StepKeyword::But, crate::StepKeyword::Then],
+        vec![crate::StepKeyword::Given, crate::StepKeyword::Given, crate::StepKeyword::Given, crate::StepKeyword::Then],
+    )]
+    #[case::all_conjunctions(
+        vec![crate::StepKeyword::And, crate::StepKeyword::But, crate::StepKeyword::And],
+        vec![crate::StepKeyword::Given, crate::StepKeyword::Given, crate::StepKeyword::Given],
+    )]
+    #[case::empty(vec![], vec![])]
+    fn normalises_sequences(
+        #[case] seq: Vec<crate::StepKeyword>,
+        #[case] expect: Vec<crate::StepKeyword>,
+    ) {
+        let steps: Vec<_> = seq
+            .into_iter()
+            .map(|k| ParsedStep {
+                keyword: k,
                 ..blank()
-            },
-            ParsedStep {
-                keyword: crate::StepKeyword::Then,
-                ..blank()
-            },
-        ];
-        let (keywords, _, _, _) = process_steps(&steps);
-        let parsed: Vec<_> = keywords.iter().map(kw).collect();
-        assert_eq!(
-            parsed,
-            vec![crate::StepKeyword::Then, crate::StepKeyword::Then]
-        );
-    }
-
-    #[test]
-    fn normalises_leading_but() {
-        let steps = vec![
-            ParsedStep {
-                keyword: crate::StepKeyword::But,
-                ..blank()
-            },
-            ParsedStep {
-                keyword: crate::StepKeyword::Then,
-                ..blank()
-            },
-        ];
-        let (keywords, _, _, _) = process_steps(&steps);
-        let parsed: Vec<_> = keywords.iter().map(kw).collect();
-        assert_eq!(
-            parsed,
-            vec![crate::StepKeyword::Then, crate::StepKeyword::Then]
-        );
-    }
-
-    #[test]
-    fn normalises_mixed_sequence() {
-        let steps = vec![
-            ParsedStep {
-                keyword: crate::StepKeyword::Given,
-                ..blank()
-            },
-            ParsedStep {
-                keyword: crate::StepKeyword::And,
-                ..blank()
-            },
-            ParsedStep {
-                keyword: crate::StepKeyword::But,
-                ..blank()
-            },
-            ParsedStep {
-                keyword: crate::StepKeyword::Then,
-                ..blank()
-            },
-        ];
-        let (keywords, _, _, _) = process_steps(&steps);
-        let parsed: Vec<_> = keywords.iter().map(kw).collect();
-        assert_eq!(
-            parsed,
-            vec![
-                crate::StepKeyword::Given,
-                crate::StepKeyword::Given,
-                crate::StepKeyword::Given,
-                crate::StepKeyword::Then,
-            ],
-        );
-    }
-
-    #[test]
-    fn normalises_all_conjunctions_to_given() {
-        let steps = vec![
-            ParsedStep {
-                keyword: crate::StepKeyword::And,
-                ..blank()
-            },
-            ParsedStep {
-                keyword: crate::StepKeyword::But,
-                ..blank()
-            },
-            ParsedStep {
-                keyword: crate::StepKeyword::And,
-                ..blank()
-            },
-        ];
-        let (keywords, _, _, _) = process_steps(&steps);
-        let parsed: Vec<_> = keywords.iter().map(kw).collect();
-        assert_eq!(
-            parsed,
-            vec![
-                crate::StepKeyword::Given,
-                crate::StepKeyword::Given,
-                crate::StepKeyword::Given,
-            ]
-        );
+            })
+            .collect();
+        let (keyword_tokens, _, _, _) = process_steps(&steps);
+        let parsed: Vec<_> = keyword_tokens.iter().map(kw).collect();
+        assert_eq!(parsed, expect);
     }
 }

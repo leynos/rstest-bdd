@@ -74,18 +74,18 @@ jobs:
         run: >
           cargo test --workspace --all-targets
           ${{ matrix.with-default-features && '' || '--no-default-features' }}
-          --features "${{ matrix.features }}"
+          --features "rstest-bdd/diagnostics ${{ matrix.features }}"
 
       - name: Test (no coverage, no features)
         if: ${{ !matrix.coverage && matrix.features == null }}
-        run: cargo test --workspace --all-targets
+        run: cargo test --workspace --all-targets --features rstest-bdd/diagnostics
       - name: Test and Measure Coverage (with features)
         if: ${{ matrix.coverage && matrix.features != null }}
         uses: leynos/shared-actions/.github/actions/generate-coverage@ebbaaa0d7a776ec3187f3940667e5c7c9379cdf5
         with:
           output-path: lcov.info
           format: lcov
-          features: ${{ matrix.features }}
+          features: rstest-bdd/diagnostics ${{ matrix.features }}
           with-default-features: ${{ matrix.with-default-features }}
 
       - name: Test and Measure Coverage (no features)
@@ -94,6 +94,7 @@ jobs:
         with:
           output-path: lcov.info
           format: lcov
+          features: rstest-bdd/diagnostics
           with-default-features: ${{ matrix.with-default-features }}
       - name: Publish dry run
         if: ${{ !startsWith(matrix.os, 'windows-') }}

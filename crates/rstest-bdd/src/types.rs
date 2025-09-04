@@ -111,25 +111,40 @@ impl FromStr for StepKeyword {
 }
 
 impl From<&str> for StepKeyword {
+    #[deprecated(
+        since = "0.1.0",
+        note = "Use StepKeyword::try_from(...) or StepKeyword::from_str(...) instead"
+    )]
+    #[expect(useless_deprecated, reason = "trait impl deprecation has no effect")]
+    #[expect(
+        clippy::expect_used,
+        reason = "deprecated shim for backward compatibility"
+    )]
     fn from(value: &str) -> Self {
-        Self::from_str(value).unwrap_or_else(|_| panic!("invalid step keyword: {value}"))
+        Self::from_str(value).expect("valid step keyword")
     }
 }
 
-// And/But are not present in `gherkin::StepType`; they are resolved from the
-// raw `keyword` string during feature parsing. This mapping covers only primary
-// keywords emitted by the Gherkin parser.
-impl From<StepType> for StepKeyword {
-    fn from(ty: StepType) -> Self {
+// Step types resolved from the Gherkin parser. Unknown variants return
+// `UnsupportedStepType`.
+#[derive(Debug, Error)]
+#[error("unsupported step type: {0:?}")]
+pub struct UnsupportedStepType(pub StepType);
+
+impl core::convert::TryFrom<StepType> for StepKeyword {
+    type Error = UnsupportedStepType;
+
+    fn try_from(ty: StepType) -> Result<Self, Self::Error> {
         match ty {
-            StepType::Given => Self::Given,
-            StepType::When => Self::When,
-            StepType::Then => Self::Then,
-            #[expect(
-                unreachable_patterns,
-                reason = "keep a guard for future StepType variants"
-            )]
-            _ => panic!("unsupported step type: {ty:?}"),
+            StepType::Given => Ok(Self::Given),
+            StepType::When => Ok(Self::When),
+            StepType::Then => Ok(Self::Then),
+            #[expect(unreachable_patterns, reason = "guard future StepType variants")]
+            other => match format!("{other:?}") {
+                s if s == "And" => Ok(Self::And),
+                s if s == "But" => Ok(Self::But),
+                _ => Err(UnsupportedStepType(other)),
+            },
         }
     }
 }
@@ -139,6 +154,17 @@ mod tests {
     use super::*;
     use gherkin::StepType;
     use rstest::rstest;
+    use std::str::FromStr;
+
+    #[expect(clippy::expect_used, reason = "test helper with descriptive failures")]
+    fn parse_kw(input: &str) -> StepKeyword {
+        StepKeyword::from_str(input).expect("valid step keyword")
+    }
+
+    #[expect(clippy::expect_used, reason = "test helper with descriptive failures")]
+    fn kw_from_type(ty: StepType) -> StepKeyword {
+        StepKeyword::try_from(ty).expect("valid step type")
+    }
 
     #[rstest]
     #[case("Given", StepKeyword::Given)]
@@ -148,7 +174,7 @@ mod tests {
     #[case(" but ", StepKeyword::But)]
     fn parses_case_insensitively(#[case] input: &str, #[case] expected: StepKeyword) {
         assert!(matches!(StepKeyword::from_str(input), Ok(val) if val == expected));
-        assert_eq!(StepKeyword::from(input), expected);
+        assert_eq!(parse_kw(input), expected);
     }
 
     #[rstest]
@@ -156,7 +182,7 @@ mod tests {
     #[case(StepType::When, StepKeyword::When)]
     #[case(StepType::Then, StepKeyword::Then)]
     fn maps_step_type(#[case] input: StepType, #[case] expected: StepKeyword) {
-        assert_eq!(StepKeyword::from(input), expected);
+        assert_eq!(kw_from_type(input), expected);
     }
 }
 

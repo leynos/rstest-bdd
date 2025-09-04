@@ -3,13 +3,14 @@
 //! This lightweight enum mirrors the variants provided by `rstest-bdd` but
 //! avoids a compile-time dependency on that crate. It is only used internally
 //! for parsing feature files and generating code. The enum includes `And` and
-//! `But` for completeness; conjunction resolution happens during code
-//! generation via `StepKeyword::resolve`, typically seeded to the first primary
-//! keyword; when unseeded it falls back to `Given`.
+//! `But` for completeness; conjunction resolution is centralized in
+//! `validation::steps::resolve_keywords` and consumed by validation and code generation,
+//! falling back to `Given` when unseeded.
 
 use gherkin::{Step, StepType};
 use proc_macro2::TokenStream as TokenStream2;
 use quote::{ToTokens, quote};
+use rstest_bdd::{StepKeywordParseError, UnsupportedStepType};
 
 /// Keyword used to categorize a step definition.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -29,8 +30,8 @@ pub(crate) enum StepKeyword {
 /// Trim and match step keywords case-insensitively, returning `None` when no
 /// known keyword is found.
 ///
-/// Note: textual conjunction detection is English-only ("And"/"But"); other
-/// locales are handled via `StepType`.
+/// Note: textual conjunction detection handles English ("And"/"But");
+/// other locales rely on `StepType` and are resolved centrally.
 fn parse_step_keyword(value: &str) -> Option<StepKeyword> {
     let s = value.trim();
     if s.eq_ignore_ascii_case("given") {
@@ -49,45 +50,61 @@ fn parse_step_keyword(value: &str) -> Option<StepKeyword> {
 }
 
 impl core::str::FromStr for StepKeyword {
-    type Err = &'static str;
+    type Err = StepKeywordParseError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        parse_step_keyword(s).ok_or("invalid step keyword")
+        parse_step_keyword(s).ok_or_else(|| StepKeywordParseError(s.trim().to_string()))
     }
 }
 
-impl From<&str> for StepKeyword {
-    fn from(value: &str) -> Self {
-        value
-            .parse()
-            .unwrap_or_else(|_| panic!("invalid step keyword: {value}"))
+impl core::convert::TryFrom<&str> for StepKeyword {
+    type Error = StepKeywordParseError;
+
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        value.parse()
     }
 }
 
-impl From<StepType> for StepKeyword {
-    fn from(ty: StepType) -> Self {
+impl core::convert::TryFrom<StepType> for StepKeyword {
+    type Error = UnsupportedStepType;
+
+    fn try_from(ty: StepType) -> Result<Self, Self::Error> {
         match ty {
-            StepType::Given => Self::Given,
-            StepType::When => Self::When,
-            StepType::Then => Self::Then,
+            StepType::Given => Ok(Self::Given),
+            StepType::When => Ok(Self::When),
+            StepType::Then => Ok(Self::Then),
             #[expect(unreachable_patterns, reason = "guard future StepType variants")]
-            _ => panic!("unsupported step type: {ty:?}"),
+            other => match format!("{other:?}") {
+                s if s == "And" => Ok(Self::And),
+                s if s == "But" => Ok(Self::But),
+                _ => Err(UnsupportedStepType(other)),
+            },
         }
     }
 }
 
-/// Textual conjunction detection is English-only ("And"/"But"); other
-/// languages are handled via `gherkin::StepType` provided by the parser.
-impl From<&Step> for StepKeyword {
-    fn from(step: &Step) -> Self {
-        match step.keyword.trim() {
-            s if s.eq_ignore_ascii_case("and") => Self::And,
-            s if s.eq_ignore_ascii_case("but") => Self::But,
-            _ => step.ty.into(),
+impl core::convert::TryFrom<&Step> for StepKeyword {
+    type Error = UnsupportedStepType;
+
+    fn try_from(step: &Step) -> Result<Self, Self::Error> {
+        match Self::try_from(step.ty) {
+            Ok(primary @ (Self::Given | Self::When | Self::Then)) => match step.keyword.trim() {
+                s if s.eq_ignore_ascii_case("and") => Ok(Self::And),
+                s if s.eq_ignore_ascii_case("but") => Ok(Self::But),
+                _ => Ok(primary),
+            },
+            Ok(k) => Ok(k),
+            Err(_) => match step.keyword.trim() {
+                s if s.eq_ignore_ascii_case("and") => Ok(Self::And),
+                s if s.eq_ignore_ascii_case("but") => Ok(Self::But),
+                _ => Err(UnsupportedStepType(step.ty)),
+            },
         }
     }
 }
 
+/// Textual conjunction detection handles English ("And"/"But").
+/// Non-English conjunctions rely on `gherkin::StepType` and are resolved centrally.
 impl ToTokens for StepKeyword {
     fn to_tokens(&self, tokens: &mut TokenStream2) {
         let path = crate::codegen::rstest_bdd_path();
@@ -106,7 +123,7 @@ impl StepKeyword {
     /// Resolve conjunctions to the semantic keyword of the previous step or a
     /// seeded first primary keyword.
     ///
-    /// `process_steps` seeds `prev` with the first primary keyword so leading
+    /// `resolve_keywords` seeds `prev` with the first primary keyword so leading
     /// conjunctions inherit that seed. When `prev` is `None`, conjunctions
     /// default to `Given`.
     pub(crate) fn resolve(self, prev: &mut Option<Self>) -> Self {
@@ -122,7 +139,13 @@ impl StepKeyword {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use gherkin::StepType;
     use rstest::rstest;
+
+    #[expect(clippy::expect_used, reason = "test helper with descriptive failures")]
+    fn parse_kw(input: &str) -> StepKeyword {
+        StepKeyword::try_from(input).expect("valid step keyword")
+    }
 
     #[rstest]
     #[case("Given", StepKeyword::Given)]
@@ -131,11 +154,18 @@ mod tests {
     #[case("AND", StepKeyword::And)]
     #[case(" but ", StepKeyword::But)]
     fn parses_case_insensitively(#[case] input: &str, #[case] expected: StepKeyword) {
-        assert_eq!(StepKeyword::from(input), expected);
+        assert_eq!(parse_kw(input), expected);
     }
 
     #[test]
     fn rejects_invalid_keyword_via_from_str() {
         assert!("invalid".parse::<StepKeyword>().is_err());
+    }
+    #[rstest::rstest]
+    #[case(StepType::Given, StepKeyword::Given)]
+    #[case(StepType::When, StepKeyword::When)]
+    #[case(StepType::Then, StepKeyword::Then)]
+    fn maps_step_type(#[case] ty: StepType, #[case] expected: StepKeyword) {
+        assert_eq!(StepKeyword::try_from(ty).ok(), Some(expected));
     }
 }
