@@ -24,61 +24,71 @@ jobs:
             coverage: true
             features: null
             with-default-features: true
+            tools: true
           - os: ubuntu-latest
             coverage: true
             features: strict-compile-time-validation
             with-default-features: false
+            tools: true
           - os: windows-latest
-            coverage: false
+            coverage: true
             features: null
             with-default-features: true
+            tools: false
           - os: windows-latest
-            coverage: false
+            coverage: true
             features: strict-compile-time-validation
             with-default-features: false
+            tools: false
     steps:
       - uses: actions/checkout@v5
       - name: Setup Rust
         uses: leynos/shared-actions/.github/actions/setup-rust@ebbaaa0d7a776ec3187f3940667e5c7c9379cdf5
       - name: Install bun
+        if: ${{ matrix.tools }}
         uses: oven-sh/setup-bun@735343b667d3e6f658f44d0eca948eb6282f2b76 # v2
         with:
           bun-version: '1.2.20'
       - name: Check formatting
+        if: ${{ matrix.tools }}
         run: make check-fmt
       - name: Install Mermaid CLI
+        if: ${{ matrix.tools }}
         run: |
           set -euxo pipefail
-          bun install --global @mermaid-js/mermaid-cli@11.9.0
+          bun install --no-progress --global @mermaid-js/mermaid-cli@11.9.0
           bun x @puppeteer/browsers browsers install chrome-headless-shell
           mmdc --version
       - name: Debug Bun and Mermaid
+        if: ${{ matrix.tools }}
         run: |
           set -euxo pipefail
+          echo "$PATH"
           which mmdc
+          ls -l "$(which mmdc)"
           mmdc --version
           bun --version
+      - name: Setup uv
+        if: ${{ matrix.tools }}
+        uses: astral-sh/setup-uv@9e3559f5c6d1922b77a10af6d8a1a88e5c8ea1a4 # v6
+        with:
+          version: 'latest'
       - name: Install Nixie
+        if: ${{ matrix.tools }}
         run: uv tool install --from git+https://github.com/leynos/nixie nixie
       - name: Nixie
+        if: ${{ matrix.tools }}
         run: make nixie
       - name: Markdown lint
+        if: ${{ matrix.tools }}
         uses: DavidAnson/markdownlint-cli2-action@992badcdf24e3b8eb7e87ff9287fe931bcb00c6e # v20
         with:
           globs: '**/*.md'
       - name: Lint
+        if: ${{ matrix.tools }}
         run: make lint
 
-      - name: Test (no coverage, with features)
-        if: ${{ !matrix.coverage && matrix.features != null }}
-        run: >
-          cargo test --workspace --all-targets
-          ${{ matrix.with-default-features && '' || '--no-default-features' }}
-          --features "rstest-bdd/diagnostics ${{ matrix.features }}"
-
-      - name: Test (no coverage, no features)
-        if: ${{ !matrix.coverage && matrix.features == null }}
-        run: cargo test --workspace --all-targets --features rstest-bdd/diagnostics
+<<<<<<< HEAD
       - name: Test and Measure Coverage (with features)
         if: ${{ matrix.coverage && matrix.features != null }}
         uses: leynos/shared-actions/.github/actions/generate-coverage@ebbaaa0d7a776ec3187f3940667e5c7c9379cdf5
@@ -97,10 +107,10 @@ jobs:
           features: rstest-bdd/diagnostics
           with-default-features: ${{ matrix.with-default-features }}
       - name: Publish dry run
-        if: ${{ !startsWith(matrix.os, 'windows-') }}
+        if: ${{ matrix.tools }}
         run: make publish-check
       - name: Upload coverage data to CodeScene
-        if: ${{ matrix.coverage && env.CS_ACCESS_TOKEN }}
+        if: ${{ matrix.coverage && env.CS_ACCESS_TOKEN && matrix.tools && vars.CODESCENE_CLI_SHA256 }}
         uses: leynos/shared-actions/.github/actions/upload-codescene-coverage@ebbaaa0d7a776ec3187f3940667e5c7c9379cdf5
         with:
           format: lcov

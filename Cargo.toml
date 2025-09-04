@@ -36,10 +36,10 @@ serde_json = "1.0"
 cargo_metadata = "0.18"
 eyre = "0.6"
 ctor = "0.2"
-log = "0.4"
-fs2 = "0.4"
 rstest-bdd = "0.1.0-alpha3"
 rstest-bdd-macros = "0.1.0-alpha3"
+log = "0.4"
+fs2 = "0.4"
 tempfile = "3.10"
 
 [workspace.lints.clippy]
