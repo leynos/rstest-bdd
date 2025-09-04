@@ -5,7 +5,7 @@ use cfg_if::cfg_if;
 use proc_macro::TokenStream;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use std::sync::{LazyLock, Mutex};
+use std::sync::{LazyLock, RwLock};
 
 use crate::codegen::scenario::{ScenarioConfig, generate_scenario_code};
 use crate::parsing::feature::{ScenarioData, extract_scenario_steps, parse_and_load_feature};
@@ -13,8 +13,8 @@ use crate::utils::fixtures::extract_function_fixtures;
 use crate::validation::parameters::process_scenario_outline_examples;
 
 /// Cache of canonicalised feature paths to avoid repeated filesystem lookups.
-static FEATURE_PATH_CACHE: LazyLock<Mutex<HashMap<PathBuf, String>>> =
-    LazyLock::new(|| Mutex::new(HashMap::new()));
+static FEATURE_PATH_CACHE: LazyLock<RwLock<HashMap<PathBuf, String>>> =
+    LazyLock::new(|| RwLock::new(HashMap::new()));
 
 use syn::{
     LitInt, LitStr,
@@ -133,6 +133,23 @@ fn try_scenario(
     ))
 }
 
+/// Normalise path components so equivalent inputs share cache entries.
+fn normalise(path: &Path) -> PathBuf {
+    use std::path::Component;
+
+    let mut normalised = PathBuf::new();
+    for component in path.components() {
+        match component {
+            Component::CurDir => {}
+            Component::ParentDir => {
+                normalised.pop();
+            }
+            c => normalised.push(c.as_os_str()),
+        }
+    }
+    normalised
+}
+
 /// Canonicalise the feature path for stable diagnostics.
 ///
 /// Resolves symlinks via `std::fs::canonicalize` so diagnostics and generated
@@ -146,22 +163,31 @@ fn try_scenario(
 /// # }
 /// ```
 fn canonical_feature_path(path: &Path) -> String {
-    let mut cache = FEATURE_PATH_CACHE
-        .lock()
-        .unwrap_or_else(std::sync::PoisonError::into_inner);
-    if let Some(cached) = cache.get(path).cloned() {
+    let key = normalise(path);
+
+    if let Some(cached) = {
+        let cache = FEATURE_PATH_CACHE
+            .read()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        cache.get(&key).cloned()
+    } {
         return cached;
     }
+
     let canonical = std::env::var("CARGO_MANIFEST_DIR")
         .ok()
         .map(PathBuf::from)
-        .map(|d| d.join(path))
+        .map(|d| d.join(&key))
         .and_then(|p| std::fs::canonicalize(&p).ok())
-        .unwrap_or_else(|| PathBuf::from(path))
+        .unwrap_or_else(|| PathBuf::from(&key))
         .display()
         .to_string();
-    cache.insert(path.to_path_buf(), canonical.clone());
-    canonical
+
+    let mut cache = FEATURE_PATH_CACHE
+        .write()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    let entry = cache.entry(key).or_insert_with(|| canonical.clone());
+    entry.clone()
 }
 
 /// Validate registered steps when compile-time validation is enabled.
@@ -190,38 +216,52 @@ fn validate_steps_compile_time(
 }
 
 #[cfg(test)]
+fn clear_feature_path_cache() {
+    FEATURE_PATH_CACHE
+        .write()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .clear();
+}
+
+#[cfg(test)]
 mod tests {
-    use super::canonical_feature_path;
+    use super::{canonical_feature_path, clear_feature_path_cache};
     use rstest::rstest;
-    use serial_test::serial;
+
     use std::env;
     use std::path::{Path, PathBuf};
 
     #[rstest]
+    #[expect(clippy::expect_used, reason = "tests require explicit failure messages")]
     fn canonicalises_with_manifest_dir() {
-        let manifest = match env::var("CARGO_MANIFEST_DIR") {
-            Ok(m) => PathBuf::from(m),
-            Err(e) => panic!("manifest dir: {e}"),
-        };
+        clear_feature_path_cache();
+        let manifest = PathBuf::from(
+            env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR is required for tests"),
+        );
         let path = Path::new("Cargo.toml");
-        let expected = match manifest.join(path).canonicalize() {
-            Ok(p) => p.display().to_string(),
-            Err(e) => panic!("canonical path: {e}"),
-        };
+        let expected = manifest
+            .join(path)
+            .canonicalize()
+            .expect("canonical path")
+            .display()
+            .to_string();
         assert_eq!(canonical_feature_path(path), expected);
     }
 
     #[rstest]
     fn falls_back_on_missing_path() {
+        clear_feature_path_cache();
         let path = Path::new("does-not-exist.feature");
         assert_eq!(canonical_feature_path(path), path.display().to_string());
     }
 
     #[rstest]
-    #[serial]
+    #[expect(clippy::expect_used, reason = "tests require explicit failure messages")]
     fn caches_paths_between_calls() {
         use std::fs::{remove_file, write};
         use std::time::{SystemTime, UNIX_EPOCH};
+
+        clear_feature_path_cache();
 
         let unique = SystemTime::now()
             .duration_since(UNIX_EPOCH)
@@ -229,19 +269,18 @@ mod tests {
             .as_nanos();
         let file_name = format!("cache_{unique}.feature");
         let manifest = PathBuf::from(
-            env::var("CARGO_MANIFEST_DIR").unwrap_or_else(|e| panic!("manifest dir: {e}")),
+            env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR is required for tests"),
         );
-        let file_path = manifest.join(&file_name);
-        if let Err(e) = write(&file_path, "") {
-            panic!("temp file: {e}");
-        }
+        let tmp_dir = manifest.join("target/canonical-path-cache-tests");
+        std::fs::create_dir_all(&tmp_dir).expect("create tmp dir");
+        let file_path = tmp_dir.join(&file_name);
+        write(&file_path, "").expect("create temp feature file");
 
-        let path = Path::new(&file_name);
+        let rel_path = format!("target/canonical-path-cache-tests/{file_name}");
+        let path = Path::new(&rel_path);
         let first = canonical_feature_path(path);
 
-        if let Err(e) = remove_file(&file_path) {
-            panic!("remove: {e}");
-        }
+        remove_file(&file_path).expect("remove temp feature file");
         let second = canonical_feature_path(path);
 
         assert_eq!(first, second);
