@@ -77,16 +77,7 @@ jobs:
         if: ${{ !startsWith(matrix.os, 'windows-') }}
         run: make lint
 
-      - name: Test (no coverage, with features)
-        if: ${{ !matrix.coverage && matrix.features != null }}
-        run: >
-          cargo test --workspace --all-targets
-          ${{ matrix.with-default-features && '' || '--no-default-features' }}
-          --features "rstest-bdd/diagnostics ${{ matrix.features }}"
-
-      - name: Test (no coverage, no features)
-        if: ${{ !matrix.coverage && matrix.features == null }}
-        run: cargo test --workspace --all-targets --features rstest-bdd/diagnostics
+<<<<<<< HEAD
       - name: Test and Measure Coverage (with features)
         if: ${{ matrix.coverage && matrix.features != null }}
         uses: leynos/shared-actions/.github/actions/generate-coverage@ebbaaa0d7a776ec3187f3940667e5c7c9379cdf5
