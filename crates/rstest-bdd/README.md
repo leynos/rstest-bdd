@@ -40,7 +40,7 @@ Add the crates to your **dev‑dependencies**:
 ```toml
 # Cargo.toml
 [dev-dependencies]
-rstest = "0.25"
+rstest = "0.26.1"
 rstest-bdd = "0.1.0-alpha3"
 ```
 
