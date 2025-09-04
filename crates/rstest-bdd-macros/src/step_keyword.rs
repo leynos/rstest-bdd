@@ -111,7 +111,7 @@ impl StepKeyword {
     /// Resolve conjunctions to the semantic keyword of the previous step or a
     /// seeded first primary keyword.
     ///
-    /// `process_steps` seeds `prev` with the first primary keyword so leading
+    /// `resolve_keywords` seeds `prev` with the first primary keyword so leading
     /// conjunctions inherit that seed. When `prev` is `None`, conjunctions
     /// default to `Given`.
     pub(crate) fn resolve(self, prev: &mut Option<Self>) -> Self {
