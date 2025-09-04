@@ -167,7 +167,62 @@ improves the developer experience.
     discover all `.feature` files in a directory and generate a test module
     containing a test function for every `Scenario` found.
 
-## Phase 4: Ergonomics and Developer Experience
+## Phase 4: Internationalization and Localization
+
+This phase introduces full internationalization (i18n) and localization (l10n)
+support, enabling the use of non-English Gherkin and providing translated
+diagnostic messages.
+
+- [ ] **Foundational Gherkin Internationalization**
+
+  - [ ] Implement language detection in the feature file parser by recognizing
+    and respecting the `# language: <lang>` declaration.
+
+  - [ ] Refactor keyword parsing to be language-aware, relying on the
+    `gherkin` crate's `StepType` rather than hardcoded English strings.
+
+  - [ ] Add a comprehensive test suite with `.feature` files in multiple
+    languages (e.g., French, German, Spanish) to validate correct parsing and
+    execution. These tests run in CI to maintain coverage as languages are
+    added.
+
+- [ ] **Localization of Library Messages with Fluent**
+
+  - [ ] Integrate the `i18n-embed`, `rust-embed`, and `fluent` crates.
+  - [ ] Enable required features:
+        `i18n-embed = { features = ["fluent-system", "desktop-requester"] }`.
+  - [ ] Pin minimum supported versions in `Cargo.toml`.
+  - [ ] Add a minimal `Cargo.toml` example to the docs.
+
+  - [ ] Create `.ftl` resource files under an `i18n/` directory for all
+    user-facing diagnostic messages. If the macros crate also emits messages,
+    maintain a separate `i18n/` in `rstest-bdd-macros` or introduce a shared
+    `rstest-bdd-i18n` crate to host common assets.
+
+  - [ ] Use `rust-embed` to bundle the localization resources directly into the
+    library binary.
+
+  - [ ] Missing translation keys or unsupported locales fall back to English.
+
+  - [ ] Implement the `I18nAssets` trait on a dedicated struct to make Fluent
+    resources discoverable.
+
+  - [ ] Keep procedural macro diagnostics in English for deterministic builds.
+    Localize user-facing runtime messages using a `FluentLanguageLoader` at
+    runtime.
+
+- [ ] **Documentation and User Guidance**
+
+  - [ ] Update `README.md` and `docs/users-guide.md` with a new section
+    detailing how to use the internationalization features.
+
+  - [ ] Add a new example crate to demonstrate writing and running a BDD test
+    suite using a non-English language.
+
+  - [ ] Update `CONTRIBUTING.md` with guidelines for adding and maintaining
+    translations for new diagnostic messages.
+
+## Phase 5: Ergonomics and Developer Experience
 
 This phase focuses on reducing boilerplate and improving the developer
 experience by introducing more powerful and intuitive APIs.
@@ -205,7 +260,7 @@ experience by introducing more powerful and intuitive APIs.
     macro to allow multiple placeholders from a step pattern to be parsed
     directly into the fields of a struct, simplifying step function signatures.
 
-### Post-Core Implementation: Extensions & Tooling
+## Phase 6: Extensions & Tooling
 
 These tasks can be addressed after the core framework is stable and are aimed
 at improving maintainability and IDE integration.

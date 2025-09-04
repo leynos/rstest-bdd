@@ -1457,6 +1457,59 @@ Public APIs are re‑exported from `lib.rs` so consumers continue to import from
 
 All modules use en‑GB spelling and include `//!` module‑level documentation.
 
+## Part 4: Internationalization and Localization Roadmap
+
+### 4.1 Phase 1: Foundational Gherkin Internationalization (target v0.4)
+
+- **Language detection:** Update the macro parser to honour the optional
+  `# language: <lang>` declaration in feature files. The parser creates a
+  language‑aware `gherkin::GherkinEnv` and defaults to English when the
+  declaration is absent to preserve backwards compatibility.
+- **Language‑aware keyword parsing:** Refactor `StepKeyword` parsing to rely on
+  `gherkin::StepType`, allowing localized keywords such as `Étant donné` and
+  `Gegeben sei` to map to the correct step types.
+- **Testing and validation:** Introduce multilingual feature files, including
+  French, German, and Spanish, to validate that `Given`, `When`, `Then`, `And`,
+  and `But` are correctly recognized in each language. These scenarios will run
+  in CI to maintain coverage as new languages are added.
+
+### 4.2 Phase 2: Localization of Library Messages with Fluent (target v0.5)
+
+- **Dependency integration:** Add `i18n-embed`, `rust-embed`, and `fluent` as
+  dependencies to supply localization infrastructure.
+
+  ```toml
+  [dependencies]
+  i18n-embed = { version = "0.16", features = ["fluent-system", "desktop-requester"] }
+  rust-embed = "8"
+  fluent = "0.17"
+  ```
+
+- **Localization resource creation:** Create an `i18n/<locale>/` hierarchy in
+  the `rstest-bdd` crate containing Fluent translation files with identifiers
+  such as `error-missing-step`. If the macros crate also emits messages,
+  maintain a separate `i18n/` in `rstest-bdd-macros` or introduce a shared
+  `rstest-bdd-i18n` crate to host common assets.
+- **Resource embedding and loading:** Embed the `i18n` directory using
+  `rust-embed` and expose it through a `Localizations` struct implementing
+  `I18nAssets` so the Fluent loader can discover translations. Missing keys or
+  unsupported locales fall back to English.
+- **Refactor diagnostic messages:** Keep proc‑macro diagnostics stable and in
+  English for deterministic builds. Localize user‑facing runtime messages in
+  the `rstest-bdd` crate using `FluentLanguageLoader` and `i18n-embed`'s locale
+  requesters. Avoid compile‑time locale switches in macros.
+
+### 4.3 Phase 3: Documentation and User Guidance (target v0.6)
+
+- **Update user documentation:** Extend `README.md` and `docs/users-guide.md`
+  with guidance on writing non‑English feature files and selecting locales for
+  runtime diagnostics.
+- **Provide multilingual examples:** Add a new example test suite under
+  `/examples` showcasing a non‑English Gherkin file and its localized
+  diagnostics.
+- **Update contributor guidelines:** Amend `CONTRIBUTING.md` with instructions
+  for updating translations when new user‑facing messages are introduced.
+
 ## **Works cited**
 
 [^1]: A Complete Guide to Behaviour-Driven Testing With Pytest BDD, accessed on
