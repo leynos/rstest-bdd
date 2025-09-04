@@ -13,21 +13,6 @@ fn registry_cleared() {
     clear_registry();
 }
 
-fn register_step_for_crate(keyword: StepKeyword, pattern: &str, crate_id: &str) {
-    register_step(
-        keyword,
-        &syn::LitStr::new(pattern, proc_macro2::Span::call_site()),
-    );
-    let mut guard = REGISTERED
-        .lock()
-        .unwrap_or_else(|e| panic!("step registry poisoned: {e}"));
-    if let Some(last) = guard.last_mut() {
-        last.crate_id = crate_id.into();
-    } else {
-        panic!("registry empty");
-    }
-}
-
 #[rstest]
 #[case("a step", "a step", "basic step")]
 #[case("I have {item}", "I have apples", "placeholder step")]

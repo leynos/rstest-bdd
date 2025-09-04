@@ -28,10 +28,12 @@ struct RegisteredStep {
 /// macro expansion so total usage is bounded.
 static REGISTERED: LazyLock<Mutex<Vec<RegisteredStep>>> = LazyLock::new(|| Mutex::new(Vec::new()));
 
-/// Record a step definition so scenarios can validate against it.
-pub(crate) fn register_step(keyword: StepKeyword, pattern: &syn::LitStr) {
+/// Leak and compile a step pattern before registering.
+///
+/// Patterns are leaked into static memory because macros require `'static` lifetimes.
+/// Registration occurs during macro expansion so the total leak is bounded.
+fn register_step_impl(keyword: StepKeyword, pattern: &syn::LitStr, crate_id: String) {
     let leaked: &'static str = Box::leak(pattern.value().into_boxed_str());
-    // Leak into `static`; step count is bounded during compile time.
     let step_pattern: &'static StepPattern = Box::leak(Box::new(StepPattern::new(leaked)));
     if let Err(e) = step_pattern.compile() {
         abort!(
@@ -41,13 +43,32 @@ pub(crate) fn register_step(keyword: StepKeyword, pattern: &syn::LitStr) {
             e
         );
     }
-    let crate_id = current_crate_id().into_boxed_str();
     #[expect(
         clippy::expect_used,
         reason = "lock poisoning is unrecoverable; panic with clear message"
     )]
     let mut reg = REGISTERED.lock().expect("step registry poisoned");
-    reg.push(RegisteredStep { keyword, pattern: step_pattern, crate_id });
+    reg.push(RegisteredStep {
+        keyword,
+        pattern: step_pattern,
+        crate_id: crate_id.into_boxed_str(),
+    });
+}
+
+/// Record a step definition so scenarios can validate against it.
+///
+/// Steps are registered for the current crate.
+pub(crate) fn register_step(keyword: StepKeyword, pattern: &syn::LitStr) {
+    register_step_impl(keyword, pattern, current_crate_id());
+}
+
+#[cfg(test)]
+pub(crate) fn register_step_for_crate(keyword: StepKeyword, pattern: &str, crate_id: &str) {
+    register_step_impl(
+        keyword,
+        &syn::LitStr::new(pattern, proc_macro2::Span::call_site()),
+        crate_id.to_owned(),
+    );
 }
 
 /// Ensure all parsed steps have matching definitions.
@@ -164,27 +185,22 @@ fn has_matching_step_definition(
     let matches: Vec<&RegisteredStep> = defs
         .iter()
         .copied()
-        .filter(|d| d.keyword == resolved && d.pattern.regex().is_match(step.text.as_str()))
+        .filter(|d| {
+            d.keyword == resolved
+                && extract_placeholders(d.pattern, step.text.as_str().into()).is_ok()
+        })
         .collect();
     match matches.len() {
-        0 => Ok(Some(format_missing_step_error(defs, resolved, step))),
-        1 => match matches.first() {
-            Some(def) => {
-                if extract_placeholders(def.pattern, step.text.as_str().into()).is_err() {
-                    return Ok(Some(format_missing_step_error(defs, resolved, step)));
-                }
-                Ok(None)
-            }
-            None => unreachable!("length checked"),
-        },
+        0 => Ok(Some(format_missing_step_error(resolved, step, defs))),
+        1 => Ok(None),
         _ => Err(format_ambiguous_step_error(&matches, step)),
     }
 }
 
 fn format_missing_step_error(
-    defs: &[&RegisteredStep],
     resolved: StepKeyword,
     step: &ParsedStep,
+    defs: &[&RegisteredStep],
 ) -> String {
     let available_defs: Vec<&str> = defs
         .iter()
