@@ -164,10 +164,30 @@ fn normalise(path: &Path) -> PathBuf {
     out
 }
 
+#[cfg(all(test, windows))]
+mod windows_paths {
+    use super::normalise;
+    use std::path::Path;
+
+    #[test]
+    fn preserves_drive_relative_parent_segments() {
+        let p = Path::new(r"C:foo\..\bar");
+        assert_eq!(normalise(p).to_string_lossy(), r"C:bar");
+    }
+
+    #[test]
+    fn does_not_mangle_unc_prefix() {
+        let p = Path::new(r"\\server\share\.\dir\..\file");
+        assert_eq!(normalise(p), p);
+    }
+}
+
 /// Canonicalise the feature path for stable diagnostics.
 ///
 /// Resolves symlinks via `std::fs::canonicalize` so diagnostics and generated
 /// code reference a consistent absolute path across builds and environments.
+/// Note: the returned `String` is produced via `Path::display()`, which
+/// performs a lossy UTF-8 conversion on platforms with non-UTF-8 paths.
 ///
 /// ```rust,ignore
 /// # use std::path::{Path, PathBuf};
@@ -247,11 +267,16 @@ fn clear_feature_path_cache() {
 #[cfg(test)]
 mod tests {
     use super::{canonical_feature_path, clear_feature_path_cache};
-    use rstest::rstest;
+    use rstest::{fixture, rstest};
     use serial_test::serial;
 
     use std::env;
     use std::path::{Path, PathBuf};
+
+    #[fixture]
+    fn cache_cleared() {
+        clear_feature_path_cache();
+    }
 
     #[serial]
     #[rstest]
@@ -259,8 +284,7 @@ mod tests {
         clippy::expect_used,
         reason = "tests require explicit failure messages"
     )]
-    fn canonicalises_with_manifest_dir() {
-        clear_feature_path_cache();
+    fn canonicalises_with_manifest_dir(_cache_cleared: ()) {
         let manifest = PathBuf::from(
             env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR is required for tests"),
         );
@@ -276,8 +300,7 @@ mod tests {
 
     #[serial]
     #[rstest]
-    fn falls_back_on_missing_path() {
-        clear_feature_path_cache();
+    fn falls_back_on_missing_path(_cache_cleared: ()) {
         let path = Path::new("does-not-exist.feature");
         assert_eq!(canonical_feature_path(path), path.display().to_string());
     }
@@ -288,11 +311,9 @@ mod tests {
         clippy::expect_used,
         reason = "tests require explicit failure messages"
     )]
-    fn caches_paths_between_calls() {
+    fn caches_paths_between_calls(_cache_cleared: ()) {
         use std::fs::{remove_file, write};
         use std::time::{SystemTime, UNIX_EPOCH};
-
-        clear_feature_path_cache();
 
         let unique = SystemTime::now()
             .duration_since(UNIX_EPOCH)
