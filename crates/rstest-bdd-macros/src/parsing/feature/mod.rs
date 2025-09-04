@@ -178,6 +178,11 @@ pub(crate) fn parse_and_load_feature(path: &Path) -> Result<Feature, proc_macro2
     Ok(feature)
 }
 
+#[cfg(test)]
+pub(crate) fn clear_feature_cache() {
+    FEATURE_CACHE.clear();
+}
+
 /// Extract the scenario data for the given feature and optional index.
 pub(crate) fn extract_scenario_steps(
     feature: &Feature,

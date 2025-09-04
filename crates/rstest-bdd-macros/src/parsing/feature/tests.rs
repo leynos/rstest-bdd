@@ -449,11 +449,15 @@ fn errors_when_feature_fails(#[case] rel_path: &str, #[case] expected_snippet: &
     assert!(err.to_string().contains(expected_snippet));
 }
 
-#[expect(clippy::expect_used, reason = "test asserts cache behaviour; panics simplify failures")]
+#[expect(
+    clippy::expect_used,
+    reason = "test asserts cache behaviour; panics simplify failures"
+)]
 #[test]
 fn caches_features_by_path() {
     use std::io::Write;
     use tempfile::NamedTempFile;
+    super::clear_feature_cache();
     let mut tf = NamedTempFile::new().expect("create temp feature");
     write!(tf, "Feature: cache\nScenario: demo\n  Given step\n").expect("write feature");
     let path = tf.path().to_path_buf();
@@ -461,7 +465,12 @@ fn caches_features_by_path() {
     // Close deletes the file; cached read must still succeed
     tf.close().expect("close temp feature");
     let second = parse_and_load_feature(&path).expect("cached parse");
-    assert_eq!(first.name, second.name, "cached feature differs");
+    assert_eq!(first.name, second.name, "cached feature name differs");
+    assert_eq!(
+        first.scenarios.len(),
+        second.scenarios.len(),
+        "cached feature scenarios differ"
+    );
 }
 
 #[cfg(feature = "compile-time-validation")]

@@ -109,7 +109,7 @@ section:
 
 ```toml
 [dev-dependencies]
-rstest = "0.18" # Or the latest version available on crates.io
+rstest = "^0.21" # Or the latest version available on crates.io
 # rstest_macros may also be needed explicitly depending on usage or version
 # rstest_macros = "0.18" # Check crates.io for the latest version
 ```
@@ -128,7 +128,7 @@ dependency:
 ```toml
 [dev-dependencies]
 tokio = { version = "1", default-features = false, features = ["test-util"] }
-rstest = "0.18"
+rstest = "^0.21"
 ```
 
 ### B. Your First Fixture: Defining with `#[fixture]`
