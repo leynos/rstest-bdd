@@ -134,6 +134,11 @@ fn try_scenario(
 }
 
 /// Normalise path components so equivalent inputs share cache entries.
+///
+/// Policy:
+/// - Do not alter absolute or prefixed paths; leave absolute resolution to filesystem canonicalisation.
+/// - Collapse internal `.` segments.
+/// - Collapse `..` only when a prior non-`..` segment exists; otherwise preserve leading `..`.
 fn normalise(path: &Path) -> PathBuf {
     use std::ffi::OsString;
     use std::path::Component;
@@ -202,7 +207,7 @@ fn canonical_feature_path(path: &Path) -> String {
     let key = if path.is_absolute() {
         normalise(path)
     } else if let Some(ref dir) = manifest_dir {
-        normalise(&dir.join(path))
+        dir.join(normalise(path))
     } else {
         normalise(path)
     };
@@ -303,6 +308,14 @@ mod tests {
     fn falls_back_on_missing_path(_cache_cleared: ()) {
         let path = Path::new("does-not-exist.feature");
         assert_eq!(canonical_feature_path(path), path.display().to_string());
+    }
+
+    #[serial]
+    #[rstest]
+    fn equivalent_relatives_map_to_same_result(_cache_cleared: ()) {
+        let a = Path::new("./features/../features/example.feature");
+        let b = Path::new("features/example.feature");
+        assert_eq!(canonical_feature_path(a), canonical_feature_path(b));
     }
 
     #[serial]
