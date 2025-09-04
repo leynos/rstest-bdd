@@ -29,9 +29,7 @@ pub(crate) fn register_step(keyword: StepKeyword, pattern: &syn::LitStr) {
         clippy::expect_used,
         reason = "lock poisoning is unrecoverable; panic with clear message"
     )]
-    let mut reg = REGISTERED
-        .lock()
-        .expect("step registry poisoned");
+    let mut reg = REGISTERED.lock().expect("step registry poisoned");
     let leaked: &'static str = Box::leak(pattern.value().into_boxed_str());
     reg.push(RegisteredStep {
         keyword,
@@ -55,9 +53,7 @@ pub(crate) fn validate_steps_exist(steps: &[ParsedStep], strict: bool) -> Result
         clippy::expect_used,
         reason = "lock poisoning is unrecoverable; panic with clear message"
     )]
-    let reg = REGISTERED
-        .lock()
-        .expect("step registry poisoned");
+    let reg = REGISTERED.lock().expect("step registry poisoned");
     let current = current_crate_id();
     let owned: Vec<_> = reg
         .iter()
@@ -318,9 +314,7 @@ mod tests {
             clippy::expect_used,
             reason = "lock poisoning is unrecoverable; panic with clear message"
         )]
-        let mut guard = REGISTERED
-            .lock()
-            .expect("step registry poisoned");
+        let mut guard = REGISTERED.lock().expect("step registry poisoned");
         guard.clear();
     }
 

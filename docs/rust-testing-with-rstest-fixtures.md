@@ -104,8 +104,8 @@ To begin using `rstest`, it must be added as a development dependency in the
 project's `Cargo.toml` file. This ensures that `rstest` is only compiled and
 linked when running tests, not when building the main application or library.
 
-Add the following lines to the `Cargo.toml` file under the
-`[dev-dependencies]` section:
+Add the following lines to the `Cargo.toml` file under the `[dev-dependencies]`
+section:
 
 ```toml
 [dev-dependencies]

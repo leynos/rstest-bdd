@@ -151,9 +151,7 @@ pub(crate) fn parse_and_load_feature(path: &Path) -> Result<Feature, proc_macro2
             clippy::expect_used,
             reason = "lock poisoning is unrecoverable; panic with clear message"
         )]
-        let cache = FEATURE_CACHE
-            .read()
-            .expect("feature cache poisoned");
+        let cache = FEATURE_CACHE.read().expect("feature cache poisoned");
         canonical
             .as_ref()
             .into_iter()
@@ -185,9 +183,7 @@ pub(crate) fn parse_and_load_feature(path: &Path) -> Result<Feature, proc_macro2
         clippy::expect_used,
         reason = "lock poisoning is unrecoverable; panic with clear message"
     )]
-    let mut cache = FEATURE_CACHE
-        .write()
-        .expect("feature cache poisoned");
+    let mut cache = FEATURE_CACHE.write().expect("feature cache poisoned");
     cache.insert(key.clone(), feature.clone());
     if key != feature_path {
         cache.insert(feature_path.clone(), feature.clone());
@@ -202,9 +198,7 @@ pub(crate) fn clear_feature_cache() {
         clippy::expect_used,
         reason = "lock poisoning is unrecoverable; panic with clear message"
     )]
-    let mut guard = FEATURE_CACHE
-        .write()
-        .expect("feature cache poisoned");
+    let mut guard = FEATURE_CACHE.write().expect("feature cache poisoned");
     guard.clear();
 }
 
