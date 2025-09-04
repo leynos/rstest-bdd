@@ -54,25 +54,26 @@ pub(crate) fn register_step(keyword: StepKeyword, pattern: &syn::LitStr) {
 /// Returns a `syn::Error` when `strict` is `true` and a step lacks a matching
 /// definition or when any step matches more than one definition.
 pub(crate) fn validate_steps_exist(steps: &[ParsedStep], strict: bool) -> Result<(), syn::Error> {
-    let reg = REGISTERED
-        .lock()
-        .unwrap_or_else(|e| panic!("step registry poisoned: {e}"));
     let current = current_crate_id();
-    let owned: HashMap<StepKeyword, Vec<RegisteredStep>> = reg
-        .iter()
-        .filter_map(|(kw, defs)| {
-            let owned_defs: Vec<_> = defs
-                .iter()
-                .filter(|d| d.crate_id.as_ref() == current.as_str())
-                .cloned()
-                .collect();
-            if owned_defs.is_empty() {
-                None
-            } else {
-                Some((*kw, owned_defs))
-            }
-        })
-        .collect();
+    let owned: HashMap<StepKeyword, Vec<RegisteredStep>> = {
+        let reg = REGISTERED
+            .lock()
+            .unwrap_or_else(|e| panic!("step registry poisoned: {e}"));
+        reg.iter()
+            .filter_map(|(kw, defs)| {
+                let owned_defs: Vec<_> = defs
+                    .iter()
+                    .filter(|d| d.crate_id.as_ref() == current.as_str())
+                    .cloned()
+                    .collect();
+                if owned_defs.is_empty() {
+                    None
+                } else {
+                    Some((*kw, owned_defs))
+                }
+            })
+            .collect()
+    };
     if owned.is_empty() && !strict {
         return Ok(());
     }
@@ -170,15 +171,14 @@ fn has_matching_step_definition(
 }
 
 fn find_step_matches<'a>(defs: &'a [RegisteredStep], step: &ParsedStep) -> Vec<&'a RegisteredStep> {
-    let mut cache: HashMap<*const StepPattern, bool> = HashMap::with_capacity(defs.len());
-    // Cache by pointer to avoid collisions across distinct StepPattern instances.
+    let mut cache: HashMap<&'static str, bool> = HashMap::with_capacity(defs.len());
+    // Cache regex results to avoid recomputing for identical patterns.
     defs.iter()
         .filter(|def| {
-            *cache
-                .entry(std::ptr::from_ref(def.pattern))
-                .or_insert_with(|| {
-                    extract_placeholders(def.pattern, step.text.as_str().into()).is_ok()
-                })
+            let is_match = *cache
+                .entry(def.pattern.as_str())
+                .or_insert_with(|| def.pattern.regex().is_match(step.text.as_str()));
+            is_match && extract_placeholders(def.pattern, step.text.as_str().into()).is_ok()
         })
         .collect()
 }
