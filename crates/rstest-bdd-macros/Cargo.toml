@@ -20,21 +20,27 @@ proc-macro = true
 
 [features]
 default = []
-strict-compile-time-validation = []
+compile-time-validation = [] # Enables span-aware parsing and compile-time step signature checks.
+strict-compile-time-validation = ["compile-time-validation"] # Treats warnings as hard errors during macro expansion.
 
 
 [dependencies]
-proc-macro2.workspace = true
+proc-macro2 = { version = "1", features = ["span-locations"] }
 quote.workspace = true
 syn.workspace = true
 gherkin.workspace = true
 walkdir = "2.5.0"
 proc-macro-crate = "3"
 rstest-bdd.workspace = true
-thiserror.workspace = true
+cfg-if.workspace = true
+proc-macro-error = "1"
 
 [dev-dependencies]
 trybuild.workspace = true
 once_cell.workspace = true
 rstest.workspace = true
 serial_test.workspace = true
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]

@@ -28,6 +28,18 @@ builds on the excellent `rstest` fixture and parametrisation model:
 - **Pytest‑bdd vibes**: explicit `#[scenario]` binding from test code to a
   named scenario.
 
+  The attribute now requires a `path` argument pointing to the `.feature` file;
+  index-only usage is no longer supported.
+
+  Migration (since 0.1.0-alpha2):
+
+  ```rust
+  // Before
+  #[scenario(index = 0)]
+  // After
+  #[scenario(path = "tests/features/example.feature", index = 0)]
+  ```
+
 Think of it as *courgette‑driven* development: crisp, versatile, and it plays
 nicely with everything else on your plate.
 
@@ -51,6 +63,36 @@ Feature flags:
 
 - `no-inventory` — fallback code‑gen registry for platforms where
   linker‑section collection is unwieldy.
+
+- `compile-time-validation` — registers steps at compile time and reports
+  missing or ambiguous steps with spans. (Disabled by default.)
+
+- `strict-compile-time-validation` — fails compilation when steps are missing
+  or ambiguous; implies `compile-time-validation`. (Disabled by default.)
+
+Both features live on the `rstest-bdd-macros` crate. Because `rstest-bdd`
+re-exports these macros, enable validation on that transitive crate. The
+preferred approach is to toggle features on the command line:
+
+```bash
+cargo test --features "rstest-bdd-macros/compile-time-validation"
+cargo test --features "rstest-bdd-macros/strict-compile-time-validation"
+```
+
+For CI or workspace builds that require a fixed configuration, pin the feature
+in `Cargo.toml` by adding an explicit dependency:
+
+```toml
+[dependencies]
+rstest-bdd-macros = { version = "0.1.0-alpha2", features = ["compile-time-validation"] }
+```
+
+Or via CLI:
+
+```bash
+cargo test --features "rstest-bdd-macros/compile-time-validation"
+cargo test --features "rstest-bdd-macros/strict-compile-time-validation"
+```
 
 ______________________________________________________________________
 

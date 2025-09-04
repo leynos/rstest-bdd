@@ -25,5 +25,7 @@ fn step_macros_compile() {
         t.pass("tests/fixtures/scenario_out_of_order.rs");
         t.compile_fail("tests/fixtures/scenario_missing_step_warning.rs");
     }
-    t.compile_fail("tests/fixtures/scenario_ambiguous_step.rs");
+    if cfg!(feature = "compile-time-validation") {
+        t.compile_fail("tests/fixtures/scenario_ambiguous_step.rs");
+    }
 }

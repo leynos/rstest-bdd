@@ -152,6 +152,22 @@ fn assert_feature_extraction(
 }
 
 #[rstest]
+#[case("And", StepType::Given, crate::StepKeyword::And)]
+#[case("AND", StepType::Then, crate::StepKeyword::And)]
+#[case(" and  ", StepType::When, crate::StepKeyword::And)]
+#[case("But", StepType::Given, crate::StepKeyword::But)]
+#[case("BUT", StepType::Then, crate::StepKeyword::But)]
+#[case(" but ", StepType::When, crate::StepKeyword::But)]
+#[case("Given", StepType::Given, crate::StepKeyword::Given)]
+fn parses_step_keyword_variants(
+    #[case] kw: &str,
+    #[case] ty: StepType,
+    #[case] expected: crate::StepKeyword,
+) {
+    assert_eq!(parse_step_keyword(kw, ty), expected);
+}
+
+#[rstest]
 #[case::prepends_background_steps(
     FeatureBuilder::new("example")
         .with_background(vec![StepBuilder::new(StepType::Given, "a background step").build()])
@@ -168,18 +184,24 @@ fn assert_feature_extraction(
             text: "a background step".to_string(),
             docstring: None,
             table: None,
+            #[cfg(feature = "compile-time-validation")]
+            span: proc_macro2::Span::call_site(),
         },
         ParsedStep {
             keyword: crate::StepKeyword::When,
             text: "an action".to_string(),
             docstring: None,
             table: None,
+            #[cfg(feature = "compile-time-validation")]
+            span: proc_macro2::Span::call_site(),
         },
         ParsedStep {
             keyword: crate::StepKeyword::Then,
             text: "a result".to_string(),
             docstring: None,
             table: None,
+            #[cfg(feature = "compile-time-validation")]
+            span: proc_macro2::Span::call_site(),
         },
     ],
     None
@@ -201,6 +223,8 @@ fn assert_feature_extraction(
             vec!["1".to_string(), "2".to_string()],
             vec!["3".to_string(), "4".to_string()],
         ]),
+        #[cfg(feature = "compile-time-validation")]
+        span: proc_macro2::Span::call_site(),
     }],
     None
 )]
@@ -218,6 +242,8 @@ fn assert_feature_extraction(
         text: "text".to_string(),
         docstring: Some("line1\nline2".to_string()),
         table: None,
+        #[cfg(feature = "compile-time-validation")]
+        span: proc_macro2::Span::call_site(),
     }],
     None
 )]
@@ -238,12 +264,16 @@ fn assert_feature_extraction(
             text: "setup".to_string(),
             docstring: Some("bg line1\nbg line2".to_string()),
             table: None,
+            #[cfg(feature = "compile-time-validation")]
+            span: proc_macro2::Span::call_site(),
         },
         ParsedStep {
             keyword: crate::StepKeyword::When,
             text: "an action".to_string(),
             docstring: None,
             table: None,
+            #[cfg(feature = "compile-time-validation")]
+            span: proc_macro2::Span::call_site(),
         },
     ],
     None
@@ -267,18 +297,24 @@ fn assert_feature_extraction(
             text: "first".into(),
             docstring: None,
             table: None,
+            #[cfg(feature = "compile-time-validation")]
+            span: proc_macro2::Span::call_site(),
         },
         ParsedStep {
             keyword: crate::StepKeyword::And,
             text: "second".into(),
             docstring: None,
             table: None,
+            #[cfg(feature = "compile-time-validation")]
+            span: proc_macro2::Span::call_site(),
         },
         ParsedStep {
             keyword: crate::StepKeyword::But,
             text: "negated".into(),
             docstring: None,
             table: None,
+            #[cfg(feature = "compile-time-validation")]
+            span: proc_macro2::Span::call_site(),
         },
     ],
     None
@@ -299,12 +335,16 @@ fn assert_feature_extraction(
             text: "first".into(),
             docstring: None,
             table: None,
+            #[cfg(feature = "compile-time-validation")]
+            span: proc_macro2::Span::call_site(),
         },
         ParsedStep {
             keyword: crate::StepKeyword::Then,
             text: "result".into(),
             docstring: None,
             table: None,
+            #[cfg(feature = "compile-time-validation")]
+            span: proc_macro2::Span::call_site(),
         },
     ],
     None
@@ -325,12 +365,16 @@ fn assert_feature_extraction(
             text: "first".into(),
             docstring: None,
             table: None,
+            #[cfg(feature = "compile-time-validation")]
+            span: proc_macro2::Span::call_site(),
         },
         ParsedStep {
             keyword: crate::StepKeyword::Then,
             text: "result".into(),
             docstring: None,
             table: None,
+            #[cfg(feature = "compile-time-validation")]
+            span: proc_macro2::Span::call_site(),
         },
     ],
     None
@@ -355,24 +399,32 @@ fn assert_feature_extraction(
             text: "start".into(),
             docstring: None,
             table: None,
+            #[cfg(feature = "compile-time-validation")]
+            span: proc_macro2::Span::call_site(),
         },
         ParsedStep {
             keyword: crate::StepKeyword::And,
             text: "cont".into(),
             docstring: None,
             table: None,
+            #[cfg(feature = "compile-time-validation")]
+            span: proc_macro2::Span::call_site(),
         },
         ParsedStep {
             keyword: crate::StepKeyword::But,
             text: "neg".into(),
             docstring: None,
             table: None,
+            #[cfg(feature = "compile-time-validation")]
+            span: proc_macro2::Span::call_site(),
         },
         ParsedStep {
             keyword: crate::StepKeyword::Then,
             text: "end".into(),
             docstring: None,
             table: None,
+            #[cfg(feature = "compile-time-validation")]
+            span: proc_macro2::Span::call_site(),
         },
     ],
     None
@@ -395,4 +447,27 @@ fn errors_when_feature_fails(#[case] rel_path: &str, #[case] expected_snippet: &
         panic!("expected failure for feature path: {rel_path}");
     };
     assert!(err.to_string().contains(expected_snippet));
+}
+
+#[cfg(feature = "compile-time-validation")]
+#[test]
+/// `ParsedStep` equality ignores span differences.
+fn parsed_step_equality_ignores_span() {
+    let a = ParsedStep {
+        keyword: crate::StepKeyword::Given,
+        text: "step".into(),
+        docstring: None,
+        table: None,
+        #[cfg(feature = "compile-time-validation")]
+        span: proc_macro2::Span::call_site(),
+    };
+    let mut b = a.clone();
+    b.span = proc_macro2::Span::mixed_site();
+    assert_eq!(a, b, "spans differ but equality should ignore them");
+
+    let c = ParsedStep {
+        keyword: crate::StepKeyword::When,
+        ..a
+    };
+    assert_ne!(b, c, "different keywords must not be equal");
 }

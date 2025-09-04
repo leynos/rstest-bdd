@@ -4,6 +4,7 @@ use crate::utils::errors::error_to_tokens;
 use proc_macro2::TokenStream;
 
 /// Validate Examples table structure in feature file text.
+#[cfg(feature = "compile-time-validation")]
 pub(crate) fn validate_examples_in_feature_text(text: &str) -> Result<(), TokenStream> {
     if !text.contains("Examples:") {
         return Ok(());
@@ -13,6 +14,7 @@ pub(crate) fn validate_examples_in_feature_text(text: &str) -> Result<(), TokenS
     validate_table_column_consistency(text, examples_idx)
 }
 
+#[cfg(feature = "compile-time-validation")]
 fn find_examples_table_start(text: &str) -> Result<usize, TokenStream> {
     text.lines()
         .enumerate()
@@ -26,6 +28,7 @@ fn find_examples_table_start(text: &str) -> Result<usize, TokenStream> {
         })
 }
 
+#[cfg(feature = "compile-time-validation")]
 fn validate_table_column_consistency(text: &str, start_idx: usize) -> Result<(), TokenStream> {
     let mut table_rows = text
         .lines()
@@ -51,6 +54,7 @@ fn validate_table_column_consistency(text: &str, start_idx: usize) -> Result<(),
     Ok(())
 }
 
+#[cfg(feature = "compile-time-validation")]
 fn count_columns(row: &str) -> usize {
     row.split('|').count() - 1
 }

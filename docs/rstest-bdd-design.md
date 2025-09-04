@@ -58,12 +58,11 @@ validated by non-technical stakeholders.[^1]
 
 ```gherkin
 Feature: Web Search
-  As a user, I want to search for information,
-  so that I can find what I'm looking for.
+  In order to find information, a user performs a web search.
 
   Scenario: Simple web search
     Given the DuckDuckGo home page is displayed
-    When I search for "Rust programming language"
+    When a user searches for "Rust programming language"
     Then the search results page is displayed
     And the results contain "Rust Programming Language"
 ```
@@ -125,7 +124,7 @@ async fn go_to_home(#[from(browser)] driver: &mut WebDriver) {
 }
 
 // The framework will parse the quoted string and pass it as an argument.
-#[when("I search for \"(.*)\"")]
+#[when("a user searches for \"(.*)\"")]
 async fn search_for_phrase(#[from(browser)] driver: &mut WebDriver, phrase: String) {
     let form = driver.find(By::Id("search_form_input_homepage")).await.unwrap();
     form.send_keys(&phrase).await.unwrap();
@@ -182,9 +181,9 @@ parameterized test using multiple `#[case]` attributes.[^9]
 Feature: User Login
 
   Scenario Outline: Login with different credentials
-    Given I am on the login page
-    When I enter username "<username>" and password "<password>"
-    Then I should see the message "<message>"
+  Given the login page is displayed
+  When a user enters username "<username>" and password "<password>"
+  Then the message "<message>" is shown
 
     Examples:
 
@@ -203,7 +202,7 @@ Feature: User Login
 async fn test_login_scenarios(#[future] browser: WebDriver) {}
 
 // Placeholders from the 'Examples' table are passed as typed arguments to the step functions.
-#[when("I enter username \"<username>\" and password \"<password>\"")]
+#[when("a user enters username \"<username>\" and password \"<password>\"")]
 async fn enter_credentials(
     #[from(browser)] driver: &mut WebDriver,
     username: String,
@@ -212,7 +211,7 @@ async fn enter_credentials(
     //... implementation...
 }
 
-#[then("I should see the message \"<message>\"")]
+#[then("the message \"<message>\" is shown")]
 async fn see_message(#[from(browser)] driver: &mut WebDriver, message: String) {
     //... assert message is visible...
 }
@@ -230,10 +229,10 @@ directly analogous to the `parsers` module in `pytest-bdd`.1.
 
 ```rust
 // Step in.feature file:
-// When I deposit 50 dollars
+// When 50 dollars are deposited
 
 // Step definition in.rs file:
-#[when("I deposit {amount:u32} dollars")]
+#[when("a user deposits {amount:u32} dollars")]
 fn deposit_amount(#[from(account)] acc: &mut Account, amount: u32) {
     acc.deposit(amount);
 }
@@ -514,6 +513,50 @@ pattern‑matching logic during validation, introducing a build-time dependency.
 `inventory` is employed later for runtime, cross‑crate discovery and does not
 power this compile‑time registry.
 
+The following sequence diagram illustrates the feature-gated step registration
+and scenario validation flow:
+
+```mermaid
+sequenceDiagram
+  autonumber
+  actor Dev as Developer
+  participant Attr as Step attribute macro
+  participant Reg as validation::steps (gated)
+  participant Scen as Scenario macro
+
+  rect rgba(240,248,255,0.6)
+    note over Attr: Step attribute expansion
+    Dev->>Attr: define step fn(pattern)
+    alt feature compile-time-validation
+      Attr->>Reg: register_step(keyword, pattern)
+      Reg-->>Attr: Ok
+    else no feature
+      Attr--xReg: registration code not compiled
+    end
+  end
+
+  rect rgba(240,255,240,0.6)
+    note over Scen: Scenario macro expansion & validation
+    Dev->>Scen: #[scenario(...)]
+    Scen->>Scen: parse steps → ParsedStep{keyword,text,docstring,table, span?}
+    alt strict-compile-time-validation
+      Scen->>Reg: validate(steps, strict=true)
+      Reg-->>Scen: Err(missing with spans)
+      Scen-->>Dev: compile_error at missing span
+    else compile-time-validation only
+      Scen->>Reg: validate(steps, strict=false)
+      Reg-->>Scen: warnings (per-span)
+      Scen-->>Dev: expanded scenario (with warnings)
+    else no validation features
+      Scen-->>Dev: expanded scenario (no validation)
+    end
+  end
+```
+
+Continuous integration verifies Markdown formatting and diagram rendering.
+Every pull request runs `make fmt`, `make markdownlint`, and `make nixie`; the
+job fails if formatting or Mermaid rendering errors are detected.
+
 Because registration occurs as the compiler encounters each attribute, step
 definitions must appear earlier in a module than any `#[scenario]` that uses
 them. Declaring a scenario first would trigger validation before the step is
@@ -719,12 +762,12 @@ events.
 
 ```rust
 
-#[given("I am a user")]
+#[given("a user exists")]
 fn given_i_am_a_user(mut user_context: UserContext) { /\*... \*/ }
 ```
 
 - **Macro Action:** The `#[given]` proc-macro parses its attribute string
-  (`"I am a user"`) and the function it's attached to. It then generates an
+  (`"a user exists"`) and the function it's attached to. It then generates an
   `inventory::submit!` block. This block contains the static definition of a
   `Step` struct, where the `run` field is a type-erased pointer to a wrapper
   around the `given_i_am_a_user` function.
@@ -1255,8 +1298,8 @@ enum PlaceholderError {
   - Invalid pattern: `"invalid step pattern: regex parse error: error message"`
 
   - Example JSON mapping (for consumers that serialize errors). Note: this is
-    not emitted by the library; it is a suggested shape if you need to map the
-    enum to JSON at an API boundary:
+    not emitted by the library; it suggests a shape for mapping the enum to
+    JSON at an API boundary:
 
 ```json
 {
