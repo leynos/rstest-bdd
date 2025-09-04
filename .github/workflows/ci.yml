@@ -65,11 +65,12 @@ jobs:
           set -euxo pipefail
           echo "$PATH"
           which mmdc
+          ls -l "$(which mmdc)"
           mmdc --version
           bun --version
       - name: Setup uv
         if: ${{ matrix.tools }}
-        uses: astral-sh/setup-uv@v6
+        uses: astral-sh/setup-uv@9e3559f5c6d1922b77a10af6d8a1a88e5c8ea1a4 # v6
         with:
           version: 'latest'
       - name: Install Nixie
