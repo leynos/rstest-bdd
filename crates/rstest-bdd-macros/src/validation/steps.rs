@@ -25,9 +25,13 @@ static REGISTERED: LazyLock<Mutex<Vec<RegisteredStep>>> = LazyLock::new(|| Mutex
 
 /// Record a step definition so scenarios can validate against it.
 pub(crate) fn register_step(keyword: StepKeyword, pattern: &syn::LitStr) {
+    #[expect(
+        clippy::expect_used,
+        reason = "lock poisoning is unrecoverable; panic with clear message"
+    )]
     let mut reg = REGISTERED
         .lock()
-        .unwrap_or_else(|e| panic!("step registry poisoned: {e}"));
+        .expect("step registry poisoned");
     let leaked: &'static str = Box::leak(pattern.value().into_boxed_str());
     reg.push(RegisteredStep {
         keyword,
@@ -47,9 +51,13 @@ pub(crate) fn register_step(keyword: StepKeyword, pattern: &syn::LitStr) {
 /// Returns a `syn::Error` when `strict` is `true` and a step lacks a matching
 /// definition or when any step matches more than one definition.
 pub(crate) fn validate_steps_exist(steps: &[ParsedStep], strict: bool) -> Result<(), syn::Error> {
+    #[expect(
+        clippy::expect_used,
+        reason = "lock poisoning is unrecoverable; panic with clear message"
+    )]
     let reg = REGISTERED
         .lock()
-        .unwrap_or_else(|e| panic!("step registry poisoned: {e}"));
+        .expect("step registry poisoned");
     let current = current_crate_id();
     let owned: Vec<_> = reg
         .iter()
@@ -306,10 +314,14 @@ mod tests {
     use serial_test::serial;
 
     fn clear_registry() {
-        REGISTERED
+        #[expect(
+            clippy::expect_used,
+            reason = "lock poisoning is unrecoverable; panic with clear message"
+        )]
+        let mut guard = REGISTERED
             .lock()
-            .unwrap_or_else(|e| panic!("step registry poisoned: {e}"))
-            .clear();
+            .expect("step registry poisoned");
+        guard.clear();
     }
 
     #[rstest]
@@ -380,9 +392,13 @@ mod tests {
     #[serial]
     fn ignores_steps_from_other_crates() {
         registry_cleared();
+        #[expect(
+            clippy::expect_used,
+            reason = "lock poisoning is unrecoverable; panic with clear message"
+        )]
         REGISTERED
             .lock()
-            .unwrap_or_else(|e| panic!("step registry poisoned: {e}"))
+            .expect("step registry poisoned")
             .push(RegisteredStep {
                 keyword: StepKeyword::Given,
                 pattern: "a step",
