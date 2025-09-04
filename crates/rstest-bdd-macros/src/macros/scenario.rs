@@ -3,12 +3,18 @@
 
 use cfg_if::cfg_if;
 use proc_macro::TokenStream;
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
+use std::sync::{LazyLock, Mutex};
 
 use crate::codegen::scenario::{ScenarioConfig, generate_scenario_code};
 use crate::parsing::feature::{ScenarioData, extract_scenario_steps, parse_and_load_feature};
 use crate::utils::fixtures::extract_function_fixtures;
 use crate::validation::parameters::process_scenario_outline_examples;
+
+/// Cache of canonicalised feature paths to avoid repeated filesystem lookups.
+static FEATURE_PATH_CACHE: LazyLock<Mutex<HashMap<PathBuf, String>>> =
+    LazyLock::new(|| Mutex::new(HashMap::new()));
 
 use syn::{
     LitInt, LitStr,
@@ -140,14 +146,22 @@ fn try_scenario(
 /// # }
 /// ```
 fn canonical_feature_path(path: &Path) -> String {
-    std::env::var("CARGO_MANIFEST_DIR")
+    let mut cache = FEATURE_PATH_CACHE
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    if let Some(cached) = cache.get(path).cloned() {
+        return cached;
+    }
+    let canonical = std::env::var("CARGO_MANIFEST_DIR")
         .ok()
         .map(PathBuf::from)
         .map(|d| d.join(path))
         .and_then(|p| std::fs::canonicalize(&p).ok())
         .unwrap_or_else(|| PathBuf::from(path))
         .display()
-        .to_string()
+        .to_string();
+    cache.insert(path.to_path_buf(), canonical.clone());
+    canonical
 }
 
 /// Validate registered steps when compile-time validation is enabled.
@@ -179,6 +193,7 @@ fn validate_steps_compile_time(
 mod tests {
     use super::canonical_feature_path;
     use rstest::rstest;
+    use serial_test::serial;
     use std::env;
     use std::path::{Path, PathBuf};
 
@@ -200,5 +215,35 @@ mod tests {
     fn falls_back_on_missing_path() {
         let path = Path::new("does-not-exist.feature");
         assert_eq!(canonical_feature_path(path), path.display().to_string());
+    }
+
+    #[rstest]
+    #[serial]
+    fn caches_paths_between_calls() {
+        use std::fs::{remove_file, write};
+        use std::time::{SystemTime, UNIX_EPOCH};
+
+        let unique = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_nanos();
+        let file_name = format!("cache_{unique}.feature");
+        let manifest = PathBuf::from(
+            env::var("CARGO_MANIFEST_DIR").unwrap_or_else(|e| panic!("manifest dir: {e}")),
+        );
+        let file_path = manifest.join(&file_name);
+        if let Err(e) = write(&file_path, "") {
+            panic!("temp file: {e}");
+        }
+
+        let path = Path::new(&file_name);
+        let first = canonical_feature_path(path);
+
+        if let Err(e) = remove_file(&file_path) {
+            panic!("remove: {e}");
+        }
+        let second = canonical_feature_path(path);
+
+        assert_eq!(first, second);
     }
 }
