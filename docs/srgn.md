@@ -631,11 +631,11 @@ invalid one, as `srgn` will helpfully list the valid options.[^9]
 | ----------------------- | ------------------------------------------------------------------------- | --------------------------------------------- |
 | class                   | Selects entire class definitions, from class to the end of the block.     | srgn --py 'class' 'MyClass'                   |
 | function                | Selects entire function definitions, from def to the end of the block.    | srgn --py 'function' 'my_func'                |
-| doc-strings             | Selects the content of docstrings ("""…""" or '''…''').               | srgn --py 'doc-strings' 'TODO'                |
-| comments                | Selects the content of line comments (#…).                              | srgn --py 'comments' 'FIXME'                  |
+| doc-strings             | Selects the content of docstrings ("""…""" or '''…''').                   | srgn --py 'doc-strings' 'TODO'                |
+| comments                | Selects the content of line comments (#…).                                | srgn --py 'comments' 'FIXME'                  |
 | strings                 | Selects the content of all string literals.                               | srgn --py 'strings' 'hardcoded-secret'        |
 | identifiers             | Selects language identifiers (variable names, function names, etc.).      | srgn --py 'identifiers' '^temp_\w+'           |
-| module-names-in-imports | Selects only the module names in import and from… import statements.    | srgn --py 'module-names-in-imports' 'old_lib' |
+| module-names-in-imports | Selects only the module names in import and from… import statements.      | srgn --py 'module-names-in-imports' 'old_lib' |
 | call                    | Selects entire function or method call expressions (e.g., foo(bar, baz)). | srgn --py 'call' '^print\('                   |
 
 ### A.[^3] Table: Rust Grammar Scopes (`--rust <SCOPE>` or `--rs <SCOPE>`)
@@ -643,16 +643,16 @@ invalid one, as `srgn` will helpfully list the valid options.[^9]
 | Scope Name                 | Description                                                    | Example Command                                        |
 | -------------------------- | -------------------------------------------------------------- | ------------------------------------------------------ |
 | unsafe                     | Selects unsafe blocks and unsafe function definitions.         | srgn --rs 'unsafe' '.'                                 |
-| comments                   | Selects the content of line (//) and block (/*…*/) comments. | srgn --rs 'comments' 'HACK'                            |
+| comments                   | Selects the content of line (//) and block (/*…*/) comments.   | srgn --rs 'comments' 'HACK'                            |
 | strings                    | Selects the content of all string literals.                    | srgn --rs 'strings' 'password'                         |
-| attribute                  | Selects the content of attributes (#[…] and #![…]).        | srgn --rs 'attribute' 'deprecated'                     |
+| attribute                  | Selects the content of attributes (#[…] and #![…]).            | srgn --rs 'attribute' 'deprecated'                     |
 | names-in-uses-declarations | Selects only the crate/module paths within use statements.     | srgn --rs 'names-in-uses-declarations' 'old_crate'     |
 | pub-enum                   | Selects public enum definitions.                               | srgn --rs 'pub-enum' 'MyEnum'                          |
 | type-identifier            | Selects identifiers that refer to a type.                      | srgn --rs 'pub-enum' --rs 'type-identifier' 'Subgenre' |
 | struct                     | Selects struct definitions.                                    | srgn --rs 'struct' 'RequestPayload'                    |
 | impl                       | Selects impl blocks.                                           | srgn --rs 'impl' 'MyTrait for MyStruct'                |
 | fn                         | Selects function definitions.                                  | srgn --rs 'fn' 'main'                                  |
-| extern-crate               | Selects extern crate…; declarations.                         | srgn --rs 'extern-crate' 'libc'                        |
+| extern-crate               | Selects extern crate…; declarations.                           | srgn --rs 'extern-crate' 'libc'                        |
 
 ## Works Cited
 
@@ -688,25 +688,25 @@ invalid one, as `srgn` will helpfully list the valid options.[^9]
  9. Releases · alexpovel/srgn - GitHub, accessed on July 11, 2025,
     <https://github.com/alexpovel/srgn/releases>
 
- 1. Python Scope & the LEGB Rule: Resolving Names in Your Code, accessed on
+ 10. Python Scope & the LEGB Rule: Resolving Names in Your Code, accessed on
     July 11, 2025, <https://realpython.com/python-scope-legb-rule/>
 
- 2. Scopes - The Rust Reference, accessed on July 11, 2025,
+ 11. Scopes - The Rust Reference, accessed on July 11, 2025,
     <https://doc.rust-lang.org/reference/names/scopes.html>
 
- 3. I can't understand the Rust "scope" definition (Rust Programming Language,
+ 12. I can't understand the Rust "scope" definition (Rust Programming Language,
     2nd Ed. Klabnik & Nichols) - Stack Overflow, accessed on July 11, 2025,
     <https://stackoverflow.com/questions/77423163/i-cant-understand-the-rust-scope-definition-rust-programming-language-2nd-e>
 
- 4. betterletter/[README.md](http://README.md) at main · alexpovel/betterletter
+ 13. betterletter/[README.md](http://README.md) at main · alexpovel/betterletter
     · GitHub, accessed on July 11, 2025,
     <https://github.com/alexpovel/betterletter/blob/main/README.md>
 
- 5. srgn - Rust Package Registry - [Crates.io](http://Crates.io), accessed on
+ 14. srgn - Rust Package Registry - [Crates.io](http://Crates.io), accessed on
     July 11, 2025, <https://crates.io/crates/srgn/>
 
- 6. accessed on January 1, 1970,
+ 15. accessed on January 1, 1970,
     <https://github.com/alexpovel/srgn/tree/main/src/scoping/langs>
 
- 7. accessed on January 1, 1970,
+ 16. accessed on January 1, 1970,
     <https://github.com/alexpovel/srgn/blob/main/src/scoping/langs/rust.rs>
