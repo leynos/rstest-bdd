@@ -177,7 +177,15 @@ fn normalise(path: &Path) -> PathBuf {
 /// # }
 /// ```
 fn canonical_feature_path(path: &Path) -> String {
-    let key = normalise(path);
+    let manifest_dir = std::env::var("CARGO_MANIFEST_DIR").ok().map(PathBuf::from);
+    // Scope cache keys by manifest dir to avoid cross-crate collisions.
+    let key = if path.is_absolute() {
+        normalise(path)
+    } else if let Some(ref dir) = manifest_dir {
+        normalise(&dir.join(path))
+    } else {
+        normalise(path)
+    };
 
     if let Some(cached) = {
         let cache = FEATURE_PATH_CACHE
@@ -187,8 +195,6 @@ fn canonical_feature_path(path: &Path) -> String {
     } {
         return cached;
     }
-
-    let manifest_dir = std::env::var("CARGO_MANIFEST_DIR").ok().map(PathBuf::from);
 
     let canonical = manifest_dir
         .as_ref()
