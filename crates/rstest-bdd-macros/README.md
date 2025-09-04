@@ -84,7 +84,7 @@ in `Cargo.toml` by adding an explicit dependency:
 
 ```toml
 [dependencies]
-rstest-bdd-macros = { version = "0.1.0-alpha2", features = ["compile-time-validation"] }
+rstest-bdd-macros = { version = "0.1.0-alpha3", features = ["compile-time-validation"] }
 ```
 
 Or via CLI:
