@@ -9,10 +9,23 @@ fn clear_registry() {
         .clear();
 }
 
-#[rstest]
-#[serial]
 fn registry_cleared() {
     clear_registry();
+}
+
+fn register_step_for_crate(keyword: StepKeyword, pattern: &str, crate_id: &str) {
+    register_step(
+        keyword,
+        &syn::LitStr::new(pattern, proc_macro2::Span::call_site()),
+    );
+    let mut guard = REGISTERED
+        .lock()
+        .unwrap_or_else(|e| panic!("step registry poisoned: {e}"));
+    if let Some(last) = guard.last_mut() {
+        last.crate_id = crate_id.into();
+    } else {
+        panic!("registry empty");
+    }
 }
 
 #[rstest]
@@ -52,6 +65,7 @@ fn errors_when_missing_step_in_strict_mode() {
         text: "missing".to_string(),
         docstring: None,
         table: None,
+        #[cfg(feature = "compile-time-validation")]
         span: proc_macro2::Span::call_site(),
     }];
     assert!(validate_steps_exist(&steps, true).is_err());
@@ -78,6 +92,7 @@ fn errors_when_step_ambiguous() {
         Ok(()) => panic!("expected ambiguous step error"),
     };
     assert!(err.contains("Ambiguous step definition"));
+    assert!(err.contains("Matches: a step"));
     assert!(validate_steps_exist(&steps, true).is_err());
 }
 
@@ -85,18 +100,7 @@ fn errors_when_step_ambiguous() {
 #[serial]
 fn ignores_steps_from_other_crates() {
     registry_cleared();
-    register_step(
-        StepKeyword::Given,
-        &syn::LitStr::new("a step", proc_macro2::Span::call_site()),
-    );
-    let mut guard = REGISTERED
-        .lock()
-        .unwrap_or_else(|e| panic!("step registry poisoned: {e}"));
-    if let Some(last) = guard.last_mut() {
-        last.crate_id = "other".into();
-    } else {
-        panic!("registry empty");
-    }
+    register_step_for_crate(StepKeyword::Given, "a step", "other");
     let steps = [ParsedStep {
         keyword: StepKeyword::Given,
         text: "a step".to_string(),

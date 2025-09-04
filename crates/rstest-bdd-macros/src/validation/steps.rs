@@ -22,6 +22,10 @@ struct RegisteredStep {
     crate_id: Box<str>,
 }
 
+/// Global registry of step definitions.
+///
+/// Patterns are leaked into static memory; registration happens only during
+/// macro expansion so total usage is bounded.
 static REGISTERED: LazyLock<Mutex<Vec<RegisteredStep>>> = LazyLock::new(|| Mutex::new(Vec::new()));
 
 /// Record a step definition so scenarios can validate against it.
@@ -63,23 +67,21 @@ pub(crate) fn validate_steps_exist(steps: &[ParsedStep], strict: bool) -> Result
     )]
     let reg = REGISTERED.lock().expect("step registry poisoned");
     let current = current_crate_id();
-    let owned: Vec<RegisteredStep> = reg
+    let local_defs: Vec<&RegisteredStep> = reg
         .iter()
         .filter(|d| d.crate_id.as_ref() == current.as_str())
-        .cloned()
         .collect();
-    drop(reg);
 
-    if owned.is_empty() && !strict {
+    if local_defs.is_empty() && !strict {
         return Ok(());
     }
 
-    let missing = collect_missing_steps(&owned, steps)?;
+    let missing = collect_missing_steps(&local_defs, steps)?;
     handle_validation_result(&missing, strict)
 }
 
 fn collect_missing_steps(
-    defs: &[RegisteredStep],
+    defs: &[&RegisteredStep],
     steps: &[ParsedStep],
 ) -> Result<Vec<(proc_macro2::Span, String)>, syn::Error> {
     // Resolve conjunctions (And/But) deterministically to the preceding
@@ -154,27 +156,27 @@ fn emit_non_strict_warnings(missing: &[(proc_macro2::Span, String)]) {
     }
 }
 
-fn find_step_matches<'a>(
-    defs: &'a [&RegisteredStep],
-    step: &ParsedStep,
-) -> Vec<&'a RegisteredStep> {
-    defs.iter()
-        .copied()
-        .filter(|def| extract_placeholders(def.pattern, step.text.as_str().into()).is_ok())
-        .collect()
-}
-
 fn has_matching_step_definition(
-    defs: &[RegisteredStep],
+    defs: &[&RegisteredStep],
     resolved: StepKeyword,
     step: &ParsedStep,
 ) -> Result<Option<String>, syn::Error> {
-    let candidates: Vec<&RegisteredStep> = defs.iter().filter(|d| d.keyword == resolved).collect();
-    let matches = find_step_matches(&candidates, step);
-
+    let matches: Vec<&RegisteredStep> = defs
+        .iter()
+        .copied()
+        .filter(|d| d.keyword == resolved && d.pattern.regex().is_match(step.text.as_str()))
+        .collect();
     match matches.len() {
-        0 => Ok(Some(format_missing_step_error(&candidates, resolved, step))),
-        1 => Ok(None),
+        0 => Ok(Some(format_missing_step_error(defs, resolved, step))),
+        1 => match matches.first() {
+            Some(def) => {
+                if extract_placeholders(def.pattern, step.text.as_str().into()).is_err() {
+                    return Ok(Some(format_missing_step_error(defs, resolved, step)));
+                }
+                Ok(None)
+            }
+            None => unreachable!("length checked"),
+        },
         _ => Err(format_ambiguous_step_error(&matches, step)),
     }
 }
@@ -184,10 +186,14 @@ fn format_missing_step_error(
     resolved: StepKeyword,
     step: &ParsedStep,
 ) -> String {
-    let available_defs: Vec<&'static str> = defs.iter().map(|d| d.pattern.as_str()).collect();
+    let available_defs: Vec<&str> = defs
+        .iter()
+        .filter(|d| d.keyword == resolved)
+        .map(|d| d.pattern.as_str())
+        .collect();
     let possible_matches: Vec<&str> = defs
         .iter()
-        .filter(|d| d.pattern.regex().is_match(step.text.as_str()))
+        .filter(|d| d.keyword == resolved && d.pattern.regex().is_match(step.text.as_str()))
         .map(|d| d.pattern.as_str())
         .collect();
     build_missing_step_message(resolved, step, &available_defs, &possible_matches)
