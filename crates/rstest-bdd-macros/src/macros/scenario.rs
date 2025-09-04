@@ -95,6 +95,7 @@ fn try_scenario(
     let sig = &mut item_fn.sig;
     let block = &item_fn.block;
 
+    // Retrieve cached feature to avoid repeated parsing.
     let feature = parse_and_load_feature(&path).map_err(proc_macro::TokenStream::from)?;
     let feature_path_str = canonical_feature_path(&path);
     let ScenarioData {

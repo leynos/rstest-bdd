@@ -1,7 +1,11 @@
 //! Feature file loading and scenario extraction.
 
 use gherkin::{Feature, GherkinEnv, Step, StepType};
-use std::path::{Path, PathBuf};
+use std::{
+    collections::HashMap,
+    path::{Path, PathBuf},
+    sync::{LazyLock, Mutex},
+};
 
 use crate::parsing::examples::ExampleTable;
 use crate::utils::errors::error_to_tokens;
@@ -43,6 +47,10 @@ pub(crate) struct ScenarioData {
     pub steps: Vec<ParsedStep>,
     pub(crate) examples: Option<ExampleTable>,
 }
+
+/// Cache parsed features to avoid repeated filesystem IO.
+static FEATURE_CACHE: LazyLock<Mutex<HashMap<PathBuf, Feature>>> =
+    LazyLock::new(|| Mutex::new(HashMap::new()));
 
 /// Map a textual step keyword and `StepType` to a `StepKeyword`.
 ///
@@ -135,11 +143,21 @@ fn validate_feature_file_exists(feature_path: &Path) -> Result<(), syn::Error> {
 pub(crate) fn parse_and_load_feature(path: &Path) -> Result<Feature, proc_macro2::TokenStream> {
     let feature_path = std::env::var("CARGO_MANIFEST_DIR")
         .map_or_else(|_| PathBuf::from(path), |dir| PathBuf::from(dir).join(path));
+
+    {
+        let cache = FEATURE_CACHE
+            .lock()
+            .unwrap_or_else(|e| panic!("feature cache poisoned: {e}"));
+        if let Some(feature) = cache.get(&feature_path) {
+            return Ok(feature.clone());
+        }
+    }
+
     if let Err(err) = validate_feature_file_exists(&feature_path) {
         return Err(error_to_tokens(&err));
     }
 
-    Feature::parse_path(&feature_path, GherkinEnv::default()).map_err(|err| {
+    let feature = Feature::parse_path(&feature_path, GherkinEnv::default()).map_err(|err| {
         #[cfg(feature = "compile-time-validation")]
         {
             if let Ok(text) = std::fs::read_to_string(&feature_path) {
@@ -150,7 +168,14 @@ pub(crate) fn parse_and_load_feature(path: &Path) -> Result<Feature, proc_macro2
         }
         let msg = format!("failed to parse feature file: {err}");
         error_to_tokens(&syn::Error::new(proc_macro2::Span::call_site(), msg))
-    })
+    })?;
+
+    FEATURE_CACHE
+        .lock()
+        .unwrap_or_else(|e| panic!("feature cache poisoned: {e}"))
+        .insert(feature_path.clone(), feature.clone());
+
+    Ok(feature)
 }
 
 /// Extract the scenario data for the given feature and optional index.
