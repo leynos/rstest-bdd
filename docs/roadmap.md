@@ -167,7 +167,53 @@ improves the developer experience.
     discover all `.feature` files in a directory and generate a test module
     containing a test function for every `Scenario` found.
 
-## Phase 4: Ergonomics and Developer Experience
+## Phase 4: Internationalisation and Localisation
+
+This phase introduces full internationalisation (i18n) and localisation (l10n)
+support, enabling the use of non-English Gherkin and providing translated
+diagnostic messages.
+
+- [ ] **Foundational Gherkin Internationalisation**
+
+  - [ ] Implement language detection in the feature file parser by recognising
+    and respecting the `# language: <lang>` declaration.
+
+  - [ ] Refactor keyword parsing to be language-aware, relying on the
+    `gherkin` crate's `StepType` rather than hardcoded English strings.
+
+  - [ ] Add a comprehensive test suite with `.feature` files in multiple
+    languages (e.g., French, German, Spanish) to validate correct parsing and
+    execution.
+
+- [ ] **Localisation of Library Messages with Fluent**
+
+  - [ ] Integrate the `i18n-embed`, `rust-embed`, and `fluent` crates.
+
+  - [ ] Create `.ftl` resource files under an `i18n/` directory for all
+    user-facing diagnostic messages.
+
+  - [ ] Use `rust-embed` to bundle the localisation resources directly into the
+    library binary.
+
+  - [ ] Implement the `I18nAssets` trait on a dedicated struct to make Fluent
+    resources discoverable.
+
+  - [ ] Replace all hardcoded error and warning strings in procedural macros
+    with calls to a `FluentLanguageLoader`, which will be initialised at
+    compile time based on the user's environment.
+
+- [ ] **Documentation and User Guidance**
+
+  - [ ] Update `README.md` and `docs/users-guide.md` with a new section
+    detailing how to use the internationalisation features.
+
+  - [ ] Add a new example crate to demonstrate writing and running a BDD test
+    suite using a non-English language.
+
+  - [ ] Update `CONTRIBUTING.md` with guidelines for adding and maintaining
+    translations for new diagnostic messages.
+
+## Phase 5: Ergonomics and Developer Experience
 
 This phase focuses on reducing boilerplate and improving the developer
 experience by introducing more powerful and intuitive APIs.
@@ -206,7 +252,7 @@ experience by introducing more powerful and intuitive APIs.
     macro to allow multiple placeholders from a step pattern to be parsed
     directly into the fields of a struct, simplifying step function signatures.
 
-### Post-Core Implementation: Extensions & Tooling
+## Phase 6: Extensions & Tooling
 
 These tasks can be addressed after the core framework is stable and are aimed
 at improving maintainability and IDE integration.
