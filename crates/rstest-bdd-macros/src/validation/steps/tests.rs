@@ -1,6 +1,8 @@
 //! Tests for step validation: basic success, strict-mode errors, ambiguity and invalid patterns.
 use super::*;
+use crate::StepKeyword;
 use rstest::rstest;
+use rstest_bdd::StepPattern;
 use serial_test::serial;
 
 #[expect(clippy::expect_used, reason = "registry lock must panic if poisoned")]
@@ -95,4 +97,44 @@ fn aborts_on_invalid_step_pattern() {
         );
     });
     assert!(result.is_err());
+}
+
+#[derive(Debug)]
+enum MatchOutcome {
+    Missing,
+    Single,
+    Ambiguous,
+}
+
+/// Construct a `RegisteredStep` from a pattern for testing.
+fn make_registered_step(pattern: &str) -> RegisteredStep {
+    let leaked: &'static str = Box::leak(pattern.to_string().into_boxed_str());
+    let pattern: &'static StepPattern = Box::leak(Box::new(StepPattern::new(leaked)));
+    pattern.compile().unwrap_or_else(|e| panic!("compile pattern '{}': {e}", pattern.as_str()));
+    RegisteredStep { keyword: StepKeyword::Given, pattern, crate_id: "test".into() }
+}
+
+
+
+/// Ensure the matcher distinguishes missing, unique, and ambiguous step definitions.
+#[rstest]
+#[case::missing(vec!["other"], "a step", MatchOutcome::Missing)]
+#[case::single(vec!["a step"], "a step", MatchOutcome::Single)]
+#[case::ambiguous(vec!["a {item}", "a step"], "a step", MatchOutcome::Ambiguous)]
+fn has_matching_step_definition_cases(
+    #[case] patterns: Vec<&str>,
+    #[case] text: &str,
+    #[case] expected: MatchOutcome,
+) {
+    let defs: Vec<RegisteredStep> = patterns.into_iter().map(make_registered_step).collect();
+    let refs: Vec<&RegisteredStep> = defs.iter().collect();
+    let step = create_test_step(text);
+    match (
+        has_matching_step_definition(&refs, StepKeyword::Given, &step),
+        expected,
+    ) {
+        (Ok(Some(_)), MatchOutcome::Missing) | (Ok(None), MatchOutcome::Single) | (Err(_), MatchOutcome::Ambiguous) => {},
+        (res, other) => panic!("unexpected {res:?} for {other:?}"),
+    }
+
 }

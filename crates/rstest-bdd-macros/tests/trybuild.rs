@@ -5,6 +5,7 @@ fn step_macros_compile() {
     let t = trybuild::TestCases::new();
     t.pass("tests/fixtures/step_macros.rs");
     t.pass("tests/fixtures/step_macros_unicode.rs");
+    t.pass("tests/fixtures/scenario_single_match.rs");
     // `scenarios!` should succeed when the directory exists.
     // t.pass("tests/fixtures/scenarios_autodiscovery.rs");
     t.compile_fail("tests/fixtures/scenario_missing_file.rs");
