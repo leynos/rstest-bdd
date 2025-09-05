@@ -111,20 +111,21 @@ pub(crate) fn validate_steps_exist(steps: &[ParsedStep], strict: bool) -> Result
     )]
     let reg = REGISTERED.lock().expect("step registry poisoned");
     let current = current_crate_id();
-    let local_defs = reg.get(current.as_ref()).map_or_else(
-        || {
-            #[cfg(test)]
-            let _ = current.as_ref();
-            #[cfg(not(test))]
-            emit_warning!(
-                proc_macro2::Span::call_site(),
-                "step registry has no definitions for crate ID '{}'. This may indicate a registry issue.",
-                current.as_ref()
-            );
-            CrateDefs::default()
-        },
-        Clone::clone,
-    );
+    #[expect(
+        clippy::option_if_let_else,
+        reason = "explicit branch clarifies missing-definition warning"
+    )]
+    let local_defs = if let Some(d) = reg.get(current.as_ref()) {
+        d.clone()
+    } else {
+        #[cfg(not(test))]
+        emit_warning!(
+            proc_macro2::Span::call_site(),
+            "step registry has no definitions for crate ID '{}'. This may indicate a registry issue.",
+            current.as_ref()
+        );
+        CrateDefs::default()
+    };
     drop(reg);
 
     if local_defs.is_empty() && !strict {
@@ -221,6 +222,7 @@ fn has_matching_step_definition(
     let matches: Vec<&'static StepPattern> = patterns
         .iter()
         .copied()
+        .filter(|p| p.regex().is_match(text))
         .filter(|p| extract_placeholders(p, text.into()).is_ok())
         .collect();
     match matches.len() {

@@ -3,11 +3,9 @@ use super::*;
 use rstest::rstest;
 use serial_test::serial;
 
+#[expect(clippy::expect_used, reason = "registry lock must panic if poisoned")]
 fn clear_registry() {
-    REGISTERED
-        .lock()
-        .unwrap_or_else(|e| panic!("step registry poisoned: {e}"))
-        .clear();
+    REGISTERED.lock().expect("step registry poisoned").clear();
 }
 
 fn registry_cleared() {
