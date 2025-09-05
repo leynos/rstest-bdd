@@ -24,14 +24,20 @@ struct RegisteredStep {
 
 /// Global registry of step definitions.
 ///
-/// Patterns are leaked into static memory; registration happens only during
-/// macro expansion so total usage is bounded.
+/// Patterns are stored in a static registry for the process lifetime.
+/// Registration occurs during macro expansion and test initialisation, so
+/// total allocation is bounded by the step definitions registered in the
+/// current compilation session.
 static REGISTERED: LazyLock<Mutex<Vec<RegisteredStep>>> = LazyLock::new(|| Mutex::new(Vec::new()));
 
 /// Leak and compile a step pattern before registering.
 ///
-/// Patterns are leaked into static memory because macros require `'static` lifetimes.
-/// Registration occurs during macro expansion so the total leak is bounded.
+/// Patterns are stored in a global static registry for the life of the
+/// process. Macros therefore require 'static lifetimes, satisfied by
+/// leaking each boxed pattern into static memory. Registration happens
+/// during macro expansion and test initialisation, so the leak is bounded
+/// by the number of step definitions registered in the current compilation
+/// session, including those registered by tests.
 fn register_step_impl(keyword: StepKeyword, pattern: &syn::LitStr, crate_id: String) {
     let leaked: &'static str = Box::leak(pattern.value().into_boxed_str());
     let step_pattern: &'static StepPattern = Box::leak(Box::new(StepPattern::new(leaked)));
