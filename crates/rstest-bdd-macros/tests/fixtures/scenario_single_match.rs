@@ -10,7 +10,7 @@ fn action() {}
 #[then("a result is produced")]
 fn result() {}
 
-// trybuild runs in a temp dir; use an explicit path to locate the feature file.
+// trybuild copies this source to a temp dir; use an explicit path back to the feature file.
 #[scenario(path = "../../../../crates/rstest-bdd-macros/tests/fixtures/basic.feature")]
 fn basic() {}
 

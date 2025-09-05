@@ -143,6 +143,7 @@ fn has_matching_step_definition_cases(
     let defs: Vec<RegisteredStep> = patterns.into_iter().map(make_registered_step).collect();
     let refs: Vec<&RegisteredStep> = defs.iter().collect();
     let step = create_test_step(text);
+    // Ok(None) => exactly one match; Ok(Some(_)) => missing; Err(_) => ambiguous.
     let outcome = match has_matching_step_definition(&refs, StepKeyword::Given, &step) {
         Ok(Some(_)) => MatchOutcome::Missing,
         Ok(None) => MatchOutcome::Single,
