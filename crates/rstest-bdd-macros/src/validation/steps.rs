@@ -29,9 +29,6 @@ impl CrateDefs {
     fn patterns(&self, kw: StepKeyword) -> &[&'static StepPattern] {
         self.by_kw.get(&kw).map_or(&[], Vec::as_slice)
     }
-    fn is_empty(&self) -> bool {
-        self.by_kw.values().all(Vec::is_empty)
-    }
 }
 
 /// Global registry of step definitions.
@@ -55,7 +52,8 @@ static CURRENT_CRATE_ID: LazyLock<Box<str>> =
 /// session, including those registered by tests.
 /// Patterns are leaked into static memory because macros require `'static` lifetimes.
 /// Registration occurs during macro expansion so the total leak is bounded.
-fn register_step_impl(keyword: StepKeyword, pattern: &syn::LitStr, crate_id: Box<str>) {
+fn register_step_inner(keyword: StepKeyword, pattern: &syn::LitStr, crate_id: impl Into<String>) {
+    let crate_id = normalise_crate_id(&crate_id.into());
     let leaked: &'static str = Box::leak(pattern.value().into_boxed_str());
     let step_pattern: &'static StepPattern = Box::leak(Box::new(StepPattern::new(leaked)));
     if let Err(e) = step_pattern.compile() {
@@ -81,15 +79,15 @@ fn register_step_impl(keyword: StepKeyword, pattern: &syn::LitStr, crate_id: Box
 /// Steps are registered for the current crate.
 pub(crate) fn register_step(keyword: StepKeyword, pattern: &syn::LitStr) {
     let crate_id = current_crate_id();
-    register_step_impl(keyword, pattern, crate_id);
+    register_step_inner(keyword, pattern, crate_id);
 }
 
 #[cfg(test)]
 pub(crate) fn register_step_for_crate(keyword: StepKeyword, pattern: &str, crate_id: &str) {
-    register_step_impl(
+    register_step_inner(
         keyword,
         &syn::LitStr::new(pattern, proc_macro2::Span::call_site()),
-        normalise_crate_id(crate_id),
+        crate_id,
     );
 }
 
@@ -110,12 +108,9 @@ pub(crate) fn validate_steps_exist(steps: &[ParsedStep], strict: bool) -> Result
     )]
     let reg = REGISTERED.lock().expect("step registry poisoned");
     let current = current_crate_id();
-    #[expect(
-        clippy::option_if_let_else,
-        reason = "explicit branch clarifies missing-definition warning"
-    )]
-    let local_defs = if let Some(d) = reg.get(current.as_ref()) {
-        d.clone()
+    let empty = CrateDefs::default();
+    let defs = if let Some(d) = reg.get(current.as_ref()) {
+        d
     } else {
         #[cfg(not(test))]
         emit_warning!(
@@ -123,43 +118,47 @@ pub(crate) fn validate_steps_exist(steps: &[ParsedStep], strict: bool) -> Result
             "step registry has no definitions for crate ID '{}'. This may indicate a registry issue.",
             current.as_ref()
         );
-        CrateDefs::default()
+        if !strict {
+            return Ok(());
+        }
+        &empty
     };
-    drop(reg);
-
-    if local_defs.is_empty() && !strict {
-        return Ok(());
-    }
-
-    let missing = collect_missing_steps(&local_defs, steps)?;
-    handle_validation_result(&missing, strict)
-}
-
-fn collect_missing_steps(
-    defs: &CrateDefs,
-    steps: &[ParsedStep],
-) -> Result<Vec<(proc_macro2::Span, String)>, syn::Error> {
-    // Resolve conjunctions (And/But) deterministically to the preceding
-    // primary keyword while preserving span-aware diagnostics.
-    let resolved = resolve_keywords(steps);
-    debug_assert_eq!(resolved.len(), steps.len());
     let mut missing = Vec::new();
-    for (step, keyword) in steps.iter().zip(resolved) {
-        if let Some(msg) = has_matching_step_definition(defs, keyword, step)? {
-            let span = {
-                #[cfg(feature = "compile-time-validation")]
-                {
-                    step.span
-                }
-                #[cfg(not(feature = "compile-time-validation"))]
-                {
-                    proc_macro2::Span::call_site()
-                }
-            };
-            missing.push((span, msg));
+    for (step, keyword) in steps.iter().zip(resolve_keywords(steps)) {
+        let patterns = defs.patterns(keyword);
+        let matches: Vec<&'static StepPattern> = patterns
+            .iter()
+            .copied()
+            .filter(|p| extract_placeholders(p, step.text.as_str().into()).is_ok())
+            .collect();
+        let span = {
+            #[cfg(feature = "compile-time-validation")]
+            {
+                step.span
+            }
+            #[cfg(not(feature = "compile-time-validation"))]
+            {
+                proc_macro2::Span::call_site()
+            }
+        };
+        match matches.len() {
+            0 => {
+                let available_defs: Vec<&str> = patterns.iter().map(|p| p.as_str()).collect();
+                let possible_matches: Vec<&str> = patterns
+                    .iter()
+                    .filter(|p| p.regex().is_match(step.text.as_str()))
+                    .map(|p| p.as_str())
+                    .collect();
+                missing.push((
+                    span,
+                    build_missing_step_message(keyword, step, &available_defs, &possible_matches),
+                ));
+            }
+            1 => {}
+            _ => return Err(format_ambiguous_step_error(&matches, step)),
         }
     }
-    Ok(missing)
+    handle_validation_result(&missing, strict)
 }
 
 fn handle_validation_result(
@@ -209,36 +208,6 @@ fn emit_non_strict_warnings(missing: &[(proc_macro2::Span, String)]) {
             emit_warning!(*span, "rstest-bdd[non-strict]: {}", msg);
         }
     }
-}
-
-fn has_matching_step_definition(
-    defs: &CrateDefs,
-    resolved: StepKeyword,
-    step: &ParsedStep,
-) -> Result<Option<String>, syn::Error> {
-    let text = step.text.as_str();
-    let patterns = defs.patterns(resolved);
-    let matches: Vec<&'static StepPattern> = patterns
-        .iter()
-        .copied()
-        .filter(|p| extract_placeholders(p, text.into()).is_ok())
-        .collect();
-    match matches.len() {
-        0 => Ok(Some(format_missing_step_error(resolved, step, defs))),
-        1 => Ok(None),
-        _ => Err(format_ambiguous_step_error(&matches, step)),
-    }
-}
-
-fn format_missing_step_error(resolved: StepKeyword, step: &ParsedStep, defs: &CrateDefs) -> String {
-    let patterns = defs.patterns(resolved);
-    let available_defs: Vec<&str> = patterns.iter().map(|p| p.as_str()).collect();
-    let possible_matches: Vec<&str> = patterns
-        .iter()
-        .filter(|p| p.regex().is_match(step.text.as_str()))
-        .map(|p| p.as_str())
-        .collect();
-    build_missing_step_message(resolved, step, &available_defs, &possible_matches)
 }
 
 fn format_ambiguous_step_error(matches: &[&'static StepPattern], step: &ParsedStep) -> syn::Error {

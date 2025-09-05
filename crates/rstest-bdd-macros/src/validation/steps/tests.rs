@@ -8,13 +8,9 @@ fn clear_registry() {
     REGISTERED.lock().expect("step registry poisoned").clear();
 }
 
-fn registry_cleared() {
-    clear_registry();
-}
-
-fn create_test_step(text: &str) -> ParsedStep {
+fn create_test_step(keyword: StepKeyword, text: &str) -> ParsedStep {
     ParsedStep {
-        keyword: StepKeyword::Given,
+        keyword,
         text: text.to_string(),
         docstring: None,
         table: None,
@@ -33,13 +29,13 @@ fn validates_step_patterns(
     #[case] test_text: &str,
     #[case] description: &str,
 ) {
-    registry_cleared();
+    clear_registry();
     let _ = description;
     register_step(
         StepKeyword::Given,
         &syn::LitStr::new(pattern, proc_macro2::Span::call_site()),
     );
-    let steps = [create_test_step(test_text)];
+    let steps = [create_test_step(StepKeyword::Given, test_text)];
     assert!(validate_steps_exist(&steps, true).is_ok());
     assert!(validate_steps_exist(&steps, false).is_ok());
 }
@@ -53,12 +49,12 @@ fn validates_strict_mode_errors(
     #[case] foreign_step: Option<(&str, &str)>,
     #[case] step_text: &str,
 ) {
-    registry_cleared();
+    clear_registry();
     let _ = test_name;
     if let Some((pattern, crate_id)) = foreign_step {
         register_step_for_crate(StepKeyword::Given, pattern, crate_id);
     }
-    let steps = [create_test_step(step_text)];
+    let steps = [create_test_step(StepKeyword::Given, step_text)];
     assert!(validate_steps_exist(&steps, true).is_err());
     assert!(validate_steps_exist(&steps, false).is_ok());
 }
@@ -66,11 +62,11 @@ fn validates_strict_mode_errors(
 #[rstest]
 #[serial]
 fn errors_when_step_ambiguous() {
-    registry_cleared();
+    clear_registry();
     let lit = syn::LitStr::new("a step", proc_macro2::Span::call_site());
     register_step(StepKeyword::Given, &lit);
     register_step(StepKeyword::Given, &lit);
-    let steps = [create_test_step("a step")];
+    let steps = [create_test_step(StepKeyword::Given, "a step")];
     let err = match validate_steps_exist(&steps, false) {
         Err(e) => e.to_string(),
         Ok(()) => panic!("expected ambiguous step error"),
@@ -85,8 +81,27 @@ fn errors_when_step_ambiguous() {
 
 #[rstest]
 #[serial]
+fn errors_when_placeholder_ambiguous() {
+    clear_registry();
+    let lit1 = syn::LitStr::new("number {n}", proc_macro2::Span::call_site());
+    let lit2 = syn::LitStr::new("number {n:u32}", proc_macro2::Span::call_site());
+    register_step(StepKeyword::Given, &lit1);
+    register_step(StepKeyword::Given, &lit2);
+    let steps = [create_test_step(StepKeyword::Given, "number 12")];
+    let err = match validate_steps_exist(&steps, false) {
+        Err(e) => e.to_string(),
+        Ok(()) => panic!("expected ambiguous step error"),
+    };
+    assert!(err.contains("Ambiguous step definition"));
+    assert!(err.contains("- number {n}"));
+    assert!(err.contains("- number {n:u32}"));
+    assert!(validate_steps_exist(&steps, true).is_err());
+}
+
+#[rstest]
+#[serial]
 fn aborts_on_invalid_step_pattern() {
-    registry_cleared();
+    clear_registry();
     // proc-macro-error panics outside macro contexts; just assert it aborts
     let result = std::panic::catch_unwind(|| {
         register_step(
