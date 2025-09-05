@@ -1,3 +1,4 @@
+//! Tests for step validation: basic success, strict-mode errors, ambiguity and invalid patterns.
 use super::*;
 use rstest::rstest;
 use serial_test::serial;
@@ -78,6 +79,8 @@ fn errors_when_step_ambiguous() {
     };
     assert!(err.contains("Ambiguous step definition"));
     assert!(err.contains("- a step"));
+    let bullet_count = err.lines().filter(|l| l.trim() == "- a step").count();
+    assert_eq!(bullet_count, 2, "expected two bullet matches");
     assert!(validate_steps_exist(&steps, true).is_err());
 }
 

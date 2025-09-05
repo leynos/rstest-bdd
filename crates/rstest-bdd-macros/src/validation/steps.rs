@@ -191,7 +191,7 @@ fn create_strict_mode_error(missing: &[(proc_macro2::Span, String)]) -> Result<(
         }
         _ => missing
             .iter()
-            .map(|(_, m)| format!("• {m}"))
+            .map(|(_, m)| format!("  - {m}"))
             .collect::<Vec<_>>()
             .join("\n"),
     };
@@ -279,7 +279,7 @@ fn build_missing_step_message(
     possible_matches: &[&str],
 ) -> String {
     let mut msg = format!(
-        "No matching step definition found for: {} {}",
+        "No matching step definition found for '{} {}'",
         fmt_keyword(resolved),
         step.text
     );
