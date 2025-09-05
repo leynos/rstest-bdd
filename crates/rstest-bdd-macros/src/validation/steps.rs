@@ -248,7 +248,8 @@ fn format_ambiguous_step_error(matches: &[&'static StepPattern], step: &ParsedSt
         step.text,
         patterns
             .iter()
-            .map(|p| format!("  - {p}"))
+            // Do not indent bullet lines to make matching consistent.
+            .map(|p| format!("- {p}"))
             .collect::<Vec<_>>()
             .join("\n")
     );

@@ -77,7 +77,8 @@ fn errors_when_step_ambiguous() {
     };
     assert!(err.contains("Ambiguous step definition"));
     assert!(err.contains("- a step"));
-    let bullet_count = err.lines().filter(|l| l.trim() == "- a step").count();
+    // Count only lines that begin with the bullet, ignoring indented/reformatted lines.
+    let bullet_count = err.lines().filter(|l| l.starts_with("- a step")).count();
     assert_eq!(bullet_count, 2, "expected two bullet matches");
     assert!(validate_steps_exist(&steps, true).is_err());
 }
