@@ -41,8 +41,7 @@ impl CrateDefs {
 /// total allocation is bounded by the step definitions registered in the
 /// current compilation session. Entries are grouped by crate to enable
 /// fast, crate-scoped lookups during validation.
-static REGISTERED: LazyLock<Mutex<Registry>> =
-    LazyLock::new(|| Mutex::new(HashMap::new()));
+static REGISTERED: LazyLock<Mutex<Registry>> = LazyLock::new(|| Mutex::new(HashMap::new()));
 static CURRENT_CRATE_ID: LazyLock<Box<str>> =
     LazyLock::new(|| normalise_crate_id(&current_crate_id_raw()));
 
