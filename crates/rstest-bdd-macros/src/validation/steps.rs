@@ -216,17 +216,25 @@ fn has_matching_step_definition(
     resolved: StepKeyword,
     step: &ParsedStep,
 ) -> Result<Option<String>, syn::Error> {
+    // Fast path without allocating a collection: track the first match
+    // and stop on discovering a second to report ambiguity immediately.
     let text = step.text.as_str();
     let patterns = defs.patterns(resolved);
-    let matches: Vec<&'static StepPattern> = patterns
-        .iter()
-        .copied()
-        .filter(|p| extract_placeholders(p, text.into()).is_ok())
-        .collect();
-    match matches.len() {
-        0 => Ok(Some(format_missing_step_error(resolved, step, defs))),
-        1 => Ok(None),
-        _ => Err(format_ambiguous_step_error(&matches, step)),
+    let mut first_match: Option<&'static StepPattern> = None;
+    for pat in patterns.iter().copied() {
+        if extract_placeholders(pat, text.into()).is_ok() {
+            if let Some(prev) = first_match {
+                // Stop after finding a second match to avoid unnecessary
+                // iteration and allocations while preserving both patterns in
+                // the diagnostic for clarity.
+                return Err(format_ambiguous_step_error(&[prev, pat], step));
+            }
+            first_match = Some(pat);
+        }
+    }
+    match first_match {
+        Some(_) => Ok(None),
+        None => Ok(Some(format_missing_step_error(resolved, step, defs))),
     }
 }
 
