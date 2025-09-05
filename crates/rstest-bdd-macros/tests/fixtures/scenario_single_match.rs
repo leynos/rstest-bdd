@@ -1,3 +1,4 @@
+//! Compile-time fixture validating that a single step definition binds without ambiguity.
 use rstest_bdd_macros::{given, when, then, scenario};
 
 #[given("a precondition")]

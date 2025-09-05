@@ -30,8 +30,8 @@ fn find_step_returns_none_for_missing() {
 
 #[test]
 fn find_step_executes_single_match() {
-    let step_fn = find_step(StepKeyword::Given, "a unique step".into())
-        .unwrap_or_else(|| panic!("step not found"));
+    #[expect(clippy::expect_used, reason = "test ensures step exists")]
+    let step_fn = find_step(StepKeyword::Given, "a unique step".into()).expect("step not found");
     let ctx = StepContext::default();
     if let Err(e) = step_fn(&ctx, "a unique step", None, None) {
         panic!("unexpected error: {e:?}");
@@ -42,12 +42,17 @@ fn find_step_executes_single_match() {
 fn find_step_runs_one_of_multiple_matches() {
     GENERIC_CALLED.store(0, Ordering::Relaxed);
     SPECIFIC_CALLED.store(0, Ordering::Relaxed);
-    let step_fn = find_step(StepKeyword::Given, "overlap apples".into())
-        .unwrap_or_else(|| panic!("step not found"));
+    #[expect(clippy::expect_used, reason = "test ensures step exists")]
+    let step_fn = find_step(StepKeyword::Given, "overlap apples".into()).expect("step not found");
     let ctx = StepContext::default();
     if let Err(e) = step_fn(&ctx, "overlap apples", None, None) {
         panic!("unexpected error: {e:?}");
     }
-    let total = GENERIC_CALLED.load(Ordering::Relaxed) + SPECIFIC_CALLED.load(Ordering::Relaxed);
-    assert_eq!(total, 1);
+    let generic = GENERIC_CALLED.load(Ordering::Relaxed);
+    let specific = SPECIFIC_CALLED.load(Ordering::Relaxed);
+    assert_eq!(
+        (generic, specific),
+        (0, 1),
+        "literal step must win over generic pattern"
+    );
 }

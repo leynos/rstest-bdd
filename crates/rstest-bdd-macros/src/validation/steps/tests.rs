@@ -1,4 +1,9 @@
+<<<<<<< HEAD
 //! Tests for step validation: basic success, strict-mode errors, ambiguity and invalid patterns.
+||||||| parent of e5b935e (Add module doc for step validation tests)
+=======
+//! Tests for step-definition validation: missing/single/ambiguous outcomes and registry behaviour.
+>>>>>>> e5b935e (Add module doc for step validation tests)
 use super::*;
 use crate::StepKeyword;
 use rstest::rstest;
@@ -107,14 +112,23 @@ enum MatchOutcome {
 }
 
 /// Construct a `RegisteredStep` from a pattern for testing.
+#[expect(
+    clippy::expect_fun_call,
+    clippy::expect_used,
+    reason = "test helper should panic with explicit message"
+)]
 fn make_registered_step(pattern: &str) -> RegisteredStep {
     let leaked: &'static str = Box::leak(pattern.to_string().into_boxed_str());
     let pattern: &'static StepPattern = Box::leak(Box::new(StepPattern::new(leaked)));
-    pattern.compile().unwrap_or_else(|e| panic!("compile pattern '{}': {e}", pattern.as_str()));
-    RegisteredStep { keyword: StepKeyword::Given, pattern, crate_id: "test".into() }
+    pattern
+        .compile()
+        .expect(&format!("compile pattern '{}'", pattern.as_str()));
+    RegisteredStep {
+        keyword: StepKeyword::Given,
+        pattern,
+        crate_id: "test".into(),
+    }
 }
-
-
 
 /// Ensure the matcher distinguishes missing, unique, and ambiguous step definitions.
 #[rstest]
@@ -133,8 +147,9 @@ fn has_matching_step_definition_cases(
         has_matching_step_definition(&refs, StepKeyword::Given, &step),
         expected,
     ) {
-        (Ok(Some(_)), MatchOutcome::Missing) | (Ok(None), MatchOutcome::Single) | (Err(_), MatchOutcome::Ambiguous) => {},
+        (Ok(Some(_)), MatchOutcome::Missing)
+        | (Ok(None), MatchOutcome::Single)
+        | (Err(_), MatchOutcome::Ambiguous) => {}
         (res, other) => panic!("unexpected {res:?} for {other:?}"),
     }
-
 }
