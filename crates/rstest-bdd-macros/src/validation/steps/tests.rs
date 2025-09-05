@@ -89,7 +89,11 @@ fn aborts_on_invalid_step_pattern() {
 // Additional unit coverage: exercise matcher outcomes directly without
 // allocating a vector of matches, ensuring short-circuit behaviour.
 #[derive(Debug, PartialEq, Eq)]
-enum MatchOutcome { Missing, Single, Ambiguous }
+enum MatchOutcome {
+    Missing,
+    Single,
+    Ambiguous,
+}
 
 #[expect(
     clippy::expect_fun_call,
@@ -108,7 +112,9 @@ fn make_step_pattern(src: &str) -> &'static StepPattern {
 fn make_defs_for(kw: StepKeyword, patterns: Vec<&str>) -> CrateDefs {
     let mut defs = CrateDefs::default();
     let list = defs.by_kw.entry(kw).or_default();
-    for p in patterns { list.push(make_step_pattern(p)); }
+    for p in patterns {
+        list.push(make_step_pattern(p));
+    }
     defs
 }
 
