@@ -221,7 +221,6 @@ fn has_matching_step_definition(
     let matches: Vec<&'static StepPattern> = patterns
         .iter()
         .copied()
-        .filter(|p| p.regex().is_match(text))
         .filter(|p| extract_placeholders(p, text.into()).is_ok())
         .collect();
     match matches.len() {
