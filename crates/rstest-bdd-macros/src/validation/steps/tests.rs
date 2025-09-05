@@ -104,7 +104,7 @@ fn aborts_on_invalid_step_pattern() {
     assert!(result.is_err());
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 enum MatchOutcome {
     Missing,
     Single,
@@ -117,8 +117,8 @@ enum MatchOutcome {
     clippy::expect_used,
     reason = "test helper should panic with explicit message"
 )]
-fn make_registered_step(pattern: &str) -> RegisteredStep {
-    let leaked: &'static str = Box::leak(pattern.to_string().into_boxed_str());
+fn make_registered_step(src: &str) -> RegisteredStep {
+    let leaked: &'static str = Box::leak(src.to_string().into_boxed_str());
     let pattern: &'static StepPattern = Box::leak(Box::new(StepPattern::new(leaked)));
     pattern
         .compile()
@@ -143,13 +143,10 @@ fn has_matching_step_definition_cases(
     let defs: Vec<RegisteredStep> = patterns.into_iter().map(make_registered_step).collect();
     let refs: Vec<&RegisteredStep> = defs.iter().collect();
     let step = create_test_step(text);
-    match (
-        has_matching_step_definition(&refs, StepKeyword::Given, &step),
-        expected,
-    ) {
-        (Ok(Some(_)), MatchOutcome::Missing)
-        | (Ok(None), MatchOutcome::Single)
-        | (Err(_), MatchOutcome::Ambiguous) => {}
-        (res, other) => panic!("unexpected {res:?} for {other:?}"),
-    }
+    let outcome = match has_matching_step_definition(&refs, StepKeyword::Given, &step) {
+        Ok(Some(_)) => MatchOutcome::Missing,
+        Ok(None) => MatchOutcome::Single,
+        Err(_) => MatchOutcome::Ambiguous,
+    };
+    assert_eq!(outcome, expected, "unexpected outcome for text: {text}");
 }
