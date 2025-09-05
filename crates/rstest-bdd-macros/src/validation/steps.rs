@@ -30,8 +30,10 @@ static REGISTERED: LazyLock<Mutex<Vec<RegisteredStep>>> = LazyLock::new(|| Mutex
 
 /// Leak and compile a step pattern before registering.
 ///
-/// Patterns are leaked into static memory because macros require `'static` lifetimes.
-/// Registration occurs during macro expansion so the total leak is bounded.
+/// Patterns are leaked into static memory because macros require `'static`
+/// lifetimes.
+/// Registration happens only during macro expansion, so leaking
+/// boxed patterns is safe and bounded by the number of step definitions.
 fn register_step_impl(keyword: StepKeyword, pattern: &syn::LitStr, crate_id: String) {
     let leaked: &'static str = Box::leak(pattern.value().into_boxed_str());
     let step_pattern: &'static StepPattern = Box::leak(Box::new(StepPattern::new(leaked)));
