@@ -1,13 +1,6 @@
-<<<<<<< HEAD
 //! Tests for step validation: basic success, strict-mode errors, ambiguity and invalid patterns.
-||||||| parent of e5b935e (Add module doc for step validation tests)
-=======
-//! Tests for step-definition validation: missing/single/ambiguous outcomes and registry behaviour.
->>>>>>> e5b935e (Add module doc for step validation tests)
 use super::*;
-use crate::StepKeyword;
 use rstest::rstest;
-use rstest_bdd::StepPattern;
 use serial_test::serial;
 
 #[expect(clippy::expect_used, reason = "registry lock must panic if poisoned")]
@@ -104,30 +97,30 @@ fn aborts_on_invalid_step_pattern() {
     assert!(result.is_err());
 }
 
+// Additional unit coverage: exercise matcher outcomes directly without
+// allocating a vector of matches, ensuring short-circuit behaviour.
 #[derive(Debug, PartialEq, Eq)]
-enum MatchOutcome {
-    Missing,
-    Single,
-    Ambiguous,
-}
+enum MatchOutcome { Missing, Single, Ambiguous }
 
-/// Construct a `RegisteredStep` from a pattern for testing.
 #[expect(
     clippy::expect_fun_call,
     clippy::expect_used,
     reason = "test helper should panic with explicit message"
 )]
-fn make_registered_step(src: &str) -> RegisteredStep {
+fn make_step_pattern(src: &str) -> &'static StepPattern {
     let leaked: &'static str = Box::leak(src.to_string().into_boxed_str());
     let pattern: &'static StepPattern = Box::leak(Box::new(StepPattern::new(leaked)));
     pattern
         .compile()
         .expect(&format!("compile pattern '{}'", pattern.as_str()));
-    RegisteredStep {
-        keyword: StepKeyword::Given,
-        pattern,
-        crate_id: "test".into(),
-    }
+    pattern
+}
+
+fn make_defs_for(kw: StepKeyword, patterns: Vec<&str>) -> CrateDefs {
+    let mut defs = CrateDefs::default();
+    let list = defs.by_kw.entry(kw).or_default();
+    for p in patterns { list.push(make_step_pattern(p)); }
+    defs
 }
 
 /// Ensure the matcher distinguishes missing, unique, and ambiguous step definitions.
@@ -140,11 +133,10 @@ fn has_matching_step_definition_cases(
     #[case] text: &str,
     #[case] expected: MatchOutcome,
 ) {
-    let defs: Vec<RegisteredStep> = patterns.into_iter().map(make_registered_step).collect();
-    let refs: Vec<&RegisteredStep> = defs.iter().collect();
+    let defs = make_defs_for(StepKeyword::Given, patterns);
     let step = create_test_step(text);
     // Ok(None) => exactly one match; Ok(Some(_)) => missing; Err(_) => ambiguous.
-    let outcome = match has_matching_step_definition(&refs, StepKeyword::Given, &step) {
+    let outcome = match has_matching_step_definition(&defs, StepKeyword::Given, &step) {
         Ok(Some(_)) => MatchOutcome::Missing,
         Ok(None) => MatchOutcome::Single,
         Err(_) => MatchOutcome::Ambiguous,
