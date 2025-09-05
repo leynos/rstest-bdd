@@ -10,8 +10,11 @@ fn action() {}
 #[then("a result is produced")]
 fn result() {}
 
-// trybuild copies this source to a temp dir; use an explicit path back to the feature file.
+// trybuild copies this source to a temp dir without the feature file, so this path walks back to the repository; shorter relative paths fail.
 #[scenario(path = "../../../../crates/rstest-bdd-macros/tests/fixtures/basic.feature")]
 fn basic() {}
+
+// Compile-time guard: fail fast if the feature path changes.
+const _: &str = include_str!("../../../../crates/rstest-bdd-macros/tests/fixtures/basic.feature");
 
 fn main() {}
