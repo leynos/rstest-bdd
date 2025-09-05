@@ -56,7 +56,7 @@ static CURRENT_CRATE_ID: LazyLock<Box<str>> =
 /// session, including those registered by tests.
 /// Patterns are leaked into static memory because macros require `'static` lifetimes.
 /// Registration occurs during macro expansion so the total leak is bounded.
-fn register_step_impl(keyword: StepKeyword, pattern: &syn::LitStr, crate_id: &str) {
+fn register_step_impl(keyword: StepKeyword, pattern: &syn::LitStr, crate_id: Box<str>) {
     let leaked: &'static str = Box::leak(pattern.value().into_boxed_str());
     let step_pattern: &'static StepPattern = Box::leak(Box::new(StepPattern::new(leaked)));
     if let Err(e) = step_pattern.compile() {
@@ -72,8 +72,8 @@ fn register_step_impl(keyword: StepKeyword, pattern: &syn::LitStr, crate_id: &st
         reason = "lock poisoning is unrecoverable; panic with clear message"
     )]
     let mut reg = REGISTERED.lock().expect("step registry poisoned");
-    let crate_key = normalise_crate_id(crate_id);
-    let defs = reg.entry(crate_key).or_default();
+    // crate_id is already normalised
+    let defs = reg.entry(crate_id).or_default();
     defs.by_kw.entry(keyword).or_default().push(step_pattern);
 }
 
@@ -82,7 +82,7 @@ fn register_step_impl(keyword: StepKeyword, pattern: &syn::LitStr, crate_id: &st
 /// Steps are registered for the current crate.
 pub(crate) fn register_step(keyword: StepKeyword, pattern: &syn::LitStr) {
     let crate_id = current_crate_id();
-    register_step_impl(keyword, pattern, &crate_id);
+    register_step_impl(keyword, pattern, crate_id);
 }
 
 #[cfg(test)]
@@ -90,7 +90,7 @@ pub(crate) fn register_step_for_crate(keyword: StepKeyword, pattern: &str, crate
     register_step_impl(
         keyword,
         &syn::LitStr::new(pattern, proc_macro2::Span::call_site()),
-        crate_id,
+        normalise_crate_id(crate_id),
     );
 }
 
