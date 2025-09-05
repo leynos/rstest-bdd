@@ -1,10 +1,13 @@
 //! Compile-time step registration and validation.
 //!
-//! This module stores step definitions registered via `#[given]`, `#[when]`,
-//! and `#[then]` attribute macros and provides validation utilities for the
-//! `#[scenario]` macro. It ensures that every Gherkin step in a scenario has a
-//! corresponding step definition. Missing steps yield a `compile_error!` during
-//! macro expansion, preventing tests from compiling with incomplete behaviour
+//! Steps are stored per crate and keyword, enabling fast lookups without
+//! scanning unrelated definitions. In non-strict mode missing local
+//! definitions emit warnings so cross-crate steps remain usable. This module
+//! stores step definitions registered via `#[given]`, `#[when]`, and `#[then]`
+//! attribute macros and provides validation utilities for the `#[scenario]`
+//! macro. It ensures that every Gherkin step in a scenario has a corresponding
+//! step definition. Missing steps yield a `compile_error!` during macro
+//! expansion, preventing tests from compiling with incomplete behaviour
 //! coverage.
 
 use std::collections::HashMap;
@@ -15,7 +18,21 @@ use crate::parsing::feature::ParsedStep;
 use proc_macro_error::{abort, emit_warning};
 use rstest_bdd::{StepPattern, extract_placeholders};
 
-type Registry = HashMap<Box<str>, HashMap<StepKeyword, Vec<&'static StepPattern>>>;
+type Registry = HashMap<Box<str>, CrateDefs>;
+
+#[derive(Default, Clone)]
+struct CrateDefs {
+    by_kw: HashMap<StepKeyword, Vec<&'static StepPattern>>,
+}
+
+impl CrateDefs {
+    fn patterns(&self, kw: StepKeyword) -> &[&'static StepPattern] {
+        self.by_kw.get(&kw).map_or(&[], Vec::as_slice)
+    }
+    fn is_empty(&self) -> bool {
+        self.by_kw.values().all(Vec::is_empty)
+    }
+}
 
 /// Global registry of step definitions.
 ///
@@ -29,6 +46,7 @@ static REGISTERED: LazyLock<Mutex<Registry>> =
 
 /// Leak and compile a step pattern before registering.
 ///
+<<<<<<< HEAD
 /// Patterns are stored in a global static registry for the life of the
 /// process. Macros therefore require 'static lifetimes, satisfied by
 /// leaking each boxed pattern into static memory. Registration happens
@@ -36,6 +54,15 @@ static REGISTERED: LazyLock<Mutex<Registry>> =
 /// by the number of step definitions registered in the current compilation
 /// session, including those registered by tests.
 fn register_step_impl(keyword: StepKeyword, pattern: &syn::LitStr, crate_id: String) {
+||||||| parent of be5349e (Refactor step registry for crate-scoped validation)
+/// Patterns are leaked into static memory because macros require `'static` lifetimes.
+/// Registration occurs during macro expansion so the total leak is bounded.
+fn register_step_impl(keyword: StepKeyword, pattern: &syn::LitStr, crate_id: String) {
+=======
+/// Patterns are leaked into static memory because macros require `'static` lifetimes.
+/// Registration occurs during macro expansion so the total leak is bounded.
+fn register_step_impl(keyword: StepKeyword, pattern: &syn::LitStr, crate_id: &str) {
+>>>>>>> be5349e (Refactor step registry for crate-scoped validation)
     let leaked: &'static str = Box::leak(pattern.value().into_boxed_str());
     let step_pattern: &'static StepPattern = Box::leak(Box::new(StepPattern::new(leaked)));
     if let Err(e) = step_pattern.compile() {
@@ -51,18 +78,17 @@ fn register_step_impl(keyword: StepKeyword, pattern: &syn::LitStr, crate_id: Str
         reason = "lock poisoning is unrecoverable; panic with clear message"
     )]
     let mut reg = REGISTERED.lock().expect("step registry poisoned");
-    reg.entry(crate_id.into_boxed_str())
-        .or_default()
-        .entry(keyword)
-        .or_default()
-        .push(step_pattern);
+    let crate_key = normalise_crate_id(crate_id);
+    let defs = reg.entry(crate_key).or_default();
+    defs.by_kw.entry(keyword).or_default().push(step_pattern);
 }
 
 /// Record a step definition so scenarios can validate against it.
 ///
 /// Steps are registered for the current crate.
 pub(crate) fn register_step(keyword: StepKeyword, pattern: &syn::LitStr) {
-    register_step_impl(keyword, pattern, current_crate_id());
+    let crate_id = current_crate_id();
+    register_step_impl(keyword, pattern, &crate_id);
 }
 
 #[cfg(test)]
@@ -70,7 +96,7 @@ pub(crate) fn register_step_for_crate(keyword: StepKeyword, pattern: &str, crate
     register_step_impl(
         keyword,
         &syn::LitStr::new(pattern, proc_macro2::Span::call_site()),
-        crate_id.to_owned(),
+        crate_id,
     );
 }
 
@@ -91,19 +117,32 @@ pub(crate) fn validate_steps_exist(steps: &[ParsedStep], strict: bool) -> Result
     )]
     let reg = REGISTERED.lock().expect("step registry poisoned");
     let current = current_crate_id();
-    let empty: HashMap<StepKeyword, Vec<&'static StepPattern>> = HashMap::new();
-    let local_defs = reg.get(current.as_str()).unwrap_or(&empty);
+    let local_defs = reg.get(current.as_ref()).map_or_else(
+        || {
+            #[cfg(test)]
+            let _ = current.as_ref();
+            #[cfg(not(test))]
+            emit_warning!(
+                proc_macro2::Span::call_site(),
+                "Step registry does not contain definitions for crate_id '{}'. This may indicate a registry issue.",
+                current.as_ref()
+            );
+            CrateDefs::default()
+        },
+        Clone::clone,
+    );
+    drop(reg);
 
     if local_defs.is_empty() && !strict {
         return Ok(());
     }
 
-    let missing = collect_missing_steps(local_defs, steps)?;
+    let missing = collect_missing_steps(&local_defs, steps)?;
     handle_validation_result(&missing, strict)
 }
 
 fn collect_missing_steps(
-    defs: &HashMap<StepKeyword, Vec<&'static StepPattern>>,
+    defs: &CrateDefs,
     steps: &[ParsedStep],
 ) -> Result<Vec<(proc_macro2::Span, String)>, syn::Error> {
     // Resolve conjunctions (And/But) deterministically to the preceding
@@ -179,14 +218,17 @@ fn emit_non_strict_warnings(missing: &[(proc_macro2::Span, String)]) {
 }
 
 fn has_matching_step_definition(
-    defs: &HashMap<StepKeyword, Vec<&'static StepPattern>>,
+    defs: &CrateDefs,
     resolved: StepKeyword,
     step: &ParsedStep,
 ) -> Result<Option<String>, syn::Error> {
-    let patterns = defs.get(&resolved).into_iter().flatten();
+    let text = step.text.as_str();
+    let patterns = defs.patterns(resolved);
     let matches: Vec<&'static StepPattern> = patterns
+        .iter()
         .copied()
-        .filter(|p| extract_placeholders(p, step.text.as_str().into()).is_ok())
+        .filter(|p| p.regex().is_match(text))
+        .filter(|p| extract_placeholders(p, text.into()).is_ok())
         .collect();
     match matches.len() {
         0 => Ok(Some(format_missing_step_error(resolved, step, defs))),
@@ -195,24 +237,13 @@ fn has_matching_step_definition(
     }
 }
 
-fn format_missing_step_error(
-    resolved: StepKeyword,
-    step: &ParsedStep,
-    defs: &HashMap<StepKeyword, Vec<&'static StepPattern>>,
-) -> String {
-    let available_defs: Vec<&str> = defs
-        .get(&resolved)
-        .into_iter()
-        .flat_map(|v| v.iter().map(|p| p.as_str()))
-        .collect();
-    let possible_matches: Vec<&str> = defs
-        .get(&resolved)
-        .into_iter()
-        .flat_map(|v| {
-            v.iter()
-                .filter(|p| p.regex().is_match(step.text.as_str()))
-                .map(|p| p.as_str())
-        })
+fn format_missing_step_error(resolved: StepKeyword, step: &ParsedStep, defs: &CrateDefs) -> String {
+    let patterns = defs.patterns(resolved);
+    let available_defs: Vec<&str> = patterns.iter().map(|p| p.as_str()).collect();
+    let possible_matches: Vec<&str> = patterns
+        .iter()
+        .filter(|p| p.regex().is_match(step.text.as_str()))
+        .map(|p| p.as_str())
         .collect();
     build_missing_step_message(resolved, step, &available_defs, &possible_matches)
 }
@@ -220,9 +251,13 @@ fn format_missing_step_error(
 fn format_ambiguous_step_error(matches: &[&'static StepPattern], step: &ParsedStep) -> syn::Error {
     let patterns: Vec<&str> = matches.iter().map(|p| p.as_str()).collect();
     let msg = format!(
-        "Ambiguous step definition for '{}'. Matches: {}",
+        "Ambiguous step definition for '{}'.\n{}",
         step.text,
-        patterns.join(", ")
+        patterns
+            .iter()
+            .map(|p| format!("  - {p}"))
+            .collect::<Vec<_>>()
+            .join("\n")
     );
     let span = {
         #[cfg(feature = "compile-time-validation")]
@@ -290,12 +325,24 @@ fn fmt_keyword(kw: StepKeyword) -> &'static str {
     }
 }
 
-fn current_crate_id() -> String {
+fn normalise_crate_id(id: &str) -> Box<str> {
+    // Canonicalise the `OUT_DIR` component so repeated builds do not create
+    // duplicate registry entries for the same crate.
+    let (name, path) = id.split_once(':').unwrap_or((id, ""));
+    let canonical = std::path::Path::new(path)
+        .canonicalize()
+        .unwrap_or_else(|_| path.into())
+        .to_string_lossy()
+        .into_owned();
+    format!("{name}:{canonical}").into_boxed_str()
+}
+
+fn current_crate_id() -> Box<str> {
     let name = std::env::var("CARGO_CRATE_NAME")
         .or_else(|_| std::env::var("CARGO_PKG_NAME"))
         .unwrap_or_else(|_| "unknown".to_owned());
     let out_dir = std::env::var("OUT_DIR").unwrap_or_default();
-    format!("{name}:{out_dir}")
+    normalise_crate_id(&format!("{name}:{out_dir}"))
 }
 
 /// Resolve textual conjunctions ("And"/"But") to the semantic keyword of the

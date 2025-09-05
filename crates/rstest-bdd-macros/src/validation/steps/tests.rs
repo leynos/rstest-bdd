@@ -77,7 +77,7 @@ fn errors_when_step_ambiguous() {
         Ok(()) => panic!("expected ambiguous step error"),
     };
     assert!(err.contains("Ambiguous step definition"));
-    assert!(err.contains("Matches: a step"));
+    assert!(err.contains("- a step"));
     assert!(validate_steps_exist(&steps, true).is_err());
 }
 
