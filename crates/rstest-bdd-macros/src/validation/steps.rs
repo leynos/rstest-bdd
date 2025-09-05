@@ -43,26 +43,20 @@ impl CrateDefs {
 /// fast, crate-scoped lookups during validation.
 static REGISTERED: LazyLock<Mutex<Registry>> =
     LazyLock::new(|| Mutex::new(HashMap::new()));
+static CURRENT_CRATE_ID: LazyLock<Box<str>> =
+    LazyLock::new(|| normalise_crate_id(&current_crate_id_raw()));
 
 /// Leak and compile a step pattern before registering.
 ///
-<<<<<<< HEAD
 /// Patterns are stored in a global static registry for the life of the
 /// process. Macros therefore require 'static lifetimes, satisfied by
 /// leaking each boxed pattern into static memory. Registration happens
 /// during macro expansion and test initialisation, so the leak is bounded
 /// by the number of step definitions registered in the current compilation
 /// session, including those registered by tests.
-fn register_step_impl(keyword: StepKeyword, pattern: &syn::LitStr, crate_id: String) {
-||||||| parent of be5349e (Refactor step registry for crate-scoped validation)
-/// Patterns are leaked into static memory because macros require `'static` lifetimes.
-/// Registration occurs during macro expansion so the total leak is bounded.
-fn register_step_impl(keyword: StepKeyword, pattern: &syn::LitStr, crate_id: String) {
-=======
 /// Patterns are leaked into static memory because macros require `'static` lifetimes.
 /// Registration occurs during macro expansion so the total leak is bounded.
 fn register_step_impl(keyword: StepKeyword, pattern: &syn::LitStr, crate_id: &str) {
->>>>>>> be5349e (Refactor step registry for crate-scoped validation)
     let leaked: &'static str = Box::leak(pattern.value().into_boxed_str());
     let step_pattern: &'static StepPattern = Box::leak(Box::new(StepPattern::new(leaked)));
     if let Err(e) = step_pattern.compile() {
@@ -124,7 +118,7 @@ pub(crate) fn validate_steps_exist(steps: &[ParsedStep], strict: bool) -> Result
             #[cfg(not(test))]
             emit_warning!(
                 proc_macro2::Span::call_site(),
-                "Step registry does not contain definitions for crate_id '{}'. This may indicate a registry issue.",
+                "step registry has no definitions for crate ID '{}'. This may indicate a registry issue.",
                 current.as_ref()
             );
             CrateDefs::default()
@@ -325,10 +319,21 @@ fn fmt_keyword(kw: StepKeyword) -> &'static str {
     }
 }
 
+fn current_crate_id_raw() -> String {
+    let name = std::env::var("CARGO_CRATE_NAME")
+        .or_else(|_| std::env::var("CARGO_PKG_NAME"))
+        .unwrap_or_else(|_| "unknown".to_owned());
+    let out_dir = std::env::var("OUT_DIR").unwrap_or_default();
+    format!("{name}:{out_dir}")
+}
+
 fn normalise_crate_id(id: &str) -> Box<str> {
     // Canonicalise the `OUT_DIR` component so repeated builds do not create
     // duplicate registry entries for the same crate.
     let (name, path) = id.split_once(':').unwrap_or((id, ""));
+    if path.is_empty() {
+        return name.into();
+    }
     let canonical = std::path::Path::new(path)
         .canonicalize()
         .unwrap_or_else(|_| path.into())
@@ -338,11 +343,7 @@ fn normalise_crate_id(id: &str) -> Box<str> {
 }
 
 fn current_crate_id() -> Box<str> {
-    let name = std::env::var("CARGO_CRATE_NAME")
-        .or_else(|_| std::env::var("CARGO_PKG_NAME"))
-        .unwrap_or_else(|_| "unknown".to_owned());
-    let out_dir = std::env::var("OUT_DIR").unwrap_or_default();
-    normalise_crate_id(&format!("{name}:{out_dir}"))
+    CURRENT_CRATE_ID.clone()
 }
 
 /// Resolve textual conjunctions ("And"/"But") to the semantic keyword of the

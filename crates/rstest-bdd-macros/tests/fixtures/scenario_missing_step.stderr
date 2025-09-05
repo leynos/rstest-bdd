@@ -1,4 +1,4 @@
-warning: Step registry does not contain definitions for crate_id '$CRATE:'. This may indicate a registry issue.
+warning: step registry has no definitions for crate ID '$CRATE'. This may indicate a registry issue.
  --> tests/fixtures/scenario_missing_step.rs:3:1
   |
 3 | #[scenario(path = "../../../../crates/rstest-bdd-macros/tests/features/unmatched.feature")]
