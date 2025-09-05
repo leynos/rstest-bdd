@@ -542,6 +542,11 @@ pattern‑matching logic during validation, introducing a build-time dependency.
 `inventory` is employed later for runtime, cross‑crate discovery and does not
 power this compile‑time registry.
 
+Step definitions are recorded per crate and grouped by keyword, enabling direct
+lookups without scanning unrelated patterns. When the current crate has no
+registered steps, non-strict validation emits a warning and continues, so that
+definitions from other crates can satisfy the scenario.
+
 The following sequence diagram illustrates the feature-gated step registration
 and scenario validation flow:
 

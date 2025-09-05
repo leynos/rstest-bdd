@@ -1,12 +1,11 @@
+//! Tests for step validation: basic success, strict-mode errors, ambiguity and invalid patterns.
 use super::*;
 use rstest::rstest;
 use serial_test::serial;
 
+#[expect(clippy::expect_used, reason = "registry lock must panic if poisoned")]
 fn clear_registry() {
-    REGISTERED
-        .lock()
-        .unwrap_or_else(|e| panic!("step registry poisoned: {e}"))
-        .clear();
+    REGISTERED.lock().expect("step registry poisoned").clear();
 }
 
 fn registry_cleared() {
@@ -77,7 +76,10 @@ fn errors_when_step_ambiguous() {
         Ok(()) => panic!("expected ambiguous step error"),
     };
     assert!(err.contains("Ambiguous step definition"));
-    assert!(err.contains("Matches: a step"));
+    assert!(err.contains("- a step"));
+    // Count only lines that begin with the bullet, ignoring indented/reformatted lines.
+    let bullet_count = err.lines().filter(|l| l.starts_with("- a step")).count();
+    assert_eq!(bullet_count, 2, "expected two bullet matches");
     assert!(validate_steps_exist(&steps, true).is_err());
 }
 

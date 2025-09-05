@@ -1,4 +1,6 @@
-error: Ambiguous step definition for 'a step'. Matches: a step, a step
+error: Ambiguous step definition for 'a step'.
+       - a step
+       - a step
   --> tests/fixtures/scenario_ambiguous_step.rs:11:1
    |
 11 | #[scenario(path = "../../../../crates/rstest-bdd-macros/tests/features/ambiguous.feature")]
