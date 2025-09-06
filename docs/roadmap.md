@@ -235,10 +235,10 @@ experience by introducing more powerful and intuitive APIs.
       [User guide](users-guide.md#implicit-fixture-injection) ·
       [trybuild](../crates/rstest-bdd-macros/tests/ui/implicit_fixture_missing.rs)
 
-  - [ ] **Inferred Step Patterns:** Allow step definition macros (`#[given]`,
-      etc.) to be used without an explicit pattern string. The pattern will be
-      inferred from the function's name (e.g., `fn user_logs_in()` becomes
-      `"user logs in"`).
+  - [x] **Inferred Step Patterns:** Allow step definition macros (`#[given]`,
+    etc.) to be used without an explicit pattern string. The pattern will be
+    inferred from the function's name (e.g., `fn user_logs_in()` becomes "user
+    logs in"). [Users guide](users-guide.md#inferred-step-patterns)
   - [ ] **Streamlined **`Result`** Assertions:** Introduce helper macros like
     `assert_step_ok!` and `assert_step_err!` to reduce boilerplate when testing
     `Result`-returning steps.
