@@ -8,9 +8,9 @@ fn clear_registry() {
     REGISTERED.lock().expect("step registry poisoned").clear();
 }
 
-fn create_test_step(text: &str) -> ParsedStep {
+fn create_test_step(keyword: StepKeyword, text: &str) -> ParsedStep {
     ParsedStep {
-        keyword: StepKeyword::Given,
+        keyword,
         text: text.to_string(),
         docstring: None,
         table: None,
@@ -30,7 +30,7 @@ fn validates_step_patterns(#[case] pattern: &str, #[case] test_text: &str) {
         StepKeyword::Given,
         &syn::LitStr::new(pattern, proc_macro2::Span::call_site()),
     );
-    let steps = [create_test_step(test_text)];
+    let steps = [create_test_step(StepKeyword::Given, test_text)];
     assert!(validate_steps_exist(&steps, true).is_ok());
     assert!(validate_steps_exist(&steps, false).is_ok());
 }
@@ -47,27 +47,34 @@ fn validates_strict_mode_errors(
     if let Some((pattern, crate_id)) = foreign_step {
         register_step_for_crate(StepKeyword::Given, pattern, crate_id);
     }
-    let steps = [create_test_step(step_text)];
+    let steps = [create_test_step(StepKeyword::Given, step_text)];
     assert!(validate_steps_exist(&steps, true).is_err());
     assert!(validate_steps_exist(&steps, false).is_ok());
 }
 
 #[rstest]
+#[case::literal("a step", "a step", "a step")]
+#[case::placeholder("I have {item}", "I have {n:u32}", "I have 1")]
 #[serial]
-fn errors_when_step_ambiguous() {
+fn errors_when_step_ambiguous(
+    #[case] pattern_a: &str,
+    #[case] pattern_b: &str,
+    #[case] text: &str,
+) {
     clear_registry();
-    let lit = syn::LitStr::new("a step", proc_macro2::Span::call_site());
-    register_step(StepKeyword::Given, &lit);
-    register_step(StepKeyword::Given, &lit);
-    let steps = [create_test_step("a step")];
+    let lit_a = syn::LitStr::new(pattern_a, proc_macro2::Span::call_site());
+    let lit_b = syn::LitStr::new(pattern_b, proc_macro2::Span::call_site());
+    register_step(StepKeyword::Given, &lit_a);
+    register_step(StepKeyword::Given, &lit_b);
+    let steps = [create_test_step(StepKeyword::Given, text)];
     let err = match validate_steps_exist(&steps, false) {
         Err(e) => e.to_string(),
         Ok(()) => panic!("expected ambiguous step error"),
     };
     assert!(err.contains("Ambiguous step definition"));
-    assert!(err.contains("- a step"));
-    // Count only lines that begin with the bullet, ignoring indented/reformatted lines.
-    let bullet_count = err.lines().filter(|l| l.starts_with("- a step")).count();
+    assert!(err.contains(pattern_a));
+    assert!(err.contains(pattern_b));
+    let bullet_count = err.lines().filter(|l| l.starts_with("- ")).count();
     assert_eq!(bullet_count, 2, "expected two bullet matches");
     assert!(validate_steps_exist(&steps, true).is_err());
 }
@@ -84,57 +91,4 @@ fn aborts_on_invalid_step_pattern() {
         );
     });
     assert!(result.is_err());
-}
-
-// Additional unit coverage: exercise matcher outcomes directly without
-// allocating a vector of matches, ensuring short-circuit behaviour.
-#[derive(Debug, PartialEq, Eq)]
-enum MatchOutcome {
-    Missing,
-    Single,
-    Ambiguous,
-}
-
-#[expect(
-    clippy::expect_fun_call,
-    clippy::expect_used,
-    reason = "test helper should panic with explicit message"
-)]
-fn make_step_pattern(src: &str) -> &'static StepPattern {
-    let leaked: &'static str = Box::leak(src.to_string().into_boxed_str());
-    let pattern: &'static StepPattern = Box::leak(Box::new(StepPattern::new(leaked)));
-    pattern
-        .compile()
-        .expect(&format!("compile pattern '{}'", pattern.as_str()));
-    pattern
-}
-
-fn make_defs_for(kw: StepKeyword, patterns: Vec<&str>) -> CrateDefs {
-    let mut defs = CrateDefs::default();
-    let list = defs.by_kw.entry(kw).or_default();
-    for p in patterns {
-        list.push(make_step_pattern(p));
-    }
-    defs
-}
-
-/// Ensure the matcher distinguishes missing, unique, and ambiguous step definitions.
-#[rstest]
-#[case::missing(vec!["other"], "a step", MatchOutcome::Missing)]
-#[case::single(vec!["a step"], "a step", MatchOutcome::Single)]
-#[case::ambiguous(vec!["a {item}", "a step"], "a step", MatchOutcome::Ambiguous)]
-fn has_matching_step_definition_cases(
-    #[case] patterns: Vec<&str>,
-    #[case] text: &str,
-    #[case] expected: MatchOutcome,
-) {
-    let defs = make_defs_for(StepKeyword::Given, patterns);
-    let step = create_test_step(text);
-    // Ok(None) => exactly one match; Ok(Some(_)) => missing; Err(_) => ambiguous.
-    let outcome = match has_matching_step_definition(&defs, StepKeyword::Given, &step) {
-        Ok(Some(_)) => MatchOutcome::Missing,
-        Ok(None) => MatchOutcome::Single,
-        Err(_) => MatchOutcome::Ambiguous,
-    };
-    assert_eq!(outcome, expected, "unexpected outcome for text: {text}");
 }

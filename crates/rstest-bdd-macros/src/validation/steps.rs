@@ -55,7 +55,7 @@ static CURRENT_CRATE_ID: LazyLock<Box<str>> =
 /// session, including those registered by tests.
 /// Patterns are leaked into static memory because macros require `'static` lifetimes.
 /// Registration occurs during macro expansion so the total leak is bounded.
-fn register_step_impl(keyword: StepKeyword, pattern: &syn::LitStr, crate_id: Box<str>) {
+fn register_step_inner(keyword: StepKeyword, pattern: &syn::LitStr, crate_id: impl Into<String>) {
     let leaked: &'static str = Box::leak(pattern.value().into_boxed_str());
     let step_pattern: &'static StepPattern = Box::leak(Box::new(StepPattern::new(leaked)));
     if let Err(e) = step_pattern.compile() {
@@ -71,7 +71,7 @@ fn register_step_impl(keyword: StepKeyword, pattern: &syn::LitStr, crate_id: Box
         reason = "lock poisoning is unrecoverable; panic with clear message"
     )]
     let mut reg = REGISTERED.lock().expect("step registry poisoned");
-    // crate_id is already normalised
+    let crate_id = normalise_crate_id(&crate_id.into());
     let defs = reg.entry(crate_id).or_default();
     defs.by_kw.entry(keyword).or_default().push(step_pattern);
 }
@@ -80,17 +80,13 @@ fn register_step_impl(keyword: StepKeyword, pattern: &syn::LitStr, crate_id: Box
 ///
 /// Steps are registered for the current crate.
 pub(crate) fn register_step(keyword: StepKeyword, pattern: &syn::LitStr) {
-    let crate_id = current_crate_id();
-    register_step_impl(keyword, pattern, crate_id);
+    register_step_inner(keyword, pattern, current_crate_id());
 }
 
 #[cfg(test)]
-pub(crate) fn register_step_for_crate(keyword: StepKeyword, pattern: &str, crate_id: &str) {
-    register_step_impl(
-        keyword,
-        &syn::LitStr::new(pattern, proc_macro2::Span::call_site()),
-        normalise_crate_id(crate_id),
-    );
+pub(crate) fn register_step_for_crate(keyword: StepKeyword, literal: &str, crate_id: &str) {
+    let lit = syn::LitStr::new(literal, proc_macro2::Span::call_site());
+    register_step_inner(keyword, &lit, crate_id);
 }
 
 /// Ensure all parsed steps have matching definitions.
@@ -110,42 +106,33 @@ pub(crate) fn validate_steps_exist(steps: &[ParsedStep], strict: bool) -> Result
     )]
     let reg = REGISTERED.lock().expect("step registry poisoned");
     let current = current_crate_id();
-    #[expect(
-        clippy::option_if_let_else,
-        reason = "explicit branch clarifies missing-definition warning"
-    )]
-    let local_defs = if let Some(d) = reg.get(current.as_ref()) {
-        d.clone()
-    } else {
+    let defs = reg.get(current.as_ref());
+    if defs.is_none() {
         #[cfg(not(test))]
         emit_warning!(
             proc_macro2::Span::call_site(),
             "step registry has no definitions for crate ID '{}'. This may indicate a registry issue.",
             current.as_ref()
         );
-        CrateDefs::default()
-    };
-    drop(reg);
+    }
 
-    if local_defs.is_empty() && !strict {
+    if defs.is_none_or(CrateDefs::is_empty) && !strict {
         return Ok(());
     }
 
-    let missing = collect_missing_steps(&local_defs, steps)?;
-    handle_validation_result(&missing, strict)
-}
-
-fn collect_missing_steps(
-    defs: &CrateDefs,
-    steps: &[ParsedStep],
-) -> Result<Vec<(proc_macro2::Span, String)>, syn::Error> {
-    // Resolve conjunctions (And/But) deterministically to the preceding
-    // primary keyword while preserving span-aware diagnostics.
-    let resolved = resolve_keywords(steps);
-    debug_assert_eq!(resolved.len(), steps.len());
     let mut missing = Vec::new();
-    for (step, keyword) in steps.iter().zip(resolved) {
-        if let Some(msg) = has_matching_step_definition(defs, keyword, step)? {
+    for (step, kw) in steps.iter().zip(resolve_keywords(steps)) {
+        let patterns = defs.map_or(&[][..], |d| d.patterns(kw));
+        let mut first_match: Option<&'static StepPattern> = None;
+        for &pat in patterns {
+            if extract_placeholders(pat, step.text.as_str().into()).is_ok() {
+                if let Some(prev) = first_match {
+                    return Err(format_ambiguous_step_error(&[prev, pat], step));
+                }
+                first_match = Some(pat);
+            }
+        }
+        if first_match.is_none() {
             let span = {
                 #[cfg(feature = "compile-time-validation")]
                 {
@@ -156,10 +143,15 @@ fn collect_missing_steps(
                     proc_macro2::Span::call_site()
                 }
             };
+            let msg = defs.map_or_else(
+                || format_missing_step_error(kw, step, &CrateDefs::default()),
+                |d| format_missing_step_error(kw, step, d),
+            );
             missing.push((span, msg));
         }
     }
-    Ok(missing)
+    drop(reg);
+    handle_validation_result(&missing, strict)
 }
 
 fn handle_validation_result(
@@ -208,33 +200,6 @@ fn emit_non_strict_warnings(missing: &[(proc_macro2::Span, String)]) {
         } else {
             emit_warning!(*span, "rstest-bdd[non-strict]: {}", msg);
         }
-    }
-}
-
-fn has_matching_step_definition(
-    defs: &CrateDefs,
-    resolved: StepKeyword,
-    step: &ParsedStep,
-) -> Result<Option<String>, syn::Error> {
-    // Fast path without allocating a collection: track the first match
-    // and stop on discovering a second to report ambiguity immediately.
-    let text = step.text.as_str();
-    let patterns = defs.patterns(resolved);
-    let mut first_match: Option<&'static StepPattern> = None;
-    for pat in patterns.iter().copied() {
-        if extract_placeholders(pat, text.into()).is_ok() {
-            if let Some(prev) = first_match {
-                // Stop after finding a second match to avoid unnecessary
-                // iteration and allocations while preserving both patterns in
-                // the diagnostic for clarity.
-                return Err(format_ambiguous_step_error(&[prev, pat], step));
-            }
-            first_match = Some(pat);
-        }
-    }
-    match first_match {
-        Some(_) => Ok(None),
-        None => Ok(Some(format_missing_step_error(resolved, step, defs))),
     }
 }
 
