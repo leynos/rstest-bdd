@@ -784,6 +784,87 @@ classDiagram
     Step o-- StepFn
 ```
 
+#### Registry Interaction Diagrams
+
+```mermaid
+sequenceDiagram
+  autonumber
+  actor Dev as Macro User
+  participant V as validate_steps_exist
+  participant RS as Registry State
+  participant VA as Validators
+  participant D as Diagnostics
+
+  Dev->>V: validate_steps_exist(steps, strict)
+  V->>RS: validate_registry_state(defs, crate_id, strict)
+  alt Definitions present
+    V->>VA: validate_individual_steps(steps, defs)
+    loop each step
+      VA->>VA: find_step_matches(step, patterns)
+      VA->>VA: validate_single_step(step, kw, matches)
+      VA-->>D: Optional (span, message)
+    end
+    V-->>Dev: Emit per-step diagnostics (if any)
+  else No definitions
+    RS-->>D: Warning/Errors per strict mode
+    V-->>Dev: Report outcome
+  end
+```
+
+Figure: `validate_steps_exist` drives step validation and diagnostics.
+
+```mermaid
+sequenceDiagram
+  autonumber
+  participant U as Caller
+  participant RSO as register_step
+  participant RSI as register_step_inner
+  participant REG as Registry
+
+  U->>RSO: register_step(pattern, handler)
+  RSO->>RSI: register_step_inner(current_crate_id(), ...)
+  RSI->>RSI: normalise_crate_id -> Box<str>
+  RSI->>REG: Insert step pattern under crate key
+  REG-->>U: Registered
+```
+
+Figure: Step registration flows through a thin wrapper to the registry.
+
+```mermaid
+classDiagram
+    class StepKeyword
+    class StepPattern {
+        +new(pattern: &str)
+        +compile()
+        +as_str()
+    }
+    class CrateDefs {
+        +patterns(keyword: StepKeyword): &[StepPattern]
+        +is_empty()
+    }
+    class ParsedStep {
+        +text: String
+    }
+    class StepRegistry {
+        +REGISTERED: Mutex<HashMap<String, CrateDefs>>
+        +register_step_inner(keyword: StepKeyword,
+                             pattern: &syn::LitStr,
+                             crate_id: impl Into<String>)
+        +register_step(keyword: StepKeyword, pattern: &syn::LitStr)
+        +register_step_for_crate(keyword: StepKeyword,
+                                 literal: &str,
+                                 crate_id: &str)
+        +validate_steps_exist(steps: &[ParsedStep],
+                              strict: bool) -> Result<(), syn::Error>
+    }
+    StepRegistry --> CrateDefs
+    CrateDefs --> StepPattern
+    StepRegistry --> ParsedStep
+    StepRegistry --> StepKeyword
+```
+
+Figure: Core types involved in registration and validation.
+
 ### 2.4 The Macro Expansion Process: A Compile-Time to Runtime Journey
 
 The interaction between the user's code, the `rstest-bdd` macros, and the final
