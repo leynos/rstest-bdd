@@ -193,7 +193,17 @@ fn validate_single_step(
     }
 }
 
+/// Decision on whether to validate steps.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum RegistryDecision {
+    Continue,
+    Skip,
+    WarnAndSkip,
+}
+
 /// Check whether the registry holds definitions for the current crate.
+///
+/// Returns a [`RegistryDecision`] indicating whether validation should proceed.
 ///
 /// ```ignore
 /// use rstest_bdd_macros::validation::steps::{validate_registry_state, CrateDefs};
@@ -203,20 +213,24 @@ fn validate_registry_state(
     defs: Option<&CrateDefs>,
     crate_id: &str,
     strict: bool,
-) -> Result<bool, ()> {
+) -> RegistryDecision {
     #[cfg(test)]
     let _ = crate_id;
     match defs {
-        Some(d) if d.is_empty() && !strict => Ok(false),
-        Some(_) => Ok(true),
+        Some(d) if d.is_empty() && !strict => RegistryDecision::Skip,
+        Some(_) => RegistryDecision::Continue,
         None => {
-            #[cfg(not(test))]
-            emit_warning!(
-                proc_macro2::Span::call_site(),
-                "step registry has no definitions for crate ID '{}'. This may indicate a registry issue.",
-                crate_id
-            );
-            if strict { Ok(true) } else { Err(()) }
+            if strict {
+                RegistryDecision::Continue
+            } else {
+                #[cfg(not(test))]
+                emit_warning!(
+                    proc_macro2::Span::call_site(),
+                    "step registry has no definitions for crate ID '{}'. This may indicate a registry issue.",
+                    crate_id
+                );
+                RegistryDecision::WarnAndSkip
+            }
         }
     }
 }
@@ -272,8 +286,8 @@ pub(crate) fn validate_steps_exist(steps: &[ParsedStep], strict: bool) -> Result
     let current = current_crate_id();
     let defs = reg.get(current.as_ref());
     match validate_registry_state(defs, current.as_ref(), strict) {
-        Ok(true) => {}
-        Ok(false) | Err(()) => return Ok(()),
+        RegistryDecision::Continue => {}
+        RegistryDecision::Skip | RegistryDecision::WarnAndSkip => return Ok(()),
     }
     let missing = validate_individual_steps(steps, defs)?;
     drop(reg);
@@ -352,16 +366,7 @@ fn format_ambiguous_step_error(matches: &[&'static StepPattern], step: &ParsedSt
             .collect::<Vec<_>>()
             .join("\n")
     );
-    let span = {
-        #[cfg(feature = "compile-time-validation")]
-        {
-            step.span
-        }
-        #[cfg(not(feature = "compile-time-validation"))]
-        {
-            proc_macro2::Span::call_site()
-        }
-    };
+    let span = get_step_span(step);
     syn::Error::new(span, msg)
 }
 
