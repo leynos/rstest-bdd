@@ -89,6 +89,170 @@ pub(crate) fn register_step_for_crate(keyword: StepKeyword, literal: &str, crate
     register_step_inner(keyword, &lit, crate_id);
 }
 
+/// Return the diagnostic span for a step.
+///
+/// ```ignore
+/// use rstest_bdd_macros::{StepKeyword};
+/// use rstest_bdd_macros::parsing::feature::ParsedStep;
+/// use rstest_bdd_macros::validation::steps::get_step_span;
+/// let step = ParsedStep {
+///     keyword: StepKeyword::Given,
+///     text: "a step".into(),
+///     docstring: None,
+///     table: None,
+///     #[cfg(feature = "compile-time-validation")]
+///     span: proc_macro2::Span::call_site(),
+/// };
+/// let _ = get_step_span(&step);
+/// ```
+fn get_step_span(step: &ParsedStep) -> proc_macro2::Span {
+    #[cfg(feature = "compile-time-validation")]
+    {
+        step.span
+    }
+    #[cfg(not(feature = "compile-time-validation"))]
+    {
+        proc_macro2::Span::call_site()
+    }
+}
+
+/// Search patterns for matches against a step.
+///
+/// ```ignore
+/// use rstest_bdd::{StepPattern};
+/// use rstest_bdd_macros::{StepKeyword};
+/// use rstest_bdd_macros::parsing::feature::ParsedStep;
+/// use rstest_bdd_macros::validation::steps::find_step_matches;
+/// let pattern = StepPattern::new("a step");
+/// pattern.compile().unwrap();
+/// let step = ParsedStep {
+///     keyword: StepKeyword::Given,
+///     text: "a step".into(),
+///     docstring: None,
+///     table: None,
+///     #[cfg(feature = "compile-time-validation")]
+///     span: proc_macro2::Span::call_site(),
+/// };
+/// let _ = find_step_matches(&step, &[&pattern]);
+/// ```
+fn find_step_matches(
+    step: &ParsedStep,
+    patterns: &[&'static StepPattern],
+) -> Result<Option<&'static StepPattern>, Vec<&'static StepPattern>> {
+    let mut matches = Vec::new();
+    for &pat in patterns {
+        if extract_placeholders(pat, step.text.as_str().into()).is_ok() {
+            matches.push(pat);
+        }
+    }
+    match matches.len() {
+        0 => Ok(None),
+        1 => Ok(matches.pop()),
+        _ => Err(matches),
+    }
+}
+
+/// Validate a single step against registered definitions.
+///
+/// ```ignore
+/// use rstest_bdd::{StepPattern};
+/// use rstest_bdd_macros::{StepKeyword};
+/// use rstest_bdd_macros::parsing::feature::ParsedStep;
+/// use rstest_bdd_macros::validation::steps::{validate_single_step, CrateDefs};
+/// let pattern = StepPattern::new("a step");
+/// pattern.compile().unwrap();
+/// let mut defs = CrateDefs::default();
+/// defs.by_kw.entry(StepKeyword::Given).or_default().push(&pattern);
+/// let step = ParsedStep {
+///     keyword: StepKeyword::Given,
+///     text: "a step".into(),
+///     docstring: None,
+///     table: None,
+///     #[cfg(feature = "compile-time-validation")]
+///     span: proc_macro2::Span::call_site(),
+/// };
+/// let _ = validate_single_step(&step, StepKeyword::Given, Some(&defs));
+/// ```
+fn validate_single_step(
+    step: &ParsedStep,
+    kw: StepKeyword,
+    defs: Option<&CrateDefs>,
+) -> Result<Option<(proc_macro2::Span, String)>, syn::Error> {
+    let patterns = defs.map_or(&[][..], |d| d.patterns(kw));
+    match find_step_matches(step, patterns) {
+        Ok(Some(_)) => Ok(None),
+        Ok(None) => {
+            let span = get_step_span(step);
+            let msg = defs.map_or_else(
+                || format_missing_step_error(kw, step, &CrateDefs::default()),
+                |d| format_missing_step_error(kw, step, d),
+            );
+            Ok(Some((span, msg)))
+        }
+        Err(matches) => Err(format_ambiguous_step_error(&matches, step)),
+    }
+}
+
+/// Check whether the registry holds definitions for the current crate.
+///
+/// ```ignore
+/// use rstest_bdd_macros::validation::steps::{validate_registry_state, CrateDefs};
+/// let _ = validate_registry_state(Some(&CrateDefs::default()), "crate", true);
+/// ```
+fn validate_registry_state(
+    defs: Option<&CrateDefs>,
+    crate_id: &str,
+    strict: bool,
+) -> Result<bool, ()> {
+    #[cfg(test)]
+    let _ = crate_id;
+    match defs {
+        Some(d) if d.is_empty() && !strict => Ok(false),
+        Some(_) => Ok(true),
+        None => {
+            #[cfg(not(test))]
+            emit_warning!(
+                proc_macro2::Span::call_site(),
+                "step registry has no definitions for crate ID '{}'. This may indicate a registry issue.",
+                crate_id
+            );
+            if strict { Ok(true) } else { Err(()) }
+        }
+    }
+}
+
+/// Validate each step and collect missing ones.
+///
+/// ```ignore
+/// use rstest_bdd::{StepPattern};
+/// use rstest_bdd_macros::{StepKeyword};
+/// use rstest_bdd_macros::parsing::feature::ParsedStep;
+/// use rstest_bdd_macros::validation::steps::{validate_individual_steps, CrateDefs};
+/// let pattern = StepPattern::new("a step");
+/// pattern.compile().unwrap();
+/// let mut defs = CrateDefs::default();
+/// defs.by_kw.entry(StepKeyword::Given).or_default().push(&pattern);
+/// let steps = [ParsedStep {
+///     keyword: StepKeyword::Given,
+///     text: "a step".into(),
+///     docstring: None,
+///     table: None,
+///     #[cfg(feature = "compile-time-validation")]
+///     span: proc_macro2::Span::call_site(),
+/// }];
+/// let _ = validate_individual_steps(&steps, Some(&defs));
+/// ```
+fn validate_individual_steps(
+    steps: &[ParsedStep],
+    defs: Option<&CrateDefs>,
+) -> Result<Vec<(proc_macro2::Span, String)>, syn::Error> {
+    steps
+        .iter()
+        .zip(resolve_keywords(steps))
+        .map(|(step, kw)| validate_single_step(step, kw, defs))
+        .collect::<Result<Vec<_>, _>>()
+        .map(|res| res.into_iter().flatten().collect())
+}
 /// Ensure all parsed steps have matching definitions.
 ///
 /// In strict mode, missing steps cause compilation to fail. In non-strict mode,
@@ -107,49 +271,11 @@ pub(crate) fn validate_steps_exist(steps: &[ParsedStep], strict: bool) -> Result
     let reg = REGISTERED.lock().expect("step registry poisoned");
     let current = current_crate_id();
     let defs = reg.get(current.as_ref());
-    if defs.is_none() {
-        #[cfg(not(test))]
-        emit_warning!(
-            proc_macro2::Span::call_site(),
-            "step registry has no definitions for crate ID '{}'. This may indicate a registry issue.",
-            current.as_ref()
-        );
+    match validate_registry_state(defs, current.as_ref(), strict) {
+        Ok(true) => {}
+        Ok(false) | Err(()) => return Ok(()),
     }
-
-    if defs.is_none_or(CrateDefs::is_empty) && !strict {
-        return Ok(());
-    }
-
-    let mut missing = Vec::new();
-    for (step, kw) in steps.iter().zip(resolve_keywords(steps)) {
-        let patterns = defs.map_or(&[][..], |d| d.patterns(kw));
-        let mut first_match: Option<&'static StepPattern> = None;
-        for &pat in patterns {
-            if extract_placeholders(pat, step.text.as_str().into()).is_ok() {
-                if let Some(prev) = first_match {
-                    return Err(format_ambiguous_step_error(&[prev, pat], step));
-                }
-                first_match = Some(pat);
-            }
-        }
-        if first_match.is_none() {
-            let span = {
-                #[cfg(feature = "compile-time-validation")]
-                {
-                    step.span
-                }
-                #[cfg(not(feature = "compile-time-validation"))]
-                {
-                    proc_macro2::Span::call_site()
-                }
-            };
-            let msg = defs.map_or_else(
-                || format_missing_step_error(kw, step, &CrateDefs::default()),
-                |d| format_missing_step_error(kw, step, d),
-            );
-            missing.push((span, msg));
-        }
-    }
+    let missing = validate_individual_steps(steps, defs)?;
     drop(reg);
     handle_validation_result(&missing, strict)
 }
