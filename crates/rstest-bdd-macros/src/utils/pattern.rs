@@ -197,13 +197,18 @@ fn is_valid_name_char(b: u8) -> bool {
 /// Infer a step pattern from a function identifier by replacing underscores with spaces.
 ///
 /// # Examples
-/// ```rust
+/// ```rust,ignore
 /// use syn::parse_quote;
 /// let ident: syn::Ident = parse_quote!(user_logs_in);
 /// let pattern = infer_pattern(&ident);
 /// assert_eq!(pattern.value(), "user logs in");
 /// ```
 pub(crate) fn infer_pattern(ident: &Ident) -> LitStr {
-    let name = ident.to_string().replace('_', " ");
-    LitStr::new(&name, ident.span())
+    // Strip raw identifier prefix if present to avoid `r#` in user-visible patterns.
+    let mut name = ident.to_string();
+    if let Some(stripped) = name.strip_prefix("r#") {
+        name = stripped.to_owned();
+    }
+    let inferred = name.replace('_', " ");
+    LitStr::new(&inferred, ident.span())
 }

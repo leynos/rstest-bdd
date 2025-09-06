@@ -161,6 +161,13 @@ fn user_logs_in() {
 
 This reduces duplication between function names and patterns.
 
+> Note
+> Inference preserves spaces derived from underscores:
+>
+> - Leading and trailing underscores become leading or trailing spaces.
+> - Consecutive underscores become multiple spaces.
+> - Letter case is preserved.
+
 ## Binding tests to scenarios
 
 The `#[scenario]` macro is the entry point that ties a Rust test function to a

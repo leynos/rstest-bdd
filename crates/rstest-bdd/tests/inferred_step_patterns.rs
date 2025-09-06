@@ -25,6 +25,9 @@ fn consecutive__underscores() {}
 #[given]
 fn with_numbers_2() {}
 
+#[when]
+fn r#match_logs_in() {}
+
 #[test]
 fn steps_with_inferred_patterns_execute() {
     let ctx = StepContext::default();
@@ -36,6 +39,7 @@ fn steps_with_inferred_patterns_execute() {
         (StepKeyword::When, "trailing underscore "),
         (StepKeyword::Then, "consecutive  underscores"),
         (StepKeyword::Given, "with numbers 2"),
+        (StepKeyword::When, "match logs in"),
     ] {
         #[expect(clippy::expect_used, reason = "test ensures step exists")]
         let step_fn = find_step(kw, pattern.into()).expect("step not found");

@@ -447,8 +447,10 @@ macro has a distinct role in the compile-time orchestration of the BDD tests.
 
 - Argument: An optional string literal representing the Gherkin step text. If
   omitted, the pattern is inferred from the function name by replacing
-  underscores with spaces. This avoids duplicating names while keeping the
-  macros simple.
+  underscores with spaces. Inference preserves whitespace semantics: leading
+  and trailing underscores become spaces, consecutive underscores become
+  multiple spaces, and letter case is preserved. This avoids duplicating names
+  while keeping the macros simple.
 
   - Functionality: These macros have a single, critical purpose: to
     register the decorated function and its associated metadata (the pattern

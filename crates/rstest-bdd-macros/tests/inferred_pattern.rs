@@ -25,6 +25,9 @@ fn consecutive__underscores() {}
 #[given]
 fn with_numbers_2() {}
 
+#[given]
+fn r#match_logs_in() {}
+
 #[test]
 fn macros_register_inferred_steps() {
     let cases = [
@@ -35,6 +38,7 @@ fn macros_register_inferred_steps() {
         (StepKeyword::When, "trailing underscore "),
         (StepKeyword::Then, "consecutive  underscores"),
         (StepKeyword::Given, "with numbers 2"),
+        (StepKeyword::Given, "match logs in"),
     ];
 
     for (keyword, pattern) in cases {
