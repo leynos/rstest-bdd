@@ -20,7 +20,7 @@ fn trailing_underscore_() {}
 
 #[then]
 #[expect(non_snake_case, reason = "test unusual function names")]
-fn consecutive__underscores() {}
+fn Consecutive__underscores() {}
 
 #[given]
 fn with_numbers_2() {}
@@ -36,7 +36,7 @@ fn macros_register_inferred_steps() {
         (StepKeyword::Then, "result occurs"),
         (StepKeyword::Given, " leading underscore"),
         (StepKeyword::When, "trailing underscore "),
-        (StepKeyword::Then, "consecutive  underscores"),
+        (StepKeyword::Then, "Consecutive  underscores"),
         (StepKeyword::Given, "with numbers 2"),
         (StepKeyword::Given, "match logs in"),
     ];
