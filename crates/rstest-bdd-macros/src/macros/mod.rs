@@ -23,12 +23,21 @@ use crate::utils::{
 
 fn step_attr(attr: TokenStream, item: TokenStream, keyword: crate::StepKeyword) -> TokenStream {
     let mut func = syn::parse_macro_input!(item as syn::ItemFn);
-    // TokenStream discards whitespace and comments; an empty attribute
-    // means the pattern string was omitted
+    // TokenStream discards comments; a missing attribute or one containing only
+    // whitespace infers the pattern from the function name. An explicit empty
+    // string literal registers an empty pattern.
     let pattern = if attr.is_empty() {
         infer_pattern(&func.sig.ident)
     } else {
-        syn::parse_macro_input!(attr as syn::LitStr)
+        let lit = syn::parse_macro_input!(attr as syn::LitStr);
+        let value = lit.value();
+        if value.is_empty() {
+            lit
+        } else if value.trim().is_empty() {
+            infer_pattern(&func.sig.ident)
+        } else {
+            lit
+        }
     };
     #[cfg(feature = "compile-time-validation")]
     #[cfg_attr(docsrs, doc(cfg(feature = "compile-time-validation")))]

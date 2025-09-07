@@ -13,6 +13,9 @@ fn action_happens() {}
 #[when("")]
 fn explicit_empty_literal_is_respected() {}
 
+#[then(" ")]
+fn whitespace_only_attribute_is_inferred() {}
+
 #[then]
 fn result_occurs() {}
 
@@ -36,6 +39,7 @@ fn r#match_logs_in() {}
 #[case(StepKeyword::Given, "user logs in")]
 #[case(StepKeyword::When, "action happens")]
 #[case(StepKeyword::Then, "result occurs")]
+#[case(StepKeyword::Then, "whitespace only attribute is inferred")]
 #[case(StepKeyword::Given, " leading underscore")]
 #[case(StepKeyword::When, "trailing underscore ")]
 #[case(StepKeyword::Then, "Consecutive  underscores")]

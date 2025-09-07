@@ -13,6 +13,9 @@ fn user_logs_in() {}
 #[then]
 fn user_is_authenticated() {}
 
+#[then(" ")]
+fn whitespace_only_attribute_is_inferred() {}
+
 #[given]
 fn _leading_underscore() {}
 
@@ -34,6 +37,7 @@ fn r#match_logs_in() {}
 #[case(StepKeyword::Given, "user starts logged out")]
 #[case(StepKeyword::When, "user logs in")]
 #[case(StepKeyword::Then, "user is authenticated")]
+#[case(StepKeyword::Then, "whitespace only attribute is inferred")]
 #[case(StepKeyword::Given, " leading underscore")]
 #[case(StepKeyword::When, "trailing underscore ")]
 #[case(StepKeyword::Then, "Consecutive  underscores")]
