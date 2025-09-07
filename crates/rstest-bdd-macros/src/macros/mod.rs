@@ -23,6 +23,8 @@ use crate::utils::{
 
 fn step_attr(attr: TokenStream, item: TokenStream, keyword: crate::StepKeyword) -> TokenStream {
     let mut func = syn::parse_macro_input!(item as syn::ItemFn);
+    // TokenStream discards whitespace and comments; an empty attribute
+    // means the pattern string was omitted
     let pattern = if attr.is_empty() {
         infer_pattern(&func.sig.ident)
     } else {
