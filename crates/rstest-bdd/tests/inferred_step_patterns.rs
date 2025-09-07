@@ -1,5 +1,6 @@
 //! Behavioural tests for inferred step patterns.
 
+use rstest::rstest;
 use rstest_bdd::{StepContext, StepKeyword, find_step};
 use rstest_bdd_macros::{given, then, when};
 
@@ -28,23 +29,27 @@ fn with_numbers_2() {}
 #[when]
 fn r#match_logs_in() {}
 
-#[test]
-fn steps_with_inferred_patterns_execute() {
+/// Executes registered steps using inferred patterns.
+#[rstest]
+#[case(StepKeyword::Given, "user starts logged out")]
+#[case(StepKeyword::When, "user logs in")]
+#[case(StepKeyword::Then, "user is authenticated")]
+#[case(StepKeyword::Given, " leading underscore")]
+#[case(StepKeyword::When, "trailing underscore ")]
+#[case(StepKeyword::Then, "Consecutive  underscores")]
+#[case(StepKeyword::Given, "with numbers 2")]
+#[case(StepKeyword::When, "match logs in")]
+fn steps_with_inferred_patterns_execute(#[case] kw: StepKeyword, #[case] pattern: &str) {
     let ctx = StepContext::default();
-    for (kw, pattern) in [
-        (StepKeyword::Given, "user starts logged out"),
-        (StepKeyword::When, "user logs in"),
-        (StepKeyword::Then, "user is authenticated"),
-        (StepKeyword::Given, " leading underscore"),
-        (StepKeyword::When, "trailing underscore "),
-        (StepKeyword::Then, "Consecutive  underscores"),
-        (StepKeyword::Given, "with numbers 2"),
-        (StepKeyword::When, "match logs in"),
-    ] {
-        #[expect(clippy::expect_used, reason = "test ensures step exists")]
-        let step_fn = find_step(kw, pattern.into()).expect("step not found");
-        if let Err(e) = step_fn(&ctx, pattern, None, None) {
-            panic!("step failed: {e:?}");
-        }
+    #[expect(clippy::expect_used, reason = "test ensures step exists")]
+    let step_fn = find_step(kw, pattern.into()).expect("step not found");
+    if let Err(e) = step_fn(&ctx, pattern, None, None) {
+        panic!("step failed: {e:?}");
     }
+}
+
+/// Returns `None` when no step matches the pattern.
+#[test]
+fn find_step_returns_none_for_unknown_pattern() {
+    assert!(find_step(StepKeyword::When, "user signs out".into()).is_none());
 }
