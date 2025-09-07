@@ -145,6 +145,31 @@ verbatim. The `#[scenario]` macro binds the test function to the first scenario
 in the specified feature file and runs all registered steps before executing
 the body of `test_add_to_basket`.
 
+### Inferred step patterns
+
+Step macros may omit the pattern string or provide a string literal containing
+only whitespace. In either case, the macro derives a pattern from the function
+name by replacing underscores with spaces.
+
+```rust
+use rstest_bdd_macros::given;
+
+#[given]
+fn user_logs_in() {
+    // pattern "user logs in" is inferred
+}
+```
+
+This reduces duplication between function names and patterns. A literal `""`
+registers an empty pattern instead of inferring one.
+
+> Note
+> Inference preserves spaces derived from underscores:
+>
+> - Leading and trailing underscores become leading or trailing spaces.
+> - Consecutive underscores become multiple spaces.
+> - Letter case is preserved.
+
 ## Binding tests to scenarios
 
 The `#[scenario]` macro is the entry point that ties a Rust test function to a

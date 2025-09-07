@@ -445,9 +445,13 @@ macro has a distinct role in the compile-time orchestration of the BDD tests.
 - `#[given("...")]`, `#[when("...")]`, `#[then("...")]` - these macros attach to
   the step implementation functions.
 
-  - Argument: A string literal representing the Gherkin step text. This
-    string acts as a pattern and can include placeholders for argument parsing
-    (e.g., "A user has {count:usize} cucumbers").
+- Argument: An optional string literal representing the Gherkin step text. If
+  omitted or containing only whitespace, the pattern is inferred from the
+  function name by replacing underscores with spaces. A literal `""` registers
+  an empty pattern. Inference preserves whitespace semantics: leading and
+  trailing underscores become spaces, consecutive underscores become multiple
+  spaces, and letter case is preserved. This avoids duplicating names while
+  keeping the macros simple.
 
   - Functionality: These macros have a single, critical purpose: to
     register the decorated function and its associated metadata (the pattern

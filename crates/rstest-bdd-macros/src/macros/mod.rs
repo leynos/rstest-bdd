@@ -16,14 +16,32 @@ pub(crate) use then::then;
 pub(crate) use when::when;
 
 use crate::codegen::wrapper::{WrapperConfig, extract_args, generate_wrapper_code};
-use crate::utils::{errors::error_to_tokens, pattern::placeholder_names};
+use crate::utils::{
+    errors::error_to_tokens,
+    pattern::{infer_pattern, placeholder_names},
+};
 
 fn step_attr(attr: TokenStream, item: TokenStream, keyword: crate::StepKeyword) -> TokenStream {
-    let pattern = syn::parse_macro_input!(attr as syn::LitStr);
+    let mut func = syn::parse_macro_input!(item as syn::ItemFn);
+    // TokenStream discards comments; a missing attribute or one containing only
+    // whitespace infers the pattern from the function name. An explicit empty
+    // string literal registers an empty pattern.
+    let pattern = if attr.is_empty() {
+        infer_pattern(&func.sig.ident)
+    } else {
+        let lit = syn::parse_macro_input!(attr as syn::LitStr);
+        let value = lit.value();
+        if value.is_empty() {
+            lit
+        } else if value.trim().is_empty() {
+            infer_pattern(&func.sig.ident)
+        } else {
+            lit
+        }
+    };
     #[cfg(feature = "compile-time-validation")]
     #[cfg_attr(docsrs, doc(cfg(feature = "compile-time-validation")))]
     crate::validation::steps::register_step(keyword, &pattern);
-    let mut func = syn::parse_macro_input!(item as syn::ItemFn);
     let mut placeholders = match placeholder_names(&pattern.value()) {
         Ok(set) => set,
         Err(mut err) => {
