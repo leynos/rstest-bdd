@@ -329,10 +329,10 @@ fn create_strict_mode_error(missing: &[(proc_macro2::Span, String)]) -> Result<(
 
 #[cfg_attr(test, expect(unused_variables, reason = "test warnings"))]
 fn emit_non_strict_warnings(missing: &[(proc_macro2::Span, String)]) {
+    #[cfg(not(test))]
     for (span, msg) in missing {
         let loc = span.start();
         if loc.line == 0 && loc.column == 0 {
-            #[cfg(not(test))]
             emit_warning!(
                 proc_macro2::Span::call_site(),
                 "rstest-bdd[non-strict]: {}",
@@ -340,7 +340,6 @@ fn emit_non_strict_warnings(missing: &[(proc_macro2::Span, String)]) {
                 note = "location unavailable (synthetic or default span)"
             );
         } else {
-            #[cfg(not(test))]
             emit_warning!(*span, "rstest-bdd[non-strict]: {}", msg);
         }
     }
