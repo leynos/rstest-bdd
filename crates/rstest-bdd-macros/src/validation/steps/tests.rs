@@ -1,6 +1,7 @@
 //! Tests for step-definition validation: missing/single/ambiguous outcomes and registry behaviour.
 use super::*;
 use rstest::rstest;
+use rstest_bdd::StepPattern;
 use serial_test::serial;
 
 #[expect(clippy::expect_used, reason = "registry lock must panic if poisoned")]
@@ -17,6 +18,11 @@ fn create_test_step(keyword: StepKeyword, text: &str) -> ParsedStep {
         #[cfg(feature = "compile-time-validation")]
         span: proc_macro2::Span::call_site(),
     }
+}
+
+fn assert_bullet_count(err: &str, expected: usize) {
+    let bullet_count = err.lines().filter(|l| l.starts_with("- ")).count();
+    assert_eq!(bullet_count, expected, "expected {expected} bullet matches");
 }
 
 #[rstest]
@@ -74,8 +80,7 @@ fn errors_when_step_ambiguous(
     assert!(err.contains("Ambiguous step definition"));
     assert!(err.contains(pattern_a));
     assert!(err.contains(pattern_b));
-    let bullet_count = err.lines().filter(|l| l.starts_with("- ")).count();
-    assert_eq!(bullet_count, 2, "expected two bullet matches");
+    assert_bullet_count(&err, 2);
     assert!(validate_steps_exist(&steps, true).is_err());
 }
 
@@ -83,12 +88,46 @@ fn errors_when_step_ambiguous(
 #[serial]
 fn aborts_on_invalid_step_pattern() {
     clear_registry();
-    // proc-macro-error panics outside macro contexts; just assert it aborts
-    let result = std::panic::catch_unwind(|| {
+    // proc-macro-error panics outside macro contexts; assert expected message
+    let Err(err) = std::panic::catch_unwind(|| {
         register_step(
             StepKeyword::Given,
             &syn::LitStr::new("unclosed {", proc_macro2::Span::call_site()),
         );
-    });
-    assert!(result.is_err());
+    }) else {
+        panic!("expected invalid step pattern to abort");
+    };
+    let msg = err
+        .downcast_ref::<String>()
+        .map(String::as_str)
+        .or_else(|| err.downcast_ref::<&str>().copied())
+        .unwrap_or_else(|| panic!("panic payload must be a string"));
+    assert!(
+        msg.contains("proc-macro-error API cannot be used outside of `entry_point` invocation")
+    );
+
+    assert!(StepPattern::from("unclosed {").compile().is_err());
+}
+
+#[test]
+#[serial]
+fn errors_when_step_matches_three_definitions() {
+    clear_registry();
+    let lit_a = syn::LitStr::new("I have {item}", proc_macro2::Span::call_site());
+    let lit_b = syn::LitStr::new("I have {n:u32}", proc_macro2::Span::call_site());
+    let lit_c = syn::LitStr::new("I have 1", proc_macro2::Span::call_site());
+    register_step(StepKeyword::Given, &lit_a);
+    register_step(StepKeyword::Given, &lit_b);
+    register_step(StepKeyword::Given, &lit_c);
+    let steps = [create_test_step(StepKeyword::Given, "I have 1")];
+    let err = match validate_steps_exist(&steps, false) {
+        Err(e) => e.to_string(),
+        Ok(()) => panic!("expected ambiguous step error"),
+    };
+    assert!(err.contains("Ambiguous step definition"));
+    assert!(err.contains("I have {item}"));
+    assert!(err.contains("I have {n:u32}"));
+    assert!(err.contains("I have 1"));
+    assert_bullet_count(&err, 3);
+    assert!(validate_steps_exist(&steps, true).is_err());
 }
