@@ -15,7 +15,9 @@ use std::sync::{LazyLock, Mutex};
 
 use crate::StepKeyword;
 use crate::parsing::feature::ParsedStep;
-use proc_macro_error::{abort, emit_warning};
+use proc_macro_error::abort;
+#[cfg(not(test))]
+use proc_macro_error::emit_warning;
 use rstest_bdd::{StepPattern, extract_placeholders};
 
 type Registry = HashMap<Box<str>, CrateDefs>;
@@ -211,11 +213,9 @@ enum RegistryDecision {
 /// ```
 fn validate_registry_state(
     defs: Option<&CrateDefs>,
-    crate_id: &str,
+    #[cfg_attr(test, expect(unused_variables, reason = "crate ID unused in tests"))] crate_id: &str,
     strict: bool,
 ) -> RegistryDecision {
-    #[cfg(test)]
-    let _ = crate_id;
     match defs {
         Some(d) if d.is_empty() && !strict => RegistryDecision::Skip,
         Some(_) => RegistryDecision::Continue,
@@ -327,10 +327,12 @@ fn create_strict_mode_error(missing: &[(proc_macro2::Span, String)]) -> Result<(
     Err(syn::Error::new(span, msg))
 }
 
+#[cfg_attr(test, expect(unused_variables, reason = "test warnings"))]
 fn emit_non_strict_warnings(missing: &[(proc_macro2::Span, String)]) {
     for (span, msg) in missing {
         let loc = span.start();
         if loc.line == 0 && loc.column == 0 {
+            #[cfg(not(test))]
             emit_warning!(
                 proc_macro2::Span::call_site(),
                 "rstest-bdd[non-strict]: {}",
@@ -338,6 +340,7 @@ fn emit_non_strict_warnings(missing: &[(proc_macro2::Span, String)]) {
                 note = "location unavailable (synthetic or default span)"
             );
         } else {
+            #[cfg(not(test))]
             emit_warning!(*span, "rstest-bdd[non-strict]: {}", msg);
         }
     }

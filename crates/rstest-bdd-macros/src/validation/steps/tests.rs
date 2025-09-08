@@ -92,3 +92,27 @@ fn aborts_on_invalid_step_pattern() {
     });
     assert!(result.is_err());
 }
+
+#[test]
+#[serial]
+fn errors_when_step_matches_three_definitions() {
+    clear_registry();
+    let lit_a = syn::LitStr::new("I have {item}", proc_macro2::Span::call_site());
+    let lit_b = syn::LitStr::new("I have {n:u32}", proc_macro2::Span::call_site());
+    let lit_c = syn::LitStr::new("I have 1", proc_macro2::Span::call_site());
+    register_step(StepKeyword::Given, &lit_a);
+    register_step(StepKeyword::Given, &lit_b);
+    register_step(StepKeyword::Given, &lit_c);
+    let steps = [create_test_step(StepKeyword::Given, "I have 1")];
+    let err = match validate_steps_exist(&steps, false) {
+        Err(e) => e.to_string(),
+        Ok(()) => panic!("expected ambiguous step error"),
+    };
+    assert!(err.contains("Ambiguous step definition"));
+    assert!(err.contains("I have {item}"));
+    assert!(err.contains("I have {n:u32}"));
+    assert!(err.contains("I have 1"));
+    let bullet_count = err.lines().filter(|l| l.starts_with("- ")).count();
+    assert_eq!(bullet_count, 3, "expected three bullet matches");
+    assert!(validate_steps_exist(&steps, true).is_err());
+}
