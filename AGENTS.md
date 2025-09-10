@@ -159,6 +159,14 @@ project:
   }
   ```
 
+### File System Access
+
+- Use `cap-std` for all file system operations to enforce capability-based,
+  sandboxed access.
+- Use `camino` for path handling to ensure UTF-8 and cross-platform behaviour.
+- Avoid `std::fs` and `std::path::PathBuf` directly; wrap them with the
+  crates above.
+
 ### Testing
 
 - Write unit and behavioural tests for new functionality. Run both before and
