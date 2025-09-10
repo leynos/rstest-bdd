@@ -244,8 +244,7 @@ The following tooling is available in this environment:
 - `checkmake` – Linter for `Makefile`s, ensuring they follow best practices and
   conventions.
 - `srgn` – [Structural grep](https://github.com/alexpovel/srgn), searches code
-  and enables editing by syntax tree patterns (see `docs/srgn.md` for a
-  complete guide).
+  and enables editing by syntax tree patterns.
 - `difft` **(Difftastic)** – Semantic diff tool that compares code structure
   rather than just text differences.
 
