@@ -27,6 +27,63 @@ mod placeholder;
 mod registry;
 mod types;
 
+/// Assert that a [`Result`] is `Ok` and unwrap it.
+///
+/// Panics with a message including the error when the value is an `Err`.
+///
+/// # Examples
+/// ```
+/// use rstest_bdd::assert_step_ok;
+///
+/// let res: Result<(), &str> = Ok(());
+/// assert_step_ok!(res);
+/// ```
+#[macro_export]
+macro_rules! assert_step_ok {
+    ($expr:expr $(,)?) => {
+        match $expr {
+            Ok(value) => value,
+            Err(e) => panic!("step returned error: {e}"),
+        }
+    };
+}
+
+/// Assert that a [`Result`] is `Err` and unwrap the error.
+///
+/// Optionally asserts that the error's display contains a substring.
+///
+/// # Examples
+/// ```
+/// use rstest_bdd::assert_step_err;
+///
+/// let err: Result<(), &str> = Err("boom");
+/// let e = assert_step_err!(err, "boom");
+/// assert_eq!(e, "boom");
+/// ```
+#[macro_export]
+macro_rules! assert_step_err {
+    ($expr:expr $(,)?) => {
+        match $expr {
+            Ok(_) => panic!("step succeeded unexpectedly"),
+            Err(e) => e,
+        }
+    };
+    ($expr:expr, $msg:expr $(,)?) => {
+        match $expr {
+            Ok(_) => panic!("step succeeded unexpectedly"),
+            Err(e) => {
+                let display = e.to_string();
+                assert!(
+                    display.contains($msg),
+                    "error '{display}' does not contain '{msg}'",
+                    msg = $msg
+                );
+                e
+            }
+        }
+    };
+}
+
 pub use context::StepContext;
 pub use pattern::StepPattern;
 pub use placeholder::extract_placeholders;
