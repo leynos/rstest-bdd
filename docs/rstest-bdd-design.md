@@ -1547,6 +1547,18 @@ Public APIs are re‑exported from `lib.rs` so consumers continue to import from
 
 All modules use en‑GB spelling and include `//!` module‑level documentation.
 
+## Assertion helper macros
+
+To streamline tests for step functions returning `Result`, the crate exposes
+two helper macros:
+
+- `assert_step_ok!(expr)` unwraps an `Ok` value and panics with the error when
+  `expr` yields `Err`.
+- `assert_step_err!(expr, msg?)` unwraps the error and optionally checks that
+  its display contains `msg`.
+
+These macros keep test code succinct while still surfacing detailed diagnostics.
+
 ## Part 4: Internationalization and Localization Roadmap
 
 ### 4.1 Phase 1: Foundational Gherkin Internationalization (target v0.4)

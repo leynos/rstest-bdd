@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Helper macros `assert_step_ok!` and `assert_step_err!` for concise assertions
+  on `Result`-returning steps.
+
 ## [0.1.0-alpha3] - 2025-09-03
 
 ### Added

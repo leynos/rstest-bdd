@@ -371,6 +371,28 @@ added, patterns and examples may change. Meanwhile, adopting `rstest‑bdd` in
 its current form will be most effective when feature files remain simple and
 step definitions are explicit.
 
+## Assertion macros
+
+When step functions return `Result` values it is common to assert on their
+outcome. The `rstest-bdd` crate exports two helper macros to streamline these
+checks:
+
+```rust
+use rstest_bdd::{assert_step_err, assert_step_ok};
+
+let ok: Result<(), &str> = Ok(());
+assert_step_ok!(ok);
+
+let err: Result<(), &str> = Err("boom");
+let e = assert_step_err!(err, "boom");
+assert_eq!(e, "boom");
+```
+
+`assert_step_ok!` unwraps an `Ok` value and panics with the error message when
+the result is `Err`. `assert_step_err!` unwraps the error and optionally checks
+that its display contains a substring. Both macros return their unwrapped
+values, allowing further inspection when required.
+
 ## Diagnostic tooling
 
 `rstest-bdd` bundles a small helper binary exposed as the cargo subcommand
