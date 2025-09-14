@@ -31,21 +31,15 @@ mod types;
 ///
 /// Panics with a message including the error when the value is an `Err`.
 ///
+/// Note: Formatting the error in the panic message requires the error type to
+/// implement [`std::fmt::Display`].
+///
 /// # Examples
 /// ```
 /// use rstest_bdd::assert_step_ok;
 ///
 /// let res: Result<(), &str> = Ok(());
 /// assert_step_ok!(res);
-/// ```
-///
-/// Single-argument form:
-/// ```
-/// use rstest_bdd::assert_step_err;
-///
-/// let err: Result<(), &str> = Err("boom");
-/// let e = assert_step_err!(err);
-/// assert_eq!(e, "boom");
 /// ```
 #[macro_export]
 macro_rules! assert_step_ok {
@@ -95,11 +89,12 @@ macro_rules! assert_step_err {
             Ok(_) => panic!("step succeeded unexpectedly"),
             Err(e) => {
                 let __rstest_bdd_display = e.to_string();
+                let __rstest_bdd_msg: &str = $msg.as_ref();
                 assert!(
-                    __rstest_bdd_display.contains($msg),
+                    __rstest_bdd_display.contains(__rstest_bdd_msg),
                     "error '{display}' does not contain '{msg}'",
                     display = __rstest_bdd_display,
-                    msg = $msg
+                    msg = __rstest_bdd_msg
                 );
                 e
             }

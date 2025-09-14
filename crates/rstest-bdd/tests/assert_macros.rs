@@ -31,6 +31,14 @@ fn assert_step_err_unwraps_error_without_substring() {
     let e = assert_step_err!(res);
     assert_eq!(e, "boom");
 }
+
+#[test]
+fn assert_step_err_accepts_owned_string_pattern() {
+    let res: Result<(), &str> = Err("boom");
+    let pat = "boom".to_string();
+    let e = assert_step_err!(res, pat);
+    assert_eq!(e, "boom");
+}
 #[test]
 #[should_panic(expected = "does not contain")]
 fn assert_step_err_panics_when_substring_absent() {
