@@ -1029,9 +1029,12 @@ incrementally.
   which can automatically bind all scenarios within one or more feature files,
   reducing boilerplate for the user.
 
-- Increase the minimum supported Rust version to 1.75 and remove the
-  `async_trait` dependency from `World` and writer traits to simplify
-  implementations and match Cucumber v0.21.
+  - Increase the minimum supported Rust version to 1.75 and remove the
+    `async_trait` dependency from `World` and writer traits to simplify
+    implementations and match Cucumber v0.21. Set `rust-version = "1.75"` in
+    all Cargo manifests, update `rust-toolchain.toml` and CI matrices, remove
+    `async-trait` from dependencies and imports, and add a CI check that fails
+    if it reappears.
 
 - Introduce a `skip!` macro that step or hook functions can invoke to record a
   `Skipped` outcome and halt the remaining steps. The macro accepts an optional
@@ -1042,10 +1045,11 @@ incrementally.
   `fail_on_skipped` configuration flag. Scenarios bearing `@allow_skipped`
   bypass the failure check even when `fail_on_skipped` is enabled.
 
-- Propagate skipped status through the `cargo-bdd` CLI and the JSON and JUnit
-  writers. Emit a `<skipped>` child on each `<testcase>` element in JUnit
-  output and use lowercase `skipped` status strings in JSON and the CLI while
-  preserving long messages and consistent casing.
+  - Propagate skipped status through the `cargo-bdd` CLI and the JSON and JUnit
+    writers. Emit a `<skipped>` child on each `<testcase>` element in JUnit
+    output with an optional `message` attribute, and use lowercase `skipped`
+    status strings in JSON and the CLI while preserving long messages and
+    consistent casing.
 
 - Document the `skip!` macro, the `@allow_skipped` tag and the Rust 1.75
   migration with examples illustrating `fail_on_skipped` behaviour.
