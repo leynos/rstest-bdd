@@ -1029,6 +1029,29 @@ incrementally.
   which can automatically bind all scenarios within one or more feature files,
   reducing boilerplate for the user.
 
+- Increase the minimum supported Rust version to 1.75 and remove the
+  `async_trait` dependency from `World` and writer traits to simplify
+  implementations and match Cucumber v0.21.
+
+- Introduce a `skip!` macro that step or hook functions can invoke to record a
+  `Skipped` outcome and halt the remaining steps. The macro accepts an optional
+  message and integrates with the scenario orchestrator so the scenario is
+  marked as skipped rather than failed.
+
+- Extend tag filtering to recognise an `@allow.skipped` tag and provide a
+  `fail_on_skipped` configuration flag. Scenarios bearing `@allow.skipped`
+  bypass the failure check even when `fail_on_skipped` is enabled.
+
+- Propagate skipped status through the `cargo-bdd` CLI and the JSON and JUnit
+  writers, preserving long messages and using consistent status casing.
+
+- Document the `skip!` macro, the `@allow.skipped` tag and the Rust 1.75
+  migration with examples illustrating `fail_on_skipped` behaviour.
+
+Subsequent phases refine these capabilities: Phase 5 will streamline the
+macro’s syntax and add compile-time diagnostics, while Phase 6 will surface
+skip details in diagnostic tooling and IDE integrations.
+
 ### 3.2 Strengths and Weaknesses of the Proposed Architecture
 
 The proposed design has a distinct set of advantages and disadvantages rooted

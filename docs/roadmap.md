@@ -154,10 +154,28 @@ improves the developer experience.
   - [ ] Implement a single shared parser used by both macros to guarantee
     identical semantics.
 
+  - [ ] Support an `@allow.skipped` tag and add a `fail_on_skipped`
+    configuration option so skipped scenarios only fail when the flag is set
+    and the tag is absent.
+
   - [ ] Add conformance tests for precedence, associativity, and scope:
     - Valid: `@a and not (@b or @c)`
     - Invalid: `@a && @b`, `""`, `()`, `@a and`, `(@a or @b`,
       `@a or and @b`
+
+- [ ] **Rust 1.75 and Skipping Support**
+
+  - [ ] Raise the minimum supported Rust version to 1.75 and remove the
+    `async_trait` dependency from `World` and writer traits.
+
+  - [ ] Provide a `skip!` macro that records a `Skipped` outcome and
+    short-circuits remaining steps.
+
+  - [ ] Expose skipped status through `cargo-bdd` and the JSON and JUnit
+    writers, preserving long messages and using consistent status casing.
+
+  - [ ] Document the `skip!` macro, the `@allow.skipped` tag and migration
+    guidance for adopting Rust 1.75.
 
 [design §1.3.4]: ./rstest-bdd-design.md#134-filtering-scenarios-with-tags
 
@@ -242,6 +260,10 @@ experience by introducing more powerful and intuitive APIs.
   - [ ] **Streamlined **`Result`** Assertions:** Introduce helper macros like
     `assert_step_ok!` and `assert_step_err!` to reduce boilerplate when testing
     `Result`-returning steps.
+  - [ ] **Refined `skip!` Macro:** Polish the macro's syntax and emit
+    compile-time diagnostics when it is misused.
+  - [ ] **Skipped-Step Assertions:** Provide helper macros for verifying that
+    steps or scenarios were skipped as expected.
 
 - [ ] **State Management and Data Flow**
 
@@ -276,6 +298,8 @@ at improving maintainability and IDE integration.
 
   - [x] Implement a `list-duplicates` command to group duplicate definitions.
 
+  - [ ] Report skipped scenarios and their reasons.
+
 - [ ] **IDE Integration**
 
   - [ ] Investigate creating a `rust-analyzer` procedural macro server to
@@ -283,6 +307,8 @@ at improving maintainability and IDE integration.
 
   - [ ] Alternatively, develop a dedicated VS Code extension to provide this
     functionality.
+
+  - [ ] Surface skipped scenario information in IDE plug-ins.
 
 - [ ] **Advanced Hooks**
 
