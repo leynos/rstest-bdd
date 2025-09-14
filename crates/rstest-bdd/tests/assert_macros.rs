@@ -26,6 +26,22 @@ fn assert_step_err_unwraps_error() {
     assert_eq!(e, "boom");
 }
 #[test]
+fn assert_step_err_handles_custom_error_type() {
+    #[derive(Debug, PartialEq)]
+    struct CustomErr(&'static str);
+
+    impl std::fmt::Display for CustomErr {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            f.write_str(self.0)
+        }
+    }
+
+    let res: Result<(), CustomErr> = Err(CustomErr("boom"));
+    let e = assert_step_err!(res, "boom");
+    assert_eq!(e, CustomErr("boom"));
+}
+
+#[test]
 fn assert_step_err_unwraps_error_without_substring() {
     let res: Result<(), &str> = Err("boom");
     let e = assert_step_err!(res);
