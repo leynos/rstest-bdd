@@ -27,6 +27,81 @@ mod placeholder;
 mod registry;
 mod types;
 
+/// Assert that a [`Result`] is `Ok` and unwrap it.
+///
+/// Panics with a message including the error when the value is an `Err`.
+///
+/// Note: Formatting the error in the panic message requires the error type to
+/// implement [`std::fmt::Display`].
+///
+/// # Examples
+/// ```
+/// use rstest_bdd::assert_step_ok;
+///
+/// let res: Result<(), &str> = Ok(());
+/// assert_step_ok!(res);
+/// ```
+#[macro_export]
+macro_rules! assert_step_ok {
+    ($expr:expr $(,)?) => {
+        match $expr {
+            Ok(value) => value,
+            Err(e) => panic!("step returned error: {e}"),
+        }
+    };
+}
+
+/// Assert that a [`Result`] is `Err` and unwrap the error.
+///
+/// Optionally asserts that the error's display contains a substring.
+///
+/// Note: The `(expr, "substring")` form requires the error type to
+/// implement [`std::fmt::Display`] so it can be converted to a string for
+/// matching.
+///
+/// # Examples
+/// ```
+/// use rstest_bdd::assert_step_err;
+///
+/// let err: Result<(), &str> = Err("boom");
+/// let e = assert_step_err!(err, "boom");
+/// assert_eq!(e, "boom");
+/// ```
+///
+/// Single-argument form:
+/// ```
+/// use rstest_bdd::assert_step_err;
+///
+/// let err: Result<(), &str> = Err("boom");
+/// let e = assert_step_err!(err);
+/// assert_eq!(e, "boom");
+/// ```
+#[macro_export]
+macro_rules! assert_step_err {
+    ($expr:expr $(,)?) => {
+        match $expr {
+            Ok(_) => panic!("step succeeded unexpectedly"),
+            Err(e) => e,
+        }
+    };
+    ($expr:expr, $msg:expr $(,)?) => {
+        match $expr {
+            Ok(_) => panic!("step succeeded unexpectedly"),
+            Err(e) => {
+                let __rstest_bdd_display = e.to_string();
+                let __rstest_bdd_msg: &str = $msg.as_ref();
+                assert!(
+                    __rstest_bdd_display.contains(__rstest_bdd_msg),
+                    "error '{display}' does not contain '{msg}'",
+                    display = __rstest_bdd_display,
+                    msg = __rstest_bdd_msg
+                );
+                e
+            }
+        }
+    };
+}
+
 pub use context::StepContext;
 pub use pattern::StepPattern;
 pub use placeholder::extract_placeholders;

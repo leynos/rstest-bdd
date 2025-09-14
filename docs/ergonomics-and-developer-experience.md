@@ -343,19 +343,16 @@ fn test_cli_command(cli_state: CliState) {
 **Goal:** Simplify the common pattern of asserting that a step returning a
 `Result` is either `Ok` or `Err`.
 
-Proposed Design:
+Two helper macros are provided by the `rstest-bdd` crate and re-exported:
 
-Two new macros will be added to the rstest-bdd crate and re-exported.
+- `assert_step_ok!(result)`: unwraps a `Result` value, panicking with a
+  formatted message when the value is `Err(e)`.
+- `assert_step_err!(result, expected_msg)`: asserts that the `Result` is an
+  `Err` and optionally checks that the error message contains a specific
+  substring.
 
-- `assert_step_ok!(result)`: This macro will take a `Result` value. If the
-  result is `Err(e)`, it will panic with a formatted message including the
-  error `e`.
-- `assert_step_err!(result, expected_msg)`: This macro will assert that the
-  `Result` is an `Err`. It can optionally take a second argument to assert that
-  the error message contains a specific substring.
-
-These will be simple declarative macros (`macro_rules!`) defined in
-`rstest-bdd/src/lib.rs`.
+These simple declarative macros (`macro_rules!`) live in
+`crates/rstest-bdd/src/lib.rs`.
 
 ### 4.2. Step Scaffolding
 
