@@ -22,7 +22,7 @@ fn needs_value(number: &u32) {
 )]
 fn panicking_value_step(number: &u32) -> Result<(), String> {
     let _ = number;
-    panic!("boom")
+    panic!("boom happened")
 }
 
 #[test]
@@ -75,7 +75,7 @@ fn fixture_step_panic_returns_panic_error() {
         } => {
             assert_eq!(pattern, "a panicking value step");
             assert_eq!(function, "panicking_value_step");
-            assert_eq!(message, "boom");
+            assert_eq!(message, "boom happened");
         }
         other => panic!("unexpected error: {other:?}"),
     }
