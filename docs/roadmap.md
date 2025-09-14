@@ -307,6 +307,25 @@ at improving maintainability and IDE integration.
 
   - [ ] Report skipped scenarios and their reasons.
 
+    - Provide a `cargo bdd skipped --reasons` subcommand that lists each
+      skipped scenario with its file, line and message.
+
+    - Allow `cargo bdd steps --skipped` to filter the step registry for
+      definitions bypassed at runtime.
+
+    - Both commands accept `--json` and emit objects with fields `feature`,
+      `scenario`, `line`, `tags` and `reason`:
+
+      ```json
+      {
+        "feature": "path/to/file.feature",
+        "scenario": "scenario title",
+        "line": 42,
+        "tags": ["@allow_skipped"],
+        "reason": "explanatory message"
+      }
+      ```
+
 - [ ] **IDE Integration**
 
   - [ ] Investigate creating a `rust-analyzer` procedural macro server to
@@ -315,7 +334,8 @@ at improving maintainability and IDE integration.
   - [ ] Alternatively, develop a dedicated VS Code extension to provide this
     functionality.
 
-  - [ ] Surface skipped scenario information in IDE plug-ins.
+  - [ ] Surface skipped scenario information in IDE plug-ins using the JSON
+    fields `feature`, `scenario`, `line`, `tags` and `reason`.
 
 - [ ] **Advanced Hooks**
 
