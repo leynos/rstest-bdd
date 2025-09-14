@@ -38,6 +38,15 @@ mod types;
 /// let res: Result<(), &str> = Ok(());
 /// assert_step_ok!(res);
 /// ```
+///
+/// Single-argument form:
+/// ```
+/// use rstest_bdd::assert_step_err;
+///
+/// let err: Result<(), &str> = Err("boom");
+/// let e = assert_step_err!(err);
+/// assert_eq!(e, "boom");
+/// ```
 #[macro_export]
 macro_rules! assert_step_ok {
     ($expr:expr $(,)?) => {
@@ -64,6 +73,15 @@ macro_rules! assert_step_ok {
 /// let e = assert_step_err!(err, "boom");
 /// assert_eq!(e, "boom");
 /// ```
+///
+/// Single-argument form:
+/// ```
+/// use rstest_bdd::assert_step_err;
+///
+/// let err: Result<(), &str> = Err("boom");
+/// let e = assert_step_err!(err);
+/// assert_eq!(e, "boom");
+/// ```
 #[macro_export]
 macro_rules! assert_step_err {
     ($expr:expr $(,)?) => {
@@ -76,11 +94,11 @@ macro_rules! assert_step_err {
         match $expr {
             Ok(_) => panic!("step succeeded unexpectedly"),
             Err(e) => {
-                let display = e.to_string();
+                let __rstest_bdd_display = e.to_string();
                 assert!(
-                    display.contains($msg),
+                    __rstest_bdd_display.contains($msg),
                     "error '{display}' does not contain '{msg}'",
-                    display = display,
+                    display = __rstest_bdd_display,
                     msg = $msg
                 );
                 e

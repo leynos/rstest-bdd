@@ -1,6 +1,8 @@
 //! Behavioural test for fixture context injection
 
-use rstest_bdd::{StepContext, StepError, StepKeyword, assert_step_err, assert_step_ok};
+use rstest_bdd::{
+    StepContext, StepError, StepKeyword, assert_step_err, assert_step_ok, lookup_step,
+};
 use rstest_bdd_macros::given;
 
 /// Step that asserts the injected `number` fixture equals 42.
@@ -29,7 +31,7 @@ fn context_passes_fixture() {
     let number = 42u32;
     let mut ctx = StepContext::default();
     ctx.insert("number", &number);
-    let step_fn = rstest_bdd::lookup_step(StepKeyword::Given, "a value".into())
+    let step_fn = lookup_step(StepKeyword::Given, "a value".into())
         .expect("step 'a value' not found in registry");
     assert_step_ok!(step_fn(&ctx, "a value", None, None));
 }
@@ -38,7 +40,7 @@ fn context_passes_fixture() {
 #[expect(clippy::expect_used, reason = "step lookup must succeed for test")]
 fn context_missing_fixture_returns_error() {
     let ctx = StepContext::default();
-    let step_fn = rstest_bdd::lookup_step(StepKeyword::Given, "a value".into())
+    let step_fn = lookup_step(StepKeyword::Given, "a value".into())
         .expect("step 'a value' not found in registry");
     let err = assert_step_err!(step_fn(&ctx, "a value", None, None));
     let display = err.to_string();
@@ -62,7 +64,7 @@ fn fixture_step_panic_returns_panic_error() {
     let number = 1u32;
     let mut ctx = StepContext::default();
     ctx.insert("number", &number);
-    let step_fn = rstest_bdd::lookup_step(StepKeyword::Given, "a panicking value step".into())
+    let step_fn = lookup_step(StepKeyword::Given, "a panicking value step".into())
         .expect("step 'a panicking value step' not found in registry");
     let err = assert_step_err!(step_fn(&ctx, "a panicking value step", None, None), "boom");
     match err {
