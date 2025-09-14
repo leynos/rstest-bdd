@@ -52,6 +52,10 @@ macro_rules! assert_step_ok {
 ///
 /// Optionally asserts that the error's display contains a substring.
 ///
+/// Note: The `(expr, "substring")` form requires the error type to
+/// implement [`std::fmt::Display`] so it can be converted to a string for
+/// matching.
+///
 /// # Examples
 /// ```
 /// use rstest_bdd::assert_step_err;

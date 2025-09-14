@@ -24,20 +24,22 @@ fn panicking_value_step(number: &u32) -> Result<(), String> {
 }
 
 #[test]
+#[expect(clippy::expect_used, reason = "step lookup must succeed for test")]
 fn context_passes_fixture() {
     let number = 42u32;
     let mut ctx = StepContext::default();
     ctx.insert("number", &number);
     let step_fn = rstest_bdd::lookup_step(StepKeyword::Given, "a value".into())
-        .unwrap_or_else(|| panic!("step 'a value' not found in registry"));
+        .expect("step 'a value' not found in registry");
     assert_step_ok!(step_fn(&ctx, "a value", None, None));
 }
 
 #[test]
+#[expect(clippy::expect_used, reason = "step lookup must succeed for test")]
 fn context_missing_fixture_returns_error() {
     let ctx = StepContext::default();
     let step_fn = rstest_bdd::lookup_step(StepKeyword::Given, "a value".into())
-        .unwrap_or_else(|| panic!("step 'a value' not found in registry"));
+        .expect("step 'a value' not found in registry");
     let err = assert_step_err!(step_fn(&ctx, "a value", None, None));
     let display = err.to_string();
     match err {
@@ -55,12 +57,13 @@ fn context_missing_fixture_returns_error() {
 }
 
 #[test]
+#[expect(clippy::expect_used, reason = "step lookup must succeed for test")]
 fn fixture_step_panic_returns_panic_error() {
     let number = 1u32;
     let mut ctx = StepContext::default();
     ctx.insert("number", &number);
     let step_fn = rstest_bdd::lookup_step(StepKeyword::Given, "a panicking value step".into())
-        .unwrap_or_else(|| panic!("step 'a panicking value step' not found in registry"));
+        .expect("step 'a panicking value step' not found in registry");
     let err = assert_step_err!(step_fn(&ctx, "a panicking value step", None, None), "boom");
     match err {
         StepError::PanicError {

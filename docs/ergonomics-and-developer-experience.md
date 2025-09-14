@@ -352,7 +352,7 @@ Two helper macros are provided by the `rstest-bdd` crate and re-exported:
   substring.
 
 These simple declarative macros (`macro_rules!`) live in
-`rstest-bdd/src/lib.rs`.
+`crates/rstest-bdd/src/lib.rs`.
 
 ### 4.2. Step Scaffolding
 
