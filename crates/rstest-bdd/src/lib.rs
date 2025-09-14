@@ -76,6 +76,7 @@ macro_rules! assert_step_err {
                 assert!(
                     display.contains($msg),
                     "error '{display}' does not contain '{msg}'",
+                    display = display,
                     msg = $msg
                 );
                 e
