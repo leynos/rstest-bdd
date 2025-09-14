@@ -154,7 +154,7 @@ improves the developer experience.
   - [ ] Implement a single shared parser used by both macros to guarantee
     identical semantics.
 
-  - [ ] Support an `@allow.skipped` tag and add a `fail_on_skipped`
+  - [ ] Support an `@allow_skipped` tag and add a `fail_on_skipped`
     configuration option so skipped scenarios only fail when the flag is set
     and the tag is absent.
 
@@ -167,14 +167,20 @@ improves the developer experience.
 
   - [ ] Raise the minimum supported Rust version to 1.75 and remove the
     `async_trait` dependency from `World` and writer traits.
+    - [ ] Set `rust-version = "1.75"` in all Cargo manifests.
+    - [ ] Update `rust-toolchain.toml` and CI matrices to Rust 1.75.
+    - [ ] Remove `async-trait` from dependencies and code imports.
+    - [ ] Add a CI check that fails if `async-trait` reappears.
 
   - [ ] Provide a `skip!` macro that records a `Skipped` outcome and
     short-circuits remaining steps.
 
   - [ ] Expose skipped status through `cargo-bdd` and the JSON and JUnit
-    writers, preserving long messages and using consistent status casing.
+    writers. Emit a `<skipped>` child on each `<testcase>` in JUnit output and
+    use lowercase `skipped` status strings in JSON and the CLI while preserving
+    long messages and consistent casing.
 
-  - [ ] Document the `skip!` macro, the `@allow.skipped` tag and migration
+  - [ ] Document the `skip!` macro, the `@allow_skipped` tag and migration
     guidance for adopting Rust 1.75.
 
 [design §1.3.4]: ./rstest-bdd-design.md#134-filtering-scenarios-with-tags
