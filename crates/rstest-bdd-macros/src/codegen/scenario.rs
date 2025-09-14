@@ -198,23 +198,27 @@ fn generate_test_tokens(
     let path = crate::codegen::rstest_bdd_path();
     quote! {
         let steps = [#((#keyword_tokens, #values, #docstrings, #tables)),*];
-        let ctx = {
+        let mut ctx = {
             let mut ctx = #path::StepContext::default();
             #(#ctx_inserts)*
             ctx
         };
         for (index, (keyword, text, docstring, table)) in steps.iter().enumerate() {
             if let Some(f) = #path::find_step(*keyword, (*text).into()) {
-                if let Err(err) = f(&ctx, *text, *docstring, *table) {
-                    panic!(
-                        "Step failed at index {}: {} {} - {}\n(feature: {}, scenario: {})",
-                        index,
-                        keyword.as_str(),
-                        text,
-                        err,
-                        #feature_path,
-                        #scenario_name
-                    );
+                match f(&ctx, *text, *docstring, *table) {
+                    Ok(Some(val)) => ctx.insert_value(val),
+                    Ok(None) => {},
+                    Err(err) => {
+                        panic!(
+                            "Step failed at index {}: {} {} - {}\n(feature: {}, scenario: {})",
+                            index,
+                            keyword.as_str(),
+                            text,
+                            err,
+                            #feature_path,
+                            #scenario_name
+                        );
+                    }
                 }
             } else {
                 panic!(

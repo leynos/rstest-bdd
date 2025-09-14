@@ -102,6 +102,31 @@ key–value map of fixture names to type‑erased references. When a scenario ru
 the generated test inserts its arguments (the `rstest` fixtures) into the
 `StepContext` before invoking each registered step.
 
+### Step return values
+
+`#[when]` steps may return a value. The scenario runner stores this value in
+the `StepContext` keyed by its type. Subsequent `#[then]` steps requesting a
+fixture of the same type receive the returned value instead of the original
+fixture. This allows state transitions to be expressed functionally without
+mutable fixtures.
+
+```rust
+use rstest::fixture;
+use rstest_bdd_macros::{given, when, then, scenario};
+
+#[fixture]
+fn number() -> i32 { 1 }
+
+#[when("it is incremented")]
+fn increment(number: i32) -> i32 { number + 1 }
+
+#[then("the result is 2")]
+fn check(number: i32) { assert_eq!(number, 2); }
+
+#[scenario(path = "tests/features/step_return.feature")]
+fn returns_value(number: i32) { let _ = number; }
+```
+
 Example:
 
 ```rust

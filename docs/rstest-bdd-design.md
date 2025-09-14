@@ -1366,6 +1366,12 @@ the context before executing each step via the registered wrapper. This
 preserves `rstest`'s fixture injection semantics while enabling steps to share
 state.
 
+To support more functional flows, `#[when]` steps may return a value. The
+scenario runner stores any such value in the `StepContext` keyed by its
+concrete type. Subsequent `#[then]` steps requesting a fixture of that type
+receive the returned value, which replaces the original fixture if one was
+provided.
+
 ```mermaid
 sequenceDiagram
     participant TestFunction

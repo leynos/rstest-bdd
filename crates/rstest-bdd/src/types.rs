@@ -271,4 +271,4 @@ pub type StepFn = for<'a> fn(
     &str,
     Option<&str>,
     Option<&[&[&str]]>,
-) -> Result<(), crate::StepError>;
+) -> Result<Option<Box<dyn std::any::Any>>, crate::StepError>;

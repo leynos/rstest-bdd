@@ -181,9 +181,8 @@ fn step_error_scenarios(
     let ctx = StepContext::default();
     let step_fn = rstest_bdd::lookup_step(StepKeyword::Given, step_pattern.into())
         .unwrap_or_else(|| panic!("step '{step_pattern}' not found in registry"));
-    let err = match step_fn(&ctx, step_text, None, None) {
-        Ok(()) => panic!("expected error for '{step_text}'"),
-        Err(e) => e,
+    let Err(err) = step_fn(&ctx, step_text, None, None) else {
+        panic!("expected error for '{step_text}'");
     };
     assert_step_error(&err, expected_function, step_pattern, &expected_error);
 }

@@ -122,6 +122,7 @@ pub(crate) struct WrapperConfig<'a> {
     pub(crate) pattern: &'a syn::LitStr,
     pub(crate) keyword: crate::StepKeyword,
     pub(crate) call_order: &'a [CallArg],
+    pub(crate) output: &'a syn::ReturnType,
 }
 
 /// Generate declarations for fixture values.
@@ -313,7 +314,22 @@ fn collect_ordered_arguments<'a>(
         .collect()
 }
 
+fn is_result_type(ty: &syn::Type) -> bool {
+    if let syn::Type::Path(p) = ty {
+        p.path
+            .segments
+            .last()
+            .is_some_and(|s| s.ident == "Result")
+    } else {
+        false
+    }
+}
+
 /// Assemble the final wrapper function using prepared components.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "wrapper assembly requires many components"
+)]
 fn assemble_wrapper_function(
     wrapper_ident: &proc_macro2::Ident,
     pattern_ident: &proc_macro2::Ident,
@@ -327,6 +343,7 @@ fn assemble_wrapper_function(
     pattern: &syn::LitStr,
     ident: &syn::Ident,
     capture_count: usize,
+    output: &syn::ReturnType,
 ) -> TokenStream2 {
     let (declares, step_arg_parses, datatable_decl, docstring_decl) = arg_processing;
     let placeholder_err = step_error_tokens(
@@ -370,13 +387,26 @@ fn assemble_wrapper_function(
         },
     );
     let path = crate::codegen::rstest_bdd_path();
+    let call = quote! { #ident(#(#arg_idents),*) };
+    let call_expr = match output {
+        syn::ReturnType::Default => {
+            quote! { #path::IntoStepResult::into_step_result(#call) }
+        }
+        syn::ReturnType::Type(_, ty) => {
+            if is_result_type(ty) {
+                quote! { #path::IntoStepResult::into_step_result(#call.map(#path::StepValue)) }
+            } else {
+                quote! { #path::IntoStepResult::into_step_result(#path::StepValue(#call)) }
+            }
+        }
+    };
     quote! {
         fn #wrapper_ident(
             ctx: &#path::StepContext<'_>,
             text: &str,
             _docstring: Option<&str>,
             _table: Option<&[&[&str]]>,
-        ) -> Result<(), #path::StepError> {
+            ) -> Result<Option<Box<dyn std::any::Any>>, #path::StepError> {
             use std::panic::{catch_unwind, AssertUnwindSafe};
 
             let captures = #path::extract_placeholders(&#pattern_ident, text.into())
@@ -392,7 +422,7 @@ fn assemble_wrapper_function(
             #docstring_decl
 
             catch_unwind(AssertUnwindSafe(|| {
-                #path::IntoStepResult::into_step_result(#ident(#(#arg_idents),*))
+                #call_expr
             }))
                 .map_err(|e| {
                     let message = #path::panic_message(e.as_ref());
@@ -417,6 +447,7 @@ fn generate_wrapper_body(
         docstring,
         pattern,
         call_order,
+        output,
         ..
     } = *config;
 
@@ -437,6 +468,7 @@ fn generate_wrapper_body(
         pattern,
         ident,
         step_args.len(),
+        output,
     );
 
     quote! {

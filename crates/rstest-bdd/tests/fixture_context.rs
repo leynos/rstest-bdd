@@ -80,3 +80,13 @@ fn fixture_step_panic_returns_panic_error() {
         other => panic!("unexpected error: {other:?}"),
     }
 }
+
+#[test]
+fn insert_value_overrides_fixture() {
+    let number = 1u32;
+    let mut ctx = StepContext::default();
+    ctx.insert("number", &number);
+    ctx.insert_value(Box::new(5u32));
+    let retrieved: Option<&u32> = ctx.get("number");
+    assert_eq!(retrieved, Some(&5));
+}

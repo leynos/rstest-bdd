@@ -219,18 +219,21 @@ pub enum StepError {
 /// let res = err.into_step_result();
 /// assert_eq!(res.unwrap_err(), "boom");
 /// ```
+/// Wrapper for values returned from step functions.
+pub struct StepValue<T>(pub T);
+
 pub trait IntoStepResult {
     /// Convert the value into a `Result` understood by the wrapper.
     ///
     /// # Errors
     ///
     /// Returns any error produced by the step function as a `String`.
-    fn into_step_result(self) -> Result<(), String>;
+    fn into_step_result(self) -> Result<Option<Box<dyn std::any::Any>>, String>;
 }
 
 impl IntoStepResult for () {
-    fn into_step_result(self) -> Result<(), String> {
-        Ok(())
+    fn into_step_result(self) -> Result<Option<Box<dyn std::any::Any>>, String> {
+        Ok(None)
     }
 }
 
@@ -238,8 +241,29 @@ impl<E> IntoStepResult for Result<(), E>
 where
     E: std::fmt::Display,
 {
-    fn into_step_result(self) -> Result<(), String> {
-        self.map_err(|e| e.to_string())
+    fn into_step_result(self) -> Result<Option<Box<dyn std::any::Any>>, String> {
+        self.map(|()| None).map_err(|e| e.to_string())
+    }
+}
+
+impl<T> IntoStepResult for StepValue<T>
+where
+    T: std::any::Any,
+{
+    fn into_step_result(self) -> Result<Option<Box<dyn std::any::Any>>, String> {
+        Ok(Some(Box::new(self.0)))
+    }
+}
+
+impl<T, E> IntoStepResult for Result<StepValue<T>, E>
+where
+    T: std::any::Any,
+    E: std::fmt::Display,
+{
+    fn into_step_result(self) -> Result<Option<Box<dyn std::any::Any>>, String> {
+        self
+            .map(|v| Some(Box::new(v.0) as Box<dyn std::any::Any>))
+            .map_err(|e| e.to_string())
     }
 }
 
