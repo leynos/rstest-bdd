@@ -154,10 +154,35 @@ improves the developer experience.
   - [ ] Implement a single shared parser used by both macros to guarantee
     identical semantics.
 
+  - [ ] Support an `@allow_skipped` tag and add a `fail_on_skipped`
+    configuration option so skipped scenarios only fail when the flag is set
+    and the tag is absent.
+
   - [ ] Add conformance tests for precedence, associativity, and scope:
     - Valid: `@a and not (@b or @c)`
     - Invalid: `@a && @b`, `""`, `()`, `@a and`, `(@a or @b`,
       `@a or and @b`
+
+- [ ] **Rust 1.75 and Skipping Support**
+
+  - [ ] Raise the minimum supported Rust version to 1.75 and remove the
+    `async_trait` dependency from `World` and writer traits.
+    - [ ] Set `rust-version = "1.75"` in all Cargo manifests.
+    - [ ] Update `rust-toolchain.toml` and CI matrices to Rust 1.75.
+    - [ ] Remove `async-trait` from dependencies and code imports.
+    - [ ] Add a CI check that fails if `async-trait` reappears.
+
+  - [ ] Provide a `skip!` macro that records a `Skipped` outcome and
+    short-circuits remaining steps.
+
+  - [ ] Expose skipped status through `cargo-bdd` and the JSON and JUnit
+    writers. Emit a `<skipped>` child on each `<testcase>` element in JUnit
+    output with an optional `message` attribute, and use lowercase `skipped`
+    status strings in JSON and the CLI while preserving long messages and
+    consistent casing.
+
+  - [ ] Document the `skip!` macro, the `@allow_skipped` tag and migration
+    guidance for adopting Rust 1.75.
 
 [design §1.3.4]: ./rstest-bdd-design.md#134-filtering-scenarios-with-tags
 
@@ -242,6 +267,12 @@ experience by introducing more powerful and intuitive APIs.
   - [x] **Streamlined `Result` Assertions:** Introduce helper macros like
     `assert_step_ok!` and `assert_step_err!` to reduce boilerplate when testing
     `Result`-returning steps.
+  - [ ] **Refined `skip!` Macro:** Polish the macro's syntax and emit
+    compile-time diagnostics when misused. Coverage: disallow usage outside a
+    step or hook, reject calls from non-test threads, verify short-circuit
+    behaviour, and preserve the message in writer outputs.
+  - [ ] **Skipped-Step Assertions:** Provide helper macros for verifying that
+    steps or scenarios were skipped as expected.
 
 - [ ] **State Management and Data Flow**
 
@@ -276,6 +307,27 @@ at improving maintainability and IDE integration.
 
   - [x] Implement a `list-duplicates` command to group duplicate definitions.
 
+  - [ ] Report skipped scenarios and their reasons.
+
+    - Provide a `cargo bdd skipped --reasons` subcommand that lists each
+      skipped scenario with its file, line and message.
+
+    - Allow `cargo bdd steps --skipped` to filter the step registry for
+      definitions bypassed at runtime.
+
+    - Both commands accept `--json` and emit objects with fields `feature`,
+      `scenario`, `line`, `tags` and `reason`:
+
+      ```json
+      {
+        "feature": "path/to/file.feature",
+        "scenario": "scenario title",
+        "line": 42,
+        "tags": ["@allow_skipped"],
+        "reason": "explanatory message"
+      }
+      ```
+
 - [ ] **IDE Integration**
 
   - [ ] Investigate creating a `rust-analyzer` procedural macro server to
@@ -283,6 +335,9 @@ at improving maintainability and IDE integration.
 
   - [ ] Alternatively, develop a dedicated VS Code extension to provide this
     functionality.
+
+  - [ ] Surface skipped scenario information in IDE plug-ins using the JSON
+    fields `feature`, `scenario`, `line`, `tags` and `reason`.
 
 - [ ] **Advanced Hooks**
 
