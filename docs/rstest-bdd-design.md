@@ -1042,8 +1042,10 @@ incrementally.
   marked as skipped rather than failed.
 
 - Extend tag filtering to recognize an `@allow_skipped` tag and provide a
-  `fail_on_skipped` configuration flag. Scenarios bearing `@allow_skipped`
-  bypass the failure check even when `fail_on_skipped` is enabled.
+  `fail_on_skipped` setting (cargo-bdd flag: `--fail-on-skipped`, env:
+  `RSTEST_BDD_FAIL_ON_SKIPPED=1`). Precedence: CLI flag > env var > default
+  (false). Scenarios tagged `@allow_skipped` never cause a failure when
+  `fail_on_skipped` is enabled.
 
   - Propagate skipped status through the `cargo-bdd` CLI and the JSON and JUnit
     writers. Emit a `<skipped>` child on each `<testcase>` element in JUnit
