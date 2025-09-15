@@ -314,17 +314,6 @@ fn collect_ordered_arguments<'a>(
         .collect()
 }
 
-fn is_result_type(ty: &syn::Type) -> bool {
-    if let syn::Type::Path(p) = ty {
-        p.path
-            .segments
-            .last()
-            .is_some_and(|s| s.ident == "Result")
-    } else {
-        false
-    }
-}
-
 /// Assemble the final wrapper function using prepared components.
 #[expect(
     clippy::too_many_arguments,
@@ -389,15 +378,8 @@ fn assemble_wrapper_function(
     let path = crate::codegen::rstest_bdd_path();
     let call = quote! { #ident(#(#arg_idents),*) };
     let call_expr = match output {
-        syn::ReturnType::Default => {
+        syn::ReturnType::Default | syn::ReturnType::Type(_, _) => {
             quote! { #path::IntoStepResult::into_step_result(#call) }
-        }
-        syn::ReturnType::Type(_, ty) => {
-            if is_result_type(ty) {
-                quote! { #path::IntoStepResult::into_step_result(#call.map(#path::StepValue)) }
-            } else {
-                quote! { #path::IntoStepResult::into_step_result(#path::StepValue(#call)) }
-            }
         }
     };
     quote! {

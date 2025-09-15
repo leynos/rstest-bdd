@@ -90,3 +90,15 @@ fn insert_value_overrides_fixture() {
     let retrieved: Option<&u32> = ctx.get("number");
     assert_eq!(retrieved, Some(&5));
 }
+
+#[test]
+fn insert_value_ignored_when_type_not_unique() {
+    let one = 1u32;
+    let two = 2u32;
+    let mut ctx = StepContext::default();
+    ctx.insert("one", &one);
+    ctx.insert("two", &two);
+    ctx.insert_value(Box::new(5u32));
+    assert_eq!(ctx.get::<u32>("one"), Some(&1));
+    assert_eq!(ctx.get::<u32>("two"), Some(&2));
+}

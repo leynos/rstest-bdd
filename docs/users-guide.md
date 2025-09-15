@@ -105,10 +105,10 @@ the generated test inserts its arguments (the `rstest` fixtures) into the
 ### Step return values
 
 `#[when]` steps may return a value. The scenario runner stores this value in
-the `StepContext` keyed by its type. Subsequent `#[then]` steps requesting a
-fixture of the same type receive the returned value instead of the original
-fixture. This allows state transitions to be expressed functionally without
-mutable fixtures.
+the `StepContext`. If exactly one fixture has the returned type, subsequent
+`#[then]` steps requesting that fixture receive the returned value instead of
+the original fixture. This allows state transitions to be expressed
+functionally without mutable fixtures.
 
 ```rust
 use rstest::fixture;

@@ -23,32 +23,42 @@ use std::collections::HashMap;
 /// ```
 #[derive(Default)]
 pub struct StepContext<'a> {
-    pub(crate) fixtures: HashMap<&'static str, &'a dyn Any>,
-    values: HashMap<TypeId, Box<dyn Any>>,
+    pub(crate) fixtures: HashMap<&'static str, (&'a dyn Any, TypeId)>,
+    values: HashMap<&'static str, Box<dyn Any>>,
 }
 
 impl<'a> StepContext<'a> {
     /// Insert a fixture reference by name.
     pub fn insert<T: Any>(&mut self, name: &'static str, value: &'a T) {
-        self.fixtures.insert(name, value);
+        self.fixtures.insert(name, (value, TypeId::of::<T>()));
     }
 
     /// Retrieve a fixture reference by name and type.
     ///
     /// Values returned from prior `#[when]` steps override fixtures of the same
-    /// type. This enables a functional style where step return values feed into
-    /// later assertions without having to define ad-hoc fixtures.
+    /// type when that type is unique among fixtures. This enables a functional
+    /// style where step return values feed into later assertions without having
+    /// to define ad-hoc fixtures.
     #[must_use]
     pub fn get<T: Any>(&self, name: &str) -> Option<&T> {
-        if let Some(val) = self.values.get(&TypeId::of::<T>()) {
+        if let Some(val) = self.values.get(name) {
             return val.downcast_ref::<T>();
         }
-        self.fixtures.get(name)?.downcast_ref::<T>()
+        self.fixtures.get(name)?.0.downcast_ref::<T>()
     }
 
     /// Insert a value produced by a prior step.
+    /// The value overrides a fixture only if exactly one fixture has the same
+    /// type; otherwise it is ignored to avoid ambiguity.
     pub fn insert_value(&mut self, value: Box<dyn Any>) {
         let ty = value.as_ref().type_id();
-        self.values.insert(ty, value);
+        let candidates: Vec<_> = self
+            .fixtures
+            .iter()
+            .filter_map(|(&name, &(_, t))| (t == ty).then_some(name))
+            .collect();
+        if let [name] = candidates.as_slice() {
+            self.values.insert(*name, value);
+        }
     }
 }

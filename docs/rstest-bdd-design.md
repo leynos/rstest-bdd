@@ -1367,10 +1367,11 @@ preserves `rstest`'s fixture injection semantics while enabling steps to share
 state.
 
 To support more functional flows, `#[when]` steps may return a value. The
-scenario runner stores any such value in the `StepContext` keyed by its
-concrete type. Subsequent `#[then]` steps requesting a fixture of that type
-receive the returned value, which replaces the original fixture if one was
-provided.
+scenario runner stores any such value in the `StepContext`, keyed by the
+fixture name when exactly one fixture matches the returned type. Subsequent
+`#[then]` steps requesting that fixture receive the returned value, which
+replaces the original fixture if one was provided. If multiple fixtures share
+the type, the value is ignored to avoid ambiguity.
 
 ```mermaid
 sequenceDiagram
