@@ -205,20 +205,20 @@ pub enum StepError {
 
 /// Convert step function outputs into a standard result type.
 ///
-/// Step functions may return either `()` to signal success or
-/// `Result<(), E: std::fmt::Display>` for explicit failure. This trait
-/// normalises both forms into a `Result<(), String>` for wrapper
-/// processing.
+/// Step functions either produce no value (`()`, `Result<(), E>`) or a typed
+/// value (e.g., `i32`). All forms are normalised to
+/// `Result<Option<Box<dyn std::any::Any>>, String>`, where `Ok(None)` means no
+/// value was produced and `Ok(Some(..))` carries the payload for later steps.
 ///
 /// # Examples
 /// ```
 /// # use rstest_bdd::IntoStepResult;
 /// let ok: Result<(), &str> = Ok(());
-/// assert!(ok.into_step_result().is_ok());
+/// let res = ok.into_step_result();
+/// assert!(matches!(res, Ok(None)));
 ///
 /// let err: Result<(), &str> = Err("boom");
-/// let res = err.into_step_result();
-/// assert_eq!(res.unwrap_err(), "boom");
+/// assert_eq!(err.into_step_result().unwrap_err(), "boom");
 /// ```
 pub trait IntoStepResult {
     /// Convert the value into a `Result` understood by the wrapper.

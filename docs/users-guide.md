@@ -105,13 +105,16 @@ the generated test inserts its arguments (the `rstest` fixtures) into the
 ### Step return values
 
 `#[when]` steps may return a value. The scenario runner stores this value in
-the `StepContext`. If exactly one fixture has the returned type, subsequent
-`#[then]` steps requesting that fixture receive the returned value instead of
-the original fixture. This allows state transitions to be expressed
+the `StepContext`, keyed by its concrete `'static` type. If exactly one fixture
+has that type, subsequent steps requesting the fixture receive the most recent
+returned value instead of the original fixture (last write wins); otherwise the
+fixture remains untouched. This allows state transitions to be expressed
 functionally without mutable fixtures.
 
 Steps may also return `Result<T, E>`. An `Err` aborts the scenario, while an
 `Ok` value is injected as above. Type aliases to `Result` behave identically.
+Returning `()` or `Ok(())` produces no stored value, so fixtures of `()` are
+not overwritten.
 
 ```rust
 use rstest::fixture;

@@ -277,35 +277,33 @@ fn collect_ordered_arguments<'a>(
     call_order
         .iter()
         .map(|arg| match arg {
-            CallArg::Fixture(i) => {
+            CallArg::Fixture(i) =>
+            {
                 #[expect(
                     clippy::indexing_slicing,
-                    reason = "call_order indices validated during macro expansion",
+                    reason = "call_order indices validated during macro expansion"
                 )]
                 &args.fixtures[*i].pat
             }
-            CallArg::StepArg(i) => {
+            CallArg::StepArg(i) =>
+            {
                 #[expect(
                     clippy::indexing_slicing,
-                    reason = "call_order indices validated during macro expansion",
+                    reason = "call_order indices validated during macro expansion"
                 )]
                 &args.step_args[*i].pat
             }
-            CallArg::DataTable => {
-                #[expect(
-                    clippy::expect_used,
-                    reason = "variant guarantees presence",
-                )]
+            CallArg::DataTable =>
+            {
+                #[expect(clippy::expect_used, reason = "variant guarantees presence")]
                 &args
                     .datatable
                     .expect("datatable present in call_order but not configured")
                     .pat
             }
-            CallArg::DocString => {
-                #[expect(
-                    clippy::expect_used,
-                    reason = "variant guarantees presence",
-                )]
+            CallArg::DocString =>
+            {
+                #[expect(clippy::expect_used, reason = "variant guarantees presence")]
                 &args
                     .docstring
                     .expect("docstring present in call_order but not configured")
@@ -530,7 +528,7 @@ mod tests {
         #[case] expected_const: &str,
         #[case] expected_pattern: &str,
     ) {
-                #[expect(clippy::expect_used, reason = "raw identifiers are test inputs")]
+        #[expect(clippy::expect_used, reason = "raw identifiers are test inputs")]
         let ident = parse_str::<syn::Ident>(raw).expect("parse identifier");
         let (wrapper_ident, const_ident, pattern_ident) = generate_wrapper_identifiers(&ident, id);
 

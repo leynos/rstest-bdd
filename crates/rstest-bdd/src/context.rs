@@ -1,6 +1,8 @@
-//! Step execution context and fixture access.
-//! This module provides `StepContext`, a simple type-indexed store that the
-//! scenario runner uses to pass fixtures into step functions.
+//! Step execution context, fixture access, and typed return storage.
+//! `StepContext` stores named fixture references and a type-indexed map for
+//! values returned from step functions. Values must be `'static` so they can be
+//! boxed. When exactly one fixture matches a returned type, that value replaces
+//! the original fixture (last write wins); otherwise the fixture remains.
 
 use std::any::{Any, TypeId};
 use std::collections::HashMap;

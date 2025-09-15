@@ -1366,12 +1366,13 @@ the context before executing each step via the registered wrapper. This
 preserves `rstest`'s fixture injection semantics while enabling steps to share
 state.
 
-To support more functional flows, `#[when]` steps may return a value. The
-scenario runner stores any such value in the `StepContext`, keyed by the
-fixture name when exactly one fixture matches the returned type. Subsequent
-`#[then]` steps requesting that fixture receive the returned value, which
-replaces the original fixture if one was provided. If multiple fixtures share
-the type, the value is ignored to avoid ambiguity.
+To support more functional flows, steps may return a value. The scenario runner
+stores each value in the `StepContext`, keyed by its concrete `'static` type.
+When exactly one fixture matches that type, the new value overwrites the
+fixture (last write wins); otherwise the fixture remains unchanged. The binding
+is purely by type, not fixture name, and the current implementation accepts
+returns from any step kind even though the intended producer is a `#[when]`
+step.
 
 Errors return through a blanket `IntoStepResult` implementation for
 `Result<T, E>` where `E: Display`. Any type alias to `Result` uses this
