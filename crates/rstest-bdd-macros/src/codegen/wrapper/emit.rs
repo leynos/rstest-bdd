@@ -122,7 +122,6 @@ pub(crate) struct WrapperConfig<'a> {
     pub(crate) pattern: &'a syn::LitStr,
     pub(crate) keyword: crate::StepKeyword,
     pub(crate) call_order: &'a [CallArg],
-    pub(crate) output: &'a syn::ReturnType,
 }
 
 /// Generate declarations for fixture values.
@@ -278,33 +277,35 @@ fn collect_ordered_arguments<'a>(
     call_order
         .iter()
         .map(|arg| match arg {
-            CallArg::Fixture(i) =>
-            {
+            CallArg::Fixture(i) => {
                 #[expect(
                     clippy::indexing_slicing,
-                    reason = "indices validated during extraction"
+                    reason = "call_order indices validated during macro expansion",
                 )]
                 &args.fixtures[*i].pat
             }
-            CallArg::StepArg(i) =>
-            {
+            CallArg::StepArg(i) => {
                 #[expect(
                     clippy::indexing_slicing,
-                    reason = "indices validated during extraction"
+                    reason = "call_order indices validated during macro expansion",
                 )]
                 &args.step_args[*i].pat
             }
-            CallArg::DataTable =>
-            {
-                #[expect(clippy::expect_used, reason = "variant guarantees presence")]
+            CallArg::DataTable => {
+                #[expect(
+                    clippy::expect_used,
+                    reason = "variant guarantees presence",
+                )]
                 &args
                     .datatable
                     .expect("datatable present in call_order but not configured")
                     .pat
             }
-            CallArg::DocString =>
-            {
-                #[expect(clippy::expect_used, reason = "variant guarantees presence")]
+            CallArg::DocString => {
+                #[expect(
+                    clippy::expect_used,
+                    reason = "variant guarantees presence",
+                )]
                 &args
                     .docstring
                     .expect("docstring present in call_order but not configured")
@@ -315,10 +316,6 @@ fn collect_ordered_arguments<'a>(
 }
 
 /// Assemble the final wrapper function using prepared components.
-#[expect(
-    clippy::too_many_arguments,
-    reason = "wrapper assembly requires many components"
-)]
 fn assemble_wrapper_function(
     wrapper_ident: &proc_macro2::Ident,
     pattern_ident: &proc_macro2::Ident,
@@ -332,7 +329,6 @@ fn assemble_wrapper_function(
     pattern: &syn::LitStr,
     ident: &syn::Ident,
     capture_count: usize,
-    output: &syn::ReturnType,
 ) -> TokenStream2 {
     let (declares, step_arg_parses, datatable_decl, docstring_decl) = arg_processing;
     let placeholder_err = step_error_tokens(
@@ -377,11 +373,7 @@ fn assemble_wrapper_function(
     );
     let path = crate::codegen::rstest_bdd_path();
     let call = quote! { #ident(#(#arg_idents),*) };
-    let call_expr = match output {
-        syn::ReturnType::Default | syn::ReturnType::Type(_, _) => {
-            quote! { #path::IntoStepResult::into_step_result(#call) }
-        }
-    };
+    let call_expr = quote! { #path::IntoStepResult::into_step_result(#call) };
     quote! {
         fn #wrapper_ident(
             ctx: &#path::StepContext<'_>,
@@ -429,7 +421,6 @@ fn generate_wrapper_body(
         docstring,
         pattern,
         call_order,
-        output,
         ..
     } = *config;
 
@@ -450,7 +441,6 @@ fn generate_wrapper_body(
         pattern,
         ident,
         step_args.len(),
-        output,
     );
 
     quote! {
@@ -540,10 +530,7 @@ mod tests {
         #[case] expected_const: &str,
         #[case] expected_pattern: &str,
     ) {
-        #[expect(
-            clippy::expect_used,
-            reason = "tests ensure identifier parsing succeeds"
-        )]
+                #[expect(clippy::expect_used, reason = "raw identifiers are test inputs")]
         let ident = parse_str::<syn::Ident>(raw).expect("parse identifier");
         let (wrapper_ident, const_ident, pattern_ident) = generate_wrapper_identifiers(&ident, id);
 

@@ -22,6 +22,13 @@ fn non_string_panicking_step() -> Result<(), String> {
 #[given("a successful step")]
 fn successful_step() {}
 
+type StepResult<T> = Result<T, &'static str>;
+
+#[given("an alias error step")]
+fn alias_error_step() -> StepResult<()> {
+    Err("alias boom")
+}
+
 #[given("a step requiring a table")]
 #[expect(clippy::needless_pass_by_value, reason = "step consumes the table")]
 fn step_needing_table(datatable: Vec<Vec<String>>) {
@@ -105,6 +112,16 @@ fn assert_step_error(
         pattern: "a failing step".into(),
         function: "failing_step".into(),
         message: "boom".into(),
+    },
+)]
+#[case(
+    "an alias error step",
+    "an alias error step",
+    "alias_error_step",
+    StepError::ExecutionError {
+        pattern: "an alias error step".into(),
+        function: "alias_error_step".into(),
+        message: "alias boom".into(),
     },
 )]
 #[case(

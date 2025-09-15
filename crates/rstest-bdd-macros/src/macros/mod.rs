@@ -79,7 +79,6 @@ fn step_attr(attr: TokenStream, item: TokenStream, keyword: crate::StepKeyword) 
         pattern: &pattern,
         keyword,
         call_order: &args.call_order,
-        output: &func.sig.output,
     };
     let wrapper_code = generate_wrapper_code(&config);
 

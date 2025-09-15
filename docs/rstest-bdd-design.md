@@ -1373,6 +1373,11 @@ fixture name when exactly one fixture matches the returned type. Subsequent
 replaces the original fixture if one was provided. If multiple fixtures share
 the type, the value is ignored to avoid ambiguity.
 
+Errors return through a blanket `IntoStepResult` implementation for
+`Result<T, E>` where `E: Display`. Any type alias to `Result` uses this
+implementation, ensuring alias errors propagate rather than being inserted into
+the context.
+
 ```mermaid
 sequenceDiagram
     participant TestFunction

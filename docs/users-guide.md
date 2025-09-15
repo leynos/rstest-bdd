@@ -110,6 +110,9 @@ the `StepContext`. If exactly one fixture has the returned type, subsequent
 the original fixture. This allows state transitions to be expressed
 functionally without mutable fixtures.
 
+Steps may also return `Result<T, E>`. An `Err` aborts the scenario, while an
+`Ok` value is injected as above. Type aliases to `Result` behave identically.
+
 ```rust
 use rstest::fixture;
 use rstest_bdd_macros::{given, when, then, scenario};
