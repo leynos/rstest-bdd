@@ -1367,12 +1367,11 @@ preserves `rstest`'s fixture injection semantics while enabling steps to share
 state.
 
 To support more functional flows, steps may return a value. The scenario runner
-stores each value in the `StepContext`, keyed by its concrete `'static` type.
-When exactly one fixture matches that type, the new value overwrites the
-fixture (last write wins); otherwise the fixture remains unchanged. The binding
-is purely by type, not fixture name, and the current implementation accepts
-returns from any step kind even though the intended producer is a `#[when]`
-step.
+inspects the registered fixtures for matching `TypeId`s and, when exactly one
+fixture uses that type, records the override under that fixture’s name (last
+write wins). Ambiguous matches or missing fixtures leave the map untouched so
+steps cannot silently target multiple fixtures. Although `#[when]` steps are
+the intended producers, wrappers accept returns from any step kind.
 
 Errors return through a blanket `IntoStepResult` implementation for
 `Result<T, E>` where `E: Display`. Any type alias to `Result` uses this

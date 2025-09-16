@@ -206,7 +206,9 @@ fn generate_test_tokens(
         for (index, (keyword, text, docstring, table)) in steps.iter().enumerate() {
             if let Some(f) = #path::find_step(*keyword, (*text).into()) {
                 match f(&ctx, *text, *docstring, *table) {
-                    Ok(Some(val)) => ctx.insert_value(val),
+                    Ok(Some(val)) => {
+                        let _ = ctx.insert_value(val);
+                    },
                     Ok(None) => {},
                     Err(err) => {
                         panic!(

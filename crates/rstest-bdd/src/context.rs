@@ -1,8 +1,8 @@
-//! Step execution context, fixture access, and typed return storage.
-//! `StepContext` stores named fixture references and a type-indexed map for
-//! values returned from step functions. Values must be `'static` so they can be
-//! boxed. When exactly one fixture matches a returned type, that value replaces
-//! the original fixture (last write wins); otherwise the fixture remains.
+//! Step execution context, fixture access, and step return overrides.
+//! `StepContext` stores named fixture references plus a map of last-seen step
+//! results keyed by fixture name. Returned values must be `'static` so they can
+//! be boxed. When exactly one fixture matches a returned type, its name records
+//! the override (last write wins); ambiguous matches leave fixtures untouched.
 
 use std::any::{Any, TypeId};
 use std::collections::HashMap;
@@ -42,7 +42,7 @@ impl<'a> StepContext<'a> {
     /// style where step return values feed into later assertions without having
     /// to define ad-hoc fixtures.
     #[must_use]
-    pub fn get<T: Any>(&self, name: &str) -> Option<&T> {
+    pub fn get<T: Any>(&'a self, name: &str) -> Option<&'a T> {
         if let Some(val) = self.values.get(name) {
             return val.downcast_ref::<T>();
         }
@@ -52,15 +52,18 @@ impl<'a> StepContext<'a> {
     /// Insert a value produced by a prior step.
     /// The value overrides a fixture only if exactly one fixture has the same
     /// type; otherwise it is ignored to avoid ambiguity.
-    pub fn insert_value(&mut self, value: Box<dyn Any>) {
+    ///
+    /// Returns the previous override for that fixture when one existed.
+    pub fn insert_value(&mut self, value: Box<dyn Any>) -> Option<Box<dyn Any>> {
         let ty = value.as_ref().type_id();
-        let candidates: Vec<_> = self
+        let mut matches = self
             .fixtures
             .iter()
-            .filter_map(|(&name, &(_, t))| (t == ty).then_some(name))
-            .collect();
-        if let [name] = candidates.as_slice() {
-            self.values.insert(*name, value);
+            .filter_map(|(&name, &(_, t))| (t == ty).then_some(name));
+        let name = matches.next()?;
+        if matches.next().is_some() {
+            return None;
         }
+        self.values.insert(name, value)
     }
 }

@@ -104,12 +104,12 @@ the generated test inserts its arguments (the `rstest` fixtures) into the
 
 ### Step return values
 
-`#[when]` steps may return a value. The scenario runner stores this value in
-the `StepContext`, keyed by its concrete `'static` type. If exactly one fixture
-has that type, subsequent steps requesting the fixture receive the most recent
-returned value instead of the original fixture (last write wins); otherwise the
-fixture remains untouched. This allows state transitions to be expressed
-functionally without mutable fixtures.
+`#[when]` steps may return a value. The scenario runner scans the available
+fixtures for ones whose `TypeId` matches the returned value. When exactly one
+fixture uses that type, the override is recorded under that fixture’s name and
+subsequent steps receive the most recent value (last write wins). Ambiguous or
+missing matches leave fixtures untouched, keeping scenarios predictable while
+still allowing a functional style without mutable fixtures.
 
 Steps may also return `Result<T, E>`. An `Err` aborts the scenario, while an
 `Ok` value is injected as above. Type aliases to `Result` behave identically.
