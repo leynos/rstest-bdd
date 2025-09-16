@@ -1378,20 +1378,62 @@ Errors return through a blanket `IntoStepResult` implementation for
 implementation, ensuring alias errors propagate rather than being inserted into
 the context.
 
+The following diagrams illustrate how the wrapper captures step outputs and how
+later steps consume overrides from the context.
+
 ```mermaid
 sequenceDiagram
-    participant TestFunction
-    participant ScenarioMacro
-    participant StepContext
-    participant StepWrapper
-    TestFunction->>ScenarioMacro: Call generated test (with fixtures)
-    ScenarioMacro->>StepContext: Insert fixture references
-    loop For each step
-        ScenarioMacro->>StepWrapper: Call step wrapper with StepContext
-        StepWrapper->>StepContext: Retrieve fixtures by name/type
-        StepWrapper->>StepFunction: Call original step function with fixtures
+  autonumber
+  participant Test as Test Function
+  participant Scenario as Scenario Runner
+  participant Ctx as StepContext
+  participant Wrap as Step Wrapper
+  participant Step as Step Function
+
+  Test->>Scenario: run()
+  Scenario->>Ctx: build(fixtures)
+  loop For each step
+    Scenario->>Wrap: call(ctx, text, doc, table)
+    Wrap->>Step: invoke(...)
+    Step-->>Wrap: returns (any type or Result<T,E>)
+    Wrap->>Wrap: IntoStepResult::into_step_result(...)
+    alt Ok(Some(payload))
+      Wrap-->>Scenario: Ok(Some(Box<dyn Any>))
+      Scenario->>Ctx: insert_value(payload)
+    else Ok(None)
+      Wrap-->>Scenario: Ok(None)
+      Scenario->>Scenario: no context change
+    else Err(err)
+      Wrap-->>Scenario: Err(StepError)
+      Scenario->>Scenario: panic with step details
     end
+  end
 ```
+
+Figure: The wrapper forwards each return through `IntoStepResult` so aliases to
+`Result` propagate errors while successful payloads override fixtures.
+
+```mermaid
+sequenceDiagram
+  autonumber
+  participant Then as Then Step
+  participant Ctx as StepContext
+
+  Note over Ctx: fixtures: { name -> (&Any, TypeId) }<br/>values: { name -> Box<Any> }
+  Then->>Ctx: get::<T>("name")
+  alt values has "name"
+    Ctx-->>Then: &T from values
+  else not in values
+    alt fixtures[name].TypeId == TypeId::of::<T>()
+      Ctx-->>Then: &T from fixture
+    else type mismatch
+      Ctx-->>Then: None
+    end
+  end
+```
+
+Figure: When a later step requests a fixture, overrides take precedence over
+the original fixture while mismatched types yield `None`.
 
 Every wrapper function is given a unique symbol name derived from the source
 function and an atomic counter. This avoids collisions when similarly named
