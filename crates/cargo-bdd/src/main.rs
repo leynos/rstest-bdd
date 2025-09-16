@@ -1,13 +1,13 @@
 //! Command line diagnostic tooling for rstest-bdd.
 
 use std::collections::HashMap;
-use std::io::BufReader;
+use std::io::{self, BufReader, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
 use cargo_metadata::{Message, Package, PackageId, Target};
 use clap::{Parser, Subcommand};
-use eyre::{Context, Result, bail};
+use eyre::{Context, Result, bail, eyre};
 use serde::Deserialize;
 
 /// Cargo subcommand providing diagnostics for rstest-bdd.
@@ -56,10 +56,14 @@ fn list_steps<F>(filter: F) -> Result<()>
 where
     F: Fn(&Step) -> bool,
 {
+    let mut stdout = io::stdout();
     collect_steps()?
         .into_iter()
         .filter(filter)
-        .for_each(|s| print_step(&s));
+        .try_for_each(|step| write_step(&mut stdout, &step))?;
+    stdout
+        .flush()
+        .wrap_err("failed to flush step listing to stdout")?;
     Ok(())
 }
 
@@ -94,12 +98,16 @@ fn handle_duplicates() -> Result<()> {
             .or_default()
             .push(step);
     }
+    let mut stdout = io::stdout();
     for group in groups.into_values().filter(|g| g.len() > 1) {
         for step in &group {
-            print_step(step);
+            write_step(&mut stdout, step)?;
         }
-        println!("---");
+        write_group_separator(&mut stdout)?;
     }
+    stdout
+        .flush()
+        .wrap_err("failed to flush duplicate listing to stdout")?;
     Ok(())
 }
 
@@ -125,7 +133,7 @@ fn extract_test_executable(msg: &Message) -> Option<PathBuf> {
     if let Message::CompilerArtifact(artifact) = msg
         && artifact.target.kind.iter().any(|k| k == "test")
     {
-        return artifact.executable.clone().map(|p| p.into());
+        return artifact.executable.clone().map(PathBuf::from);
     }
     None
 }
@@ -205,7 +213,7 @@ fn workspace_packages<'a>(
     packages.iter().filter(move |p| workspace.contains(&p.id))
 }
 
-fn test_targets<'a>(targets: &'a [Target]) -> impl Iterator<Item = &'a Target> + 'a {
+fn test_targets(targets: &[Target]) -> impl Iterator<Item = &Target> + '_ {
     targets
         .iter()
         .filter(|t| t.kind.iter().any(|k| k == "test"))
@@ -229,7 +237,14 @@ fn build_test_target(package: &Package, target: &Target) -> Result<Vec<PathBuf>>
             target.name, package.name
         )
     })?;
-    let reader = BufReader::new(child.stdout.take().expect("stdout"));
+    let stdout = child.stdout.take().ok_or_else(|| {
+        eyre!(
+            "cargo test did not provide stdout for target {} in package {}",
+            target.name,
+            package.name
+        )
+    })?;
+    let reader = BufReader::new(stdout);
     let mut bins = Vec::new();
     for m in Message::parse_stream(reader).flatten() {
         if let Some(exe) = extract_test_executable(&m) {
@@ -244,10 +259,13 @@ fn build_test_target(package: &Package, target: &Target) -> Result<Vec<PathBuf>>
     })?;
     if !status.success() {
         // Ignore failing targets so incompatible crates do not break step discovery
-        eprintln!(
+        let mut stderr = io::stderr();
+        writeln!(
+            &mut stderr,
             "warning: cargo test failed for target {} in package {}; skipping",
             target.name, package.name
-        );
+        )
+        .wrap_err("failed to write warning to stderr")?;
         return Ok(Vec::new());
     }
     Ok(bins)
@@ -279,7 +297,7 @@ fn handle_binary_execution_failure(
     }
 }
 
-/// Print a step definition in diagnostic output.
+/// Write a formatted step definition to the supplied writer.
 ///
 /// # Examples
 ///
@@ -301,13 +319,29 @@ fn handle_binary_execution_failure(
 ///         used: false,
 ///     }
 /// };
-/// print_step(&step); // same formatting as the real type
+/// let mut buffer = Vec::new();
+/// write_step(&mut buffer, &step).unwrap();
+/// assert_eq!(
+///     String::from_utf8(buffer).unwrap(),
+///     "Given 'example' (src/example.rs:42)\n"
+/// );
 /// ```
-fn print_step(step: &Step) {
-    println!(
+fn write_step(writer: &mut dyn Write, step: &Step) -> Result<()> {
+    writeln!(
+        writer,
         "{} '{}' ({}:{})",
         step.keyword, step.pattern, step.file, step.line
-    );
+    )
+    .wrap_err_with(|| {
+        format!(
+            "failed to write step {} '{}' at {}:{}",
+            step.keyword, step.pattern, step.file, step.line
+        )
+    })
+}
+
+fn write_group_separator(writer: &mut dyn Write) -> Result<()> {
+    writeln!(writer, "---").wrap_err("failed to write duplicate separator")
 }
 
 #[cfg(test)]
