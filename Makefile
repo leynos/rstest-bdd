@@ -1,7 +1,7 @@
 .PHONY: help all clean test build release lint fmt check-fmt markdownlint nixie publish-check
 
 SHELL := bash
-APP ?= rstest-bdd
+APP ?= cargo-bdd
 CARGO ?= cargo
 BUILD_JOBS ?=
 CLIPPY_FLAGS ?= --workspace --all-targets --all-features -- -D warnings
