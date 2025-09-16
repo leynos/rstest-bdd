@@ -5,10 +5,14 @@ edition.workspace = true
 authors.workspace = true
 license.workspace = true
 description = "Diagnostic tooling for rstest-bdd"
+readme = "README.md"
 homepage.workspace = true
 repository.workspace = true
 keywords.workspace = true
 categories.workspace = true
+
+[lints]
+workspace = true
 
 [dependencies]
 clap = { version = "4.5", features = ["derive"] }
@@ -20,4 +24,3 @@ eyre.workspace = true
 
 [dev-dependencies]
 assert_cmd = "2"
-
