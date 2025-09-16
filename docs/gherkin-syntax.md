@@ -416,11 +416,12 @@ imperative style describes the mechanics of an interaction—the "how." It
 focuses on implementation details like clicking buttons, filling in text
 fields, or navigating to URLs.[^17]
 
-- **Imperative (Avoid):** `When I type "user@example.com" into the "email"
-  field and click the "submit" button` A declarative style describes the user's
+- **Imperative (Avoid):** When I type "<user@example.com>" into the "email"
+  field and click the "submit" button A declarative style describes the user's
   intent and the system's behaviour—the "what." It abstracts away the
   implementation details.[^18]
-- **Declarative (Prefer):** `When the user logs in with valid credentials`
+- **Declarative (Prefer):** When the user logs in with valid credentials
+
 The declarative approach is superior for several reasons. Imperative tests are
 brittle; a minor UI change (like renaming a button from "Submit" to "Log In")
 can break the test, even if the underlying functionality is unchanged.
@@ -430,6 +431,7 @@ modification to the Gherkin specification itself. This makes the feature file a
 true piece of "living documentation" that describes business value, not a
 fragile script of UI interactions.[^18] Building on this philosophy, several
 other rules contribute to high-quality Gherkin:
+
 - **The Cardinal Rule: One Scenario, One Behaviour:** Each scenario should test
   a single, focused business rule or use case.[^7] If a scenario contains
   multiple `When-Then` pairs, it is likely testing multiple behaviours and

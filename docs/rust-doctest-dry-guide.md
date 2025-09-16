@@ -228,8 +228,8 @@ behaviour.
 
 Beyond basic pass/fail checks, `rustdoc` provides a suite of attributes to
 control doctest behaviour with fine-grained precision. These attributes, placed
-in the header of a code block (e.g., \`\`\`\`ignore\`), allow developers to
-handle expected failures, non-executable examples, and other complex scenarios.
+in the header of a code block (e.g., \`\`\`ignore), allow developers to handle
+expected failures, non-executable examples, and other complex scenarios.
 
 ### 3.1 A Comparative Analysis of Doctest Attributes
 
