@@ -207,13 +207,7 @@ Feature: User Login
 async fn test_login_scenarios(#[future] browser: WebDriver) {}
 
 // Placeholders from the 'Examples' table are passed as typed arguments to the step functions.
-<<<<<<< HEAD
-#[when("a user enters username \"<username>\" and password \"<password>\"")]
-||||||| parent of 4aac498 (Handle placeholder edge cases)
-#[when("I enter username \"<username>\" and password \"<password>\"")]
-=======
 #[when("I enter username {username} and password {password}")]
->>>>>>> 4aac498 (Handle placeholder edge cases)
 async fn enter_credentials(
     browser: &mut WebDriver,
     username: String,
@@ -223,24 +217,8 @@ async fn enter_credentials(
     Ok(())
 }
 
-<<<<<<< HEAD
-<<<<<<< HEAD
-#[then("the message \"<message>\" is shown")]
-async fn see_message(#[from(browser)] driver: &mut WebDriver, message: String) {
-||||||| parent of 2cd8b08 (Clarify implicit fixture docs)
-#[then("I should see the message \"<message>\"")]
-async fn see_message(#[from(browser)] driver: &mut WebDriver, message: String) {
-=======
-#[then("I should see the message \"<message>\"")]
-async fn see_message(browser: &mut WebDriver, message: String) {
->>>>>>> 2cd8b08 (Clarify implicit fixture docs)
-||||||| parent of 4aac498 (Handle placeholder edge cases)
-#[then("I should see the message \"<message>\"")]
-async fn see_message(browser: &mut WebDriver, message: String) {
-=======
 #[then("I should see the message {message}")]
 async fn see_message(browser: &mut WebDriver, message: String) -> WebDriverResult<()> {
->>>>>>> 4aac498 (Handle placeholder edge cases)
     //... assert message is visible...
     Ok(())
 }
@@ -473,8 +451,9 @@ macro has a distinct role in the compile-time orchestration of the BDD tests.
   function name by replacing underscores with spaces. A literal `""` registers
   an empty pattern. Inference preserves whitespace semantics: leading and
   trailing underscores become spaces, consecutive underscores become multiple
-  spaces, and letter case is preserved. This avoids duplicating names while
-  keeping the macros simple.
+  spaces, and capitalises the first character only when it is a lowercase ASCII
+  letter. Leading spaces from underscores prevent capitalisation. This avoids
+  duplicating names while keeping the macros simple.
 
   - Functionality: These macros have a single, critical purpose: to
     register the decorated function and its associated metadata (the pattern

@@ -22,6 +22,8 @@ pub struct Step {
     pub pattern: &'static StepPattern,
     /// Function pointer executed when the step is invoked.
     pub run: StepFn,
+    /// Human-readable name of the original step function.
+    pub name: &'static str,
     /// Names of fixtures this step requires.
     pub fixtures: &'static [&'static str],
     /// Source file where the step is defined.
@@ -33,13 +35,14 @@ pub struct Step {
 /// Register a step definition with the global registry.
 #[macro_export]
 macro_rules! step {
-    (@pattern $keyword:expr, $pattern:expr, $handler:path, $fixtures:expr) => {
+    (@pattern $keyword:expr, $pattern:expr, $handler:path, $fixtures:expr, $name:expr) => {
         const _: () = {
             $crate::submit! {
                 $crate::Step {
                     keyword: $keyword,
                     pattern: $pattern,
                     run: $handler,
+                    name: $name,
                     fixtures: $fixtures,
                     file: file!(),
                     line: line!(),
@@ -48,10 +51,14 @@ macro_rules! step {
         };
     };
 
+    (@pattern $keyword:expr, $pattern:expr, $handler:path, $fixtures:expr) => {
+        $crate::step!(@pattern $keyword, $pattern, $handler, $fixtures, stringify!($handler));
+    };
+
     ($keyword:expr, $pattern:expr, $handler:path, $fixtures:expr) => {
         const _: () = {
             static PATTERN: $crate::StepPattern = $crate::StepPattern::new($pattern);
-    $crate::step!(@pattern $keyword, &PATTERN, $handler, $fixtures);
+            $crate::step!(@pattern $keyword, &PATTERN, $handler, $fixtures, stringify!($handler));
         };
     };
 }
@@ -169,6 +176,7 @@ pub fn duplicate_steps() -> Vec<Vec<&'static Step>> {
 struct DumpedStep {
     keyword: &'static str,
     pattern: &'static str,
+    function: &'static str,
     file: &'static str,
     line: u32,
     used: bool,
@@ -202,6 +210,7 @@ pub fn dump_registry() -> serde_json::Result<String> {
         .map(|s| DumpedStep {
             keyword: s.keyword.as_str(),
             pattern: s.pattern.as_str(),
+            function: s.name,
             file: s.file,
             line: s.line,
             used: used.contains(&(s.keyword, s.pattern)),

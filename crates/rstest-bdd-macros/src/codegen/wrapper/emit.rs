@@ -464,12 +464,13 @@ fn generate_registration_code(
         .collect();
     let fixture_len = fixture_names.len();
     let keyword = config.keyword;
+    let ident = config.ident;
     let path = crate::codegen::rstest_bdd_path();
     quote! {
         const #const_ident: [&'static str; #fixture_len] = [#(#fixture_names),*];
         const _: [(); #fixture_len] = [(); #const_ident.len()];
 
-        #path::step!(@pattern #keyword, &#pattern_ident, #wrapper_ident, &#const_ident);
+        #path::step!(@pattern #keyword, &#pattern_ident, #wrapper_ident, &#const_ident, stringify!(#ident));
     }
 }
 

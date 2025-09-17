@@ -1,3 +1,4 @@
+#![expect(non_ascii_idents, reason = "test Unicode identifiers")]
 //! Tests for inferring step patterns from function names.
 
 use rstest::rstest;
@@ -9,6 +10,9 @@ fn user_logs_in() {}
 
 #[when]
 fn action_happens() {}
+
+#[when]
+fn i_add_the_following_tasks() {}
 
 #[when("")]
 fn explicit_empty_literal_is_respected() {}
@@ -35,16 +39,21 @@ fn with_numbers_2() {}
 #[given]
 fn r#match_logs_in() {}
 
+#[given]
+fn überraschung() {}
+
 #[rstest]
-#[case(StepKeyword::Given, "user logs in")]
-#[case(StepKeyword::When, "action happens")]
-#[case(StepKeyword::Then, "result occurs")]
-#[case(StepKeyword::Then, "whitespace only attribute is inferred")]
+#[case(StepKeyword::Given, "User logs in")]
+#[case(StepKeyword::When, "Action happens")]
+#[case(StepKeyword::Then, "Result occurs")]
+#[case(StepKeyword::Then, "Whitespace only attribute is inferred")]
 #[case(StepKeyword::Given, " leading underscore")]
-#[case(StepKeyword::When, "trailing underscore ")]
+#[case(StepKeyword::When, "Trailing underscore ")]
 #[case(StepKeyword::Then, "Consecutive  underscores")]
-#[case(StepKeyword::Given, "with numbers 2")]
-#[case(StepKeyword::Given, "match logs in")]
+#[case(StepKeyword::Given, "With numbers 2")]
+#[case(StepKeyword::Given, "Match logs in")]
+#[case(StepKeyword::Given, "überraschung")]
+#[case(StepKeyword::When, "I add the following tasks")]
 #[case(StepKeyword::When, "")]
 fn macros_register_inferred_steps(#[case] keyword: StepKeyword, #[case] pattern: &str) {
     assert!(
@@ -55,4 +64,14 @@ fn macros_register_inferred_steps(#[case] keyword: StepKeyword, #[case] pattern:
         keyword.as_str(),
         pattern
     );
+}
+
+#[test]
+fn inferred_macro_step_records_original_function_name() {
+    let Some(step) = iter::<Step>.into_iter().find(|s| {
+        s.keyword == StepKeyword::When && s.pattern.as_str() == "I add the following tasks"
+    }) else {
+        panic!("expected step for inferred pattern");
+    };
+    assert_eq!(step.name, "i_add_the_following_tasks");
 }

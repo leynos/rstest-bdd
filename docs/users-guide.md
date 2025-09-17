@@ -187,7 +187,7 @@ use rstest_bdd_macros::given;
 
 #[given]
 fn user_logs_in() {
-    // pattern "user logs in" is inferred
+    // pattern "User logs in" is inferred
 }
 ```
 
@@ -199,7 +199,10 @@ registers an empty pattern instead of inferring one.
 >
 > - Leading and trailing underscores become leading or trailing spaces.
 > - Consecutive underscores become multiple spaces.
-> - Letter case is preserved.
+>
+- When the identifier's first character is a lowercase ASCII letter, it is
+  capitalised. Leading spaces from underscores or non-ASCII initials leave the
+  text unchanged.
 
 ## Binding tests to scenarios
 
