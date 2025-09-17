@@ -846,6 +846,7 @@ dependencies = [
  "gherkin",
  "hashbrown 0.16.0",
  "inventory",
+ "log",
  "regex",
  "rstest",
  "rstest-bdd-macros",

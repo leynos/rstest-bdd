@@ -62,6 +62,26 @@ impl<'a> StepContext<'a> {
             .filter_map(|(&name, &(_, t))| (t == ty).then_some(name));
         let name = matches.next()?;
         if matches.next().is_some() {
+            log::warn!(
+                concat!(
+                    "Ambiguous fixture override: more than one fixture matches ",
+                    "type_id {:?}. Override ignored."
+                ),
+                ty
+            );
+            #[expect(
+                clippy::print_stderr,
+                reason = "surface ambiguous overrides when logging is disabled"
+            )]
+            if !log::log_enabled!(log::Level::Warn) {
+                eprintln!(
+                    concat!(
+                        "Ambiguous fixture override: more than one fixture matches ",
+                        "type_id {:?}. Override ignored."
+                    ),
+                    ty
+                );
+            }
             return None;
         }
         self.values.insert(name, value)
