@@ -207,7 +207,7 @@ Feature: User Login
 async fn test_login_scenarios(#[future] browser: WebDriver) {}
 
 // Placeholders from the 'Examples' table are passed as typed arguments to the step functions.
-#[when("I enter username {username} and password {password}")]
+#[when("A user enters username {username} and password {password}")]
 async fn enter_credentials(
     browser: &mut WebDriver,
     username: String,
@@ -217,7 +217,7 @@ async fn enter_credentials(
     Ok(())
 }
 
-#[then("I should see the message {message}")]
+#[then("The message {message} is shown")]
 async fn see_message(browser: &mut WebDriver, message: String) -> WebDriverResult<()> {
     //... assert message is visible...
     Ok(())
