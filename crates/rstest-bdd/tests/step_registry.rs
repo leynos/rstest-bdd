@@ -13,11 +13,11 @@ fn wrapper(
     _text: &str,
     _docstring: Option<&str>,
     _table: Option<&[&[&str]]>,
-) -> Result<(), StepError> {
+) -> Result<Option<Box<dyn std::any::Any>>, StepError> {
     // Adapter for zero-argument step functions
     let _ = ctx;
     sample();
-    Ok(())
+    Ok(None)
 }
 
 step!(rstest_bdd::StepKeyword::When, "behavioural", wrapper, &[]);
@@ -27,7 +27,7 @@ fn failing_wrapper(
     _text: &str,
     _docstring: Option<&str>,
     _table: Option<&[&[&str]]>,
-) -> Result<(), StepError> {
+) -> Result<Option<Box<dyn std::any::Any>>, StepError> {
     let _ = ctx;
     Err(StepError::ExecutionError {
         pattern: "fails".into(),
@@ -48,7 +48,7 @@ fn panicking_wrapper(
     _text: &str,
     _docstring: Option<&str>,
     _table: Option<&[&[&str]]>,
-) -> Result<(), StepError> {
+) -> Result<Option<Box<dyn std::any::Any>>, StepError> {
     use std::panic::{AssertUnwindSafe, catch_unwind};
     let _ = ctx;
     catch_unwind(AssertUnwindSafe(|| panic!("snap"))).map_err(|e| StepError::PanicError {
@@ -56,7 +56,7 @@ fn panicking_wrapper(
         function: "panicking_wrapper".into(),
         message: panic_message(e.as_ref()),
     })?;
-    Ok(())
+    Ok(None)
 }
 
 step!(
@@ -71,15 +71,14 @@ fn needs_fixture_wrapper(
     _text: &str,
     _docstring: Option<&str>,
     _table: Option<&[&[&str]]>,
-) -> Result<(), StepError> {
+) -> Result<Option<Box<dyn std::any::Any>>, StepError> {
     ctx.get::<u32>("missing")
-        .map(|_| ())
+        .map(|_| None)
         .ok_or_else(|| StepError::MissingFixture {
             name: "missing".into(),
             ty: "u32".into(),
             step: "needs_fixture".into(),
-        })?;
-    Ok(())
+        })
 }
 
 step!(
@@ -121,9 +120,8 @@ fn wrapper_error_handling(
             || panic!("step '{pattern}' not found in registry"),
             |step| step.run,
         );
-    let err = match step_fn(&StepContext::default(), pattern, None, None) {
-        Ok(()) => panic!("expected error from wrapper '{pattern}'"),
-        Err(e) => e,
+    let Err(err) = step_fn(&StepContext::default(), pattern, None, None) else {
+        panic!("expected error from wrapper '{pattern}'");
     };
     let err_display = err.to_string();
     if is_execution_error {

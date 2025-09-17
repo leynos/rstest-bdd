@@ -276,7 +276,7 @@ experience by introducing more powerful and intuitive APIs.
 
 - [ ] **State Management and Data Flow**
 
-  - [ ] **Step Return Values:** Allow `#[when]` steps to return values, which
+  - [x] **Step Return Values:** Allow `#[when]` steps to return values, which
       can then be automatically injected into subsequent `#[then]` steps,
       enabling a more functional style of testing. Returned values override
       fixtures of the same type.

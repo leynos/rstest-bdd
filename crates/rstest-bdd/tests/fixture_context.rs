@@ -80,3 +80,42 @@ fn fixture_step_panic_returns_panic_error() {
         other => panic!("unexpected error: {other:?}"),
     }
 }
+
+#[test]
+fn insert_value_overrides_fixture() {
+    let number = 1u32;
+    let mut ctx = StepContext::default();
+    ctx.insert("number", &number);
+
+    let first = ctx.insert_value(Box::new(5u32));
+    assert!(
+        first.is_none(),
+        "first override should insert without prior value"
+    );
+
+    let second = ctx.insert_value(Box::new(7u32));
+    let Some(prev) = second else {
+        panic!("expected previous override to be returned");
+    };
+    let Ok(prev) = prev.downcast::<u32>() else {
+        panic!("override should downcast to u32");
+    };
+    assert_eq!(*prev, 5);
+
+    let retrieved: Option<&u32> = ctx.get("number");
+    assert_eq!(retrieved, Some(&7));
+}
+
+#[test]
+fn insert_value_ignored_when_type_not_unique() {
+    let one = 1u32;
+    let two = 2u32;
+    let mut ctx = StepContext::default();
+    ctx.insert("one", &one);
+    ctx.insert("two", &two);
+
+    let result = ctx.insert_value(Box::new(5u32));
+    assert!(result.is_none(), "ambiguous override should be ignored");
+    assert_eq!(ctx.get::<u32>("one"), Some(&1));
+    assert_eq!(ctx.get::<u32>("two"), Some(&2));
+}

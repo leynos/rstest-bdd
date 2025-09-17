@@ -21,7 +21,7 @@ pub fn noop_wrapper(
     _text: &str,
     _docstring: Option<&str>,
     _table: Option<&[&[&str]]>,
-) -> Result<(), StepError> {
+) -> Result<Option<Box<dyn std::any::Any>>, StepError> {
     let _ = ctx;
-    Ok(())
+    Ok(None)
 }

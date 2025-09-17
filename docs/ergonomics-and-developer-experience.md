@@ -213,8 +213,8 @@ This requires changes to both the runtime and macro crates.
 
 1. `StoreInContext` **Trait** (in `crates/rstest-bdd/src/types.rs`): A new
    trait will be defined to associate a return type with a unique key for
-   storage in the `StepContext`. The key will likely be the `TypeId` of the
-   return value.
+   storage in the `StepContext`. The key will align with the fixture whose type
+   matches the returned value.
 
     ```rust
     pub trait StoreInContext: 'static {
@@ -226,8 +226,8 @@ This requires changes to both the runtime and macro crates.
     ```
 
 2. `StepContext` **Enhancement** (in `crates/rstest-bdd/src/context.rs`): The
-   `StepContext` will be extended with a type-indexed map (e.g.,
-   `HashMap<TypeId, Box<dyn Any>>`) to store these returned values.
+   `StepContext` will match returned values against fixture types at runtime
+   and store them under the fixture name when the type is unique.
 3. **Wrapper Codegen Update (in
    **`crates/rstest-bdd-macros/src/codegen/wrapper/emit.rs`**):**
 
@@ -236,8 +236,8 @@ This requires changes to both the runtime and macro crates.
         capture the `Ok(value)` from the step function's result. If the step
         returns `Err(e)` the error is propagated unchanged and nothing is
         stored in the context.
-      - It will then insert this `value` into the `StepContext` using its
-        `TypeId` as the key.
+      - It will then insert this `value` into the `StepContext`, keyed by the
+        matching fixture name when the `TypeId` is unambiguous.
 
 4. **Implicit Injection:** A parameter in a subsequent step that is not a
    fixture and not a step argument, but whose type matches a value stored in

@@ -22,6 +22,13 @@ fn non_string_panicking_step() -> Result<(), String> {
 #[given("a successful step")]
 fn successful_step() {}
 
+type StepResult<T> = Result<T, &'static str>;
+
+#[given("an alias error step")]
+fn alias_error_step() -> StepResult<()> {
+    Err("alias boom")
+}
+
 #[given("a step requiring a table")]
 #[expect(clippy::needless_pass_by_value, reason = "step consumes the table")]
 fn step_needing_table(datatable: Vec<Vec<String>>) {
@@ -108,6 +115,16 @@ fn assert_step_error(
     },
 )]
 #[case(
+    "an alias error step",
+    "an alias error step",
+    "alias_error_step",
+    StepError::ExecutionError {
+        pattern: "an alias error step".into(),
+        function: "alias_error_step".into(),
+        message: "alias boom".into(),
+    },
+)]
+#[case(
     "a panicking step",
     "a panicking step",
     "panicking_step",
@@ -181,9 +198,8 @@ fn step_error_scenarios(
     let ctx = StepContext::default();
     let step_fn = rstest_bdd::lookup_step(StepKeyword::Given, step_pattern.into())
         .unwrap_or_else(|| panic!("step '{step_pattern}' not found in registry"));
-    let err = match step_fn(&ctx, step_text, None, None) {
-        Ok(()) => panic!("expected error for '{step_text}'"),
-        Err(e) => e,
+    let Err(err) = step_fn(&ctx, step_text, None, None) else {
+        panic!("expected error for '{step_text}'");
     };
     assert_step_error(&err, expected_function, step_pattern, &expected_error);
 }

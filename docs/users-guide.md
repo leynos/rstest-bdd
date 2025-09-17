@@ -102,6 +102,37 @@ key–value map of fixture names to type‑erased references. When a scenario ru
 the generated test inserts its arguments (the `rstest` fixtures) into the
 `StepContext` before invoking each registered step.
 
+### Step return values
+
+`#[when]` steps may return a value. The scenario runner scans the available
+fixtures for ones whose `TypeId` matches the returned value. When exactly one
+fixture uses that type, the override is recorded under that fixture’s name and
+subsequent steps receive the most recent value (last write wins). Ambiguous or
+missing matches leave fixtures untouched, keeping scenarios predictable while
+still allowing a functional style without mutable fixtures.
+
+Steps may also return `Result<T, E>`. An `Err` aborts the scenario, while an
+`Ok` value is injected as above. Type aliases to `Result` behave identically.
+Returning `()` or `Ok(())` produces no stored value, so fixtures of `()` are
+not overwritten.
+
+```rust
+use rstest::fixture;
+use rstest_bdd_macros::{given, when, then, scenario};
+
+#[fixture]
+fn number() -> i32 { 1 }
+
+#[when("it is incremented")]
+fn increment(number: i32) -> i32 { number + 1 }
+
+#[then("the result is 2")]
+fn check(number: i32) { assert_eq!(number, 2); }
+
+#[scenario(path = "tests/features/step_return.feature")]
+fn returns_value(number: i32) { let _ = number; }
+```
+
 Example:
 
 ```rust

@@ -281,7 +281,7 @@ fn collect_ordered_arguments<'a>(
             {
                 #[expect(
                     clippy::indexing_slicing,
-                    reason = "indices validated during extraction"
+                    reason = "call_order indices validated during macro expansion"
                 )]
                 &args.fixtures[*i].pat
             }
@@ -289,7 +289,7 @@ fn collect_ordered_arguments<'a>(
             {
                 #[expect(
                     clippy::indexing_slicing,
-                    reason = "indices validated during extraction"
+                    reason = "call_order indices validated during macro expansion"
                 )]
                 &args.step_args[*i].pat
             }
@@ -370,13 +370,15 @@ fn assemble_wrapper_function(
         },
     );
     let path = crate::codegen::rstest_bdd_path();
+    let call = quote! { #ident(#(#arg_idents),*) };
+    let call_expr = quote! { #path::IntoStepResult::into_step_result(#call) };
     quote! {
         fn #wrapper_ident(
             ctx: &#path::StepContext<'_>,
             text: &str,
             _docstring: Option<&str>,
             _table: Option<&[&[&str]]>,
-        ) -> Result<(), #path::StepError> {
+            ) -> Result<Option<Box<dyn std::any::Any>>, #path::StepError> {
             use std::panic::{catch_unwind, AssertUnwindSafe};
 
             let captures = #path::extract_placeholders(&#pattern_ident, text.into())
@@ -392,7 +394,7 @@ fn assemble_wrapper_function(
             #docstring_decl
 
             catch_unwind(AssertUnwindSafe(|| {
-                #path::IntoStepResult::into_step_result(#ident(#(#arg_idents),*))
+                #call_expr
             }))
                 .map_err(|e| {
                     let message = #path::panic_message(e.as_ref());
@@ -526,10 +528,7 @@ mod tests {
         #[case] expected_const: &str,
         #[case] expected_pattern: &str,
     ) {
-        #[expect(
-            clippy::expect_used,
-            reason = "tests ensure identifier parsing succeeds"
-        )]
+        #[expect(clippy::expect_used, reason = "raw identifiers are test inputs")]
         let ident = parse_str::<syn::Ident>(raw).expect("parse identifier");
         let (wrapper_ident, const_ident, pattern_ident) = generate_wrapper_identifiers(&ident, id);
 

@@ -1,3 +1,4 @@
+#![feature(auto_traits, negative_impls)]
 //! Core library for `rstest-bdd`.
 //! This crate exposes helper utilities used by behaviour tests. It also defines
 //! the global step registry used to orchestrate behaviour-driven tests.
@@ -204,20 +205,20 @@ pub enum StepError {
 
 /// Convert step function outputs into a standard result type.
 ///
-/// Step functions may return either `()` to signal success or
-/// `Result<(), E: std::fmt::Display>` for explicit failure. This trait
-/// normalises both forms into a `Result<(), String>` for wrapper
-/// processing.
+/// Step functions either produce no value (`()`, `Result<(), E>`) or a typed
+/// value (e.g., `i32`). All forms are normalised to
+/// `Result<Option<Box<dyn std::any::Any>>, String>`, where `Ok(None)` means no
+/// value was produced and `Ok(Some(..))` carries the payload for later steps.
 ///
 /// # Examples
 /// ```
 /// # use rstest_bdd::IntoStepResult;
 /// let ok: Result<(), &str> = Ok(());
-/// assert!(ok.into_step_result().is_ok());
+/// let res = ok.into_step_result();
+/// assert!(matches!(res, Ok(None)));
 ///
 /// let err: Result<(), &str> = Err("boom");
-/// let res = err.into_step_result();
-/// assert_eq!(res.unwrap_err(), "boom");
+/// assert_eq!(err.into_step_result().unwrap_err(), "boom");
 /// ```
 pub trait IntoStepResult {
     /// Convert the value into a `Result` understood by the wrapper.
@@ -225,21 +226,32 @@ pub trait IntoStepResult {
     /// # Errors
     ///
     /// Returns any error produced by the step function as a `String`.
-    fn into_step_result(self) -> Result<(), String>;
+    fn into_step_result(self) -> Result<Option<Box<dyn std::any::Any>>, String>;
 }
 
-impl IntoStepResult for () {
-    fn into_step_result(self) -> Result<(), String> {
-        Ok(())
+auto trait NotResult {}
+impl<T, E> !NotResult for Result<T, E> {}
+
+impl<T: std::any::Any + NotResult> IntoStepResult for T {
+    fn into_step_result(self) -> Result<Option<Box<dyn std::any::Any>>, String> {
+        if std::any::TypeId::of::<T>() == std::any::TypeId::of::<()>() {
+            Ok(None)
+        } else {
+            Ok(Some(Box::new(self)))
+        }
     }
 }
 
-impl<E> IntoStepResult for Result<(), E>
-where
-    E: std::fmt::Display,
-{
-    fn into_step_result(self) -> Result<(), String> {
-        self.map_err(|e| e.to_string())
+impl<T: std::any::Any, E: std::fmt::Display> IntoStepResult for Result<T, E> {
+    fn into_step_result(self) -> Result<Option<Box<dyn std::any::Any>>, String> {
+        self.map(|v| {
+            if std::any::TypeId::of::<T>() == std::any::TypeId::of::<()>() {
+                None
+            } else {
+                Some(Box::new(v) as Box<dyn std::any::Any>)
+            }
+        })
+        .map_err(|e| e.to_string())
     }
 }
 
