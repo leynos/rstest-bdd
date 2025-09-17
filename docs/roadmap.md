@@ -105,8 +105,9 @@ improves the developer experience.
   - [x] Implement support for `Background` steps, ensuring they are executed
     before each `Scenario`.
 
-  - [x] Implement support for `Data Tables`, making the data available to the
-    step function as a `Vec<Vec<String>>`.
+  - [x] Implement support for `Data Tables`, initially making the data
+    available to the step function as a `Vec<Vec<String>>` (legacy baseline;
+    typed support is planned below).
 
   - [x] Implement support for `Docstring`, making the content available as a
     `String` argument named `docstring`.
@@ -119,6 +120,29 @@ improves the developer experience.
   - [x] The `#[scenario]` macro must perform a compile-time check to ensure a
     matching step definition exists for every Gherkin step in the target
     scenario, emitting a `compile_error!` if any are missing.
+
+- [ ] **Typed Data Table Support**
+
+  - [ ] Add a `datatable` runtime module exposing `DataTableError`,
+    `HeaderSpec`, `RowSpec`, `Rows<T>`, and convenience parsers such as
+    `truthy_bool` and `trimmed<T: FromStr>`.
+
+  - [ ] Implement `TryFrom<Vec<Vec<String>>> for Rows<T>` (with `T:
+    DataTableRow`) to split optional headers, build index maps, and surface row
+    and column context on errors.
+
+  - [ ] Provide `#[derive(DataTableRow)]` and `#[derive(DataTable)]` macros with
+    field- and struct-level attributes for column mapping, optional or default
+    cells, trimming, tolerant booleans, custom parsers, and row aggregation
+    hooks.
+
+  - [ ] Update generated wrappers to forward conversion failures by formatting
+    the `DataTableError` into the emitted `StepError`, ensuring diagnostics
+    reach recorders.
+
+  - [ ] Extend documentation (users guide, design document) and add integration
+    tests plus compile-fail fixtures covering headered/headerless tables,
+    optional columns, tolerant booleans, and invalid attribute combinations.
 
 - [ ] **Tag Filtering**
 

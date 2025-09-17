@@ -279,51 +279,74 @@ other essential Gherkin constructs.
   before each `Scenario` in a feature file.[^10] The parser prepends these
   steps to the scenario's step list so the `#[scenario]` macro runs them first.
 
-- Data Tables: A Gherkin data table provides a way to pass a structured
-  block of data to a single step. Provide it to the step function via a single
-  optional parameter annotated with `#[datatable]` or named `datatable` of type
-  `Vec<Vec<String>>`, mirroring `pytest-bdd`'s `datatable` argument.[^11]
-  During expansion, the `#[datatable]` marker is removed, but the declared
-  parameter type is preserved and must implement `TryFrom<Vec<Vec<String>>>` to
-  accept the converted cells. The annotated parameter must precede any Doc
-  String argument and cannot combine `#[datatable]` with `#[from]`.
+- Data Tables: A Gherkin data table provides a way to pass a structured block
+  of data to a single step. The step function declares a single optional
+  parameter annotated with `#[datatable]` or named `datatable`. Legacy code may
+  keep using `Vec<Vec<String>>`. A future `datatable` module will expose typed
+  parsing once implemented.
+
+  - `datatable::Rows<T>` will wrap a `Vec<T>` and implement `IntoIterator`,
+    `AsRef<[T]>`, and helper adapters so steps can iterate or collect without
+    ceremony. `TryFrom<Vec<Vec<String>>> for Rows<T>` will split optional
+    headers, build an index map, and invoke `T::parse_row`, annotating failures
+    with row and column indices.
+  - `DataTableError` (via `thiserror`) will cover header mismatches, missing
+    columns, uneven rows, and per-cell parse failures. The wrapper will surface
+    the error's `Display` output through `StepError` so CLI recorders receive
+    precise diagnostics.
+  - `RowSpec` and `HeaderSpec` will describe header metadata and provide
+    indexed or named cell access, including trimmed views, to keep parsing
+    logic declarative.
+  - Convenience helpers such as `truthy_bool` and `trimmed<T: FromStr>` will
+    support tolerant boolean parsing and whitespace handling without bespoke
+    loops.
+  - `#[derive(DataTableRow)]` will generate `DataTableRow` implementations for
+    structs and tuple structs. Field attributes like
+    `#[datatable(column = "Task name")]`, `#[datatable(optional)]`,
+    `#[datatable(parse_with = "path::to_fn")]`, and struct-level
+    `#[datatable(rename_all = "...")]` will cover column mapping, optional
+    cells, trimming, and custom parsers. The derive will set `REQUIRES_HEADER`
+    when any field depends on header lookup.
+  - `#[derive(DataTable)]` will target tuple structs that wrap collections. It
+    will compose parsed rows with optional `map` or `convert` hooks so steps
+    can expose domain-specific containers without manual loops.
+
+  Existing custom `TryFrom<Vec<Vec<String>>>` implementations will continue to
+  work, letting projects adopt typed tables gradually.
 
   **Feature File:**
 
 ```gherkin
   Given the following users exist:
 
-  | name  | email              |
-  | Alice | alice@example.com |
-  | Bob   | bob@example.com   |
+  | name  | email              | active |
+  | Alice | alice@example.com | yes    |
+  | Bob   | bob@example.com   | no     |
 ```
 
 **Step definition (`tests/steps/create_users.rs`):**
 
 ```rust
+use rstest_bdd::datatable::{self, Rows};
+use rstest_bdd_macros::DataTableRow;
+
+#[derive(DataTableRow)]
+#[datatable(rename_all = "kebab-case")]
+struct UserRow {
+    name: String,
+    #[datatable(parse_with = "datatable::truthy_bool")]
+    active: bool,
+    #[datatable(column = "email")]
+    email: String,
+}
+
 #[given("the following users exist:")]
 fn create_users(
     #[from(db)] conn: &mut DbConnection,
-    datatable: Vec<Vec<String>>,
+    #[datatable] users: Rows<UserRow>,
 ) {
-    let headers = &datatable[0];
-    let name_idx = headers
-        .iter()
-        .position(|h| h == "name")
-        .expect("missing 'name' column");
-    let email_idx = headers
-        .iter()
-        .position(|h| h == "email")
-        .expect("missing 'email' column");
-
-    for row in datatable.iter().skip(1) {
-        assert!(
-            row.len() > name_idx && row.len() > email_idx,
-            "Expected 'name' and 'email' columns",
-        );
-        let name = &row[name_idx];
-        let email = &row[email_idx];
-        conn.insert_user(name, email);
+    for row in users {
+        conn.insert_user(&row.name, &row.email, row.active);
     }
 }
 ```
@@ -463,15 +486,17 @@ macro has a distinct role in the compile-time orchestration of the BDD tests.
   call to `rstest_bdd::step!`, which internally uses `inventory::submit!` to
   add a `Step` to the registry.
 
-- Data Tables: Step functions may include a single optional parameter
-  declared in one of two ways: (a) annotated with `#[datatable]` and of any
-  type `T` where `T: TryFrom<Vec<Vec<String>>>`, or (b) named `datatable` with
-  concrete type `Vec<Vec<String>>`. When a feature step includes a data table,
-  the wrapper converts the cells to `Vec<Vec<String>>` and, for (a), performs a
-  `try_into()` to the declared type. The `#[datatable]` marker is removed
-  during expansion. The data table parameter must precede any Doc String
-  argument, must not be combined with `#[from]`, and the wrapper emits a
-  runtime error if the table is missing.
+- Data Tables: Step functions may include a single optional parameter declared
+  either by annotating it with `#[datatable]` or by naming it `datatable`.
+  Legacy consumers can continue to request a `Vec<Vec<String>>`. A future
+  `datatable::Rows<T>` newtype will be supported. When implemented, the wrapper
+  will materialise the runtime `&[&[&str]]` payload into `Vec<Vec<String>>` and
+  invoke `TryFrom<Vec<Vec<String>>>`. The planned implementation will cover
+  `Rows<T>` where `T: DataTableRow`. Conversion failures will yield a
+  `DataTableError`, and the generated wrapper will format the error's `Display`
+  output into the resulting `StepError`, preserving row and column diagnostics.
+  The data table parameter must precede any Doc String argument, must not be
+  combined with `#[from]`, and a missing table triggers a runtime error.
 
 - Docstrings: A multi-line text block immediately following a step is
   exposed to the step function through an optional `docstring` parameter of
@@ -1553,6 +1578,11 @@ supporting type‑safe parameters in steps. The parser handles escaped braces,
 nested brace pairs, and treats other backslash escapes literally, preventing
 greedy captures while still requiring well‑formed placeholders.
 
+When available, if a table parameter implements `TryFrom<Vec<Vec<String>>>`,
+the wrapper will run the conversion after materialising the nested vectors. The
+`datatable::Rows<T>` path will map any `DataTableError` into `StepError`,
+preserving formatted row and column context.
+
 The runner forwards the raw doc string as `Option<&str>` and the wrapper
 converts it into an owned `String` before invoking the step function. The
 sequence below summarizes how the runner locates and executes steps when
@@ -1575,7 +1605,7 @@ sequenceDiagram
     ScenarioRunner->>StepWrapper: call StepFn(ctx, text, docstring: Option<&str>, table: Option<&[&[&str]]>)
     StepWrapper->>StepWrapper: extract_placeholders(pattern, text)
     StepWrapper->>StepWrapper: parse captures with FromStr
-    StepWrapper->>StepFunction: call with typed args (docstring: String, datatable: Vec<Vec<String>>)
+    StepWrapper->>StepFunction: call with typed args (docstring: String, datatable: T)
     StepFunction-->>StepWrapper: returns
     StepWrapper-->>ScenarioRunner: returns
 ```
