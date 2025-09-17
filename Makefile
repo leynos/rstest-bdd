@@ -34,8 +34,11 @@ check-fmt: ## Verify formatting
 markdownlint: ## Lint Markdown files
 	find . -type f -name '*.md' -not -path '*/target/*' -not -path '*/node_modules/*' -print0 | xargs -0 $(MDLINT)
 
-nixie: ## Render Mermaid diagrams from .mmd files (writes .svg next to sources)
-	@bash scripts/nixie.sh
+nixie:
+	# CI currently requires --no-sandbox; remove once nixie supports
+	# environment variable control for this option
+	nixie --no-sandbox
+
 publish-check: ## Dry-run cargo publish for all crates
 	@tmp=$$(mktemp -d); \
 	git archive --format=tar HEAD | tar -C $$tmp -xf -; \
