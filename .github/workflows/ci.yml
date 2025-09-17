@@ -49,7 +49,7 @@ jobs:
 
       - name: Install bun
         if: ${{ matrix.tools }}
-        uses: oven-sh/setup-bun@735343b667d3e6f658f44d0eca948eb6282f2b76 # v2
+        uses: oven-sh/setup-bun@735343b667d3e6f658f44d0eca948eb6282f2b76  # v2
         with:
           bun-version: '1.2.21'
 
@@ -66,8 +66,7 @@ jobs:
           mmdc --version
 
       - name: Setup uv
-        if: ${{ matrix.tools }}
-        uses: astral-sh/setup-uv@9e3559f5c6d1922b77a10af6d8a1a88e5c8ea1a4 # v6
+        uses: astral-sh/setup-uv@b75a909f75acd358c2196fb9a5f1299a9a8868a4  # v6.7.0
         with:
           version: 'latest'
 
@@ -81,7 +80,7 @@ jobs:
 
       - name: Markdown lint
         if: ${{ matrix.tools }}
-        uses: DavidAnson/markdownlint-cli2-action@992badcdf24e3b8eb7e87ff9287fe931bcb00c6e # v20
+        uses: DavidAnson/markdownlint-cli2-action@992badcdf24e3b8eb7e87ff9287fe931bcb00c6e  # v20
         with:
           globs: '**/*.md'
 
