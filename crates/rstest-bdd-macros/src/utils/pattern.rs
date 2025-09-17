@@ -201,7 +201,7 @@ fn is_valid_name_char(b: u8) -> bool {
 /// use syn::parse_quote;
 /// let ident: syn::Ident = parse_quote!(user_logs_in);
 /// let pattern = infer_pattern(&ident);
-/// assert_eq!(pattern.value(), "user logs in");
+/// assert_eq!(pattern.value(), "User logs in");
 /// ```
 pub(crate) fn infer_pattern(ident: &Ident) -> LitStr {
     // Strip raw identifier prefix if present to avoid `r#` in user-visible patterns.
@@ -209,6 +209,15 @@ pub(crate) fn infer_pattern(ident: &Ident) -> LitStr {
     if let Some(stripped) = name.strip_prefix("r#") {
         name = stripped.to_owned();
     }
-    let inferred = name.replace('_', " ");
+    let mut inferred = name.replace('_', " ");
+    if inferred
+        .chars()
+        .next()
+        .is_some_and(|c| c.is_ascii_lowercase())
+    {
+        if let Some(first) = inferred.get_mut(0..1) {
+            first.make_ascii_uppercase();
+        }
+    }
     LitStr::new(&inferred, ident.span())
 }

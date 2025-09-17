@@ -10,6 +10,9 @@ fn user_starts_logged_out() {}
 #[when]
 fn user_logs_in() {}
 
+#[when]
+fn i_add_the_following_tasks() {}
+
 #[then]
 fn user_is_authenticated() {}
 
@@ -34,15 +37,16 @@ fn r#match_logs_in() {}
 
 /// Executes registered steps using inferred patterns.
 #[rstest]
-#[case(StepKeyword::Given, "user starts logged out")]
-#[case(StepKeyword::When, "user logs in")]
-#[case(StepKeyword::Then, "user is authenticated")]
-#[case(StepKeyword::Then, "whitespace only attribute is inferred")]
+#[case(StepKeyword::Given, "User starts logged out")]
+#[case(StepKeyword::When, "User logs in")]
+#[case(StepKeyword::Then, "User is authenticated")]
+#[case(StepKeyword::Then, "Whitespace only attribute is inferred")]
 #[case(StepKeyword::Given, " leading underscore")]
-#[case(StepKeyword::When, "trailing underscore ")]
+#[case(StepKeyword::When, "Trailing underscore ")]
 #[case(StepKeyword::Then, "Consecutive  underscores")]
-#[case(StepKeyword::Given, "with numbers 2")]
-#[case(StepKeyword::When, "match logs in")]
+#[case(StepKeyword::Given, "With numbers 2")]
+#[case(StepKeyword::When, "Match logs in")]
+#[case(StepKeyword::When, "I add the following tasks")]
 fn steps_with_inferred_patterns_execute(#[case] kw: StepKeyword, #[case] pattern: &str) {
     let ctx = StepContext::default();
     #[expect(clippy::expect_used, reason = "test ensures step exists")]
