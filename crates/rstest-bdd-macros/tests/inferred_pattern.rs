@@ -1,3 +1,4 @@
+#![expect(non_ascii_idents, reason = "test Unicode identifiers")]
 //! Tests for inferring step patterns from function names.
 
 use rstest::rstest;
@@ -67,12 +68,9 @@ fn macros_register_inferred_steps(#[case] keyword: StepKeyword, #[case] pattern:
 
 #[test]
 fn inferred_macro_step_records_original_function_name() {
-    let Some(step) = iter::<Step>
-        .into_iter()
-        .find(|s| {
-            s.keyword == StepKeyword::When && s.pattern.as_str() == "I add the following tasks"
-        })
-    else {
+    let Some(step) = iter::<Step>.into_iter().find(|s| {
+        s.keyword == StepKeyword::When && s.pattern.as_str() == "I add the following tasks"
+    }) else {
         panic!("expected step for inferred pattern");
     };
     assert_eq!(step.name, "i_add_the_following_tasks");

@@ -308,6 +308,7 @@ fn handle_binary_execution_failure(
 ///     struct Step {
 ///         keyword: String,
 ///         pattern: String,
+///         function: String,
 ///         file: String,
 ///         line: u32,
 ///         used: bool,
@@ -315,6 +316,7 @@ fn handle_binary_execution_failure(
 ///     Step {
 ///         keyword: "Given".into(),
 ///         pattern: "example".into(),
+///         function: "example_step".into(),
 ///         file: "src/example.rs".into(),
 ///         line: 42,
 ///         used: false,
@@ -328,15 +330,21 @@ fn handle_binary_execution_failure(
 /// );
 /// ```
 fn write_step(writer: &mut dyn Write, step: &Step) -> Result<()> {
+    let suffix_string = if step.function.is_empty() {
+        None
+    } else {
+        Some(format!(" [{}]", step.function))
+    };
+    let suffix = suffix_string.as_deref().unwrap_or("");
     writeln!(
         writer,
-        "{} '{}' [{}] ({}:{})",
-        step.keyword, step.pattern, step.function, step.file, step.line
+        "{} '{}'{} ({}:{})",
+        step.keyword, step.pattern, suffix, step.file, step.line
     )
     .wrap_err_with(|| {
         format!(
-            "failed to write step {} '{}' [{}] at {}:{}",
-            step.keyword, step.pattern, step.function, step.file, step.line
+            "failed to write step {} '{}'{} at {}:{}",
+            step.keyword, step.pattern, suffix, step.file, step.line
         )
     })
 }
@@ -348,6 +356,7 @@ fn write_group_separator(writer: &mut dyn Write) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::fmt::Write as _;
 
     #[test]
     fn ignores_non_test_artifacts() {
@@ -370,5 +379,65 @@ mod tests {
             "error: Unrecognized option: 'dump-steps'",
         ));
         assert!(!is_unrecognised_dump_steps("different failure"));
+    }
+    #[test]
+    fn write_step_includes_function_name() {
+        let step = Step {
+            keyword: "Given".into(),
+            pattern: "example".into(),
+            function: "example_step".into(),
+            file: "src/example.rs".into(),
+            line: 42,
+            used: false,
+        };
+
+        let mut buffer = Vec::new();
+        if let Err(error) = write_step(&mut buffer, &step) {
+            panic!("format step with function: {error:?}");
+        }
+
+        let mut expected = String::new();
+        if let Err(error) = writeln!(
+            &mut expected,
+            "Given 'example' [example_step] (src/example.rs:42)"
+        ) {
+            panic!("write expected output: {error:?}");
+        }
+
+        let actual = match String::from_utf8(buffer) {
+            Ok(actual) => actual,
+            Err(error) => panic!("utf8 decoding failed: {error:?}"),
+        };
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn write_step_omits_function_brackets_when_absent() {
+        let step = Step {
+            keyword: "Given".into(),
+            pattern: "example".into(),
+            function: String::new(),
+            file: "src/example.rs".into(),
+            line: 42,
+            used: false,
+        };
+
+        let mut buffer = Vec::new();
+        if let Err(error) = write_step(&mut buffer, &step) {
+            panic!("format step without function: {error:?}");
+        }
+
+        let mut expected = String::new();
+        if let Err(error) = writeln!(&mut expected, "Given 'example' (src/example.rs:42)") {
+            panic!("write expected output: {error:?}");
+        }
+
+        let actual = match String::from_utf8(buffer) {
+            Ok(actual) => actual,
+            Err(error) => panic!("utf8 decoding failed: {error:?}"),
+        };
+
+        assert_eq!(actual, expected);
     }
 }

@@ -58,12 +58,9 @@ fn steps_with_inferred_patterns_execute(#[case] kw: StepKeyword, #[case] pattern
 
 #[test]
 fn inferred_step_name_matches_original_identifier() {
-    let Some(step) = iter::<Step>
-        .into_iter()
-        .find(|s| {
-            s.keyword == StepKeyword::When && s.pattern.as_str() == "I add the following tasks"
-        })
-    else {
+    let Some(step) = iter::<Step>.into_iter().find(|s| {
+        s.keyword == StepKeyword::When && s.pattern.as_str() == "I add the following tasks"
+    }) else {
         panic!("expected step for inferred pattern");
     };
     assert_eq!(step.name, "i_add_the_following_tasks");

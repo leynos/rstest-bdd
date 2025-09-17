@@ -2,8 +2,9 @@
 
 ## Unreleased
 
-- Behaviour change: Inferred step patterns now capitalise the first ASCII
-  letter, which may affect callers that depended on lower-case output.
+- Behaviour change: Inferred step patterns now capitalise the first character
+  when it is a lowercase ASCII letter, which may affect callers that depended
+  on lower-case output.
 
 - Mandated `cap-std` and `camino` for cross-platform file system access.
 

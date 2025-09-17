@@ -194,10 +194,10 @@ fn is_valid_name_char(b: u8) -> bool {
     b.is_ascii_alphanumeric() || b == b'_'
 }
 
-/// Capitalise the first ASCII letter of `text` when it is lowercase.
+/// Capitalise `text` when its leading character is a lowercase ASCII letter.
 ///
-/// Returns the original string unchanged when the leading character is
-/// already capitalised or non-ASCII.
+/// Returns the original string unchanged when the leading character is not a
+/// lowercase ASCII letter (including whitespace or non-ASCII).
 fn capitalise_first_ascii_letter(text: String) -> String {
     let mut chars = text.chars();
     let Some(first) = chars.next() else {
@@ -261,5 +261,11 @@ mod tests {
     fn infers_pattern_without_ascii_capitalisation() {
         let ident: Ident = parse_quote!(überraschung);
         assert_eq!(infer_pattern(&ident).value(), "überraschung");
+    }
+
+    #[test]
+    fn empty_string_is_stable() {
+        // Simulate an empty ident after transformations.
+        assert_eq!(capitalise_first_ascii_letter(String::new()), "");
     }
 }

@@ -428,7 +428,8 @@ macro has a distinct role in the compile-time orchestration of the BDD tests.
   function name by replacing underscores with spaces. A literal `""` registers
   an empty pattern. Inference preserves whitespace semantics: leading and
   trailing underscores become spaces, consecutive underscores become multiple
-  spaces, and the first ASCII letter is capitalised when present. This avoids
+  spaces, and capitalises the first character only when it is a lowercase ASCII
+  letter. Leading spaces from underscores prevent capitalisation. This avoids
   duplicating names while keeping the macros simple.
 
   - Functionality: These macros have a single, critical purpose: to
