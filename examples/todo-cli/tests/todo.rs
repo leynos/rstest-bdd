@@ -1,44 +1,106 @@
 //! Behavioural tests for the `todo-cli` crate.
 
-use std::cell::RefCell;
-
 use rstest::fixture;
 use rstest_bdd_macros::{given, scenario, then, when};
 use todo_cli::TodoList;
 
 #[fixture]
-fn todo_list() -> RefCell<TodoList> {
-    RefCell::new(TodoList::new())
+fn todo_list() -> TodoList {
+    TodoList::new()
 }
 
-#[given("an empty to-do list")]
-fn empty_list(todo_list: &RefCell<TodoList>) {
-    assert!(todo_list.borrow().is_empty(), "list should start empty");
-}
+#[derive(Debug)]
+struct TaskEntries(Vec<String>);
 
-#[when("I add the following tasks")]
-fn add_tasks(todo_list: &RefCell<TodoList>, datatable: Vec<Vec<String>>) {
-    for (i, row) in datatable.into_iter().enumerate() {
-        assert_eq!(
-            row.len(),
-            1,
-            "datatable row {} must have exactly one column (task description); got: {:?}",
-            i + 1,
-            row
-        );
-        let task = row
-            .into_iter()
-            .next()
-            .expect("row.len() == 1 just asserted");
-        todo_list.borrow_mut().add(task);
+impl TryFrom<Vec<Vec<String>>> for TaskEntries {
+    type Error = String;
+
+    fn try_from(rows: Vec<Vec<String>>) -> Result<Self, Self::Error> {
+        let mut tasks = Vec::with_capacity(rows.len());
+        for (index, row) in rows.into_iter().enumerate() {
+            if row.len() != 1 {
+                return Err(format!(
+                    "datatable row {} must have exactly one column (task description); got: {:?}",
+                    index + 1,
+                    row
+                ));
+            }
+            let mut cells = row.into_iter();
+            let task = cells.next().expect("row.len() == 1 just asserted");
+            tasks.push(task);
+        }
+        Ok(Self(tasks))
     }
 }
 
-#[then("the list displays")]
-fn list_displays(todo_list: &RefCell<TodoList>, docstring: String) {
+impl IntoIterator for TaskEntries {
+    type Item = String;
+    type IntoIter = std::vec::IntoIter<String>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.into_iter()
+    }
+}
+
+#[derive(Debug)]
+struct StatusEntries(Vec<(String, bool)>);
+
+impl TryFrom<Vec<Vec<String>>> for StatusEntries {
+    type Error = String;
+
+    fn try_from(rows: Vec<Vec<String>>) -> Result<Self, Self::Error> {
+        let mut entries = Vec::with_capacity(rows.len());
+        for (index, row) in rows.into_iter().enumerate() {
+            if row.len() < 2 {
+                return Err(format!(
+                    "datatable row {} must have two columns: <task> | <yes/no>",
+                    index + 1
+                ));
+            }
+            let mut cells = row.into_iter();
+            let task = cells.next().expect("row.len() >= 2 just asserted");
+            let done_cell = cells.next().expect("row.len() >= 2 just asserted");
+            let done = matches!(
+                done_cell.trim().to_ascii_lowercase().as_str(),
+                "yes" | "y" | "true"
+            );
+            entries.push((task, done));
+        }
+        Ok(Self(entries))
+    }
+}
+
+impl From<StatusEntries> for Vec<(String, bool)> {
+    fn from(entries: StatusEntries) -> Self {
+        entries.0
+    }
+}
+
+#[given("an empty to-do list")]
+fn empty_list(todo_list: &TodoList) {
+    assert!(todo_list.is_empty(), "list should start empty");
+}
+
+#[when]
+#[expect(
+    non_snake_case,
+    reason = "match Gherkin capitalisation for inferred pattern"
+)]
+fn I_add_the_following_tasks(
+    mut todo_list: TodoList,
+    #[datatable] entries: TaskEntries,
+) -> TodoList {
+    for task in entries {
+        todo_list.add(task);
+    }
+    todo_list
+}
+
+#[then]
+fn the_list_displays(todo_list: &TodoList, docstring: String) {
     // Normalise docstring indentation to prevent false negatives.
     let expected = dedent(&docstring);
-    assert_eq!(todo_list.borrow().display(), expected);
+    assert_eq!(todo_list.display(), expected);
 }
 
 fn dedent(input: &str) -> String {
@@ -63,53 +125,36 @@ fn dedent(input: &str) -> String {
 }
 
 #[given("a to-do list with {first} and {second}")]
-fn list_with_two(todo_list: &RefCell<TodoList>, first: String, second: String) {
-    let mut l = todo_list.borrow_mut();
-    l.add(first);
-    l.add(second);
+fn list_with_two(mut todo_list: TodoList, first: String, second: String) -> TodoList {
+    todo_list.add(first);
+    todo_list.add(second);
+    todo_list
 }
 
 #[when("I complete {task}")]
-fn complete_task(todo_list: &RefCell<TodoList>, task: String) {
-    let ok = todo_list.borrow_mut().complete(&task);
+fn complete_task(mut todo_list: TodoList, task: String) -> TodoList {
+    let ok = todo_list.complete(&task);
     assert!(
         ok,
         "expected to complete task '{}'; tasks present: {:?}",
         task,
-        todo_list.borrow().statuses()
+        todo_list.statuses()
     );
+    todo_list
 }
 
-#[then("the task statuses should be")]
-fn assert_statuses(todo_list: &RefCell<TodoList>, datatable: Vec<Vec<String>>) {
-    let expected: Vec<(String, bool)> = datatable
-        .into_iter()
-        .enumerate()
-        .map(|(i, row)| {
-            assert!(
-                row.len() >= 2,
-                "datatable row {} must have two columns: <task> | <yes/no>",
-                i + 1
-            );
-            let task = row[0].clone();
-            let done = matches!(
-                row[1].trim().to_ascii_lowercase().as_str(),
-                "yes" | "y" | "true"
-            );
-            (task, done)
-        })
-        .collect();
-    assert_eq!(todo_list.borrow().statuses(), expected);
+#[then]
+fn the_task_statuses_should_be(todo_list: &TodoList, #[datatable] entries: StatusEntries) {
+    let expected: Vec<(String, bool)> = entries.into();
+    assert_eq!(todo_list.statuses(), expected);
 }
 
-#[allow(unused_variables)]
 #[scenario(path = "tests/features/add.feature")]
-fn add_scenario(todo_list: RefCell<TodoList>) {
-    // Parameter triggers the `todo_list` fixture; no additional setup required.
+fn add_scenario(todo_list: TodoList) {
+    assert!(todo_list.is_empty(), "scenario fixture should start empty");
 }
 
-#[allow(unused_variables)]
 #[scenario(path = "tests/features/complete.feature")]
-fn complete_scenario(todo_list: RefCell<TodoList>) {
-    // Parameter triggers the `todo_list` fixture; no additional setup required.
+fn complete_scenario(todo_list: TodoList) {
+    assert!(todo_list.is_empty(), "scenario fixture should start empty");
 }

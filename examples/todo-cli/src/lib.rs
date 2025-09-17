@@ -10,7 +10,7 @@ struct Task {
 }
 
 /// Collection of tasks with basic management operations.
-#[derive(Default)]
+#[derive(Clone, Default)]
 pub struct TodoList {
     tasks: Vec<Task>,
 }
