@@ -33,6 +33,7 @@ enum Commands {
 struct Step {
     keyword: String,
     pattern: String,
+    function: String,
     file: String,
     line: u32,
     used: bool,
@@ -323,19 +324,19 @@ fn handle_binary_execution_failure(
 /// write_step(&mut buffer, &step).unwrap();
 /// assert_eq!(
 ///     String::from_utf8(buffer).unwrap(),
-///     "Given 'example' (src/example.rs:42)\n"
+///     "Given 'example' [example_step] (src/example.rs:42)\n"
 /// );
 /// ```
 fn write_step(writer: &mut dyn Write, step: &Step) -> Result<()> {
     writeln!(
         writer,
-        "{} '{}' ({}:{})",
-        step.keyword, step.pattern, step.file, step.line
+        "{} '{}' [{}] ({}:{})",
+        step.keyword, step.pattern, step.function, step.file, step.line
     )
     .wrap_err_with(|| {
         format!(
-            "failed to write step {} '{}' at {}:{}",
-            step.keyword, step.pattern, step.file, step.line
+            "failed to write step {} '{}' [{}] at {}:{}",
+            step.keyword, step.pattern, step.function, step.file, step.line
         )
     })
 }

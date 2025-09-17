@@ -64,3 +64,16 @@ fn macros_register_inferred_steps(#[case] keyword: StepKeyword, #[case] pattern:
         pattern
     );
 }
+
+#[test]
+fn inferred_macro_step_records_original_function_name() {
+    let Some(step) = iter::<Step>
+        .into_iter()
+        .find(|s| {
+            s.keyword == StepKeyword::When && s.pattern.as_str() == "I add the following tasks"
+        })
+    else {
+        panic!("expected step for inferred pattern");
+    };
+    assert_eq!(step.name, "i_add_the_following_tasks");
+}

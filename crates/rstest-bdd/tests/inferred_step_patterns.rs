@@ -1,7 +1,7 @@
 //! Behavioural tests for inferred step patterns.
 
 use rstest::rstest;
-use rstest_bdd::{StepContext, StepKeyword, find_step};
+use rstest_bdd::{Step, StepContext, StepKeyword, find_step, iter};
 use rstest_bdd_macros::{given, then, when};
 
 #[given]
@@ -54,6 +54,19 @@ fn steps_with_inferred_patterns_execute(#[case] kw: StepKeyword, #[case] pattern
     if let Err(e) = step_fn(&ctx, pattern, None, None) {
         panic!("step failed: {e:?}");
     }
+}
+
+#[test]
+fn inferred_step_name_matches_original_identifier() {
+    let Some(step) = iter::<Step>
+        .into_iter()
+        .find(|s| {
+            s.keyword == StepKeyword::When && s.pattern.as_str() == "I add the following tasks"
+        })
+    else {
+        panic!("expected step for inferred pattern");
+    };
+    assert_eq!(step.name, "i_add_the_following_tasks");
 }
 
 /// Returns `None` when no step matches the pattern.
