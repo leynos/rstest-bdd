@@ -81,7 +81,7 @@ fn empty_list(todo_list: &TodoList) {
     assert!(todo_list.is_empty(), "list should start empty");
 }
 
-#[when]
+#[when("I add the following tasks")]
 #[expect(
     non_snake_case,
     reason = "match Gherkin capitalisation for inferred pattern"
