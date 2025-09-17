@@ -12,19 +12,31 @@ fn todo_list() -> TodoList {
 #[derive(Debug)]
 struct TaskEntries(Vec<String>);
 
+fn expect_column_count(
+    row: &[String],
+    expected: usize,
+    index: usize,
+    description: &str,
+) -> Result<(), String> {
+    if row.len() == expected {
+        Ok(())
+    } else {
+        Err(format!(
+            "datatable row {} must have {}; got: {:?}",
+            index + 1,
+            description,
+            row
+        ))
+    }
+}
+
 impl TryFrom<Vec<Vec<String>>> for TaskEntries {
     type Error = String;
 
     fn try_from(rows: Vec<Vec<String>>) -> Result<Self, Self::Error> {
         let mut tasks = Vec::with_capacity(rows.len());
         for (index, row) in rows.into_iter().enumerate() {
-            if row.len() != 1 {
-                return Err(format!(
-                    "datatable row {} must have exactly one column (task description); got: {:?}",
-                    index + 1,
-                    row
-                ));
-            }
+            expect_column_count(&row, 1, index, "exactly one column (task description)")?;
             let mut cells = row.into_iter();
             let task = cells.next().expect("row.len() == 1 just asserted");
             tasks.push(task);
@@ -51,19 +63,22 @@ impl TryFrom<Vec<Vec<String>>> for StatusEntries {
     fn try_from(rows: Vec<Vec<String>>) -> Result<Self, Self::Error> {
         let mut entries = Vec::with_capacity(rows.len());
         for (index, row) in rows.into_iter().enumerate() {
-            if row.len() < 2 {
-                return Err(format!(
-                    "datatable row {} must have two columns: <task> | <yes/no>",
-                    index + 1
-                ));
-            }
+            expect_column_count(&row, 2, index, "exactly two columns: <task> | <yes/no>")?;
             let mut cells = row.into_iter();
-            let task = cells.next().expect("row.len() >= 2 just asserted");
-            let done_cell = cells.next().expect("row.len() >= 2 just asserted");
-            let done = matches!(
-                done_cell.trim().to_ascii_lowercase().as_str(),
-                "yes" | "y" | "true"
-            );
+            let task = cells.next().expect("row.len() == 2 just asserted");
+            let done_cell = cells.next().expect("row.len() == 2 just asserted");
+            let normalised = done_cell.trim().to_ascii_lowercase();
+            let done = match normalised.as_str() {
+                "yes" | "y" | "true" => true,
+                "no" | "n" | "false" => false,
+                _ => {
+                    return Err(format!(
+                        "datatable row {}: second column must be one of yes/y/true or no/n/false; got: {:?}",
+                        index + 1,
+                        done_cell
+                    ));
+                }
+            };
             entries.push((task, done));
         }
         Ok(Self(entries))
@@ -93,12 +108,15 @@ fn add_tasks(mut todo_list: TodoList, #[datatable] entries: TaskEntries) -> Todo
 fn the_list_displays(todo_list: &TodoList, docstring: String) {
     // Normalise docstring indentation to prevent false negatives.
     let expected = dedent(&docstring);
-    assert_eq!(todo_list.display(), expected);
+    assert_eq!(expected, todo_list.display());
 }
 
 fn dedent(input: &str) -> String {
     // Normalise Windows line endings to LF to keep comparisons stable.
     let s = input.replace("\r\n", "\n");
+    if s.trim().is_empty() {
+        return String::new();
+    }
     // Find minimum leading spaces/tabs across non-empty lines
     let mut min_indent: Option<usize> = None;
     for line in s.lines() {
@@ -139,7 +157,7 @@ fn complete_task(mut todo_list: TodoList, task: String) -> TodoList {
 #[then]
 fn the_task_statuses_should_be(todo_list: &TodoList, #[datatable] entries: StatusEntries) {
     let expected: Vec<(String, bool)> = entries.into();
-    assert_eq!(todo_list.statuses(), expected);
+    assert_eq!(expected, todo_list.statuses());
 }
 
 #[scenario(path = "tests/features/add.feature")]
@@ -150,4 +168,35 @@ fn add_scenario(todo_list: TodoList) {
 #[scenario(path = "tests/features/complete.feature")]
 fn complete_scenario(todo_list: TodoList) {
     assert!(todo_list.is_empty(), "scenario fixture should start empty");
+}
+
+#[test]
+fn completing_nonexistent_task_does_not_mutate_statuses() {
+    let mut todo_list = TodoList::new();
+    todo_list.add("task 1");
+    todo_list.add("task 2");
+
+    assert!(
+        !todo_list.complete("missing task"),
+        "expected completing a missing task to fail"
+    );
+
+    let expected = vec![("task 1".to_string(), false), ("task 2".to_string(), false)];
+    assert_eq!(expected, todo_list.statuses());
+}
+
+#[test]
+fn dedent_handles_edge_cases() {
+    let cases = [
+        ("", ""),
+        (concat!("    ", "\n", "  ", "\n", "\t"), ""),
+        (
+            concat!("    line1", "\n", "  line2", "\n", "        line3"),
+            concat!("  line1", "\n", "line2", "\n", "      line3"),
+        ),
+    ];
+
+    for (input, expected) in cases {
+        assert_eq!(expected, dedent(input));
+    }
 }
