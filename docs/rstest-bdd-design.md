@@ -280,38 +280,39 @@ other essential Gherkin constructs.
   steps to the scenario's step list so the `#[scenario]` macro runs them first.
 
 - Data Tables: A Gherkin data table provides a way to pass a structured block
-  of data to a single step. The step function continues to declare a single
-  optional parameter annotated with `#[datatable]` or named `datatable`. Legacy
-  code may keep using `Vec<Vec<String>>`, but the runtime now exposes a
-  `datatable` module for ergonomic typed parsing.
+  of data to a single step. The step function declares a single optional
+  parameter annotated with `#[datatable]` or named `datatable`. Legacy code may
+  keep using `Vec<Vec<String>>`. A future `datatable` module will expose typed
+  parsing once implemented.
 
-  - `datatable::Rows<T>` wraps a `Vec<T>` and implements `IntoIterator`,
+  - `datatable::Rows<T>` will wrap a `Vec<T>` and implement `IntoIterator`,
     `AsRef<[T]>`, and helper adapters so steps can iterate or collect without
-    ceremony. `TryFrom<Vec<Vec<String>>> for Rows<T>` splits optional headers,
-    builds an index map, and invokes `T::parse_row`, annotating failures with
-    row and column indices.
-  - `DataTableError` (via `thiserror`) covers header mismatches, missing
-    columns, uneven rows, and per-cell parse failures. The wrapper surfaces the
-    error's `Display` output through `StepError` so CLI recorders receive
+    ceremony. `TryFrom<Vec<Vec<String>>> for Rows<T>` will split optional
+    headers, build an index map, and invoke `T::parse_row`, annotating failures
+    with row and column indices.
+  - `DataTableError` (via `thiserror`) will cover header mismatches, missing
+    columns, uneven rows, and per-cell parse failures. The wrapper will surface
+    the error's `Display` output through `StepError` so CLI recorders receive
     precise diagnostics.
-  - `RowSpec` and `HeaderSpec` describe header metadata and provide indexed or
-    named cell access, including trimmed views, to keep parsing logic
-    declarative.
-  - Convenience helpers such as `truthy_bool` and `trimmed<T: FromStr>` support
-    tolerant boolean parsing and whitespace handling without bespoke loops.
-  - `#[derive(DataTableRow)]` generates `DataTableRow` implementations for
+  - `RowSpec` and `HeaderSpec` will describe header metadata and provide
+    indexed or named cell access, including trimmed views, to keep parsing
+    logic declarative.
+  - Convenience helpers such as `truthy_bool` and `trimmed<T: FromStr>` will
+    support tolerant boolean parsing and whitespace handling without bespoke
+    loops.
+  - `#[derive(DataTableRow)]` will generate `DataTableRow` implementations for
     structs and tuple structs. Field attributes like
     `#[datatable(column = "Task name")]`, `#[datatable(optional)]`,
     `#[datatable(parse_with = "path::to_fn")]`, and struct-level
-    `#[datatable(rename_all = "...")]` cover column mapping, optional cells,
-    trimming, and custom parsers. The derive sets `REQUIRES_HEADER` when any
-    field depends on header lookup.
-  - `#[derive(DataTable)]` targets tuple structs that wrap collections. It
-    composes parsed rows with optional `map` or `convert` hooks so steps can
-    expose domain-specific containers without manual loops.
+    `#[datatable(rename_all = "...")]` will cover column mapping, optional
+    cells, trimming, and custom parsers. The derive will set `REQUIRES_HEADER`
+    when any field depends on header lookup.
+  - `#[derive(DataTable)]` will target tuple structs that wrap collections. It
+    will compose parsed rows with optional `map` or `convert` hooks so steps
+    can expose domain-specific containers without manual loops.
 
-  Existing custom `TryFrom<Vec<Vec<String>>>` implementations continue to work,
-  letting projects adopt typed tables gradually.
+  Existing custom `TryFrom<Vec<Vec<String>>>` implementations will continue to
+  work, letting projects adopt typed tables gradually.
 
   **Feature File:**
 
@@ -487,16 +488,15 @@ macro has a distinct role in the compile-time orchestration of the BDD tests.
 
 - Data Tables: Step functions may include a single optional parameter declared
   either by annotating it with `#[datatable]` or by naming it `datatable`.
-  Legacy consumers can continue to request a `Vec<Vec<String>>`, but the
-  runtime now encourages the `datatable::Rows<T>` newtype. When a feature step
-  includes a table, the wrapper clones the runtime `&[&[&str]]` payload into
-  `Vec<Vec<String>>` and invokes `TryFrom<Vec<Vec<String>>>`. The standard
-  implementation covers `Rows<T>` where `T: DataTableRow`. Conversion failures
-  yield a `DataTableError`, and the generated wrapper formats the error's
-  `Display` output into the resulting `StepError`, preserving row and column
-  diagnostics. The data table parameter must precede any Doc String argument,
-  must not be combined with `#[from]`, and a missing table triggers a runtime
-  error.
+  Legacy consumers can continue to request a `Vec<Vec<String>>`. A future
+  `datatable::Rows<T>` newtype will be supported. When implemented, the wrapper
+  will materialise the runtime `&[&[&str]]` payload into `Vec<Vec<String>>` and
+  invoke `TryFrom<Vec<Vec<String>>>`. The planned implementation will cover
+  `Rows<T>` where `T: DataTableRow`. Conversion failures will yield a
+  `DataTableError`, and the generated wrapper will format the error's `Display`
+  output into the resulting `StepError`, preserving row and column diagnostics.
+  The data table parameter must precede any Doc String argument, must not be
+  combined with `#[from]`, and a missing table triggers a runtime error.
 
 - Docstrings: A multi-line text block immediately following a step is
   exposed to the step function through an optional `docstring` parameter of
@@ -1578,10 +1578,10 @@ supporting type‑safe parameters in steps. The parser handles escaped braces,
 nested brace pairs, and treats other backslash escapes literally, preventing
 greedy captures while still requiring well‑formed placeholders.
 
-When a table parameter implements `TryFrom<Vec<Vec<String>>>`, the wrapper runs
-the conversion after materialising the nested vectors. The `datatable::Rows<T>`
-path maps any `DataTableError` into the `StepError` returned to the runner,
-preserving the formatted message alongside its row and column context.
+When available, if a table parameter implements `TryFrom<Vec<Vec<String>>>`,
+the wrapper will run the conversion after materialising the nested vectors. The
+`datatable::Rows<T>` path will map any `DataTableError` into `StepError`,
+preserving formatted row and column context.
 
 The runner forwards the raw doc string as `Option<&str>` and the wrapper
 converts it into an owned `String` before invoking the step function. The
