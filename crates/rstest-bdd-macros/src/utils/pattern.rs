@@ -194,6 +194,25 @@ fn is_valid_name_char(b: u8) -> bool {
     b.is_ascii_alphanumeric() || b == b'_'
 }
 
+/// Capitalise the first ASCII letter of `text` when it is lowercase.
+///
+/// Returns the original string unchanged when the leading character is
+/// already capitalised or non-ASCII.
+fn capitalise_first_ascii_letter(text: String) -> String {
+    let mut chars = text.chars();
+    let Some(first) = chars.next() else {
+        return text;
+    };
+    if !first.is_ascii_lowercase() {
+        return text;
+    }
+    let suffix = chars.as_str();
+    let mut result = String::with_capacity(text.len());
+    result.push(first.to_ascii_uppercase());
+    result.push_str(suffix);
+    result
+}
+
 /// Infer a step pattern from a function identifier by replacing underscores with spaces.
 ///
 /// # Examples
@@ -209,15 +228,38 @@ pub(crate) fn infer_pattern(ident: &Ident) -> LitStr {
     if let Some(stripped) = name.strip_prefix("r#") {
         name = stripped.to_owned();
     }
-    let mut inferred = name.replace('_', " ");
-    if inferred
-        .chars()
-        .next()
-        .is_some_and(|c| c.is_ascii_lowercase())
-    {
-        if let Some(first) = inferred.get_mut(0..1) {
-            first.make_ascii_uppercase();
-        }
-    }
+    let replaced = name.replace('_', " ");
+    let inferred = capitalise_first_ascii_letter(replaced);
     LitStr::new(&inferred, ident.span())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use syn::{Ident, parse_quote};
+
+    #[test]
+    fn capitalises_initial_ascii_lowercase() {
+        let result = capitalise_first_ascii_letter(String::from("example task"));
+        assert_eq!(result, "Example task");
+    }
+
+    #[test]
+    fn preserves_non_ascii_initial_character() {
+        let original = String::from("überraschung");
+        let result = capitalise_first_ascii_letter(original.clone());
+        assert_eq!(result, original);
+    }
+
+    #[test]
+    fn infers_pattern_with_capitalised_prefix() {
+        let ident: Ident = parse_quote!(i_add_the_following_tasks);
+        assert_eq!(infer_pattern(&ident).value(), "I add the following tasks");
+    }
+
+    #[test]
+    fn infers_pattern_without_ascii_capitalisation() {
+        let ident: Ident = parse_quote!(überraschung);
+        assert_eq!(infer_pattern(&ident).value(), "überraschung");
+    }
 }

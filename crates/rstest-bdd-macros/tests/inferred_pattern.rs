@@ -38,6 +38,9 @@ fn with_numbers_2() {}
 #[given]
 fn r#match_logs_in() {}
 
+#[given]
+fn überraschung() {}
+
 #[rstest]
 #[case(StepKeyword::Given, "User logs in")]
 #[case(StepKeyword::When, "Action happens")]
@@ -48,6 +51,7 @@ fn r#match_logs_in() {}
 #[case(StepKeyword::Then, "Consecutive  underscores")]
 #[case(StepKeyword::Given, "With numbers 2")]
 #[case(StepKeyword::Given, "Match logs in")]
+#[case(StepKeyword::Given, "überraschung")]
 #[case(StepKeyword::When, "I add the following tasks")]
 #[case(StepKeyword::When, "")]
 fn macros_register_inferred_steps(#[case] keyword: StepKeyword, #[case] pattern: &str) {
