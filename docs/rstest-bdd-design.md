@@ -851,15 +851,10 @@ classDiagram
     }
     class StepRegistry {
         +REGISTERED: Mutex<HashMap<String, CrateDefs>>
-        +register_step_inner(keyword: StepKeyword,
-                             pattern: &syn::LitStr,
-                             crate_id: impl Into<String>)
+        +register_step_inner(keyword: StepKeyword, pattern: &syn::LitStr, crate_id: impl Into<String>)
         +register_step(keyword: StepKeyword, pattern: &syn::LitStr)
-        +register_step_for_crate(keyword: StepKeyword,
-                                 literal: &str,
-                                 crate_id: &str)
-        +validate_steps_exist(steps: &[ParsedStep],
-                              strict: bool) -> Result<(), syn::Error>
+        +register_step_for_crate(keyword: StepKeyword, literal: &str, crate_id: &str)
+        +validate_steps_exist(steps: &[ParsedStep], strict: bool): Result<(), syn::Error>
     }
     StepRegistry --> CrateDefs
     CrateDefs --> StepPattern
