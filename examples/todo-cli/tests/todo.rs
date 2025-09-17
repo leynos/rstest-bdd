@@ -82,14 +82,7 @@ fn empty_list(todo_list: &TodoList) {
 }
 
 #[when("I add the following tasks")]
-#[expect(
-    non_snake_case,
-    reason = "match Gherkin capitalisation for inferred pattern"
-)]
-fn I_add_the_following_tasks(
-    mut todo_list: TodoList,
-    #[datatable] entries: TaskEntries,
-) -> TodoList {
+fn add_tasks(mut todo_list: TodoList, #[datatable] entries: TaskEntries) -> TodoList {
     for task in entries {
         todo_list.add(task);
     }
