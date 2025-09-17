@@ -1,13 +1,16 @@
-//! Internal unit tests for private helpers and conversions.
-//! These tests validate the pattern scanner utilities and the
+//! Internal unit tests for crate-private helpers.
+//! These tests validate the placeholder parser primitives and the
 //! `IntoStepResult` specialisations that normalise step return values.
-//! Keeping them here ensures behaviour remains stable while allowing
-//! private access from a child module.
+//! Grouping them here keeps the assertions close to the implementation
+//! while preserving access to private items.
 
 use crate::placeholder::{
     RegexBuilder, is_double_brace, is_escaped_brace, is_placeholder_start, parse_double_brace,
     parse_escaped_brace, parse_literal, parse_placeholder,
 };
+use crate::{IntoStepResult, NotResult};
+use std::any::Any;
+use std::fmt;
 
 #[test]
 fn predicates_detect_expected_tokens() {
@@ -65,53 +68,133 @@ fn parse_literal_writes_char() {
     assert!(st.output.ends_with('a'));
 }
 
-mod into_step_result {
-    use crate::IntoStepResult;
+fn assert_not_result<T: NotResult>() {}
 
-    #[test]
-    fn default_impl_boxes_payload() {
-        let Ok(Some(boxed)) = 42_i32.into_step_result() else {
-            panic!("basic types convert without error");
-        };
-        let Ok(value) = boxed.downcast::<i32>() else {
-            panic!("value should downcast to i32");
-        };
-        assert_eq!(*value, 42);
+fn expect_ok_none(result: Result<Option<Box<dyn Any>>, String>) {
+    match result {
+        Ok(None) => (),
+        Ok(Some(_)) => panic!("expected step result to be None"),
+        Err(err) => panic!("expected Ok(None) but got error: {err}"),
     }
+}
 
-    #[test]
-    fn unit_specialisation_returns_none() {
-        let Ok(None) = ().into_step_result() else {
-            panic!("unit conversion should succeed");
-        };
+fn expect_ok_box(result: Result<Option<Box<dyn Any>>, String>) -> Box<dyn Any> {
+    match result {
+        Ok(Some(value)) => value,
+        Ok(None) => panic!("expected step result to contain a value"),
+        Err(err) => panic!("expected Ok(Some(_)) but got error: {err}"),
     }
+}
 
-    #[test]
-    fn result_unit_specialisation_maps_errors() {
-        let Ok(None) = Result::<(), &str>::Ok(()).into_step_result() else {
-            panic!("unit result conversion should succeed");
-        };
-
-        let Err(message) = Result::<(), &str>::Err("boom").into_step_result() else {
-            panic!("error should bubble as string");
-        };
-        assert_eq!(message, "boom");
+fn expect_err(result: Result<Option<Box<dyn Any>>, String>) -> String {
+    match result {
+        Ok(Some(_)) => panic!("expected Err but got Ok(Some(_))"),
+        Ok(None) => panic!("expected Err but got Ok(None)"),
+        Err(err) => err,
     }
+}
 
-    #[test]
-    fn result_value_specialisation_boxes_payload() {
-        let Ok(Some(boxed)) = Result::<String, &str>::Ok("value".to_owned()).into_step_result()
-        else {
-            panic!("result conversion should succeed");
-        };
-        let Ok(value) = boxed.downcast::<String>() else {
-            panic!("payload should downcast to String");
-        };
-        assert_eq!(*value, "value");
+fn extract_value<T: 'static>(value: Box<dyn Any>) -> T {
+    value
+        .downcast::<T>()
+        .map_or_else(|_| panic!("failed to downcast step value"), |v| *v)
+}
 
-        let Err(message) = Result::<String, &str>::Err("fail").into_step_result() else {
-            panic!("error should bubble as string");
-        };
-        assert_eq!(message, "fail");
+#[derive(Debug, PartialEq, Eq)]
+struct CustomValue(u16);
+
+#[derive(Debug, PartialEq, Eq)]
+struct DisplayError(&'static str);
+
+impl fmt::Display for DisplayError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(self.0)
     }
+}
+
+type AliasResult = Result<CustomValue, DisplayError>;
+
+#[test]
+fn unit_type_becomes_none() {
+    assert_not_result::<()>();
+    expect_ok_none(().into_step_result());
+}
+
+#[test]
+fn option_type_uses_not_result_impl() {
+    assert_not_result::<Option<i32>>();
+    let boxed = expect_ok_box(Some(5_i32).into_step_result());
+    let value = extract_value::<Option<i32>>(boxed);
+    assert_eq!(value, Some(5));
+}
+
+#[test]
+fn custom_struct_round_trips() {
+    assert_not_result::<CustomValue>();
+    let boxed = expect_ok_box(CustomValue(7).into_step_result());
+    let value = extract_value::<CustomValue>(boxed);
+    assert_eq!(value, CustomValue(7));
+}
+
+#[test]
+fn result_ok_unit_maps_to_none() {
+    let result: Result<(), &str> = Ok(());
+    expect_ok_none(result.into_step_result());
+}
+
+#[test]
+fn result_ok_value_boxes_payload() {
+    let result: Result<i64, &str> = Ok(54);
+    let boxed = expect_ok_box(result.into_step_result());
+    let value = extract_value::<i64>(boxed);
+    assert_eq!(value, 54);
+}
+
+#[test]
+fn result_error_uses_display_message() {
+    let result: Result<i32, DisplayError> = Err(DisplayError("boom"));
+    let err = expect_err(result.into_step_result());
+    assert_eq!(err, "boom");
+}
+
+#[test]
+fn type_alias_result_round_trips() {
+    let ok: AliasResult = Ok(CustomValue(11));
+    let boxed = expect_ok_box(ok.into_step_result());
+    let value = extract_value::<CustomValue>(boxed);
+    assert_eq!(value, CustomValue(11));
+
+    let err: AliasResult = Err(DisplayError("alias failure"));
+    let message = expect_err(err.into_step_result());
+    assert_eq!(message, "alias failure");
+}
+
+#[test]
+fn primitive_value_round_trips() {
+    assert_not_result::<i32>();
+    let boxed = expect_ok_box(42_i32.into_step_result());
+    let value = extract_value::<i32>(boxed);
+    assert_eq!(value, 42);
+}
+
+#[test]
+fn result_unit_string_error_maps() {
+    let ok: Result<(), &str> = Ok(());
+    expect_ok_none(ok.into_step_result());
+
+    let err: Result<(), &str> = Err("boom");
+    let message = expect_err(err.into_step_result());
+    assert_eq!(message, "boom");
+}
+
+#[test]
+fn result_string_specialisation_handles_payload_and_error() {
+    let ok: Result<String, &str> = Ok("value".to_owned());
+    let boxed = expect_ok_box(ok.into_step_result());
+    let value = extract_value::<String>(boxed);
+    assert_eq!(value, "value");
+
+    let err: Result<String, &str> = Err("fail");
+    let message = expect_err(err.into_step_result());
+    assert_eq!(message, "fail");
 }

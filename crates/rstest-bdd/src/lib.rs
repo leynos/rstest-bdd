@@ -1,10 +1,10 @@
-#![feature(auto_traits, negative_impls)]
 //! Core library for `rstest-bdd`.
 //!
 //! ⚠️ This crate currently requires the Rust nightly compiler because it
 //! relies on auto traits and negative impls to normalise step return values.
 //! This crate exposes helper utilities used by behaviour tests. It also defines
 //! the global step registry used to orchestrate behaviour-driven tests.
+#![feature(auto_traits, negative_impls)]
 
 /// Returns a greeting for the library.
 ///
