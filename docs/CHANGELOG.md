@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Behaviour change: Inferred step patterns now capitalise the first ASCII
+  letter, which may affect callers that depended on lower-case output.
+
 - Mandated `cap-std` and `camino` for cross-platform file system access.
 
 - Deprecated `From<&str>` for `StepKeyword`; use `StepKeyword::try_from` or
