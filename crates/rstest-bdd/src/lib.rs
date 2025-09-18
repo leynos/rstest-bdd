@@ -1,4 +1,9 @@
-#![feature(auto_traits, negative_impls)]
+#![feature(specialization, rustc_attrs)]
+#![expect(incomplete_features, reason = "specialisation remains unstable")]
+#![expect(
+    internal_features,
+    reason = "requires rustc_attrs to mark specialisation traits"
+)]
 //! Core library for `rstest-bdd`.
 //! This crate exposes helper utilities used by behaviour tests. It also defines
 //! the global step registry used to orchestrate behaviour-driven tests.
@@ -220,6 +225,7 @@ pub enum StepError {
 /// let err: Result<(), &str> = Err("boom");
 /// assert_eq!(err.into_step_result().unwrap_err(), "boom");
 /// ```
+#[rustc_specialization_trait]
 pub trait IntoStepResult {
     /// Convert the value into a `Result` understood by the wrapper.
     ///
@@ -229,29 +235,28 @@ pub trait IntoStepResult {
     fn into_step_result(self) -> Result<Option<Box<dyn std::any::Any>>, String>;
 }
 
-auto trait NotResult {}
-impl<T, E> !NotResult for Result<T, E> {}
+impl<T: std::any::Any> IntoStepResult for T {
+    default fn into_step_result(self) -> Result<Option<Box<dyn std::any::Any>>, String> {
+        Ok(Some(Box::new(self) as Box<dyn std::any::Any>))
+    }
+}
 
-impl<T: std::any::Any + NotResult> IntoStepResult for T {
+impl IntoStepResult for () {
     fn into_step_result(self) -> Result<Option<Box<dyn std::any::Any>>, String> {
-        if std::any::TypeId::of::<T>() == std::any::TypeId::of::<()>() {
-            Ok(None)
-        } else {
-            Ok(Some(Box::new(self)))
-        }
+        Ok(None)
+    }
+}
+
+impl<E: std::fmt::Display> IntoStepResult for Result<(), E> {
+    fn into_step_result(self) -> Result<Option<Box<dyn std::any::Any>>, String> {
+        self.map(|()| None).map_err(|e| e.to_string())
     }
 }
 
 impl<T: std::any::Any, E: std::fmt::Display> IntoStepResult for Result<T, E> {
-    fn into_step_result(self) -> Result<Option<Box<dyn std::any::Any>>, String> {
-        self.map(|v| {
-            if std::any::TypeId::of::<T>() == std::any::TypeId::of::<()>() {
-                None
-            } else {
-                Some(Box::new(v) as Box<dyn std::any::Any>)
-            }
-        })
-        .map_err(|e| e.to_string())
+    default fn into_step_result(self) -> Result<Option<Box<dyn std::any::Any>>, String> {
+        self.map(|value| Some(Box::new(value) as Box<dyn std::any::Any>))
+            .map_err(|e| e.to_string())
     }
 }
 
