@@ -68,9 +68,9 @@ fn returns_competing_value(
     primary_value: PrimaryValue,
     secondary_value: SecondaryValue,
 ) -> PrimaryValue {
-    // The step context should prefer the fixture bindings when multiple values
-    // of the same type exist. The extra `competing_primary_value` fixture keeps
-    // this return intentionally ignored.
+    // When multiple fixtures of the same type exist, the step context cannot
+    // determine which fixture to override, so the return value is ignored.
+    // The `competing_primary_value` fixture creates this ambiguity intentionally.
     PrimaryValue(primary_value.0 + secondary_value.0)
 }
 
