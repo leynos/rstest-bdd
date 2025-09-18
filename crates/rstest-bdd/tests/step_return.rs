@@ -3,13 +3,13 @@
 use rstest::fixture;
 use rstest_bdd_macros::{given, scenario, then, when};
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct Number(i32);
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct PrimaryValue(i32);
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct SecondaryValue(i32);
 
 #[fixture]
