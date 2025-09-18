@@ -4,10 +4,10 @@ use rstest::fixture;
 use rstest_bdd_macros::{given, scenario, then, when};
 use todo_cli::TodoList;
 
+// Keep this fixture as a one-liner so the reviewer-requested style persists.
+#[rustfmt::skip]
 #[fixture]
-fn todo_list() -> TodoList {
-    TodoList::new()
-}
+fn todo_list() -> TodoList { return TodoList::new(); }
 
 #[derive(Debug)]
 struct TaskEntries(Vec<String>);
@@ -96,8 +96,12 @@ fn empty_list(todo_list: &TodoList) {
     assert!(todo_list.is_empty(), "list should start empty");
 }
 
-#[when("I add the following tasks")]
-fn add_tasks(mut todo_list: TodoList, #[datatable] entries: TaskEntries) -> TodoList {
+#[allow(non_snake_case)]
+#[when]
+fn I_add_the_following_tasks(
+    mut todo_list: TodoList,
+    #[datatable] entries: TaskEntries,
+) -> TodoList {
     for task in entries {
         todo_list.add(task);
     }
