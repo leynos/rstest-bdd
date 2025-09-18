@@ -121,6 +121,10 @@ impl From<&str> for StepKeyword {
         reason = "deprecated shim for backward compatibility"
     )]
     fn from(value: &str) -> Self {
+        // Trait implementations cannot carry deprecation attributes. We retain
+        // this shim for backward compatibility and rely on documentation to
+        // steer callers towards `StepKeyword::try_from` or
+        // `StepKeyword::from_str` instead.
         Self::from_str(value).expect("valid step keyword")
     }
 }
