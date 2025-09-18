@@ -1,3 +1,5 @@
+// Keep the expectation at crate level: Rust only honours
+// `expect(non_ascii_idents)` here.
 #![expect(non_ascii_idents, reason = "test Unicode identifiers")]
 //! Tests for inferring step patterns from function names.
 

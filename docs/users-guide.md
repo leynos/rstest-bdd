@@ -200,9 +200,10 @@ registers an empty pattern instead of inferring one.
 > - Leading and trailing underscores become leading or trailing spaces.
 > - Consecutive underscores become multiple spaces.
 >
-- When the identifier's first character is a lowercase ASCII letter, it is
-  capitalised. Leading spaces from underscores or non-ASCII initials leave the
-  text unchanged.
+- When the inferred text begins with a lowercase ASCII letter, that first
+  character is capitalised. Leading spaces from underscores and non-ASCII
+  initials leave the text untouched. Patterns such as " leading underscore"
+  therefore remain lower-case.
 
 ## Binding tests to scenarios
 
