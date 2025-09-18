@@ -100,6 +100,29 @@ fn extract_value<T: 'static>(value: Box<dyn Any>) -> T {
         .map_or_else(|_| panic!("failed to downcast step value"), |v| *v)
 }
 
+// Macros keep the IntoStepResult assertions terse and consistent across the
+// varied test cases.
+macro_rules! assert_into_step_none {
+    ($value:expr) => {{
+        expect_ok_none(($value).into_step_result());
+    }};
+}
+
+macro_rules! assert_into_step_value {
+    ($value:expr => $ty:ty, $expected:expr) => {{
+        let boxed = expect_ok_box(($value).into_step_result());
+        let actual = extract_value::<$ty>(boxed);
+        assert_eq!(actual, $expected);
+    }};
+}
+
+macro_rules! assert_into_step_error {
+    ($value:expr, $expected:expr) => {{
+        let message = expect_err(($value).into_step_result());
+        assert_eq!(message, $expected);
+    }};
+}
+
 #[derive(Debug, PartialEq, Eq)]
 struct CustomValue(u16);
 
@@ -117,56 +140,46 @@ type AliasResult = Result<CustomValue, DisplayError>;
 #[test]
 fn unit_type_becomes_none() {
     assert_not_result::<()>();
-    expect_ok_none(().into_step_result());
+    assert_into_step_none!(());
 }
 
 #[test]
 fn option_type_uses_not_result_impl() {
     assert_not_result::<Option<i32>>();
-    let boxed = expect_ok_box(Some(5_i32).into_step_result());
-    let value = extract_value::<Option<i32>>(boxed);
-    assert_eq!(value, Some(5));
+    assert_into_step_value!(Some(5_i32) => Option<i32>, Some(5));
 }
 
 #[test]
 fn custom_struct_round_trips() {
     assert_not_result::<CustomValue>();
-    let boxed = expect_ok_box(CustomValue(7).into_step_result());
-    let value = extract_value::<CustomValue>(boxed);
-    assert_eq!(value, CustomValue(7));
+    assert_into_step_value!(CustomValue(7) => CustomValue, CustomValue(7));
 }
 
 #[test]
 fn result_ok_unit_maps_to_none() {
     let result: Result<(), &str> = Ok(());
-    expect_ok_none(result.into_step_result());
+    assert_into_step_none!(result);
 }
 
 #[test]
 fn result_ok_value_boxes_payload() {
     let result: Result<i64, &str> = Ok(54);
-    let boxed = expect_ok_box(result.into_step_result());
-    let value = extract_value::<i64>(boxed);
-    assert_eq!(value, 54);
+    assert_into_step_value!(result => i64, 54);
 }
 
 #[test]
 fn result_error_uses_display_message() {
     let result: Result<i32, DisplayError> = Err(DisplayError("boom"));
-    let err = expect_err(result.into_step_result());
-    assert_eq!(err, "boom");
+    assert_into_step_error!(result, "boom");
 }
 
 #[test]
 fn type_alias_result_round_trips() {
     let ok: AliasResult = Ok(CustomValue(11));
-    let boxed = expect_ok_box(ok.into_step_result());
-    let value = extract_value::<CustomValue>(boxed);
-    assert_eq!(value, CustomValue(11));
+    assert_into_step_value!(ok => CustomValue, CustomValue(11));
 
     let err: AliasResult = Err(DisplayError("alias failure"));
-    let message = expect_err(err.into_step_result());
-    assert_eq!(message, "alias failure");
+    assert_into_step_error!(err, "alias failure");
 }
 
 #[test]

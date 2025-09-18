@@ -46,6 +46,8 @@ fn two_competing(primary_value: i32, secondary_value: i32) {
 
 #[when("a step returns a competing value")]
 fn returns_competing_value(primary_value: i32, secondary_value: i32) -> i32 {
+    // The step context should prefer the fixture bindings when multiple values
+    // of the same type exist, so this return is intentionally ignored.
     primary_value + secondary_value
 }
 
