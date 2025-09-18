@@ -96,7 +96,7 @@ fn empty_list(todo_list: &TodoList) {
     assert!(todo_list.is_empty(), "list should start empty");
 }
 
-#[allow(non_snake_case)]
+#[expect(non_snake_case, reason = "BDD step names mirror the Gherkin phrasing.")]
 #[when]
 fn I_add_the_following_tasks(
     mut todo_list: TodoList,
