@@ -215,6 +215,12 @@ pub enum StepError {
 /// `Result<Option<Box<dyn std::any::Any>>, String>`, where `Ok(None)` means no
 /// value was produced and `Ok(Some(..))` carries the payload for later steps.
 ///
+/// The trait uses specialisation to provide optimised implementations for:
+/// - `()` - returns `Ok(None)`
+/// - `Result<(), E>` - maps `Ok(())` to `None` and converts errors to strings
+/// - `Result<T, E>` - boxes successful values and converts errors to strings
+/// - Any other `T: std::any::Any` - stored as `Some(Box<dyn std::any::Any>)`
+///
 /// # Examples
 /// ```
 /// # use rstest_bdd::IntoStepResult;
