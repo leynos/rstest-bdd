@@ -1663,6 +1663,17 @@ These macros keep test code succinct while still surfacing detailed diagnostics.
   and `But` are correctly recognized in each language. These scenarios will run
   in CI to maintain coverage as new languages are added.
 
+#### Implemented multilingual regression suite (2025-09-19)
+
+- Added dedicated feature files for French, German, Spanish, Russian,
+  Japanese, and Arabic under `tests/features/i18n/` to exercise the
+  localisation catalogue shipped with `gherkin`.
+- Reused a shared `RefCell<i32>` accumulator fixture so Given/And/When steps
+  manipulate the same state without introducing asynchronous complexity.
+- Asserted both positive and negative outcomes to verify that conjunction
+  keywords normalise onto the preceding semantic keyword and continue to
+  dispatch correctly.
+
 ### 4.2 Phase 2: Localisation of Library Messages with Fluent (target v0.5)
 
 - **Dependency integration:** Add `i18n-embed`, `rust-embed`, and `fluent` as
