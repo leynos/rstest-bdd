@@ -2,6 +2,8 @@
 use std::cell::RefCell;
 
 use rstest::fixture;
+// Import from the macros crate because re-exporting from `rstest_bdd`
+// would create a dependency cycle.
 use rstest_bdd_macros::{given, scenario, then, when};
 
 /// Mutable accumulator shared by all multilingual scenarios.
@@ -22,16 +24,6 @@ fn add_to_total(total: &RefCell<i32>, value: i32) {
     *total.borrow_mut() += value;
 }
 
-/// Verify the running total matches the Then step's expectation.
-fn assert_total(total: &RefCell<i32>, expected: i32) {
-    assert_eq!(*total.borrow(), expected);
-}
-
-/// Guard against incorrect totals when the scenario uses a But step.
-fn assert_total_not(total: &RefCell<i32>, forbidden: i32) {
-    assert_ne!(*total.borrow(), forbidden);
-}
-
 #[given("the starting value is {value:i32}")]
 fn starting_value(running_total: &RefCell<i32>, value: i32) {
     set_total(running_total, value);
@@ -49,40 +41,45 @@ fn add_value(running_total: &RefCell<i32>, value: i32) {
 
 #[then("the total is {expected:i32}")]
 fn total_is(running_total: &RefCell<i32>, expected: i32) {
-    assert_total(running_total, expected);
+    assert_eq!(*running_total.borrow(), expected);
 }
 
 #[then("the total is not {forbidden:i32}")]
 fn total_is_not(running_total: &RefCell<i32>, forbidden: i32) {
-    assert_total_not(running_total, forbidden);
+    assert_ne!(*running_total.borrow(), forbidden);
 }
 
-#[scenario(path = "tests/features/i18n/addition_fr.feature")]
-fn addition_in_french(running_total: RefCell<i32>) {
-    let _ = running_total;
+macro_rules! i18n_scenario {
+    ($name:ident, $path:literal) => {
+        #[scenario(path = $path)]
+        fn $name(running_total: RefCell<i32>) {
+            // Keep the fixture name so the scenario macro resolves it.
+            let _ = running_total;
+        }
+    };
 }
 
-#[scenario(path = "tests/features/i18n/addition_de.feature")]
-fn addition_in_german(running_total: RefCell<i32>) {
-    let _ = running_total;
-}
-
-#[scenario(path = "tests/features/i18n/addition_es.feature")]
-fn addition_in_spanish(running_total: RefCell<i32>) {
-    let _ = running_total;
-}
-
-#[scenario(path = "tests/features/i18n/addition_ru.feature")]
-fn addition_in_russian(running_total: RefCell<i32>) {
-    let _ = running_total;
-}
-
-#[scenario(path = "tests/features/i18n/addition_ja.feature")]
-fn addition_in_japanese(running_total: RefCell<i32>) {
-    let _ = running_total;
-}
-
-#[scenario(path = "tests/features/i18n/addition_ar.feature")]
-fn addition_in_arabic(running_total: RefCell<i32>) {
-    let _ = running_total;
-}
+i18n_scenario!(
+    addition_in_french,
+    "tests/features/i18n/addition_fr.feature"
+);
+i18n_scenario!(
+    addition_in_german,
+    "tests/features/i18n/addition_de.feature"
+);
+i18n_scenario!(
+    addition_in_spanish,
+    "tests/features/i18n/addition_es.feature"
+);
+i18n_scenario!(
+    addition_in_russian,
+    "tests/features/i18n/addition_ru.feature"
+);
+i18n_scenario!(
+    addition_in_japanese,
+    "tests/features/i18n/addition_ja.feature"
+);
+i18n_scenario!(
+    addition_in_arabic,
+    "tests/features/i18n/addition_ar.feature"
+);
