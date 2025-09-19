@@ -27,8 +27,37 @@ fn increment(number: Number) -> Number {
     Number(number.0 + 1)
 }
 
+#[when("a fallible unit step succeeds")]
+#[expect(
+    clippy::unnecessary_wraps,
+    reason = "step intentionally returns Result to exercise IntoStepResult"
+)]
+fn fallible_unit_step_succeeds(number: Number) -> Result<(), &'static str> {
+    assert_eq!(number.0, 1);
+    Ok(())
+}
+
+#[when("a fallible increment succeeds")]
+#[expect(
+    clippy::unnecessary_wraps,
+    reason = "step intentionally returns Result to exercise IntoStepResult"
+)]
+fn fallible_increment_succeeds(number: Number) -> Result<Number, &'static str> {
+    Ok(Number(number.0 + 1))
+}
+
 #[then("the result is 2")]
 fn check(number: Number) {
+    assert_eq!(number.0, 2);
+}
+
+#[then("the base number is unchanged")]
+fn base_number_unchanged(number: Number) {
+    assert_eq!(number.0, 1);
+}
+
+#[then("the fallible result is 2")]
+fn fallible_result_is_two(number: Number) {
     assert_eq!(number.0, 2);
 }
 
@@ -92,4 +121,14 @@ fn scenario_step_return_ambiguous(
     secondary_value: SecondaryValue,
 ) {
     let _ = (primary_value, competing_primary_value, secondary_value);
+}
+
+#[scenario(path = "tests/features/step_return.feature", index = 2)]
+fn scenario_fallible_unit(number: Number) {
+    let _ = number;
+}
+
+#[scenario(path = "tests/features/step_return.feature", index = 3)]
+fn scenario_fallible_result(number: Number) {
+    let _ = number;
 }
