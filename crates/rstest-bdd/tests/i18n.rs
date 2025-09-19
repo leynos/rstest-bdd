@@ -10,9 +10,11 @@ use rstest_bdd_macros::{given, scenario, then, when};
 /// Using `RefCell` avoids borrowing conflicts between steps while keeping
 /// the fixture synchronous and lightweight.
 #[fixture]
-fn running_total() -> RefCell<i32> {
-    RefCell::new(0)
-}
+// Keep the fixture body on one line per review feedback while avoiding
+// the `unused_braces` lint via an explicit `return` and preserving the
+// inline layout with #[rustfmt::skip].
+#[rustfmt::skip]
+fn running_total() -> RefCell<i32> { return RefCell::new(0); }
 
 /// Reset the accumulator to match the language-agnostic starting step.
 fn set_total(total: &RefCell<i32>, value: i32) {
@@ -53,7 +55,10 @@ macro_rules! i18n_scenario {
     ($name:ident, $path:literal) => {
         #[scenario(path = $path)]
         // Keep the fixture binding so the scenario macro injects the fixture.
-        fn $name(running_total: RefCell<i32>) {}
+        fn $name(running_total: RefCell<i32>) {
+            // Drop the fixture binding after injection; steps borrow the shared accumulator.
+            let _ = running_total;
+        }
     };
 }
 
