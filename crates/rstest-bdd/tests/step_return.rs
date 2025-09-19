@@ -85,7 +85,7 @@ fn fixtures_remain(
     assert_eq!(secondary_value.0, 20);
 }
 
-#[scenario(path = "tests/features/step_return_ambiguous.feature")]
+#[scenario(path = "tests/features/step_return.feature", index = 1)]
 fn scenario_step_return_ambiguous(
     primary_value: PrimaryValue,
     competing_primary_value: PrimaryValue,
