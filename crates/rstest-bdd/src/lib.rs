@@ -1,4 +1,4 @@
-#![feature(specialization, rustc_attrs)]
+#![feature(auto_traits, negative_impls, specialization, rustc_attrs)]
 #![expect(incomplete_features, reason = "specialisation remains unstable")]
 #![expect(
     internal_features,
@@ -218,8 +218,8 @@ pub enum StepError {
 /// The trait uses specialisation to provide optimised implementations for:
 /// - `()` - returns `Ok(None)`
 /// - `Result<(), E>` - maps `Ok(())` to `None` and converts errors to strings
-/// - `Result<T, E>` - boxes successful values and converts errors to strings
-/// - Any other `T: std::any::Any` - stored as `Some(Box<dyn std::any::Any>)`
+/// - `Result<T, E>` where `E: std::fmt::Display` - boxes successful values and converts errors to strings
+/// - Any other `T: std::any::Any` (excluding `Result` types) - stored as `Some(Box<dyn std::any::Any>)`
 ///
 /// # Examples
 /// ```
@@ -231,6 +231,13 @@ pub enum StepError {
 /// let err: Result<(), &str> = Err("boom");
 /// assert_eq!(err.into_step_result().unwrap_err(), "boom");
 /// ```
+// Marker auto-trait that excludes `Result` types from the blanket
+// implementation so error conversions remain compile-time checked.
+#[doc(hidden)]
+pub(crate) auto trait NotResult {}
+
+impl<T, E> !NotResult for Result<T, E> {}
+
 #[rustc_specialization_trait]
 pub trait IntoStepResult {
     /// Convert the value into a `Result` understood by the wrapper.
@@ -241,7 +248,7 @@ pub trait IntoStepResult {
     fn into_step_result(self) -> Result<Option<Box<dyn std::any::Any>>, String>;
 }
 
-impl<T: std::any::Any> IntoStepResult for T {
+impl<T: std::any::Any + NotResult> IntoStepResult for T {
     default fn into_step_result(self) -> Result<Option<Box<dyn std::any::Any>>, String> {
         Ok(Some(Box::new(self) as Box<dyn std::any::Any>))
     }
