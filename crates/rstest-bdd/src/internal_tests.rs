@@ -1,7 +1,8 @@
-//! Internal unit tests for the pattern scanner helpers.
-//! These tests validate the small predicates and parsing functions introduced
-//! during the refactor of `build_regex_from_pattern`. Keeping them here ensures
-//! behaviour remains stable while allowing private access from a child module.
+//! Internal unit tests for private helpers and conversions.
+//! These tests validate the pattern scanner utilities and the
+//! `IntoStepResult` specialisations that normalise step return values.
+//! Keeping them here ensures behaviour remains stable while allowing
+//! private access from a child module.
 
 use crate::placeholder::{
     RegexBuilder, is_double_brace, is_escaped_brace, is_placeholder_start, parse_double_brace,
@@ -62,4 +63,55 @@ fn parse_literal_writes_char() {
     parse_literal(&mut st);
     assert_eq!(st.position, 1);
     assert!(st.output.ends_with('a'));
+}
+
+mod into_step_result {
+    use crate::IntoStepResult;
+
+    #[test]
+    fn default_impl_boxes_payload() {
+        let Ok(Some(boxed)) = 42_i32.into_step_result() else {
+            panic!("basic types convert without error");
+        };
+        let Ok(value) = boxed.downcast::<i32>() else {
+            panic!("value should downcast to i32");
+        };
+        assert_eq!(*value, 42);
+    }
+
+    #[test]
+    fn unit_specialisation_returns_none() {
+        let Ok(None) = ().into_step_result() else {
+            panic!("unit conversion should succeed");
+        };
+    }
+
+    #[test]
+    fn result_unit_specialisation_maps_errors() {
+        let Ok(None) = Result::<(), &str>::Ok(()).into_step_result() else {
+            panic!("unit result conversion should succeed");
+        };
+
+        let Err(message) = Result::<(), &str>::Err("boom").into_step_result() else {
+            panic!("error should bubble as string");
+        };
+        assert_eq!(message, "boom");
+    }
+
+    #[test]
+    fn result_value_specialisation_boxes_payload() {
+        let Ok(Some(boxed)) = Result::<String, &str>::Ok("value".to_owned()).into_step_result()
+        else {
+            panic!("result conversion should succeed");
+        };
+        let Ok(value) = boxed.downcast::<String>() else {
+            panic!("payload should downcast to String");
+        };
+        assert_eq!(*value, "value");
+
+        let Err(message) = Result::<String, &str>::Err("fail").into_step_result() else {
+            panic!("error should bubble as string");
+        };
+        assert_eq!(message, "fail");
+    }
 }

@@ -1,10 +1,8 @@
-#![feature(auto_traits, negative_impls, specialization, rustc_attrs)]
-#![expect(incomplete_features, reason = "specialisation remains unstable")]
-#![expect(
-    internal_features,
-    reason = "requires rustc_attrs to mark specialisation traits"
-)]
+#![feature(auto_traits, negative_impls)]
 //! Core library for `rstest-bdd`.
+//!
+//! ⚠️ This crate currently requires the Rust nightly compiler because it
+//! relies on auto traits and negative impls to normalise step return values.
 //! This crate exposes helper utilities used by behaviour tests. It also defines
 //! the global step registry used to orchestrate behaviour-driven tests.
 
@@ -215,11 +213,16 @@ pub enum StepError {
 /// `Result<Option<Box<dyn std::any::Any>>, String>`, where `Ok(None)` means no
 /// value was produced and `Ok(Some(..))` carries the payload for later steps.
 ///
-/// The trait uses specialisation to provide optimised implementations for:
-/// - `()` - returns `Ok(None)`
-/// - `Result<(), E>` - maps `Ok(())` to `None` and converts errors to strings
-/// - `Result<T, E>` where `E: std::fmt::Display` - boxes successful values and converts errors to strings
-/// - Any other `T: std::any::Any` (excluding `Result` types) - stored as `Some(Box<dyn std::any::Any>)`
+/// The trait uses auto-trait guards to provide distinct behaviours:
+/// - `()` returns `Ok(None)` so callers do not need to handle an empty payload.
+/// - `Result<(), E>` where `E: std::fmt::Display` returns `Ok(None)` on success
+///   and stringifies errors.
+/// - `Result<T, E>` where `T: std::any::Any` and `E: std::fmt::Display` boxes
+///   the success value and stringifies errors.
+/// - Any other `T: std::any::Any` (guarded by a private auto trait to exclude
+///   `Result` types) stores the payload as `Some(Box<dyn std::any::Any>)`.
+/// - `Result<T, E>` where `E` lacks [`std::fmt::Display`] fails to compile
+///   because the auto-trait guard withholds the blanket implementation.
 ///
 /// # Examples
 /// ```
@@ -231,14 +234,24 @@ pub enum StepError {
 /// let err: Result<(), &str> = Err("boom");
 /// assert_eq!(err.into_step_result().unwrap_err(), "boom");
 /// ```
-// Marker auto-trait that excludes `Result` types from the blanket
-// implementation so error conversions remain compile-time checked.
+///
+/// Result types with non-displayable errors fail to compile:
+/// ```compile_fail
+/// # use rstest_bdd::IntoStepResult;
+/// struct NoDisplay;
+/// let res: Result<(), NoDisplay> = Err(NoDisplay);
+/// let _ = res.into_step_result();
+/// ```
 #[doc(hidden)]
 pub(crate) auto trait NotResult {}
 
 impl<T, E> !NotResult for Result<T, E> {}
 
-#[rustc_specialization_trait]
+#[doc(hidden)]
+pub(crate) auto trait NotUnit {}
+
+impl !NotUnit for () {}
+
 pub trait IntoStepResult {
     /// Convert the value into a `Result` understood by the wrapper.
     ///
@@ -248,26 +261,34 @@ pub trait IntoStepResult {
     fn into_step_result(self) -> Result<Option<Box<dyn std::any::Any>>, String>;
 }
 
-impl<T: std::any::Any + NotResult> IntoStepResult for T {
-    default fn into_step_result(self) -> Result<Option<Box<dyn std::any::Any>>, String> {
+/// Default conversion for values that are neither `()` nor `Result`.
+///
+/// This implementation applies to all `T: std::any::Any` that are not
+/// `Result` types, enforced via a private auto trait.
+impl<T: std::any::Any + NotResult + NotUnit> IntoStepResult for T {
+    fn into_step_result(self) -> Result<Option<Box<dyn std::any::Any>>, String> {
         Ok(Some(Box::new(self) as Box<dyn std::any::Any>))
     }
 }
 
+/// Specialisation for unit values to avoid allocating an empty payload box.
 impl IntoStepResult for () {
     fn into_step_result(self) -> Result<Option<Box<dyn std::any::Any>>, String> {
         Ok(None)
     }
 }
 
+/// Implementation for `Result<(), E>` that normalises success to `Ok(None)`.
 impl<E: std::fmt::Display> IntoStepResult for Result<(), E> {
     fn into_step_result(self) -> Result<Option<Box<dyn std::any::Any>>, String> {
         self.map(|()| None).map_err(|e| e.to_string())
     }
 }
 
-impl<T: std::any::Any, E: std::fmt::Display> IntoStepResult for Result<T, E> {
-    default fn into_step_result(self) -> Result<Option<Box<dyn std::any::Any>>, String> {
+/// Implementation for `Result<T, E>` that boxes successful values and
+/// stringifies errors.
+impl<T: std::any::Any + NotUnit, E: std::fmt::Display> IntoStepResult for Result<T, E> {
+    fn into_step_result(self) -> Result<Option<Box<dyn std::any::Any>>, String> {
         self.map(|value| Some(Box::new(value) as Box<dyn std::any::Any>))
             .map_err(|e| e.to_string())
     }

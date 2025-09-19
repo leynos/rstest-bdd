@@ -111,15 +111,15 @@ impl FromStr for StepKeyword {
 }
 
 impl From<&str> for StepKeyword {
+    #[expect(
+        unused_attributes,
+        reason = "deprecated trait impl attribute is retained for compatibility"
+    )]
     #[deprecated(
         since = "0.1.0",
         note = "Use StepKeyword::try_from(...) or StepKeyword::from_str(...) instead"
     )]
-    #[expect(
-        unused_attributes,
-        useless_deprecated,
-        reason = "trait impl deprecation has no effect"
-    )]
+    #[expect(useless_deprecated, reason = "trait impl deprecation has no effect")]
     #[expect(
         clippy::expect_used,
         reason = "deprecated shim for backward compatibility"
