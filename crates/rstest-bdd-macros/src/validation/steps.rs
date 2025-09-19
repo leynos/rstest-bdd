@@ -15,20 +15,19 @@ use std::sync::{LazyLock, Mutex};
 
 use crate::StepKeyword;
 use crate::parsing::feature::ParsedStep;
-use proc_macro_error::abort;
+use crate::pattern::Pattern;
 #[cfg(not(test))]
 use proc_macro_error::emit_warning;
-use rstest_bdd::{StepPattern, extract_placeholders};
 
 type Registry = HashMap<Box<str>, CrateDefs>;
 
 #[derive(Default, Clone)]
 struct CrateDefs {
-    by_kw: HashMap<StepKeyword, Vec<&'static StepPattern>>,
+    by_kw: HashMap<StepKeyword, Vec<&'static Pattern>>,
 }
 
 impl CrateDefs {
-    fn patterns(&self, kw: StepKeyword) -> &[&'static StepPattern] {
+    fn patterns(&self, kw: StepKeyword) -> &[&'static Pattern] {
         self.by_kw.get(&kw).map_or(&[], Vec::as_slice)
     }
     fn is_empty(&self) -> bool {
@@ -59,15 +58,8 @@ static CURRENT_CRATE_ID: LazyLock<Box<str>> =
 /// Registration occurs during macro expansion so the total leak is bounded.
 fn register_step_inner(keyword: StepKeyword, pattern: &syn::LitStr, crate_id: impl AsRef<str>) {
     let leaked: &'static str = Box::leak(pattern.value().into_boxed_str());
-    let step_pattern: &'static StepPattern = Box::leak(Box::new(StepPattern::new(leaked)));
-    if let Err(e) = step_pattern.compile() {
-        abort!(
-            pattern.span(),
-            "rstest-bdd-macros: Invalid step pattern '{}' in #[step] macro: {}",
-            leaked,
-            e
-        );
-    }
+    let stored: &'static Pattern = Box::leak(Box::new(Pattern::new(leaked)));
+    stored.ensure_compiled(pattern.span());
     #[expect(
         clippy::expect_used,
         reason = "lock poisoning is unrecoverable; panic with clear message"
@@ -75,7 +67,7 @@ fn register_step_inner(keyword: StepKeyword, pattern: &syn::LitStr, crate_id: im
     let mut reg = REGISTERED.lock().expect("step registry poisoned");
     let crate_id = normalise_crate_id(crate_id.as_ref());
     let defs = reg.entry(crate_id).or_default();
-    defs.by_kw.entry(keyword).or_default().push(step_pattern);
+    defs.by_kw.entry(keyword).or_default().push(stored);
 }
 
 /// Record a step definition so scenarios can validate against it.
@@ -121,12 +113,12 @@ fn get_step_span(step: &ParsedStep) -> proc_macro2::Span {
 /// Search patterns for matches against a step.
 ///
 /// ```ignore
-/// use rstest_bdd::{StepPattern};
+/// use crate::pattern::Pattern;
 /// use rstest_bdd_macros::{StepKeyword};
 /// use rstest_bdd_macros::parsing::feature::ParsedStep;
 /// use rstest_bdd_macros::validation::steps::find_step_matches;
-/// let pattern = StepPattern::new("a step");
-/// pattern.compile().unwrap();
+/// let pattern = Pattern::new("a step");
+/// pattern.ensure_compiled(proc_macro2::Span::call_site());
 /// let step = ParsedStep {
 ///     keyword: StepKeyword::Given,
 ///     text: "a step".into(),
@@ -139,11 +131,11 @@ fn get_step_span(step: &ParsedStep) -> proc_macro2::Span {
 /// ```
 fn find_step_matches(
     step: &ParsedStep,
-    patterns: &[&'static StepPattern],
-) -> Result<Option<&'static StepPattern>, Vec<&'static StepPattern>> {
+    patterns: &[&'static Pattern],
+) -> Result<Option<&'static Pattern>, Vec<&'static Pattern>> {
     let mut matches = Vec::new();
     for &pat in patterns {
-        if extract_placeholders(pat, step.text.as_str().into()).is_ok() {
+        if pat.captures(step.text.as_str()).is_some() {
             matches.push(pat);
         }
     }
@@ -157,12 +149,12 @@ fn find_step_matches(
 /// Validate a single step against registered definitions.
 ///
 /// ```ignore
-/// use rstest_bdd::{StepPattern};
+/// use crate::pattern::Pattern;
 /// use rstest_bdd_macros::{StepKeyword};
 /// use rstest_bdd_macros::parsing::feature::ParsedStep;
 /// use rstest_bdd_macros::validation::steps::{validate_single_step, CrateDefs};
-/// let pattern = StepPattern::new("a step");
-/// pattern.compile().unwrap();
+/// let pattern = Pattern::new("a step");
+/// pattern.ensure_compiled(proc_macro2::Span::call_site());
 /// let mut defs = CrateDefs::default();
 /// defs.by_kw.entry(StepKeyword::Given).or_default().push(&pattern);
 /// let step = ParsedStep {
@@ -238,12 +230,12 @@ fn validate_registry_state(
 /// Validate each step and collect missing ones.
 ///
 /// ```ignore
-/// use rstest_bdd::{StepPattern};
+/// use crate::pattern::Pattern;
 /// use rstest_bdd_macros::{StepKeyword};
 /// use rstest_bdd_macros::parsing::feature::ParsedStep;
 /// use rstest_bdd_macros::validation::steps::{validate_individual_steps, CrateDefs};
-/// let pattern = StepPattern::new("a step");
-/// pattern.compile().unwrap();
+/// let pattern = Pattern::new("a step");
+/// pattern.ensure_compiled(proc_macro2::Span::call_site());
 /// let mut defs = CrateDefs::default();
 /// defs.by_kw.entry(StepKeyword::Given).or_default().push(&pattern);
 /// let steps = [ParsedStep {
@@ -356,7 +348,7 @@ fn format_missing_step_error(resolved: StepKeyword, step: &ParsedStep, defs: &Cr
     build_missing_step_message(resolved, step, &available_defs, &possible_matches)
 }
 
-fn format_ambiguous_step_error(matches: &[&'static StepPattern], step: &ParsedStep) -> syn::Error {
+fn format_ambiguous_step_error(matches: &[&'static Pattern], step: &ParsedStep) -> syn::Error {
     let patterns: Vec<&str> = matches.iter().map(|p| p.as_str()).collect();
     let msg = format!(
         "Ambiguous step definition for '{}'.\n{}",
