@@ -6,8 +6,9 @@ use std::cell::RefCell;
 
 use rstest::fixture;
 use running_total_helpers::{add_to_total, assert_total, assert_total_not, set_total};
-// Import from the macros crate because re-exporting from `rstest_bdd`
-// would create a dependency cycle.
+// Import macros directly; re-exporting from `rstest_bdd` would create a
+// dependency cycle. Listing the macros crate in `[dev-dependencies]` keeps
+// the integration tests able to resolve these procedural macros.
 use rstest_bdd_macros::{given, scenario, then, when};
 
 /// Mutable accumulator shared by all multilingual scenarios.
