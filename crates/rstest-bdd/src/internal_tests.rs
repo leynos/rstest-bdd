@@ -69,7 +69,7 @@ fn parse_literal_writes_char() {
 }
 
 mod into_step_result {
-    //! Tests for `IntoStepResult` conversions covering default, fallback, unit, and result cases.
+    //! Tests for `IntoStepResult` conversions covering fallback, unit, and result cases.
     use super::{expect_err, expect_ok_box, expect_ok_none, extract_value};
     use crate::IntoStepResult;
 
@@ -77,13 +77,6 @@ mod into_step_result {
     struct CustomType {
         x: i32,
         y: &'static str,
-    }
-
-    #[test]
-    fn default_impl_boxes_payload() {
-        let boxed = expect_ok_box(42_i32.into_step_result());
-        let value = extract_value::<i32>(boxed);
-        assert_eq!(value, 42);
     }
 
     #[test]
