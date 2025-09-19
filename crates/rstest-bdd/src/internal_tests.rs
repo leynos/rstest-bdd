@@ -164,6 +164,9 @@ macro_rules! assert_into_step_error {
 #[derive(Debug, PartialEq, Eq)]
 struct CustomValue(u16);
 
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+struct ZeroSized;
+
 #[derive(Debug, PartialEq, Eq)]
 struct DisplayError(&'static str);
 
@@ -174,6 +177,39 @@ impl fmt::Display for DisplayError {
 }
 
 type AliasResult = Result<CustomValue, DisplayError>;
+
+#[test]
+fn result_unit_display_error_maps() {
+    let ok: Result<(), DisplayError> = Ok(());
+    expect_ok_none(ok.into_step_result());
+
+    let err: Result<(), DisplayError> = Err(DisplayError("unit display failure"));
+    let message = expect_err(err.into_step_result());
+    assert_eq!(message, "unit display failure");
+}
+
+#[test]
+fn result_zero_sized_value_round_trips() {
+    let ok: Result<ZeroSized, DisplayError> = Ok(ZeroSized);
+    let boxed = expect_ok_box(ok.into_step_result());
+    let value = extract_value::<ZeroSized>(boxed);
+    assert_eq!(value, ZeroSized);
+
+    let err: Result<ZeroSized, DisplayError> = Err(DisplayError("zero sized boom"));
+    let message = expect_err(err.into_step_result());
+    assert_eq!(message, "zero sized boom");
+}
+
+#[test]
+fn result_unit_alias_maps_to_none() {
+    type UnitAlias = ();
+    let ok: Result<UnitAlias, &str> = Ok(());
+    expect_ok_none(ok.into_step_result());
+
+    let err: Result<UnitAlias, &str> = Err("aliased fail");
+    let message = expect_err(err.into_step_result());
+    assert_eq!(message, "aliased fail");
+}
 
 #[test]
 fn unit_type_becomes_none() {
@@ -218,6 +254,25 @@ fn type_alias_result_round_trips() {
 
     let err: AliasResult = Err(DisplayError("alias failure"));
     assert_into_step_error!(err, "alias failure");
+}
+
+#[test]
+fn nested_result_payload_round_trips() {
+    type Nested = Result<Result<CustomValue, DisplayError>, DisplayError>;
+
+    let ok: Nested = Ok(Ok(CustomValue(21)));
+    let boxed = expect_ok_box(ok.into_step_result());
+    let nested = extract_value::<Result<CustomValue, DisplayError>>(boxed);
+    assert_eq!(nested, Ok(CustomValue(21)));
+
+    let ok_err: Nested = Ok(Err(DisplayError("inner failure")));
+    let boxed_err = expect_ok_box(ok_err.into_step_result());
+    let nested_err = extract_value::<Result<CustomValue, DisplayError>>(boxed_err);
+    assert_eq!(nested_err, Err(DisplayError("inner failure")));
+
+    let err: Nested = Err(DisplayError("outer failure"));
+    let message = expect_err(err.into_step_result());
+    assert_eq!(message, "outer failure");
 }
 
 #[test]

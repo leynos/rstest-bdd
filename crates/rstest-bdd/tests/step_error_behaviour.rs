@@ -3,6 +3,7 @@
 use rstest::rstest;
 use rstest_bdd::{StepContext, StepError, StepKeyword};
 use rstest_bdd_macros::given;
+use std::fmt;
 
 #[given("a failing step")]
 fn failing_step() -> Result<(), String> {
@@ -24,9 +25,49 @@ fn successful_step() {}
 
 type StepResult<T> = Result<T, &'static str>;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct FancyValue(u16);
+
+#[derive(Debug, PartialEq, Eq)]
+struct FancyError(&'static str);
+
+impl fmt::Display for FancyError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(self.0)
+    }
+}
+
 #[given("an alias error step")]
 fn alias_error_step() -> StepResult<()> {
     Err("alias boom")
+}
+
+#[given("a fallible unit step succeeds")]
+#[expect(
+    clippy::unnecessary_wraps,
+    reason = "step intentionally returns Result to exercise IntoStepResult"
+)]
+fn fallible_unit_step_succeeds() -> Result<(), FancyError> {
+    Ok(())
+}
+
+#[given("a fallible unit step fails")]
+fn fallible_unit_step_fails() -> Result<(), FancyError> {
+    Err(FancyError("unit failure"))
+}
+
+#[given("a fallible value step succeeds")]
+#[expect(
+    clippy::unnecessary_wraps,
+    reason = "step intentionally returns Result to exercise IntoStepResult"
+)]
+fn fallible_value_step_succeeds() -> Result<FancyValue, FancyError> {
+    Ok(FancyValue(99))
+}
+
+#[given("a fallible value step fails")]
+fn fallible_value_step_fails() -> Result<FancyValue, FancyError> {
+    Err(FancyError("value failure"))
 }
 
 #[given("a step requiring a table")]
@@ -125,6 +166,26 @@ fn assert_step_error(
     },
 )]
 #[case(
+    "a fallible unit step fails",
+    "a fallible unit step fails",
+    "fallible_unit_step_fails",
+    StepError::ExecutionError {
+        pattern: "a fallible unit step fails".into(),
+        function: "fallible_unit_step_fails".into(),
+        message: "unit failure".into(),
+    },
+)]
+#[case(
+    "a fallible value step fails",
+    "a fallible value step fails",
+    "fallible_value_step_fails",
+    StepError::ExecutionError {
+        pattern: "a fallible value step fails".into(),
+        function: "fallible_value_step_fails".into(),
+        message: "value failure".into(),
+    },
+)]
+#[case(
     "a panicking step",
     "a panicking step",
     "panicking_step",
@@ -213,6 +274,36 @@ fn successful_step_execution() {
     if let Err(e) = res {
         panic!("unexpected error: {e:?}");
     }
+}
+
+#[test]
+fn fallible_unit_step_execution_returns_none() {
+    let ctx = StepContext::default();
+    let step_fn =
+        rstest_bdd::lookup_step(StepKeyword::Given, "a fallible unit step succeeds".into())
+            .unwrap_or_else(|| {
+                panic!("step 'a fallible unit step succeeds' not found in registry")
+            });
+    let res = step_fn(&ctx, "a fallible unit step succeeds", None, None)
+        .unwrap_or_else(|e| panic!("unexpected error: {e:?}"));
+    assert!(res.is_none(), "unit step should not return a payload");
+}
+
+#[test]
+fn fallible_value_step_execution_returns_value() {
+    let ctx = StepContext::default();
+    let step_fn =
+        rstest_bdd::lookup_step(StepKeyword::Given, "a fallible value step succeeds".into())
+            .unwrap_or_else(|| {
+                panic!("step 'a fallible value step succeeds' not found in registry")
+            });
+    let boxed = step_fn(&ctx, "a fallible value step succeeds", None, None)
+        .unwrap_or_else(|e| panic!("unexpected error: {e:?}"))
+        .unwrap_or_else(|| panic!("expected step to return a value"));
+    let value = boxed
+        .downcast::<FancyValue>()
+        .unwrap_or_else(|_| panic!("expected FancyValue payload"));
+    assert_eq!(*value, FancyValue(99));
 }
 
 #[test]
