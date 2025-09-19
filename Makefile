@@ -18,7 +18,7 @@ clean: ## Remove build artifacts
 test: ## Run tests with warnings treated as errors
 	RUSTFLAGS="-D warnings" $(CARGO) test --workspace --all-targets --all-features $(BUILD_JOBS)
 
-target/%/$(APP): ## Build binary in debug or release mode
+target/%/$(APP): Cargo.toml ## Build binary in debug or release mode
 	$(CARGO) build $(BUILD_JOBS) $(if $(findstring release,$(@)),--release) --bin $(APP)
 
 lint: ## Run Clippy with warnings denied

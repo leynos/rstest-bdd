@@ -28,6 +28,18 @@ builds on the excellent `rstest` fixture and parametrisation model:
 - **Pytest‑bdd vibes**: explicit `#[scenario]` binding from test code to a
   named scenario.
 
+  The attribute now requires a `path` argument pointing to the `.feature` file;
+  index-only usage is no longer supported.
+
+  Migration (since 0.1.0-alpha2):
+
+  ```rust
+  // Before
+  #[scenario(index = 0)]
+  // After
+  #[scenario(path = "tests/features/example.feature", index = 0)]
+  ```
+
 Think of it as *courgette‑driven* development: crisp, versatile, and it plays
 nicely with everything else on your plate.
 
@@ -41,7 +53,7 @@ Add the crates to your **dev‑dependencies**:
 # Cargo.toml
 [dev-dependencies]
 rstest = "0.26.1"
-rstest-bdd = "0.1.0-alpha3"
+rstest-bdd = "0.1.0-beta1"
 ```
 
 Feature flags:
@@ -51,6 +63,27 @@ Feature flags:
 
 - `no-inventory` — fallback code‑gen registry for platforms where
   linker‑section collection is unwieldy.
+
+- `compile-time-validation` — registers steps at compile time and reports
+  missing or ambiguous steps with spans. (Disabled by default.)
+
+- `strict-compile-time-validation` — fails compilation when steps are missing
+  or ambiguous; implies `compile-time-validation`. (Disabled by default.)
+
+Both features are disabled by default and apply only to the `rstest-bdd-macros`
+crate. Enable them in your `Cargo.toml` with:
+
+```toml
+[dependencies]
+rstest-bdd-macros = { version = "0.1.0-beta1", features = ["compile-time-validation"] }
+```
+
+Or via CLI:
+
+```bash
+cargo test --features "rstest-bdd-macros/compile-time-validation"
+cargo test --features "rstest-bdd-macros/strict-compile-time-validation"
+```
 
 ______________________________________________________________________
 
@@ -196,21 +229,19 @@ Scenario Outline: Login with different credentials
 #[tokio::test]
 async fn test_login_scenarios(#[future] browser: WebDriver) {}
 
-// Placeholders from <angle brackets> arrive as typed arguments.
+// Use typed placeholders to bind arguments by name.
 #[when("I enter username {username} and password {password}")]
 async fn enter_credentials(
     browser: &mut WebDriver,
     username: String,
     password: String,
-) -> WebDriverResult<()> {
+) {
     // ...
-    Ok(())
 }
 
 #[then("I should see the message {message}")]
-async fn see_message(browser: &mut WebDriver, message: String) -> WebDriverResult<()> {
+async fn see_message(browser: &mut WebDriver, message: String) {
     // ...
-    Ok(())
 }
 ```
 

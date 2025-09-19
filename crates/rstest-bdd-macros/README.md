@@ -53,7 +53,7 @@ Add the crates to your **dev‑dependencies**:
 # Cargo.toml
 [dev-dependencies]
 rstest = "0.26.1"
-rstest-bdd = "0.1.0-alpha3"
+rstest-bdd = "0.1.0-beta1"
 ```
 
 Feature flags:
@@ -70,21 +70,12 @@ Feature flags:
 - `strict-compile-time-validation` — fails compilation when steps are missing
   or ambiguous; implies `compile-time-validation`. (Disabled by default.)
 
-Both features live on the `rstest-bdd-macros` crate. Because `rstest-bdd`
-re-exports these macros, enable validation on that transitive crate. The
-preferred approach is to toggle features on the command line:
-
-```bash
-cargo test --features "rstest-bdd-macros/compile-time-validation"
-cargo test --features "rstest-bdd-macros/strict-compile-time-validation"
-```
-
-For CI or workspace builds that require a fixed configuration, pin the feature
-in `Cargo.toml` by adding an explicit dependency:
+Both features are disabled by default and apply only to the `rstest-bdd-macros`
+crate. Enable them in your `Cargo.toml` with:
 
 ```toml
 [dependencies]
-rstest-bdd-macros = { version = "0.1.0-alpha3", features = ["compile-time-validation"] }
+rstest-bdd-macros = { version = "0.1.0-beta1", features = ["compile-time-validation"] }
 ```
 
 Or via CLI:
@@ -238,21 +229,19 @@ Scenario Outline: Login with different credentials
 #[tokio::test]
 async fn test_login_scenarios(#[future] browser: WebDriver) {}
 
-// Placeholders from <angle brackets> arrive as typed arguments.
+// Use typed placeholders to bind arguments by name.
 #[when("I enter username {username} and password {password}")]
 async fn enter_credentials(
     browser: &mut WebDriver,
     username: String,
     password: String,
-) -> WebDriverResult<()> {
+) {
     // ...
-    Ok(())
 }
 
 #[then("I should see the message {message}")]
-async fn see_message(browser: &mut WebDriver, message: String) -> WebDriverResult<()> {
+async fn see_message(browser: &mut WebDriver, message: String) {
     // ...
-    Ok(())
 }
 ```
 
