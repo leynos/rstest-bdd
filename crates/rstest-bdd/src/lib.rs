@@ -213,8 +213,8 @@ pub enum StepError {
 /// `Result<Option<Box<dyn std::any::Any>>, String>`, where `Ok(None)` means no
 /// value was produced and `Ok(Some(..))` carries the payload for later steps.
 ///
-/// The trait uses specialisation to provide optimised implementations for
-/// common return shapes:
+/// The trait uses disjoint impls selected via private auto traits and negative
+/// impls to provide optimised behaviour for common return shapes:
 /// - `()` has a dedicated implementation returning `Ok(None)` so callers do not
 ///   need to handle an empty payload.
 /// - `Result<(), E>` where `E: std::fmt::Display` maps `Ok(())` to `Ok(None)`
@@ -222,12 +222,13 @@ pub enum StepError {
 /// - `Result<T, E>` where `T: std::any::Any + NotUnit` and `E: std::fmt::Display`
 ///   boxes the success value and stringifies any error.
 ///
-/// When none of those specialisations apply, the blanket `T: std::any::Any`
-/// implementation acts as the default: it boxes the value as
-/// `Some(Box<dyn std::any::Any>)`, with a private auto trait ensuring `Result`
-/// types defer to the more specific implementations above. Error types must
-/// implement [`std::fmt::Display`] so they can be converted into strings for the
-/// wrapper.
+/// When none of those special cases apply, the blanket
+/// `T: std::any::Any + NotResult + NotUnit` implementation acts as the default:
+/// it boxes the value as `Some(Box<dyn std::any::Any>)`.
+/// The private auto traits ensure that `Result<_, _>` and `()` do not match
+/// this impl and instead use the dedicated ones above.
+/// Error types in the `Result<_, E>` impls must implement [`std::fmt::Display`]
+/// so they can be converted into strings for the wrapper.
 ///
 /// # Examples
 /// ```
