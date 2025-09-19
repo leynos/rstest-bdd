@@ -144,6 +144,18 @@ fn assert_step_error(
     }
 }
 
+fn invoke_given_step(
+    step_pattern: &str,
+    step_text: &str,
+    docstring: Option<&str>,
+    datatable: Option<&[&[&str]]>,
+) -> Result<Option<Box<dyn std::any::Any>>, StepError> {
+    let ctx = StepContext::default();
+    let step_fn = rstest_bdd::lookup_step(StepKeyword::Given, step_pattern.into())
+        .unwrap_or_else(|| panic!("step '{step_pattern}' not found in registry"));
+    step_fn(&ctx, step_text, docstring, datatable)
+}
+
 #[rstest]
 #[case(
     "a failing step",
@@ -256,10 +268,7 @@ fn step_error_scenarios(
     #[case] expected_function: &str,
     #[case] expected_error: StepError,
 ) {
-    let ctx = StepContext::default();
-    let step_fn = rstest_bdd::lookup_step(StepKeyword::Given, step_pattern.into())
-        .unwrap_or_else(|| panic!("step '{step_pattern}' not found in registry"));
-    let Err(err) = step_fn(&ctx, step_text, None, None) else {
+    let Err(err) = invoke_given_step(step_pattern, step_text, None, None) else {
         panic!("expected error for '{step_text}'");
     };
     assert_step_error(&err, expected_function, step_pattern, &expected_error);
@@ -267,10 +276,7 @@ fn step_error_scenarios(
 
 #[test]
 fn successful_step_execution() {
-    let ctx = StepContext::default();
-    let step_fn = rstest_bdd::lookup_step(StepKeyword::Given, "a successful step".into())
-        .unwrap_or_else(|| panic!("step 'a successful step' not found in registry"));
-    let res = step_fn(&ctx, "a successful step", None, None);
+    let res = invoke_given_step("a successful step", "a successful step", None, None);
     if let Err(e) = res {
         panic!("unexpected error: {e:?}");
     }
@@ -278,28 +284,26 @@ fn successful_step_execution() {
 
 #[test]
 fn fallible_unit_step_execution_returns_none() {
-    let ctx = StepContext::default();
-    let step_fn =
-        rstest_bdd::lookup_step(StepKeyword::Given, "a fallible unit step succeeds".into())
-            .unwrap_or_else(|| {
-                panic!("step 'a fallible unit step succeeds' not found in registry")
-            });
-    let res = step_fn(&ctx, "a fallible unit step succeeds", None, None)
-        .unwrap_or_else(|e| panic!("unexpected error: {e:?}"));
+    let res = invoke_given_step(
+        "a fallible unit step succeeds",
+        "a fallible unit step succeeds",
+        None,
+        None,
+    )
+    .unwrap_or_else(|e| panic!("unexpected error: {e:?}"));
     assert!(res.is_none(), "unit step should not return a payload");
 }
 
 #[test]
 fn fallible_value_step_execution_returns_value() {
-    let ctx = StepContext::default();
-    let step_fn =
-        rstest_bdd::lookup_step(StepKeyword::Given, "a fallible value step succeeds".into())
-            .unwrap_or_else(|| {
-                panic!("step 'a fallible value step succeeds' not found in registry")
-            });
-    let boxed = step_fn(&ctx, "a fallible value step succeeds", None, None)
-        .unwrap_or_else(|e| panic!("unexpected error: {e:?}"))
-        .unwrap_or_else(|| panic!("expected step to return a value"));
+    let boxed = invoke_given_step(
+        "a fallible value step succeeds",
+        "a fallible value step succeeds",
+        None,
+        None,
+    )
+    .unwrap_or_else(|e| panic!("unexpected error: {e:?}"))
+    .unwrap_or_else(|| panic!("expected step to return a value"));
     let value = boxed
         .downcast::<FancyValue>()
         .unwrap_or_else(|_| panic!("expected FancyValue payload"));
@@ -308,25 +312,25 @@ fn fallible_value_step_execution_returns_value() {
 
 #[test]
 fn datatable_is_passed_and_executes() {
-    let ctx = StepContext::default();
-    let step_fn = rstest_bdd::lookup_step(StepKeyword::Given, "a step requiring a table".into())
-        .unwrap_or_else(|| panic!("step 'a step requiring a table' not found in registry"));
-
-    // Minimal 2×2 data table
     let table: &[&[&str]] = &[&["a", "b"], &["c", "d"]];
-    if let Err(e) = step_fn(&ctx, "a step requiring a table", None, Some(table)) {
+    if let Err(e) = invoke_given_step(
+        "a step requiring a table",
+        "a step requiring a table",
+        None,
+        Some(table),
+    ) {
         panic!("unexpected error passing datatable: {e:?}");
     }
 }
 
 #[test]
 fn docstring_is_passed_and_executes() {
-    let ctx = StepContext::default();
-    let step_fn =
-        rstest_bdd::lookup_step(StepKeyword::Given, "a step requiring a docstring".into())
-            .unwrap_or_else(|| panic!("step 'a step requiring a docstring' not found in registry"));
-
-    if let Err(e) = step_fn(&ctx, "a step requiring a docstring", Some("content"), None) {
+    if let Err(e) = invoke_given_step(
+        "a step requiring a docstring",
+        "a step requiring a docstring",
+        Some("content"),
+        None,
+    ) {
         panic!("unexpected error passing docstring: {e:?}");
     }
 }
