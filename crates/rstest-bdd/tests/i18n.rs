@@ -52,10 +52,8 @@ fn total_is_not(running_total: &RefCell<i32>, forbidden: i32) {
 macro_rules! i18n_scenario {
     ($name:ident, $path:literal) => {
         #[scenario(path = $path)]
-        fn $name(running_total: RefCell<i32>) {
-            // Keep the fixture name so the scenario macro resolves it.
-            let _ = running_total;
-        }
+        // Keep the fixture binding so the scenario macro injects the fixture.
+        fn $name(running_total: RefCell<i32>) {}
     };
 }
 
