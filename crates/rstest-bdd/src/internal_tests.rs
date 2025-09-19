@@ -68,6 +68,58 @@ fn parse_literal_writes_char() {
     assert!(st.output.ends_with('a'));
 }
 
+mod into_step_result {
+    use crate::IntoStepResult;
+
+    struct CustomType {
+        pub x: i32,
+        pub y: &'static str,
+    }
+
+    #[test]
+    fn default_impl_boxes_payload() {
+        let Ok(Some(boxed)) = 42_i32.into_step_result() else {
+            panic!("basic types convert without error");
+        };
+        let Ok(value) = boxed.downcast::<i32>() else {
+            panic!("value should downcast to i32");
+        };
+        assert_eq!(*value, 42);
+    }
+
+    #[test]
+    fn fallback_impl_boxes_custom_type() {
+        let custom = CustomType { x: 7, y: "hello" };
+        let Ok(Some(boxed)) = custom.into_step_result() else {
+            panic!("custom type should convert without error");
+        };
+        let Ok(value) = boxed.downcast::<CustomType>() else {
+            panic!("value should downcast to CustomType");
+        };
+        assert_eq!(value.x, 7);
+        assert_eq!(value.y, "hello");
+    }
+
+    #[test]
+    fn unit_specialisation_returns_none() {
+        let Ok(None) = ().into_step_result() else {
+            panic!("unit conversion should succeed");
+        };
+    }
+
+    #[test]
+    fn result_unit_specialisation_maps_errors() {
+        let Ok(None) = Result::<(), &str>::Ok(()).into_step_result() else {
+            panic!("unit result conversion should succeed");
+        };
+
+        let Err(err) = Result::<(), &str>::Err("boom").into_step_result() else {
+            panic!("unit result conversion should propagate errors");
+        };
+        assert_eq!(err, "boom");
+    }
+}
+
 fn assert_not_result<T: NotResult>() {}
 
 fn expect_ok_none(result: Result<Option<Box<dyn Any>>, String>) {
