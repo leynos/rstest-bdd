@@ -213,16 +213,21 @@ pub enum StepError {
 /// `Result<Option<Box<dyn std::any::Any>>, String>`, where `Ok(None)` means no
 /// value was produced and `Ok(Some(..))` carries the payload for later steps.
 ///
-/// The trait uses auto-trait guards to provide distinct behaviours:
-/// - `()` returns `Ok(None)` so callers do not need to handle an empty payload.
-/// - `Result<(), E>` where `E: std::fmt::Display` returns `Ok(None)` on success
-///   and stringifies errors.
-/// - `Result<T, E>` where `T: std::any::Any` and `E: std::fmt::Display` boxes
-///   the success value and stringifies errors.
-/// - Any other `T: std::any::Any` (guarded by a private auto trait to exclude
-///   `Result` types) stores the payload as `Some(Box<dyn std::any::Any>)`.
-/// - `Result<T, E>` where `E` lacks [`std::fmt::Display`] fails to compile
-///   because the auto-trait guard withholds the blanket implementation.
+/// The trait uses specialisation to provide optimised implementations for
+/// common return shapes:
+/// - `()` has a dedicated implementation returning `Ok(None)` so callers do not
+///   need to handle an empty payload.
+/// - `Result<(), E>` where `E: std::fmt::Display` maps `Ok(())` to `Ok(None)`
+///   whilst stringifying any error.
+/// - `Result<T, E>` where `T: std::any::Any + NotUnit` and `E: std::fmt::Display`
+///   boxes the success value and stringifies any error.
+///
+/// When none of those specialisations apply, the blanket `T: std::any::Any`
+/// implementation acts as the default: it boxes the value as
+/// `Some(Box<dyn std::any::Any>)`, with a private auto trait ensuring `Result`
+/// types defer to the more specific implementations above. Error types must
+/// implement [`std::fmt::Display`] so they can be converted into strings for the
+/// wrapper.
 ///
 /// # Examples
 /// ```
