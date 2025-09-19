@@ -1448,7 +1448,7 @@ sequenceDiagram
   participant Then as Then Step
   participant Ctx as StepContext
 
-  Note over Ctx: fixtures: { name -> (&Any, TypeId) }<br/>values: { name -> Box<Any> }
+  Note over Ctx: fixtures: {name->(&Any, TypeId)}<br/>values: {name->Box<Any>}
   Then->>Ctx: get::<T>("name")
   alt values has "name"
     Ctx-->>Then: &T from values

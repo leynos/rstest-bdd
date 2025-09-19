@@ -3,27 +3,93 @@
 use rstest::fixture;
 use rstest_bdd_macros::{given, scenario, then, when};
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct Number(i32);
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct PrimaryValue(i32);
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct SecondaryValue(i32);
+
 #[fixture]
-fn number() -> i32 {
-    1
+fn number() -> Number {
+    Number(1)
 }
 
 #[given("base number is 1")]
-fn base(number: i32) {
-    assert_eq!(number, 1);
+fn base(number: Number) {
+    assert_eq!(number.0, 1);
 }
 
 #[when("it is incremented")]
-fn increment(number: i32) -> i32 {
-    number + 1
+fn increment(number: Number) -> Number {
+    Number(number.0 + 1)
 }
 
 #[then("the result is 2")]
-fn check(number: i32) {
-    assert_eq!(number, 2);
+fn check(number: Number) {
+    assert_eq!(number.0, 2);
 }
 
 #[scenario(path = "tests/features/step_return.feature")]
-fn scenario_step_return(number: i32) {
+fn scenario_step_return(number: Number) {
     let _ = number;
+}
+
+#[fixture]
+fn primary_value() -> PrimaryValue {
+    PrimaryValue(10)
+}
+
+#[fixture]
+fn competing_primary_value() -> PrimaryValue {
+    PrimaryValue(15)
+}
+
+#[fixture]
+fn secondary_value() -> SecondaryValue {
+    SecondaryValue(20)
+}
+
+#[given("two competing fixtures")]
+fn two_competing(
+    primary_value: PrimaryValue,
+    competing_primary_value: PrimaryValue,
+    secondary_value: SecondaryValue,
+) {
+    assert_eq!(primary_value.0, 10);
+    assert_eq!(competing_primary_value.0, 15);
+    assert_eq!(secondary_value.0, 20);
+}
+
+#[when("a step returns a competing value")]
+fn returns_competing_value(
+    primary_value: PrimaryValue,
+    secondary_value: SecondaryValue,
+) -> PrimaryValue {
+    // When multiple fixtures of the same type exist, the step context cannot
+    // determine which fixture to override, so the return value is ignored.
+    // The `competing_primary_value` fixture creates this ambiguity intentionally.
+    PrimaryValue(primary_value.0 + secondary_value.0)
+}
+
+#[then("the fixtures remain unchanged")]
+fn fixtures_remain(
+    primary_value: PrimaryValue,
+    competing_primary_value: PrimaryValue,
+    secondary_value: SecondaryValue,
+) {
+    assert_eq!(primary_value.0, 10);
+    assert_eq!(competing_primary_value.0, 15);
+    assert_eq!(secondary_value.0, 20);
+}
+
+#[scenario(path = "tests/features/step_return.feature", index = 1)]
+fn scenario_step_return_ambiguous(
+    primary_value: PrimaryValue,
+    competing_primary_value: PrimaryValue,
+    secondary_value: SecondaryValue,
+) {
+    let _ = (primary_value, competing_primary_value, secondary_value);
 }
