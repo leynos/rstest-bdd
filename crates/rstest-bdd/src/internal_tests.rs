@@ -9,6 +9,7 @@ use crate::placeholder::{
     parse_escaped_brace, parse_literal, parse_placeholder,
 };
 use crate::{IntoStepResult, NotResult};
+use rstest::rstest;
 use std::any::Any;
 use std::fmt;
 
@@ -177,6 +178,7 @@ impl fmt::Display for DisplayError {
 }
 
 type AliasResult = Result<CustomValue, DisplayError>;
+type NestedResult = Result<Result<CustomValue, DisplayError>, DisplayError>;
 
 #[test]
 fn result_unit_display_error_maps() {
@@ -256,23 +258,29 @@ fn type_alias_result_round_trips() {
     assert_into_step_error!(err, "alias failure");
 }
 
-#[test]
-fn nested_result_payload_round_trips() {
-    type Nested = Result<Result<CustomValue, DisplayError>, DisplayError>;
-
-    let ok: Nested = Ok(Ok(CustomValue(21)));
-    let boxed = expect_ok_box(ok.into_step_result());
-    let nested = extract_value::<Result<CustomValue, DisplayError>>(boxed);
-    assert_eq!(nested, Ok(CustomValue(21)));
-
-    let ok_err: Nested = Ok(Err(DisplayError("inner failure")));
-    let boxed_err = expect_ok_box(ok_err.into_step_result());
-    let nested_err = extract_value::<Result<CustomValue, DisplayError>>(boxed_err);
-    assert_eq!(nested_err, Err(DisplayError("inner failure")));
-
-    let err: Nested = Err(DisplayError("outer failure"));
-    let message = expect_err(err.into_step_result());
-    assert_eq!(message, "outer failure");
+#[rstest]
+#[case::inner_ok(Ok(Ok(CustomValue(21))), Some(Ok(CustomValue(21))), None)]
+#[case::inner_err(
+    Ok(Err(DisplayError("inner failure"))),
+    Some(Err(DisplayError("inner failure"))),
+    None
+)]
+#[case::outer_err(Err(DisplayError("outer failure")), None, Some("outer failure"))]
+fn nested_result_payload_cases(
+    #[case] input: NestedResult,
+    #[case] expected_value: Option<Result<CustomValue, DisplayError>>,
+    #[case] expected_error: Option<&'static str>,
+) {
+    if let Some(message) = expected_error {
+        assert_into_step_error!(input, message);
+    } else {
+        let Some(expected) = expected_value else {
+            panic!("expected nested result");
+        };
+        let boxed = expect_ok_box(input.into_step_result());
+        let nested = extract_value::<Result<CustomValue, DisplayError>>(boxed);
+        assert_eq!(nested, expected);
+    }
 }
 
 #[test]

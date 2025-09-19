@@ -114,7 +114,7 @@ fn fixtures_remain(
     assert_eq!(secondary_value.0, 20);
 }
 
-#[scenario(path = "tests/features/step_return.feature", index = 1)]
+#[scenario(path = "tests/features/step_return_ambiguous.feature")]
 fn scenario_step_return_ambiguous(
     primary_value: PrimaryValue,
     competing_primary_value: PrimaryValue,
@@ -123,12 +123,12 @@ fn scenario_step_return_ambiguous(
     let _ = (primary_value, competing_primary_value, secondary_value);
 }
 
-#[scenario(path = "tests/features/step_return.feature", index = 2)]
+#[scenario(path = "tests/features/step_return_fallible_unit.feature")]
 fn scenario_fallible_unit(number: Number) {
     let _ = number;
 }
 
-#[scenario(path = "tests/features/step_return.feature", index = 3)]
+#[scenario(path = "tests/features/step_return_fallible_result.feature")]
 fn scenario_fallible_result(number: Number) {
     let _ = number;
 }
