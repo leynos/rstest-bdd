@@ -1,7 +1,11 @@
 //! Behavioural tests covering multi-language Gherkin parsing.
+#[path = "common/running_total.rs"]
+mod running_total_helpers;
+
 use std::cell::RefCell;
 
 use rstest::fixture;
+use running_total_helpers::{add_to_total, assert_total, assert_total_not, set_total};
 // Import from the macros crate because re-exporting from `rstest_bdd`
 // would create a dependency cycle.
 use rstest_bdd_macros::{given, scenario, then, when};
@@ -15,16 +19,6 @@ use rstest_bdd_macros::{given, scenario, then, when};
 // inline layout with #[rustfmt::skip].
 #[rustfmt::skip]
 fn running_total() -> RefCell<i32> { return RefCell::new(0); }
-
-/// Reset the accumulator to match the language-agnostic starting step.
-fn set_total(total: &RefCell<i32>, value: i32) {
-    *total.borrow_mut() = value;
-}
-
-/// Accumulate an additional value supplied by any translated `And` step.
-fn add_to_total(total: &RefCell<i32>, value: i32) {
-    *total.borrow_mut() += value;
-}
 
 #[given("the starting value is {value:i32}")]
 fn starting_value(running_total: &RefCell<i32>, value: i32) {
@@ -43,12 +37,12 @@ fn add_value(running_total: &RefCell<i32>, value: i32) {
 
 #[then("the total is {expected:i32}")]
 fn total_is(running_total: &RefCell<i32>, expected: i32) {
-    assert_eq!(*running_total.borrow(), expected);
+    assert_total(running_total, expected);
 }
 
 #[then("the total is not {forbidden:i32}")]
 fn total_is_not(running_total: &RefCell<i32>, forbidden: i32) {
-    assert_ne!(*running_total.borrow(), forbidden);
+    assert_total_not(running_total, forbidden);
 }
 
 macro_rules! i18n_scenario {
