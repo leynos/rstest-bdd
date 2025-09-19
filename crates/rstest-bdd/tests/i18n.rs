@@ -50,7 +50,9 @@ macro_rules! i18n_scenario {
         #[scenario(path = $path)]
         // Keep the fixture parameter so the scenario macro injects the shared
         // accumulator even though the shim never references it directly.
-        fn $name(running_total: RefCell<i32>) {}
+        // The `#[from]` attribute preserves the fixture lookup name while the
+        // wildcard keeps the binding unused.
+        fn $name(#[from(running_total)] _: RefCell<i32>) {}
     };
 }
 
