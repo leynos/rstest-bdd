@@ -69,54 +69,47 @@ fn parse_literal_writes_char() {
 }
 
 mod into_step_result {
+    //! Tests for `IntoStepResult` conversions covering default, fallback, unit, and result cases.
+    use super::{expect_err, expect_ok_box, expect_ok_none, extract_value};
     use crate::IntoStepResult;
 
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     struct CustomType {
-        pub x: i32,
-        pub y: &'static str,
+        x: i32,
+        y: &'static str,
     }
 
     #[test]
     fn default_impl_boxes_payload() {
-        let Ok(Some(boxed)) = 42_i32.into_step_result() else {
-            panic!("basic types convert without error");
-        };
-        let Ok(value) = boxed.downcast::<i32>() else {
-            panic!("value should downcast to i32");
-        };
-        assert_eq!(*value, 42);
+        let boxed = expect_ok_box(42_i32.into_step_result());
+        let value = extract_value::<i32>(boxed);
+        assert_eq!(value, 42);
     }
 
     #[test]
     fn fallback_impl_boxes_custom_type() {
-        let custom = CustomType { x: 7, y: "hello" };
-        let Ok(Some(boxed)) = custom.into_step_result() else {
-            panic!("custom type should convert without error");
-        };
-        let Ok(value) = boxed.downcast::<CustomType>() else {
-            panic!("value should downcast to CustomType");
-        };
-        assert_eq!(value.x, 7);
-        assert_eq!(value.y, "hello");
+        let expected = CustomType { x: 7, y: "hello" };
+        let boxed = expect_ok_box(expected.into_step_result());
+        let value = extract_value::<CustomType>(boxed);
+        assert_eq!(value, expected);
     }
 
     #[test]
     fn unit_specialisation_returns_none() {
-        let Ok(None) = ().into_step_result() else {
-            panic!("unit conversion should succeed");
-        };
+        expect_ok_none(().into_step_result());
     }
 
     #[test]
     fn result_unit_specialisation_maps_errors() {
-        let Ok(None) = Result::<(), &str>::Ok(()).into_step_result() else {
-            panic!("unit result conversion should succeed");
-        };
-
-        let Err(err) = Result::<(), &str>::Err("boom").into_step_result() else {
-            panic!("unit result conversion should propagate errors");
-        };
+        expect_ok_none(Result::<(), &str>::Ok(()).into_step_result());
+        let err = expect_err(Result::<(), &str>::Err("boom").into_step_result());
         assert_eq!(err, "boom");
+    }
+
+    #[test]
+    fn result_non_unit_specialisation_propagates_errors() {
+        let err = expect_err(Result::<CustomType, &str>::Err("custom fail").into_step_result());
+        assert_eq!(err, "custom fail");
     }
 }
 
