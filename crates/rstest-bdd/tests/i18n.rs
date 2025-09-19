@@ -48,11 +48,9 @@ fn total_is_not(running_total: &RefCell<i32>, forbidden: i32) {
 macro_rules! i18n_scenario {
     ($name:ident, $path:literal) => {
         #[scenario(path = $path)]
-        // Keep the fixture binding so the scenario macro injects the fixture.
-        fn $name(running_total: RefCell<i32>) {
-            // Drop the fixture binding after injection; steps borrow the shared accumulator.
-            let _ = running_total;
-        }
+        // Keep the fixture parameter so the scenario macro injects the shared
+        // accumulator even though the shim never references it directly.
+        fn $name(running_total: RefCell<i32>) {}
     };
 }
 
