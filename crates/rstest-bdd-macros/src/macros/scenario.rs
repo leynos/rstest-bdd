@@ -117,7 +117,8 @@ fn try_scenario(
     process_scenario_outline_examples(sig, examples.as_ref())
         .map_err(proc_macro::TokenStream::from)?;
 
-    let (_args, ctx_inserts) = extract_function_fixtures(sig);
+    let (_args, ctx_inserts) = extract_function_fixtures(sig)
+        .map_err(|err| proc_macro::TokenStream::from(err.into_compile_error()))?;
 
     Ok(generate_scenario_code(
         ScenarioConfig {
@@ -130,7 +131,7 @@ fn try_scenario(
             steps,
             examples,
         },
-        ctx_inserts,
+        ctx_inserts.into_iter(),
     ))
 }
 
