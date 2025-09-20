@@ -3,6 +3,7 @@ resolver = "2"
 members = [
     "crates/rstest-bdd",
     "crates/rstest-bdd-macros",
+    "crates/rstest-bdd-patterns",
     "crates/cargo-bdd",
     "examples/todo-cli",
 ]
@@ -38,6 +39,7 @@ eyre = "0.6"
 ctor = "0.2"
 rstest-bdd = "0.1.0-alpha3"
 rstest-bdd-macros = "0.1.0-alpha3"
+rstest-bdd-patterns = "0.1.0-alpha3"
 log = "0.4"
 fs2 = "0.4"
 tempfile = "3.22"
@@ -71,3 +73,4 @@ unsafe_code = "forbid"
 [patch.crates-io]
 rstest-bdd = { path = "crates/rstest-bdd" }
 rstest-bdd-macros = { path = "crates/rstest-bdd-macros" }
+rstest-bdd-patterns = { path = "crates/rstest-bdd-patterns" }

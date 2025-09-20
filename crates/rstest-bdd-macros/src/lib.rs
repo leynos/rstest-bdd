@@ -12,6 +12,7 @@
 mod codegen;
 mod macros;
 mod parsing;
+mod pattern;
 mod step_keyword;
 mod utils;
 mod validation;

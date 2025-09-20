@@ -4,11 +4,11 @@
 //! Grouping them here keeps the assertions close to the implementation
 //! while preserving access to private items.
 
-use crate::placeholder::{
+use crate::{IntoStepResult, NotResult};
+use rstest_bdd_patterns::{
     RegexBuilder, is_double_brace, is_escaped_brace, is_placeholder_start, parse_double_brace,
     parse_escaped_brace, parse_literal, parse_placeholder,
 };
-use crate::{IntoStepResult, NotResult};
 use std::any::Any;
 use std::fmt;
 

@@ -10,7 +10,29 @@
 use gherkin::{Step, StepType};
 use proc_macro2::TokenStream as TokenStream2;
 use quote::{ToTokens, quote};
-use rstest_bdd::{StepKeywordParseError, UnsupportedStepType};
+use std::fmt;
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct StepKeywordParseError(pub String);
+
+impl fmt::Display for StepKeywordParseError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "invalid step keyword: {}", self.0)
+    }
+}
+
+impl std::error::Error for StepKeywordParseError {}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct UnsupportedStepType(pub StepType);
+
+impl fmt::Display for UnsupportedStepType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "unsupported step type: {:?}", self.0)
+    }
+}
+
+impl std::error::Error for UnsupportedStepType {}
 
 /// Keyword used to categorize a step definition.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]

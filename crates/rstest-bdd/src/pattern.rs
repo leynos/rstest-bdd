@@ -2,8 +2,9 @@
 //! This module defines `StepPattern`, a lightweight wrapper around a pattern
 //! literal that compiles lazily to a regular expression.
 
-use crate::types::StepPatternError;
+use crate::types::{PlaceholderSyntaxError, StepPatternError};
 use regex::Regex;
+use rstest_bdd_patterns::{PatternError, build_regex_from_pattern};
 use std::hash::{Hash, Hasher};
 use std::sync::OnceLock;
 
@@ -28,6 +29,17 @@ impl Eq for StepPattern {}
 impl Hash for StepPattern {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.text.hash(state);
+    }
+}
+
+impl From<PatternError> for StepPatternError {
+    fn from(err: PatternError) -> Self {
+        match err {
+            PatternError::Placeholder(info) => Self::PlaceholderSyntax(
+                PlaceholderSyntaxError::new(info.message, info.position, info.placeholder),
+            ),
+            PatternError::Regex(e) => Self::InvalidPattern(e),
+        }
     }
 }
 
@@ -62,7 +74,7 @@ impl StepPattern {
         if self.regex.get().is_some() {
             return Ok(());
         }
-        let src = crate::placeholder::build_regex_from_pattern(self.text)?;
+        let src = build_regex_from_pattern(self.text)?;
         let regex = Regex::new(&src)?;
         let _ = self.regex.set(regex);
         Ok(())

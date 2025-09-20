@@ -1,7 +1,6 @@
 //! Tests for step-definition validation: missing/single/ambiguous outcomes and registry behaviour.
 use super::*;
 use rstest::rstest;
-use rstest_bdd::StepPattern;
 use serial_test::serial;
 
 #[expect(clippy::expect_used, reason = "registry lock must panic if poisoned")]
@@ -106,7 +105,7 @@ fn aborts_on_invalid_step_pattern() {
         msg.contains("proc-macro-error API cannot be used outside of `entry_point` invocation")
     );
 
-    assert!(StepPattern::from("unclosed {").compile().is_err());
+    assert!(rstest_bdd_patterns::build_regex_from_pattern("unclosed {").is_err());
 }
 
 #[test]
