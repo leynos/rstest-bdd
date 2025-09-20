@@ -9,6 +9,7 @@ use crate::placeholder::{
     parse_escaped_brace, parse_literal, parse_placeholder,
 };
 use crate::{IntoStepResult, NotResult};
+use rstest::rstest;
 use std::any::Any;
 use std::fmt;
 
@@ -164,6 +165,9 @@ macro_rules! assert_into_step_error {
 #[derive(Debug, PartialEq, Eq)]
 struct CustomValue(u16);
 
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+struct ZeroSized;
+
 #[derive(Debug, PartialEq, Eq)]
 struct DisplayError(&'static str);
 
@@ -174,6 +178,40 @@ impl fmt::Display for DisplayError {
 }
 
 type AliasResult = Result<CustomValue, DisplayError>;
+type NestedResult = Result<Result<CustomValue, DisplayError>, DisplayError>;
+
+#[test]
+fn result_unit_display_error_maps() {
+    let ok: Result<(), DisplayError> = Ok(());
+    expect_ok_none(ok.into_step_result());
+
+    let err: Result<(), DisplayError> = Err(DisplayError("unit display failure"));
+    let message = expect_err(err.into_step_result());
+    assert_eq!(message, "unit display failure");
+}
+
+#[test]
+fn result_zero_sized_value_round_trips() {
+    let ok: Result<ZeroSized, DisplayError> = Ok(ZeroSized);
+    let boxed = expect_ok_box(ok.into_step_result());
+    let value = extract_value::<ZeroSized>(boxed);
+    assert_eq!(value, ZeroSized);
+
+    let err: Result<ZeroSized, DisplayError> = Err(DisplayError("zero sized boom"));
+    let message = expect_err(err.into_step_result());
+    assert_eq!(message, "zero sized boom");
+}
+
+#[test]
+fn result_unit_alias_maps_to_none() {
+    type UnitAlias = ();
+    let ok: Result<UnitAlias, &str> = Ok(());
+    expect_ok_none(ok.into_step_result());
+
+    let err: Result<UnitAlias, &str> = Err("aliased fail");
+    let message = expect_err(err.into_step_result());
+    assert_eq!(message, "aliased fail");
+}
 
 #[test]
 fn unit_type_becomes_none() {
@@ -218,6 +256,31 @@ fn type_alias_result_round_trips() {
 
     let err: AliasResult = Err(DisplayError("alias failure"));
     assert_into_step_error!(err, "alias failure");
+}
+
+#[rstest]
+#[case::inner_ok(Ok(Ok(CustomValue(21))), Some(Ok(CustomValue(21))), None)]
+#[case::inner_err(
+    Ok(Err(DisplayError("inner failure"))),
+    Some(Err(DisplayError("inner failure"))),
+    None
+)]
+#[case::outer_err(Err(DisplayError("outer failure")), None, Some("outer failure"))]
+fn nested_result_payload_cases(
+    #[case] input: NestedResult,
+    #[case] expected_value: Option<Result<CustomValue, DisplayError>>,
+    #[case] expected_error: Option<&'static str>,
+) {
+    if let Some(message) = expected_error {
+        assert_into_step_error!(input, message);
+    } else {
+        let Some(expected) = expected_value else {
+            panic!("expected nested result");
+        };
+        let boxed = expect_ok_box(input.into_step_result());
+        let nested = extract_value::<Result<CustomValue, DisplayError>>(boxed);
+        assert_eq!(nested, expected);
+    }
 }
 
 #[test]
