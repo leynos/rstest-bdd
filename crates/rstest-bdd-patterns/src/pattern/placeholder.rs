@@ -37,101 +37,150 @@ pub(crate) fn parse_placeholder(
     start: usize,
 ) -> Result<(usize, PlaceholderSpec), PatternError> {
     let mut index = start + 1;
-    let mut name = String::new();
-    while let Some(&b) = bytes.get(index) {
-        let ch = b as char;
-        if ch.is_ascii_alphanumeric() || b == b'_' {
-            name.push(ch);
-            index += 1;
-        } else {
-            break;
-        }
-    }
+    let name = parse_name(bytes, &mut index);
+    skip_forbidden_whitespace(bytes, &mut index, start, &name)?;
 
-    if let Some(&b) = bytes.get(index) {
-        if (b as char).is_ascii_whitespace() {
-            let mut ws_end = index;
-            while let Some(&bw) = bytes.get(ws_end) {
-                if !(bw as char).is_ascii_whitespace() {
-                    break;
-                }
-                ws_end += 1;
-            }
-            if matches!(bytes.get(ws_end), Some(b':' | b'}')) {
-                return Err(placeholder_error(
-                    "invalid placeholder in step pattern",
-                    start,
-                    Some(name),
-                ));
-            }
-            index = ws_end;
-        }
-    }
+    let hint = parse_optional_hint(bytes, &mut index, start, &name)?;
 
-    let mut hint = None;
-    if matches!(bytes.get(index), Some(b':')) {
-        index += 1;
-        let hint_start = index;
-        while let Some(&b) = bytes.get(index) {
-            if b == b'}' {
-                break;
-            }
-            index += 1;
-        }
-        let raw_bytes = bytes.get(hint_start..index).ok_or_else(|| {
-            placeholder_error(
-                "invalid placeholder in step pattern",
-                start,
-                Some(name.clone()),
-            )
-        })?;
-        let raw = std::str::from_utf8(raw_bytes).map_err(|_| {
-            placeholder_error(
-                "invalid placeholder in step pattern",
-                start,
-                Some(name.clone()),
-            )
-        })?;
-        if raw.is_empty()
-            || raw.chars().any(|c| c.is_ascii_whitespace())
-            || raw.contains('{')
-            || raw.contains('}')
-        {
-            return Err(placeholder_error(
-                "invalid placeholder in step pattern",
-                start,
-                Some(name),
-            ));
-        }
-        hint = Some(raw.to_string());
+    let closing_index = if hint.is_some() {
+        index
     } else {
-        index = find_closing_brace(bytes, index).ok_or_else(|| {
+        find_closing_brace(bytes, index).ok_or_else(|| {
             placeholder_error(
                 "missing closing '}' for placeholder",
                 start,
                 Some(name.clone()),
             )
-        })?;
-    }
+        })?
+    };
 
-    if !matches!(bytes.get(index), Some(b'}')) {
+    if !matches!(bytes.get(closing_index), Some(b'}')) {
         return Err(placeholder_error(
             "missing closing '}' for placeholder",
             start,
-            Some(name),
+            Some(name.clone()),
         ));
     }
-    index += 1;
+
+    let end = closing_index + 1;
 
     Ok((
-        index,
+        end,
         PlaceholderSpec {
             name,
             hint,
             start,
-            end: index,
+            end,
         },
     ))
+}
+
+fn parse_name(bytes: &[u8], index: &mut usize) -> String {
+    let mut name = String::new();
+    while let Some(&b) = bytes.get(*index) {
+        let ch = b as char;
+        if ch.is_ascii_alphanumeric() || b == b'_' {
+            name.push(ch);
+            *index += 1;
+        } else {
+            break;
+        }
+    }
+    name
+}
+
+fn skip_forbidden_whitespace(
+    bytes: &[u8],
+    index: &mut usize,
+    start: usize,
+    name: &str,
+) -> Result<(), PatternError> {
+    let Some(&next) = bytes.get(*index) else {
+        return Ok(());
+    };
+
+    if !(next as char).is_ascii_whitespace() {
+        return Ok(());
+    }
+
+    let mut end = *index;
+    while let Some(&b) = bytes.get(end) {
+        if !(b as char).is_ascii_whitespace() {
+            break;
+        }
+        end += 1;
+    }
+
+    if matches!(bytes.get(end), Some(b':' | b'}')) {
+        return Err(placeholder_error(
+            "invalid placeholder in step pattern",
+            start,
+            Some(name.to_string()),
+        ));
+    }
+
+    *index = end;
+    Ok(())
+}
+
+fn parse_optional_hint(
+    bytes: &[u8],
+    index: &mut usize,
+    start: usize,
+    name: &str,
+) -> Result<Option<String>, PatternError> {
+    if !matches!(bytes.get(*index), Some(b':')) {
+        return Ok(None);
+    }
+
+    *index += 1;
+    let hint_start = *index;
+    let mut end = hint_start;
+    while let Some(&b) = bytes.get(end) {
+        if b == b'}' {
+            break;
+        }
+        end += 1;
+    }
+
+    let Some(raw_bytes) = bytes.get(hint_start..end) else {
+        return Err(placeholder_error(
+            "invalid placeholder in step pattern",
+            start,
+            Some(name.to_string()),
+        ));
+    };
+
+    if !matches!(bytes.get(end), Some(b'}')) {
+        return Err(placeholder_error(
+            "missing closing '}' for placeholder",
+            start,
+            Some(name.to_string()),
+        ));
+    }
+
+    let raw = std::str::from_utf8(raw_bytes).map_err(|_| {
+        placeholder_error(
+            "invalid placeholder in step pattern",
+            start,
+            Some(name.to_string()),
+        )
+    })?;
+
+    if raw.is_empty()
+        || raw.chars().any(|c| c.is_ascii_whitespace())
+        || raw.contains('{')
+        || raw.contains('}')
+    {
+        return Err(placeholder_error(
+            "invalid placeholder in step pattern",
+            start,
+            Some(name.to_string()),
+        ));
+    }
+
+    *index = end;
+    Ok(Some(raw.to_string()))
 }
 
 #[cfg(test)]

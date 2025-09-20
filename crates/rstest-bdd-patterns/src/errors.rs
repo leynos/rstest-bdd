@@ -1,7 +1,7 @@
 //! Error types shared by the pattern parsing modules.
 
-use std::error::Error;
 use std::fmt;
+use thiserror::Error;
 
 /// Additional context for placeholder-related parsing errors.
 ///
@@ -60,28 +60,12 @@ impl fmt::Display for PlaceholderErrorInfo {
 /// let err = PatternError::Placeholder(info.clone());
 /// assert_eq!(err.to_string(), info.to_string());
 /// ```
-#[derive(Debug)]
+#[derive(Debug, Error)]
 pub enum PatternError {
+    #[error("{0}")]
     Placeholder(PlaceholderErrorInfo),
+    #[error(transparent)]
     Regex(regex::Error),
-}
-
-impl fmt::Display for PatternError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Placeholder(info) => write!(f, "{info}"),
-            Self::Regex(err) => write!(f, "{err}"),
-        }
-    }
-}
-
-impl Error for PatternError {
-    fn source(&self) -> Option<&(dyn Error + 'static)> {
-        match self {
-            Self::Placeholder(_) => None,
-            Self::Regex(err) => Some(err),
-        }
-    }
 }
 
 pub(crate) fn placeholder_error(

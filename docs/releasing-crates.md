@@ -6,8 +6,9 @@ version in `Cargo.toml` has already been bumped and the changelog entries are
 prepared. The workspace contains three libraries and the `cargo-bdd` support
 tool, so follow the sequence below to keep the dependency graph satisfied.
 
-1. **Run the full quality gate.** Execute `make fmt`, `make lint`, and
-   `make test` from the workspace root. Resolve any failures before proceeding.
+1. **Run the full quality gate.** Execute `make fmt`, `make lint`,
+   `make markdownlint`, and `make test` from the workspace root. Resolve any
+   failures before proceeding.
 2. **Publish `rstest-bdd-patterns`.**
    - `cd crates/rstest-bdd-patterns`
    - `cargo publish`
