@@ -68,6 +68,44 @@ fn parse_literal_writes_char() {
     assert!(st.output.ends_with('a'));
 }
 
+mod into_step_result {
+    //! Tests for `IntoStepResult` conversions covering fallback, unit, and result cases.
+    use super::{expect_err, expect_ok_box, expect_ok_none, extract_value};
+    use crate::IntoStepResult;
+
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    struct CustomType {
+        x: i32,
+        y: &'static str,
+    }
+
+    #[test]
+    fn fallback_impl_boxes_custom_type() {
+        let expected = CustomType { x: 7, y: "hello" };
+        let boxed = expect_ok_box(expected.into_step_result());
+        let value = extract_value::<CustomType>(boxed);
+        assert_eq!(value, expected);
+    }
+
+    #[test]
+    fn unit_specialisation_returns_none() {
+        expect_ok_none(().into_step_result());
+    }
+
+    #[test]
+    fn result_unit_specialisation_maps_errors() {
+        expect_ok_none(Result::<(), &str>::Ok(()).into_step_result());
+        let err = expect_err(Result::<(), &str>::Err("boom").into_step_result());
+        assert_eq!(err, "boom");
+    }
+
+    #[test]
+    fn result_non_unit_specialisation_propagates_errors() {
+        let err = expect_err(Result::<CustomType, &str>::Err("custom fail").into_step_result());
+        assert_eq!(err, "custom fail");
+    }
+}
+
 fn assert_not_result<T: NotResult>() {}
 
 fn expect_ok_none(result: Result<Option<Box<dyn Any>>, String>) {
