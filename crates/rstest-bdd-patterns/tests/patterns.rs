@@ -1,18 +1,16 @@
+#![expect(clippy::expect_used, reason = "test asserts conversion path")]
+
 use regex::Regex;
 
 use rstest_bdd_patterns::{build_regex_from_pattern, extract_captured_values, get_type_pattern};
 
 #[test]
 fn builds_regex_and_extracts_values() {
-    let Ok(regex_src) = build_regex_from_pattern("I have {count:u32} cukes") else {
-        panic!("unexpected pattern error");
-    };
-    let Ok(regex) = Regex::new(&regex_src) else {
-        panic!("failed to compile regex");
-    };
-    let Some(captures) = extract_captured_values(&regex, "I have 12 cukes") else {
-        panic!("expected captures for test step");
-    };
+    let regex_src =
+        build_regex_from_pattern("I have {count:u32} cukes").expect("pattern should compile");
+    let regex = Regex::new(&regex_src).expect("regex should compile");
+    let captures = extract_captured_values(&regex, "I have 12 cukes")
+        .expect("expected captures for test step");
     assert_eq!(captures, vec!["12".to_string()]);
 }
 

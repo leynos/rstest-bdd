@@ -9,8 +9,8 @@
 from __future__ import annotations
 
 import io
-import json
 import os
+import re
 import shutil
 import subprocess
 import tarfile
@@ -27,6 +27,9 @@ PUBLISH_CRATES = [
     "cargo-bdd",
 ]
 
+PATCH_SECTION_PATTERN = re.compile(r"(?m)^\[patch\.crates-io\]\n(?:.*\n)*?(?=^\[|\Z)")
+DEFAULT_PUBLISH_TIMEOUT_SECS = 900
+
 
 def export_workspace(destination: Path) -> None:
     archive = subprocess.run(
@@ -39,14 +42,11 @@ def export_workspace(destination: Path) -> None:
 
 
 def strip_patch_section(manifest: Path) -> None:
-    lines = manifest.read_text(encoding="utf-8").splitlines()
-    cleaned: list[str] = []
-    for line in lines:
-        if line.strip() == "[patch.crates-io]":
-            break
-        cleaned.append(line)
-    cleaned.append("")
-    manifest.write_text("\n".join(cleaned), encoding="utf-8")
+    text = manifest.read_text(encoding="utf-8")
+    cleaned, _ = PATCH_SECTION_PATTERN.subn("", text)
+    if not cleaned.endswith("\n"):
+        cleaned += "\n"
+    manifest.write_text(cleaned, encoding="utf-8")
 
 
 def prune_workspace_members(manifest: Path) -> None:
@@ -59,15 +59,16 @@ def prune_workspace_members(manifest: Path) -> None:
             inside_members = True
             result.append(line)
             continue
-        if inside_members:
-            if stripped == "]":
-                inside_members = False
-                result.append(line)
-            elif '"crates/' in stripped:
-                result.append(line)
+        if inside_members and stripped == "]":
+            inside_members = False
+            result.append(line)
+            continue
+        if inside_members and '"crates/' not in stripped:
             continue
         result.append(line)
-    manifest.write_text("\n".join(result) + "\n", encoding="utf-8")
+    if result and result[-1] != "":
+        result.append("")
+    manifest.write_text("\n".join(result), encoding="utf-8")
 
 
 def apply_workspace_replacements(workspace_root: Path, version: str) -> None:
@@ -78,30 +79,51 @@ def apply_workspace_replacements(workspace_root: Path, version: str) -> None:
 
 def workspace_version(manifest: Path) -> str:
     data = tomllib.loads(manifest.read_text(encoding="utf-8"))
-    return data["workspace"]["package"]["version"]
+    try:
+        return data["workspace"]["package"]["version"]
+    except KeyError as err:
+        raise SystemExit(f"expected [workspace.package].version in {manifest}") from err
 
 
-def package_crate(crate: str, workspace_root: Path) -> None:
+def run_cargo_command(crate: str, workspace_root: Path, command: list[str]) -> None:
+    """Run a Cargo command for a crate in the exported workspace.
+
+    Parameters
+    ----------
+    crate
+        Name of the crate located under the workspace's ``crates`` directory.
+    workspace_root
+        Root directory of the temporary workspace exported from the repository.
+    command
+        Command arguments, typically beginning with ``cargo``, to execute.
+
+    The command honours ``PUBLISH_CHECK_TIMEOUT_SECS`` to avoid hanging CI runs.
+    """
+
     crate_dir = workspace_root / "crates" / crate
     env = dict(os.environ)
     env["CARGO_HOME"] = str(workspace_root / ".cargo-home")
-    subprocess.run(
+    timeout_value = os.environ.get("PUBLISH_CHECK_TIMEOUT_SECS")
+    try:
+        timeout = int(timeout_value) if timeout_value is not None else DEFAULT_PUBLISH_TIMEOUT_SECS
+    except ValueError as err:
+        raise SystemExit("PUBLISH_CHECK_TIMEOUT_SECS must be an integer") from err
+    subprocess.run(command, check=True, cwd=crate_dir, env=env, timeout=timeout)
+
+
+def package_crate(crate: str, workspace_root: Path) -> None:
+    run_cargo_command(
+        crate,
+        workspace_root,
         ["cargo", "package", "--allow-dirty", "--no-verify"],
-        check=True,
-        cwd=crate_dir,
-        env=env,
     )
 
 
 def check_crate(crate: str, workspace_root: Path) -> None:
-    crate_dir = workspace_root / "crates" / crate
-    env = dict(os.environ)
-    env["CARGO_HOME"] = str(workspace_root / ".cargo-home")
-    subprocess.run(
+    run_cargo_command(
+        crate,
+        workspace_root,
         ["cargo", "check", "--all-features"],
-        check=True,
-        cwd=crate_dir,
-        env=env,
     )
 
 

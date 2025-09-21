@@ -134,8 +134,29 @@ fn parse_optional_hint(
     }
 
     *index += 1;
-    let hint_start = *index;
+    let (end, raw_bytes) = extract_hint_bytes(bytes, *index, start, name)?;
+    let raw = parse_hint_text(raw_bytes, start, name)?;
+
+    if !is_valid_hint_format(raw) {
+        return Err(placeholder_error(
+            "invalid placeholder in step pattern",
+            start,
+            Some(name.to_string()),
+        ));
+    }
+
+    *index = end;
+    Ok(Some(raw.to_string()))
+}
+
+fn extract_hint_bytes<'a>(
+    bytes: &'a [u8],
+    hint_start: usize,
+    start: usize,
+    name: &str,
+) -> Result<(usize, &'a [u8]), PatternError> {
     let mut end = hint_start;
+
     while let Some(&b) = bytes.get(end) {
         if b == b'}' {
             break;
@@ -159,28 +180,28 @@ fn parse_optional_hint(
         ));
     }
 
-    let raw = std::str::from_utf8(raw_bytes).map_err(|_| {
+    Ok((end, raw_bytes))
+}
+
+fn parse_hint_text<'a>(
+    raw_bytes: &'a [u8],
+    start: usize,
+    name: &str,
+) -> Result<&'a str, PatternError> {
+    std::str::from_utf8(raw_bytes).map_err(|_| {
         placeholder_error(
             "invalid placeholder in step pattern",
             start,
             Some(name.to_string()),
         )
-    })?;
+    })
+}
 
-    if raw.is_empty()
-        || raw.chars().any(|c| c.is_ascii_whitespace())
-        || raw.contains('{')
-        || raw.contains('}')
-    {
-        return Err(placeholder_error(
-            "invalid placeholder in step pattern",
-            start,
-            Some(name.to_string()),
-        ));
-    }
-
-    *index = end;
-    Ok(Some(raw.to_string()))
+fn is_valid_hint_format(hint: &str) -> bool {
+    !hint.is_empty()
+        && !hint.chars().any(|c| c.is_ascii_whitespace())
+        && !hint.contains('{')
+        && !hint.contains('}')
 }
 
 #[cfg(test)]
