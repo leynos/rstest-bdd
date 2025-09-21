@@ -1,34 +1,100 @@
-#!/usr/bin/env python3
+#!/usr/bin/env -S uv run python
+# /// script
+# requires-python = ">=3.11"
+# dependencies = [
+#     "tomlkit",
+# ]
+# ///
 """Utility helpers for adjusting manifests during publish checks."""
 from __future__ import annotations
 
 import argparse
+from dataclasses import dataclass
 from pathlib import Path
+from typing import Iterable
 
-REPLACEMENTS = {
-    "rstest-bdd-macros": {
-        "rstest-bdd-patterns.workspace = true": 'rstest-bdd-patterns = {{ path = "../rstest-bdd-patterns", version = "{version}" }}',
-        "rstest-bdd.workspace = true": 'rstest-bdd = {{ path = "../rstest-bdd", version = "{version}" }}',
-    },
-    "rstest-bdd": {
-        "rstest-bdd-patterns.workspace = true": 'rstest-bdd-patterns = {{ path = "../rstest-bdd-patterns", version = "{version}" }}',
-        "rstest-bdd-macros.workspace = true": 'rstest-bdd-macros = {{ path = "../rstest-bdd-macros", version = "{version}" }}',
-    },
-    "cargo-bdd": {
-        'rstest-bdd = { workspace = true, features = ["diagnostics"] }': 'rstest-bdd = {{ path = "../rstest-bdd", version = "{version}", features = ["diagnostics"] }}',
-    },
+from tomlkit import TOMLDocument, dumps, inline_table, parse
+from tomlkit.items import InlineTable, Table
+
+
+@dataclass(frozen=True)
+class DependencyPatch:
+    """Describe how a dependency should be rewritten for publish checks."""
+
+    section: str
+    name: str
+    path: str
+
+
+REPLACEMENTS: dict[str, tuple[DependencyPatch, ...]] = {
+    "rstest-bdd-macros": (
+        DependencyPatch("dependencies", "rstest-bdd-patterns", "../rstest-bdd-patterns"),
+        DependencyPatch("dev-dependencies", "rstest-bdd", "../rstest-bdd"),
+    ),
+    "rstest-bdd": (
+        DependencyPatch("dependencies", "rstest-bdd-patterns", "../rstest-bdd-patterns"),
+        DependencyPatch("dev-dependencies", "rstest-bdd-macros", "../rstest-bdd-macros"),
+    ),
+    "cargo-bdd": (
+        DependencyPatch("dependencies", "rstest-bdd", "../rstest-bdd"),
+    ),
 }
 
 
 def apply_replacements(crate: str, manifest: Path, version: str) -> None:
-    replacements = REPLACEMENTS[crate]
-    text = manifest.read_text(encoding="utf-8")
-    for old, template in replacements.items():
-        new = template.format(version=version)
-        if old not in text:
-            raise SystemExit(f"expected {old!r} in {manifest}")
-        text = text.replace(old, new)
-    manifest.write_text(text, encoding="utf-8")
+    document = parse(manifest.read_text(encoding="utf-8"))
+    patches = REPLACEMENTS.get(crate)
+    if patches is None:
+        raise SystemExit(f"unknown crate {crate!r}")
+    for patch in patches:
+        update_dependency(document, patch, version, manifest)
+    manifest.write_text(dumps(document), encoding="utf-8")
+
+
+def update_dependency(
+    document: TOMLDocument,
+    patch: DependencyPatch,
+    version: str,
+    manifest: Path,
+) -> None:
+    try:
+        section = document[patch.section]
+    except KeyError as error:
+        raise SystemExit(
+            f"expected section [{patch.section}] in {manifest}"
+        ) from error
+    try:
+        existing = section[patch.name]
+    except KeyError as error:
+        raise SystemExit(
+            f"expected dependency {patch.name!r} in {manifest}"
+        ) from error
+    extra_items = extract_existing_items(existing)
+    section[patch.name] = build_inline_dependency(extra_items, patch.path, version)
+
+
+def extract_existing_items(value: object) -> Iterable[tuple[str, object]]:
+    if isinstance(value, (Table, InlineTable)):
+        return tuple(
+            (key, item)
+            for key, item in value.items()
+            if key not in {"workspace", "path", "version"}
+        )
+    return ()
+
+
+def build_inline_dependency(
+    extra_items: Iterable[tuple[str, object]],
+    path: str,
+    version: str,
+) -> InlineTable:
+    dependency = inline_table()
+    dependency["path"] = path
+    dependency["version"] = version
+    for key, item in extra_items:
+        dependency[key] = item
+    dependency.trailing_comma = False
+    return dependency
 
 
 def main() -> None:

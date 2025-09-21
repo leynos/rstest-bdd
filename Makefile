@@ -40,7 +40,7 @@ nixie:
 	nixie --no-sandbox
 
 publish-check: ## Package crates in release order to validate publish readiness
-	python scripts/run_publish_check.py
+	uv run scripts/run_publish_check.py
 
 
 help: ## Show available targets

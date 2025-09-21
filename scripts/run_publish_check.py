@@ -1,4 +1,10 @@
-#!/usr/bin/env python3
+#!/usr/bin/env -S uv run python
+# /// script
+# requires-python = ">=3.11"
+# dependencies = [
+#     "tomlkit",
+# ]
+# ///
 """Run the publish-check workflow in a temporary workspace copy."""
 from __future__ import annotations
 
