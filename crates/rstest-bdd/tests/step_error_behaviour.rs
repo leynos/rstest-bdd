@@ -2,7 +2,7 @@
 
 use rstest::rstest;
 use rstest_bdd::{StepContext, StepError, StepKeyword};
-use rstest_bdd_macros::given;
+use rstest_bdd_macros::{given, then, when};
 use std::fmt;
 
 #[given("a failing step")]
@@ -22,6 +22,16 @@ fn non_string_panicking_step() -> Result<(), String> {
 
 #[given("a successful step")]
 fn successful_step() {}
+
+#[when("a failing when step")]
+fn failing_when_step() -> Result<(), String> {
+    Err("when boom".into())
+}
+
+#[then("a failing then step")]
+fn failing_then_step() -> Result<(), String> {
+    Err("then boom".into())
+}
 
 type StepResult<T> = Result<T, &'static str>;
 
@@ -159,6 +169,7 @@ fn invoke_step(
 
 #[rstest]
 #[case(
+    StepKeyword::Given,
     "a failing step",
     "a failing step",
     "failing_step",
@@ -169,6 +180,7 @@ fn invoke_step(
     },
 )]
 #[case(
+    StepKeyword::Given,
     "an alias error step",
     "an alias error step",
     "alias_error_step",
@@ -179,6 +191,7 @@ fn invoke_step(
     },
 )]
 #[case(
+    StepKeyword::Given,
     "a fallible unit step fails",
     "a fallible unit step fails",
     "fallible_unit_step_fails",
@@ -189,6 +202,7 @@ fn invoke_step(
     },
 )]
 #[case(
+    StepKeyword::Given,
     "a fallible value step fails",
     "a fallible value step fails",
     "fallible_value_step_fails",
@@ -199,6 +213,7 @@ fn invoke_step(
     },
 )]
 #[case(
+    StepKeyword::Given,
     "a panicking step",
     "a panicking step",
     "panicking_step",
@@ -209,6 +224,7 @@ fn invoke_step(
     },
 )]
 #[case(
+    StepKeyword::Given,
     "a non-string panicking step",
     "a non-string panicking step",
     "non_string_panicking_step",
@@ -219,6 +235,7 @@ fn invoke_step(
     },
 )]
 #[case(
+    StepKeyword::Given,
     "a step requiring a table",
     "a step requiring a table",
     "step_needing_table",
@@ -229,6 +246,7 @@ fn invoke_step(
     },
 )]
 #[case(
+    StepKeyword::Given,
     "a step requiring a docstring",
     "a step requiring a docstring",
     "step_needing_docstring",
@@ -239,6 +257,7 @@ fn invoke_step(
     },
 )]
 #[case(
+    StepKeyword::Given,
     "number {value}",
     "number not_a_number",
     "parse_number",
@@ -253,6 +272,7 @@ fn invoke_step(
     },
 )]
 #[case(
+    StepKeyword::Given,
     "no placeholders",
     "no placeholders",
     "missing_capture",
@@ -262,14 +282,37 @@ fn invoke_step(
         step: "missing_capture".into(),
     },
 )]
+#[case(
+    StepKeyword::When,
+    "a failing when step",
+    "a failing when step",
+    "failing_when_step",
+    StepError::ExecutionError {
+        pattern: "a failing when step".into(),
+        function: "failing_when_step".into(),
+        message: "when boom".into(),
+    },
+)]
+#[case(
+    StepKeyword::Then,
+    "a failing then step",
+    "a failing then step",
+    "failing_then_step",
+    StepError::ExecutionError {
+        pattern: "a failing then step".into(),
+        function: "failing_then_step".into(),
+        message: "then boom".into(),
+    },
+)]
 
 fn step_error_scenarios(
+    #[case] keyword: StepKeyword,
     #[case] step_pattern: &str,
     #[case] step_text: &str,
     #[case] expected_function: &str,
     #[case] expected_error: StepError,
 ) {
-    let Err(err) = invoke_step(StepKeyword::Given, step_pattern, step_text, None, None) else {
+    let Err(err) = invoke_step(keyword, step_pattern, step_text, None, None) else {
         panic!("expected error for '{step_text}'");
     };
     assert_step_error(&err, expected_function, step_pattern, &expected_error);
