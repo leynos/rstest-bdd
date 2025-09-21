@@ -144,14 +144,15 @@ fn assert_step_error(
     }
 }
 
-fn invoke_given_step(
+fn invoke_step(
+    keyword: StepKeyword,
     step_pattern: &str,
     step_text: &str,
     docstring: Option<&str>,
     datatable: Option<&[&[&str]]>,
 ) -> Result<Option<Box<dyn std::any::Any>>, StepError> {
     let ctx = StepContext::default();
-    let step_fn = rstest_bdd::lookup_step(StepKeyword::Given, step_pattern.into())
+    let step_fn = rstest_bdd::lookup_step(keyword, step_pattern.into())
         .unwrap_or_else(|| panic!("step '{step_pattern}' not found in registry"));
     step_fn(&ctx, step_text, docstring, datatable)
 }
@@ -268,7 +269,7 @@ fn step_error_scenarios(
     #[case] expected_function: &str,
     #[case] expected_error: StepError,
 ) {
-    let Err(err) = invoke_given_step(step_pattern, step_text, None, None) else {
+    let Err(err) = invoke_step(StepKeyword::Given, step_pattern, step_text, None, None) else {
         panic!("expected error for '{step_text}'");
     };
     assert_step_error(&err, expected_function, step_pattern, &expected_error);
@@ -276,7 +277,13 @@ fn step_error_scenarios(
 
 #[test]
 fn successful_step_execution() {
-    let res = invoke_given_step("a successful step", "a successful step", None, None);
+    let res = invoke_step(
+        StepKeyword::Given,
+        "a successful step",
+        "a successful step",
+        None,
+        None,
+    );
     if let Err(e) = res {
         panic!("unexpected error: {e:?}");
     }
@@ -284,7 +291,8 @@ fn successful_step_execution() {
 
 #[test]
 fn fallible_unit_step_execution_returns_none() {
-    let res = invoke_given_step(
+    let res = invoke_step(
+        StepKeyword::Given,
         "a fallible unit step succeeds",
         "a fallible unit step succeeds",
         None,
@@ -296,7 +304,8 @@ fn fallible_unit_step_execution_returns_none() {
 
 #[test]
 fn fallible_value_step_execution_returns_value() {
-    let boxed = invoke_given_step(
+    let boxed = invoke_step(
+        StepKeyword::Given,
         "a fallible value step succeeds",
         "a fallible value step succeeds",
         None,
@@ -313,7 +322,8 @@ fn fallible_value_step_execution_returns_value() {
 #[test]
 fn datatable_is_passed_and_executes() {
     let table: &[&[&str]] = &[&["a", "b"], &["c", "d"]];
-    if let Err(e) = invoke_given_step(
+    if let Err(e) = invoke_step(
+        StepKeyword::Given,
         "a step requiring a table",
         "a step requiring a table",
         None,
@@ -325,7 +335,8 @@ fn datatable_is_passed_and_executes() {
 
 #[test]
 fn docstring_is_passed_and_executes() {
-    if let Err(e) = invoke_given_step(
+    if let Err(e) = invoke_step(
+        StepKeyword::Given,
         "a step requiring a docstring",
         "a step requiring a docstring",
         Some("content"),
