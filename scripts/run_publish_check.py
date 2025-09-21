@@ -54,29 +54,51 @@ def _is_any_section_start(line: str) -> bool:
     return line.startswith("[")
 
 
+def _process_patch_section_line(line: str, skipping_patch: bool) -> tuple[bool, bool]:
+    """Process a line for patch section handling.
+
+    Parameters
+    ----------
+    line
+        The current line being processed.
+    skipping_patch
+        Current state indicating if we're inside a patch section.
+
+    Returns
+    -------
+    tuple[bool, bool]
+        A tuple of (should_include_line, new_skipping_patch_state).
+    """
+
+    if not skipping_patch and _is_patch_section_start(line):
+        return False, True
+
+    if skipping_patch and _is_any_section_start(line):
+        return True, False
+
+    return not skipping_patch, skipping_patch
+
+
+def _ensure_proper_file_ending(lines: list[str]) -> None:
+    """Ensure the file ends with a newline by adding an empty string if needed."""
+
+    if not lines or lines[-1] != "":
+        lines.append("")
+
+
 def strip_patch_section(manifest: Path) -> None:
+    """Strip the [patch.crates-io] section from a Cargo manifest file."""
+
     lines = manifest.read_text(encoding="utf-8").splitlines()
     cleaned: list[str] = []
     skipping_patch = False
 
     for line in lines:
-        # The `[patch.crates-io]` block is generated locally to point at
-        # unpublished crates. It never nests and always ends at the next
-        # top-level manifest section, so we can drop it by toggling a flag
-        # until another section header is encountered.
-        if not skipping_patch and _is_patch_section_start(line):
-            skipping_patch = True
-            continue
-
-        if skipping_patch and _is_any_section_start(line):
-            skipping_patch = False
-
-        if not skipping_patch:
+        should_include, skipping_patch = _process_patch_section_line(line, skipping_patch)
+        if should_include:
             cleaned.append(line)
 
-    if not cleaned or cleaned[-1] != "":
-        cleaned.append("")
-
+    _ensure_proper_file_ending(cleaned)
     manifest.write_text("\n".join(cleaned), encoding="utf-8")
 
 
@@ -99,22 +121,30 @@ def _should_include_member_line(line: str) -> bool:
     return '"crates/' in line.strip()
 
 
+def _process_member_line(line: str, inside_members: bool, result: list[str]) -> bool:
+    """Update workspace member parsing state for a manifest line."""
+
+    if _is_members_section_start(line):
+        result.append(line)
+        return True
+
+    if inside_members and _is_members_section_end(line):
+        result.append(line)
+        return False
+
+    if inside_members and not _should_include_member_line(line):
+        return inside_members
+
+    result.append(line)
+    return inside_members
+
+
 def prune_workspace_members(manifest: Path) -> None:
     lines = manifest.read_text(encoding="utf-8").splitlines()
     result: list[str] = []
     inside_members = False
     for line in lines:
-        if _is_members_section_start(line):
-            inside_members = True
-            result.append(line)
-            continue
-        if inside_members and _is_members_section_end(line):
-            inside_members = False
-            result.append(line)
-            continue
-        if inside_members and not _should_include_member_line(line):
-            continue
-        result.append(line)
+        inside_members = _process_member_line(line, inside_members, result)
     if result and result[-1] != "":
         result.append("")
     manifest.write_text("\n".join(result), encoding="utf-8")

@@ -37,15 +37,27 @@ fn find_closing_brace(bytes: &[u8], start: usize) -> Option<usize> {
     None
 }
 
+struct PlaceholderContext<'a> {
+    bytes: &'a [u8],
+    start: usize,
+    name: &'a str,
+}
+
 pub(crate) fn parse_placeholder(
     bytes: &[u8],
     start: usize,
 ) -> Result<(usize, PlaceholderSpec), PatternError> {
     let mut index = start + 1;
     let name = parse_name(bytes, &mut index);
-    skip_forbidden_whitespace(bytes, &mut index, start, &name)?;
+    let ctx = PlaceholderContext {
+        bytes,
+        start,
+        name: &name,
+    };
 
-    let hint = parse_optional_hint(bytes, &mut index, start, &name)?;
+    skip_forbidden_whitespace(&ctx, &mut index)?;
+
+    let hint = parse_optional_hint(&ctx, &mut index)?;
 
     let closing_index = if hint.is_some() {
         index
@@ -95,37 +107,24 @@ fn parse_name(bytes: &[u8], index: &mut usize) -> String {
 }
 
 fn skip_forbidden_whitespace(
-    bytes: &[u8],
+    ctx: &PlaceholderContext,
     index: &mut usize,
-    start: usize,
-    name: &str,
 ) -> Result<(), PatternError> {
-    let Some(&next) = bytes.get(*index) else {
+    let Some(&next_byte) = ctx.bytes.get(*index) else {
         return Ok(());
     };
 
-    if !(next as char).is_ascii_whitespace() {
+    if !(next_byte as char).is_ascii_whitespace() {
         return Ok(());
     }
 
-    let mut end = *index;
-    while let Some(&b) = bytes.get(end) {
-        if !(b as char).is_ascii_whitespace() {
-            break;
-        }
-        end += 1;
-    }
+    let end = skip_all_whitespace(ctx.bytes, *index);
 
-    let Some(&next_byte) = bytes.get(end) else {
-        *index = end;
-        return Ok(());
-    };
-
-    if next_byte == COLON || next_byte == CLOSE_BRACE {
+    if has_forbidden_byte_after_whitespace(ctx, end) {
         return Err(placeholder_error(
             "invalid placeholder in step pattern",
-            start,
-            Some(name.to_string()),
+            ctx.start,
+            Some(ctx.name.to_string()),
         ));
     }
 
@@ -133,25 +132,37 @@ fn skip_forbidden_whitespace(
     Ok(())
 }
 
+fn skip_all_whitespace(bytes: &[u8], mut index: usize) -> usize {
+    while let Some(&byte) = bytes.get(index) {
+        if !(byte as char).is_ascii_whitespace() {
+            break;
+        }
+        index += 1;
+    }
+    index
+}
+
+fn has_forbidden_byte_after_whitespace(ctx: &PlaceholderContext, index: usize) -> bool {
+    matches!(ctx.bytes.get(index), Some(&COLON | &CLOSE_BRACE))
+}
+
 fn parse_optional_hint(
-    bytes: &[u8],
+    ctx: &PlaceholderContext,
     index: &mut usize,
-    start: usize,
-    name: &str,
 ) -> Result<Option<String>, PatternError> {
-    if bytes.get(*index).copied() != Some(b':') {
+    if ctx.bytes.get(*index).copied() != Some(COLON) {
         return Ok(None);
     }
 
     *index += 1;
-    let (end, raw_bytes) = extract_hint_bytes(bytes, *index, start, name)?;
-    let raw = parse_hint_text(raw_bytes, start, name)?;
+    let (end, raw_bytes) = extract_hint_bytes(ctx, *index)?;
+    let raw = parse_hint_text(raw_bytes, ctx.start, ctx.name)?;
 
     if !is_valid_hint_format(raw) {
         return Err(placeholder_error(
             "invalid placeholder in step pattern",
-            start,
-            Some(name.to_string()),
+            ctx.start,
+            Some(ctx.name.to_string()),
         ));
     }
 
@@ -181,24 +192,23 @@ fn is_invalid_escape_sequence(bytes: &[u8], backslash_pos: usize) -> bool {
 /// # Examples
 /// ```ignore
 /// let bytes = b"{value:u32}";
-/// let (end, hint) = extract_hint_bytes(bytes, 7, 0, "value").unwrap();
+/// let ctx = PlaceholderContext { bytes, start: 0, name: "value" };
+/// let (end, hint) = extract_hint_bytes(&ctx, 7).unwrap();
 /// assert_eq!(end, 10);
 /// assert_eq!(hint, b"u32");
 /// ```
 fn extract_hint_bytes<'a>(
-    bytes: &'a [u8],
+    ctx: &PlaceholderContext<'a>,
     hint_start: usize,
-    start: usize,
-    name: &str,
 ) -> Result<(usize, &'a [u8]), PatternError> {
     let mut end = hint_start;
 
     loop {
-        let Some(&byte) = bytes.get(end) else {
+        let Some(&byte) = ctx.bytes.get(end) else {
             return Err(placeholder_error(
                 "missing closing '}' for placeholder",
-                start,
-                Some(name.to_string()),
+                ctx.start,
+                Some(ctx.name.to_string()),
             ));
         };
 
@@ -206,22 +216,22 @@ fn extract_hint_bytes<'a>(
             break;
         }
 
-        if byte == OPEN_BRACE || (byte == BACKSLASH && is_invalid_escape_sequence(bytes, end)) {
+        if byte == OPEN_BRACE || (byte == BACKSLASH && is_invalid_escape_sequence(ctx.bytes, end)) {
             return Err(placeholder_error(
                 "invalid placeholder in step pattern",
-                start,
-                Some(name.to_string()),
+                ctx.start,
+                Some(ctx.name.to_string()),
             ));
         }
 
         end += 1;
     }
 
-    let raw_bytes = bytes.get(hint_start..end).ok_or_else(|| {
+    let raw_bytes = ctx.bytes.get(hint_start..end).ok_or_else(|| {
         placeholder_error(
             "invalid placeholder in step pattern",
-            start,
-            Some(name.to_string()),
+            ctx.start,
+            Some(ctx.name.to_string()),
         )
     })?;
 
