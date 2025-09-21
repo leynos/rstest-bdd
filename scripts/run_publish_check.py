@@ -49,21 +49,39 @@ def strip_patch_section(manifest: Path) -> None:
     manifest.write_text(cleaned, encoding="utf-8")
 
 
+def _is_members_section_start(line: str) -> bool:
+    """Return True if the line starts a workspace members section."""
+
+    stripped = line.strip()
+    return stripped.startswith("members") and stripped.endswith("[")
+
+
+def _is_members_section_end(line: str) -> bool:
+    """Return True if the line ends a workspace members section."""
+
+    return line.strip() == "]"
+
+
+def _should_include_member_line(line: str) -> bool:
+    """Return True if the member entry references a crate directory."""
+
+    return '"crates/' in line.strip()
+
+
 def prune_workspace_members(manifest: Path) -> None:
     lines = manifest.read_text(encoding="utf-8").splitlines()
     result: list[str] = []
     inside_members = False
     for line in lines:
-        stripped = line.strip()
-        if stripped.startswith("members") and stripped.endswith("["):
+        if _is_members_section_start(line):
             inside_members = True
             result.append(line)
             continue
-        if inside_members and stripped == "]":
+        if inside_members and _is_members_section_end(line):
             inside_members = False
             result.append(line)
             continue
-        if inside_members and '"crates/' not in stripped:
+        if inside_members and not _should_include_member_line(line):
             continue
         result.append(line)
     if result and result[-1] != "":
