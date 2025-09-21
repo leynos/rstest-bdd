@@ -143,18 +143,12 @@ fn scenario_fallible_unit(number: Number) {
     let _ = number;
 }
 
-#[scenario(
-    path = "tests/features/step_return_fallible_result.feature",
-    index = 0
-)]
+#[scenario(path = "tests/features/step_return_fallible_result.feature", index = 0)]
 fn scenario_fallible_result_success(number: Number) {
     let _ = number;
 }
 
-#[scenario(
-    path = "tests/features/step_return_fallible_result.feature",
-    index = 1
-)]
+#[scenario(path = "tests/features/step_return_fallible_result.feature", index = 1)]
 #[should_panic(expected = "value failure")]
 fn scenario_fallible_result_failure(number: Number) {
     let _ = number;
