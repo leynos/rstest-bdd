@@ -46,6 +46,12 @@ fn fallible_increment_succeeds(number: Number) -> Result<Number, &'static str> {
     Ok(Number(number.0 + 1))
 }
 
+#[when("a fallible increment fails")]
+fn fallible_increment_fails(number: Number) -> Result<Number, &'static str> {
+    assert_eq!(number.0, 1);
+    Err("value failure")
+}
+
 #[then("the result is 2")]
 fn check(number: Number) {
     assert_eq!(number.0, 2);
@@ -59,6 +65,15 @@ fn base_number_unchanged(number: Number) {
 #[then("the fallible result is 2")]
 fn fallible_result_is_two(number: Number) {
     assert_eq!(number.0, 2);
+}
+
+#[then("the fallible result fails")]
+#[expect(
+    clippy::panic,
+    reason = "failure scenario should stop before reaching this step"
+)]
+fn fallible_result_fails() {
+    panic!("fallible failure scenario should stop before assertions");
 }
 
 #[scenario(path = "tests/features/step_return.feature")]
@@ -128,7 +143,19 @@ fn scenario_fallible_unit(number: Number) {
     let _ = number;
 }
 
-#[scenario(path = "tests/features/step_return_fallible_result.feature")]
-fn scenario_fallible_result(number: Number) {
+#[scenario(
+    path = "tests/features/step_return_fallible_result.feature",
+    index = 0
+)]
+fn scenario_fallible_result_success(number: Number) {
+    let _ = number;
+}
+
+#[scenario(
+    path = "tests/features/step_return_fallible_result.feature",
+    index = 1
+)]
+#[should_panic(expected = "value failure")]
+fn scenario_fallible_result_failure(number: Number) {
     let _ = number;
 }
