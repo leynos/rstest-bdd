@@ -39,14 +39,8 @@ nixie:
 	# environment variable control for this option
 	nixie --no-sandbox
 
-publish-check: ## Dry-run cargo publish for all crates
-	@tmp=$$(mktemp -d); \
-	git archive --format=tar HEAD | tar -C $$tmp -xf -; \
-	sed -i '/^\[patch.crates-io\]/,$$d' $$tmp/Cargo.toml; \
-	for crate in $$tmp/crates/*; do \
-		(cd $$crate && $(CARGO) publish --dry-run --allow-dirty --no-verify); \
-	done; \
-	rm -rf $$tmp
+publish-check: ## Package crates in release order to validate publish readiness
+	uv run scripts/run_publish_check.py
 
 
 help: ## Show available targets

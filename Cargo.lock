@@ -844,6 +844,7 @@ dependencies = [
  "regex",
  "rstest",
  "rstest-bdd-macros",
+ "rstest-bdd-patterns",
  "serde",
  "serde_json",
  "thiserror",
@@ -860,13 +861,23 @@ dependencies = [
  "proc-macro-error",
  "proc-macro2",
  "quote",
+ "regex",
  "rstest",
  "rstest-bdd",
+ "rstest-bdd-patterns",
  "serial_test",
  "syn 2.0.106",
  "tempfile",
  "trybuild",
  "walkdir",
+]
+
+[[package]]
+name = "rstest-bdd-patterns"
+version = "0.1.0-alpha3"
+dependencies = [
+ "regex",
+ "thiserror",
 ]
 
 [[package]]
