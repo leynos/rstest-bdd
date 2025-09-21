@@ -10,16 +10,21 @@ pub(crate) struct PlaceholderSpec {
     pub end: usize,
 }
 
+const BACKSLASH: u8 = 92;
+const OPEN_BRACE: u8 = 123;
+const CLOSE_BRACE: u8 = 125;
+const COLON: u8 = 58;
+
 fn find_closing_brace(bytes: &[u8], start: usize) -> Option<usize> {
     let mut index = start;
     let mut depth = 0usize;
     while let Some(&b) = bytes.get(index) {
         match b {
-            b'{' => {
+            OPEN_BRACE => {
                 depth = depth.saturating_add(1);
                 index += 1;
             }
-            b'}' => {
+            CLOSE_BRACE => {
                 if depth == 0 {
                     return Some(index);
                 }
@@ -32,15 +37,27 @@ fn find_closing_brace(bytes: &[u8], start: usize) -> Option<usize> {
     None
 }
 
+struct PlaceholderContext<'a> {
+    bytes: &'a [u8],
+    start: usize,
+    name: &'a str,
+}
+
 pub(crate) fn parse_placeholder(
     bytes: &[u8],
     start: usize,
 ) -> Result<(usize, PlaceholderSpec), PatternError> {
     let mut index = start + 1;
     let name = parse_name(bytes, &mut index);
-    skip_forbidden_whitespace(bytes, &mut index, start, &name)?;
+    let ctx = PlaceholderContext {
+        bytes,
+        start,
+        name: &name,
+    };
 
-    let hint = parse_optional_hint(bytes, &mut index, start, &name)?;
+    skip_forbidden_whitespace(&ctx, &mut index)?;
+
+    let hint = parse_optional_hint(&ctx, &mut index)?;
 
     let closing_index = if hint.is_some() {
         index
@@ -54,7 +71,7 @@ pub(crate) fn parse_placeholder(
         })?
     };
 
-    if !matches!(bytes.get(closing_index), Some(b'}')) {
+    if bytes.get(closing_index).copied() != Some(CLOSE_BRACE) {
         return Err(placeholder_error(
             "missing closing '}' for placeholder",
             start,
@@ -90,32 +107,24 @@ fn parse_name(bytes: &[u8], index: &mut usize) -> String {
 }
 
 fn skip_forbidden_whitespace(
-    bytes: &[u8],
+    ctx: &PlaceholderContext,
     index: &mut usize,
-    start: usize,
-    name: &str,
 ) -> Result<(), PatternError> {
-    let Some(&next) = bytes.get(*index) else {
+    let Some(&next_byte) = ctx.bytes.get(*index) else {
         return Ok(());
     };
 
-    if !(next as char).is_ascii_whitespace() {
+    if !(next_byte as char).is_ascii_whitespace() {
         return Ok(());
     }
 
-    let mut end = *index;
-    while let Some(&b) = bytes.get(end) {
-        if !(b as char).is_ascii_whitespace() {
-            break;
-        }
-        end += 1;
-    }
+    let end = skip_all_whitespace(ctx.bytes, *index);
 
-    if matches!(bytes.get(end), Some(b':' | b'}')) {
+    if has_forbidden_byte_after_whitespace(ctx, end) {
         return Err(placeholder_error(
             "invalid placeholder in step pattern",
-            start,
-            Some(name.to_string()),
+            ctx.start,
+            Some(ctx.name.to_string()),
         ));
     }
 
@@ -123,64 +132,157 @@ fn skip_forbidden_whitespace(
     Ok(())
 }
 
+fn skip_all_whitespace(bytes: &[u8], mut index: usize) -> usize {
+    while let Some(&byte) = bytes.get(index) {
+        if !(byte as char).is_ascii_whitespace() {
+            break;
+        }
+        index += 1;
+    }
+    index
+}
+
+fn has_forbidden_byte_after_whitespace(ctx: &PlaceholderContext, index: usize) -> bool {
+    matches!(ctx.bytes.get(index), Some(&COLON | &CLOSE_BRACE))
+}
+
 fn parse_optional_hint(
-    bytes: &[u8],
+    ctx: &PlaceholderContext,
     index: &mut usize,
-    start: usize,
-    name: &str,
 ) -> Result<Option<String>, PatternError> {
-    if !matches!(bytes.get(*index), Some(b':')) {
+    if ctx.bytes.get(*index).copied() != Some(COLON) {
         return Ok(None);
     }
 
     *index += 1;
-    let hint_start = *index;
-    let mut end = hint_start;
-    while let Some(&b) = bytes.get(end) {
-        if b == b'}' {
-            break;
-        }
-        end += 1;
-    }
+    let (end, raw_bytes) = extract_hint_bytes(ctx, *index)?;
+    let raw = parse_hint_text(raw_bytes, ctx.start, ctx.name)?;
 
-    let Some(raw_bytes) = bytes.get(hint_start..end) else {
+    if !is_valid_hint_format(raw) {
         return Err(placeholder_error(
             "invalid placeholder in step pattern",
-            start,
-            Some(name.to_string()),
-        ));
-    };
-
-    if !matches!(bytes.get(end), Some(b'}')) {
-        return Err(placeholder_error(
-            "missing closing '}' for placeholder",
-            start,
-            Some(name.to_string()),
-        ));
-    }
-
-    let raw = std::str::from_utf8(raw_bytes).map_err(|_| {
-        placeholder_error(
-            "invalid placeholder in step pattern",
-            start,
-            Some(name.to_string()),
-        )
-    })?;
-
-    if raw.is_empty()
-        || raw.chars().any(|c| c.is_ascii_whitespace())
-        || raw.contains('{')
-        || raw.contains('}')
-    {
-        return Err(placeholder_error(
-            "invalid placeholder in step pattern",
-            start,
-            Some(name.to_string()),
+            ctx.start,
+            Some(ctx.name.to_string()),
         ));
     }
 
     *index = end;
     Ok(Some(raw.to_string()))
+}
+
+/// Determine whether a backslash escapes a brace inside a placeholder hint.
+///
+/// The helper inspects the byte following the backslash and returns ``true``
+/// when it would produce an escaped `{` or `}` character.
+fn is_invalid_escape_sequence(bytes: &[u8], backslash_pos: usize) -> bool {
+    matches!(
+        bytes.get(backslash_pos + 1),
+        Some(&OPEN_BRACE | &CLOSE_BRACE)
+    )
+}
+
+/// Extract the raw bytes that make up a placeholder hint.
+///
+/// The slice begins immediately after the colon and stops before the closing
+/// brace. Nested `{` braces or escaped braces (a backslash immediately followed
+/// by `{` or `}`) are rejected because hints map to Rust type identifiers. A
+/// [`PatternError`] is returned if the hint spans invalid syntax or the closing
+/// brace is missing.
+///
+/// # Examples
+/// ```ignore
+/// let bytes = b"{value:u32}";
+/// let ctx = PlaceholderContext { bytes, start: 0, name: "value" };
+/// let (end, hint) = extract_hint_bytes(&ctx, 7).unwrap();
+/// assert_eq!(end, 10);
+/// assert_eq!(hint, b"u32");
+/// ```
+fn extract_hint_bytes<'a>(
+    ctx: &PlaceholderContext<'a>,
+    hint_start: usize,
+) -> Result<(usize, &'a [u8]), PatternError> {
+    let mut end = hint_start;
+
+    loop {
+        let Some(&byte) = ctx.bytes.get(end) else {
+            return Err(placeholder_error(
+                "missing closing '}' for placeholder",
+                ctx.start,
+                Some(ctx.name.to_string()),
+            ));
+        };
+
+        if byte == CLOSE_BRACE {
+            break;
+        }
+
+        if byte == OPEN_BRACE || (byte == BACKSLASH && is_invalid_escape_sequence(ctx.bytes, end)) {
+            return Err(placeholder_error(
+                "invalid placeholder in step pattern",
+                ctx.start,
+                Some(ctx.name.to_string()),
+            ));
+        }
+
+        end += 1;
+    }
+
+    let raw_bytes = ctx.bytes.get(hint_start..end).ok_or_else(|| {
+        placeholder_error(
+            "invalid placeholder in step pattern",
+            ctx.start,
+            Some(ctx.name.to_string()),
+        )
+    })?;
+
+    Ok((end, raw_bytes))
+}
+
+/// Convert the raw UTF-8 bytes of a placeholder hint into text.
+///
+/// A [`PatternError`] is returned when the bytes are not valid UTF-8 so the
+/// caller can report the placeholder span precisely.
+///
+/// # Examples
+/// ```ignore
+/// let raw = b"u32";
+/// let hint = parse_hint_text(raw, 0, "value").unwrap();
+/// assert_eq!(hint, "u32");
+/// ```
+/// ```ignore
+/// assert!(parse_hint_text(&[0xFF], 0, "value").is_err());
+/// ```
+fn parse_hint_text<'a>(
+    raw_bytes: &'a [u8],
+    start: usize,
+    name: &str,
+) -> Result<&'a str, PatternError> {
+    std::str::from_utf8(raw_bytes).map_err(|_| {
+        placeholder_error(
+            "invalid placeholder in step pattern",
+            start,
+            Some(name.to_string()),
+        )
+    })
+}
+
+/// Check whether a parsed hint string satisfies formatting rules.
+///
+/// Valid hints are non-empty, contain no ASCII whitespace, and avoid braces so
+/// they can be embedded directly into generated Rust code. Returns ``true`` for
+/// hints that meet these constraints.
+///
+/// # Examples
+/// ```ignore
+/// assert!(is_valid_hint_format("u32"));
+/// assert!(!is_valid_hint_format("bad hint"));
+/// assert!(!is_valid_hint_format("{bad}"));
+/// ```
+fn is_valid_hint_format(hint: &str) -> bool {
+    !hint.is_empty()
+        && !hint.chars().any(|c| c.is_ascii_whitespace())
+        && !hint.contains('{')
+        && !hint.contains('}')
 }
 
 #[cfg(test)]
@@ -233,5 +335,29 @@ mod tests {
             err.to_string()
                 .contains("invalid placeholder in step pattern")
         );
+    }
+
+    #[test]
+    fn validates_hint_format_rules() {
+        assert!(is_valid_hint_format("u32"));
+        assert!(is_valid_hint_format("serde::JsonValue"));
+        assert!(!is_valid_hint_format(""));
+        assert!(!is_valid_hint_format("bad hint"));
+        assert!(!is_valid_hint_format("{bad"));
+        assert!(!is_valid_hint_format("bad}"));
+    }
+
+    #[test]
+    fn errors_on_hint_with_nested_brace() {
+        let pattern = "{value:Vec<{u32}>}";
+        let err = parse_placeholder(pattern.as_bytes(), 0).unwrap_err();
+        assert!(err.to_string().contains("invalid placeholder"));
+    }
+
+    #[test]
+    fn errors_on_hint_with_escaped_brace() {
+        let pattern = format!("{{value:{esc}{{hint{esc}}}}}", esc = char::from(BACKSLASH));
+        let err = parse_placeholder(pattern.as_bytes(), 0).unwrap_err();
+        assert!(err.to_string().contains("invalid placeholder"));
     }
 }
