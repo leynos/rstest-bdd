@@ -9,10 +9,12 @@
 from __future__ import annotations
 
 import io
+import logging
 import os
-import re
+import shlex
 import shutil
 import subprocess
+import sys
 import tarfile
 import tempfile
 import tomllib
@@ -27,7 +29,6 @@ PUBLISH_CRATES = [
     "cargo-bdd",
 ]
 
-PATCH_SECTION_PATTERN = re.compile(r"(?m)^\[patch\.crates-io\]\n(?:.*\n)*?(?=^\[|\Z)")
 DEFAULT_PUBLISH_TIMEOUT_SECS = 900
 
 
@@ -42,11 +43,29 @@ def export_workspace(destination: Path) -> None:
 
 
 def strip_patch_section(manifest: Path) -> None:
-    text = manifest.read_text(encoding="utf-8")
-    cleaned, _ = PATCH_SECTION_PATTERN.subn("", text)
-    if not cleaned.endswith("\n"):
-        cleaned += "\n"
-    manifest.write_text(cleaned, encoding="utf-8")
+    lines = manifest.read_text(encoding="utf-8").splitlines()
+    cleaned: list[str] = []
+    skipping_patch = False
+
+    for line in lines:
+        # The `[patch.crates-io]` block is generated locally to point at
+        # unpublished crates. It never nests and always ends at the next
+        # top-level manifest section, so we can drop it by toggling a flag
+        # until another section header is encountered.
+        if not skipping_patch and line.strip() == "[patch.crates-io]":
+            skipping_patch = True
+            continue
+
+        if skipping_patch and line.startswith("["):
+            skipping_patch = False
+
+        if not skipping_patch:
+            cleaned.append(line)
+
+    if not cleaned or cleaned[-1] != "":
+        cleaned.append("")
+
+    manifest.write_text("\n".join(cleaned), encoding="utf-8")
 
 
 def _is_members_section_start(line: str) -> bool:
@@ -113,10 +132,22 @@ def run_cargo_command(crate: str, workspace_root: Path, command: list[str]) -> N
     workspace_root
         Root directory of the temporary workspace exported from the repository.
     command
-        Command arguments, typically beginning with ``cargo``, to execute.
+        Command arguments, which **must** begin with ``cargo``, to execute.
+
+    Examples
+    --------
+    Running ``cargo --version`` for a crate directory:
+
+    >>> run_cargo_command("tools", Path("/tmp/workspace"), ["cargo", "--version"])
+    cargo 1.76.0 (9c9d2b9f8 2024-02-16)  # Version output will vary.
 
     The command honours ``PUBLISH_CHECK_TIMEOUT_SECS`` to avoid hanging CI runs.
+    When the command fails, the captured stdout and stderr are logged to aid
+    debugging in CI environments.
     """
+
+    if not command or command[0] != "cargo":
+        raise ValueError("run_cargo_command only accepts cargo invocations")
 
     crate_dir = workspace_root / "crates" / crate
     env = dict(os.environ)
@@ -125,8 +156,37 @@ def run_cargo_command(crate: str, workspace_root: Path, command: list[str]) -> N
     try:
         timeout = int(timeout_value) if timeout_value is not None else DEFAULT_PUBLISH_TIMEOUT_SECS
     except ValueError as err:
+        logging.error("PUBLISH_CHECK_TIMEOUT_SECS must be an integer: %s", err)
         raise SystemExit("PUBLISH_CHECK_TIMEOUT_SECS must be an integer") from err
-    subprocess.run(command, check=True, cwd=crate_dir, env=env, timeout=timeout)
+
+    result = subprocess.run(
+        command,
+        check=False,
+        cwd=crate_dir,
+        env=env,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        timeout=timeout,
+    )
+
+    if result.returncode != 0:
+        logging.error(
+            "cargo command failed for %s: %s",
+            crate,
+            shlex.join(command),
+        )
+        if result.stdout:
+            logging.error("cargo stdout:%s%s", os.linesep, result.stdout)
+        if result.stderr:
+            logging.error("cargo stderr:%s%s", os.linesep, result.stderr)
+        result.check_returncode()
+        return
+
+    if result.stdout:
+        print(result.stdout, end="")
+    if result.stderr:
+        print(result.stderr, end="", file=sys.stderr)
 
 
 def package_crate(crate: str, workspace_root: Path) -> None:

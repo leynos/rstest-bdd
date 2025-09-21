@@ -34,3 +34,19 @@ fn maps_unknown_type_hint_to_lazy_match() {
     assert_eq!(get_type_pattern(Some("Custom")), r".+?");
     assert_eq!(get_type_pattern(None), r".+?");
 }
+
+#[test]
+fn rejects_placeholder_hint_with_whitespace() {
+    let Err(err) = build_regex_from_pattern("{value:bad hint}") else {
+        panic!("expected placeholder error");
+    };
+    assert!(err.to_string().contains("invalid placeholder"));
+}
+
+#[test]
+fn rejects_placeholder_hint_with_braces() {
+    let Err(err) = build_regex_from_pattern("{value:Vec<{u32}>}") else {
+        panic!("expected placeholder error");
+    };
+    assert!(err.to_string().contains("invalid placeholder"));
+}
