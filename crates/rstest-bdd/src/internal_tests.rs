@@ -8,6 +8,100 @@ use crate::{IntoStepResult, NotResult};
 use std::any::Any;
 use std::fmt;
 
+#[test]
+fn predicates_detect_expected_tokens() {
+    let s = br"\{\}{{}}{a}{_}";
+    // Escaped braces
+    assert!(is_escaped_brace(s, 0));
+    assert!(!is_escaped_brace(s, 1));
+    assert!(is_escaped_brace(s, 2));
+    // Double braces
+    assert!(is_double_brace(s, 4)); // "{{"
+    assert!(is_double_brace(s, 6)); // "}}"
+    // Placeholder start
+    assert!(is_placeholder_start(s, 8)); // "{a"
+    assert!(is_placeholder_start(s, 11)); // "{_"
+}
+
+#[test]
+fn parse_escaped_and_double_braces() {
+    // Escaped brace
+    let mut st = RegexBuilder::new(r"\{");
+    parse_escaped_brace(&mut st);
+    assert_eq!(st.position, 2);
+    assert!(st.output.ends_with(r"\{"));
+
+    // Double brace
+    let mut st2 = RegexBuilder::new("{{");
+    parse_double_brace(&mut st2);
+    assert_eq!(st2.position, 2);
+    assert!(st2.output.ends_with(r"\{"));
+}
+
+#[test]
+fn parse_placeholder_without_type_and_with_type() {
+    // Without type; nested braces in placeholder content
+    let mut st = RegexBuilder::new("before {outer {inner}} after");
+    // Advance to the '{'
+    st.position = "before ".len();
+    #[expect(clippy::expect_used, reason = "test helper should fail loudly")]
+    parse_placeholder(&mut st).expect("placeholder should parse");
+    assert!(st.output.contains("(.+?)"));
+
+    // With integer type
+    let mut st2 = RegexBuilder::new("x {n:u32} y");
+    st2.position = 2; // at '{'
+    #[expect(clippy::expect_used, reason = "test helper should fail loudly")]
+    parse_placeholder(&mut st2).expect("placeholder should parse");
+    assert!(st2.output.contains(r"(\d+)"));
+}
+
+#[test]
+fn parse_literal_writes_char() {
+    let mut st = RegexBuilder::new("a");
+    parse_literal(&mut st);
+    assert_eq!(st.position, 1);
+    assert!(st.output.ends_with('a'));
+}
+
+mod into_step_result {
+    //! Tests for `IntoStepResult` conversions covering fallback, unit, and result cases.
+    use super::{expect_err, expect_ok_box, expect_ok_none, extract_value};
+    use crate::IntoStepResult;
+
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    struct CustomType {
+        x: i32,
+        y: &'static str,
+    }
+
+    #[test]
+    fn fallback_impl_boxes_custom_type() {
+        let expected = CustomType { x: 7, y: "hello" };
+        let boxed = expect_ok_box(expected.into_step_result());
+        let value = extract_value::<CustomType>(boxed);
+        assert_eq!(value, expected);
+    }
+
+    #[test]
+    fn unit_specialisation_returns_none() {
+        expect_ok_none(().into_step_result());
+    }
+
+    #[test]
+    fn result_unit_specialisation_maps_errors() {
+        expect_ok_none(Result::<(), &str>::Ok(()).into_step_result());
+        let err = expect_err(Result::<(), &str>::Err("boom").into_step_result());
+        assert_eq!(err, "boom");
+    }
+
+    #[test]
+    fn result_non_unit_specialisation_propagates_errors() {
+        let err = expect_err(Result::<CustomType, &str>::Err("custom fail").into_step_result());
+        assert_eq!(err, "custom fail");
+    }
+}
+
 fn assert_not_result<T: NotResult>() {}
 
 fn expect_ok_none(result: Result<Option<Box<dyn Any>>, String>) {

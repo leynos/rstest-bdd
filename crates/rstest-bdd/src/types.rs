@@ -110,25 +110,6 @@ impl FromStr for StepKeyword {
     }
 }
 
-#[deprecated(
-    since = "0.1.0",
-    note = "Use StepKeyword::try_from(...) or StepKeyword::from_str(...) instead"
-)]
-#[expect(useless_deprecated, reason = "trait impl deprecation has no effect")]
-impl From<&str> for StepKeyword {
-    #[expect(
-        clippy::expect_used,
-        reason = "deprecated shim for backward compatibility"
-    )]
-    fn from(value: &str) -> Self {
-        // Rust ignores `#[deprecated]` on trait implementations, so we keep
-        // this shim for backward compatibility and rely on documentation to
-        // steer callers towards `StepKeyword::from_str` (or `str::parse`)
-        // instead.
-        Self::from_str(value).expect("valid step keyword")
-    }
-}
-
 // Step types resolved from the Gherkin parser. Unknown variants return
 // `UnsupportedStepType`.
 #[derive(Debug, Error)]

@@ -222,15 +222,15 @@ This phase introduces full internationalization (i18n) and localization (l10n)
 support, enabling the use of non-English Gherkin and providing translated
 diagnostic messages.
 
-- [ ] **Foundational Gherkin Internationalization**
+- [x] **Foundational Gherkin Internationalization**
 
-  - [ ] Implement language detection in the feature file parser by recognizing
+  - [x] Implement language detection in the feature file parser by recognizing
     and respecting the `# language: <lang>` declaration.
 
-  - [ ] Refactor keyword parsing to be language-aware, relying on the
+  - [x] Refactor keyword parsing to be language-aware, relying on the
     `gherkin` crate's `StepType` rather than hardcoded English strings.
 
-  - [ ] Add a comprehensive test suite with `.feature` files in multiple
+  - [x] Add a comprehensive test suite with `.feature` files in multiple
     languages (e.g., French, German, Spanish) to validate correct parsing and
     execution. These tests run in CI to maintain coverage as languages are
     added.
