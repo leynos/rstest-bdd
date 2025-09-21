@@ -42,6 +42,18 @@ def export_workspace(destination: Path) -> None:
         tar.extractall(destination, filter="data")
 
 
+def _is_patch_section_start(line: str) -> bool:
+    """Return True when the line marks the ``[patch.crates-io]`` section."""
+
+    return line.strip() == "[patch.crates-io]"
+
+
+def _is_any_section_start(line: str) -> bool:
+    """Return True when the line starts a new manifest section."""
+
+    return line.startswith("[")
+
+
 def strip_patch_section(manifest: Path) -> None:
     lines = manifest.read_text(encoding="utf-8").splitlines()
     cleaned: list[str] = []
@@ -52,11 +64,11 @@ def strip_patch_section(manifest: Path) -> None:
         # unpublished crates. It never nests and always ends at the next
         # top-level manifest section, so we can drop it by toggling a flag
         # until another section header is encountered.
-        if not skipping_patch and line.strip() == "[patch.crates-io]":
+        if not skipping_patch and _is_patch_section_start(line):
             skipping_patch = True
             continue
 
-        if skipping_patch and line.startswith("["):
+        if skipping_patch and _is_any_section_start(line):
             skipping_patch = False
 
         if not skipping_patch:
@@ -122,6 +134,47 @@ def workspace_version(manifest: Path) -> str:
         raise SystemExit(f"expected [workspace.package].version in {manifest}") from err
 
 
+def _parse_timeout_value() -> int:
+    """Return the publish-check timeout derived from the environment."""
+
+    timeout_value = os.environ.get("PUBLISH_CHECK_TIMEOUT_SECS")
+    try:
+        return (
+            int(timeout_value)
+            if timeout_value is not None
+            else DEFAULT_PUBLISH_TIMEOUT_SECS
+        )
+    except ValueError as err:
+        logging.error("PUBLISH_CHECK_TIMEOUT_SECS must be an integer: %s", err)
+        raise SystemExit("PUBLISH_CHECK_TIMEOUT_SECS must be an integer") from err
+
+
+def _handle_command_failure(
+    crate: str, command: list[str], result: subprocess.CompletedProcess[str]
+) -> None:
+    """Log diagnostics for a failed Cargo command and raise its error."""
+
+    logging.error(
+        "cargo command failed for %s: %s",
+        crate,
+        shlex.join(command),
+    )
+    if result.stdout:
+        logging.error("cargo stdout:%s%s", os.linesep, result.stdout)
+    if result.stderr:
+        logging.error("cargo stderr:%s%s", os.linesep, result.stderr)
+    result.check_returncode()
+
+
+def _handle_command_output(result: subprocess.CompletedProcess[str]) -> None:
+    """Emit captured stdout and stderr from a successful Cargo command."""
+
+    if result.stdout:
+        print(result.stdout, end="")
+    if result.stderr:
+        print(result.stderr, end="", file=sys.stderr)
+
+
 def run_cargo_command(crate: str, workspace_root: Path, command: list[str]) -> None:
     """Run a Cargo command for a crate in the exported workspace.
 
@@ -152,12 +205,7 @@ def run_cargo_command(crate: str, workspace_root: Path, command: list[str]) -> N
     crate_dir = workspace_root / "crates" / crate
     env = dict(os.environ)
     env["CARGO_HOME"] = str(workspace_root / ".cargo-home")
-    timeout_value = os.environ.get("PUBLISH_CHECK_TIMEOUT_SECS")
-    try:
-        timeout = int(timeout_value) if timeout_value is not None else DEFAULT_PUBLISH_TIMEOUT_SECS
-    except ValueError as err:
-        logging.error("PUBLISH_CHECK_TIMEOUT_SECS must be an integer: %s", err)
-        raise SystemExit("PUBLISH_CHECK_TIMEOUT_SECS must be an integer") from err
+    timeout = _parse_timeout_value()
 
     result = subprocess.run(
         command,
@@ -171,22 +219,10 @@ def run_cargo_command(crate: str, workspace_root: Path, command: list[str]) -> N
     )
 
     if result.returncode != 0:
-        logging.error(
-            "cargo command failed for %s: %s",
-            crate,
-            shlex.join(command),
-        )
-        if result.stdout:
-            logging.error("cargo stdout:%s%s", os.linesep, result.stdout)
-        if result.stderr:
-            logging.error("cargo stderr:%s%s", os.linesep, result.stderr)
-        result.check_returncode()
+        _handle_command_failure(crate, command, result)
         return
 
-    if result.stdout:
-        print(result.stdout, end="")
-    if result.stderr:
-        print(result.stderr, end="", file=sys.stderr)
+    _handle_command_output(result)
 
 
 def package_crate(crate: str, workspace_root: Path) -> None:

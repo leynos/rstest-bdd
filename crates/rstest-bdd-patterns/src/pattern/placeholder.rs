@@ -13,6 +13,7 @@ pub(crate) struct PlaceholderSpec {
 const BACKSLASH: u8 = 92;
 const OPEN_BRACE: u8 = 123;
 const CLOSE_BRACE: u8 = 125;
+const COLON: u8 = 58;
 
 fn find_closing_brace(bytes: &[u8], start: usize) -> Option<usize> {
     let mut index = start;
@@ -115,14 +116,17 @@ fn skip_forbidden_whitespace(
         end += 1;
     }
 
-    if let Some(next) = bytes.get(end) {
-        if *next == b':' || *next == CLOSE_BRACE {
-            return Err(placeholder_error(
-                "invalid placeholder in step pattern",
-                start,
-                Some(name.to_string()),
-            ));
-        }
+    let Some(&next_byte) = bytes.get(end) else {
+        *index = end;
+        return Ok(());
+    };
+
+    if next_byte == COLON || next_byte == CLOSE_BRACE {
+        return Err(placeholder_error(
+            "invalid placeholder in step pattern",
+            start,
+            Some(name.to_string()),
+        ));
     }
 
     *index = end;
@@ -155,97 +159,15 @@ fn parse_optional_hint(
     Ok(Some(raw.to_string()))
 }
 
-/// Validate a single hint byte and reject nested or escaped braces.
+/// Determine whether a backslash escapes a brace inside a placeholder hint.
 ///
-/// # Examples
-/// ```ignore
-/// let bytes = b"{value:u32}";
-/// validate_hint_byte(bytes[7], bytes, 7, 0, "value").unwrap();
-///
-/// let nested = b"{value:{hint}}";
-/// assert!(validate_hint_byte(nested[7], nested, 7, 0, "value").is_err());
-/// ```
-fn validate_hint_byte(
-    byte: u8,
-    bytes: &[u8],
-    index: usize,
-    start: usize,
-    name: &str,
-) -> Result<(), PatternError> {
-    if byte == OPEN_BRACE {
-        return Err(placeholder_error(
-            "invalid placeholder in step pattern",
-            start,
-            Some(name.to_string()),
-        ));
-    }
-
-    if byte == BACKSLASH {
-        validate_escaped_sequence(bytes, index, start, name)?;
-    }
-
-    Ok(())
-}
-
-/// Validate an escape sequence that starts with a backslash inside a hint.
-///
-/// # Examples
-/// ```ignore
-/// let valid = format!("{{value:{esc}nhint}}", esc = char::from(BACKSLASH));
-/// validate_escaped_sequence(valid.as_bytes(), 7, 0, "value").unwrap();
-///
-/// let invalid = format!("{{value:{esc}{{hint}}}}", esc = char::from(BACKSLASH));
-/// assert!(validate_escaped_sequence(invalid.as_bytes(), 7, 0, "value").is_err());
-/// ```
-fn validate_escaped_sequence(
-    bytes: &[u8],
-    index: usize,
-    start: usize,
-    name: &str,
-) -> Result<(), PatternError> {
-    if let Some(next) = bytes.get(index + 1) {
-        if *next == OPEN_BRACE || *next == CLOSE_BRACE {
-            return Err(placeholder_error(
-                "invalid placeholder in step pattern",
-                start,
-                Some(name.to_string()),
-            ));
-        }
-    }
-
-    Ok(())
-}
-
-/// Scan hint bytes until the closing brace, validating each byte as it goes.
-///
-/// # Examples
-/// ```ignore
-/// let bytes = b"{value:u32}";
-/// let end = extract_validated_hint_slice(bytes, 7, 0, "value").unwrap();
-/// assert_eq!(end, 10);
-/// ```
-fn extract_validated_hint_slice(
-    bytes: &[u8],
-    hint_start: usize,
-    start: usize,
-    name: &str,
-) -> Result<usize, PatternError> {
-    let mut index = hint_start;
-
-    while let Some(&byte) = bytes.get(index) {
-        if byte == CLOSE_BRACE {
-            return Ok(index);
-        }
-
-        validate_hint_byte(byte, bytes, index, start, name)?;
-        index += 1;
-    }
-
-    Err(placeholder_error(
-        "missing closing '}' for placeholder",
-        start,
-        Some(name.to_string()),
-    ))
+/// The helper inspects the byte following the backslash and returns ``true``
+/// when it would produce an escaped `{` or `}` character.
+fn is_invalid_escape_sequence(bytes: &[u8], backslash_pos: usize) -> bool {
+    matches!(
+        bytes.get(backslash_pos + 1),
+        Some(&OPEN_BRACE | &CLOSE_BRACE)
+    )
 }
 
 /// Extract the raw bytes that make up a placeholder hint.
@@ -269,7 +191,31 @@ fn extract_hint_bytes<'a>(
     start: usize,
     name: &str,
 ) -> Result<(usize, &'a [u8]), PatternError> {
-    let end = extract_validated_hint_slice(bytes, hint_start, start, name)?;
+    let mut end = hint_start;
+
+    loop {
+        let Some(&byte) = bytes.get(end) else {
+            return Err(placeholder_error(
+                "missing closing '}' for placeholder",
+                start,
+                Some(name.to_string()),
+            ));
+        };
+
+        if byte == CLOSE_BRACE {
+            break;
+        }
+
+        if byte == OPEN_BRACE || (byte == BACKSLASH && is_invalid_escape_sequence(bytes, end)) {
+            return Err(placeholder_error(
+                "invalid placeholder in step pattern",
+                start,
+                Some(name.to_string()),
+            ));
+        }
+
+        end += 1;
+    }
 
     let raw_bytes = bytes.get(hint_start..end).ok_or_else(|| {
         placeholder_error(
