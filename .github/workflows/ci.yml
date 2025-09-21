@@ -103,7 +103,7 @@ jobs:
         with:
           output-path: lcov.info
           format: lcov
-          features: rstest-bdd/diagnostics
+          features: rstest-bdd/diagnostics rstest-bdd-macros/compile-time-validation
           with-default-features: ${{ matrix.with-default-features }}
 
       - name: Publish dry run
