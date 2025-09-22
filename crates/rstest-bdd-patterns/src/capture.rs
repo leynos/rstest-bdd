@@ -4,8 +4,10 @@ use regex::Regex;
 
 /// Extract the placeholder capture groups from a compiled regular expression.
 ///
-/// Group 0 (the full match) is ignored so only user-defined placeholders contribute captures, and
-/// unmatched optional placeholders yield empty strings for positional alignment.
+/// Returns `None` when `text` does not match `re`, allowing callers to branch on a
+/// missing match instead of inspecting an empty capture set. Capture group 0 (the full
+/// match) is ignored so only user-defined placeholders contribute, and unmatched
+/// optional placeholders yield empty strings for positional alignment.
 ///
 /// # Examples
 /// ```
@@ -16,6 +18,14 @@ use regex::Regex;
 /// let values = extract_captured_values(&regex, "42-answer")
 ///     .expect("example ensures fallible call succeeds");
 /// assert_eq!(values, vec!["42".to_string(), "answer".to_string()]);
+/// ```
+///
+/// ```
+/// # use regex::Regex;
+/// # use rstest_bdd_patterns::extract_captured_values;
+/// let regex = Regex::new(r"^(\d+)$")
+///     .expect("example ensures fallible call succeeds");
+/// assert!(extract_captured_values(&regex, "nope").is_none());
 /// ```
 #[must_use]
 pub fn extract_captured_values(re: &Regex, text: &str) -> Option<Vec<String>> {
