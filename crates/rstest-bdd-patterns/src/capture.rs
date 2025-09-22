@@ -35,24 +35,36 @@ mod tests {
 
     #[test]
     fn returns_none_when_pattern_does_not_match() {
-        let regex = Regex::new(r"^(\d+)$").unwrap_or_else(|err| panic!("valid regex: {err}"));
+        #[expect(clippy::expect_used, reason = "tests ensure regex fixtures compile")]
+        let regex = Regex::new(r"^(\d+)$").expect("valid regex fixture");
         assert!(extract_captured_values(&regex, "nope").is_none());
     }
 
     #[test]
     fn collects_captures_in_order() {
-        let regex =
-            Regex::new(r"^(\d+)-(\w+)-(\d+)$").unwrap_or_else(|err| panic!("valid regex: {err}"));
-        let captures = extract_captured_values(&regex, "12-answer-7")
-            .unwrap_or_else(|| panic!("expected a match"));
+        #[expect(clippy::expect_used, reason = "tests ensure regex fixtures compile")]
+        let regex = Regex::new(r"^(\d+)-(\w+)-(\d+)$").expect("valid regex fixture");
+        let input = "12-answer-7";
+        let message = format!("expected a match for input: {input}");
+        #[expect(
+            clippy::expect_used,
+            reason = "tests validate capture extraction succeeds"
+        )]
+        let captures = extract_captured_values(&regex, input).expect(&message);
         assert_eq!(captures, vec!["12", "answer", "7"]);
     }
 
     #[test]
     fn supports_empty_optional_groups() {
-        let regex = Regex::new(r"^(a)?(b)?$").unwrap_or_else(|err| panic!("valid regex: {err}"));
-        let captures =
-            extract_captured_values(&regex, "a").unwrap_or_else(|| panic!("expected a match"));
+        #[expect(clippy::expect_used, reason = "tests ensure regex fixtures compile")]
+        let regex = Regex::new(r"^(a)?(b)?$").expect("valid regex fixture");
+        let input = "a";
+        let message = format!("expected a match for input: {input}");
+        #[expect(
+            clippy::expect_used,
+            reason = "tests validate capture extraction succeeds"
+        )]
+        let captures = extract_captured_values(&regex, input).expect(&message);
         assert_eq!(captures, vec![String::from("a"), String::new()]);
     }
 }

@@ -292,19 +292,16 @@ def run_cargo_command(
             f"cargo command timed out for {crate!r} after {resolved_timeout} seconds"
         ) from error
 
+    result = CommandResult(
+        command=command,
+        return_code=return_code,
+        stdout=stdout,
+        stderr=stderr,
+    )
     if return_code != 0:
-        _handle_command_failure(
-            crate,
-            CommandResult(
-                command=command,
-                return_code=return_code,
-                stdout=stdout,
-                stderr=stderr,
-            ),
-        )
-        return
-
-    _handle_command_output(stdout, stderr)
+        _handle_command_failure(crate, result)
+    else:
+        _handle_command_output(result.stdout, result.stderr)
 
 
 def package_crate(
