@@ -177,6 +177,29 @@ def workspace_version(manifest: Path) -> str:
         raise SystemExit(f"expected [workspace.package].version in {manifest}") from err
 
 
+def _resolve_timeout(timeout_secs: int | None) -> int:
+    """Return the timeout for Cargo commands.
+
+    The value prioritises the explicit ``timeout_secs`` argument. When that is
+    omitted, the ``PUBLISH_CHECK_TIMEOUT_SECS`` environment variable is
+    consulted to preserve compatibility with the previous helper API before
+    falling back to :data:`DEFAULT_PUBLISH_TIMEOUT_SECS`.
+    """
+
+    if timeout_secs is not None:
+        return timeout_secs
+
+    env_value = os.environ.get("PUBLISH_CHECK_TIMEOUT_SECS")
+    if env_value is None:
+        return DEFAULT_PUBLISH_TIMEOUT_SECS
+
+    try:
+        return int(env_value)
+    except ValueError as err:
+        logging.error("PUBLISH_CHECK_TIMEOUT_SECS must be an integer: %s", err)
+        raise SystemExit("PUBLISH_CHECK_TIMEOUT_SECS must be an integer") from err
+
+
 def _handle_command_failure(
     crate: str,
     command: list[str],
@@ -211,7 +234,7 @@ def run_cargo_command(
     workspace_root: Path,
     command: list[str],
     *,
-    timeout_secs: int,
+    timeout_secs: int | None = None,
 ) -> None:
     """Run a Cargo command for a crate in the exported workspace.
 
@@ -231,9 +254,10 @@ def run_cargo_command(
     >>> run_cargo_command("tools", Path("/tmp/workspace"), ["cargo", "--version"])
     cargo 1.76.0 (9c9d2b9f8 2024-02-16)  # Version output will vary.
 
-    The command honours the ``timeout_secs`` parameter to avoid hanging CI
-    runs. When the command fails, the captured stdout and stderr are logged to
-    aid debugging in CI environments.
+    The command honours the ``timeout_secs`` parameter when provided. When it
+    is omitted the ``PUBLISH_CHECK_TIMEOUT_SECS`` environment variable is
+    consulted before falling back to the default. On failure the captured
+    stdout and stderr are logged to aid debugging in CI environments.
     """
 
     if not command or command[0] != "cargo":
@@ -243,23 +267,24 @@ def run_cargo_command(
     env_overrides = {"CARGO_HOME": str(workspace_root / ".cargo-home")}
 
     cargo_invocation = local[command[0]][command[1:]]
+    resolved_timeout = _resolve_timeout(timeout_secs)
     try:
         with ExitStack() as stack:
             stack.enter_context(local.cwd(crate_dir))
             stack.enter_context(local.env(**env_overrides))
             return_code, stdout, stderr = cargo_invocation.run(
                 retcode=None,
-                timeout=timeout_secs,
+                timeout=resolved_timeout,
             )
     except ProcessTimedOut as error:
         logging.error(
             "cargo command timed out for %s after %s seconds: %s",
             crate,
-            timeout_secs,
+            resolved_timeout,
             shlex.join(command),
         )
         raise SystemExit(
-            f"cargo command timed out for {crate!r} after {timeout_secs} seconds"
+            f"cargo command timed out for {crate!r} after {resolved_timeout} seconds"
         ) from error
 
     if return_code != 0:
@@ -269,7 +294,9 @@ def run_cargo_command(
     _handle_command_output(stdout, stderr)
 
 
-def package_crate(crate: str, workspace_root: Path, *, timeout_secs: int) -> None:
+def package_crate(
+    crate: str, workspace_root: Path, *, timeout_secs: int | None = None
+) -> None:
     run_cargo_command(
         crate,
         workspace_root,
@@ -278,7 +305,9 @@ def package_crate(crate: str, workspace_root: Path, *, timeout_secs: int) -> Non
     )
 
 
-def check_crate(crate: str, workspace_root: Path, *, timeout_secs: int) -> None:
+def check_crate(
+    crate: str, workspace_root: Path, *, timeout_secs: int | None = None
+) -> None:
     run_cargo_command(
         crate,
         workspace_root,

@@ -150,6 +150,32 @@ def test_run_cargo_command_streams_output(
     assert fake_local.invocations == [(["cargo", "mock"], 5)]
 
 
+def test_run_cargo_command_uses_env_timeout(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    run_publish_check_module,
+) -> None:
+    workspace = tmp_path / "workspace"
+    crate_dir = workspace / "crates" / "demo"
+    crate_dir.mkdir(parents=True)
+
+    fake_local = FakeLocal(lambda _args, timeout: (0, "", ""))
+    monkeypatch.setattr(run_publish_check_module, "local", fake_local)
+    monkeypatch.setenv("PUBLISH_CHECK_TIMEOUT_SECS", "11")
+
+    run_publish_check_module.run_cargo_command(
+        "demo",
+        workspace,
+        ["cargo", "mock"],
+    )
+
+    assert fake_local.cwd_calls == [crate_dir]
+    assert fake_local.env_calls == [
+        {"CARGO_HOME": str(workspace / ".cargo-home")}
+    ]
+    assert fake_local.invocations == [(["cargo", "mock"], 11)]
+
+
 def test_run_cargo_command_logs_failures(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
