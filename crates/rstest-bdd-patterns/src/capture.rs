@@ -2,12 +2,12 @@
 
 use regex::Regex;
 
-/// Extract the placeholder capture groups from a compiled regular expression.
+/// Extract the placeholder capture groups when `text` matches `re`, returning `None` otherwise.
 ///
-/// Returns `None` when `text` does not match `re`, allowing callers to branch on a
-/// missing match instead of inspecting an empty capture set. Capture group 0 (the full
-/// match) is ignored so only user-defined placeholders contribute, and unmatched
-/// optional placeholders yield empty strings for positional alignment.
+/// This lets callers branch on a missing match instead of inspecting an empty capture
+/// set. Capture group 0 (the full match) is ignored so only user-defined placeholders
+/// contribute to the result, and optional placeholders that do not participate yield
+/// empty strings to keep positional alignment.
 ///
 /// # Examples
 /// ```
