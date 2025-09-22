@@ -1,24 +1,30 @@
 #!/usr/bin/env -S uv run python
 # /// script
-# requires-python = ">=3.11"
+# requires-python = ">=3.13"
 # dependencies = [
+#     "cyclopts>=2.9",
+#     "plumbum",
 #     "tomlkit",
 # ]
 # ///
 """Run the publish-check workflow in a temporary workspace copy."""
 from __future__ import annotations
 
-import io
 import logging
 import os
 import shlex
 import shutil
-import subprocess
 import sys
 import tarfile
 import tempfile
 import tomllib
 from pathlib import Path
+from typing import Annotated
+
+import cyclopts
+from cyclopts import App, Parameter
+from plumbum import local
+from plumbum.commands.processes import ProcessTimedOut
 
 from publish_patch import REPLACEMENTS, apply_replacements
 
@@ -31,15 +37,22 @@ PUBLISH_CRATES = [
 
 DEFAULT_PUBLISH_TIMEOUT_SECS = 900
 
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+
+app = App(config=cyclopts.config.Env("PUBLISH_CHECK_", command=False))
+
 
 def export_workspace(destination: Path) -> None:
-    archive = subprocess.run(
-        ["git", "archive", "--format=tar", "HEAD"],
-        check=True,
-        stdout=subprocess.PIPE,
-    ).stdout
-    with tarfile.open(fileobj=io.BytesIO(archive)) as tar:
-        tar.extractall(destination, filter="data")
+    """Extract the repository HEAD into ``destination`` via ``git archive``."""
+
+    with tempfile.NamedTemporaryFile(suffix=".tar") as archive_file:
+        git_archive = local["git"]["archive", "--format=tar", "HEAD", f"--output={archive_file.name}"]
+        with local.cwd(PROJECT_ROOT):
+            git_archive()
+        archive_file.flush()
+        archive_file.seek(0)
+        with tarfile.open(fileobj=archive_file) as tar:
+            tar.extractall(destination, filter="data")
 
 
 def _is_patch_section_start(line: str) -> bool:
@@ -164,48 +177,42 @@ def workspace_version(manifest: Path) -> str:
         raise SystemExit(f"expected [workspace.package].version in {manifest}") from err
 
 
-def _parse_timeout_value() -> int:
-    """Return the publish-check timeout derived from the environment."""
-
-    timeout_value = os.environ.get("PUBLISH_CHECK_TIMEOUT_SECS")
-    try:
-        return (
-            int(timeout_value)
-            if timeout_value is not None
-            else DEFAULT_PUBLISH_TIMEOUT_SECS
-        )
-    except ValueError as err:
-        logging.error("PUBLISH_CHECK_TIMEOUT_SECS must be an integer: %s", err)
-        raise SystemExit("PUBLISH_CHECK_TIMEOUT_SECS must be an integer") from err
-
-
 def _handle_command_failure(
-    crate: str, command: list[str], result: subprocess.CompletedProcess[str]
+    crate: str,
+    command: list[str],
+    return_code: int,
+    stdout: str,
+    stderr: str,
 ) -> None:
-    """Log diagnostics for a failed Cargo command and raise its error."""
+    """Log diagnostics for a failed Cargo command and abort execution."""
 
-    logging.error(
-        "cargo command failed for %s: %s",
-        crate,
-        shlex.join(command),
+    joined_command = shlex.join(command)
+    logging.error("cargo command failed for %s: %s", crate, joined_command)
+    if stdout:
+        logging.error("cargo stdout:%s%s", os.linesep, stdout)
+    if stderr:
+        logging.error("cargo stderr:%s%s", os.linesep, stderr)
+    raise SystemExit(
+        f"cargo command failed for {crate!r}: {joined_command} (exit code {return_code})"
     )
-    if result.stdout:
-        logging.error("cargo stdout:%s%s", os.linesep, result.stdout)
-    if result.stderr:
-        logging.error("cargo stderr:%s%s", os.linesep, result.stderr)
-    result.check_returncode()
 
 
-def _handle_command_output(result: subprocess.CompletedProcess[str]) -> None:
+def _handle_command_output(stdout: str, stderr: str) -> None:
     """Emit captured stdout and stderr from a successful Cargo command."""
 
-    if result.stdout:
-        print(result.stdout, end="")
-    if result.stderr:
-        print(result.stderr, end="", file=sys.stderr)
+    if stdout:
+        print(stdout, end="")
+    if stderr:
+        print(stderr, end="", file=sys.stderr)
 
 
-def run_cargo_command(crate: str, workspace_root: Path, command: list[str]) -> None:
+def run_cargo_command(
+    crate: str,
+    workspace_root: Path,
+    command: list[str],
+    *,
+    timeout_secs: int,
+) -> None:
     """Run a Cargo command for a crate in the exported workspace.
 
     Parameters
@@ -224,56 +231,75 @@ def run_cargo_command(crate: str, workspace_root: Path, command: list[str]) -> N
     >>> run_cargo_command("tools", Path("/tmp/workspace"), ["cargo", "--version"])
     cargo 1.76.0 (9c9d2b9f8 2024-02-16)  # Version output will vary.
 
-    The command honours ``PUBLISH_CHECK_TIMEOUT_SECS`` to avoid hanging CI runs.
-    When the command fails, the captured stdout and stderr are logged to aid
-    debugging in CI environments.
+    The command honours the ``timeout_secs`` parameter to avoid hanging CI
+    runs. When the command fails, the captured stdout and stderr are logged to
+    aid debugging in CI environments.
     """
 
     if not command or command[0] != "cargo":
         raise ValueError("run_cargo_command only accepts cargo invocations")
 
     crate_dir = workspace_root / "crates" / crate
-    env = dict(os.environ)
-    env["CARGO_HOME"] = str(workspace_root / ".cargo-home")
-    timeout = _parse_timeout_value()
+    env_overrides = {"CARGO_HOME": str(workspace_root / ".cargo-home")}
 
-    result = subprocess.run(
-        command,
-        check=False,
-        cwd=crate_dir,
-        env=env,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
-        timeout=timeout,
-    )
+    cargo_invocation = local[command[0]][command[1:]]
+    try:
+        with local.cwd(crate_dir), local.env(**env_overrides):
+            return_code, stdout, stderr = cargo_invocation.run(
+                retcode=None,
+                timeout=timeout_secs,
+            )
+    except ProcessTimedOut as error:
+        logging.error(
+            "cargo command timed out for %s after %s seconds: %s",
+            crate,
+            timeout_secs,
+            shlex.join(command),
+        )
+        raise SystemExit(
+            f"cargo command timed out for {crate!r} after {timeout_secs} seconds"
+        ) from error
 
-    if result.returncode != 0:
-        _handle_command_failure(crate, command, result)
+    if return_code != 0:
+        _handle_command_failure(crate, command, return_code, stdout, stderr)
         return
 
-    _handle_command_output(result)
+    _handle_command_output(stdout, stderr)
 
 
-def package_crate(crate: str, workspace_root: Path) -> None:
+def package_crate(crate: str, workspace_root: Path, *, timeout_secs: int) -> None:
     run_cargo_command(
         crate,
         workspace_root,
         ["cargo", "package", "--allow-dirty", "--no-verify"],
+        timeout_secs=timeout_secs,
     )
 
 
-def check_crate(crate: str, workspace_root: Path) -> None:
+def check_crate(crate: str, workspace_root: Path, *, timeout_secs: int) -> None:
     run_cargo_command(
         crate,
         workspace_root,
         ["cargo", "check", "--all-features"],
+        timeout_secs=timeout_secs,
     )
 
 
-def main() -> None:
+def run_publish_check(*, keep_tmp: bool, timeout_secs: int) -> None:
+    """Run the publish workflow inside a temporary workspace directory.
+
+    Examples
+    --------
+    Run the workflow and retain the temporary directory for manual inspection::
+
+        >>> run_publish_check(keep_tmp=True, timeout_secs=120)
+        preserving workspace at /tmp/...  # doctest: +ELLIPSIS
+    """
+
+    if timeout_secs <= 0:
+        raise SystemExit("timeout-secs must be a positive integer")
+
     workspace = Path(tempfile.mkdtemp())
-    keep_workspace = bool(os.environ.get("PUBLISH_CHECK_KEEP_TMP"))
     try:
         export_workspace(workspace)
         manifest = workspace / "Cargo.toml"
@@ -283,15 +309,32 @@ def main() -> None:
         apply_workspace_replacements(workspace, version)
         for crate in PUBLISH_CRATES:
             if crate == "rstest-bdd-patterns":
-                package_crate(crate, workspace)
+                package_crate(crate, workspace, timeout_secs=timeout_secs)
             else:
-                check_crate(crate, workspace)
+                check_crate(crate, workspace, timeout_secs=timeout_secs)
     finally:
-        if keep_workspace:
+        if keep_tmp:
             print(f"preserving workspace at {workspace}")
         else:
             shutil.rmtree(workspace, ignore_errors=True)
 
 
+@app.default
+def main(
+    *,
+    timeout_secs: Annotated[
+        int,
+        Parameter(env_var="PUBLISH_CHECK_TIMEOUT_SECS"),
+    ] = DEFAULT_PUBLISH_TIMEOUT_SECS,
+    keep_tmp: Annotated[
+        bool,
+        Parameter(env_var="PUBLISH_CHECK_KEEP_TMP"),
+    ] = False,
+) -> None:
+    """Cyclopts entry point for running the publish check workflow."""
+
+    run_publish_check(keep_tmp=keep_tmp, timeout_secs=timeout_secs)
+
+
 if __name__ == "__main__":
-    main()
+    app()
