@@ -23,7 +23,6 @@ pub(crate) enum Token {
     },
 }
 
-const BACKSLASH: char = 0x5c as char;
 const OPEN_BRACE: char = '{';
 const CLOSE_BRACE: char = '}';
 
@@ -74,7 +73,7 @@ pub(crate) fn lex_pattern(pattern: &str) -> Result<Vec<Token>, PatternError> {
 
     while let Some((index, ch)) = context.iter.next() {
         match ch {
-            BACKSLASH => handle_backslash(&mut context),
+            '\\' => handle_backslash(&mut context),
             OPEN_BRACE => handle_open_brace(bytes, index, &mut context)?,
             CLOSE_BRACE => handle_close_brace(index, &mut context),
             other => context.literal.push(other),
@@ -89,7 +88,7 @@ fn handle_backslash(context: &mut LexerContext<'_>) {
     if let Some((_, next)) = context.iter.next() {
         context.literal.push(next);
     } else {
-        context.literal.push(BACKSLASH);
+        context.literal.push('\\');
     }
 }
 
