@@ -36,14 +36,14 @@ mod tests {
     #[test]
     fn returns_none_when_pattern_does_not_match() {
         #[expect(clippy::expect_used, reason = "tests ensure regex fixtures compile")]
-        let regex = Regex::new(r"^(\d+)$").expect("valid regex fixture");
+        let regex = Regex::new(r"^(\d+)$").expect("valid regex: {err}");
         assert!(extract_captured_values(&regex, "nope").is_none());
     }
 
     #[test]
     fn collects_captures_in_order() {
         #[expect(clippy::expect_used, reason = "tests ensure regex fixtures compile")]
-        let regex = Regex::new(r"^(\d+)-(\w+)-(\d+)$").expect("valid regex fixture");
+        let regex = Regex::new(r"^(\d+)-(\w+)-(\d+)$").expect("valid regex: {err}");
         let input = "12-answer-7";
         let message = format!("expected a match for input: {input}");
         #[expect(
@@ -57,7 +57,7 @@ mod tests {
     #[test]
     fn supports_empty_optional_groups() {
         #[expect(clippy::expect_used, reason = "tests ensure regex fixtures compile")]
-        let regex = Regex::new(r"^(a)?(b)?$").expect("valid regex fixture");
+        let regex = Regex::new(r"^(a)?(b)?$").expect("valid regex: {err}");
         let input = "a";
         let message = format!("expected a match for input: {input}");
         #[expect(
