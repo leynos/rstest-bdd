@@ -18,6 +18,7 @@ import sys
 import tarfile
 import tempfile
 import tomllib
+from contextlib import ExitStack
 from pathlib import Path
 from typing import Annotated
 
@@ -45,13 +46,12 @@ app = App(config=cyclopts.config.Env("PUBLISH_CHECK_", command=False))
 def export_workspace(destination: Path) -> None:
     """Extract the repository HEAD into ``destination`` via ``git archive``."""
 
-    with tempfile.NamedTemporaryFile(suffix=".tar") as archive_file:
-        git_archive = local["git"]["archive", "--format=tar", "HEAD", f"--output={archive_file.name}"]
+    with tempfile.TemporaryDirectory() as archive_dir:
+        archive_path = Path(archive_dir) / "workspace.tar"
+        git_archive = local["git"]["archive", "--format=tar", "HEAD", f"--output={archive_path}"]
         with local.cwd(PROJECT_ROOT):
             git_archive()
-        archive_file.flush()
-        archive_file.seek(0)
-        with tarfile.open(fileobj=archive_file) as tar:
+        with tarfile.open(archive_path) as tar:
             tar.extractall(destination, filter="data")
 
 
@@ -244,7 +244,9 @@ def run_cargo_command(
 
     cargo_invocation = local[command[0]][command[1:]]
     try:
-        with local.cwd(crate_dir), local.env(**env_overrides):
+        with ExitStack() as stack:
+            stack.enter_context(local.cwd(crate_dir))
+            stack.enter_context(local.env(**env_overrides))
             return_code, stdout, stderr = cargo_invocation.run(
                 retcode=None,
                 timeout=timeout_secs,
