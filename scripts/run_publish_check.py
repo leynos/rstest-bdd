@@ -19,6 +19,7 @@ import tarfile
 import tempfile
 import tomllib
 from contextlib import ExitStack
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Annotated
 
@@ -200,23 +201,27 @@ def _resolve_timeout(timeout_secs: int | None) -> int:
         raise SystemExit("PUBLISH_CHECK_TIMEOUT_SECS must be an integer") from err
 
 
-def _handle_command_failure(
-    crate: str,
-    command: list[str],
-    return_code: int,
-    stdout: str,
-    stderr: str,
-) -> None:
+@dataclass(frozen=True)
+class CommandResult:
+    """Result of a cargo command execution."""
+
+    command: list[str]
+    return_code: int
+    stdout: str
+    stderr: str
+
+
+def _handle_command_failure(crate: str, result: CommandResult) -> None:
     """Log diagnostics for a failed Cargo command and abort execution."""
 
-    joined_command = shlex.join(command)
+    joined_command = shlex.join(result.command)
     logging.error("cargo command failed for %s: %s", crate, joined_command)
-    if stdout:
-        logging.error("cargo stdout:%s%s", os.linesep, stdout)
-    if stderr:
-        logging.error("cargo stderr:%s%s", os.linesep, stderr)
+    if result.stdout:
+        logging.error("cargo stdout:%s%s", os.linesep, result.stdout)
+    if result.stderr:
+        logging.error("cargo stderr:%s%s", os.linesep, result.stderr)
     raise SystemExit(
-        f"cargo command failed for {crate!r}: {joined_command} (exit code {return_code})"
+        f"cargo command failed for {crate!r}: {joined_command} (exit code {result.return_code})"
     )
 
 
@@ -288,7 +293,15 @@ def run_cargo_command(
         ) from error
 
     if return_code != 0:
-        _handle_command_failure(crate, command, return_code, stdout, stderr)
+        _handle_command_failure(
+            crate,
+            CommandResult(
+                command=command,
+                return_code=return_code,
+                stdout=stdout,
+                stderr=stderr,
+            ),
+        )
         return
 
     _handle_command_output(stdout, stderr)

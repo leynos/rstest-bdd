@@ -30,27 +30,29 @@ pub fn extract_captured_values(re: &Regex, text: &str) -> Option<Vec<String>> {
 }
 
 #[cfg(test)]
-#[expect(clippy::unwrap_used, reason = "tests exercise fallible regex helpers")]
 mod tests {
     use super::*;
 
     #[test]
     fn returns_none_when_pattern_does_not_match() {
-        let regex = Regex::new(r"^(\d+)$").unwrap();
+        let regex = Regex::new(r"^(\d+)$").unwrap_or_else(|err| panic!("valid regex: {err}"));
         assert!(extract_captured_values(&regex, "nope").is_none());
     }
 
     #[test]
     fn collects_captures_in_order() {
-        let regex = Regex::new(r"^(\d+)-(\w+)-(\d+)$").unwrap();
-        let captures = extract_captured_values(&regex, "12-answer-7").unwrap();
+        let regex =
+            Regex::new(r"^(\d+)-(\w+)-(\d+)$").unwrap_or_else(|err| panic!("valid regex: {err}"));
+        let captures = extract_captured_values(&regex, "12-answer-7")
+            .unwrap_or_else(|| panic!("expected a match"));
         assert_eq!(captures, vec!["12", "answer", "7"]);
     }
 
     #[test]
     fn supports_empty_optional_groups() {
-        let regex = Regex::new(r"^(a)?(b)?$").unwrap();
-        let captures = extract_captured_values(&regex, "a").unwrap();
+        let regex = Regex::new(r"^(a)?(b)?$").unwrap_or_else(|err| panic!("valid regex: {err}"));
+        let captures =
+            extract_captured_values(&regex, "a").unwrap_or_else(|| panic!("expected a match"));
         assert_eq!(captures, vec![String::from("a"), String::new()]);
     }
 }
