@@ -26,44 +26,56 @@ const CLOSE_BRACE: char = '}';
 
 pub(crate) fn lex_pattern(pattern: &str) -> Result<Vec<Token>, PatternError> {
     let bytes = pattern.as_bytes();
+    let mut iter = pattern.char_indices().peekable();
     let mut tokens = Vec::new();
     let mut literal = String::new();
-    let mut pos = 0;
 
-    while pos < pattern.len() {
-        let Some(remaining) = pattern.get(pos..) else {
-            break;
-        };
-        let mut chars = remaining.chars();
-        let Some(ch) = chars.next() else {
-            break;
-        };
-        let ch_len = ch.len_utf8();
+    while let Some((index, ch)) = iter.next() {
         match ch {
-            BACKSLASH => pos = consume_escape(pattern, pos, &mut literal),
-            OPEN_BRACE => {
-                if try_consume_double_open(pattern, &mut pos, &mut literal) {
-                    continue;
+            BACKSLASH => {
+                if let Some((_, next)) = iter.next() {
+                    literal.push(next);
+                } else {
+                    literal.push(BACKSLASH);
                 }
-                flush_literal(&mut literal, &mut tokens);
-                if try_consume_placeholder(pattern, bytes, &mut pos, &mut tokens)? {
-                    continue;
-                }
-                tokens.push(Token::OpenBrace { index: pos });
-                pos += ch_len;
             }
+            OPEN_BRACE => match iter.peek().map(|&(_, c)| c) {
+                Some(OPEN_BRACE) => {
+                    iter.next();
+                    literal.push(OPEN_BRACE);
+                }
+                Some(next) if next.is_ascii_alphabetic() || next == '_' => {
+                    flush_literal(&mut literal, &mut tokens);
+                    let (
+                        end,
+                        PlaceholderSpec {
+                            start, name, hint, ..
+                        },
+                    ) = parse_placeholder(bytes, index)?;
+                    tokens.push(Token::Placeholder { start, name, hint });
+                    while let Some(&(next_index, _)) = iter.peek() {
+                        if next_index < end {
+                            iter.next();
+                        } else {
+                            break;
+                        }
+                    }
+                }
+                _ => {
+                    flush_literal(&mut literal, &mut tokens);
+                    tokens.push(Token::OpenBrace { index });
+                }
+            },
             CLOSE_BRACE => {
-                if try_consume_double_close(pattern, &mut pos, &mut literal) {
-                    continue;
+                if matches!(iter.peek().map(|&(_, c)| c), Some(CLOSE_BRACE)) {
+                    iter.next();
+                    literal.push(CLOSE_BRACE);
+                } else {
+                    flush_literal(&mut literal, &mut tokens);
+                    tokens.push(Token::CloseBrace { index });
                 }
-                flush_literal(&mut literal, &mut tokens);
-                tokens.push(Token::CloseBrace { index: pos });
-                pos += ch_len;
             }
-            other => {
-                literal.push(other);
-                pos += ch_len;
-            }
+            other => literal.push(other),
         }
     }
 
@@ -76,92 +88,6 @@ fn flush_literal(literal: &mut String, tokens: &mut Vec<Token>) {
         return;
     }
     tokens.push(Token::Literal(std::mem::take(literal)));
-}
-
-fn consume_escape(pattern: &str, pos: usize, literal: &mut String) -> usize {
-    let Some(remaining) = pattern.get(pos..) else {
-        literal.push(BACKSLASH);
-        return pattern.len();
-    };
-    let mut chars = remaining.chars();
-    let _ = chars.next();
-    if let Some(next) = chars.next() {
-        literal.push(next);
-        pos + BACKSLASH.len_utf8() + next.len_utf8()
-    } else {
-        literal.push(BACKSLASH);
-        pos + BACKSLASH.len_utf8()
-    }
-}
-
-fn try_consume_double_open(pattern: &str, pos: &mut usize, literal: &mut String) -> bool {
-    let Some(remaining) = pattern.get(*pos..) else {
-        return false;
-    };
-    let mut chars = remaining.chars();
-    let Some(first) = chars.next() else {
-        return false;
-    };
-    let Some(next) = chars.next() else {
-        return false;
-    };
-
-    if next == OPEN_BRACE {
-        *pos += first.len_utf8() + next.len_utf8();
-        literal.push(OPEN_BRACE);
-        return true;
-    }
-    false
-}
-
-fn try_consume_placeholder(
-    pattern: &str,
-    bytes: &[u8],
-    pos: &mut usize,
-    tokens: &mut Vec<Token>,
-) -> Result<bool, PatternError> {
-    let Some(remaining) = pattern.get(*pos..) else {
-        return Ok(false);
-    };
-    let mut chars = remaining.chars();
-    let _ = chars.next();
-    let Some(next) = chars.next() else {
-        return Ok(false);
-    };
-
-    if next.is_ascii_alphabetic() || next == '_' {
-        let (
-            next_pos,
-            PlaceholderSpec {
-                start, name, hint, ..
-            },
-        ) = parse_placeholder(bytes, *pos)?;
-        tokens.push(Token::Placeholder { start, name, hint });
-        *pos = next_pos;
-        return Ok(true);
-    }
-
-    Ok(false)
-}
-
-fn try_consume_double_close(pattern: &str, pos: &mut usize, literal: &mut String) -> bool {
-    let Some(remaining) = pattern.get(*pos..) else {
-        return false;
-    };
-    let mut chars = remaining.chars();
-    let Some(first) = chars.next() else {
-        return false;
-    };
-    let Some(next) = chars.next() else {
-        return false;
-    };
-
-    if next == CLOSE_BRACE {
-        *pos += first.len_utf8() + next.len_utf8();
-        literal.push(CLOSE_BRACE);
-        return true;
-    }
-    false
 }
 
 #[cfg(test)]
