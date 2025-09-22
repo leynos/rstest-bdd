@@ -127,6 +127,24 @@ def test_handle_command_failure_logs_and_exits(
     assert "stderr text" in caplog.text
 
 
+def test_handle_command_failure_supports_legacy_signature(
+    run_publish_check_module, caplog: pytest.LogCaptureFixture
+) -> None:
+    with caplog.at_level("ERROR"):
+        with pytest.raises(SystemExit) as excinfo:
+            run_publish_check_module._handle_command_failure(
+                "demo",
+                ["cargo", "check"],
+                7,
+                "stdout text",
+                "stderr text",
+            )
+    message = str(excinfo.value)
+    assert "exit code 7" in message
+    assert "stdout text" in caplog.text
+    assert "stderr text" in caplog.text
+
+
 def test_run_cargo_command_streams_output(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,

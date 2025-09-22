@@ -21,7 +21,7 @@ import tomllib
 from contextlib import ExitStack
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Sequence
 
 import cyclopts
 from cyclopts import App, Parameter
@@ -211,17 +211,43 @@ class CommandResult:
     stderr: str
 
 
-def _handle_command_failure(crate: str, result: CommandResult) -> None:
-    """Log diagnostics for a failed Cargo command and abort execution."""
+def _handle_command_failure(
+    crate: str,
+    result_or_command: CommandResult | Sequence[str],
+    return_code: int | None = None,
+    stdout: str | None = None,
+    stderr: str | None = None,
+) -> None:
+    """Log diagnostics for a failed Cargo command and abort execution.
 
-    joined_command = shlex.join(result.command)
+    Accepts either a :class:`CommandResult` or the legacy tuple arguments to
+    preserve compatibility with older call sites.
+    """
+
+    if isinstance(result_or_command, CommandResult):
+        command = result_or_command.command
+        exit_code = result_or_command.return_code
+        stdout_text = result_or_command.stdout
+        stderr_text = result_or_command.stderr
+    else:
+        command = list(result_or_command)
+        if return_code is None or stdout is None or stderr is None:
+            raise TypeError(
+                "Legacy _handle_command_failure invocations must provide "
+                "return_code, stdout, and stderr.",
+            )
+        exit_code = return_code
+        stdout_text = stdout
+        stderr_text = stderr
+
+    joined_command = shlex.join(command)
     logging.error("cargo command failed for %s: %s", crate, joined_command)
-    if result.stdout:
-        logging.error("cargo stdout:%s%s", os.linesep, result.stdout)
-    if result.stderr:
-        logging.error("cargo stderr:%s%s", os.linesep, result.stderr)
+    if stdout_text:
+        logging.error("cargo stdout:%s%s", os.linesep, stdout_text)
+    if stderr_text:
+        logging.error("cargo stderr:%s%s", os.linesep, stderr_text)
     raise SystemExit(
-        f"cargo command failed for {crate!r}: {joined_command} (exit code {result.return_code})"
+        f"cargo command failed for {crate!r}: {joined_command} (exit code {exit_code})"
     )
 
 
