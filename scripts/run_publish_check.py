@@ -211,6 +211,35 @@ class CommandResult:
     stderr: str
 
 
+def _extract_command_details(
+    crate: str,
+    result_or_command: CommandResult | Sequence[str],
+    return_code: int | None = None,
+    stdout: str | None = None,
+    stderr: str | None = None,
+) -> tuple[list[str], int, str, str]:
+    """Normalise command failure arguments for legacy and dataclass inputs."""
+
+    del crate  # Signature matches _handle_command_failure; crate is unused.
+
+    if isinstance(result_or_command, CommandResult):
+        return (
+            result_or_command.command,
+            result_or_command.return_code,
+            result_or_command.stdout,
+            result_or_command.stderr,
+        )
+
+    command = list(result_or_command)
+    if return_code is None or stdout is None or stderr is None:
+        raise TypeError(
+            "Legacy _handle_command_failure invocations must provide "
+            "return_code, stdout, and stderr.",
+        )
+
+    return command, return_code, stdout, stderr
+
+
 def _handle_command_failure(
     crate: str,
     result_or_command: CommandResult | Sequence[str],
@@ -224,21 +253,13 @@ def _handle_command_failure(
     preserve compatibility with older call sites.
     """
 
-    if isinstance(result_or_command, CommandResult):
-        command = result_or_command.command
-        exit_code = result_or_command.return_code
-        stdout_text = result_or_command.stdout
-        stderr_text = result_or_command.stderr
-    else:
-        command = list(result_or_command)
-        if return_code is None or stdout is None or stderr is None:
-            raise TypeError(
-                "Legacy _handle_command_failure invocations must provide "
-                "return_code, stdout, and stderr.",
-            )
-        exit_code = return_code
-        stdout_text = stdout
-        stderr_text = stderr
+    command, exit_code, stdout_text, stderr_text = _extract_command_details(
+        crate,
+        result_or_command,
+        return_code=return_code,
+        stdout=stdout,
+        stderr=stderr,
+    )
 
     joined_command = shlex.join(command)
     logging.error("cargo command failed for %s: %s", crate, joined_command)
