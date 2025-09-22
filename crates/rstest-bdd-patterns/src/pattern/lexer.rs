@@ -1,5 +1,8 @@
 //! Pattern lexer converting pattern strings into semantic tokens.
 
+use std::iter::Peekable;
+use std::str::CharIndices;
+
 use crate::errors::PatternError;
 
 use super::placeholder::{PlaceholderSpec, parse_placeholder};
@@ -24,73 +27,102 @@ const BACKSLASH: char = 0x5c as char;
 const OPEN_BRACE: char = '{';
 const CLOSE_BRACE: char = '}';
 
-pub(crate) fn lex_pattern(pattern: &str) -> Result<Vec<Token>, PatternError> {
-    let bytes = pattern.as_bytes();
-    let mut iter = pattern.char_indices().peekable();
-    let mut tokens = Vec::new();
-    let mut literal = String::new();
+type CharIter<'pattern> = Peekable<CharIndices<'pattern>>;
 
-    while let Some((index, ch)) = iter.next() {
-        match ch {
-            BACKSLASH => handle_backslash(&mut iter, &mut literal),
-            OPEN_BRACE => handle_open_brace(bytes, index, &mut iter, &mut literal, &mut tokens)?,
-            CLOSE_BRACE => handle_close_brace(index, &mut iter, &mut literal, &mut tokens),
-            other => literal.push(other),
+struct LexerContext<'pattern> {
+    iter: CharIter<'pattern>,
+    literal: String,
+    tokens: Vec<Token>,
+}
+
+impl<'pattern> LexerContext<'pattern> {
+    fn new(pattern: &'pattern str) -> Self {
+        Self {
+            iter: pattern.char_indices().peekable(),
+            literal: String::new(),
+            tokens: Vec::new(),
         }
     }
 
-    flush_literal(&mut literal, &mut tokens);
-    Ok(tokens)
+    fn flush_literal(&mut self) {
+        if self.literal.is_empty() {
+            return;
+        }
+
+        self.tokens
+            .push(Token::Literal(std::mem::take(&mut self.literal)));
+    }
+
+    fn advance_to(&mut self, end: usize) {
+        while let Some(&(next_index, _)) = self.iter.peek() {
+            if next_index < end {
+                self.iter.next();
+            } else {
+                break;
+            }
+        }
+    }
+
+    fn into_tokens(self) -> Vec<Token> {
+        self.tokens
+    }
 }
 
-fn handle_backslash(
-    iter: &mut std::iter::Peekable<std::str::CharIndices<'_>>,
-    literal: &mut String,
-) {
-    if let Some((_, next)) = iter.next() {
-        literal.push(next);
+pub(crate) fn lex_pattern(pattern: &str) -> Result<Vec<Token>, PatternError> {
+    let bytes = pattern.as_bytes();
+    let mut context = LexerContext::new(pattern);
+
+    while let Some((index, ch)) = context.iter.next() {
+        match ch {
+            BACKSLASH => handle_backslash(&mut context),
+            OPEN_BRACE => handle_open_brace(bytes, index, &mut context)?,
+            CLOSE_BRACE => handle_close_brace(index, &mut context),
+            other => context.literal.push(other),
+        }
+    }
+
+    context.flush_literal();
+    Ok(context.into_tokens())
+}
+
+fn handle_backslash(context: &mut LexerContext<'_>) {
+    if let Some((_, next)) = context.iter.next() {
+        context.literal.push(next);
     } else {
-        literal.push(BACKSLASH);
+        context.literal.push(BACKSLASH);
     }
 }
 
 fn handle_open_brace(
     bytes: &[u8],
     index: usize,
-    iter: &mut std::iter::Peekable<std::str::CharIndices<'_>>,
-    literal: &mut String,
-    tokens: &mut Vec<Token>,
+    context: &mut LexerContext<'_>,
 ) -> Result<(), PatternError> {
-    match iter.peek().copied().map(|(_, c)| c) {
+    match context.iter.peek().copied().map(|(_, c)| c) {
         Some(OPEN_BRACE) => {
-            iter.next();
-            literal.push(OPEN_BRACE);
+            context.iter.next();
+            context.literal.push(OPEN_BRACE);
             Ok(())
         }
         Some(next) if is_placeholder_start(next) => {
-            flush_literal(literal, tokens);
-            parse_and_consume_placeholder(bytes, index, iter, tokens)
+            context.flush_literal();
+            parse_and_consume_placeholder(bytes, index, context)
         }
         _ => {
-            flush_literal(literal, tokens);
-            tokens.push(Token::OpenBrace { index });
+            context.flush_literal();
+            context.tokens.push(Token::OpenBrace { index });
             Ok(())
         }
     }
 }
 
-fn handle_close_brace(
-    index: usize,
-    iter: &mut std::iter::Peekable<std::str::CharIndices<'_>>,
-    literal: &mut String,
-    tokens: &mut Vec<Token>,
-) {
-    if matches!(iter.peek().map(|&(_, c)| c), Some(CLOSE_BRACE)) {
-        iter.next();
-        literal.push(CLOSE_BRACE);
+fn handle_close_brace(index: usize, context: &mut LexerContext<'_>) {
+    if matches!(context.iter.peek().map(|&(_, c)| c), Some(CLOSE_BRACE)) {
+        context.iter.next();
+        context.literal.push(CLOSE_BRACE);
     } else {
-        flush_literal(literal, tokens);
-        tokens.push(Token::CloseBrace { index });
+        context.flush_literal();
+        context.tokens.push(Token::CloseBrace { index });
     }
 }
 
@@ -105,8 +137,7 @@ fn is_valid_placeholder_start(ch: char) -> bool {
 fn parse_and_consume_placeholder(
     bytes: &[u8],
     index: usize,
-    iter: &mut std::iter::Peekable<std::str::CharIndices<'_>>,
-    tokens: &mut Vec<Token>,
+    context: &mut LexerContext<'_>,
 ) -> Result<(), PatternError> {
     let (
         end,
@@ -114,26 +145,11 @@ fn parse_and_consume_placeholder(
             start, name, hint, ..
         },
     ) = parse_placeholder(bytes, index)?;
-    tokens.push(Token::Placeholder { start, name, hint });
-    advance_iterator_to_end(iter, end);
+    context
+        .tokens
+        .push(Token::Placeholder { start, name, hint });
+    context.advance_to(end);
     Ok(())
-}
-
-fn advance_iterator_to_end(iter: &mut std::iter::Peekable<std::str::CharIndices<'_>>, end: usize) {
-    while let Some(&(next_index, _)) = iter.peek() {
-        if next_index < end {
-            iter.next();
-        } else {
-            break;
-        }
-    }
-}
-
-fn flush_literal(literal: &mut String, tokens: &mut Vec<Token>) {
-    if literal.is_empty() {
-        return;
-    }
-    tokens.push(Token::Literal(std::mem::take(literal)));
 }
 
 #[cfg(test)]
