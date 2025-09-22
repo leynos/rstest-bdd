@@ -13,6 +13,15 @@ pub(crate) struct MacroPattern {
     regex: OnceLock<Regex>,
 }
 
+fn abort_invalid_pattern(span: Span, pattern: &str, err: impl std::fmt::Display) -> ! {
+    abort!(
+        span,
+        "rstest-bdd-macros: invalid step pattern `{}`: {}",
+        pattern,
+        err
+    )
+}
+
 impl MacroPattern {
     pub(crate) const fn new(value: &'static str) -> Self {
         Self {
@@ -27,23 +36,10 @@ impl MacroPattern {
 
     pub(crate) fn regex(&self, span: Span) -> &Regex {
         self.regex.get_or_init(|| {
-            let source = build_regex_from_pattern(self.text).unwrap_or_else(|err| {
-                abort!(
-                    span,
-                    "rstest-bdd-macros: invalid step pattern `{}`: {}",
-                    self.text,
-                    err
-                )
-            });
+            let source = build_regex_from_pattern(self.text)
+                .unwrap_or_else(|err| abort_invalid_pattern(span, self.text, err));
 
-            Regex::new(&source).unwrap_or_else(|err| {
-                abort!(
-                    span,
-                    "rstest-bdd-macros: invalid step pattern `{}`: {}",
-                    self.text,
-                    err
-                )
-            })
+            Regex::new(&source).unwrap_or_else(|err| abort_invalid_pattern(span, self.text, err))
         })
     }
 

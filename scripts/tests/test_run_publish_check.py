@@ -1,3 +1,8 @@
+"""Validate scripts.run_publish_check end-to-end.
+
+The suite covers cargo invocation handling, timeout propagation, error reporting, and the temporary workspace export and pruning steps performed before packaging so the publish check remains safe. Tests are expected to run under pytest with local fakes, ensuring release automation can be exercised without invoking real tooling.
+"""
+
 from __future__ import annotations
 
 import contextlib

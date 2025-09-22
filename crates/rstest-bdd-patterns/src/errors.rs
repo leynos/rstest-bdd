@@ -65,7 +65,7 @@ pub enum PatternError {
     #[error("{0}")]
     Placeholder(PlaceholderErrorInfo),
     #[error(transparent)]
-    Regex(regex::Error),
+    Regex(#[from] regex::Error),
 }
 
 pub(crate) fn placeholder_error(

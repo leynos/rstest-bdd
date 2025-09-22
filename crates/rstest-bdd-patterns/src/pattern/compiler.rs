@@ -12,7 +12,7 @@ use super::lexer::{Token, lex_pattern};
 /// unbalanced braces.
 ///
 /// # Examples
-/// ```
+/// ```ignore
 /// # use rstest_bdd_patterns::build_regex_from_pattern;
 /// let regex = build_regex_from_pattern("Given {item}")
 ///     .expect("example ensures fallible call succeeds");

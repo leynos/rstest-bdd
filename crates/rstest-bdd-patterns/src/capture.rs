@@ -2,7 +2,10 @@
 
 use regex::Regex;
 
-/// Extract all capture groups from a compiled regular expression.
+/// Extract the placeholder capture groups from a compiled regular expression.
+///
+/// Group 0 (the full match) is ignored so only user-defined placeholders contribute captures, and
+/// unmatched optional placeholders yield empty strings for positional alignment.
 ///
 /// # Examples
 /// ```

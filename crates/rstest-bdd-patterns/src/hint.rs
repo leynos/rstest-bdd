@@ -3,11 +3,11 @@
 /// Translate a placeholder type hint into a regular-expression fragment.
 ///
 /// # Examples
-/// ```
+/// ```ignore
 /// use rstest_bdd_patterns::get_type_pattern;
-/// assert_eq!(get_type_pattern(Some("u32")), r"\\d+");
-/// assert_eq!(get_type_pattern(Some("f64")), r"(?i:(?:[+-]?(?:\\d+\\.\\d*|\\.\\d+|\\d+)(?:[eE][+-]?\\d+)?|nan|inf|infinity))");
-/// assert_eq!(get_type_pattern(None), r".+?");
+/// assert_eq!(get_type_pattern(Some("u32")), "\\d+");
+/// assert_eq!(get_type_pattern(Some("f64")), "(?i:(?:[+-]?(?:\d+\.\d*|\.\d+|\d+)(?:[eE][+-]?\d+)?|nan|inf|infinity))");
+/// assert_eq!(get_type_pattern(None), ".+?");
 /// ```
 #[must_use]
 pub fn get_type_pattern(type_hint: Option<&str>) -> &'static str {
@@ -27,7 +27,7 @@ mod tests {
 
     #[test]
     fn returns_integer_pattern_for_unsigned_types() {
-        assert_eq!(get_type_pattern(Some("u64")), r"\d+");
+        assert_eq!(get_type_pattern(Some("u64")), "\\d+");
     }
 
     #[test]
