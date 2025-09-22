@@ -4,7 +4,7 @@
 
 use crate::types::{PlaceholderSyntaxError, StepPatternError};
 use regex::Regex;
-use rstest_bdd_patterns::{PatternError, build_regex_from_pattern};
+use rstest_bdd_patterns::{PatternError, compile_regex_from_pattern};
 use std::hash::{Hash, Hasher};
 use std::sync::OnceLock;
 
@@ -74,8 +74,7 @@ impl StepPattern {
         if self.regex.get().is_some() {
             return Ok(());
         }
-        let src = build_regex_from_pattern(self.text)?;
-        let regex = Regex::new(&src)?;
+        let regex = compile_regex_from_pattern(self.text)?;
         let _ = self.regex.set(regex);
         Ok(())
     }

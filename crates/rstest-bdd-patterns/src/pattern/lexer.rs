@@ -20,9 +20,9 @@ pub(crate) enum Token {
     },
 }
 
-const BACKSLASH: u8 = 0x5c;
-const OPEN_BRACE: u8 = b'{';
-const CLOSE_BRACE: u8 = b'}';
+const BACKSLASH: char = 0x5c as char;
+const OPEN_BRACE: char = '{';
+const CLOSE_BRACE: char = '}';
 
 pub(crate) fn lex_pattern(pattern: &str) -> Result<Vec<Token>, PatternError> {
     let bytes = pattern.as_bytes();
@@ -30,31 +30,39 @@ pub(crate) fn lex_pattern(pattern: &str) -> Result<Vec<Token>, PatternError> {
     let mut literal = String::new();
     let mut pos = 0;
 
-    while let Some(&byte) = bytes.get(pos) {
-        match byte {
-            BACKSLASH => pos = consume_escape(bytes, pos, &mut literal),
+    while pos < pattern.len() {
+        let Some(remaining) = pattern.get(pos..) else {
+            break;
+        };
+        let mut chars = remaining.chars();
+        let Some(ch) = chars.next() else {
+            break;
+        };
+        let ch_len = ch.len_utf8();
+        match ch {
+            BACKSLASH => pos = consume_escape(pattern, pos, &mut literal),
             OPEN_BRACE => {
-                if try_consume_double_open(bytes, &mut pos, &mut literal) {
+                if try_consume_double_open(pattern, &mut pos, &mut literal) {
                     continue;
                 }
                 flush_literal(&mut literal, &mut tokens);
-                if try_consume_placeholder(bytes, &mut pos, &mut tokens)? {
+                if try_consume_placeholder(pattern, bytes, &mut pos, &mut tokens)? {
                     continue;
                 }
                 tokens.push(Token::OpenBrace { index: pos });
-                pos += 1;
+                pos += ch_len;
             }
             CLOSE_BRACE => {
-                if try_consume_double_close(bytes, &mut pos, &mut literal) {
+                if try_consume_double_close(pattern, &mut pos, &mut literal) {
                     continue;
                 }
                 flush_literal(&mut literal, &mut tokens);
                 tokens.push(Token::CloseBrace { index: pos });
-                pos += 1;
+                pos += ch_len;
             }
             other => {
-                literal.push(other as char);
-                pos += 1;
+                literal.push(other);
+                pos += ch_len;
             }
         }
     }
@@ -70,35 +78,58 @@ fn flush_literal(literal: &mut String, tokens: &mut Vec<Token>) {
     tokens.push(Token::Literal(std::mem::take(literal)));
 }
 
-fn consume_escape(bytes: &[u8], pos: usize, literal: &mut String) -> usize {
-    if let Some(&next) = bytes.get(pos + 1) {
-        literal.push(next as char);
-        pos + 2
+fn consume_escape(pattern: &str, pos: usize, literal: &mut String) -> usize {
+    let Some(remaining) = pattern.get(pos..) else {
+        literal.push(BACKSLASH);
+        return pattern.len();
+    };
+    let mut chars = remaining.chars();
+    let _ = chars.next();
+    if let Some(next) = chars.next() {
+        literal.push(next);
+        pos + BACKSLASH.len_utf8() + next.len_utf8()
     } else {
-        literal.push(char::from(BACKSLASH));
-        pos + 1
+        literal.push(BACKSLASH);
+        pos + BACKSLASH.len_utf8()
     }
 }
 
-fn try_consume_double_open(bytes: &[u8], pos: &mut usize, literal: &mut String) -> bool {
-    if bytes.get(*pos + 1) == Some(&OPEN_BRACE) {
-        literal.push('{');
-        *pos += 2;
+fn try_consume_double_open(pattern: &str, pos: &mut usize, literal: &mut String) -> bool {
+    let Some(remaining) = pattern.get(*pos..) else {
+        return false;
+    };
+    let mut chars = remaining.chars();
+    let Some(first) = chars.next() else {
+        return false;
+    };
+    let Some(next) = chars.next() else {
+        return false;
+    };
+
+    if next == OPEN_BRACE {
+        *pos += first.len_utf8() + next.len_utf8();
+        literal.push(OPEN_BRACE);
         return true;
     }
     false
 }
 
 fn try_consume_placeholder(
+    pattern: &str,
     bytes: &[u8],
     pos: &mut usize,
     tokens: &mut Vec<Token>,
 ) -> Result<bool, PatternError> {
-    let Some(&next) = bytes.get(*pos + 1) else {
+    let Some(remaining) = pattern.get(*pos..) else {
+        return Ok(false);
+    };
+    let mut chars = remaining.chars();
+    let _ = chars.next();
+    let Some(next) = chars.next() else {
         return Ok(false);
     };
 
-    if (next as char).is_ascii_alphabetic() || next == b'_' {
+    if next.is_ascii_alphabetic() || next == '_' {
         let (
             next_pos,
             PlaceholderSpec {
@@ -113,10 +144,21 @@ fn try_consume_placeholder(
     Ok(false)
 }
 
-fn try_consume_double_close(bytes: &[u8], pos: &mut usize, literal: &mut String) -> bool {
-    if bytes.get(*pos + 1) == Some(&CLOSE_BRACE) {
-        literal.push('}');
-        *pos += 2;
+fn try_consume_double_close(pattern: &str, pos: &mut usize, literal: &mut String) -> bool {
+    let Some(remaining) = pattern.get(*pos..) else {
+        return false;
+    };
+    let mut chars = remaining.chars();
+    let Some(first) = chars.next() else {
+        return false;
+    };
+    let Some(next) = chars.next() else {
+        return false;
+    };
+
+    if next == CLOSE_BRACE {
+        *pos += first.len_utf8() + next.len_utf8();
+        literal.push(CLOSE_BRACE);
         return true;
     }
     false
@@ -198,6 +240,21 @@ mod tests {
                 Token::OpenBrace { index: 0 },
                 Token::Literal("  value".into()),
                 Token::CloseBrace { index: 8 },
+            ],
+        );
+    }
+
+    #[test]
+    fn preserves_multibyte_literal_segments() {
+        expect_tokens(
+            "Given café {value}",
+            &[
+                Token::Literal("Given café ".into()),
+                Token::Placeholder {
+                    start: 12,
+                    name: "value".into(),
+                    hint: None,
+                },
             ],
         );
     }
