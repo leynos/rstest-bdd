@@ -368,24 +368,26 @@ def test_run_cargo_command_uses_env_timeout(
 
 def test_run_cargo_command_logs_failures(
     monkeypatch: pytest.MonkeyPatch,
-    context: CargoTestContext,
+    cargo_test_context: CargoTestContext,
 ) -> None:
-    fake_local = context.patch_local_runner(
+    fake_local = cargo_test_context.patch_local_runner(
         lambda _args, _timeout: (3, "bad stdout", "bad stderr")
     )
 
-    with context.caplog.at_level("ERROR"):
+    with cargo_test_context.caplog.at_level("ERROR"):
         with pytest.raises(SystemExit) as excinfo:
-            context.run_publish_check_module.run_cargo_command(
+            cargo_test_context.run_publish_check_module.run_cargo_command(
                 "demo",
-                context.fake_workspace,
+                cargo_test_context.fake_workspace,
                 ["cargo", "failing"],
                 timeout_secs=5,
             )
     assert "exit code 3" in str(excinfo.value)
-    assert "bad stdout" in context.caplog.text
-    assert "bad stderr" in context.caplog.text
-    assert fake_local.cwd_calls == [context.fake_workspace / "crates" / "demo"]
+    assert "bad stdout" in cargo_test_context.caplog.text
+    assert "bad stderr" in cargo_test_context.caplog.text
+    assert fake_local.cwd_calls == [
+        cargo_test_context.fake_workspace / "crates" / "demo"
+    ]
 
 
 def test_run_cargo_command_passes_command_result(
