@@ -248,7 +248,31 @@ def _extract_command_details(
     stdout: str | None = None,
     stderr: str | None = None,
 ) -> tuple[list[str], int, str, str]:
-    """Normalise command failure arguments for legacy and dataclass inputs."""
+    """Normalise command failure arguments for legacy and dataclass inputs.
+
+    Examples
+    --------
+    Extract details from a :class:`CommandResult` instance::
+
+        >>> result = CommandResult(
+        ...     command=["cargo", "--version"],
+        ...     return_code=101,
+        ...     stdout="",
+        ...     stderr="error output",
+        ... )
+        >>> _extract_command_details(result)
+        (["cargo", "--version"], 101, "", "error output")
+
+    The legacy tuple-style invocation remains supported::
+
+        >>> _extract_command_details(
+        ...     ["cargo", "--version"],
+        ...     return_code=101,
+        ...     stdout="",
+        ...     stderr="error output",
+        ... )
+        (["cargo", "--version"], 101, "", "error output")
+    """
 
     if isinstance(result_or_command, CommandResult):
         return (
@@ -264,6 +288,10 @@ def _extract_command_details(
             "Legacy _handle_command_failure invocations must provide "
             "return_code, stdout, and stderr.",
         )
+
+    assert return_code is not None
+    assert stdout is not None
+    assert stderr is not None
 
     return command, return_code, stdout, stderr
 
