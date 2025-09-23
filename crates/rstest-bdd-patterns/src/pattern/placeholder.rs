@@ -15,7 +15,14 @@ const OPEN_BRACE: u8 = 123;
 const CLOSE_BRACE: u8 = 125;
 const COLON: u8 = 58;
 
+/// Scan `bytes` starting at `start` (immediately after `{name` or `{name:hint`) and
+/// return the index of the matching `}` for the placeholder, honouring nested
+/// braces.
 fn find_closing_brace(bytes: &[u8], start: usize) -> Option<usize> {
+    debug_assert!(
+        start <= bytes.len(),
+        "start must not exceed the available input",
+    );
     let mut index = start;
     let mut depth = 0usize;
     while let Some(&b) = bytes.get(index) {
@@ -216,7 +223,15 @@ fn extract_hint_bytes<'a>(
             break;
         }
 
-        if byte == OPEN_BRACE || (byte == BACKSLASH && is_invalid_escape_sequence(ctx.bytes, end)) {
+        if byte == OPEN_BRACE {
+            return Err(placeholder_error(
+                "invalid placeholder in step pattern",
+                ctx.start,
+                Some(ctx.name.to_string()),
+            ));
+        }
+
+        if byte == BACKSLASH && is_invalid_escape_sequence(ctx.bytes, end) {
             return Err(placeholder_error(
                 "invalid placeholder in step pattern",
                 ctx.start,
@@ -286,17 +301,27 @@ fn is_valid_hint_format(hint: &str) -> bool {
 }
 
 #[cfg(test)]
-#[expect(
-    clippy::unwrap_used,
-    reason = "tests exercise placeholder parser fallibility"
-)]
 mod tests {
     use super::*;
+
+    fn parse_ok(pattern: &str) -> (usize, PlaceholderSpec) {
+        match parse_placeholder(pattern.as_bytes(), 0) {
+            Ok(result) => result,
+            Err(err) => panic!("placeholder should parse: {err}"),
+        }
+    }
+
+    fn parse_err(pattern: &str) -> PatternError {
+        match parse_placeholder(pattern.as_bytes(), 0) {
+            Ok(_) => panic!("placeholder parsing should fail"),
+            Err(err) => err,
+        }
+    }
 
     #[test]
     fn parses_basic_placeholder() {
         let pattern = "{value}";
-        let (next, spec) = parse_placeholder(pattern.as_bytes(), 0).unwrap();
+        let (next, spec) = parse_ok(pattern);
         assert_eq!(next, pattern.len());
         assert_eq!(spec.name, "value");
         assert_eq!(spec.hint, None);
@@ -305,7 +330,7 @@ mod tests {
     #[test]
     fn parses_placeholder_with_type_hint() {
         let pattern = "{value:u32}";
-        let (next, spec) = parse_placeholder(pattern.as_bytes(), 0).unwrap();
+        let (next, spec) = parse_ok(pattern);
         assert_eq!(next, pattern.len());
         assert_eq!(spec.name, "value");
         assert_eq!(spec.hint.as_deref(), Some("u32"));
@@ -314,7 +339,7 @@ mod tests {
     #[test]
     fn parses_placeholder_with_nested_braces() {
         let pattern = "{outer {inner}}";
-        let (next, spec) = parse_placeholder(pattern.as_bytes(), 0).unwrap();
+        let (next, spec) = parse_ok(pattern);
         assert_eq!(next, pattern.len());
         assert_eq!(spec.name, "outer");
         assert_eq!(spec.hint, None);
@@ -323,14 +348,14 @@ mod tests {
     #[test]
     fn errors_on_missing_closing_brace() {
         let pattern = "{value";
-        let err = parse_placeholder(pattern.as_bytes(), 0).unwrap_err();
+        let err = parse_err(pattern);
         assert!(err.to_string().contains("missing closing"));
     }
 
     #[test]
     fn errors_on_whitespace_before_hint() {
         let pattern = "{value :u32}";
-        let err = parse_placeholder(pattern.as_bytes(), 0).unwrap_err();
+        let err = parse_err(pattern);
         assert!(
             err.to_string()
                 .contains("invalid placeholder in step pattern")
@@ -350,14 +375,14 @@ mod tests {
     #[test]
     fn errors_on_hint_with_nested_brace() {
         let pattern = "{value:Vec<{u32}>}";
-        let err = parse_placeholder(pattern.as_bytes(), 0).unwrap_err();
+        let err = parse_err(pattern);
         assert!(err.to_string().contains("invalid placeholder"));
     }
 
     #[test]
     fn errors_on_hint_with_escaped_brace() {
         let pattern = format!("{{value:{esc}{{hint{esc}}}}}", esc = char::from(BACKSLASH));
-        let err = parse_placeholder(pattern.as_bytes(), 0).unwrap_err();
+        let err = parse_err(&pattern);
         assert!(err.to_string().contains("invalid placeholder"));
     }
 }

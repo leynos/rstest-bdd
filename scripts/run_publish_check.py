@@ -1,3 +1,25 @@
+"""Automated publish-check workflow for Rust workspace crates.
+
+This module implements the publish-check automation that validates crate
+packaging and compilation in an isolated workspace. The workflow exports
+the repository to a temporary directory, strips patch sections, applies
+version replacements, and validates each publishable crate.
+
+The script supports timeout configuration via PUBLISH_CHECK_TIMEOUT_SECS
+and workspace preservation via PUBLISH_CHECK_KEEP_TMP for debugging.
+
+Examples
+--------
+Run the complete publish-check workflow::
+
+    python scripts/run_publish_check.py
+
+Run with custom timeout and workspace preservation::
+
+    PUBLISH_CHECK_TIMEOUT_SECS=1200 PUBLISH_CHECK_KEEP_TMP=1 \
+        python scripts/run_publish_check.py
+"""
+
 #!/usr/bin/env -S uv run python
 # /// script
 # requires-python = ">=3.13"
@@ -7,7 +29,6 @@
 #     "tomlkit",
 # ]
 # ///
-"""Run the publish-check workflow in a temporary workspace copy."""
 from __future__ import annotations
 
 import logging

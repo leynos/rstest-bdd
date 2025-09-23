@@ -63,19 +63,21 @@ pub fn build_regex_from_pattern(pat: &str) -> Result<String, PatternError> {
 }
 
 #[cfg(test)]
-#[expect(clippy::unwrap_used, reason = "tests exercise fallible builders")]
 mod tests {
     use super::*;
 
     #[test]
     fn builds_regex_for_placeholder_patterns() {
-        let regex = build_regex_from_pattern("I have {count:u32} cukes").unwrap();
+        let regex = build_regex_from_pattern("I have {count:u32} cukes")
+            .unwrap_or_else(|err| panic!("pattern should compile: {err}"));
         assert_eq!(regex, r"^I have (\d+) cukes$");
     }
 
     #[test]
     fn errors_when_closing_brace_unmatched() {
-        let err = build_regex_from_pattern("broken}").unwrap_err();
+        let Err(err) = build_regex_from_pattern("broken}") else {
+            panic!("should fail");
+        };
         assert!(
             err.to_string()
                 .contains("unmatched closing brace '}' in step pattern")
@@ -84,7 +86,9 @@ mod tests {
 
     #[test]
     fn errors_when_open_braces_remain() {
-        let err = build_regex_from_pattern("{open").unwrap_err();
+        let Err(err) = build_regex_from_pattern("{open") else {
+            panic!("should fail");
+        };
         assert!(
             err.to_string()
                 .contains("missing closing '}' for placeholder")
