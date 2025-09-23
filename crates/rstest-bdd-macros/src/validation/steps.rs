@@ -435,36 +435,55 @@ fn current_crate_id_raw() -> String {
 
 fn normalise_crate_id(id: &str) -> Box<str> {
     // Canonicalise the `OUT_DIR` component without std::fs.
-    // FIXME(capo): replace with cap-std + camino canonicalisation (tracked in issue #XYZ).
     let (name, path) = id.split_once(':').unwrap_or((id, ""));
     if path.is_empty() {
         return name.into();
     }
+
     let original = Utf8Path::new(path);
-    let canonical = Dir::open_ambient_dir(".", ambient_authority())
-        .and_then(|dir| dir.canonicalize(original))
-        .map(|resolved| {
-            if resolved.is_absolute() {
-                resolved
-            } else {
-                std::env::current_dir()
-                    .ok()
-                    .and_then(|cwd| Utf8PathBuf::from_path_buf(cwd).ok())
-                    .map(|cwd| cwd.join(&resolved))
-                    .map_or_else(
-                        || {
-                            original
-                                .canonicalize_utf8()
-                                .unwrap_or_else(|_| original.to_owned())
-                        },
-                        |joined| joined.as_path().canonicalize_utf8().unwrap_or(joined),
-                    )
-            }
-        })
-        .or_else(|_| original.canonicalize_utf8())
-        .unwrap_or_else(|_| original.to_owned());
-    let canonical = canonical.into_string();
+    let canonical = canonicalise_out_dir(original);
     format!("{name}:{canonical}").into_boxed_str()
+}
+
+/// Resolve a path using cap-std first, falling back to camino when needed.
+///
+/// The capability-aware canonicalisation keeps us inside the sandbox even when
+/// camino or std may resolve the path differently (for example via symlinks or
+/// when permissions block intermediate directories). If cap-std cannot resolve
+/// the path we defer to camino's view, and if that also fails we return the
+/// caller-provided value unchanged so registry lookups remain stable.
+fn canonicalise_out_dir(original: &Utf8Path) -> Utf8PathBuf {
+    canonicalise_with_cap_std(original).unwrap_or_else(|_| {
+        original
+            .canonicalize_utf8()
+            .unwrap_or_else(|_| original.to_owned())
+    })
+}
+
+/// Canonicalise via the ambient directory so we respect capability boundaries.
+fn canonicalise_with_cap_std(original: &Utf8Path) -> Result<Utf8PathBuf, std::io::Error> {
+    let dir = Dir::open_ambient_dir(".", ambient_authority())?;
+    let candidate = dir.canonicalize(original)?;
+    Ok(ensure_absolute(candidate, original))
+}
+
+/// Ensure the resolved path is absolute; fall back to the original path if not.
+fn ensure_absolute(candidate: Utf8PathBuf, original: &Utf8Path) -> Utf8PathBuf {
+    if candidate.is_absolute() {
+        return candidate;
+    }
+
+    absolutise_relative(&candidate)
+        .or_else(|| original.canonicalize_utf8().ok())
+        .unwrap_or_else(|| original.to_owned())
+}
+
+/// Join a relative path to the current directory and canonicalise it if possible.
+fn absolutise_relative(candidate: &Utf8Path) -> Option<Utf8PathBuf> {
+    let cwd = std::env::current_dir().ok()?;
+    let cwd = Utf8PathBuf::from_path_buf(cwd).ok()?;
+    let joined = cwd.join(candidate);
+    Some(joined.as_path().canonicalize_utf8().unwrap_or(joined))
 }
 
 fn current_crate_id() -> Box<str> {
