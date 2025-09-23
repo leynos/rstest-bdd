@@ -6,6 +6,7 @@ CARGO ?= cargo
 BUILD_JOBS ?=
 CLIPPY_FLAGS ?= --workspace --all-targets --all-features -- -D warnings
 MDLINT ?= markdownlint
+UV ?= uv
 
 build: target/debug/$(APP) ## Build debug binary
 release: target/release/$(APP) ## Build release binary
@@ -40,7 +41,7 @@ nixie:
 	nixie --no-sandbox
 
 publish-check: ## Package crates in release order to validate publish readiness
-	uv run scripts/run_publish_check.py
+	$(UV) run scripts/run_publish_check.py
 
 
 help: ## Show available targets
