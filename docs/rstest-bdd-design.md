@@ -748,7 +748,7 @@ time, `StepPattern::compile` returns a `Result<(), regex::Error>`, and
 `PlaceholderError::InvalidPattern` at runtime.
 
 Runtime placeholder extraction reuses the same parser. The sequence below
-summarises the call path when placeholders are resolved at runtime.
+summarizes the call path when placeholders are resolved at runtime.
 
 ```mermaid
 sequenceDiagram
