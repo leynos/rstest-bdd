@@ -445,11 +445,19 @@ fn normalise_crate_id(id: &str) -> Box<str> {
     format!("{name}:{canonical}").into_boxed_str()
 }
 
-/// Resolve a path using cap-std first, falling back to camino if necessary.
+/// Resolve a path using cap-std first, falling back to camino when needed.
+///
+/// The capability-aware canonicalisation keeps us inside the sandbox even when
+/// camino or std may resolve the path differently (for example via symlinks or
+/// when permissions block intermediate directories). If cap-std cannot resolve
+/// the path we defer to camino's view, and if that also fails we return the
+/// caller-provided value unchanged so registry lookups remain stable.
 fn canonicalise_out_dir(original: &Utf8Path) -> Utf8PathBuf {
-    canonicalise_with_cap_std(original)
-        .or_else(|_| original.canonicalize_utf8())
-        .unwrap_or_else(|_| original.to_owned())
+    canonicalise_with_cap_std(original).unwrap_or_else(|_| {
+        original
+            .canonicalize_utf8()
+            .unwrap_or_else(|_| original.to_owned())
+    })
 }
 
 /// Canonicalise via the ambient directory so we respect capability boundaries.

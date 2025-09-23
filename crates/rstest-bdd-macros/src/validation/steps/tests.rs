@@ -4,9 +4,11 @@
 )]
 //! Tests for step-definition validation: missing/single/ambiguous outcomes and registry behaviour.
 use super::*;
-use camino::Utf8PathBuf;
+use camino::{Utf8Path, Utf8PathBuf};
 use rstest::rstest;
 use serial_test::serial;
+#[cfg(unix)]
+use std::os::unix::fs::symlink;
 use tempfile::{tempdir, tempdir_in};
 
 #[expect(clippy::expect_used, reason = "registry lock must panic if poisoned")]
@@ -170,6 +172,120 @@ fn leaves_unresolvable_out_dir_paths_unchanged() {
     let crate_id = format!("demo:{}", missing.as_str());
     let normalised = normalise_crate_id(&crate_id);
     assert_eq!(normalised.as_ref(), crate_id);
+}
+
+#[test]
+#[serial]
+fn canonicalise_out_dir_resolves_relative_components() {
+    let original_cwd = std::env::current_dir().expect("obtain current directory");
+    let temp = tempdir().expect("create temp directory");
+    std::env::set_current_dir(temp.path()).expect("set current directory for test");
+
+    std::fs::create_dir_all("nested").expect("create nested directory for canonicalisation");
+    let nested = Utf8Path::new("nested/.");
+    let canonical = canonicalise_out_dir(nested);
+    let expected_dir = Utf8PathBuf::from_path_buf(temp.path().join("nested"))
+        .expect("temporary path should be valid UTF-8");
+    let expected = expected_dir
+        .as_path()
+        .canonicalize_utf8()
+        .unwrap_or_else(|_| expected_dir.clone());
+
+    assert_eq!(canonical, expected);
+
+    std::env::set_current_dir(original_cwd).expect("restore current directory");
+}
+
+#[cfg(unix)]
+#[test]
+fn canonicalise_out_dir_resolves_symlinks() {
+    let temp = tempdir().expect("create temp directory");
+    let base = Utf8PathBuf::from_path_buf(temp.path().to_path_buf())
+        .expect("temporary directory should be valid UTF-8");
+    let target = base.join("target");
+    std::fs::create_dir_all(target.as_std_path())
+        .expect("create target directory for canonicalisation");
+    let link = base.join("link");
+    symlink(target.as_std_path(), link.as_std_path()).expect("create symlink to target");
+
+    let canonical = canonicalise_out_dir(link.as_path());
+    let expected = target
+        .as_path()
+        .canonicalize_utf8()
+        .unwrap_or_else(|_| target.clone());
+
+    assert_eq!(canonical, expected);
+}
+
+#[test]
+fn canonicalise_out_dir_returns_original_when_unresolvable() {
+    let temp = tempdir().expect("create temp directory");
+    let missing = temp.path().join("missing");
+    let missing = Utf8PathBuf::from_path_buf(missing).expect("path should be valid UTF-8");
+    assert_eq!(canonicalise_out_dir(missing.as_path()), missing);
+}
+
+#[test]
+fn ensure_absolute_preserves_absolute_paths() {
+    let cwd = std::env::current_dir().expect("obtain current directory");
+    let cwd = Utf8PathBuf::from_path_buf(cwd).expect("current directory should be valid UTF-8");
+    let ensured = ensure_absolute(cwd.clone(), Utf8Path::new("."));
+    assert_eq!(ensured, cwd);
+}
+
+#[test]
+#[serial]
+fn ensure_absolute_promotes_relative_candidates() {
+    let original_cwd = std::env::current_dir().expect("obtain current directory");
+    let temp = tempdir().expect("create temp directory");
+    std::env::set_current_dir(temp.path()).expect("set current directory for test");
+
+    let candidate = Utf8PathBuf::from("relative/path");
+    let ensured = ensure_absolute(candidate.clone(), candidate.as_path());
+    let expected = Utf8PathBuf::from_path_buf(temp.path().join("relative/path"))
+        .expect("temporary path should be valid UTF-8");
+
+    assert_eq!(ensured, expected);
+
+    std::env::set_current_dir(original_cwd).expect("restore current directory");
+}
+
+#[test]
+#[serial]
+fn absolutise_relative_joins_current_directory() {
+    let original_cwd = std::env::current_dir().expect("obtain current directory");
+    let temp = tempdir().expect("create temp directory");
+    std::env::set_current_dir(temp.path()).expect("set current directory for test");
+
+    let expected = Utf8PathBuf::from_path_buf(temp.path().join("data"))
+        .expect("temporary path should be valid UTF-8");
+    let joined = absolutise_relative(Utf8Path::new("data"));
+
+    assert_eq!(joined, Some(expected));
+
+    std::env::set_current_dir(original_cwd).expect("restore current directory");
+}
+
+#[test]
+#[serial]
+fn canonicalise_with_cap_std_canonicalises_relative_paths() {
+    let original_cwd = std::env::current_dir().expect("obtain current directory");
+    let temp = tempdir().expect("create temp directory");
+    std::env::set_current_dir(temp.path()).expect("set current directory for test");
+
+    std::fs::create_dir_all("nested").expect("create nested directory for canonicalisation");
+    let canonical = canonicalise_with_cap_std(Utf8Path::new("nested/./"))
+        .expect("cap-std should canonicalise relative path");
+    let expected_dir = Utf8PathBuf::from_path_buf(temp.path().join("nested"))
+        .expect("temporary path should be valid UTF-8");
+    let expected = expected_dir
+        .as_path()
+        .canonicalize_utf8()
+        .unwrap_or_else(|_| expected_dir.clone());
+
+    assert_eq!(canonical, expected);
+
+    std::env::set_current_dir(original_cwd).expect("restore current directory");
 }
 
 #[test]

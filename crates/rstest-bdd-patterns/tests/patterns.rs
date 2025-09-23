@@ -58,6 +58,18 @@ fn compile_regex_from_pattern_edge_cases() {
     let regex = compile_regex_from_pattern("{x:u32} plus {y:u32}").expect("should compile");
     assert!(regex.is_match("12 plus 34"));
 
+    // Adjacent placeholders
+    let regex = compile_regex_from_pattern("{x:u32}{y:u32}").expect("should compile");
+    assert!(regex.is_match("1234"), "Should match two adjacent numbers");
+    assert!(
+        !regex.is_match("12 34"),
+        "Should not match numbers separated by space"
+    );
+    assert!(
+        !regex.is_match("abcd"),
+        "Should not match non-numeric input"
+    );
+
     // Pattern with only placeholder
     let regex = compile_regex_from_pattern("{x:u32}").expect("should compile");
     assert!(regex.is_match("99"));
