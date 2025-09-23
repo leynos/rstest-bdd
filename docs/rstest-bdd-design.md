@@ -486,6 +486,38 @@ macro has a distinct role in the compile-time orchestration of the BDD tests.
   and feature files may delimit the block using either triple double-quotes or
   triple backticks.
 
+Macro attribute expansion relies on `rstest-bdd-macros::MacroPattern` to
+compile and cache regular expressions during macro execution. The helper
+delegates to the shared `rstest-bdd-patterns` crate so that compile-time and
+runtime code paths agree on placeholder semantics. The cached `Regex` is
+exposed to the macro via a `OnceLock`, avoiding repeated compilation when the
+same pattern is referenced multiple times within a single expansion.
+
+```mermaid
+sequenceDiagram
+  autonumber
+  actor Dev
+  participant Macros as rstest-bdd-macros::MacroPattern
+  participant Patterns as rstest-bdd-patterns
+  participant Regex as regex::Regex
+
+  Dev->>Macros: MacroPattern::new("Given {n:i32}")
+  Dev->>Macros: MacroPattern::regex(span)
+  Macros->>Patterns: build_regex_from_pattern(text)
+  alt compiled OK
+    Patterns-->>Macros: regex source
+    Macros->>Regex: Regex::new(source)
+    Regex-->>Macros: compiled Regex
+    Macros-->>Dev: &Regex (cached via OnceLock)
+  else compile error
+    Patterns-->>Macros: PatternError
+    Macros->>Dev: proc_macro_error::abort(span, error)
+  end
+```
+
+Figure: Procedural macros compile patterns through the shared parser and cache
+successful results to avoid redundant work within a single expansion.
+
 ### 2.2 The Core Architectural Challenge: Stateless Step Discovery
 
 The most significant technical hurdle in this design is the inherent nature of
@@ -714,6 +746,30 @@ Figure: `compile` delegates to the internal single-pass scanner. At compile
 time, `StepPattern::compile` returns a `Result<(), regex::Error>`, and
 `extract_placeholders` wraps any compile error as
 `PlaceholderError::InvalidPattern` at runtime.
+
+Runtime placeholder extraction reuses the same parser. The sequence below
+summarizes the call path when placeholders are resolved at runtime.
+
+```mermaid
+sequenceDiagram
+  autonumber
+  participant Runtime as rstest-bdd::extract_placeholders
+  participant Patterns as rstest-bdd-patterns
+
+  Runtime->>Patterns: build_regex_from_pattern(pattern_text)
+  Patterns->>Patterns: Regex::new(src)
+  Patterns->>Patterns: extract_captured_values(&regex, input)
+  alt match
+    Patterns-->>Runtime: Some(Vec<String>)
+    Runtime-->>Caller: Ok(Vec)
+  else no match
+    Patterns-->>Runtime: None
+    Runtime-->>Caller: Err(PlaceholderError::PatternMismatch)
+  end
+```
+
+Figure: Runtime placeholder extraction delegates to `rstest-bdd-patterns` to
+compile a regex and report matches or errors to the caller.
 
 Duplicate step definitions are rejected when the registry is built. Attempting
 to register the same keyword and pattern combination twice results in a panic
