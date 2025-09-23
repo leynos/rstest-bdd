@@ -40,19 +40,16 @@ pub fn extract_captured_values(re: &Regex, text: &str) -> Option<Vec<String>> {
 }
 
 #[cfg(test)]
+#[expect(clippy::expect_used, reason = "tests exercise fallible regex helpers")]
 mod tests {
     use super::*;
 
     fn compile_regex(pattern: &str) -> Regex {
-        match Regex::new(pattern) {
-            Ok(regex) => regex,
-            Err(err) => panic!("valid regex: {err}"),
-        }
+        Regex::new(pattern).expect("valid regex")
     }
 
     fn extract_or_panic(regex: &Regex, input: &str) -> Vec<String> {
-        extract_captured_values(regex, input)
-            .unwrap_or_else(|| panic!("expected a match for input: {input}"))
+        extract_captured_values(regex, input).expect("expected a match")
     }
 
     #[test]
