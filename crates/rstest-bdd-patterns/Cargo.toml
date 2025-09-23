@@ -19,5 +19,3 @@ workspace = true
 regex.workspace = true
 thiserror.workspace = true
 
-[dev-dependencies]
-rstest.workspace = true

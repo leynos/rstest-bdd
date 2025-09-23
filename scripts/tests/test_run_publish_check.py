@@ -127,6 +127,59 @@ def test_handle_command_failure_logs_and_exits(
     assert "stderr text" in caplog.text
 
 
+def test_handle_command_failure_omits_empty_output(
+    run_publish_check_module, caplog: pytest.LogCaptureFixture
+) -> None:
+    result = run_publish_check_module.CommandResult(
+        command=["cargo", "fmt"],
+        return_code=1,
+        stdout="",
+        stderr="",
+    )
+
+    with caplog.at_level("ERROR"):
+        with pytest.raises(SystemExit):
+            run_publish_check_module._handle_command_failure("fmt", result)
+
+    assert "cargo stdout" not in caplog.text
+    assert "cargo stderr" not in caplog.text
+
+
+def test_handle_command_failure_accepts_non_string_outputs(
+    run_publish_check_module, caplog: pytest.LogCaptureFixture
+) -> None:
+    result = run_publish_check_module.CommandResult(
+        command=["cargo", "fmt"],
+        return_code=5,
+        stdout=b"binary stdout",
+        stderr=b"binary stderr",
+    )
+
+    with caplog.at_level("ERROR"):
+        with pytest.raises(SystemExit):
+            run_publish_check_module._handle_command_failure("fmt", result)
+
+    assert "b'binary stdout'" in caplog.text
+    assert "b'binary stderr'" in caplog.text
+
+
+def test_handle_command_failure_reports_negative_exit_codes(
+    run_publish_check_module, caplog: pytest.LogCaptureFixture
+) -> None:
+    result = run_publish_check_module.CommandResult(
+        command=["cargo", "fmt"],
+        return_code=-9,
+        stdout="ignored",
+        stderr="ignored",
+    )
+
+    with caplog.at_level("ERROR"):
+        with pytest.raises(SystemExit) as excinfo:
+            run_publish_check_module._handle_command_failure("fmt", result)
+
+    assert "exit code -9" in str(excinfo.value)
+
+
 def test_run_cargo_command_streams_output(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,

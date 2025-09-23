@@ -877,7 +877,6 @@ name = "rstest-bdd-patterns"
 version = "0.1.0-alpha3"
 dependencies = [
  "regex",
- "rstest",
  "thiserror",
 ]
 

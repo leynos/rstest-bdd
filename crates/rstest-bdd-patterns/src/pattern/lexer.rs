@@ -151,32 +151,38 @@ fn parse_and_consume_placeholder(
     Ok(())
 }
 
-#[doc = "Tests exercising the pattern lexer behaviour."]
 #[cfg(test)]
 mod tests {
     //! Tests exercising the pattern lexer behaviour.
 
     use super::*;
-    use rstest::rstest;
 
     fn assert_tokens(pattern: &str, expected: &[Token]) {
         match lex_pattern(pattern) {
             Ok(tokens) => {
-                let context = format!("pattern {pattern:?} produced unexpected tokens");
-                assert_eq!(tokens, expected, "{context}");
+                assert_eq!(
+                    tokens, expected,
+                    "pattern {pattern:?} produced unexpected tokens",
+                );
             }
-            Err(err) => {
-                let message =
-                    format!("pattern {pattern:?} should lex successfully but failed: {err}");
-                panic!("{message}");
-            }
+            Err(err) => panic!("pattern {pattern:?} should lex successfully but failed: {err}"),
         }
     }
 
-    #[rstest]
-    #[case::tokenises_literals_and_placeholders(
+    macro_rules! lex_test {
+        ($name:ident, $pattern:expr, [$($tok:expr),* $(,)?]) => {
+            #[test]
+            fn $name() {
+                let expected = vec![$($tok),*];
+                assert_tokens($pattern, &expected);
+            }
+        };
+    }
+
+    lex_test!(
+        tokenises_literals_and_placeholders,
         "Given {value:u32}",
-        &[
+        [
             Token::Literal("Given ".into()),
             Token::Placeholder {
                 start: 6,
@@ -184,10 +190,12 @@ mod tests {
                 hint: Some("u32".into()),
             },
         ]
-    )]
-    #[case::recognises_doubled_braces_as_literals(
+    );
+
+    lex_test!(
+        recognises_doubled_braces_as_literals,
         "{{outer}} {inner}",
-        &[
+        [
             Token::Literal("{outer} ".into()),
             Token::Placeholder {
                 start: 10,
@@ -195,10 +203,12 @@ mod tests {
                 hint: None,
             },
         ]
-    )]
-    #[case::treats_nested_braces_as_placeholder(
+    );
+
+    lex_test!(
+        treats_nested_braces_as_placeholder,
         "before {outer {inner}} after",
-        &[
+        [
             Token::Literal("before ".into()),
             Token::Placeholder {
                 start: 7,
@@ -207,26 +217,32 @@ mod tests {
             },
             Token::Literal(" after".into()),
         ]
-    )]
-    #[case::records_stray_braces(
+    );
+
+    lex_test!(
+        records_stray_braces,
         "{ literal }",
-        &[
+        [
             Token::OpenBrace { index: 0 },
             Token::Literal(" literal ".into()),
             Token::CloseBrace { index: 10 },
         ]
-    )]
-    #[case::treats_placeholders_with_invalid_start_as_literals(
+    );
+
+    lex_test!(
+        treats_placeholders_with_invalid_start_as_literals,
         "{  value}",
-        &[
+        [
             Token::OpenBrace { index: 0 },
             Token::Literal("  value".into()),
             Token::CloseBrace { index: 8 },
         ]
-    )]
-    #[case::preserves_multibyte_literal_segments(
+    );
+
+    lex_test!(
+        preserves_multibyte_literal_segments,
         "Given café {value}",
-        &[
+        [
             Token::Literal("Given café ".into()),
             Token::Placeholder {
                 start: 12,
@@ -234,8 +250,5 @@ mod tests {
                 hint: None,
             },
         ]
-    )]
-    fn lexes_patterns(#[case] pattern: &str, #[case] expected: &[Token]) {
-        assert_tokens(pattern, expected);
-    }
+    );
 }
