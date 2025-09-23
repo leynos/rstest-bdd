@@ -36,6 +36,16 @@ class CommandFailureTestCase:
     unexpected_logs: tuple[str, ...]
 
 
+@dataclass(frozen=True)
+class CargoTestContext:
+    """Test context for cargo command testing scenarios."""
+
+    patch_local_runner: Callable[[RunCallable], FakeLocal]
+    fake_workspace: Path
+    caplog: pytest.LogCaptureFixture
+    run_publish_check_module: ModuleType
+
+
 @pytest.fixture(scope="module")
 def run_publish_check_module() -> ModuleType:
     spec = importlib.util.spec_from_file_location(
@@ -128,6 +138,21 @@ def patch_local_runner(
         return fake_local
 
     return _install
+
+
+@pytest.fixture
+def cargo_test_context(
+    patch_local_runner: Callable[[RunCallable], FakeLocal],
+    fake_workspace: Path,
+    caplog: pytest.LogCaptureFixture,
+    run_publish_check_module: ModuleType,
+) -> CargoTestContext:
+    return CargoTestContext(
+        patch_local_runner=patch_local_runner,
+        fake_workspace=fake_workspace,
+        caplog=caplog,
+        run_publish_check_module=run_publish_check_module,
+    )
 
 
 class FakeCargoInvocation:
@@ -343,27 +368,26 @@ def test_run_cargo_command_uses_env_timeout(
 
 def test_run_cargo_command_logs_failures(
     monkeypatch: pytest.MonkeyPatch,
-    patch_local_runner: Callable[[RunCallable], FakeLocal],
-    fake_workspace: Path,
-    caplog: pytest.LogCaptureFixture,
-    run_publish_check_module: ModuleType,
+    cargo_test_context: CargoTestContext,
 ) -> None:
-    fake_local = patch_local_runner(
+    fake_local = cargo_test_context.patch_local_runner(
         lambda _args, _timeout: (3, "bad stdout", "bad stderr")
     )
 
-    with caplog.at_level("ERROR"):
+    with cargo_test_context.caplog.at_level("ERROR"):
         with pytest.raises(SystemExit) as excinfo:
-            run_publish_check_module.run_cargo_command(
+            cargo_test_context.run_publish_check_module.run_cargo_command(
                 "demo",
-                fake_workspace,
+                cargo_test_context.fake_workspace,
                 ["cargo", "failing"],
                 timeout_secs=5,
             )
     assert "exit code 3" in str(excinfo.value)
-    assert "bad stdout" in caplog.text
-    assert "bad stderr" in caplog.text
-    assert fake_local.cwd_calls == [fake_workspace / "crates" / "demo"]
+    assert "bad stdout" in cargo_test_context.caplog.text
+    assert "bad stderr" in cargo_test_context.caplog.text
+    assert fake_local.cwd_calls == [
+        cargo_test_context.fake_workspace / "crates" / "demo"
+    ]
 
 
 def test_run_cargo_command_passes_command_result(
