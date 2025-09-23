@@ -180,7 +180,7 @@ mod tests {
     }
 
     lex_test!(
-        tokenises_literals_and_placeholders,
+        tokenizes_literals_and_placeholders,
         "Given {value:u32}",
         [
             Token::Literal("Given ".into()),
@@ -193,7 +193,7 @@ mod tests {
     );
 
     lex_test!(
-        recognises_doubled_braces_as_literals,
+        recognizes_doubled_braces_as_literals,
         "{{outer}} {inner}",
         [
             Token::Literal("{outer} ".into()),
@@ -230,7 +230,7 @@ mod tests {
     );
 
     lex_test!(
-        treats_placeholders_with_invalid_start_as_literals,
+        tokenizes_invalid_placeholder_start_as_braces_and_literal,
         "{  value}",
         [
             Token::OpenBrace { index: 0 },
