@@ -151,7 +151,7 @@ def extract_existing_items(value: object) -> Iterable[tuple[str, object]]:
 
     Returns
     -------
-    Iterable[tuple[str, object]]
+    tuple[tuple[str, object], ...]
         Key-value pairs that should be retained when rebuilding the entry.
 
     Examples
