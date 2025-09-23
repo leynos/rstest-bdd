@@ -25,46 +25,53 @@ pub fn compile_regex_from_pattern(pat: &str) -> Result<Regex, PatternError> {
 mod tests {
     use super::{build_regex_from_pattern, compile_regex_from_pattern};
     use crate::errors::PatternError;
+    use std::fmt::Display;
+
+    fn expect_ok<T, E: Display>(result: Result<T, E>, context: &str) -> T {
+        match result {
+            Ok(value) => value,
+            Err(err) => panic!("{context}: {err}"),
+        }
+    }
+
+    fn expect_err<T, E: Display>(result: Result<T, E>, context: &str) -> E {
+        match result {
+            Ok(_) => panic!("{context}: expected error"),
+            Err(err) => err,
+        }
+    }
 
     #[test]
     fn compiles_literal_patterns() {
-        #[expect(
-            clippy::expect_used,
-            reason = "tests require descriptive panic messages"
-        )]
-        let src = build_regex_from_pattern("Given a step").expect("pattern should compile");
+        let src = expect_ok(
+            build_regex_from_pattern("Given a step"),
+            "pattern should compile",
+        );
         assert_eq!(src, "^Given a step$");
     }
 
     #[test]
     fn errors_on_unbalanced_braces() {
-        #[expect(
-            clippy::expect_used,
-            reason = "tests assert placeholder parsing failures"
-        )]
-        let err = build_regex_from_pattern("broken {").expect_err("pattern should fail");
+        let err = expect_err(build_regex_from_pattern("broken {"), "pattern should fail");
         assert!(err.to_string().contains("unbalanced braces"));
     }
 
     #[test]
     fn compiles_regex_from_pattern_successfully() {
-        #[expect(
-            clippy::expect_used,
-            reason = "tests require descriptive panic messages"
-        )]
-        let regex = compile_regex_from_pattern("Given {value}").expect("pattern should compile");
+        let regex = expect_ok(
+            compile_regex_from_pattern("Given {value}"),
+            "pattern should compile",
+        );
         assert_eq!(regex.as_str(), "^Given (.+?)$");
     }
 
     #[test]
     fn surfaces_regex_compilation_errors() {
         let heavy_pattern = format!("prefix {}", "{value:f64}".repeat(20_000));
-        #[expect(
-            clippy::expect_used,
-            reason = "tests assert regex compilation failures"
-        )]
-        let err =
-            compile_regex_from_pattern(&heavy_pattern).expect_err("pattern should be too large");
+        let err = expect_err(
+            compile_regex_from_pattern(&heavy_pattern),
+            "pattern should be too large",
+        );
         assert!(matches!(
             err,
             PatternError::Regex(regex::Error::CompiledTooBig(_))

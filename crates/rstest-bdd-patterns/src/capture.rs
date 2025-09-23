@@ -43,34 +43,35 @@ pub fn extract_captured_values(re: &Regex, text: &str) -> Option<Vec<String>> {
 mod tests {
     use super::*;
 
+    fn compile_regex(pattern: &str) -> Regex {
+        match Regex::new(pattern) {
+            Ok(regex) => regex,
+            Err(err) => panic!("test regex {pattern:?} should compile: {err}"),
+        }
+    }
+
+    fn capture_values(regex: &Regex, input: &str) -> Vec<String> {
+        extract_captured_values(regex, input).map_or_else(
+            || {
+                panic!(
+                    "expected captures for input {input:?} using pattern {}",
+                    regex.as_str()
+                )
+            },
+            |values| values,
+        )
+    }
+
     #[test]
     fn returns_none_when_pattern_does_not_match() {
-        #[expect(
-            clippy::expect_used,
-            reason = "tests require descriptive panic messages"
-        )]
-        let regex = Regex::new(r"^(\d+)$").expect("test regex must compile");
+        let regex = compile_regex(r"^(\d+)$");
         assert!(extract_captured_values(&regex, "nope").is_none());
     }
 
     #[test]
     fn collects_captures_in_order() {
-        #[expect(
-            clippy::expect_used,
-            reason = "tests require descriptive panic messages"
-        )]
-        let regex = Regex::new(r"^(\d+)-(\w+)-(\d+)$").expect("test regex must compile");
-
-        let input = "12-answer-7";
-        let message = format!(
-            "expected captures for input {input:?} using pattern {}",
-            regex.as_str()
-        );
-        #[expect(
-            clippy::expect_used,
-            reason = "tests validate capture extraction succeeds"
-        )]
-        let captures = extract_captured_values(&regex, input).expect(message.as_str());
+        let regex = compile_regex(r"^(\d+)-(\w+)-(\d+)$");
+        let captures = capture_values(&regex, "12-answer-7");
         assert_eq!(
             captures,
             vec![
@@ -83,22 +84,8 @@ mod tests {
 
     #[test]
     fn supports_empty_optional_groups() {
-        #[expect(
-            clippy::expect_used,
-            reason = "tests require descriptive panic messages"
-        )]
-        let regex = Regex::new(r"^(a)?(b)?$").expect("test regex must compile");
-
-        let input = "a";
-        let message = format!(
-            "expected captures for input {input:?} using pattern {}",
-            regex.as_str()
-        );
-        #[expect(
-            clippy::expect_used,
-            reason = "tests validate capture extraction succeeds"
-        )]
-        let captures = extract_captured_values(&regex, input).expect(message.as_str());
+        let regex = compile_regex(r"^(a)?(b)?$");
+        let captures = capture_values(&regex, "a");
         assert_eq!(captures, vec![String::from("a"), String::new()]);
     }
 }
