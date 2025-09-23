@@ -211,6 +211,16 @@ class CommandResult:
     stderr: str
 
 
+def _has_incomplete_legacy_parameters(
+    return_code: int | None,
+    stdout: str | None,
+    stderr: str | None,
+) -> bool:
+    """Return True if any required legacy parameter is missing."""
+
+    return return_code is None or stdout is None or stderr is None
+
+
 def _extract_command_details(
     crate: str,
     result_or_command: CommandResult | Sequence[str],
@@ -231,7 +241,7 @@ def _extract_command_details(
         )
 
     command = list(result_or_command)
-    if return_code is None or stdout is None or stderr is None:
+    if _has_incomplete_legacy_parameters(return_code, stdout, stderr):
         raise TypeError(
             "Legacy _handle_command_failure invocations must provide "
             "return_code, stdout, and stderr.",
