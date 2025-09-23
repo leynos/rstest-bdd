@@ -1,4 +1,26 @@
 #!/usr/bin/env -S uv run python
+"""Automated publish-check workflow for Rust workspace crates.
+
+This module implements the publish-check automation that validates crate
+packaging and compilation in an isolated workspace. The workflow exports
+the repository to a temporary directory, strips patch sections, applies
+version replacements, and validates each publishable crate.
+
+The script supports timeout configuration via PUBLISH_CHECK_TIMEOUT_SECS
+and workspace preservation via PUBLISH_CHECK_KEEP_TMP for debugging.
+
+Examples
+--------
+Run the complete publish-check workflow::
+
+    python scripts/run_publish_check.py
+
+Run with custom timeout and workspace preservation::
+
+    PUBLISH_CHECK_TIMEOUT_SECS=1200 PUBLISH_CHECK_KEEP_TMP=1 \
+        python scripts/run_publish_check.py
+"""
+
 # /// script
 # requires-python = ">=3.13"
 # dependencies = [
@@ -7,7 +29,6 @@
 #     "tomlkit",
 # ]
 # ///
-"""Run the publish-check workflow in a temporary workspace copy."""
 from __future__ import annotations
 
 import logging
@@ -222,15 +243,36 @@ def _has_incomplete_legacy_parameters(
 
 
 def _extract_command_details(
-    crate: str,
     result_or_command: CommandResult | Sequence[str],
     return_code: int | None = None,
     stdout: str | None = None,
     stderr: str | None = None,
 ) -> tuple[list[str], int, str, str]:
-    """Normalise command failure arguments for legacy and dataclass inputs."""
+    """Normalise command failure arguments for legacy and dataclass inputs.
 
-    del crate  # Signature matches _handle_command_failure; crate is unused.
+    Examples
+    --------
+    Extract details from a :class:`CommandResult` instance::
+
+        >>> result = CommandResult(
+        ...     command=["cargo", "--version"],
+        ...     return_code=101,
+        ...     stdout="",
+        ...     stderr="error output",
+        ... )
+        >>> _extract_command_details(result)
+        (["cargo", "--version"], 101, "", "error output")
+
+    The legacy tuple-style invocation remains supported::
+
+        >>> _extract_command_details(
+        ...     ["cargo", "--version"],
+        ...     return_code=101,
+        ...     stdout="",
+        ...     stderr="error output",
+        ... )
+        (["cargo", "--version"], 101, "", "error output")
+    """
 
     if isinstance(result_or_command, CommandResult):
         return (
@@ -246,6 +288,10 @@ def _extract_command_details(
             "Legacy _handle_command_failure invocations must provide "
             "return_code, stdout, and stderr.",
         )
+
+    assert return_code is not None
+    assert stdout is not None
+    assert stderr is not None
 
     return command, return_code, stdout, stderr
 
@@ -264,7 +310,6 @@ def _handle_command_failure(
     """
 
     command, exit_code, stdout_text, stderr_text = _extract_command_details(
-        crate,
         result_or_command,
         return_code=return_code,
         stdout=stdout,

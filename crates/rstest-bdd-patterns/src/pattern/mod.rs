@@ -3,6 +3,8 @@
 mod compiler;
 mod lexer;
 mod placeholder;
+#[cfg(test)]
+pub(crate) mod test_support;
 
 use crate::errors::PatternError;
 use regex::Regex;
