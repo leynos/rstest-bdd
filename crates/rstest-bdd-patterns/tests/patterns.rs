@@ -2,7 +2,21 @@
 
 use regex::Regex;
 
-use rstest_bdd_patterns::{build_regex_from_pattern, extract_captured_values, get_type_pattern};
+use rstest_bdd_patterns::{
+    build_regex_from_pattern, compile_regex_from_pattern, extract_captured_values, get_type_pattern,
+};
+
+#[test]
+fn compile_regex_from_pattern_smoke_test() {
+    let regex =
+        compile_regex_from_pattern("Given {n:u32}").expect("pattern should compile into regex");
+    assert!(regex.is_match("Given 12"));
+
+    assert!(
+        compile_regex_from_pattern("broken {").is_err(),
+        "malformed pattern should fail to compile"
+    );
+}
 
 #[test]
 fn builds_regex_and_extracts_values() {

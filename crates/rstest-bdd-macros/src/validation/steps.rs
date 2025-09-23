@@ -13,6 +13,9 @@
 use std::collections::HashMap;
 use std::sync::{LazyLock, Mutex};
 
+use camino::{Utf8Path, Utf8PathBuf};
+use cap_std::{ambient_authority, fs_utf8::Dir};
+
 use crate::StepKeyword;
 use crate::parsing::feature::ParsedStep;
 use crate::pattern::MacroPattern;
@@ -436,11 +439,30 @@ fn normalise_crate_id(id: &str) -> Box<str> {
     if path.is_empty() {
         return name.into();
     }
-    let canonical = std::path::Path::new(path)
-        .canonicalize()
-        .unwrap_or_else(|_| path.into())
-        .to_string_lossy()
-        .into_owned();
+    let original = Utf8Path::new(path);
+    let canonical = Dir::open_ambient_dir(".", ambient_authority())
+        .and_then(|dir| dir.canonicalize(original))
+        .map(|resolved| {
+            if resolved.is_absolute() {
+                resolved
+            } else {
+                std::env::current_dir()
+                    .ok()
+                    .and_then(|cwd| Utf8PathBuf::from_path_buf(cwd).ok())
+                    .map(|cwd| cwd.join(&resolved))
+                    .map_or_else(
+                        || {
+                            original
+                                .canonicalize_utf8()
+                                .unwrap_or_else(|_| original.to_owned())
+                        },
+                        |joined| joined.as_path().canonicalize_utf8().unwrap_or(joined),
+                    )
+            }
+        })
+        .or_else(|_| original.canonicalize_utf8())
+        .unwrap_or_else(|_| original.to_owned());
+    let canonical = canonical.into_string();
     format!("{name}:{canonical}").into_boxed_str()
 }
 
