@@ -363,7 +363,10 @@ fn successful_step_execution() {
 }
 
 #[test]
-#[expect(clippy::expect_used, reason = "test ensures step success is propagated")]
+#[expect(
+    clippy::expect_used,
+    reason = "test ensures step success is propagated"
+)]
 fn fallible_unit_step_execution_returns_none() {
     let res = invoke_step(&StepInvocation::new(
         StepKeyword::Given,
@@ -390,18 +393,18 @@ fn fallible_value_step_execution_returns_value() {
 }
 
 #[test]
+#[expect(clippy::expect_used, reason = "test ensures datatable steps can execute successfully")]
 fn datatable_is_passed_and_executes() {
     let table: &[&[&str]] = &[&["a", "b"], &["c", "d"]];
-    if let Err(e) = invoke_step(
+    invoke_step(
         &StepInvocation::new(
             StepKeyword::Given,
             "a step requiring a table",
             "a step requiring a table",
         )
         .with_datatable(table),
-    ) {
-        panic!("unexpected error passing datatable: {e:?}");
-    }
+    )
+    .expect("unexpected error passing datatable");
 }
 
 #[test]
