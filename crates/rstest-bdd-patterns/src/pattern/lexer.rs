@@ -151,88 +151,91 @@ fn parse_and_consume_placeholder(
     Ok(())
 }
 
+#[doc = "Tests exercising the pattern lexer behaviour."]
 #[cfg(test)]
 mod tests {
+    //! Tests exercising the pattern lexer behaviour.
+
     use super::*;
+    use rstest::rstest;
 
-    #[derive(Debug)]
-    struct Case {
-        name: &'static str,
-        pattern: &'static str,
-        expected: Vec<Token>,
-    }
-
-    fn literal(value: &str) -> Token {
-        Token::Literal(value.into())
-    }
-
-    fn placeholder(start: usize, name: &str, hint: Option<&str>) -> Token {
-        Token::Placeholder {
-            start,
-            name: name.into(),
-            hint: hint.map(str::to_string),
+    fn assert_tokens(pattern: &str, expected: &[Token]) {
+        match lex_pattern(pattern) {
+            Ok(tokens) => {
+                let context = format!("pattern {pattern:?} produced unexpected tokens");
+                assert_eq!(tokens, expected, "{context}");
+            }
+            Err(err) => {
+                let message =
+                    format!("pattern {pattern:?} should lex successfully but failed: {err}");
+                panic!("{message}");
+            }
         }
     }
 
-    fn open(index: usize) -> Token {
-        Token::OpenBrace { index }
-    }
-
-    fn close(index: usize) -> Token {
-        Token::CloseBrace { index }
-    }
-
-    fn assert_tokens(case: &Case) {
-        match lex_pattern(case.pattern) {
-            Ok(tokens) => assert_eq!(tokens, case.expected, "{}", case.name),
-            Err(err) => panic!(
-                "{}: expected tokens but lexing failed with {err}",
-                case.name
-            ),
-        }
-    }
-
-    #[test]
-    fn lexes_patterns() {
-        let cases = [
-            Case {
-                name: "tokenises_literals_and_placeholders",
-                pattern: "Given {value:u32}",
-                expected: vec![literal("Given "), placeholder(6, "value", Some("u32"))],
+    #[rstest]
+    #[case::tokenises_literals_and_placeholders(
+        "Given {value:u32}",
+        &[
+            Token::Literal("Given ".into()),
+            Token::Placeholder {
+                start: 6,
+                name: "value".into(),
+                hint: Some("u32".into()),
             },
-            Case {
-                name: "recognises_doubled_braces_as_literals",
-                pattern: "{{outer}} {inner}",
-                expected: vec![literal("{outer} "), placeholder(10, "inner", None)],
+        ]
+    )]
+    #[case::recognises_doubled_braces_as_literals(
+        "{{outer}} {inner}",
+        &[
+            Token::Literal("{outer} ".into()),
+            Token::Placeholder {
+                start: 10,
+                name: "inner".into(),
+                hint: None,
             },
-            Case {
-                name: "treats_nested_braces_as_placeholder",
-                pattern: "before {outer {inner}} after",
-                expected: vec![
-                    literal("before "),
-                    placeholder(7, "outer", None),
-                    literal(" after"),
-                ],
+        ]
+    )]
+    #[case::treats_nested_braces_as_placeholder(
+        "before {outer {inner}} after",
+        &[
+            Token::Literal("before ".into()),
+            Token::Placeholder {
+                start: 7,
+                name: "outer".into(),
+                hint: None,
             },
-            Case {
-                name: "records_stray_braces",
-                pattern: "{ literal }",
-                expected: vec![open(0), literal(" literal "), close(10)],
+            Token::Literal(" after".into()),
+        ]
+    )]
+    #[case::records_stray_braces(
+        "{ literal }",
+        &[
+            Token::OpenBrace { index: 0 },
+            Token::Literal(" literal ".into()),
+            Token::CloseBrace { index: 10 },
+        ]
+    )]
+    #[case::treats_placeholders_with_invalid_start_as_literals(
+        "{  value}",
+        &[
+            Token::OpenBrace { index: 0 },
+            Token::Literal("  value".into()),
+            Token::CloseBrace { index: 8 },
+        ]
+    )]
+    #[case::preserves_multibyte_literal_segments(
+        "Given café {value}",
+        &[
+            Token::Literal("Given café ".into()),
+            Token::Placeholder {
+                start: 12,
+                name: "value".into(),
+                hint: None,
             },
-            Case {
-                name: "errors_when_placeholder_starts_with_invalid_character",
-                pattern: "{  value}",
-                expected: vec![open(0), literal("  value"), close(8)],
-            },
-            Case {
-                name: "preserves_multibyte_literal_segments",
-                pattern: "Given café {value}",
-                expected: vec![literal("Given café "), placeholder(12, "value", None)],
-            },
-        ];
-
-        for case in &cases {
-            assert_tokens(case);
-        }
+        ]
+    )]
+    fn lexes_patterns(#[case] pattern: &str, #[case] expected: &[Token]) {
+        assert_tokens(pattern, expected);
     }
 }

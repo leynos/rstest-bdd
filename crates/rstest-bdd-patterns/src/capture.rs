@@ -39,24 +39,30 @@ pub fn extract_captured_values(re: &Regex, text: &str) -> Option<Vec<String>> {
     Some(values)
 }
 
+#[doc = "Tests covering the capture helpers behaviour."]
 #[cfg(test)]
 mod tests {
+    //! Tests covering the capture helpers behaviour.
+
     use super::*;
 
     fn compile_regex(pattern: &str) -> Regex {
         match Regex::new(pattern) {
             Ok(regex) => regex,
-            Err(err) => panic!("test regex {pattern:?} should compile: {err}"),
+            Err(err) => {
+                let message = format!("test regex {pattern:?} should compile: {err}");
+                panic!("{message}");
+            }
         }
     }
 
     fn capture_values(regex: &Regex, input: &str) -> Vec<String> {
         extract_captured_values(regex, input).map_or_else(
             || {
-                panic!(
-                    "expected captures for input {input:?} using pattern {}",
-                    regex.as_str()
-                )
+                let pattern_text = regex.as_str();
+                let message =
+                    format!("expected captures for input {input:?} using pattern {pattern_text:?}");
+                panic!("{message}")
             },
             |values| values,
         )

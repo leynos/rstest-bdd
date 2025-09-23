@@ -236,7 +236,16 @@ def _handle_command_failure(
     crate: str,
     result: CommandResult,
 ) -> None:
-    """Log diagnostics for a failed Cargo command and abort execution."""
+    """Log diagnostics for a failed Cargo command and abort execution.
+
+    Parameters
+    ----------
+    crate
+        Name of the crate whose Cargo invocation failed.
+    result
+        The :class:`CommandResult` describing the invocation, including the
+        resolved command line and captured output streams.
+    """
 
     joined_command = shlex.join(result.command)
     logging.error("cargo command failed for %s: %s", crate, joined_command)
