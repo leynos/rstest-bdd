@@ -124,6 +124,7 @@ fn strip_nightly_macro_backtrace_hint(text: &str) -> String {
 #[cfg(test)]
 mod helper_tests {
     use super::*;
+    use rstest::rstest;
     use std::borrow::Cow;
     use std::fs;
     use std::panic;
@@ -284,55 +285,51 @@ mod helper_tests {
         );
     }
 
-    #[test]
-    fn run_compile_fail_with_normalised_output_accepts_whitespace_output() {
-        const TEST_PATH: &str = "tests/fixtures/__normaliser_whitespace.rs";
-        let mut expected = String::from("warning: trailing space");
+    #[rstest]
+    #[case(
+        "tests/fixtures/__normaliser_whitespace.rs",
+        "warning: trailing space",
+        "warning: trailing space   ",
+        true,
+        "whitespace differences should be normalised",
+        "matching outputs should delete the wip stderr file"
+    )]
+    #[case(
+        "tests/fixtures/__normaliser_unexpected.rs",
+        "error: expected formatting",
+        "error: unexpected formatting",
+        false,
+        "mismatched outputs must propagate the panic",
+        "mismatched outputs should retain the wip stderr file for inspection"
+    )]
+    fn run_compile_fail_with_normalised_output_test_cases(
+        #[case] test_path: &str,
+        #[case] expected_content: &str,
+        #[case] actual_content: &str,
+        #[case] should_succeed: bool,
+        #[case] result_message: &str,
+        #[case] file_message: &str,
+    ) {
+        let mut expected = String::from(expected_content);
         expected.push(char::from(10));
-        let mut actual = String::from("warning: trailing space   ");
+        let mut actual = String::from(actual_content);
         actual.push(char::from(10));
-        let fixture = NormaliserFixture::new(TEST_PATH, expected.as_str(), actual.as_str());
+        let fixture = NormaliserFixture::new(test_path, expected.as_str(), actual.as_str());
         let trim_trailing: Normaliser = |text| text.trim_end().to_owned();
         let result = panic::catch_unwind(|| {
             run_compile_fail_with_normalised_output(
                 || panic!("expected failure"),
-                TEST_PATH,
+                test_path,
                 &[trim_trailing],
             );
         });
-        assert!(
-            result.is_ok(),
-            "whitespace differences should be normalised"
-        );
-        assert!(
-            !fixture.actual_path.exists(),
-            "matching outputs should delete the wip stderr file",
-        );
-    }
 
-    #[test]
-    fn run_compile_fail_with_normalised_output_propagates_unexpected_formatting() {
-        const TEST_PATH: &str = "tests/fixtures/__normaliser_unexpected.rs";
-        let mut expected = String::from("error: expected formatting");
-        expected.push(char::from(10));
-        let mut actual = String::from("error: unexpected formatting");
-        actual.push(char::from(10));
-        let fixture = NormaliserFixture::new(TEST_PATH, expected.as_str(), actual.as_str());
-        let trim_trailing: Normaliser = |text| text.trim_end().to_owned();
-        let result = panic::catch_unwind(|| {
-            run_compile_fail_with_normalised_output(
-                || panic!("expected failure"),
-                TEST_PATH,
-                &[trim_trailing],
-            );
-        });
-        assert!(
-            result.is_err(),
-            "mismatched outputs must propagate the panic"
-        );
-        assert!(
-            fixture.actual_path.exists(),
-            "mismatched outputs should retain the wip stderr file for inspection",
-        );
+        if should_succeed {
+            assert!(result.is_ok(), "{}", result_message);
+            assert!(!fixture.actual_path.exists(), "{}", file_message);
+        } else {
+            assert!(result.is_err(), "{}", result_message);
+            assert!(fixture.actual_path.exists(), "{}", file_message);
+        }
     }
 }
