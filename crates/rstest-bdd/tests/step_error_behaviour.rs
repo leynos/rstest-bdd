@@ -363,13 +363,14 @@ fn successful_step_execution() {
 }
 
 #[test]
+#[expect(clippy::expect_used, reason = "test ensures step success is propagated")]
 fn fallible_unit_step_execution_returns_none() {
     let res = invoke_step(&StepInvocation::new(
         StepKeyword::Given,
         "a fallible unit step succeeds",
         "a fallible unit step succeeds",
     ))
-    .unwrap_or_else(|e| panic!("unexpected error: {e:?}"));
+    .expect("unexpected error");
     assert!(res.is_none(), "unit step should not return a payload");
 }
 
