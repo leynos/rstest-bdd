@@ -152,97 +152,87 @@ fn parse_and_consume_placeholder(
 }
 
 #[cfg(test)]
-#[expect(clippy::unwrap_used, reason = "tests exercise lexing fallibility")]
 mod tests {
     use super::*;
 
-    fn expect_tokens(pattern: &str, expected: &[Token]) {
-        let tokens = lex_pattern(pattern).unwrap();
-        assert_eq!(tokens.as_slice(), expected);
+    #[derive(Debug)]
+    struct Case {
+        name: &'static str,
+        pattern: &'static str,
+        expected: Vec<Token>,
+    }
+
+    fn literal(value: &str) -> Token {
+        Token::Literal(value.into())
+    }
+
+    fn placeholder(start: usize, name: &str, hint: Option<&str>) -> Token {
+        Token::Placeholder {
+            start,
+            name: name.into(),
+            hint: hint.map(str::to_string),
+        }
+    }
+
+    fn open(index: usize) -> Token {
+        Token::OpenBrace { index }
+    }
+
+    fn close(index: usize) -> Token {
+        Token::CloseBrace { index }
+    }
+
+    fn assert_tokens(case: &Case) {
+        match lex_pattern(case.pattern) {
+            Ok(tokens) => assert_eq!(tokens, case.expected, "{}", case.name),
+            Err(err) => panic!(
+                "{}: expected tokens but lexing failed with {err}",
+                case.name
+            ),
+        }
     }
 
     #[test]
-    fn tokenises_literals_and_placeholders() {
-        expect_tokens(
-            "Given {value:u32}",
-            &[
-                Token::Literal("Given ".into()),
-                Token::Placeholder {
-                    start: 6,
-                    name: "value".into(),
-                    hint: Some("u32".into()),
-                },
-            ],
-        );
-    }
+    fn lexes_patterns() {
+        let cases = [
+            Case {
+                name: "tokenises_literals_and_placeholders",
+                pattern: "Given {value:u32}",
+                expected: vec![literal("Given "), placeholder(6, "value", Some("u32"))],
+            },
+            Case {
+                name: "recognises_doubled_braces_as_literals",
+                pattern: "{{outer}} {inner}",
+                expected: vec![literal("{outer} "), placeholder(10, "inner", None)],
+            },
+            Case {
+                name: "treats_nested_braces_as_placeholder",
+                pattern: "before {outer {inner}} after",
+                expected: vec![
+                    literal("before "),
+                    placeholder(7, "outer", None),
+                    literal(" after"),
+                ],
+            },
+            Case {
+                name: "records_stray_braces",
+                pattern: "{ literal }",
+                expected: vec![open(0), literal(" literal "), close(10)],
+            },
+            Case {
+                name: "errors_when_placeholder_starts_with_invalid_character",
+                pattern: "{  value}",
+                expected: vec![open(0), literal("  value"), close(8)],
+            },
+            Case {
+                name: "preserves_multibyte_literal_segments",
+                pattern: "Given café {value}",
+                expected: vec![literal("Given café "), placeholder(12, "value", None)],
+            },
+        ];
 
-    #[test]
-    fn recognises_doubled_braces_as_literals() {
-        expect_tokens(
-            "{{outer}} {inner}",
-            &[
-                Token::Literal("{outer} ".into()),
-                Token::Placeholder {
-                    start: 10,
-                    name: "inner".into(),
-                    hint: None,
-                },
-            ],
-        );
-    }
-
-    #[test]
-    fn treats_nested_braces_as_placeholder() {
-        expect_tokens(
-            "before {outer {inner}} after",
-            &[
-                Token::Literal("before ".into()),
-                Token::Placeholder {
-                    start: 7,
-                    name: "outer".into(),
-                    hint: None,
-                },
-                Token::Literal(" after".into()),
-            ],
-        );
-    }
-
-    #[test]
-    fn records_stray_braces() {
-        expect_tokens(
-            "{ literal }",
-            &[
-                Token::OpenBrace { index: 0 },
-                Token::Literal(" literal ".into()),
-                Token::CloseBrace { index: 10 },
-            ],
-        );
-    }
-
-    #[test]
-    fn errors_when_placeholder_starts_with_invalid_character() {
-        expect_tokens(
-            "{  value}",
-            &[
-                Token::OpenBrace { index: 0 },
-                Token::Literal("  value".into()),
-                Token::CloseBrace { index: 8 },
-            ],
-        );
-    }
-
-    #[test]
-    fn preserves_multibyte_literal_segments() {
-        expect_tokens(
-            "Given café {value}",
-            &[
-                Token::Literal("Given café ".into()),
-                Token::Placeholder {
-                    start: 12,
-                    name: "value".into(),
-                    hint: None,
-                },
-            ],
-        );
+        for case in &cases {
+            assert_tokens(case);
+        }
     }
 }

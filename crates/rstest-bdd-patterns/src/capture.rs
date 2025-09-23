@@ -43,38 +43,42 @@ pub fn extract_captured_values(re: &Regex, text: &str) -> Option<Vec<String>> {
 mod tests {
     use super::*;
 
+    fn compile_regex(pattern: &str) -> Regex {
+        match Regex::new(pattern) {
+            Ok(regex) => regex,
+            Err(err) => panic!("valid regex: {err}"),
+        }
+    }
+
+    fn extract_or_panic(regex: &Regex, input: &str) -> Vec<String> {
+        extract_captured_values(regex, input)
+            .unwrap_or_else(|| panic!("expected a match for input: {input}"))
+    }
+
     #[test]
     fn returns_none_when_pattern_does_not_match() {
-        #[expect(clippy::expect_used, reason = "tests ensure regex fixtures compile")]
-        let regex = Regex::new(r"^(\d+)$").expect("valid regex: {err}");
+        let regex = compile_regex(r"^(\d+)$");
         assert!(extract_captured_values(&regex, "nope").is_none());
     }
 
     #[test]
     fn collects_captures_in_order() {
-        #[expect(clippy::expect_used, reason = "tests ensure regex fixtures compile")]
-        let regex = Regex::new(r"^(\d+)-(\w+)-(\d+)$").expect("valid regex: {err}");
-        let input = "12-answer-7";
-        let message = format!("expected a match for input: {input}");
-        #[expect(
-            clippy::expect_used,
-            reason = "tests validate capture extraction succeeds"
-        )]
-        let captures = extract_captured_values(&regex, input).expect(&message);
-        assert_eq!(captures, vec!["12", "answer", "7"]);
+        let regex = compile_regex(r"^(\d+)-(\w+)-(\d+)$");
+        let captures = extract_or_panic(&regex, "12-answer-7");
+        assert_eq!(
+            captures,
+            vec![
+                String::from("12"),
+                String::from("answer"),
+                String::from("7")
+            ]
+        );
     }
 
     #[test]
     fn supports_empty_optional_groups() {
-        #[expect(clippy::expect_used, reason = "tests ensure regex fixtures compile")]
-        let regex = Regex::new(r"^(a)?(b)?$").expect("valid regex: {err}");
-        let input = "a";
-        let message = format!("expected a match for input: {input}");
-        #[expect(
-            clippy::expect_used,
-            reason = "tests validate capture extraction succeeds"
-        )]
-        let captures = extract_captured_values(&regex, input).expect(&message);
+        let regex = compile_regex(r"^(a)?(b)?$");
+        let captures = extract_or_panic(&regex, "a");
         assert_eq!(captures, vec![String::from("a"), String::new()]);
     }
 }

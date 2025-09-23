@@ -42,7 +42,7 @@ import tomllib
 from contextlib import ExitStack
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Annotated, Sequence
+from typing import Annotated
 
 import cyclopts
 from cyclopts import App, Parameter
@@ -232,98 +232,20 @@ class CommandResult:
     stderr: str
 
 
-def _has_incomplete_legacy_parameters(
-    return_code: int | None,
-    stdout: str | None,
-    stderr: str | None,
-) -> bool:
-    """Return True if any required legacy parameter is missing."""
-
-    return return_code is None or stdout is None or stderr is None
-
-
-def _extract_command_details(
-    result_or_command: CommandResult | Sequence[str],
-    return_code: int | None = None,
-    stdout: str | None = None,
-    stderr: str | None = None,
-) -> tuple[list[str], int, str, str]:
-    """Normalise command failure arguments for legacy and dataclass inputs.
-
-    Examples
-    --------
-    Extract details from a :class:`CommandResult` instance::
-
-        >>> result = CommandResult(
-        ...     command=["cargo", "--version"],
-        ...     return_code=101,
-        ...     stdout="",
-        ...     stderr="error output",
-        ... )
-        >>> _extract_command_details(result)
-        (["cargo", "--version"], 101, "", "error output")
-
-    The legacy tuple-style invocation remains supported::
-
-        >>> _extract_command_details(
-        ...     ["cargo", "--version"],
-        ...     return_code=101,
-        ...     stdout="",
-        ...     stderr="error output",
-        ... )
-        (["cargo", "--version"], 101, "", "error output")
-    """
-
-    if isinstance(result_or_command, CommandResult):
-        return (
-            result_or_command.command,
-            result_or_command.return_code,
-            result_or_command.stdout,
-            result_or_command.stderr,
-        )
-
-    command = list(result_or_command)
-    if _has_incomplete_legacy_parameters(return_code, stdout, stderr):
-        raise TypeError(
-            "Legacy _handle_command_failure invocations must provide "
-            "return_code, stdout, and stderr.",
-        )
-
-    assert return_code is not None
-    assert stdout is not None
-    assert stderr is not None
-
-    return command, return_code, stdout, stderr
-
-
 def _handle_command_failure(
     crate: str,
-    result_or_command: CommandResult | Sequence[str],
-    return_code: int | None = None,
-    stdout: str | None = None,
-    stderr: str | None = None,
+    result: CommandResult,
 ) -> None:
-    """Log diagnostics for a failed Cargo command and abort execution.
+    """Log diagnostics for a failed Cargo command and abort execution."""
 
-    Accepts either a :class:`CommandResult` or the legacy tuple arguments to
-    preserve compatibility with older call sites.
-    """
-
-    command, exit_code, stdout_text, stderr_text = _extract_command_details(
-        result_or_command,
-        return_code=return_code,
-        stdout=stdout,
-        stderr=stderr,
-    )
-
-    joined_command = shlex.join(command)
+    joined_command = shlex.join(result.command)
     logging.error("cargo command failed for %s: %s", crate, joined_command)
-    if stdout_text:
-        logging.error("cargo stdout:%s%s", os.linesep, stdout_text)
-    if stderr_text:
-        logging.error("cargo stderr:%s%s", os.linesep, stderr_text)
+    if result.stdout:
+        logging.error("cargo stdout:%s%s", os.linesep, result.stdout)
+    if result.stderr:
+        logging.error("cargo stderr:%s%s", os.linesep, result.stderr)
     raise SystemExit(
-        f"cargo command failed for {crate!r}: {joined_command} (exit code {exit_code})"
+        f"cargo command failed for {crate!r}: {joined_command} (exit code {result.return_code})"
     )
 
 
