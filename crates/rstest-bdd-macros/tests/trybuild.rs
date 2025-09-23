@@ -1,8 +1,10 @@
 //! Compile-time tests for the procedural macros.
 
+use std::borrow::Cow;
 use std::fs;
 use std::io;
 use std::panic::{self, AssertUnwindSafe};
+use std::path::{Path, PathBuf};
 
 #[test]
 fn step_macros_compile() {
@@ -38,13 +40,25 @@ fn step_macros_compile() {
     }
 }
 
-fn compile_fail_missing_step_warning(t: &trybuild::TestCases) {
-    const TEST_PATH: &str = "tests/fixtures/scenario_missing_step_warning.rs";
+type Normaliser = fn(&str) -> String;
 
-    match panic::catch_unwind(AssertUnwindSafe(|| t.compile_fail(TEST_PATH))) {
+fn compile_fail_missing_step_warning(t: &trybuild::TestCases) {
+    compile_fail_with_normalised_output(
+        t,
+        "tests/fixtures/scenario_missing_step_warning.rs",
+        &[strip_nightly_macro_backtrace_hint],
+    );
+}
+
+fn compile_fail_with_normalised_output(
+    t: &trybuild::TestCases,
+    test_path: &str,
+    normalisers: &[Normaliser],
+) {
+    match panic::catch_unwind(AssertUnwindSafe(|| t.compile_fail(test_path))) {
         Ok(()) => (),
         Err(panic) => {
-            if normalise_missing_step_warning_output().unwrap_or(false) {
+            if normalised_outputs_match(test_path, normalisers).unwrap_or(false) {
                 return;
             }
 
@@ -53,22 +67,44 @@ fn compile_fail_missing_step_warning(t: &trybuild::TestCases) {
     }
 }
 
-fn normalise_missing_step_warning_output() -> io::Result<bool> {
-    const WIP_PATH: &str = "target/tests/wip/scenario_missing_step_warning.stderr";
-    const EXPECTED_PATH: &str = "tests/fixtures/scenario_missing_step_warning.stderr";
+fn normalised_outputs_match(test_path: &str, normalisers: &[Normaliser]) -> io::Result<bool> {
+    let actual_path = wip_stderr_path(test_path);
+    let expected_path = expected_stderr_path(test_path);
+    let actual = fs::read_to_string(&actual_path)?;
+    let expected = fs::read_to_string(&expected_path)?;
 
-    let actual = fs::read_to_string(WIP_PATH)?;
-    let expected = fs::read_to_string(EXPECTED_PATH)?;
-
-    if normalise_nightly_parenthetical(&actual) == normalise_nightly_parenthetical(&expected) {
-        let _ = fs::remove_file(WIP_PATH);
+    if apply_normalisers(&actual, normalisers) == apply_normalisers(&expected, normalisers) {
+        let _ = fs::remove_file(actual_path);
         return Ok(true);
     }
 
     Ok(false)
 }
 
-fn normalise_nightly_parenthetical(text: &str) -> String {
+fn wip_stderr_path(test_path: &str) -> PathBuf {
+    let Some(file_name) = Path::new(test_path).file_name() else {
+        panic!("trybuild test path must include file name");
+    };
+    let mut path = PathBuf::from(file_name);
+    path.set_extension("stderr");
+    Path::new("target/tests/wip").join(path)
+}
+
+fn expected_stderr_path(test_path: &str) -> PathBuf {
+    let mut path = PathBuf::from(test_path);
+    path.set_extension("stderr");
+    path
+}
+
+fn apply_normalisers<'a>(text: &'a str, normalisers: &[Normaliser]) -> Cow<'a, str> {
+    let mut value = Cow::Borrowed(text);
+    for normalise in normalisers {
+        value = Cow::Owned(normalise(value.as_ref()));
+    }
+    value
+}
+
+fn strip_nightly_macro_backtrace_hint(text: &str) -> String {
     text.replace(
         " (in Nightly builds, run with -Z macro-backtrace for more info)",
         "",

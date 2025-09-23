@@ -303,20 +303,7 @@ fn is_valid_hint_format(hint: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    fn parse_ok(pattern: &str) -> (usize, PlaceholderSpec) {
-        match parse_placeholder(pattern.as_bytes(), 0) {
-            Ok(result) => result,
-            Err(err) => panic!("placeholder should parse: {err}"),
-        }
-    }
-
-    fn parse_err(pattern: &str) -> PatternError {
-        match parse_placeholder(pattern.as_bytes(), 0) {
-            Ok(_) => panic!("placeholder parsing should fail"),
-            Err(err) => err,
-        }
-    }
+    use crate::pattern::test_support::{parse_err, parse_ok};
 
     #[test]
     fn parses_basic_placeholder() {
