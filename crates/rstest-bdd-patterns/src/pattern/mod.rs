@@ -26,59 +26,45 @@ mod tests {
     use super::{build_regex_from_pattern, compile_regex_from_pattern};
     use crate::errors::PatternError;
 
-    fn build_source(pattern: &str) -> String {
-        match build_regex_from_pattern(pattern) {
-            Ok(source) => source,
-            Err(err) => panic!("expected {pattern:?} to compile: {err}"),
-        }
-    }
-
-    fn expect_build_error(pattern: &str) -> PatternError {
-        match build_regex_from_pattern(pattern) {
-            Ok(source) => panic!("expected {pattern:?} to fail, built {source:?}"),
-            Err(err) => err,
-        }
-    }
-
-    fn compile_regex_or_panic(pattern: &str) -> regex::Regex {
-        match compile_regex_from_pattern(pattern) {
-            Ok(regex) => regex,
-            Err(err) => panic!("expected {pattern:?} to compile: {err}"),
-        }
-    }
-
-    fn expect_compile_error(pattern: &str) -> PatternError {
-        match compile_regex_from_pattern(pattern) {
-            Ok(regex) => panic!(
-                "expected {pattern:?} to fail but compiled {}",
-                regex.as_str()
-            ),
-            Err(err) => err,
-        }
-    }
-
     #[test]
     fn compiles_literal_patterns() {
-        let source = build_source("Given a step");
-        assert_eq!(source, "^Given a step$");
+        #[expect(
+            clippy::expect_used,
+            reason = "tests require descriptive panic messages"
+        )]
+        let src = build_regex_from_pattern("Given a step").expect("pattern should compile");
+        assert_eq!(src, "^Given a step$");
     }
 
     #[test]
     fn errors_on_unbalanced_braces() {
-        let err = expect_build_error("broken {");
+        #[expect(
+            clippy::expect_used,
+            reason = "tests assert placeholder parsing failures"
+        )]
+        let err = build_regex_from_pattern("broken {").expect_err("pattern should fail");
         assert!(err.to_string().contains("unbalanced braces"));
     }
 
     #[test]
     fn compiles_regex_from_pattern_successfully() {
-        let regex = compile_regex_or_panic("Given {value}");
+        #[expect(
+            clippy::expect_used,
+            reason = "tests require descriptive panic messages"
+        )]
+        let regex = compile_regex_from_pattern("Given {value}").expect("pattern should compile");
         assert_eq!(regex.as_str(), "^Given (.+?)$");
     }
 
     #[test]
     fn surfaces_regex_compilation_errors() {
         let heavy_pattern = format!("prefix {}", "{value:f64}".repeat(20_000));
-        let err = expect_compile_error(&heavy_pattern);
+        #[expect(
+            clippy::expect_used,
+            reason = "tests assert regex compilation failures"
+        )]
+        let err =
+            compile_regex_from_pattern(&heavy_pattern).expect_err("pattern should be too large");
         assert!(matches!(
             err,
             PatternError::Regex(regex::Error::CompiledTooBig(_))
