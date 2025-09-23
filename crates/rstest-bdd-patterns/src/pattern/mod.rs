@@ -64,4 +64,13 @@ mod tests {
             PatternError::Regex(regex::Error::CompiledTooBig(_))
         ));
     }
+
+    #[test]
+    fn falls_back_to_lazy_match_for_unknown_type_hints() {
+        let regex = expect_ok(
+            compile_regex_from_pattern("Value is {x:unknown}"),
+            "unknown type should compile with lazy fallback",
+        );
+        assert_eq!(regex.as_str(), "^Value is (.+?)$");
+    }
 }

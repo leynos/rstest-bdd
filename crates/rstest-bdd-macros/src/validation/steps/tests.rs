@@ -1,7 +1,13 @@
+#![expect(
+    clippy::expect_used,
+    reason = "tests rely on infallible setup for readability"
+)]
 //! Tests for step-definition validation: missing/single/ambiguous outcomes and registry behaviour.
 use super::*;
+use camino::Utf8PathBuf;
 use rstest::rstest;
 use serial_test::serial;
+use tempfile::{tempdir, tempdir_in};
 
 #[expect(clippy::expect_used, reason = "registry lock must panic if poisoned")]
 fn clear_registry() {
@@ -129,4 +135,71 @@ fn errors_when_step_matches_three_definitions() {
     assert!(err.contains("I have 1"));
     assert_bullet_count(&err, 3);
     assert!(validate_steps_exist(&steps, true).is_err());
+}
+
+#[test]
+fn normalises_crate_id_without_out_dir_component() {
+    assert_eq!(normalise_crate_id("my_crate").as_ref(), "my_crate");
+}
+
+#[test]
+fn normalises_relative_out_dir_paths() {
+    let temp = tempdir_in(".").expect("create temp dir in current directory");
+    let abs = Utf8PathBuf::from_path_buf(temp.path().to_path_buf())
+        .expect("temporary directory should be valid UTF-8");
+    let cwd = std::env::current_dir().expect("obtain current directory");
+    let cwd = Utf8PathBuf::from_path_buf(cwd).expect("current directory should be valid UTF-8");
+    let relative = abs
+        .strip_prefix(&cwd)
+        .expect("temporary directory to reside under current directory");
+    let crate_id = format!("demo:./{}", relative.as_str());
+    let normalised = normalise_crate_id(&crate_id);
+    let canonical_abs = abs
+        .as_path()
+        .canonicalize_utf8()
+        .unwrap_or_else(|_| abs.clone());
+    let expected = format!("demo:{}", canonical_abs.as_str());
+    assert_eq!(normalised.as_ref(), expected);
+}
+
+#[test]
+fn leaves_unresolvable_out_dir_paths_unchanged() {
+    let temp = tempdir().expect("create temp directory");
+    let missing = temp.path().join("missing");
+    let missing = Utf8PathBuf::from_path_buf(missing).expect("path should be valid UTF-8");
+    let crate_id = format!("demo:{}", missing.as_str());
+    let normalised = normalise_crate_id(&crate_id);
+    assert_eq!(normalised.as_ref(), crate_id);
+}
+
+#[test]
+#[serial]
+fn canonicalises_equivalent_crate_paths_in_registry() {
+    clear_registry();
+    let temp = tempdir().expect("create temp directory");
+    let abs = Utf8PathBuf::from_path_buf(temp.path().to_path_buf())
+        .expect("temporary directory should be valid UTF-8");
+    let crate_id = format!("demo:{}", abs.as_str());
+    let alt_id = format!("demo:{}/.", abs.as_str());
+
+    register_step_for_crate(StepKeyword::Given, "first pattern", &crate_id);
+    register_step_for_crate(StepKeyword::Given, "second pattern", &alt_id);
+
+    let registry = REGISTERED.lock().expect("step registry poisoned");
+    assert_eq!(
+        registry.len(),
+        1,
+        "expected canonical crate IDs to share entry"
+    );
+    let (stored_id, defs) = registry
+        .iter()
+        .next()
+        .expect("expected at least one crate entry");
+    let expected_id = normalise_crate_id(&crate_id);
+    assert_eq!(stored_id.as_ref(), expected_id.as_ref());
+
+    let patterns = defs.patterns(StepKeyword::Given);
+    assert_eq!(patterns.len(), 2, "expected both patterns to be stored");
+    drop(registry);
+    clear_registry();
 }
