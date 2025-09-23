@@ -12,6 +12,7 @@ from __future__ import annotations
 import contextlib
 import importlib.util
 import sys
+from dataclasses import dataclass
 from pathlib import Path
 from types import ModuleType
 from typing import Callable
@@ -24,6 +25,15 @@ if str(SCRIPTS_DIR) not in sys.path:
 
 
 RunCallable = Callable[[list[str], int | None], tuple[int, str, str]]
+
+
+@dataclass(frozen=True)
+class CommandFailureTestCase:
+    crate: str
+    result_kwargs: dict[str, object]
+    expected_exit_fragment: str | None
+    expected_logs: tuple[str, ...]
+    unexpected_logs: tuple[str, ...]
 
 
 @pytest.fixture(scope="module")
@@ -199,61 +209,55 @@ def test_export_workspace_propagates_git_failure(
 
 
 @pytest.mark.parametrize(
-    (
-        "crate",
-        "result_kwargs",
-        "expected_exit_fragment",
-        "expected_logs",
-        "unexpected_logs",
-    ),
+    "test_case",
     [
-        (
-            "demo",
-            {
+        CommandFailureTestCase(
+            crate="demo",
+            result_kwargs={
                 "command": ["cargo", "check"],
                 "return_code": 7,
                 "stdout": "stdout text",
                 "stderr": "stderr text",
             },
-            "exit code 7",
-            ("stdout text", "stderr text"),
-            (),
+            expected_exit_fragment="exit code 7",
+            expected_logs=("stdout text", "stderr text"),
+            unexpected_logs=(),
         ),
-        (
-            "fmt",
-            {
+        CommandFailureTestCase(
+            crate="fmt",
+            result_kwargs={
                 "command": ["cargo", "fmt"],
                 "return_code": 1,
                 "stdout": "",
                 "stderr": "",
             },
-            None,
-            (),
-            ("cargo stdout", "cargo stderr"),
+            expected_exit_fragment=None,
+            expected_logs=(),
+            unexpected_logs=("cargo stdout", "cargo stderr"),
         ),
-        (
-            "fmt",
-            {
+        CommandFailureTestCase(
+            crate="fmt",
+            result_kwargs={
                 "command": ["cargo", "fmt"],
                 "return_code": 5,
                 "stdout": b"binary stdout",
                 "stderr": b"binary stderr",
             },
-            None,
-            ("b'binary stdout'", "b'binary stderr'"),
-            (),
+            expected_exit_fragment=None,
+            expected_logs=("b'binary stdout'", "b'binary stderr'"),
+            unexpected_logs=(),
         ),
-        (
-            "fmt",
-            {
+        CommandFailureTestCase(
+            crate="fmt",
+            result_kwargs={
                 "command": ["cargo", "fmt"],
                 "return_code": -9,
                 "stdout": "ignored",
                 "stderr": "ignored",
             },
-            "exit code -9",
-            (),
-            (),
+            expected_exit_fragment="exit code -9",
+            expected_logs=(),
+            unexpected_logs=(),
         ),
     ],
     ids=[
@@ -266,25 +270,21 @@ def test_export_workspace_propagates_git_failure(
 def test_handle_command_failure(
     run_publish_check_module: ModuleType,
     caplog: pytest.LogCaptureFixture,
-    crate: str,
-    result_kwargs: dict[str, object],
-    expected_exit_fragment: str | None,
-    expected_logs: tuple[str, ...],
-    unexpected_logs: tuple[str, ...],
+    test_case: CommandFailureTestCase,
 ) -> None:
-    result = run_publish_check_module.CommandResult(**result_kwargs)
+    result = run_publish_check_module.CommandResult(**test_case.result_kwargs)
 
     with caplog.at_level("ERROR"):
         with pytest.raises(SystemExit) as excinfo:
-            run_publish_check_module._handle_command_failure(crate, result)
+            run_publish_check_module._handle_command_failure(test_case.crate, result)
 
-    if expected_exit_fragment is not None:
-        assert expected_exit_fragment in str(excinfo.value)
+    if test_case.expected_exit_fragment is not None:
+        assert test_case.expected_exit_fragment in str(excinfo.value)
 
-    for text in expected_logs:
+    for text in test_case.expected_logs:
         assert text in caplog.text
 
-    for text in unexpected_logs:
+    for text in test_case.unexpected_logs:
         assert text not in caplog.text
 
 
@@ -422,35 +422,27 @@ def test_run_cargo_command_times_out(
 
 
 @pytest.mark.parametrize(
-    (
-        "function_name",
-        "crate",
-        "expected_command",
-        "timeout",
-    ),
+    ("function_and_command", "test_scenario"),
     [
         (
-            "package_crate",
-            "demo",
-            ["cargo", "package", "--allow-dirty", "--no-verify"],
-            42,
+            ("package_crate", ["cargo", "package", "--allow-dirty", "--no-verify"]),
+            ("demo", 42),
         ),
         (
-            "check_crate",
-            "demo",
-            ["cargo", "check", "--all-features"],
-            17,
+            ("check_crate", ["cargo", "check", "--all-features"]),
+            ("demo", 17),
         ),
     ],
+    ids=["package_crate_invocation", "check_crate_invocation"],
 )
 def test_cargo_commands_invoke_runner(
     run_publish_check_module: ModuleType,
     mock_cargo_runner: list[tuple[str, Path, list[str], int]],
-    function_name: str,
-    crate: str,
-    expected_command: list[str],
-    timeout: int,
+    function_and_command: tuple[str, list[str]],
+    test_scenario: tuple[str, int],
 ) -> None:
+    function_name, expected_command = function_and_command
+    crate, timeout = test_scenario
     workspace = Path("/tmp/workspace")
 
     getattr(run_publish_check_module, function_name)(
