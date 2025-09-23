@@ -2,7 +2,7 @@
 
 use rstest::rstest;
 use rstest_bdd::{StepContext, StepError, StepKeyword};
-use rstest_bdd_macros::given;
+use rstest_bdd_macros::{given, then, when};
 use std::fmt;
 
 #[given("a failing step")]
@@ -22,6 +22,16 @@ fn non_string_panicking_step() -> Result<(), String> {
 
 #[given("a successful step")]
 fn successful_step() {}
+
+#[when("a failing when step")]
+fn failing_when_step() -> Result<(), String> {
+    Err("when boom".into())
+}
+
+#[then("a failing then step")]
+fn failing_then_step() -> Result<(), String> {
+    Err("then boom".into())
+}
 
 type StepResult<T> = Result<T, &'static str>;
 
@@ -144,20 +154,54 @@ fn assert_step_error(
     }
 }
 
-fn invoke_given_step(
-    step_pattern: &str,
-    step_text: &str,
-    docstring: Option<&str>,
-    datatable: Option<&[&[&str]]>,
+#[derive(Debug)]
+struct StepInvocation<'a> {
+    keyword: StepKeyword,
+    step_pattern: &'a str,
+    step_text: &'a str,
+    docstring: Option<&'a str>,
+    datatable: Option<&'a [&'a [&'a str]]>,
+}
+
+impl<'a> StepInvocation<'a> {
+    fn new(keyword: StepKeyword, step_pattern: &'a str, step_text: &'a str) -> Self {
+        Self {
+            keyword,
+            step_pattern,
+            step_text,
+            docstring: None,
+            datatable: None,
+        }
+    }
+
+    fn with_docstring(mut self, docstring: &'a str) -> Self {
+        self.docstring = Some(docstring);
+        self
+    }
+
+    fn with_datatable(mut self, datatable: &'a [&'a [&'a str]]) -> Self {
+        self.datatable = Some(datatable);
+        self
+    }
+}
+
+fn invoke_step(
+    invocation: &StepInvocation<'_>,
 ) -> Result<Option<Box<dyn std::any::Any>>, StepError> {
     let ctx = StepContext::default();
-    let step_fn = rstest_bdd::lookup_step(StepKeyword::Given, step_pattern.into())
-        .unwrap_or_else(|| panic!("step '{step_pattern}' not found in registry"));
-    step_fn(&ctx, step_text, docstring, datatable)
+    let step_fn = rstest_bdd::lookup_step(invocation.keyword, invocation.step_pattern.into())
+        .unwrap_or_else(|| panic!("step '{}' not found in registry", invocation.step_pattern));
+    step_fn(
+        &ctx,
+        invocation.step_text,
+        invocation.docstring,
+        invocation.datatable,
+    )
 }
 
 #[rstest]
 #[case(
+    StepKeyword::Given,
     "a failing step",
     "a failing step",
     "failing_step",
@@ -168,6 +212,7 @@ fn invoke_given_step(
     },
 )]
 #[case(
+    StepKeyword::Given,
     "an alias error step",
     "an alias error step",
     "alias_error_step",
@@ -178,6 +223,7 @@ fn invoke_given_step(
     },
 )]
 #[case(
+    StepKeyword::Given,
     "a fallible unit step fails",
     "a fallible unit step fails",
     "fallible_unit_step_fails",
@@ -188,6 +234,7 @@ fn invoke_given_step(
     },
 )]
 #[case(
+    StepKeyword::Given,
     "a fallible value step fails",
     "a fallible value step fails",
     "fallible_value_step_fails",
@@ -198,6 +245,7 @@ fn invoke_given_step(
     },
 )]
 #[case(
+    StepKeyword::Given,
     "a panicking step",
     "a panicking step",
     "panicking_step",
@@ -208,6 +256,7 @@ fn invoke_given_step(
     },
 )]
 #[case(
+    StepKeyword::Given,
     "a non-string panicking step",
     "a non-string panicking step",
     "non_string_panicking_step",
@@ -218,6 +267,7 @@ fn invoke_given_step(
     },
 )]
 #[case(
+    StepKeyword::Given,
     "a step requiring a table",
     "a step requiring a table",
     "step_needing_table",
@@ -228,6 +278,7 @@ fn invoke_given_step(
     },
 )]
 #[case(
+    StepKeyword::Given,
     "a step requiring a docstring",
     "a step requiring a docstring",
     "step_needing_docstring",
@@ -238,6 +289,7 @@ fn invoke_given_step(
     },
 )]
 #[case(
+    StepKeyword::Given,
     "number {value}",
     "number not_a_number",
     "parse_number",
@@ -252,6 +304,7 @@ fn invoke_given_step(
     },
 )]
 #[case(
+    StepKeyword::Given,
     "no placeholders",
     "no placeholders",
     "missing_capture",
@@ -261,14 +314,37 @@ fn invoke_given_step(
         step: "missing_capture".into(),
     },
 )]
+#[case(
+    StepKeyword::When,
+    "a failing when step",
+    "a failing when step",
+    "failing_when_step",
+    StepError::ExecutionError {
+        pattern: "a failing when step".into(),
+        function: "failing_when_step".into(),
+        message: "when boom".into(),
+    },
+)]
+#[case(
+    StepKeyword::Then,
+    "a failing then step",
+    "a failing then step",
+    "failing_then_step",
+    StepError::ExecutionError {
+        pattern: "a failing then step".into(),
+        function: "failing_then_step".into(),
+        message: "then boom".into(),
+    },
+)]
 
 fn step_error_scenarios(
+    #[case] keyword: StepKeyword,
     #[case] step_pattern: &str,
     #[case] step_text: &str,
     #[case] expected_function: &str,
     #[case] expected_error: StepError,
 ) {
-    let Err(err) = invoke_given_step(step_pattern, step_text, None, None) else {
+    let Err(err) = invoke_step(&StepInvocation::new(keyword, step_pattern, step_text)) else {
         panic!("expected error for '{step_text}'");
     };
     assert_step_error(&err, expected_function, step_pattern, &expected_error);
@@ -276,32 +352,38 @@ fn step_error_scenarios(
 
 #[test]
 fn successful_step_execution() {
-    let res = invoke_given_step("a successful step", "a successful step", None, None);
+    let res = invoke_step(&StepInvocation::new(
+        StepKeyword::Given,
+        "a successful step",
+        "a successful step",
+    ));
     if let Err(e) = res {
         panic!("unexpected error: {e:?}");
     }
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "test ensures step success is propagated"
+)]
 fn fallible_unit_step_execution_returns_none() {
-    let res = invoke_given_step(
+    let res = invoke_step(&StepInvocation::new(
+        StepKeyword::Given,
         "a fallible unit step succeeds",
         "a fallible unit step succeeds",
-        None,
-        None,
-    )
-    .unwrap_or_else(|e| panic!("unexpected error: {e:?}"));
+    ))
+    .expect("unexpected error");
     assert!(res.is_none(), "unit step should not return a payload");
 }
 
 #[test]
 fn fallible_value_step_execution_returns_value() {
-    let boxed = invoke_given_step(
+    let boxed = invoke_step(&StepInvocation::new(
+        StepKeyword::Given,
         "a fallible value step succeeds",
         "a fallible value step succeeds",
-        None,
-        None,
-    )
+    ))
     .unwrap_or_else(|e| panic!("unexpected error: {e:?}"))
     .unwrap_or_else(|| panic!("expected step to return a value"));
     let value = boxed
@@ -311,26 +393,36 @@ fn fallible_value_step_execution_returns_value() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "test ensures datatable steps can execute successfully"
+)]
 fn datatable_is_passed_and_executes() {
     let table: &[&[&str]] = &[&["a", "b"], &["c", "d"]];
-    if let Err(e) = invoke_given_step(
-        "a step requiring a table",
-        "a step requiring a table",
-        None,
-        Some(table),
-    ) {
-        panic!("unexpected error passing datatable: {e:?}");
-    }
+    invoke_step(
+        &StepInvocation::new(
+            StepKeyword::Given,
+            "a step requiring a table",
+            "a step requiring a table",
+        )
+        .with_datatable(table),
+    )
+    .expect("unexpected error passing datatable");
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "test ensures docstring steps can execute successfully"
+)]
 fn docstring_is_passed_and_executes() {
-    if let Err(e) = invoke_given_step(
-        "a step requiring a docstring",
-        "a step requiring a docstring",
-        Some("content"),
-        None,
-    ) {
-        panic!("unexpected error passing docstring: {e:?}");
-    }
+    invoke_step(
+        &StepInvocation::new(
+            StepKeyword::Given,
+            "a step requiring a docstring",
+            "a step requiring a docstring",
+        )
+        .with_docstring("content"),
+    )
+    .expect("unexpected error passing docstring");
 }
