@@ -243,15 +243,12 @@ def _has_incomplete_legacy_parameters(
 
 
 def _extract_command_details(
-    crate: str,
     result_or_command: CommandResult | Sequence[str],
     return_code: int | None = None,
     stdout: str | None = None,
     stderr: str | None = None,
 ) -> tuple[list[str], int, str, str]:
     """Normalise command failure arguments for legacy and dataclass inputs."""
-
-    del crate  # Signature matches _handle_command_failure; crate is unused.
 
     if isinstance(result_or_command, CommandResult):
         return (
@@ -285,7 +282,6 @@ def _handle_command_failure(
     """
 
     command, exit_code, stdout_text, stderr_text = _extract_command_details(
-        crate,
         result_or_command,
         return_code=return_code,
         stdout=stdout,
