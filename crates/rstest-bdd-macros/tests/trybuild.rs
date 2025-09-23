@@ -1,8 +1,10 @@
 //! Compile-time tests for the procedural macros.
 
+use std::borrow::Cow;
 use std::fs;
 use std::io;
 use std::panic::{self, AssertUnwindSafe};
+use std::path::{Path, PathBuf};
 
 #[test]
 fn step_macros_compile() {
@@ -38,13 +40,35 @@ fn step_macros_compile() {
     }
 }
 
-fn compile_fail_missing_step_warning(t: &trybuild::TestCases) {
-    const TEST_PATH: &str = "tests/fixtures/scenario_missing_step_warning.rs";
+type Normaliser = fn(&str) -> String;
 
-    match panic::catch_unwind(AssertUnwindSafe(|| t.compile_fail(TEST_PATH))) {
+fn compile_fail_missing_step_warning(t: &trybuild::TestCases) {
+    compile_fail_with_normalised_output(
+        t,
+        "tests/fixtures/scenario_missing_step_warning.rs",
+        &[strip_nightly_macro_backtrace_hint],
+    );
+}
+
+fn compile_fail_with_normalised_output(
+    t: &trybuild::TestCases,
+    test_path: &str,
+    normalisers: &[Normaliser],
+) {
+    run_compile_fail_with_normalised_output(|| t.compile_fail(test_path), test_path, normalisers);
+}
+
+fn run_compile_fail_with_normalised_output<F>(
+    compile_fail: F,
+    test_path: &str,
+    normalisers: &[Normaliser],
+) where
+    F: FnOnce(),
+{
+    match panic::catch_unwind(AssertUnwindSafe(compile_fail)) {
         Ok(()) => (),
         Err(panic) => {
-            if normalise_missing_step_warning_output().unwrap_or(false) {
+            if normalised_outputs_match(test_path, normalisers).unwrap_or(false) {
                 return;
             }
 
@@ -53,24 +77,259 @@ fn compile_fail_missing_step_warning(t: &trybuild::TestCases) {
     }
 }
 
-fn normalise_missing_step_warning_output() -> io::Result<bool> {
-    const WIP_PATH: &str = "target/tests/wip/scenario_missing_step_warning.stderr";
-    const EXPECTED_PATH: &str = "tests/fixtures/scenario_missing_step_warning.stderr";
+fn normalised_outputs_match(test_path: &str, normalisers: &[Normaliser]) -> io::Result<bool> {
+    let actual_path = wip_stderr_path(test_path);
+    let expected_path = expected_stderr_path(test_path);
+    let actual = fs::read_to_string(&actual_path)?;
+    let expected = fs::read_to_string(&expected_path)?;
 
-    let actual = fs::read_to_string(WIP_PATH)?;
-    let expected = fs::read_to_string(EXPECTED_PATH)?;
-
-    if normalise_nightly_parenthetical(&actual) == normalise_nightly_parenthetical(&expected) {
-        let _ = fs::remove_file(WIP_PATH);
+    if apply_normalisers(&actual, normalisers) == apply_normalisers(&expected, normalisers) {
+        let _ = fs::remove_file(actual_path);
         return Ok(true);
     }
 
     Ok(false)
 }
 
-fn normalise_nightly_parenthetical(text: &str) -> String {
+fn wip_stderr_path(test_path: &str) -> PathBuf {
+    let Some(file_name) = Path::new(test_path).file_name() else {
+        panic!("trybuild test path must include file name");
+    };
+    let mut path = PathBuf::from(file_name);
+    path.set_extension("stderr");
+    Path::new("target/tests/wip").join(path)
+}
+
+fn expected_stderr_path(test_path: &str) -> PathBuf {
+    let mut path = PathBuf::from(test_path);
+    path.set_extension("stderr");
+    path
+}
+
+fn apply_normalisers<'a>(text: &'a str, normalisers: &[Normaliser]) -> Cow<'a, str> {
+    let mut value = Cow::Borrowed(text);
+    for normalise in normalisers {
+        value = Cow::Owned(normalise(value.as_ref()));
+    }
+    value
+}
+
+fn strip_nightly_macro_backtrace_hint(text: &str) -> String {
     text.replace(
         " (in Nightly builds, run with -Z macro-backtrace for more info)",
         "",
     )
+}
+
+#[cfg(test)]
+mod helper_tests {
+    use super::*;
+    use rstest::rstest;
+    use std::borrow::Cow;
+    use std::fs;
+    use std::panic;
+    use std::path::{Path, PathBuf};
+
+    struct NormaliserFixture {
+        expected_path: PathBuf,
+        actual_path: PathBuf,
+    }
+
+    impl NormaliserFixture {
+        fn new(test_path: &str, expected: &str, actual: &str) -> Self {
+            let expected_path = expected_stderr_path(test_path);
+            if let Some(parent) = expected_path.parent() {
+                fs::create_dir_all(parent).unwrap_or_else(|error| {
+                    panic!("failed to create directory for expected stderr fixture: {error}");
+                });
+            }
+            fs::write(&expected_path, expected).unwrap_or_else(|error| {
+                panic!("failed to write expected stderr fixture: {error}");
+            });
+
+            let actual_path = wip_stderr_path(test_path);
+            if let Some(parent) = actual_path.parent() {
+                fs::create_dir_all(parent).unwrap_or_else(|error| {
+                    panic!("failed to create directory for wip stderr fixture: {error}");
+                });
+            }
+            fs::write(&actual_path, actual).unwrap_or_else(|error| {
+                panic!("failed to write wip stderr fixture: {error}");
+            });
+
+            Self {
+                expected_path,
+                actual_path,
+            }
+        }
+    }
+
+    impl Drop for NormaliserFixture {
+        fn drop(&mut self) {
+            let _ = fs::remove_file(&self.expected_path);
+            let _ = fs::remove_file(&self.actual_path);
+        }
+    }
+
+    #[test]
+    fn wip_stderr_path_builds_target_location() {
+        let path = wip_stderr_path("tests/fixtures/__helper_case.rs");
+        assert_eq!(path, Path::new("target/tests/wip/__helper_case.stderr"));
+    }
+
+    #[test]
+    #[should_panic(expected = "trybuild test path must include file name")]
+    fn wip_stderr_path_panics_without_file_name() {
+        wip_stderr_path("");
+    }
+
+    #[test]
+    fn expected_stderr_path_replaces_extension() {
+        let path = expected_stderr_path("tests/ui/example.output");
+        assert_eq!(path, Path::new("tests/ui/example.stderr"));
+    }
+
+    #[test]
+    fn expected_stderr_path_handles_multiple_extensions() {
+        let path = expected_stderr_path("tests/ui/example.feature.rs");
+        assert_eq!(path, Path::new("tests/ui/example.feature.stderr"));
+    }
+
+    #[test]
+    fn apply_normalisers_returns_borrowed_when_empty() {
+        let result = apply_normalisers("message", &[]);
+        assert!(matches!(result, Cow::Borrowed("message")));
+    }
+
+    #[test]
+    fn apply_normalisers_respects_normaliser_order() {
+        let add_prefix: Normaliser = |text| format!("prefix-{text}");
+        let add_suffix: Normaliser = |text| format!("{text}-suffix");
+        let result = apply_normalisers("value", &[add_prefix, add_suffix]);
+        assert_eq!(result, "prefix-value-suffix");
+    }
+
+    #[test]
+    fn apply_normalisers_handles_empty_string() {
+        let trim_whitespace: Normaliser = |text| text.trim().to_owned();
+        let result = apply_normalisers("", &[trim_whitespace]);
+        assert_eq!(result, "");
+    }
+
+    #[test]
+    fn apply_normalisers_handles_whitespace_only_string() {
+        let trim_whitespace: Normaliser = |text| text.trim().to_owned();
+        let mut whitespace = String::from("   ");
+        whitespace.push(char::from(10));
+        let result = apply_normalisers(whitespace.as_str(), &[trim_whitespace]);
+        assert_eq!(result, "");
+    }
+
+    #[test]
+    fn strip_nightly_macro_backtrace_hint_removes_multiple_instances() {
+        let text = concat!(
+            "error: failure",
+            " (in Nightly builds, run with -Z macro-backtrace for more info)",
+            " more context",
+            " (in Nightly builds, run with -Z macro-backtrace for more info)"
+        );
+        let expected = "error: failure more context";
+        assert_eq!(strip_nightly_macro_backtrace_hint(text), expected);
+    }
+
+    #[test]
+    fn strip_nightly_macro_backtrace_hint_leaves_text_without_hint() {
+        let text = "error: failure";
+        assert_eq!(strip_nightly_macro_backtrace_hint(text), text);
+    }
+
+    #[test]
+    fn run_compile_fail_with_normalised_output_handles_multiple_normalisers() {
+        const TEST_PATH: &str = "tests/fixtures/__normaliser_multiple.rs";
+        let mut expected = String::from("error: missing step (hint-one)");
+        expected.push(char::from(10));
+        expected.push_str("help: review scenario (hint-two)");
+        expected.push(char::from(10));
+        let mut actual = String::from("error: missing step");
+        actual.push(char::from(10));
+        actual.push_str("help: review scenario");
+        actual.push(char::from(10));
+        let fixture = NormaliserFixture::new(TEST_PATH, expected.as_str(), actual.as_str());
+        let strip_hint_one: Normaliser = |text| text.replace(" (hint-one)", "");
+        let strip_hint_two: Normaliser = |text| text.replace(" (hint-two)", "");
+        let result = panic::catch_unwind(|| {
+            run_compile_fail_with_normalised_output(
+                || panic!("expected failure"),
+                TEST_PATH,
+                &[strip_hint_one, strip_hint_two],
+            );
+        });
+        assert!(result.is_ok(), "normalised outputs should match");
+        assert!(
+            !fixture.actual_path.exists(),
+            "successful normalisation should delete the wip stderr file",
+        );
+    }
+
+    #[test]
+    fn run_compile_fail_with_normalised_output_accepts_empty_output() {
+        const TEST_PATH: &str = "tests/fixtures/__normaliser_empty.rs";
+        let fixture = NormaliserFixture::new(TEST_PATH, "", "");
+        let result = panic::catch_unwind(|| {
+            run_compile_fail_with_normalised_output(|| panic!("expected failure"), TEST_PATH, &[]);
+        });
+        assert!(result.is_ok(), "identical empty outputs should be accepted");
+        assert!(
+            !fixture.actual_path.exists(),
+            "matching outputs should delete the wip stderr file",
+        );
+    }
+
+    #[rstest]
+    #[case(
+        "tests/fixtures/__normaliser_whitespace.rs",
+        "warning: trailing space",
+        "warning: trailing space   ",
+        true,
+        "whitespace differences should be normalised",
+        "matching outputs should delete the wip stderr file"
+    )]
+    #[case(
+        "tests/fixtures/__normaliser_unexpected.rs",
+        "error: expected formatting",
+        "error: unexpected formatting",
+        false,
+        "mismatched outputs must propagate the panic",
+        "mismatched outputs should retain the wip stderr file for inspection"
+    )]
+    fn run_compile_fail_with_normalised_output_test_cases(
+        #[case] test_path: &str,
+        #[case] expected_content: &str,
+        #[case] actual_content: &str,
+        #[case] should_succeed: bool,
+        #[case] result_message: &str,
+        #[case] file_message: &str,
+    ) {
+        let mut expected = String::from(expected_content);
+        expected.push(char::from(10));
+        let mut actual = String::from(actual_content);
+        actual.push(char::from(10));
+        let fixture = NormaliserFixture::new(test_path, expected.as_str(), actual.as_str());
+        let trim_trailing: Normaliser = |text| text.trim_end().to_owned();
+        let result = panic::catch_unwind(|| {
+            run_compile_fail_with_normalised_output(
+                || panic!("expected failure"),
+                test_path,
+                &[trim_trailing],
+            );
+        });
+
+        if should_succeed {
+            assert!(result.is_ok(), "{}", result_message);
+            assert!(!fixture.actual_path.exists(), "{}", file_message);
+        } else {
+            assert!(result.is_err(), "{}", result_message);
+            assert!(fixture.actual_path.exists(), "{}", file_message);
+        }
+    }
 }

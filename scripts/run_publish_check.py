@@ -1,3 +1,4 @@
+#!/usr/bin/env -S uv run python
 """Automated publish-check workflow for Rust workspace crates.
 
 This module implements the publish-check automation that validates crate
@@ -20,7 +21,6 @@ Run with custom timeout and workspace preservation::
         python scripts/run_publish_check.py
 """
 
-#!/usr/bin/env -S uv run python
 # /// script
 # requires-python = ">=3.13"
 # dependencies = [
