@@ -154,17 +154,49 @@ fn assert_step_error(
     }
 }
 
-fn invoke_step(
+#[derive(Debug)]
+struct StepInvocation<'a> {
     keyword: StepKeyword,
-    step_pattern: &str,
-    step_text: &str,
-    docstring: Option<&str>,
-    datatable: Option<&[&[&str]]>,
+    step_pattern: &'a str,
+    step_text: &'a str,
+    docstring: Option<&'a str>,
+    datatable: Option<&'a [&'a [&'a str]]>,
+}
+
+impl<'a> StepInvocation<'a> {
+    fn new(keyword: StepKeyword, step_pattern: &'a str, step_text: &'a str) -> Self {
+        Self {
+            keyword,
+            step_pattern,
+            step_text,
+            docstring: None,
+            datatable: None,
+        }
+    }
+
+    fn with_docstring(mut self, docstring: &'a str) -> Self {
+        self.docstring = Some(docstring);
+        self
+    }
+
+    fn with_datatable(mut self, datatable: &'a [&'a [&'a str]]) -> Self {
+        self.datatable = Some(datatable);
+        self
+    }
+}
+
+fn invoke_step(
+    invocation: &StepInvocation<'_>,
 ) -> Result<Option<Box<dyn std::any::Any>>, StepError> {
     let ctx = StepContext::default();
-    let step_fn = rstest_bdd::lookup_step(keyword, step_pattern.into())
-        .unwrap_or_else(|| panic!("step '{step_pattern}' not found in registry"));
-    step_fn(&ctx, step_text, docstring, datatable)
+    let step_fn = rstest_bdd::lookup_step(invocation.keyword, invocation.step_pattern.into())
+        .unwrap_or_else(|| panic!("step '{}' not found in registry", invocation.step_pattern));
+    step_fn(
+        &ctx,
+        invocation.step_text,
+        invocation.docstring,
+        invocation.datatable,
+    )
 }
 
 #[rstest]
@@ -312,7 +344,7 @@ fn step_error_scenarios(
     #[case] expected_function: &str,
     #[case] expected_error: StepError,
 ) {
-    let Err(err) = invoke_step(keyword, step_pattern, step_text, None, None) else {
+    let Err(err) = invoke_step(&StepInvocation::new(keyword, step_pattern, step_text)) else {
         panic!("expected error for '{step_text}'");
     };
     assert_step_error(&err, expected_function, step_pattern, &expected_error);
@@ -320,13 +352,11 @@ fn step_error_scenarios(
 
 #[test]
 fn successful_step_execution() {
-    let res = invoke_step(
+    let res = invoke_step(&StepInvocation::new(
         StepKeyword::Given,
         "a successful step",
         "a successful step",
-        None,
-        None,
-    );
+    ));
     if let Err(e) = res {
         panic!("unexpected error: {e:?}");
     }
@@ -334,26 +364,22 @@ fn successful_step_execution() {
 
 #[test]
 fn fallible_unit_step_execution_returns_none() {
-    let res = invoke_step(
+    let res = invoke_step(&StepInvocation::new(
         StepKeyword::Given,
         "a fallible unit step succeeds",
         "a fallible unit step succeeds",
-        None,
-        None,
-    )
+    ))
     .unwrap_or_else(|e| panic!("unexpected error: {e:?}"));
     assert!(res.is_none(), "unit step should not return a payload");
 }
 
 #[test]
 fn fallible_value_step_execution_returns_value() {
-    let boxed = invoke_step(
+    let boxed = invoke_step(&StepInvocation::new(
         StepKeyword::Given,
         "a fallible value step succeeds",
         "a fallible value step succeeds",
-        None,
-        None,
-    )
+    ))
     .unwrap_or_else(|e| panic!("unexpected error: {e:?}"))
     .unwrap_or_else(|| panic!("expected step to return a value"));
     let value = boxed
@@ -366,11 +392,12 @@ fn fallible_value_step_execution_returns_value() {
 fn datatable_is_passed_and_executes() {
     let table: &[&[&str]] = &[&["a", "b"], &["c", "d"]];
     if let Err(e) = invoke_step(
-        StepKeyword::Given,
-        "a step requiring a table",
-        "a step requiring a table",
-        None,
-        Some(table),
+        &StepInvocation::new(
+            StepKeyword::Given,
+            "a step requiring a table",
+            "a step requiring a table",
+        )
+        .with_datatable(table),
     ) {
         panic!("unexpected error passing datatable: {e:?}");
     }
@@ -379,11 +406,12 @@ fn datatable_is_passed_and_executes() {
 #[test]
 fn docstring_is_passed_and_executes() {
     if let Err(e) = invoke_step(
-        StepKeyword::Given,
-        "a step requiring a docstring",
-        "a step requiring a docstring",
-        Some("content"),
-        None,
+        &StepInvocation::new(
+            StepKeyword::Given,
+            "a step requiring a docstring",
+            "a step requiring a docstring",
+        )
+        .with_docstring("content"),
     ) {
         panic!("unexpected error passing docstring: {e:?}");
     }
