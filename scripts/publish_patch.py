@@ -53,6 +53,11 @@ def apply_replacements(crate: str, manifest: Path, version: str) -> None:
     version : str
         Version string applied to patched dependency entries.
 
+    Returns
+    -------
+    None
+        The manifest file is rewritten in place with patched dependencies.
+
     Raises
     ------
     SystemExit
@@ -99,6 +104,11 @@ def update_dependency(
         Version string used for the inline dependency.
     manifest : Path
         Path to the manifest used for error reporting.
+
+    Returns
+    -------
+    None
+        The targeted dependency entry is updated in ``document``.
 
     Raises
     ------
@@ -199,6 +209,11 @@ def build_inline_dependency(
 
 def main() -> None:
     """Parse CLI arguments and rewrite the requested manifest.
+
+    Returns
+    -------
+    None
+        Exits with status ``0`` after the manifest has been patched successfully.
 
     Raises
     ------
