@@ -40,27 +40,41 @@ pub fn extract_captured_values(re: &Regex, text: &str) -> Option<Vec<String>> {
 }
 
 #[cfg(test)]
-#[expect(clippy::unwrap_used, reason = "tests exercise fallible regex helpers")]
 mod tests {
     use super::*;
 
     #[test]
     fn returns_none_when_pattern_does_not_match() {
-        let regex = Regex::new(r"^(\d+)$").unwrap();
+        #[expect(clippy::expect_used, reason = "tests ensure regex fixtures compile")]
+        let regex = Regex::new(r"^(\d+)$").expect("valid regex: {err}");
         assert!(extract_captured_values(&regex, "nope").is_none());
     }
 
     #[test]
     fn collects_captures_in_order() {
-        let regex = Regex::new(r"^(\d+)-(\w+)-(\d+)$").unwrap();
-        let captures = extract_captured_values(&regex, "12-answer-7").unwrap();
+        #[expect(clippy::expect_used, reason = "tests ensure regex fixtures compile")]
+        let regex = Regex::new(r"^(\d+)-(\w+)-(\d+)$").expect("valid regex: {err}");
+        let input = "12-answer-7";
+        let message = format!("expected a match for input: {input}");
+        #[expect(
+            clippy::expect_used,
+            reason = "tests validate capture extraction succeeds"
+        )]
+        let captures = extract_captured_values(&regex, input).expect(&message);
         assert_eq!(captures, vec!["12", "answer", "7"]);
     }
 
     #[test]
     fn supports_empty_optional_groups() {
-        let regex = Regex::new(r"^(a)?(b)?$").unwrap();
-        let captures = extract_captured_values(&regex, "a").unwrap();
+        #[expect(clippy::expect_used, reason = "tests ensure regex fixtures compile")]
+        let regex = Regex::new(r"^(a)?(b)?$").expect("valid regex: {err}");
+        let input = "a";
+        let message = format!("expected a match for input: {input}");
+        #[expect(
+            clippy::expect_used,
+            reason = "tests validate capture extraction succeeds"
+        )]
+        let captures = extract_captured_values(&regex, input).expect(&message);
         assert_eq!(captures, vec![String::from("a"), String::new()]);
     }
 }

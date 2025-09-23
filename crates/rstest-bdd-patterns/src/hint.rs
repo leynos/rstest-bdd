@@ -47,4 +47,9 @@ mod tests {
     fn defaults_to_lazy_match_for_unknown_types() {
         assert_eq!(get_type_pattern(Some("String")), r".+?");
     }
+
+    #[test]
+    fn defaults_to_lazy_match_when_hint_is_none() {
+        assert_eq!(get_type_pattern(None), r".+?");
+    }
 }

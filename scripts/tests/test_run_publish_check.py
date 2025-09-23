@@ -25,6 +25,7 @@ def run_publish_check_module():
     )
     module = importlib.util.module_from_spec(spec)
     assert spec and spec.loader
+    sys.modules[spec.name] = module
     spec.loader.exec_module(module)
     return module
 
@@ -108,6 +109,25 @@ def test_export_workspace_propagates_git_failure(
 
 
 def test_handle_command_failure_logs_and_exits(
+    run_publish_check_module, caplog: pytest.LogCaptureFixture
+) -> None:
+    result = run_publish_check_module.CommandResult(
+        command=["cargo", "check"],
+        return_code=7,
+        stdout="stdout text",
+        stderr="stderr text",
+    )
+
+    with caplog.at_level("ERROR"):
+        with pytest.raises(SystemExit) as excinfo:
+            run_publish_check_module._handle_command_failure("demo", result)
+    message = str(excinfo.value)
+    assert "exit code 7" in message
+    assert "stdout text" in caplog.text
+    assert "stderr text" in caplog.text
+
+
+def test_handle_command_failure_supports_legacy_signature(
     run_publish_check_module, caplog: pytest.LogCaptureFixture
 ) -> None:
     with caplog.at_level("ERROR"):
@@ -206,6 +226,46 @@ def test_run_cargo_command_logs_failures(
     assert "exit code 3" in str(excinfo.value)
     assert "bad stdout" in caplog.text
     assert "bad stderr" in caplog.text
+
+
+def test_run_cargo_command_passes_command_result(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    run_publish_check_module,
+) -> None:
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    crate_dir = workspace / "crates" / "demo"
+    crate_dir.mkdir(parents=True)
+
+    fake_local = FakeLocal(lambda _args, _timeout: (5, "out", "err"))
+    monkeypatch.setattr(run_publish_check_module, "local", fake_local)
+
+    observed: dict[str, object] = {}
+
+    def record_failure(crate: str, result: object) -> None:
+        observed["crate"] = crate
+        observed["result"] = result
+        raise SystemExit("handler invoked")
+
+    monkeypatch.setattr(run_publish_check_module, "_handle_command_failure", record_failure)
+
+    with pytest.raises(SystemExit, match="handler invoked"):
+        run_publish_check_module.run_cargo_command(
+            "demo",
+            workspace,
+            ["cargo", "oops"],
+            timeout_secs=9,
+        )
+
+    expected = run_publish_check_module.CommandResult(
+        command=["cargo", "oops"],
+        return_code=5,
+        stdout="out",
+        stderr="err",
+    )
+    assert observed == {"crate": "demo", "result": expected}
+    assert fake_local.invocations == [(["cargo", "oops"], 9)]
 
 
 def test_run_cargo_command_times_out(

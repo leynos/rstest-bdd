@@ -16,7 +16,7 @@ use super::lexer::{Token, lex_pattern};
 /// # use rstest_bdd_patterns::build_regex_from_pattern;
 /// let regex = build_regex_from_pattern("Given {item}")
 ///     .expect("example ensures fallible call succeeds");
-/// assert_eq!(regex, "^Given\ (.+?)$");
+/// assert_eq!(regex, r"^Given (.+?)$");
 /// ```
 pub fn build_regex_from_pattern(pat: &str) -> Result<String, PatternError> {
     let tokens = lex_pattern(pat)?;
