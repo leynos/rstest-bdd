@@ -393,7 +393,10 @@ fn fallible_value_step_execution_returns_value() {
 }
 
 #[test]
-#[expect(clippy::expect_used, reason = "test ensures datatable steps can execute successfully")]
+#[expect(
+    clippy::expect_used,
+    reason = "test ensures datatable steps can execute successfully"
+)]
 fn datatable_is_passed_and_executes() {
     let table: &[&[&str]] = &[&["a", "b"], &["c", "d"]];
     invoke_step(
@@ -408,15 +411,18 @@ fn datatable_is_passed_and_executes() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "test ensures docstring steps can execute successfully"
+)]
 fn docstring_is_passed_and_executes() {
-    if let Err(e) = invoke_step(
+    invoke_step(
         &StepInvocation::new(
             StepKeyword::Given,
             "a step requiring a docstring",
             "a step requiring a docstring",
         )
         .with_docstring("content"),
-    ) {
-        panic!("unexpected error passing docstring: {e:?}");
-    }
+    )
+    .expect("unexpected error passing docstring");
 }
