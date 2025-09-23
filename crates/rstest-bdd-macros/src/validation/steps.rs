@@ -425,6 +425,7 @@ fn fmt_keyword(kw: StepKeyword) -> &'static str {
 }
 
 fn current_crate_id_raw() -> String {
+    // FIXME: ambient env access is read-only here; do not introduce writes (see repo guidelines).
     let name = std::env::var("CARGO_CRATE_NAME")
         .or_else(|_| std::env::var("CARGO_PKG_NAME"))
         .unwrap_or_else(|_| "unknown".to_owned());
@@ -433,8 +434,8 @@ fn current_crate_id_raw() -> String {
 }
 
 fn normalise_crate_id(id: &str) -> Box<str> {
-    // Canonicalise the `OUT_DIR` component so repeated builds do not create
-    // duplicate registry entries for the same crate.
+    // Canonicalise the `OUT_DIR` component without std::fs.
+    // FIXME(capo): replace with cap-std + camino canonicalisation (tracked in issue #XYZ).
     let (name, path) = id.split_once(':').unwrap_or((id, ""));
     if path.is_empty() {
         return name.into();
