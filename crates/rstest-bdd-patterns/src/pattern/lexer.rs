@@ -152,97 +152,103 @@ fn parse_and_consume_placeholder(
 }
 
 #[cfg(test)]
-#[expect(clippy::unwrap_used, reason = "tests exercise lexing fallibility")]
 mod tests {
+    //! Tests exercising the pattern lexer behaviour.
+
     use super::*;
 
-    fn expect_tokens(pattern: &str, expected: &[Token]) {
-        let tokens = lex_pattern(pattern).unwrap();
-        assert_eq!(tokens.as_slice(), expected);
+    fn assert_tokens(pattern: &str, expected: &[Token]) {
+        match lex_pattern(pattern) {
+            Ok(tokens) => {
+                assert_eq!(
+                    tokens, expected,
+                    "pattern {pattern:?} produced unexpected tokens",
+                );
+            }
+            Err(err) => panic!("pattern {pattern:?} should lex successfully but failed: {err}"),
+        }
     }
 
-    #[test]
-    fn tokenises_literals_and_placeholders() {
-        expect_tokens(
-            "Given {value:u32}",
-            &[
-                Token::Literal("Given ".into()),
-                Token::Placeholder {
-                    start: 6,
-                    name: "value".into(),
-                    hint: Some("u32".into()),
-                },
-            ],
-        );
+    macro_rules! lex_test {
+        ($name:ident, $pattern:expr, [$($tok:expr),* $(,)?]) => {
+            #[test]
+            fn $name() {
+                let expected = vec![$($tok),*];
+                assert_tokens($pattern, &expected);
+            }
+        };
     }
 
-    #[test]
-    fn recognises_doubled_braces_as_literals() {
-        expect_tokens(
-            "{{outer}} {inner}",
-            &[
-                Token::Literal("{outer} ".into()),
-                Token::Placeholder {
-                    start: 10,
-                    name: "inner".into(),
-                    hint: None,
-                },
-            ],
-        );
-    }
+    lex_test!(
+        tokenises_literals_and_placeholders,
+        "Given {value:u32}",
+        [
+            Token::Literal("Given ".into()),
+            Token::Placeholder {
+                start: 6,
+                name: "value".into(),
+                hint: Some("u32".into()),
+            },
+        ]
+    );
 
-    #[test]
-    fn treats_nested_braces_as_placeholder() {
-        expect_tokens(
-            "before {outer {inner}} after",
-            &[
-                Token::Literal("before ".into()),
-                Token::Placeholder {
-                    start: 7,
-                    name: "outer".into(),
-                    hint: None,
-                },
-                Token::Literal(" after".into()),
-            ],
-        );
-    }
+    lex_test!(
+        recognises_doubled_braces_as_literals,
+        "{{outer}} {inner}",
+        [
+            Token::Literal("{outer} ".into()),
+            Token::Placeholder {
+                start: 10,
+                name: "inner".into(),
+                hint: None,
+            },
+        ]
+    );
 
-    #[test]
-    fn records_stray_braces() {
-        expect_tokens(
-            "{ literal }",
-            &[
-                Token::OpenBrace { index: 0 },
-                Token::Literal(" literal ".into()),
-                Token::CloseBrace { index: 10 },
-            ],
-        );
-    }
+    lex_test!(
+        treats_nested_braces_as_placeholder,
+        "before {outer {inner}} after",
+        [
+            Token::Literal("before ".into()),
+            Token::Placeholder {
+                start: 7,
+                name: "outer".into(),
+                hint: None,
+            },
+            Token::Literal(" after".into()),
+        ]
+    );
 
-    #[test]
-    fn errors_when_placeholder_starts_with_invalid_character() {
-        expect_tokens(
-            "{  value}",
-            &[
-                Token::OpenBrace { index: 0 },
-                Token::Literal("  value".into()),
-                Token::CloseBrace { index: 8 },
-            ],
-        );
-    }
+    lex_test!(
+        records_stray_braces,
+        "{ literal }",
+        [
+            Token::OpenBrace { index: 0 },
+            Token::Literal(" literal ".into()),
+            Token::CloseBrace { index: 10 },
+        ]
+    );
 
-    #[test]
-    fn preserves_multibyte_literal_segments() {
-        expect_tokens(
-            "Given café {value}",
-            &[
-                Token::Literal("Given café ".into()),
-                Token::Placeholder {
-                    start: 12,
-                    name: "value".into(),
-                    hint: None,
-                },
-            ],
-        );
-    }
+    lex_test!(
+        treats_placeholders_with_invalid_start_as_literals,
+        "{  value}",
+        [
+            Token::OpenBrace { index: 0 },
+            Token::Literal("  value".into()),
+            Token::CloseBrace { index: 8 },
+        ]
+    );
+
+    lex_test!(
+        preserves_multibyte_literal_segments,
+        "Given café {value}",
+        [
+            Token::Literal("Given café ".into()),
+            Token::Placeholder {
+                start: 12,
+                name: "value".into(),
+                hint: None,
+            },
+        ]
+    );
 }
