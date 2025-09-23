@@ -1,6 +1,10 @@
 """Validate scripts.run_publish_check end-to-end.
 
-The suite covers cargo invocation handling, timeout propagation, error reporting, and the temporary workspace export and pruning steps performed before packaging so the publish check remains safe. Tests are expected to run under pytest with local fakes, ensuring release automation can be exercised without invoking real tooling.
+The suite covers cargo invocation handling, timeout propagation, error
+reporting, and the temporary workspace export and pruning steps performed
+before packaging so the publish check remains safe. Tests are expected to run
+under pytest with local fakes, ensuring release automation can be exercised
+without invoking real tooling.
 """
 
 from __future__ import annotations
@@ -9,6 +13,7 @@ import contextlib
 import importlib.util
 import sys
 from pathlib import Path
+from types import ModuleType
 from typing import Callable
 
 import pytest
@@ -18,8 +23,11 @@ if str(SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPTS_DIR))
 
 
+RunCallable = Callable[[list[str], int | None], tuple[int, str, str]]
+
+
 @pytest.fixture(scope="module")
-def run_publish_check_module():
+def run_publish_check_module() -> ModuleType:
     spec = importlib.util.spec_from_file_location(
         "run_publish_check", SCRIPTS_DIR / "run_publish_check.py"
     )
@@ -28,6 +36,88 @@ def run_publish_check_module():
     sys.modules[spec.name] = module
     spec.loader.exec_module(module)
     return module
+
+
+@pytest.fixture
+def fake_workspace(tmp_path: Path) -> Path:
+    """Provision a fake workspace tree used by cargo command tests.
+
+    Parameters
+    ----------
+    tmp_path : Path
+        Pytest-provided temporary directory for the current test invocation.
+
+    Returns
+    -------
+    Path
+        Root path of the workspace with a ``demo`` crate directory in place.
+    """
+
+    workspace = tmp_path / "workspace"
+    (workspace / "crates" / "demo").mkdir(parents=True)
+    return workspace
+
+
+@pytest.fixture
+def mock_cargo_runner(
+    monkeypatch: pytest.MonkeyPatch, run_publish_check_module: ModuleType
+) -> list[tuple[str, Path, list[str], int]]:
+    """Capture invocations made to ``run_cargo_command``.
+
+    Parameters
+    ----------
+    monkeypatch : pytest.MonkeyPatch
+        Fixture used to patch the ``run_cargo_command`` helper for inspection.
+    run_publish_check_module : ModuleType
+        Loaded ``run_publish_check`` module that exposes the helper.
+
+    Returns
+    -------
+    list[tuple[str, Path, list[str], int]]
+        Recorded invocations with the crate name, workspace, command, and
+        timeout seconds.
+    """
+
+    calls: list[tuple[str, Path, list[str], int]] = []
+
+    def fake_run_cargo(
+        crate: str,
+        workspace_root: Path,
+        command: list[str],
+        *,
+        timeout_secs: int,
+    ) -> None:
+        calls.append((crate, workspace_root, command, timeout_secs))
+
+    monkeypatch.setattr(run_publish_check_module, "run_cargo_command", fake_run_cargo)
+    return calls
+
+
+@pytest.fixture
+def patch_local_runner(
+    monkeypatch: pytest.MonkeyPatch, run_publish_check_module: ModuleType
+) -> Callable[[RunCallable], "FakeLocal"]:
+    """Install a ``FakeLocal`` around the provided callable.
+
+    Parameters
+    ----------
+    monkeypatch : pytest.MonkeyPatch
+        Fixture used to patch the module under test.
+    run_publish_check_module : ModuleType
+        Loaded ``run_publish_check`` module that exposes the Fabric ``local``.
+
+    Returns
+    -------
+    Callable[[RunCallable], FakeLocal]
+        Factory that applies the patch and yields the configured ``FakeLocal``.
+    """
+
+    def _install(run_callable: RunCallable) -> "FakeLocal":
+        fake_local = FakeLocal(run_callable)
+        monkeypatch.setattr(run_publish_check_module, "local", fake_local)
+        return fake_local
+
+    return _install
 
 
 class FakeCargoInvocation:
@@ -53,7 +143,7 @@ class FakeCargo:
 
 
 class FakeLocal:
-    def __init__(self, run_callable: Callable[[list[str], int | None], tuple[int, str, str]]):
+    def __init__(self, run_callable: RunCallable):
         self.run_callable = run_callable
         self.cwd_calls: list[Path] = []
         self.env_calls: list[dict[str, str]] = []
@@ -108,94 +198,111 @@ def test_export_workspace_propagates_git_failure(
         run_publish_check_module.export_workspace(tmp_path)
 
 
-def test_handle_command_failure_logs_and_exits(
-    run_publish_check_module, caplog: pytest.LogCaptureFixture
+@pytest.mark.parametrize(
+    (
+        "crate",
+        "result_kwargs",
+        "expected_exit_fragment",
+        "expected_logs",
+        "unexpected_logs",
+    ),
+    [
+        (
+            "demo",
+            {
+                "command": ["cargo", "check"],
+                "return_code": 7,
+                "stdout": "stdout text",
+                "stderr": "stderr text",
+            },
+            "exit code 7",
+            ("stdout text", "stderr text"),
+            (),
+        ),
+        (
+            "fmt",
+            {
+                "command": ["cargo", "fmt"],
+                "return_code": 1,
+                "stdout": "",
+                "stderr": "",
+            },
+            None,
+            (),
+            ("cargo stdout", "cargo stderr"),
+        ),
+        (
+            "fmt",
+            {
+                "command": ["cargo", "fmt"],
+                "return_code": 5,
+                "stdout": b"binary stdout",
+                "stderr": b"binary stderr",
+            },
+            None,
+            ("b'binary stdout'", "b'binary stderr'"),
+            (),
+        ),
+        (
+            "fmt",
+            {
+                "command": ["cargo", "fmt"],
+                "return_code": -9,
+                "stdout": "ignored",
+                "stderr": "ignored",
+            },
+            "exit code -9",
+            (),
+            (),
+        ),
+    ],
+    ids=[
+        "logs_and_exits",
+        "omits_empty_output",
+        "accepts_non_string_outputs",
+        "reports_negative_exit_codes",
+    ],
+)
+def test_handle_command_failure(
+    run_publish_check_module: ModuleType,
+    caplog: pytest.LogCaptureFixture,
+    crate: str,
+    result_kwargs: dict[str, object],
+    expected_exit_fragment: str | None,
+    expected_logs: tuple[str, ...],
+    unexpected_logs: tuple[str, ...],
 ) -> None:
-    result = run_publish_check_module.CommandResult(
-        command=["cargo", "check"],
-        return_code=7,
-        stdout="stdout text",
-        stderr="stderr text",
-    )
+    result = run_publish_check_module.CommandResult(**result_kwargs)
 
     with caplog.at_level("ERROR"):
         with pytest.raises(SystemExit) as excinfo:
-            run_publish_check_module._handle_command_failure("demo", result)
-    message = str(excinfo.value)
-    assert "exit code 7" in message
-    assert "stdout text" in caplog.text
-    assert "stderr text" in caplog.text
+            run_publish_check_module._handle_command_failure(crate, result)
 
+    if expected_exit_fragment is not None:
+        assert expected_exit_fragment in str(excinfo.value)
 
-def test_handle_command_failure_omits_empty_output(
-    run_publish_check_module, caplog: pytest.LogCaptureFixture
-) -> None:
-    result = run_publish_check_module.CommandResult(
-        command=["cargo", "fmt"],
-        return_code=1,
-        stdout="",
-        stderr="",
-    )
+    for text in expected_logs:
+        assert text in caplog.text
 
-    with caplog.at_level("ERROR"):
-        with pytest.raises(SystemExit):
-            run_publish_check_module._handle_command_failure("fmt", result)
-
-    assert "cargo stdout" not in caplog.text
-    assert "cargo stderr" not in caplog.text
-
-
-def test_handle_command_failure_accepts_non_string_outputs(
-    run_publish_check_module, caplog: pytest.LogCaptureFixture
-) -> None:
-    result = run_publish_check_module.CommandResult(
-        command=["cargo", "fmt"],
-        return_code=5,
-        stdout=b"binary stdout",
-        stderr=b"binary stderr",
-    )
-
-    with caplog.at_level("ERROR"):
-        with pytest.raises(SystemExit):
-            run_publish_check_module._handle_command_failure("fmt", result)
-
-    assert "b'binary stdout'" in caplog.text
-    assert "b'binary stderr'" in caplog.text
-
-
-def test_handle_command_failure_reports_negative_exit_codes(
-    run_publish_check_module, caplog: pytest.LogCaptureFixture
-) -> None:
-    result = run_publish_check_module.CommandResult(
-        command=["cargo", "fmt"],
-        return_code=-9,
-        stdout="ignored",
-        stderr="ignored",
-    )
-
-    with caplog.at_level("ERROR"):
-        with pytest.raises(SystemExit) as excinfo:
-            run_publish_check_module._handle_command_failure("fmt", result)
-
-    assert "exit code -9" in str(excinfo.value)
+    for text in unexpected_logs:
+        assert text not in caplog.text
 
 
 def test_run_cargo_command_streams_output(
-    monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
+    patch_local_runner: Callable[[RunCallable], FakeLocal],
+    fake_workspace: Path,
     capsys: pytest.CaptureFixture[str],
-    run_publish_check_module,
+    run_publish_check_module: ModuleType,
 ) -> None:
-    workspace = tmp_path / "workspace"
-    crate_dir = workspace / "crates" / "demo"
-    crate_dir.mkdir(parents=True)
+    crate_dir = fake_workspace / "crates" / "demo"
 
-    fake_local = FakeLocal(lambda _args, _timeout: (0, "cargo ok\n", "cargo warn\n"))
-    monkeypatch.setattr(run_publish_check_module, "local", fake_local)
+    fake_local = patch_local_runner(
+        lambda _args, _timeout: (0, "cargo ok\n", "cargo warn\n")
+    )
 
     run_publish_check_module.run_cargo_command(
         "demo",
-        workspace,
+        fake_workspace,
         ["cargo", "mock"],
         timeout_secs=5,
     )
@@ -205,76 +312,67 @@ def test_run_cargo_command_streams_output(
     assert "cargo warn" in captured.err
     assert fake_local.cwd_calls == [crate_dir]
     assert fake_local.env_calls == [
-        {"CARGO_HOME": str(workspace / ".cargo-home")}
+        {"CARGO_HOME": str(fake_workspace / ".cargo-home")}
     ]
     assert fake_local.invocations == [(["cargo", "mock"], 5)]
 
 
 def test_run_cargo_command_uses_env_timeout(
     monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
-    run_publish_check_module,
+    patch_local_runner: Callable[[RunCallable], FakeLocal],
+    fake_workspace: Path,
+    run_publish_check_module: ModuleType,
 ) -> None:
-    workspace = tmp_path / "workspace"
-    crate_dir = workspace / "crates" / "demo"
-    crate_dir.mkdir(parents=True)
+    crate_dir = fake_workspace / "crates" / "demo"
 
-    fake_local = FakeLocal(lambda _args, timeout: (0, "", ""))
-    monkeypatch.setattr(run_publish_check_module, "local", fake_local)
+    fake_local = patch_local_runner(lambda _args, timeout: (0, "", ""))
     monkeypatch.setenv("PUBLISH_CHECK_TIMEOUT_SECS", "11")
 
     run_publish_check_module.run_cargo_command(
         "demo",
-        workspace,
+        fake_workspace,
         ["cargo", "mock"],
     )
 
     assert fake_local.cwd_calls == [crate_dir]
     assert fake_local.env_calls == [
-        {"CARGO_HOME": str(workspace / ".cargo-home")}
+        {"CARGO_HOME": str(fake_workspace / ".cargo-home")}
     ]
     assert fake_local.invocations == [(["cargo", "mock"], 11)]
 
 
 def test_run_cargo_command_logs_failures(
     monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
+    patch_local_runner: Callable[[RunCallable], FakeLocal],
+    fake_workspace: Path,
     caplog: pytest.LogCaptureFixture,
-    run_publish_check_module,
+    run_publish_check_module: ModuleType,
 ) -> None:
-    workspace = tmp_path / "workspace"
-    workspace.mkdir()
-    crate_dir = workspace / "crates" / "demo"
-    crate_dir.mkdir(parents=True)
-
-    fake_local = FakeLocal(lambda _args, _timeout: (3, "bad stdout", "bad stderr"))
-    monkeypatch.setattr(run_publish_check_module, "local", fake_local)
+    fake_local = patch_local_runner(
+        lambda _args, _timeout: (3, "bad stdout", "bad stderr")
+    )
 
     with caplog.at_level("ERROR"):
         with pytest.raises(SystemExit) as excinfo:
             run_publish_check_module.run_cargo_command(
                 "demo",
-                workspace,
+                fake_workspace,
                 ["cargo", "failing"],
                 timeout_secs=5,
             )
     assert "exit code 3" in str(excinfo.value)
     assert "bad stdout" in caplog.text
     assert "bad stderr" in caplog.text
+    assert fake_local.cwd_calls == [fake_workspace / "crates" / "demo"]
 
 
 def test_run_cargo_command_passes_command_result(
     monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
-    run_publish_check_module,
+    patch_local_runner: Callable[[RunCallable], FakeLocal],
+    fake_workspace: Path,
+    run_publish_check_module: ModuleType,
 ) -> None:
-    workspace = tmp_path / "workspace"
-    workspace.mkdir()
-    crate_dir = workspace / "crates" / "demo"
-    crate_dir.mkdir(parents=True)
-
-    fake_local = FakeLocal(lambda _args, _timeout: (5, "out", "err"))
-    monkeypatch.setattr(run_publish_check_module, "local", fake_local)
+    fake_local = patch_local_runner(lambda _args, _timeout: (5, "out", "err"))
 
     observed: dict[str, object] = {}
 
@@ -288,7 +386,7 @@ def test_run_cargo_command_passes_command_result(
     with pytest.raises(SystemExit, match="handler invoked"):
         run_publish_check_module.run_cargo_command(
             "demo",
-            workspace,
+            fake_workspace,
             ["cargo", "oops"],
             timeout_secs=9,
         )
@@ -304,89 +402,62 @@ def test_run_cargo_command_passes_command_result(
 
 
 def test_run_cargo_command_times_out(
-    monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
-    run_publish_check_module,
+    patch_local_runner: Callable[[RunCallable], FakeLocal],
+    fake_workspace: Path,
+    run_publish_check_module: ModuleType,
 ) -> None:
-    workspace = tmp_path / "workspace"
-    workspace.mkdir()
-    crate_dir = workspace / "crates" / "demo"
-    crate_dir.mkdir(parents=True)
-
     def raise_timeout(_args: list[str], _timeout: int | None) -> tuple[int, str, str]:
         raise run_publish_check_module.ProcessTimedOut("timeout", _args)
 
-    fake_local = FakeLocal(raise_timeout)
-    monkeypatch.setattr(run_publish_check_module, "local", fake_local)
+    patch_local_runner(raise_timeout)
 
     with pytest.raises(SystemExit) as excinfo:
         run_publish_check_module.run_cargo_command(
             "demo",
-            workspace,
+            fake_workspace,
             ["cargo", "wait"],
             timeout_secs=1,
         )
     assert "timed out" in str(excinfo.value)
 
 
-def test_package_crate_invokes_cargo_with_timeout(
-    monkeypatch: pytest.MonkeyPatch,
-    run_publish_check_module,
-) -> None:
-    calls: list[tuple[str, Path, list[str], int]] = []
-
-    def fake_run_cargo(
-        crate: str,
-        workspace_root: Path,
-        command: list[str],
-        *,
-        timeout_secs: int,
-    ) -> None:
-        calls.append((crate, workspace_root, command, timeout_secs))
-
-    monkeypatch.setattr(run_publish_check_module, "run_cargo_command", fake_run_cargo)
-
-    workspace = Path("/tmp/workspace")
-    run_publish_check_module.package_crate("demo", workspace, timeout_secs=42)
-
-    assert calls == [
+@pytest.mark.parametrize(
+    (
+        "function_name",
+        "crate",
+        "expected_command",
+        "timeout",
+    ),
+    [
         (
+            "package_crate",
             "demo",
-            workspace,
             ["cargo", "package", "--allow-dirty", "--no-verify"],
             42,
-        )
-    ]
-
-
-def test_check_crate_invokes_cargo_with_timeout(
-    monkeypatch: pytest.MonkeyPatch,
-    run_publish_check_module,
-) -> None:
-    calls: list[tuple[str, Path, list[str], int]] = []
-
-    def fake_run_cargo(
-        crate: str,
-        workspace_root: Path,
-        command: list[str],
-        *,
-        timeout_secs: int,
-    ) -> None:
-        calls.append((crate, workspace_root, command, timeout_secs))
-
-    monkeypatch.setattr(run_publish_check_module, "run_cargo_command", fake_run_cargo)
-
-    workspace = Path("/tmp/workspace")
-    run_publish_check_module.check_crate("demo", workspace, timeout_secs=17)
-
-    assert calls == [
+        ),
         (
+            "check_crate",
             "demo",
-            workspace,
             ["cargo", "check", "--all-features"],
             17,
-        )
-    ]
+        ),
+    ],
+)
+def test_cargo_commands_invoke_runner(
+    run_publish_check_module: ModuleType,
+    mock_cargo_runner: list[tuple[str, Path, list[str], int]],
+    function_name: str,
+    crate: str,
+    expected_command: list[str],
+    timeout: int,
+) -> None:
+    workspace = Path("/tmp/workspace")
+
+    getattr(run_publish_check_module, function_name)(
+        crate, workspace, timeout_secs=timeout
+    )
+
+    assert mock_cargo_runner == [(crate, workspace, expected_command, timeout)]
 
 
 def test_run_publish_check_orchestrates_workflow(
