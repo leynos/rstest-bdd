@@ -20,6 +20,8 @@ use proc_macro_error::abort;
 use proc_macro_error::emit_warning;
 use rstest_bdd::{StepPattern, extract_placeholders};
 
+mod messages;
+
 type Registry = HashMap<Box<str>, CrateDefs>;
 
 #[derive(Default, Clone)]
@@ -186,12 +188,12 @@ fn validate_single_step(
         Ok(None) => {
             let span = get_step_span(step);
             let msg = defs.map_or_else(
-                || format_missing_step_error(kw, step, &CrateDefs::default()),
-                |d| format_missing_step_error(kw, step, d),
+                || messages::format_missing_step_error(kw, step, &CrateDefs::default()),
+                |d| messages::format_missing_step_error(kw, step, d),
             );
             Ok(Some((span, msg)))
         }
-        Err(matches) => Err(format_ambiguous_step_error(&matches, step)),
+        Err(matches) => Err(messages::format_ambiguous_step_error(&matches, step)),
     }
 }
 
@@ -291,138 +293,7 @@ pub(crate) fn validate_steps_exist(steps: &[ParsedStep], strict: bool) -> Result
     }
     let missing = validate_individual_steps(steps, defs)?;
     drop(reg);
-    handle_validation_result(&missing, strict)
-}
-
-fn handle_validation_result(
-    missing: &[(proc_macro2::Span, String)],
-    strict: bool,
-) -> Result<(), syn::Error> {
-    if missing.is_empty() {
-        return Ok(());
-    }
-
-    if strict {
-        create_strict_mode_error(missing)
-    } else {
-        emit_non_strict_warnings(missing);
-        Ok(())
-    }
-}
-
-fn create_strict_mode_error(missing: &[(proc_macro2::Span, String)]) -> Result<(), syn::Error> {
-    let msg = match missing {
-        [(span, only)] => {
-            return Err(syn::Error::new(*span, only.clone()));
-        }
-        _ => missing
-            .iter()
-            .map(|(_, m)| format!("  - {m}"))
-            .collect::<Vec<_>>()
-            .join("\n"),
-    };
-    let span = missing
-        .first()
-        .map_or_else(proc_macro2::Span::call_site, |(s, _)| *s);
-    Err(syn::Error::new(span, msg))
-}
-
-#[cfg_attr(test, expect(unused_variables, reason = "test warnings"))]
-fn emit_non_strict_warnings(missing: &[(proc_macro2::Span, String)]) {
-    #[cfg(not(test))]
-    for (span, msg) in missing {
-        let loc = span.start();
-        if loc.line == 0 && loc.column == 0 {
-            emit_warning!(
-                proc_macro2::Span::call_site(),
-                "rstest-bdd[non-strict]: {}",
-                msg;
-                note = "location unavailable (synthetic or default span)"
-            );
-        } else {
-            emit_warning!(*span, "rstest-bdd[non-strict]: {}", msg);
-        }
-    }
-}
-
-fn format_missing_step_error(resolved: StepKeyword, step: &ParsedStep, defs: &CrateDefs) -> String {
-    let patterns = defs.patterns(resolved);
-    let available_defs: Vec<&str> = patterns.iter().map(|p| p.as_str()).collect();
-    let possible_matches: Vec<&str> = patterns
-        .iter()
-        .filter(|p| p.regex().is_match(step.text.as_str()))
-        .map(|p| p.as_str())
-        .collect();
-    build_missing_step_message(resolved, step, &available_defs, &possible_matches)
-}
-
-fn format_ambiguous_step_error(matches: &[&'static StepPattern], step: &ParsedStep) -> syn::Error {
-    let patterns: Vec<&str> = matches.iter().map(|p| p.as_str()).collect();
-    let msg = format!(
-        "Ambiguous step definition for '{}'.\n{}",
-        step.text,
-        patterns
-            .iter()
-            // Do not indent bullet lines to make matching consistent.
-            .map(|p| format!("- {p}"))
-            .collect::<Vec<_>>()
-            .join("\n")
-    );
-    let span = get_step_span(step);
-    syn::Error::new(span, msg)
-}
-
-fn build_missing_step_message(
-    resolved: StepKeyword,
-    step: &ParsedStep,
-    available_defs: &[&str],
-    possible_matches: &[&str],
-) -> String {
-    let mut msg = format!(
-        "No matching step definition found for '{} {}'",
-        fmt_keyword(resolved),
-        step.text
-    );
-    msg.push_str(&format_item_list(
-        available_defs,
-        "Available step definitions for this keyword:\n",
-        |s| *s,
-    ));
-    msg.push_str(&format_item_list(
-        possible_matches,
-        "Possible matches:\n",
-        |s| *s,
-    ));
-    msg
-}
-
-fn format_item_list<T, F>(items: &[T], header: &str, fmt_item: F) -> String
-where
-    F: Fn(&T) -> &str,
-{
-    if items.is_empty() {
-        return String::new();
-    }
-
-    let mut msg = String::new();
-    msg.push('\n');
-    msg.push_str(header);
-    for item in items {
-        msg.push_str("  - ");
-        msg.push_str(fmt_item(item));
-        msg.push('\n');
-    }
-    msg
-}
-
-fn fmt_keyword(kw: StepKeyword) -> &'static str {
-    match kw {
-        StepKeyword::Given => "Given",
-        StepKeyword::When => "When",
-        StepKeyword::Then => "Then",
-        StepKeyword::And => "And",
-        StepKeyword::But => "But",
-    }
+    messages::handle_validation_result(&missing, strict)
 }
 
 fn current_crate_id_raw() -> String {
