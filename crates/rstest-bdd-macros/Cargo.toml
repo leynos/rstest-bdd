@@ -35,6 +35,8 @@ proc-macro-crate = "3"
 regex.workspace = true
 cfg-if.workspace = true
 proc-macro-error = "1"
+camino.workspace = true
+cap-std.workspace = true
 
 [dev-dependencies]
 trybuild.workspace = true

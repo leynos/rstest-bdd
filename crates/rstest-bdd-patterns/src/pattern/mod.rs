@@ -6,25 +6,12 @@ mod placeholder;
 #[cfg(test)]
 pub(crate) mod test_support;
 
-use crate::errors::PatternError;
-use regex::Regex;
-
 pub use compiler::build_regex_from_pattern;
-
-/// Build and compile a regular expression from a step pattern.
-///
-/// # Errors
-/// Returns [`PatternError`] when placeholder parsing fails or the generated
-/// regex source cannot be compiled.
-pub fn compile_regex_from_pattern(pat: &str) -> Result<Regex, PatternError> {
-    let source = build_regex_from_pattern(pat)?;
-    Regex::new(&source).map_err(PatternError::from)
-}
 
 #[cfg(test)]
 mod tests {
-    use super::{build_regex_from_pattern, compile_regex_from_pattern};
-    use crate::errors::PatternError;
+    use super::build_regex_from_pattern;
+    use crate::{PatternError, compile_regex_from_pattern};
     use std::fmt::Display;
 
     fn expect_ok<T, E: Display>(result: Result<T, E>, context: &str) -> T {
@@ -76,5 +63,14 @@ mod tests {
             err,
             PatternError::Regex(regex::Error::CompiledTooBig(_))
         ));
+    }
+
+    #[test]
+    fn falls_back_to_lazy_match_for_unknown_type_hints() {
+        let regex = expect_ok(
+            compile_regex_from_pattern("Value is {x:unknown}"),
+            "unknown type should compile with lazy fallback",
+        );
+        assert_eq!(regex.as_str(), "^Value is (.+?)$");
     }
 }
