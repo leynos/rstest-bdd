@@ -18,6 +18,9 @@ clean: ## Remove build artifacts
 
 test: ## Run tests with warnings treated as errors
 	RUSTFLAGS="-D warnings" $(CARGO) test --workspace --all-targets --all-features $(BUILD_JOBS)
+	# Exercise the Python release automation alongside the Rust suite.
+	$(UV) run --with pytest --with cyclopts --with plumbum --with tomlkit \
+		python -m pytest scripts/tests/test_run_publish_check.py
 
 target/%/$(APP): ## Build binary in debug or release mode
 	$(CARGO) build $(BUILD_JOBS) $(if $(findstring release,$(@)),--release) --bin $(APP)
