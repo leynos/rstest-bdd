@@ -1,0 +1,209 @@
+//! Keyword-specific `StepError` propagation scenarios.
+
+use rstest::rstest;
+use rstest_bdd::{StepError, StepKeyword};
+
+mod step_error_common;
+
+use step_error_common::{StepInvocation, invoke_step};
+
+fn assert_step_error(
+    actual: &StepError,
+    expected_function: &str,
+    step_pattern: &str,
+    expected: &StepError,
+) {
+    match (actual, expected) {
+        (
+            StepError::ExecutionError {
+                pattern,
+                function,
+                message,
+            },
+            StepError::ExecutionError {
+                message: expected_message,
+                ..
+            },
+        )
+        | (
+            StepError::PanicError {
+                pattern,
+                function,
+                message,
+            },
+            StepError::PanicError {
+                message: expected_message,
+                ..
+            },
+        ) => {
+            assert_eq!(pattern, step_pattern);
+            assert_eq!(function, expected_function);
+            assert_eq!(message, expected_message);
+        }
+        (
+            StepError::MissingFixture { name, ty, step },
+            StepError::MissingFixture {
+                name: expected_name,
+                ty: expected_ty,
+                step: expected_step,
+            },
+        ) => {
+            assert_eq!(name, expected_name);
+            assert_eq!(ty, expected_ty);
+            assert_eq!(step, expected_step);
+        }
+        (other_actual, other_expected) => panic!(
+            "unexpected error for {step_pattern}: got {other_actual:?}, expected {other_expected:?}"
+        ),
+    }
+}
+
+#[rstest]
+#[case(
+    StepKeyword::Given,
+    "a failing step",
+    "a failing step",
+    "failing_step",
+    StepError::ExecutionError {
+        pattern: "a failing step".into(),
+        function: "failing_step".into(),
+        message: "boom".into(),
+    },
+)]
+#[case(
+    StepKeyword::Given,
+    "an alias error step",
+    "an alias error step",
+    "alias_error_step",
+    StepError::ExecutionError {
+        pattern: "an alias error step".into(),
+        function: "alias_error_step".into(),
+        message: "alias boom".into(),
+    },
+)]
+#[case(
+    StepKeyword::Given,
+    "a fallible unit step fails",
+    "a fallible unit step fails",
+    "fallible_unit_step_fails",
+    StepError::ExecutionError {
+        pattern: "a fallible unit step fails".into(),
+        function: "fallible_unit_step_fails".into(),
+        message: "unit failure".into(),
+    },
+)]
+#[case(
+    StepKeyword::Given,
+    "a fallible value step fails",
+    "a fallible value step fails",
+    "fallible_value_step_fails",
+    StepError::ExecutionError {
+        pattern: "a fallible value step fails".into(),
+        function: "fallible_value_step_fails".into(),
+        message: "value failure".into(),
+    },
+)]
+#[case(
+    StepKeyword::Given,
+    "a panicking step",
+    "a panicking step",
+    "panicking_step",
+    StepError::PanicError {
+        pattern: "a panicking step".into(),
+        function: "panicking_step".into(),
+        message: "kaboom".into(),
+    },
+)]
+#[case(
+    StepKeyword::Given,
+    "a non-string panicking step",
+    "a non-string panicking step",
+    "non_string_panicking_step",
+    StepError::PanicError {
+        pattern: "a non-string panicking step".into(),
+        function: "non_string_panicking_step".into(),
+        message: "123".into(),
+    },
+)]
+#[case(
+    StepKeyword::Given,
+    "a step requiring a table",
+    "a step requiring a table",
+    "step_needing_table",
+    StepError::ExecutionError {
+        pattern: "a step requiring a table".into(),
+        function: "step_needing_table".into(),
+        message: "Step 'a step requiring a table' requires a data table".into(),
+    },
+)]
+#[case(
+    StepKeyword::Given,
+    "a step requiring a docstring",
+    "a step requiring a docstring",
+    "step_needing_docstring",
+    StepError::ExecutionError {
+        pattern: "a step requiring a docstring".into(),
+        function: "step_needing_docstring".into(),
+        message: "Step 'a step requiring a docstring' requires a doc string".into(),
+    },
+)]
+#[case(
+    StepKeyword::Given,
+    "number {value}",
+    "number not_a_number",
+    "parse_number",
+    StepError::ExecutionError {
+        pattern: "number {value}".into(),
+        function: "parse_number".into(),
+        message: concat!(
+            "failed to parse argument 'value' of type 'u32' from pattern 'number {value}' ",
+            concat!("with captured value: '", "\"not_a_number\"", "'"),
+        )
+        .into(),
+    },
+)]
+#[case(
+    StepKeyword::Given,
+    "no placeholders",
+    "no placeholders",
+    "missing_capture",
+    StepError::MissingFixture {
+        name: "value".into(),
+        ty: "u32".into(),
+        step: "missing_capture".into(),
+    },
+)]
+#[case(
+    StepKeyword::When,
+    "a failing when step",
+    "a failing when step",
+    "failing_when_step",
+    StepError::ExecutionError {
+        pattern: "a failing when step".into(),
+        function: "failing_when_step".into(),
+        message: "when boom".into(),
+    },
+)]
+#[case(
+    StepKeyword::Then,
+    "a failing then step",
+    "a failing then step",
+    "failing_then_step",
+    StepError::ExecutionError {
+        pattern: "a failing then step".into(),
+        function: "failing_then_step".into(),
+        message: "then boom".into(),
+    },
+)]
+fn step_error_scenarios(
+    #[case] keyword: StepKeyword,
+    #[case] step_pattern: &str,
+    #[case] step_text: &str,
+    #[case] expected_function: &str,
+    #[case] expected_error: StepError,
+) {
+    let Err(err) = invoke_step(&StepInvocation::new(keyword, step_pattern, step_text)) else {
+        panic!("expected error for '{step_text}'");
+    };
+    assert_step_error(&err, expected_function, step_pattern, &expected_error);
+}
