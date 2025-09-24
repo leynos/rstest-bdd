@@ -44,7 +44,7 @@ rstest-bdd-macros = "0.1.0-alpha3"
 rstest-bdd-patterns = "0.1.0-alpha3"
 log = "0.4"
 fs2 = "0.4"
-tempfile = "3.22"
+tempfile = "3.23"
 
 [workspace.lints.clippy]
 pedantic = { level = "warn", priority = -1 }
