@@ -1,43 +1,67 @@
 //! Compile-time tests for the procedural macros.
 
+use rstest::rstest;
 use std::borrow::Cow;
 use std::fs;
 use std::io;
 use std::panic::{self, AssertUnwindSafe};
 use std::path::{Path, PathBuf};
 
-#[test]
-fn step_macros_compile() {
+#[rstest]
+#[case::step_macros(FixturePath::new("tests/fixtures/step_macros.rs"))]
+#[case::step_macros_unicode(FixturePath::new("tests/fixtures/step_macros_unicode.rs"))]
+#[case::scenario_single_match(FixturePath::new("tests/fixtures/scenario_single_match.rs"))]
+#[cfg_attr(
+    not(feature = "strict-compile-time-validation"),
+    case::scenario_missing_step(FixturePath::new("tests/fixtures/scenario_missing_step.rs"))
+)]
+#[cfg_attr(
+    not(feature = "strict-compile-time-validation"),
+    case::scenario_out_of_order(FixturePath::new("tests/fixtures/scenario_out_of_order.rs"))
+)]
+fn trybuild_fixtures_pass(#[case] fixture: FixturePath<'static>) {
     let t = trybuild::TestCases::new();
-    t.pass("tests/fixtures/step_macros.rs");
-    t.pass("tests/fixtures/step_macros_unicode.rs");
-    t.pass("tests/fixtures/scenario_single_match.rs");
-    // `scenarios!` should succeed when the directory exists.
-    // t.pass("tests/fixtures/scenarios_autodiscovery.rs");
-    t.compile_fail("tests/fixtures/scenario_missing_file.rs");
-    t.compile_fail("tests/fixtures/step_macros_invalid_identifier.rs");
-    t.compile_fail("tests/fixtures/step_tuple_pattern.rs");
-    t.compile_fail("tests/fixtures/step_struct_pattern.rs");
-    t.compile_fail("tests/fixtures/step_nested_pattern.rs");
-    t.compile_fail("tests/ui/datatable_wrong_type.rs");
-    t.compile_fail("tests/ui/datatable_duplicate.rs");
-    t.compile_fail("tests/ui/datatable_duplicate_attr.rs");
-    t.compile_fail("tests/ui/datatable_after_docstring.rs");
-    t.compile_fail("tests/ui/placeholder_missing_param.rs");
-    t.compile_fail("tests/ui/implicit_fixture_missing.rs");
-    t.compile_fail("tests/ui/placeholder_missing_params.rs");
-    t.compile_fail("tests/fixtures/scenarios_missing_dir.rs");
-    if cfg!(feature = "strict-compile-time-validation") {
-        t.compile_fail("tests/fixtures/scenario_missing_step.rs");
-        t.compile_fail("tests/fixtures/scenario_out_of_order.rs");
-    } else {
-        t.pass("tests/fixtures/scenario_missing_step.rs");
-        t.pass("tests/fixtures/scenario_out_of_order.rs");
-        compile_fail_missing_step_warning(&t);
-    }
-    if cfg!(feature = "compile-time-validation") {
-        t.compile_fail("tests/fixtures/scenario_ambiguous_step.rs");
-    }
+    t.pass(fixture.as_str());
+}
+
+#[rstest]
+#[case::scenario_missing_file(FixturePath::new("tests/fixtures/scenario_missing_file.rs"))]
+#[case::step_macros_invalid_identifier(FixturePath::new(
+    "tests/fixtures/step_macros_invalid_identifier.rs"
+))]
+#[case::step_tuple_pattern(FixturePath::new("tests/fixtures/step_tuple_pattern.rs"))]
+#[case::step_struct_pattern(FixturePath::new("tests/fixtures/step_struct_pattern.rs"))]
+#[case::step_nested_pattern(FixturePath::new("tests/fixtures/step_nested_pattern.rs"))]
+#[case::datatable_wrong_type(FixturePath::new("tests/ui/datatable_wrong_type.rs"))]
+#[case::datatable_duplicate(FixturePath::new("tests/ui/datatable_duplicate.rs"))]
+#[case::datatable_duplicate_attr(FixturePath::new("tests/ui/datatable_duplicate_attr.rs"))]
+#[case::datatable_after_docstring(FixturePath::new("tests/ui/datatable_after_docstring.rs"))]
+#[case::placeholder_missing_param(FixturePath::new("tests/ui/placeholder_missing_param.rs"))]
+#[case::implicit_fixture_missing(FixturePath::new("tests/ui/implicit_fixture_missing.rs"))]
+#[case::placeholder_missing_params(FixturePath::new("tests/ui/placeholder_missing_params.rs"))]
+#[case::scenarios_missing_dir(FixturePath::new("tests/fixtures/scenarios_missing_dir.rs"))]
+#[cfg_attr(
+    feature = "strict-compile-time-validation",
+    case::scenario_missing_step(FixturePath::new("tests/fixtures/scenario_missing_step.rs"))
+)]
+#[cfg_attr(
+    feature = "strict-compile-time-validation",
+    case::scenario_out_of_order(FixturePath::new("tests/fixtures/scenario_out_of_order.rs"))
+)]
+#[cfg_attr(
+    feature = "compile-time-validation",
+    case::scenario_ambiguous_step(FixturePath::new("tests/fixtures/scenario_ambiguous_step.rs"))
+)]
+fn trybuild_fixtures_compile_fail(#[case] fixture: FixturePath<'static>) {
+    let t = trybuild::TestCases::new();
+    t.compile_fail(fixture.as_str());
+}
+
+#[cfg(not(feature = "strict-compile-time-validation"))]
+#[test]
+fn scenario_missing_step_emits_warning() {
+    let t = trybuild::TestCases::new();
+    compile_fail_missing_step_warning(&t);
 }
 
 type Normaliser = fn(&str) -> String;
@@ -78,6 +102,7 @@ impl<'a> From<&'a str> for FixturePath<'a> {
     }
 }
 
+#[cfg(not(feature = "strict-compile-time-validation"))]
 fn compile_fail_missing_step_warning(t: &trybuild::TestCases) {
     compile_fail_with_normalised_output(
         t,
@@ -86,6 +111,7 @@ fn compile_fail_missing_step_warning(t: &trybuild::TestCases) {
     );
 }
 
+#[cfg(not(feature = "strict-compile-time-validation"))]
 fn compile_fail_with_normalised_output(
     t: &trybuild::TestCases,
     test_path: FixturePath<'_>,
@@ -268,16 +294,21 @@ mod helper_tests {
         wip_stderr_path(FixturePath::new(""));
     }
 
-    #[test]
-    fn expected_stderr_path_replaces_extension() {
-        let path = expected_stderr_path(FixturePath::new("tests/ui/example.output"));
-        assert_eq!(path, Path::new("tests/ui/example.stderr"));
-    }
-
-    #[test]
-    fn expected_stderr_path_handles_multiple_extensions() {
-        let path = expected_stderr_path(FixturePath::new("tests/ui/example.feature.rs"));
-        assert_eq!(path, Path::new("tests/ui/example.feature.stderr"));
+    #[rstest]
+    #[case::single_extension(
+        FixturePath::new("tests/ui/example.output"),
+        "tests/ui/example.stderr"
+    )]
+    #[case::multiple_extensions(
+        FixturePath::new("tests/ui/example.feature.rs"),
+        "tests/ui/example.feature.stderr"
+    )]
+    fn expected_stderr_path_rewrites_extension(
+        #[case] input: FixturePath<'static>,
+        #[case] expected: &str,
+    ) {
+        let path = expected_stderr_path(input);
+        assert_eq!(path, Path::new(expected));
     }
 
     #[test]
@@ -294,64 +325,62 @@ mod helper_tests {
         assert_eq!(result, "prefix-value-suffix");
     }
 
-    #[test]
-    fn apply_normalisers_handles_empty_string() {
+    #[rstest]
+    #[case::empty(String::new(), "")]
+    #[case::whitespace({
+        let mut text = String::from("   ");
+        text.push(char::from(10));
+        text
+    }, "")]
+    fn apply_normalisers_trims_whitespace(#[case] input: String, #[case] expected: &str) {
         let trim_whitespace: Normaliser = |text| text.trim().to_owned();
-        let result = apply_normalisers("", &[trim_whitespace]);
-        assert_eq!(result, "");
+        let result = apply_normalisers(input.as_str(), &[trim_whitespace]);
+        assert_eq!(result, expected);
     }
 
-    #[test]
-    fn apply_normalisers_handles_whitespace_only_string() {
-        let trim_whitespace: Normaliser = |text| text.trim().to_owned();
-        let mut whitespace = String::from("   ");
-        whitespace.push(char::from(10));
-        let result = apply_normalisers(whitespace.as_str(), &[trim_whitespace]);
-        assert_eq!(result, "");
-    }
-
-    #[test]
-    fn strip_nightly_macro_backtrace_hint_removes_multiple_instances() {
-        let text = concat!(
+    #[rstest]
+    #[case::removes_multiple(
+        concat!(
             "error: failure",
             " (in Nightly builds, run with -Z macro-backtrace for more info)",
             " more context",
             " (in Nightly builds, run with -Z macro-backtrace for more info)"
-        );
-        let expected = "error: failure more context";
-        assert_eq!(strip_nightly_macro_backtrace_hint(text), expected);
+        ),
+        "error: failure more context"
+    )]
+    #[case::leaves_text_unchanged("error: failure", "error: failure")]
+    fn strip_nightly_macro_backtrace_hint_cases(#[case] input: &str, #[case] expected: &str) {
+        assert_eq!(strip_nightly_macro_backtrace_hint(input), expected);
     }
 
-    #[test]
-    fn strip_nightly_macro_backtrace_hint_leaves_text_without_hint() {
-        let text = "error: failure";
-        assert_eq!(strip_nightly_macro_backtrace_hint(text), text);
-    }
-
-    #[test]
-    fn normalise_fixture_paths_rewrites_relative_fixture_paths() {
-        let dollar = char::from(36);
-        let input = "Warning:  --> tests/fixtures/example.rs:3:1";
-        let expected = format!("Warning:  --> {dollar}DIR/example.rs:3:1");
-        assert_eq!(normalise_fixture_paths(input), expected);
-    }
-
-    #[test]
-    fn normalise_fixture_paths_rewrites_absolute_fixture_paths() {
-        let dollar = char::from(36);
-        let newline = char::from(10);
-        let input = format!(
-            " --> /tmp/workspace/crates/rstest-bdd-macros/tests/fixtures/example.rs:4:2{newline}"
-        );
-        let expected = format!(" --> {dollar}DIR/example.rs:4:2{newline}");
-        assert_eq!(normalise_fixture_paths(input.as_str()), expected);
-    }
-
-    #[test]
-    fn normalise_fixture_paths_is_idempotent_for_normalised_input() {
-        let dollar = char::from(36);
-        let input = format!(" --> {dollar}DIR/example.rs:4:2");
-        assert_eq!(normalise_fixture_paths(input.as_str()), input);
+    #[rstest]
+    #[case::relative(
+        Cow::from("Warning:  --> tests/fixtures/example.rs:3:1"),
+        Cow::from("Warning:  --> $DIR/example.rs:3:1")
+    )]
+    #[case::absolute(
+        {
+            let mut input = String::from(
+                " --> /tmp/workspace/crates/rstest-bdd-macros/tests/fixtures/example.rs:4:2",
+            );
+            input.push(char::from(10));
+            Cow::from(input)
+        },
+        {
+            let mut expected = String::from(" --> $DIR/example.rs:4:2");
+            expected.push(char::from(10));
+            Cow::from(expected)
+        }
+    )]
+    #[case::idempotent(
+        Cow::from(" --> $DIR/example.rs:4:2"),
+        Cow::from(" --> $DIR/example.rs:4:2")
+    )]
+    fn normalise_fixture_paths_cases(
+        #[case] input: Cow<'static, str>,
+        #[case] expected: Cow<'static, str>,
+    ) {
+        assert_eq!(normalise_fixture_paths(input.as_ref()), expected.as_ref());
     }
 
     #[test]
