@@ -42,25 +42,65 @@ fn step_macros_compile() {
 
 type Normaliser = fn(&str) -> String;
 
+#[derive(Clone, Copy)]
+struct FixturePath<'a> {
+    raw: &'a str,
+}
+
+impl<'a> FixturePath<'a> {
+    fn new(raw: &'a str) -> Self {
+        Self { raw }
+    }
+
+    fn as_str(self) -> &'a str {
+        self.raw
+    }
+
+    fn expected_stderr_path(self) -> PathBuf {
+        let mut path = PathBuf::from(self.raw);
+        path.set_extension("stderr");
+        path
+    }
+
+    fn wip_stderr_path(self) -> PathBuf {
+        let Some(file_name) = Path::new(self.raw).file_name() else {
+            panic!("trybuild test path must include file name");
+        };
+        let mut path = PathBuf::from(file_name);
+        path.set_extension("stderr");
+        Path::new("target/tests/wip").join(path)
+    }
+}
+
+impl<'a> From<&'a str> for FixturePath<'a> {
+    fn from(raw: &'a str) -> Self {
+        FixturePath::new(raw)
+    }
+}
+
 fn compile_fail_missing_step_warning(t: &trybuild::TestCases) {
     compile_fail_with_normalised_output(
         t,
-        "tests/fixtures/scenario_missing_step_warning.rs",
+        FixturePath::new("tests/fixtures/scenario_missing_step_warning.rs"),
         &[strip_nightly_macro_backtrace_hint, normalise_fixture_paths],
     );
 }
 
 fn compile_fail_with_normalised_output(
     t: &trybuild::TestCases,
-    test_path: &str,
+    test_path: FixturePath<'_>,
     normalisers: &[Normaliser],
 ) {
-    run_compile_fail_with_normalised_output(|| t.compile_fail(test_path), test_path, normalisers);
+    run_compile_fail_with_normalised_output(
+        || t.compile_fail(test_path.as_str()),
+        test_path,
+        normalisers,
+    );
 }
 
 fn run_compile_fail_with_normalised_output<F>(
     compile_fail: F,
-    test_path: &str,
+    test_path: FixturePath<'_>,
     normalisers: &[Normaliser],
 ) where
     F: FnOnce(),
@@ -77,7 +117,10 @@ fn run_compile_fail_with_normalised_output<F>(
     }
 }
 
-fn normalised_outputs_match(test_path: &str, normalisers: &[Normaliser]) -> io::Result<bool> {
+fn normalised_outputs_match(
+    test_path: FixturePath<'_>,
+    normalisers: &[Normaliser],
+) -> io::Result<bool> {
     let actual_path = wip_stderr_path(test_path);
     let expected_path = expected_stderr_path(test_path);
     let actual = fs::read_to_string(&actual_path)?;
@@ -91,19 +134,12 @@ fn normalised_outputs_match(test_path: &str, normalisers: &[Normaliser]) -> io::
     Ok(false)
 }
 
-fn wip_stderr_path(test_path: &str) -> PathBuf {
-    let Some(file_name) = Path::new(test_path).file_name() else {
-        panic!("trybuild test path must include file name");
-    };
-    let mut path = PathBuf::from(file_name);
-    path.set_extension("stderr");
-    Path::new("target/tests/wip").join(path)
+fn wip_stderr_path(test_path: FixturePath<'_>) -> PathBuf {
+    test_path.wip_stderr_path()
 }
 
-fn expected_stderr_path(test_path: &str) -> PathBuf {
-    let mut path = PathBuf::from(test_path);
-    path.set_extension("stderr");
-    path
+fn expected_stderr_path(test_path: FixturePath<'_>) -> PathBuf {
+    test_path.expected_stderr_path()
 }
 
 fn apply_normalisers<'a>(text: &'a str, normalisers: &[Normaliser]) -> Cow<'a, str> {
@@ -185,7 +221,7 @@ mod helper_tests {
     }
 
     impl NormaliserFixture {
-        fn new(test_path: &str, expected: &str, actual: &str) -> Self {
+        fn new(test_path: FixturePath<'_>, expected: &str, actual: &str) -> Self {
             let expected_path = expected_stderr_path(test_path);
             if let Some(parent) = expected_path.parent() {
                 fs::create_dir_all(parent).unwrap_or_else(|error| {
@@ -222,25 +258,25 @@ mod helper_tests {
 
     #[test]
     fn wip_stderr_path_builds_target_location() {
-        let path = wip_stderr_path("tests/fixtures/__helper_case.rs");
+        let path = wip_stderr_path(FixturePath::new("tests/fixtures/__helper_case.rs"));
         assert_eq!(path, Path::new("target/tests/wip/__helper_case.stderr"));
     }
 
     #[test]
     #[should_panic(expected = "trybuild test path must include file name")]
     fn wip_stderr_path_panics_without_file_name() {
-        wip_stderr_path("");
+        wip_stderr_path(FixturePath::new(""));
     }
 
     #[test]
     fn expected_stderr_path_replaces_extension() {
-        let path = expected_stderr_path("tests/ui/example.output");
+        let path = expected_stderr_path(FixturePath::new("tests/ui/example.output"));
         assert_eq!(path, Path::new("tests/ui/example.stderr"));
     }
 
     #[test]
     fn expected_stderr_path_handles_multiple_extensions() {
-        let path = expected_stderr_path("tests/ui/example.feature.rs");
+        let path = expected_stderr_path(FixturePath::new("tests/ui/example.feature.rs"));
         assert_eq!(path, Path::new("tests/ui/example.feature.stderr"));
     }
 
@@ -329,13 +365,17 @@ mod helper_tests {
         actual.push(char::from(10));
         actual.push_str("help: review scenario");
         actual.push(char::from(10));
-        let fixture = NormaliserFixture::new(TEST_PATH, expected.as_str(), actual.as_str());
+        let fixture = NormaliserFixture::new(
+            FixturePath::new(TEST_PATH),
+            expected.as_str(),
+            actual.as_str(),
+        );
         let strip_hint_one: Normaliser = |text| text.replace(" (hint-one)", "");
         let strip_hint_two: Normaliser = |text| text.replace(" (hint-two)", "");
         let result = panic::catch_unwind(|| {
             run_compile_fail_with_normalised_output(
                 || panic!("expected failure"),
-                TEST_PATH,
+                FixturePath::new(TEST_PATH),
                 &[strip_hint_one, strip_hint_two],
             );
         });
@@ -349,9 +389,13 @@ mod helper_tests {
     #[test]
     fn run_compile_fail_with_normalised_output_accepts_empty_output() {
         const TEST_PATH: &str = "tests/fixtures/__normaliser_empty.rs";
-        let fixture = NormaliserFixture::new(TEST_PATH, "", "");
+        let fixture = NormaliserFixture::new(FixturePath::new(TEST_PATH), "", "");
         let result = panic::catch_unwind(|| {
-            run_compile_fail_with_normalised_output(|| panic!("expected failure"), TEST_PATH, &[]);
+            run_compile_fail_with_normalised_output(
+                || panic!("expected failure"),
+                FixturePath::new(TEST_PATH),
+                &[],
+            );
         });
         assert!(result.is_ok(), "identical empty outputs should be accepted");
         assert!(
@@ -362,7 +406,7 @@ mod helper_tests {
 
     #[rstest]
     #[case(
-        "tests/fixtures/__normaliser_whitespace.rs",
+        FixturePath::new("tests/fixtures/__normaliser_whitespace.rs"),
         "warning: trailing space",
         "warning: trailing space   ",
         true,
@@ -370,7 +414,7 @@ mod helper_tests {
         "matching outputs should delete the wip stderr file"
     )]
     #[case(
-        "tests/fixtures/__normaliser_unexpected.rs",
+        FixturePath::new("tests/fixtures/__normaliser_unexpected.rs"),
         "error: expected formatting",
         "error: unexpected formatting",
         false,
@@ -378,7 +422,7 @@ mod helper_tests {
         "mismatched outputs should retain the wip stderr file for inspection"
     )]
     fn run_compile_fail_with_normalised_output_test_cases(
-        #[case] test_path: &str,
+        #[case] test_path: FixturePath<'static>,
         #[case] expected_content: &str,
         #[case] actual_content: &str,
         #[case] should_succeed: bool,
