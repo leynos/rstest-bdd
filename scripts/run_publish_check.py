@@ -36,9 +36,7 @@ import os
 import shlex
 import shutil
 import sys
-import tarfile
 import tempfile
-import tomllib
 from contextlib import ExitStack
 from dataclasses import dataclass
 from pathlib import Path
@@ -49,154 +47,45 @@ from cyclopts import App, Parameter
 from plumbum import local
 from plumbum.commands.processes import ProcessTimedOut
 
-from publish_patch import REPLACEMENTS, apply_replacements
+from publish_workspace import (
+    apply_workspace_replacements,
+    export_workspace,
+    prune_workspace_members,
+    strip_patch_section,
+    workspace_version,
+)
 
-PUBLISH_CRATES = [
+Command = tuple[str, ...]
+
+CRATE_ORDER: tuple[str, ...] = (
     "rstest-bdd-patterns",
     "rstest-bdd-macros",
     "rstest-bdd",
     "cargo-bdd",
-]
+)
+
+LIVE_PUBLISH_COMMANDS: dict[str, tuple[Command, ...]] = {
+    "rstest-bdd-patterns": (
+        ("cargo", "publish", "--dry-run"),
+        ("cargo", "publish"),
+    ),
+    "rstest-bdd-macros": (
+        ("cargo", "publish", "--dry-run"),
+        ("cargo", "publish"),
+    ),
+    "rstest-bdd": (
+        ("cargo", "publish", "--dry-run"),
+        ("cargo", "publish"),
+    ),
+    "cargo-bdd": (
+        ("cargo", "publish", "--dry-run", "--locked"),
+        ("cargo", "publish", "--locked"),
+    ),
+}
 
 DEFAULT_PUBLISH_TIMEOUT_SECS = 900
 
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
-
 app = App(config=cyclopts.config.Env("PUBLISH_CHECK_", command=False))
-
-
-def export_workspace(destination: Path) -> None:
-    """Extract the repository HEAD into ``destination`` via ``git archive``."""
-
-    with tempfile.TemporaryDirectory() as archive_dir:
-        archive_path = Path(archive_dir) / "workspace.tar"
-        git_archive = local["git"]["archive", "--format=tar", "HEAD", f"--output={archive_path}"]
-        with local.cwd(PROJECT_ROOT):
-            git_archive()
-        with tarfile.open(archive_path) as tar:
-            tar.extractall(destination, filter="data")
-
-
-def _is_patch_section_start(line: str) -> bool:
-    """Return True when the line marks the ``[patch.crates-io]`` section."""
-
-    return line.strip() == "[patch.crates-io]"
-
-
-def _is_any_section_start(line: str) -> bool:
-    """Return True when the line starts a new manifest section."""
-
-    return line.startswith("[")
-
-
-def _process_patch_section_line(line: str, skipping_patch: bool) -> tuple[bool, bool]:
-    """Process a line for patch section handling.
-
-    Parameters
-    ----------
-    line
-        The current line being processed.
-    skipping_patch
-        Current state indicating if we're inside a patch section.
-
-    Returns
-    -------
-    tuple[bool, bool]
-        A tuple of (should_include_line, new_skipping_patch_state).
-    """
-
-    if not skipping_patch and _is_patch_section_start(line):
-        return False, True
-
-    if skipping_patch and _is_any_section_start(line):
-        return True, False
-
-    return not skipping_patch, skipping_patch
-
-
-def _ensure_proper_file_ending(lines: list[str]) -> None:
-    """Ensure the file ends with a newline by adding an empty string if needed."""
-
-    if not lines or lines[-1] != "":
-        lines.append("")
-
-
-def strip_patch_section(manifest: Path) -> None:
-    """Strip the [patch.crates-io] section from a Cargo manifest file."""
-
-    lines = manifest.read_text(encoding="utf-8").splitlines()
-    cleaned: list[str] = []
-    skipping_patch = False
-
-    for line in lines:
-        should_include, skipping_patch = _process_patch_section_line(line, skipping_patch)
-        if should_include:
-            cleaned.append(line)
-
-    _ensure_proper_file_ending(cleaned)
-    manifest.write_text("\n".join(cleaned), encoding="utf-8")
-
-
-def _is_members_section_start(line: str) -> bool:
-    """Return True if the line starts a workspace members section."""
-
-    stripped = line.strip()
-    return stripped.startswith("members") and stripped.endswith("[")
-
-
-def _is_members_section_end(line: str) -> bool:
-    """Return True if the line ends a workspace members section."""
-
-    return line.strip() == "]"
-
-
-def _should_include_member_line(line: str) -> bool:
-    """Return True if the member entry references a crate directory."""
-
-    return '"crates/' in line.strip()
-
-
-def _process_member_line(line: str, inside_members: bool, result: list[str]) -> bool:
-    """Update workspace member parsing state for a manifest line."""
-
-    if _is_members_section_start(line):
-        result.append(line)
-        return True
-
-    if inside_members and _is_members_section_end(line):
-        result.append(line)
-        return False
-
-    if inside_members and not _should_include_member_line(line):
-        return inside_members
-
-    result.append(line)
-    return inside_members
-
-
-def prune_workspace_members(manifest: Path) -> None:
-    lines = manifest.read_text(encoding="utf-8").splitlines()
-    result: list[str] = []
-    inside_members = False
-    for line in lines:
-        inside_members = _process_member_line(line, inside_members, result)
-    if result and result[-1] != "":
-        result.append("")
-    manifest.write_text("\n".join(result), encoding="utf-8")
-
-
-def apply_workspace_replacements(workspace_root: Path, version: str) -> None:
-    for crate in REPLACEMENTS:
-        manifest = workspace_root / "crates" / crate / "Cargo.toml"
-        apply_replacements(crate, manifest, version)
-
-
-def workspace_version(manifest: Path) -> str:
-    data = tomllib.loads(manifest.read_text(encoding="utf-8"))
-    try:
-        return data["workspace"]["package"]["version"]
-    except KeyError as err:
-        raise SystemExit(f"expected [workspace.package].version in {manifest}") from err
 
 
 def _resolve_timeout(timeout_secs: int | None) -> int:
@@ -359,8 +248,39 @@ def check_crate(
     )
 
 
-def run_publish_check(*, keep_tmp: bool, timeout_secs: int) -> None:
+def publish_crate_commands(
+    crate: str,
+    workspace_root: Path,
+    *,
+    timeout_secs: int,
+) -> None:
+    """Run the configured live publish commands for ``crate``.
+
+    The helper aborts with :class:`SystemExit` when the crate lacks a
+    configured command sequence to ensure the workflow cannot silently skip
+    releases when new crates are added to the workspace.
+    """
+
+    try:
+        commands = LIVE_PUBLISH_COMMANDS[crate]
+    except KeyError as error:
+        raise SystemExit(f"missing live publish commands for {crate!r}") from error
+
+    for command in commands:
+        run_cargo_command(
+            crate,
+            workspace_root,
+            list(command),
+            timeout_secs=timeout_secs,
+        )
+
+
+def run_publish_check(*, keep_tmp: bool, timeout_secs: int, live: bool = False) -> None:
     """Run the publish workflow inside a temporary workspace directory.
+
+    The default dry-run mode packages crates locally to validate publish
+    readiness. Enable ``live`` to execute ``cargo publish`` for each crate in
+    release order once the manifests have been rewritten for crates.io.
 
     Examples
     --------
@@ -380,12 +300,24 @@ def run_publish_check(*, keep_tmp: bool, timeout_secs: int) -> None:
         prune_workspace_members(manifest)
         strip_patch_section(manifest)
         version = workspace_version(manifest)
-        apply_workspace_replacements(workspace, version)
-        for crate in PUBLISH_CRATES:
-            if crate == "rstest-bdd-patterns":
-                package_crate(crate, workspace, timeout_secs=timeout_secs)
-            else:
-                check_crate(crate, workspace, timeout_secs=timeout_secs)
+        apply_workspace_replacements(
+            workspace,
+            version,
+            include_local_path=not live,
+        )
+        if live:
+            for crate in CRATE_ORDER:
+                publish_crate_commands(
+                    crate,
+                    workspace,
+                    timeout_secs=timeout_secs,
+                )
+        else:
+            for crate in CRATE_ORDER:
+                if crate == "rstest-bdd-patterns":
+                    package_crate(crate, workspace, timeout_secs=timeout_secs)
+                else:
+                    check_crate(crate, workspace, timeout_secs=timeout_secs)
     finally:
         if keep_tmp:
             print(f"preserving workspace at {workspace}")
@@ -404,10 +336,14 @@ def main(
         bool,
         Parameter(env_var="PUBLISH_CHECK_KEEP_TMP"),
     ] = False,
+    live: Annotated[
+        bool,
+        Parameter(env_var="PUBLISH_CHECK_LIVE"),
+    ] = False,
 ) -> None:
     """Cyclopts entry point for running the publish check workflow."""
 
-    run_publish_check(keep_tmp=keep_tmp, timeout_secs=timeout_secs)
+    run_publish_check(keep_tmp=keep_tmp, timeout_secs=timeout_secs, live=live)
 
 
 if __name__ == "__main__":

@@ -34,5 +34,12 @@ tool, so follow the sequence below to keep the dependency graph satisfied.
    - `git tag -a vX.Y.Z -m "rstest-bdd vX.Y.Z"`
    - `git push origin vX.Y.Z`
 
+The manual steps above are now automated by
+`uv run scripts/run_publish_check.py --live`, which exports a clean copy of the
+workspace, rewrites manifests to target crates.io, and then executes the
+`cargo publish` commands in the required order. The script preserves the
+`--dry-run` guard rails before each publish invocation and applies `--locked`
+for `cargo-bdd`.
+
 Cargo enforces that published dependencies already exist on crates.io. This is
 why the crates must be released in the order shown above.

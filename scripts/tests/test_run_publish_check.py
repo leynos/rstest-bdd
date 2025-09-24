@@ -58,6 +58,13 @@ def run_publish_check_module() -> ModuleType:
     return module
 
 
+@pytest.fixture(scope="module")
+def publish_workspace_module(run_publish_check_module: ModuleType) -> ModuleType:
+    module = sys.modules.get("publish_workspace")
+    assert module is not None
+    return module
+
+
 @pytest.fixture
 def fake_workspace(tmp_path: Path) -> Path:
     """Provision a fake workspace tree used by cargo command tests.
@@ -209,7 +216,9 @@ def test_export_workspace_creates_manifest_copy(
 
 
 def test_export_workspace_propagates_git_failure(
-    monkeypatch: pytest.MonkeyPatch, run_publish_check_module, tmp_path: Path
+    monkeypatch: pytest.MonkeyPatch,
+    publish_workspace_module: ModuleType,
+    tmp_path: Path,
 ) -> None:
     class FakeCommand:
         def __getitem__(self, _args: object) -> "FakeCommand":
@@ -227,10 +236,10 @@ def test_export_workspace_propagates_git_failure(
         def cwd(self, _path: Path):
             yield
 
-    monkeypatch.setattr(run_publish_check_module, "local", FakeLocal())
+    monkeypatch.setattr(publish_workspace_module, "local", FakeLocal())
 
     with pytest.raises(RuntimeError, match="archive failed"):
-        run_publish_check_module.export_workspace(tmp_path)
+        publish_workspace_module.export_workspace(tmp_path)
 
 
 @pytest.mark.parametrize(
@@ -519,17 +528,20 @@ def test_run_publish_check_orchestrates_workflow(
         "workspace_version",
         fake_workspace_version,
     )
+    def fake_apply(root: Path, version: str, *, include_local_path: bool) -> None:
+        steps.append(("apply", (root, version, include_local_path)))
+
     monkeypatch.setattr(
         run_publish_check_module,
         "apply_workspace_replacements",
-        lambda root, version: steps.append(("apply", (root, version))),
+        fake_apply,
     )
     monkeypatch.setattr(run_publish_check_module, "package_crate", fake_package)
     monkeypatch.setattr(run_publish_check_module, "check_crate", fake_check)
     monkeypatch.setattr(
         run_publish_check_module,
-        "PUBLISH_CRATES",
-        ["rstest-bdd-patterns", "demo-crate"],
+        "CRATE_ORDER",
+        ("rstest-bdd-patterns", "demo-crate"),
     )
 
     run_publish_check_module.run_publish_check(keep_tmp=False, timeout_secs=15)
@@ -541,9 +553,89 @@ def test_run_publish_check_orchestrates_workflow(
         ("strip", manifest_path),
     ]
     assert ("version", manifest_path) in steps
-    assert ("apply", (workspace_dir, "9.9.9")) in steps
+    assert ("apply", (workspace_dir, "9.9.9", True)) in steps
     assert package_calls == [("rstest-bdd-patterns", workspace_dir, 15)]
     assert check_calls == [("demo-crate", workspace_dir, 15)]
+    assert not workspace_dir.exists()
+
+
+def test_run_publish_check_live_mode_invokes_publish_commands(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    run_publish_check_module: ModuleType,
+) -> None:
+    workspace_dir = tmp_path / "live"
+    workspace_dir.mkdir()
+    monkeypatch.setattr(
+        run_publish_check_module.tempfile, "mkdtemp", lambda: str(workspace_dir)
+    )
+
+    steps: list[tuple[str, object]] = []
+
+    def record(step: str) -> Callable[[Path], None]:
+        def _inner(target: Path) -> None:
+            steps.append((step, target))
+        return _inner
+
+    def fake_apply(root: Path, version: str, *, include_local_path: bool) -> None:
+        steps.append(("apply", (root, version, include_local_path)))
+
+    monkeypatch.setattr(run_publish_check_module, "export_workspace", record("export"))
+    monkeypatch.setattr(
+        run_publish_check_module, "prune_workspace_members", record("prune")
+    )
+    monkeypatch.setattr(
+        run_publish_check_module, "strip_patch_section", record("strip")
+    )
+    monkeypatch.setattr(
+        run_publish_check_module, "workspace_version", lambda _manifest: "1.2.3"
+    )
+    monkeypatch.setattr(
+        run_publish_check_module,
+        "apply_workspace_replacements",
+        fake_apply,
+    )
+
+    commands: list[tuple[str, Path, list[str], int]] = []
+
+    def fake_run_cargo(
+        crate: str,
+        workspace_root: Path,
+        command: list[str],
+        *,
+        timeout_secs: int,
+    ) -> None:
+        commands.append((crate, workspace_root, command, timeout_secs))
+
+    monkeypatch.setattr(run_publish_check_module, "run_cargo_command", fake_run_cargo)
+    monkeypatch.setattr(
+        run_publish_check_module,
+        "CRATE_ORDER",
+        ("demo-crate",),
+    )
+    monkeypatch.setattr(
+        run_publish_check_module,
+        "LIVE_PUBLISH_COMMANDS",
+        {"demo-crate": (("cargo", "publish", "--dry-run"), ("cargo", "publish"))},
+    )
+
+    run_publish_check_module.run_publish_check(
+        keep_tmp=False,
+        timeout_secs=30,
+        live=True,
+    )
+
+    manifest_path = workspace_dir / "Cargo.toml"
+    assert steps[:3] == [
+        ("export", workspace_dir),
+        ("prune", manifest_path),
+        ("strip", manifest_path),
+    ]
+    assert ("apply", (workspace_dir, "1.2.3", False)) in steps
+    assert commands == [
+        ("demo-crate", workspace_dir, ["cargo", "publish", "--dry-run"], 30),
+        ("demo-crate", workspace_dir, ["cargo", "publish"], 30),
+    ]
     assert not workspace_dir.exists()
 
 
@@ -562,7 +654,7 @@ def test_run_publish_check_preserves_workspace(monkeypatch, tmp_path: Path, caps
     )
     monkeypatch.setattr(run_publish_check_module, "package_crate", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(run_publish_check_module, "check_crate", lambda *_args, **_kwargs: None)
-    monkeypatch.setattr(run_publish_check_module, "PUBLISH_CRATES", [])
+    monkeypatch.setattr(run_publish_check_module, "CRATE_ORDER", ())
 
     run_publish_check_module.run_publish_check(keep_tmp=True, timeout_secs=5)
 
@@ -584,9 +676,15 @@ def test_main_uses_defaults(
 ) -> None:
     captured: dict[str, object] = {}
 
-    def fake_run_publish_check(*, keep_tmp: bool, timeout_secs: int) -> None:
+    def fake_run_publish_check(
+        *,
+        keep_tmp: bool,
+        timeout_secs: int,
+        live: bool,
+    ) -> None:
         captured["keep_tmp"] = keep_tmp
         captured["timeout_secs"] = timeout_secs
+        captured["live"] = live
 
     monkeypatch.setattr(run_publish_check_module, "run_publish_check", fake_run_publish_check)
 
@@ -595,14 +693,20 @@ def test_main_uses_defaults(
     assert captured == {
         "keep_tmp": False,
         "timeout_secs": run_publish_check_module.DEFAULT_PUBLISH_TIMEOUT_SECS,
+        "live": False,
     }
 
 
 def test_main_honours_environment(monkeypatch, run_publish_check_module) -> None:
-    observed: list[tuple[bool, int]] = []
+    observed: list[tuple[bool, int, bool]] = []
 
-    def fake_run_publish_check(*, keep_tmp: bool, timeout_secs: int) -> None:
-        observed.append((keep_tmp, timeout_secs))
+    def fake_run_publish_check(
+        *,
+        keep_tmp: bool,
+        timeout_secs: int,
+        live: bool,
+    ) -> None:
+        observed.append((keep_tmp, timeout_secs, live))
 
     monkeypatch.setattr(run_publish_check_module, "run_publish_check", fake_run_publish_check)
     monkeypatch.setenv("PUBLISH_CHECK_KEEP_TMP", "true")
@@ -610,14 +714,19 @@ def test_main_honours_environment(monkeypatch, run_publish_check_module) -> None
 
     run_publish_check_module.app([])
 
-    assert observed == [(True, 60)]
+    assert observed == [(True, 60, False)]
 
 
 def test_main_cli_overrides_env(monkeypatch, run_publish_check_module) -> None:
-    observed: list[tuple[bool, int]] = []
+    observed: list[tuple[bool, int, bool]] = []
 
-    def fake_run_publish_check(*, keep_tmp: bool, timeout_secs: int) -> None:
-        observed.append((keep_tmp, timeout_secs))
+    def fake_run_publish_check(
+        *,
+        keep_tmp: bool,
+        timeout_secs: int,
+        live: bool,
+    ) -> None:
+        observed.append((keep_tmp, timeout_secs, live))
 
     monkeypatch.setattr(run_publish_check_module, "run_publish_check", fake_run_publish_check)
     monkeypatch.setenv("PUBLISH_CHECK_KEEP_TMP", "false")
@@ -625,4 +734,28 @@ def test_main_cli_overrides_env(monkeypatch, run_publish_check_module) -> None:
 
     run_publish_check_module.app(["--keep-tmp", "--timeout-secs", "5"])
 
-    assert observed == [(True, 5)]
+    assert observed == [(True, 5, False)]
+
+
+def test_main_live_flag(monkeypatch, run_publish_check_module) -> None:
+    observed: list[tuple[bool, int, bool]] = []
+
+    def fake_run_publish_check(
+        *,
+        keep_tmp: bool,
+        timeout_secs: int,
+        live: bool,
+    ) -> None:
+        observed.append((keep_tmp, timeout_secs, live))
+
+    monkeypatch.setattr(run_publish_check_module, "run_publish_check", fake_run_publish_check)
+
+    run_publish_check_module.app(["--live"])
+
+    assert observed == [
+        (
+            False,
+            run_publish_check_module.DEFAULT_PUBLISH_TIMEOUT_SECS,
+            True,
+        )
+    ]

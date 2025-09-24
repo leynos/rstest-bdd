@@ -41,7 +41,13 @@ REPLACEMENTS: dict[str, tuple[DependencyPatch, ...]] = {
 }
 
 
-def apply_replacements(crate: str, manifest: Path, version: str) -> None:
+def apply_replacements(
+    crate: str,
+    manifest: Path,
+    version: str,
+    *,
+    include_local_path: bool = True,
+) -> None:
     """Rewrite workspace dependencies to point at packaged versions.
 
     Parameters
@@ -52,6 +58,11 @@ def apply_replacements(crate: str, manifest: Path, version: str) -> None:
         Path to the `Cargo.toml` file that will be rewritten in place.
     version : str
         Version string applied to patched dependency entries.
+    include_local_path : bool, default True
+        Retain the relative ``path`` entry alongside the version when updating
+        manifests. Publish checks rely on the path so crates can depend on the
+        locally exported workspace. Disable this for live publishing so Cargo
+        talks to crates.io instead.
 
     Returns
     -------
@@ -82,7 +93,13 @@ def apply_replacements(crate: str, manifest: Path, version: str) -> None:
     if patches is None:
         raise SystemExit(f"unknown crate {crate!r}")
     for patch in patches:
-        update_dependency(document, patch, version, manifest)
+        update_dependency(
+            document,
+            patch,
+            version,
+            manifest,
+            include_local_path=include_local_path,
+        )
     manifest.write_text(dumps(document), encoding="utf-8")
 
 
@@ -91,6 +108,8 @@ def update_dependency(
     patch: DependencyPatch,
     version: str,
     manifest: Path,
+    *,
+    include_local_path: bool,
 ) -> None:
     """Replace a workspace dependency with an inline publish-friendly entry.
 
@@ -104,6 +123,9 @@ def update_dependency(
         Version string used for the inline dependency.
     manifest : Path
         Path to the manifest used for error reporting.
+    include_local_path : bool
+        Forwarded to :func:`build_inline_dependency` to control whether the
+        ``path`` attribute is retained.
 
     Returns
     -------
@@ -121,7 +143,13 @@ def update_dependency(
     >>> from tomlkit import parse
     >>> doc = parse('[dependencies]\nfoo = { path = "../foo" }')
     >>> patch = DependencyPatch('dependencies', 'foo', '../foo')
-    >>> update_dependency(doc, patch, '1.0.0', Path('Cargo.toml'))
+    >>> update_dependency(
+    ...     doc,
+    ...     patch,
+    ...     '1.0.0',
+    ...     Path('Cargo.toml'),
+    ...     include_local_path=True,
+    ... )
     >>> dict(doc['dependencies']['foo'])['version']
     '1.0.0'
     """
@@ -138,7 +166,12 @@ def update_dependency(
             f"expected dependency {patch.name!r} in {manifest}"
         ) from error
     extra_items = extract_existing_items(existing)
-    section[patch.name] = build_inline_dependency(extra_items, patch.path, version)
+    section[patch.name] = build_inline_dependency(
+        extra_items,
+        patch.path,
+        version,
+        include_local_path=include_local_path,
+    )
 
 
 def extract_existing_items(value: object) -> Iterable[tuple[str, object]]:
@@ -175,6 +208,8 @@ def build_inline_dependency(
     extra_items: Iterable[tuple[str, object]],
     path: str,
     version: str,
+    *,
+    include_local_path: bool,
 ) -> InlineTable:
     """Construct a normalised inline dependency table.
 
@@ -186,6 +221,10 @@ def build_inline_dependency(
         Relative path to the dependency crate.
     version : str
         Version string for the dependency.
+    include_local_path : bool
+        When ``True`` the dependency retains the ``path`` attribute so the
+        local workspace copy is used. Disable the flag for live publishing so
+        manifests point at crates.io.
 
     Returns
     -------
@@ -194,12 +233,15 @@ def build_inline_dependency(
 
     Examples
     --------
-    >>> inline = build_inline_dependency((), '../foo', '1.0.0')
+    >>> inline = build_inline_dependency((), '../foo', '1.0.0', include_local_path=True)
     >>> dict(inline)
     {'path': '../foo', 'version': '1.0.0'}
+    >>> dict(build_inline_dependency((), '../foo', '1.0.0', include_local_path=False))
+    {'version': '1.0.0'}
     """
     dependency = inline_table()
-    dependency["path"] = path
+    if include_local_path:
+        dependency["path"] = path
     dependency["version"] = version
     for key, item in extra_items:
         dependency[key] = item
@@ -252,8 +294,32 @@ def main() -> None:
     parser.add_argument("crate", choices=sorted(REPLACEMENTS))
     parser.add_argument("manifest", type=Path)
     parser.add_argument("--version", required=True)
+    parser.add_argument(
+        "--include-local-path",
+        dest="include_local_path",
+        action="store_true",
+        default=True,
+        help=(
+            "Retain relative path dependencies for publish-checks. This is the "
+            "default behaviour."
+        ),
+    )
+    parser.add_argument(
+        "--omit-local-path",
+        dest="include_local_path",
+        action="store_false",
+        help=(
+            "Drop relative path dependencies so manifests resolve crates on "
+            "crates.io."
+        ),
+    )
     args = parser.parse_args()
-    apply_replacements(args.crate, args.manifest, args.version)
+    apply_replacements(
+        args.crate,
+        args.manifest,
+        args.version,
+        include_local_path=args.include_local_path,
+    )
 
 
 if __name__ == "__main__":
