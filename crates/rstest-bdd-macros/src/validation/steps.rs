@@ -13,22 +13,24 @@
 use std::collections::HashMap;
 use std::sync::{LazyLock, Mutex};
 
+use camino::{Utf8Path, Utf8PathBuf};
+use cap_std::{ambient_authority, fs_utf8::Dir};
+
 use crate::StepKeyword;
 use crate::parsing::feature::ParsedStep;
-use proc_macro_error::abort;
+use crate::pattern::MacroPattern;
 #[cfg(not(test))]
 use proc_macro_error::emit_warning;
-use rstest_bdd::{StepPattern, extract_placeholders};
 
 type Registry = HashMap<Box<str>, CrateDefs>;
 
 #[derive(Default, Clone)]
 struct CrateDefs {
-    by_kw: HashMap<StepKeyword, Vec<&'static StepPattern>>,
+    by_kw: HashMap<StepKeyword, Vec<&'static MacroPattern>>,
 }
 
 impl CrateDefs {
-    fn patterns(&self, kw: StepKeyword) -> &[&'static StepPattern] {
+    fn patterns(&self, kw: StepKeyword) -> &[&'static MacroPattern] {
         self.by_kw.get(&kw).map_or(&[], Vec::as_slice)
     }
     fn is_empty(&self) -> bool {
@@ -59,15 +61,8 @@ static CURRENT_CRATE_ID: LazyLock<Box<str>> =
 /// Registration occurs during macro expansion so the total leak is bounded.
 fn register_step_inner(keyword: StepKeyword, pattern: &syn::LitStr, crate_id: impl AsRef<str>) {
     let leaked: &'static str = Box::leak(pattern.value().into_boxed_str());
-    let step_pattern: &'static StepPattern = Box::leak(Box::new(StepPattern::new(leaked)));
-    if let Err(e) = step_pattern.compile() {
-        abort!(
-            pattern.span(),
-            "rstest-bdd-macros: Invalid step pattern '{}' in #[step] macro: {}",
-            leaked,
-            e
-        );
-    }
+    let stored: &'static MacroPattern = Box::leak(Box::new(MacroPattern::new(leaked)));
+    let _ = stored.regex(pattern.span());
     #[expect(
         clippy::expect_used,
         reason = "lock poisoning is unrecoverable; panic with clear message"
@@ -75,7 +70,7 @@ fn register_step_inner(keyword: StepKeyword, pattern: &syn::LitStr, crate_id: im
     let mut reg = REGISTERED.lock().expect("step registry poisoned");
     let crate_id = normalise_crate_id(crate_id.as_ref());
     let defs = reg.entry(crate_id).or_default();
-    defs.by_kw.entry(keyword).or_default().push(step_pattern);
+    defs.by_kw.entry(keyword).or_default().push(stored);
 }
 
 /// Record a step definition so scenarios can validate against it.
@@ -121,12 +116,12 @@ fn get_step_span(step: &ParsedStep) -> proc_macro2::Span {
 /// Search patterns for matches against a step.
 ///
 /// ```ignore
-/// use rstest_bdd::{StepPattern};
+/// use crate::pattern::MacroPattern;
 /// use rstest_bdd_macros::{StepKeyword};
 /// use rstest_bdd_macros::parsing::feature::ParsedStep;
 /// use rstest_bdd_macros::validation::steps::find_step_matches;
-/// let pattern = StepPattern::new("a step");
-/// pattern.compile().unwrap();
+/// let pattern = MacroPattern::new("a step");
+/// let _ = pattern.regex(proc_macro2::Span::call_site());
 /// let step = ParsedStep {
 ///     keyword: StepKeyword::Given,
 ///     text: "a step".into(),
@@ -139,11 +134,14 @@ fn get_step_span(step: &ParsedStep) -> proc_macro2::Span {
 /// ```
 fn find_step_matches(
     step: &ParsedStep,
-    patterns: &[&'static StepPattern],
-) -> Result<Option<&'static StepPattern>, Vec<&'static StepPattern>> {
+    patterns: &[&'static MacroPattern],
+) -> Result<Option<&'static MacroPattern>, Vec<&'static MacroPattern>> {
     let mut matches = Vec::new();
     for &pat in patterns {
-        if extract_placeholders(pat, step.text.as_str().into()).is_ok() {
+        if pat
+            .captures(get_step_span(step), step.text.as_str())
+            .is_some()
+        {
             matches.push(pat);
         }
     }
@@ -157,12 +155,12 @@ fn find_step_matches(
 /// Validate a single step against registered definitions.
 ///
 /// ```ignore
-/// use rstest_bdd::{StepPattern};
+/// use crate::pattern::MacroPattern;
 /// use rstest_bdd_macros::{StepKeyword};
 /// use rstest_bdd_macros::parsing::feature::ParsedStep;
 /// use rstest_bdd_macros::validation::steps::{validate_single_step, CrateDefs};
-/// let pattern = StepPattern::new("a step");
-/// pattern.compile().unwrap();
+/// let pattern = MacroPattern::new("a step");
+/// let _ = pattern.regex(proc_macro2::Span::call_site());
 /// let mut defs = CrateDefs::default();
 /// defs.by_kw.entry(StepKeyword::Given).or_default().push(&pattern);
 /// let step = ParsedStep {
@@ -238,12 +236,12 @@ fn validate_registry_state(
 /// Validate each step and collect missing ones.
 ///
 /// ```ignore
-/// use rstest_bdd::{StepPattern};
+/// use crate::pattern::MacroPattern;
 /// use rstest_bdd_macros::{StepKeyword};
 /// use rstest_bdd_macros::parsing::feature::ParsedStep;
 /// use rstest_bdd_macros::validation::steps::{validate_individual_steps, CrateDefs};
-/// let pattern = StepPattern::new("a step");
-/// pattern.compile().unwrap();
+/// let pattern = MacroPattern::new("a step");
+/// let _ = pattern.regex(proc_macro2::Span::call_site());
 /// let mut defs = CrateDefs::default();
 /// defs.by_kw.entry(StepKeyword::Given).or_default().push(&pattern);
 /// let steps = [ParsedStep {
@@ -347,16 +345,17 @@ fn emit_non_strict_warnings(missing: &[(proc_macro2::Span, String)]) {
 
 fn format_missing_step_error(resolved: StepKeyword, step: &ParsedStep, defs: &CrateDefs) -> String {
     let patterns = defs.patterns(resolved);
+    let span = get_step_span(step);
     let available_defs: Vec<&str> = patterns.iter().map(|p| p.as_str()).collect();
     let possible_matches: Vec<&str> = patterns
         .iter()
-        .filter(|p| p.regex().is_match(step.text.as_str()))
+        .filter(|p| p.regex(span).is_match(step.text.as_str()))
         .map(|p| p.as_str())
         .collect();
     build_missing_step_message(resolved, step, &available_defs, &possible_matches)
 }
 
-fn format_ambiguous_step_error(matches: &[&'static StepPattern], step: &ParsedStep) -> syn::Error {
+fn format_ambiguous_step_error(matches: &[&'static MacroPattern], step: &ParsedStep) -> syn::Error {
     let patterns: Vec<&str> = matches.iter().map(|p| p.as_str()).collect();
     let msg = format!(
         "Ambiguous step definition for '{}'.\n{}",
@@ -426,6 +425,7 @@ fn fmt_keyword(kw: StepKeyword) -> &'static str {
 }
 
 fn current_crate_id_raw() -> String {
+    // FIXME: ambient env access is read-only here; do not introduce writes (see repo guidelines).
     let name = std::env::var("CARGO_CRATE_NAME")
         .or_else(|_| std::env::var("CARGO_PKG_NAME"))
         .unwrap_or_else(|_| "unknown".to_owned());
@@ -434,18 +434,56 @@ fn current_crate_id_raw() -> String {
 }
 
 fn normalise_crate_id(id: &str) -> Box<str> {
-    // Canonicalise the `OUT_DIR` component so repeated builds do not create
-    // duplicate registry entries for the same crate.
+    // Canonicalise the `OUT_DIR` component without std::fs.
     let (name, path) = id.split_once(':').unwrap_or((id, ""));
     if path.is_empty() {
         return name.into();
     }
-    let canonical = std::path::Path::new(path)
-        .canonicalize()
-        .unwrap_or_else(|_| path.into())
-        .to_string_lossy()
-        .into_owned();
+
+    let original = Utf8Path::new(path);
+    let canonical = canonicalise_out_dir(original);
     format!("{name}:{canonical}").into_boxed_str()
+}
+
+/// Resolve a path using cap-std first, falling back to camino when needed.
+///
+/// The capability-aware canonicalisation keeps us inside the sandbox even when
+/// camino or std may resolve the path differently (for example via symlinks or
+/// when permissions block intermediate directories). If cap-std cannot resolve
+/// the path we defer to camino's view, and if that also fails we return the
+/// caller-provided value unchanged so registry lookups remain stable.
+fn canonicalise_out_dir(original: &Utf8Path) -> Utf8PathBuf {
+    canonicalise_with_cap_std(original).unwrap_or_else(|_| {
+        original
+            .canonicalize_utf8()
+            .unwrap_or_else(|_| original.to_owned())
+    })
+}
+
+/// Canonicalise via the ambient directory so we respect capability boundaries.
+fn canonicalise_with_cap_std(original: &Utf8Path) -> Result<Utf8PathBuf, std::io::Error> {
+    let dir = Dir::open_ambient_dir(".", ambient_authority())?;
+    let candidate = dir.canonicalize(original)?;
+    Ok(ensure_absolute(candidate, original))
+}
+
+/// Ensure the resolved path is absolute; fall back to the original path if not.
+fn ensure_absolute(candidate: Utf8PathBuf, original: &Utf8Path) -> Utf8PathBuf {
+    if candidate.is_absolute() {
+        return candidate;
+    }
+
+    absolutise_relative(&candidate)
+        .or_else(|| original.canonicalize_utf8().ok())
+        .unwrap_or_else(|| original.to_owned())
+}
+
+/// Join a relative path to the current directory and canonicalise it if possible.
+fn absolutise_relative(candidate: &Utf8Path) -> Option<Utf8PathBuf> {
+    let cwd = std::env::current_dir().ok()?;
+    let cwd = Utf8PathBuf::from_path_buf(cwd).ok()?;
+    let joined = cwd.join(candidate);
+    Some(joined.as_path().canonicalize_utf8().unwrap_or(joined))
 }
 
 fn current_crate_id() -> Box<str> {
