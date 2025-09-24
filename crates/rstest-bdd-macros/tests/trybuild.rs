@@ -46,7 +46,7 @@ fn compile_fail_missing_step_warning(t: &trybuild::TestCases) {
     compile_fail_with_normalised_output(
         t,
         "tests/fixtures/scenario_missing_step_warning.rs",
-        &[strip_nightly_macro_backtrace_hint],
+        &[strip_nightly_macro_backtrace_hint, normalise_fixture_paths],
     );
 }
 
@@ -112,6 +112,55 @@ fn apply_normalisers<'a>(text: &'a str, normalisers: &[Normaliser]) -> Cow<'a, s
         value = Cow::Owned(normalise(value.as_ref()));
     }
     value
+}
+
+fn normalise_fixture_paths(text: &str) -> String {
+    let normalised_lines = text
+        .lines()
+        .map(normalise_fixture_path_line)
+        .collect::<Vec<_>>();
+    let separator = char::from(0x0A);
+    let separator_str = separator.to_string();
+    let mut normalised = normalised_lines.join(&separator_str);
+    if text.ends_with(separator) {
+        normalised.push(separator);
+    }
+    normalised
+}
+
+fn normalise_fixture_path_line(line: &str) -> String {
+    const ARROW: &str = "-->";
+
+    let Some((prefix, remainder)) = line.split_once(ARROW) else {
+        return line.to_owned();
+    };
+
+    let trimmed = remainder.trim_start();
+    if trimmed.is_empty() || !trimmed.contains(".rs") {
+        return line.to_owned();
+    }
+
+    let mut parts = trimmed.splitn(2, ':');
+    let path = parts.next().unwrap_or(trimmed);
+    let suffix = parts.next();
+
+    let file_name = Path::new(path)
+        .file_name()
+        .and_then(|value| value.to_str())
+        .unwrap_or(path);
+
+    let mut rebuilt = format!("{prefix}{ARROW} ");
+    rebuilt.push('$');
+    rebuilt.push_str("DIR/");
+    rebuilt.push_str(file_name);
+    if let Some(rest) = suffix {
+        if !rest.is_empty() {
+            rebuilt.push(':');
+            rebuilt.push_str(rest);
+        }
+    }
+
+    rebuilt
 }
 
 fn strip_nightly_macro_backtrace_hint(text: &str) -> String {
@@ -241,6 +290,32 @@ mod helper_tests {
     fn strip_nightly_macro_backtrace_hint_leaves_text_without_hint() {
         let text = "error: failure";
         assert_eq!(strip_nightly_macro_backtrace_hint(text), text);
+    }
+
+    #[test]
+    fn normalise_fixture_paths_rewrites_relative_fixture_paths() {
+        let dollar = char::from(36);
+        let input = "Warning:  --> tests/fixtures/example.rs:3:1";
+        let expected = format!("Warning:  --> {dollar}DIR/example.rs:3:1");
+        assert_eq!(normalise_fixture_paths(input), expected);
+    }
+
+    #[test]
+    fn normalise_fixture_paths_rewrites_absolute_fixture_paths() {
+        let dollar = char::from(36);
+        let newline = char::from(10);
+        let input = format!(
+            " --> /tmp/workspace/crates/rstest-bdd-macros/tests/fixtures/example.rs:4:2{newline}"
+        );
+        let expected = format!(" --> {dollar}DIR/example.rs:4:2{newline}");
+        assert_eq!(normalise_fixture_paths(input.as_str()), expected);
+    }
+
+    #[test]
+    fn normalise_fixture_paths_is_idempotent_for_normalised_input() {
+        let dollar = char::from(36);
+        let input = format!(" --> {dollar}DIR/example.rs:4:2");
+        assert_eq!(normalise_fixture_paths(input.as_str()), input);
     }
 
     #[test]
