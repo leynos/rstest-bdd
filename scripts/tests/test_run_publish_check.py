@@ -528,13 +528,24 @@ def test_run_publish_check_orchestrates_workflow(
         "workspace_version",
         fake_workspace_version,
     )
-    def fake_apply(root: Path, version: str, *, include_local_path: bool) -> None:
-        steps.append(("apply", (root, version, include_local_path)))
+    def fake_apply(
+        root: Path,
+        version: str,
+        *,
+        include_local_path: bool,
+        crates: tuple[str, ...] | None = None,
+    ) -> None:
+        steps.append(("apply", (root, version, include_local_path, crates)))
 
     monkeypatch.setattr(
         run_publish_check_module,
         "apply_workspace_replacements",
         fake_apply,
+    )
+    monkeypatch.setattr(
+        run_publish_check_module,
+        "remove_patch_entry",
+        lambda *_args, **_kwargs: None,
     )
     monkeypatch.setattr(run_publish_check_module, "package_crate", fake_package)
     monkeypatch.setattr(run_publish_check_module, "check_crate", fake_check)
@@ -553,7 +564,7 @@ def test_run_publish_check_orchestrates_workflow(
         ("strip", manifest_path),
     ]
     assert ("version", manifest_path) in steps
-    assert ("apply", (workspace_dir, "9.9.9", True)) in steps
+    assert ("apply", (workspace_dir, "9.9.9", True, None)) in steps
     assert package_calls == [("rstest-bdd-patterns", workspace_dir, 15)]
     assert check_calls == [("demo-crate", workspace_dir, 15)]
     assert not workspace_dir.exists()
@@ -566,6 +577,13 @@ def test_run_publish_check_live_mode_invokes_publish_commands(
 ) -> None:
     workspace_dir = tmp_path / "live"
     workspace_dir.mkdir()
+    manifest = workspace_dir / "Cargo.toml"
+    manifest.write_text(
+        "[workspace]\n"
+        "[patch.crates-io]\n"
+        "demo-crate = { path = \"crates/demo-crate\" }\n",
+        encoding="utf-8",
+    )
     monkeypatch.setattr(
         run_publish_check_module.tempfile, "mkdtemp", lambda: str(workspace_dir)
     )
@@ -577,8 +595,14 @@ def test_run_publish_check_live_mode_invokes_publish_commands(
             steps.append((step, target))
         return _inner
 
-    def fake_apply(root: Path, version: str, *, include_local_path: bool) -> None:
-        steps.append(("apply", (root, version, include_local_path)))
+    def fake_apply(
+        root: Path,
+        version: str,
+        *,
+        include_local_path: bool,
+        crates: tuple[str, ...] | None = None,
+    ) -> None:
+        steps.append(("apply", (root, version, include_local_path, crates)))
 
     monkeypatch.setattr(run_publish_check_module, "export_workspace", record("export"))
     monkeypatch.setattr(
@@ -595,6 +619,10 @@ def test_run_publish_check_live_mode_invokes_publish_commands(
         "apply_workspace_replacements",
         fake_apply,
     )
+    def fake_remove(manifest: Path, crate: str) -> None:
+        steps.append(("remove_patch", (manifest, crate)))
+
+    monkeypatch.setattr(run_publish_check_module, "remove_patch_entry", fake_remove)
 
     commands: list[tuple[str, Path, list[str], int]] = []
 
@@ -626,12 +654,13 @@ def test_run_publish_check_live_mode_invokes_publish_commands(
     )
 
     manifest_path = workspace_dir / "Cargo.toml"
-    assert steps[:3] == [
+    assert steps[:2] == [
         ("export", workspace_dir),
         ("prune", manifest_path),
-        ("strip", manifest_path),
     ]
-    assert ("apply", (workspace_dir, "1.2.3", False)) in steps
+    assert ("strip", manifest_path) not in steps
+    assert ("remove_patch", (manifest_path, "demo-crate")) in steps
+    assert ("apply", (workspace_dir, "1.2.3", False, ("demo-crate",))) in steps
     assert commands == [
         ("demo-crate", workspace_dir, ["cargo", "publish", "--dry-run"], 30),
         ("demo-crate", workspace_dir, ["cargo", "publish"], 30),

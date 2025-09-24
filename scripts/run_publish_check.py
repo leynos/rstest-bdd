@@ -51,6 +51,7 @@ from publish_workspace import (
     apply_workspace_replacements,
     export_workspace,
     prune_workspace_members,
+    remove_patch_entry,
     strip_patch_section,
     workspace_version,
 )
@@ -298,21 +299,29 @@ def run_publish_check(*, keep_tmp: bool, timeout_secs: int, live: bool = False) 
         export_workspace(workspace)
         manifest = workspace / "Cargo.toml"
         prune_workspace_members(manifest)
-        strip_patch_section(manifest)
+        if not live:
+            strip_patch_section(manifest)
         version = workspace_version(manifest)
-        apply_workspace_replacements(
-            workspace,
-            version,
-            include_local_path=not live,
-        )
         if live:
             for crate in CRATE_ORDER:
+                apply_workspace_replacements(
+                    workspace,
+                    version,
+                    include_local_path=False,
+                    crates=(crate,),
+                )
                 publish_crate_commands(
                     crate,
                     workspace,
                     timeout_secs=timeout_secs,
                 )
+                remove_patch_entry(manifest, crate)
         else:
+            apply_workspace_replacements(
+                workspace,
+                version,
+                include_local_path=True,
+            )
             for crate in CRATE_ORDER:
                 if crate == "rstest-bdd-patterns":
                     package_crate(crate, workspace, timeout_secs=timeout_secs)

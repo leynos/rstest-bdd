@@ -16,6 +16,7 @@ import tomllib
 from plumbum import local
 
 from publish_patch import REPLACEMENTS, apply_replacements
+from tomlkit import dumps, parse
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
@@ -147,10 +148,14 @@ def apply_workspace_replacements(
     version: str,
     *,
     include_local_path: bool,
+    crates: tuple[str, ...] | None = None,
 ) -> None:
     """Rewrite workspace dependency declarations for publish workflows."""
 
-    for crate in REPLACEMENTS:
+    targets = REPLACEMENTS if crates is None else crates
+    for crate in targets:
+        if crate not in REPLACEMENTS:
+            continue
         manifest = workspace_root / "crates" / crate / "Cargo.toml"
         apply_replacements(
             crate,
@@ -168,3 +173,21 @@ def workspace_version(manifest: Path) -> str:
         return data["workspace"]["package"]["version"]
     except KeyError as err:
         raise SystemExit(f"expected [workspace.package].version in {manifest}") from err
+
+
+def remove_patch_entry(manifest: Path, crate: str) -> None:
+    """Remove the ``crate`` entry from the root ``[patch.crates-io]`` table."""
+
+    document = parse(manifest.read_text(encoding="utf-8"))
+    patch_table = document.get("patch")
+    if patch_table is None:
+        return
+    crates_io = patch_table.get("crates-io")
+    if crates_io is None or crate not in crates_io:
+        return
+    del crates_io[crate]
+    if not crates_io:
+        del patch_table["crates-io"]
+    if not patch_table:
+        del document["patch"]
+    manifest.write_text(dumps(document), encoding="utf-8")
