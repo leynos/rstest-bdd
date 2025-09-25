@@ -275,6 +275,63 @@ def publish_crate_commands(
         )
 
 
+def _process_crates_for_live_publish(workspace: Path, timeout_secs: int) -> None:
+    """Execute the live publish commands for each workspace crate.
+
+    Parameters
+    ----------
+    workspace
+        Root directory of the exported workspace where crates reside under the
+        ``crates`` folder.
+    timeout_secs
+        Timeout in seconds for each Cargo invocation executed as part of the
+        workflow.
+
+    Examples
+    --------
+    >>> workspace = Path("/tmp/workspace")
+    >>> _process_crates_for_live_publish(workspace, timeout_secs=900)
+    Traceback (most recent call last):
+    ...
+    FileNotFoundError: [Errno 2] No such file or directory: '/tmp/workspace/crates/rstest-bdd-patterns'
+    """
+
+    for crate in CRATE_ORDER:
+        publish_crate_commands(
+            crate,
+            workspace,
+            timeout_secs=timeout_secs,
+        )
+
+
+def _process_crates_for_check(workspace: Path, timeout_secs: int) -> None:
+    """Package or check crates to validate publish readiness without publishing.
+
+    Parameters
+    ----------
+    workspace
+        Root directory of the exported workspace where crates reside under the
+        ``crates`` folder.
+    timeout_secs
+        Timeout in seconds for each Cargo invocation executed as part of the
+        workflow.
+
+    Examples
+    --------
+    >>> workspace = Path("/tmp/workspace")
+    >>> _process_crates_for_check(workspace, timeout_secs=900)
+    Traceback (most recent call last):
+    ...
+    FileNotFoundError: [Errno 2] No such file or directory: '/tmp/workspace/crates/rstest-bdd-patterns'
+    """
+
+    for crate in CRATE_ORDER:
+        if crate == "rstest-bdd-patterns":
+            package_crate(crate, workspace, timeout_secs=timeout_secs)
+        else:
+            check_crate(crate, workspace, timeout_secs=timeout_secs)
+
+
 def run_publish_check(*, keep_tmp: bool, timeout_secs: int, live: bool = False) -> None:
     """Run the publish workflow inside a temporary workspace directory.
 
@@ -306,18 +363,9 @@ def run_publish_check(*, keep_tmp: bool, timeout_secs: int, live: bool = False) 
             include_local_path=not live,
         )
         if live:
-            for crate in CRATE_ORDER:
-                publish_crate_commands(
-                    crate,
-                    workspace,
-                    timeout_secs=timeout_secs,
-                )
+            _process_crates_for_live_publish(workspace, timeout_secs)
         else:
-            for crate in CRATE_ORDER:
-                if crate == "rstest-bdd-patterns":
-                    package_crate(crate, workspace, timeout_secs=timeout_secs)
-                else:
-                    check_crate(crate, workspace, timeout_secs=timeout_secs)
+            _process_crates_for_check(workspace, timeout_secs)
     finally:
         if keep_tmp:
             print(f"preserving workspace at {workspace}")
