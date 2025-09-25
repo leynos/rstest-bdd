@@ -40,7 +40,7 @@ import tempfile
 from contextlib import ExitStack
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Callable, Optional, Protocol
 
 import cyclopts
 from cyclopts import App, Parameter
@@ -57,6 +57,12 @@ from publish_workspace import (
 )
 
 Command = tuple[str, ...]
+
+
+class CrateAction(Protocol):
+    """Protocol describing callable crate actions used by workflow helpers."""
+
+    def __call__(self, crate: str, workspace: Path, *, timeout_secs: int) -> None: ...
 
 CRATE_ORDER: tuple[str, ...] = (
     "rstest-bdd-patterns",
@@ -276,6 +282,157 @@ def publish_crate_commands(
         )
 
 
+@dataclass
+class CrateProcessingConfig:
+    """Configuration for crate processing workflow.
+
+    Parameters
+    ----------
+    strip_patch : bool
+        When ``True`` the ``[patch]`` section is removed before processing.
+    include_local_path : bool
+        Propagated to :func:`apply_workspace_replacements` to control whether
+        crates retain local ``path`` overrides.
+    apply_per_crate : bool
+        When ``True`` workspace replacements are applied individually for each
+        crate rather than once for the entire workspace.
+    per_crate_cleanup : Callable[[Path, str], None] | None, optional
+        Cleanup action executed after each crate has been processed.
+    """
+
+    strip_patch: bool
+    include_local_path: bool
+    apply_per_crate: bool
+    per_crate_cleanup: Optional[Callable[[Path, str], None]] = None
+
+
+def _process_crates(
+    workspace: Path,
+    timeout_secs: int,
+    config: CrateProcessingConfig,
+    crate_action: CrateAction,
+) -> None:
+    """Coordinate shared crate-processing workflow steps.
+
+    Parameters
+    ----------
+    workspace : Path
+        Path to the exported temporary workspace containing the Cargo manifest
+        and crate directories.
+    timeout_secs : int
+        Timeout applied to each Cargo invocation triggered by the workflow.
+    config : CrateProcessingConfig
+        Declarative configuration describing how the workspace should be
+        prepared and cleaned between crate actions.
+    crate_action : CrateAction
+        Callable invoked for each crate in :data:`CRATE_ORDER`.
+
+    Examples
+    --------
+    Run a faux workflow that records the crates it sees::
+
+        >>> tmp = Path("/tmp/workspace")  # doctest: +SKIP
+        >>> config = CrateProcessingConfig(  # doctest: +SKIP
+        ...     strip_patch=True,
+        ...     include_local_path=True,
+        ...     apply_per_crate=False
+        ... )
+        >>> _process_crates(  # doctest: +SKIP
+        ...     tmp,
+        ...     30,
+        ...     config,
+        ...     lambda crate, *_: None,
+        ... )
+    """
+
+    manifest = workspace / "Cargo.toml"
+    if config.strip_patch:
+        strip_patch_section(manifest)
+    version = workspace_version(manifest)
+
+    def _apply_replacements(crate: Optional[str]) -> None:
+        apply_workspace_replacements(
+            workspace,
+            version,
+            include_local_path=config.include_local_path,
+            crates=(crate,) if crate is not None else None,
+        )
+
+    if config.apply_per_crate:
+        for crate in CRATE_ORDER:
+            _apply_replacements(crate)
+            crate_action(crate, workspace, timeout_secs=timeout_secs)
+            if config.per_crate_cleanup is not None:
+                config.per_crate_cleanup(manifest, crate)
+    else:
+        _apply_replacements(None)
+        for crate in CRATE_ORDER:
+            crate_action(crate, workspace, timeout_secs=timeout_secs)
+            if config.per_crate_cleanup is not None:
+                config.per_crate_cleanup(manifest, crate)
+
+
+def _process_crates_for_live_publish(workspace: Path, timeout_secs: int) -> None:
+    """Execute the live publish workflow for crates in release order.
+
+    Parameters
+    ----------
+    workspace : Path
+        Path to the exported temporary workspace containing the Cargo
+        manifest and crate directories.
+    timeout_secs : int
+        Timeout applied to each Cargo invocation triggered by the workflow.
+
+    Examples
+    --------
+    Trigger the live publish workflow after exporting the workspace::
+
+        >>> tmp = Path("/tmp/workspace")  # doctest: +SKIP
+        >>> _process_crates_for_live_publish(tmp, 900)  # doctest: +SKIP
+    """
+
+    config = CrateProcessingConfig(
+        strip_patch=False,
+        include_local_path=False,
+        apply_per_crate=True,
+        per_crate_cleanup=remove_patch_entry,
+    )
+    _process_crates(workspace, timeout_secs, config, publish_crate_commands)
+
+
+def _process_crates_for_check(workspace: Path, timeout_secs: int) -> None:
+    """Package or check crates locally to validate publish readiness.
+
+    Parameters
+    ----------
+    workspace : Path
+        Path to the exported temporary workspace containing the Cargo
+        manifest and crate directories.
+    timeout_secs : int
+        Timeout applied to each Cargo invocation triggered by the workflow.
+
+    Examples
+    --------
+    Package and check crates without publishing them::
+
+        >>> tmp = Path("/tmp/workspace")  # doctest: +SKIP
+        >>> _process_crates_for_check(tmp, 900)  # doctest: +SKIP
+    """
+
+    def _crate_action(crate: str, root: Path, *, timeout_secs: int) -> None:
+        if crate == "rstest-bdd-patterns":
+            package_crate(crate, root, timeout_secs=timeout_secs)
+        else:
+            check_crate(crate, root, timeout_secs=timeout_secs)
+
+    config = CrateProcessingConfig(
+        strip_patch=True,
+        include_local_path=True,
+        apply_per_crate=False,
+    )
+    _process_crates(workspace, timeout_secs, config, _crate_action)
+
+
 def run_publish_check(*, keep_tmp: bool, timeout_secs: int, live: bool = False) -> None:
     """Run the publish workflow inside a temporary workspace directory.
 
@@ -299,34 +456,10 @@ def run_publish_check(*, keep_tmp: bool, timeout_secs: int, live: bool = False) 
         export_workspace(workspace)
         manifest = workspace / "Cargo.toml"
         prune_workspace_members(manifest)
-        if not live:
-            strip_patch_section(manifest)
-        version = workspace_version(manifest)
         if live:
-            for crate in CRATE_ORDER:
-                apply_workspace_replacements(
-                    workspace,
-                    version,
-                    include_local_path=False,
-                    crates=(crate,),
-                )
-                publish_crate_commands(
-                    crate,
-                    workspace,
-                    timeout_secs=timeout_secs,
-                )
-                remove_patch_entry(manifest, crate)
+            _process_crates_for_live_publish(workspace, timeout_secs)
         else:
-            apply_workspace_replacements(
-                workspace,
-                version,
-                include_local_path=True,
-            )
-            for crate in CRATE_ORDER:
-                if crate == "rstest-bdd-patterns":
-                    package_crate(crate, workspace, timeout_secs=timeout_secs)
-                else:
-                    check_crate(crate, workspace, timeout_secs=timeout_secs)
+            _process_crates_for_check(workspace, timeout_secs)
     finally:
         if keep_tmp:
             print(f"preserving workspace at {workspace}")
