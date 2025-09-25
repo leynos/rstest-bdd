@@ -276,6 +276,76 @@ def publish_crate_commands(
         )
 
 
+def _process_crates_for_live_publish(workspace: Path, timeout_secs: int) -> None:
+    """Execute the live publish workflow for crates in release order.
+
+    Parameters
+    ----------
+    workspace : Path
+        Path to the exported temporary workspace containing the Cargo
+        manifest and crate directories.
+    timeout_secs : int
+        Timeout applied to each Cargo invocation triggered by the workflow.
+
+    Examples
+    --------
+    Trigger the live publish workflow after exporting the workspace::
+
+        >>> tmp = Path("/tmp/workspace")  # doctest: +SKIP
+        >>> _process_crates_for_live_publish(tmp, 900)  # doctest: +SKIP
+    """
+
+    manifest = workspace / "Cargo.toml"
+    version = workspace_version(manifest)
+    for crate in CRATE_ORDER:
+        apply_workspace_replacements(
+            workspace,
+            version,
+            include_local_path=False,
+            crates=(crate,),
+        )
+        publish_crate_commands(
+            crate,
+            workspace,
+            timeout_secs=timeout_secs,
+        )
+        remove_patch_entry(manifest, crate)
+
+
+def _process_crates_for_check(workspace: Path, timeout_secs: int) -> None:
+    """Package or check crates locally to validate publish readiness.
+
+    Parameters
+    ----------
+    workspace : Path
+        Path to the exported temporary workspace containing the Cargo
+        manifest and crate directories.
+    timeout_secs : int
+        Timeout applied to each Cargo invocation triggered by the workflow.
+
+    Examples
+    --------
+    Package and check crates without publishing them::
+
+        >>> tmp = Path("/tmp/workspace")  # doctest: +SKIP
+        >>> _process_crates_for_check(tmp, 900)  # doctest: +SKIP
+    """
+
+    manifest = workspace / "Cargo.toml"
+    strip_patch_section(manifest)
+    version = workspace_version(manifest)
+    apply_workspace_replacements(
+        workspace,
+        version,
+        include_local_path=True,
+    )
+    for crate in CRATE_ORDER:
+        if crate == "rstest-bdd-patterns":
+            package_crate(crate, workspace, timeout_secs=timeout_secs)
+        else:
+            check_crate(crate, workspace, timeout_secs=timeout_secs)
+
+
 def run_publish_check(*, keep_tmp: bool, timeout_secs: int, live: bool = False) -> None:
     """Run the publish workflow inside a temporary workspace directory.
 
@@ -299,34 +369,10 @@ def run_publish_check(*, keep_tmp: bool, timeout_secs: int, live: bool = False) 
         export_workspace(workspace)
         manifest = workspace / "Cargo.toml"
         prune_workspace_members(manifest)
-        if not live:
-            strip_patch_section(manifest)
-        version = workspace_version(manifest)
         if live:
-            for crate in CRATE_ORDER:
-                apply_workspace_replacements(
-                    workspace,
-                    version,
-                    include_local_path=False,
-                    crates=(crate,),
-                )
-                publish_crate_commands(
-                    crate,
-                    workspace,
-                    timeout_secs=timeout_secs,
-                )
-                remove_patch_entry(manifest, crate)
+            _process_crates_for_live_publish(workspace, timeout_secs)
         else:
-            apply_workspace_replacements(
-                workspace,
-                version,
-                include_local_path=True,
-            )
-            for crate in CRATE_ORDER:
-                if crate == "rstest-bdd-patterns":
-                    package_crate(crate, workspace, timeout_secs=timeout_secs)
-                else:
-                    check_crate(crate, workspace, timeout_secs=timeout_secs)
+            _process_crates_for_check(workspace, timeout_secs)
     finally:
         if keep_tmp:
             print(f"preserving workspace at {workspace}")
