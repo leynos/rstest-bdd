@@ -18,11 +18,13 @@ def test_process_crates_for_live_publish_delegates_configuration(
     def fake_process_crates(
         workspace: Path,
         timeout_secs: int,
-        **kwargs: object,
+        config: object,
+        crate_action: object,
     ) -> None:
         captured["workspace"] = workspace
         captured["timeout"] = timeout_secs
-        captured["kwargs"] = kwargs
+        captured["config"] = config
+        captured["crate_action"] = crate_action
 
     monkeypatch.setattr(run_publish_check_module, "_process_crates", fake_process_crates)
 
@@ -31,12 +33,13 @@ def test_process_crates_for_live_publish_delegates_configuration(
 
     assert captured["workspace"] == workspace
     assert captured["timeout"] == 99
-    kwargs = captured["kwargs"]
-    assert kwargs["strip_patch"] is False
-    assert kwargs["include_local_path"] is False
-    assert kwargs["apply_per_crate"] is True
-    assert kwargs["crate_action"] is run_publish_check_module.publish_crate_commands
-    assert kwargs["per_crate_cleanup"] is run_publish_check_module.remove_patch_entry
+    config = captured["config"]
+    assert isinstance(config, run_publish_check_module.CrateProcessingConfig)
+    assert config.strip_patch is False
+    assert config.include_local_path is False
+    assert config.apply_per_crate is True
+    assert config.per_crate_cleanup is run_publish_check_module.remove_patch_entry
+    assert captured["crate_action"] is run_publish_check_module.publish_crate_commands
 
 
 def test_process_crates_for_live_publish_runs_publish_workflow(

@@ -18,14 +18,16 @@ def test_process_crates_for_check_delegates_configuration(
     def fake_process_crates(
         workspace: Path,
         timeout_secs: int,
-        **kwargs: object,
+        config: object,
+        crate_action: object,
     ) -> None:
         observed["workspace"] = workspace
         observed["timeout"] = timeout_secs
-        observed["kwargs"] = kwargs
-        crate_action = kwargs["crate_action"]
-        crate_action("rstest-bdd-patterns", workspace, timeout_secs=11)
-        crate_action("demo", workspace, timeout_secs=11)
+        observed["config"] = config
+        observed["crate_action"] = crate_action
+        action = crate_action
+        action("rstest-bdd-patterns", workspace, timeout_secs=11)
+        action("demo", workspace, timeout_secs=11)
 
     package_calls: list[tuple[str, Path, int]] = []
     check_calls: list[tuple[str, Path, int]] = []
@@ -47,11 +49,13 @@ def test_process_crates_for_check_delegates_configuration(
 
     assert observed["workspace"] == workspace
     assert observed["timeout"] == 17
-    kwargs = observed["kwargs"]
-    assert kwargs["strip_patch"] is True
-    assert kwargs["include_local_path"] is True
-    assert kwargs["apply_per_crate"] is False
-    assert kwargs.get("per_crate_cleanup") is None
+    config = observed["config"]
+    assert isinstance(config, run_publish_check_module.CrateProcessingConfig)
+    assert config.strip_patch is True
+    assert config.include_local_path is True
+    assert config.apply_per_crate is False
+    assert config.per_crate_cleanup is None
+    assert callable(observed["crate_action"])
     assert package_calls == [("rstest-bdd-patterns", workspace, 11)]
     assert check_calls == [("demo", workspace, 11)]
 

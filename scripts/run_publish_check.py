@@ -282,15 +282,35 @@ def publish_crate_commands(
         )
 
 
+@dataclass
+class CrateProcessingConfig:
+    """Configuration for crate processing workflow.
+
+    Parameters
+    ----------
+    strip_patch : bool
+        When ``True`` the ``[patch]`` section is removed before processing.
+    include_local_path : bool
+        Propagated to :func:`apply_workspace_replacements` to control whether
+        crates retain local ``path`` overrides.
+    apply_per_crate : bool
+        When ``True`` workspace replacements are applied individually for each
+        crate rather than once for the entire workspace.
+    per_crate_cleanup : Callable[[Path, str], None] | None, optional
+        Cleanup action executed after each crate has been processed.
+    """
+
+    strip_patch: bool
+    include_local_path: bool
+    apply_per_crate: bool
+    per_crate_cleanup: Optional[Callable[[Path, str], None]] = None
+
+
 def _process_crates(
     workspace: Path,
     timeout_secs: int,
-    *,
-    strip_patch: bool,
-    include_local_path: bool,
-    apply_per_crate: bool,
+    config: CrateProcessingConfig,
     crate_action: CrateAction,
-    per_crate_cleanup: Optional[Callable[[Path, str], None]] = None,
 ) -> None:
     """Coordinate shared crate-processing workflow steps.
 
@@ -301,36 +321,32 @@ def _process_crates(
         and crate directories.
     timeout_secs : int
         Timeout applied to each Cargo invocation triggered by the workflow.
-    strip_patch : bool
-        When ``True`` the ``[patch]`` section is removed before processing.
-    include_local_path : bool
-        Propagated to :func:`apply_workspace_replacements` to control whether
-        crates retain local ``path`` overrides.
-    apply_per_crate : bool
-        When ``True`` workspace replacements are applied individually for each
-        crate rather than once for the entire workspace.
+    config : CrateProcessingConfig
+        Declarative configuration describing how the workspace should be
+        prepared and cleaned between crate actions.
     crate_action : CrateAction
         Callable invoked for each crate in :data:`CRATE_ORDER`.
-    per_crate_cleanup : Callable[[Path, str], None] | None, optional
-        Cleanup action executed after each crate has been processed.
 
     Examples
     --------
     Run a faux workflow that records the crates it sees::
 
         >>> tmp = Path("/tmp/workspace")  # doctest: +SKIP
+        >>> config = CrateProcessingConfig(  # doctest: +SKIP
+        ...     strip_patch=True,
+        ...     include_local_path=True,
+        ...     apply_per_crate=False
+        ... )
         >>> _process_crates(  # doctest: +SKIP
         ...     tmp,
         ...     30,
-        ...     strip_patch=True,
-        ...     include_local_path=True,
-        ...     apply_per_crate=False,
-        ...     crate_action=lambda crate, *_: None,
+        ...     config,
+        ...     lambda crate, *_: None,
         ... )
     """
 
     manifest = workspace / "Cargo.toml"
-    if strip_patch:
+    if config.strip_patch:
         strip_patch_section(manifest)
     version = workspace_version(manifest)
 
@@ -338,22 +354,22 @@ def _process_crates(
         apply_workspace_replacements(
             workspace,
             version,
-            include_local_path=include_local_path,
+            include_local_path=config.include_local_path,
             crates=(crate,) if crate is not None else None,
         )
 
-    if apply_per_crate:
+    if config.apply_per_crate:
         for crate in CRATE_ORDER:
             _apply_replacements(crate)
             crate_action(crate, workspace, timeout_secs=timeout_secs)
-            if per_crate_cleanup is not None:
-                per_crate_cleanup(manifest, crate)
+            if config.per_crate_cleanup is not None:
+                config.per_crate_cleanup(manifest, crate)
     else:
         _apply_replacements(None)
         for crate in CRATE_ORDER:
             crate_action(crate, workspace, timeout_secs=timeout_secs)
-            if per_crate_cleanup is not None:
-                per_crate_cleanup(manifest, crate)
+            if config.per_crate_cleanup is not None:
+                config.per_crate_cleanup(manifest, crate)
 
 
 def _process_crates_for_live_publish(workspace: Path, timeout_secs: int) -> None:
@@ -375,15 +391,13 @@ def _process_crates_for_live_publish(workspace: Path, timeout_secs: int) -> None
         >>> _process_crates_for_live_publish(tmp, 900)  # doctest: +SKIP
     """
 
-    _process_crates(
-        workspace,
-        timeout_secs,
+    config = CrateProcessingConfig(
         strip_patch=False,
         include_local_path=False,
         apply_per_crate=True,
-        crate_action=publish_crate_commands,
         per_crate_cleanup=remove_patch_entry,
     )
+    _process_crates(workspace, timeout_secs, config, publish_crate_commands)
 
 
 def _process_crates_for_check(workspace: Path, timeout_secs: int) -> None:
@@ -411,14 +425,12 @@ def _process_crates_for_check(workspace: Path, timeout_secs: int) -> None:
         else:
             check_crate(crate, root, timeout_secs=timeout_secs)
 
-    _process_crates(
-        workspace,
-        timeout_secs,
+    config = CrateProcessingConfig(
         strip_patch=True,
         include_local_path=True,
         apply_per_crate=False,
-        crate_action=_crate_action,
     )
+    _process_crates(workspace, timeout_secs, config, _crate_action)
 
 
 def run_publish_check(*, keep_tmp: bool, timeout_secs: int, live: bool = False) -> None:
