@@ -14,35 +14,30 @@ import pytest
 class TestRunPublishCheckOrchestration:
     """Integration coverage of the dry-run orchestration workflow."""
 
-    def _setup_workflow_mocks(
+    def _create_test_workspace(
         self,
         monkeypatch: pytest.MonkeyPatch,
         tmp_path: Path,
         run_publish_check_module: ModuleType,
-    ) -> tuple[Path, list[tuple[str, object]], list[tuple[str, Path, int]], list[tuple[str, Path, int]]]:
-        """Set up workspace, mocks, and capture containers for orchestration tests.
-
-        Parameters
-        ----------
-        monkeypatch:
-            Fixture used to rewire helpers on the module under test.
-        tmp_path:
-            Base temporary directory provided by pytest for isolation.
-        run_publish_check_module:
-            Imported module exposing the workflow entrypoint and dependencies.
-
-        Returns
-        -------
-        tuple
-            The prepared workspace directory and the lists capturing recorded
-            workspace steps, package invocations, and check invocations.
-        """
+    ) -> Path:
+        """Create workspace directory and configure ``tempfile`` redirection."""
 
         workspace_dir = tmp_path / "workspace"
         workspace_dir.mkdir()
         monkeypatch.setattr(
             run_publish_check_module.tempfile, "mkdtemp", lambda: str(workspace_dir)
         )
+        return workspace_dir
+
+    def _create_mocks_and_captures(
+        self,
+    ) -> tuple[
+        list[tuple[str, object]],
+        list[tuple[str, Path, int]],
+        list[tuple[str, Path, int]],
+        dict[str, Callable[..., object]],
+    ]:
+        """Create capture containers and reusable mock functions."""
 
         steps: list[tuple[str, object]] = []
 
@@ -64,6 +59,32 @@ class TestRunPublishCheckOrchestration:
 
         def fake_check(crate: str, root: Path, *, timeout_secs: int) -> None:
             check_calls.append((crate, root, timeout_secs))
+
+        return (
+            steps,
+            package_calls,
+            check_calls,
+            {
+                "record": record,
+                "fake_workspace_version": fake_workspace_version,
+                "fake_package": fake_package,
+                "fake_check": fake_check,
+            },
+        )
+
+    def _apply_workflow_patches(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        run_publish_check_module: ModuleType,
+        mock_functions: dict[str, Callable[..., object]],
+        steps: list[tuple[str, object]],
+    ) -> None:
+        """Apply monkeypatch operations to replace workflow helpers."""
+
+        record = mock_functions["record"]
+        fake_workspace_version = mock_functions["fake_workspace_version"]
+        fake_package = mock_functions["fake_package"]
+        fake_check = mock_functions["fake_check"]
 
         monkeypatch.setattr(
             run_publish_check_module, "export_workspace", record("export")
@@ -107,6 +128,42 @@ class TestRunPublishCheckOrchestration:
             ("rstest-bdd-patterns", "demo-crate"),
         )
 
+    def _setup_workflow_mocks(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        tmp_path: Path,
+        run_publish_check_module: ModuleType,
+    ) -> tuple[Path, list[tuple[str, object]], list[tuple[str, Path, int]], list[tuple[str, Path, int]]]:
+        """Set up workspace, mocks, and capture containers for orchestration tests.
+
+        Parameters
+        ----------
+        monkeypatch:
+            Fixture used to rewire helpers on the module under test.
+        tmp_path:
+            Base temporary directory provided by pytest for isolation.
+        run_publish_check_module:
+            Imported module exposing the workflow entrypoint and dependencies.
+
+        Returns
+        -------
+        tuple
+            The prepared workspace directory and the lists capturing recorded
+            workspace steps, package invocations, and check invocations.
+        """
+
+        workspace_dir = self._create_test_workspace(
+            monkeypatch, tmp_path, run_publish_check_module
+        )
+        (
+            steps,
+            package_calls,
+            check_calls,
+            mock_functions,
+        ) = self._create_mocks_and_captures()
+        self._apply_workflow_patches(
+            monkeypatch, run_publish_check_module, mock_functions, steps
+        )
         return workspace_dir, steps, package_calls, check_calls
 
     def _execute_workflow(self, run_publish_check_module: ModuleType) -> None:
