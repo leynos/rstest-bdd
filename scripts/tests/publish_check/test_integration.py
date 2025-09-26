@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import dataclasses as dc
 import typing as typ
 
 import pytest
@@ -9,6 +10,15 @@ import pytest
 if typ.TYPE_CHECKING:
     from pathlib import Path
     from types import ModuleType
+
+
+@dc.dataclass
+class WorkspaceMocks:
+    """Bundle of mock functions for workspace operations."""
+
+    record: typ.Callable[[str], typ.Callable[[Path], None]]
+    fake_apply: typ.Callable[..., None]
+    fake_remove: typ.Callable[[Path, str], None]
 
 
 class TestRunPublishCheckOrchestration:
@@ -288,13 +298,12 @@ class TestRunPublishCheckLiveMode:
         steps, record = self._setup_recording_infrastructure()
         fake_apply, fake_remove = self._create_fake_functions(steps)
         commands, fake_run_cargo = self._setup_cargo_recording()
-        self._setup_workspace_mocks(
-            monkeypatch,
-            run_publish_check_module,
-            record,
-            fake_apply,
-            fake_remove,
+        mocks = WorkspaceMocks(
+            record=record,
+            fake_apply=fake_apply,
+            fake_remove=fake_remove,
         )
+        self._setup_workspace_mocks(monkeypatch, run_publish_check_module, mocks)
         self._setup_cargo_and_config_mocks(
             monkeypatch,
             run_publish_check_module,
@@ -360,19 +369,17 @@ class TestRunPublishCheckLiveMode:
         self,
         monkeypatch: pytest.MonkeyPatch,
         run_publish_check_module: ModuleType,
-        record: typ.Callable[[str], typ.Callable[[Path], None]],
-        fake_apply: typ.Callable[..., None],
-        fake_remove: typ.Callable[[Path, str], None],
+        mocks: WorkspaceMocks,
     ) -> None:
         """Replace workspace helpers with recording doubles."""
         monkeypatch.setattr(
-            run_publish_check_module, "export_workspace", record("export")
+            run_publish_check_module, "export_workspace", mocks.record("export")
         )
         monkeypatch.setattr(
-            run_publish_check_module, "prune_workspace_members", record("prune")
+            run_publish_check_module, "prune_workspace_members", mocks.record("prune")
         )
         monkeypatch.setattr(
-            run_publish_check_module, "strip_patch_section", record("strip")
+            run_publish_check_module, "strip_patch_section", mocks.record("strip")
         )
         monkeypatch.setattr(
             run_publish_check_module, "workspace_version", lambda _manifest: "1.2.3"
@@ -380,9 +387,11 @@ class TestRunPublishCheckLiveMode:
         monkeypatch.setattr(
             run_publish_check_module,
             "apply_workspace_replacements",
-            fake_apply,
+            mocks.fake_apply,
         )
-        monkeypatch.setattr(run_publish_check_module, "remove_patch_entry", fake_remove)
+        monkeypatch.setattr(
+            run_publish_check_module, "remove_patch_entry", mocks.fake_remove
+        )
 
     def _setup_cargo_and_config_mocks(
         self,
