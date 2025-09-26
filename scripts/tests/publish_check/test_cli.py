@@ -1,16 +1,20 @@
-"""CLI argument parsing behaviour for publish check entrypoint."""
+"""CLI wiring tests for the publish-check entry point."""
 
 from __future__ import annotations
 
-from types import ModuleType
+import typing as typ
 
-import pytest
+if typ.TYPE_CHECKING:
+    from types import ModuleType
+
+    import pytest
 
 
 def test_main_uses_defaults(
     monkeypatch: pytest.MonkeyPatch,
     run_publish_check_module: ModuleType,
 ) -> None:
+    """Confirm the CLI invokes the workflow with default arguments."""
     captured: dict[str, object] = {}
 
     def fake_run_publish_check(
@@ -23,7 +27,9 @@ def test_main_uses_defaults(
         captured["timeout_secs"] = timeout_secs
         captured["live"] = live
 
-    monkeypatch.setattr(run_publish_check_module, "run_publish_check", fake_run_publish_check)
+    monkeypatch.setattr(
+        run_publish_check_module, "run_publish_check", fake_run_publish_check
+    )
 
     run_publish_check_module.app([])
 
@@ -38,6 +44,7 @@ def test_main_honours_environment(
     monkeypatch: pytest.MonkeyPatch,
     run_publish_check_module: ModuleType,
 ) -> None:
+    """Ensure environment variables influence the invoked workflow."""
     observed: list[tuple[bool, int, bool]] = []
 
     def fake_run_publish_check(
@@ -48,7 +55,9 @@ def test_main_honours_environment(
     ) -> None:
         observed.append((keep_tmp, timeout_secs, live))
 
-    monkeypatch.setattr(run_publish_check_module, "run_publish_check", fake_run_publish_check)
+    monkeypatch.setattr(
+        run_publish_check_module, "run_publish_check", fake_run_publish_check
+    )
     monkeypatch.setenv("PUBLISH_CHECK_KEEP_TMP", "true")
     monkeypatch.setenv("PUBLISH_CHECK_TIMEOUT_SECS", "60")
 
@@ -61,6 +70,7 @@ def test_main_cli_overrides_env(
     monkeypatch: pytest.MonkeyPatch,
     run_publish_check_module: ModuleType,
 ) -> None:
+    """Ensure CLI arguments override environment configuration."""
     observed: list[tuple[bool, int, bool]] = []
 
     def fake_run_publish_check(
@@ -71,7 +81,9 @@ def test_main_cli_overrides_env(
     ) -> None:
         observed.append((keep_tmp, timeout_secs, live))
 
-    monkeypatch.setattr(run_publish_check_module, "run_publish_check", fake_run_publish_check)
+    monkeypatch.setattr(
+        run_publish_check_module, "run_publish_check", fake_run_publish_check
+    )
     monkeypatch.setenv("PUBLISH_CHECK_KEEP_TMP", "false")
     monkeypatch.setenv("PUBLISH_CHECK_TIMEOUT_SECS", "900")
 
@@ -84,6 +96,7 @@ def test_main_live_flag(
     monkeypatch: pytest.MonkeyPatch,
     run_publish_check_module: ModuleType,
 ) -> None:
+    """Verify the live flag toggles the publish workflow accordingly."""
     observed: list[tuple[bool, int, bool]] = []
 
     def fake_run_publish_check(
@@ -94,7 +107,9 @@ def test_main_live_flag(
     ) -> None:
         observed.append((keep_tmp, timeout_secs, live))
 
-    monkeypatch.setattr(run_publish_check_module, "run_publish_check", fake_run_publish_check)
+    monkeypatch.setattr(
+        run_publish_check_module, "run_publish_check", fake_run_publish_check
+    )
 
     run_publish_check_module.app(["--live"])
 
