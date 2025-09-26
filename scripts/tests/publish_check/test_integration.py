@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-import dataclasses as dc
 import typing as typ
+from dataclasses import dataclass  # noqa: ICN003 - required for WorkflowTestConfig
 
 import pytest
 
@@ -12,13 +12,21 @@ if typ.TYPE_CHECKING:
     from types import ModuleType
 
 
-@dc.dataclass
+@dataclass
 class WorkspaceMocks:
     """Bundle of mock functions for workspace operations."""
 
     record: typ.Callable[[str], typ.Callable[[Path], None]]
     fake_apply: typ.Callable[..., None]
     fake_remove: typ.Callable[[Path, str], None]
+
+
+@dataclass
+class WorkflowTestConfig:
+    """Configuration bundle for workflow integration scaffolding."""
+
+    workspace_name: str
+    crate_order: tuple[str, ...] = ("demo-crate",)
 
 
 class TestRunPublishCheckOrchestration:
@@ -487,11 +495,10 @@ def _setup_basic_workflow_mocks(
     tmp_path: Path,
     run_publish_check_module: ModuleType,
     *,
-    workspace_name: str,
-    crate_order: tuple[str, ...] = ("demo-crate",),
+    config: WorkflowTestConfig,
 ) -> Path:
     """Prepare shared workspace and helper mocks for workflow integration tests."""
-    workspace_dir = tmp_path / workspace_name
+    workspace_dir = tmp_path / config.workspace_name
     workspace_dir.mkdir()
     monkeypatch.setattr(
         run_publish_check_module.tempfile, "mkdtemp", lambda: str(workspace_dir)
@@ -519,7 +526,7 @@ def _setup_basic_workflow_mocks(
     monkeypatch.setattr(
         run_publish_check_module, "check_crate", lambda *_args, **_kwargs: None
     )
-    monkeypatch.setattr(run_publish_check_module, "CRATE_ORDER", crate_order)
+    monkeypatch.setattr(run_publish_check_module, "CRATE_ORDER", config.crate_order)
     return workspace_dir
 
 
@@ -534,7 +541,7 @@ def test_run_publish_check_preserves_workspace(
         monkeypatch,
         tmp_path,
         run_publish_check_module,
-        workspace_name="persist",
+        config=WorkflowTestConfig(workspace_name="persist"),
     )
 
     run_publish_check_module.run_publish_check(keep_tmp=True, timeout_secs=5)
@@ -554,8 +561,10 @@ def test_run_publish_check_errors_when_crate_order_empty(
         monkeypatch,
         tmp_path,
         run_publish_check_module,
-        workspace_name="missing-order",
-        crate_order=(),
+        config=WorkflowTestConfig(
+            workspace_name="missing-order",
+            crate_order=(),
+        ),
     )
 
     with pytest.raises(SystemExit, match="CRATE_ORDER must not be empty"):
