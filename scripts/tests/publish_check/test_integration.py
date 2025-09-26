@@ -401,12 +401,13 @@ class TestRunPublishCheckLiveMode:
         )
         monkeypatch.setattr(
             run_publish_check_module,
-            "_live_publish_commands",
-            lambda crate: (
-                (("cargo", "publish", "--dry-run"), ("cargo", "publish"))
-                if crate == "demo-crate"
-                else (_ for _ in ()).throw(KeyError(crate))
-            ),
+            "LIVE_PUBLISH_COMMANDS",
+            {
+                "demo-crate": (
+                    ("cargo", "publish", "--dry-run"),
+                    ("cargo", "publish"),
+                )
+            },
         )
 
     def _verify_live_publish_execution(

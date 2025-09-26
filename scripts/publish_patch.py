@@ -189,7 +189,7 @@ def update_dependency(
     )
 
 
-def extract_existing_items(value: object) -> cabc.Iterable[tuple[str, object]]:
+def extract_existing_items(value: object) -> tuple[tuple[str, object], ...]:
     r"""Return preserved dependency metadata from an existing entry.
 
     Parameters

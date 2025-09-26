@@ -96,6 +96,11 @@ LOCKED_LIVE_PUBLISH_COMMANDS: tuple[Command, ...] = (
     ("cargo", "publish", "--locked"),
 )
 
+LIVE_PUBLISH_COMMANDS: dict[str, tuple[Command, ...]] = dict.fromkeys(
+    DEFAULT_LIVE_CRATES, DEFAULT_LIVE_PUBLISH_COMMANDS
+)
+LIVE_PUBLISH_COMMANDS["cargo-bdd"] = LOCKED_LIVE_PUBLISH_COMMANDS
+
 DEFAULT_PUBLISH_TIMEOUT_SECS = 900
 
 app = App(config=cyclopts.config.Env("PUBLISH_CHECK_", command=False))
@@ -264,15 +269,6 @@ def check_crate(
     )
 
 
-def _live_publish_commands(crate: str) -> tuple[Command, ...]:
-    """Return the live publish commands configured for ``crate``."""
-    if crate in DEFAULT_LIVE_CRATES:
-        return DEFAULT_LIVE_PUBLISH_COMMANDS
-    if crate == "cargo-bdd":
-        return LOCKED_LIVE_PUBLISH_COMMANDS
-    raise KeyError(crate)
-
-
 def publish_crate_commands(
     crate: str,
     workspace_root: Path,
@@ -286,7 +282,7 @@ def publish_crate_commands(
     releases when new crates are added to the workspace.
     """
     try:
-        commands = _live_publish_commands(crate)
+        commands = LIVE_PUBLISH_COMMANDS[crate]
     except KeyError as error:
         message = f"missing live publish commands for {crate!r}"
         raise SystemExit(message) from error
@@ -371,32 +367,26 @@ def _process_crates(
         strip_patch_section(manifest)
     version = workspace_version(manifest)
 
-    def _apply_replacements(crate: str | None) -> None:
+    if not config.apply_per_crate:
         apply_workspace_replacements(
             workspace,
             version,
             include_local_path=config.include_local_path,
-            crates=(crate,) if crate is not None else None,
         )
 
-    def _process_single_crate(crate: str) -> None:
+    for crate in CRATE_ORDER:
+        if config.apply_per_crate:
+            apply_workspace_replacements(
+                workspace,
+                version,
+                include_local_path=config.include_local_path,
+                crates=(crate,),
+            )
+
         crate_action(crate, workspace, timeout_secs=timeout_secs)
+
         if config.per_crate_cleanup is not None:
             config.per_crate_cleanup(manifest, crate)
-
-    if config.apply_per_crate:
-
-        def apply_replacements_for(crate: str) -> None:
-            _apply_replacements(crate)
-    else:
-        _apply_replacements(None)
-
-        def apply_replacements_for(crate: str) -> None:
-            return None
-
-    for crate in CRATE_ORDER:
-        apply_replacements_for(crate)
-        _process_single_crate(crate)
 
 
 def _process_crates_for_live_publish(workspace: Path, timeout_secs: int) -> None:

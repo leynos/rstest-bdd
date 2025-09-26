@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import tarfile
 import tempfile
+import typing as typ
 from pathlib import Path
 
 import tomllib
@@ -86,6 +87,15 @@ def _ensure_proper_file_ending(lines: list[str]) -> None:
         lines.append("")
 
 
+def _rewrite_manifest_lines(
+    manifest: Path, processor: typ.Callable[[list[str]], list[str]]
+) -> None:
+    """Read ``manifest`` lines, transform them, and write the updated content."""
+    lines = manifest.read_text(encoding="utf-8").splitlines()
+    rewritten = processor(lines)
+    manifest.write_text("\n".join(rewritten), encoding="utf-8")
+
+
 def strip_patch_section(manifest: Path) -> None:
     """Strip the ``[patch.crates-io]`` section from ``manifest``.
 
@@ -99,19 +109,22 @@ def strip_patch_section(manifest: Path) -> None:
     None
         The manifest on disk is rewritten without the patch section.
     """
-    lines = manifest.read_text(encoding="utf-8").splitlines()
-    cleaned: list[str] = []
-    skipping_patch = False
 
-    for line in lines:
-        should_include, skipping_patch = _process_patch_section_line(
-            line, skipping_patch=skipping_patch
-        )
-        if should_include:
-            cleaned.append(line)
+    def _remove_patch(lines: list[str]) -> list[str]:
+        cleaned: list[str] = []
+        skipping_patch = False
 
-    _ensure_proper_file_ending(cleaned)
-    manifest.write_text("\n".join(cleaned), encoding="utf-8")
+        for line in lines:
+            should_include, skipping_patch = _process_patch_section_line(
+                line, skipping_patch=skipping_patch
+            )
+            if should_include:
+                cleaned.append(line)
+
+        _ensure_proper_file_ending(cleaned)
+        return cleaned
+
+    _rewrite_manifest_lines(manifest, _remove_patch)
 
 
 def _is_members_section_start(line: str) -> bool:
@@ -160,18 +173,20 @@ def prune_workspace_members(manifest: Path) -> None:
     None
         The manifest is rewritten with only crate directories listed.
     """
-    lines = manifest.read_text(encoding="utf-8").splitlines()
-    result: list[str] = []
-    inside_members = False
-    for line in lines:
-        inside_members = _process_member_line(
-            line,
-            inside_members=inside_members,
-            result=result,
-        )
-    if result and result[-1] != "":
-        result.append("")
-    manifest.write_text("\n".join(result), encoding="utf-8")
+
+    def _retain_crates(lines: list[str]) -> list[str]:
+        result: list[str] = []
+        inside_members = False
+        for line in lines:
+            inside_members = _process_member_line(
+                line,
+                inside_members=inside_members,
+                result=result,
+            )
+        _ensure_proper_file_ending(result)
+        return result
+
+    _rewrite_manifest_lines(manifest, _retain_crates)
 
 
 def apply_workspace_replacements(
