@@ -26,6 +26,24 @@ class DependencyPatch:
     path: str
 
 
+@dataclass(frozen=True)
+class DependencyConfig:
+    """Configuration for dependency replacement operations.
+
+    Parameters
+    ----------
+    version : str
+        Version string applied to rewritten dependency entries.
+    include_local_path : bool, default True
+        When ``True`` the inline dependency retains its ``path`` attribute so
+        publish checks continue to use the locally exported workspace. Disable
+        this flag for live publishing so Cargo resolves crates from crates.io.
+    """
+
+    version: str
+    include_local_path: bool = True
+
+
 REPLACEMENTS: dict[str, tuple[DependencyPatch, ...]] = {
     "rstest-bdd-macros": (
         DependencyPatch("dependencies", "rstest-bdd-patterns", "../rstest-bdd-patterns"),
@@ -92,24 +110,17 @@ def apply_replacements(
     patches = REPLACEMENTS.get(crate)
     if patches is None:
         raise SystemExit(f"unknown crate {crate!r}")
+    config = DependencyConfig(version=version, include_local_path=include_local_path)
     for patch in patches:
-        update_dependency(
-            document,
-            patch,
-            version,
-            manifest,
-            include_local_path=include_local_path,
-        )
+        update_dependency(document, patch, config, manifest)
     manifest.write_text(dumps(document), encoding="utf-8")
 
 
 def update_dependency(
     document: TOMLDocument,
     patch: DependencyPatch,
-    version: str,
+    config: DependencyConfig,
     manifest: Path,
-    *,
-    include_local_path: bool,
 ) -> None:
     """Replace a workspace dependency with an inline publish-friendly entry.
 
@@ -119,13 +130,10 @@ def update_dependency(
         Parsed manifest document that will be mutated in place.
     patch : DependencyPatch
         Replacement metadata describing the dependency to update.
-    version : str
-        Version string used for the inline dependency.
+    config : DependencyConfig
+        Configuration describing how the inline dependency should be produced.
     manifest : Path
         Path to the manifest used for error reporting.
-    include_local_path : bool
-        Forwarded to :func:`build_inline_dependency` to control whether the
-        ``path`` attribute is retained.
 
     Returns
     -------
@@ -146,9 +154,8 @@ def update_dependency(
     >>> update_dependency(
     ...     doc,
     ...     patch,
-    ...     '1.0.0',
+    ...     DependencyConfig('1.0.0', include_local_path=True),
     ...     Path('Cargo.toml'),
-    ...     include_local_path=True,
     ... )
     >>> dict(doc['dependencies']['foo'])['version']
     '1.0.0'
@@ -169,8 +176,8 @@ def update_dependency(
     section[patch.name] = build_inline_dependency(
         extra_items,
         patch.path,
-        version,
-        include_local_path=include_local_path,
+        config.version,
+        include_local_path=config.include_local_path,
     )
 
 

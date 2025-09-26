@@ -22,11 +22,34 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 
 def export_workspace(destination: Path) -> None:
-    """Extract the repository HEAD into ``destination`` via ``git archive``."""
+    """Export the repository ``HEAD`` into ``destination``.
+
+    Parameters
+    ----------
+    destination : Path
+        Directory that receives the extracted workspace archive.
+
+    Returns
+    -------
+    None
+        The target directory is populated with the repository contents.
+
+    Raises
+    ------
+    plumbum.commands.ProcessExecutionError
+        Raised when ``git archive`` cannot be executed successfully.
+    tarfile.TarError
+        Propagated if the generated archive cannot be unpacked.
+    """
 
     with tempfile.TemporaryDirectory() as archive_dir:
         archive_path = Path(archive_dir) / "workspace.tar"
-        git_archive = local["git"]["archive", "--format=tar", "HEAD", f"--output={archive_path}"]
+        git_archive = local["git"][
+            "archive",
+            "--format=tar",
+            "HEAD",
+            f"--output={archive_path}",
+        ]
         with local.cwd(PROJECT_ROOT):
             git_archive()
         with tarfile.open(archive_path) as tar:
@@ -78,7 +101,18 @@ def _ensure_proper_file_ending(lines: list[str]) -> None:
 
 
 def strip_patch_section(manifest: Path) -> None:
-    """Strip the [patch.crates-io] section from a Cargo manifest file."""
+    """Remove the ``[patch.crates-io]`` section from ``manifest``.
+
+    Parameters
+    ----------
+    manifest : Path
+        Cargo manifest that will be rewritten in place.
+
+    Returns
+    -------
+    None
+        The manifest is updated so patch overrides are removed.
+    """
 
     lines = manifest.read_text(encoding="utf-8").splitlines()
     cleaned: list[str] = []
@@ -131,7 +165,18 @@ def _process_member_line(line: str, inside_members: bool, result: list[str]) -> 
 
 
 def prune_workspace_members(manifest: Path) -> None:
-    """Remove non-crate entries from the workspace members list."""
+    """Remove non-crate entries from the workspace members list.
+
+    Parameters
+    ----------
+    manifest : Path
+        Workspace manifest whose ``members`` array should be filtered.
+
+    Returns
+    -------
+    None
+        The manifest is rewritten with only crate directories retained.
+    """
 
     lines = manifest.read_text(encoding="utf-8").splitlines()
     result: list[str] = []
@@ -150,7 +195,26 @@ def apply_workspace_replacements(
     include_local_path: bool,
     crates: tuple[str, ...] | None = None,
 ) -> None:
-    """Rewrite workspace dependency declarations for publish workflows."""
+    """Rewrite workspace dependency declarations for publish workflows.
+
+    Parameters
+    ----------
+    workspace_root : Path
+        Root directory of the exported workspace that will be mutated.
+    version : str
+        Version string applied to rewritten dependencies.
+    include_local_path : bool
+        Forwarded to :func:`publish_patch.build_inline_dependency` to control
+        whether rewritten dependencies retain their ``path`` entries.
+    crates : tuple[str, ...], optional
+        Subset of crates to update. Defaults to all entries in
+        :data:`publish_patch.REPLACEMENTS` when omitted.
+
+    Returns
+    -------
+    None
+        Dependency manifests inside the workspace are patched in place.
+    """
 
     targets = REPLACEMENTS if crates is None else crates
     for crate in targets:
@@ -166,7 +230,23 @@ def apply_workspace_replacements(
 
 
 def workspace_version(manifest: Path) -> str:
-    """Return the workspace package version from the root manifest."""
+    """Return the workspace package version from ``manifest``.
+
+    Parameters
+    ----------
+    manifest : Path
+        Root ``Cargo.toml`` path from which the version is read.
+
+    Returns
+    -------
+    str
+        Version string from ``[workspace.package].version``.
+
+    Raises
+    ------
+    SystemExit
+        Raised when the manifest is missing the ``workspace`` metadata.
+    """
 
     data = tomllib.loads(manifest.read_text(encoding="utf-8"))
     try:
@@ -176,7 +256,20 @@ def workspace_version(manifest: Path) -> str:
 
 
 def remove_patch_entry(manifest: Path, crate: str) -> None:
-    """Remove the ``crate`` entry from the root ``[patch.crates-io]`` table."""
+    """Remove ``crate`` from the root ``[patch.crates-io]`` table.
+
+    Parameters
+    ----------
+    manifest : Path
+        Workspace manifest whose patch section should be updated.
+    crate : str
+        Crate name whose override is removed after publishing.
+
+    Returns
+    -------
+    None
+        The manifest is rewritten with the updated patch table.
+    """
 
     document = parse(manifest.read_text(encoding="utf-8"))
     patch_table = document.get("patch")
