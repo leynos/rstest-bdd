@@ -245,14 +245,32 @@ def run_cargo_command(
         _handle_command_output(result.stdout, result.stderr)
 
 
+def _run_cargo_subcommand(
+    crate: str,
+    workspace_root: Path,
+    subcommand: str,
+    args: cabc.Sequence[str],
+    *,
+    timeout_secs: int | None = None,
+) -> None:
+    command = ["cargo", subcommand, *list(args)]
+    run_cargo_command(
+        crate,
+        workspace_root,
+        command,
+        timeout_secs=timeout_secs,
+    )
+
+
 def package_crate(
     crate: str, workspace_root: Path, *, timeout_secs: int | None = None
 ) -> None:
     """Invoke ``cargo package`` for ``crate`` within the exported workspace."""
-    run_cargo_command(
+    _run_cargo_subcommand(
         crate,
         workspace_root,
-        ["cargo", "package", "--allow-dirty", "--no-verify"],
+        "package",
+        ["--allow-dirty", "--no-verify"],
         timeout_secs=timeout_secs,
     )
 
@@ -261,10 +279,11 @@ def check_crate(
     crate: str, workspace_root: Path, *, timeout_secs: int | None = None
 ) -> None:
     """Run ``cargo check`` for ``crate`` using the exported workspace."""
-    run_cargo_command(
+    _run_cargo_subcommand(
         crate,
         workspace_root,
-        ["cargo", "check", "--all-features"],
+        "check",
+        ["--all-features"],
         timeout_secs=timeout_secs,
     )
 
