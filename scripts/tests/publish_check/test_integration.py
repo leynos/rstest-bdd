@@ -298,12 +298,12 @@ class TestRunPublishCheckLiveMode:
         steps, record = self._setup_recording_infrastructure()
         fake_apply, fake_remove = self._create_fake_functions(steps)
         commands, fake_run_cargo = self._setup_cargo_recording()
-        mocks = WorkspaceMocks(
+        self._workspace_mocks = WorkspaceMocks(
             record=record,
             fake_apply=fake_apply,
             fake_remove=fake_remove,
         )
-        self._setup_workspace_mocks(monkeypatch, run_publish_check_module, mocks)
+        self._setup_workspace_mocks(monkeypatch, run_publish_check_module)
         self._setup_cargo_and_config_mocks(
             monkeypatch,
             run_publish_check_module,
@@ -369,17 +369,22 @@ class TestRunPublishCheckLiveMode:
         self,
         monkeypatch: pytest.MonkeyPatch,
         run_publish_check_module: ModuleType,
-        mocks: WorkspaceMocks,
     ) -> None:
         """Replace workspace helpers with recording doubles."""
         monkeypatch.setattr(
-            run_publish_check_module, "export_workspace", mocks.record("export")
+            run_publish_check_module,
+            "export_workspace",
+            self._workspace_mocks.record("export"),
         )
         monkeypatch.setattr(
-            run_publish_check_module, "prune_workspace_members", mocks.record("prune")
+            run_publish_check_module,
+            "prune_workspace_members",
+            self._workspace_mocks.record("prune"),
         )
         monkeypatch.setattr(
-            run_publish_check_module, "strip_patch_section", mocks.record("strip")
+            run_publish_check_module,
+            "strip_patch_section",
+            self._workspace_mocks.record("strip"),
         )
         monkeypatch.setattr(
             run_publish_check_module, "workspace_version", lambda _manifest: "1.2.3"
@@ -387,10 +392,12 @@ class TestRunPublishCheckLiveMode:
         monkeypatch.setattr(
             run_publish_check_module,
             "apply_workspace_replacements",
-            mocks.fake_apply,
+            self._workspace_mocks.fake_apply,
         )
         monkeypatch.setattr(
-            run_publish_check_module, "remove_patch_entry", mocks.fake_remove
+            run_publish_check_module,
+            "remove_patch_entry",
+            self._workspace_mocks.fake_remove,
         )
 
     def _setup_cargo_and_config_mocks(
