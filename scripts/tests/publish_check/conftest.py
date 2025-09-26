@@ -42,36 +42,30 @@ class CargoTestContext:
     run_publish_check_module: ModuleType
 
 
-@pytest.fixture(scope="module")
-def run_publish_check_module() -> ModuleType:
-    """Load ``run_publish_check`` as a real module for integration tests."""
-    spec = importlib.util.spec_from_file_location(
-        "run_publish_check", SCRIPTS_DIR / "run_publish_check.py"
-    )
+def _load_module_from_scripts(module_name: str, script_filename: str) -> ModuleType:
+    """Load ``module_name`` from ``scripts`` while guarding against import issues."""
+    script_path = SCRIPTS_DIR / script_filename
+    spec = importlib.util.spec_from_file_location(module_name, script_path)
     if spec is None or spec.loader is None:
-        msg = "Failed to locate run_publish_check module spec"
+        msg = f"Failed to load module spec for {module_name!r} from {script_path}"
         raise RuntimeError(msg)
 
     module = importlib.util.module_from_spec(spec)
     sys.modules[spec.name] = module
     spec.loader.exec_module(module)
     return module
+
+
+@pytest.fixture(scope="module")
+def run_publish_check_module() -> ModuleType:
+    """Load ``run_publish_check`` as a real module for integration tests."""
+    return _load_module_from_scripts("run_publish_check", "run_publish_check.py")
 
 
 @pytest.fixture(scope="module")
 def publish_workspace_module() -> ModuleType:
     """Load ``publish_workspace`` as a module for integration tests."""
-    spec = importlib.util.spec_from_file_location(
-        "publish_workspace", SCRIPTS_DIR / "publish_workspace.py"
-    )
-    if spec is None or spec.loader is None:
-        msg = "Failed to locate publish_workspace module spec"
-        raise RuntimeError(msg)
-
-    module = importlib.util.module_from_spec(spec)
-    sys.modules[spec.name] = module
-    spec.loader.exec_module(module)
-    return module
+    return _load_module_from_scripts("publish_workspace", "publish_workspace.py")
 
 
 @pytest.fixture
