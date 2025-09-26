@@ -466,14 +466,16 @@ class TestRunPublishCheckLiveMode:
         self._verify_live_publish_execution(steps, commands, workspace_dir, manifest)
 
 
-def test_run_publish_check_preserves_workspace(
+def _setup_basic_workflow_mocks(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
-    capsys: pytest.CaptureFixture[str],
     run_publish_check_module: ModuleType,
-) -> None:
-    """Ensure the workflow keeps the workspace when requested."""
-    workspace_dir = tmp_path / "persist"
+    *,
+    workspace_name: str,
+    crate_order: tuple[str, ...] = ("demo-crate",),
+) -> Path:
+    """Prepare shared workspace and helper mocks for workflow integration tests."""
+    workspace_dir = tmp_path / workspace_name
     workspace_dir.mkdir()
     monkeypatch.setattr(
         run_publish_check_module.tempfile, "mkdtemp", lambda: str(workspace_dir)
@@ -482,13 +484,13 @@ def test_run_publish_check_preserves_workspace(
         run_publish_check_module, "export_workspace", lambda _dest: None
     )
     monkeypatch.setattr(
-        run_publish_check_module, "prune_workspace_members", lambda _m: None
+        run_publish_check_module, "prune_workspace_members", lambda _manifest: None
     )
     monkeypatch.setattr(
-        run_publish_check_module, "strip_patch_section", lambda _m: None
+        run_publish_check_module, "strip_patch_section", lambda _manifest: None
     )
     monkeypatch.setattr(
-        run_publish_check_module, "workspace_version", lambda _m: "1.0.0"
+        run_publish_check_module, "workspace_version", lambda _manifest: "1.0.0"
     )
     monkeypatch.setattr(
         run_publish_check_module,
@@ -501,7 +503,23 @@ def test_run_publish_check_preserves_workspace(
     monkeypatch.setattr(
         run_publish_check_module, "check_crate", lambda *_args, **_kwargs: None
     )
-    monkeypatch.setattr(run_publish_check_module, "CRATE_ORDER", ("demo-crate",))
+    monkeypatch.setattr(run_publish_check_module, "CRATE_ORDER", crate_order)
+    return workspace_dir
+
+
+def test_run_publish_check_preserves_workspace(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    run_publish_check_module: ModuleType,
+) -> None:
+    """Ensure the workflow keeps the workspace when requested."""
+    workspace_dir = _setup_basic_workflow_mocks(
+        monkeypatch,
+        tmp_path,
+        run_publish_check_module,
+        workspace_name="persist",
+    )
 
     run_publish_check_module.run_publish_check(keep_tmp=True, timeout_secs=5)
 
@@ -516,35 +534,13 @@ def test_run_publish_check_errors_when_crate_order_empty(
     run_publish_check_module: ModuleType,
 ) -> None:
     """Verify the workflow aborts if ``CRATE_ORDER`` is empty."""
-    workspace_dir = tmp_path / "missing-order"
-    workspace_dir.mkdir()
-    monkeypatch.setattr(
-        run_publish_check_module.tempfile, "mkdtemp", lambda: str(workspace_dir)
-    )
-    monkeypatch.setattr(
-        run_publish_check_module, "export_workspace", lambda _dest: None
-    )
-    monkeypatch.setattr(
-        run_publish_check_module, "prune_workspace_members", lambda _m: None
-    )
-    monkeypatch.setattr(
-        run_publish_check_module, "strip_patch_section", lambda _m: None
-    )
-    monkeypatch.setattr(
-        run_publish_check_module, "workspace_version", lambda _m: "1.0.0"
-    )
-    monkeypatch.setattr(
+    _setup_basic_workflow_mocks(
+        monkeypatch,
+        tmp_path,
         run_publish_check_module,
-        "apply_workspace_replacements",
-        lambda *_args, **_kwargs: None,
+        workspace_name="missing-order",
+        crate_order=(),
     )
-    monkeypatch.setattr(
-        run_publish_check_module, "package_crate", lambda *_args, **_kwargs: None
-    )
-    monkeypatch.setattr(
-        run_publish_check_module, "check_crate", lambda *_args, **_kwargs: None
-    )
-    monkeypatch.setattr(run_publish_check_module, "CRATE_ORDER", ())
 
     with pytest.raises(SystemExit, match="CRATE_ORDER must not be empty"):
         run_publish_check_module.run_publish_check(keep_tmp=False, timeout_secs=5)
