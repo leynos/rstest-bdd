@@ -262,30 +262,43 @@ def _run_cargo_subcommand(
     )
 
 
-def package_crate(
-    crate: str, workspace_root: Path, *, timeout_secs: int | None = None
-) -> None:
-    """Invoke ``cargo package`` for ``crate`` within the exported workspace."""
-    _run_cargo_subcommand(
-        crate,
-        workspace_root,
-        "package",
-        ["--allow-dirty", "--no-verify"],
-        timeout_secs=timeout_secs,
-    )
+def _create_cargo_action(
+    subcommand: str,
+    args: cabc.Sequence[str],
+    docstring: str,
+) -> CrateAction:
+    command_args = tuple(args)
+
+    def action(
+        crate: str,
+        workspace_root: Path,
+        *,
+        timeout_secs: int | None = None,
+    ) -> None:
+        _run_cargo_subcommand(
+            crate,
+            workspace_root,
+            subcommand,
+            command_args,
+            timeout_secs=timeout_secs,
+        )
+
+    action.__doc__ = docstring
+    return typ.cast("CrateAction", action)
 
 
-def check_crate(
-    crate: str, workspace_root: Path, *, timeout_secs: int | None = None
-) -> None:
-    """Run ``cargo check`` for ``crate`` using the exported workspace."""
-    _run_cargo_subcommand(
-        crate,
-        workspace_root,
-        "check",
-        ["--all-features"],
-        timeout_secs=timeout_secs,
-    )
+package_crate = _create_cargo_action(
+    "package",
+    ["--allow-dirty", "--no-verify"],
+    "Invoke ``cargo package`` for ``crate`` within the exported workspace.",
+)
+
+
+check_crate = _create_cargo_action(
+    "check",
+    ["--all-features"],
+    "Run ``cargo check`` for ``crate`` using the exported workspace.",
+)
 
 
 def publish_crate_commands(
