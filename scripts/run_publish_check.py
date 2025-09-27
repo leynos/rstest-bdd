@@ -134,6 +134,9 @@ class CommandResult:
     stderr: str
 
 
+FailureHandler = typ.Callable[[str, CommandResult], bool]
+
+
 def _handle_command_failure(
     crate: str,
     result: CommandResult,
@@ -175,6 +178,7 @@ def run_cargo_command(
     command: typ.Sequence[str],
     *,
     timeout_secs: int | None = None,
+    on_failure: FailureHandler | None = None,
 ) -> None:
     """Run a Cargo command for a crate in the exported workspace.
 
@@ -186,6 +190,11 @@ def run_cargo_command(
         Root directory of the temporary workspace exported from the repository.
     command
         Command arguments, which **must** begin with ``cargo``, to execute.
+    on_failure
+        Optional callback that may handle command failures. When provided the
+        handler receives the crate name and :class:`CommandResult`. Returning
+        ``True`` suppresses the default error handling, allowing callers to
+        decide whether execution should continue.
 
     Examples
     --------
@@ -235,6 +244,9 @@ def run_cargo_command(
         stderr=stderr,
     )
     if return_code != 0:
+        if on_failure is not None and on_failure(crate, result):
+            return
+
         _handle_command_failure(crate, result)
     else:
         _handle_command_output(result.stdout, result.stderr)
@@ -335,13 +347,33 @@ def publish_crate_commands(
         message = f"missing live publish commands for {crate!r}"
         raise SystemExit(message) from error
 
+    handled_failure = False
+
+    def _handle_failure(crate_name: str, result: CommandResult) -> bool:
+        nonlocal handled_failure
+
+        already_published_marker = "already exists on crates.io index"
+        if already_published_marker not in result.stderr:
+            return False
+
+        handled_failure = True
+        _handle_command_output(result.stdout, result.stderr)
+        LOGGER.warning(
+            "crate %s already published on crates.io; skipping remaining commands",
+            crate_name,
+        )
+        return True
+
     for command in commands:
         run_cargo_command(
             crate,
             workspace_root,
             command,
             timeout_secs=timeout_secs,
+            on_failure=_handle_failure,
         )
+        if handled_failure:
+            break
 
 
 @dc.dataclass
