@@ -352,8 +352,11 @@ def publish_crate_commands(
     def _handle_failure(crate_name: str, result: CommandResult) -> bool:
         nonlocal handled_failure
 
-        already_published_marker = "already exists on crates.io index"
-        if already_published_marker not in result.stderr:
+        already_published_markers = (
+            "already exists on crates.io index",
+            "already uploaded",
+        )
+        if not any(marker in result.stderr for marker in already_published_markers):
             return False
 
         handled_failure = True
