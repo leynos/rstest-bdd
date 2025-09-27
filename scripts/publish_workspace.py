@@ -20,6 +20,13 @@ from tomlkit import dumps, parse
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
+PUBLISHABLE_CRATES: typ.Final[tuple[str, ...]] = (
+    "rstest-bdd-patterns",
+    "rstest-bdd-macros",
+    "rstest-bdd",
+    "cargo-bdd",
+)
+
 
 def export_workspace(destination: Path) -> None:
     """Extract the repository HEAD into ``destination`` via ``git archive``.
@@ -40,60 +47,17 @@ def export_workspace(destination: Path) -> None:
             "archive", "--format=tar", "HEAD", f"--output={archive_path}"
         ]
         with local.cwd(PROJECT_ROOT):
-            git_archive()
+            return_code, stdout, stderr = git_archive.run(
+                timeout=60,
+                retcode=None,
+            )
+        if return_code != 0:
+            diagnostics = (stderr or stdout or "").strip()
+            detail = f": {diagnostics}" if diagnostics else ""
+            message = f"git archive failed with exit code {return_code}{detail}"
+            raise SystemExit(message)
         with tarfile.open(archive_path) as tar:
             tar.extractall(destination, filter="data")
-
-
-def _is_patch_section_start(line: str) -> bool:
-    """Return True when the line marks the ``[patch.crates-io]`` section."""
-    return line.strip() == "[patch.crates-io]"
-
-
-def _is_any_section_start(line: str) -> bool:
-    """Return True when the line starts a new manifest section."""
-    return line.startswith("[")
-
-
-def _process_patch_section_line(
-    line: str, *, skipping_patch: bool
-) -> tuple[bool, bool]:
-    """Process a line for patch section handling.
-
-    Parameters
-    ----------
-    line
-        The current line being processed.
-    skipping_patch
-        Current state indicating if we're inside a patch section.
-
-    Returns
-    -------
-    tuple[bool, bool]
-        A tuple of (should_include_line, new_skipping_patch_state).
-    """
-    if not skipping_patch and _is_patch_section_start(line):
-        return False, True
-
-    if skipping_patch and _is_any_section_start(line):
-        return True, False
-
-    return not skipping_patch, skipping_patch
-
-
-def _ensure_proper_file_ending(lines: list[str]) -> None:
-    """Ensure the file ends with a newline by adding an empty string if needed."""
-    if not lines or lines[-1] != "":
-        lines.append("")
-
-
-def _rewrite_manifest_lines(
-    manifest: Path, processor: typ.Callable[[list[str]], list[str]]
-) -> None:
-    """Read ``manifest`` lines, transform them, and write the updated content."""
-    lines = manifest.read_text(encoding="utf-8").splitlines()
-    rewritten = processor(lines)
-    manifest.write_text("\n".join(rewritten), encoding="utf-8")
 
 
 def strip_patch_section(manifest: Path) -> None:
@@ -109,55 +73,24 @@ def strip_patch_section(manifest: Path) -> None:
     None
         The manifest on disk is rewritten without the patch section.
     """
+    document = parse(manifest.read_text(encoding="utf-8"))
+    patch_table = document.get("patch")
+    if patch_table is None:
+        return
 
-    def _remove_patch(lines: list[str]) -> list[str]:
-        cleaned: list[str] = []
-        skipping_patch = False
+    crates_io = patch_table.get("crates-io")
+    if crates_io is None:
+        return
 
-        for line in lines:
-            should_include, skipping_patch = _process_patch_section_line(
-                line, skipping_patch=skipping_patch
-            )
-            if should_include:
-                cleaned.append(line)
+    del patch_table["crates-io"]
+    if not patch_table:
+        del document["patch"]
 
-        _ensure_proper_file_ending(cleaned)
-        return cleaned
+    rendered = dumps(document)
+    if not rendered.endswith("\n"):
+        rendered = f"{rendered}\n"
 
-    _rewrite_manifest_lines(manifest, _remove_patch)
-
-
-def _is_members_section_start(line: str) -> bool:
-    """Return True if the line starts a workspace members section."""
-    stripped = line.strip()
-    return stripped.startswith("members") and stripped.endswith("[")
-
-
-def _is_members_section_end(line: str) -> bool:
-    """Return True if the line ends a workspace members section."""
-    return line.strip() == "]"
-
-
-def _should_include_member_line(line: str) -> bool:
-    """Return True if the member entry references a crate directory."""
-    return '"crates/' in line.strip()
-
-
-def _process_member_line(line: str, *, inside_members: bool, result: list[str]) -> bool:
-    """Update workspace member parsing state for a manifest line."""
-    if _is_members_section_start(line):
-        result.append(line)
-        return True
-
-    if inside_members and _is_members_section_end(line):
-        result.append(line)
-        return False
-
-    if inside_members and not _should_include_member_line(line):
-        return inside_members
-
-    result.append(line)
-    return inside_members
+    manifest.write_text(rendered, encoding="utf-8")
 
 
 def prune_workspace_members(manifest: Path) -> None:
@@ -173,20 +106,33 @@ def prune_workspace_members(manifest: Path) -> None:
     None
         The manifest is rewritten with only crate directories listed.
     """
+    document = parse(manifest.read_text(encoding="utf-8"))
+    workspace = document.get("workspace")
+    if workspace is None:
+        return
 
-    def _retain_crates(lines: list[str]) -> list[str]:
-        result: list[str] = []
-        inside_members = False
-        for line in lines:
-            inside_members = _process_member_line(
-                line,
-                inside_members=inside_members,
-                result=result,
-            )
-        _ensure_proper_file_ending(result)
-        return result
+    members = workspace.get("members")
+    if members is None:
+        return
 
-    _rewrite_manifest_lines(manifest, _retain_crates)
+    if not isinstance(members, list):
+        return
+
+    changed = False
+    for index in range(len(members) - 1, -1, -1):
+        entry = members[index]
+        if not isinstance(entry, str) or Path(entry).name not in PUBLISHABLE_CRATES:
+            del members[index]
+            changed = True
+
+    if not changed:
+        return
+
+    rendered = dumps(document)
+    if not rendered.endswith("\n"):
+        rendered = f"{rendered}\n"
+
+    manifest.write_text(rendered, encoding="utf-8")
 
 
 def apply_workspace_replacements(
@@ -250,7 +196,11 @@ def workspace_version(manifest: Path) -> str:
     try:
         return data["workspace"]["package"]["version"]
     except KeyError as err:
-        message = f"expected [workspace.package].version in {manifest}"
+        message = (
+            f"expected [workspace.package].version in {manifest}; "
+            "[workspace.package] must define a version for publish automation to run. "
+            "Check the manifest defines the key."
+        )
         raise SystemExit(message) from err
 
 

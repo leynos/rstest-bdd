@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import contextlib
+import dataclasses as dc
 import typing as typ
 
 import pytest
+import tomllib
 
 if typ.TYPE_CHECKING:
     from pathlib import Path
@@ -35,9 +37,13 @@ def test_export_workspace_propagates_git_failure(
         def __getitem__(self, _args: object) -> FakeCommand:
             return self
 
-        def __call__(self, *_args: object, **_kwargs: object) -> None:
-            error_message = "archive failed"
-            raise RuntimeError(error_message)
+        def run(
+            self,
+            *,
+            timeout: int,
+            retcode: object | None,
+        ) -> tuple[int, str, str]:
+            return 1, "", "archive failed"
 
     class FakeLocal:
         def __getitem__(self, name: str) -> FakeCommand:
@@ -51,5 +57,183 @@ def test_export_workspace_propagates_git_failure(
 
     monkeypatch.setattr(publish_workspace_module, "local", FakeLocal())
 
-    with pytest.raises(RuntimeError, match="archive failed"):
+    with pytest.raises(SystemExit, match="git archive failed with exit code 1"):
         publish_workspace_module.export_workspace(tmp_path)
+
+
+def test_strip_patch_section_ignores_inline_comments(
+    publish_workspace_module: ModuleType, tmp_path: Path
+) -> None:
+    """Ensure patch sections with inline comments are removed cleanly."""
+    manifest = tmp_path / "Cargo.toml"
+    manifest.write_text(
+        "\n".join(
+            (
+                "[package]",
+                'name = "demo"',
+                'version = "0.1.0"',
+                "",
+                "[patch.crates-io] # remove before publish",
+                'serde = { path = "../serde" }',
+                "",
+                "[dependencies]",
+                'serde = "1"',
+            )
+        ),
+        encoding="utf-8",
+    )
+
+    publish_workspace_module.strip_patch_section(manifest)
+
+    assert manifest.read_text(encoding="utf-8") == (
+        '[package]\nname = "demo"\nversion = "0.1.0"\n\n[dependencies]\nserde = "1"\n'
+    )
+
+
+def test_strip_patch_section_tolerates_hash_characters_in_strings(
+    publish_workspace_module: ModuleType, tmp_path: Path
+) -> None:
+    """Ignore literal ``#`` characters embedded within string values."""
+    manifest = tmp_path / "Cargo.toml"
+    manifest.write_text(
+        "\n".join(
+            (
+                "[patch.crates-io]",
+                'demo = { git = "https://example.com/#main" }',
+                "",
+                "[dependencies]",
+                'demo = { version = "1", registry = "crates-io" }',
+            )
+        ),
+        encoding="utf-8",
+    )
+
+    publish_workspace_module.strip_patch_section(manifest)
+
+    assert manifest.read_text(encoding="utf-8") == (
+        '[dependencies]\ndemo = { version = "1", registry = "crates-io" }\n'
+    )
+
+
+@dc.dataclass(frozen=True)
+class PruneTestCase:
+    """Test case data for workspace member pruning scenarios."""
+
+    name: str
+    toml_content: str
+    expected: list[str] | str
+    description: str
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        PruneTestCase(
+            name="removes_non_crate_entries",
+            toml_content="\n".join(
+                (
+                    "[workspace]",
+                    "members = [",
+                    '    "crates/rstest-bdd",',
+                    '    "examples/todo-cli",',
+                    "]",
+                )
+            ),
+            expected=["crates/rstest-bdd"],
+            description=(
+                "Remove workspace members that are not part of the publishable crates."
+            ),
+        ),
+        PruneTestCase(
+            name="keeps_known_crate_names",
+            toml_content="\n".join(
+                (
+                    "[workspace]",
+                    'members = ["packages/rstest-bdd", "tools/xtask"]',
+                )
+            ),
+            expected=["packages/rstest-bdd"],
+            description=(
+                "Retain crate entries even when they use alternate directory layouts."
+            ),
+        ),
+        PruneTestCase(
+            name="ignores_missing_workspace_section",
+            toml_content="\n".join(
+                (
+                    "[package]",
+                    'name = "demo"',
+                    'version = "0.1.0"',
+                )
+            ),
+            expected="\n".join(
+                (
+                    "[package]",
+                    'name = "demo"',
+                    'version = "0.1.0"',
+                )
+            ),
+            description="Leave manifests without workspace metadata untouched.",
+        ),
+        PruneTestCase(
+            name="ignores_missing_members_array",
+            toml_content="\n".join(
+                (
+                    "[workspace]",
+                    'resolver = "2"',
+                )
+            ),
+            expected="\n".join(
+                (
+                    "[workspace]",
+                    'resolver = "2"',
+                )
+            ),
+            description="Preserve workspace tables that do not define members.",
+        ),
+    ],
+    ids=lambda case: case.name.replace("_", "-"),
+)
+def test_prune_workspace_members_behaviour(
+    publish_workspace_module: ModuleType,
+    tmp_path: Path,
+    test_case: PruneTestCase,
+) -> None:
+    """Exercise prune_workspace_members across expected scenarios."""
+    manifest = tmp_path / "Cargo.toml"
+    manifest.write_text(test_case.toml_content, encoding="utf-8")
+
+    original = manifest.read_text(encoding="utf-8")
+
+    publish_workspace_module.prune_workspace_members(manifest)
+
+    content = manifest.read_text(encoding="utf-8")
+    if isinstance(test_case.expected, list):
+        data = tomllib.loads(content)
+        assert data["workspace"]["members"] == test_case.expected
+    else:
+        assert content == test_case.expected == original
+
+
+def test_prune_workspace_members_preserves_inline_formatting(
+    publish_workspace_module: ModuleType,
+    tmp_path: Path,
+) -> None:
+    """Retain inline array formatting and trailing newline when pruning."""
+    manifest = tmp_path / "Cargo.toml"
+    manifest.write_text(
+        "\n".join(
+            (
+                "[workspace]",
+                'members = ["crates/rstest-bdd", "examples/todo-cli"]',
+            )
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    publish_workspace_module.prune_workspace_members(manifest)
+
+    content = manifest.read_text(encoding="utf-8")
+    assert 'members = ["crates/rstest-bdd"]' in content
+    assert content.endswith("\n")

@@ -42,16 +42,12 @@ import typing as typ
 from contextlib import ExitStack
 from pathlib import Path
 
-if typ.TYPE_CHECKING:
-    import collections.abc as cabc
-else:  # pragma: no cover - runtime placeholder for type checking imports
-    cabc: typ.Any = None
-
 import cyclopts
 from cyclopts import App, Parameter
 from plumbum import local
 from plumbum.commands.processes import ProcessTimedOut
 from publish_workspace import (
+    PUBLISHABLE_CRATES,
     apply_workspace_replacements,
     export_workspace,
     prune_workspace_members,
@@ -62,7 +58,7 @@ from publish_workspace import (
 
 LOGGER = logging.getLogger(__name__)
 
-Command = tuple[str, ...]
+Command = typ.Sequence[str]
 
 
 class CrateAction(typ.Protocol):
@@ -73,33 +69,32 @@ class CrateAction(typ.Protocol):
         ...
 
 
-CRATE_ORDER: tuple[str, ...] = (
-    "rstest-bdd-patterns",
-    "rstest-bdd-macros",
-    "rstest-bdd",
-    "cargo-bdd",
+CRATE_ORDER: typ.Final[tuple[str, ...]] = PUBLISHABLE_CRATES
+
+LOCKED_LIVE_CRATES: typ.Final[frozenset[str]] = frozenset({"cargo-bdd"})
+
+DEFAULT_LIVE_CRATES: typ.Final[tuple[str, ...]] = tuple(
+    crate for crate in PUBLISHABLE_CRATES if crate not in LOCKED_LIVE_CRATES
 )
 
-DEFAULT_LIVE_CRATES: tuple[str, ...] = (
-    "rstest-bdd-patterns",
-    "rstest-bdd-macros",
-    "rstest-bdd",
-)
-
-DEFAULT_LIVE_PUBLISH_COMMANDS: tuple[Command, ...] = (
+DEFAULT_LIVE_PUBLISH_COMMANDS: typ.Final[tuple[Command, ...]] = (
     ("cargo", "publish", "--dry-run"),
     ("cargo", "publish"),
 )
 
-LOCKED_LIVE_PUBLISH_COMMANDS: tuple[Command, ...] = (
+LOCKED_LIVE_PUBLISH_COMMANDS: typ.Final[tuple[Command, ...]] = (
     ("cargo", "publish", "--dry-run", "--locked"),
     ("cargo", "publish", "--locked"),
 )
 
-LIVE_PUBLISH_COMMANDS: dict[str, tuple[Command, ...]] = dict.fromkeys(
-    DEFAULT_LIVE_CRATES, DEFAULT_LIVE_PUBLISH_COMMANDS
-)
-LIVE_PUBLISH_COMMANDS["cargo-bdd"] = LOCKED_LIVE_PUBLISH_COMMANDS
+LIVE_PUBLISH_COMMANDS: typ.Final[dict[str, tuple[Command, ...]]] = {
+    crate: (
+        LOCKED_LIVE_PUBLISH_COMMANDS
+        if crate in LOCKED_LIVE_CRATES
+        else DEFAULT_LIVE_PUBLISH_COMMANDS
+    )
+    for crate in PUBLISHABLE_CRATES
+}
 
 DEFAULT_PUBLISH_TIMEOUT_SECS = 900
 
@@ -177,7 +172,7 @@ def _handle_command_output(stdout: str, stderr: str) -> None:
 def run_cargo_command(
     crate: str,
     workspace_root: Path,
-    command: cabc.Sequence[str],
+    command: typ.Sequence[str],
     *,
     timeout_secs: int | None = None,
 ) -> None:
@@ -257,7 +252,7 @@ class CargoExecutionContext:
 def _run_cargo_subcommand(
     context: CargoExecutionContext,
     subcommand: str,
-    args: cabc.Sequence[str],
+    args: typ.Sequence[str],
 ) -> None:
     command = ["cargo", subcommand, *list(args)]
     run_cargo_command(
@@ -270,7 +265,7 @@ def _run_cargo_subcommand(
 
 def _create_cargo_action(
     subcommand: str,
-    args: cabc.Sequence[str],
+    args: typ.Sequence[str],
     docstring: str,
 ) -> CrateAction:
     command_args = tuple(args)
@@ -318,9 +313,21 @@ def publish_crate_commands(
 ) -> None:
     """Run the configured live publish commands for ``crate``.
 
-    The helper aborts with :class:`SystemExit` when the crate lacks a
-    configured command sequence to ensure the workflow cannot silently skip
-    releases when new crates are added to the workspace.
+    Parameters
+    ----------
+    crate : str
+        Name of the crate being published. Must exist in
+        :data:`LIVE_PUBLISH_COMMANDS`.
+    workspace_root : Path
+        Root directory containing the exported workspace.
+    timeout_secs : int
+        Timeout in seconds applied to each ``cargo publish`` invocation.
+
+    Raises
+    ------
+    SystemExit
+        Raised when ``crate`` has no live command sequence configured. The
+        workflow aborts to avoid silently skipping new crates.
     """
     try:
         commands = LIVE_PUBLISH_COMMANDS[crate]
@@ -358,7 +365,7 @@ class CrateProcessingConfig:
     strip_patch: bool
     include_local_path: bool
     apply_per_crate: bool
-    per_crate_cleanup: cabc.Callable[[Path, str], None] | None = None
+    per_crate_cleanup: typ.Callable[[Path, str], None] | None = None
 
 
 def _process_crates(
@@ -540,7 +547,28 @@ def main(
         Parameter(env_var="PUBLISH_CHECK_LIVE"),
     ] = False,
 ) -> None:
-    """Cyclopts entry point for running the publish check workflow."""
+    """Run the publish-check CLI entry point.
+
+    Parameters
+    ----------
+    timeout_secs : int, optional
+        Timeout in seconds for Cargo commands. Defaults to 900 seconds
+        (``DEFAULT_PUBLISH_TIMEOUT_SECS``) and may be overridden via the
+        ``PUBLISH_CHECK_TIMEOUT_SECS`` environment variable.
+    keep_tmp : bool, optional
+        When ``True`` the exported workspace directory is retained after the
+        workflow finishes. Defaults to ``False`` and may also be set with the
+        ``PUBLISH_CHECK_KEEP_TMP`` environment variable.
+    live : bool, optional
+        When ``True`` runs the live publish workflow instead of a dry run.
+        Defaults to ``False`` and may be controlled through the
+        ``PUBLISH_CHECK_LIVE`` environment variable.
+
+    Returns
+    -------
+    None
+        This function executes for its side effects and returns ``None``.
+    """
     run_publish_check(keep_tmp=keep_tmp, timeout_secs=timeout_secs, live=live)
 
 
