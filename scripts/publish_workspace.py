@@ -253,30 +253,41 @@ def workspace_version(manifest: Path) -> str:
         snippet = _workspace_section_excerpt(manifest_text)
         if snippet:
             indented_snippet = "\n".join(f"    {line}" for line in snippet)
-            message = (
-                f"{message}\n\n"
-                "Workspace manifest excerpt:\n"
-                f"{indented_snippet}"
-            )
+            message = f"{message}\n\nWorkspace manifest excerpt:\n{indented_snippet}"
         raise SystemExit(message) from err
 
 
 def _workspace_section_excerpt(manifest_text: str) -> list[str] | None:
     """Return the lines around the ``[workspace]`` section for diagnostics."""
     lines = manifest_text.splitlines()
+    workspace_index = _find_workspace_section_index(lines)
+
+    if workspace_index is None:
+        return None
+
+    return _extract_section_lines(lines, workspace_index)
+
+
+def _find_workspace_section_index(lines: list[str]) -> int | None:
+    """Find the index of the [workspace] section."""
     for index, line in enumerate(lines):
         if line.strip().startswith("[workspace"):
-            start = max(index - 1, 0)
-            end = index + 1
-            while end < len(lines):
-                stripped = lines[end].strip()
-                if stripped.startswith("[") and not stripped.startswith("[workspace"):
-                    break
-                if end - start >= 8:
-                    break
-                end += 1
-            return lines[start:end]
+            return index
     return None
+
+
+def _extract_section_lines(lines: list[str], workspace_index: int) -> list[str]:
+    """Extract lines around the workspace section for diagnostics."""
+    start = max(workspace_index - 1, 0)
+    end = workspace_index + 1
+
+    while end < len(lines) and end - start < 8:
+        stripped = lines[end].strip()
+        if stripped.startswith("[") and not stripped.startswith("[workspace"):
+            break
+        end += 1
+
+    return lines[start:end]
 
 
 def remove_patch_entry(manifest: Path, crate: str) -> None:
