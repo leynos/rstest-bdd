@@ -16,7 +16,7 @@ from pathlib import Path
 import tomllib
 from plumbum import local
 from publish_patch import REPLACEMENTS, apply_replacements
-from tomlkit import array, dumps, parse
+from tomlkit import dumps, parse
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
@@ -115,19 +115,24 @@ def prune_workspace_members(manifest: Path) -> None:
     if members is None:
         return
 
-    retained = [
-        entry
-        for entry in members
-        if isinstance(entry, str) and Path(entry).name in PUBLISHABLE_CRATES
-    ]
-
-    if list(members) == retained:
+    if not isinstance(members, list):
         return
 
-    replacement = array()
-    replacement.extend(retained)
-    workspace["members"] = replacement
-    manifest.write_text(dumps(document), encoding="utf-8")
+    changed = False
+    for index in range(len(members) - 1, -1, -1):
+        entry = members[index]
+        if not isinstance(entry, str) or Path(entry).name not in PUBLISHABLE_CRATES:
+            del members[index]
+            changed = True
+
+    if not changed:
+        return
+
+    rendered = dumps(document)
+    if not rendered.endswith("\n"):
+        rendered = f"{rendered}\n"
+
+    manifest.write_text(rendered, encoding="utf-8")
 
 
 def apply_workspace_replacements(

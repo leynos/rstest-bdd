@@ -3,10 +3,8 @@
 from __future__ import annotations
 
 import contextlib
+import dataclasses as dc
 import typing as typ
-from dataclasses import dataclass
-from typing import List
-from typing import Union
 
 import pytest
 import tomllib
@@ -116,13 +114,14 @@ def test_strip_patch_section_tolerates_hash_characters_in_strings(
         '[dependencies]\ndemo = { version = "1", registry = "crates-io" }\n'
     )
 
-@dataclass(frozen=True)
+
+@dc.dataclass(frozen=True)
 class PruneTestCase:
     """Test case data for workspace member pruning scenarios."""
 
     name: str
     toml_content: str
-    expected: Union[List[str], str]
+    expected: list[str] | str
     description: str
 
 
@@ -142,8 +141,7 @@ class PruneTestCase:
             ),
             expected=["crates/rstest-bdd"],
             description=(
-                "Remove workspace members that are not part of the publishable"
-                " crates."
+                "Remove workspace members that are not part of the publishable crates."
             ),
         ),
         PruneTestCase(
@@ -156,8 +154,7 @@ class PruneTestCase:
             ),
             expected=["packages/rstest-bdd"],
             description=(
-                "Retain crate entries even when they use alternate directory"
-                " layouts."
+                "Retain crate entries even when they use alternate directory layouts."
             ),
         ),
         PruneTestCase(
@@ -216,3 +213,27 @@ def test_prune_workspace_members_behaviour(
         assert data["workspace"]["members"] == test_case.expected
     else:
         assert content == test_case.expected == original
+
+
+def test_prune_workspace_members_preserves_inline_formatting(
+    publish_workspace_module: ModuleType,
+    tmp_path: Path,
+) -> None:
+    """Retain inline array formatting and trailing newline when pruning."""
+    manifest = tmp_path / "Cargo.toml"
+    manifest.write_text(
+        "\n".join(
+            (
+                "[workspace]",
+                'members = ["crates/rstest-bdd", "examples/todo-cli"]',
+            )
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    publish_workspace_module.prune_workspace_members(manifest)
+
+    content = manifest.read_text(encoding="utf-8")
+    assert 'members = ["crates/rstest-bdd"]' in content
+    assert content.endswith("\n")
