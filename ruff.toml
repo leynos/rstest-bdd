@@ -1,0 +1,65 @@
+line-length = 88
+
+[lint]
+select = [
+    "F",
+    "W",
+    "E",
+    "I",
+    "UP",
+    "C4",
+    "FA",
+    "ISC",
+    "ICN",
+    "RET",
+    "SIM",
+    "TID",
+    "TC",
+    "PTH",
+    "TD",
+    "A",
+    "BLE",
+    "S",
+    "DTZ",
+    "FBT",
+    "N",
+    "FURB",
+    "B",
+    "RUF",
+    "LOG",
+    "Q",
+    "PT",
+    "RSE",
+    "PERF",
+    "TRY",
+    "EM",
+    "D",
+    "ANN",
+]
+per-file-ignores = {"**/test_*.py" = ["S101"]}
+ignore = ["D205"]
+
+[lint.flake8-import-conventions]
+# Declare the banned `from` imports.
+banned-from = [
+    "typing",
+    "datetime",
+    "collections.abc",
+    "dataclasses",
+    "enum",
+    "unittest.mock",
+    "msgspec",
+    "msgspec.json",
+]
+
+[lint.flake8-import-conventions.aliases]
+"collections.abc" = "cabc"
+datetime = "dt"
+"unittest.mock" = "mock"
+msgspec = "ms"
+"msgspec.json" = "msjson"
+typing = "typ"
+
+[lint.pydocstyle]
+# Enforce NumPy docstring 
+convention = "numpy"
