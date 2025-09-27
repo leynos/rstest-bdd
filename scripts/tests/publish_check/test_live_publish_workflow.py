@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
-from pathlib import Path
-from types import ModuleType
+import typing as typ
 
-import pytest
+if typ.TYPE_CHECKING:
+    from pathlib import Path
+    from types import ModuleType
+
+    import pytest
 
 
 def test_process_crates_for_live_publish_delegates_configuration(
@@ -13,6 +16,7 @@ def test_process_crates_for_live_publish_delegates_configuration(
     tmp_path: Path,
     run_publish_check_module: ModuleType,
 ) -> None:
+    """Ensure the live publish wrapper forwards configuration unmodified."""
     captured: dict[str, object] = {}
 
     def fake_process_crates(
@@ -26,7 +30,9 @@ def test_process_crates_for_live_publish_delegates_configuration(
         captured["config"] = config
         captured["crate_action"] = crate_action
 
-    monkeypatch.setattr(run_publish_check_module, "_process_crates", fake_process_crates)
+    monkeypatch.setattr(
+        run_publish_check_module, "_process_crates", fake_process_crates
+    )
 
     workspace = tmp_path / "live"
     run_publish_check_module._process_crates_for_live_publish(workspace, 99)
@@ -47,14 +53,19 @@ def test_process_crates_for_live_publish_runs_publish_workflow(
     tmp_path: Path,
     run_publish_check_module: ModuleType,
 ) -> None:
+    """Verify the live publish wrapper applies replacements per crate."""
     workspace = tmp_path / "workspace"
     workspace.mkdir()
     (workspace / "Cargo.toml").write_text("", encoding="utf-8")
 
     calls: list[tuple[str, object]] = []
 
-    monkeypatch.setattr(run_publish_check_module, "strip_patch_section", lambda *_: None)
-    monkeypatch.setattr(run_publish_check_module, "workspace_version", lambda _m: "0.1.0")
+    monkeypatch.setattr(
+        run_publish_check_module, "strip_patch_section", lambda *_: None
+    )
+    monkeypatch.setattr(
+        run_publish_check_module, "workspace_version", lambda _m: "0.1.0"
+    )
 
     def fake_apply(
         root: Path,
@@ -65,12 +76,16 @@ def test_process_crates_for_live_publish_runs_publish_workflow(
     ) -> None:
         calls.append(("apply", (root, version, include_local_path, crates)))
 
-    monkeypatch.setattr(run_publish_check_module, "apply_workspace_replacements", fake_apply)
+    monkeypatch.setattr(
+        run_publish_check_module, "apply_workspace_replacements", fake_apply
+    )
 
     def fake_publish(crate: str, root: Path, *, timeout_secs: int) -> None:
         calls.append(("publish", (crate, root, timeout_secs)))
 
-    monkeypatch.setattr(run_publish_check_module, "publish_crate_commands", fake_publish)
+    monkeypatch.setattr(
+        run_publish_check_module, "publish_crate_commands", fake_publish
+    )
 
     def fake_remove(manifest: Path, crate: str) -> None:
         calls.append(("remove_patch", (manifest, crate)))

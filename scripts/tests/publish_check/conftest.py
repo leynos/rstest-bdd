@@ -3,24 +3,28 @@
 from __future__ import annotations
 
 import contextlib
+import dataclasses as dc
 import importlib.util
 import sys
-from dataclasses import dataclass
+import typing as typ
 from pathlib import Path
-from types import ModuleType
-from typing import Callable
 
 import pytest
+
+if typ.TYPE_CHECKING:
+    from types import ModuleType
 
 SCRIPTS_DIR = Path(__file__).resolve().parents[2]
 if str(SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPTS_DIR))
 
-RunCallable = Callable[[list[str], int | None], tuple[int, str, str]]
+RunCallable = typ.Callable[[list[str], int | None], tuple[int, str, str]]
 
 
-@dataclass(frozen=True)
+@dc.dataclass(frozen=True)
 class CommandFailureTestCase:
+    """Describe an expected crate failure and associated log fragments."""
+
     crate: str
     result_kwargs: dict[str, object]
     expected_exit_fragment: str | None
@@ -28,39 +32,45 @@ class CommandFailureTestCase:
     unexpected_logs: tuple[str, ...]
 
 
-@dataclass(frozen=True)
+@dc.dataclass(frozen=True)
 class CargoTestContext:
     """Test context container for cargo command scenarios."""
 
-    patch_local_runner: Callable[[RunCallable], "FakeLocal"]
+    patch_local_runner: typ.Callable[[RunCallable], FakeLocal]
     fake_workspace: Path
     caplog: pytest.LogCaptureFixture
     run_publish_check_module: ModuleType
 
 
-@pytest.fixture(scope="module")
-def run_publish_check_module() -> ModuleType:
-    spec = importlib.util.spec_from_file_location(
-        "run_publish_check", SCRIPTS_DIR / "run_publish_check.py"
-    )
+def _load_module_from_scripts(module_name: str, script_filename: str) -> ModuleType:
+    """Load ``module_name`` from ``scripts`` while guarding against import issues."""
+    script_path = SCRIPTS_DIR / script_filename
+    spec = importlib.util.spec_from_file_location(module_name, script_path)
+    if spec is None or spec.loader is None:
+        msg = f"Failed to load module spec for {module_name!r} from {script_path}"
+        raise RuntimeError(msg)
+
     module = importlib.util.module_from_spec(spec)
-    assert spec and spec.loader
     sys.modules[spec.name] = module
     spec.loader.exec_module(module)
     return module
 
 
 @pytest.fixture(scope="module")
-def publish_workspace_module(run_publish_check_module: ModuleType) -> ModuleType:
-    module = sys.modules.get("publish_workspace")
-    assert module is not None
-    return module
+def run_publish_check_module() -> ModuleType:
+    """Load ``run_publish_check`` as a real module for integration tests."""
+    return _load_module_from_scripts("run_publish_check", "run_publish_check.py")
+
+
+@pytest.fixture(scope="module")
+def publish_workspace_module() -> ModuleType:
+    """Load ``publish_workspace`` as a module for integration tests."""
+    return _load_module_from_scripts("publish_workspace", "publish_workspace.py")
 
 
 @pytest.fixture
 def fake_workspace(tmp_path: Path) -> Path:
     """Provision a fake workspace tree used by cargo command tests."""
-
     workspace = tmp_path / "workspace"
     (workspace / "crates" / "demo").mkdir(parents=True)
     return workspace
@@ -71,7 +81,6 @@ def mock_cargo_runner(
     monkeypatch: pytest.MonkeyPatch, run_publish_check_module: ModuleType
 ) -> list[tuple[str, Path, list[str], int]]:
     """Capture invocations made to ``run_cargo_command``."""
-
     calls: list[tuple[str, Path, list[str], int]] = []
 
     def fake_run_cargo(
@@ -90,10 +99,10 @@ def mock_cargo_runner(
 @pytest.fixture
 def patch_local_runner(
     monkeypatch: pytest.MonkeyPatch, run_publish_check_module: ModuleType
-) -> Callable[[RunCallable], "FakeLocal"]:
+) -> typ.Callable[[RunCallable], FakeLocal]:
     """Install a ``FakeLocal`` around the provided callable."""
 
-    def _install(run_callable: RunCallable) -> "FakeLocal":
+    def _install(run_callable: RunCallable) -> FakeLocal:
         fake_local = FakeLocal(run_callable)
         monkeypatch.setattr(run_publish_check_module, "local", fake_local)
         return fake_local
@@ -103,11 +112,12 @@ def patch_local_runner(
 
 @pytest.fixture
 def cargo_test_context(
-    patch_local_runner: Callable[[RunCallable], "FakeLocal"],
+    patch_local_runner: typ.Callable[[RunCallable], FakeLocal],
     fake_workspace: Path,
     caplog: pytest.LogCaptureFixture,
     run_publish_check_module: ModuleType,
 ) -> CargoTestContext:
+    """Bundle fixtures required for cargo command assertions."""
     return CargoTestContext(
         patch_local_runner=patch_local_runner,
         fake_workspace=fake_workspace,
@@ -117,42 +127,59 @@ def cargo_test_context(
 
 
 class FakeCargoInvocation:
-    def __init__(self, local: "FakeLocal", args: list[str]):
+    """Record a cargo invocation and proxy execution to the fake runner."""
+
+    def __init__(self, local: FakeLocal, args: list[str]) -> None:
+        """Store the invocation context for later assertions."""
         self._local = local
         self._args = ["cargo", *args]
 
-    def run(self, *, retcode: object | None, timeout: int | None) -> tuple[int, str, str]:
+    def run(
+        self, *, retcode: object | None, timeout: int | None
+    ) -> tuple[int, str, str]:
+        """Record an invocation and delegate to the configured callable."""
         self._local.invocations.append((self._args, timeout))
         return self._local.run_callable(self._args, timeout)
 
 
 class FakeCargo:
-    def __init__(self, local: "FakeLocal") -> None:
+    """Proxy indexing calls into ``FakeCargoInvocation`` instances."""
+
+    def __init__(self, local: FakeLocal) -> None:
+        """Initialise the cargo proxy for a fake local environment."""
         self._local = local
 
     def __getitem__(self, args: object) -> FakeCargoInvocation:
-        if isinstance(args, (list, tuple)):
-            extras = list(args)
-        else:
-            extras = [str(args)]
+        """Return an invocation wrapper for the provided command arguments."""
+        extras = list(args) if isinstance(args, (list, tuple)) else [str(args)]
         return FakeCargoInvocation(self._local, extras)
 
 
 class FakeLocal:
-    def __init__(self, run_callable: RunCallable):
+    """Mimic a fabric ``local`` helper for cargo orchestration tests."""
+
+    def __init__(self, run_callable: RunCallable) -> None:
+        """Store the callable that will service fake local invocations."""
         self.run_callable = run_callable
         self.cwd_calls: list[Path] = []
         self.env_calls: list[dict[str, str]] = []
         self.invocations: list[tuple[list[str], int | None]] = []
 
     def __getitem__(self, command: str) -> FakeCargo:
-        assert command == "cargo"
+        """Return a ``FakeCargo`` proxy for the ``cargo`` command."""
+        if command != "cargo":
+            msg = (
+                f"FakeLocal only understands the 'cargo' command, received {command!r}"
+            )
+            raise RuntimeError(msg)
         return FakeCargo(self)
 
-    def cwd(self, path: Path):
+    def cwd(self, path: Path) -> contextlib.AbstractContextManager[None]:
+        """Record the working directory change for later assertions."""
         self.cwd_calls.append(path)
         return contextlib.nullcontext()
 
-    def env(self, **kwargs: str):
+    def env(self, **kwargs: str) -> contextlib.AbstractContextManager[None]:
+        """Record environment mutations for later assertions."""
         self.env_calls.append(kwargs)
         return contextlib.nullcontext()

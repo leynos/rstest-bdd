@@ -1,11 +1,14 @@
-"""Dry-run publish workflow orchestration tests."""
+"""Unit tests covering the publish-check validation workflow."""
 
 from __future__ import annotations
 
-from pathlib import Path
-from types import ModuleType
+import typing as typ
 
-import pytest
+if typ.TYPE_CHECKING:
+    from pathlib import Path
+    from types import ModuleType
+
+    import pytest
 
 
 def test_process_crates_for_check_delegates_configuration(
@@ -13,6 +16,7 @@ def test_process_crates_for_check_delegates_configuration(
     tmp_path: Path,
     run_publish_check_module: ModuleType,
 ) -> None:
+    """Ensure the check flow supplies the expected processing configuration."""
     observed: dict[str, object] = {}
 
     def fake_process_crates(
@@ -32,16 +36,22 @@ def test_process_crates_for_check_delegates_configuration(
     package_calls: list[tuple[str, Path, int]] = []
     check_calls: list[tuple[str, Path, int]] = []
 
-    monkeypatch.setattr(run_publish_check_module, "_process_crates", fake_process_crates)
+    monkeypatch.setattr(
+        run_publish_check_module, "_process_crates", fake_process_crates
+    )
     monkeypatch.setattr(
         run_publish_check_module,
         "package_crate",
-        lambda crate, root, *, timeout_secs: package_calls.append((crate, root, timeout_secs)),
+        lambda crate, root, *, timeout_secs: package_calls.append(
+            (crate, root, timeout_secs)
+        ),
     )
     monkeypatch.setattr(
         run_publish_check_module,
         "check_crate",
-        lambda crate, root, *, timeout_secs: check_calls.append((crate, root, timeout_secs)),
+        lambda crate, root, *, timeout_secs: check_calls.append(
+            (crate, root, timeout_secs)
+        ),
     )
 
     workspace = tmp_path / "check"
@@ -65,6 +75,7 @@ def test_process_crates_for_check_runs_local_validation(
     tmp_path: Path,
     run_publish_check_module: ModuleType,
 ) -> None:
+    """Validate that the check flow packages and checks the configured crates."""
     workspace = tmp_path / "workspace"
     workspace.mkdir()
     (workspace / "Cargo.toml").write_text("", encoding="utf-8")
@@ -75,7 +86,9 @@ def test_process_crates_for_check_runs_local_validation(
         steps.append(("strip", manifest))
 
     monkeypatch.setattr(run_publish_check_module, "strip_patch_section", fake_strip)
-    monkeypatch.setattr(run_publish_check_module, "workspace_version", lambda _m: "9.9.9")
+    monkeypatch.setattr(
+        run_publish_check_module, "workspace_version", lambda _m: "9.9.9"
+    )
 
     def fake_apply(
         root: Path,
@@ -86,7 +99,9 @@ def test_process_crates_for_check_runs_local_validation(
     ) -> None:
         steps.append(("apply", (root, version, include_local_path, crates)))
 
-    monkeypatch.setattr(run_publish_check_module, "apply_workspace_replacements", fake_apply)
+    monkeypatch.setattr(
+        run_publish_check_module, "apply_workspace_replacements", fake_apply
+    )
 
     def fake_package(crate: str, root: Path, *, timeout_secs: int) -> None:
         steps.append(("package", (crate, root, timeout_secs)))

@@ -2,13 +2,31 @@
 
 from __future__ import annotations
 
-from pathlib import Path
-from types import ModuleType
-from typing import Callable
+import typing as typ
+from dataclasses import dataclass  # noqa: ICN003 - required for WorkflowTestConfig
 
 import pytest
 
+if typ.TYPE_CHECKING:
+    from pathlib import Path
+    from types import ModuleType
 
+
+@dataclass
+class WorkspaceMocks:
+    """Bundle of mock functions for workspace operations."""
+
+    record: typ.Callable[[str], typ.Callable[[Path], None]]
+    fake_apply: typ.Callable[..., None]
+    fake_remove: typ.Callable[[Path, str], None]
+
+
+@dataclass
+class WorkflowTestConfig:
+    """Configuration bundle for workflow integration scaffolding."""
+
+    workspace_name: str
+    crate_order: tuple[str, ...] = ("demo-crate",)
 
 
 class TestRunPublishCheckOrchestration:
@@ -21,7 +39,6 @@ class TestRunPublishCheckOrchestration:
         run_publish_check_module: ModuleType,
     ) -> Path:
         """Create workspace directory and configure ``tempfile`` redirection."""
-
         workspace_dir = tmp_path / "workspace"
         workspace_dir.mkdir()
         monkeypatch.setattr(
@@ -35,13 +52,12 @@ class TestRunPublishCheckOrchestration:
         list[tuple[str, object]],
         list[tuple[str, Path, int]],
         list[tuple[str, Path, int]],
-        dict[str, Callable[..., object]],
+        dict[str, typ.Callable[..., object]],
     ]:
         """Create capture containers and reusable mock functions."""
-
         steps: list[tuple[str, object]] = []
 
-        def record(step: str) -> Callable[..., None]:
+        def record(step: str) -> typ.Callable[..., None]:
             def _inner(*args: object, **_kwargs: object) -> None:
                 steps.append((step, args[0]))
 
@@ -76,11 +92,10 @@ class TestRunPublishCheckOrchestration:
         self,
         monkeypatch: pytest.MonkeyPatch,
         run_publish_check_module: ModuleType,
-        mock_functions: dict[str, Callable[..., object]],
+        mock_functions: dict[str, typ.Callable[..., object]],
         steps: list[tuple[str, object]],
     ) -> None:
         """Apply monkeypatch operations to replace workflow helpers."""
-
         record = mock_functions["record"]
         fake_workspace_version = mock_functions["fake_workspace_version"]
         fake_package = mock_functions["fake_package"]
@@ -133,7 +148,12 @@ class TestRunPublishCheckOrchestration:
         monkeypatch: pytest.MonkeyPatch,
         tmp_path: Path,
         run_publish_check_module: ModuleType,
-    ) -> tuple[Path, list[tuple[str, object]], list[tuple[str, Path, int]], list[tuple[str, Path, int]]]:
+    ) -> tuple[
+        Path,
+        list[tuple[str, object]],
+        list[tuple[str, Path, int]],
+        list[tuple[str, Path, int]],
+    ]:
         """Set up workspace, mocks, and capture containers for orchestration tests.
 
         Parameters
@@ -151,7 +171,6 @@ class TestRunPublishCheckOrchestration:
             The prepared workspace directory and the lists capturing recorded
             workspace steps, package invocations, and check invocations.
         """
-
         workspace_dir = self._create_test_workspace(
             monkeypatch, tmp_path, run_publish_check_module
         )
@@ -174,7 +193,6 @@ class TestRunPublishCheckOrchestration:
         run_publish_check_module:
             Module under test providing the ``run_publish_check`` entrypoint.
         """
-
         run_publish_check_module.run_publish_check(keep_tmp=False, timeout_secs=15)
 
     def _verify_workflow_execution(
@@ -197,7 +215,6 @@ class TestRunPublishCheckOrchestration:
         check_calls:
             Captured invocations to ``check_crate``.
         """
-
         manifest_path = workspace_dir / "Cargo.toml"
         assert steps[:3] == [
             ("export", workspace_dir),
@@ -217,7 +234,6 @@ class TestRunPublishCheckOrchestration:
         run_publish_check_module: ModuleType,
     ) -> None:
         """Test that ``run_publish_check`` orchestrates the dry workflow correctly."""
-
         workspace_dir, steps, package_calls, check_calls = self._setup_workflow_mocks(
             monkeypatch, tmp_path, run_publish_check_module
         )
@@ -254,14 +270,13 @@ class TestRunPublishCheckLiveMode:
         tuple[Path, Path]
             The workspace directory and its manifest path.
         """
-
         workspace_dir = tmp_path / "live"
         workspace_dir.mkdir()
         manifest = workspace_dir / "Cargo.toml"
         manifest.write_text(
             "[workspace]\n"
             "[patch.crates-io]\n"
-            "demo-crate = { path = \"crates/demo-crate\" }\n",
+            'demo-crate = { path = "crates/demo-crate" }\n',
             encoding="utf-8",
         )
         monkeypatch.setattr(
@@ -288,14 +303,44 @@ class TestRunPublishCheckLiveMode:
         tuple[list[tuple[str, object]], list[tuple[str, Path, list[str], int]]]
             Recorded workspace steps and cargo invocations.
         """
+        steps, record = self._setup_recording_infrastructure()
+        fake_apply, fake_remove = self._create_fake_functions(steps)
+        commands, fake_run_cargo = self._setup_cargo_recording()
+        self._workspace_mocks = WorkspaceMocks(
+            record=record,
+            fake_apply=fake_apply,
+            fake_remove=fake_remove,
+        )
+        self._setup_workspace_mocks(monkeypatch, run_publish_check_module)
+        self._setup_cargo_and_config_mocks(
+            monkeypatch,
+            run_publish_check_module,
+            fake_run_cargo,
+        )
 
+        return steps, commands
+
+    def _setup_recording_infrastructure(
+        self,
+    ) -> tuple[
+        list[tuple[str, object]],
+        typ.Callable[[str], typ.Callable[[Path], None]],
+    ]:
+        """Provide shared recording helpers for workspace operations."""
         steps: list[tuple[str, object]] = []
 
-        def record(step: str) -> Callable[[Path], None]:
+        def record(step: str) -> typ.Callable[[Path], None]:
             def _inner(target: Path) -> None:
                 steps.append((step, target))
 
             return _inner
+
+        return steps, record
+
+    def _create_fake_functions(
+        self, steps: list[tuple[str, object]]
+    ) -> tuple[typ.Callable[..., None], typ.Callable[[Path, str], None]]:
+        """Generate workspace helpers that append their inputs to ``steps``."""
 
         def fake_apply(
             root: Path,
@@ -306,14 +351,48 @@ class TestRunPublishCheckLiveMode:
         ) -> None:
             steps.append(("apply", (root, version, include_local_path, crates)))
 
+        def fake_remove(manifest_path: Path, crate: str) -> None:
+            steps.append(("remove_patch", (manifest_path, crate)))
+
+        return fake_apply, fake_remove
+
+    def _setup_cargo_recording(
+        self,
+    ) -> tuple[list[tuple[str, Path, list[str], int]], typ.Callable[..., None]]:
+        """Capture cargo invocations while preserving their call signature."""
+        commands: list[tuple[str, Path, list[str], int]] = []
+
+        def fake_run_cargo(
+            crate: str,
+            workspace_root: Path,
+            command: typ.Sequence[str],
+            *,
+            timeout_secs: int,
+        ) -> None:
+            commands.append((crate, workspace_root, list(command), timeout_secs))
+
+        return commands, fake_run_cargo
+
+    def _setup_workspace_mocks(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        run_publish_check_module: ModuleType,
+    ) -> None:
+        """Replace workspace helpers with recording doubles."""
         monkeypatch.setattr(
-            run_publish_check_module, "export_workspace", record("export")
+            run_publish_check_module,
+            "export_workspace",
+            self._workspace_mocks.record("export"),
         )
         monkeypatch.setattr(
-            run_publish_check_module, "prune_workspace_members", record("prune")
+            run_publish_check_module,
+            "prune_workspace_members",
+            self._workspace_mocks.record("prune"),
         )
         monkeypatch.setattr(
-            run_publish_check_module, "strip_patch_section", record("strip")
+            run_publish_check_module,
+            "strip_patch_section",
+            self._workspace_mocks.record("strip"),
         )
         monkeypatch.setattr(
             run_publish_check_module, "workspace_version", lambda _manifest: "1.2.3"
@@ -321,26 +400,24 @@ class TestRunPublishCheckLiveMode:
         monkeypatch.setattr(
             run_publish_check_module,
             "apply_workspace_replacements",
-            fake_apply,
+            self._workspace_mocks.fake_apply,
+        )
+        monkeypatch.setattr(
+            run_publish_check_module,
+            "remove_patch_entry",
+            self._workspace_mocks.fake_remove,
         )
 
-        def fake_remove(manifest_path: Path, crate: str) -> None:
-            steps.append(("remove_patch", (manifest_path, crate)))
-
-        monkeypatch.setattr(run_publish_check_module, "remove_patch_entry", fake_remove)
-
-        commands: list[tuple[str, Path, list[str], int]] = []
-
-        def fake_run_cargo(
-            crate: str,
-            workspace_root: Path,
-            command: list[str],
-            *,
-            timeout_secs: int,
-        ) -> None:
-            commands.append((crate, workspace_root, command, timeout_secs))
-
-        monkeypatch.setattr(run_publish_check_module, "run_cargo_command", fake_run_cargo)
+    def _setup_cargo_and_config_mocks(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        run_publish_check_module: ModuleType,
+        fake_run_cargo: typ.Callable[..., None],
+    ) -> None:
+        """Configure cargo helpers and static data for the live flow."""
+        monkeypatch.setattr(
+            run_publish_check_module, "run_cargo_command", fake_run_cargo
+        )
         monkeypatch.setattr(
             run_publish_check_module,
             "CRATE_ORDER",
@@ -349,10 +426,13 @@ class TestRunPublishCheckLiveMode:
         monkeypatch.setattr(
             run_publish_check_module,
             "LIVE_PUBLISH_COMMANDS",
-            {"demo-crate": (("cargo", "publish", "--dry-run"), ("cargo", "publish"))},
+            {
+                "demo-crate": (
+                    ("cargo", "publish", "--dry-run"),
+                    ("cargo", "publish"),
+                )
+            },
         )
-
-        return steps, commands
 
     def _verify_live_publish_execution(
         self,
@@ -374,7 +454,6 @@ class TestRunPublishCheckLiveMode:
         manifest:
             Workspace manifest used for assertions.
         """
-
         assert steps[:2] == [
             ("export", workspace_dir),
             ("prune", manifest),
@@ -395,7 +474,6 @@ class TestRunPublishCheckLiveMode:
         run_publish_check_module: ModuleType,
     ) -> None:
         """Test that live mode executes the correct publish commands."""
-
         workspace_dir, manifest = self._setup_test_workspace(
             tmp_path, monkeypatch, run_publish_check_module
         )
@@ -412,27 +490,59 @@ class TestRunPublishCheckLiveMode:
         self._verify_live_publish_execution(steps, commands, workspace_dir, manifest)
 
 
+def _setup_basic_workflow_mocks(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    run_publish_check_module: ModuleType,
+    *,
+    config: WorkflowTestConfig,
+) -> Path:
+    """Prepare shared workspace and helper mocks for workflow integration tests."""
+    workspace_dir = tmp_path / config.workspace_name
+    workspace_dir.mkdir()
+    monkeypatch.setattr(
+        run_publish_check_module.tempfile, "mkdtemp", lambda: str(workspace_dir)
+    )
+    monkeypatch.setattr(
+        run_publish_check_module, "export_workspace", lambda _dest: None
+    )
+    monkeypatch.setattr(
+        run_publish_check_module, "prune_workspace_members", lambda _manifest: None
+    )
+    monkeypatch.setattr(
+        run_publish_check_module, "strip_patch_section", lambda _manifest: None
+    )
+    monkeypatch.setattr(
+        run_publish_check_module, "workspace_version", lambda _manifest: "1.0.0"
+    )
+    monkeypatch.setattr(
+        run_publish_check_module,
+        "apply_workspace_replacements",
+        lambda *_args, **_kwargs: None,
+    )
+    monkeypatch.setattr(
+        run_publish_check_module, "package_crate", lambda *_args, **_kwargs: None
+    )
+    monkeypatch.setattr(
+        run_publish_check_module, "check_crate", lambda *_args, **_kwargs: None
+    )
+    monkeypatch.setattr(run_publish_check_module, "CRATE_ORDER", config.crate_order)
+    return workspace_dir
+
+
 def test_run_publish_check_preserves_workspace(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
     run_publish_check_module: ModuleType,
 ) -> None:
-    workspace_dir = tmp_path / "persist"
-    workspace_dir.mkdir()
-    monkeypatch.setattr(
-        run_publish_check_module.tempfile, "mkdtemp", lambda: str(workspace_dir)
+    """Ensure the workflow keeps the workspace when requested."""
+    workspace_dir = _setup_basic_workflow_mocks(
+        monkeypatch,
+        tmp_path,
+        run_publish_check_module,
+        config=WorkflowTestConfig(workspace_name="persist"),
     )
-    monkeypatch.setattr(run_publish_check_module, "export_workspace", lambda _dest: None)
-    monkeypatch.setattr(run_publish_check_module, "prune_workspace_members", lambda _m: None)
-    monkeypatch.setattr(run_publish_check_module, "strip_patch_section", lambda _m: None)
-    monkeypatch.setattr(run_publish_check_module, "workspace_version", lambda _m: "1.0.0")
-    monkeypatch.setattr(
-        run_publish_check_module, "apply_workspace_replacements", lambda *_args, **_kwargs: None
-    )
-    monkeypatch.setattr(run_publish_check_module, "package_crate", lambda *_args, **_kwargs: None)
-    monkeypatch.setattr(run_publish_check_module, "check_crate", lambda *_args, **_kwargs: None)
-    monkeypatch.setattr(run_publish_check_module, "CRATE_ORDER", ())
 
     run_publish_check_module.run_publish_check(keep_tmp=True, timeout_secs=5)
 
@@ -441,8 +551,29 @@ def test_run_publish_check_preserves_workspace(
     assert workspace_dir.exists()
 
 
+def test_run_publish_check_errors_when_crate_order_empty(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    run_publish_check_module: ModuleType,
+) -> None:
+    """Verify the workflow aborts if ``CRATE_ORDER`` is empty."""
+    _setup_basic_workflow_mocks(
+        monkeypatch,
+        tmp_path,
+        run_publish_check_module,
+        config=WorkflowTestConfig(
+            workspace_name="missing-order",
+            crate_order=(),
+        ),
+    )
+
+    with pytest.raises(SystemExit, match="CRATE_ORDER must not be empty"):
+        run_publish_check_module.run_publish_check(keep_tmp=False, timeout_secs=5)
+
+
 def test_run_publish_check_rejects_non_positive_timeout(
     run_publish_check_module: ModuleType,
 ) -> None:
+    """Reject configurations that specify a timeout below one second."""
     with pytest.raises(SystemExit, match="positive integer"):
         run_publish_check_module.run_publish_check(keep_tmp=False, timeout_secs=0)

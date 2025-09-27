@@ -6,18 +6,24 @@
 # ]
 # ///
 """Utility helpers for adjusting manifests during publish checks."""
+
 from __future__ import annotations
 
 import argparse
-from dataclasses import dataclass
+import dataclasses as dc
+import typing as typ
 from pathlib import Path
-from typing import Iterable
+
+if typ.TYPE_CHECKING:
+    import collections.abc as cabc
+else:  # pragma: no cover - runtime placeholder for type checking imports
+    cabc: typ.Any = None
 
 from tomlkit import TOMLDocument, dumps, inline_table, parse
 from tomlkit.items import InlineTable, Table
 
 
-@dataclass(frozen=True)
+@dc.dataclass(frozen=True)
 class DependencyPatch:
     """Describe how a dependency should be rewritten for publish checks."""
 
@@ -26,18 +32,30 @@ class DependencyPatch:
     path: str
 
 
+@dc.dataclass(frozen=True)
+class DependencyConfig:
+    """Configuration values required to rewrite a dependency entry."""
+
+    version: str
+    include_local_path: bool = True
+
+
 REPLACEMENTS: dict[str, tuple[DependencyPatch, ...]] = {
     "rstest-bdd-macros": (
-        DependencyPatch("dependencies", "rstest-bdd-patterns", "../rstest-bdd-patterns"),
+        DependencyPatch(
+            "dependencies", "rstest-bdd-patterns", "../rstest-bdd-patterns"
+        ),
         DependencyPatch("dev-dependencies", "rstest-bdd", "../rstest-bdd"),
     ),
     "rstest-bdd": (
-        DependencyPatch("dependencies", "rstest-bdd-patterns", "../rstest-bdd-patterns"),
-        DependencyPatch("dev-dependencies", "rstest-bdd-macros", "../rstest-bdd-macros"),
+        DependencyPatch(
+            "dependencies", "rstest-bdd-patterns", "../rstest-bdd-patterns"
+        ),
+        DependencyPatch(
+            "dev-dependencies", "rstest-bdd-macros", "../rstest-bdd-macros"
+        ),
     ),
-    "cargo-bdd": (
-        DependencyPatch("dependencies", "rstest-bdd", "../rstest-bdd"),
-    ),
+    "cargo-bdd": (DependencyPatch("dependencies", "rstest-bdd", "../rstest-bdd"),),
 }
 
 
@@ -48,7 +66,7 @@ def apply_replacements(
     *,
     include_local_path: bool = True,
 ) -> None:
-    """Rewrite workspace dependencies to point at packaged versions.
+    r"""Rewrite workspace dependencies to point at packaged versions.
 
     Parameters
     ----------
@@ -91,14 +109,18 @@ def apply_replacements(
     document = parse(manifest.read_text(encoding="utf-8"))
     patches = REPLACEMENTS.get(crate)
     if patches is None:
-        raise SystemExit(f"unknown crate {crate!r}")
+        message = f"unknown crate {crate!r}"
+        raise SystemExit(message)
+    config = DependencyConfig(
+        version=version,
+        include_local_path=include_local_path,
+    )
     for patch in patches:
         update_dependency(
             document,
             patch,
-            version,
+            config,
             manifest,
-            include_local_path=include_local_path,
         )
     manifest.write_text(dumps(document), encoding="utf-8")
 
@@ -106,12 +128,10 @@ def apply_replacements(
 def update_dependency(
     document: TOMLDocument,
     patch: DependencyPatch,
-    version: str,
+    config: DependencyConfig,
     manifest: Path,
-    *,
-    include_local_path: bool,
 ) -> None:
-    """Replace a workspace dependency with an inline publish-friendly entry.
+    r"""Replace a workspace dependency with an inline publish-friendly entry.
 
     Parameters
     ----------
@@ -119,13 +139,11 @@ def update_dependency(
         Parsed manifest document that will be mutated in place.
     patch : DependencyPatch
         Replacement metadata describing the dependency to update.
-    version : str
-        Version string used for the inline dependency.
+    config : DependencyConfig
+        Configuration describing the replacement version and whether the
+        dependency should retain a ``path`` entry.
     manifest : Path
         Path to the manifest used for error reporting.
-    include_local_path : bool
-        Forwarded to :func:`build_inline_dependency` to control whether the
-        ``path`` attribute is retained.
 
     Returns
     -------
@@ -146,9 +164,8 @@ def update_dependency(
     >>> update_dependency(
     ...     doc,
     ...     patch,
-    ...     '1.0.0',
+    ...     DependencyConfig('1.0.0'),
     ...     Path('Cargo.toml'),
-    ...     include_local_path=True,
     ... )
     >>> dict(doc['dependencies']['foo'])['version']
     '1.0.0'
@@ -156,26 +173,24 @@ def update_dependency(
     try:
         section = document[patch.section]
     except KeyError as error:
-        raise SystemExit(
-            f"expected section [{patch.section}] in {manifest}"
-        ) from error
+        message = f"expected section [{patch.section}] in {manifest}"
+        raise SystemExit(message) from error
     try:
         existing = section[patch.name]
     except KeyError as error:
-        raise SystemExit(
-            f"expected dependency {patch.name!r} in {manifest}"
-        ) from error
+        message = f"expected dependency {patch.name!r} in {manifest}"
+        raise SystemExit(message) from error
     extra_items = extract_existing_items(existing)
     section[patch.name] = build_inline_dependency(
         extra_items,
         patch.path,
-        version,
-        include_local_path=include_local_path,
+        config.version,
+        include_local_path=config.include_local_path,
     )
 
 
-def extract_existing_items(value: object) -> Iterable[tuple[str, object]]:
-    """Return preserved dependency metadata from an existing entry.
+def extract_existing_items(value: object) -> tuple[tuple[str, object], ...]:
+    r"""Return preserved dependency metadata from an existing entry.
 
     Parameters
     ----------
@@ -205,7 +220,7 @@ def extract_existing_items(value: object) -> Iterable[tuple[str, object]]:
 
 
 def build_inline_dependency(
-    extra_items: Iterable[tuple[str, object]],
+    extra_items: cabc.Iterable[tuple[str, object]],
     path: str,
     version: str,
     *,
@@ -215,7 +230,7 @@ def build_inline_dependency(
 
     Parameters
     ----------
-    extra_items : Iterable[tuple[str, object]]
+    extra_items : cabc.Iterable[tuple[str, object]]
         Additional metadata retained from the previous dependency definition.
     path : str
         Relative path to the dependency crate.
@@ -250,7 +265,7 @@ def build_inline_dependency(
 
 
 def main() -> None:
-    """Parse CLI arguments and rewrite the requested manifest.
+    r"""Parse CLI arguments and rewrite the requested manifest.
 
     Returns
     -------
@@ -309,8 +324,7 @@ def main() -> None:
         dest="include_local_path",
         action="store_false",
         help=(
-            "Drop relative path dependencies so manifests resolve crates on "
-            "crates.io."
+            "Drop relative path dependencies so manifests resolve crates on crates.io."
         ),
     )
     args = parser.parse_args()

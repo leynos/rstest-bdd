@@ -27,6 +27,7 @@ target/%/$(APP): ## Build binary in debug or release mode
 
 lint: ## Run Clippy with warnings denied
 	$(CARGO) clippy $(CLIPPY_FLAGS)
+	find scripts -type f -name "*.py" -print0 | xargs -r -0 uvx ruff check
 
 fmt: ## Format Rust and Markdown sources
 	$(CARGO) fmt --all
@@ -34,6 +35,7 @@ fmt: ## Format Rust and Markdown sources
 
 check-fmt: ## Verify formatting
 	$(CARGO) fmt --all -- --check
+	find scripts -type f -name "*.py" -print0 | xargs -r -0 uvx ruff format --check
 
 markdownlint: ## Lint Markdown files
 	find . -type f -name '*.md' -not -path '*/target/*' -not -path '*/node_modules/*' -print0 | xargs -0 $(MDLINT)
