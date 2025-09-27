@@ -4,11 +4,11 @@ from __future__ import annotations
 
 import typing as typ
 
+import pytest
+
 if typ.TYPE_CHECKING:
     from pathlib import Path
     from types import ModuleType
-
-    import pytest
 
 
 def test_process_crates_for_live_publish_delegates_configuration(
@@ -108,3 +108,117 @@ def test_process_crates_for_live_publish_runs_publish_workflow(
         ("publish", ("crate-b", workspace, 42)),
         ("remove_patch", (manifest, "crate-b")),
     ]
+
+
+def test_publish_crate_commands_skips_already_published_sequence(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+    tmp_path: Path,
+    run_publish_check_module: ModuleType,
+) -> None:
+    """Ensure already-published crates skip the remaining publish commands."""
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+
+    crate = next(iter(run_publish_check_module.LIVE_PUBLISH_COMMANDS))
+    commands = run_publish_check_module.LIVE_PUBLISH_COMMANDS[crate]
+    observed: dict[str, object] = {}
+
+    def fake_handle_output(stdout: str, stderr: str) -> None:
+        observed["streams"] = (stdout, stderr)
+
+    monkeypatch.setattr(
+        run_publish_check_module,
+        "_handle_command_output",
+        fake_handle_output,
+    )
+
+    executed: list[tuple[str, ...]] = []
+
+    def fake_run_cargo(
+        crate_name: str,
+        workspace_root: Path,
+        command: typ.Sequence[str],
+        *,
+        timeout_secs: int,
+        on_failure: typ.Callable[[str, run_publish_check_module.CommandResult], bool],
+    ) -> None:
+        executed.append(tuple(command))
+        assert crate_name == crate
+        assert workspace_root == workspace
+        assert timeout_secs == 123
+        if len(executed) == 1:
+            result = run_publish_check_module.CommandResult(
+                command=command,
+                return_code=1,
+                stdout="dry run output",
+                stderr="error: crate version already exists on crates.io index",
+            )
+            assert on_failure(crate_name, result) is True
+            return
+
+        pytest.fail("publish_crate_commands should stop after handling the failure")
+
+    monkeypatch.setattr(
+        run_publish_check_module, "run_cargo_command", fake_run_cargo
+    )
+
+    with caplog.at_level("WARNING"):
+        run_publish_check_module.publish_crate_commands(
+            crate,
+            workspace,
+            timeout_secs=123,
+        )
+
+    assert executed == [tuple(commands[0])]
+    assert observed["streams"] == (
+        "dry run output",
+        "error: crate version already exists on crates.io index",
+    )
+    assert "already published" in caplog.text
+
+
+def test_publish_crate_commands_propagates_unhandled_failure(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    run_publish_check_module: ModuleType,
+) -> None:
+    """Unhandled publish failures must raise to the caller."""
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+
+    crate = next(iter(run_publish_check_module.LIVE_PUBLISH_COMMANDS))
+    commands = run_publish_check_module.LIVE_PUBLISH_COMMANDS[crate]
+    executed: list[tuple[str, ...]] = []
+
+    def fake_run_cargo(
+        crate_name: str,
+        workspace_root: Path,
+        command: typ.Sequence[str],
+        *,
+        timeout_secs: int,
+        on_failure: typ.Callable[[str, run_publish_check_module.CommandResult], bool],
+    ) -> None:
+        executed.append(tuple(command))
+        result = run_publish_check_module.CommandResult(
+            command=command,
+            return_code=101,
+            stdout="",
+            stderr="error: network failure",
+        )
+        assert on_failure(crate_name, result) is False
+        message = "network failure"
+        raise SystemExit(message)
+
+    monkeypatch.setattr(
+        run_publish_check_module, "run_cargo_command", fake_run_cargo
+    )
+
+    with pytest.raises(SystemExit, match="network failure"):
+        run_publish_check_module.publish_crate_commands(
+            crate,
+            workspace,
+            timeout_secs=5,
+        )
+
+    assert executed == [tuple(commands[0])]

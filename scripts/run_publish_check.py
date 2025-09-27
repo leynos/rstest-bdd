@@ -96,6 +96,11 @@ LIVE_PUBLISH_COMMANDS: typ.Final[dict[str, tuple[Command, ...]]] = {
     for crate in PUBLISHABLE_CRATES
 }
 
+ALREADY_PUBLISHED_MARKERS: typ.Final[tuple[str, ...]] = (
+    "already exists on crates.io index",
+    "already uploaded",
+)
+
 DEFAULT_PUBLISH_TIMEOUT_SECS = 900
 
 app = App(config=cyclopts.config.Env("PUBLISH_CHECK_", command=False))
@@ -243,13 +248,14 @@ def run_cargo_command(
         stdout=stdout,
         stderr=stderr,
     )
-    if return_code != 0:
-        if on_failure is not None and on_failure(crate, result):
-            return
-
-        _handle_command_failure(crate, result)
-    else:
+    if return_code == 0:
         _handle_command_output(result.stdout, result.stderr)
+        return
+
+    if on_failure is not None and on_failure(crate, result):
+        return
+
+    _handle_command_failure(crate, result)
 
 
 @dc.dataclass(frozen=True)
@@ -317,6 +323,44 @@ check_crate = _create_cargo_action(
 )
 
 
+def _publish_one_command(
+    crate: str,
+    workspace_root: Path,
+    command: typ.Sequence[str],
+    timeout_secs: int | None = None,
+) -> bool:
+    """Run a publish command, returning ``True`` when publishing should stop.
+
+    When Cargo reports the crate version already exists on crates.io the
+    captured output streams are replayed and a warning is emitted. The caller
+    can then short-circuit the remaining publish commands for the crate.
+    """
+    handled = False
+
+    def _on_failure(_crate: str, result: CommandResult) -> bool:
+        nonlocal handled
+
+        if not any(marker in result.stderr for marker in ALREADY_PUBLISHED_MARKERS):
+            return False
+
+        handled = True
+        _handle_command_output(result.stdout, result.stderr)
+        LOGGER.warning(
+            "crate %s already published on crates.io; skipping remaining commands",
+            crate,
+        )
+        return True
+
+    run_cargo_command(
+        crate,
+        workspace_root,
+        command,
+        timeout_secs=timeout_secs,
+        on_failure=_on_failure,
+    )
+    return handled
+
+
 def publish_crate_commands(
     crate: str,
     workspace_root: Path,
@@ -347,35 +391,13 @@ def publish_crate_commands(
         message = f"missing live publish commands for {crate!r}"
         raise SystemExit(message) from error
 
-    handled_failure = False
-
-    def _handle_failure(crate_name: str, result: CommandResult) -> bool:
-        nonlocal handled_failure
-
-        already_published_markers = (
-            "already exists on crates.io index",
-            "already uploaded",
-        )
-        if not any(marker in result.stderr for marker in already_published_markers):
-            return False
-
-        handled_failure = True
-        _handle_command_output(result.stdout, result.stderr)
-        LOGGER.warning(
-            "crate %s already published on crates.io; skipping remaining commands",
-            crate_name,
-        )
-        return True
-
     for command in commands:
-        run_cargo_command(
+        if _publish_one_command(
             crate,
             workspace_root,
             command,
             timeout_secs=timeout_secs,
-            on_failure=_handle_failure,
-        )
-        if handled_failure:
+        ):
             break
 
 

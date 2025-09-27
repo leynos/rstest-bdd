@@ -176,34 +176,37 @@ def test_run_cargo_command_logs_failures(
     ]
 
 
-def test_run_cargo_command_passes_command_result(
+def test_run_cargo_command_suppresses_failure_when_handler_accepts(
     monkeypatch: pytest.MonkeyPatch,
     patch_local_runner: typ.Callable[[RunCallable], FakeLocal],
     fake_workspace: Path,
     run_publish_check_module: ModuleType,
 ) -> None:
-    """Ensure the failure handler receives the complete command result."""
+    """Verify ``on_failure`` receives the result and suppresses default handling."""
     fake_local = patch_local_runner(lambda _args, _timeout: (5, "out", "err"))
-
     observed: dict[str, object] = {}
 
-    def record_failure(crate: str, result: object) -> None:
+    def record_failure(
+        crate: str,
+        result: run_publish_check_module.CommandResult,
+    ) -> bool:
         observed["crate"] = crate
         observed["result"] = result
-        exit_message = "handler invoked"
-        raise SystemExit(exit_message)
+        return True
 
     monkeypatch.setattr(
-        run_publish_check_module, "_handle_command_failure", record_failure
+        run_publish_check_module,
+        "_handle_command_failure",
+        lambda *_: pytest.fail("default failure handler should not run"),
     )
 
-    with pytest.raises(SystemExit, match="handler invoked"):
-        run_publish_check_module.run_cargo_command(
-            "demo",
-            fake_workspace,
-            ["cargo", "oops"],
-            timeout_secs=9,
-        )
+    run_publish_check_module.run_cargo_command(
+        "demo",
+        fake_workspace,
+        ["cargo", "oops"],
+        timeout_secs=9,
+        on_failure=record_failure,
+    )
 
     expected = run_publish_check_module.CommandResult(
         command=["cargo", "oops"],
@@ -213,6 +216,56 @@ def test_run_cargo_command_passes_command_result(
     )
     assert observed == {"crate": "demo", "result": expected}
     assert fake_local.invocations == [(["cargo", "oops"], 9)]
+
+
+def test_run_cargo_command_calls_default_when_handler_declines(
+    monkeypatch: pytest.MonkeyPatch,
+    patch_local_runner: typ.Callable[[RunCallable], FakeLocal],
+    fake_workspace: Path,
+    run_publish_check_module: ModuleType,
+) -> None:
+    """Ensure declining handlers allow the default failure logic to run."""
+    fake_local = patch_local_runner(lambda _args, _timeout: (17, "out", "err"))
+    observed: dict[str, object] = {}
+
+    def decline_failure(
+        crate: str,
+        result: run_publish_check_module.CommandResult,
+    ) -> bool:
+        observed["crate"] = crate
+        observed["result"] = result
+        return False
+
+    def sentinel_failure(
+        crate: str,
+        result: run_publish_check_module.CommandResult,
+    ) -> None:
+        message = f"default handler invoked for {crate}"
+        raise SystemExit(message)
+
+    monkeypatch.setattr(
+        run_publish_check_module,
+        "_handle_command_failure",
+        sentinel_failure,
+    )
+
+    with pytest.raises(SystemExit, match="default handler invoked"):
+        run_publish_check_module.run_cargo_command(
+            "demo",
+            fake_workspace,
+            ["cargo", "oops"],
+            timeout_secs=3,
+            on_failure=decline_failure,
+        )
+
+    expected = run_publish_check_module.CommandResult(
+        command=["cargo", "oops"],
+        return_code=17,
+        stdout="out",
+        stderr="err",
+    )
+    assert observed == {"crate": "demo", "result": expected}
+    assert fake_local.invocations == [(["cargo", "oops"], 3)]
 
 
 def test_run_cargo_command_times_out(
@@ -236,6 +289,143 @@ def test_run_cargo_command_times_out(
             timeout_secs=1,
         )
     assert "timed out" in str(excinfo.value)
+
+
+def test_publish_one_command_handles_already_published(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+    tmp_path: Path,
+    run_publish_check_module: ModuleType,
+) -> None:
+    """Ensure already-published failures short-circuit further commands."""
+    workspace = tmp_path / "workspace"
+    observed_output: dict[str, tuple[str, str]] = {}
+
+    def fake_handle_output(stdout: str, stderr: str) -> None:
+        observed_output["streams"] = (stdout, stderr)
+
+    monkeypatch.setattr(
+        run_publish_check_module,
+        "_handle_command_output",
+        fake_handle_output,
+    )
+
+    def fake_run_cargo(
+        crate: str,
+        workspace_root: Path,
+        command: typ.Sequence[str],
+        *,
+        timeout_secs: int | None,
+        on_failure: typ.Callable[[str, run_publish_check_module.CommandResult], bool],
+    ) -> None:
+        result = run_publish_check_module.CommandResult(
+            command=command,
+            return_code=1,
+            stdout="dry run output",
+            stderr="error: crate already exists on crates.io index",
+        )
+        assert workspace_root == workspace
+        assert on_failure(crate, result) is True
+
+    monkeypatch.setattr(
+        run_publish_check_module, "run_cargo_command", fake_run_cargo
+    )
+
+    with caplog.at_level("WARNING"):
+        handled = run_publish_check_module._publish_one_command(
+            "demo",
+            workspace,
+            ["cargo", "publish"],
+            timeout_secs=11,
+        )
+
+    assert handled is True
+    assert observed_output["streams"] == (
+        "dry run output",
+        "error: crate already exists on crates.io index",
+    )
+    assert "already published" in caplog.text
+
+
+def test_publish_one_command_returns_false_on_success(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    run_publish_check_module: ModuleType,
+) -> None:
+    """Confirm successful commands do not request a short-circuit."""
+    workspace = tmp_path / "workspace"
+    captured: dict[str, object] = {}
+
+    def fake_run_cargo(
+        crate: str,
+        workspace_root: Path,
+        command: typ.Sequence[str],
+        *,
+        timeout_secs: int | None,
+        on_failure: typ.Callable[[str, run_publish_check_module.CommandResult], bool],
+    ) -> None:
+        captured["crate"] = crate
+        captured["workspace"] = workspace_root
+        captured["command"] = tuple(command)
+        captured["timeout"] = timeout_secs
+
+    monkeypatch.setattr(
+        run_publish_check_module, "run_cargo_command", fake_run_cargo
+    )
+
+    handled = run_publish_check_module._publish_one_command(
+        "demo",
+        workspace,
+        ["cargo", "publish"],
+        timeout_secs=7,
+    )
+
+    assert handled is False
+    assert captured == {
+        "crate": "demo",
+        "workspace": workspace,
+        "command": ("cargo", "publish"),
+        "timeout": 7,
+    }
+
+
+def test_publish_one_command_propagates_unhandled_errors(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    run_publish_check_module: ModuleType,
+) -> None:
+    """Unhandled failures must bubble out for the caller to process."""
+    workspace = tmp_path / "workspace"
+
+    def fake_run_cargo(
+        crate: str,
+        workspace_root: Path,
+        command: typ.Sequence[str],
+        *,
+        timeout_secs: int | None,
+        on_failure: typ.Callable[[str, run_publish_check_module.CommandResult], bool],
+    ) -> None:
+        result = run_publish_check_module.CommandResult(
+            command=command,
+            return_code=2,
+            stdout="",  # stdout intentionally empty
+            stderr="error: publishing failed",
+        )
+        assert workspace_root == workspace
+        assert on_failure(crate, result) is False
+        message = "unhandled failure"
+        raise SystemExit(message)
+
+    monkeypatch.setattr(
+        run_publish_check_module, "run_cargo_command", fake_run_cargo
+    )
+
+    with pytest.raises(SystemExit, match="unhandled failure"):
+        run_publish_check_module._publish_one_command(
+            "demo",
+            workspace,
+            ["cargo", "publish"],
+        )
 
 
 @pytest.mark.parametrize(

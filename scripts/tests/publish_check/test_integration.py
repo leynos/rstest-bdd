@@ -368,7 +368,11 @@ class TestRunPublishCheckLiveMode:
             command: typ.Sequence[str],
             *,
             timeout_secs: int,
+            **kwargs: typ.Any,
         ) -> None:
+            unexpected = set(kwargs) - {"on_failure"}
+            if unexpected:
+                pytest.fail(f"unexpected kwargs passed to fake_run_cargo: {unexpected}")
             commands.append((crate, workspace_root, list(command), timeout_secs))
 
         return commands, fake_run_cargo
