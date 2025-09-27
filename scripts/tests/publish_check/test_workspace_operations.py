@@ -8,10 +8,14 @@ import typing as typ
 
 import pytest
 import tomllib
+from tomlkit import parse
+from tomlkit.items import Array
 
 if typ.TYPE_CHECKING:
     from pathlib import Path
     from types import ModuleType
+
+    from tomlkit.toml_document import TOMLDocument
 
 
 def test_export_workspace_creates_manifest_copy(
@@ -237,3 +241,78 @@ def test_prune_workspace_members_preserves_inline_formatting(
     content = manifest.read_text(encoding="utf-8")
     assert 'members = ["crates/rstest-bdd"]' in content
     assert content.endswith("\n")
+
+
+def test_prune_workspace_members_handles_python_list_members(
+    monkeypatch: pytest.MonkeyPatch,
+    publish_workspace_module: ModuleType,
+    tmp_path: Path,
+) -> None:
+    """Ensure list-based members are normalised to arrays before pruning."""
+    manifest = tmp_path / "Cargo.toml"
+    manifest.write_text(
+        '[workspace]\nmembers = ["crates/rstest-bdd"]\n', encoding="utf-8"
+    )
+
+    document = parse(manifest.read_text(encoding="utf-8"))
+    document["workspace"]["members"] = [
+        "crates/rstest-bdd",
+        "examples/todo-cli",
+    ]
+
+    def fake_parse(_text: str) -> TOMLDocument:
+        return document
+
+    monkeypatch.setattr(publish_workspace_module, "parse", fake_parse)
+
+    publish_workspace_module.prune_workspace_members(manifest)
+
+    data = tomllib.loads(manifest.read_text(encoding="utf-8"))
+    assert data["workspace"]["members"] == ["crates/rstest-bdd"]
+    assert isinstance(document["workspace"]["members"], Array)
+
+
+def test_prune_workspace_members_skips_write_when_members_unchanged(
+    publish_workspace_module: ModuleType,
+    tmp_path: Path,
+) -> None:
+    """Verify manifests remain untouched when pruning produces no changes."""
+    manifest = tmp_path / "Cargo.toml"
+    manifest.write_text(
+        '[workspace]\nmembers = ["crates/rstest-bdd", "crates/rstest-bdd-macros"]\n',
+        encoding="utf-8",
+    )
+
+    original = manifest.read_text(encoding="utf-8")
+
+    publish_workspace_module.prune_workspace_members(manifest)
+
+    assert manifest.read_text(encoding="utf-8") == original
+
+
+def test_workspace_version_error_includes_workspace_excerpt(
+    publish_workspace_module: ModuleType,
+    tmp_path: Path,
+) -> None:
+    """Confirm workspace version diagnostics display the surrounding snippet."""
+    manifest = tmp_path / "Cargo.toml"
+    manifest.write_text(
+        "\n".join(
+            (
+                "[workspace]",
+                'members = ["crates/rstest-bdd"]',
+                "",
+                "[package]",
+                'name = "demo"',
+            )
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(SystemExit) as exc:
+        publish_workspace_module.workspace_version(manifest)
+
+    message = str(exc.value)
+    assert "Workspace manifest excerpt" in message
+    assert "    [workspace]" in message
+    assert "[workspace.package]" in message
