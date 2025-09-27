@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import contextlib
 import typing as typ
+from typing import List
 
 import pytest
 import tomllib
@@ -114,89 +115,98 @@ def test_strip_patch_section_tolerates_hash_characters_in_strings(
     )
 
 
-def test_prune_workspace_members_removes_non_crate_entries(
-    publish_workspace_module: ModuleType, tmp_path: Path
-) -> None:
-    """Remove workspace members that are not part of the publishable crates."""
-    manifest = tmp_path / "Cargo.toml"
-    manifest.write_text(
-        "\n".join(
-            (
-                "[workspace]",
-                "members = [",
-                '    "crates/rstest-bdd",',
-                '    "examples/todo-cli",',
-                "]",
-            )
+@pytest.mark.parametrize(
+    ("case_name", "toml_content", "expected", "description"),
+    [
+        pytest.param(
+            "removes_non_crate_entries",
+            "\n".join(
+                (
+                    "[workspace]",
+                    "members = [",
+                    '    "crates/rstest-bdd",',
+                    '    "examples/todo-cli",',
+                    "]",
+                )
+            ),
+            ["crates/rstest-bdd"],
+            "Remove workspace members that are not part of the publishable crates.",
+            id="removes-non-crate-entries",
         ),
-        encoding="utf-8",
-    )
-
-    publish_workspace_module.prune_workspace_members(manifest)
-
-    data = tomllib.loads(manifest.read_text(encoding="utf-8"))
-    assert data["workspace"]["members"] == ["crates/rstest-bdd"]
-
-
-def test_prune_workspace_members_keeps_known_crate_names(
-    publish_workspace_module: ModuleType, tmp_path: Path
-) -> None:
-    """Retain crate entries even when they use alternate directory layouts."""
-    manifest = tmp_path / "Cargo.toml"
-    manifest.write_text(
-        "\n".join(
-            (
-                "[workspace]",
-                'members = ["packages/rstest-bdd", "tools/xtask"]',
-            )
+        pytest.param(
+            "keeps_known_crate_names",
+            "\n".join(
+                (
+                    "[workspace]",
+                    'members = ["packages/rstest-bdd", "tools/xtask"]',
+                )
+            ),
+            ["packages/rstest-bdd"],
+            "Retain crate entries even when they use alternate directory layouts.",
+            id="keeps-known-crate-names",
         ),
-        encoding="utf-8",
-    )
-
-    publish_workspace_module.prune_workspace_members(manifest)
-
-    data = tomllib.loads(manifest.read_text(encoding="utf-8"))
-    assert data["workspace"]["members"] == ["packages/rstest-bdd"]
-
-
-def test_prune_workspace_members_ignores_missing_workspace_section(
-    publish_workspace_module: ModuleType, tmp_path: Path
-) -> None:
-    """Leave manifests without workspace metadata untouched."""
-    manifest = tmp_path / "Cargo.toml"
-    manifest.write_text(
-        "\n".join(
-            (
-                "[package]",
-                'name = "demo"',
-                'version = "0.1.0"',
-            )
+        pytest.param(
+            "ignores_missing_workspace_section",
+            "\n".join(
+                (
+                    "[package]",
+                    'name = "demo"',
+                    'version = "0.1.0"',
+                )
+            ),
+            "\n".join(
+                (
+                    "[package]",
+                    'name = "demo"',
+                    'version = "0.1.0"',
+                )
+            ),
+            "Leave manifests without workspace metadata untouched.",
+            id="ignores-missing-workspace-section",
         ),
-        encoding="utf-8",
-    )
+        pytest.param(
+            "ignores_missing_members_array",
+            "\n".join(
+                (
+                    "[workspace]",
+                    'resolver = "2"',
+                )
+            ),
+            "\n".join(
+                (
+                    "[workspace]",
+                    'resolver = "2"',
+                )
+            ),
+            "Preserve workspace tables that do not define members.",
+            id="ignores-missing-members-array",
+        ),
+    ],
+)
+def test_prune_workspace_members_behaviour(
+    publish_workspace_module: ModuleType,
+    tmp_path: Path,
+    request: pytest.FixtureRequest,
+    case_name: str,
+    toml_content: str,
+    expected: List[str] | str,
+    description: str,
+) -> None:
+    """Exercise prune_workspace_members across expected scenarios."""
+    manifest = tmp_path / "Cargo.toml"
+    manifest.write_text(toml_content, encoding="utf-8")
+
+    # Record the case metadata for pytest output without affecting behaviour.
+    request.node.user_properties.append(("case", case_name))
+    request.node.user_properties.append(("description", description))
+
     original = manifest.read_text(encoding="utf-8")
 
     publish_workspace_module.prune_workspace_members(manifest)
 
-    assert manifest.read_text(encoding="utf-8") == original
-
-
-def test_prune_workspace_members_ignores_missing_members_array(
-    publish_workspace_module: ModuleType, tmp_path: Path
-) -> None:
-    """Preserve workspace tables that do not define members."""
-    manifest = tmp_path / "Cargo.toml"
-    manifest.write_text(
-        "\n".join(
-            (
-                "[workspace]",
-                'resolver = "2"',
-            )
-        ),
-        encoding="utf-8",
-    )
-    original = manifest.read_text(encoding="utf-8")
-
-    publish_workspace_module.prune_workspace_members(manifest)
-
-    assert manifest.read_text(encoding="utf-8") == original
+    content = manifest.read_text(encoding="utf-8")
+    if isinstance(expected, list):
+        data = tomllib.loads(content)
+        assert data["workspace"]["members"] == expected
+    else:
+        assert content == expected == original
