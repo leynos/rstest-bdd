@@ -89,6 +89,31 @@ def test_strip_patch_section_ignores_inline_comments(
     )
 
 
+def test_strip_patch_section_tolerates_hash_characters_in_strings(
+    publish_workspace_module: ModuleType, tmp_path: Path
+) -> None:
+    """Ignore literal ``#`` characters embedded within string values."""
+    manifest = tmp_path / "Cargo.toml"
+    manifest.write_text(
+        "\n".join(
+            (
+                "[patch.crates-io]",
+                'demo = { git = "https://example.com/#main" }',
+                "",
+                "[dependencies]",
+                'demo = { version = "1", registry = "crates-io" }',
+            )
+        ),
+        encoding="utf-8",
+    )
+
+    publish_workspace_module.strip_patch_section(manifest)
+
+    assert manifest.read_text(encoding="utf-8") == (
+        '[dependencies]\ndemo = { version = "1", registry = "crates-io" }\n'
+    )
+
+
 def test_prune_workspace_members_removes_non_crate_entries(
     publish_workspace_module: ModuleType, tmp_path: Path
 ) -> None:
@@ -132,3 +157,46 @@ def test_prune_workspace_members_keeps_known_crate_names(
 
     data = tomllib.loads(manifest.read_text(encoding="utf-8"))
     assert data["workspace"]["members"] == ["packages/rstest-bdd"]
+
+
+def test_prune_workspace_members_ignores_missing_workspace_section(
+    publish_workspace_module: ModuleType, tmp_path: Path
+) -> None:
+    """Leave manifests without workspace metadata untouched."""
+    manifest = tmp_path / "Cargo.toml"
+    manifest.write_text(
+        "\n".join(
+            (
+                "[package]",
+                'name = "demo"',
+                'version = "0.1.0"',
+            )
+        ),
+        encoding="utf-8",
+    )
+    original = manifest.read_text(encoding="utf-8")
+
+    publish_workspace_module.prune_workspace_members(manifest)
+
+    assert manifest.read_text(encoding="utf-8") == original
+
+
+def test_prune_workspace_members_ignores_missing_members_array(
+    publish_workspace_module: ModuleType, tmp_path: Path
+) -> None:
+    """Preserve workspace tables that do not define members."""
+    manifest = tmp_path / "Cargo.toml"
+    manifest.write_text(
+        "\n".join(
+            (
+                "[workspace]",
+                'resolver = "2"',
+            )
+        ),
+        encoding="utf-8",
+    )
+    original = manifest.read_text(encoding="utf-8")
+
+    publish_workspace_module.prune_workspace_members(manifest)
+
+    assert manifest.read_text(encoding="utf-8") == original

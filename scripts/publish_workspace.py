@@ -60,61 +60,6 @@ def export_workspace(destination: Path) -> None:
             tar.extractall(destination, filter="data")
 
 
-def _is_patch_section_start(line: str) -> bool:
-    """Return True when the line marks the ``[patch.crates-io]`` section."""
-    canonical = line.split("#", 1)[0].strip()
-    return canonical == "[patch.crates-io]"
-
-
-def _is_any_section_start(line: str) -> bool:
-    """Return True when the line starts a new manifest section."""
-    return line.lstrip().startswith("[")
-
-
-def _process_patch_section_line(
-    line: str, *, skipping_patch: bool
-) -> tuple[bool, bool]:
-    """Process manifest lines while tracking patch section boundaries.
-
-    Parameters
-    ----------
-    line : str
-        The manifest line currently being inspected.
-    skipping_patch : bool
-        ``True`` when the caller is currently omitting patch-section lines.
-
-    Returns
-    -------
-    tuple[bool, bool]
-        A tuple of ``(should_include_line, new_skipping_patch_state)`` where
-        inline ``#`` comments have been stripped before the section checks run.
-    """
-    marker = line.split("#", 1)[0]
-
-    if not skipping_patch and _is_patch_section_start(marker):
-        return False, True
-
-    if skipping_patch and _is_any_section_start(marker):
-        return True, False
-
-    return not skipping_patch, skipping_patch
-
-
-def _ensure_proper_file_ending(lines: list[str]) -> None:
-    """Ensure the file ends with a newline by adding an empty string if needed."""
-    if not lines or lines[-1] != "":
-        lines.append("")
-
-
-def _rewrite_manifest_lines(
-    manifest: Path, processor: typ.Callable[[list[str]], list[str]]
-) -> None:
-    """Read ``manifest`` lines, transform them, and write the updated content."""
-    lines = manifest.read_text(encoding="utf-8").splitlines()
-    rewritten = processor(lines)
-    manifest.write_text("\n".join(rewritten), encoding="utf-8")
-
-
 def strip_patch_section(manifest: Path) -> None:
     """Strip the ``[patch.crates-io]`` section from ``manifest``.
 
@@ -128,22 +73,24 @@ def strip_patch_section(manifest: Path) -> None:
     None
         The manifest on disk is rewritten without the patch section.
     """
+    document = parse(manifest.read_text(encoding="utf-8"))
+    patch_table = document.get("patch")
+    if patch_table is None:
+        return
 
-    def _remove_patch(lines: list[str]) -> list[str]:
-        cleaned: list[str] = []
-        skipping_patch = False
+    crates_io = patch_table.get("crates-io")
+    if crates_io is None:
+        return
 
-        for line in lines:
-            should_include, skipping_patch = _process_patch_section_line(
-                line, skipping_patch=skipping_patch
-            )
-            if should_include:
-                cleaned.append(line)
+    del patch_table["crates-io"]
+    if not patch_table:
+        del document["patch"]
 
-        _ensure_proper_file_ending(cleaned)
-        return cleaned
+    rendered = dumps(document)
+    if not rendered.endswith("\n"):
+        rendered = f"{rendered}\n"
 
-    _rewrite_manifest_lines(manifest, _remove_patch)
+    manifest.write_text(rendered, encoding="utf-8")
 
 
 def prune_workspace_members(manifest: Path) -> None:

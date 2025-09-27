@@ -47,6 +47,7 @@ from cyclopts import App, Parameter
 from plumbum import local
 from plumbum.commands.processes import ProcessTimedOut
 from publish_workspace import (
+    PUBLISHABLE_CRATES,
     apply_workspace_replacements,
     export_workspace,
     prune_workspace_members,
@@ -68,17 +69,12 @@ class CrateAction(typ.Protocol):
         ...
 
 
-CRATE_ORDER: typ.Final[tuple[str, ...]] = (
-    "rstest-bdd-patterns",
-    "rstest-bdd-macros",
-    "rstest-bdd",
-    "cargo-bdd",
-)
+CRATE_ORDER: typ.Final[tuple[str, ...]] = PUBLISHABLE_CRATES
 
-DEFAULT_LIVE_CRATES: typ.Final[tuple[str, ...]] = (
-    "rstest-bdd-patterns",
-    "rstest-bdd-macros",
-    "rstest-bdd",
+LOCKED_LIVE_CRATES: typ.Final[frozenset[str]] = frozenset({"cargo-bdd"})
+
+DEFAULT_LIVE_CRATES: typ.Final[tuple[str, ...]] = tuple(
+    crate for crate in PUBLISHABLE_CRATES if crate not in LOCKED_LIVE_CRATES
 )
 
 DEFAULT_LIVE_PUBLISH_COMMANDS: typ.Final[tuple[Command, ...]] = (
@@ -91,9 +87,14 @@ LOCKED_LIVE_PUBLISH_COMMANDS: typ.Final[tuple[Command, ...]] = (
     ("cargo", "publish", "--locked"),
 )
 
-LIVE_PUBLISH_COMMANDS: typ.Final[dict[str, tuple[Command, ...]]] = dict.fromkeys(
-    DEFAULT_LIVE_CRATES, DEFAULT_LIVE_PUBLISH_COMMANDS
-) | {"cargo-bdd": LOCKED_LIVE_PUBLISH_COMMANDS}
+LIVE_PUBLISH_COMMANDS: typ.Final[dict[str, tuple[Command, ...]]] = {
+    crate: (
+        LOCKED_LIVE_PUBLISH_COMMANDS
+        if crate in LOCKED_LIVE_CRATES
+        else DEFAULT_LIVE_PUBLISH_COMMANDS
+    )
+    for crate in PUBLISHABLE_CRATES
+}
 
 DEFAULT_PUBLISH_TIMEOUT_SECS = 900
 
