@@ -246,8 +246,7 @@ def workspace_version(manifest: Path) -> str:
             "[workspace.package] must define a version for publish automation to run. "
             "Check the manifest defines the key."
         )
-        snippet = _workspace_section_excerpt(manifest_text)
-        if snippet:
+        if snippet := _workspace_section_excerpt(manifest_text):
             indented_snippet = "\n".join(f"    {line}" for line in snippet)
             message = f"{message}\n\nWorkspace manifest excerpt:\n{indented_snippet}"
         raise SystemExit(message) from err
