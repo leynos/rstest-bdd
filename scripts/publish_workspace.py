@@ -78,23 +78,11 @@ def strip_patch_section(manifest: Path) -> None:
         The manifest on disk is rewritten without the patch section.
     """
     document = parse(manifest.read_text(encoding="utf-8"))
-    patch_table = document.get("patch")
-    if patch_table is None:
+    if not _should_remove_patch_section(document):
         return
 
-    crates_io = patch_table.get("crates-io")
-    if crates_io is None:
-        return
-
-    del patch_table["crates-io"]
-    if not patch_table:
-        del document["patch"]
-
-    rendered = dumps(document)
-    if not rendered.endswith("\n"):
-        rendered = f"{rendered}\n"
-
-    manifest.write_text(rendered, encoding="utf-8")
+    _remove_patch_section(document)
+    _write_manifest_with_newline(document, manifest)
 
 
 def prune_workspace_members(manifest: Path) -> None:
@@ -134,16 +122,7 @@ def _get_valid_workspace_members(document: TOMLDocument) -> Array | None:
     if members is None:
         return None
 
-    if isinstance(members, Array):
-        return members
-
-    if isinstance(members, list):
-        rebuilt_members = array()
-        rebuilt_members.extend(members)
-        workspace["members"] = rebuilt_members
-        return typ.cast("Array", rebuilt_members)
-
-    return None
+    return _ensure_members_array(workspace, members)
 
 
 def _filter_workspace_members(members: Array) -> bool:
@@ -162,21 +141,11 @@ def _write_manifest_if_changed(
     *, document: TOMLDocument, manifest: Path, changed: bool, members: Array
 ) -> None:
     """Persist ``document`` to ``manifest`` only when ``changed`` is ``True``."""
-    if not changed:
+    if not _should_write_manifest(changed, document):
         return
 
-    if document.get("workspace") is None:
-        return
-
-    members_text = members.as_string()
-    if "\n" in members_text:
-        members.multiline(multiline=True)
-
-    rendered = dumps(document)
-    if not rendered.endswith("\n"):
-        rendered = f"{rendered}\n"
-
-    manifest.write_text(rendered, encoding="utf-8")
+    _format_multiline_members_if_needed(members)
+    _write_manifest_with_newline(document, manifest)
 
 
 def apply_workspace_replacements(
@@ -276,10 +245,7 @@ def _extract_section_lines(lines: list[str], workspace_index: int) -> list[str]:
     start = max(workspace_index - 1, 0)
     end = workspace_index + 1
 
-    while end < len(lines) and end - start < 8:
-        stripped = lines[end].strip()
-        if stripped.startswith("[") and not stripped.startswith("[workspace"):
-            break
+    while _should_include_more_lines(lines, end, start):
         end += 1
 
     return lines[start:end]
@@ -301,15 +267,111 @@ def remove_patch_entry(manifest: Path, crate: str) -> None:
         The manifest is rewritten only when the patch entry was present.
     """
     document = parse(manifest.read_text(encoding="utf-8"))
+    if not _has_patch_crates_io_section(document):
+        return
+
+    patch_table = typ.cast("dict[str, typ.Any]", document["patch"])
+    crates_io = typ.cast("dict[str, typ.Any]", patch_table["crates-io"])
+    if crate not in crates_io:
+        return
+
+    _remove_crate_and_cleanup_empty_sections(document, crate)
+    _write_manifest_with_newline(document, manifest)
+
+
+def _has_patch_crates_io_section(document: TOMLDocument) -> bool:
+    """Return ``True`` when ``document`` contains a patch section."""
+    patch_table = document.get("patch")
+    if patch_table is None:
+        return False
+
+    crates_io = patch_table.get("crates-io")
+    return crates_io is not None
+
+
+def _should_remove_patch_section(document: TOMLDocument) -> bool:
+    """Return ``True`` when the patch section contains ``crates-io`` entries."""
+    return _has_patch_crates_io_section(document)
+
+
+def _remove_patch_section(document: TOMLDocument) -> None:
+    """Remove the entire ``[patch.crates-io]`` table from ``document``."""
     patch_table = document.get("patch")
     if patch_table is None:
         return
-    crates_io = patch_table.get("crates-io")
-    if crates_io is None or crate not in crates_io:
-        return
+
+    patch_mapping = typ.cast("dict[str, typ.Any]", patch_table)
+    patch_mapping.pop("crates-io", None)
+    if not patch_mapping:
+        del document["patch"]
+
+
+def _remove_crate_and_cleanup_empty_sections(
+    document: TOMLDocument, crate: str
+) -> None:
+    """Remove ``crate`` from the patch section and drop empty tables."""
+    patch_table = typ.cast("dict[str, typ.Any]", document["patch"])
+    crates_io = typ.cast("dict[str, typ.Any]", patch_table["crates-io"])
+
     del crates_io[crate]
     if not crates_io:
         del patch_table["crates-io"]
     if not patch_table:
         del document["patch"]
-    manifest.write_text(dumps(document), encoding="utf-8")
+
+
+def _should_include_more_lines(lines: list[str], end: int, start: int) -> bool:
+    """Return ``True`` when diagnostic extraction should continue."""
+    if end >= len(lines):
+        return False
+
+    if end - start >= 8:
+        return False
+
+    stripped = lines[end].strip()
+    if stripped.startswith("[") and not stripped.startswith("[workspace"):
+        return False
+
+    return True
+
+
+def _ensure_members_array(workspace: dict, members) -> Array | None:
+    """Normalise ``workspace['members']`` to a TOML array when possible."""
+    if isinstance(members, Array):
+        return members
+
+    if isinstance(members, list):
+        return _convert_list_to_array(workspace, members)
+
+    return None
+
+
+def _convert_list_to_array(workspace: dict, members: list) -> Array:
+    """Convert ``members`` list to a TOML array attached to ``workspace``."""
+    rebuilt_members = array()
+    rebuilt_members.extend(members)
+    workspace["members"] = rebuilt_members
+    return typ.cast("Array", rebuilt_members)
+
+
+def _should_write_manifest(changed: bool, document: TOMLDocument) -> bool:
+    """Return ``True`` when the manifest should be persisted."""
+    if not changed:
+        return False
+
+    return document.get("workspace") is not None
+
+
+def _format_multiline_members_if_needed(members: Array) -> None:
+    """Ensure ``members`` is rendered as multiline when it spans lines."""
+    if "\n" in members.as_string():
+        members.multiline(multiline=True)
+
+
+def _write_manifest_with_newline(document: TOMLDocument, manifest: Path) -> None:
+    """Serialise ``document`` to ``manifest`` and ensure a trailing newline."""
+    rendered = dumps(document)
+    if not rendered.endswith("\n"):
+        rendered = f"{rendered}\n"
+
+    manifest.write_text(rendered, encoding="utf-8")
