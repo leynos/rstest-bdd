@@ -165,16 +165,12 @@ def _write_manifest_if_changed(
     if not changed:
         return
 
-    workspace = document.get("workspace")
-    if workspace is None:
+    if document.get("workspace") is None:
         return
 
-    rebuilt_members = array()
-    rebuilt_members.extend(list(members))
     members_text = members.as_string()
     if "\n" in members_text:
-        rebuilt_members.multiline(multiline=True)
-    workspace["members"] = rebuilt_members
+        members.multiline(multiline=True)
 
     rendered = dumps(document)
     if not rendered.endswith("\n"):
