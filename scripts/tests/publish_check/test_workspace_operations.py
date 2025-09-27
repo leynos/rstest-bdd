@@ -6,6 +6,7 @@ import contextlib
 import typing as typ
 
 import pytest
+import tomllib
 
 if typ.TYPE_CHECKING:
     from pathlib import Path
@@ -35,9 +36,13 @@ def test_export_workspace_propagates_git_failure(
         def __getitem__(self, _args: object) -> FakeCommand:
             return self
 
-        def __call__(self, *_args: object, **_kwargs: object) -> None:
-            error_message = "archive failed"
-            raise RuntimeError(error_message)
+        def run(
+            self,
+            *,
+            timeout: int,
+            retcode: object | None,
+        ) -> tuple[int, str, str]:
+            return 1, "", "archive failed"
 
     class FakeLocal:
         def __getitem__(self, name: str) -> FakeCommand:
@@ -51,5 +56,79 @@ def test_export_workspace_propagates_git_failure(
 
     monkeypatch.setattr(publish_workspace_module, "local", FakeLocal())
 
-    with pytest.raises(RuntimeError, match="archive failed"):
+    with pytest.raises(SystemExit, match="git archive failed with exit code 1"):
         publish_workspace_module.export_workspace(tmp_path)
+
+
+def test_strip_patch_section_ignores_inline_comments(
+    publish_workspace_module: ModuleType, tmp_path: Path
+) -> None:
+    """Ensure patch sections with inline comments are removed cleanly."""
+    manifest = tmp_path / "Cargo.toml"
+    manifest.write_text(
+        "\n".join(
+            (
+                "[package]",
+                'name = "demo"',
+                'version = "0.1.0"',
+                "",
+                "[patch.crates-io] # remove before publish",
+                'serde = { path = "../serde" }',
+                "",
+                "[dependencies]",
+                'serde = "1"',
+            )
+        ),
+        encoding="utf-8",
+    )
+
+    publish_workspace_module.strip_patch_section(manifest)
+
+    assert manifest.read_text(encoding="utf-8") == (
+        '[package]\nname = "demo"\nversion = "0.1.0"\n\n[dependencies]\nserde = "1"\n'
+    )
+
+
+def test_prune_workspace_members_removes_non_crate_entries(
+    publish_workspace_module: ModuleType, tmp_path: Path
+) -> None:
+    """Remove workspace members that are not part of the publishable crates."""
+    manifest = tmp_path / "Cargo.toml"
+    manifest.write_text(
+        "\n".join(
+            (
+                "[workspace]",
+                "members = [",
+                '    "crates/rstest-bdd",',
+                '    "examples/todo-cli",',
+                "]",
+            )
+        ),
+        encoding="utf-8",
+    )
+
+    publish_workspace_module.prune_workspace_members(manifest)
+
+    data = tomllib.loads(manifest.read_text(encoding="utf-8"))
+    assert data["workspace"]["members"] == ["crates/rstest-bdd"]
+
+
+def test_prune_workspace_members_keeps_known_crate_names(
+    publish_workspace_module: ModuleType, tmp_path: Path
+) -> None:
+    """Retain crate entries even when they use alternate directory layouts."""
+    manifest = tmp_path / "Cargo.toml"
+    manifest.write_text(
+        "\n".join(
+            (
+                "[workspace]",
+                'members = ["packages/rstest-bdd", "tools/xtask"]',
+            )
+        ),
+        encoding="utf-8",
+    )
+
+    publish_workspace_module.prune_workspace_members(manifest)
+
+    data = tomllib.loads(manifest.read_text(encoding="utf-8"))
+    assert data["workspace"]["members"] == ["packages/rstest-bdd"]
