@@ -309,17 +309,18 @@ def main() -> None:
     parser.add_argument("crate", choices=sorted(REPLACEMENTS))
     parser.add_argument("manifest", type=Path)
     parser.add_argument("--version", required=True)
-    parser.add_argument(
+    parser.set_defaults(include_local_path=True)
+    local_path = parser.add_mutually_exclusive_group(required=False)
+    local_path.add_argument(
         "--include-local-path",
         dest="include_local_path",
         action="store_true",
-        default=True,
         help=(
             "Retain relative path dependencies for publish-checks. This is the "
             "default behaviour."
         ),
     )
-    parser.add_argument(
+    local_path.add_argument(
         "--omit-local-path",
         dest="include_local_path",
         action="store_false",

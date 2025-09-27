@@ -16,7 +16,11 @@ from pathlib import Path
 import tomllib
 from plumbum import local
 from publish_patch import REPLACEMENTS, apply_replacements
-from tomlkit import dumps, parse
+from tomlkit import array, dumps, parse
+from tomlkit.items import Array
+
+if typ.TYPE_CHECKING:
+    from tomlkit.toml_document import TOMLDocument
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
@@ -107,17 +111,43 @@ def prune_workspace_members(manifest: Path) -> None:
         The manifest is rewritten with only crate directories listed.
     """
     document = parse(manifest.read_text(encoding="utf-8"))
-    workspace = document.get("workspace")
-    if workspace is None:
-        return
-
-    members = workspace.get("members")
+    members = _get_valid_workspace_members(document)
     if members is None:
         return
 
-    if not isinstance(members, list):
-        return
+    changed = _filter_workspace_members(members)
+    _write_manifest_if_changed(
+        document=document,
+        manifest=manifest,
+        changed=changed,
+        members=members,
+    )
 
+
+def _get_valid_workspace_members(document: TOMLDocument) -> Array | None:
+    """Return the workspace members array when it exists and is valid."""
+    workspace = document.get("workspace")
+    if workspace is None:
+        return None
+
+    members = workspace.get("members")
+    if members is None:
+        return None
+
+    if isinstance(members, Array):
+        return members
+
+    if isinstance(members, list):
+        rebuilt_members = array()
+        rebuilt_members.extend(members)
+        workspace["members"] = rebuilt_members
+        return typ.cast("Array", rebuilt_members)
+
+    return None
+
+
+def _filter_workspace_members(members: Array) -> bool:
+    """Remove ineligible workspace members, returning ``True`` if mutated."""
     changed = False
     for index in range(len(members) - 1, -1, -1):
         entry = members[index]
@@ -125,8 +155,26 @@ def prune_workspace_members(manifest: Path) -> None:
             del members[index]
             changed = True
 
+    return changed
+
+
+def _write_manifest_if_changed(
+    *, document: TOMLDocument, manifest: Path, changed: bool, members: Array
+) -> None:
+    """Persist ``document`` to ``manifest`` only when ``changed`` is ``True``."""
     if not changed:
         return
+
+    workspace = document.get("workspace")
+    if workspace is None:
+        return
+
+    rebuilt_members = array()
+    rebuilt_members.extend(list(members))
+    members_text = members.as_string()
+    if "\n" in members_text:
+        rebuilt_members.multiline(multiline=True)
+    workspace["members"] = rebuilt_members
 
     rendered = dumps(document)
     if not rendered.endswith("\n"):
@@ -192,7 +240,8 @@ def workspace_version(manifest: Path) -> str:
     SystemExit
         Raised when the workspace manifest lacks the version entry.
     """
-    data = tomllib.loads(manifest.read_text(encoding="utf-8"))
+    manifest_text = manifest.read_text(encoding="utf-8")
+    data = tomllib.loads(manifest_text)
     try:
         return data["workspace"]["package"]["version"]
     except KeyError as err:
@@ -201,7 +250,33 @@ def workspace_version(manifest: Path) -> str:
             "[workspace.package] must define a version for publish automation to run. "
             "Check the manifest defines the key."
         )
+        snippet = _workspace_section_excerpt(manifest_text)
+        if snippet:
+            indented_snippet = "\n".join(f"    {line}" for line in snippet)
+            message = (
+                f"{message}\n\n"
+                "Workspace manifest excerpt:\n"
+                f"{indented_snippet}"
+            )
         raise SystemExit(message) from err
+
+
+def _workspace_section_excerpt(manifest_text: str) -> list[str] | None:
+    """Return the lines around the ``[workspace]`` section for diagnostics."""
+    lines = manifest_text.splitlines()
+    for index, line in enumerate(lines):
+        if line.strip().startswith("[workspace"):
+            start = max(index - 1, 0)
+            end = index + 1
+            while end < len(lines):
+                stripped = lines[end].strip()
+                if stripped.startswith("[") and not stripped.startswith("[workspace"):
+                    break
+                if end - start >= 8:
+                    break
+                end += 1
+            return lines[start:end]
+    return None
 
 
 def remove_patch_entry(manifest: Path, crate: str) -> None:
