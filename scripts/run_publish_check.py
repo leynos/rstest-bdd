@@ -245,20 +245,26 @@ def run_cargo_command(
         _handle_command_output(result.stdout, result.stderr)
 
 
+@dc.dataclass(frozen=True)
+class CargoExecutionContext:
+    """Context for executing cargo commands in a workspace."""
+
+    crate: str
+    workspace_root: Path
+    timeout_secs: int | None = None
+
+
 def _run_cargo_subcommand(
-    crate: str,
-    workspace_root: Path,
+    context: CargoExecutionContext,
     subcommand: str,
     args: cabc.Sequence[str],
-    *,
-    timeout_secs: int | None = None,
 ) -> None:
     command = ["cargo", subcommand, *list(args)]
     run_cargo_command(
-        crate,
-        workspace_root,
+        context.crate,
+        context.workspace_root,
         command,
-        timeout_secs=timeout_secs,
+        timeout_secs=context.timeout_secs,
     )
 
 
@@ -275,12 +281,15 @@ def _create_cargo_action(
         *,
         timeout_secs: int | None = None,
     ) -> None:
-        _run_cargo_subcommand(
+        context = CargoExecutionContext(
             crate,
             workspace_root,
+            timeout_secs,
+        )
+        _run_cargo_subcommand(
+            context,
             subcommand,
             command_args,
-            timeout_secs=timeout_secs,
         )
 
     action.__doc__ = docstring
