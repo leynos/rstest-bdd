@@ -20,11 +20,35 @@ pub(crate) fn rstest_bdd_path() -> TokenStream2 {
             };
             quote! { ::#ident }
         }
-        Err(e) => {
-            if cfg!(test) {
-                return quote! { ::rstest_bdd };
-            }
-            panic!("rstest-bdd crate not found: {e}");
-        }
+        Err(err) => handle_missing_runtime(&err),
+    }
+}
+
+#[cfg(test)]
+fn handle_missing_runtime(_: &proc_macro_crate::Error) -> TokenStream2 {
+    // Tests compile the macros crate in isolation without the runtime crate, so
+    // fall back to the default package name.
+    quote! { ::rstest_bdd }
+}
+
+#[cfg(not(test))]
+fn handle_missing_runtime(err: &proc_macro_crate::Error) -> TokenStream2 {
+    panic!("rstest-bdd crate not found: {err}");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::handle_missing_runtime;
+    use proc_macro_crate::Error;
+    use std::path::PathBuf;
+
+    #[test]
+    fn returns_fallback_path_in_tests() {
+        let error = Error::CrateNotFound {
+            crate_name: "rstest-bdd".to_string(),
+            path: PathBuf::new(),
+        };
+        let tokens = handle_missing_runtime(&error);
+        assert_eq!(tokens.to_string(), ":: rstest_bdd");
     }
 }

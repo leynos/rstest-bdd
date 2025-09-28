@@ -10,37 +10,70 @@ use std::io;
 use std::panic::{self, AssertUnwindSafe};
 use std::path::{Path, PathBuf};
 
+const MACROS_FIXTURES_DIR: &str = "tests/fixtures_macros";
+const UI_FIXTURES_DIR: &str = "tests/ui_macros";
+
+fn macros_fixture(case: &str) -> PathBuf {
+    Path::new(MACROS_FIXTURES_DIR).join(case)
+}
+
+fn ui_fixture(case: &str) -> PathBuf {
+    Path::new(UI_FIXTURES_DIR).join(case)
+}
+
 #[test]
 fn step_macros_compile() {
     let t = trybuild::TestCases::new();
-    t.pass("tests/fixtures_macros/step_macros.rs");
-    t.pass("tests/fixtures_macros/step_macros_unicode.rs");
-    t.pass("tests/fixtures_macros/scenario_single_match.rs");
+
+    for case in [
+        "step_macros.rs",
+        "step_macros_unicode.rs",
+        "scenario_single_match.rs",
+    ] {
+        t.pass(macros_fixture(case));
+    }
     // `scenarios!` should succeed when the directory exists.
     // t.pass("tests/fixtures/scenarios_autodiscovery.rs");
-    t.compile_fail("tests/fixtures_macros/scenario_missing_file.rs");
-    t.compile_fail("tests/fixtures_macros/step_macros_invalid_identifier.rs");
-    t.compile_fail("tests/fixtures_macros/step_tuple_pattern.rs");
-    t.compile_fail("tests/fixtures_macros/step_struct_pattern.rs");
-    t.compile_fail("tests/fixtures_macros/step_nested_pattern.rs");
-    t.compile_fail("tests/ui_macros/datatable_wrong_type.rs");
-    t.compile_fail("tests/ui_macros/datatable_duplicate.rs");
-    t.compile_fail("tests/ui_macros/datatable_duplicate_attr.rs");
-    t.compile_fail("tests/ui_macros/datatable_after_docstring.rs");
-    t.compile_fail("tests/ui_macros/placeholder_missing_param.rs");
-    t.compile_fail("tests/ui_macros/implicit_fixture_missing.rs");
-    t.compile_fail("tests/ui_macros/placeholder_missing_params.rs");
-    t.compile_fail("tests/fixtures_macros/scenarios_missing_dir.rs");
+
+    for case in [
+        "scenario_missing_file.rs",
+        "step_macros_invalid_identifier.rs",
+        "step_tuple_pattern.rs",
+        "step_struct_pattern.rs",
+        "step_nested_pattern.rs",
+    ] {
+        t.compile_fail(macros_fixture(case));
+    }
+
+    for case in [
+        "datatable_wrong_type.rs",
+        "datatable_duplicate.rs",
+        "datatable_duplicate_attr.rs",
+        "datatable_after_docstring.rs",
+        "placeholder_missing_param.rs",
+        "implicit_fixture_missing.rs",
+        "placeholder_missing_params.rs",
+    ] {
+        t.compile_fail(ui_fixture(case));
+    }
+
+    t.compile_fail(macros_fixture("scenarios_missing_dir.rs"));
+
+    let ordering_cases = ["scenario_missing_step.rs", "scenario_out_of_order.rs"];
+
     if cfg!(feature = "strict-compile-time-validation") {
-        t.compile_fail("tests/fixtures_macros/scenario_missing_step.rs");
-        t.compile_fail("tests/fixtures_macros/scenario_out_of_order.rs");
+        for case in ordering_cases {
+            t.compile_fail(macros_fixture(case));
+        }
     } else {
-        t.pass("tests/fixtures_macros/scenario_missing_step.rs");
-        t.pass("tests/fixtures_macros/scenario_out_of_order.rs");
+        for case in ordering_cases {
+            t.pass(macros_fixture(case));
+        }
         compile_fail_missing_step_warning(&t);
     }
+
     if cfg!(feature = "compile-time-validation") {
-        t.compile_fail("tests/fixtures_macros/scenario_ambiguous_step.rs");
+        t.compile_fail(macros_fixture("scenario_ambiguous_step.rs"));
     }
 }
 
@@ -49,22 +82,27 @@ type Normaliser = fn(&str) -> String;
 fn compile_fail_missing_step_warning(t: &trybuild::TestCases) {
     compile_fail_with_normalised_output(
         t,
-        "tests/fixtures_macros/scenario_missing_step_warning.rs",
+        macros_fixture("scenario_missing_step_warning.rs"),
         &[strip_nightly_macro_backtrace_hint, normalise_fixture_paths],
     );
 }
 
 fn compile_fail_with_normalised_output(
     t: &trybuild::TestCases,
-    test_path: &str,
+    test_path: impl AsRef<Path>,
     normalisers: &[Normaliser],
 ) {
-    run_compile_fail_with_normalised_output(|| t.compile_fail(test_path), test_path, normalisers);
+    let test_path = test_path.as_ref();
+    run_compile_fail_with_normalised_output(
+        || t.compile_fail(test_path),
+        Path::new(test_path),
+        normalisers,
+    );
 }
 
 fn run_compile_fail_with_normalised_output<F>(
     compile_fail: F,
-    test_path: &str,
+    test_path: &Path,
     normalisers: &[Normaliser],
 ) where
     F: FnOnce(),
@@ -81,7 +119,7 @@ fn run_compile_fail_with_normalised_output<F>(
     }
 }
 
-fn normalised_outputs_match(test_path: &str, normalisers: &[Normaliser]) -> io::Result<bool> {
+fn normalised_outputs_match(test_path: &Path, normalisers: &[Normaliser]) -> io::Result<bool> {
     let actual_path = wip_stderr_path(test_path);
     let expected_path = expected_stderr_path(test_path);
     let actual = fs::read_to_string(&actual_path)?;
@@ -95,8 +133,8 @@ fn normalised_outputs_match(test_path: &str, normalisers: &[Normaliser]) -> io::
     Ok(false)
 }
 
-fn wip_stderr_path(test_path: &str) -> PathBuf {
-    let Some(file_name) = Path::new(test_path).file_name() else {
+fn wip_stderr_path(test_path: &Path) -> PathBuf {
+    let Some(file_name) = test_path.file_name() else {
         panic!("trybuild test path must include file name");
     };
     let mut path = PathBuf::from(file_name);
@@ -104,7 +142,7 @@ fn wip_stderr_path(test_path: &str) -> PathBuf {
     Path::new("target/tests/wip").join(path)
 }
 
-fn expected_stderr_path(test_path: &str) -> PathBuf {
+fn expected_stderr_path(test_path: &Path) -> PathBuf {
     let mut path = PathBuf::from(test_path);
     path.set_extension("stderr");
     path
@@ -190,6 +228,8 @@ mod helper_tests {
 
     impl NormaliserFixture {
         fn new(test_path: &str, expected: &str, actual: &str) -> Self {
+            let test_path = Path::new(test_path);
+
             let expected_path = expected_stderr_path(test_path);
             if let Some(parent) = expected_path.parent() {
                 fs::create_dir_all(parent).unwrap_or_else(|error| {
@@ -226,25 +266,25 @@ mod helper_tests {
 
     #[test]
     fn wip_stderr_path_builds_target_location() {
-        let path = wip_stderr_path("tests/fixtures_macros/__helper_case.rs");
+        let path = wip_stderr_path(Path::new("tests/fixtures_macros/__helper_case.rs"));
         assert_eq!(path, Path::new("target/tests/wip/__helper_case.stderr"));
     }
 
     #[test]
     #[should_panic(expected = "trybuild test path must include file name")]
     fn wip_stderr_path_panics_without_file_name() {
-        wip_stderr_path("");
+        wip_stderr_path(Path::new(""));
     }
 
     #[test]
     fn expected_stderr_path_replaces_extension() {
-        let path = expected_stderr_path("tests/ui_macros/example.output");
+        let path = expected_stderr_path(Path::new("tests/ui_macros/example.output"));
         assert_eq!(path, Path::new("tests/ui_macros/example.stderr"));
     }
 
     #[test]
     fn expected_stderr_path_handles_multiple_extensions() {
-        let path = expected_stderr_path("tests/ui_macros/example.feature.rs");
+        let path = expected_stderr_path(Path::new("tests/ui_macros/example.feature.rs"));
         assert_eq!(path, Path::new("tests/ui_macros/example.feature.stderr"));
     }
 
@@ -339,7 +379,7 @@ mod helper_tests {
         let result = panic::catch_unwind(|| {
             run_compile_fail_with_normalised_output(
                 || panic!("expected failure"),
-                TEST_PATH,
+                Path::new(TEST_PATH),
                 &[strip_hint_one, strip_hint_two],
             );
         });
@@ -355,7 +395,11 @@ mod helper_tests {
         const TEST_PATH: &str = "tests/fixtures_macros/__normaliser_empty.rs";
         let fixture = NormaliserFixture::new(TEST_PATH, "", "");
         let result = panic::catch_unwind(|| {
-            run_compile_fail_with_normalised_output(|| panic!("expected failure"), TEST_PATH, &[]);
+            run_compile_fail_with_normalised_output(
+                || panic!("expected failure"),
+                Path::new(TEST_PATH),
+                &[],
+            );
         });
         assert!(result.is_ok(), "identical empty outputs should be accepted");
         assert!(
@@ -398,7 +442,7 @@ mod helper_tests {
         let result = panic::catch_unwind(|| {
             run_compile_fail_with_normalised_output(
                 || panic!("expected failure"),
-                test_path,
+                Path::new(test_path),
                 &[trim_trailing],
             );
         });
