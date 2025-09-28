@@ -69,7 +69,10 @@ def _ensure_link_within_destination(
     candidate_path: Path, safe_root: Path, member: tarfile.TarInfo
 ) -> None:
     """Abort when link targets escape ``safe_root`` during extraction."""
-    target_path = _resolve_link_target(candidate_path, member.linkname)
+    if member.islnk():
+        target_path = (safe_root / member.linkname).resolve()
+    else:
+        target_path = _resolve_link_target(candidate_path, member.linkname)
     detail = repr(member.name)
     message = "refusing to extract link entry outside destination: " + detail
     _assert_within_destination(target_path, safe_root, message)
@@ -115,9 +118,13 @@ def export_workspace(destination: Path) -> None:
 def _create_archive(archive_root: Path) -> Path:
     """Run ``git archive`` and return the resulting tarball path."""
     archive_path = archive_root / "workspace.tar"
-    git_archive = local["git"][
-        "archive", "--format=tar", "HEAD", f"--output={archive_path}"
-    ]
+    try:
+        git_archive = local["git"][
+            "archive", "--format=tar", "HEAD", f"--output={archive_path}"
+        ]
+    except CommandNotFound as error:
+        message = "git not found on PATH; unable to export workspace"
+        raise SystemExit(message) from error
     with local.cwd(PROJECT_ROOT):
         try:
             return_code, stdout, stderr = git_archive.run(

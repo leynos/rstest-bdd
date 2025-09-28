@@ -45,6 +45,11 @@ def apply_workspace_replacements(
     --------
     >>> from pathlib import Path
     >>> apply_workspace_replacements(Path("."), "1.2.3", include_local_path=False)
+
+    Raises
+    ------
+    SystemExit
+        Raised when any supplied crate lacks a replacement configuration.
     """
     workspace_root = Path(workspace_root)
     if crates is None:
