@@ -1,0 +1,7 @@
+error: failed to read directory `$WORKSPACE/target/tests/trybuild/rstest-bdd/tests/features/does_not_exist`: directory not found
+ --> tests/fixtures_macros/scenarios_missing_dir.rs:6:1
+  |
+6 | scenarios!("tests/features/does_not_exist");
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  |
+  = note: this error originates in the macro `scenarios` (in Nightly builds, run with -Z macro-backtrace for more info)

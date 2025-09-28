@@ -438,9 +438,15 @@ fn extracts_scenario_steps(
 }
 
 #[rstest]
-#[case("tests/features/does_not_exist.feature", "feature file not found")]
-#[case("tests/features/empty.feature", "failed to parse feature file")]
-#[case("tests/features", "feature path is not a file")]
+#[case(
+    "../rstest-bdd/tests/features/macros/does_not_exist.feature",
+    "feature file not found"
+)]
+#[case(
+    "../rstest-bdd/tests/features/macros/empty.feature",
+    "failed to parse feature file"
+)]
+#[case("../rstest-bdd/tests/features/macros", "feature path is not a file")]
 fn errors_when_feature_fails(#[case] rel_path: &str, #[case] expected_snippet: &str) {
     let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(rel_path);
     let Err(err) = parse_and_load_feature(&path) else {

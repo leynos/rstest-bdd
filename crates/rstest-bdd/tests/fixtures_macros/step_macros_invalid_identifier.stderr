@@ -1,0 +1,17 @@
+error: expected identifier, found `1invalid`
+ --> tests/fixtures_macros/step_macros_invalid_identifier.rs:5:4
+  |
+5 | fn 1invalid() {}
+  |    ^^^^^^^^ expected identifier
+  |
+help: identifiers cannot start with a number
+ --> tests/fixtures_macros/step_macros_invalid_identifier.rs:5:4
+  |
+5 | fn 1invalid() {}
+  |    ^
+
+error: expected identifier
+ --> tests/fixtures_macros/step_macros_invalid_identifier.rs:5:4
+  |
+5 | fn 1invalid() {}
+  |    ^^^^^^^^

@@ -1,0 +1,5 @@
+error: missing implicit fixture
+ --> tests/ui_macros/implicit_fixture_missing.rs:6:1
+  |
+6 | compile_error!("missing implicit fixture");
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
