@@ -288,7 +288,10 @@ class TestRunPublishCheckLiveMode:
         self,
         monkeypatch: pytest.MonkeyPatch,
         run_publish_check_module: ModuleType,
-    ) -> tuple[list[tuple[str, object]], list[tuple[str, Path, list[str], int]]]:
+    ) -> tuple[
+        list[tuple[str, object]],
+        list[tuple[object, list[str], typ.Callable[[str, object], bool] | None]],
+    ]:
         """Register spies for workspace operations and cargo invocations.
 
         Parameters
@@ -300,8 +303,9 @@ class TestRunPublishCheckLiveMode:
 
         Returns
         -------
-        tuple[list[tuple[str, object]], list[tuple[str, Path, list[str], int]]]
-            Recorded workspace steps and cargo invocations.
+        tuple
+            Recorded workspace steps and cargo invocations, including the
+            resolved cargo contexts and optional failure callbacks.
         """
         steps, record = self._setup_recording_infrastructure()
         fake_apply, fake_remove = self._create_fake_functions(steps)
@@ -358,22 +362,27 @@ class TestRunPublishCheckLiveMode:
 
     def _setup_cargo_recording(
         self,
-    ) -> tuple[list[tuple[str, Path, list[str], int]], typ.Callable[..., None]]:
+    ) -> tuple[
+        list[tuple[object, list[str], typ.Callable[[str, object], bool] | None]],
+        typ.Callable[..., None],
+    ]:
         """Capture cargo invocations while preserving their call signature."""
-        commands: list[tuple[str, Path, list[str], int]] = []
+        commands: list[
+            tuple[object, list[str], typ.Callable[[str, object], bool] | None]
+        ] = []
 
         def fake_run_cargo(
-            crate: str,
-            workspace_root: Path,
+            context: object,
             command: typ.Sequence[str],
             *,
-            timeout_secs: int,
+            on_failure: typ.Callable[[str, object], bool] | None = None,
             **kwargs: object,
         ) -> None:
-            unexpected = set(kwargs) - {"on_failure"}
-            if unexpected:
-                pytest.fail(f"unexpected kwargs passed to fake_run_cargo: {unexpected}")
-            commands.append((crate, workspace_root, list(command), timeout_secs))
+            if kwargs:
+                pytest.fail(
+                    f"unexpected kwargs passed to fake_run_cargo: {set(kwargs)}"
+                )
+            commands.append((context, list(command), on_failure))
 
         return commands, fake_run_cargo
 
@@ -441,7 +450,9 @@ class TestRunPublishCheckLiveMode:
     def _verify_live_publish_execution(
         self,
         steps: list[tuple[str, object]],
-        commands: list[tuple[str, Path, list[str], int]],
+        commands: list[
+            tuple[object, list[str], typ.Callable[[str, object], bool] | None]
+        ],
         workspace_dir: Path,
         manifest: Path,
     ) -> None:
@@ -465,10 +476,17 @@ class TestRunPublishCheckLiveMode:
         assert ("strip", manifest) not in steps
         assert ("remove_patch", (manifest, "demo-crate")) in steps
         assert ("apply", (workspace_dir, "1.2.3", False, ("demo-crate",))) in steps
-        assert commands == [
-            ("demo-crate", workspace_dir, ["cargo", "publish", "--dry-run"], 30),
-            ("demo-crate", workspace_dir, ["cargo", "publish"], 30),
-        ]
+        assert len(commands) == 2
+        for context_obj, _command_args, on_failure in commands:
+            assert context_obj.crate == "demo-crate"
+            assert context_obj.crate_dir == workspace_dir / "crates" / "demo-crate"
+            assert context_obj.env_overrides == {
+                "CARGO_HOME": str(workspace_dir / ".cargo-home")
+            }
+            assert context_obj.timeout_secs == 30
+            assert on_failure is not None
+        assert commands[0][1] == ["cargo", "publish", "--dry-run"]
+        assert commands[1][1] == ["cargo", "publish"]
         assert not workspace_dir.exists()
 
     def test_run_publish_check_live_mode_invokes_publish_commands(

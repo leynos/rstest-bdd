@@ -152,6 +152,35 @@ class CargoCommandContext:
 FailureHandler = typ.Callable[[str, CommandResult], bool]
 
 
+def build_cargo_command_context(
+    crate: str,
+    workspace_root: Path,
+    *,
+    timeout_secs: int | None = None,
+) -> CargoCommandContext:
+    """Create the execution context for a Cargo command.
+
+    The helper resolves the workspace-relative crate directory, initialises the
+    environment overrides, and normalises the timeout configuration to simplify
+    subsequent :func:`run_cargo_command` invocations.
+
+    Examples
+    --------
+    >>> context = build_cargo_command_context("tools", Path("/tmp/workspace"))
+    >>> context.crate
+    'tools'
+    """
+    crate_dir = workspace_root / "crates" / crate
+    env_overrides = {"CARGO_HOME": str(workspace_root / ".cargo-home")}
+    resolved_timeout = _resolve_timeout(timeout_secs)
+    return CargoCommandContext(
+        crate=crate,
+        crate_dir=crate_dir,
+        env_overrides=env_overrides,
+        timeout_secs=resolved_timeout,
+    )
+
+
 def _validate_cargo_command(command: Command) -> None:
     """Ensure the provided command invokes Cargo."""
     if not command or command[0] != "cargo":
@@ -247,21 +276,18 @@ def _handle_command_output(stdout: str, stderr: str) -> None:
 
 
 def run_cargo_command(
-    crate: str,
-    workspace_root: Path,
+    context: CargoCommandContext,
     command: typ.Sequence[str],
     *,
-    timeout_secs: int | None = None,
     on_failure: FailureHandler | None = None,
 ) -> None:
-    """Run a Cargo command for a crate in the exported workspace.
+    """Run a Cargo command within the provided execution context.
 
     Parameters
     ----------
-    crate
-        Name of the crate located under the workspace's ``crates`` directory.
-    workspace_root
-        Root directory of the temporary workspace exported from the repository.
+    context
+        Execution metadata returned by
+        :func:`build_cargo_command_context`.
     command
         Command arguments, which **must** begin with ``cargo``, to execute.
     on_failure
@@ -274,7 +300,8 @@ def run_cargo_command(
     --------
     Running ``cargo --version`` for a crate directory:
 
-    >>> run_cargo_command("tools", Path("/tmp/workspace"), ["cargo", "--version"])
+    >>> context = build_cargo_command_context("tools", Path("/tmp/workspace"))
+    >>> run_cargo_command(context, ["cargo", "--version"])
     cargo 1.76.0 (9c9d2b9f8 2024-02-16)  # Version output will vary.
 
     The command honours the ``timeout_secs`` parameter when provided. When it
@@ -284,19 +311,9 @@ def run_cargo_command(
     """
     _validate_cargo_command(command)
 
-    crate_dir = workspace_root / "crates" / crate
-    env_overrides = {"CARGO_HOME": str(workspace_root / ".cargo-home")}
-
-    resolved_timeout = _resolve_timeout(timeout_secs)
-    context = CargoCommandContext(
-        crate=crate,
-        crate_dir=crate_dir,
-        env_overrides=env_overrides,
-        timeout_secs=resolved_timeout,
-    )
     result = _execute_cargo_command_with_timeout(context, command)
 
-    _handle_cargo_result(crate, result, on_failure)
+    _handle_cargo_result(context.crate, result, on_failure)
 
 
 @dc.dataclass(frozen=True)
@@ -315,10 +332,12 @@ def _run_cargo_subcommand(
 ) -> None:
     command = ["cargo", subcommand, *list(args)]
     run_cargo_command(
-        context.crate,
-        context.workspace_root,
+        build_cargo_command_context(
+            context.crate,
+            context.workspace_root,
+            timeout_secs=context.timeout_secs,
+        ),
         command,
-        timeout_secs=context.timeout_secs,
     )
 
 
@@ -393,10 +412,12 @@ def _publish_one_command(
         return True
 
     run_cargo_command(
-        crate,
-        workspace_root,
+        build_cargo_command_context(
+            crate,
+            workspace_root,
+            timeout_secs=timeout_secs,
+        ),
         command,
-        timeout_secs=timeout_secs,
         on_failure=_on_failure,
     )
     return handled

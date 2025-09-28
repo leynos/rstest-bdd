@@ -79,18 +79,18 @@ def fake_workspace(tmp_path: Path) -> Path:
 @pytest.fixture
 def mock_cargo_runner(
     monkeypatch: pytest.MonkeyPatch, run_publish_check_module: ModuleType
-) -> list[tuple[str, Path, list[str], int]]:
+) -> list[tuple[object, list[str], typ.Callable[[str, object], bool] | None]]:
     """Capture invocations made to ``run_cargo_command``."""
-    calls: list[tuple[str, Path, list[str], int]] = []
+    calls: list[tuple[object, list[str], typ.Callable[[str, object], bool] | None]] = []
 
     def fake_run_cargo(
-        crate: str,
-        workspace_root: Path,
+        context: run_publish_check_module.CargoCommandContext,
         command: list[str],
         *,
-        timeout_secs: int,
+        on_failure: typ.Callable[[str, run_publish_check_module.CommandResult], bool]
+        | None = None,
     ) -> None:
-        calls.append((crate, workspace_root, command, timeout_secs))
+        calls.append((context, command, on_failure))
 
     monkeypatch.setattr(run_publish_check_module, "run_cargo_command", fake_run_cargo)
     return calls

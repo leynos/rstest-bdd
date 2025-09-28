@@ -136,17 +136,15 @@ def test_publish_crate_commands_skips_already_published_sequence(
     executed: list[tuple[str, ...]] = []
 
     def fake_run_cargo(
-        crate_name: str,
-        workspace_root: Path,
+        context: run_publish_check_module.CargoCommandContext,
         command: typ.Sequence[str],
         *,
-        timeout_secs: int,
         on_failure: typ.Callable[[str, run_publish_check_module.CommandResult], bool],
     ) -> None:
         executed.append(tuple(command))
-        assert crate_name == crate
-        assert workspace_root == workspace
-        assert timeout_secs == 123
+        assert context.crate == crate
+        assert context.crate_dir == workspace / "crates" / crate
+        assert context.timeout_secs == 123
         if len(executed) == 1:
             result = run_publish_check_module.CommandResult(
                 command=command,
@@ -154,7 +152,7 @@ def test_publish_crate_commands_skips_already_published_sequence(
                 stdout="dry run output",
                 stderr="error: crate version already exists on crates.io index",
             )
-            assert on_failure(crate_name, result) is True
+            assert on_failure(context.crate, result) is True
             return
 
         pytest.fail("publish_crate_commands should stop after handling the failure")
@@ -192,11 +190,9 @@ def test_publish_crate_commands_propagates_unhandled_failure(
     executed: list[tuple[str, ...]] = []
 
     def fake_run_cargo(
-        crate_name: str,
-        workspace_root: Path,
+        context: run_publish_check_module.CargoCommandContext,
         command: typ.Sequence[str],
         *,
-        timeout_secs: int,
         on_failure: typ.Callable[[str, run_publish_check_module.CommandResult], bool],
     ) -> None:
         executed.append(tuple(command))
@@ -206,7 +202,10 @@ def test_publish_crate_commands_propagates_unhandled_failure(
             stdout="",
             stderr="error: network failure",
         )
-        assert on_failure(crate_name, result) is False
+        assert context.crate == crate
+        assert context.crate_dir == workspace / "crates" / crate
+        assert context.timeout_secs == 5
+        assert on_failure(context.crate, result) is False
         message = "network failure"
         raise SystemExit(message)
 

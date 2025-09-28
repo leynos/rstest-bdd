@@ -111,11 +111,14 @@ def test_run_cargo_command_streams_output(
         lambda _args, _timeout: (0, "cargo ok\n", "cargo warn\n")
     )
 
-    run_publish_check_module.run_cargo_command(
+    context = run_publish_check_module.build_cargo_command_context(
         "demo",
         fake_workspace,
-        ["cargo", "mock"],
         timeout_secs=5,
+    )
+    run_publish_check_module.run_cargo_command(
+        context,
+        ["cargo", "mock"],
     )
 
     captured = capsys.readouterr()
@@ -138,9 +141,12 @@ def test_run_cargo_command_uses_env_timeout(
     fake_local = patch_local_runner(lambda _args, timeout: (0, "", ""))
     monkeypatch.setenv("PUBLISH_CHECK_TIMEOUT_SECS", "11")
 
-    run_publish_check_module.run_cargo_command(
+    context = run_publish_check_module.build_cargo_command_context(
         "demo",
         fake_workspace,
+    )
+    run_publish_check_module.run_cargo_command(
+        context,
         ["cargo", "mock"],
     )
 
@@ -154,20 +160,22 @@ def test_run_cargo_command_logs_failures(
     cargo_test_context: CargoTestContext,
 ) -> None:
     """Ensure command failures record output and raise ``SystemExit``."""
+    module = cargo_test_context.run_publish_check_module
     fake_local = cargo_test_context.patch_local_runner(
         lambda _args, _timeout: (3, "bad stdout", "bad stderr")
     )
 
-    with (
-        cargo_test_context.caplog.at_level("ERROR"),
-        pytest.raises(SystemExit) as excinfo,
-    ):
-        cargo_test_context.run_publish_check_module.run_cargo_command(
+    with cargo_test_context.caplog.at_level("ERROR"):
+        context = module.build_cargo_command_context(
             "demo",
             cargo_test_context.fake_workspace,
-            ["cargo", "failing"],
             timeout_secs=5,
         )
+        with pytest.raises(SystemExit) as excinfo:
+            module.run_cargo_command(
+                context,
+                ["cargo", "failing"],
+            )
     assert "exit code 3" in str(excinfo.value)
     assert "bad stdout" in cargo_test_context.caplog.text
     assert "bad stderr" in cargo_test_context.caplog.text
@@ -200,11 +208,14 @@ def test_run_cargo_command_suppresses_failure_when_handler_accepts(
         lambda *_: pytest.fail("default failure handler should not run"),
     )
 
-    run_publish_check_module.run_cargo_command(
+    context = run_publish_check_module.build_cargo_command_context(
         "demo",
         fake_workspace,
-        ["cargo", "oops"],
         timeout_secs=9,
+    )
+    run_publish_check_module.run_cargo_command(
+        context,
+        ["cargo", "oops"],
         on_failure=record_failure,
     )
 
@@ -249,12 +260,15 @@ def test_run_cargo_command_calls_default_when_handler_declines(
         sentinel_failure,
     )
 
+    context = run_publish_check_module.build_cargo_command_context(
+        "demo",
+        fake_workspace,
+        timeout_secs=3,
+    )
     with pytest.raises(SystemExit, match="default handler invoked"):
         run_publish_check_module.run_cargo_command(
-            "demo",
-            fake_workspace,
+            context,
             ["cargo", "oops"],
-            timeout_secs=3,
             on_failure=decline_failure,
         )
 
@@ -281,12 +295,15 @@ def test_run_cargo_command_times_out(
 
     patch_local_runner(raise_timeout)
 
+    context = run_publish_check_module.build_cargo_command_context(
+        "demo",
+        fake_workspace,
+        timeout_secs=1,
+    )
     with pytest.raises(SystemExit) as excinfo:
         run_publish_check_module.run_cargo_command(
-            "demo",
-            fake_workspace,
+            context,
             ["cargo", "wait"],
-            timeout_secs=1,
         )
     assert "timed out" in str(excinfo.value)
 
@@ -311,11 +328,9 @@ def test_publish_one_command_handles_already_published(
     )
 
     def fake_run_cargo(
-        crate: str,
-        workspace_root: Path,
+        context: run_publish_check_module.CargoCommandContext,
         command: typ.Sequence[str],
         *,
-        timeout_secs: int | None,
         on_failure: typ.Callable[[str, run_publish_check_module.CommandResult], bool],
     ) -> None:
         result = run_publish_check_module.CommandResult(
@@ -324,8 +339,10 @@ def test_publish_one_command_handles_already_published(
             stdout="dry run output",
             stderr="error: crate already exists on crates.io index",
         )
-        assert workspace_root == workspace
-        assert on_failure(crate, result) is True
+        assert context.crate == "demo"
+        assert context.crate_dir == workspace / "crates" / "demo"
+        assert context.timeout_secs == 11
+        assert on_failure(context.crate, result) is True
 
     monkeypatch.setattr(
         run_publish_check_module, "run_cargo_command", fake_run_cargo
@@ -357,17 +374,16 @@ def test_publish_one_command_returns_false_on_success(
     captured: dict[str, object] = {}
 
     def fake_run_cargo(
-        crate: str,
-        workspace_root: Path,
+        context: run_publish_check_module.CargoCommandContext,
         command: typ.Sequence[str],
         *,
-        timeout_secs: int | None,
         on_failure: typ.Callable[[str, run_publish_check_module.CommandResult], bool],
     ) -> None:
-        captured["crate"] = crate
-        captured["workspace"] = workspace_root
+        captured["crate"] = context.crate
+        captured["crate_dir"] = context.crate_dir
+        captured["env"] = dict(context.env_overrides)
         captured["command"] = tuple(command)
-        captured["timeout"] = timeout_secs
+        captured["timeout"] = context.timeout_secs
 
     monkeypatch.setattr(
         run_publish_check_module, "run_cargo_command", fake_run_cargo
@@ -383,7 +399,8 @@ def test_publish_one_command_returns_false_on_success(
     assert handled is False
     assert captured == {
         "crate": "demo",
-        "workspace": workspace,
+        "crate_dir": workspace / "crates" / "demo",
+        "env": {"CARGO_HOME": str(workspace / ".cargo-home")},
         "command": ("cargo", "publish"),
         "timeout": 7,
     }
@@ -398,11 +415,9 @@ def test_publish_one_command_propagates_unhandled_errors(
     workspace = tmp_path / "workspace"
 
     def fake_run_cargo(
-        crate: str,
-        workspace_root: Path,
+        context: run_publish_check_module.CargoCommandContext,
         command: typ.Sequence[str],
         *,
-        timeout_secs: int | None,
         on_failure: typ.Callable[[str, run_publish_check_module.CommandResult], bool],
     ) -> None:
         result = run_publish_check_module.CommandResult(
@@ -411,8 +426,9 @@ def test_publish_one_command_propagates_unhandled_errors(
             stdout="",  # stdout intentionally empty
             stderr="error: publishing failed",
         )
-        assert workspace_root == workspace
-        assert on_failure(crate, result) is False
+        assert context.crate == "demo"
+        assert context.crate_dir == workspace / "crates" / "demo"
+        assert on_failure(context.crate, result) is False
         message = "unhandled failure"
         raise SystemExit(message)
 
@@ -444,7 +460,9 @@ def test_publish_one_command_propagates_unhandled_errors(
 )
 def test_cargo_commands_invoke_runner(
     run_publish_check_module: ModuleType,
-    mock_cargo_runner: list[tuple[str, Path, list[str], int]],
+    mock_cargo_runner: list[
+        tuple[object, list[str], typ.Callable[[str, object], bool] | None]
+    ],
     function_and_command: tuple[str, list[str]],
     test_scenario: tuple[str, int],
 ) -> None:
@@ -457,4 +475,11 @@ def test_cargo_commands_invoke_runner(
         crate, workspace, timeout_secs=timeout
     )
 
-    assert mock_cargo_runner == [(crate, workspace, expected_command, timeout)]
+    assert len(mock_cargo_runner) == 1
+    context, observed_command, on_failure = mock_cargo_runner[0]
+    assert context.crate == crate
+    assert context.crate_dir == workspace / "crates" / crate
+    assert context.env_overrides == {"CARGO_HOME": str(workspace / ".cargo-home")}
+    assert context.timeout_secs == timeout
+    assert observed_command == expected_command
+    assert on_failure is None
