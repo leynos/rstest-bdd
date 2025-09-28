@@ -42,6 +42,23 @@ class CargoTestContext:
     run_publish_check_module: ModuleType
 
 
+@dc.dataclass
+class WorkspaceMocks:
+    """Bundle of mock functions for workspace operations."""
+
+    record: typ.Callable[[str], typ.Callable[[Path], None]]
+    fake_apply: typ.Callable[..., None]
+    fake_remove: typ.Callable[[Path, str], None]
+
+
+@dc.dataclass
+class WorkflowTestConfig:
+    """Configuration bundle for workflow integration scaffolding."""
+
+    workspace_name: str
+    crate_order: tuple[str, ...] = ("demo-crate",)
+
+
 def _load_module_from_scripts(module_name: str, script_filename: str) -> ModuleType:
     """Load ``module_name`` from ``scripts`` while guarding against import issues."""
     script_path = SCRIPTS_DIR / script_filename
@@ -183,3 +200,43 @@ class FakeLocal:
         """Record environment mutations for later assertions."""
         self.env_calls.append(kwargs)
         return contextlib.nullcontext()
+
+
+def _setup_basic_workflow_mocks(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    run_publish_check_module: ModuleType,
+    *,
+    config: WorkflowTestConfig,
+) -> Path:
+    """Prepare shared workspace and helper mocks for workflow integration tests."""
+    workspace_dir = tmp_path / config.workspace_name
+    workspace_dir.mkdir()
+    monkeypatch.setattr(
+        run_publish_check_module.tempfile, "mkdtemp", lambda: str(workspace_dir)
+    )
+    monkeypatch.setattr(
+        run_publish_check_module, "export_workspace", lambda _dest: None
+    )
+    monkeypatch.setattr(
+        run_publish_check_module, "prune_workspace_members", lambda _manifest: None
+    )
+    monkeypatch.setattr(
+        run_publish_check_module, "strip_patch_section", lambda _manifest: None
+    )
+    monkeypatch.setattr(
+        run_publish_check_module, "workspace_version", lambda _manifest: "1.0.0"
+    )
+    monkeypatch.setattr(
+        run_publish_check_module,
+        "apply_workspace_replacements",
+        lambda *_args, **_kwargs: None,
+    )
+    monkeypatch.setattr(
+        run_publish_check_module, "package_crate", lambda *_args, **_kwargs: None
+    )
+    monkeypatch.setattr(
+        run_publish_check_module, "check_crate", lambda *_args, **_kwargs: None
+    )
+    monkeypatch.setattr(run_publish_check_module, "CRATE_ORDER", config.crate_order)
+    return workspace_dir
