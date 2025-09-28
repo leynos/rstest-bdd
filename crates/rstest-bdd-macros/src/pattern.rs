@@ -1,18 +1,25 @@
 //! Compile-time pattern helpers shared across the macros crate.
 
+#[cfg(feature = "compile-time-validation")]
 use std::sync::OnceLock;
 
+#[cfg(feature = "compile-time-validation")]
 use proc_macro_error::abort;
+#[cfg(feature = "compile-time-validation")]
 use proc_macro2::Span;
+#[cfg(feature = "compile-time-validation")]
 use regex::Regex;
 
+#[cfg(feature = "compile-time-validation")]
 use rstest_bdd_patterns::{build_regex_from_pattern, extract_captured_values};
 
+#[cfg(feature = "compile-time-validation")]
 pub(crate) struct MacroPattern {
     text: &'static str,
     regex: OnceLock<Regex>,
 }
 
+#[cfg(feature = "compile-time-validation")]
 fn abort_invalid_pattern(span: Span, pattern: &str, err: impl std::fmt::Display) -> ! {
     abort!(
         span,
@@ -22,6 +29,7 @@ fn abort_invalid_pattern(span: Span, pattern: &str, err: impl std::fmt::Display)
     )
 }
 
+#[cfg(feature = "compile-time-validation")]
 impl MacroPattern {
     pub(crate) const fn new(value: &'static str) -> Self {
         Self {
@@ -48,13 +56,14 @@ impl MacroPattern {
     }
 }
 
+#[cfg(feature = "compile-time-validation")]
 impl From<&'static str> for MacroPattern {
     fn from(value: &'static str) -> Self {
         Self::new(value)
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "compile-time-validation"))]
 mod tests {
     use super::*;
     use proc_macro2::Span;

@@ -923,7 +923,9 @@ dependencies = [
  "rstest-bdd-patterns",
  "serde",
  "serde_json",
+ "serial_test",
  "thiserror",
+ "trybuild",
 ]
 
 [[package]]
@@ -941,12 +943,10 @@ dependencies = [
  "quote",
  "regex",
  "rstest",
- "rstest-bdd",
  "rstest-bdd-patterns",
  "serial_test",
  "syn 2.0.106",
  "tempfile",
- "trybuild",
  "walkdir",
 ]
 

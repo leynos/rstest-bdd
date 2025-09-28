@@ -1,7 +1,0 @@
-error: invalid step function signature: missing step arguments for placeholders: count
- --> tests/ui/placeholder_missing_param.rs:4:4
-  |
-4 | fn step() {}
-  |    ^^^^
-  |
-  = help: Use `#[given] fn name(...args...)` with supported step arguments/fixtures; remove self.

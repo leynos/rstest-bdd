@@ -12,14 +12,19 @@ pub(crate) mod wrapper;
 
 /// Return a token stream pointing to the `rstest_bdd` crate or its renamed form.
 pub(crate) fn rstest_bdd_path() -> TokenStream2 {
-    let found = crate_name("rstest-bdd").unwrap_or_else(|e| {
-        // The runtime crate must be present for generated code; a missing entry
-        // indicates a misconfigured build rather than a recoverable error.
-        panic!("rstest-bdd crate not found: {e}");
-    });
-    let ident = match found {
-        FoundCrate::Itself => Ident::new("rstest_bdd", Span::call_site()),
-        FoundCrate::Name(name) => Ident::new(&name, Span::call_site()),
-    };
-    quote! { ::#ident }
+    match crate_name("rstest-bdd") {
+        Ok(found) => {
+            let ident = match found {
+                FoundCrate::Itself => Ident::new("rstest_bdd", Span::call_site()),
+                FoundCrate::Name(name) => Ident::new(&name, Span::call_site()),
+            };
+            quote! { ::#ident }
+        }
+        Err(e) => {
+            if cfg!(test) {
+                return quote! { ::rstest_bdd };
+            }
+            panic!("rstest-bdd crate not found: {e}");
+        }
+    }
 }

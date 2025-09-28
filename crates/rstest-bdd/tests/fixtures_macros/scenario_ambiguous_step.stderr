@@ -1,0 +1,9 @@
+error: Ambiguous step definition for 'a step'.
+       - a step
+       - a step
+  --> tests/fixtures_macros/scenario_ambiguous_step.rs:11:1
+   |
+11 | #[scenario(path = "../features/macros/ambiguous.feature")]
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: this error originates in the attribute macro `scenario` (in Nightly builds, run with -Z macro-backtrace for more info)
