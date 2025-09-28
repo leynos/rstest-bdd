@@ -364,6 +364,43 @@ def test_publish_one_command_handles_already_published(
     assert "already published" in caplog.text
 
 
+def test_publish_one_command_detects_markers_case_insensitive(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    run_publish_check_module: ModuleType,
+) -> None:
+    """Ensure already-published markers are matched across streams."""
+    workspace = tmp_path / "workspace"
+
+    def fake_run_cargo(
+        context: run_publish_check_module.CargoCommandContext,
+        command: typ.Sequence[str],
+        *,
+        on_failure: typ.Callable[[str, run_publish_check_module.CommandResult], bool],
+    ) -> None:
+        result = run_publish_check_module.CommandResult(
+            command=command,
+            return_code=1,
+            stdout="WARNING: crate VERSION ALREADY EXISTS",  # intentionally upper case
+            stderr="",
+        )
+        assert on_failure(context.crate, result) is True
+
+    monkeypatch.setattr(
+        run_publish_check_module,
+        "run_cargo_command",
+        fake_run_cargo,
+    )
+
+    handled = run_publish_check_module._publish_one_command(
+        "demo",
+        workspace,
+        ["cargo", "publish"],
+    )
+
+    assert handled is True
+
+
 def test_publish_one_command_returns_false_on_success(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
