@@ -104,6 +104,8 @@ def export_workspace(destination: Path) -> None:
         The repository snapshot is written directly to ``destination`` and the
         export honours ``GIT_ARCHIVE_TIMEOUT_S`` to bound ``git`` execution.
     """
+    destination = Path(destination)
+    destination.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory() as archive_dir:
         archive_root = Path(archive_dir)
         archive_path = _create_archive(archive_root)
