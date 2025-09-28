@@ -41,6 +41,16 @@ fn stage_trybuild_support_files() -> io::Result<()> {
         .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "workspace root must exist"))?;
     let target_tests_root = workspace_root.join("target/tests/trybuild");
     let trybuild_crate_root = target_tests_root.join("rstest-bdd");
+    let workspace_features_root = target_tests_root.join("features");
+
+    if workspace_features_root.exists() {
+        fs::remove_dir_all(&workspace_features_root)?;
+    }
+    if trybuild_crate_root.exists() {
+        fs::remove_dir_all(&trybuild_crate_root)?;
+    }
+
+    fs::create_dir_all(&workspace_features_root)?;
     fs::create_dir_all(&trybuild_crate_root)?;
 
     let features_root = crate_root.join("tests/features");
@@ -53,7 +63,7 @@ fn stage_trybuild_support_files() -> io::Result<()> {
     collect_feature_files(&fixtures_root, &fixtures_root, &mut fixture_features)?;
     fixture_features.sort_by(|a, b| a.0.cmp(&b.0));
 
-    write_feature_files(&target_tests_root.join("features"), &features)?;
+    write_feature_files(&workspace_features_root, &features)?;
     write_feature_files(&trybuild_crate_root, &fixture_features)?;
 
     Ok(())

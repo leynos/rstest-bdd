@@ -1,3 +1,4 @@
+//! Compile-time fixture that ensures missing steps emit diagnostics.
 use rstest_bdd_macros::scenario;
 
 /// This fixture is expected to fail because the feature file includes an
