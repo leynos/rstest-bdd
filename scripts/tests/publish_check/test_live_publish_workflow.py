@@ -219,20 +219,19 @@ def test_publish_crate_commands_propagates_unhandled_failure(
     assert executed == [tuple(commands[0])]
 
 
-def test_live_publish_continues_after_already_published_crate(
-    monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
-    run_publish_check_module: ModuleType,
-) -> None:
-    """Ensure subsequent crates publish when earlier crates already exist."""
+def _create_live_publish_workspace(tmp_path: Path) -> Path:
     workspace = tmp_path / "workspace"
     crates_dir = workspace / "crates"
     for crate in ("crate-a", "crate-b"):
         (crates_dir / crate).mkdir(parents=True, exist_ok=True)
+    (workspace / "Cargo.toml").write_text("[workspace]\n", encoding="utf-8")
+    return workspace
 
-    manifest = workspace / "Cargo.toml"
-    manifest.write_text("[workspace]\n", encoding="utf-8")
 
+def _configure_live_publish_commands(
+    monkeypatch: pytest.MonkeyPatch,
+    run_publish_check_module: ModuleType,
+) -> None:
     monkeypatch.setattr(run_publish_check_module, "CRATE_ORDER", ("crate-a", "crate-b"))
     monkeypatch.setattr(
         run_publish_check_module,
@@ -263,6 +262,11 @@ def test_live_publish_continues_after_already_published_crate(
         run_publish_check_module, "remove_patch_entry", lambda *_a, **_k: None
     )
 
+
+def _capture_publish_output(
+    monkeypatch: pytest.MonkeyPatch,
+    run_publish_check_module: ModuleType,
+) -> tuple[list[tuple[str, str]], typ.Callable[[str, str], None]]:
     outputs: list[tuple[str, str]] = []
 
     def record_output(stdout: str, stderr: str) -> None:
@@ -271,7 +275,14 @@ def test_live_publish_continues_after_already_published_crate(
     monkeypatch.setattr(
         run_publish_check_module, "_handle_command_output", record_output
     )
+    return outputs, record_output
 
+
+def _install_run_cargo_stub(
+    monkeypatch: pytest.MonkeyPatch,
+    run_publish_check_module: ModuleType,
+    record_output: typ.Callable[[str, str], None],
+) -> list[tuple[str, tuple[str, ...]]]:
     executed: list[tuple[str, tuple[str, ...]]] = []
 
     def fake_run_cargo(
@@ -291,10 +302,26 @@ def test_live_publish_continues_after_already_published_crate(
             assert on_failure(context.crate, result) is True
             return
 
-        # crate-b publishes successfully; mimic stdout streaming.
         record_output("publish ok\n", "")
 
     monkeypatch.setattr(run_publish_check_module, "run_cargo_command", fake_run_cargo)
+    return executed
+
+
+def test_live_publish_continues_after_already_published_crate(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    run_publish_check_module: ModuleType,
+) -> None:
+    """Ensure subsequent crates publish when earlier crates already exist."""
+    workspace = _create_live_publish_workspace(tmp_path)
+    _configure_live_publish_commands(monkeypatch, run_publish_check_module)
+    outputs, record_output = _capture_publish_output(
+        monkeypatch, run_publish_check_module
+    )
+    executed = _install_run_cargo_stub(
+        monkeypatch, run_publish_check_module, record_output
+    )
 
     run_publish_check_module._process_crates_for_live_publish(workspace, 99)
 
