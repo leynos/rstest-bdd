@@ -1,4 +1,4 @@
-#![allow(
+#![expect(
     unexpected_cfgs,
     reason = "integration test inspects dependency feature flags"
 )]
@@ -9,16 +9,100 @@ use std::fs;
 use std::io;
 use std::panic::{self, AssertUnwindSafe};
 use std::path::{Path, PathBuf};
+use std::sync::OnceLock;
 
 const MACROS_FIXTURES_DIR: &str = "tests/fixtures_macros";
 const UI_FIXTURES_DIR: &str = "tests/ui_macros";
 
 fn macros_fixture(case: &str) -> PathBuf {
+    ensure_trybuild_support_files();
     Path::new(MACROS_FIXTURES_DIR).join(case)
 }
 
 fn ui_fixture(case: &str) -> PathBuf {
     Path::new(UI_FIXTURES_DIR).join(case)
+}
+
+fn ensure_trybuild_support_files() {
+    static TRYBUILD_SUPPORT: OnceLock<()> = OnceLock::new();
+    TRYBUILD_SUPPORT.get_or_init(|| {
+        stage_trybuild_support_files().unwrap_or_else(|error| {
+            panic!("failed to stage trybuild support files: {error}");
+        });
+    });
+}
+
+fn stage_trybuild_support_files() -> io::Result<()> {
+    let crate_root = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let workspace_root = crate_root
+        .parent()
+        .and_then(Path::parent)
+        .map(Path::to_path_buf)
+        .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "workspace root must exist"))?;
+    let target_tests_root = workspace_root.join("target/tests/trybuild");
+    let trybuild_crate_root = target_tests_root.join("rstest-bdd");
+    fs::create_dir_all(&trybuild_crate_root)?;
+
+    let features_root = crate_root.join("tests/features");
+    let mut features = Vec::new();
+    collect_feature_files(&features_root, &features_root, &mut features)?;
+    features.sort_by(|a, b| a.0.cmp(&b.0));
+
+    let fixtures_root = crate_root.join(MACROS_FIXTURES_DIR);
+    let mut fixture_features = Vec::new();
+    collect_feature_files(&fixtures_root, &fixtures_root, &mut fixture_features)?;
+    fixture_features.sort_by(|a, b| a.0.cmp(&b.0));
+
+    write_feature_files(&target_tests_root.join("features"), &features)?;
+    write_feature_files(&trybuild_crate_root, &fixture_features)?;
+
+    Ok(())
+}
+
+fn write_feature_files(destination_root: &Path, features: &[(String, String)]) -> io::Result<()> {
+    for (relative, contents) in features {
+        let mut path = destination_root.to_path_buf();
+        for part in relative.split('/') {
+            path.push(part);
+        }
+        if let Some(parent) = path.parent() {
+            fs::create_dir_all(parent)?;
+        }
+        fs::write(&path, contents)?;
+    }
+
+    Ok(())
+}
+
+fn collect_feature_files(
+    root: &Path,
+    current: &Path,
+    features: &mut Vec<(String, String)>,
+) -> io::Result<()> {
+    for entry in fs::read_dir(current)? {
+        let entry = entry?;
+        let path = entry.path();
+        if path.is_dir() {
+            collect_feature_files(root, &path, features)?;
+            continue;
+        }
+
+        if path.extension().and_then(|ext| ext.to_str()) != Some("feature") {
+            continue;
+        }
+
+        let relative = path.strip_prefix(root).map_err(|_| {
+            io::Error::new(
+                io::ErrorKind::InvalidData,
+                "feature path must be within the features directory",
+            )
+        })?;
+        let relative = relative.to_string_lossy().replace(char::from(0x5C), "/");
+        let contents = fs::read_to_string(&path)?;
+        features.push((relative, contents));
+    }
+
+    Ok(())
 }
 
 #[test]

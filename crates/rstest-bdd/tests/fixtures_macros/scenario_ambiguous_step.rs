@@ -8,7 +8,7 @@ fn first() {}
 #[given("a step")]
 fn second() {}
 
-#[scenario(path = "../../../../crates/rstest-bdd/tests/features/macros/ambiguous.feature")]
+#[scenario(path = "../features/macros/ambiguous.feature")]
 fn ambiguous() {}
 
 fn main() {}

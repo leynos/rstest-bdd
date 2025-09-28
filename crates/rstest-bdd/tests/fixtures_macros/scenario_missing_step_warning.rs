@@ -1,6 +1,6 @@
 use rstest_bdd_macros::scenario;
 
-#[scenario(path = "../../../../crates/rstest-bdd/tests/features/macros/unmatched.feature")]
+#[scenario(path = "../features/macros/unmatched.feature")]
 fn missing_step() {}
 
 // Force a compile error so trybuild captures the warning emitted by the macro.

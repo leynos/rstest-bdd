@@ -11,10 +11,10 @@ fn action() {}
 fn result() {}
 
 // Resolve the feature relative to this fixture to avoid brittle paths.
-#[scenario(path = "../../../../crates/rstest-bdd/tests/fixtures_macros/basic.feature")]
+#[scenario(path = "basic.feature")]
 fn basic() {}
 
 // Compile-time guard: fail fast if the feature path changes.
-const _: &str = include_str!("../../../../crates/rstest-bdd/tests/fixtures_macros/basic.feature");
+const _: &str = include_str!("basic.feature");
 
 fn main() {}
