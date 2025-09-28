@@ -8,6 +8,7 @@ copy.
 
 from __future__ import annotations
 
+import sys
 import tarfile
 import tempfile
 from pathlib import Path
@@ -18,6 +19,37 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 
 __all__ = ["export_workspace"]
+
+
+def _validated_members(
+    tar: tarfile.TarFile, destination: Path
+) -> list[tarfile.TarInfo]:
+    safe_root = Path(destination).resolve()
+    members: list[tarfile.TarInfo] = []
+    for member in tar.getmembers():
+        candidate_path = (safe_root / member.name).resolve()
+        try:
+            candidate_path.relative_to(safe_root)
+        except ValueError as error:  # pragma: no cover - defensive branch
+            message = f"refusing to extract member outside destination: {member.name!r}"
+            raise SystemExit(message) from error
+        if member.islnk() or member.issym():
+            link_target = Path(member.linkname)
+            if link_target.is_absolute():
+                target_path = Path(link_target).resolve()
+            else:
+                target_path = (candidate_path.parent / link_target).resolve()
+            try:
+                target_path.relative_to(safe_root)
+            except ValueError as error:  # pragma: no cover - defensive branch
+                detail = repr(member.name)
+                message = (
+                    "refusing to extract link entry outside destination: "
+                    + detail
+                )
+                raise SystemExit(message) from error
+        members.append(member)
+    return members
 
 
 def export_workspace(destination: Path) -> None:
@@ -49,4 +81,10 @@ def export_workspace(destination: Path) -> None:
             message = f"git archive failed with exit code {return_code}{detail}"
             raise SystemExit(message)
         with tarfile.open(archive_path) as tar:
-            tar.extractall(destination, filter="data")
+            safe_members = _validated_members(tar, destination)
+            if sys.version_info >= (3, 12):
+                for member in safe_members:
+                    tar.extract(member, destination, filter="data")
+            else:
+                for member in safe_members:
+                    tar.extract(member, destination)

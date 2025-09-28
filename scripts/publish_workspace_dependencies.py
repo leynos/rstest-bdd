@@ -24,10 +24,16 @@ def apply_workspace_replacements(
 ) -> None:
     """Rewrite workspace dependency declarations for publish workflows."""
     workspace_root = Path(workspace_root)
-    targets: typ.Final[tuple[str, ...]] = REPLACEMENTS if crates is None else crates
+    if crates is None:
+        targets: typ.Final[tuple[str, ...]] = tuple(REPLACEMENTS)
+    else:
+        unknown = tuple(crate for crate in crates if crate not in REPLACEMENTS)
+        if unknown:
+            formatted = ", ".join(repr(crate) for crate in unknown)
+            message = "unknown crates: " + formatted
+            raise SystemExit(message)
+        targets = crates
     for crate in targets:
-        if crate not in REPLACEMENTS:
-            continue
         manifest = workspace_root / "crates" / crate / "Cargo.toml"
         apply_replacements(
             crate,
