@@ -78,7 +78,7 @@ def strip_patch_section(manifest: Path) -> None:
         The manifest on disk is rewritten without the patch section.
     """
     document = parse(manifest.read_text(encoding="utf-8"))
-    if not _should_remove_patch_section(document):
+    if not _has_patch_crates_io_section(document):
         return
 
     _remove_patch_section(document)
@@ -141,7 +141,7 @@ def _write_manifest_if_changed(
     *, document: TOMLDocument, manifest: Path, changed: bool, members: Array
 ) -> None:
     """Persist ``document`` to ``manifest`` only when ``changed`` is ``True``."""
-    if not _should_write_manifest(changed, document):
+    if not _should_write_manifest(changed=changed, document=document):
         return
 
     _format_multiline_members_if_needed(members)
@@ -289,11 +289,6 @@ def _has_patch_crates_io_section(document: TOMLDocument) -> bool:
     return crates_io is not None
 
 
-def _should_remove_patch_section(document: TOMLDocument) -> bool:
-    """Return ``True`` when the patch section contains ``crates-io`` entries."""
-    return _has_patch_crates_io_section(document)
-
-
 def _remove_patch_section(document: TOMLDocument) -> None:
     """Remove the entire ``[patch.crates-io]`` table from ``document``."""
     patch_table = document.get("patch")
@@ -329,13 +324,13 @@ def _should_include_more_lines(lines: list[str], end: int, start: int) -> bool:
         return False
 
     stripped = lines[end].strip()
-    if stripped.startswith("[") and not stripped.startswith("[workspace"):
-        return False
+    is_non_workspace_section = stripped.startswith("[") and not stripped.startswith(
+        "[workspace"
+    )
+    return not is_non_workspace_section
 
-    return True
 
-
-def _ensure_members_array(workspace: dict, members) -> Array | None:
+def _ensure_members_array(workspace: dict, members: object) -> Array | None:
     """Normalise ``workspace['members']`` to a TOML array when possible."""
     if isinstance(members, Array):
         return members
@@ -354,7 +349,7 @@ def _convert_list_to_array(workspace: dict, members: list) -> Array:
     return typ.cast("Array", rebuilt_members)
 
 
-def _should_write_manifest(changed: bool, document: TOMLDocument) -> bool:
+def _should_write_manifest(*, changed: bool, document: TOMLDocument) -> bool:
     """Return ``True`` when the manifest should be persisted."""
     if not changed:
         return False
