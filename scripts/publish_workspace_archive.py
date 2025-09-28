@@ -70,7 +70,7 @@ def _ensure_link_within_destination(
 ) -> None:
     """Abort when link targets escape ``safe_root`` during extraction."""
     if member.islnk():
-        target_path = (safe_root / member.linkname).resolve()
+        target_path = safe_root.joinpath(member.linkname).resolve(strict=False)
     else:
         target_path = _resolve_link_target(candidate_path, member.linkname)
     detail = repr(member.name)
@@ -118,15 +118,11 @@ def export_workspace(destination: Path) -> None:
 def _create_archive(archive_root: Path) -> Path:
     """Run ``git archive`` and return the resulting tarball path."""
     archive_path = archive_root / "workspace.tar"
-    try:
-        git_archive = local["git"][
-            "archive", "--format=tar", "HEAD", f"--output={archive_path}"
-        ]
-    except CommandNotFound as error:
-        message = "git not found on PATH; unable to export workspace"
-        raise SystemExit(message) from error
     with local.cwd(PROJECT_ROOT):
         try:
+            git_archive = local["git"][
+                "archive", "--format=tar", "HEAD", f"--output={archive_path}"
+            ]
             return_code, stdout, stderr = git_archive.run(
                 timeout=GIT_ARCHIVE_TIMEOUT_S,
                 retcode=None,
