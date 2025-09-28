@@ -139,6 +139,16 @@ class CommandResult:
     stderr: str
 
 
+@dc.dataclass(frozen=True)
+class CargoCommandContext:
+    """Metadata describing where and how to run a Cargo command."""
+
+    crate: str
+    crate_dir: Path
+    env_overrides: typ.Mapping[str, str]
+    timeout_secs: int
+
+
 FailureHandler = typ.Callable[[str, CommandResult], bool]
 
 
@@ -150,31 +160,29 @@ def _validate_cargo_command(command: Command) -> None:
 
 
 def _execute_cargo_command_with_timeout(
-    crate: str,
-    crate_dir: Path,
+    context: CargoCommandContext,
     command: Command,
-    env_overrides: typ.Mapping[str, str],
-    resolved_timeout: int,
 ) -> CommandResult:
     """Run the Cargo command within the configured workspace context."""
     cargo_invocation = local[command[0]][command[1:]]
     try:
         with ExitStack() as stack:
-            stack.enter_context(local.cwd(crate_dir))
-            stack.enter_context(local.env(**env_overrides))
+            stack.enter_context(local.cwd(context.crate_dir))
+            stack.enter_context(local.env(**context.env_overrides))
             return_code, stdout, stderr = cargo_invocation.run(
                 retcode=None,
-                timeout=resolved_timeout,
+                timeout=context.timeout_secs,
             )
     except ProcessTimedOut as error:
         LOGGER.exception(
             "cargo command timed out for %s after %s seconds: %s",
-            crate,
-            resolved_timeout,
+            context.crate,
+            context.timeout_secs,
             shlex.join(command),
         )
         message = (
-            f"cargo command timed out for {crate!r} after {resolved_timeout} seconds"
+            f"cargo command timed out for {context.crate!r} after "
+            f"{context.timeout_secs} seconds"
         )
         raise SystemExit(message) from error
 
@@ -280,13 +288,13 @@ def run_cargo_command(
     env_overrides = {"CARGO_HOME": str(workspace_root / ".cargo-home")}
 
     resolved_timeout = _resolve_timeout(timeout_secs)
-    result = _execute_cargo_command_with_timeout(
-        crate,
-        crate_dir,
-        command,
-        env_overrides,
-        resolved_timeout,
+    context = CargoCommandContext(
+        crate=crate,
+        crate_dir=crate_dir,
+        env_overrides=env_overrides,
+        timeout_secs=resolved_timeout,
     )
+    result = _execute_cargo_command_with_timeout(context, command)
 
     _handle_cargo_result(crate, result, on_failure)
 
