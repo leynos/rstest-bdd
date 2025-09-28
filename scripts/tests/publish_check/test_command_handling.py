@@ -344,9 +344,7 @@ def test_publish_one_command_handles_already_published(
         assert context.timeout_secs == 11
         assert on_failure(context.crate, result) is True
 
-    monkeypatch.setattr(
-        run_publish_check_module, "run_cargo_command", fake_run_cargo
-    )
+    monkeypatch.setattr(run_publish_check_module, "run_cargo_command", fake_run_cargo)
 
     with caplog.at_level("WARNING"):
         handled = run_publish_check_module._publish_one_command(
@@ -401,6 +399,43 @@ def test_publish_one_command_detects_markers_case_insensitive(
     assert handled is True
 
 
+@pytest.mark.parametrize(
+    ("stdout", "stderr"),
+    [
+        (
+            "warning: aborting upload due to dry run\n",
+            "error: crate demo@0.1.0 already exists on crates.io index\n",
+        ),
+        (
+            "",
+            (
+                "error: api errors (status 200 OK): "
+                "crate version 'demo 0.1.0' already uploaded\n"
+            ),
+        ),
+        (
+            b"",
+            (b"error: crate demo@0.1.0 already exists on crates.io\n"),
+        ),
+    ],
+    ids=["dry_run_warning", "api_error", "bytes_stream"],
+)
+def test_contains_already_published_marker_handles_known_messages(
+    run_publish_check_module: ModuleType,
+    stdout: str | bytes,
+    stderr: str | bytes,
+) -> None:
+    """Confirm recognised crates.io markers trigger the already-published path."""
+    result = run_publish_check_module.CommandResult(
+        command=["cargo", "publish"],
+        return_code=101,
+        stdout=stdout,
+        stderr=stderr,
+    )
+
+    assert run_publish_check_module._contains_already_published_marker(result) is True
+
+
 def test_publish_one_command_returns_false_on_success(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -422,9 +457,7 @@ def test_publish_one_command_returns_false_on_success(
         captured["command"] = tuple(command)
         captured["timeout"] = context.timeout_secs
 
-    monkeypatch.setattr(
-        run_publish_check_module, "run_cargo_command", fake_run_cargo
-    )
+    monkeypatch.setattr(run_publish_check_module, "run_cargo_command", fake_run_cargo)
 
     handled = run_publish_check_module._publish_one_command(
         "demo",
@@ -469,9 +502,7 @@ def test_publish_one_command_propagates_unhandled_errors(
         message = "unhandled failure"
         raise SystemExit(message)
 
-    monkeypatch.setattr(
-        run_publish_check_module, "run_cargo_command", fake_run_cargo
-    )
+    monkeypatch.setattr(run_publish_check_module, "run_cargo_command", fake_run_cargo)
 
     with pytest.raises(SystemExit, match="unhandled failure"):
         run_publish_check_module._publish_one_command(

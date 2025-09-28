@@ -98,6 +98,7 @@ LIVE_PUBLISH_COMMANDS: typ.Final[dict[str, tuple[Command, ...]]] = {
 
 ALREADY_PUBLISHED_MARKERS: typ.Final[tuple[str, ...]] = (
     "already exists on crates.io index",
+    "already exists on crates.io",
     "already uploaded",
     "already exists",
 )
@@ -241,7 +242,6 @@ def _handle_cargo_result(
         return
 
     _handle_command_failure(crate, result)
-
 
 
 def _handle_command_failure(
@@ -390,7 +390,15 @@ check_crate = _create_cargo_action(
 def _contains_already_published_marker(result: CommandResult) -> bool:
     """Return ``True`` when Cargo output indicates the crate already exists."""
     for stream in (result.stdout, result.stderr):
-        lowered_stream = stream.casefold()
+        if not stream:
+            continue
+
+        if isinstance(stream, bytes):
+            text = stream.decode("utf-8", errors="ignore")
+        else:
+            text = str(stream)
+
+        lowered_stream = text.casefold()
         if any(marker in lowered_stream for marker in ALREADY_PUBLISHED_MARKERS_FOLDED):
             return True
     return False

@@ -157,9 +157,7 @@ def test_publish_crate_commands_skips_already_published_sequence(
 
         pytest.fail("publish_crate_commands should stop after handling the failure")
 
-    monkeypatch.setattr(
-        run_publish_check_module, "run_cargo_command", fake_run_cargo
-    )
+    monkeypatch.setattr(run_publish_check_module, "run_cargo_command", fake_run_cargo)
 
     with caplog.at_level("WARNING"):
         run_publish_check_module.publish_crate_commands(
@@ -209,9 +207,7 @@ def test_publish_crate_commands_propagates_unhandled_failure(
         message = "network failure"
         raise SystemExit(message)
 
-    monkeypatch.setattr(
-        run_publish_check_module, "run_cargo_command", fake_run_cargo
-    )
+    monkeypatch.setattr(run_publish_check_module, "run_cargo_command", fake_run_cargo)
 
     with pytest.raises(SystemExit, match="network failure"):
         run_publish_check_module.publish_crate_commands(
@@ -221,3 +217,92 @@ def test_publish_crate_commands_propagates_unhandled_failure(
         )
 
     assert executed == [tuple(commands[0])]
+
+
+def test_live_publish_continues_after_already_published_crate(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    run_publish_check_module: ModuleType,
+) -> None:
+    """Ensure subsequent crates publish when earlier crates already exist."""
+    workspace = tmp_path / "workspace"
+    crates_dir = workspace / "crates"
+    for crate in ("crate-a", "crate-b"):
+        (crates_dir / crate).mkdir(parents=True, exist_ok=True)
+
+    manifest = workspace / "Cargo.toml"
+    manifest.write_text("[workspace]\n", encoding="utf-8")
+
+    monkeypatch.setattr(run_publish_check_module, "CRATE_ORDER", ("crate-a", "crate-b"))
+    monkeypatch.setattr(
+        run_publish_check_module,
+        "LIVE_PUBLISH_COMMANDS",
+        {
+            "crate-a": (
+                ("cargo", "publish", "--dry-run"),
+                ("cargo", "publish"),
+            ),
+            "crate-b": (
+                ("cargo", "publish", "--dry-run"),
+                ("cargo", "publish"),
+            ),
+        },
+    )
+    monkeypatch.setattr(
+        run_publish_check_module, "strip_patch_section", lambda *_: None
+    )
+    monkeypatch.setattr(
+        run_publish_check_module, "workspace_version", lambda _m: "0.1.0"
+    )
+    monkeypatch.setattr(
+        run_publish_check_module,
+        "apply_workspace_replacements",
+        lambda *_args, **_kwargs: None,
+    )
+    monkeypatch.setattr(
+        run_publish_check_module, "remove_patch_entry", lambda *_a, **_k: None
+    )
+
+    outputs: list[tuple[str, str]] = []
+
+    def record_output(stdout: str, stderr: str) -> None:
+        outputs.append((stdout, stderr))
+
+    monkeypatch.setattr(
+        run_publish_check_module, "_handle_command_output", record_output
+    )
+
+    executed: list[tuple[str, tuple[str, ...]]] = []
+
+    def fake_run_cargo(
+        context: run_publish_check_module.CargoCommandContext,
+        command: typ.Sequence[str],
+        *,
+        on_failure: typ.Callable[[str, run_publish_check_module.CommandResult], bool],
+    ) -> None:
+        executed.append((context.crate, tuple(command)))
+        if context.crate == "crate-a":
+            result = run_publish_check_module.CommandResult(
+                command=list(command),
+                return_code=1,
+                stdout="warning: aborting upload due to dry run\n",
+                stderr="error: crate crate-a@0.1.0 already exists on crates.io index\n",
+            )
+            assert on_failure(context.crate, result) is True
+            return
+
+        # crate-b publishes successfully; mimic stdout streaming.
+        record_output("publish ok\n", "")
+
+    monkeypatch.setattr(run_publish_check_module, "run_cargo_command", fake_run_cargo)
+
+    run_publish_check_module._process_crates_for_live_publish(workspace, 99)
+
+    assert executed == [
+        ("crate-a", ("cargo", "publish", "--dry-run")),
+        ("crate-b", ("cargo", "publish", "--dry-run")),
+        ("crate-b", ("cargo", "publish")),
+    ]
+    assert (
+        outputs[0][1].casefold().startswith("error: crate crate-a@0.1.0 already exists")
+    )
