@@ -79,6 +79,7 @@ _should_write_manifest = _members._should_write_manifest
 _format_multiline_members_if_needed = _members._format_multiline_members_if_needed
 _write_manifest_if_changed = _members._write_manifest_if_changed
 _get_patch_crates_io_tables = _patch._get_patch_crates_io_tables
+_should_remove_patch_section = _patch._should_remove_patch_section
 _remove_patch_section = _patch._remove_patch_section
 _remove_crate_and_cleanup_empty_sections = (
     _patch._remove_crate_and_cleanup_empty_sections
@@ -102,6 +103,7 @@ __all__ = [
     "_remove_crate_and_cleanup_empty_sections",
     "_remove_patch_section",
     "_should_include_more_lines",
+    "_should_remove_patch_section",
     "_should_write_manifest",
     "_workspace_section_excerpt",
     "_write_manifest_if_changed",

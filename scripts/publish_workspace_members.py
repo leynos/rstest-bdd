@@ -111,10 +111,7 @@ def _write_manifest_if_changed(
 
 def _should_write_manifest(*, changed: bool, document: TOMLDocument) -> bool:
     """Return ``True`` when the manifest should be persisted."""
-    if not changed:
-        return False
-
-    return document.get("workspace") is not None
+    return changed and document.get("workspace") is not None
 
 
 def _format_multiline_members_if_needed(members: Array) -> None:

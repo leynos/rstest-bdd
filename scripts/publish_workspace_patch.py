@@ -6,6 +6,7 @@ entries so release pipelines can clean manifests before packaging crates.
 
 from __future__ import annotations
 
+import collections.abc as cabc
 import typing as typ
 from pathlib import Path
 
@@ -19,6 +20,7 @@ __all__ = [
     "_get_patch_crates_io_tables",
     "_remove_crate_and_cleanup_empty_sections",
     "_remove_patch_section",
+    "_should_remove_patch_section",
     "remove_patch_entry",
     "strip_patch_section",
 ]
@@ -28,8 +30,11 @@ def strip_patch_section(manifest: Path) -> None:
     """Strip the ``[patch.crates-io]`` section from ``manifest``."""
     manifest = Path(manifest)
     document = parse(manifest.read_text(encoding="utf-8"))
+    if not _should_remove_patch_section(document):
+        return
+
     patch_tables = _get_patch_crates_io_tables(document)
-    if patch_tables is None:
+    if patch_tables is None:  # pragma: no cover - defensive
         return
 
     patch_table, _ = patch_tables
@@ -60,24 +65,36 @@ def remove_patch_entry(manifest: Path, crate: str) -> None:
 
 def _get_patch_crates_io_tables(
     document: TOMLDocument,
-) -> tuple[dict[str, typ.Any], dict[str, typ.Any]] | None:
+) -> tuple[cabc.MutableMapping[str, typ.Any], cabc.MutableMapping[str, typ.Any]] | None:
     """Return the patch and crates-io tables when both are present."""
     patch_table = document.get("patch")
-    if patch_table is None:
+    if not isinstance(patch_table, cabc.MutableMapping):
         return None
 
-    crates_io = patch_table.get("crates-io")
-    if crates_io is None:
+    patch_mapping = typ.cast("cabc.MutableMapping[str, typ.Any]", patch_table)
+
+    crates_io = patch_mapping.get("crates-io")
+    if not isinstance(crates_io, cabc.MutableMapping):
         return None
 
     return (
-        typ.cast("dict[str, typ.Any]", patch_table),
-        typ.cast("dict[str, typ.Any]", crates_io),
+        patch_mapping,
+        typ.cast("cabc.MutableMapping[str, typ.Any]", crates_io),
     )
 
 
+def _should_remove_patch_section(document: TOMLDocument) -> bool:
+    """Return ``True`` when the patch section contains ``crates-io`` entries."""
+    patch_tables = _get_patch_crates_io_tables(document)
+    if patch_tables is None:
+        return False
+
+    _, crates_io = patch_tables
+    return bool(crates_io)
+
+
 def _remove_patch_section(
-    document: TOMLDocument, patch_table: dict[str, typ.Any]
+    document: TOMLDocument, patch_table: cabc.MutableMapping[str, typ.Any]
 ) -> None:
     """Remove the entire ``[patch.crates-io]`` table from ``document``."""
     patch_table.pop("crates-io", None)
@@ -88,8 +105,8 @@ def _remove_patch_section(
 def _remove_crate_and_cleanup_empty_sections(
     *,
     document: TOMLDocument,
-    patch_table: dict[str, typ.Any],
-    crates_io: dict[str, typ.Any],
+    patch_table: cabc.MutableMapping[str, typ.Any],
+    crates_io: cabc.MutableMapping[str, typ.Any],
     crate: str,
 ) -> None:
     """Remove ``crate`` from the patch section and drop empty tables."""

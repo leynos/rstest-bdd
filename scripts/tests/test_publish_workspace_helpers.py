@@ -2,40 +2,14 @@
 
 from __future__ import annotations
 
-import importlib.util
-import sys
 import typing as typ
-from pathlib import Path
 
-import pytest
 from tomlkit import array, dumps, parse
 from tomlkit.items import Array
 
 if typ.TYPE_CHECKING:
+    from pathlib import Path
     from types import ModuleType
-
-SCRIPTS_DIR = Path(__file__).resolve().parents[1]
-if str(SCRIPTS_DIR) not in sys.path:
-    sys.path.insert(0, str(SCRIPTS_DIR))
-
-
-def _load_publish_workspace_module() -> ModuleType:
-    spec = importlib.util.spec_from_file_location(
-        "publish_workspace", SCRIPTS_DIR / "publish_workspace.py"
-    )
-    if spec is None or spec.loader is None:  # pragma: no cover - defensive guard
-        message = "publish_workspace module could not be loaded"
-        raise RuntimeError(message)
-    module = importlib.util.module_from_spec(spec)
-    sys.modules[spec.name] = module
-    spec.loader.exec_module(module)
-    return module
-
-
-@pytest.fixture(scope="module")
-def publish_workspace_module() -> ModuleType:
-    """Provide the publish_workspace module for helper unit tests."""
-    return _load_publish_workspace_module()
 
 
 def test_get_valid_workspace_members_returns_array(
@@ -125,6 +99,151 @@ def test_filter_workspace_members_retains_publishable_entries(
     ]
 
 
+def test_should_include_more_lines_continues_within_limit(
+    publish_workspace_module: ModuleType,
+) -> None:
+    """Continue extraction while the window remains within the section."""
+    lines = ["[workspace]", "members = []", ""]
+
+    assert publish_workspace_module._should_include_more_lines(lines, 2, 0) is True
+
+
+def test_should_include_more_lines_stops_at_new_section(
+    publish_workspace_module: ModuleType,
+) -> None:
+    """Stop extraction when the next table header is encountered."""
+    lines = ["[workspace]", "", "[dependencies]"]
+
+    assert publish_workspace_module._should_include_more_lines(lines, 2, 0) is False
+
+
+def test_ensure_members_array_returns_existing_array(
+    publish_workspace_module: ModuleType,
+) -> None:
+    """Return the original array when already using tomlkit arrays."""
+    members = array()
+    members.extend(["crates/rstest-bdd"])
+
+    result = publish_workspace_module._ensure_members_array(
+        {"members": members}, members
+    )
+
+    assert result is members
+
+
+def test_ensure_members_array_converts_lists(
+    publish_workspace_module: ModuleType,
+) -> None:
+    """Coerce plain lists into tomlkit arrays."""
+    workspace: dict[str, object] = {}
+    members_list = ["crates/rstest-bdd"]
+
+    result = publish_workspace_module._ensure_members_array(workspace, members_list)
+
+    assert isinstance(result, Array)
+    assert workspace["members"] is result
+    assert list(result) == members_list
+
+
+def test_ensure_members_array_rejects_invalid_types(
+    publish_workspace_module: ModuleType,
+) -> None:
+    """Ignore unsupported member representations."""
+    assert (
+        publish_workspace_module._ensure_members_array({"members": "demo"}, "demo")
+        is None
+    )
+
+
+def test_convert_list_to_array_assigns_array(
+    publish_workspace_module: ModuleType,
+) -> None:
+    """Replace the raw list with a tomlkit array."""
+    workspace: dict[str, object] = {}
+    members_list = ["crates/rstest-bdd", "examples/todo-cli"]
+
+    array_members = publish_workspace_module._convert_list_to_array(
+        workspace, members_list
+    )
+
+    assert isinstance(array_members, Array)
+    assert workspace["members"] is array_members
+    assert list(array_members) == members_list
+
+
+def test_should_write_manifest_requires_changes(
+    publish_workspace_module: ModuleType,
+) -> None:
+    """Skip writing the manifest when nothing changed."""
+    document = parse("[workspace]\nmembers = []\n")
+
+    assert (
+        publish_workspace_module._should_write_manifest(
+            changed=False, document=document
+        )
+        is False
+    )
+
+
+def test_should_write_manifest_requires_workspace_section(
+    publish_workspace_module: ModuleType,
+) -> None:
+    """Do not persist manifests lacking a workspace table."""
+    document = parse('[package]\nname = "demo"\n')
+
+    assert (
+        publish_workspace_module._should_write_manifest(changed=True, document=document)
+        is False
+    )
+
+
+def test_should_write_manifest_accepts_updates(
+    publish_workspace_module: ModuleType,
+) -> None:
+    """Persist manifests when workspace metadata changed."""
+    document = parse("[workspace]\nmembers = []\n")
+
+    assert (
+        publish_workspace_module._should_write_manifest(changed=True, document=document)
+        is True
+    )
+
+
+def test_format_multiline_members_if_needed_enables_multiline(
+    publish_workspace_module: ModuleType,
+) -> None:
+    """Ensure multiline arrays remain formatted over multiple lines."""
+    document = parse(
+        "\n".join(
+            (
+                "[workspace]",
+                "members = [",
+                '  "crates/rstest-bdd",',
+                '  "examples/todo-cli"',
+                "]",
+            )
+        )
+    )
+    members = publish_workspace_module._get_valid_workspace_members(document)
+    assert members is not None
+
+    publish_workspace_module._format_multiline_members_if_needed(members)
+
+    assert members.is_multiline() is True
+
+
+def test_format_multiline_members_if_needed_leaves_inline_arrays(
+    publish_workspace_module: ModuleType,
+) -> None:
+    """Keep inline arrays untouched when no newline is present."""
+    members = array()
+    members.extend(["crates/rstest-bdd", "crates/rstest-bdd-macros"])
+
+    publish_workspace_module._format_multiline_members_if_needed(members)
+
+    assert members.is_multiline() is False
+
+
 def test_write_manifest_if_changed_skips_write(
     publish_workspace_module: ModuleType,
     tmp_path: Path,
@@ -177,6 +296,21 @@ def test_write_manifest_if_changed_persists_updates(
     if not expected.endswith("\n"):
         expected = f"{expected}\n"
     assert manifest.read_text(encoding="utf-8") == expected
+
+
+def test_write_manifest_with_newline_appends_missing_terminator(
+    publish_workspace_module: ModuleType,
+    tmp_path: Path,
+) -> None:
+    """Ensure manifests end with a newline after serialisation."""
+    document = parse('[package]\nname = "demo"\n')
+    manifest = tmp_path / "Cargo.toml"
+
+    publish_workspace_module._write_manifest_with_newline(document, manifest)
+
+    content = manifest.read_text(encoding="utf-8")
+    assert content.endswith("\n")
+    assert content.count("\n") >= 2
 
 
 def test_workspace_section_excerpt_returns_none(
