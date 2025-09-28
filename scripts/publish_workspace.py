@@ -78,10 +78,12 @@ def strip_patch_section(manifest: Path) -> None:
         The manifest on disk is rewritten without the patch section.
     """
     document = parse(manifest.read_text(encoding="utf-8"))
-    if not _has_patch_crates_io_section(document):
+    patch_tables = _get_patch_crates_io_tables(document)
+    if patch_tables is None:
         return
 
-    _remove_patch_section(document)
+    patch_table, _ = patch_tables
+    _remove_patch_section(document, patch_table)
     _write_manifest_with_newline(document, manifest)
 
 
@@ -267,47 +269,58 @@ def remove_patch_entry(manifest: Path, crate: str) -> None:
         The manifest is rewritten only when the patch entry was present.
     """
     document = parse(manifest.read_text(encoding="utf-8"))
-    if not _has_patch_crates_io_section(document):
+    patch_tables = _get_patch_crates_io_tables(document)
+    if patch_tables is None:
         return
 
-    patch_table = typ.cast("dict[str, typ.Any]", document["patch"])
-    crates_io = typ.cast("dict[str, typ.Any]", patch_table["crates-io"])
+    patch_table, crates_io = patch_tables
     if crate not in crates_io:
         return
 
-    _remove_crate_and_cleanup_empty_sections(document, crate)
+    _remove_crate_and_cleanup_empty_sections(
+        document=document,
+        patch_table=patch_table,
+        crates_io=crates_io,
+        crate=crate,
+    )
     _write_manifest_with_newline(document, manifest)
 
 
-def _has_patch_crates_io_section(document: TOMLDocument) -> bool:
-    """Return ``True`` when ``document`` contains a patch section."""
+def _get_patch_crates_io_tables(
+    document: TOMLDocument,
+) -> tuple[dict[str, typ.Any], dict[str, typ.Any]] | None:
+    """Return the patch and crates-io tables when both are present."""
     patch_table = document.get("patch")
     if patch_table is None:
-        return False
+        return None
 
     crates_io = patch_table.get("crates-io")
-    return crates_io is not None
+    if crates_io is None:
+        return None
+
+    return (
+        typ.cast("dict[str, typ.Any]", patch_table),
+        typ.cast("dict[str, typ.Any]", crates_io),
+    )
 
 
-def _remove_patch_section(document: TOMLDocument) -> None:
+def _remove_patch_section(
+    document: TOMLDocument, patch_table: dict[str, typ.Any]
+) -> None:
     """Remove the entire ``[patch.crates-io]`` table from ``document``."""
-    patch_table = document.get("patch")
-    if patch_table is None:
-        return
-
-    patch_mapping = typ.cast("dict[str, typ.Any]", patch_table)
-    patch_mapping.pop("crates-io", None)
-    if not patch_mapping:
+    patch_table.pop("crates-io", None)
+    if not patch_table:
         del document["patch"]
 
 
 def _remove_crate_and_cleanup_empty_sections(
-    document: TOMLDocument, crate: str
+    *,
+    document: TOMLDocument,
+    patch_table: dict[str, typ.Any],
+    crates_io: dict[str, typ.Any],
+    crate: str,
 ) -> None:
     """Remove ``crate`` from the patch section and drop empty tables."""
-    patch_table = typ.cast("dict[str, typ.Any]", document["patch"])
-    crates_io = typ.cast("dict[str, typ.Any]", patch_table["crates-io"])
-
     del crates_io[crate]
     if not crates_io:
         del patch_table["crates-io"]
