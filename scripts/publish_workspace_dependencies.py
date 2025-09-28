@@ -41,15 +41,15 @@ def apply_workspace_replacements(
     None
         All matching manifests are rewritten in place.
 
-    Examples
-    --------
-    >>> from pathlib import Path
-    >>> apply_workspace_replacements(Path("."), "1.2.3", include_local_path=False)
-
     Raises
     ------
     SystemExit
         Raised when any supplied crate lacks a replacement configuration.
+
+    Examples
+    --------
+    >>> from pathlib import Path
+    >>> apply_workspace_replacements(Path("."), "1.2.3", include_local_path=False)
     """
     workspace_root = Path(workspace_root)
     if crates is None:
