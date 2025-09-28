@@ -42,6 +42,23 @@ class CargoTestContext:
     run_publish_check_module: ModuleType
 
 
+@dc.dataclass
+class WorkspaceMocks:
+    """Bundle of mock functions for workspace operations."""
+
+    record: typ.Callable[[str], typ.Callable[[Path], None]]
+    fake_apply: typ.Callable[..., None]
+    fake_remove: typ.Callable[[Path, str], None]
+
+
+@dc.dataclass
+class WorkflowTestConfig:
+    """Configuration bundle for workflow integration scaffolding."""
+
+    workspace_name: str
+    crate_order: tuple[str, ...] = ("demo-crate",)
+
+
 def _load_module_from_scripts(module_name: str, script_filename: str) -> ModuleType:
     """Load ``module_name`` from ``scripts`` while guarding against import issues."""
     script_path = SCRIPTS_DIR / script_filename
@@ -79,18 +96,18 @@ def fake_workspace(tmp_path: Path) -> Path:
 @pytest.fixture
 def mock_cargo_runner(
     monkeypatch: pytest.MonkeyPatch, run_publish_check_module: ModuleType
-) -> list[tuple[str, Path, list[str], int]]:
+) -> list[tuple[object, list[str], typ.Callable[[str, object], bool] | None]]:
     """Capture invocations made to ``run_cargo_command``."""
-    calls: list[tuple[str, Path, list[str], int]] = []
+    calls: list[tuple[object, list[str], typ.Callable[[str, object], bool] | None]] = []
 
     def fake_run_cargo(
-        crate: str,
-        workspace_root: Path,
+        context: run_publish_check_module.CargoCommandContext,
         command: list[str],
         *,
-        timeout_secs: int,
+        on_failure: typ.Callable[[str, run_publish_check_module.CommandResult], bool]
+        | None = None,
     ) -> None:
-        calls.append((crate, workspace_root, command, timeout_secs))
+        calls.append((context, command, on_failure))
 
     monkeypatch.setattr(run_publish_check_module, "run_cargo_command", fake_run_cargo)
     return calls
@@ -183,3 +200,43 @@ class FakeLocal:
         """Record environment mutations for later assertions."""
         self.env_calls.append(kwargs)
         return contextlib.nullcontext()
+
+
+def _setup_basic_workflow_mocks(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    run_publish_check_module: ModuleType,
+    *,
+    config: WorkflowTestConfig,
+) -> Path:
+    """Prepare shared workspace and helper mocks for workflow integration tests."""
+    workspace_dir = tmp_path / config.workspace_name
+    workspace_dir.mkdir()
+    monkeypatch.setattr(
+        run_publish_check_module.tempfile, "mkdtemp", lambda: str(workspace_dir)
+    )
+    monkeypatch.setattr(
+        run_publish_check_module, "export_workspace", lambda _dest: None
+    )
+    monkeypatch.setattr(
+        run_publish_check_module, "prune_workspace_members", lambda _manifest: None
+    )
+    monkeypatch.setattr(
+        run_publish_check_module, "strip_patch_section", lambda _manifest: None
+    )
+    monkeypatch.setattr(
+        run_publish_check_module, "workspace_version", lambda _manifest: "1.0.0"
+    )
+    monkeypatch.setattr(
+        run_publish_check_module,
+        "apply_workspace_replacements",
+        lambda *_args, **_kwargs: None,
+    )
+    monkeypatch.setattr(
+        run_publish_check_module, "package_crate", lambda *_args, **_kwargs: None
+    )
+    monkeypatch.setattr(
+        run_publish_check_module, "check_crate", lambda *_args, **_kwargs: None
+    )
+    monkeypatch.setattr(run_publish_check_module, "CRATE_ORDER", config.crate_order)
+    return workspace_dir

@@ -96,6 +96,16 @@ LIVE_PUBLISH_COMMANDS: typ.Final[dict[str, tuple[Command, ...]]] = {
     for crate in PUBLISHABLE_CRATES
 }
 
+ALREADY_PUBLISHED_MARKERS: typ.Final[tuple[str, ...]] = (
+    "already exists on crates.io index",
+    "already exists on crates.io",
+    "already uploaded",
+    "already exists",
+)
+ALREADY_PUBLISHED_MARKERS_FOLDED: typ.Final[tuple[str, ...]] = tuple(
+    marker.casefold() for marker in ALREADY_PUBLISHED_MARKERS
+)
+
 DEFAULT_PUBLISH_TIMEOUT_SECS = 900
 
 app = App(config=cyclopts.config.Env("PUBLISH_CHECK_", command=False))
@@ -134,6 +144,106 @@ class CommandResult:
     stderr: str
 
 
+@dc.dataclass(frozen=True)
+class CargoCommandContext:
+    """Metadata describing where and how to run a Cargo command."""
+
+    crate: str
+    crate_dir: Path
+    env_overrides: typ.Mapping[str, str]
+    timeout_secs: int
+
+
+FailureHandler = typ.Callable[[str, CommandResult], bool]
+
+
+def build_cargo_command_context(
+    crate: str,
+    workspace_root: Path,
+    *,
+    timeout_secs: int | None = None,
+) -> CargoCommandContext:
+    """Create the execution context for a Cargo command.
+
+    The helper resolves the workspace-relative crate directory, initialises the
+    environment overrides, and normalises the timeout configuration to simplify
+    subsequent :func:`run_cargo_command` invocations.
+
+    Examples
+    --------
+    >>> context = build_cargo_command_context("tools", Path("/tmp/workspace"))
+    >>> context.crate
+    'tools'
+    """
+    crate_dir = workspace_root / "crates" / crate
+    env_overrides = {"CARGO_HOME": str(workspace_root / ".cargo-home")}
+    resolved_timeout = _resolve_timeout(timeout_secs)
+    return CargoCommandContext(
+        crate=crate,
+        crate_dir=crate_dir,
+        env_overrides=env_overrides,
+        timeout_secs=resolved_timeout,
+    )
+
+
+def _validate_cargo_command(command: Command) -> None:
+    """Ensure the provided command invokes Cargo."""
+    if not command or command[0] != "cargo":
+        message = "run_cargo_command only accepts cargo invocations"
+        raise ValueError(message)
+
+
+def _execute_cargo_command_with_timeout(
+    context: CargoCommandContext,
+    command: Command,
+) -> CommandResult:
+    """Run the Cargo command within the configured workspace context."""
+    cargo_invocation = local[command[0]][command[1:]]
+    try:
+        with ExitStack() as stack:
+            stack.enter_context(local.cwd(context.crate_dir))
+            stack.enter_context(local.env(**context.env_overrides))
+            return_code, stdout, stderr = cargo_invocation.run(
+                retcode=None,
+                timeout=context.timeout_secs,
+            )
+    except ProcessTimedOut as error:
+        LOGGER.exception(
+            "cargo command timed out for %s after %s seconds: %s",
+            context.crate,
+            context.timeout_secs,
+            shlex.join(command),
+        )
+        message = (
+            f"cargo command timed out for {context.crate!r} after "
+            f"{context.timeout_secs} seconds"
+        )
+        raise SystemExit(message) from error
+
+    return CommandResult(
+        command=list(command),
+        return_code=return_code,
+        stdout=stdout,
+        stderr=stderr,
+    )
+
+
+def _handle_cargo_result(
+    crate: str,
+    result: CommandResult,
+    on_failure: FailureHandler | None,
+) -> None:
+    """Dispatch handling for successful and failed Cargo invocations."""
+    if result.return_code == 0:
+        _handle_command_output(result.stdout, result.stderr)
+        return
+
+    if on_failure is not None and on_failure(crate, result):
+        return
+
+    _handle_command_failure(crate, result)
+
+
 def _handle_command_failure(
     crate: str,
     result: CommandResult,
@@ -170,28 +280,32 @@ def _handle_command_output(stdout: str, stderr: str) -> None:
 
 
 def run_cargo_command(
-    crate: str,
-    workspace_root: Path,
+    context: CargoCommandContext,
     command: typ.Sequence[str],
     *,
-    timeout_secs: int | None = None,
+    on_failure: FailureHandler | None = None,
 ) -> None:
-    """Run a Cargo command for a crate in the exported workspace.
+    """Run a Cargo command within the provided execution context.
 
     Parameters
     ----------
-    crate
-        Name of the crate located under the workspace's ``crates`` directory.
-    workspace_root
-        Root directory of the temporary workspace exported from the repository.
+    context
+        Execution metadata returned by
+        :func:`build_cargo_command_context`.
     command
         Command arguments, which **must** begin with ``cargo``, to execute.
+    on_failure
+        Optional callback that may handle command failures. When provided the
+        handler receives the crate name and :class:`CommandResult`. Returning
+        ``True`` suppresses the default error handling, allowing callers to
+        decide whether execution should continue.
 
     Examples
     --------
     Running ``cargo --version`` for a crate directory:
 
-    >>> run_cargo_command("tools", Path("/tmp/workspace"), ["cargo", "--version"])
+    >>> context = build_cargo_command_context("tools", Path("/tmp/workspace"))
+    >>> run_cargo_command(context, ["cargo", "--version"])
     cargo 1.76.0 (9c9d2b9f8 2024-02-16)  # Version output will vary.
 
     The command honours the ``timeout_secs`` parameter when provided. When it
@@ -199,45 +313,11 @@ def run_cargo_command(
     consulted before falling back to the default. On failure the captured
     stdout and stderr are logged to aid debugging in CI environments.
     """
-    if not command or command[0] != "cargo":
-        message = "run_cargo_command only accepts cargo invocations"
-        raise ValueError(message)
+    _validate_cargo_command(command)
 
-    crate_dir = workspace_root / "crates" / crate
-    env_overrides = {"CARGO_HOME": str(workspace_root / ".cargo-home")}
+    result = _execute_cargo_command_with_timeout(context, command)
 
-    cargo_invocation = local[command[0]][command[1:]]
-    resolved_timeout = _resolve_timeout(timeout_secs)
-    try:
-        with ExitStack() as stack:
-            stack.enter_context(local.cwd(crate_dir))
-            stack.enter_context(local.env(**env_overrides))
-            return_code, stdout, stderr = cargo_invocation.run(
-                retcode=None,
-                timeout=resolved_timeout,
-            )
-    except ProcessTimedOut as error:
-        LOGGER.exception(
-            "cargo command timed out for %s after %s seconds: %s",
-            crate,
-            resolved_timeout,
-            shlex.join(command),
-        )
-        message = (
-            f"cargo command timed out for {crate!r} after {resolved_timeout} seconds"
-        )
-        raise SystemExit(message) from error
-
-    result = CommandResult(
-        command=list(command),
-        return_code=return_code,
-        stdout=stdout,
-        stderr=stderr,
-    )
-    if return_code != 0:
-        _handle_command_failure(crate, result)
-    else:
-        _handle_command_output(result.stdout, result.stderr)
+    _handle_cargo_result(context.crate, result, on_failure)
 
 
 @dc.dataclass(frozen=True)
@@ -256,10 +336,12 @@ def _run_cargo_subcommand(
 ) -> None:
     command = ["cargo", subcommand, *list(args)]
     run_cargo_command(
-        context.crate,
-        context.workspace_root,
+        build_cargo_command_context(
+            context.crate,
+            context.workspace_root,
+            timeout_secs=context.timeout_secs,
+        ),
         command,
-        timeout_secs=context.timeout_secs,
     )
 
 
@@ -305,6 +387,63 @@ check_crate = _create_cargo_action(
 )
 
 
+def _contains_already_published_marker(result: CommandResult) -> bool:
+    """Return ``True`` when Cargo output indicates the crate already exists."""
+    for stream in (result.stdout, result.stderr):
+        if not stream:
+            continue
+
+        if isinstance(stream, bytes):
+            text = stream.decode("utf-8", errors="ignore")
+        else:
+            text = str(stream)
+
+        lowered_stream = text.casefold()
+        if any(marker in lowered_stream for marker in ALREADY_PUBLISHED_MARKERS_FOLDED):
+            return True
+    return False
+
+
+def _publish_one_command(
+    crate: str,
+    workspace_root: Path,
+    command: typ.Sequence[str],
+    timeout_secs: int | None = None,
+) -> bool:
+    """Run a publish command, returning ``True`` when publishing should stop.
+
+    When Cargo reports the crate version already exists on crates.io the
+    captured output streams are replayed and a warning is emitted. The caller
+    can then short-circuit the remaining publish commands for the crate.
+    """
+    handled = False
+
+    def _on_failure(_crate: str, result: CommandResult) -> bool:
+        nonlocal handled
+
+        if not _contains_already_published_marker(result):
+            return False
+
+        handled = True
+        _handle_command_output(result.stdout, result.stderr)
+        LOGGER.warning(
+            "crate %s already published on crates.io; skipping remaining commands",
+            crate,
+        )
+        return True
+
+    run_cargo_command(
+        build_cargo_command_context(
+            crate,
+            workspace_root,
+            timeout_secs=timeout_secs,
+        ),
+        command,
+        on_failure=_on_failure,
+    )
+    return handled
+
+
 def publish_crate_commands(
     crate: str,
     workspace_root: Path,
@@ -336,12 +475,13 @@ def publish_crate_commands(
         raise SystemExit(message) from error
 
     for command in commands:
-        run_cargo_command(
+        if _publish_one_command(
             crate,
             workspace_root,
             command,
             timeout_secs=timeout_secs,
-        )
+        ):
+            break
 
 
 @dc.dataclass
