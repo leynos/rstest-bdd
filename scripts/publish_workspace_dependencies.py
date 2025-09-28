@@ -22,7 +22,30 @@ def apply_workspace_replacements(
     include_local_path: bool,
     crates: tuple[str, ...] | None = None,
 ) -> None:
-    """Rewrite workspace dependency declarations for publish workflows."""
+    """Rewrite workspace dependency declarations for publish workflows.
+
+    Parameters
+    ----------
+    workspace_root : Path
+        Root directory of the rstest-bdd workspace whose manifests are rewritten.
+    version : str
+        Version string applied to patched dependency entries.
+    include_local_path : bool
+        Toggle whether rewritten dependencies retain their relative path entries.
+    crates : tuple[str, ...] | None, optional
+        Subset of crates to update; default rewrites every crate with
+        replacements.
+
+    Returns
+    -------
+    None
+        All matching manifests are rewritten in place.
+
+    Examples
+    --------
+    >>> from pathlib import Path
+    >>> apply_workspace_replacements(Path("."), "1.2.3", include_local_path=False)
+    """
     workspace_root = Path(workspace_root)
     if crates is None:
         targets: typ.Final[tuple[str, ...]] = tuple(REPLACEMENTS)

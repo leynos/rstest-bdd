@@ -4,6 +4,11 @@ The functions defined here encapsulate the tarball export logic used by the
 publish automation. They deliberately keep filesystem side effects scoped to the
 provided destination so callers can stage archives without mutating the working
 copy.
+
+Example
+-------
+>>> from pathlib import Path
+>>> export_workspace(Path("/tmp/release-staging"))
 """
 
 from __future__ import annotations
@@ -14,6 +19,7 @@ import tempfile
 from pathlib import Path
 
 from plumbum import local
+from plumbum.commands import CommandNotFound
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
@@ -21,12 +27,28 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 __all__ = ["export_workspace"]
 
 
+GIT_ARCHIVE_TIMEOUT_S = 60
+
+
 def _validated_members(
     tar: tarfile.TarFile, destination: Path
 ) -> list[tarfile.TarInfo]:
+    """Validate entries against destination and return a safe subset."""
     safe_root = Path(destination).resolve()
+    # Only allow regular files, directories, and link entries on older Pythons.
+    allowed = {
+        tarfile.REGTYPE,
+        tarfile.AREGTYPE,
+        tarfile.DIRTYPE,
+        tarfile.SYMTYPE,
+        tarfile.LNKTYPE,
+    }
     members: list[tarfile.TarInfo] = []
     for member in tar.getmembers():
+        if member.type not in allowed:
+            detail = repr(member.name)
+            message = f"refusing to extract unsupported tar entry type: {detail}"
+            raise SystemExit(message)
         candidate_path = (safe_root / member.name).resolve()
         _ensure_member_within_destination(candidate_path, safe_root, member)
         if member.islnk() or member.issym():
@@ -79,7 +101,8 @@ def export_workspace(destination: Path) -> None:
     Returns
     -------
     None
-        The repository snapshot is written directly to ``destination``.
+        The repository snapshot is written directly to ``destination`` and the
+        export honours ``GIT_ARCHIVE_TIMEOUT_S`` to bound ``git`` execution.
     """
     with tempfile.TemporaryDirectory() as archive_dir:
         archive_root = Path(archive_dir)
@@ -94,10 +117,14 @@ def _create_archive(archive_root: Path) -> Path:
         "archive", "--format=tar", "HEAD", f"--output={archive_path}"
     ]
     with local.cwd(PROJECT_ROOT):
-        return_code, stdout, stderr = git_archive.run(
-            timeout=60,
-            retcode=None,
-        )
+        try:
+            return_code, stdout, stderr = git_archive.run(
+                timeout=GIT_ARCHIVE_TIMEOUT_S,
+                retcode=None,
+            )
+        except CommandNotFound as error:
+            message = "git not found on PATH; unable to export workspace"
+            raise SystemExit(message) from error
     if return_code != 0:
         diagnostics = (stderr or stdout or "").strip()
         detail = f": {diagnostics}" if diagnostics else ""
@@ -108,6 +135,9 @@ def _create_archive(archive_root: Path) -> Path:
 
 def _extract_archive(archive_path: Path, destination: Path) -> None:
     """Extract ``archive_path`` into ``destination`` after validation."""
+    if not archive_path.exists():
+        message = f"archive not found at {archive_path!s}"
+        raise SystemExit(message)
     with tarfile.open(archive_path) as tar:
         safe_members = _validated_members(tar, destination)
         _extract_members(tar, destination, safe_members)
