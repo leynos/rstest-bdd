@@ -142,6 +142,67 @@ class CommandResult:
 FailureHandler = typ.Callable[[str, CommandResult], bool]
 
 
+def _validate_cargo_command(command: Command) -> None:
+    """Ensure the provided command invokes Cargo."""
+    if not command or command[0] != "cargo":
+        message = "run_cargo_command only accepts cargo invocations"
+        raise ValueError(message)
+
+
+def _execute_cargo_command_with_timeout(
+    crate: str,
+    crate_dir: Path,
+    command: Command,
+    env_overrides: typ.Mapping[str, str],
+    resolved_timeout: int,
+) -> CommandResult:
+    """Run the Cargo command within the configured workspace context."""
+    cargo_invocation = local[command[0]][command[1:]]
+    try:
+        with ExitStack() as stack:
+            stack.enter_context(local.cwd(crate_dir))
+            stack.enter_context(local.env(**env_overrides))
+            return_code, stdout, stderr = cargo_invocation.run(
+                retcode=None,
+                timeout=resolved_timeout,
+            )
+    except ProcessTimedOut as error:
+        LOGGER.exception(
+            "cargo command timed out for %s after %s seconds: %s",
+            crate,
+            resolved_timeout,
+            shlex.join(command),
+        )
+        message = (
+            f"cargo command timed out for {crate!r} after {resolved_timeout} seconds"
+        )
+        raise SystemExit(message) from error
+
+    return CommandResult(
+        command=list(command),
+        return_code=return_code,
+        stdout=stdout,
+        stderr=stderr,
+    )
+
+
+def _handle_cargo_result(
+    crate: str,
+    result: CommandResult,
+    on_failure: FailureHandler | None,
+) -> None:
+    """Dispatch handling for successful and failed Cargo invocations."""
+    if result.return_code == 0:
+        _handle_command_output(result.stdout, result.stderr)
+        return
+
+    if on_failure is not None and on_failure(crate, result):
+        return
+
+    _handle_command_failure(crate, result)
+
+
+
 def _handle_command_failure(
     crate: str,
     result: CommandResult,
@@ -213,49 +274,21 @@ def run_cargo_command(
     consulted before falling back to the default. On failure the captured
     stdout and stderr are logged to aid debugging in CI environments.
     """
-    if not command or command[0] != "cargo":
-        message = "run_cargo_command only accepts cargo invocations"
-        raise ValueError(message)
+    _validate_cargo_command(command)
 
     crate_dir = workspace_root / "crates" / crate
     env_overrides = {"CARGO_HOME": str(workspace_root / ".cargo-home")}
 
-    cargo_invocation = local[command[0]][command[1:]]
     resolved_timeout = _resolve_timeout(timeout_secs)
-    try:
-        with ExitStack() as stack:
-            stack.enter_context(local.cwd(crate_dir))
-            stack.enter_context(local.env(**env_overrides))
-            return_code, stdout, stderr = cargo_invocation.run(
-                retcode=None,
-                timeout=resolved_timeout,
-            )
-    except ProcessTimedOut as error:
-        LOGGER.exception(
-            "cargo command timed out for %s after %s seconds: %s",
-            crate,
-            resolved_timeout,
-            shlex.join(command),
-        )
-        message = (
-            f"cargo command timed out for {crate!r} after {resolved_timeout} seconds"
-        )
-        raise SystemExit(message) from error
-
-    result = CommandResult(
-        command=list(command),
-        return_code=return_code,
-        stdout=stdout,
-        stderr=stderr,
+    result = _execute_cargo_command_with_timeout(
+        crate,
+        crate_dir,
+        command,
+        env_overrides,
+        resolved_timeout,
     )
-    if return_code == 0:
-        _handle_command_output(result.stdout, result.stderr)
-        return
 
-    if on_failure is not None and on_failure(crate, result):
-        return
-
-    _handle_command_failure(crate, result)
+    _handle_cargo_result(crate, result, on_failure)
 
 
 @dc.dataclass(frozen=True)

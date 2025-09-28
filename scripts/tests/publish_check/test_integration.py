@@ -368,7 +368,7 @@ class TestRunPublishCheckLiveMode:
             command: typ.Sequence[str],
             *,
             timeout_secs: int,
-            **kwargs: typ.Any,
+            **kwargs: object,
         ) -> None:
             unexpected = set(kwargs) - {"on_failure"}
             if unexpected:
