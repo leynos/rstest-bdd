@@ -117,23 +117,20 @@ pub(super) fn gen_fixture_decls(fixtures: &[FixtureArg], ident: &syn::Ident) -> 
         .iter()
         .map(|FixtureArg { pat, name, ty }| {
             let path = crate::codegen::rstest_bdd_path();
-            let lookup_ty = if let syn::Type::Reference(r) = ty {
-                &*r.elem
-            } else {
-                ty
-            };
-            let clone_suffix = if matches!(ty, syn::Type::Reference(_)) {
-                quote! {}
-            } else {
-                quote! { .cloned() }
+            let (stored_ty, post_get): (TokenStream2, TokenStream2) = match ty {
+                syn::Type::Reference(reference) => {
+                    let elem = &*reference.elem;
+                    (quote! { #elem }, TokenStream2::new())
+                }
+                _ => (quote! { #ty }, quote! { .cloned() }),
             };
             quote! {
                 let #pat: #ty = ctx
-                    .get::<#lookup_ty>(stringify!(#name))
-                    #clone_suffix
+                    .get::<#stored_ty>(stringify!(#name))
+                    #post_get
                     .ok_or_else(|| #path::StepError::MissingFixture {
                         name: stringify!(#name).to_string(),
-                        ty: stringify!(#lookup_ty).to_string(),
+                        ty: stringify!(#stored_ty).to_string(),
                         step: stringify!(#ident).to_string(),
                     })?;
             }

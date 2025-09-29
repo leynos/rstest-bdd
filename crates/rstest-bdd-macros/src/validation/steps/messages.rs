@@ -47,7 +47,7 @@ fn build_missing_step_message(
 ) -> String {
     let mut msg = format!(
         "No matching step definition found for '{} {}'",
-        fmt_keyword(resolved),
+        resolved.display_name(),
         step.text
     );
     msg.push_str(&format_item_list(
@@ -80,16 +80,6 @@ where
         msg.push('\n');
     }
     msg
-}
-
-fn fmt_keyword(kw: StepKeyword) -> &'static str {
-    match kw {
-        StepKeyword::Given => "Given",
-        StepKeyword::When => "When",
-        StepKeyword::Then => "Then",
-        StepKeyword::And => "And",
-        StepKeyword::But => "But",
-    }
 }
 
 #[cfg(test)]

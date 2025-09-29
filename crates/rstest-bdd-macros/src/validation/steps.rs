@@ -195,13 +195,13 @@ pub(crate) fn validate_steps_exist(steps: &[ParsedStep], strict: bool) -> Result
     )]
     let reg = REGISTERED.lock().expect("step registry poisoned");
     let current = current_crate_id();
-    let defs = reg.get(current);
-    match validate_registry_state(defs, current, strict) {
+    let defs_owned = reg.get(current).cloned();
+    match validate_registry_state(defs_owned.as_ref(), current, strict) {
         RegistryDecision::Continue => {}
         RegistryDecision::Skip | RegistryDecision::WarnAndSkip => return Ok(()),
     }
-    let missing = validate_individual_steps(steps, defs)?;
     drop(reg);
+    let missing = validate_individual_steps(steps, defs_owned.as_ref())?;
     handle_validation_result(&missing, strict)
 }
 
@@ -230,10 +230,7 @@ fn create_strict_mode_error(missing: &[(proc_macro2::Span, String)]) -> Result<(
             .iter()
             .map(|(_, m)| format!("  - {m}"))
             .collect::<Vec<_>>()
-            .join(
-                "
-",
-            ),
+            .join("\n"),
     };
     let span = missing
         .first()

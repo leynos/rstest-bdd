@@ -3,8 +3,9 @@
 use super::{ParsedStep, ScenarioData, extract_scenario_steps};
 use gherkin::{Background, LineCol, Scenario, Span, Step, StepType};
 
-// This `#[expect]` triggers if `gherkin::StepType` adds variants so we update
-// `kw()` and `TryFrom<StepType> for StepKeyword`.
+// Intentionally expect `unreachable_patterns` today (we match all current variants).
+// If `gherkin::StepType` adds variants, this expectation stops triggering and
+// the build fails, prompting updates to `kw()` (and any `TryFrom<StepType> for StepKeyword`).
 #[expect(
     unreachable_patterns,
     reason = "StepType currently only has three variants"
@@ -56,11 +57,16 @@ impl StepBuilder {
         self
     }
 
-    pub(super) fn with_table(mut self, rows: Vec<Vec<&str>>) -> Self {
+    pub(super) fn with_table<I, R, S>(mut self, rows: I) -> Self
+    where
+        I: IntoIterator<Item = R>,
+        R: IntoIterator<Item = S>,
+        S: AsRef<str>,
+    {
         self.table = Some(gherkin::Table {
             rows: rows
                 .into_iter()
-                .map(|r| r.into_iter().map(str::to_string).collect())
+                .map(|r| r.into_iter().map(|s| s.as_ref().to_string()).collect())
                 .collect(),
             span: zero_span(),
             position: zero_pos(),

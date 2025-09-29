@@ -1,3 +1,5 @@
+//! Keyword-focused step error scenarios exercising `ExecutionError`, `PanicError`, and `MissingFixture` variants.
+
 mod step_error_common;
 
 use rstest::rstest;
