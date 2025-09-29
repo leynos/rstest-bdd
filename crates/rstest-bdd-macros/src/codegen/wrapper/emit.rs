@@ -162,15 +162,15 @@ fn generate_wrapper_body(
         ..
     } = *config;
 
-    let signature = generate_wrapper_signature(pattern, pattern_ident);
-    let arg_processing =
-        prepare_argument_processing(fixtures, step_args, datatable, docstring, pattern, ident);
     let collections = ArgumentCollections {
         fixtures,
         step_args,
         datatable,
         docstring,
     };
+    let step_meta = super::arguments::StepMeta { pattern, ident };
+    let signature = generate_wrapper_signature(pattern, pattern_ident);
+    let arg_processing = prepare_argument_processing(&collections, step_meta);
     let arg_idents = collect_ordered_arguments(call_order, &collections);
     let wrapper_fn = assemble_wrapper_function(
         wrapper_ident,

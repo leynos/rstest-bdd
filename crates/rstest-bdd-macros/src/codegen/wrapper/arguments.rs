@@ -189,20 +189,18 @@ pub(super) fn gen_step_parses(
 
 /// Generate declarations and parsing logic for wrapper arguments.
 pub(super) fn prepare_argument_processing(
-    fixtures: &[FixtureArg],
-    step_args: &[StepArg],
-    datatable: Option<&DataTableArg>,
-    docstring: Option<&DocStringArg>,
-    pattern: &syn::LitStr,
-    ident: &syn::Ident,
+    args: &ArgumentCollections<'_>,
+    step_meta: StepMeta<'_>,
 ) -> (
     Vec<TokenStream2>,
     Vec<TokenStream2>,
     Option<TokenStream2>,
     Option<TokenStream2>,
 ) {
-    let declares = gen_fixture_decls(fixtures, ident);
-    let captured: Vec<_> = step_args
+    let StepMeta { pattern, ident } = step_meta;
+    let declares = gen_fixture_decls(args.fixtures, ident);
+    let captured: Vec<_> = args
+        .step_args
         .iter()
         .enumerate()
         .map(|(idx, _)| {
@@ -210,9 +208,9 @@ pub(super) fn prepare_argument_processing(
             quote! { captures.get(#index).map(|m| m.as_str()) }
         })
         .collect();
-    let step_arg_parses = gen_step_parses(step_args, &captured, StepMeta { pattern, ident });
-    let datatable_decl = gen_datatable_decl(datatable, pattern, ident);
-    let docstring_decl = gen_docstring_decl(docstring, pattern, ident);
+    let step_arg_parses = gen_step_parses(args.step_args, &captured, step_meta);
+    let datatable_decl = gen_datatable_decl(args.datatable, pattern, ident);
+    let docstring_decl = gen_docstring_decl(args.docstring, pattern, ident);
     (declares, step_arg_parses, datatable_decl, docstring_decl)
 }
 
