@@ -714,7 +714,7 @@ mod helper_tests {
 
     #[test]
     fn run_compile_fail_with_normalised_output_detects_mismatch() {
-        const TEST_PATH: &str = "tests/fixtures_macros/__normaliser_unexpected.rs";
+        const TEST_PATH: &str = "tests/fixtures_macros/__normaliser_unexpected_detect.rs";
         let fixture = NormaliserFixture::new(
             FixtureTestPath::from(TEST_PATH),
             FixtureStderr::from("expected output\n"),
@@ -748,7 +748,7 @@ mod helper_tests {
         "matching outputs should delete the wip stderr file"
     )]
     #[case(
-        "tests/fixtures_macros/__normaliser_unexpected.rs",
+        "tests/fixtures_macros/__normaliser_unexpected_case.rs",
         "error: expected formatting",
         "error: unexpected formatting",
         false,
