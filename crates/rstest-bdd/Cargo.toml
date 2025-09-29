@@ -32,6 +32,7 @@ rstest.workspace = true
 rstest-bdd-macros.workspace = true
 trybuild.workspace = true
 serial_test.workspace = true
+newt-hype = "0.2"
 
 [features]
 default = ["diagnostics"]

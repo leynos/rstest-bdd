@@ -2,6 +2,11 @@
     unexpected_cfgs,
     reason = "integration test inspects dependency feature flags"
 )]
+// Allow: newt-hype base_newtype macro provides Clone impls even for Copy wrappers.
+#![allow(
+    clippy::expl_impl_clone_on_copy,
+    reason = "newt-hype base_newtype macro implements Clone for all wrappers"
+)]
 //! Compile-time tests for the procedural macros.
 
 use std::borrow::Cow;
@@ -14,41 +19,65 @@ use std::sync::OnceLock;
 const MACROS_FIXTURES_DIR: &str = "tests/fixtures_macros";
 const UI_FIXTURES_DIR: &str = "tests/ui_macros";
 
-#[derive(Clone, Copy)]
-struct MacroFixtureCase {
-    file_name: &'static str,
+newt_hype::base_newtype!(MacroFixtureCaseBase);
+newt_hype::newtype!(MacroFixtureCase, MacroFixtureCaseBase, String);
+
+impl MacroFixtureCase {
+    fn as_str(&self) -> &str {
+        self.inner().as_str()
+    }
 }
 
-#[derive(Clone, Copy)]
-struct UiFixtureCase {
-    file_name: &'static str,
+impl<'a> From<&'a str> for MacroFixtureCase {
+    fn from(value: &'a str) -> Self {
+        Self::new(value.to_owned())
+    }
 }
 
-#[derive(Clone, Copy)]
-struct NormaliserInput<'a>(&'a str);
+newt_hype::base_newtype!(UiFixtureCaseBase);
+newt_hype::newtype!(UiFixtureCase, UiFixtureCaseBase, String);
+
+impl UiFixtureCase {
+    fn as_str(&self) -> &str {
+        self.inner().as_str()
+    }
+}
+
+impl<'a> From<&'a str> for UiFixtureCase {
+    fn from(value: &'a str) -> Self {
+        Self::new(value.to_owned())
+    }
+}
+
+newt_hype::base_newtype!(NormaliserInputBase);
+type NormaliserInput<'a> = NormaliserInputBase<&'a str>;
 
 impl<'a> NormaliserInput<'a> {
     fn as_str(&self) -> &'a str {
-        self.0
+        let &value = self.inner();
+        value
     }
 }
 
-#[derive(Clone, Copy)]
-struct FixturePathLine<'a>(&'a str);
+newt_hype::base_newtype!(FixturePathLineBase);
+type FixturePathLine<'a> = FixturePathLineBase<&'a str>;
 
 impl<'a> FixturePathLine<'a> {
     fn as_str(&self) -> &'a str {
-        self.0
+        let &value = self.inner();
+        value
     }
 }
 
-fn macros_fixture(case: MacroFixtureCase) -> PathBuf {
+fn macros_fixture(case: impl Into<MacroFixtureCase>) -> PathBuf {
     ensure_trybuild_support_files();
-    Path::new(MACROS_FIXTURES_DIR).join(case.file_name)
+    let case = case.into();
+    Path::new(MACROS_FIXTURES_DIR).join(case.as_str())
 }
 
-fn ui_fixture(case: UiFixtureCase) -> PathBuf {
-    Path::new(UI_FIXTURES_DIR).join(case.file_name)
+fn ui_fixture(case: impl Into<UiFixtureCase>) -> PathBuf {
+    let case = case.into();
+    Path::new(UI_FIXTURES_DIR).join(case.as_str())
 }
 
 fn ensure_trybuild_support_files() {
@@ -160,15 +189,9 @@ fn step_macros_compile() {
 
 fn run_passing_macro_tests(t: &trybuild::TestCases) {
     for case in [
-        MacroFixtureCase {
-            file_name: "step_macros.rs",
-        },
-        MacroFixtureCase {
-            file_name: "step_macros_unicode.rs",
-        },
-        MacroFixtureCase {
-            file_name: "scenario_single_match.rs",
-        },
+        MacroFixtureCase::from("step_macros.rs"),
+        MacroFixtureCase::from("step_macros_unicode.rs"),
+        MacroFixtureCase::from("scenario_single_match.rs"),
     ] {
         t.pass(macros_fixture(case));
     }
@@ -176,21 +199,11 @@ fn run_passing_macro_tests(t: &trybuild::TestCases) {
 
 fn run_failing_macro_tests(t: &trybuild::TestCases) {
     for case in [
-        MacroFixtureCase {
-            file_name: "scenario_missing_file.rs",
-        },
-        MacroFixtureCase {
-            file_name: "step_macros_invalid_identifier.rs",
-        },
-        MacroFixtureCase {
-            file_name: "step_tuple_pattern.rs",
-        },
-        MacroFixtureCase {
-            file_name: "step_struct_pattern.rs",
-        },
-        MacroFixtureCase {
-            file_name: "step_nested_pattern.rs",
-        },
+        MacroFixtureCase::from("scenario_missing_file.rs"),
+        MacroFixtureCase::from("step_macros_invalid_identifier.rs"),
+        MacroFixtureCase::from("step_tuple_pattern.rs"),
+        MacroFixtureCase::from("step_struct_pattern.rs"),
+        MacroFixtureCase::from("step_nested_pattern.rs"),
     ] {
         t.compile_fail(macros_fixture(case));
     }
@@ -198,46 +211,26 @@ fn run_failing_macro_tests(t: &trybuild::TestCases) {
 
 fn run_failing_ui_tests(t: &trybuild::TestCases) {
     for case in [
-        UiFixtureCase {
-            file_name: "datatable_wrong_type.rs",
-        },
-        UiFixtureCase {
-            file_name: "datatable_duplicate.rs",
-        },
-        UiFixtureCase {
-            file_name: "datatable_duplicate_attr.rs",
-        },
-        UiFixtureCase {
-            file_name: "datatable_after_docstring.rs",
-        },
-        UiFixtureCase {
-            file_name: "placeholder_missing_param.rs",
-        },
-        UiFixtureCase {
-            file_name: "implicit_fixture_missing.rs",
-        },
-        UiFixtureCase {
-            file_name: "placeholder_missing_params.rs",
-        },
+        UiFixtureCase::from("datatable_wrong_type.rs"),
+        UiFixtureCase::from("datatable_duplicate.rs"),
+        UiFixtureCase::from("datatable_duplicate_attr.rs"),
+        UiFixtureCase::from("datatable_after_docstring.rs"),
+        UiFixtureCase::from("placeholder_missing_param.rs"),
+        UiFixtureCase::from("implicit_fixture_missing.rs"),
+        UiFixtureCase::from("placeholder_missing_params.rs"),
     ] {
         t.compile_fail(ui_fixture(case));
     }
 }
 
 fn run_scenarios_missing_dir_test(t: &trybuild::TestCases) {
-    t.compile_fail(macros_fixture(MacroFixtureCase {
-        file_name: "scenarios_missing_dir.rs",
-    }));
+    t.compile_fail(macros_fixture("scenarios_missing_dir.rs"));
 }
 
 fn run_conditional_ordering_tests(t: &trybuild::TestCases) {
     let ordering_cases = [
-        MacroFixtureCase {
-            file_name: "scenario_missing_step.rs",
-        },
-        MacroFixtureCase {
-            file_name: "scenario_out_of_order.rs",
-        },
+        MacroFixtureCase::from("scenario_missing_step.rs"),
+        MacroFixtureCase::from("scenario_out_of_order.rs"),
     ];
 
     if cfg!(feature = "strict-compile-time-validation") {
@@ -254,9 +247,7 @@ fn run_conditional_ordering_tests(t: &trybuild::TestCases) {
 
 fn run_conditional_ambiguous_step_test(t: &trybuild::TestCases) {
     if cfg!(feature = "compile-time-validation") {
-        t.compile_fail(macros_fixture(MacroFixtureCase {
-            file_name: "scenario_ambiguous_step.rs",
-        }));
+        t.compile_fail(macros_fixture("scenario_ambiguous_step.rs"));
     }
 }
 
@@ -265,9 +256,7 @@ type Normaliser = for<'a> fn(NormaliserInput<'a>) -> String;
 fn compile_fail_missing_step_warning(t: &trybuild::TestCases) {
     compile_fail_with_normalised_output(
         t,
-        macros_fixture(MacroFixtureCase {
-            file_name: "scenario_missing_step_warning.rs",
-        }),
+        macros_fixture("scenario_missing_step_warning.rs"),
         &[strip_nightly_macro_backtrace_hint, normalise_fixture_paths],
     );
 }
@@ -278,9 +267,10 @@ fn compile_fail_with_normalised_output(
     normalisers: &[Normaliser],
 ) {
     let test_path = test_path.as_ref();
+    let trybuild_path = test_path.to_path_buf();
     run_compile_fail_with_normalised_output(
-        || t.compile_fail(test_path),
-        Path::new(test_path),
+        || t.compile_fail(&trybuild_path),
+        test_path,
         normalisers,
     );
 }
@@ -310,8 +300,8 @@ fn normalised_outputs_match(test_path: &Path, normalisers: &[Normaliser]) -> io:
     let actual = fs::read_to_string(&actual_path)?;
     let expected = fs::read_to_string(&expected_path)?;
 
-    if apply_normalisers(NormaliserInput(actual.as_str()), normalisers)
-        == apply_normalisers(NormaliserInput(expected.as_str()), normalisers)
+    if apply_normalisers(NormaliserInput::from(actual.as_str()), normalisers)
+        == apply_normalisers(NormaliserInput::from(expected.as_str()), normalisers)
     {
         let _ = fs::remove_file(actual_path);
         return Ok(true);
@@ -338,7 +328,7 @@ fn expected_stderr_path(test_path: &Path) -> PathBuf {
 fn apply_normalisers<'a>(input: NormaliserInput<'a>, normalisers: &[Normaliser]) -> Cow<'a, str> {
     let mut value = Cow::Borrowed(input.as_str());
     for normalise in normalisers {
-        value = Cow::Owned(normalise(NormaliserInput(value.as_ref())));
+        value = Cow::Owned(normalise(NormaliserInput::from(value.as_ref())));
     }
     value
 }
@@ -347,7 +337,7 @@ fn normalise_fixture_paths(input: NormaliserInput<'_>) -> String {
     let text = input.as_str();
     let normalised_lines = text
         .lines()
-        .map(|line| normalise_fixture_path_line(FixturePathLine(line)))
+        .map(|line| normalise_fixture_path_line(FixturePathLine::from(line)))
         .collect::<Vec<_>>();
     let separator = char::from(0x0A);
     let separator_str = separator.to_string();
@@ -411,21 +401,23 @@ mod helper_tests {
     use std::panic;
     use std::path::{Path, PathBuf};
 
-    #[derive(Clone, Copy)]
-    struct FixtureTestPath<'a>(&'a str);
+    newt_hype::base_newtype!(FixtureTestPathBase);
+    type FixtureTestPath<'a> = FixtureTestPathBase<&'a str>;
 
     impl<'a> FixtureTestPath<'a> {
         fn as_str(&self) -> &'a str {
-            self.0
+            let &value = self.inner();
+            value
         }
     }
 
-    #[derive(Clone, Copy)]
-    struct FixtureStderr<'a>(&'a str);
+    newt_hype::base_newtype!(FixtureStderrBase);
+    type FixtureStderr<'a> = FixtureStderrBase<&'a str>;
 
     impl<'a> FixtureStderr<'a> {
         fn as_str(&self) -> &'a str {
-            self.0
+            let &value = self.inner();
+            value
         }
     }
 
@@ -502,7 +494,7 @@ mod helper_tests {
 
     #[test]
     fn apply_normalisers_returns_borrowed_when_empty() {
-        let result = apply_normalisers(NormaliserInput("message"), &[]);
+        let result = apply_normalisers(NormaliserInput::from("message"), &[]);
         assert!(matches!(result, Cow::Borrowed("message")));
     }
 
@@ -510,14 +502,14 @@ mod helper_tests {
     fn apply_normalisers_respects_normaliser_order() {
         let add_prefix: Normaliser = |input| format!("prefix-{}", input.as_str());
         let add_suffix: Normaliser = |input| format!("{}-suffix", input.as_str());
-        let result = apply_normalisers(NormaliserInput("value"), &[add_prefix, add_suffix]);
+        let result = apply_normalisers(NormaliserInput::from("value"), &[add_prefix, add_suffix]);
         assert_eq!(result, "prefix-value-suffix");
     }
 
     #[test]
     fn apply_normalisers_handles_empty_string() {
         let trim_whitespace: Normaliser = |input| input.as_str().trim().to_owned();
-        let result = apply_normalisers(NormaliserInput(""), &[trim_whitespace]);
+        let result = apply_normalisers(NormaliserInput::from(""), &[trim_whitespace]);
         assert_eq!(result, "");
     }
 
@@ -526,7 +518,10 @@ mod helper_tests {
         let trim_whitespace: Normaliser = |input| input.as_str().trim().to_owned();
         let mut whitespace = String::from("   ");
         whitespace.push(char::from(10));
-        let result = apply_normalisers(NormaliserInput(whitespace.as_str()), &[trim_whitespace]);
+        let result = apply_normalisers(
+            NormaliserInput::from(whitespace.as_str()),
+            &[trim_whitespace],
+        );
         assert_eq!(result, "");
     }
 
@@ -540,7 +535,7 @@ mod helper_tests {
         );
         let expected = "error: failure more context";
         assert_eq!(
-            strip_nightly_macro_backtrace_hint(NormaliserInput(text)),
+            strip_nightly_macro_backtrace_hint(NormaliserInput::from(text)),
             expected
         );
     }
@@ -549,7 +544,7 @@ mod helper_tests {
     fn strip_nightly_macro_backtrace_hint_leaves_text_without_hint() {
         let text = "error: failure";
         assert_eq!(
-            strip_nightly_macro_backtrace_hint(NormaliserInput(text)),
+            strip_nightly_macro_backtrace_hint(NormaliserInput::from(text)),
             text
         );
     }
@@ -559,7 +554,10 @@ mod helper_tests {
         let dollar = char::from(36);
         let input = "Warning:  --> tests/fixtures_macros/example.rs:3:1";
         let expected = format!("Warning:  --> {dollar}DIR/example.rs:3:1");
-        assert_eq!(normalise_fixture_paths(NormaliserInput(input)), expected);
+        assert_eq!(
+            normalise_fixture_paths(NormaliserInput::from(input)),
+            expected
+        );
     }
 
     #[test]
@@ -571,7 +569,7 @@ mod helper_tests {
         );
         let expected = format!(" --> {dollar}DIR/example.rs:4:2{newline}");
         assert_eq!(
-            normalise_fixture_paths(NormaliserInput(input.as_str())),
+            normalise_fixture_paths(NormaliserInput::from(input.as_str())),
             expected
         );
     }
@@ -581,7 +579,7 @@ mod helper_tests {
         let dollar = char::from(36);
         let input = format!(" --> {dollar}DIR/example.rs:4:2");
         assert_eq!(
-            normalise_fixture_paths(NormaliserInput(input.as_str())),
+            normalise_fixture_paths(NormaliserInput::from(input.as_str())),
             input
         );
     }
@@ -598,9 +596,9 @@ mod helper_tests {
         actual.push_str("help: review scenario");
         actual.push(char::from(10));
         let fixture = NormaliserFixture::new(
-            FixtureTestPath(TEST_PATH),
-            FixtureStderr(expected.as_str()),
-            FixtureStderr(actual.as_str()),
+            FixtureTestPath::from(TEST_PATH),
+            FixtureStderr::from(expected.as_str()),
+            FixtureStderr::from(actual.as_str()),
         );
         let strip_hint_one: Normaliser = |input| input.as_str().replace(" (hint-one)", "");
         let strip_hint_two: Normaliser = |input| input.as_str().replace(" (hint-two)", "");
@@ -622,9 +620,9 @@ mod helper_tests {
     fn run_compile_fail_with_normalised_output_accepts_empty_output() {
         const TEST_PATH: &str = "tests/fixtures_macros/__normaliser_empty.rs";
         let fixture = NormaliserFixture::new(
-            FixtureTestPath(TEST_PATH),
-            FixtureStderr(""),
-            FixtureStderr(""),
+            FixtureTestPath::from(TEST_PATH),
+            FixtureStderr::from(""),
+            FixtureStderr::from(""),
         );
         let result = panic::catch_unwind(|| {
             run_compile_fail_with_normalised_output(
@@ -670,9 +668,9 @@ mod helper_tests {
         let mut actual = String::from(actual_content);
         actual.push(char::from(10));
         let fixture = NormaliserFixture::new(
-            FixtureTestPath(test_path),
-            FixtureStderr(expected.as_str()),
-            FixtureStderr(actual.as_str()),
+            FixtureTestPath::from(test_path),
+            FixtureStderr::from(expected.as_str()),
+            FixtureStderr::from(actual.as_str()),
         );
         let trim_trailing: Normaliser = |input| input.as_str().trim_end().to_owned();
         let result = panic::catch_unwind(|| {
