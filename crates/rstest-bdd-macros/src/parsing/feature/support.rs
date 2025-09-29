@@ -149,3 +149,67 @@ pub(super) fn assert_feature_extraction(
         "extracted steps did not match expectation",
     );
 }
+
+#[cfg(test)]
+mod tests {
+    //! Tests for feature parsing test support builders.
+
+    use super::*;
+    use gherkin::StepType;
+
+    #[test]
+    fn step_builder_overrides_keyword_and_collects_arguments() {
+        let step = StepBuilder::new(StepType::When, "value")
+            .with_keyword("Given")
+            .with_docstring("doc")
+            .with_table(vec![vec!["a", "b"]])
+            .build();
+
+        assert_eq!(step.keyword.trim(), "Given");
+        assert_eq!(step.docstring.as_deref(), Some("doc"));
+        let Some(table) = step.table.as_ref() else {
+            panic!("expected table on built step");
+        };
+        assert_eq!(table.rows, vec![vec!["a".to_string(), "b".to_string()]],);
+    }
+
+    #[test]
+    fn feature_builder_constructs_feature_with_background_and_scenarios() {
+        let feature = FeatureBuilder::new("demo")
+            .with_background(vec![StepBuilder::new(StepType::Given, "setup").build()])
+            .with_scenario(
+                "scenario",
+                vec![StepBuilder::new(StepType::Then, "result").build()],
+            )
+            .build();
+
+        assert_eq!(feature.name, "demo");
+        assert!(feature.background.is_some());
+        assert_eq!(feature.scenarios.len(), 1);
+        let Some(scenario) = feature.scenarios.first() else {
+            panic!("expected one scenario");
+        };
+        assert_eq!(scenario.steps.len(), 1);
+    }
+
+    #[test]
+    fn assert_feature_extraction_validates_expected_steps() {
+        let expected = [ParsedStep {
+            keyword: crate::StepKeyword::Given,
+            text: "step".to_string(),
+            docstring: None,
+            table: None,
+            #[cfg(feature = "compile-time-validation")]
+            span: proc_macro2::Span::call_site(),
+        }];
+
+        assert_feature_extraction(
+            FeatureBuilder::new("demo").with_scenario(
+                "scenario",
+                vec![StepBuilder::new(StepType::Given, "step").build()],
+            ),
+            &expected,
+            Some(0),
+        );
+    }
+}

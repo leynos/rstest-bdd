@@ -1,3 +1,5 @@
+//! Error message construction for step validation.
+
 use super::{CrateDefs, get_step_span};
 use crate::StepKeyword;
 use crate::parsing::feature::ParsedStep;
@@ -87,5 +89,71 @@ fn fmt_keyword(kw: StepKeyword) -> &'static str {
         StepKeyword::Then => "Then",
         StepKeyword::And => "And",
         StepKeyword::But => "But",
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    //! Tests for step validation message formatting.
+
+    use super::*;
+    use proc_macro2::Span;
+
+    fn leak_pattern(text: &str) -> &'static MacroPattern {
+        let leaked: &'static str = Box::leak(text.to_string().into_boxed_str());
+        Box::leak(Box::new(MacroPattern::new(leaked)))
+    }
+
+    fn parsed_step(text: &str) -> ParsedStep {
+        ParsedStep {
+            keyword: StepKeyword::Given,
+            text: text.to_string(),
+            docstring: None,
+            table: None,
+            #[cfg(feature = "compile-time-validation")]
+            span: Span::call_site(),
+        }
+    }
+
+    #[test]
+    fn missing_step_error_lists_available_definitions_and_matches() {
+        let pattern_a = leak_pattern("I have {item}");
+        let pattern_b = leak_pattern("I have apples");
+        let mut defs = CrateDefs::default();
+        defs.by_kw
+            .entry(StepKeyword::Given)
+            .or_default()
+            .extend([pattern_a, pattern_b]);
+
+        let msg =
+            format_missing_step_error(StepKeyword::Given, &parsed_step("I have pears"), &defs);
+
+        assert!(msg.contains("Available step definitions"));
+        assert!(msg.contains("- I have {item}"));
+        assert!(msg.contains("- I have apples"));
+        assert!(msg.contains("Possible matches"));
+    }
+
+    #[test]
+    fn missing_step_error_omits_sections_when_no_definitions_exist() {
+        let defs = CrateDefs::default();
+        let msg =
+            format_missing_step_error(StepKeyword::When, &parsed_step("perform an action"), &defs);
+
+        assert!(!msg.contains("Available step definitions"));
+        assert!(!msg.contains("Possible matches"));
+    }
+
+    #[test]
+    fn ambiguous_step_error_lists_all_matching_patterns() {
+        let pattern_a = leak_pattern("first pattern");
+        let pattern_b = leak_pattern("second pattern");
+
+        let err = format_ambiguous_step_error(&[pattern_a, pattern_b], &parsed_step("ambiguous"));
+        let msg = err.to_string();
+
+        assert!(msg.contains("Ambiguous step definition"));
+        assert!(msg.contains("- first pattern"));
+        assert!(msg.contains("- second pattern"));
     }
 }

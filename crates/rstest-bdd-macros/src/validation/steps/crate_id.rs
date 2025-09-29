@@ -1,7 +1,8 @@
-use std::sync::LazyLock;
+//! Crate ID normalisation utilities for step validation.
+
+use std::{fs, sync::LazyLock};
 
 use camino::{Utf8Path, Utf8PathBuf};
-use cap_std::{ambient_authority, fs_utf8::Dir};
 
 pub(super) static CURRENT_CRATE_ID: LazyLock<Box<str>> =
     LazyLock::new(|| normalise_crate_id(&current_crate_id_raw()));
@@ -30,35 +31,9 @@ fn current_crate_id_raw() -> String {
     format!("{name}:{out_dir}")
 }
 
-pub(super) fn canonicalise_out_dir(original: &Utf8Path) -> Utf8PathBuf {
-    canonicalise_with_cap_std(original).unwrap_or_else(|_| {
-        original
-            .canonicalize_utf8()
-            .unwrap_or_else(|_| original.to_owned())
-    })
-}
-
-pub(super) fn canonicalise_with_cap_std(
-    original: &Utf8Path,
-) -> Result<Utf8PathBuf, std::io::Error> {
-    let dir = Dir::open_ambient_dir(".", ambient_authority())?;
-    let candidate = dir.canonicalize(original)?;
-    Ok(ensure_absolute(candidate, original))
-}
-
-pub(super) fn ensure_absolute(candidate: Utf8PathBuf, original: &Utf8Path) -> Utf8PathBuf {
-    if candidate.is_absolute() {
-        return candidate;
-    }
-
-    absolutise_relative(&candidate)
-        .or_else(|| original.canonicalize_utf8().ok())
-        .unwrap_or_else(|| original.to_owned())
-}
-
-pub(super) fn absolutise_relative(candidate: &Utf8Path) -> Option<Utf8PathBuf> {
-    let cwd = std::env::current_dir().ok()?;
-    let cwd = Utf8PathBuf::from_path_buf(cwd).ok()?;
-    let joined = cwd.join(candidate);
-    Some(joined.as_path().canonicalize_utf8().unwrap_or(joined))
+pub(super) fn canonicalise_out_dir(path: &Utf8Path) -> Utf8PathBuf {
+    fs::canonicalize(path)
+        .ok()
+        .and_then(|pb| Utf8PathBuf::from_path_buf(pb).ok())
+        .unwrap_or_else(|| path.to_owned())
 }

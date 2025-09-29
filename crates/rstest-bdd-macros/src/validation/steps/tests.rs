@@ -3,9 +3,7 @@
     reason = "tests rely on infallible setup for readability"
 )]
 //! Tests for step-definition validation: missing/single/ambiguous outcomes and registry behaviour.
-use super::crate_id::{
-    absolutise_relative, canonicalise_out_dir, canonicalise_with_cap_std, ensure_absolute,
-};
+use super::crate_id::{canonicalise_out_dir, normalise_crate_id};
 use super::*;
 use camino::{Utf8Path, Utf8PathBuf};
 use rstest::{fixture, rstest};
@@ -224,12 +222,12 @@ fn canonicalise_out_dir_resolves_relative_components(temp_working_dir: TempWorki
     let nested = Utf8Path::new("nested/.");
     let canonical = canonicalise_out_dir(nested);
     let expected_dir = temp_working_dir.path().join("nested");
-    let expected = expected_dir
-        .as_path()
-        .canonicalize_utf8()
-        .unwrap_or_else(|_| expected_dir.clone());
 
-    assert_eq!(canonical, expected);
+    assert_eq!(canonical, expected_dir);
+    assert!(
+        canonical.is_absolute(),
+        "canonical path should be absolute: {canonical}"
+    );
 }
 
 #[cfg(unix)]
@@ -259,52 +257,6 @@ fn canonicalise_out_dir_returns_original_when_unresolvable() {
     let missing = temp.path().join("missing");
     let missing = Utf8PathBuf::from_path_buf(missing).expect("path should be valid UTF-8");
     assert_eq!(canonicalise_out_dir(missing.as_path()), missing);
-}
-
-#[test]
-fn ensure_absolute_preserves_absolute_paths() {
-    let cwd = std::env::current_dir().expect("obtain current directory");
-    let cwd = Utf8PathBuf::from_path_buf(cwd).expect("current directory should be valid UTF-8");
-    let ensured = ensure_absolute(cwd.clone(), Utf8Path::new("."));
-    assert_eq!(ensured, cwd);
-}
-
-#[rstest]
-#[serial]
-fn ensure_absolute_promotes_relative_candidates(temp_working_dir: TempWorkingDir) {
-    let candidate = Utf8PathBuf::from("relative/path");
-    let ensured = ensure_absolute(candidate.clone(), candidate.as_path());
-    let expected_dir = temp_working_dir.path().join("relative/path");
-    let expected = expected_dir
-        .as_path()
-        .canonicalize_utf8()
-        .unwrap_or_else(|_| expected_dir.clone());
-
-    assert_eq!(ensured, expected);
-}
-
-#[rstest]
-#[serial]
-fn absolutise_relative_joins_current_directory(temp_working_dir: TempWorkingDir) {
-    let expected = temp_working_dir.path().join("data");
-    let joined = absolutise_relative(Utf8Path::new("data"));
-
-    assert_eq!(joined, Some(expected));
-}
-
-#[rstest]
-#[serial]
-fn canonicalise_with_cap_std_canonicalises_relative_paths(temp_working_dir: TempWorkingDir) {
-    std::fs::create_dir_all("nested").expect("create nested directory for canonicalisation");
-    let canonical = canonicalise_with_cap_std(Utf8Path::new("nested/./"))
-        .expect("cap-std should canonicalise relative path");
-    let expected_dir = temp_working_dir.path().join("nested");
-    let expected = expected_dir
-        .as_path()
-        .canonicalize_utf8()
-        .unwrap_or_else(|_| expected_dir.clone());
-
-    assert_eq!(canonical, expected);
 }
 
 #[test]
