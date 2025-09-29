@@ -147,6 +147,18 @@ fn collect_feature_files(
 fn step_macros_compile() {
     let t = trybuild::TestCases::new();
 
+    run_passing_macro_tests(&t);
+    // `scenarios!` should succeed when the directory exists.
+    // t.pass("tests/fixtures/scenarios_autodiscovery.rs");
+
+    run_failing_macro_tests(&t);
+    run_failing_ui_tests(&t);
+    run_scenarios_missing_dir_test(&t);
+    run_conditional_ordering_tests(&t);
+    run_conditional_ambiguous_step_test(&t);
+}
+
+fn run_passing_macro_tests(t: &trybuild::TestCases) {
     for case in [
         MacroFixtureCase {
             file_name: "step_macros.rs",
@@ -160,9 +172,9 @@ fn step_macros_compile() {
     ] {
         t.pass(macros_fixture(case));
     }
-    // `scenarios!` should succeed when the directory exists.
-    // t.pass("tests/fixtures/scenarios_autodiscovery.rs");
+}
 
+fn run_failing_macro_tests(t: &trybuild::TestCases) {
     for case in [
         MacroFixtureCase {
             file_name: "scenario_missing_file.rs",
@@ -182,7 +194,9 @@ fn step_macros_compile() {
     ] {
         t.compile_fail(macros_fixture(case));
     }
+}
 
+fn run_failing_ui_tests(t: &trybuild::TestCases) {
     for case in [
         UiFixtureCase {
             file_name: "datatable_wrong_type.rs",
@@ -208,11 +222,15 @@ fn step_macros_compile() {
     ] {
         t.compile_fail(ui_fixture(case));
     }
+}
 
+fn run_scenarios_missing_dir_test(t: &trybuild::TestCases) {
     t.compile_fail(macros_fixture(MacroFixtureCase {
         file_name: "scenarios_missing_dir.rs",
     }));
+}
 
+fn run_conditional_ordering_tests(t: &trybuild::TestCases) {
     let ordering_cases = [
         MacroFixtureCase {
             file_name: "scenario_missing_step.rs",
@@ -230,9 +248,11 @@ fn step_macros_compile() {
         for case in ordering_cases {
             t.pass(macros_fixture(case));
         }
-        compile_fail_missing_step_warning(&t);
+        compile_fail_missing_step_warning(t);
     }
+}
 
+fn run_conditional_ambiguous_step_test(t: &trybuild::TestCases) {
     if cfg!(feature = "compile-time-validation") {
         t.compile_fail(macros_fixture(MacroFixtureCase {
             file_name: "scenario_ambiguous_step.rs",
