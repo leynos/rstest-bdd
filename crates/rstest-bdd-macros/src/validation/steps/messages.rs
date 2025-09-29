@@ -31,7 +31,7 @@ pub(super) fn format_ambiguous_step_error(
         step.text,
         patterns
             .iter()
-            .map(|p| format!("- {p}"))
+            .map(|p| format!("  - {p}"))
             .collect::<Vec<_>>()
             .join("\n"),
     );

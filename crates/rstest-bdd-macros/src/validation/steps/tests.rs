@@ -29,7 +29,10 @@ fn create_test_step(keyword: StepKeyword, text: &str) -> ParsedStep {
 }
 
 fn assert_bullet_count(err: &str, expected: usize) {
-    let bullet_count = err.lines().filter(|l| l.starts_with("- ")).count();
+    let bullet_count = err
+        .lines()
+        .filter(|l| l.trim_start().starts_with("- "))
+        .count();
     assert_eq!(bullet_count, expected, "expected {expected} bullet matches");
 }
 
@@ -183,6 +186,13 @@ fn errors_when_step_matches_three_definitions() {
 #[test]
 fn normalises_crate_id_without_out_dir_component() {
     assert_eq!(normalise_crate_id("my_crate").as_ref(), "my_crate");
+}
+
+#[cfg(windows)]
+#[test]
+fn normalises_windows_drive_letter_out_dir() {
+    let id = normalise_crate_id("demo:C:/fixtures");
+    assert_eq!(id.as_ref(), "demo:C:/fixtures");
 }
 
 #[test]

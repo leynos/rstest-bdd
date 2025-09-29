@@ -79,7 +79,6 @@ impl StepBuilder {
             position: zero_pos(),
         }
     }
-
 }
 
 pub(super) struct FeatureBuilder {
@@ -141,7 +140,6 @@ impl FeatureBuilder {
             path: None,
         }
     }
-
 }
 
 /// Build a feature from the provided builder, extract the steps for the scenario
@@ -231,13 +229,10 @@ mod tests {
         let expected_step = StepBuilder::new(StepType::Given, "x").build();
 
         assert_feature_extraction(
-            FeatureBuilder::new("demo").with_scenario(
-                "only",
-                vec![StepBuilder::new(StepType::Given, "x").build()],
-            ),
+            FeatureBuilder::new("demo")
+                .with_scenario("only", vec![StepBuilder::new(StepType::Given, "x").build()]),
             &[ParsedStep::from(&expected_step)],
             Some(99),
         );
     }
-
 }
