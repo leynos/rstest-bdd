@@ -2,82 +2,133 @@
     unexpected_cfgs,
     reason = "integration test inspects dependency feature flags"
 )]
-// Allow: newt-hype base_newtype macro provides Clone impls even for Copy wrappers.
-#![allow(
-    clippy::expl_impl_clone_on_copy,
-    reason = "newt-hype base_newtype macro implements Clone for all wrappers"
-)]
 //! Compile-time tests for the procedural macros.
 
 use std::borrow::Cow;
 use std::fs;
 use std::io;
+use std::ops::Deref;
 use std::panic::{self, AssertUnwindSafe};
 use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
+use the_newtype::Newtype;
 
 const MACROS_FIXTURES_DIR: &str = "tests/fixtures_macros";
 const UI_FIXTURES_DIR: &str = "tests/ui_macros";
 
-newt_hype::base_newtype!(MacroFixtureCaseBase);
-newt_hype::newtype!(MacroFixtureCase, MacroFixtureCaseBase, String);
+#[derive(Clone, Debug, Eq, Hash, Newtype, PartialEq)]
+struct MacroFixtureCase(String);
 
-impl MacroFixtureCase {
-    fn as_str(&self) -> &str {
-        self.inner().as_str()
+impl Deref for MacroFixtureCase {
+    type Target = str;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl AsRef<str> for MacroFixtureCase {
+    fn as_ref(&self) -> &str {
+        &self.0
     }
 }
 
 impl<'a> From<&'a str> for MacroFixtureCase {
     fn from(value: &'a str) -> Self {
-        Self::new(value.to_owned())
+        Self(value.to_owned())
     }
 }
 
-newt_hype::base_newtype!(UiFixtureCaseBase);
-newt_hype::newtype!(UiFixtureCase, UiFixtureCaseBase, String);
+impl From<MacroFixtureCase> for PathBuf {
+    fn from(value: MacroFixtureCase) -> Self {
+        value.0.into()
+    }
+}
 
-impl UiFixtureCase {
-    fn as_str(&self) -> &str {
-        self.inner().as_str()
+#[derive(Clone, Debug, Eq, Hash, Newtype, PartialEq)]
+struct UiFixtureCase(String);
+
+impl Deref for UiFixtureCase {
+    type Target = str;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl AsRef<str> for UiFixtureCase {
+    fn as_ref(&self) -> &str {
+        &self.0
     }
 }
 
 impl<'a> From<&'a str> for UiFixtureCase {
     fn from(value: &'a str) -> Self {
-        Self::new(value.to_owned())
+        Self(value.to_owned())
     }
 }
 
-newt_hype::base_newtype!(NormaliserInputBase);
-type NormaliserInput<'a> = NormaliserInputBase<&'a str>;
-
-impl<'a> NormaliserInput<'a> {
-    fn as_str(&self) -> &'a str {
-        let &value = self.inner();
-        value
+impl From<UiFixtureCase> for PathBuf {
+    fn from(value: UiFixtureCase) -> Self {
+        value.0.into()
     }
 }
 
-newt_hype::base_newtype!(FixturePathLineBase);
-type FixturePathLine<'a> = FixturePathLineBase<&'a str>;
+#[derive(Clone, Copy, Debug, Eq, Hash, Newtype, PartialEq)]
+struct NormaliserInput<'a>(&'a str);
 
-impl<'a> FixturePathLine<'a> {
-    fn as_str(&self) -> &'a str {
-        let &value = self.inner();
-        value
+impl Deref for NormaliserInput<'_> {
+    type Target = str;
+
+    fn deref(&self) -> &Self::Target {
+        self.0
+    }
+}
+
+impl AsRef<str> for NormaliserInput<'_> {
+    fn as_ref(&self) -> &str {
+        self.0
+    }
+}
+
+impl<'a> From<&'a str> for NormaliserInput<'a> {
+    fn from(value: &'a str) -> Self {
+        Self(value)
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, Hash, Newtype, PartialEq)]
+struct FixturePathLine<'a>(&'a str);
+
+impl Deref for FixturePathLine<'_> {
+    type Target = str;
+
+    fn deref(&self) -> &Self::Target {
+        self.0
+    }
+}
+
+impl AsRef<str> for FixturePathLine<'_> {
+    fn as_ref(&self) -> &str {
+        self.0
+    }
+}
+
+impl<'a> From<&'a str> for FixturePathLine<'a> {
+    fn from(value: &'a str) -> Self {
+        Self(value)
     }
 }
 
 fn macros_fixture(case: impl Into<MacroFixtureCase>) -> PathBuf {
     ensure_trybuild_support_files();
     let case = case.into();
-    Path::new(MACROS_FIXTURES_DIR).join(case.as_str())
+    Path::new(MACROS_FIXTURES_DIR).join(case.as_ref())
 }
 
 fn ui_fixture(case: impl Into<UiFixtureCase>) -> PathBuf {
     let case = case.into();
-    Path::new(UI_FIXTURES_DIR).join(case.as_str())
+    Path::new(UI_FIXTURES_DIR).join(case.as_ref())
 }
 
 fn ensure_trybuild_support_files() {
@@ -300,8 +351,8 @@ fn normalised_outputs_match(test_path: &Path, normalisers: &[Normaliser]) -> io:
     let actual = fs::read_to_string(&actual_path)?;
     let expected = fs::read_to_string(&expected_path)?;
 
-    if apply_normalisers(NormaliserInput::from(actual.as_str()), normalisers)
-        == apply_normalisers(NormaliserInput::from(expected.as_str()), normalisers)
+    if apply_normalisers(NormaliserInput::from(actual.as_ref()), normalisers)
+        == apply_normalisers(NormaliserInput::from(expected.as_ref()), normalisers)
     {
         let _ = fs::remove_file(actual_path);
         return Ok(true);
@@ -326,7 +377,7 @@ fn expected_stderr_path(test_path: &Path) -> PathBuf {
 }
 
 fn apply_normalisers<'a>(input: NormaliserInput<'a>, normalisers: &[Normaliser]) -> Cow<'a, str> {
-    let mut value = Cow::Borrowed(input.as_str());
+    let mut value = Cow::Borrowed(input.0);
     for normalise in normalisers {
         value = Cow::Owned(normalise(NormaliserInput::from(value.as_ref())));
     }
@@ -334,7 +385,7 @@ fn apply_normalisers<'a>(input: NormaliserInput<'a>, normalisers: &[Normaliser])
 }
 
 fn normalise_fixture_paths(input: NormaliserInput<'_>) -> String {
-    let text = input.as_str();
+    let text = input.as_ref();
     let normalised_lines = text
         .lines()
         .map(|line| normalise_fixture_path_line(FixturePathLine::from(line)))
@@ -351,7 +402,7 @@ fn normalise_fixture_paths(input: NormaliserInput<'_>) -> String {
 fn normalise_fixture_path_line(line: FixturePathLine<'_>) -> String {
     const ARROW: &str = "-->";
 
-    let value = line.as_str();
+    let value = line.as_ref();
 
     let Some((prefix, remainder)) = value.split_once(ARROW) else {
         return value.to_owned();
@@ -386,7 +437,7 @@ fn normalise_fixture_path_line(line: FixturePathLine<'_>) -> String {
 }
 
 fn strip_nightly_macro_backtrace_hint(input: NormaliserInput<'_>) -> String {
-    input.as_str().replace(
+    input.as_ref().replace(
         " (in Nightly builds, run with -Z macro-backtrace for more info)",
         "",
     )
@@ -398,26 +449,53 @@ mod helper_tests {
     use rstest::rstest;
     use std::borrow::Cow;
     use std::fs;
+    use std::ops::Deref;
     use std::panic;
     use std::path::{Path, PathBuf};
 
-    newt_hype::base_newtype!(FixtureTestPathBase);
-    type FixtureTestPath<'a> = FixtureTestPathBase<&'a str>;
+    #[derive(Clone, Copy, Debug, Eq, Hash, Newtype, PartialEq)]
+    struct FixtureTestPath<'a>(&'a str);
 
-    impl<'a> FixtureTestPath<'a> {
-        fn as_str(&self) -> &'a str {
-            let &value = self.inner();
-            value
+    impl Deref for FixtureTestPath<'_> {
+        type Target = str;
+
+        fn deref(&self) -> &Self::Target {
+            self.0
         }
     }
 
-    newt_hype::base_newtype!(FixtureStderrBase);
-    type FixtureStderr<'a> = FixtureStderrBase<&'a str>;
+    impl AsRef<str> for FixtureTestPath<'_> {
+        fn as_ref(&self) -> &str {
+            self.0
+        }
+    }
 
-    impl<'a> FixtureStderr<'a> {
-        fn as_str(&self) -> &'a str {
-            let &value = self.inner();
-            value
+    impl<'a> From<&'a str> for FixtureTestPath<'a> {
+        fn from(value: &'a str) -> Self {
+            Self(value)
+        }
+    }
+
+    #[derive(Clone, Copy, Debug, Eq, Hash, Newtype, PartialEq)]
+    struct FixtureStderr<'a>(&'a str);
+
+    impl Deref for FixtureStderr<'_> {
+        type Target = str;
+
+        fn deref(&self) -> &Self::Target {
+            self.0
+        }
+    }
+
+    impl AsRef<str> for FixtureStderr<'_> {
+        fn as_ref(&self) -> &str {
+            self.0
+        }
+    }
+
+    impl<'a> From<&'a str> for FixtureStderr<'a> {
+        fn from(value: &'a str) -> Self {
+            Self(value)
         }
     }
 
@@ -432,7 +510,7 @@ mod helper_tests {
             expected: FixtureStderr<'_>,
             actual: FixtureStderr<'_>,
         ) -> Self {
-            let test_path = Path::new(test_path.as_str());
+            let test_path = Path::new(test_path.as_ref());
 
             let expected_path = expected_stderr_path(test_path);
             if let Some(parent) = expected_path.parent() {
@@ -440,7 +518,7 @@ mod helper_tests {
                     panic!("failed to create directory for expected stderr fixture: {error}");
                 });
             }
-            fs::write(&expected_path, expected.as_str()).unwrap_or_else(|error| {
+            fs::write(&expected_path, expected.as_ref()).unwrap_or_else(|error| {
                 panic!("failed to write expected stderr fixture: {error}");
             });
 
@@ -450,7 +528,7 @@ mod helper_tests {
                     panic!("failed to create directory for wip stderr fixture: {error}");
                 });
             }
-            fs::write(&actual_path, actual.as_str()).unwrap_or_else(|error| {
+            fs::write(&actual_path, actual.as_ref()).unwrap_or_else(|error| {
                 panic!("failed to write wip stderr fixture: {error}");
             });
 
@@ -500,22 +578,22 @@ mod helper_tests {
 
     #[test]
     fn apply_normalisers_respects_normaliser_order() {
-        let add_prefix: Normaliser = |input| format!("prefix-{}", input.as_str());
-        let add_suffix: Normaliser = |input| format!("{}-suffix", input.as_str());
+        let add_prefix: Normaliser = |input| format!("prefix-{}", input.as_ref());
+        let add_suffix: Normaliser = |input| format!("{}-suffix", input.as_ref());
         let result = apply_normalisers(NormaliserInput::from("value"), &[add_prefix, add_suffix]);
         assert_eq!(result, "prefix-value-suffix");
     }
 
     #[test]
     fn apply_normalisers_handles_empty_string() {
-        let trim_whitespace: Normaliser = |input| input.as_str().trim().to_owned();
+        let trim_whitespace: Normaliser = |input| input.as_ref().trim().to_owned();
         let result = apply_normalisers(NormaliserInput::from(""), &[trim_whitespace]);
         assert_eq!(result, "");
     }
 
     #[test]
     fn apply_normalisers_handles_whitespace_only_string() {
-        let trim_whitespace: Normaliser = |input| input.as_str().trim().to_owned();
+        let trim_whitespace: Normaliser = |input| input.as_ref().trim().to_owned();
         let mut whitespace = String::from("   ");
         whitespace.push(char::from(10));
         let result = apply_normalisers(
@@ -569,7 +647,7 @@ mod helper_tests {
         );
         let expected = format!(" --> {dollar}DIR/example.rs:4:2{newline}");
         assert_eq!(
-            normalise_fixture_paths(NormaliserInput::from(input.as_str())),
+            normalise_fixture_paths(NormaliserInput::from(input.as_ref())),
             expected
         );
     }
@@ -579,7 +657,7 @@ mod helper_tests {
         let dollar = char::from(36);
         let input = format!(" --> {dollar}DIR/example.rs:4:2");
         assert_eq!(
-            normalise_fixture_paths(NormaliserInput::from(input.as_str())),
+            normalise_fixture_paths(NormaliserInput::from(input.as_ref())),
             input
         );
     }
@@ -597,11 +675,11 @@ mod helper_tests {
         actual.push(char::from(10));
         let fixture = NormaliserFixture::new(
             FixtureTestPath::from(TEST_PATH),
-            FixtureStderr::from(expected.as_str()),
-            FixtureStderr::from(actual.as_str()),
+            FixtureStderr::from(expected.as_ref()),
+            FixtureStderr::from(actual.as_ref()),
         );
-        let strip_hint_one: Normaliser = |input| input.as_str().replace(" (hint-one)", "");
-        let strip_hint_two: Normaliser = |input| input.as_str().replace(" (hint-two)", "");
+        let strip_hint_one: Normaliser = |input| input.as_ref().replace(" (hint-one)", "");
+        let strip_hint_two: Normaliser = |input| input.as_ref().replace(" (hint-two)", "");
         let result = panic::catch_unwind(|| {
             run_compile_fail_with_normalised_output(
                 || panic!("expected failure"),
@@ -669,10 +747,10 @@ mod helper_tests {
         actual.push(char::from(10));
         let fixture = NormaliserFixture::new(
             FixtureTestPath::from(test_path),
-            FixtureStderr::from(expected.as_str()),
-            FixtureStderr::from(actual.as_str()),
+            FixtureStderr::from(expected.as_ref()),
+            FixtureStderr::from(actual.as_ref()),
         );
-        let trim_trailing: Normaliser = |input| input.as_str().trim_end().to_owned();
+        let trim_trailing: Normaliser = |input| input.as_ref().trim_end().to_owned();
         let result = panic::catch_unwind(|| {
             run_compile_fail_with_normalised_output(
                 || panic!("expected failure"),
