@@ -222,8 +222,12 @@ fn canonicalise_out_dir_resolves_relative_components(temp_working_dir: TempWorki
     let nested = Utf8Path::new("nested/.");
     let canonical = canonicalise_out_dir(nested);
     let expected_dir = temp_working_dir.path().join("nested");
+    let expected = expected_dir
+        .as_path()
+        .canonicalize_utf8()
+        .unwrap_or_else(|_| expected_dir.clone());
 
-    assert_eq!(canonical, expected_dir);
+    assert_eq!(canonical, expected);
     assert!(
         canonical.is_absolute(),
         "canonical path should be absolute: {canonical}"
