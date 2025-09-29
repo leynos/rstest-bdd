@@ -604,16 +604,12 @@ mod helper_tests {
     }
 
     #[test]
-    fn strip_nightly_macro_backtrace_hint_removes_multiple_instances() {
-        let text = concat!(
-            "error: failure",
-            " (in Nightly builds, run with -Z macro-backtrace for more info)",
-            " more context",
-            " (in Nightly builds, run with -Z macro-backtrace for more info)"
-        );
+    fn strip_nightly_macro_backtrace_hint_removes_multiple_hints() {
+        let hint = " (in Nightly builds, run with -Z macro-backtrace for more info)";
+        let text = format!("error: failure{hint} more context{hint}");
         let expected = "error: failure more context";
         assert_eq!(
-            strip_nightly_macro_backtrace_hint(NormaliserInput::from(text)),
+            strip_nightly_macro_backtrace_hint(NormaliserInput::from(text.as_str())),
             expected
         );
     }
@@ -713,6 +709,32 @@ mod helper_tests {
         assert!(
             !fixture.actual_path.exists(),
             "matching outputs should delete the wip stderr file",
+        );
+    }
+
+    #[test]
+    fn run_compile_fail_with_normalised_output_detects_mismatch() {
+        const TEST_PATH: &str = "tests/fixtures_macros/__normaliser_unexpected.rs";
+        let fixture = NormaliserFixture::new(
+            FixtureTestPath::from(TEST_PATH),
+            FixtureStderr::from("expected output\n"),
+            FixtureStderr::from("actual output\n"),
+        );
+        let trim_trailing: Normaliser = |input| input.as_ref().trim_end().to_owned();
+        let result = panic::catch_unwind(|| {
+            run_compile_fail_with_normalised_output(
+                || panic!("expected failure"),
+                Path::new(TEST_PATH),
+                &[trim_trailing],
+            );
+        });
+        assert!(
+            result.is_err(),
+            "mismatched outputs must propagate the panic"
+        );
+        assert!(
+            fixture.actual_path.exists(),
+            "mismatched outputs should retain the wip stderr file for inspection",
         );
     }
 
