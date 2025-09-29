@@ -44,7 +44,8 @@ def apply_workspace_replacements(
     Raises
     ------
     SystemExit
-        Raised when any supplied crate lacks a replacement configuration.
+        Raised when any supplied crate lacks a replacement configuration or a
+        manifest cannot be rewritten due to a missing replacement entry.
 
     Examples
     --------
