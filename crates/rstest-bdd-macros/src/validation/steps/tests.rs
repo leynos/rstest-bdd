@@ -3,6 +3,9 @@
     reason = "tests rely on infallible setup for readability"
 )]
 //! Tests for step-definition validation: missing/single/ambiguous outcomes and registry behaviour.
+use super::crate_id::{
+    absolutise_relative, canonicalise_out_dir, canonicalise_with_cap_std, ensure_absolute,
+};
 use super::*;
 use camino::{Utf8Path, Utf8PathBuf};
 use rstest::{fixture, rstest};

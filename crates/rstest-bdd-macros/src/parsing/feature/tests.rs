@@ -1,155 +1,13 @@
 //! Tests for feature parsing utilities.
 
+#[path = "support.rs"]
+mod support;
+
 use super::*;
-use gherkin::{Background, LineCol, Scenario, Span, Step, StepType};
+use gherkin::StepType;
 use rstest::rstest;
 
-// This `#[expect]` triggers if `gherkin::StepType` adds variants so we update
-// `kw()` and `TryFrom<StepType> for StepKeyword`.
-#[expect(
-    unreachable_patterns,
-    reason = "StepType currently only has three variants"
-)]
-fn kw(ty: StepType) -> String {
-    match ty {
-        StepType::Given => "Given",
-        StepType::When => "When",
-        StepType::Then => "Then",
-        _ => unreachable!("kw() only supports Given, When, and Then"),
-    }
-    .to_string()
-}
-
-struct StepBuilder {
-    ty: StepType,
-    value: String,
-    docstring: Option<String>,
-    table: Option<gherkin::Table>,
-    keyword: Option<String>,
-}
-
-impl StepBuilder {
-    fn new(ty: StepType, value: &str) -> Self {
-        Self {
-            ty,
-            value: value.to_string(),
-            docstring: None,
-            table: None,
-            keyword: None,
-        }
-    }
-
-    fn with_keyword(mut self, kw: &str) -> Self {
-        self.keyword = Some(kw.to_string());
-        self
-    }
-
-    fn with_docstring(mut self, doc: &str) -> Self {
-        self.docstring = Some(doc.to_string());
-        self
-    }
-
-    fn with_table(mut self, rows: Vec<Vec<&str>>) -> Self {
-        self.table = Some(gherkin::Table {
-            rows: rows
-                .into_iter()
-                .map(|r| r.into_iter().map(str::to_string).collect())
-                .collect(),
-            span: Span { start: 0, end: 0 },
-            position: LineCol { line: 0, col: 0 },
-        });
-        self
-    }
-
-    fn build(self) -> Step {
-        Step {
-            keyword: self.keyword.unwrap_or_else(|| kw(self.ty)),
-            ty: self.ty,
-            value: self.value,
-            docstring: self.docstring,
-            table: self.table,
-            span: Span { start: 0, end: 0 },
-            position: LineCol { line: 0, col: 0 },
-        }
-    }
-}
-
-struct FeatureBuilder {
-    name: String,
-    background: Option<Vec<Step>>,
-    scenarios: Vec<(String, Vec<Step>)>,
-}
-
-impl FeatureBuilder {
-    fn new(name: &str) -> Self {
-        Self {
-            name: name.to_string(),
-            background: None,
-            scenarios: Vec::new(),
-        }
-    }
-
-    fn with_background(mut self, steps: Vec<Step>) -> Self {
-        self.background = Some(steps);
-        self
-    }
-
-    fn with_scenario(mut self, name: &str, steps: Vec<Step>) -> Self {
-        self.scenarios.push((name.to_string(), steps));
-        self
-    }
-
-    fn build(self) -> gherkin::Feature {
-        gherkin::Feature {
-            keyword: "Feature".into(),
-            name: self.name,
-            description: None,
-            background: self.background.map(|steps| Background {
-                keyword: "Background".into(),
-                name: String::new(),
-                description: None,
-                steps,
-                span: Span { start: 0, end: 0 },
-                position: LineCol { line: 0, col: 0 },
-            }),
-            scenarios: self
-                .scenarios
-                .into_iter()
-                .map(|(name, steps)| Scenario {
-                    keyword: "Scenario".into(),
-                    name,
-                    description: None,
-                    steps,
-                    examples: Vec::new(),
-                    tags: Vec::new(),
-                    span: Span { start: 0, end: 0 },
-                    position: LineCol { line: 0, col: 0 },
-                })
-                .collect(),
-            rules: Vec::new(),
-            tags: Vec::new(),
-            span: Span { start: 0, end: 0 },
-            position: LineCol { line: 0, col: 0 },
-            path: None,
-        }
-    }
-}
-
-// Build a feature from the provided builder, extract the steps for the scenario
-// at `scenario_index`, and assert that they match `expected_steps`.
-fn assert_feature_extraction(
-    feature_builder: FeatureBuilder,
-    expected_steps: &[ParsedStep],
-    scenario_index: Option<usize>,
-) {
-    let feature = feature_builder.build();
-    let ScenarioData { steps, .. } = extract_scenario_steps(&feature, scenario_index)
-        .unwrap_or_else(|_| panic!("failed to extract scenario steps at index {scenario_index:?}"));
-    assert_eq!(
-        steps, expected_steps,
-        "extracted steps did not match expectation"
-    );
-}
+use support::{FeatureBuilder, StepBuilder, assert_feature_extraction};
 
 #[rstest]
 #[case("And", StepType::Given, crate::StepKeyword::And)]
@@ -233,14 +91,16 @@ fn parses_step_keyword_variants(
         "doc",
         vec![
             StepBuilder::new(StepType::Given, "text")
-                .with_docstring("line1\nline2")
+                .with_docstring("line1
+line2")
                 .build(),
         ],
     ),
     vec![ParsedStep {
         keyword: crate::StepKeyword::Given,
         text: "text".to_string(),
-        docstring: Some("line1\nline2".to_string()),
+        docstring: Some("line1
+line2".to_string()),
         table: None,
         #[cfg(feature = "compile-time-validation")]
         span: proc_macro2::Span::call_site(),
@@ -251,7 +111,8 @@ fn parses_step_keyword_variants(
     FeatureBuilder::new("example")
         .with_background(vec![
             StepBuilder::new(StepType::Given, "setup")
-                .with_docstring("bg line1\nbg line2")
+                .with_docstring("bg line1
+bg line2")
                 .build(),
         ])
         .with_scenario(
@@ -262,7 +123,8 @@ fn parses_step_keyword_variants(
         ParsedStep {
             keyword: crate::StepKeyword::Given,
             text: "setup".to_string(),
-            docstring: Some("bg line1\nbg line2".to_string()),
+            docstring: Some("bg line1
+bg line2".to_string()),
             table: None,
             #[cfg(feature = "compile-time-validation")]
             span: proc_macro2::Span::call_site(),
@@ -465,7 +327,14 @@ fn caches_features_by_path() {
     use tempfile::NamedTempFile;
     super::clear_feature_cache();
     let mut tf = NamedTempFile::new().expect("create temp feature");
-    write!(tf, "Feature: cache\nScenario: demo\n  Given step\n").expect("write feature");
+    write!(
+        tf,
+        "Feature: cache
+Scenario: demo
+  Given step
+"
+    )
+    .expect("write feature");
     let path = tf.path().to_path_buf();
     let first = parse_and_load_feature(&path).expect("first parse");
     // Close deletes the file; cached read must still succeed
@@ -475,12 +344,12 @@ fn caches_features_by_path() {
     assert_eq!(
         first.scenarios.len(),
         second.scenarios.len(),
-        "cached feature scenarios differ"
+        "cached feature scenarios differ",
     );
     assert_eq!(
         first.scenarios.iter().map(|s| &s.name).collect::<Vec<_>>(),
         second.scenarios.iter().map(|s| &s.name).collect::<Vec<_>>(),
-        "cached feature scenario names differ"
+        "cached feature scenario names differ",
     );
 }
 

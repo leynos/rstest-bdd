@@ -10,17 +10,20 @@
 //! expansion, preventing tests from compiling with incomplete behaviour
 //! coverage.
 
+mod crate_id;
+mod messages;
+
 use std::collections::HashMap;
 use std::sync::{LazyLock, Mutex};
-
-use camino::{Utf8Path, Utf8PathBuf};
-use cap_std::{ambient_authority, fs_utf8::Dir};
 
 use crate::StepKeyword;
 use crate::parsing::feature::ParsedStep;
 use crate::pattern::MacroPattern;
 #[cfg(not(test))]
 use proc_macro_error::emit_warning;
+
+use crate_id::{current_crate_id, normalise_crate_id};
+use messages::{format_ambiguous_step_error, format_missing_step_error};
 
 type Registry = HashMap<Box<str>, CrateDefs>;
 
@@ -46,8 +49,6 @@ impl CrateDefs {
 /// current compilation session. Entries are grouped by crate to enable
 /// fast, crate-scoped lookups during validation.
 static REGISTERED: LazyLock<Mutex<Registry>> = LazyLock::new(|| Mutex::new(HashMap::new()));
-static CURRENT_CRATE_ID: LazyLock<Box<str>> =
-    LazyLock::new(|| normalise_crate_id(&current_crate_id_raw()));
 
 /// Leak and compile a step pattern before registering.
 ///
@@ -87,21 +88,6 @@ pub(crate) fn register_step_for_crate(keyword: StepKeyword, literal: &str, crate
 }
 
 /// Return the diagnostic span for a step.
-///
-/// ```ignore
-/// use rstest_bdd_macros::{StepKeyword};
-/// use rstest_bdd_macros::parsing::feature::ParsedStep;
-/// use rstest_bdd_macros::validation::steps::get_step_span;
-/// let step = ParsedStep {
-///     keyword: StepKeyword::Given,
-///     text: "a step".into(),
-///     docstring: None,
-///     table: None,
-///     #[cfg(feature = "compile-time-validation")]
-///     span: proc_macro2::Span::call_site(),
-/// };
-/// let _ = get_step_span(&step);
-/// ```
 fn get_step_span(step: &ParsedStep) -> proc_macro2::Span {
     #[cfg(feature = "compile-time-validation")]
     {
@@ -114,24 +100,6 @@ fn get_step_span(step: &ParsedStep) -> proc_macro2::Span {
 }
 
 /// Search patterns for matches against a step.
-///
-/// ```ignore
-/// use crate::pattern::MacroPattern;
-/// use rstest_bdd_macros::{StepKeyword};
-/// use rstest_bdd_macros::parsing::feature::ParsedStep;
-/// use rstest_bdd_macros::validation::steps::find_step_matches;
-/// let pattern = MacroPattern::new("a step");
-/// let _ = pattern.regex(proc_macro2::Span::call_site());
-/// let step = ParsedStep {
-///     keyword: StepKeyword::Given,
-///     text: "a step".into(),
-///     docstring: None,
-///     table: None,
-///     #[cfg(feature = "compile-time-validation")]
-///     span: proc_macro2::Span::call_site(),
-/// };
-/// let _ = find_step_matches(&step, &[&pattern]);
-/// ```
 fn find_step_matches(
     step: &ParsedStep,
     patterns: &[&'static MacroPattern],
@@ -153,26 +121,6 @@ fn find_step_matches(
 }
 
 /// Validate a single step against registered definitions.
-///
-/// ```ignore
-/// use crate::pattern::MacroPattern;
-/// use rstest_bdd_macros::{StepKeyword};
-/// use rstest_bdd_macros::parsing::feature::ParsedStep;
-/// use rstest_bdd_macros::validation::steps::{validate_single_step, CrateDefs};
-/// let pattern = MacroPattern::new("a step");
-/// let _ = pattern.regex(proc_macro2::Span::call_site());
-/// let mut defs = CrateDefs::default();
-/// defs.by_kw.entry(StepKeyword::Given).or_default().push(&pattern);
-/// let step = ParsedStep {
-///     keyword: StepKeyword::Given,
-///     text: "a step".into(),
-///     docstring: None,
-///     table: None,
-///     #[cfg(feature = "compile-time-validation")]
-///     span: proc_macro2::Span::call_site(),
-/// };
-/// let _ = validate_single_step(&step, StepKeyword::Given, Some(&defs));
-/// ```
 fn validate_single_step(
     step: &ParsedStep,
     kw: StepKeyword,
@@ -202,13 +150,6 @@ enum RegistryDecision {
 }
 
 /// Check whether the registry holds definitions for the current crate.
-///
-/// Returns a [`RegistryDecision`] indicating whether validation should proceed.
-///
-/// ```ignore
-/// use rstest_bdd_macros::validation::steps::{validate_registry_state, CrateDefs};
-/// let _ = validate_registry_state(Some(&CrateDefs::default()), "crate", true);
-/// ```
 fn validate_registry_state(
     defs: Option<&CrateDefs>,
     #[cfg_attr(test, expect(unused_variables, reason = "crate ID unused in tests"))] crate_id: &str,
@@ -234,26 +175,6 @@ fn validate_registry_state(
 }
 
 /// Validate each step and collect missing ones.
-///
-/// ```ignore
-/// use crate::pattern::MacroPattern;
-/// use rstest_bdd_macros::{StepKeyword};
-/// use rstest_bdd_macros::parsing::feature::ParsedStep;
-/// use rstest_bdd_macros::validation::steps::{validate_individual_steps, CrateDefs};
-/// let pattern = MacroPattern::new("a step");
-/// let _ = pattern.regex(proc_macro2::Span::call_site());
-/// let mut defs = CrateDefs::default();
-/// defs.by_kw.entry(StepKeyword::Given).or_default().push(&pattern);
-/// let steps = [ParsedStep {
-///     keyword: StepKeyword::Given,
-///     text: "a step".into(),
-///     docstring: None,
-///     table: None,
-///     #[cfg(feature = "compile-time-validation")]
-///     span: proc_macro2::Span::call_site(),
-/// }];
-/// let _ = validate_individual_steps(&steps, Some(&defs));
-/// ```
 fn validate_individual_steps(
     steps: &[ParsedStep],
     defs: Option<&CrateDefs>,
@@ -265,16 +186,8 @@ fn validate_individual_steps(
         .collect::<Result<Vec<_>, _>>()
         .map(|res| res.into_iter().flatten().collect())
 }
+
 /// Ensure all parsed steps have matching definitions.
-///
-/// In strict mode, missing steps cause compilation to fail. In non-strict mode,
-/// the function emits warnings but allows compilation to continue so scenarios
-/// can reference steps from other crates. Ambiguous step definitions within
-/// this crate always produce an error.
-///
-/// # Errors
-/// Returns a `syn::Error` when `strict` is `true` and a step lacks a matching
-/// definition or when any step matches more than one definition.
 pub(crate) fn validate_steps_exist(steps: &[ParsedStep], strict: bool) -> Result<(), syn::Error> {
     #[expect(
         clippy::expect_used,
@@ -317,7 +230,10 @@ fn create_strict_mode_error(missing: &[(proc_macro2::Span, String)]) -> Result<(
             .iter()
             .map(|(_, m)| format!("  - {m}"))
             .collect::<Vec<_>>()
-            .join("\n"),
+            .join(
+                "
+",
+            ),
     };
     let span = missing
         .first()
@@ -343,153 +259,6 @@ fn emit_non_strict_warnings(missing: &[(proc_macro2::Span, String)]) {
     }
 }
 
-fn format_missing_step_error(resolved: StepKeyword, step: &ParsedStep, defs: &CrateDefs) -> String {
-    let patterns = defs.patterns(resolved);
-    let span = get_step_span(step);
-    let available_defs: Vec<&str> = patterns.iter().map(|p| p.as_str()).collect();
-    let possible_matches: Vec<&str> = patterns
-        .iter()
-        .filter(|p| p.regex(span).is_match(step.text.as_str()))
-        .map(|p| p.as_str())
-        .collect();
-    build_missing_step_message(resolved, step, &available_defs, &possible_matches)
-}
-
-fn format_ambiguous_step_error(matches: &[&'static MacroPattern], step: &ParsedStep) -> syn::Error {
-    let patterns: Vec<&str> = matches.iter().map(|p| p.as_str()).collect();
-    let msg = format!(
-        "Ambiguous step definition for '{}'.\n{}",
-        step.text,
-        patterns
-            .iter()
-            // Do not indent bullet lines to make matching consistent.
-            .map(|p| format!("- {p}"))
-            .collect::<Vec<_>>()
-            .join("\n")
-    );
-    let span = get_step_span(step);
-    syn::Error::new(span, msg)
-}
-
-fn build_missing_step_message(
-    resolved: StepKeyword,
-    step: &ParsedStep,
-    available_defs: &[&str],
-    possible_matches: &[&str],
-) -> String {
-    let mut msg = format!(
-        "No matching step definition found for '{} {}'",
-        fmt_keyword(resolved),
-        step.text
-    );
-    msg.push_str(&format_item_list(
-        available_defs,
-        "Available step definitions for this keyword:\n",
-        |s| *s,
-    ));
-    msg.push_str(&format_item_list(
-        possible_matches,
-        "Possible matches:\n",
-        |s| *s,
-    ));
-    msg
-}
-
-fn format_item_list<T, F>(items: &[T], header: &str, fmt_item: F) -> String
-where
-    F: Fn(&T) -> &str,
-{
-    if items.is_empty() {
-        return String::new();
-    }
-
-    let mut msg = String::new();
-    msg.push('\n');
-    msg.push_str(header);
-    for item in items {
-        msg.push_str("  - ");
-        msg.push_str(fmt_item(item));
-        msg.push('\n');
-    }
-    msg
-}
-
-fn fmt_keyword(kw: StepKeyword) -> &'static str {
-    match kw {
-        StepKeyword::Given => "Given",
-        StepKeyword::When => "When",
-        StepKeyword::Then => "Then",
-        StepKeyword::And => "And",
-        StepKeyword::But => "But",
-    }
-}
-
-fn current_crate_id_raw() -> String {
-    // FIXME: ambient env access is read-only here; do not introduce writes (see repo guidelines).
-    let name = std::env::var("CARGO_CRATE_NAME")
-        .or_else(|_| std::env::var("CARGO_PKG_NAME"))
-        .unwrap_or_else(|_| "unknown".to_owned());
-    let out_dir = std::env::var("OUT_DIR").unwrap_or_default();
-    format!("{name}:{out_dir}")
-}
-
-fn normalise_crate_id(id: &str) -> Box<str> {
-    // Canonicalise the `OUT_DIR` component without std::fs.
-    let (name, path) = id.split_once(':').unwrap_or((id, ""));
-    if path.is_empty() {
-        return name.into();
-    }
-
-    let original = Utf8Path::new(path);
-    let canonical = canonicalise_out_dir(original);
-    format!("{name}:{canonical}").into_boxed_str()
-}
-
-/// Resolve a path using cap-std first, falling back to camino when needed.
-///
-/// The capability-aware canonicalisation keeps us inside the sandbox even when
-/// camino or std may resolve the path differently (for example via symlinks or
-/// when permissions block intermediate directories). If cap-std cannot resolve
-/// the path we defer to camino's view, and if that also fails we return the
-/// caller-provided value unchanged so registry lookups remain stable.
-fn canonicalise_out_dir(original: &Utf8Path) -> Utf8PathBuf {
-    canonicalise_with_cap_std(original).unwrap_or_else(|_| {
-        original
-            .canonicalize_utf8()
-            .unwrap_or_else(|_| original.to_owned())
-    })
-}
-
-/// Canonicalise via the ambient directory so we respect capability boundaries.
-fn canonicalise_with_cap_std(original: &Utf8Path) -> Result<Utf8PathBuf, std::io::Error> {
-    let dir = Dir::open_ambient_dir(".", ambient_authority())?;
-    let candidate = dir.canonicalize(original)?;
-    Ok(ensure_absolute(candidate, original))
-}
-
-/// Ensure the resolved path is absolute; fall back to the original path if not.
-fn ensure_absolute(candidate: Utf8PathBuf, original: &Utf8Path) -> Utf8PathBuf {
-    if candidate.is_absolute() {
-        return candidate;
-    }
-
-    absolutise_relative(&candidate)
-        .or_else(|| original.canonicalize_utf8().ok())
-        .unwrap_or_else(|| original.to_owned())
-}
-
-/// Join a relative path to the current directory and canonicalise it if possible.
-fn absolutise_relative(candidate: &Utf8Path) -> Option<Utf8PathBuf> {
-    let cwd = std::env::current_dir().ok()?;
-    let cwd = Utf8PathBuf::from_path_buf(cwd).ok()?;
-    let joined = cwd.join(candidate);
-    Some(joined.as_path().canonicalize_utf8().unwrap_or(joined))
-}
-
-fn current_crate_id() -> Box<str> {
-    CURRENT_CRATE_ID.clone()
-}
-
 /// Resolve textual conjunctions ("And"/"But") to the semantic keyword of the
 /// preceding step.
 ///
@@ -510,5 +279,6 @@ pub(crate) fn resolve_keywords(
     debug_assert_eq!(resolved.len(), steps.len());
     resolved
 }
+
 #[cfg(test)]
 mod tests;
