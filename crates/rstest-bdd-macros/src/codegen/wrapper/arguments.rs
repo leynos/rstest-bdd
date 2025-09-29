@@ -50,13 +50,13 @@ where
             &format_ident!("ExecutionError"),
             pattern,
             ident,
-            &quote! { format!("failed to convert auxiliary argument for step '{}'", #pattern) },
+            &quote! { format!("failed to convert auxiliary argument for step '{}': {}", #pattern, e) },
         );
         quote! {
             let #pat: #ty = #expr
                 .ok_or_else(|| #missing_err)?
                 .try_into()
-                .map_err(|_e| #convert_err)?;
+                .map_err(|e| #convert_err)?;
         }
     })
 }

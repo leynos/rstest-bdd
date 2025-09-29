@@ -19,6 +19,14 @@ fn kw(ty: StepType) -> String {
     .to_string()
 }
 
+fn zero_span() -> Span {
+    Span { start: 0, end: 0 }
+}
+
+fn zero_pos() -> LineCol {
+    LineCol { line: 0, col: 0 }
+}
+
 pub(super) struct StepBuilder {
     ty: StepType,
     value: String,
@@ -54,8 +62,8 @@ impl StepBuilder {
                 .into_iter()
                 .map(|r| r.into_iter().map(str::to_string).collect())
                 .collect(),
-            span: Span { start: 0, end: 0 },
-            position: LineCol { line: 0, col: 0 },
+            span: zero_span(),
+            position: zero_pos(),
         });
         self
     }
@@ -67,10 +75,11 @@ impl StepBuilder {
             value: self.value,
             docstring: self.docstring,
             table: self.table,
-            span: Span { start: 0, end: 0 },
-            position: LineCol { line: 0, col: 0 },
+            span: zero_span(),
+            position: zero_pos(),
         }
     }
+
 }
 
 pub(super) struct FeatureBuilder {
@@ -108,8 +117,8 @@ impl FeatureBuilder {
                 name: String::new(),
                 description: None,
                 steps,
-                span: Span { start: 0, end: 0 },
-                position: LineCol { line: 0, col: 0 },
+                span: zero_span(),
+                position: zero_pos(),
             }),
             scenarios: self
                 .scenarios
@@ -121,17 +130,18 @@ impl FeatureBuilder {
                     steps,
                     examples: Vec::new(),
                     tags: Vec::new(),
-                    span: Span { start: 0, end: 0 },
-                    position: LineCol { line: 0, col: 0 },
+                    span: zero_span(),
+                    position: zero_pos(),
                 })
                 .collect(),
             rules: Vec::new(),
             tags: Vec::new(),
-            span: Span { start: 0, end: 0 },
-            position: LineCol { line: 0, col: 0 },
+            span: zero_span(),
+            position: zero_pos(),
             path: None,
         }
     }
+
 }
 
 /// Build a feature from the provided builder, extract the steps for the scenario
@@ -143,7 +153,9 @@ pub(super) fn assert_feature_extraction(
 ) {
     let feature = feature_builder.build();
     let ScenarioData { steps, .. } = extract_scenario_steps(&feature, scenario_index)
-        .unwrap_or_else(|_| panic!("failed to extract scenario steps at index {scenario_index:?}"));
+        .unwrap_or_else(|e| {
+            panic!("failed to extract scenario steps at index {scenario_index:?}: {e}")
+        });
     assert_eq!(
         steps, expected_steps,
         "extracted steps did not match expectation",
@@ -212,4 +224,20 @@ mod tests {
             Some(0),
         );
     }
+
+    #[test]
+    #[should_panic(expected = "failed to extract scenario steps")]
+    fn assert_feature_extraction_panics_on_oob_index() {
+        let expected_step = StepBuilder::new(StepType::Given, "x").build();
+
+        assert_feature_extraction(
+            FeatureBuilder::new("demo").with_scenario(
+                "only",
+                vec![StepBuilder::new(StepType::Given, "x").build()],
+            ),
+            &[ParsedStep::from(&expected_step)],
+            Some(99),
+        );
+    }
+
 }

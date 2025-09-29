@@ -195,8 +195,8 @@ pub(crate) fn validate_steps_exist(steps: &[ParsedStep], strict: bool) -> Result
     )]
     let reg = REGISTERED.lock().expect("step registry poisoned");
     let current = current_crate_id();
-    let defs = reg.get(current.as_ref());
-    match validate_registry_state(defs, current.as_ref(), strict) {
+    let defs = reg.get(current);
+    match validate_registry_state(defs, current, strict) {
         RegistryDecision::Continue => {}
         RegistryDecision::Skip | RegistryDecision::WarnAndSkip => return Ok(()),
     }
