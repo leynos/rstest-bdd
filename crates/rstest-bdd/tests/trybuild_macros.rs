@@ -209,9 +209,9 @@ fn step_macros_compile() {
 
 fn run_passing_macro_tests(t: &trybuild::TestCases) {
     for case in [
-        MacroFixtureCase::from("step_macros.rs"),
-        MacroFixtureCase::from("step_macros_unicode.rs"),
-        MacroFixtureCase::from("scenario_single_match.rs"),
+        "step_macros.rs",
+        "step_macros_unicode.rs",
+        "scenario_single_match.rs",
     ] {
         t.pass(macros_fixture(case));
     }
@@ -219,11 +219,11 @@ fn run_passing_macro_tests(t: &trybuild::TestCases) {
 
 fn run_failing_macro_tests(t: &trybuild::TestCases) {
     for case in [
-        MacroFixtureCase::from("scenario_missing_file.rs"),
-        MacroFixtureCase::from("step_macros_invalid_identifier.rs"),
-        MacroFixtureCase::from("step_tuple_pattern.rs"),
-        MacroFixtureCase::from("step_struct_pattern.rs"),
-        MacroFixtureCase::from("step_nested_pattern.rs"),
+        "scenario_missing_file.rs",
+        "step_macros_invalid_identifier.rs",
+        "step_tuple_pattern.rs",
+        "step_struct_pattern.rs",
+        "step_nested_pattern.rs",
     ] {
         t.compile_fail(macros_fixture(case));
     }
@@ -231,13 +231,13 @@ fn run_failing_macro_tests(t: &trybuild::TestCases) {
 
 fn run_failing_ui_tests(t: &trybuild::TestCases) {
     for case in [
-        UiFixtureCase::from("datatable_wrong_type.rs"),
-        UiFixtureCase::from("datatable_duplicate.rs"),
-        UiFixtureCase::from("datatable_duplicate_attr.rs"),
-        UiFixtureCase::from("datatable_after_docstring.rs"),
-        UiFixtureCase::from("placeholder_missing_param.rs"),
-        UiFixtureCase::from("implicit_fixture_missing.rs"),
-        UiFixtureCase::from("placeholder_missing_params.rs"),
+        "datatable_wrong_type.rs",
+        "datatable_duplicate.rs",
+        "datatable_duplicate_attr.rs",
+        "datatable_after_docstring.rs",
+        "placeholder_missing_param.rs",
+        "implicit_fixture_missing.rs",
+        "placeholder_missing_params.rs",
     ] {
         t.compile_fail(ui_fixture(case));
     }
@@ -248,10 +248,7 @@ fn run_scenarios_missing_dir_test(t: &trybuild::TestCases) {
 }
 
 fn run_conditional_ordering_tests(t: &trybuild::TestCases) {
-    let ordering_cases = [
-        MacroFixtureCase::from("scenario_missing_step.rs"),
-        MacroFixtureCase::from("scenario_out_of_order.rs"),
-    ];
+    let ordering_cases = ["scenario_missing_step.rs", "scenario_out_of_order.rs"];
 
     if cfg!(feature = "strict-compile-time-validation") {
         for case in ordering_cases {
@@ -591,9 +588,9 @@ mod helper_tests {
         actual.push_str("help: review scenario");
         actual.push(char::from(10));
         let fixture = NormaliserFixture::new(
-            FixtureTestPath::from(TEST_PATH),
-            FixtureStderr::from(expected.as_ref()),
-            FixtureStderr::from(actual.as_ref()),
+            FixtureTestPath(TEST_PATH),
+            FixtureStderr(expected.as_ref()),
+            FixtureStderr(actual.as_ref()),
         );
         let strip_hint_one: Normaliser = |input| input.as_ref().replace(" (hint-one)", "");
         let strip_hint_two: Normaliser = |input| input.as_ref().replace(" (hint-two)", "");
@@ -615,9 +612,9 @@ mod helper_tests {
     fn run_compile_fail_with_normalised_output_accepts_empty_output() {
         const TEST_PATH: &str = "tests/fixtures_macros/__normaliser_empty.rs";
         let fixture = NormaliserFixture::new(
-            FixtureTestPath::from(TEST_PATH),
-            FixtureStderr::from(""),
-            FixtureStderr::from(""),
+            FixtureTestPath(TEST_PATH),
+            FixtureStderr(""),
+            FixtureStderr(""),
         );
         let result = panic::catch_unwind(|| {
             run_compile_fail_with_normalised_output(
@@ -637,12 +634,12 @@ mod helper_tests {
     fn run_compile_fail_with_normalised_output_detects_mismatch() {
         const TEST_PATH: &str = "tests/fixtures_macros/__normaliser_unexpected_detect.rs";
         let fixture = NormaliserFixture::new(
-            FixtureTestPath::from(TEST_PATH),
-            FixtureStderr::from(
+            FixtureTestPath(TEST_PATH),
+            FixtureStderr(
                 "expected output
 ",
             ),
-            FixtureStderr::from(
+            FixtureStderr(
                 "actual output
 ",
             ),
@@ -695,9 +692,9 @@ mod helper_tests {
         let mut actual = String::from(actual_content);
         actual.push(char::from(10));
         let fixture = NormaliserFixture::new(
-            FixtureTestPath::from(test_path),
-            FixtureStderr::from(expected.as_ref()),
-            FixtureStderr::from(actual.as_ref()),
+            FixtureTestPath(test_path),
+            FixtureStderr(expected.as_ref()),
+            FixtureStderr(actual.as_ref()),
         );
         let trim_trailing: Normaliser = |input| input.as_ref().trim_end().to_owned();
         let result = panic::catch_unwind(|| {
