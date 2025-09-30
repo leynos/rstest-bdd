@@ -32,7 +32,7 @@ rstest.workspace = true
 rstest-bdd-macros.workspace = true
 trybuild.workspace = true
 serial_test.workspace = true
-the-newtype = "0.1"
+the-newtype = "0.1.1"
 
 [features]
 default = ["diagnostics"]

@@ -7,7 +7,6 @@
 use std::borrow::Cow;
 use std::fs;
 use std::io;
-use std::ops::Deref;
 use std::panic::{self, AssertUnwindSafe};
 use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
@@ -16,28 +15,61 @@ use the_newtype::Newtype;
 const MACROS_FIXTURES_DIR: &str = "tests/fixtures_macros";
 const UI_FIXTURES_DIR: &str = "tests/ui_macros";
 
-#[derive(Clone, Debug, Eq, Hash, Newtype, PartialEq)]
-struct MacroFixtureCase(String);
+macro_rules! owned_str_newtype {
+    ($name:ident) => {
+        #[derive(Clone, Debug, Eq, Hash, Newtype, PartialEq)]
+        struct $name(String);
 
-impl Deref for MacroFixtureCase {
-    type Target = str;
+        impl ::std::ops::Deref for $name {
+            type Target = str;
 
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
+            fn deref(&self) -> &Self::Target {
+                self.0.as_str()
+            }
+        }
+
+        impl ::std::convert::AsRef<str> for $name {
+            fn as_ref(&self) -> &str {
+                self.0.as_str()
+            }
+        }
+
+        impl<'a> ::std::convert::From<&'a str> for $name {
+            fn from(value: &'a str) -> Self {
+                Self(value.to_owned())
+            }
+        }
+    };
 }
 
-impl AsRef<str> for MacroFixtureCase {
-    fn as_ref(&self) -> &str {
-        &self.0
-    }
+macro_rules! borrowed_str_newtype {
+    ($name:ident) => {
+        #[derive(Clone, Copy, Debug, Eq, Hash, Newtype, PartialEq)]
+        struct $name<'a>(&'a str);
+
+        impl<'a> ::std::ops::Deref for $name<'a> {
+            type Target = str;
+
+            fn deref(&self) -> &Self::Target {
+                self.0
+            }
+        }
+
+        impl<'a> ::std::convert::AsRef<str> for $name<'a> {
+            fn as_ref(&self) -> &str {
+                self.0
+            }
+        }
+
+        impl<'a> ::std::convert::From<&'a str> for $name<'a> {
+            fn from(value: &'a str) -> Self {
+                Self(value)
+            }
+        }
+    };
 }
 
-impl<'a> From<&'a str> for MacroFixtureCase {
-    fn from(value: &'a str) -> Self {
-        Self(value.to_owned())
-    }
-}
+owned_str_newtype!(MacroFixtureCase);
 
 impl From<MacroFixtureCase> for PathBuf {
     fn from(value: MacroFixtureCase) -> Self {
@@ -45,28 +77,7 @@ impl From<MacroFixtureCase> for PathBuf {
     }
 }
 
-#[derive(Clone, Debug, Eq, Hash, Newtype, PartialEq)]
-struct UiFixtureCase(String);
-
-impl Deref for UiFixtureCase {
-    type Target = str;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl AsRef<str> for UiFixtureCase {
-    fn as_ref(&self) -> &str {
-        &self.0
-    }
-}
-
-impl<'a> From<&'a str> for UiFixtureCase {
-    fn from(value: &'a str) -> Self {
-        Self(value.to_owned())
-    }
-}
+owned_str_newtype!(UiFixtureCase);
 
 impl From<UiFixtureCase> for PathBuf {
     fn from(value: UiFixtureCase) -> Self {
@@ -74,51 +85,9 @@ impl From<UiFixtureCase> for PathBuf {
     }
 }
 
-#[derive(Clone, Copy, Debug, Eq, Hash, Newtype, PartialEq)]
-struct NormaliserInput<'a>(&'a str);
+borrowed_str_newtype!(NormaliserInput);
 
-impl Deref for NormaliserInput<'_> {
-    type Target = str;
-
-    fn deref(&self) -> &Self::Target {
-        self.0
-    }
-}
-
-impl AsRef<str> for NormaliserInput<'_> {
-    fn as_ref(&self) -> &str {
-        self.0
-    }
-}
-
-impl<'a> From<&'a str> for NormaliserInput<'a> {
-    fn from(value: &'a str) -> Self {
-        Self(value)
-    }
-}
-
-#[derive(Clone, Copy, Debug, Eq, Hash, Newtype, PartialEq)]
-struct FixturePathLine<'a>(&'a str);
-
-impl Deref for FixturePathLine<'_> {
-    type Target = str;
-
-    fn deref(&self) -> &Self::Target {
-        self.0
-    }
-}
-
-impl AsRef<str> for FixturePathLine<'_> {
-    fn as_ref(&self) -> &str {
-        self.0
-    }
-}
-
-impl<'a> From<&'a str> for FixturePathLine<'a> {
-    fn from(value: &'a str) -> Self {
-        Self(value)
-    }
-}
+borrowed_str_newtype!(FixturePathLine);
 
 fn macros_fixture(case: impl Into<MacroFixtureCase>) -> PathBuf {
     ensure_trybuild_support_files();
@@ -318,12 +287,7 @@ fn compile_fail_with_normalised_output(
     normalisers: &[Normaliser],
 ) {
     let test_path = test_path.as_ref();
-    let trybuild_path = test_path.to_path_buf();
-    run_compile_fail_with_normalised_output(
-        || t.compile_fail(&trybuild_path),
-        test_path,
-        normalisers,
-    );
+    run_compile_fail_with_normalised_output(|| t.compile_fail(test_path), test_path, normalisers);
 }
 
 fn run_compile_fail_with_normalised_output<F>(
@@ -449,55 +413,12 @@ mod helper_tests {
     use rstest::rstest;
     use std::borrow::Cow;
     use std::fs;
-    use std::ops::Deref;
     use std::panic;
     use std::path::{Path, PathBuf};
 
-    #[derive(Clone, Copy, Debug, Eq, Hash, Newtype, PartialEq)]
-    struct FixtureTestPath<'a>(&'a str);
+    borrowed_str_newtype!(FixtureTestPath);
 
-    impl Deref for FixtureTestPath<'_> {
-        type Target = str;
-
-        fn deref(&self) -> &Self::Target {
-            self.0
-        }
-    }
-
-    impl AsRef<str> for FixtureTestPath<'_> {
-        fn as_ref(&self) -> &str {
-            self.0
-        }
-    }
-
-    impl<'a> From<&'a str> for FixtureTestPath<'a> {
-        fn from(value: &'a str) -> Self {
-            Self(value)
-        }
-    }
-
-    #[derive(Clone, Copy, Debug, Eq, Hash, Newtype, PartialEq)]
-    struct FixtureStderr<'a>(&'a str);
-
-    impl Deref for FixtureStderr<'_> {
-        type Target = str;
-
-        fn deref(&self) -> &Self::Target {
-            self.0
-        }
-    }
-
-    impl AsRef<str> for FixtureStderr<'_> {
-        fn as_ref(&self) -> &str {
-            self.0
-        }
-    }
-
-    impl<'a> From<&'a str> for FixtureStderr<'a> {
-        fn from(value: &'a str) -> Self {
-            Self(value)
-        }
-    }
+    borrowed_str_newtype!(FixtureStderr);
 
     struct NormaliserFixture {
         expected_path: PathBuf,
@@ -717,8 +638,14 @@ mod helper_tests {
         const TEST_PATH: &str = "tests/fixtures_macros/__normaliser_unexpected_detect.rs";
         let fixture = NormaliserFixture::new(
             FixtureTestPath::from(TEST_PATH),
-            FixtureStderr::from("expected output\n"),
-            FixtureStderr::from("actual output\n"),
+            FixtureStderr::from(
+                "expected output
+",
+            ),
+            FixtureStderr::from(
+                "actual output
+",
+            ),
         );
         let trim_trailing: Normaliser = |input| input.as_ref().trim_end().to_owned();
         let result = panic::catch_unwind(|| {
