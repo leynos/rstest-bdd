@@ -1,21 +1,24 @@
-//! Behavioural tests for `StepError` propagation in wrappers
+//! Behavioural tests for `StepError` propagation in wrappers.
 
 mod step_error_common;
 
+use rstest::rstest;
 use rstest_bdd::StepKeyword;
 
 use step_error_common::{FancyValue, StepInvocation, invoke_step};
 
 #[test]
 fn successful_step_execution() {
-    let res = invoke_step(&StepInvocation::new(
+    #[expect(
+        clippy::expect_used,
+        reason = "test ensures successful step execution propagates"
+    )]
+    invoke_step(&StepInvocation::new(
         StepKeyword::Given,
         "a successful step",
         "a successful step",
-    ));
-    if let Err(e) = res {
-        panic!("unexpected error: {e:?}");
-    }
+    ))
+    .expect("unexpected error");
 }
 
 #[test]
@@ -35,50 +38,53 @@ fn fallible_unit_step_execution_returns_none() {
 
 #[test]
 fn fallible_value_step_execution_returns_value() {
+    #[expect(
+        clippy::expect_used,
+        reason = "test asserts success path and payload presence"
+    )]
     let boxed = invoke_step(&StepInvocation::new(
         StepKeyword::Given,
         "a fallible value step succeeds",
         "a fallible value step succeeds",
     ))
-    .unwrap_or_else(|e| panic!("unexpected error: {e:?}"))
-    .unwrap_or_else(|| panic!("expected step to return a value"));
+    .expect("unexpected error")
+    .expect("expected step to return a value");
+    #[expect(
+        clippy::expect_used,
+        reason = "test asserts success path and payload presence"
+    )]
     let value = boxed
         .downcast::<FancyValue>()
-        .unwrap_or_else(|_| panic!("expected FancyValue payload"));
+        .expect("expected FancyValue payload");
     assert_eq!(*value, FancyValue(99));
 }
 
-#[test]
-#[expect(
-    clippy::expect_used,
-    reason = "test ensures datatable steps can execute successfully"
-)]
-fn datatable_is_passed_and_executes() {
-    let table: &[&[&str]] = &[&["a", "b"], &["c", "d"]];
-    invoke_step(
-        &StepInvocation::new(
+enum Payload<'a> {
+    Table(&'a [&'a [&'a str]]),
+    Docstring(&'a str),
+}
+
+#[rstest]
+#[case::table(Payload::Table(&[&["a", "b"], &["c", "d"]]))]
+#[case::docstring(Payload::Docstring("content"))]
+fn datatable_or_docstring_executes(#[case] payload: Payload<'_>) {
+    let invocation = match payload {
+        Payload::Table(table) => StepInvocation::new(
             StepKeyword::Given,
             "a step requiring a table",
             "a step requiring a table",
         )
         .with_datatable(table),
-    )
-    .expect("unexpected error passing datatable");
-}
-
-#[test]
-#[expect(
-    clippy::expect_used,
-    reason = "test ensures docstring steps can execute successfully"
-)]
-fn docstring_is_passed_and_executes() {
-    invoke_step(
-        &StepInvocation::new(
+        Payload::Docstring(text) => StepInvocation::new(
             StepKeyword::Given,
             "a step requiring a docstring",
             "a step requiring a docstring",
         )
-        .with_docstring("content"),
-    )
-    .expect("unexpected error passing docstring");
+        .with_docstring(text),
+    };
+    #[expect(
+        clippy::expect_used,
+        reason = "test ensures both table and docstring steps execute successfully"
+    )]
+    invoke_step(&invocation).expect("unexpected error passing payload");
 }

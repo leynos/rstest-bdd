@@ -32,5 +32,8 @@ fn current_crate_id_raw() -> String {
 }
 
 pub(super) fn canonicalise_out_dir(path: &Utf8Path) -> Utf8PathBuf {
-    path.canonicalize_utf8().unwrap_or_else(|_| path.to_owned())
+    std::fs::canonicalize(path.as_std_path())
+        .ok()
+        .and_then(|pb| Utf8PathBuf::from_path_buf(pb).ok())
+        .unwrap_or_else(|| path.to_owned())
 }

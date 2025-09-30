@@ -88,7 +88,7 @@ pub(crate) fn register_step_for_crate(keyword: StepKeyword, literal: &str, crate
 }
 
 /// Return the diagnostic span for a step.
-fn get_step_span(step: &ParsedStep) -> proc_macro2::Span {
+pub(super) fn get_step_span(step: &ParsedStep) -> proc_macro2::Span {
     #[cfg(feature = "compile-time-validation")]
     {
         step.span
@@ -152,7 +152,8 @@ enum RegistryDecision {
 /// Check whether the registry holds definitions for the current crate.
 fn validate_registry_state(
     defs: Option<&CrateDefs>,
-    #[cfg_attr(test, expect(unused_variables, reason = "crate ID unused in tests"))] crate_id: &str,
+    #[cfg_attr(test, expect(unused_variables, reason = "crate ID unused in tests"))]
+    crate_id_str: &str,
     strict: bool,
 ) -> RegistryDecision {
     match defs {
@@ -166,7 +167,7 @@ fn validate_registry_state(
                 emit_warning!(
                     proc_macro2::Span::call_site(),
                     "step registry has no definitions for crate ID '{}'. This may indicate a registry issue.",
-                    crate_id
+                    crate_id_str
                 );
                 RegistryDecision::WarnAndSkip
             }
@@ -265,13 +266,15 @@ fn emit_non_strict_warnings(missing: &[(proc_macro2::Span, String)]) {
 pub(crate) fn resolve_keywords(
     steps: &[ParsedStep],
 ) -> impl ExactSizeIterator<Item = crate::StepKeyword> + '_ {
-    let mut prev = steps
-        .iter()
-        .find_map(|s| match s.keyword {
-            crate::StepKeyword::And | crate::StepKeyword::But => None,
-            other => Some(other),
-        })
-        .or(Some(crate::StepKeyword::Given));
+    let mut prev = Some(
+        steps
+            .iter()
+            .find_map(|s| match s.keyword {
+                crate::StepKeyword::And | crate::StepKeyword::But => None,
+                other => Some(other),
+            })
+            .unwrap_or(crate::StepKeyword::Given),
+    );
     let resolved = steps.iter().map(move |s| s.keyword.resolve(&mut prev));
     debug_assert_eq!(resolved.len(), steps.len());
     resolved

@@ -3,16 +3,13 @@
 use super::crate_id::{canonicalise_out_dir, normalise_crate_id};
 use super::*;
 use camino::{Utf8Path, Utf8PathBuf};
-use cap_std::{ambient_authority, fs::Dir};
+use cap_std::{ambient_authority, fs_utf8::Dir};
 use rstest::{fixture, rstest};
 use serial_test::serial;
-#[cfg(unix)]
-use std::os::unix::fs::symlink;
-use std::path::PathBuf;
 use tempfile::{tempdir, tempdir_in};
 
-#[expect(clippy::expect_used, reason = "registry lock must panic if poisoned")]
 fn clear_registry() {
+    #[expect(clippy::expect_used, reason = "registry lock must panic if poisoned")]
     REGISTERED.lock().expect("step registry poisoned").clear();
 }
 
@@ -68,24 +65,21 @@ impl Drop for TempWorkingDir {
 
 fn with_dir<F, T>(path: &Utf8Path, f: F) -> std::io::Result<T>
 where
-    F: FnOnce(&Dir, &std::path::Path) -> std::io::Result<T>,
+    F: FnOnce(&Dir, &Utf8Path) -> std::io::Result<T>,
 {
     let authority = ambient_authority();
-    let std_path = path.as_std_path();
-    if std_path.is_absolute() {
-        let parent = std_path.parent().ok_or_else(|| {
+    if path.is_absolute() {
+        let parent = path.parent().ok_or_else(|| {
             std::io::Error::new(std::io::ErrorKind::InvalidInput, "path missing parent")
         })?;
-        let file_name = std_path.file_name().ok_or_else(|| {
+        let file_name = path.file_name().ok_or_else(|| {
             std::io::Error::new(std::io::ErrorKind::InvalidInput, "path missing file name")
         })?;
-        let relative = PathBuf::from(file_name);
         let dir = Dir::open_ambient_dir(parent, authority)?;
-        f(&dir, relative.as_path())
+        f(&dir, Utf8Path::new(file_name))
     } else {
-        let cwd = std::env::current_dir()?;
-        let dir = Dir::open_ambient_dir(&cwd, authority)?;
-        f(&dir, std_path)
+        let dir = Dir::open_ambient_dir(Utf8Path::new("."), authority)?;
+        f(&dir, path)
     }
 }
 
@@ -257,6 +251,7 @@ fn normalises_windows_drive_letter_out_dir() {
 }
 
 #[test]
+#[serial]
 #[expect(
     clippy::expect_used,
     reason = "test arranges filesystem state with explicit expect messages"
@@ -331,7 +326,9 @@ fn canonicalise_out_dir_resolves_symlinks() {
     let target = base.join("target");
     create_dir_all_cap(target.as_path()).expect("create target directory for canonicalisation");
     let link = base.join("link");
-    symlink(target.as_std_path(), link.as_std_path()).expect("create symlink to target");
+    #[cfg(unix)]
+    std::os::unix::fs::symlink(target.as_std_path(), link.as_std_path())
+        .expect("create symlink to target"); // replace with cap-std when available
 
     let canonical = canonicalise_out_dir(link.as_path());
     let expected = target
