@@ -308,10 +308,7 @@ mod tests {
         clear_feature_path_cache();
     }
 
-    fn with_dir<F, T>(path: &Path, f: F) -> std::io::Result<T>
-    where
-        F: FnOnce(&super::Dir, &Path) -> std::io::Result<T>,
-    {
+    fn dir_and_target(path: &Path) -> std::io::Result<(super::Dir, PathBuf)> {
         let authority = super::ambient_authority();
         if path.is_absolute() {
             let parent = path.parent().ok_or_else(|| {
@@ -320,14 +317,13 @@ mod tests {
             let file_name = path.file_name().ok_or_else(|| {
                 std::io::Error::new(std::io::ErrorKind::InvalidInput, "path missing file name")
             })?;
-            let relative = PathBuf::from(file_name);
             let dir = super::Dir::open_ambient_dir(parent, authority)?;
-            f(&dir, relative.as_path())
-        } else {
-            let cwd = std::env::current_dir()?;
-            let dir = super::Dir::open_ambient_dir(&cwd, authority)?;
-            f(&dir, path)
+            return Ok((dir, PathBuf::from(file_name)));
         }
+
+        let cwd = std::env::current_dir()?;
+        let dir = super::Dir::open_ambient_dir(&cwd, authority)?;
+        Ok((dir, path.into()))
     }
 
     fn create_dir_all_cap(path: &Path) -> std::io::Result<()> {
@@ -335,34 +331,41 @@ mod tests {
             return Ok(());
         }
 
-        if path.file_name().is_none() {
-            if let Some(parent) = path.parent() {
-                if parent != path {
-                    create_dir_all_cap(parent)?;
-                }
-            }
-            return Ok(());
-        }
-
-        if let Some(parent) = path.parent() {
+        if path.is_absolute() {
+            let Some(parent) = path.parent() else {
+                return Ok(());
+            };
             if parent != path {
                 create_dir_all_cap(parent)?;
             }
         }
 
-        with_dir(path, |dir, target| match dir.create_dir(target) {
+        let (dir, target) = dir_and_target(path)?;
+        match dir.create_dir_all(&target) {
             Ok(()) => Ok(()),
             Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => Ok(()),
             Err(error) => Err(error),
-        })
+        }
     }
 
     fn write_file_cap(path: &Path, contents: &[u8]) -> std::io::Result<()> {
-        with_dir(path, |dir, target| dir.write(target, contents))
+        if path.is_absolute() {
+            let Some(parent) = path.parent() else {
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::InvalidInput,
+                    "path missing parent",
+                ));
+            };
+            create_dir_all_cap(parent)?;
+        }
+
+        let (dir, target) = dir_and_target(path)?;
+        dir.write(&target, contents)
     }
 
     fn remove_file_cap(path: &Path) -> std::io::Result<()> {
-        with_dir(path, |dir, target| dir.remove_file(target))
+        let (dir, target) = dir_and_target(path)?;
+        dir.remove_file(&target)
     }
 
     #[serial]

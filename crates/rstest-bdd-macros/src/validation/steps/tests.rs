@@ -63,51 +63,37 @@ impl Drop for TempWorkingDir {
     }
 }
 
-fn with_dir<F, T>(path: &Utf8Path, f: F) -> std::io::Result<T>
-where
-    F: FnOnce(&Dir, &Utf8Path) -> std::io::Result<T>,
-{
-    let authority = ambient_authority();
-    if path.is_absolute() {
-        let parent = path.parent().ok_or_else(|| {
-            std::io::Error::new(std::io::ErrorKind::InvalidInput, "path missing parent")
-        })?;
-        let file_name = path.file_name().ok_or_else(|| {
-            std::io::Error::new(std::io::ErrorKind::InvalidInput, "path missing file name")
-        })?;
-        let dir = Dir::open_ambient_dir(parent, authority)?;
-        f(&dir, Utf8Path::new(file_name))
-    } else {
-        let dir = Dir::open_ambient_dir(Utf8Path::new("."), authority)?;
-        f(&dir, path)
-    }
-}
-
 fn create_dir_all_cap(path: &Utf8Path) -> std::io::Result<()> {
     if path.as_str().is_empty() || path == Utf8Path::new(".") {
         return Ok(());
     }
 
-    if path.file_name().is_none() {
-        if let Some(parent) = path.parent() {
-            if parent != path {
-                create_dir_all_cap(parent)?;
+    if path.is_absolute() {
+        let Some(parent) = path.parent() else {
+            return Ok(());
+        };
+        if parent != path {
+            create_dir_all_cap(parent)?;
+        }
+        if let Some(name) = path.file_name() {
+            let authority = ambient_authority();
+            let dir = Dir::open_ambient_dir(parent, authority)?;
+            if let Err(error) = dir.create_dir(Utf8Path::new(name)) {
+                if error.kind() != std::io::ErrorKind::AlreadyExists {
+                    return Err(error);
+                }
             }
         }
         return Ok(());
     }
 
-    if let Some(parent) = path.parent() {
-        if parent != path {
-            create_dir_all_cap(parent)?;
-        }
-    }
-
-    with_dir(path, |dir, target| match dir.create_dir(target) {
+    let authority = ambient_authority();
+    let dir = Dir::open_ambient_dir(Utf8Path::new("."), authority)?;
+    match dir.create_dir_all(path) {
         Ok(()) => Ok(()),
         Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => Ok(()),
         Err(error) => Err(error),
-    })
+    }
 }
 
 #[expect(

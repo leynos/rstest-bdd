@@ -2,7 +2,8 @@
 
 use super::args::{ArgumentCollections, CallArg, DataTableArg, DocStringArg, FixtureArg, StepArg};
 use super::arguments::{
-    PreparedArgs, collect_ordered_arguments, prepare_argument_processing, step_error_tokens,
+    PreparedArgs, StepMeta, collect_ordered_arguments, prepare_argument_processing,
+    step_error_tokens,
 };
 use crate::utils::ident::sanitize_ident;
 use proc_macro2::TokenStream as TokenStream2;
@@ -55,16 +56,27 @@ fn generate_wrapper_signature(
     }
 }
 
+/// Prepared wrapper inputs consumed by `assemble_wrapper_function`.
+struct WrapperAssembly<'a> {
+    meta: StepMeta<'a>,
+    prepared: PreparedArgs,
+    arg_idents: &'a [&'a syn::Ident],
+    capture_count: usize,
+}
+
 /// Assemble the final wrapper function using prepared components.
 fn assemble_wrapper_function(
     wrapper_ident: &proc_macro2::Ident,
     pattern_ident: &proc_macro2::Ident,
-    prepared: PreparedArgs,
-    arg_idents: &[&syn::Ident],
-    pattern: &syn::LitStr,
-    ident: &syn::Ident,
-    capture_count: usize,
+    assembly: WrapperAssembly<'_>,
 ) -> TokenStream2 {
+    let WrapperAssembly {
+        meta,
+        prepared,
+        arg_idents,
+        capture_count,
+    } = assembly;
+    let StepMeta { pattern, ident } = meta;
     let PreparedArgs {
         declares,
         step_arg_parses,
@@ -169,11 +181,12 @@ fn generate_wrapper_body(
     let wrapper_fn = assemble_wrapper_function(
         wrapper_ident,
         pattern_ident,
-        prepared,
-        &arg_idents,
-        pattern,
-        ident,
-        step_args.len(),
+        WrapperAssembly {
+            meta: step_meta,
+            prepared,
+            arg_idents: &arg_idents,
+            capture_count: step_args.len(),
+        },
     );
 
     quote! {
