@@ -56,13 +56,11 @@ def apply_workspace_replacements(
     if crates is None:
         targets: typ.Final[tuple[str, ...]] = tuple(REPLACEMENTS)
     else:
-        unknown = tuple(crate for crate in crates if crate not in REPLACEMENTS)
-        if unknown:
-            formatted = ", ".join(repr(crate) for crate in unknown)
-            message = "unknown crates: " + formatted
-            raise SystemExit(message)
+        unknown = set(crate for crate in crates if crate not in REPLACEMENTS)
         targets = crates
     for crate in targets:
+        if crate in unknown:
+            continue
         manifest = workspace_root / "crates" / crate / "Cargo.toml"
         apply_replacements(
             crate,
