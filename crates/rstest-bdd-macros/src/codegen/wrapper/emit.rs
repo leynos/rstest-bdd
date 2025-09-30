@@ -1,7 +1,9 @@
 //! Code emission helpers for wrapper generation.
 
 use super::args::{ArgumentCollections, CallArg, DataTableArg, DocStringArg, FixtureArg, StepArg};
-use super::arguments::{collect_ordered_arguments, prepare_argument_processing, step_error_tokens};
+use super::arguments::{
+    PreparedArgs, collect_ordered_arguments, prepare_argument_processing, step_error_tokens,
+};
 use crate::utils::ident::sanitize_ident;
 use proc_macro2::TokenStream as TokenStream2;
 use quote::{format_ident, quote};
@@ -57,20 +59,22 @@ fn generate_wrapper_signature(
 fn assemble_wrapper_function(
     wrapper_ident: &proc_macro2::Ident,
     pattern_ident: &proc_macro2::Ident,
-    arg_processing: (
-        Vec<TokenStream2>,
-        Vec<TokenStream2>,
-        Option<TokenStream2>,
-        Option<TokenStream2>,
-    ),
+    prepared: PreparedArgs,
     arg_idents: &[&syn::Ident],
     pattern: &syn::LitStr,
     ident: &syn::Ident,
     capture_count: usize,
 ) -> TokenStream2 {
-    let (declares, step_arg_parses, datatable_decl, docstring_decl) = arg_processing;
+    let PreparedArgs {
+        declares,
+        step_arg_parses,
+        datatable_decl,
+        docstring_decl,
+    } = prepared;
+    let execution_error = format_ident!("ExecutionError");
+    let panic_error = format_ident!("PanicError");
     let placeholder_err = step_error_tokens(
-        &format_ident!("ExecutionError"),
+        &execution_error,
         pattern,
         ident,
         &quote! {
@@ -82,21 +86,11 @@ fn assemble_wrapper_function(
             )
         },
     );
-    let panic_err = step_error_tokens(
-        &format_ident!("PanicError"),
-        pattern,
-        ident,
-        &quote! { message },
-    );
-    let exec_err = step_error_tokens(
-        &format_ident!("ExecutionError"),
-        pattern,
-        ident,
-        &quote! { message },
-    );
+    let panic_err = step_error_tokens(&panic_error, pattern, ident, &quote! { message });
+    let exec_err = step_error_tokens(&execution_error, pattern, ident, &quote! { message });
     let expected = capture_count;
     let capture_mismatch_err = step_error_tokens(
-        &format_ident!("ExecutionError"),
+        &execution_error,
         pattern,
         ident,
         &quote! {
@@ -170,12 +164,12 @@ fn generate_wrapper_body(
     };
     let step_meta = super::arguments::StepMeta { pattern, ident };
     let signature = generate_wrapper_signature(pattern, pattern_ident);
-    let arg_processing = prepare_argument_processing(&collections, step_meta);
+    let prepared = prepare_argument_processing(&collections, step_meta);
     let arg_idents = collect_ordered_arguments(call_order, &collections);
     let wrapper_fn = assemble_wrapper_function(
         wrapper_ident,
         pattern_ident,
-        arg_processing,
+        prepared,
         &arg_idents,
         pattern,
         ident,

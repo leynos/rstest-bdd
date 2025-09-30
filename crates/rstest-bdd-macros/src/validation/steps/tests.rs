@@ -1,15 +1,14 @@
-#![expect(
-    clippy::expect_used,
-    reason = "tests rely on infallible setup for readability"
-)]
+// Intentionally left without file-wide lint suppressions; add per-function #[expect(...)] where needed.
 //! Tests for step-definition validation: missing/single/ambiguous outcomes and registry behaviour.
 use super::crate_id::{canonicalise_out_dir, normalise_crate_id};
 use super::*;
 use camino::{Utf8Path, Utf8PathBuf};
+use cap_std::{ambient_authority, fs::Dir};
 use rstest::{fixture, rstest};
 use serial_test::serial;
 #[cfg(unix)]
 use std::os::unix::fs::symlink;
+use std::path::PathBuf;
 use tempfile::{tempdir, tempdir_in};
 
 #[expect(clippy::expect_used, reason = "registry lock must panic if poisoned")]
@@ -57,14 +56,71 @@ impl TempWorkingDir {
 }
 
 impl Drop for TempWorkingDir {
+    #[expect(
+        clippy::expect_used,
+        reason = "restoring the working directory must succeed for cleanup"
+    )]
     fn drop(&mut self) {
         std::env::set_current_dir(self.original_cwd.as_std_path())
             .expect("restore current directory");
     }
 }
 
-#[fixture]
-fn temp_working_dir() -> TempWorkingDir {
+fn with_dir<F, T>(path: &Utf8Path, f: F) -> std::io::Result<T>
+where
+    F: FnOnce(&Dir, &std::path::Path) -> std::io::Result<T>,
+{
+    let authority = ambient_authority();
+    let std_path = path.as_std_path();
+    if std_path.is_absolute() {
+        let parent = std_path.parent().ok_or_else(|| {
+            std::io::Error::new(std::io::ErrorKind::InvalidInput, "path missing parent")
+        })?;
+        let file_name = std_path.file_name().ok_or_else(|| {
+            std::io::Error::new(std::io::ErrorKind::InvalidInput, "path missing file name")
+        })?;
+        let relative = PathBuf::from(file_name);
+        let dir = Dir::open_ambient_dir(parent, authority)?;
+        f(&dir, relative.as_path())
+    } else {
+        let cwd = std::env::current_dir()?;
+        let dir = Dir::open_ambient_dir(&cwd, authority)?;
+        f(&dir, std_path)
+    }
+}
+
+fn create_dir_all_cap(path: &Utf8Path) -> std::io::Result<()> {
+    if path.as_str().is_empty() || path == Utf8Path::new(".") {
+        return Ok(());
+    }
+
+    if path.file_name().is_none() {
+        if let Some(parent) = path.parent() {
+            if parent != path {
+                create_dir_all_cap(parent)?;
+            }
+        }
+        return Ok(());
+    }
+
+    if let Some(parent) = path.parent() {
+        if parent != path {
+            create_dir_all_cap(parent)?;
+        }
+    }
+
+    with_dir(path, |dir, target| match dir.create_dir(target) {
+        Ok(()) => Ok(()),
+        Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => Ok(()),
+        Err(error) => Err(error),
+    })
+}
+
+#[expect(
+    clippy::expect_used,
+    reason = "temporary directory setup relies on explicit failure messages for clarity"
+)]
+fn temp_working_dir_inner() -> TempWorkingDir {
     let original = std::env::current_dir().expect("obtain current directory");
     let original =
         Utf8PathBuf::from_path_buf(original).expect("current directory should be valid UTF-8");
@@ -74,6 +130,11 @@ fn temp_working_dir() -> TempWorkingDir {
     let temp_path = Utf8PathBuf::from_path_buf(temp.path().to_path_buf())
         .expect("temporary path should be valid UTF-8");
     TempWorkingDir::new(temp, temp_path, original)
+}
+
+#[fixture]
+fn temp_working_dir() -> TempWorkingDir {
+    temp_working_dir_inner()
 }
 
 #[rstest]
@@ -196,6 +257,10 @@ fn normalises_windows_drive_letter_out_dir() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "test arranges filesystem state with explicit expect messages"
+)]
 fn normalises_relative_out_dir_paths() {
     let temp = tempdir_in(".").expect("create temp dir in current directory");
     let abs = Utf8PathBuf::from_path_buf(temp.path().to_path_buf())
@@ -216,6 +281,10 @@ fn normalises_relative_out_dir_paths() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "test documents fallback behaviour with explicit expect messaging"
+)]
 fn leaves_unresolvable_out_dir_paths_unchanged() {
     let temp = tempdir().expect("create temp directory");
     let missing = temp.path().join("missing");
@@ -227,8 +296,13 @@ fn leaves_unresolvable_out_dir_paths_unchanged() {
 
 #[rstest]
 #[serial]
+#[expect(
+    clippy::expect_used,
+    reason = "test builds nested directories using explicit expect messaging"
+)]
 fn canonicalise_out_dir_resolves_relative_components(temp_working_dir: TempWorkingDir) {
-    std::fs::create_dir_all("nested").expect("create nested directory for canonicalisation");
+    create_dir_all_cap(Utf8Path::new("nested"))
+        .expect("create nested directory for canonicalisation");
     let nested = Utf8Path::new("nested/.");
     let canonical = canonicalise_out_dir(nested);
     let expected_dir = temp_working_dir.path().join("nested");
@@ -246,13 +320,16 @@ fn canonicalise_out_dir_resolves_relative_components(temp_working_dir: TempWorki
 
 #[cfg(unix)]
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "symlink setup uses expect to surface filesystem failures"
+)]
 fn canonicalise_out_dir_resolves_symlinks() {
     let temp = tempdir().expect("create temp directory");
     let base = Utf8PathBuf::from_path_buf(temp.path().to_path_buf())
         .expect("temporary directory should be valid UTF-8");
     let target = base.join("target");
-    std::fs::create_dir_all(target.as_std_path())
-        .expect("create target directory for canonicalisation");
+    create_dir_all_cap(target.as_path()).expect("create target directory for canonicalisation");
     let link = base.join("link");
     symlink(target.as_std_path(), link.as_std_path()).expect("create symlink to target");
 
@@ -266,6 +343,10 @@ fn canonicalise_out_dir_resolves_symlinks() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "test asserts fallback path handling with explicit expect messaging"
+)]
 fn canonicalise_out_dir_returns_original_when_unresolvable() {
     let temp = tempdir().expect("create temp directory");
     let missing = temp.path().join("missing");
@@ -275,6 +356,10 @@ fn canonicalise_out_dir_returns_original_when_unresolvable() {
 
 #[test]
 #[serial]
+#[expect(
+    clippy::expect_used,
+    reason = "registry fixture wiring relies on explicit expect diagnostics"
+)]
 fn canonicalises_equivalent_crate_paths_in_registry() {
     clear_registry();
     let temp = tempdir().expect("create temp directory");

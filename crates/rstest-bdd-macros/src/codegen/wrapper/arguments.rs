@@ -10,6 +10,13 @@ pub(super) struct StepMeta<'a> {
     pub(super) ident: &'a syn::Ident,
 }
 
+pub(super) struct PreparedArgs {
+    pub(super) declares: Vec<TokenStream2>,
+    pub(super) step_arg_parses: Vec<TokenStream2>,
+    pub(super) datatable_decl: Option<TokenStream2>,
+    pub(super) docstring_decl: Option<TokenStream2>,
+}
+
 /// Quote construction for [`StepError`] variants sharing `pattern`,
 /// `function` and `message` fields.
 pub(super) fn step_error_tokens(
@@ -188,12 +195,7 @@ pub(super) fn gen_step_parses(
 pub(super) fn prepare_argument_processing(
     args: &ArgumentCollections<'_>,
     step_meta: StepMeta<'_>,
-) -> (
-    Vec<TokenStream2>,
-    Vec<TokenStream2>,
-    Option<TokenStream2>,
-    Option<TokenStream2>,
-) {
+) -> PreparedArgs {
     let StepMeta { pattern, ident } = step_meta;
     let declares = gen_fixture_decls(args.fixtures, ident);
     let captured: Vec<_> = args
@@ -208,7 +210,12 @@ pub(super) fn prepare_argument_processing(
     let step_arg_parses = gen_step_parses(args.step_args, &captured, step_meta);
     let datatable_decl = gen_datatable_decl(args.datatable, pattern, ident);
     let docstring_decl = gen_docstring_decl(args.docstring, pattern, ident);
-    (declares, step_arg_parses, datatable_decl, docstring_decl)
+    PreparedArgs {
+        declares,
+        step_arg_parses,
+        datatable_decl,
+        docstring_decl,
+    }
 }
 
 /// Collect argument identifiers in the order declared by the step function.
@@ -303,11 +310,10 @@ mod tests {
         let ident: syn::Ident = parse_quote!(demo_step);
         let meta = sample_meta(&pattern, &ident);
 
-        let (fixture_decls, step_parses, datatable_decl, docstring_decl) =
-            prepare_argument_processing(&collections, meta);
+        let prepared = prepare_argument_processing(&collections, meta);
 
-        assert_eq!(fixture_decls.len(), 1);
-        let [fixture_stmt] = fixture_decls.as_slice() else {
+        assert_eq!(prepared.declares.len(), 1);
+        let [fixture_stmt] = prepared.declares.as_slice() else {
             panic!("expected single fixture declaration");
         };
         let fixture_code = fixture_stmt.to_string();
@@ -315,20 +321,20 @@ mod tests {
         assert!(fixture_code.contains("cloned"));
         assert!(fixture_code.contains("MissingFixture"));
 
-        assert_eq!(step_parses.len(), 1);
-        let [parse_stmt] = step_parses.as_slice() else {
+        assert_eq!(prepared.step_arg_parses.len(), 1);
+        let [parse_stmt] = prepared.step_arg_parses.as_slice() else {
             panic!("expected single step argument parser");
         };
         let parse_code = parse_stmt.to_string();
         assert!(parse_code.contains("captures"));
         assert!(parse_code.contains("parse"));
 
-        let Some(datatable_code) = datatable_decl else {
+        let Some(datatable_code) = prepared.datatable_decl else {
             panic!("expected datatable declaration");
         };
         assert!(datatable_code.to_string().contains("iter"));
 
-        let Some(docstring_code) = docstring_decl else {
+        let Some(docstring_code) = prepared.docstring_decl else {
             panic!("expected docstring declaration");
         };
         assert!(docstring_code.to_string().contains("to_owned"));
