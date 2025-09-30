@@ -284,14 +284,14 @@ To enable validation pin a feature in your `dev-dependencies`:
 
 ```toml
 [dev-dependencies]
-rstest-bdd-macros = { version = "0.1.0-alpha3", features = ["compile-time-validation"] }
+rstest-bdd-macros = { version = "0.1.0-alpha4", features = ["compile-time-validation"] }
 ```
 
 For strict checking use:
 
 ```toml
 [dev-dependencies]
-rstest-bdd-macros = { version = "0.1.0-alpha3", features = ["strict-compile-time-validation"] }
+rstest-bdd-macros = { version = "0.1.0-alpha4", features = ["strict-compile-time-validation"] }
 ```
 
 Steps are only validated when one of these features is enabled.

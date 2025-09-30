@@ -1,6 +1,6 @@
 [package]
 name = "rstest-bdd-macros"
-version = "0.1.0-alpha3"
+version = "0.1.0-alpha4"
 edition.workspace = true
 license.workspace = true
 authors.workspace = true
