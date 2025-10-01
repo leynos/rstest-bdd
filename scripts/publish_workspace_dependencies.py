@@ -53,6 +53,7 @@ def apply_workspace_replacements(
     >>> apply_workspace_replacements(Path("."), "1.2.3", include_local_path=False)
     """
     workspace_root = Path(workspace_root)
+    unknown: set[str] = set()
     if crates is None:
         targets: typ.Final[tuple[str, ...]] = tuple(REPLACEMENTS)
     else:
