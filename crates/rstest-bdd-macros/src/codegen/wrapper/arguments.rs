@@ -119,25 +119,48 @@ pub(super) fn gen_docstring_decl(
 ///
 /// Non-reference fixtures must implement [`Clone`] because wrappers clone
 /// them to hand ownership to the step function.
+fn is_unsized_reference_target(ty: &syn::Type) -> bool {
+    matches!(
+        ty,
+        syn::Type::Slice(_) | syn::Type::TraitObject(_) | syn::Type::ImplTrait(_)
+    ) || matches!(ty, syn::Type::Path(path) if path.qself.is_none() && path.path.is_ident("str"))
+}
+
 pub(super) fn gen_fixture_decls(fixtures: &[FixtureArg], ident: &syn::Ident) -> Vec<TokenStream2> {
     fixtures
         .iter()
         .map(|FixtureArg { pat, name, ty }| {
             let path = crate::codegen::rstest_bdd_path();
-            let (stored_ty, post_get): (TokenStream2, TokenStream2) = match ty {
+            let (lookup_ty, post_get, ty_label) = match ty {
                 syn::Type::Reference(reference) => {
                     let elem = &*reference.elem;
-                    (quote! { #elem }, TokenStream2::new())
+                    if is_unsized_reference_target(elem) {
+                        (
+                            quote! { #ty },
+                            quote! { .copied() },
+                            quote! { stringify!(#ty) },
+                        )
+                    } else {
+                        (
+                            quote! { #elem },
+                            TokenStream2::new(),
+                            quote! { stringify!(#elem) },
+                        )
+                    }
                 }
-                _ => (quote! { #ty }, quote! { .cloned() }),
+                _ => (
+                    quote! { #ty },
+                    quote! { .cloned() },
+                    quote! { stringify!(#ty) },
+                ),
             };
             quote! {
                 let #pat: #ty = ctx
-                    .get::<#stored_ty>(stringify!(#name))
+                    .get::<#lookup_ty>(stringify!(#name))
                     #post_get
                     .ok_or_else(|| #path::StepError::MissingFixture {
                         name: stringify!(#name).to_string(),
-                        ty: stringify!(#stored_ty).to_string(),
+                        ty: (#ty_label).to_string(),
                         step: stringify!(#ident).to_string(),
                     })?;
             }

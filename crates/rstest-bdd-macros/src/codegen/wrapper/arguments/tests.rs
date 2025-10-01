@@ -98,7 +98,7 @@ fn collect_ordered_arguments_preserves_call_order() {
 }
 
 #[test]
-fn gen_fixture_decls_omits_clone_for_reference_types() {
+fn gen_fixture_decls_handles_reference_types() {
     let fixtures = vec![
         FixtureArg {
             pat: parse_quote!(owned_fixture),
@@ -106,19 +106,39 @@ fn gen_fixture_decls_omits_clone_for_reference_types() {
             ty: parse_quote!(String),
         },
         FixtureArg {
-            pat: parse_quote!(ref_fixture),
-            name: parse_quote!(ref_fixture),
+            pat: parse_quote!(str_fixture),
+            name: parse_quote!(str_fixture),
             ty: parse_quote!(&'static str),
+        },
+        FixtureArg {
+            pat: parse_quote!(bytes_fixture),
+            name: parse_quote!(bytes_fixture),
+            ty: parse_quote!(&'static [u8]),
+        },
+        FixtureArg {
+            pat: parse_quote!(cell_fixture),
+            name: parse_quote!(cell_fixture),
+            ty: parse_quote!(&std::cell::RefCell<u32>),
         },
     ];
     let ident: syn::Ident = parse_quote!(step_fn);
     let tokens = gen_fixture_decls(&fixtures, &ident);
-    let [owned, borrowed] = tokens.as_slice() else {
-        panic!("expected two fixture declarations");
+    let [owned, str_ref, bytes_ref, cell_ref] = tokens.as_slice() else {
+        panic!("expected four fixture declarations");
     };
 
-    assert!(owned.to_string().contains("cloned"));
-    assert!(!borrowed.to_string().contains("cloned"));
+    let owned_code = owned.to_string();
+    assert!(owned_code.contains("cloned"));
+
+    let str_code = str_ref.to_string();
+    assert!(str_code.contains("copied"));
+
+    let bytes_code = bytes_ref.to_string();
+    assert!(bytes_code.contains("copied"));
+
+    let cell_code = cell_ref.to_string();
+    assert!(!cell_code.contains("cloned"));
+    assert!(!cell_code.contains("copied"));
 }
 
 #[test]
