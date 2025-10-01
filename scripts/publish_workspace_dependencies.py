@@ -56,7 +56,7 @@ def apply_workspace_replacements(
     if crates is None:
         targets: typ.Final[tuple[str, ...]] = tuple(REPLACEMENTS)
     else:
-        unknown = set(crate for crate in crates if crate not in REPLACEMENTS)
+        unknown = {crate for crate in crates if crate not in REPLACEMENTS}
         targets = crates
     for crate in targets:
         if crate in unknown:
