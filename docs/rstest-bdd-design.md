@@ -1417,24 +1417,25 @@ orchestration works.
 #### 3.7.1 Scenario selection by title
 
 Binding scenarios by zero-based index is brittle in active feature files,
-because inserting a new scenario silently retargets existing tests. To reduce
-that coupling the macro will accept an alternative `name` argument so call
-sites can reference a scenario by its title. The string literal is matched
-case-sensitively against every `Scenario` and `Scenario Outline` heading in the
-parsed feature.
+because inserting a new scenario silently retargets existing tests. The macro
+already accepts an alternative `name` argument so call sites can reference a
+scenario by its title. The string literal is matched case-sensitively against
+every `Scenario` and `Scenario Outline` heading in the parsed feature. Phase 3
+focuses on tightening the supporting diagnostics so title-based bindings stay
+deterministic.
 
-- `name` and `index` are mutually exclusive. Supplying both emits a
-  `compile_error!` explaining the conflict and suggesting that the caller pick
+- Enforce mutual exclusion between `name` and `index` by emitting a
+  `compile_error!` that explains the conflict and directs maintainers to choose
   a single selector.
-- When a unique title matches, the macro reuses the existing code path by
-  computing the corresponding index internally. This keeps downstream code
-  generation unchanged.
-- If no title matches, the macro emits a `compile_error!` listing the available
-  scenario titles in the feature file so the caller can correct the binding.
-- When multiple scenarios share the same title, the macro reports the
-  ambiguity, enumerates the matching line numbers, and suggests switching back
-  to the explicit `index` selector. This allows teams to keep duplicate titles
-  while retaining deterministic bindings.
+- When a unique title matches, continue reusing the existing code path by
+  computing the corresponding index internally so downstream code generation
+  remains unchanged.
+- Emit a `compile_error!` listing the available scenario titles when no match is
+  found, providing immediate feedback that the binding requires adjustment.
+- When multiple scenarios share the same title, report the ambiguity,
+  enumerate the matching line numbers, and suggest reverting to the explicit
+  `index` selector. This allows teams to keep duplicate titles while retaining
+  deterministic bindings.
 
 Implementation sketch:
 
@@ -1446,7 +1447,7 @@ Implementation sketch:
    - Empty vectors trigger the missing-title diagnostic.
    - Single-entry vectors reuse the existing index-based selection.
    - Multi-entry vectors trigger the ambiguity diagnostic. Include the
-     formatted title and 1-based line numbers to help the user disambiguate.
+     formatted title and 1-based line numbers to help maintainers disambiguate.
 4. Tests cover the happy path, missing title, and ambiguous cases to lock in
    the diagnostics. Trybuild fixtures exercise each compiler error so the
    messages remain stable as the macro evolves.

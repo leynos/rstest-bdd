@@ -216,10 +216,10 @@ improves the developer experience.
     discover all `.feature` files in a directory and generate a test module
     containing a test function for every `Scenario` found.
 
-  - [ ] Allow the `#[scenario]` macro to bind to scenarios by title via a new
-    `name` argument, falling back to the index only when duplicates exist. Emit
-    a compile-time error when the requested title is absent to keep tests
-    resilient to reordering in feature files.
+  - [ ] Harden the `#[scenario]` macro's existing `name` selector with
+    compile-time diagnostics: emit an error when the requested title is absent
+    so bindings stay robust to feature reordering, and fall back to the index
+    only when duplicate titles exist.
 
 ## Phase 4: Internationalization and Localization
 
