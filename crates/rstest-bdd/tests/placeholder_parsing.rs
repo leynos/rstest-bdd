@@ -25,6 +25,24 @@ fn expect_placeholder_syntax(pat: StepPattern) -> PlaceholderSyntaxError {
 }
 
 #[test]
+fn regex_requires_prior_compilation() {
+    let pattern = StepPattern::from("literal text");
+    assert!(
+        matches!(pattern.regex(), Err(StepPatternError::NotCompiled { .. })),
+        "accessing the regex without compiling should return an error",
+    );
+
+    if let Err(err) = pattern.compile() {
+        panic!("compiling literal pattern should succeed: {err:?}");
+    }
+    let re = match pattern.regex() {
+        Ok(regex) => regex,
+        Err(err) => panic!("regex should be available after compilation: {err:?}"),
+    };
+    assert!(re.is_match("literal text"));
+}
+
+#[test]
 fn type_hint_uses_specialised_fragment() {
     // u32: positive integer
     let pat = compiled("value {n:u32}");

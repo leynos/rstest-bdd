@@ -222,6 +222,14 @@ pub enum StepPatternError {
     /// The generated regular expression failed to compile.
     #[error("{0}")]
     InvalidPattern(#[from] regex::Error),
+    /// Attempted to access the compiled regex before calling [`StepPattern::compile`](crate::pattern::StepPattern::compile).
+    #[error(
+        "step pattern regex has not been compiled; call compile() first on pattern '{pattern}'"
+    )]
+    NotCompiled {
+        /// Pattern text that has not yet been compiled.
+        pattern: &'static str,
+    },
 }
 
 /// Error conditions that may arise when extracting placeholders.
@@ -245,7 +253,7 @@ impl From<StepPatternError> for PlaceholderError {
             StepPatternError::PlaceholderSyntax(err) => {
                 Self::InvalidPlaceholder(err.user_message())
             }
-            StepPatternError::InvalidPattern(re) => Self::InvalidPattern(re.to_string()),
+            other => Self::InvalidPattern(other.to_string()),
         }
     }
 }

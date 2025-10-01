@@ -79,18 +79,15 @@ impl StepPattern {
         Ok(())
     }
 
-    /// Return the cached regular expression or panic if not compiled.
+    /// Return the cached regular expression.
     ///
-    /// # Panics
-    /// Panics if `compile()` was not called before this accessor.
-    #[must_use]
-    pub fn regex(&self) -> &Regex {
-        self.regex.get().unwrap_or_else(|| {
-            panic!(
-                "step pattern regex must be precompiled; call compile() first on pattern '{}'",
-                self.text
-            )
-        })
+    /// # Errors
+    /// Returns [`StepPatternError::NotCompiled`] if [`compile`](Self::compile)
+    /// was not invoked beforehand.
+    pub fn regex(&self) -> Result<&Regex, StepPatternError> {
+        self.regex
+            .get()
+            .ok_or(StepPatternError::NotCompiled { pattern: self.text })
     }
 }
 

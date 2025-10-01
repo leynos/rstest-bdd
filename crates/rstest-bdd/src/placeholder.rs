@@ -24,6 +24,6 @@ pub fn extract_placeholders(
     text: StepText<'_>,
 ) -> Result<Vec<String>, PlaceholderError> {
     pattern.compile()?;
-    let re = pattern.regex();
+    let re = pattern.regex()?;
     extract_captured_values(re, text.as_str()).ok_or(PlaceholderError::PatternMismatch)
 }
