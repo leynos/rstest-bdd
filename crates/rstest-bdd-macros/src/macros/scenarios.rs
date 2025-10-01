@@ -14,7 +14,7 @@ use gherkin::Feature;
 
 /// Recursively collect all `.feature` files under `base`.
 fn collect_feature_files(base: &Path) -> std::io::Result<Vec<PathBuf>> {
-    use std::io;
+    use std::{fs, io};
     use walkdir::WalkDir;
 
     fn is_feature_file(path: &Path) -> bool {
@@ -23,14 +23,37 @@ fn collect_feature_files(base: &Path) -> std::io::Result<Vec<PathBuf>> {
             .is_some_and(|ext| ext.eq_ignore_ascii_case("feature"))
     }
 
+    fn symlink_points_to_feature(path: &Path) -> io::Result<bool> {
+        let target = fs::read_link(path)?;
+        let resolved = if target.is_absolute() {
+            target
+        } else {
+            path.parent()
+                .map(|parent| parent.join(&target))
+                .unwrap_or(target)
+        };
+        let metadata = fs::metadata(&resolved)?;
+        Ok(metadata.is_file() && is_feature_file(&resolved))
+    }
+
     let mut files: Vec<PathBuf> = WalkDir::new(base)
-        .follow_links(true)
+        .follow_links(false)
         .into_iter()
         .filter_map(|entry| match entry {
-            Ok(e) if e.file_type().is_file() && is_feature_file(e.path()) => {
-                Some(Ok(e.into_path()))
+            Ok(e) => {
+                if e.file_type().is_file() && is_feature_file(e.path()) {
+                    Some(Ok(e.into_path()))
+                } else if e.file_type().is_symlink() {
+                    let path = e.path().to_path_buf();
+                    match symlink_points_to_feature(&path) {
+                        Ok(true) => Some(Ok(path)),
+                        Ok(false) => None,
+                        Err(err) => Some(Err(err)),
+                    }
+                } else {
+                    None
+                }
             }
-            Ok(_) => None,
             Err(e) => {
                 let err_str = e.to_string();
                 let io_err = e
@@ -241,8 +264,19 @@ pub(crate) fn scenarios(input: TokenStream) -> TokenStream {
 
 #[cfg(test)]
 mod tests {
+    #[cfg(unix)]
+    use super::collect_feature_files;
     use super::dedupe_name;
     use std::collections::HashSet;
+
+    #[cfg(unix)]
+    use std::fs;
+    #[cfg(unix)]
+    use std::io;
+    #[cfg(unix)]
+    use std::os::unix::fs::symlink;
+    #[cfg(unix)]
+    use tempfile::tempdir;
 
     #[test]
     fn deduplicates_duplicate_titles() {
@@ -251,5 +285,36 @@ mod tests {
         let second = dedupe_name("dup_same_name", &mut used);
         assert_eq!(first, "dup_same_name");
         assert_eq!(second, "dup_same_name_1");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn collects_symlinked_feature_files_without_following_directory_loops() -> io::Result<()> {
+        let temp = tempdir()?;
+        let features_root = temp.path().join("features");
+        fs::create_dir_all(features_root.join("nested"))?;
+
+        let feature_path = features_root.join("nested/example.feature");
+        fs::write(&feature_path, "Feature: Example\n")?;
+
+        let symlink_path = features_root.join("symlink.feature");
+        symlink(&feature_path, &symlink_path)?;
+
+        let loop_dir = features_root.join("loop");
+        symlink(&features_root, &loop_dir)?;
+
+        let files = collect_feature_files(features_root.as_path())?;
+
+        let mut expected = vec![feature_path, symlink_path];
+        expected.sort();
+        assert_eq!(files, expected);
+
+        Ok(())
+    }
+
+    #[cfg(not(unix))]
+    #[test]
+    fn collects_symlinked_feature_files_without_following_directory_loops() {
+        assert!(cfg!(not(unix)));
     }
 }
