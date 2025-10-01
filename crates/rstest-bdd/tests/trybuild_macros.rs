@@ -142,9 +142,9 @@ fn step_macros_compile() {
 
 fn run_passing_macro_tests(t: &trybuild::TestCases) {
     for case in [
-        "step_macros.rs",
-        "step_macros_unicode.rs",
-        "scenario_single_match.rs",
+        MacroFixtureCase::from("step_macros.rs"),
+        MacroFixtureCase::from("step_macros_unicode.rs"),
+        MacroFixtureCase::from("scenario_single_match.rs"),
     ] {
         t.pass(macros_fixture(case));
     }
@@ -152,11 +152,11 @@ fn run_passing_macro_tests(t: &trybuild::TestCases) {
 
 fn run_failing_macro_tests(t: &trybuild::TestCases) {
     for case in [
-        "scenario_missing_file.rs",
-        "step_macros_invalid_identifier.rs",
-        "step_tuple_pattern.rs",
-        "step_struct_pattern.rs",
-        "step_nested_pattern.rs",
+        MacroFixtureCase::from("scenario_missing_file.rs"),
+        MacroFixtureCase::from("step_macros_invalid_identifier.rs"),
+        MacroFixtureCase::from("step_tuple_pattern.rs"),
+        MacroFixtureCase::from("step_struct_pattern.rs"),
+        MacroFixtureCase::from("step_nested_pattern.rs"),
     ] {
         t.compile_fail(macros_fixture(case));
     }
@@ -164,20 +164,22 @@ fn run_failing_macro_tests(t: &trybuild::TestCases) {
 
 fn run_failing_ui_tests(t: &trybuild::TestCases) {
     for case in [
-        "datatable_wrong_type.rs",
-        "datatable_duplicate.rs",
-        "datatable_duplicate_attr.rs",
-        "datatable_after_docstring.rs",
-        "placeholder_missing_param.rs",
-        "implicit_fixture_missing.rs",
-        "placeholder_missing_params.rs",
+        UiFixtureCase::from("datatable_wrong_type.rs"),
+        UiFixtureCase::from("datatable_duplicate.rs"),
+        UiFixtureCase::from("datatable_duplicate_attr.rs"),
+        UiFixtureCase::from("datatable_after_docstring.rs"),
+        UiFixtureCase::from("placeholder_missing_param.rs"),
+        UiFixtureCase::from("implicit_fixture_missing.rs"),
+        UiFixtureCase::from("placeholder_missing_params.rs"),
     ] {
         t.compile_fail(ui_fixture(case));
     }
 }
 
 fn run_scenarios_missing_dir_test(t: &trybuild::TestCases) {
-    t.compile_fail(macros_fixture("scenarios_missing_dir.rs"));
+    t.compile_fail(macros_fixture(MacroFixtureCase::from(
+        "scenarios_missing_dir.rs",
+    )));
 }
 
 #[expect(
@@ -185,14 +187,17 @@ fn run_scenarios_missing_dir_test(t: &trybuild::TestCases) {
     reason = "integration test inspects dependency feature flags"
 )]
 fn run_conditional_ordering_tests(t: &trybuild::TestCases) {
-    let ordering_cases = ["scenario_missing_step.rs", "scenario_out_of_order.rs"];
+    let ordering_cases = [
+        MacroFixtureCase::from("scenario_missing_step.rs"),
+        MacroFixtureCase::from("scenario_out_of_order.rs"),
+    ];
 
     if cfg!(feature = "strict-compile-time-validation") {
-        for case in ordering_cases {
+        for case in ordering_cases.iter().cloned() {
             t.compile_fail(macros_fixture(case));
         }
     } else {
-        for case in ordering_cases {
+        for case in ordering_cases.iter().cloned() {
             t.pass(macros_fixture(case));
         }
         compile_fail_missing_step_warning(t);
@@ -205,7 +210,9 @@ fn run_conditional_ordering_tests(t: &trybuild::TestCases) {
 )]
 fn run_conditional_ambiguous_step_test(t: &trybuild::TestCases) {
     if cfg!(feature = "compile-time-validation") {
-        t.compile_fail(macros_fixture("scenario_ambiguous_step.rs"));
+        t.compile_fail(macros_fixture(MacroFixtureCase::from(
+            "scenario_ambiguous_step.rs",
+        )));
     }
 }
 
@@ -214,7 +221,7 @@ type Normaliser = for<'a> fn(NormaliserInput<'a>) -> String;
 fn compile_fail_missing_step_warning(t: &trybuild::TestCases) {
     compile_fail_with_normalised_output(
         t,
-        macros_fixture("scenario_missing_step_warning.rs"),
+        macros_fixture(MacroFixtureCase::from("scenario_missing_step_warning.rs")),
         &[strip_nightly_macro_backtrace_hint, normalise_fixture_paths],
     );
 }
