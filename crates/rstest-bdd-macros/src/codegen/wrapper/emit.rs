@@ -64,28 +64,18 @@ struct WrapperAssembly<'a> {
     capture_count: usize,
 }
 
-/// Assemble the final wrapper function using prepared components.
-fn assemble_wrapper_function(
-    wrapper_ident: &proc_macro2::Ident,
-    pattern_ident: &proc_macro2::Ident,
-    assembly: WrapperAssembly<'_>,
-) -> TokenStream2 {
-    let WrapperAssembly {
-        meta,
-        prepared,
-        arg_idents,
-        capture_count,
-    } = assembly;
+struct WrapperErrors {
+    placeholder: TokenStream2,
+    panic: TokenStream2,
+    execution: TokenStream2,
+    capture_mismatch: TokenStream2,
+}
+
+fn prepare_wrapper_errors(meta: StepMeta<'_>) -> WrapperErrors {
     let StepMeta { pattern, ident } = meta;
-    let PreparedArgs {
-        declares,
-        step_arg_parses,
-        datatable_decl,
-        docstring_decl,
-    } = prepared;
     let execution_error = format_ident!("ExecutionError");
     let panic_error = format_ident!("PanicError");
-    let placeholder_err = step_error_tokens(
+    let placeholder = step_error_tokens(
         &execution_error,
         pattern,
         ident,
@@ -98,10 +88,9 @@ fn assemble_wrapper_function(
             )
         },
     );
-    let panic_err = step_error_tokens(&panic_error, pattern, ident, &quote! { message });
-    let exec_err = step_error_tokens(&execution_error, pattern, ident, &quote! { message });
-    let expected = capture_count;
-    let capture_mismatch_err = step_error_tokens(
+    let panic = step_error_tokens(&panic_error, pattern, ident, &quote! { message });
+    let execution = step_error_tokens(&execution_error, pattern, ident, &quote! { message });
+    let capture_mismatch = step_error_tokens(
         &execution_error,
         pattern,
         ident,
@@ -115,16 +104,52 @@ fn assemble_wrapper_function(
             )
         },
     );
+
+    WrapperErrors {
+        placeholder,
+        panic,
+        execution,
+        capture_mismatch,
+    }
+}
+
+/// Assemble the final wrapper function using prepared components.
+fn assemble_wrapper_function(
+    wrapper_ident: &proc_macro2::Ident,
+    pattern_ident: &proc_macro2::Ident,
+    assembly: WrapperAssembly<'_>,
+) -> TokenStream2 {
+    let WrapperAssembly {
+        meta,
+        prepared,
+        arg_idents,
+        capture_count,
+    } = assembly;
+    let PreparedArgs {
+        declares,
+        step_arg_parses,
+        datatable_decl,
+        docstring_decl,
+    } = prepared;
+    let WrapperErrors {
+        placeholder: placeholder_err,
+        panic: panic_err,
+        execution: exec_err,
+        capture_mismatch: capture_mismatch_err,
+    } = prepare_wrapper_errors(meta);
+    let StepMeta { pattern: _, ident } = meta;
+    let expected = capture_count;
     let path = crate::codegen::rstest_bdd_path();
     let call = quote! { #ident(#(#arg_idents),*) };
     let call_expr = quote! { #path::IntoStepResult::into_step_result(#call) };
+
     quote! {
         fn #wrapper_ident(
             ctx: &#path::StepContext<'_>,
             text: &str,
             _docstring: Option<&str>,
             _table: Option<&[&[&str]]>,
-            ) -> Result<Option<Box<dyn std::any::Any>>, #path::StepError> {
+        ) -> Result<Option<Box<dyn std::any::Any>>, #path::StepError> {
             use std::panic::{catch_unwind, AssertUnwindSafe};
 
             let captures = #path::extract_placeholders(&#pattern_ident, text.into())
@@ -174,7 +199,7 @@ fn generate_wrapper_body(
         datatable,
         docstring,
     };
-    let step_meta = super::arguments::StepMeta { pattern, ident };
+    let step_meta = StepMeta { pattern, ident };
     let signature = generate_wrapper_signature(pattern, pattern_ident);
     let prepared = prepare_argument_processing(&collections, step_meta);
     let arg_idents = collect_ordered_arguments(call_order, &collections);
