@@ -63,37 +63,61 @@ impl Drop for TempWorkingDir {
     }
 }
 
-fn create_dir_all_cap(path: &Utf8Path) -> std::io::Result<()> {
-    if path.as_str().is_empty() || path == Utf8Path::new(".") {
-        return Ok(());
-    }
+fn should_skip_creation(path: &Utf8Path) -> bool {
+    path.as_str().is_empty() || path == Utf8Path::new(".")
+}
 
-    if path.is_absolute() {
-        let Some(parent) = path.parent() else {
-            return Ok(());
-        };
+fn ensure_parent_exists(path: &Utf8Path) -> std::io::Result<()> {
+    if let Some(parent) = path.parent() {
         if parent != path {
             create_dir_all_cap(parent)?;
         }
-        if let Some(name) = path.file_name() {
-            let authority = ambient_authority();
-            let dir = Dir::open_ambient_dir(parent, authority)?;
-            if let Err(error) = dir.create_dir(Utf8Path::new(name)) {
-                if error.kind() != std::io::ErrorKind::AlreadyExists {
-                    return Err(error);
-                }
-            }
-        }
-        return Ok(());
     }
 
+    Ok(())
+}
+
+fn with_dir<T>(
+    path: &Utf8Path,
+    op: impl FnOnce(&Dir, &Utf8Path) -> std::io::Result<T>,
+) -> std::io::Result<T> {
     let authority = ambient_authority();
+    if let Some(parent) = path.parent() {
+        if should_skip_creation(parent) {
+            let dir = Dir::open_ambient_dir(Utf8Path::new("."), authority)?;
+            let target = path.file_name().map_or(path, Utf8Path::new);
+            return op(&dir, target);
+        }
+
+        let dir = Dir::open_ambient_dir(parent, authority)?;
+        let target = path.file_name().map_or(path, Utf8Path::new);
+        return op(&dir, target);
+    }
+
     let dir = Dir::open_ambient_dir(Utf8Path::new("."), authority)?;
-    match dir.create_dir_all(path) {
+    op(&dir, path)
+}
+
+fn create_single_dir(path: &Utf8Path) -> std::io::Result<()> {
+    with_dir(path, |dir, target| match dir.create_dir(target) {
         Ok(()) => Ok(()),
         Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => Ok(()),
         Err(error) => Err(error),
+    })
+}
+
+fn create_dir_all_cap(path: &Utf8Path) -> std::io::Result<()> {
+    if should_skip_creation(path) {
+        return Ok(());
     }
+
+    ensure_parent_exists(path)?;
+
+    if path.file_name().is_some() {
+        create_single_dir(path)?;
+    }
+
+    Ok(())
 }
 
 #[expect(
