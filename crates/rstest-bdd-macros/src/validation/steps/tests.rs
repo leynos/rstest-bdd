@@ -99,10 +99,14 @@ fn with_dir<T>(
 }
 
 fn create_single_dir(path: &Utf8Path) -> std::io::Result<()> {
-    with_dir(path, |dir, target| match dir.create_dir(target) {
-        Ok(()) => Ok(()),
-        Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => Ok(()),
-        Err(error) => Err(error),
+    with_dir(path, |dir, target| {
+        dir.create_dir(target).or_else(|error| {
+            if error.kind() == std::io::ErrorKind::AlreadyExists {
+                Ok(())
+            } else {
+                Err(error)
+            }
+        })
     })
 }
 
@@ -111,11 +115,12 @@ fn create_dir_all_cap(path: &Utf8Path) -> std::io::Result<()> {
         return Ok(());
     }
 
-    ensure_parent_exists(path)?;
-
-    if path.file_name().is_some() {
-        create_single_dir(path)?;
+    if path.file_name().is_none() {
+        return ensure_parent_exists(path);
     }
+
+    ensure_parent_exists(path)?;
+    create_single_dir(path)?;
 
     Ok(())
 }
