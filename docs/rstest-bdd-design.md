@@ -686,7 +686,7 @@ global registry stores `(StepKeyword, &'static StepPattern)` keys in a
 `hashbrown::HashMap` and uses the raw-entry API for constant-time lookups by
 hashing the pattern text directly.
 
-Placeholder parsing now follows a two-stage pipeline that first tokenises the
+Placeholder parsing now follows a two-stage pipeline that first tokenizes the
 pattern and then translates the resulting tokens into an anchored regular
 expression. This architecture keeps the lexing responsibilities focused and
 isolated from the regex synthesis step, making it easier to extend placeholder
