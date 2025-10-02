@@ -1414,6 +1414,44 @@ step definitions by exact string comparison. Argument parsing and fixture
 handling remain unimplemented to minimize complexity while proving the
 orchestration works.
 
+#### 3.7.1 Scenario selection by title
+
+Binding scenarios by zero-based index is brittle in active feature files,
+because inserting a new scenario silently retargets existing tests. The macro
+already accepts an alternative `name` argument so call sites can reference a
+scenario by its title. The string literal is matched case-sensitively against
+every `Scenario` and `Scenario Outline` heading in the parsed feature. Phase 3
+focuses on tightening the supporting diagnostics so title-based bindings stay
+deterministic.
+
+- Enforce mutual exclusion between `name` and `index` by emitting a
+  `compile_error!` that explains the conflict and directs maintainers to choose
+  a single selector.
+- When a unique title matches, continue reusing the existing code path by
+  computing the corresponding index internally so downstream code generation
+  remains unchanged.
+- Emit a `compile_error!` listing the available scenario titles when no match is
+  found, providing immediate feedback that the binding requires adjustment.
+- When multiple scenarios share the same title, report the ambiguity,
+  enumerate the matching line numbers, and suggest reverting to the explicit
+  `index` selector. This allows teams to keep duplicate titles while retaining
+  deterministic bindings.
+
+Implementation sketch:
+
+1. Extend the argument parser so `ScenarioArgs` stores `index: Option<usize>`
+   and `name: Option<String>`, enforcing mutual exclusion during parsing.
+2. After parsing the feature, walk the scenario list once, pushing each title
+   into a `HashMap<&str, Vec<usize>>` that records indexes for every title.
+3. When `name` is set, look up the vector of matching indexes:
+   - Empty vectors trigger the missing-title diagnostic.
+   - Single-entry vectors reuse the existing index-based selection.
+   - Multi-entry vectors trigger the ambiguity diagnostic. Include the
+     formatted title and 1-based line numbers to help maintainers disambiguate.
+4. Tests cover the happy path, missing title, and ambiguous cases to lock in
+   the diagnostics. Trybuild fixtures exercise each compiler error so the
+   messages remain stable as the macro evolves.
+
 ### 3.8 Fixture Integration Implementation
 
 The second phase extends the macro system to support fixtures. Step definition
