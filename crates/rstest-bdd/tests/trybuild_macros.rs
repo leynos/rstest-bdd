@@ -9,11 +9,10 @@
 //! assertions remain stable across platforms.
 
 use camino::{Utf8Path, Utf8PathBuf};
-use cap_std::fs_utf8::Dir;
+use cap_std::{ambient_authority, fs::Dir};
 use std::borrow::Cow;
 use std::io;
 use std::panic::{self, AssertUnwindSafe};
-use std::path::Path as StdPath;
 use std::sync::OnceLock;
 use wrappers::{FixturePathLine, MacroFixtureCase, NormaliserInput, UiFixtureCase};
 
@@ -50,72 +49,65 @@ fn stage_trybuild_support_files() -> io::Result<()> {
         .and_then(Utf8Path::parent)
         .map(Utf8Path::to_owned)
         .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "workspace root must exist"))?;
-    let workspace_dir =
-        Dir::open_ambient_dir(workspace_root.as_path(), cap_std::ambient_authority())?;
+    let workspace_dir = Dir::open_ambient_dir(workspace_root.as_std_path(), ambient_authority())?;
 
     let target_tests_relative = Utf8Path::new("target/tests/trybuild");
     let trybuild_crate_relative = target_tests_relative.join("rstest-bdd");
     let workspace_features_relative = target_tests_relative.join("features");
 
-    if workspace_dir.exists(workspace_features_relative.as_path()) {
-        workspace_dir.remove_dir_all(workspace_features_relative.as_path())?;
-    }
-    if workspace_dir.exists(trybuild_crate_relative.as_path()) {
-        workspace_dir.remove_dir_all(trybuild_crate_relative.as_path())?;
-    }
+    remove_dir_if_exists(&workspace_dir, workspace_features_relative.as_path())?;
+    remove_dir_if_exists(&workspace_dir, trybuild_crate_relative.as_path())?;
 
-    workspace_dir.create_dir_all(workspace_features_relative.as_path())?;
-    workspace_dir.create_dir_all(trybuild_crate_relative.as_path())?;
+    workspace_dir.create_dir_all(workspace_features_relative.as_std_path())?;
+    workspace_dir.create_dir_all(trybuild_crate_relative.as_std_path())?;
 
-    let features_root = crate_root.join("tests/features");
-    let features_dir =
-        Dir::open_ambient_dir(features_root.as_path(), cap_std::ambient_authority())?;
+    let crate_dir = Dir::open_ambient_dir(crate_root.as_std_path(), ambient_authority())?;
+    let features_dir = crate_dir.open_dir("tests/features")?;
     let mut features = Vec::new();
     collect_feature_files(&features_dir, Utf8Path::new("."), &mut features)?;
     features.sort_by(|a, b| a.0.cmp(&b.0));
 
-    let fixtures_root = crate_root.join(MACROS_FIXTURES_DIR);
-    let fixtures_dir =
-        Dir::open_ambient_dir(fixtures_root.as_path(), cap_std::ambient_authority())?;
+    let fixtures_dir = crate_dir.open_dir(MACROS_FIXTURES_DIR)?;
     let mut fixture_features = Vec::new();
     collect_feature_files(&fixtures_dir, Utf8Path::new("."), &mut fixture_features)?;
     fixture_features.sort_by(|a, b| a.0.cmp(&b.0));
 
-    let workspace_features_root = workspace_root.join(workspace_features_relative.as_path());
-    let trybuild_crate_root = workspace_root.join(trybuild_crate_relative.as_path());
-    write_feature_files(workspace_features_root.as_std_path(), &features)?;
-    write_feature_files(trybuild_crate_root.as_std_path(), &fixture_features)?;
+    write_feature_files(
+        &workspace_dir,
+        workspace_features_relative.as_path(),
+        &features,
+    )?;
+    write_feature_files(
+        &workspace_dir,
+        trybuild_crate_relative.as_path(),
+        &fixture_features,
+    )?;
 
     Ok(())
 }
 
 fn write_feature_files(
-    destination_root: &StdPath,
+    root: &Dir,
+    destination_root: &Utf8Path,
     features: &[(String, String)],
 ) -> io::Result<()> {
-    let destination = Utf8PathBuf::from_path_buf(destination_root.to_path_buf()).map_err(|_| {
-        io::Error::new(
-            io::ErrorKind::InvalidData,
-            "destination_root must be valid UTF-8",
-        )
-    })?;
-    let dir = Dir::open_ambient_dir(destination.as_path(), cap_std::ambient_authority())?;
-
     for (relative, contents) in features {
-        let path = destination.join(relative);
-        let relative_path = path.strip_prefix(destination.as_path()).map_err(|_| {
-            io::Error::new(
-                io::ErrorKind::InvalidData,
-                "feature path must stay within destination",
-            )
-        })?;
-        if let Some(parent) = relative_path.parent() {
-            dir.create_dir_all(parent)?;
+        let path = destination_root.join(relative);
+        if let Some(parent) = path.parent() {
+            root.create_dir_all(parent.as_std_path())?;
         }
-        dir.write(relative_path, contents.as_bytes())?;
+        root.write(path.as_std_path(), contents.as_bytes())?;
     }
 
     Ok(())
+}
+
+fn remove_dir_if_exists(root: &Dir, path: &Utf8Path) -> io::Result<()> {
+    match root.remove_dir_all(path.as_std_path()) {
+        Ok(()) => Ok(()),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(()),
+        Err(error) => Err(error),
+    }
 }
 
 fn collect_feature_files(
@@ -124,13 +116,13 @@ fn collect_feature_files(
     features: &mut Vec<(String, String)>,
 ) -> io::Result<()> {
     let is_root = current == Utf8Path::new(".");
-    for entry in dir.read_dir(current)? {
+    for entry in dir.read_dir(current.as_std_path())? {
         let entry = entry?;
-        let file_name = entry.file_name()?;
+        let file_name = entry.file_name().to_string_lossy().into_owned();
         let relative = if is_root {
-            Utf8PathBuf::from(&file_name)
+            Utf8PathBuf::from(file_name.as_str())
         } else {
-            current.join(&file_name)
+            current.join(file_name.as_str())
         };
 
         if entry.file_type()?.is_dir() {
@@ -142,7 +134,7 @@ fn collect_feature_files(
             continue;
         }
 
-        let contents = dir.read_to_string(relative.as_path())?;
+        let contents = dir.read_to_string(relative.as_std_path())?;
         features.push((relative.to_string(), contents));
     }
 
@@ -284,39 +276,35 @@ fn run_compile_fail_with_normalised_output<F>(
 
 fn normalised_outputs_match(test_path: &Utf8Path, normalisers: &[Normaliser]) -> io::Result<bool> {
     let crate_dir = Dir::open_ambient_dir(
-        Utf8Path::new(env!("CARGO_MANIFEST_DIR")),
-        cap_std::ambient_authority(),
+        Utf8Path::new(env!("CARGO_MANIFEST_DIR")).as_std_path(),
+        ambient_authority(),
     )?;
-    let actual_path = wip_stderr_path(test_path.as_std_path());
-    let expected_path = expected_stderr_path(test_path.as_std_path());
-    let actual = crate_dir.read_to_string(actual_path.as_path())?;
-    let expected = crate_dir.read_to_string(expected_path.as_path())?;
+    let actual_path = wip_stderr_path(test_path);
+    let expected_path = expected_stderr_path(test_path);
+    let actual = crate_dir.read_to_string(actual_path.as_std_path())?;
+    let expected = crate_dir.read_to_string(expected_path.as_std_path())?;
 
     if apply_normalisers(NormaliserInput::from(actual.as_str()), normalisers)
         == apply_normalisers(NormaliserInput::from(expected.as_str()), normalisers)
     {
-        let _ = crate_dir.remove_file(actual_path.as_path());
+        let _ = crate_dir.remove_file(actual_path.as_std_path());
         return Ok(true);
     }
 
     Ok(false)
 }
 
-fn wip_stderr_path(test_path: &StdPath) -> Utf8PathBuf {
+fn wip_stderr_path(test_path: &Utf8Path) -> Utf8PathBuf {
     let Some(file_name) = test_path.file_name() else {
         panic!("trybuild test path must include file name");
     };
-    let file_name = file_name
-        .to_str()
-        .unwrap_or_else(|| panic!("file name must be valid UTF-8"));
     let mut path = Utf8PathBuf::from(file_name);
     path.set_extension("stderr");
     Utf8PathBuf::from("target/tests/wip").join(path)
 }
 
-fn expected_stderr_path(test_path: &StdPath) -> Utf8PathBuf {
-    let mut path = Utf8PathBuf::from_path_buf(test_path.to_path_buf())
-        .unwrap_or_else(|_| panic!("test_path must be valid UTF-8"));
+fn expected_stderr_path(test_path: &Utf8Path) -> Utf8PathBuf {
+    let mut path = test_path.to_owned();
     path.set_extension("stderr");
     path
 }
@@ -360,10 +348,7 @@ fn normalise_fixture_path_line(line: FixturePathLine<'_>) -> String {
     let path = parts.next().unwrap_or(trimmed);
     let suffix = parts.next();
 
-    let file_name = StdPath::new(path)
-        .file_name()
-        .and_then(|value| value.to_str())
-        .unwrap_or(path);
+    let file_name = Utf8Path::new(path).file_name().unwrap_or(path);
 
     let mut rebuilt = format!("{prefix}{ARROW} ");
     rebuilt.push('$');

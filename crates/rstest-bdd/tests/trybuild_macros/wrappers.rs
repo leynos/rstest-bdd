@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use camino::Utf8PathBuf;
 use the_newtype::Newtype;
 
 macro_rules! owned_str_newtype {
@@ -57,17 +57,17 @@ macro_rules! borrowed_str_newtype {
 
 owned_str_newtype!(MacroFixtureCase);
 
-impl From<MacroFixtureCase> for PathBuf {
+impl From<MacroFixtureCase> for Utf8PathBuf {
     fn from(value: MacroFixtureCase) -> Self {
-        value.0.into()
+        Self::from(value.0)
     }
 }
 
 owned_str_newtype!(UiFixtureCase);
 
-impl From<UiFixtureCase> for PathBuf {
+impl From<UiFixtureCase> for Utf8PathBuf {
     fn from(value: UiFixtureCase) -> Self {
-        value.0.into()
+        Self::from(value.0)
     }
 }
 
