@@ -324,11 +324,11 @@ fn apply_normalisers<'a>(input: NormaliserInput<'a>, normalisers: &[Normaliser])
 
 fn normalise_fixture_paths(input: NormaliserInput<'_>) -> String {
     let text = input.as_ref();
-    let normalised_lines = text
+    let mut normalised = text
         .lines()
         .map(|line| normalise_fixture_path_line(FixturePathLine::from(line)))
-        .collect::<Vec<_>>();
-    let mut normalised = normalised_lines.join("\n");
+        .collect::<Vec<_>>()
+        .join("\n");
     if text.ends_with('\n') {
         normalised.push('\n');
     }
