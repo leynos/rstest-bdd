@@ -135,6 +135,11 @@ pub(super) fn gen_fixture_decls(fixtures: &[FixtureArg], ident: &syn::Ident) -> 
         .map(|FixtureArg { pat, name, ty }| {
             let path = crate::codegen::rstest_bdd_path();
             let (lookup_ty, post_get, ty_label) = match ty {
+                syn::Type::Reference(reference) if reference.mutability.is_some() => (
+                    quote! { #ty },
+                    quote! { .map(|value| &mut **value) },
+                    quote! { stringify!(#ty) },
+                ),
                 syn::Type::Reference(reference) => {
                     let elem = &*reference.elem;
                     if is_unsized_reference_target(elem) {

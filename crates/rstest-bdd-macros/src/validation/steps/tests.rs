@@ -261,8 +261,8 @@ fn normalises_crate_id_without_out_dir_component() {
 #[cfg(windows)]
 #[test]
 fn normalises_windows_drive_letter_out_dir() {
-    let id = normalise_crate_id("demo:C:/fixtures");
-    assert_eq!(id.as_ref(), "demo:C:/fixtures");
+    let id = normalise_crate_id("demo:C:/a/b");
+    assert_eq!(id.as_ref(), "demo:C:/a/b");
 }
 
 #[test]

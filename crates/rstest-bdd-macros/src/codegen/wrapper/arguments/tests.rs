@@ -116,6 +116,11 @@ fn gen_fixture_decls_handles_reference_types() {
             ty: parse_quote!(&'static [u8]),
         },
         FixtureArg {
+            pat: parse_quote!(mut_fixture),
+            name: parse_quote!(mut_fixture),
+            ty: parse_quote!(&'static mut u32),
+        },
+        FixtureArg {
             pat: parse_quote!(cell_fixture),
             name: parse_quote!(cell_fixture),
             ty: parse_quote!(&std::cell::RefCell<u32>),
@@ -123,8 +128,8 @@ fn gen_fixture_decls_handles_reference_types() {
     ];
     let ident: syn::Ident = parse_quote!(step_fn);
     let tokens = gen_fixture_decls(&fixtures, &ident);
-    let [owned, str_ref, bytes_ref, cell_ref] = tokens.as_slice() else {
-        panic!("expected four fixture declarations");
+    let [owned, str_ref, bytes_ref, mut_ref, cell_ref] = tokens.as_slice() else {
+        panic!("expected five fixture declarations");
     };
 
     let owned_code = owned.to_string();
@@ -135,6 +140,10 @@ fn gen_fixture_decls_handles_reference_types() {
 
     let bytes_code = bytes_ref.to_string();
     assert!(bytes_code.contains("copied"));
+
+    let mut_code = mut_ref.to_string();
+    let mut_compact: String = mut_code.chars().filter(|c| !c.is_whitespace()).collect();
+    assert!(mut_compact.contains("map(|value|&mut**value)"));
 
     let cell_code = cell_ref.to_string();
     assert!(!cell_code.contains("cloned"));

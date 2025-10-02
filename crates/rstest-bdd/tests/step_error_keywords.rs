@@ -1,4 +1,4 @@
-//! Keyword-focused step-error scenarios exercising `ExecutionError`, `PanicError` and `MissingFixture`.
+//! Keyword-focused step-error scenarios exercising the `ExecutionError`, `PanicError`, and `MissingFixture` variants.
 
 mod step_error_common;
 
