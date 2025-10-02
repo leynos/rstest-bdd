@@ -922,6 +922,8 @@ dependencies = [
 name = "rstest-bdd"
 version = "0.1.0-alpha3"
 dependencies = [
+ "camino",
+ "cap-std",
  "ctor",
  "gherkin",
  "hashbrown 0.16.0",

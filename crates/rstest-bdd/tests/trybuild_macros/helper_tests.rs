@@ -1,15 +1,15 @@
 use super::wrappers::{FixtureStderr, FixtureTestPath};
 use super::*;
 use super::{Normaliser, NormaliserInput};
+use camino::{Utf8Path, Utf8PathBuf};
+use cap_std::fs_utf8::Dir;
 use rstest::rstest;
 use std::borrow::Cow;
-use std::fs;
 use std::panic;
-use std::path::{Path, PathBuf};
 
 struct NormaliserFixture {
-    expected_path: PathBuf,
-    actual_path: PathBuf,
+    expected_path: Utf8PathBuf,
+    actual_path: Utf8PathBuf,
 }
 
 impl NormaliserFixture {
@@ -18,27 +18,36 @@ impl NormaliserFixture {
         expected: FixtureStderr<'_>,
         actual: FixtureStderr<'_>,
     ) -> Self {
-        let test_path = Path::new(test_path.as_ref());
+        let test_path = Utf8Path::new(test_path.as_ref());
+        let crate_dir = Dir::open_ambient_dir(
+            Utf8Path::new(env!("CARGO_MANIFEST_DIR")),
+            cap_std::ambient_authority(),
+        )
+        .unwrap_or_else(|error| panic!("failed to open crate directory: {error}"));
 
-        let expected_path = expected_stderr_path(test_path);
+        let expected_path = expected_stderr_path(test_path.as_std_path());
         if let Some(parent) = expected_path.parent() {
-            fs::create_dir_all(parent).unwrap_or_else(|error| {
+            crate_dir.create_dir_all(parent).unwrap_or_else(|error| {
                 panic!("failed to create directory for expected stderr fixture: {error}");
             });
         }
-        fs::write(&expected_path, expected.as_ref()).unwrap_or_else(|error| {
-            panic!("failed to write expected stderr fixture: {error}");
-        });
+        crate_dir
+            .write(expected_path.as_path(), expected.as_ref().as_bytes())
+            .unwrap_or_else(|error| {
+                panic!("failed to write expected stderr fixture: {error}");
+            });
 
-        let actual_path = wip_stderr_path(test_path);
+        let actual_path = wip_stderr_path(test_path.as_std_path());
         if let Some(parent) = actual_path.parent() {
-            fs::create_dir_all(parent).unwrap_or_else(|error| {
+            crate_dir.create_dir_all(parent).unwrap_or_else(|error| {
                 panic!("failed to create directory for wip stderr fixture: {error}");
             });
         }
-        fs::write(&actual_path, actual.as_ref()).unwrap_or_else(|error| {
-            panic!("failed to write wip stderr fixture: {error}");
-        });
+        crate_dir
+            .write(actual_path.as_path(), actual.as_ref().as_bytes())
+            .unwrap_or_else(|error| {
+                panic!("failed to write wip stderr fixture: {error}");
+            });
 
         Self {
             expected_path,
@@ -49,33 +58,43 @@ impl NormaliserFixture {
 
 impl Drop for NormaliserFixture {
     fn drop(&mut self) {
-        let _ = fs::remove_file(&self.expected_path);
-        let _ = fs::remove_file(&self.actual_path);
+        if let Ok(crate_dir) = Dir::open_ambient_dir(
+            Utf8Path::new(env!("CARGO_MANIFEST_DIR")),
+            cap_std::ambient_authority(),
+        ) {
+            let _ = crate_dir.remove_file(self.expected_path.as_path());
+            let _ = crate_dir.remove_file(self.actual_path.as_path());
+        }
     }
 }
 
 #[test]
 fn wip_stderr_path_builds_target_location() {
-    let path = wip_stderr_path(Path::new("tests/fixtures_macros/__helper_case.rs"));
-    assert_eq!(path, Path::new("target/tests/wip/__helper_case.stderr"));
+    let path =
+        wip_stderr_path(Utf8Path::new("tests/fixtures_macros/__helper_case.rs").as_std_path());
+    assert_eq!(path, Utf8Path::new("target/tests/wip/__helper_case.stderr"));
 }
 
 #[test]
 #[should_panic(expected = "trybuild test path must include file name")]
 fn wip_stderr_path_panics_without_file_name() {
-    wip_stderr_path(Path::new(""));
+    wip_stderr_path(Utf8Path::new("").as_std_path());
 }
 
 #[test]
 fn expected_stderr_path_replaces_extension() {
-    let path = expected_stderr_path(Path::new("tests/ui_macros/example.output"));
-    assert_eq!(path, Path::new("tests/ui_macros/example.stderr"));
+    let path = expected_stderr_path(Utf8Path::new("tests/ui_macros/example.output").as_std_path());
+    assert_eq!(path, Utf8Path::new("tests/ui_macros/example.stderr"));
 }
 
 #[test]
 fn expected_stderr_path_handles_multiple_extensions() {
-    let path = expected_stderr_path(Path::new("tests/ui_macros/example.feature.rs"));
-    assert_eq!(path, Path::new("tests/ui_macros/example.feature.stderr"));
+    let path =
+        expected_stderr_path(Utf8Path::new("tests/ui_macros/example.feature.rs").as_std_path());
+    assert_eq!(
+        path,
+        Utf8Path::new("tests/ui_macros/example.feature.stderr")
+    );
 }
 
 #[test]
@@ -187,7 +206,7 @@ fn run_compile_fail_with_normalised_output_handles_multiple_normalisers() {
     let result = panic::catch_unwind(|| {
         run_compile_fail_with_normalised_output(
             || panic!("expected failure"),
-            Path::new(TEST_PATH),
+            Utf8Path::new(TEST_PATH),
             &[strip_hint_one, strip_hint_two],
         );
     });
@@ -209,7 +228,7 @@ fn run_compile_fail_with_normalised_output_accepts_empty_output() {
     let result = panic::catch_unwind(|| {
         run_compile_fail_with_normalised_output(
             || panic!("expected failure"),
-            Path::new(TEST_PATH),
+            Utf8Path::new(TEST_PATH),
             &[],
         );
     });
@@ -232,7 +251,7 @@ fn run_compile_fail_with_normalised_output_detects_mismatch() {
     let result = panic::catch_unwind(|| {
         run_compile_fail_with_normalised_output(
             || panic!("expected failure"),
-            Path::new(TEST_PATH),
+            Utf8Path::new(TEST_PATH),
             &[trim_trailing],
         );
     });
@@ -284,7 +303,7 @@ fn run_compile_fail_with_normalised_output_test_cases(
     let result = panic::catch_unwind(|| {
         run_compile_fail_with_normalised_output(
             || panic!("expected failure"),
-            Path::new(test_path),
+            Utf8Path::new(test_path),
             &[trim_trailing],
         );
     });
