@@ -4,6 +4,7 @@
 //! aliases used by the registry and runner.
 
 use gherkin::StepType;
+use std::borrow::Cow;
 use std::fmt;
 use std::fmt::Write as _;
 use std::str::FromStr;
@@ -228,7 +229,7 @@ pub enum StepPatternError {
     )]
     NotCompiled {
         /// Pattern text that has not yet been compiled.
-        pattern: &'static str,
+        pattern: Cow<'static, str>,
     },
 }
 
@@ -245,6 +246,12 @@ pub enum PlaceholderError {
     /// The step pattern could not be compiled into a regular expression.
     #[error("invalid step pattern: {0}")]
     InvalidPattern(String),
+    /// The step pattern regex was accessed before compilation.
+    #[error("step pattern '{pattern}' must be compiled before use")]
+    NotCompiled {
+        /// Pattern text that must be compiled prior to use.
+        pattern: String,
+    },
 }
 
 impl From<StepPatternError> for PlaceholderError {
@@ -253,7 +260,10 @@ impl From<StepPatternError> for PlaceholderError {
             StepPatternError::PlaceholderSyntax(err) => {
                 Self::InvalidPlaceholder(err.user_message())
             }
-            other => Self::InvalidPattern(other.to_string()),
+            StepPatternError::InvalidPattern(err) => Self::InvalidPattern(err.to_string()),
+            StepPatternError::NotCompiled { pattern } => Self::NotCompiled {
+                pattern: pattern.into_owned(),
+            },
         }
     }
 }

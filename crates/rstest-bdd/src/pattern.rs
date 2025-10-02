@@ -5,6 +5,7 @@
 use crate::types::{PlaceholderSyntaxError, StepPatternError};
 use regex::Regex;
 use rstest_bdd_patterns::{PatternError, compile_regex_from_pattern};
+use std::borrow::Cow;
 use std::hash::{Hash, Hasher};
 use std::sync::OnceLock;
 
@@ -81,13 +82,26 @@ impl StepPattern {
 
     /// Return the cached regular expression.
     ///
+    /// # Examples
+    ///
+    /// ```
+    /// use rstest_bdd::StepPattern;
+    ///
+    /// let pattern = StepPattern::from("literal text");
+    /// assert!(pattern.regex().is_err());
+    /// pattern.compile().expect("literal patterns compile");
+    /// let regex = pattern.regex().expect("regex available after compilation");
+    /// assert!(regex.is_match("literal text"));
+    /// ```
+    ///
     /// # Errors
     /// Returns [`StepPatternError::NotCompiled`] if [`compile`](Self::compile)
     /// was not invoked beforehand.
+    #[must_use = "handle the Result to ensure the pattern was compiled"]
     pub fn regex(&self) -> Result<&Regex, StepPatternError> {
-        self.regex
-            .get()
-            .ok_or(StepPatternError::NotCompiled { pattern: self.text })
+        self.regex.get().ok_or(StepPatternError::NotCompiled {
+            pattern: Cow::Borrowed(self.text),
+        })
     }
 }
 
