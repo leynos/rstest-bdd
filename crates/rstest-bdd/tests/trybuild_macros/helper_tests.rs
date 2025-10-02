@@ -25,7 +25,7 @@ impl NormaliserFixture {
         )
         .unwrap_or_else(|error| panic!("failed to open crate directory: {error}"));
 
-        let expected_path = expected_stderr_path(test_path);
+        let expected_path = expected_stderr_path(test_path.as_std_path());
         if let Some(parent) = expected_path.parent() {
             crate_dir
                 .create_dir_all(parent.as_std_path())
@@ -39,7 +39,7 @@ impl NormaliserFixture {
                 panic!("failed to write expected stderr fixture: {error}");
             });
 
-        let actual_path = wip_stderr_path(test_path);
+        let actual_path = wip_stderr_path(test_path.as_std_path());
         if let Some(parent) = actual_path.parent() {
             crate_dir
                 .create_dir_all(parent.as_std_path())
@@ -74,25 +74,27 @@ impl Drop for NormaliserFixture {
 
 #[test]
 fn wip_stderr_path_builds_target_location() {
-    let path = wip_stderr_path(Utf8Path::new("tests/fixtures_macros/__helper_case.rs"));
+    let path =
+        wip_stderr_path(Utf8Path::new("tests/fixtures_macros/__helper_case.rs").as_std_path());
     assert_eq!(path, Utf8Path::new("target/tests/wip/__helper_case.stderr"));
 }
 
 #[test]
 #[should_panic(expected = "trybuild test path must include file name")]
 fn wip_stderr_path_panics_without_file_name() {
-    wip_stderr_path(Utf8Path::new(""));
+    wip_stderr_path(Utf8Path::new("").as_std_path());
 }
 
 #[test]
 fn expected_stderr_path_replaces_extension() {
-    let path = expected_stderr_path(Utf8Path::new("tests/ui_macros/example.output"));
+    let path = expected_stderr_path(Utf8Path::new("tests/ui_macros/example.output").as_std_path());
     assert_eq!(path, Utf8Path::new("tests/ui_macros/example.stderr"));
 }
 
 #[test]
 fn expected_stderr_path_handles_multiple_extensions() {
-    let path = expected_stderr_path(Utf8Path::new("tests/ui_macros/example.feature.rs"));
+    let path =
+        expected_stderr_path(Utf8Path::new("tests/ui_macros/example.feature.rs").as_std_path());
     assert_eq!(
         path,
         Utf8Path::new("tests/ui_macros/example.feature.stderr")

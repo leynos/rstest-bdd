@@ -13,6 +13,7 @@ use cap_std::{ambient_authority, fs::Dir};
 use std::borrow::Cow;
 use std::io;
 use std::panic::{self, AssertUnwindSafe};
+use std::path::Path as StdPath;
 use std::sync::OnceLock;
 use wrappers::{FixturePathLine, MacroFixtureCase, NormaliserInput, UiFixtureCase};
 
@@ -279,8 +280,8 @@ fn normalised_outputs_match(test_path: &Utf8Path, normalisers: &[Normaliser]) ->
         Utf8Path::new(env!("CARGO_MANIFEST_DIR")).as_std_path(),
         ambient_authority(),
     )?;
-    let actual_path = wip_stderr_path(test_path);
-    let expected_path = expected_stderr_path(test_path);
+    let actual_path = wip_stderr_path(test_path.as_std_path());
+    let expected_path = expected_stderr_path(test_path.as_std_path());
     let actual = crate_dir.read_to_string(actual_path.as_std_path())?;
     let expected = crate_dir.read_to_string(expected_path.as_std_path())?;
 
@@ -294,17 +295,21 @@ fn normalised_outputs_match(test_path: &Utf8Path, normalisers: &[Normaliser]) ->
     Ok(false)
 }
 
-fn wip_stderr_path(test_path: &Utf8Path) -> Utf8PathBuf {
+fn wip_stderr_path(test_path: &StdPath) -> Utf8PathBuf {
     let Some(file_name) = test_path.file_name() else {
         panic!("trybuild test path must include file name");
     };
+    let file_name = file_name
+        .to_str()
+        .unwrap_or_else(|| panic!("file name must be valid UTF-8"));
     let mut path = Utf8PathBuf::from(file_name);
     path.set_extension("stderr");
     Utf8PathBuf::from("target/tests/wip").join(path)
 }
 
-fn expected_stderr_path(test_path: &Utf8Path) -> Utf8PathBuf {
-    let mut path = test_path.to_owned();
+fn expected_stderr_path(test_path: &StdPath) -> Utf8PathBuf {
+    let mut path = Utf8PathBuf::from_path_buf(test_path.to_path_buf())
+        .unwrap_or_else(|_| panic!("test_path must be valid UTF-8"));
     path.set_extension("stderr");
     path
 }
