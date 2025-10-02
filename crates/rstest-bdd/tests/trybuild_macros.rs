@@ -26,12 +26,14 @@ const UI_FIXTURES_DIR: &str = "tests/ui_macros";
 fn macros_fixture(case: impl Into<MacroFixtureCase>) -> Utf8PathBuf {
     ensure_trybuild_support_files();
     let case = case.into();
-    Utf8PathBuf::from(MACROS_FIXTURES_DIR).join(case.as_ref())
+    let case_str: &str = case.as_ref();
+    Utf8PathBuf::from(MACROS_FIXTURES_DIR).join(case_str)
 }
 
 fn ui_fixture(case: impl Into<UiFixtureCase>) -> Utf8PathBuf {
     let case = case.into();
-    Utf8PathBuf::from(UI_FIXTURES_DIR).join(case.as_ref())
+    let case_str: &str = case.as_ref();
+    Utf8PathBuf::from(UI_FIXTURES_DIR).join(case_str)
 }
 
 fn ensure_trybuild_support_files() {

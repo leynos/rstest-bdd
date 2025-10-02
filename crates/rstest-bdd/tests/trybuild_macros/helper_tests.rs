@@ -1,3 +1,4 @@
+//! Unit tests for normaliser and path helpers used by trybuild macro tests.
 use super::wrappers::{FixtureStderr, FixtureTestPath};
 use super::*;
 use super::{Normaliser, NormaliserInput};
@@ -126,7 +127,7 @@ fn apply_normalisers_handles_empty_string() {
 fn apply_normalisers_handles_whitespace_only_string() {
     let trim_whitespace: Normaliser = |input| input.as_ref().trim().to_owned();
     let mut whitespace = String::from("   ");
-    whitespace.push(char::from(10));
+    whitespace.push('\n');
     let result = apply_normalisers(
         NormaliserInput::from(whitespace.as_str()),
         &[trim_whitespace],
@@ -156,7 +157,7 @@ fn strip_nightly_macro_backtrace_hint_leaves_text_without_hint() {
 
 #[test]
 fn normalise_fixture_paths_rewrites_relative_fixture_paths() {
-    let dollar = char::from(36);
+    let dollar = '$';
     let input = "Warning:  --> tests/fixtures_macros/example.rs:3:1";
     let expected = format!("Warning:  --> {dollar}DIR/example.rs:3:1");
     assert_eq!(
@@ -167,8 +168,8 @@ fn normalise_fixture_paths_rewrites_relative_fixture_paths() {
 
 #[test]
 fn normalise_fixture_paths_rewrites_absolute_fixture_paths() {
-    let dollar = char::from(36);
-    let newline = char::from(10);
+    let dollar = '$';
+    let newline = '\n';
     let input = format!(
         " --> /tmp/workspace/crates/rstest-bdd/tests/fixtures_macros/example.rs:4:2{newline}"
     );
@@ -181,7 +182,7 @@ fn normalise_fixture_paths_rewrites_absolute_fixture_paths() {
 
 #[test]
 fn normalise_fixture_paths_is_idempotent_for_normalised_input() {
-    let dollar = char::from(36);
+    let dollar = '$';
     let input = format!(" --> {dollar}DIR/example.rs:4:2");
     assert_eq!(
         normalise_fixture_paths(NormaliserInput::from(input.as_ref())),
@@ -193,13 +194,13 @@ fn normalise_fixture_paths_is_idempotent_for_normalised_input() {
 fn run_compile_fail_with_normalised_output_handles_multiple_normalisers() {
     const TEST_PATH: &str = "tests/fixtures_macros/__normaliser_multiple.rs";
     let mut expected = String::from("error: missing step (hint-one)");
-    expected.push(char::from(10));
+    expected.push('\n');
     expected.push_str("help: review scenario (hint-two)");
-    expected.push(char::from(10));
+    expected.push('\n');
     let mut actual = String::from("error: missing step");
-    actual.push(char::from(10));
+    actual.push('\n');
     actual.push_str("help: review scenario");
-    actual.push(char::from(10));
+    actual.push('\n');
     let fixture = NormaliserFixture::new(
         FixtureTestPath(TEST_PATH),
         FixtureStderr(expected.as_ref()),
@@ -295,9 +296,9 @@ fn run_compile_fail_with_normalised_output_test_cases(
     #[case] file_message: &str,
 ) {
     let mut expected = String::from(expected_content);
-    expected.push(char::from(10));
+    expected.push('\n');
     let mut actual = String::from(actual_content);
-    actual.push(char::from(10));
+    actual.push('\n');
     let fixture = NormaliserFixture::new(
         FixtureTestPath(test_path),
         FixtureStderr(expected.as_ref()),

@@ -1,4 +1,6 @@
-use camino::Utf8PathBuf;
+//! Wrapper newtypes for trybuild fixtures and normaliser helpers, providing UTF-8-aware conversions for the trybuild harness.
+use camino::{Utf8Path, Utf8PathBuf};
+use std::path::Path as StdPath;
 use the_newtype::Newtype;
 
 macro_rules! owned_str_newtype {
@@ -63,11 +65,23 @@ impl From<MacroFixtureCase> for Utf8PathBuf {
     }
 }
 
+impl AsRef<StdPath> for MacroFixtureCase {
+    fn as_ref(&self) -> &StdPath {
+        Utf8Path::new(self.0.as_str()).as_std_path()
+    }
+}
+
 owned_str_newtype!(UiFixtureCase);
 
 impl From<UiFixtureCase> for Utf8PathBuf {
     fn from(value: UiFixtureCase) -> Self {
         Self::from(value.0)
+    }
+}
+
+impl AsRef<StdPath> for UiFixtureCase {
+    fn as_ref(&self) -> &StdPath {
+        Utf8Path::new(self.0.as_str()).as_std_path()
     }
 }
 
