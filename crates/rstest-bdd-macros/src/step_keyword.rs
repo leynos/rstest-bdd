@@ -95,6 +95,8 @@ impl core::convert::TryFrom<StepType> for StepKeyword {
             StepType::Given => Ok(Self::Given),
             StepType::When => Ok(Self::When),
             StepType::Then => Ok(Self::Then),
+            // Intentionally expect `unreachable_patterns` for the current StepType set.
+            // New variants break the expectation and fail the build.
             #[expect(unreachable_patterns, reason = "guard future StepType variants")]
             other => match format!("{other:?}") {
                 s if s == "And" => Ok(Self::And),
@@ -154,6 +156,18 @@ impl StepKeyword {
         } else {
             *prev = Some(self);
             self
+        }
+    }
+
+    /// Canonical display label used by diagnostics and generated code.
+    #[cfg(feature = "compile-time-validation")]
+    pub(crate) fn display_name(self) -> &'static str {
+        match self {
+            Self::Given => "Given",
+            Self::When => "When",
+            Self::Then => "Then",
+            Self::And => "And",
+            Self::But => "But",
         }
     }
 }

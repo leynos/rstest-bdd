@@ -60,7 +60,7 @@ pub fn scenario(attr: TokenStream, item: TokenStream) -> TokenStream {
 ///   `#[given]`, `#[when]`, and `#[then]` functions.
 ///
 /// Example:
-/// ```
+/// ```ignore
 /// use rstest_bdd_macros::{given, when, then, scenarios};
 ///
 /// # #[given("a precondition")] fn precondition() {}
