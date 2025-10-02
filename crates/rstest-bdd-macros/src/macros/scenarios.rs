@@ -36,23 +36,14 @@ fn collect_feature_files(base: &Path) -> std::io::Result<Vec<PathBuf>> {
         Ok(metadata.is_file() && is_feature_file(&resolved))
     }
 
-    fn process_entry(entry: walkdir::Result<walkdir::DirEntry>) -> Option<io::Result<PathBuf>> {
-        let entry = match entry {
-            Ok(entry) => entry,
-            Err(err) => {
-                let err_str = err.to_string();
-                let io_err = err
-                    .into_io_error()
-                    .unwrap_or_else(|| io::Error::other(err_str));
-                return Some(Err(io_err));
-            }
-        };
+    fn process_dir_entry(entry: walkdir::DirEntry) -> Option<io::Result<PathBuf>> {
+        let file_type = entry.file_type();
 
-        if entry.file_type().is_file() && is_feature_file(entry.path()) {
+        if file_type.is_file() && is_feature_file(entry.path()) {
             return Some(Ok(entry.into_path()));
         }
 
-        if entry.file_type().is_symlink() {
+        if file_type.is_symlink() {
             let path = entry.path().to_path_buf();
             return match symlink_points_to_feature(&path) {
                 Ok(true) => Some(Ok(path)),
@@ -67,7 +58,16 @@ fn collect_feature_files(base: &Path) -> std::io::Result<Vec<PathBuf>> {
     let mut files: Vec<PathBuf> = WalkDir::new(base)
         .follow_links(false)
         .into_iter()
-        .filter_map(process_entry)
+        .filter_map(|entry| match entry {
+            Ok(entry) => process_dir_entry(entry),
+            Err(err) => {
+                let err_str = err.to_string();
+                let io_err = err
+                    .into_io_error()
+                    .unwrap_or_else(|| io::Error::other(err_str));
+                Some(Err(io_err))
+            }
+        })
         .collect::<Result<_, _>>()?;
 
     files.sort();
