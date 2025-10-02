@@ -28,10 +28,13 @@ ctor.workspace = true
 log.workspace = true
 
 [dev-dependencies]
+camino.workspace = true
+cap-std.workspace = true
 rstest.workspace = true
 rstest-bdd-macros.workspace = true
 trybuild.workspace = true
 serial_test.workspace = true
+the-newtype = "0.1.1"
 
 [features]
 default = ["diagnostics"]
