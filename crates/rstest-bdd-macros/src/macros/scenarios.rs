@@ -6,64 +6,46 @@ use quote::{format_ident, quote};
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 
+use walkdir::DirEntry;
+
 use crate::codegen::scenario::{ScenarioConfig, generate_scenario_code};
 use crate::parsing::feature::{extract_scenario_steps, parse_and_load_feature};
 use crate::utils::errors::{error_to_tokens, normalized_dir_read_error};
 use crate::utils::ident::sanitize_ident;
 use gherkin::Feature;
 
+fn is_feature_file(path: &Path) -> bool {
+    path.extension()
+        .and_then(|e| e.to_str())
+        .is_some_and(|ext| ext.eq_ignore_ascii_case("feature"))
+}
+
+/// Process a directory entry and return its path when it resolves to a
+/// `.feature` file.
+///
+/// Canonicalisation avoids re-implementing symlink resolution logic while still
+/// returning the original (potentially symlinked) path to the caller. Directory
+/// entries that do not resolve to `.feature` files return `None`. Any I/O
+/// failures bubble up so traversal errors remain visible to the macro user.
+fn process_dir_entry(entry: DirEntry) -> Option<std::io::Result<PathBuf>> {
+    if entry.file_type().is_dir() {
+        return None;
+    }
+
+    let original_path = entry.into_path();
+    match std::fs::canonicalize(&original_path) {
+        Ok(real_path) if real_path.is_file() && is_feature_file(&real_path) => {
+            Some(Ok(original_path))
+        }
+        Ok(_) => None,
+        Err(err) => Some(Err(err)),
+    }
+}
+
 /// Recursively collect all `.feature` files under `base`.
 fn collect_feature_files(base: &Path) -> std::io::Result<Vec<PathBuf>> {
-    use std::{fs, io};
+    use std::io;
     use walkdir::WalkDir;
-
-    fn is_feature_file(path: &Path) -> bool {
-        path.extension()
-            .and_then(|e| e.to_str())
-            .is_some_and(|ext| ext.eq_ignore_ascii_case("feature"))
-    }
-
-    /// Resolve a symlink and determine whether its target is a `.feature`
-    /// file.
-    ///
-    /// Handles both absolute and relative symlink targets, resolving
-    /// relative targets against the symlink's parent directory.
-    fn symlink_points_to_feature(path: &Path) -> io::Result<bool> {
-        let target = fs::read_link(path)?;
-        let resolved = if target.is_absolute() {
-            target
-        } else {
-            path.parent()
-                .map(|parent| parent.join(&target))
-                .unwrap_or(target)
-        };
-        let metadata = fs::metadata(&resolved)?;
-        Ok(metadata.is_file() && is_feature_file(&resolved))
-    }
-
-    /// Process a directory entry and return its path when it represents a
-    /// `.feature` file or a symlink targeting one.
-    ///
-    /// Returns `None` for directories and non-feature files, and propagates
-    /// I/O errors from symlink resolution.
-    fn process_dir_entry(entry: walkdir::DirEntry) -> Option<io::Result<PathBuf>> {
-        let file_type = entry.file_type();
-
-        if file_type.is_file() && is_feature_file(entry.path()) {
-            return Some(Ok(entry.into_path()));
-        }
-
-        if file_type.is_symlink() {
-            let path = entry.path().to_path_buf();
-            return match symlink_points_to_feature(&path) {
-                Ok(true) => Some(Ok(path)),
-                Ok(false) => None,
-                Err(err) => Some(Err(err)),
-            };
-        }
-
-        None
-    }
 
     let mut files: Vec<PathBuf> = WalkDir::new(base)
         .follow_links(false)
