@@ -75,12 +75,12 @@ fn stage_trybuild_support_files() -> io::Result<()> {
 
     write_feature_files(
         &workspace_dir,
-        workspace_features_relative.as_path(),
+        workspace_features_relative.as_std_path(),
         &features,
     )?;
     write_feature_files(
         &workspace_dir,
-        trybuild_crate_relative.as_path(),
+        trybuild_crate_relative.as_std_path(),
         &fixture_features,
     )?;
 
@@ -89,9 +89,17 @@ fn stage_trybuild_support_files() -> io::Result<()> {
 
 fn write_feature_files(
     root: &Dir,
-    destination_root: &Utf8Path,
+    destination_root: &StdPath,
     features: &[(String, String)],
 ) -> io::Result<()> {
+    let destination_root =
+        Utf8PathBuf::from_path_buf(destination_root.to_path_buf()).map_err(|_| {
+            io::Error::new(
+                io::ErrorKind::InvalidData,
+                "destination_root must be valid UTF-8",
+            )
+        })?;
+
     for (relative, contents) in features {
         let path = destination_root.join(relative);
         if let Some(parent) = path.parent() {
