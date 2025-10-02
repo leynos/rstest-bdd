@@ -115,17 +115,20 @@ pub(super) fn gen_docstring_decl(
     )
 }
 
-/// Generate declarations for fixture values.
-///
-/// Non-reference fixtures must implement [`Clone`] because wrappers clone
-/// them to hand ownership to the step function.
 fn is_unsized_reference_target(ty: &syn::Type) -> bool {
     matches!(
         ty,
         syn::Type::Slice(_) | syn::Type::TraitObject(_) | syn::Type::ImplTrait(_)
-    ) || matches!(ty, syn::Type::Path(path) if path.qself.is_none() && path.path.is_ident("str"))
+    ) || matches!(
+        ty,
+        syn::Type::Path(path) if path.qself.is_none() && path.path.is_ident("str")
+    )
 }
 
+/// Generate declarations for fixture values.
+///
+/// Non-reference fixtures must implement [`Clone`] because wrappers clone
+/// them to hand ownership to the step function.
 pub(super) fn gen_fixture_decls(fixtures: &[FixtureArg], ident: &syn::Ident) -> Vec<TokenStream2> {
     fixtures
         .iter()
