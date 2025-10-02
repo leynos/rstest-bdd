@@ -23,6 +23,11 @@ fn collect_feature_files(base: &Path) -> std::io::Result<Vec<PathBuf>> {
             .is_some_and(|ext| ext.eq_ignore_ascii_case("feature"))
     }
 
+    /// Resolve a symlink and determine whether its target is a `.feature`
+    /// file.
+    ///
+    /// Handles both absolute and relative symlink targets, resolving
+    /// relative targets against the symlink's parent directory.
     fn symlink_points_to_feature(path: &Path) -> io::Result<bool> {
         let target = fs::read_link(path)?;
         let resolved = if target.is_absolute() {
@@ -36,6 +41,11 @@ fn collect_feature_files(base: &Path) -> std::io::Result<Vec<PathBuf>> {
         Ok(metadata.is_file() && is_feature_file(&resolved))
     }
 
+    /// Process a directory entry and return its path when it represents a
+    /// `.feature` file or a symlink targeting one.
+    ///
+    /// Returns `None` for directories and non-feature files, and propagates
+    /// I/O errors from symlink resolution.
     fn process_dir_entry(entry: walkdir::DirEntry) -> Option<io::Result<PathBuf>> {
         let file_type = entry.file_type();
 
@@ -282,6 +292,8 @@ mod tests {
     #[cfg(unix)]
     use std::os::unix::fs::symlink;
     #[cfg(unix)]
+    use std::path::Path;
+    #[cfg(unix)]
     use tempfile::tempdir;
 
     #[test]
@@ -306,12 +318,15 @@ mod tests {
         let symlink_path = features_root.join("symlink.feature");
         symlink(&feature_path, &symlink_path)?;
 
+        let relative_symlink_path = features_root.join("relative_link.feature");
+        symlink(Path::new("nested/example.feature"), &relative_symlink_path)?;
+
         let loop_dir = features_root.join("loop");
         symlink(&features_root, &loop_dir)?;
 
         let files = collect_feature_files(features_root.as_path())?;
 
-        let mut expected = vec![feature_path, symlink_path];
+        let mut expected = vec![feature_path, symlink_path, relative_symlink_path];
         expected.sort();
         assert_eq!(files, expected);
 
