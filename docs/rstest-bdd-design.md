@@ -686,64 +686,77 @@ global registry stores `(StepKeyword, &'static StepPattern)` keys in a
 `hashbrown::HashMap` and uses the raw-entry API for constant-time lookups by
 hashing the pattern text directly.
 
-Placeholder parsing converts the pattern text into a regular expression using a
-single-pass scanner. The current implementation relies on `pub(crate)` helpers
-— `build_regex_from_pattern`, `try_parse_common_sequences`,
-`parse_context_specific`, and `parse_placeholder`. The diagram below shows how
-`compile` invokes the scanner and how malformed placeholders or unbalanced
-braces surface as errors. This single-pass scanner is the current
-implementation; issue #42 proposes replacing it with a simpler
-`regex::Regex::replace_all` based approach.
+Placeholder parsing now follows a two-stage pipeline that first tokenizes the
+pattern and then translates the resulting tokens into an anchored regular
+expression. This architecture keeps the lexing responsibilities focused and
+isolated from the regex synthesis step, making it easier to extend placeholder
+semantics without touching the compiler.
+
+The lexer (`pattern::lexer::lex_pattern`) walks the pattern once and produces a
+sequence of semantic tokens:
+
+- `Token::Literal(String)` — runs of literal text copied verbatim into the
+  regex after escaping.
+- `Token::Placeholder { start, name, hint }` — captures placeholder metadata;
+  the `start` index feeds error reporting while the optional `hint` maps to a
+  type-aware sub-pattern.
+- `Token::OpenBrace { index }` / `Token::CloseBrace { index }` — unmatched
+  braces preserved in the output so literal braces still require doubling.
+
+Escaped braces (`\{`, `\}`) and doubled braces (`{{`, `}}`) remain purely
+lexical concerns. Nested placeholders are handled by delegating to
+`pattern::placeholder::parse_placeholder`, which understands balanced brace
+pairs within a placeholder body. The compiler module applies
+`build_regex_from_pattern` to iterate over the tokens, escape literal runs,
+replace placeholders with capturing groups, and surface structural mistakes
+such as unbalanced braces.
 
 ```mermaid
 sequenceDiagram
   autonumber
   actor Dev as Developer
   participant SP as StepPattern
-  participant RB as build_regex_from_pattern (pub(crate))
-  participant TC as try_parse_common_sequences (pub(crate))
-  participant PC as parse_context_specific (pub(crate))
+  participant LX as lex_pattern (pub(crate))
   participant PP as parse_placeholder (pub(crate))
+  participant CP as build_regex_from_pattern (pub(crate))
   participant RX as regex::Regex
 
   Dev->>SP: compile()
-  SP->>RB: build_regex_from_pattern(text)
+  SP->>CP: build_regex_from_pattern(text)
+  CP->>LX: lex_pattern(text)
   loop over pattern bytes
-    RB->>TC: try_parse_common_sequences(...)
-    alt recognized sequence
-      TC-->>RB: consume
-    else other character
-      RB->>PC: parse_context_specific(...)
-      alt placeholder start
-        PC->>PP: parse_placeholder(...)
-        alt OK
-          PP-->>PC: Ok(())
-        else Malformed/unbalanced
-          PP-->>PC: Err(regex::Error)
-          PC-->>RB: Err(regex::Error)
-          RB-->>SP: Err(regex::Error)
-          SP-->>Dev: Err
-        end
-      else stray/unmatched brace
-        PC-->>RB: Err(regex::Error)
-        RB-->>SP: Err(regex::Error)
+    alt doubled brace or escape
+      LX-->>CP: Token::Literal("{" | "}")
+    else placeholder start
+      LX->>PP: parse_placeholder(bytes, index)
+      alt OK
+        PP-->>LX: PlaceholderSpec
+        LX-->>CP: Token::Placeholder
+      else malformed
+        PP-->>LX: PatternError
+        LX-->>CP: Err(PatternError)
+        CP-->>SP: Err(PatternError)
         SP-->>Dev: Err
       end
+    else unmatched brace
+      LX-->>CP: Token::OpenBrace / Token::CloseBrace
+    else literal
+      LX-->>CP: Token::Literal
     end
   end
   alt stray depth != 0
-    RB-->>SP: Err(regex::Error)
+    CP-->>SP: Err(PatternError)
     SP-->>Dev: Err
   else balanced
-    RB-->>SP: Ok(src)
+    CP-->>SP: Ok(src)
     SP->>RX: Regex::new(src)
     RX-->>SP: Ok(Regex)
     SP-->>Dev: Ok(())
   end
 ```
 
-Figure: `compile` delegates to the internal single-pass scanner. At compile
-time, `StepPattern::compile` returns a `Result<(), regex::Error>`, and
+Figure: `compile` delegates to the lexer–compiler pipeline. At compile time,
+`StepPattern::compile` returns a `Result<(), regex::Error>`, and
 `extract_placeholders` wraps any compile error as
 `PlaceholderError::InvalidPattern` at runtime.
 
@@ -1705,14 +1718,21 @@ Public APIs are re‑exported from `lib.rs` so consumers continue to import from
   - `PlaceholderError`
   - `StepFn`
 
-- `pattern.rs` — Step pattern wrapper:
+- `pattern.rs` — Step pattern wrapper and re-exports:
   - `StepPattern::new`
   - `compile`
   - `regex`
 
-- `placeholder.rs` — Placeholder extraction and scanner:
-  - `extract_placeholders`
+- `pattern::compiler` — Token-to-regex translation:
   - `build_regex_from_pattern`
+
+- `pattern::lexer` — Token stream generation:
+  - `Token`
+  - `lex_pattern`
+
+- `pattern::placeholder` — Placeholder parsing helpers:
+  - `PlaceholderSpec`
+  - `parse_placeholder`
 
 - `context.rs` — Fixture context:
   - `StepContext`

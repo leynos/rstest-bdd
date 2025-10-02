@@ -53,10 +53,11 @@ def apply_workspace_replacements(
     >>> apply_workspace_replacements(Path("."), "1.2.3", include_local_path=False)
     """
     workspace_root = Path(workspace_root)
+    unknown: set[str] = set()
     if crates is None:
         targets: typ.Final[tuple[str, ...]] = tuple(REPLACEMENTS)
     else:
-        unknown = set(crate for crate in crates if crate not in REPLACEMENTS)
+        unknown = {crate for crate in crates if crate not in REPLACEMENTS}
         targets = crates
     for crate in targets:
         if crate in unknown:
