@@ -1,4 +1,6 @@
-//! Wrapper newtypes for trybuild fixtures and normaliser helpers, providing UTF-8-aware conversions for the trybuild harness.
+//! Wrapper newtypes used by the trybuild macro fixtures and normaliser helpers.
+//! They centralise UTF-8 conversions so tests can work with camino paths and
+//! expose standard-path views when talking to trybuild.
 use camino::{Utf8Path, Utf8PathBuf};
 use std::path::Path as StdPath;
 use the_newtype::Newtype;
