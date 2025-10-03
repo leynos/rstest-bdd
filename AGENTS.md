@@ -118,14 +118,14 @@ project:
   behaviour and policy enforced:
   - `make check-fmt` executes:
 
-    ```
+    ```sh
     cargo fmt --workspace -- --check
     ```
 
     validating formatting across the entire workspace without modifying files.
   - `make lint` executes:
 
-    ```
+    ```sh
     cargo clippy --workspace --all-targets --all-features -- -D warnings
     ```
 
@@ -133,7 +133,7 @@ project:
     warnings.
   - `make test` executes:
 
-    ```
+    ```sh
     cargo test --workspace
     ```
 
@@ -174,13 +174,13 @@ project:
   with a backslash.
 - Prefer single line versions of functions where appropriate. I.e.,
 
-  ```
+  ```rust
   pub fn new(id: u64) -> Self { Self(id) }
   ```
 
   Instead of:
 
-  ```
+  ```rust
   pub fn new(id: u64) -> Self {
       Self(id)
   }
