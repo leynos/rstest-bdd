@@ -218,8 +218,8 @@ emits a compile-time error with the offending path.
 When `name` is provided, the macro matches the title case-sensitively. A
 missing title triggers a diagnostic listing the available headings in the
 feature. Duplicate titles yield a diagnostic that highlights the conflict and
-lists the matching indexes and line numbers to enable switching back to the
-`index` argument when needed.
+lists the matching indexes and line numbers, enabling selection by the `index`
+argument when required.
 
 During macro expansion, the feature file is read and parsed. The macro
 generates a new test function annotated with `#[rstest::rstest]` that performs

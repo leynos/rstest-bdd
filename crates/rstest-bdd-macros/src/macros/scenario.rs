@@ -1,5 +1,8 @@
 //! Implements the `#[scenario]` macro, wiring Rust tests to Gherkin scenarios
-//! and surfacing compile-time diagnostics for invalid configuration.
+//! and surfacing compile-time diagnostics for invalid configuration. Supports
+//! mutually exclusive selectors that either bind by index or match the
+//! case-sensitive scenario title, defaulting to the first scenario when no
+//! selector is supplied.
 
 use cap_std::{ambient_authority, fs::Dir};
 use cfg_if::cfg_if;
@@ -225,48 +228,50 @@ fn find_scenario_by_name(
     name: &str,
     span: Span,
 ) -> Result<usize, syn::Error> {
-    let matches: Vec<(usize, &gherkin::Scenario)> = feature
+    let mut matches = feature
         .scenarios
         .iter()
         .enumerate()
-        .filter(|(_, scenario)| scenario.name == name)
-        .collect();
+        .filter(|(_, scenario)| scenario.name == name);
 
-    match matches.as_slice() {
-        [] => {
+    match matches.next() {
+        None => {
             let available: Vec<String> = feature
                 .scenarios
                 .iter()
                 .map(|scenario| format!("\"{}\"", scenario.name))
                 .collect();
             let message = if available.is_empty() {
-                format!(
-                    "scenario named \"{name}\" not found; feature contains no scenarios"
-                )
+                format!("scenario named \"{name}\" not found; feature contains no scenarios")
             } else {
                 let options = available.join(", ");
-                format!(
-                    "scenario named \"{name}\" not found; available titles: {options}"
-                )
+                format!("scenario named \"{name}\" not found; available titles: {options}")
             };
             Err(syn::Error::new(span, message))
         }
-        [(idx, _)] => Ok(*idx),
-        matches => {
-            let indexes = matches
-                .iter()
-                .map(|(idx, _)| idx.to_string())
-                .collect::<Vec<_>>()
-                .join(", ");
-            let lines = matches
-                .iter()
-                .map(|(_, scenario)| scenario.position.line.to_string())
-                .collect::<Vec<_>>()
-                .join(", ");
-            let message = format!(
-                "found multiple scenarios named \"{name}\"; use the `index` selector to disambiguate (matching indexes: {indexes}; lines: {lines})"
-            );
-            Err(syn::Error::new(span, message))
+        Some((idx, scenario)) => {
+            let rest: Vec<(usize, &gherkin::Scenario)> = matches.collect();
+            if rest.is_empty() {
+                Ok(idx)
+            } else {
+                let mut all = Vec::with_capacity(rest.len() + 1);
+                all.push((idx, scenario));
+                all.extend(rest);
+                let indexes = all
+                    .iter()
+                    .map(|(index, _)| index.to_string())
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                let lines = all
+                    .iter()
+                    .map(|(_, matched_scenario)| matched_scenario.position.line.to_string())
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                let message = format!(
+                    "found multiple scenarios named \"{name}\"; use the `index` selector to disambiguate (matching indexes: {indexes}; lines: {lines})"
+                );
+                Err(syn::Error::new(span, message))
+            }
         }
     }
 }
