@@ -97,7 +97,7 @@ impl StepPattern {
     /// # Errors
     /// Returns [`StepPatternError::NotCompiled`] if [`compile`](Self::compile)
     /// was not invoked beforehand.
-    #[must_use = "handle the Result to ensure the pattern was compiled"]
+    #[must_use = "check whether compilation succeeded"]
     pub fn regex(&self) -> Result<&Regex, StepPatternError> {
         self.regex.get().ok_or(StepPatternError::NotCompiled {
             pattern: Cow::Borrowed(self.text),
