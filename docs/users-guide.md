@@ -206,10 +206,10 @@ registers an empty pattern instead of inferring one.
 The `#[scenario]` macro is the entry point that ties a Rust test function to a
 scenario defined in a `.feature` file. It accepts three arguments:
 
-| Argument       | Purpose                                                   | Status                                                               |
-| -------------- | --------------------------------------------------------- | -------------------------------------------------------------------- |
-| `path: &str`   | Relative path to the feature file (required).             | **Implemented**: resolved and parsed at compile time.                |
-| `index: usize` | Optional zero-based scenario index (defaults to `0`).     | **Implemented**: selects the scenario by position.                  |
+| Argument       | Purpose                                                    | Status                                                                  |
+| -------------- | ---------------------------------------------------------- | ----------------------------------------------------------------------- |
+| `path: &str`   | Relative path to the feature file (required).              | **Implemented**: resolved and parsed at compile time.                   |
+| `index: usize` | Optional zero-based scenario index (defaults to `0`).      | **Implemented**: selects the scenario by position.                      |
 | `name: &str`   | Optional scenario title; resolves to an index when unique. | **Implemented**: errors when missing and directs duplicates to `index`. |
 
 If the feature file cannot be found or contains invalid Gherkin, the macro
@@ -218,7 +218,7 @@ emits a compile-time error with the offending path.
 When `name` is provided, the macro matches the title case-sensitively. A
 missing title triggers a diagnostic listing the available headings in the
 feature. Duplicate titles yield a diagnostic that highlights the conflict and
-lists the matching indexes and line numbers so you can switch back to the
+lists the matching indexes and line numbers to enable switching back to the
 `index` argument when needed.
 
 During macro expansion, the feature file is read and parsed. The macro
