@@ -4,6 +4,7 @@
 //! aliases used by the registry and runner.
 
 use gherkin::StepType;
+use std::borrow::Cow;
 use std::fmt;
 use std::fmt::Write as _;
 use std::str::FromStr;
@@ -222,6 +223,14 @@ pub enum StepPatternError {
     /// The generated regular expression failed to compile.
     #[error("{0}")]
     InvalidPattern(#[from] regex::Error),
+    /// Attempted to access the compiled regex before calling [`StepPattern::compile`](crate::pattern::StepPattern::compile).
+    #[error(
+        "step pattern regex has not been compiled; call compile() first on pattern '{pattern}'"
+    )]
+    NotCompiled {
+        /// Pattern text that has not yet been compiled.
+        pattern: Cow<'static, str>,
+    },
 }
 
 /// Error conditions that may arise when extracting placeholders.
@@ -237,6 +246,12 @@ pub enum PlaceholderError {
     /// The step pattern could not be compiled into a regular expression.
     #[error("invalid step pattern: {0}")]
     InvalidPattern(String),
+    /// The step pattern regex was accessed before compilation.
+    #[error("step pattern '{pattern}' must be compiled before use")]
+    NotCompiled {
+        /// Pattern text that must be compiled prior to use.
+        pattern: String,
+    },
 }
 
 impl From<StepPatternError> for PlaceholderError {
@@ -245,7 +260,10 @@ impl From<StepPatternError> for PlaceholderError {
             StepPatternError::PlaceholderSyntax(err) => {
                 Self::InvalidPlaceholder(err.user_message())
             }
-            StepPatternError::InvalidPattern(re) => Self::InvalidPattern(re.to_string()),
+            StepPatternError::InvalidPattern(err) => Self::InvalidPattern(err.to_string()),
+            StepPatternError::NotCompiled { pattern } => Self::NotCompiled {
+                pattern: pattern.into_owned(),
+            },
         }
     }
 }
