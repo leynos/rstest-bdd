@@ -1,12 +1,13 @@
 //! Implementation of the `scenarios!` macro.
 
+use cap_std::{ambient_authority, fs::Dir};
 use proc_macro::TokenStream;
 use proc_macro2::{Span, TokenStream as TokenStream2};
 use quote::{format_ident, quote};
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 
-use walkdir::DirEntry;
+use walkdir::{DirEntry, WalkDir};
 
 use crate::codegen::scenario::{ScenarioConfig, generate_scenario_code};
 use crate::parsing::feature::{extract_scenario_steps, parse_and_load_feature};
@@ -34,6 +35,65 @@ fn is_symlink_loop_error(err: &std::io::Error) -> bool {
     }
 }
 
+fn canonicalize_path(path: &Path) -> std::io::Result<PathBuf> {
+    let authority = ambient_authority();
+    let attempt = (|| -> std::io::Result<PathBuf> {
+        if path.is_absolute() {
+            let root = path
+                .ancestors()
+                .last()
+                .unwrap_or_else(|| Path::new(std::path::MAIN_SEPARATOR_STR));
+            let dir = Dir::open_ambient_dir(root, authority)?;
+            let relative = path.strip_prefix(root).unwrap_or(path);
+            let target = if relative.as_os_str().is_empty() {
+                Path::new(".")
+            } else {
+                relative
+            };
+            let resolved = dir.canonicalize(target)?;
+            return Ok(if resolved.is_absolute() {
+                resolved
+            } else {
+                PathBuf::from(root).join(resolved)
+            });
+        }
+
+        let parent = path
+            .parent()
+            .filter(|p| !p.as_os_str().is_empty())
+            .unwrap_or_else(|| Path::new("."));
+        let dir = Dir::open_ambient_dir(parent, authority)?;
+        let target = if parent == Path::new(".") {
+            path
+        } else {
+            path.strip_prefix(parent).unwrap_or(path)
+        };
+        let resolved = dir.canonicalize(target)?;
+        if resolved.is_absolute() {
+            Ok(resolved)
+        } else if parent == Path::new(".") {
+            Ok(std::env::current_dir()?.join(resolved))
+        } else {
+            Ok(parent.to_path_buf().join(resolved))
+        }
+    })();
+
+    match attempt {
+        Ok(resolved) => Ok(resolved),
+        Err(err)
+            if err.kind() == std::io::ErrorKind::PermissionDenied
+                && err.to_string().contains("outside of the filesystem") =>
+        {
+            // cap-std denies canonicalising absolute symlinks that escape a
+            // capability root. Falling back to std ensures we still support
+            // such links while preferring capability-aware resolution for all
+            // other cases.
+            std::fs::canonicalize(path)
+        }
+        Err(err) => Err(err),
+    }
+}
+
 /// Process a directory entry and return its path when it resolves to a
 /// `.feature` file.
 ///
@@ -47,7 +107,7 @@ fn process_dir_entry(entry: DirEntry) -> Option<std::io::Result<PathBuf>> {
     }
 
     let original_path = entry.into_path();
-    match std::fs::canonicalize(&original_path) {
+    match canonicalize_path(&original_path) {
         Ok(real_path) if real_path.is_file() && is_feature_file(&real_path) => {
             Some(Ok(original_path))
         }
@@ -56,51 +116,76 @@ fn process_dir_entry(entry: DirEntry) -> Option<std::io::Result<PathBuf>> {
     }
 }
 
+fn convert_walkdir_error(err: walkdir::Error) -> Option<std::io::Error> {
+    if err.loop_ancestor().is_some() {
+        return None;
+    }
+
+    let err_str = err.to_string();
+    Some(
+        err.into_io_error()
+            .unwrap_or_else(|| std::io::Error::other(err_str)),
+    )
+}
+
+fn should_skip_directory(
+    entry: &DirEntry,
+    visited_dirs: &mut HashSet<PathBuf>,
+) -> std::io::Result<bool> {
+    match canonicalize_path(entry.path()) {
+        Ok(real_path) => Ok(!visited_dirs.insert(real_path)),
+        Err(err) if is_symlink_loop_error(&err) => Ok(true),
+        Err(err) => Err(err),
+    }
+}
+
+fn push_if_feature(entry: DirEntry, files: &mut Vec<PathBuf>) -> std::io::Result<()> {
+    if let Some(result) = process_dir_entry(entry) {
+        files.push(result?);
+    }
+
+    Ok(())
+}
+
+enum WalkDecision {
+    Continue,
+    SkipDir,
+    File(DirEntry),
+}
+
+fn classify_entry(
+    next: walkdir::Result<DirEntry>,
+    visited_dirs: &mut HashSet<PathBuf>,
+) -> Result<WalkDecision, Option<std::io::Error>> {
+    let entry = match next {
+        Ok(entry) => entry,
+        Err(err) => return Err(convert_walkdir_error(err)),
+    };
+
+    if entry.file_type().is_dir() {
+        let should_skip = should_skip_directory(&entry, visited_dirs).map_err(Some)?;
+        if should_skip {
+            return Ok(WalkDecision::SkipDir);
+        }
+
+        return Ok(WalkDecision::Continue);
+    }
+
+    Ok(WalkDecision::File(entry))
+}
+
 /// Recursively collect all `.feature` files under `base`.
 fn collect_feature_files(base: &Path) -> std::io::Result<Vec<PathBuf>> {
-    use std::io;
-    use walkdir::WalkDir;
-
     let mut files = Vec::new();
     let mut visited_dirs: HashSet<PathBuf> = HashSet::new();
     let mut iterator = WalkDir::new(base).follow_links(true).into_iter();
 
-    while let Some(entry) = iterator.next() {
-        match entry {
-            Ok(entry) => {
-                if entry.file_type().is_dir() {
-                    match std::fs::canonicalize(entry.path()) {
-                        Ok(real_path) => {
-                            if !visited_dirs.insert(real_path) {
-                                iterator.skip_current_dir();
-                            }
-                        }
-                        Err(err) => {
-                            if is_symlink_loop_error(&err) {
-                                iterator.skip_current_dir();
-                                continue;
-                            }
-                            return Err(err);
-                        }
-                    }
-                    continue;
-                }
-
-                if let Some(result) = process_dir_entry(entry) {
-                    files.push(result?);
-                }
-            }
-            Err(err) => {
-                if err.loop_ancestor().is_some() {
-                    continue;
-                }
-
-                let err_str = err.to_string();
-                let io_err = err
-                    .into_io_error()
-                    .unwrap_or_else(|| io::Error::other(err_str));
-                return Err(io_err);
-            }
+    while let Some(next) = iterator.next() {
+        match classify_entry(next, &mut visited_dirs) {
+            Ok(WalkDecision::SkipDir) => iterator.skip_current_dir(),
+            Ok(WalkDecision::File(entry)) => push_if_feature(entry, &mut files)?,
+            Err(Some(err)) => return Err(err),
+            Ok(WalkDecision::Continue) | Err(None) => {}
         }
     }
 
@@ -304,21 +389,8 @@ pub(crate) fn scenarios(input: TokenStream) -> TokenStream {
 
 #[cfg(test)]
 mod tests {
-    #[cfg(unix)]
-    use super::collect_feature_files;
     use super::dedupe_name;
     use std::collections::HashSet;
-
-    #[cfg(unix)]
-    use std::fs;
-    #[cfg(unix)]
-    use std::io;
-    #[cfg(unix)]
-    use std::os::unix::fs::symlink;
-    #[cfg(unix)]
-    use std::path::Path;
-    #[cfg(unix)]
-    use tempfile::tempdir;
 
     #[test]
     fn deduplicates_duplicate_titles() {
@@ -330,31 +402,40 @@ mod tests {
     }
 
     #[cfg(unix)]
-    #[test]
-    fn collects_symlinked_feature_files_without_following_directory_loops() -> io::Result<()> {
-        let temp = tempdir()?;
-        let features_root = temp.path().join("features");
-        fs::create_dir_all(features_root.join("nested"))?;
+    mod unix {
+        use super::super::collect_feature_files;
+        use std::fs;
+        use std::io;
+        use std::os::unix::fs::symlink;
+        use std::path::Path;
+        use tempfile::tempdir;
 
-        let feature_path = features_root.join("nested/example.feature");
-        fs::write(&feature_path, "Feature: Example\n")?;
+        #[test]
+        fn collects_symlinked_feature_files_without_following_directory_loops() -> io::Result<()> {
+            let temp = tempdir()?;
+            let features_root = temp.path().join("features");
+            fs::create_dir_all(features_root.join("nested"))?;
 
-        let symlink_path = features_root.join("symlink.feature");
-        symlink(&feature_path, &symlink_path)?;
+            let feature_path = features_root.join("nested/example.feature");
+            fs::write(&feature_path, "Feature: Example\n")?;
 
-        let relative_symlink_path = features_root.join("relative_link.feature");
-        symlink(Path::new("nested/example.feature"), &relative_symlink_path)?;
+            let symlink_path = features_root.join("symlink.feature");
+            symlink(&feature_path, &symlink_path)?;
 
-        let loop_dir = features_root.join("loop");
-        symlink(&features_root, &loop_dir)?;
+            let relative_symlink_path = features_root.join("relative_link.feature");
+            symlink(Path::new("nested/example.feature"), &relative_symlink_path)?;
 
-        let files = collect_feature_files(features_root.as_path())?;
+            let loop_dir = features_root.join("loop");
+            symlink(&features_root, &loop_dir)?;
 
-        let mut expected = vec![feature_path, symlink_path, relative_symlink_path];
-        expected.sort();
-        assert_eq!(files, expected);
+            let files = collect_feature_files(features_root.as_path())?;
 
-        Ok(())
+            let mut expected = vec![feature_path, symlink_path, relative_symlink_path];
+            expected.sort();
+            assert_eq!(files, expected);
+
+            Ok(())
+        }
     }
 
     #[cfg(not(unix))]

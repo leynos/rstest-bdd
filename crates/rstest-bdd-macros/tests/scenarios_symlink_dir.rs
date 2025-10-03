@@ -23,9 +23,10 @@ fn then_discovers_symlinked_feature() {
     EXECUTIONS.fetch_add(1, Ordering::SeqCst);
 }
 
-scenarios!("tests/features/symlinked");
+scenarios!("tests/features/symlink_source");
 
 #[test]
+#[serial_test::serial]
 fn macro_discovers_symlinked_directory() {
     const EXPECTED_EXECUTIONS: usize = 3;
     const ATTEMPTS: usize = 20;
