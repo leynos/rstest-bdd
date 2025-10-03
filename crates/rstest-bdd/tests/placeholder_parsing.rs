@@ -5,6 +5,8 @@ use rstest_bdd::{
     PlaceholderError, PlaceholderSyntaxError, StepPattern, StepPatternError, StepText,
     extract_placeholders,
 };
+use std::borrow::Cow;
+use std::ptr;
 
 #[expect(clippy::expect_used, reason = "test helper should fail loudly")]
 fn compiled(pattern: &'static str) -> StepPattern {
@@ -22,6 +24,63 @@ fn expect_placeholder_syntax(pat: StepPattern) -> PlaceholderSyntaxError {
         Err(StepPatternError::PlaceholderSyntax(e)) => e,
         other => panic!("expected PlaceholderSyntax error, got {other:?}"),
     }
+}
+
+#[test]
+fn regex_requires_prior_compilation_and_caches() {
+    let pattern = StepPattern::from("literal text");
+    assert!(
+        matches!(pattern.regex(), Err(StepPatternError::NotCompiled { .. })),
+        "accessing the regex without compiling should return an error",
+    );
+
+    if let Err(err) = pattern.compile() {
+        panic!("compiling literal pattern should succeed: {err:?}");
+    }
+    let re1 = match pattern.regex() {
+        Ok(regex) => regex,
+        Err(err) => panic!("regex should be available after compilation: {err:?}"),
+    };
+    assert!(re1.is_match("literal text"));
+
+    let re2 = match pattern.regex() {
+        Ok(regex) => regex,
+        Err(err) => panic!("regex should be cached after compilation: {err:?}"),
+    };
+    assert!(re2.is_match("literal text"));
+    assert!(
+        ptr::eq(re1, re2),
+        "repeated calls should return the cached regex instance",
+    );
+}
+
+#[test]
+fn regex_remains_unavailable_after_failed_compilation() {
+    let pattern = StepPattern::from("value {n:}");
+
+    assert!(
+        pattern.compile().is_err(),
+        "compile should fail for invalid pattern"
+    );
+    assert!(
+        matches!(pattern.regex(), Err(StepPatternError::NotCompiled { .. })),
+        "failed compilation should not populate the cached regex",
+    );
+}
+
+#[test]
+fn placeholder_error_reports_not_compiled() {
+    let err = PlaceholderError::from(StepPatternError::NotCompiled {
+        pattern: Cow::Borrowed("example"),
+    });
+    let PlaceholderError::NotCompiled { ref pattern } = err else {
+        panic!("expected not compiled placeholder error");
+    };
+    assert_eq!(pattern, "example");
+    assert_eq!(
+        err.to_string(),
+        "step pattern 'example' must be compiled before use",
+    );
 }
 
 #[test]

@@ -216,6 +216,11 @@ improves the developer experience.
     discover all `.feature` files in a directory and generate a test module
     containing a test function for every `Scenario` found.
 
+  - [ ] Harden the `#[scenario]` macro's existing `name` selector with
+    compile-time diagnostics: emit an error when the requested title is absent
+    so bindings stay robust to feature reordering, and fall back to the index
+    only when duplicate titles exist.
+
 ## Phase 4: Internationalization and Localization
 
 This phase introduces full internationalization (i18n) and localization (l10n)

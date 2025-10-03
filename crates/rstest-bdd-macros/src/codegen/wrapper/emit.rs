@@ -1,116 +1,14 @@
 //! Code emission helpers for wrapper generation.
 
 use super::args::{ArgumentCollections, CallArg, DataTableArg, DocStringArg, FixtureArg, StepArg};
+use super::arguments::{
+    PreparedArgs, StepMeta, collect_ordered_arguments, prepare_argument_processing,
+    step_error_tokens,
+};
 use crate::utils::ident::sanitize_ident;
 use proc_macro2::TokenStream as TokenStream2;
 use quote::{format_ident, quote};
 use std::sync::atomic::{AtomicUsize, Ordering};
-
-#[derive(Copy, Clone)]
-struct StepMeta<'a> {
-    pattern: &'a syn::LitStr,
-    ident: &'a syn::Ident,
-}
-
-/// Quote construction for [`StepError`] variants sharing `pattern`,
-/// `function` and `message` fields.
-fn step_error_tokens(
-    variant: &syn::Ident,
-    pattern: &syn::LitStr,
-    ident: &syn::Ident,
-    message: &TokenStream2,
-) -> TokenStream2 {
-    let path = crate::codegen::rstest_bdd_path();
-    quote! {
-        #path::StepError::#variant {
-            pattern: #pattern.to_string(),
-            function: stringify!(#ident).to_string(),
-            message: #message,
-        }
-    }
-}
-
-/// Generate declaration for an optional argument, mapping absence to
-/// `StepError::ExecutionError`.
-fn gen_optional_decl<T, F>(
-    arg: Option<&T>,
-    meta: StepMeta<'_>,
-    error_msg: &str,
-    generator: F,
-) -> Option<TokenStream2>
-where
-    F: FnOnce(&T) -> (syn::Ident, TokenStream2, TokenStream2),
-{
-    arg.map(|arg_value| {
-        let (pat, ty, expr) = generator(arg_value);
-        let StepMeta { pattern, ident } = meta;
-        let missing_err = step_error_tokens(
-            &format_ident!("ExecutionError"),
-            pattern,
-            ident,
-            &quote! { format!("Step '{}' {}", #pattern, #error_msg) },
-        );
-        let convert_err = step_error_tokens(
-            &format_ident!("ExecutionError"),
-            pattern,
-            ident,
-            &quote! { format!("failed to convert auxiliary argument for step '{}'", #pattern) },
-        );
-        quote! {
-            let #pat: #ty = #expr
-                .ok_or_else(|| #missing_err)?
-                .try_into()
-                .map_err(|_e| #convert_err)?;
-        }
-    })
-}
-
-/// Generate declaration for a data table argument.
-fn gen_datatable_decl(
-    datatable: Option<&DataTableArg>,
-    pattern: &syn::LitStr,
-    ident: &syn::Ident,
-) -> Option<TokenStream2> {
-    gen_optional_decl(
-        datatable,
-        StepMeta { pattern, ident },
-        "requires a data table",
-        |DataTableArg { pat, ty }| {
-            let pat = pat.clone();
-            let declared_ty = ty.clone();
-            let ty = quote! { #declared_ty };
-            let expr = quote! {
-                _table.map(|t| {
-                    t.iter()
-                        .map(|row| row.iter().map(|cell| cell.to_string()).collect::<Vec<String>>())
-                        .collect::<Vec<Vec<String>>>()
-                })
-            };
-            (pat, ty, expr)
-        },
-    )
-}
-
-/// Generate declaration for a doc string argument.
-///
-/// Step functions require an owned `String`, so the wrapper copies the block.
-fn gen_docstring_decl(
-    docstring: Option<&DocStringArg>,
-    pattern: &syn::LitStr,
-    ident: &syn::Ident,
-) -> Option<TokenStream2> {
-    gen_optional_decl(
-        docstring,
-        StepMeta { pattern, ident },
-        "requires a doc string",
-        |DocStringArg { pat }| {
-            let pat = pat.clone();
-            let ty = quote! { String };
-            let expr = quote! { _docstring.map(|s| s.to_owned()) };
-            (pat, ty, expr)
-        },
-    )
-}
 
 /// Configuration required to generate a wrapper.
 pub(crate) struct WrapperConfig<'a> {
@@ -122,85 +20,6 @@ pub(crate) struct WrapperConfig<'a> {
     pub(crate) pattern: &'a syn::LitStr,
     pub(crate) keyword: crate::StepKeyword,
     pub(crate) call_order: &'a [CallArg],
-}
-
-/// Generate declarations for fixture values.
-///
-/// Non-reference fixtures must implement [`Clone`] because wrappers clone
-/// them to hand ownership to the step function.
-fn gen_fixture_decls(fixtures: &[FixtureArg], ident: &syn::Ident) -> Vec<TokenStream2> {
-    fixtures
-        .iter()
-        .map(|FixtureArg { pat, name, ty }| {
-            let path = crate::codegen::rstest_bdd_path();
-            let lookup_ty = if let syn::Type::Reference(r) = ty {
-                &*r.elem
-            } else {
-                ty
-            };
-            let clone_suffix = if matches!(ty, syn::Type::Reference(_)) {
-                quote! {}
-            } else {
-                quote! { .cloned() }
-            };
-            quote! {
-                                let #pat: #ty = ctx
-                    .get::<#lookup_ty>(stringify!(#name))
-                    #clone_suffix
-                    .ok_or_else(|| #path::StepError::MissingFixture {
-                        name: stringify!(#name).to_string(),
-                        ty: stringify!(#lookup_ty).to_string(),
-                        step: stringify!(#ident).to_string(),
-                    })?;
-            }
-        })
-        .collect()
-}
-
-/// Generate code to parse step arguments from regex captures.
-fn gen_step_parses(
-    step_args: &[StepArg],
-    captured: &[TokenStream2],
-    meta: StepMeta<'_>,
-) -> Vec<TokenStream2> {
-    let StepMeta { pattern, ident } = meta;
-    step_args
-        .iter()
-        .zip(captured.iter().enumerate())
-        .map(|(StepArg { pat, ty }, (idx, capture))| {
-            let raw_ident = format_ident!("__raw{}", idx);
-            let missing_cap_err = step_error_tokens(
-                &format_ident!("ExecutionError"),
-                pattern,
-                ident,
-                &quote! {
-                    format!(
-                        "pattern '{}' missing capture for argument '{}'",
-                        #pattern,
-                        stringify!(#pat),
-                    )
-                },
-            );
-            let parse_err = step_error_tokens(
-                &format_ident!("ExecutionError"),
-                pattern,
-                ident,
-                &quote! {
-                    format!(
-                        "failed to parse argument '{}' of type '{}' from pattern '{}' with captured value: '{:?}'",
-                        stringify!(#pat),
-                        stringify!(#ty),
-                        #pattern,
-                        #raw_ident,
-                    )
-                },
-            );
-            quote! {
-                let #raw_ident = #capture.ok_or_else(|| #missing_cap_err)?;
-                let #pat: #ty = (#raw_ident).parse().map_err(|_| #parse_err)?;
-            }
-        })
-        .collect()
 }
 
 static COUNTER: AtomicUsize = AtomicUsize::new(0);
@@ -237,100 +56,27 @@ fn generate_wrapper_signature(
     }
 }
 
-/// Generate declarations and parsing logic for wrapper arguments.
-fn generate_argument_processing(
-    config: &WrapperConfig<'_>,
-) -> (
-    Vec<TokenStream2>,
-    Vec<TokenStream2>,
-    Option<TokenStream2>,
-    Option<TokenStream2>,
-) {
-    let declares = gen_fixture_decls(config.fixtures, config.ident);
-    let captured: Vec<_> = config
-        .step_args
-        .iter()
-        .enumerate()
-        .map(|(idx, _)| {
-            let index = syn::Index::from(idx);
-            quote! { captures.get(#index).map(|m| m.as_str()) }
-        })
-        .collect();
-    let step_arg_parses = gen_step_parses(
-        config.step_args,
-        &captured,
-        StepMeta {
-            pattern: config.pattern,
-            ident: config.ident,
-        },
-    );
-    let datatable_decl = gen_datatable_decl(config.datatable, config.pattern, config.ident);
-    let docstring_decl = gen_docstring_decl(config.docstring, config.pattern, config.ident);
-    (declares, step_arg_parses, datatable_decl, docstring_decl)
-}
-
-/// Collect argument identifiers in the order declared by the step function.
-fn collect_ordered_arguments<'a>(
-    call_order: &'a [CallArg],
-    args: &ArgumentCollections<'a>,
-) -> Vec<&'a syn::Ident> {
-    call_order
-        .iter()
-        .map(|arg| match arg {
-            CallArg::Fixture(i) =>
-            {
-                #[expect(
-                    clippy::indexing_slicing,
-                    reason = "call_order indices validated during macro expansion"
-                )]
-                &args.fixtures[*i].pat
-            }
-            CallArg::StepArg(i) =>
-            {
-                #[expect(
-                    clippy::indexing_slicing,
-                    reason = "call_order indices validated during macro expansion"
-                )]
-                &args.step_args[*i].pat
-            }
-            CallArg::DataTable =>
-            {
-                #[expect(clippy::expect_used, reason = "variant guarantees presence")]
-                &args
-                    .datatable
-                    .expect("datatable present in call_order but not configured")
-                    .pat
-            }
-            CallArg::DocString =>
-            {
-                #[expect(clippy::expect_used, reason = "variant guarantees presence")]
-                &args
-                    .docstring
-                    .expect("docstring present in call_order but not configured")
-                    .pat
-            }
-        })
-        .collect()
-}
-
-/// Assemble the final wrapper function using prepared components.
-fn assemble_wrapper_function(
-    wrapper_ident: &proc_macro2::Ident,
-    pattern_ident: &proc_macro2::Ident,
-    arg_processing: (
-        Vec<TokenStream2>,
-        Vec<TokenStream2>,
-        Option<TokenStream2>,
-        Option<TokenStream2>,
-    ),
-    arg_idents: &[&syn::Ident],
-    pattern: &syn::LitStr,
-    ident: &syn::Ident,
+/// Prepared wrapper inputs consumed by `assemble_wrapper_function`.
+struct WrapperAssembly<'a> {
+    meta: StepMeta<'a>,
+    prepared: PreparedArgs,
+    arg_idents: &'a [&'a syn::Ident],
     capture_count: usize,
-) -> TokenStream2 {
-    let (declares, step_arg_parses, datatable_decl, docstring_decl) = arg_processing;
-    let placeholder_err = step_error_tokens(
-        &format_ident!("ExecutionError"),
+}
+
+struct WrapperErrors {
+    placeholder: TokenStream2,
+    panic: TokenStream2,
+    execution: TokenStream2,
+    capture_mismatch: TokenStream2,
+}
+
+fn prepare_wrapper_errors(meta: StepMeta<'_>) -> WrapperErrors {
+    let StepMeta { pattern, ident } = meta;
+    let execution_error = format_ident!("ExecutionError");
+    let panic_error = format_ident!("PanicError");
+    let placeholder = step_error_tokens(
+        &execution_error,
         pattern,
         ident,
         &quote! {
@@ -342,21 +88,10 @@ fn assemble_wrapper_function(
             )
         },
     );
-    let panic_err = step_error_tokens(
-        &format_ident!("PanicError"),
-        pattern,
-        ident,
-        &quote! { message },
-    );
-    let exec_err = step_error_tokens(
-        &format_ident!("ExecutionError"),
-        pattern,
-        ident,
-        &quote! { message },
-    );
-    let expected = capture_count;
-    let capture_mismatch_err = step_error_tokens(
-        &format_ident!("ExecutionError"),
+    let panic = step_error_tokens(&panic_error, pattern, ident, &quote! { message });
+    let execution = step_error_tokens(&execution_error, pattern, ident, &quote! { message });
+    let capture_mismatch = step_error_tokens(
+        &execution_error,
         pattern,
         ident,
         &quote! {
@@ -369,16 +104,52 @@ fn assemble_wrapper_function(
             )
         },
     );
+
+    WrapperErrors {
+        placeholder,
+        panic,
+        execution,
+        capture_mismatch,
+    }
+}
+
+/// Assemble the final wrapper function using prepared components.
+fn assemble_wrapper_function(
+    wrapper_ident: &proc_macro2::Ident,
+    pattern_ident: &proc_macro2::Ident,
+    assembly: WrapperAssembly<'_>,
+) -> TokenStream2 {
+    let WrapperAssembly {
+        meta,
+        prepared,
+        arg_idents,
+        capture_count,
+    } = assembly;
+    let PreparedArgs {
+        declares,
+        step_arg_parses,
+        datatable_decl,
+        docstring_decl,
+    } = prepared;
+    let WrapperErrors {
+        placeholder: placeholder_err,
+        panic: panic_err,
+        execution: exec_err,
+        capture_mismatch: capture_mismatch_err,
+    } = prepare_wrapper_errors(meta);
+    let StepMeta { pattern: _, ident } = meta;
+    let expected = capture_count;
     let path = crate::codegen::rstest_bdd_path();
     let call = quote! { #ident(#(#arg_idents),*) };
     let call_expr = quote! { #path::IntoStepResult::into_step_result(#call) };
+
     quote! {
         fn #wrapper_ident(
             ctx: &#path::StepContext<'_>,
             text: &str,
             _docstring: Option<&str>,
             _table: Option<&[&[&str]]>,
-            ) -> Result<Option<Box<dyn std::any::Any>>, #path::StepError> {
+        ) -> Result<Option<Box<dyn std::any::Any>>, #path::StepError> {
             use std::panic::{catch_unwind, AssertUnwindSafe};
 
             let captures = #path::extract_placeholders(&#pattern_ident, text.into())
@@ -422,23 +193,25 @@ fn generate_wrapper_body(
         ..
     } = *config;
 
-    let signature = generate_wrapper_signature(pattern, pattern_ident);
-    let arg_processing = generate_argument_processing(config);
     let collections = ArgumentCollections {
         fixtures,
         step_args,
         datatable,
         docstring,
     };
+    let step_meta = StepMeta { pattern, ident };
+    let signature = generate_wrapper_signature(pattern, pattern_ident);
+    let prepared = prepare_argument_processing(&collections, step_meta);
     let arg_idents = collect_ordered_arguments(call_order, &collections);
     let wrapper_fn = assemble_wrapper_function(
         wrapper_ident,
         pattern_ident,
-        arg_processing,
-        &arg_idents,
-        pattern,
-        ident,
-        step_args.len(),
+        WrapperAssembly {
+            meta: step_meta,
+            prepared,
+            arg_idents: &arg_idents,
+            capture_count: step_args.len(),
+        },
     );
 
     quote! {
