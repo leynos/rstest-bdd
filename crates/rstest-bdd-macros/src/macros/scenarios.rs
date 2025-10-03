@@ -1,10 +1,15 @@
 //! Implementation of the `scenarios!` macro.
 
+use cap_std::AmbientAuthority;
+use cap_std::ambient_authority;
+use cap_std::fs::Dir;
 use proc_macro::TokenStream;
 use proc_macro2::{Span, TokenStream as TokenStream2};
 use quote::{format_ident, quote};
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
+
+use walkdir::{DirEntry, WalkDir};
 
 use crate::codegen::scenario::{ScenarioConfig, generate_scenario_code};
 use crate::parsing::feature::{extract_scenario_steps, parse_and_load_feature};
@@ -12,34 +17,139 @@ use crate::utils::errors::{error_to_tokens, normalized_dir_read_error};
 use crate::utils::ident::sanitize_ident;
 use gherkin::Feature;
 
-/// Recursively collect all `.feature` files under `base`.
-fn collect_feature_files(base: &Path) -> std::io::Result<Vec<PathBuf>> {
-    use std::io;
-    use walkdir::WalkDir;
+fn is_feature_file(path: &Path) -> bool {
+    path.extension()
+        .and_then(|e| e.to_str())
+        .is_some_and(|ext| ext.eq_ignore_ascii_case("feature"))
+}
 
-    fn is_feature_file(path: &Path) -> bool {
-        path.extension()
-            .and_then(|e| e.to_str())
-            .is_some_and(|ext| ext.eq_ignore_ascii_case("feature"))
+fn canonicalize_absolute_path(
+    path: &Path,
+    authority: AmbientAuthority,
+) -> std::io::Result<PathBuf> {
+    let root = path
+        .ancestors()
+        .last()
+        .unwrap_or_else(|| Path::new(std::path::MAIN_SEPARATOR_STR));
+    let dir = Dir::open_ambient_dir(root, authority)?;
+    let relative = path.strip_prefix(root).unwrap_or(path);
+    let target = if relative.as_os_str().is_empty() {
+        Path::new(".")
+    } else {
+        relative
+    };
+    let resolved = dir.canonicalize(target)?;
+    if resolved.is_absolute() {
+        Ok(resolved)
+    } else {
+        Ok(PathBuf::from(root).join(resolved))
+    }
+}
+
+fn canonicalize_relative_path(
+    path: &Path,
+    authority: AmbientAuthority,
+) -> std::io::Result<PathBuf> {
+    let parent = path
+        .parent()
+        .filter(|p| !p.as_os_str().is_empty())
+        .unwrap_or_else(|| Path::new("."));
+    let dir = Dir::open_ambient_dir(parent, authority)?;
+    let target = if parent == Path::new(".") {
+        path
+    } else {
+        path.strip_prefix(parent).unwrap_or(path)
+    };
+    let resolved = dir.canonicalize(target)?;
+    if resolved.is_absolute() {
+        Ok(resolved)
+    } else if parent == Path::new(".") {
+        Ok(std::env::current_dir()?.join(resolved))
+    } else {
+        Ok(parent.to_path_buf().join(resolved))
+    }
+}
+
+fn try_std_canonicalize_fallback(path: &Path, err: std::io::Error) -> std::io::Result<PathBuf> {
+    if err.kind() == std::io::ErrorKind::PermissionDenied
+        && err.to_string().contains("outside of the filesystem")
+    {
+        // cap-std denies canonicalising absolute symlinks that escape a
+        // capability root. Falling back to std ensures we still support such
+        // links whilst preferring capability-aware resolution for every other
+        // case.
+        std::fs::canonicalize(path)
+    } else {
+        Err(err)
+    }
+}
+
+fn canonicalize_path(path: &Path) -> std::io::Result<PathBuf> {
+    let authority = ambient_authority();
+    let attempt = if path.is_absolute() {
+        canonicalize_absolute_path(path, authority)
+    } else {
+        canonicalize_relative_path(path, authority)
+    };
+
+    match attempt {
+        Ok(resolved) => Ok(resolved),
+        Err(err) => try_std_canonicalize_fallback(path, err),
+    }
+}
+
+/// Process a directory entry and return its path when it resolves to a
+/// `.feature` file.
+///
+/// Canonicalisation avoids re-implementing symlink resolution logic while still
+/// returning the original (potentially symlinked) path to the caller. Directory
+/// entries that do not resolve to `.feature` files return `None`. Any I/O
+/// failures bubble up so traversal errors remain visible to the macro user.
+fn process_dir_entry(entry: DirEntry) -> Option<std::io::Result<PathBuf>> {
+    if entry.file_type().is_dir() {
+        return None;
     }
 
-    let mut files: Vec<PathBuf> = WalkDir::new(base)
-        .follow_links(true)
-        .into_iter()
-        .filter_map(|entry| match entry {
-            Ok(e) if e.file_type().is_file() && is_feature_file(e.path()) => {
-                Some(Ok(e.into_path()))
+    let original_path = entry.into_path();
+    match canonicalize_path(&original_path) {
+        Ok(real_path) if real_path.is_file() && is_feature_file(&real_path) => {
+            Some(Ok(original_path))
+        }
+        Ok(_) => None,
+        Err(err) => Some(Err(err)),
+    }
+}
+
+fn convert_walkdir_error(err: walkdir::Error) -> Option<std::io::Error> {
+    if err.loop_ancestor().is_some() {
+        return None;
+    }
+
+    let err_str = err.to_string();
+    Some(
+        err.into_io_error()
+            .unwrap_or_else(|| std::io::Error::other(err_str)),
+    )
+}
+
+/// Recursively collect all `.feature` files under `base`.
+fn collect_feature_files(base: &Path) -> std::io::Result<Vec<PathBuf>> {
+    let mut files = Vec::new();
+
+    for next in WalkDir::new(base).follow_links(false) {
+        match next {
+            Ok(entry) => {
+                if let Some(result) = process_dir_entry(entry) {
+                    files.push(result?);
+                }
             }
-            Ok(_) => None,
-            Err(e) => {
-                let err_str = e.to_string();
-                let io_err = e
-                    .into_io_error()
-                    .unwrap_or_else(|| io::Error::other(err_str));
-                Some(Err(io_err))
+            Err(err) => {
+                if let Some(err) = convert_walkdir_error(err) {
+                    return Err(err);
+                }
             }
-        })
-        .collect::<Result<_, _>>()?;
+        }
+    }
 
     files.sort();
     Ok(files)
@@ -251,5 +361,48 @@ mod tests {
         let second = dedupe_name("dup_same_name", &mut used);
         assert_eq!(first, "dup_same_name");
         assert_eq!(second, "dup_same_name_1");
+    }
+
+    #[cfg(unix)]
+    mod unix {
+        use super::super::collect_feature_files;
+        use std::fs;
+        use std::io;
+        use std::os::unix::fs::symlink;
+        use std::path::Path;
+        use tempfile::tempdir;
+
+        #[test]
+        fn collects_symlinked_feature_files_without_following_directory_loops() -> io::Result<()> {
+            let temp = tempdir()?;
+            let features_root = temp.path().join("features");
+            fs::create_dir_all(features_root.join("nested"))?;
+
+            let feature_path = features_root.join("nested/example.feature");
+            fs::write(&feature_path, "Feature: Example\n")?;
+
+            let symlink_path = features_root.join("symlink.feature");
+            symlink(&feature_path, &symlink_path)?;
+
+            let relative_symlink_path = features_root.join("relative_link.feature");
+            symlink(Path::new("nested/example.feature"), &relative_symlink_path)?;
+
+            let loop_dir = features_root.join("loop");
+            symlink(&features_root, &loop_dir)?;
+
+            let files = collect_feature_files(features_root.as_path())?;
+
+            let mut expected = vec![feature_path, symlink_path, relative_symlink_path];
+            expected.sort();
+            assert_eq!(files, expected);
+
+            Ok(())
+        }
+    }
+
+    #[cfg(not(unix))]
+    #[test]
+    fn collects_symlinked_feature_files_without_following_directory_loops() {
+        assert!(cfg!(not(unix)));
     }
 }
