@@ -20,6 +20,20 @@ fn is_feature_file(path: &Path) -> bool {
         .is_some_and(|ext| ext.eq_ignore_ascii_case("feature"))
 }
 
+#[cfg(unix)]
+fn is_symlink_loop_error(err: &std::io::Error) -> bool {
+    err.raw_os_error() == Some(libc::ELOOP)
+        || (err.kind() == std::io::ErrorKind::Other && err.to_string().contains("File system loop"))
+}
+
+#[cfg(not(unix))]
+fn is_symlink_loop_error(err: &std::io::Error) -> bool {
+    err.kind() == std::io::ErrorKind::Other && {
+        let msg = err.to_string();
+        msg.contains("File system loop") || msg.contains("too many levels of symbolic links")
+    }
+}
+
 /// Process a directory entry and return its path when it resolves to a
 /// `.feature` file.
 ///
@@ -47,20 +61,48 @@ fn collect_feature_files(base: &Path) -> std::io::Result<Vec<PathBuf>> {
     use std::io;
     use walkdir::WalkDir;
 
-    let mut files: Vec<PathBuf> = WalkDir::new(base)
-        .follow_links(false)
-        .into_iter()
-        .filter_map(|entry| match entry {
-            Ok(entry) => process_dir_entry(entry),
+    let mut files = Vec::new();
+    let mut visited_dirs: HashSet<PathBuf> = HashSet::new();
+    let mut iterator = WalkDir::new(base).follow_links(true).into_iter();
+
+    while let Some(entry) = iterator.next() {
+        match entry {
+            Ok(entry) => {
+                if entry.file_type().is_dir() {
+                    match std::fs::canonicalize(entry.path()) {
+                        Ok(real_path) => {
+                            if !visited_dirs.insert(real_path) {
+                                iterator.skip_current_dir();
+                            }
+                        }
+                        Err(err) => {
+                            if is_symlink_loop_error(&err) {
+                                iterator.skip_current_dir();
+                                continue;
+                            }
+                            return Err(err);
+                        }
+                    }
+                    continue;
+                }
+
+                if let Some(result) = process_dir_entry(entry) {
+                    files.push(result?);
+                }
+            }
             Err(err) => {
+                if err.loop_ancestor().is_some() {
+                    continue;
+                }
+
                 let err_str = err.to_string();
                 let io_err = err
                     .into_io_error()
                     .unwrap_or_else(|| io::Error::other(err_str));
-                Some(Err(io_err))
+                return Err(io_err);
             }
-        })
-        .collect::<Result<_, _>>()?;
+        }
+    }
 
     files.sort();
     Ok(files)
