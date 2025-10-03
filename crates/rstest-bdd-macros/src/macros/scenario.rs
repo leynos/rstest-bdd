@@ -1,5 +1,8 @@
-//! Implementation of the `#[scenario]` macro.
-//! Binds tests to Gherkin scenarios and validates steps when compile-time flags enable it.
+//! Implements the `#[scenario]` macro, wiring Rust tests to Gherkin scenarios
+//! and surfacing compile-time diagnostics for invalid configuration. Supports
+//! mutually exclusive selectors that either bind by index or match the
+//! case-sensitive scenario title, defaulting to the first scenario when no
+//! selector is supplied.
 
 use cap_std::{ambient_authority, fs::Dir};
 use cfg_if::cfg_if;
@@ -17,6 +20,7 @@ use crate::validation::parameters::process_scenario_outline_examples;
 static FEATURE_PATH_CACHE: LazyLock<RwLock<HashMap<PathBuf, String>>> =
     LazyLock::new(|| RwLock::new(HashMap::new()));
 
+use proc_macro2::Span;
 use syn::{
     LitInt, LitStr,
     parse::{Parse, ParseStream},
@@ -26,12 +30,18 @@ use syn::{
 
 struct ScenarioArgs {
     path: LitStr,
-    index: Option<usize>,
+    selector: Option<ScenarioSelector>,
+}
+
+enum ScenarioSelector {
+    Index { value: usize, span: Span },
+    Name { value: String, span: Span },
 }
 
 enum ScenarioArg {
     Path(LitStr),
-    Index(usize),
+    Index(LitInt),
+    Name(LitStr),
 }
 
 impl Parse for ScenarioArg {
@@ -45,10 +55,11 @@ impl Parse for ScenarioArg {
             if ident == "path" {
                 Ok(Self::Path(input.parse()?))
             } else if ident == "index" {
-                let li: LitInt = input.parse()?;
-                Ok(Self::Index(li.base10_parse()?))
+                Ok(Self::Index(input.parse()?))
+            } else if ident == "name" {
+                Ok(Self::Name(input.parse()?))
             } else {
-                Err(input.error("expected `path` or `index`"))
+                Err(input.error("expected `path`, `index`, or `name`"))
             }
         }
     }
@@ -58,7 +69,7 @@ impl Parse for ScenarioArgs {
     fn parse(input: ParseStream<'_>) -> syn::Result<Self> {
         let args = Punctuated::<ScenarioArg, Comma>::parse_terminated(input)?;
         let mut path = None;
-        let mut index = None;
+        let mut selector = None;
 
         for arg in args {
             match arg {
@@ -69,17 +80,77 @@ impl Parse for ScenarioArgs {
                     path = Some(lit);
                 }
                 ScenarioArg::Index(i) => {
-                    if index.is_some() {
-                        return Err(input.error("duplicate `index` argument"));
+                    if let Some(existing) = &selector {
+                        return Err(selector_conflict_error(
+                            existing,
+                            SelectorKind::Index,
+                            i.span(),
+                        ));
                     }
-                    index = Some(i);
+                    let value = i.base10_parse()?;
+                    selector = Some(ScenarioSelector::Index {
+                        value,
+                        span: i.span(),
+                    });
+                }
+                ScenarioArg::Name(lit) => {
+                    if let Some(existing) = &selector {
+                        return Err(selector_conflict_error(
+                            existing,
+                            SelectorKind::Name,
+                            lit.span(),
+                        ));
+                    }
+                    selector = Some(ScenarioSelector::Name {
+                        value: lit.value(),
+                        span: lit.span(),
+                    });
                 }
             }
         }
 
         let path = path.ok_or_else(|| input.error("`path` is required"))?;
 
-        Ok(Self { path, index })
+        Ok(Self { path, selector })
+    }
+}
+
+enum SelectorKind {
+    Index,
+    Name,
+}
+
+fn selector_conflict_error(
+    existing: &ScenarioSelector,
+    new_kind: SelectorKind,
+    new_span: Span,
+) -> syn::Error {
+    match (existing, new_kind) {
+        (ScenarioSelector::Index { .. }, SelectorKind::Index) => {
+            syn::Error::new(new_span, "duplicate `index` argument")
+        }
+        (ScenarioSelector::Name { .. }, SelectorKind::Name) => {
+            syn::Error::new(new_span, "duplicate `name` argument")
+        }
+        (ScenarioSelector::Index { span, .. }, SelectorKind::Name) => {
+            let mut err = syn::Error::new(
+                new_span,
+                "`name` cannot be combined with `index`; choose one selector",
+            );
+            err.combine(syn::Error::new(
+                *span,
+                "`index` cannot be combined with `name`",
+            ));
+            err
+        }
+        (ScenarioSelector::Name { span, .. }, SelectorKind::Index) => {
+            let mut err = syn::Error::new(new_span, "`index` cannot be combined with `name`");
+            err.combine(syn::Error::new(
+                *span,
+                "`name` cannot be combined with `index`; choose one selector",
+            ));
+            err
+        }
     }
 }
 
@@ -93,7 +164,7 @@ pub(crate) fn scenario(attr: TokenStream, item: TokenStream) -> TokenStream {
 }
 
 fn try_scenario(
-    ScenarioArgs { path, index }: ScenarioArgs,
+    ScenarioArgs { path, selector }: ScenarioArgs,
     mut item_fn: syn::ItemFn,
 ) -> std::result::Result<TokenStream, TokenStream> {
     let path = PathBuf::from(path.value());
@@ -104,12 +175,15 @@ fn try_scenario(
 
     // Retrieve cached feature to avoid repeated parsing.
     let feature = parse_and_load_feature(&path).map_err(proc_macro::TokenStream::from)?;
+    let resolved_index = resolve_scenario_index(&feature, selector.as_ref())
+        .map_err(|err| proc_macro::TokenStream::from(err.into_compile_error()))?;
     let feature_path_str = canonical_feature_path(&path);
     let ScenarioData {
         name: scenario_name,
         steps,
         examples,
-    } = extract_scenario_steps(&feature, index).map_err(proc_macro::TokenStream::from)?;
+    } = extract_scenario_steps(&feature, Some(resolved_index))
+        .map_err(proc_macro::TokenStream::from)?;
 
     if let Some(err) = validate_steps_compile_time(&steps) {
         return Err(err);
@@ -134,6 +208,72 @@ fn try_scenario(
         },
         ctx_inserts.into_iter(),
     ))
+}
+
+fn resolve_scenario_index(
+    feature: &gherkin::Feature,
+    selector: Option<&ScenarioSelector>,
+) -> Result<usize, syn::Error> {
+    match selector {
+        None => Ok(0),
+        Some(ScenarioSelector::Index { value, .. }) => Ok(*value),
+        Some(ScenarioSelector::Name { value, span }) => {
+            find_scenario_by_name(feature, value, *span)
+        }
+    }
+}
+
+fn find_scenario_by_name(
+    feature: &gherkin::Feature,
+    name: &str,
+    span: Span,
+) -> Result<usize, syn::Error> {
+    let mut matches = feature
+        .scenarios
+        .iter()
+        .enumerate()
+        .filter(|(_, scenario)| scenario.name == name);
+
+    match matches.next() {
+        None => {
+            let available: Vec<String> = feature
+                .scenarios
+                .iter()
+                .map(|scenario| format!("\"{}\"", scenario.name))
+                .collect();
+            let message = if available.is_empty() {
+                format!("scenario named \"{name}\" not found; feature contains no scenarios")
+            } else {
+                let options = available.join(", ");
+                format!("scenario named \"{name}\" not found; available titles: {options}")
+            };
+            Err(syn::Error::new(span, message))
+        }
+        Some((idx, scenario)) => {
+            let rest: Vec<(usize, &gherkin::Scenario)> = matches.collect();
+            if rest.is_empty() {
+                Ok(idx)
+            } else {
+                let mut all = Vec::with_capacity(rest.len() + 1);
+                all.push((idx, scenario));
+                all.extend(rest);
+                let indexes = all
+                    .iter()
+                    .map(|(index, _)| index.to_string())
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                let lines = all
+                    .iter()
+                    .map(|(_, matched_scenario)| matched_scenario.position.line.to_string())
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                let message = format!(
+                    "found multiple scenarios named \"{name}\"; use the `index` selector to disambiguate (matching indexes: {indexes}; lines: {lines})"
+                );
+                Err(syn::Error::new(span, message))
+            }
+        }
+    }
 }
 
 /// Normalise path components so equivalent inputs share cache entries.

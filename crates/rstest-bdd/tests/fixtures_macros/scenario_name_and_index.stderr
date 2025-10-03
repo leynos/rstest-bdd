@@ -1,0 +1,11 @@
+error: `index` cannot be combined with `name`
+ --> tests/fixtures_macros/scenario_name_and_index.rs:4:71
+  |
+4 | #[scenario(path = "basic.feature", name = "Example scenario", index = 0)]
+  |                                                                       ^
+
+error: `name` cannot be combined with `index`; choose one selector
+ --> tests/fixtures_macros/scenario_name_and_index.rs:4:43
+  |
+4 | #[scenario(path = "basic.feature", name = "Example scenario", index = 0)]
+  |                                           ^^^^^^^^^^^^^^^^^^

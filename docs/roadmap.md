@@ -210,13 +210,13 @@ improves the developer experience.
 
 [design §1.3.4]: ./rstest-bdd-design.md#134-filtering-scenarios-with-tags
 
-- [ ] **Boilerplate Reduction**
+- [x] **Boilerplate Reduction**
 
   - [x] Implement the `scenarios!("path/to/features/")` macro to automatically
     discover all `.feature` files in a directory and generate a test module
     containing a test function for every `Scenario` found.
 
-  - [ ] Harden the `#[scenario]` macro's existing `name` selector with
+  - [x] Harden the `#[scenario]` macro's existing `name` selector with
     compile-time diagnostics: emit an error when the requested title is absent
     so bindings stay robust to feature reordering, and fall back to the index
     only when duplicate titles exist.

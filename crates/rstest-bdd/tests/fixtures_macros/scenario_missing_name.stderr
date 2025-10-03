@@ -1,0 +1,5 @@
+error: scenario named "Does not exist" not found; available titles: "Example scenario"
+ --> tests/fixtures_macros/scenario_missing_name.rs:5:43
+  |
+5 | #[scenario(path = "basic.feature", name = "Does not exist")]
+  |                                           ^^^^^^^^^^^^^^^^
