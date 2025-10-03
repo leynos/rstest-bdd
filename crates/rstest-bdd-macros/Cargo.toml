@@ -42,10 +42,6 @@ cap-std.workspace = true
 rstest.workspace = true
 serial_test.workspace = true
 tempfile.workspace = true
-rstest-bdd.workspace = true
-
-[target.'cfg(unix)'.dependencies]
-libc = "0.2"
 
 [package.metadata.docs.rs]
 all-features = true

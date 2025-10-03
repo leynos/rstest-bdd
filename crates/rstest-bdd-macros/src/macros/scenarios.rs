@@ -23,20 +23,6 @@ fn is_feature_file(path: &Path) -> bool {
         .is_some_and(|ext| ext.eq_ignore_ascii_case("feature"))
 }
 
-#[cfg(unix)]
-fn is_symlink_loop_error(err: &std::io::Error) -> bool {
-    err.raw_os_error() == Some(libc::ELOOP)
-        || (err.kind() == std::io::ErrorKind::Other && err.to_string().contains("File system loop"))
-}
-
-#[cfg(not(unix))]
-fn is_symlink_loop_error(err: &std::io::Error) -> bool {
-    err.kind() == std::io::ErrorKind::Other && {
-        let msg = err.to_string();
-        msg.contains("File system loop") || msg.contains("too many levels of symbolic links")
-    }
-}
-
 fn canonicalize_absolute_path(
     path: &Path,
     authority: AmbientAuthority,
@@ -142,64 +128,22 @@ fn convert_walkdir_error(err: walkdir::Error) -> Option<std::io::Error> {
     )
 }
 
-fn should_skip_directory(
-    entry: &DirEntry,
-    visited_dirs: &mut HashSet<PathBuf>,
-) -> std::io::Result<bool> {
-    match canonicalize_path(entry.path()) {
-        Ok(real_path) => Ok(!visited_dirs.insert(real_path)),
-        Err(err) if is_symlink_loop_error(&err) => Ok(true),
-        Err(err) => Err(err),
-    }
-}
-
-fn push_if_feature(entry: DirEntry, files: &mut Vec<PathBuf>) -> std::io::Result<()> {
-    if let Some(result) = process_dir_entry(entry) {
-        files.push(result?);
-    }
-
-    Ok(())
-}
-
-enum WalkDecision {
-    Continue,
-    SkipDir,
-    File(DirEntry),
-}
-
-fn classify_entry(
-    next: walkdir::Result<DirEntry>,
-    visited_dirs: &mut HashSet<PathBuf>,
-) -> Result<WalkDecision, Option<std::io::Error>> {
-    let entry = match next {
-        Ok(entry) => entry,
-        Err(err) => return Err(convert_walkdir_error(err)),
-    };
-
-    if entry.file_type().is_dir() {
-        let should_skip = should_skip_directory(&entry, visited_dirs).map_err(Some)?;
-        if should_skip {
-            return Ok(WalkDecision::SkipDir);
-        }
-
-        return Ok(WalkDecision::Continue);
-    }
-
-    Ok(WalkDecision::File(entry))
-}
-
 /// Recursively collect all `.feature` files under `base`.
 fn collect_feature_files(base: &Path) -> std::io::Result<Vec<PathBuf>> {
     let mut files = Vec::new();
-    let mut visited_dirs: HashSet<PathBuf> = HashSet::new();
-    let mut iterator = WalkDir::new(base).follow_links(true).into_iter();
 
-    while let Some(next) = iterator.next() {
-        match classify_entry(next, &mut visited_dirs) {
-            Ok(WalkDecision::SkipDir) => iterator.skip_current_dir(),
-            Ok(WalkDecision::File(entry)) => push_if_feature(entry, &mut files)?,
-            Err(Some(err)) => return Err(err),
-            Ok(WalkDecision::Continue) | Err(None) => {}
+    for next in WalkDir::new(base).follow_links(false) {
+        match next {
+            Ok(entry) => {
+                if let Some(result) = process_dir_entry(entry) {
+                    files.push(result?);
+                }
+            }
+            Err(err) => {
+                if let Some(err) = convert_walkdir_error(err) {
+                    return Err(err);
+                }
+            }
         }
     }
 
