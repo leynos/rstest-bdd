@@ -70,6 +70,20 @@ fn canonicalize_relative_path(
     }
 }
 
+fn try_std_canonicalize_fallback(path: &Path, err: std::io::Error) -> std::io::Result<PathBuf> {
+    if err.kind() == std::io::ErrorKind::PermissionDenied
+        && err.to_string().contains("outside of the filesystem")
+    {
+        // cap-std denies canonicalising absolute symlinks that escape a
+        // capability root. Falling back to std ensures we still support such
+        // links whilst preferring capability-aware resolution for every other
+        // case.
+        std::fs::canonicalize(path)
+    } else {
+        Err(err)
+    }
+}
+
 fn canonicalize_path(path: &Path) -> std::io::Result<PathBuf> {
     let authority = ambient_authority();
     let attempt = if path.is_absolute() {
@@ -80,17 +94,7 @@ fn canonicalize_path(path: &Path) -> std::io::Result<PathBuf> {
 
     match attempt {
         Ok(resolved) => Ok(resolved),
-        Err(err)
-            if err.kind() == std::io::ErrorKind::PermissionDenied
-                && err.to_string().contains("outside of the filesystem") =>
-        {
-            // cap-std denies canonicalising absolute symlinks that escape a
-            // capability root. Falling back to std ensures we still support
-            // such links while preferring capability-aware resolution for all
-            // other cases.
-            std::fs::canonicalize(path)
-        }
-        Err(err) => Err(err),
+        Err(err) => try_std_canonicalize_fallback(path, err),
     }
 }
 
