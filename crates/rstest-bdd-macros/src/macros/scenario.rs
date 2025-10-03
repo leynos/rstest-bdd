@@ -26,12 +26,24 @@ use syn::{
 
 struct ScenarioArgs {
     path: LitStr,
-    index: Option<usize>,
+    index: Option<ScenarioIndexArg>,
+    name: Option<ScenarioNameArg>,
+}
+
+struct ScenarioIndexArg {
+    value: usize,
+    span: proc_macro2::Span,
+}
+
+struct ScenarioNameArg {
+    value: String,
+    span: proc_macro2::Span,
 }
 
 enum ScenarioArg {
     Path(LitStr),
-    Index(usize),
+    Index(LitInt),
+    Name(LitStr),
 }
 
 impl Parse for ScenarioArg {
@@ -45,10 +57,11 @@ impl Parse for ScenarioArg {
             if ident == "path" {
                 Ok(Self::Path(input.parse()?))
             } else if ident == "index" {
-                let li: LitInt = input.parse()?;
-                Ok(Self::Index(li.base10_parse()?))
+                Ok(Self::Index(input.parse()?))
+            } else if ident == "name" {
+                Ok(Self::Name(input.parse()?))
             } else {
-                Err(input.error("expected `path` or `index`"))
+                Err(input.error("expected `path`, `index`, or `name`"))
             }
         }
     }
@@ -59,6 +72,7 @@ impl Parse for ScenarioArgs {
         let args = Punctuated::<ScenarioArg, Comma>::parse_terminated(input)?;
         let mut path = None;
         let mut index = None;
+        let mut name = None;
 
         for arg in args {
             match arg {
@@ -72,14 +86,39 @@ impl Parse for ScenarioArgs {
                     if index.is_some() {
                         return Err(input.error("duplicate `index` argument"));
                     }
-                    index = Some(i);
+                    let value = i.base10_parse()?;
+                    index = Some(ScenarioIndexArg {
+                        value,
+                        span: i.span(),
+                    });
+                }
+                ScenarioArg::Name(lit) => {
+                    if name.is_some() {
+                        return Err(input.error("duplicate `name` argument"));
+                    }
+                    name = Some(ScenarioNameArg {
+                        value: lit.value(),
+                        span: lit.span(),
+                    });
                 }
             }
         }
 
         let path = path.ok_or_else(|| input.error("`path` is required"))?;
 
-        Ok(Self { path, index })
+        if let (Some(index), Some(name)) = (&index, &name) {
+            let mut err = syn::Error::new(
+                name.span,
+                "`name` cannot be combined with `index`; choose one selector",
+            );
+            err.combine(syn::Error::new(
+                index.span,
+                "`index` cannot be combined with `name`",
+            ));
+            return Err(err);
+        }
+
+        Ok(Self { path, index, name })
     }
 }
 
@@ -93,7 +132,7 @@ pub(crate) fn scenario(attr: TokenStream, item: TokenStream) -> TokenStream {
 }
 
 fn try_scenario(
-    ScenarioArgs { path, index }: ScenarioArgs,
+    ScenarioArgs { path, index, name }: ScenarioArgs,
     mut item_fn: syn::ItemFn,
 ) -> std::result::Result<TokenStream, TokenStream> {
     let path = PathBuf::from(path.value());
@@ -104,12 +143,15 @@ fn try_scenario(
 
     // Retrieve cached feature to avoid repeated parsing.
     let feature = parse_and_load_feature(&path).map_err(proc_macro::TokenStream::from)?;
+    let resolved_index = resolve_scenario_index(&feature, index.as_ref(), name.as_ref())
+        .map_err(|err| proc_macro::TokenStream::from(err.into_compile_error()))?;
     let feature_path_str = canonical_feature_path(&path);
     let ScenarioData {
         name: scenario_name,
         steps,
         examples,
-    } = extract_scenario_steps(&feature, index).map_err(proc_macro::TokenStream::from)?;
+    } = extract_scenario_steps(&feature, Some(resolved_index))
+        .map_err(proc_macro::TokenStream::from)?;
 
     if let Some(err) = validate_steps_compile_time(&steps) {
         return Err(err);
@@ -134,6 +176,70 @@ fn try_scenario(
         },
         ctx_inserts.into_iter(),
     ))
+}
+
+fn resolve_scenario_index(
+    feature: &gherkin::Feature,
+    index: Option<&ScenarioIndexArg>,
+    name: Option<&ScenarioNameArg>,
+) -> Result<usize, syn::Error> {
+    if let Some(name) = name {
+        let matches: Vec<(usize, &gherkin::Scenario)> = feature
+            .scenarios
+            .iter()
+            .enumerate()
+            .filter(|(_, scenario)| scenario.name == name.value)
+            .collect();
+
+        if matches.is_empty() {
+            let available: Vec<String> = feature
+                .scenarios
+                .iter()
+                .map(|scenario| format!("\"{}\"", scenario.name))
+                .collect();
+            let message = if available.is_empty() {
+                format!(
+                    "scenario named \"{}\" not found; feature contains no scenarios",
+                    name.value
+                )
+            } else {
+                format!(
+                    "scenario named \"{}\" not found; available titles: {}",
+                    name.value,
+                    available.join(", "),
+                )
+            };
+            return Err(syn::Error::new(name.span, message));
+        }
+
+        if matches.len() > 1 {
+            let indexes = matches
+                .iter()
+                .map(|(idx, _)| idx.to_string())
+                .collect::<Vec<_>>()
+                .join(", ");
+            let lines = matches
+                .iter()
+                .map(|(_, scenario)| scenario.position.line.to_string())
+                .collect::<Vec<_>>()
+                .join(", ");
+            let message = format!(
+                "found multiple scenarios named \"{}\"; use the `index` selector to \
+                 disambiguate (matching indexes: {indexes}; lines: {lines})",
+                name.value,
+            );
+            return Err(syn::Error::new(name.span, message));
+        }
+
+        #[expect(
+            clippy::expect_used,
+            reason = "vector has exactly one element after len check"
+        )]
+        let (idx, _) = matches.into_iter().next().expect("exactly one match");
+        return Ok(idx);
+    }
+
+    Ok(index.map_or(0, |idx| idx.value))
 }
 
 /// Normalise path components so equivalent inputs share cache entries.

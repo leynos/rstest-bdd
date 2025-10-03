@@ -88,6 +88,15 @@ fn scenario_with_index(#[case] case_name: &str) {
     clear_events();
 }
 
+#[scenario(path = "tests/features/multi.feature", name = "Second")]
+#[serial]
+fn scenario_with_name_selector() {
+    with_locked_events(|events| {
+        assert_eq!(events.as_slice(), ["precondition", "action", "result"]);
+    });
+    clear_events();
+}
+
 #[scenario(path = "tests/features/web_search.feature", index = 0)]
 #[serial]
 fn explicit_syntax() {

@@ -204,18 +204,22 @@ registers an empty pattern instead of inferring one.
 ## Binding tests to scenarios
 
 The `#[scenario]` macro is the entry point that ties a Rust test function to a
-scenario defined in a `.feature` file. It accepts two arguments:
+scenario defined in a `.feature` file. It accepts three arguments:
 
-| Argument       | Purpose                                                                                                      | Status                                                                                                         |
-| -------------- | ------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------- |
-| `path: &str`   | Relative path to the feature file from the crate root. This is mandatory.                                    | **Implemented**: the macro resolves the path at compile time and parses the feature using the `gherkin` crate. |
-| `index: usize` | Optional zero‑based index selecting a scenario when the file contains multiple scenarios. Defaults to `0`.   | **Implemented**: the macro uses the index to pick the scenario.                                                |
+| Argument       | Purpose                                                   | Status                                                               |
+| -------------- | --------------------------------------------------------- | -------------------------------------------------------------------- |
+| `path: &str`   | Relative path to the feature file (required).             | **Implemented**: resolved and parsed at compile time.                |
+| `index: usize` | Optional zero-based scenario index (defaults to `0`).     | **Implemented**: selects the scenario by position.                  |
+| `name: &str`   | Optional scenario title; resolves to an index when unique. | **Implemented**: errors when missing and directs duplicates to `index`. |
 
 If the feature file cannot be found or contains invalid Gherkin, the macro
 emits a compile-time error with the offending path.
 
-The design document proposes a `name` argument to select scenarios by name, but
-only `path` and `index` are currently accepted.
+When `name` is provided, the macro matches the title case-sensitively. A
+missing title triggers a diagnostic listing the available headings in the
+feature. Duplicate titles yield a diagnostic that highlights the conflict and
+lists the matching indexes and line numbers so you can switch back to the
+`index` argument when needed.
 
 During macro expansion, the feature file is read and parsed. The macro
 generates a new test function annotated with `#[rstest::rstest]` that performs
@@ -384,10 +388,6 @@ delimited by triple double-quotes or triple backticks.
 
 The `rstest‑bdd` project is evolving. Several features described in the design
 document and README remain unimplemented in the current codebase:
-
-- **Selecting scenarios by name.** The README hints at a `name` argument for
-  the `#[scenario]` macro, but the macro only accepts `path` and optional
-  `index`.
 
 - **Wildcard keywords and** `*` **steps.** The asterisk (`*`) can replace any
   step keyword in Gherkin to improve readability, but step lookup is based

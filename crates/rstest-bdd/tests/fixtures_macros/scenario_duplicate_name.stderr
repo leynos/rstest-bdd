@@ -1,0 +1,5 @@
+error: found multiple scenarios named "Shared title"; use the `index` selector to disambiguate (matching indexes: 0, 1; lines: 3, 8)
+  --> tests/fixtures_macros/scenario_duplicate_name.rs:14:54
+   |
+14 | #[scenario(path = "duplicate_titles.feature", name = "Shared title")]
+   |                                                      ^^^^^^^^^^^^^^
