@@ -260,24 +260,29 @@ other essential Gherkin constructs.
 - Data Tables: A Gherkin data table provides a way to pass a structured block
   of data to a single step. The step function declares a single optional
   parameter annotated with `#[datatable]` or named `datatable`. Legacy code may
-  keep using `Vec<Vec<String>>`. A future `datatable` module will expose typed
-  parsing once implemented.
+  keep using `Vec<Vec<String>>`, while the runtime `rstest_bdd::datatable`
+  module now offers typed parsing utilities.
 
-  - `datatable::Rows<T>` will wrap a `Vec<T>` and implement `IntoIterator`,
-    `AsRef<[T]>`, and helper adapters so steps can iterate or collect without
-    ceremony. `TryFrom<Vec<Vec<String>>> for Rows<T>` will split optional
-    headers, build an index map, and invoke `T::parse_row`, annotating failures
-    with row and column indices.
-  - `DataTableError` (via `thiserror`) will cover header mismatches, missing
-    columns, uneven rows, and per-cell parse failures. The wrapper will surface
-    the error's `Display` output through `StepError` so CLI recorders receive
-    precise diagnostics.
-  - `RowSpec` and `HeaderSpec` will describe header metadata and provide
-    indexed or named cell access, including trimmed views, to keep parsing
-    logic declarative.
-  - Convenience helpers such as `truthy_bool` and `trimmed<T: FromStr>` will
-    support tolerant boolean parsing and whitespace handling without bespoke
-    loops.
+  - `datatable::Rows<T>` wraps a `Vec<T>` and implements `IntoIterator` and
+    `AsRef<[T]>`, letting steps consume parsed rows ergonomically. The blanket
+    `TryFrom<Vec<Vec<String>>>` implementation inspects the
+    `T::REQUIRES_HEADER` flag: when true the first row is parsed into a
+    `HeaderSpec`; otherwise the table is treated as headerless. Each remaining
+    row is converted into a `RowSpec` and handed to `T::parse_row`.
+  - `datatable::DataTableRow` defines the parsing contract. Implementors
+    receive ownership of each row, can remove cells via `take_cell` /
+    `take_column`, and can parse values with the `parse_*` helpers. Until the
+    derive macros are implemented consumers must write these impls manually.
+  - `DataTableError` (via `thiserror`) surfaces header mismatches, missing
+    columns, uneven rows, and row or cell parsing failures. Step wrappers
+    format the error into `StepError` so behaviour test output includes precise
+    diagnostics.
+  - `RowSpec` and `HeaderSpec` provide indexed and named cell access, exposing
+    row numbers (1-based including headers) to keep user-defined error messages
+    consistent. `HeaderSpec::require` powers name lookups while the
+    `RowSpec::parse_*` helpers attach column metadata to downstream errors.
+  - Convenience helpers such as `truthy_bool` and `trimmed<T: FromStr>` support
+    tolerant boolean parsing and whitespace handling without bespoke loops.
   - `#[derive(DataTableRow)]` will generate `DataTableRow` implementations for
     structs and tuple structs. Field attributes like
     `#[datatable(column = "Task name")]`, `#[datatable(optional)]`,
@@ -289,8 +294,11 @@ other essential Gherkin constructs.
     will compose parsed rows with optional `map` or `convert` hooks so steps
     can expose domain-specific containers without manual loops.
 
-  Existing custom `TryFrom<Vec<Vec<String>>>` implementations will continue to
-  work, letting projects adopt typed tables gradually.
+  Existing custom `TryFrom<Vec<Vec<String>>>` implementations continue to work,
+  letting projects adopt typed tables gradually. The decision to gate header
+  detection behind `REQUIRES_HEADER` keeps the runtime predictable and avoids
+  heuristics that might silently strip legitimate first rows from headerless
+  tables.
 
   **Feature File:**
 

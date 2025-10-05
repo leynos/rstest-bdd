@@ -253,8 +253,9 @@ ______________________________________________________________________
 ## Background, tables, and docstrings
 
 - **Background** runs before every scenario in the feature.
-- **Data tables** arrive in a `datatable` parameter of type
-  `Vec<Vec<String>>`.
+- **Data tables** arrive in a `datatable` parameter whose type implements
+  `TryFrom<Vec<Vec<String>>>`. Continue using `Vec<Vec<String>>` or upgrade to
+  `rstest_bdd::datatable::Rows<T>` for typed parsing.
 
 - **Docstrings** arrive as a `String`.
 
@@ -262,17 +263,11 @@ ______________________________________________________________________
 #[given("the following users exist:")]
 fn create_users(
     db: &mut DbConnection,
-    datatable: Vec<Vec<String>>,
+    #[datatable] datatable: rstest_bdd::datatable::Rows<UserRow>,
 ) {
-    // Assume the first row is a header: ["name", "email", ...]
-    for row in datatable.into_iter().skip(1) {
-        assert!(
-            row.len() >= 2,
-            "Expected at least two columns: name and email",
-        );
-        let name = &row[0];
-        let email = &row[1];
-        db.insert_user(name, email);
+    // `UserRow` implements `datatable::DataTableRow` elsewhere in the module.
+    for row in datatable {
+        db.insert_user(&row.name, &row.email);
     }
 }
 ```

@@ -273,6 +273,12 @@ a parameter named `docstring` of type `String`. The attribute or canonical name
 allows the procedural macros to detect the data table parameter. Place the data
 table before any Doc String, and do not combine it with `#[from]`.
 
+The runtime crate now provides `rstest_bdd::datatable::{Rows, DataTableRow}` to
+make typed tables ergonomic. Implement `DataTableRow` for your row type and set
+`REQUIRES_HEADER` when the first row should be treated as a header. The
+`RowSpec` helpers offer indexed and named access, and `Rows<T>` implements
+`IntoIterator` so steps can consume the parsed values without ceremony.
+
 ### Section 2.4: Incorporating Block Text with `Docstring`
 
 Sometimes the data required by a step is not a simple value or structured

@@ -949,7 +949,6 @@ dependencies = [
  "cap-std",
  "cfg-if",
  "gherkin",
- "once_cell",
  "proc-macro-crate 3.3.0",
  "proc-macro-error",
  "proc-macro2",
