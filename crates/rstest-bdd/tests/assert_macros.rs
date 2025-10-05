@@ -1,6 +1,7 @@
 //! Unit tests for `assert_step_ok!` and `assert_step_err!`
 
 use rstest_bdd::{assert_step_err, assert_step_ok};
+use serial_test::serial;
 
 #[test]
 fn assert_step_ok_unwraps_result() {
@@ -14,6 +15,7 @@ fn assert_step_ok_returns_value() {
     assert_eq!(v, 42);
 }
 #[test]
+#[serial(localisation)]
 #[should_panic(expected = "step returned error")]
 fn assert_step_ok_panics_on_err() {
     let res: Result<(), &str> = Err("boom");
@@ -56,6 +58,7 @@ fn assert_step_err_accepts_owned_string_pattern() {
     assert_eq!(e, "boom");
 }
 #[test]
+#[serial(localisation)]
 #[should_panic(expected = "does not contain")]
 fn assert_step_err_panics_when_substring_absent() {
     let res: Result<(), &str> = Err("boom");
@@ -63,6 +66,7 @@ fn assert_step_err_panics_when_substring_absent() {
 }
 
 #[test]
+#[serial(localisation)]
 #[should_panic(expected = "step succeeded unexpectedly")]
 fn assert_step_err_panics_on_ok() {
     let res: Result<(), &str> = Ok(());

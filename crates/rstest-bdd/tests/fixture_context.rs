@@ -4,6 +4,7 @@ use rstest_bdd::{
     StepContext, StepError, StepKeyword, assert_step_err, assert_step_ok, lookup_step,
 };
 use rstest_bdd_macros::given;
+use serial_test::serial;
 
 /// Step that asserts the injected `number` fixture equals 42.
 #[given("a value")]
@@ -37,6 +38,7 @@ fn context_passes_fixture() {
 }
 
 #[test]
+#[serial(localisation)]
 #[expect(clippy::expect_used, reason = "step lookup must succeed for test")]
 fn context_missing_fixture_returns_error() {
     let ctx = StepContext::default();
@@ -44,13 +46,17 @@ fn context_missing_fixture_returns_error() {
         .expect("step 'a value' not found in registry");
     let err = assert_step_err!(step_fn(&ctx, "a value", None, None));
     let display = err.to_string();
+    let normalised: String = display
+        .chars()
+        .filter(|c| !matches!(*c, '\u{2066}' | '\u{2067}' | '\u{2068}' | '\u{2069}'))
+        .collect();
     match err {
         StepError::MissingFixture { name, ty, step } => {
             assert_eq!(name, "number");
             assert_eq!(ty, "u32");
             assert_eq!(step, "needs_value");
             assert!(
-                display.contains("Missing fixture 'number'"),
+                normalised.contains("Missing fixture 'number'"),
                 "unexpected Display: {display}"
             );
         }

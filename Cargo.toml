@@ -45,6 +45,10 @@ rstest-bdd-patterns = "0.1.0-alpha4"
 log = "0.4"
 fs2 = "0.4"
 tempfile = "3.22"
+i18n-embed = { version = "0.16", features = ["fluent-system", "desktop-requester"] }
+rust-embed = "8.5.0"
+fluent = "0.17"
+unic-langid = { version = "0.9", features = ["macros"] }
 
 [workspace.lints.clippy]
 pedantic = { level = "warn", priority = -1 }

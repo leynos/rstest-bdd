@@ -464,6 +464,46 @@ the result is `Err`. `assert_step_err!` unwraps the error and optionally checks
 that its display contains a substring. Both macros return their unwrapped
 values, allowing further inspection when required.
 
+## Localising runtime diagnostics
+
+`rstest-bdd` now ships its user-facing diagnostics via Fluent translation
+files. The crate bundles English strings by default and falls back to them when
+no translation is available. Applications can opt into additional locales by
+embedding the provided assets and selecting a language at runtime.
+
+Add the localisation tooling to your `Cargo.toml`:
+
+```toml
+[dependencies]
+rstest-bdd = "0.1.0-alpha4"
+i18n-embed = { version = "0.16", features = ["fluent-system", "desktop-requester"] }
+unic-langid = "0.9"
+```
+
+The crate exposes the embedded assets via the [`Localisations`] helper. This
+type implements `i18n_embed::I18nAssets`, allowing applications with existing
+Fluent infrastructure to load resources into their own
+[`FluentLanguageLoader`]. Libraries without a localisation framework can rely
+on the built-in loader and request a different language at runtime:
+
+```rust
+use rstest_bdd::select_localisations;
+use unic_langid::langid;
+
+select_localisations(&[langid!("fr")])?; // Switch diagnostics to French
+```
+
+The selection function preserves the caller-supplied order, so applications can
+pass a list of preferred locales. The helper resolves to the best available
+translation and continues to fall back to English when a requested locale is
+not shipped with the crate. Procedural macro diagnostics remain in English so
+compile-time output stays deterministic regardless of the host machine’s
+language settings.
+
+[`Localisations`]: ../crates/rstest-bdd/src/localisation.rs
+[`FluentLanguageLoader`]:
+https://docs.rs/i18n-embed/latest/i18n_embed/fluent/struct.FluentLanguageLoader.html
+
 ## Diagnostic tooling
 
 `rstest-bdd` bundles a small helper binary exposed as the cargo subcommand

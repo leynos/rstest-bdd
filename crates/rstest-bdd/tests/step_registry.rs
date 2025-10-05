@@ -2,6 +2,13 @@
 
 use rstest::rstest;
 use rstest_bdd::{Step, StepContext, StepError, StepKeyword, iter, panic_message, step};
+use serial_test::serial;
+
+fn strip_directional_isolates(text: &str) -> String {
+    text.chars()
+        .filter(|c| !matches!(*c, '\u{2066}' | '\u{2067}' | '\u{2068}' | '\u{2069}'))
+        .collect()
+}
 
 fn sample() {}
 #[expect(
@@ -97,6 +104,7 @@ fn step_is_registered() {
 }
 
 #[rstest]
+#[serial(localisation)]
 #[case(StepKeyword::Given, "fails", "failing_wrapper", "boom", true)]
 #[case(StepKeyword::When, "panics", "panicking_wrapper", "snap", false)]
 #[case(
@@ -123,7 +131,7 @@ fn wrapper_error_handling(
     let Err(err) = step_fn(&StepContext::default(), pattern, None, None) else {
         panic!("expected error from wrapper '{pattern}'");
     };
-    let err_display = err.to_string();
+    let err_display = strip_directional_isolates(&err.to_string());
     if is_execution_error {
         match err {
             StepError::ExecutionError {

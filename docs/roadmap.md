@@ -241,28 +241,28 @@ diagnostic messages.
     execution. These tests run in CI to maintain coverage as languages are
     added.
 
-- [ ] **Localization of Library Messages with Fluent**
+- [x] **Localization of Library Messages with Fluent**
 
-  - [ ] Integrate the `i18n-embed`, `rust-embed`, and `fluent` crates.
-  - [ ] Enable required features:
+  - [x] Integrate the `i18n-embed`, `rust-embed`, and `fluent` crates.
+  - [x] Enable required features:
         `i18n-embed = { features = ["fluent-system", "desktop-requester"] }`.
-  - [ ] Pin minimum supported versions in `Cargo.toml`.
-  - [ ] Add a minimal `Cargo.toml` example to the docs.
+  - [x] Pin minimum supported versions in `Cargo.toml`.
+  - [x] Add a minimal `Cargo.toml` example to the docs.
 
-  - [ ] Create `.ftl` resource files under an `i18n/` directory for all
+  - [x] Create `.ftl` resource files under an `i18n/` directory for all
     user-facing diagnostic messages. If the macros crate also emits messages,
     maintain a separate `i18n/` in `rstest-bdd-macros` or introduce a shared
     `rstest-bdd-i18n` crate to host common assets.
 
-  - [ ] Use `rust-embed` to bundle the localization resources directly into the
+  - [x] Use `rust-embed` to bundle the localization resources directly into the
     library binary.
 
-  - [ ] Missing translation keys or unsupported locales fall back to English.
+  - [x] Missing translation keys or unsupported locales fall back to English.
 
-  - [ ] Implement the `I18nAssets` trait on a dedicated struct to make Fluent
+  - [x] Implement the `I18nAssets` trait on a dedicated struct to make Fluent
     resources discoverable.
 
-  - [ ] Keep procedural macro diagnostics in English for deterministic builds.
+  - [x] Keep procedural macro diagnostics in English for deterministic builds.
     Localize user-facing runtime messages using a `FluentLanguageLoader` at
     runtime.
 

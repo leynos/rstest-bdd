@@ -3,12 +3,11 @@
 //! the step keyword enum with parsing helpers, error types, and common type
 //! aliases used by the registry and runner.
 
+use crate::localisation;
 use gherkin::StepType;
 use std::borrow::Cow;
 use std::fmt;
-use std::fmt::Write as _;
 use std::str::FromStr;
-use thiserror::Error;
 
 /// Wrapper for step pattern strings used in matching logic.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -91,9 +90,19 @@ impl StepKeyword {
 }
 
 /// Error returned when parsing a `StepKeyword` from a string fails.
-#[derive(Debug, Error)]
-#[error("invalid step keyword: {0}")]
+#[derive(Debug)]
 pub struct StepKeywordParseError(pub String);
+
+impl fmt::Display for StepKeywordParseError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let message = localisation::message_with_args("step-keyword-parse-error", |args| {
+            args.set("keyword", self.0.clone());
+        });
+        f.write_str(&message)
+    }
+}
+
+impl std::error::Error for StepKeywordParseError {}
 
 impl FromStr for StepKeyword {
     type Err = StepKeywordParseError;
@@ -113,9 +122,19 @@ impl FromStr for StepKeyword {
 
 // Step types resolved from the Gherkin parser. Unknown variants return
 // `UnsupportedStepType`.
-#[derive(Debug, Error)]
-#[error("unsupported step type: {0:?}")]
+#[derive(Debug)]
 pub struct UnsupportedStepType(pub StepType);
+
+impl fmt::Display for UnsupportedStepType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let message = localisation::message_with_args("unsupported-step-type", |args| {
+            args.set("step_type", format!("{:?}", self.0));
+        });
+        f.write_str(&message)
+    }
+}
+
+impl std::error::Error for UnsupportedStepType {}
 
 impl core::convert::TryFrom<StepType> for StepKeyword {
     type Error = UnsupportedStepType;
@@ -197,62 +216,130 @@ impl PlaceholderSyntaxError {
     /// Return the user‑facing message without the "invalid placeholder syntax" prefix.
     #[must_use]
     pub fn user_message(&self) -> String {
-        let mut msg = format!("{} at byte {} (zero-based)", self.message, self.position);
-        if let Some(name) = &self.placeholder {
-            let _ = write!(msg, " for placeholder `{name}`");
-        }
-        msg
+        let suffix = self
+            .placeholder
+            .as_ref()
+            .map(|name| {
+                let detail = localisation::message_with_args("placeholder-syntax-suffix", |args| {
+                    args.set("placeholder", name.clone());
+                });
+                format!(" {detail}")
+            })
+            .unwrap_or_default();
+        localisation::message_with_args("placeholder-syntax-detail", |args| {
+            args.set("reason", self.message.clone());
+            args.set("position", i64::try_from(self.position).unwrap_or(i64::MAX));
+            args.set("suffix", suffix);
+        })
     }
 }
 
 impl fmt::Display for PlaceholderSyntaxError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "invalid placeholder syntax: {}", self.user_message())
+        let message = localisation::message_with_args("placeholder-syntax", |args| {
+            args.set("details", self.user_message());
+        });
+        f.write_str(&message)
     }
 }
 
 impl std::error::Error for PlaceholderSyntaxError {}
 
 /// Errors that may occur when compiling a [`StepPattern`].
-#[derive(Debug, Error)]
+#[derive(Debug)]
 #[non_exhaustive]
 pub enum StepPatternError {
     /// Placeholder syntax in the pattern is invalid.
-    #[error(transparent)]
-    PlaceholderSyntax(#[from] PlaceholderSyntaxError),
+    PlaceholderSyntax(PlaceholderSyntaxError),
     /// The generated regular expression failed to compile.
-    #[error("{0}")]
-    InvalidPattern(#[from] regex::Error),
+    InvalidPattern(regex::Error),
     /// Attempted to access the compiled regex before calling [`StepPattern::compile`](crate::pattern::StepPattern::compile).
-    #[error(
-        "step pattern regex has not been compiled; call compile() first on pattern '{pattern}'"
-    )]
     NotCompiled {
         /// Pattern text that has not yet been compiled.
         pattern: Cow<'static, str>,
     },
 }
 
+impl From<PlaceholderSyntaxError> for StepPatternError {
+    fn from(err: PlaceholderSyntaxError) -> Self {
+        Self::PlaceholderSyntax(err)
+    }
+}
+
+impl From<regex::Error> for StepPatternError {
+    fn from(err: regex::Error) -> Self {
+        Self::InvalidPattern(err)
+    }
+}
+
+impl fmt::Display for StepPatternError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::PlaceholderSyntax(err) => err.fmt(f),
+            Self::InvalidPattern(err) => err.fmt(f),
+            Self::NotCompiled { pattern } => {
+                let message =
+                    localisation::message_with_args("step-pattern-not-compiled", |args| {
+                        args.set("pattern", pattern.to_string());
+                    });
+                f.write_str(&message)
+            }
+        }
+    }
+}
+
+impl std::error::Error for StepPatternError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            Self::PlaceholderSyntax(err) => Some(err),
+            Self::InvalidPattern(err) => Some(err),
+            Self::NotCompiled { .. } => None,
+        }
+    }
+}
+
 /// Error conditions that may arise when extracting placeholders.
-#[derive(Debug, Error)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum PlaceholderError {
     /// The supplied text did not match the step pattern.
-    #[error("pattern mismatch")]
     PatternMismatch,
     /// The step pattern contained invalid placeholder syntax.
-    #[error("invalid placeholder syntax: {0}")]
     InvalidPlaceholder(String),
     /// The step pattern could not be compiled into a regular expression.
-    #[error("invalid step pattern: {0}")]
     InvalidPattern(String),
     /// The step pattern regex was accessed before compilation.
-    #[error("step pattern '{pattern}' must be compiled before use")]
     NotCompiled {
         /// Pattern text that must be compiled prior to use.
         pattern: String,
     },
 }
+
+impl fmt::Display for PlaceholderError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let message = match self {
+            Self::PatternMismatch => localisation::message("placeholder-pattern-mismatch"),
+            Self::InvalidPlaceholder(details) => {
+                localisation::message_with_args("placeholder-invalid-placeholder", |args| {
+                    args.set("details", details.clone());
+                })
+            }
+            Self::InvalidPattern(pattern) => {
+                localisation::message_with_args("placeholder-invalid-pattern", |args| {
+                    args.set("pattern", pattern.clone());
+                })
+            }
+            Self::NotCompiled { pattern } => {
+                localisation::message_with_args("placeholder-not-compiled", |args| {
+                    args.set("pattern", pattern.clone());
+                })
+            }
+        };
+        f.write_str(&message)
+    }
+}
+
+impl std::error::Error for PlaceholderError {}
 
 impl From<StepPatternError> for PlaceholderError {
     fn from(e: StepPatternError) -> Self {

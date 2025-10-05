@@ -5,8 +5,15 @@ use rstest_bdd::{
     PlaceholderError, PlaceholderSyntaxError, StepPattern, StepPatternError, StepText,
     extract_placeholders,
 };
+use serial_test::serial;
 use std::borrow::Cow;
 use std::ptr;
+
+fn strip_directional_isolates(text: &str) -> String {
+    text.chars()
+        .filter(|c| !matches!(*c, '\u{2066}' | '\u{2067}' | '\u{2068}' | '\u{2069}'))
+        .collect()
+}
 
 #[expect(clippy::expect_used, reason = "test helper should fail loudly")]
 fn compiled(pattern: &'static str) -> StepPattern {
@@ -78,7 +85,7 @@ fn placeholder_error_reports_not_compiled() {
     };
     assert_eq!(pattern, "example");
     assert_eq!(
-        err.to_string(),
+        strip_directional_isolates(&err.to_string()),
         "step pattern 'example' must be compiled before use",
     );
 }
@@ -208,6 +215,7 @@ fn whitespace_before_closing_brace_is_error() {
 }
 
 #[test]
+#[serial(localisation)]
 fn extraction_reports_invalid_placeholder_error() {
     let pat = StepPattern::from("value {n:}");
     #[expect(clippy::expect_used, reason = "test asserts error variant")]
@@ -215,12 +223,13 @@ fn extraction_reports_invalid_placeholder_error() {
         .expect_err("placeholder error expected");
     assert!(matches!(err, PlaceholderError::InvalidPlaceholder(_)));
     assert_eq!(
-        err.to_string(),
-        "invalid placeholder syntax: invalid placeholder in step pattern at byte 6 (zero-based) for placeholder `n`"
+        strip_directional_isolates(&err.to_string()),
+        "invalid placeholder syntax: invalid placeholder in step pattern at byte 6 (zero-based) for placeholder 'n'",
     );
 }
 
 #[test]
+#[serial(localisation)]
 fn invalid_pattern_error_display() {
     #[expect(
         clippy::invalid_regex,
@@ -231,7 +240,7 @@ fn invalid_pattern_error_display() {
     let expected = format!("invalid step pattern: {regex_err}");
     let err: PlaceholderError = StepPatternError::from(regex_err).into();
     assert!(matches!(err, PlaceholderError::InvalidPattern(_)));
-    assert_eq!(err.to_string(), expected);
+    assert_eq!(strip_directional_isolates(&err.to_string()), expected);
 }
 
 #[test]
