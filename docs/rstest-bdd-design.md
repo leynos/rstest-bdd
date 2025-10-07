@@ -277,19 +277,76 @@ other essential Gherkin constructs.
     columns, uneven rows, and row or cell parsing failures. Step wrappers
     format the error into `StepError` so behaviour test output includes precise
     diagnostics.
-  - `RowSpec` and `HeaderSpec` provide indexed and named cell access, exposing
-    row numbers (1-based including headers) to keep user-defined error messages
-    consistent. `HeaderSpec::require` powers name lookups while the
-    `RowSpec::parse_*` helpers attach column metadata to downstream errors.
-  - Convenience helpers such as `truthy_bool` and `trimmed<T: FromStr>` support
-    tolerant boolean parsing and whitespace handling without bespoke loops.
-  - `#[derive(DataTableRow)]` will generate `DataTableRow` implementations for
-    structs and tuple structs. Field attributes like
-    `#[datatable(column = "Task name")]`, `#[datatable(optional)]`,
-    `#[datatable(parse_with = "path::to_fn")]`, and struct-level
-    `#[datatable(rename_all = "...")]` will cover column mapping, optional
-    cells, trimming, and custom parsers. The derive will set `REQUIRES_HEADER`
-    when any field depends on header lookup.
+- `RowSpec` and `HeaderSpec` provide indexed and named cell access, exposing
+  row numbers (1-based including headers) to keep user-defined error messages
+  consistent. `HeaderSpec::require` powers name lookups while the
+  `RowSpec::parse_*` helpers attach column metadata to downstream errors.
+- Convenience helpers such as `truthy_bool` and `trimmed<T: FromStr>` support
+  tolerant boolean parsing and whitespace handling without bespoke loops.
+- The runtime surfaces the primary datatable types described above. The class
+  diagram below illustrates the relationships between the error hierarchy, row
+  parsing trait, and collection wrapper.
+
+```mermaid
+classDiagram
+    class DataTableRow {
+        <<trait>>
+        +const REQUIRES_HEADER: bool
+        +parse_row(row: RowSpec) Result<Self, DataTableError>
+    }
+    class Rows {
+        +rows: Vec<T>
+        +new(rows: Vec<T>)
+        +len() usize
+        +is_empty() bool
+        +as_slice() &[T]
+        +iter() Iter<T>
+        +into_inner() Vec<T>
+    }
+    class DataTableError {
+        <<enum>>
+        +MissingHeader
+        +DuplicateHeader
+        +UnevenRow
+        +MissingColumn
+        +MissingCell
+        +RowParse
+        +CellParse
+    }
+    class HeaderSpec {
+        +new(header_row: Vec<String>) Result<Self, DataTableError>
+        +len() usize
+        +require(name: &str) Result<usize, DataTableError>
+    }
+    class RowSpec {
+        +new(header: Option<&HeaderSpec>, row_number: usize, index: usize, row: Vec<String>)
+        +take_column(name: &str) Result<String, DataTableError>
+        +parse_column_with(name: &str, parser: fn(&str) -> Result<T, E>) Result<T, DataTableError>
+    }
+    class TruthyBoolError {
+        +value: String
+    }
+    class TrimmedParseError {
+        +source: E
+    }
+    DataTableRow <|.. Rows : T implements
+    Rows o-- DataTableRow : T
+    Rows o-- DataTableError
+    Rows o-- HeaderSpec
+    Rows o-- RowSpec
+    RowSpec o-- HeaderSpec
+    RowSpec o-- DataTableError
+    DataTableError <|-- TruthyBoolError
+    DataTableError <|-- TrimmedParseError
+```
+
+- `#[derive(DataTableRow)]` will generate `DataTableRow` implementations for
+  structs and tuple structs. Field attributes like
+  `#[datatable(column = "Task name")]`, `#[datatable(optional)]`,
+  `#[datatable(parse_with = "path::to_fn")]`, and struct-level
+  `#[datatable(rename_all = "...")]` will cover column mapping, optional cells,
+  trimming, and custom parsers. The derive will set `REQUIRES_HEADER` when any
+  field depends on header lookup.
   - `#[derive(DataTable)]` will target tuple structs that wrap collections. It
     will compose parsed rows with optional `map` or `convert` hooks so steps
     can expose domain-specific containers without manual loops.
