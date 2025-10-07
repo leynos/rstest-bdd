@@ -1,4 +1,5 @@
 use std::convert::TryFrom;
+use std::ops::Deref;
 
 use super::{DataTableError, HeaderSpec, RowSpec};
 
@@ -18,48 +19,40 @@ pub trait DataTableRow: Sized {
 
 /// A strongly-typed collection of parsed rows.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Rows<T> {
-    rows: Vec<T>,
-}
+pub struct Rows<T>(Vec<T>);
 
 impl<T> Rows<T> {
     pub(super) fn new(rows: Vec<T>) -> Self {
-        Self { rows }
+        Self(rows)
     }
 
     /// Returns the number of parsed rows.
     #[must_use]
     pub fn len(&self) -> usize {
-        self.rows.len()
+        self.0.len()
     }
 
     /// Returns `true` when the collection is empty.
     #[must_use]
     pub fn is_empty(&self) -> bool {
-        self.rows.is_empty()
+        self.0.is_empty()
     }
 
     /// Provides shared access to the parsed rows.
     #[must_use]
     pub fn as_slice(&self) -> &[T] {
-        &self.rows
+        &self.0
     }
 
     /// Returns an iterator over the parsed rows.
     pub fn iter(&self) -> std::slice::Iter<'_, T> {
-        self.rows.iter()
+        self.0.iter()
     }
 
     /// Consumes the collection, returning the underlying vector.
     #[must_use]
     pub fn into_inner(self) -> Vec<T> {
-        self.rows
-    }
-}
-
-impl<T> AsRef<[T]> for Rows<T> {
-    fn as_ref(&self) -> &[T] {
-        self.as_slice()
+        self.0
     }
 }
 
@@ -68,7 +61,15 @@ impl<T> IntoIterator for Rows<T> {
     type IntoIter = std::vec::IntoIter<T>;
 
     fn into_iter(self) -> Self::IntoIter {
-        self.rows.into_iter()
+        self.0.into_iter()
+    }
+}
+
+impl<T> Deref for Rows<T> {
+    type Target = [T];
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
     }
 }
 
@@ -77,7 +78,7 @@ impl<'a, T> IntoIterator for &'a Rows<T> {
     type IntoIter = std::slice::Iter<'a, T>;
 
     fn into_iter(self) -> Self::IntoIter {
-        self.rows.iter()
+        self.iter()
     }
 }
 

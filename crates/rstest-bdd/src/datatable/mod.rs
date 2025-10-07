@@ -1,3 +1,4 @@
+//! Runtime helpers for working with typed Gherkin data tables.
 mod error;
 mod parsers;
 mod rows;

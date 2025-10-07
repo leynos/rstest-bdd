@@ -138,7 +138,7 @@ impl<'h> RowSpec<'h> {
         let Some(position) = self.indices.get(column_index).and_then(|p| *p) else {
             return Err(DataTableError::MissingCell {
                 row_number: self.row_number,
-                column_index,
+                column_index: column_index + 1,
             });
         };
         self.cells
@@ -146,7 +146,7 @@ impl<'h> RowSpec<'h> {
             .map(String::as_str)
             .ok_or(DataTableError::MissingCell {
                 row_number: self.row_number,
-                column_index,
+                column_index: column_index + 1,
             })
     }
 
@@ -159,7 +159,7 @@ impl<'h> RowSpec<'h> {
         let Some(position) = self.indices.get(column_index).and_then(|p| *p) else {
             return Err(DataTableError::MissingCell {
                 row_number: self.row_number,
-                column_index,
+                column_index: column_index + 1,
             });
         };
         let value = self.cells.remove(position);

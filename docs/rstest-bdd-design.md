@@ -328,6 +328,7 @@ classDiagram
     }
     class TrimmedParseError {
         +source: E
+        +original_input: String
     }
     DataTableRow <|.. Rows : T implements
     Rows o-- DataTableRow : T

@@ -81,3 +81,17 @@ fn typed_users(#[datatable] rows: Rows<UserRow>) {
 
 #[scenario(path = "tests/features/datatable_typed.feature")]
 fn datatable_typed_scenario() {}
+
+#[given("the following invalid users exist:")]
+fn typed_users_invalid(datatable: Vec<Vec<String>>) {
+    let Err(err) = Rows::<UserRow>::try_from(datatable) else {
+        panic!("expected parse failure");
+    };
+    assert_eq!(
+        err.to_string(),
+        "row 2, column 3 (active): unrecognised boolean value 'maybe' (expected yes/y/true/1 or no/n/false/0)"
+    );
+}
+
+#[scenario(path = "tests/features/datatable_typed_errors.feature")]
+fn datatable_typed_error_scenario() {}

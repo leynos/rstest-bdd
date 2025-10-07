@@ -38,7 +38,7 @@ pub enum DataTableError {
     MissingCell {
         /// 1-based index of the row that failed, including any header.
         row_number: usize,
-        /// Zero-based index of the missing column.
+        /// 1-based index of the missing column.
         column_index: usize,
     },
     /// Raised when parsing an entire row fails.
@@ -55,7 +55,7 @@ pub enum DataTableError {
     CellParse {
         /// 1-based index of the row that failed, including any header.
         row_number: usize,
-        /// Zero-based index of the column that failed to parse.
+        /// 1-based index of the column that failed to parse.
         column_index: usize,
         /// Display-formatted column label used when a header was present.
         column_label: String,
@@ -80,7 +80,7 @@ impl DataTableError {
             .unwrap_or_default();
         Self::CellParse {
             row_number,
-            column_index,
+            column_index: column_index + 1,
             column_label,
             source: Box::new(err),
         }

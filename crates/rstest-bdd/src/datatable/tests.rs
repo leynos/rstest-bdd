@@ -2,6 +2,18 @@ use std::error::Error as StdError;
 use std::fmt;
 
 use super::{DataTableError, DataTableRow, RowSpec, Rows, trimmed, truthy_bool};
+use rstest::rstest;
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct FakeError;
+
+impl fmt::Display for FakeError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("boom")
+    }
+}
+
+impl StdError for FakeError {}
 
 #[derive(Debug, PartialEq, Eq)]
 struct Pair {
@@ -101,6 +113,15 @@ fn header_is_required_when_flagged() {
 }
 
 #[test]
+fn missing_header_error_is_raised_for_empty_tables() {
+    let rows: Vec<Vec<String>> = Vec::new();
+    let Err(err) = Rows::<Named>::try_from(rows) else {
+        panic!("expected missing header error");
+    };
+    assert!(matches!(err, DataTableError::MissingHeader));
+}
+
+#[test]
 fn uneven_rows_are_rejected() {
     #[derive(Debug)]
     struct HeaderOnly;
@@ -123,6 +144,22 @@ fn uneven_rows_are_rejected() {
     assert!(matches!(err, DataTableError::UnevenRow { .. }));
 }
 
+#[rstest]
+#[case("yes", true)]
+#[case("y", true)]
+#[case("true", true)]
+#[case("1", true)]
+#[case("no", false)]
+#[case("n", false)]
+#[case("false", false)]
+#[case("0", false)]
+fn truthy_bool_accepts_common_forms(#[case] input: &str, #[case] expected: bool) {
+    match truthy_bool(input) {
+        Ok(actual) => assert_eq!(actual, expected),
+        Err(err) => panic!("expected recognised boolean: {err}"),
+    }
+}
+
 #[test]
 fn truthy_bool_rejects_unknown_values() {
     let Err(err) = truthy_bool("maybe") else {
@@ -134,19 +171,18 @@ fn truthy_bool_rejects_unknown_values() {
     );
 }
 
+#[rstest]
+#[case(" 42 ", 42)]
+#[case("\t7\n", 7)]
+fn trimmed_parses_trimmed_values(#[case] input: &str, #[case] expected: i32) {
+    match trimmed::<i32>(input) {
+        Ok(actual) => assert_eq!(actual, expected),
+        Err(err) => panic!("expected integer to parse: {err}"),
+    }
+}
+
 #[test]
 fn trimmed_preserves_inner_error() {
-    #[derive(Debug, Clone, PartialEq, Eq)]
-    struct FakeError;
-
-    impl fmt::Display for FakeError {
-        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-            f.write_str("boom")
-        }
-    }
-
-    impl StdError for FakeError {}
-
     #[derive(Debug, Clone, PartialEq, Eq)]
     struct Dummy(u8);
 
@@ -161,5 +197,69 @@ fn trimmed_preserves_inner_error() {
     let Err(err) = trimmed::<Dummy>("1") else {
         panic!("expected failure");
     };
-    assert_eq!(err.to_string(), "failed to parse trimmed value: boom");
+    assert_eq!(
+        err.to_string(),
+        "failed to parse trimmed value from input '1': boom"
+    );
+    assert_eq!(err.original_input(), "1");
+}
+
+#[test]
+fn trimmed_reports_original_input_on_parse_failure() {
+    let Err(err) = trimmed::<u8>(" 300 ") else {
+        panic!("expected parse failure");
+    };
+    assert_eq!(err.original_input(), " 300 ");
+    assert!(
+        err.to_string()
+            .starts_with("failed to parse trimmed value from input ' 300 '")
+    );
+}
+
+#[test]
+fn data_table_error_messages_cover_all_variants() {
+    let duplicate = DataTableError::DuplicateHeader {
+        column: "name".to_string(),
+    };
+    assert_eq!(
+        duplicate.to_string(),
+        "data table header contains duplicate column 'name'"
+    );
+
+    let uneven = DataTableError::UnevenRow {
+        row_number: 3,
+        expected: 2,
+        actual: 3,
+    };
+    assert_eq!(
+        uneven.to_string(),
+        "data table row 3 has 3 cells but expected 2"
+    );
+
+    let missing_column = DataTableError::MissingColumn {
+        row_number: 5,
+        column: "age".to_string(),
+    };
+    assert_eq!(
+        missing_column.to_string(),
+        "data table row 5 is missing column 'age'"
+    );
+
+    let missing_cell = DataTableError::MissingCell {
+        row_number: 2,
+        column_index: 4,
+    };
+    assert_eq!(
+        missing_cell.to_string(),
+        "data table row 2 is missing cell 4"
+    );
+
+    let row_parse = DataTableError::RowParse {
+        row_number: 4,
+        source: Box::new(FakeError),
+    };
+    assert_eq!(row_parse.to_string(), "row 4: boom");
+
+    let cell_parse = DataTableError::cell_parse(3, 1, Some("age".to_string()), FakeError);
+    assert_eq!(cell_parse.to_string(), "row 3, column 2 (age): boom");
 }

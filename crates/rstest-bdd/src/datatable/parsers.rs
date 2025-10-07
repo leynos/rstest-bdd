@@ -64,16 +64,42 @@ where
     T: std::str::FromStr,
     T::Err: StdError + Send + Sync + 'static,
 {
-    value
-        .trim()
+    let trimmed = value.trim();
+    trimmed
         .parse()
-        .map_err(|err| TrimmedParseError { source: err })
+        .map_err(|err| TrimmedParseError::new(value.to_string(), err))
 }
 
 /// Error returned when [`trimmed`] fails to parse the value.
-#[derive(Debug)]
 pub struct TrimmedParseError<E> {
     source: E,
+    original_input: String,
+}
+
+impl<E> TrimmedParseError<E> {
+    pub(crate) fn new(original_input: String, source: E) -> Self {
+        Self {
+            source,
+            original_input,
+        }
+    }
+
+    #[must_use]
+    pub fn original_input(&self) -> &str {
+        &self.original_input
+    }
+}
+
+impl<E> fmt::Debug for TrimmedParseError<E>
+where
+    E: fmt::Debug,
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("TrimmedParseError")
+            .field("source", &self.source)
+            .field("original_input", &self.original_input)
+            .finish()
+    }
 }
 
 impl<E> fmt::Display for TrimmedParseError<E>
@@ -81,7 +107,11 @@ where
     E: fmt::Display,
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "failed to parse trimmed value: {}", self.source)
+        write!(
+            f,
+            "failed to parse trimmed value from input '{}': {}",
+            self.original_input, self.source
+        )
     }
 }
 

@@ -347,7 +347,7 @@ accept a raw `Vec<Vec<String>>`, while the `rstest_bdd::datatable` module
 offers strongly typed helpers.
 
 `datatable::Rows<T>` wraps a vector of parsed rows and implements
-`IntoIterator`, letting you consume the table directly. Implement the
+`IntoIterator`, enabling direct consumption of the table. Implement the
 `datatable::DataTableRow` trait for your row type to describe how each row
 should be interpreted. When `T::REQUIRES_HEADER` is `true` the first table row
 is treated as a header and exposed via the `RowSpec` helpers.
