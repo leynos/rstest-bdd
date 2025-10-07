@@ -1,10 +1,11 @@
 //! Behavioural test for fixture context injection
 
+use rstest_bdd::localisation::{ScopedLocalisation, strip_directional_isolates};
 use rstest_bdd::{
     StepContext, StepError, StepKeyword, assert_step_err, assert_step_ok, lookup_step,
 };
 use rstest_bdd_macros::given;
-use serial_test::serial;
+use unic_langid::langid;
 
 /// Step that asserts the injected `number` fixture equals 42.
 #[given("a value")]
@@ -38,30 +39,39 @@ fn context_passes_fixture() {
 }
 
 #[test]
-#[serial(localisation)]
 #[expect(clippy::expect_used, reason = "step lookup must succeed for test")]
 fn context_missing_fixture_returns_error() {
     let ctx = StepContext::default();
     let step_fn = lookup_step(StepKeyword::Given, "a value".into())
         .expect("step 'a value' not found in registry");
     let err = assert_step_err!(step_fn(&ctx, "a value", None, None));
-    let display = err.to_string();
-    let normalised: String = display
-        .chars()
-        .filter(|c| !matches!(*c, '\u{2066}' | '\u{2067}' | '\u{2068}' | '\u{2069}'))
-        .collect();
+    let display = strip_directional_isolates(&err.to_string());
     match err {
         StepError::MissingFixture { name, ty, step } => {
             assert_eq!(name, "number");
             assert_eq!(ty, "u32");
             assert_eq!(step, "needs_value");
             assert!(
-                normalised.contains("Missing fixture 'number'"),
+                display.contains("Missing fixture 'number'"),
                 "unexpected Display: {display}"
             );
         }
         other => panic!("unexpected error: {other:?}"),
     }
+}
+
+#[test]
+#[expect(clippy::expect_used, reason = "step lookup must succeed for test")]
+fn context_missing_fixture_localises_error() {
+    let guard = ScopedLocalisation::new(&[langid!("fr")])
+        .unwrap_or_else(|error| panic!("failed to scope French locale: {error}"));
+    let ctx = StepContext::default();
+    let step_fn = lookup_step(StepKeyword::Given, "a value".into())
+        .expect("step 'a value' not found in registry");
+    let err = assert_step_err!(step_fn(&ctx, "a value", None, None));
+    let display = strip_directional_isolates(&err.to_string());
+    assert!(display.contains("La fixture « number »"));
+    drop(guard);
 }
 
 #[test]

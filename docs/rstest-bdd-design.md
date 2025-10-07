@@ -1887,6 +1887,12 @@ These macros keep test code succinct while still surfacing detailed diagnostics.
   shared loader so applications can request locales at runtime whilst retaining
   the caller-supplied preference order. The loader initialises with English and
   falls back to it when a requested language is unavailable.
+- Added a thread-local `ScopedLocalisation` guard so unit and behaviour tests
+  can swap locales without serialising the entire test suite. When active the
+  guard shadows the global loader, ensuring concurrent tests remain isolated.
+- Introduced helper macros for mapping `StepError` variants to Fluent messages
+  and for emitting localised panic strings, eliminating duplicated argument
+  plumbing across assertion macros and display implementations.
 - Updated `StepError`, `PlaceholderSyntaxError`, `PlaceholderError`, and the
   step assertion macros to source their display strings from Fluent entries,
   ensuring runtime diagnostics respect the active locale while proc-macro

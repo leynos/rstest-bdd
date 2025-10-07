@@ -1,14 +1,9 @@
 //! Behavioural test for step registry
 
 use rstest::rstest;
+use rstest_bdd::localisation::{ScopedLocalisation, strip_directional_isolates};
 use rstest_bdd::{Step, StepContext, StepError, StepKeyword, iter, panic_message, step};
-use serial_test::serial;
-
-fn strip_directional_isolates(text: &str) -> String {
-    text.chars()
-        .filter(|c| !matches!(*c, '\u{2066}' | '\u{2067}' | '\u{2068}' | '\u{2069}'))
-        .collect()
-}
+use unic_langid::langid;
 
 fn sample() {}
 #[expect(
@@ -104,7 +99,6 @@ fn step_is_registered() {
 }
 
 #[rstest]
-#[serial(localisation)]
 #[case(StepKeyword::Given, "fails", "failing_wrapper", "boom", true)]
 #[case(StepKeyword::When, "panics", "panicking_wrapper", "snap", false)]
 #[case(
@@ -165,4 +159,37 @@ fn wrapper_error_handling(
             other => panic!("unexpected error for '{pattern}': {other:?}"),
         }
     }
+}
+
+#[rstest]
+#[case(StepKeyword::Given, "fails", "Erreur lors de l'exécution de l'étape")]
+#[case(StepKeyword::When, "panics", "Panique dans l'étape")]
+#[case(
+    StepKeyword::Then,
+    "needs fixture",
+    "La fixture « missing » de type « u32 » est introuvable"
+)]
+fn wrapper_errors_localise(
+    #[case] keyword: StepKeyword,
+    #[case] pattern: &str,
+    #[case] expected_snippet: &str,
+) {
+    let guard = ScopedLocalisation::new(&[langid!("fr")])
+        .unwrap_or_else(|error| panic!("failed to scope French locale: {error}"));
+    let step_fn = iter::<Step>
+        .into_iter()
+        .find(|s| s.pattern.as_str() == pattern && s.keyword == keyword)
+        .map_or_else(
+            || panic!("step '{pattern}' not found in registry"),
+            |step| step.run,
+        );
+    let Err(err) = step_fn(&StepContext::default(), pattern, None, None) else {
+        panic!("expected error from wrapper '{pattern}'");
+    };
+    let message = strip_directional_isolates(&err.to_string());
+    assert!(
+        message.contains(expected_snippet),
+        "expected '{expected_snippet}' in '{message}'",
+    );
+    drop(guard);
 }

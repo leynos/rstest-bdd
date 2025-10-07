@@ -1,3 +1,6 @@
+//! Localisation utilities used by the public macros and runtime diagnostics.
+
+use std::cell::RefCell;
 use std::sync::{LazyLock, RwLock};
 
 use fluent::FluentArgs;
@@ -18,12 +21,47 @@ static LANGUAGE_LOADER: LazyLock<RwLock<FluentLanguageLoader>> = LazyLock::new(|
     RwLock::new(loader)
 });
 
+thread_local! {
+    static OVERRIDE_LOADER: RefCell<Option<FluentLanguageLoader>> = const { RefCell::new(None) };
+}
+
 #[derive(Debug, Error)]
 pub enum LocalisationError {
     #[error("localisation state is poisoned")]
     Poisoned,
     #[error("failed to load localisation resources: {0}")]
     Loader(#[from] I18nEmbedError),
+}
+
+/// RAII guard that installs a thread-local localisation loader for the
+/// lifetime of the guard.
+pub struct ScopedLocalisation {
+    previous: Option<FluentLanguageLoader>,
+}
+
+impl ScopedLocalisation {
+    /// Load the requested locales into a dedicated loader and make it the
+    /// active loader for the current thread.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`LocalisationError::Loader`] if localisation resources cannot
+    /// be loaded for the requested languages.
+    pub fn new(requested: &[LanguageIdentifier]) -> Result<Self, LocalisationError> {
+        let loader = fluent_language_loader!();
+        i18n_embed::select(&loader, &Localisations, requested)?;
+        let previous = OVERRIDE_LOADER.with(|cell| cell.replace(Some(loader)));
+        Ok(Self { previous })
+    }
+}
+
+impl Drop for ScopedLocalisation {
+    fn drop(&mut self) {
+        let previous = self.previous.take();
+        OVERRIDE_LOADER.with(|cell| {
+            *cell.borrow_mut() = previous;
+        });
+    }
 }
 
 /// Replace the global localisation loader with a preconfigured instance.
@@ -48,11 +86,17 @@ pub fn install_localisation_loader(loader: FluentLanguageLoader) -> Result<(), L
 pub fn select_localisations(
     requested: &[LanguageIdentifier],
 ) -> Result<Vec<LanguageIdentifier>, LocalisationError> {
-    let guard = LANGUAGE_LOADER
-        .read()
-        .map_err(|_| LocalisationError::Poisoned)?;
-    let selected = i18n_embed::select(&*guard, &Localisations, requested)?;
-    Ok(selected)
+    OVERRIDE_LOADER.with(|cell| -> Result<_, LocalisationError> {
+        if let Some(loader) = cell.borrow_mut().as_mut() {
+            let selected = i18n_embed::select(loader, &Localisations, requested)?;
+            return Ok(selected);
+        }
+        let guard = LANGUAGE_LOADER
+            .read()
+            .map_err(|_| LocalisationError::Poisoned)?;
+        let selected = i18n_embed::select(&*guard, &Localisations, requested)?;
+        Ok(selected)
+    })
 }
 
 /// Query the currently active localisations.
@@ -61,10 +105,15 @@ pub fn select_localisations(
 ///
 /// Returns [`LocalisationError::Poisoned`] if the loader lock is poisoned.
 pub fn current_languages() -> Result<Vec<LanguageIdentifier>, LocalisationError> {
-    let guard = LANGUAGE_LOADER
-        .read()
-        .map_err(|_| LocalisationError::Poisoned)?;
-    Ok(guard.current_languages())
+    OVERRIDE_LOADER.with(|cell| -> Result<_, LocalisationError> {
+        if let Some(loader) = cell.borrow().as_ref() {
+            return Ok(loader.current_languages());
+        }
+        let guard = LANGUAGE_LOADER
+            .read()
+            .map_err(|_| LocalisationError::Poisoned)?;
+        Ok(guard.current_languages())
+    })
 }
 
 #[must_use]
@@ -94,8 +143,45 @@ where
 }
 
 pub(crate) fn with_loader<R>(callback: impl FnOnce(&FluentLanguageLoader) -> R) -> R {
-    let guard = LANGUAGE_LOADER
-        .read()
-        .unwrap_or_else(std::sync::PoisonError::into_inner);
-    callback(&guard)
+    OVERRIDE_LOADER.with(|cell| {
+        let borrow = cell.borrow();
+        if let Some(loader) = borrow.as_ref() {
+            return callback(loader);
+        }
+        drop(borrow);
+        let guard = LANGUAGE_LOADER
+            .read()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        callback(&guard)
+    })
+}
+
+/// Remove Unicode directional isolates inserted by Fluent during interpolation.
+#[must_use]
+pub fn strip_directional_isolates(text: &str) -> String {
+    text.chars()
+        .filter(|c| !matches!(*c, '\u{2066}' | '\u{2067}' | '\u{2068}' | '\u{2069}'))
+        .collect()
+}
+
+#[macro_export]
+macro_rules! panic_localised {
+    ($id:expr $(, $key:ident = $value:expr )* $(,)?) => {{
+        let message = $crate::localisation::message_with_args($id, |args| {
+            $( args.set(stringify!($key), $value.to_string()); )*
+        });
+        panic!("{message}");
+    }};
+}
+
+pub(crate) fn message_with_fields(
+    loader: &FluentLanguageLoader,
+    id: &str,
+    fields: &[(&str, &String)],
+) -> String {
+    let mut args = FluentArgs::new();
+    for (key, value) in fields {
+        args.set(*key, (*value).clone());
+    }
+    loader.get_args_fluent(id, Some(&args))
 }

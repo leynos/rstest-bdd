@@ -471,7 +471,7 @@ files. The crate bundles English strings by default and falls back to them when
 no translation is available. Applications can opt into additional locales by
 embedding the provided assets and selecting a language at runtime.
 
-Add the localisation tooling to your `Cargo.toml`:
+Localisation tooling can be added to `Cargo.toml` as follows:
 
 ```toml
 [dependencies]

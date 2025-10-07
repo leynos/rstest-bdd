@@ -52,15 +52,7 @@ macro_rules! assert_step_ok {
     ($expr:expr $(,)?) => {
         match $expr {
             Ok(value) => value,
-            Err(e) => {
-                let error = e.to_string();
-                panic!(
-                    "{}",
-                    ::rstest_bdd::localisation::message_with_args("assert-step-ok-panic", |args| {
-                        args.set("error", error.clone())
-                    },)
-                );
-            }
+            Err(e) => ::rstest_bdd::panic_localised!("assert-step-ok-panic", error = e),
         }
     };
 }
@@ -94,19 +86,13 @@ macro_rules! assert_step_ok {
 macro_rules! assert_step_err {
     ($expr:expr $(,)?) => {
         match $expr {
-            Ok(_) => panic!(
-                "{}",
-                ::rstest_bdd::localisation::message("assert-step-err-success")
-            ),
+            Ok(_) => ::rstest_bdd::panic_localised!("assert-step-err-success"),
             Err(e) => e,
         }
     };
     ($expr:expr, $msg:expr $(,)?) => {
         match $expr {
-            Ok(_) => panic!(
-                "{}",
-                ::rstest_bdd::localisation::message("assert-step-err-success")
-            ),
+            Ok(_) => ::rstest_bdd::panic_localised!("assert-step-err-success"),
             Err(e) => {
                 let __rstest_bdd_display = e.to_string();
                 let __rstest_bdd_msg: &str = $msg.as_ref();
@@ -234,31 +220,37 @@ impl StepError {
     #[must_use]
     pub fn format_with_loader(&self, loader: &FluentLanguageLoader) -> String {
         match self {
-            Self::MissingFixture { name, ty, step } => {
-                localisation::message_with_loader(loader, "step-error-missing-fixture", |args| {
-                    args.set("name", name.clone());
-                    args.set("ty", ty.clone());
-                    args.set("step", step.clone());
-                })
-            }
+            Self::MissingFixture { name, ty, step } => localisation::message_with_fields(
+                loader,
+                "step-error-missing-fixture",
+                &[("name", name), ("ty", ty), ("step", step)],
+            ),
             Self::ExecutionError {
                 pattern,
                 function,
                 message,
-            } => localisation::message_with_loader(loader, "step-error-execution", |args| {
-                args.set("pattern", pattern.clone());
-                args.set("function", function.clone());
-                args.set("message", message.clone());
-            }),
+            } => localisation::message_with_fields(
+                loader,
+                "step-error-execution",
+                &[
+                    ("pattern", pattern),
+                    ("function", function),
+                    ("message", message),
+                ],
+            ),
             Self::PanicError {
                 pattern,
                 function,
                 message,
-            } => localisation::message_with_loader(loader, "step-error-panic", |args| {
-                args.set("pattern", pattern.clone());
-                args.set("function", function.clone());
-                args.set("message", message.clone());
-            }),
+            } => localisation::message_with_fields(
+                loader,
+                "step-error-panic",
+                &[
+                    ("pattern", pattern),
+                    ("function", function),
+                    ("message", message),
+                ],
+            ),
         }
     }
 }

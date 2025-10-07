@@ -1,19 +1,14 @@
 //! Tests for placeholder extraction logic.
 
 use rstest::rstest;
+use rstest_bdd::localisation::{ScopedLocalisation, strip_directional_isolates};
 use rstest_bdd::{
     PlaceholderError, PlaceholderSyntaxError, StepPattern, StepPatternError, StepText,
     extract_placeholders,
 };
-use serial_test::serial;
 use std::borrow::Cow;
 use std::ptr;
-
-fn strip_directional_isolates(text: &str) -> String {
-    text.chars()
-        .filter(|c| !matches!(*c, '\u{2066}' | '\u{2067}' | '\u{2068}' | '\u{2069}'))
-        .collect()
-}
+use unic_langid::langid;
 
 #[expect(clippy::expect_used, reason = "test helper should fail loudly")]
 fn compiled(pattern: &'static str) -> StepPattern {
@@ -215,7 +210,6 @@ fn whitespace_before_closing_brace_is_error() {
 }
 
 #[test]
-#[serial(localisation)]
 fn extraction_reports_invalid_placeholder_error() {
     let pat = StepPattern::from("value {n:}");
     #[expect(clippy::expect_used, reason = "test asserts error variant")]
@@ -229,7 +223,6 @@ fn extraction_reports_invalid_placeholder_error() {
 }
 
 #[test]
-#[serial(localisation)]
 fn invalid_pattern_error_display() {
     #[expect(
         clippy::invalid_regex,
@@ -241,6 +234,19 @@ fn invalid_pattern_error_display() {
     let err: PlaceholderError = StepPatternError::from(regex_err).into();
     assert!(matches!(err, PlaceholderError::InvalidPattern(_)));
     assert_eq!(strip_directional_isolates(&err.to_string()), expected);
+}
+
+#[test]
+fn placeholder_error_display_in_french() {
+    let guard = ScopedLocalisation::new(&[langid!("fr")])
+        .unwrap_or_else(|error| panic!("failed to scope French locale: {error}"));
+    let pat = StepPattern::from("value {n:}");
+    #[expect(clippy::expect_used, reason = "test asserts error variant")]
+    let err = extract_placeholders(&pat, StepText::from("value 1"))
+        .expect_err("placeholder error expected");
+    let display = strip_directional_isolates(&err.to_string());
+    assert!(display.contains("syntaxe de paramètre invalide"));
+    drop(guard);
 }
 
 #[test]

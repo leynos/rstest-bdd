@@ -228,7 +228,7 @@ impl PlaceholderSyntaxError {
             .unwrap_or_default();
         localisation::message_with_args("placeholder-syntax-detail", |args| {
             args.set("reason", self.message.clone());
-            args.set("position", i64::try_from(self.position).unwrap_or(i64::MAX));
+            args.set("position", self.position.to_string());
             args.set("suffix", suffix);
         })
     }
