@@ -22,11 +22,12 @@ pub fn greet() -> &'static str {
 
 #[cfg(feature = "diagnostics")]
 use ctor::ctor;
+pub use i18n_embed::fluent::FluentLanguageLoader;
 pub use inventory::{iter, submit};
-use thiserror::Error;
 
 mod context;
 pub mod datatable;
+pub mod localisation;
 mod pattern;
 mod placeholder;
 mod registry;
@@ -51,7 +52,7 @@ macro_rules! assert_step_ok {
     ($expr:expr $(,)?) => {
         match $expr {
             Ok(value) => value,
-            Err(e) => panic!("step returned error: {e}"),
+            Err(e) => $crate::panic_localised!("assert-step-ok-panic", error = e),
         }
     };
 }
@@ -85,21 +86,26 @@ macro_rules! assert_step_ok {
 macro_rules! assert_step_err {
     ($expr:expr $(,)?) => {
         match $expr {
-            Ok(_) => panic!("step succeeded unexpectedly"),
+            Ok(_) => $crate::panic_localised!("assert-step-err-success"),
             Err(e) => e,
         }
     };
     ($expr:expr, $msg:expr $(,)?) => {
         match $expr {
-            Ok(_) => panic!("step succeeded unexpectedly"),
+            Ok(_) => $crate::panic_localised!("assert-step-err-success"),
             Err(e) => {
                 let __rstest_bdd_display = e.to_string();
                 let __rstest_bdd_msg: &str = $msg.as_ref();
                 assert!(
                     __rstest_bdd_display.contains(__rstest_bdd_msg),
-                    "error '{display}' does not contain '{msg}'",
-                    display = __rstest_bdd_display,
-                    msg = __rstest_bdd_msg
+                    "{}",
+                    $crate::localisation::message_with_args(
+                        "assert-step-err-missing-substring",
+                        |args| {
+                            args.set("display", __rstest_bdd_display.clone());
+                            args.set("expected", __rstest_bdd_msg.to_string());
+                        },
+                    )
                 );
                 e
             }
@@ -108,6 +114,10 @@ macro_rules! assert_step_err {
 }
 
 pub use context::StepContext;
+pub use localisation::{
+    LocalisationError, Localisations, current_languages, install_localisation_loader,
+    select_localisations,
+};
 pub use pattern::StepPattern;
 pub use placeholder::extract_placeholders;
 #[cfg(feature = "diagnostics")]
@@ -166,17 +176,18 @@ pub fn panic_message(e: &(dyn std::any::Any + Send)) -> String {
 
     try_downcast!(&str, String, i32, u32, i64, u64, isize, usize, f32, f64);
     let ty = std::any::type_name_of_val(e);
-    format!("<non-debug panic payload of type {ty}>")
+    localisation::message_with_args("panic-message-opaque-payload", |args| {
+        args.set("type", ty.to_string());
+    })
 }
 
 /// Error type produced by step wrappers.
 ///
 /// The variants categorize the possible failure modes when invoking a step.
-#[derive(Debug, Error, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum StepError {
     /// Raised when a required fixture is absent from the [`StepContext`].
-    #[error("Missing fixture '{name}' of type '{ty}' for step function '{step}'")]
     MissingFixture {
         /// Name of the missing fixture.
         name: String,
@@ -186,7 +197,6 @@ pub enum StepError {
         step: String,
     },
     /// Raised when the invoked step function returns an [`Err`] variant.
-    #[error("Error executing step '{pattern}' via function '{function}': {message}")]
     ExecutionError {
         /// Pattern text used when invoking the step.
         pattern: String,
@@ -196,7 +206,6 @@ pub enum StepError {
         message: String,
     },
     /// Raised when the step function panics during execution.
-    #[error("Panic in step '{pattern}', function '{function}': {message}")]
     PanicError {
         /// Pattern text used when invoking the step.
         pattern: String,
@@ -206,6 +215,48 @@ pub enum StepError {
         message: String,
     },
 }
+
+// Macro that maps `StepError` variants to their Fluent identifiers without
+// repeating localisation boilerplate in each match arm.
+macro_rules! step_error_message {
+    (
+        $self:expr,
+        $loader:expr,
+        $( $variant:ident { $( $field:ident ),* } => $id:literal ),+ $(,)?
+    ) => {{
+        match $self {
+            $(
+                Self::$variant { $( $field ),* } => {
+                    $crate::localisation::message_with_loader($loader, $id, |args| {
+                        $( args.set(stringify!($field), $field.clone()); )*
+                    })
+                }
+            ),+
+        }
+    }};
+}
+
+impl StepError {
+    #[must_use]
+    pub fn format_with_loader(&self, loader: &FluentLanguageLoader) -> String {
+        step_error_message!(
+            self,
+            loader,
+            MissingFixture { name, ty, step } => "step-error-missing-fixture",
+            ExecutionError { pattern, function, message } => "step-error-execution",
+            PanicError { pattern, function, message } => "step-error-panic",
+        )
+    }
+}
+
+impl std::fmt::Display for StepError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let message = localisation::with_loader(|loader| self.format_with_loader(loader));
+        f.write_str(&message)
+    }
+}
+
+impl std::error::Error for StepError {}
 
 /// Convert step function outputs into a standard result type.
 ///

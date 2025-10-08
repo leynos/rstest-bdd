@@ -1679,10 +1679,15 @@ enum PlaceholderError {
   - Invalid placeholder:
 
     ```text
-    "invalid placeholder syntax: invalid placeholder in step pattern at byte 6 (zero-based) for placeholder `n`"
+    "invalid placeholder syntax: invalid placeholder in step pattern at byte 6 (zero-based) for placeholder 'n'"
     ```
 
   - Invalid pattern: `"invalid step pattern: regex parse error: error message"`
+
+  The localised display strings wrap interpolated arguments with Unicode
+  directional isolate markers (`U+2066`–`U+2069`) to ensure values render
+  correctly in right-to-left locales. Consumers comparing the text should
+  normalise messages by removing these control characters.
 
   - Example JSON mapping (for consumers that serialize errors). Note: this is
     not emitted by the library; it suggests a shape for mapping the enum to
@@ -1696,7 +1701,7 @@ enum PlaceholderError {
 
 {
   "code": "invalid_placeholder",
-  "message": "invalid placeholder syntax: invalid placeholder in step pattern at byte 6 (zero-based) for placeholder `n`"
+  "message": "invalid placeholder syntax: invalid placeholder in step pattern at byte 6 (zero-based) for placeholder 'n'"
 }
 
 {
@@ -1870,6 +1875,28 @@ These macros keep test code succinct while still surfacing detailed diagnostics.
   English for deterministic builds. Localize user‑facing runtime messages in
   the `rstest-bdd` crate using `FluentLanguageLoader` and `i18n-embed`'s locale
   requesters. Avoid compile‑time locale switches in macros.
+
+#### Implemented localisation harness
+
+- Added an `i18n.toml` describing the Fluent domain and bundled the
+  `i18n/<locale>/rstest-bdd.ftl` catalogue via `rust-embed`. The derived
+  `Localisations` struct implements `I18nAssets`, allowing applications to load
+  our messages into their own `FluentLanguageLoader` or reuse the crate’s
+  built-in loader.
+- Exposed `select_localisations` and `current_languages` helpers around the
+  shared loader so applications can request locales at runtime whilst retaining
+  the caller-supplied preference order. The loader initialises with English and
+  falls back to it when a requested language is unavailable.
+- Added a thread-local `ScopedLocalisation` guard so unit and behaviour tests
+  can swap locales without serialising the entire test suite. When active the
+  guard shadows the global loader, ensuring concurrent tests remain isolated.
+- Introduced helper macros for mapping `StepError` variants to Fluent messages
+  and for emitting localised panic strings, eliminating duplicated argument
+  plumbing across assertion macros and display implementations.
+- Updated `StepError`, `PlaceholderSyntaxError`, `PlaceholderError`, and the
+  step assertion macros to source their display strings from Fluent entries,
+  ensuring runtime diagnostics respect the active locale while proc-macro
+  messages remain deterministic.
 
 ### 4.3 Phase 3: Documentation and User Guidance (target v0.6)
 

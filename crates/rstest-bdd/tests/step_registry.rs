@@ -1,7 +1,9 @@
 //! Behavioural test for step registry
 
 use rstest::rstest;
+use rstest_bdd::localisation::{ScopedLocalisation, strip_directional_isolates};
 use rstest_bdd::{Step, StepContext, StepError, StepKeyword, iter, panic_message, step};
+use unic_langid::langid;
 
 fn sample() {}
 #[expect(
@@ -123,7 +125,7 @@ fn wrapper_error_handling(
     let Err(err) = step_fn(&StepContext::default(), pattern, None, None) else {
         panic!("expected error from wrapper '{pattern}'");
     };
-    let err_display = err.to_string();
+    let err_display = strip_directional_isolates(&err.to_string());
     if is_execution_error {
         match err {
             StepError::ExecutionError {
@@ -157,4 +159,36 @@ fn wrapper_error_handling(
             other => panic!("unexpected error for '{pattern}': {other:?}"),
         }
     }
+}
+
+#[rstest]
+#[case(StepKeyword::Given, "fails", "Erreur lors de l'exécution de l'étape")]
+#[case(StepKeyword::When, "panics", "Panique dans l'étape")]
+#[case(
+    StepKeyword::Then,
+    "needs fixture",
+    "La fixture « missing » de type « u32 » est introuvable"
+)]
+fn wrapper_errors_localise(
+    #[case] keyword: StepKeyword,
+    #[case] pattern: &str,
+    #[case] expected_snippet: &str,
+) {
+    let _guard = ScopedLocalisation::new(&[langid!("fr")])
+        .unwrap_or_else(|error| panic!("failed to scope French locale: {error}"));
+    let step_fn = iter::<Step>
+        .into_iter()
+        .find(|s| s.pattern.as_str() == pattern && s.keyword == keyword)
+        .map_or_else(
+            || panic!("step '{pattern}' not found in registry"),
+            |step| step.run,
+        );
+    let Err(err) = step_fn(&StepContext::default(), pattern, None, None) else {
+        panic!("expected error from wrapper '{pattern}'");
+    };
+    let message = strip_directional_isolates(&err.to_string());
+    assert!(
+        message.contains(expected_snippet),
+        "expected '{expected_snippet}' in '{message}'",
+    );
 }

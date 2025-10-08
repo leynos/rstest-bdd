@@ -1,12 +1,14 @@
 //! Tests for placeholder extraction logic.
 
 use rstest::rstest;
+use rstest_bdd::localisation::{ScopedLocalisation, strip_directional_isolates};
 use rstest_bdd::{
     PlaceholderError, PlaceholderSyntaxError, StepPattern, StepPatternError, StepText,
     extract_placeholders,
 };
 use std::borrow::Cow;
 use std::ptr;
+use unic_langid::langid;
 
 #[expect(clippy::expect_used, reason = "test helper should fail loudly")]
 fn compiled(pattern: &'static str) -> StepPattern {
@@ -78,7 +80,7 @@ fn placeholder_error_reports_not_compiled() {
     };
     assert_eq!(pattern, "example");
     assert_eq!(
-        err.to_string(),
+        strip_directional_isolates(&err.to_string()),
         "step pattern 'example' must be compiled before use",
     );
 }
@@ -215,8 +217,8 @@ fn extraction_reports_invalid_placeholder_error() {
         .expect_err("placeholder error expected");
     assert!(matches!(err, PlaceholderError::InvalidPlaceholder(_)));
     assert_eq!(
-        err.to_string(),
-        "invalid placeholder syntax: invalid placeholder in step pattern at byte 6 (zero-based) for placeholder `n`"
+        strip_directional_isolates(&err.to_string()),
+        "invalid placeholder syntax: invalid placeholder in step pattern at byte 6 (zero-based) for placeholder 'n'",
     );
 }
 
@@ -231,7 +233,20 @@ fn invalid_pattern_error_display() {
     let expected = format!("invalid step pattern: {regex_err}");
     let err: PlaceholderError = StepPatternError::from(regex_err).into();
     assert!(matches!(err, PlaceholderError::InvalidPattern(_)));
-    assert_eq!(err.to_string(), expected);
+    assert_eq!(strip_directional_isolates(&err.to_string()), expected);
+}
+
+#[test]
+fn placeholder_error_display_in_french() {
+    let guard = ScopedLocalisation::new(&[langid!("fr")])
+        .unwrap_or_else(|error| panic!("failed to scope French locale: {error}"));
+    let pat = StepPattern::from("value {n:}");
+    #[expect(clippy::expect_used, reason = "test asserts error variant")]
+    let err = extract_placeholders(&pat, StepText::from("value 1"))
+        .expect_err("placeholder error expected");
+    let display = strip_directional_isolates(&err.to_string());
+    assert!(display.contains("syntaxe de paramètre invalide"));
+    drop(guard);
 }
 
 #[test]
