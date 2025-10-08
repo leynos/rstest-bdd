@@ -216,42 +216,36 @@ pub enum StepError {
     },
 }
 
+// Macro that maps `StepError` variants to their Fluent identifiers without
+// repeating localisation boilerplate in each match arm.
+macro_rules! step_error_message {
+    (
+        $self:expr,
+        $loader:expr,
+        $( $variant:ident { $( $field:ident ),* } => $id:literal ),+ $(,)?
+    ) => {{
+        match $self {
+            $(
+                Self::$variant { $( $field ),* } => {
+                    $crate::localisation::message_with_loader($loader, $id, |args| {
+                        $( args.set(stringify!($field), $field.clone()); )*
+                    })
+                }
+            ),+
+        }
+    }};
+}
+
 impl StepError {
     #[must_use]
     pub fn format_with_loader(&self, loader: &FluentLanguageLoader) -> String {
-        match self {
-            Self::MissingFixture { name, ty, step } => localisation::message_with_fields(
-                loader,
-                "step-error-missing-fixture",
-                &[("name", name), ("ty", ty), ("step", step)],
-            ),
-            Self::ExecutionError {
-                pattern,
-                function,
-                message,
-            } => localisation::message_with_fields(
-                loader,
-                "step-error-execution",
-                &[
-                    ("pattern", pattern),
-                    ("function", function),
-                    ("message", message),
-                ],
-            ),
-            Self::PanicError {
-                pattern,
-                function,
-                message,
-            } => localisation::message_with_fields(
-                loader,
-                "step-error-panic",
-                &[
-                    ("pattern", pattern),
-                    ("function", function),
-                    ("message", message),
-                ],
-            ),
-        }
+        step_error_message!(
+            self,
+            loader,
+            MissingFixture { name, ty, step } => "step-error-missing-fixture",
+            ExecutionError { pattern, function, message } => "step-error-execution",
+            PanicError { pattern, function, message } => "step-error-panic",
+        )
     }
 }
 

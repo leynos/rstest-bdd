@@ -173,15 +173,3 @@ macro_rules! panic_localised {
         panic!("{message}");
     }};
 }
-
-pub(crate) fn message_with_fields(
-    loader: &FluentLanguageLoader,
-    id: &str,
-    fields: &[(&str, &String)],
-) -> String {
-    let mut args = FluentArgs::new();
-    for (key, value) in fields {
-        args.set(*key, (*value).clone());
-    }
-    loader.get_args_fluent(id, Some(&args))
-}
