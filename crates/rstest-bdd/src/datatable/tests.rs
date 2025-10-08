@@ -29,20 +29,27 @@ impl DataTableRow for Pair {
     }
 }
 
-#[test]
-fn parses_rows_without_header() {
-    let rows = vec![
-        vec!["alice".to_string(), "1".to_string()],
-        vec!["bob".to_string(), "2".to_string()],
-    ];
-    let parsed: Rows<Pair> = rows
+fn assert_parses_rows<T>(rows: Vec<Vec<String>>, expected_len: usize, expected_data: &[T])
+where
+    T: DataTableRow + fmt::Debug + PartialEq,
+{
+    let parsed: Rows<T> = rows
         .try_into()
         .unwrap_or_else(|err| panic!("table should parse: {err}"));
-    assert_eq!(parsed.as_slice().len(), 2);
+    assert_eq!(parsed.len(), expected_len);
     let data = parsed.into_iter().collect::<Vec<_>>();
-    assert_eq!(
-        data,
+    assert_eq!(data.as_slice(), expected_data);
+}
+
+#[test]
+fn parses_rows_without_header() {
+    assert_parses_rows(
         vec![
+            vec!["alice".to_string(), "1".to_string()],
+            vec!["bob".to_string(), "2".to_string()],
+        ],
+        2,
+        &[
             Pair {
                 first: "alice".to_string(),
                 second: 1,
@@ -51,7 +58,7 @@ fn parses_rows_without_header() {
                 first: "bob".to_string(),
                 second: 2,
             },
-        ]
+        ],
     );
 }
 
@@ -73,18 +80,14 @@ impl DataTableRow for Named {
 
 #[test]
 fn parses_rows_with_header() {
-    let rows = vec![
-        vec!["name".to_string(), "active".to_string()],
-        vec!["Alice".to_string(), "yes".to_string()],
-        vec!["Bob".to_string(), "no".to_string()],
-    ];
-    let parsed: Rows<Named> = rows
-        .try_into()
-        .unwrap_or_else(|err| panic!("table should parse: {err}"));
-    assert_eq!(parsed.len(), 2);
-    assert_eq!(
-        parsed.into_iter().collect::<Vec<_>>(),
+    assert_parses_rows(
         vec![
+            vec!["name".to_string(), "active".to_string()],
+            vec!["Alice".to_string(), "yes".to_string()],
+            vec!["Bob".to_string(), "no".to_string()],
+        ],
+        2,
+        &[
             Named {
                 name: "Alice".to_string(),
                 active: true,
@@ -93,7 +96,7 @@ fn parses_rows_with_header() {
                 name: "Bob".to_string(),
                 active: false,
             },
-        ]
+        ],
     );
 }
 
