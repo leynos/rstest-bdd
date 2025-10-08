@@ -1,3 +1,5 @@
+//! Tests the datatable runtime parsing, error reporting, and helper parsers.
+
 use std::error::Error as StdError;
 use std::fmt;
 

@@ -1,3 +1,5 @@
+//! Header and row specifications for the datatable runtime.
+
 use std::collections::HashMap;
 use std::error::Error as StdError;
 

@@ -1,3 +1,5 @@
+//! Error types surfaced by the datatable runtime.
+
 use std::error::Error as StdError;
 
 use thiserror::Error;

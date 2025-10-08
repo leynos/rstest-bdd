@@ -1,3 +1,5 @@
+//! Typed row abstractions used when parsing datatable content.
+
 use std::convert::TryFrom;
 use std::ops::Deref;
 

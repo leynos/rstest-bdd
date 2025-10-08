@@ -1,3 +1,5 @@
+//! Helper parsers that support the datatable runtime.
+
 use std::error::Error as StdError;
 use std::fmt;
 
