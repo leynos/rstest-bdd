@@ -52,7 +52,7 @@ macro_rules! assert_step_ok {
     ($expr:expr $(,)?) => {
         match $expr {
             Ok(value) => value,
-            Err(e) => ::rstest_bdd::panic_localised!("assert-step-ok-panic", error = e),
+            Err(e) => $crate::panic_localised!("assert-step-ok-panic", error = e),
         }
     };
 }
@@ -86,20 +86,20 @@ macro_rules! assert_step_ok {
 macro_rules! assert_step_err {
     ($expr:expr $(,)?) => {
         match $expr {
-            Ok(_) => ::rstest_bdd::panic_localised!("assert-step-err-success"),
+            Ok(_) => $crate::panic_localised!("assert-step-err-success"),
             Err(e) => e,
         }
     };
     ($expr:expr, $msg:expr $(,)?) => {
         match $expr {
-            Ok(_) => ::rstest_bdd::panic_localised!("assert-step-err-success"),
+            Ok(_) => $crate::panic_localised!("assert-step-err-success"),
             Err(e) => {
                 let __rstest_bdd_display = e.to_string();
                 let __rstest_bdd_msg: &str = $msg.as_ref();
                 assert!(
                     __rstest_bdd_display.contains(__rstest_bdd_msg),
                     "{}",
-                    ::rstest_bdd::localisation::message_with_args(
+                    $crate::localisation::message_with_args(
                         "assert-step-err-missing-substring",
                         |args| {
                             args.set("display", __rstest_bdd_display.clone());
