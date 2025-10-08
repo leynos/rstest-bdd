@@ -381,9 +381,9 @@ fn users_exist(#[datatable] rows: Rows<UserRow>) {
 }
 ```
 
-If you prefer to work with raw rows, declare the argument as `Vec<Vec<String>>`
-and handle parsing manually. Both forms can coexist within the same project,
-allowing incremental adoption of typed tables.
+Projects that prefer to work with raw rows can declare the argument as
+`Vec<Vec<String>>` and handle parsing manually. Both forms can co-exist within
+the same project, allowing incremental adoption of typed tables.
 
 A Gherkin Docstring is available through an argument named `docstring` of type
 `String`. Both arguments must use these exact names and types to be detected by
