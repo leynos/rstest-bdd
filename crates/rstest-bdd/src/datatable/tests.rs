@@ -194,7 +194,7 @@ fn truthy_bool_error_exposes_original_value() {
     let Err(err) = truthy_bool("  MAYBE  ") else {
         panic!("value should be rejected");
     };
-    assert_eq!(err.value(), "maybe");
+    assert_eq!(err.value(), "MAYBE");
 }
 
 #[rstest]

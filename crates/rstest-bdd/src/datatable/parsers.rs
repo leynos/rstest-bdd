@@ -20,12 +20,23 @@ use thiserror::Error;
 ///
 /// Returns [`TruthyBoolError`] when the input does not match a recognised form.
 pub fn truthy_bool(value: &str) -> Result<bool, TruthyBoolError> {
-    match value.trim().to_ascii_lowercase().as_str() {
-        "yes" | "y" | "true" | "1" => Ok(true),
-        "no" | "n" | "false" | "0" => Ok(false),
-        other => Err(TruthyBoolError {
-            value: other.to_string(),
-        }),
+    let trimmed = value.trim();
+    if trimmed.eq_ignore_ascii_case("yes")
+        || trimmed.eq_ignore_ascii_case("y")
+        || trimmed.eq_ignore_ascii_case("true")
+        || trimmed == "1"
+    {
+        Ok(true)
+    } else if trimmed.eq_ignore_ascii_case("no")
+        || trimmed.eq_ignore_ascii_case("n")
+        || trimmed.eq_ignore_ascii_case("false")
+        || trimmed == "0"
+    {
+        Ok(false)
+    } else {
+        Err(TruthyBoolError {
+            value: trimmed.to_owned(),
+        })
     }
 }
 

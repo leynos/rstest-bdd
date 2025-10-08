@@ -64,6 +64,15 @@ impl<'a, T> IntoIterator for &'a Rows<T> {
     }
 }
 
+impl<'a, T> IntoIterator for &'a mut Rows<T> {
+    type Item = &'a mut T;
+    type IntoIter = std::slice::IterMut<'a, T>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.iter_mut()
+    }
+}
+
 impl<T> TryFrom<Vec<Vec<String>>> for Rows<T>
 where
     T: DataTableRow,
