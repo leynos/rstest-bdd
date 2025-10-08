@@ -81,6 +81,8 @@ impl DataTableRow for Named {
 }
 
 #[test]
+// Intentional: shared helper keeps duplication low while scenarios diverge on
+// header handling semantics.
 fn parses_rows_with_header() {
     assert_parses_rows(
         vec![

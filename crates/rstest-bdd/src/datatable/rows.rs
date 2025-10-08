@@ -101,7 +101,8 @@ where
         } else {
             None
         };
-        let mut parsed_rows = Vec::new();
+        let (lower, _) = rows_iter.size_hint();
+        let mut parsed_rows = Vec::with_capacity(lower);
         for (index, row) in rows_iter.enumerate() {
             if let Some(ref header) = header {
                 if row.len() != header.len() {

@@ -34,6 +34,14 @@ pub struct TruthyBoolError {
     value: String,
 }
 
+impl TruthyBoolError {
+    /// Returns the original, unclassified input.
+    #[must_use]
+    pub fn value(&self) -> &str {
+        &self.value
+    }
+}
+
 impl fmt::Display for TruthyBoolError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(

@@ -137,7 +137,7 @@ impl<'h> RowSpec<'h> {
     ///
     /// Returns [`DataTableError::MissingCell`] when the index is out of range.
     pub fn cell(&self, column_index: usize) -> Result<&str, DataTableError> {
-        let Some(position) = self.indices.get(column_index).and_then(|p| *p) else {
+        let Some(position) = self.indices.get(column_index).copied().flatten() else {
             return Err(DataTableError::MissingCell {
                 row_number: self.row_number,
                 column_index: column_index + 1,
@@ -158,7 +158,7 @@ impl<'h> RowSpec<'h> {
     ///
     /// Returns [`DataTableError::MissingCell`] when the index is out of range.
     pub fn take_cell(&mut self, column_index: usize) -> Result<String, DataTableError> {
-        let Some(position) = self.indices.get(column_index).and_then(|p| *p) else {
+        let Some(position) = self.indices.get(column_index).copied().flatten() else {
             return Err(DataTableError::MissingCell {
                 row_number: self.row_number,
                 column_index: column_index + 1,

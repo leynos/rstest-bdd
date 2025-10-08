@@ -349,11 +349,12 @@ offers strongly typed helpers.
 `datatable::Rows<T>` wraps a vector of parsed rows and implements
 `IntoIterator`, enabling direct consumption of the table. The
 `datatable::DataTableRow` trait describes how each row should be interpreted
-for a given type. When `T::REQUIRES_HEADER` is `true` the first table row is
-treated as a header and exposed via the `RowSpec` helpers.
+for a given type. When `T::REQUIRES_HEADER` is `true`, the first table row is
+treated as a header and exposed via the `HeaderSpec` helpers.
 
 ```rust
 use rstest_bdd::datatable::{self, DataTableError, DataTableRow, RowSpec, Rows};
+# use rstest_bdd_macros::given;
 
 #[derive(Debug, PartialEq, Eq)]
 struct UserRow {
