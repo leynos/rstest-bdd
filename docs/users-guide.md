@@ -346,14 +346,17 @@ so the wrapper can convert the parsed cells. Existing code can continue to
 accept a raw `Vec<Vec<String>>`, while the `rstest_bdd::datatable` module
 offers strongly typed helpers.
 
-`datatable::Rows<T>` wraps a vector of parsed rows and implements
-`IntoIterator`, enabling direct consumption of the table. The
-`datatable::DataTableRow` trait describes how each row should be interpreted
-for a given type. When `T::REQUIRES_HEADER` is `true`, the first table row is
-treated as a header and exposed via the `HeaderSpec` helpers.
+`datatable::Rows<T>` wraps a vector of parsed rows and derives
+`Deref<Target = [T]>`, `From<Vec<T>>`, and `IntoIterator`, enabling direct
+consumption of the table. The `datatable::DataTableRow` trait describes how
+each row should be interpreted for a given type. When `T::REQUIRES_HEADER` is
+`true`, the first table row is treated as a header and exposed via the
+`HeaderSpec` helpers.
 
 ```rust
-use rstest_bdd::datatable::{self, DataTableError, DataTableRow, RowSpec, Rows};
+use rstest_bdd::datatable::{
+    self, DataTableError, DataTableRow, RowSpec, Rows,
+};
 # use rstest_bdd_macros::given;
 
 #[derive(Debug, PartialEq, Eq)]
@@ -369,7 +372,10 @@ impl DataTableRow for UserRow {
     fn parse_row(mut row: RowSpec<'_>) -> Result<Self, DataTableError> {
         let name = row.take_column("name")?;
         let email = row.take_column("email")?;
-        let active = row.parse_column_with("active", datatable::truthy_bool)?;
+        let active = row.parse_column_with(
+            "active",
+            datatable::truthy_bool,
+        )?;
         Ok(Self { name, email, active })
     }
 }

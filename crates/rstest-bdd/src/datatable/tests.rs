@@ -161,10 +161,16 @@ fn uneven_rows_are_rejected() {
 #[case("y", true)]
 #[case("true", true)]
 #[case("1", true)]
+#[case(" Yes ", true)]
+#[case("TRUE", true)]
+#[case("TrUe", true)]
 #[case("no", false)]
 #[case("n", false)]
 #[case("false", false)]
 #[case("0", false)]
+#[case(" no ", false)]
+#[case("FALSE", false)]
+#[case("FaLsE", false)]
 fn truthy_bool_accepts_common_forms(#[case] input: &str, #[case] expected: bool) {
     match truthy_bool(input) {
         Ok(actual) => assert_eq!(actual, expected),
@@ -181,6 +187,14 @@ fn truthy_bool_rejects_unknown_values() {
         err.to_string(),
         "unrecognised boolean value 'maybe' (expected yes/y/true/1 or no/n/false/0)"
     );
+}
+
+#[test]
+fn truthy_bool_error_exposes_original_value() {
+    let Err(err) = truthy_bool("  MAYBE  ") else {
+        panic!("value should be rejected");
+    };
+    assert_eq!(err.value(), "MAYBE");
 }
 
 #[rstest]
@@ -214,6 +228,13 @@ fn trimmed_preserves_inner_error() {
         "failed to parse trimmed value from input '1': boom"
     );
     assert_eq!(err.original_input(), "1");
+    let Some(source) = err.source() else {
+        panic!("source error should be preserved");
+    };
+    assert!(
+        source.downcast_ref::<FakeError>().is_some(),
+        "source should be the inner FakeError"
+    );
 }
 
 #[test]
@@ -226,6 +247,20 @@ fn trimmed_reports_original_input_on_parse_failure() {
         err.to_string()
             .starts_with("failed to parse trimmed value from input ' 300 '")
     );
+}
+
+#[test]
+fn rows_from_vec_preserves_order() {
+    let rows = Rows::from(vec![1, 2, 3]);
+    assert_eq!(rows.len(), 3);
+    assert_eq!(rows.iter().copied().collect::<Vec<_>>(), vec![1, 2, 3]);
+}
+
+#[test]
+fn rows_into_vec_returns_owned_elements() {
+    let rows = Rows::from(vec![String::from("alice"), String::from("bob")]);
+    let owned = rows.into_vec();
+    assert_eq!(owned, vec![String::from("alice"), String::from("bob")]);
 }
 
 #[test]

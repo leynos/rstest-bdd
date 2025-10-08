@@ -263,8 +263,10 @@ other essential Gherkin constructs.
   keep using `Vec<Vec<String>>`, while the runtime `rstest_bdd::datatable`
   module now offers typed parsing utilities.
 
-  - `datatable::Rows<T>` wraps a `Vec<T>` and implements `IntoIterator` and
-    `AsRef<[T]>`, letting steps consume parsed rows ergonomically. The blanket
+  - `datatable::Rows<T>` wraps a `Vec<T>` and derives `Deref<Target = [T]>`,
+    `From<Vec<T>>`, and `IntoIterator` via `derive_more`, letting steps consume
+    parsed rows ergonomically. Steps that must regain ownership call
+    `Rows::into_vec()` to retrieve the backing vector. The blanket
     `TryFrom<Vec<Vec<String>>>` implementation inspects the
     `T::REQUIRES_HEADER` flag: when true the first row is parsed into a
     `HeaderSpec`; otherwise the table is treated as headerless. Each remaining
@@ -295,13 +297,7 @@ classDiagram
         +parse_row(row: RowSpec) Result<Self, DataTableError>
     }
     class Rows {
-        +rows: Vec<T>
-        +new(rows: Vec<T>)
-        +len() usize
-        +is_empty() bool
-        +as_slice() &[T]
-        +iter() Iter<T>
-        +into_inner() Vec<T>
+        +into_vec() -> Vec<T>
     }
     class DataTableError {
         <<enum>>
@@ -319,12 +315,12 @@ classDiagram
         +require(name: &str) Result<usize, DataTableError>
     }
     class RowSpec {
-        +new(header: Option<&HeaderSpec>, row_number: usize, index: usize, row: Vec<String>)
-        +take_column(name: &str) Result<String, DataTableError>
-        +parse_column_with(name: &str, parser: fn(&str) -> Result<T, E>) Result<T, DataTableError>
+        +new(header, row_number, index, row) Result<Self, DataTableError>
+        +take_column(name) Result<String, DataTableError>
+        +parse_column_with(name, parser) Result<T, DataTableError>
     }
     class TruthyBoolError {
-        +value: String
+        +value(&self) -> &str
     }
     class TrimmedParseError {
         +source: E

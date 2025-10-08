@@ -27,6 +27,7 @@ gherkin = { version = "0.14", default-features = false, features = ["parser"] }
 inventory = "0.3"
 regex = "1.11.2"
 thiserror = "1.0"
+derive_more = { version = "0.99", features = ["deref", "from", "into_iterator"] }
 quote = "1"
 syn = { version = "2", features = ["full", "extra-traits"] }
 cfg-if = "^1.0.0"
