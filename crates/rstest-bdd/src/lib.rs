@@ -26,6 +26,7 @@ pub use inventory::{iter, submit};
 use thiserror::Error;
 
 mod context;
+pub mod datatable;
 mod pattern;
 mod placeholder;
 mod registry;

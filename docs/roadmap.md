@@ -121,13 +121,13 @@ improves the developer experience.
     matching step definition exists for every Gherkin step in the target
     scenario, emitting a `compile_error!` if any are missing.
 
-- [ ] **Typed Data Table Support**
+- [x] **Typed Data Table Support**
 
-  - [ ] Add a `datatable` runtime module exposing `DataTableError`,
+  - [x] Add a `datatable` runtime module exposing `DataTableError`,
     `HeaderSpec`, `RowSpec`, `Rows<T>`, and convenience parsers such as
     `truthy_bool` and `trimmed<T: FromStr>`.
 
-  - [ ] Implement `TryFrom<Vec<Vec<String>>> for Rows<T>` (with `T:
+  - [x] Implement `TryFrom<Vec<Vec<String>>> for Rows<T>` (with `T:
     DataTableRow`) to split optional headers, build index maps, and surface row
     and column context on errors.
 
@@ -136,13 +136,14 @@ improves the developer experience.
     cells, trimming, tolerant booleans, custom parsers, and row aggregation
     hooks.
 
-  - [ ] Update generated wrappers to forward conversion failures by formatting
+  - [x] Update generated wrappers to forward conversion failures by formatting
     the `DataTableError` into the emitted `StepError`, ensuring diagnostics
     reach recorders.
 
-  - [ ] Extend documentation (users guide, design document) and add integration
-    tests plus compile-fail fixtures covering headered/headerless tables,
-    optional columns, tolerant booleans, and invalid attribute combinations.
+  - [x] Extend documentation (users guide, design document) and add integration
+    tests covering headered tables and tolerant boolean parsing.
+  - [ ] Add compile-fail fixtures covering optional columns and invalid
+    attribute combinations.
 
 - [ ] **Tag Filtering**
 

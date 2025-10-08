@@ -341,10 +341,50 @@ Best practices for writing effective scenarios include:
 
 Steps may supply structured or free-form data via a trailing argument. A data
 table is received by including a parameter annotated with `#[datatable]` or
-named `datatable` of type `Vec<Vec<String>>`. During expansion, the
-`#[datatable]` marker is removed, but the declared parameter type is preserved
-and must implement `TryFrom<Vec<Vec<String>>>` so the wrapper can convert the
-parsed cells.
+named `datatable`. The declared type must implement `TryFrom<Vec<Vec<String>>>`
+so the wrapper can convert the parsed cells. Existing code can continue to
+accept a raw `Vec<Vec<String>>`, while the `rstest_bdd::datatable` module
+offers strongly typed helpers.
+
+`datatable::Rows<T>` wraps a vector of parsed rows and implements
+`IntoIterator`, enabling direct consumption of the table. The
+`datatable::DataTableRow` trait describes how each row should be interpreted
+for a given type. When `T::REQUIRES_HEADER` is `true`, the first table row is
+treated as a header and exposed via the `HeaderSpec` helpers.
+
+```rust
+use rstest_bdd::datatable::{self, DataTableError, DataTableRow, RowSpec, Rows};
+# use rstest_bdd_macros::given;
+
+#[derive(Debug, PartialEq, Eq)]
+struct UserRow {
+    name: String,
+    email: String,
+    active: bool,
+}
+
+impl DataTableRow for UserRow {
+    const REQUIRES_HEADER: bool = true;
+
+    fn parse_row(mut row: RowSpec<'_>) -> Result<Self, DataTableError> {
+        let name = row.take_column("name")?;
+        let email = row.take_column("email")?;
+        let active = row.parse_column_with("active", datatable::truthy_bool)?;
+        Ok(Self { name, email, active })
+    }
+}
+
+#[given("the following users exist:")]
+fn users_exist(#[datatable] rows: Rows<UserRow>) {
+    for row in rows {
+        assert!(row.active || row.name == "Bob");
+    }
+}
+```
+
+Projects that prefer to work with raw rows can declare the argument as
+`Vec<Vec<String>>` and handle parsing manually. Both forms can co-exist within
+the same project, allowing incremental adoption of typed tables.
 
 A Gherkin Docstring is available through an argument named `docstring` of type
 `String`. Both arguments must use these exact names and types to be detected by
