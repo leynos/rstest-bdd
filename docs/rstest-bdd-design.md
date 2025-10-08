@@ -265,11 +265,12 @@ other essential Gherkin constructs.
 
   - `datatable::Rows<T>` wraps a `Vec<T>` and derives `Deref<Target = [T]>`,
     `From<Vec<T>>`, and `IntoIterator` via `derive_more`, letting steps consume
-    parsed rows ergonomically. The blanket `TryFrom<Vec<Vec<String>>>`
-    implementation inspects the `T::REQUIRES_HEADER` flag: when true the first
-    row is parsed into a `HeaderSpec`; otherwise the table is treated as
-    headerless. Each remaining row is converted into a `RowSpec` and handed to
-    `T::parse_row`.
+    parsed rows ergonomically. Steps that must regain ownership call
+    `Rows::into_vec()` to retrieve the backing vector. The blanket
+    `TryFrom<Vec<Vec<String>>>` implementation inspects the
+    `T::REQUIRES_HEADER` flag: when true the first row is parsed into a
+    `HeaderSpec`; otherwise the table is treated as headerless. Each remaining
+    row is converted into a `RowSpec` and handed to `T::parse_row`.
   - `datatable::DataTableRow` defines the parsing contract. Implementors
     receive ownership of each row, can remove cells via `take_cell` /
     `take_column`, and can parse values with the `parse_*` helpers. Until the
@@ -296,7 +297,7 @@ classDiagram
         +parse_row(row: RowSpec) Result<Self, DataTableError>
     }
     class Rows {
-        +rows: Vec<T>
+        +into_vec() -> Vec<T>
     }
     class DataTableError {
         <<enum>>
@@ -319,7 +320,7 @@ classDiagram
         +parse_column_with(name, parser) Result<T, DataTableError>
     }
     class TruthyBoolError {
-        +value: String
+        +value(&self) -> &str
     }
     class TrimmedParseError {
         +source: E
