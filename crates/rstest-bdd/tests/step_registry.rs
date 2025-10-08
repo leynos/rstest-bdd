@@ -113,7 +113,7 @@ fn wrapper_error_handling(
     #[case] pattern: &str,
     #[case] function_name: &str,
     #[case] expected_message: &str,
-    #[case] is_execution_error: bool,
+    #[case] is_non_panic_error: bool,
 ) {
     let step_fn = iter::<Step>
         .into_iter()
@@ -126,7 +126,7 @@ fn wrapper_error_handling(
         panic!("expected error from wrapper '{pattern}'");
     };
     let err_display = strip_directional_isolates(&err.to_string());
-    if is_execution_error {
+    if is_non_panic_error {
         match err {
             StepError::ExecutionError {
                 pattern: p,

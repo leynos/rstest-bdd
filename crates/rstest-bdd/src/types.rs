@@ -120,8 +120,12 @@ impl FromStr for StepKeyword {
     }
 }
 
-// Step types resolved from the Gherkin parser. Unknown variants return
-// `UnsupportedStepType`.
+/// Error raised when converting a parsed Gherkin [`StepType`] into a
+/// [`StepKeyword`] fails.
+///
+/// Captures the offending [`StepType`] to help callers diagnose missing
+/// language support. Implements [`fmt::Display`] and [`std::error::Error`]
+/// for consumption by callers via conventional error handling.
 #[derive(Debug)]
 pub struct UnsupportedStepType(pub StepType);
 
