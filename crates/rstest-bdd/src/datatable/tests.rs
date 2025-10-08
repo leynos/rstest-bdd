@@ -161,10 +161,16 @@ fn uneven_rows_are_rejected() {
 #[case("y", true)]
 #[case("true", true)]
 #[case("1", true)]
+#[case(" Yes ", true)]
+#[case("TRUE", true)]
+#[case("TrUe", true)]
 #[case("no", false)]
 #[case("n", false)]
 #[case("false", false)]
 #[case("0", false)]
+#[case(" no ", false)]
+#[case("FALSE", false)]
+#[case("FaLsE", false)]
 fn truthy_bool_accepts_common_forms(#[case] input: &str, #[case] expected: bool) {
     match truthy_bool(input) {
         Ok(actual) => assert_eq!(actual, expected),
@@ -181,6 +187,14 @@ fn truthy_bool_rejects_unknown_values() {
         err.to_string(),
         "unrecognised boolean value 'maybe' (expected yes/y/true/1 or no/n/false/0)"
     );
+}
+
+#[test]
+fn truthy_bool_error_exposes_original_value() {
+    let Err(err) = truthy_bool("  MAYBE  ") else {
+        panic!("value should be rejected");
+    };
+    assert_eq!(err.value(), "maybe");
 }
 
 #[rstest]

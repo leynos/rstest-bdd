@@ -3,6 +3,8 @@
 use std::convert::TryFrom;
 use std::ops::Deref;
 
+use derive_more::From;
+
 use super::{DataTableError, HeaderSpec, RowSpec};
 
 /// Trait implemented by types that can be constructed from a [`RowSpec`].
@@ -20,52 +22,8 @@ pub trait DataTableRow: Sized {
 }
 
 /// A strongly-typed collection of parsed rows.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, From)]
 pub struct Rows<T>(Vec<T>);
-
-impl<T> Rows<T> {
-    pub(super) fn new(rows: Vec<T>) -> Self {
-        Self(rows)
-    }
-
-    /// Returns the number of parsed rows.
-    #[must_use]
-    pub fn len(&self) -> usize {
-        self.0.len()
-    }
-
-    /// Returns `true` when the collection is empty.
-    #[must_use]
-    pub fn is_empty(&self) -> bool {
-        self.0.is_empty()
-    }
-
-    /// Provides shared access to the parsed rows.
-    #[must_use]
-    pub fn as_slice(&self) -> &[T] {
-        &self.0
-    }
-
-    /// Returns an iterator over the parsed rows.
-    pub fn iter(&self) -> std::slice::Iter<'_, T> {
-        self.0.iter()
-    }
-
-    /// Consumes the collection, returning the underlying vector.
-    #[must_use]
-    pub fn into_inner(self) -> Vec<T> {
-        self.0
-    }
-}
-
-impl<T> IntoIterator for Rows<T> {
-    type Item = T;
-    type IntoIter = std::vec::IntoIter<T>;
-
-    fn into_iter(self) -> Self::IntoIter {
-        self.0.into_iter()
-    }
-}
 
 impl<T> Deref for Rows<T> {
     type Target = [T];
@@ -75,12 +33,25 @@ impl<T> Deref for Rows<T> {
     }
 }
 
+impl<T> IntoIterator for Rows<T> {
+    type Item = T;
+    type IntoIter = std::vec::IntoIter<T>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        // Manual impl keeps owned iteration behaviour identical to Vec while the
+        // `From<Vec<T>>` derive still removes conversion boilerplate.
+        self.0.into_iter()
+    }
+}
+
 impl<'a, T> IntoIterator for &'a Rows<T> {
     type Item = &'a T;
     type IntoIter = std::slice::Iter<'a, T>;
 
     fn into_iter(self) -> Self::IntoIter {
-        self.iter()
+        // Delegating to the backing Vec preserves the `for row in &rows` pattern
+        // without relying on the derive macro's reference expansion.
+        self.0.iter()
     }
 }
 
@@ -117,6 +88,6 @@ where
             let parsed = T::parse_row(spec)?;
             parsed_rows.push(parsed);
         }
-        Ok(Self::new(parsed_rows))
+        Ok(Self(parsed_rows))
     }
 }

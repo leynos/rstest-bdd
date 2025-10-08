@@ -26,6 +26,7 @@ serde = { version = "1.0", features = ["derive"], optional = true }
 serde_json = { version = "1.0", optional = true }
 ctor.workspace = true
 log.workspace = true
+derive_more.workspace = true
 i18n-embed.workspace = true
 rust-embed.workspace = true
 fluent.workspace = true
