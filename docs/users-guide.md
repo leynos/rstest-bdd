@@ -487,10 +487,13 @@ Fluent infrastructure to load resources into their own
 on the built-in loader and request a different language at runtime:
 
 ```rust
+# fn scope_locale() -> Result<(), rstest_bdd::localisation::LocalisationError> {
 use rstest_bdd::select_localisations;
 use unic_langid::langid;
 
 select_localisations(&[langid!("fr")])?; // Switch diagnostics to French
+# Ok(())
+# }
 ```
 
 The selection function preserves the caller-supplied order, so applications can

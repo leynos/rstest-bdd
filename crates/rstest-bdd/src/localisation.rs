@@ -25,16 +25,20 @@ thread_local! {
     static OVERRIDE_LOADER: RefCell<Option<FluentLanguageLoader>> = const { RefCell::new(None) };
 }
 
+/// Errors from localisation setup and queries.
 #[derive(Debug, Error)]
 pub enum LocalisationError {
+    /// Global or thread-local localisation state was poisoned.
     #[error("localisation state is poisoned")]
     Poisoned,
+    /// Loading or selecting Fluent resources failed.
     #[error("failed to load localisation resources: {0}")]
     Loader(#[from] I18nEmbedError),
 }
 
 /// RAII guard that installs a thread-local localisation loader for the
 /// lifetime of the guard.
+#[must_use]
 pub struct ScopedLocalisation {
     previous: Option<FluentLanguageLoader>,
 }

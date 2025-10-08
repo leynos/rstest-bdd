@@ -1876,7 +1876,7 @@ These macros keep test code succinct while still surfacing detailed diagnostics.
   the `rstest-bdd` crate using `FluentLanguageLoader` and `i18n-embed`'s locale
   requesters. Avoid compile‑time locale switches in macros.
 
-#### Implemented localisation harness (2025-11-23)
+#### Implemented localisation harness
 
 - Added an `i18n.toml` describing the Fluent domain and bundled the
   `i18n/<locale>/rstest-bdd.ftl` catalogue via `rust-embed`. The derived
