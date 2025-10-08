@@ -168,6 +168,7 @@ pub fn strip_directional_isolates(text: &str) -> String {
         .collect()
 }
 
+/// Panic with a localised message resolved from a Fluent ID and key–value args.
 #[macro_export]
 macro_rules! panic_localised {
     ($id:expr $(, $key:ident = $value:expr )* $(,)?) => {{

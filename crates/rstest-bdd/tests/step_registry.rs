@@ -174,7 +174,7 @@ fn wrapper_errors_localise(
     #[case] pattern: &str,
     #[case] expected_snippet: &str,
 ) {
-    let guard = ScopedLocalisation::new(&[langid!("fr")])
+    let _guard = ScopedLocalisation::new(&[langid!("fr")])
         .unwrap_or_else(|error| panic!("failed to scope French locale: {error}"));
     let step_fn = iter::<Step>
         .into_iter()
@@ -191,5 +191,4 @@ fn wrapper_errors_localise(
         message.contains(expected_snippet),
         "expected '{expected_snippet}' in '{message}'",
     );
-    drop(guard);
 }

@@ -2,6 +2,7 @@
 
 use std::panic::{AssertUnwindSafe, catch_unwind};
 
+use rstest::rstest;
 use rstest_bdd::localisation::{ScopedLocalisation, strip_directional_isolates};
 use rstest_bdd::{assert_step_err, assert_step_ok, panic_message};
 use unic_langid::langid;
@@ -15,14 +16,30 @@ fn capture_panic_message(op: impl FnOnce()) -> String {
 
 /// Helper to test panic messages in French locale.
 fn assert_panic_in_french(op: impl FnOnce(), expected_substring: &str) {
-    let guard = ScopedLocalisation::new(&[langid!("fr")])
+    let _guard = ScopedLocalisation::new(&[langid!("fr")])
         .unwrap_or_else(|error| panic!("failed to scope French locale: {error}"));
     let message = capture_panic_message(op);
     assert!(
         message.contains(expected_substring),
         "expected message to contain '{expected_substring}', got: {message}"
     );
-    drop(guard);
+}
+
+fn assert_step_ok_panics() {
+    let res: Result<(), &str> = Err("boom");
+    assert_step_ok!(res);
+}
+
+fn assert_step_err_panics() {
+    let res: Result<(), &str> = Ok(());
+    let _ = assert_step_err!(res);
+}
+
+#[rstest]
+#[case::assert_step_ok(assert_step_ok_panics as fn(), "l'étape a renvoyé une erreur")]
+#[case::assert_step_err(assert_step_err_panics as fn(), "l'étape a réussi")]
+fn assert_macros_panic_on_err_in_french(#[case] operation: fn(), #[case] expected_substring: &str) {
+    assert_panic_in_french(operation, expected_substring);
 }
 
 #[test]
@@ -45,17 +62,6 @@ fn assert_step_ok_panics_on_err_in_english() {
         assert_step_ok!(res);
     });
     assert_eq!(message, "step returned error: boom");
-}
-
-#[test]
-fn assert_step_ok_panics_on_err_in_french() {
-    assert_panic_in_french(
-        || {
-            let res: Result<(), &str> = Err("boom");
-            assert_step_ok!(res);
-        },
-        "l'étape a renvoyé une erreur",
-    );
 }
 
 #[test]
@@ -103,17 +109,6 @@ fn assert_step_err_panics_when_substring_absent() {
         let _ = assert_step_err!(res, "absent");
     });
     assert!(message.contains("does not contain"));
-}
-
-#[test]
-fn assert_step_err_panics_on_ok_in_french() {
-    assert_panic_in_french(
-        || {
-            let res: Result<(), &str> = Ok(());
-            let _ = assert_step_err!(res);
-        },
-        "l'étape a réussi",
-    );
 }
 
 #[test]
