@@ -108,12 +108,12 @@ fn step_is_registered() {
     "Missing fixture 'missing' of type 'u32' for step function 'needs_fixture'",
     true
 )]
-fn wrapper_error_handling(
+fn wrapper_handles_panic_and_non_panic_errors(
     #[case] keyword: StepKeyword,
     #[case] pattern: &str,
     #[case] function_name: &str,
     #[case] expected_message: &str,
-    #[case] is_non_panic_error: bool,
+    #[case] expects_non_panic_branch: bool,
 ) {
     let step_fn = iter::<Step>
         .into_iter()
@@ -126,7 +126,7 @@ fn wrapper_error_handling(
         panic!("expected error from wrapper '{pattern}'");
     };
     let err_display = strip_directional_isolates(&err.to_string());
-    if is_non_panic_error {
+    if expects_non_panic_branch {
         match err {
             StepError::ExecutionError {
                 pattern: p,
