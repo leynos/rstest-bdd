@@ -22,6 +22,7 @@ pub trait DataTableRow: Sized {
 }
 
 /// A strongly-typed collection of parsed rows.
+
 #[derive(Debug, Clone, PartialEq, Eq, From)]
 pub struct Rows<T>(Vec<T>);
 
@@ -30,6 +31,14 @@ impl<T> Deref for Rows<T> {
 
     fn deref(&self) -> &Self::Target {
         &self.0
+    }
+}
+
+impl<T> Rows<T> {
+    /// Consumes the wrapper, returning the inner [`Vec`].
+    #[must_use]
+    pub fn into_vec(self) -> Vec<T> {
+        self.0
     }
 }
 

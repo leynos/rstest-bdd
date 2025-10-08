@@ -228,6 +228,13 @@ fn trimmed_preserves_inner_error() {
         "failed to parse trimmed value from input '1': boom"
     );
     assert_eq!(err.original_input(), "1");
+    let Some(source) = err.source() else {
+        panic!("source error should be preserved");
+    };
+    assert!(
+        source.downcast_ref::<FakeError>().is_some(),
+        "source should be the inner FakeError"
+    );
 }
 
 #[test]
@@ -240,6 +247,20 @@ fn trimmed_reports_original_input_on_parse_failure() {
         err.to_string()
             .starts_with("failed to parse trimmed value from input ' 300 '")
     );
+}
+
+#[test]
+fn rows_from_vec_preserves_order() {
+    let rows = Rows::from(vec![1, 2, 3]);
+    assert_eq!(rows.len(), 3);
+    assert_eq!(rows.iter().copied().collect::<Vec<_>>(), vec![1, 2, 3]);
+}
+
+#[test]
+fn rows_into_vec_returns_owned_elements() {
+    let rows = Rows::from(vec![String::from("alice"), String::from("bob")]);
+    let owned = rows.into_vec();
+    assert_eq!(owned, vec![String::from("alice"), String::from("bob")]);
 }
 
 #[test]

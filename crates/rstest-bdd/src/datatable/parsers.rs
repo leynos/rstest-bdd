@@ -30,6 +30,7 @@ pub fn truthy_bool(value: &str) -> Result<bool, TruthyBoolError> {
 }
 
 /// Error returned when [`truthy_bool`] fails to classify a value.
+
 #[derive(Debug, Clone, PartialEq, Eq, Error)]
 #[error("unrecognised boolean value '{value}' (expected yes/y/true/1 or no/n/false/0)")]
 pub struct TruthyBoolError {
@@ -71,6 +72,7 @@ where
 }
 
 /// Error returned when [`trimmed`] fails to parse the value.
+
 #[derive(Debug, Error)]
 #[error("failed to parse trimmed value from input '{original_input}': {source}")]
 pub struct TrimmedParseError<E>
