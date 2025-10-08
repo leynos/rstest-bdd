@@ -48,7 +48,7 @@ where
 
 #[test]
 fn parses_rows_without_header() {
-    if let Err(err) = assert_parses_rows(
+    assert_parses_rows(
         vec![
             vec!["alice".to_string(), "1".to_string()],
             vec!["bob".to_string(), "2".to_string()],
@@ -64,9 +64,8 @@ fn parses_rows_without_header() {
                 second: 2,
             },
         ],
-    ) {
-        panic!("table should parse: {err}");
-    }
+    )
+    .unwrap_or_else(|err| panic!("table should parse: {err}"));
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -89,7 +88,7 @@ impl DataTableRow for Named {
 // Intentional: shared helper keeps duplication low while scenarios diverge on
 // header handling semantics.
 fn parses_rows_with_header() {
-    if let Err(err) = assert_parses_rows(
+    assert_parses_rows(
         vec![
             vec!["name".to_string(), "active".to_string()],
             vec!["Alice".to_string(), "yes".to_string()],
@@ -106,9 +105,8 @@ fn parses_rows_with_header() {
                 active: false,
             },
         ],
-    ) {
-        panic!("table should parse: {err}");
-    }
+    )
+    .unwrap_or_else(|err| panic!("table should parse: {err}"));
 }
 
 #[test]
