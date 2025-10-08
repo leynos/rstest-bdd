@@ -31,21 +31,24 @@ impl DataTableRow for Pair {
     }
 }
 
-fn assert_parses_rows<T>(rows: Vec<Vec<String>>, expected_len: usize, expected_data: &[T])
+fn assert_parses_rows<T>(
+    rows: Vec<Vec<String>>,
+    expected_len: usize,
+    expected_data: &[T],
+) -> Result<(), DataTableError>
 where
     T: DataTableRow + fmt::Debug + PartialEq,
 {
-    let parsed: Rows<T> = rows
-        .try_into()
-        .unwrap_or_else(|err| panic!("table should parse: {err}"));
+    let parsed: Rows<T> = rows.try_into()?;
     assert_eq!(parsed.len(), expected_len);
     let data = parsed.into_iter().collect::<Vec<_>>();
     assert_eq!(data.as_slice(), expected_data);
+    Ok(())
 }
 
 #[test]
 fn parses_rows_without_header() {
-    assert_parses_rows(
+    if let Err(err) = assert_parses_rows(
         vec![
             vec!["alice".to_string(), "1".to_string()],
             vec!["bob".to_string(), "2".to_string()],
@@ -61,7 +64,9 @@ fn parses_rows_without_header() {
                 second: 2,
             },
         ],
-    );
+    ) {
+        panic!("table should parse: {err}");
+    }
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -84,7 +89,7 @@ impl DataTableRow for Named {
 // Intentional: shared helper keeps duplication low while scenarios diverge on
 // header handling semantics.
 fn parses_rows_with_header() {
-    assert_parses_rows(
+    if let Err(err) = assert_parses_rows(
         vec![
             vec!["name".to_string(), "active".to_string()],
             vec!["Alice".to_string(), "yes".to_string()],
@@ -101,7 +106,9 @@ fn parses_rows_with_header() {
                 active: false,
             },
         ],
-    );
+    ) {
+        panic!("table should parse: {err}");
+    }
 }
 
 #[test]
