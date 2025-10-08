@@ -13,6 +13,18 @@ fn capture_panic_message(op: impl FnOnce()) -> String {
     }
 }
 
+/// Helper to test panic messages in French locale.
+fn assert_panic_in_french(op: impl FnOnce(), expected_substring: &str) {
+    let guard = ScopedLocalisation::new(&[langid!("fr")])
+        .unwrap_or_else(|error| panic!("failed to scope French locale: {error}"));
+    let message = capture_panic_message(op);
+    assert!(
+        message.contains(expected_substring),
+        "expected message to contain '{expected_substring}', got: {message}"
+    );
+    drop(guard);
+}
+
 #[test]
 fn assert_step_ok_unwraps_result() {
     let res: Result<(), &str> = Ok(());
@@ -37,14 +49,13 @@ fn assert_step_ok_panics_on_err_in_english() {
 
 #[test]
 fn assert_step_ok_panics_on_err_in_french() {
-    let guard = ScopedLocalisation::new(&[langid!("fr")])
-        .unwrap_or_else(|error| panic!("failed to scope French locale: {error}"));
-    let message = capture_panic_message(|| {
-        let res: Result<(), &str> = Err("boom");
-        assert_step_ok!(res);
-    });
-    assert!(message.contains("l'étape a renvoyé une erreur"));
-    drop(guard);
+    assert_panic_in_french(
+        || {
+            let res: Result<(), &str> = Err("boom");
+            assert_step_ok!(res);
+        },
+        "l'étape a renvoyé une erreur",
+    );
 }
 
 #[test]
@@ -96,14 +107,13 @@ fn assert_step_err_panics_when_substring_absent() {
 
 #[test]
 fn assert_step_err_panics_on_ok_in_french() {
-    let guard = ScopedLocalisation::new(&[langid!("fr")])
-        .unwrap_or_else(|error| panic!("failed to scope French locale: {error}"));
-    let message = capture_panic_message(|| {
-        let res: Result<(), &str> = Ok(());
-        let _ = assert_step_err!(res);
-    });
-    assert!(message.contains("l'étape a réussi"));
-    drop(guard);
+    assert_panic_in_french(
+        || {
+            let res: Result<(), &str> = Ok(());
+            let _ = assert_step_err!(res);
+        },
+        "l'étape a réussi",
+    );
 }
 
 #[test]
