@@ -1819,9 +1819,9 @@ two helper macros:
 
 These macros keep test code succinct while still surfacing detailed diagnostics.
 
-## Part 4: Internationalisation and Localization Roadmap
+## Part 4: Internationalization and Localization Roadmap
 
-### 4.1 Phase 1: Foundational Gherkin Internationalisation (target v0.4)
+### 4.1 Phase 1: Foundational Gherkin Internationalization (target v0.4)
 
 - **Language detection:** Update the macro parser to honour the optional
   `# language: <lang>` declaration in feature files. The parser creates a
