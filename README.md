@@ -294,7 +294,7 @@ configuration.
 
 Runtime diagnostics ship as Fluent translations bundled with the crate. English
 messages are always available; call `select_localisations` to request another
-locale before running your scenarios:
+locale before running scenarios:
 
 ```rust
 use rstest_bdd::select_localisations;
