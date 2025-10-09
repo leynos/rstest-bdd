@@ -26,9 +26,9 @@ fn matches_any_case_insensitive(s: &str, candidates: &[&str]) -> bool {
 ///
 /// Returns [`TruthyBoolError`] when the input does not match a recognised form.
 pub fn truthy_bool(value: &str) -> Result<bool, TruthyBoolError> {
-    let trimmed = value.trim();
     const TRUTHY_VALUES: &[&str] = &["yes", "y", "true"];
     const FALSY_VALUES: &[&str] = &["no", "n", "false"];
+    let trimmed = value.trim();
     if trimmed == "1" || matches_any_case_insensitive(trimmed, TRUTHY_VALUES) {
         Ok(true)
     } else if trimmed == "0" || matches_any_case_insensitive(trimmed, FALSY_VALUES) {
