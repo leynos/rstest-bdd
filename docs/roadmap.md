@@ -268,7 +268,7 @@ diagnostic messages.
 
 - [ ] **Documentation and User Guidance**
 
-  - [ ] Update `README.md` and `docs/users-guide.md` with a new section
+  - [x] Update `README.md` and `docs/users-guide.md` with a new section
     detailing how to use the internationalization features.
 
   - [ ] Add a new example crate to demonstrate writing and running a BDD test
