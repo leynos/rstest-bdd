@@ -1,16 +1,16 @@
 use i18n_embed::fluent::fluent_language_loader;
-use rstest_bdd::localisation::{
-    ScopedLocalisation, current_languages, install_localisation_loader, message, message_with_args,
-    select_localisations, strip_directional_isolates,
+use rstest_bdd::localization::{
+    ScopedLocalization, current_languages, install_localization_loader, message, message_with_args,
+    select_localizations, strip_directional_isolates,
 };
-use rstest_bdd::{Localisations, StepError};
+use rstest_bdd::{Localizations, StepError};
 use serial_test::serial;
 use unic_langid::langid;
 
 #[test]
-fn scoped_localisation_overrides_current_thread() {
+fn scoped_localization_overrides_current_thread() {
     let english_id = langid!("en-US");
-    let base = ScopedLocalisation::new(std::slice::from_ref(&english_id))
+    let base = ScopedLocalization::new(std::slice::from_ref(&english_id))
         .unwrap_or_else(|error| panic!("failed to scope English locale: {error}"));
 
     let err = StepError::MissingFixture {
@@ -26,7 +26,7 @@ fn scoped_localisation_overrides_current_thread() {
 
     {
         let french_id = langid!("fr");
-        let french_guard = ScopedLocalisation::new(std::slice::from_ref(&french_id))
+        let french_guard = ScopedLocalization::new(std::slice::from_ref(&french_id))
             .unwrap_or_else(|error| panic!("failed to scope French locale: {error}"));
         let french = strip_directional_isolates(&err.to_string());
         assert_eq!(
@@ -44,10 +44,10 @@ fn scoped_localisation_overrides_current_thread() {
 }
 
 #[test]
-fn select_localisations_respects_thread_override() {
-    let guard = ScopedLocalisation::new(&[langid!("en-US")])
+fn select_localizations_respects_thread_override() {
+    let guard = ScopedLocalization::new(&[langid!("en-US")])
         .unwrap_or_else(|error| panic!("failed to scope English locale: {error}"));
-    select_localisations(&[langid!("fr")])
+    select_localizations(&[langid!("fr")])
         .unwrap_or_else(|error| panic!("failed to switch to French: {error}"));
 
     let err = StepError::PanicError {
@@ -61,32 +61,32 @@ fn select_localisations_respects_thread_override() {
         display.contains("Panique") || lowered.contains("panic"),
         "message should reflect locale switch, got: {display}",
     );
-    // Keep the scoped localisation active for the lifetime of the assertion.
+    // Keep the scoped localization active for the lifetime of the assertion.
     let _ = &guard;
 }
 
 #[test]
 fn current_languages_reports_thread_override() {
-    let guard = ScopedLocalisation::new(&[langid!("fr")])
+    let guard = ScopedLocalization::new(&[langid!("fr")])
         .unwrap_or_else(|error| panic!("failed to scope French locale: {error}"));
     let active = current_languages()
         .unwrap_or_else(|error| panic!("failed to query current languages: {error}"));
     assert_eq!(active, vec![langid!("fr"), langid!("en-US")]);
-    // Keep the scoped localisation active for the lifetime of the assertion.
+    // Keep the scoped localization active for the lifetime of the assertion.
     let _ = &guard;
 }
 
 #[test]
-#[serial(localisation)]
-fn install_localisation_loader_replaces_global_loader() {
+#[serial(localization)]
+fn install_localization_loader_replaces_global_loader() {
     let replacement = {
         let loader = fluent_language_loader!();
-        i18n_embed::select(&loader, &Localisations, &[langid!("fr")])
+        i18n_embed::select(&loader, &Localizations, &[langid!("fr")])
             .unwrap_or_else(|error| panic!("failed to prepare replacement loader: {error}"));
         loader
     };
 
-    install_localisation_loader(replacement)
+    install_localization_loader(replacement)
         .unwrap_or_else(|error| panic!("failed to install replacement loader: {error}"));
 
     let languages = current_languages()
@@ -95,29 +95,29 @@ fn install_localisation_loader_replaces_global_loader() {
 
     let restore = {
         let loader = fluent_language_loader!();
-        i18n_embed::select(&loader, &Localisations, &[langid!("en-US")])
+        i18n_embed::select(&loader, &Localizations, &[langid!("en-US")])
             .unwrap_or_else(|error| panic!("failed to prepare restoration loader: {error}"));
         loader
     };
 
-    install_localisation_loader(restore)
+    install_localization_loader(restore)
         .unwrap_or_else(|error| panic!("failed to restore original loader: {error}"));
 }
 
 #[test]
-fn select_localisations_falls_back_to_english() {
-    let guard = ScopedLocalisation::new(&[langid!("en-US")])
+fn select_localizations_falls_back_to_english() {
+    let guard = ScopedLocalization::new(&[langid!("en-US")])
         .unwrap_or_else(|error| panic!("failed to scope English locale: {error}"));
-    let selected = select_localisations(&[langid!("zz")])
+    let selected = select_localizations(&[langid!("zz")])
         .unwrap_or_else(|error| panic!("failed to select fallback locale: {error}"));
     assert_eq!(selected, vec![langid!("en-US")]);
-    // Keep the scoped localisation active for the lifetime of the assertion.
+    // Keep the scoped localization active for the lifetime of the assertion.
     let _ = &guard;
 }
 
 #[test]
-fn localisations_embed_resources() {
-    let asset = Localisations::get("en-US/rstest-bdd.ftl")
+fn localizations_embed_resources() {
+    let asset = Localizations::get("en-US/rstest-bdd.ftl")
         .unwrap_or_else(|| panic!("expected embedded English translations"));
     let contents = std::str::from_utf8(&asset.data)
         .unwrap_or_else(|error| panic!("embedded translations should be UTF-8: {error}"));
@@ -129,7 +129,7 @@ fn localisations_embed_resources() {
 
 #[test]
 fn message_helpers_use_active_locale() {
-    let guard = ScopedLocalisation::new(&[langid!("fr")])
+    let guard = ScopedLocalization::new(&[langid!("fr")])
         .unwrap_or_else(|error| panic!("failed to scope French locale: {error}"));
     let plain = strip_directional_isolates(&message("assert-step-err-success"));
     assert!(plain.contains("réussi"));
@@ -141,6 +141,6 @@ fn message_helpers_use_active_locale() {
         },
     ));
     assert!(detailed.contains("boom"));
-    // Keep the scoped localisation active for the lifetime of the assertion.
+    // Keep the scoped localization active for the lifetime of the assertion.
     let _ = &guard;
 }

@@ -1,6 +1,6 @@
 //! Behavioural test for fixture context injection
 
-use rstest_bdd::localisation::{ScopedLocalisation, strip_directional_isolates};
+use rstest_bdd::localization::{ScopedLocalization, strip_directional_isolates};
 use rstest_bdd::{
     StepContext, StepError, StepKeyword, assert_step_err, assert_step_ok, lookup_step,
 };
@@ -62,8 +62,8 @@ fn context_missing_fixture_returns_error() {
 
 #[test]
 #[expect(clippy::expect_used, reason = "step lookup must succeed for test")]
-fn context_missing_fixture_localises_error() {
-    let guard = ScopedLocalisation::new(&[langid!("fr")])
+fn context_missing_fixture_localizes_error() {
+    let guard = ScopedLocalization::new(&[langid!("fr")])
         .unwrap_or_else(|error| panic!("failed to scope French locale: {error}"));
     let ctx = StepContext::default();
     let step_fn = lookup_step(StepKeyword::Given, "a value".into())

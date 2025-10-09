@@ -4,7 +4,7 @@
 //! keyword enum with parsing helpers, error types, and common type aliases used
 //! by the registry and runner.
 
-use crate::localisation;
+use crate::localization;
 use gherkin::StepType;
 use std::borrow::Cow;
 use std::fmt;
@@ -96,7 +96,7 @@ pub struct StepKeywordParseError(pub String);
 
 impl fmt::Display for StepKeywordParseError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let message = localisation::message_with_args("step-keyword-parse-error", |args| {
+        let message = localization::message_with_args("step-keyword-parse-error", |args| {
             args.set("keyword", self.0.clone());
         });
         f.write_str(&message)
@@ -150,7 +150,7 @@ pub struct UnsupportedStepType(pub StepType);
 
 impl fmt::Display for UnsupportedStepType {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let message = localisation::message_with_args("unsupported-step-type", |args| {
+        let message = localization::message_with_args("unsupported-step-type", |args| {
             args.set("step_type", format!("{:?}", self.0));
         });
         f.write_str(&message)
@@ -180,7 +180,7 @@ impl core::convert::TryFrom<StepType> for StepKeyword {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::localisation::{ScopedLocalisation, strip_directional_isolates};
+    use crate::localization::{ScopedLocalization, strip_directional_isolates};
     use gherkin::StepType;
     use rstest::rstest;
     use std::str::FromStr;
@@ -217,7 +217,7 @@ mod tests {
 
     #[test]
     fn unsupported_step_type_display_mentions_variant() {
-        let guard = ScopedLocalisation::new(&[langid!("en-US")])
+        let guard = ScopedLocalization::new(&[langid!("en-US")])
             .unwrap_or_else(|error| panic!("failed to scope English locale: {error}"));
         let err = UnsupportedStepType(StepType::Then);
         let message = strip_directional_isolates(&err.to_string());
@@ -225,7 +225,7 @@ mod tests {
             message.contains("Then"),
             "display should include offending variant: {message}",
         );
-        // Hold the localisation context until the assertion completes.
+        // Hold the localization context until the assertion completes.
         let _ = &guard;
     }
 
@@ -267,13 +267,13 @@ impl PlaceholderSyntaxError {
             .placeholder
             .as_ref()
             .map(|name| {
-                let detail = localisation::message_with_args("placeholder-syntax-suffix", |args| {
+                let detail = localization::message_with_args("placeholder-syntax-suffix", |args| {
                     args.set("placeholder", name.clone());
                 });
                 format!(" {detail}")
             })
             .unwrap_or_default();
-        localisation::message_with_args("placeholder-syntax-detail", |args| {
+        localization::message_with_args("placeholder-syntax-detail", |args| {
             args.set("reason", self.message.clone());
             args.set("position", self.position.to_string());
             args.set("suffix", suffix);
@@ -283,7 +283,7 @@ impl PlaceholderSyntaxError {
 
 impl fmt::Display for PlaceholderSyntaxError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let message = localisation::message_with_args("placeholder-syntax", |args| {
+        let message = localization::message_with_args("placeholder-syntax", |args| {
             args.set("details", self.user_message());
         });
         f.write_str(&message)
@@ -326,7 +326,7 @@ impl fmt::Display for StepPatternError {
             Self::InvalidPattern(err) => err.fmt(f),
             Self::NotCompiled { pattern } => {
                 let message =
-                    localisation::message_with_args("step-pattern-not-compiled", |args| {
+                    localization::message_with_args("step-pattern-not-compiled", |args| {
                         args.set("pattern", pattern.to_string());
                     });
                 f.write_str(&message)
@@ -365,19 +365,19 @@ pub enum PlaceholderError {
 impl fmt::Display for PlaceholderError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let message = match self {
-            Self::PatternMismatch => localisation::message("placeholder-pattern-mismatch"),
+            Self::PatternMismatch => localization::message("placeholder-pattern-mismatch"),
             Self::InvalidPlaceholder(details) => {
-                localisation::message_with_args("placeholder-invalid-placeholder", |args| {
+                localization::message_with_args("placeholder-invalid-placeholder", |args| {
                     args.set("details", details.clone());
                 })
             }
             Self::InvalidPattern(pattern) => {
-                localisation::message_with_args("placeholder-invalid-pattern", |args| {
+                localization::message_with_args("placeholder-invalid-pattern", |args| {
                     args.set("pattern", pattern.clone());
                 })
             }
             Self::NotCompiled { pattern } => {
-                localisation::message_with_args("placeholder-not-compiled", |args| {
+                localization::message_with_args("placeholder-not-compiled", |args| {
                     args.set("pattern", pattern.clone());
                 })
             }

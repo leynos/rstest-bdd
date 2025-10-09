@@ -1,7 +1,7 @@
 //! Tests for placeholder extraction logic.
 
 use rstest::rstest;
-use rstest_bdd::localisation::{ScopedLocalisation, strip_directional_isolates};
+use rstest_bdd::localization::{ScopedLocalization, strip_directional_isolates};
 use rstest_bdd::{
     PlaceholderError, PlaceholderSyntaxError, StepPattern, StepPatternError, StepText,
     extract_placeholders,
@@ -238,7 +238,7 @@ fn invalid_pattern_error_display() {
 
 #[test]
 fn placeholder_error_display_in_french() {
-    let guard = ScopedLocalisation::new(&[langid!("fr")])
+    let guard = ScopedLocalization::new(&[langid!("fr")])
         .unwrap_or_else(|error| panic!("failed to scope French locale: {error}"));
     let pat = StepPattern::from("value {n:}");
     #[expect(clippy::expect_used, reason = "test asserts error variant")]

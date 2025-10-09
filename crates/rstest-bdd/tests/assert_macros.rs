@@ -3,7 +3,7 @@
 use std::panic::{AssertUnwindSafe, catch_unwind};
 
 use rstest::rstest;
-use rstest_bdd::localisation::{ScopedLocalisation, strip_directional_isolates};
+use rstest_bdd::localization::{ScopedLocalization, strip_directional_isolates};
 use rstest_bdd::{assert_step_err, assert_step_ok, panic_message};
 use unic_langid::langid;
 
@@ -16,7 +16,7 @@ fn capture_panic_message(op: impl FnOnce()) -> String {
 
 /// Helper to test panic messages in French locale.
 fn assert_panic_in_french(op: impl FnOnce(), expected_substring: &str) {
-    let _guard = ScopedLocalisation::new(&[langid!("fr")])
+    let _guard = ScopedLocalization::new(&[langid!("fr")])
         .unwrap_or_else(|error| panic!("failed to scope French locale: {error}"));
     let message = capture_panic_message(op);
     assert!(
