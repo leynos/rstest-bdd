@@ -1,7 +1,7 @@
 step-error-missing-fixture = Falta a fixture '{ $name }' do tipo '{ $ty }' para a função de passo '{ $step }'
 step-error-execution = Erro ao executar o passo '{ $pattern }' através da função '{ $function }': { $message }
 step-error-panic = Pânico no passo '{ $pattern }', função '{ $function }': { $message }
-step-keyword-parse-error = palavra-passe de passo inválida: { $keyword }
+step-keyword-parse-error = palavra-chave de passo inválida: { $keyword }
 unsupported-step-type = tipo de passo não suportado: { $step_type }
 step-pattern-not-compiled = a expressão regular do padrão do passo não foi compilada; execute compile() primeiro no padrão '{ $pattern }'
 placeholder-pattern-mismatch = o padrão não corresponde
