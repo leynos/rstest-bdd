@@ -470,7 +470,7 @@ the result is `Err`. `assert_step_err!` unwraps the error and optionally checks
 that its display contains a substring. Both macros return their unwrapped
 values, allowing further inspection when required.
 
-## Localising runtime diagnostics
+## Localizing runtime diagnostics
 
 `rstest-bdd` now ships its user-facing diagnostics via Fluent translation
 files. The crate bundles English strings by default and falls back to them when
