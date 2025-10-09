@@ -1683,7 +1683,7 @@ enum PlaceholderError {
   The localized display strings wrap interpolated arguments with Unicode
   directional isolate markers (`U+2066`–`U+2069`) to ensure values render
   correctly in right-to-left locales. Consumers comparing the text should
-  normalise messages by removing these control characters.
+  normalize messages by removing these control characters.
 
   - Example JSON mapping (for consumers that serialize errors). Note: this is
     not emitted by the library; it suggests a shape for mapping the enum to
@@ -1881,10 +1881,10 @@ These macros keep test code succinct while still surfacing detailed diagnostics.
   built-in loader.
 - Exposed `select_localizations` and `current_languages` helpers around the
   shared loader so applications can request locales at runtime whilst retaining
-  the caller-supplied preference order. The loader initialises with English and
+  the caller-supplied preference order. The loader initializes with English and
   falls back to it when a requested language is unavailable.
 - Added a thread-local `ScopedLocalization` guard so unit and behaviour tests
-  can swap locales without serialising the entire test suite. When active the
+  can swap locales without serializing the entire test suite. When active the
   guard shadows the global loader, ensuring concurrent tests remain isolated.
 - Introduced helper macros for mapping `StepError` variants to Fluent messages
   and for emitting localized panic strings, eliminating duplicated argument
