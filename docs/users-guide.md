@@ -470,11 +470,11 @@ the result is `Err`. `assert_step_err!` unwraps the error and optionally checks
 that its display contains a substring. Both macros return their unwrapped
 values, allowing further inspection when required.
 
-## Internationalisation and localisation
+## Internationalization and localization
 
 ### Writing feature files in other languages
 
-Feature files can opt into any Gherkin localisation. Add a `# language: <code>`
+Feature files can opt into any Gherkin localization. Add a `# language: <code>`
 directive on the first line of the `.feature` file and keep the remainder of
 the scenario in the target language:
 
@@ -492,14 +492,14 @@ The scenario parser reads the declaration and hands keyword matching to the
 continue to match without code changes. Omitting the directive keeps the
 default English vocabulary to preserve backwards compatibility.
 
-### Localising runtime diagnostics
+### Localizing runtime diagnostics
 
 `rstest-bdd` now ships its user-facing diagnostics via Fluent translation
 files. The crate bundles English strings by default and falls back to them when
 no translation is available. Applications can opt into additional locales by
 embedding the provided assets and selecting a language at runtime.
 
-Localisation tooling can be added to `Cargo.toml` as follows:
+Localization tooling can be added to `Cargo.toml` as follows:
 
 ```toml
 [dependencies]
