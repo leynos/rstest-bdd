@@ -4,6 +4,22 @@ use std::error::Error as StdError;
 
 use thiserror::Error;
 
+/// Checks whether the input matches any candidate string while ignoring ASCII
+/// case.
+///
+/// # Parameters
+/// - `s`: The input string to compare.
+/// - `candidates`: Slice of candidate strings to match against.
+///
+/// # Returns
+/// `true` when `s` matches any candidate, otherwise `false`.
+///
+/// # Examples
+/// ```
+/// # use rstest_bdd::datatable::parsers::matches_any_case_insensitive;
+/// assert!(matches_any_case_insensitive("YES", &["yes", "y"]));
+/// assert!(!matches_any_case_insensitive("maybe", &["yes", "no"]));
+/// ```
 fn matches_any_case_insensitive(s: &str, candidates: &[&str]) -> bool {
     candidates
         .iter()
