@@ -509,7 +509,7 @@ not shipped with the crate. Procedural macro diagnostics remain in English so
 compile-time output stays deterministic regardless of the host machine’s
 language settings.
 
-[`Localisations`]: ../crates/rstest-bdd/src/localisation.rs
+[`Localisations`]: https://docs.rs/rstest-bdd/latest/rstest_bdd/localisation/
 [`FluentLanguageLoader`]:
 https://docs.rs/i18n-embed/latest/i18n_embed/fluent/struct.FluentLanguageLoader.html
 

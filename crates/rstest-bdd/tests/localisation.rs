@@ -33,12 +33,14 @@ fn scoped_localisation_overrides_current_thread() {
             french,
             "La fixture « n » de type « u32 » est introuvable pour la fonction « s »",
         );
-        drop(french_guard);
+        // Hold the scoped guard until the end of the block so the locale stays active.
+        let _ = &french_guard;
     }
 
+    // Keep the base guard alive until after the French scope finishes to restore English.
+    let _ = &base;
     let restored = strip_directional_isolates(&err.to_string());
     assert_eq!(restored, baseline);
-    drop(base);
 }
 
 #[test]
@@ -54,12 +56,13 @@ fn select_localisations_respects_thread_override() {
         message: "boom".into(),
     };
     let display = strip_directional_isolates(&err.to_string());
+    let lowered = display.to_lowercase();
     assert!(
-        display.contains("Panique") || display.contains("panic"),
+        display.contains("Panique") || lowered.contains("panic"),
         "message should reflect locale switch, got: {display}",
     );
-
-    drop(guard);
+    // Keep the scoped localisation active for the lifetime of the assertion.
+    let _ = &guard;
 }
 
 #[test]
@@ -69,7 +72,8 @@ fn current_languages_reports_thread_override() {
     let active = current_languages()
         .unwrap_or_else(|error| panic!("failed to query current languages: {error}"));
     assert_eq!(active, vec![langid!("fr"), langid!("en-US")]);
-    drop(guard);
+    // Keep the scoped localisation active for the lifetime of the assertion.
+    let _ = &guard;
 }
 
 #[test]
@@ -107,7 +111,8 @@ fn select_localisations_falls_back_to_english() {
     let selected = select_localisations(&[langid!("zz")])
         .unwrap_or_else(|error| panic!("failed to select fallback locale: {error}"));
     assert_eq!(selected, vec![langid!("en-US")]);
-    drop(guard);
+    // Keep the scoped localisation active for the lifetime of the assertion.
+    let _ = &guard;
 }
 
 #[test]
@@ -136,5 +141,6 @@ fn message_helpers_use_active_locale() {
         },
     ));
     assert!(detailed.contains("boom"));
-    drop(guard);
+    // Keep the scoped localisation active for the lifetime of the assertion.
+    let _ = &guard;
 }

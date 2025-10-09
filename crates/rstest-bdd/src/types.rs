@@ -1,7 +1,8 @@
-//! Core types and error enums used across the crate.
-//! This module defines the lightweight wrappers for pattern and step text,
-//! the step keyword enum with parsing helpers, error types, and common type
-//! aliases used by the registry and runner.
+//! Core types and error enums shared across the crate.
+//!
+//! The module defines lightweight wrappers for pattern and step text, the step
+//! keyword enum with parsing helpers, error types, and common type aliases used
+//! by the registry and runner.
 
 use crate::localisation;
 use gherkin::StepType;
@@ -120,8 +121,30 @@ impl FromStr for StepKeyword {
     }
 }
 
-// Step types resolved from the Gherkin parser. Unknown variants return
-// `UnsupportedStepType`.
+/// Error raised when converting a parsed Gherkin [`StepType`] into a
+/// [`StepKeyword`] fails.
+///
+/// Captures the offending [`StepType`] to help callers diagnose missing
+/// language support. Implements [`fmt::Display`] and [`std::error::Error`]
+/// for consumption by callers via conventional error handling.
+///
+/// # Examples
+///
+/// ```rust
+/// use gherkin::StepType;
+/// use rstest_bdd::{StepKeyword, UnsupportedStepType};
+///
+/// fn convert(ty: StepType) -> Result<StepKeyword, UnsupportedStepType> {
+///     StepKeyword::try_from(ty)
+/// }
+///
+/// match convert(StepType::Given) {
+///     Ok(keyword) => assert_eq!(keyword, StepKeyword::Given),
+///     Err(error) => {
+///         eprintln!("unsupported step type: {:?}", error.0);
+///     }
+/// }
+/// ```
 #[derive(Debug)]
 pub struct UnsupportedStepType(pub StepType);
 
@@ -157,9 +180,11 @@ impl core::convert::TryFrom<StepType> for StepKeyword {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::localisation::{ScopedLocalisation, strip_directional_isolates};
     use gherkin::StepType;
     use rstest::rstest;
     use std::str::FromStr;
+    use unic_langid::langid;
 
     #[expect(clippy::expect_used, reason = "test helper with descriptive failures")]
     fn parse_kw(input: &str) -> StepKeyword {
@@ -188,6 +213,28 @@ mod tests {
     #[case(StepType::Then, StepKeyword::Then)]
     fn maps_step_type(#[case] input: StepType, #[case] expected: StepKeyword) {
         assert_eq!(kw_from_type(input), expected);
+    }
+
+    #[test]
+    fn unsupported_step_type_display_mentions_variant() {
+        let guard = ScopedLocalisation::new(&[langid!("en-US")])
+            .unwrap_or_else(|error| panic!("failed to scope English locale: {error}"));
+        let err = UnsupportedStepType(StepType::Then);
+        let message = strip_directional_isolates(&err.to_string());
+        assert!(
+            message.contains("Then"),
+            "display should include offending variant: {message}",
+        );
+        // Hold the localisation context until the assertion completes.
+        let _ = &guard;
+    }
+
+    #[test]
+    fn unsupported_step_type_is_an_error() {
+        fn assert_error_trait<E: std::error::Error>(_: &E) {}
+        let err = UnsupportedStepType(StepType::Then);
+        assert_error_trait(&err);
+        assert_eq!(err.0, StepType::Then);
     }
 }
 
