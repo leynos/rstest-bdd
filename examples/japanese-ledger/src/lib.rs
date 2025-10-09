@@ -9,7 +9,7 @@ use std::cell::Cell;
 /// # Examples
 ///
 /// ```
-/// use japanese-ledger::HouseholdLedger;
+/// use japanese_ledger::HouseholdLedger;
 ///
 /// let ledger = HouseholdLedger::new();
 /// ledger.set_balance(5);
