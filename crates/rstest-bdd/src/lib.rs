@@ -27,7 +27,7 @@ pub use inventory::{iter, submit};
 
 mod context;
 pub mod datatable;
-pub mod localisation;
+pub mod localization;
 mod pattern;
 mod placeholder;
 mod registry;
@@ -52,7 +52,7 @@ macro_rules! assert_step_ok {
     ($expr:expr $(,)?) => {
         match $expr {
             Ok(value) => value,
-            Err(e) => $crate::panic_localised!("assert-step-ok-panic", error = e),
+            Err(e) => $crate::panic_localized!("assert-step-ok-panic", error = e),
         }
     };
 }
@@ -86,20 +86,20 @@ macro_rules! assert_step_ok {
 macro_rules! assert_step_err {
     ($expr:expr $(,)?) => {
         match $expr {
-            Ok(_) => $crate::panic_localised!("assert-step-err-success"),
+            Ok(_) => $crate::panic_localized!("assert-step-err-success"),
             Err(e) => e,
         }
     };
     ($expr:expr, $msg:expr $(,)?) => {
         match $expr {
-            Ok(_) => $crate::panic_localised!("assert-step-err-success"),
+            Ok(_) => $crate::panic_localized!("assert-step-err-success"),
             Err(e) => {
                 let __rstest_bdd_display = e.to_string();
                 let __rstest_bdd_msg: &str = $msg.as_ref();
                 assert!(
                     __rstest_bdd_display.contains(__rstest_bdd_msg),
                     "{}",
-                    $crate::localisation::message_with_args(
+                    $crate::localization::message_with_args(
                         "assert-step-err-missing-substring",
                         |args| {
                             args.set("display", __rstest_bdd_display.clone());
@@ -114,9 +114,9 @@ macro_rules! assert_step_err {
 }
 
 pub use context::StepContext;
-pub use localisation::{
-    LocalisationError, Localisations, current_languages, install_localisation_loader,
-    select_localisations,
+pub use localization::{
+    LocalizationError, Localizations, current_languages, install_localization_loader,
+    select_localizations,
 };
 pub use pattern::StepPattern;
 pub use placeholder::extract_placeholders;
@@ -176,7 +176,7 @@ pub fn panic_message(e: &(dyn std::any::Any + Send)) -> String {
 
     try_downcast!(&str, String, i32, u32, i64, u64, isize, usize, f32, f64);
     let ty = std::any::type_name_of_val(e);
-    localisation::message_with_args("panic-message-opaque-payload", |args| {
+    localization::message_with_args("panic-message-opaque-payload", |args| {
         args.set("type", ty.to_string());
     })
 }
@@ -217,7 +217,7 @@ pub enum StepError {
 }
 
 // Macro that maps `StepError` variants to their Fluent identifiers without
-// repeating localisation boilerplate in each match arm.
+// repeating localization boilerplate in each match arm.
 macro_rules! step_error_message {
     (
         $self:expr,
@@ -227,7 +227,7 @@ macro_rules! step_error_message {
         match $self {
             $(
                 Self::$variant { $( $field ),* } => {
-                    $crate::localisation::message_with_loader($loader, $id, |args| {
+                    $crate::localization::message_with_loader($loader, $id, |args| {
                         $( args.set(stringify!($field), $field.clone()); )*
                     })
                 }
@@ -251,7 +251,7 @@ impl StepError {
 
 impl std::fmt::Display for StepError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let message = localisation::with_loader(|loader| self.format_with_loader(loader));
+        let message = localization::with_loader(|loader| self.format_with_loader(loader));
         f.write_str(&message)
     }
 }

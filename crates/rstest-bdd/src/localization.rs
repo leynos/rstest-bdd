@@ -1,4 +1,4 @@
-//! Localisation utilities used by the public macros and runtime diagnostics.
+//! Localization utilities used by the public macros and runtime diagnostics.
 
 use std::cell::RefCell;
 use std::sync::{LazyLock, RwLock};
@@ -12,11 +12,11 @@ use unic_langid::LanguageIdentifier;
 
 #[derive(RustEmbed)]
 #[folder = "i18n"]
-pub struct Localisations;
+pub struct Localizations;
 
 static LANGUAGE_LOADER: LazyLock<RwLock<FluentLanguageLoader>> = LazyLock::new(|| {
     let loader = fluent_language_loader!();
-    i18n_embed::select(&loader, &Localisations, &[unic_langid::langid!("en-US")])
+    i18n_embed::select(&loader, &Localizations, &[unic_langid::langid!("en-US")])
         .unwrap_or_else(|error| panic!("failed to load default English translations: {error}"));
     RwLock::new(loader)
 });
@@ -25,41 +25,41 @@ thread_local! {
     static OVERRIDE_LOADER: RefCell<Option<FluentLanguageLoader>> = const { RefCell::new(None) };
 }
 
-/// Errors from localisation setup and queries.
+/// Errors from localization setup and queries.
 #[derive(Debug, Error)]
-pub enum LocalisationError {
-    /// Global or thread-local localisation state was poisoned.
-    #[error("localisation state is poisoned")]
+pub enum LocalizationError {
+    /// Global or thread-local localization state was poisoned.
+    #[error("localization state is poisoned")]
     Poisoned,
     /// Loading or selecting Fluent resources failed.
-    #[error("failed to load localisation resources: {0}")]
+    #[error("failed to load localization resources: {0}")]
     Loader(#[from] I18nEmbedError),
 }
 
-/// RAII guard that installs a thread-local localisation loader for the
+/// RAII guard that installs a thread-local localization loader for the
 /// lifetime of the guard.
 #[must_use]
-pub struct ScopedLocalisation {
+pub struct ScopedLocalization {
     previous: Option<FluentLanguageLoader>,
 }
 
-impl ScopedLocalisation {
+impl ScopedLocalization {
     /// Load the requested locales into a dedicated loader and make it the
     /// active loader for the current thread.
     ///
     /// # Errors
     ///
-    /// Returns [`LocalisationError::Loader`] if localisation resources cannot
+    /// Returns [`LocalizationError::Loader`] if localization resources cannot
     /// be loaded for the requested languages.
-    pub fn new(requested: &[LanguageIdentifier]) -> Result<Self, LocalisationError> {
+    pub fn new(requested: &[LanguageIdentifier]) -> Result<Self, LocalizationError> {
         let loader = fluent_language_loader!();
-        i18n_embed::select(&loader, &Localisations, requested)?;
+        i18n_embed::select(&loader, &Localizations, requested)?;
         let previous = OVERRIDE_LOADER.with(|cell| cell.replace(Some(loader)));
         Ok(Self { previous })
     }
 }
 
-impl Drop for ScopedLocalisation {
+impl Drop for ScopedLocalization {
     fn drop(&mut self) {
         let previous = self.previous.take();
         OVERRIDE_LOADER.with(|cell| {
@@ -68,54 +68,54 @@ impl Drop for ScopedLocalisation {
     }
 }
 
-/// Replace the global localisation loader with a preconfigured instance.
+/// Replace the global localization loader with a preconfigured instance.
 ///
 /// # Errors
 ///
-/// Returns [`LocalisationError::Poisoned`] when the global loader lock is poisoned.
-pub fn install_localisation_loader(loader: FluentLanguageLoader) -> Result<(), LocalisationError> {
+/// Returns [`LocalizationError::Poisoned`] when the global loader lock is poisoned.
+pub fn install_localization_loader(loader: FluentLanguageLoader) -> Result<(), LocalizationError> {
     let mut guard = LANGUAGE_LOADER
         .write()
-        .map_err(|_| LocalisationError::Poisoned)?;
+        .map_err(|_| LocalizationError::Poisoned)?;
     *guard = loader;
     Ok(())
 }
 
-/// Activate the best matching localisations for the provided language identifiers.
+/// Activate the best matching localizations for the provided language identifiers.
 ///
 /// # Errors
 ///
-/// Returns [`LocalisationError::Poisoned`] if the global loader lock is poisoned
-/// or [`LocalisationError::Loader`] when resource selection fails.
-pub fn select_localisations(
+/// Returns [`LocalizationError::Poisoned`] if the global loader lock is poisoned
+/// or [`LocalizationError::Loader`] when resource selection fails.
+pub fn select_localizations(
     requested: &[LanguageIdentifier],
-) -> Result<Vec<LanguageIdentifier>, LocalisationError> {
-    OVERRIDE_LOADER.with(|cell| -> Result<_, LocalisationError> {
+) -> Result<Vec<LanguageIdentifier>, LocalizationError> {
+    OVERRIDE_LOADER.with(|cell| -> Result<_, LocalizationError> {
         if let Some(loader) = cell.borrow_mut().as_mut() {
-            let selected = i18n_embed::select(loader, &Localisations, requested)?;
+            let selected = i18n_embed::select(loader, &Localizations, requested)?;
             return Ok(selected);
         }
         let guard = LANGUAGE_LOADER
             .read()
-            .map_err(|_| LocalisationError::Poisoned)?;
-        let selected = i18n_embed::select(&*guard, &Localisations, requested)?;
+            .map_err(|_| LocalizationError::Poisoned)?;
+        let selected = i18n_embed::select(&*guard, &Localizations, requested)?;
         Ok(selected)
     })
 }
 
-/// Query the currently active localisations.
+/// Query the currently active localizations.
 ///
 /// # Errors
 ///
-/// Returns [`LocalisationError::Poisoned`] if the loader lock is poisoned.
-pub fn current_languages() -> Result<Vec<LanguageIdentifier>, LocalisationError> {
-    OVERRIDE_LOADER.with(|cell| -> Result<_, LocalisationError> {
+/// Returns [`LocalizationError::Poisoned`] if the loader lock is poisoned.
+pub fn current_languages() -> Result<Vec<LanguageIdentifier>, LocalizationError> {
+    OVERRIDE_LOADER.with(|cell| -> Result<_, LocalizationError> {
         if let Some(loader) = cell.borrow().as_ref() {
             return Ok(loader.current_languages());
         }
         let guard = LANGUAGE_LOADER
             .read()
-            .map_err(|_| LocalisationError::Poisoned)?;
+            .map_err(|_| LocalizationError::Poisoned)?;
         Ok(guard.current_languages())
     })
 }
@@ -168,11 +168,11 @@ pub fn strip_directional_isolates(text: &str) -> String {
         .collect()
 }
 
-/// Panic with a localised message resolved from a Fluent ID and key–value args.
+/// Panic with a localized message resolved from a Fluent ID and key–value args.
 #[macro_export]
-macro_rules! panic_localised {
+macro_rules! panic_localized {
     ($id:expr $(, $key:ident = $value:expr )* $(,)?) => {{
-        let message = $crate::localisation::message_with_args($id, |args| {
+        let message = $crate::localization::message_with_args($id, |args| {
             $( args.set(stringify!($key), $value.to_string()); )*
         });
         panic!("{message}");

@@ -1680,7 +1680,7 @@ enum PlaceholderError {
 
   - Invalid pattern: `"invalid step pattern: regex parse error: error message"`
 
-  The localised display strings wrap interpolated arguments with Unicode
+  The localized display strings wrap interpolated arguments with Unicode
   directional isolate markers (`U+2066`–`U+2069`) to ensure values render
   correctly in right-to-left locales. Consumers comparing the text should
   normalise messages by removing these control characters.
@@ -1819,7 +1819,7 @@ two helper macros:
 
 These macros keep test code succinct while still surfacing detailed diagnostics.
 
-## Part 4: Internationalisation and Localisation Roadmap
+## Part 4: Internationalisation and Localization Roadmap
 
 ### 4.1 Phase 1: Foundational Gherkin Internationalisation (target v0.4)
 
@@ -1828,7 +1828,7 @@ These macros keep test code succinct while still surfacing detailed diagnostics.
   language‑aware `gherkin::GherkinEnv` and defaults to English when the
   declaration is absent to preserve backwards compatibility.
 - **Language‑aware keyword parsing:** Refactor `StepKeyword` parsing to rely on
-  `gherkin::StepType`, allowing localised keywords such as `Étant donné` and
+  `gherkin::StepType`, allowing localized keywords such as `Étant donné` and
   `Gegeben sei` to map to the correct step types.
 - **Testing and validation:** Introduce multilingual feature files, including
   French, German, and Spanish, to validate that `Given`, `When`, `Then`, `And`,
@@ -1839,17 +1839,17 @@ These macros keep test code succinct while still surfacing detailed diagnostics.
 
 - Added dedicated feature files for French, German, Spanish, Russian,
   Japanese, and Arabic under `tests/features/i18n/` to exercise the
-  localisation catalogue shipped with `gherkin`.
+  localization catalogue shipped with `gherkin`.
 - Reused a shared `RefCell<i32>` accumulator fixture so Given/And/When steps
   manipulate the same state without introducing asynchronous complexity.
 - Asserted both positive and negative outcomes to verify that conjunction
   keywords normalise onto the preceding semantic keyword and continue to
   dispatch correctly.
 
-### 4.2 Phase 2: Localisation of Library Messages with Fluent (target v0.5)
+### 4.2 Phase 2: Localization of Library Messages with Fluent (target v0.5)
 
 - **Dependency integration:** Add `i18n-embed`, `rust-embed`, and `fluent` as
-  dependencies to supply localisation infrastructure.
+  dependencies to supply localization infrastructure.
 
   ```toml
   [dependencies]
@@ -1858,7 +1858,7 @@ These macros keep test code succinct while still surfacing detailed diagnostics.
   fluent = "0.17"
   ```
 
-- **Localisation resource creation:** Create an `i18n/<locale>/` hierarchy in
+- **Localization resource creation:** Create an `i18n/<locale>/` hierarchy in
   the `rstest-bdd` crate containing Fluent translation files with identifiers
   such as `error-missing-step`. If the macros crate also emits messages,
   maintain a separate `i18n/` in `rstest-bdd-macros` or introduce a shared
@@ -1872,22 +1872,22 @@ These macros keep test code succinct while still surfacing detailed diagnostics.
   the `rstest-bdd` crate using `FluentLanguageLoader` and `i18n-embed`'s locale
   requesters. Avoid compile‑time locale switches in macros.
 
-#### Implemented localisation harness
+#### Implemented localization harness
 
 - Added an `i18n.toml` describing the Fluent domain and bundled the
   `i18n/<locale>/rstest-bdd.ftl` catalogue via `rust-embed`. The derived
-  `Localisations` struct implements `I18nAssets`, allowing applications to load
+  `Localizations` struct implements `I18nAssets`, allowing applications to load
   our messages into their own `FluentLanguageLoader` or reuse the crate’s
   built-in loader.
-- Exposed `select_localisations` and `current_languages` helpers around the
+- Exposed `select_localizations` and `current_languages` helpers around the
   shared loader so applications can request locales at runtime whilst retaining
   the caller-supplied preference order. The loader initialises with English and
   falls back to it when a requested language is unavailable.
-- Added a thread-local `ScopedLocalisation` guard so unit and behaviour tests
+- Added a thread-local `ScopedLocalization` guard so unit and behaviour tests
   can swap locales without serialising the entire test suite. When active the
   guard shadows the global loader, ensuring concurrent tests remain isolated.
 - Introduced helper macros for mapping `StepError` variants to Fluent messages
-  and for emitting localised panic strings, eliminating duplicated argument
+  and for emitting localized panic strings, eliminating duplicated argument
   plumbing across assertion macros and display implementations.
 - Updated `StepError`, `PlaceholderSyntaxError`, `PlaceholderError`, and the
   step assertion macros to source their display strings from Fluent entries,
@@ -1900,7 +1900,7 @@ These macros keep test code succinct while still surfacing detailed diagnostics.
   with guidance on writing non‑English feature files and selecting locales for
   runtime diagnostics.
 - **Provide multilingual examples:** Add a new example test suite under
-  `/examples` showcasing a non‑English Gherkin file and its localised
+  `/examples` showcasing a non‑English Gherkin file and its localized
   diagnostics.
 - **Update contributor guidelines:** Amend `CONTRIBUTING.md` with instructions
   for updating translations when new user‑facing messages are introduced.

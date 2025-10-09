@@ -1,7 +1,7 @@
 //! Behavioural test for step registry
 
 use rstest::rstest;
-use rstest_bdd::localisation::{ScopedLocalisation, strip_directional_isolates};
+use rstest_bdd::localization::{ScopedLocalization, strip_directional_isolates};
 use rstest_bdd::{Step, StepContext, StepError, StepKeyword, iter, panic_message, step};
 use unic_langid::langid;
 
@@ -169,12 +169,12 @@ fn wrapper_handles_panic_and_non_panic_errors(
     "needs fixture",
     "La fixture « missing » de type « u32 » est introuvable"
 )]
-fn wrapper_errors_localise(
+fn wrapper_errors_localize(
     #[case] keyword: StepKeyword,
     #[case] pattern: &str,
     #[case] expected_snippet: &str,
 ) {
-    let _guard = ScopedLocalisation::new(&[langid!("fr")])
+    let _guard = ScopedLocalization::new(&[langid!("fr")])
         .unwrap_or_else(|error| panic!("failed to scope French locale: {error}"));
     let step_fn = iter::<Step>
         .into_iter()
