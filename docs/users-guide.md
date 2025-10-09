@@ -65,6 +65,39 @@ The feature file lives within the crate (commonly under `tests/features/`). The
 path to this file will be referenced by the `#[scenario]` macro in the test
 code.
 
+### Internationalised scenarios
+
+`rstest-bdd` reads the optional `# language: <code>` directive that appears at
+the top of a feature file. When you specify a locale the parser uses that
+language's keyword catalogue, letting teams collaborate in their native
+language. The `examples/japanese-ledger` crate demonstrates the end-to-end
+workflow for Japanese:
+
+```gherkin
+# language: ja
+フィーチャ: 家計簿の残高を管理する
+  シナリオ: 収入を記録する
+    前提 残高は0である
+    もし 残高に5を加える
+    ならば 残高は5である
+```
+
+Step definitions use the same Unicode phrases:
+
+```rust
+use japanese_ledger::HouseholdLedger;
+use rstest_bdd_macros::{given, when, then};
+
+#[given("残高は{start:i32}である")]
+fn starting_balance(ledger: &HouseholdLedger, start: i32) {
+    ledger.set_balance(start);
+}
+```
+
+Running `cargo test -p japanese-ledger` executes both Japanese scenarios. The
+full source lives under `examples/japanese-ledger/` if you want to copy the
+structure into your own project.
+
 ## Step definitions
 
 Developers implement the behaviour described in a feature by writing step

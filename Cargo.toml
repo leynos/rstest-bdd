@@ -6,6 +6,7 @@ members = [
     "crates/rstest-bdd-patterns",
     "crates/cargo-bdd",
     "examples/todo-cli",
+    "examples/japanese-ledger",
 ]
 
 [workspace.package]

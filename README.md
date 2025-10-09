@@ -164,6 +164,16 @@ cargo test -p your-crate -- --nocapture
 Everything grows on the same trellis: your fixtures, your filters
 (`cargo test search`), and your parallelism all continue to work as usual.
 
+## Internationalisation in practice
+
+Feature files can opt into another language by adding `# language: <code>` to
+the first line. The Gherkin parser loads the appropriate keyword catalogue so
+that teams can keep authoring steps in their preferred language. The
+`examples/japanese-ledger` crate shows the full workflow in Japanese, including
+Unicode step patterns and a household ledger domain. Run it with
+`cargo test -p japanese-ledger` to see two Japanese scenarios execute end to
+end.
+
 ______________________________________________________________________
 
 ## Step definitions 101

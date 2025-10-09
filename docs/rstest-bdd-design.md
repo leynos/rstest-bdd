@@ -1846,6 +1846,17 @@ These macros keep test code succinct while still surfacing detailed diagnostics.
   keywords normalise onto the preceding semantic keyword and continue to
   dispatch correctly.
 
+#### Japanese household ledger example crate (2025-10-11)
+
+- Created the `examples/japanese-ledger` crate to document an end-to-end BDD
+  workflow in Japanese, covering feature files, step definitions, and fixtures.
+- Modelled the domain with a `HouseholdLedger` wrapper that uses `Cell<i32>`
+  so steps can borrow the ledger immutably, keeping the example idiomatic and
+  avoiding mutable references in feature modules.
+- Demonstrated language-specific keywords and Unicode step patterns in
+  `tests/features/household_ledger.feature`, ensuring the example doubles as a
+  regression test for non-ASCII step text.
+
 ### 4.2 Phase 2: Localization of Library Messages with Fluent (target v0.5)
 
 - **Dependency integration:** Add `i18n-embed`, `rust-embed`, and `fluent` as
