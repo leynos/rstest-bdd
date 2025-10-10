@@ -82,7 +82,6 @@ fn expand_inner(input: &DeriveInput) -> syn::Result<TokenStream2> {
             const REQUIRES_HEADER: bool = #requires_header;
 
             fn parse_row(row: #runtime::datatable::RowSpec<'_>) -> Result<Self, #runtime::datatable::DataTableError> {
-                let row = row;
                 #(#bindings)*
                 Ok(#construct)
             }
