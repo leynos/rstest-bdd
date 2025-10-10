@@ -1,3 +1,8 @@
+//! Derive entry points for typed data table helpers.
+//!
+//! This module wires the outer derive macro surfaces to the internal code
+//! generators that live in the sibling modules.
+
 mod rename;
 mod row;
 mod table;

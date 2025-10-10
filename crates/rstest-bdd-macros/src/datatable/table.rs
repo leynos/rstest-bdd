@@ -1,3 +1,8 @@
+//! Code generation for the `DataTable` derive macro.
+//!
+//! This module analyses tuple structs that wrap collections of rows and emits
+//! conversions from the raw Gherkin data table into strongly typed wrappers.
+
 use proc_macro::TokenStream;
 use proc_macro2::TokenStream as TokenStream2;
 use quote::quote;

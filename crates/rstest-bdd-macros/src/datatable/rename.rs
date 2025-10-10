@@ -1,3 +1,8 @@
+//! Column renaming strategies mirroring serde's `rename_all` semantics.
+//!
+//! The derive macros rely on these rules to translate struct field identifiers
+//! into the column names that should be matched at runtime.
+
 use convert_case::{Case, Casing};
 use syn::LitStr;
 
@@ -17,8 +22,8 @@ pub(crate) enum RenameRule {
 impl RenameRule {
     pub(crate) fn apply(self, ident: &str) -> String {
         match self {
-            Self::Lower => ident.to_case(Case::Lower),
-            Self::Upper => ident.to_case(Case::Upper),
+            Self::Lower => ident.to_case(Case::Flat),
+            Self::Upper => ident.to_case(Case::UpperFlat),
             Self::Snake => ident.to_case(Case::Snake),
             Self::ScreamingSnake => ident.to_case(Case::UpperSnake),
             Self::Kebab => ident.to_case(Case::Kebab),

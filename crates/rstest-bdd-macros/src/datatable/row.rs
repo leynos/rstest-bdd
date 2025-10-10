@@ -1,3 +1,8 @@
+//! Code generation for the `DataTableRow` derive macro.
+//!
+//! The expander validates the annotated struct and emits a runtime
+//! implementation capable of parsing rows into strongly typed values.
+
 use proc_macro::TokenStream;
 use proc_macro2::{Ident, TokenStream as TokenStream2};
 use quote::{format_ident, quote};
