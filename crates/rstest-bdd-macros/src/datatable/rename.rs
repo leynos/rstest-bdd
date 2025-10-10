@@ -1,4 +1,5 @@
-//! Column renaming strategies mirroring serde's `rename_all` semantics.
+//! Column renaming strategies mirroring serde's `rename_all` semantics,
+//! with an additional `Title Case` extension.
 //!
 //! The derive macros rely on these rules to translate struct field identifiers
 //! into the column names that should be matched at runtime.
