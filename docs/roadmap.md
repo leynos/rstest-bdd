@@ -266,15 +266,15 @@ diagnostic messages.
     Localize user-facing runtime messages using a `FluentLanguageLoader` at
     runtime.
 
-- [ ] **Documentation and User Guidance**
+- [x] **Documentation and User Guidance**
 
   - [x] Update `README.md` and `docs/users-guide.md` with a new section
     detailing how to use the internationalization features.
 
-  - [ ] Add a new example crate to demonstrate writing and running a BDD test
+  - [x] Add a new example crate to demonstrate writing and running a BDD test
     suite using a non-English language.
 
-  - [ ] Update `CONTRIBUTING.md` with guidelines for adding and maintaining
+  - [x] Update `CONTRIBUTING.md` with guidelines for adding and maintaining
     translations for new diagnostic messages.
 
 ## Phase 5: Ergonomics and Developer Experience

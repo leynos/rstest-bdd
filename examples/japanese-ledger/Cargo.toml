@@ -1,0 +1,12 @@
+[package]
+name = "japanese-ledger"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+
+[dev-dependencies]
+rstest = { workspace = true }
+rstest-bdd.workspace = true
+rstest-bdd-macros.workspace = true
