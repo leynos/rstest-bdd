@@ -49,17 +49,49 @@ impl HouseholdLedger {
     }
 
     /// Records an incoming amount by increasing the balance.
+    /// Saturates at `i32::MAX` when the addition would overflow.
     pub fn apply_income(&self, amount: i32) {
         self.adjust(amount);
     }
 
     /// Records an expense by decreasing the balance.
+    /// Saturates at `i32::MIN` when the subtraction would underflow.
     pub fn apply_expense(&self, amount: i32) {
         self.adjust(-amount);
     }
 
     fn adjust(&self, delta: i32) {
-        let updated = self.balance.get() + delta;
+        let current = self.balance.get();
+        let updated = current.saturating_add(delta);
+
+        // Saturate at the numeric bounds rather than wrapping around. Wrapping
+        // would silently produce balances that misrepresent the ledger when a
+        // scenario reaches `i32::MIN` or `i32::MAX`.
         self.balance.set(updated);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::HouseholdLedger;
+
+    #[test]
+    fn saturates_when_income_would_overflow() {
+        let ledger = HouseholdLedger::new();
+        ledger.set_balance(i32::MAX);
+
+        ledger.apply_income(1);
+
+        assert_eq!(ledger.balance(), i32::MAX);
+    }
+
+    #[test]
+    fn saturates_when_expense_would_underflow() {
+        let ledger = HouseholdLedger::new();
+        ledger.set_balance(i32::MIN);
+
+        ledger.apply_expense(1);
+
+        assert_eq!(ledger.balance(), i32::MIN);
     }
 }
