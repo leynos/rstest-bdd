@@ -79,12 +79,20 @@ pub fn scenarios(input: TokenStream) -> TokenStream {
     macros::scenarios(input)
 }
 
+/// Derive `DataTableRow` for structs that should parse Gherkin rows.
+///
+/// The macro honours field-level overrides via `#[datatable(...)]` attributes
+/// documented in the user guide.
 #[proc_macro_error]
 #[proc_macro_derive(DataTableRow, attributes(datatable))]
 pub fn derive_data_table_row(input: TokenStream) -> TokenStream {
     datatable::derive_data_table_row(input)
 }
 
+/// Derive `DataTable` for tuple structs wrapping collections of rows.
+///
+/// The macro supports optional mapping hooks and row type inference as
+/// described in the user guide.
 #[proc_macro_error]
 #[proc_macro_derive(DataTable, attributes(datatable))]
 pub fn derive_data_table(input: TokenStream) -> TokenStream {
