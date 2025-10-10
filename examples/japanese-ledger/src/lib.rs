@@ -76,9 +76,37 @@ mod tests {
     use super::HouseholdLedger;
     use rstest::{fixture, rstest};
 
+    /// Represents a high-level ledger interaction used by the feature
+    /// scenarios. Using a dedicated type keeps the scenario test inputs terse
+    /// while still clarifying intent.
+    #[derive(Clone, Copy)]
+    enum LedgerStep {
+        SetBalance(i32),
+        Income(i32),
+        Expense(i32),
+    }
+
+    impl LedgerStep {
+        fn apply(self, ledger: &HouseholdLedger) {
+            match self {
+                Self::SetBalance(amount) => ledger.set_balance(amount),
+                Self::Income(amount) => ledger.apply_income(amount),
+                Self::Expense(amount) => ledger.apply_expense(amount),
+            }
+        }
+    }
+
     #[fixture]
     fn ledger() -> HouseholdLedger {
         HouseholdLedger::new()
+    }
+
+    /// Replays the declarative ledger steps so each case mirrors a Gherkin
+    /// scenario from the Japanese feature file.
+    fn run_steps(ledger: &HouseholdLedger, steps: &[LedgerStep]) {
+        for step in steps {
+            step.apply(ledger);
+        }
     }
 
     #[rstest]
@@ -97,5 +125,49 @@ mod tests {
         ledger.apply_expense(1);
 
         assert_eq!(ledger.balance(), i32::MIN);
+    }
+
+    #[rstest]
+    #[case::records_income(
+        &[LedgerStep::Income(5), LedgerStep::Income(3)],
+        8,
+        None
+    )]
+    #[case::records_expense(
+        &[
+            LedgerStep::Income(10),
+            LedgerStep::Expense(6),
+        ],
+        4,
+        Some(5)
+    )]
+    #[case::saturates_income(
+        &[
+            LedgerStep::SetBalance(i32::MAX),
+            LedgerStep::Income(1),
+        ],
+        i32::MAX,
+        None
+    )]
+    #[case::saturates_expense(
+        &[
+            LedgerStep::SetBalance(i32::MIN),
+            LedgerStep::Expense(1),
+        ],
+        i32::MIN,
+        None
+    )]
+    fn follows_feature_scenarios(
+        #[from(ledger)] ledger: HouseholdLedger,
+        #[case] steps: &[LedgerStep],
+        #[case] expected_balance: i32,
+        #[case] forbidden_balance: Option<i32>,
+    ) {
+        run_steps(&ledger, steps);
+
+        assert_eq!(ledger.balance(), expected_balance);
+        if let Some(balance) = forbidden_balance {
+            assert_ne!(ledger.balance(), balance);
+        }
     }
 }
