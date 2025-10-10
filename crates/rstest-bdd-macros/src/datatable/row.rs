@@ -462,10 +462,7 @@ fn augment_generics(generics: &Generics, fields: &[FieldSpec]) -> Generics {
     let mut generics = generics.clone();
     let where_clause = generics.make_where_clause();
     for field in fields {
-        if field.config.parse_with.is_none()
-            && !field.config.truthy
-            && !is_string_type(&field.inner_ty)
-        {
+        if needs_from_str_bound(&field.config, &field.inner_ty) {
             let ty = &field.inner_ty;
             where_clause.predicates.push(syn::parse_quote! {
                 #ty: ::core::str::FromStr,
@@ -476,4 +473,8 @@ fn augment_generics(generics: &Generics, fields: &[FieldSpec]) -> Generics {
         }
     }
     generics
+}
+
+fn needs_from_str_bound(config: &FieldConfig, inner_ty: &Type) -> bool {
+    config.parse_with.is_none() && !config.truthy && !is_string_type(inner_ty)
 }
