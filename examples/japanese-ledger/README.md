@@ -1,6 +1,6 @@
 # Japanese household ledger example
 
-This example crate demonstrates how to write a behaviour-driven test suite in
+This example crate demonstrates writing a behaviour-driven test suite in
 Japanese using `rstest-bdd`. The tests model a simple household ledger that can
 record income and expenses.
 

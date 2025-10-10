@@ -74,10 +74,15 @@ impl HouseholdLedger {
 #[cfg(test)]
 mod tests {
     use super::HouseholdLedger;
+    use rstest::{fixture, rstest};
 
-    #[test]
-    fn saturates_when_income_would_overflow() {
-        let ledger = HouseholdLedger::new();
+    #[fixture]
+    fn ledger() -> HouseholdLedger {
+        HouseholdLedger::new()
+    }
+
+    #[rstest]
+    fn saturates_when_income_would_overflow(#[from(ledger)] ledger: HouseholdLedger) {
         ledger.set_balance(i32::MAX);
 
         ledger.apply_income(1);
@@ -85,9 +90,8 @@ mod tests {
         assert_eq!(ledger.balance(), i32::MAX);
     }
 
-    #[test]
-    fn saturates_when_expense_would_underflow() {
-        let ledger = HouseholdLedger::new();
+    #[rstest]
+    fn saturates_when_expense_would_underflow(#[from(ledger)] ledger: HouseholdLedger) {
         ledger.set_balance(i32::MIN);
 
         ledger.apply_expense(1);

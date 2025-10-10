@@ -49,3 +49,15 @@ fn records_income(#[from(ledger)] _: HouseholdLedger) {}
     name = "支出を記録する"
 )]
 fn records_expense(#[from(ledger)] _: HouseholdLedger) {}
+
+#[scenario(
+    path = "tests/features/household_ledger.feature",
+    name = "最大値を超える収入は飽和する"
+)]
+fn saturates_when_income_hits_ceiling(#[from(ledger)] _: HouseholdLedger) {}
+
+#[scenario(
+    path = "tests/features/household_ledger.feature",
+    name = "最小値を下回る支出は飽和する"
+)]
+fn saturates_when_expense_hits_floor(#[from(ledger)] _: HouseholdLedger) {}
