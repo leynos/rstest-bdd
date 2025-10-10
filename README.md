@@ -274,6 +274,40 @@ fn create_users(
 
 ______________________________________________________________________
 
+## Internationalization and localization
+
+Write feature files in any language supported by Gherkin. Declare the locale at
+the top of the `.feature` file and keep using the usual step macros:
+
+```gherkin
+# language: fr
+Fonctionnalité: Panier
+  Scénario: Ajouter un article
+    Étant donné un panier vide
+    Quand l'utilisateur ajoute une citrouille
+    Alors le panier contient une citrouille
+```
+
+Keyword parsing is delegated to the `gherkin` crate, so `#[given]`, `#[when]`
+and `#[then]` continue to match the translated keywords without additional
+configuration.
+
+Runtime diagnostics ship as Fluent translations bundled with the crate. English
+messages are always available; call `select_localizations` to request another
+locale before running scenarios:
+
+```rust
+use rstest_bdd::select_localizations;
+use unic_langid::langid;
+
+select_localizations(&[langid!("es")])?; // Switch diagnostics to Spanish
+```
+
+Missing translations fall back to English, and procedural macro diagnostics
+remain in English so builds stay deterministic across environments.
+
+______________________________________________________________________
+
 ## How it works (the short tour)
 
 - **Attribute macros**:
