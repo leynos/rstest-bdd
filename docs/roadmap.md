@@ -131,7 +131,7 @@ improves the developer experience.
     DataTableRow`) to split optional headers, build index maps, and surface row
     and column context on errors.
 
-  - [ ] Provide `#[derive(DataTableRow)]` and `#[derive(DataTable)]` macros with
+  - [x] Provide `#[derive(DataTableRow)]` and `#[derive(DataTable)]` macros with
     field- and struct-level attributes for column mapping, optional or default
     cells, trimming, tolerant booleans, custom parsers, and row aggregation
     hooks.

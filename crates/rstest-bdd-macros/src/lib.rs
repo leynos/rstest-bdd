@@ -10,6 +10,7 @@
 //! Both features are disabled by default.
 
 mod codegen;
+mod datatable;
 mod macros;
 mod parsing;
 mod pattern;
@@ -76,4 +77,16 @@ pub fn scenario(attr: TokenStream, item: TokenStream) -> TokenStream {
 #[proc_macro]
 pub fn scenarios(input: TokenStream) -> TokenStream {
     macros::scenarios(input)
+}
+
+#[proc_macro_error]
+#[proc_macro_derive(DataTableRow, attributes(datatable))]
+pub fn derive_data_table_row(input: TokenStream) -> TokenStream {
+    datatable::derive_data_table_row(input)
+}
+
+#[proc_macro_error]
+#[proc_macro_derive(DataTable, attributes(datatable))]
+pub fn derive_data_table(input: TokenStream) -> TokenStream {
+    datatable::derive_data_table(input)
 }
