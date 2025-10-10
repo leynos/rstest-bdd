@@ -95,32 +95,40 @@ fn parse_struct_attrs(attrs: &[Attribute]) -> syn::Result<TableConfig> {
         if !attr.path().is_ident("datatable") {
             continue;
         }
-        attr.parse_nested_meta(|meta| {
-            if meta.path.is_ident("row") {
-                let value = meta.value()?;
-                if value.peek(LitStr) {
-                    let lit: LitStr = value.parse()?;
-                    let ty: Type = syn::parse_str(&lit.value())?;
-                    config.row_ty = Some(ty);
-                } else {
-                    let ty: Type = value.parse()?;
-                    config.row_ty = Some(ty);
-                }
-                Ok(())
-            } else if meta.path.is_ident("map") {
-                let path: ExprPath = meta.value()?.parse()?;
-                config.map = Some(path);
-                Ok(())
-            } else if meta.path.is_ident("try_map") {
-                let path: ExprPath = meta.value()?.parse()?;
-                config.try_map = Some(path);
-                Ok(())
-            } else {
-                Err(meta.error("unsupported datatable attribute"))
-            }
-        })?;
+        attr.parse_nested_meta(|meta| process_meta_item(&meta, &mut config))?;
     }
     Ok(config)
+}
+
+fn process_meta_item(
+    meta: &syn::meta::ParseNestedMeta,
+    config: &mut TableConfig,
+) -> syn::Result<()> {
+    if meta.path.is_ident("row") {
+        let ty = parse_row_type(meta)?;
+        config.row_ty = Some(ty);
+        Ok(())
+    } else if meta.path.is_ident("map") {
+        let path: ExprPath = meta.value()?.parse()?;
+        config.map = Some(path);
+        Ok(())
+    } else if meta.path.is_ident("try_map") {
+        let path: ExprPath = meta.value()?.parse()?;
+        config.try_map = Some(path);
+        Ok(())
+    } else {
+        Err(meta.error("unsupported datatable attribute"))
+    }
+}
+
+fn parse_row_type(meta: &syn::meta::ParseNestedMeta) -> syn::Result<Type> {
+    let value = meta.value()?;
+    if value.peek(LitStr) {
+        let lit: LitStr = value.parse()?;
+        syn::parse_str(&lit.value())
+    } else {
+        value.parse()
+    }
 }
 
 fn extract_inner_types(field: &Field) -> (Type, Option<Type>) {
