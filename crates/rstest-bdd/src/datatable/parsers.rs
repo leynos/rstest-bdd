@@ -4,6 +4,28 @@ use std::error::Error as StdError;
 
 use thiserror::Error;
 
+/// Checks whether the input matches any candidate string while ignoring ASCII
+/// case.
+///
+/// # Parameters
+/// - `s`: The input string to compare.
+/// - `candidates`: Slice of candidate strings to match against.
+///
+/// # Returns
+/// `true` when `s` matches any candidate, otherwise `false`.
+///
+/// # Examples
+/// ```
+/// # use rstest_bdd::datatable::parsers::matches_any_case_insensitive;
+/// assert!(matches_any_case_insensitive("YES", &["yes", "y"]));
+/// assert!(!matches_any_case_insensitive("maybe", &["yes", "no"]));
+/// ```
+fn matches_any_case_insensitive(s: &str, candidates: &[&str]) -> bool {
+    candidates
+        .iter()
+        .any(|candidate| s.eq_ignore_ascii_case(candidate))
+}
+
 /// Parses boolean values in a tolerant, human-friendly fashion.
 ///
 /// `truthy_bool` recognises common affirmative and negative forms, returning a
@@ -20,18 +42,12 @@ use thiserror::Error;
 ///
 /// Returns [`TruthyBoolError`] when the input does not match a recognised form.
 pub fn truthy_bool(value: &str) -> Result<bool, TruthyBoolError> {
+    const TRUTHY_VALUES: &[&str] = &["yes", "y", "true"];
+    const FALSY_VALUES: &[&str] = &["no", "n", "false"];
     let trimmed = value.trim();
-    if trimmed.eq_ignore_ascii_case("yes")
-        || trimmed.eq_ignore_ascii_case("y")
-        || trimmed.eq_ignore_ascii_case("true")
-        || trimmed == "1"
-    {
+    if trimmed == "1" || matches_any_case_insensitive(trimmed, TRUTHY_VALUES) {
         Ok(true)
-    } else if trimmed.eq_ignore_ascii_case("no")
-        || trimmed.eq_ignore_ascii_case("n")
-        || trimmed.eq_ignore_ascii_case("false")
-        || trimmed == "0"
-    {
+    } else if trimmed == "0" || matches_any_case_insensitive(trimmed, FALSY_VALUES) {
         Ok(false)
     } else {
         Err(TruthyBoolError {
