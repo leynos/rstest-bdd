@@ -155,8 +155,23 @@ fn build_field_spec(
     field: &Field,
     base_accessor: Accessor,
 ) -> syn::Result<FieldSpec> {
+    let config = parse_field_attributes(&field.attrs, base_accessor)?;
+    let (is_option, inner_ty) = option_inner_type(&field.ty)?;
+    validate_field_config(&config, is_option, &inner_ty, field.span())?;
+    Ok(FieldSpec {
+        ident,
+        ty: field.ty.clone(),
+        inner_ty,
+        config,
+    })
+}
+
+fn parse_field_attributes(
+    attrs: &[Attribute],
+    base_accessor: Accessor,
+) -> syn::Result<FieldConfig> {
     let mut config = FieldConfig::new(base_accessor);
-    for attr in &field.attrs {
+    for attr in attrs {
         if !attr.path().is_ident("datatable") {
             continue;
         }
@@ -195,43 +210,46 @@ fn build_field_spec(
             }
         })?;
     }
+    Ok(config)
+}
+
+fn validate_field_config(
+    config: &FieldConfig,
+    is_option: bool,
+    inner_ty: &Type,
+    span: proc_macro2::Span,
+) -> syn::Result<()> {
     if config.optional && config.default.is_some() {
         return Err(syn::Error::new(
-            field.span(),
+            span,
             "optional fields cannot specify a default",
         ));
     }
     if config.truthy && config.parse_with.is_some() {
         return Err(syn::Error::new(
-            field.span(),
+            span,
             "truthy and parse_with are mutually exclusive",
         ));
     }
-    let (is_option, inner_ty) = option_inner_type(&field.ty)?;
     if config.optional && !is_option {
         return Err(syn::Error::new(
-            field.span(),
+            span,
             "#[datatable(optional)] requires an Option<T> field",
         ));
     }
     if is_option && config.default.is_some() {
         return Err(syn::Error::new(
-            field.span(),
+            span,
             "Option<T> fields cannot define a default value",
         ));
     }
-    if config.truthy && !is_bool_type(&inner_ty) {
+    if config.truthy && !is_bool_type(inner_ty) {
         return Err(syn::Error::new(
-            field.span(),
+            span,
             "#[datatable(truthy)] requires a bool field",
         ));
     }
-    Ok(FieldSpec {
-        ident,
-        ty: field.ty.clone(),
-        inner_ty,
-        config,
-    })
+    Ok(())
 }
 
 impl FieldConfig {
