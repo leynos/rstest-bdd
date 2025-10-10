@@ -132,20 +132,24 @@ fn parse_row_type(meta: &syn::meta::ParseNestedMeta) -> syn::Result<Type> {
 }
 
 fn extract_inner_types(field: &Field) -> (Type, Option<Type>) {
-    if let Type::Path(TypePath { path, .. }) = &field.ty {
-        if let Some(segment) = path.segments.last() {
-            if (segment.ident == "Rows" || segment.ident == "Vec")
-                && matches!(segment.arguments, PathArguments::AngleBracketed(_))
-            {
-                if let PathArguments::AngleBracketed(args) = &segment.arguments {
-                    if let Some(GenericArgument::Type(inner)) = args.args.first() {
-                        return (field.ty.clone(), Some(inner.clone()));
-                    }
-                }
-            }
-        }
+    let Type::Path(TypePath { path, .. }) = &field.ty else {
+        return (field.ty.clone(), None);
+    };
+    let Some(segment) = path.segments.last() else {
+        return (field.ty.clone(), None);
+    };
+    if !((segment.ident == "Rows" || segment.ident == "Vec")
+        && matches!(segment.arguments, PathArguments::AngleBracketed(_)))
+    {
+        return (field.ty.clone(), None);
     }
-    (field.ty.clone(), None)
+    let PathArguments::AngleBracketed(args) = &segment.arguments else {
+        return (field.ty.clone(), None);
+    };
+    let Some(GenericArgument::Type(inner)) = args.args.first() else {
+        return (field.ty.clone(), None);
+    };
+    (field.ty.clone(), Some(inner.clone()))
 }
 
 fn build_conversion(

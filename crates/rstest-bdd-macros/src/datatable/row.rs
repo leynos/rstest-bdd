@@ -91,24 +91,32 @@ fn expand_inner(input: &DeriveInput) -> syn::Result<TokenStream2> {
 
 fn parse_struct_config(attrs: &[Attribute]) -> syn::Result<StructConfig> {
     let mut rename_rule = None;
-    for attr in attrs {
-        if !attr.path().is_ident("datatable") {
-            continue;
-        }
-        attr.parse_nested_meta(|meta| {
-            if meta.path.is_ident("rename_all") {
-                let value: LitStr = meta.value()?.parse()?;
-                let rule = RenameRule::try_from(&value)?;
-                if rename_rule.replace(rule).is_some() {
-                    return Err(meta.error("duplicate rename_all attribute"));
-                }
-                Ok(())
-            } else {
-                Err(meta.error("unsupported datatable attribute"))
-            }
-        })?;
+    for attr in datatable_attributes(attrs) {
+        attr.parse_nested_meta(|meta| parse_rename_all_from_meta(&meta, &mut rename_rule))?;
     }
     Ok(StructConfig { rename_rule })
+}
+
+fn datatable_attributes(attrs: &[Attribute]) -> impl Iterator<Item = &Attribute> {
+    attrs
+        .iter()
+        .filter(|attr| attr.path().is_ident("datatable"))
+}
+
+fn parse_rename_all_from_meta(
+    meta: &syn::meta::ParseNestedMeta,
+    rename_rule: &mut Option<RenameRule>,
+) -> syn::Result<()> {
+    if meta.path.is_ident("rename_all") {
+        let value: LitStr = meta.value()?.parse()?;
+        let rule = RenameRule::try_from(&value)?;
+        if rename_rule.replace(rule).is_some() {
+            return Err(meta.error("duplicate rename_all attribute"));
+        }
+        Ok(())
+    } else {
+        Err(meta.error("unsupported datatable attribute"))
+    }
 }
 
 fn collect_fields(fields: &Fields, config: &StructConfig) -> syn::Result<Vec<FieldSpec>> {
@@ -266,22 +274,28 @@ impl FieldConfig {
 }
 
 fn option_inner_type(ty: &Type) -> syn::Result<(bool, Type)> {
-    if let Type::Path(TypePath { path, .. }) = ty {
-        if let Some(segment) = path.segments.last() {
-            if segment.ident == "Option" {
-                if let PathArguments::AngleBracketed(args) = &segment.arguments {
-                    if let Some(GenericArgument::Type(inner)) = args.args.first() {
-                        return Ok((true, inner.clone()));
-                    }
-                }
-                return Err(syn::Error::new(
-                    ty.span(),
-                    "Option<T> must specify an inner type",
-                ));
-            }
-        }
+    let Type::Path(TypePath { path, .. }) = ty else {
+        return Ok((false, ty.clone()));
+    };
+    let Some(segment) = path.segments.last() else {
+        return Ok((false, ty.clone()));
+    };
+    if segment.ident != "Option" {
+        return Ok((false, ty.clone()));
     }
-    Ok((false, ty.clone()))
+    let PathArguments::AngleBracketed(args) = &segment.arguments else {
+        return Err(syn::Error::new(
+            ty.span(),
+            "Option<T> must specify an inner type",
+        ));
+    };
+    let Some(GenericArgument::Type(inner)) = args.args.first() else {
+        return Err(syn::Error::new(
+            ty.span(),
+            "Option<T> must specify an inner type",
+        ));
+    };
+    Ok((true, inner.clone()))
 }
 
 fn build_field_binding(index: usize, field: &FieldSpec, runtime: &TokenStream2) -> TokenStream2 {
