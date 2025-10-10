@@ -293,7 +293,8 @@ fn build_field_binding(index: usize, field: &FieldSpec, runtime: &TokenStream2) 
     if field.config.optional {
         build_optional_field_binding(binding_ident, accessor, runtime)
     } else if let Some(default) = &field.config.default {
-        build_field_binding_with_default(binding_ident, accessor, default, &field.ty, runtime)
+        let default_expr = build_default_expr(default, &field.ty);
+        build_field_binding_with_default(binding_ident, accessor, default_expr, runtime)
     } else {
         build_required_field_binding(binding_ident, accessor)
     }
@@ -329,11 +330,9 @@ fn build_optional_field_binding(
 fn build_field_binding_with_default(
     binding_ident: Ident,
     accessor: TokenStream2,
-    default: &DefaultValue,
-    ty: &Type,
+    default_expr: TokenStream2,
     runtime: &TokenStream2,
 ) -> TokenStream2 {
-    let default_expr = build_default_expr(default, ty);
     let missing_pattern = missing_error_pattern(runtime);
     quote! {
         let #binding_ident = match #accessor {
