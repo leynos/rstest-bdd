@@ -291,38 +291,82 @@ fn build_field_binding(index: usize, field: &FieldSpec, runtime: &TokenStream2) 
         .unwrap_or_else(|| format_ident!("__field_{index}"));
     let accessor = accessor_expr(field, runtime, index);
     if field.config.optional {
-        quote! {
-            let #binding_ident = match #accessor {
-                Ok(value) => Some(value),
-                Err(err) => match err {
-                    #runtime::datatable::DataTableError::MissingColumn { .. }
-                    | #runtime::datatable::DataTableError::MissingCell { .. } => None,
-                    _ => return Err(err),
-                },
-            };
-        }
+        build_optional_field_binding(binding_ident, accessor, runtime)
     } else if let Some(default) = &field.config.default {
-        let default_expr = match default {
-            DefaultValue::Trait => {
-                let ty = &field.ty;
-                quote! { <#ty as ::core::default::Default>::default() }
-            }
-            DefaultValue::Function(path) => quote! { #path() },
-        };
-        quote! {
-            let #binding_ident = match #accessor {
-                Ok(value) => value,
-                Err(err) => match err {
-                    #runtime::datatable::DataTableError::MissingColumn { .. }
-                    | #runtime::datatable::DataTableError::MissingCell { .. } => #default_expr,
-                    _ => return Err(err),
-                },
-            };
-        }
+        build_field_binding_with_default(binding_ident, accessor, default, &field.ty, runtime)
     } else {
-        quote! {
-            let #binding_ident = #accessor?;
-        }
+        build_required_field_binding(binding_ident, accessor)
+    }
+}
+
+// These helpers take owned tokens to satisfy the refactoring contract while
+// keeping the call sites ergonomic, so suppress Clippy's pass-by-value lint.
+#[expect(
+    clippy::needless_pass_by_value,
+    reason = "refactoring brief mandates these helpers take ownership"
+)]
+fn build_optional_field_binding(
+    binding_ident: Ident,
+    accessor: TokenStream2,
+    runtime: &TokenStream2,
+) -> TokenStream2 {
+    let missing_pattern = missing_error_pattern(runtime);
+    quote! {
+        let #binding_ident = match #accessor {
+            Ok(value) => Some(value),
+            Err(err) => match err {
+                #missing_pattern => None,
+                _ => return Err(err),
+            },
+        };
+    }
+}
+
+#[expect(
+    clippy::needless_pass_by_value,
+    reason = "refactoring brief mandates these helpers take ownership"
+)]
+fn build_field_binding_with_default(
+    binding_ident: Ident,
+    accessor: TokenStream2,
+    default: &DefaultValue,
+    ty: &Type,
+    runtime: &TokenStream2,
+) -> TokenStream2 {
+    let default_expr = build_default_expr(default, ty);
+    let missing_pattern = missing_error_pattern(runtime);
+    quote! {
+        let #binding_ident = match #accessor {
+            Ok(value) => value,
+            Err(err) => match err {
+                #missing_pattern => #default_expr,
+                _ => return Err(err),
+            },
+        };
+    }
+}
+
+#[expect(
+    clippy::needless_pass_by_value,
+    reason = "refactoring brief mandates these helpers take ownership"
+)]
+fn build_required_field_binding(binding_ident: Ident, accessor: TokenStream2) -> TokenStream2 {
+    quote! {
+        let #binding_ident = #accessor?;
+    }
+}
+
+fn build_default_expr(default: &DefaultValue, ty: &Type) -> TokenStream2 {
+    match default {
+        DefaultValue::Trait => quote! { <#ty as ::core::default::Default>::default() },
+        DefaultValue::Function(path) => quote! { #path() },
+    }
+}
+
+fn missing_error_pattern(runtime: &TokenStream2) -> TokenStream2 {
+    quote! {
+        #runtime::datatable::DataTableError::MissingColumn { .. }
+        | #runtime::datatable::DataTableError::MissingCell { .. }
     }
 }
 
