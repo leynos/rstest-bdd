@@ -1,3 +1,11 @@
+//! Example household ledger for demonstrating Japanese-language
+//! behaviour-driven tests with rstest-bdd.
+//!
+//! The library mirrors the data structures exercised by the
+//! `household_ledger.feature` scenarios. It exposes a mutable balance API.
+//! Fixtures can share the ledger safely across multiple steps via interior
+//! mutability.
+
 use std::cell::Cell;
 
 /// Tracks a household's running balance using interior mutability.
