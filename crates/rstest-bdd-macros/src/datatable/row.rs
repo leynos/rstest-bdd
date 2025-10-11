@@ -180,43 +180,76 @@ fn process_field_meta_item(
     };
     let ident = ident.to_string();
     match ident.as_str() {
-        "column" => {
-            let value: LitStr = meta.value()?.parse()?;
-            config.accessor = Accessor::Column {
-                name: value.value(),
-            };
-            Ok(())
-        }
-        "optional" => {
-            config.optional = true;
-            Ok(())
-        }
-        "default" => {
-            if meta.input.peek(Token![=]) {
-                let path: ExprPath = meta.value()?.parse()?;
-                config.default = Some(DefaultValue::Function(path));
-            } else {
-                config.default = Some(DefaultValue::Trait);
-            }
-            Ok(())
-        }
-        "parse_with" => {
-            let path: ExprPath = meta.value()?.parse()?;
-            if config.parse_with.replace(path).is_some() {
-                return Err(meta.error("duplicate parse_with attribute"));
-            }
-            Ok(())
-        }
-        "truthy" => {
-            config.truthy = true;
-            Ok(())
-        }
-        "trim" => {
-            config.trim = true;
-            Ok(())
-        }
+        "column" => handle_column_attribute(meta, config),
+        "optional" => handle_optional_attribute(config),
+        "default" => handle_default_attribute(meta, config),
+        "parse_with" => handle_parse_with_attribute(meta, config),
+        "truthy" => handle_truthy_attribute(config),
+        "trim" => handle_trim_attribute(config),
         _ => Err(meta.error("unsupported datatable attribute")),
     }
+}
+
+fn handle_column_attribute(
+    meta: &syn::meta::ParseNestedMeta,
+    config: &mut FieldConfig,
+) -> syn::Result<()> {
+    let value: LitStr = meta.value()?.parse()?;
+    config.accessor = Accessor::Column {
+        name: value.value(),
+    };
+    Ok(())
+}
+
+#[expect(
+    clippy::unnecessary_wraps,
+    reason = "Handlers must expose a uniform syn::Result<()> signature."
+)]
+fn handle_optional_attribute(config: &mut FieldConfig) -> syn::Result<()> {
+    config.optional = true;
+    Ok(())
+}
+
+fn handle_default_attribute(
+    meta: &syn::meta::ParseNestedMeta,
+    config: &mut FieldConfig,
+) -> syn::Result<()> {
+    if meta.input.peek(Token![=]) {
+        let path: ExprPath = meta.value()?.parse()?;
+        config.default = Some(DefaultValue::Function(path));
+    } else {
+        config.default = Some(DefaultValue::Trait);
+    }
+    Ok(())
+}
+
+fn handle_parse_with_attribute(
+    meta: &syn::meta::ParseNestedMeta,
+    config: &mut FieldConfig,
+) -> syn::Result<()> {
+    let path: ExprPath = meta.value()?.parse()?;
+    if config.parse_with.replace(path).is_some() {
+        return Err(meta.error("duplicate parse_with attribute"));
+    }
+    Ok(())
+}
+
+#[expect(
+    clippy::unnecessary_wraps,
+    reason = "Handlers must expose a uniform syn::Result<()> signature."
+)]
+fn handle_truthy_attribute(config: &mut FieldConfig) -> syn::Result<()> {
+    config.truthy = true;
+    Ok(())
+}
+
+#[expect(
+    clippy::unnecessary_wraps,
+    reason = "Handlers must expose a uniform syn::Result<()> signature."
+)]
+fn handle_trim_attribute(config: &mut FieldConfig) -> syn::Result<()> {
+    config.trim = true;
+    Ok(())
 }
 
 fn validate_field_config(
