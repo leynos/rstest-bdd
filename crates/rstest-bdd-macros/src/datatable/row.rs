@@ -92,9 +92,16 @@ fn expand_inner(input: &DeriveInput) -> syn::Result<TokenStream2> {
 fn parse_struct_config(attrs: &[Attribute]) -> syn::Result<StructConfig> {
     let mut rename_rule = None;
     for attr in datatable_attributes(attrs) {
-        attr.parse_nested_meta(|meta| parse_rename_all_from_meta(&meta, &mut rename_rule))?;
+        process_datatable_attr(attr, &mut rename_rule)?;
     }
     Ok(StructConfig { rename_rule })
+}
+
+fn process_datatable_attr(
+    attr: &Attribute,
+    rename_rule: &mut Option<RenameRule>,
+) -> syn::Result<()> {
+    attr.parse_nested_meta(|meta| parse_rename_all_from_meta(&meta, rename_rule))
 }
 
 fn datatable_attributes(attrs: &[Attribute]) -> impl Iterator<Item = &Attribute> {
@@ -180,45 +187,54 @@ fn parse_field_attributes(
 ) -> syn::Result<FieldConfig> {
     let mut config = FieldConfig::new(base_accessor);
     for attr in attrs {
-        if !attr.path().is_ident("datatable") {
-            continue;
-        }
-        attr.parse_nested_meta(|meta| {
-            if meta.path.is_ident("column") {
-                let value: LitStr = meta.value()?.parse()?;
-                config.accessor = Accessor::Column {
-                    name: value.value(),
-                };
-                Ok(())
-            } else if meta.path.is_ident("optional") {
-                config.optional = true;
-                Ok(())
-            } else if meta.path.is_ident("default") {
-                if meta.input.peek(Token![=]) {
-                    let path: ExprPath = meta.value()?.parse()?;
-                    config.default = Some(DefaultValue::Function(path));
-                } else {
-                    config.default = Some(DefaultValue::Trait);
-                }
-                Ok(())
-            } else if meta.path.is_ident("parse_with") {
-                let path: ExprPath = meta.value()?.parse()?;
-                if config.parse_with.replace(path).is_some() {
-                    return Err(meta.error("duplicate parse_with attribute"));
-                }
-                Ok(())
-            } else if meta.path.is_ident("truthy") {
-                config.truthy = true;
-                Ok(())
-            } else if meta.path.is_ident("trim") {
-                config.trim = true;
-                Ok(())
-            } else {
-                Err(meta.error("unsupported datatable attribute"))
-            }
-        })?;
+        process_datatable_field_attr(attr, &mut config)?;
     }
     Ok(config)
+}
+
+fn process_datatable_field_attr(attr: &Attribute, config: &mut FieldConfig) -> syn::Result<()> {
+    if !attr.path().is_ident("datatable") {
+        return Ok(());
+    }
+    attr.parse_nested_meta(|meta| process_field_meta_item(&meta, config))
+}
+
+fn process_field_meta_item(
+    meta: &syn::meta::ParseNestedMeta,
+    config: &mut FieldConfig,
+) -> syn::Result<()> {
+    if meta.path.is_ident("column") {
+        let value: LitStr = meta.value()?.parse()?;
+        config.accessor = Accessor::Column {
+            name: value.value(),
+        };
+        Ok(())
+    } else if meta.path.is_ident("optional") {
+        config.optional = true;
+        Ok(())
+    } else if meta.path.is_ident("default") {
+        if meta.input.peek(Token![=]) {
+            let path: ExprPath = meta.value()?.parse()?;
+            config.default = Some(DefaultValue::Function(path));
+        } else {
+            config.default = Some(DefaultValue::Trait);
+        }
+        Ok(())
+    } else if meta.path.is_ident("parse_with") {
+        let path: ExprPath = meta.value()?.parse()?;
+        if config.parse_with.replace(path).is_some() {
+            return Err(meta.error("duplicate parse_with attribute"));
+        }
+        Ok(())
+    } else if meta.path.is_ident("truthy") {
+        config.truthy = true;
+        Ok(())
+    } else if meta.path.is_ident("trim") {
+        config.trim = true;
+        Ok(())
+    } else {
+        Err(meta.error("unsupported datatable attribute"))
+    }
 }
 
 fn validate_field_config(
