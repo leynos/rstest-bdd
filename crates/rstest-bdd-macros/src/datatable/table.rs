@@ -91,13 +91,16 @@ fn parse_struct_attrs(attrs: &[Attribute]) -> syn::Result<TableConfig> {
         map: None,
         try_map: None,
     };
-    for attr in attrs {
-        if !attr.path().is_ident("datatable") {
-            continue;
-        }
+    for attr in datatable_attributes(attrs) {
         attr.parse_nested_meta(|meta| process_meta_item(&meta, &mut config))?;
     }
     Ok(config)
+}
+
+fn datatable_attributes(attrs: &[Attribute]) -> impl Iterator<Item = &Attribute> {
+    attrs
+        .iter()
+        .filter(|attr| attr.path().is_ident("datatable"))
 }
 
 fn process_meta_item(
@@ -138,9 +141,7 @@ fn extract_inner_types(field: &Field) -> (Type, Option<Type>) {
     let Some(segment) = path.segments.last() else {
         return (field.ty.clone(), None);
     };
-    if !((segment.ident == "Rows" || segment.ident == "Vec")
-        && matches!(segment.arguments, PathArguments::AngleBracketed(_)))
-    {
+    if segment.ident != "Rows" && segment.ident != "Vec" {
         return (field.ty.clone(), None);
     }
     let PathArguments::AngleBracketed(args) = &segment.arguments else {

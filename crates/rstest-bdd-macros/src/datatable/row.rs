@@ -175,37 +175,47 @@ fn process_field_meta_item(
     meta: &syn::meta::ParseNestedMeta,
     config: &mut FieldConfig,
 ) -> syn::Result<()> {
-    if meta.path.is_ident("column") {
-        let value: LitStr = meta.value()?.parse()?;
-        config.accessor = Accessor::Column {
-            name: value.value(),
-        };
-        Ok(())
-    } else if meta.path.is_ident("optional") {
-        config.optional = true;
-        Ok(())
-    } else if meta.path.is_ident("default") {
-        if meta.input.peek(Token![=]) {
+    let Some(ident) = meta.path.get_ident() else {
+        return Err(meta.error("unsupported datatable attribute"));
+    };
+    let ident = ident.to_string();
+    match ident.as_str() {
+        "column" => {
+            let value: LitStr = meta.value()?.parse()?;
+            config.accessor = Accessor::Column {
+                name: value.value(),
+            };
+            Ok(())
+        }
+        "optional" => {
+            config.optional = true;
+            Ok(())
+        }
+        "default" => {
+            if meta.input.peek(Token![=]) {
+                let path: ExprPath = meta.value()?.parse()?;
+                config.default = Some(DefaultValue::Function(path));
+            } else {
+                config.default = Some(DefaultValue::Trait);
+            }
+            Ok(())
+        }
+        "parse_with" => {
             let path: ExprPath = meta.value()?.parse()?;
-            config.default = Some(DefaultValue::Function(path));
-        } else {
-            config.default = Some(DefaultValue::Trait);
+            if config.parse_with.replace(path).is_some() {
+                return Err(meta.error("duplicate parse_with attribute"));
+            }
+            Ok(())
         }
-        Ok(())
-    } else if meta.path.is_ident("parse_with") {
-        let path: ExprPath = meta.value()?.parse()?;
-        if config.parse_with.replace(path).is_some() {
-            return Err(meta.error("duplicate parse_with attribute"));
+        "truthy" => {
+            config.truthy = true;
+            Ok(())
         }
-        Ok(())
-    } else if meta.path.is_ident("truthy") {
-        config.truthy = true;
-        Ok(())
-    } else if meta.path.is_ident("trim") {
-        config.trim = true;
-        Ok(())
-    } else {
-        Err(meta.error("unsupported datatable attribute"))
+        "trim" => {
+            config.trim = true;
+            Ok(())
+        }
+        _ => Err(meta.error("unsupported datatable attribute")),
     }
 }
 
@@ -215,37 +225,85 @@ fn validate_field_config(
     inner_ty: &Type,
     span: proc_macro2::Span,
 ) -> syn::Result<()> {
+    ensure_optional_without_default(config, span)?;
+    ensure_truthy_and_parse_with_exclusive(config, span)?;
+    ensure_optional_field_uses_option(config, is_option, span)?;
+    ensure_option_field_without_default(config, is_option, span)?;
+    ensure_truthy_field_is_bool(config, inner_ty, span)?;
+    Ok(())
+}
+
+fn ensure_optional_without_default(
+    config: &FieldConfig,
+    span: proc_macro2::Span,
+) -> syn::Result<()> {
     if config.optional && config.default.is_some() {
-        return Err(syn::Error::new(
+        Err(syn::Error::new(
             span,
             "optional fields cannot specify a default",
-        ));
+        ))
+    } else {
+        Ok(())
     }
+}
+
+fn ensure_truthy_and_parse_with_exclusive(
+    config: &FieldConfig,
+    span: proc_macro2::Span,
+) -> syn::Result<()> {
     if config.truthy && config.parse_with.is_some() {
-        return Err(syn::Error::new(
+        Err(syn::Error::new(
             span,
             "truthy and parse_with are mutually exclusive",
-        ));
+        ))
+    } else {
+        Ok(())
     }
+}
+
+fn ensure_optional_field_uses_option(
+    config: &FieldConfig,
+    is_option: bool,
+    span: proc_macro2::Span,
+) -> syn::Result<()> {
     if config.optional && !is_option {
-        return Err(syn::Error::new(
+        Err(syn::Error::new(
             span,
             "#[datatable(optional)] requires an Option<T> field",
-        ));
+        ))
+    } else {
+        Ok(())
     }
+}
+
+fn ensure_option_field_without_default(
+    config: &FieldConfig,
+    is_option: bool,
+    span: proc_macro2::Span,
+) -> syn::Result<()> {
     if is_option && config.default.is_some() {
-        return Err(syn::Error::new(
+        Err(syn::Error::new(
             span,
             "Option<T> fields cannot define a default value",
-        ));
+        ))
+    } else {
+        Ok(())
     }
+}
+
+fn ensure_truthy_field_is_bool(
+    config: &FieldConfig,
+    inner_ty: &Type,
+    span: proc_macro2::Span,
+) -> syn::Result<()> {
     if config.truthy && !is_bool_type(inner_ty) {
-        return Err(syn::Error::new(
+        Err(syn::Error::new(
             span,
             "#[datatable(truthy)] requires a bool field",
-        ));
+        ))
+    } else {
+        Ok(())
     }
-    Ok(())
 }
 
 fn build_field_binding(index: usize, field: &FieldSpec, runtime: &TokenStream2) -> TokenStream2 {
