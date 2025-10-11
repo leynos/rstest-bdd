@@ -3,9 +3,12 @@
 //! This module wires the outer derive macro surfaces to the internal code
 //! generators that live in the sibling modules.
 
+mod config;
+mod parser;
 mod rename;
 mod row;
 mod table;
+mod validation;
 
 use proc_macro::TokenStream;
 
