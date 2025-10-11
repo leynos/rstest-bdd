@@ -7,13 +7,16 @@ use proc_macro::TokenStream;
 use proc_macro2::{Ident, TokenStream as TokenStream2};
 use quote::{format_ident, quote};
 use syn::{
-    Attribute, Data, DataStruct, DeriveInput, ExprPath, Field, Fields, GenericArgument, Generics,
-    LitStr, PathArguments, Token, Type, TypePath, parse_macro_input, spanned::Spanned,
+    Attribute, Data, DataStruct, DeriveInput, ExprPath, Field, Fields, Generics, LitStr, Token,
+    Type, parse_macro_input, spanned::Spanned,
 };
 
 use crate::codegen::rstest_bdd_path;
 
 use super::rename::RenameRule;
+use crate::datatable::config::{Accessor, DefaultValue, FieldConfig, FieldSpec, StructConfig};
+use crate::datatable::parser::accessor_expr;
+use crate::datatable::validation::{is_bool_type, is_string_type, option_inner_type};
 
 pub(crate) fn expand(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
@@ -21,37 +24,6 @@ pub(crate) fn expand(input: TokenStream) -> TokenStream {
         Ok(tokens) => tokens.into(),
         Err(err) => err.into_compile_error().into(),
     }
-}
-
-struct StructConfig {
-    rename_rule: Option<RenameRule>,
-}
-
-struct FieldConfig {
-    accessor: Accessor,
-    optional: bool,
-    default: Option<DefaultValue>,
-    parse_with: Option<ExprPath>,
-    truthy: bool,
-    trim: bool,
-}
-
-enum DefaultValue {
-    Trait,
-    Function(ExprPath),
-}
-
-#[derive(Clone)]
-enum Accessor {
-    Column { name: String },
-    Index { position: usize },
-}
-
-struct FieldSpec {
-    ident: Option<Ident>,
-    ty: Type,
-    inner_ty: Type,
-    config: FieldConfig,
 }
 
 fn expand_inner(input: &DeriveInput) -> syn::Result<TokenStream2> {
@@ -276,44 +248,6 @@ fn validate_field_config(
     Ok(())
 }
 
-impl FieldConfig {
-    fn new(accessor: Accessor) -> Self {
-        Self {
-            accessor,
-            optional: false,
-            default: None,
-            parse_with: None,
-            truthy: false,
-            trim: false,
-        }
-    }
-}
-
-fn option_inner_type(ty: &Type) -> syn::Result<(bool, Type)> {
-    let Type::Path(TypePath { path, .. }) = ty else {
-        return Ok((false, ty.clone()));
-    };
-    let Some(segment) = path.segments.last() else {
-        return Ok((false, ty.clone()));
-    };
-    if segment.ident != "Option" {
-        return Ok((false, ty.clone()));
-    }
-    let PathArguments::AngleBracketed(args) = &segment.arguments else {
-        return Err(syn::Error::new(
-            ty.span(),
-            "Option<T> must specify an inner type",
-        ));
-    };
-    let Some(GenericArgument::Type(inner)) = args.args.first() else {
-        return Err(syn::Error::new(
-            ty.span(),
-            "Option<T> must specify an inner type",
-        ));
-    };
-    Ok((true, inner.clone()))
-}
-
 fn build_field_binding(index: usize, field: &FieldSpec, runtime: &TokenStream2) -> TokenStream2 {
     let binding_ident = field
         .ident
@@ -397,71 +331,6 @@ fn missing_error_pattern(runtime: &TokenStream2) -> TokenStream2 {
         #runtime::datatable::DataTableError::MissingColumn { .. }
         | #runtime::datatable::DataTableError::MissingCell { .. }
     }
-}
-
-fn accessor_expr(field: &FieldSpec, runtime: &TokenStream2, index: usize) -> TokenStream2 {
-    let closure = parser_closure(&field.config, &field.inner_ty, runtime, index);
-    match &field.config.accessor {
-        Accessor::Column { name, .. } => {
-            quote! { row.parse_column_with(#name, #closure) }
-        }
-        Accessor::Index { position, .. } => {
-            let pos = syn::Index::from(*position);
-            quote! { row.parse_with(#pos, #closure) }
-        }
-    }
-}
-
-fn parser_closure(
-    config: &FieldConfig,
-    target_ty: &Type,
-    runtime: &TokenStream2,
-    index: usize,
-) -> TokenStream2 {
-    let value_ident = format_ident!("cell_{index}");
-    let mut statements = Vec::new();
-    let mut current = quote! { #value_ident };
-    if config.trim {
-        let trimmed = format_ident!("trimmed_{index}");
-        statements.push(quote! { let #trimmed = #current.trim(); });
-        current = quote! { #trimmed };
-    }
-    let parse_expr = config.parse_with.as_ref().map_or_else(
-        || {
-            if config.truthy {
-                quote! { #runtime::datatable::truthy_bool(#current) }
-            } else if is_string_type(target_ty) {
-                quote! { Ok::<#target_ty, ::core::convert::Infallible>(#current.to_owned()) }
-            } else {
-                quote! { #current.parse::<#target_ty>() }
-            }
-        },
-        |parser| quote! { #parser(#current) },
-    );
-    quote! {
-        |#value_ident| {
-            #(#statements)*
-            #parse_expr
-        }
-    }
-}
-
-fn is_string_type(ty: &Type) -> bool {
-    if let Type::Path(path) = ty {
-        if let Some(segment) = path.path.segments.last() {
-            return segment.ident == "String" && matches!(segment.arguments, PathArguments::None);
-        }
-    }
-    false
-}
-
-fn is_bool_type(ty: &Type) -> bool {
-    if let Type::Path(path) = ty {
-        if let Some(segment) = path.path.segments.last() {
-            return segment.ident == "bool" && matches!(segment.arguments, PathArguments::None);
-        }
-    }
-    false
 }
 
 fn build_constructor(fields: &[FieldSpec]) -> TokenStream2 {
