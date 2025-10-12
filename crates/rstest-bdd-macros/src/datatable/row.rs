@@ -355,6 +355,26 @@ fn build_field_binding(index: usize, field: &FieldSpec, runtime: &TokenStream2) 
     }
 }
 
+macro_rules! build_binding_match {
+    ($binding_ident:expr, $accessor:expr, $runtime:expr, $on_success:expr, $on_missing:expr) => {{
+        let binding_ident = &$binding_ident;
+        let accessor = &$accessor;
+        let runtime = $runtime;
+        let on_success = &$on_success;
+        let on_missing = &$on_missing;
+        let missing_pattern = missing_error_pattern(runtime);
+        quote! {
+            let #binding_ident = match #accessor {
+                Ok(value) => #on_success,
+                Err(err) => match err {
+                    #missing_pattern => #on_missing,
+                    _ => return Err(err),
+                },
+            };
+        }
+    }};
+}
+
 // These helpers take owned tokens to satisfy the refactoring contract while
 // keeping the call sites ergonomic, so suppress Clippy's pass-by-value lint.
 #[expect(
@@ -366,16 +386,13 @@ fn build_optional_field_binding(
     accessor: TokenStream2,
     runtime: &TokenStream2,
 ) -> TokenStream2 {
-    let missing_pattern = missing_error_pattern(runtime);
-    quote! {
-        let #binding_ident = match #accessor {
-            Ok(value) => Some(value),
-            Err(err) => match err {
-                #missing_pattern => None,
-                _ => return Err(err),
-            },
-        };
-    }
+    build_binding_match!(
+        binding_ident,
+        accessor,
+        runtime,
+        quote! { Some(value) },
+        quote! { None }
+    )
 }
 
 #[expect(
@@ -388,16 +405,13 @@ fn build_field_binding_with_default(
     default_expr: TokenStream2,
     runtime: &TokenStream2,
 ) -> TokenStream2 {
-    let missing_pattern = missing_error_pattern(runtime);
-    quote! {
-        let #binding_ident = match #accessor {
-            Ok(value) => value,
-            Err(err) => match err {
-                #missing_pattern => #default_expr,
-                _ => return Err(err),
-            },
-        };
-    }
+    build_binding_match!(
+        binding_ident,
+        accessor,
+        runtime,
+        quote! { value },
+        quote! { #default_expr }
+    )
 }
 
 #[expect(
