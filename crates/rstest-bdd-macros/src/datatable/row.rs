@@ -269,32 +269,34 @@ fn validate_field_config(
     Ok(())
 }
 
+fn ensure_when(violation: bool, span: proc_macro2::Span, message: &str) -> syn::Result<()> {
+    if violation {
+        Err(syn::Error::new(span, message))
+    } else {
+        Ok(())
+    }
+}
+
 fn ensure_optional_without_default(
     config: &FieldConfig,
     span: proc_macro2::Span,
 ) -> syn::Result<()> {
-    if config.optional && config.default.is_some() {
-        Err(syn::Error::new(
-            span,
-            "optional fields cannot specify a default",
-        ))
-    } else {
-        Ok(())
-    }
+    ensure_when(
+        config.optional && config.default.is_some(),
+        span,
+        "optional fields cannot specify a default",
+    )
 }
 
 fn ensure_truthy_and_parse_with_exclusive(
     config: &FieldConfig,
     span: proc_macro2::Span,
 ) -> syn::Result<()> {
-    if config.truthy && config.parse_with.is_some() {
-        Err(syn::Error::new(
-            span,
-            "truthy and parse_with are mutually exclusive",
-        ))
-    } else {
-        Ok(())
-    }
+    ensure_when(
+        config.truthy && config.parse_with.is_some(),
+        span,
+        "truthy and parse_with are mutually exclusive",
+    )
 }
 
 fn ensure_optional_field_uses_option(
@@ -302,14 +304,11 @@ fn ensure_optional_field_uses_option(
     is_option: bool,
     span: proc_macro2::Span,
 ) -> syn::Result<()> {
-    if config.optional && !is_option {
-        Err(syn::Error::new(
-            span,
-            "#[datatable(optional)] requires an Option<T> field",
-        ))
-    } else {
-        Ok(())
-    }
+    ensure_when(
+        config.optional && !is_option,
+        span,
+        "#[datatable(optional)] requires an Option<T> field",
+    )
 }
 
 fn ensure_option_field_without_default(
@@ -317,14 +316,11 @@ fn ensure_option_field_without_default(
     is_option: bool,
     span: proc_macro2::Span,
 ) -> syn::Result<()> {
-    if is_option && config.default.is_some() {
-        Err(syn::Error::new(
-            span,
-            "Option<T> fields cannot define a default value",
-        ))
-    } else {
-        Ok(())
-    }
+    ensure_when(
+        is_option && config.default.is_some(),
+        span,
+        "Option<T> fields cannot define a default value",
+    )
 }
 
 fn ensure_truthy_field_is_bool(
@@ -332,14 +328,11 @@ fn ensure_truthy_field_is_bool(
     inner_ty: &Type,
     span: proc_macro2::Span,
 ) -> syn::Result<()> {
-    if config.truthy && !is_bool_type(inner_ty) {
-        Err(syn::Error::new(
-            span,
-            "#[datatable(truthy)] requires a bool field",
-        ))
-    } else {
-        Ok(())
-    }
+    ensure_when(
+        config.truthy && !is_bool_type(inner_ty),
+        span,
+        "#[datatable(truthy)] requires a bool field",
+    )
 }
 
 fn build_field_binding(index: usize, field: &FieldSpec, runtime: &TokenStream2) -> TokenStream2 {
