@@ -214,6 +214,9 @@ fn handle_default_attribute(
     meta: &syn::meta::ParseNestedMeta,
     config: &mut FieldConfig,
 ) -> syn::Result<()> {
+    if config.default.is_some() {
+        return Err(meta.error("duplicate default attribute"));
+    }
     if meta.input.peek(Token![=]) {
         let path: ExprPath = meta.value()?.parse()?;
         config.default = Some(DefaultValue::Function(path));

@@ -109,15 +109,21 @@ fn process_meta_item(
 ) -> syn::Result<()> {
     if meta.path.is_ident("row") {
         let ty = parse_row_type(meta)?;
-        config.row_ty = Some(ty);
+        if config.row_ty.replace(ty).is_some() {
+            return Err(meta.error("duplicate row attribute"));
+        }
         Ok(())
     } else if meta.path.is_ident("map") {
         let path: ExprPath = meta.value()?.parse()?;
-        config.map = Some(path);
+        if config.map.replace(path).is_some() {
+            return Err(meta.error("duplicate map attribute"));
+        }
         Ok(())
     } else if meta.path.is_ident("try_map") {
         let path: ExprPath = meta.value()?.parse()?;
-        config.try_map = Some(path);
+        if config.try_map.replace(path).is_some() {
+            return Err(meta.error("duplicate try_map attribute"));
+        }
         Ok(())
     } else {
         Err(meta.error("unsupported datatable attribute"))
@@ -141,7 +147,9 @@ fn extract_inner_types(field: &Field) -> (Type, Option<Type>) {
     let Some(segment) = path.segments.last() else {
         return (field.ty.clone(), None);
     };
-    if segment.ident != "Rows" && segment.ident != "Vec" {
+    if (segment.ident != "Rows" && segment.ident != "Vec")
+        || !matches!(segment.arguments, PathArguments::AngleBracketed(_))
+    {
         return (field.ty.clone(), None);
     }
     let PathArguments::AngleBracketed(args) = &segment.arguments else {
