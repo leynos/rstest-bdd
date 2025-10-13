@@ -122,80 +122,41 @@ fn process_field_meta_item(
     let Some(ident) = meta.path.get_ident() else {
         return Err(meta.error("unsupported datatable attribute"));
     };
-    let ident = ident.to_string();
-    match ident.as_str() {
-        "column" => handle_column_attribute(meta, config),
-        "optional" => handle_optional_attribute(config),
-        "default" => handle_default_attribute(meta, config),
-        "parse_with" => handle_parse_with_attribute(meta, config),
-        "truthy" => handle_truthy_attribute(config),
-        "trim" => handle_trim_attribute(config),
-        _ => Err(meta.error("unsupported datatable attribute")),
+    match ident.to_string().as_str() {
+        "column" => {
+            let value: LitStr = meta.value()?.parse()?;
+            config.accessor = Accessor::Column {
+                name: value.value(),
+            };
+        }
+        "optional" => {
+            config.optional = true;
+        }
+        "default" => {
+            if config.default.is_some() {
+                return Err(meta.error("duplicate default attribute"));
+            }
+            if meta.input.peek(Token![=]) {
+                let path: ExprPath = meta.value()?.parse()?;
+                config.default = Some(DefaultValue::Function(path));
+            } else {
+                config.default = Some(DefaultValue::Trait);
+            }
+        }
+        "parse_with" => {
+            let path: ExprPath = meta.value()?.parse()?;
+            if config.parse_with.replace(path).is_some() {
+                return Err(meta.error("duplicate parse_with attribute"));
+            }
+        }
+        "truthy" => {
+            config.truthy = true;
+        }
+        "trim" => {
+            config.trim = true;
+        }
+        _ => return Err(meta.error("unsupported datatable attribute")),
     }
-}
-
-fn handle_column_attribute(
-    meta: &syn::meta::ParseNestedMeta,
-    config: &mut FieldConfig,
-) -> syn::Result<()> {
-    let value: LitStr = meta.value()?.parse()?;
-    config.accessor = Accessor::Column {
-        name: value.value(),
-    };
-    Ok(())
-}
-
-#[expect(
-    clippy::unnecessary_wraps,
-    reason = "Handlers must expose a uniform syn::Result<()> signature."
-)]
-fn handle_optional_attribute(config: &mut FieldConfig) -> syn::Result<()> {
-    config.optional = true;
-    Ok(())
-}
-
-fn handle_default_attribute(
-    meta: &syn::meta::ParseNestedMeta,
-    config: &mut FieldConfig,
-) -> syn::Result<()> {
-    if config.default.is_some() {
-        return Err(meta.error("duplicate default attribute"));
-    }
-    if meta.input.peek(Token![=]) {
-        let path: ExprPath = meta.value()?.parse()?;
-        config.default = Some(DefaultValue::Function(path));
-    } else {
-        config.default = Some(DefaultValue::Trait);
-    }
-    Ok(())
-}
-
-fn handle_parse_with_attribute(
-    meta: &syn::meta::ParseNestedMeta,
-    config: &mut FieldConfig,
-) -> syn::Result<()> {
-    let path: ExprPath = meta.value()?.parse()?;
-    if config.parse_with.replace(path).is_some() {
-        return Err(meta.error("duplicate parse_with attribute"));
-    }
-    Ok(())
-}
-
-#[expect(
-    clippy::unnecessary_wraps,
-    reason = "Handlers must expose a uniform syn::Result<()> signature."
-)]
-fn handle_truthy_attribute(config: &mut FieldConfig) -> syn::Result<()> {
-    config.truthy = true;
-    Ok(())
-}
-
-#[expect(
-    clippy::unnecessary_wraps,
-    reason = "Handlers must expose a uniform syn::Result<()> signature."
-)]
-fn handle_trim_attribute(config: &mut FieldConfig) -> syn::Result<()> {
-    config.trim = true;
     Ok(())
 }
 
@@ -238,5 +199,58 @@ fn ensure_when(violation: bool, span: Span, message: &str) -> syn::Result<()> {
         Err(syn::Error::new(span, message))
     } else {
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use syn::parse_quote;
+
+    #[test]
+    fn parse_struct_config_reads_rename_rule() {
+        let input: syn::DeriveInput = parse_quote! {
+            #[derive(DataTableRow)]
+            #[datatable(rename_all = "Title Case")]
+            struct Example {
+                value: String,
+            }
+        };
+        #[expect(clippy::expect_used, reason = "test asserts parsed config")]
+        let config = parse_struct_config(&input.attrs).expect("failed to parse struct config");
+        assert!(matches!(config.rename_rule, Some(RenameRule::Title)));
+    }
+
+    #[test]
+    fn parse_field_attributes_sets_flags() {
+        let field: syn::Field = parse_quote! {
+            #[datatable(optional, truthy, trim)]
+            flag: Option<bool>
+        };
+        let base = Accessor::Column {
+            name: String::from("flag"),
+        };
+        #[expect(clippy::expect_used, reason = "test asserts parsed config")]
+        let config =
+            parse_field_attributes(&field.attrs, base).expect("failed to parse field attributes");
+        assert!(config.optional);
+        assert!(config.truthy);
+        assert!(config.trim);
+    }
+
+    #[test]
+    fn parse_field_attributes_rejects_duplicate_defaults() {
+        let field: syn::Field = parse_quote! {
+            #[datatable(default, default = provide)]
+            value: usize
+        };
+        let base = Accessor::Column {
+            name: String::from("value"),
+        };
+        #[expect(clippy::expect_used, reason = "test asserts error handling")]
+        let err = parse_field_attributes(&field.attrs, base)
+            .err()
+            .expect("duplicate default must error");
+        assert!(err.to_string().contains("duplicate default attribute"));
     }
 }

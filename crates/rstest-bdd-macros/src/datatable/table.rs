@@ -5,7 +5,7 @@
 
 mod attributes;
 
-use attributes::{TableConfig, parse_struct_attrs};
+use attributes::{MapKind, TableConfig, parse_struct_attrs};
 
 use proc_macro::TokenStream;
 use proc_macro2::TokenStream as TokenStream2;
@@ -35,12 +35,10 @@ fn expand_inner(input: &DeriveInput) -> syn::Result<TokenStream2> {
     let field = extract_single_field(fields)?;
     let mut config = parse_struct_attrs(&input.attrs)?;
     let runtime = rstest_bdd_path();
-    if config.map.is_some() && config.try_map.is_some() {
-        return Err(syn::Error::new(
-            input.span(),
-            "map and try_map cannot be combined",
-        ));
-    }
+    // NOTE: Row type inference only works for simple generic types. More complex
+    // cases (for example nested generics or associated types) are not supported.
+    // When inference fails callers must set `#[datatable(row = "Type")]`
+    // explicitly.
     let (field_ty, row_ty_guess) = extract_inner_types(field);
     if config.row_ty.is_none() {
         config.row_ty = row_ty_guess;
@@ -113,11 +111,10 @@ fn build_conversion(
     config: &TableConfig,
 ) -> syn::Result<(TokenStream2, TokenStream2)> {
     if let Some(map) = &config.map {
-        let builder = quote! { let value = #map(rows); };
-        return Ok((builder, quote! { value }));
-    }
-    if let Some(map) = &config.try_map {
-        let builder = quote! { let value = #map(rows)?; };
+        let builder = match map {
+            MapKind::Direct(func) => quote! { let value = #func(rows); },
+            MapKind::Try(func) => quote! { let value = #func(rows)?; },
+        };
         return Ok((builder, quote! { value }));
     }
     let Type::Path(TypePath { path, .. }) = field_ty else {

@@ -114,6 +114,9 @@ struct DerivedRow {
     age: u8,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, DataTableRow)]
+struct TupleRow(String, u8, bool);
+
 fn default_region() -> String {
     String::from("EMEA")
 }
@@ -126,14 +129,37 @@ fn parse_age(value: &str) -> Result<u8, std::num::ParseIntError> {
 struct DerivedRowCollection(Rows<DerivedRow>);
 
 #[derive(Debug, PartialEq, Eq, DataTable)]
+struct DerivedRowVecCollection(Vec<DerivedRow>);
+
+#[derive(Debug, PartialEq, Eq, DataTable)]
 #[datatable(row = DerivedRow, map = collect_active_names)]
 struct ActiveNames(Vec<String>);
+
+#[derive(Debug, PartialEq, Eq, DataTable)]
+#[datatable(row = DerivedRow, try_map = collect_active_names_fallible)]
+struct FallibleActiveNames(Vec<String>);
 
 fn collect_active_names(rows: Rows<DerivedRow>) -> Vec<String> {
     rows.into_iter()
         .filter(|row| row.active)
         .map(|row| row.given_name)
         .collect()
+}
+
+fn collect_active_names_fallible(rows: Rows<DerivedRow>) -> Result<Vec<String>, DataTableError> {
+    let mut names = Vec::new();
+    for row in rows {
+        if row.tagline == "error" {
+            return Err(DataTableError::MissingColumn {
+                row_number: 2,
+                column: String::from("active"),
+            });
+        }
+        if row.active {
+            names.push(row.given_name.clone());
+        }
+    }
+    Ok(names)
 }
 
 #[test]
@@ -154,10 +180,8 @@ fn derive_data_table_row_parses_and_maps_columns() {
             String::from(" 42 "),
         ],
     ];
-    let rows = match Rows::<DerivedRow>::try_from(table) {
-        Ok(rows) => rows,
-        Err(err) => panic!("rows should parse: {err}"),
-    };
+    #[expect(clippy::expect_used, reason = "test asserts successful parse")]
+    let rows = Rows::<DerivedRow>::try_from(table).expect("rows should parse");
     assert_eq!(
         rows.into_vec(),
         vec![DerivedRow {
@@ -169,6 +193,105 @@ fn derive_data_table_row_parses_and_maps_columns() {
             tagline: String::from("unstoppable"),
             age: 42,
         }],
+    );
+}
+
+#[test]
+fn derive_data_table_row_missing_column_should_error() {
+    let table = vec![
+        vec![
+            String::from("given-name"),
+            String::from("active"),
+            String::from("tagline"),
+            String::from("age"),
+        ],
+        vec![
+            String::from("Alice"),
+            String::from("yes"),
+            String::from(" unstoppable"),
+            String::from("41"),
+        ],
+    ];
+    #[expect(clippy::expect_used, reason = "test asserts error propagation")]
+    let err = Rows::<DerivedRow>::try_from(table).expect_err("missing column");
+    assert!(matches!(
+        err,
+        DataTableError::MissingColumn { ref column, .. } if column == "email address"
+    ));
+}
+
+#[test]
+fn derive_data_table_row_invalid_type_should_error() {
+    let table = vec![
+        vec![
+            String::from("given-name"),
+            String::from("email address"),
+            String::from("active"),
+            String::from("tagline"),
+            String::from("age"),
+        ],
+        vec![
+            String::from("Bob"),
+            String::from("bob@example.com"),
+            String::from("no"),
+            String::from(" unstoppable"),
+            String::from("not-a-number"),
+        ],
+    ];
+    #[expect(clippy::expect_used, reason = "test asserts error propagation")]
+    let err = Rows::<DerivedRow>::try_from(table).expect_err("invalid type");
+    let message = err.to_string();
+    assert!(
+        message.contains("invalid digit"),
+        "unexpected error message: {message}"
+    );
+}
+
+#[test]
+fn derive_data_table_row_truthy_parsing_failure_should_error() {
+    let table = vec![
+        vec![
+            String::from("given-name"),
+            String::from("email address"),
+            String::from("active"),
+            String::from("tagline"),
+            String::from("age"),
+        ],
+        vec![
+            String::from("Dana"),
+            String::from("dana@example.com"),
+            String::from("not-a-bool"),
+            String::from(" unstoppable"),
+            String::from("25"),
+        ],
+    ];
+    #[expect(clippy::expect_used, reason = "test asserts error propagation")]
+    let err = Rows::<DerivedRow>::try_from(table).expect_err("truthy failure");
+    assert!(format!("{err}").contains("not-a-bool"));
+}
+
+#[test]
+fn datatable_tuple_struct_support() {
+    let table = vec![
+        vec![
+            String::from("Alice"),
+            String::from("42"),
+            String::from("true"),
+        ],
+        vec![
+            String::from("Bob"),
+            String::from("27"),
+            String::from("false"),
+        ],
+    ];
+    #[expect(clippy::expect_used, reason = "test asserts successful parse")]
+    let rows = Rows::<TupleRow>::try_from(table).expect("tuple rows should parse");
+    assert_eq!(
+        rows.into_vec(),
+        vec![
+            TupleRow(String::from("Alice"), 42, true),
+            TupleRow(String::from("Bob"), 27, false),
+        ],
     );
 }
 
@@ -197,14 +320,41 @@ fn derive_data_table_supports_collection_wrappers_and_hooks() {
             String::from("43"),
         ],
     ];
-    let collection = match DerivedRowCollection::try_from(table.clone()) {
-        Ok(collection) => collection,
-        Err(err) => panic!("collection should parse: {err}"),
-    };
+    #[expect(clippy::expect_used, reason = "test asserts successful parse")]
+    let collection =
+        DerivedRowCollection::try_from(table.clone()).expect("collection should parse");
     assert_eq!(collection.0.len(), 2);
-    let ActiveNames(active) = match ActiveNames::try_from(table) {
-        Ok(active) => active,
-        Err(err) => panic!("hook should parse: {err}"),
-    };
+    #[expect(clippy::expect_used, reason = "test asserts successful parse")]
+    let DerivedRowVecCollection(vec_rows) =
+        DerivedRowVecCollection::try_from(table.clone()).expect("vec should parse");
+    assert_eq!(vec_rows.len(), 2);
+    #[expect(clippy::expect_used, reason = "test asserts successful parse")]
+    let ActiveNames(active) = ActiveNames::try_from(table).expect("hook should parse");
     assert_eq!(active, vec![String::from("Alice")]);
+}
+
+#[test]
+fn derive_data_table_try_map_propagates_errors() {
+    let table = vec![
+        vec![
+            String::from("given-name"),
+            String::from("email address"),
+            String::from("active"),
+            String::from("tagline"),
+            String::from("age"),
+        ],
+        vec![
+            String::from("Eve"),
+            String::from("eve@example.com"),
+            String::from("yes"),
+            String::from("error"),
+            String::from("39"),
+        ],
+    ];
+    #[expect(clippy::expect_used, reason = "test asserts error propagation")]
+    let err = FallibleActiveNames::try_from(table).expect_err("try_map should propagate errors");
+    assert!(matches!(
+        err,
+        DataTableError::MissingColumn { ref column, .. } if column == "active"
+    ));
 }

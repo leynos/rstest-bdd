@@ -86,6 +86,9 @@ fn build_constructor(fields: &[FieldSpec]) -> TokenStream2 {
 
 fn augment_generics(generics: &Generics, fields: &[FieldSpec]) -> Generics {
     let mut generics = generics.clone();
+    if generics.type_params().next().is_none() {
+        return generics;
+    }
     let where_clause = generics.make_where_clause();
     for field in fields {
         if needs_from_str_bound(&field.config, &field.inner_ty) {

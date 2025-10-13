@@ -1,3 +1,8 @@
+//! Shared configuration structures used across datatable derive helpers.
+//!
+//! The types in this module capture parsed attribute state so the expanders
+//! can focus on generating the final token streams.
+
 use proc_macro2::Ident;
 use syn::{ExprPath, Type};
 
