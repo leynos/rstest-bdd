@@ -507,8 +507,8 @@ fn collect_active(rows: Rows<UserRow>) -> Result<Vec<String>, DataTableError> {
 ### Debugging data table errors
 
 `Rows<T>` propagates [`DataTableError`] variants unchanged, making it easy to
-surface context when something goes wrong. Matching on the error value lets you
-highlight the row and column that triggered the failure:
+surface context when something goes wrong. Matching on the error value allows
+highlighting the row and column that triggered the failure:
 
 ```rust
 use rstest_bdd::datatable::{DataTableError, Rows};
