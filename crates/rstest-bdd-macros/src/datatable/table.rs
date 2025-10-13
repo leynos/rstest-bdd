@@ -147,9 +147,7 @@ fn extract_inner_types(field: &Field) -> (Type, Option<Type>) {
     let Some(segment) = path.segments.last() else {
         return (field.ty.clone(), None);
     };
-    if (segment.ident != "Rows" && segment.ident != "Vec")
-        || !matches!(segment.arguments, PathArguments::AngleBracketed(_))
-    {
+    if !is_supported_container(segment) {
         return (field.ty.clone(), None);
     }
     let PathArguments::AngleBracketed(args) = &segment.arguments else {
@@ -159,6 +157,11 @@ fn extract_inner_types(field: &Field) -> (Type, Option<Type>) {
         return (field.ty.clone(), None);
     };
     (field.ty.clone(), Some(inner.clone()))
+}
+
+fn is_supported_container(segment: &syn::PathSegment) -> bool {
+    (segment.ident == "Rows" || segment.ident == "Vec")
+        && matches!(segment.arguments, PathArguments::AngleBracketed(_))
 }
 
 fn build_conversion(
