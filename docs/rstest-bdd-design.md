@@ -348,6 +348,26 @@ classDiagram
     will compose parsed rows with optional `map` or `convert` hooks so steps
     can expose domain-specific containers without manual loops.
 
+  The implementation uses `convert_case` to provide familiar serde-style rename
+  rules (`lowercase`, `PascalCase`, `kebab-case`, and screaming variants).
+  Field attributes support header overrides (`column`), tolerant booleans
+  (`truthy`), whitespace normalisation (`trim`), optional cells (`optional` on
+  `Option<T>`), and defaults (`default` or `default = path`). Absent a custom
+  parser, the derive falls back to `FromStr` with error types constrained to
+  `std::error::Error`. Custom parsers are functions of the form
+  `fn(&str) -> Result<T, E>` where `E: Error + Send + Sync + 'static`. The
+  generated code matches `DataTableError::MissingColumn` and
+  `DataTableError::MissingCell` to drive optional and default behaviour while
+  propagating all other failures unchanged. The `truthy` attribute is limited
+  to `bool` fields to maintain clear semantics.
+
+  `#[derive(DataTable)]` recognises tuple structs that wrap either `Rows<T>` or
+  `Vec<T>`, defaulting to `Rows::try_from` and `Rows::into_vec` conversions.
+  When consumers need bespoke containers, `map` hooks transform `Rows<T>`
+  directly, while `try_map` surfaces fallible aggregation returning
+  `DataTableError`. Both hooks consume the parsed `Rows<T>`, keeping ownership
+  transfer explicit and predictable.
+
   Existing custom `TryFrom<Vec<Vec<String>>>` implementations continue to work,
   letting projects adopt typed tables gradually. The decision to gate header
   detection behind `REQUIRES_HEADER` keeps the runtime predictable and avoids

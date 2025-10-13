@@ -425,6 +425,85 @@ Projects that prefer to work with raw rows can declare the argument as
 `Vec<Vec<String>>` and handle parsing manually. Both forms can co-exist within
 the same project, allowing incremental adoption of typed tables.
 
+A derive macro removes the boilerplate when mapping headers to fields. Annotate
+the struct with `#[derive(DataTableRow)]` and customise behaviour via field
+attributes:
+
+- `#[datatable(rename_all = "kebab-case")]` applies a casing rule to unnamed
+  fields.
+- `#[datatable(column = "Email address")]` targets a specific header.
+- `#[datatable(optional)]` treats missing cells as `None`.
+- `#[datatable(default)]` or `#[datatable(default = path::to_fn)]` supplies a
+  fallback when the column is absent.
+- `#[datatable(trim)]` trims whitespace before parsing.
+- `#[datatable(truthy)]` parses tolerant booleans using
+  `datatable::truthy_bool`.
+- `#[datatable(parse_with = path::to_fn)]` calls a custom parser that returns a
+  `Result<T, E>`.
+
+```rust
+use rstest_bdd::datatable::{self, DataTableError, Rows};
+use rstest_bdd_macros::DataTableRow;
+
+fn default_region() -> String { String::from("EMEA") }
+
+fn parse_age(value: &str) -> Result<u8, std::num::ParseIntError> {
+    value.trim().parse()
+}
+
+#[derive(Debug, PartialEq, Eq, DataTableRow)]
+#[datatable(rename_all = "kebab-case")]
+struct UserRow {
+    given_name: String,
+    #[datatable(column = "email address")]
+    email: String,
+    #[datatable(truthy)]
+    active: bool,
+    #[datatable(optional)]
+    nickname: Option<String>,
+    #[datatable(default = default_region)]
+    region: String,
+    #[datatable(parse_with = parse_age)]
+    age: u8,
+}
+
+fn load_users(rows: Rows<UserRow>) -> Result<Vec<UserRow>, DataTableError> {
+    Ok(rows.into_vec())
+}
+```
+
+Tuple structs that wrap collections can derive `DataTable` to implement
+`TryFrom<Vec<Vec<String>>>`. The macro accepts optional hooks to post-process
+rows before exposing them to the step function:
+
+- `#[datatable(map = path::to_fn)]` transforms the parsed rows.
+- `#[datatable(try_map = path::to_fn)]` performs fallible conversion, returning
+  a `DataTableError` on failure.
+
+```rust
+use rstest_bdd::datatable::{DataTableError, Rows};
+use rstest_bdd_macros::{DataTable, DataTableRow};
+
+#[derive(Debug, PartialEq, Eq, DataTableRow)]
+struct UserRow {
+    name: String,
+    #[datatable(truthy)]
+    active: bool,
+}
+
+#[derive(Debug, PartialEq, Eq, DataTable)]
+#[datatable(row = UserRow, try_map = collect_active)] // Converts rows into a bespoke type.
+struct ActiveUsers(Vec<String>);
+
+fn collect_active(rows: Rows<UserRow>) -> Result<Vec<String>, DataTableError> {
+    Ok(rows
+        .into_iter()
+        .filter(|row| row.active)
+        .map(|row| row.name)
+        .collect())
+}
+```
+
 A Gherkin Docstring is available through an argument named `docstring` of type
 `String`. Both arguments must use these exact names and types to be detected by
 the procedural macros. When both are declared, place `datatable` before
