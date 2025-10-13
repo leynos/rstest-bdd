@@ -108,26 +108,47 @@ fn process_meta_item(
     config: &mut TableConfig,
 ) -> syn::Result<()> {
     if meta.path.is_ident("row") {
-        let ty = parse_row_type(meta)?;
-        if config.row_ty.replace(ty).is_some() {
-            return Err(meta.error("duplicate row attribute"));
-        }
-        Ok(())
+        handle_row_attribute(meta, config)
     } else if meta.path.is_ident("map") {
-        let path: ExprPath = meta.value()?.parse()?;
-        if config.map.replace(path).is_some() {
-            return Err(meta.error("duplicate map attribute"));
-        }
-        Ok(())
+        handle_map_attribute(meta, config)
     } else if meta.path.is_ident("try_map") {
-        let path: ExprPath = meta.value()?.parse()?;
-        if config.try_map.replace(path).is_some() {
-            return Err(meta.error("duplicate try_map attribute"));
-        }
-        Ok(())
+        handle_try_map_attribute(meta, config)
     } else {
         Err(meta.error("unsupported datatable attribute"))
     }
+}
+
+fn handle_row_attribute(
+    meta: &syn::meta::ParseNestedMeta,
+    config: &mut TableConfig,
+) -> syn::Result<()> {
+    let ty = parse_row_type(meta)?;
+    if config.row_ty.replace(ty).is_some() {
+        return Err(meta.error("duplicate row attribute"));
+    }
+    Ok(())
+}
+
+fn handle_map_attribute(
+    meta: &syn::meta::ParseNestedMeta,
+    config: &mut TableConfig,
+) -> syn::Result<()> {
+    let path: ExprPath = meta.value()?.parse()?;
+    if config.map.replace(path).is_some() {
+        return Err(meta.error("duplicate map attribute"));
+    }
+    Ok(())
+}
+
+fn handle_try_map_attribute(
+    meta: &syn::meta::ParseNestedMeta,
+    config: &mut TableConfig,
+) -> syn::Result<()> {
+    let path: ExprPath = meta.value()?.parse()?;
+    if config.try_map.replace(path).is_some() {
+        return Err(meta.error("duplicate try_map attribute"));
+    }
+    Ok(())
 }
 
 fn parse_row_type(meta: &syn::meta::ParseNestedMeta) -> syn::Result<Type> {
