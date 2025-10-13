@@ -504,6 +504,53 @@ fn collect_active(rows: Rows<UserRow>) -> Result<Vec<String>, DataTableError> {
 }
 ```
 
+### Debugging data table errors
+
+`Rows<T>` propagates [`DataTableError`] variants unchanged, making it easy to
+surface context when something goes wrong. Matching on the error value lets you
+highlight the row and column that triggered the failure:
+
+```rust
+use rstest_bdd::datatable::{DataTableError, Rows};
+
+let table = vec![
+    vec!["name".into(), "active".into()],
+    vec!["Alice".into()],
+];
+
+match Rows::<UserRow>::try_from(table) {
+    Err(DataTableError::MissingColumn { row_number, column }) => {
+        assert_eq!(row_number, 2);
+        assert_eq!(column, "active");
+    }
+    _ => unreachable!("expected the table to be missing the 'active' column"),
+}
+```
+
+Custom parsers bubble their source error through `DataTableError::CellParse`.
+Inspecting the formatted message shows the precise location of the failure,
+including the human-readable column label:
+
+```rust
+use rstest_bdd::datatable::{DataTableError, Rows};
+
+let err = Rows::<UserRow>::try_from(vec![
+    vec!["name".into(), "active".into()],
+    vec!["Alice".into(), "maybe".into()],
+])
+.unwrap_err();
+
+let DataTableError::CellParse { row_number, column_index, .. } = err else {
+    unreachable!("unexpected error variant");
+};
+assert_eq!(row_number, 2);
+assert_eq!(column_index, 2);
+assert!(err.to_string().contains("unrecognised boolean value 'maybe'"));
+```
+
+[`DataTableError`]:
+https://docs.rs/rstest-bdd/latest/rstest_bdd/datatable/enum.DataTableError.html
+
 A Gherkin Docstring is available through an argument named `docstring` of type
 `String`. Both arguments must use these exact names and types to be detected by
 the procedural macros. When both are declared, place `datatable` before
