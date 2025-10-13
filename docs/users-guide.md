@@ -507,49 +507,76 @@ fn collect_active(rows: Rows<UserRow>) -> Result<Vec<String>, DataTableError> {
 ### Debugging data table errors
 
 `Rows<T>` propagates [`DataTableError`] variants unchanged, making it easy to
-surface context when something goes wrong. Matching on the error value allows
-highlighting the row and column that triggered the failure:
+surface context when something goes wrong. Matching on the error value enables
+inspection of the row and column that triggered the failure:
 
-```rust
-use rstest_bdd::datatable::{DataTableError, Rows};
+```rust,no_run
+# use rstest_bdd::datatable::{DataTableError, Rows};
+# use rstest_bdd_macros::{DataTable, DataTableRow};
+#
+# #[derive(Debug, PartialEq, Eq, DataTableRow)]
+# struct UserRow {
+#     name: String,
+#     #[datatable(truthy)]
+#     active: bool,
+# }
 
 let table = vec![
     vec!["name".into(), "active".into()],
     vec!["Alice".into()],
 ];
 
-match Rows::<UserRow>::try_from(table) {
-    Err(DataTableError::MissingColumn { row_number, column }) => {
-        assert_eq!(row_number, 2);
-        assert_eq!(column, "active");
-    }
-    _ => unreachable!("expected the table to be missing the 'active' column"),
-}
+let Err(DataTableError::MissingColumn { row_number, column }) =
+    Rows::<UserRow>::try_from(table)
+else {
+    panic!("expected the table to be missing the 'active' column");
+};
+
+assert_eq!(row_number, 2);
+assert_eq!(column, "active");
 ```
 
 Custom parsers bubble their source error through `DataTableError::CellParse`.
 Inspecting the formatted message shows the precise location of the failure,
 including the human-readable column label:
 
-```rust
-use rstest_bdd::datatable::{DataTableError, Rows};
+```rust,no_run
+# use rstest_bdd::datatable::{DataTableError, Rows};
+# use rstest_bdd_macros::{DataTable, DataTableRow};
+#
+# #[derive(Debug, PartialEq, Eq, DataTableRow)]
+# struct UserRow {
+#     name: String,
+#     #[datatable(truthy)]
+#     active: bool,
+# }
 
-let err = Rows::<UserRow>::try_from(vec![
+let result = Rows::<UserRow>::try_from(vec![
     vec!["name".into(), "active".into()],
     vec!["Alice".into(), "maybe".into()],
-])
-.unwrap_err();
+]);
 
-let DataTableError::CellParse { row_number, column_index, .. } = err else {
-    unreachable!("unexpected error variant");
+let err = match result {
+    Err(err) => err,
+    Ok(_) => panic!("expected the 'maybe' flag to trigger a parse error"),
+};
+
+let DataTableError::CellParse {
+    row_number,
+    column_index,
+    ..
+} = err
+else {
+    panic!("unexpected error variant");
 };
 assert_eq!(row_number, 2);
 assert_eq!(column_index, 2);
-assert!(err.to_string().contains("unrecognised boolean value 'maybe'"));
+assert!(err
+    .to_string()
+    .contains("unrecognised boolean value 'maybe'"));
 ```
 
-[`DataTableError`]:
-https://docs.rs/rstest-bdd/latest/rstest_bdd/datatable/enum.DataTableError.html
+[`DataTableError`]: crate::datatable::DataTableError
 
 A Gherkin Docstring is available through an argument named `docstring` of type
 `String`. Both arguments must use these exact names and types to be detected by
