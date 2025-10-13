@@ -118,37 +118,61 @@ fn process_meta_item(
     }
 }
 
+#[expect(
+    clippy::needless_pass_by_value,
+    reason = "consume Option returned from Option::replace when guarding duplicates",
+)]
+fn ensure_no_duplicate<T>(
+    result: Option<T>,
+    meta: &syn::meta::ParseNestedMeta,
+    message: &str,
+) -> syn::Result<()> {
+    match result {
+        Some(_) => Err(meta.error(message)),
+        None => Ok(()),
+    }
+}
+
+macro_rules! handle_attribute_with_duplicate_check {
+    ($meta:expr, $field:expr, $parser:expr, $attr_name:literal $(,)?) => {{
+        let value = $parser?;
+        ensure_no_duplicate(
+            $field.replace(value),
+            $meta,
+            concat!("duplicate ", $attr_name, " attribute"),
+        )
+    }};
+}
+
 fn handle_row_attribute(
     meta: &syn::meta::ParseNestedMeta,
     config: &mut TableConfig,
 ) -> syn::Result<()> {
-    let ty = parse_row_type(meta)?;
-    if config.row_ty.replace(ty).is_some() {
-        return Err(meta.error("duplicate row attribute"));
-    }
-    Ok(())
+    handle_attribute_with_duplicate_check!(meta, config.row_ty, parse_row_type(meta), "row")
 }
 
 fn handle_map_attribute(
     meta: &syn::meta::ParseNestedMeta,
     config: &mut TableConfig,
 ) -> syn::Result<()> {
-    let path: ExprPath = meta.value()?.parse()?;
-    if config.map.replace(path).is_some() {
-        return Err(meta.error("duplicate map attribute"));
-    }
-    Ok(())
+    handle_attribute_with_duplicate_check!(
+        meta,
+        config.map,
+        meta.value()?.parse::<ExprPath>(),
+        "map",
+    )
 }
 
 fn handle_try_map_attribute(
     meta: &syn::meta::ParseNestedMeta,
     config: &mut TableConfig,
 ) -> syn::Result<()> {
-    let path: ExprPath = meta.value()?.parse()?;
-    if config.try_map.replace(path).is_some() {
-        return Err(meta.error("duplicate try_map attribute"));
-    }
-    Ok(())
+    handle_attribute_with_duplicate_check!(
+        meta,
+        config.try_map,
+        meta.value()?.parse::<ExprPath>(),
+        "try_map",
+    )
 }
 
 fn parse_row_type(meta: &syn::meta::ParseNestedMeta) -> syn::Result<Type> {
