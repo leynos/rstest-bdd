@@ -26,7 +26,7 @@ camino = "1.1.12"
 cap-std = { version = "3.4.4", features = ["fs_utf8"] }
 gherkin = { version = "0.14", default-features = false, features = ["parser"] }
 inventory = "0.3"
-regex = "1.11.2"
+regex = "1.12.1"
 thiserror = "1.0"
 derive_more = { version = "0.99", features = ["deref", "from", "into_iterator"] }
 quote = "1"
