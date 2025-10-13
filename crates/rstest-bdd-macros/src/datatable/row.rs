@@ -63,7 +63,10 @@ fn expand_inner(input: &DeriveInput) -> syn::Result<TokenStream2> {
 
 fn parse_struct_config(attrs: &[Attribute]) -> syn::Result<StructConfig> {
     let mut rename_rule = None;
-    for attr in datatable_attributes(attrs) {
+    for attr in attrs
+        .iter()
+        .filter(|attr| attr.path().is_ident("datatable"))
+    {
         process_datatable_attr(attr, &mut rename_rule)?;
     }
     Ok(StructConfig { rename_rule })
@@ -74,12 +77,6 @@ fn process_datatable_attr(
     rename_rule: &mut Option<RenameRule>,
 ) -> syn::Result<()> {
     attr.parse_nested_meta(|meta| parse_rename_all_from_meta(&meta, rename_rule))
-}
-
-fn datatable_attributes(attrs: &[Attribute]) -> impl Iterator<Item = &Attribute> {
-    attrs
-        .iter()
-        .filter(|attr| attr.path().is_ident("datatable"))
 }
 
 fn parse_rename_all_from_meta(
@@ -261,11 +258,31 @@ fn validate_field_config(
     inner_ty: &Type,
     span: proc_macro2::Span,
 ) -> syn::Result<()> {
-    ensure_optional_without_default(config, span)?;
-    ensure_truthy_and_parse_with_exclusive(config, span)?;
-    ensure_optional_field_uses_option(config, is_option, span)?;
-    ensure_option_field_without_default(config, is_option, span)?;
-    ensure_truthy_field_is_bool(config, inner_ty, span)?;
+    ensure_when(
+        config.optional && config.default.is_some(),
+        span,
+        "optional fields cannot specify a default",
+    )?;
+    ensure_when(
+        config.truthy && config.parse_with.is_some(),
+        span,
+        "truthy and parse_with are mutually exclusive",
+    )?;
+    ensure_when(
+        config.optional && !is_option,
+        span,
+        "#[datatable(optional)] requires an Option<T> field",
+    )?;
+    ensure_when(
+        is_option && config.default.is_some(),
+        span,
+        "Option<T> fields cannot define a default value",
+    )?;
+    ensure_when(
+        config.truthy && !is_bool_type(inner_ty),
+        span,
+        "#[datatable(truthy)] requires a bool field",
+    )?;
     Ok(())
 }
 
@@ -275,64 +292,6 @@ fn ensure_when(violation: bool, span: proc_macro2::Span, message: &str) -> syn::
     } else {
         Ok(())
     }
-}
-
-fn ensure_optional_without_default(
-    config: &FieldConfig,
-    span: proc_macro2::Span,
-) -> syn::Result<()> {
-    ensure_when(
-        config.optional && config.default.is_some(),
-        span,
-        "optional fields cannot specify a default",
-    )
-}
-
-fn ensure_truthy_and_parse_with_exclusive(
-    config: &FieldConfig,
-    span: proc_macro2::Span,
-) -> syn::Result<()> {
-    ensure_when(
-        config.truthy && config.parse_with.is_some(),
-        span,
-        "truthy and parse_with are mutually exclusive",
-    )
-}
-
-fn ensure_optional_field_uses_option(
-    config: &FieldConfig,
-    is_option: bool,
-    span: proc_macro2::Span,
-) -> syn::Result<()> {
-    ensure_when(
-        config.optional && !is_option,
-        span,
-        "#[datatable(optional)] requires an Option<T> field",
-    )
-}
-
-fn ensure_option_field_without_default(
-    config: &FieldConfig,
-    is_option: bool,
-    span: proc_macro2::Span,
-) -> syn::Result<()> {
-    ensure_when(
-        is_option && config.default.is_some(),
-        span,
-        "Option<T> fields cannot define a default value",
-    )
-}
-
-fn ensure_truthy_field_is_bool(
-    config: &FieldConfig,
-    inner_ty: &Type,
-    span: proc_macro2::Span,
-) -> syn::Result<()> {
-    ensure_when(
-        config.truthy && !is_bool_type(inner_ty),
-        span,
-        "#[datatable(truthy)] requires a bool field",
-    )
 }
 
 fn build_field_binding(index: usize, field: &FieldSpec, runtime: &TokenStream2) -> TokenStream2 {

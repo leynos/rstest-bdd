@@ -43,7 +43,7 @@ fn expand_inner(input: &DeriveInput) -> syn::Result<TokenStream2> {
             "map and try_map cannot be combined",
         ));
     }
-    let (inner_ty, row_ty_guess) = extract_inner_types(field);
+    let (field_ty, row_ty_guess) = extract_inner_types(field);
     if config.row_ty.is_none() {
         config.row_ty = row_ty_guess;
     }
@@ -53,7 +53,7 @@ fn expand_inner(input: &DeriveInput) -> syn::Result<TokenStream2> {
             r#"unable to infer row type; specify #[datatable(row = "Type")]"#,
         )
     })?;
-    let (builder, final_expr) = build_conversion(field, &inner_ty, &config)?;
+    let (builder, final_expr) = build_conversion(field, &field_ty, &config)?;
     let ident = &input.ident;
     let generics = input.generics.clone();
     let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
@@ -91,16 +91,13 @@ fn parse_struct_attrs(attrs: &[Attribute]) -> syn::Result<TableConfig> {
         map: None,
         try_map: None,
     };
-    for attr in datatable_attributes(attrs) {
+    for attr in attrs
+        .iter()
+        .filter(|attr| attr.path().is_ident("datatable"))
+    {
         attr.parse_nested_meta(|meta| process_meta_item(&meta, &mut config))?;
     }
     Ok(config)
-}
-
-fn datatable_attributes(attrs: &[Attribute]) -> impl Iterator<Item = &Attribute> {
-    attrs
-        .iter()
-        .filter(|attr| attr.path().is_ident("datatable"))
 }
 
 fn process_meta_item(
@@ -120,7 +117,7 @@ fn process_meta_item(
 
 #[expect(
     clippy::needless_pass_by_value,
-    reason = "consume Option returned from Option::replace when guarding duplicates",
+    reason = "consume Option returned from Option::replace when guarding duplicates"
 )]
 fn ensure_no_duplicate<T>(
     result: Option<T>,
@@ -211,7 +208,7 @@ fn is_supported_container(segment: &syn::PathSegment) -> bool {
 
 fn build_conversion(
     field: &Field,
-    inner_ty: &Type,
+    field_ty: &Type,
     config: &TableConfig,
 ) -> syn::Result<(TokenStream2, TokenStream2)> {
     if let Some(map) = &config.map {
@@ -222,7 +219,7 @@ fn build_conversion(
         let builder = quote! { let value = #map(rows)?; };
         return Ok((builder, quote! { value }));
     }
-    let Type::Path(TypePath { path, .. }) = inner_ty else {
+    let Type::Path(TypePath { path, .. }) = field_ty else {
         return Err(syn::Error::new(
             field.span(),
             "#[derive(DataTable)] can only infer defaults for Rows<T> or Vec<T> fields",
