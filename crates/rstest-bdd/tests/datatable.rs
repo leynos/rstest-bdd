@@ -156,7 +156,7 @@ fn collect_active_names_fallible(rows: Rows<DerivedRow>) -> Result<Vec<String>, 
             });
         }
         if row.active {
-            names.push(row.given_name.clone());
+            names.push(row.given_name);
         }
     }
     Ok(names)

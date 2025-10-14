@@ -1,3 +1,9 @@
+//! Attribute parsing and field specification for `#[derive(DataTableRow)]`.
+//!
+//! Parses struct-level and field-level `#[datatable(...)]` attributes,
+//! validates field configurations (optional/default/truthy), and produces
+//! field specifications consumed by the bindings module.
+
 use proc_macro2::{Ident, Span};
 use syn::{Attribute, ExprPath, Field, Fields, LitStr, Token, Type, spanned::Spanned};
 
@@ -205,7 +211,7 @@ fn ensure_when(violation: bool, span: Span, message: &str) -> syn::Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use syn::parse_quote;
+    use syn::{Data, parse_quote};
 
     #[test]
     fn parse_struct_config_reads_rename_rule() {
@@ -252,5 +258,53 @@ mod tests {
             .err()
             .expect("duplicate default must error");
         assert!(err.to_string().contains("duplicate default attribute"));
+    }
+
+    #[test]
+    fn collect_fields_rejects_optional_without_option() {
+        let input: syn::DeriveInput = parse_quote! {
+            struct Example {
+                #[datatable(optional)]
+                flag: bool,
+            }
+        };
+        #[expect(clippy::expect_used, reason = "test asserts parsed config")]
+        let config = parse_struct_config(&input.attrs).expect("failed to parse struct config");
+        let Data::Struct(data) = &input.data else {
+            unreachable!("test input must be a struct");
+        };
+        let fields = &data.fields;
+        #[expect(clippy::expect_used, reason = "test asserts error handling")]
+        let err = collect_fields(fields, &config)
+            .err()
+            .expect("optional on non-Option should error");
+        assert!(
+            err.to_string()
+                .contains("#[datatable(optional)] requires an Option<T> field")
+        );
+    }
+
+    #[test]
+    fn collect_fields_rejects_truthy_on_non_bool() {
+        let input: syn::DeriveInput = parse_quote! {
+            struct Example {
+                #[datatable(truthy)]
+                value: String,
+            }
+        };
+        #[expect(clippy::expect_used, reason = "test asserts parsed config")]
+        let config = parse_struct_config(&input.attrs).expect("failed to parse struct config");
+        let Data::Struct(data) = &input.data else {
+            unreachable!("test input must be a struct");
+        };
+        let fields = &data.fields;
+        #[expect(clippy::expect_used, reason = "test asserts error handling")]
+        let err = collect_fields(fields, &config)
+            .err()
+            .expect("truthy on non-bool should error");
+        assert!(
+            err.to_string()
+                .contains("#[datatable(truthy)] requires a bool field")
+        );
     }
 }

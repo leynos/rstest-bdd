@@ -1,3 +1,8 @@
+//! Attribute parsing for `#[derive(DataTable)]` derive macros.
+//!
+//! Extracts and validates `#[datatable(...)]` attributes on structs to configure
+//! row types, mapping functions, and fallible transformations.
+
 use syn::{Attribute, ExprPath, LitStr, Type};
 
 pub(crate) enum MapKind {
