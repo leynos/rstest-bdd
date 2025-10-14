@@ -504,6 +504,80 @@ fn collect_active(rows: Rows<UserRow>) -> Result<Vec<String>, DataTableError> {
 }
 ```
 
+### Debugging data table errors
+
+`Rows<T>` propagates [`DataTableError`] variants unchanged, making it easy to
+surface context when something goes wrong. Matching on the error value enables
+inspection of the row and column that triggered the failure:
+
+```rust,no_run
+# use rstest_bdd::datatable::{DataTableError, Rows};
+# use rstest_bdd_macros::DataTableRow;
+#
+# #[derive(Debug, PartialEq, Eq, DataTableRow)]
+# struct UserRow {
+#     name: String,
+#     #[datatable(truthy)]
+#     active: bool,
+# }
+
+let table = vec![
+    vec!["name".into(), "active".into()],
+    vec!["Alice".into()],
+];
+
+let Err(DataTableError::MissingColumn { row_number, column }) =
+    Rows::<UserRow>::try_from(table)
+else {
+    panic!("expected the table to be missing the 'active' column");
+};
+
+assert_eq!(row_number, 2);
+assert_eq!(column, "active");
+```
+
+Custom parsers bubble their source error through `DataTableError::CellParse`.
+Inspecting the formatted message shows the precise location of the failure,
+including the human-readable column label:
+
+```rust,no_run
+# use rstest_bdd::datatable::{DataTableError, Rows};
+# use rstest_bdd_macros::DataTableRow;
+#
+# #[derive(Debug, PartialEq, Eq, DataTableRow)]
+# struct UserRow {
+#     name: String,
+#     #[datatable(truthy)]
+#     active: bool,
+# }
+
+let result = Rows::<UserRow>::try_from(vec![
+    vec!["name".into(), "active".into()],
+    vec!["Alice".into(), "maybe".into()],
+]);
+
+let err = match result {
+    Err(err) => err,
+    Ok(_) => panic!("expected the 'maybe' flag to trigger a parse error"),
+};
+
+let DataTableError::CellParse {
+    row_number,
+    column_index,
+    ..
+} = err
+else {
+    panic!("unexpected error variant");
+};
+assert_eq!(row_number, 2);
+assert_eq!(column_index, 2);
+assert!(err
+    .to_string()
+    .contains("unrecognised boolean value 'maybe'"));
+```
+
+[`DataTableError`]: crate::datatable::DataTableError
+
 A Gherkin Docstring is available through an argument named `docstring` of type
 `String`. Both arguments must use these exact names and types to be detected by
 the procedural macros. When both are declared, place `datatable` before
