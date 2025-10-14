@@ -512,7 +512,7 @@ inspection of the row and column that triggered the failure:
 
 ```rust,no_run
 # use rstest_bdd::datatable::{DataTableError, Rows};
-# use rstest_bdd_macros::{DataTable, DataTableRow};
+# use rstest_bdd_macros::DataTableRow;
 #
 # #[derive(Debug, PartialEq, Eq, DataTableRow)]
 # struct UserRow {
@@ -542,7 +542,7 @@ including the human-readable column label:
 
 ```rust,no_run
 # use rstest_bdd::datatable::{DataTableError, Rows};
-# use rstest_bdd_macros::{DataTable, DataTableRow};
+# use rstest_bdd_macros::DataTableRow;
 #
 # #[derive(Debug, PartialEq, Eq, DataTableRow)]
 # struct UserRow {
