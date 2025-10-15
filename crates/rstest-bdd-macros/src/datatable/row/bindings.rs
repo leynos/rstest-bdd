@@ -1,3 +1,12 @@
+//! Builds binding expressions for `#[derive(DataTableRow)]` fields.
+//!
+//! This module normalises how generated code fetches cell values from the
+//! runtime `DataTable`, including graceful handling for optional and defaulted
+//! fields. Optional members yield `None` when the source column is absent,
+//! while defaults fall back to either `Default::default()` or a caller-supplied
+//! function. All other fields bubble errors straight back to the caller so
+//! derivations retain the existing failure semantics.
+
 use proc_macro2::TokenStream as TokenStream2;
 use quote::{format_ident, quote};
 use syn::Type;

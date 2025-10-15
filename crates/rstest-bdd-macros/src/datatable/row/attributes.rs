@@ -131,48 +131,68 @@ fn process_field_meta_item(
         .ok_or_else(|| meta.error("unsupported datatable attribute"))?
         .to_string();
 
-    if ["optional", "truthy", "trim"].contains(&ident.as_str()) {
-        if meta.input.peek(Token![=]) {
-            return Err(meta.error(format!("`{ident}` takes no value")));
-        }
-        match ident.as_str() {
-            "optional" => config.optional = true,
-            "truthy" => config.truthy = true,
-            "trim" => config.trim = true,
-            _ => unreachable!("handled in contains check"),
-        }
-        return Ok(());
-    }
-
     match ident.as_str() {
-        "column" => {
-            let value: LitStr = meta.value()?.parse()?;
-            config.accessor = Accessor::Column {
-                name: value.value(),
-            };
-            Ok(())
-        }
-        "default" => {
-            if config.default.is_some() {
-                return Err(meta.error("duplicate default attribute"));
-            }
-            if meta.input.peek(Token![=]) {
-                let path: ExprPath = meta.value()?.parse()?;
-                config.default = Some(DefaultValue::Function(path));
-            } else {
-                config.default = Some(DefaultValue::Trait);
-            }
-            Ok(())
-        }
-        "parse_with" => {
-            let path: ExprPath = meta.value()?.parse()?;
-            if config.parse_with.replace(path).is_some() {
-                Err(meta.error("duplicate parse_with attribute"))
-            } else {
-                Ok(())
-            }
-        }
+        "optional" | "truthy" | "trim" => process_flag_attribute(meta, ident.as_str(), config),
+        "column" => process_column_attribute(meta, config),
+        "default" => process_default_attribute(meta, config),
+        "parse_with" => process_parse_with_attribute(meta, config),
         _ => Err(meta.error("unsupported datatable attribute")),
+    }
+}
+
+fn process_flag_attribute(
+    meta: &syn::meta::ParseNestedMeta,
+    ident: &str,
+    config: &mut FieldConfig,
+) -> syn::Result<()> {
+    if meta.input.peek(Token![=]) {
+        return Err(meta.error(format!("`{ident}` takes no value")));
+    }
+    match ident {
+        "optional" => config.optional = true,
+        "truthy" => config.truthy = true,
+        "trim" => config.trim = true,
+        _ => unreachable!("handled in caller match"),
+    }
+    Ok(())
+}
+
+fn process_column_attribute(
+    meta: &syn::meta::ParseNestedMeta,
+    config: &mut FieldConfig,
+) -> syn::Result<()> {
+    let value: LitStr = meta.value()?.parse()?;
+    config.accessor = Accessor::Column {
+        name: value.value(),
+    };
+    Ok(())
+}
+
+fn process_default_attribute(
+    meta: &syn::meta::ParseNestedMeta,
+    config: &mut FieldConfig,
+) -> syn::Result<()> {
+    if config.default.is_some() {
+        return Err(meta.error("duplicate default attribute"));
+    }
+    if meta.input.peek(Token![=]) {
+        let path: ExprPath = meta.value()?.parse()?;
+        config.default = Some(DefaultValue::Function(path));
+    } else {
+        config.default = Some(DefaultValue::Trait);
+    }
+    Ok(())
+}
+
+fn process_parse_with_attribute(
+    meta: &syn::meta::ParseNestedMeta,
+    config: &mut FieldConfig,
+) -> syn::Result<()> {
+    let path: ExprPath = meta.value()?.parse()?;
+    if config.parse_with.replace(path).is_some() {
+        Err(meta.error("duplicate parse_with attribute"))
+    } else {
+        Ok(())
     }
 }
 
