@@ -3,12 +3,16 @@
 //! This module analyses tuple structs that wrap collections of rows and emits
 //! conversions from the raw Gherkin data table into strongly typed wrappers.
 
+mod attributes;
+
+use attributes::{MapKind, TableConfig, parse_struct_attrs};
+
 use proc_macro::TokenStream;
 use proc_macro2::TokenStream as TokenStream2;
 use quote::quote;
 use syn::{
-    Attribute, Data, DataStruct, DeriveInput, ExprPath, Field, Fields, GenericArgument, LitStr,
-    PathArguments, Type, TypePath, parse_macro_input, spanned::Spanned,
+    Data, DataStruct, DeriveInput, Field, Fields, GenericArgument, PathArguments, Type, TypePath,
+    parse_macro_input, spanned::Spanned,
 };
 
 use crate::codegen::rstest_bdd_path;
@@ -21,12 +25,6 @@ pub(crate) fn expand(input: TokenStream) -> TokenStream {
     }
 }
 
-struct TableConfig {
-    row_ty: Option<Type>,
-    map: Option<ExprPath>,
-    try_map: Option<ExprPath>,
-}
-
 fn expand_inner(input: &DeriveInput) -> syn::Result<TokenStream2> {
     let Data::Struct(DataStruct { fields, .. }) = &input.data else {
         return Err(syn::Error::new(
@@ -37,12 +35,10 @@ fn expand_inner(input: &DeriveInput) -> syn::Result<TokenStream2> {
     let field = extract_single_field(fields)?;
     let mut config = parse_struct_attrs(&input.attrs)?;
     let runtime = rstest_bdd_path();
-    if config.map.is_some() && config.try_map.is_some() {
-        return Err(syn::Error::new(
-            input.span(),
-            "map and try_map cannot be combined",
-        ));
-    }
+    // NOTE: Row type inference only works for simple generic types. More complex
+    // cases (for example nested generics or associated types) are not supported.
+    // When inference fails callers must set `#[datatable(row = "Type")]`
+    // explicitly.
     let (field_ty, row_ty_guess) = extract_inner_types(field);
     if config.row_ty.is_none() {
         config.row_ty = row_ty_guess;
@@ -85,103 +81,6 @@ fn extract_single_field(fields: &Fields) -> syn::Result<&Field> {
     ))
 }
 
-fn parse_struct_attrs(attrs: &[Attribute]) -> syn::Result<TableConfig> {
-    let mut config = TableConfig {
-        row_ty: None,
-        map: None,
-        try_map: None,
-    };
-    for attr in attrs
-        .iter()
-        .filter(|attr| attr.path().is_ident("datatable"))
-    {
-        attr.parse_nested_meta(|meta| process_meta_item(&meta, &mut config))?;
-    }
-    Ok(config)
-}
-
-fn process_meta_item(
-    meta: &syn::meta::ParseNestedMeta,
-    config: &mut TableConfig,
-) -> syn::Result<()> {
-    if meta.path.is_ident("row") {
-        handle_row_attribute(meta, config)
-    } else if meta.path.is_ident("map") {
-        handle_map_attribute(meta, config)
-    } else if meta.path.is_ident("try_map") {
-        handle_try_map_attribute(meta, config)
-    } else {
-        Err(meta.error("unsupported datatable attribute"))
-    }
-}
-
-#[expect(
-    clippy::needless_pass_by_value,
-    reason = "consume Option returned from Option::replace when guarding duplicates"
-)]
-fn ensure_no_duplicate<T>(
-    result: Option<T>,
-    meta: &syn::meta::ParseNestedMeta,
-    message: &str,
-) -> syn::Result<()> {
-    match result {
-        Some(_) => Err(meta.error(message)),
-        None => Ok(()),
-    }
-}
-
-macro_rules! handle_attribute_with_duplicate_check {
-    ($meta:expr, $field:expr, $parser:expr, $attr_name:literal $(,)?) => {{
-        let value = $parser?;
-        ensure_no_duplicate(
-            $field.replace(value),
-            $meta,
-            concat!("duplicate ", $attr_name, " attribute"),
-        )
-    }};
-}
-
-fn handle_row_attribute(
-    meta: &syn::meta::ParseNestedMeta,
-    config: &mut TableConfig,
-) -> syn::Result<()> {
-    handle_attribute_with_duplicate_check!(meta, config.row_ty, parse_row_type(meta), "row")
-}
-
-fn handle_map_attribute(
-    meta: &syn::meta::ParseNestedMeta,
-    config: &mut TableConfig,
-) -> syn::Result<()> {
-    handle_attribute_with_duplicate_check!(
-        meta,
-        config.map,
-        meta.value()?.parse::<ExprPath>(),
-        "map",
-    )
-}
-
-fn handle_try_map_attribute(
-    meta: &syn::meta::ParseNestedMeta,
-    config: &mut TableConfig,
-) -> syn::Result<()> {
-    handle_attribute_with_duplicate_check!(
-        meta,
-        config.try_map,
-        meta.value()?.parse::<ExprPath>(),
-        "try_map",
-    )
-}
-
-fn parse_row_type(meta: &syn::meta::ParseNestedMeta) -> syn::Result<Type> {
-    let value = meta.value()?;
-    if value.peek(LitStr) {
-        let lit: LitStr = value.parse()?;
-        syn::parse_str(&lit.value())
-    } else {
-        value.parse()
-    }
-}
-
 fn extract_inner_types(field: &Field) -> (Type, Option<Type>) {
     let Type::Path(TypePath { path, .. }) = &field.ty else {
         return (field.ty.clone(), None);
@@ -212,11 +111,10 @@ fn build_conversion(
     config: &TableConfig,
 ) -> syn::Result<(TokenStream2, TokenStream2)> {
     if let Some(map) = &config.map {
-        let builder = quote! { let value = #map(rows); };
-        return Ok((builder, quote! { value }));
-    }
-    if let Some(map) = &config.try_map {
-        let builder = quote! { let value = #map(rows)?; };
+        let builder = match map {
+            MapKind::Direct(func) => quote! { let value = #func(rows); },
+            MapKind::Try(func) => quote! { let value = #func(rows)?; },
+        };
         return Ok((builder, quote! { value }));
     }
     let Type::Path(TypePath { path, .. }) = field_ty else {

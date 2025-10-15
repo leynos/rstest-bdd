@@ -3,20 +3,20 @@
 //! The expander validates the annotated struct and emits a runtime
 //! implementation capable of parsing rows into strongly typed values.
 
+mod attributes;
+mod bindings;
+
+use attributes::{collect_fields, parse_struct_config};
+use bindings::build_field_binding;
+
 use proc_macro::TokenStream;
-use proc_macro2::{Ident, TokenStream as TokenStream2};
+use proc_macro2::TokenStream as TokenStream2;
 use quote::{format_ident, quote};
-use syn::{
-    Attribute, Data, DataStruct, DeriveInput, ExprPath, Field, Fields, Generics, LitStr, Token,
-    Type, parse_macro_input, spanned::Spanned,
-};
+use syn::{Data, DataStruct, DeriveInput, Generics, Type, parse_macro_input, spanned::Spanned};
 
 use crate::codegen::rstest_bdd_path;
-
-use super::rename::RenameRule;
-use crate::datatable::config::{Accessor, DefaultValue, FieldConfig, FieldSpec, StructConfig};
-use crate::datatable::parser::accessor_expr;
-use crate::datatable::validation::{is_bool_type, is_string_type, option_inner_type};
+use crate::datatable::config::{Accessor, FieldConfig, FieldSpec};
+use crate::datatable::validation::is_string_type;
 
 pub(crate) fn expand(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
@@ -61,338 +61,6 @@ fn expand_inner(input: &DeriveInput) -> syn::Result<TokenStream2> {
     })
 }
 
-fn parse_struct_config(attrs: &[Attribute]) -> syn::Result<StructConfig> {
-    let mut rename_rule = None;
-    for attr in attrs
-        .iter()
-        .filter(|attr| attr.path().is_ident("datatable"))
-    {
-        process_datatable_attr(attr, &mut rename_rule)?;
-    }
-    Ok(StructConfig { rename_rule })
-}
-
-fn process_datatable_attr(
-    attr: &Attribute,
-    rename_rule: &mut Option<RenameRule>,
-) -> syn::Result<()> {
-    attr.parse_nested_meta(|meta| parse_rename_all_from_meta(&meta, rename_rule))
-}
-
-fn parse_rename_all_from_meta(
-    meta: &syn::meta::ParseNestedMeta,
-    rename_rule: &mut Option<RenameRule>,
-) -> syn::Result<()> {
-    if meta.path.is_ident("rename_all") {
-        let value: LitStr = meta.value()?.parse()?;
-        let rule = RenameRule::try_from(&value)?;
-        if rename_rule.replace(rule).is_some() {
-            return Err(meta.error("duplicate rename_all attribute"));
-        }
-        Ok(())
-    } else {
-        Err(meta.error("unsupported datatable attribute"))
-    }
-}
-
-fn collect_fields(fields: &Fields, config: &StructConfig) -> syn::Result<Vec<FieldSpec>> {
-    match fields {
-        Fields::Named(named) => named
-            .named
-            .iter()
-            .map(|field| build_named_field(field, config))
-            .collect(),
-        Fields::Unnamed(unnamed) => unnamed
-            .unnamed
-            .iter()
-            .enumerate()
-            .map(|(index, field)| build_unnamed_field(field, index))
-            .collect(),
-        Fields::Unit => Err(syn::Error::new(
-            fields.span(),
-            "#[derive(DataTableRow)] does not support unit structs",
-        )),
-    }
-}
-
-fn build_named_field(field: &Field, config: &StructConfig) -> syn::Result<FieldSpec> {
-    let ident = field
-        .ident
-        .clone()
-        .ok_or_else(|| syn::Error::new(field.span(), "named field missing ident"))?;
-    let default_column = config
-        .rename_rule
-        .map_or_else(|| ident.to_string(), |rule| rule.apply(&ident.to_string()));
-    let accessor = Accessor::Column {
-        name: default_column,
-    };
-    build_field_spec(Some(ident), field, accessor)
-}
-
-fn build_unnamed_field(field: &Field, index: usize) -> syn::Result<FieldSpec> {
-    let accessor = Accessor::Index { position: index };
-    build_field_spec(None, field, accessor)
-}
-
-fn build_field_spec(
-    ident: Option<Ident>,
-    field: &Field,
-    base_accessor: Accessor,
-) -> syn::Result<FieldSpec> {
-    let config = parse_field_attributes(&field.attrs, base_accessor)?;
-    let (is_option, inner_ty) = option_inner_type(&field.ty)?;
-    validate_field_config(&config, is_option, &inner_ty, field.span())?;
-    Ok(FieldSpec {
-        ident,
-        ty: field.ty.clone(),
-        inner_ty,
-        config,
-    })
-}
-
-fn parse_field_attributes(
-    attrs: &[Attribute],
-    base_accessor: Accessor,
-) -> syn::Result<FieldConfig> {
-    let mut config = FieldConfig::new(base_accessor);
-    for attr in attrs {
-        process_datatable_field_attr(attr, &mut config)?;
-    }
-    Ok(config)
-}
-
-fn process_datatable_field_attr(attr: &Attribute, config: &mut FieldConfig) -> syn::Result<()> {
-    if !attr.path().is_ident("datatable") {
-        return Ok(());
-    }
-    attr.parse_nested_meta(|meta| process_field_meta_item(&meta, config))
-}
-
-fn process_field_meta_item(
-    meta: &syn::meta::ParseNestedMeta,
-    config: &mut FieldConfig,
-) -> syn::Result<()> {
-    let Some(ident) = meta.path.get_ident() else {
-        return Err(meta.error("unsupported datatable attribute"));
-    };
-    let ident = ident.to_string();
-    match ident.as_str() {
-        "column" => handle_column_attribute(meta, config),
-        "optional" => handle_optional_attribute(config),
-        "default" => handle_default_attribute(meta, config),
-        "parse_with" => handle_parse_with_attribute(meta, config),
-        "truthy" => handle_truthy_attribute(config),
-        "trim" => handle_trim_attribute(config),
-        _ => Err(meta.error("unsupported datatable attribute")),
-    }
-}
-
-fn handle_column_attribute(
-    meta: &syn::meta::ParseNestedMeta,
-    config: &mut FieldConfig,
-) -> syn::Result<()> {
-    let value: LitStr = meta.value()?.parse()?;
-    config.accessor = Accessor::Column {
-        name: value.value(),
-    };
-    Ok(())
-}
-
-#[expect(
-    clippy::unnecessary_wraps,
-    reason = "Handlers must expose a uniform syn::Result<()> signature."
-)]
-fn handle_optional_attribute(config: &mut FieldConfig) -> syn::Result<()> {
-    config.optional = true;
-    Ok(())
-}
-
-fn handle_default_attribute(
-    meta: &syn::meta::ParseNestedMeta,
-    config: &mut FieldConfig,
-) -> syn::Result<()> {
-    if config.default.is_some() {
-        return Err(meta.error("duplicate default attribute"));
-    }
-    if meta.input.peek(Token![=]) {
-        let path: ExprPath = meta.value()?.parse()?;
-        config.default = Some(DefaultValue::Function(path));
-    } else {
-        config.default = Some(DefaultValue::Trait);
-    }
-    Ok(())
-}
-
-fn handle_parse_with_attribute(
-    meta: &syn::meta::ParseNestedMeta,
-    config: &mut FieldConfig,
-) -> syn::Result<()> {
-    let path: ExprPath = meta.value()?.parse()?;
-    if config.parse_with.replace(path).is_some() {
-        return Err(meta.error("duplicate parse_with attribute"));
-    }
-    Ok(())
-}
-
-#[expect(
-    clippy::unnecessary_wraps,
-    reason = "Handlers must expose a uniform syn::Result<()> signature."
-)]
-fn handle_truthy_attribute(config: &mut FieldConfig) -> syn::Result<()> {
-    config.truthy = true;
-    Ok(())
-}
-
-#[expect(
-    clippy::unnecessary_wraps,
-    reason = "Handlers must expose a uniform syn::Result<()> signature."
-)]
-fn handle_trim_attribute(config: &mut FieldConfig) -> syn::Result<()> {
-    config.trim = true;
-    Ok(())
-}
-
-fn validate_field_config(
-    config: &FieldConfig,
-    is_option: bool,
-    inner_ty: &Type,
-    span: proc_macro2::Span,
-) -> syn::Result<()> {
-    ensure_when(
-        config.optional && config.default.is_some(),
-        span,
-        "optional fields cannot specify a default",
-    )?;
-    ensure_when(
-        config.truthy && config.parse_with.is_some(),
-        span,
-        "truthy and parse_with are mutually exclusive",
-    )?;
-    ensure_when(
-        config.optional && !is_option,
-        span,
-        "#[datatable(optional)] requires an Option<T> field",
-    )?;
-    ensure_when(
-        is_option && config.default.is_some(),
-        span,
-        "Option<T> fields cannot define a default value",
-    )?;
-    ensure_when(
-        config.truthy && !is_bool_type(inner_ty),
-        span,
-        "#[datatable(truthy)] requires a bool field",
-    )?;
-    Ok(())
-}
-
-fn ensure_when(violation: bool, span: proc_macro2::Span, message: &str) -> syn::Result<()> {
-    if violation {
-        Err(syn::Error::new(span, message))
-    } else {
-        Ok(())
-    }
-}
-
-fn build_field_binding(index: usize, field: &FieldSpec, runtime: &TokenStream2) -> TokenStream2 {
-    let binding_ident = field
-        .ident
-        .clone()
-        .unwrap_or_else(|| format_ident!("__field_{index}"));
-    let accessor = accessor_expr(field, runtime, index);
-    if field.config.optional {
-        build_optional_field_binding(binding_ident, accessor, runtime)
-    } else if let Some(default) = &field.config.default {
-        let default_expr = build_default_expr(default, &field.ty);
-        build_field_binding_with_default(binding_ident, accessor, default_expr, runtime)
-    } else {
-        build_required_field_binding(binding_ident, accessor)
-    }
-}
-
-macro_rules! build_binding_match {
-    ($binding_ident:expr, $accessor:expr, $runtime:expr, $on_success:expr, $on_missing:expr) => {{
-        let binding_ident = &$binding_ident;
-        let accessor = &$accessor;
-        let runtime = $runtime;
-        let on_success = &$on_success;
-        let on_missing = &$on_missing;
-        let missing_pattern = missing_error_pattern(runtime);
-        quote! {
-            let #binding_ident = match #accessor {
-                Ok(value) => #on_success,
-                Err(err) => match err {
-                    #missing_pattern => #on_missing,
-                    _ => return Err(err),
-                },
-            };
-        }
-    }};
-}
-
-// These helpers take owned tokens to satisfy the refactoring contract while
-// keeping the call sites ergonomic, so suppress Clippy's pass-by-value lint.
-#[expect(
-    clippy::needless_pass_by_value,
-    reason = "refactoring brief mandates these helpers take ownership"
-)]
-fn build_optional_field_binding(
-    binding_ident: Ident,
-    accessor: TokenStream2,
-    runtime: &TokenStream2,
-) -> TokenStream2 {
-    build_binding_match!(
-        binding_ident,
-        accessor,
-        runtime,
-        quote! { Some(value) },
-        quote! { None }
-    )
-}
-
-#[expect(
-    clippy::needless_pass_by_value,
-    reason = "refactoring brief mandates these helpers take ownership"
-)]
-fn build_field_binding_with_default(
-    binding_ident: Ident,
-    accessor: TokenStream2,
-    default_expr: TokenStream2,
-    runtime: &TokenStream2,
-) -> TokenStream2 {
-    build_binding_match!(
-        binding_ident,
-        accessor,
-        runtime,
-        quote! { value },
-        quote! { #default_expr }
-    )
-}
-
-#[expect(
-    clippy::needless_pass_by_value,
-    reason = "refactoring brief mandates these helpers take ownership"
-)]
-fn build_required_field_binding(binding_ident: Ident, accessor: TokenStream2) -> TokenStream2 {
-    quote! {
-        let #binding_ident = #accessor?;
-    }
-}
-
-fn build_default_expr(default: &DefaultValue, ty: &Type) -> TokenStream2 {
-    match default {
-        DefaultValue::Trait => quote! { <#ty as ::core::default::Default>::default() },
-        DefaultValue::Function(path) => quote! { #path() },
-    }
-}
-
-fn missing_error_pattern(runtime: &TokenStream2) -> TokenStream2 {
-    quote! {
-        #runtime::datatable::DataTableError::MissingColumn { .. }
-        | #runtime::datatable::DataTableError::MissingCell { .. }
-    }
-}
-
 fn build_constructor(fields: &[FieldSpec]) -> TokenStream2 {
     fields
         .iter()
@@ -418,6 +86,9 @@ fn build_constructor(fields: &[FieldSpec]) -> TokenStream2 {
 
 fn augment_generics(generics: &Generics, fields: &[FieldSpec]) -> Generics {
     let mut generics = generics.clone();
+    if generics.type_params().next().is_none() {
+        return generics;
+    }
     let where_clause = generics.make_where_clause();
     for field in fields {
         if needs_from_str_bound(&field.config, &field.inner_ty) {

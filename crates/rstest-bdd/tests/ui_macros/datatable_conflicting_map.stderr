@@ -1,0 +1,5 @@
+error: duplicate map/try_map attribute
+  --> tests/ui_macros/datatable_conflicting_map.rs:22:13
+   |
+22 | #[datatable(try_map = try_map_rows)]
+   |             ^^^^^^^^^^^^^^^^^^^^^^

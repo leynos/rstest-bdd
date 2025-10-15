@@ -7,6 +7,23 @@
 use convert_case::{Case, Casing};
 use syn::LitStr;
 
+/// Supported rename rules for datatable headers.
+///
+/// - `lowercase`: all letters are lowercase.
+/// - `UPPERCASE`: all letters are uppercase.
+/// - `snake_case`: words are separated by underscores.
+/// - `SCREAMING_SNAKE_CASE`: words are separated by underscores and all letters
+///   are uppercase.
+/// - `kebab-case`: words are separated by hyphens.
+/// - `SCREAMING-KEBAB-CASE`: words are separated by hyphens and all letters are
+///   uppercase.
+/// - `camelCase`: the first word is lowercase and subsequent words are
+///   capitalised.
+/// - `PascalCase`: each word is capitalised with no separators.
+/// - `Title Case`: each word is capitalised and separated by spaces. This is
+///   distinct from `PascalCase`, which concatenates words, and mirrors the
+///   human-readable headers often used in Gherkin scenarios (for example
+///   `Given Name`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum RenameRule {
     Lower,

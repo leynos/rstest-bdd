@@ -198,6 +198,7 @@ fn run_failing_ui_tests(t: &trybuild::TestCases) {
         UiFixtureCase::from("datatable_wrong_type.rs"),
         UiFixtureCase::from("datatable_duplicate.rs"),
         UiFixtureCase::from("datatable_duplicate_attr.rs"),
+        UiFixtureCase::from("datatable_conflicting_map.rs"),
         UiFixtureCase::from("datatable_after_docstring.rs"),
         UiFixtureCase::from("placeholder_missing_param.rs"),
         UiFixtureCase::from("implicit_fixture_missing.rs"),
