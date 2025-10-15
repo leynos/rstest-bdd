@@ -125,18 +125,32 @@ fn process_field_meta_item(
     meta: &syn::meta::ParseNestedMeta,
     config: &mut FieldConfig,
 ) -> syn::Result<()> {
-    let Some(ident) = meta.path.get_ident() else {
-        return Err(meta.error("unsupported datatable attribute"));
-    };
-    match ident.to_string().as_str() {
+    let ident = meta
+        .path
+        .get_ident()
+        .ok_or_else(|| meta.error("unsupported datatable attribute"))?
+        .to_string();
+
+    if ["optional", "truthy", "trim"].contains(&ident.as_str()) {
+        if meta.input.peek(Token![=]) {
+            return Err(meta.error(format!("`{ident}` takes no value")));
+        }
+        match ident.as_str() {
+            "optional" => config.optional = true,
+            "truthy" => config.truthy = true,
+            "trim" => config.trim = true,
+            _ => unreachable!("handled in contains check"),
+        }
+        return Ok(());
+    }
+
+    match ident.as_str() {
         "column" => {
             let value: LitStr = meta.value()?.parse()?;
             config.accessor = Accessor::Column {
                 name: value.value(),
             };
-        }
-        "optional" => {
-            config.optional = true;
+            Ok(())
         }
         "default" => {
             if config.default.is_some() {
@@ -148,22 +162,18 @@ fn process_field_meta_item(
             } else {
                 config.default = Some(DefaultValue::Trait);
             }
+            Ok(())
         }
         "parse_with" => {
             let path: ExprPath = meta.value()?.parse()?;
             if config.parse_with.replace(path).is_some() {
-                return Err(meta.error("duplicate parse_with attribute"));
+                Err(meta.error("duplicate parse_with attribute"))
+            } else {
+                Ok(())
             }
         }
-        "truthy" => {
-            config.truthy = true;
-        }
-        "trim" => {
-            config.trim = true;
-        }
-        _ => return Err(meta.error("unsupported datatable attribute")),
+        _ => Err(meta.error("unsupported datatable attribute")),
     }
-    Ok(())
 }
 
 fn validate_field_config(
