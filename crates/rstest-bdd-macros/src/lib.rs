@@ -14,6 +14,7 @@ mod datatable;
 mod macros;
 mod parsing;
 mod pattern;
+mod scenario_state;
 mod step_keyword;
 mod utils;
 mod validation;
@@ -45,6 +46,12 @@ pub fn then(attr: TokenStream, item: TokenStream) -> TokenStream {
 #[proc_macro_attribute]
 pub fn scenario(attr: TokenStream, item: TokenStream) -> TokenStream {
     macros::scenario(attr, item)
+}
+
+#[proc_macro_error]
+#[proc_macro_derive(ScenarioState)]
+pub fn derive_scenario_state(input: TokenStream) -> TokenStream {
+    scenario_state::derive(input)
 }
 
 /// Discover all `.feature` files under the given directory and generate one

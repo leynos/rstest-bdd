@@ -311,7 +311,7 @@ experience by introducing more powerful and intuitive APIs.
       enabling a more functional style of testing. Returned values override
       fixtures of the same type.
 
-  - [ ] **Scenario State Management:** Introduce a `#[scenario_state]` derive
+  - [x] **Scenario State Management:** Introduce a `#[derive(ScenarioState)]`
     macro and a `Slot<T>` type to simplify the management of shared state
     across steps, reducing the need for manual `RefCell<Option<T>>` boilerplate.
 

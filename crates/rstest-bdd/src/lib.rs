@@ -6,6 +6,8 @@
 //! the global step registry used to orchestrate behaviour-driven tests.
 #![feature(auto_traits, negative_impls)]
 
+extern crate self as rstest_bdd;
+
 /// Returns a greeting for the library.
 ///
 /// # Examples
@@ -31,6 +33,7 @@ pub mod localization;
 mod pattern;
 mod placeholder;
 mod registry;
+pub mod state;
 mod types;
 
 /// Assert that a [`Result`] is `Ok` and unwrap it.
@@ -123,6 +126,7 @@ pub use placeholder::extract_placeholders;
 #[cfg(feature = "diagnostics")]
 pub use registry::dump_registry;
 pub use registry::{Step, duplicate_steps, find_step, lookup_step, unused_steps};
+pub use state::{ScenarioState, Slot};
 pub use types::{
     PatternStr, PlaceholderError, PlaceholderSyntaxError, StepFn, StepKeyword,
     StepKeywordParseError, StepPatternError, StepText, UnsupportedStepType,
