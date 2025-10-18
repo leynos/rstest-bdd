@@ -361,6 +361,13 @@ classDiagram
   propagating all other failures unchanged. The `truthy` attribute is limited
   to `bool` fields to maintain clear semantics.
 
+  Trybuild fixtures lock down these invariants. Dedicated compile-fail cases
+  assert that `#[datatable(optional)]` only applies to `Option<T>` fields,
+  reject defaults on optional fields, and flag mutually exclusive combinations
+  such as `optional` with `default` or `truthy` with `parse_with`. The fixtures
+  act as regression tests for the derive validation logic, mirroring the
+  user-facing compiler messages expected from the macros.
+
   `#[derive(DataTable)]` recognises tuple structs that wrap either `Rows<T>` or
   `Vec<T>`, defaulting to `Rows::try_from` and `Rows::into_vec` conversions.
   When consumers need bespoke containers, `map` hooks transform `Rows<T>`

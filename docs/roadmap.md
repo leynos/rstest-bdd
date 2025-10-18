@@ -142,7 +142,7 @@ improves the developer experience.
 
   - [x] Extend documentation (users guide, design document) and add integration
     tests covering headered tables and tolerant boolean parsing.
-  - [ ] Add compile-fail fixtures covering optional columns and invalid
+  - [x] Add compile-fail fixtures covering optional columns and invalid
     attribute combinations.
 
 - [ ] **Tag Filtering**

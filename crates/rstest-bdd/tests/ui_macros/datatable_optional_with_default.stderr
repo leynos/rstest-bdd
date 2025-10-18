@@ -1,0 +1,6 @@
+error: optional fields cannot specify a default
+ --> tests/ui_macros/datatable_optional_with_default.rs:7:5
+  |
+7 | /     #[datatable(optional, default)]
+8 | |     value: Option<String>,
+  | |_________________________^

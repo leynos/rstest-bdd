@@ -1,0 +1,6 @@
+error: truthy and parse_with are mutually exclusive
+  --> tests/ui_macros/datatable_truthy_with_parse_with.rs:12:5
+   |
+12 | /     #[datatable(truthy, parse_with = parse_bool)]
+13 | |     value: bool,
+   | |_______________^
