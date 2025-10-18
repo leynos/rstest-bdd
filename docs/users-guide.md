@@ -474,7 +474,7 @@ fn load_users(rows: Rows<UserRow>) -> Result<Vec<UserRow>, DataTableError> {
 
 `#[derive(DataTableRow)]` enforces these attributes at compile time. Optional
 fields must use `Option<T>`; applying `#[datatable(optional)]` to any other
-type triggers an error. Optional fields also cannot declare defaults, because
+type triggers an error. Optional fields also cannot declare defaults because
 those behaviours are contradictory. Likewise, `#[datatable(truthy)]` and
 `#[datatable(parse_with = ...)]` are mutually exclusive, ensuring the macro can
 select a single parsing strategy.
