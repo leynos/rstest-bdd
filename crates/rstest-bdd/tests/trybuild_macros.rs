@@ -201,6 +201,7 @@ fn run_failing_ui_tests(t: &trybuild::TestCases) {
         UiFixtureCase::from("datatable_conflicting_map.rs"),
         UiFixtureCase::from("datatable_optional_requires_option.rs"),
         UiFixtureCase::from("datatable_optional_with_default.rs"),
+        UiFixtureCase::from("datatable_truthy_with_parse_with.rs"),
         UiFixtureCase::from("datatable_after_docstring.rs"),
         UiFixtureCase::from("placeholder_missing_param.rs"),
         UiFixtureCase::from("implicit_fixture_missing.rs"),
