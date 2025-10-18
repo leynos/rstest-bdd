@@ -3,8 +3,7 @@
 
 use rstest_bdd_macros::DataTableRow;
 
-fn parse_bool(value: &str) -> Result<bool, core::convert::Infallible> {
-    let _ = value;
+fn parse_bool(_value: &str) -> Result<bool, core::convert::Infallible> {
     Ok(true)
 }
 
