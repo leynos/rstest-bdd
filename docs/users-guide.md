@@ -202,25 +202,25 @@ fn test_add_to_basket(#[with(basket)] _: Basket) {
 ### Scenario state slots
 
 Complex scenarios often need to capture intermediate results or share mutable
-state between multiple steps. Historically this required wrapping every field
+state between multiple steps. Historically, this required wrapping every field
 in `RefCell<Option<T>>`, introducing noise and risking forgotten resets. The
 `rstest-bdd` runtime now provides `Slot<T>`, a thin wrapper that exposes a
 focused API for populating, reading, and clearing per-scenario values. Each
 slot starts empty and supports helpers such as `set`, `replace`,
 `get_or_insert_with`, `take`, and predicates `is_empty`/`is_filled`.
 
-Define a state struct whose fields are `Slot<T>` and derive `ScenarioState`.
-The derive macro implements [`Default`] and a `ScenarioState::reset` method
-that clears every slot, making the struct usable as an ordinary `rstest`
-fixture.
+Define a state struct whose fields are `Slot<T>` and derive both [`Default`]
+and `ScenarioState`. The derive macro generates only the `ScenarioState::reset`
+method, clearing every slot so the struct behaves like an ordinary `rstest`
+fixture. Supplying `Default` yourself keeps control over initial values while
+satisfying the trait bound enforced by the runtime.
 
 ```rust
 use rstest::fixture;
-use rstest_bdd::state::Slot;
-use rstest_bdd::{ScenarioState as ScenarioStateTrait};
+use rstest_bdd::{ScenarioState as ScenarioStateTrait, Slot};
 use rstest_bdd_macros::{given, scenario, then, when, ScenarioState};
 
-#[derive(ScenarioState)]
+#[derive(Default, ScenarioState)]
 struct CliState {
     output: Slot<String>,
     exit_code: Slot<i32>,
@@ -256,7 +256,7 @@ fn cli_behaviour(cli_state: CliState) {
 ```
 
 Slots are independent, so scenarios can freely mix eager `set` calls with lazy
-`get_or_insert_with` initialisers. Because slots live inside a regular fixture,
+`get_or_insert_with` initializers. Because slots live inside a regular fixture,
 the state benefits from `rstest`’s usual lifecycle: a fresh struct is produced
 for each scenario invocation, yet it remains trivial to clear and reuse the
 contents when chaining multiple behaviours inside a single test body.

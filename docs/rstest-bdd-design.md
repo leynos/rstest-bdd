@@ -1842,11 +1842,11 @@ All modules use en‑GB spelling and include `//!` module‑level documentation.
   canonical reset operation. The trait requires `Default`, aligning with the
   fixture story in `rstest`.
 - Implemented a `#[derive(ScenarioState)]` macro in `rstest-bdd-macros`. The
-  derive validates that every field is a `Slot<T>`, synthesises a `Default`
-  impl that empties all slots, and emits a `reset` method delegating to
-  `Slot::clear`. Structs can therefore act as ordinary fixtures while exposing
-  a deterministic cleanup hook for scenarios that need to reuse the state
-  within the same test body.
+  derive validates that every field is a `Slot<T>` and emits a `reset` method
+  delegating to `Slot::clear`. Structs therefore act as ordinary fixtures while
+  exposing a deterministic cleanup hook for scenarios that need to reuse the
+  state within the same test body. Callers must provide (or derive) `Default`
+  themselves to satisfy the trait bound and configure initial values.
 - Rejected a single global “world” object to keep the API congruent with
   `rstest` fixtures and avoid obscuring data flow. `Slot<T>` composes naturally
   with existing fixtures and keeps ownership explicit.

@@ -1,9 +1,11 @@
+//! Behaviour tests for scenario state slots and reset semantics.
+
 use rstest::fixture;
-use rstest_bdd::ScenarioState as ScenarioStateTrait;
-use rstest_bdd::state::Slot;
+use rstest_bdd::ScenarioState as _;
+use rstest_bdd::Slot;
 use rstest_bdd_macros::{ScenarioState, given, scenario, then, when};
 
-#[derive(ScenarioState)]
+#[derive(Default, ScenarioState)]
 struct CartState {
     total: Slot<i32>,
 }
@@ -18,7 +20,7 @@ fn empty_state(cart_state: &CartState) {
     assert!(cart_state.total.is_empty());
 }
 
-#[when("I record the value {value:int}")]
+#[when("I record the value {value:i32}")]
 fn record_value(cart_state: &CartState, value: i32) {
     cart_state.total.set(value);
     assert!(cart_state.total.is_filled());
@@ -26,10 +28,10 @@ fn record_value(cart_state: &CartState, value: i32) {
 
 #[when("I clear the cart state")]
 fn clear_state(cart_state: &CartState) {
-    ScenarioStateTrait::reset(cart_state);
+    cart_state.reset();
 }
 
-#[then("the recorded value is {expected:int}")]
+#[then("the recorded value is {expected:i32}")]
 fn check_value(cart_state: &CartState, expected: i32) {
     assert_eq!(cart_state.total.get(), Some(expected));
 }
@@ -39,12 +41,18 @@ fn no_value(cart_state: &CartState) {
     assert!(cart_state.total.is_empty());
 }
 
-#[scenario(path = "tests/features/scenario_state.feature", index = 0)]
+#[scenario(
+    path = "tests/features/scenario_state.feature",
+    name = "Recording a single value"
+)]
 fn scenario_preserves_value(cart_state: CartState) {
     let _ = cart_state;
 }
 
-#[scenario(path = "tests/features/scenario_state.feature", index = 1)]
+#[scenario(
+    path = "tests/features/scenario_state.feature",
+    name = "Clearing stored values"
+)]
 fn scenario_clears_value(cart_state: CartState) {
     let _ = cart_state;
 }

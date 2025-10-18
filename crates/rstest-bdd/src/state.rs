@@ -114,7 +114,10 @@ impl<T> Slot<T> {
 
 impl<T: std::fmt::Debug> std::fmt::Debug for Slot<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_tuple("Slot").field(&self.inner.borrow()).finish()
+        match self.inner.try_borrow() {
+            Ok(borrow) => f.debug_tuple("Slot").field(&*borrow).finish(),
+            Err(_) => f.debug_tuple("Slot").field(&"<mutably borrowed>").finish(),
+        }
     }
 }
 
@@ -128,10 +131,10 @@ impl<T> Default for Slot<T> {
 
 /// Marker trait for structs composed of [`Slot`] fields.
 ///
-/// Types deriving this trait gain a [`Default`] implementation that
-/// initialises every slot to an empty state. The generated [`reset`](Self::reset)
-/// method clears all slots, enabling tests to reuse shared fixtures between
-/// scenarios when desired.
+/// Types deriving this trait must also implement [`Default`], typically via
+/// `#[derive(Default)]`, so `rstest` fixtures can construct fresh state for each
+/// scenario. The generated [`reset`](Self::reset) method clears all slots,
+/// enabling tests to reuse shared fixtures between scenarios when desired.
 pub trait ScenarioState: Default {
     /// Clear every slot held by this scenario state.
     fn reset(&self);
@@ -179,7 +182,7 @@ mod tests {
         assert_eq!(slot.get(), Some(6));
     }
 
-    #[derive(Debug, ScenarioStateDerive)]
+    #[derive(Debug, Default, ScenarioStateDerive)]
     struct ExampleState {
         counter: Slot<u32>,
         label: Slot<String>,

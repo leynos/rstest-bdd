@@ -1,3 +1,15 @@
+//! Expansion logic for the `#[derive(ScenarioState)]` macro.
+//!
+//! The macro accepts structs composed exclusively of [`Slot<T>`] fields and
+//! implements [`ScenarioState`]. Named and tuple structs are both supported.
+//! Unit structs implement `reset` trivially.
+//!
+//! Validation rejects enums, unions, and any field that is not a `Slot<T>`.
+//! Error diagnostics include the offending field label to simplify fixes.
+//!
+//! [`Slot<T>`]: ::rstest_bdd::Slot
+//! [`ScenarioState`]: ::rstest_bdd::ScenarioState
+
 use proc_macro::TokenStream;
 use proc_macro2::TokenStream as TokenStream2;
 use quote::quote;
@@ -17,14 +29,11 @@ fn expand(input: DeriveInput) -> syn::Result<TokenStream2> {
     let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
     let runtime = crate::codegen::rstest_bdd_path();
 
-    let body = match input.data {
+    let reset = match input.data {
         syn::Data::Struct(data) => match data.fields {
             syn::Fields::Named(fields) => expand_named(&fields.named)?,
             syn::Fields::Unnamed(fields) => expand_unnamed(&fields.unnamed)?,
-            syn::Fields::Unit => ExpandParts {
-                default: quote! { Self },
-                reset: quote! {},
-            },
+            syn::Fields::Unit => quote! {},
         },
         syn::Data::Enum(data) => {
             return Err(syn::Error::new(
@@ -40,15 +49,7 @@ fn expand(input: DeriveInput) -> syn::Result<TokenStream2> {
         }
     };
 
-    let ExpandParts { default, reset } = body;
-
     Ok(quote! {
-        impl #impl_generics ::core::default::Default for #ident #ty_generics #where_clause {
-            fn default() -> Self {
-                #default
-            }
-        }
-
         impl #impl_generics #runtime::ScenarioState for #ident #ty_generics #where_clause {
             fn reset(&self) {
                 #reset
@@ -57,52 +58,37 @@ fn expand(input: DeriveInput) -> syn::Result<TokenStream2> {
     })
 }
 
-struct ExpandParts {
-    default: TokenStream2,
-    reset: TokenStream2,
-}
-
 fn expand_named(
     fields: &syn::punctuated::Punctuated<syn::Field, syn::Token![,]>,
-) -> syn::Result<ExpandParts> {
-    let mut default_fields = Vec::with_capacity(fields.len());
+) -> syn::Result<TokenStream2> {
     let mut reset_body = Vec::with_capacity(fields.len());
 
     for field in fields {
         let Some(ident) = &field.ident else {
             continue;
         };
-        ensure_slot_type(field)?;
-        default_fields.push(quote! { #ident: ::core::default::Default::default() });
+        ensure_slot_type(field, FieldLabel::Named(ident))?;
         reset_body.push(quote! { self.#ident.clear(); });
     }
 
-    Ok(ExpandParts {
-        default: quote! { Self { #(#default_fields),* } },
-        reset: quote! { #(#reset_body)* },
-    })
+    Ok(quote! { #(#reset_body)* })
 }
 
 fn expand_unnamed(
     fields: &syn::punctuated::Punctuated<syn::Field, syn::Token![,]>,
-) -> syn::Result<ExpandParts> {
-    let mut defaults = Vec::with_capacity(fields.len());
+) -> syn::Result<TokenStream2> {
     let mut resets = Vec::with_capacity(fields.len());
 
     for (index, field) in fields.iter().enumerate() {
-        ensure_slot_type(field)?;
+        ensure_slot_type(field, FieldLabel::Unnamed(index))?;
         let idx = syn::Index::from(index);
-        defaults.push(quote! { ::core::default::Default::default() });
         resets.push(quote! { self.#idx.clear(); });
     }
 
-    Ok(ExpandParts {
-        default: quote! { Self( #(#defaults),* ) },
-        reset: quote! { #(#resets)* },
-    })
+    Ok(quote! { #(#resets)* })
 }
 
-fn ensure_slot_type(field: &syn::Field) -> syn::Result<()> {
+fn ensure_slot_type(field: &syn::Field, label: FieldLabel<'_>) -> syn::Result<()> {
     match &field.ty {
         syn::Type::Path(path) => {
             if path
@@ -115,14 +101,35 @@ fn ensure_slot_type(field: &syn::Field) -> syn::Result<()> {
             } else {
                 Err(syn::Error::new_spanned(
                     &field.ty,
-                    "ScenarioState fields must use Slot<T>",
+                    format!(
+                        "ScenarioState field '{}' must use Slot<T>",
+                        label.describe()
+                    ),
                 ))
             }
         }
         other => Err(syn::Error::new_spanned(
             other,
-            "ScenarioState fields must be declared as Slot<T>",
+            format!(
+                "ScenarioState field '{}' must use Slot<T>",
+                label.describe()
+            ),
         )),
+    }
+}
+
+#[derive(Copy, Clone)]
+enum FieldLabel<'a> {
+    Named(&'a syn::Ident),
+    Unnamed(usize),
+}
+
+impl FieldLabel<'_> {
+    fn describe(&self) -> String {
+        match self {
+            Self::Named(ident) => ident.to_string(),
+            Self::Unnamed(index) => format!("#{index}"),
+        }
     }
 }
 
@@ -137,7 +144,7 @@ mod tests {
     }
 
     #[test]
-    fn generates_default_and_reset_for_named_fields() {
+    fn generates_reset_for_named_fields() {
         let tokens = match expand_tokens(quote! {
             struct Example {
                 first: ::rstest_bdd::state::Slot<i32>,
@@ -148,7 +155,6 @@ mod tests {
             Err(err) => panic!("expected expansion: {err}"),
         };
         let output = tokens.to_string();
-        assert!(output.contains("impl :: core :: default :: Default for Example"));
         assert!(output.contains("impl :: rstest_bdd :: ScenarioState for Example"));
         assert!(output.contains("self . first . clear ()"));
         assert!(output.contains("self . second . clear ()"));
@@ -166,7 +172,7 @@ mod tests {
         };
         assert!(
             err.to_string()
-                .contains("ScenarioState fields must use Slot")
+                .contains("ScenarioState field 'value' must use Slot<T>")
         );
     }
 }

@@ -172,6 +172,7 @@ fn run_passing_macro_tests(t: &trybuild::TestCases) {
         MacroFixtureCase::from("step_macros.rs"),
         MacroFixtureCase::from("step_macros_unicode.rs"),
         MacroFixtureCase::from("scenario_single_match.rs"),
+        MacroFixtureCase::from("scenario_state_default.rs"),
     ] {
         t.pass(macros_fixture(case).as_std_path());
     }
