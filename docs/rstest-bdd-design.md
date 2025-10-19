@@ -1845,9 +1845,13 @@ All modules use en‑GB spelling and include `//!` module‑level documentation.
   derive validates that every field is a `Slot<T>` and emits a `reset` method
   delegating to `Slot::clear`. Structs therefore act as ordinary fixtures while
   exposing a deterministic cleanup hook for scenarios that need to reuse the
-  state within the same test body. Callers must provide (or derive) `Default`
-  themselves to satisfy the trait bound, configure initial values, and avoid
-  duplicate `Default` implementations.
+  state within the same test body. The derive also synthesises a `Default`
+  implementation that initialises each slot as empty; adding a manual `Default`
+  derive or `impl` alongside the macro currently triggers a
+  duplicate-implementation error, so callers must not do so unless they first
+  disable the generated impl. A future `#[scenario_state(no_default)]` flag (or
+  equivalent) will opt out of the auto-generated `Default` so bespoke
+  initialisation logic can be supplied when required.
 - Rejected a single global “world” object to keep the API congruent with
   `rstest` fixtures and avoid obscuring data flow. `Slot<T>` composes naturally
   with existing fixtures and keeps ownership explicit.
