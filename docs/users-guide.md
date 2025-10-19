@@ -214,7 +214,7 @@ The derive macro clears every slot by implementing `ScenarioState::reset` and
 it automatically adds a [`Default`] implementation that leaves all slots empty.
 **Do not** also derive or implement `Default`: Rust will report a
 duplicate-implementation error because the macro already provides it. When you
-need custom initialisation, plan to use the future
+need custom initialization, plan to use the future
 `#[scenario_state(no_default)]` flag (or equivalent) to opt out of the
 generated `Default` and supply your own logic.
 
@@ -223,7 +223,7 @@ use rstest::fixture;
 use rstest_bdd::{ScenarioState, Slot};
 use rstest_bdd_macros::{given, scenario, then, when, ScenarioState};
 
-#[derive(Default, ScenarioState)]
+#[derive(ScenarioState)]
 struct CliState {
     output: Slot<String>,
     exit_code: Slot<i32>,
