@@ -453,7 +453,7 @@ and lacks the `@wip` tag.
 Grammar and semantics:
 
 - Tokens:
-  - Tags are identifiers prefixed with `@` and match `[A-Za-z_][A-Za-z0-9_]*`.
+- Tags are identifiers prefixed with `@` and match `[A-Za-z0-9_-]+`.
   - Operators: `and`, `or`, `not`.
   - Parentheses `(` `)` group sub-expressions.
 - Precedence: `not` > `and` > `or`. Parentheses override precedence.
@@ -480,7 +480,7 @@ and_expr  ::= not_expr { "and" not_expr }
 not_expr  ::= [ "not" ] primary
 primary   ::= TAG | "(" expr ")"
 TAG       ::= "@" IDENT
-IDENT     ::= [A..Z | a..z | "_"] { A..Z | a..z | 0..9 | "_" }*
+IDENT     ::= { A..Z | a..z | 0..9 | "_" | "-" }+
 ```
 
 Implementation stores the parsed expression as an AST shared by both macros so

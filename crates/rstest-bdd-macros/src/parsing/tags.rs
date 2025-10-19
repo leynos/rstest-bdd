@@ -296,12 +296,12 @@ impl<'a> Lexer<'a> {
         let Some(next) = self.peek_char() else {
             return Err(TagExprError::new(start + 1, "expected tag name after '@'"));
         };
-        if !is_ident_start(next) {
+        if !is_tag_char(next) {
             return Err(TagExprError::new(start + 1, "expected tag name after '@'"));
         }
         self.bump_char();
         while let Some(ch) = self.peek_char() {
-            if is_ident_char(ch) {
+            if is_tag_char(ch) {
                 self.bump_char();
             } else {
                 break;
@@ -347,12 +347,8 @@ impl<'a> Lexer<'a> {
     }
 }
 
-fn is_ident_start(ch: char) -> bool {
-    ch.is_ascii_alphabetic() || ch == '_'
-}
-
-fn is_ident_char(ch: char) -> bool {
-    ch.is_ascii_alphanumeric() || ch == '_'
+fn is_tag_char(ch: char) -> bool {
+    ch.is_ascii_alphanumeric() || matches!(ch, '_' | '-')
 }
 
 /// Extend the destination tag set with new values, preserving order and
@@ -389,6 +385,24 @@ mod tests {
         };
         assert!(expr.evaluate(["@fast"].into_iter()));
         assert!(!expr.evaluate(["@slow"].into_iter()));
+    }
+
+    #[test]
+    fn parses_hyphenated_tag() {
+        let expr = match TagExpression::parse("@smoke-tests") {
+            Ok(expr) => expr,
+            Err(err) => panic!("parse tag expression: {err}"),
+        };
+        assert!(expr.evaluate(["@smoke-tests"].into_iter()));
+    }
+
+    #[test]
+    fn parses_numeric_tag() {
+        let expr = match TagExpression::parse("@123") {
+            Ok(expr) => expr,
+            Err(err) => panic!("parse tag expression: {err}"),
+        };
+        assert!(expr.evaluate(["@123"].into_iter()));
     }
 
     #[test]
