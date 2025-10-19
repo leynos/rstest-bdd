@@ -1,5 +1,5 @@
-error: scenario named "Any scenario" not found; feature contains no scenarios
- --> tests/fixtures_macros/scenario_missing_name_empty.rs:5:43
+error: feature contains no scenarios
+ --> tests/fixtures_macros/scenario_missing_name_empty.rs:5:19
   |
 5 | #[scenario(path = "empty.feature", name = "Any scenario")]
-  |                                           ^^^^^^^^^^^^^^
+  |                   ^^^^^^^^^^^^^^^

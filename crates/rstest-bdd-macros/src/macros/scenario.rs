@@ -13,6 +13,7 @@ use std::sync::{LazyLock, RwLock};
 
 use crate::codegen::scenario::{ScenarioConfig, generate_scenario_code};
 use crate::parsing::feature::{ScenarioData, extract_scenario_steps, parse_and_load_feature};
+use crate::parsing::tags::TagExpression;
 use crate::utils::fixtures::extract_function_fixtures;
 use crate::validation::parameters::process_scenario_outline_examples;
 
@@ -31,6 +32,7 @@ use syn::{
 struct ScenarioArgs {
     path: LitStr,
     selector: Option<ScenarioSelector>,
+    tag_filter: Option<LitStr>,
 }
 
 enum ScenarioSelector {
@@ -42,6 +44,7 @@ enum ScenarioArg {
     Path(LitStr),
     Index(LitInt),
     Name(LitStr),
+    Tags(LitStr),
 }
 
 impl Parse for ScenarioArg {
@@ -58,8 +61,10 @@ impl Parse for ScenarioArg {
                 Ok(Self::Index(input.parse()?))
             } else if ident == "name" {
                 Ok(Self::Name(input.parse()?))
+            } else if ident == "tags" {
+                Ok(Self::Tags(input.parse()?))
             } else {
-                Err(input.error("expected `path`, `index`, or `name`"))
+                Err(input.error("expected `path`, `index`, `name`, or `tags`"))
             }
         }
     }
@@ -70,6 +75,7 @@ impl Parse for ScenarioArgs {
         let args = Punctuated::<ScenarioArg, Comma>::parse_terminated(input)?;
         let mut path = None;
         let mut selector = None;
+        let mut tag_filter = None;
 
         for arg in args {
             match arg {
@@ -106,12 +112,22 @@ impl Parse for ScenarioArgs {
                         span: lit.span(),
                     });
                 }
+                ScenarioArg::Tags(lit) => {
+                    if tag_filter.is_some() {
+                        return Err(input.error("duplicate `tags` argument"));
+                    }
+                    tag_filter = Some(lit);
+                }
             }
         }
 
         let path = path.ok_or_else(|| input.error("`path` is required"))?;
 
-        Ok(Self { path, selector })
+        Ok(Self {
+            path,
+            selector,
+            tag_filter,
+        })
     }
 }
 
@@ -164,10 +180,15 @@ pub(crate) fn scenario(attr: TokenStream, item: TokenStream) -> TokenStream {
 }
 
 fn try_scenario(
-    ScenarioArgs { path, selector }: ScenarioArgs,
+    ScenarioArgs {
+        path,
+        selector,
+        tag_filter,
+    }: ScenarioArgs,
     mut item_fn: syn::ItemFn,
 ) -> std::result::Result<TokenStream, TokenStream> {
-    let path = PathBuf::from(path.value());
+    let path_lit = path;
+    let path = PathBuf::from(path_lit.value());
     let attrs = &item_fn.attrs;
     let vis = &item_fn.vis;
     let sig = &mut item_fn.sig;
@@ -175,15 +196,76 @@ fn try_scenario(
 
     // Retrieve cached feature to avoid repeated parsing.
     let feature = parse_and_load_feature(&path).map_err(proc_macro::TokenStream::from)?;
-    let resolved_index = resolve_scenario_index(&feature, selector.as_ref())
-        .map_err(|err| proc_macro::TokenStream::from(err.into_compile_error()))?;
+    let tag_filter = match tag_filter {
+        Some(lit) => {
+            let raw = lit.value();
+            let parsed = TagExpression::parse(&raw).map_err(|err| {
+                proc_macro::TokenStream::from(
+                    syn::Error::new(lit.span(), err.to_string()).into_compile_error(),
+                )
+            })?;
+            Some((parsed, lit.span(), raw))
+        }
+        None => None,
+    };
+
+    if feature.scenarios.is_empty() {
+        let err = syn::Error::new(path_lit.span(), "feature contains no scenarios");
+        return Err(proc_macro::TokenStream::from(err.into_compile_error()));
+    }
+
+    let candidate_indices: Vec<usize> = match &selector {
+        Some(ScenarioSelector::Index { value, .. }) => vec![*value],
+        Some(ScenarioSelector::Name { value, span }) => {
+            let idx = find_scenario_by_name(&feature, value, *span)
+                .map_err(|err| proc_macro::TokenStream::from(err.into_compile_error()))?;
+            vec![idx]
+        }
+        None => (0..feature.scenarios.len()).collect(),
+    };
+
+    let mut selected: Option<ScenarioData> = None;
+    for idx in candidate_indices {
+        let mut data =
+            extract_scenario_steps(&feature, Some(idx)).map_err(proc_macro::TokenStream::from)?;
+        let matches = if let Some((expr, _, _)) = &tag_filter {
+            data.filter_by_tags(expr)
+        } else {
+            true
+        };
+
+        if matches {
+            selected = Some(data);
+            break;
+        }
+    }
+
+    let Some(scenario_data) = selected else {
+        if let Some((_, span, raw)) = &tag_filter {
+            let message = match &selector {
+                Some(ScenarioSelector::Index { value, .. }) => {
+                    format!("scenario at index {value} does not match tag expression `{raw}`")
+                }
+                Some(ScenarioSelector::Name { value, .. }) => {
+                    format!("scenario named \"{value}\" does not match tag expression `{raw}`")
+                }
+                None => format!("no scenarios matched tag expression `{raw}`"),
+            };
+            let err = syn::Error::new(*span, message);
+            return Err(proc_macro::TokenStream::from(err.into_compile_error()));
+        }
+
+        let err = syn::Error::new(path_lit.span(), "no matching scenario found");
+        return Err(proc_macro::TokenStream::from(err.into_compile_error()));
+    };
+
     let feature_path_str = canonical_feature_path(&path);
     let ScenarioData {
         name: scenario_name,
         steps,
         examples,
-    } = extract_scenario_steps(&feature, Some(resolved_index))
-        .map_err(proc_macro::TokenStream::from)?;
+        ..
+    } = scenario_data;
 
     if let Some(err) = validate_steps_compile_time(&steps) {
         return Err(err);
@@ -208,19 +290,6 @@ fn try_scenario(
         },
         ctx_inserts.into_iter(),
     ))
-}
-
-fn resolve_scenario_index(
-    feature: &gherkin::Feature,
-    selector: Option<&ScenarioSelector>,
-) -> Result<usize, syn::Error> {
-    match selector {
-        None => Ok(0),
-        Some(ScenarioSelector::Index { value, .. }) => Ok(*value),
-        Some(ScenarioSelector::Name { value, span }) => {
-            find_scenario_by_name(feature, value, *span)
-        }
-    }
 }
 
 fn find_scenario_by_name(

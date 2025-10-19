@@ -12,10 +12,15 @@ use std::path::{Path, PathBuf};
 use walkdir::{DirEntry, WalkDir};
 
 use crate::codegen::scenario::{ScenarioConfig, generate_scenario_code};
-use crate::parsing::feature::{extract_scenario_steps, parse_and_load_feature};
+use crate::parsing::feature::{ScenarioData, extract_scenario_steps, parse_and_load_feature};
+use crate::parsing::tags::TagExpression;
 use crate::utils::errors::{error_to_tokens, normalized_dir_read_error};
+use crate::utils::fixtures::extract_function_fixtures;
 use crate::utils::ident::sanitize_ident;
-use gherkin::Feature;
+use syn::LitStr;
+use syn::parse::{Parse, ParseStream};
+use syn::punctuated::Punctuated;
+use syn::token::Comma;
 
 fn is_feature_file(path: &Path) -> bool {
     path.extension()
@@ -158,8 +163,6 @@ fn collect_feature_files(base: &Path) -> std::io::Result<Vec<PathBuf>> {
 /// Generate the test for a single scenario within a feature.
 /// Context for generating a scenario test.
 struct ScenarioTestContext<'a> {
-    feature: &'a Feature,
-    scenario_idx: usize,
     feature_stem: &'a str,
     manifest_dir: &'a Path,
     rel_path: &'a Path,
@@ -176,27 +179,93 @@ fn dedupe_name(base: &str, used: &mut HashSet<String>) -> String {
     name
 }
 
+struct ScenariosArgs {
+    dir: LitStr,
+    tag_filter: Option<LitStr>,
+}
+
+enum ScenariosArg {
+    Dir(LitStr),
+    Tags(LitStr),
+}
+
+impl Parse for ScenariosArg {
+    fn parse(input: ParseStream<'_>) -> syn::Result<Self> {
+        if input.peek(LitStr) {
+            Ok(Self::Dir(input.parse()?))
+        } else {
+            let ident: syn::Ident = input.parse()?;
+            input.parse::<syn::token::Eq>()?;
+            if ident == "dir" || ident == "path" {
+                Ok(Self::Dir(input.parse()?))
+            } else if ident == "tags" {
+                Ok(Self::Tags(input.parse()?))
+            } else {
+                Err(input.error("expected `dir`, `path`, or `tags`"))
+            }
+        }
+    }
+}
+
+impl Parse for ScenariosArgs {
+    fn parse(input: ParseStream<'_>) -> syn::Result<Self> {
+        let args = Punctuated::<ScenariosArg, Comma>::parse_terminated(input)?;
+        let mut dir = None;
+        let mut tag_filter = None;
+
+        for arg in args {
+            match arg {
+                ScenariosArg::Dir(lit) => {
+                    if dir.is_some() {
+                        return Err(input.error("duplicate directory argument"));
+                    }
+                    dir = Some(lit);
+                }
+                ScenariosArg::Tags(lit) => {
+                    if tag_filter.is_some() {
+                        return Err(input.error("duplicate `tags` argument"));
+                    }
+                    tag_filter = Some(lit);
+                }
+            }
+        }
+
+        let dir = dir.ok_or_else(|| input.error("directory argument is required"))?;
+
+        Ok(Self { dir, tag_filter })
+    }
+}
+
 fn generate_scenario_test(
     ctx: &ScenarioTestContext<'_>,
     used_names: &mut HashSet<String>,
-) -> Result<TokenStream2, TokenStream> {
-    let data = extract_scenario_steps(ctx.feature, Some(ctx.scenario_idx))?;
-    let base_name = format!("{}_{}", ctx.feature_stem, sanitize_ident(&data.name));
+    data: ScenarioData,
+) -> TokenStream2 {
+    let ScenarioData {
+        name,
+        steps,
+        examples,
+        ..
+    } = data;
+    let base_name = format!("{}_{}", ctx.feature_stem, sanitize_ident(&name));
     let fn_name = dedupe_name(&base_name, used_names);
     let fn_ident = format_ident!("{}", fn_name);
 
     let attrs: Vec<syn::Attribute> = Vec::new();
     let vis = syn::Visibility::Inherited;
-    let sig: syn::Signature = data.examples.as_ref().map_or_else(
+    let mut sig: syn::Signature = examples.as_ref().map_or_else(
         || syn::parse_quote! { fn #fn_ident() },
         |ex| {
             let params = ex.headers.iter().map(|h| {
                 let param_ident = format_ident!("{}", sanitize_ident(h));
-                quote! { #[case] #param_ident: &str }
+                quote! { #[case] #param_ident: &'static str }
             });
             syn::parse_quote! { fn #fn_ident( #(#params),* ) }
         },
     );
+    let Ok((_args, ctx_inserts)) = extract_function_fixtures(&mut sig) else {
+        unreachable!("generated scenario signature must bind fixtures");
+    };
     let block: syn::Block = syn::parse_quote!({});
 
     let feature_path = ctx.manifest_dir.join(ctx.rel_path).display().to_string();
@@ -207,14 +276,11 @@ fn generate_scenario_test(
         sig: &sig,
         block: &block,
         feature_path,
-        scenario_name: data.name,
-        steps: data.steps,
-        examples: data.examples,
+        scenario_name: name,
+        steps,
+        examples,
     };
-    Ok(TokenStream2::from(generate_scenario_code(
-        config,
-        std::iter::empty(),
-    )))
+    TokenStream2::from(generate_scenario_code(config, ctx_inserts.into_iter()))
 }
 
 /// Resolve the Cargo manifest directory or return a compile error.
@@ -253,6 +319,7 @@ fn process_feature_file(
     abs_path: &Path,
     manifest_dir: &Path,
     used_names: &mut HashSet<String>,
+    tag_filter: Option<&TagExpression>,
 ) -> (Vec<TokenStream2>, Vec<TokenStream2>) {
     let rel_path = abs_path
         .strip_prefix(manifest_dir)
@@ -270,17 +337,22 @@ fn process_feature_file(
                     .and_then(|s| s.to_str())
                     .unwrap_or("feature"),
             );
+            let ctx = ScenarioTestContext {
+                feature_stem: &feature_stem,
+                manifest_dir,
+                rel_path: &rel_path,
+            };
             for (idx, _) in feature.scenarios.iter().enumerate() {
-                let ctx = ScenarioTestContext {
-                    feature: &feature,
-                    scenario_idx: idx,
-                    feature_stem: &feature_stem,
-                    manifest_dir,
-                    rel_path: &rel_path,
-                };
-                match generate_scenario_test(&ctx, used_names) {
-                    Ok(ts) => tests.push(ts),
-                    Err(err) => errors.push(TokenStream2::from(err)),
+                match extract_scenario_steps(&feature, Some(idx)) {
+                    Ok(mut data) => {
+                        if let Some(filter) = tag_filter {
+                            if !data.filter_by_tags(filter) {
+                                continue;
+                            }
+                        }
+                        tests.push(generate_scenario_test(&ctx, used_names, data));
+                    }
+                    Err(err) => errors.push(err),
                 }
             }
         }
@@ -294,13 +366,18 @@ fn process_feature_file(
 fn generate_tests_from_features(
     feature_paths: Vec<PathBuf>,
     manifest_dir: &Path,
+    tag_filter: Option<&TagExpression>,
 ) -> (Vec<TokenStream2>, Vec<TokenStream2>) {
     let mut used_names = HashSet::new();
     let mut tests = Vec::new();
     let mut errors = Vec::new();
     for abs_path in feature_paths {
-        let (mut t, mut errs) =
-            process_feature_file(abs_path.as_path(), manifest_dir, &mut used_names);
+        let (mut t, mut errs) = process_feature_file(
+            abs_path.as_path(),
+            manifest_dir,
+            &mut used_names,
+            tag_filter,
+        );
         tests.append(&mut t);
         errors.append(&mut errs);
     }
@@ -308,9 +385,36 @@ fn generate_tests_from_features(
 }
 
 /// Generate test modules for all scenarios within a directory of feature files.
+///
+/// Path semantics:
+/// - `dir` must be a string literal.
+/// - The path is resolved relative to `CARGO_MANIFEST_DIR` when the macro
+///   expands.
+/// - An optional `tags = "…"` argument filters scenarios and examples using
+///   the same tag-expression grammar as `#[scenario]`.
+///
+/// Expansion:
+/// - Emits a module whose name is derived from the directory name.
+/// - Generated tests execute the registered `#[given]`, `#[when]`, and
+///   `#[then]` steps. When a tag filter is supplied only matching scenarios (and
+///   matching outline examples) produce tests.
 pub(crate) fn scenarios(input: TokenStream) -> TokenStream {
-    let dir_lit = syn::parse_macro_input!(input as syn::LitStr);
+    let ScenariosArgs {
+        dir: dir_lit,
+        tag_filter: tag_lit,
+    } = syn::parse_macro_input!(input as ScenariosArgs);
     let dir = PathBuf::from(dir_lit.value());
+
+    let tag_filter = match tag_lit {
+        Some(lit) => match TagExpression::parse(&lit.value()) {
+            Ok(expr) => Some(expr),
+            Err(err) => {
+                let syn_err = syn::Error::new(lit.span(), err.to_string());
+                return error_to_tokens(&syn_err).into();
+            }
+        },
+        None => None,
+    };
 
     let manifest_dir = match resolve_manifest_directory() {
         Ok(dir) => dir,
@@ -328,7 +432,8 @@ pub(crate) fn scenarios(input: TokenStream) -> TokenStream {
         unreachable!("checked Err above");
     };
 
-    let (tests, errors) = generate_tests_from_features(feature_paths, &manifest_dir);
+    let (tests, errors) =
+        generate_tests_from_features(feature_paths, &manifest_dir, tag_filter.as_ref());
 
     let module_ident = {
         let base = dir

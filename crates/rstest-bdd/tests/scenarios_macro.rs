@@ -9,9 +9,27 @@ fn precondition() {}
 fn action() {}
 
 #[when("an action occurs with <num>")]
-fn action_with_num() {}
+fn action_with_num(num: &'static str) {
+    let _ = num;
+}
 
 #[then("events are recorded")]
 fn events_recorded() {}
 
+#[then("only fast examples run")]
+fn only_fast_examples_run(num: &'static str) {
+    assert_eq!(num, "1", "unexpected example row executed");
+}
+
+#[when("a slow action occurs")]
+fn slow_action_occurs() {
+    panic!("slow scenario should be filtered out");
+}
+
+#[then("slow events are recorded")]
+fn slow_events_recorded() {
+    panic!("slow scenario should be filtered out");
+}
+
 scenarios!("tests/features/auto");
+scenarios!("tests/features/filtered", tags = "@fast");
