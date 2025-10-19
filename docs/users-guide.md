@@ -209,15 +209,18 @@ focused API for populating, reading, and clearing per-scenario values. Each
 slot starts empty and supports helpers such as `set`, `replace`,
 `get_or_insert_with`, `take`, and predicates `is_empty`/`is_filled`.
 
-Define a state struct whose fields are `Slot<T>` and derive both [`Default`]
-and `ScenarioState`. The derive macro generates only the `ScenarioState::reset`
-method, clearing every slot, so the struct behaves like an ordinary `rstest`
-fixture. Supplying `Default` yourself keeps control over initial values while
-satisfying the trait bound enforced by the runtime.
+Define a state struct whose fields are `Slot<T>` and derive [`ScenarioState`].
+The derive macro clears every slot by implementing `ScenarioState::reset` and
+it automatically adds a [`Default`] implementation that leaves all slots empty.
+**Do not** also derive or implement `Default`: Rust will report a
+duplicate-implementation error because the macro already provides it. When you
+need custom initialisation, plan to use the future
+`#[scenario_state(no_default)]` flag (or equivalent) to opt out of the
+generated `Default` and supply your own logic.
 
 ```rust
 use rstest::fixture;
-use rstest_bdd::{ScenarioState as ScenarioStateTrait, Slot};
+use rstest_bdd::{ScenarioState, Slot};
 use rstest_bdd_macros::{given, scenario, then, when, ScenarioState};
 
 #[derive(Default, ScenarioState)]
@@ -245,7 +248,7 @@ fn cli_succeeded(cli_state: &CliState) {
 
 #[then("I can reset the state")]
 fn reset_state(cli_state: &CliState) {
-    ScenarioStateTrait::reset(cli_state);
+    cli_state.reset();
     assert!(cli_state.output.is_empty());
 }
 
