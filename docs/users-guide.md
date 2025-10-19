@@ -211,7 +211,7 @@ slot starts empty and supports helpers such as `set`, `replace`,
 
 Define a state struct whose fields are `Slot<T>` and derive both [`Default`]
 and `ScenarioState`. The derive macro generates only the `ScenarioState::reset`
-method, clearing every slot so the struct behaves like an ordinary `rstest`
+method, clearing every slot, so the struct behaves like an ordinary `rstest`
 fixture. Supplying `Default` yourself keeps control over initial values while
 satisfying the trait bound enforced by the runtime.
 

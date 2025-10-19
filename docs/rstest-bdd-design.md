@@ -1846,7 +1846,8 @@ All modules use en‑GB spelling and include `//!` module‑level documentation.
   delegating to `Slot::clear`. Structs therefore act as ordinary fixtures while
   exposing a deterministic cleanup hook for scenarios that need to reuse the
   state within the same test body. Callers must provide (or derive) `Default`
-  themselves to satisfy the trait bound and configure initial values.
+  themselves to satisfy the trait bound, configure initial values, and avoid
+  duplicate `Default` implementations.
 - Rejected a single global “world” object to keep the API congruent with
   `rstest` fixtures and avoid obscuring data flow. `Slot<T>` composes naturally
   with existing fixtures and keeps ownership explicit.
