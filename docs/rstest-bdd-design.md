@@ -1822,6 +1822,10 @@ Public APIs are re‑exported from `lib.rs` so consumers continue to import from
 - `context.rs` — Fixture context:
   - `StepContext`
 
+- `state.rs` — Scenario state helpers:
+  - `Slot<T>`
+  - `ScenarioState`
+
 - `registry.rs` — Registration and lookup:
   - `step!` macro
   - global registry map
@@ -1833,6 +1837,33 @@ Public APIs are re‑exported from `lib.rs` so consumers continue to import from
   - `greet` example function
 
 All modules use en‑GB spelling and include `//!` module‑level documentation.
+
+### Scenario state management design (2025-03-16)
+
+- Added a dedicated `state` module exposing `Slot<T>` to encapsulate shared
+  mutable values without repeating `RefCell<Option<T>>` boilerplate. The type
+  offers focused helpers (`set`, `replace`, `take`, `get_or_insert_with`,
+  `with_ref`, `with_mut`) plus predicates to inspect whether a slot currently
+  holds a value.
+- Introduced the `ScenarioState` trait so state containers can declare a
+  canonical reset operation. The trait requires `Default`, aligning with the
+  fixture story in `rstest`.
+- Implemented a `#[derive(ScenarioState)]` macro in `rstest-bdd-macros`. The
+  derive validates that every field is a `Slot<T>` and emits a `reset` method
+  delegating to `Slot::clear`. Structs therefore act as ordinary fixtures while
+  exposing a deterministic cleanup hook for scenarios that need to reuse the
+  state within the same test body.
+
+  **Warning:** The derive *always* synthesises a `Default` implementation that
+  initialises each slot as empty. Adding a manual `Default` derive or `impl`
+  alongside the macro triggers a duplicate-implementation error, so callers
+  must not do so unless they first disable the generated impl. A future
+  `#[scenario_state(no_default)]` flag (or equivalent) will opt out of the
+  auto-generated `Default` so bespoke initialisation logic can be supplied when
+  required.
+- Rejected a single global “world” object to keep the API congruent with
+  `rstest` fixtures and avoid obscuring data flow. `Slot<T>` composes naturally
+  with existing fixtures and keeps ownership explicit.
 
 ## Assertion helper macros
 

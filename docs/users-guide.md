@@ -199,6 +199,71 @@ fn test_add_to_basket(#[with(basket)] _: Basket) {
 }
 ```
 
+### Scenario state slots
+
+Complex scenarios often need to capture intermediate results or share mutable
+state between multiple steps. Historically, this required wrapping every field
+in `RefCell<Option<T>>`, introducing noise and risking forgotten resets. The
+`rstest-bdd` runtime now provides `Slot<T>`, a thin wrapper that exposes a
+focused API for populating, reading, and clearing per-scenario values. Each
+slot starts empty and supports helpers such as `set`, `replace`,
+`get_or_insert_with`, `take`, and predicates `is_empty`/`is_filled`.
+
+Define a state struct whose fields are `Slot<T>` and derive [`ScenarioState`].
+The derive macro clears every slot by implementing `ScenarioState::reset` and
+it automatically adds a [`Default`] implementation that leaves all slots empty.
+**Do not** also derive or implement `Default`: Rust will report a
+duplicate-implementation error because the macro already provides it. When you
+need custom initialization, plan to use the future
+`#[scenario_state(no_default)]` flag (or equivalent) to opt out of the
+generated `Default` and supply your own logic.
+
+```rust
+use rstest::fixture;
+use rstest_bdd::{ScenarioState, Slot};
+use rstest_bdd_macros::{given, scenario, then, when, ScenarioState};
+
+#[derive(ScenarioState)]
+struct CliState {
+    output: Slot<String>,
+    exit_code: Slot<i32>,
+}
+
+#[fixture]
+fn cli_state() -> CliState {
+    CliState::default()
+}
+
+#[when("I run the CLI with {word}")]
+fn run_command(cli_state: &CliState, argument: String) {
+    let result = format!("ran {argument}");
+    cli_state.output.set(result);
+    cli_state.exit_code.set(0);
+}
+
+#[then("the CLI succeeded")]
+fn cli_succeeded(cli_state: &CliState) {
+    assert_eq!(cli_state.exit_code.get(), Some(0));
+}
+
+#[then("I can reset the state")]
+fn reset_state(cli_state: &CliState) {
+    cli_state.reset();
+    assert!(cli_state.output.is_empty());
+}
+
+#[scenario(path = "tests/features/cli.feature")]
+fn cli_behaviour(cli_state: CliState) {
+    let _ = cli_state;
+}
+```
+
+Slots are independent, so scenarios can freely mix eager `set` calls with lazy
+`get_or_insert_with` initializers. Because slots live inside a regular fixture,
+the state benefits from `rstest`’s usual lifecycle: a fresh struct is produced
+for each scenario invocation, yet it remains trivial to clear and reuse the
+contents when chaining multiple behaviours inside a single test body.
+
 ### Implicit fixture injection
 
 Implicit fixtures such as `basket` must already be in scope in the test module;
