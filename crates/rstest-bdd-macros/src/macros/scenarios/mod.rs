@@ -183,6 +183,39 @@ fn generate_tests_from_features(
     (tests, errors)
 }
 
+fn parse_tag_filter(tag_lit: Option<syn::LitStr>) -> Result<Option<TagFilter>, TokenStream> {
+    tag_lit.map_or_else(
+        || Ok(None),
+        |lit| match TagExpression::parse(&lit.value()) {
+            Ok(expr) => Ok(Some(TagFilter {
+                expr,
+                span: lit.span(),
+                raw: lit.value(),
+            })),
+            Err(err) => {
+                let syn_err = syn::Error::new(lit.span(), err.to_string());
+                Err(error_to_tokens(&syn_err).into())
+            }
+        },
+    )
+}
+
+fn check_empty_results(
+    tests: &[TokenStream2],
+    errors: &mut Vec<TokenStream2>,
+    tag_filter: Option<&TagFilter>,
+) {
+    if tests.is_empty() && errors.is_empty() {
+        if let Some(filter) = tag_filter {
+            let err = syn::Error::new(
+                filter.span,
+                format!("no scenarios matched tag expression `{}`", filter.raw),
+            );
+            errors.push(error_to_tokens(&err));
+        }
+    }
+}
+
 pub(crate) fn scenarios(input: TokenStream) -> TokenStream {
     let ScenariosArgs {
         dir: dir_lit,
@@ -190,19 +223,9 @@ pub(crate) fn scenarios(input: TokenStream) -> TokenStream {
     } = syn::parse_macro_input!(input as ScenariosArgs);
     let dir = PathBuf::from(dir_lit.value());
 
-    let tag_filter = match tag_lit {
-        Some(lit) => match TagExpression::parse(&lit.value()) {
-            Ok(expr) => Some(TagFilter {
-                expr,
-                span: lit.span(),
-                raw: lit.value(),
-            }),
-            Err(err) => {
-                let syn_err = syn::Error::new(lit.span(), err.to_string());
-                return error_to_tokens(&syn_err).into();
-            }
-        },
-        None => None,
+    let tag_filter = match parse_tag_filter(tag_lit) {
+        Ok(filter) => filter,
+        Err(err_tokens) => return err_tokens,
     };
 
     let manifest_dir = match resolve_manifest_directory() {
@@ -226,15 +249,7 @@ pub(crate) fn scenarios(input: TokenStream) -> TokenStream {
         tag_filter.as_ref().map(|f| &f.expr),
     );
 
-    if tests.is_empty() && errors.is_empty() {
-        if let Some(filter) = &tag_filter {
-            let err = syn::Error::new(
-                filter.span,
-                format!("no scenarios matched tag expression `{}`", filter.raw),
-            );
-            errors.push(error_to_tokens(&err));
-        }
-    }
+    check_empty_results(&tests, &mut errors, tag_filter.as_ref());
 
     let module_ident = {
         let base = dir
