@@ -1,0 +1,4 @@
+# Temporary exemptions while large modules are refactored.
+crates/rstest-bdd/src/types.rs
+crates/rstest-bdd/tests/placeholder_parsing.rs
+crates/rstest-bdd-macros/src/validation/steps/tests.rs
