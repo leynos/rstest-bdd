@@ -1,5 +1,27 @@
 #!/usr/bin/env python3
-"""Validate that Rust source files stay within the 400 line budget."""
+"""
+Validate that Rust source files stay within the 400-line budget.
+
+This script enforces a maximum line count (``MAX_LINES = 400``) on all Rust
+source files in the repository, excluding paths listed in the allowlist file
+(`scripts/rs-length-allowlist.txt`). It is invoked automatically by the
+``make lint`` target.
+
+Usage
+-----
+python3 scripts/check_rs_file_lengths.py
+
+Exit codes
+----------
+0
+    All Rust files comply with the line limit.
+1
+    Violations found or allowlist references missing files.
+
+The allowlist supports comments (lines starting with ``#``) and empty lines.
+Violating files should be refactored into smaller modules rather than added to
+the allowlist unless a tracked refactor is in progress.
+"""
 
 from __future__ import annotations
 
@@ -11,7 +33,24 @@ ALLOWLIST_FILE = "scripts/rs-length-allowlist.txt"
 
 
 def load_allowlist(root: Path) -> set[Path]:
-    """Return the set of allowlisted Rust files relative to the repo root."""
+    """
+    Load the allowlist of Rust files exempt from the line limit.
+
+    Reads the allowlist file (``scripts/rs-length-allowlist.txt``) and returns
+    a set of ``Path`` objects relative to the repository root. Lines starting
+    with ``#`` and empty lines are ignored.
+
+    Parameters
+    ----------
+    root : Path
+        The repository root directory.
+
+    Returns
+    -------
+    set[Path]
+        Set of allowlisted file paths relative to ``root``. Returns an empty
+        set if the allowlist file does not exist.
+    """
     allowlist_path = root / ALLOWLIST_FILE
     if not allowlist_path.exists():
         return set()

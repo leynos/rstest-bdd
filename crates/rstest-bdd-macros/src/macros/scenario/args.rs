@@ -1,3 +1,7 @@
+//! Argument parsing for `#[scenario]` covering required `path`, mutually
+//! exclusive `index`/`name` selectors, and optional tag filters, reporting
+//! duplicates and conflicts with combined `syn::Error`s.
+
 use proc_macro2::Span;
 use syn::{
     LitInt, LitStr,

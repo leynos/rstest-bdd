@@ -34,34 +34,45 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_or(&mut self) -> Result<Expr, TagExprError> {
-        let mut node = self.parse_and()?;
-        loop {
-            let token = self.current.clone();
-            match token.kind {
-                TokenKind::Or => {
-                    self.advance()?;
-                    self.ensure_operand("or")?;
-                    let rhs = self.parse_and()?;
-                    node = Expr::Or(Box::new(node), Box::new(rhs));
-                }
-                _ => break,
-            }
-        }
-        Ok(node)
+        self.parse_chain(
+            Self::parse_and,
+            |kind| matches!(kind, TokenKind::Or),
+            "or",
+            |lhs, rhs| Expr::Or(Box::new(lhs), Box::new(rhs)),
+        )
     }
 
     fn parse_and(&mut self) -> Result<Expr, TagExprError> {
-        let mut node = self.parse_not()?;
+        self.parse_chain(
+            Self::parse_not,
+            |kind| matches!(kind, TokenKind::And),
+            "and",
+            |lhs, rhs| Expr::And(Box::new(lhs), Box::new(rhs)),
+        )
+    }
+
+    fn parse_chain<F, P, B>(
+        &mut self,
+        mut parse_operand: F,
+        mut is_operator: P,
+        operator_name: &'static str,
+        mut build: B,
+    ) -> Result<Expr, TagExprError>
+    where
+        F: FnMut(&mut Self) -> Result<Expr, TagExprError>,
+        P: FnMut(&TokenKind) -> bool,
+        B: FnMut(Expr, Expr) -> Expr,
+    {
+        let mut node = parse_operand(self)?;
         loop {
             let token = self.current.clone();
-            match token.kind {
-                TokenKind::And => {
-                    self.advance()?;
-                    self.ensure_operand("and")?;
-                    let rhs = self.parse_not()?;
-                    node = Expr::And(Box::new(node), Box::new(rhs));
-                }
-                _ => break,
+            if is_operator(&token.kind) {
+                self.advance()?;
+                self.ensure_operand(operator_name)?;
+                let rhs = parse_operand(self)?;
+                node = build(node, rhs);
+            } else {
+                break;
             }
         }
         Ok(node)

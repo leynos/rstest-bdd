@@ -20,6 +20,12 @@ use crate::validation::parameters::process_scenario_outline_examples;
 use self::args::{ScenarioArgs, ScenarioSelector};
 use self::paths::canonical_feature_path;
 
+struct ScenarioTagFilter {
+    expr: TagExpression,
+    span: Span,
+    raw: String,
+}
+
 pub(crate) fn scenario(attr: TokenStream, item: TokenStream) -> TokenStream {
     let args = syn::parse_macro_input!(attr as ScenarioArgs);
     let item_fn = syn::parse_macro_input!(item as syn::ItemFn);
@@ -46,68 +52,16 @@ fn try_scenario(
 
     // Retrieve cached feature to avoid repeated parsing.
     let feature = parse_and_load_feature(&path).map_err(proc_macro::TokenStream::from)?;
-    let tag_filter = match tag_filter {
-        Some(lit) => {
-            let raw = lit.value();
-            let parsed = TagExpression::parse(&raw).map_err(|err| {
-                proc_macro::TokenStream::from(
-                    syn::Error::new(lit.span(), err.to_string()).into_compile_error(),
-                )
-            })?;
-            Some((parsed, lit.span(), raw))
-        }
-        None => None,
-    };
-
-    if feature.scenarios.is_empty() {
-        let err = syn::Error::new(path_lit.span(), "feature contains no scenarios");
-        return Err(proc_macro::TokenStream::from(err.into_compile_error()));
-    }
-
-    let candidate_indices: Vec<usize> = match &selector {
-        Some(ScenarioSelector::Index { value, .. }) => vec![*value],
-        Some(ScenarioSelector::Name { value, span }) => {
-            let idx = find_scenario_by_name(&feature, value, *span)
-                .map_err(|err| proc_macro::TokenStream::from(err.into_compile_error()))?;
-            vec![idx]
-        }
-        None => (0..feature.scenarios.len()).collect(),
-    };
-
-    let mut selected: Option<ScenarioData> = None;
-    for idx in candidate_indices {
-        let mut data =
-            extract_scenario_steps(&feature, Some(idx)).map_err(proc_macro::TokenStream::from)?;
-        let matches = if let Some((expr, _, _)) = &tag_filter {
-            data.filter_by_tags(expr)
-        } else {
-            true
-        };
-
-        if matches {
-            selected = Some(data);
-            break;
-        }
-    }
-
-    let Some(scenario_data) = selected else {
-        if let Some((_, span, raw)) = &tag_filter {
-            let message = match &selector {
-                Some(ScenarioSelector::Index { value, .. }) => {
-                    format!("scenario at index {value} does not match tag expression `{raw}`")
-                }
-                Some(ScenarioSelector::Name { value, .. }) => {
-                    format!("scenario named \"{value}\" does not match tag expression `{raw}`")
-                }
-                None => format!("no scenarios matched tag expression `{raw}`"),
-            };
-            let err = syn::Error::new(*span, message);
-            return Err(proc_macro::TokenStream::from(err.into_compile_error()));
-        }
-
-        let err = syn::Error::new(path_lit.span(), "no matching scenario found");
-        return Err(proc_macro::TokenStream::from(err.into_compile_error()));
-    };
+    let tag_filter = parse_tag_filter(tag_filter)?;
+    ensure_feature_not_empty(&path_lit, &feature)?;
+    let candidate_indices = resolve_candidate_indices(selector.as_ref(), &feature, &path_lit)?;
+    let scenario_data = select_scenario(
+        &feature,
+        &candidate_indices,
+        selector.as_ref(),
+        tag_filter.as_ref(),
+        &path_lit,
+    )?;
 
     let feature_path_str = canonical_feature_path(&path);
     let ScenarioData {
@@ -140,6 +94,117 @@ fn try_scenario(
         },
         ctx_inserts.into_iter(),
     ))
+}
+
+fn parse_tag_filter(
+    tag_filter: Option<syn::LitStr>,
+) -> Result<Option<ScenarioTagFilter>, TokenStream> {
+    tag_filter
+        .map(|lit| {
+            let raw = lit.value();
+            TagExpression::parse(&raw)
+                .map(|expr| ScenarioTagFilter {
+                    expr,
+                    span: lit.span(),
+                    raw,
+                })
+                .map_err(|err| {
+                    proc_macro::TokenStream::from(
+                        syn::Error::new(lit.span(), err.to_string()).into_compile_error(),
+                    )
+                })
+        })
+        .transpose()
+}
+
+fn ensure_feature_not_empty(
+    path_lit: &syn::LitStr,
+    feature: &gherkin::Feature,
+) -> Result<(), TokenStream> {
+    if feature.scenarios.is_empty() {
+        let msg = format!("feature `{}` contains no scenarios", path_lit.value());
+        let err = syn::Error::new(path_lit.span(), msg);
+        Err(proc_macro::TokenStream::from(err.into_compile_error()))
+    } else {
+        Ok(())
+    }
+}
+
+fn resolve_candidate_indices(
+    selector: Option<&ScenarioSelector>,
+    feature: &gherkin::Feature,
+    path_lit: &syn::LitStr,
+) -> Result<Vec<usize>, TokenStream> {
+    match selector {
+        Some(ScenarioSelector::Index { value, span }) => {
+            let value = *value;
+            if value >= feature.scenarios.len() {
+                let count = feature.scenarios.len();
+                let noun = if count == 1 { "scenario" } else { "scenarios" };
+                let message = format!(
+                    "scenario index {value} out of range; feature `{}` defines {count} {noun}",
+                    path_lit.value()
+                );
+                let err = syn::Error::new(*span, message);
+                Err(proc_macro::TokenStream::from(err.into_compile_error()))
+            } else {
+                Ok(vec![value])
+            }
+        }
+        Some(ScenarioSelector::Name { value, span }) => {
+            let idx = find_scenario_by_name(feature, value, *span)
+                .map_err(|err| proc_macro::TokenStream::from(err.into_compile_error()))?;
+            Ok(vec![idx])
+        }
+        None => Ok((0..feature.scenarios.len()).collect()),
+    }
+}
+
+fn select_scenario(
+    feature: &gherkin::Feature,
+    candidate_indices: &[usize],
+    selector: Option<&ScenarioSelector>,
+    tag_filter: Option<&ScenarioTagFilter>,
+    path_lit: &syn::LitStr,
+) -> Result<ScenarioData, TokenStream> {
+    for &idx in candidate_indices {
+        let mut data =
+            extract_scenario_steps(feature, Some(idx)).map_err(proc_macro::TokenStream::from)?;
+        let matches = tag_filter.is_none_or(|filter| data.filter_by_tags(&filter.expr));
+        if matches {
+            return Ok(data);
+        }
+    }
+
+    tag_filter.map_or_else(
+        || {
+            let message = format!(
+                "no scenarios in `{}` matched the selector",
+                path_lit.value()
+            );
+            let err = syn::Error::new(path_lit.span(), message);
+            Err(proc_macro::TokenStream::from(err.into_compile_error()))
+        },
+        |filter| {
+            let message = match selector {
+                Some(ScenarioSelector::Index { value, .. }) => {
+                    format!(
+                        "scenario at index {} does not match tag expression `{}`",
+                        value, filter.raw
+                    )
+                }
+                Some(ScenarioSelector::Name { value, .. }) => {
+                    format!(
+                        "scenario named \"{value}\" does not match tag expression `{}`",
+                        filter.raw
+                    )
+                }
+                None => format!("no scenarios matched tag expression `{}`", filter.raw),
+            };
+            let err = syn::Error::new(filter.span, message);
+            Err(proc_macro::TokenStream::from(err.into_compile_error()))
+        },
+    )
 }
 
 fn find_scenario_by_name(
