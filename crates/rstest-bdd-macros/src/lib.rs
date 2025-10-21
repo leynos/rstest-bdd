@@ -41,6 +41,30 @@ pub fn then(attr: TokenStream, item: TokenStream) -> TokenStream {
     macros::then(attr, item)
 }
 
+/// Attribute macro binding a test function to a single Gherkin scenario.
+///
+/// Selector semantics:
+/// - Supply either `index = N` (zero-based) or `name = "Scenario title"` to
+///   disambiguate when the feature defines multiple scenarios.
+/// - When omitted, the macro targets the first scenario in the feature file.
+///
+/// Tag filtering:
+/// - Provide `tags = "expr"` to keep only scenarios whose tag sets satisfy the
+///   expression before applying selectors.
+/// - Expressions accept case-sensitive tag names combined with `not`, `and`,
+///   and `or`, following the precedence `not` > `and` > `or`. Parentheses may
+///   be used to override the default binding.
+///
+/// Example:
+/// ```ignore
+/// use rstest_bdd_macros::scenario;
+///
+/// #[scenario(
+///     "tests/features/filtering.feature",
+///     tags = "@fast and not (@wip or @flaky)"
+/// )]
+/// fn fast_stable_cases() {}
+/// ```
 #[proc_macro_error]
 #[proc_macro_attribute]
 pub fn scenario(attr: TokenStream, item: TokenStream) -> TokenStream {

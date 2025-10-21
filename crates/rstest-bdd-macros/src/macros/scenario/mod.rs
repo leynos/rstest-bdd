@@ -2,7 +2,23 @@
 //! and surfacing compile-time diagnostics for invalid configuration. Supports
 //! mutually exclusive selectors that either bind by index or match the
 //! case-sensitive scenario title, defaulting to the first scenario when no
-//! selector is supplied.
+//! selector is supplied. An optional `tags = "…"` argument filters candidate
+//! scenarios before selector resolution, keeping tests focused on the relevant
+//! examples.
+//!
+//! Tag expressions combine case-sensitive tag names with the operators `not`,
+//! `and`, and `or`. The parser applies the precedence `not` > `and` > `or`, and
+//! parentheses may override the default binding. For instance, the following
+//! test only executes scenarios tagged `@fast` while excluding any marked as
+//! `@wip` or `@flaky`:
+//!
+//! ```ignore
+//! #[scenario(
+//!     "tests/features/filtering.feature",
+//!     tags = "@fast and not (@wip or @flaky)"
+//! )]
+//! fn fast_stable_cases() {}
+//! ```
 
 mod args;
 mod paths;
