@@ -4,10 +4,10 @@ from __future__ import annotations
 
 import typing as typ
 
+import pytest
+
 if typ.TYPE_CHECKING:
     from types import ModuleType
-
-    import pytest
 
 
 def test_main_uses_defaults(
@@ -31,7 +31,10 @@ def test_main_uses_defaults(
         run_publish_check_module, "run_publish_check", fake_run_publish_check
     )
 
-    run_publish_check_module.app([])
+    with pytest.raises(SystemExit) as exc:
+        run_publish_check_module.app([])
+
+    assert exc.value.code == 0
 
     assert captured == {
         "keep_tmp": False,
@@ -61,7 +64,10 @@ def test_main_honours_environment(
     monkeypatch.setenv("PUBLISH_CHECK_KEEP_TMP", "true")
     monkeypatch.setenv("PUBLISH_CHECK_TIMEOUT_SECS", "60")
 
-    run_publish_check_module.app([])
+    with pytest.raises(SystemExit) as exc:
+        run_publish_check_module.app([])
+
+    assert exc.value.code == 0
 
     assert observed == [(True, 60, False)]
 
@@ -87,7 +93,10 @@ def test_main_cli_overrides_env(
     monkeypatch.setenv("PUBLISH_CHECK_KEEP_TMP", "false")
     monkeypatch.setenv("PUBLISH_CHECK_TIMEOUT_SECS", "900")
 
-    run_publish_check_module.app(["--keep-tmp", "--timeout-secs", "5"])
+    with pytest.raises(SystemExit) as exc:
+        run_publish_check_module.app(["--keep-tmp", "--timeout-secs", "5"])
+
+    assert exc.value.code == 0
 
     assert observed == [(True, 5, False)]
 
@@ -111,7 +120,10 @@ def test_main_live_flag(
         run_publish_check_module, "run_publish_check", fake_run_publish_check
     )
 
-    run_publish_check_module.app(["--live"])
+    with pytest.raises(SystemExit) as exc:
+        run_publish_check_module.app(["--live"])
+
+    assert exc.value.code == 0
 
     assert observed == [
         (
