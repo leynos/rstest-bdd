@@ -129,7 +129,11 @@ fn is_unsized_reference_target(ty: &syn::Type) -> bool {
 ///
 /// Non-reference fixtures must implement [`Clone`] because wrappers clone
 /// them to hand ownership to the step function.
-pub(super) fn gen_fixture_decls(fixtures: &[FixtureArg], ident: &syn::Ident) -> Vec<TokenStream2> {
+pub(super) fn gen_fixture_decls(
+    fixtures: &[FixtureArg],
+    ident: &syn::Ident,
+    ctx_ident: &proc_macro2::Ident,
+) -> Vec<TokenStream2> {
     fixtures
         .iter()
         .map(|FixtureArg { pat, name, ty }| {
@@ -163,7 +167,7 @@ pub(super) fn gen_fixture_decls(fixtures: &[FixtureArg], ident: &syn::Ident) -> 
                 ),
             };
             quote! {
-                let #pat: #ty = ctx
+                let #pat: #ty = #ctx_ident
                     .get::<#lookup_ty>(stringify!(#name))
                     #post_get
                     .ok_or_else(|| #path::StepError::MissingFixture {
@@ -226,9 +230,10 @@ pub(super) fn gen_step_parses(
 pub(super) fn prepare_argument_processing(
     args: &ArgumentCollections<'_>,
     step_meta: StepMeta<'_>,
+    ctx_ident: &proc_macro2::Ident,
 ) -> PreparedArgs {
     let StepMeta { pattern, ident } = step_meta;
-    let declares = gen_fixture_decls(args.fixtures, ident);
+    let declares = gen_fixture_decls(args.fixtures, ident, ctx_ident);
     let captured: Vec<_> = args
         .step_args
         .iter()
