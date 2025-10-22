@@ -21,7 +21,18 @@ mod validation;
 pub(crate) use step_keyword::StepKeyword;
 
 use proc_macro::TokenStream;
-use proc_macro_error::proc_macro_error;
+use proc_macro_error::entry_point;
+use std::panic::AssertUnwindSafe;
+
+// Keep `proc_macro_error::abort!` diagnostics wired up without relying on the
+// attribute helper, which drops doc comments after expansion on some
+// toolchains.
+fn run_with_macro_errors<F>(f: F) -> TokenStream
+where
+    F: FnOnce() -> TokenStream,
+{
+    entry_point(AssertUnwindSafe(f), false)
+}
 
 /// Attribute macro registering a step definition for the `Given` keyword.
 ///
@@ -32,10 +43,9 @@ use proc_macro_error::proc_macro_error;
 /// #[given("a configured database")]
 /// fn a_configured_database() {}
 /// ```
-#[proc_macro_error]
 #[proc_macro_attribute]
 pub fn given(attr: TokenStream, item: TokenStream) -> TokenStream {
-    macros::given(attr, item)
+    run_with_macro_errors(move || macros::given(attr, item))
 }
 
 /// Attribute macro registering a step definition for the `When` keyword.
@@ -47,10 +57,9 @@ pub fn given(attr: TokenStream, item: TokenStream) -> TokenStream {
 /// #[when("the user logs in")]
 /// fn the_user_logs_in() {}
 /// ```
-#[proc_macro_error]
 #[proc_macro_attribute]
 pub fn when(attr: TokenStream, item: TokenStream) -> TokenStream {
-    macros::when(attr, item)
+    run_with_macro_errors(move || macros::when(attr, item))
 }
 
 /// Attribute macro registering a step definition for the `Then` keyword.
@@ -62,10 +71,9 @@ pub fn when(attr: TokenStream, item: TokenStream) -> TokenStream {
 /// #[then("a success message is shown")]
 /// fn a_success_message_is_shown() {}
 /// ```
-#[proc_macro_error]
 #[proc_macro_attribute]
 pub fn then(attr: TokenStream, item: TokenStream) -> TokenStream {
-    macros::then(attr, item)
+    run_with_macro_errors(move || macros::then(attr, item))
 }
 
 /// Attribute macro binding a test function to a single Gherkin scenario.
@@ -92,10 +100,9 @@ pub fn then(attr: TokenStream, item: TokenStream) -> TokenStream {
 /// )]
 /// fn fast_stable_cases() {}
 /// ```
-#[proc_macro_error]
 #[proc_macro_attribute]
 pub fn scenario(attr: TokenStream, item: TokenStream) -> TokenStream {
-    macros::scenario(attr, item)
+    run_with_macro_errors(move || macros::scenario(attr, item))
 }
 
 /// Discover all `.feature` files under the given directory and generate one
@@ -124,28 +131,25 @@ pub fn scenario(attr: TokenStream, item: TokenStream) -> TokenStream {
 /// Errors:
 /// - Emits a compile error if the directory does not exist, contains no
 ///   `.feature` files, or if parsing fails.
-#[proc_macro_error]
 #[proc_macro]
 pub fn scenarios(input: TokenStream) -> TokenStream {
-    macros::scenarios(input)
+    run_with_macro_errors(move || macros::scenarios(input))
 }
 
 /// Derive `DataTableRow` for structs that should parse Gherkin rows.
 ///
 /// The macro honours field-level overrides via `#[datatable(...)]` attributes
 /// documented in the user guide.
-#[proc_macro_error]
 #[proc_macro_derive(DataTableRow, attributes(datatable))]
 pub fn derive_data_table_row(input: TokenStream) -> TokenStream {
-    datatable::derive_data_table_row(input)
+    run_with_macro_errors(move || datatable::derive_data_table_row(input))
 }
 
 /// Derive `DataTable` for tuple structs wrapping collections of rows.
 ///
 /// The macro supports optional mapping hooks and row type inference as
 /// described in the user guide.
-#[proc_macro_error]
 #[proc_macro_derive(DataTable, attributes(datatable))]
 pub fn derive_data_table(input: TokenStream) -> TokenStream {
-    datatable::derive_data_table(input)
+    run_with_macro_errors(move || datatable::derive_data_table(input))
 }
