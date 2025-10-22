@@ -108,7 +108,10 @@ ALREADY_PUBLISHED_MARKERS_FOLDED: typ.Final[tuple[str, ...]] = tuple(
 
 DEFAULT_PUBLISH_TIMEOUT_SECS = 900
 
-app = App(config=cyclopts.config.Env("PUBLISH_CHECK_", command=False))
+app = App(
+    config=cyclopts.config.Env("PUBLISH_CHECK_", command=False),
+    result_action="return_value",
+)
 
 
 def _resolve_timeout(timeout_secs: int | None) -> int:
