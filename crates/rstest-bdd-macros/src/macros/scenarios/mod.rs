@@ -108,7 +108,7 @@ fn resolve_manifest_directory() -> Result<PathBuf, TokenStream> {
     }
 }
 
-fn emit_tests_for_feature(
+fn process_scenarios(
     feature: &gherkin::Feature,
     ctx: &ScenarioTestContext<'_>,
     used_names: &mut HashSet<String>,
@@ -141,23 +141,24 @@ fn process_feature_file(
         .strip_prefix(manifest_dir)
         .map_or_else(|_| abs_path.to_path_buf(), Path::to_path_buf);
 
-    match parse_and_load_feature(rel_path.as_path()) {
-        Ok(feature) => {
-            let feature_stem = sanitize_ident(
-                rel_path
-                    .file_stem()
-                    .and_then(|s| s.to_str())
-                    .unwrap_or("feature"),
-            );
-            let ctx = ScenarioTestContext {
-                feature_stem: &feature_stem,
-                manifest_dir,
-                rel_path: &rel_path,
-            };
-            emit_tests_for_feature(&feature, &ctx, used_names, tag_filter)
-        }
-        Err(err) => (Vec::new(), vec![err]),
-    }
+    let feature = match parse_and_load_feature(rel_path.as_path()) {
+        Ok(feature) => feature,
+        Err(err) => return (Vec::new(), vec![err]),
+    };
+
+    let feature_stem = sanitize_ident(
+        rel_path
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .unwrap_or("feature"),
+    );
+    let ctx = ScenarioTestContext {
+        feature_stem: &feature_stem,
+        manifest_dir,
+        rel_path: &rel_path,
+    };
+
+    process_scenarios(&feature, &ctx, used_names, tag_filter)
 }
 
 fn generate_tests_from_features(
