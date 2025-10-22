@@ -71,7 +71,7 @@ fn generate_scenario_test(
         },
     );
     let Ok((_args, ctx_inserts)) = extract_function_fixtures(&mut sig) else {
-        unreachable!("generated scenario signature must bind fixtures");
+        unreachable!("failed to bind fixtures for generated signature");
     };
     let block: syn::Block = syn::parse_quote!({});
 

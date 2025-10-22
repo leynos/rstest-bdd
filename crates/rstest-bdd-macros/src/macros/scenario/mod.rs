@@ -183,12 +183,19 @@ fn select_scenario(
     tag_filter: Option<&ScenarioTagFilter>,
     path_lit: &syn::LitStr,
 ) -> Result<ScenarioData, TokenStream> {
+    let mut examined_tag_sets: Vec<Vec<String>> = Vec::new();
+
     for &idx in candidate_indices {
         let mut data =
             extract_scenario_steps(feature, Some(idx)).map_err(proc_macro::TokenStream::from)?;
         let matches = tag_filter.is_none_or(|filter| data.filter_by_tags(&filter.expr));
         if matches {
             return Ok(data);
+        }
+        if tag_filter.is_some() {
+            // Preserve the feature + scenario tags that callers evaluated so the
+            // eventual diagnostic can explain which annotations were available.
+            examined_tag_sets.push(data.tags.clone());
         }
     }
 
@@ -202,25 +209,51 @@ fn select_scenario(
             Err(proc_macro::TokenStream::from(err.into_compile_error()))
         },
         |filter| {
+            let available_clause = format_available_tags(&examined_tag_sets);
             let message = match selector {
                 Some(ScenarioSelector::Index { value, .. }) => {
                     format!(
-                        "scenario at index {} does not match tag expression `{}`",
-                        value, filter.raw
+                        "scenario at index {} does not match tag expression `{}`; {}",
+                        value, filter.raw, available_clause
                     )
                 }
                 Some(ScenarioSelector::Name { value, .. }) => {
                     format!(
-                        "scenario named \"{value}\" does not match tag expression `{}`",
-                        filter.raw
+                        "scenario named \"{value}\" does not match tag expression `{}`; {}",
+                        filter.raw, available_clause
                     )
                 }
-                None => format!("no scenarios matched tag expression `{}`", filter.raw),
+                None => format!(
+                    "no scenarios matched tag expression `{}`; {}",
+                    filter.raw, available_clause
+                ),
             };
             let err = syn::Error::new(filter.span, message);
             Err(proc_macro::TokenStream::from(err.into_compile_error()))
         },
     )
+}
+
+fn format_available_tags(tag_sets: &[Vec<String>]) -> String {
+    // Multiple scenarios can feed the diagnostic when no selector is supplied;
+    // serialise each tag set separately so callers can still spot gaps without
+    // losing the original grouping.
+    if tag_sets.is_empty() {
+        return "available tags: <none>".to_string();
+    }
+
+    let formatted_sets: Vec<String> = tag_sets
+        .iter()
+        .map(|tags| {
+            if tags.is_empty() {
+                "<none>".to_string()
+            } else {
+                tags.join(", ")
+            }
+        })
+        .collect();
+
+    format!("available tags: {}", formatted_sets.join("; "))
 }
 
 fn find_scenario_by_name(
