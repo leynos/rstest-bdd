@@ -1,3 +1,7 @@
+//! Discovers `.feature` files for the `scenarios!` macro without following
+//! symlink targets. Delegates path canonicalisation to keep diagnostics
+//! stable even when fixtures reside outside the workspace tree.
+
 use std::path::{Path, PathBuf};
 
 use walkdir::{DirEntry, WalkDir};

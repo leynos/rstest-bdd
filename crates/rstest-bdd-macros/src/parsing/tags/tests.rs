@@ -1,5 +1,7 @@
 //! Integration-style coverage for tag-expression parsing and evaluation.
 
+use rstest::rstest;
+
 use super::TagExpression;
 
 fn parse_expression(input: &str) -> TagExpression {
@@ -56,29 +58,11 @@ fn allows_case_insensitive_operators() {
     assert!(!expr.evaluate(["@b"].into_iter()));
 }
 
-#[test]
-fn reports_missing_operand_after_and() {
-    let err = parse_error_message("@a and");
-    assert!(
-        err.contains("expected tag or '(' after 'and'"),
-        "unexpected error message: {err}"
-    );
-}
-
-#[test]
-fn rejects_unexpected_characters() {
-    let err = parse_error_message("@a && @b");
-    assert!(
-        err.contains("unexpected character '&'"),
-        "unexpected error message: {err}"
-    );
-}
-
-#[test]
-fn rejects_empty_expression() {
-    let err = parse_error_message("");
-    assert!(
-        err.contains("expected tag or '('"),
-        "unexpected error message: {err}"
-    );
+#[rstest]
+#[case("@a and", "expected tag or '(' after 'and'")]
+#[case("@a && @b", "unexpected character '&'")]
+#[case("", "expected tag or '('")]
+fn reports_parse_errors(#[case] input: &str, #[case] expected: &str) {
+    let err = parse_error_message(input);
+    assert!(err.contains(expected), "unexpected error message: {err}");
 }

@@ -1,3 +1,9 @@
+//! Provides cached canonicalisation of feature file paths for `#[scenario]`.
+//! The cache keeps diagnostics stable across builds by keying entries to the
+//! `CARGO_MANIFEST_DIR`-scoped path supplied to the macro and resolving
+//! symlinks through `cap-std` ambient directories. Missing files fall back
+//! to the original input so compile errors reference the user-specified path.
+
 use cap_std::{ambient_authority, fs::Dir};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -10,9 +16,11 @@ static FEATURE_PATH_CACHE: LazyLock<RwLock<HashMap<PathBuf, String>>> =
 /// Normalise path components so equivalent inputs share cache entries.
 ///
 /// Policy:
-/// - Do not alter absolute or prefixed paths; leave absolute resolution to filesystem canonicalisation.
+/// - Do not alter absolute or prefixed paths; leave absolute resolution to the
+///   filesystem canonicalisation.
 /// - Collapse internal `.` segments.
-/// - Collapse `..` only when a prior non-`..` segment exists; otherwise preserve leading `..`.
+/// - Collapse `..` only when a prior non-`..` segment exists; otherwise
+///   preserve leading `..`.
 fn normalise(path: &Path) -> PathBuf {
     use std::ffi::OsString;
     use std::path::Component;

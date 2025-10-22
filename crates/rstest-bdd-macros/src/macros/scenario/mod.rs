@@ -201,10 +201,15 @@ fn select_scenario(
 
     tag_filter.map_or_else(
         || {
-            let message = format!(
-                "no scenarios in `{}` matched the selector",
-                path_lit.value()
+            debug_assert!(
+                candidate_indices.is_empty(),
+                "expected default scenario selection to succeed when no tag filter is provided",
             );
+            // This branch should be unreachable in practice because
+            // `ensure_feature_not_empty` guards empty features. Emit a specific
+            // diagnostic if it ever triggers so consumers know the macro input
+            // lacked scenarios.
+            let message = format!("feature `{}` contains no scenarios", path_lit.value());
             let err = syn::Error::new(path_lit.span(), message);
             Err(proc_macro::TokenStream::from(err.into_compile_error()))
         },

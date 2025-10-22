@@ -1,3 +1,6 @@
+//! Normalises and combines tag sets so tag filtering across macros remains
+//! deterministic regardless of feature ordering or raw tag formatting.
+
 /// Extend the destination tag set with new values, preserving order and
 /// removing duplicates.
 ///

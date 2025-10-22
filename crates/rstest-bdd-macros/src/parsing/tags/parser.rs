@@ -1,3 +1,7 @@
+//! Recursive-descent parser that builds a tag-expression AST from lexer
+//! tokens, enforcing precedence and producing precise diagnostics for invalid
+//! input.
+
 use std::marker::PhantomData;
 
 use super::ast::{Expr, TagExprError};
