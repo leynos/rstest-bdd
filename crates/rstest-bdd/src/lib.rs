@@ -237,6 +237,27 @@ macro_rules! step_error_message {
 }
 
 impl StepError {
+    /// Render the error message using the provided Fluent loader.
+    ///
+    /// # Examples
+    /// ```
+    /// # use rstest_bdd::StepError;
+    /// # use rstest_bdd::localization::Localizations;
+    /// # use i18n_embed::fluent::{fluent_language_loader, FluentLanguageLoader};
+    /// # use unic_langid::langid;
+    /// let loader: FluentLanguageLoader = {
+    ///     let mut loader = fluent_language_loader!();
+    ///     i18n_embed::select(&loader, &Localizations, &[langid!("en-US")]).unwrap();
+    ///     loader
+    /// };
+    /// let error = StepError::MissingFixture {
+    ///     name: "db".into(),
+    ///     ty: "Pool".into(),
+    ///     step: "Given a database".into(),
+    /// };
+    /// let message = error.format_with_loader(&loader);
+    /// assert!(message.contains("Missing fixture 'db'"));
+    /// ```
     #[must_use]
     pub fn format_with_loader(&self, loader: &FluentLanguageLoader) -> String {
         step_error_message!(
@@ -257,6 +278,16 @@ impl std::fmt::Display for StepError {
 }
 
 impl std::error::Error for StepError {}
+
+#[doc(hidden)]
+pub(crate) auto trait NotResult {}
+
+impl<T, E> !NotResult for Result<T, E> {}
+
+#[doc(hidden)]
+pub(crate) auto trait NotUnit {}
+
+impl !NotUnit for () {}
 
 /// Convert step function outputs into a standard result type.
 ///
@@ -300,16 +331,6 @@ impl std::error::Error for StepError {}
 /// let res: Result<(), NoDisplay> = Err(NoDisplay);
 /// let _ = res.into_step_result();
 /// ```
-#[doc(hidden)]
-pub(crate) auto trait NotResult {}
-
-impl<T, E> !NotResult for Result<T, E> {}
-
-#[doc(hidden)]
-pub(crate) auto trait NotUnit {}
-
-impl !NotUnit for () {}
-
 pub trait IntoStepResult {
     /// Convert the value into a `Result` understood by the wrapper.
     ///

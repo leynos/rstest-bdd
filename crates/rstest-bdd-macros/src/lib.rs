@@ -23,18 +23,45 @@ pub(crate) use step_keyword::StepKeyword;
 use proc_macro::TokenStream;
 use proc_macro_error::proc_macro_error;
 
+/// Attribute macro registering a step definition for the `Given` keyword.
+///
+/// # Examples
+/// ```ignore
+/// use rstest_bdd_macros::given;
+///
+/// #[given("a configured database")]
+/// fn a_configured_database() {}
+/// ```
 #[proc_macro_error]
 #[proc_macro_attribute]
 pub fn given(attr: TokenStream, item: TokenStream) -> TokenStream {
     macros::given(attr, item)
 }
 
+/// Attribute macro registering a step definition for the `When` keyword.
+///
+/// # Examples
+/// ```ignore
+/// use rstest_bdd_macros::when;
+///
+/// #[when("the user logs in")]
+/// fn the_user_logs_in() {}
+/// ```
 #[proc_macro_error]
 #[proc_macro_attribute]
 pub fn when(attr: TokenStream, item: TokenStream) -> TokenStream {
     macros::when(attr, item)
 }
 
+/// Attribute macro registering a step definition for the `Then` keyword.
+///
+/// # Examples
+/// ```ignore
+/// use rstest_bdd_macros::then;
+///
+/// #[then("a success message is shown")]
+/// fn a_success_message_is_shown() {}
+/// ```
 #[proc_macro_error]
 #[proc_macro_attribute]
 pub fn then(attr: TokenStream, item: TokenStream) -> TokenStream {
