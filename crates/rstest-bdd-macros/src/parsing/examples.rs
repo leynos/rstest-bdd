@@ -7,6 +7,10 @@ use crate::validation::examples::{
 use proc_macro2::TokenStream;
 
 /// Rows parsed from a `Scenario Outline` examples table.
+///
+/// The `row_tags` collection mirrors `rows` one-to-one: each row inherits the
+/// union of feature, scenario, and examples tags at the corresponding index.
+/// The parser enforces this invariant when constructing the table.
 #[derive(Clone)]
 pub(crate) struct ExampleTable {
     pub(crate) headers: Vec<String>,

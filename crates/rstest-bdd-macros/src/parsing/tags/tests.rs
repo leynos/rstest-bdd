@@ -1,3 +1,5 @@
+//! Integration-style coverage for tag-expression parsing and evaluation.
+
 use super::TagExpression;
 
 fn parse_expression(input: &str) -> TagExpression {

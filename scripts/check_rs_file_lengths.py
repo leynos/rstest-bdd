@@ -79,7 +79,11 @@ def count_file_lines(path: Path) -> int:
     try:
         return sum(1 for _ in path.open(encoding="utf-8"))
     except UnicodeDecodeError:
-        return path.read_bytes().count(b"\n") + 1
+        content = path.read_bytes()
+        if not content:
+            return 0
+        newline_count = content.count(b"\n")
+        return newline_count if content.endswith(b"\n") else newline_count + 1
 
 
 def collect_violations(root: Path, allowlist: set[Path]) -> list[tuple[Path, int]]:

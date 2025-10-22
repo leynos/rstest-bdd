@@ -1,3 +1,7 @@
+//! Tag-expression parsing, lexing, and tag-set utilities used by the macros.
+//!
+//! The module exposes the AST for compile-time evaluation, along with helpers
+//! for maintaining consistent precedence, validation, and normalisation.
 mod ast;
 mod lexer;
 mod parser;
