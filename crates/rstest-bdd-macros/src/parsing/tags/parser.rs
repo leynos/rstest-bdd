@@ -1,5 +1,33 @@
+use std::marker::PhantomData;
+
 use super::ast::{Expr, TagExprError};
 use super::lexer::{Lexer, Token, TokenKind};
+
+/// Strategy for parsing left-associative binary operator chains.
+struct ChainParseStrategy<'a, F, P, B> {
+    parse_operand: F,
+    is_operator: P,
+    operator_name: &'static str,
+    build: B,
+    _marker: PhantomData<&'a ()>,
+}
+
+impl<'a, F, P, B> ChainParseStrategy<'a, F, P, B>
+where
+    F: FnMut(&mut Parser<'a>) -> Result<Expr, TagExprError>,
+    P: FnMut(&TokenKind) -> bool,
+    B: FnMut(Expr, Expr) -> Expr,
+{
+    fn new(parse_operand: F, is_operator: P, operator_name: &'static str, build: B) -> Self {
+        Self {
+            parse_operand,
+            is_operator,
+            operator_name,
+            build,
+            _marker: PhantomData,
+        }
+    }
+}
 
 pub(super) struct Parser<'a> {
     lexer: Lexer<'a>,
@@ -34,43 +62,42 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_or(&mut self) -> Result<Expr, TagExprError> {
-        self.parse_chain(
-            Self::parse_and,
+        let strategy = ChainParseStrategy::new(
+            |parser: &mut Self| parser.parse_and(),
             |kind| matches!(kind, TokenKind::Or),
             "or",
             |lhs, rhs| Expr::Or(Box::new(lhs), Box::new(rhs)),
-        )
+        );
+        self.parse_chain(strategy)
     }
 
     fn parse_and(&mut self) -> Result<Expr, TagExprError> {
-        self.parse_chain(
-            Self::parse_not,
+        let strategy = ChainParseStrategy::new(
+            |parser: &mut Self| parser.parse_not(),
             |kind| matches!(kind, TokenKind::And),
             "and",
             |lhs, rhs| Expr::And(Box::new(lhs), Box::new(rhs)),
-        )
+        );
+        self.parse_chain(strategy)
     }
 
     fn parse_chain<F, P, B>(
         &mut self,
-        mut parse_operand: F,
-        mut is_operator: P,
-        operator_name: &'static str,
-        mut build: B,
+        mut strategy: ChainParseStrategy<'a, F, P, B>,
     ) -> Result<Expr, TagExprError>
     where
         F: FnMut(&mut Self) -> Result<Expr, TagExprError>,
         P: FnMut(&TokenKind) -> bool,
         B: FnMut(Expr, Expr) -> Expr,
     {
-        let mut node = parse_operand(self)?;
+        let mut node = (strategy.parse_operand)(self)?;
         loop {
             let token = self.current.clone();
-            if is_operator(&token.kind) {
+            if (strategy.is_operator)(&token.kind) {
                 self.advance()?;
-                self.ensure_operand(operator_name)?;
-                let rhs = parse_operand(self)?;
-                node = build(node, rhs);
+                self.ensure_operand(strategy.operator_name)?;
+                let rhs = (strategy.parse_operand)(self)?;
+                node = (strategy.build)(node, rhs);
             } else {
                 break;
             }
