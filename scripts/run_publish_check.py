@@ -31,6 +31,7 @@ Run with custom timeout and workspace preservation::
 # ///
 from __future__ import annotations
 
+import argparse
 import dataclasses as dc
 import logging
 import os
@@ -41,11 +42,25 @@ import tempfile
 import typing as typ
 from contextlib import ExitStack
 from pathlib import Path
+try:
+    from plumbum import local
+    from plumbum.commands.processes import ProcessTimedOut
+except ModuleNotFoundError:  # pragma: no cover - exercised via CLI tests
+    class _PlumbumLocalPlaceholder:
+        """Fail with guidance when plumbum is unavailable at runtime."""
 
-import cyclopts
-from cyclopts import App, Parameter
-from plumbum import local
-from plumbum.commands.processes import ProcessTimedOut
+        def __getattr__(self, name: str) -> typ.NoReturn:
+            message = (
+                "plumbum is required to run publish-check; install plumbum or "
+                "invoke the workflow via `make publish-check`"
+            )
+            raise SystemExit(message)
+
+    local = _PlumbumLocalPlaceholder()
+
+    class ProcessTimedOut(RuntimeError):
+        """Sentinel exception used when plumbum is unavailable."""
+
 from publish_workspace import (
     PUBLISHABLE_CRATES,
     apply_workspace_replacements,
@@ -108,7 +123,12 @@ ALREADY_PUBLISHED_MARKERS_FOLDED: typ.Final[tuple[str, ...]] = tuple(
 
 DEFAULT_PUBLISH_TIMEOUT_SECS = 900
 
-app = App(config=cyclopts.config.Env("PUBLISH_CHECK_", command=False))
+_BOOLEAN_TRUE_VALUES: typ.Final[frozenset[str]] = frozenset(
+    {"1", "true", "yes", "on"}
+)
+_BOOLEAN_FALSE_VALUES: typ.Final[frozenset[str]] = frozenset(
+    {"0", "false", "no", "off"}
+)
 
 
 def _resolve_timeout(timeout_secs: int | None) -> int:
@@ -132,6 +152,31 @@ def _resolve_timeout(timeout_secs: int | None) -> int:
         LOGGER.exception("PUBLISH_CHECK_TIMEOUT_SECS must be an integer")
         message = "PUBLISH_CHECK_TIMEOUT_SECS must be an integer"
         raise SystemExit(message) from err
+
+
+def _resolve_bool_env(var_name: str, *, default: bool) -> bool:
+    """Return a boolean value parsed from ``var_name``.
+
+    The helper understands common representations such as ``true``/``false``
+    or ``1``/``0``. Invalid values raise :class:`SystemExit` so the CLI exits
+    with a clear diagnostic that mirrors the timeout parsing behaviour.
+    """
+
+    value = os.environ.get(var_name)
+    if value is None:
+        return default
+
+    normalised = value.strip().casefold()
+    if normalised in _BOOLEAN_TRUE_VALUES:
+        return True
+    if normalised in _BOOLEAN_FALSE_VALUES:
+        return False
+
+    LOGGER.exception("%s must be a boolean value", var_name)
+    message = (
+        f"{var_name} must be a boolean value (expected one of true/false/1/0)"
+    )
+    raise SystemExit(message)
 
 
 @dc.dataclass(frozen=True)
@@ -671,45 +716,72 @@ def run_publish_check(*, keep_tmp: bool, timeout_secs: int, live: bool = False) 
             shutil.rmtree(workspace, ignore_errors=True)
 
 
-@app.default
-def main(
-    *,
-    timeout_secs: typ.Annotated[
-        int,
-        Parameter(env_var="PUBLISH_CHECK_TIMEOUT_SECS"),
-    ] = DEFAULT_PUBLISH_TIMEOUT_SECS,
-    keep_tmp: typ.Annotated[
-        bool,
-        Parameter(env_var="PUBLISH_CHECK_KEEP_TMP"),
-    ] = False,
-    live: typ.Annotated[
-        bool,
-        Parameter(env_var="PUBLISH_CHECK_LIVE"),
-    ] = False,
-) -> None:
+def main(*, timeout_secs: int, keep_tmp: bool, live: bool) -> None:
     """Run the publish-check CLI entry point.
+
+    Examples
+    --------
+    >>> main(timeout_secs=900, keep_tmp=False, live=False)  # doctest: +SKIP
+    """
+
+    run_publish_check(keep_tmp=keep_tmp, timeout_secs=timeout_secs, live=live)
+
+
+def app(argv: typ.Sequence[str] | None = None) -> None:
+    """Parse CLI arguments and invoke :func:`run_publish_check`.
 
     Parameters
     ----------
-    timeout_secs : int, optional
-        Timeout in seconds for Cargo commands. Defaults to 900 seconds
-        (``DEFAULT_PUBLISH_TIMEOUT_SECS``) and may be overridden via the
-        ``PUBLISH_CHECK_TIMEOUT_SECS`` environment variable.
-    keep_tmp : bool, optional
-        When ``True`` the exported workspace directory is retained after the
-        workflow finishes. Defaults to ``False`` and may also be set with the
-        ``PUBLISH_CHECK_KEEP_TMP`` environment variable.
-    live : bool, optional
-        When ``True`` runs the live publish workflow instead of a dry run.
-        Defaults to ``False`` and may be controlled through the
-        ``PUBLISH_CHECK_LIVE`` environment variable.
+    argv : Sequence[str] | None, optional
+        Command-line arguments to parse. When omitted the function uses
+        :data:`sys.argv` so the module behaves like a conventional script.
 
-    Returns
-    -------
-    None
-        This function executes for its side effects and returns ``None``.
+    Examples
+    --------
+    Run the CLI with explicit arguments::
+
+        >>> app(["--timeout-secs", "120", "--keep-tmp"])  # doctest: +SKIP
     """
-    run_publish_check(keep_tmp=keep_tmp, timeout_secs=timeout_secs, live=live)
+
+    parser = argparse.ArgumentParser(
+        description="Run the publish-check workflow for the Rust workspace.",
+    )
+    parser.add_argument(
+        "--timeout-secs",
+        type=int,
+        default=_resolve_timeout(None),
+        metavar="SECONDS",
+        help=(
+            "Timeout applied to each cargo invocation. The default honours "
+            "the PUBLISH_CHECK_TIMEOUT_SECS environment variable."
+        ),
+    )
+    parser.add_argument(
+        "--keep-tmp",
+        action=argparse.BooleanOptionalAction,
+        default=_resolve_bool_env("PUBLISH_CHECK_KEEP_TMP", default=False),
+        help=(
+            "Retain the exported temporary workspace after the run. The "
+            "default tracks PUBLISH_CHECK_KEEP_TMP when set."
+        ),
+        dest="keep_tmp",
+    )
+    parser.add_argument(
+        "--live",
+        action=argparse.BooleanOptionalAction,
+        default=_resolve_bool_env("PUBLISH_CHECK_LIVE", default=False),
+        help=(
+            "Execute the live publish workflow. The default respects the "
+            "PUBLISH_CHECK_LIVE environment variable."
+        ),
+    )
+
+    parsed = parser.parse_args(list(argv) if argv is not None else None)
+    main(
+        timeout_secs=parsed.timeout_secs,
+        keep_tmp=parsed.keep_tmp,
+        live=parsed.live,
+    )
 
 
 if __name__ == "__main__":

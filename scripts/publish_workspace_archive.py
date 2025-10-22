@@ -16,10 +16,27 @@ from __future__ import annotations
 import sys
 import tarfile
 import tempfile
+import typing
 from pathlib import Path
 
-from plumbum import local
-from plumbum.commands import CommandNotFound
+try:
+    from plumbum import local
+    from plumbum.commands import CommandNotFound
+except ModuleNotFoundError:  # pragma: no cover - exercised via CLI tests
+    class _PlumbumLocalPlaceholder:
+        """Fail with guidance when plumbum is unavailable at runtime."""
+
+        def __getattr__(self, name: str) -> typing.NoReturn:
+            message = (
+                "plumbum is required to export the workspace; install plumbum or "
+                "invoke the automation via `make publish-check`"
+            )
+            raise SystemExit(message)
+
+    local = _PlumbumLocalPlaceholder()
+
+    class CommandNotFound(RuntimeError):
+        """Sentinel exception used when plumbum is unavailable."""
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 

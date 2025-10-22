@@ -15,8 +15,22 @@ import publish_workspace_members as _members
 import publish_workspace_patch as _patch
 import publish_workspace_serialise as _serialise
 import publish_workspace_versioning as _versioning
-from plumbum import local as _default_local
 from tomlkit import parse as _default_parse
+
+try:
+    from plumbum import local as _default_local
+except ModuleNotFoundError:  # pragma: no cover - exercised via CLI tests
+    class _PlumbumLocalPlaceholder:
+        """Fail with guidance when plumbum is unavailable at runtime."""
+
+        def __getattr__(self, name: str) -> typ.NoReturn:
+            message = (
+                "plumbum is required for workspace export; install plumbum or "
+                "invoke the automation via `make publish-check`"
+            )
+            raise SystemExit(message)
+
+    _default_local = _PlumbumLocalPlaceholder()
 
 if typ.TYPE_CHECKING:
     from pathlib import Path
