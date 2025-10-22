@@ -10,12 +10,15 @@ use proc_macro2::TokenStream;
 ///
 /// The `row_tags` collection mirrors `rows` one-to-one: each row inherits the
 /// union of feature, scenario, and examples tags at the corresponding index.
-/// The parser enforces this invariant when constructing the table.
+/// This invariant is encoded as `row_tags.len() == rows.len()` and enforced by
+/// the parser when constructing the table.
 #[derive(Clone)]
 pub(crate) struct ExampleTable {
     pub(crate) headers: Vec<String>,
     pub(crate) rows: Vec<Vec<String>>,
     /// Union of feature, scenario, and examples tags for each row.
+    /// Guaranteed to match `rows` in length so callers can zip the sequences
+    /// safely without additional bounds checks.
     pub(crate) row_tags: Vec<Vec<String>>,
 }
 
