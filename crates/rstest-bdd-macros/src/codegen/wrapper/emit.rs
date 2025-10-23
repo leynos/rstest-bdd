@@ -64,6 +64,15 @@ struct WrapperAssembly<'a> {
     capture_count: usize,
 }
 
+/// Identifiers used during wrapper generation.
+#[derive(Copy, Clone)]
+struct WrapperIdentifiers<'a> {
+    wrapper: &'a proc_macro2::Ident,
+    pattern: &'a proc_macro2::Ident,
+    ctx: &'a proc_macro2::Ident,
+    text: &'a proc_macro2::Ident,
+}
+
 struct WrapperErrors {
     placeholder: TokenStream2,
     panic: TokenStream2,
@@ -71,7 +80,7 @@ struct WrapperErrors {
     capture_mismatch: TokenStream2,
 }
 
-fn prepare_wrapper_errors(meta: StepMeta<'_>) -> WrapperErrors {
+fn prepare_wrapper_errors(meta: StepMeta<'_>, text_ident: &proc_macro2::Ident) -> WrapperErrors {
     let StepMeta { pattern, ident } = meta;
     let execution_error = format_ident!("ExecutionError");
     let panic_error = format_ident!("PanicError");
@@ -82,7 +91,7 @@ fn prepare_wrapper_errors(meta: StepMeta<'_>) -> WrapperErrors {
         &quote! {
             format!(
                 "Step text '{}' does not match pattern '{}': {}",
-                text,
+                #text_ident,
                 #pattern,
                 e
             )
@@ -115,10 +124,15 @@ fn prepare_wrapper_errors(meta: StepMeta<'_>) -> WrapperErrors {
 
 /// Assemble the final wrapper function using prepared components.
 fn assemble_wrapper_function(
-    wrapper_ident: &proc_macro2::Ident,
-    pattern_ident: &proc_macro2::Ident,
+    identifiers: WrapperIdentifiers<'_>,
     assembly: WrapperAssembly<'_>,
 ) -> TokenStream2 {
+    let WrapperIdentifiers {
+        wrapper: wrapper_ident,
+        pattern: pattern_ident,
+        ctx: ctx_ident,
+        text: text_ident,
+    } = identifiers;
     let WrapperAssembly {
         meta,
         prepared,
@@ -136,7 +150,7 @@ fn assemble_wrapper_function(
         panic: panic_err,
         execution: exec_err,
         capture_mismatch: capture_mismatch_err,
-    } = prepare_wrapper_errors(meta);
+    } = prepare_wrapper_errors(meta, text_ident);
     let StepMeta { pattern: _, ident } = meta;
     let expected = capture_count;
     let path = crate::codegen::rstest_bdd_path();
@@ -145,14 +159,14 @@ fn assemble_wrapper_function(
 
     quote! {
         fn #wrapper_ident(
-            ctx: &#path::StepContext<'_>,
-            text: &str,
+            #ctx_ident: &#path::StepContext<'_>,
+            #text_ident: &str,
             _docstring: Option<&str>,
             _table: Option<&[&[&str]]>,
         ) -> Result<Option<Box<dyn std::any::Any>>, #path::StepError> {
             use std::panic::{catch_unwind, AssertUnwindSafe};
 
-            let captures = #path::extract_placeholders(&#pattern_ident, text.into())
+            let captures = #path::extract_placeholders(&#pattern_ident, #text_ident.into())
                 .map_err(|e| #placeholder_err)?;
             let expected: usize = #expected;
             if captures.len() != expected {
@@ -193,6 +207,8 @@ fn generate_wrapper_body(
         ..
     } = *config;
 
+    let ctx_ident = format_ident!("__rstest_bdd_ctx");
+    let text_ident = format_ident!("__rstest_bdd_text");
     let collections = ArgumentCollections {
         fixtures,
         step_args,
@@ -201,11 +217,15 @@ fn generate_wrapper_body(
     };
     let step_meta = StepMeta { pattern, ident };
     let signature = generate_wrapper_signature(pattern, pattern_ident);
-    let prepared = prepare_argument_processing(&collections, step_meta);
+    let prepared = prepare_argument_processing(&collections, step_meta, &ctx_ident);
     let arg_idents = collect_ordered_arguments(call_order, &collections);
     let wrapper_fn = assemble_wrapper_function(
-        wrapper_ident,
-        pattern_ident,
+        WrapperIdentifiers {
+            wrapper: wrapper_ident,
+            pattern: pattern_ident,
+            ctx: &ctx_ident,
+            text: &text_ident,
+        },
         WrapperAssembly {
             meta: step_meta,
             prepared,

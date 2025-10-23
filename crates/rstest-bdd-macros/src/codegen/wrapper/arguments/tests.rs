@@ -4,7 +4,7 @@ use super::*;
 use crate::codegen::wrapper::args::{
     ArgumentCollections, CallArg, DataTableArg, DocStringArg, FixtureArg, StepArg,
 };
-use quote::quote;
+use quote::{format_ident, quote};
 use syn::parse_quote;
 
 fn sample_meta<'a>(pattern: &'a syn::LitStr, ident: &'a syn::Ident) -> StepMeta<'a> {
@@ -44,14 +44,15 @@ fn prepare_argument_processing_handles_all_argument_types() {
     let ident: syn::Ident = parse_quote!(demo_step);
     let meta = sample_meta(&pattern, &ident);
 
-    let prepared = prepare_argument_processing(&collections, meta);
+    let ctx_ident = format_ident!("__rstest_bdd_ctx");
+    let prepared = prepare_argument_processing(&collections, meta, &ctx_ident);
 
     assert_eq!(prepared.declares.len(), 1);
     let [fixture_stmt] = prepared.declares.as_slice() else {
         panic!("expected single fixture declaration");
     };
     let fixture_code = fixture_stmt.to_string();
-    assert!(fixture_code.contains("ctx"));
+    assert!(fixture_code.contains("__rstest_bdd_ctx"));
     assert!(fixture_code.contains("cloned"));
     assert!(fixture_code.contains("MissingFixture"));
 
@@ -127,7 +128,8 @@ fn gen_fixture_decls_handles_reference_types() {
         },
     ];
     let ident: syn::Ident = parse_quote!(step_fn);
-    let tokens = gen_fixture_decls(&fixtures, &ident);
+    let ctx_ident = format_ident!("__rstest_bdd_ctx");
+    let tokens = gen_fixture_decls(&fixtures, &ident, &ctx_ident);
     let [owned, str_ref, bytes_ref, mut_ref, cell_ref] = tokens.as_slice() else {
         panic!("expected five fixture declarations");
     };
