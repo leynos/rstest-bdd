@@ -1,4 +1,7 @@
 //! Integration-style coverage for tag-expression parsing and evaluation.
+//!
+//! Exercises happy paths, operator precedence, and representative parse errors
+//! so expression support stays aligned with the design documentation.
 
 use rstest::rstest;
 

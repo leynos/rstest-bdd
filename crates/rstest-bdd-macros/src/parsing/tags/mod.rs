@@ -1,5 +1,10 @@
 //! Tag-expression parsing, lexing, and tag-set utilities used by the macros.
 //!
+//! The submodules compose into a full pipeline: `lexer` tokenises raw
+//! expressions, `parser` builds the [`TagExpression`] AST, `ast` evaluates
+//! expressions against tag collections, and `sets` keeps tag lists normalised
+//! so diagnostics are consistent.
+//!
 //! # Grammar
 //!
 //! ```text

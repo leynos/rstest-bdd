@@ -1,6 +1,10 @@
-//! Discovers `.feature` files for the `scenarios!` macro without following
-//! symlink targets. Delegates path canonicalisation to keep diagnostics
-//! stable even when fixtures reside outside the workspace tree.
+//! Discovers `.feature` files for the `scenarios!` macro.
+//!
+//! Walks a directory tree without following directory symlinks so workspace
+//! boundaries remain intact. Individual file entries are canonicalised via the
+//! path-resolution helper to weed out broken symlinks while preserving the
+//! original display path for diagnostics. Results are sorted to keep generated
+//! code stable regardless of filesystem traversal order.
 
 use std::path::{Path, PathBuf};
 

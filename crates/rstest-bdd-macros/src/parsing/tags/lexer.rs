@@ -1,5 +1,9 @@
-//! Tokenises tag expressions into a stream of keywords,
-//! parentheses, and tag identifiers ready for the parser.
+//! Tokenises tag expressions into keywords, parentheses, and tag identifiers.
+//!
+//! The lexer accepts tags that already include the leading `@` and supports
+//! alphanumeric, underscore, and hyphen characters. Keywords are case
+//! insensitive so teams can write expressions like `@fast Or not @wip` without
+//! surprises. The emitted [`Token`] stream feeds the recursive-descent parser.
 
 use super::ast::TagExprError;
 

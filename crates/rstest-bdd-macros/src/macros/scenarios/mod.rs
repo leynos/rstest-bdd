@@ -1,4 +1,10 @@
-//! Implementation of the `scenarios!` macro.
+//! Entry-point for the `scenarios!` macro.
+//!
+//! The module is split into focused helpers: `macro_args` parses the macro
+//! input, `feature_discovery` walks the filesystem to enumerate `.feature`
+//! files, and `path_resolution` canonicalises paths so diagnostics remain
+//! stable across builds. This file stitches those pieces together, applying any
+//! compile-time tag filters and generating the rstest-backed test functions.
 
 mod feature_discovery;
 mod macro_args;

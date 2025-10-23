@@ -1,6 +1,9 @@
-//! Normalises and combines tag sets so tag filtering across
-//! macros remains deterministic regardless of feature ordering
-//! or raw tag formatting.
+//! Normalises and combines tag sets for consistent filtering.
+//!
+//! The macros merge feature-level and scenario-level tags before evaluating
+//! expressions. These helpers trim whitespace, ensure every tag includes the
+//! `@` prefix, and eliminate duplicates while preserving insertion order so
+//! diagnostics can echo the tags exactly as they appeared in source files.
 
 use std::collections::HashSet;
 

@@ -1,6 +1,8 @@
-//! Recursive-descent parser that builds a tag-expression AST from lexer
-//! tokens, enforcing precedence and producing precise diagnostics for invalid
-//! input.
+//! Recursive-descent parser for tag expressions.
+//!
+//! Implements the precedence chain `or` < `and` < `not` with parentheses as
+//! primaries. Diagnostics capture the byte offset and unexpected token so macro
+//! errors highlight the offending portion of the expression.
 
 use std::marker::PhantomData;
 

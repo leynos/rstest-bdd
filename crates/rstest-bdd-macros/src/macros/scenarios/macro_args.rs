@@ -1,6 +1,9 @@
-//! Parses the arguments passed to the `scenarios!` macro,
-//! supporting both positional directory literals and named
-//! `tags` filters.
+//! Parses arguments supplied to the `scenarios!` macro.
+//!
+//! Accepts either a positional directory literal or a `dir = "..."` named
+//! argument alongside an optional `tags = "..."` filter. The parser enforces
+//! that each argument appears at most once so diagnostics remain actionable
+//! when users provide conflicting combinations.
 
 use syn::LitStr;
 use syn::parse::{Parse, ParseStream};

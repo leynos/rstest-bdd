@@ -1,6 +1,9 @@
-//! Abstract syntax tree definitions for tag expressions
-//! alongside evaluation helpers used during compile-time
-//! filtering.
+//! Abstract syntax tree and evaluation helpers for tag expressions.
+//!
+//! The parser produces a tree of [`Expr`] nodes representing identifiers, unary
+//! `not`, and binary `and`/`or` operators. Evaluation consumes a set of tags
+//! (each retaining the leading `@`) and applies short-circuit semantics so
+//! compile-time filtering can discard scenarios quickly.
 
 use std::collections::HashSet;
 
