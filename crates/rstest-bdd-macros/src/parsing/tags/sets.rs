@@ -4,6 +4,35 @@
 
 use std::collections::HashSet;
 
+/// Normalise a tag to start with '@'.
+fn normalize_tag(tag: &str) -> String {
+    let trimmed = tag.trim();
+    if trimmed.starts_with('@') {
+        trimmed.to_string()
+    } else {
+        format!("@{trimmed}")
+    }
+}
+
+/// Normalise all tags in the target vector to start with '@'.
+fn normalize_existing_tags(target: &mut [String]) {
+    for tag in target.iter_mut() {
+        if !tag.starts_with('@') {
+            *tag = format!("@{tag}");
+        }
+    }
+}
+
+/// Add tags from additions to target, skipping duplicates.
+fn add_unique_tags(target: &mut Vec<String>, additions: &[String]) {
+    for tag in additions {
+        let formatted = normalize_tag(tag);
+        if !target.iter().any(|existing| existing == &formatted) {
+            target.push(formatted);
+        }
+    }
+}
+
 /// Extend the destination tag set with new values, preserving order and
 /// removing duplicates.
 ///
@@ -11,26 +40,12 @@ use std::collections::HashSet;
 /// repeated entries. Normalisation occurs in-place so callers do not need to
 /// pre-sanitise their inputs.
 pub(crate) fn extend_tag_set(target: &mut Vec<String>, additions: &[String]) {
-    for tag in target.iter_mut() {
-        if !tag.starts_with('@') {
-            *tag = format!("@{tag}");
-        }
-    }
+    normalize_existing_tags(target);
 
     let mut seen = HashSet::new();
     target.retain(|tag| seen.insert(tag.clone()));
 
-    for tag in additions {
-        let trimmed = tag.trim();
-        let formatted = if trimmed.starts_with('@') {
-            trimmed.to_string()
-        } else {
-            format!("@{trimmed}")
-        };
-        if !target.iter().any(|existing| existing == &formatted) {
-            target.push(formatted);
-        }
-    }
+    add_unique_tags(target, additions);
 }
 
 /// Merge two tag sets, preserving insertion order and de-duplicating values.
