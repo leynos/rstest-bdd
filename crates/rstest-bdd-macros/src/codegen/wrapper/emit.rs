@@ -64,6 +64,15 @@ struct WrapperAssembly<'a> {
     capture_count: usize,
 }
 
+/// Identifiers used during wrapper generation.
+#[derive(Copy, Clone)]
+struct WrapperIdentifiers<'a> {
+    wrapper: &'a proc_macro2::Ident,
+    pattern: &'a proc_macro2::Ident,
+    ctx: &'a proc_macro2::Ident,
+    text: &'a proc_macro2::Ident,
+}
+
 struct WrapperErrors {
     placeholder: TokenStream2,
     panic: TokenStream2,
@@ -115,12 +124,15 @@ fn prepare_wrapper_errors(meta: StepMeta<'_>, text_ident: &proc_macro2::Ident) -
 
 /// Assemble the final wrapper function using prepared components.
 fn assemble_wrapper_function(
-    wrapper_ident: &proc_macro2::Ident,
-    pattern_ident: &proc_macro2::Ident,
-    ctx_ident: &proc_macro2::Ident,
-    text_ident: &proc_macro2::Ident,
+    identifiers: WrapperIdentifiers<'_>,
     assembly: WrapperAssembly<'_>,
 ) -> TokenStream2 {
+    let WrapperIdentifiers {
+        wrapper: wrapper_ident,
+        pattern: pattern_ident,
+        ctx: ctx_ident,
+        text: text_ident,
+    } = identifiers;
     let WrapperAssembly {
         meta,
         prepared,
@@ -208,10 +220,12 @@ fn generate_wrapper_body(
     let prepared = prepare_argument_processing(&collections, step_meta, &ctx_ident);
     let arg_idents = collect_ordered_arguments(call_order, &collections);
     let wrapper_fn = assemble_wrapper_function(
-        wrapper_ident,
-        pattern_ident,
-        &ctx_ident,
-        &text_ident,
+        WrapperIdentifiers {
+            wrapper: wrapper_ident,
+            pattern: pattern_ident,
+            ctx: &ctx_ident,
+            text: &text_ident,
+        },
         WrapperAssembly {
             meta: step_meta,
             prepared,
