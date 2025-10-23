@@ -15,8 +15,18 @@ fn is_feature_file(path: &Path) -> bool {
 }
 
 fn process_dir_entry(entry: DirEntry) -> Option<std::io::Result<PathBuf>> {
-    if entry.file_type().is_dir() {
+    let file_type = entry.file_type();
+    if file_type.is_dir() {
         return None;
+    }
+
+    if file_type.is_file() {
+        let path = entry.into_path();
+        return if is_feature_file(&path) {
+            Some(Ok(path))
+        } else {
+            None
+        };
     }
 
     let original_path = entry.into_path();

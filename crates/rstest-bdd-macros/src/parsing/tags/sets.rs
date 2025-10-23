@@ -1,5 +1,8 @@
-//! Normalises and combines tag sets so tag filtering across macros remains
-//! deterministic regardless of feature ordering or raw tag formatting.
+//! Normalises and combines tag sets so tag filtering across
+//! macros remains deterministic regardless of feature ordering
+//! or raw tag formatting.
+
+use std::collections::HashSet;
 
 /// Extend the destination tag set with new values, preserving order and
 /// removing duplicates.
@@ -8,11 +11,21 @@
 /// repeated entries. Normalisation occurs in-place so callers do not need to
 /// pre-sanitise their inputs.
 pub(crate) fn extend_tag_set(target: &mut Vec<String>, additions: &[String]) {
+    for tag in target.iter_mut() {
+        if !tag.starts_with('@') {
+            *tag = format!("@{tag}");
+        }
+    }
+
+    let mut seen = HashSet::new();
+    target.retain(|tag| seen.insert(tag.clone()));
+
     for tag in additions {
-        let formatted = if tag.starts_with('@') {
-            tag.clone()
+        let trimmed = tag.trim();
+        let formatted = if trimmed.starts_with('@') {
+            trimmed.to_string()
         } else {
-            format!("@{tag}")
+            format!("@{trimmed}")
         };
         if !target.iter().any(|existing| existing == &formatted) {
             target.push(formatted);

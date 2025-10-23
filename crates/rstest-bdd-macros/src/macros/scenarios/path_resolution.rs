@@ -1,3 +1,7 @@
+//! Canonicalises feature file paths for `scenarios!`, preferring capability-aware
+//! resolution through `cap-std` before falling back to `std::fs` for escape
+//! hatches.
+
 use cap_std::AmbientAuthority;
 use cap_std::ambient_authority;
 use cap_std::fs::Dir;

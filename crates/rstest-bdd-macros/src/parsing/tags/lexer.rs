@@ -1,3 +1,6 @@
+//! Tokenises tag expressions into a stream of keywords,
+//! parentheses, and tag identifiers ready for the parser.
+
 use super::ast::TagExprError;
 
 #[derive(Clone, Debug)]

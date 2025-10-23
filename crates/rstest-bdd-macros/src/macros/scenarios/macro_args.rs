@@ -1,3 +1,7 @@
+//! Parses the arguments passed to the `scenarios!` macro,
+//! supporting both positional directory literals and named
+//! `tags` filters.
+
 use syn::LitStr;
 use syn::parse::{Parse, ParseStream};
 use syn::punctuated::Punctuated;

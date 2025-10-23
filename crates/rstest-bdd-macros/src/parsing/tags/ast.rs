@@ -1,3 +1,7 @@
+//! Abstract syntax tree definitions for tag expressions
+//! alongside evaluation helpers used during compile-time
+//! filtering.
+
 use std::collections::HashSet;
 
 use super::parser::Parser;
