@@ -42,6 +42,14 @@ struct ScenarioTagFilter {
     raw: String,
 }
 
+/// Encapsulates the data needed to search and filter scenarios.
+#[derive(Copy, Clone)]
+struct ScenarioLookup<'a> {
+    feature: &'a gherkin::Feature,
+    candidate_indices: &'a [usize],
+    tag_filter: Option<&'a ScenarioTagFilter>,
+}
+
 pub(crate) fn scenario(attr: TokenStream, item: TokenStream) -> TokenStream {
     let args = syn::parse_macro_input!(attr as ScenarioArgs);
     let item_fn = syn::parse_macro_input!(item as syn::ItemFn);
@@ -72,10 +80,12 @@ fn try_scenario(
     ensure_feature_not_empty(&path_lit, &feature)?;
     let candidate_indices = resolve_candidate_indices(selector.as_ref(), &feature, &path_lit)?;
     let scenario_data = select_scenario(
-        &feature,
-        &candidate_indices,
+        ScenarioLookup {
+            feature: &feature,
+            candidate_indices: &candidate_indices,
+            tag_filter: tag_filter.as_ref(),
+        },
         selector.as_ref(),
-        tag_filter.as_ref(),
         &path_lit,
     )?;
 
@@ -177,32 +187,32 @@ fn resolve_candidate_indices(
 }
 
 fn select_scenario(
-    feature: &gherkin::Feature,
-    candidate_indices: &[usize],
+    lookup: ScenarioLookup<'_>,
     selector: Option<&ScenarioSelector>,
-    tag_filter: Option<&ScenarioTagFilter>,
     path_lit: &syn::LitStr,
 ) -> Result<ScenarioData, TokenStream> {
     let mut examined_tag_sets: Vec<Vec<String>> = Vec::new();
 
-    for &idx in candidate_indices {
-        let mut data =
-            extract_scenario_steps(feature, Some(idx)).map_err(proc_macro::TokenStream::from)?;
-        let matches = tag_filter.is_none_or(|filter| data.filter_by_tags(&filter.expr));
+    for &idx in lookup.candidate_indices {
+        let mut data = extract_scenario_steps(lookup.feature, Some(idx))
+            .map_err(proc_macro::TokenStream::from)?;
+        let matches = lookup
+            .tag_filter
+            .is_none_or(|filter| data.filter_by_tags(&filter.expr));
         if matches {
             return Ok(data);
         }
-        if tag_filter.is_some() {
+        if lookup.tag_filter.is_some() {
             // Preserve the feature + scenario tags that callers evaluated so the
             // eventual diagnostic can explain which annotations were available.
             examined_tag_sets.push(data.tags.clone());
         }
     }
 
-    tag_filter.map_or_else(
+    lookup.tag_filter.map_or_else(
         || {
             debug_assert!(
-                candidate_indices.is_empty(),
+                lookup.candidate_indices.is_empty(),
                 "expected default scenario selection to succeed when no tag filter is provided",
             );
             // This branch should be unreachable in practice because
