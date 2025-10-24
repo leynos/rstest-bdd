@@ -1,9 +1,19 @@
 //! Abstract syntax tree and evaluation helpers for tag expressions.
 //!
-//! The parser produces a tree of [`Expr`] nodes representing identifiers, unary
-//! `not`, and binary `and`/`or` operators. Evaluation consumes a set of tags
-//! (each retaining the leading `@`) and applies short-circuit semantics so
-//! compile-time filtering can discard scenarios quickly.
+//! Tag expressions recognise tags (`@tag`), unary `not`, binary `and` and `or`,
+//! and parentheses for grouping. The parser accepts nested combinations such as
+//! `@fast and (not @wip or @nightly)` so macro invocations can describe complex
+//! filters.
+//!
+//! Precedence follows Gherkin conventions: `not` binds tighter than `and`,
+//! which in turn binds tighter than `or`. Operators associate to the left, so
+//! `@a or @b and @c` is parsed as `@a or (@b and @c)` while chaining `and`
+//! operations without parentheses still groups them left-to-right.
+//!
+//! Evaluation consumes the available tag set (retaining the leading `@`) and
+//! applies short-circuit semantics to mirror the parser structure. This keeps
+//! the filtering logic aligned with compile-time diagnostics while avoiding
+//! needless work once the outcome is known.
 
 use std::collections::HashSet;
 
