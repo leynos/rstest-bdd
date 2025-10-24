@@ -14,8 +14,11 @@ use thiserror::Error;
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PlaceholderErrorInfo {
+    /// Human-readable explanation describing why the placeholder failed.
     pub message: &'static str,
+    /// Zero-based byte offset within the original pattern where the failure occurred.
     pub position: usize,
+    /// Optional placeholder identifier extracted from the pattern when available.
     pub placeholder: Option<String>,
 }
 
@@ -63,8 +66,10 @@ impl fmt::Display for PlaceholderErrorInfo {
 #[derive(Debug, Error)]
 pub enum PatternError {
     #[error("{0}")]
+    /// Error raised when a placeholder token cannot be converted into a matcher.
     Placeholder(PlaceholderErrorInfo),
     #[error(transparent)]
+    /// Wrapper used when the generated regular expression fails to compile.
     Regex(#[from] regex::Error),
 }
 

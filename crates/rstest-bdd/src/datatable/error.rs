@@ -16,7 +16,10 @@ pub enum DataTableError {
     MissingHeader,
     /// Raised when the header row repeats a column name.
     #[error("data table header contains duplicate column '{column}'")]
-    DuplicateHeader { column: String },
+    DuplicateHeader {
+        /// Name of the column that appeared more than once in the header row.
+        column: String,
+    },
     /// Raised when a row contains more or fewer cells than expected.
     #[error("data table row {row_number} has {actual} cells but expected {expected}")]
     UnevenRow {

@@ -1,0 +1,5 @@
+error: no scenarios matched tag expression `@fast`; available tags: @slow
+ --> tests/fixtures_macros/scenario_tags_no_match.rs:4:44
+  |
+4 | #[scenario(path = "tagged.feature", tags = "@fast")]
+  |                                            ^^^^^^^

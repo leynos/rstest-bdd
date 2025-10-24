@@ -116,6 +116,32 @@ fn outline(num: String) {
     clear_events();
 }
 
+#[scenario(
+    path = "tests/features/tag_filter.feature",
+    tags = "@global and not @slow"
+)]
+#[serial]
+fn scenario_filtered_by_tags() {
+    with_locked_events(|events| {
+        assert_eq!(events.as_slice(), ["precondition", "action", "result"]);
+    });
+    clear_events();
+}
+
+#[scenario(
+    path = "tests/features/tag_filter.feature",
+    tags = "@fast",
+    name = "parameterised scenario"
+)]
+#[serial]
+fn outline_filtered_examples(num: String) {
+    with_locked_events(|events| {
+        assert_eq!(events.as_slice(), ["precondition", "action", "result"]);
+    });
+    assert_eq!(num, "2");
+    clear_events();
+}
+
 #[scenario("tests/features/background.feature", index = 0)]
 #[serial]
 fn background_first() {

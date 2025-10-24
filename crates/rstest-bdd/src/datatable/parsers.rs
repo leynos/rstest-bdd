@@ -123,6 +123,14 @@ where
     }
 
     #[must_use]
+    /// Return the original, untrimmed string that failed to parse.
+    ///
+    /// # Examples
+    /// ```
+    /// # use rstest_bdd::datatable::{trimmed, TrimmedParseError};
+    /// let err: TrimmedParseError<_> = trimmed::<u8>(" not a number ").unwrap_err();
+    /// assert_eq!(err.original_input(), " not a number ");
+    /// ```
     pub fn original_input(&self) -> &str {
         &self.original_input
     }

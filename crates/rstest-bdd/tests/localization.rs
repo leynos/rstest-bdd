@@ -1,3 +1,5 @@
+//! Behavioural coverage for localisation helpers and diagnostics.
+
 use i18n_embed::fluent::fluent_language_loader;
 use rstest_bdd::localization::{
     ScopedLocalization, current_languages, install_localization_loader, message, message_with_args,

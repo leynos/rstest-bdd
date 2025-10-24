@@ -62,9 +62,27 @@ pub fn failing_then_step() -> Result<(), String> {
 /// Convenience alias for steps that intentionally use a `Result`.
 pub type StepResult<T> = Result<T, &'static str>;
 
+/// Lightweight newtype used to exercise value propagation in step tests.
+///
+/// # Examples
+/// ```ignore
+/// use crate::step_error_common::FancyValue;
+///
+/// let value = FancyValue(7);
+/// assert_eq!(value.0, 7);
+/// ```
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct FancyValue(pub u16);
 
+/// Error wrapper surfaced by simulated steps during behavioural tests.
+///
+/// # Examples
+/// ```ignore
+/// use crate::step_error_common::FancyError;
+///
+/// let err = FancyError("broken");
+/// assert_eq!(err.to_string(), "broken");
+/// ```
 #[derive(Debug, PartialEq, Eq)]
 pub struct FancyError(pub &'static str);
 
@@ -145,22 +163,58 @@ pub fn step_needing_docstring(docstring: String) {
     let _ = docstring;
 }
 
+/// Step definition that captures a numeric placeholder for verification.
+///
+/// # Examples
+/// ```ignore
+/// use rstest_bdd_macros::given;
+///
+/// #[given("number {value}")]
+/// fn parse_number(value: u32) {
+///     assert!(value >= 0);
+/// }
+/// ```
 #[given("number {value}")]
 pub fn parse_number(value: u32) {
     let _ = value;
 }
 
+/// Step definition deliberately ignoring its captured argument to test errors.
+///
+/// # Examples
+/// ```ignore
+/// use rstest_bdd_macros::given;
+///
+/// #[given("no placeholders")]
+/// fn missing_capture(value: u32) {
+///     let _ = value;
+/// }
+/// ```
 #[given("no placeholders")]
 pub fn missing_capture(value: u32) {
     let _ = value;
 }
 
+/// In-memory description of a step invocation used by the behavioural tests.
+///
+/// # Examples
+/// ```ignore
+/// use crate::step_error_common::{StepInvocation, StepKeyword};
+///
+/// let invocation = StepInvocation::new(StepKeyword::Given, "pattern", "text");
+/// assert_eq!(invocation.step_text, "text");
+/// ```
 #[derive(Debug)]
 pub struct StepInvocation<'a> {
+    /// Step keyword (`Given`, `When`, or `Then`) selecting the registered step.
     pub keyword: StepKeyword,
+    /// Pattern used to locate the registered step implementation.
     pub step_pattern: &'a str,
+    /// Concrete text passed to the step function during execution.
     pub step_text: &'a str,
+    /// Optional docstring forwarded to the step function.
     pub docstring: Option<&'a str>,
+    /// Optional data table forwarded to the step function.
     pub datatable: Option<&'a [&'a [&'a str]]>,
 }
 

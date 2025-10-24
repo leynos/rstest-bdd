@@ -162,7 +162,9 @@ fn step_macros_compile() {
 
     run_failing_macro_tests(&t);
     run_failing_ui_tests(&t);
-    run_scenarios_missing_dir_test(&t);
+    t.compile_fail(
+        macros_fixture(MacroFixtureCase::from("scenarios_missing_dir.rs")).as_std_path(),
+    );
     run_conditional_ordering_tests(&t);
     run_conditional_ambiguous_step_test(&t);
 }
@@ -185,6 +187,7 @@ fn run_failing_macro_tests(t: &trybuild::TestCases) {
         MacroFixtureCase::from("scenario_missing_name_empty.rs"),
         MacroFixtureCase::from("scenario_name_and_index.rs"),
         MacroFixtureCase::from("scenario_duplicate_name.rs"),
+        MacroFixtureCase::from("scenario_tags_no_match.rs"),
         MacroFixtureCase::from("step_macros_invalid_identifier.rs"),
         MacroFixtureCase::from("step_tuple_pattern.rs"),
         MacroFixtureCase::from("step_struct_pattern.rs"),
@@ -210,12 +213,6 @@ fn run_failing_ui_tests(t: &trybuild::TestCases) {
     ] {
         t.compile_fail(ui_fixture(case).as_std_path());
     }
-}
-
-fn run_scenarios_missing_dir_test(t: &trybuild::TestCases) {
-    t.compile_fail(
-        macros_fixture(MacroFixtureCase::from("scenarios_missing_dir.rs")).as_std_path(),
-    );
 }
 
 #[expect(

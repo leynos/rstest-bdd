@@ -453,7 +453,7 @@ and lacks the `@wip` tag.
 Grammar and semantics:
 
 - Tokens:
-  - Tags are identifiers prefixed with `@` and match `[A-Za-z_][A-Za-z0-9_]*`.
+- Tags are identifiers prefixed with `@` and match `[A-Za-z0-9_-]+`.
   - Operators: `and`, `or`, `not`.
   - Parentheses `(` `)` group sub-expressions.
 - Precedence: `not` > `and` > `or`. Parentheses override precedence.
@@ -480,8 +480,15 @@ and_expr  ::= not_expr { "and" not_expr }
 not_expr  ::= [ "not" ] primary
 primary   ::= TAG | "(" expr ")"
 TAG       ::= "@" IDENT
-IDENT     ::= [A..Z | a..z | "_"] { A..Z | a..z | 0..9 | "_" }*
+IDENT     ::= { A..Z | a..z | 0..9 | "_" | "-" }+
 ```
+
+Implementation stores the parsed expression as an AST shared by both macros so
+they emit identical diagnostics. `#[scenario]` continues to default to the
+first matching scenario but emits a compile error when a supplied `name` or
+`index` refers to a scenario that fails the tag filter. Scenario outlines prune
+unmatched example rows at expansion, ensuring the generated `rstest` only
+contains relevant cases.
 
 Example diagnostic:
 

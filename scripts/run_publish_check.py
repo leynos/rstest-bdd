@@ -689,7 +689,7 @@ def main(
         bool,
         Parameter(env_var="PUBLISH_CHECK_LIVE"),
     ] = False,
-) -> None:
+) -> int:
     """Run the publish-check CLI entry point.
 
     Parameters
@@ -709,10 +709,12 @@ def main(
 
     Returns
     -------
-    None
-        This function executes for its side effects and returns ``None``.
+    int
+        Exit code: 0 for success. On error, the function raises SystemExit
+        with a non-zero code.
     """
     run_publish_check(keep_tmp=keep_tmp, timeout_secs=timeout_secs, live=live)
+    return 0
 
 
 if __name__ == "__main__":

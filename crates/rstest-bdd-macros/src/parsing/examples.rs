@@ -7,10 +7,19 @@ use crate::validation::examples::{
 use proc_macro2::TokenStream;
 
 /// Rows parsed from a `Scenario Outline` examples table.
+///
+/// The `row_tags` collection mirrors `rows` one-to-one: each row inherits the
+/// union of feature, scenario, and examples tags at the corresponding index.
+/// This invariant is encoded as `row_tags.len() == rows.len()` and enforced by
+/// the parser when constructing the table.
 #[derive(Clone)]
 pub(crate) struct ExampleTable {
     pub(crate) headers: Vec<String>,
     pub(crate) rows: Vec<Vec<String>>,
+    /// Union of feature, scenario, and examples tags for each row.
+    /// Guaranteed to match `rows` in length so callers can zip the sequences
+    /// safely without additional bounds checks.
+    pub(crate) row_tags: Vec<Vec<String>>,
 }
 
 fn should_process_outline(scenario: &gherkin::Scenario) -> bool {
@@ -33,6 +42,7 @@ fn get_first_examples_table(scenario: &gherkin::Scenario) -> Result<&gherkin::Ta
 /// Extract examples table data from a scenario if present.
 pub(crate) fn extract_examples(
     scenario: &gherkin::Scenario,
+    base_tags: &[String],
 ) -> Result<Option<ExampleTable>, TokenStream> {
     if !should_process_outline(scenario) {
         return Ok(None);
@@ -43,5 +53,26 @@ pub(crate) fn extract_examples(
     validate_header_consistency(scenario, &headers)?;
     let rows = flatten_and_validate_rows(scenario, headers.len())?;
 
-    Ok(Some(ExampleTable { headers, rows }))
+    let mut row_tags = Vec::with_capacity(rows.len());
+    for ex in &scenario.examples {
+        let Some(table) = ex.table.as_ref() else {
+            continue;
+        };
+        let examples_tags = crate::parsing::tags::merge_tag_sets(base_tags, &ex.tags);
+        for _ in table.rows.iter().skip(1) {
+            row_tags.push(examples_tags.clone());
+        }
+    }
+
+    debug_assert_eq!(
+        row_tags.len(),
+        rows.len(),
+        "examples row tags must align with extracted rows",
+    );
+
+    Ok(Some(ExampleTable {
+        headers,
+        rows,
+        row_tags,
+    }))
 }

@@ -8,6 +8,7 @@ use std::{
 };
 
 use crate::parsing::examples::ExampleTable;
+use crate::parsing::tags::{self, TagExpression};
 use crate::utils::errors::error_to_tokens;
 cfg_if::cfg_if! {
     if #[cfg(feature = "compile-time-validation")] {
@@ -46,6 +47,7 @@ pub(crate) struct ScenarioData {
     pub name: String,
     pub steps: Vec<ParsedStep>,
     pub(crate) examples: Option<ExampleTable>,
+    pub(crate) tags: Vec<String>,
 }
 
 /// Cache parsed features to avoid repeated filesystem IO.
@@ -233,14 +235,54 @@ pub(crate) fn extract_scenario_steps(
             .collect::<Result<Vec<_>, _>>()?,
     );
 
-    let examples = crate::parsing::examples::extract_examples(scenario)?;
+    let base_tags = collect_base_tags(feature, scenario);
+    let examples = crate::parsing::examples::extract_examples(scenario, &base_tags)?;
 
     Ok(ScenarioData {
         name: scenario_name,
         steps,
         examples,
+        tags: base_tags,
     })
 }
 
 #[cfg(test)]
 mod tests;
+
+fn collect_base_tags(feature: &Feature, scenario: &gherkin::Scenario) -> Vec<String> {
+    let mut tags = Vec::new();
+    tags::extend_tag_set(&mut tags, &feature.tags);
+    tags::extend_tag_set(&mut tags, &scenario.tags);
+    tags
+}
+
+impl ScenarioData {
+    pub(crate) fn filter_by_tags(&mut self, expr: &TagExpression) -> bool {
+        match &mut self.examples {
+            Some(examples) => {
+                let mut retained_rows = Vec::new();
+                let mut retained_tags = Vec::new();
+                for (row, tags) in examples
+                    .rows
+                    .iter()
+                    .cloned()
+                    .zip(examples.row_tags.iter().cloned())
+                {
+                    if expr.evaluate(tags.iter().map(String::as_str)) {
+                        retained_rows.push(row);
+                        retained_tags.push(tags);
+                    }
+                }
+
+                if retained_rows.is_empty() {
+                    false
+                } else {
+                    examples.rows = retained_rows;
+                    examples.row_tags = retained_tags;
+                    true
+                }
+            }
+            None => expr.evaluate(self.tags.iter().map(String::as_str)),
+        }
+    }
+}

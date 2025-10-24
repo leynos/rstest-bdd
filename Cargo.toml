@@ -78,6 +78,8 @@ float_arithmetic = "deny"
 
 [workspace.lints.rust]
 unsafe_code = "forbid"
+missing_docs = "deny"
+missing_crate_level_docs = "deny"
 
 [patch.crates-io]
 rstest-bdd = { path = "crates/rstest-bdd" }

@@ -10,6 +10,20 @@ use rust_embed::RustEmbed;
 use thiserror::Error;
 use unic_langid::LanguageIdentifier;
 
+/// Embedded Fluent resources shipped with the crate.
+///
+/// The struct implements [`RustEmbed`], allowing callers to seed a
+/// [`FluentLanguageLoader`] with the bundled locale files.
+///
+/// # Examples
+/// ```
+/// # use rstest_bdd::localization::Localizations;
+/// # use i18n_embed::fluent::fluent_language_loader;
+/// # use unic_langid::langid;
+/// let mut loader = fluent_language_loader!();
+/// let selected = i18n_embed::select(&loader, &Localizations, &[langid!("en-US")]).unwrap();
+/// assert!(selected.contains(&langid!("en-US")));
+/// ```
 #[derive(RustEmbed)]
 #[folder = "i18n"]
 pub struct Localizations;
@@ -121,11 +135,31 @@ pub fn current_languages() -> Result<Vec<LanguageIdentifier>, LocalizationError>
 }
 
 #[must_use]
+/// Retrieve a localised string without interpolation arguments.
+///
+/// # Examples
+/// ```
+/// # use rstest_bdd::localization;
+/// assert_eq!(
+///     localization::message("placeholder-pattern-mismatch"),
+///     "pattern mismatch"
+/// );
+/// ```
 pub fn message(id: &str) -> String {
     with_loader(|loader| loader.get(id))
 }
 
 #[must_use]
+/// Retrieve a localised string with Fluent arguments supplied via a closure.
+///
+/// # Examples
+/// ```
+/// # use rstest_bdd::localization;
+/// let rendered = localization::message_with_args("panic-message-opaque-payload", |args| {
+///     args.set("type", "Example".to_string());
+/// });
+/// assert!(rendered.contains("Example"));
+/// ```
 pub fn message_with_args<F>(id: &str, configure: F) -> String
 where
     F: FnOnce(&mut FluentArgs<'static>),

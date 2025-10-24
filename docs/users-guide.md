@@ -302,13 +302,29 @@ registers an empty pattern instead of inferring one.
 ## Binding tests to scenarios
 
 The `#[scenario]` macro is the entry point that ties a Rust test function to a
-scenario defined in a `.feature` file. It accepts three arguments:
+scenario defined in a `.feature` file. It accepts four arguments:
 
-| Argument       | Purpose                                                    | Status                                                                  |
-| -------------- | ---------------------------------------------------------- | ----------------------------------------------------------------------- |
-| `path: &str`   | Relative path to the feature file (required).              | **Implemented**: resolved and parsed at compile time.                   |
-| `index: usize` | Optional zero-based scenario index (defaults to `0`).      | **Implemented**: selects the scenario by position.                      |
-| `name: &str`   | Optional scenario title; resolves to an index when unique. | **Implemented**: errors when missing and directs duplicates to `index`. |
+| Argument       | Purpose                                               | Status                                                                                    |
+| -------------- | ----------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| `path: &str`   | Relative path to the feature file (required).         | **Implemented**: resolved and parsed at compile time.                                     |
+| `index: usize` | Optional zero-based scenario index (defaults to `0`). | **Implemented**: selects the scenario by position.                                        |
+| `name: &str`   | Optional scenario title; resolves when unique.        | **Implemented**: errors when missing and directs duplicates to `index`.                   |
+| `tags: &str`   | Optional tag-expression filter applied at expansion.  | **Implemented**: filters scenarios and outline example rows; errors when nothing matches. |
+
+Tag filters run at macro-expansion time against the union of tags on the
+feature, the matched scenario, and—when dealing with `Scenario Outline`—the
+`Examples:` block that produced each generated row. Expressions support the
+operators `and`, `or`, and `not` (case-insensitive) and respect the precedence
+`not` > `and` > `or`; parentheses may be used to override this ordering. Tags
+include the leading `@`. When the filter is combined with `index` or `name`,
+the macro emits a compile error if the selected scenario does not satisfy the
+expression.
+
+```rust
+# use rstest_bdd_macros::scenario;
+#[scenario(path = "features/search.feature", tags = "@fast and not @wip")]
+fn smoke_test() {}
+```
 
 If the feature file cannot be found or contains invalid Gherkin, the macro
 emits a compile-time error with the offending path.
@@ -361,7 +377,15 @@ use rstest_bdd_macros::{given, then, when, scenarios};
 #[then("events are recorded")] fn events() {}
 
 scenarios!("tests/features/auto");
+
+// Only expand scenarios tagged @smoke and not marked @wip
+scenarios!("tests/features/auto", tags = "@smoke and not @wip");
 ```
+
+When `tags` is supplied the macro evaluates the expression against the same
+union of feature, scenario, and example tags described above. Scenarios that do
+not match simply do not generate a test, and outline examples drop unmatched
+rows.
 
 Generated tests cannot currently accept fixtures; use `#[scenario]` when
 fixture injection or custom assertions are required.
