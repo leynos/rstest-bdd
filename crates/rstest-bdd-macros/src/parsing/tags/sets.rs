@@ -18,7 +18,8 @@ fn normalize_tag(tag: &str) -> String {
 }
 
 /// Normalise all tags in the target vector to start with '@'.
-fn normalize_existing_tags(target: &mut [String]) {
+#[expect(clippy::ptr_arg, reason = "Review request fixed the helper signature")]
+fn normalize_existing_tags(target: &mut Vec<String>) {
     for tag in target.iter_mut() {
         if !tag.starts_with('@') {
             *tag = format!("@{tag}");

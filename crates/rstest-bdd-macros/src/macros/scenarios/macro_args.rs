@@ -1,9 +1,10 @@
 //! Parses arguments supplied to the `scenarios!` macro.
 //!
-//! Accepts either a positional directory literal or a `dir = "..."` named
-//! argument alongside an optional `tags = "..."` filter. The parser enforces
-//! that each argument appears at most once so diagnostics remain actionable
-//! when users provide conflicting combinations.
+//! Accepts either a positional directory literal or the `dir = "..."` and
+//! `path = "..."` named arguments alongside an optional `tags = "..."` filter.
+//! The parser enforces that each input appears at most once and reports
+//! duplicate or missing arguments with messages that mirror the accepted
+//! spellings so users can correct mistakes quickly.
 
 use syn::LitStr;
 use syn::parse::{Parse, ParseStream};
@@ -48,7 +49,7 @@ impl Parse for ScenariosArgs {
             match arg {
                 ScenariosArg::Dir(lit) => {
                     if dir.is_some() {
-                        return Err(input.error("duplicate directory argument"));
+                        return Err(input.error("duplicate `dir`/`path` argument"));
                     }
                     dir = Some(lit);
                 }
@@ -61,7 +62,7 @@ impl Parse for ScenariosArgs {
             }
         }
 
-        let dir = dir.ok_or_else(|| input.error("directory argument is required"))?;
+        let dir = dir.ok_or_else(|| input.error("`dir` (or `path`) is required"))?;
 
         Ok(Self { dir, tag_filter })
     }
