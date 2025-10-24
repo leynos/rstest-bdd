@@ -2,9 +2,9 @@
 //!
 //! Accepts either a positional directory literal or the `dir = "..."` and
 //! `path = "..."` named arguments alongside an optional `tags = "..."` filter.
-//! The parser enforces that each input appears at most once and reports
-//! duplicate or missing arguments with messages that mirror the accepted
-//! spellings so users can correct mistakes quickly.
+//! The parser enforces that each input appears at most once, mirroring both
+//! accepted spellings in duplicate and missing-argument diagnostics so users
+//! immediately see which synonym needs adjusting.
 
 use syn::LitStr;
 use syn::parse::{Parse, ParseStream};

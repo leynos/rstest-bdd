@@ -123,7 +123,7 @@ fn process_scenarios(
     let mut tests = Vec::new();
     let mut errors = Vec::new();
 
-    for (idx, _) in feature.scenarios.iter().enumerate() {
+    for idx in 0..feature.scenarios.len() {
         match extract_scenario_steps(feature, Some(idx)) {
             Ok(mut data) => {
                 if tag_filter.is_none_or(|filter| data.filter_by_tags(filter)) {

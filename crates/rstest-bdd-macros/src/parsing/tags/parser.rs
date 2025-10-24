@@ -2,8 +2,9 @@
 //!
 //! Implements the precedence where `or` has the lowest priority, `and` sits in
 //! the middle, and `not` binds tightest, with parentheses providing explicit
-//! grouping. Diagnostics capture the byte offset and unexpected token so macro
-//! errors highlight the offending portion of the expression.
+//! grouping and tag identifiers acting as primaries. Diagnostics capture the
+//! byte offset and unexpected token so macro errors highlight the offending
+//! portion of the expression.
 
 use std::marker::PhantomData;
 
