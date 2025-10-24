@@ -60,7 +60,6 @@ where
 /// #[given("a configured database")]
 /// fn a_configured_database() {}
 /// ```
-#[proc_macro_error]
 #[proc_macro_attribute]
 pub fn given(attr: TokenStream, item: TokenStream) -> TokenStream {
     run_with_macro_errors(|| macros::given(attr, item))
@@ -75,7 +74,6 @@ pub fn given(attr: TokenStream, item: TokenStream) -> TokenStream {
 /// #[when("the user logs in")]
 /// fn the_user_logs_in() {}
 /// ```
-#[proc_macro_error]
 #[proc_macro_attribute]
 pub fn when(attr: TokenStream, item: TokenStream) -> TokenStream {
     run_with_macro_errors(|| macros::when(attr, item))
@@ -90,7 +88,6 @@ pub fn when(attr: TokenStream, item: TokenStream) -> TokenStream {
 /// #[then("a success message is shown")]
 /// fn a_success_message_is_shown() {}
 /// ```
-#[proc_macro_error]
 #[proc_macro_attribute]
 pub fn then(attr: TokenStream, item: TokenStream) -> TokenStream {
     run_with_macro_errors(|| macros::then(attr, item))
@@ -120,12 +117,22 @@ pub fn then(attr: TokenStream, item: TokenStream) -> TokenStream {
 /// )]
 /// fn fast_stable_cases() {}
 /// ```
-#[proc_macro_error]
 #[proc_macro_attribute]
 pub fn scenario(attr: TokenStream, item: TokenStream) -> TokenStream {
     run_with_macro_errors(|| macros::scenario(attr, item))
 }
 
+/// Derive `ScenarioState` for a type that shares context across steps.
+///
+/// # Examples
+/// ```ignore
+/// use rstest_bdd_macros::ScenarioState;
+///
+/// #[derive(ScenarioState)]
+/// struct SharedState {
+///     pub counter: u32,
+/// }
+/// ```
 #[proc_macro_error]
 #[proc_macro_derive(ScenarioState)]
 pub fn derive_scenario_state(input: TokenStream) -> TokenStream {
@@ -158,7 +165,6 @@ pub fn derive_scenario_state(input: TokenStream) -> TokenStream {
 /// Errors:
 /// - Emits a compile error if the directory does not exist, contains no
 ///   `.feature` files, or if parsing fails.
-#[proc_macro_error]
 #[proc_macro]
 pub fn scenarios(input: TokenStream) -> TokenStream {
     run_with_macro_errors(|| macros::scenarios(input))
@@ -168,7 +174,6 @@ pub fn scenarios(input: TokenStream) -> TokenStream {
 ///
 /// The macro honours field-level overrides via `#[datatable(...)]` attributes
 /// documented in the user guide.
-#[proc_macro_error]
 #[proc_macro_derive(DataTableRow, attributes(datatable))]
 pub fn derive_data_table_row(input: TokenStream) -> TokenStream {
     run_with_macro_errors(|| datatable::derive_data_table_row(input))
@@ -178,7 +183,6 @@ pub fn derive_data_table_row(input: TokenStream) -> TokenStream {
 ///
 /// The macro supports optional mapping hooks and row type inference as
 /// described in the user guide.
-#[proc_macro_error]
 #[proc_macro_derive(DataTable, attributes(datatable))]
 pub fn derive_data_table(input: TokenStream) -> TokenStream {
     run_with_macro_errors(|| datatable::derive_data_table(input))
