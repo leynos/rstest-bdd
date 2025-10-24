@@ -61,6 +61,18 @@ fn allows_case_insensitive_operators() {
     assert!(!expr.evaluate(["@b"].into_iter()));
 }
 
+#[test]
+fn evaluates_owned_and_borrowed_tags() {
+    let expr = parse_expression("@fast and not @slow");
+    let borrowed = vec!["@fast", "@focused"];
+    assert!(expr.evaluate(borrowed));
+
+    let owned = vec![String::from("@fast"), String::from("@focused")];
+    assert!(expr.evaluate(owned));
+
+    assert!(!expr.evaluate(vec![String::from("@slow")]));
+}
+
 #[rstest]
 #[case("@a and", "expected tag or '(' after 'and'")]
 #[case("@a && @b", "unexpected character '&'")]

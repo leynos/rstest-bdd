@@ -15,6 +15,7 @@
 //! the filtering logic aligned with compile-time diagnostics while avoiding
 //! needless work once the outcome is known.
 
+use std::borrow::Cow;
 use std::collections::HashSet;
 
 use super::parser::Parser;
@@ -24,6 +25,8 @@ use super::parser::Parser;
 pub(crate) struct TagExpression {
     root: Expr,
 }
+
+type TagSet<'tags> = HashSet<Cow<'tags, str>>;
 
 #[derive(Clone, Debug)]
 pub(super) enum Expr {
@@ -68,17 +71,21 @@ impl TagExpression {
         Ok(Self { root })
     }
 
-    pub(crate) fn evaluate<'a, I>(&self, tags: I) -> bool
+    pub(crate) fn evaluate<'tags, I, S>(&self, tags: I) -> bool
     where
-        I: IntoIterator<Item = &'a str>,
+        I: IntoIterator<Item = S>,
+        S: Into<Cow<'tags, str>>,
     {
-        let set: HashSet<&'a str> = tags.into_iter().collect();
-        self.root.eval(&set)
+        let tag_set: TagSet<'tags> = tags.into_iter().map(Into::into).collect();
+        // Collect tags into `Cow` so callers can provide owned `String`s or
+        // borrowed `&str`s without allocating upfront for the common borrowed
+        // case. The evaluator only clones when ownership is required.
+        self.root.eval(&tag_set)
     }
 }
 
 impl Expr {
-    pub(super) fn eval(&self, tags: &HashSet<&str>) -> bool {
+    pub(super) fn eval(&self, tags: &TagSet<'_>) -> bool {
         match self {
             Self::Tag(tag) => tags.contains(tag.as_str()),
             Self::Not(inner) => !inner.eval(tags),
