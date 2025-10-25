@@ -165,6 +165,90 @@ struct TestTokensConfig<'a> {
     allow_skipped: bool,
 }
 
+fn execute_single_step(_feature_path: &str, _scenario_name: &str) -> TokenStream2 {
+    let path = crate::codegen::rstest_bdd_path();
+    quote! {
+        #[allow(
+            clippy::too_many_arguments,
+            reason = "helper mirrors generated step inputs to keep panic messaging intact",
+        )]
+        fn execute_single_step(
+            index: usize,
+            keyword: #path::StepKeyword,
+            text: &str,
+            docstring: Option<&str>,
+            table: Option<&[&[&str]]>,
+            ctx: &#path::StepContext,
+            feature_path: &str,
+            scenario_name: &str,
+        ) -> Result<Option<Box<dyn std::any::Any>>, String> {
+            if let Some(f) = #path::find_step(keyword, text.into()) {
+                match f(ctx, text, docstring, table) {
+                    Ok(#path::StepExecution::Continue { value }) => Ok(value),
+                    Ok(#path::StepExecution::Skipped { message }) => {
+                        let mut encoded = String::new();
+                        match message {
+                            Some(msg) => {
+                                encoded.push(SKIP_SOME_PREFIX);
+                                encoded.push_str(&msg);
+                            }
+                            None => encoded.push(SKIP_NONE_PREFIX),
+                        }
+                        Err(encoded)
+                    }
+                    Err(err) => {
+                        panic!(
+                            "Step failed at index {}: {} {} - {}\n(feature: {}, scenario: {})",
+                            index,
+                            keyword.as_str(),
+                            text,
+                            err,
+                            feature_path,
+                            scenario_name
+                        );
+                    }
+                }
+            } else {
+                panic!(
+                    "Step not found at index {}: {} {} (feature: {}, scenario: {})",
+                    index,
+                    keyword.as_str(),
+                    text,
+                    feature_path,
+                    scenario_name
+                );
+            }
+        }
+    }
+}
+
+fn validate_skip_result(_feature_path: &str, _scenario_name: &str) -> TokenStream2 {
+    let path = crate::codegen::rstest_bdd_path();
+    quote! {
+        fn validate_skip_result(
+            skipped: Option<Option<String>>,
+            allow_skipped: bool,
+            feature_path: &str,
+            scenario_name: &str,
+        ) -> bool {
+            if let Some(message) = skipped {
+                if #path::config::fail_on_skipped() && !allow_skipped {
+                    let detail = message.as_deref().unwrap_or("scenario skipped");
+                    panic!(
+                        "Scenario skipped with fail_on_skipped enabled: {}\n(feature: {}, scenario: {})",
+                        detail,
+                        feature_path,
+                        scenario_name
+                    );
+                }
+                false
+            } else {
+                true
+            }
+        }
+    }
+}
+
 /// Generate the inner body of the scenario test.
 ///
 /// # Examples
@@ -205,7 +289,19 @@ fn generate_test_tokens(
 
     let path = crate::codegen::rstest_bdd_path();
     let allow_literal = syn::LitBool::new(allow_skipped, proc_macro2::Span::call_site());
+    let feature_literal = syn::LitStr::new(feature_path, proc_macro2::Span::call_site());
+    let scenario_literal = syn::LitStr::new(scenario_name, proc_macro2::Span::call_site());
+    let step_executor = execute_single_step(feature_path, scenario_name);
+    let skip_validator = validate_skip_result(feature_path, scenario_name);
     quote! {
+        const FEATURE_PATH: &str = #feature_literal;
+        const SCENARIO_NAME: &str = #scenario_literal;
+        const SKIP_NONE_PREFIX: char = '\u{0}';
+        const SKIP_SOME_PREFIX: char = '\u{1}';
+
+        #step_executor
+        #skip_validator
+
         let steps = [#((#keyword_tokens, #values, #docstrings, #tables)),*];
         let allow_skipped: bool = #allow_literal;
         let mut ctx = {
@@ -215,50 +311,36 @@ fn generate_test_tokens(
         };
         let mut skipped: Option<Option<String>> = None;
         for (index, (keyword, text, docstring, table)) in steps.iter().enumerate() {
-            if let Some(f) = #path::find_step(*keyword, (*text).into()) {
-                match f(&ctx, *text, *docstring, *table) {
-                    Ok(#path::StepExecution::Continue { value }) => {
-                        if let Some(val) = value {
-                            let _ = ctx.insert_value(val);
-                        }
-                    },
-                    Ok(#path::StepExecution::Skipped { message }) => {
-                        skipped = Some(message);
-                        break;
-                    },
-                    Err(err) => {
-                        panic!(
-                            "Step failed at index {}: {} {} - {}\n(feature: {}, scenario: {})",
-                            index,
-                            keyword.as_str(),
-                            text,
-                            err,
-                            #feature_path,
-                            #scenario_name
-                        );
+            match execute_single_step(
+                index,
+                *keyword,
+                *text,
+                *docstring,
+                *table,
+                &ctx,
+                FEATURE_PATH,
+                SCENARIO_NAME,
+            ) {
+                Ok(value) => {
+                    if let Some(val) = value {
+                        let _ = ctx.insert_value(val);
                     }
                 }
-            } else {
-                panic!(
-                    "Step not found at index {}: {} {} (feature: {}, scenario: {})",
-                    index,
-                    keyword.as_str(),
-                    text,
-                    #feature_path,
-                    #scenario_name
-                );
+                Err(encoded) => {
+                    let skip_message = match encoded.chars().next() {
+                        Some(prefix) if prefix == SKIP_NONE_PREFIX => None,
+                        Some(prefix) if prefix == SKIP_SOME_PREFIX => {
+                            let prefix_len = prefix.len_utf8();
+                            Some(encoded[prefix_len..].to_string())
+                        }
+                        _ => Some(encoded),
+                    };
+                    skipped = Some(skip_message);
+                    break;
+                }
             }
         }
-        if let Some(message) = skipped {
-            if #path::config::fail_on_skipped() && !allow_skipped {
-                let detail = message.as_deref().unwrap_or("scenario skipped");
-                panic!(
-                    "Scenario skipped with fail_on_skipped enabled: {}\n(feature: {}, scenario: {})",
-                    detail,
-                    #feature_path,
-                    #scenario_name
-                );
-            }
+        if !validate_skip_result(skipped, allow_skipped, FEATURE_PATH, SCENARIO_NAME) {
             return;
         }
         #block
@@ -307,72 +389,4 @@ pub(crate) fn generate_scenario_code(
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::parsing::feature::ParsedStep;
-
-    #[expect(clippy::expect_used, reason = "test helper with descriptive failures")]
-    fn kw(ts: &TokenStream2) -> crate::StepKeyword {
-        let path = syn::parse2::<syn::Path>(ts.clone()).expect("keyword path");
-        let ident = path.segments.last().expect("last").ident.to_string();
-        crate::StepKeyword::try_from(ident.as_str()).expect("valid step keyword")
-    }
-
-    fn blank() -> ParsedStep {
-        ParsedStep {
-            keyword: crate::StepKeyword::Given,
-            text: String::new(),
-            docstring: None,
-            table: None,
-            #[cfg(feature = "compile-time-validation")]
-            span: proc_macro2::Span::call_site(),
-        }
-    }
-
-    #[rstest::rstest]
-    #[case::leading_and(
-        vec![crate::StepKeyword::And, crate::StepKeyword::Then],
-        vec![crate::StepKeyword::Then, crate::StepKeyword::Then],
-    )]
-    #[case::leading_but(
-        vec![crate::StepKeyword::But, crate::StepKeyword::Then],
-        vec![crate::StepKeyword::Then, crate::StepKeyword::Then],
-    )]
-    #[case::mixed(
-        vec![crate::StepKeyword::Given, crate::StepKeyword::And, crate::StepKeyword::But, crate::StepKeyword::Then],
-        vec![crate::StepKeyword::Given, crate::StepKeyword::Given, crate::StepKeyword::Given, crate::StepKeyword::Then],
-    )]
-    #[case::all_conjunctions(
-        vec![crate::StepKeyword::And, crate::StepKeyword::But, crate::StepKeyword::And],
-        vec![crate::StepKeyword::Given, crate::StepKeyword::Given, crate::StepKeyword::Given],
-    )]
-    #[case::empty(vec![], vec![])]
-    fn normalises_sequences(
-        #[case] seq: Vec<crate::StepKeyword>,
-        #[case] expect: Vec<crate::StepKeyword>,
-    ) {
-        let steps: Vec<_> = seq
-            .into_iter()
-            .map(|k| ParsedStep {
-                keyword: k,
-                ..blank()
-            })
-            .collect();
-        let (keyword_tokens, _, _, _) = process_steps(&steps);
-        let parsed: Vec<_> = keyword_tokens.iter().map(kw).collect();
-        assert_eq!(parsed, expect);
-    }
-
-    fn tags(list: &[&str]) -> Vec<String> {
-        list.iter().map(|tag| (*tag).to_owned()).collect()
-    }
-
-    #[rstest::rstest]
-    #[case::present(tags(&["@allow_skipped", "@other"]), true)]
-    #[case::absent(tags(&["@other", "@allow-skip"]), false)]
-    #[case::empty(Vec::<String>::new(), false)]
-    #[case::case_sensitive(tags(&["@Allow_Skipped"]), false)]
-    fn detects_allow_skipped_tag(#[case] tags: Vec<String>, #[case] expected: bool) {
-        assert_eq!(scenario_allows_skip(&tags), expected);
-    }
-}
+mod tests;
