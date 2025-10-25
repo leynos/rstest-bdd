@@ -179,7 +179,7 @@ improves the developer experience.
   - [x] Implement a single shared parser used by both macros to guarantee
     identical semantics.
 
-  - [ ] Support an `@allow_skipped` tag and add a `fail_on_skipped`
+  - [x] Support an `@allow_skipped` tag and add a `fail_on_skipped`
     configuration option so skipped scenarios only fail when the flag is set
     and the tag is absent.
 

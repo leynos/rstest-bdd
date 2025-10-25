@@ -58,8 +58,9 @@ fn generate_scenario_test(
         name,
         steps,
         examples,
-        ..
+        tags,
     } = data;
+    let allow_skipped = crate::codegen::scenario::scenario_allows_skip(&tags);
     let base_name = format!("{}_{}", ctx.feature_stem, sanitize_ident(&name));
     let fn_name = dedupe_name(&base_name, used_names);
     let fn_ident = format_ident!("{}", fn_name);
@@ -92,6 +93,7 @@ fn generate_scenario_test(
         scenario_name: name,
         steps,
         examples,
+        allow_skipped,
     };
     TokenStream2::from(generate_scenario_code(config, ctx_inserts.into_iter()))
 }

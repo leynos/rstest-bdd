@@ -35,7 +35,7 @@ fn context_passes_fixture() {
     ctx.insert("number", &number);
     let step_fn = lookup_step(StepKeyword::Given, "a value".into())
         .expect("step 'a value' not found in registry");
-    assert_step_ok!(step_fn(&ctx, "a value", None, None));
+    let _ = assert_step_ok!(step_fn(&ctx, "a value", None, None));
 }
 
 #[test]

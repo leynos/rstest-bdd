@@ -360,6 +360,40 @@ with `rstest` features such as parameterized tests and asynchronous fixtures.
 Tests are still discovered and executed by the standard Rust test runner, so
 one may filter or run them in parallel as usual.
 
+### Skipping scenarios
+
+Steps or hooks may call `rstest_bdd::skip!` to stop executing the remaining
+steps. By default, the scenario is reported as skipped and the generated test
+returns before evaluating the annotated function body. Set the
+`RSTEST_BDD_FAIL_ON_SKIPPED` environment variable to `1`, or call
+`rstest_bdd::config::set_fail_on_skipped(true)`, to escalate skipped scenarios
+into test failures unless the feature or scenario carries an `@allow_skipped`
+tag. (Example-level tags are not yet evaluated.)
+
+```rust
+# use rstest_bdd as bdd;
+# use rstest_bdd_macros::{given, scenario};
+
+#[given("a dependent service is unavailable")]
+fn service_unavailable() {
+    bdd::skip!("service still provisioning");
+}
+
+#[scenario(path = "features/unhappy_path.feature")]
+fn resilience_test() {
+    panic!("scenario body is skipped");
+}
+```
+
+When `fail_on_skipped` is enabled, apply `@allow_skipped` to the feature or the
+scenario to document that the skip is expected:
+
+```gherkin
+@allow_skipped
+Scenario: Behaviour pending external contract
+  Given a dependent service is unavailable
+```
+
 ## Autodiscovering scenarios
 
 For large suites, it is tedious to bind each scenario manually. The

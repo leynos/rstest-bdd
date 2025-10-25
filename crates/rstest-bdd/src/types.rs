@@ -6,6 +6,7 @@
 
 use crate::localization;
 use gherkin::StepType;
+use std::any::Any;
 use std::borrow::Cow;
 use std::fmt;
 use std::str::FromStr;
@@ -236,6 +237,53 @@ mod tests {
         assert_error_trait(&err);
         assert_eq!(err.0, StepType::Then);
     }
+
+    #[test]
+    fn step_execution_from_value_without_payload() {
+        match StepExecution::from_value(None) {
+            StepExecution::Continue { value } => {
+                assert!(value.is_none(), "expected empty payload");
+            }
+            StepExecution::Skipped { .. } => panic!("skip variant is unexpected"),
+        }
+    }
+
+    #[test]
+    fn step_execution_from_value_with_payload() {
+        let value = StepExecution::from_value(Some(Box::new(99_u8)));
+        let payload = match value {
+            StepExecution::Continue {
+                value: Some(payload),
+            } => payload,
+            StepExecution::Continue { value: None } => {
+                panic!("expected value to carry payload");
+            }
+            StepExecution::Skipped { .. } => panic!("skip variant is unexpected"),
+        };
+        #[expect(
+            clippy::expect_used,
+            reason = "test ensures payload can be downcast to original type"
+        )]
+        let number = payload.downcast::<u8>().expect("payload must be a u8");
+        assert_eq!(*number, 99);
+    }
+
+    #[test]
+    fn step_execution_skipped_carries_message() {
+        let message = String::from("not implemented");
+        let outcome = StepExecution::skipped(Some(message.clone()));
+        match outcome {
+            StepExecution::Continue { .. } => panic!("continue variant is unexpected"),
+            StepExecution::Skipped {
+                message: Some(text),
+            } => {
+                assert_eq!(text, message);
+            }
+            StepExecution::Skipped { message: None } => {
+                panic!("skip should carry the provided message");
+            }
+        }
+    }
 }
 
 /// Detailed information about placeholder parsing failures.
@@ -402,10 +450,40 @@ impl From<StepPatternError> for PlaceholderError {
     }
 }
 
+/// Outcome produced by step wrappers.
+#[derive(Debug)]
+#[must_use]
+pub enum StepExecution {
+    /// The step executed successfully and may provide a value for later steps.
+    Continue {
+        /// Value returned by the step, made available to later fixtures.
+        value: Option<Box<dyn Any>>,
+    },
+    /// The step requested that the scenario should be skipped.
+    Skipped {
+        /// Optional reason describing why execution stopped.
+        message: Option<String>,
+    },
+}
+
+impl StepExecution {
+    /// Construct a successful outcome with an optional value.
+    pub fn from_value(value: Option<Box<dyn Any>>) -> Self {
+        Self::Continue { value }
+    }
+
+    /// Construct a skipped outcome with an optional reason.
+    pub fn skipped(message: impl Into<Option<String>>) -> Self {
+        Self::Skipped {
+            message: message.into(),
+        }
+    }
+}
+
 /// Type alias for the stored step function pointer.
 pub type StepFn = for<'a> fn(
     &crate::context::StepContext<'a>,
     &str,
     Option<&str>,
     Option<&[&[&str]]>,
-) -> Result<Option<Box<dyn std::any::Any>>, crate::StepError>;
+) -> Result<StepExecution, crate::StepError>;

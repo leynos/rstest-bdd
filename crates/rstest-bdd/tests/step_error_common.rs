@@ -1,6 +1,6 @@
 //! Shared helpers for step error behavioural tests.
 
-use rstest_bdd::{StepContext, StepError, StepKeyword};
+use rstest_bdd::{StepContext, StepError, StepExecution, StepKeyword};
 use rstest_bdd_macros::{given, then, when};
 use std::fmt;
 
@@ -163,6 +163,22 @@ pub fn step_needing_docstring(docstring: String) {
     let _ = docstring;
 }
 
+/// Step implementation that raises a skip request during execution.
+///
+/// # Examples
+/// ```ignore
+/// use rstest_bdd_macros::given;
+///
+/// #[given("a skip request step")]
+/// fn skip_step() {
+///     rstest_bdd::skip!("skip for documentation");
+/// }
+/// ```
+#[given("a skip request step")]
+pub fn skip_request_step() {
+    rstest_bdd::skip!("behavioural skip test");
+}
+
 /// Step definition that captures a numeric placeholder for verification.
 ///
 /// # Examples
@@ -253,9 +269,7 @@ impl<'a> StepInvocation<'a> {
 ///
 /// # Panics
 /// Panics if the requested step has not been registered in the global registry.
-pub fn invoke_step(
-    invocation: &StepInvocation<'_>,
-) -> Result<Option<Box<dyn std::any::Any>>, StepError> {
+pub fn invoke_step(invocation: &StepInvocation<'_>) -> Result<StepExecution, StepError> {
     let ctx = StepContext::default();
     let step_fn = rstest_bdd::lookup_step(invocation.keyword, invocation.step_pattern.into())
         .unwrap_or_else(|| panic!("step '{}' not found in registry", invocation.step_pattern));
