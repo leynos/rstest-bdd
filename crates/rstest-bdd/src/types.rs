@@ -271,9 +271,7 @@ mod tests {
     #[test]
     fn step_execution_skipped_carries_message() {
         let message = String::from("not implemented");
-        let outcome = StepExecution::Skipped {
-            message: Some(message.clone()),
-        };
+        let outcome = StepExecution::skipped(Some(message.clone()));
         match outcome {
             StepExecution::Continue { .. } => panic!("continue variant is unexpected"),
             StepExecution::Skipped {
@@ -454,6 +452,7 @@ impl From<StepPatternError> for PlaceholderError {
 
 /// Outcome produced by step wrappers.
 #[derive(Debug)]
+#[must_use]
 pub enum StepExecution {
     /// The step executed successfully and may provide a value for later steps.
     Continue {
@@ -469,9 +468,15 @@ pub enum StepExecution {
 
 impl StepExecution {
     /// Construct a successful outcome with an optional value.
-    #[must_use]
     pub fn from_value(value: Option<Box<dyn Any>>) -> Self {
         Self::Continue { value }
+    }
+
+    /// Construct a skipped outcome with an optional reason.
+    pub fn skipped(message: impl Into<Option<String>>) -> Self {
+        Self::Skipped {
+            message: message.into(),
+        }
     }
 }
 

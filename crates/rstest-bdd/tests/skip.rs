@@ -5,6 +5,7 @@ use rstest_bdd as bdd;
 use rstest_bdd_macros::{given, scenario, then};
 use serial_test::serial;
 
+#[must_use]
 struct FailOnSkippedGuard;
 
 impl FailOnSkippedGuard {
@@ -14,12 +15,14 @@ impl FailOnSkippedGuard {
     }
 
     fn disable() -> Self {
-        bdd::config::clear_fail_on_skipped_override();
+        bdd::config::set_fail_on_skipped(false);
         Self
     }
 }
 
 impl Drop for FailOnSkippedGuard {
+    // Clearing the override re-exposes the RSTEST_BDD_FAIL_ON_SKIPPED variable.
+    // Tests using this guard must be marked #[serial] to avoid races.
     fn drop(&mut self) {
         bdd::config::clear_fail_on_skipped_override();
     }

@@ -363,7 +363,7 @@ one may filter or run them in parallel as usual.
 ### Skipping scenarios
 
 Steps or hooks may call `rstest_bdd::skip!` to stop executing the remaining
-steps. By default the scenario is reported as skipped and the generated test
+steps. By default, the scenario is reported as skipped and the generated test
 returns before evaluating the annotated function body. Set the
 `RSTEST_BDD_FAIL_ON_SKIPPED` environment variable to `1`, or call
 `rstest_bdd::config::set_fail_on_skipped(true)`, to escalate skipped scenarios

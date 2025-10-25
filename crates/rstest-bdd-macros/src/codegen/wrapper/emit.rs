@@ -183,9 +183,7 @@ fn assemble_wrapper_function(
                     .map(|value| #path::StepExecution::from_value(value))
                     .map_err(|message| #exec_err),
                 Err(payload) => match payload.downcast::<#path::SkipRequest>() {
-                    Ok(skip) => Ok(#path::StepExecution::Skipped {
-                        message: skip.into_message(),
-                    }),
+                    Ok(skip) => Ok(#path::StepExecution::skipped(skip.into_message())),
                     Err(payload) => {
                         let message = #path::panic_message(payload.as_ref());
                         Err(#panic_err)

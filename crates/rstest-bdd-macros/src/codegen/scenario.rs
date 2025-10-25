@@ -186,15 +186,7 @@ fn execute_single_step(_feature_path: &str, _scenario_name: &str) -> TokenStream
                 match f(ctx, text, docstring, table) {
                     Ok(#path::StepExecution::Continue { value }) => Ok(value),
                     Ok(#path::StepExecution::Skipped { message }) => {
-                        let mut encoded = String::new();
-                        match message {
-                            Some(msg) => {
-                                encoded.push(SKIP_SOME_PREFIX);
-                                encoded.push_str(&msg);
-                            }
-                            None => encoded.push(SKIP_NONE_PREFIX),
-                        }
-                        Err(encoded)
+                        Err(message.unwrap_or_default())
                     }
                     Err(err) => {
                         panic!(
@@ -226,14 +218,18 @@ fn validate_skip_result(_feature_path: &str, _scenario_name: &str) -> TokenStrea
     let path = crate::codegen::rstest_bdd_path();
     quote! {
         fn validate_skip_result(
-            skipped: Option<Option<String>>,
+            skipped: Option<String>,
             allow_skipped: bool,
             feature_path: &str,
             scenario_name: &str,
         ) -> bool {
             if let Some(message) = skipped {
                 if #path::config::fail_on_skipped() && !allow_skipped {
-                    let detail = message.as_deref().unwrap_or("scenario skipped");
+                    let detail = if message.is_empty() {
+                        "scenario skipped"
+                    } else {
+                        message.as_str()
+                    };
                     panic!(
                         "Scenario skipped with fail_on_skipped enabled: {}\n(feature: {}, scenario: {})",
                         detail,
@@ -296,9 +292,6 @@ fn generate_test_tokens(
     quote! {
         const FEATURE_PATH: &str = #feature_literal;
         const SCENARIO_NAME: &str = #scenario_literal;
-        const SKIP_NONE_PREFIX: char = '\u{0}';
-        const SKIP_SOME_PREFIX: char = '\u{1}';
-
         #step_executor
         #skip_validator
 
@@ -309,7 +302,7 @@ fn generate_test_tokens(
             #(#ctx_inserts)*
             ctx
         };
-        let mut skipped: Option<Option<String>> = None;
+        let mut skipped: Option<String> = None;
         for (index, (keyword, text, docstring, table)) in steps.iter().enumerate() {
             match execute_single_step(
                 index,
@@ -327,15 +320,7 @@ fn generate_test_tokens(
                     }
                 }
                 Err(encoded) => {
-                    let skip_message = match encoded.chars().next() {
-                        Some(prefix) if prefix == SKIP_NONE_PREFIX => None,
-                        Some(prefix) if prefix == SKIP_SOME_PREFIX => {
-                            let prefix_len = prefix.len_utf8();
-                            Some(encoded[prefix_len..].to_string())
-                        }
-                        _ => Some(encoded),
-                    };
-                    skipped = Some(skip_message);
+                    skipped = Some(encoded);
                     break;
                 }
             }
