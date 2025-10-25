@@ -163,6 +163,22 @@ pub fn step_needing_docstring(docstring: String) {
     let _ = docstring;
 }
 
+/// Step implementation that raises a skip request during execution.
+///
+/// # Examples
+/// ```ignore
+/// use rstest_bdd_macros::given;
+///
+/// #[given("a skip request step")]
+/// fn skip_step() {
+///     rstest_bdd::skip!("skip for documentation");
+/// }
+/// ```
+#[given("a skip request step")]
+pub fn skip_request_step() {
+    rstest_bdd::skip!("behavioural skip test");
+}
+
 /// Step definition that captures a numeric placeholder for verification.
 ///
 /// # Examples

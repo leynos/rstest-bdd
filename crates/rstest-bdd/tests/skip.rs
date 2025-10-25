@@ -2,7 +2,7 @@
 
 use rstest::fixture;
 use rstest_bdd as bdd;
-use rstest_bdd_macros::{given, scenario};
+use rstest_bdd_macros::{given, scenario, then};
 use serial_test::serial;
 
 struct FailOnSkippedGuard;
@@ -40,6 +40,11 @@ fn skip_scenario() {
     bdd::skip!("skip requested for coverage");
 }
 
+#[then("a trailing step executes")]
+fn trailing_step_should_not_run() {
+    panic!("trailing step should not execute after a skip request");
+}
+
 #[scenario(path = "tests/features/skip.feature", name = "disallowed skip")]
 #[serial]
 #[should_panic(expected = "Scenario skipped with fail_on_skipped enabled")]
@@ -60,4 +65,14 @@ fn allowed_skip(fail_on_enabled: FailOnSkippedGuard) {
 fn skip_without_flag(fail_on_disabled: FailOnSkippedGuard) {
     let _ = &fail_on_disabled;
     panic!("scenario body should not execute when fail_on_skipped is disabled");
+}
+
+#[scenario(
+    path = "tests/features/skip.feature",
+    name = "skip prevents trailing steps"
+)]
+#[serial]
+fn skip_prevents_trailing_steps(fail_on_disabled: FailOnSkippedGuard) {
+    let _ = &fail_on_disabled;
+    panic!("scenario body should not execute when earlier steps skip");
 }

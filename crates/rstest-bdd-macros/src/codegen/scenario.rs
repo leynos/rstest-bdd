@@ -362,4 +362,17 @@ mod tests {
         let parsed: Vec<_> = keyword_tokens.iter().map(kw).collect();
         assert_eq!(parsed, expect);
     }
+
+    fn tags(list: &[&str]) -> Vec<String> {
+        list.iter().map(|tag| (*tag).to_owned()).collect()
+    }
+
+    #[rstest::rstest]
+    #[case::present(tags(&["@allow_skipped", "@other"]), true)]
+    #[case::absent(tags(&["@other", "@allow-skip"]), false)]
+    #[case::empty(Vec::<String>::new(), false)]
+    #[case::case_sensitive(tags(&["@Allow_Skipped"]), false)]
+    fn detects_allow_skipped_tag(#[case] tags: Vec<String>, #[case] expected: bool) {
+        assert_eq!(scenario_allows_skip(&tags), expected);
+    }
 }

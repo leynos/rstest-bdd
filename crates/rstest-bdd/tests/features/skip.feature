@@ -8,3 +8,7 @@ Feature: Skipping scenarios
 
   Scenario: skip without fail flag
     Given a scenario will be skipped
+
+  Scenario: skip prevents trailing steps
+    Given a scenario will be skipped
+    Then a trailing step executes

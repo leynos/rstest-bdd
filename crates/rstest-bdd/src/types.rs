@@ -237,6 +237,55 @@ mod tests {
         assert_error_trait(&err);
         assert_eq!(err.0, StepType::Then);
     }
+
+    #[test]
+    fn step_execution_from_value_without_payload() {
+        match StepExecution::from_value(None) {
+            StepExecution::Continue { value } => {
+                assert!(value.is_none(), "expected empty payload");
+            }
+            StepExecution::Skipped { .. } => panic!("skip variant is unexpected"),
+        }
+    }
+
+    #[test]
+    fn step_execution_from_value_with_payload() {
+        let value = StepExecution::from_value(Some(Box::new(99_u8)));
+        let payload = match value {
+            StepExecution::Continue {
+                value: Some(payload),
+            } => payload,
+            StepExecution::Continue { value: None } => {
+                panic!("expected value to carry payload");
+            }
+            StepExecution::Skipped { .. } => panic!("skip variant is unexpected"),
+        };
+        #[expect(
+            clippy::expect_used,
+            reason = "test ensures payload can be downcast to original type"
+        )]
+        let number = payload.downcast::<u8>().expect("payload must be a u8");
+        assert_eq!(*number, 99);
+    }
+
+    #[test]
+    fn step_execution_skipped_carries_message() {
+        let message = String::from("not implemented");
+        let outcome = StepExecution::Skipped {
+            message: Some(message.clone()),
+        };
+        match outcome {
+            StepExecution::Continue { .. } => panic!("continue variant is unexpected"),
+            StepExecution::Skipped {
+                message: Some(text),
+            } => {
+                assert_eq!(text, message);
+            }
+            StepExecution::Skipped { message: None } => {
+                panic!("skip should carry the provided message");
+            }
+        }
+    }
 }
 
 /// Detailed information about placeholder parsing failures.

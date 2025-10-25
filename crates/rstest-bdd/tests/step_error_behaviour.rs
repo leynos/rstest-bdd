@@ -74,6 +74,33 @@ fn fallible_value_step_execution_returns_value() {
     assert_eq!(*value, FancyValue(99));
 }
 
+#[test]
+fn skip_request_step_returns_skipped_outcome() {
+    #[expect(
+        clippy::expect_used,
+        reason = "test asserts skip handling returns a skipped outcome"
+    )]
+    let outcome = invoke_step(&StepInvocation::new(
+        StepKeyword::Given,
+        "a skip request step",
+        "a skip request step",
+    ))
+    .expect("unexpected step error");
+    match outcome {
+        StepExecution::Continue { .. } => {
+            panic!("skip request should not report continuation");
+        }
+        StepExecution::Skipped { message } => {
+            #[expect(clippy::expect_used, reason = "test asserts skip message propagation")]
+            let detail = message.expect("skip should include message");
+            assert!(
+                detail.contains("behavioural skip test"),
+                "skip message should propagate details: {detail}",
+            );
+        }
+    }
+}
+
 enum Payload<'a> {
     Table(&'a [&'a [&'a str]]),
     Docstring(&'a str),
