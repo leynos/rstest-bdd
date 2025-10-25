@@ -94,8 +94,9 @@ fn try_scenario(
         name: scenario_name,
         steps,
         examples,
-        ..
+        tags,
     } = scenario_data;
+    let allow_skipped = crate::codegen::scenario::scenario_allows_skip(&tags);
 
     if let Some(err) = validate_steps_compile_time(&steps) {
         return Err(err);
@@ -117,6 +118,7 @@ fn try_scenario(
             scenario_name,
             steps,
             examples,
+            allow_skipped,
         },
         ctx_inserts.into_iter(),
     ))

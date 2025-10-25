@@ -163,7 +163,7 @@ fn assemble_wrapper_function(
             #text_ident: &str,
             _docstring: Option<&str>,
             _table: Option<&[&[&str]]>,
-        ) -> Result<Option<Box<dyn std::any::Any>>, #path::StepError> {
+        ) -> Result<#path::StepExecution, #path::StepError> {
             use std::panic::{catch_unwind, AssertUnwindSafe};
 
             let captures = #path::extract_placeholders(&#pattern_ident, #text_ident.into())
@@ -178,14 +178,20 @@ fn assemble_wrapper_function(
             #datatable_decl
             #docstring_decl
 
-            catch_unwind(AssertUnwindSafe(|| {
-                #call_expr
-            }))
-                .map_err(|e| {
-                    let message = #path::panic_message(e.as_ref());
-                    #panic_err
-                })
-                .and_then(|res| res.map_err(|message| #exec_err))
+            match catch_unwind(AssertUnwindSafe(|| { #call_expr })) {
+                Ok(res) => res
+                    .map(|value| #path::StepExecution::from_value(value))
+                    .map_err(|message| #exec_err),
+                Err(payload) => match payload.downcast::<#path::SkipRequest>() {
+                    Ok(skip) => Ok(#path::StepExecution::Skipped {
+                        message: skip.into_message(),
+                    }),
+                    Err(payload) => {
+                        let message = #path::panic_message(payload.as_ref());
+                        Err(#panic_err)
+                    }
+                },
+            }
         }
     }
 }

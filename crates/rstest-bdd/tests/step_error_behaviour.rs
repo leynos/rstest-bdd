@@ -3,7 +3,7 @@
 mod step_error_common;
 
 use rstest::rstest;
-use rstest_bdd::StepKeyword;
+use rstest_bdd::{StepExecution, StepKeyword};
 
 use step_error_common::{FancyValue, StepInvocation, invoke_step};
 
@@ -13,12 +13,16 @@ fn successful_step_execution() {
         clippy::expect_used,
         reason = "test ensures successful step execution propagates"
     )]
-    invoke_step(&StepInvocation::new(
+    match invoke_step(&StepInvocation::new(
         StepKeyword::Given,
         "a successful step",
         "a successful step",
     ))
-    .expect("unexpected error");
+    .expect("unexpected error")
+    {
+        StepExecution::Continue { .. } => {}
+        StepExecution::Skipped { .. } => panic!("step should not have been skipped"),
+    }
 }
 
 #[test]
@@ -27,13 +31,18 @@ fn successful_step_execution() {
     reason = "test ensures step success is propagated"
 )]
 fn fallible_unit_step_execution_returns_none() {
-    let res = invoke_step(&StepInvocation::new(
+    let outcome = invoke_step(&StepInvocation::new(
         StepKeyword::Given,
         "a fallible unit step succeeds",
         "a fallible unit step succeeds",
     ))
     .expect("unexpected error");
-    assert!(res.is_none(), "unit step should not return a payload");
+    match outcome {
+        StepExecution::Continue { value } => {
+            assert!(value.is_none(), "unit step should not return a payload");
+        }
+        StepExecution::Skipped { .. } => panic!("unit step should not be skipped"),
+    }
 }
 
 #[test]
@@ -42,13 +51,19 @@ fn fallible_value_step_execution_returns_value() {
         clippy::expect_used,
         reason = "test asserts success path and payload presence"
     )]
-    let boxed = invoke_step(&StepInvocation::new(
+    let payload = invoke_step(&StepInvocation::new(
         StepKeyword::Given,
         "a fallible value step succeeds",
         "a fallible value step succeeds",
     ))
-    .expect("unexpected error")
-    .expect("expected step to return a value");
+    .expect("unexpected error");
+    let boxed = match payload {
+        StepExecution::Continue { value: Some(value) } => value,
+        StepExecution::Continue { value: None } => {
+            panic!("expected step to return a value")
+        }
+        StepExecution::Skipped { .. } => panic!("step unexpectedly skipped"),
+    };
     #[expect(
         clippy::expect_used,
         reason = "test asserts success path and payload presence"
@@ -86,5 +101,8 @@ fn datatable_or_docstring_executes(#[case] payload: Payload<'_>) {
         clippy::expect_used,
         reason = "test ensures both table and docstring steps execute successfully"
     )]
-    invoke_step(&invocation).expect("unexpected error passing payload");
+    match invoke_step(&invocation).expect("unexpected error passing payload") {
+        StepExecution::Continue { .. } => {}
+        StepExecution::Skipped { .. } => panic!("step unexpectedly skipped"),
+    }
 }

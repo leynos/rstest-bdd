@@ -1210,6 +1210,18 @@ incrementally.
   (false). Scenarios tagged `@allow_skipped` never cause a failure when
   `fail_on_skipped` is enabled.
 
+  The initial implementation recognises `@allow_skipped` on the feature or
+  scenario itself. Example-level tags are ignored for now because the runner
+  does not yet have case indices from `rstest`; once that metadata is available
+  the per-example override can be reinstated without altering public APIs. The
+  runtime exposes a small `config` module so callers (and the CLI) can override
+  the `fail_on_skipped` flag programmatically before falling back to the
+  `RSTEST_BDD_FAIL_ON_SKIPPED` environment variable. Step wrappers now return a
+  `StepExecution` enum that distinguishes between a successful step and one
+  that requested a skip. The new `skip!` macro raises a `SkipRequest` panic
+  payload; wrapper code intercepts that payload, records the skipped outcome,
+  and allows the scenario loop to stop executing further steps.
+
   - Propagate skipped status through the `cargo-bdd` CLI and the JSON and JUnit
     writers. Emit a `<skipped>` child on each `<testcase>` element in JUnit
     output with an optional `message` attribute, and use lowercase `skipped`

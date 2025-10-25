@@ -6,6 +6,7 @@
 
 use crate::localization;
 use gherkin::StepType;
+use std::any::Any;
 use std::borrow::Cow;
 use std::fmt;
 use std::str::FromStr;
@@ -402,10 +403,33 @@ impl From<StepPatternError> for PlaceholderError {
     }
 }
 
+/// Outcome produced by step wrappers.
+#[derive(Debug)]
+pub enum StepExecution {
+    /// The step executed successfully and may provide a value for later steps.
+    Continue {
+        /// Value returned by the step, made available to later fixtures.
+        value: Option<Box<dyn Any>>,
+    },
+    /// The step requested that the scenario should be skipped.
+    Skipped {
+        /// Optional reason describing why execution stopped.
+        message: Option<String>,
+    },
+}
+
+impl StepExecution {
+    /// Construct a successful outcome with an optional value.
+    #[must_use]
+    pub fn from_value(value: Option<Box<dyn Any>>) -> Self {
+        Self::Continue { value }
+    }
+}
+
 /// Type alias for the stored step function pointer.
 pub type StepFn = for<'a> fn(
     &crate::context::StepContext<'a>,
     &str,
     Option<&str>,
     Option<&[&[&str]]>,
-) -> Result<Option<Box<dyn std::any::Any>>, crate::StepError>;
+) -> Result<StepExecution, crate::StepError>;

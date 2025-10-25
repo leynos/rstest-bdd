@@ -1,6 +1,6 @@
 //! Shared helpers for step error behavioural tests.
 
-use rstest_bdd::{StepContext, StepError, StepKeyword};
+use rstest_bdd::{StepContext, StepError, StepExecution, StepKeyword};
 use rstest_bdd_macros::{given, then, when};
 use std::fmt;
 
@@ -253,9 +253,7 @@ impl<'a> StepInvocation<'a> {
 ///
 /// # Panics
 /// Panics if the requested step has not been registered in the global registry.
-pub fn invoke_step(
-    invocation: &StepInvocation<'_>,
-) -> Result<Option<Box<dyn std::any::Any>>, StepError> {
+pub fn invoke_step(invocation: &StepInvocation<'_>) -> Result<StepExecution, StepError> {
     let ctx = StepContext::default();
     let step_fn = rstest_bdd::lookup_step(invocation.keyword, invocation.step_pattern.into())
         .unwrap_or_else(|| panic!("step '{}' not found in registry", invocation.step_pattern));

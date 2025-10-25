@@ -2,7 +2,9 @@
 
 use rstest::rstest;
 use rstest_bdd::localization::{ScopedLocalization, strip_directional_isolates};
-use rstest_bdd::{Step, StepContext, StepError, StepKeyword, iter, panic_message, step};
+use rstest_bdd::{
+    Step, StepContext, StepError, StepExecution, StepKeyword, iter, panic_message, step,
+};
 use unic_langid::langid;
 
 fn sample() {}
@@ -15,11 +17,11 @@ fn wrapper(
     _text: &str,
     _docstring: Option<&str>,
     _table: Option<&[&[&str]]>,
-) -> Result<Option<Box<dyn std::any::Any>>, StepError> {
+) -> Result<StepExecution, StepError> {
     // Adapter for zero-argument step functions
     let _ = ctx;
     sample();
-    Ok(None)
+    Ok(StepExecution::from_value(None))
 }
 
 step!(rstest_bdd::StepKeyword::When, "behavioural", wrapper, &[]);
@@ -29,7 +31,7 @@ fn failing_wrapper(
     _text: &str,
     _docstring: Option<&str>,
     _table: Option<&[&[&str]]>,
-) -> Result<Option<Box<dyn std::any::Any>>, StepError> {
+) -> Result<StepExecution, StepError> {
     let _ = ctx;
     Err(StepError::ExecutionError {
         pattern: "fails".into(),
@@ -50,7 +52,7 @@ fn panicking_wrapper(
     _text: &str,
     _docstring: Option<&str>,
     _table: Option<&[&[&str]]>,
-) -> Result<Option<Box<dyn std::any::Any>>, StepError> {
+) -> Result<StepExecution, StepError> {
     use std::panic::{AssertUnwindSafe, catch_unwind};
     let _ = ctx;
     catch_unwind(AssertUnwindSafe(|| panic!("snap"))).map_err(|e| StepError::PanicError {
@@ -58,7 +60,7 @@ fn panicking_wrapper(
         function: "panicking_wrapper".into(),
         message: panic_message(e.as_ref()),
     })?;
-    Ok(None)
+    Ok(StepExecution::from_value(None))
 }
 
 step!(
@@ -73,14 +75,16 @@ fn needs_fixture_wrapper(
     _text: &str,
     _docstring: Option<&str>,
     _table: Option<&[&[&str]]>,
-) -> Result<Option<Box<dyn std::any::Any>>, StepError> {
-    ctx.get::<u32>("missing")
-        .map(|_| None)
-        .ok_or_else(|| StepError::MissingFixture {
+) -> Result<StepExecution, StepError> {
+    if ctx.get::<u32>("missing").is_some() {
+        Ok(StepExecution::from_value(None))
+    } else {
+        Err(StepError::MissingFixture {
             name: "missing".into(),
             ty: "u32".into(),
             step: "needs_fixture".into(),
         })
+    }
 }
 
 step!(

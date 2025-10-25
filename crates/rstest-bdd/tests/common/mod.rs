@@ -1,6 +1,6 @@
 //! Common helper functions for behavioural tests.
 
-use rstest_bdd::{StepContext, StepError};
+use rstest_bdd::{StepContext, StepError, StepExecution};
 
 /// No-op step wrapper matching the `StepFn` signature.
 ///
@@ -10,7 +10,10 @@ use rstest_bdd::{StepContext, StepError};
 ///
 /// step!(StepKeyword::Given, "example", noop_wrapper, &[]);
 /// let runner = find_step(StepKeyword::Given, "example".into()).unwrap();
-/// runner(&StepContext::default(), "example", None, None).unwrap();
+/// match runner(&StepContext::default(), "example", None, None) {
+///     Ok(rstest_bdd::StepExecution::Continue { .. }) => {}
+///     other => panic!("unexpected step outcome: {other:?}"),
+/// }
 /// ```
 #[expect(
     clippy::unnecessary_wraps,
@@ -21,7 +24,7 @@ pub fn noop_wrapper(
     _text: &str,
     _docstring: Option<&str>,
     _table: Option<&[&[&str]]>,
-) -> Result<Option<Box<dyn std::any::Any>>, StepError> {
+) -> Result<StepExecution, StepError> {
     let _ = ctx;
-    Ok(None)
+    Ok(StepExecution::from_value(None))
 }

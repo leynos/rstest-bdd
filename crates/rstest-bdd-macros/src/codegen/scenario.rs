@@ -45,6 +45,8 @@ pub(crate) struct ScenarioConfig<'a> {
     pub(crate) steps: Vec<crate::parsing::feature::ParsedStep>,
     /// Examples table for scenario outlines.
     pub(crate) examples: Option<crate::parsing::examples::ExampleTable>,
+    /// Whether the scenario permits skipping without failing the suite.
+    pub(crate) allow_skipped: bool,
 }
 
 /// Generate tokens representing an optional data table.
@@ -142,6 +144,10 @@ fn process_steps(
     (keyword_tokens, values, docstrings, tables)
 }
 
+pub(crate) fn scenario_allows_skip(tags: &[String]) -> bool {
+    tags.iter().any(|tag| tag == "@allow_skipped")
+}
+
 /// Grouped tokens for scenario steps.
 struct ProcessedSteps {
     keyword_tokens: Vec<TokenStream2>,
@@ -156,6 +162,7 @@ struct TestTokensConfig<'a> {
     feature_path: &'a str,
     scenario_name: &'a str,
     block: &'a syn::Block,
+    allow_skipped: bool,
 }
 
 /// Generate the inner body of the scenario test.
@@ -193,23 +200,32 @@ fn generate_test_tokens(
         feature_path,
         scenario_name,
         block,
+        allow_skipped,
     } = config;
 
     let path = crate::codegen::rstest_bdd_path();
+    let allow_literal = syn::LitBool::new(allow_skipped, proc_macro2::Span::call_site());
     quote! {
         let steps = [#((#keyword_tokens, #values, #docstrings, #tables)),*];
+        let allow_skipped: bool = #allow_literal;
         let mut ctx = {
             let mut ctx = #path::StepContext::default();
             #(#ctx_inserts)*
             ctx
         };
+        let mut skipped: Option<Option<String>> = None;
         for (index, (keyword, text, docstring, table)) in steps.iter().enumerate() {
             if let Some(f) = #path::find_step(*keyword, (*text).into()) {
                 match f(&ctx, *text, *docstring, *table) {
-                    Ok(Some(val)) => {
-                        let _ = ctx.insert_value(val);
+                    Ok(#path::StepExecution::Continue { value }) => {
+                        if let Some(val) = value {
+                            let _ = ctx.insert_value(val);
+                        }
                     },
-                    Ok(None) => {},
+                    Ok(#path::StepExecution::Skipped { message }) => {
+                        skipped = Some(message);
+                        break;
+                    },
                     Err(err) => {
                         panic!(
                             "Step failed at index {}: {} {} - {}\n(feature: {}, scenario: {})",
@@ -233,6 +249,18 @@ fn generate_test_tokens(
                 );
             }
         }
+        if let Some(message) = skipped {
+            if #path::config::fail_on_skipped() && !allow_skipped {
+                let detail = message.as_deref().unwrap_or("scenario skipped");
+                panic!(
+                    "Scenario skipped with fail_on_skipped enabled: {}\n(feature: {}, scenario: {})",
+                    detail,
+                    #feature_path,
+                    #scenario_name
+                );
+            }
+            return;
+        }
         #block
     }
 }
@@ -251,6 +279,7 @@ pub(crate) fn generate_scenario_code(
         scenario_name,
         steps,
         examples,
+        allow_skipped,
     } = config;
     let (keyword_tokens, values, docstrings, tables) = process_steps(&steps);
     debug_assert_eq!(keyword_tokens.len(), steps.len());
@@ -265,6 +294,7 @@ pub(crate) fn generate_scenario_code(
         feature_path: &feature_path,
         scenario_name: &scenario_name,
         block,
+        allow_skipped,
     };
     let case_attrs = examples.map_or_else(Vec::new, |ex| generate_case_attrs(&ex));
     let body = generate_test_tokens(test_config, ctx_inserts);
