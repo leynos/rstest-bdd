@@ -32,9 +32,9 @@ uses auto traits and negative impls, yet those nightly-only features live
 behind the existing `rust-toolchain.toml` pin and do not alter the public MSRV.
 Step definitions and writers remain synchronous functions; the framework no
 longer depends on the `async-trait` crate to express async methods in traits.
-If you previously used `#[async_trait]` in helper traits, replace those methods
-with ordinary functions—`StepFn` continues to execute synchronously and exposes
-results via `StepExecution`.
+Projects that previously relied on `#[async_trait]` in helper traits should
+replace those methods with ordinary functions—`StepFn` continues to execute
+synchronously and exposes results via `StepExecution`.
 
 ## The three amigos
 

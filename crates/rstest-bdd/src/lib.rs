@@ -32,6 +32,7 @@ pub use inventory::{iter, submit};
 mod context;
 pub mod datatable;
 pub mod localization;
+mod panic_support;
 mod pattern;
 mod placeholder;
 mod registry;
@@ -174,36 +175,7 @@ fn dump_steps() {
     }
 }
 
-/// Extracts a panic payload into a human-readable message.
-///
-/// Attempts to downcast common primitives before falling back to the
-/// `Debug` representation of the payload.
-///
-/// # Examples
-/// ```
-/// use rstest_bdd::panic_message;
-///
-/// let err = std::panic::catch_unwind(|| panic!("boom"))
-///     .expect_err("expected panic");
-/// assert_eq!(panic_message(err.as_ref()), "boom");
-/// ```
-pub fn panic_message(e: &(dyn std::any::Any + Send)) -> String {
-    macro_rules! try_downcast {
-        ($($ty:ty),* $(,)?) => {
-            $(
-                if let Some(val) = e.downcast_ref::<$ty>() {
-                    return val.to_string();
-                }
-            )*
-        };
-    }
-
-    try_downcast!(&str, String, i32, u32, i64, u64, isize, usize, f32, f64);
-    let ty = format!("{:?}", e.type_id());
-    localization::message_with_args("panic-message-opaque-payload", |args| {
-        args.set("type", ty);
-    })
-}
+pub use panic_support::panic_message;
 
 /// Error type produced by step wrappers.
 ///

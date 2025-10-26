@@ -25,6 +25,15 @@ fn assert_panic_in_french(op: impl FnOnce(), expected_substring: &str) {
     );
 }
 
+#[test]
+fn panic_message_reports_type_hint_for_opaque_payload() {
+    let message = capture_panic_message(|| std::panic::panic_any(()));
+    assert!(
+        message.contains("TypeId("),
+        "opaque payload hints should include a TypeId, got: {message}"
+    );
+}
+
 fn assert_step_ok_panics() {
     let res: Result<(), &str> = Err("boom");
     assert_step_ok!(res);
