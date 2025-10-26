@@ -1,5 +1,4 @@
 //! Core library for `rstest-bdd`.
-//!
 //! ⚠️ This crate currently requires the Rust nightly compiler because it
 //! relies on auto traits and negative impls to normalise step return values.
 //! This crate exposes helper utilities used by behaviour tests. It also defines
@@ -7,6 +6,9 @@
 #![feature(auto_traits, negative_impls)]
 
 extern crate self as rstest_bdd;
+
+pub mod config;
+mod skip;
 
 /// Returns a greeting for the library.
 ///
@@ -35,6 +37,22 @@ mod placeholder;
 mod registry;
 pub mod state;
 mod types;
+
+/// Skip the current scenario with an optional message.
+///
+/// Step or hook functions may invoke the macro to stop executing the remaining
+/// steps. When the [`config::fail_on_skipped`](crate::config::fail_on_skipped)
+/// flag is enabled, scenarios without the `@allow_skipped` tag panic after the
+/// last executed step instead of being recorded as skipped.
+#[macro_export]
+macro_rules! skip {
+    () => {
+        $crate::SkipRequest::raise(None)
+    };
+    ($msg:expr $(,)?) => {
+        $crate::SkipRequest::raise(Some(Into::<String>::into($msg)))
+    };
+}
 
 /// Assert that a [`Result`] is `Ok` and unwrap it.
 ///
@@ -126,9 +144,11 @@ pub use placeholder::extract_placeholders;
 #[cfg(feature = "diagnostics")]
 pub use registry::dump_registry;
 pub use registry::{Step, duplicate_steps, find_step, lookup_step, unused_steps};
+#[doc(hidden)]
+pub use skip::SkipRequest;
 pub use state::{ScenarioState, Slot};
 pub use types::{
-    PatternStr, PlaceholderError, PlaceholderSyntaxError, StepFn, StepKeyword,
+    PatternStr, PlaceholderError, PlaceholderSyntaxError, StepExecution, StepFn, StepKeyword,
     StepKeywordParseError, StepPatternError, StepText, UnsupportedStepType,
 };
 
@@ -376,6 +396,5 @@ impl<T: std::any::Any + NotUnit, E: std::fmt::Display> IntoStepResult for Result
             .map_err(|e| e.to_string())
     }
 }
-
 #[cfg(test)]
 mod internal_tests;

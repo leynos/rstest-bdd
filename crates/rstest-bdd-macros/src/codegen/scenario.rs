@@ -2,30 +2,14 @@
 
 use proc_macro::TokenStream;
 use proc_macro2::TokenStream as TokenStream2;
-use quote::{ToTokens, quote};
+use quote::quote;
 
-/// Create a `LitStr` from an examples table cell.
-fn cell_to_lit(value: &str) -> syn::LitStr {
-    syn::LitStr::new(value, proc_macro2::Span::call_site())
-}
+mod helpers;
+mod metadata;
 
-/// Generate attributes for rstest cases based on examples.
-pub(crate) fn generate_case_attrs(
-    examples: &crate::parsing::examples::ExampleTable,
-) -> Vec<TokenStream2> {
-    examples
-        .rows
-        .iter()
-        .filter(|row| row.iter().any(|cell| !cell.is_empty()))
-        .map(|row| {
-            let cells = row.iter().map(|v| {
-                let lit = cell_to_lit(v);
-                quote! { #lit }
-            });
-            quote! { #[case( #(#cells),* )] }
-        })
-        .collect()
-}
+use helpers::generate_case_attrs;
+pub(crate) use helpers::process_steps;
+pub(crate) use metadata::{FeaturePath, ScenarioName};
 
 /// Configuration for generating code for a single scenario test.
 pub(crate) struct ScenarioConfig<'a> {
@@ -38,108 +22,19 @@ pub(crate) struct ScenarioConfig<'a> {
     /// Function body.
     pub(crate) block: &'a syn::Block,
     /// Fully qualified feature file path.
-    pub(crate) feature_path: String,
+    pub(crate) feature_path: FeaturePath,
     /// Name of the scenario.
-    pub(crate) scenario_name: String,
+    pub(crate) scenario_name: ScenarioName,
     /// Steps in the scenario.
     pub(crate) steps: Vec<crate::parsing::feature::ParsedStep>,
     /// Examples table for scenario outlines.
     pub(crate) examples: Option<crate::parsing::examples::ExampleTable>,
+    /// Whether the scenario permits skipping without failing the suite.
+    pub(crate) allow_skipped: bool,
 }
 
-/// Generate tokens representing an optional data table.
-///
-/// # Examples
-/// ```rust,ignore
-/// let tokens = generate_table_tokens(None);
-/// assert_eq!(tokens.to_string(), "None");
-/// ```
-fn generate_table_tokens(table: Option<&[Vec<String>]>) -> TokenStream2 {
-    table.map_or_else(
-        || quote! { None },
-        |rows| {
-            if rows.is_empty() {
-                // Explicitly type the empty slice to avoid inference pitfalls when no rows exist.
-                quote! { Some(&[] as &[&[&str]]) }
-            } else {
-                let row_tokens = rows.iter().map(|row| {
-                    let cells = row.iter().map(|cell| {
-                        let lit = cell_to_lit(cell);
-                        quote! { #lit }
-                    });
-                    quote! { &[#(#cells),*][..] }
-                });
-                quote! { Some(&[#(#row_tokens),*][..]) }
-            }
-        },
-    )
-}
-
-/// Process parsed steps into tokens for keywords, values, and tables.
-///
-/// # Examples
-/// ```rust,ignore
-/// use crate::StepKeyword;
-/// use crate::parsing::feature::ParsedStep;
-/// // Note: `span` is available only with the `compile-time-validation` feature.
-/// let steps = vec![ParsedStep {
-///     keyword: StepKeyword::Given,
-///     text: "x".into(),
-///     docstring: None,
-///     table: None,
-///     span: proc_macro2::Span::call_site(),
-/// }];
-/// let (k, v, t) = process_steps(&steps);
-/// assert_eq!(v.len(), 1);
-/// ```
-fn process_steps(
-    steps: &[crate::parsing::feature::ParsedStep],
-) -> (
-    Vec<TokenStream2>,
-    Vec<TokenStream2>,
-    Vec<TokenStream2>,
-    Vec<TokenStream2>,
-) {
-    // Resolve textual conjunctions (And/But) to the previous primary keyword
-    // without depending on the validation module, which is behind an optional
-    // feature. We seed with the first primary keyword or Given by default.
-    let keyword_tokens = {
-        let mut prev = steps
-            .iter()
-            .find_map(|s| match s.keyword {
-                crate::StepKeyword::And | crate::StepKeyword::But => None,
-                other => Some(other),
-            })
-            .or(Some(crate::StepKeyword::Given));
-        steps.iter().map(move |s| s.keyword.resolve(&mut prev))
-    }
-    .map(|kw| kw.to_token_stream())
-    .collect::<Vec<_>>();
-    debug_assert_eq!(keyword_tokens.len(), steps.len());
-    let values = steps
-        .iter()
-        .map(|s| {
-            let lit = cell_to_lit(&s.text);
-            quote! { #lit }
-        })
-        .collect();
-    let docstrings = steps
-        .iter()
-        .map(|s| {
-            s.docstring.as_ref().map_or_else(
-                || quote! { None },
-                |d| {
-                    let lit = syn::LitStr::new(d, proc_macro2::Span::call_site());
-                    quote! { Some(#lit) }
-                },
-            )
-        })
-        .collect();
-    let tables = steps
-        .iter()
-        .map(|s| generate_table_tokens(s.table.as_deref()))
-        .collect();
-    (keyword_tokens, values, docstrings, tables)
+pub(crate) fn scenario_allows_skip(tags: &[String]) -> bool {
+    tags.iter().any(|tag| tag == "@allow_skipped")
 }
 
 /// Grouped tokens for scenario steps.
@@ -153,9 +48,114 @@ struct ProcessedSteps {
 /// Configuration for generating test tokens.
 struct TestTokensConfig<'a> {
     processed_steps: ProcessedSteps,
-    feature_path: &'a str,
-    scenario_name: &'a str,
+    feature_path: &'a FeaturePath,
+    scenario_name: &'a ScenarioName,
     block: &'a syn::Block,
+    allow_skipped: bool,
+}
+
+fn execute_single_step(feature_path: &FeaturePath, scenario_name: &ScenarioName) -> TokenStream2 {
+    let _ = feature_path.as_str();
+    let _ = scenario_name.as_str();
+    let path = crate::codegen::rstest_bdd_path();
+    quote! {
+        #[expect(
+            clippy::too_many_arguments,
+            reason = "helper mirrors generated step inputs to keep panic messaging intact",
+        )]
+        fn execute_single_step(
+            index: usize,
+            keyword: #path::StepKeyword,
+            text: &str,
+            docstring: Option<&str>,
+            table: Option<&[&[&str]]>,
+            ctx: &#path::StepContext,
+            feature_path: &str,
+            scenario_name: &str,
+        ) -> Result<Option<Box<dyn std::any::Any>>, String> {
+            if let Some(f) = #path::find_step(keyword, text.into()) {
+                match f(ctx, text, docstring, table) {
+                    Ok(#path::StepExecution::Continue { value }) => Ok(value),
+                    Ok(#path::StepExecution::Skipped { message }) => {
+                        let encoded = message.map_or_else(
+                            || SKIP_NONE_PREFIX.to_string(),
+                            |msg| {
+                                let mut encoded = String::with_capacity(1 + msg.len());
+                                encoded.push(SKIP_SOME_PREFIX);
+                                encoded.push_str(&msg);
+                                encoded
+                            },
+                        );
+                        Err(encoded)
+                    }
+                    Err(err) => {
+                        panic!(
+                            "Step failed at index {}: {} {} - {}\n(feature: {}, scenario: {})",
+                            index,
+                            keyword.as_str(),
+                            text,
+                            err,
+                            feature_path,
+                            scenario_name
+                        );
+                    }
+                }
+            } else {
+                panic!(
+                    "Step not found at index {}: {} {} (feature: {}, scenario: {})",
+                    index,
+                    keyword.as_str(),
+                    text,
+                    feature_path,
+                    scenario_name
+                );
+            }
+        }
+    }
+}
+
+fn validate_skip_result(feature_path: &FeaturePath, scenario_name: &ScenarioName) -> TokenStream2 {
+    let _ = feature_path.as_str();
+    let _ = scenario_name.as_str();
+    let path = crate::codegen::rstest_bdd_path();
+    quote! {
+        fn validate_skip_result(
+            skipped: Option<Option<String>>,
+            allow_skipped: bool,
+            feature_path: &str,
+            scenario_name: &str,
+        ) -> bool {
+            if let Some(message) = skipped {
+                if #path::config::fail_on_skipped() && !allow_skipped {
+                    let detail = message.unwrap_or_else(|| "scenario skipped".to_string());
+                    panic!(
+                        "Scenario skipped with fail_on_skipped enabled: {}\n(feature: {}, scenario: {})",
+                        detail,
+                        feature_path,
+                        scenario_name
+                    );
+                }
+                false
+            } else {
+                true
+            }
+        }
+    }
+}
+
+fn generate_skip_decoder() -> TokenStream2 {
+    quote! {
+        fn decode_skip_message(encoded: String) -> Option<String> {
+            match encoded.chars().next() {
+                Some(prefix) if prefix == SKIP_NONE_PREFIX => None,
+                Some(prefix) if prefix == SKIP_SOME_PREFIX => {
+                    let prefix_len = prefix.len_utf8();
+                    Some(encoded[prefix_len..].to_string())
+                }
+                _ => Some(encoded),
+            }
+        }
+    }
 }
 
 /// Generate the inner body of the scenario test.
@@ -171,8 +171,8 @@ struct TestTokensConfig<'a> {
 /// };
 /// let config = TestTokensConfig {
 ///     processed_steps: processed,
-///     feature_path: "feature",
-///     scenario_name: "scenario",
+///     feature_path: &FeaturePath::new("feature"),
+///     scenario_name: &ScenarioName::new("scenario"),
 ///     block: &parse_quote!({}),
 /// };
 /// let body = generate_test_tokens(config, std::iter::empty());
@@ -193,45 +193,57 @@ fn generate_test_tokens(
         feature_path,
         scenario_name,
         block,
+        allow_skipped,
     } = config;
 
     let path = crate::codegen::rstest_bdd_path();
+    let allow_literal = syn::LitBool::new(allow_skipped, proc_macro2::Span::call_site());
+    let feature_literal = syn::LitStr::new(feature_path.as_str(), proc_macro2::Span::call_site());
+    let scenario_literal = syn::LitStr::new(scenario_name.as_str(), proc_macro2::Span::call_site());
+    let step_executor = execute_single_step(feature_path, scenario_name);
+    let skip_validator = validate_skip_result(feature_path, scenario_name);
+    let skip_decoder = generate_skip_decoder();
     quote! {
+        const FEATURE_PATH: &str = #feature_literal;
+        const SCENARIO_NAME: &str = #scenario_literal;
+        const SKIP_NONE_PREFIX: char = '\u{0}';
+        const SKIP_SOME_PREFIX: char = '\u{1}';
+        #step_executor
+        #skip_validator
+        #skip_decoder
+
         let steps = [#((#keyword_tokens, #values, #docstrings, #tables)),*];
+        let allow_skipped: bool = #allow_literal;
         let mut ctx = {
             let mut ctx = #path::StepContext::default();
             #(#ctx_inserts)*
             ctx
         };
+        let mut skipped: Option<Option<String>> = None;
         for (index, (keyword, text, docstring, table)) in steps.iter().enumerate() {
-            if let Some(f) = #path::find_step(*keyword, (*text).into()) {
-                match f(&ctx, *text, *docstring, *table) {
-                    Ok(Some(val)) => {
+            match execute_single_step(
+                index,
+                *keyword,
+                *text,
+                *docstring,
+                *table,
+                &ctx,
+                FEATURE_PATH,
+                SCENARIO_NAME,
+            ) {
+                Ok(value) => {
+                    if let Some(val) = value {
                         let _ = ctx.insert_value(val);
-                    },
-                    Ok(None) => {},
-                    Err(err) => {
-                        panic!(
-                            "Step failed at index {}: {} {} - {}\n(feature: {}, scenario: {})",
-                            index,
-                            keyword.as_str(),
-                            text,
-                            err,
-                            #feature_path,
-                            #scenario_name
-                        );
                     }
                 }
-            } else {
-                panic!(
-                    "Step not found at index {}: {} {} (feature: {}, scenario: {})",
-                    index,
-                    keyword.as_str(),
-                    text,
-                    #feature_path,
-                    #scenario_name
-                );
+                Err(encoded) => {
+                    skipped = Some(decode_skip_message(encoded));
+                    break;
+                }
             }
+        }
+        if !validate_skip_result(skipped, allow_skipped, FEATURE_PATH, SCENARIO_NAME) {
+            return;
         }
         #block
     }
@@ -251,6 +263,7 @@ pub(crate) fn generate_scenario_code(
         scenario_name,
         steps,
         examples,
+        allow_skipped,
     } = config;
     let (keyword_tokens, values, docstrings, tables) = process_steps(&steps);
     debug_assert_eq!(keyword_tokens.len(), steps.len());
@@ -265,6 +278,7 @@ pub(crate) fn generate_scenario_code(
         feature_path: &feature_path,
         scenario_name: &scenario_name,
         block,
+        allow_skipped,
     };
     let case_attrs = examples.map_or_else(Vec::new, |ex| generate_case_attrs(&ex));
     let body = generate_test_tokens(test_config, ctx_inserts);
@@ -277,59 +291,4 @@ pub(crate) fn generate_scenario_code(
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::parsing::feature::ParsedStep;
-
-    #[expect(clippy::expect_used, reason = "test helper with descriptive failures")]
-    fn kw(ts: &TokenStream2) -> crate::StepKeyword {
-        let path = syn::parse2::<syn::Path>(ts.clone()).expect("keyword path");
-        let ident = path.segments.last().expect("last").ident.to_string();
-        crate::StepKeyword::try_from(ident.as_str()).expect("valid step keyword")
-    }
-
-    fn blank() -> ParsedStep {
-        ParsedStep {
-            keyword: crate::StepKeyword::Given,
-            text: String::new(),
-            docstring: None,
-            table: None,
-            #[cfg(feature = "compile-time-validation")]
-            span: proc_macro2::Span::call_site(),
-        }
-    }
-
-    #[rstest::rstest]
-    #[case::leading_and(
-        vec![crate::StepKeyword::And, crate::StepKeyword::Then],
-        vec![crate::StepKeyword::Then, crate::StepKeyword::Then],
-    )]
-    #[case::leading_but(
-        vec![crate::StepKeyword::But, crate::StepKeyword::Then],
-        vec![crate::StepKeyword::Then, crate::StepKeyword::Then],
-    )]
-    #[case::mixed(
-        vec![crate::StepKeyword::Given, crate::StepKeyword::And, crate::StepKeyword::But, crate::StepKeyword::Then],
-        vec![crate::StepKeyword::Given, crate::StepKeyword::Given, crate::StepKeyword::Given, crate::StepKeyword::Then],
-    )]
-    #[case::all_conjunctions(
-        vec![crate::StepKeyword::And, crate::StepKeyword::But, crate::StepKeyword::And],
-        vec![crate::StepKeyword::Given, crate::StepKeyword::Given, crate::StepKeyword::Given],
-    )]
-    #[case::empty(vec![], vec![])]
-    fn normalises_sequences(
-        #[case] seq: Vec<crate::StepKeyword>,
-        #[case] expect: Vec<crate::StepKeyword>,
-    ) {
-        let steps: Vec<_> = seq
-            .into_iter()
-            .map(|k| ParsedStep {
-                keyword: k,
-                ..blank()
-            })
-            .collect();
-        let (keyword_tokens, _, _, _) = process_steps(&steps);
-        let parsed: Vec<_> = keyword_tokens.iter().map(kw).collect();
-        assert_eq!(parsed, expect);
-    }
-}
+mod tests;

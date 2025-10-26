@@ -33,7 +33,7 @@ fn wrapper_handles_text_capture_without_shadowing() {
         .expect("step should be registered for '{text} arrives'");
     *CAPTURED_TEXT.lock().expect("capture mutex poisoned") = None;
 
-    assert_step_ok!(step_fn(&ctx, step_text, None, None));
+    let _ = assert_step_ok!(step_fn(&ctx, step_text, None, None));
 
     let captured = CAPTURED_TEXT
         .lock()

@@ -20,7 +20,7 @@ fn passes_captured_value() {
         lookup_step(StepKeyword::Given, "number {value:u32}".into()).expect("step missing");
     let ctx = StepContext::default();
     #[expect(clippy::expect_used, reason = "matching text should succeed")]
-    step_fn(&ctx, "number 41", None, None).expect("step should match");
+    let _ = step_fn(&ctx, "number 41", None, None).expect("step should match");
     assert_eq!(CAPTURED.load(Ordering::Relaxed), 41);
 }
 

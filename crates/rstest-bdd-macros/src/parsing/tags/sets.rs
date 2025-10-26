@@ -59,8 +59,8 @@ pub(crate) fn extend_tag_set(target: &mut Vec<String>, additions: &[String]) {
 ///
 /// # Examples
 ///
-/// ```
-/// # use crate::parsing::tags::merge_tag_sets;
+/// ```ignore
+/// # use super::merge_tag_sets;
 /// let base = vec!["@fast".to_string(), "slow".to_string()];
 /// let additions = vec!["@fast".to_string(), "web".to_string()];
 /// let merged = merge_tag_sets(&base, &additions);

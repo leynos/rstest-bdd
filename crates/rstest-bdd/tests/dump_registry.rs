@@ -1,7 +1,7 @@
 #![cfg(feature = "diagnostics")]
 //! Unit tests for registry dumping.
 
-use rstest_bdd::{StepContext, StepKeyword, dump_registry, find_step, step};
+use rstest_bdd::{StepContext, StepExecution, StepKeyword, dump_registry, find_step, step};
 use serde_json::Value;
 
 mod common;
@@ -14,8 +14,11 @@ step!(StepKeyword::Given, "dump unused", noop_wrapper, &[]);
 fn reports_usage_flags() {
     let runner = find_step(StepKeyword::Given, "dump used".into())
         .unwrap_or_else(|| panic!("step not found"));
-    runner(&StepContext::default(), "dump used", None, None)
-        .unwrap_or_else(|e| panic!("execution failed: {e}"));
+    match runner(&StepContext::default(), "dump used", None, None) {
+        Ok(StepExecution::Continue { .. }) => {}
+        Ok(StepExecution::Skipped { .. }) => panic!("step unexpectedly skipped"),
+        Err(e) => panic!("execution failed: {e}"),
+    }
 
     let json = dump_registry().unwrap_or_else(|e| panic!("dump registry: {e}"));
     let parsed: Value = serde_json::from_str(&json).unwrap_or_else(|e| panic!("valid json: {e}"));

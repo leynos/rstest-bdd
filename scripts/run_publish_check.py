@@ -110,7 +110,7 @@ DEFAULT_PUBLISH_TIMEOUT_SECS = 900
 
 app = App(
     config=cyclopts.config.Env("PUBLISH_CHECK_", command=False),
-    result_action="return_value",
+    result_action="sys_exit",
 )
 
 

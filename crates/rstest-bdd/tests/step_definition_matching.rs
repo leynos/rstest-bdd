@@ -2,7 +2,7 @@
 
 use std::sync::atomic::{AtomicUsize, Ordering};
 
-use rstest_bdd::{StepContext, StepKeyword, find_step};
+use rstest_bdd::{StepContext, StepExecution, StepKeyword, find_step};
 use rstest_bdd_macros::given;
 
 static GENERIC_CALLED: AtomicUsize = AtomicUsize::new(0);
@@ -33,8 +33,10 @@ fn find_step_executes_single_match() {
     #[expect(clippy::expect_used, reason = "test ensures step exists")]
     let step_fn = find_step(StepKeyword::Given, "a unique step".into()).expect("step not found");
     let ctx = StepContext::default();
-    if let Err(e) = step_fn(&ctx, "a unique step", None, None) {
-        panic!("unexpected error: {e:?}");
+    match step_fn(&ctx, "a unique step", None, None) {
+        Ok(StepExecution::Continue { .. }) => {}
+        Ok(StepExecution::Skipped { .. }) => panic!("step unexpectedly skipped"),
+        Err(e) => panic!("unexpected error: {e:?}"),
     }
 }
 
@@ -45,8 +47,10 @@ fn find_step_runs_one_of_multiple_matches() {
     #[expect(clippy::expect_used, reason = "test ensures step exists")]
     let step_fn = find_step(StepKeyword::Given, "overlap apples".into()).expect("step not found");
     let ctx = StepContext::default();
-    if let Err(e) = step_fn(&ctx, "overlap apples", None, None) {
-        panic!("unexpected error: {e:?}");
+    match step_fn(&ctx, "overlap apples", None, None) {
+        Ok(StepExecution::Continue { .. }) => {}
+        Ok(StepExecution::Skipped { .. }) => panic!("step unexpectedly skipped"),
+        Err(e) => panic!("unexpected error: {e:?}"),
     }
     let generic = GENERIC_CALLED.load(Ordering::Relaxed);
     let specific = SPECIFIC_CALLED.load(Ordering::Relaxed);
