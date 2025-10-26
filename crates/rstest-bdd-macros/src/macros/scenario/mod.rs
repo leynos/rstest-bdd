@@ -27,7 +27,7 @@ use proc_macro::TokenStream;
 use proc_macro2::Span;
 use std::path::PathBuf;
 
-use crate::codegen::scenario::{ScenarioConfig, generate_scenario_code};
+use crate::codegen::scenario::{FeaturePath, ScenarioConfig, ScenarioName, generate_scenario_code};
 use crate::parsing::feature::{ScenarioData, extract_scenario_steps, parse_and_load_feature};
 use crate::parsing::tags::TagExpression;
 use crate::utils::fixtures::extract_function_fixtures;
@@ -114,8 +114,8 @@ fn try_scenario(
             vis,
             sig,
             block,
-            feature_path: feature_path_str,
-            scenario_name,
+            feature_path: FeaturePath::new(feature_path_str),
+            scenario_name: ScenarioName::new(scenario_name),
             steps,
             examples,
             allow_skipped,

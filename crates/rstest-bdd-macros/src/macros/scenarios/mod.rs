@@ -16,7 +16,7 @@ use quote::{format_ident, quote};
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 
-use crate::codegen::scenario::{ScenarioConfig, generate_scenario_code};
+use crate::codegen::scenario::{FeaturePath, ScenarioConfig, ScenarioName, generate_scenario_code};
 use crate::parsing::feature::{ScenarioData, extract_scenario_steps, parse_and_load_feature};
 use crate::parsing::tags::TagExpression;
 use crate::utils::errors::{error_to_tokens, normalized_dir_read_error};
@@ -89,8 +89,8 @@ fn generate_scenario_test(
         vis: &vis,
         sig: &sig,
         block: &block,
-        feature_path,
-        scenario_name: name,
+        feature_path: FeaturePath::new(feature_path),
+        scenario_name: ScenarioName::new(name),
         steps,
         examples,
         allow_skipped,

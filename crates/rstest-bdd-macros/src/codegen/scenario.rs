@@ -3,6 +3,83 @@
 use proc_macro::TokenStream;
 use proc_macro2::TokenStream as TokenStream2;
 use quote::{ToTokens, quote};
+use std::fmt;
+
+/// Path to a feature file on disk.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct FeaturePath(String);
+
+impl FeaturePath {
+    pub(crate) fn new(value: impl Into<String>) -> Self {
+        Self(value.into())
+    }
+
+    pub(crate) fn as_str(&self) -> &str {
+        self.0.as_str()
+    }
+}
+
+impl From<String> for FeaturePath {
+    fn from(value: String) -> Self {
+        Self::new(value)
+    }
+}
+
+impl From<&str> for FeaturePath {
+    fn from(value: &str) -> Self {
+        Self::new(value)
+    }
+}
+
+impl AsRef<str> for FeaturePath {
+    fn as_ref(&self) -> &str {
+        self.as_str()
+    }
+}
+
+impl fmt::Display for FeaturePath {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+
+/// Name of an individual Gherkin scenario.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct ScenarioName(String);
+
+impl ScenarioName {
+    pub(crate) fn new(value: impl Into<String>) -> Self {
+        Self(value.into())
+    }
+
+    pub(crate) fn as_str(&self) -> &str {
+        self.0.as_str()
+    }
+}
+
+impl From<String> for ScenarioName {
+    fn from(value: String) -> Self {
+        Self::new(value)
+    }
+}
+
+impl From<&str> for ScenarioName {
+    fn from(value: &str) -> Self {
+        Self::new(value)
+    }
+}
+
+impl AsRef<str> for ScenarioName {
+    fn as_ref(&self) -> &str {
+        self.as_str()
+    }
+}
+
+impl fmt::Display for ScenarioName {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
 
 /// Create a `LitStr` from an examples table cell.
 fn cell_to_lit(value: &str) -> syn::LitStr {
@@ -38,9 +115,9 @@ pub(crate) struct ScenarioConfig<'a> {
     /// Function body.
     pub(crate) block: &'a syn::Block,
     /// Fully qualified feature file path.
-    pub(crate) feature_path: String,
+    pub(crate) feature_path: FeaturePath,
     /// Name of the scenario.
-    pub(crate) scenario_name: String,
+    pub(crate) scenario_name: ScenarioName,
     /// Steps in the scenario.
     pub(crate) steps: Vec<crate::parsing::feature::ParsedStep>,
     /// Examples table for scenario outlines.
@@ -159,13 +236,15 @@ struct ProcessedSteps {
 /// Configuration for generating test tokens.
 struct TestTokensConfig<'a> {
     processed_steps: ProcessedSteps,
-    feature_path: &'a str,
-    scenario_name: &'a str,
+    feature_path: &'a FeaturePath,
+    scenario_name: &'a ScenarioName,
     block: &'a syn::Block,
     allow_skipped: bool,
 }
 
-fn execute_single_step(_feature_path: &str, _scenario_name: &str) -> TokenStream2 {
+fn execute_single_step(feature_path: &FeaturePath, scenario_name: &ScenarioName) -> TokenStream2 {
+    let _ = feature_path.as_str();
+    let _ = scenario_name.as_str();
     let path = crate::codegen::rstest_bdd_path();
     quote! {
         #[allow(
@@ -214,7 +293,9 @@ fn execute_single_step(_feature_path: &str, _scenario_name: &str) -> TokenStream
     }
 }
 
-fn validate_skip_result(_feature_path: &str, _scenario_name: &str) -> TokenStream2 {
+fn validate_skip_result(feature_path: &FeaturePath, scenario_name: &ScenarioName) -> TokenStream2 {
+    let _ = feature_path.as_str();
+    let _ = scenario_name.as_str();
     let path = crate::codegen::rstest_bdd_path();
     quote! {
         fn validate_skip_result(
@@ -258,8 +339,8 @@ fn validate_skip_result(_feature_path: &str, _scenario_name: &str) -> TokenStrea
 /// };
 /// let config = TestTokensConfig {
 ///     processed_steps: processed,
-///     feature_path: "feature",
-///     scenario_name: "scenario",
+///     feature_path: &FeaturePath::new("feature"),
+///     scenario_name: &ScenarioName::new("scenario"),
 ///     block: &parse_quote!({}),
 /// };
 /// let body = generate_test_tokens(config, std::iter::empty());
@@ -285,8 +366,8 @@ fn generate_test_tokens(
 
     let path = crate::codegen::rstest_bdd_path();
     let allow_literal = syn::LitBool::new(allow_skipped, proc_macro2::Span::call_site());
-    let feature_literal = syn::LitStr::new(feature_path, proc_macro2::Span::call_site());
-    let scenario_literal = syn::LitStr::new(scenario_name, proc_macro2::Span::call_site());
+    let feature_literal = syn::LitStr::new(feature_path.as_str(), proc_macro2::Span::call_site());
+    let scenario_literal = syn::LitStr::new(scenario_name.as_str(), proc_macro2::Span::call_site());
     let step_executor = execute_single_step(feature_path, scenario_name);
     let skip_validator = validate_skip_result(feature_path, scenario_name);
     quote! {
