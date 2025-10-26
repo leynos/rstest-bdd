@@ -1,10 +1,11 @@
 //! Feature file loading and scenario extraction.
 
 use gherkin::{Feature, GherkinEnv, Step, StepType};
+use once_cell::sync::Lazy;
 use std::collections::HashMap;
 use std::{
     path::{Path, PathBuf},
-    sync::{LazyLock, RwLock},
+    sync::RwLock,
 };
 
 use crate::parsing::examples::ExampleTable;
@@ -51,8 +52,8 @@ pub(crate) struct ScenarioData {
 }
 
 /// Cache parsed features to avoid repeated filesystem IO.
-static FEATURE_CACHE: LazyLock<RwLock<HashMap<PathBuf, Feature>>> =
-    LazyLock::new(|| RwLock::new(HashMap::new()));
+static FEATURE_CACHE: Lazy<RwLock<HashMap<PathBuf, Feature>>> =
+    Lazy::new(|| RwLock::new(HashMap::new()));
 
 /// Map a textual step keyword and `StepType` to a `StepKeyword`.
 ///

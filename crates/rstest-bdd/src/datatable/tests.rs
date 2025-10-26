@@ -3,7 +3,7 @@
 use std::error::Error as StdError;
 use std::fmt;
 
-use super::{DataTableError, DataTableRow, RowSpec, Rows, trimmed, truthy_bool};
+use super::{trimmed, truthy_bool, DataTableError, DataTableRow, RowSpec, Rows};
 use rstest::rstest;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -243,10 +243,9 @@ fn trimmed_reports_original_input_on_parse_failure() {
         panic!("expected parse failure");
     };
     assert_eq!(err.original_input(), " 300 ");
-    assert!(
-        err.to_string()
-            .starts_with("failed to parse trimmed value from input ' 300 '")
-    );
+    assert!(err
+        .to_string()
+        .starts_with("failed to parse trimmed value from input ' 300 '"));
 }
 
 #[test]

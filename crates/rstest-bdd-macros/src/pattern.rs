@@ -4,8 +4,8 @@
 mod validation {
     use std::sync::OnceLock;
 
-    use proc_macro_error::abort;
     use proc_macro2::Span;
+    use proc_macro_error::abort;
     use regex::Regex;
 
     use rstest_bdd_patterns::{build_regex_from_pattern, extract_captured_values};

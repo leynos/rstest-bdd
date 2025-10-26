@@ -6,10 +6,10 @@
 //! accepted spellings in duplicate and missing-argument diagnostics so users
 //! immediately see which synonym needs adjusting.
 
-use syn::LitStr;
 use syn::parse::{Parse, ParseStream};
 use syn::punctuated::Punctuated;
 use syn::token::Comma;
+use syn::LitStr;
 
 pub(super) struct ScenariosArgs {
     pub(super) dir: LitStr,

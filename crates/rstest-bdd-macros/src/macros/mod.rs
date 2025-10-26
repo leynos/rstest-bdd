@@ -15,7 +15,7 @@ pub(crate) use scenarios::scenarios;
 pub(crate) use then::then;
 pub(crate) use when::when;
 
-use crate::codegen::wrapper::{WrapperConfig, extract_args, generate_wrapper_code};
+use crate::codegen::wrapper::{extract_args, generate_wrapper_code, WrapperConfig};
 use crate::utils::{
     errors::error_to_tokens,
     pattern::{infer_pattern, placeholder_names},

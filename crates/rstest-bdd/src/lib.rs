@@ -136,14 +136,14 @@ macro_rules! assert_step_err {
 
 pub use context::StepContext;
 pub use localization::{
-    LocalizationError, Localizations, current_languages, install_localization_loader,
-    select_localizations,
+    current_languages, install_localization_loader, select_localizations, LocalizationError,
+    Localizations,
 };
 pub use pattern::StepPattern;
 pub use placeholder::extract_placeholders;
 #[cfg(feature = "diagnostics")]
 pub use registry::dump_registry;
-pub use registry::{Step, duplicate_steps, find_step, lookup_step, unused_steps};
+pub use registry::{duplicate_steps, find_step, lookup_step, unused_steps, Step};
 #[doc(hidden)]
 pub use skip::SkipRequest;
 pub use state::{ScenarioState, Slot};
@@ -199,9 +199,9 @@ pub fn panic_message(e: &(dyn std::any::Any + Send)) -> String {
     }
 
     try_downcast!(&str, String, i32, u32, i64, u64, isize, usize, f32, f64);
-    let ty = std::any::type_name_of_val(e);
+    let ty = format!("{:?}", e.type_id());
     localization::message_with_args("panic-message-opaque-payload", |args| {
-        args.set("type", ty.to_string());
+        args.set("type", ty);
     })
 }
 

@@ -21,6 +21,21 @@ behaviour, the implementation status is noted. Examples and explanations are
 organized by the so‑called *three amigos* of BDD: the business analyst/product
 owner, the developer, and the tester.
 
+## Toolchain requirements
+
+`rstest-bdd` targets Rust 1.75 or newer across every crate in the workspace.
+Each `Cargo.toml` declares `rust-version = "1.75"`, so `cargo` will refuse to
+compile the project on older stable compilers. The workspace now settles on the
+Rust 2021 edition so that the declared MSRV and edition remain compatible. The
+repository still pins a nightly toolchain for development because the runtime
+uses auto traits and negative impls, yet those nightly-only features live
+behind the existing `rust-toolchain.toml` pin and do not alter the public MSRV.
+Step definitions and writers remain synchronous functions; the framework no
+longer depends on the `async-trait` crate to express async methods in traits.
+If you previously used `#[async_trait]` in helper traits, replace those methods
+with ordinary functions—`StepFn` continues to execute synchronously and exposes
+results via `StepExecution`.
+
 ## The three amigos
 
 | Role ("amigo")                     | Primary concerns                                                                                                                  | Features provided by `rstest‑bdd`                                                                                                                                                                                                                                                                                                                                                                         |

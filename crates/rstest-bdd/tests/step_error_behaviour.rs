@@ -5,7 +5,7 @@ mod step_error_common;
 use rstest::rstest;
 use rstest_bdd::{StepExecution, StepKeyword};
 
-use step_error_common::{FancyValue, StepInvocation, invoke_step};
+use step_error_common::{invoke_step, FancyValue, StepInvocation};
 
 #[test]
 fn successful_step_execution() {

@@ -1,8 +1,9 @@
 [package]
 name = "japanese-ledger"
 version = "0.1.0"
-edition = "2024"
+edition.workspace = true
 publish = false
+rust-version.workspace = true
 
 [dependencies]
 

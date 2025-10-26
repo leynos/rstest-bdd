@@ -4,7 +4,7 @@
 
 use crate::types::{PlaceholderSyntaxError, StepPatternError};
 use regex::Regex;
-use rstest_bdd_patterns::{PatternError, compile_regex_from_pattern};
+use rstest_bdd_patterns::{compile_regex_from_pattern, PatternError};
 use std::borrow::Cow;
 use std::hash::{Hash, Hasher};
 use std::sync::OnceLock;

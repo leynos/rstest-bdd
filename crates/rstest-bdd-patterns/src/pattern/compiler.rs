@@ -1,9 +1,9 @@
 //! Convert lexed tokens into anchored regular-expression sources.
 
-use crate::errors::{PatternError, placeholder_error};
+use crate::errors::{placeholder_error, PatternError};
 use crate::hint::get_type_pattern;
 
-use super::lexer::{Token, lex_pattern};
+use super::lexer::{lex_pattern, Token};
 
 /// Build an anchored regular expression from lexed pattern tokens.
 ///
@@ -78,10 +78,9 @@ mod tests {
         let Err(err) = build_regex_from_pattern("broken}") else {
             panic!("should fail");
         };
-        assert!(
-            err.to_string()
-                .contains("unmatched closing brace '}' in step pattern")
-        );
+        assert!(err
+            .to_string()
+            .contains("unmatched closing brace '}' in step pattern"));
     }
 
     #[test]
@@ -89,9 +88,8 @@ mod tests {
         let Err(err) = build_regex_from_pattern("{open") else {
             panic!("should fail");
         };
-        assert!(
-            err.to_string()
-                .contains("missing closing '}' for placeholder")
-        );
+        assert!(err
+            .to_string()
+            .contains("missing closing '}' for placeholder"));
     }
 }

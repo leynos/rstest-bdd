@@ -1,10 +1,10 @@
 //! Tests for placeholder extraction logic.
 
 use rstest::rstest;
-use rstest_bdd::localization::{ScopedLocalization, strip_directional_isolates};
+use rstest_bdd::localization::{strip_directional_isolates, ScopedLocalization};
 use rstest_bdd::{
-    PlaceholderError, PlaceholderSyntaxError, StepPattern, StepPatternError, StepText,
-    extract_placeholders,
+    extract_placeholders, PlaceholderError, PlaceholderSyntaxError, StepPattern, StepPatternError,
+    StepText,
 };
 use std::borrow::Cow;
 use std::ptr;

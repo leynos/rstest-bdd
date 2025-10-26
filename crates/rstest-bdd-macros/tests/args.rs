@@ -11,7 +11,7 @@ use syn::parse_quote;
 // the internal module directly to exercise helper APIs.
 mod args_impl;
 
-use args_impl::{CallArg, ExtractedArgs, extract_args};
+use args_impl::{extract_args, CallArg, ExtractedArgs};
 
 /// Helper for invoking `extract_args` with placeholder names.
 /// Consolidates repeated placeholder setup across tests.

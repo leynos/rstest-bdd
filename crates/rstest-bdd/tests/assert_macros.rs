@@ -1,9 +1,9 @@
 //! Unit tests for `assert_step_ok!` and `assert_step_err!`.
 
-use std::panic::{AssertUnwindSafe, catch_unwind};
+use std::panic::{catch_unwind, AssertUnwindSafe};
 
 use rstest::rstest;
-use rstest_bdd::localization::{ScopedLocalization, strip_directional_isolates};
+use rstest_bdd::localization::{strip_directional_isolates, ScopedLocalization};
 use rstest_bdd::{assert_step_err, assert_step_ok, panic_message};
 use unic_langid::langid;
 

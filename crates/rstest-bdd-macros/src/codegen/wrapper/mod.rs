@@ -5,5 +5,5 @@ mod arguments;
 pub(crate) mod emit;
 
 #[expect(unused_imports, reason = "re-exports expose helper API")]
-pub use args::{CallArg, extract_args};
-pub(crate) use emit::{WrapperConfig, generate_wrapper_code};
+pub use args::{extract_args, CallArg};
+pub(crate) use emit::{generate_wrapper_code, WrapperConfig};

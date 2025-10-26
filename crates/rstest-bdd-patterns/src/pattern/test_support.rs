@@ -1,4 +1,4 @@
-use super::placeholder::{PlaceholderSpec, parse_placeholder};
+use super::placeholder::{parse_placeholder, PlaceholderSpec};
 use crate::errors::PatternError;
 
 pub(crate) fn parse_ok(pattern: &str) -> (usize, PlaceholderSpec) {

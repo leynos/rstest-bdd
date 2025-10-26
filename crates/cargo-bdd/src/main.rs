@@ -7,7 +7,7 @@ use std::process::{Command, Stdio};
 
 use cargo_metadata::{Message, Package, PackageId, Target};
 use clap::{Parser, Subcommand};
-use eyre::{Context, Result, bail, eyre};
+use eyre::{bail, eyre, Context, Result};
 use serde::Deserialize;
 
 /// Cargo subcommand providing diagnostics for rstest-bdd.
@@ -130,12 +130,14 @@ fn handle_duplicates() -> Result<()> {
 /// assert!(extract_test_executable(&msg).is_some());
 /// ```
 fn extract_test_executable(msg: &Message) -> Option<PathBuf> {
-    if let Message::CompilerArtifact(artifact) = msg
-        && artifact.target.kind.iter().any(|k| k == "test")
-    {
-        return artifact.executable.clone().map(PathBuf::from);
+    match msg {
+        Message::CompilerArtifact(artifact)
+            if artifact.target.kind.iter().any(|kind| kind == "test") =>
+        {
+            artifact.executable.clone().map(PathBuf::from)
+        }
+        _ => None,
     }
-    None
 }
 
 /// Determine whether stderr output indicates the test binary does not

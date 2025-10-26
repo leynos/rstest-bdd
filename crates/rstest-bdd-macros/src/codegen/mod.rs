@@ -3,8 +3,8 @@
 //! This module emits fully-qualified paths (`::rstest_bdd::…`) so the macros crate
 //! does not depend on the runtime crate at compile-time.
 
-use proc_macro_crate::{FoundCrate, crate_name};
 use proc_macro2::{Ident, Span, TokenStream as TokenStream2};
+use proc_macro_crate::{crate_name, FoundCrate};
 use quote::quote;
 
 pub(crate) mod scenario;

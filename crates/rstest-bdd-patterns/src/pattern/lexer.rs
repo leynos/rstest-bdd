@@ -5,7 +5,7 @@ use std::str::CharIndices;
 
 use crate::errors::PatternError;
 
-use super::placeholder::{PlaceholderSpec, parse_placeholder};
+use super::placeholder::{parse_placeholder, PlaceholderSpec};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum Token {
