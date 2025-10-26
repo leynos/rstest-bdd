@@ -59,7 +59,7 @@ fn execute_single_step(feature_path: &FeaturePath, scenario_name: &ScenarioName)
     let _ = scenario_name.as_str();
     let path = crate::codegen::rstest_bdd_path();
     quote! {
-        #[allow(
+        #[expect(
             clippy::too_many_arguments,
             reason = "helper mirrors generated step inputs to keep panic messaging intact",
         )]

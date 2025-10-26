@@ -54,12 +54,12 @@ pub fn set_fail_on_skipped(enabled: bool) {
     } else {
         OVERRIDE_FALSE
     };
-    FAIL_ON_SKIPPED_OVERRIDE.store(value, Ordering::SeqCst);
+    FAIL_ON_SKIPPED_OVERRIDE.store(value, Ordering::Relaxed);
 }
 
 /// Remove any in-process override for the `fail_on_skipped` flag.
 pub fn clear_fail_on_skipped_override() {
-    FAIL_ON_SKIPPED_OVERRIDE.store(OVERRIDE_UNSET, Ordering::SeqCst);
+    FAIL_ON_SKIPPED_OVERRIDE.store(OVERRIDE_UNSET, Ordering::Relaxed);
 }
 
 #[cfg(test)]

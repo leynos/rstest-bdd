@@ -79,3 +79,24 @@ fn skip_prevents_trailing_steps(fail_on_disabled: FailOnSkippedGuard) {
     let _ = &fail_on_disabled;
     panic!("scenario body should not execute when earlier steps skip");
 }
+
+#[scenario(
+    path = "tests/features/skip_allowance/feature_tag.feature",
+    name = "inherits feature tag"
+)]
+#[serial]
+fn feature_tag_allows_skip(fail_on_enabled: FailOnSkippedGuard) {
+    let _ = &fail_on_enabled;
+    panic!("scenario body should not execute when feature-level tags allow skipping");
+}
+
+#[scenario(
+    path = "tests/features/skip_allowance/example_tag.feature",
+    name = "example tag ignored"
+)]
+#[serial]
+#[should_panic(expected = "Scenario skipped with fail_on_skipped enabled")]
+fn example_tag_does_not_allow_skip(fail_on_enabled: FailOnSkippedGuard, case: String) {
+    let _ = case;
+    let _ = &fail_on_enabled;
+}
