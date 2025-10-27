@@ -109,7 +109,11 @@ def iter_candidate_files(root: Path) -> typ.Iterator[Path]:
 def line_comment_precedes_block_comment(
     line_comment_pos: int, block_comment_pos: int
 ) -> bool:
-    """Return ``True`` when a line comment shadowing comes before a block comment.
+    """Return ``True`` when line comments outrank block comments for precedence.
+
+    Line comments win whenever they appear at all and either no block comment is
+    present or the line comment is encountered first. This mirrors the parser's
+    behaviour where everything to the right of ``//`` becomes a comment.
 
     Examples
     --------
@@ -126,43 +130,80 @@ def line_comment_precedes_block_comment(
     return line_comment_exists and (no_block_comment or line_comment_comes_first)
 
 
+def process_line_for_async_trait(
+    line: str,
+    in_block_comment: bool,  # noqa: FBT001 - lint override for mandated signature
+) -> tuple[bool, bool]:
+    """Process a line to detect ``async-trait`` usage outside of comments.
+
+    Parameters
+    ----------
+    line : str
+        The line of code to process
+    in_block_comment : bool
+        Whether we are currently inside a block comment from the previous line
+
+    Returns
+    -------
+    tuple[bool, bool]
+        ``(pattern_found, still_in_block_comment)``
+
+    Examples
+    --------
+    >>> process_line_for_async_trait("use async_trait::async_trait;", False)
+    (True, False)
+    >>> process_line_for_async_trait("// async_trait comment", False)
+    (False, False)
+    """
+    cursor = 0
+    current_block_state = in_block_comment
+
+    while cursor <= len(line):
+        if current_block_state:
+            block_end = line.find("*/", cursor)
+            if block_end == -1:
+                return (False, True)
+            cursor = block_end + 2
+            current_block_state = False
+            continue
+
+        start_block = line.find("/*", cursor)
+        start_comment = line.find("//", cursor)
+
+        if line_comment_precedes_block_comment(start_comment, start_block):
+            search_area = line[cursor:start_comment]
+            if ASYNC_TRAIT_PATTERN.search(search_area):
+                return (True, current_block_state)
+            break
+        if start_block != -1:
+            search_area = line[cursor:start_block]
+            if ASYNC_TRAIT_PATTERN.search(search_area):
+                return (True, current_block_state)
+            cursor = start_block + 2
+            current_block_state = True
+            continue
+
+        search_area = line[cursor:]
+        if ASYNC_TRAIT_PATTERN.search(search_area):
+            return (True, current_block_state)
+        break
+
+    return (False, current_block_state)
+
+
 def find_async_trait_in_rust(path: Path) -> list[int]:
     """Return the 1-based line numbers where the symbol appears in code."""
     offences: list[int] = []
-    in_block_comment = False
     try:
         contents = path.read_text(encoding="utf-8")
     except UnicodeDecodeError:
         return offences
 
-    for line_no, raw_line in enumerate(contents.splitlines(), start=1):
-        line = raw_line
-        cursor = 0
-        search_area = ""
-        while cursor <= len(line):
-            if in_block_comment:
-                block_end = line.find("*/", cursor)
-                if block_end == -1:
-                    cursor = len(line) + 1
-                    break
-                cursor = block_end + 2
-                in_block_comment = False
-                continue
-            start_block = line.find("/*", cursor)
-            start_comment = line.find("//", cursor)
-            if line_comment_precedes_block_comment(start_comment, start_block):
-                search_area = line[cursor:start_comment]
-                cursor = len(line) + 1
-            elif start_block != -1:
-                search_area = line[cursor:start_block]
-                cursor = start_block + 2
-                in_block_comment = True
-            else:
-                search_area = line[cursor:]
-                cursor = len(line) + 1
-            if ASYNC_TRAIT_PATTERN.search(search_area):
-                offences.append(line_no)
-                break
+    in_block_comment = False
+    for line_no, line in enumerate(contents.splitlines(), start=1):
+        found, in_block_comment = process_line_for_async_trait(line, in_block_comment)
+        if found:
+            offences.append(line_no)
     return offences
 
 
