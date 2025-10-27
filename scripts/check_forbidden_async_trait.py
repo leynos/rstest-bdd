@@ -100,7 +100,19 @@ def should_include_file(path: Path) -> bool:
 
 
 def iter_candidate_files(root: Path) -> typ.Iterator[Path]:
-    """Yield files under *root* whose suffix is in ``SCAN_EXTENSIONS``."""
+    """Return paths beneath *root* that should be scanned for async-trait usage.
+
+    Parameters
+    ----------
+    root : Path
+        Directory from which to traverse the repository tree recursively.
+
+    Yields
+    ------
+    Path
+        Each file meeting the scanning criteria, including manifests and
+        lockfiles subject to additional validation.
+    """
     for path in root.rglob("*"):
         if should_include_file(path):
             yield path
