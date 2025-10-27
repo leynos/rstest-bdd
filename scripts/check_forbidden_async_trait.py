@@ -26,18 +26,83 @@ ASYNC_TRAIT_PATTERN = re.compile(r"\basync[-_]trait\b")
 LOCKFILE_PATTERN = re.compile(r'^name = "async-trait"$', re.MULTILINE)
 
 
+def is_scannable_file(path: Path) -> bool:
+    """Return ``True`` when *path* is a file with a supported extension.
+
+    Examples
+    --------
+    >>> is_scannable_file(Path("src/lib.rs"))
+    True
+    >>> is_scannable_file(Path("README.md"))
+    False
+    """
+    return path.is_file() and path.suffix in SCAN_EXTENSIONS
+
+
+def is_cargo_manifest(path: Path) -> bool:
+    """Return ``True`` for Cargo manifests that should be inspected.
+
+    Examples
+    --------
+    >>> is_cargo_manifest(Path("crate/Cargo.toml"))
+    True
+    >>> is_cargo_manifest(Path("crate/Other.toml"))
+    False
+    """
+    return path.suffix == ".toml" and path.name == "Cargo.toml"
+
+
+def is_cargo_lockfile(path: Path) -> bool:
+    """Return ``True`` for Cargo.lock files worth checking.
+
+    Examples
+    --------
+    >>> is_cargo_lockfile(Path("Cargo.lock"))
+    True
+    >>> is_cargo_lockfile(Path("not-a-lock.lock"))
+    False
+    """
+    return path.suffix == ".lock" and path.name == "Cargo.lock"
+
+
+def is_in_skipped_directory(path: Path) -> bool:
+    """Return ``True`` when any path segment should be skipped.
+
+    Examples
+    --------
+    >>> is_in_skipped_directory(Path("target/debug/lib.rs"))
+    True
+    >>> is_in_skipped_directory(Path("src/lib.rs"))
+    False
+    """
+    return any(part in SKIP_DIRS for part in path.parts)
+
+
+def should_include_file(path: Path) -> bool:
+    """Return ``True`` when *path* satisfies all scanning criteria.
+
+    Examples
+    --------
+    >>> should_include_file(Path("src/lib.rs"))
+    True
+    >>> should_include_file(Path("docs/guide.md"))
+    False
+    >>> should_include_file(Path("Cargo.lock"))
+    True
+    """
+    if not is_scannable_file(path):
+        return False
+    if path.suffix == ".toml" and not is_cargo_manifest(path):
+        return False
+    if path.suffix == ".lock" and not is_cargo_lockfile(path):
+        return False
+    return not is_in_skipped_directory(path)
+
+
 def iter_candidate_files(root: Path) -> typ.Iterator[Path]:
     """Yield files under *root* whose suffix is in ``SCAN_EXTENSIONS``."""
     for path in root.rglob("*"):
-        if not path.is_file():
-            continue
-        if path.suffix not in SCAN_EXTENSIONS:
-            continue
-        if path.suffix == ".toml" and path.name != "Cargo.toml":
-            continue
-        if path.suffix == ".lock" and path.name != "Cargo.lock":
-            continue
-        if all(part not in SKIP_DIRS for part in path.parts):
+        if should_include_file(path):
             yield path
 
 
