@@ -41,6 +41,26 @@ def iter_candidate_files(root: Path) -> typ.Iterator[Path]:
             yield path
 
 
+def line_comment_precedes_block_comment(
+    line_comment_pos: int, block_comment_pos: int
+) -> bool:
+    """Return ``True`` when a line comment shadowing comes before a block comment.
+
+    Examples
+    --------
+    >>> line_comment_precedes_block_comment(3, -1)
+    True
+    >>> line_comment_precedes_block_comment(-1, 5)
+    False
+    >>> line_comment_precedes_block_comment(4, 10)
+    True
+    """
+    line_comment_exists = line_comment_pos != -1
+    no_block_comment = block_comment_pos == -1
+    line_comment_comes_first = line_comment_pos < block_comment_pos
+    return line_comment_exists and (no_block_comment or line_comment_comes_first)
+
+
 def find_async_trait_in_rust(path: Path) -> list[int]:
     """Return the 1-based line numbers where the symbol appears in code."""
     offences: list[int] = []
@@ -65,9 +85,7 @@ def find_async_trait_in_rust(path: Path) -> list[int]:
                 continue
             start_block = line.find("/*", cursor)
             start_comment = line.find("//", cursor)
-            if start_comment != -1 and (
-                start_block == -1 or start_comment < start_block
-            ):
+            if line_comment_precedes_block_comment(start_comment, start_block):
                 search_area = line[cursor:start_comment]
                 cursor = len(line) + 1
             elif start_block != -1:
@@ -90,14 +108,31 @@ def manifest_declares_async_trait(path: Path) -> bool:
     except (UnicodeDecodeError, tomllib.TOMLDecodeError):
         return False
 
+    def is_dependencies_section_with_async_trait(key: str, value: object) -> bool:
+        """Return ``True`` when *value* references async-trait in dependency tables.
+
+        Examples
+        --------
+        >>> is_dependencies_section_with_async_trait(
+        ...     "dependencies",
+        ...     {"async-trait": "1"},
+        ... )
+        True
+        >>> is_dependencies_section_with_async_trait("package", {})
+        False
+        >>> is_dependencies_section_with_async_trait("dev-dependencies", [])
+        False
+        """
+        if not key.endswith("dependencies"):
+            return False
+        if not isinstance(value, dict):
+            return False
+        return "async-trait" in value
+
     def visit(node: object) -> bool:
         if isinstance(node, dict):
             for key, value in node.items():
-                if (
-                    key.endswith("dependencies")
-                    and isinstance(value, dict)
-                    and ("async-trait" in value)
-                ):
+                if is_dependencies_section_with_async_trait(key, value):
                     return True
                 if visit(value):
                     return True
