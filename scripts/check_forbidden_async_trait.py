@@ -130,6 +130,41 @@ def line_comment_precedes_block_comment(
     return line_comment_exists and (no_block_comment or line_comment_comes_first)
 
 
+def handle_block_comment_continuation(line: str, cursor: int) -> tuple[bool, int, bool]:
+    """Handle case when already inside a block comment."""
+    block_end = line.find("*/", cursor)
+    if block_end == -1:
+        return (False, len(line) + 1, True)
+    return (False, block_end + 2, False)
+
+
+def handle_line_comment_section(
+    line: str, cursor: int, start_comment: int
+) -> tuple[bool, int, bool]:
+    """Handle case when a line comment is encountered first."""
+    search_area = line[cursor:start_comment]
+    pattern_found = bool(ASYNC_TRAIT_PATTERN.search(search_area))
+    return (pattern_found, len(line) + 1, False)
+
+
+def handle_block_comment_start(
+    line: str, cursor: int, start_block: int
+) -> tuple[bool, int, bool]:
+    """Handle case when a block comment starts."""
+    search_area = line[cursor:start_block]
+    pattern_found = bool(ASYNC_TRAIT_PATTERN.search(search_area))
+    if pattern_found:
+        return (True, start_block + 2, True)
+    return (False, start_block + 2, True)
+
+
+def handle_plain_code(line: str, cursor: int) -> tuple[bool, int, bool]:
+    """Handle case when remaining line has no comments."""
+    search_area = line[cursor:]
+    pattern_found = bool(ASYNC_TRAIT_PATTERN.search(search_area))
+    return (pattern_found, len(line) + 1, False)
+
+
 def process_line_for_async_trait(
     line: str,
     in_block_comment: bool,  # noqa: FBT001 - lint override for mandated signature
@@ -160,33 +195,29 @@ def process_line_for_async_trait(
 
     while cursor <= len(line):
         if current_block_state:
-            block_end = line.find("*/", cursor)
-            if block_end == -1:
-                return (False, True)
-            cursor = block_end + 2
-            current_block_state = False
+            found, cursor, current_block_state = handle_block_comment_continuation(
+                line, cursor
+            )
+            if found:
+                return (True, current_block_state)
             continue
 
         start_block = line.find("/*", cursor)
         start_comment = line.find("//", cursor)
 
         if line_comment_precedes_block_comment(start_comment, start_block):
-            search_area = line[cursor:start_comment]
-            if ASYNC_TRAIT_PATTERN.search(search_area):
-                return (True, current_block_state)
-            break
-        if start_block != -1:
-            search_area = line[cursor:start_block]
-            if ASYNC_TRAIT_PATTERN.search(search_area):
-                return (True, current_block_state)
-            cursor = start_block + 2
-            current_block_state = True
-            continue
+            found, cursor, current_block_state = handle_line_comment_section(
+                line, cursor, start_comment
+            )
+        elif start_block != -1:
+            found, cursor, current_block_state = handle_block_comment_start(
+                line, cursor, start_block
+            )
+        else:
+            found, cursor, current_block_state = handle_plain_code(line, cursor)
 
-        search_area = line[cursor:]
-        if ASYNC_TRAIT_PATTERN.search(search_area):
+        if found:
             return (True, current_block_state)
-        break
 
     return (False, current_block_state)
 
