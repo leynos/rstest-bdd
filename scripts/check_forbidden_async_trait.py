@@ -235,15 +235,24 @@ def manifest_declares_async_trait(path: Path) -> bool:
             return False
         return "async-trait" in value
 
+    def visit_dict(node: dict) -> bool:
+        """Return ``True`` when *node* contains the forbidden dependency."""
+        for key, value in node.items():
+            if is_dependencies_section_with_async_trait(key, value):
+                return True
+            if visit(value):
+                return True
+        return False
+
+    def visit_list(node: list) -> bool:
+        """Return ``True`` when any entry in *node* references async-trait."""
+        return any(visit(item) for item in node)
+
     def visit(node: object) -> bool:
         if isinstance(node, dict):
-            for key, value in node.items():
-                if is_dependencies_section_with_async_trait(key, value):
-                    return True
-                if visit(value):
-                    return True
-        elif isinstance(node, list):
-            return any(visit(item) for item in node)
+            return visit_dict(node)
+        if isinstance(node, list):
+            return visit_list(node)
         return False
 
     return visit(data)
