@@ -28,8 +28,9 @@ fn assert_panic_in_french(op: impl FnOnce(), expected_substring: &str) {
 #[test]
 fn panic_message_reports_type_hint_for_opaque_payload() {
     let message = capture_panic_message(|| std::panic::panic_any(()));
+    let has_type_identifier = message.contains("TypeId(") || message.contains("TypeId {");
     assert!(
-        message.contains("TypeId("),
+        has_type_identifier,
         "opaque payload hints should include a TypeId, got: {message}"
     );
 }
