@@ -28,7 +28,7 @@ Each `Cargo.toml` declares `rust-version = "1.75"`, so `cargo` will refuse to
 compile the project on older stable compilers. The workspace now settles on the
 Rust 2021 edition so that the declared MSRV and edition remain compatible. The
 repository still pins a nightly toolchain for development because the runtime
-uses auto traits and negative impls, yet those nightly-only features live
+uses auto traits and negative impls, yet those nightly only features live
 behind the existing `rust-toolchain.toml` pin and do not alter the public MSRV.
 Step definitions and writers remain synchronous functions; the framework no
 longer depends on the `async-trait` crate to express async methods in traits.

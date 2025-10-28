@@ -27,9 +27,29 @@ pub fn panic_message(e: &(dyn std::any::Any + Send)) -> String {
         };
     }
 
-    try_downcast!(&str, String, i32, u32, i64, u64, isize, usize, f32, f64);
+    try_downcast!(
+        &str,
+        String,
+        std::fmt::Arguments,
+        bool,
+        char,
+        i8,
+        u8,
+        i16,
+        u16,
+        i32,
+        u32,
+        i64,
+        u64,
+        i128,
+        u128,
+        isize,
+        usize,
+        f32,
+        f64,
+    );
     let ty = format!(
-        "erased `Any` payload (TypeId({:?}); panic with Display/Debug data for detail)",
+        "erased `Any` payload ({:?}); panic with Display/Debug data for detail",
         e.type_id()
     );
     localization::message_with_args("panic-message-opaque-payload", |args| {

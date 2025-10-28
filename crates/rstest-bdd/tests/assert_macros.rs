@@ -34,6 +34,12 @@ fn panic_message_reports_type_hint_for_opaque_payload() {
     );
 }
 
+#[test]
+fn panic_message_captures_formatted_arguments() {
+    let message = capture_panic_message(|| panic!("boom: {}", 42));
+    assert_eq!(message, "boom: 42");
+}
+
 fn assert_step_ok_panics() {
     let res: Result<(), &str> = Err("boom");
     assert_step_ok!(res);

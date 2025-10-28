@@ -1,10 +1,22 @@
 #!/usr/bin/env python3
-"""Fail the build when `async-trait` sneaks back into the tree.
+"""Fail the build when ``async-trait`` sneaks back into the tree.
 
 The project deliberately avoids the crate so trait objects stay zero-cost and
 stack traces remain readable. This script runs in CI (and can be executed
-locally) to catch the dependency reappearing either in `Cargo.toml` files or in
-Rust sources.
+locally) to catch the dependency reappearing either in ``Cargo.toml`` files or
+in Rust sources.
+
+Usage
+-----
+Run from the repository root or via the provided Makefile target::
+
+    $ make forbid-async-trait
+    # or
+    $ python3 scripts/check_forbidden_async_trait.py
+
+Notes
+-----
+Requires Python 3.11+ for ``tomllib``.
 """
 
 from __future__ import annotations
@@ -23,11 +35,21 @@ SCAN_EXTENSIONS = {".rs", ".toml", ".lock"}
 SKIP_DIRS = {".git", "target", "node_modules", "docs"}
 
 ASYNC_TRAIT_PATTERN = re.compile(r"\basync[-_]trait\b")
-LOCKFILE_PATTERN = re.compile(r'^name = "async-trait"$', re.MULTILINE)
+LOCKFILE_PATTERN = re.compile(r'^\s*name\s*=\s*"async-trait"$', re.MULTILINE)
 
 
 def is_scannable_file(path: Path) -> bool:
-    """Return ``True`` when *path* is a file with a supported extension.
+    """Check whether *path* has a supported extension.
+
+    Parameters
+    ----------
+    path : Path
+        Candidate path to evaluate.
+
+    Returns
+    -------
+    bool
+        ``True`` when the path points to a file with a supported suffix.
 
     Examples
     --------
@@ -39,8 +61,53 @@ def is_scannable_file(path: Path) -> bool:
     return path.is_file() and path.suffix in SCAN_EXTENSIONS
 
 
+def path_has_name_and_suffix(path: Path, *, name: str, suffix: str) -> bool:
+    """Return ``True`` when *path* matches the expected filename metadata.
+
+    Parameters
+    ----------
+    path : Path
+        Candidate path to evaluate.
+    name : str
+        Filename that must match exactly.
+    suffix : str
+        File extension (including the dot) that must match exactly.
+
+    Returns
+    -------
+    bool
+        ``True`` when both the filename and suffix match *name*/*suffix*.
+
+    Examples
+    --------
+    >>> path_has_name_and_suffix(
+    ...     Path("crate/Cargo.toml"),
+    ...     name="Cargo.toml",
+    ...     suffix=".toml",
+    ... )
+    True
+    >>> path_has_name_and_suffix(
+    ...     Path("crate/Other.toml"),
+    ...     name="Cargo.toml",
+    ...     suffix=".toml",
+    ... )
+    False
+    """
+    return path.suffix == suffix and path.name == name
+
+
 def is_cargo_manifest(path: Path) -> bool:
-    """Return ``True`` for Cargo manifests that should be inspected.
+    """Check whether *path* refers to a Cargo manifest.
+
+    Parameters
+    ----------
+    path : Path
+        Candidate path to evaluate.
+
+    Returns
+    -------
+    bool
+        ``True`` when the path ends with ``Cargo.toml``.
 
     Examples
     --------
@@ -49,11 +116,21 @@ def is_cargo_manifest(path: Path) -> bool:
     >>> is_cargo_manifest(Path("crate/Other.toml"))
     False
     """
-    return path.suffix == ".toml" and path.name == "Cargo.toml"
+    return path_has_name_and_suffix(path, name="Cargo.toml", suffix=".toml")
 
 
 def is_cargo_lockfile(path: Path) -> bool:
-    """Return ``True`` for Cargo.lock files worth checking.
+    """Check whether *path* refers to a Cargo lockfile.
+
+    Parameters
+    ----------
+    path : Path
+        Candidate path to evaluate.
+
+    Returns
+    -------
+    bool
+        ``True`` when the path ends with ``Cargo.lock``.
 
     Examples
     --------
@@ -62,11 +139,21 @@ def is_cargo_lockfile(path: Path) -> bool:
     >>> is_cargo_lockfile(Path("not-a-lock.lock"))
     False
     """
-    return path.suffix == ".lock" and path.name == "Cargo.lock"
+    return path_has_name_and_suffix(path, name="Cargo.lock", suffix=".lock")
 
 
 def is_in_skipped_directory(path: Path) -> bool:
-    """Return ``True`` when any path segment should be skipped.
+    """Check whether *path* lies beneath a skipped directory.
+
+    Parameters
+    ----------
+    path : Path
+        Path to inspect for disallowed directory names.
+
+    Returns
+    -------
+    bool
+        ``True`` when any component is listed in :data:`SKIP_DIRS`.
 
     Examples
     --------
@@ -79,7 +166,17 @@ def is_in_skipped_directory(path: Path) -> bool:
 
 
 def should_include_file(path: Path) -> bool:
-    """Return ``True`` when *path* satisfies all scanning criteria.
+    """Determine whether *path* qualifies for scanning.
+
+    Parameters
+    ----------
+    path : Path
+        Candidate path to evaluate against the scanning rules.
+
+    Returns
+    -------
+    bool
+        ``True`` when the file should be inspected for ``async-trait``.
 
     Examples
     --------
@@ -121,11 +218,20 @@ def iter_candidate_files(root: Path) -> typ.Iterator[Path]:
 def line_comment_precedes_block_comment(
     line_comment_pos: int, block_comment_pos: int
 ) -> bool:
-    """Return ``True`` when line comments outrank block comments for precedence.
+    """Determine precedence between line and block comments on the same line.
 
-    Line comments win whenever they appear at all and either no block comment is
-    present or the line comment is encountered first. This mirrors the parser's
-    behaviour where everything to the right of ``//`` becomes a comment.
+    Parameters
+    ----------
+    line_comment_pos : int
+        Index of the ``//`` sequence or ``-1`` if absent.
+    block_comment_pos : int
+        Index of the ``/*`` sequence or ``-1`` if absent.
+
+    Returns
+    -------
+    bool
+        ``True`` when the line comment appears before the block comment or the
+        block comment is missing entirely.
 
     Examples
     --------
@@ -143,7 +249,27 @@ def line_comment_precedes_block_comment(
 
 
 def handle_block_comment_continuation(line: str, cursor: int) -> tuple[bool, int, bool]:
-    """Handle case when already inside a block comment."""
+    """Process a line whilst inside a block comment.
+
+    Parameters
+    ----------
+    line : str
+        Line of source code currently being inspected.
+    cursor : int
+        Index within *line* from which parsing should continue.
+
+    Returns
+    -------
+    tuple[bool, int, bool]
+        ``(pattern_found, new_cursor, in_block_comment)`` describing whether the
+        pattern was encountered, the cursor advancement, and the block comment
+        state to carry forward.
+
+    Examples
+    --------
+    >>> handle_block_comment_continuation("*/ use async-trait", 0)
+    (False, 2, False)
+    """
     block_end = line.find("*/", cursor)
     if block_end == -1:
         return (False, len(line) + 1, True)
@@ -153,7 +279,31 @@ def handle_block_comment_continuation(line: str, cursor: int) -> tuple[bool, int
 def handle_line_comment_section(
     line: str, cursor: int, start_comment: int
 ) -> tuple[bool, int, bool]:
-    """Handle case when a line comment is encountered first."""
+    """Process a line where a line comment appears first.
+
+    Parameters
+    ----------
+    line : str
+        Line of source code currently being inspected.
+    cursor : int
+        Index within *line* from which parsing should continue.
+    start_comment : int
+        Position where ``//`` begins.
+
+    Returns
+    -------
+    tuple[bool, int, bool]
+        ``(pattern_found, new_cursor, in_block_comment)``
+
+    Examples
+    --------
+    >>> handle_line_comment_section(
+    ...     "use async_trait::Trait; // comment",
+    ...     0,
+    ...     24,
+    ... )
+    (True, 35, False)
+    """
     search_area = line[cursor:start_comment]
     pattern_found = bool(ASYNC_TRAIT_PATTERN.search(search_area))
     return (pattern_found, len(line) + 1, False)
@@ -162,7 +312,31 @@ def handle_line_comment_section(
 def handle_block_comment_start(
     line: str, cursor: int, start_block: int
 ) -> tuple[bool, int, bool]:
-    """Handle case when a block comment starts."""
+    """Process a line where a block comment begins.
+
+    Parameters
+    ----------
+    line : str
+        Line of code to process.
+    cursor : int
+        Current position in the line.
+    start_block : int
+        Position where ``/*`` begins.
+
+    Returns
+    -------
+    tuple[bool, int, bool]
+        ``(pattern_found, new_cursor, in_block_comment)``
+
+    Examples
+    --------
+    >>> handle_block_comment_start(
+    ...     "use async_trait::Trait; /* comment",
+    ...     0,
+    ...     24,
+    ... )
+    (True, 26, True)
+    """
     search_area = line[cursor:start_block]
     pattern_found = bool(ASYNC_TRAIT_PATTERN.search(search_area))
     if pattern_found:
@@ -171,7 +345,25 @@ def handle_block_comment_start(
 
 
 def handle_plain_code(line: str, cursor: int) -> tuple[bool, int, bool]:
-    """Handle case when remaining line has no comments."""
+    """Process a line with no comments.
+
+    Parameters
+    ----------
+    line : str
+        Line of code to process.
+    cursor : int
+        Current position in the line.
+
+    Returns
+    -------
+    tuple[bool, int, bool]
+        ``(pattern_found, new_cursor, in_block_comment)``
+
+    Examples
+    --------
+    >>> handle_plain_code("use async_trait::Trait;", 0)
+    (True, 26, False)
+    """
     search_area = line[cursor:]
     pattern_found = bool(ASYNC_TRAIT_PATTERN.search(search_area))
     return (pattern_found, len(line) + 1, False)
@@ -179,7 +371,7 @@ def handle_plain_code(line: str, cursor: int) -> tuple[bool, int, bool]:
 
 def process_line_for_async_trait(
     line: str,
-    in_block_comment: bool,  # noqa: FBT001 - lint override for mandated signature
+    in_block_comment: bool,  # noqa: FBT001 FIXME: signature mandated by design
 ) -> tuple[bool, bool]:
     """Process a line to detect ``async-trait`` usage outside of comments.
 
@@ -235,7 +427,24 @@ def process_line_for_async_trait(
 
 
 def find_async_trait_in_rust(path: Path) -> list[int]:
-    """Return the 1-based line numbers where the symbol appears in code."""
+    """Find lines where ``async-trait`` appears in Rust code.
+
+    Parameters
+    ----------
+    path : Path
+        Path to the Rust source file.
+
+    Returns
+    -------
+    list[int]
+        1-based line numbers where the symbol appears outside comments.
+        Returns an empty list if the file cannot be decoded.
+
+    Examples
+    --------
+    >>> find_async_trait_in_rust(Path("src/lib.rs"))  # doctest: +SKIP
+    []
+    """
     offences: list[int] = []
     try:
         contents = path.read_text(encoding="utf-8")
@@ -251,25 +460,58 @@ def find_async_trait_in_rust(path: Path) -> list[int]:
 
 
 def manifest_declares_async_trait(path: Path) -> bool:
-    """Return ``True`` when *path* declares the forbidden dependency."""
+    """Check whether a Cargo manifest declares ``async-trait``.
+
+    Parameters
+    ----------
+    path : Path
+        Path to a ``Cargo.toml`` file.
+
+    Returns
+    -------
+    bool
+        ``True`` when any dependency table references ``async-trait``.
+        ``False`` when the manifest cannot be read or does not depend on it.
+
+    Examples
+    --------
+    >>> manifest_declares_async_trait(Path("Cargo.toml"))  # doctest: +SKIP
+    False
+    """
     try:
         data = tomllib.loads(path.read_text(encoding="utf-8"))
-    except (UnicodeDecodeError, tomllib.TOMLDecodeError):
+    except (UnicodeDecodeError, tomllib.TOMLDecodeError, OSError):
         return False
 
     def is_dependencies_section_with_async_trait(key: str, value: object) -> bool:
-        """Return ``True`` when *value* references async-trait in dependency tables.
+        """Check whether a TOML table references ``async-trait``.
+
+        Parameters
+        ----------
+        key : str
+            TOML table key name.
+        value : object
+            Table contents associated with *key*.
+
+        Returns
+        -------
+        bool
+            ``True`` when the section ends with "dependencies" and the table
+            includes an ``async-trait`` entry.
 
         Examples
         --------
         >>> is_dependencies_section_with_async_trait(
         ...     "dependencies",
         ...     {"async-trait": "1"},
-        ... )
+        ... )  # doctest: +SKIP
         True
-        >>> is_dependencies_section_with_async_trait("package", {})
+        >>> is_dependencies_section_with_async_trait("package", {})  # doctest: +SKIP
         False
-        >>> is_dependencies_section_with_async_trait("dev-dependencies", [])
+        >>> is_dependencies_section_with_async_trait(
+        ...     "dev-dependencies",
+        ...     [],
+        ... )  # doctest: +SKIP
         False
         """
         if not key.endswith("dependencies"):
@@ -279,7 +521,26 @@ def manifest_declares_async_trait(path: Path) -> bool:
         return "async-trait" in value
 
     def visit_dict(node: dict) -> bool:
-        """Return ``True`` when *node* contains the forbidden dependency."""
+        """Recursively inspect a dictionary for ``async-trait`` references.
+
+        Parameters
+        ----------
+        node : dict
+            TOML dictionary to inspect.
+
+        Returns
+        -------
+        bool
+            ``True`` when any entry references ``async-trait`` directly or in
+            nested structures.
+
+        Examples
+        --------
+        >>> visit_dict({"dependencies": {"async-trait": "1"}})  # doctest: +SKIP
+        True
+        >>> visit_dict({"package": {"name": "demo"}})  # doctest: +SKIP
+        False
+        """
         for key, value in node.items():
             if is_dependencies_section_with_async_trait(key, value):
                 return True
@@ -288,7 +549,28 @@ def manifest_declares_async_trait(path: Path) -> bool:
         return False
 
     def visit_list(node: list) -> bool:
-        """Return ``True`` when any entry in *node* references async-trait."""
+        """Recursively inspect a list for ``async-trait`` references.
+
+        Parameters
+        ----------
+        node : list
+            TOML array to inspect.
+
+        Returns
+        -------
+        bool
+            ``True`` when any element references ``async-trait``.
+
+        Examples
+        --------
+        >>> visit_list([
+        ...     {"dependencies": {"async-trait": "1"}},
+        ...     {"package": {"name": "demo"}},
+        ... ])  # doctest: +SKIP
+        True
+        >>> visit_list([{"package": {"name": "demo"}}])  # doctest: +SKIP
+        False
+        """
         return any(visit(item) for item in node)
 
     def visit(node: object) -> bool:
@@ -302,10 +584,27 @@ def manifest_declares_async_trait(path: Path) -> bool:
 
 
 def lockfile_mentions_async_trait(path: Path) -> bool:
-    """Return ``True`` when *path*'s contents reference the crate."""
+    """Check whether a Cargo lockfile references ``async-trait``.
+
+    Parameters
+    ----------
+    path : Path
+        Path to a ``Cargo.lock`` file.
+
+    Returns
+    -------
+    bool
+        ``True`` when the lockfile lists an ``async-trait`` package.
+        ``False`` when the file cannot be read or omits the crate.
+
+    Examples
+    --------
+    >>> lockfile_mentions_async_trait(Path("Cargo.lock"))  # doctest: +SKIP
+    False
+    """
     try:
         contents = path.read_text(encoding="utf-8")
-    except UnicodeDecodeError:
+    except (UnicodeDecodeError, OSError):
         return False
     return bool(LOCKFILE_PATTERN.search(contents))
 
