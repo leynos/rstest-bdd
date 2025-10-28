@@ -31,6 +31,7 @@ pub fn panic_message(e: &(dyn std::any::Any + Send)) -> String {
         &str,
         String,
         std::fmt::Arguments,
+        Box<str>,
         bool,
         char,
         i8,
@@ -48,6 +49,10 @@ pub fn panic_message(e: &(dyn std::any::Any + Send)) -> String {
         f32,
         f64,
     );
+    if e.downcast_ref::<()>().is_some() {
+        return "()".to_owned();
+    }
+
     let ty = format!(
         "erased `Any` payload ({:?}); panic with Display/Debug data for detail",
         e.type_id()

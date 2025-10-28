@@ -27,7 +27,9 @@ fn assert_panic_in_french(op: impl FnOnce(), expected_substring: &str) {
 
 #[test]
 fn panic_message_reports_type_hint_for_opaque_payload() {
-    let message = capture_panic_message(|| std::panic::panic_any(()));
+    struct Opaque;
+
+    let message = capture_panic_message(|| std::panic::panic_any(Opaque));
     let has_type_identifier = message.contains("TypeId(") || message.contains("TypeId {");
     assert!(
         has_type_identifier,
@@ -39,6 +41,19 @@ fn panic_message_reports_type_hint_for_opaque_payload() {
 fn panic_message_captures_formatted_arguments() {
     let message = capture_panic_message(|| panic!("boom: {}", 42));
     assert_eq!(message, "boom: 42");
+}
+
+#[test]
+fn panic_message_downcasts_unit_type() {
+    let message = capture_panic_message(|| std::panic::panic_any(()));
+    assert_eq!(message, "()");
+}
+
+#[test]
+fn panic_message_downcasts_boxed_str() {
+    let payload: Box<str> = "boom".into();
+    let message = capture_panic_message(|| std::panic::panic_any(payload));
+    assert_eq!(message, "boom");
 }
 
 fn assert_step_ok_panics() {
