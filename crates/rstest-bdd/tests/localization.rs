@@ -2,8 +2,8 @@
 
 use i18n_embed::fluent::fluent_language_loader;
 use rstest_bdd::localization::{
-    ScopedLocalization, current_languages, install_localization_loader, message, message_with_args,
-    select_localizations, strip_directional_isolates,
+    current_languages, install_localization_loader, message, message_with_args,
+    select_localizations, strip_directional_isolates, ScopedLocalization,
 };
 use rstest_bdd::{Localizations, StepError};
 use serial_test::serial;

@@ -88,6 +88,10 @@ jobs:
         if: ${{ matrix.tools }}
         run: make lint
 
+      - name: Ensure async-trait is absent
+        if: ${{ matrix.tools }}
+        run: make forbid-async-trait
+
       - name: Test and Measure Coverage (with features)
         if: ${{ matrix.coverage && matrix.features != '' }}
         uses: leynos/shared-actions/.github/actions/generate-coverage@ebbaaa0d7a776ec3187f3940667e5c7c9379cdf5

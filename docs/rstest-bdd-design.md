@@ -1195,9 +1195,18 @@ incrementally.
   - Increase the minimum supported Rust version to 1.75 and remove the
     `async_trait` dependency from `World` and writer traits to simplify
     implementations and match Cucumber v0.21. Set `rust-version = "1.75"` in
-    all Cargo manifests, update `rust-toolchain.toml` and CI matrices, remove
-    `async-trait` from dependencies and imports, and add a CI check that fails
-    if it reappears.
+    all Cargo manifests, remove `async-trait` from dependencies and imports,
+    and add a CI check that fails if it reappears.
+
+    We now advertise Rust 1.75 as the stable baseline across every crate in the
+    workspace and standardise on the Rust 2021 edition to keep the declared
+    edition compatible with that MSRV. The development toolchain remains pinned
+    to nightly because the runtime depends on auto traits and negative impls,
+    but those features do not affect the documented MSRV. Step registration
+    continues to rely on synchronous function pointers (`StepFn`), so no trait
+    requires async method sugar and `async-trait` stays absent from the
+    dependency graph. A small CI guard (`make forbid-async-trait`) scans Rust
+    and Cargo sources and fails the workflow should the crate reappear.
 
 - Introduce a `skip!` macro that step or hook functions can invoke to record a
   `Skipped` outcome and halt the remaining steps. The macro accepts an optional

@@ -223,9 +223,7 @@ fn aborts_on_invalid_step_pattern() {
         .map(String::as_str)
         .or_else(|| err.downcast_ref::<&str>().copied())
         .unwrap_or_else(|| panic!("panic payload must be a string"));
-    assert!(
-        msg.contains("proc-macro-error API cannot be used outside of `entry_point` invocation")
-    );
+    assert!(msg.contains("proc-macro-error API cannot be used outside of `entry_point` invocation"));
 
     assert!(rstest_bdd_patterns::build_regex_from_pattern("unclosed {").is_err());
 }

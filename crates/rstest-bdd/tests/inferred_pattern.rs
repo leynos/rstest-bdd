@@ -1,7 +1,7 @@
 //! Tests for inferring step patterns from function names.
 
 use rstest::rstest;
-use rstest_bdd::{Step, StepKeyword, iter};
+use rstest_bdd::{iter, Step, StepKeyword};
 use rstest_bdd_macros::{given, then, when};
 
 #[given]

@@ -1,7 +1,7 @@
 //! Behavioural test for data table support
 
 use rstest_bdd::datatable::{self, DataTableError, DataTableRow, RowSpec, Rows};
-use rstest_bdd_macros::{DataTable, DataTableRow, given, scenario};
+use rstest_bdd_macros::{given, scenario, DataTable, DataTableRow};
 
 #[given("the following table:")]
 #[expect(

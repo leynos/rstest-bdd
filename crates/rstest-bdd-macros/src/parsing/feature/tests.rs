@@ -7,7 +7,7 @@ use super::*;
 use gherkin::StepType;
 use rstest::rstest;
 
-use support::{FeatureBuilder, StepBuilder, assert_feature_extraction};
+use support::{assert_feature_extraction, FeatureBuilder, StepBuilder};
 
 #[rstest]
 #[case("And", StepType::Given, crate::StepKeyword::And)]

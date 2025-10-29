@@ -181,7 +181,7 @@ impl core::convert::TryFrom<StepType> for StepKeyword {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::localization::{ScopedLocalization, strip_directional_isolates};
+    use crate::localization::{strip_directional_isolates, ScopedLocalization};
     use gherkin::StepType;
     use rstest::rstest;
     use std::str::FromStr;

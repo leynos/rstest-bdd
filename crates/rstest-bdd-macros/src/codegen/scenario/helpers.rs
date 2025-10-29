@@ -1,5 +1,5 @@
 use proc_macro2::TokenStream as TokenStream2;
-use quote::{ToTokens, quote};
+use quote::{quote, ToTokens};
 
 /// Create a `LitStr` from an examples table cell.
 fn cell_to_lit(value: &str) -> syn::LitStr {

@@ -5,7 +5,7 @@ mod rows;
 mod spec;
 
 pub use error::DataTableError;
-pub use parsers::{TrimmedParseError, TruthyBoolError, trimmed, truthy_bool};
+pub use parsers::{trimmed, truthy_bool, TrimmedParseError, TruthyBoolError};
 pub use rows::{DataTableRow, Rows};
 pub use spec::{HeaderSpec, RowSpec};
 

@@ -1,4 +1,4 @@
-use syn::{GenericArgument, PathArguments, Type, TypePath, spanned::Spanned};
+use syn::{spanned::Spanned, GenericArgument, PathArguments, Type, TypePath};
 
 pub(crate) fn option_inner_type(ty: &Type) -> syn::Result<(bool, Type)> {
     let Type::Path(TypePath { path, .. }) = ty else {

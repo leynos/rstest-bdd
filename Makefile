@@ -1,4 +1,4 @@
-.PHONY: help all clean test build release lint fmt check-fmt markdownlint nixie publish-check
+.PHONY: help all clean test build release lint fmt check-fmt markdownlint nixie publish-check forbid-async-trait
 
 SHELL := bash
 APP ?= cargo-bdd
@@ -29,6 +29,9 @@ lint: ## Run Clippy with warnings denied
 	$(CARGO) clippy $(CLIPPY_FLAGS)
 	find scripts -type f -name "*.py" -print0 | xargs -r -0 uvx ruff check
 	python3 scripts/check_rs_file_lengths.py
+
+forbid-async-trait: ## Ensure the async-trait crate and macro remain absent
+	python3 scripts/check_forbidden_async_trait.py
 
 fmt: ## Format Rust and Markdown sources
 	$(CARGO) fmt --all

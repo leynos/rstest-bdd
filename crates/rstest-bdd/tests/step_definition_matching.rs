@@ -2,7 +2,7 @@
 
 use std::sync::atomic::{AtomicUsize, Ordering};
 
-use rstest_bdd::{StepContext, StepExecution, StepKeyword, find_step};
+use rstest_bdd::{find_step, StepContext, StepExecution, StepKeyword};
 use rstest_bdd_macros::given;
 
 static GENERIC_CALLED: AtomicUsize = AtomicUsize::new(0);

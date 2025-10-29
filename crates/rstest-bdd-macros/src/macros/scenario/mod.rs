@@ -27,8 +27,8 @@ use proc_macro::TokenStream;
 use proc_macro2::Span;
 use std::path::PathBuf;
 
-use crate::codegen::scenario::{FeaturePath, ScenarioConfig, ScenarioName, generate_scenario_code};
-use crate::parsing::feature::{ScenarioData, extract_scenario_steps, parse_and_load_feature};
+use crate::codegen::scenario::{generate_scenario_code, FeaturePath, ScenarioConfig, ScenarioName};
+use crate::parsing::feature::{extract_scenario_steps, parse_and_load_feature, ScenarioData};
 use crate::parsing::tags::TagExpression;
 use crate::utils::fixtures::extract_function_fixtures;
 use crate::validation::parameters::process_scenario_outline_examples;
@@ -200,7 +200,7 @@ fn select_scenario(
             .map_err(proc_macro::TokenStream::from)?;
         let matches = lookup
             .tag_filter
-            .is_none_or(|filter| data.filter_by_tags(&filter.expr));
+            .map_or(true, |filter| data.filter_by_tags(&filter.expr));
         if matches {
             return Ok(data);
         }

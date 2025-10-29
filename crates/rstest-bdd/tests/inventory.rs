@@ -1,6 +1,6 @@
 //! Tests for step registration via macros
 
-use rstest_bdd::{Step, StepKeyword, iter};
+use rstest_bdd::{iter, Step, StepKeyword};
 use rstest_bdd_macros::{given, then, when};
 
 #[given("a precondition")]

@@ -1,11 +1,12 @@
 //! Behavioural tests covering the `#[scenario]` macro
 
+use once_cell::sync::Lazy;
 use rstest::rstest;
 use rstest_bdd_macros::{given, scenario, then, when};
 use serial_test::serial;
-use std::sync::{LazyLock, Mutex, MutexGuard};
+use std::sync::{Mutex, MutexGuard};
 
-static EVENTS: LazyLock<Mutex<Vec<&'static str>>> = LazyLock::new(|| Mutex::new(Vec::new()));
+static EVENTS: Lazy<Mutex<Vec<&'static str>>> = Lazy::new(|| Mutex::new(Vec::new()));
 
 /// Return a guard to the `EVENTS` mutex, recovering from poison.
 ///

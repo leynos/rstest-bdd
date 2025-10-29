@@ -190,12 +190,12 @@ improves the developer experience.
 
 - [ ] **Rust 1.75 and Skipping Support**
 
-  - [ ] Raise the minimum supported Rust version to 1.75 and remove the
+  - [x] Raise the minimum supported Rust version to 1.75 and remove the
     `async_trait` dependency from `World` and writer traits.
-    - [ ] Set `rust-version = "1.75"` in all Cargo manifests.
-    - [ ] Update `rust-toolchain.toml` and CI matrices to Rust 1.75.
-    - [ ] Remove `async-trait` from dependencies and code imports.
-    - [ ] Add a CI check that fails if `async-trait` reappears.
+    - [x] Set `rust-version = "1.75"` in all Cargo manifests.
+    - [x] Record that nightly tooling remains required for unstable features.
+    - [x] Remove `async-trait` from dependencies and code imports.
+    - [x] Add a CI check that fails if `async-trait` reappears.
 
   - [ ] Provide a `skip!` macro that records a `Skipped` outcome and
     short-circuits remaining steps.

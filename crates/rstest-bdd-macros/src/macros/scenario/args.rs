@@ -4,10 +4,10 @@
 
 use proc_macro2::Span;
 use syn::{
-    LitInt, LitStr,
     parse::{Parse, ParseStream},
     punctuated::Punctuated,
     token::Comma,
+    LitInt, LitStr,
 };
 
 pub(super) struct ScenarioArgs {

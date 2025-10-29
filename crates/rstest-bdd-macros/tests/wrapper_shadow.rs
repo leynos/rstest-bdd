@@ -1,7 +1,7 @@
 //! Regression tests ensuring wrapper inputs use unique identifiers.
 
 use rstest_bdd::{
-    StepContext, StepKeyword, assert_step_err, assert_step_ok, find_step, lookup_step,
+    assert_step_err, assert_step_ok, find_step, lookup_step, StepContext, StepKeyword,
 };
 use rstest_bdd_macros::given;
 use std::sync::Mutex;

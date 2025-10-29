@@ -2,7 +2,7 @@
 
 use std::sync::atomic::{AtomicU32, Ordering};
 
-use rstest_bdd::{StepContext, StepError, StepKeyword, lookup_step};
+use rstest_bdd::{lookup_step, StepContext, StepError, StepKeyword};
 use rstest_bdd_macros::given;
 
 static CAPTURED: AtomicU32 = AtomicU32::new(0);

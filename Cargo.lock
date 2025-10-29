@@ -1193,6 +1193,7 @@ dependencies = [
  "cfg-if",
  "convert_case 0.6.0",
  "gherkin",
+ "once_cell",
  "proc-macro-crate 3.3.0",
  "proc-macro-error",
  "proc-macro2",

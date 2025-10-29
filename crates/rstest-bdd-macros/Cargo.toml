@@ -38,6 +38,7 @@ proc-macro-error = "1"
 camino.workspace = true
 cap-std.workspace = true
 convert_case.workspace = true
+once_cell.workspace = true
 
 [dev-dependencies]
 rstest.workspace = true
