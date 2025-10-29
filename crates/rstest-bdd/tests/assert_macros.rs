@@ -14,6 +14,34 @@ fn capture_panic_message(op: impl FnOnce()) -> String {
     }
 }
 
+fn panic_with_owned_string() {
+    std::panic::panic_any(String::from("owned"));
+}
+
+fn panic_with_static_str() {
+    std::panic::panic_any("static str");
+}
+
+fn panic_with_i32() {
+    std::panic::panic_any(42_i32);
+}
+
+fn panic_with_f64() {
+    std::panic::panic_any(2.5_f64);
+}
+
+fn panic_with_bool_true() {
+    std::panic::panic_any(true);
+}
+
+fn panic_with_empty_string() {
+    std::panic::panic_any(String::new());
+}
+
+fn panic_with_unicode_str() {
+    std::panic::panic_any("résumé");
+}
+
 /// Helper to test panic messages in French locale.
 fn assert_panic_in_french(op: impl FnOnce(), expected_substring: &str) {
     let _guard = ScopedLocalization::new(&[langid!("fr")])
@@ -54,6 +82,19 @@ fn panic_message_downcasts_boxed_str() {
     let payload: Box<str> = "boom".into();
     let message = capture_panic_message(|| std::panic::panic_any(payload));
     assert_eq!(message, "boom");
+}
+
+#[rstest]
+#[case::owned_string(panic_with_owned_string as fn(), "owned")]
+#[case::static_str(panic_with_static_str as fn(), "static str")]
+#[case::i32(panic_with_i32 as fn(), "42")]
+#[case::f64(panic_with_f64 as fn(), "2.5")]
+#[case::bool_true(panic_with_bool_true as fn(), "true")]
+#[case::empty_owned(panic_with_empty_string as fn(), "")]
+#[case::unicode(panic_with_unicode_str as fn(), "résumé")]
+fn panic_message_downcasts_common_payloads(#[case] operation: fn(), #[case] expected: &str) {
+    let message = capture_panic_message(operation);
+    assert_eq!(message, expected);
 }
 
 fn assert_step_ok_panics() {

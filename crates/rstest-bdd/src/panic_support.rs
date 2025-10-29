@@ -49,6 +49,8 @@ pub fn panic_message(e: &(dyn std::any::Any + Send)) -> String {
         f32,
         f64,
     );
+    // ``()`` lacks a ``Display`` implementation, so ``try_downcast!`` cannot
+    // render it using ``to_string``.
     if e.downcast_ref::<()>().is_some() {
         return "()".to_owned();
     }
