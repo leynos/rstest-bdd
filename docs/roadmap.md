@@ -197,7 +197,7 @@ improves the developer experience.
     - [x] Remove `async-trait` from dependencies and code imports.
     - [x] Add a CI check that fails if `async-trait` reappears.
 
-  - [ ] Provide a `skip!` macro that records a `Skipped` outcome and
+  - [x] Provide a `skip!` macro that records a `Skipped` outcome and
     short-circuits remaining steps.
 
   - [ ] Expose skipped status through `cargo-bdd` and the JSON and JUnit

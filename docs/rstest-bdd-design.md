@@ -1211,7 +1211,12 @@ incrementally.
 - Introduce a `skip!` macro that step or hook functions can invoke to record a
   `Skipped` outcome and halt the remaining steps. The macro accepts an optional
   message and integrates with the scenario orchestrator so the scenario is
-  marked as skipped rather than failed.
+  marked as skipped rather than failed. The concrete implementation now mirrors
+  familiar formatting macros: additional arguments invoke `format!` so callers
+  may interpolate contextual state without constructing the message manually.
+  Using `panic::resume_unwind` maintains the existing panic-based plumbing,
+  allowing step wrappers to intercept the payload and convert it into
+  `StepExecution::Skipped` without changing the surrounding control flow.
 
 - Extend tag filtering to recognize an `@allow_skipped` tag and provide a
   `fail_on_skipped` setting (cargo-bdd flag: `--fail-on-skipped`, env:
