@@ -379,10 +379,11 @@ one may filter or run them in parallel as usual.
 
 Steps or hooks may call `rstest_bdd::skip!` to stop executing the remaining
 steps. The macro records a `Skipped` outcome and short-circuits the scenario so
-the generated test returns before evaluating the annotated function body. Pass
-an optional message to describe the reason, and use the standard `format!`
-syntax to interpolate values when needed. Set the `RSTEST_BDD_FAIL_ON_SKIPPED`
-environment variable to `1`, or call
+the generated test returns before evaluating the annotated function body.
+Invoke `skip!()` with no arguments to record a skipped outcome without a
+message. Pass an optional string to describe the reason, and use the standard
+`format!` syntax to interpolate values when needed. Set the
+`RSTEST_BDD_FAIL_ON_SKIPPED` environment variable to `1`, or call
 `rstest_bdd::config::set_fail_on_skipped(true)`, to escalate skipped scenarios
 into test failures unless the feature or scenario carries an `@allow_skipped`
 tag. (Example-level tags are not yet evaluated.)
@@ -399,7 +400,10 @@ fn service_unavailable() {
 #[given("a maintenance window is scheduled")]
 fn maintenance_window() {
     let component = "billing";
-    bdd::skip!("{component} maintenance in progress", component = component);
+    bdd::skip!(
+        "{component} maintenance in progress",
+        component = component,
+    );
 }
 
 #[scenario(path = "features/unhappy_path.feature")]

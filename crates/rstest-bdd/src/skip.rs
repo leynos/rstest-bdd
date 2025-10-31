@@ -53,6 +53,8 @@ impl fmt::Display for SkipRequest {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use rstest::rstest;
+    use std::panic::{self, UnwindSafe};
 
     #[test]
     fn request_skip_raises_panic() {
@@ -60,25 +62,24 @@ mod tests {
         assert!(result.is_err(), "request_skip should panic");
     }
 
-    #[test]
-    fn skip_macro_without_message_propagates_none() {
-        let result = panic::catch_unwind(|| crate::skip!());
-        let Err(payload) = result else {
-            panic!("skip! should raise a panic payload");
-        };
-        let Ok(request) = payload.downcast::<SkipRequest>() else {
-            panic!("payload should downcast to SkipRequest");
-        };
-        assert!(
-            request.into_message().is_none(),
-            "skip! without arguments should produce no message",
-        );
-    }
-
-    #[test]
-    fn skip_macro_formats_message_arguments() {
+    #[rstest]
+    #[case::without_message(|| crate::skip!(), None)]
+    #[case::single_argument(|| crate::skip!("maintenance window"), Some("maintenance window"))]
+    #[case::formatted(|| {
         let detail = "service";
-        let result = panic::catch_unwind(|| crate::skip!("{detail} pending", detail = detail));
+        crate::skip!("{detail} pending", detail = detail);
+    }, Some("service pending"))]
+    #[case::formatted_trailing_comma(|| {
+        let detail = "service";
+        crate::skip!("{detail} pending", detail = detail,);
+    }, Some("service pending"))]
+    fn skip_macro_records_expected_message<F>(
+        #[case] trigger: F,
+        #[case] expected: Option<&'static str>,
+    ) where
+        F: FnOnce() + UnwindSafe,
+    {
+        let result = panic::catch_unwind(trigger);
         let Err(payload) = result else {
             panic!("skip! should raise a panic payload");
         };
@@ -87,8 +88,8 @@ mod tests {
         };
         assert_eq!(
             request.into_message(),
-            Some(String::from("service pending")),
-            "skip! should format the message using the provided arguments",
+            expected.map(ToString::to_string),
+            "skip! should produce the expected optional message",
         );
     }
 }
