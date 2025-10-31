@@ -53,6 +53,9 @@ macro_rules! skip {
     ($msg:expr $(,)?) => {
         $crate::SkipRequest::raise(Some(Into::<String>::into($msg)))
     };
+    ($fmt:expr, $($arg:tt)*) => {
+        $crate::SkipRequest::raise(Some(format!($fmt, $($arg)*)))
+    };
 }
 
 /// Assert that a [`Result`] is `Ok` and unwrap it.

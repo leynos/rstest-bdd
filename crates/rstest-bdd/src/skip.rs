@@ -53,10 +53,43 @@ impl fmt::Display for SkipRequest {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use rstest::rstest;
+    use std::panic::{self, UnwindSafe};
 
     #[test]
     fn request_skip_raises_panic() {
         let result = panic::catch_unwind(|| SkipRequest::raise(Some("skip".to_string())));
         assert!(result.is_err(), "request_skip should panic");
+    }
+
+    #[rstest]
+    #[case::without_message(|| crate::skip!(), None)]
+    #[case::single_argument(|| crate::skip!("maintenance window"), Some("maintenance window"))]
+    #[case::formatted(|| {
+        let detail = "service";
+        crate::skip!("{detail} pending", detail = detail);
+    }, Some("service pending"))]
+    #[case::formatted_trailing_comma(|| {
+        let detail = "service";
+        crate::skip!("{detail} pending", detail = detail,);
+    }, Some("service pending"))]
+    fn skip_macro_records_expected_message<F>(
+        #[case] trigger: F,
+        #[case] expected: Option<&'static str>,
+    ) where
+        F: FnOnce() + UnwindSafe,
+    {
+        let result = panic::catch_unwind(trigger);
+        let Err(payload) = result else {
+            panic!("skip! should raise a panic payload");
+        };
+        let Ok(request) = payload.downcast::<SkipRequest>() else {
+            panic!("payload should downcast to SkipRequest");
+        };
+        assert_eq!(
+            request.into_message(),
+            expected.map(ToString::to_string),
+            "skip! should produce the expected optional message",
+        );
     }
 }
