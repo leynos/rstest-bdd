@@ -77,21 +77,48 @@ fn main() -> Result<()> {
 
 /// Handle the `steps` subcommand by listing all registered steps.
 ///
-/// # Errors
+/// Write filtered steps to stdout and optionally append scenario summaries.
 ///
-/// Returns an error if the test binaries cannot be built or executed.
-fn handle_steps() -> Result<()> {
+/// This helper encapsulates the shared plumbing around registry collection,
+/// filtering, output rendering, and flushing so that subcommands can focus on
+/// their filtering semantics.
+///
+/// # Examples
+///
+/// ```ignore
+/// // Emit every registered step along with their scenarios.
+/// write_filtered_steps(|_| true, true)?;
+///
+/// // Emit only unused steps and omit scenario listings.
+/// write_filtered_steps(|step| !step.used, false)?;
+/// ```
+fn write_filtered_steps<F>(filter: F, include_scenarios: bool) -> Result<()>
+where
+    F: Fn(&&Step) -> bool,
+{
     let registry = collect_registry()?;
     let mut stdout = io::stdout();
     registry
         .steps
         .iter()
+        .filter(|step| filter(step))
         .try_for_each(|step| write_step(&mut stdout, step))?;
-    write_scenarios(&mut stdout, &registry.scenarios)?;
+    if include_scenarios {
+        write_scenarios(&mut stdout, &registry.scenarios)?;
+    }
     stdout
         .flush()
         .wrap_err("failed to flush step listing to stdout")?;
     Ok(())
+}
+
+/// Handle the `steps` subcommand by listing all registered steps.
+///
+/// # Errors
+///
+/// Returns an error if the test binaries cannot be built or executed.
+fn handle_steps() -> Result<()> {
+    write_filtered_steps(|_| true, true)
 }
 
 /// Handle the `unused` subcommand by listing steps that were never executed.
@@ -100,17 +127,7 @@ fn handle_steps() -> Result<()> {
 ///
 /// Returns an error if the test binaries cannot be built or executed.
 fn handle_unused() -> Result<()> {
-    let registry = collect_registry()?;
-    let mut stdout = io::stdout();
-    registry
-        .steps
-        .iter()
-        .filter(|s| !s.used)
-        .try_for_each(|step| write_step(&mut stdout, step))?;
-    stdout
-        .flush()
-        .wrap_err("failed to flush step listing to stdout")?;
-    Ok(())
+    write_filtered_steps(|step| !step.used, false)
 }
 
 /// Handle the `duplicates` subcommand by grouping identical step definitions.
