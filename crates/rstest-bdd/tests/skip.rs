@@ -1,5 +1,7 @@
 //! Behavioural coverage for scenario skipping semantics.
 
+use std::path::Path;
+
 use rstest::fixture;
 use rstest_bdd as bdd;
 use rstest_bdd_macros::{given, scenario, then};
@@ -40,6 +42,15 @@ fn fail_on_enabled() -> FailOnSkippedGuard {
 #[fixture]
 fn fail_on_disabled() -> FailOnSkippedGuard {
     FailOnSkippedGuard::disable()
+}
+
+fn assert_feature_path_suffix(actual: &str, expected_suffix: &str) {
+    let actual_path = Path::new(actual);
+    let expected = Path::new(expected_suffix);
+    assert!(
+        actual_path.ends_with(expected),
+        "feature path should reference {expected_suffix}",
+    );
 }
 
 #[given("a scenario will be skipped")]
@@ -123,12 +134,7 @@ fn collector_records_allowed_skip_metadata() {
     let [record] = records.as_slice() else {
         panic!("expected a single skip record");
     };
-    assert!(
-        record
-            .feature_path()
-            .ends_with("tests/features/skip.feature"),
-        "feature path should reference skip.feature"
-    );
+    assert_feature_path_suffix(record.feature_path(), "tests/features/skip.feature");
     assert_eq!(record.scenario_name(), "allowed skip");
     match record.status() {
         ScenarioStatus::Skipped(details) => {
@@ -171,12 +177,7 @@ fn collector_records_passed_scenarios() {
     let [record] = records.as_slice() else {
         panic!("expected a single pass record");
     };
-    assert!(
-        record
-            .feature_path()
-            .ends_with("tests/features/reporting.feature"),
-        "feature path should reference reporting.feature"
-    );
+    assert_feature_path_suffix(record.feature_path(), "tests/features/reporting.feature");
     assert_eq!(record.scenario_name(), "scenario passes");
     assert!(matches!(record.status(), ScenarioStatus::Passed));
 }
