@@ -5,13 +5,16 @@
 //! summaries in alternative formats without depending on the macro-generated
 //! tests directly.
 
-use std::sync::{Mutex, MutexGuard, OnceLock};
+use std::sync::{Mutex, MutexGuard, Once, OnceLock};
 
 /// JSON report writer for scenario outcomes.
 #[cfg(feature = "diagnostics")]
 pub mod json;
 /// JUnit XML writer for scenario outcomes.
 pub mod junit;
+
+#[cfg(feature = "diagnostics")]
+static RUN_DUMP_SEEDS: Once = Once::new();
 
 /// Thread-safe store containing scenario records gathered during a test run.
 static REPORTS: OnceLock<Mutex<Vec<ScenarioRecord>>> = OnceLock::new();
@@ -25,6 +28,60 @@ fn lock_reports() -> MutexGuard<'static, Vec<ScenarioRecord>> {
         Ok(guard) => guard,
         Err(poisoned) => poisoned.into_inner(),
     }
+}
+
+/// Seed executed before emitting diagnostic step dumps.
+#[cfg(feature = "diagnostics")]
+#[derive(Copy, Clone)]
+pub struct DumpSeed {
+    callback: fn(),
+}
+
+#[cfg(feature = "diagnostics")]
+impl DumpSeed {
+    /// Construct a seed that will run before dumping diagnostic steps.
+    ///
+    /// # Examples
+    /// ```ignore
+    /// use rstest_bdd::reporting::DumpSeed;
+    ///
+    /// fn seed() {
+    ///     // Record scenario metadata for diagnostics output.
+    /// }
+    ///
+    /// inventory::submit! {
+    ///     DumpSeed::new(seed)
+    /// }
+    /// ```
+    #[must_use]
+    pub const fn new(callback: fn()) -> Self {
+        Self { callback }
+    }
+
+    fn run(self) {
+        (self.callback)();
+    }
+}
+
+#[cfg(feature = "diagnostics")]
+inventory::collect!(DumpSeed);
+
+/// Execute all registered dump seeds once per process.
+///
+/// Registered seeds can be used by diagnostic fixtures to populate the
+/// reporting collector before the registry is serialised.
+///
+/// # Examples
+/// ```ignore
+/// rstest_bdd::reporting::run_dump_seeds();
+/// ```
+#[cfg(feature = "diagnostics")]
+pub fn run_dump_seeds() {
+    RUN_DUMP_SEEDS.call_once(|| {
+        for seed in inventory::iter::<DumpSeed> {
+            seed.run();
+        }
+    });
 }
 
 /// Outcome recorded for a single scenario execution.

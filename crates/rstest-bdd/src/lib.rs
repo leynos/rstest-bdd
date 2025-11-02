@@ -164,6 +164,7 @@ fn dump_steps() {
     if std::env::var_os("RSTEST_BDD_DUMP_STEPS").is_some()
         && std::env::args().any(|a| a == "--dump-steps")
     {
+        reporting::run_dump_seeds();
         #[expect(
             clippy::print_stdout,
             clippy::print_stderr,
