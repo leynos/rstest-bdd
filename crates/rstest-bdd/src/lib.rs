@@ -36,6 +36,7 @@ mod panic_support;
 mod pattern;
 mod placeholder;
 mod registry;
+pub mod reporting;
 pub mod state;
 mod types;
 

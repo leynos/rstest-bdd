@@ -1,7 +1,8 @@
 //! Command line diagnostic tooling for rstest-bdd.
 
 use std::collections::HashMap;
-use std::io::{self, BufReader, Write};
+use std::io::Write;
+use std::io::{self, BufReader};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
@@ -9,6 +10,9 @@ use cargo_metadata::{Message, Package, PackageId, Target};
 use clap::{Parser, Subcommand};
 use eyre::{bail, eyre, Context, Result};
 use serde::Deserialize;
+
+mod output;
+use output::{write_group_separator, write_scenarios, write_step};
 
 /// Cargo subcommand providing diagnostics for rstest-bdd.
 #[derive(Parser)]
@@ -38,6 +42,30 @@ struct Step {
     used: bool,
 }
 
+#[derive(Debug, Deserialize, Clone)]
+struct RegistryDump {
+    steps: Vec<Step>,
+    scenarios: Vec<Scenario>,
+}
+
+#[derive(Debug, Deserialize, Clone, Copy, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+enum ScenarioOutcome {
+    Passed,
+    Skipped,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+struct Scenario {
+    feature_path: String,
+    #[serde(rename = "scenario_name")]
+    name: String,
+    status: ScenarioOutcome,
+    message: Option<String>,
+    allow_skipped: bool,
+    forced_failure: bool,
+}
+
 fn main() -> Result<()> {
     match Cli::parse().command {
         Commands::Steps => handle_steps()?,
@@ -52,28 +80,18 @@ fn main() -> Result<()> {
 /// # Errors
 ///
 /// Returns an error if the test binaries cannot be built or executed.
-fn list_steps<F>(filter: F) -> Result<()>
-where
-    F: Fn(&Step) -> bool,
-{
+fn handle_steps() -> Result<()> {
+    let registry = collect_registry()?;
     let mut stdout = io::stdout();
-    collect_steps()?
-        .into_iter()
-        .filter(filter)
-        .try_for_each(|step| write_step(&mut stdout, &step))?;
+    registry
+        .steps
+        .iter()
+        .try_for_each(|step| write_step(&mut stdout, step))?;
+    write_scenarios(&mut stdout, &registry.scenarios)?;
     stdout
         .flush()
         .wrap_err("failed to flush step listing to stdout")?;
     Ok(())
-}
-
-/// Handle the `steps` subcommand by listing all registered steps.
-///
-/// # Errors
-///
-/// Returns an error if the test binaries cannot be built or executed.
-fn handle_steps() -> Result<()> {
-    list_steps(|_| true)
 }
 
 /// Handle the `unused` subcommand by listing steps that were never executed.
@@ -82,7 +100,17 @@ fn handle_steps() -> Result<()> {
 ///
 /// Returns an error if the test binaries cannot be built or executed.
 fn handle_unused() -> Result<()> {
-    list_steps(|s| !s.used)
+    let registry = collect_registry()?;
+    let mut stdout = io::stdout();
+    registry
+        .steps
+        .iter()
+        .filter(|s| !s.used)
+        .try_for_each(|step| write_step(&mut stdout, step))?;
+    stdout
+        .flush()
+        .wrap_err("failed to flush step listing to stdout")?;
+    Ok(())
 }
 
 /// Handle the `duplicates` subcommand by grouping identical step definitions.
@@ -92,7 +120,7 @@ fn handle_unused() -> Result<()> {
 /// Returns an error if the test binaries cannot be built or executed.
 fn handle_duplicates() -> Result<()> {
     let mut groups: HashMap<(String, String), Vec<Step>> = HashMap::new();
-    for step in collect_steps()? {
+    for step in collect_registry()?.steps {
         groups
             .entry((step.keyword.clone(), step.pattern.clone()))
             .or_default()
@@ -174,19 +202,24 @@ fn is_unrecognised_dump_steps(stderr: &str) -> bool {
         .any(|p| lower.contains(p))
 }
 
-fn collect_steps() -> Result<Vec<Step>> {
+fn collect_registry() -> Result<RegistryDump> {
     let metadata = cargo_metadata::MetadataCommand::new().exec()?;
     if !has_test_targets(&metadata) {
-        return Ok(Vec::new());
+        return Ok(RegistryDump {
+            steps: Vec::new(),
+            scenarios: Vec::new(),
+        });
     }
     let bins = build_test_binaries(&metadata)?;
     let mut steps = Vec::new();
+    let mut scenarios = Vec::new();
     for bin in bins {
-        if let Some(mut parsed) = collect_steps_from_binary(&bin)? {
-            steps.append(&mut parsed);
+        if let Some(mut parsed) = collect_registry_from_binary(&bin)? {
+            steps.append(&mut parsed.steps);
+            scenarios.append(&mut parsed.scenarios);
         }
     }
-    Ok(steps)
+    Ok(RegistryDump { steps, scenarios })
 }
 
 fn has_test_targets(metadata: &cargo_metadata::Metadata) -> bool {
@@ -273,7 +306,7 @@ fn build_test_target(package: &Package, target: &Target) -> Result<Vec<PathBuf>>
     Ok(bins)
 }
 
-fn collect_steps_from_binary(bin: &Path) -> Result<Option<Vec<Step>>> {
+fn collect_registry_from_binary(bin: &Path) -> Result<Option<RegistryDump>> {
     let output = Command::new(bin)
         .arg("--dump-steps")
         .env("RSTEST_BDD_DUMP_STEPS", "1")
@@ -282,68 +315,21 @@ fn collect_steps_from_binary(bin: &Path) -> Result<Option<Vec<Step>>> {
     if !output.status.success() {
         return handle_binary_execution_failure(bin, &output);
     }
-    let steps: Vec<Step> = serde_json::from_slice(&output.stdout)
+    let dump: RegistryDump = serde_json::from_slice(&output.stdout)
         .with_context(|| format!("invalid JSON from {}", bin.display()))?;
-    Ok(Some(steps))
+    Ok(Some(dump))
 }
 
 fn handle_binary_execution_failure(
     bin: &Path,
     output: &std::process::Output,
-) -> Result<Option<Vec<Step>>> {
+) -> Result<Option<RegistryDump>> {
     let err = String::from_utf8_lossy(&output.stderr);
     if is_unrecognised_dump_steps(&err) {
         Ok(None)
     } else {
         bail!("test binary {} failed: {err}", bin.display());
     }
-}
-
-/// Write a formatted step definition to the supplied writer.
-///
-/// # Examples
-///
-/// ```ignore
-/// let step = {
-///     #[derive(Debug, serde::Deserialize, Clone)]
-///     struct Step {
-///         keyword: String,
-///         pattern: String,
-///         file: String,
-///         line: u32,
-///         used: bool,
-///     }
-///     Step {
-///         keyword: "Given".into(),
-///         pattern: "example".into(),
-///         file: "src/example.rs".into(),
-///         line: 42,
-///         used: false,
-///     }
-/// };
-/// let mut buffer = Vec::new();
-/// write_step(&mut buffer, &step).unwrap();
-/// assert_eq!(
-///     String::from_utf8(buffer).unwrap(),
-///     "Given 'example' (src/example.rs:42)\n"
-/// );
-/// ```
-fn write_step(writer: &mut dyn Write, step: &Step) -> Result<()> {
-    writeln!(
-        writer,
-        "{} '{}' ({}:{})",
-        step.keyword, step.pattern, step.file, step.line
-    )
-    .wrap_err_with(|| {
-        format!(
-            "failed to write step {} '{}' at {}:{}",
-            step.keyword, step.pattern, step.file, step.line
-        )
-    })
-}
-
-fn write_group_separator(writer: &mut dyn Write) -> Result<()> {
-    writeln!(writer, "---").wrap_err("failed to write duplicate separator")
 }
 
 #[cfg(test)]
