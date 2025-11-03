@@ -100,7 +100,12 @@ pub fn write_snapshot<W: Write>(writer: &mut W) -> fmt::Result {
 }
 
 fn write_escaped<W: Write>(writer: &mut W, value: &str) -> fmt::Result {
+    const INVALID_REPLACEMENT: &str = "&#xFFFD;";
     for character in value.chars() {
+        if !is_valid_xml_character(character) {
+            writer.write_str(INVALID_REPLACEMENT)?;
+            continue;
+        }
         match character {
             '&' => writer.write_str("&amp;")?,
             '<' => writer.write_str("&lt;")?,
@@ -111,4 +116,14 @@ fn write_escaped<W: Write>(writer: &mut W, value: &str) -> fmt::Result {
         }
     }
     Ok(())
+}
+
+fn is_valid_xml_character(character: char) -> bool {
+    matches!(
+        u32::from(character),
+        0x09 | 0x0A | 0x0D
+            | 0x20..=0xD7FF
+            | 0xE000..=0xFFFD
+            | 0x1_0000..=0x10_FFFF
+    )
 }

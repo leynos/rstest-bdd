@@ -17,8 +17,8 @@ struct JsonReport<'a> {
 
 #[derive(Serialize)]
 struct JsonScenario<'a> {
-    feature: &'a str,
-    name: &'a str,
+    feature_path: &'a str,
+    scenario_name: &'a str,
     status: &'static str,
     #[serde(skip_serializing_if = "Option::is_none")]
     skip: Option<JsonSkip<'a>>,
@@ -49,8 +49,8 @@ impl<'a> From<&'a ScenarioRecord> for JsonScenario<'a> {
             }),
         };
         Self {
-            feature: record.feature_path(),
-            name: record.scenario_name(),
+            feature_path: record.feature_path(),
+            scenario_name: record.scenario_name(),
             status: record.status().label(),
             skip,
         }
@@ -109,7 +109,7 @@ pub fn write_snapshot<W: Write>(writer: &mut W) -> serde_json::Result<()> {
 ///     "feature", "scenario", ScenarioStatus::Passed,
 /// )];
 /// let json = json::to_string(&records).unwrap();
-/// assert!(json.contains("\"scenario\":\"scenario\""));
+/// assert!(json.contains("\"scenario_name\":\"scenario\""));
 /// ```
 ///
 /// # Errors
@@ -128,7 +128,7 @@ pub fn to_string(records: &[ScenarioRecord]) -> serde_json::Result<String> {
 ///     "feature", "scenario", ScenarioStatus::Passed,
 /// ));
 /// let json = json::snapshot_string().unwrap();
-/// assert!(json.contains("\"feature\":\"feature\""));
+/// assert!(json.contains("\"feature_path\":\"feature\""));
 /// ```
 ///
 /// # Errors

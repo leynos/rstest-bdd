@@ -1,7 +1,11 @@
 #![cfg(feature = "diagnostics")]
 //! Unit tests for registry dumping.
 
-use rstest_bdd::{dump_registry, find_step, step, StepContext, StepExecution, StepKeyword};
+use rstest_bdd::{
+    dump_registry, find_step,
+    reporting::{self, ScenarioRecord, ScenarioStatus, SkippedScenario},
+    step, StepContext, StepExecution, StepKeyword,
+};
 use serde_json::Value;
 
 mod common;
@@ -12,6 +16,18 @@ step!(StepKeyword::Given, "dump unused", noop_wrapper, &[]);
 
 #[test]
 fn reports_usage_flags() {
+    let _ = reporting::drain();
+    reporting::record(ScenarioRecord::new(
+        "tests/features/dump.feature",
+        "skipped entry",
+        ScenarioStatus::Skipped(SkippedScenario::new(Some("reason".into()), true, false)),
+    ));
+    reporting::record(ScenarioRecord::new(
+        "tests/features/dump.feature",
+        "passing entry",
+        ScenarioStatus::Passed,
+    ));
+
     let runner = find_step(StepKeyword::Given, "dump used".into())
         .unwrap_or_else(|| panic!("step not found"));
     match runner(&StepContext::default(), "dump used", None, None) {
@@ -38,4 +54,42 @@ fn reports_usage_flags() {
         .and_then(Value::as_array)
         .unwrap_or_else(|| panic!("scenarios array"));
     assert!(scenarios.iter().all(|entry| entry.get("status").is_some()));
+    let skipped = scenarios
+        .iter()
+        .find(|entry| entry.get("status") == Some(&Value::String("skipped".into())))
+        .unwrap_or_else(|| panic!("skipped scenario present"));
+    assert_eq!(
+        skipped.get("message").and_then(Value::as_str),
+        Some("reason"),
+        "skip message should be preserved",
+    );
+    assert_eq!(
+        skipped.get("allow_skipped").and_then(Value::as_bool),
+        Some(true),
+        "skip allowance flag should surface",
+    );
+    assert_eq!(
+        skipped.get("forced_failure").and_then(Value::as_bool),
+        Some(false),
+        "skip should not record forced failure flag",
+    );
+    let passing = scenarios
+        .iter()
+        .find(|entry| entry.get("status") == Some(&Value::String("passed".into())))
+        .unwrap_or_else(|| panic!("passed scenario present"));
+    assert!(
+        passing.get("message").is_none() || passing.get("message") == Some(&Value::Null),
+        "passed scenarios should not include a skip message",
+    );
+    assert_eq!(
+        passing.get("allow_skipped").and_then(Value::as_bool),
+        Some(false),
+        "passed scenarios should not advertise skip allowance",
+    );
+    assert_eq!(
+        passing.get("forced_failure").and_then(Value::as_bool),
+        Some(false),
+        "passed scenarios should not force failures",
+    );
+    let _ = reporting::drain();
 }

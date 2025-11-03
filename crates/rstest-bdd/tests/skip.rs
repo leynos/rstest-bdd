@@ -7,7 +7,10 @@ use rstest_bdd as bdd;
 use rstest_bdd_macros::{given, scenario, then};
 use serial_test::serial;
 
-use bdd::reporting::{self, drain as drain_reports, ScenarioStatus};
+use bdd::reporting::{
+    self, drain as drain_reports, record as record_scenario, ScenarioRecord, ScenarioStatus,
+    SkippedScenario,
+};
 #[cfg(feature = "diagnostics")]
 use serde_json::Value;
 
@@ -58,6 +61,11 @@ fn skip_scenario() {
     bdd::skip!("skip requested for coverage");
 }
 
+#[given("a scenario will skip without a message")]
+fn skip_scenario_without_message() {
+    bdd::skip!();
+}
+
 #[given("a scenario completes successfully")]
 fn scenario_completes_successfully() {}
 
@@ -79,6 +87,16 @@ fn disallowed_skip(fail_on_enabled: FailOnSkippedGuard) {
 fn allowed_skip(fail_on_enabled: FailOnSkippedGuard) {
     let _ = &fail_on_enabled;
     panic!("scenario body should not execute when skip is allowed");
+}
+
+#[scenario(
+    path = "tests/features/skip.feature",
+    name = "allowed skip without message"
+)]
+#[serial]
+fn allowed_skip_without_message(fail_on_enabled: FailOnSkippedGuard) {
+    let _ = &fail_on_enabled;
+    panic!("scenario body should not execute when skip is allowed without a message");
 }
 
 #[scenario(path = "tests/features/skip.feature", name = "skip without fail flag")]
@@ -182,6 +200,27 @@ fn collector_records_passed_scenarios() {
     assert!(matches!(record.status(), ScenarioStatus::Passed));
 }
 
+#[test]
+#[serial]
+fn collector_records_skips_without_message() {
+    let _ = drain_reports();
+    let guard = FailOnSkippedGuard::enable();
+    allowed_skip_without_message();
+    drop(guard);
+    let records = drain_reports();
+    let [record] = records.as_slice() else {
+        panic!("expected a single skip record without message");
+    };
+    match record.status() {
+        ScenarioStatus::Skipped(details) => {
+            assert_eq!(details.message(), None);
+            assert!(details.allow_skipped());
+            assert!(!details.forced_failure());
+        }
+        ScenarioStatus::Passed => panic!("expected skipped status"),
+    }
+}
+
 #[cfg(feature = "diagnostics")]
 #[test]
 #[serial]
@@ -212,6 +251,15 @@ fn json_writer_emits_lowercase_skipped_status() {
         Some("skipped"),
         "status should be lowercase skipped",
     );
+    let Some(feature_path) = scenario.get("feature_path").and_then(Value::as_str) else {
+        panic!("feature path should surface in JSON output");
+    };
+    assert_feature_path_suffix(feature_path, "tests/features/skip.feature");
+    assert_eq!(
+        scenario.get("scenario_name").and_then(Value::as_str),
+        Some("allowed skip"),
+        "scenario name should surface in JSON output",
+    );
     let skip = scenario
         .get("skip")
         .and_then(Value::as_object)
@@ -226,6 +274,31 @@ fn json_writer_emits_lowercase_skipped_status() {
         Some(true),
         "expected skip to honour allowance flag",
     );
+    let _ = drain_reports();
+}
+
+#[cfg(feature = "diagnostics")]
+#[test]
+#[serial]
+fn json_writer_omits_absent_skip_messages() {
+    let _ = drain_reports();
+    let guard = FailOnSkippedGuard::enable();
+    allowed_skip_without_message();
+    drop(guard);
+    let json = reporting::json::snapshot_string()
+        .unwrap_or_else(|error| panic!("expected JSON report: {error}"));
+    let parsed: Value =
+        serde_json::from_str(&json).unwrap_or_else(|error| panic!("expected valid JSON: {error}"));
+    let scenario = parsed
+        .get("scenarios")
+        .and_then(Value::as_array)
+        .and_then(|entries| entries.first())
+        .unwrap_or_else(|| panic!("scenario entry present"));
+    let skip = scenario
+        .get("skip")
+        .and_then(Value::as_object)
+        .unwrap_or_else(|| panic!("skip details present"));
+    assert!(skip.get("message").is_none() || skip.get("message") == Some(&Value::Null));
     let _ = drain_reports();
 }
 
@@ -273,5 +346,30 @@ fn junit_writer_marks_forced_failure_skips() {
         output.contains("failures=\"1\" skipped=\"1\""),
         "JUnit summary should reflect failure counts",
     );
+    let _ = drain_reports();
+}
+
+#[test]
+#[serial]
+fn junit_writer_escapes_special_characters() {
+    let _ = drain_reports();
+    record_scenario(ScenarioRecord::new(
+        "tests/features/<feature>&special",
+        "Scenario with <&>\"'",
+        ScenarioStatus::Skipped(SkippedScenario::new(
+            Some("message with <bad>&chars\u{0007}".into()),
+            true,
+            false,
+        )),
+    ));
+    let records = reporting::snapshot();
+    let mut output = String::new();
+    if let Err(error) = reporting::junit::write(&mut output, &records) {
+        panic!("expected to render JUnit report: {error}");
+    }
+    assert!(output.contains("Scenario with &lt;&amp;&gt;&quot;&apos;"));
+    assert!(output.contains("tests/features/&lt;feature&gt;&amp;special"));
+    assert!(output.contains("message with &lt;bad&gt;&amp;chars"));
+    assert!(output.contains("&#xFFFD;"));
     let _ = drain_reports();
 }

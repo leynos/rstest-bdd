@@ -4,6 +4,15 @@
 //! thread-safe collector. Reporters can read the collected entries to render
 //! summaries in alternative formats without depending on the macro-generated
 //! tests directly.
+//!
+//! # Concurrency
+//!
+//! The collector is intentionally global so that generated tests and external
+//! binaries can publish their outcomes without plumbing additional context.
+//! Behavioural tests that assert on the stored records must execute
+//! serially (for example via [`serial_test::serial`]) to avoid cross-test
+//! contamination. The API does not reset records automatically; callers
+//! remain responsible for draining the collector between assertions.
 
 use std::sync::{Mutex, MutexGuard, Once, OnceLock};
 

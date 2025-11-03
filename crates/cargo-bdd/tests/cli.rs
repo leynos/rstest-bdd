@@ -41,3 +41,17 @@ fn steps_output_includes_skipped_statuses() -> Result<()> {
     );
     Ok(())
 }
+
+#[test]
+fn steps_output_marks_forced_failure_skips() -> Result<()> {
+    let stdout = run_cargo_bdd_steps()?;
+    assert!(
+        stdout.contains("fixture forced failure skip") && stdout.contains("[forced failure]"),
+        "expected forced failure annotation in cargo bdd output: {stdout}",
+    );
+    assert!(
+        stdout.contains("fixture forced skip"),
+        "expected forced skip message in cargo bdd output: {stdout}",
+    );
+    Ok(())
+}

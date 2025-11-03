@@ -42,10 +42,17 @@ struct Step {
     used: bool,
 }
 
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, Deserialize, Clone, Default)]
 struct RegistryDump {
     steps: Vec<Step>,
     scenarios: Vec<Scenario>,
+}
+
+impl RegistryDump {
+    fn merge(&mut self, mut other: Self) {
+        self.steps.append(&mut other.steps);
+        self.scenarios.append(&mut other.scenarios);
+    }
 }
 
 #[derive(Debug, Deserialize, Clone, Copy, PartialEq, Eq)]
@@ -94,14 +101,14 @@ fn main() -> Result<()> {
 /// ```
 fn write_filtered_steps<F>(filter: F, include_scenarios: bool) -> Result<()>
 where
-    F: Fn(&&Step) -> bool,
+    F: Fn(&Step) -> bool,
 {
     let registry = collect_registry()?;
     let mut stdout = io::stdout();
     registry
         .steps
         .iter()
-        .filter(|step| filter(step))
+        .filter(|&step| filter(step))
         .try_for_each(|step| write_step(&mut stdout, step))?;
     if include_scenarios {
         write_scenarios(&mut stdout, &registry.scenarios)?;
@@ -222,21 +229,16 @@ fn is_unrecognised_dump_steps(stderr: &str) -> bool {
 fn collect_registry() -> Result<RegistryDump> {
     let metadata = cargo_metadata::MetadataCommand::new().exec()?;
     if !has_test_targets(&metadata) {
-        return Ok(RegistryDump {
-            steps: Vec::new(),
-            scenarios: Vec::new(),
-        });
+        return Ok(RegistryDump::default());
     }
     let bins = build_test_binaries(&metadata)?;
-    let mut steps = Vec::new();
-    let mut scenarios = Vec::new();
+    let mut registry = RegistryDump::default();
     for bin in bins {
-        if let Some(mut parsed) = collect_registry_from_binary(&bin)? {
-            steps.append(&mut parsed.steps);
-            scenarios.append(&mut parsed.scenarios);
+        if let Some(parsed) = collect_registry_from_binary(&bin)? {
+            registry.merge(parsed);
         }
     }
-    Ok(RegistryDump { steps, scenarios })
+    Ok(registry)
 }
 
 fn has_test_targets(metadata: &cargo_metadata::Metadata) -> bool {
@@ -332,9 +334,13 @@ fn collect_registry_from_binary(bin: &Path) -> Result<Option<RegistryDump>> {
     if !output.status.success() {
         return handle_binary_execution_failure(bin, &output);
     }
-    let dump: RegistryDump = serde_json::from_slice(&output.stdout)
+    let dump = parse_registry_dump(&output.stdout)
         .with_context(|| format!("invalid JSON from {}", bin.display()))?;
     Ok(Some(dump))
+}
+
+fn parse_registry_dump(bytes: &[u8]) -> serde_json::Result<RegistryDump> {
+    serde_json::from_slice(bytes)
 }
 
 fn handle_binary_execution_failure(

@@ -6,6 +6,10 @@ Feature: Skipping scenarios
   Scenario: allowed skip
     Given a scenario will be skipped
 
+  @allow_skipped
+  Scenario: allowed skip without message
+    Given a scenario will skip without a message
+
   Scenario: skip without fail flag
     Given a scenario will be skipped
 
