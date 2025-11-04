@@ -317,7 +317,7 @@ experience by introducing more powerful and intuitive APIs.
 
 - [ ] **Advanced Ergonomics**
 
-  - [ ] **Struct-based Step Arguments:** Introduce a `#[step_args]` derive
+  - [x] **Struct-based Step Arguments:** Introduce a `#[step_args]` derive
     macro to allow multiple placeholders from a step pattern to be parsed
     directly into the fields of a struct, simplifying step function signatures.
 

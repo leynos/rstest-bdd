@@ -1,6 +1,8 @@
 //! Code emission helpers for wrapper generation.
 
-use super::args::{ArgumentCollections, CallArg, DataTableArg, DocStringArg, FixtureArg, StepArg};
+use super::args::{
+    ArgumentCollections, CallArg, DataTableArg, DocStringArg, FixtureArg, StepArg, StepArgStruct,
+};
 use super::arguments::{
     collect_ordered_arguments, prepare_argument_processing, step_error_tokens, PreparedArgs,
     StepMeta,
@@ -15,11 +17,14 @@ pub(crate) struct WrapperConfig<'a> {
     pub(crate) ident: &'a syn::Ident,
     pub(crate) fixtures: &'a [FixtureArg],
     pub(crate) step_args: &'a [StepArg],
+    pub(crate) step_struct: Option<&'a StepArgStruct>,
     pub(crate) datatable: Option<&'a DataTableArg>,
     pub(crate) docstring: Option<&'a DocStringArg>,
     pub(crate) pattern: &'a syn::LitStr,
     pub(crate) keyword: crate::StepKeyword,
     pub(crate) call_order: &'a [CallArg],
+    pub(crate) placeholder_names: &'a [syn::LitStr],
+    pub(crate) capture_count: usize,
 }
 
 static COUNTER: AtomicUsize = AtomicUsize::new(0);
@@ -142,6 +147,7 @@ fn assemble_wrapper_function(
     let PreparedArgs {
         declares,
         step_arg_parses,
+        step_struct_decl,
         datatable_decl,
         docstring_decl,
     } = prepared;
@@ -175,6 +181,7 @@ fn assemble_wrapper_function(
 
             #(#declares)*
             #(#step_arg_parses)*
+            #step_struct_decl
             #datatable_decl
             #docstring_decl
 
@@ -204,10 +211,13 @@ fn generate_wrapper_body(
         ident,
         fixtures,
         step_args,
+        step_struct,
         datatable,
         docstring,
         pattern,
         call_order,
+        placeholder_names,
+        capture_count,
         ..
     } = *config;
 
@@ -216,12 +226,21 @@ fn generate_wrapper_body(
     let collections = ArgumentCollections {
         fixtures,
         step_args,
+        step_struct,
         datatable,
         docstring,
     };
     let step_meta = StepMeta { pattern, ident };
+    let struct_assert = step_struct.map(|StepArgStruct { ty, .. }| {
+        let count = capture_count;
+        let path = crate::codegen::rstest_bdd_path();
+        quote! {
+            const _: [(); <#ty as #path::step_args::StepArgs>::FIELD_COUNT] = [(); #count];
+        }
+    });
     let signature = generate_wrapper_signature(pattern, pattern_ident);
-    let prepared = prepare_argument_processing(&collections, step_meta, &ctx_ident);
+    let prepared =
+        prepare_argument_processing(&collections, step_meta, &ctx_ident, placeholder_names);
     let arg_idents = collect_ordered_arguments(call_order, &collections);
     let wrapper_fn = assemble_wrapper_function(
         WrapperIdentifiers {
@@ -234,11 +253,12 @@ fn generate_wrapper_body(
             meta: step_meta,
             prepared,
             arg_idents: &arg_idents,
-            capture_count: step_args.len(),
+            capture_count,
         },
     );
 
     quote! {
+        #struct_assert
         #signature
         #wrapper_fn
     }

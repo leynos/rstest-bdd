@@ -1,6 +1,8 @@
 //! Argument code generation utilities shared by wrapper emission logic.
 
-use super::args::{ArgumentCollections, CallArg, DataTableArg, DocStringArg, FixtureArg, StepArg};
+use super::args::{
+    ArgumentCollections, CallArg, DataTableArg, DocStringArg, FixtureArg, StepArg, StepArgStruct,
+};
 use proc_macro2::TokenStream as TokenStream2;
 use quote::{format_ident, quote};
 
@@ -13,6 +15,7 @@ pub(super) struct StepMeta<'a> {
 pub(super) struct PreparedArgs {
     pub(super) declares: Vec<TokenStream2>,
     pub(super) step_arg_parses: Vec<TokenStream2>,
+    pub(super) step_struct_decl: Option<TokenStream2>,
     pub(super) datatable_decl: Option<TokenStream2>,
     pub(super) docstring_decl: Option<TokenStream2>,
 }
@@ -113,6 +116,62 @@ pub(super) fn gen_docstring_decl(
             (pat, ty, expr)
         },
     )
+}
+
+fn gen_step_struct_decl(
+    step_struct: Option<&StepArgStruct>,
+    captures: &[TokenStream2],
+    placeholder_names: &[syn::LitStr],
+    meta: StepMeta<'_>,
+) -> Option<TokenStream2> {
+    let capture_count = placeholder_names.len();
+    step_struct.map(|StepArgStruct { pat, ty }| {
+        let StepMeta { pattern, ident } = meta;
+        let values_ident = format_ident!("__rstest_bdd_struct_values");
+        let missing_errs: Vec<_> = placeholder_names
+            .iter()
+            .map(|name| {
+                step_error_tokens(
+                    &format_ident!("ExecutionError"),
+                    pattern,
+                    ident,
+                    &quote! {
+                        format!(
+                            "pattern '{}' missing capture for placeholder '{{{}}}' required by '{}'",
+                            #pattern,
+                            #name,
+                            stringify!(#pat),
+                        )
+                    },
+                )
+            })
+            .collect();
+        let convert_err = step_error_tokens(
+            &format_ident!("ExecutionError"),
+            pattern,
+            ident,
+            &quote! {
+                format!(
+                    "failed to populate '{}' from pattern '{}': {}",
+                    stringify!(#pat),
+                    #pattern,
+                    error
+                )
+            },
+        );
+        let capture_inits = captures.iter().zip(missing_errs.iter()).map(|(capture, missing)| {
+            quote! {
+                let raw = #capture.ok_or_else(|| #missing)?;
+                #values_ident.push(raw.to_string());
+            }
+        });
+        quote! {
+            let mut #values_ident = Vec::with_capacity(#capture_count);
+            #(#capture_inits)*
+            let #pat: #ty = ::std::convert::TryFrom::try_from(#values_ident)
+                .map_err(|error| #convert_err)?;
+        }
+    })
 }
 
 fn is_unsized_reference_target(ty: &syn::Type) -> bool {
@@ -231,6 +290,7 @@ pub(super) fn prepare_argument_processing(
     args: &ArgumentCollections<'_>,
     step_meta: StepMeta<'_>,
     ctx_ident: &proc_macro2::Ident,
+    placeholder_names: &[syn::LitStr],
 ) -> PreparedArgs {
     let StepMeta { pattern, ident } = step_meta;
     let declares = gen_fixture_decls(args.fixtures, ident, ctx_ident);
@@ -243,12 +303,31 @@ pub(super) fn prepare_argument_processing(
             quote! { captures.get(#index).map(|m| m.as_str()) }
         })
         .collect();
-    let step_arg_parses = gen_step_parses(args.step_args, &captured, step_meta);
+    let all_captures: Vec<_> = placeholder_names
+        .iter()
+        .enumerate()
+        .map(|(idx, _)| {
+            let index = syn::Index::from(idx);
+            quote! { captures.get(#index).map(|m| m.as_str()) }
+        })
+        .collect();
+    let step_arg_parses = if args.step_struct.is_some() {
+        Vec::new()
+    } else {
+        gen_step_parses(args.step_args, &captured, step_meta)
+    };
+    let step_struct_decl = gen_step_struct_decl(
+        args.step_struct,
+        &all_captures,
+        placeholder_names,
+        step_meta,
+    );
     let datatable_decl = gen_datatable_decl(args.datatable, pattern, ident);
     let docstring_decl = gen_docstring_decl(args.docstring, pattern, ident);
     PreparedArgs {
         declares,
         step_arg_parses,
+        step_struct_decl,
         datatable_decl,
         docstring_decl,
     }
@@ -277,6 +356,14 @@ pub(super) fn collect_ordered_arguments<'a>(
                     reason = "call_order indices validated during macro expansion"
                 )]
                 &args.step_args[*i].pat
+            }
+            CallArg::StepStruct =>
+            {
+                #[expect(clippy::expect_used, reason = "variant guarantees presence")]
+                &args
+                    .step_struct
+                    .expect("step struct present in call_order but not configured")
+                    .pat
             }
             CallArg::DataTable =>
             {

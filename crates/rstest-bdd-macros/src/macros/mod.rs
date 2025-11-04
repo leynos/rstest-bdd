@@ -42,7 +42,7 @@ fn step_attr(attr: TokenStream, item: TokenStream, keyword: crate::StepKeyword) 
     #[cfg(feature = "compile-time-validation")]
     #[cfg_attr(docsrs, doc(cfg(feature = "compile-time-validation")))]
     crate::validation::steps::register_step(keyword, &pattern);
-    let mut placeholders = match placeholder_names(&pattern.value()) {
+    let mut placeholder_summary = match placeholder_names(&pattern.value()) {
         Ok(set) => set,
         Err(mut err) => {
             // Anchor diagnostics on the attribute literal for clarity.
@@ -51,7 +51,7 @@ fn step_attr(attr: TokenStream, item: TokenStream, keyword: crate::StepKeyword) 
         }
     };
 
-    let args = match extract_args(&mut func, &mut placeholders) {
+    let args = match extract_args(&mut func, &mut placeholder_summary.unique) {
         Ok(args) => args,
         Err(err) => {
             let kw_name = match keyword {
@@ -69,16 +69,25 @@ fn step_attr(attr: TokenStream, item: TokenStream, keyword: crate::StepKeyword) 
     };
 
     let ident = &func.sig.ident;
+    let placeholder_literals: Vec<_> = placeholder_summary
+        .ordered
+        .iter()
+        .map(|name| syn::LitStr::new(name, pattern.span()))
+        .collect();
+    let capture_count = placeholder_literals.len();
 
     let config = WrapperConfig {
         ident,
         fixtures: &args.fixtures,
         step_args: &args.step_args,
+        step_struct: args.step_struct.as_ref(),
         datatable: args.datatable.as_ref(),
         docstring: args.docstring.as_ref(),
         pattern: &pattern,
         keyword,
         call_order: &args.call_order,
+        placeholder_names: &placeholder_literals,
+        capture_count,
     };
     let wrapper_code = generate_wrapper_code(&config);
 

@@ -1997,6 +1997,27 @@ These macros keep test code succinct while still surfacing detailed diagnostics.
   ensuring runtime diagnostics respect the active locale while proc-macro
   messages remain deterministic.
 
+### Struct-based step arguments
+
+- Added a `StepArgs` trait plus `StepArgsError` type in the runtime crate.
+  The derive macro (`#[derive(StepArgs)]`) implements both the trait and
+  `TryFrom<Vec<String>>`, ensuring each field declares the necessary `FromStr`
+  bound.
+- The wrapper now honours a `#[step_args]` marker on exactly one parameter.
+  The attribute is required because procedural macros cannot discover whether
+  an arbitrary type derives `StepArgs` without extra user input.[^12][^13] The
+  marker is stripped from the signature before compilation so the final code
+  does not depend on unstable custom attributes.
+- All placeholders defined in the step pattern are parsed into the derived
+  struct. A const assertion binds `<T as StepArgs>::FIELD_COUNT` to the number
+  of placeholders, producing a clear compile-time error when the struct and
+  pattern diverge. The wrapper falls back to ordinary argument parsing when no
+  `#[step_args]` attribute is present.
+- Safety checks: references and `#[from]` annotations are rejected on
+  `#[step_args]` parameters, and only one such parameter may appear in a step.
+  Parse failures surface as `StepArgsError` values that bubble up as
+  `StepError::ExecutionError` at runtime.
+
 ### 4.3 Phase 3: Documentation and User Guidance (target v0.6)
 
 - **Update user documentation:** Extend `README.md` and `docs/users-guide.md`

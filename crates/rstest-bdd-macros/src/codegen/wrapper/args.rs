@@ -15,6 +15,13 @@ pub struct StepArg {
     pub ty: syn::Type,
 }
 
+/// Struct-based step argument populated by parsing all placeholders.
+#[derive(Debug, Clone)]
+pub struct StepArgStruct {
+    pub pat: syn::Ident,
+    pub ty: syn::Type,
+}
+
 /// Represents an argument for a Gherkin data table step function.
 ///
 /// The [`ty`] field stores the Rust type of the argument. This enables
@@ -43,6 +50,7 @@ pub struct DocStringArg {
 pub enum CallArg {
     Fixture(usize),
     StepArg(usize),
+    StepStruct,
     DataTable,
     DocString,
 }
@@ -52,6 +60,7 @@ pub enum CallArg {
 pub struct ExtractedArgs {
     pub fixtures: Vec<FixtureArg>,
     pub step_args: Vec<StepArg>,
+    pub step_struct: Option<StepArgStruct>,
     pub datatable: Option<DataTableArg>,
     pub docstring: Option<DocStringArg>,
     pub call_order: Vec<CallArg>,
@@ -62,6 +71,7 @@ pub struct ExtractedArgs {
 pub(crate) struct ArgumentCollections<'a> {
     pub(crate) fixtures: &'a [FixtureArg],
     pub(crate) step_args: &'a [StepArg],
+    pub(crate) step_struct: Option<&'a StepArgStruct>,
     pub(crate) datatable: Option<&'a DataTableArg>,
     pub(crate) docstring: Option<&'a DocStringArg>,
 }
@@ -71,6 +81,7 @@ impl std::fmt::Debug for ExtractedArgs {
         f.debug_struct("ExtractedArgs")
             .field("fixtures", &self.fixtures.len())
             .field("step_args", &self.step_args.len())
+            .field("step_struct", &self.step_struct.is_some())
             .field("datatable", &self.datatable.is_some())
             .field("docstring", &self.docstring.is_some())
             .field("call_order", &self.call_order)
@@ -254,6 +265,85 @@ fn classify_docstring(
     }
 }
 
+fn extract_step_struct_attribute(arg: &mut syn::PatType) -> syn::Result<bool> {
+    let mut found = false;
+    let mut duplicate = false;
+    let mut invalid: Option<syn::Attribute> = None;
+    arg.attrs.retain(|attr| {
+        if attr.path().is_ident("step_args") {
+            if found {
+                duplicate = true;
+            }
+            found = true;
+            if attr.meta.require_path_only().is_err() {
+                invalid = Some(attr.clone());
+            }
+            false
+        } else {
+            true
+        }
+    });
+    if let Some(attr) = invalid {
+        return Err(syn::Error::new_spanned(
+            attr,
+            "`#[step_args]` does not take arguments",
+        ));
+    }
+    if duplicate {
+        return Err(syn::Error::new_spanned(
+            &arg.pat,
+            "duplicate `#[step_args]` attribute",
+        ));
+    }
+    Ok(found)
+}
+
+fn classify_step_struct(
+    st: &mut ExtractedArgs,
+    arg: &syn::PatType,
+    pat: &syn::Ident,
+    ty: &syn::Type,
+    placeholders: &mut std::collections::HashSet<String>,
+) -> syn::Result<()> {
+    if st.step_struct.is_some() {
+        return Err(syn::Error::new_spanned(
+            arg,
+            "only one #[step_args] parameter is permitted per step",
+        ));
+    }
+    if !st.step_args.is_empty() {
+        return Err(syn::Error::new_spanned(
+            arg,
+            "#[step_args] cannot be combined with named step arguments",
+        ));
+    }
+    if placeholders.is_empty() {
+        return Err(syn::Error::new_spanned(
+            arg,
+            "#[step_args] requires at least one placeholder in the pattern",
+        ));
+    }
+    if arg.attrs.iter().any(|a| a.path().is_ident("from")) {
+        return Err(syn::Error::new_spanned(
+            arg,
+            "#[step_args] cannot be combined with #[from]",
+        ));
+    }
+    if matches!(ty, syn::Type::Reference(_)) {
+        return Err(syn::Error::new_spanned(
+            ty,
+            "#[step_args] parameters must own their struct type",
+        ));
+    }
+    st.step_struct = Some(StepArgStruct {
+        pat: pat.clone(),
+        ty: ty.clone(),
+    });
+    st.call_order.push(CallArg::StepStruct);
+    placeholders.clear();
+    Ok(())
+}
+
 /// Classifies an argument as either a fixture or a step parameter.
 ///
 /// The function removes any `#[from]` attribute from the argument before
@@ -336,6 +426,7 @@ pub fn extract_args(
     let mut state = ExtractedArgs {
         fixtures: vec![],
         step_args: vec![],
+        step_struct: None,
         datatable: None,
         docstring: None,
         call_order: vec![],
@@ -356,6 +447,10 @@ pub fn extract_args(
         };
         let pat = pat_ident.ident.clone();
         let ty = (*arg.ty).clone();
+        if extract_step_struct_attribute(arg)? {
+            classify_step_struct(&mut state, arg, &pat, &ty, placeholders)?;
+            continue;
+        }
         let pat_str = pat.to_string();
         if placeholders.contains(&pat_str) {
             let info = ParamInfo {

@@ -166,6 +166,13 @@ A new derive macro, StepArgs, will be introduced in rstest-bdd-macros.
     - The generated step wrapper will capture all placeholders into a
       `Vec<String>` and then call `try_into()` to populate the struct.
 
+Implementation note: procedural macros cannot reliably detect whether an
+arbitrary type derives `StepArgs`. The final design therefore uses a
+lightweight `#[step_args]` marker on the relevant parameter to signal that all
+placeholders should be routed into the derived struct. The derive macro still
+produces the `TryFrom<Vec<String>>` implementation and records the field names
+so the wrapper can validate the capture count at compile time.
+
 **User Experience:**
 
 - **Before:**

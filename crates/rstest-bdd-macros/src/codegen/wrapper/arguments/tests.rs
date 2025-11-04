@@ -37,6 +37,7 @@ fn prepare_argument_processing_handles_all_argument_types() {
     let collections = ArgumentCollections {
         fixtures: &fixtures,
         step_args: &step_args,
+        step_struct: None,
         datatable: Some(&datatable),
         docstring: Some(&docstring),
     };
@@ -45,7 +46,8 @@ fn prepare_argument_processing_handles_all_argument_types() {
     let meta = sample_meta(&pattern, &ident);
 
     let ctx_ident = format_ident!("__rstest_bdd_ctx");
-    let prepared = prepare_argument_processing(&collections, meta, &ctx_ident);
+    let placeholder_names = vec![syn::LitStr::new("count", proc_macro2::Span::call_site())];
+    let prepared = prepare_argument_processing(&collections, meta, &ctx_ident, &placeholder_names);
 
     assert_eq!(prepared.declares.len(), 1);
     let [fixture_stmt] = prepared.declares.as_slice() else {
@@ -81,6 +83,7 @@ fn collect_ordered_arguments_preserves_call_order() {
     let collections = ArgumentCollections {
         fixtures: &fixtures,
         step_args: &step_args,
+        step_struct: None,
         datatable: Some(&datatable),
         docstring: Some(&docstring),
     };

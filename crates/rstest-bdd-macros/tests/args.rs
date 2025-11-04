@@ -232,3 +232,61 @@ fn from_attribute_targets_placeholder() {
     assert_eq!(args.step_args.len(), 1);
     assert!(matches!(&args.call_order[..], [StepArg(0)]));
 }
+
+#[test]
+fn step_struct_argument_is_classified() {
+    let mut func: syn::ItemFn = parse_quote! {
+        fn step(#[step_args] params: OrderArgs, account: usize) {}
+    };
+    let mut placeholders: HashSet<String> = ["count".into(), "name".into()].into_iter().collect();
+    #[expect(clippy::expect_used, reason = "test asserts classification")]
+    let args = extract_args(&mut func, &mut placeholders).expect("failed to extract args");
+    assert!(args.step_struct.is_some());
+    assert!(args.step_args.is_empty());
+    assert!(matches!(
+        &args.call_order[..],
+        [CallArg::StepStruct, CallArg::Fixture(0)]
+    ));
+}
+
+#[test]
+#[expect(clippy::expect_used, reason = "test asserts error path")]
+fn step_struct_requires_placeholders() {
+    let mut func: syn::ItemFn = parse_quote! {
+        fn step(#[step_args] params: OrderArgs) {}
+    };
+    let mut placeholders = HashSet::new();
+    let err = extract_args(&mut func, &mut placeholders)
+        .expect_err("expected error when placeholders missing");
+    assert!(err
+        .to_string()
+        .contains("#[step_args] requires at least one placeholder"));
+}
+
+#[test]
+#[expect(clippy::expect_used, reason = "test asserts error path")]
+fn step_struct_rejects_references() {
+    let mut func: syn::ItemFn = parse_quote! {
+        fn step(#[step_args] params: &OrderArgs) {}
+    };
+    let mut placeholders: HashSet<String> = ["value".into()].into_iter().collect();
+    let err = extract_args(&mut func, &mut placeholders)
+        .expect_err("expected error when step struct is a reference");
+    assert!(err
+        .to_string()
+        .contains("#[step_args] parameters must own their struct type"));
+}
+
+#[test]
+#[expect(clippy::expect_used, reason = "test asserts error path")]
+fn step_struct_cannot_combine_with_from() {
+    let mut func: syn::ItemFn = parse_quote! {
+        fn step(#[step_args] #[from(item)] params: OrderArgs) {}
+    };
+    let mut placeholders: HashSet<String> = ["item".into()].into_iter().collect();
+    let err = extract_args(&mut func, &mut placeholders)
+        .expect_err("expected error when combining step_args and from");
+    assert!(err
+        .to_string()
+        .contains("#[step_args] cannot be combined with #[from]"));
+}
