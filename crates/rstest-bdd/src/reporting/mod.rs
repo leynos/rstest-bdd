@@ -325,9 +325,12 @@ pub fn drain() -> Vec<ScenarioRecord> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serial_test::serial;
 
     #[test]
+    #[serial]
     fn drain_clears_records() {
+        let _ = drain();
         record(ScenarioRecord::new(
             "feature",
             "scenario",
@@ -340,7 +343,9 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn skipped_records_store_metadata() {
+        let _ = drain();
         let details = SkippedScenario::new(Some("pending".into()), true, false);
         record(ScenarioRecord::new(
             "feature",
