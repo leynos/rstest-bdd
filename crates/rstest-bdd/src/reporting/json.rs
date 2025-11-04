@@ -60,7 +60,7 @@ impl<'a> From<&'a ScenarioRecord> for JsonScenario<'a> {
 /// Serialize the provided scenario records into the supplied writer.
 ///
 /// # Examples
-/// ```
+/// ```rust
 /// use rstest_bdd::reporting::{json, ScenarioRecord, ScenarioStatus};
 ///
 /// let records = vec![ScenarioRecord::new(
@@ -81,7 +81,7 @@ pub fn write<W: Write>(writer: &mut W, records: &[ScenarioRecord]) -> serde_json
 /// Serialize the current collector snapshot into the supplied writer.
 ///
 /// # Examples
-/// ```
+/// ```rust
 /// use rstest_bdd::reporting::{json, record, ScenarioRecord, ScenarioStatus};
 ///
 /// record(ScenarioRecord::new(
@@ -102,7 +102,7 @@ pub fn write_snapshot<W: Write>(writer: &mut W) -> serde_json::Result<()> {
 /// Produce a JSON string representation of the provided scenario records.
 ///
 /// # Examples
-/// ```
+/// ```rust
 /// use rstest_bdd::reporting::{json, ScenarioRecord, ScenarioStatus};
 ///
 /// let records = vec![ScenarioRecord::new(
@@ -121,7 +121,7 @@ pub fn to_string(records: &[ScenarioRecord]) -> serde_json::Result<String> {
 /// Produce a JSON string representation of the current collector snapshot.
 ///
 /// # Examples
-/// ```
+/// ```rust
 /// use rstest_bdd::reporting::{json, record, ScenarioRecord, ScenarioStatus};
 ///
 /// record(ScenarioRecord::new(
