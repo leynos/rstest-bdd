@@ -5,7 +5,7 @@ use rstest::rstest;
 use std::collections::HashSet;
 use syn::parse_quote;
 
-#[path = "../src/codegen/wrapper/args.rs"]
+#[path = "../src/codegen/wrapper/args/mod.rs"]
 #[expect(dead_code, reason = "test reuses only selected helpers")]
 // Proc-macro crates cannot expose non-macro items to downstream crates; include
 // the internal module directly to exercise helper APIs.

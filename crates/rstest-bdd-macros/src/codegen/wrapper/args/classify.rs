@@ -1,93 +1,8 @@
-//! Argument extraction and classification helpers for wrapper generation.
+use std::collections::HashSet;
 
-/// Fixture argument extracted from a step function.
-#[derive(Debug, Clone)]
-pub struct FixtureArg {
-    pub pat: syn::Ident,
-    pub name: syn::Ident,
-    pub ty: syn::Type,
-}
-
-/// Non-fixture argument extracted from a step function.
-#[derive(Debug, Clone)]
-pub struct StepArg {
-    pub pat: syn::Ident,
-    pub ty: syn::Type,
-}
-
-/// Struct-based step argument populated by parsing all placeholders.
-#[derive(Debug, Clone)]
-pub struct StepArgStruct {
-    pub pat: syn::Ident,
-    pub ty: syn::Type,
-}
-
-/// Represents an argument for a Gherkin data table step function.
-///
-/// The [`ty`] field stores the Rust type of the argument. This enables
-/// type-specific logic such as code generation, validation, or transformation
-/// based on the argument's type. Documenting the type here clarifies its role in
-/// macro expansion and helps future maintainers understand how type information
-/// is propagated.
-///
-/// # Fields
-/// - `pat`: The identifier pattern for the argument.
-/// - `ty`: The Rust type of the argument, used for type-specific logic and code generation.
-#[derive(Debug, Clone)]
-pub struct DataTableArg {
-    pub pat: syn::Ident,
-    pub ty: syn::Type,
-}
-
-/// Gherkin doc string argument extracted from a step function.
-#[derive(Debug, Clone)]
-pub struct DocStringArg {
-    pub pat: syn::Ident,
-}
-
-/// Argument ordering as declared in the step function signature.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum CallArg {
-    Fixture(usize),
-    StepArg(usize),
-    StepStruct,
-    DataTable,
-    DocString,
-}
-
-/// Collections of arguments extracted from a step function signature.
-#[derive(Clone)]
-pub struct ExtractedArgs {
-    pub fixtures: Vec<FixtureArg>,
-    pub step_args: Vec<StepArg>,
-    pub step_struct: Option<StepArgStruct>,
-    pub datatable: Option<DataTableArg>,
-    pub docstring: Option<DocStringArg>,
-    pub call_order: Vec<CallArg>,
-}
-
-/// References to extracted arguments for ordered processing.
-#[derive(Clone, Copy)]
-pub(crate) struct ArgumentCollections<'a> {
-    pub(crate) fixtures: &'a [FixtureArg],
-    pub(crate) step_args: &'a [StepArg],
-    pub(crate) step_struct: Option<&'a StepArgStruct>,
-    pub(crate) datatable: Option<&'a DataTableArg>,
-    pub(crate) docstring: Option<&'a DocStringArg>,
-}
-
-impl std::fmt::Debug for ExtractedArgs {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("ExtractedArgs")
-            .field("fixtures", &self.fixtures.len())
-            .field("step_args", &self.step_args.len())
-            .field("step_struct", &self.step_struct.is_some())
-            .field("datatable", &self.datatable.is_some())
-            .field("docstring", &self.docstring.is_some())
-            .field("call_order", &self.call_order)
-            .finish()
-    }
-}
+use super::{
+    CallArg, DataTableArg, DocStringArg, ExtractedArgs, FixtureArg, StepArg, StepArgStruct,
+};
 
 /// Matches a nested path sequence like `["Vec", "Vec", "String"]` for `Vec<Vec<String>>`.
 /// Only the first generic argument at each level is inspected; the final segment may be unparameterised.
@@ -121,16 +36,14 @@ fn is_type_seq(ty: &syn::Type, seq: &[&str]) -> bool {
     true
 }
 
-/// Matches a `String` type using [`is_type_seq`].
-/// Only the first generic argument at each level is inspected; the final segment may be unparameterised.
 fn is_string(ty: &syn::Type) -> bool {
     is_type_seq(ty, &["String"])
 }
-/// Matches a `Vec<Vec<String>>` type using [`is_type_seq`].
-/// Only the first generic argument at each level is inspected; the final segment may be unparameterised.
+
 fn is_datatable(ty: &syn::Type) -> bool {
     is_type_seq(ty, &["Vec", "Vec", "String"])
 }
+
 fn should_classify_as_datatable(pat: &syn::Ident, ty: &syn::Type) -> bool {
     pat == "datatable" && is_datatable(ty)
 }
@@ -172,8 +85,6 @@ fn extract_datatable_attribute(arg: &mut syn::PatType) -> syn::Result<bool> {
     Ok(found)
 }
 
-/// Validates that a potential datatable argument obeys uniqueness and ordering
-/// constraints, returning `true` when classification should proceed.
 fn validate_datatable_constraints(
     st: &ExtractedArgs,
     arg: &mut syn::PatType,
@@ -216,7 +127,7 @@ fn validate_datatable_constraints(
     }
 }
 
-fn classify_datatable(
+pub(super) fn classify_datatable(
     st: &mut ExtractedArgs,
     arg: &mut syn::PatType,
     pat: &syn::Ident,
@@ -241,11 +152,12 @@ fn classify_datatable(
         Ok(false)
     }
 }
+
 fn is_valid_docstring_arg(st: &ExtractedArgs, pat: &syn::Ident, ty: &syn::Type) -> bool {
     st.docstring.is_none() && pat == "docstring" && is_string(ty)
 }
 
-fn classify_docstring(
+pub(super) fn classify_docstring(
     st: &mut ExtractedArgs,
     arg: &mut syn::PatType,
     pat: &syn::Ident,
@@ -265,7 +177,7 @@ fn classify_docstring(
     }
 }
 
-fn extract_step_struct_attribute(arg: &mut syn::PatType) -> syn::Result<bool> {
+pub(super) fn extract_step_struct_attribute(arg: &mut syn::PatType) -> syn::Result<bool> {
     let mut found = false;
     let mut duplicate = false;
     let mut invalid: Option<syn::Attribute> = None;
@@ -298,12 +210,12 @@ fn extract_step_struct_attribute(arg: &mut syn::PatType) -> syn::Result<bool> {
     Ok(found)
 }
 
-fn classify_step_struct(
+pub(super) fn classify_step_struct(
     st: &mut ExtractedArgs,
     arg: &syn::PatType,
     pat: &syn::Ident,
     ty: &syn::Type,
-    placeholders: &mut std::collections::HashSet<String>,
+    placeholders: &mut HashSet<String>,
 ) -> syn::Result<()> {
     if st.step_struct.is_some() {
         return Err(syn::Error::new_spanned(
@@ -344,25 +256,13 @@ fn classify_step_struct(
     Ok(())
 }
 
-/// Classifies an argument as either a fixture or a step parameter.
-///
-/// The function removes any `#[from]` attribute from the argument before
-/// classification. Arguments without an explicit `#[from]` attribute are treated
-/// as step parameters when their identifier matches a placeholder in the step
-/// pattern; otherwise they are classified as fixtures.
-/// Identifier and type of a function parameter.
-struct ParamInfo {
-    pat: syn::Ident,
-    ty: syn::Type,
-}
-
-fn classify_fixture_or_step(
+pub(super) fn classify_fixture_or_step(
     st: &mut ExtractedArgs,
     arg: &mut syn::PatType,
-    info: ParamInfo,
-    placeholders: &mut std::collections::HashSet<String>,
+    pat: syn::Ident,
+    ty: syn::Type,
+    placeholders: &mut HashSet<String>,
 ) {
-    let ParamInfo { pat, ty } = info;
     let mut from_name = None;
     arg.attrs.retain(|a| {
         if a.path().is_ident("from") {
@@ -376,110 +276,12 @@ fn classify_fixture_or_step(
     let target = from_name.clone().unwrap_or_else(|| pat.clone());
     if placeholders.remove(&target.to_string()) {
         let idx = st.step_args.len();
-        st.step_args.push(StepArg {
-            pat: pat.clone(),
-            ty: ty.clone(),
-        });
+        st.step_args.push(StepArg { pat, ty });
         st.call_order.push(CallArg::StepArg(idx));
     } else {
         let name = from_name.unwrap_or_else(|| pat.clone());
         let idx = st.fixtures.len();
-        st.fixtures.push(FixtureArg {
-            pat: pat.clone(),
-            name,
-            ty: ty.clone(),
-        });
+        st.fixtures.push(FixtureArg { pat, name, ty });
         st.call_order.push(CallArg::Fixture(idx));
     }
-}
-
-/// Extract fixture, step, data table, and doc string arguments from a function signature.
-///
-/// # Examples
-/// ```rust,ignore
-/// use syn::parse_quote;
-///
-/// let mut func: syn::ItemFn = parse_quote! {
-///     fn step(#[from] a: usize, datatable: Vec<Vec<String>>, docstring: String, b: i32) {}
-/// };
-/// let mut placeholders = std::collections::HashSet::new();
-/// placeholders.insert("b".into());
-/// let args = extract_args(&mut func, &mut placeholders).unwrap();
-/// assert_eq!(args.fixtures.len(), 1);
-/// assert_eq!(args.step_args.len(), 1);
-/// assert!(args.datatable.is_some());
-/// assert!(args.docstring.is_some());
-/// assert_eq!(args.call_order.len(), 4);
-/// ```
-///
-/// Note: special arguments must use the canonical names:
-/// - data table parameter must be annotated with `#[datatable]` or be named
-///   `datatable` and have type `Vec<Vec<String>>`
-/// - doc string parameter must be named `docstring` and have type `String`
-///
-/// At most one `datatable` and one `docstring` parameter are permitted.
-// FIXME: https://github.com/leynos/rstest-bdd/issues/54
-pub fn extract_args(
-    func: &mut syn::ItemFn,
-    placeholders: &mut std::collections::HashSet<String>,
-) -> syn::Result<ExtractedArgs> {
-    let mut state = ExtractedArgs {
-        fixtures: vec![],
-        step_args: vec![],
-        step_struct: None,
-        datatable: None,
-        docstring: None,
-        call_order: vec![],
-    };
-
-    for input in &mut func.sig.inputs {
-        let syn::FnArg::Typed(arg) = input else {
-            return Err(syn::Error::new_spanned(
-                input,
-                "methods are not supported; remove `self` from step functions",
-            ));
-        };
-        let syn::Pat::Ident(pat_ident) = &*arg.pat else {
-            return Err(syn::Error::new_spanned(
-                &arg.pat,
-                "unsupported parameter pattern; use a simple identifier (e.g., `arg: T`)",
-            ));
-        };
-        let pat = pat_ident.ident.clone();
-        let ty = (*arg.ty).clone();
-        if extract_step_struct_attribute(arg)? {
-            classify_step_struct(&mut state, arg, &pat, &ty, placeholders)?;
-            continue;
-        }
-        let pat_str = pat.to_string();
-        if placeholders.contains(&pat_str) {
-            let info = ParamInfo {
-                pat: pat.clone(),
-                ty: ty.clone(),
-            };
-            classify_fixture_or_step(&mut state, arg, info, placeholders);
-            continue;
-        }
-        if classify_datatable(&mut state, arg, &pat, &ty)? {
-            continue;
-        }
-        if classify_docstring(&mut state, arg, &pat, &ty)? {
-            continue;
-        }
-        let info = ParamInfo {
-            pat: pat.clone(),
-            ty: ty.clone(),
-        };
-        classify_fixture_or_step(&mut state, arg, info, placeholders);
-    }
-    if !placeholders.is_empty() {
-        let mut missing: Vec<_> = placeholders.iter().cloned().collect();
-        missing.sort();
-        let missing = missing.join(", ");
-        return Err(syn::Error::new(
-            func.sig.ident.span(),
-            format!("missing step arguments for placeholders: {missing}"),
-        ));
-    }
-    Ok(state)
 }
