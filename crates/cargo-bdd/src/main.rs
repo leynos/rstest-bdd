@@ -42,6 +42,9 @@ struct Step {
     used: bool,
 }
 
+/// Aggregated registry export holding every collected step and scenario from a
+/// test run; serde defaults ensure absent collections deserialize as empty
+/// vectors to simplify merges.
 #[derive(Debug, Deserialize, Clone, Default)]
 struct RegistryDump {
     steps: Vec<Step>,
@@ -55,6 +58,8 @@ impl RegistryDump {
     }
 }
 
+/// Scenario result mapping to lowercase serde values like `"passed"` or
+/// `"skipped"`; keep this in sync with the registry dump protocol.
 #[derive(Debug, Deserialize, Clone, Copy, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 enum ScenarioOutcome {
@@ -62,6 +67,9 @@ enum ScenarioOutcome {
     Skipped,
 }
 
+/// Registry scenario entry including its source feature file, exported name,
+/// outcome, optional failure message, and flags indicating whether skips were
+/// permitted (`allow_skipped`) or the failure was forced (`forced_failure`).
 #[derive(Debug, Deserialize, Clone)]
 struct Scenario {
     feature_path: String,
