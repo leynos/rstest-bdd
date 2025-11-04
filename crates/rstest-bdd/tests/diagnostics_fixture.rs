@@ -8,10 +8,15 @@
 use rstest_bdd as bdd;
 #[cfg(feature = "diagnostics")]
 use serial_test::serial;
+#[cfg(feature = "diagnostics")]
+use std::sync::atomic::{AtomicBool, Ordering};
+
+#[cfg(feature = "diagnostics")]
+static SHOULD_SEED: AtomicBool = AtomicBool::new(false);
 
 #[cfg(feature = "diagnostics")]
 fn seed_reporting_fixture() {
-    if std::env::var_os("RSTEST_BDD_DUMP_STEPS").is_none() {
+    if !should_seed_dump_steps() {
         return;
     }
 
@@ -53,7 +58,7 @@ struct DumpStepsGuard;
 #[cfg(feature = "diagnostics")]
 impl DumpStepsGuard {
     fn set() -> Self {
-        std::env::set_var("RSTEST_BDD_DUMP_STEPS", "1");
+        SHOULD_SEED.store(true, Ordering::SeqCst);
         Self
     }
 }
@@ -61,8 +66,17 @@ impl DumpStepsGuard {
 #[cfg(feature = "diagnostics")]
 impl Drop for DumpStepsGuard {
     fn drop(&mut self) {
-        std::env::remove_var("RSTEST_BDD_DUMP_STEPS");
+        SHOULD_SEED.store(false, Ordering::SeqCst);
     }
+}
+
+#[cfg(feature = "diagnostics")]
+fn should_seed_dump_steps() -> bool {
+    if SHOULD_SEED.load(Ordering::SeqCst) {
+        return true;
+    }
+
+    std::env::var_os("RSTEST_BDD_DUMP_STEPS").is_some()
 }
 
 #[test]

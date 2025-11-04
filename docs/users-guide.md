@@ -898,8 +898,8 @@ Examples
 The tool inspects the runtime step registry and offers three commands:
 
 - `cargo bdd steps` prints every registered step with its source location and
-  appends any skipped scenario outcomes using lowercase status labels so long
-  messages remain intact.
+  appends any skipped scenario outcomes using lowercase status labels whilst
+  preserving long messages.
 - `cargo bdd unused` lists steps that were never executed in the current
   process.
 - `cargo bdd duplicates` groups step definitions that share the same keyword

@@ -211,20 +211,10 @@ fn generate_step_executor_loop(
 ///
 /// # Examples
 /// ```rust,ignore
-/// use crate::codegen::scenario::{FeaturePath, ScenarioName};
-/// let feature = FeaturePath::new("feature");
-/// let scenario = ScenarioName::new("scenario");
-/// let tokens = generate_skip_handler(&feature, &scenario, true);
+/// let tokens = generate_skip_handler();
 /// assert!(tokens.to_string().contains("ScenarioStatus::Skipped"));
 /// ```
-fn generate_skip_handler(
-    feature_path: &FeaturePath,
-    scenario_name: &ScenarioName,
-    allow_skipped: bool,
-) -> TokenStream2 {
-    let _ = feature_path;
-    let _ = scenario_name;
-    let _ = allow_skipped;
+fn generate_skip_handler() -> TokenStream2 {
     let path = crate::codegen::rstest_bdd_path();
     quote! {
         if let Some(message) = skipped {
@@ -302,7 +292,7 @@ fn generate_test_tokens(
     let scenario_guard = generate_scenario_guard();
     let step_executor_loop =
         generate_step_executor_loop(&keyword_tokens, &values, &docstrings, &tables);
-    let skip_handler = generate_skip_handler(feature_path, scenario_name, allow_skipped);
+    let skip_handler = generate_skip_handler();
     quote! {
         const FEATURE_PATH: &str = #feature_literal;
         const SCENARIO_NAME: &str = #scenario_literal;
