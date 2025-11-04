@@ -195,7 +195,7 @@ struct RegistryDump {
     scenarios: Vec<DumpedScenario>,
 }
 
-/// Serialise the registry to a JSON array.
+/// Serialize the registry to a JSON array.
 ///
 /// Each entry records the step keyword, pattern, source location, and whether
 /// the step has been executed. The JSON is intended for consumption by
@@ -203,14 +203,14 @@ struct RegistryDump {
 ///
 /// # Errors
 ///
-/// Returns an error if serialisation fails.
+/// Returns an error if serialization fails.
 ///
 /// # Examples
 ///
 /// ```
 /// use rstest_bdd::dump_registry;
 ///
-/// let json = dump_registry().expect("serialise registry");
+/// let json = dump_registry().expect("serialize registry");
 /// assert!(json.starts_with("["));
 /// ```
 #[cfg(feature = "diagnostics")]

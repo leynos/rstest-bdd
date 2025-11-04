@@ -1,6 +1,6 @@
 //! JSON writer for scenario outcome records.
 //!
-//! The writer serialises a snapshot of the scenario collector into a
+//! The writer serializes a snapshot of the scenario collector into a
 //! predictable, machine-readable shape. The schema keeps status labels in
 //! lowercase so downstream tools can rely on consistent casing.
 
@@ -57,7 +57,7 @@ impl<'a> From<&'a ScenarioRecord> for JsonScenario<'a> {
     }
 }
 
-/// Serialise the provided scenario records into the supplied writer.
+/// Serialize the provided scenario records into the supplied writer.
 ///
 /// # Examples
 /// ```
@@ -73,12 +73,12 @@ impl<'a> From<&'a ScenarioRecord> for JsonScenario<'a> {
 /// ```
 ///
 /// # Errors
-/// Returns an error when serialisation of the provided records fails.
+/// Returns an error when serialization of the provided records fails.
 pub fn write<W: Write>(writer: &mut W, records: &[ScenarioRecord]) -> serde_json::Result<()> {
     serde_json::to_writer(writer, &JsonReport::from(records))
 }
 
-/// Serialise the current collector snapshot into the supplied writer.
+/// Serialize the current collector snapshot into the supplied writer.
 ///
 /// # Examples
 /// ```
@@ -93,7 +93,7 @@ pub fn write<W: Write>(writer: &mut W, records: &[ScenarioRecord]) -> serde_json
 /// ```
 ///
 /// # Errors
-/// Returns an error when serialising the snapshot fails.
+/// Returns an error when serializing the snapshot fails.
 pub fn write_snapshot<W: Write>(writer: &mut W) -> serde_json::Result<()> {
     let snapshot = snapshot();
     write(writer, &snapshot)
@@ -113,7 +113,7 @@ pub fn write_snapshot<W: Write>(writer: &mut W) -> serde_json::Result<()> {
 /// ```
 ///
 /// # Errors
-/// Returns an error when serialising the provided records fails.
+/// Returns an error when serializing the provided records fails.
 pub fn to_string(records: &[ScenarioRecord]) -> serde_json::Result<String> {
     serde_json::to_string(&JsonReport::from(records))
 }
@@ -132,7 +132,7 @@ pub fn to_string(records: &[ScenarioRecord]) -> serde_json::Result<String> {
 /// ```
 ///
 /// # Errors
-/// Returns an error when serialising the snapshot fails.
+/// Returns an error when serializing the snapshot fails.
 pub fn snapshot_string() -> serde_json::Result<String> {
     let snapshot = snapshot();
     to_string(&snapshot)

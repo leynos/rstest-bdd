@@ -173,7 +173,7 @@ fn dump_steps() {
         {
             match dump_registry() {
                 Ok(json) => println!("{json}"),
-                Err(e) => eprintln!("failed to serialise step registry: {e}"),
+                Err(e) => eprintln!("failed to serialize step registry: {e}"),
             }
         }
         std::process::exit(0);

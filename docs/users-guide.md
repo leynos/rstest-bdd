@@ -917,7 +917,7 @@ code early in the development cycle.
 
 Projects that need to persist scenario results outside the CLI can rely on the
 runtime reporting modules. `rstest_bdd::reporting::json` offers helper
-functions that serialise the collector snapshot into a predictable schema with
+functions that serialize the collector snapshot into a predictable schema with
 lowercase status labels:
 
 ```rust
@@ -935,7 +935,7 @@ rstest_bdd::reporting::junit::write_snapshot(&mut xml)?;
 ```
 
 Both writers accept explicit `&[ScenarioRecord]` slices when callers want to
-serialise a custom selection of outcomes rather than the full snapshot.
+serialize a custom selection of outcomes rather than the full snapshot.
 
 ## Summary
 

@@ -84,7 +84,7 @@ inventory::collect!(DumpSeed);
 /// Execute all registered dump seeds once per process.
 ///
 /// Registered seeds can be used by diagnostic fixtures to populate the
-/// reporting collector before the registry is serialised.
+/// reporting collector before the registry is serialized.
 ///
 /// # Examples
 /// ```ignore

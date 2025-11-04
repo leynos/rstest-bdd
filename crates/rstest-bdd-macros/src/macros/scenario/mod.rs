@@ -253,7 +253,7 @@ fn select_scenario(
 
 fn format_available_tags(tag_sets: &[Vec<String>]) -> String {
     // Multiple scenarios can feed the diagnostic when no selector is supplied;
-    // serialise each tag set separately so callers can still spot gaps without
+    // serialize each tag set separately so callers can still spot gaps without
     // losing the original grouping.
     if tag_sets.is_empty() {
         return "available tags: <none>".to_string();

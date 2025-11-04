@@ -1238,7 +1238,7 @@ incrementally.
   outcome, and allows the scenario loop to stop executing further steps.
 
   - Skip outcomes now flow through the `cargo-bdd` CLI and dedicated writers in
-    the runtime crate. The `reporting::json` module serialises the collector
+    the runtime crate. The `reporting::json` module serializes the collector
     snapshot into a stable schema that records lowercase status labels and skip
     metadata (`message`, `allow_skipped`, `forced_failure`). The companion
     `reporting::junit` module renders a single `<testsuite>` document and emits

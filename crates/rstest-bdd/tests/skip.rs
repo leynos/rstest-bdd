@@ -232,7 +232,7 @@ fn json_writer_emits_lowercase_skipped_status() {
     let records = reporting::snapshot();
     let json = match reporting::json::to_string(&records) {
         Ok(value) => value,
-        Err(error) => panic!("expected JSON serialisation to succeed: {error}"),
+        Err(error) => panic!("expected JSON serialization to succeed: {error}"),
     };
     let parsed: Value = match serde_json::from_str(&json) {
         Ok(value) => value,
