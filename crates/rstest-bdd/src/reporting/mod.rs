@@ -20,6 +20,7 @@ use std::sync::{Mutex, MutexGuard, Once, OnceLock};
 #[cfg(feature = "diagnostics")]
 pub mod json;
 /// JUnit XML writer for scenario outcomes.
+#[cfg(feature = "diagnostics")]
 pub mod junit;
 
 #[cfg(feature = "diagnostics")]

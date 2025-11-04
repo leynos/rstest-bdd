@@ -6,6 +6,8 @@
 //! reporting pipeline without running a full behaviour suite.
 
 use rstest_bdd as bdd;
+#[cfg(feature = "diagnostics")]
+use serial_test::serial;
 
 #[cfg(feature = "diagnostics")]
 fn seed_reporting_fixture() {
@@ -45,12 +47,31 @@ inventory::submit! {
     bdd::reporting::DumpSeed::new(seed_reporting_fixture)
 }
 
+#[cfg(feature = "diagnostics")]
+struct DumpStepsGuard;
+
+#[cfg(feature = "diagnostics")]
+impl DumpStepsGuard {
+    fn set() -> Self {
+        std::env::set_var("RSTEST_BDD_DUMP_STEPS", "1");
+        Self
+    }
+}
+
+#[cfg(feature = "diagnostics")]
+impl Drop for DumpStepsGuard {
+    fn drop(&mut self) {
+        std::env::remove_var("RSTEST_BDD_DUMP_STEPS");
+    }
+}
+
 #[test]
+#[cfg_attr(feature = "diagnostics", serial)]
 fn diagnostics_fixture_runs() {
     #[cfg(feature = "diagnostics")]
     {
         let _ = bdd::reporting::drain();
-        std::env::set_var("RSTEST_BDD_DUMP_STEPS", "1");
+        let _guard = DumpStepsGuard::set();
         bdd::reporting::run_dump_seeds();
         let snapshot = bdd::reporting::snapshot();
         assert!(snapshot
@@ -64,7 +85,6 @@ fn diagnostics_fixture_runs() {
             matches!(record.status(), bdd::reporting::ScenarioStatus::Skipped(details) if !details
                 .forced_failure())
         }));
-        std::env::remove_var("RSTEST_BDD_DUMP_STEPS");
         let _ = bdd::reporting::drain();
     }
 
