@@ -14,46 +14,16 @@ use common::noop_wrapper;
 step!(StepKeyword::Given, "dump used", noop_wrapper, &[]);
 step!(StepKeyword::Given, "dump unused", noop_wrapper, &[]);
 
-#[test]
-fn reports_usage_flags() {
-    let _ = reporting::drain();
-    reporting::record(ScenarioRecord::new(
-        "tests/features/dump.feature",
-        "skipped entry",
-        ScenarioStatus::Skipped(SkippedScenario::new(Some("reason".into()), true, false)),
-    ));
-    reporting::record(ScenarioRecord::new(
-        "tests/features/dump.feature",
-        "passing entry",
-        ScenarioStatus::Passed,
-    ));
-
-    let runner = find_step(StepKeyword::Given, "dump used".into())
-        .unwrap_or_else(|| panic!("step not found"));
-    match runner(&StepContext::default(), "dump used", None, None) {
+fn execute_and_validate_step(keyword: StepKeyword, pattern: &str) {
+    let runner = find_step(keyword, pattern.into()).unwrap_or_else(|| panic!("step not found"));
+    match runner(&StepContext::default(), pattern, None, None) {
         Ok(StepExecution::Continue { .. }) => {}
         Ok(StepExecution::Skipped { .. }) => panic!("step unexpectedly skipped"),
         Err(e) => panic!("execution failed: {e}"),
     }
+}
 
-    let json = dump_registry().unwrap_or_else(|e| panic!("dump registry: {e}"));
-    let parsed: Value = serde_json::from_str(&json).unwrap_or_else(|e| panic!("valid json: {e}"));
-    let steps = parsed
-        .get("steps")
-        .and_then(Value::as_array)
-        .unwrap_or_else(|| panic!("steps array"));
-    assert!(steps
-        .iter()
-        .any(|s| s["pattern"] == "dump used" && s["used"].as_bool() == Some(true)));
-    assert!(steps
-        .iter()
-        .any(|s| s["pattern"] == "dump unused" && s["used"].as_bool() == Some(false)));
-
-    let scenarios = parsed
-        .get("scenarios")
-        .and_then(Value::as_array)
-        .unwrap_or_else(|| panic!("scenarios array"));
-    assert!(scenarios.iter().all(|entry| entry.get("status").is_some()));
+fn validate_skipped_scenario(scenarios: &[Value]) {
     let skipped = scenarios
         .iter()
         .find(|entry| entry.get("status") == Some(&Value::String("skipped".into())))
@@ -73,6 +43,9 @@ fn reports_usage_flags() {
         Some(false),
         "skip should not record forced failure flag",
     );
+}
+
+fn validate_passed_scenario(scenarios: &[Value]) {
     let passing = scenarios
         .iter()
         .find(|entry| entry.get("status") == Some(&Value::String("passed".into())))
@@ -91,5 +64,43 @@ fn reports_usage_flags() {
         Some(false),
         "passed scenarios should not force failures",
     );
+}
+
+#[test]
+fn reports_usage_flags() {
+    let _ = reporting::drain();
+    reporting::record(ScenarioRecord::new(
+        "tests/features/dump.feature",
+        "skipped entry",
+        ScenarioStatus::Skipped(SkippedScenario::new(Some("reason".into()), true, false)),
+    ));
+    reporting::record(ScenarioRecord::new(
+        "tests/features/dump.feature",
+        "passing entry",
+        ScenarioStatus::Passed,
+    ));
+
+    execute_and_validate_step(StepKeyword::Given, "dump used");
+
+    let json = dump_registry().unwrap_or_else(|e| panic!("dump registry: {e}"));
+    let parsed: Value = serde_json::from_str(&json).unwrap_or_else(|e| panic!("valid json: {e}"));
+    let steps = parsed
+        .get("steps")
+        .and_then(Value::as_array)
+        .unwrap_or_else(|| panic!("steps array"));
+    assert!(steps
+        .iter()
+        .any(|s| s["pattern"] == "dump used" && s["used"].as_bool() == Some(true)));
+    assert!(steps
+        .iter()
+        .any(|s| s["pattern"] == "dump unused" && s["used"].as_bool() == Some(false)));
+
+    let scenarios = parsed
+        .get("scenarios")
+        .and_then(Value::as_array)
+        .unwrap_or_else(|| panic!("scenarios array"));
+    assert!(scenarios.iter().all(|entry| entry.get("status").is_some()));
+    validate_skipped_scenario(scenarios);
+    validate_passed_scenario(scenarios);
     let _ = reporting::drain();
 }
