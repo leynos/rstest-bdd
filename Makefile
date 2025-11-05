@@ -4,7 +4,9 @@ SHELL := bash
 APP ?= cargo-bdd
 CARGO ?= cargo
 BUILD_JOBS ?=
-CLIPPY_FLAGS ?= --workspace --all-targets --all-features -- -D warnings
+RUST_FLAGS ?= -D warnings
+CARGO_FLAGS ?= --workspace --all-targets --all-features 
+CLIPPY_FLAGS ?= $(CARGO_FLAGS) -- $(RUST_FLAGS)
 MDLINT ?= markdownlint
 UV ?= uv
 
@@ -17,7 +19,11 @@ clean: ## Remove build artifacts
 	$(CARGO) clean
 
 test: ## Run tests with warnings treated as errors
-	RUSTFLAGS="-D warnings" $(CARGO) test --workspace --all-targets --all-features $(BUILD_JOBS)
+	if command -v cargo-nextest >/dev/null 2>&1; then \
+		RUSTFLAGS="$(RUST_FLAGS)" $(CARGO) nextest run $(CARGO_FLAGS) $(BUILD_JOBS); \
+	else \
+		RUSTFLAGS="$(RUST_FLAGS)" $(CARGO) test $(CARGO_FLAGS) $(BUILD_JOBS); \
+	fi
 	# Exercise the Python release automation alongside the Rust suite.
 	$(UV) run --with pytest --with cyclopts --with plumbum --with tomlkit \
 		python -m pytest scripts/tests/publish_check
