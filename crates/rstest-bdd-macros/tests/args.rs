@@ -277,6 +277,20 @@ fn step_struct_argument_is_classified() {
 
 #[test]
 #[expect(clippy::expect_used, reason = "test asserts error path")]
+fn step_struct_rejects_trailing_step_args() {
+    let mut func: syn::ItemFn = parse_quote! {
+        fn step(#[step_args] params: OrderArgs, quantity: u32) {}
+    };
+    let mut placeholders: HashSet<String> = ["quantity".into()].into_iter().collect();
+    let err = extract_args(&mut func, &mut placeholders)
+        .expect_err("expected error when step arguments appear after #[step_args]");
+    assert!(err
+        .to_string()
+        .contains("#[step_args] cannot be combined with named step arguments"));
+}
+
+#[test]
+#[expect(clippy::expect_used, reason = "test asserts error path")]
 fn step_struct_requires_placeholders() {
     let mut func: syn::ItemFn = parse_quote! {
         fn step(#[step_args] params: OrderArgs) {}

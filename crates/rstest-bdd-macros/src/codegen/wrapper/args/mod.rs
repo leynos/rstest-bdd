@@ -4,7 +4,7 @@
 //! over the original function signature without juggling parallel vectors for
 //! fixtures, captures, and Gherkin-specific parameters.
 
-use std::fmt;
+use std::{collections::HashSet, fmt};
 
 mod classify;
 mod extract;
@@ -93,6 +93,7 @@ pub struct ExtractedArgs {
     pub(super) step_struct_idx: Option<usize>,
     pub(super) datatable_idx: Option<usize>,
     pub(super) docstring_idx: Option<usize>,
+    pub(super) blocked_placeholders: HashSet<String>,
 }
 
 impl ExtractedArgs {
@@ -146,6 +147,7 @@ impl fmt::Debug for ExtractedArgs {
         dbg.field("step_struct_idx", &self.step_struct_idx)
             .field("datatable_idx", &self.datatable_idx)
             .field("docstring_idx", &self.docstring_idx)
+            .field("blocked_placeholders", &self.blocked_placeholders)
             .finish()
     }
 }

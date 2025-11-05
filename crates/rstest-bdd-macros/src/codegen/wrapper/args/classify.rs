@@ -250,6 +250,7 @@ pub(super) fn classify_step_struct(
         ty: ty.clone(),
     });
     st.step_struct_idx = Some(idx);
+    st.blocked_placeholders.clone_from(placeholders);
     placeholders.clear();
     Ok(())
 }
@@ -260,7 +261,7 @@ pub(super) fn classify_fixture_or_step(
     pat: syn::Ident,
     ty: syn::Type,
     placeholders: &mut HashSet<String>,
-) -> bool {
+) -> syn::Result<bool> {
     let mut from_name = None;
     arg.attrs.retain(|a| {
         if a.path().is_ident("from") {
@@ -272,12 +273,24 @@ pub(super) fn classify_fixture_or_step(
     });
 
     let target = from_name.clone().unwrap_or_else(|| pat.clone());
-    if placeholders.remove(&target.to_string()) {
+    let target_name = target.to_string();
+    if placeholders.remove(&target_name) {
+        if st.step_struct_idx.is_some() && st.blocked_placeholders.contains(&target_name) {
+            return Err(syn::Error::new(
+                pat.span(),
+                "#[step_args] cannot be combined with named step arguments",
+            ));
+        }
         st.push(Arg::Step { pat, ty });
-        true
+        Ok(true)
+    } else if st.step_struct_idx.is_some() && st.blocked_placeholders.contains(&target_name) {
+        Err(syn::Error::new(
+            pat.span(),
+            "#[step_args] cannot be combined with named step arguments",
+        ))
     } else {
         let name = from_name.unwrap_or(target);
         st.push(Arg::Fixture { pat, name, ty });
-        true
+        Ok(true)
     }
 }

@@ -1,3 +1,5 @@
+//! Parameter extraction pipeline turning step function signatures into [`Arg`] sequences.
+
 use std::collections::HashSet;
 
 use super::{
@@ -50,7 +52,7 @@ fn classifier_pipeline() -> Vec<Classifier> {
         },
         |st, arg, pat, ty, placeholders| {
             if placeholders.contains(&pat.to_string()) {
-                classify_fixture_or_step(st, arg, pat.clone(), ty.clone(), placeholders);
+                classify_fixture_or_step(st, arg, pat.clone(), ty.clone(), placeholders)?;
                 Ok(true)
             } else {
                 Ok(false)
@@ -59,7 +61,7 @@ fn classifier_pipeline() -> Vec<Classifier> {
         |st, arg, pat, ty, _| classify_datatable(st, arg, pat, ty),
         |st, arg, pat, ty, _| classify_docstring(st, arg, pat, ty),
         |st, arg, pat, ty, placeholders| {
-            classify_fixture_or_step(st, arg, pat.clone(), ty.clone(), placeholders);
+            classify_fixture_or_step(st, arg, pat.clone(), ty.clone(), placeholders)?;
             Ok(true)
         },
     ]
