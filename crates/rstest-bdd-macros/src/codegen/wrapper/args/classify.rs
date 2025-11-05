@@ -186,10 +186,16 @@ pub(super) fn extract_step_struct_attribute(arg: &mut syn::PatType) -> syn::Resu
 pub(super) fn classify_step_struct(
     st: &mut ExtractedArgs,
     arg: &syn::PatType,
-    pat: &syn::Ident,
-    ty: &syn::Type,
     placeholders: &mut HashSet<String>,
 ) -> syn::Result<()> {
+    let syn::Pat::Ident(pat_ident) = arg.pat.as_ref() else {
+        return Err(syn::Error::new_spanned(
+            &arg.pat,
+            "#[step_args] requires a simple identifier pattern",
+        ));
+    };
+    let pat = &pat_ident.ident;
+    let ty = &arg.ty;
     if st.step_struct_idx.is_some() {
         return Err(syn::Error::new_spanned(
             arg,
@@ -214,15 +220,15 @@ pub(super) fn classify_step_struct(
             "#[step_args] cannot be combined with #[from]",
         ));
     }
-    if matches!(ty, syn::Type::Reference(_)) {
+    if matches!(ty.as_ref(), syn::Type::Reference(_)) {
         return Err(syn::Error::new_spanned(
-            ty,
+            ty.as_ref(),
             "#[step_args] parameters must own their struct type",
         ));
     }
     let idx = st.push(Arg::StepStruct {
         pat: pat.clone(),
-        ty: ty.clone(),
+        ty: ty.as_ref().clone(),
     });
     st.step_struct_idx = Some(idx);
     st.blocked_placeholders.clone_from(placeholders);

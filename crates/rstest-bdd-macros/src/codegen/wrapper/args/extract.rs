@@ -47,9 +47,9 @@ fn next_typed_argument(
 
 fn classifier_pipeline() -> Vec<Classifier> {
     vec![
-        |st, arg, pat, ty, placeholders| {
+        |st, arg, _pat, _ty, placeholders| {
             if extract_step_struct_attribute(arg)? {
-                classify_step_struct(st, arg, pat, ty, placeholders)?;
+                classify_step_struct(st, arg, placeholders)?;
                 Ok(true)
             } else {
                 Ok(false)
