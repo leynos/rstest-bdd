@@ -46,6 +46,7 @@ struct Step {
 /// test run; serde defaults ensure absent collections deserialize as empty
 /// vectors to simplify merges.
 #[derive(Debug, Deserialize, Clone, Default)]
+#[serde(default)]
 struct RegistryDump {
     steps: Vec<Step>,
     scenarios: Vec<Scenario>,
