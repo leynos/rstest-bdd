@@ -275,58 +275,43 @@ fn step_struct_argument_is_classified() {
     assert_eq!(ordered_parameter_names(&args), ["params", "account"]);
 }
 
-#[test]
-#[expect(clippy::expect_used, reason = "test asserts error path")]
-fn step_struct_rejects_trailing_step_args() {
-    let mut func: syn::ItemFn = parse_quote! {
-        fn step(#[step_args] params: OrderArgs, quantity: u32) {}
-    };
-    let mut placeholders: HashSet<String> = ["quantity".into()].into_iter().collect();
-    let err = extract_args(&mut func, &mut placeholders)
-        .expect_err("expected error when step arguments appear after #[step_args]");
-    assert!(err
-        .to_string()
-        .contains("#[step_args] cannot be combined with named step arguments"));
-}
-
-#[test]
-#[expect(clippy::expect_used, reason = "test asserts error path")]
-fn step_struct_requires_placeholders() {
-    let mut func: syn::ItemFn = parse_quote! {
-        fn step(#[step_args] params: OrderArgs) {}
-    };
-    let mut placeholders = HashSet::new();
-    let err = extract_args(&mut func, &mut placeholders)
-        .expect_err("expected error when placeholders missing");
-    assert!(err
-        .to_string()
-        .contains("#[step_args] requires at least one placeholder"));
-}
-
-#[test]
-#[expect(clippy::expect_used, reason = "test asserts error path")]
-fn step_struct_rejects_references() {
-    let mut func: syn::ItemFn = parse_quote! {
-        fn step(#[step_args] params: &OrderArgs) {}
-    };
-    let mut placeholders: HashSet<String> = ["value".into()].into_iter().collect();
-    let err = extract_args(&mut func, &mut placeholders)
-        .expect_err("expected error when step struct is a reference");
-    assert!(err
-        .to_string()
-        .contains("#[step_args] parameters must own their struct type"));
-}
-
-#[test]
-#[expect(clippy::expect_used, reason = "test asserts error path")]
-fn step_struct_cannot_combine_with_from() {
-    let mut func: syn::ItemFn = parse_quote! {
-        fn step(#[step_args] #[from(item)] params: OrderArgs) {}
-    };
-    let mut placeholders: HashSet<String> = ["item".into()].into_iter().collect();
-    let err = extract_args(&mut func, &mut placeholders)
-        .expect_err("expected error when combining step_args and from");
-    assert!(err
-        .to_string()
-        .contains("#[step_args] cannot be combined with #[from]"));
+#[rstest]
+#[case(
+    parse_quote! { fn step(#[step_args] params: OrderArgs, quantity: u32) {} },
+    vec!["quantity"],
+    "#[step_args] cannot be combined with named step arguments",
+    "error when step arguments appear after #[step_args]",
+)]
+#[case(
+    parse_quote! { fn step(#[step_args] params: OrderArgs) {} },
+    vec![],
+    "#[step_args] requires at least one placeholder",
+    "error when placeholders missing",
+)]
+#[case(
+    parse_quote! { fn step(#[step_args] params: &OrderArgs) {} },
+    vec!["value"],
+    "#[step_args] parameters must own their struct type",
+    "error when step struct is a reference",
+)]
+#[case(
+    parse_quote! { fn step(#[step_args] #[from(item)] params: OrderArgs) {} },
+    vec!["item"],
+    "#[step_args] cannot be combined with #[from]",
+    "error when combining #[step_args] with #[from]",
+)]
+fn test_step_struct_errors(
+    #[case] mut func: syn::ItemFn,
+    #[case] placeholders: Vec<&str>,
+    #[case] expected_error_fragment: &str,
+    #[case] description: &str,
+) {
+    let mut placeholder_set: HashSet<String> = placeholders.into_iter().map(String::from).collect();
+    #[expect(clippy::expect_used, reason = "test asserts error path")]
+    let err = extract_args(&mut func, &mut placeholder_set).expect_err(description);
+    let msg = err.to_string();
+    assert!(
+        msg.contains(expected_error_fragment),
+        "unexpected error message for {description}: {msg}"
+    );
 }
