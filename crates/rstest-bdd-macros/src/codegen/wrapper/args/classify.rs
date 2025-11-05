@@ -2,7 +2,9 @@
 //!
 //! The `extract_args` pipeline runs these classifiers in order until one claims
 //! ownership of a parameter, ensuring future extensions only need to append a
-//! new function to the list rather than editing the control flow.
+//! new function to the list rather than editing the control flow. Attribute
+//! validation lives here so the pipeline can provide precise diagnostics while
+//! keeping the orchestration layer slim.
 
 use std::collections::HashSet;
 
@@ -50,60 +52,7 @@ fn should_classify_as_datatable(pat: &syn::Ident, ty: &syn::Type) -> bool {
     pat == "datatable" && is_datatable(ty)
 }
 
-fn validate_single_step_struct(st: &ExtractedArgs, arg: &syn::PatType) -> syn::Result<()> {
-    if st.step_struct_idx.is_some() {
-        return Err(syn::Error::new_spanned(
-            arg,
-            "only one #[step_args] parameter is permitted per step",
-        ));
-    }
-    Ok(())
-}
-
-fn validate_no_named_args(st: &ExtractedArgs, arg: &syn::PatType) -> syn::Result<()> {
-    if st.step_args().next().is_some() {
-        return Err(syn::Error::new_spanned(
-            arg,
-            "#[step_args] cannot be combined with named step arguments",
-        ));
-    }
-    Ok(())
-}
-
-fn validate_has_placeholders(
-    placeholders: &HashSet<String>,
-    arg: &syn::PatType,
-) -> syn::Result<()> {
-    if placeholders.is_empty() {
-        return Err(syn::Error::new_spanned(
-            arg,
-            "#[step_args] requires at least one placeholder in the pattern",
-        ));
-    }
-    Ok(())
-}
-
-fn validate_no_from_attr(arg: &syn::PatType) -> syn::Result<()> {
-    if arg.attrs.iter().any(|a| a.path().is_ident("from")) {
-        return Err(syn::Error::new_spanned(
-            arg,
-            "#[step_args] cannot be combined with #[from]",
-        ));
-    }
-    Ok(())
-}
-
-fn validate_owned_type(ty: &syn::Type) -> syn::Result<()> {
-    if matches!(ty, syn::Type::Reference(_)) {
-        return Err(syn::Error::new_spanned(
-            ty,
-            "#[step_args] parameters must own their struct type",
-        ));
-    }
-    Ok(())
-}
-
-fn extract_simple_attribute(arg: &mut syn::PatType, attr_name: &str) -> syn::Result<bool> {
+fn extract_flag_attribute(arg: &mut syn::PatType, attr_name: &str) -> syn::Result<bool> {
     let mut found = false;
     let mut duplicate = false;
     let mut err_attr: Option<syn::Attribute> = None;
@@ -137,41 +86,7 @@ fn extract_simple_attribute(arg: &mut syn::PatType, attr_name: &str) -> syn::Res
 }
 
 fn extract_datatable_attribute(arg: &mut syn::PatType) -> syn::Result<bool> {
-    extract_simple_attribute(arg, "datatable")
-}
-
-fn check_datatable_docstring_conflict(
-    pat: &syn::Ident,
-    is_attr: bool,
-    arg: &mut syn::PatType,
-) -> syn::Result<()> {
-    if is_attr && pat == "docstring" {
-        return Err(syn::Error::new_spanned(
-            arg,
-            "parameter `docstring` cannot be annotated with #[datatable]",
-        ));
-    }
-    Ok(())
-}
-
-fn check_datatable_uniqueness(st: &ExtractedArgs, arg: &mut syn::PatType) -> syn::Result<()> {
-    if st.datatable_idx.is_some() {
-        return Err(syn::Error::new_spanned(
-            arg,
-            "only one DataTable parameter is permitted",
-        ));
-    }
-    Ok(())
-}
-
-fn check_datatable_ordering(st: &ExtractedArgs, arg: &mut syn::PatType) -> syn::Result<()> {
-    if st.docstring_idx.is_some() {
-        return Err(syn::Error::new_spanned(
-            arg,
-            "DataTable must be declared before DocString to match Gherkin ordering",
-        ));
-    }
-    Ok(())
+    extract_flag_attribute(arg, "datatable")
 }
 
 fn validate_datatable_constraints(
@@ -183,10 +98,25 @@ fn validate_datatable_constraints(
     let is_attr = extract_datatable_attribute(arg)?;
     let is_canonical = should_classify_as_datatable(pat, ty);
 
-    check_datatable_docstring_conflict(pat, is_attr, arg)?;
+    if is_attr && pat == "docstring" {
+        return Err(syn::Error::new_spanned(
+            arg,
+            "parameter `docstring` cannot be annotated with #[datatable]",
+        ));
+    }
     if is_attr || is_canonical {
-        check_datatable_uniqueness(st, arg)?;
-        check_datatable_ordering(st, arg)?;
+        if st.datatable_idx.is_some() {
+            return Err(syn::Error::new_spanned(
+                arg,
+                "only one DataTable parameter is permitted",
+            ));
+        }
+        if st.docstring_idx.is_some() {
+            return Err(syn::Error::new_spanned(
+                arg,
+                "DataTable must be declared before DocString to match Gherkin ordering",
+            ));
+        }
         Ok(true)
     } else if pat == "datatable" {
         Err(syn::Error::new_spanned(
@@ -252,7 +182,7 @@ pub(super) fn classify_docstring(
 }
 
 pub(super) fn extract_step_struct_attribute(arg: &mut syn::PatType) -> syn::Result<bool> {
-    extract_simple_attribute(arg, "step_args")
+    extract_flag_attribute(arg, "step_args")
 }
 
 pub(super) fn classify_step_struct(
@@ -268,11 +198,36 @@ pub(super) fn classify_step_struct(
     };
     let pat = &pat_ident.ident;
     let ty = &arg.ty;
-    validate_single_step_struct(st, arg)?;
-    validate_no_named_args(st, arg)?;
-    validate_has_placeholders(placeholders, arg)?;
-    validate_no_from_attr(arg)?;
-    validate_owned_type(ty.as_ref())?;
+    if st.step_struct_idx.is_some() {
+        return Err(syn::Error::new_spanned(
+            arg,
+            "only one #[step_args] parameter is permitted per step",
+        ));
+    }
+    if st.step_args().next().is_some() {
+        return Err(syn::Error::new_spanned(
+            arg,
+            "#[step_args] cannot be combined with named step arguments",
+        ));
+    }
+    if placeholders.is_empty() {
+        return Err(syn::Error::new_spanned(
+            arg,
+            "#[step_args] requires at least one placeholder in the pattern",
+        ));
+    }
+    if arg.attrs.iter().any(|a| a.path().is_ident("from")) {
+        return Err(syn::Error::new_spanned(
+            arg,
+            "#[step_args] cannot be combined with #[from]",
+        ));
+    }
+    if matches!(ty.as_ref(), syn::Type::Reference(_)) {
+        return Err(syn::Error::new_spanned(
+            ty.as_ref(),
+            "#[step_args] parameters must own their struct type",
+        ));
+    }
     let idx = st.push(Arg::StepStruct {
         pat: pat.clone(),
         ty: ty.as_ref().clone(),

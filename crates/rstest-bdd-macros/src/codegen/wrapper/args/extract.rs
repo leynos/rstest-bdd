@@ -47,14 +47,6 @@ fn next_typed_argument(
 
 fn classifier_pipeline() -> Vec<Classifier> {
     vec![
-        |st, arg, _pat, _ty, placeholders| {
-            if extract_step_struct_attribute(arg)? {
-                classify_step_struct(st, arg, placeholders)?;
-                Ok(true)
-            } else {
-                Ok(false)
-            }
-        },
         |st, arg, pat, ty, placeholders| {
             if placeholders.contains(&pat.to_string()) {
                 classify_fixture_or_step(st, arg, pat.clone(), ty.clone(), placeholders)?;
@@ -113,6 +105,10 @@ pub fn extract_args(
 
     'args: for input in &mut func.sig.inputs {
         let (arg, pat, ty) = next_typed_argument(input)?;
+        if extract_step_struct_attribute(arg)? {
+            classify_step_struct(&mut state, arg, placeholders)?;
+            continue 'args;
+        }
         for classify in &classifiers {
             if classify(&mut state, arg, &pat, &ty, placeholders)? {
                 continue 'args;

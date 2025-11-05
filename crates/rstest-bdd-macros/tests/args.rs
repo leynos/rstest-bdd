@@ -83,6 +83,21 @@ fn has_docstring(args: &ExtractedArgs) -> bool {
     "only one docstring parameter is permitted and it must have type `String`",
     "error when docstring has wrong type",
 )]
+fn test_extract_args_errors(
+    #[case] mut func: syn::ItemFn,
+    #[case] expected_error_fragment: &str,
+    #[case] test_description: &str,
+) {
+    #[expect(clippy::expect_used, reason = "test asserts error message")]
+    let err = extract_args(&mut func, &mut HashSet::new()).expect_err(test_description);
+    let msg = err.to_string();
+    assert!(
+        msg.contains(expected_error_fragment),
+        "unexpected error message for {test_description}: {msg}"
+    );
+}
+
+#[rstest]
 #[case(
     parse_quote! { fn step(docstring: String, #[datatable] data: Vec<Vec<String>>) {} },
     "DataTable must be declared before DocString",
@@ -113,17 +128,17 @@ fn has_docstring(args: &ExtractedArgs) -> bool {
     "`#[datatable]` does not take arguments",
     "error when datatable attribute has tokens",
 )]
-fn test_extract_args_errors(
+fn test_datatable_attribute_errors(
     #[case] mut func: syn::ItemFn,
     #[case] expected_error_fragment: &str,
-    #[case] test_description: &str,
+    #[case] description: &str,
 ) {
     #[expect(clippy::expect_used, reason = "test asserts error message")]
-    let err = extract_args(&mut func, &mut HashSet::new()).expect_err(test_description);
+    let err = extract_args(&mut func, &mut HashSet::new()).expect_err(description);
     let msg = err.to_string();
     assert!(
         msg.contains(expected_error_fragment),
-        "unexpected error message for {test_description}: {msg}"
+        "unexpected error message for {description}: {msg}"
     );
 }
 
@@ -299,6 +314,12 @@ fn step_struct_argument_is_classified() {
     vec!["item"],
     "#[step_args] cannot be combined with #[from]",
     "error when combining #[step_args] with #[from]",
+)]
+#[case(
+    parse_quote! { fn step(#[step_args] #[step_args] params: OrderArgs) {} },
+    vec!["value"],
+    "duplicate `#[step_args]` attribute",
+    "error on duplicate #[step_args] attribute",
 )]
 fn test_step_struct_errors(
     #[case] mut func: syn::ItemFn,
