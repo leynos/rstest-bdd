@@ -50,12 +50,12 @@ fn should_classify_as_datatable(pat: &syn::Ident, ty: &syn::Type) -> bool {
     pat == "datatable" && is_datatable(ty)
 }
 
-fn extract_datatable_attribute(arg: &mut syn::PatType) -> syn::Result<bool> {
+fn extract_simple_attribute(arg: &mut syn::PatType, attr_name: &str) -> syn::Result<bool> {
     let mut found = false;
     let mut duplicate = false;
     let mut err_attr: Option<syn::Attribute> = None;
     arg.attrs.retain(|a| {
-        if a.path().is_ident("datatable") {
+        if a.path().is_ident(attr_name) {
             if found {
                 duplicate = true;
             }
@@ -71,16 +71,20 @@ fn extract_datatable_attribute(arg: &mut syn::PatType) -> syn::Result<bool> {
     if let Some(attr) = err_attr {
         return Err(syn::Error::new_spanned(
             attr,
-            "`#[datatable]` does not take arguments",
+            format!("`#[{}]` does not take arguments", attr_name),
         ));
     }
     if duplicate {
         return Err(syn::Error::new_spanned(
             &arg.pat,
-            "duplicate `#[datatable]` attribute",
+            format!("duplicate `#[{}]` attribute", attr_name),
         ));
     }
     Ok(found)
+}
+
+fn extract_datatable_attribute(arg: &mut syn::PatType) -> syn::Result<bool> {
+    extract_simple_attribute(arg, "datatable")
 }
 
 fn validate_datatable_constraints(
@@ -176,36 +180,7 @@ pub(super) fn classify_docstring(
 }
 
 pub(super) fn extract_step_struct_attribute(arg: &mut syn::PatType) -> syn::Result<bool> {
-    let mut found = false;
-    let mut duplicate = false;
-    let mut invalid: Option<syn::Attribute> = None;
-    arg.attrs.retain(|attr| {
-        if attr.path().is_ident("step_args") {
-            if found {
-                duplicate = true;
-            }
-            found = true;
-            if attr.meta.require_path_only().is_err() {
-                invalid = Some(attr.clone());
-            }
-            false
-        } else {
-            true
-        }
-    });
-    if let Some(attr) = invalid {
-        return Err(syn::Error::new_spanned(
-            attr,
-            "`#[step_args]` does not take arguments",
-        ));
-    }
-    if duplicate {
-        return Err(syn::Error::new_spanned(
-            &arg.pat,
-            "duplicate `#[step_args]` attribute",
-        ));
-    }
-    Ok(found)
+    extract_simple_attribute(arg, "step_args")
 }
 
 pub(super) fn classify_step_struct(
