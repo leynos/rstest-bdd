@@ -40,13 +40,9 @@ fn expand(input: DeriveInput) -> syn::Result<TokenStream2> {
     expand_named_struct(&ident, generics, fields)
 }
 
-fn expand_named_struct(
-    ident: &syn::Ident,
-    generics: syn::Generics,
+fn collect_field_info(
     fields: syn::FieldsNamed,
-) -> syn::Result<TokenStream2> {
-    let runtime = crate::codegen::rstest_bdd_path();
-
+) -> (Vec<syn::Ident>, Vec<syn::Type>, Vec<syn::LitStr>) {
     let mut field_idents = Vec::new();
     let mut field_types = Vec::new();
     let mut field_name_literals = Vec::new();
@@ -63,26 +59,24 @@ fn expand_named_struct(
         field_idents.push(field_ident);
     }
 
-    if field_idents.is_empty() {
-        return Err(syn::Error::new(
-            ident.span(),
-            "StepArgs structs must define at least one field",
-        ));
-    }
+    (field_idents, field_types, field_name_literals)
+}
 
-    let mut generics = generics;
-    {
-        let where_clause = generics.make_where_clause();
-        for ty in &field_types {
-            where_clause
-                .predicates
-                .push(parse_quote!(#ty: ::core::str::FromStr));
-        }
+fn add_fromstr_bounds(generics: &mut syn::Generics, field_types: &[syn::Type]) {
+    let where_clause = generics.make_where_clause();
+    for ty in field_types {
+        where_clause
+            .predicates
+            .push(parse_quote!(#ty: ::core::str::FromStr));
     }
-    let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
-    let field_count = field_idents.len();
+}
 
-    let parse_fields = field_idents
+fn generate_field_parsing(
+    field_idents: &[syn::Ident],
+    field_types: &[syn::Type],
+    runtime: &TokenStream2,
+) -> Vec<TokenStream2> {
+    field_idents
         .iter()
         .zip(field_types.iter())
         .map(|(ident, ty)| {
@@ -100,7 +94,31 @@ fn expand_named_struct(
                     }
                 };
             }
-        });
+        })
+        .collect()
+}
+
+fn expand_named_struct(
+    ident: &syn::Ident,
+    mut generics: syn::Generics,
+    fields: syn::FieldsNamed,
+) -> syn::Result<TokenStream2> {
+    let runtime = crate::codegen::rstest_bdd_path();
+
+    let (field_idents, field_types, field_name_literals) = collect_field_info(fields);
+
+    if field_idents.is_empty() {
+        return Err(syn::Error::new(
+            ident.span(),
+            "StepArgs structs must define at least one field",
+        ));
+    }
+
+    add_fromstr_bounds(&mut generics, &field_types);
+    let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
+    let field_count = field_idents.len();
+
+    let parse_fields = generate_field_parsing(&field_idents, &field_types, &runtime);
 
     let construct = quote! { Self { #(#field_idents),* } };
 

@@ -10,6 +10,23 @@ use std::collections::HashSet;
 
 use super::{Arg, ExtractedArgs};
 
+pub(super) struct ClassificationContext<'a> {
+    pub(super) extracted: &'a mut ExtractedArgs,
+    pub(super) placeholders: &'a mut HashSet<String>,
+}
+
+impl<'a> ClassificationContext<'a> {
+    pub(super) fn new(
+        extracted: &'a mut ExtractedArgs,
+        placeholders: &'a mut HashSet<String>,
+    ) -> Self {
+        Self {
+            extracted,
+            placeholders,
+        }
+    }
+}
+
 fn is_type_seq(ty: &syn::Type, seq: &[&str]) -> bool {
     use syn::{GenericArgument, PathArguments, Type};
 
@@ -239,11 +256,10 @@ pub(super) fn classify_step_struct(
 }
 
 pub(super) fn classify_fixture_or_step(
-    st: &mut ExtractedArgs,
+    ctx: &mut ClassificationContext,
     arg: &mut syn::PatType,
     pat: syn::Ident,
     ty: syn::Type,
-    placeholders: &mut HashSet<String>,
 ) -> syn::Result<bool> {
     let mut from_name = None;
     arg.attrs.retain(|a| {
@@ -257,23 +273,27 @@ pub(super) fn classify_fixture_or_step(
 
     let target = from_name.clone().unwrap_or_else(|| pat.clone());
     let target_name = target.to_string();
-    if placeholders.remove(&target_name) {
-        if st.step_struct_idx.is_some() && st.blocked_placeholders.contains(&target_name) {
+    if ctx.placeholders.remove(&target_name) {
+        if ctx.extracted.step_struct_idx.is_some()
+            && ctx.extracted.blocked_placeholders.contains(&target_name)
+        {
             return Err(syn::Error::new(
                 pat.span(),
                 "#[step_args] cannot be combined with named step arguments",
             ));
         }
-        st.push(Arg::Step { pat, ty });
+        ctx.extracted.push(Arg::Step { pat, ty });
         Ok(true)
-    } else if st.step_struct_idx.is_some() && st.blocked_placeholders.contains(&target_name) {
+    } else if ctx.extracted.step_struct_idx.is_some()
+        && ctx.extracted.blocked_placeholders.contains(&target_name)
+    {
         Err(syn::Error::new(
             pat.span(),
             "#[step_args] cannot be combined with named step arguments",
         ))
     } else {
         let name = from_name.unwrap_or(target);
-        st.push(Arg::Fixture { pat, name, ty });
+        ctx.extracted.push(Arg::Fixture { pat, name, ty });
         Ok(true)
     }
 }
