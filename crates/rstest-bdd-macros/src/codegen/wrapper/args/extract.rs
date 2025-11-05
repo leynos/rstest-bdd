@@ -1,4 +1,9 @@
 //! Parameter extraction pipeline turning step function signatures into [`Arg`] sequences.
+//!
+//! The module owns the orchestration of placeholder-aware classifiers, ensuring every
+//! argument is processed consistently before wrapper codegen starts. Keeping this
+//! summary in the header satisfies the project guideline that requires each module to
+//! describe its purpose and makes the extraction flow discoverable for contributors.
 
 use std::collections::HashSet;
 
