@@ -897,7 +897,9 @@ Examples
 
 The tool inspects the runtime step registry and offers three commands:
 
-- `cargo bdd steps` prints every registered step with its source location.
+- `cargo bdd steps` prints every registered step with its source location and
+  appends any skipped scenario outcomes using lowercase status labels whilst
+  preserving long messages.
 - `cargo bdd unused` lists steps that were never executed in the current
   process.
 - `cargo bdd duplicates` groups step definitions that share the same keyword
@@ -905,10 +907,35 @@ The tool inspects the runtime step registry and offers three commands:
 
 The subcommand builds each test target in the workspace and runs the resulting
 binary with `RSTEST_BDD_DUMP_STEPS=1` and a private `--dump-steps` flag to
-collect the registered steps as JSON. Because usage tracking is process local,
-`unused` only reflects steps invoked during that same execution. The merged
-output powers the commands above, helping to keep the step library tidy and
-discover dead code early in the development cycle.
+collect the registered steps and recently executed scenario outcomes as JSON.
+Because usage tracking is process local, `unused` only reflects steps invoked
+during that same execution. The merged output powers the commands above and the
+skip status summary, helping to keep the step library tidy and discover dead
+code early in the development cycle.
+
+### Scenario report writers
+
+Projects that need to persist scenario results outside the CLI can rely on the
+runtime reporting modules. `rstest_bdd::reporting::json` offers helper
+functions that serialize the collector snapshot into a predictable schema with
+lowercase status labels:
+
+```rust
+let mut buffer = Vec::new();
+rstest_bdd::reporting::json::write_snapshot(&mut buffer)?;
+```
+
+The companion `rstest_bdd::reporting::junit` module renders the same snapshot
+as JUnit XML. Each skipped scenario emits a `<skipped>` element with an
+optional `message` attribute so CI servers surface the reason:
+
+```rust
+let mut xml = String::new();
+rstest_bdd::reporting::junit::write_snapshot(&mut xml)?;
+```
+
+Both writers accept explicit `&[ScenarioRecord]` slices when callers want to
+serialize a custom selection of outcomes rather than the full snapshot.
 
 ## Summary
 

@@ -114,35 +114,6 @@ fn execute_single_step(feature_path: &FeaturePath, scenario_name: &ScenarioName)
     }
 }
 
-fn validate_skip_result(feature_path: &FeaturePath, scenario_name: &ScenarioName) -> TokenStream2 {
-    let _ = feature_path.as_str();
-    let _ = scenario_name.as_str();
-    let path = crate::codegen::rstest_bdd_path();
-    quote! {
-        fn validate_skip_result(
-            skipped: Option<Option<String>>,
-            allow_skipped: bool,
-            feature_path: &str,
-            scenario_name: &str,
-        ) -> bool {
-            if let Some(message) = skipped {
-                if #path::config::fail_on_skipped() && !allow_skipped {
-                    let detail = message.unwrap_or_else(|| "scenario skipped".to_string());
-                    panic!(
-                        "Scenario skipped with fail_on_skipped enabled: {}\n(feature: {}, scenario: {})",
-                        detail,
-                        feature_path,
-                        scenario_name
-                    );
-                }
-                false
-            } else {
-                true
-            }
-        }
-    }
-}
-
 fn generate_skip_decoder() -> TokenStream2 {
     quote! {
         fn decode_skip_message(encoded: String) -> Option<String> {
@@ -154,6 +125,122 @@ fn generate_skip_decoder() -> TokenStream2 {
                 }
                 _ => Some(encoded),
             }
+        }
+    }
+}
+
+fn generate_scenario_guard() -> TokenStream2 {
+    let path = crate::codegen::rstest_bdd_path();
+    quote! {
+        struct ScenarioReportGuard {
+            recorded: bool,
+            feature_path: &'static str,
+            scenario_name: &'static str,
+        }
+
+        impl ScenarioReportGuard {
+            fn new(feature_path: &'static str, scenario_name: &'static str) -> Self {
+                Self {
+                    recorded: false,
+                    feature_path,
+                    scenario_name,
+                }
+            }
+
+            fn mark_recorded(&mut self) {
+                self.recorded = true;
+            }
+        }
+
+        impl Drop for ScenarioReportGuard {
+            fn drop(&mut self) {
+                if !self.recorded && !std::thread::panicking() {
+                    #path::reporting::record(#path::reporting::ScenarioRecord::new(
+                        self.feature_path,
+                        self.scenario_name,
+                        #path::reporting::ScenarioStatus::Passed,
+                    ));
+                }
+            }
+        }
+    }
+}
+
+/// Generate the loop that executes each scenario step and captures skip outcomes.
+///
+/// # Examples
+/// ```rust,ignore
+/// use proc_macro2::TokenStream as TokenStream2;
+/// let tokens = generate_step_executor_loop(&[], &[], &[], &[]);
+/// assert!(tokens.to_string().contains("for"));
+/// ```
+fn generate_step_executor_loop(
+    keyword_tokens: &[TokenStream2],
+    values: &[TokenStream2],
+    docstrings: &[TokenStream2],
+    tables: &[TokenStream2],
+) -> TokenStream2 {
+    quote! {
+        let steps = [#((#keyword_tokens, #values, #docstrings, #tables)),*];
+        for (index, (keyword, text, docstring, table)) in steps.iter().enumerate() {
+            match execute_single_step(
+                index,
+                *keyword,
+                *text,
+                *docstring,
+                *table,
+                &ctx,
+                FEATURE_PATH,
+                SCENARIO_NAME,
+            ) {
+                Ok(value) => {
+                    if let Some(val) = value {
+                        let _ = ctx.insert_value(val);
+                    }
+                }
+                Err(encoded) => {
+                    skipped = Some(decode_skip_message(encoded));
+                    break;
+                }
+            }
+        }
+    }
+}
+
+/// Generate the skip handling logic that records the outcome and escalates failures.
+///
+/// # Examples
+/// ```rust,ignore
+/// let tokens = generate_skip_handler();
+/// assert!(tokens.to_string().contains("ScenarioStatus::Skipped"));
+/// ```
+fn generate_skip_handler() -> TokenStream2 {
+    let path = crate::codegen::rstest_bdd_path();
+    quote! {
+        if let Some(message) = skipped {
+            let fail_on_skipped_enabled = #path::config::fail_on_skipped();
+            let forced_failure = fail_on_skipped_enabled && !allow_skipped;
+            scenario_guard.mark_recorded();
+            let skip_details = #path::reporting::SkippedScenario::new(
+                message.clone(),
+                allow_skipped,
+                forced_failure,
+            );
+            #path::reporting::record(#path::reporting::ScenarioRecord::new(
+                FEATURE_PATH,
+                SCENARIO_NAME,
+                #path::reporting::ScenarioStatus::Skipped(skip_details),
+            ));
+            if forced_failure {
+                let detail = message.unwrap_or_else(|| "scenario skipped".to_string());
+                panic!(
+                    "Scenario skipped with fail_on_skipped enabled: {}\n(feature: {}, scenario: {})",
+                    detail,
+                    FEATURE_PATH,
+                    SCENARIO_NAME
+                );
+            }
+            return;
         }
     }
 }
@@ -201,50 +288,31 @@ fn generate_test_tokens(
     let feature_literal = syn::LitStr::new(feature_path.as_str(), proc_macro2::Span::call_site());
     let scenario_literal = syn::LitStr::new(scenario_name.as_str(), proc_macro2::Span::call_site());
     let step_executor = execute_single_step(feature_path, scenario_name);
-    let skip_validator = validate_skip_result(feature_path, scenario_name);
     let skip_decoder = generate_skip_decoder();
+    let scenario_guard = generate_scenario_guard();
+    let step_executor_loop =
+        generate_step_executor_loop(&keyword_tokens, &values, &docstrings, &tables);
+    let skip_handler = generate_skip_handler();
     quote! {
         const FEATURE_PATH: &str = #feature_literal;
         const SCENARIO_NAME: &str = #scenario_literal;
         const SKIP_NONE_PREFIX: char = '\u{0}';
         const SKIP_SOME_PREFIX: char = '\u{1}';
         #step_executor
-        #skip_validator
         #skip_decoder
+        #scenario_guard
 
-        let steps = [#((#keyword_tokens, #values, #docstrings, #tables)),*];
         let allow_skipped: bool = #allow_literal;
         let mut ctx = {
             let mut ctx = #path::StepContext::default();
             #(#ctx_inserts)*
             ctx
         };
+
+        let mut scenario_guard = ScenarioReportGuard::new(FEATURE_PATH, SCENARIO_NAME);
         let mut skipped: Option<Option<String>> = None;
-        for (index, (keyword, text, docstring, table)) in steps.iter().enumerate() {
-            match execute_single_step(
-                index,
-                *keyword,
-                *text,
-                *docstring,
-                *table,
-                &ctx,
-                FEATURE_PATH,
-                SCENARIO_NAME,
-            ) {
-                Ok(value) => {
-                    if let Some(val) = value {
-                        let _ = ctx.insert_value(val);
-                    }
-                }
-                Err(encoded) => {
-                    skipped = Some(decode_skip_message(encoded));
-                    break;
-                }
-            }
-        }
-        if !validate_skip_result(skipped, allow_skipped, FEATURE_PATH, SCENARIO_NAME) {
-            return;
-        }
+        #step_executor_loop
+        #skip_handler
         #block
     }
 }

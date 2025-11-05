@@ -1237,11 +1237,15 @@ incrementally.
   panic payload; wrapper code intercepts that payload, records the skipped
   outcome, and allows the scenario loop to stop executing further steps.
 
-  - Propagate skipped status through the `cargo-bdd` CLI and the JSON and JUnit
-    writers. Emit a `<skipped>` child on each `<testcase>` element in JUnit
-    output with an optional `message` attribute, and use lowercase `skipped`
-    status strings in JSON and the CLI while preserving long messages and
-    consistent casing.
+  - Skip outcomes now flow through the `cargo-bdd` CLI and dedicated writers in
+    the runtime crate. The `reporting::json` module serializes the collector
+    snapshot into a stable schema that records lowercase status labels and skip
+    metadata (`message`, `allow_skipped`, `forced_failure`). The companion
+    `reporting::junit` module renders a single `<testsuite>` document and emits
+    a `<skipped>` child for each skipped scenario, including the original
+    message when present. When `fail_on_skipped` escalates a skip into a panic
+    the writer adds a `<failure>` element so CI systems surface the failure
+    alongside the skip reason.
 
 - Document the `skip!` macro, the `@allow_skipped` tag and the Rust 1.75
   migration with examples illustrating `fail_on_skipped` behaviour.

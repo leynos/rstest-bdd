@@ -36,6 +36,7 @@ mod panic_support;
 mod pattern;
 mod placeholder;
 mod registry;
+pub mod reporting;
 pub mod state;
 mod types;
 
@@ -163,6 +164,7 @@ fn dump_steps() {
     if std::env::var_os("RSTEST_BDD_DUMP_STEPS").is_some()
         && std::env::args().any(|a| a == "--dump-steps")
     {
+        reporting::run_dump_seeds();
         #[expect(
             clippy::print_stdout,
             clippy::print_stderr,
@@ -171,7 +173,7 @@ fn dump_steps() {
         {
             match dump_registry() {
                 Ok(json) => println!("{json}"),
-                Err(e) => eprintln!("failed to serialise step registry: {e}"),
+                Err(e) => eprintln!("failed to serialize step registry: {e}"),
             }
         }
         std::process::exit(0);

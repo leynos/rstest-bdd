@@ -5,6 +5,8 @@
 
 use crate::pattern::StepPattern;
 use crate::placeholder::extract_placeholders;
+#[cfg(feature = "diagnostics")]
+use crate::reporting::{self, ScenarioStatus};
 use crate::types::{PatternStr, StepFn, StepKeyword, StepText};
 use hashbrown::{HashMap, HashSet};
 use inventory::iter;
@@ -175,7 +177,25 @@ struct DumpedStep {
     used: bool,
 }
 
-/// Serialise the registry to a JSON array.
+#[cfg(feature = "diagnostics")]
+#[derive(Serialize)]
+struct DumpedScenario {
+    feature_path: String,
+    scenario_name: String,
+    status: &'static str,
+    message: Option<String>,
+    allow_skipped: bool,
+    forced_failure: bool,
+}
+
+#[cfg(feature = "diagnostics")]
+#[derive(Serialize)]
+struct RegistryDump {
+    steps: Vec<DumpedStep>,
+    scenarios: Vec<DumpedScenario>,
+}
+
+/// Serialize the registry to a JSON array.
 ///
 /// Each entry records the step keyword, pattern, source location, and whether
 /// the step has been executed. The JSON is intended for consumption by
@@ -183,14 +203,14 @@ struct DumpedStep {
 ///
 /// # Errors
 ///
-/// Returns an error if serialisation fails.
+/// Returns an error if serialization fails.
 ///
 /// # Examples
 ///
 /// ```
 /// use rstest_bdd::dump_registry;
 ///
-/// let json = dump_registry().expect("serialise registry");
+/// let json = dump_registry().expect("serialize registry");
 /// assert!(json.starts_with("["));
 /// ```
 #[cfg(feature = "diagnostics")]
@@ -208,5 +228,29 @@ pub fn dump_registry() -> serde_json::Result<String> {
             used: used.contains(&(s.keyword, s.pattern)),
         })
         .collect();
-    serde_json::to_string(&steps)
+
+    let scenarios = reporting::snapshot()
+        .into_iter()
+        .map(|record| {
+            let (status, message, allow_skipped, forced_failure) = match record.status() {
+                ScenarioStatus::Passed => ("passed", None, false, false),
+                ScenarioStatus::Skipped(details) => (
+                    "skipped",
+                    details.message().map(str::to_owned),
+                    details.allow_skipped(),
+                    details.forced_failure(),
+                ),
+            };
+            DumpedScenario {
+                feature_path: record.feature_path().to_owned(),
+                scenario_name: record.scenario_name().to_owned(),
+                status,
+                message,
+                allow_skipped,
+                forced_failure,
+            }
+        })
+        .collect();
+
+    serde_json::to_string(&RegistryDump { steps, scenarios })
 }

@@ -200,13 +200,13 @@ improves the developer experience.
   - [x] Provide a `skip!` macro that records a `Skipped` outcome and
     short-circuits remaining steps.
 
-  - [ ] Expose skipped status through `cargo-bdd` and the JSON and JUnit
+  - [x] Expose skipped status through `cargo-bdd` and the JSON and JUnit
     writers. Emit a `<skipped>` child on each `<testcase>` element in JUnit
     output with an optional `message` attribute, and use lowercase `skipped`
     status strings in JSON and the CLI while preserving long messages and
     consistent casing.
 
-  - [ ] Document the `skip!` macro, the `@allow_skipped` tag and migration
+  - [x] Document the `skip!` macro, the `@allow_skipped` tag and migration
     guidance for adopting Rust 1.75.
 
 [design §1.3.4]: ./rstest-bdd-design.md#134-filtering-scenarios-with-tags
