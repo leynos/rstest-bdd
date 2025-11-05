@@ -71,13 +71,13 @@ fn extract_simple_attribute(arg: &mut syn::PatType, attr_name: &str) -> syn::Res
     if let Some(attr) = err_attr {
         return Err(syn::Error::new_spanned(
             attr,
-            format!("`#[{}]` does not take arguments", attr_name),
+            format!("`#[{attr_name}]` does not take arguments"),
         ));
     }
     if duplicate {
         return Err(syn::Error::new_spanned(
             &arg.pat,
-            format!("duplicate `#[{}]` attribute", attr_name),
+            format!("duplicate `#[{attr_name}]` attribute"),
         ));
     }
     Ok(found)
