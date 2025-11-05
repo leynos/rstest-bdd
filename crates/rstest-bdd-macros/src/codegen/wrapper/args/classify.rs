@@ -297,3 +297,90 @@ pub(super) fn classify_fixture_or_step(
         Ok(true)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use proc_macro2::Span;
+    use std::collections::HashSet;
+    use syn::parse_quote;
+
+    fn ident(name: &str) -> syn::Ident {
+        syn::Ident::new(name, Span::call_site())
+    }
+
+    #[test]
+    fn context_new_links_borrows() {
+        let mut extracted = ExtractedArgs::default();
+        let mut placeholders = HashSet::from(["alpha".to_string()]);
+        {
+            let mut ctx = ClassificationContext::new(&mut extracted, &mut placeholders);
+            ctx.placeholders.clear();
+            ctx.extracted.push(Arg::DocString {
+                pat: ident("docstring"),
+            });
+        }
+        assert!(placeholders.is_empty());
+        assert!(matches!(
+            extracted.args.first(),
+            Some(Arg::DocString { .. })
+        ));
+    }
+
+    #[test]
+    fn classify_fixture_or_step_claims_placeholder_as_step() {
+        let mut extracted = ExtractedArgs::default();
+        let mut placeholders = HashSet::from(["value".to_string()]);
+        let mut arg: syn::PatType = parse_quote!(value: String);
+        let pat = ident("value");
+        let ty: syn::Type = parse_quote!(String);
+        let mut ctx = ClassificationContext::new(&mut extracted, &mut placeholders);
+
+        let handled =
+            classify_fixture_or_step(&mut ctx, &mut arg, pat, ty).expect("classification succeeds");
+
+        assert!(handled);
+        assert!(placeholders.is_empty());
+        assert!(matches!(ctx.extracted.args.as_slice(), [Arg::Step { .. }]));
+    }
+
+    #[test]
+    fn classify_fixture_or_step_falls_back_to_fixture() {
+        let mut extracted = ExtractedArgs::default();
+        let mut placeholders = HashSet::new();
+        let mut arg: syn::PatType = parse_quote!(dep: usize);
+        let pat = ident("dep");
+        let ty: syn::Type = parse_quote!(usize);
+        let mut ctx = ClassificationContext::new(&mut extracted, &mut placeholders);
+
+        let handled = classify_fixture_or_step(&mut ctx, &mut arg, pat.clone(), ty)
+            .expect("classification succeeds");
+
+        assert!(handled);
+        assert!(
+            matches!(ctx.extracted.args.as_slice(), [Arg::Fixture { pat: fixture_pat, .. }] if fixture_pat == &pat)
+        );
+    }
+
+    #[test]
+    fn classify_fixture_or_step_respects_blocked_placeholders() {
+        let mut extracted = ExtractedArgs::default();
+        let idx = extracted.push(Arg::StepStruct {
+            pat: ident("args"),
+            ty: parse_quote!(Args),
+        });
+        extracted.step_struct_idx = Some(idx);
+        extracted.blocked_placeholders.insert("blocked".into());
+        let mut placeholders = HashSet::new();
+        let mut arg: syn::PatType = parse_quote!(blocked: String);
+        let pat = ident("blocked");
+        let ty: syn::Type = parse_quote!(String);
+        let mut ctx = ClassificationContext::new(&mut extracted, &mut placeholders);
+
+        let err = classify_fixture_or_step(&mut ctx, &mut arg, pat, ty).expect_err("should fail");
+
+        assert!(err
+            .to_string()
+            .contains("#[step_args] cannot be combined with named step arguments"));
+    }
+}
