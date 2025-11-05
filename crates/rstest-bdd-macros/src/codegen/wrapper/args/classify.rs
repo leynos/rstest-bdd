@@ -2,7 +2,9 @@
 //!
 //! The `extract_args` pipeline runs these classifiers in order until one claims
 //! ownership of a parameter, ensuring future extensions only need to append a
-//! new function to the list rather than editing the control flow.
+//! new function to the list rather than editing the control flow. Attribute
+//! validation lives here so the pipeline can provide precise diagnostics while
+//! keeping the orchestration layer slim.
 
 use std::collections::HashSet;
 
@@ -50,12 +52,12 @@ fn should_classify_as_datatable(pat: &syn::Ident, ty: &syn::Type) -> bool {
     pat == "datatable" && is_datatable(ty)
 }
 
-fn extract_datatable_attribute(arg: &mut syn::PatType) -> syn::Result<bool> {
+fn extract_flag_attribute(arg: &mut syn::PatType, attr_name: &str) -> syn::Result<bool> {
     let mut found = false;
     let mut duplicate = false;
     let mut err_attr: Option<syn::Attribute> = None;
     arg.attrs.retain(|a| {
-        if a.path().is_ident("datatable") {
+        if a.path().is_ident(attr_name) {
             if found {
                 duplicate = true;
             }
@@ -71,16 +73,20 @@ fn extract_datatable_attribute(arg: &mut syn::PatType) -> syn::Result<bool> {
     if let Some(attr) = err_attr {
         return Err(syn::Error::new_spanned(
             attr,
-            "`#[datatable]` does not take arguments",
+            format!("`#[{attr_name}]` does not take arguments"),
         ));
     }
     if duplicate {
         return Err(syn::Error::new_spanned(
             &arg.pat,
-            "duplicate `#[datatable]` attribute",
+            format!("duplicate `#[{attr_name}]` attribute"),
         ));
     }
     Ok(found)
+}
+
+fn extract_datatable_attribute(arg: &mut syn::PatType) -> syn::Result<bool> {
+    extract_flag_attribute(arg, "datatable")
 }
 
 fn validate_datatable_constraints(
@@ -176,45 +182,22 @@ pub(super) fn classify_docstring(
 }
 
 pub(super) fn extract_step_struct_attribute(arg: &mut syn::PatType) -> syn::Result<bool> {
-    let mut found = false;
-    let mut duplicate = false;
-    let mut invalid: Option<syn::Attribute> = None;
-    arg.attrs.retain(|attr| {
-        if attr.path().is_ident("step_args") {
-            if found {
-                duplicate = true;
-            }
-            found = true;
-            if attr.meta.require_path_only().is_err() {
-                invalid = Some(attr.clone());
-            }
-            false
-        } else {
-            true
-        }
-    });
-    if let Some(attr) = invalid {
-        return Err(syn::Error::new_spanned(
-            attr,
-            "`#[step_args]` does not take arguments",
-        ));
-    }
-    if duplicate {
-        return Err(syn::Error::new_spanned(
-            &arg.pat,
-            "duplicate `#[step_args]` attribute",
-        ));
-    }
-    Ok(found)
+    extract_flag_attribute(arg, "step_args")
 }
 
 pub(super) fn classify_step_struct(
     st: &mut ExtractedArgs,
     arg: &syn::PatType,
-    pat: &syn::Ident,
-    ty: &syn::Type,
     placeholders: &mut HashSet<String>,
 ) -> syn::Result<()> {
+    let syn::Pat::Ident(pat_ident) = arg.pat.as_ref() else {
+        return Err(syn::Error::new_spanned(
+            &arg.pat,
+            "#[step_args] requires a simple identifier pattern",
+        ));
+    };
+    let pat = &pat_ident.ident;
+    let ty = &arg.ty;
     if st.step_struct_idx.is_some() {
         return Err(syn::Error::new_spanned(
             arg,
@@ -239,15 +222,15 @@ pub(super) fn classify_step_struct(
             "#[step_args] cannot be combined with #[from]",
         ));
     }
-    if matches!(ty, syn::Type::Reference(_)) {
+    if matches!(ty.as_ref(), syn::Type::Reference(_)) {
         return Err(syn::Error::new_spanned(
-            ty,
+            ty.as_ref(),
             "#[step_args] parameters must own their struct type",
         ));
     }
     let idx = st.push(Arg::StepStruct {
         pat: pat.clone(),
-        ty: ty.clone(),
+        ty: ty.as_ref().clone(),
     });
     st.step_struct_idx = Some(idx);
     st.blocked_placeholders.clone_from(placeholders);
