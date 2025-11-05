@@ -78,14 +78,9 @@ fn step_attr(attr: TokenStream, item: TokenStream, keyword: crate::StepKeyword) 
 
     let config = WrapperConfig {
         ident,
-        fixtures: &args.fixtures,
-        step_args: &args.step_args,
-        step_struct: args.step_struct.as_ref(),
-        datatable: args.datatable.as_ref(),
-        docstring: args.docstring.as_ref(),
+        args: &args,
         pattern: &pattern,
         keyword,
-        call_order: &args.call_order,
         placeholder_names: &placeholder_literals,
         capture_count,
     };

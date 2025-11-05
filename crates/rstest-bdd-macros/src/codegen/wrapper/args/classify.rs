@@ -1,11 +1,13 @@
+//! Classifier helpers assign each function parameter to an [`Arg`] variant.
+//!
+//! The `extract_args` pipeline runs these classifiers in order until one claims
+//! ownership of a parameter, ensuring future extensions only need to append a
+//! new function to the list rather than editing the control flow.
+
 use std::collections::HashSet;
 
-use super::{
-    CallArg, DataTableArg, DocStringArg, ExtractedArgs, FixtureArg, StepArg, StepArgStruct,
-};
+use super::{Arg, ExtractedArgs};
 
-/// Matches a nested path sequence like `["Vec", "Vec", "String"]` for `Vec<Vec<String>>`.
-/// Only the first generic argument at each level is inspected; the final segment may be unparameterised.
 fn is_type_seq(ty: &syn::Type, seq: &[&str]) -> bool {
     use syn::{GenericArgument, PathArguments, Type};
 
@@ -48,10 +50,6 @@ fn should_classify_as_datatable(pat: &syn::Ident, ty: &syn::Type) -> bool {
     pat == "datatable" && is_datatable(ty)
 }
 
-/// Removes the `#[datatable]` attribute, returning `true` if present.
-///
-/// The attribute must be bare (e.g., `#[datatable]`). Any tokens supplied will
-/// result in a parse error so callers receive precise diagnostics.
 fn extract_datatable_attribute(arg: &mut syn::PatType) -> syn::Result<bool> {
     let mut found = false;
     let mut duplicate = false;
@@ -101,13 +99,13 @@ fn validate_datatable_constraints(
         ));
     }
     if is_attr || is_canonical {
-        if st.datatable.is_some() {
+        if st.datatable_idx.is_some() {
             return Err(syn::Error::new_spanned(
                 arg,
                 "only one DataTable parameter is permitted",
             ));
         }
-        if st.docstring.is_some() {
+        if st.docstring_idx.is_some() {
             return Err(syn::Error::new_spanned(
                 arg,
                 "DataTable must be declared before DocString to match Gherkin ordering",
@@ -142,11 +140,11 @@ pub(super) fn classify_datatable(
         ));
     }
     if is_datatable {
-        st.datatable = Some(DataTableArg {
+        let idx = st.push(Arg::DataTable {
             pat: pat.clone(),
             ty: ty.clone(),
         });
-        st.call_order.push(CallArg::DataTable);
+        st.datatable_idx = Some(idx);
         Ok(true)
     } else {
         Ok(false)
@@ -154,7 +152,7 @@ pub(super) fn classify_datatable(
 }
 
 fn is_valid_docstring_arg(st: &ExtractedArgs, pat: &syn::Ident, ty: &syn::Type) -> bool {
-    st.docstring.is_none() && pat == "docstring" && is_string(ty)
+    st.docstring_idx.is_none() && pat == "docstring" && is_string(ty)
 }
 
 pub(super) fn classify_docstring(
@@ -164,8 +162,8 @@ pub(super) fn classify_docstring(
     ty: &syn::Type,
 ) -> syn::Result<bool> {
     if is_valid_docstring_arg(st, pat, ty) {
-        st.docstring = Some(DocStringArg { pat: pat.clone() });
-        st.call_order.push(CallArg::DocString);
+        let idx = st.push(Arg::DocString { pat: pat.clone() });
+        st.docstring_idx = Some(idx);
         Ok(true)
     } else if pat == "docstring" {
         Err(syn::Error::new_spanned(
@@ -217,13 +215,13 @@ pub(super) fn classify_step_struct(
     ty: &syn::Type,
     placeholders: &mut HashSet<String>,
 ) -> syn::Result<()> {
-    if st.step_struct.is_some() {
+    if st.step_struct_idx.is_some() {
         return Err(syn::Error::new_spanned(
             arg,
             "only one #[step_args] parameter is permitted per step",
         ));
     }
-    if !st.step_args.is_empty() {
+    if st.step_args().next().is_some() {
         return Err(syn::Error::new_spanned(
             arg,
             "#[step_args] cannot be combined with named step arguments",
@@ -247,11 +245,11 @@ pub(super) fn classify_step_struct(
             "#[step_args] parameters must own their struct type",
         ));
     }
-    st.step_struct = Some(StepArgStruct {
+    let idx = st.push(Arg::StepStruct {
         pat: pat.clone(),
         ty: ty.clone(),
     });
-    st.call_order.push(CallArg::StepStruct);
+    st.step_struct_idx = Some(idx);
     placeholders.clear();
     Ok(())
 }
@@ -262,7 +260,7 @@ pub(super) fn classify_fixture_or_step(
     pat: syn::Ident,
     ty: syn::Type,
     placeholders: &mut HashSet<String>,
-) {
+) -> bool {
     let mut from_name = None;
     arg.attrs.retain(|a| {
         if a.path().is_ident("from") {
@@ -275,13 +273,11 @@ pub(super) fn classify_fixture_or_step(
 
     let target = from_name.clone().unwrap_or_else(|| pat.clone());
     if placeholders.remove(&target.to_string()) {
-        let idx = st.step_args.len();
-        st.step_args.push(StepArg { pat, ty });
-        st.call_order.push(CallArg::StepArg(idx));
+        st.push(Arg::Step { pat, ty });
+        true
     } else {
-        let name = from_name.unwrap_or_else(|| pat.clone());
-        let idx = st.fixtures.len();
-        st.fixtures.push(FixtureArg { pat, name, ty });
-        st.call_order.push(CallArg::Fixture(idx));
+        let name = from_name.unwrap_or(target);
+        st.push(Arg::Fixture { pat, name, ty });
+        true
     }
 }

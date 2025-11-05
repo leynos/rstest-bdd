@@ -1,8 +1,6 @@
 //! Code emission helpers for wrapper generation.
 
-use super::args::{
-    ArgumentCollections, CallArg, DataTableArg, DocStringArg, FixtureArg, StepArg, StepArgStruct,
-};
+use super::args::{Arg, ExtractedArgs};
 use super::arguments::{
     collect_ordered_arguments, prepare_argument_processing, step_error_tokens, PreparedArgs,
     StepMeta,
@@ -15,14 +13,9 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 /// Configuration required to generate a wrapper.
 pub(crate) struct WrapperConfig<'a> {
     pub(crate) ident: &'a syn::Ident,
-    pub(crate) fixtures: &'a [FixtureArg],
-    pub(crate) step_args: &'a [StepArg],
-    pub(crate) step_struct: Option<&'a StepArgStruct>,
-    pub(crate) datatable: Option<&'a DataTableArg>,
-    pub(crate) docstring: Option<&'a DocStringArg>,
+    pub(crate) args: &'a ExtractedArgs,
     pub(crate) pattern: &'a syn::LitStr,
     pub(crate) keyword: crate::StepKeyword,
-    pub(crate) call_order: &'a [CallArg],
     pub(crate) placeholder_names: &'a [syn::LitStr],
     pub(crate) capture_count: usize,
 }
@@ -65,7 +58,7 @@ fn generate_wrapper_signature(
 struct WrapperAssembly<'a> {
     meta: StepMeta<'a>,
     prepared: PreparedArgs,
-    arg_idents: &'a [&'a syn::Ident],
+    arg_idents: Vec<&'a syn::Ident>,
     capture_count: usize,
 }
 
@@ -209,13 +202,8 @@ fn generate_wrapper_body(
 ) -> TokenStream2 {
     let WrapperConfig {
         ident,
-        fixtures,
-        step_args,
-        step_struct,
-        datatable,
-        docstring,
+        args,
         pattern,
-        call_order,
         placeholder_names,
         capture_count,
         ..
@@ -223,15 +211,12 @@ fn generate_wrapper_body(
 
     let ctx_ident = format_ident!("__rstest_bdd_ctx");
     let text_ident = format_ident!("__rstest_bdd_text");
-    let collections = ArgumentCollections {
-        fixtures,
-        step_args,
-        step_struct,
-        datatable,
-        docstring,
-    };
+    let args_slice = &args.args;
     let step_meta = StepMeta { pattern, ident };
-    let struct_assert = step_struct.map(|StepArgStruct { ty, .. }| {
+    let struct_assert = args.step_struct().map(|arg| {
+        let Arg::StepStruct { ty, .. } = arg else {
+            unreachable!("step struct accessor returned non-step struct");
+        };
         let count = capture_count;
         let path = crate::codegen::rstest_bdd_path();
         quote! {
@@ -240,8 +225,8 @@ fn generate_wrapper_body(
     });
     let signature = generate_wrapper_signature(pattern, pattern_ident);
     let prepared =
-        prepare_argument_processing(&collections, step_meta, &ctx_ident, placeholder_names);
-    let arg_idents = collect_ordered_arguments(call_order, &collections);
+        prepare_argument_processing(args_slice, step_meta, &ctx_ident, placeholder_names);
+    let arg_idents = collect_ordered_arguments(args_slice);
     let wrapper_fn = assemble_wrapper_function(
         WrapperIdentifiers {
             wrapper: wrapper_ident,
@@ -252,7 +237,7 @@ fn generate_wrapper_body(
         WrapperAssembly {
             meta: step_meta,
             prepared,
-            arg_idents: &arg_idents,
+            arg_idents,
             capture_count,
         },
     );
@@ -272,11 +257,14 @@ fn generate_registration_code(
     const_ident: &proc_macro2::Ident,
 ) -> TokenStream2 {
     let fixture_names: Vec<_> = config
-        .fixtures
-        .iter()
-        .map(|FixtureArg { name, .. }| {
-            let s = name.to_string();
-            quote! { #s }
+        .args
+        .fixtures()
+        .map(|arg| {
+            let Arg::Fixture { name, .. } = arg else {
+                unreachable!("fixture iterator must only yield fixtures");
+            };
+            let rendered = name.to_string();
+            quote! { #rendered }
         })
         .collect();
     let fixture_len = fixture_names.len();

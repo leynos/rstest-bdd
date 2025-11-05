@@ -32,10 +32,15 @@ fn replace_cart(#[step_args] details: CartInput, cart_state: &CartState) {
 }
 
 #[then("the cart summary shows {quantity:u32} {item} at ${price:f32}")]
+#[expect(
+    clippy::expect_used,
+    reason = "behaviour test panics with clear message when state missing"
+)]
 fn cart_summary_matches(#[step_args] expected: CartInput, cart_state: &CartState) {
-    let Some(actual) = cart_state.cart.get() else {
-        panic!("cart state should be populated before verification");
-    };
+    let actual = cart_state
+        .cart
+        .get()
+        .expect("cart state should be populated before verification");
     let CartInput {
         quantity: actual_quantity,
         item: actual_item,

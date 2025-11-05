@@ -11,7 +11,7 @@ use syn::parse_quote;
 // the internal module directly to exercise helper APIs.
 mod args_impl;
 
-use args_impl::{extract_args, CallArg, ExtractedArgs};
+use args_impl::{extract_args, Arg, ExtractedArgs};
 
 /// Helper for invoking `extract_args` with placeholder names.
 /// Consolidates repeated placeholder setup across tests.
@@ -22,6 +22,36 @@ fn test_extract_args_scenario(
     let mut func = func_def;
     let mut placeholder_set: HashSet<String> = placeholders.into_iter().map(String::from).collect();
     extract_args(&mut func, &mut placeholder_set)
+}
+
+fn fixture_count(args: &ExtractedArgs) -> usize {
+    args.args
+        .iter()
+        .filter(|arg| matches!(arg, Arg::Fixture { .. }))
+        .count()
+}
+
+fn step_arg_count(args: &ExtractedArgs) -> usize {
+    args.args
+        .iter()
+        .filter(|arg| matches!(arg, Arg::Step { .. }))
+        .count()
+}
+
+fn ordered_parameter_names(args: &ExtractedArgs) -> Vec<String> {
+    args.args.iter().map(|arg| arg.pat().to_string()).collect()
+}
+
+fn find_datatable(args: &ExtractedArgs) -> Option<&Arg> {
+    args.args
+        .iter()
+        .find(|arg| matches!(arg, Arg::DataTable { .. }))
+}
+
+fn has_docstring(args: &ExtractedArgs) -> bool {
+    args.args
+        .iter()
+        .any(|arg| matches!(arg, Arg::DocString { .. }))
 }
 
 #[rstest]
@@ -104,25 +134,26 @@ fn from_without_ident_defaults_to_param_name() {
     };
     #[expect(clippy::expect_used, reason = "test asserts valid extraction")]
     let args = extract_args(&mut func, &mut HashSet::new()).expect("failed to extract args");
-    assert_eq!(args.fixtures.len(), 1);
-    #[expect(clippy::expect_used, reason = "fixture presence required")]
-    let fixture = args.fixtures.first().expect("missing fixture");
-    assert_eq!(fixture.name, "fixture");
+    assert_eq!(fixture_count(&args), 1);
+    let Some(fixture_name) = args.args.iter().find_map(|arg| match arg {
+        Arg::Fixture { name, .. } => Some(name.to_string()),
+        _ => None,
+    }) else {
+        panic!("missing fixture");
+    };
+    assert_eq!(fixture_name, "fixture");
 }
 
 #[rstest]
 fn call_order_preserves_parameter_sequence() {
-    use CallArg::{DataTable, DocString, Fixture, StepArg};
     let mut func: syn::ItemFn = parse_quote! {
         fn step(#[from] f: usize, a: i32, datatable: Vec<Vec<String>>, docstring: String, b: bool) {}
     };
     let mut placeholders: HashSet<String> = ["a".into(), "b".into()].into_iter().collect();
     #[expect(clippy::expect_used, reason = "test asserts valid extraction")]
     let args = extract_args(&mut func, &mut placeholders).expect("failed to extract args");
-    assert!(matches!(
-        &args.call_order[..],
-        [Fixture(0), StepArg(0), DataTable, DocString, StepArg(1)]
-    ));
+    let ordered = ordered_parameter_names(&args);
+    assert_eq!(ordered, ["f", "a", "datatable", "docstring", "b"]);
 }
 
 #[rstest]
@@ -132,27 +163,27 @@ fn datatable_attribute_recognised_and_preserves_type() {
     };
     #[expect(clippy::expect_used, reason = "test asserts valid extraction")]
     let args = extract_args(&mut func, &mut HashSet::new()).expect("failed to extract args");
-    assert!(
-        matches!(&args.call_order[..], [CallArg::DataTable]),
-        "unexpected call_order for datatable-only signature"
-    );
     #[expect(clippy::expect_used, reason = "datatable presence required")]
-    let dt = args.datatable.expect("missing datatable");
-    assert_eq!(dt.pat, "table");
-    if let syn::Type::Path(tp) = &dt.ty {
-        #[expect(clippy::expect_used, reason = "path has at least one segment")]
-        let seg = tp.path.segments.last().expect("missing segment");
-        assert_eq!(seg.ident, "MyTable");
-        let rendered = tp
-            .path
-            .segments
-            .iter()
-            .map(|s| s.ident.to_string())
-            .collect::<Vec<_>>()
-            .join("::");
-        assert_eq!(rendered, "my_mod::MyTable");
+    let dt = find_datatable(&args).expect("missing datatable");
+    assert_eq!(dt.pat().to_string(), "table");
+    if let Arg::DataTable { ty, .. } = dt {
+        if let syn::Type::Path(tp) = ty {
+            #[expect(clippy::expect_used, reason = "path has at least one segment")]
+            let seg = tp.path.segments.last().expect("missing segment");
+            assert_eq!(seg.ident, "MyTable");
+            let rendered = tp
+                .path
+                .segments
+                .iter()
+                .map(|s| s.ident.to_string())
+                .collect::<Vec<_>>()
+                .join("::");
+            assert_eq!(rendered, "my_mod::MyTable");
+        } else {
+            panic!("expected path type");
+        }
     } else {
-        panic!("expected path type");
+        panic!("expected datatable argument");
     }
 }
 
@@ -164,8 +195,8 @@ fn datatable_attribute_removed_from_signature() {
     #[expect(clippy::expect_used, reason = "test asserts valid extraction")]
     let args = extract_args(&mut func, &mut HashSet::new()).expect("failed to extract args");
     #[expect(clippy::expect_used, reason = "datatable presence required")]
-    let dt = args.datatable.expect("missing datatable after strip");
-    assert_eq!(dt.pat, "data");
+    let dt = find_datatable(&args).expect("missing datatable after strip");
+    assert_eq!(dt.pat().to_string(), "data");
     #[expect(clippy::expect_used, reason = "test inspects parameter attributes")]
     let syn::FnArg::Typed(arg) = func.sig.inputs.first().expect("missing arg") else {
         panic!("expected typed argument");
@@ -186,13 +217,12 @@ fn datatable_attribute_removed_from_signature() {
 
 #[rstest]
 fn implicit_fixture_injected_without_from() {
-    use CallArg::{Fixture, StepArg};
     let func = parse_quote! { fn step(fixture: usize, count: u32) {} };
     #[expect(clippy::expect_used, reason = "test asserts valid extraction")]
     let args = test_extract_args_scenario(func, vec!["count"]).expect("failed to extract args");
-    assert_eq!(args.fixtures.len(), 1);
-    assert_eq!(args.step_args.len(), 1);
-    assert!(matches!(&args.call_order[..], [Fixture(0), StepArg(0)]));
+    assert_eq!(fixture_count(&args), 1);
+    assert_eq!(step_arg_count(&args), 1);
+    assert_eq!(ordered_parameter_names(&args), ["fixture", "count"]);
 }
 
 #[rstest]
@@ -217,20 +247,19 @@ fn placeholders_named_like_reserved_args_are_step_args() {
         .collect();
     #[expect(clippy::expect_used, reason = "test asserts classification")]
     let args = extract_args(&mut func, &mut placeholders).expect("failed to extract args");
-    assert_eq!(args.step_args.len(), 2);
-    assert!(args.datatable.is_none());
-    assert!(args.docstring.is_none());
+    assert_eq!(step_arg_count(&args), 2);
+    assert!(find_datatable(&args).is_none());
+    assert!(!has_docstring(&args));
 }
 
 #[rstest]
 fn from_attribute_targets_placeholder() {
-    use CallArg::StepArg;
     let func = parse_quote! { fn step(#[from(count)] renamed: u32) {} };
     #[expect(clippy::expect_used, reason = "test asserts classification")]
     let args = test_extract_args_scenario(func, vec!["count"]).expect("failed to extract args");
-    assert_eq!(args.fixtures.len(), 0);
-    assert_eq!(args.step_args.len(), 1);
-    assert!(matches!(&args.call_order[..], [StepArg(0)]));
+    assert_eq!(fixture_count(&args), 0);
+    assert_eq!(step_arg_count(&args), 1);
+    assert_eq!(ordered_parameter_names(&args), ["renamed"]);
 }
 
 #[test]
@@ -241,12 +270,9 @@ fn step_struct_argument_is_classified() {
     let mut placeholders: HashSet<String> = ["count".into(), "name".into()].into_iter().collect();
     #[expect(clippy::expect_used, reason = "test asserts classification")]
     let args = extract_args(&mut func, &mut placeholders).expect("failed to extract args");
-    assert!(args.step_struct.is_some());
-    assert!(args.step_args.is_empty());
-    assert!(matches!(
-        &args.call_order[..],
-        [CallArg::StepStruct, CallArg::Fixture(0)]
-    ));
+    assert!(args.step_struct().is_some());
+    assert_eq!(step_arg_count(&args), 0);
+    assert_eq!(ordered_parameter_names(&args), ["params", "account"]);
 }
 
 #[test]

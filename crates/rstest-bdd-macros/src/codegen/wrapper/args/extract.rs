@@ -8,6 +8,63 @@ use super::{
     ExtractedArgs,
 };
 
+type Classifier = fn(
+    &mut ExtractedArgs,
+    &mut syn::PatType,
+    &syn::Ident,
+    &syn::Type,
+    &mut HashSet<String>,
+) -> syn::Result<bool>;
+
+fn next_typed_argument(
+    input: &mut syn::FnArg,
+) -> syn::Result<(&mut syn::PatType, syn::Ident, syn::Type)> {
+    let syn::FnArg::Typed(arg) = input else {
+        return Err(syn::Error::new_spanned(
+            input,
+            "methods are not supported; remove `self` from step functions",
+        ));
+    };
+    let pat = match &*arg.pat {
+        syn::Pat::Ident(pat_ident) => pat_ident.ident.clone(),
+        other => {
+            return Err(syn::Error::new_spanned(
+                other,
+                "unsupported parameter pattern; use a simple identifier (e.g., `arg: T`)",
+            ))
+        }
+    };
+    let ty = (*arg.ty).clone();
+    Ok((arg, pat, ty))
+}
+
+fn classifier_pipeline() -> Vec<Classifier> {
+    vec![
+        |st, arg, pat, ty, placeholders| {
+            if extract_step_struct_attribute(arg)? {
+                classify_step_struct(st, arg, pat, ty, placeholders)?;
+                Ok(true)
+            } else {
+                Ok(false)
+            }
+        },
+        |st, arg, pat, ty, placeholders| {
+            if placeholders.contains(&pat.to_string()) {
+                classify_fixture_or_step(st, arg, pat.clone(), ty.clone(), placeholders);
+                Ok(true)
+            } else {
+                Ok(false)
+            }
+        },
+        |st, arg, pat, ty, _| classify_datatable(st, arg, pat, ty),
+        |st, arg, pat, ty, _| classify_docstring(st, arg, pat, ty),
+        |st, arg, pat, ty, placeholders| {
+            classify_fixture_or_step(st, arg, pat.clone(), ty.clone(), placeholders);
+            Ok(true)
+        },
+    ]
+}
+
 /// Extract fixture, step, data table, and doc string arguments from a function signature.
 ///
 /// # Examples
@@ -20,11 +77,17 @@ use super::{
 /// let mut placeholders = std::collections::HashSet::new();
 /// placeholders.insert("b".into());
 /// let args = extract_args(&mut func, &mut placeholders).unwrap();
-/// assert_eq!(args.fixtures.len(), 1);
-/// assert_eq!(args.step_args.len(), 1);
-/// assert!(args.datatable.is_some());
-/// assert!(args.docstring.is_some());
-/// assert_eq!(args.call_order.len(), 4);
+/// assert_eq!(args.args.len(), 4);
+/// let has_datatable = args
+///     .args
+///     .iter()
+///     .any(|arg| matches!(arg, super::Arg::DataTable { .. }));
+/// assert!(has_datatable);
+/// let has_docstring = args
+///     .args
+///     .iter()
+///     .any(|arg| matches!(arg, super::Arg::DocString { .. }));
+/// assert!(has_docstring);
 /// ```
 ///
 /// Note: special arguments must use the canonical names:
@@ -38,46 +101,16 @@ pub fn extract_args(
     func: &mut syn::ItemFn,
     placeholders: &mut HashSet<String>,
 ) -> syn::Result<ExtractedArgs> {
-    let mut state = ExtractedArgs {
-        fixtures: vec![],
-        step_args: vec![],
-        step_struct: None,
-        datatable: None,
-        docstring: None,
-        call_order: vec![],
-    };
+    let mut state = ExtractedArgs::default();
+    let classifiers = classifier_pipeline();
 
-    for input in &mut func.sig.inputs {
-        let syn::FnArg::Typed(arg) = input else {
-            return Err(syn::Error::new_spanned(
-                input,
-                "methods are not supported; remove `self` from step functions",
-            ));
-        };
-        let syn::Pat::Ident(pat_ident) = &*arg.pat else {
-            return Err(syn::Error::new_spanned(
-                &arg.pat,
-                "unsupported parameter pattern; use a simple identifier (e.g., `arg: T`)",
-            ));
-        };
-        let pat = pat_ident.ident.clone();
-        let ty = (*arg.ty).clone();
-        if extract_step_struct_attribute(arg)? {
-            classify_step_struct(&mut state, arg, &pat, &ty, placeholders)?;
-            continue;
+    'args: for input in &mut func.sig.inputs {
+        let (arg, pat, ty) = next_typed_argument(input)?;
+        for classify in &classifiers {
+            if classify(&mut state, arg, &pat, &ty, placeholders)? {
+                continue 'args;
+            }
         }
-        let pat_str = pat.to_string();
-        if placeholders.contains(&pat_str) {
-            classify_fixture_or_step(&mut state, arg, pat.clone(), ty.clone(), placeholders);
-            continue;
-        }
-        if classify_datatable(&mut state, arg, &pat, &ty)? {
-            continue;
-        }
-        if classify_docstring(&mut state, arg, &pat, &ty)? {
-            continue;
-        }
-        classify_fixture_or_step(&mut state, arg, pat, ty, placeholders);
     }
     if !placeholders.is_empty() {
         let mut missing: Vec<_> = placeholders.iter().cloned().collect();

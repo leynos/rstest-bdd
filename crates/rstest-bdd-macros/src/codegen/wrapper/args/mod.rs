@@ -1,95 +1,151 @@
-//! Argument extraction and classification helpers for wrapper generation.
+//! Argument extraction primitives shared by the wrapper generator.
+//!
+//! Arguments are stored as a single [`Arg`] enum so later stages can iterate
+//! over the original function signature without juggling parallel vectors for
+//! fixtures, captures, and Gherkin-specific parameters.
+
+use std::fmt;
 
 mod classify;
 mod extract;
 
 pub use extract::extract_args;
 
-/// Fixture argument extracted from a step function.
-#[derive(Debug, Clone)]
-pub struct FixtureArg {
-    pub pat: syn::Ident,
-    pub name: syn::Ident,
-    pub ty: syn::Type,
-}
-
-/// Non-fixture argument extracted from a step function.
-#[derive(Debug, Clone)]
-pub struct StepArg {
-    pub pat: syn::Ident,
-    pub ty: syn::Type,
-}
-
-/// Struct-based step argument populated by parsing all placeholders.
-#[derive(Debug, Clone)]
-pub struct StepArgStruct {
-    pub pat: syn::Ident,
-    pub ty: syn::Type,
-}
-
-/// Represents an argument for a Gherkin data table step function.
-///
-/// The [`ty`] field stores the Rust type of the argument. This enables
-/// type-specific logic such as code generation, validation, or transformation
-/// based on the argument's type. Documenting the type here clarifies its role in
-/// macro expansion and helps future maintainers understand how type information
-/// is propagated.
-///
-/// # Fields
-/// - `pat`: The identifier pattern for the argument.
-/// - `ty`: The Rust type of the argument, used for type-specific logic and code generation.
-#[derive(Debug, Clone)]
-pub struct DataTableArg {
-    pub pat: syn::Ident,
-    pub ty: syn::Type,
-}
-
-/// Gherkin doc string argument extracted from a step function.
-#[derive(Debug, Clone)]
-pub struct DocStringArg {
-    pub pat: syn::Ident,
-}
-
-/// Argument ordering as declared in the step function signature.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum CallArg {
-    Fixture(usize),
-    StepArg(usize),
-    StepStruct,
-    DataTable,
-    DocString,
-}
-
-/// Collections of arguments extracted from a step function signature.
+/// Everything required to describe a single step-function argument.
 #[derive(Clone)]
+pub enum Arg {
+    Fixture {
+        pat: syn::Ident,
+        name: syn::Ident,
+        ty: syn::Type,
+    },
+    Step {
+        pat: syn::Ident,
+        ty: syn::Type,
+    },
+    StepStruct {
+        pat: syn::Ident,
+        ty: syn::Type,
+    },
+    DataTable {
+        pat: syn::Ident,
+        ty: syn::Type,
+    },
+    DocString {
+        pat: syn::Ident,
+    },
+}
+
+#[expect(
+    clippy::use_self,
+    reason = "enum variant paths remain explicit in match arms"
+)]
+impl Arg {
+    /// Identifier bound in the user function signature.
+    pub fn pat(&self) -> &syn::Ident {
+        match self {
+            Arg::Fixture { pat, .. }
+            | Arg::Step { pat, .. }
+            | Arg::StepStruct { pat, .. }
+            | Arg::DataTable { pat, .. }
+            | Arg::DocString { pat } => pat,
+        }
+    }
+}
+
+#[expect(
+    clippy::use_self,
+    reason = "enum variant paths remain explicit in formatter"
+)]
+impl fmt::Debug for Arg {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Arg::Fixture { pat, name, ty } => f
+                .debug_struct("Fixture")
+                .field("pat", pat)
+                .field("name", name)
+                .field("ty", ty)
+                .finish(),
+            Arg::Step { pat, ty } => f
+                .debug_struct("Step")
+                .field("pat", pat)
+                .field("ty", ty)
+                .finish(),
+            Arg::StepStruct { pat, ty } => f
+                .debug_struct("StepStruct")
+                .field("pat", pat)
+                .field("ty", ty)
+                .finish(),
+            Arg::DataTable { pat, ty } => f
+                .debug_struct("DataTable")
+                .field("pat", pat)
+                .field("ty", ty)
+                .finish(),
+            Arg::DocString { pat } => f.debug_struct("DocString").field("pat", pat).finish(),
+        }
+    }
+}
+
+/// Ordered arguments plus quick-look indexes for unique variants.
+#[derive(Clone, Default)]
 pub struct ExtractedArgs {
-    pub fixtures: Vec<FixtureArg>,
-    pub step_args: Vec<StepArg>,
-    pub step_struct: Option<StepArgStruct>,
-    pub datatable: Option<DataTableArg>,
-    pub docstring: Option<DocStringArg>,
-    pub call_order: Vec<CallArg>,
+    pub args: Vec<Arg>,
+    pub(super) step_struct_idx: Option<usize>,
+    pub(super) datatable_idx: Option<usize>,
+    pub(super) docstring_idx: Option<usize>,
 }
 
-/// References to extracted arguments for ordered processing.
-#[derive(Clone, Copy)]
-pub(crate) struct ArgumentCollections<'a> {
-    pub(crate) fixtures: &'a [FixtureArg],
-    pub(crate) step_args: &'a [StepArg],
-    pub(crate) step_struct: Option<&'a StepArgStruct>,
-    pub(crate) datatable: Option<&'a DataTableArg>,
-    pub(crate) docstring: Option<&'a DocStringArg>,
+impl ExtractedArgs {
+    pub fn push(&mut self, arg: Arg) -> usize {
+        let idx = self.args.len();
+        self.args.push(arg);
+        idx
+    }
+
+    pub fn fixtures(&self) -> impl Iterator<Item = &Arg> {
+        self.args
+            .iter()
+            .filter(|arg| matches!(arg, Arg::Fixture { .. }))
+    }
+
+    pub fn step_args(&self) -> impl Iterator<Item = &Arg> {
+        self.args
+            .iter()
+            .filter(|arg| matches!(arg, Arg::Step { .. }))
+    }
+
+    pub fn step_struct(&self) -> Option<&Arg> {
+        self.step_struct_idx.map(|idx| {
+            #[expect(
+                clippy::indexing_slicing,
+                reason = "indices maintained alongside args vector"
+            )]
+            &self.args[idx]
+        })
+    }
 }
 
-impl std::fmt::Debug for ExtractedArgs {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("ExtractedArgs")
-            .field("fixtures", &self.fixtures.len())
-            .field("step_args", &self.step_args.len())
-            .field("step_struct", &self.step_struct.is_some())
-            .field("datatable", &self.datatable.is_some())
-            .field("docstring", &self.docstring.is_some())
-            .field("call_order", &self.call_order)
+impl fmt::Debug for ExtractedArgs {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mut dbg = f.debug_struct("ExtractedArgs");
+        dbg.field("count", &self.args.len());
+        if !self.args.is_empty() {
+            let labels: Vec<_> = self
+                .args
+                .iter()
+                .map(|arg| match arg {
+                    Arg::Fixture { pat, .. } => format!("fixture {pat}"),
+                    Arg::Step { pat, .. } => format!("step {pat}"),
+                    Arg::StepStruct { pat, .. } => format!("step_struct {pat}"),
+                    Arg::DataTable { pat, .. } => format!("datatable {pat}"),
+                    Arg::DocString { pat } => format!("docstring {pat}"),
+                })
+                .collect();
+            dbg.field("args", &labels);
+        }
+        dbg.field("step_struct_idx", &self.step_struct_idx)
+            .field("datatable_idx", &self.datatable_idx)
+            .field("docstring_idx", &self.docstring_idx)
             .finish()
     }
 }
