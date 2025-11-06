@@ -6,9 +6,9 @@
 //! runtime wrapper to parse placeholder captures into the struct.
 
 use proc_macro::TokenStream;
-use proc_macro2::{Span, TokenStream as TokenStream2};
+use proc_macro2::TokenStream as TokenStream2;
 use quote::quote;
-use syn::{parse_quote, spanned::Spanned, DeriveInput};
+use syn::{spanned::Spanned, DeriveInput};
 
 pub(crate) fn derive(input: TokenStream) -> TokenStream {
     let input = syn::parse_macro_input!(input as DeriveInput);
@@ -95,30 +95,30 @@ fn expand_named_struct(
 }
 
 mod named_struct_support {
-    use super::*;
-    use proc_macro2::Span;
+    use proc_macro2::{Span, TokenStream as TokenStream2};
     use quote::quote;
+    use syn::{parse_quote, FieldsNamed, Generics, Ident, LitStr, Type};
 
     pub(super) struct FieldInfo {
-        pub ident: syn::Ident,
-        pub ty: syn::Type,
-        pub name: syn::LitStr,
+        pub ident: Ident,
+        pub ty: Type,
+        pub name: LitStr,
     }
 
-    pub(super) fn collect_field_infos(fields: syn::FieldsNamed) -> Vec<FieldInfo> {
+    pub(super) fn collect_field_infos(fields: FieldsNamed) -> Vec<FieldInfo> {
         fields
             .named
             .into_iter()
             .filter_map(|field| field.ident.map(|ident| (ident, field.ty)))
             .map(|(ident, ty)| FieldInfo {
-                name: syn::LitStr::new(&ident.to_string(), Span::call_site()),
+                name: LitStr::new(&ident.to_string(), Span::call_site()),
                 ident,
                 ty,
             })
             .collect()
     }
 
-    pub(super) fn add_fromstr_bounds(generics: &mut syn::Generics, infos: &[FieldInfo]) {
+    pub(super) fn add_fromstr_bounds(generics: &mut Generics, infos: &[FieldInfo]) {
         let where_clause = generics.make_where_clause();
         for info in infos {
             let ty = &info.ty;
@@ -179,8 +179,14 @@ mod tests {
         fn collect_field_infos_returns_all_metadata() {
             let infos = named_struct_support::collect_field_infos(sample_fields());
             assert_eq!(infos.len(), 2);
-            assert_eq!(infos[0].ident, "first");
-            assert_eq!(infos[1].name.value(), "second");
+            let Some(first) = infos.first() else {
+                panic!("missing first field");
+            };
+            assert_eq!(first.ident.to_string(), "first");
+            let Some(second) = infos.get(1) else {
+                panic!("missing second field");
+            };
+            assert_eq!(second.name.value(), "second");
         }
 
         #[test]
@@ -188,8 +194,11 @@ mod tests {
             let infos = named_struct_support::collect_field_infos(sample_fields());
             let mut generics = Generics::default();
             named_struct_support::add_fromstr_bounds(&mut generics, &infos);
-            let where_clause = generics.where_clause.expect("where clause exists");
-            assert_eq!(where_clause.predicates.len(), infos.len());
+            let predicate_len = generics
+                .where_clause
+                .as_ref()
+                .map_or(0, |clause| clause.predicates.len());
+            assert_eq!(predicate_len, infos.len());
         }
 
         #[test]
@@ -198,8 +207,9 @@ mod tests {
             let runtime = quote!(::rstest_bdd::runtime);
             let tokens = named_struct_support::generate_field_parsing(&infos, &runtime);
             assert_eq!(tokens.len(), infos.len());
-            let rendered = tokens[0].to_string();
-            assert!(rendered.contains("StepArgsError"));
+            assert!(tokens
+                .iter()
+                .any(|ts| ts.to_string().contains("StepArgsError")));
         }
     }
 

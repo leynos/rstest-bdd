@@ -314,7 +314,7 @@ mod tests {
         let mut extracted = ExtractedArgs::default();
         let mut placeholders = HashSet::from(["alpha".to_string()]);
         {
-            let mut ctx = ClassificationContext::new(&mut extracted, &mut placeholders);
+            let ctx = ClassificationContext::new(&mut extracted, &mut placeholders);
             ctx.placeholders.clear();
             ctx.extracted.push(Arg::DocString {
                 pat: ident("docstring"),
@@ -334,14 +334,16 @@ mod tests {
         let mut arg: syn::PatType = parse_quote!(value: String);
         let pat = ident("value");
         let ty: syn::Type = parse_quote!(String);
-        let mut ctx = ClassificationContext::new(&mut extracted, &mut placeholders);
-
-        let handled =
-            classify_fixture_or_step(&mut ctx, &mut arg, pat, ty).expect("classification succeeds");
+        let handled;
+        {
+            let mut ctx = ClassificationContext::new(&mut extracted, &mut placeholders);
+            handled = classify_fixture_or_step(&mut ctx, &mut arg, pat, ty)
+                .unwrap_or_else(|err| panic!("classification should succeed: {err}"));
+        }
 
         assert!(handled);
         assert!(placeholders.is_empty());
-        assert!(matches!(ctx.extracted.args.as_slice(), [Arg::Step { .. }]));
+        assert!(matches!(extracted.args.as_slice(), [Arg::Step { .. }]));
     }
 
     #[test]
@@ -351,14 +353,16 @@ mod tests {
         let mut arg: syn::PatType = parse_quote!(dep: usize);
         let pat = ident("dep");
         let ty: syn::Type = parse_quote!(usize);
-        let mut ctx = ClassificationContext::new(&mut extracted, &mut placeholders);
-
-        let handled = classify_fixture_or_step(&mut ctx, &mut arg, pat.clone(), ty)
-            .expect("classification succeeds");
+        let handled;
+        {
+            let mut ctx = ClassificationContext::new(&mut extracted, &mut placeholders);
+            handled = classify_fixture_or_step(&mut ctx, &mut arg, pat.clone(), ty)
+                .unwrap_or_else(|err| panic!("classification should succeed: {err}"));
+        }
 
         assert!(handled);
         assert!(
-            matches!(ctx.extracted.args.as_slice(), [Arg::Fixture { pat: fixture_pat, .. }] if fixture_pat == &pat)
+            matches!(extracted.args.as_slice(), [Arg::Fixture { pat: fixture_pat, .. }] if fixture_pat == &pat)
         );
     }
 
@@ -376,8 +380,9 @@ mod tests {
         let pat = ident("blocked");
         let ty: syn::Type = parse_quote!(String);
         let mut ctx = ClassificationContext::new(&mut extracted, &mut placeholders);
-
-        let err = classify_fixture_or_step(&mut ctx, &mut arg, pat, ty).expect_err("should fail");
+        let Err(err) = classify_fixture_or_step(&mut ctx, &mut arg, pat, ty) else {
+            panic!("classification should fail");
+        };
 
         assert!(err
             .to_string()
