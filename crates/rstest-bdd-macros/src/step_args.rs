@@ -46,6 +46,28 @@ struct FieldInfo {
     name: syn::LitStr,
 }
 
+fn collect_field_info(ident: &syn::Ident, fields: syn::FieldsNamed) -> syn::Result<Vec<FieldInfo>> {
+    let field_infos: Vec<FieldInfo> = fields
+        .named
+        .into_iter()
+        .filter_map(|field| field.ident.map(|field_ident| (field_ident, field.ty)))
+        .map(|(field_ident, ty)| FieldInfo {
+            name: syn::LitStr::new(&field_ident.to_string(), Span::call_site()),
+            ident: field_ident,
+            ty,
+        })
+        .collect();
+
+    if field_infos.is_empty() {
+        return Err(syn::Error::new(
+            ident.span(),
+            "StepArgs structs must define at least one field",
+        ));
+    }
+
+    Ok(field_infos)
+}
+
 fn add_fromstr_bounds(generics: &mut syn::Generics, field_infos: &[FieldInfo]) {
     let where_clause = generics.make_where_clause();
     for info in field_infos {
@@ -56,8 +78,16 @@ fn add_fromstr_bounds(generics: &mut syn::Generics, field_infos: &[FieldInfo]) {
     }
 }
 
-fn generate_field_parsing(field_infos: &[FieldInfo], runtime: &TokenStream2) -> Vec<TokenStream2> {
-    field_infos
+fn generate_field_parsing<'a>(
+    field_infos: &'a [FieldInfo],
+    runtime: &TokenStream2,
+) -> (
+    Vec<TokenStream2>,
+    Vec<&'a syn::Ident>,
+    Vec<&'a syn::LitStr>,
+    usize,
+) {
+    let parse_blocks: Vec<_> = field_infos
         .iter()
         .map(|info| {
             let ident = &info.ident;
@@ -77,7 +107,12 @@ fn generate_field_parsing(field_infos: &[FieldInfo], runtime: &TokenStream2) -> 
                 };
             }
         })
-        .collect()
+        .collect();
+    let field_idents = field_infos.iter().map(|info| &info.ident).collect();
+    let field_name_literals = field_infos.iter().map(|info| &info.name).collect();
+    let field_count = field_infos.len();
+
+    (parse_blocks, field_idents, field_name_literals, field_count)
 }
 
 #[expect(
@@ -129,32 +164,12 @@ fn expand_named_struct(
     fields: syn::FieldsNamed,
 ) -> syn::Result<TokenStream2> {
     let runtime = crate::codegen::rstest_bdd_path();
-
-    let field_infos: Vec<FieldInfo> = fields
-        .named
-        .into_iter()
-        .filter_map(|field| field.ident.map(|ident| (ident, field.ty)))
-        .map(|(ident, ty)| FieldInfo {
-            name: syn::LitStr::new(&ident.to_string(), Span::call_site()),
-            ident,
-            ty,
-        })
-        .collect();
-
-    if field_infos.is_empty() {
-        return Err(syn::Error::new(
-            ident.span(),
-            "StepArgs structs must define at least one field",
-        ));
-    }
+    let field_infos = collect_field_info(ident, fields)?;
 
     add_fromstr_bounds(&mut generics, &field_infos);
     let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
-    let field_count = field_infos.len();
-
-    let parse_fields = generate_field_parsing(&field_infos, &runtime);
-    let field_idents: Vec<_> = field_infos.iter().map(|info| &info.ident).collect();
-    let field_name_literals: Vec<_> = field_infos.iter().map(|info| &info.name).collect();
+    let (parse_fields, field_idents, field_name_literals, field_count) =
+        generate_field_parsing(&field_infos, &runtime);
 
     let construct = quote! { Self { #(#field_idents),* } };
 
