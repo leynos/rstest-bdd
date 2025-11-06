@@ -6,9 +6,9 @@
 //! runtime wrapper to parse placeholder captures into the struct.
 
 use proc_macro::TokenStream;
-use proc_macro2::TokenStream as TokenStream2;
+use proc_macro2::{Span, TokenStream as TokenStream2};
 use quote::quote;
-use syn::{spanned::Spanned, DeriveInput};
+use syn::{parse_quote, spanned::Spanned, DeriveInput};
 
 pub(crate) fn derive(input: TokenStream) -> TokenStream {
     let input = syn::parse_macro_input!(input as DeriveInput);
@@ -40,6 +40,12 @@ fn expand(input: DeriveInput) -> syn::Result<TokenStream2> {
     expand_named_struct(&ident, generics, fields)
 }
 
+struct FieldInfo {
+    ident: syn::Ident,
+    ty: syn::Type,
+    name: syn::LitStr,
+}
+
 fn expand_named_struct(
     ident: &syn::Ident,
     mut generics: syn::Generics,
@@ -47,7 +53,16 @@ fn expand_named_struct(
 ) -> syn::Result<TokenStream2> {
     let runtime = crate::codegen::rstest_bdd_path();
 
-    let field_infos = named_struct_support::collect_field_infos(fields);
+    let field_infos: Vec<FieldInfo> = fields
+        .named
+        .into_iter()
+        .filter_map(|field| field.ident.map(|ident| (ident, field.ty)))
+        .map(|(ident, ty)| FieldInfo {
+            name: syn::LitStr::new(&ident.to_string(), Span::call_site()),
+            ident,
+            ty,
+        })
+        .collect();
 
     if field_infos.is_empty() {
         return Err(syn::Error::new(
@@ -56,13 +71,39 @@ fn expand_named_struct(
         ));
     }
 
-    named_struct_support::add_fromstr_bounds(&mut generics, &field_infos);
+    let where_clause = generics.make_where_clause();
+    for info in &field_infos {
+        let ty = &info.ty;
+        where_clause
+            .predicates
+            .push(parse_quote!(#ty: ::core::str::FromStr));
+    }
     let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
     let field_count = field_infos.len();
 
-    let parse_fields = named_struct_support::generate_field_parsing(&field_infos, &runtime);
+    let parse_fields: Vec<_> = field_infos
+        .iter()
+        .map(|info| {
+            let ident = &info.ident;
+            let ty = &info.ty;
+            quote! {
+                let raw = values
+                    .next()
+                    .expect("value count verified before parsing");
+                let #ident: #ty = match raw.parse::<#ty>() {
+                    Ok(value) => value,
+                    Err(_) => {
+                        return Err(#runtime::step_args::StepArgsError::parse_failure(
+                            stringify!(#ident),
+                            &raw,
+                        ));
+                    }
+                };
+            }
+        })
+        .collect();
     let field_idents: Vec<_> = field_infos.iter().map(|info| &info.ident).collect();
-    let field_name_literals: Vec<_> = field_infos.iter().map(|info| info.name.clone()).collect();
+    let field_name_literals: Vec<_> = field_infos.iter().map(|info| &info.name).collect();
 
     let construct = quote! { Self { #(#field_idents),* } };
 
@@ -94,124 +135,12 @@ fn expand_named_struct(
     })
 }
 
-mod named_struct_support {
-    use proc_macro2::{Span, TokenStream as TokenStream2};
-    use quote::quote;
-    use syn::{parse_quote, FieldsNamed, Generics, Ident, LitStr, Type};
-
-    pub(super) struct FieldInfo {
-        pub ident: Ident,
-        pub ty: Type,
-        pub name: LitStr,
-    }
-
-    pub(super) fn collect_field_infos(fields: FieldsNamed) -> Vec<FieldInfo> {
-        fields
-            .named
-            .into_iter()
-            .filter_map(|field| field.ident.map(|ident| (ident, field.ty)))
-            .map(|(ident, ty)| FieldInfo {
-                name: LitStr::new(&ident.to_string(), Span::call_site()),
-                ident,
-                ty,
-            })
-            .collect()
-    }
-
-    pub(super) fn add_fromstr_bounds(generics: &mut Generics, infos: &[FieldInfo]) {
-        let where_clause = generics.make_where_clause();
-        for info in infos {
-            let ty = &info.ty;
-            where_clause
-                .predicates
-                .push(parse_quote!(#ty: ::core::str::FromStr));
-        }
-    }
-
-    pub(super) fn generate_field_parsing(
-        infos: &[FieldInfo],
-        runtime: &TokenStream2,
-    ) -> Vec<TokenStream2> {
-        infos
-            .iter()
-            .map(|info| {
-                let ident = &info.ident;
-                let ty = &info.ty;
-                quote! {
-                    let raw = values
-                        .next()
-                        .expect("value count verified before parsing");
-                    let #ident: #ty = match raw.parse::<#ty>() {
-                        Ok(value) => value,
-                        Err(_) => {
-                            return Err(#runtime::step_args::StepArgsError::parse_failure(
-                                stringify!(#ident),
-                                &raw,
-                            ));
-                        }
-                    };
-                }
-            })
-            .collect()
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::expand;
     use proc_macro2::TokenStream as TokenStream2;
     use quote::quote;
     use syn::DeriveInput;
-
-    mod support_helpers {
-        use super::super::named_struct_support;
-        use quote::quote;
-        use syn::{parse_quote, Generics};
-
-        fn sample_fields() -> syn::FieldsNamed {
-            parse_quote!({
-                first: u32,
-                second: String,
-            })
-        }
-
-        #[test]
-        fn collect_field_infos_returns_all_metadata() {
-            let infos = named_struct_support::collect_field_infos(sample_fields());
-            assert_eq!(infos.len(), 2);
-            let Some(first) = infos.first() else {
-                panic!("missing first field");
-            };
-            assert_eq!(first.ident.to_string(), "first");
-            let Some(second) = infos.get(1) else {
-                panic!("missing second field");
-            };
-            assert_eq!(second.name.value(), "second");
-        }
-
-        #[test]
-        fn add_fromstr_bounds_adds_predicate_per_field() {
-            let infos = named_struct_support::collect_field_infos(sample_fields());
-            let mut generics = Generics::default();
-            named_struct_support::add_fromstr_bounds(&mut generics, &infos);
-            let predicate_len = generics
-                .where_clause
-                .as_ref()
-                .map_or(0, |clause| clause.predicates.len());
-            assert_eq!(predicate_len, infos.len());
-        }
-
-        #[test]
-        fn generate_field_parsing_emits_code_for_each_field() {
-            let infos = named_struct_support::collect_field_infos(sample_fields());
-            let runtime = quote!(::rstest_bdd::runtime);
-            let tokens = named_struct_support::generate_field_parsing(&infos, &runtime);
-            assert_eq!(tokens.len(), infos.len());
-            assert!(tokens
-                .iter()
-                .any(|ts| ts.to_string().contains("StepArgsError")));
-        }
-    }
 
     fn expand_tokens(tokens: TokenStream2) -> syn::Result<TokenStream2> {
         let input = syn::parse2::<DeriveInput>(tokens)?;
