@@ -284,14 +284,32 @@ pub(super) fn classify_fixture_or_step(
     ty: syn::Type,
 ) -> syn::Result<bool> {
     let mut from_name = None;
+    let mut from_attr_err = None;
     arg.attrs.retain(|a| {
-        if a.path().is_ident("from") {
-            from_name = a.parse_args().ok();
-            false
-        } else {
-            true
+        if !a.path().is_ident("from") {
+            return true;
         }
+        if from_attr_err.is_some() {
+            return false;
+        }
+        match &a.meta {
+            syn::Meta::Path(_) => {}
+            syn::Meta::List(_) => match a.parse_args::<syn::Ident>() {
+                Ok(parsed) => from_name = Some(parsed),
+                Err(err) => from_attr_err = Some(err),
+            },
+            syn::Meta::NameValue(_) => {
+                from_attr_err = Some(syn::Error::new_spanned(
+                    a,
+                    "#[from] expects an identifier or no arguments",
+                ));
+            }
+        }
+        false
     });
+    if let Some(err) = from_attr_err {
+        return Err(err);
+    }
 
     let target = from_name.clone().unwrap_or_else(|| pat.clone());
     let target_name = target.to_string();

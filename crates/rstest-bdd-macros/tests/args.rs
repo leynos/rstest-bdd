@@ -135,6 +135,20 @@ fn from_without_ident_defaults_to_param_name() {
 }
 
 #[rstest]
+fn malformed_from_attribute_reports_error() {
+    let mut func: syn::ItemFn = parse_quote! {
+        fn step(#[from(123)] fixture: usize) {}
+    };
+    #[expect(clippy::expect_used, reason = "test specifically checks error path")]
+    let err =
+        extract_args(&mut func, &mut HashSet::new()).expect_err("malformed #[from] should fail");
+    assert!(
+        err.to_string().contains("expected identifier"),
+        "unexpected error: {err}"
+    );
+}
+
+#[rstest]
 fn call_order_preserves_parameter_sequence() {
     let mut func: syn::ItemFn = parse_quote! {
         fn step(#[from] f: usize, a: i32, datatable: Vec<Vec<String>>, docstring: String, b: bool) {}
