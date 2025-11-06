@@ -40,52 +40,52 @@ fn expand(input: DeriveInput) -> syn::Result<TokenStream2> {
     expand_named_struct(&ident, generics, fields)
 }
 
+struct FieldInfo {
+    ident: syn::Ident,
+    ty: syn::Type,
+    name: syn::LitStr,
+}
+
 fn expand_named_struct(
     ident: &syn::Ident,
-    generics: syn::Generics,
+    mut generics: syn::Generics,
     fields: syn::FieldsNamed,
 ) -> syn::Result<TokenStream2> {
     let runtime = crate::codegen::rstest_bdd_path();
 
-    let mut field_idents = Vec::new();
-    let mut field_types = Vec::new();
-    let mut field_name_literals = Vec::new();
+    let field_infos: Vec<FieldInfo> = fields
+        .named
+        .into_iter()
+        .filter_map(|field| field.ident.map(|ident| (ident, field.ty)))
+        .map(|(ident, ty)| FieldInfo {
+            name: syn::LitStr::new(&ident.to_string(), Span::call_site()),
+            ident,
+            ty,
+        })
+        .collect();
 
-    for field in fields.named {
-        let Some(field_ident) = field.ident else {
-            continue;
-        };
-        field_name_literals.push(syn::LitStr::new(
-            &field_ident.to_string(),
-            Span::call_site(),
-        ));
-        field_types.push(field.ty);
-        field_idents.push(field_ident);
-    }
-
-    if field_idents.is_empty() {
+    if field_infos.is_empty() {
         return Err(syn::Error::new(
             ident.span(),
             "StepArgs structs must define at least one field",
         ));
     }
 
-    let mut generics = generics;
-    {
-        let where_clause = generics.make_where_clause();
-        for ty in &field_types {
-            where_clause
-                .predicates
-                .push(parse_quote!(#ty: ::core::str::FromStr));
-        }
+    let where_clause = generics.make_where_clause();
+    for info in &field_infos {
+        let ty = &info.ty;
+        where_clause
+            .predicates
+            .push(parse_quote!(#ty: ::core::str::FromStr));
     }
     let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
-    let field_count = field_idents.len();
+    let field_count = field_infos.len();
 
-    let parse_fields = field_idents
+    let parse_fields: Vec<_> = field_infos
         .iter()
-        .zip(field_types.iter())
-        .map(|(ident, ty)| {
+        .map(|info| {
+            let ident = &info.ident;
+            let ty = &info.ty;
             quote! {
                 let raw = values
                     .next()
@@ -100,7 +100,10 @@ fn expand_named_struct(
                     }
                 };
             }
-        });
+        })
+        .collect();
+    let field_idents: Vec<_> = field_infos.iter().map(|info| &info.ident).collect();
+    let field_name_literals: Vec<_> = field_infos.iter().map(|info| &info.name).collect();
 
     let construct = quote! { Self { #(#field_idents),* } };
 
