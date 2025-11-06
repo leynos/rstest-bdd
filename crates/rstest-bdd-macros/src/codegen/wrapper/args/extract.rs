@@ -15,14 +15,6 @@ use super::{
     ExtractedArgs,
 };
 
-type Classifier = fn(
-    &mut ExtractedArgs,
-    &mut syn::PatType,
-    &syn::Ident,
-    &syn::Type,
-    &mut HashSet<String>,
-) -> syn::Result<bool>;
-
 fn next_typed_argument(
     input: &mut syn::FnArg,
 ) -> syn::Result<(&mut syn::PatType, syn::Ident, syn::Type)> {
@@ -43,35 +35,6 @@ fn next_typed_argument(
     };
     let ty = (*arg.ty).clone();
     Ok((arg, pat, ty))
-}
-
-fn classifier_pipeline() -> Vec<Classifier> {
-    vec![
-        |st, arg, _pat, _ty, placeholders| {
-            if extract_step_struct_attribute(arg)? {
-                classify_step_struct(st, arg, placeholders)?;
-                Ok(true)
-            } else {
-                Ok(false)
-            }
-        },
-        |st, arg, pat, ty, placeholders| {
-            if placeholders.contains(&pat.to_string()) {
-                let mut ctx = ClassificationContext::new(st, placeholders);
-                classify_fixture_or_step(&mut ctx, arg, pat.clone(), ty.clone())?;
-                Ok(true)
-            } else {
-                Ok(false)
-            }
-        },
-        |st, arg, pat, ty, _| classify_datatable(st, arg, pat, ty),
-        |st, arg, pat, ty, _| classify_docstring(st, arg, pat, ty),
-        |st, arg, pat, ty, placeholders| {
-            let mut ctx = ClassificationContext::new(st, placeholders);
-            classify_fixture_or_step(&mut ctx, arg, pat.clone(), ty.clone())?;
-            Ok(true)
-        },
-    ]
 }
 
 /// Extract fixture, step, data table, and doc string arguments from a function signature.
@@ -111,15 +74,31 @@ pub fn extract_args(
     placeholders: &mut HashSet<String>,
 ) -> syn::Result<ExtractedArgs> {
     let mut state = ExtractedArgs::default();
-    let classifiers = classifier_pipeline();
 
     'args: for input in &mut func.sig.inputs {
         let (arg, pat, ty) = next_typed_argument(input)?;
-        for classify in &classifiers {
-            if classify(&mut state, arg, &pat, &ty, placeholders)? {
-                continue 'args;
-            }
+        if extract_step_struct_attribute(arg)? {
+            classify_step_struct(&mut state, arg, placeholders)?;
+            continue 'args;
         }
+
+        let is_placeholder = placeholders.contains(&pat.to_string());
+        if is_placeholder {
+            let mut ctx = ClassificationContext::new(&mut state, placeholders);
+            classify_fixture_or_step(&mut ctx, arg, pat.clone(), ty.clone())?;
+            continue 'args;
+        }
+
+        if classify_datatable(&mut state, arg, &pat, &ty)? {
+            continue 'args;
+        }
+
+        if classify_docstring(&mut state, arg, &pat, &ty)? {
+            continue 'args;
+        }
+
+        let mut ctx = ClassificationContext::new(&mut state, placeholders);
+        classify_fixture_or_step(&mut ctx, arg, pat, ty)?;
     }
     if !placeholders.is_empty() {
         let mut missing: Vec<_> = placeholders.iter().cloned().collect();

@@ -9,7 +9,7 @@ struct CartState {
     cart: Slot<CartInput>,
 }
 
-#[derive(Clone, StepArgs)]
+#[derive(Clone, Debug, StepArgs)]
 struct CartInput {
     quantity: u32,
     item: String,
@@ -59,4 +59,17 @@ fn cart_summary_matches(#[step_args] expected: CartInput, cart_state: &CartState
 #[scenario(path = "tests/features/struct_step_args.feature")]
 fn struct_step_args(cart_state: CartState) {
     let _ = cart_state;
+}
+
+#[test]
+fn struct_step_args_reports_parse_failure() {
+    let Err(err) = <CartInput as rstest_bdd::step_args::StepArgs>::from_captures(vec![
+        "invalid".into(),
+        "widget".into(),
+        "1.99".into(),
+    ]) else {
+        panic!("invalid quantity should trigger StepArgsError");
+    };
+    let expected = rstest_bdd::step_args::StepArgsError::parse_failure("quantity", "invalid");
+    assert_eq!(err.to_string(), expected.to_string());
 }

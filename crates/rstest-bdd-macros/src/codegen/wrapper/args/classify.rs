@@ -102,49 +102,34 @@ fn extract_flag_attribute(arg: &mut syn::PatType, attr_name: &str) -> syn::Resul
     Ok(found)
 }
 
-fn extract_datatable_attribute(arg: &mut syn::PatType) -> syn::Result<bool> {
-    extract_flag_attribute(arg, "datatable")
+struct FlagMatch {
+    via_attr: bool,
 }
 
-fn validate_datatable_constraints(
-    st: &ExtractedArgs,
+fn match_named_flag<F>(
     arg: &mut syn::PatType,
     pat: &syn::Ident,
     ty: &syn::Type,
-) -> syn::Result<bool> {
-    let is_attr = extract_datatable_attribute(arg)?;
-    let is_canonical = should_classify_as_datatable(pat, ty);
-
-    if is_attr && pat == "docstring" {
-        return Err(syn::Error::new_spanned(
-            arg,
-            "parameter `docstring` cannot be annotated with #[datatable]",
-        ));
-    }
-    if is_attr || is_canonical {
-        if st.datatable_idx.is_some() {
-            return Err(syn::Error::new_spanned(
-                arg,
-                "only one DataTable parameter is permitted",
-            ));
-        }
-        if st.docstring_idx.is_some() {
-            return Err(syn::Error::new_spanned(
-                arg,
-                "DataTable must be declared before DocString to match Gherkin ordering",
-            ));
-        }
-        Ok(true)
-    } else if pat == "datatable" {
-        Err(syn::Error::new_spanned(
-            arg,
-            concat!(
-                "parameter named `datatable` must have type `Vec<Vec<String>>` ",
-                "(or use `#[datatable]` with a type that implements `TryFrom<Vec<Vec<String>>>`)",
-            ),
-        ))
+    attr_name: Option<&'static str>,
+    canonical_name: &'static str,
+    canonical_check: F,
+    wrong_type_msg: &str,
+) -> syn::Result<Option<FlagMatch>>
+where
+    F: Fn(&syn::Ident, &syn::Type) -> bool,
+{
+    let via_attr = if let Some(name) = attr_name {
+        extract_flag_attribute(arg, name)?
     } else {
-        Ok(false)
+        false
+    };
+    let canonical = canonical_check(pat, ty);
+    if via_attr || canonical {
+        Ok(Some(FlagMatch { via_attr }))
+    } else if pat == canonical_name {
+        Err(syn::Error::new_spanned(arg, wrong_type_msg))
+    } else {
+        Ok(None)
     }
 }
 
@@ -155,27 +140,55 @@ pub(super) fn classify_datatable(
     ty: &syn::Type,
 ) -> syn::Result<bool> {
     let has_from = arg.attrs.iter().any(|a| a.path().is_ident("from"));
-    let is_datatable = validate_datatable_constraints(st, arg, pat, ty)?;
-    if has_from && is_datatable {
+    let match_result = match_named_flag(
+        arg,
+        pat,
+        ty,
+        Some("datatable"),
+        "datatable",
+        should_classify_as_datatable,
+        concat!(
+            "parameter named `datatable` must have type `Vec<Vec<String>>` ",
+            "(or use `#[datatable]` with a type that implements `TryFrom<Vec<Vec<String>>>`)",
+        ),
+    )?;
+    let Some(flag_match) = match_result else {
+        return Ok(false);
+    };
+    if flag_match.via_attr && pat == "docstring" {
+        return Err(syn::Error::new_spanned(
+            arg,
+            "parameter `docstring` cannot be annotated with #[datatable]",
+        ));
+    }
+    if st.datatable_idx.is_some() {
+        return Err(syn::Error::new_spanned(
+            arg,
+            "only one DataTable parameter is permitted",
+        ));
+    }
+    if st.docstring_idx.is_some() {
+        return Err(syn::Error::new_spanned(
+            arg,
+            "DataTable must be declared before DocString to match Gherkin ordering",
+        ));
+    }
+    if has_from {
         return Err(syn::Error::new_spanned(
             arg,
             "#[datatable] cannot be combined with #[from]",
         ));
     }
-    if is_datatable {
-        let idx = st.push(Arg::DataTable {
-            pat: pat.clone(),
-            ty: ty.clone(),
-        });
-        st.datatable_idx = Some(idx);
-        Ok(true)
-    } else {
-        Ok(false)
-    }
+    let idx = st.push(Arg::DataTable {
+        pat: pat.clone(),
+        ty: ty.clone(),
+    });
+    st.datatable_idx = Some(idx);
+    Ok(true)
 }
 
-fn is_valid_docstring_arg(st: &ExtractedArgs, pat: &syn::Ident, ty: &syn::Type) -> bool {
-    st.docstring_idx.is_none() && pat == "docstring" && is_string(ty)
+fn is_docstring_canonical(pat: &syn::Ident, ty: &syn::Type) -> bool {
+    pat == "docstring" && is_string(ty)
 }
 
 pub(super) fn classify_docstring(
@@ -184,18 +197,27 @@ pub(super) fn classify_docstring(
     pat: &syn::Ident,
     ty: &syn::Type,
 ) -> syn::Result<bool> {
-    if is_valid_docstring_arg(st, pat, ty) {
-        let idx = st.push(Arg::DocString { pat: pat.clone() });
-        st.docstring_idx = Some(idx);
-        Ok(true)
-    } else if pat == "docstring" {
-        Err(syn::Error::new_spanned(
+    let match_result = match_named_flag(
+        arg,
+        pat,
+        ty,
+        None,
+        "docstring",
+        is_docstring_canonical,
+        "only one docstring parameter is permitted and it must have type `String`",
+    )?;
+    let Some(_) = match_result else {
+        return Ok(false);
+    };
+    if st.docstring_idx.is_some() {
+        return Err(syn::Error::new_spanned(
             arg,
             "only one docstring parameter is permitted and it must have type `String`",
-        ))
-    } else {
-        Ok(false)
+        ));
     }
+    let idx = st.push(Arg::DocString { pat: pat.clone() });
+    st.docstring_idx = Some(idx);
+    Ok(true)
 }
 
 pub(super) fn extract_step_struct_attribute(arg: &mut syn::PatType) -> syn::Result<bool> {
@@ -299,93 +321,4 @@ pub(super) fn classify_fixture_or_step(
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use proc_macro2::Span;
-    use std::collections::HashSet;
-    use syn::parse_quote;
-
-    fn ident(name: &str) -> syn::Ident {
-        syn::Ident::new(name, Span::call_site())
-    }
-
-    #[test]
-    fn context_new_links_borrows() {
-        let mut extracted = ExtractedArgs::default();
-        let mut placeholders = HashSet::from(["alpha".to_string()]);
-        {
-            let ctx = ClassificationContext::new(&mut extracted, &mut placeholders);
-            ctx.placeholders.clear();
-            ctx.extracted.push(Arg::DocString {
-                pat: ident("docstring"),
-            });
-        }
-        assert!(placeholders.is_empty());
-        assert!(matches!(
-            extracted.args.first(),
-            Some(Arg::DocString { .. })
-        ));
-    }
-
-    #[test]
-    fn classify_fixture_or_step_claims_placeholder_as_step() {
-        let mut extracted = ExtractedArgs::default();
-        let mut placeholders = HashSet::from(["value".to_string()]);
-        let mut arg: syn::PatType = parse_quote!(value: String);
-        let pat = ident("value");
-        let ty: syn::Type = parse_quote!(String);
-        let handled;
-        {
-            let mut ctx = ClassificationContext::new(&mut extracted, &mut placeholders);
-            handled = classify_fixture_or_step(&mut ctx, &mut arg, pat, ty)
-                .unwrap_or_else(|err| panic!("classification should succeed: {err}"));
-        }
-
-        assert!(handled);
-        assert!(placeholders.is_empty());
-        assert!(matches!(extracted.args.as_slice(), [Arg::Step { .. }]));
-    }
-
-    #[test]
-    fn classify_fixture_or_step_falls_back_to_fixture() {
-        let mut extracted = ExtractedArgs::default();
-        let mut placeholders = HashSet::new();
-        let mut arg: syn::PatType = parse_quote!(dep: usize);
-        let pat = ident("dep");
-        let ty: syn::Type = parse_quote!(usize);
-        let handled;
-        {
-            let mut ctx = ClassificationContext::new(&mut extracted, &mut placeholders);
-            handled = classify_fixture_or_step(&mut ctx, &mut arg, pat.clone(), ty)
-                .unwrap_or_else(|err| panic!("classification should succeed: {err}"));
-        }
-
-        assert!(handled);
-        assert!(
-            matches!(extracted.args.as_slice(), [Arg::Fixture { pat: fixture_pat, .. }] if fixture_pat == &pat)
-        );
-    }
-
-    #[test]
-    fn classify_fixture_or_step_respects_blocked_placeholders() {
-        let mut extracted = ExtractedArgs::default();
-        let idx = extracted.push(Arg::StepStruct {
-            pat: ident("args"),
-            ty: parse_quote!(Args),
-        });
-        extracted.step_struct_idx = Some(idx);
-        extracted.blocked_placeholders.insert("blocked".into());
-        let mut placeholders = HashSet::new();
-        let mut arg: syn::PatType = parse_quote!(blocked: String);
-        let pat = ident("blocked");
-        let ty: syn::Type = parse_quote!(String);
-        let mut ctx = ClassificationContext::new(&mut extracted, &mut placeholders);
-        let Err(err) = classify_fixture_or_step(&mut ctx, &mut arg, pat, ty) else {
-            panic!("classification should fail");
-        };
-
-        assert!(err
-            .to_string()
-            .contains("#[step_args] cannot be combined with named step arguments"));
-    }
-}
+mod tests;

@@ -1,0 +1,90 @@
+//! Unit tests for the argument classifier helpers.
+
+use super::*;
+use proc_macro2::Span;
+use std::collections::HashSet;
+use syn::parse_quote;
+
+fn ident(name: &str) -> syn::Ident {
+    syn::Ident::new(name, Span::call_site())
+}
+
+#[test]
+fn context_new_links_borrows() {
+    let mut extracted = ExtractedArgs::default();
+    let mut placeholders = HashSet::from(["alpha".to_string()]);
+    {
+        let ctx = ClassificationContext::new(&mut extracted, &mut placeholders);
+        ctx.placeholders.clear();
+        ctx.extracted.push(Arg::DocString {
+            pat: ident("docstring"),
+        });
+    }
+    assert!(placeholders.is_empty());
+    assert!(matches!(
+        extracted.args.first(),
+        Some(Arg::DocString { .. })
+    ));
+}
+
+#[test]
+fn classify_fixture_or_step_claims_placeholder_as_step() {
+    let mut extracted = ExtractedArgs::default();
+    let mut placeholders = HashSet::from(["value".to_string()]);
+    let mut arg: syn::PatType = parse_quote!(value: String);
+    let pat = ident("value");
+    let ty: syn::Type = parse_quote!(String);
+    let handled;
+    {
+        let mut ctx = ClassificationContext::new(&mut extracted, &mut placeholders);
+        handled = classify_fixture_or_step(&mut ctx, &mut arg, pat, ty)
+            .unwrap_or_else(|err| panic!("classification should succeed: {err}"));
+    }
+
+    assert!(handled);
+    assert!(placeholders.is_empty());
+    assert!(matches!(extracted.args.as_slice(), [Arg::Step { .. }]));
+}
+
+#[test]
+fn classify_fixture_or_step_falls_back_to_fixture() {
+    let mut extracted = ExtractedArgs::default();
+    let mut placeholders = HashSet::new();
+    let mut arg: syn::PatType = parse_quote!(dep: usize);
+    let pat = ident("dep");
+    let ty: syn::Type = parse_quote!(usize);
+    let handled;
+    {
+        let mut ctx = ClassificationContext::new(&mut extracted, &mut placeholders);
+        handled = classify_fixture_or_step(&mut ctx, &mut arg, pat.clone(), ty)
+            .unwrap_or_else(|err| panic!("classification should succeed: {err}"));
+    }
+
+    assert!(handled);
+    assert!(
+        matches!(extracted.args.as_slice(), [Arg::Fixture { pat: fixture_pat, .. }] if fixture_pat == &pat)
+    );
+}
+
+#[test]
+fn classify_fixture_or_step_respects_blocked_placeholders() {
+    let mut extracted = ExtractedArgs::default();
+    let idx = extracted.push(Arg::StepStruct {
+        pat: ident("args"),
+        ty: parse_quote!(Args),
+    });
+    extracted.step_struct_idx = Some(idx);
+    extracted.blocked_placeholders.insert("blocked".into());
+    let mut placeholders = HashSet::new();
+    let mut arg: syn::PatType = parse_quote!(blocked: String);
+    let pat = ident("blocked");
+    let ty: syn::Type = parse_quote!(String);
+    let mut ctx = ClassificationContext::new(&mut extracted, &mut placeholders);
+    let Err(err) = classify_fixture_or_step(&mut ctx, &mut arg, pat, ty) else {
+        panic!("classification should fail");
+    };
+
+    assert!(err
+        .to_string()
+        .contains("#[step_args] cannot be combined with named step arguments"));
+}

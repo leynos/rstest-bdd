@@ -13,6 +13,11 @@ mod args_impl;
 
 use args_impl::{extract_args, Arg, ExtractedArgs};
 
+mod support;
+use support::{
+    find_datatable, fixture_count, has_docstring, ordered_parameter_names, step_arg_count,
+};
+
 /// Helper for invoking `extract_args` with placeholder names.
 /// Consolidates repeated placeholder setup across tests.
 fn test_extract_args_scenario(
@@ -22,36 +27,6 @@ fn test_extract_args_scenario(
     let mut func = func_def;
     let mut placeholder_set: HashSet<String> = placeholders.into_iter().map(String::from).collect();
     extract_args(&mut func, &mut placeholder_set)
-}
-
-fn fixture_count(args: &ExtractedArgs) -> usize {
-    args.args
-        .iter()
-        .filter(|arg| matches!(arg, Arg::Fixture { .. }))
-        .count()
-}
-
-fn step_arg_count(args: &ExtractedArgs) -> usize {
-    args.args
-        .iter()
-        .filter(|arg| matches!(arg, Arg::Step { .. }))
-        .count()
-}
-
-fn ordered_parameter_names(args: &ExtractedArgs) -> Vec<String> {
-    args.args.iter().map(|arg| arg.pat().to_string()).collect()
-}
-
-fn find_datatable(args: &ExtractedArgs) -> Option<&Arg> {
-    args.args
-        .iter()
-        .find(|arg| matches!(arg, Arg::DataTable { .. }))
-}
-
-fn has_docstring(args: &ExtractedArgs) -> bool {
-    args.args
-        .iter()
-        .any(|arg| matches!(arg, Arg::DocString { .. }))
 }
 
 #[rstest]

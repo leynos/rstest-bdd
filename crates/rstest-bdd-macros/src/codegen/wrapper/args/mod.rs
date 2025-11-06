@@ -36,6 +36,23 @@ pub enum Arg {
     },
 }
 
+#[derive(Clone, Copy)]
+pub struct StepStructArg<'a> {
+    pub pat: &'a syn::Ident,
+    pub ty: &'a syn::Type,
+}
+
+#[derive(Clone, Copy)]
+pub struct DataTableArg<'a> {
+    pub pat: &'a syn::Ident,
+    pub ty: &'a syn::Type,
+}
+
+#[derive(Clone, Copy)]
+pub struct DocStringArg<'a> {
+    pub pat: &'a syn::Ident,
+}
+
 #[expect(
     clippy::use_self,
     reason = "enum variant paths remain explicit in match arms"
@@ -49,6 +66,27 @@ impl Arg {
             | Arg::StepStruct { pat, .. }
             | Arg::DataTable { pat, .. }
             | Arg::DocString { pat } => pat,
+        }
+    }
+
+    pub fn as_step_struct(&self) -> Option<StepStructArg<'_>> {
+        match self {
+            Arg::StepStruct { pat, ty } => Some(StepStructArg { pat, ty }),
+            _ => None,
+        }
+    }
+
+    pub fn as_datatable(&self) -> Option<DataTableArg<'_>> {
+        match self {
+            Arg::DataTable { pat, ty } => Some(DataTableArg { pat, ty }),
+            _ => None,
+        }
+    }
+
+    pub fn as_docstring(&self) -> Option<DocStringArg<'_>> {
+        match self {
+            Arg::DocString { pat } => Some(DocStringArg { pat }),
+            _ => None,
         }
     }
 }
@@ -115,14 +153,10 @@ impl ExtractedArgs {
             .filter(|arg| matches!(arg, Arg::Step { .. }))
     }
 
-    pub fn step_struct(&self) -> Option<&Arg> {
-        self.step_struct_idx.map(|idx| {
-            #[expect(
-                clippy::indexing_slicing,
-                reason = "indices maintained alongside args vector"
-            )]
-            &self.args[idx]
-        })
+    pub fn step_struct(&self) -> Option<StepStructArg<'_>> {
+        self.step_struct_idx
+            .and_then(|idx| self.args.get(idx))
+            .and_then(Arg::as_step_struct)
     }
 }
 

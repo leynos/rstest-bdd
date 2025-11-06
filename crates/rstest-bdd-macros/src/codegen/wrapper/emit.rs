@@ -214,9 +214,7 @@ fn generate_wrapper_body(
     let args_slice = &args.args;
     let step_meta = StepMeta { pattern, ident };
     let struct_assert = args.step_struct().map(|arg| {
-        let Arg::StepStruct { ty, .. } = arg else {
-            unreachable!("step struct accessor returned non-step struct");
-        };
+        let ty = arg.ty;
         let count = capture_count;
         let path = crate::codegen::rstest_bdd_path();
         quote! {

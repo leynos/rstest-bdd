@@ -1,6 +1,6 @@
 //! Argument code generation utilities shared by wrapper emission logic.
 
-use super::args::Arg;
+use super::args::{Arg, DataTableArg, DocStringArg, StepStructArg};
 use proc_macro2::TokenStream as TokenStream2;
 use quote::{format_ident, quote};
 
@@ -37,13 +37,13 @@ pub(super) fn step_error_tokens(
 }
 
 fn gen_optional_decl<T, F>(
-    arg: Option<&T>,
+    arg: Option<T>,
     meta: StepMeta<'_>,
     error_msg: &str,
     generator: F,
 ) -> Option<TokenStream2>
 where
-    F: FnOnce(&T) -> (syn::Ident, TokenStream2, TokenStream2),
+    F: FnOnce(T) -> (syn::Ident, TokenStream2, TokenStream2),
 {
     arg.map(|arg_value| {
         let (pat, ty, expr) = generator(arg_value);
@@ -71,7 +71,7 @@ where
 
 /// Generate declaration for a data table argument.
 pub(super) fn gen_datatable_decl(
-    datatable: Option<&Arg>,
+    datatable: Option<DataTableArg<'_>>,
     pattern: &syn::LitStr,
     ident: &syn::Ident,
 ) -> Option<TokenStream2> {
@@ -79,12 +79,9 @@ pub(super) fn gen_datatable_decl(
         datatable,
         StepMeta { pattern, ident },
         "requires a data table",
-        |arg| {
-            let Arg::DataTable { pat, ty } = arg else {
-                unreachable!("expected datatable argument");
-            };
-            let pat = pat.clone();
-            let declared_ty = ty.clone();
+        |arg: DataTableArg<'_>| {
+            let pat = arg.pat.clone();
+            let declared_ty = arg.ty.clone();
             let ty = quote! { #declared_ty };
             let expr = quote! {
                 _table.map(|t| {
@@ -102,7 +99,7 @@ pub(super) fn gen_datatable_decl(
 ///
 /// Step functions require an owned `String`, so the wrapper copies the block.
 pub(super) fn gen_docstring_decl(
-    docstring: Option<&Arg>,
+    docstring: Option<DocStringArg<'_>>,
     pattern: &syn::LitStr,
     ident: &syn::Ident,
 ) -> Option<TokenStream2> {
@@ -110,11 +107,8 @@ pub(super) fn gen_docstring_decl(
         docstring,
         StepMeta { pattern, ident },
         "requires a doc string",
-        |arg| {
-            let Arg::DocString { pat } = arg else {
-                unreachable!("expected docstring argument");
-            };
-            let pat = pat.clone();
+        |arg: DocStringArg<'_>| {
+            let pat = arg.pat.clone();
             let ty = quote! { String };
             let expr = quote! { _docstring.map(|s| s.to_owned()) };
             (pat, ty, expr)
@@ -123,16 +117,14 @@ pub(super) fn gen_docstring_decl(
 }
 
 fn gen_step_struct_decl(
-    step_struct: Option<&Arg>,
+    step_struct: Option<StepStructArg<'_>>,
     captures: &[TokenStream2],
     placeholder_names: &[syn::LitStr],
     meta: StepMeta<'_>,
 ) -> Option<TokenStream2> {
     let capture_count = placeholder_names.len();
     step_struct.map(|arg| {
-        let Arg::StepStruct { pat, ty } = arg else {
-            unreachable!("expected #[step_args] parameter");
-        };
+        let StepStructArg { pat, ty } = arg;
         let StepMeta { pattern, ident } = meta;
         let values_ident = format_ident!("__rstest_bdd_struct_values");
         let missing_errs: Vec<_> = placeholder_names
@@ -306,29 +298,23 @@ pub(super) fn prepare_argument_processing(
     placeholder_names: &[syn::LitStr],
 ) -> PreparedArgs {
     let StepMeta { pattern, ident } = step_meta;
-    let fixtures: Vec<_> = args
-        .iter()
-        .filter(|arg| matches!(arg, Arg::Fixture { .. }))
-        .collect();
-    let step_args: Vec<_> = args
-        .iter()
-        .filter(|arg| matches!(arg, Arg::Step { .. }))
-        .collect();
-    let step_struct = args
-        .iter()
-        .find(|arg| matches!(arg, Arg::StepStruct { .. }));
-    let datatable = args.iter().find(|arg| matches!(arg, Arg::DataTable { .. }));
-    let docstring = args.iter().find(|arg| matches!(arg, Arg::DocString { .. }));
+    let mut fixtures = Vec::new();
+    let mut step_args = Vec::new();
+    let mut step_struct: Option<&Arg> = None;
+    let mut datatable: Option<&Arg> = None;
+    let mut docstring: Option<&Arg> = None;
+
+    for arg in args {
+        match arg {
+            Arg::Fixture { .. } => fixtures.push(arg),
+            Arg::Step { .. } => step_args.push(arg),
+            Arg::StepStruct { .. } => step_struct = Some(arg),
+            Arg::DataTable { .. } => datatable = Some(arg),
+            Arg::DocString { .. } => docstring = Some(arg),
+        }
+    }
 
     let declares = gen_fixture_decls(&fixtures, ident, ctx_ident);
-    let captured: Vec<_> = step_args
-        .iter()
-        .enumerate()
-        .map(|(idx, _)| {
-            let index = syn::Index::from(idx);
-            quote! { captures.get(#index).map(|m| m.as_str()) }
-        })
-        .collect();
     let all_captures: Vec<_> = placeholder_names
         .iter()
         .enumerate()
@@ -340,12 +326,23 @@ pub(super) fn prepare_argument_processing(
     let step_arg_parses = if step_struct.is_some() {
         Vec::new()
     } else {
-        gen_step_parses(&step_args, &captured, step_meta)
+        let capture_slice = all_captures.get(..step_args.len()).unwrap_or_else(|| {
+            panic!(
+                "step arguments ({}) cannot exceed capture count ({})",
+                step_args.len(),
+                all_captures.len()
+            )
+        });
+        gen_step_parses(&step_args, capture_slice, step_meta)
     };
-    let step_struct_decl =
-        gen_step_struct_decl(step_struct, &all_captures, placeholder_names, step_meta);
-    let datatable_decl = gen_datatable_decl(datatable, pattern, ident);
-    let docstring_decl = gen_docstring_decl(docstring, pattern, ident);
+    let step_struct_decl = gen_step_struct_decl(
+        step_struct.and_then(Arg::as_step_struct),
+        &all_captures,
+        placeholder_names,
+        step_meta,
+    );
+    let datatable_decl = gen_datatable_decl(datatable.and_then(Arg::as_datatable), pattern, ident);
+    let docstring_decl = gen_docstring_decl(docstring.and_then(Arg::as_docstring), pattern, ident);
     PreparedArgs {
         declares,
         step_arg_parses,
