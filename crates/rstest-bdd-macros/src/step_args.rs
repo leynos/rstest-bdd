@@ -46,6 +46,83 @@ struct FieldInfo {
     name: syn::LitStr,
 }
 
+fn add_fromstr_bounds(generics: &mut syn::Generics, field_infos: &[FieldInfo]) {
+    let where_clause = generics.make_where_clause();
+    for info in field_infos {
+        let ty = &info.ty;
+        where_clause
+            .predicates
+            .push(parse_quote!(#ty: ::core::str::FromStr));
+    }
+}
+
+fn generate_field_parsing(field_infos: &[FieldInfo], runtime: &TokenStream2) -> Vec<TokenStream2> {
+    field_infos
+        .iter()
+        .map(|info| {
+            let ident = &info.ident;
+            let ty = &info.ty;
+            quote! {
+                let raw = values
+                    .next()
+                    .expect("value count verified before parsing");
+                let #ident: #ty = match raw.parse::<#ty>() {
+                    Ok(value) => value,
+                    Err(_) => {
+                        return Err(#runtime::step_args::StepArgsError::parse_failure(
+                            stringify!(#ident),
+                            &raw,
+                        ));
+                    }
+                };
+            }
+        })
+        .collect()
+}
+
+#[expect(
+    clippy::too_many_arguments,
+    reason = "Helper must accept all components to mirror macro output requirements"
+)]
+fn generate_trait_impl<'a>(
+    ident: &syn::Ident,
+    impl_generics: &syn::ImplGenerics<'a>,
+    ty_generics: &syn::TypeGenerics<'a>,
+    where_clause: Option<&'a syn::WhereClause>,
+    field_count: usize,
+    field_name_literals: &[&syn::LitStr],
+    parse_fields: &[TokenStream2],
+    construct: &TokenStream2,
+    runtime: &TokenStream2,
+) -> TokenStream2 {
+    quote! {
+        impl #impl_generics #runtime::step_args::StepArgs for #ident #ty_generics #where_clause {
+            const FIELD_COUNT: usize = #field_count;
+            const FIELD_NAMES: &'static [&'static str] = &[#(#field_name_literals),*];
+
+            fn from_captures(captures: Vec<String>) -> Result<Self, #runtime::step_args::StepArgsError> {
+                if captures.len() != Self::FIELD_COUNT {
+                    return Err(#runtime::step_args::StepArgsError::count_mismatch(
+                        Self::FIELD_COUNT,
+                        captures.len(),
+                    ));
+                }
+                let mut values = captures.into_iter();
+                #(#parse_fields)*
+                Ok(#construct)
+            }
+        }
+
+        impl #impl_generics ::std::convert::TryFrom<Vec<String>> for #ident #ty_generics #where_clause {
+            type Error = #runtime::step_args::StepArgsError;
+
+            fn try_from(value: Vec<String>) -> Result<Self, Self::Error> {
+                <Self as #runtime::step_args::StepArgs>::from_captures(value)
+            }
+        }
+    }
+}
+
 fn expand_named_struct(
     ident: &syn::Ident,
     mut generics: syn::Generics,
@@ -71,68 +148,27 @@ fn expand_named_struct(
         ));
     }
 
-    let where_clause = generics.make_where_clause();
-    for info in &field_infos {
-        let ty = &info.ty;
-        where_clause
-            .predicates
-            .push(parse_quote!(#ty: ::core::str::FromStr));
-    }
+    add_fromstr_bounds(&mut generics, &field_infos);
     let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
     let field_count = field_infos.len();
 
-    let parse_fields: Vec<_> = field_infos
-        .iter()
-        .map(|info| {
-            let ident = &info.ident;
-            let ty = &info.ty;
-            quote! {
-                let raw = values
-                    .next()
-                    .expect("value count verified before parsing");
-                let #ident: #ty = match raw.parse::<#ty>() {
-                    Ok(value) => value,
-                    Err(_) => {
-                        return Err(#runtime::step_args::StepArgsError::parse_failure(
-                            stringify!(#ident),
-                            &raw,
-                        ));
-                    }
-                };
-            }
-        })
-        .collect();
+    let parse_fields = generate_field_parsing(&field_infos, &runtime);
     let field_idents: Vec<_> = field_infos.iter().map(|info| &info.ident).collect();
     let field_name_literals: Vec<_> = field_infos.iter().map(|info| &info.name).collect();
 
     let construct = quote! { Self { #(#field_idents),* } };
 
-    Ok(quote! {
-        impl #impl_generics #runtime::step_args::StepArgs for #ident #ty_generics #where_clause {
-            const FIELD_COUNT: usize = #field_count;
-            const FIELD_NAMES: &'static [&'static str] = &[#(#field_name_literals),*];
-
-            fn from_captures(captures: Vec<String>) -> Result<Self, #runtime::step_args::StepArgsError> {
-                if captures.len() != Self::FIELD_COUNT {
-                    return Err(#runtime::step_args::StepArgsError::count_mismatch(
-                        Self::FIELD_COUNT,
-                        captures.len(),
-                    ));
-                }
-                let mut values = captures.into_iter();
-                #(#parse_fields)*
-                Ok(#construct)
-            }
-        }
-
-        impl #impl_generics ::std::convert::TryFrom<Vec<String>> for #ident #ty_generics #where_clause {
-            type Error = #runtime::step_args::StepArgsError;
-
-            fn try_from(value: Vec<String>) -> Result<Self, Self::Error> {
-                <Self as #runtime::step_args::StepArgs>::from_captures(value)
-            }
-        }
-    })
+    Ok(generate_trait_impl(
+        ident,
+        &impl_generics,
+        &ty_generics,
+        where_clause,
+        field_count,
+        &field_name_literals,
+        &parse_fields,
+        &construct,
+        &runtime,
+    ))
 }
 
 #[cfg(test)]
