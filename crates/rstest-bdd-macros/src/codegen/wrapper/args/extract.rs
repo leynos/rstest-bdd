@@ -82,23 +82,27 @@ pub fn extract_args(
             continue 'args;
         }
 
-        let is_placeholder = placeholders.contains(&pat.to_string());
-        if is_placeholder {
+        let mut needs_fixture_or_step = {
+            let pat_name = pat.to_string();
+            placeholders.contains(&pat_name)
+        };
+
+        if !needs_fixture_or_step {
+            if classify_datatable(&mut state, arg, &pat, &ty)? {
+                continue 'args;
+            }
+
+            if classify_docstring(&mut state, arg, &pat, &ty)? {
+                continue 'args;
+            }
+
+            needs_fixture_or_step = true;
+        }
+
+        if needs_fixture_or_step {
             let mut ctx = ClassificationContext::new(&mut state, placeholders);
-            classify_fixture_or_step(&mut ctx, arg, pat.clone(), ty.clone())?;
-            continue 'args;
+            classify_fixture_or_step(&mut ctx, arg, pat, ty)?;
         }
-
-        if classify_datatable(&mut state, arg, &pat, &ty)? {
-            continue 'args;
-        }
-
-        if classify_docstring(&mut state, arg, &pat, &ty)? {
-            continue 'args;
-        }
-
-        let mut ctx = ClassificationContext::new(&mut state, placeholders);
-        classify_fixture_or_step(&mut ctx, arg, pat, ty)?;
     }
     if !placeholders.is_empty() {
         let mut missing: Vec<_> = placeholders.iter().cloned().collect();

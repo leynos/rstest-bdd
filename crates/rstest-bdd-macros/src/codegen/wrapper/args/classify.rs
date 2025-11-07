@@ -106,18 +106,51 @@ struct FlagMatch {
     via_attr: bool,
 }
 
+struct FlagMatchConfig<F>
+where
+    F: Fn(&syn::Ident, &syn::Type) -> bool,
+{
+    attr_name: Option<&'static str>,
+    canonical_name: &'static str,
+    canonical_check: F,
+    wrong_type_msg: &'static str,
+}
+
+impl<F> FlagMatchConfig<F>
+where
+    F: Fn(&syn::Ident, &syn::Type) -> bool,
+{
+    fn new(
+        attr_name: Option<&'static str>,
+        canonical_name: &'static str,
+        canonical_check: F,
+        wrong_type_msg: &'static str,
+    ) -> Self {
+        Self {
+            attr_name,
+            canonical_name,
+            canonical_check,
+            wrong_type_msg,
+        }
+    }
+}
+
 fn match_named_flag<F>(
     arg: &mut syn::PatType,
     pat: &syn::Ident,
     ty: &syn::Type,
-    attr_name: Option<&'static str>,
-    canonical_name: &'static str,
-    canonical_check: F,
-    wrong_type_msg: &str,
+    config: FlagMatchConfig<F>,
 ) -> syn::Result<Option<FlagMatch>>
 where
     F: Fn(&syn::Ident, &syn::Type) -> bool,
 {
+    let FlagMatchConfig {
+        attr_name,
+        canonical_name,
+        canonical_check,
+        wrong_type_msg,
+    } = config;
+
     let via_attr = if let Some(name) = attr_name {
         extract_flag_attribute(arg, name)?
     } else {
@@ -144,12 +177,14 @@ pub(super) fn classify_datatable(
         arg,
         pat,
         ty,
-        Some("datatable"),
-        "datatable",
-        should_classify_as_datatable,
-        concat!(
-            "parameter named `datatable` must have type `Vec<Vec<String>>` ",
-            "(or use `#[datatable]` with a type that implements `TryFrom<Vec<Vec<String>>>`)",
+        FlagMatchConfig::new(
+            Some("datatable"),
+            "datatable",
+            should_classify_as_datatable,
+            concat!(
+                "parameter named `datatable` must have type `Vec<Vec<String>>` ",
+                "(or use `#[datatable]` with a type that implements `TryFrom<Vec<Vec<String>>>`)",
+            ),
         ),
     )?;
     let Some(flag_match) = match_result else {
@@ -201,10 +236,12 @@ pub(super) fn classify_docstring(
         arg,
         pat,
         ty,
-        None,
-        "docstring",
-        is_docstring_canonical,
-        "only one docstring parameter is permitted and it must have type `String`",
+        FlagMatchConfig::new(
+            None,
+            "docstring",
+            is_docstring_canonical,
+            "only one docstring parameter is permitted and it must have type `String`",
+        ),
     )?;
     let Some(_) = match_result else {
         return Ok(false);
