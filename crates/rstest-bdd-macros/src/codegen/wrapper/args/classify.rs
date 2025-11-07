@@ -10,6 +10,10 @@ use std::collections::HashSet;
 
 use super::{Arg, ExtractedArgs};
 
+mod step_struct;
+
+pub(super) use step_struct::{classify_step_struct, extract_step_struct_attribute};
+
 pub(super) struct ClassificationContext<'a> {
     pub(super) extracted: &'a mut ExtractedArgs,
     pub(super) placeholders: &'a mut HashSet<String>,
@@ -69,7 +73,7 @@ fn should_classify_as_datatable(pat: &syn::Ident, ty: &syn::Type) -> bool {
     pat == "datatable" && is_datatable(ty)
 }
 
-fn extract_flag_attribute(arg: &mut syn::PatType, attr_name: &str) -> syn::Result<bool> {
+pub(super) fn extract_flag_attribute(arg: &mut syn::PatType, attr_name: &str) -> syn::Result<bool> {
     let mut found = false;
     let mut duplicate = false;
     let mut err_attr: Option<syn::Attribute> = None;
@@ -255,63 +259,6 @@ pub(super) fn classify_docstring(
     let idx = st.push(Arg::DocString { pat: pat.clone() });
     st.docstring_idx = Some(idx);
     Ok(true)
-}
-
-pub(super) fn extract_step_struct_attribute(arg: &mut syn::PatType) -> syn::Result<bool> {
-    extract_flag_attribute(arg, "step_args")
-}
-
-pub(super) fn classify_step_struct(
-    st: &mut ExtractedArgs,
-    arg: &syn::PatType,
-    placeholders: &mut HashSet<String>,
-) -> syn::Result<()> {
-    let syn::Pat::Ident(pat_ident) = arg.pat.as_ref() else {
-        return Err(syn::Error::new_spanned(
-            &arg.pat,
-            "#[step_args] requires a simple identifier pattern",
-        ));
-    };
-    let pat = &pat_ident.ident;
-    let ty = &arg.ty;
-    if st.step_struct_idx.is_some() {
-        return Err(syn::Error::new_spanned(
-            arg,
-            "only one #[step_args] parameter is permitted per step",
-        ));
-    }
-    if st.step_args().next().is_some() {
-        return Err(syn::Error::new_spanned(
-            arg,
-            "#[step_args] cannot be combined with named step arguments",
-        ));
-    }
-    if placeholders.is_empty() {
-        return Err(syn::Error::new_spanned(
-            arg,
-            "#[step_args] requires at least one placeholder in the pattern",
-        ));
-    }
-    if arg.attrs.iter().any(|a| a.path().is_ident("from")) {
-        return Err(syn::Error::new_spanned(
-            arg,
-            "#[step_args] cannot be combined with #[from]",
-        ));
-    }
-    if matches!(ty.as_ref(), syn::Type::Reference(_)) {
-        return Err(syn::Error::new_spanned(
-            ty.as_ref(),
-            "#[step_args] parameters must own their struct type",
-        ));
-    }
-    let idx = st.push(Arg::StepStruct {
-        pat: pat.clone(),
-        ty: ty.as_ref().clone(),
-    });
-    st.step_struct_idx = Some(idx);
-    st.blocked_placeholders.clone_from(placeholders);
-    placeholders.clear();
-    Ok(())
 }
 
 fn parse_from_attribute(arg: &mut syn::PatType) -> syn::Result<Option<syn::Ident>> {

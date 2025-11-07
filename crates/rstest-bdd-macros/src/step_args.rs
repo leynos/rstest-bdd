@@ -115,7 +115,7 @@ fn generate_field_parsing<'a>(
     (parse_blocks, field_idents, field_name_literals, field_count)
 }
 
-struct TraitImplContext<'a> {
+struct TraitImplParams<'a> {
     ident: &'a syn::Ident,
     impl_generics: syn::ImplGenerics<'a>,
     ty_generics: syn::TypeGenerics<'a>,
@@ -127,8 +127,8 @@ struct TraitImplContext<'a> {
     runtime: TokenStream2,
 }
 
-fn generate_trait_impl(ctx: TraitImplContext<'_>) -> TokenStream2 {
-    let TraitImplContext {
+fn generate_trait_impl(ctx: TraitImplParams<'_>) -> TokenStream2 {
+    let TraitImplParams {
         ident,
         impl_generics,
         ty_generics,
@@ -183,7 +183,7 @@ fn expand_named_struct(
 
     let construct = quote! { Self { #(#field_idents),* } };
 
-    let ctx = TraitImplContext {
+    let ctx = TraitImplParams {
         ident,
         impl_generics,
         ty_generics,
