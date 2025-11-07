@@ -37,8 +37,10 @@ fn classify_fixture_or_step_claims_placeholder_as_step() {
     let handled;
     {
         let mut ctx = ClassificationContext::new(&mut extracted, &mut placeholders);
-        handled = classify_fixture_or_step(&mut ctx, &mut arg, pat, ty)
-            .unwrap_or_else(|err| panic!("classification should succeed: {err}"));
+        handled = match classify_fixture_or_step(&mut ctx, &mut arg, pat, ty) {
+            Ok(value) => value,
+            Err(err) => panic!("classification should succeed: {err}"),
+        };
     }
 
     assert!(handled);
@@ -56,8 +58,10 @@ fn classify_fixture_or_step_falls_back_to_fixture() {
     let handled;
     {
         let mut ctx = ClassificationContext::new(&mut extracted, &mut placeholders);
-        handled = classify_fixture_or_step(&mut ctx, &mut arg, pat.clone(), ty)
-            .unwrap_or_else(|err| panic!("classification should succeed: {err}"));
+        handled = match classify_fixture_or_step(&mut ctx, &mut arg, pat.clone(), ty) {
+            Ok(value) => value,
+            Err(err) => panic!("classification should succeed: {err}"),
+        };
     }
 
     assert!(handled);

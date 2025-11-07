@@ -314,12 +314,7 @@ pub(super) fn classify_step_struct(
     Ok(())
 }
 
-pub(super) fn classify_fixture_or_step(
-    ctx: &mut ClassificationContext,
-    arg: &mut syn::PatType,
-    pat: syn::Ident,
-    ty: syn::Type,
-) -> syn::Result<bool> {
+fn parse_from_attribute(arg: &mut syn::PatType) -> syn::Result<Option<syn::Ident>> {
     let mut from_name = None;
     let mut from_attr_err = None;
     arg.attrs.retain(|a| {
@@ -347,32 +342,56 @@ pub(super) fn classify_fixture_or_step(
     if let Some(err) = from_attr_err {
         return Err(err);
     }
+    Ok(from_name)
+}
 
-    let target = from_name.clone().unwrap_or_else(|| pat.clone());
-    let target_name = target.to_string();
-    if ctx.placeholders.remove(&target_name) {
-        if ctx.extracted.step_struct_idx.is_some()
-            && ctx.extracted.blocked_placeholders.contains(&target_name)
-        {
-            return Err(syn::Error::new(
-                pat.span(),
-                "#[step_args] cannot be combined with named step arguments",
-            ));
-        }
-        ctx.extracted.push(Arg::Step { pat, ty });
-        Ok(true)
-    } else if ctx.extracted.step_struct_idx.is_some()
-        && ctx.extracted.blocked_placeholders.contains(&target_name)
+fn validate_no_step_struct_conflict(
+    ctx: &ClassificationContext,
+    target_name: &str,
+    pat: &syn::Ident,
+) -> syn::Result<()> {
+    if ctx.extracted.step_struct_idx.is_some()
+        && ctx.extracted.blocked_placeholders.contains(target_name)
     {
         Err(syn::Error::new(
             pat.span(),
             "#[step_args] cannot be combined with named step arguments",
         ))
     } else {
-        let name = from_name.unwrap_or(target);
-        ctx.extracted.push(Arg::Fixture { pat, name, ty });
-        Ok(true)
+        Ok(())
     }
+}
+
+fn classify_by_placeholder_match(
+    ctx: &mut ClassificationContext,
+    target_name: &str,
+    from_name: Option<syn::Ident>,
+    pat: syn::Ident,
+    ty: syn::Type,
+) -> syn::Result<()> {
+    if ctx.placeholders.remove(target_name) {
+        validate_no_step_struct_conflict(ctx, target_name, &pat)?;
+        ctx.extracted.push(Arg::Step { pat, ty });
+        Ok(())
+    } else {
+        validate_no_step_struct_conflict(ctx, target_name, &pat)?;
+        let name = from_name.unwrap_or_else(|| pat.clone());
+        ctx.extracted.push(Arg::Fixture { pat, name, ty });
+        Ok(())
+    }
+}
+
+pub(super) fn classify_fixture_or_step(
+    ctx: &mut ClassificationContext,
+    arg: &mut syn::PatType,
+    pat: syn::Ident,
+    ty: syn::Type,
+) -> syn::Result<bool> {
+    let from_name = parse_from_attribute(arg)?;
+    let target = from_name.clone().unwrap_or_else(|| pat.clone());
+    let target_name = target.to_string();
+    classify_by_placeholder_match(ctx, &target_name, from_name, pat, ty)?;
+    Ok(true)
 }
 
 #[cfg(test)]
