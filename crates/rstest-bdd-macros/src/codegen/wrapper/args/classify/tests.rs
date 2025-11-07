@@ -1,12 +1,21 @@
 //! Unit tests for the argument classifier helpers.
 
 use super::*;
-use proc_macro2::Span;
+use proc_macro2::{Span, TokenStream as TokenStream2};
+use quote::quote;
 use std::collections::HashSet;
-use syn::parse_quote;
+use syn::{parse_quote, FnArg};
 
 fn ident(name: &str) -> syn::Ident {
     syn::Ident::new(name, Span::call_site())
+}
+
+fn pat_type(tokens: TokenStream2) -> syn::PatType {
+    match syn::parse2::<FnArg>(tokens) {
+        Ok(FnArg::Typed(arg)) => arg,
+        Ok(FnArg::Receiver(_)) => panic!("expected typed argument"),
+        Err(err) => panic!("failed to parse argument: {err}"),
+    }
 }
 
 #[test]
@@ -91,4 +100,36 @@ fn classify_fixture_or_step_respects_blocked_placeholders() {
     assert!(err
         .to_string()
         .contains("#[step_args] cannot be combined with named step arguments"));
+}
+
+#[test]
+fn extract_step_struct_attribute_detects_marker() {
+    let mut arg = pat_type(quote!(#[step_args] args: Args));
+    match extract_step_struct_attribute(&mut arg) {
+        Ok(true) => {}
+        Ok(false) => panic!("attribute should be detected"),
+        Err(err) => panic!("attribute parse failed: {err}"),
+    }
+    assert!(arg.attrs.is_empty());
+}
+
+#[test]
+fn classify_step_struct_blocks_placeholders() {
+    let mut extracted = ExtractedArgs::default();
+    let mut placeholders = HashSet::from(["alpha".to_string(), "beta".to_string()]);
+    let arg = pat_type(quote!(#[step_args] args: Args));
+
+    match classify_step_struct(&mut extracted, &arg, &mut placeholders) {
+        Ok(()) => {}
+        Err(err) => panic!("step struct classification should succeed: {err}"),
+    }
+
+    assert!(placeholders.is_empty());
+    assert_eq!(
+        extracted.blocked_placeholders,
+        HashSet::from(["alpha".to_string(), "beta".to_string()])
+    );
+    assert!(extracted
+        .step_struct()
+        .is_some_and(|step| step.pat == "args"));
 }

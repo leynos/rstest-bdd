@@ -121,8 +121,8 @@ struct TraitImplParams<'a> {
     ty_generics: syn::TypeGenerics<'a>,
     where_clause: Option<&'a syn::WhereClause>,
     field_count: usize,
-    field_name_literals: Vec<&'a syn::LitStr>,
-    parse_fields: Vec<TokenStream2>,
+    field_name_literals: &'a [&'a syn::LitStr],
+    parse_fields: &'a [TokenStream2],
     construct: TokenStream2,
     runtime: TokenStream2,
 }
@@ -189,8 +189,8 @@ fn expand_named_struct(
         ty_generics,
         where_clause,
         field_count,
-        field_name_literals,
-        parse_fields,
+        field_name_literals: &field_name_literals,
+        parse_fields: &parse_fields,
         construct,
         runtime,
     };

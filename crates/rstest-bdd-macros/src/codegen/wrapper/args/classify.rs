@@ -14,6 +14,13 @@ mod step_struct;
 
 pub(super) use step_struct::{classify_step_struct, extract_step_struct_attribute};
 
+const DATATABLE_TYPE_ERROR: &str = concat!(
+    "parameter named `datatable` must have type `Vec<Vec<String>>` ",
+    "(or use `#[datatable]` with a type that implements `TryFrom<Vec<Vec<String>>>`)",
+);
+const DOCSTRING_TYPE_ERROR: &str =
+    "only one docstring parameter is permitted and it must have type `String`";
+
 pub(super) struct ClassificationContext<'a> {
     pub(super) extracted: &'a mut ExtractedArgs,
     pub(super) placeholders: &'a mut HashSet<String>,
@@ -185,10 +192,7 @@ pub(super) fn classify_datatable(
             Some("datatable"),
             "datatable",
             should_classify_as_datatable,
-            concat!(
-                "parameter named `datatable` must have type `Vec<Vec<String>>` ",
-                "(or use `#[datatable]` with a type that implements `TryFrom<Vec<Vec<String>>>`)",
-            ),
+            DATATABLE_TYPE_ERROR,
         ),
     )?;
     let Some(flag_match) = match_result else {
@@ -244,17 +248,14 @@ pub(super) fn classify_docstring(
             None,
             "docstring",
             is_docstring_canonical,
-            "only one docstring parameter is permitted and it must have type `String`",
+            DOCSTRING_TYPE_ERROR,
         ),
     )?;
     let Some(_) = match_result else {
         return Ok(false);
     };
     if st.docstring_idx.is_some() {
-        return Err(syn::Error::new_spanned(
-            arg,
-            "only one docstring parameter is permitted and it must have type `String`",
-        ));
+        return Err(syn::Error::new_spanned(arg, DOCSTRING_TYPE_ERROR));
     }
     let idx = st.push(Arg::DocString { pat: pat.clone() });
     st.docstring_idx = Some(idx);
