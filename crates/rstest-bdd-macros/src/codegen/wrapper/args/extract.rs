@@ -37,6 +37,36 @@ fn next_typed_argument(
     Ok((arg, pat, ty))
 }
 
+/// Attempts to classify an argument as a special argument (datatable or docstring).
+/// Returns `Ok(true)` if classified, `Ok(false)` if not a special argument.
+fn try_classify_special_arg(
+    state: &mut ExtractedArgs,
+    arg: &mut syn::PatType,
+    pat: &syn::Ident,
+    ty: &syn::Type,
+) -> syn::Result<bool> {
+    if classify_datatable(state, arg, pat, ty)? {
+        return Ok(true);
+    }
+    if classify_docstring(state, arg, pat, ty)? {
+        return Ok(true);
+    }
+    Ok(false)
+}
+
+/// Classifies an argument as either a fixture or step argument.
+fn classify_as_fixture_or_step(
+    state: &mut ExtractedArgs,
+    placeholders: &mut HashSet<String>,
+    arg: &mut syn::PatType,
+    pat: syn::Ident,
+    ty: syn::Type,
+) -> syn::Result<()> {
+    let mut ctx = ClassificationContext::new(state, placeholders);
+    classify_fixture_or_step(&mut ctx, arg, pat, ty)?;
+    Ok(())
+}
+
 /// Extract fixture, step, data table, and doc string arguments from a function signature.
 ///
 /// # Examples
@@ -82,27 +112,12 @@ pub fn extract_args(
             continue 'args;
         }
 
-        let mut needs_fixture_or_step = {
-            let pat_name = pat.to_string();
-            placeholders.contains(&pat_name)
-        };
-
-        if !needs_fixture_or_step {
-            if classify_datatable(&mut state, arg, &pat, &ty)? {
-                continue 'args;
-            }
-
-            if classify_docstring(&mut state, arg, &pat, &ty)? {
-                continue 'args;
-            }
-
-            needs_fixture_or_step = true;
+        let is_placeholder = placeholders.contains(&pat.to_string());
+        if !is_placeholder && try_classify_special_arg(&mut state, arg, &pat, &ty)? {
+            continue 'args;
         }
 
-        if needs_fixture_or_step {
-            let mut ctx = ClassificationContext::new(&mut state, placeholders);
-            classify_fixture_or_step(&mut ctx, arg, pat, ty)?;
-        }
+        classify_as_fixture_or_step(&mut state, placeholders, arg, pat, ty)?;
     }
     if !placeholders.is_empty() {
         let mut missing: Vec<_> = placeholders.iter().cloned().collect();
