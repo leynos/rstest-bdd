@@ -56,15 +56,20 @@ fn try_classify_special_arg(
 
 /// Classifies an argument as either a fixture or step argument.
 fn classify_as_fixture_or_step(
-    state: &mut ExtractedArgs,
-    placeholders: &mut HashSet<String>,
+    ctx: &mut ClassificationContext,
     arg: &mut syn::PatType,
-    pat: syn::Ident,
-    ty: syn::Type,
 ) -> syn::Result<()> {
-    let mut ctx = ClassificationContext::new(state, placeholders);
-    classify_fixture_or_step(&mut ctx, arg, pat, ty)?;
-    Ok(())
+    let pat = match &*arg.pat {
+        syn::Pat::Ident(pat_ident) => pat_ident.ident.clone(),
+        other => {
+            return Err(syn::Error::new_spanned(
+                other,
+                "unsupported parameter pattern; use a simple identifier (e.g., `arg: T`)",
+            ))
+        }
+    };
+    let ty = (*arg.ty).clone();
+    classify_fixture_or_step(ctx, arg, pat, ty).map(|_| ())
 }
 
 /// Extract fixture, step, data table, and doc string arguments from a function signature.
@@ -117,7 +122,8 @@ pub fn extract_args(
             continue 'args;
         }
 
-        classify_as_fixture_or_step(&mut state, placeholders, arg, pat, ty)?;
+        let mut ctx = ClassificationContext::new(&mut state, placeholders);
+        classify_as_fixture_or_step(&mut ctx, arg)?;
     }
     if !placeholders.is_empty() {
         let mut missing: Vec<_> = placeholders.iter().cloned().collect();
