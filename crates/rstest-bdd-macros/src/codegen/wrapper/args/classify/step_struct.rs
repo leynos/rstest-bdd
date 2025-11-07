@@ -2,70 +2,67 @@
 
 use std::collections::HashSet;
 
+use quote::ToTokens;
+
 use super::{Arg, ExtractedArgs};
 
-pub(crate) fn extract_step_struct_attribute(
-    arg: &mut syn::PatType,
-) -> syn::Result<bool> {
+pub(crate) fn extract_step_struct_attribute(arg: &mut syn::PatType) -> syn::Result<bool> {
     super::extract_flag_attribute(arg, "step_args")
 }
 
-fn validate_single_step_struct(st: &ExtractedArgs, arg: &syn::PatType) -> syn::Result<()> {
-    if st.step_struct_idx.is_some() {
-        Err(syn::Error::new_spanned(
-            arg,
-            "only one #[step_args] parameter is permitted per step",
-        ))
+fn validate_condition(
+    condition: bool,
+    span_source: &impl ToTokens,
+    error_message: &str,
+) -> syn::Result<()> {
+    if condition {
+        Err(syn::Error::new_spanned(span_source, error_message))
     } else {
         Ok(())
     }
 }
 
+fn validate_single_step_struct(st: &ExtractedArgs, arg: &syn::PatType) -> syn::Result<()> {
+    validate_condition(
+        st.step_struct_idx.is_some(),
+        arg,
+        "only one #[step_args] parameter is permitted per step",
+    )
+}
+
 fn validate_no_named_args(st: &ExtractedArgs, arg: &syn::PatType) -> syn::Result<()> {
-    if st.step_args().next().is_some() {
-        Err(syn::Error::new_spanned(
-            arg,
-            "#[step_args] cannot be combined with named step arguments",
-        ))
-    } else {
-        Ok(())
-    }
+    validate_condition(
+        st.step_args().next().is_some(),
+        arg,
+        "#[step_args] cannot be combined with named step arguments",
+    )
 }
 
 fn validate_has_placeholders(
     placeholders: &HashSet<String>,
     arg: &syn::PatType,
 ) -> syn::Result<()> {
-    if placeholders.is_empty() {
-        Err(syn::Error::new_spanned(
-            arg,
-            "#[step_args] requires at least one placeholder in the pattern",
-        ))
-    } else {
-        Ok(())
-    }
+    validate_condition(
+        placeholders.is_empty(),
+        arg,
+        "#[step_args] requires at least one placeholder in the pattern",
+    )
 }
 
 fn validate_no_from_attr(arg: &syn::PatType) -> syn::Result<()> {
-    if arg.attrs.iter().any(|a| a.path().is_ident("from")) {
-        Err(syn::Error::new_spanned(
-            arg,
-            "#[step_args] cannot be combined with #[from]",
-        ))
-    } else {
-        Ok(())
-    }
+    validate_condition(
+        arg.attrs.iter().any(|a| a.path().is_ident("from")),
+        arg,
+        "#[step_args] cannot be combined with #[from]",
+    )
 }
 
 fn validate_owned_type(ty: &syn::Type) -> syn::Result<()> {
-    if matches!(ty, syn::Type::Reference(_)) {
-        Err(syn::Error::new_spanned(
-            ty,
-            "#[step_args] parameters must own their struct type",
-        ))
-    } else {
-        Ok(())
-    }
+    validate_condition(
+        matches!(ty, syn::Type::Reference(_)),
+        ty,
+        "#[step_args] parameters must own their struct type",
+    )
 }
 
 pub(crate) fn classify_step_struct(
