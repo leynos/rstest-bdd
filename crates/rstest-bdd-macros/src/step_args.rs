@@ -115,21 +115,31 @@ fn generate_field_parsing<'a>(
     (parse_blocks, field_idents, field_name_literals, field_count)
 }
 
-#[expect(
-    clippy::too_many_arguments,
-    reason = "Helper must accept all components to mirror macro output requirements"
-)]
-fn generate_trait_impl<'a>(
-    ident: &syn::Ident,
-    impl_generics: &syn::ImplGenerics<'a>,
-    ty_generics: &syn::TypeGenerics<'a>,
+struct TraitImplParams<'a> {
+    ident: &'a syn::Ident,
+    impl_generics: syn::ImplGenerics<'a>,
+    ty_generics: syn::TypeGenerics<'a>,
     where_clause: Option<&'a syn::WhereClause>,
     field_count: usize,
-    field_name_literals: &[&syn::LitStr],
-    parse_fields: &[TokenStream2],
-    construct: &TokenStream2,
-    runtime: &TokenStream2,
-) -> TokenStream2 {
+    field_name_literals: &'a [&'a syn::LitStr],
+    parse_fields: &'a [TokenStream2],
+    construct: TokenStream2,
+    runtime: TokenStream2,
+}
+
+fn generate_trait_impl(ctx: TraitImplParams<'_>) -> TokenStream2 {
+    let TraitImplParams {
+        ident,
+        impl_generics,
+        ty_generics,
+        where_clause,
+        field_count,
+        field_name_literals,
+        parse_fields,
+        construct,
+        runtime,
+    } = ctx;
+
     quote! {
         impl #impl_generics #runtime::step_args::StepArgs for #ident #ty_generics #where_clause {
             const FIELD_COUNT: usize = #field_count;
@@ -173,17 +183,19 @@ fn expand_named_struct(
 
     let construct = quote! { Self { #(#field_idents),* } };
 
-    Ok(generate_trait_impl(
+    let ctx = TraitImplParams {
         ident,
-        &impl_generics,
-        &ty_generics,
+        impl_generics,
+        ty_generics,
         where_clause,
         field_count,
-        &field_name_literals,
-        &parse_fields,
-        &construct,
-        &runtime,
-    ))
+        field_name_literals: &field_name_literals,
+        parse_fields: &parse_fields,
+        construct,
+        runtime,
+    };
+
+    Ok(generate_trait_impl(ctx))
 }
 
 #[cfg(test)]

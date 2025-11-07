@@ -116,6 +116,49 @@ pub(super) fn gen_docstring_decl(
     )
 }
 
+fn generate_missing_capture_errors(
+    placeholder_names: &[syn::LitStr],
+    meta: StepMeta<'_>,
+    pat: &syn::Ident,
+) -> Vec<TokenStream2> {
+    let StepMeta { pattern, ident } = meta;
+    placeholder_names
+        .iter()
+        .map(|name| {
+            step_error_tokens(
+                &format_ident!("ExecutionError"),
+                pattern,
+                ident,
+                &quote! {
+                    format!(
+                        "pattern '{}' missing capture for placeholder '{{{}}}' required by '{}'",
+                        #pattern,
+                        #name,
+                        stringify!(#pat),
+                    )
+                },
+            )
+        })
+        .collect()
+}
+
+fn generate_capture_initializers(
+    captures: &[TokenStream2],
+    missing_errs: &[TokenStream2],
+    values_ident: &proc_macro2::Ident,
+) -> Vec<TokenStream2> {
+    captures
+        .iter()
+        .zip(missing_errs.iter())
+        .map(|(capture, missing)| {
+            quote! {
+                let raw = #capture.ok_or_else(|| #missing)?;
+                #values_ident.push(raw.to_string());
+            }
+        })
+        .collect()
+}
+
 fn gen_step_struct_decl(
     step_struct: Option<StepStructArg<'_>>,
     captures: &[TokenStream2],
@@ -125,26 +168,10 @@ fn gen_step_struct_decl(
     let capture_count = placeholder_names.len();
     step_struct.map(|arg| {
         let StepStructArg { pat, ty } = arg;
-        let StepMeta { pattern, ident } = meta;
         let values_ident = format_ident!("__rstest_bdd_struct_values");
-        let missing_errs: Vec<_> = placeholder_names
-            .iter()
-            .map(|name| {
-                step_error_tokens(
-                    &format_ident!("ExecutionError"),
-                    pattern,
-                    ident,
-                    &quote! {
-                        format!(
-                            "pattern '{}' missing capture for placeholder '{{{}}}' required by '{}'",
-                            #pattern,
-                            #name,
-                            stringify!(#pat),
-                        )
-                    },
-                )
-            })
-            .collect();
+        let missing_errs = generate_missing_capture_errors(placeholder_names, meta, pat);
+        let capture_inits = generate_capture_initializers(captures, &missing_errs, &values_ident);
+        let StepMeta { pattern, ident } = meta;
         let convert_err = step_error_tokens(
             &format_ident!("ExecutionError"),
             pattern,
@@ -158,12 +185,6 @@ fn gen_step_struct_decl(
                 )
             },
         );
-        let capture_inits = captures.iter().zip(missing_errs.iter()).map(|(capture, missing)| {
-            quote! {
-                let raw = #capture.ok_or_else(|| #missing)?;
-                #values_ident.push(raw.to_string());
-            }
-        });
         quote! {
             let mut #values_ident = Vec::with_capacity(#capture_count);
             #(#capture_inits)*

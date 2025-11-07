@@ -10,6 +10,17 @@ use std::collections::HashSet;
 
 use super::{Arg, ExtractedArgs};
 
+mod step_struct;
+
+pub(super) use step_struct::{classify_step_struct, extract_step_struct_attribute};
+
+const DATATABLE_TYPE_ERROR: &str = concat!(
+    "parameter named `datatable` must have type `Vec<Vec<String>>` ",
+    "(or use `#[datatable]` with a type that implements `TryFrom<Vec<Vec<String>>>`)",
+);
+const DOCSTRING_TYPE_ERROR: &str =
+    "only one docstring parameter is permitted and it must have type `String`";
+
 pub(super) struct ClassificationContext<'a> {
     pub(super) extracted: &'a mut ExtractedArgs,
     pub(super) placeholders: &'a mut HashSet<String>,
@@ -69,7 +80,7 @@ fn should_classify_as_datatable(pat: &syn::Ident, ty: &syn::Type) -> bool {
     pat == "datatable" && is_datatable(ty)
 }
 
-fn extract_flag_attribute(arg: &mut syn::PatType, attr_name: &str) -> syn::Result<bool> {
+pub(super) fn extract_flag_attribute(arg: &mut syn::PatType, attr_name: &str) -> syn::Result<bool> {
     let mut found = false;
     let mut duplicate = false;
     let mut err_attr: Option<syn::Attribute> = None;
@@ -106,18 +117,51 @@ struct FlagMatch {
     via_attr: bool,
 }
 
+struct FlagMatchConfig<F>
+where
+    F: Fn(&syn::Ident, &syn::Type) -> bool,
+{
+    attr_name: Option<&'static str>,
+    canonical_name: &'static str,
+    canonical_check: F,
+    wrong_type_msg: &'static str,
+}
+
+impl<F> FlagMatchConfig<F>
+where
+    F: Fn(&syn::Ident, &syn::Type) -> bool,
+{
+    fn new(
+        attr_name: Option<&'static str>,
+        canonical_name: &'static str,
+        canonical_check: F,
+        wrong_type_msg: &'static str,
+    ) -> Self {
+        Self {
+            attr_name,
+            canonical_name,
+            canonical_check,
+            wrong_type_msg,
+        }
+    }
+}
+
 fn match_named_flag<F>(
     arg: &mut syn::PatType,
     pat: &syn::Ident,
     ty: &syn::Type,
-    attr_name: Option<&'static str>,
-    canonical_name: &'static str,
-    canonical_check: F,
-    wrong_type_msg: &str,
+    config: FlagMatchConfig<F>,
 ) -> syn::Result<Option<FlagMatch>>
 where
     F: Fn(&syn::Ident, &syn::Type) -> bool,
 {
+    let FlagMatchConfig {
+        attr_name,
+        canonical_name,
+        canonical_check,
+        wrong_type_msg,
+    } = config;
+
     let via_attr = if let Some(name) = attr_name {
         extract_flag_attribute(arg, name)?
     } else {
@@ -144,12 +188,11 @@ pub(super) fn classify_datatable(
         arg,
         pat,
         ty,
-        Some("datatable"),
-        "datatable",
-        should_classify_as_datatable,
-        concat!(
-            "parameter named `datatable` must have type `Vec<Vec<String>>` ",
-            "(or use `#[datatable]` with a type that implements `TryFrom<Vec<Vec<String>>>`)",
+        FlagMatchConfig::new(
+            Some("datatable"),
+            "datatable",
+            should_classify_as_datatable,
+            DATATABLE_TYPE_ERROR,
         ),
     )?;
     let Some(flag_match) = match_result else {
@@ -201,88 +244,25 @@ pub(super) fn classify_docstring(
         arg,
         pat,
         ty,
-        None,
-        "docstring",
-        is_docstring_canonical,
-        "only one docstring parameter is permitted and it must have type `String`",
+        FlagMatchConfig::new(
+            None,
+            "docstring",
+            is_docstring_canonical,
+            DOCSTRING_TYPE_ERROR,
+        ),
     )?;
     let Some(_) = match_result else {
         return Ok(false);
     };
     if st.docstring_idx.is_some() {
-        return Err(syn::Error::new_spanned(
-            arg,
-            "only one docstring parameter is permitted and it must have type `String`",
-        ));
+        return Err(syn::Error::new_spanned(arg, DOCSTRING_TYPE_ERROR));
     }
     let idx = st.push(Arg::DocString { pat: pat.clone() });
     st.docstring_idx = Some(idx);
     Ok(true)
 }
 
-pub(super) fn extract_step_struct_attribute(arg: &mut syn::PatType) -> syn::Result<bool> {
-    extract_flag_attribute(arg, "step_args")
-}
-
-pub(super) fn classify_step_struct(
-    st: &mut ExtractedArgs,
-    arg: &syn::PatType,
-    placeholders: &mut HashSet<String>,
-) -> syn::Result<()> {
-    let syn::Pat::Ident(pat_ident) = arg.pat.as_ref() else {
-        return Err(syn::Error::new_spanned(
-            &arg.pat,
-            "#[step_args] requires a simple identifier pattern",
-        ));
-    };
-    let pat = &pat_ident.ident;
-    let ty = &arg.ty;
-    if st.step_struct_idx.is_some() {
-        return Err(syn::Error::new_spanned(
-            arg,
-            "only one #[step_args] parameter is permitted per step",
-        ));
-    }
-    if st.step_args().next().is_some() {
-        return Err(syn::Error::new_spanned(
-            arg,
-            "#[step_args] cannot be combined with named step arguments",
-        ));
-    }
-    if placeholders.is_empty() {
-        return Err(syn::Error::new_spanned(
-            arg,
-            "#[step_args] requires at least one placeholder in the pattern",
-        ));
-    }
-    if arg.attrs.iter().any(|a| a.path().is_ident("from")) {
-        return Err(syn::Error::new_spanned(
-            arg,
-            "#[step_args] cannot be combined with #[from]",
-        ));
-    }
-    if matches!(ty.as_ref(), syn::Type::Reference(_)) {
-        return Err(syn::Error::new_spanned(
-            ty.as_ref(),
-            "#[step_args] parameters must own their struct type",
-        ));
-    }
-    let idx = st.push(Arg::StepStruct {
-        pat: pat.clone(),
-        ty: ty.as_ref().clone(),
-    });
-    st.step_struct_idx = Some(idx);
-    st.blocked_placeholders.clone_from(placeholders);
-    placeholders.clear();
-    Ok(())
-}
-
-pub(super) fn classify_fixture_or_step(
-    ctx: &mut ClassificationContext,
-    arg: &mut syn::PatType,
-    pat: syn::Ident,
-    ty: syn::Type,
-) -> syn::Result<bool> {
+fn parse_from_attribute(arg: &mut syn::PatType) -> syn::Result<Option<syn::Ident>> {
     let mut from_name = None;
     let mut from_attr_err = None;
     arg.attrs.retain(|a| {
@@ -310,32 +290,56 @@ pub(super) fn classify_fixture_or_step(
     if let Some(err) = from_attr_err {
         return Err(err);
     }
+    Ok(from_name)
+}
 
-    let target = from_name.clone().unwrap_or_else(|| pat.clone());
-    let target_name = target.to_string();
-    if ctx.placeholders.remove(&target_name) {
-        if ctx.extracted.step_struct_idx.is_some()
-            && ctx.extracted.blocked_placeholders.contains(&target_name)
-        {
-            return Err(syn::Error::new(
-                pat.span(),
-                "#[step_args] cannot be combined with named step arguments",
-            ));
-        }
-        ctx.extracted.push(Arg::Step { pat, ty });
-        Ok(true)
-    } else if ctx.extracted.step_struct_idx.is_some()
-        && ctx.extracted.blocked_placeholders.contains(&target_name)
+fn validate_no_step_struct_conflict(
+    ctx: &ClassificationContext,
+    target_name: &str,
+    pat: &syn::Ident,
+) -> syn::Result<()> {
+    if ctx.extracted.step_struct_idx.is_some()
+        && ctx.extracted.blocked_placeholders.contains(target_name)
     {
         Err(syn::Error::new(
             pat.span(),
             "#[step_args] cannot be combined with named step arguments",
         ))
     } else {
-        let name = from_name.unwrap_or(target);
-        ctx.extracted.push(Arg::Fixture { pat, name, ty });
-        Ok(true)
+        Ok(())
     }
+}
+
+fn classify_by_placeholder_match(
+    ctx: &mut ClassificationContext,
+    target_name: &str,
+    from_name: Option<syn::Ident>,
+    pat: syn::Ident,
+    ty: syn::Type,
+) -> syn::Result<()> {
+    if ctx.placeholders.remove(target_name) {
+        validate_no_step_struct_conflict(ctx, target_name, &pat)?;
+        ctx.extracted.push(Arg::Step { pat, ty });
+        Ok(())
+    } else {
+        validate_no_step_struct_conflict(ctx, target_name, &pat)?;
+        let name = from_name.unwrap_or_else(|| pat.clone());
+        ctx.extracted.push(Arg::Fixture { pat, name, ty });
+        Ok(())
+    }
+}
+
+pub(super) fn classify_fixture_or_step(
+    ctx: &mut ClassificationContext,
+    arg: &mut syn::PatType,
+    pat: syn::Ident,
+    ty: syn::Type,
+) -> syn::Result<bool> {
+    let from_name = parse_from_attribute(arg)?;
+    let target = from_name.clone().unwrap_or_else(|| pat.clone());
+    let target_name = target.to_string();
+    classify_by_placeholder_match(ctx, &target_name, from_name, pat, ty)?;
+    Ok(true)
 }
 
 #[cfg(test)]

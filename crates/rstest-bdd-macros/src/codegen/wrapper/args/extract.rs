@@ -7,6 +7,8 @@
 
 use std::collections::HashSet;
 
+use quote::ToTokens;
+
 use super::{
     classify::{
         classify_datatable, classify_docstring, classify_fixture_or_step, classify_step_struct,
@@ -27,6 +29,46 @@ fn next_typed_argument(
     let pat = match &*arg.pat {
         syn::Pat::Ident(pat_ident) => pat_ident.ident.clone(),
         other => {
+            let pattern = other.to_token_stream().to_string();
+            return Err(syn::Error::new_spanned(
+                other,
+                format!(
+                    "unsupported parameter pattern `{pattern}`; use a simple identifier (e.g., `arg: T`)"
+                ),
+            ));
+        }
+    };
+    let ty = (*arg.ty).clone();
+    Ok((arg, pat, ty))
+}
+
+/// Classifies an argument as a special argument (datatable or docstring) before
+/// the pipeline falls back to fixtures/placeholders. Returns `Ok(true)` if one
+/// of the special classifiers consumed the argument.
+fn classify_special_argument(
+    state: &mut ExtractedArgs,
+    arg: &mut syn::PatType,
+    pat: &syn::Ident,
+    ty: &syn::Type,
+) -> syn::Result<bool> {
+    if classify_datatable(state, arg, pat, ty)? {
+        return Ok(true);
+    }
+    if classify_docstring(state, arg, pat, ty)? {
+        return Ok(true);
+    }
+    Ok(false)
+}
+
+/// Classifies an argument as either a fixture or step argument after all
+/// special cases have been evaluated.
+fn classify_step_or_fixture(
+    ctx: &mut ClassificationContext,
+    arg: &mut syn::PatType,
+) -> syn::Result<()> {
+    let pat = match &*arg.pat {
+        syn::Pat::Ident(pat_ident) => pat_ident.ident.clone(),
+        other => {
             return Err(syn::Error::new_spanned(
                 other,
                 "unsupported parameter pattern; use a simple identifier (e.g., `arg: T`)",
@@ -34,7 +76,7 @@ fn next_typed_argument(
         }
     };
     let ty = (*arg.ty).clone();
-    Ok((arg, pat, ty))
+    classify_fixture_or_step(ctx, arg, pat, ty).map(|_| ())
 }
 
 /// Extract fixture, step, data table, and doc string arguments from a function signature.
@@ -83,22 +125,12 @@ pub fn extract_args(
         }
 
         let is_placeholder = placeholders.contains(&pat.to_string());
-        if is_placeholder {
-            let mut ctx = ClassificationContext::new(&mut state, placeholders);
-            classify_fixture_or_step(&mut ctx, arg, pat.clone(), ty.clone())?;
-            continue 'args;
-        }
-
-        if classify_datatable(&mut state, arg, &pat, &ty)? {
-            continue 'args;
-        }
-
-        if classify_docstring(&mut state, arg, &pat, &ty)? {
+        if !is_placeholder && classify_special_argument(&mut state, arg, &pat, &ty)? {
             continue 'args;
         }
 
         let mut ctx = ClassificationContext::new(&mut state, placeholders);
-        classify_fixture_or_step(&mut ctx, arg, pat, ty)?;
+        classify_step_or_fixture(&mut ctx, arg)?;
     }
     if !placeholders.is_empty() {
         let mut missing: Vec<_> = placeholders.iter().cloned().collect();
@@ -110,4 +142,23 @@ pub fn extract_args(
         ));
     }
     Ok(state)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use syn::parse_quote;
+
+    #[test]
+    fn classify_step_or_fixture_reports_pattern_in_error() {
+        let mut extracted = ExtractedArgs::default();
+        let mut placeholders = HashSet::new();
+        let mut ctx = ClassificationContext::new(&mut extracted, &mut placeholders);
+        let mut arg: syn::PatType = parse_quote!((value, other): usize);
+
+        let Err(err) = classify_step_or_fixture(&mut ctx, &mut arg) else {
+            panic!("non-identifier patterns must error");
+        };
+        assert!(err.to_string().contains("unsupported parameter pattern"));
+    }
 }
