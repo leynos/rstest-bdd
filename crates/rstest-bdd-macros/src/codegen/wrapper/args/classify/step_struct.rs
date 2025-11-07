@@ -84,99 +84,106 @@ mod tests {
         }
     }
 
-    #[test]
-    fn classifies_step_struct_and_clears_placeholders() {
+    /// Helper to test `classify_step_struct` with various scenarios.
+    fn assert_classify_step_struct(
+        setup: impl FnOnce(&mut ExtractedArgs),
+        placeholder_names: &[&str],
+        arg_tokens: TokenStream2,
+        expected_error_fragment: Option<&str>,
+    ) {
         let mut extracted = ExtractedArgs::default();
-        let mut placeholders = placeholder_set(&["value"]);
-        let arg = pat(quote!(#[step_args] args: Args));
+        setup(&mut extracted);
+        let mut placeholders = placeholder_set(placeholder_names);
+        let arg = pat(arg_tokens);
 
-        match classify_step_struct(&mut extracted, &arg, &mut placeholders) {
-            Ok(()) => {}
-            Err(err) => panic!("classification should succeed: {err}"),
+        match (
+            classify_step_struct(&mut extracted, &arg, &mut placeholders),
+            expected_error_fragment,
+        ) {
+            (Ok(()), Some(expected)) => {
+                panic!("classification should fail containing '{expected}'");
+            }
+            (Ok(()), None) => {}
+            (Err(err), None) => panic!("classification should succeed: {err}"),
+            (Err(err), Some(expected)) => {
+                assert!(
+                    err.to_string().contains(expected),
+                    "error '{err}' did not contain expected fragment '{expected}'"
+                );
+            }
         }
 
-        assert!(placeholders.is_empty());
-        assert!(matches!(
-            extracted.args.as_slice(),
-            [Arg::StepStruct { .. }]
-        ));
+        if expected_error_fragment.is_none() {
+            assert!(placeholders.is_empty());
+            assert!(matches!(
+                extracted.args.as_slice(),
+                [Arg::StepStruct { .. }]
+            ));
+        }
+    }
+
+    #[test]
+    fn classifies_step_struct_and_clears_placeholders() {
+        assert_classify_step_struct(|_| {}, &["value"], quote!(#[step_args] args: Args), None);
     }
 
     #[test]
     fn rejects_duplicate_step_structs() {
-        let mut extracted = ExtractedArgs::default();
-        extracted.step_struct_idx = Some(extracted.push(Arg::StepStruct {
-            pat: Ident::new("existing", Span::call_site()),
-            ty: parse_quote!(Args),
-        }));
-        let mut placeholders = placeholder_set(&["value"]);
-        let arg = pat(quote!(#[step_args] args: Args));
-
-        let Err(err) = classify_step_struct(&mut extracted, &arg, &mut placeholders) else {
-            panic!("duplicate #[step_args] should error");
-        };
-        assert!(err
-            .to_string()
-            .contains("only one #[step_args] parameter is permitted per step"));
+        assert_classify_step_struct(
+            |extracted| {
+                extracted.step_struct_idx = Some(extracted.push(Arg::StepStruct {
+                    pat: Ident::new("existing", Span::call_site()),
+                    ty: parse_quote!(Args),
+                }));
+            },
+            &["value"],
+            quote!(#[step_args] args: Args),
+            Some("only one #[step_args] parameter is permitted per step"),
+        );
     }
 
     #[test]
     fn rejects_mix_with_named_arguments() {
-        let mut extracted = ExtractedArgs::default();
-        extracted.push(Arg::Step {
-            pat: Ident::new("value", Span::call_site()),
-            ty: parse_quote!(String),
-        });
-        let mut placeholders = placeholder_set(&["value"]);
-        let arg = pat(quote!(#[step_args] args: Args));
-
-        let Err(err) = classify_step_struct(&mut extracted, &arg, &mut placeholders) else {
-            panic!("mixing #[step_args] with named args should error");
-        };
-        assert!(err
-            .to_string()
-            .contains("#[step_args] cannot be combined with named step arguments"));
+        assert_classify_step_struct(
+            |extracted| {
+                extracted.push(Arg::Step {
+                    pat: Ident::new("value", Span::call_site()),
+                    ty: parse_quote!(String),
+                });
+            },
+            &["value"],
+            quote!(#[step_args] args: Args),
+            Some("#[step_args] cannot be combined with named step arguments"),
+        );
     }
 
     #[test]
     fn rejects_missing_placeholders() {
-        let mut extracted = ExtractedArgs::default();
-        let mut placeholders = HashSet::new();
-        let arg = pat(quote!(#[step_args] args: Args));
-
-        let Err(err) = classify_step_struct(&mut extracted, &arg, &mut placeholders) else {
-            panic!("missing placeholders should error");
-        };
-        assert!(err
-            .to_string()
-            .contains("#[step_args] requires at least one placeholder"));
+        assert_classify_step_struct(
+            |_| {},
+            &[],
+            quote!(#[step_args] args: Args),
+            Some("#[step_args] requires at least one placeholder"),
+        );
     }
 
     #[test]
     fn rejects_with_from_attribute() {
-        let mut extracted = ExtractedArgs::default();
-        let mut placeholders = placeholder_set(&["value"]);
-        let arg = pat(quote!(#[step_args] #[from] args: Args));
-
-        let Err(err) = classify_step_struct(&mut extracted, &arg, &mut placeholders) else {
-            panic!("#[step_args] with #[from] should error");
-        };
-        assert!(err
-            .to_string()
-            .contains("#[step_args] cannot be combined with #[from]"));
+        assert_classify_step_struct(
+            |_| {},
+            &["value"],
+            quote!(#[step_args] #[from] args: Args),
+            Some("#[step_args] cannot be combined with #[from]"),
+        );
     }
 
     #[test]
     fn rejects_reference_types() {
-        let mut extracted = ExtractedArgs::default();
-        let mut placeholders = placeholder_set(&["value"]);
-        let arg = pat(quote!(#[step_args] args: &Args));
-
-        let Err(err) = classify_step_struct(&mut extracted, &arg, &mut placeholders) else {
-            panic!("#[step_args] references should error");
-        };
-        assert!(err
-            .to_string()
-            .contains("#[step_args] parameters must own their struct type"));
+        assert_classify_step_struct(
+            |_| {},
+            &["value"],
+            quote!(#[step_args] args: &Args),
+            Some("#[step_args] parameters must own their struct type"),
+        );
     }
 }

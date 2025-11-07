@@ -18,6 +18,36 @@ fn pat_type(tokens: TokenStream2) -> syn::PatType {
     }
 }
 
+/// Helper to execute `classify_fixture_or_step` and return the results for assertion.
+fn execute_classify_fixture_or_step(
+    placeholders_init: HashSet<String>,
+    arg_tokens: TokenStream2,
+    pat_name: &str,
+    ty_tokens: TokenStream2,
+) -> (ExtractedArgs, bool, HashSet<String>) {
+    let mut extracted = ExtractedArgs::default();
+    let mut placeholders = placeholders_init;
+    let mut arg: syn::PatType = match syn::parse2(arg_tokens) {
+        Ok(parsed) => parsed,
+        Err(err) => panic!("failed to parse argument: {err}"),
+    };
+    let pat = ident(pat_name);
+    let ty: syn::Type = match syn::parse2(ty_tokens) {
+        Ok(parsed) => parsed,
+        Err(err) => panic!("failed to parse type: {err}"),
+    };
+
+    let handled = {
+        let mut ctx = ClassificationContext::new(&mut extracted, &mut placeholders);
+        match classify_fixture_or_step(&mut ctx, &mut arg, pat, ty) {
+            Ok(value) => value,
+            Err(err) => panic!("classification should succeed: {err}"),
+        }
+    };
+
+    (extracted, handled, placeholders)
+}
+
 #[test]
 fn context_new_links_borrows() {
     let mut extracted = ExtractedArgs::default();
@@ -38,19 +68,12 @@ fn context_new_links_borrows() {
 
 #[test]
 fn classify_fixture_or_step_claims_placeholder_as_step() {
-    let mut extracted = ExtractedArgs::default();
-    let mut placeholders = HashSet::from(["value".to_string()]);
-    let mut arg: syn::PatType = parse_quote!(value: String);
-    let pat = ident("value");
-    let ty: syn::Type = parse_quote!(String);
-    let handled;
-    {
-        let mut ctx = ClassificationContext::new(&mut extracted, &mut placeholders);
-        handled = match classify_fixture_or_step(&mut ctx, &mut arg, pat, ty) {
-            Ok(value) => value,
-            Err(err) => panic!("classification should succeed: {err}"),
-        };
-    }
+    let (extracted, handled, placeholders) = execute_classify_fixture_or_step(
+        HashSet::from(["value".to_string()]),
+        quote!(value: String),
+        "value",
+        quote!(String),
+    );
 
     assert!(handled);
     assert!(placeholders.is_empty());
@@ -59,19 +82,9 @@ fn classify_fixture_or_step_claims_placeholder_as_step() {
 
 #[test]
 fn classify_fixture_or_step_falls_back_to_fixture() {
-    let mut extracted = ExtractedArgs::default();
-    let mut placeholders = HashSet::new();
-    let mut arg: syn::PatType = parse_quote!(dep: usize);
+    let (extracted, handled, _) =
+        execute_classify_fixture_or_step(HashSet::new(), quote!(dep: usize), "dep", quote!(usize));
     let pat = ident("dep");
-    let ty: syn::Type = parse_quote!(usize);
-    let handled;
-    {
-        let mut ctx = ClassificationContext::new(&mut extracted, &mut placeholders);
-        handled = match classify_fixture_or_step(&mut ctx, &mut arg, pat.clone(), ty) {
-            Ok(value) => value,
-            Err(err) => panic!("classification should succeed: {err}"),
-        };
-    }
 
     assert!(handled);
     assert!(
