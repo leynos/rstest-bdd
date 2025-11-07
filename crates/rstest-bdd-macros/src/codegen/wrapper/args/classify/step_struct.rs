@@ -122,6 +122,22 @@ mod tests {
         }
     }
 
+    /// Setup function: adds a pre-existing step struct to create a conflict.
+    fn setup_with_existing_step_struct(extracted: &mut ExtractedArgs) {
+        extracted.step_struct_idx = Some(extracted.push(Arg::StepStruct {
+            pat: Ident::new("existing", Span::call_site()),
+            ty: parse_quote!(Args),
+        }));
+    }
+
+    /// Setup function: adds a pre-existing named step argument to create a conflict.
+    fn setup_with_existing_step_arg(extracted: &mut ExtractedArgs) {
+        extracted.push(Arg::Step {
+            pat: Ident::new("value", Span::call_site()),
+            ty: parse_quote!(String),
+        });
+    }
+
     #[test]
     fn classifies_step_struct_and_clears_placeholders() {
         assert_classify_step_struct(|_| {}, &["value"], quote!(#[step_args] args: Args), None);
@@ -130,12 +146,7 @@ mod tests {
     #[test]
     fn rejects_duplicate_step_structs() {
         assert_classify_step_struct(
-            |extracted| {
-                extracted.step_struct_idx = Some(extracted.push(Arg::StepStruct {
-                    pat: Ident::new("existing", Span::call_site()),
-                    ty: parse_quote!(Args),
-                }));
-            },
+            setup_with_existing_step_struct,
             &["value"],
             quote!(#[step_args] args: Args),
             Some("only one #[step_args] parameter is permitted per step"),
@@ -145,12 +156,7 @@ mod tests {
     #[test]
     fn rejects_mix_with_named_arguments() {
         assert_classify_step_struct(
-            |extracted| {
-                extracted.push(Arg::Step {
-                    pat: Ident::new("value", Span::call_site()),
-                    ty: parse_quote!(String),
-                });
-            },
+            setup_with_existing_step_arg,
             &["value"],
             quote!(#[step_args] args: Args),
             Some("#[step_args] cannot be combined with named step arguments"),
