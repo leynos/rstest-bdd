@@ -312,17 +312,18 @@ fn validate_no_step_struct_conflict(
 
 fn classify_by_placeholder_match(
     ctx: &mut ClassificationContext,
-    target_name: &str,
     from_name: Option<syn::Ident>,
     pat: syn::Ident,
     ty: syn::Type,
 ) -> syn::Result<()> {
-    if ctx.placeholders.remove(target_name) {
-        validate_no_step_struct_conflict(ctx, target_name, &pat)?;
+    let target = from_name.clone().unwrap_or_else(|| pat.clone());
+    let target_name = target.to_string();
+    if ctx.placeholders.remove(&target_name) {
+        validate_no_step_struct_conflict(ctx, &target_name, &pat)?;
         ctx.extracted.push(Arg::Step { pat, ty });
         Ok(())
     } else {
-        validate_no_step_struct_conflict(ctx, target_name, &pat)?;
+        validate_no_step_struct_conflict(ctx, &target_name, &pat)?;
         let name = from_name.unwrap_or_else(|| pat.clone());
         ctx.extracted.push(Arg::Fixture { pat, name, ty });
         Ok(())
@@ -336,9 +337,7 @@ pub(super) fn classify_fixture_or_step(
     ty: syn::Type,
 ) -> syn::Result<bool> {
     let from_name = parse_from_attribute(arg)?;
-    let target = from_name.clone().unwrap_or_else(|| pat.clone());
-    let target_name = target.to_string();
-    classify_by_placeholder_match(ctx, &target_name, from_name, pat, ty)?;
+    classify_by_placeholder_match(ctx, from_name, pat, ty)?;
     Ok(true)
 }
 
