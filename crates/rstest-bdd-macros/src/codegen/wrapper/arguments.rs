@@ -118,10 +118,10 @@ pub(super) fn gen_docstring_decl(
 
 fn generate_missing_capture_errors(
     placeholder_names: &[syn::LitStr],
-    meta: StepMeta<'_>,
+    pattern: &syn::LitStr,
+    ident: &syn::Ident,
     pat: &syn::Ident,
 ) -> Vec<TokenStream2> {
-    let StepMeta { pattern, ident } = meta;
     placeholder_names
         .iter()
         .map(|name| {
@@ -169,9 +169,9 @@ fn gen_step_struct_decl(
     step_struct.map(|arg| {
         let StepStructArg { pat, ty } = arg;
         let values_ident = format_ident!("__rstest_bdd_struct_values");
-        let missing_errs = generate_missing_capture_errors(placeholder_names, meta, pat);
-        let capture_inits = generate_capture_initializers(captures, &missing_errs, &values_ident);
         let StepMeta { pattern, ident } = meta;
+        let missing_errs = generate_missing_capture_errors(placeholder_names, pattern, ident, pat);
+        let capture_inits = generate_capture_initializers(captures, &missing_errs, &values_ident);
         let convert_err = step_error_tokens(
             &format_ident!("ExecutionError"),
             pattern,
