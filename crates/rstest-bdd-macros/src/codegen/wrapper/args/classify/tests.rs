@@ -38,11 +38,9 @@ fn execute_classify_fixture_or_step(
         Err(err) => panic!("failed to parse type: {err}"),
     };
 
-    let handled = {
-        let mut ctx = ClassificationContext::new(&mut extracted, &mut placeholders);
-        classify_fixture_or_step(&mut ctx, &mut arg, pat, ty)
-            .expect("classification should succeed")
-    };
+    let mut ctx = ClassificationContext::new(&mut extracted, &mut placeholders);
+    let handled = classify_fixture_or_step(&mut ctx, &mut arg, pat, ty)
+        .expect("classification should succeed");
 
     (extracted, handled, placeholders)
 }
