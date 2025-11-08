@@ -38,6 +38,7 @@ mod placeholder;
 mod registry;
 pub mod reporting;
 pub mod state;
+pub mod step_args;
 mod types;
 
 /// Skip the current scenario with an optional message.
@@ -152,6 +153,7 @@ pub use registry::{duplicate_steps, find_step, lookup_step, unused_steps, Step};
 #[doc(hidden)]
 pub use skip::SkipRequest;
 pub use state::{ScenarioState, Slot};
+pub use step_args::{StepArgs, StepArgsError};
 pub use types::{
     PatternStr, PlaceholderError, PlaceholderSyntaxError, StepExecution, StepFn, StepKeyword,
     StepKeywordParseError, StepPatternError, StepText, UnsupportedStepType,

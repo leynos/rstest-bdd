@@ -15,6 +15,7 @@ mod macros;
 mod parsing;
 mod pattern;
 mod scenario_state;
+mod step_args;
 mod step_keyword;
 mod utils;
 mod validation;
@@ -137,6 +138,14 @@ pub fn scenario(attr: TokenStream, item: TokenStream) -> TokenStream {
 #[proc_macro_derive(ScenarioState)]
 pub fn derive_scenario_state(input: TokenStream) -> TokenStream {
     scenario_state::derive(input)
+}
+
+/// Derive [`StepArgs`](rstest_bdd::step_args::StepArgs) for a struct whose
+/// fields map to pattern placeholders.
+#[proc_macro_error]
+#[proc_macro_derive(StepArgs)]
+pub fn derive_step_args(input: TokenStream) -> TokenStream {
+    step_args::derive(input)
 }
 
 /// Discover all `.feature` files under the given directory and generate one

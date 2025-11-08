@@ -1,9 +1,7 @@
 //! Tests for argument preparation helpers.
 
 use super::*;
-use crate::codegen::wrapper::args::{
-    ArgumentCollections, CallArg, DataTableArg, DocStringArg, FixtureArg, StepArg,
-};
+use crate::codegen::wrapper::args::Arg;
 use quote::{format_ident, quote};
 use syn::parse_quote;
 
@@ -11,41 +9,37 @@ fn sample_meta<'a>(pattern: &'a syn::LitStr, ident: &'a syn::Ident) -> StepMeta<
     StepMeta { pattern, ident }
 }
 
-fn build_arguments() -> (Vec<FixtureArg>, Vec<StepArg>, DataTableArg, DocStringArg) {
-    let fixtures = vec![FixtureArg {
-        pat: parse_quote!(db),
-        name: parse_quote!(db),
-        ty: parse_quote!(String),
-    }];
-    let step_args = vec![StepArg {
-        pat: parse_quote!(count),
-        ty: parse_quote!(usize),
-    }];
-    let datatable = DataTableArg {
-        pat: parse_quote!(table),
-        ty: parse_quote!(Vec<Vec<String>>),
-    };
-    let docstring = DocStringArg {
-        pat: parse_quote!(doc),
-    };
-    (fixtures, step_args, datatable, docstring)
+fn build_arguments() -> Vec<Arg> {
+    vec![
+        Arg::Fixture {
+            pat: parse_quote!(db),
+            name: parse_quote!(db),
+            ty: parse_quote!(String),
+        },
+        Arg::Step {
+            pat: parse_quote!(count),
+            ty: parse_quote!(usize),
+        },
+        Arg::DataTable {
+            pat: parse_quote!(table),
+            ty: parse_quote!(Vec<Vec<String>>),
+        },
+        Arg::DocString {
+            pat: parse_quote!(doc),
+        },
+    ]
 }
 
 #[test]
 fn prepare_argument_processing_handles_all_argument_types() {
-    let (fixtures, step_args, datatable, docstring) = build_arguments();
-    let collections = ArgumentCollections {
-        fixtures: &fixtures,
-        step_args: &step_args,
-        datatable: Some(&datatable),
-        docstring: Some(&docstring),
-    };
+    let args = build_arguments();
     let pattern: syn::LitStr = parse_quote!("^pattern$");
     let ident: syn::Ident = parse_quote!(demo_step);
     let meta = sample_meta(&pattern, &ident);
 
     let ctx_ident = format_ident!("__rstest_bdd_ctx");
-    let prepared = prepare_argument_processing(&collections, meta, &ctx_ident);
+    let placeholder_names = vec![syn::LitStr::new("count", proc_macro2::Span::call_site())];
+    let prepared = prepare_argument_processing(&args, meta, &ctx_ident, &placeholder_names);
 
     assert_eq!(prepared.declares.len(), 1);
     let [fixture_stmt] = prepared.declares.as_slice() else {
@@ -77,20 +71,8 @@ fn prepare_argument_processing_handles_all_argument_types() {
 
 #[test]
 fn collect_ordered_arguments_preserves_call_order() {
-    let (fixtures, step_args, datatable, docstring) = build_arguments();
-    let collections = ArgumentCollections {
-        fixtures: &fixtures,
-        step_args: &step_args,
-        datatable: Some(&datatable),
-        docstring: Some(&docstring),
-    };
-    let order = [
-        CallArg::Fixture(0),
-        CallArg::StepArg(0),
-        CallArg::DataTable,
-        CallArg::DocString,
-    ];
-    let names: Vec<String> = collect_ordered_arguments(&order, &collections)
+    let args = build_arguments();
+    let names: Vec<String> = collect_ordered_arguments(&args)
         .into_iter()
         .map(std::string::ToString::to_string)
         .collect();
@@ -100,28 +82,28 @@ fn collect_ordered_arguments_preserves_call_order() {
 
 #[test]
 fn gen_fixture_decls_handles_reference_types() {
-    let fixtures = vec![
-        FixtureArg {
+    let fixtures = [
+        Arg::Fixture {
             pat: parse_quote!(owned_fixture),
             name: parse_quote!(owned_fixture),
             ty: parse_quote!(String),
         },
-        FixtureArg {
+        Arg::Fixture {
             pat: parse_quote!(str_fixture),
             name: parse_quote!(str_fixture),
             ty: parse_quote!(&'static str),
         },
-        FixtureArg {
+        Arg::Fixture {
             pat: parse_quote!(bytes_fixture),
             name: parse_quote!(bytes_fixture),
             ty: parse_quote!(&'static [u8]),
         },
-        FixtureArg {
+        Arg::Fixture {
             pat: parse_quote!(mut_fixture),
             name: parse_quote!(mut_fixture),
             ty: parse_quote!(&'static mut u32),
         },
-        FixtureArg {
+        Arg::Fixture {
             pat: parse_quote!(cell_fixture),
             name: parse_quote!(cell_fixture),
             ty: parse_quote!(&std::cell::RefCell<u32>),
@@ -129,7 +111,8 @@ fn gen_fixture_decls_handles_reference_types() {
     ];
     let ident: syn::Ident = parse_quote!(step_fn);
     let ctx_ident = format_ident!("__rstest_bdd_ctx");
-    let tokens = gen_fixture_decls(&fixtures, &ident, &ctx_ident);
+    let fixture_refs: Vec<_> = fixtures.iter().collect();
+    let tokens = gen_fixture_decls(&fixture_refs, &ident, &ctx_ident);
     let [owned, str_ref, bytes_ref, mut_ref, cell_ref] = tokens.as_slice() else {
         panic!("expected five fixture declarations");
     };

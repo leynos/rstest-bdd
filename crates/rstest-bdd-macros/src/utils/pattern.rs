@@ -8,6 +8,14 @@ use std::collections::HashSet;
 
 use syn::{Ident, LitStr, Result};
 
+/// Ordered and deduplicated placeholder information extracted from a pattern.
+pub(crate) struct PlaceholderSummary {
+    /// Placeholder names in textual order (duplicates preserved).
+    pub ordered: Vec<String>,
+    /// Unique placeholder names used for parameter classification.
+    pub unique: HashSet<String>,
+}
+
 /// Extract placeholder identifiers from a pattern string.
 ///
 /// The function scans the pattern for segments of the form `{name}` or
@@ -17,9 +25,10 @@ use syn::{Ident, LitStr, Result};
 /// # Errors
 /// Returns a [`syn::Error`] when the pattern contains unbalanced or stray
 /// braces.
-pub(crate) fn placeholder_names(pattern: &str) -> Result<HashSet<String>> {
+pub(crate) fn placeholder_names(pattern: &str) -> Result<PlaceholderSummary> {
     let bytes = pattern.as_bytes();
     let mut names = HashSet::new();
+    let mut ordered = Vec::new();
     let mut i = 0;
 
     while let Some(&b) = bytes.get(i) {
@@ -32,7 +41,8 @@ pub(crate) fn placeholder_names(pattern: &str) -> Result<HashSet<String>> {
                 }
 
                 let (name, next) = parse_placeholder(bytes, i)?;
-                names.insert(name);
+                let _ = names.insert(name.clone());
+                ordered.push(name);
                 i = next;
             }
             b'}' => {
@@ -49,7 +59,10 @@ pub(crate) fn placeholder_names(pattern: &str) -> Result<HashSet<String>> {
         }
     }
 
-    Ok(names)
+    Ok(PlaceholderSummary {
+        ordered,
+        unique: names,
+    })
 }
 
 /// Parse a placeholder starting at `start`, returning the name and the index of

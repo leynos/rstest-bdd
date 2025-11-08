@@ -181,6 +181,69 @@ fn check(number: i32) { assert_eq!(number, 2); }
 fn returns_value(number: i32) { let _ = number; }
 ```
 
+### Struct-based step arguments
+
+When a step pattern contains several placeholders, the corresponding function
+signatures quickly become unwieldy. Derive the `StepArgs` trait for a struct
+whose fields mirror the placeholders and annotate the relevant parameter with
+`#[step_args]` to request struct-based parsing. The attribute tells the macro
+to consume every placeholder for that parameter, while fixtures and other
+special arguments (`datatable`/`docstring`) continue to work as usual.
+
+Fields must implement `FromStr`, and the derive macro enforces the bounds
+automatically. Placeholders and struct fields must appear in the same order.
+During expansion the macro inserts a compile-time check to ensure the field
+count matches the pattern, producing a trait-bound error if the struct does not
+implement `StepArgs`.
+
+```rust
+use rstest::fixture;
+use rstest_bdd_macros::{given, scenario, then, when, StepArgs};
+
+#[derive(StepArgs)]
+struct CartInput {
+    quantity: u32,
+    item: String,
+    price: f32,
+}
+
+#[derive(Default)]
+struct Cart {
+    quantity: u32,
+    item: String,
+    price: f32,
+}
+
+impl Cart {
+    fn set(&mut self, details: &CartInput) {
+        self.quantity = details.quantity;
+        self.item = details.item.clone();
+        self.price = details.price;
+    }
+}
+
+#[fixture]
+fn cart() -> Cart { Cart::default() }
+
+#[given("a cart containing {quantity:u32} {item} at ${price:f32}")]
+fn seed_cart(#[step_args] details: CartInput, cart: &mut Cart) {
+    cart.set(&details);
+}
+
+#[then("the cart summary shows {quantity:u32} {item} at ${price:f32}")]
+fn cart_summary(#[step_args] expected: CartInput, cart: &Cart) {
+    assert_eq!(cart.quantity, expected.quantity);
+    assert_eq!(cart.item, expected.item);
+    assert!((cart.price - expected.price).abs() < f32::EPSILON);
+}
+```
+
+`#[step_args]` must not be combined with `#[from]` and cannot target reference
+types because the macro needs to own the struct to parse it. Attempting to use
+multiple `#[step_args]` parameters in a single step yields a compile-time
+error. The compiler also surfaces an error when the step pattern does not
+declare any placeholders.
+
 Example:
 
 ```rust
