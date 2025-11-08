@@ -19,6 +19,7 @@ fn pat_type(tokens: TokenStream2) -> syn::PatType {
 }
 
 /// Helper to execute `classify_fixture_or_step` and return the results for assertion.
+#[allow(clippy::expect_used)] // Tests must panic with context when classification unexpectedly fails.
 fn execute_classify_fixture_or_step(
     placeholders_init: HashSet<String>,
     arg_tokens: TokenStream2,
@@ -39,10 +40,8 @@ fn execute_classify_fixture_or_step(
 
     let handled = {
         let mut ctx = ClassificationContext::new(&mut extracted, &mut placeholders);
-        match classify_fixture_or_step(&mut ctx, &mut arg, pat, ty) {
-            Ok(value) => value,
-            Err(err) => panic!("classification should succeed: {err}"),
-        }
+        classify_fixture_or_step(&mut ctx, &mut arg, pat, ty)
+            .expect("classification should succeed")
     };
 
     (extracted, handled, placeholders)
