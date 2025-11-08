@@ -53,7 +53,7 @@ Add the crates to your **dev‑dependencies**:
 # Cargo.toml
 [dev-dependencies]
 rstest = "0.26.1"
-rstest-bdd = "0.1.0-alpha4"
+rstest-bdd = "0.1.0"
 ```
 
 Feature flags:
@@ -75,7 +75,7 @@ crate. Enable them in your `Cargo.toml` with:
 
 ```toml
 [dependencies]
-rstest-bdd-macros = { version = "0.1.0-alpha4", features = ["compile-time-validation"] }
+rstest-bdd-macros = { version = "0.1.0", features = ["compile-time-validation"] }
 ```
 
 Or via CLI:
@@ -163,6 +163,16 @@ cargo test -p your-crate -- --nocapture
 
 Everything grows on the same trellis: your fixtures, your filters
 (`cargo test search`), and your parallelism all continue to work as usual.
+
+## Internationalisation in practice
+
+Feature files can opt into another language by adding `# language: <code>` to
+the first line. The Gherkin parser loads the appropriate keyword catalogue so
+that teams can keep authoring steps in their preferred language. The
+`examples/japanese-ledger` crate shows the full workflow in Japanese, including
+Unicode step patterns and a household ledger domain. Run it with
+`cargo test -p japanese-ledger` to see two Japanese scenarios execute end to
+end.
 
 ______________________________________________________________________
 
@@ -271,6 +281,40 @@ fn create_users(
     }
 }
 ```
+
+______________________________________________________________________
+
+## Internationalization and localization
+
+Write feature files in any language supported by Gherkin. Declare the locale at
+the top of the `.feature` file and keep using the usual step macros:
+
+```gherkin
+# language: fr
+Fonctionnalité: Panier
+  Scénario: Ajouter un article
+    Étant donné un panier vide
+    Quand l'utilisateur ajoute une citrouille
+    Alors le panier contient une citrouille
+```
+
+Keyword parsing is delegated to the `gherkin` crate, so `#[given]`, `#[when]`
+and `#[then]` continue to match the translated keywords without additional
+configuration.
+
+Runtime diagnostics ship as Fluent translations bundled with the crate. English
+messages are always available; call `select_localizations` to request another
+locale before running scenarios:
+
+```rust
+use rstest_bdd::select_localizations;
+use unic_langid::langid;
+
+select_localizations(&[langid!("es")])?; // Switch diagnostics to Spanish
+```
+
+Missing translations fall back to English, and procedural macro diagnostics
+remain in English so builds stay deterministic across environments.
 
 ______________________________________________________________________
 
