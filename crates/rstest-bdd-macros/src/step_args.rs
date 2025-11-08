@@ -84,7 +84,7 @@ fn generate_field_parsing<'a>(
 ) -> (
     Vec<TokenStream2>,
     Vec<&'a syn::Ident>,
-    Vec<&'a syn::LitStr>,
+    Vec<syn::LitStr>,
     usize,
 ) {
     let parse_blocks: Vec<_> = field_infos
@@ -109,7 +109,7 @@ fn generate_field_parsing<'a>(
         })
         .collect();
     let field_idents = field_infos.iter().map(|info| &info.ident).collect();
-    let field_name_literals = field_infos.iter().map(|info| &info.name).collect();
+    let field_name_literals = field_infos.iter().map(|info| info.name.clone()).collect();
     let field_count = field_infos.len();
 
     (parse_blocks, field_idents, field_name_literals, field_count)
@@ -121,7 +121,7 @@ struct TraitImplParams<'a> {
     ty_generics: syn::TypeGenerics<'a>,
     where_clause: Option<&'a syn::WhereClause>,
     field_count: usize,
-    field_name_literals: &'a [&'a syn::LitStr],
+    field_name_literals: &'a [syn::LitStr],
     parse_fields: &'a [TokenStream2],
     construct: TokenStream2,
     runtime: TokenStream2,
