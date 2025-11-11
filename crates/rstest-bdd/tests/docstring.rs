@@ -21,10 +21,7 @@ fn capture_message(docstring: String) {
 }
 
 #[then("the captured message equals:")]
-#[expect(
-    clippy::needless_pass_by_value,
-    reason = "doc string is owned to mirror user API"
-)]
+#[allow(clippy::needless_pass_by_value)]
 #[expect(clippy::expect_used, reason = "test ensures a message was captured")]
 fn assert_message(docstring: String) {
     CAPTURED.with(|m| {
@@ -37,20 +34,14 @@ fn assert_message(docstring: String) {
 }
 
 #[given("message then value {value:i32}:")]
-#[expect(
-    clippy::needless_pass_by_value,
-    reason = "doc string is owned to mirror user API"
-)]
+#[allow(clippy::needless_pass_by_value)]
 fn doc_then_value(docstring: String, value: i32) {
     assert_eq!(docstring.trim(), "alpha");
     assert_eq!(value, 5);
 }
 
 #[given("value then message {value:i32}:")]
-#[expect(
-    clippy::needless_pass_by_value,
-    reason = "doc string is owned to mirror user API"
-)]
+#[allow(clippy::needless_pass_by_value)]
 fn value_then_doc(value: i32, docstring: String) {
     assert_eq!(value, 5);
     assert_eq!(docstring.trim(), "alpha");

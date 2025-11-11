@@ -297,7 +297,7 @@ experience by introducing more powerful and intuitive APIs.
   - [x] **Streamlined `Result` Assertions:** Introduce helper macros like
     `assert_step_ok!` and `assert_step_err!` to reduce boilerplate when testing
     `Result`-returning steps.
-  - [ ] **Refined `skip!` Macro:** Polish the macro's syntax and emit
+  - [x] **Refined `skip!` Macro:** Polish the macro's syntax and emit
     compile-time diagnostics when misused. Coverage: disallow usage outside a
     step or hook, reject calls from non-test threads, verify short-circuit
     behaviour, and preserve the message in writer outputs.

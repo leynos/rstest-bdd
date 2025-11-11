@@ -1218,6 +1218,17 @@ incrementally.
   allowing step wrappers to intercept the payload and convert it into
   `StepExecution::Skipped` without changing the surrounding control flow.
 
+  Subsequent ergonomic work tightened the macro’s scope. Attribute macros now
+  inject a per-step guard that expands a local `__rstest_bdd_call_within_step!`
+  helper. The public `skip!` macro delegates through that helper so invocations
+  outside a step or hook fail to compile with the standard
+  `cannot find macro '__rstest_bdd_call_within_step' in this scope` diagnostic,
+  making the missing context obvious. The guard records the originating file,
+  function, and thread id; `skip!` verifies that the calling thread matches the
+  one that entered the guard and panics with a descriptive message if another
+  thread attempts to short-circuit execution. This makes thread hopping bugs
+  explicit instead of silently losing the panic payload.
+
 - Extend tag filtering to recognize an `@allow_skipped` tag and provide a
   `fail_on_skipped` setting (cargo-bdd flag: `--fail-on-skipped`, env:
   `RSTEST_BDD_FAIL_ON_SKIPPED=1`). Precedence: CLI flag > env var > default

@@ -1,0 +1,13 @@
+error: cannot find macro `__rstest_bdd_call_within_step` in this scope
+ --> tests/ui_macros/skip_outside_step.rs:4:5
+  |
+4 |     bdd::skip!("outside step");
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  |
+  = note: this error originates in the macro `bdd::skip` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0601]: `main` function not found in crate `$CRATE`
+ --> tests/ui_macros/skip_outside_step.rs:5:2
+  |
+5 | }
+  |  ^ consider adding a `main` function to `$DIR/tests/ui_macros/skip_outside_step.rs`

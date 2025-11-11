@@ -12,7 +12,7 @@ static SPECIFIC_CALLED: AtomicUsize = AtomicUsize::new(0);
 fn unique_step() {}
 
 #[given("overlap {item}")]
-#[expect(clippy::needless_pass_by_value, reason = "step consumes the argument")]
+#[allow(clippy::needless_pass_by_value)]
 fn generic_step(item: String) {
     let _ = item;
     GENERIC_CALLED.fetch_add(1, Ordering::Relaxed);
