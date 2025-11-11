@@ -210,7 +210,6 @@ fn run_failing_ui_tests(t: &trybuild::TestCases) {
         UiFixtureCase::from("placeholder_missing_param.rs"),
         UiFixtureCase::from("implicit_fixture_missing.rs"),
         UiFixtureCase::from("placeholder_missing_params.rs"),
-        UiFixtureCase::from("skip_outside_step.rs"),
     ] {
         t.compile_fail(ui_fixture(case).as_std_path());
     }

@@ -106,17 +106,9 @@ fn inject_skip_scope(func: &mut syn::ItemFn) {
             line!(),
         );
     };
-    let macro_decl: syn::Stmt = parse_quote! {
-        macro_rules! __rstest_bdd_call_within_step {
-            ($callback:expr) => {{
-                $callback(&__rstest_bdd_step_scope_guard)
-            }};
-        }
-    };
     let original = func.block.clone();
     func.block = Box::new(parse_quote!({
         #scope_init
-        #macro_decl
         #original
     }));
 }

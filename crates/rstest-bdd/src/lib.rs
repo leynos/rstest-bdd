@@ -50,25 +50,13 @@ mod types;
 #[macro_export]
 macro_rules! skip {
     () => {{
-        __rstest_bdd_call_within_step!(|__rstest_bdd_scope_guard| {
-            $crate::__rstest_bdd_request_skip(__rstest_bdd_scope_guard, None)
-        })
+        $crate::__rstest_bdd_request_current_skip(None)
     }};
     ($msg:expr $(,)?) => {{
-        __rstest_bdd_call_within_step!(|__rstest_bdd_scope_guard| {
-            $crate::__rstest_bdd_request_skip(
-                __rstest_bdd_scope_guard,
-                Some(Into::<String>::into($msg)),
-            )
-        })
+        $crate::__rstest_bdd_request_current_skip(Some(Into::<String>::into($msg)))
     }};
     ($fmt:expr, $($arg:tt)*) => {{
-        __rstest_bdd_call_within_step!(|__rstest_bdd_scope_guard| {
-            $crate::__rstest_bdd_request_skip(
-                __rstest_bdd_scope_guard,
-                Some(format!($fmt, $($arg)*)),
-            )
-        })
+        $crate::__rstest_bdd_request_current_skip(Some(format!($fmt, $($arg)*)))
     }};
 }
 
@@ -164,7 +152,8 @@ pub use registry::dump_registry;
 pub use registry::{duplicate_steps, find_step, lookup_step, unused_steps, Step};
 #[doc(hidden)]
 pub use skip::{
-    enter_scope as __rstest_bdd_enter_scope, request_skip as __rstest_bdd_request_skip,
+    enter_scope as __rstest_bdd_enter_scope,
+    request_current_skip as __rstest_bdd_request_current_skip,
     ScopeKind as __rstest_bdd_scope_kind, SkipRequest, StepScopeGuard as __rstest_bdd_scope_guard,
 };
 pub use state::{ScenarioState, Slot};
