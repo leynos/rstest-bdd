@@ -21,7 +21,7 @@ fn capture_message(docstring: String) {
 }
 
 #[then("the captured message equals:")]
-#[allow(clippy::needless_pass_by_value)]
+#[allow(clippy::needless_pass_by_value)] // Clippy never emits this lint for owned `String` inputs, so #[expect] would be unfulfilled.
 #[expect(clippy::expect_used, reason = "test ensures a message was captured")]
 fn assert_message(docstring: String) {
     CAPTURED.with(|m| {
@@ -34,14 +34,14 @@ fn assert_message(docstring: String) {
 }
 
 #[given("message then value {value:i32}:")]
-#[allow(clippy::needless_pass_by_value)]
+#[allow(clippy::needless_pass_by_value)] // Clippy never emits this lint for owned `String` inputs, so #[expect] would be unfulfilled.
 fn doc_then_value(docstring: String, value: i32) {
     assert_eq!(docstring.trim(), "alpha");
     assert_eq!(value, 5);
 }
 
 #[given("value then message {value:i32}:")]
-#[allow(clippy::needless_pass_by_value)]
+#[allow(clippy::needless_pass_by_value)] // Clippy never emits this lint for owned `String` inputs, so #[expect] would be unfulfilled.
 fn value_then_doc(value: i32, docstring: String) {
     assert_eq!(value, 5);
     assert_eq!(docstring.trim(), "alpha");

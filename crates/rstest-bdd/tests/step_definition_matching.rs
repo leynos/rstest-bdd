@@ -12,7 +12,7 @@ static SPECIFIC_CALLED: AtomicUsize = AtomicUsize::new(0);
 fn unique_step() {}
 
 #[given("overlap {item}")]
-#[allow(clippy::needless_pass_by_value)]
+#[allow(clippy::needless_pass_by_value)] // Clippy never emits this lint for owned placeholder inputs, so #[expect] would be unfulfilled.
 fn generic_step(item: String) {
     let _ = item;
     GENERIC_CALLED.fetch_add(1, Ordering::Relaxed);

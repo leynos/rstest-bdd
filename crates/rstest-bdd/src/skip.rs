@@ -46,7 +46,10 @@ impl SkipRequest {
 
 /// Describes where a skip request originated.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-#[allow(clippy::exhaustive_enums, reason = "scope is intentionally open-ended")]
+#[allow(
+    clippy::exhaustive_enums,
+    reason = "Only step and hook scopes are meaningful for skip tracking"
+)]
 pub enum ScopeKind {
     /// Skip invoked from a step definition.
     Step,
@@ -122,7 +125,9 @@ impl Drop for StepScopeGuard {
     fn drop(&mut self) {
         SCOPE_STACK.with(|stack| {
             let mut stack = stack.borrow_mut();
-            let matches = stack.pop().is_some_and(|entry| entry.metadata == self.metadata);
+            let matches = stack
+                .pop()
+                .is_some_and(|entry| entry.metadata == self.metadata);
             debug_assert!(matches, "scope stack must contain matching entry");
         });
     }

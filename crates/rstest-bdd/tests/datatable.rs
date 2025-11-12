@@ -4,7 +4,7 @@ use rstest_bdd::datatable::{self, DataTableError, DataTableRow, RowSpec, Rows};
 use rstest_bdd_macros::{given, scenario, DataTable, DataTableRow};
 
 #[given("the following table:")]
-#[allow(clippy::needless_pass_by_value)]
+#[allow(clippy::needless_pass_by_value)] // Clippy never emits this lint for owned Vec inputs, so #[expect] would be unfulfilled.
 fn check_table(datatable: Vec<Vec<String>>) {
     assert_eq!(
         datatable,
@@ -19,7 +19,7 @@ fn check_table(datatable: Vec<Vec<String>>) {
 fn datatable_scenario() {}
 
 #[given("a table then value {value}:")]
-#[allow(clippy::needless_pass_by_value)]
+#[allow(clippy::needless_pass_by_value)] // Clippy never emits this lint for owned Vec inputs, so #[expect] would be unfulfilled.
 fn table_then_value(datatable: Vec<Vec<String>>, value: String) {
     assert_eq!(
         datatable,
