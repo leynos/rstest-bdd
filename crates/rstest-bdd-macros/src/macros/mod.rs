@@ -94,11 +94,13 @@ fn step_attr(attr: TokenStream, item: TokenStream, keyword: crate::StepKeyword) 
     })
 }
 
+/// Wraps a step function body with an RAII guard so the runtime can validate
+/// every call to `skip!` against the current execution scope.
 fn inject_skip_scope(func: &mut syn::ItemFn) {
     let path = crate::codegen::rstest_bdd_path();
     let ident = &func.sig.ident;
     let scope_init: syn::Stmt = parse_quote! {
-        #[allow(unused_variables)]
+        #[expect(unused_variables, reason = "RAII guard, only Drop matters")]
         let __rstest_bdd_step_scope_guard = #path::__rstest_bdd_enter_scope(
             #path::__rstest_bdd_scope_kind::Step,
             stringify!(#ident),
