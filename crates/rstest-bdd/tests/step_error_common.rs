@@ -151,14 +151,12 @@ pub fn fallible_value_step_fails() -> Result<FancyValue, FancyError> {
 
 /// Step that consumes an incoming data table.
 #[given("a step requiring a table")]
-#[allow(clippy::needless_pass_by_value)] // Clippy never emits this lint for owned DataTable fixtures, so #[expect] would be unfulfilled.
 pub fn step_needing_table(datatable: Vec<Vec<String>>) {
     let _ = datatable;
 }
 
 /// Step that consumes an incoming docstring.
 #[given("a step requiring a docstring")]
-#[allow(clippy::needless_pass_by_value)] // Clippy never emits this lint for owned docstring fixtures, so #[expect] would be unfulfilled.
 pub fn step_needing_docstring(docstring: String) {
     let _ = docstring;
 }

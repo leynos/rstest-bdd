@@ -17,7 +17,10 @@ fn compiled(pattern: &'static str) -> StepPattern {
     pat
 }
 
-#[allow(clippy::needless_pass_by_value)] // Clippy never emits this lint for owned helper inputs, so #[expect] would be unfulfilled.
+#[expect(
+    clippy::needless_pass_by_value,
+    reason = "test helper consumes the placeholder pattern by value"
+)]
 fn expect_placeholder_syntax(pat: StepPattern) -> PlaceholderSyntaxError {
     match pat.compile() {
         Err(StepPatternError::PlaceholderSyntax(e)) => e,

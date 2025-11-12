@@ -46,7 +46,7 @@ impl SkipRequest {
 
 /// Describes where a skip request originated.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-#[allow(
+#[expect(
     clippy::exhaustive_enums,
     reason = "Only step and hook scopes are meaningful for skip tracking"
 )]

@@ -9,13 +9,11 @@ use unic_langid::langid;
 
 /// Step that asserts the injected `number` fixture equals 42.
 #[given("a value")]
-#[allow(clippy::trivially_copy_pass_by_ref)] // Clippy never emits this lint for reference parameters, so #[expect] would be unfulfilled.
 fn needs_value(number: &u32) {
     assert_eq!(*number, 42);
 }
 
 #[given("a panicking value step")]
-#[allow(clippy::trivially_copy_pass_by_ref)] // Clippy never emits this lint for reference parameters, so #[expect] would be unfulfilled.
 fn panicking_value_step(number: &u32) -> Result<(), String> {
     let _ = number;
     panic!("boom happened")
