@@ -108,8 +108,7 @@ fn inject_skip_scope(func: &mut syn::ItemFn) {
             line!(),
         );
     };
-    let original = func.block.clone();
-    let original_stmts = &original.stmts;
+    let original_stmts = func.block.stmts.clone();
     func.block = Box::new(parse_quote!({
         #scope_init
         #(#original_stmts)*
