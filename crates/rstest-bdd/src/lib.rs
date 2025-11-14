@@ -49,15 +49,15 @@ mod types;
 /// last executed step instead of being recorded as skipped.
 #[macro_export]
 macro_rules! skip {
-    () => {
-        $crate::SkipRequest::raise(None)
-    };
-    ($msg:expr $(,)?) => {
-        $crate::SkipRequest::raise(Some(Into::<String>::into($msg)))
-    };
-    ($fmt:expr, $($arg:tt)*) => {
-        $crate::SkipRequest::raise(Some(format!($fmt, $($arg)*)))
-    };
+    () => {{
+        $crate::__rstest_bdd_request_current_skip(None)
+    }};
+    ($msg:expr $(,)?) => {{
+        $crate::__rstest_bdd_request_current_skip(Some(Into::<String>::into($msg)))
+    }};
+    ($fmt:expr, $($arg:tt)*) => {{
+        $crate::__rstest_bdd_request_current_skip(Some(format!($fmt, $($arg)*)))
+    }};
 }
 
 /// Assert that a [`Result`] is `Ok` and unwrap it.
@@ -151,7 +151,11 @@ pub use placeholder::extract_placeholders;
 pub use registry::dump_registry;
 pub use registry::{duplicate_steps, find_step, lookup_step, unused_steps, Step};
 #[doc(hidden)]
-pub use skip::SkipRequest;
+pub use skip::{
+    enter_scope as __rstest_bdd_enter_scope,
+    request_current_skip as __rstest_bdd_request_current_skip,
+    ScopeKind as __rstest_bdd_scope_kind, SkipRequest, StepScopeGuard as __rstest_bdd_scope_guard,
+};
 pub use state::{ScenarioState, Slot};
 pub use step_args::{StepArgs, StepArgsError};
 pub use types::{

@@ -68,12 +68,8 @@ fn fallible_result_is_two(number: Number) {
 }
 
 #[then("the fallible result fails")]
-#[expect(
-    clippy::panic,
-    reason = "failure scenario should stop before reaching this step"
-)]
-fn fallible_result_fails() {
-    panic!("fallible failure scenario should stop before assertions");
+fn fallible_result_fails() -> Result<(), &'static str> {
+    Err("fallible failure scenario should stop before assertions")
 }
 
 #[scenario(path = "tests/features/step_return.feature")]

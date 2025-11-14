@@ -19,7 +19,7 @@ fn compiled(pattern: &'static str) -> StepPattern {
 
 #[expect(
     clippy::needless_pass_by_value,
-    reason = "test helper consumes pattern"
+    reason = "test helper consumes the placeholder pattern by value"
 )]
 fn expect_placeholder_syntax(pat: StepPattern) -> PlaceholderSyntaxError {
     match pat.compile() {

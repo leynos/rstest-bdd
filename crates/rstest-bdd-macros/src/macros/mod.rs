@@ -2,6 +2,7 @@
 
 use proc_macro::TokenStream;
 use quote::quote;
+use syn::parse_quote;
 
 mod given;
 mod scenario;
@@ -23,6 +24,7 @@ use crate::utils::{
 
 fn step_attr(attr: TokenStream, item: TokenStream, keyword: crate::StepKeyword) -> TokenStream {
     let mut func = syn::parse_macro_input!(item as syn::ItemFn);
+    inject_skip_scope(&mut func);
     // TokenStream discards comments; a missing attribute or one containing only
     // whitespace infers the pattern from the function name. An explicit empty
     // string literal registers an empty pattern.
@@ -90,4 +92,25 @@ fn step_attr(attr: TokenStream, item: TokenStream, keyword: crate::StepKeyword) 
         #func
         #wrapper_code
     })
+}
+
+/// Wraps a step function body with an RAII guard so the runtime can validate
+/// every call to `skip!` against the current execution scope.
+fn inject_skip_scope(func: &mut syn::ItemFn) {
+    let path = crate::codegen::rstest_bdd_path();
+    let ident = &func.sig.ident;
+    let scope_init: syn::Stmt = parse_quote! {
+        #[expect(unused_variables, reason = "RAII guard, only Drop matters")]
+        let __rstest_bdd_step_scope_guard = #path::__rstest_bdd_enter_scope(
+            #path::__rstest_bdd_scope_kind::Step,
+            stringify!(#ident),
+            file!(),
+            line!(),
+        );
+    };
+    let original_stmts = func.block.stmts.clone();
+    func.block = Box::new(parse_quote!({
+        #scope_init
+        #(#original_stmts)*
+    }));
 }

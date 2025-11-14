@@ -42,9 +42,9 @@ serde_json = "1.0"
 cargo_metadata = "0.18"
 eyre = "0.6"
 ctor = "0.2"
-rstest-bdd = "0.1.0-alpha4"
-rstest-bdd-macros = "0.1.0-alpha4"
-rstest-bdd-patterns = "0.1.0-alpha4"
+rstest-bdd = { version = "0.1.0-alpha4", path = "crates/rstest-bdd" }
+rstest-bdd-macros = { version = "0.1.0-alpha4", path = "crates/rstest-bdd-macros" }
+rstest-bdd-patterns = { version = "0.1.0-alpha4", path = "crates/rstest-bdd-patterns" }
 log = "0.4"
 fs2 = "0.4"
 tempfile = "3.23"
