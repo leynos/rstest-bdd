@@ -16,3 +16,9 @@ panic-message-opaque-payload = <hata ayıklaması yapılamayan { $type } türün
 assert-step-ok-panic = adım hata döndürdü: { $error }
 assert-step-err-success = adım beklenmedik şekilde başarılı oldu
 assert-step-err-missing-substring = « { $display } » hatası « { $expected } » ifadesini içermiyor
+
+assert-skip-not-skipped = expected { $target } to record a skipped outcome
+assert-skip-missing-message = expected { $target } to provide a skip message containing '{ $expected }'
+assert-skip-missing-substring = skip message '{ $actual }' does not contain '{ $expected }'
+assert-skip-unexpected-message = expected { $target } not to provide a skip message
+assert-skip-flag-mismatch = expected { $target } flag '{ $flag }' to be { $expected }, but it was { $actual }

@@ -4,7 +4,11 @@ use std::panic::{catch_unwind, AssertUnwindSafe};
 
 use rstest::rstest;
 use rstest_bdd::localization::{strip_directional_isolates, ScopedLocalization};
-use rstest_bdd::{assert_step_err, assert_step_ok, panic_message};
+use rstest_bdd::reporting::{ScenarioStatus, SkippedScenario};
+use rstest_bdd::{
+    assert_scenario_skipped, assert_step_err, assert_step_ok, assert_step_skipped, panic_message,
+    StepExecution,
+};
 use unic_langid::langid;
 
 fn capture_panic_message(op: impl FnOnce()) -> String {
@@ -107,9 +111,19 @@ fn assert_step_err_panics() {
     let _ = assert_step_err!(res);
 }
 
+fn assert_step_skipped_panics() {
+    let _ = assert_step_skipped!(StepExecution::Continue { value: None });
+}
+
+fn assert_scenario_skipped_panics() {
+    let _ = assert_scenario_skipped!(ScenarioStatus::Passed);
+}
+
 #[rstest]
 #[case::assert_step_ok(assert_step_ok_panics as fn(), "l'étape a renvoyé une erreur")]
 #[case::assert_step_err(assert_step_err_panics as fn(), "l'étape a réussi")]
+#[case::assert_step_skipped(assert_step_skipped_panics as fn(), "aurait dû signaler une étape ignorée")]
+#[case::assert_scenario_skipped(assert_scenario_skipped_panics as fn(), "aurait dû signaler une étape ignorée")]
 fn assert_macros_panic_on_err_in_french(#[case] operation: fn(), #[case] expected_substring: &str) {
     assert_panic_in_french(operation, expected_substring);
 }
@@ -190,4 +204,71 @@ fn assert_step_err_panics_on_ok_in_english() {
         let _ = assert_step_err!(res);
     });
     assert_eq!(message, "step succeeded unexpectedly");
+}
+
+#[test]
+fn assert_step_skipped_returns_message() {
+    let message = assert_step_skipped!(
+        StepExecution::skipped(Some("pending dependency".into())),
+        message = "pending",
+    );
+    assert_eq!(message, Some("pending dependency".into()));
+}
+
+#[test]
+fn assert_step_skipped_accepts_none_expectation() {
+    let outcome = StepExecution::skipped(None);
+    let message = assert_step_skipped!(outcome, message_absent = true);
+    assert!(message.is_none());
+}
+
+#[test]
+fn assert_step_skipped_requires_message_when_requested() {
+    let message = capture_panic_message(|| {
+        let outcome = StepExecution::skipped(None);
+        let _ = assert_step_skipped!(outcome, message = "pending");
+    });
+    assert!(message.contains("skip message"));
+}
+
+#[test]
+fn assert_scenario_skipped_returns_details() {
+    let status = ScenarioStatus::Skipped(SkippedScenario::new(
+        Some("pending upstream".into()),
+        true,
+        false,
+    ));
+    let details = assert_scenario_skipped!(
+        status,
+        message = "pending",
+        allow_skipped = true,
+        forced_failure = false,
+    );
+    assert_eq!(details.message(), Some("pending upstream"));
+}
+
+#[test]
+fn assert_scenario_skipped_accepts_references() {
+    let status = ScenarioStatus::Skipped(SkippedScenario::new(None, false, true));
+    let details = assert_scenario_skipped!(&status, forced_failure = true);
+    assert!(details.forced_failure());
+}
+
+#[test]
+fn assert_scenario_skipped_requires_matching_flags() {
+    let message = capture_panic_message(|| {
+        let status = ScenarioStatus::Skipped(SkippedScenario::new(None, true, false));
+        let _ = assert_scenario_skipped!(status, allow_skipped = false);
+    });
+    assert!(message.contains("flag 'allow_skipped'"));
+}
+
+#[test]
+fn assert_scenario_skipped_detects_unexpected_message() {
+    let message = capture_panic_message(|| {
+        let status =
+            ScenarioStatus::Skipped(SkippedScenario::new(Some("pending".into()), true, false));
+        let _ = assert_scenario_skipped!(status, message_absent = true);
+    });
+    assert!(message.contains("not to provide"));
 }

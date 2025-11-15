@@ -16,3 +16,9 @@ panic-message-opaque-payload = <بار پانیک غیرقابل اشکال‌ز
 assert-step-ok-panic = گام خطایی برگرداند: { $error }
 assert-step-err-success = گام به‌طور غیرمنتظره موفق شد
 assert-step-err-missing-substring = خطای «{ $display }» شامل «{ $expected }» نیست
+
+assert-skip-not-skipped = expected { $target } to record a skipped outcome
+assert-skip-missing-message = expected { $target } to provide a skip message containing '{ $expected }'
+assert-skip-missing-substring = skip message '{ $actual }' does not contain '{ $expected }'
+assert-skip-unexpected-message = expected { $target } not to provide a skip message
+assert-skip-flag-mismatch = expected { $target } flag '{ $flag }' to be { $expected }, but it was { $actual }

@@ -495,6 +495,39 @@ Scenario: Behaviour pending external contract
   Given a dependent service is unavailable
 ```
 
+### Asserting skipped outcomes
+
+Tests that exercise skip-heavy flows no longer need to match on enums to verify
+that a step or scenario stopped executing. Use
+`rstest_bdd::assert_step_skipped!` to unwrap a `StepExecution::Skipped`
+outcome, optionally constraining its message, and
+`rstest_bdd::assert_scenario_skipped!` to inspect
+[`ScenarioStatus`](crate::reporting::ScenarioStatus) records. Both macros
+accept `message_absent = true` to assert that no message was provided and
+substring matching to confirm that a message contains the expected reason.
+
+```rust
+use rstest_bdd::{assert_scenario_skipped, assert_step_skipped, StepExecution};
+use rstest_bdd::reporting::{ScenarioRecord, ScenarioStatus, SkippedScenario};
+
+let outcome = StepExecution::skipped(Some("maintenance pending".into()));
+let message = assert_step_skipped!(outcome, message = "maintenance");
+assert_eq!(message, Some("maintenance pending".into()));
+
+let record = ScenarioRecord::new(
+    "features/unhappy.feature",
+    "pending work",
+    ScenarioStatus::Skipped(SkippedScenario::new(None, true, false)),
+);
+let details = assert_scenario_skipped!(
+    record.status(),
+    message_absent = true,
+    allow_skipped = true,
+    forced_failure = false,
+);
+assert!(details.allow_skipped());
+```
+
 ## Autodiscovering scenarios
 
 For large suites, it is tedious to bind each scenario manually. The

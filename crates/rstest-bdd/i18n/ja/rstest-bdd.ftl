@@ -16,3 +16,9 @@ panic-message-opaque-payload = <型 { $type } のデバッグ不可なパニッ�
 assert-step-ok-panic = ステップがエラーを返しました: { $error }
 assert-step-err-success = ステップが予期せず成功しました
 assert-step-err-missing-substring = エラー「{ $display }」に「{ $expected }」が含まれていません
+
+assert-skip-not-skipped = expected { $target } to record a skipped outcome
+assert-skip-missing-message = expected { $target } to provide a skip message containing '{ $expected }'
+assert-skip-missing-substring = skip message '{ $actual }' does not contain '{ $expected }'
+assert-skip-unexpected-message = expected { $target } not to provide a skip message
+assert-skip-flag-mismatch = expected { $target } flag '{ $flag }' to be { $expected }, but it was { $actual }

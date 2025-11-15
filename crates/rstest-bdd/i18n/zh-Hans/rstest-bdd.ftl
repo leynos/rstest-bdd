@@ -16,3 +16,9 @@ panic-message-opaque-payload = <类型为 { $type } 的不可调试 panic 负载
 assert-step-ok-panic = 步骤返回错误：{ $error }
 assert-step-err-success = 步骤意外成功
 assert-step-err-missing-substring = 错误「{ $display }」不包含「{ $expected }」
+
+assert-skip-not-skipped = expected { $target } to record a skipped outcome
+assert-skip-missing-message = expected { $target } to provide a skip message containing '{ $expected }'
+assert-skip-missing-substring = skip message '{ $actual }' does not contain '{ $expected }'
+assert-skip-unexpected-message = expected { $target } not to provide a skip message
+assert-skip-flag-mismatch = expected { $target } flag '{ $flag }' to be { $expected }, but it was { $actual }

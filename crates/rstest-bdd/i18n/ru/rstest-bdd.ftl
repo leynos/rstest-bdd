@@ -16,3 +16,9 @@ panic-message-opaque-payload = <недоступная для отладки н�
 assert-step-ok-panic = шаг вернул ошибку: { $error }
 assert-step-err-success = шаг неожиданно завершился успешно
 assert-step-err-missing-substring = ошибка «{ $display }» не содержит «{ $expected }»
+
+assert-skip-not-skipped = expected { $target } to record a skipped outcome
+assert-skip-missing-message = expected { $target } to provide a skip message containing '{ $expected }'
+assert-skip-missing-substring = skip message '{ $actual }' does not contain '{ $expected }'
+assert-skip-unexpected-message = expected { $target } not to provide a skip message
+assert-skip-flag-mismatch = expected { $target } flag '{ $flag }' to be { $expected }, but it was { $actual }

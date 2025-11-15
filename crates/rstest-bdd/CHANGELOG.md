@@ -1,5 +1,10 @@
 # Changelog
 
+## [Unreleased]
+
+- Added `assert_step_skipped!` and `assert_scenario_skipped!` macros to assert
+  skipped steps and scenario records, reducing boilerplate in behaviour tests.
+
 ## [0.1.0-alpha4] - 2025-09-30
 
 - Helper macros `assert_step_ok!` and `assert_step_err!` for concise assertions
