@@ -16,3 +16,9 @@ panic-message-opaque-payload = <{ $type } प्रकार का नॉन-�
 assert-step-ok-panic = स्टेप ने त्रुटि लौटाई: { $error }
 assert-step-err-success = स्टेप अप्रत्याशित रूप से सफल रहा
 assert-step-err-missing-substring = त्रुटि « { $display } » में « { $expected } » शामिल नहीं है
+
+assert-skip-not-skipped = expected { $target } to record a skipped outcome
+assert-skip-missing-message = expected { $target } to provide a skip message containing '{ $expected }'
+assert-skip-missing-substring = skip message '{ $actual }' does not contain '{ $expected }'
+assert-skip-unexpected-message = expected { $target } not to provide a skip message
+assert-skip-flag-mismatch = expected { $target } flag '{ $flag }' to be { $expected }, but it was { $actual }

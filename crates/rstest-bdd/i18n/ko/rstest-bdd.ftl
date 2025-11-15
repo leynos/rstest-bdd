@@ -16,3 +16,9 @@ panic-message-opaque-payload = <타입 { $type }의 디버그할 수 없는 패�
 assert-step-ok-panic = 스텝이 오류를 반환했습니다: { $error }
 assert-step-err-success = 스텝이 예기치 않게 성공했습니다
 assert-step-err-missing-substring = 오류 '{ $display }'에 '{ $expected }'가 포함되어 있지 않습니다
+
+assert-skip-not-skipped = expected { $target } to record a skipped outcome
+assert-skip-missing-message = expected { $target } to provide a skip message containing '{ $expected }'
+assert-skip-missing-substring = skip message '{ $actual }' does not contain '{ $expected }'
+assert-skip-unexpected-message = expected { $target } not to provide a skip message
+assert-skip-flag-mismatch = expected { $target } flag '{ $flag }' to be { $expected }, but it was { $actual }

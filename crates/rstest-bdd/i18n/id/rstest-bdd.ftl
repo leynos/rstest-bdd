@@ -16,3 +16,9 @@ panic-message-opaque-payload = <payload panik non-debug bertipe { $type }>
 assert-step-ok-panic = langkah mengembalikan galat: { $error }
 assert-step-err-success = langkah berhasil secara tak terduga
 assert-step-err-missing-substring = galat « { $display } » tidak memuat « { $expected } »
+
+assert-skip-not-skipped = expected { $target } to record a skipped outcome
+assert-skip-missing-message = expected { $target } to provide a skip message containing '{ $expected }'
+assert-skip-missing-substring = skip message '{ $actual }' does not contain '{ $expected }'
+assert-skip-unexpected-message = expected { $target } not to provide a skip message
+assert-skip-flag-mismatch = expected { $target } flag '{ $flag }' to be { $expected }, but it was { $actual }

@@ -301,7 +301,7 @@ experience by introducing more powerful and intuitive APIs.
     diagnostics when misused. Coverage: disallow usage outside a step or hook
     (panic with a descriptive message), reject calls from non-test threads,
     verify short-circuit behaviour, and preserve the message in writer outputs.
-  - [ ] **Skipped-Step Assertions:** Provide helper macros for verifying that
+  - [x] **Skipped-Step Assertions:** Provide helper macros for verifying that
     steps or scenarios were skipped as expected.
 
 - [ ] **State Management and Data Flow**

@@ -8,6 +8,7 @@
 extern crate self as rstest_bdd;
 
 pub mod config;
+mod macros;
 mod skip;
 
 /// Returns a greeting for the library.
@@ -41,105 +42,6 @@ pub mod state;
 pub mod step_args;
 mod types;
 
-/// Skip the current scenario with an optional message.
-///
-/// Step or hook functions may invoke the macro to stop executing the remaining
-/// steps. When the [`config::fail_on_skipped`](crate::config::fail_on_skipped)
-/// flag is enabled, scenarios without the `@allow_skipped` tag panic after the
-/// last executed step instead of being recorded as skipped.
-#[macro_export]
-macro_rules! skip {
-    () => {{
-        $crate::__rstest_bdd_request_current_skip(None)
-    }};
-    ($msg:expr $(,)?) => {{
-        $crate::__rstest_bdd_request_current_skip(Some(Into::<String>::into($msg)))
-    }};
-    ($fmt:expr, $($arg:tt)*) => {{
-        $crate::__rstest_bdd_request_current_skip(Some(format!($fmt, $($arg)*)))
-    }};
-}
-
-/// Assert that a [`Result`] is `Ok` and unwrap it.
-///
-/// Panics with a message including the error when the value is an `Err`.
-///
-/// Note: Formatting the error in the panic message requires the error type to
-/// implement [`std::fmt::Display`].
-///
-/// # Examples
-/// ```
-/// use rstest_bdd::assert_step_ok;
-///
-/// let res: Result<(), &str> = Ok(());
-/// assert_step_ok!(res);
-/// ```
-#[macro_export]
-macro_rules! assert_step_ok {
-    ($expr:expr $(,)?) => {
-        match $expr {
-            Ok(value) => value,
-            Err(e) => $crate::panic_localized!("assert-step-ok-panic", error = e),
-        }
-    };
-}
-
-/// Assert that a [`Result`] is `Err` and unwrap the error.
-///
-/// Optionally asserts that the error's display contains a substring.
-///
-/// Note: The `(expr, "substring")` form requires the error type to
-/// implement [`std::fmt::Display`] so it can be converted to a string for
-/// matching.
-///
-/// # Examples
-/// ```
-/// use rstest_bdd::assert_step_err;
-///
-/// let err: Result<(), &str> = Err("boom");
-/// let e = assert_step_err!(err, "boom");
-/// assert_eq!(e, "boom");
-/// ```
-///
-/// Single-argument form:
-/// ```
-/// use rstest_bdd::assert_step_err;
-///
-/// let err: Result<(), &str> = Err("boom");
-/// let e = assert_step_err!(err);
-/// assert_eq!(e, "boom");
-/// ```
-#[macro_export]
-macro_rules! assert_step_err {
-    ($expr:expr $(,)?) => {
-        match $expr {
-            Ok(_) => $crate::panic_localized!("assert-step-err-success"),
-            Err(e) => e,
-        }
-    };
-    ($expr:expr, $msg:expr $(,)?) => {
-        match $expr {
-            Ok(_) => $crate::panic_localized!("assert-step-err-success"),
-            Err(e) => {
-                let __rstest_bdd_display = e.to_string();
-                let __rstest_bdd_msg: &str = $msg.as_ref();
-                assert!(
-                    __rstest_bdd_display.contains(__rstest_bdd_msg),
-                    "{}",
-                    $crate::localization::message_with_args(
-                        "assert-step-err-missing-substring",
-                        |args| {
-                            args.set("display", __rstest_bdd_display.clone());
-                            args.set("expected", __rstest_bdd_msg.to_string());
-                        },
-                    )
-                );
-                e
-            }
-        }
-    };
-}
-
 pub use context::StepContext;
 pub use localization::{
     current_languages, install_localization_loader, select_localizations, LocalizationError,
@@ -162,6 +64,56 @@ pub use types::{
     PatternStr, PlaceholderError, PlaceholderSyntaxError, StepExecution, StepFn, StepKeyword,
     StepKeywordParseError, StepPatternError, StepText, UnsupportedStepType,
 };
+
+#[doc(hidden)]
+pub fn __rstest_bdd_expect_skip_message_contains(
+    actual: Option<&str>,
+    expected: &str,
+    target: &'static str,
+) {
+    match actual {
+        Some(message) if message.contains(expected) => {}
+        Some(message) => {
+            panic_localized!(
+                "assert-skip-missing-substring",
+                actual = message,
+                expected = expected,
+            );
+        }
+        None => {
+            panic_localized!(
+                "assert-skip-missing-message",
+                target = target,
+                expected = expected,
+            );
+        }
+    }
+}
+
+#[doc(hidden)]
+pub fn __rstest_bdd_expect_skip_message_absent(actual: Option<&str>, target: &'static str) {
+    if actual.is_some() {
+        panic_localized!("assert-skip-unexpected-message", target = target);
+    }
+}
+
+#[doc(hidden)]
+pub fn __rstest_bdd_expect_skip_flag(
+    actual: bool,
+    expected: bool,
+    target: &'static str,
+    flag: &'static str,
+) {
+    if actual != expected {
+        panic_localized!(
+            "assert-skip-flag-mismatch",
+            target = target,
+            flag = flag,
+            expected = expected,
+            actual = actual,
+        );
+    }
+}
 
 #[cfg(feature = "diagnostics")]
 #[ctor]
