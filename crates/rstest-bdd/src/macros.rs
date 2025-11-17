@@ -102,6 +102,32 @@ macro_rules! assert_step_err {
     };
 }
 
+#[doc(hidden)]
+#[macro_export]
+macro_rules! __rstest_bdd_assert_step_skipped_base {
+    ($expr:expr) => {
+        match $expr {
+            $crate::StepExecution::Skipped { message } => message,
+            $crate::StepExecution::Continue { .. } => {
+                $crate::panic_localized!("assert-skip-not-skipped", target = "step execution")
+            }
+        }
+    };
+}
+
+#[doc(hidden)]
+#[macro_export]
+macro_rules! __rstest_bdd_assert_scenario_skipped_base {
+    ($status:expr) => {{
+        match &$status {
+            $crate::reporting::ScenarioStatus::Skipped(details) => details.clone(),
+            _ => {
+                $crate::panic_localized!("assert-skip-not-skipped", target = "scenario status",)
+            }
+        }
+    }};
+}
+
 /// Assert that a [`StepExecution`](crate::StepExecution) represents a skipped
 /// outcome.
 ///
@@ -122,16 +148,11 @@ macro_rules! assert_step_err {
 /// ```
 #[macro_export]
 macro_rules! assert_step_skipped {
-    ($expr:expr $(,)?) => {{
-        match $expr {
-            $crate::StepExecution::Skipped { message } => message,
-            $crate::StepExecution::Continue { .. } => {
-                $crate::panic_localized!("assert-skip-not-skipped", target = "step execution",)
-            }
-        }
-    }};
+    ($expr:expr $(,)?) => {
+        $crate::__rstest_bdd_assert_step_skipped_base!($expr)
+    };
     ($expr:expr, message = $value:expr $(,)?) => {{
-        let __rstest_bdd_message = $crate::assert_step_skipped!($expr);
+        let __rstest_bdd_message = $crate::__rstest_bdd_assert_step_skipped_base!($expr);
         let __rstest_bdd_expected: String = ::std::convert::Into::into($value);
         $crate::__rstest_bdd_expect_skip_message_contains(
             __rstest_bdd_message.as_deref(),
@@ -141,7 +162,7 @@ macro_rules! assert_step_skipped {
         __rstest_bdd_message
     }};
     ($expr:expr, message_absent = $value:expr $(,)?) => {{
-        let __rstest_bdd_message = $crate::assert_step_skipped!($expr);
+        let __rstest_bdd_message = $crate::__rstest_bdd_assert_step_skipped_base!($expr);
         if $value {
             $crate::__rstest_bdd_expect_skip_message_absent(
                 __rstest_bdd_message.as_deref(),
@@ -182,19 +203,10 @@ macro_rules! assert_step_skipped {
 #[macro_export]
 macro_rules! assert_scenario_skipped {
     ($status:expr $(, $key:ident = $value:expr )* $(,)?) => {{
-        let __rstest_bdd_status = &$status;
-        let __rstest_bdd_details = match __rstest_bdd_status {
-            $crate::reporting::ScenarioStatus::Skipped(details) => details.clone(),
-            _ => {
-                $crate::panic_localized!(
-                    "assert-skip-not-skipped",
-                    target = "scenario status",
-                )
-            }
-        };
+        let __rstest_bdd_details = $crate::__rstest_bdd_assert_scenario_skipped_base!($status);
         $(
             $crate::__rstest_bdd_assert_scenario_detail!(
-                &__rstest_bdd_details,
+                __rstest_bdd_details,
                 $key,
                 $value
             );
