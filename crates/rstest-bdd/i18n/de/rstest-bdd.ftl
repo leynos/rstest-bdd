@@ -17,8 +17,8 @@ assert-step-ok-panic = Schritt gab einen Fehler zurück: { $error }
 assert-step-err-success = Schritt war unerwartet erfolgreich
 assert-step-err-missing-substring = Fehler „{ $display }“ enthält „{ $expected }“ nicht
 
-assert-skip-not-skipped = expected { $target } to record a skipped outcome
-assert-skip-missing-message = expected { $target } to provide a skip message containing '{ $expected }'
-assert-skip-missing-substring = skip message '{ $actual }' does not contain '{ $expected }'
-assert-skip-unexpected-message = expected { $target } not to provide a skip message
-assert-skip-flag-mismatch = expected { $target } flag '{ $flag }' to be { $expected }, but it was { $actual }
+assert-skip-not-skipped = Es wurde erwartet, dass { $target } ein übersprungenes Ergebnis protokolliert
+assert-skip-missing-message = Es wurde erwartet, dass { $target } eine Skip-Nachricht mit '{ $expected }' bereitstellt
+assert-skip-missing-substring = Skip-Nachricht '{ $actual }' enthält '{ $expected }' nicht
+assert-skip-unexpected-message = Es wurde erwartet, dass { $target } keine Skip-Nachricht bereitstellt
+assert-skip-flag-mismatch = Es wurde erwartet, dass das Flag '{ $flag }' von { $target } { $expected } ist, war jedoch { $actual }

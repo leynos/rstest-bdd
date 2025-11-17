@@ -17,8 +17,8 @@ assert-step-ok-panic = 스텝이 오류를 반환했습니다: { $error }
 assert-step-err-success = 스텝이 예기치 않게 성공했습니다
 assert-step-err-missing-substring = 오류 '{ $display }'에 '{ $expected }'가 포함되어 있지 않습니다
 
-assert-skip-not-skipped = expected { $target } to record a skipped outcome
-assert-skip-missing-message = expected { $target } to provide a skip message containing '{ $expected }'
-assert-skip-missing-substring = skip message '{ $actual }' does not contain '{ $expected }'
-assert-skip-unexpected-message = expected { $target } not to provide a skip message
-assert-skip-flag-mismatch = expected { $target } flag '{ $flag }' to be { $expected }, but it was { $actual }
+assert-skip-not-skipped = { $target } 이(가) 건너뛴 결과를 기록할 것으로 예상했습니다
+assert-skip-missing-message = { $target } 이(가) '{ $expected }' 를 포함하는 건너뛰기 메시지를 제공할 것으로 예상했습니다
+assert-skip-missing-substring = 건너뛰기 메시지 '{ $actual }' 에 '{ $expected }' 가 포함되어 있지 않습니다
+assert-skip-unexpected-message = { $target } 이(가) 건너뛰기 메시지를 제공하지 않을 것으로 예상했습니다
+assert-skip-flag-mismatch = { $target } 의 플래그 '{ $flag }' 이(가) { $expected } 일 것으로 예상했지만 실제로는 { $actual }였습니다

@@ -17,8 +17,8 @@ assert-step-ok-panic = krok zwrócił błąd: { $error }
 assert-step-err-success = krok zakończył się powodzeniem niespodziewanie
 assert-step-err-missing-substring = błąd « { $display } » nie zawiera « { $expected } »
 
-assert-skip-not-skipped = expected { $target } to record a skipped outcome
-assert-skip-missing-message = expected { $target } to provide a skip message containing '{ $expected }'
-assert-skip-missing-substring = skip message '{ $actual }' does not contain '{ $expected }'
-assert-skip-unexpected-message = expected { $target } not to provide a skip message
-assert-skip-flag-mismatch = expected { $target } flag '{ $flag }' to be { $expected }, but it was { $actual }
+assert-skip-not-skipped = oczekiwano, że { $target } zarejestruje pominięty wynik
+assert-skip-missing-message = oczekiwano, że { $target } dostarczy komunikat pominięcia zawierający „{ $expected }”
+assert-skip-missing-substring = komunikat pominięcia „{ $actual }” nie zawiera „{ $expected }”
+assert-skip-unexpected-message = oczekiwano, że { $target } nie dostarczy komunikatu pominięcia
+assert-skip-flag-mismatch = oczekiwano, że flaga „{ $flag }” dla { $target } będzie równa { $expected }, lecz była { $actual }

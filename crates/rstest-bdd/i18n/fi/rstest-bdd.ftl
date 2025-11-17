@@ -17,8 +17,8 @@ assert-step-ok-panic = askel palautti virheen: { $error }
 assert-step-err-success = askel onnistui odottamatta
 assert-step-err-missing-substring = virhe "{ $display }" ei sisällä "{ $expected }"
 
-assert-skip-not-skipped = expected { $target } to record a skipped outcome
-assert-skip-missing-message = expected { $target } to provide a skip message containing '{ $expected }'
-assert-skip-missing-substring = skip message '{ $actual }' does not contain '{ $expected }'
-assert-skip-unexpected-message = expected { $target } not to provide a skip message
-assert-skip-flag-mismatch = expected { $target } flag '{ $flag }' to be { $expected }, but it was { $actual }
+assert-skip-not-skipped = odotettiin, että { $target } kirjaisi ohitetun lopputuloksen
+assert-skip-missing-message = odotettiin, että { $target } antaa ohitusviestin, joka sisältää '{ $expected }'
+assert-skip-missing-substring = ohitusviesti '{ $actual }' ei sisällä '{ $expected }'
+assert-skip-unexpected-message = odotettiin, että { $target } ei anna ohitusviestiä
+assert-skip-flag-mismatch = odotettiin, että { $target } -lipun '{ $flag }' arvo olisi { $expected }, mutta se oli { $actual }

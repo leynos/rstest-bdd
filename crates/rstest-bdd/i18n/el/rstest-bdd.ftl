@@ -17,8 +17,8 @@ assert-step-ok-panic = το βήμα επέστρεψε σφάλμα: { $error }
 assert-step-err-success = το βήμα ολοκληρώθηκε απροσδόκητα με επιτυχία
 assert-step-err-missing-substring = το σφάλμα «{ $display }» δεν περιέχει «{ $expected }»
 
-assert-skip-not-skipped = expected { $target } to record a skipped outcome
-assert-skip-missing-message = expected { $target } to provide a skip message containing '{ $expected }'
-assert-skip-missing-substring = skip message '{ $actual }' does not contain '{ $expected }'
-assert-skip-unexpected-message = expected { $target } not to provide a skip message
-assert-skip-flag-mismatch = expected { $target } flag '{ $flag }' to be { $expected }, but it was { $actual }
+assert-skip-not-skipped = αναμενόταν το { $target } να καταγράψει ένα αποτέλεσμα παράκαμψης
+assert-skip-missing-message = αναμενόταν το { $target } να παρέχει μήνυμα παράκαμψης που να περιέχει «{ $expected }»
+assert-skip-missing-substring = το μήνυμα παράκαμψης «{ $actual }» δεν περιέχει «{ $expected }»
+assert-skip-unexpected-message = αναμενόταν το { $target } να μη δώσει μήνυμα παράκαμψης
+assert-skip-flag-mismatch = αναμενόταν η σημαία «{ $flag }» του { $target } να είναι { $expected }, αλλά ήταν { $actual }

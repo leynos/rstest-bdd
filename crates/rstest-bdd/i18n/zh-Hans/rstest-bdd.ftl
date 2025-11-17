@@ -17,8 +17,8 @@ assert-step-ok-panic = 步骤返回错误：{ $error }
 assert-step-err-success = 步骤意外成功
 assert-step-err-missing-substring = 错误「{ $display }」不包含「{ $expected }」
 
-assert-skip-not-skipped = expected { $target } to record a skipped outcome
-assert-skip-missing-message = expected { $target } to provide a skip message containing '{ $expected }'
-assert-skip-missing-substring = skip message '{ $actual }' does not contain '{ $expected }'
-assert-skip-unexpected-message = expected { $target } not to provide a skip message
-assert-skip-flag-mismatch = expected { $target } flag '{ $flag }' to be { $expected }, but it was { $actual }
+assert-skip-not-skipped = 期望 { $target } 记录为已跳过的结果
+assert-skip-missing-message = 期望 { $target } 提供包含 '{ $expected }' 的跳过信息
+assert-skip-missing-substring = 跳过信息 '{ $actual }' 不包含 '{ $expected }'
+assert-skip-unexpected-message = 期望 { $target } 不提供跳过信息
+assert-skip-flag-mismatch = 期望 { $target } 标志 '{ $flag }' 为 { $expected }，但实际为 { $actual }

@@ -17,8 +17,8 @@ assert-step-ok-panic = langkah mengembalikan galat: { $error }
 assert-step-err-success = langkah berhasil secara tak terduga
 assert-step-err-missing-substring = galat « { $display } » tidak memuat « { $expected } »
 
-assert-skip-not-skipped = expected { $target } to record a skipped outcome
-assert-skip-missing-message = expected { $target } to provide a skip message containing '{ $expected }'
-assert-skip-missing-substring = skip message '{ $actual }' does not contain '{ $expected }'
-assert-skip-unexpected-message = expected { $target } not to provide a skip message
-assert-skip-flag-mismatch = expected { $target } flag '{ $flag }' to be { $expected }, but it was { $actual }
+assert-skip-not-skipped = diharapkan { $target } merekam hasil yang dilewati
+assert-skip-missing-message = diharapkan { $target } menyediakan pesan skip yang berisi '{ $expected }'
+assert-skip-missing-substring = pesan skip '{ $actual }' tidak mengandung '{ $expected }'
+assert-skip-unexpected-message = diharapkan { $target } tidak menyediakan pesan skip
+assert-skip-flag-mismatch = diharapkan flag '{ $flag }' milik { $target } bernilai { $expected }, tetapi nilainya { $actual }

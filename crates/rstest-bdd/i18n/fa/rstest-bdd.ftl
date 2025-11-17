@@ -17,8 +17,8 @@ assert-step-ok-panic = گام خطایی برگرداند: { $error }
 assert-step-err-success = گام به‌طور غیرمنتظره موفق شد
 assert-step-err-missing-substring = خطای «{ $display }» شامل «{ $expected }» نیست
 
-assert-skip-not-skipped = expected { $target } to record a skipped outcome
-assert-skip-missing-message = expected { $target } to provide a skip message containing '{ $expected }'
-assert-skip-missing-substring = skip message '{ $actual }' does not contain '{ $expected }'
-assert-skip-unexpected-message = expected { $target } not to provide a skip message
-assert-skip-flag-mismatch = expected { $target } flag '{ $flag }' to be { $expected }, but it was { $actual }
+assert-skip-not-skipped = انتظار می‌رفت { $target } یک نتیجهٔ ردشده را ثبت کند
+assert-skip-missing-message = انتظار می‌رفت { $target } پیام رد کردنی ارائه کند که شامل «{ $expected }» باشد
+assert-skip-missing-substring = پیام رد کردن «{ $actual }» شامل «{ $expected }» نیست
+assert-skip-unexpected-message = انتظار می‌رفت { $target } پیام رد کردنی ارائه ندهد
+assert-skip-flag-mismatch = انتظار می‌رفت پرچم '{ $flag }' در { $target } برابر با { $expected } باشد، اما { $actual } بود

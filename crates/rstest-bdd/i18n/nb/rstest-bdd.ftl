@@ -17,8 +17,8 @@ assert-step-ok-panic = steget returnerte en feil: { $error }
 assert-step-err-success = steget lyktes uventet
 assert-step-err-missing-substring = feilen "{ $display }" inneholder ikke "{ $expected }"
 
-assert-skip-not-skipped = expected { $target } to record a skipped outcome
-assert-skip-missing-message = expected { $target } to provide a skip message containing '{ $expected }'
-assert-skip-missing-substring = skip message '{ $actual }' does not contain '{ $expected }'
-assert-skip-unexpected-message = expected { $target } not to provide a skip message
-assert-skip-flag-mismatch = expected { $target } flag '{ $flag }' to be { $expected }, but it was { $actual }
+assert-skip-not-skipped = forventet at { $target } skulle registrere et utfall som er hoppet over
+assert-skip-missing-message = forventet at { $target } skulle gi en melding for hopp som inneholder '{ $expected }'
+assert-skip-missing-substring = hopp-meldingen '{ $actual }' inneholder ikke '{ $expected }'
+assert-skip-unexpected-message = forventet at { $target } ikke skulle gi en hopp-melding
+assert-skip-flag-mismatch = forventet at flagget '{ $flag }' for { $target } skulle være { $expected }, men det var { $actual }

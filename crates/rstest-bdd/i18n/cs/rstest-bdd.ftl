@@ -17,8 +17,8 @@ assert-step-ok-panic = krok vrátil chybu: { $error }
 assert-step-err-success = krok neočekávaně uspěl
 assert-step-err-missing-substring = chyba „{ $display }“ neobsahuje „{ $expected }“
 
-assert-skip-not-skipped = expected { $target } to record a skipped outcome
-assert-skip-missing-message = expected { $target } to provide a skip message containing '{ $expected }'
-assert-skip-missing-substring = skip message '{ $actual }' does not contain '{ $expected }'
-assert-skip-unexpected-message = expected { $target } not to provide a skip message
-assert-skip-flag-mismatch = expected { $target } flag '{ $flag }' to be { $expected }, but it was { $actual }
+assert-skip-not-skipped = očekávalo se, že { $target } zaznamená přeskočený výsledek
+assert-skip-missing-message = očekávalo se, že { $target } poskytne zprávu o přeskočení obsahující '{ $expected }'
+assert-skip-missing-substring = zpráva o přeskočení '{ $actual }' neobsahuje '{ $expected }'
+assert-skip-unexpected-message = očekávalo se, že { $target } neposkytne zprávu o přeskočení
+assert-skip-flag-mismatch = očekávalo se, že příznak '{ $flag }' pro { $target } bude { $expected }, ale byl { $actual }

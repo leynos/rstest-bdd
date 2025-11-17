@@ -17,8 +17,8 @@ assert-step-ok-panic = ขั้นตอนส่งคืนข้อผิด
 assert-step-err-success = ขั้นตอนสำเร็จโดยไม่คาดคิด
 assert-step-err-missing-substring = ข้อผิดพลาด « { $display } » ไม่มี « { $expected } »
 
-assert-skip-not-skipped = expected { $target } to record a skipped outcome
-assert-skip-missing-message = expected { $target } to provide a skip message containing '{ $expected }'
-assert-skip-missing-substring = skip message '{ $actual }' does not contain '{ $expected }'
-assert-skip-unexpected-message = expected { $target } not to provide a skip message
-assert-skip-flag-mismatch = expected { $target } flag '{ $flag }' to be { $expected }, but it was { $actual }
+assert-skip-not-skipped = คาดหวังให้ { $target } บันทึกผลลัพธ์ที่ถูกข้าม
+assert-skip-missing-message = คาดหวังให้ { $target } ให้ข้อความการข้ามที่มี '{ $expected }'
+assert-skip-missing-substring = ข้อความการข้าม '{ $actual }' ไม่มี '{ $expected }'
+assert-skip-unexpected-message = คาดหวังให้ { $target } ไม่ให้ข้อความการข้าม
+assert-skip-flag-mismatch = คาดหวังให้ธง '{ $flag }' ของ { $target } เป็น { $expected } แต่กลับเป็น { $actual }

@@ -17,8 +17,8 @@ assert-step-ok-panic = ステップがエラーを返しました: { $error }
 assert-step-err-success = ステップが予期せず成功しました
 assert-step-err-missing-substring = エラー「{ $display }」に「{ $expected }」が含まれていません
 
-assert-skip-not-skipped = expected { $target } to record a skipped outcome
-assert-skip-missing-message = expected { $target } to provide a skip message containing '{ $expected }'
-assert-skip-missing-substring = skip message '{ $actual }' does not contain '{ $expected }'
-assert-skip-unexpected-message = expected { $target } not to provide a skip message
-assert-skip-flag-mismatch = expected { $target } flag '{ $flag }' to be { $expected }, but it was { $actual }
+assert-skip-not-skipped = { $target } がスキップされた結果を記録すると期待されました
+assert-skip-missing-message = { $target } が '{ $expected }' を含むスキップメッセージを提供すると期待されました
+assert-skip-missing-substring = スキップメッセージ '{ $actual }' には '{ $expected }' が含まれていません
+assert-skip-unexpected-message = { $target } がスキップメッセージを提供しないと期待されました
+assert-skip-flag-mismatch = { $target } のフラグ '{ $flag }' は { $expected } であると期待されましたが、実際は { $actual } でした

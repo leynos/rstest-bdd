@@ -151,17 +151,17 @@ macro_rules! assert_step_skipped {
     ($expr:expr $(,)?) => {
         $crate::__rstest_bdd_assert_step_skipped_base!($expr)
     };
-    ($expr:expr, message = $value:expr $(,)?) => {{
+    ($expr:expr, message = $value:expr $(,)?) => {
         let __rstest_bdd_message = $crate::__rstest_bdd_assert_step_skipped_base!($expr);
-        let __rstest_bdd_expected: String = ::std::convert::Into::into($value);
+        let __rstest_bdd_expected: String = Into::<String>::into($value);
         $crate::__rstest_bdd_expect_skip_message_contains(
             __rstest_bdd_message.as_deref(),
             __rstest_bdd_expected.as_str(),
             "step execution",
         );
         __rstest_bdd_message
-    }};
-    ($expr:expr, message_absent = $value:expr $(,)?) => {{
+    };
+    ($expr:expr, message_absent = $value:expr $(,)?) => {
         let __rstest_bdd_message = $crate::__rstest_bdd_assert_step_skipped_base!($expr);
         if $value {
             $crate::__rstest_bdd_expect_skip_message_absent(
@@ -170,10 +170,10 @@ macro_rules! assert_step_skipped {
             );
         }
         __rstest_bdd_message
-    }};
-    ($expr:expr, $($rest:tt)+) => {{
+    };
+    ($expr:expr, $($rest:tt)+) => {
         compile_error!("unsupported assert_step_skipped! arguments; expected `message = ...`");
-    }};
+    };
 }
 
 /// Assert that a [`ScenarioStatus`](crate::reporting::ScenarioStatus) recorded
@@ -221,16 +221,8 @@ macro_rules! __rstest_bdd_assert_scenario_detail {
     ($details:expr, message, None) => {{
         $crate::__rstest_bdd_expect_skip_message_absent($details.message(), "scenario status");
     }};
-    ($details:expr, message, Some($value:expr)) => {{
-        let __rstest_bdd_expected: String = ::std::convert::Into::into($value);
-        $crate::__rstest_bdd_expect_skip_message_contains(
-            $details.message(),
-            __rstest_bdd_expected.as_str(),
-            "scenario status",
-        );
-    }};
     ($details:expr, message, $value:expr) => {{
-        let __rstest_bdd_expected: String = ::std::convert::Into::into($value);
+        let __rstest_bdd_expected: String = Into::<String>::into($value);
         $crate::__rstest_bdd_expect_skip_message_contains(
             $details.message(),
             __rstest_bdd_expected.as_str(),
@@ -261,6 +253,7 @@ macro_rules! __rstest_bdd_assert_scenario_detail {
         );
     }};
     ($details:expr, $other:ident, $value:expr) => {{
+        // purpose: force-evaluation of $value to avoid unused-variable warnings
         let _ = &$value;
         compile_error!(concat!(
             "unsupported key for assert_scenario_skipped!: ",

@@ -71,22 +71,21 @@ pub fn __rstest_bdd_expect_skip_message_contains(
     expected: &str,
     target: &'static str,
 ) {
-    match actual {
-        Some(message) if message.contains(expected) => {}
-        Some(message) => {
-            panic_localized!(
-                "assert-skip-missing-substring",
-                actual = message,
-                expected = expected,
-            );
+    if let Some(message) = actual {
+        if message.contains(expected) {
+            return;
         }
-        None => {
-            panic_localized!(
-                "assert-skip-missing-message",
-                target = target,
-                expected = expected,
-            );
-        }
+        panic_localized!(
+            "assert-skip-missing-substring",
+            actual = message,
+            expected = expected,
+        );
+    } else {
+        panic_localized!(
+            "assert-skip-missing-message",
+            target = target,
+            expected = expected,
+        );
     }
 }
 

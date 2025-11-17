@@ -17,8 +17,8 @@ assert-step-ok-panic = a lépés hibát adott vissza: { $error }
 assert-step-err-success = a lépés váratlanul sikeres volt
 assert-step-err-missing-substring = a „{ $display }” hiba nem tartalmazza a „{ $expected }” értéket
 
-assert-skip-not-skipped = expected { $target } to record a skipped outcome
-assert-skip-missing-message = expected { $target } to provide a skip message containing '{ $expected }'
-assert-skip-missing-substring = skip message '{ $actual }' does not contain '{ $expected }'
-assert-skip-unexpected-message = expected { $target } not to provide a skip message
-assert-skip-flag-mismatch = expected { $target } flag '{ $flag }' to be { $expected }, but it was { $actual }
+assert-skip-not-skipped = elvártuk, hogy { $target } rögzíti az átugrott eredményt
+assert-skip-missing-message = elvártuk, hogy { $target } olyan kihagyási üzenetet adjon, amely tartalmazza a '{ $expected }' értéket
+assert-skip-missing-substring = a kihagyási üzenet '{ $actual }' nem tartalmazza a '{ $expected }' értéket
+assert-skip-unexpected-message = elvártuk, hogy { $target } ne adjon kihagyási üzenetet
+assert-skip-flag-mismatch = elvártuk, hogy { $target } '{ $flag }' jelzője { $expected } legyen, de { $actual } volt

@@ -17,8 +17,8 @@ assert-step-ok-panic = स्टेप ने त्रुटि लौटाई
 assert-step-err-success = स्टेप अप्रत्याशित रूप से सफल रहा
 assert-step-err-missing-substring = त्रुटि « { $display } » में « { $expected } » शामिल नहीं है
 
-assert-skip-not-skipped = expected { $target } to record a skipped outcome
-assert-skip-missing-message = expected { $target } to provide a skip message containing '{ $expected }'
-assert-skip-missing-substring = skip message '{ $actual }' does not contain '{ $expected }'
-assert-skip-unexpected-message = expected { $target } not to provide a skip message
-assert-skip-flag-mismatch = expected { $target } flag '{ $flag }' to be { $expected }, but it was { $actual }
+assert-skip-not-skipped = अपेक्षा थी कि { $target } एक छोड़े गए परिणाम को दर्ज करेगा
+assert-skip-missing-message = अपेक्षा थी कि { $target } एक स्किप संदेश दे जिसमें '{ $expected }' शामिल हो
+assert-skip-missing-substring = स्किप संदेश '{ $actual }' में '{ $expected }' शामिल नहीं है
+assert-skip-unexpected-message = अपेक्षा थी कि { $target } कोई स्किप संदेश नहीं देगा
+assert-skip-flag-mismatch = अपेक्षा थी कि { $target } के फ़्लैग '{ $flag }' का मान { $expected } होगा, परन्तु वह { $actual } था
