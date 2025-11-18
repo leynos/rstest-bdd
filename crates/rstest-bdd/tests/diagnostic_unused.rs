@@ -12,7 +12,8 @@ step!(StepKeyword::Given, "an unused step", noop_wrapper, &[]);
 fn reports_unused_steps() {
     let runner = find_step(StepKeyword::Given, "a used step".into())
         .unwrap_or_else(|| panic!("step not found"));
-    match runner(&StepContext::default(), "a used step", None, None) {
+    let mut ctx = StepContext::default();
+    match runner(&mut ctx, "a used step", None, None) {
         Ok(StepExecution::Continue { .. }) => {}
         Ok(StepExecution::Skipped { .. }) => panic!("step unexpectedly skipped"),
         Err(e) => panic!("execution failed: {e}"),
