@@ -16,3 +16,9 @@ panic-message-opaque-payload = <charge utile de panique non affichable de type {
 assert-step-ok-panic = l'étape a renvoyé une erreur : { $error }
 assert-step-err-success = l'étape a réussi de manière inattendue
 assert-step-err-missing-substring = l'erreur « { $display } » ne contient pas « { $expected } »
+
+assert-skip-not-skipped = { $target } n'aurait pas dû signaler une étape ignorée
+assert-skip-missing-message = { $target } devait fournir un message de saut contenant « { $expected } »
+assert-skip-missing-substring = le message de saut « { $actual } » ne contient pas « { $expected } »
+assert-skip-unexpected-message = { $target } ne devait pas fournir de message de saut
+assert-skip-flag-mismatch = le drapeau « { $flag } » pour { $target } devait valoir { $expected }, mais vaut { $actual }

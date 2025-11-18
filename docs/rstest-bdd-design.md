@@ -1927,6 +1927,22 @@ two helper macros:
 
 These macros keep test code succinct while still surfacing detailed diagnostics.
 
+### Skipped outcome assertions (2025-11-15)
+
+- Added `assert_step_skipped!(expr, message = ..?)` so unit tests can unwrap a
+  `StepExecution::Skipped` outcome without hand-written `match` expressions. An
+  optional `message_absent = true` guard asserts that no skip reason was
+  provided, whilst the string forms accept any type implementing `Into<String>`
+  and check for substring matches.
+- Added
+  `assert_scenario_skipped!(status, message/allow_skipped/forced_failure = ..)`
+  to assert that `ScenarioStatus` or `&ScenarioStatus` values represent skips.
+  The macro clones and returns the `SkippedScenario` payload so tests may make
+  stronger assertions after the helper validates message and flag invariants.
+- Both macros share diagnostic helpers that emit localised error messages for
+  missing messages or mismatched flags, ensuring failure output mirrors the
+  `assert_step_ok!` ergonomics.
+
 ## Part 4: Internationalization and Localization Roadmap
 
 ### 4.1 Phase 1: Foundational Gherkin Internationalization (target v0.4)

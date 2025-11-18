@@ -4,6 +4,7 @@ use std::path::Path;
 
 use rstest::fixture;
 use rstest_bdd as bdd;
+use rstest_bdd::assert_scenario_skipped;
 use rstest_bdd_macros::{given, scenario, then};
 use serial_test::serial;
 
@@ -154,14 +155,13 @@ fn collector_records_allowed_skip_metadata() {
     };
     assert_feature_path_suffix(record.feature_path(), "tests/features/skip.feature");
     assert_eq!(record.scenario_name(), "allowed skip");
-    match record.status() {
-        ScenarioStatus::Skipped(details) => {
-            assert_eq!(details.message(), Some("skip requested for coverage"));
-            assert!(details.allow_skipped());
-            assert!(!details.forced_failure());
-        }
-        ScenarioStatus::Passed => panic!("expected skipped status"),
-    }
+    let details = assert_scenario_skipped!(
+        record.status(),
+        message = "skip requested for coverage",
+        allow_skipped = true,
+        forced_failure = false,
+    );
+    assert_eq!(details.message(), Some("skip requested for coverage"));
 }
 
 #[test]
@@ -176,14 +176,13 @@ fn collector_marks_forced_failure_skips() {
     let [record] = records.as_slice() else {
         panic!("expected a single skip record");
     };
-    match record.status() {
-        ScenarioStatus::Skipped(details) => {
-            assert_eq!(details.message(), Some("skip requested for coverage"));
-            assert!(!details.allow_skipped());
-            assert!(details.forced_failure());
-        }
-        ScenarioStatus::Passed => panic!("expected skipped status"),
-    }
+    let details = assert_scenario_skipped!(
+        record.status(),
+        message = "skip requested for coverage",
+        allow_skipped = false,
+        forced_failure = true,
+    );
+    assert_eq!(details.message(), Some("skip requested for coverage"));
 }
 
 #[test]
@@ -211,14 +210,13 @@ fn collector_records_skips_without_message() {
     let [record] = records.as_slice() else {
         panic!("expected a single skip record without message");
     };
-    match record.status() {
-        ScenarioStatus::Skipped(details) => {
-            assert_eq!(details.message(), None);
-            assert!(details.allow_skipped());
-            assert!(!details.forced_failure());
-        }
-        ScenarioStatus::Passed => panic!("expected skipped status"),
-    }
+    let details = assert_scenario_skipped!(
+        record.status(),
+        message_absent = true,
+        allow_skipped = true,
+        forced_failure = false,
+    );
+    assert_eq!(details.message(), None);
 }
 
 #[cfg(feature = "diagnostics")]

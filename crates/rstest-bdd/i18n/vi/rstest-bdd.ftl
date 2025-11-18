@@ -16,3 +16,9 @@ panic-message-opaque-payload = <payload panic không thể gỡ lỗi của ki�
 assert-step-ok-panic = bước trả về lỗi: { $error }
 assert-step-err-success = bước thành công ngoài mong đợi
 assert-step-err-missing-substring = lỗi « { $display } » không chứa « { $expected } »
+
+assert-skip-not-skipped = mong đợi { $target } được ghi nhận là bị bỏ qua
+assert-skip-missing-message = mong đợi { $target } cung cấp thông báo bỏ qua chứa '{ $expected }'
+assert-skip-missing-substring = thông báo bỏ qua '{ $actual }' không chứa '{ $expected }'
+assert-skip-unexpected-message = mong đợi { $target } không cung cấp thông báo bỏ qua
+assert-skip-flag-mismatch = mong đợi cờ '{ $flag }' của { $target } là { $expected }, nhưng thực tế là { $actual }

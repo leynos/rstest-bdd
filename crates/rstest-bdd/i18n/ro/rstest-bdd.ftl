@@ -16,3 +16,9 @@ panic-message-opaque-payload = <încărcătură de panică opacă de tip { $type
 assert-step-ok-panic = pasul a returnat o eroare: { $error }
 assert-step-err-success = pasul a reușit neașteptat
 assert-step-err-missing-substring = eroarea „{ $display }” nu conține „{ $expected }”
+
+assert-skip-not-skipped = s-a așteptat ca { $target } să înregistreze un rezultat skip
+assert-skip-missing-message = s-a așteptat ca { $target } să furnizeze un mesaj de skip care să conțină '{ $expected }'
+assert-skip-missing-substring = mesajul de skip '{ $actual }' nu conține '{ $expected }'
+assert-skip-unexpected-message = s-a așteptat ca { $target } să nu furnizeze un mesaj de skip
+assert-skip-flag-mismatch = s-a așteptat ca flag-ul '{ $flag }' al { $target } să fie { $expected }, dar a fost { $actual }

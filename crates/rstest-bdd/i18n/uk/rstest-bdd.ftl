@@ -16,3 +16,9 @@ panic-message-opaque-payload = <непрозоре навантаження па
 assert-step-ok-panic = крок повернув помилку: { $error }
 assert-step-err-success = крок неочікувано завершився успіхом
 assert-step-err-missing-substring = помилка « { $display } » не містить « { $expected } »
+
+assert-skip-not-skipped = очікувалося, що { $target } зафіксує пропущений результат
+assert-skip-missing-message = очікувалося, що { $target } надасть повідомлення пропуску з '{ $expected }'
+assert-skip-missing-substring = повідомлення пропуску '{ $actual }' не містить '{ $expected }'
+assert-skip-unexpected-message = очікувалося, що { $target } не надасть повідомлення пропуску
+assert-skip-flag-mismatch = очікувалося, що прапорець '{ $flag }' для { $target } дорівнюватиме { $expected }, але було { $actual }

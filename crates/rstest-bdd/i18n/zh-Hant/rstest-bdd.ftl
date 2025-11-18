@@ -16,3 +16,9 @@ panic-message-opaque-payload = <型別為 { $type } 的不可除錯 panic 載荷
 assert-step-ok-panic = 步驟回傳錯誤：{ $error }
 assert-step-err-success = 步驟意外成功
 assert-step-err-missing-substring = 錯誤「{ $display }」不包含「{ $expected }」
+
+assert-skip-not-skipped = 預期 { $target } 記錄為已略過的結果
+assert-skip-missing-message = 預期 { $target } 提供包含「{ $expected }」的略過訊息
+assert-skip-missing-substring = 略過訊息「{ $actual }」不包含「{ $expected }」
+assert-skip-unexpected-message = 預期 { $target } 不會提供略過訊息
+assert-skip-flag-mismatch = 預期 { $target } 的旗標「{ $flag }」為 { $expected }，但實際為 { $actual }

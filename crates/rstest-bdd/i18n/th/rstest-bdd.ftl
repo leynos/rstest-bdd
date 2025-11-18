@@ -16,3 +16,9 @@ panic-message-opaque-payload = <เพย์โหลดแพนิคที่
 assert-step-ok-panic = ขั้นตอนส่งคืนข้อผิดพลาด: { $error }
 assert-step-err-success = ขั้นตอนสำเร็จโดยไม่คาดคิด
 assert-step-err-missing-substring = ข้อผิดพลาด « { $display } » ไม่มี « { $expected } »
+
+assert-skip-not-skipped = คาดหวังให้ { $target } บันทึกผลลัพธ์ที่ถูกข้าม
+assert-skip-missing-message = คาดหวังให้ { $target } ให้ข้อความการข้ามที่มี '{ $expected }'
+assert-skip-missing-substring = ข้อความการข้าม '{ $actual }' ไม่มี '{ $expected }'
+assert-skip-unexpected-message = คาดหวังให้ { $target } ไม่ให้ข้อความการข้าม
+assert-skip-flag-mismatch = คาดหวังให้ธง '{ $flag }' ของ { $target } เป็น { $expected } แต่กลับเป็น { $actual }

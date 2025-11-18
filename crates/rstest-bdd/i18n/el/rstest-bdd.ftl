@@ -16,3 +16,9 @@ panic-message-opaque-payload = <μη ορατό φορτίο πανικού τύ
 assert-step-ok-panic = το βήμα επέστρεψε σφάλμα: { $error }
 assert-step-err-success = το βήμα ολοκληρώθηκε απροσδόκητα με επιτυχία
 assert-step-err-missing-substring = το σφάλμα «{ $display }» δεν περιέχει «{ $expected }»
+
+assert-skip-not-skipped = αναμενόταν το { $target } να καταγράψει ένα αποτέλεσμα παράκαμψης
+assert-skip-missing-message = αναμενόταν το { $target } να παρέχει μήνυμα παράκαμψης που να περιέχει «{ $expected }»
+assert-skip-missing-substring = το μήνυμα παράκαμψης «{ $actual }» δεν περιέχει «{ $expected }»
+assert-skip-unexpected-message = αναμενόταν το { $target } να μη δώσει μήνυμα παράκαμψης
+assert-skip-flag-mismatch = αναμενόταν η σημαία «{ $flag }» του { $target } να είναι { $expected }, αλλά ήταν { $actual }

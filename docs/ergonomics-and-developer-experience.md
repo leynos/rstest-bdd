@@ -361,7 +361,23 @@ Two helper macros are provided by the `rstest-bdd` crate and re-exported:
 These simple declarative macros (`macro_rules!`) live in
 `crates/rstest-bdd/src/lib.rs`.
 
-### 4.2. Step Scaffolding
+### 4.3. Skipped Outcome Assertions
+
+**Goal:** Remove the repetitive `match` statements that tests used to assert
+`StepExecution::Skipped` or `ScenarioStatus::Skipped` outcomes.
+
+Two helpers address the common cases:
+
+- `assert_step_skipped!(outcome, message = ..? / message_absent = true)` unwraps
+  the skip payload and optionally asserts that a reason is present or absent.
+- `assert_scenario_skipped!(status, allow_skipped = .., forced_failure = ..)`
+  clones the stored `SkippedScenario` metadata, so tests can continue making
+  ad-hoc assertions after the helper verifies message and flag invariants.
+
+Both macros emit localised error messages when expectations are not met,
+mirroring the ergonomics of `assert_step_ok!` and `assert_step_err!`.
+
+### 4.4. Step Scaffolding
 
 **Goal:** Automate the creation of skeleton step definition files from a
 `.feature` file to reduce manual boilerplate.

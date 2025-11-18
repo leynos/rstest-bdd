@@ -16,3 +16,9 @@ panic-message-opaque-payload = <ikke-debugbar panik-nyttelast af typen { $type }
 assert-step-ok-panic = trinnet returnerede en fejl: { $error }
 assert-step-err-success = trinnet lykkedes uventet
 assert-step-err-missing-substring = fejlen "{ $display }" indeholder ikke "{ $expected }"
+
+assert-skip-not-skipped = det forventedes, at { $target } registrerede et sprunget udfald
+assert-skip-missing-message = det forventedes, at { $target } leverede en skip-besked med '{ $expected }'
+assert-skip-missing-substring = skip-beskeden '{ $actual }' indeholder ikke '{ $expected }'
+assert-skip-unexpected-message = det forventedes, at { $target } ikke gav en skip-besked
+assert-skip-flag-mismatch = det forventedes, at { $target }-flaget '{ $flag }' var { $expected }, men det var { $actual }

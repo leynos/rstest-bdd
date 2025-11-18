@@ -16,3 +16,9 @@ panic-message-opaque-payload = <niet-debugbare panieklading van type { $type }>
 assert-step-ok-panic = stap gaf een fout terug: { $error }
 assert-step-err-success = stap is onverwacht geslaagd
 assert-step-err-missing-substring = fout « { $display } » bevat « { $expected } » niet
+
+assert-skip-not-skipped = verwachtte dat { $target } een overgeslagen resultaat zou registreren
+assert-skip-missing-message = verwachtte dat { $target } een skip-bericht zou geven met '{ $expected }'
+assert-skip-missing-substring = skip-bericht '{ $actual }' bevat niet '{ $expected }'
+assert-skip-unexpected-message = verwachtte dat { $target } geen skip-bericht zou geven
+assert-skip-flag-mismatch = verwachtte dat vlag '{ $flag }' van { $target } { $expected } zou zijn, maar het was { $actual }

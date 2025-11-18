@@ -16,3 +16,9 @@ panic-message-opaque-payload = <nem debugolható pánik-hasznos teher { $type } 
 assert-step-ok-panic = a lépés hibát adott vissza: { $error }
 assert-step-err-success = a lépés váratlanul sikeres volt
 assert-step-err-missing-substring = a „{ $display }” hiba nem tartalmazza a „{ $expected }” értéket
+
+assert-skip-not-skipped = elvártuk, hogy { $target } rögzíti az átugrott eredményt
+assert-skip-missing-message = elvártuk, hogy { $target } olyan kihagyási üzenetet adjon, amely tartalmazza a '{ $expected }' értéket
+assert-skip-missing-substring = a kihagyási üzenet '{ $actual }' nem tartalmazza a '{ $expected }' értéket
+assert-skip-unexpected-message = elvártuk, hogy { $target } ne adjon kihagyási üzenetet
+assert-skip-flag-mismatch = elvártuk, hogy { $target } '{ $flag }' jelzője { $expected } legyen, de { $actual } volt

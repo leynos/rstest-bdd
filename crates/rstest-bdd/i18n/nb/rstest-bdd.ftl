@@ -16,3 +16,9 @@ panic-message-opaque-payload = <ikke-debuggbar panikk-nyttelast av typen { $type
 assert-step-ok-panic = steget returnerte en feil: { $error }
 assert-step-err-success = steget lyktes uventet
 assert-step-err-missing-substring = feilen "{ $display }" inneholder ikke "{ $expected }"
+
+assert-skip-not-skipped = forventet at { $target } skulle registrere et utfall som er hoppet over
+assert-skip-missing-message = forventet at { $target } skulle gi en melding for hopp som inneholder '{ $expected }'
+assert-skip-missing-substring = hopp-meldingen '{ $actual }' inneholder ikke '{ $expected }'
+assert-skip-unexpected-message = forventet at { $target } ikke skulle gi en hopp-melding
+assert-skip-flag-mismatch = forventet at flagget '{ $flag }' for { $target } skulle være { $expected }, men det var { $actual }

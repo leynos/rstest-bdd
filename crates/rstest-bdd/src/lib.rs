@@ -8,6 +8,7 @@
 extern crate self as rstest_bdd;
 
 pub mod config;
+mod macros;
 mod skip;
 
 /// Returns a greeting for the library.
@@ -37,108 +38,10 @@ mod pattern;
 mod placeholder;
 mod registry;
 pub mod reporting;
+mod skip_helpers;
 pub mod state;
 pub mod step_args;
 mod types;
-
-/// Skip the current scenario with an optional message.
-///
-/// Step or hook functions may invoke the macro to stop executing the remaining
-/// steps. When the [`config::fail_on_skipped`](crate::config::fail_on_skipped)
-/// flag is enabled, scenarios without the `@allow_skipped` tag panic after the
-/// last executed step instead of being recorded as skipped.
-#[macro_export]
-macro_rules! skip {
-    () => {{
-        $crate::__rstest_bdd_request_current_skip(None)
-    }};
-    ($msg:expr $(,)?) => {{
-        $crate::__rstest_bdd_request_current_skip(Some(Into::<String>::into($msg)))
-    }};
-    ($fmt:expr, $($arg:tt)*) => {{
-        $crate::__rstest_bdd_request_current_skip(Some(format!($fmt, $($arg)*)))
-    }};
-}
-
-/// Assert that a [`Result`] is `Ok` and unwrap it.
-///
-/// Panics with a message including the error when the value is an `Err`.
-///
-/// Note: Formatting the error in the panic message requires the error type to
-/// implement [`std::fmt::Display`].
-///
-/// # Examples
-/// ```
-/// use rstest_bdd::assert_step_ok;
-///
-/// let res: Result<(), &str> = Ok(());
-/// assert_step_ok!(res);
-/// ```
-#[macro_export]
-macro_rules! assert_step_ok {
-    ($expr:expr $(,)?) => {
-        match $expr {
-            Ok(value) => value,
-            Err(e) => $crate::panic_localized!("assert-step-ok-panic", error = e),
-        }
-    };
-}
-
-/// Assert that a [`Result`] is `Err` and unwrap the error.
-///
-/// Optionally asserts that the error's display contains a substring.
-///
-/// Note: The `(expr, "substring")` form requires the error type to
-/// implement [`std::fmt::Display`] so it can be converted to a string for
-/// matching.
-///
-/// # Examples
-/// ```
-/// use rstest_bdd::assert_step_err;
-///
-/// let err: Result<(), &str> = Err("boom");
-/// let e = assert_step_err!(err, "boom");
-/// assert_eq!(e, "boom");
-/// ```
-///
-/// Single-argument form:
-/// ```
-/// use rstest_bdd::assert_step_err;
-///
-/// let err: Result<(), &str> = Err("boom");
-/// let e = assert_step_err!(err);
-/// assert_eq!(e, "boom");
-/// ```
-#[macro_export]
-macro_rules! assert_step_err {
-    ($expr:expr $(,)?) => {
-        match $expr {
-            Ok(_) => $crate::panic_localized!("assert-step-err-success"),
-            Err(e) => e,
-        }
-    };
-    ($expr:expr, $msg:expr $(,)?) => {
-        match $expr {
-            Ok(_) => $crate::panic_localized!("assert-step-err-success"),
-            Err(e) => {
-                let __rstest_bdd_display = e.to_string();
-                let __rstest_bdd_msg: &str = $msg.as_ref();
-                assert!(
-                    __rstest_bdd_display.contains(__rstest_bdd_msg),
-                    "{}",
-                    $crate::localization::message_with_args(
-                        "assert-step-err-missing-substring",
-                        |args| {
-                            args.set("display", __rstest_bdd_display.clone());
-                            args.set("expected", __rstest_bdd_msg.to_string());
-                        },
-                    )
-                );
-                e
-            }
-        }
-    };
-}
 
 pub use context::StepContext;
 pub use localization::{
@@ -155,6 +58,14 @@ pub use skip::{
     enter_scope as __rstest_bdd_enter_scope,
     request_current_skip as __rstest_bdd_request_current_skip,
     ScopeKind as __rstest_bdd_scope_kind, SkipRequest, StepScopeGuard as __rstest_bdd_scope_guard,
+};
+#[doc(hidden)]
+pub use skip_helpers::{
+    __rstest_bdd_assert_scenario_detail_flag, __rstest_bdd_assert_scenario_detail_message_absent,
+    __rstest_bdd_assert_scenario_detail_message_contains,
+    __rstest_bdd_assert_step_skipped_message_absent,
+    __rstest_bdd_assert_step_skipped_message_contains, __rstest_bdd_expect_skip_flag,
+    __rstest_bdd_expect_skip_message_absent, __rstest_bdd_expect_skip_message_contains,
 };
 pub use state::{ScenarioState, Slot};
 pub use step_args::{StepArgs, StepArgsError};

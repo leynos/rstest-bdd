@@ -16,3 +16,9 @@ panic-message-opaque-payload = <läpinäkymätön paniikin hyötykuorma tyyppiä
 assert-step-ok-panic = askel palautti virheen: { $error }
 assert-step-err-success = askel onnistui odottamatta
 assert-step-err-missing-substring = virhe "{ $display }" ei sisällä "{ $expected }"
+
+assert-skip-not-skipped = odotettiin, että { $target } kirjaisi ohitetun lopputuloksen
+assert-skip-missing-message = odotettiin, että { $target } antaa ohitusviestin, joka sisältää '{ $expected }'
+assert-skip-missing-substring = ohitusviesti '{ $actual }' ei sisällä '{ $expected }'
+assert-skip-unexpected-message = odotettiin, että { $target } ei anna ohitusviestiä
+assert-skip-flag-mismatch = odotettiin, että { $target } -lipun '{ $flag }' arvo olisi { $expected }, mutta se oli { $actual }
