@@ -97,6 +97,43 @@ pub fn __rstest_bdd_expect_skip_message_absent(actual: Option<&str>, target: &'s
 }
 
 #[doc(hidden)]
+pub fn __rstest_bdd_assert_step_skipped_message_contains<E: Into<String>>(
+    exec: StepExecution,
+    expected: E,
+) -> Option<String> {
+    let message = match exec {
+        StepExecution::Skipped { message } => message,
+        StepExecution::Continue { .. } => {
+            panic_localized!("assert-skip-not-skipped", target = "step execution")
+        }
+    };
+    let expected_str: String = expected.into();
+    __rstest_bdd_expect_skip_message_contains(
+        message.as_deref(),
+        expected_str.as_str(),
+        "step execution",
+    );
+    message
+}
+
+#[doc(hidden)]
+pub fn __rstest_bdd_assert_step_skipped_message_absent(
+    exec: StepExecution,
+    expect_absent: bool,
+) -> Option<String> {
+    let message = match exec {
+        StepExecution::Skipped { message } => message,
+        StepExecution::Continue { .. } => {
+            panic_localized!("assert-skip-not-skipped", target = "step execution")
+        }
+    };
+    if expect_absent {
+        __rstest_bdd_expect_skip_message_absent(message.as_deref(), "step execution");
+    }
+    message
+}
+
+#[doc(hidden)]
 pub fn __rstest_bdd_expect_skip_flag(
     actual: bool,
     expected: bool,
@@ -112,6 +149,40 @@ pub fn __rstest_bdd_expect_skip_flag(
             actual = actual,
         );
     }
+}
+
+#[doc(hidden)]
+pub fn __rstest_bdd_assert_scenario_detail_message_contains<E: Into<String>>(
+    details: &crate::reporting::SkippedScenario,
+    expected: E,
+) {
+    let expected_str: String = expected.into();
+    __rstest_bdd_expect_skip_message_contains(
+        details.message(),
+        expected_str.as_str(),
+        "scenario status",
+    );
+}
+
+#[doc(hidden)]
+pub fn __rstest_bdd_assert_scenario_detail_message_absent(
+    details: &crate::reporting::SkippedScenario,
+    expect_absent: bool,
+) {
+    if expect_absent {
+        __rstest_bdd_expect_skip_message_absent(details.message(), "scenario status");
+    }
+}
+
+#[doc(hidden)]
+pub fn __rstest_bdd_assert_scenario_detail_flag(
+    details: &crate::reporting::SkippedScenario,
+    flag_name: &'static str,
+    flag_value: bool,
+    expected: bool,
+) {
+    let _ = details;
+    __rstest_bdd_expect_skip_flag(flag_value, expected, "scenario status", flag_name);
 }
 
 #[cfg(feature = "diagnostics")]

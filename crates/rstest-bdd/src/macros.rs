@@ -152,27 +152,15 @@ macro_rules! assert_step_skipped {
         $crate::__rstest_bdd_assert_step_skipped_base!($expr)
     };
     ($expr:expr, message = $value:expr $(,)?) => {
-        let __rstest_bdd_message = $crate::__rstest_bdd_assert_step_skipped_base!($expr);
-        let __rstest_bdd_expected: String = Into::<String>::into($value);
-        $crate::__rstest_bdd_expect_skip_message_contains(
-            __rstest_bdd_message.as_deref(),
-            __rstest_bdd_expected.as_str(),
-            "step execution",
-        );
-        __rstest_bdd_message
+        $crate::__rstest_bdd_assert_step_skipped_message_contains($expr, $value)
     };
     ($expr:expr, message_absent = $value:expr $(,)?) => {
-        let __rstest_bdd_message = $crate::__rstest_bdd_assert_step_skipped_base!($expr);
-        if $value {
-            $crate::__rstest_bdd_expect_skip_message_absent(
-                __rstest_bdd_message.as_deref(),
-                "step execution",
-            );
-        }
-        __rstest_bdd_message
+        $crate::__rstest_bdd_assert_step_skipped_message_absent($expr, $value)
     };
     ($expr:expr, $($rest:tt)+) => {
-        compile_error!("unsupported assert_step_skipped! arguments; expected `message = ...`");
+        compile_error!(
+            "unsupported assert_step_skipped! arguments; expected `message = ...` or `message_absent = ...`",
+        );
     };
 }
 
@@ -218,40 +206,31 @@ macro_rules! assert_scenario_skipped {
 #[doc(hidden)]
 #[macro_export]
 macro_rules! __rstest_bdd_assert_scenario_detail {
-    ($details:expr, message, None) => {{
-        $crate::__rstest_bdd_expect_skip_message_absent($details.message(), "scenario status");
-    }};
-    ($details:expr, message, $value:expr) => {{
-        let __rstest_bdd_expected: String = Into::<String>::into($value);
-        $crate::__rstest_bdd_expect_skip_message_contains(
-            $details.message(),
-            __rstest_bdd_expected.as_str(),
-            "scenario status",
-        );
-    }};
-    ($details:expr, message_absent, $value:expr) => {{
-        if $value {
-            $crate::__rstest_bdd_expect_skip_message_absent($details.message(), "scenario status");
-        }
-    }};
-    ($details:expr, allow_skipped, $value:expr) => {{
-        let __rstest_bdd_expected_bool: bool = $value;
-        $crate::__rstest_bdd_expect_skip_flag(
-            $details.allow_skipped(),
-            __rstest_bdd_expected_bool,
-            "scenario status",
+    ($details:expr, message, None) => {
+        $crate::__rstest_bdd_assert_scenario_detail_message_absent(&$details, true)
+    };
+    ($details:expr, message, $value:expr) => {
+        $crate::__rstest_bdd_assert_scenario_detail_message_contains(&$details, $value)
+    };
+    ($details:expr, message_absent, $value:expr) => {
+        $crate::__rstest_bdd_assert_scenario_detail_message_absent(&$details, $value)
+    };
+    ($details:expr, allow_skipped, $value:expr) => {
+        $crate::__rstest_bdd_assert_scenario_detail_flag(
+            &$details,
             "allow_skipped",
-        );
-    }};
-    ($details:expr, forced_failure, $value:expr) => {{
-        let __rstest_bdd_expected_bool: bool = $value;
-        $crate::__rstest_bdd_expect_skip_flag(
-            $details.forced_failure(),
-            __rstest_bdd_expected_bool,
-            "scenario status",
+            $details.allow_skipped(),
+            $value,
+        )
+    };
+    ($details:expr, forced_failure, $value:expr) => {
+        $crate::__rstest_bdd_assert_scenario_detail_flag(
+            &$details,
             "forced_failure",
-        );
-    }};
+            $details.forced_failure(),
+            $value,
+        )
+    };
     ($details:expr, $other:ident, $value:expr) => {{
         // purpose: force-evaluation of $value to avoid unused-variable warnings
         let _ = &$value;
