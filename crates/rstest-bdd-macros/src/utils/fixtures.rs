@@ -38,10 +38,12 @@ pub(crate) fn extract_function_fixtures(
                 &format!("__rstest_bdd_cell_{binding}"),
                 proc_macro2::Span::call_site(),
             );
+            let binding_fresh =
+                syn::Ident::new(&binding.to_string(), proc_macro2::Span::call_site());
             prelude.push(quote! {
                 #[allow(unused_mut)]
-                let mut #binding = #binding;
-                let #cell_ident = ::std::cell::RefCell::new(Box::new(#binding));
+                let mut #binding_fresh = #binding;
+                let #cell_ident = ::std::cell::RefCell::new(Box::new(#binding_fresh));
             });
             inserts.push(quote! { ctx.insert_owned::<#ty>(#name_lit, &#cell_ident); });
             postlude.push(quote! {
