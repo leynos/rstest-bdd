@@ -122,8 +122,8 @@ fn assert_scenario_skipped_panics() {
 #[rstest]
 #[case::assert_step_ok(assert_step_ok_panics as fn(), "l'étape a renvoyé une erreur")]
 #[case::assert_step_err(assert_step_err_panics as fn(), "l'étape a réussi")]
-#[case::assert_step_skipped(assert_step_skipped_panics as fn(), "aurait dû signaler une étape ignorée")]
-#[case::assert_scenario_skipped(assert_scenario_skipped_panics as fn(), "aurait dû signaler une étape ignorée")]
+#[case::assert_step_skipped(assert_step_skipped_panics as fn(), "n'aurait pas dû signaler une étape ignorée")]
+#[case::assert_scenario_skipped(assert_scenario_skipped_panics as fn(), "n'aurait pas dû signaler une étape ignorée")]
 fn assert_macros_panic_on_err_in_french(#[case] operation: fn(), #[case] expected_substring: &str) {
     assert_panic_in_french(operation, expected_substring);
 }
