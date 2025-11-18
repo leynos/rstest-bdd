@@ -117,6 +117,7 @@ pub fn __rstest_bdd_assert_step_skipped_message_contains<E: Into<String>>(
 }
 
 #[doc(hidden)]
+#[must_use]
 pub fn __rstest_bdd_assert_step_skipped_message_absent(
     exec: StepExecution,
     expect_absent: bool,
