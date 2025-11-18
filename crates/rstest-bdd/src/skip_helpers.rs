@@ -144,6 +144,5 @@ pub fn __rstest_bdd_assert_scenario_detail_flag(
     flag_value: bool,
     expected: bool,
 ) {
-    let _ = details;
     __rstest_bdd_expect_skip_flag(flag_value, expected, "scenario status", flag_name);
 }
