@@ -77,6 +77,7 @@ const RUST_KEYWORDS: &[&str] = &[
 #[cfg(test)]
 mod tests {
     use super::sanitize_ident;
+    use rstest::rstest;
 
     #[test]
     fn sanitizes_invalid_identifiers() {
@@ -110,20 +111,21 @@ mod tests {
         assert_eq!(sanitize_ident("a--b__c"), "a_b_c");
     }
 
-    #[test]
-    fn sanitizes_all_non_alnum() {
-        assert_eq!(sanitize_ident("!!!"), "_");
-        assert_eq!(sanitize_ident("🙈🙉🙊"), "_");
+    #[rstest]
+    #[case("!!!")]
+    #[case("🙈🙉🙊")]
+    fn sanitizes_inputs_made_entirely_of_non_alphanumeric_chars(#[case] input: &str) {
+        assert_eq!(sanitize_ident(input), "_");
     }
 
-    #[test]
-    fn sanitizes_trailing_punctuation() {
-        assert_eq!(sanitize_ident("abc!!!"), "abc");
-    }
-
-    #[test]
-    fn trims_trailing_underscores() {
-        assert_eq!(sanitize_ident("hello!"), "hello");
-        assert_eq!(sanitize_ident("end__"), "end");
+    #[rstest]
+    #[case("abc!!!", "abc")]
+    #[case("hello!", "hello")]
+    #[case("end__", "end")]
+    fn trims_trailing_punctuation_and_redundant_underscores(
+        #[case] input: &str,
+        #[case] expected: &str,
+    ) {
+        assert_eq!(sanitize_ident(input), expected);
     }
 }
