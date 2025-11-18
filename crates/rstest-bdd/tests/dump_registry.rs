@@ -16,7 +16,8 @@ step!(StepKeyword::Given, "dump unused", noop_wrapper, &[]);
 
 fn execute_and_validate_step(keyword: StepKeyword, pattern: &str) {
     let runner = find_step(keyword, pattern.into()).unwrap_or_else(|| panic!("step not found"));
-    match runner(&StepContext::default(), pattern, None, None) {
+    let mut ctx = StepContext::default();
+    match runner(&mut ctx, pattern, None, None) {
         Ok(StepExecution::Continue { .. }) => {}
         Ok(StepExecution::Skipped { .. }) => panic!("step unexpectedly skipped"),
         Err(e) => panic!("execution failed: {e}"),

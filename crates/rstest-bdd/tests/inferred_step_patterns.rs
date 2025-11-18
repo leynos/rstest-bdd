@@ -44,10 +44,10 @@ fn r#match_logs_in() {}
 #[case(StepKeyword::Given, "with numbers 2")]
 #[case(StepKeyword::When, "match logs in")]
 fn steps_with_inferred_patterns_execute(#[case] kw: StepKeyword, #[case] pattern: &str) {
-    let ctx = StepContext::default();
+    let mut ctx = StepContext::default();
     #[expect(clippy::expect_used, reason = "test ensures step exists")]
     let step_fn = find_step(kw, pattern.into()).expect("step not found");
-    if let Err(e) = step_fn(&ctx, pattern, None, None) {
+    if let Err(e) = step_fn(&mut ctx, pattern, None, None) {
         panic!("step failed: {e:?}");
     }
 }

@@ -194,16 +194,6 @@ fn gen_step_struct_decl(
     })
 }
 
-fn is_unsized_reference_target(ty: &syn::Type) -> bool {
-    matches!(
-        ty,
-        syn::Type::Slice(_) | syn::Type::TraitObject(_) | syn::Type::ImplTrait(_)
-    ) || matches!(
-        ty,
-        syn::Type::Path(path) if path.qself.is_none() && path.path.is_ident("str")
-    )
-}
-
 /// Generate declarations for fixture values.
 ///
 /// Non-reference fixtures must implement [`Clone`] because wrappers clone
@@ -220,43 +210,77 @@ pub(super) fn gen_fixture_decls(
                 unreachable!("fixture vector must contain fixtures");
             };
             let path = crate::codegen::rstest_bdd_path();
-            let (lookup_ty, post_get, ty_label) = match ty {
-                syn::Type::Reference(reference) if reference.mutability.is_some() => (
-                    quote! { #ty },
-                    quote! { .map(|value| &mut **value) },
-                    quote! { stringify!(#ty) },
-                ),
+            let guard_ident = format_ident!("__rstest_bdd_guard_{}", pat);
+            match ty {
+                syn::Type::Reference(reference) if reference.mutability.is_some() => {
+                    let elem = &*reference.elem;
+                    quote! {
+                        let mut #guard_ident = #ctx_ident
+                            .borrow_mut::<#elem>(stringify!(#name))
+                            .ok_or_else(|| #path::StepError::MissingFixture {
+                                name: stringify!(#name).to_string(),
+                                ty: stringify!(#elem).to_string(),
+                                step: stringify!(#ident).to_string(),
+                            })?;
+                        let #pat: #ty = #guard_ident.value_mut();
+                    }
+                }
                 syn::Type::Reference(reference) => {
                     let elem = &*reference.elem;
                     if is_unsized_reference_target(elem) {
-                        (
-                            quote! { #ty },
-                            quote! { .copied() },
-                            quote! { stringify!(#ty) },
-                        )
+                        quote! {
+                            let #guard_ident = #ctx_ident
+                                .borrow_ref::<#ty>(stringify!(#name))
+                                .ok_or_else(|| #path::StepError::MissingFixture {
+                                    name: stringify!(#name).to_string(),
+                                    ty: stringify!(#ty).to_string(),
+                                    step: stringify!(#ident).to_string(),
+                                })?;
+                            let #pat: #ty = #guard_ident.value();
+                        }
                     } else {
-                        (
-                            quote! { #elem },
-                            TokenStream2::new(),
-                            quote! { stringify!(#elem) },
-                        )
+                        let owned_guard = format_ident!("__rstest_bdd_guard_owned_{pat}");
+                        let shared_guard = format_ident!("__rstest_bdd_guard_shared_{pat}");
+                        quote! {
+                            let mut #owned_guard: ::std::option::Option<#path::FixtureRef<'_, #elem>> = None;
+                            let mut #shared_guard: ::std::option::Option<#path::FixtureRef<'_, #ty>> = None;
+                            let #pat: #ty;
+                            if let Some(guard) = #ctx_ident.borrow_ref::<#elem>(stringify!(#name)) {
+                                #owned_guard = Some(guard);
+                                #pat = #owned_guard
+                                    .as_ref()
+                                    .expect("fixture guard stored")
+                                    .value();
+                            } else {
+                                #shared_guard = Some(
+                                    #ctx_ident
+                                        .borrow_ref::<#ty>(stringify!(#name))
+                                        .ok_or_else(|| #path::StepError::MissingFixture {
+                                            name: stringify!(#name).to_string(),
+                                            ty: stringify!(#ty).to_string(),
+                                            step: stringify!(#ident).to_string(),
+                                        })?
+                                );
+                                #pat = *#shared_guard
+                                    .as_ref()
+                                    .expect("fixture guard stored")
+                                    .value();
+                            }
+                        }
                     }
                 }
-                _ => (
-                    quote! { #ty },
-                    quote! { .cloned() },
-                    quote! { stringify!(#ty) },
-                ),
-            };
-            quote! {
-                let #pat: #ty = #ctx_ident
-                    .get::<#lookup_ty>(stringify!(#name))
-                    #post_get
-                    .ok_or_else(|| #path::StepError::MissingFixture {
-                        name: stringify!(#name).to_string(),
-                        ty: (#ty_label).to_string(),
-                        step: stringify!(#ident).to_string(),
-                    })?;
+                _ => {
+                    quote! {
+                        let #guard_ident = #ctx_ident
+                            .borrow_ref::<#ty>(stringify!(#name))
+                            .ok_or_else(|| #path::StepError::MissingFixture {
+                                name: stringify!(#name).to_string(),
+                                ty: stringify!(#ty).to_string(),
+                                step: stringify!(#ident).to_string(),
+                            })?;
+                        let #pat: #ty = #guard_ident.value().clone();
+                    }
+                }
             }
         })
         .collect()
@@ -380,3 +404,12 @@ pub(super) fn collect_ordered_arguments(args: &[Arg]) -> Vec<&syn::Ident> {
 
 #[cfg(test)]
 mod tests;
+fn is_unsized_reference_target(ty: &syn::Type) -> bool {
+    matches!(
+        ty,
+        syn::Type::Slice(_) | syn::Type::TraitObject(_) | syn::Type::ImplTrait(_)
+    ) || matches!(
+        ty,
+        syn::Type::Path(path) if path.qself.is_none() && path.path.is_ident("str")
+    )
+}

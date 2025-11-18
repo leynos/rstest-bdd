@@ -158,7 +158,7 @@ fn assemble_wrapper_function(
 
     quote! {
         fn #wrapper_ident(
-            #ctx_ident: &#path::StepContext<'_>,
+            #ctx_ident: &mut #path::StepContext<'_>,
             #text_ident: &str,
             _docstring: Option<&str>,
             _table: Option<&[&[&str]]>,

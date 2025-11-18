@@ -43,7 +43,7 @@ pub mod state;
 pub mod step_args;
 mod types;
 
-pub use context::StepContext;
+pub use context::{FixtureRef, FixtureRefMut, StepContext};
 pub use localization::{
     current_languages, install_localization_loader, select_localizations, LocalizationError,
     Localizations,

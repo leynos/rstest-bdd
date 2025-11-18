@@ -13,7 +13,7 @@ fn sample() {}
     reason = "wrapper must match StepFn signature"
 )]
 fn wrapper(
-    ctx: &StepContext<'_>,
+    ctx: &mut StepContext<'_>,
     _text: &str,
     _docstring: Option<&str>,
     _table: Option<&[&[&str]]>,
@@ -27,7 +27,7 @@ fn wrapper(
 step!(rstest_bdd::StepKeyword::When, "behavioural", wrapper, &[]);
 
 fn failing_wrapper(
-    ctx: &StepContext<'_>,
+    ctx: &mut StepContext<'_>,
     _text: &str,
     _docstring: Option<&str>,
     _table: Option<&[&[&str]]>,
@@ -48,7 +48,7 @@ step!(
 );
 
 fn panicking_wrapper(
-    ctx: &StepContext<'_>,
+    ctx: &mut StepContext<'_>,
     _text: &str,
     _docstring: Option<&str>,
     _table: Option<&[&[&str]]>,
@@ -71,7 +71,7 @@ step!(
 );
 
 fn needs_fixture_wrapper(
-    ctx: &StepContext<'_>,
+    ctx: &mut StepContext<'_>,
     _text: &str,
     _docstring: Option<&str>,
     _table: Option<&[&[&str]]>,
@@ -126,7 +126,8 @@ fn wrapper_handles_panic_and_non_panic_errors(
             || panic!("step '{pattern}' not found in registry"),
             |step| step.run,
         );
-    let Err(err) = step_fn(&StepContext::default(), pattern, None, None) else {
+    let mut ctx = StepContext::default();
+    let Err(err) = step_fn(&mut ctx, pattern, None, None) else {
         panic!("expected error from wrapper '{pattern}'");
     };
     let err_display = strip_directional_isolates(&err.to_string());
@@ -187,7 +188,8 @@ fn wrapper_errors_localize(
             || panic!("step '{pattern}' not found in registry"),
             |step| step.run,
         );
-    let Err(err) = step_fn(&StepContext::default(), pattern, None, None) else {
+    let mut ctx = StepContext::default();
+    let Err(err) = step_fn(&mut ctx, pattern, None, None) else {
         panic!("expected error from wrapper '{pattern}'");
     };
     let message = strip_directional_isolates(&err.to_string());

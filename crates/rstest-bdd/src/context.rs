@@ -5,11 +5,15 @@
 //! the override (last write wins); ambiguous matches leave fixtures untouched.
 
 use std::any::{Any, TypeId};
+use std::cell::{Ref, RefCell, RefMut};
 use std::collections::HashMap;
 
 /// Context passed to step functions containing references to requested fixtures.
 ///
-/// This is constructed by the `#[scenario]` macro for each step invocation.
+/// This is constructed by the `#[scenario]` macro for each step invocation. Use
+/// [`insert_mut`](Self::insert_mut) when a fixture should be shared mutably
+/// across steps; step functions may then request `&mut T` and mutate world
+/// state without resorting to interior mutability wrappers.
 ///
 /// # Examples
 ///
@@ -19,20 +23,42 @@ use std::collections::HashMap;
 /// let mut ctx = StepContext::default();
 /// let value = 42;
 /// ctx.insert("my_fixture", &value);
+/// let owned = std::cell::RefCell::new(Box::new(String::from("hi")));
+/// ctx.insert_owned("owned", &owned);
 ///
 /// let retrieved: Option<&i32> = ctx.get("my_fixture");
 /// assert_eq!(retrieved, Some(&42));
+/// {
+///     let mut suffix = ctx.borrow_mut::<String>("owned").expect("owned fixture");
+///     suffix.value_mut().push('!');
+/// }
+/// assert_eq!(*owned.into_inner(), "hi!");
 /// ```
 #[derive(Default)]
 pub struct StepContext<'a> {
-    pub(crate) fixtures: HashMap<&'static str, (&'a dyn Any, TypeId)>,
+    fixtures: HashMap<&'static str, FixtureEntry<'a>>,
     values: HashMap<&'static str, Box<dyn Any>>,
+}
+
+struct FixtureEntry<'a> {
+    kind: FixtureKind<'a>,
+    type_id: TypeId,
+}
+
+enum FixtureKind<'a> {
+    Shared(&'a dyn Any),
+    Mutable(&'a dyn Any), // stores &RefCell<Box<T>>
 }
 
 impl<'a> StepContext<'a> {
     /// Insert a fixture reference by name.
     pub fn insert<T: Any>(&mut self, name: &'static str, value: &'a T) {
-        self.fixtures.insert(name, (value, TypeId::of::<T>()));
+        self.fixtures.insert(name, FixtureEntry::shared(value));
+    }
+
+    /// Insert a fixture backed by a `RefCell<Box<T>>`, enabling mutable borrows.
+    pub fn insert_owned<T: Any>(&mut self, name: &'static str, cell: &'a RefCell<Box<T>>) {
+        self.fixtures.insert(name, FixtureEntry::owned(cell));
     }
 
     /// Retrieve a fixture reference by name and type.
@@ -46,7 +72,26 @@ impl<'a> StepContext<'a> {
         if let Some(val) = self.values.get(name) {
             return val.downcast_ref::<T>();
         }
-        self.fixtures.get(name)?.0.downcast_ref::<T>()
+        match self.fixtures.get(name)?.kind {
+            FixtureKind::Shared(value) => value.downcast_ref::<T>(),
+            FixtureKind::Mutable(_) => None,
+        }
+    }
+
+    /// Borrow a fixture by name, keeping the guard alive until dropped.
+    pub fn borrow_ref<T: Any>(&'a self, name: &str) -> Option<FixtureRef<'a, T>> {
+        if let Some(val) = self.values.get(name) {
+            return val.downcast_ref::<T>().map(FixtureRef::Shared);
+        }
+        self.fixtures.get(name)?.borrow_ref::<T>()
+    }
+
+    /// Borrow a fixture mutably by name.
+    pub fn borrow_mut<T: Any>(&'a mut self, name: &str) -> Option<FixtureRefMut<'a, T>> {
+        if let Some(val) = self.values.get_mut(name) {
+            return val.downcast_mut::<T>().map(FixtureRefMut::Override);
+        }
+        self.fixtures.get(name)?.borrow_mut::<T>()
     }
 
     /// Insert a value produced by a prior step.
@@ -59,7 +104,7 @@ impl<'a> StepContext<'a> {
         let mut matches = self
             .fixtures
             .iter()
-            .filter_map(|(&name, &(_, t))| (t == ty).then_some(name));
+            .filter_map(|(&name, entry)| (entry.type_id == ty).then_some(name));
         let name = matches.next()?;
         if matches.next().is_some() {
             let message =
@@ -103,6 +148,29 @@ mod tests {
             let _ = log::set_logger(&LOGGER);
             log::set_max_level(log::LevelFilter::Warn);
         });
+    }
+
+    #[test]
+    fn borrow_mut_returns_mutable_fixture() {
+        let cell = RefCell::new(Box::new(String::from("seed")));
+        let mut ctx = StepContext::default();
+        ctx.insert_owned("text", &cell);
+
+        {
+            let mut value = ctx
+                .borrow_mut::<String>("text")
+                .expect("mutable fixture should exist");
+            value.as_mut().push_str("ing");
+        }
+        assert_eq!(*cell.into_inner(), "seeding");
+    }
+
+    #[test]
+    fn borrow_mut_returns_none_for_shared_fixture() {
+        let fixture = 5;
+        let mut ctx = StepContext::default();
+        ctx.insert("number", &fixture);
+        assert!(ctx.borrow_mut::<i32>("number").is_none());
     }
 
     #[test]
@@ -158,5 +226,88 @@ mod tests {
         let result = ctx.insert_value(Box::new(5u32));
         assert!(result.is_none(), "missing fixture should skip override");
         assert!(ctx.get::<u32>("text").is_none());
+    }
+}
+impl<'a> FixtureEntry<'a> {
+    fn shared<T: Any>(value: &'a T) -> Self {
+        Self {
+            kind: FixtureKind::Shared(value),
+            type_id: TypeId::of::<T>(),
+        }
+    }
+
+    fn owned<T: Any>(cell: &'a RefCell<Box<T>>) -> Self {
+        Self {
+            kind: FixtureKind::Mutable(cell),
+            type_id: TypeId::of::<T>(),
+        }
+    }
+
+    fn borrow_ref<T: Any>(&self) -> Option<FixtureRef<'_, T>> {
+        if self.type_id != TypeId::of::<T>() {
+            return None;
+        }
+        match self.kind {
+            FixtureKind::Shared(value) => value.downcast_ref::<T>().map(FixtureRef::Shared),
+            FixtureKind::Mutable(cell_any) => {
+                let cell = cell_any.downcast_ref::<RefCell<Box<T>>>()?;
+                let guard = cell.borrow();
+                let mapped = Ref::map(guard, |boxed| boxed.as_ref());
+                Some(FixtureRef::Borrowed(mapped))
+            }
+        }
+    }
+
+    fn borrow_mut<T: Any>(&self) -> Option<FixtureRefMut<'_, T>> {
+        if self.type_id != TypeId::of::<T>() {
+            return None;
+        }
+        match self.kind {
+            FixtureKind::Mutable(cell_any) => {
+                let cell = cell_any.downcast_ref::<RefCell<Box<T>>>()?;
+                let guard = cell.borrow_mut();
+                let mapped = RefMut::map(guard, |boxed| boxed.as_mut());
+                Some(FixtureRefMut::Borrowed(mapped))
+            }
+            FixtureKind::Shared(_) => None,
+        }
+    }
+}
+/// Borrowed fixture reference that keeps any underlying `RefCell` borrow alive
+/// for the duration of a step.
+pub enum FixtureRef<'a, T> {
+    /// Reference bound directly to a shared fixture.
+    Shared(&'a T),
+    /// Borrow guard taken from a backing `RefCell`.
+    Borrowed(Ref<'a, T>),
+}
+
+impl<T> FixtureRef<'_, T> {
+    /// Access the borrowed value as an immutable reference.
+    #[must_use]
+    pub fn value(&self) -> &T {
+        match self {
+            Self::Shared(value) => value,
+            Self::Borrowed(guard) => guard,
+        }
+    }
+}
+
+/// Borrowed mutable fixture reference tied to the lifetime of the step borrow.
+pub enum FixtureRefMut<'a, T> {
+    /// Mutable reference produced by a prior step override.
+    Override(&'a mut T),
+    /// Borrow guard obtained from the underlying `RefCell`.
+    Borrowed(RefMut<'a, T>),
+}
+
+impl<T> FixtureRefMut<'_, T> {
+    /// Access the borrowed value mutably.
+    #[must_use]
+    pub fn value_mut(&mut self) -> &mut T {
+        match self {
+            Self::Override(value) => value,
+            Self::Borrowed(guard) => guard,
+        }
     }
 }
