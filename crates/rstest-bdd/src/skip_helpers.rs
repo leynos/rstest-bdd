@@ -35,16 +35,21 @@ pub fn __rstest_bdd_expect_skip_message_absent(actual: Option<&str>, target: &'s
 }
 
 #[doc(hidden)]
-pub fn __rstest_bdd_assert_step_skipped_message_contains<E: Into<String>>(
-    exec: StepExecution,
-    expected: E,
-) -> Option<String> {
-    let message = match exec {
+pub fn __rstest_bdd_unwrap_step_skipped(exec: StepExecution) -> Option<String> {
+    match exec {
         StepExecution::Skipped { message } => message,
         StepExecution::Continue { .. } => {
             panic_localized!("assert-skip-not-skipped", target = "step execution")
         }
-    };
+    }
+}
+
+#[doc(hidden)]
+pub fn __rstest_bdd_assert_step_skipped_message_contains<E: Into<String>>(
+    exec: StepExecution,
+    expected: E,
+) -> Option<String> {
+    let message = __rstest_bdd_unwrap_step_skipped(exec);
     let expected_str: String = expected.into();
     __rstest_bdd_expect_skip_message_contains(
         message.as_deref(),
@@ -60,12 +65,7 @@ pub fn __rstest_bdd_assert_step_skipped_message_absent(
     exec: StepExecution,
     expect_absent: bool,
 ) -> Option<String> {
-    let message = match exec {
-        StepExecution::Skipped { message } => message,
-        StepExecution::Continue { .. } => {
-            panic_localized!("assert-skip-not-skipped", target = "step execution")
-        }
-    };
+    let message = __rstest_bdd_unwrap_step_skipped(exec);
     if expect_absent {
         __rstest_bdd_expect_skip_message_absent(message.as_deref(), "step execution");
     }
