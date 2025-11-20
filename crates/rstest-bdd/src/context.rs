@@ -293,6 +293,12 @@ impl<T> FixtureRef<'_, T> {
     }
 }
 
+impl<'a, T> AsRef<T> for FixtureRef<'a, T> {
+    fn as_ref(&self) -> &T {
+        self.value()
+    }
+}
+
 /// Borrowed mutable fixture reference tied to the lifetime of the step borrow.
 pub enum FixtureRefMut<'a, T> {
     /// Mutable reference produced by a prior step override.
@@ -309,5 +315,11 @@ impl<T> FixtureRefMut<'_, T> {
             Self::Override(value) => value,
             Self::Borrowed(guard) => guard,
         }
+    }
+}
+
+impl<'a, T> AsMut<T> for FixtureRefMut<'a, T> {
+    fn as_mut(&mut self) -> &mut T {
+        self.value_mut()
     }
 }
