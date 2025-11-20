@@ -243,34 +243,41 @@ impl<'a> FixtureEntry<'a> {
         }
     }
 
-    fn borrow_ref<T: Any>(&self) -> Option<FixtureRef<'_, T>> {
+    /// Helper to borrow from a mutable fixture, delegating the borrow operation
+    /// to the provided closure.
+    fn borrow_mutable<T: Any, R>(
+        &self,
+        borrow_fn: impl FnOnce(&RefCell<Box<T>>) -> R,
+    ) -> Option<R> {
         if self.type_id != TypeId::of::<T>() {
             return None;
         }
         match self.kind {
-            FixtureKind::Shared(value) => value.downcast_ref::<T>().map(FixtureRef::Shared),
             FixtureKind::Mutable(cell_any) => {
                 let cell = cell_any.downcast_ref::<RefCell<Box<T>>>()?;
+                Some(borrow_fn(cell))
+            }
+            FixtureKind::Shared(_) => None,
+        }
+    }
+
+    fn borrow_ref<T: Any>(&self) -> Option<FixtureRef<'_, T>> {
+        match self.kind {
+            FixtureKind::Shared(value) => value.downcast_ref::<T>().map(FixtureRef::Shared),
+            FixtureKind::Mutable(_) => self.borrow_mutable(|cell| {
                 let guard = cell.borrow();
                 let mapped = Ref::map(guard, |boxed| boxed.as_ref());
-                Some(FixtureRef::Borrowed(mapped))
-            }
+                FixtureRef::Borrowed(mapped)
+            }),
         }
     }
 
     fn borrow_mut<T: Any>(&self) -> Option<FixtureRefMut<'_, T>> {
-        if self.type_id != TypeId::of::<T>() {
-            return None;
-        }
-        match self.kind {
-            FixtureKind::Mutable(cell_any) => {
-                let cell = cell_any.downcast_ref::<RefCell<Box<T>>>()?;
-                let guard = cell.borrow_mut();
-                let mapped = RefMut::map(guard, |boxed| boxed.as_mut());
-                Some(FixtureRefMut::Borrowed(mapped))
-            }
-            FixtureKind::Shared(_) => None,
-        }
+        self.borrow_mutable(|cell| {
+            let guard = cell.borrow_mut();
+            let mapped = RefMut::map(guard, |boxed| boxed.as_mut());
+            FixtureRefMut::Borrowed(mapped)
+        })
     }
 }
 /// Borrowed fixture reference that keeps any underlying `RefCell` borrow alive
