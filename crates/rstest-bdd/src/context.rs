@@ -293,7 +293,7 @@ impl<T> FixtureRef<'_, T> {
     }
 }
 
-impl<'a, T> AsRef<T> for FixtureRef<'a, T> {
+impl<T> AsRef<T> for FixtureRef<'_, T> {
     fn as_ref(&self) -> &T {
         self.value()
     }
@@ -318,7 +318,7 @@ impl<T> FixtureRefMut<'_, T> {
     }
 }
 
-impl<'a, T> AsMut<T> for FixtureRefMut<'a, T> {
+impl<T> AsMut<T> for FixtureRefMut<'_, T> {
     fn as_mut(&mut self) -> &mut T {
         self.value_mut()
     }
