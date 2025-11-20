@@ -194,6 +194,22 @@ fn gen_step_struct_decl(
     })
 }
 
+/// Generate a `MissingFixture` error for a step wrapper.
+fn gen_missing_fixture_error(
+    name: &syn::Ident,
+    ty: &syn::Type,
+    ident: &syn::Ident,
+) -> TokenStream2 {
+    let path = crate::codegen::rstest_bdd_path();
+    quote! {
+        #path::StepError::MissingFixture {
+            name: stringify!(#name).to_string(),
+            ty: stringify!(#ty).to_string(),
+            step: stringify!(#ident).to_string(),
+        }
+    }
+}
+
 /// Generate declarations for fixture values.
 ///
 /// Non-reference fixtures must implement [`Clone`] because wrappers clone
@@ -206,16 +222,12 @@ fn gen_mut_ref_fixture_decl(
     ident: &syn::Ident,
     ctx_ident: &proc_macro2::Ident,
 ) -> TokenStream2 {
-    let path = crate::codegen::rstest_bdd_path();
+    let missing_err = gen_missing_fixture_error(name, elem, ident);
     let guard_ident = format_ident!("__rstest_bdd_guard_{}", pat);
     quote! {
         let mut #guard_ident = #ctx_ident
             .borrow_mut::<#elem>(stringify!(#name))
-            .ok_or_else(|| #path::StepError::MissingFixture {
-                name: stringify!(#name).to_string(),
-                ty: stringify!(#elem).to_string(),
-                step: stringify!(#ident).to_string(),
-            })?;
+            .ok_or_else(|| #missing_err)?;
         let #pat: #ty = #guard_ident.value_mut();
     }
 }
@@ -227,16 +239,12 @@ fn gen_unsized_ref_fixture_decl(
     ident: &syn::Ident,
     ctx_ident: &proc_macro2::Ident,
 ) -> TokenStream2 {
-    let path = crate::codegen::rstest_bdd_path();
+    let missing_err = gen_missing_fixture_error(name, ty, ident);
     let guard_ident = format_ident!("__rstest_bdd_guard_{}", pat);
     quote! {
         let #guard_ident = #ctx_ident
             .borrow_ref::<#ty>(stringify!(#name))
-            .ok_or_else(|| #path::StepError::MissingFixture {
-                name: stringify!(#name).to_string(),
-                ty: stringify!(#ty).to_string(),
-                step: stringify!(#ident).to_string(),
-            })?;
+            .ok_or_else(|| #missing_err)?;
         let #pat: #ty = #guard_ident.value();
     }
 }
@@ -252,6 +260,7 @@ fn gen_sized_ref_fixture_decl(
     let path = crate::codegen::rstest_bdd_path();
     let owned_guard = format_ident!("__rstest_bdd_guard_owned_{}", pat);
     let shared_guard = format_ident!("__rstest_bdd_guard_shared_{}", pat);
+    let missing_err = gen_missing_fixture_error(name, ty, ident);
     quote! {
         let mut #owned_guard: ::std::option::Option<#path::FixtureRef<'_, #elem>> = None;
         let mut #shared_guard: ::std::option::Option<#path::FixtureRef<'_, #ty>> = None;
@@ -266,11 +275,7 @@ fn gen_sized_ref_fixture_decl(
             #shared_guard = Some(
                 #ctx_ident
                     .borrow_ref::<#ty>(stringify!(#name))
-                    .ok_or_else(|| #path::StepError::MissingFixture {
-                        name: stringify!(#name).to_string(),
-                        ty: stringify!(#ty).to_string(),
-                        step: stringify!(#ident).to_string(),
-                    })?
+                    .ok_or_else(|| #missing_err)?
             );
             #pat = *#shared_guard
                 .as_ref()
@@ -287,16 +292,12 @@ fn gen_owned_fixture_decl(
     ident: &syn::Ident,
     ctx_ident: &proc_macro2::Ident,
 ) -> TokenStream2 {
-    let path = crate::codegen::rstest_bdd_path();
+    let missing_err = gen_missing_fixture_error(name, ty, ident);
     let guard_ident = format_ident!("__rstest_bdd_guard_{}", pat);
     quote! {
         let #guard_ident = #ctx_ident
             .borrow_ref::<#ty>(stringify!(#name))
-            .ok_or_else(|| #path::StepError::MissingFixture {
-                name: stringify!(#name).to_string(),
-                ty: stringify!(#ty).to_string(),
-                step: stringify!(#ident).to_string(),
-            })?;
+            .ok_or_else(|| #missing_err)?;
         let #pat: #ty = #guard_ident.value().clone();
     }
 }
