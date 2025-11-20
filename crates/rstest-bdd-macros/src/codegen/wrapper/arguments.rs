@@ -198,6 +198,109 @@ fn gen_step_struct_decl(
 ///
 /// Non-reference fixtures must implement [`Clone`] because wrappers clone
 /// them to hand ownership to the step function.
+fn gen_mut_ref_fixture_decl(
+    pat: &syn::Ident,
+    name: &syn::Ident,
+    elem: &syn::Type,
+    ty: &syn::Type,
+    ident: &syn::Ident,
+    ctx_ident: &proc_macro2::Ident,
+) -> TokenStream2 {
+    let path = crate::codegen::rstest_bdd_path();
+    let guard_ident = format_ident!("__rstest_bdd_guard_{}", pat);
+    quote! {
+        let mut #guard_ident = #ctx_ident
+            .borrow_mut::<#elem>(stringify!(#name))
+            .ok_or_else(|| #path::StepError::MissingFixture {
+                name: stringify!(#name).to_string(),
+                ty: stringify!(#elem).to_string(),
+                step: stringify!(#ident).to_string(),
+            })?;
+        let #pat: #ty = #guard_ident.value_mut();
+    }
+}
+
+fn gen_unsized_ref_fixture_decl(
+    pat: &syn::Ident,
+    name: &syn::Ident,
+    ty: &syn::Type,
+    ident: &syn::Ident,
+    ctx_ident: &proc_macro2::Ident,
+) -> TokenStream2 {
+    let path = crate::codegen::rstest_bdd_path();
+    let guard_ident = format_ident!("__rstest_bdd_guard_{}", pat);
+    quote! {
+        let #guard_ident = #ctx_ident
+            .borrow_ref::<#ty>(stringify!(#name))
+            .ok_or_else(|| #path::StepError::MissingFixture {
+                name: stringify!(#name).to_string(),
+                ty: stringify!(#ty).to_string(),
+                step: stringify!(#ident).to_string(),
+            })?;
+        let #pat: #ty = #guard_ident.value();
+    }
+}
+
+fn gen_sized_ref_fixture_decl(
+    pat: &syn::Ident,
+    name: &syn::Ident,
+    elem: &syn::Type,
+    ty: &syn::Type,
+    ident: &syn::Ident,
+    ctx_ident: &proc_macro2::Ident,
+) -> TokenStream2 {
+    let path = crate::codegen::rstest_bdd_path();
+    let owned_guard = format_ident!("__rstest_bdd_guard_owned_{}", pat);
+    let shared_guard = format_ident!("__rstest_bdd_guard_shared_{}", pat);
+    quote! {
+        let mut #owned_guard: ::std::option::Option<#path::FixtureRef<'_, #elem>> = None;
+        let mut #shared_guard: ::std::option::Option<#path::FixtureRef<'_, #ty>> = None;
+        let #pat: #ty;
+        if let Some(guard) = #ctx_ident.borrow_ref::<#elem>(stringify!(#name)) {
+            #owned_guard = Some(guard);
+            #pat = #owned_guard
+                .as_ref()
+                .expect("fixture guard stored")
+                .value();
+        } else {
+            #shared_guard = Some(
+                #ctx_ident
+                    .borrow_ref::<#ty>(stringify!(#name))
+                    .ok_or_else(|| #path::StepError::MissingFixture {
+                        name: stringify!(#name).to_string(),
+                        ty: stringify!(#ty).to_string(),
+                        step: stringify!(#ident).to_string(),
+                    })?
+            );
+            #pat = *#shared_guard
+                .as_ref()
+                .expect("fixture guard stored")
+                .value();
+        }
+    }
+}
+
+fn gen_owned_fixture_decl(
+    pat: &syn::Ident,
+    name: &syn::Ident,
+    ty: &syn::Type,
+    ident: &syn::Ident,
+    ctx_ident: &proc_macro2::Ident,
+) -> TokenStream2 {
+    let path = crate::codegen::rstest_bdd_path();
+    let guard_ident = format_ident!("__rstest_bdd_guard_{}", pat);
+    quote! {
+        let #guard_ident = #ctx_ident
+            .borrow_ref::<#ty>(stringify!(#name))
+            .ok_or_else(|| #path::StepError::MissingFixture {
+                name: stringify!(#name).to_string(),
+                ty: stringify!(#ty).to_string(),
+                step: stringify!(#ident).to_string(),
+            })?;
+        let #pat: #ty = #guard_ident.value().clone();
+    }
+}
+
 pub(super) fn gen_fixture_decls(
     fixtures: &[&Arg],
     ident: &syn::Ident,
@@ -209,78 +312,20 @@ pub(super) fn gen_fixture_decls(
             let Arg::Fixture { pat, name, ty } = fixture else {
                 unreachable!("fixture vector must contain fixtures");
             };
-            let path = crate::codegen::rstest_bdd_path();
-            let guard_ident = format_ident!("__rstest_bdd_guard_{}", pat);
             match ty {
                 syn::Type::Reference(reference) if reference.mutability.is_some() => {
                     let elem = &*reference.elem;
-                    quote! {
-                        let mut #guard_ident = #ctx_ident
-                            .borrow_mut::<#elem>(stringify!(#name))
-                            .ok_or_else(|| #path::StepError::MissingFixture {
-                                name: stringify!(#name).to_string(),
-                                ty: stringify!(#elem).to_string(),
-                                step: stringify!(#ident).to_string(),
-                            })?;
-                        let #pat: #ty = #guard_ident.value_mut();
-                    }
+                    gen_mut_ref_fixture_decl(pat, name, elem, ty, ident, ctx_ident)
                 }
                 syn::Type::Reference(reference) => {
                     let elem = &*reference.elem;
                     if is_unsized_reference_target(elem) {
-                        quote! {
-                            let #guard_ident = #ctx_ident
-                                .borrow_ref::<#ty>(stringify!(#name))
-                                .ok_or_else(|| #path::StepError::MissingFixture {
-                                    name: stringify!(#name).to_string(),
-                                    ty: stringify!(#ty).to_string(),
-                                    step: stringify!(#ident).to_string(),
-                                })?;
-                            let #pat: #ty = #guard_ident.value();
-                        }
+                        gen_unsized_ref_fixture_decl(pat, name, ty, ident, ctx_ident)
                     } else {
-                        let owned_guard = format_ident!("__rstest_bdd_guard_owned_{pat}");
-                        let shared_guard = format_ident!("__rstest_bdd_guard_shared_{pat}");
-                        quote! {
-                            let mut #owned_guard: ::std::option::Option<#path::FixtureRef<'_, #elem>> = None;
-                            let mut #shared_guard: ::std::option::Option<#path::FixtureRef<'_, #ty>> = None;
-                            let #pat: #ty;
-                            if let Some(guard) = #ctx_ident.borrow_ref::<#elem>(stringify!(#name)) {
-                                #owned_guard = Some(guard);
-                                #pat = #owned_guard
-                                    .as_ref()
-                                    .expect("fixture guard stored")
-                                    .value();
-                            } else {
-                                #shared_guard = Some(
-                                    #ctx_ident
-                                        .borrow_ref::<#ty>(stringify!(#name))
-                                        .ok_or_else(|| #path::StepError::MissingFixture {
-                                            name: stringify!(#name).to_string(),
-                                            ty: stringify!(#ty).to_string(),
-                                            step: stringify!(#ident).to_string(),
-                                        })?
-                                );
-                                #pat = *#shared_guard
-                                    .as_ref()
-                                    .expect("fixture guard stored")
-                                    .value();
-                            }
-                        }
+                        gen_sized_ref_fixture_decl(pat, name, elem, ty, ident, ctx_ident)
                     }
                 }
-                _ => {
-                    quote! {
-                        let #guard_ident = #ctx_ident
-                            .borrow_ref::<#ty>(stringify!(#name))
-                            .ok_or_else(|| #path::StepError::MissingFixture {
-                                name: stringify!(#name).to_string(),
-                                ty: stringify!(#ty).to_string(),
-                                step: stringify!(#ident).to_string(),
-                            })?;
-                        let #pat: #ty = #guard_ident.value().clone();
-                    }
-                }
+                _ => gen_owned_fixture_decl(pat, name, ty, ident, ctx_ident),
             }
         })
         .collect()
