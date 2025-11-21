@@ -18,6 +18,16 @@ pub(super) struct PreparedArgs {
     pub(super) docstring_decl: Option<TokenStream2>,
 }
 
+/// Context for generating fixture declarations in step wrappers.
+#[derive(Copy, Clone)]
+struct FixtureDeclContext<'a> {
+    pat: &'a syn::Ident,
+    name: &'a syn::Ident,
+    ty: &'a syn::Type,
+    ident: &'a syn::Ident,
+    ctx_ident: &'a proc_macro2::Ident,
+}
+
 /// Quote construction for [`StepError`] variants sharing `pattern`,
 /// `function` and `message` fields.
 pub(super) fn step_error_tokens(
@@ -194,17 +204,14 @@ fn gen_step_struct_decl(
     })
 }
 
-/// Generate a `MissingFixture` error for a step wrapper.
-fn gen_missing_fixture_error(
-    name: &syn::Ident,
-    ty: &syn::Type,
-    ident: &syn::Ident,
-) -> TokenStream2 {
+/// Generate error for missing fixture.
+fn gen_missing_fixture_error(ctx: &FixtureDeclContext<'_>, fixture_ty: &syn::Type) -> TokenStream2 {
     let path = crate::codegen::rstest_bdd_path();
+    let FixtureDeclContext { name, ident, .. } = ctx;
     quote! {
         #path::StepError::MissingFixture {
             name: stringify!(#name).to_string(),
-            ty: stringify!(#ty).to_string(),
+            ty: stringify!(#fixture_ty).to_string(),
             step: stringify!(#ident).to_string(),
         }
     }
@@ -214,15 +221,16 @@ fn gen_missing_fixture_error(
 ///
 /// Non-reference fixtures must implement [`Clone`] because wrappers clone
 /// them to hand ownership to the step function.
-fn gen_mut_ref_fixture_decl(
-    pat: &syn::Ident,
-    name: &syn::Ident,
-    elem: &syn::Type,
-    ty: &syn::Type,
-    ident: &syn::Ident,
-    ctx_ident: &proc_macro2::Ident,
-) -> TokenStream2 {
-    let missing_err = gen_missing_fixture_error(name, elem, ident);
+fn gen_mut_ref_fixture_decl(ctx: FixtureDeclContext<'_>, elem: &syn::Type) -> TokenStream2 {
+    let missing_err = gen_missing_fixture_error(&ctx, elem);
+    let FixtureDeclContext {
+        pat,
+        name,
+        ty,
+        ident,
+        ctx_ident,
+        ..
+    } = ctx;
     let guard_ident = format_ident!("__rstest_bdd_guard_{}", pat);
     quote! {
         let mut #guard_ident = #ctx_ident
@@ -232,14 +240,16 @@ fn gen_mut_ref_fixture_decl(
     }
 }
 
-fn gen_unsized_ref_fixture_decl(
-    pat: &syn::Ident,
-    name: &syn::Ident,
-    ty: &syn::Type,
-    ident: &syn::Ident,
-    ctx_ident: &proc_macro2::Ident,
-) -> TokenStream2 {
-    let missing_err = gen_missing_fixture_error(name, ty, ident);
+fn gen_unsized_ref_fixture_decl(ctx: FixtureDeclContext<'_>) -> TokenStream2 {
+    let missing_err = gen_missing_fixture_error(&ctx, ctx.ty);
+    let FixtureDeclContext {
+        pat,
+        name,
+        ty,
+        ident,
+        ctx_ident,
+        ..
+    } = ctx;
     let guard_ident = format_ident!("__rstest_bdd_guard_{}", pat);
     quote! {
         let #guard_ident = #ctx_ident
@@ -249,18 +259,19 @@ fn gen_unsized_ref_fixture_decl(
     }
 }
 
-fn gen_sized_ref_fixture_decl(
-    pat: &syn::Ident,
-    name: &syn::Ident,
-    elem: &syn::Type,
-    ty: &syn::Type,
-    ident: &syn::Ident,
-    ctx_ident: &proc_macro2::Ident,
-) -> TokenStream2 {
+fn gen_sized_ref_fixture_decl(ctx: FixtureDeclContext<'_>, elem: &syn::Type) -> TokenStream2 {
+    let missing_err = gen_missing_fixture_error(&ctx, ctx.ty);
+    let FixtureDeclContext {
+        pat,
+        name,
+        ty,
+        ident,
+        ctx_ident,
+        ..
+    } = ctx;
     let path = crate::codegen::rstest_bdd_path();
     let owned_guard = format_ident!("__rstest_bdd_guard_owned_{}", pat);
     let shared_guard = format_ident!("__rstest_bdd_guard_shared_{}", pat);
-    let missing_err = gen_missing_fixture_error(name, ty, ident);
     quote! {
         let mut #owned_guard: ::std::option::Option<#path::FixtureRef<'_, #elem>> = None;
         let mut #shared_guard: ::std::option::Option<#path::FixtureRef<'_, #ty>> = None;
@@ -285,14 +296,16 @@ fn gen_sized_ref_fixture_decl(
     }
 }
 
-fn gen_owned_fixture_decl(
-    pat: &syn::Ident,
-    name: &syn::Ident,
-    ty: &syn::Type,
-    ident: &syn::Ident,
-    ctx_ident: &proc_macro2::Ident,
-) -> TokenStream2 {
-    let missing_err = gen_missing_fixture_error(name, ty, ident);
+fn gen_owned_fixture_decl(ctx: FixtureDeclContext<'_>) -> TokenStream2 {
+    let missing_err = gen_missing_fixture_error(&ctx, ctx.ty);
+    let FixtureDeclContext {
+        pat,
+        name,
+        ty,
+        ident,
+        ctx_ident,
+        ..
+    } = ctx;
     let guard_ident = format_ident!("__rstest_bdd_guard_{}", pat);
     quote! {
         let #guard_ident = #ctx_ident
@@ -313,20 +326,27 @@ pub(super) fn gen_fixture_decls(
             let Arg::Fixture { pat, name, ty } = fixture else {
                 unreachable!("fixture vector must contain fixtures");
             };
+            let ctx = FixtureDeclContext {
+                pat,
+                name,
+                ty,
+                ident,
+                ctx_ident,
+            };
             match ty {
                 syn::Type::Reference(reference) if reference.mutability.is_some() => {
                     let elem = &*reference.elem;
-                    gen_mut_ref_fixture_decl(pat, name, elem, ty, ident, ctx_ident)
+                    gen_mut_ref_fixture_decl(ctx, elem)
                 }
                 syn::Type::Reference(reference) => {
                     let elem = &*reference.elem;
                     if is_unsized_reference_target(elem) {
-                        gen_unsized_ref_fixture_decl(pat, name, ty, ident, ctx_ident)
+                        gen_unsized_ref_fixture_decl(ctx)
                     } else {
-                        gen_sized_ref_fixture_decl(pat, name, elem, ty, ident, ctx_ident)
+                        gen_sized_ref_fixture_decl(ctx, elem)
                     }
                 }
-                _ => gen_owned_fixture_decl(pat, name, ty, ident, ctx_ident),
+                _ => gen_owned_fixture_decl(ctx),
             }
         })
         .collect()
