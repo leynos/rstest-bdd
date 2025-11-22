@@ -266,7 +266,7 @@ impl<'a> FixtureEntry<'a> {
             FixtureKind::Shared(value) => value.downcast_ref::<T>().map(FixtureRef::Shared),
             FixtureKind::Mutable(_) => self.borrow_mutable(|cell| {
                 let guard = cell.borrow();
-                let mapped = Ref::map(guard, |boxed| boxed.as_ref());
+                let mapped = Ref::map(guard, |boxed: &Box<T>| boxed.as_ref());
                 FixtureRef::Borrowed(mapped)
             }),
         }
@@ -275,7 +275,7 @@ impl<'a> FixtureEntry<'a> {
     fn borrow_mut<T: Any>(&self) -> Option<FixtureRefMut<'_, T>> {
         self.borrow_mutable(|cell| {
             let guard = cell.borrow_mut();
-            let mapped = RefMut::map(guard, |boxed| boxed.as_mut());
+            let mapped = RefMut::map(guard, |boxed: &mut Box<T>| boxed.as_mut());
             FixtureRefMut::Borrowed(mapped)
         })
     }
