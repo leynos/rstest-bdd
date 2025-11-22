@@ -227,7 +227,6 @@ fn gen_mut_ref_fixture_decl(ctx: FixtureDeclContext<'_>, elem: &syn::Type) -> To
         pat,
         name,
         ty,
-        ident,
         ctx_ident,
         ..
     } = ctx;
@@ -246,7 +245,6 @@ fn gen_unsized_ref_fixture_decl(ctx: FixtureDeclContext<'_>) -> TokenStream2 {
         pat,
         name,
         ty,
-        ident,
         ctx_ident,
         ..
     } = ctx;
@@ -265,7 +263,6 @@ fn gen_sized_ref_fixture_decl(ctx: FixtureDeclContext<'_>, elem: &syn::Type) -> 
         pat,
         name,
         ty,
-        ident,
         ctx_ident,
         ..
     } = ctx;
@@ -302,7 +299,6 @@ fn gen_owned_fixture_decl(ctx: FixtureDeclContext<'_>) -> TokenStream2 {
         pat,
         name,
         ty,
-        ident,
         ctx_ident,
         ..
     } = ctx;
