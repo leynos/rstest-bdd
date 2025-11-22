@@ -77,9 +77,12 @@ fn generate_scenario_test(
             syn::parse_quote! { fn #fn_ident( #(#params),* ) }
         },
     );
-    let Ok((_args, ctx_inserts)) = extract_function_fixtures(&mut sig) else {
+    let Ok((_args, fixture_setup)) = extract_function_fixtures(&mut sig) else {
         unreachable!("failed to bind fixtures for generated signature");
     };
+    let ctx_prelude = fixture_setup.prelude;
+    let ctx_inserts = fixture_setup.ctx_inserts;
+    let ctx_postlude = fixture_setup.postlude;
     let block: syn::Block = syn::parse_quote!({});
 
     let feature_path = ctx.manifest_dir.join(ctx.rel_path).display().to_string();
@@ -95,7 +98,12 @@ fn generate_scenario_test(
         examples,
         allow_skipped,
     };
-    TokenStream2::from(generate_scenario_code(config, ctx_inserts.into_iter()))
+    TokenStream2::from(generate_scenario_code(
+        config,
+        ctx_prelude.into_iter(),
+        ctx_inserts.into_iter(),
+        ctx_postlude.into_iter(),
+    ))
 }
 
 #[expect(

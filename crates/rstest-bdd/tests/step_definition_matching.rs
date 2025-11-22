@@ -31,8 +31,8 @@ fn find_step_returns_none_for_missing() {
 fn find_step_executes_single_match() {
     #[expect(clippy::expect_used, reason = "test ensures step exists")]
     let step_fn = find_step(StepKeyword::Given, "a unique step".into()).expect("step not found");
-    let ctx = StepContext::default();
-    match step_fn(&ctx, "a unique step", None, None) {
+    let mut ctx = StepContext::default();
+    match step_fn(&mut ctx, "a unique step", None, None) {
         Ok(StepExecution::Continue { .. }) => {}
         Ok(StepExecution::Skipped { .. }) => panic!("step unexpectedly skipped"),
         Err(e) => panic!("unexpected error: {e:?}"),
@@ -45,8 +45,8 @@ fn find_step_runs_one_of_multiple_matches() {
     SPECIFIC_CALLED.store(0, Ordering::Relaxed);
     #[expect(clippy::expect_used, reason = "test ensures step exists")]
     let step_fn = find_step(StepKeyword::Given, "overlap apples".into()).expect("step not found");
-    let ctx = StepContext::default();
-    match step_fn(&ctx, "overlap apples", None, None) {
+    let mut ctx = StepContext::default();
+    match step_fn(&mut ctx, "overlap apples", None, None) {
         Ok(StepExecution::Continue { .. }) => {}
         Ok(StepExecution::Skipped { .. }) => panic!("step unexpectedly skipped"),
         Err(e) => panic!("unexpected error: {e:?}"),

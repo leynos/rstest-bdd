@@ -105,8 +105,11 @@ fn try_scenario(
     process_scenario_outline_examples(sig, examples.as_ref())
         .map_err(proc_macro::TokenStream::from)?;
 
-    let (_args, ctx_inserts) = extract_function_fixtures(sig)
+    let (_args, fixture_setup) = extract_function_fixtures(sig)
         .map_err(|err| proc_macro::TokenStream::from(err.into_compile_error()))?;
+    let ctx_prelude = fixture_setup.prelude;
+    let ctx_inserts = fixture_setup.ctx_inserts;
+    let ctx_postlude = fixture_setup.postlude;
 
     Ok(generate_scenario_code(
         ScenarioConfig {
@@ -120,7 +123,9 @@ fn try_scenario(
             examples,
             allow_skipped,
         },
+        ctx_prelude.into_iter(),
         ctx_inserts.into_iter(),
+        ctx_postlude.into_iter(),
     ))
 }
 

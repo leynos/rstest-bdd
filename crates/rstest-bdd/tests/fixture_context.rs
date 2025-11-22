@@ -27,16 +27,16 @@ fn context_passes_fixture() {
     ctx.insert("number", &number);
     let step_fn = lookup_step(StepKeyword::Given, "a value".into())
         .expect("step 'a value' not found in registry");
-    let _ = assert_step_ok!(step_fn(&ctx, "a value", None, None));
+    let _ = assert_step_ok!(step_fn(&mut ctx, "a value", None, None));
 }
 
 #[test]
 #[expect(clippy::expect_used, reason = "step lookup must succeed for test")]
 fn context_missing_fixture_returns_error() {
-    let ctx = StepContext::default();
+    let mut ctx = StepContext::default();
     let step_fn = lookup_step(StepKeyword::Given, "a value".into())
         .expect("step 'a value' not found in registry");
-    let err = assert_step_err!(step_fn(&ctx, "a value", None, None));
+    let err = assert_step_err!(step_fn(&mut ctx, "a value", None, None));
     let display = strip_directional_isolates(&err.to_string());
     match err {
         StepError::MissingFixture { name, ty, step } => {
@@ -57,10 +57,10 @@ fn context_missing_fixture_returns_error() {
 fn context_missing_fixture_localizes_error() {
     let guard = ScopedLocalization::new(&[langid!("fr")])
         .unwrap_or_else(|error| panic!("failed to scope French locale: {error}"));
-    let ctx = StepContext::default();
+    let mut ctx = StepContext::default();
     let step_fn = lookup_step(StepKeyword::Given, "a value".into())
         .expect("step 'a value' not found in registry");
-    let err = assert_step_err!(step_fn(&ctx, "a value", None, None));
+    let err = assert_step_err!(step_fn(&mut ctx, "a value", None, None));
     let display = strip_directional_isolates(&err.to_string());
     assert!(display.contains("La fixture « number »"));
     drop(guard);
@@ -74,7 +74,10 @@ fn fixture_step_panic_returns_panic_error() {
     ctx.insert("number", &number);
     let step_fn = lookup_step(StepKeyword::Given, "a panicking value step".into())
         .expect("step 'a panicking value step' not found in registry");
-    let err = assert_step_err!(step_fn(&ctx, "a panicking value step", None, None), "boom");
+    let err = assert_step_err!(
+        step_fn(&mut ctx, "a panicking value step", None, None),
+        "boom"
+    );
     match err {
         StepError::PanicError {
             pattern,

@@ -69,7 +69,7 @@ fn execute_single_step(feature_path: &FeaturePath, scenario_name: &ScenarioName)
             text: &str,
             docstring: Option<&str>,
             table: Option<&[&[&str]]>,
-            ctx: &#path::StepContext,
+            ctx: &mut #path::StepContext,
             feature_path: &str,
             scenario_name: &str,
         ) -> Result<Option<Box<dyn std::any::Any>>, String> {
@@ -189,7 +189,7 @@ fn generate_step_executor_loop(
                 *text,
                 *docstring,
                 *table,
-                &ctx,
+                &mut ctx,
                 FEATURE_PATH,
                 SCENARIO_NAME,
             ) {
@@ -267,7 +267,9 @@ fn generate_skip_handler() -> TokenStream2 {
 /// ```
 fn generate_test_tokens(
     config: TestTokensConfig<'_>,
+    ctx_prelude: impl Iterator<Item = TokenStream2>,
     ctx_inserts: impl Iterator<Item = TokenStream2>,
+    ctx_postlude: impl Iterator<Item = TokenStream2>,
 ) -> TokenStream2 {
     let TestTokensConfig {
         processed_steps:
@@ -282,6 +284,9 @@ fn generate_test_tokens(
         block,
         allow_skipped,
     } = config;
+    let ctx_prelude: Vec<_> = ctx_prelude.collect();
+    let ctx_inserts: Vec<_> = ctx_inserts.collect();
+    let ctx_postlude: Vec<_> = ctx_postlude.collect();
 
     let path = crate::codegen::rstest_bdd_path();
     let allow_literal = syn::LitBool::new(allow_skipped, proc_macro2::Span::call_site());
@@ -303,6 +308,7 @@ fn generate_test_tokens(
         #scenario_guard
 
         let allow_skipped: bool = #allow_literal;
+        #(#ctx_prelude)*
         let mut ctx = {
             let mut ctx = #path::StepContext::default();
             #(#ctx_inserts)*
@@ -313,6 +319,7 @@ fn generate_test_tokens(
         let mut skipped: Option<Option<String>> = None;
         #step_executor_loop
         #skip_handler
+        #(#ctx_postlude)*
         #block
     }
 }
@@ -320,7 +327,9 @@ fn generate_test_tokens(
 /// Generate the runtime test for a single scenario.
 pub(crate) fn generate_scenario_code(
     config: ScenarioConfig<'_>,
+    ctx_prelude: impl Iterator<Item = TokenStream2>,
     ctx_inserts: impl Iterator<Item = TokenStream2>,
+    ctx_postlude: impl Iterator<Item = TokenStream2>,
 ) -> TokenStream {
     let ScenarioConfig {
         attrs,
@@ -349,7 +358,7 @@ pub(crate) fn generate_scenario_code(
         allow_skipped,
     };
     let case_attrs = examples.map_or_else(Vec::new, |ex| generate_case_attrs(&ex));
-    let body = generate_test_tokens(test_config, ctx_inserts);
+    let body = generate_test_tokens(test_config, ctx_prelude, ctx_inserts, ctx_postlude);
     TokenStream::from(quote! {
         #[rstest::rstest]
         #(#case_attrs)*

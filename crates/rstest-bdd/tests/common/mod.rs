@@ -10,7 +10,8 @@ use rstest_bdd::{StepContext, StepError, StepExecution};
 ///
 /// step!(StepKeyword::Given, "example", noop_wrapper, &[]);
 /// let runner = find_step(StepKeyword::Given, "example".into()).unwrap();
-/// match runner(&StepContext::default(), "example", None, None) {
+/// let mut ctx = StepContext::default();
+/// match runner(&mut ctx, "example", None, None) {
 ///     Ok(rstest_bdd::StepExecution::Continue { .. }) => {}
 ///     other => panic!("unexpected step outcome: {other:?}"),
 /// }
@@ -20,7 +21,7 @@ use rstest_bdd::{StepContext, StepError, StepExecution};
     reason = "wrapper must match StepFn signature"
 )]
 pub fn noop_wrapper(
-    ctx: &StepContext<'_>,
+    ctx: &mut StepContext<'_>,
     _text: &str,
     _docstring: Option<&str>,
     _table: Option<&[&[&str]]>,

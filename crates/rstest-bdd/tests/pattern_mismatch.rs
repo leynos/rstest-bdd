@@ -18,9 +18,9 @@ fn passes_captured_value() {
     #[expect(clippy::expect_used, reason = "step registered above")]
     let step_fn =
         lookup_step(StepKeyword::Given, "number {value:u32}".into()).expect("step missing");
-    let ctx = StepContext::default();
+    let mut ctx = StepContext::default();
     #[expect(clippy::expect_used, reason = "matching text should succeed")]
-    let _ = step_fn(&ctx, "number 41", None, None).expect("step should match");
+    let _ = step_fn(&mut ctx, "number 41", None, None).expect("step should match");
     assert_eq!(CAPTURED.load(Ordering::Relaxed), 41);
 }
 
@@ -29,8 +29,8 @@ fn returns_error_on_pattern_mismatch() {
     #[expect(clippy::expect_used, reason = "step registered above")]
     let step_fn =
         lookup_step(StepKeyword::Given, "number {value:u32}".into()).expect("step missing");
-    let ctx = StepContext::default();
-    let Err(err) = step_fn(&ctx, "unrelated text", None, None) else {
+    let mut ctx = StepContext::default();
+    let Err(err) = step_fn(&mut ctx, "unrelated text", None, None) else {
         panic!("expected mismatch to error");
     };
     match err {
