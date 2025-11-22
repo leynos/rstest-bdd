@@ -247,7 +247,7 @@ impl<'a> FixtureEntry<'a> {
     /// to the provided closure.
     fn borrow_mutable<T: Any, R>(
         &self,
-        borrow_fn: impl FnOnce(&RefCell<Box<T>>) -> R,
+        borrow_fn: impl FnOnce(&'a RefCell<Box<T>>) -> R,
     ) -> Option<R> {
         if self.type_id != TypeId::of::<T>() {
             return None;
