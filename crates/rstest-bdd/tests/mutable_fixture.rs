@@ -14,18 +14,18 @@ fn counter_world() -> CounterWorld {
 }
 
 #[given("the world starts at {value}")]
-fn seed_world(world: &mut CounterWorld, value: usize) {
-    world.count = value;
+fn seed_world(counter_world: &mut CounterWorld, value: usize) {
+    counter_world.count = value;
 }
 
 #[when("the world increments")]
-fn increment_world(world: &mut CounterWorld) {
-    world.count += 1;
+fn increment_world(counter_world: &mut CounterWorld) {
+    counter_world.count += 1;
 }
 
 #[then("the world equals {value}")]
-fn assert_world(world: &CounterWorld, value: usize) {
-    assert_eq!(world.count, value);
+fn assert_world(counter_world: &CounterWorld, value: usize) {
+    assert_eq!(counter_world.count, value);
 }
 
 #[scenario(path = "tests/features/mutable_world.feature")]

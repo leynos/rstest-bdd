@@ -79,7 +79,7 @@ impl<'a> StepContext<'a> {
     }
 
     /// Borrow a fixture by name, keeping the guard alive until dropped.
-    pub fn borrow_ref<T: Any>(&'a self, name: &str) -> Option<FixtureRef<'a, T>> {
+    pub fn borrow_ref<T: Any>(&self, name: &str) -> Option<FixtureRef<'_, T>> {
         if let Some(val) = self.values.get(name) {
             return val.downcast_ref::<T>().map(FixtureRef::Shared);
         }
@@ -87,7 +87,7 @@ impl<'a> StepContext<'a> {
     }
 
     /// Borrow a fixture mutably by name.
-    pub fn borrow_mut<T: Any>(&'a mut self, name: &str) -> Option<FixtureRefMut<'a, T>> {
+    pub fn borrow_mut<T: Any>(&mut self, name: &str) -> Option<FixtureRefMut<'_, T>> {
         if let Some(val) = self.values.get_mut(name) {
             return val.downcast_mut::<T>().map(FixtureRefMut::Override);
         }
@@ -125,109 +125,6 @@ impl<'a> StepContext<'a> {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use std::sync::Once;
-
-    struct NoopLogger;
-
-    impl log::Log for NoopLogger {
-        fn enabled(&self, _: &log::Metadata<'_>) -> bool {
-            true
-        }
-        fn log(&self, _: &log::Record<'_>) {}
-        fn flush(&self) {}
-    }
-
-    static LOGGER: NoopLogger = NoopLogger;
-    static INIT_LOGGER: Once = Once::new();
-
-    fn ensure_logger() {
-        INIT_LOGGER.call_once(|| {
-            let _ = log::set_logger(&LOGGER);
-            log::set_max_level(log::LevelFilter::Warn);
-        });
-    }
-
-    #[test]
-    fn borrow_mut_returns_mutable_fixture() {
-        let cell = RefCell::new(Box::new(String::from("seed")));
-        let mut ctx = StepContext::default();
-        ctx.insert_owned("text", &cell);
-
-        {
-            let mut value = ctx
-                .borrow_mut::<String>("text")
-                .expect("mutable fixture should exist");
-            value.as_mut().push_str("ing");
-        }
-        assert_eq!(*cell.into_inner(), "seeding");
-    }
-
-    #[test]
-    fn borrow_mut_returns_none_for_shared_fixture() {
-        let fixture = 5;
-        let mut ctx = StepContext::default();
-        ctx.insert("number", &fixture);
-        assert!(ctx.borrow_mut::<i32>("number").is_none());
-    }
-
-    #[test]
-    #[expect(clippy::expect_used, reason = "tests require explicit panic messages")]
-    fn insert_value_overrides_unique_fixture() {
-        ensure_logger();
-        let fixture = 1u32;
-        let mut ctx = StepContext::default();
-        ctx.insert("number", &fixture);
-
-        let first = ctx.insert_value(Box::new(5u32));
-        assert!(
-            first.is_none(),
-            "first override should have no previous value"
-        );
-
-        let second = ctx
-            .insert_value(Box::new(7u32))
-            .expect("expected previous override to be returned");
-        let previous = second
-            .downcast::<u32>()
-            .expect("override should downcast to u32");
-        assert_eq!(*previous, 5);
-
-        let current = ctx
-            .get::<u32>("number")
-            .expect("retrieved fixture should exist");
-        assert_eq!(*current, 7);
-    }
-
-    #[test]
-    fn insert_value_returns_none_when_type_ambiguous() {
-        ensure_logger();
-        let first = 1u32;
-        let second = 2u32;
-        let mut ctx = StepContext::default();
-        ctx.insert("one", &first);
-        ctx.insert("two", &second);
-
-        let result = ctx.insert_value(Box::new(5u32));
-        assert!(result.is_none(), "ambiguous overrides must be ignored");
-        assert_eq!(ctx.get::<u32>("one"), Some(&1));
-        assert_eq!(ctx.get::<u32>("two"), Some(&2));
-    }
-
-    #[test]
-    fn insert_value_returns_none_when_type_missing() {
-        ensure_logger();
-        let text = "fixture";
-        let mut ctx = StepContext::default();
-        ctx.insert("text", &text);
-
-        let result = ctx.insert_value(Box::new(5u32));
-        assert!(result.is_none(), "missing fixture should skip override");
-        assert!(ctx.get::<u32>("text").is_none());
-    }
-}
 impl<'a> FixtureEntry<'a> {
     fn shared<T: Any>(value: &'a T) -> Self {
         Self {
@@ -328,5 +225,109 @@ impl<T> FixtureRefMut<'_, T> {
 impl<T> AsMut<T> for FixtureRefMut<'_, T> {
     fn as_mut(&mut self) -> &mut T {
         self.value_mut()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::Once;
+
+    struct NoopLogger;
+
+    impl log::Log for NoopLogger {
+        fn enabled(&self, _: &log::Metadata<'_>) -> bool {
+            true
+        }
+        fn log(&self, _: &log::Record<'_>) {}
+        fn flush(&self) {}
+    }
+
+    static LOGGER: NoopLogger = NoopLogger;
+    static INIT_LOGGER: Once = Once::new();
+
+    fn ensure_logger() {
+        INIT_LOGGER.call_once(|| {
+            let _ = log::set_logger(&LOGGER);
+            log::set_max_level(log::LevelFilter::Warn);
+        });
+    }
+
+    #[test]
+    fn borrow_mut_returns_mutable_fixture() {
+        let cell = RefCell::new(Box::new(String::from("seed")));
+        let mut ctx = StepContext::default();
+        ctx.insert_owned("text", &cell);
+
+        {
+            let Some(mut value) = ctx.borrow_mut::<String>("text") else {
+                panic!("mutable fixture should exist");
+            };
+            value.as_mut().push_str("ing");
+        }
+        assert_eq!(*cell.into_inner(), "seeding");
+    }
+
+    #[test]
+    fn borrow_mut_returns_none_for_shared_fixture() {
+        let fixture = 5;
+        let mut ctx = StepContext::default();
+        ctx.insert("number", &fixture);
+        assert!(ctx.borrow_mut::<i32>("number").is_none());
+    }
+
+    #[test]
+    #[expect(clippy::expect_used, reason = "tests require explicit panic messages")]
+    fn insert_value_overrides_unique_fixture() {
+        ensure_logger();
+        let fixture = 1u32;
+        let mut ctx = StepContext::default();
+        ctx.insert("number", &fixture);
+
+        let first = ctx.insert_value(Box::new(5u32));
+        assert!(
+            first.is_none(),
+            "first override should have no previous value"
+        );
+
+        let second = ctx
+            .insert_value(Box::new(7u32))
+            .expect("expected previous override to be returned");
+        let previous = second
+            .downcast::<u32>()
+            .expect("override should downcast to u32");
+        assert_eq!(*previous, 5);
+
+        let current = ctx
+            .get::<u32>("number")
+            .expect("retrieved fixture should exist");
+        assert_eq!(*current, 7);
+    }
+
+    #[test]
+    fn insert_value_returns_none_when_type_ambiguous() {
+        ensure_logger();
+        let first = 1u32;
+        let second = 2u32;
+        let mut ctx = StepContext::default();
+        ctx.insert("one", &first);
+        ctx.insert("two", &second);
+
+        let result = ctx.insert_value(Box::new(5u32));
+        assert!(result.is_none(), "ambiguous overrides must be ignored");
+        assert_eq!(ctx.get::<u32>("one"), Some(&1));
+        assert_eq!(ctx.get::<u32>("two"), Some(&2));
+    }
+
+    #[test]
+    fn insert_value_returns_none_when_type_missing() {
+        ensure_logger();
+        let text = "fixture";
+        let mut ctx = StepContext::default();
+        ctx.insert("text", &text);
+
+        let result = ctx.insert_value(Box::new(5u32));
+        assert!(result.is_none(), "missing fixture should skip override");
+        assert!(ctx.get::<u32>("text").is_none());
     }
 }
