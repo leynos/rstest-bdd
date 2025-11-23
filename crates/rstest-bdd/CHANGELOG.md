@@ -6,8 +6,8 @@
   skipped steps and scenario records, reducing boilerplate in behaviour tests.
 - `#[scenario]` fixtures that are passed by value are now registered mutably, so
   step functions can declare `&mut Fixture` parameters and mutate world state
-  without interior mutability wrappers. A new `StepContext::insert_mut` helper
-  underpins the change.
+  without interior mutability wrappers. A new `StepContext::insert_owned`
+  helper underpins the change.
 
 ## [0.1.0-alpha4] - 2025-09-30
 

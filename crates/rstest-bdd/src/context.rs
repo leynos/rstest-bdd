@@ -11,9 +11,9 @@ use std::collections::HashMap;
 /// Context passed to step functions containing references to requested fixtures.
 ///
 /// This is constructed by the `#[scenario]` macro for each step invocation. Use
-/// [`insert_mut`](Self::insert_mut) when a fixture should be shared mutably
-/// across steps; step functions may then request `&mut T` and mutate world
-/// state without resorting to interior mutability wrappers.
+/// [`insert_owned`](Self::insert_owned) when a fixture should be shared
+/// mutably across steps; step functions may then request `&mut T` and mutate
+/// world state without resorting to interior mutability wrappers.
 ///
 /// # Examples
 ///
@@ -87,7 +87,14 @@ impl<'a> StepContext<'a> {
     }
 
     /// Borrow a fixture mutably by name.
-    pub fn borrow_mut<T: Any>(&mut self, name: &str) -> Option<FixtureRefMut<'_, T>> {
+    ///
+    /// # Panics
+    ///
+    /// The underlying fixtures use `RefCell` for interior mutability. Attempting
+    /// to borrow the same fixture mutably while an existing mutable guard is
+    /// alive will panic via `RefCell::borrow_mut`. Callers must drop guards
+    /// before requesting another mutable borrow of the same fixture.
+    pub fn borrow_mut<T: Any>(&'a mut self, name: &str) -> Option<FixtureRefMut<'a, T>> {
         if let Some(val) = self.values.get_mut(name) {
             return val.downcast_mut::<T>().map(FixtureRefMut::Override);
         }
@@ -140,41 +147,34 @@ impl<'a> FixtureEntry<'a> {
         }
     }
 
-    /// Helper to borrow from a mutable fixture, delegating the borrow operation
-    /// to the provided closure.
-    fn borrow_mutable<T: Any, R>(
-        &self,
-        borrow_fn: impl FnOnce(&'a RefCell<Box<T>>) -> R,
-    ) -> Option<R> {
+    fn borrow_ref<T: Any>(&self) -> Option<FixtureRef<'_, T>> {
+        if self.type_id != TypeId::of::<T>() {
+            return None;
+        }
+        match self.kind {
+            FixtureKind::Shared(value) => value.downcast_ref::<T>().map(FixtureRef::Shared),
+            FixtureKind::Mutable(cell_any) => {
+                let cell = cell_any.downcast_ref::<RefCell<Box<T>>>()?;
+                let guard = cell.borrow();
+                let mapped = Ref::map(guard, Box::as_ref);
+                Some(FixtureRef::Borrowed(mapped))
+            }
+        }
+    }
+
+    fn borrow_mut<T: Any>(&self) -> Option<FixtureRefMut<'_, T>> {
         if self.type_id != TypeId::of::<T>() {
             return None;
         }
         match self.kind {
             FixtureKind::Mutable(cell_any) => {
                 let cell = cell_any.downcast_ref::<RefCell<Box<T>>>()?;
-                Some(borrow_fn(cell))
+                let guard = cell.borrow_mut();
+                let mapped = RefMut::map(guard, Box::as_mut);
+                Some(FixtureRefMut::Borrowed(mapped))
             }
             FixtureKind::Shared(_) => None,
         }
-    }
-
-    fn borrow_ref<T: Any>(&self) -> Option<FixtureRef<'_, T>> {
-        match self.kind {
-            FixtureKind::Shared(value) => value.downcast_ref::<T>().map(FixtureRef::Shared),
-            FixtureKind::Mutable(_) => self.borrow_mutable(|cell| {
-                let guard = cell.borrow();
-                let mapped = Ref::map(guard, Box::as_ref);
-                FixtureRef::Borrowed(mapped)
-            }),
-        }
-    }
-
-    fn borrow_mut<T: Any>(&self) -> Option<FixtureRefMut<'_, T>> {
-        self.borrow_mutable(|cell| {
-            let guard = cell.borrow_mut();
-            let mapped = RefMut::map(guard, Box::as_mut);
-            FixtureRefMut::Borrowed(mapped)
-        })
     }
 }
 /// Borrowed fixture reference that keeps any underlying `RefCell` borrow alive

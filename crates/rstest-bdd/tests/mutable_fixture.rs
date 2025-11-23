@@ -30,5 +30,5 @@ fn assert_world(counter_world: &CounterWorld, value: usize) {
 
 #[scenario(path = "tests/features/mutable_world.feature")]
 fn mutable_fixture(counter_world: CounterWorld) {
-    let _ = counter_world;
+    assert_eq!(counter_world.count, 3);
 }
