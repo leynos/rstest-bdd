@@ -28,44 +28,70 @@ fn gen_missing_fixture_error(ctx: &FixtureDeclContext<'_>, fixture_ty: &syn::Typ
     }
 }
 
+/// Strategy for borrowing a fixture value.
+#[derive(Copy, Clone)]
+enum FixtureBorrowStrategy<'a> {
+    /// Borrow mutably and return a mutable reference.
+    MutableRef { elem: &'a syn::Type },
+    /// Borrow immutably and return an immutable reference (unsized type).
+    ImmutableRef { ty: &'a syn::Type },
+    /// Borrow immutably and clone the value.
+    Owned { ty: &'a syn::Type },
+}
+
+/// Generate a simple fixture declaration with the specified borrow strategy.
+fn gen_simple_fixture_decl(
+    ctx: FixtureDeclContext<'_>,
+    strategy: FixtureBorrowStrategy<'_>,
+) -> TokenStream2 {
+    let (borrow_ty, guard_mut, borrow_method, value_accessor) = match strategy {
+        FixtureBorrowStrategy::MutableRef { elem } => {
+            let guard_mut = quote::quote! { mut };
+            let borrow_method = quote::quote! { borrow_mut };
+            let value_accessor = quote::quote! { value_mut() };
+            (elem, guard_mut, borrow_method, value_accessor)
+        }
+        FixtureBorrowStrategy::ImmutableRef { ty } => {
+            let guard_mut = quote::quote! {};
+            let borrow_method = quote::quote! { borrow_ref };
+            let value_accessor = quote::quote! { value() };
+            (ty, guard_mut, borrow_method, value_accessor)
+        }
+        FixtureBorrowStrategy::Owned { ty } => {
+            let guard_mut = quote::quote! {};
+            let borrow_method = quote::quote! { borrow_ref };
+            let value_accessor = quote::quote! { value().clone() };
+            (ty, guard_mut, borrow_method, value_accessor)
+        }
+    };
+
+    let missing_err = gen_missing_fixture_error(&ctx, borrow_ty);
+    let FixtureDeclContext {
+        pat,
+        name,
+        ty,
+        ctx_ident,
+        ..
+    } = ctx;
+    let guard_ident = format_ident!("__rstest_bdd_guard_{}", pat);
+    quote::quote! {
+        let #guard_mut #guard_ident = #ctx_ident
+            .#borrow_method::<#borrow_ty>(stringify!(#name))
+            .ok_or_else(|| #missing_err)?;
+        let #pat: #ty = #guard_ident.#value_accessor;
+    }
+}
+
 /// Generate declarations for fixture values.
 ///
 /// Non-reference fixtures must implement [`Clone`] because wrappers clone
 /// them to hand ownership to the step function.
 fn gen_mut_ref_fixture_decl(ctx: FixtureDeclContext<'_>, elem: &syn::Type) -> TokenStream2 {
-    let missing_err = gen_missing_fixture_error(&ctx, elem);
-    let FixtureDeclContext {
-        pat,
-        name,
-        ty,
-        ctx_ident,
-        ..
-    } = ctx;
-    let guard_ident = format_ident!("__rstest_bdd_guard_{}", pat);
-    quote::quote! {
-        let mut #guard_ident = #ctx_ident
-            .borrow_mut::<#elem>(stringify!(#name))
-            .ok_or_else(|| #missing_err)?;
-        let #pat: #ty = #guard_ident.value_mut();
-    }
+    gen_simple_fixture_decl(ctx, FixtureBorrowStrategy::MutableRef { elem })
 }
 
-fn gen_unsized_ref_fixture_decl(ctx: FixtureDeclContext<'_>, elem: &syn::Type) -> TokenStream2 {
-    let missing_err = gen_missing_fixture_error(&ctx, elem);
-    let FixtureDeclContext {
-        pat,
-        name,
-        ty,
-        ctx_ident,
-        ..
-    } = ctx;
-    let guard_ident = format_ident!("__rstest_bdd_guard_{}", pat);
-    quote::quote! {
-        let #guard_ident = #ctx_ident
-            .borrow_ref::<#ty>(stringify!(#name))
-            .ok_or_else(|| #missing_err)?;
-        let #pat: #ty = #guard_ident.value();
-    }
+fn gen_unsized_ref_fixture_decl(ctx: FixtureDeclContext<'_>, _elem: &syn::Type) -> TokenStream2 {
+    gen_simple_fixture_decl(ctx, FixtureBorrowStrategy::ImmutableRef { ty: ctx.ty })
 }
 
 fn gen_sized_ref_fixture_decl(ctx: FixtureDeclContext<'_>, elem: &syn::Type) -> TokenStream2 {
@@ -105,21 +131,7 @@ fn gen_sized_ref_fixture_decl(ctx: FixtureDeclContext<'_>, elem: &syn::Type) -> 
 }
 
 fn gen_owned_fixture_decl(ctx: FixtureDeclContext<'_>) -> TokenStream2 {
-    let missing_err = gen_missing_fixture_error(&ctx, ctx.ty);
-    let FixtureDeclContext {
-        pat,
-        name,
-        ty,
-        ctx_ident,
-        ..
-    } = ctx;
-    let guard_ident = format_ident!("__rstest_bdd_guard_{}", pat);
-    quote::quote! {
-        let #guard_ident = #ctx_ident
-            .borrow_ref::<#ty>(stringify!(#name))
-            .ok_or_else(|| #missing_err)?;
-        let #pat: #ty = #guard_ident.value().clone();
-    }
+    gen_simple_fixture_decl(ctx, FixtureBorrowStrategy::Owned { ty: ctx.ty })
 }
 
 pub(super) fn gen_fixture_decls(
