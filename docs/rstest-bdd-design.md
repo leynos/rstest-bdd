@@ -250,12 +250,12 @@ it, and pass the resulting `u32` value to the `deposit_amount` function.
 
 #### 1.3.3 Using `Background`, Data Tables, and Docstrings
 
-To achieve feature parity with modern BDD tools, the framework will support
+To achieve feature parity with modern BDD tools, the framework now supports
 other essential Gherkin constructs.
 
-- Background: Steps defined in a `Background` section are executed
-  before each `Scenario` in a feature file.[^10] The parser prepends these
-  steps to the scenario's step list so the `#[scenario]` macro runs them first.
+- Background: Steps defined in a `Background` section run before each
+  `Scenario` in a feature file.[^10] The parser prepends these steps to each
+  scenario's step list so the `#[scenario]` macro runs them first.
 
 - Data Tables: A Gherkin data table provides a way to pass a structured block
   of data to a single step. The step function declares a single optional

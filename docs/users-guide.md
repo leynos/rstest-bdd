@@ -61,9 +61,10 @@ same type for readability.
 
 Scenarios follow the simple `Given‑When‑Then` pattern. Support for **Scenario
 Outline** is available, enabling a single scenario to run with multiple sets of
-data from an `Examples` table. A `Background` section may define steps that run
-before each scenario. Advanced constructs such as data tables and Docstrings
-provide structured or free‑form arguments to steps.
+data from an `Examples` table. A `Background` section defines steps that run
+before each `Scenario` in a feature, letting you share common setup. Advanced
+constructs such as data tables and Docstrings provide structured or free‑form
+arguments to steps.
 
 ### Example feature file
 
