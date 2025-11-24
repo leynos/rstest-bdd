@@ -188,6 +188,7 @@ fn run_failing_macro_tests(t: &trybuild::TestCases) {
         MacroFixtureCase::from("scenario_missing_file.rs"),
         MacroFixtureCase::from("scenario_missing_name.rs"),
         MacroFixtureCase::from("scenario_missing_name_empty.rs"),
+        MacroFixtureCase::from("scenario_missing_path.rs"),
         MacroFixtureCase::from("scenario_name_and_index.rs"),
         MacroFixtureCase::from("scenario_duplicate_name.rs"),
         MacroFixtureCase::from("scenario_tags_no_match.rs"),

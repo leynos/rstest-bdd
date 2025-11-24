@@ -102,7 +102,7 @@ impl Parse for ScenarioArgs {
             }
         }
 
-        let path = path.ok_or_else(|| input.error("`path` is required"))?;
+        let path = path.ok_or_else(|| input.error("`path` argument is required"))?;
 
         Ok(Self {
             path,
