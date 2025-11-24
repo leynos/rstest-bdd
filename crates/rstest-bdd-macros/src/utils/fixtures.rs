@@ -1,7 +1,7 @@
 //! Utilities for handling fixtures in generated tests.
 
 use proc_macro2::TokenStream as TokenStream2;
-use quote::quote;
+use quote::{format_ident, quote};
 
 pub(crate) struct FixtureBindingCode {
     pub prelude: Vec<TokenStream2>,
@@ -34,28 +34,10 @@ pub(crate) fn extract_function_fixtures(
         if matches!(ty, syn::Type::Reference(_)) {
             inserts.push(quote! { ctx.insert(#name_lit, &#binding); });
         } else {
-            let cell_ident = syn::Ident::new(
-                &format!("__rstest_bdd_cell_{binding}"),
-                proc_macro2::Span::call_site(),
-            );
-            let binding_fresh =
-                syn::Ident::new(&binding.to_string(), proc_macro2::Span::call_site());
-            prelude.push(quote! {
-                #[expect(
-                    unused_mut,
-                    reason = "binding is declared mutable to allow user code in step implementations to mutate it, but the generated code may not perform any mutation",
-                )]
-                let mut #binding_fresh = #binding;
-                let #cell_ident = ::std::cell::RefCell::new(Box::new(#binding_fresh));
-            });
-            inserts.push(quote! { ctx.insert_owned::<#ty>(#name_lit, &#cell_ident); });
-            postlude.push(quote! {
-                #[expect(
-                    unused_mut,
-                    reason = "binding is declared mutable to allow user code in step implementations to mutate it, but the generated code may not perform any mutation",
-                )]
-                let mut #binding = *#cell_ident.into_inner();
-            });
+            let (pre, insert, post) = build_non_ref_fixture_binding(&binding, ty, &name_lit);
+            prelude.push(pre);
+            inserts.push(insert);
+            postlude.push(post);
         }
     }
 
@@ -67,6 +49,34 @@ pub(crate) fn extract_function_fixtures(
             postlude,
         },
     ))
+}
+
+fn build_non_ref_fixture_binding(
+    binding: &syn::Ident,
+    ty: &syn::Type,
+    name_lit: &syn::LitStr,
+) -> (TokenStream2, TokenStream2, TokenStream2) {
+    let cell_ident = format_ident!("__rstest_bdd_cell_{}", binding);
+
+    let prelude = quote! {
+        let #cell_ident: ::std::cell::RefCell<Box<dyn ::std::any::Any>> =
+            ::std::cell::RefCell::new(Box::new(#binding));
+    };
+    let insert = quote! {
+        ctx.insert_owned::<#ty>(#name_lit, &#cell_ident);
+    };
+    let postlude = quote! {
+        #[expect(
+            unused_mut,
+            reason = "binding is declared mutable to allow user code in step implementations to mutate it, but the generated code may not perform any mutation",
+        )]
+        let mut #binding = *#cell_ident
+            .into_inner()
+            .downcast::<#ty>()
+            .expect("generated fixture type must match binding");
+    };
+
+    (prelude, insert, postlude)
 }
 
 fn ensure_binding_ident(pat_ty: &mut syn::PatType, counter: usize) -> syn::Result<syn::Ident> {
