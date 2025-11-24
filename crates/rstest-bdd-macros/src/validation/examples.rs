@@ -41,12 +41,18 @@ fn validate_table_column_consistency(text: &str, start_idx: usize) -> Result<(),
 
     let expected_columns = count_columns(header_row);
 
-    for data_row in table_rows {
+    for (i, data_row) in table_rows.enumerate() {
         let actual_columns = count_columns(data_row);
         if actual_columns != expected_columns {
+            let msg = format!(
+                "Malformed Examples table: row {} has {} columns, expected {}",
+                i + 2,
+                actual_columns,
+                expected_columns
+            );
             return Err(error_to_tokens(&syn::Error::new(
                 proc_macro2::Span::call_site(),
-                "Example row has fewer columns than header row in Examples table",
+                msg,
             )));
         }
     }
@@ -125,4 +131,62 @@ pub(crate) fn flatten_and_validate_rows(
     }
 
     Ok(rows)
+}
+
+#[cfg(all(test, feature = "compile-time-validation"))]
+mod tests {
+    use super::*;
+
+    fn error_message(text: &str) -> String {
+        match validate_examples_in_feature_text(text) {
+            Ok(()) => panic!("expected validation to fail"),
+            Err(err) => err.to_string(),
+        }
+    }
+
+    #[test]
+    fn accepts_matching_columns() {
+        let text = "\
+Examples:
+| a | b |
+| 1 | 2 |
+| 3 | 4 |
+";
+
+        assert!(validate_examples_in_feature_text(text).is_ok());
+    }
+
+    #[test]
+    fn reports_row_with_extra_columns() {
+        let text = "\
+Examples:
+| a | b |
+| 1 | 2 |
+| 3 | 4 | 5 |
+";
+
+        let msg = error_message(text);
+
+        assert!(
+            msg.contains("Malformed Examples table: row 3 has 4 columns, expected 3"),
+            "unexpected error: {msg}"
+        );
+    }
+
+    #[test]
+    fn reports_row_with_missing_columns() {
+        let text = "\
+Examples:
+| a | b | c |
+| 1 | 2 | 3 |
+| 4 | 5 |
+";
+
+        let msg = error_message(text);
+
+        assert!(
+            msg.contains("Malformed Examples table: row 3 has 3 columns, expected 4"),
+            "unexpected error: {msg}"
+        );
+    }
 }
