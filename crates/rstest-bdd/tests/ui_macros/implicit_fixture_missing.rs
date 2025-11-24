@@ -1,3 +1,4 @@
+//! UI compile-fail fixture for missing implicit fixture parameter on steps.
 use rstest_bdd_macros::given;
 
 #[given("step with implicit fixture")]
