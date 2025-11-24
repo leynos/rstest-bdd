@@ -32,6 +32,7 @@ use std::collections::HashMap;
 ///     let mut suffix = ctx.borrow_mut::<String>("owned").expect("owned fixture");
 ///     suffix.value_mut().push('!');
 /// }
+/// drop(ctx);
 /// assert_eq!(*owned.into_inner(), "hi!");
 /// ```
 #[derive(Default)]
