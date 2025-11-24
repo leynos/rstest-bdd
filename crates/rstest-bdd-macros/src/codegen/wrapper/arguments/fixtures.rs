@@ -38,7 +38,6 @@ enum BorrowKind {
 enum ValueExtraction {
     MutRef,
     DerefValue,
-    Value,
     ClonedValue,
 }
 
@@ -90,7 +89,6 @@ fn gen_fixture_decl_inner(
     let value_expr = match config.value_extraction {
         ValueExtraction::MutRef => quote::quote! { #guard_ident.value_mut() },
         ValueExtraction::DerefValue => quote::quote! { *#guard_ident.value() },
-        ValueExtraction::Value => quote::quote! { #guard_ident.value() },
         ValueExtraction::ClonedValue => quote::quote! { #guard_ident.value().clone() },
     };
 
@@ -122,8 +120,41 @@ fn gen_unsized_ref_fixture_decl(ctx: FixtureDeclContext<'_>, _elem: &syn::Type) 
 }
 
 fn gen_sized_ref_fixture_decl(ctx: FixtureDeclContext<'_>, elem: &syn::Type) -> TokenStream2 {
-    let config = FixtureDeclConfig::new(elem, elem, BorrowKind::Immutable, ValueExtraction::Value);
-    gen_fixture_decl_inner(ctx, config)
+    let missing_err = gen_missing_fixture_error(&ctx, elem);
+    let FixtureDeclContext {
+        pat,
+        name,
+        ty,
+        ctx_ident,
+        ..
+    } = ctx;
+    let path = rstest_bdd_path();
+    let guard_ident = format_ident!("__rstest_bdd_guard_{}", pat);
+    let guard_enum_ident = format_ident!("__rstest_bdd_guard_enum_{}", pat);
+    let elem_ref_ty = quote::quote! { &'static #elem };
+
+    quote::quote! {
+        #[allow(non_camel_case_types)]
+        enum #guard_enum_ident<'a> {
+            Owned(#path::FixtureRef<'a, #elem>),
+            Shared(#path::FixtureRef<'a, #elem_ref_ty>),
+        }
+
+        let #guard_ident = if let Some(guard) = #ctx_ident.borrow_ref::<#elem>(stringify!(#name)) {
+            #guard_enum_ident::Owned(guard)
+        } else {
+            #guard_enum_ident::Shared(
+                #ctx_ident
+                    .borrow_ref::<#elem_ref_ty>(stringify!(#name))
+                    .ok_or_else(|| #missing_err)?
+            )
+        };
+
+        let #pat: #ty = match &#guard_ident {
+            #guard_enum_ident::Owned(g) => g.value(),
+            #guard_enum_ident::Shared(g) => *g.value(),
+        };
+    }
 }
 
 fn gen_owned_fixture_decl(ctx: FixtureDeclContext<'_>) -> TokenStream2 {

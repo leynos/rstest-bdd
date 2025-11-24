@@ -23,8 +23,7 @@ use std::collections::HashMap;
 /// let mut ctx = StepContext::default();
 /// let value = 42;
 /// ctx.insert("my_fixture", &value);
-/// let owned: std::cell::RefCell<Box<dyn std::any::Any>> =
-///     std::cell::RefCell::new(Box::new(String::from("hi")));
+/// let owned = StepContext::owned_cell(String::from("hi"));
 /// ctx.insert_owned::<String>("owned", &owned);
 ///
 /// let retrieved: Option<&i32> = ctx.get("my_fixture");
@@ -34,11 +33,11 @@ use std::collections::HashMap;
 ///     suffix.value_mut().push('!');
 /// }
 /// drop(ctx);
-/// let owned = owned
-///     .into_inner()
+/// let owned = owned.into_inner();
+/// let owned: String = *owned
 ///     .downcast::<String>()
 ///     .expect("fixture should downcast to String");
-/// assert_eq!(*owned, "hi!");
+/// assert_eq!(owned, "hi!");
 /// ```
 #[derive(Default)]
 pub struct StepContext<'a> {
@@ -57,13 +56,40 @@ enum FixtureKind<'a> {
 }
 
 impl<'a> StepContext<'a> {
+    /// Create an owned fixture cell for use with [`insert_owned`](Self::insert_owned).
+    ///
+    /// This helper boxes the provided value and erases its concrete type so it
+    /// can back a mutable fixture. Callers must retain the returned cell for as
+    /// long as the context references it.
+    #[must_use]
+    pub fn owned_cell<T: Any>(value: T) -> RefCell<Box<dyn Any>> {
+        RefCell::new(Box::new(value))
+    }
+
     /// Insert a fixture reference by name.
     pub fn insert<T: Any>(&mut self, name: &'static str, value: &'a T) {
         self.fixtures.insert(name, FixtureEntry::shared(value));
     }
 
     /// Insert a fixture backed by a `RefCell<Box<dyn Any>>`, enabling mutable borrows.
+    ///
+    /// A runtime type check ensures the stored value matches the requested `T`
+    /// so mismatches are surfaced immediately instead of silently failing at
+    /// borrow time.
+    ///
+    /// # Panics
+    ///
+    /// Panics when the provided cell does not currently store a value of type
+    /// `T`, because continuing would render the fixture un-borrowable at run
+    /// time.
     pub fn insert_owned<T: Any>(&mut self, name: &'static str, cell: &'a RefCell<Box<dyn Any>>) {
+        let guard = cell.borrow();
+        let actual = guard.as_ref().type_id();
+        assert!(
+            actual == TypeId::of::<T>(),
+            "insert_owned: stored value type ({actual:?}) does not match requested {:?} for fixture '{name}'",
+            TypeId::of::<T>()
+        );
         self.fixtures.insert(name, FixtureEntry::owned::<T>(cell));
     }
 
@@ -161,7 +187,12 @@ impl<'a> FixtureEntry<'a> {
 
     fn borrow_ref<T: Any>(&self) -> Option<FixtureRef<'_, T>> {
         match self.kind {
-            FixtureKind::Shared(value) => value.downcast_ref::<T>().map(FixtureRef::Shared),
+            FixtureKind::Shared(value) => {
+                if self.type_id != TypeId::of::<T>() {
+                    return None;
+                }
+                value.downcast_ref::<T>().map(FixtureRef::Shared)
+            }
             FixtureKind::Mutable(cell) => {
                 if self.type_id != TypeId::of::<T>() {
                     return None;

@@ -4,7 +4,7 @@
 //! this test exercises the underlying [`StepContext`] plumbing directly until
 //! the compiler issue is resolved.
 
-use std::cell::RefCell;
+use std::any::Any;
 
 use rstest_bdd::StepContext;
 
@@ -19,7 +19,7 @@ struct CounterWorld {
     reason = "downcast must succeed when reconstructing the owned fixture"
 )]
 fn mutable_owned_fixture_round_trip() {
-    let world: RefCell<Box<dyn std::any::Any>> = RefCell::new(Box::new(CounterWorld::default()));
+    let world = StepContext::owned_cell(CounterWorld::default());
     let mut ctx = StepContext::default();
     ctx.insert_owned::<CounterWorld>("counter_world", &world);
 
@@ -45,4 +45,29 @@ fn mutable_owned_fixture_round_trip() {
         .downcast::<CounterWorld>()
         .expect("fixture should downcast to CounterWorld");
     assert_eq!(*final_world, CounterWorld { count: 3 });
+}
+
+struct SomeOtherType;
+
+#[test]
+fn mutable_owned_fixture_wrong_type_returns_none() {
+    let world = StepContext::owned_cell(CounterWorld::default());
+    let mut ctx = StepContext::default();
+    ctx.insert_owned::<CounterWorld>("counter_world", &world);
+
+    assert!(
+        ctx.borrow_ref::<SomeOtherType>("counter_world").is_none(),
+        "borrow_ref should return None for a mismatched owned fixture type"
+    );
+    assert!(
+        ctx.borrow_mut::<SomeOtherType>("counter_world").is_none(),
+        "borrow_mut should return None for a mismatched owned fixture type"
+    );
+
+    let result: Result<Box<SomeOtherType>, Box<dyn Any>> =
+        world.into_inner().downcast::<SomeOtherType>();
+    assert!(
+        result.is_err(),
+        "downcast to a wrong type should return Err"
+    );
 }
