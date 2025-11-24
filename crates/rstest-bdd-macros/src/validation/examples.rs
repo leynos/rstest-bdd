@@ -56,7 +56,29 @@ fn validate_table_column_consistency(text: &str, start_idx: usize) -> Result<(),
 
 #[cfg(feature = "compile-time-validation")]
 fn count_columns(row: &str) -> usize {
-    row.split('|').count() - 1
+    // Gherkin tables commonly include leading and trailing pipes; strip them
+    // before counting to avoid overestimating the number of columns.
+    row.trim().trim_matches('|').split('|').count()
+}
+
+#[cfg(all(test, feature = "compile-time-validation"))]
+mod tests {
+    use super::count_columns;
+
+    #[test]
+    fn counts_columns_with_wrapping_pipes() {
+        assert_eq!(count_columns("| a | b |"), 2);
+    }
+
+    #[test]
+    fn counts_columns_without_wrapping_pipes() {
+        assert_eq!(count_columns("a|b"), 2);
+    }
+
+    #[test]
+    fn counts_single_column() {
+        assert_eq!(count_columns("| value |"), 1);
+    }
 }
 
 pub(crate) fn extract_and_validate_headers(
