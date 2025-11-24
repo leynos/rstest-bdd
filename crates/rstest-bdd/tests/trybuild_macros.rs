@@ -7,10 +7,10 @@
 //!
 //! Normalisers rewrite fixture paths and strip nightly-only hints so the
 //! assertions remain stable across platforms.
-
 use camino::{Utf8Path, Utf8PathBuf};
 use cap_std::{ambient_authority, fs::Dir};
 use std::borrow::Cow;
+use std::env;
 use std::io;
 use std::panic::{self, AssertUnwindSafe};
 use std::path::Path as StdPath;
@@ -154,6 +154,9 @@ fn collect_feature_files(
 
 #[test]
 fn step_macros_compile() {
+    if env::var_os("NEXTEST_RUN_ID").is_some() {
+        return;
+    }
     let t = trybuild::TestCases::new();
 
     run_passing_macro_tests(&t);

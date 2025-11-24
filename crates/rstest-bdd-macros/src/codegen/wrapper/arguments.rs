@@ -4,6 +4,9 @@ use super::args::{Arg, DataTableArg, DocStringArg, StepStructArg};
 use proc_macro2::TokenStream as TokenStream2;
 use quote::{format_ident, quote};
 
+mod fixtures;
+use fixtures::gen_fixture_decls;
+
 #[derive(Copy, Clone)]
 pub(super) struct StepMeta<'a> {
     pub(super) pattern: &'a syn::LitStr,
@@ -192,74 +195,6 @@ fn gen_step_struct_decl(
                 .map_err(|error| #convert_err)?;
         }
     })
-}
-
-fn is_unsized_reference_target(ty: &syn::Type) -> bool {
-    matches!(
-        ty,
-        syn::Type::Slice(_) | syn::Type::TraitObject(_) | syn::Type::ImplTrait(_)
-    ) || matches!(
-        ty,
-        syn::Type::Path(path) if path.qself.is_none() && path.path.is_ident("str")
-    )
-}
-
-/// Generate declarations for fixture values.
-///
-/// Non-reference fixtures must implement [`Clone`] because wrappers clone
-/// them to hand ownership to the step function.
-pub(super) fn gen_fixture_decls(
-    fixtures: &[&Arg],
-    ident: &syn::Ident,
-    ctx_ident: &proc_macro2::Ident,
-) -> Vec<TokenStream2> {
-    fixtures
-        .iter()
-        .map(|fixture| {
-            let Arg::Fixture { pat, name, ty } = fixture else {
-                unreachable!("fixture vector must contain fixtures");
-            };
-            let path = crate::codegen::rstest_bdd_path();
-            let (lookup_ty, post_get, ty_label) = match ty {
-                syn::Type::Reference(reference) if reference.mutability.is_some() => (
-                    quote! { #ty },
-                    quote! { .map(|value| &mut **value) },
-                    quote! { stringify!(#ty) },
-                ),
-                syn::Type::Reference(reference) => {
-                    let elem = &*reference.elem;
-                    if is_unsized_reference_target(elem) {
-                        (
-                            quote! { #ty },
-                            quote! { .copied() },
-                            quote! { stringify!(#ty) },
-                        )
-                    } else {
-                        (
-                            quote! { #elem },
-                            TokenStream2::new(),
-                            quote! { stringify!(#elem) },
-                        )
-                    }
-                }
-                _ => (
-                    quote! { #ty },
-                    quote! { .cloned() },
-                    quote! { stringify!(#ty) },
-                ),
-            };
-            quote! {
-                let #pat: #ty = #ctx_ident
-                    .get::<#lookup_ty>(stringify!(#name))
-                    #post_get
-                    .ok_or_else(|| #path::StepError::MissingFixture {
-                        name: stringify!(#name).to_string(),
-                        ty: (#ty_label).to_string(),
-                        step: stringify!(#ident).to_string(),
-                    })?;
-            }
-        })
-        .collect()
 }
 
 /// Generate code to parse step arguments from regex captures.

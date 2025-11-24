@@ -482,7 +482,7 @@ impl StepExecution {
 
 /// Type alias for the stored step function pointer.
 pub type StepFn = for<'a> fn(
-    &crate::context::StepContext<'a>,
+    &mut crate::context::StepContext<'a>,
     &str,
     Option<&str>,
     Option<&[&[&str]]>,

@@ -2,13 +2,21 @@
 
 use assert_cmd::Command;
 use eyre::{Context, Result};
+use serial_test::serial;
+use std::fs;
+use std::path::PathBuf;
 use std::str;
 
 fn run_cargo_bdd_steps() -> Result<String> {
+    let fixture_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/minimal");
+    let target_dir = fixture_dir.join("target");
+    fs::create_dir_all(&target_dir)
+        .with_context(|| format!("failed to create {}", target_dir.display()))?;
     let mut cmd = Command::cargo_bin("cargo-bdd")
         .wrap_err("cargo-bdd binary should exist in this workspace")?;
     let output = cmd
-        .current_dir("..")
+        .current_dir(fixture_dir)
+        .env("CARGO_TARGET_DIR", &target_dir)
         .arg("steps")
         .output()
         .wrap_err("failed to execute `cargo bdd steps`")?;
@@ -19,6 +27,7 @@ fn run_cargo_bdd_steps() -> Result<String> {
 }
 
 #[test]
+#[serial]
 fn list_steps_runs() -> Result<()> {
     let stdout = run_cargo_bdd_steps()?;
     assert!(
@@ -29,6 +38,7 @@ fn list_steps_runs() -> Result<()> {
 }
 
 #[test]
+#[serial]
 fn steps_output_includes_skipped_statuses() -> Result<()> {
     let stdout = run_cargo_bdd_steps()?;
     assert!(

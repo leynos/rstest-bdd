@@ -3,13 +3,21 @@
 use proc_macro2::TokenStream as TokenStream2;
 use quote::quote;
 
+pub(crate) struct FixtureBindingCode {
+    pub prelude: Vec<TokenStream2>,
+    pub ctx_inserts: Vec<TokenStream2>,
+    pub postlude: Vec<TokenStream2>,
+}
+
 /// Extract function argument identifiers and create insert statements.
 pub(crate) fn extract_function_fixtures(
     sig: &mut syn::Signature,
-) -> syn::Result<(Vec<syn::Ident>, Vec<TokenStream2>)> {
+) -> syn::Result<(Vec<syn::Ident>, FixtureBindingCode)> {
     let mut counter = 0usize;
     let mut arg_idents = Vec::new();
     let mut inserts = Vec::new();
+    let mut prelude = Vec::new();
+    let mut postlude = Vec::new();
 
     for input in &mut sig.inputs {
         let syn::FnArg::Typed(pat_ty) = input else {
@@ -22,10 +30,43 @@ pub(crate) fn extract_function_fixtures(
 
         let name_lit = syn::LitStr::new(&fixture_name, proc_macro2::Span::call_site());
         arg_idents.push(binding.clone());
-        inserts.push(quote! { ctx.insert(#name_lit, &#binding); });
+        let ty = &*pat_ty.ty;
+        if matches!(ty, syn::Type::Reference(_)) {
+            inserts.push(quote! { ctx.insert(#name_lit, &#binding); });
+        } else {
+            let cell_ident = syn::Ident::new(
+                &format!("__rstest_bdd_cell_{binding}"),
+                proc_macro2::Span::call_site(),
+            );
+            let binding_fresh =
+                syn::Ident::new(&binding.to_string(), proc_macro2::Span::call_site());
+            prelude.push(quote! {
+                #[expect(
+                    unused_mut,
+                    reason = "binding is declared mutable to allow user code in step implementations to mutate it, but the generated code may not perform any mutation",
+                )]
+                let mut #binding_fresh = #binding;
+                let #cell_ident = ::std::cell::RefCell::new(Box::new(#binding_fresh));
+            });
+            inserts.push(quote! { ctx.insert_owned::<#ty>(#name_lit, &#cell_ident); });
+            postlude.push(quote! {
+                #[expect(
+                    unused_mut,
+                    reason = "binding is declared mutable to allow user code in step implementations to mutate it, but the generated code may not perform any mutation",
+                )]
+                let mut #binding = *#cell_ident.into_inner();
+            });
+        }
     }
 
-    Ok((arg_idents, inserts))
+    Ok((
+        arg_idents,
+        FixtureBindingCode {
+            prelude,
+            ctx_inserts: inserts,
+            postlude,
+        },
+    ))
 }
 
 fn ensure_binding_ident(pat_ty: &mut syn::PatType, counter: usize) -> syn::Result<syn::Ident> {

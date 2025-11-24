@@ -33,7 +33,7 @@ fn wrapper_handles_text_capture_without_shadowing() {
         .expect("step should be registered for '{text} arrives'");
     *CAPTURED_TEXT.lock().expect("capture mutex poisoned") = None;
 
-    let _ = assert_step_ok!(step_fn(&ctx, step_text, None, None));
+    let _ = assert_step_ok!(step_fn(&mut ctx, step_text, None, None));
 
     let captured = CAPTURED_TEXT
         .lock()
@@ -48,11 +48,11 @@ fn wrapper_handles_text_capture_without_shadowing() {
     reason = "test inspects placeholder mismatch error formatting"
 )]
 fn placeholder_mismatch_reports_original_step_text() {
-    let ctx = StepContext::default();
+    let mut ctx = StepContext::default();
     let step_fn = lookup_step(StepKeyword::Given, "{text} arrives".into())
         .expect("step should be registered for '{text} arrives'");
 
-    let err = assert_step_err!(step_fn(&ctx, "arrives", None, None));
+    let err = assert_step_err!(step_fn(&mut ctx, "arrives", None, None));
     let display = err.to_string();
     assert!(
         display.contains("arrives"),

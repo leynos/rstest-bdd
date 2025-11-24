@@ -47,7 +47,7 @@ fn prepare_argument_processing_handles_all_argument_types() {
     };
     let fixture_code = fixture_stmt.to_string();
     assert!(fixture_code.contains("__rstest_bdd_ctx"));
-    assert!(fixture_code.contains("cloned"));
+    assert!(fixture_code.contains("clone"));
     assert!(fixture_code.contains("MissingFixture"));
 
     assert_eq!(prepared.step_arg_parses.len(), 1);
@@ -118,17 +118,19 @@ fn gen_fixture_decls_handles_reference_types() {
     };
 
     let owned_code = owned.to_string();
-    assert!(owned_code.contains("cloned"));
+    assert!(owned_code.contains("clone"));
 
     let str_code = str_ref.to_string();
-    assert!(str_code.contains("copied"));
+    assert!(str_code.contains("value"));
+    assert!(!str_code.contains("clone"));
 
     let bytes_code = bytes_ref.to_string();
-    assert!(bytes_code.contains("copied"));
+    assert!(bytes_code.contains("value"));
+    assert!(!bytes_code.contains("clone"));
 
     let mut_code = mut_ref.to_string();
-    let mut_compact: String = mut_code.chars().filter(|c| !c.is_whitespace()).collect();
-    assert!(mut_compact.contains("map(|value|&mut**value)"));
+    assert!(mut_code.contains("borrow_mut"));
+    assert!(mut_code.contains("value_mut"));
 
     let cell_code = cell_ref.to_string();
     assert!(!cell_code.contains("cloned"));

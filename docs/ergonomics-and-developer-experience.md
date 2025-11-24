@@ -271,6 +271,11 @@ fn results_are_displayed(results: Vec<SearchResult>) {
 **Goal:** Provide a structured, type-safe alternative to manually crafting
 state objects with `RefCell<Option<T>>`. This is the most requested ergonomic
 feature, aimed at creating a "world" or "state" object with less ceremony.
+`rstest-bdd` now registers fixtures provided by `#[scenario]` tests with
+exclusive access, so step functions can request `&mut World` and mutate the
+shared state directly when that is all they need. The `Slot<T>` helper still
+serves as the ergonomic option for optional fields or when steps must stash
+data lazily without replacing the entire struct.
 
 Proposed Design:
 
