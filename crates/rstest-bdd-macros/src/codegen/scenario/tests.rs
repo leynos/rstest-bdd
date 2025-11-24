@@ -1,3 +1,4 @@
+//! Tests exercising scenario code-generation utilities.
 use super::*;
 use crate::parsing::feature::ParsedStep;
 

@@ -1,5 +1,5 @@
-// Intentionally left without file-wide lint suppressions; add per-function #[expect(...)] where needed.
 //! Tests for step-definition validation: missing/single/ambiguous outcomes and registry behaviour.
+// Intentionally left without file-wide lint suppressions; add per-function #[expect(...)] where needed.
 use super::crate_id::{canonicalise_out_dir, normalise_crate_id};
 use super::*;
 use camino::{Utf8Path, Utf8PathBuf};

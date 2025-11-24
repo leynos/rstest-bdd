@@ -1,3 +1,4 @@
+//! Scenario metadata wrappers shared across macro code generation.
 use std::fmt;
 
 /// Path to a feature file on disk.

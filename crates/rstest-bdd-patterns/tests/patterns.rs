@@ -1,5 +1,5 @@
-#![expect(clippy::expect_used, reason = "test asserts conversion path")]
 //! Behavioural tests for the public pattern parsing surface.
+#![expect(clippy::expect_used, reason = "test asserts conversion path")]
 
 use regex::Regex;
 

@@ -1,3 +1,4 @@
+//! Validation helpers for datatable field types and Option detection.
 use syn::{spanned::Spanned, GenericArgument, PathArguments, Type, TypePath};
 
 pub(crate) fn option_inner_type(ty: &Type) -> syn::Result<(bool, Type)> {

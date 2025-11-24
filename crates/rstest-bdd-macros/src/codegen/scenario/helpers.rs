@@ -1,3 +1,4 @@
+//! Helpers for generating scenario code from parsed examples and steps.
 use proc_macro2::TokenStream as TokenStream2;
 use quote::{quote, ToTokens};
 
