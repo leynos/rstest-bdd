@@ -85,6 +85,8 @@ fn gen_fixture_decl_inner(
         BorrowKind::Immutable => (quote::quote! {}, quote::quote! { borrow_ref }),
     };
 
+    let borrow_ty = config.borrow_ty;
+
     let value_expr = match config.value_extraction {
         ValueExtraction::MutRef => quote::quote! { #guard_ident.value_mut() },
         ValueExtraction::DerefValue => quote::quote! { *#guard_ident.value() },
@@ -94,7 +96,7 @@ fn gen_fixture_decl_inner(
 
     quote::quote! {
         let #guard_binding #guard_ident = #ctx_ident
-            .#borrow_method::<#(config.borrow_ty)>(stringify!(#name))
+            .#borrow_method::<#borrow_ty>(stringify!(#name))
             .ok_or_else(|| #missing_err)?;
         let #pat: #ty = #value_expr;
     }
