@@ -79,7 +79,10 @@ impl<'a> StepContext<'a> {
     }
 
     /// Borrow a fixture by name, keeping the guard alive until dropped.
-    pub fn borrow_ref<T: Any>(&self, name: &str) -> Option<FixtureRef<'_, T>> {
+    pub fn borrow_ref<'b, T: Any>(&'b self, name: &str) -> Option<FixtureRef<'b, T>>
+    where
+        'a: 'b,
+    {
         if let Some(val) = self.values.get(name) {
             return val.downcast_ref::<T>().map(FixtureRef::Shared);
         }
@@ -94,7 +97,10 @@ impl<'a> StepContext<'a> {
     /// to borrow the same fixture mutably while an existing mutable guard is
     /// alive will panic via `RefCell::borrow_mut`. Callers must drop guards
     /// before requesting another mutable borrow of the same fixture.
-    pub fn borrow_mut<T: Any>(&'a mut self, name: &str) -> Option<FixtureRefMut<'a, T>> {
+    pub fn borrow_mut<'b, T: Any>(&'b mut self, name: &str) -> Option<FixtureRefMut<'b, T>>
+    where
+        'a: 'b,
+    {
         if let Some(val) = self.values.get_mut(name) {
             return val.downcast_mut::<T>().map(FixtureRefMut::Override);
         }

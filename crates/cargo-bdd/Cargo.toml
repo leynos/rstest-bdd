@@ -25,3 +25,5 @@ eyre.workspace = true
 
 [dev-dependencies]
 assert_cmd = "2"
+tempfile.workspace = true
+serial_test = "2"
