@@ -151,11 +151,11 @@ the generated test inserts its arguments (the `rstest` fixtures) into the
 `StepContext` before invoking each registered step.
 
 Because each scenario owns its fixtures, the runner now registers value
-fixtures with exclusive access. Step parameters declared as
-`&mut FixtureType` receive mutable references to the scenario's fixtures,
-supporting classic “world” objects without sprinkling `Cell` or `RefCell`
-wrappers through test structs. Immutable references continue to work exactly
-as before, so opting into mutability is purely additive.
+fixtures with exclusive access. Step parameters declared as `&mut FixtureType`
+receive mutable references to the scenario's fixtures, supporting classic
+“world” objects without sprinkling `Cell` or `RefCell` wrappers through test
+structs. Immutable references continue to work exactly as before, so opting
+into mutability is purely additive.
 
 ### Step return values
 

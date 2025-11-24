@@ -14,10 +14,14 @@ struct CounterWorld {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "downcast must succeed when reconstructing the owned fixture"
+)]
 fn mutable_owned_fixture_round_trip() {
-    let world = RefCell::new(Box::new(CounterWorld::default()));
+    let world: RefCell<Box<dyn std::any::Any>> = RefCell::new(Box::new(CounterWorld::default()));
     let mut ctx = StepContext::default();
-    ctx.insert_owned("counter_world", &world);
+    ctx.insert_owned::<CounterWorld>("counter_world", &world);
 
     // Given the world starts at 2
     {
@@ -36,6 +40,9 @@ fn mutable_owned_fixture_round_trip() {
     }
 
     // Then the scenario body receives the mutated fixture.
-    let final_world = world.into_inner();
+    let final_world = world
+        .into_inner()
+        .downcast::<CounterWorld>()
+        .expect("fixture should downcast to CounterWorld");
     assert_eq!(*final_world, CounterWorld { count: 3 });
 }
