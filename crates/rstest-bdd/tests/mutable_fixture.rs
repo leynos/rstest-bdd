@@ -40,6 +40,7 @@ fn mutable_owned_fixture_round_trip() {
     }
 
     // Then the scenario body receives the mutated fixture.
+    drop(ctx);
     let final_world = world
         .into_inner()
         .downcast::<CounterWorld>()
@@ -64,6 +65,7 @@ fn mutable_owned_fixture_wrong_type_returns_none() {
         "borrow_mut should return None for a mismatched owned fixture type"
     );
 
+    drop(ctx);
     let result: Result<Box<SomeOtherType>, Box<dyn Any>> =
         world.into_inner().downcast::<SomeOtherType>();
     assert!(

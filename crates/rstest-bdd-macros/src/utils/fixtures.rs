@@ -1,7 +1,7 @@
 //! Utilities for handling fixtures in generated tests.
 
 use proc_macro2::TokenStream as TokenStream2;
-use quote::quote;
+use quote::{format_ident, quote};
 
 pub(crate) struct FixtureBindingCode {
     pub prelude: Vec<TokenStream2>,
@@ -56,10 +56,7 @@ fn build_non_ref_fixture_binding(
     ty: &syn::Type,
     name_lit: &syn::LitStr,
 ) -> (TokenStream2, TokenStream2, TokenStream2) {
-    let cell_ident = syn::Ident::new(
-        &format!("__rstest_bdd_cell_{binding}"),
-        proc_macro2::Span::call_site(),
-    );
+    let cell_ident = format_ident!("__rstest_bdd_cell_{}", binding);
 
     let prelude = quote! {
         let #cell_ident: ::std::cell::RefCell<Box<dyn ::std::any::Any>> =

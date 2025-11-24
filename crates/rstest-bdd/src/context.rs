@@ -310,6 +310,7 @@ mod tests {
             };
             value.as_mut().push_str("ing");
         }
+        drop(ctx);
         let value = cell
             .into_inner()
             .downcast::<String>()
