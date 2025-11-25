@@ -118,8 +118,35 @@ fn validate_table_column_consistency(
 }
 
 #[cfg(feature = "compile-time-validation")]
-fn count_columns(row: TableRow) -> usize {
-    row.as_ref().split('|').count() - 1
+fn count_columns(row: &str) -> usize {
+    // Gherkin tables commonly include leading and trailing pipes; strip them
+    // before counting to avoid overestimating the number of columns. Treat
+    // empty or pipe-only rows as having zero columns so malformed tables are
+    // still rejected.
+    let trimmed = row.trim().trim_matches('|');
+    if trimmed.is_empty() {
+        0
+    } else {
+        trimmed.split('|').count()
+    }
+}
+
+#[cfg(all(test, feature = "compile-time-validation"))]
+mod tests {
+    //! Tests for column counting in Examples tables.
+    use super::count_columns;
+    use rstest::rstest;
+
+    #[rstest]
+    #[case("| a | b |", 2)]
+    #[case("a|b", 2)]
+    #[case("| value |", 1)]
+    #[case("||", 0)]
+    #[case("", 0)]
+    #[case("| |", 1)]
+    fn counts_columns(#[case] row: &str, #[case] expected: usize) {
+        assert_eq!(count_columns(row), expected);
+    }
 }
 
 pub(crate) fn extract_and_validate_headers(
