@@ -62,7 +62,7 @@ impl Parse for ScenariosArgs {
             }
         }
 
-        let dir = dir.ok_or_else(|| input.error("`dir` (or `path`) is required"))?;
+        let dir = dir.ok_or_else(|| input.error("`dir` (or `path`) argument is required"))?;
 
         Ok(Self { dir, tag_filter })
     }
