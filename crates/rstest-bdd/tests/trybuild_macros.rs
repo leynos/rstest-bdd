@@ -1,5 +1,4 @@
 //! Compile-time tests for rstest-bdd procedural macros using trybuild.
-//!
 //! These tests verify that the `#[step]` and `#[scenario]` macros register
 //! step definitions, surface compile-time validation errors, and emit clear
 //! diagnostics. Trybuild executes the fixture crates and compares stderr
