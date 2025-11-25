@@ -84,7 +84,7 @@ code.
 ### Internationalised scenarios
 
 `rstest-bdd` reads the optional `# language: <code>` directive that appears at
-the top of a feature file. When a locale is specified the parser uses that
+the top of a feature file. When a locale is specified, the parser uses that
 language's keyword catalogue, enabling teams to collaborate in their native
 language. The `examples/japanese-ledger` crate demonstrates the end-to-end
 workflow for Japanese:
@@ -582,7 +582,7 @@ warnings into `compile_error!`s when all step definitions are local. This
 prevents behaviour specifications from silently drifting from the code while
 still permitting cross‑crate step sharing.
 
-To enable validation pin a feature in the project's `dev-dependencies`:
+To enable validation, pin a feature in the project's `dev-dependencies`:
 
 ```toml
 [dev-dependencies]
