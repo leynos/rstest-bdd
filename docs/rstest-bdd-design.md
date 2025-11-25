@@ -261,7 +261,7 @@ essential Gherkin constructs.
   of data to a single step. The step function declares a single optional
   parameter annotated with `#[datatable]` or named `datatable`. Legacy code may
   keep using `Vec<Vec<String>>`, while the runtime `rstest_bdd::datatable`
-  module now offers typed parsing utilities.
+  module offers typed parsing utilities.
 
   - `datatable::Rows<T>` wraps a `Vec<T>` and derives `Deref<Target = [T]>`,
     `From<Vec<T>>`, and `IntoIterator` via `derive_more`, letting steps consume
@@ -662,7 +662,7 @@ The third option, link-time collection, is the only one that satisfies all
 design constraints. It preserves the standard `cargo test` workflow, avoids the
 fragility of build scripts, and allows for fully decoupled step definitions.
 
-To surface missing steps earlier, the macros crate now maintains a small,
+To surface missing steps earlier, the macros crate maintains a small,
 compile‑time registry, and each `#[given]`, `#[when]`, and `#[then]` invocation
 records its keyword and pattern there. When `#[scenario]` expands, it consults
 this registry and emits a `compile_error!` for any Gherkin step that lacks a
@@ -782,7 +782,7 @@ global registry stores `(StepKeyword, &'static StepPattern)` keys in a
 `hashbrown::HashMap` and uses the raw-entry API for constant-time lookups by
 hashing the pattern text directly.
 
-Placeholder parsing now follows a two-stage pipeline that first tokenizes the
+Placeholder parsing follows a two-stage pipeline that first tokenizes the
 pattern and then translates the resulting tokens into an anchored regular
 expression. This architecture keeps the lexing responsibilities focused and
 isolated from the regex synthesis step, making it easier to extend placeholder
@@ -1162,8 +1162,8 @@ incrementally.
 
 - Implement support for `Scenario Outline`. The `#[scenario]` macro detects this
   Gherkin construct and generates the corresponding `#[rstest]` `#[case(…)]`
-  attributes on the test function. This behaviour is now implemented and
-  verified by the test suite.
+  attributes on the test function. This behaviour is implemented and verified
+  by the test suite.
 - Introduced lightweight `ExampleTable` and `ScenarioData` structs in the
   macros crate. They encapsulate outline table rows and scenario metadata,
   replacing a complex tuple return and enabling clearer helper functions.
@@ -1183,10 +1183,10 @@ incrementally.
 
 - Implement robust compile-time error handling. The `#[scenario]` macro should
   emit clear compiler errors if a feature file cannot be parsed or if no
-  matching step definition can be found for a Gherkin step. The macro now
-  validates that the referenced feature file exists before invoking the Gherkin
-  parser. Missing or malformed files cause `compile_error!` to be emitted,
-  failing fast during compilation.
+  matching step definition can be found for a Gherkin step. The macro validates
+  that the referenced feature file exists before invoking the Gherkin parser.
+  Missing or malformed files cause `compile_error!` to be emitted, failing fast
+  during compilation.
 
 - Develop a `scenarios!` helper macro, analogous to the one in `pytest-bdd` 9,
   which can automatically bind all scenarios within one or more feature files,
@@ -1198,8 +1198,8 @@ incrementally.
     all Cargo manifests, remove `async-trait` from dependencies and imports,
     and add a CI check that fails if it reappears.
 
-    We now advertise Rust 1.75 as the stable baseline across every crate in the
-    workspace and standardise on the Rust 2021 edition to keep the declared
+    The project advertises Rust 1.75 as the stable baseline across every crate
+    in the workspace and standardises on the Rust 2021 edition to keep the
     edition compatible with that MSRV. The development toolchain remains pinned
     to nightly because the runtime depends on auto traits and negative impls,
     but those features do not affect the documented MSRV. Step registration
@@ -1211,7 +1211,7 @@ incrementally.
 - Introduce a `skip!` macro that step or hook functions can invoke to record a
   `Skipped` outcome and halt the remaining steps. The macro accepts an optional
   message and integrates with the scenario orchestrator so the scenario is
-  marked as skipped rather than failed. The concrete implementation now mirrors
+  marked as skipped rather than failed. The concrete implementation mirrors
   familiar formatting macros: additional arguments invoke `format!` so callers
   may interpolate contextual state without constructing the message manually.
   Using `panic::resume_unwind` maintains the existing panic-based plumbing,
@@ -1219,7 +1219,7 @@ incrementally.
   `StepExecution::Skipped` without changing the surrounding control flow.
 
   Subsequent ergonomic work replaced the macro helper with a thread-local scope
-  stack. Attribute macros still inject a guard, but `skip!` now discovers the
+  stack. Attribute macros still inject a guard, but `skip!` discovers the
   innermost scope at runtime so helper functions can call it transparently.
   When no scope is active the macro panics with
   `rstest_bdd::skip! may only be used inside a step or hook generated by rstest-bdd`,
@@ -1237,19 +1237,19 @@ incrementally.
   `fail_on_skipped` is enabled.
 
   The initial implementation recognises `@allow_skipped` on the feature or
-  scenario itself. Example-level tags are ignored for now because the runner
+  scenario itself. Example-level tags are currently ignored because the runner
   does not yet have case indices from `rstest`; once that metadata is available
   the per-example override can be reinstated without altering public APIs.
 
   The runtime exposes a small `config` module so callers (and the CLI) can
   override the `fail_on_skipped` flag programmatically before falling back to
-  the `RSTEST_BDD_FAIL_ON_SKIPPED` environment variable. Step wrappers now
-  return a `StepExecution` enum that distinguishes between a successful step
-  and one that requested a skip. The new `skip!` macro raises a `SkipRequest`
-  panic payload; wrapper code intercepts that payload, records the skipped
-  outcome, and allows the scenario loop to stop executing further steps.
+  the `RSTEST_BDD_FAIL_ON_SKIPPED` environment variable. Step wrappers return a
+  `StepExecution` enum that distinguishes between a successful step and one
+  that requested a skip. The new `skip!` macro raises a `SkipRequest` panic
+  payload; wrapper code intercepts that payload, records the skipped outcome,
+  and allows the scenario loop to stop executing further steps.
 
-  - Skip outcomes now flow through the `cargo-bdd` CLI and dedicated writers in
+  - Skip outcomes flow through the `cargo-bdd` CLI and dedicated writers in
     the runtime crate. The `reporting::json` module serializes the collector
     snapshot into a stable schema that records lowercase status labels and skip
     metadata (`message`, `allow_skipped`, `forced_failure`). The companion
@@ -1554,8 +1554,8 @@ configuration and lints at the workspace level.
 
 The first implementation of the `#[scenario]` macro kept the scope narrow to
 validate the overall approach. It accepted only a `path` argument pointing to a
-`*.feature` file and always executed the first `Scenario` found. The macro now
-also accepts an optional `index` argument. When provided, the macro selects the
+`*.feature` file and always executed the first `Scenario` found. The macro also
+accepts an optional `index` argument. When provided, the macro selects the
 scenario at that zero-based position. If omitted, it defaults to `0`, matching
 the behaviour of the earlier version. The `path` argument may be provided as a
 bare string literal for convenience (e.g.
@@ -1598,7 +1598,7 @@ evolves.
 ### 3.8 Fixture Integration Implementation
 
 The second phase extends the macro system to support fixtures. Step definition
-macros now parse the pattern's `{name}` placeholders up front and inspect the
+macros parse the pattern's `{name}` placeholders up front and inspect the
 parameters of the attached function. Parameters that match a placeholder become
 step arguments; any remaining parameters are treated as fixture requests, with
 an optional `#[from(name)]` attribute allowing the argument name to differ from
@@ -1786,7 +1786,7 @@ enum PlaceholderError {
 Note: `code` values are stable identifiers intended for programmatic use.
 
 Step wrapper functions parse the returned strings and convert them with
-`FromStr` before calling the original step. Scenario execution now searches the
+`FromStr` before calling the original step. Scenario execution searches the
 step registry using `find_step`, which falls back to placeholder matching when
 no exact pattern is present. This approach keeps the macros lightweight while
 supporting type‑safe parameters in steps. The parser handles escaped braces,
@@ -1827,9 +1827,9 @@ sequenceDiagram
 
 ### 3.10 Implicit Fixture Injection Implementation
 
-To streamline step definitions, the macro system now infers fixtures by
-analysing the step pattern during expansion. Placeholder names are extracted
-from the pattern string, and any function parameter whose identifier matches a
+To streamline step definitions, the macro system infers fixtures by analysing
+the step pattern during expansion. Placeholder names are extracted from the
+pattern string, and any function parameter whose identifier matches a
 placeholder is treated as a typed step argument. Remaining parameters are
 assumed to be fixtures and are looked up in the [`StepContext`] at runtime.
 
@@ -2035,7 +2035,7 @@ These macros keep test code succinct while still surfacing detailed diagnostics.
   The derive macro (`#[derive(StepArgs)]`) implements both the trait and
   `TryFrom<Vec<String>>`, ensuring each field declares the necessary `FromStr`
   bound.
-- The wrapper now honours a `#[step_args]` marker on exactly one parameter.
+- The wrapper honours a `#[step_args]` marker on exactly one parameter.
   The attribute is required because procedural macros cannot discover whether
   an arbitrary type derives `StepArgs` without extra user input.[^12][^13] The
   marker is stripped from the signature before compilation so the final code
