@@ -1,3 +1,4 @@
+//! UI compile-fail fixture for missing multiple placeholder parameters.
 use rstest_bdd_macros::given;
 
 #[given("numbers {a} then {b} and finally {c}")]

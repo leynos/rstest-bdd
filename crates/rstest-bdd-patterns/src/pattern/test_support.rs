@@ -1,3 +1,4 @@
+//! Test helpers for asserting pattern parser outcomes.
 use super::placeholder::{parse_placeholder, PlaceholderSpec};
 use crate::errors::PatternError;
 

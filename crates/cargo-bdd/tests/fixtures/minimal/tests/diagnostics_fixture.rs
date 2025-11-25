@@ -1,3 +1,5 @@
+//! Fixture seeding reporting diagnostics for snapshot-based integration tests.
+
 use rstest_bdd as bdd;
 use serial_test::serial;
 
