@@ -39,6 +39,7 @@ camino.workspace = true
 cap-std.workspace = true
 convert_case.workspace = true
 once_cell.workspace = true
+newt-hype.workspace = true
 
 [dev-dependencies]
 rstest.workspace = true

@@ -1,78 +1,45 @@
+//! Strongly typed metadata for generated scenarios.
+#![allow(clippy::expl_impl_clone_on_copy)]
+// base_newtype! generates paired Copy and Clone impls we cannot alter.
+
 //! Scenario metadata wrappers shared across macro code generation.
-use std::fmt;
+use newt_hype::base_newtype;
 
-/// Path to a feature file on disk.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct FeaturePath(String);
+macro_rules! metadata_string {
+    ($(#[$meta:meta])* $name:ident, $base:ident) => {
+        base_newtype!($base);
 
-impl FeaturePath {
-    pub(crate) fn new(value: impl Into<String>) -> Self {
-        Self(value.into())
-    }
+        $(#[$meta])*
+        pub(crate) type $name = $base<String>;
 
-    pub(crate) fn as_str(&self) -> &str {
-        self.0.as_str()
-    }
+        impl $name {
+            pub(crate) fn as_str(&self) -> &str {
+                self.as_ref()
+            }
+        }
+
+        impl From<&str> for $name {
+            fn from(value: &str) -> Self {
+                $base::new(value.to_string())
+            }
+        }
+
+        impl AsRef<str> for $name {
+            fn as_ref(&self) -> &str {
+                <Self as AsRef<String>>::as_ref(self).as_str()
+            }
+        }
+    };
 }
 
-impl From<String> for FeaturePath {
-    fn from(value: String) -> Self {
-        Self::new(value)
-    }
-}
+metadata_string!(
+    /// Path to a feature file on disk.
+    FeaturePath,
+    FeaturePathBase
+);
 
-impl From<&str> for FeaturePath {
-    fn from(value: &str) -> Self {
-        Self::new(value)
-    }
-}
-
-impl AsRef<str> for FeaturePath {
-    fn as_ref(&self) -> &str {
-        self.as_str()
-    }
-}
-
-impl fmt::Display for FeaturePath {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(self.as_str())
-    }
-}
-
-/// Name of an individual Gherkin scenario.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct ScenarioName(String);
-
-impl ScenarioName {
-    pub(crate) fn new(value: impl Into<String>) -> Self {
-        Self(value.into())
-    }
-
-    pub(crate) fn as_str(&self) -> &str {
-        self.0.as_str()
-    }
-}
-
-impl From<String> for ScenarioName {
-    fn from(value: String) -> Self {
-        Self::new(value)
-    }
-}
-
-impl From<&str> for ScenarioName {
-    fn from(value: &str) -> Self {
-        Self::new(value)
-    }
-}
-
-impl AsRef<str> for ScenarioName {
-    fn as_ref(&self) -> &str {
-        self.as_str()
-    }
-}
-
-impl fmt::Display for ScenarioName {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(self.as_str())
-    }
-}
+metadata_string!(
+    /// Name of an individual Gherkin scenario.
+    ScenarioName,
+    ScenarioNameBase
+);
