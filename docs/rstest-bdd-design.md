@@ -250,8 +250,8 @@ it, and pass the resulting `u32` value to the `deposit_amount` function.
 
 #### 1.3.3 Using `Background`, Data Tables, and Docstrings
 
-To achieve feature parity with modern BDD tools, the framework now supports
-other essential Gherkin constructs.
+To achieve feature parity with modern BDD tools, the framework supports other
+essential Gherkin constructs.
 
 - Background: Steps defined in a `Background` section run before each
   `Scenario` in a feature file.[^10] The parser prepends these steps to each
