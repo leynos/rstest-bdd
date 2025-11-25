@@ -144,6 +144,14 @@ mod tests {
         }
     }
 
+    fn assert_column_mismatch_error(text: &str, expected_error_substring: &str) {
+        let msg = error_message(text);
+        assert!(
+            msg.contains(expected_error_substring),
+            "unexpected error: {msg}"
+        );
+    }
+
     #[test]
     fn accepts_matching_columns() {
         let text = "\
@@ -165,11 +173,9 @@ Examples:
 | 3 | 4 | 5 |
 ";
 
-        let msg = error_message(text);
-
-        assert!(
-            msg.contains("Malformed Examples table: row 3 has 4 columns, expected 3"),
-            "unexpected error: {msg}"
+        assert_column_mismatch_error(
+            text,
+            "Malformed Examples table: row 3 has 4 columns, expected 3",
         );
     }
 
@@ -182,11 +188,9 @@ Examples:
 | 4 | 5 |
 ";
 
-        let msg = error_message(text);
-
-        assert!(
-            msg.contains("Malformed Examples table: row 3 has 3 columns, expected 4"),
-            "unexpected error: {msg}"
+        assert_column_mismatch_error(
+            text,
+            "Malformed Examples table: row 3 has 3 columns, expected 4",
         );
     }
 }
