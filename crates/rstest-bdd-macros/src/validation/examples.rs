@@ -3,10 +3,59 @@
 use crate::utils::errors::error_to_tokens;
 use proc_macro2::TokenStream;
 
+/// Wraps the full feature file text content.
+#[cfg(feature = "compile-time-validation")]
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct FeatureText<'a>(&'a str);
+
+#[cfg(feature = "compile-time-validation")]
+impl<'a> FeatureText<'a> {
+    pub(crate) fn new(text: &'a str) -> Self {
+        Self(text)
+    }
+}
+
+#[cfg(feature = "compile-time-validation")]
+impl AsRef<str> for FeatureText<'_> {
+    fn as_ref(&self) -> &str {
+        self.0
+    }
+}
+
+#[cfg(feature = "compile-time-validation")]
+impl<'a> From<&'a str> for FeatureText<'a> {
+    fn from(text: &'a str) -> Self {
+        Self(text)
+    }
+}
+
+/// Wraps a single row from an Examples table.
+#[cfg(feature = "compile-time-validation")]
+#[derive(Debug, Clone, Copy)]
+struct TableRow<'a>(&'a str);
+
+#[cfg(feature = "compile-time-validation")]
+#[rustfmt::skip]
+impl<'a> TableRow<'a> {
+    fn new(row: &'a str) -> Self { Self(row) }
+}
+
+#[cfg(feature = "compile-time-validation")]
+#[rustfmt::skip]
+impl AsRef<str> for TableRow<'_> {
+    fn as_ref(&self) -> &str { self.0 }
+}
+
+#[cfg(feature = "compile-time-validation")]
+#[rustfmt::skip]
+impl<'a> From<&'a str> for TableRow<'a> {
+    fn from(row: &'a str) -> Self { Self(row) }
+}
+
 /// Validate Examples table structure in feature file text.
 #[cfg(feature = "compile-time-validation")]
-pub(crate) fn validate_examples_in_feature_text(text: &str) -> Result<(), TokenStream> {
-    if !text.contains("Examples:") {
+pub(crate) fn validate_examples_in_feature_text(text: FeatureText) -> Result<(), TokenStream> {
+    if !text.as_ref().contains("Examples:") {
         return Ok(());
     }
 
@@ -15,8 +64,9 @@ pub(crate) fn validate_examples_in_feature_text(text: &str) -> Result<(), TokenS
 }
 
 #[cfg(feature = "compile-time-validation")]
-fn find_examples_table_start(text: &str) -> Result<usize, TokenStream> {
-    text.lines()
+fn find_examples_table_start(text: FeatureText) -> Result<usize, TokenStream> {
+    text.as_ref()
+        .lines()
         .enumerate()
         .find(|(_, line)| line.trim_start().starts_with("Examples:"))
         .map(|(idx, _)| idx)
@@ -29,8 +79,12 @@ fn find_examples_table_start(text: &str) -> Result<usize, TokenStream> {
 }
 
 #[cfg(feature = "compile-time-validation")]
-fn validate_table_column_consistency(text: &str, start_idx: usize) -> Result<(), TokenStream> {
+fn validate_table_column_consistency(
+    text: FeatureText,
+    start_idx: usize,
+) -> Result<(), TokenStream> {
     let mut table_rows = text
+        .as_ref()
         .lines()
         .skip(start_idx + 1)
         .take_while(|line| line.trim_start().starts_with('|'));
@@ -39,10 +93,10 @@ fn validate_table_column_consistency(text: &str, start_idx: usize) -> Result<(),
         return Ok(());
     };
 
-    let expected_columns = count_columns(header_row);
+    let expected_columns = count_columns(TableRow::new(header_row));
 
     for (i, data_row) in table_rows.enumerate() {
-        let actual_columns = count_columns(data_row);
+        let actual_columns = count_columns(TableRow::new(data_row));
         if actual_columns != expected_columns {
             let msg = format_malformed_examples_error(i + 2, actual_columns, expected_columns);
             return Err(error_to_tokens(&syn::Error::new(
@@ -56,11 +110,11 @@ fn validate_table_column_consistency(text: &str, start_idx: usize) -> Result<(),
 }
 
 #[cfg(feature = "compile-time-validation")]
-fn count_columns(row: &str) -> usize {
+fn count_columns(row: TableRow) -> usize {
     // Count pipe-delimited segments; subtract the leading segment before the
     // first pipe to align with Gherkin column counting semantics used
     // elsewhere in the codebase.
-    row.split('|').count().saturating_sub(1)
+    row.as_ref().split('|').count().saturating_sub(1)
 }
 
 fn format_malformed_examples_error(row: usize, actual: usize, expected: usize) -> String {
@@ -70,7 +124,7 @@ fn format_malformed_examples_error(row: usize, actual: usize, expected: usize) -
 #[cfg(all(test, feature = "compile-time-validation"))]
 mod column_tests {
     //! Tests for column counting in Examples tables.
-    use super::count_columns;
+    use super::{count_columns, TableRow};
     use rstest::rstest;
 
     #[rstest]
@@ -81,7 +135,7 @@ mod column_tests {
     #[case("", 0)]
     #[case("| |", 2)]
     fn counts_columns(#[case] row: &str, #[case] expected: usize) {
-        assert_eq!(count_columns(row), expected);
+        assert_eq!(count_columns(TableRow::new(row)), expected);
     }
 }
 
@@ -155,7 +209,7 @@ mod tests {
     use rstest::rstest;
 
     fn error_message(text: &str) -> String {
-        match validate_examples_in_feature_text(text) {
+        match validate_examples_in_feature_text(FeatureText::new(text)) {
             Ok(()) => panic!("expected validation to fail"),
             Err(err) => err.to_string(),
         }
@@ -173,7 +227,7 @@ mod tests {
     fn accepts_matching_columns() {
         let text = concat!("Examples:\n", "| a | b |\n", "| 1 | 2 |\n", "| 3 | 4 |\n");
 
-        assert!(validate_examples_in_feature_text(text).is_ok());
+        assert!(validate_examples_in_feature_text(FeatureText::new(text)).is_ok());
     }
 
     #[rstest]
