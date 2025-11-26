@@ -13,7 +13,7 @@ use crate::parsing::tags::{self, TagExpression};
 use crate::utils::errors::error_to_tokens;
 cfg_if::cfg_if! {
     if #[cfg(feature = "compile-time-validation")] {
-        use crate::validation::examples::validate_examples_in_feature_text;
+        use crate::validation::examples::{validate_examples_in_feature_text, FeatureText};
     }
 }
 
@@ -172,7 +172,9 @@ pub(crate) fn parse_and_load_feature(path: &Path) -> Result<Feature, proc_macro2
         #[cfg(feature = "compile-time-validation")]
         {
             if let Ok(text) = std::fs::read_to_string(&feature_path) {
-                if let Err(validation_err) = validate_examples_in_feature_text(&text) {
+                if let Err(validation_err) =
+                    validate_examples_in_feature_text(FeatureText::new(&text))
+                {
                     return validation_err;
                 }
             }
