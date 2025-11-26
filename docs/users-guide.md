@@ -61,9 +61,10 @@ same type for readability.
 
 Scenarios follow the simple `Given‑When‑Then` pattern. Support for **Scenario
 Outline** is available, enabling a single scenario to run with multiple sets of
-data from an `Examples` table. A `Background` section may define steps that run
-before each scenario. Advanced constructs such as data tables and Docstrings
-provide structured or free‑form arguments to steps.
+data from an `Examples` table. A `Background` section defines steps that run
+before each `Scenario` in a feature file, enabling shared setup across
+scenarios. Advanced constructs such as data tables and Docstrings provide
+structured or free‑form arguments to steps.
 
 ### Example feature file
 
@@ -83,8 +84,8 @@ code.
 ### Internationalised scenarios
 
 `rstest-bdd` reads the optional `# language: <code>` directive that appears at
-the top of a feature file. When you specify a locale the parser uses that
-language's keyword catalogue, letting teams collaborate in their native
+the top of a feature file. When a locale is specified, the parser uses that
+language's keyword catalogue, enabling teams to collaborate in their native
 language. The `examples/japanese-ledger` crate demonstrates the end-to-end
 workflow for Japanese:
 
@@ -110,8 +111,8 @@ fn starting_balance(ledger: &HouseholdLedger, start: i32) {
 ```
 
 Running `cargo test -p japanese-ledger` executes both Japanese scenarios. The
-full source lives under `examples/japanese-ledger/` if you want to copy the
-structure into your own project.
+full source lives under `examples/japanese-ledger/` for teams that want to copy
+the structure into their projects.
 
 ## Step definitions
 
@@ -298,10 +299,10 @@ Define a state struct whose fields are `Slot<T>` and derive [`ScenarioState`].
 The derive macro clears every slot by implementing `ScenarioState::reset` and
 it automatically adds a [`Default`] implementation that leaves all slots empty.
 **Do not** also derive or implement `Default`: Rust will report a
-duplicate-implementation error because the macro already provides it. When you
-need custom initialization, plan to use the future
-`#[scenario_state(no_default)]` flag (or equivalent) to opt out of the
-generated `Default` and supply your own logic.
+duplicate-implementation error because the macro already provides it. For
+custom initialization, plan to use the future `#[scenario_state(no_default)]`
+flag (or equivalent) to opt out of the generated `Default` and supply bespoke
+logic.
 
 ```rust
 use rstest::fixture;
@@ -581,7 +582,7 @@ warnings into `compile_error!`s when all step definitions are local. This
 prevents behaviour specifications from silently drifting from the code while
 still permitting cross‑crate step sharing.
 
-To enable validation pin a feature in your `dev-dependencies`:
+To enable validation, pin a feature in the project's `dev-dependencies`:
 
 ```toml
 [dev-dependencies]
