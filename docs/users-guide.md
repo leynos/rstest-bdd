@@ -300,7 +300,7 @@ The derive macro clears every slot by implementing `ScenarioState::reset` and
 it automatically adds a [`Default`] implementation that leaves all slots empty.
 **Do not** also derive or implement `Default`: Rust will report a
 duplicate-implementation error because the macro already provides it. For
-custom initialisation, plan to use the future `#[scenario_state(no_default)]`
+custom initialization, plan to use the future `#[scenario_state(no_default)]`
 flag (or equivalent) to opt out of the generated `Default` and supply bespoke
 logic.
 
