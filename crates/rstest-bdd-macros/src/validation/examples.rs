@@ -44,12 +44,7 @@ fn validate_table_column_consistency(text: &str, start_idx: usize) -> Result<(),
     for (i, data_row) in table_rows.enumerate() {
         let actual_columns = count_columns(data_row);
         if actual_columns != expected_columns {
-            let msg = format!(
-                "Malformed Examples table: row {} has {} columns, expected {}",
-                i + 2,
-                actual_columns,
-                expected_columns
-            );
+            let msg = format_malformed_examples_error(i + 2, actual_columns, expected_columns);
             return Err(error_to_tokens(&syn::Error::new(
                 proc_macro2::Span::call_site(),
                 msg,
@@ -66,6 +61,10 @@ fn count_columns(row: &str) -> usize {
     // first pipe to align with Gherkin column counting semantics used
     // elsewhere in the codebase.
     row.split('|').count().saturating_sub(1)
+}
+
+fn format_malformed_examples_error(row: usize, actual: usize, expected: usize) -> String {
+    format!("Malformed Examples table: row {row} has {actual} columns, expected {expected}")
 }
 
 #[cfg(all(test, feature = "compile-time-validation"))]
@@ -140,12 +139,7 @@ pub(crate) fn flatten_and_validate_rows(
         if row.len() != expected_width {
             let err = syn::Error::new(
                 proc_macro2::Span::call_site(),
-                format!(
-                    "Malformed examples table: row {} has {} columns, expected {}",
-                    i + 2,
-                    row.len(),
-                    expected_width
-                ),
+                format_malformed_examples_error(i + 2, row.len(), expected_width),
             );
             return Err(error_to_tokens(&err));
         }
@@ -156,6 +150,7 @@ pub(crate) fn flatten_and_validate_rows(
 
 #[cfg(all(test, feature = "compile-time-validation"))]
 mod tests {
+    //! Tests for validating Examples tables and error reporting.
     use super::*;
     use rstest::rstest;
 
@@ -176,33 +171,28 @@ mod tests {
 
     #[test]
     fn accepts_matching_columns() {
-        let text = "\
-Examples:
-| a | b |
-| 1 | 2 |
-| 3 | 4 |
-";
+        let text = concat!("Examples:\n", "| a | b |\n", "| 1 | 2 |\n", "| 3 | 4 |\n");
 
         assert!(validate_examples_in_feature_text(text).is_ok());
     }
 
     #[rstest]
     #[case(
-        "\
-Examples:
-| a | b |
-| 1 | 2 |
-| 3 | 4 | 5 |
-",
+        concat!(
+            "Examples:\n",
+            "| a | b |\n",
+            "| 1 | 2 |\n",
+            "| 3 | 4 | 5 |\n"
+        ),
         "Malformed Examples table: row 3 has 4 columns, expected 3"
     )]
     #[case(
-        "\
-Examples:
-| a | b | c |
-| 1 | 2 | 3 |
-| 4 | 5 |
-",
+        concat!(
+            "Examples:\n",
+            "| a | b | c |\n",
+            "| 1 | 2 | 3 |\n",
+            "| 4 | 5 |\n"
+        ),
         "Malformed Examples table: row 3 has 3 columns, expected 4"
     )]
     fn reports_column_mismatch(#[case] text: &str, #[case] expected_error: &str) {
