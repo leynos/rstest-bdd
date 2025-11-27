@@ -78,24 +78,100 @@ pub(super) fn gen_datatable_decl(
     pattern: &syn::LitStr,
     ident: &syn::Ident,
 ) -> Option<TokenStream2> {
-    gen_optional_decl(
-        datatable,
-        StepMeta { pattern, ident },
-        "requires a data table",
-        |arg: DataTableArg<'_>| {
-            let pat = arg.pat.clone();
-            let declared_ty = arg.ty.clone();
-            let ty = quote! { #declared_ty };
-            let expr = quote! {
-                _table.map(|t| {
-                    t.iter()
-                        .map(|row| row.iter().map(|cell| cell.to_string()).collect::<Vec<String>>())
-                        .collect::<Vec<Vec<String>>>()
-                })
+    datatable.map(|arg| {
+        let pat = arg.pat.clone();
+        let declared_ty = arg.ty.clone();
+        let ty = quote! { #declared_ty };
+        let is_cached_table = matches!(
+            declared_ty,
+            syn::Type::Path(ref ty_path)
+                if ty_path
+                    .path
+                    .segments
+                    .last()
+                    .is_some_and(|s| s.ident == "CachedTable")
+        );
+        let path = crate::codegen::rstest_bdd_path();
+        let StepMeta { pattern, ident } = StepMeta { pattern, ident };
+        let missing_err = step_error_tokens(
+            &format_ident!("ExecutionError"),
+            pattern,
+            ident,
+            &quote! { format!("Step '{}' requires a data table", #pattern) },
+        );
+        let convert_err = step_error_tokens(
+            &format_ident!("ExecutionError"),
+            pattern,
+            ident,
+            &quote! { format!("failed to convert auxiliary argument for step '{}': {}", #pattern, e) },
+        );
+        let conversion = if is_cached_table {
+            quote! { cached_table }
+        } else {
+            quote! {
+                {
+                    let owned: Vec<Vec<String>> = cached_table.into();
+                    owned
+                }
+                .try_into()
+                .map_err(|e| #convert_err)?
+            }
+        };
+
+        quote! {
+            #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+            struct __rstest_bdd_table_key {
+                ptr: usize,
+                len: usize,
+            }
+
+            impl __rstest_bdd_table_key {
+                fn new(table: &[&[&str]]) -> Self {
+                    Self {
+                        ptr: table.as_ptr() as usize,
+                        len: table.len(),
+                    }
+                }
+            }
+
+            static __RSTEST_BDD_TABLE_CACHE: std::sync::OnceLock<
+                std::sync::Mutex<
+                    std::collections::HashMap<
+                        __rstest_bdd_table_key,
+                        std::sync::Arc<Vec<Vec<String>>>,
+                    >,
+                >,
+            > = std::sync::OnceLock::new();
+
+            let #pat: #ty = {
+                let table = _table.ok_or_else(|| #missing_err)?;
+                let key = __rstest_bdd_table_key::new(table);
+                let cache = __RSTEST_BDD_TABLE_CACHE.get_or_init(|| {
+                    std::sync::Mutex::new(std::collections::HashMap::new())
+                });
+                let arc_table = {
+                    let mut guard = cache.lock().map_err(|e| #convert_err)?;
+                    guard
+                        .entry(key)
+                        .or_insert_with(|| {
+                            std::sync::Arc::new(
+                                table
+                                    .iter()
+                                    .map(|row| {
+                                        row.iter()
+                                            .map(|cell| cell.to_string())
+                                            .collect::<Vec<String>>()
+                                    })
+                                    .collect::<Vec<Vec<String>>>(),
+                            )
+                        })
+                        .clone()
+                };
+                let cached_table = #path::datatable::CachedTable::from_arc(arc_table);
+                #conversion
             };
-            (pat, ty, expr)
-        },
-    )
+        }
+    })
 }
 
 /// Generate declaration for a doc string argument.

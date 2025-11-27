@@ -1,9 +1,11 @@
 //! Runtime helpers for working with typed Gherkin data tables.
+mod cached;
 mod error;
 mod parsers;
 mod rows;
 mod spec;
 
+pub use cached::CachedTable;
 pub use error::DataTableError;
 pub use parsers::{trimmed, truthy_bool, TrimmedParseError, TruthyBoolError};
 pub use rows::{DataTableRow, Rows};

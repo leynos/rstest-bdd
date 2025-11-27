@@ -9,6 +9,12 @@
   without interior mutability wrappers. A new `StepContext::insert_owned`
   helper underpins the change.
 
+### Performance
+
+- Optimised data table conversion by caching parsed tables per step definition,
+  reusing the cached rows across executions to avoid repeated string
+  allocations for identical tables. (#50)
+
 ## [0.1.0-alpha4] - 2025-09-30
 
 - Helper macros `assert_step_ok!` and `assert_step_err!` for concise assertions

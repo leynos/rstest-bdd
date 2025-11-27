@@ -43,7 +43,7 @@ fn test_extract_args_scenario(
 #[case(
     parse_quote! { fn step(datatable: String) {} },
     concat!(
-        "parameter named `datatable` must have type `Vec<Vec<String>>` ",
+        "parameter named `datatable` must have type `Vec<Vec<String>>` or `CachedTable` ",
         "(or use `#[datatable]` with a type that implements `TryFrom<Vec<Vec<String>>>`)",
     ),
     "error when datatable has wrong type",
