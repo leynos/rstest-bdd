@@ -1,5 +1,7 @@
 //! Tests for feature parsing utilities.
 
+#[path = "missing_examples_tests.rs"]
+mod missing_examples_tests;
 #[path = "support.rs"]
 mod support;
 
@@ -316,7 +318,6 @@ fn errors_when_feature_fails(#[case] rel_path: &str, #[case] expected_snippet: &
     };
     assert!(err.to_string().contains(expected_snippet));
 }
-
 #[expect(
     clippy::expect_used,
     reason = "test asserts cache behaviour; panics simplify failures"

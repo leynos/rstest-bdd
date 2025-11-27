@@ -12,7 +12,7 @@ use proc_macro2::TokenStream;
 /// union of feature, scenario, and examples tags at the corresponding index.
 /// This invariant is encoded as `row_tags.len() == rows.len()` and enforced by
 /// the parser when constructing the table.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub(crate) struct ExampleTable {
     pub(crate) headers: Vec<String>,
     pub(crate) rows: Vec<Vec<String>>,
@@ -100,18 +100,24 @@ mod tests {
         }
     }
 
+    #[expect(
+        clippy::expect_used,
+        reason = "tests assert specific error paths; panics aid debugging"
+    )]
     #[test]
     fn missing_examples_error_includes_scenario_name() {
         let scenario = scenario_outline_without_examples("outline without examples");
 
-        let Err(tokens) = get_first_examples_table(&scenario) else {
-            panic!("expected missing examples error");
-        };
+        let tokens =
+            get_first_examples_table(&scenario).expect_err("expected missing examples error");
 
         let message = tokens.to_string();
         assert!(
-            message
-                .contains("Scenario Outline missing Examples table for 'outline without examples'"),
+            message.contains("Scenario Outline missing Examples table"),
+            "error message should mention missing examples; got: {message}",
+        );
+        assert!(
+            message.contains(&scenario.name),
             "error message should include scenario name; got: {message}",
         );
     }
