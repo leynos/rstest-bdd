@@ -34,7 +34,10 @@ fn get_first_examples_table(scenario: &gherkin::Scenario) -> Result<&gherkin::Ta
         .ok_or_else(|| {
             error_to_tokens(&syn::Error::new(
                 proc_macro2::Span::call_site(),
-                "Scenario Outline missing Examples table",
+                format!(
+                    "Scenario Outline missing Examples table for '{}'",
+                    scenario.name
+                ),
             ))
         })
 }
@@ -75,4 +78,41 @@ pub(crate) fn extract_examples(
         rows,
         row_tags,
     }))
+}
+
+#[cfg(test)]
+mod tests {
+    //! Tests for example table extraction.
+
+    use super::get_first_examples_table;
+    use gherkin::{LineCol, Scenario, Span};
+
+    fn scenario_outline_without_examples(name: &str) -> Scenario {
+        Scenario {
+            keyword: "Scenario Outline".into(),
+            name: name.to_string(),
+            description: None,
+            steps: Vec::new(),
+            examples: Vec::new(),
+            tags: Vec::new(),
+            span: Span { start: 0, end: 0 },
+            position: LineCol { line: 0, col: 0 },
+        }
+    }
+
+    #[test]
+    fn missing_examples_error_includes_scenario_name() {
+        let scenario = scenario_outline_without_examples("outline without examples");
+
+        let Err(tokens) = get_first_examples_table(&scenario) else {
+            panic!("expected missing examples error");
+        };
+
+        let message = tokens.to_string();
+        assert!(
+            message
+                .contains("Scenario Outline missing Examples table for 'outline without examples'"),
+            "error message should include scenario name; got: {message}",
+        );
+    }
 }
