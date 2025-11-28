@@ -1,7 +1,5 @@
-error: scenario index 2 out of range; feature `basic.feature` defines 1 scenario
- --> tests/fixtures_macros/scenario_index_out_of_range.rs:4:1
+error: scenario index out of range: 2 (available: 1)
+ --> tests/fixtures_macros/scenario_index_out_of_range.rs:4:44
   |
 4 | #[scenario(path = "basic.feature", index = 2)]
-  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  |
-  = note: this error originates in the attribute macro `scenario` (in Nightly builds, run with -Z macro-backtrace for more info)
+  |                                            ^
