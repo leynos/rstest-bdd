@@ -213,11 +213,14 @@ pub(crate) fn extract_scenario_steps(
     feature: &Feature,
     index: Option<usize>,
 ) -> Result<ScenarioData, proc_macro2::TokenStream> {
-    let Some(scenario) = feature.scenarios.get(index.unwrap_or(0)) else {
-        let err = syn::Error::new(
-            proc_macro2::Span::call_site(),
-            "scenario index out of range",
+    let idx = index.unwrap_or(0);
+    let Some(scenario) = feature.scenarios.get(idx) else {
+        let msg = format!(
+            "scenario index out of range: {} (available: {})",
+            idx,
+            feature.scenarios.len()
         );
+        let err = syn::Error::new(proc_macro2::Span::call_site(), msg);
         return Err(error_to_tokens(&err));
     };
 

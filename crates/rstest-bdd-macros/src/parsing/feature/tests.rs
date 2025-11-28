@@ -318,6 +318,25 @@ fn errors_when_feature_fails(#[case] rel_path: &str, #[case] expected_snippet: &
     };
     assert!(err.to_string().contains(expected_snippet));
 }
+
+#[test]
+fn reports_requested_index_and_available_count_on_oob() {
+    let feature = FeatureBuilder::new("demo").with_scenario(
+        "only",
+        vec![StepBuilder::new(StepType::Given, "step").build()],
+    );
+
+    let Err(err) = extract_scenario_steps(&feature.build(), Some(2)) else {
+        panic!("expected scenario extraction to fail for out of range index");
+    };
+
+    let err = err.to_string();
+    assert!(
+        err.contains("scenario index out of range: 2 (available: 1)"),
+        "error should report index and count, got: {err}",
+    );
+}
+
 #[expect(
     clippy::expect_used,
     reason = "test asserts cache behaviour; panics simplify failures"

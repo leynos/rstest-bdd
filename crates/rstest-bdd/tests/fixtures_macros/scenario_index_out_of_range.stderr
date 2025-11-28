@@ -1,0 +1,5 @@
+error: scenario index out of range: 2 (available: 1)
+ --> tests/fixtures_macros/scenario_index_out_of_range.rs:4:44
+  |
+4 | #[scenario(path = "basic.feature", index = 2)]
+  |                                            ^
