@@ -1,5 +1,7 @@
 //! Tests for feature parsing utilities.
 
+#[path = "missing_examples_tests.rs"]
+mod missing_examples_tests;
 #[path = "support.rs"]
 mod support;
 

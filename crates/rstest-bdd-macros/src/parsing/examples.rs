@@ -12,7 +12,7 @@ use proc_macro2::TokenStream;
 /// union of feature, scenario, and examples tags at the corresponding index.
 /// This invariant is encoded as `row_tags.len() == rows.len()` and enforced by
 /// the parser when constructing the table.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub(crate) struct ExampleTable {
     pub(crate) headers: Vec<String>,
     pub(crate) rows: Vec<Vec<String>>,
@@ -34,7 +34,10 @@ fn get_first_examples_table(scenario: &gherkin::Scenario) -> Result<&gherkin::Ta
         .ok_or_else(|| {
             error_to_tokens(&syn::Error::new(
                 proc_macro2::Span::call_site(),
-                "Scenario Outline missing Examples table",
+                format!(
+                    "Scenario Outline missing Examples table for '{}'",
+                    scenario.name
+                ),
             ))
         })
 }
@@ -75,4 +78,55 @@ pub(crate) fn extract_examples(
         rows,
         row_tags,
     }))
+}
+
+#[cfg(test)]
+mod tests {
+    //! Tests for example table extraction.
+
+    use super::get_first_examples_table;
+    use gherkin::{LineCol, Scenario, Span};
+
+    fn empty_scenario() -> Scenario {
+        Scenario {
+            keyword: String::new(),
+            name: String::new(),
+            description: None,
+            steps: Vec::new(),
+            examples: Vec::new(),
+            tags: Vec::new(),
+            span: Span { start: 0, end: 0 },
+            position: LineCol { line: 0, col: 0 },
+        }
+    }
+
+    fn scenario_outline_without_examples(name: &str) -> Scenario {
+        Scenario {
+            keyword: "Scenario Outline".into(),
+            name: name.to_string(),
+            ..empty_scenario()
+        }
+    }
+
+    #[expect(
+        clippy::expect_used,
+        reason = "tests assert specific error paths; panics aid debugging"
+    )]
+    #[test]
+    fn missing_examples_error_includes_scenario_name() {
+        let scenario = scenario_outline_without_examples("outline without examples");
+
+        let tokens =
+            get_first_examples_table(&scenario).expect_err("expected missing examples error");
+
+        let message = tokens.to_string();
+        assert!(
+            message.contains("Scenario Outline missing Examples table"),
+            "error message should mention missing examples; got: {message}",
+        );
+        assert!(
+            message.contains(&scenario.name),
+            "error message should include scenario name; got: {message}",
+        );
+    }
 }
