@@ -76,15 +76,24 @@ fn gen_cache_key_struct() -> TokenStream2 {
     quote! {
         #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
         struct __rstest_bdd_table_key {
-            ptr: usize,
-            len: usize,
+            hash: u64,
+            rows: usize,
         }
 
         impl __rstest_bdd_table_key {
             fn new(table: &[&[&str]]) -> Self {
+                use std::hash::{Hash, Hasher};
+                let mut hasher = std::collections::hash_map::DefaultHasher::new();
+                table.len().hash(&mut hasher);
+                for row in table {
+                    row.len().hash(&mut hasher);
+                    for cell in *row {
+                        cell.hash(&mut hasher);
+                    }
+                }
                 Self {
-                    ptr: table.as_ptr() as usize,
-                    len: table.len(),
+                    hash: hasher.finish(),
+                    rows: table.len(),
                 }
             }
         }
