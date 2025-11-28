@@ -82,19 +82,27 @@ fn gen_cache_key_struct() -> TokenStream2 {
 
         impl __rstest_bdd_table_key {
             fn new(table: &[&[&str]]) -> Self {
-                use std::hash::{Hash, Hasher};
-                let mut hasher = std::collections::hash_map::DefaultHasher::new();
-                table.len().hash(&mut hasher);
+                const OFFSET: u64 = 0xcbf29ce484222325;
+                const PRIME: u64 = 0x100000001b3;
+                let mut hash = OFFSET;
+                hash ^= table.len() as u64;
+                hash = hash.wrapping_mul(PRIME);
                 for row in table {
-                    row.len().hash(&mut hasher);
+                    hash ^= row.len() as u64;
+                    hash = hash.wrapping_mul(PRIME);
                     for cell in *row {
-                        cell.hash(&mut hasher);
+                        for byte in cell.as_bytes() {
+                            hash ^= *byte as u64;
+                            hash = hash.wrapping_mul(PRIME);
+                        }
+                        // Separator to avoid accidental concatenation collisions.
+                        hash ^= 0xff;
+                        hash = hash.wrapping_mul(PRIME);
                     }
+                    hash ^= 0xfe;
+                    hash = hash.wrapping_mul(PRIME);
                 }
-                Self {
-                    hash: hasher.finish(),
-                    rows: table.len(),
-                }
+                Self { hash, rows: table.len() }
             }
         }
     }
