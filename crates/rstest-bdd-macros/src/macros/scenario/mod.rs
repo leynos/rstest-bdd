@@ -166,18 +166,14 @@ fn ensure_feature_not_empty(
 fn resolve_candidate_indices(
     selector: Option<&ScenarioSelector>,
     feature: &gherkin::Feature,
-    path_lit: &syn::LitStr,
+    _path_lit: &syn::LitStr,
 ) -> Result<Vec<usize>, TokenStream> {
     match selector {
         Some(ScenarioSelector::Index { value, span }) => {
             let value = *value;
             if value >= feature.scenarios.len() {
                 let count = feature.scenarios.len();
-                let noun = if count == 1 { "scenario" } else { "scenarios" };
-                let message = format!(
-                    "scenario index {value} out of range; feature `{}` defines {count} {noun}",
-                    path_lit.value()
-                );
+                let message = format!("scenario index out of range: {value} (available: {count})");
                 let err = syn::Error::new(*span, message);
                 Err(proc_macro::TokenStream::from(err.into_compile_error()))
             } else {
