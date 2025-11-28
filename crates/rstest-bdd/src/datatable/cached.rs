@@ -9,7 +9,6 @@
 use std::ops::Deref;
 use std::sync::Arc;
 
-
 /// Shareable view of a parsed data table.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CachedTable {

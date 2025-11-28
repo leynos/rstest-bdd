@@ -72,6 +72,77 @@ where
     })
 }
 
+fn gen_cache_key_struct() -> TokenStream2 {
+    quote! {
+        #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+        struct __rstest_bdd_table_key {
+            ptr: usize,
+            len: usize,
+        }
+
+        impl __rstest_bdd_table_key {
+            fn new(table: &[&[&str]]) -> Self {
+                Self {
+                    ptr: table.as_ptr() as usize,
+                    len: table.len(),
+                }
+            }
+        }
+    }
+}
+
+fn gen_cache_static() -> TokenStream2 {
+    quote! {
+        static __RSTEST_BDD_TABLE_CACHE: std::sync::OnceLock<
+            std::sync::Mutex<
+                std::collections::HashMap<
+                    __rstest_bdd_table_key,
+                    std::sync::Arc<Vec<Vec<String>>>,
+                >,
+            >,
+        > = std::sync::OnceLock::new();
+    }
+}
+
+fn gen_table_lookup(path: &TokenStream2, convert_err: &TokenStream2) -> TokenStream2 {
+    quote! {
+        let cache = __RSTEST_BDD_TABLE_CACHE.get_or_init(|| {
+            std::sync::Mutex::new(std::collections::HashMap::new())
+        });
+        let arc_table = {
+            let mut guard = cache.lock().map_err(|e| #convert_err)?;
+            guard
+                .entry(key)
+                .or_insert_with(|| {
+                    std::sync::Arc::new(
+                        table
+                            .iter()
+                            .map(|row| {
+                                row.iter()
+                                    .map(|cell| cell.to_string())
+                                    .collect::<Vec<String>>()
+                            })
+                            .collect::<Vec<Vec<String>>>(),
+                    )
+                })
+                .clone()
+        };
+        let cached_table = #path::datatable::CachedTable::from_arc(arc_table);
+    }
+}
+
+fn is_cached_table_type(declared_ty: &syn::Type) -> bool {
+    matches!(
+        declared_ty,
+        syn::Type::Path(ref ty_path)
+            if ty_path
+                .path
+                .segments
+                .last()
+                .is_some_and(|s| s.ident == "CachedTable")
+    )
+}
+
 /// Generate declaration for a data table argument.
 pub(super) fn gen_datatable_decl(
     datatable: Option<DataTableArg<'_>>,
@@ -82,15 +153,7 @@ pub(super) fn gen_datatable_decl(
         let pat = arg.pat.clone();
         let declared_ty = arg.ty.clone();
         let ty = quote! { #declared_ty };
-        let is_cached_table = matches!(
-            declared_ty,
-            syn::Type::Path(ref ty_path)
-                if ty_path
-                    .path
-                    .segments
-                    .last()
-                    .is_some_and(|s| s.ident == "CachedTable")
-        );
+        let is_cached_table = is_cached_table_type(&declared_ty);
         let path = crate::codegen::rstest_bdd_path();
         let StepMeta { pattern, ident } = StepMeta { pattern, ident };
         let missing_err = step_error_tokens(
@@ -117,57 +180,18 @@ pub(super) fn gen_datatable_decl(
                 .map_err(|e| #convert_err)?
             }
         };
+        let cache_key_struct = gen_cache_key_struct();
+        let cache_static = gen_cache_static();
+        let table_lookup = gen_table_lookup(&path, &convert_err);
 
         quote! {
-            #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-            struct __rstest_bdd_table_key {
-                ptr: usize,
-                len: usize,
-            }
-
-            impl __rstest_bdd_table_key {
-                fn new(table: &[&[&str]]) -> Self {
-                    Self {
-                        ptr: table.as_ptr() as usize,
-                        len: table.len(),
-                    }
-                }
-            }
-
-            static __RSTEST_BDD_TABLE_CACHE: std::sync::OnceLock<
-                std::sync::Mutex<
-                    std::collections::HashMap<
-                        __rstest_bdd_table_key,
-                        std::sync::Arc<Vec<Vec<String>>>,
-                    >,
-                >,
-            > = std::sync::OnceLock::new();
+            #cache_key_struct
+            #cache_static
 
             let #pat: #ty = {
                 let table = _table.ok_or_else(|| #missing_err)?;
                 let key = __rstest_bdd_table_key::new(table);
-                let cache = __RSTEST_BDD_TABLE_CACHE.get_or_init(|| {
-                    std::sync::Mutex::new(std::collections::HashMap::new())
-                });
-                let arc_table = {
-                    let mut guard = cache.lock().map_err(|e| #convert_err)?;
-                    guard
-                        .entry(key)
-                        .or_insert_with(|| {
-                            std::sync::Arc::new(
-                                table
-                                    .iter()
-                                    .map(|row| {
-                                        row.iter()
-                                            .map(|cell| cell.to_string())
-                                            .collect::<Vec<String>>()
-                                    })
-                                    .collect::<Vec<Vec<String>>>(),
-                            )
-                        })
-                        .clone()
-                };
-                let cached_table = #path::datatable::CachedTable::from_arc(arc_table);
+                #table_lookup
                 #conversion
             };
         }
