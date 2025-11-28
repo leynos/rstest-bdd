@@ -87,16 +87,24 @@ mod tests {
     use super::get_first_examples_table;
     use gherkin::{LineCol, Scenario, Span};
 
-    fn scenario_outline_without_examples(name: &str) -> Scenario {
+    fn empty_scenario() -> Scenario {
         Scenario {
-            keyword: "Scenario Outline".into(),
-            name: name.to_string(),
+            keyword: String::new(),
+            name: String::new(),
             description: None,
             steps: Vec::new(),
             examples: Vec::new(),
             tags: Vec::new(),
             span: Span { start: 0, end: 0 },
             position: LineCol { line: 0, col: 0 },
+        }
+    }
+
+    fn scenario_outline_without_examples(name: &str) -> Scenario {
+        Scenario {
+            keyword: "Scenario Outline".into(),
+            name: name.to_string(),
+            ..empty_scenario()
         }
     }
 
