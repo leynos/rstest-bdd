@@ -85,9 +85,9 @@ fn is_cached_table_type(declared_ty: &syn::Type) -> bool {
 }
 
 /// Identifiers for datatable caching infrastructure.
-pub(super) struct CacheIdents {
-    key: proc_macro2::Ident,
-    cache: proc_macro2::Ident,
+pub(super) struct CacheIdents<'a> {
+    key: &'a proc_macro2::Ident,
+    cache: &'a proc_macro2::Ident,
 }
 
 /// Generate declaration for a data table argument.
@@ -103,8 +103,8 @@ pub(super) fn gen_datatable_decl(
         let ty = quote! { #declared_ty };
         let is_cached_table = is_cached_table_type(&declared_ty);
         let path = crate::codegen::rstest_bdd_path();
-        let key_ident = &cache_idents.key;
-        let cache_ident = &cache_idents.cache;
+        let key_ident = cache_idents.key;
+        let cache_ident = cache_idents.cache;
         let missing_err = step_error_tokens(
             &format_ident!("ExecutionError"),
             pattern,
@@ -365,8 +365,8 @@ pub(super) fn prepare_argument_processing(
     let datatable_decl = match (datatable.and_then(Arg::as_datatable), datatable_idents) {
         (Some(dt), Some((key_ident, cache_ident))) => {
             let cache_idents = CacheIdents {
-                key: (*key_ident).clone(),
-                cache: (*cache_ident).clone(),
+                key: key_ident,
+                cache: cache_ident,
             };
             gen_datatable_decl(Some(dt), pattern, ident, &cache_idents)
         }

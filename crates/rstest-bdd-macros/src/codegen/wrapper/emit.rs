@@ -141,7 +141,6 @@ fn generate_datatable_cache_definitions(
     let tokens = quote! {
         #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
         struct #key_ident {
-            ptr: usize,
             hash: u64,
         }
 
@@ -166,10 +165,7 @@ fn generate_datatable_cache_definitions(
                     hash ^= 0xfe;
                     hash = hash.wrapping_mul(PRIME);
                 }
-                Self {
-                    ptr: table.as_ptr() as usize,
-                    hash,
-                }
+                Self { hash }
             }
         }
 
