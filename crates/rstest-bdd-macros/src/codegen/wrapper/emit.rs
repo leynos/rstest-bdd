@@ -195,6 +195,7 @@ fn assemble_wrapper_function(
 }
 
 /// Generate the wrapper function body and pattern constant.
+#[allow(clippy::too_many_lines)]
 fn generate_wrapper_body(
     config: &WrapperConfig<'_>,
     wrapper_ident: &proc_macro2::Ident,
@@ -222,8 +223,70 @@ fn generate_wrapper_body(
         }
     });
     let signature = generate_wrapper_signature(pattern, pattern_ident);
-    let prepared =
-        prepare_argument_processing(args_slice, step_meta, &ctx_ident, placeholder_names);
+    let (datatable_tokens, datatable_key_ident, datatable_cache_ident) =
+        args.datatable().map_or((None, None, None), |_| {
+            let key_ident = format_ident!("__rstest_bdd_table_key_{}", wrapper_ident);
+            let cache_ident = format_ident!(
+                "__RSTEST_BDD_TABLE_CACHE_{}",
+                wrapper_ident.to_string().to_ascii_uppercase()
+            );
+
+            let tokens = quote! {
+                #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+                struct #key_ident {
+                    ptr: usize,
+                    hash: u64,
+                }
+
+                impl #key_ident {
+                    fn new(table: &[&[&str]]) -> Self {
+                        const OFFSET: u64 = 0xcbf29ce484222325;
+                        const PRIME: u64 = 0x100000001b3;
+                        let mut hash = OFFSET;
+                        hash ^= table.len() as u64;
+                        hash = hash.wrapping_mul(PRIME);
+                        for row in table {
+                            hash ^= row.len() as u64;
+                            hash = hash.wrapping_mul(PRIME);
+                            for cell in *row {
+                                for byte in cell.as_bytes() {
+                                    hash ^= *byte as u64;
+                                    hash = hash.wrapping_mul(PRIME);
+                                }
+                                hash ^= 0xff;
+                                hash = hash.wrapping_mul(PRIME);
+                            }
+                            hash ^= 0xfe;
+                            hash = hash.wrapping_mul(PRIME);
+                        }
+                        Self {
+                            ptr: table.as_ptr() as usize,
+                            hash,
+                        }
+                    }
+                }
+
+                static #cache_ident: std::sync::OnceLock<
+                    std::sync::Mutex<
+                        std::collections::HashMap<
+                            #key_ident,
+                            std::sync::Arc<Vec<Vec<String>>>,
+                        >,
+                    >,
+                > = std::sync::OnceLock::new();
+            };
+
+            (Some(tokens), Some(key_ident), Some(cache_ident))
+        });
+    let prepared = prepare_argument_processing(
+        args_slice,
+        step_meta,
+        &ctx_ident,
+        placeholder_names,
+        datatable_key_ident
+            .as_ref()
+            .zip(datatable_cache_ident.as_ref()),
+    );
     let arg_idents = collect_ordered_arguments(args_slice);
     let wrapper_fn = assemble_wrapper_function(
         WrapperIdentifiers {
@@ -239,10 +302,10 @@ fn generate_wrapper_body(
             capture_count,
         },
     );
-
     quote! {
         #struct_assert
         #signature
+        #datatable_tokens
         #wrapper_fn
     }
 }

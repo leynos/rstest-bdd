@@ -158,6 +158,12 @@ impl ExtractedArgs {
             .and_then(|idx| self.args.get(idx))
             .and_then(Arg::as_step_struct)
     }
+
+    pub fn datatable(&self) -> Option<DataTableArg<'_>> {
+        self.datatable_idx
+            .and_then(|idx| self.args.get(idx))
+            .and_then(Arg::as_datatable)
+    }
 }
 
 impl fmt::Debug for ExtractedArgs {

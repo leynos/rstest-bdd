@@ -72,85 +72,6 @@ where
     })
 }
 
-fn gen_cache_key_struct() -> TokenStream2 {
-    quote! {
-        #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-        struct __rstest_bdd_table_key {
-            ptr: usize,
-            hash: u64,
-        }
-
-        impl __rstest_bdd_table_key {
-            fn new(table: &[&[&str]]) -> Self {
-                const OFFSET: u64 = 0xcbf29ce484222325;
-                const PRIME: u64 = 0x100000001b3;
-                let mut hash = OFFSET;
-                hash ^= table.len() as u64;
-                hash = hash.wrapping_mul(PRIME);
-                for row in table {
-                    hash ^= row.len() as u64;
-                    hash = hash.wrapping_mul(PRIME);
-                    for cell in *row {
-                        for byte in cell.as_bytes() {
-                            hash ^= *byte as u64;
-                            hash = hash.wrapping_mul(PRIME);
-                        }
-                        // Separator to avoid accidental concatenation collisions.
-                        hash ^= 0xff;
-                        hash = hash.wrapping_mul(PRIME);
-                    }
-                    hash ^= 0xfe;
-                    hash = hash.wrapping_mul(PRIME);
-                }
-                Self {
-                    ptr: table.as_ptr() as usize,
-                    hash,
-                }
-            }
-        }
-    }
-}
-
-fn gen_cache_static() -> TokenStream2 {
-    quote! {
-        static __RSTEST_BDD_TABLE_CACHE: std::sync::OnceLock<
-            std::sync::Mutex<
-                std::collections::HashMap<
-                    __rstest_bdd_table_key,
-                    std::sync::Arc<Vec<Vec<String>>>,
-                >,
-            >,
-        > = std::sync::OnceLock::new();
-    }
-}
-
-fn gen_table_lookup(path: &TokenStream2, convert_err: &TokenStream2) -> TokenStream2 {
-    quote! {
-        let cache = __RSTEST_BDD_TABLE_CACHE.get_or_init(|| {
-            std::sync::Mutex::new(std::collections::HashMap::new())
-        });
-        let arc_table = {
-            let mut guard = cache.lock().map_err(|e| #convert_err)?;
-            guard
-                .entry(key)
-                .or_insert_with(|| {
-                    std::sync::Arc::new(
-                        table
-                            .iter()
-                            .map(|row| {
-                                row.iter()
-                                    .map(|cell| cell.to_string())
-                                    .collect::<Vec<String>>()
-                            })
-                            .collect::<Vec<Vec<String>>>(),
-                    )
-                })
-                .clone()
-        };
-        let cached_table = #path::datatable::CachedTable::from_arc(arc_table);
-    }
-}
-
 fn is_cached_table_type(declared_ty: &syn::Type) -> bool {
     matches!(
         declared_ty,
@@ -168,6 +89,8 @@ pub(super) fn gen_datatable_decl(
     datatable: Option<DataTableArg<'_>>,
     pattern: &syn::LitStr,
     ident: &syn::Ident,
+    key_ident: &proc_macro2::Ident,
+    cache_ident: &proc_macro2::Ident,
 ) -> Option<TokenStream2> {
     datatable.map(|arg| {
         let pat = arg.pat.clone();
@@ -175,7 +98,6 @@ pub(super) fn gen_datatable_decl(
         let ty = quote! { #declared_ty };
         let is_cached_table = is_cached_table_type(&declared_ty);
         let path = crate::codegen::rstest_bdd_path();
-        let StepMeta { pattern, ident } = StepMeta { pattern, ident };
         let missing_err = step_error_tokens(
             &format_ident!("ExecutionError"),
             pattern,
@@ -200,18 +122,33 @@ pub(super) fn gen_datatable_decl(
                 .map_err(|e| #convert_err)?
             }
         };
-        let cache_key_struct = gen_cache_key_struct();
-        let cache_static = gen_cache_static();
-        let table_lookup = gen_table_lookup(&path, &convert_err);
 
         quote! {
-            #cache_key_struct
-            #cache_static
-
             let #pat: #ty = {
                 let table = _table.ok_or_else(|| #missing_err)?;
-                let key = __rstest_bdd_table_key::new(table);
-                #table_lookup
+                let key = #key_ident::new(table);
+                let cache = #cache_ident.get_or_init(|| {
+                    std::sync::Mutex::new(std::collections::HashMap::new())
+                });
+                let arc_table = {
+                    let mut guard = cache.lock().map_err(|e| #convert_err)?;
+                    guard
+                        .entry(key)
+                        .or_insert_with(|| {
+                            std::sync::Arc::new(
+                                table
+                                    .iter()
+                                    .map(|row| {
+                                        row.iter()
+                                            .map(|cell| cell.to_string())
+                                            .collect::<Vec<String>>()
+                                    })
+                                    .collect::<Vec<Vec<String>>>(),
+                            )
+                        })
+                        .clone()
+                };
+                let cached_table = #path::datatable::CachedTable::from_arc(arc_table);
                 #conversion
             };
         }
@@ -372,6 +309,7 @@ pub(super) fn prepare_argument_processing(
     step_meta: StepMeta<'_>,
     ctx_ident: &proc_macro2::Ident,
     placeholder_names: &[syn::LitStr],
+    datatable_idents: Option<(&proc_macro2::Ident, &proc_macro2::Ident)>,
 ) -> PreparedArgs {
     let StepMeta { pattern, ident } = step_meta;
     let mut fixtures = Vec::new();
@@ -417,7 +355,12 @@ pub(super) fn prepare_argument_processing(
         placeholder_names,
         step_meta,
     );
-    let datatable_decl = gen_datatable_decl(datatable.and_then(Arg::as_datatable), pattern, ident);
+    let datatable_decl = match (datatable.and_then(Arg::as_datatable), datatable_idents) {
+        (Some(dt), Some((key_ident, cache_ident))) => {
+            gen_datatable_decl(Some(dt), pattern, ident, key_ident, cache_ident)
+        }
+        _ => None,
+    };
     let docstring_decl = gen_docstring_decl(docstring.and_then(Arg::as_docstring), pattern, ident);
     PreparedArgs {
         declares,
