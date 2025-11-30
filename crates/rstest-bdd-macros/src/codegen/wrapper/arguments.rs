@@ -76,7 +76,6 @@ fn gen_cache_key_struct() -> TokenStream2 {
     quote! {
         #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
         struct __rstest_bdd_table_key {
-            ptr: usize,
             hash: u64,
         }
 
@@ -102,10 +101,7 @@ fn gen_cache_key_struct() -> TokenStream2 {
                     hash ^= 0xfe;
                     hash = hash.wrapping_mul(PRIME);
                 }
-                Self {
-                    ptr: table.as_ptr() as usize,
-                    hash,
-                }
+                Self { hash }
             }
         }
     }
