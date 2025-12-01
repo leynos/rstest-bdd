@@ -45,7 +45,7 @@ jobs:
         uses: actions/checkout@v5
 
       - name: Setup Rust
-        uses: leynos/shared-actions/.github/actions/setup-rust@ebbaaa0d7a776ec3187f3940667e5c7c9379cdf5
+        uses: leynos/shared-actions/.github/actions/setup-rust@4fc6da2b8789a6602a67d64fe82310d1479ea8d6
 
       - name: Install bun
         if: ${{ matrix.tools }}
@@ -94,7 +94,7 @@ jobs:
 
       - name: Test and Measure Coverage (with features)
         if: ${{ matrix.coverage && matrix.features != '' }}
-        uses: leynos/shared-actions/.github/actions/generate-coverage@ebbaaa0d7a776ec3187f3940667e5c7c9379cdf5
+        uses: leynos/shared-actions/.github/actions/generate-coverage@4fc6da2b8789a6602a67d64fe82310d1479ea8d6
         with:
           output-path: lcov.info
           format: lcov
@@ -103,7 +103,7 @@ jobs:
 
       - name: Test and Measure Coverage (no features)
         if: ${{ matrix.coverage && matrix.features == '' }}
-        uses: leynos/shared-actions/.github/actions/generate-coverage@ebbaaa0d7a776ec3187f3940667e5c7c9379cdf5
+        uses: leynos/shared-actions/.github/actions/generate-coverage@4fc6da2b8789a6602a67d64fe82310d1479ea8d6
         with:
           output-path: lcov.info
           format: lcov
@@ -115,7 +115,7 @@ jobs:
 
       - name: Upload coverage data to CodeScene
         if: ${{ matrix.coverage && env.CS_ACCESS_TOKEN && matrix.tools && vars.CODESCENE_CLI_SHA256 }}
-        uses: leynos/shared-actions/.github/actions/upload-codescene-coverage@ebbaaa0d7a776ec3187f3940667e5c7c9379cdf5
+        uses: leynos/shared-actions/.github/actions/upload-codescene-coverage@4fc6da2b8789a6602a67d64fe82310d1479ea8d6
         with:
           format: lcov
           access-token: ${{ env.CS_ACCESS_TOKEN }}
