@@ -3,30 +3,45 @@
 use rstest_bdd::datatable::CachedTable;
 use rstest_bdd::{lookup_step, StepContext, StepKeyword};
 use rstest_bdd_macros::given;
+use std::collections::HashMap;
 use std::sync::{Mutex, OnceLock};
+use std::thread;
 
-fn cached_calls() -> &'static Mutex<Vec<usize>> {
-    static CALLS: OnceLock<Mutex<Vec<usize>>> = OnceLock::new();
-    CALLS.get_or_init(|| Mutex::new(Vec::new()))
+fn cached_calls() -> &'static Mutex<HashMap<thread::ThreadId, Vec<usize>>> {
+    static CALLS: OnceLock<Mutex<HashMap<thread::ThreadId, Vec<usize>>>> =
+        OnceLock::new();
+    CALLS.get_or_init(|| Mutex::new(HashMap::new()))
+}
+
+fn record_call(ptr: usize) {
+    let mut calls = cached_calls()
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    calls
+        .entry(thread::current().id())
+        .or_default()
+        .push(ptr);
+}
+
+fn take_calls() -> Vec<usize> {
+    cached_calls()
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .remove(&thread::current().id())
+        .unwrap_or_default()
 }
 
 #[given("a cached table:")]
 fn cached_table(datatable: CachedTable) {
     let ptr = std::sync::Arc::as_ptr(&datatable.as_arc()) as usize;
-    let mut calls = cached_calls()
-        .lock()
-        .unwrap_or_else(std::sync::PoisonError::into_inner);
-    calls.push(ptr);
+    record_call(ptr);
 }
 
 #[test]
 fn cached_table_reuses_conversion_for_identical_table_pointer() {
     const TABLE: &[&[&str]] = &[&["foo", "bar"], &["baz", "qux"]];
 
-    cached_calls()
-        .lock()
-        .unwrap_or_else(std::sync::PoisonError::into_inner)
-        .clear();
+    take_calls();
 
     let step_fn = lookup_step(StepKeyword::Given, "a cached table:".into())
         .unwrap_or_else(|| panic!("cached table step should be registered"));
@@ -37,9 +52,7 @@ fn cached_table_reuses_conversion_for_identical_table_pointer() {
             .unwrap_or_else(|err| panic!("cached step should succeed: {err}"));
     }
 
-    let calls = cached_calls()
-        .lock()
-        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    let calls = take_calls();
     let (Some(first), Some(second)) = (calls.first(), calls.get(1)) else {
         panic!("expected two cached table entries: {calls:?}");
     };
@@ -51,10 +64,7 @@ fn cached_table_cache_separates_distinct_tables() {
     const TABLE_ONE: &[&[&str]] = &[&["alpha"], &["beta"]];
     const TABLE_TWO: &[&[&str]] = &[&["gamma"], &["delta"]];
 
-    cached_calls()
-        .lock()
-        .unwrap_or_else(std::sync::PoisonError::into_inner)
-        .clear();
+    take_calls();
 
     let step_fn = lookup_step(StepKeyword::Given, "a cached table:".into())
         .unwrap_or_else(|| panic!("cached table step should be registered"));
@@ -65,9 +75,7 @@ fn cached_table_cache_separates_distinct_tables() {
     let _ = step_fn(&mut ctx, "a cached table:", None, Some(TABLE_TWO))
         .unwrap_or_else(|err| panic!("second cached table should succeed: {err}"));
 
-    let calls = cached_calls()
-        .lock()
-        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    let calls = take_calls();
     let (Some(first), Some(second)) = (calls.first(), calls.get(1)) else {
         panic!("expected two cached table entries: {calls:?}");
     };
