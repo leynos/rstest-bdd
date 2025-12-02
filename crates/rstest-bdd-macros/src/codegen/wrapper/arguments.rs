@@ -1,6 +1,6 @@
 //! Argument code generation utilities shared by wrapper emission logic.
 
-use super::args::{Arg, DataTableArg, DocStringArg, StepStructArg};
+use super::args::{classify::is_cached_table, Arg, DataTableArg, DocStringArg, StepStructArg};
 use proc_macro2::TokenStream as TokenStream2;
 use quote::{format_ident, quote};
 
@@ -76,18 +76,6 @@ where
                 .map_err(|e| #convert_err)?;
         }
     })
-}
-
-fn is_cached_table_type(declared_ty: &syn::Type) -> bool {
-    matches!(
-        declared_ty,
-        syn::Type::Path(ref ty_path)
-            if ty_path
-                .path
-                .segments
-                .last()
-                .is_some_and(|s| s.ident == "CachedTable")
-    )
 }
 
 fn datatable_missing_error(pattern: &syn::LitStr, ident: &syn::Ident) -> TokenStream2 {
@@ -210,7 +198,7 @@ pub(super) fn gen_datatable_decl(
     datatable.map(|arg| {
         let pat = arg.pat.clone();
         let ty = arg.ty.clone();
-        let body = gen_datatable_body(is_cached_table_type(arg.ty), pattern, ident, cache_idents);
+        let body = gen_datatable_body(is_cached_table(arg.ty), pattern, ident, cache_idents);
         quote! {
             let #pat: #ty = {
                 #body

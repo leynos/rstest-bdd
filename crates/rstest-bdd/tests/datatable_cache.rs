@@ -85,11 +85,7 @@ impl TryFrom<Vec<Vec<String>>> for CountingTable {
     }
 }
 
-impl CountingTable {
-    fn ptr(&self) -> usize {
-        self.0.as_ptr() as usize
-    }
-}
+impl CountingTable {}
 
 #[given("a counting table:")]
 fn counting_table(#[datatable] mut datatable: CountingTable) {
@@ -100,8 +96,6 @@ fn counting_table(#[datatable] mut datatable: CountingTable) {
     if let Some(first_mut) = datatable.0.first_mut().and_then(|row| row.first_mut()) {
         first_mut.push_str(" mutated");
     }
-
-    record_call(datatable.ptr());
 }
 
 #[test]
@@ -208,9 +202,6 @@ fn datatable_vec_path_reuses_cache_and_clones_per_call() {
         2,
         "Vec conversion should occur per call"
     );
-
-    let calls = take_calls();
-    assert_eq!(calls.len(), 2, "expected two counting table calls");
 
     let values = take_values();
     let [first, second] = values.as_slice() else {

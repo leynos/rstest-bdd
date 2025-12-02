@@ -76,7 +76,7 @@ fn is_datatable(ty: &syn::Type) -> bool {
     is_type_seq(ty, &["Vec", "Vec", "String"])
 }
 
-fn is_cached_table(ty: &syn::Type) -> bool {
+pub(crate) fn is_cached_table(ty: &syn::Type) -> bool {
     is_type_seq(ty, &["CachedTable"])
 }
 

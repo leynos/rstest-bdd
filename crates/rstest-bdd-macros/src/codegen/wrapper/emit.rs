@@ -78,6 +78,12 @@ struct WrapperErrors {
     capture_mismatch: TokenStream2,
 }
 
+struct DatatableCacheComponents {
+    tokens: Option<TokenStream2>,
+    key_ident: Option<proc_macro2::Ident>,
+    cache_ident: Option<proc_macro2::Ident>,
+}
+
 fn prepare_wrapper_errors(meta: StepMeta<'_>, text_ident: &proc_macro2::Ident) -> WrapperErrors {
     let StepMeta { pattern, ident } = meta;
     let execution_error = format_ident!("ExecutionError");
@@ -123,13 +129,13 @@ fn prepare_wrapper_errors(meta: StepMeta<'_>, text_ident: &proc_macro2::Ident) -
 fn generate_datatable_cache_definitions(
     has_datatable: bool,
     wrapper_ident: &proc_macro2::Ident,
-) -> (
-    Option<TokenStream2>,
-    Option<proc_macro2::Ident>,
-    Option<proc_macro2::Ident>,
-) {
+) -> DatatableCacheComponents {
     if !has_datatable {
-        return (None, None, None);
+        return DatatableCacheComponents {
+            tokens: None,
+            key_ident: None,
+            cache_ident: None,
+        };
     }
 
     let key_ident = format_ident!("__rstest_bdd_table_key_{}", wrapper_ident);
@@ -173,8 +179,11 @@ fn generate_datatable_cache_definitions(
             >,
         > = std::sync::OnceLock::new();
     };
-
-    (Some(tokens), Some(key_ident), Some(cache_ident))
+    DatatableCacheComponents {
+        tokens: Some(tokens),
+        key_ident: Some(key_ident),
+        cache_ident: Some(cache_ident),
+    }
 }
 
 /// Assemble the final wrapper function using prepared components.
@@ -279,16 +288,17 @@ fn generate_wrapper_body(
         }
     });
     let signature = generate_wrapper_signature(pattern, pattern_ident);
-    let (datatable_tokens, datatable_key_ident, datatable_cache_ident) =
+    let cache_components =
         generate_datatable_cache_definitions(args.datatable().is_some(), wrapper_ident);
     let prepared = prepare_argument_processing(
         args_slice,
         step_meta,
         &ctx_ident,
         placeholder_names,
-        datatable_key_ident
+        cache_components
+            .key_ident
             .as_ref()
-            .zip(datatable_cache_ident.as_ref()),
+            .zip(cache_components.cache_ident.as_ref()),
     );
     let arg_idents = collect_ordered_arguments(args_slice);
     let wrapper_fn = assemble_wrapper_function(
@@ -305,9 +315,11 @@ fn generate_wrapper_body(
             capture_count,
         },
     );
+    let cache_tokens = cache_components.tokens.unwrap_or_default();
+
     quote! {
         #struct_assert
-        #datatable_tokens
+        #cache_tokens
         #signature
         #wrapper_fn
     }

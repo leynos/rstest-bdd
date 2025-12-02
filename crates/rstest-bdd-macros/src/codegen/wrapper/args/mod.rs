@@ -6,9 +6,8 @@
 
 use std::{collections::HashSet, fmt};
 
-mod classify;
+pub(crate) mod classify;
 mod extract;
-
 pub use extract::extract_args;
 
 /// Everything required to describe a single step-function argument.
