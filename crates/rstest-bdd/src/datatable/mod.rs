@@ -7,7 +7,7 @@ mod spec;
 
 #[cfg(any(test, feature = "diagnostics"))]
 pub use cached::{cache_miss_count, reset_cache_miss_count};
-pub use cached::{record_cache_miss, CachedTable};
+pub use cached::{record_cache_miss, CachedTable, OwnedTableArc};
 pub use error::DataTableError;
 pub use parsers::{trimmed, truthy_bool, TrimmedParseError, TruthyBoolError};
 pub use rows::{DataTableRow, Rows};

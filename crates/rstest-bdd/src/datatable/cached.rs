@@ -9,6 +9,9 @@
 use std::ops::Deref;
 use std::sync::Arc;
 
+/// Shared, owned representation of a parsed data table.
+pub type OwnedTableArc = Arc<Vec<Vec<String>>>;
+
 #[cfg(any(test, feature = "diagnostics"))]
 mod diagnostics {
     use std::collections::HashMap;
@@ -69,7 +72,7 @@ pub fn reset_cache_miss_count() {
 /// Shareable view of a parsed data table.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CachedTable {
-    rows: Arc<Vec<Vec<String>>>,
+    rows: OwnedTableArc,
 }
 
 impl CachedTable {
@@ -83,7 +86,7 @@ impl CachedTable {
 
     /// Construct a cache from an existing shared table.
     #[must_use]
-    pub fn from_arc(rows: Arc<Vec<Vec<String>>>) -> Self {
+    pub fn from_arc(rows: OwnedTableArc) -> Self {
         Self { rows }
     }
 
@@ -95,7 +98,7 @@ impl CachedTable {
 
     /// Borrow the underlying shared allocation without cloning the `Arc`.
     #[must_use]
-    pub fn as_arc_ref(&self) -> &Arc<Vec<Vec<String>>> {
+    pub fn as_arc_ref(&self) -> &OwnedTableArc {
         &self.rows
     }
 
@@ -107,7 +110,7 @@ impl CachedTable {
 
     /// Access the underlying shared allocation.
     #[must_use]
-    pub fn as_arc(&self) -> Arc<Vec<Vec<String>>> {
+    pub fn as_arc(&self) -> OwnedTableArc {
         Arc::clone(&self.rows)
     }
 }
