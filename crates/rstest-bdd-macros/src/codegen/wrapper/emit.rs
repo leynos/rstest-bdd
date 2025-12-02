@@ -84,6 +84,77 @@ struct DatatableCacheComponents {
     cache_ident: Option<proc_macro2::Ident>,
 }
 
+fn gen_cache_key_struct(key_ident: &proc_macro2::Ident) -> TokenStream2 {
+    quote! {
+        #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+        struct #key_ident {
+            ptr: usize,
+            hash: u64,
+        }
+    }
+}
+
+fn gen_cache_key_impl(
+    key_ident: &proc_macro2::Ident,
+    hash_cache_ident: &proc_macro2::Ident,
+) -> TokenStream2 {
+    quote! {
+        impl #key_ident {
+            fn new(table: &[&[&str]]) -> Self {
+                static #hash_cache_ident: std::sync::OnceLock<
+                    std::sync::Mutex<std::collections::HashMap<usize, u64>>,
+                > = std::sync::OnceLock::new();
+
+                let ptr = table.as_ptr() as usize;
+                let cache = #hash_cache_ident.get_or_init(|| {
+                    std::sync::Mutex::new(std::collections::HashMap::new())
+                });
+                if let Ok(cache) = cache.lock() {
+                    if let Some(hash) = cache.get(&ptr).copied() {
+                        return Self { ptr, hash };
+                    }
+                }
+
+                const FNV_OFFSET: u64 = 0xcbf29ce484222325;
+                const FNV_PRIME: u64 = 0x0000_0001_0000_0001B3;
+
+                let mut hash = FNV_OFFSET;
+                for row in table {
+                    for cell in *row {
+                        hash ^= 0xff;
+                        hash = hash.wrapping_mul(FNV_PRIME);
+                        for byte in cell.as_bytes() {
+                            hash ^= u64::from(*byte);
+                            hash = hash.wrapping_mul(FNV_PRIME);
+                        }
+                    }
+                    hash ^= 0xfe;
+                    hash = hash.wrapping_mul(FNV_PRIME);
+                }
+
+                if let Ok(mut cache) = cache.lock() {
+                    cache.insert(ptr, hash);
+                }
+
+                Self { ptr, hash }
+            }
+        }
+    }
+}
+
+fn gen_cache_static(
+    cache_ident: &proc_macro2::Ident,
+    key_ident: &proc_macro2::Ident,
+) -> TokenStream2 {
+    quote! {
+        static #cache_ident: std::sync::OnceLock<
+            std::sync::Mutex<
+                std::collections::HashMap<#key_ident, std::sync::Arc<Vec<Vec<String>>>>,
+            >,
+        > = std::sync::OnceLock::new();
+    }
+}
+
 fn prepare_wrapper_errors(meta: StepMeta<'_>, text_ident: &proc_macro2::Ident) -> WrapperErrors {
     let StepMeta { pattern, ident } = meta;
     let execution_error = format_ident!("ExecutionError");
@@ -148,60 +219,11 @@ fn generate_datatable_cache_definitions(
         wrapper_ident.to_string().to_ascii_uppercase()
     );
 
-    let tokens = quote! {
-        #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-        struct #key_ident {
-            ptr: usize,
-            hash: u64,
-        }
+    let key_struct = gen_cache_key_struct(&key_ident);
+    let key_impl = gen_cache_key_impl(&key_ident, &hash_cache_ident);
+    let cache_static = gen_cache_static(&cache_ident, &key_ident);
 
-        impl #key_ident {
-            fn new(table: &[&[&str]]) -> Self {
-                static #hash_cache_ident: std::sync::OnceLock<
-                    std::sync::Mutex<std::collections::HashMap<usize, u64>>,
-                > = std::sync::OnceLock::new();
-
-                let ptr = table.as_ptr() as usize;
-                let cache = #hash_cache_ident.get_or_init(|| {
-                    std::sync::Mutex::new(std::collections::HashMap::new())
-                });
-                if let Ok(cache) = cache.lock() {
-                    if let Some(hash) = cache.get(&ptr).copied() {
-                        return Self { ptr, hash };
-                    }
-                }
-
-                const FNV_OFFSET: u64 = 0xcbf29ce484222325;
-                const FNV_PRIME: u64 = 0x0000_0001_0000_0001B3;
-
-                let mut hash = FNV_OFFSET;
-                for row in table {
-                    for cell in *row {
-                        hash ^= 0xff;
-                        hash = hash.wrapping_mul(FNV_PRIME);
-                        for byte in cell.as_bytes() {
-                            hash ^= u64::from(*byte);
-                            hash = hash.wrapping_mul(FNV_PRIME);
-                        }
-                    }
-                    hash ^= 0xfe;
-                    hash = hash.wrapping_mul(FNV_PRIME);
-                }
-
-                if let Ok(mut cache) = cache.lock() {
-                    cache.insert(ptr, hash);
-                }
-
-                Self { ptr, hash }
-            }
-        }
-
-        static #cache_ident: std::sync::OnceLock<
-            std::sync::Mutex<
-                std::collections::HashMap<#key_ident, std::sync::Arc<Vec<Vec<String>>>>,
-            >,
-        > = std::sync::OnceLock::new();
-    };
+    let tokens = quote! { #key_struct #key_impl #cache_static };
     DatatableCacheComponents {
         tokens: Some(tokens),
         key_ident: Some(key_ident),
