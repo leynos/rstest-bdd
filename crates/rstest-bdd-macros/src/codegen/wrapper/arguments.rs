@@ -165,7 +165,11 @@ fn gen_datatable_body(
             match guard.entry(key) {
                 std::collections::hash_map::Entry::Occupied(mut entry) => {
                     let cached = entry.get();
-                    let matches = #content_match;
+                    let matches = if key.ptr == table.as_ptr() as usize {
+                        true
+                    } else {
+                        #content_match
+                    };
 
                     if matches {
                         cached.clone()

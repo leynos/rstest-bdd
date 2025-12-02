@@ -1,4 +1,5 @@
 //! Behavioural tests for cached data table conversion.
+#![allow(clippy::expect_used)]
 
 use rstest_bdd::datatable::CachedTable;
 use rstest_bdd::{lookup_step, StepContext, StepKeyword};
@@ -103,12 +104,12 @@ fn cached_table_reuses_conversion_for_identical_table_pointer() {
     take_calls();
 
     let step_fn = lookup_step(StepKeyword::Given, "a cached table:".into())
-        .unwrap_or_else(|| panic!("cached table step should be registered"));
+        .expect("cached table step should be registered");
     let mut ctx = StepContext::default();
 
     for _ in 0..2 {
         let _exec = step_fn(&mut ctx, "a cached table:", None, Some(TABLE))
-            .unwrap_or_else(|err| panic!("cached step should succeed: {err}"));
+            .expect("cached step should succeed");
     }
 
     let calls = take_calls();
@@ -126,13 +127,13 @@ fn cached_table_cache_separates_distinct_tables() {
     take_calls();
 
     let step_fn = lookup_step(StepKeyword::Given, "a cached table:".into())
-        .unwrap_or_else(|| panic!("cached table step should be registered"));
+        .expect("cached table step should be registered");
     let mut ctx = StepContext::default();
 
     let _ = step_fn(&mut ctx, "a cached table:", None, Some(TABLE_ONE))
-        .unwrap_or_else(|err| panic!("first cached table should succeed: {err}"));
+        .expect("first cached table should succeed");
     let _ = step_fn(&mut ctx, "a cached table:", None, Some(TABLE_TWO))
-        .unwrap_or_else(|err| panic!("second cached table should succeed: {err}"));
+        .expect("second cached table should succeed");
 
     let calls = take_calls();
     let (Some(first), Some(second)) = (calls.first(), calls.get(1)) else {
@@ -151,13 +152,13 @@ fn cached_table_cache_is_scoped_per_step_wrapper() {
     take_calls();
 
     let first_step_fn = lookup_step(StepKeyword::Given, "a cached table:".into())
-        .unwrap_or_else(|| panic!("cached table step should be registered"));
+        .expect("cached table step should be registered");
     let second_step_fn = lookup_step(StepKeyword::Given, "another cached table:".into())
-        .unwrap_or_else(|| panic!("another cached table step should be registered"));
+        .expect("another cached table step should be registered");
     let mut ctx = StepContext::default();
 
     let _ = first_step_fn(&mut ctx, "a cached table:", None, Some(TABLE))
-        .unwrap_or_else(|err| panic!("first cached table should succeed: {err}"));
+        .expect("first cached table should succeed");
     let calls_first = take_calls();
     let first_ptr = calls_first
         .first()
@@ -165,7 +166,7 @@ fn cached_table_cache_is_scoped_per_step_wrapper() {
         .unwrap_or_else(|| panic!("expected one call from first step, got {calls_first:?}"));
 
     let _ = second_step_fn(&mut ctx, "another cached table:", None, Some(TABLE))
-        .unwrap_or_else(|err| panic!("second cached table should succeed: {err}"));
+        .expect("second cached table should succeed");
     let calls_second = take_calls();
     let second_ptr = calls_second
         .first()
@@ -187,12 +188,12 @@ fn datatable_vec_path_reuses_cache_and_clones_per_call() {
     reset_conversions();
 
     let step_fn = lookup_step(StepKeyword::Given, "a counting table:".into())
-        .unwrap_or_else(|| panic!("counting table step should be registered"));
+        .expect("counting table step should be registered");
     let mut ctx = StepContext::default();
 
     for _ in 0..2 {
         let _ = step_fn(&mut ctx, "a counting table:", None, Some(TABLE))
-            .unwrap_or_else(|err| panic!("counting table step should succeed: {err}"));
+            .expect("counting table step should succeed");
     }
 
     assert_eq!(
