@@ -43,7 +43,7 @@ fn test_extract_args_scenario(
 #[case(
     parse_quote! { fn step(datatable: String) {} },
     concat!(
-        "parameter named `datatable` must have type `Vec<Vec<String>>` ",
+        "parameter named `datatable` must have type `Vec<Vec<String>>` or `CachedTable` ",
         "(or use `#[datatable]` with a type that implements `TryFrom<Vec<Vec<String>>>`)",
     ),
     "error when datatable has wrong type",
@@ -217,6 +217,29 @@ fn datatable_attribute_removed_from_signature() {
         ty_str.replace(' ', "") == "Vec<Vec<String>>".replace(' ', ""),
         "unexpected type after attribute strip: {ty_str}"
     );
+}
+
+#[test]
+fn step_with_cached_table_is_classified_as_datatable() {
+    let mut func: syn::ItemFn = parse_quote! {
+        fn step(datatable: rstest_bdd::datatable::CachedTable) {}
+    };
+
+    #[expect(clippy::expect_used, reason = "test asserts valid extraction")]
+    let args = extract_args(&mut func, &mut HashSet::new()).expect("failed to extract args");
+
+    #[expect(clippy::expect_used, reason = "test requires datatable")]
+    let dt = find_datatable(&args).expect("cached table should be classified as datatable");
+
+    if let Arg::DataTable { ty, .. } = dt {
+        let ty_str = quote!(#ty).to_string().replace(' ', "");
+        assert!(
+            ty_str.contains("CachedTable"),
+            "unexpected datatable type: {ty_str}"
+        );
+    } else {
+        panic!("expected datatable argument");
+    }
 }
 
 #[rstest]

@@ -39,7 +39,15 @@ fn prepare_argument_processing_handles_all_argument_types() {
 
     let ctx_ident = format_ident!("__rstest_bdd_ctx");
     let placeholder_names = vec![syn::LitStr::new("count", proc_macro2::Span::call_site())];
-    let prepared = prepare_argument_processing(&args, meta, &ctx_ident, &placeholder_names);
+    let key_ident = format_ident!("__rstest_bdd_table_key_test");
+    let cache_ident = format_ident!("__RSTEST_BDD_TABLE_CACHE_TEST");
+    let prepared = prepare_argument_processing(
+        &args,
+        meta,
+        &ctx_ident,
+        &placeholder_names,
+        Some((&key_ident, &cache_ident)),
+    );
 
     assert_eq!(prepared.declares.len(), 1);
     let [fixture_stmt] = prepared.declares.as_slice() else {

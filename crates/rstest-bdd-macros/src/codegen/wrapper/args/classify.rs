@@ -15,7 +15,7 @@ mod step_struct;
 pub(super) use step_struct::{classify_step_struct, extract_step_struct_attribute};
 
 const DATATABLE_TYPE_ERROR: &str = concat!(
-    "parameter named `datatable` must have type `Vec<Vec<String>>` ",
+    "parameter named `datatable` must have type `Vec<Vec<String>>` or `CachedTable` ",
     "(or use `#[datatable]` with a type that implements `TryFrom<Vec<Vec<String>>>`)",
 );
 const DOCSTRING_TYPE_ERROR: &str =
@@ -76,8 +76,12 @@ fn is_datatable(ty: &syn::Type) -> bool {
     is_type_seq(ty, &["Vec", "Vec", "String"])
 }
 
+pub(crate) fn is_cached_table(ty: &syn::Type) -> bool {
+    is_type_seq(ty, &["CachedTable"])
+}
+
 fn should_classify_as_datatable(pat: &syn::Ident, ty: &syn::Type) -> bool {
-    pat == "datatable" && is_datatable(ty)
+    pat == "datatable" && (is_datatable(ty) || is_cached_table(ty))
 }
 
 pub(super) fn extract_flag_attribute(arg: &mut syn::PatType, attr_name: &str) -> syn::Result<bool> {

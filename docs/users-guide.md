@@ -691,6 +691,23 @@ Projects that prefer to work with raw rows can declare the argument as
 `Vec<Vec<String>>` and handle parsing manually. Both forms can co-exist within
 the same project, allowing incremental adoption of typed tables.
 
+### Performance and caching
+
+Data tables are now converted once per distinct table literal and cached for
+reuse. The generated wrappers key the cache by the table content, so repeated
+executions of the same step with the same table reuse the stored
+`Vec<Vec<String>>` without re-parsing cell text. The cache is scoped to the
+step wrapper, preventing different steps or tables from sharing entries.
+
+For zero-allocation access on subsequent executions, prefer the
+`datatable::CachedTable` argument type. It borrows the cached rows via an
+`Arc`, avoiding fresh string allocations when the step runs multiple times.
+Existing `Vec<Vec<String>>` signatures remain supported; they clone the cached
+rows when binding the argument, which still avoids re-parsing but retains the
+ownership semantics of the older API. The cache lives for the lifetime of the
+test process, so large tables remain available to later scenarios without
+additional conversion overhead.
+
 A derive macro removes the boilerplate when mapping headers to fields. Annotate
 the struct with `#[derive(DataTableRow)]` and customise behaviour via field
 attributes:
