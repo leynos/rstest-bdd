@@ -162,7 +162,7 @@ pub fn derive_step_args(input: TokenStream) -> TokenStream {
 ///   `#[given]`, `#[when]`, and `#[then]` functions.
 ///
 /// Example:
-/// ```ignore
+/// ```rust,ignore
 /// use rstest_bdd_macros::{given, when, then, scenarios};
 ///
 /// # #[given("a precondition")] fn precondition() {}
