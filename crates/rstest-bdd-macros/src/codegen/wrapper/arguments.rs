@@ -39,12 +39,6 @@ pub(super) fn step_error_tokens(
     }
 }
 
-/// Identifiers for datatable caching infrastructure.
-pub(super) struct CacheIdents<'a> {
-    key: &'a proc_macro2::Ident,
-    cache: &'a proc_macro2::Ident,
-}
-
 fn gen_optional_decl<T, F>(
     arg: Option<T>,
     meta: StepMeta<'_>,
@@ -131,13 +125,12 @@ fn gen_datatable_body(
     is_cached_table: bool,
     pattern: &syn::LitStr,
     ident: &syn::Ident,
-    cache_idents: &CacheIdents,
+    key_ident: &proc_macro2::Ident,
+    cache_ident: &proc_macro2::Ident,
 ) -> TokenStream2 {
     let path = crate::codegen::rstest_bdd_path();
     let missing_err = datatable_missing_error(pattern, ident);
     let convert_err = datatable_convert_error(pattern, ident);
-    let key_ident = cache_idents.key;
-    let cache_ident = cache_idents.cache;
     let conversion = if is_cached_table {
         quote! { cached_table }
     } else {
@@ -193,12 +186,19 @@ pub(super) fn gen_datatable_decl(
     datatable: Option<DataTableArg<'_>>,
     pattern: &syn::LitStr,
     ident: &syn::Ident,
-    cache_idents: &CacheIdents,
+    key_ident: &proc_macro2::Ident,
+    cache_ident: &proc_macro2::Ident,
 ) -> Option<TokenStream2> {
     datatable.map(|arg| {
         let pat = arg.pat.clone();
         let ty = arg.ty.clone();
-        let body = gen_datatable_body(is_cached_table(arg.ty), pattern, ident, cache_idents);
+        let body = gen_datatable_body(
+            is_cached_table(arg.ty),
+            pattern,
+            ident,
+            key_ident,
+            cache_ident,
+        );
         quote! {
             let #pat: #ty = {
                 #body
@@ -409,11 +409,7 @@ pub(super) fn prepare_argument_processing(
     );
     let datatable_decl = match (datatable.and_then(Arg::as_datatable), datatable_idents) {
         (Some(dt), Some((key_ident, cache_ident))) => {
-            let cache_idents = CacheIdents {
-                key: key_ident,
-                cache: cache_ident,
-            };
-            gen_datatable_decl(Some(dt), pattern, ident, &cache_idents)
+            gen_datatable_decl(Some(dt), pattern, ident, key_ident, cache_ident)
         }
         _ => None,
     };

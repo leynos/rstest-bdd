@@ -143,15 +143,34 @@ fn generate_datatable_cache_definitions(
         "__RSTEST_BDD_TABLE_CACHE_{}",
         wrapper_ident.to_string().to_ascii_uppercase()
     );
+    let hash_cache_ident = format_ident!(
+        "__RSTEST_BDD_TABLE_HASH_CACHE_{}",
+        wrapper_ident.to_string().to_ascii_uppercase()
+    );
 
     let tokens = quote! {
         #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
         struct #key_ident {
+            ptr: usize,
             hash: u64,
         }
 
         impl #key_ident {
             fn new(table: &[&[&str]]) -> Self {
+                static #hash_cache_ident: std::sync::OnceLock<
+                    std::sync::Mutex<std::collections::HashMap<usize, u64>>,
+                > = std::sync::OnceLock::new();
+
+                let ptr = table.as_ptr() as usize;
+                let cache = #hash_cache_ident.get_or_init(|| {
+                    std::sync::Mutex::new(std::collections::HashMap::new())
+                });
+                if let Ok(cache) = cache.lock() {
+                    if let Some(hash) = cache.get(&ptr).copied() {
+                        return Self { ptr, hash };
+                    }
+                }
+
                 const FNV_OFFSET: u64 = 0xcbf29ce484222325;
                 const FNV_PRIME: u64 = 0x0000_0001_0000_0001B3;
 
@@ -169,7 +188,11 @@ fn generate_datatable_cache_definitions(
                     hash = hash.wrapping_mul(FNV_PRIME);
                 }
 
-                Self { hash }
+                if let Ok(mut cache) = cache.lock() {
+                    cache.insert(ptr, hash);
+                }
+
+                Self { ptr, hash }
             }
         }
 
