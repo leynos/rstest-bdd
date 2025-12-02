@@ -2,10 +2,11 @@
 //! Macro-driven coverage for mutable world fixtures.
 //!
 //! The `#[scenario]` runner now stores owned fixtures mutably so step functions
-//! may declare `&mut Fixture` parameters. A rustc ICE has affected some nightly
-//! compilers when expanding the full macro path, so the real scenario below is
-//! gated behind the `mutable_world_macro` feature until the upstream fix
-//! lands. The direct `StepContext` regression test remains in
+//! may declare `&mut Fixture` parameters. A rustc internal compiler error (ICE)
+//! has affected some nightly compilers when expanding the full macro path, so
+//! the real scenario below is gated behind the `mutable_world_macro` feature
+//! until the upstream fix lands. The direct `StepContext` regression test
+//! remains in
 //! `mutable_fixture.rs`.
 //!
 //! Enable this file's main test with:
@@ -15,6 +16,8 @@
 //! ```
 //!
 //! and remove the gate once the compiler bug is resolved.
+//!
+//! Tracking: see `docs/known-issues.md#rustc-ice-with-mutable-world-macro`.
 
 #[cfg(feature = "mutable_world_macro")]
 mod macro_world {
@@ -61,5 +64,5 @@ fn mutable_world_macro_gated() {
     // Guard against the rustc ICE reproduced in `mutable_fixture.rs`. Re-enable
     // the macro-driven test above by compiling with the `mutable_world_macro`
     // feature once the upstream compiler fix lands.
-    // Intentionally empty.
+    assert!(!cfg!(feature = "mutable_world_macro"));
 }

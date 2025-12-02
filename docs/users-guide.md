@@ -266,11 +266,12 @@ fn last_input(world: &ReportWorld) {
 
 #### Troubleshooting
 
-- A rustc ICE affected some nightly compilers when expanding macro‑driven
-  scenarios with `&mut` fixtures. See
+- A rustc internal compiler error (ICE) affected some nightly compilers when
+  expanding macro‑driven scenarios with `&mut` fixtures. See
   `crates/rstest-bdd/tests/mutable_world_macro.rs` for a guarded example and
   `crates/rstest-bdd/tests/mutable_fixture.rs` for the context‑level regression
-  test used until the upstream fix lands.
+  test used until the upstream fix lands. Tracking details live in
+  `docs/known-issues.md#rustc-ice-with-mutable-world-macro`.
 - For advanced cases—custom fixture injection or manual borrowing—use
   `StepContext::insert_owned` and `StepContext::borrow_mut` directly; the
   examples above cover most scenarios.

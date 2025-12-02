@@ -261,8 +261,10 @@ The runner stores owned fixtures using `StepContext::insert_owned`, so mutable
 borrows stay confined to each scenario and are checked at compile time. See
 `crates/rstest-bdd/tests/mutable_world_macro.rs` for a full macro‑driven
 example and `crates/rstest-bdd/tests/mutable_fixture.rs` for the underlying
-context‑level regression test. A rustc ICE affecting some nightly compilers is
-tracked there; enable the macro test once the upstream fix lands.
+context‑level regression test. A rustc internal compiler error (ICE) affecting
+some nightly compilers is tracked in
+`docs/known-issues.md#rustc-ice-with-mutable-world-macro`; enable the macro
+test once the upstream fix lands.
 
 ______________________________________________________________________
 

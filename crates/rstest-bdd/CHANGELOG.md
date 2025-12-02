@@ -24,11 +24,13 @@
 
 ### Known issues
 
-- A rustc ICE on some nightly compilers affects macro‑driven scenarios using
-  `&mut` fixtures. See `crates/rstest-bdd/tests/mutable_world_macro.rs` for the
-  guarded regression test and `crates/rstest-bdd/tests/mutable_fixture.rs` for
-  the underlying `StepContext` coverage. The feature remains opt‑in and
-  additive once the upstream fix lands.
+- A rustc internal compiler error (ICE) on some nightly compilers affects
+  macro‑driven scenarios using `&mut` fixtures. See
+  `crates/rstest-bdd/tests/mutable_world_macro.rs` for the guarded regression
+  test and `crates/rstest-bdd/tests/mutable_fixture.rs` for the underlying
+  `StepContext` coverage. Tracking lives at
+  `docs/known-issues.md#rustc-ice-with-mutable-world-macro`. The feature
+  remains opt‑in and additive once the upstream fix lands.
 
 ### Performance
 

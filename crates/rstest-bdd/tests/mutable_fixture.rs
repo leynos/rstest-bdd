@@ -2,10 +2,11 @@
 //! be mutated across step boundaries.
 //!
 //! A fully macro-driven scenario with `&mut` fixtures has triggered a rustc
-//! ICE on some nightly compilers (observed with the toolchain pinned in
-//! `rust-toolchain.toml`). The guarded macro example lives in
-//! `mutable_world_macro.rs`; this file exercises the underlying
-//! [`StepContext`] plumbing directly to avoid the compiler bug.
+//! internal compiler error (ICE) on some nightly compilers (observed with the
+//! toolchain pinned in `rust-toolchain.toml`). The guarded macro example lives
+//! in `mutable_world_macro.rs`; this file exercises the underlying
+//! [`StepContext`] plumbing directly to avoid the compiler bug. Tracking lives
+//! at `docs/known-issues.md#rustc-ice-with-mutable-world-macro`.
 //!
 //! TODO: Replace this direct `StepContext` coverage with the macro-driven test
 //! once the upstream rustc ICE is resolved and linked here.
