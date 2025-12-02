@@ -1,5 +1,4 @@
 //! Behavioural tests for cached data table conversion.
-#![allow(clippy::expect_used)]
 
 use rstest_bdd::datatable::CachedTable;
 use rstest_bdd::{lookup_step, StepContext, StepKeyword};
@@ -98,6 +97,10 @@ fn counting_table(#[datatable] mut datatable: CountingTable) {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "Using expect in tests provides clearer diagnostics for step lookup failures."
+)]
 fn cached_table_reuses_conversion_for_identical_table_pointer() {
     const TABLE: &[&[&str]] = &[&["foo", "bar"], &["baz", "qux"]];
 
@@ -120,6 +123,10 @@ fn cached_table_reuses_conversion_for_identical_table_pointer() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "Using expect in tests provides clearer diagnostics for step lookup failures."
+)]
 fn cached_table_cache_separates_distinct_tables() {
     const TABLE_ONE: &[&[&str]] = &[&["alpha"], &["beta"]];
     const TABLE_TWO: &[&[&str]] = &[&["gamma"], &["delta"]];
@@ -146,6 +153,10 @@ fn cached_table_cache_separates_distinct_tables() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "Using expect in tests provides clearer diagnostics for step lookup failures."
+)]
 fn cached_table_cache_is_scoped_per_step_wrapper() {
     const TABLE: &[&[&str]] = &[&["foo", "bar"], &["baz", "qux"]];
 
@@ -160,18 +171,16 @@ fn cached_table_cache_is_scoped_per_step_wrapper() {
     let _ = first_step_fn(&mut ctx, "a cached table:", None, Some(TABLE))
         .expect("first cached table should succeed");
     let calls_first = take_calls();
-    let first_ptr = calls_first
-        .first()
-        .copied()
-        .unwrap_or_else(|| panic!("expected one call from first step, got {calls_first:?}"));
+    let [first_ptr] = calls_first.as_slice() else {
+        panic!("expected one call from first step, got {calls_first:?}");
+    };
 
     let _ = second_step_fn(&mut ctx, "another cached table:", None, Some(TABLE))
         .expect("second cached table should succeed");
     let calls_second = take_calls();
-    let second_ptr = calls_second
-        .first()
-        .copied()
-        .unwrap_or_else(|| panic!("expected one call from second step, got {calls_second:?}"));
+    let [second_ptr] = calls_second.as_slice() else {
+        panic!("expected one call from second step, got {calls_second:?}");
+    };
 
     assert_ne!(
         first_ptr, second_ptr,
@@ -180,7 +189,11 @@ fn cached_table_cache_is_scoped_per_step_wrapper() {
 }
 
 #[test]
-fn datatable_vec_path_reuses_cache_and_clones_per_call() {
+#[expect(
+    clippy::expect_used,
+    reason = "Using expect in tests provides clearer diagnostics for step lookup failures."
+)]
+fn datatable_vec_path_clones_per_call_and_preserves_isolation() {
     const TABLE: &[&[&str]] = &[&["foo", "bar"], &["baz", "qux"]];
 
     take_calls();
