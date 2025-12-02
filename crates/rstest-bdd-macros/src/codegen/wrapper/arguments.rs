@@ -102,6 +102,37 @@ fn datatable_convert_error(pattern: &syn::LitStr, ident: &syn::Ident) -> TokenSt
     )
 }
 
+fn gen_arc_from_table() -> TokenStream2 {
+    quote! {
+        std::sync::Arc::new(
+            table
+                .iter()
+                .map(|row| {
+                    row.iter()
+                        .map(|cell| cell.to_string())
+                        .collect::<Vec<String>>()
+                })
+                .collect::<Vec<Vec<String>>>(),
+        )
+    }
+}
+
+fn gen_content_match() -> TokenStream2 {
+    quote! {
+        cached.len() == table.len()
+            && cached
+                .iter()
+                .zip(table.iter())
+                .all(|(cached_row, incoming_row)| {
+                    cached_row.len() == incoming_row.len()
+                        && cached_row
+                            .iter()
+                            .zip(incoming_row.iter())
+                            .all(|(cached_cell, incoming_cell)| cached_cell == incoming_cell)
+                })
+    }
+}
+
 fn gen_datatable_body(
     is_cached_table: bool,
     pattern: &syn::LitStr,
@@ -124,6 +155,8 @@ fn gen_datatable_body(
             .map_err(|e| #convert_err)?
         }
     };
+    let arc_creation = gen_arc_from_table();
+    let content_match = gen_content_match();
 
     quote! {
         let table = _table.ok_or_else(|| #missing_err)?;
@@ -136,45 +169,20 @@ fn gen_datatable_body(
             match guard.entry(key) {
                 std::collections::hash_map::Entry::Occupied(mut entry) => {
                     let cached = entry.get();
-                    let matches = cached.len() == table.len()
-                        && cached.iter().zip(table.iter()).all(|(cached_row, incoming_row)| {
-                            cached_row.len() == incoming_row.len()
-                                && cached_row
-                                    .iter()
-                                    .zip(incoming_row.iter())
-                                    .all(|(cached_cell, incoming_cell)| cached_cell == incoming_cell)
-                        });
+                    let matches = #content_match;
 
                     if matches {
                         cached.clone()
                     } else {
                         #path::datatable::record_cache_miss();
-                        let arc = std::sync::Arc::new(
-                            table
-                                .iter()
-                                .map(|row| {
-                                    row.iter()
-                                        .map(|cell| cell.to_string())
-                                        .collect::<Vec<String>>()
-                                })
-                                .collect::<Vec<Vec<String>>>(),
-                        );
+                        let arc = #arc_creation;
                         entry.insert(arc.clone());
                         arc
                     }
                 }
                 std::collections::hash_map::Entry::Vacant(entry) => {
                     #path::datatable::record_cache_miss();
-                    let arc = std::sync::Arc::new(
-                        table
-                            .iter()
-                            .map(|row| {
-                                row.iter()
-                                    .map(|cell| cell.to_string())
-                                    .collect::<Vec<String>>()
-                            })
-                            .collect::<Vec<Vec<String>>>(),
-                    );
+                    let arc = #arc_creation;
                     entry.insert(arc.clone());
                     arc
                 }

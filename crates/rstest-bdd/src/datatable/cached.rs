@@ -7,34 +7,63 @@
 //! required.
 
 use std::ops::Deref;
-use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 
 #[cfg(any(test, feature = "diagnostics"))]
-static CACHE_MISS_COUNT: AtomicUsize = AtomicUsize::new(0);
+mod diagnostics {
+    use std::collections::HashMap;
+    use std::sync::{Mutex, OnceLock};
+    use std::thread;
+
+    fn counters() -> &'static Mutex<HashMap<thread::ThreadId, usize>> {
+        static COUNTERS: OnceLock<Mutex<HashMap<thread::ThreadId, usize>>> = OnceLock::new();
+        COUNTERS.get_or_init(|| Mutex::new(HashMap::new()))
+    }
+
+    pub(super) fn record_miss() {
+        let mut map = counters()
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        *map.entry(thread::current().id()).or_insert(0) += 1;
+    }
+
+    pub(super) fn count() -> usize {
+        counters()
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .get(&thread::current().id())
+            .copied()
+            .unwrap_or(0)
+    }
+
+    pub(super) fn reset() {
+        counters()
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .remove(&thread::current().id());
+    }
+}
 
 /// Record a cache miss for diagnostic or test visibility.
 #[inline]
 pub fn record_cache_miss() {
     #[cfg(any(test, feature = "diagnostics"))]
-    {
-        CACHE_MISS_COUNT.fetch_add(1, Ordering::Relaxed);
-    }
+    diagnostics::record_miss();
 }
 
-/// Return the number of cache misses observed. Available in tests and when
-/// the `diagnostics` feature is enabled.
+/// Return the number of cache misses observed by the current thread. Available
+/// in tests and when the `diagnostics` feature is enabled.
 #[cfg(any(test, feature = "diagnostics"))]
 #[must_use]
 pub fn cache_miss_count() -> usize {
-    CACHE_MISS_COUNT.load(Ordering::Relaxed)
+    diagnostics::count()
 }
 
-/// Reset the cache miss counter. Available in tests and when the `diagnostics`
-/// feature is enabled.
+/// Reset the cache miss counter for the current thread. Available in tests and
+/// when the `diagnostics` feature is enabled.
 #[cfg(any(test, feature = "diagnostics"))]
 pub fn reset_cache_miss_count() {
-    CACHE_MISS_COUNT.store(0, Ordering::Relaxed);
+    diagnostics::reset();
 }
 
 /// Shareable view of a parsed data table.
