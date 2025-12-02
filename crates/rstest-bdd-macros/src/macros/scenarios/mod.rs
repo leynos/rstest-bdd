@@ -26,6 +26,7 @@ use crate::utils::ident::sanitize_ident;
 use self::feature_discovery::collect_feature_files;
 use self::macro_args::ScenariosArgs;
 
+/// Context for generating a scenario test.
 struct ScenarioTestContext<'a> {
     feature_stem: &'a str,
     manifest_dir: &'a Path,
@@ -49,6 +50,7 @@ struct TagFilter {
     raw: String,
 }
 
+/// Generate the test for a single scenario within a feature.
 fn generate_scenario_test(
     ctx: &ScenarioTestContext<'_>,
     used_names: &mut HashSet<String>,
