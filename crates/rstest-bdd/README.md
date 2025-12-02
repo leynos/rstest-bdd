@@ -213,6 +213,59 @@ Implicit fixtures such as `basket` must already be in scope in the test module;
 
 ______________________________________________________________________
 
+## Mutable world fixtures
+
+Scenarios own their fixtures, so `#[scenario]` binds value fixtures mutably and
+step functions can request `&mut Fixture` parameters. This keeps test worlds
+plain and borrow‑checked instead of wrapped in `Cell` or `RefCell`.
+
+### Before — interior mutability wrapper
+
+```rust
+#[derive(Default)]
+struct PredicateWorld {
+    limit: std::cell::Cell<usize>,
+    branches: std::cell::Cell<usize>,
+}
+
+#[given("the branch limit is {limit}")]
+fn given_limit(world: &PredicateWorld, limit: usize) {
+    world.limit.set(limit);
+}
+```
+
+### After — direct mutable access
+
+```rust
+#[derive(Default)]
+struct PredicateWorld {
+    limit: usize,
+    branches: usize,
+}
+
+#[given("the branch limit is {limit}")]
+fn given_limit(world: &mut PredicateWorld, limit: usize) {
+    world.limit = limit;
+}
+
+#[scenario(
+    path = "tests/features/mutable_world.feature",
+    name = "Steps mutate shared state"
+)]
+fn predicate_branches(world: PredicateWorld) {
+    assert_eq!(world.branches, 0);
+}
+```
+
+The runner stores owned fixtures using `StepContext::insert_owned`, so mutable
+borrows stay confined to each scenario and are checked at compile time. See
+`crates/rstest-bdd/tests/mutable_world_macro.rs` for a full macro‑driven
+example and `crates/rstest-bdd/tests/mutable_fixture.rs` for the underlying
+context‑level regression test. A rustc ICE affecting some nightly compilers is
+tracked there; enable the macro test once the upstream fix lands.
+
+______________________________________________________________________
+
 ## Scenario Outline ≈ parametrised tests
 
 Write once, test many:

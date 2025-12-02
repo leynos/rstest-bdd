@@ -45,3 +45,4 @@ the-newtype = "0.1.1"
 [features]
 default = ["diagnostics"]
 diagnostics = ["serde", "serde_json"]
+mutable_world_macro = []
