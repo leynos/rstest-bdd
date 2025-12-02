@@ -219,6 +219,29 @@ fn datatable_attribute_removed_from_signature() {
     );
 }
 
+#[test]
+fn step_with_cached_table_is_classified_as_datatable() {
+    let mut func: syn::ItemFn = parse_quote! {
+        fn step(datatable: rstest_bdd::datatable::CachedTable) {}
+    };
+
+    #[expect(clippy::expect_used, reason = "test asserts valid extraction")]
+    let args = extract_args(&mut func, &mut HashSet::new()).expect("failed to extract args");
+
+    #[expect(clippy::expect_used, reason = "test requires datatable")]
+    let dt = find_datatable(&args).expect("cached table should be classified as datatable");
+
+    if let Arg::DataTable { ty, .. } = dt {
+        let ty_str = quote!(#ty).to_string().replace(' ', "");
+        assert!(
+            ty_str.contains("CachedTable"),
+            "unexpected datatable type: {ty_str}"
+        );
+    } else {
+        panic!("expected datatable argument");
+    }
+}
+
 #[rstest]
 fn implicit_fixture_injected_without_from() {
     let func = parse_quote! { fn step(fixture: usize, count: u32) {} };

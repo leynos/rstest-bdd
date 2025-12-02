@@ -146,25 +146,23 @@ fn generate_datatable_cache_definitions(
 
         impl #key_ident {
             fn new(table: &[&[&str]]) -> Self {
-                const OFFSET: u64 = 0xcbf29ce484222325;
-                const PRIME: u64 = 0x100000001b3;
-                let mut hash = OFFSET;
-                hash ^= table.len() as u64;
-                hash = hash.wrapping_mul(PRIME);
+                const FNV_OFFSET: u64 = 0xcbf29ce484222325;
+                const FNV_PRIME: u64 = 0x0000_0001_0000_0001B3;
+
+                let mut hash = FNV_OFFSET;
                 for row in table {
-                    hash ^= row.len() as u64;
-                    hash = hash.wrapping_mul(PRIME);
                     for cell in *row {
-                        for byte in cell.as_bytes() {
-                            hash ^= *byte as u64;
-                            hash = hash.wrapping_mul(PRIME);
-                        }
                         hash ^= 0xff;
-                        hash = hash.wrapping_mul(PRIME);
+                        hash = hash.wrapping_mul(FNV_PRIME);
+                        for byte in cell.as_bytes() {
+                            hash ^= u64::from(*byte);
+                            hash = hash.wrapping_mul(FNV_PRIME);
+                        }
                     }
                     hash ^= 0xfe;
-                    hash = hash.wrapping_mul(PRIME);
+                    hash = hash.wrapping_mul(FNV_PRIME);
                 }
+
                 Self { hash }
             }
         }
@@ -309,8 +307,8 @@ fn generate_wrapper_body(
     );
     quote! {
         #struct_assert
-        #signature
         #datatable_tokens
+        #signature
         #wrapper_fn
     }
 }

@@ -7,7 +7,35 @@
 //! required.
 
 use std::ops::Deref;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
+
+#[cfg(any(test, feature = "diagnostics"))]
+static CACHE_MISS_COUNT: AtomicUsize = AtomicUsize::new(0);
+
+/// Record a cache miss for diagnostic or test visibility.
+#[inline]
+pub fn record_cache_miss() {
+    #[cfg(any(test, feature = "diagnostics"))]
+    {
+        CACHE_MISS_COUNT.fetch_add(1, Ordering::Relaxed);
+    }
+}
+
+/// Return the number of cache misses observed. Available in tests and when
+/// the `diagnostics` feature is enabled.
+#[cfg(any(test, feature = "diagnostics"))]
+#[must_use]
+pub fn cache_miss_count() -> usize {
+    CACHE_MISS_COUNT.load(Ordering::Relaxed)
+}
+
+/// Reset the cache miss counter. Available in tests and when the `diagnostics`
+/// feature is enabled.
+#[cfg(any(test, feature = "diagnostics"))]
+pub fn reset_cache_miss_count() {
+    CACHE_MISS_COUNT.store(0, Ordering::Relaxed);
+}
 
 /// Shareable view of a parsed data table.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -34,6 +62,18 @@ impl CachedTable {
     #[must_use]
     pub fn as_rows(&self) -> &[Vec<String>] {
         self.rows.as_slice()
+    }
+
+    /// Borrow the underlying shared allocation without cloning the `Arc`.
+    #[must_use]
+    pub fn as_arc_ref(&self) -> &Arc<Vec<Vec<String>>> {
+        &self.rows
+    }
+
+    /// Obtain a stable pointer to the shared allocation.
+    #[must_use]
+    pub fn as_ptr(&self) -> *const Vec<Vec<String>> {
+        Arc::as_ptr(&self.rows)
     }
 
     /// Access the underlying shared allocation.

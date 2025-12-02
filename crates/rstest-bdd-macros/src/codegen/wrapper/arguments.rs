@@ -84,10 +84,105 @@ fn is_cached_table_type(declared_ty: &syn::Type) -> bool {
     )
 }
 
-/// Identifiers for datatable caching infrastructure.
-pub(super) struct CacheIdents<'a> {
-    key: &'a proc_macro2::Ident,
-    cache: &'a proc_macro2::Ident,
+fn datatable_missing_error(pattern: &syn::LitStr, ident: &syn::Ident) -> TokenStream2 {
+    step_error_tokens(
+        &format_ident!("ExecutionError"),
+        pattern,
+        ident,
+        &quote! { format!("Step '{}' requires a data table", #pattern) },
+    )
+}
+
+fn datatable_convert_error(pattern: &syn::LitStr, ident: &syn::Ident) -> TokenStream2 {
+    step_error_tokens(
+        &format_ident!("ExecutionError"),
+        pattern,
+        ident,
+        &quote! { format!("failed to convert auxiliary argument for step '{}': {}", #pattern, e) },
+    )
+}
+
+fn gen_datatable_body(
+    is_cached_table: bool,
+    pattern: &syn::LitStr,
+    ident: &syn::Ident,
+    key_ident: &proc_macro2::Ident,
+    cache_ident: &proc_macro2::Ident,
+) -> TokenStream2 {
+    let path = crate::codegen::rstest_bdd_path();
+    let missing_err = datatable_missing_error(pattern, ident);
+    let convert_err = datatable_convert_error(pattern, ident);
+    let conversion = if is_cached_table {
+        quote! { cached_table }
+    } else {
+        quote! {
+            {
+                let owned: Vec<Vec<String>> = cached_table.into();
+                owned
+            }
+            .try_into()
+            .map_err(|e| #convert_err)?
+        }
+    };
+
+    quote! {
+        let table = _table.ok_or_else(|| #missing_err)?;
+        let key = #key_ident::new(table);
+        let cache = #cache_ident.get_or_init(|| {
+            std::sync::Mutex::new(std::collections::HashMap::new())
+        });
+        let arc_table = {
+            let mut guard = cache.lock().map_err(|e| #convert_err)?;
+            match guard.entry(key) {
+                std::collections::hash_map::Entry::Occupied(mut entry) => {
+                    let cached = entry.get();
+                    let matches = cached.len() == table.len()
+                        && cached.iter().zip(table.iter()).all(|(cached_row, incoming_row)| {
+                            cached_row.len() == incoming_row.len()
+                                && cached_row
+                                    .iter()
+                                    .zip(incoming_row.iter())
+                                    .all(|(cached_cell, incoming_cell)| cached_cell == incoming_cell)
+                        });
+
+                    if matches {
+                        cached.clone()
+                    } else {
+                        #path::datatable::record_cache_miss();
+                        let arc = std::sync::Arc::new(
+                            table
+                                .iter()
+                                .map(|row| {
+                                    row.iter()
+                                        .map(|cell| cell.to_string())
+                                        .collect::<Vec<String>>()
+                                })
+                                .collect::<Vec<Vec<String>>>(),
+                        );
+                        entry.insert(arc.clone());
+                        arc
+                    }
+                }
+                std::collections::hash_map::Entry::Vacant(entry) => {
+                    #path::datatable::record_cache_miss();
+                    let arc = std::sync::Arc::new(
+                        table
+                            .iter()
+                            .map(|row| {
+                                row.iter()
+                                    .map(|cell| cell.to_string())
+                                    .collect::<Vec<String>>()
+                            })
+                            .collect::<Vec<Vec<String>>>(),
+                    );
+                    entry.insert(arc.clone());
+                    arc
+                }
+            }
+        };
+        let cached_table = #path::datatable::CachedTable::from_arc(arc_table);
+        #conversion
+    }
 }
 
 /// Generate declaration for a data table argument.
@@ -95,68 +190,22 @@ pub(super) fn gen_datatable_decl(
     datatable: Option<DataTableArg<'_>>,
     pattern: &syn::LitStr,
     ident: &syn::Ident,
-    cache_idents: &CacheIdents,
+    key_ident: &proc_macro2::Ident,
+    cache_ident: &proc_macro2::Ident,
 ) -> Option<TokenStream2> {
     datatable.map(|arg| {
         let pat = arg.pat.clone();
-        let declared_ty = arg.ty.clone();
-        let ty = quote! { #declared_ty };
-        let is_cached_table = is_cached_table_type(&declared_ty);
-        let path = crate::codegen::rstest_bdd_path();
-        let key_ident = cache_idents.key;
-        let cache_ident = cache_idents.cache;
-        let missing_err = step_error_tokens(
-            &format_ident!("ExecutionError"),
+        let ty = arg.ty.clone();
+        let body = gen_datatable_body(
+            is_cached_table_type(arg.ty),
             pattern,
             ident,
-            &quote! { format!("Step '{}' requires a data table", #pattern) },
+            key_ident,
+            cache_ident,
         );
-        let convert_err = step_error_tokens(
-            &format_ident!("ExecutionError"),
-            pattern,
-            ident,
-            &quote! { format!("failed to convert auxiliary argument for step '{}': {}", #pattern, e) },
-        );
-        let conversion = if is_cached_table {
-            quote! { cached_table }
-        } else {
-            quote! {
-                {
-                    let owned: Vec<Vec<String>> = cached_table.into();
-                    owned
-                }
-                .try_into()
-                .map_err(|e| #convert_err)?
-            }
-        };
-
         quote! {
             let #pat: #ty = {
-                let table = _table.ok_or_else(|| #missing_err)?;
-                let key = #key_ident::new(table);
-                let cache = #cache_ident.get_or_init(|| {
-                    std::sync::Mutex::new(std::collections::HashMap::new())
-                });
-                let arc_table = {
-                    let mut guard = cache.lock().map_err(|e| #convert_err)?;
-                    guard
-                        .entry(key)
-                        .or_insert_with(|| {
-                            std::sync::Arc::new(
-                                table
-                                    .iter()
-                                    .map(|row| {
-                                        row.iter()
-                                            .map(|cell| cell.to_string())
-                                            .collect::<Vec<String>>()
-                                    })
-                                    .collect::<Vec<Vec<String>>>(),
-                            )
-                        })
-                        .clone()
-                };
-                let cached_table = #path::datatable::CachedTable::from_arc(arc_table);
-                #conversion
+                #body
             };
         }
     })
@@ -364,11 +413,7 @@ pub(super) fn prepare_argument_processing(
     );
     let datatable_decl = match (datatable.and_then(Arg::as_datatable), datatable_idents) {
         (Some(dt), Some((key_ident, cache_ident))) => {
-            let cache_idents = CacheIdents {
-                key: key_ident,
-                cache: cache_ident,
-            };
-            gen_datatable_decl(Some(dt), pattern, ident, &cache_idents)
+            gen_datatable_decl(Some(dt), pattern, ident, key_ident, cache_ident)
         }
         _ => None,
     };
