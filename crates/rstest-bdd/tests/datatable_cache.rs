@@ -85,8 +85,6 @@ impl TryFrom<Vec<Vec<String>>> for CountingTable {
     }
 }
 
-impl CountingTable {}
-
 #[given("a counting table:")]
 fn counting_table(#[datatable] mut datatable: CountingTable) {
     if let Some(first) = datatable.0.first().and_then(|row| row.first()).cloned() {

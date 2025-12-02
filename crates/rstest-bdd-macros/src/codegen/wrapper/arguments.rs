@@ -1,4 +1,5 @@
 //! Argument code generation utilities shared by wrapper emission logic.
+// TODO(issue #50): Reduce this module below 400 lines and drop the rs-length allowlist entry.
 
 use super::args::{classify::is_cached_table, Arg, DataTableArg, DocStringArg, StepStructArg};
 use proc_macro2::TokenStream as TokenStream2;
