@@ -694,7 +694,7 @@ the same project, allowing incremental adoption of typed tables.
 ### Performance and caching
 
 Data tables are now converted once per distinct table literal and cached for
-reuse. The generated wrappers key the cache by the table pointer, so repeated
+reuse. The generated wrappers key the cache by the table content, so repeated
 executions of the same step with the same table reuse the stored
 `Vec<Vec<String>>` without re-parsing cell text. The cache is scoped to the
 step wrapper, preventing different steps or tables from sharing entries.

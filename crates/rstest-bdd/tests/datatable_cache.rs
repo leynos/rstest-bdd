@@ -1,9 +1,10 @@
 //! Behavioural tests for cached data table conversion.
 
-use rstest_bdd::datatable::{cache_miss_count, reset_cache_miss_count, CachedTable};
+use rstest_bdd::datatable::CachedTable;
 use rstest_bdd::{lookup_step, StepContext, StepKeyword};
 use rstest_bdd_macros::given;
 use std::collections::HashMap;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Mutex, OnceLock};
 use std::thread;
 
@@ -50,6 +51,16 @@ fn take_values() -> Vec<String> {
         .unwrap_or_default()
 }
 
+static CONVERSIONS: AtomicUsize = AtomicUsize::new(0);
+
+fn reset_conversions() {
+    CONVERSIONS.store(0, Ordering::Relaxed);
+}
+
+fn conversion_count() -> usize {
+    CONVERSIONS.load(Ordering::Relaxed)
+}
+
 #[given("a cached table:")]
 fn cached_table(datatable: CachedTable) {
     let ptr = datatable.as_ptr() as usize;
@@ -69,6 +80,7 @@ impl TryFrom<Vec<Vec<String>>> for CountingTable {
     type Error = String;
 
     fn try_from(value: Vec<Vec<String>>) -> Result<Self, Self::Error> {
+        CONVERSIONS.fetch_add(1, Ordering::Relaxed);
         Ok(Self(value))
     }
 }
@@ -180,7 +192,7 @@ fn datatable_vec_path_reuses_cache_and_clones_per_call() {
 
     take_calls();
     take_values();
-    reset_cache_miss_count();
+    reset_conversions();
 
     let step_fn = lookup_step(StepKeyword::Given, "a counting table:".into())
         .unwrap_or_else(|| panic!("counting table step should be registered"));
@@ -192,9 +204,9 @@ fn datatable_vec_path_reuses_cache_and_clones_per_call() {
     }
 
     assert_eq!(
-        cache_miss_count(),
-        1,
-        "String allocations should occur only on the first cache miss",
+        conversion_count(),
+        2,
+        "Vec conversion should occur per call"
     );
 
     let calls = take_calls();

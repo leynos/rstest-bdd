@@ -11,7 +11,7 @@
 
 ### Performance
 
-- Optimised data table conversion by caching parsed tables per step definition,
+- Optimized data table conversion by caching parsed tables per step definition,
   reusing the cached rows across executions to avoid repeated string
   allocations for identical tables. (#50)
 

@@ -134,6 +134,6 @@ impl From<Vec<Vec<String>>> for CachedTable {
 
 impl From<CachedTable> for Vec<Vec<String>> {
     fn from(value: CachedTable) -> Self {
-        (*value.rows).clone()
+        std::sync::Arc::try_unwrap(value.rows).unwrap_or_else(|arc| (*arc).clone())
     }
 }
