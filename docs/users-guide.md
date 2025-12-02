@@ -625,22 +625,23 @@ Best practices for writing effective scenarios include:
   step text must match the pattern; partial matches do not succeed. Escape
   literal braces with `{{` and `}}`. Use
   `\` to match a single backslash. A trailing `\` or any other backslash escape
-  is treated literally, so `\d` matches the two-character sequence `\d`. Braces
-  are not allowed inside type hints. Placeholders use `{name}` or
-  `{name:type}`; the type hint must not contain braces (for example,
-  `{n:{u32}}` and `{n:Vec<{u32}>}` are rejected). To describe braces in the
-  surrounding step text (for example, referring to `{u32}`), escape them as
-  `{{` and `}}` rather than placing them inside `{name:type}`. The lexer closes
-  the placeholder at the first `}` after the optional type hint; any characters
-  between the `:type` and that first `}` are ignored (for example,
-  `{n:u32 extra}` parses as `name = n`, `type = u32`). `name` must start with a
-  letter or underscore and may contain letters, digits, or underscores
-  (`[A-Za-z_][A-Za-z0-9_]*`). Whitespace within the type hint is ignored (for
-  example, `{count: u32}` and `{count:u32}` are both accepted), but whitespace
-  is not allowed between the name and the colon. Prefer the compact form
-  `{count:u32}` in new code. When a pattern contains no placeholders, the step
-  text must match exactly. Unknown type hints are treated as generic
-  placeholders and capture any non-newline text greedily.
+  is treated literally, so `\d` matches the two-character sequence `\d`.
+  Nested braces inside placeholders are not supported. Braces are not allowed
+  inside type hints. Placeholders use `{name}` or `{name:type}`; the type hint
+  must not contain braces (for example, `{n:{u32}}` and `{n:Vec<{u32}>}` are
+  rejected). To describe braces in the surrounding step text (for example,
+  referring to `{u32}`), escape them as `{{` and `}}` rather than placing them
+  inside `{name:type}`. The lexer closes the placeholder at the first `}` after
+  the optional type hint; any characters between the `:type` and that first `}`
+  are ignored (for example, `{n:u32 extra}` parses as `name = n`, `type =
+  u32`). `name` must start with a letter or underscore and may contain letters,
+  digits, or underscores (`[A-Za-z_][A-Za-z0-9_]*`). Whitespace within the type
+  hint is ignored (for example, `{count: u32}` and `{count:u32}` are both
+  accepted), but whitespace is not allowed between the name and the colon.
+  Prefer the compact form `{count:u32}` in new code. When a pattern contains no
+  placeholders, the step text must match exactly. Unknown type hints are
+  treated as generic placeholders and capture any non-newline text using a
+  non-greedy match.
 
 ## Data tables and Docstrings
 

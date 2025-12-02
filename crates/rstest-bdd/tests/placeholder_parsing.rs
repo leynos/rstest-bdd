@@ -172,7 +172,7 @@ fn invalid_type_hint_is_generic(
     #[case] input: &'static str,
     #[case] expected: &'static str,
 ) {
-    // Unknown type hints fall back to a greedy match.
+    // Unknown type hints fall back to a non-greedy match.
     let pat = compiled(pattern);
     #[expect(clippy::expect_used, reason = "test asserts placeholder match")]
     let caps = extract_placeholders(&pat, StepText::from(input))
