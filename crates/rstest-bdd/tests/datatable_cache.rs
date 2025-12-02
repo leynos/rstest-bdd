@@ -8,8 +8,7 @@ use std::sync::{Mutex, OnceLock};
 use std::thread;
 
 fn cached_calls() -> &'static Mutex<HashMap<thread::ThreadId, Vec<usize>>> {
-    static CALLS: OnceLock<Mutex<HashMap<thread::ThreadId, Vec<usize>>>> =
-        OnceLock::new();
+    static CALLS: OnceLock<Mutex<HashMap<thread::ThreadId, Vec<usize>>>> = OnceLock::new();
     CALLS.get_or_init(|| Mutex::new(HashMap::new()))
 }
 
@@ -17,10 +16,7 @@ fn record_call(ptr: usize) {
     let mut calls = cached_calls()
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);
-    calls
-        .entry(thread::current().id())
-        .or_default()
-        .push(ptr);
+    calls.entry(thread::current().id()).or_default().push(ptr);
 }
 
 fn take_calls() -> Vec<usize> {
