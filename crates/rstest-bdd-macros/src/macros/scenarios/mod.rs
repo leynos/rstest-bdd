@@ -26,6 +26,11 @@ use crate::utils::ident::sanitize_ident;
 use self::feature_discovery::collect_feature_files;
 use self::macro_args::ScenariosArgs;
 
+/// Context for generating a scenario test.
+///
+/// Captures the sanitised feature file stem for naming tests, the Cargo
+/// manifest directory used to render absolute feature paths, and the relative
+/// path from that manifest to the feature file when embedding diagnostics.
 struct ScenarioTestContext<'a> {
     feature_stem: &'a str,
     manifest_dir: &'a Path,
@@ -49,6 +54,11 @@ struct TagFilter {
     raw: String,
 }
 
+/// Generate the test for a single scenario within a feature.
+///
+/// Derives a unique, rstest-backed function for the scenario using `ctx` to
+/// build stable identifiers and feature paths, updating `used_names` to avoid
+/// name collisions and returning the resulting `TokenStream2`.
 fn generate_scenario_test(
     ctx: &ScenarioTestContext<'_>,
     used_names: &mut HashSet<String>,
