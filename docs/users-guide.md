@@ -161,9 +161,9 @@ exactly as before; mutability is an opt‑in convenience.
 
 **When to use `&mut Fixture`**
 
-- Prefer `&mut` when your world has straightforward owned fields and the steps
+- Prefer `&mut` when the world has straightforward owned fields and the steps
   mutate them directly.
-- Prefer `Slot<T>` (from `rstest_bdd::Slot`) when state is optional, when you
+- Prefer `Slot<T>` (from `rstest_bdd::Slot`) when state is optional, when a
   need to reset between steps, or when a step may override values conditionally
   without holding a mutable borrow.
 - Combine both: keep the primary world mutable and store optional or

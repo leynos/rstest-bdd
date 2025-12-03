@@ -1,10 +1,10 @@
 # Known issues
 
-## rustc ICE with mutable world macro
+## rustc internal compiler error (ICE) with mutable world macro
 
 - **Status:** Open; gated by the `mutable_world_macro` Cargo feature.
-- **Affected toolchains:** nightly-2025-09-16 (the pinned toolchain in
-  `rust-toolchain.toml`).
+- **Affected toolchains:** The nightly compiler pinned in `rust-toolchain.toml`
+  (keep this in sync when updating that file).
 - **Symptom:** Enabling `--features mutable_world_macro` and compiling the
   macro-driven test `tests/mutable_world_macro.rs` triggers a rustc internal
   compiler error (ICE) during macro expansion.
