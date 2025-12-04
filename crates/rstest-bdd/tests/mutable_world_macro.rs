@@ -66,6 +66,12 @@ fn mutable_world_macro_gated() {
     // feature once the upstream compiler fix lands.
     // Keep the guard observable by checking that the tracking note is present
     // while the feature remains disabled.
-    let tracking_note = std::path::Path::new("docs/known-issues.md");
-    assert!(tracking_note.exists());
+    let manifest_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let workspace_root = manifest_dir.parent().unwrap().parent().unwrap();
+    let tracking_note = workspace_root.join("docs/known-issues.md");
+    assert!(
+        tracking_note.exists(),
+        "Expected tracking note at {:?} but it doesn't exist",
+        tracking_note
+    );
 }
