@@ -4,13 +4,7 @@ use super::*;
 use crate::localization::{strip_directional_isolates, ScopedLocalization};
 use gherkin::StepType;
 use rstest::rstest;
-use std::str::FromStr;
 use unic_langid::langid;
-
-fn parse_kw(input: &str) -> StepKeyword {
-    StepKeyword::from_str(input)
-        .unwrap_or_else(|e| panic!("failed to parse '{input}' as StepKeyword: {e}"))
-}
 
 fn kw_from_type(ty: StepType) -> StepKeyword {
     StepKeyword::try_from(ty)
@@ -25,7 +19,6 @@ fn kw_from_type(ty: StepType) -> StepKeyword {
 #[case(" but ", StepKeyword::But)]
 fn parses_case_insensitively(#[case] input: &str, #[case] expected: StepKeyword) {
     assert!(matches!(StepKeyword::from_str(input), Ok(val) if val == expected));
-    assert_eq!(parse_kw(input), expected);
 }
 
 #[rstest]

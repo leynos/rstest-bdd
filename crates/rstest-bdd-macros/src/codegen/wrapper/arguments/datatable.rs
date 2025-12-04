@@ -28,6 +28,13 @@ pub(super) struct CacheIdents<'a> {
     pub(super) cache: &'a proc_macro2::Ident,
 }
 
+/// Token fragments for cache entry operations.
+struct CacheOperationTokens {
+    content_match: TokenStream2,
+    record_cache_miss: TokenStream2,
+    arc_creation: TokenStream2,
+}
+
 fn datatable_error(
     pattern: &syn::LitStr,
     ident: &syn::Ident,
@@ -60,10 +67,13 @@ fn datatable_convert_error(pattern: &syn::LitStr, ident: &syn::Ident) -> TokenSt
 fn gen_cache_entry_match_tokens(
     cached_ident: &proc_macro2::Ident,
     table_ident: &proc_macro2::Ident,
-    content_match: &TokenStream2,
-    record_cache_miss: &TokenStream2,
-    arc_creation: &TokenStream2,
+    cache_ops: CacheOperationTokens,
 ) -> TokenStream2 {
+    let CacheOperationTokens {
+        content_match,
+        record_cache_miss,
+        arc_creation,
+    } = cache_ops;
     quote::quote! {
         match guard.entry(key) {
             std::collections::hash_map::Entry::Occupied(mut entry) => {
@@ -132,9 +142,11 @@ fn gen_datatable_body(
     let cache_match = gen_cache_entry_match_tokens(
         &cached_ident,
         &table_ident,
-        &content_match,
-        &record_cache_miss,
-        &arc_creation,
+        CacheOperationTokens {
+            content_match,
+            record_cache_miss,
+            arc_creation,
+        },
     );
 
     quote::quote! {
