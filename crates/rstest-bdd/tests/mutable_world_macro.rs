@@ -67,7 +67,11 @@ fn mutable_world_macro_gated() {
     // Keep the guard observable by checking that the tracking note is present
     // while the feature remains disabled.
     let manifest_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
-    let workspace_root = manifest_dir.parent().unwrap().parent().unwrap();
+    let workspace_root = manifest_dir
+        .parent()
+        .expect("failed to get crate parent from CARGO_MANIFEST_DIR")
+        .parent()
+        .expect("failed to get workspace parent from crate directory");
     let tracking_note = workspace_root.join("docs/known-issues.md");
     assert!(
         tracking_note.exists(),
