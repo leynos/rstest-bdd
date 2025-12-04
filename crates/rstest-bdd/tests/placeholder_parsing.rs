@@ -2,9 +2,7 @@
 
 use rstest::rstest;
 use rstest_bdd::localization::{strip_directional_isolates, ScopedLocalization};
-use rstest_bdd::{
-    extract_placeholders, PlaceholderError, StepPattern, StepPatternError, StepText,
-};
+use rstest_bdd::{extract_placeholders, PlaceholderError, StepPattern, StepPatternError, StepText};
 use std::borrow::Cow;
 use std::ptr;
 use unic_langid::langid;
