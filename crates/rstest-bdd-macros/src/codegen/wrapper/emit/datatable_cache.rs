@@ -28,13 +28,9 @@ pub(super) fn generate_datatable_cache_definitions(
         "__RSTEST_BDD_TABLE_CACHE_{}",
         wrapper_ident.to_string().to_ascii_uppercase()
     );
-    let hash_cache_ident = format_ident!(
-        "__RSTEST_BDD_TABLE_HASH_CACHE_{}",
-        wrapper_ident.to_string().to_ascii_uppercase()
-    );
 
     let key_struct = cache_key_struct_tokens(&key_ident);
-    let key_impl = cache_key_impl_tokens(&key_ident, &hash_cache_ident);
+    let key_impl = cache_key_impl_tokens(&key_ident);
     let cache_static = cache_static_tokens(&cache_ident, &key_ident);
 
     let tokens = quote! { #key_struct #key_impl #cache_static };

@@ -14,9 +14,16 @@ pub(super) struct CacheIdents<'a> {
     pub(super) cache: &'a proc_macro2::Ident,
 }
 
+fn datatable_error(
+    pattern: &syn::LitStr,
+    ident: &syn::Ident,
+    message: &TokenStream2,
+) -> TokenStream2 {
+    step_error_tokens(&format_ident!("ExecutionError"), pattern, ident, message)
+}
+
 fn datatable_missing_error(pattern: &syn::LitStr, ident: &syn::Ident) -> TokenStream2 {
-    step_error_tokens(
-        &format_ident!("ExecutionError"),
+    datatable_error(
         pattern,
         ident,
         &quote::quote! { format!("Step '{}' requires a data table", #pattern) },
@@ -24,11 +31,15 @@ fn datatable_missing_error(pattern: &syn::LitStr, ident: &syn::Ident) -> TokenSt
 }
 
 fn datatable_convert_error(pattern: &syn::LitStr, ident: &syn::Ident) -> TokenStream2 {
-    step_error_tokens(
-        &format_ident!("ExecutionError"),
+    datatable_error(
         pattern,
         ident,
-        &quote::quote! { format!("failed to convert auxiliary argument for step '{}': {}", #pattern, e) },
+        &quote::quote! {
+            format!(
+                "failed to convert auxiliary argument for step '{}': {}",
+                #pattern, e
+            )
+        },
     )
 }
 
@@ -43,6 +54,14 @@ fn gen_datatable_body(
     let cached_ident = format_ident!("cached");
     let missing_err = datatable_missing_error(pattern, ident);
     let convert_err = datatable_convert_error(pattern, ident);
+    let lock_err_message = quote::quote! {
+        format!(
+            "failed to access cached data table for step '{}': {}",
+            #pattern,
+            #path::datatable::DataTableError::CacheLockFailure
+        )
+    };
+    let lock_err = datatable_error(pattern, ident, &lock_err_message);
     let key_ident = cache_idents.key;
     let cache_map_ident = cache_idents.cache;
     let conversion = if is_cached_table {
@@ -68,7 +87,7 @@ fn gen_datatable_body(
             std::sync::Mutex::new(std::collections::HashMap::new())
         });
         let arc_table = {
-            let mut guard = cache.lock().map_err(|e| #convert_err)?;
+            let mut guard = cache.lock().map_err(|_| #lock_err)?;
             match guard.entry(key) {
                 std::collections::hash_map::Entry::Occupied(mut entry) => {
                     let #cached_ident = entry.get();

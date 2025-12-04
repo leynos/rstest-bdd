@@ -54,27 +54,9 @@ pub(super) fn cache_key_struct_tokens(key_ident: &proc_macro2::Ident) -> TokenSt
     }
 }
 
-pub(super) fn cache_key_impl_tokens(
-    key_ident: &proc_macro2::Ident,
-    hash_cache_ident: &proc_macro2::Ident,
-) -> TokenStream2 {
+pub(super) fn cache_key_impl_tokens(key_ident: &proc_macro2::Ident) -> TokenStream2 {
     quote! {
         impl #key_ident {
-            /// Try to retrieve a cached hash for the given pointer.
-            fn try_get_cached_hash(
-                ptr: usize,
-                cache: &std::sync::OnceLock<
-                    std::sync::Mutex<std::collections::HashMap<usize, u64>>,
-                >,
-            ) -> Option<u64> {
-                cache
-                    .get_or_init(|| std::sync::Mutex::new(std::collections::HashMap::new()))
-                    .lock()
-                    .ok()?
-                    .get(&ptr)
-                    .copied()
-            }
-
             /// Compute FNV-1a hash of the table contents.
             fn compute_table_hash(table: &[&[&str]]) -> u64 {
                 const FNV_OFFSET: u64 = 0xcbf29ce484222325;
@@ -96,41 +78,9 @@ pub(super) fn cache_key_impl_tokens(
                 hash
             }
 
-            /// Try to insert a computed hash into the cache.
-            fn try_insert_hash(
-                ptr: usize,
-                hash: u64,
-                cache: &std::sync::OnceLock<
-                    std::sync::Mutex<std::collections::HashMap<usize, u64>>,
-                >,
-            ) {
-                cache
-                    .get_or_init(|| std::sync::Mutex::new(std::collections::HashMap::new()))
-                    .lock()
-                    .map(|mut guard| {
-                        guard.insert(ptr, hash);
-                    })
-                    .ok();
-            }
-
             fn new(table: &[&[&str]]) -> Self {
-                static #hash_cache_ident: std::sync::OnceLock<
-                    std::sync::Mutex<std::collections::HashMap<usize, u64>>,
-                > = std::sync::OnceLock::new();
-
                 let ptr = table.as_ptr() as usize;
-
-                // Try cache lookup first
-                if let Some(hash) = Self::try_get_cached_hash(ptr, &#hash_cache_ident) {
-                    return Self { ptr, hash };
-                }
-
-                // Compute hash if not cached
                 let hash = Self::compute_table_hash(table);
-
-                // Cache for future lookups
-                Self::try_insert_hash(ptr, hash, &#hash_cache_ident);
-
                 Self { ptr, hash }
             }
         }
