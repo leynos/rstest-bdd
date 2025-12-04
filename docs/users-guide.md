@@ -151,12 +151,130 @@ key–value map of fixture names to type‑erased references. When a scenario ru
 the generated test inserts its arguments (the `rstest` fixtures) into the
 `StepContext` before invoking each registered step.
 
-Because each scenario owns its fixtures, the runner now registers value
-fixtures with exclusive access. Step parameters declared as `&mut FixtureType`
-receive mutable references to the scenario's fixtures, supporting classic
-“world” objects without sprinkling `Cell` or `RefCell` wrappers through test
-structs. Immutable references continue to work exactly as before, so opting
-into mutability is purely additive.
+### Mutable world fixtures
+
+Each scenario owns its fixtures, so value fixtures are stored with exclusive
+access. Step parameters declared as `&mut FixtureType` receive mutable
+references, making “world” structs ergonomic without sprinkling `Cell` or
+`RefCell` wrappers through the fields. Immutable references continue to work
+exactly as before; mutability is an opt‑in convenience.
+
+**When to use `&mut Fixture`**
+
+- Prefer `&mut` when the world has straightforward owned fields and the steps
+  mutate them directly.
+- Prefer `Slot<T>` (from `rstest_bdd::Slot`) when state is optional, when a
+  need to reset between steps, or when a step may override values conditionally
+  without holding a mutable borrow.
+- Combine both: keep the primary world mutable and store optional or
+  late‑bound values in slots to avoid borrow checker churn inside complex
+  scenarios.
+
+#### Simple mutable world
+
+```rust
+use rstest::fixture;
+use rstest_bdd_macros::{given, scenario, then, when};
+
+#[derive(Default)]
+struct CounterWorld {
+    count: usize,
+}
+
+#[fixture]
+fn world() -> CounterWorld {
+    CounterWorld::default()
+}
+
+#[given("the world starts at {value}")]
+fn seed(world: &mut CounterWorld, value: usize) {
+    world.count = value;
+}
+
+#[when("the world increments")]
+fn increment(world: &mut CounterWorld) {
+    world.count += 1;
+}
+
+#[then("the world equals {expected}")]
+fn check(world: &CounterWorld, expected: usize) {
+    assert_eq!(world.count, expected);
+}
+
+#[scenario(path = "tests/features/mutable_world.feature", name = "Steps mutate shared state")]
+fn mutable_world(world: CounterWorld) {
+    assert_eq!(world.count, 3);
+}
+```
+
+#### Slot‑based state (unchanged and still useful)
+
+```rust
+use rstest::fixture;
+use rstest_bdd::{ScenarioState as _, Slot};
+use rstest_bdd_macros::{given, scenario, then, when, ScenarioState};
+
+#[derive(Default, ScenarioState)]
+struct CartState {
+    total: Slot<i32>,
+}
+
+#[fixture]
+fn cart_state() -> CartState { CartState::default() }
+
+#[when("I record {value:i32}")]
+fn record(cart_state: &CartState, value: i32) { cart_state.total.set(value); }
+
+#[then("the recorded value is {expected:i32}")]
+fn check(cart_state: &CartState, expected: i32) {
+    assert_eq!(cart_state.total.get(), Some(expected));
+}
+
+#[scenario(path = "tests/features/scenario_state.feature", name = "Recording a single value")]
+fn keeps_value(cart_state: CartState) { let _ = cart_state; }
+```
+
+#### Mixed approach
+
+```rust
+#[derive(Default, ScenarioState)]
+struct ReportWorld {
+    total: usize,
+    last_input: Slot<String>,
+}
+
+#[when("the total increases by {value:usize}")]
+fn bump(world: &mut ReportWorld, value: usize) {
+    world.total += value;
+    world.last_input.set(format!("+{value}"));
+}
+
+#[then("the last input was recorded")]
+fn last_input(world: &ReportWorld) {
+    assert_eq!(world.last_input.get(), Some("+1".to_string()));
+}
+```
+
+#### Best practices
+
+- Keep world structs small and focused; extract helper methods when mutation
+  requires validation or cross‑field consistency.
+- Prefer immutable references in assertions to make read‑only intent obvious.
+- Reserve `Slot<T>` for optional or resettable state; avoid mixing it in when a
+  plain field would do.
+- Add comments where mutation order matters between steps.
+
+#### Troubleshooting
+
+- A rustc internal compiler error (ICE) affected some nightly compilers when
+  expanding macro‑driven scenarios with `&mut` fixtures. See
+  `crates/rstest-bdd/tests/mutable_world_macro.rs` for a guarded example and
+  `crates/rstest-bdd/tests/mutable_fixture.rs` for the context‑level regression
+  test used until the upstream fix lands. Tracking details live in
+  `docs/known-issues.md#rustc-ice-with-mutable-world-macro`.
+- For advanced cases—custom fixture injection or manual borrowing—use
+  `StepContext::insert_owned` and `StepContext::borrow_mut` directly; the
+  examples above cover most scenarios.
 
 ### Step return values
 

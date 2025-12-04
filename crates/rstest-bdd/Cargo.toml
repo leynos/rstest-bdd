@@ -45,3 +45,7 @@ the-newtype = "0.1.1"
 [features]
 default = ["diagnostics"]
 diagnostics = ["serde", "serde_json"]
+# Temporary guard for the rustc ICE affecting macro-driven mutable fixtures.
+# Remove once the upstream compiler issue is fixed and the test can run
+# without gating.
+mutable_world_macro = []
