@@ -57,6 +57,42 @@ fn datatable_convert_error(pattern: &syn::LitStr, ident: &syn::Ident) -> TokenSt
     )
 }
 
+fn gen_cache_entry_match_tokens(
+    cached_ident: &proc_macro2::Ident,
+    table_ident: &proc_macro2::Ident,
+    content_match: &TokenStream2,
+    record_cache_miss: &TokenStream2,
+    arc_creation: &TokenStream2,
+) -> TokenStream2 {
+    quote::quote! {
+        match guard.entry(key) {
+            std::collections::hash_map::Entry::Occupied(mut entry) => {
+                let #cached_ident = entry.get();
+                let matches = if key.ptr == #table_ident.as_ptr() as usize {
+                    true
+                } else {
+                    #content_match
+                };
+
+                if matches {
+                    #cached_ident.clone()
+                } else {
+                    #record_cache_miss
+                    let arc = #arc_creation;
+                    entry.insert(arc.clone());
+                    arc
+                }
+            }
+            std::collections::hash_map::Entry::Vacant(entry) => {
+                #record_cache_miss
+                let arc = #arc_creation;
+                entry.insert(arc.clone());
+                arc
+            }
+        }
+    }
+}
+
 fn gen_datatable_body(
     is_cached_table: bool,
     step_meta: StepMeta<'_>,
@@ -93,6 +129,13 @@ fn gen_datatable_body(
     let arc_creation = table_arc_tokens(&table_ident);
     let content_match = table_content_match_tokens(&cached_ident, &table_ident);
     let record_cache_miss = record_cache_miss_tokens(&path);
+    let cache_match = gen_cache_entry_match_tokens(
+        &cached_ident,
+        &table_ident,
+        &content_match,
+        &record_cache_miss,
+        &arc_creation,
+    );
 
     quote::quote! {
         let table = _table.ok_or_else(|| #missing_err)?;
@@ -102,31 +145,7 @@ fn gen_datatable_body(
         });
         let arc_table = {
             let mut guard = cache.lock().map_err(|_| #lock_err)?;
-            match guard.entry(key) {
-                std::collections::hash_map::Entry::Occupied(mut entry) => {
-                    let #cached_ident = entry.get();
-                    let matches = if key.ptr == #table_ident.as_ptr() as usize {
-                        true
-                    } else {
-                        #content_match
-                    };
-
-                    if matches {
-                        #cached_ident.clone()
-                    } else {
-                        #record_cache_miss
-                        let arc = #arc_creation;
-                        entry.insert(arc.clone());
-                        arc
-                    }
-                }
-                std::collections::hash_map::Entry::Vacant(entry) => {
-                    #record_cache_miss
-                    let arc = #arc_creation;
-                    entry.insert(arc.clone());
-                    arc
-                }
-            }
+            #cache_match
         };
         let cached_table = #path::datatable::CachedTable::from_arc(arc_table);
         #conversion
