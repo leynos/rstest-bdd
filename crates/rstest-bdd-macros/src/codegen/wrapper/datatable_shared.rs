@@ -44,6 +44,7 @@ pub(super) fn record_cache_miss_tokens(path: &TokenStream2) -> TokenStream2 {
     quote! { #path::datatable::record_cache_miss(); }
 }
 
+/// Tokens that define the cache key struct capturing table pointer and hash.
 pub(super) fn cache_key_struct_tokens(key_ident: &proc_macro2::Ident) -> TokenStream2 {
     quote! {
         #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -54,6 +55,7 @@ pub(super) fn cache_key_struct_tokens(key_ident: &proc_macro2::Ident) -> TokenSt
     }
 }
 
+/// Tokens that implement the cache key constructor with FNV-1a content hashing.
 pub(super) fn cache_key_impl_tokens(key_ident: &proc_macro2::Ident) -> TokenStream2 {
     quote! {
         impl #key_ident {
@@ -87,6 +89,7 @@ pub(super) fn cache_key_impl_tokens(key_ident: &proc_macro2::Ident) -> TokenStre
     }
 }
 
+/// Tokens that declare the static `OnceLock`-backed cache for datatable deduplication.
 pub(super) fn cache_static_tokens(
     cache_ident: &proc_macro2::Ident,
     key_ident: &proc_macro2::Ident,

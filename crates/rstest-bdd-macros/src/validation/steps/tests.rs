@@ -8,7 +8,10 @@ use serial_test::serial;
 use tempfile::{tempdir, tempdir_in};
 
 mod support;
-use support::*;
+use self::support::{
+    assert_bullet_count, clear_registry, create_dir_all_cap, create_test_step, temp_working_dir,
+    TempWorkingDir,
+};
 
 #[rstest]
 #[case::basic("a step", "a step")]
@@ -168,13 +171,12 @@ fn leaves_unresolvable_out_dir_paths_unchanged() {
 
 #[rstest]
 #[serial]
-#[expect(
-    clippy::expect_used,
-    reason = "test builds nested directories using explicit expect messaging"
-)]
-fn canonicalise_out_dir_resolves_relative_components(temp_working_dir: TempWorkingDir) {
+fn canonicalise_out_dir_resolves_relative_components(
+    temp_working_dir: std::io::Result<TempWorkingDir>,
+) -> std::io::Result<()> {
+    let temp_working_dir = temp_working_dir?;
     let nested_dir = temp_working_dir.join("nested");
-    create_dir_all_cap(nested_dir.as_path()).expect("create nested directory for canonicalisation");
+    create_dir_all_cap(nested_dir.as_path())?;
     let nested = temp_working_dir.join("nested/.");
     let canonical = canonicalise_out_dir(nested.as_path());
     let expected_dir = temp_working_dir.path().join("nested");
@@ -188,6 +190,7 @@ fn canonicalise_out_dir_resolves_relative_components(temp_working_dir: TempWorki
         canonical.is_absolute(),
         "canonical path should be absolute: {canonical}"
     );
+    Ok(())
 }
 
 #[cfg(unix)]

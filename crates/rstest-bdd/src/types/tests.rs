@@ -7,14 +7,14 @@ use rstest::rstest;
 use std::str::FromStr;
 use unic_langid::langid;
 
-#[expect(clippy::expect_used, reason = "test helper with descriptive failures")]
 fn parse_kw(input: &str) -> StepKeyword {
-    StepKeyword::from_str(input).expect("valid step keyword")
+    StepKeyword::from_str(input)
+        .unwrap_or_else(|e| panic!("failed to parse '{input}' as StepKeyword: {e}"))
 }
 
-#[expect(clippy::expect_used, reason = "test helper with descriptive failures")]
 fn kw_from_type(ty: StepType) -> StepKeyword {
-    StepKeyword::try_from(ty).expect("valid step type")
+    StepKeyword::try_from(ty)
+        .unwrap_or_else(|e| panic!("failed to convert '{ty:?}' into StepKeyword: {e}"))
 }
 
 #[rstest]

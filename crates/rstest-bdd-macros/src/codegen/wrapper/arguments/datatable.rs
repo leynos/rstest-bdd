@@ -153,14 +153,29 @@ fn gen_datatable_body(
 }
 
 /// Generate declaration for a data table argument.
+///
+/// Produces a `let` binding that extracts and caches the datatable from the
+/// step's auxiliary arguments, performing content-based deduplication to reduce
+/// allocations when the same table is reused across scenarios.
+///
+/// # Parameters
+/// - `datatable`: The datatable argument metadata (pattern, type), if present.
+/// - `step_meta`: Step metadata (pattern and function identifier) for error
+///   reporting.
+/// - `cache_idents`: Identifiers for the cache key type and cache storage
+///   variable generated alongside the wrapper.
+///
+/// # Returns
+/// `Some(TokenStream2)` containing the datatable binding, or `None` if no
+/// datatable argument is present.
 pub(super) fn gen_datatable_decl(
     datatable: Option<DataTableArg<'_>>,
     step_meta: StepMeta<'_>,
     cache_idents: &CacheIdents<'_>,
 ) -> Option<TokenStream2> {
     datatable.map(|arg| {
-        let pat = arg.pat.clone();
-        let ty = arg.ty.clone();
+        let pat = arg.pat;
+        let ty = arg.ty;
         let body = gen_datatable_body(is_cached_table(arg.ty), step_meta, cache_idents);
         quote::quote! {
             let #pat: #ty = {

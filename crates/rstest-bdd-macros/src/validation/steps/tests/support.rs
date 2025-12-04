@@ -111,22 +111,21 @@ pub(super) fn create_dir_all_cap(path: &Utf8Path) -> std::io::Result<()> {
     Ok(())
 }
 
-#[expect(
-    clippy::expect_used,
-    reason = "temporary directory setup relies on explicit failure messages for clarity"
-)]
-fn temp_working_dir_inner() -> TempWorkingDir {
-    let temp = tempdir().expect("create temp directory");
+fn temp_working_dir_inner() -> std::io::Result<TempWorkingDir> {
+    let temp = tempdir()?;
 
-    let temp_path = Utf8PathBuf::from_path_buf(temp.path().to_path_buf())
-        .expect("temporary path should be valid UTF-8");
+    let temp_path = Utf8PathBuf::from_path_buf(temp.path().to_path_buf()).map_err(|_| {
+        std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            "temporary path should be valid UTF-8",
+        )
+    })?;
     // Ensure the directory is accessible; capability handle unused but validates creation.
-    let _dir = Dir::open_ambient_dir(&temp_path, ambient_authority())
-        .expect("open temp directory as capability dir");
-    TempWorkingDir::new(temp, temp_path)
+    Dir::open_ambient_dir(&temp_path, ambient_authority())?;
+    Ok(TempWorkingDir::new(temp, temp_path))
 }
 
 #[fixture]
-pub(super) fn temp_working_dir() -> TempWorkingDir {
+pub(super) fn temp_working_dir() -> std::io::Result<TempWorkingDir> {
     temp_working_dir_inner()
 }

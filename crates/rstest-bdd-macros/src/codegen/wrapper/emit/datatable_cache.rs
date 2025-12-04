@@ -17,11 +17,20 @@ use crate::codegen::wrapper::datatable_shared::{
 use proc_macro2::TokenStream as TokenStream2;
 use quote::{format_ident, quote};
 
+/// Components generated for datatable caching infrastructure.
+///
+/// When a wrapper requires datatable support, this enum carries the generated
+/// token stream and identifiers needed to wire up the caching mechanism.
 pub(super) enum DatatableCacheComponents {
+    /// No datatable caching required for this wrapper.
     None,
+    /// Datatable caching components for wrappers with table parameters.
     Some {
+        /// Combined token stream containing key struct, impl, and static cache.
         tokens: TokenStream2,
+        /// Identifier for the generated cache key type.
         key_ident: proc_macro2::Ident,
+        /// Identifier for the static cache variable.
         cache_ident: proc_macro2::Ident,
     },
 }
