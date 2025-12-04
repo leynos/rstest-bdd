@@ -2,6 +2,9 @@
 
 use super::super::args::{classify::is_cached_table, DataTableArg};
 use super::{step_error_tokens, StepMeta};
+use crate::codegen::wrapper::datatable_shared::{
+    record_cache_miss_tokens, table_arc_tokens, table_content_match_tokens,
+};
 use proc_macro2::TokenStream as TokenStream2;
 use quote::format_ident;
 
@@ -29,37 +32,6 @@ fn datatable_convert_error(pattern: &syn::LitStr, ident: &syn::Ident) -> TokenSt
     )
 }
 
-fn gen_arc_from_table() -> TokenStream2 {
-    quote::quote! {
-        std::sync::Arc::new(
-            table
-                .iter()
-                .map(|row| {
-                    row.iter()
-                        .map(|cell| cell.to_string())
-                        .collect::<Vec<String>>()
-                })
-                .collect::<Vec<Vec<String>>>(),
-        )
-    }
-}
-
-fn gen_content_match() -> TokenStream2 {
-    quote::quote! {
-        cached.len() == table.len()
-            && cached
-                .iter()
-                .zip(table.iter())
-                .all(|(cached_row, incoming_row)| {
-                    cached_row.len() == incoming_row.len()
-                        && cached_row
-                            .iter()
-                            .zip(incoming_row.iter())
-                            .all(|(cached_cell, incoming_cell)| cached_cell == incoming_cell)
-                })
-    }
-}
-
 fn gen_datatable_body(
     is_cached_table: bool,
     step_meta: StepMeta<'_>,
@@ -67,10 +39,12 @@ fn gen_datatable_body(
 ) -> TokenStream2 {
     let StepMeta { pattern, ident } = step_meta;
     let path = crate::codegen::rstest_bdd_path();
+    let table_ident = format_ident!("table");
+    let cached_ident = format_ident!("cached");
     let missing_err = datatable_missing_error(pattern, ident);
     let convert_err = datatable_convert_error(pattern, ident);
     let key_ident = cache_idents.key;
-    let cache_ident = cache_idents.cache;
+    let cache_map_ident = cache_idents.cache;
     let conversion = if is_cached_table {
         quote::quote! { cached_table }
     } else {
@@ -83,37 +57,38 @@ fn gen_datatable_body(
             .map_err(|e| #convert_err)?
         }
     };
-    let arc_creation = gen_arc_from_table();
-    let content_match = gen_content_match();
+    let arc_creation = table_arc_tokens(&table_ident);
+    let content_match = table_content_match_tokens(&cached_ident, &table_ident);
+    let record_cache_miss = record_cache_miss_tokens(&path);
 
     quote::quote! {
         let table = _table.ok_or_else(|| #missing_err)?;
         let key = #key_ident::new(table);
-        let cache = #cache_ident.get_or_init(|| {
+        let cache = #cache_map_ident.get_or_init(|| {
             std::sync::Mutex::new(std::collections::HashMap::new())
         });
         let arc_table = {
             let mut guard = cache.lock().map_err(|e| #convert_err)?;
             match guard.entry(key) {
                 std::collections::hash_map::Entry::Occupied(mut entry) => {
-                    let cached = entry.get();
-                    let matches = if key.ptr == table.as_ptr() as usize {
+                    let #cached_ident = entry.get();
+                    let matches = if key.ptr == #table_ident.as_ptr() as usize {
                         true
                     } else {
                         #content_match
                     };
 
                     if matches {
-                        cached.clone()
+                        #cached_ident.clone()
                     } else {
-                        #path::datatable::record_cache_miss();
+                        #record_cache_miss
                         let arc = #arc_creation;
                         entry.insert(arc.clone());
                         arc
                     }
                 }
                 std::collections::hash_map::Entry::Vacant(entry) => {
-                    #path::datatable::record_cache_miss();
+                    #record_cache_miss
                     let arc = #arc_creation;
                     entry.insert(arc.clone());
                     arc

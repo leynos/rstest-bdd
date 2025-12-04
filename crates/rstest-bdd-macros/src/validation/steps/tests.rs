@@ -2,7 +2,7 @@
 // Intentionally left without file-wide lint suppressions; add per-function #[expect(...)] where needed.
 use super::crate_id::{canonicalise_out_dir, normalise_crate_id};
 use super::*;
-use camino::{Utf8Path, Utf8PathBuf};
+use camino::Utf8PathBuf;
 use rstest::rstest;
 use serial_test::serial;
 use tempfile::{tempdir, tempdir_in};
@@ -173,10 +173,10 @@ fn leaves_unresolvable_out_dir_paths_unchanged() {
     reason = "test builds nested directories using explicit expect messaging"
 )]
 fn canonicalise_out_dir_resolves_relative_components(temp_working_dir: TempWorkingDir) {
-    create_dir_all_cap(Utf8Path::new("nested"))
-        .expect("create nested directory for canonicalisation");
-    let nested = Utf8Path::new("nested/.");
-    let canonical = canonicalise_out_dir(nested);
+    let nested_dir = temp_working_dir.join("nested");
+    create_dir_all_cap(nested_dir.as_path()).expect("create nested directory for canonicalisation");
+    let nested = temp_working_dir.join("nested/.");
+    let canonical = canonicalise_out_dir(nested.as_path());
     let expected_dir = temp_working_dir.path().join("nested");
     let expected = expected_dir
         .as_path()

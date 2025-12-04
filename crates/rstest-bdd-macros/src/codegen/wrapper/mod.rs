@@ -2,6 +2,7 @@
 
 pub mod args;
 mod arguments;
+mod datatable_shared;
 pub(crate) mod emit;
 
 pub use args::extract_args;

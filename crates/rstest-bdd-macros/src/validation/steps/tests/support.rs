@@ -33,31 +33,19 @@ pub(super) fn assert_bullet_count(err: &str, expected: usize) {
 pub(super) struct TempWorkingDir {
     _temp: tempfile::TempDir,
     path: Utf8PathBuf,
-    original_cwd: Utf8PathBuf,
 }
 
 impl TempWorkingDir {
-    fn new(temp: tempfile::TempDir, path: Utf8PathBuf, original_cwd: Utf8PathBuf) -> Self {
-        Self {
-            _temp: temp,
-            path,
-            original_cwd,
-        }
+    fn new(temp: tempfile::TempDir, path: Utf8PathBuf) -> Self {
+        Self { _temp: temp, path }
     }
 
     pub(super) fn path(&self) -> &Utf8Path {
         self.path.as_path()
     }
-}
 
-impl Drop for TempWorkingDir {
-    #[expect(
-        clippy::expect_used,
-        reason = "restoring the working directory must succeed for cleanup"
-    )]
-    fn drop(&mut self) {
-        std::env::set_current_dir(self.original_cwd.as_std_path())
-            .expect("restore current directory");
+    pub(super) fn join(&self, relative: &str) -> Utf8PathBuf {
+        self.path.join(relative)
     }
 }
 
@@ -128,15 +116,14 @@ pub(super) fn create_dir_all_cap(path: &Utf8Path) -> std::io::Result<()> {
     reason = "temporary directory setup relies on explicit failure messages for clarity"
 )]
 fn temp_working_dir_inner() -> TempWorkingDir {
-    let original = std::env::current_dir().expect("obtain current directory");
-    let original =
-        Utf8PathBuf::from_path_buf(original).expect("current directory should be valid UTF-8");
     let temp = tempdir().expect("create temp directory");
-    std::env::set_current_dir(temp.path()).expect("set current directory for test");
 
     let temp_path = Utf8PathBuf::from_path_buf(temp.path().to_path_buf())
         .expect("temporary path should be valid UTF-8");
-    TempWorkingDir::new(temp, temp_path, original)
+    // Ensure the directory is accessible; capability handle unused but validates creation.
+    let _dir = Dir::open_ambient_dir(&temp_path, ambient_authority())
+        .expect("open temp directory as capability dir");
+    TempWorkingDir::new(temp, temp_path)
 }
 
 #[fixture]
