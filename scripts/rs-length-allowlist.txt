@@ -1,7 +1,2 @@
 # Temporary exemptions while large modules are refactored.
-crates/rstest-bdd/src/types.rs
-crates/rstest-bdd/tests/placeholder_parsing.rs
-crates/rstest-bdd-macros/src/validation/steps/tests.rs
-crates/rstest-bdd-macros/src/codegen/wrapper/arguments.rs
-crates/rstest-bdd-macros/src/codegen/wrapper/emit.rs
 # Tracked for refactor: see issue #50 to shrink allowlisted files below 400 lines.
