@@ -1,4 +1,16 @@
 //! Data table support helpers for wrapper argument generation.
+//!
+//! This module emits the per-wrapper snippets that pull the incoming
+//! `Option<&[&[&str]]>` docstring/table arguments into concrete, typed values
+//! expected by the step function. When a step declares a data table, we emit:
+//! - Access to a wrapper-scoped table cache (see `emit::datatable_cache`) keyed
+//!   by pointer identity plus an FNV-1a hash of contents.
+//! - Conversion of the cached rows into the concrete type requested by the
+//!   step signature.
+//! - Diagnostics for cache misses to aid tests and telemetry.
+//!   The `CacheIdents` passed in are the identifiers produced by the emitter
+//!   for the key type and the cache `OnceLock<HashMap<...>>`, so we can
+//!   reference them while generating argument initialisation code.
 
 use super::super::args::{classify::is_cached_table, DataTableArg};
 use super::{step_error_tokens, StepMeta};
@@ -8,9 +20,11 @@ use crate::codegen::wrapper::datatable_shared::{
 use proc_macro2::TokenStream as TokenStream2;
 use quote::format_ident;
 
-/// Identifiers for datatable caching infrastructure.
+/// Identifiers for datatable caching infrastructure emitted alongside the wrapper.
 pub(super) struct CacheIdents<'a> {
+    /// Identifier of the wrapper-specific key struct used in the cache map.
     pub(super) key: &'a proc_macro2::Ident,
+    /// Identifier of the `OnceLock<Mutex<HashMap<...>>>` storing cached tables.
     pub(super) cache: &'a proc_macro2::Ident,
 }
 

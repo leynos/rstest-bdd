@@ -1,4 +1,15 @@
 //! Datatable caching helpers used by wrapper emitters.
+//!
+//! Each generated wrapper gets a small cache storing an `Arc<Vec<Vec<String>>>`
+//! version of the incoming `&[&[&str]]` data table. The cache is scoped per
+//! wrapper function and keyed by a struct containing:
+//! - The table pointer (for fast reuse when the exact slice is re-sent).
+//! - An FNV-1a hash of the table contents (to detect identical-but-copied
+//!   tables).
+//!   `DatatableCacheComponents` returns the token fragments for the key type and
+//!   the `OnceLock<Mutex<HashMap<key, Arc<_>>>>` cache. These are stitched into
+//!   the wrapper body by `arguments::datatable`, which uses the cache to avoid
+//!   re-cloning table contents on every call.
 
 use crate::codegen::wrapper::datatable_shared::{
     cache_key_impl_tokens, cache_key_struct_tokens, cache_static_tokens,
