@@ -31,7 +31,7 @@ fn maps_step_type(#[case] input: StepType, #[case] expected: StepKeyword) {
 
 #[test]
 fn unsupported_step_type_display_mentions_variant() {
-    let guard = ScopedLocalization::new(&[langid!("en-US")])
+    let _guard = ScopedLocalization::new(&[langid!("en-US")])
         .unwrap_or_else(|error| panic!("failed to scope English locale: {error}"));
     let err = UnsupportedStepType(StepType::Then);
     let message = strip_directional_isolates(&err.to_string());
@@ -39,8 +39,7 @@ fn unsupported_step_type_display_mentions_variant() {
         message.contains("Then"),
         "display should include offending variant: {message}",
     );
-    // Hold the localization context until the assertion completes.
-    let _ = &guard;
+    // Guard lives until function exit so the localisation context remains active.
 }
 
 #[test]

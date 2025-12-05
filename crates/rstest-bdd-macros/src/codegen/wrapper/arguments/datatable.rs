@@ -29,12 +29,19 @@ pub(super) struct CacheIdents<'a> {
 }
 
 /// Token fragments for cache entry operations.
+///
+/// Groups the reusable snippets emitted when handling cache hits and misses,
+/// keeping `gen_cache_entry_match_tokens` within the four-argument guideline.
 struct CacheOperationTokens {
+    /// Token checking whether cached content matches the incoming table.
     content_match: TokenStream2,
+    /// Token recording a cache miss for telemetry.
     record_cache_miss: TokenStream2,
+    /// Token creating an `Arc` from the raw table data.
     arc_creation: TokenStream2,
 }
 
+/// Generate an execution error with a custom message for datatable operations.
 fn datatable_error(
     pattern: &syn::LitStr,
     ident: &syn::Ident,
@@ -43,6 +50,7 @@ fn datatable_error(
     step_error_tokens(&format_ident!("ExecutionError"), pattern, ident, message)
 }
 
+/// Generate an error indicating the step requires a datatable but none was provided.
 fn datatable_missing_error(pattern: &syn::LitStr, ident: &syn::Ident) -> TokenStream2 {
     datatable_error(
         pattern,
@@ -51,6 +59,7 @@ fn datatable_missing_error(pattern: &syn::LitStr, ident: &syn::Ident) -> TokenSt
     )
 }
 
+/// Generate an error for datatable type conversion failures.
 fn datatable_convert_error(pattern: &syn::LitStr, ident: &syn::Ident) -> TokenStream2 {
     datatable_error(
         pattern,
@@ -64,6 +73,10 @@ fn datatable_convert_error(pattern: &syn::LitStr, ident: &syn::Ident) -> TokenSt
     )
 }
 
+/// Generate the `match guard.entry(key)` block for cache entry handling.
+///
+/// Reuses a cached `Arc` when the pointer or table contents match; otherwise
+/// records a cache miss and inserts a freshly constructed `Arc`.
 fn gen_cache_entry_match_tokens(
     cached_ident: &proc_macro2::Ident,
     table_ident: &proc_macro2::Ident,
@@ -103,6 +116,15 @@ fn gen_cache_entry_match_tokens(
     }
 }
 
+/// Emit the datatable extraction, caching, and conversion block.
+///
+/// 1. Ensures the optional `_table` is present, otherwise raises a missing
+///    datatable error.
+/// 2. Builds a cache key from pointer plus FNV-1a hash.
+/// 3. Checks the cache: reuses an existing `Arc` when contents match; records
+///    a miss and inserts a new `Arc` otherwise.
+/// 4. Wraps the `Arc` in `CachedTable` and converts to the requested type when
+///    the step does not expect a cached wrapper directly.
 fn gen_datatable_body(
     is_cached_table: bool,
     step_meta: StepMeta<'_>,
@@ -116,9 +138,8 @@ fn gen_datatable_body(
     let convert_err = datatable_convert_error(pattern, ident);
     let lock_err_message = quote::quote! {
         format!(
-            "failed to access cached data table for step '{}': {}",
-            #pattern,
-            #path::datatable::DataTableError::CacheLockFailure
+            "failed to access cached data table for step '{}': poisoned cache lock",
+            #pattern
         )
     };
     let lock_err = datatable_error(pattern, ident, &lock_err_message);
