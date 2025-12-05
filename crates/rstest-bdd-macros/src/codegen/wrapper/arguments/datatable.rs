@@ -4,7 +4,9 @@
 //! `Option<&[&[&str]]>` docstring/table arguments into concrete, typed values
 //! expected by the step function. When a step declares a data table, we emit:
 //! - Access to a wrapper-scoped table cache (see `emit::datatable_cache`) keyed
-//!   by pointer identity plus an FNV-1a hash of contents.
+//!   by pointer identity plus an FNV-1a hash of contents. The cache is emitted
+//!   as a `OnceLock<Mutex<HashMap<key, Arc<Vec<Vec<String>>>>>>` referenced via
+//!   the supplied `cache_idents.cache` identifier.
 //! - Conversion of the cached rows into the concrete type requested by the
 //!   step signature.
 //! - Diagnostics for cache misses to aid tests and telemetry.
