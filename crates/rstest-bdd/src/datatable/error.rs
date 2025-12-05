@@ -68,6 +68,9 @@ pub enum DataTableError {
         #[source]
         source: Box<dyn StdError + Send + Sync>,
     },
+    /// Raised when cached table access fails (for example, due to a poisoned lock).
+    #[error("failed to access cached data table")]
+    CacheLockFailure,
 }
 
 impl DataTableError {
