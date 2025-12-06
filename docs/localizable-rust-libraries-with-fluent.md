@@ -1,8 +1,8 @@
-# Architecting Localizable Rust Libraries with Fluent
+# Architecting localizable Rust libraries with Fluent
 
 When building a reusable Rust library (a crate), providing localized text for
-elements like error messages or UI components presents a unique challenge. The
-library itself cannot and should not make assumptions about the end user's
+elements such as error messages and UI components presents a unique challenge.
+The library itself cannot and should not make assumptions about the end user's
 language preference. The final application that consumes the library is the
 sole authority on the current locale.
 
@@ -16,7 +16,7 @@ and resource loading, while the library remains agnostic and highly reusable.
 This guide outlines the standard pattern for creating and consuming localizable
 libraries in Rust using the Fluent ecosystem.
 
-## Core Principles
+## Core principles
 
 1. **The Application is the Authority:** The application is solely responsible
    for detecting the user's locale, creating and configuring a single,
@@ -32,12 +32,12 @@ libraries in Rust using the Fluent ecosystem.
    aggregate translation assets from multiple independent libraries into one
    unified localization context, ensuring consistency across the entire program.
 
-## Implementing the Pattern: A Two-Crate Workspace Example
+## Implementing the pattern: A two-crate workspace example
 
 To illustrate this pattern, let's build a simple workspace containing an
 application (`my-app`) that consumes a localizable library (`my-lib`).
 
-### 1. Workspace Setup
+### 1. Workspace setup
 
 First, create the workspace structure.
 
@@ -66,10 +66,10 @@ members = ["my-app", "my-lib"]
 
 ```
 
-### 2. The Library Crate (,`my-lib`,)
+### 2. The library crate (`my-lib`)
 
-The library will contain its own FTL resources and expose a function to
-retrieve localized messages.
+The library will contain its own Fluent Translation List (FTL) resources and
+expose a function to retrieve localized messages.
 
 `my-lib/Cargo.toml`
 
@@ -103,7 +103,7 @@ error-permission-denied = You do not have permission to perform this action.
 The library's code exposes its embedded assets and a function that accepts the
 application's `LanguageLoader`.
 
-```rust
+```rust,no_run
 use i18n_embed::fluent::FluentLanguageLoader;
 use rust_embed::RustEmbed;
 
@@ -122,7 +122,7 @@ pub fn get_error_message(loader: &FluentLanguageLoader, error_id: &str) -> Strin
 
 ```
 
-### 3. The Application Crate (,`my-app`,)
+### 3. The application crate (`my-app`)
 
 The application is responsible for setting up the localization context and
 calling the library.
@@ -150,7 +150,7 @@ unic-langid = "0.9"
 
 The application's `main` function orchestrates the entire process.
 
-```rust
+```rust,no_run
 use i18n_embed::{
     fluent::{fluent_language_loader, FluentLanguageLoader},
     DesktopLanguageRequester, I18nAssets,
@@ -204,12 +204,12 @@ fn main() {
 This dependency injection pattern provides a clean, robust, and scalable
 architecture for internationalization in a modular Rust ecosystem.1
 
-- **For Library Authors:** It allows you to ship localizable components without
-  imposing any specific localization strategy on your users. Your library
-  remains focused on its core functionality, simply exposing its translatable
-  resources.
-- **For Application Developers:** It gives you complete control over the user
-  experience. You can manage locales, provide fallbacks, and aggregate
+- **For library authors:** The pattern enables shipping localizable components
+  without imposing a specific localization strategy on consuming applications.
+  The library remains focused on its core functionality, simply exposing its
+  translatable resources.
+- **For application teams:** The pattern preserves full control over the user
+  experience. Teams can manage locales, provide fallbacks, and aggregate
   resources from any number of third-party crates into a single, consistent
   localization context.
 
