@@ -317,12 +317,11 @@ another. If fixtures were shared by default, a mutation to a fixture's state in
 one test could lead to unpredictable behaviour or failures in subsequent tests
 that use the same fixture. Such dependencies would make tests order-dependent,
 significantly harder to debug, and less trustworthy. By providing a fresh
-instance for each test (unless explicitly specified otherwise using
-`#[once]`), `rstest` upholds this cornerstone of reliable testing, ensuring
-each test operates on a known, independent baseline. The `#[once]` attribute,
-discussed later, provides an explicit mechanism to opt into shared fixture
-state when isolation is not a concern, or when the cost of fixture creation is
-prohibitive.
+instance for each test (unless explicitly specified otherwise using `#[once]`),
+`rstest` upholds this cornerstone of reliable testing, ensuring each test
+operates on a known, independent baseline. The `#[once]` attribute, discussed
+later, provides an explicit mechanism to opt into shared fixture state when
+isolation is not a concern, or when the cost of fixture creation is prohibitive.
 
 ## IV. Parameterized tests with `rstest`
 
@@ -723,9 +722,9 @@ because `rstest` simply awaits the returned future.
 
 Test functions themselves can also be `async fn`. `rstest` polls the future the
 test returns but does not install or default to an async runtime. Annotate the
-test with the runtime's attribute (for example,
-`#[tokio::test]`, `#[async_std::test]`, or `#[actix_rt::test]`) alongside
-`#[rstest]` so the runtime drives execution.
+test with the runtime's attribute (for example, `#[tokio::test]`,
+`#[async_std::test]`, or `#[actix_rt::test]`) alongside `#[rstest]` so the
+runtime drives execution.
 
 ```rust,no_run
 use rstest::*;
