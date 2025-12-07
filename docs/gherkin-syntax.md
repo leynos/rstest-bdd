@@ -108,8 +108,8 @@ Gherkin provides several additional keywords.
     Given a web browser is on the Google page
     When the search phrase "panda" is entered
     Then results for "panda" are shown
-    And the related results include "Panda Express"
-  But the related results do not include "pandemonium"
+    And the related results include "Panda Express", but the related results do
+      not include "pandemonium"
 ```
 
 - `*` **(Asterisk)**: Gherkin also supports using an asterisk (`*`) as a
@@ -267,19 +267,20 @@ Unlike an `Examples` table, this `Data Table` does not cause the scenario to
 run multiple times. Instead, pass the entire table to the step definition via a
 parameter annotated with `#[datatable]` or named `datatable`. During macro
 expansion, the `#[datatable]` marker is stripped, but the declared parameter
-type is preserved and must implement `TryFrom<Vec<Vec<String>>>` so the wrapper
-can convert the cells. In `rstest-bdd`, a Doc String is retrieved similarly via
+type is preserved, and it must implement `TryFrom<Vec<Vec<String>>>`, so the
+wrapper can convert the cells. In `rstest-bdd`, a Doc String is retrieved
+similarly via
 a parameter named `docstring` of type `String`. The attribute or canonical name
 allows the procedural macros to detect the data table parameter. Place the data
 table before any Doc String, and do not combine it with `#[from]`.
 
 The runtime crate now provides `rstest_bdd::datatable::{Rows, DataTableRow}` to
-make typed tables ergonomic. Implement `DataTableRow` for your row type and set
+make typed tables ergonomic. Implement `DataTableRow` for the row type and set
 `REQUIRES_HEADER` when the first row should be treated as a header. The
 `RowSpec` helpers offer indexed and named access, and `Rows<T>` implements
-`IntoIterator` so steps can consume the parsed values without ceremony.
+`IntoIterator`, so steps can consume the parsed values without ceremony.
 
-### Section 2.4: Incorporating Block Text with `Docstring`
+### Section 2.4: Incorporating block text with `Docstring`
 
 Sometimes the data required by a step is not a simple value or structured
 table, but a larger, free-form block of text. This is common when working with
@@ -397,23 +398,31 @@ Feature: User Login
 | "wronguser" | "password" |
 ```
 
-In this example, the entire feature is tagged with `@login` and `@smoke`. The
-successful login scenario is additionally tagged `@happy-path` and
-`@regression`. The `Examples` table for invalid passwords is tagged
-`@critical`. Most BDD test runners can then use these tags to filter which
-tests to execute. They typically support boolean expressions, allowing for
-complex selections 21:
+In this example:
+
+- The feature carries `@login` and `@smoke`.
+- The successful login scenario adds `@happy-path` and `@regression`.
+- The invalid password examples carry `@critical`.
+
+Most BDD test runners can then use these tags to filter which tests to execute.
+They typically support boolean expressions, allowing for complex selections 21:
 
 - **OR:** Run tests with `@smoke` OR `@regression`.
 - **AND:** Run tests with `@login` AND `@critical`.
 - **NOT:** Run all `@regression` tests that are NOT tagged `@smoke`.
+
+The entire feature carries the tags `@login` and `@smoke`. The successful login
+scenario also carries `@happy-path` and `@regression`, and the invalid password
+examples are tagged `@critical`. Most BDD test runners can then use these tags to
+filter which tests to execute. They typically support boolean expressions such
+as OR, AND, and NOT, allowing for complex selections 21:
 **Best Practices for Tags:**
 - **Standardize:** Agree on a standard set of tag names within the team to
   ensure consistency.
 - **Formatting:** Use lowercase for tag names and separate words with hyphens
   (e.g., `@work-in-progress`) for readability.[^7]
 
-### Section 3.2: The Art of Writing Good Gherkin
+### Section 3.2: The art of writing good Gherkin
 
 Effective Gherkin is an art that balances clarity, precision, and
 maintainability. The foundational principle that underpins all other best
@@ -422,11 +431,9 @@ imperative style describes the mechanics of an interaction—the "how." It
 focuses on implementation details like clicking buttons, filling in text
 fields, or navigating to URLs.[^17]
 
-- **Imperative (Avoid):** When I type "<user@example.com>" into the "email"
-  field and click the "submit" button A declarative style describes the user's
-  intent and the system's behaviour—the "what." It abstracts away the
-  implementation details.[^18]
-- **Declarative (Prefer):** When the user logs in with valid credentials
+- **Imperative (Avoid):** When a person types "<user@example.com>" into the
+  "email" field and clicks the "submit" button.
+- **Declarative (Prefer):** When the user logs in with valid credentials.
 
 The declarative approach is superior for several reasons. Imperative tests are
 brittle; a minor UI change (like renaming a button from "Submit" to "Log In")
