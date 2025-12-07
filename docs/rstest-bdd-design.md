@@ -27,11 +27,10 @@ developer-centric features of
 functional and acceptance tests with low-level unit tests. Both test types
 coexist within the same project, use the same fixture model for dependency
 injection, and are executed by the standard `cargo test` command. This approach
-eliminates the need for a separate test runner, reducing continuous
-integration (CI) and continuous delivery (CD) configuration complexity and
-lowering
-the barrier to adoption for teams already invested in
-the Rust testing ecosystem.[^3]
+eliminates the need for a separate test runner, reducing continuous integration
+(CI) and continuous delivery (CD) configuration complexity and lowering the
+barrier to adoption for teams already invested in the Rust testing
+ecosystem.[^3]
 
 The design is heavily modelled on `pytest-bdd`, a successful plugin for
 Python's `pytest` framework.[^4]
@@ -486,12 +485,11 @@ IDENT     ::= { A..Z | a..z | 0..9 | "_" | "-" }+
 ```
 
 Implementation stores the parsed expression as an abstract syntax tree (AST)
-shared by both macros so
-they emit identical diagnostics. `#[scenario]` continues to default to the
-first matching scenario but emits a compile error when a supplied `name` or
-`index` refers to a scenario that fails the tag filter. Scenario outlines prune
-unmatched example rows at expansion, ensuring the generated `rstest` only
-contains relevant cases.
+shared by both macros so they emit identical diagnostics. `#[scenario]`
+continues to default to the first matching scenario but emits a compile error
+when a supplied `name` or `index` refers to a scenario that fails the tag
+filter. Scenario outlines prune unmatched example rows at expansion, ensuring
+the generated `rstest` only contains relevant cases.
 
 Example diagnostic:
 
@@ -1305,9 +1303,9 @@ in its tight integration with the Rust compiler and `rstest`.
 #### 3.2.2 Disadvantages
 
 - **High Macro Complexity:** The implementation of the `#[scenario]` macro is
-  non-trivial. It involves compile-time file reads and writes, parsing, and extensive code
-  generation via `quote!`. Debugging and maintaining this macro will be a
-  significant challenge.[^17]
+  non-trivial. It involves compile-time file reads and writes, parsing, and
+  extensive code generation via `quote!`. Debugging and maintaining this macro
+  will be a significant challenge.[^17]
 
 - **Reliance on "Magic" and Portability:** The `inventory` crate's use of
   linker sections is powerful but potentially "magic." It abstracts away
@@ -1322,7 +1320,8 @@ scan for step definitions and generate a central registry file (e.g.,
 `OUT_DIR/steps.rs`), which is then included via `include!` by the `#[scenario]`
 macro.
 
-- **Compile-Time Overhead:** The `#[scenario]` macro performs file reads and writes and
+- **Compile-Time Overhead:** The `#[scenario]` macro performs file reads and
+  writes and
   parsing during compilation. For projects with many feature files, this could
   introduce a noticeable overhead to compile times. **Mitigation:** This can be
   significantly optimized by caching the parsed Gherkin ASTs in the `OUT_DIR`.
@@ -1345,8 +1344,8 @@ aware of.
   files dynamically at runtime.
 
 - **Static Step Definitions:** All step definitions must be known at compile
-  time, so they can be registered. It is not possible to dynamically generate or
-  register new step definitions at runtime.
+  time, so they can be registered. It is not possible to dynamically generate
+  or register new step definitions at runtime.
 
 - **IDE Support Challenges:** While test execution via `cargo test` will
   integrate perfectly with IDEs, more advanced features like "Go to Definition"
@@ -1379,12 +1378,11 @@ developer experience. A
 
 `cucumber-rs` users often ask how to manage state in a `World` struct, whereas
 `rstest-bdd` users focus on which `rstest` fixture should provide that state.
-This makes `rstest-bdd` a potentially more natural fit for teams
-already heavily invested in `rstest`, as they can leverage their existing
-knowledge and fixtures directly. `cucumber-rs` is better suited for teams
-seeking strict adherence to the global Cucumber standard or those who prefer a
-hard separation between their BDD acceptance tests and their other
-unit/integration tests.
+This makes `rstest-bdd` a potentially more natural fit for teams already
+heavily invested in `rstest`, as they can leverage their existing knowledge and
+fixtures directly. `cucumber-rs` is better suited for teams seeking strict
+adherence to the global Cucumber standard or those who prefer a hard separation
+between their BDD acceptance tests and their other unit/integration tests.
 
 The following table summarizes the key differences:
 
@@ -1574,7 +1572,7 @@ orchestration works.
 
 Binding scenarios by zero-based index is brittle in active feature files,
 because inserting a new scenario silently retargets existing tests. The macro
-  therefore accepts an alternative `name` argument, so call sites can reference a
+therefore accepts an alternative `name` argument, so call sites can reference a
 scenario by its title. The string literal is matched case-sensitively against
 every `Scenario` and `Scenario Outline` heading in the parsed feature. Phase 3
 tightens the supporting diagnostics so title-based bindings stay deterministic.
@@ -1913,8 +1911,8 @@ All modules use en‑GB spelling and include `//!` module‑level documentation.
   alongside the macro triggers a duplicate-implementation error, so callers
   must not do so unless they first disable the generated impl. A future
   `#[scenario_state(no_default)]` flag (or equivalent) will opt out of the
-  auto-generated `Default`, so bespoke initialization logic can be supplied when
-  required.
+  auto-generated `Default`, so bespoke initialization logic can be supplied
+  when required.
 - Rejected a single global “world” object to keep the API congruent with
   `rstest` fixtures and avoid obscuring data flow. `Slot<T>` composes naturally
   with existing fixtures and keeps ownership explicit.
@@ -2020,9 +2018,9 @@ These macros keep test code succinct while still surfacing detailed diagnostics.
   the crate’s messages into their own `FluentLanguageLoader` or reuse the
   built-in loader.
 - Exposed `select_localizations` and `current_languages` helpers around the
-  shared loader, so applications can request locales at runtime whilst retaining
-  the caller-supplied preference order. The loader initializes with English and
-  falls back to it when a requested language is unavailable.
+  shared loader, so applications can request locales at runtime whilst
+  retaining the caller-supplied preference order. The loader initializes with
+  English and falls back to it when a requested language is unavailable.
 - Added a thread-local `ScopedLocalization` guard, so unit and behaviour tests
   can swap locales without serializing the entire test suite. When active, the
   guard shadows the global loader, ensuring concurrent tests remain isolated.

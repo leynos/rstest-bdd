@@ -269,10 +269,10 @@ parameter annotated with `#[datatable]` or named `datatable`. During macro
 expansion, the `#[datatable]` marker is stripped, but the declared parameter
 type is preserved, and it must implement `TryFrom<Vec<Vec<String>>>`, so the
 wrapper can convert the cells. In `rstest-bdd`, a Doc String is retrieved
-similarly via
-a parameter named `docstring` of type `String`. The attribute or canonical name
-allows the procedural macros to detect the data table parameter. Place the data
-table before any Doc String, and do not combine it with `#[from]`.
+similarly via a parameter named `docstring` of type `String`. The attribute or
+canonical name allows the procedural macros to detect the data table parameter.
+Place the data table before any Doc String, and do not combine it with
+`#[from]`.
 
 The runtime crate now provides `rstest_bdd::datatable::{Rows, DataTableRow}` to
 make typed tables ergonomic. Implement `DataTableRow` for the row type and set
@@ -374,11 +374,11 @@ the "how" of syntax to the "why" of effective specification.
 As a test suite grows, a method is needed to organize and selectively run
 subsets of scenarios. Teams may run a quick "smoke test" suite, a full
 "regression" suite, or targeted checks for a specific feature or environment.
-`Tags` are Gherkin's mechanism for this kind of organization. A
-tag is a simple annotation prefixed with an `@` symbol (e.g., `@smoke`, `@api`,
-`@ui`).[^13] Tags can be placed above `Feature`, `Scenario`,
-`Scenario Outline`, or even specific `Examples` tables to categorize them.[^10]
-A single element can have multiple tags.
+`Tags` are Gherkin's mechanism for this kind of organization. A tag is a simple
+annotation prefixed with an `@` symbol (e.g., `@smoke`, `@api`, `@ui`).[^13]
+Tags can be placed above `Feature`, `Scenario`, `Scenario Outline`, or even
+specific `Examples` tables to categorize them.[^10] A single element can have
+multiple tags.
 
 ```gherkin
 @login @smoke
@@ -413,10 +413,11 @@ They typically support boolean expressions, allowing for complex selections 21:
 
 The entire feature carries the tags `@login` and `@smoke`. The successful login
 scenario also carries `@happy-path` and `@regression`, and the invalid password
-examples are tagged `@critical`. Most BDD test runners can then use these tags to
-filter which tests to execute. They typically support boolean expressions such
-as OR, AND, and NOT, allowing for complex selections 21:
-**Best Practices for Tags:**
+examples are tagged `@critical`. Most BDD test runners can then use these tags
+to filter which tests to execute. They typically support boolean expressions
+such as OR, AND, and NOT, allowing for complex selections 21: **Best Practices
+for Tags:**
+
 - **Standardize:** Agree on a standard set of tag names within the team to
   ensure consistency.
 - **Formatting:** Use lowercase for tag names and separate words with hyphens
@@ -604,8 +605,8 @@ declaring a function argument with the same name as the target fixture.
 `pytest` handles the dependency injection automatically.
 
 This approach has profound benefits. It allows BDD test setup to be composed of
-the same reusable fixtures as standard unit, integration, and system tests. This
-unifies the entire test suite, avoids the pitfalls of a single, monolithic
+the same reusable fixtures as standard unit, integration, and system tests.
+This unifies the entire test suite, avoids the pitfalls of a single, monolithic
 context object, and promotes cleaner, more modular step definitions.
 
 **Practical Example:**
