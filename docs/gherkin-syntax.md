@@ -1,8 +1,8 @@
-# A Comprehensive Guide to Gherkin: From Executable Specifications to Practical Implementation
+# A comprehensive guide to Gherkin: From executable specifications to practical implementation
 
 ______________________________________________________________________
 
-## Part 1: The Philosophy and Foundation of Gherkin
+## Part 1: The philosophy and foundation of Gherkin
 
 Behaviour-Driven Development (BDD) is a collaborative software development
 process that aims to create a shared understanding of how an application should
@@ -12,7 +12,7 @@ was created to solve this challenge. It is not merely a testing syntax; it is a
 structured, natural language designed to be the definitive, single source of
 truth for a system's behaviour.[^1]
 
-### Section 1.1: Gherkin as the Cornerstone of BDD
+### Section 1.1: Gherkin as the cornerstone of BDD
 
 Gherkin is a Domain-Specific Language (DSL) that functions as a "communication
 tool," bridging the often-significant gap between technical teams and
@@ -44,7 +44,7 @@ code—without the collaborative payoff. Therefore, the decision to adopt Gherki
 is fundamentally a cultural and process-oriented one. Its success hinges on the
 entire team's commitment to the BDD collaborative cycle.
 
-### Section 1.2: The Anatomy of a `.feature` File
+### Section 1.2: The anatomy of a `.feature` file
 
 All Gherkin specifications are stored in plain-text files with a `.feature`
 extension.[^1] As a best practice, each file should focus on describing a
@@ -90,7 +90,7 @@ progression: context, action, and outcome.
   database record, directly in a `Then` step is discouraged because it couples
   the test to implementation details rather than observable behaviour.[^8]
 
-### Section 1.3: Enhancing Readability and Flow
+### Section 1.3: Enhancing readability and flow
 
 To make scenarios read more like natural language and avoid awkward repetition,
 Gherkin provides several additional keywords.
@@ -127,7 +127,7 @@ Gherkin provides several additional keywords.
     * the user has a bio
 ```
 <!-- markdownlint-disable MD013 -->
-### Table 1: Gherkin Keyword Reference
+### Table 1: Gherkin keyword reference
 
 For a quick and comprehensive overview, the following table summarizes the
 primary and secondary keywords in the Gherkin language.
@@ -152,14 +152,14 @@ primary and secondary keywords in the Gherkin language.
 <!-- markdownlint-enable MD013 -->
 ______________________________________________________________________
 
-## Part 2: Advanced Gherkin for Complex Scenarios
+## Part 2: advanced Gherkin for complex scenarios
 
 While the basic `Given-When-Then` structure is powerful, real-world testing
 often requires handling complex data and reducing repetitive setup. Gherkin
 provides several advanced constructs to address these needs, enabling more
 efficient and expressive feature files.
 
-### Section 2.1: Reducing Repetition with `Background`
+### Section 2.1: Reducing repetition with `Background`
 
 In many feature files, it is common to find that several scenarios share the
 exact same set of initial `Given` steps. For instance, multiple tests for an
@@ -202,7 +202,7 @@ used judiciously.
   story. The human brain remembers narratives better than abstract identifiers
   like "User A" or "Site 1".[^10]
 
-### Section 2.2: Data-Driven Testing with `Scenario Outline` and `Examples`
+### Section 2.2: Data-driven testing with `Scenario Outline` and `Examples`
 
 Often, testing the same behaviour requires a variety of different inputs and
 expected outputs. For example, testing a login form requires checking valid
@@ -241,7 +241,7 @@ Feature: Calculator Addition
 In this example, the scenario will run four times, testing each combination of
 numbers and expected results defined in the `Examples` table.
 
-### Section 2.3: Passing Complex Data with `Data Tables`
+### Section 2.3: Passing complex data with `Data Tables`
 
 While a `Scenario Outline` is perfect for running an entire scenario with
 different data, sometimes only a structured set of data needs to be passed to a
@@ -324,10 +324,10 @@ Feature: Backtick doc string
       ```
 ```
 
-### Section 2.5: Grouping with the `Rule` Keyword
+### Section 2.5: Grouping with the `Rule` keyword
 
 As a `Feature` grows more complex, a flat list of scenarios can become
-difficult to navigate. To provide an additional layer of organisation, Gherkin
+difficult to navigate. To provide an additional layer of organization, Gherkin
 version 6 introduced the `Rule` keyword.[^10] The purpose of the `Rule` keyword
 is to group a set of related scenarios that together represent a single,
 specific business rule that the system must enforce.[^8] This is particularly
@@ -361,19 +361,19 @@ protection from those related to daily withdrawal limits, making the feature
 file's intent much clearer.
 ______________________________________________________________________
 
-## Part 3: Mastering Gherkin: Organization and Best Practices
+## Part 3: mastering Gherkin: organization and best practices
 
 Knowing the syntax of Gherkin is only the first step. Writing Gherkin that is
 clear, maintainable, and scalable over the life of a project requires adopting
 a set of strategic principles and best practices. This section transitions from
 the "how" of syntax to the "why" of effective specification.
 
-### Section 3.1: Organizing and Filtering with `Tags`
+### Section 3.1: Organizing and filtering with `Tags`
 
-As a test suite grows, a method is needed to organise and selectively run
-subsets of scenarios. It might be desirable to run a quick "smoke test" suite,
-a full "regression" suite, or tests specific to a certain feature or
-environment. `Tags` are Gherkin's mechanism for this kind of organisation. A
+As a test suite grows, a method is needed to organize and selectively run
+subsets of scenarios. Teams may run a quick "smoke test" suite, a full
+"regression" suite, or targeted checks for a specific feature or environment.
+`Tags` are Gherkin's mechanism for this kind of organization. A
 tag is a simple annotation prefixed with an `@` symbol (e.g., `@smoke`, `@api`,
 `@ui`).[^13] Tags can be placed above `Feature`, `Scenario`,
 `Scenario Outline`, or even specific `Examples` tables to categorize them.[^10]
@@ -453,7 +453,7 @@ other rules contribute to high-quality Gherkin:
   enters a search term") and consistently use the present tense to maintain a
   clear narrative.[^7]
 
-### Section 3.3: Documentation and Maintenance
+### Section 3.3: Documentation and maintenance
 
 Well-maintained feature files are easy to read and understand for everyone on
 the team. This requires attention to documentation and consistent style.
@@ -467,7 +467,7 @@ the team. This requires attention to documentation and consistent style.
   doesn't belong in the behavioural specification itself—such as links to user
   stories, ticket IDs, or security classifications—a useful pattern is to use
   YAML-formatted comments at the top of a feature file. This keeps the metadata
-  organised, human-readable, and potentially parsable by external reporting or
+  organized, human-readable, and potentially parsable by external reporting or
   analysis tools.[^19]
 
 ```gherkin
@@ -492,7 +492,7 @@ the team. This requires attention to documentation and consistent style.
 
 ______________________________________________________________________
 
-## Part 4: Integration Deep Dive: Gherkin with `pytest-bdd` (Python)
+## Part 4: Integration deep dive: Gherkin with `pytest-bdd` (Python)
 
 `pytest-bdd` is a popular choice for implementing BDD in Python. It is not a
 standalone test runner but a powerful plugin for the `pytest` framework. This
@@ -500,7 +500,7 @@ design choice allows it to seamlessly integrate with and leverage the entire
 `pytest` ecosystem, including its renowned fixture system, extensive plugin
 library, and robust test execution capabilities.[^16]
 
-### Section 4.1: Project Setup and Configuration
+### Section 4.1: Project setup and configuration
 
 Getting started with `pytest-bdd` is straightforward for anyone familiar with
 Python's package management.
@@ -517,14 +517,14 @@ Python's package management.
   typically installed.[^20]
 
 - **Directory Structure:** A conventional project structure helps keep tests
-  organised:
+  organized:
   - `features/`: This directory contains all Gherkin `.feature` files.
   - `tests/`: This directory holds Python test code.
     - `step_defs/`: It is a common practice to create a subdirectory within
       `tests/` to store the step definition files (e.g., `test_login.py`). This
       separates them from other types of tests (e.g., unit tests).
 
-### Section 4.2: Mapping Steps to Code
+### Section 4.2: Mapping steps to code
 
 The core of `pytest-bdd` is the mechanism that links the plain-text Gherkin
 steps to executable Python code. This is achieved through a series of
@@ -577,7 +577,7 @@ decorators.
 
   ```
 
-### Section 4.3: State Management with Pytest Fixtures
+### Section 4.3: State management with pytest fixtures
 
 One of the most significant and powerful aspects of `pytest-bdd` is its
 approach to state management. Unlike many traditional Cucumber tools that use a
@@ -597,9 +597,9 @@ declaring a function argument with the same name as the target fixture.
 `pytest` handles the dependency injection automatically.
 
 This approach has profound benefits. It allows BDD test setup to be composed of
-the same reusable fixtures as standard unit and integration tests, unifying the
-entire test suite. It avoids the pitfalls of a single, monolithic context
-object and promotes cleaner, more modular step definitions.
+the same reusable fixtures as standard unit, integration, and system tests. This
+unifies the entire test suite, avoids the pitfalls of a single, monolithic
+context object, and promotes cleaner, more modular step definitions.
 
 **Practical Example:**
 
@@ -642,7 +642,7 @@ def final_balance_is_correct(bank_account, final_balance):
     assert bank_account['balance'] == final_balance
 ```
 
-### Section 4.4: Parsing Arguments and Data
+### Section 4.4: Parsing arguments and data
 
 `pytest-bdd` provides robust mechanisms for handling data passed from Gherkin
 steps.
@@ -668,7 +668,7 @@ steps.
 
 ______________________________________________________________________
 
-## Part 5: Integration Deep Dive: Gherkin with `cucumber-rs` (Rust)
+## Part 5: Integration deep dive: Gherkin with `cucumber-rs` (Rust)
 
 For developers in the Rust ecosystem, `cucumber-rs` provides a native,
 idiomatic implementation of a Cucumber test runner. Unlike `pytest-bdd`, it is
@@ -676,7 +676,7 @@ a self-contained framework designed from the ground up for Rust, with
 first-class support for `async` programming and a strong emphasis on type
 safety.[^26]
 
-### Section 5.1: Project Setup in the Rust Ecosystem
+### Section 5.1: Project setup in the Rust ecosystem
 
 Setting up `cucumber-rs` involves configuring the project's `Cargo.toml` file
 and establishing a conventional directory structure.
@@ -700,7 +700,7 @@ and establishing a conventional directory structure.
 
   ```
 
-- **Directory Structure:** A typical `cucumber-rs` project organises its files
+- **Directory Structure:** A typical `cucumber-rs` project organizes its files
   as follows 37:
   - `tests/`: The root directory for integration tests.
   - `tests/features/`: Contains the Gherkin `.feature` files.
@@ -709,7 +709,7 @@ and establishing a conventional directory structure.
     `World` struct and includes a `main` function that invokes the
     `cucumber-rs` runner.
 
-### Section 5.2: The `World` Context
+### Section 5.2: The `World` context
 
 In stark contrast to `pytest-bdd`'s fixture model, `cucumber-rs` adheres to the
 traditional Cucumber pattern of using an explicit, shared state object called
@@ -721,10 +721,10 @@ the `World`.
 - **Implementation:** To be used by the framework, the struct must derive or
   implement the `cucumber::World` trait. The framework will then use
   `Default::default()` to create a new `World` for each scenario. If more
-  complex initialisation is needed, a custom constructor can be specified using
+  complex initialization is needed, a custom constructor can be specified using
   the `#[world(init =...)]` attribute.[^26]
 
-```rust
+```rust,no_run
   // tests/cucumber_tests.rs
   use cucumber::World;
 
@@ -736,11 +736,11 @@ the `World`.
 
   ```
 
-### Section 5.3: Asynchronous Step Definitions
+### Section 5.3: Asynchronous step definitions
 
 `cucumber-rs` is designed to be asynchronous from the ground up, making it
-well-suited for testing applications involving I/O operations like database
-queries or web requests.
+well-suited for testing applications involving input/output operations such as
+database queries or web requests.
 
 - **Attribute Macros:** Gherkin steps are linked to Rust functions using the
   `#[given]`, `#[when]`, and `#[then]` attribute macros.[^26] `cucumber-rs`
@@ -753,7 +753,7 @@ queries or web requests.
   is how steps read and modify the shared state of the scenario. Any parameters
   parsed from the step string follow this `World` argument.[^26]
 
-```rust
+```rust,no_run
   // tests/steps/calculator_steps.rs
   use crate::CalculatorWorld; // Assuming CalculatorWorld is in the parent module
   use cucumber::{given, when, then};
@@ -775,7 +775,7 @@ queries or web requests.
 
   ```
 
-### Section 5.4: Handling Data and Tables
+### Section 5.4: Handling data and tables
 
 `cucumber-rs` provides clear mechanisms for parsing data from Gherkin steps
 into Rust types.
@@ -805,7 +805,7 @@ into Rust types.
 
   **Step Definition (**`user_steps.rs`**):**
 
-```rust
+```rust,no_run
   use cucumber::{gherkin::Step, given};
   use crate::UserWorld;
 
@@ -824,17 +824,17 @@ into Rust types.
   would be used to access the table data, which can then be iterated over.[^30]
 ______________________________________________________________________
 
-## Part 6: Synthesis: Implementation Variations and Quirks
+## Part 6: Synthesis: Implementation variations and quirks
 
-While Gherkin provides a standardised language for specifying behaviour, its
+While Gherkin provides a standardized language for specifying behaviour, its
 implementation across different programming languages and frameworks reveals
 distinct philosophies and technical quirks. A deep dive into `pytest-bdd` for
 Python and `cucumber-rs` for Rust highlights a fundamental divergence in
-approach: one prioritises deep integration with an existing, powerful testing
+approach: one prioritizes deep integration with an existing, powerful testing
 ecosystem, while the other favors a purpose-built, "pure" implementation of the
 Cucumber paradigm.
 
-### Section 6.1: A Comparative Analysis: `pytest-bdd` vs. `cucumber-rs`
+### Section 6.1: A comparative analysis: `pytest-bdd` vs. `cucumber-rs`
 
 The choice between `pytest-bdd` and `cucumber-rs` is less about which is
 "better" and more about which aligns with a project's language, existing
@@ -851,7 +851,7 @@ Python team already invested in the `pytest` ecosystem will find `pytest-bdd`
 to be a natural and powerful extension. A Rust team will likely prefer the
 purpose-built, type-safe, and async-native design of `cucumber-rs`.
 
-### Table 2: `pytest-bdd` vs. `cucumber-rs` Implementation Comparison
+### Table 2: `pytest-bdd` vs. `cucumber-rs` implementation comparison
 
 | Feature                | pytest-bdd (Python)                                                                                                                               | cucumber-rs (Rust)                                                                                                                                        |
 | ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -861,7 +861,7 @@ purpose-built, type-safe, and async-native design of `cucumber-rs`.
 | Data Table Handling    | The step function accepts a datatable argument annotated with `#[datatable]` or named `datatable`, which contains the data as a list of lists. 22 | The step function accepts a &Step argument, and the table is accessed via step.table.as_ref(). 42                                                         |
 | Ecosystem & Tooling    | Leverages the entire pytest ecosystem: fixtures, hooks, and thousands of plugins for reporting, parallelization, etc. 28                          | Provides an ecosystem for execution, filtering, and output formatting. Integrates with Rust's build system (cargo) and async runtimes (tokio). 35         |
 
-### Section 6.2: Common Quirks and Gotchas
+### Section 6.2: Common quirks and gotchas
 
 When moving between BDD frameworks or adopting one for the first time,
 developers should be aware of specific implementation details that can act as
@@ -888,7 +888,7 @@ developers should be aware of specific implementation details that can act as
   between these frameworks without a complete architectural rethink of how
   state is created, modified, and accessed.
 
-### Section 6.3: The Evolving Landscape: Gherkin as Living Documentation
+### Section 6.3: The evolving landscape: Gherkin as living documentation
 
 Gherkin's syntax is deceptively simple. The true challenge and reward of
 adopting it lie not in memorising keywords but in embracing the collaborative,
