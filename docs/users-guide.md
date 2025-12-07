@@ -1045,10 +1045,10 @@ document and README remain unimplemented in the current codebase:
 - **Restricted placeholder types.** Only placeholders that parse via
   `FromStr` are supported, and they must be well-formed and non-overlapping.
 
-Consult the project’s roadmap or repository for updates. When new features are
-added, patterns, and examples may change. Meanwhile, adopting `rstest‑bdd` in
-its current form will be most effective when teams keep feature files simple.
-Step definitions should remain explicit.
+Consult the project’s roadmap or repository for updates. The addition of new
+features may result in patterns or examples changing. Meanwhile, adopting
+`rstest‑bdd` in its current form will be most effective when teams keep feature
+files simple. Step definitions should remain explicit.
 
 ## Assertion macros
 

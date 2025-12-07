@@ -1321,12 +1321,12 @@ scan for step definitions and generate a central registry file (e.g.,
 macro.
 
 - **Compile-Time Overhead:** The `#[scenario]` macro performs file reads and
-  writes and
-  parsing during compilation. For projects with many feature files, this could
-  introduce a noticeable overhead to compile times. **Mitigation:** This can be
-  significantly optimized by caching the parsed Gherkin ASTs in the `OUT_DIR`.
-  The macro would only re-parse a `.feature` file if its modification time has
-  changed, similar to how tools like `prost-build` handle `.proto` files.
+  writes and parsing during compilation. For projects with many feature files,
+  this could introduce a noticeable overhead to compile times. **Mitigation:**
+  This can be significantly optimized by caching the parsed Gherkin ASTs in the
+  `OUT_DIR`. The macro would only re-parse a `.feature` file if its
+  modification time has changed, similar to how tools like `prost-build` handle
+  `.proto` files.
 
 - **Runtime Step Matching:** The connection between a Gherkin step and its
   implementing function is resolved at the beginning of each scenario's
