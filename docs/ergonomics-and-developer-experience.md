@@ -1,4 +1,4 @@
-# Design Document: Phase 4 Ergonomics and Developer Experience
+# Design document: Phase 4 ergonomics and developer experience
 
 ## 1. Introduction
 
@@ -6,7 +6,7 @@ With the core mechanics of `rstest-bdd` established in Phases 1-3, Phase 4
 transitions the focus towards enhancing developer experience and reducing
 boilerplate. The features outlined in this document are designed to make
 writing and maintaining behaviour tests more intuitive, less verbose, and
-better integrated into the development workflow. This document synthesises user
+better integrated into the development workflow. This document synthesizes user
 feedback and the high-level goals of the project roadmap into a concrete
 technical design for implementation.
 
@@ -19,13 +19,13 @@ The guiding principles for this phase are:
 - **Enhance tooling:** Automate common, repetitive tasks to accelerate the
   test-writing process.
 
-## 2. Reducing Boilerplate in Step Definitions
+## 2. Reducing boilerplate in step definitions
 
 A significant portion of the feedback centres on the verbosity of step
 definitions. The following proposals aim to address this by making the
 framework's macros more intelligent and context-aware.
 
-### 2.1. Implicit Fixture and Step Argument Injection
+### 2.1. Implicit fixture and step argument injection
 
 **Goal:** Eliminate the need for `#[from(fixture_name)]` on every fixture and
 reduce noise in step function signatures. The current implementation requires
@@ -62,7 +62,7 @@ context provided by the step pattern.
 
 - **Before:**
 
-```rust
+```rust,no_run
 #[when("I add {count:u32} pumpkins to the basket")]
 fn add_pumpkins(#[from(basket)] b: &mut Basket, count: u32) {
     // ...
@@ -71,7 +71,7 @@ fn add_pumpkins(#[from(basket)] b: &mut Basket, count: u32) {
 
 - **After:**
 
-```rust
+```rust,no_run
 #[when("I add {count:u32} pumpkins to the basket")]
 fn add_pumpkins(basket: &mut Basket, count: u32) {
     // `basket` is implicitly a fixture, `count` is a step argument.
@@ -81,7 +81,7 @@ fn add_pumpkins(basket: &mut Basket, count: u32) {
 Implicit fixtures such as `basket` must already be in scope in the test module;
 `#[from(name)]` only renames a fixture and does not create one.
 
-### 2.2. Inferred Step Patterns
+### 2.2. Inferred step patterns
 
 **Goal:** Remove the need for an explicit pattern string in the step attribute
 when the function name clearly describes the step. This reduces duplication
@@ -113,7 +113,7 @@ string argument optional.
 
 - **Before:**
 
-```rust
+```rust,no_run
 #[given("the user is logged in")]
 fn the_user_is_logged_in(user_session: &mut Session) {
     // ...
@@ -122,18 +122,18 @@ fn the_user_is_logged_in(user_session: &mut Session) {
 
 - **After:**
 
-```rust
+```rust,no_run
 #[given]
 fn the_user_is_logged_in(user_session: &mut Session) {
     // Pattern "the user is logged in" is inferred.
 }
 ```
 
-### 2.3. Struct-based Step Arguments
+### 2.3. Struct-based step arguments
 
 **Goal:** Condense step function signatures that have many placeholders by
 binding them to the fields of a single struct. This improves readability and
-centralises parsing logic.
+centralizes parsing logic.
 
 Proposed Design:
 
@@ -177,7 +177,7 @@ so the wrapper can validate the capture count at compile time.
 
 - **Before:**
 
-```rust
+```rust,no_run
 #[when("a user named {name} with age {age:u32} and role {role} is created")]
 fn create_user(name: String, age: u32, role: String) {
     // ...
@@ -186,7 +186,7 @@ fn create_user(name: String, age: u32, role: String) {
 
 - **After:**
 
-```rust
+```rust,no_run
 use rstest_bdd_macros::StepArgs;
 
 #[derive(StepArgs)]
@@ -202,13 +202,13 @@ fn create_user(user_data: NewUser) {
 }
 ```
 
-## 3. Improving Data Flow and State Management
+## 3. Improving data flow and state management
 
 These features focus on making state management across steps more robust and
 idiomatic, moving away from manual `RefCell` patterns towards
 framework-provided solutions.
 
-### 3.1. Passing Values Between Steps via Return Types
+### 3.1. Passing values between steps via return types
 
 **Goal:** Allow a step (typically `#[when]`) to return a value that can be used
 by a subsequent step (typically `#[then]`), promoting a more functional data
@@ -223,7 +223,7 @@ This requires changes to both the runtime and macro crates.
    storage in the `StepContext`. The key will align with the fixture whose type
    matches the returned value.
 
-    ```rust
+    ```rust,no_run
     pub trait StoreInContext: 'static {
         // Provides a way to store and retrieve the value.
         // The StepContext will handle the implementation details.
@@ -252,7 +252,7 @@ This requires changes to both the runtime and macro crates.
 
 **User Experience:**
 
-```rust
+```rust,no_run
 #[when("the user searches for an item")]
 fn search_for_item(api_client: &ApiClient) -> Result<Vec<SearchResult>, ApiError> {
     // This function now returns the search results directly.
@@ -266,16 +266,16 @@ fn results_are_displayed(results: Vec<SearchResult>) {
 }
 ```
 
-### 3.2. Ergonomic Scenario State
+### 3.2. Ergonomic scenario state
 
-**Goal:** Provide a structured, type-safe alternative to manually crafting
+**Goal:** Provide a structured and type-safe alternative to manually crafting
 state objects with `RefCell<Option<T>>`. This is the most requested ergonomic
-feature, aimed at creating a "world" or "state" object with less ceremony.
-`rstest-bdd` now registers fixtures provided by `#[scenario]` tests with
-exclusive access, so step functions can request `&mut World` and mutate the
-shared state directly when that is all they need. The `Slot<T>` helper still
-serves as the ergonomic option for optional fields or when steps must stash
-data lazily without replacing the entire struct.
+feature aimed at creating a single "world" or "state" object with less
+ceremony. `rstest-bdd` now registers fixtures provided by `#[scenario]` tests
+with exclusive access, so step functions can request `&mut World` and mutate
+the shared state directly when that is all they need. The `Slot<T>` helper
+still serves as the ergonomic option for optional fields or when steps must
+stash data lazily without replacing the entire struct.
 
 Proposed Design:
 
@@ -288,7 +288,7 @@ philosophy of augmenting, not obscuring, rstest.
    will be introduced. It will be a thin wrapper around `RefCell<Option<T>>`,
    providing a clean API for state manipulation.
 
-    ```rust
+    ```rust,no_run
     pub struct Slot<T>(RefCell<Option<T>>);
     
     impl<T> Slot<T> {
@@ -311,7 +311,7 @@ philosophy of augmenting, not obscuring, rstest.
 
 **User Experience:**
 
-```rust
+```rust,no_run
 use rstest_bdd::{macros::{given, scenario, ScenarioState}, state::Slot};
 use rstest::fixture;
 
@@ -348,9 +348,9 @@ fn test_cli_command(cli_state: CliState) {
 }
 ```
 
-## 4. Developer Tooling and Utilities
+## 4. Developer tooling and utilities
 
-### 4.1. Streamlined `Result` Assertions
+### 4.1. Streamlined `Result` assertions
 
 **Goal:** Simplify the common pattern of asserting that a step returning a
 `Result` is either `Ok` or `Err`.
@@ -366,7 +366,7 @@ Two helper macros are provided by the `rstest-bdd` crate and re-exported:
 These simple declarative macros (`macro_rules!`) live in
 `crates/rstest-bdd/src/lib.rs`.
 
-### 4.3. Skipped Outcome Assertions
+### 4.3. Skipped outcome assertions
 
 **Goal:** Remove the repetitive `match` statements that tests used to assert
 `StepExecution::Skipped` or `ScenarioStatus::Skipped` outcomes.
@@ -379,10 +379,10 @@ Two helpers address the common cases:
   clones the stored `SkippedScenario` metadata, so tests can continue making
   ad-hoc assertions after the helper verifies message and flag invariants.
 
-Both macros emit localised error messages when expectations are not met,
+Both macros emit localized error messages when expectations are not met,
 mirroring the ergonomics of `assert_step_ok!` and `assert_step_err!`.
 
-### 4.4. Step Scaffolding
+### 4.4. Step scaffolding
 
 **Goal:** Automate the creation of skeleton step definition files from a
 `.feature` file to reduce manual boilerplate.
@@ -407,7 +407,7 @@ A new binary crate, cargo-bdd, will be created.
 
 **Example Output:**
 
-```rust
+```rust,no_run
 // Generated from: When I add {count:u32} pumpkins
 
 use rstest_bdd_macros::when;
@@ -424,5 +424,6 @@ The enhancements planned for Phase 4 represent a significant leap forward in
 the usability and ergonomics of `rstest-bdd`. By focusing on reducing
 boilerplate, improving state management, and providing intelligent tooling,
 these changes will make the framework not only more powerful but also more
-pleasant to use, encouraging the adoption of BDD practices by lowering the
-barrier to writing clear, maintainable, and effective behaviour tests in Rust.
+pleasant to use, encouraging the adoption of Behaviour-Driven Development (BDD)
+practices by lowering the barrier to writing clear, maintainable, and effective
+behaviour tests in Rust.

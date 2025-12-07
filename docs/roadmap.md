@@ -1,10 +1,10 @@
 # Roadmap
 
 This roadmap outlines the development plan for the `rstest-bdd` framework,
-based on the provided design proposal. It is broken down into phases to allow
-for incremental implementation, testing, and delivery of value.
+summarizes the provided design proposal and explains how work is staged into
+phases. Phasing keeps implementation incremental and testing rigorous.
 
-## Phase 1: Core Mechanics & Proof of Concept
+## Phase 1: Core mechanics and proof of concept
 
 The primary goal of this phase is to validate the core architectural decision:
 using `inventory` for link-time collection of step definitions, which are then
@@ -77,7 +77,7 @@ and run data-driven tests, making the framework genuinely useful.
 - [x] **Scenario Outline Support**
 
   - [x] Extend the `#[scenario]` macro to detect `Scenario Outline` and its
-    `Examples:` table in the parsed Gherkin AST.
+    `Examples:` table in the parsed Gherkin Abstract Syntax Tree (AST).
 
   - [x] The macro generates a single, parameterized `#[rstest]` function.
 
@@ -95,10 +95,10 @@ and run data-driven tests, making the framework genuinely useful.
   - [x] Use the `FromStr` trait to convert the extracted string values into the
     types specified in the function signature.
 
-## Phase 3: Advanced Gherkin Features & Ergonomics
+## Phase 3: advanced Gherkin features and ergonomics
 
-This phase aims for feature-parity with other mature BDD frameworks and
-improves the developer experience.
+This phase aims for feature-parity with other mature Behaviour-Driven
+Development (BDD) frameworks and improves the developer experience.
 
 - [x] **Advanced Gherkin Constructs**
 
@@ -180,8 +180,8 @@ improves the developer experience.
     identical semantics.
 
   - [x] Support an `@allow_skipped` tag and add a `fail_on_skipped`
-    configuration option so skipped scenarios only fail when the flag is set
-    and the tag is absent.
+    configuration option. With this option, skipped scenarios only fail when
+    the flag is set and the tag is absent.
 
   - [x] Add conformance tests for precedence, associativity, and scope:
     - Valid: `@a and not (@b or @c)`
@@ -195,7 +195,8 @@ improves the developer experience.
     - [x] Set `rust-version = "1.75"` in all Cargo manifests.
     - [x] Record that nightly tooling remains required for unstable features.
     - [x] Remove `async-trait` from dependencies and code imports.
-    - [x] Add a CI check that fails if `async-trait` reappears.
+    - [x] Add a Continuous Integration (CI) check that fails if `async-trait`
+      reappears.
 
   - [x] Provide a `skip!` macro that records a `Skipped` outcome and
     short-circuits remaining steps.
@@ -225,7 +226,7 @@ improves the developer experience.
 ## Phase 4: Internationalization and Localization
 
 This phase introduces full internationalization (i18n) and localization (l10n)
-support, enabling the use of non-English Gherkin and providing translated
+support, enabling the use of non-English Gherkin, and providing translated
 diagnostic messages.
 
 - [x] **Foundational Gherkin Internationalization**
@@ -277,7 +278,7 @@ diagnostic messages.
   - [x] Update `CONTRIBUTING.md` with guidelines for adding and maintaining
     translations for new diagnostic messages.
 
-## Phase 5: Ergonomics and Developer Experience
+## Phase 5: Ergonomics and developer experience
 
 This phase focuses on reducing boilerplate and improving the developer
 experience by introducing more powerful and intuitive APIs.
@@ -321,7 +322,7 @@ experience by introducing more powerful and intuitive APIs.
     macro to allow multiple placeholders from a step pattern to be parsed
     directly into the fields of a struct, simplifying step function signatures.
 
-## Phase 6: Extensions & Tooling
+## Phase 6: Extensions and tooling
 
 These tasks can be addressed after the core framework is stable and are aimed
 at improving maintainability and IDE integration.

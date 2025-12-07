@@ -1,6 +1,6 @@
-# Proposed Design for `rstest-bdd`: A BDD Framework for Rust
+# Proposed design for `rstest-bdd`: a behaviour-driven development (BDD) framework for Rust
 
-## Part 1: Vision and User-Facing Design
+## Part 1: Vision and user-facing design
 
 This part of the report details the user-facing aspects of the proposed
 `rstest-bdd` framework. It outlines the core philosophy, provides a
@@ -8,7 +8,7 @@ comprehensive usage example, and explores advanced features, focusing on
 creating an ergonomic and powerful BDD experience that is idiomatic to the Rust
 ecosystem.
 
-### 1.1 Introduction: A Synergistic Approach to BDD in Rust
+### 1.1 Introduction: A synergistic approach to BDD in Rust
 
 Behaviour-Driven Development (BDD) is a software development process that
 encourages collaboration between developers, quality assurance experts, and
@@ -27,9 +27,10 @@ developer-centric features of
 functional and acceptance tests with low-level unit tests. Both test types
 coexist within the same project, use the same fixture model for dependency
 injection, and are executed by the standard `cargo test` command. This approach
-eliminates the need for a separate test runner, reducing CI/CD configuration
-complexity and lowering the barrier to adoption for teams already invested in
-the Rust testing ecosystem.[^3]
+eliminates the need for a separate test runner, reducing continuous integration
+(CI) and continuous delivery (CD) configuration complexity and lowering the
+barrier to adoption for teams already invested in the Rust testing
+ecosystem.[^3]
 
 The design is heavily modelled on `pytest-bdd`, a successful plugin for
 Python's `pytest` framework.[^4]
@@ -41,14 +42,14 @@ ecosystem—rather than replacing it.[^1] By emulating this model,
 `rstest-bdd` will provide a familiar and robust BDD experience that feels
 native to Rust developers who appreciate the capabilities of `rstest`.
 
-### 1.2 A Complete Usage Example: The "Web Search" Scenario
+### 1.2 A complete usage example: The "Web search" scenario
 
 To illustrate the intended workflow, this section presents a complete,
 narrative example of testing a web search feature. This walkthrough mirrors the
 structure of typical `pytest-bdd` tutorials, demonstrating the journey from a
 plain-language specification to an executable test.[^1]
 
-#### 1.2.1 Step 1: The Feature File
+#### 1.2.1 Step 1: The feature file
 
 The process begins with a `.feature` file written in Gherkin. This file
 describes the desired functionality in a way that can be understood and
@@ -67,7 +68,7 @@ Feature: Web Search
     And the results contain "Rust Programming Language"
 ```
 
-#### 1.2.2 Step 2: The Step Definition File
+#### 1.2.2 Step 2: The step definition file
 
 Next, developers create a corresponding Rust test file to implement the logic
 for each step defined in the Gherkin scenario. This is where the core
@@ -89,7 +90,7 @@ for unit tests, promoting a Don't Repeat Yourself (DRY) approach.[^1]
 
 **File:** `tests/test_web_search.rs`
 
-```rust
+```rust,no_run
 use rstest::fixture;
 use rstest_bdd::{scenario, given, when, then};
 // Assume 'thirtyfour' or another WebDriver crate is used for browser automation.
@@ -149,7 +150,7 @@ async fn results_contain_text(browser: &mut WebDriver, text: String) -> WebDrive
 }
 ```
 
-#### 1.2.3 Step 3: Running the Tests
+#### 1.2.3 Step 3: Running the tests
 
 With the feature and step definition files in place, the user simply runs the
 standard Rust test command:
@@ -165,7 +166,7 @@ steps in the correct order. This seamless integration means all standard
 `cargo` and `rstest` features, such as test filtering and parallel execution,
 work out of the box.[^7]
 
-### 1.3 Advanced Usage Patterns
+### 1.3 Advanced usage patterns
 
 Beyond the basic workflow, `rstest-bdd` is designed to support the advanced
 Gherkin features necessary for comprehensive testing.
@@ -200,7 +201,7 @@ Feature: User Login
 
 **Step Definition (**`test_login.rs`**):**
 
-```rust
+```rust,no_run
 //...
 #[scenario(path = "features/login.feature", index = 0)]
 #[tokio::test]
@@ -224,7 +225,7 @@ async fn see_message(browser: &mut WebDriver, message: String) -> WebDriverResul
 }
 ```
 
-#### 1.3.2 Step Argument Parsing
+#### 1.3.2 Step argument parsing
 
 To provide an ergonomic and type-safe way of extracting parameters from step
 strings, `rstest-bdd` will support a `format!`-like syntax. This avoids the
@@ -234,7 +235,7 @@ directly analogous to the `parsers` module in `pytest-bdd`.1.
 
 **Example:**
 
-```rust
+```rust,no_run
 // Step in.feature file:
 // When 50 dollars are deposited
 
@@ -248,7 +249,7 @@ fn deposit_amount(#[from(account)] acc: &mut Account, amount: u32) {
 The framework will parse the string "50", use `u32::from_str("50")` to convert
 it, and pass the resulting `u32` value to the `deposit_amount` function.
 
-#### 1.3.3 Using `Background`, Data Tables, and Docstrings
+#### 1.3.3 Using `Background`, data tables, and Docstrings
 
 To achieve feature parity with modern BDD tools, the framework supports other
 essential Gherkin constructs.
@@ -345,13 +346,13 @@ classDiagram
   trimming, and custom parsers. The derive will set `REQUIRES_HEADER` when any
   field depends on header lookup.
   - `#[derive(DataTable)]` will target tuple structs that wrap collections. It
-    will compose parsed rows with optional `map` or `convert` hooks so steps
+    will compose parsed rows with optional `map` or `convert` hooks, so steps
     can expose domain-specific containers without manual loops.
 
   The implementation uses `convert_case` to provide familiar serde-style rename
   rules (`lowercase`, `PascalCase`, `kebab-case`, and screaming variants).
   Field attributes support header overrides (`column`), tolerant booleans
-  (`truthy`), whitespace normalisation (`trim`), optional cells (`optional` on
+  (`truthy`), whitespace normalization (`trim`), optional cells (`optional` on
   `Option<T>`), and defaults (`default` or `default = path`). Absent a custom
   parser, the derive falls back to `FromStr` with error types constrained to
   `std::error::Error`. Custom parsers are functions of the form
@@ -368,7 +369,7 @@ classDiagram
   act as regression tests for the derive validation logic, mirroring the
   user-facing compiler messages expected from the macros.
 
-  `#[derive(DataTable)]` recognises tuple structs that wrap either `Rows<T>` or
+  `#[derive(DataTable)]` recognizes tuple structs that wrap either `Rows<T>` or
   `Vec<T>`, defaulting to `Rows::try_from` and `Rows::into_vec` conversions.
   When consumers need bespoke containers, `map` hooks transform `Rows<T>`
   directly, while `try_map` surfaces fallible aggregation returning
@@ -393,7 +394,7 @@ classDiagram
 
 **Step definition (`tests/steps/create_users.rs`):**
 
-```rust
+```rust,no_run
 use rstest_bdd::datatable::{self, Rows};
 use rstest_bdd_macros::DataTableRow;
 
@@ -422,9 +423,9 @@ fn create_users(
   to be passed to a step. This will be provided as a `String` argument to the
   step function, again mirroring `pytest-bdd`.[^11]
 
-#### 1.3.4 Filtering Scenarios with Tags
+#### 1.3.4 Filtering scenarios with tags
 
-Tags provide a convenient way to organise scenarios and control which tests
+Tags provide a convenient way to organize scenarios and control which tests
 run. The `#[scenario]` macro will accept an optional `tags` argument containing
 an expression such as `"@fast and not @wip"`. Only scenarios whose tags satisfy
 this expression will expand into test functions. Filtering occurs at
@@ -442,7 +443,7 @@ Tag scope:
 
 **Example:**
 
-```rust
+```rust,no_run
 #[scenario(path = "search.feature", tags = "@fast and not @wip")]
 fn search_fast() {}
 ```
@@ -471,7 +472,7 @@ Grammar and semantics:
 Both macros delegate tag-expression parsing to a shared module so that
 `#[scenario]` and `scenarios!` share identical grammar and diagnostics.
 
-EBNF:
+Extended Backus–Naur Form (EBNF):
 
 ```ebnf
 expr      ::= or_expr
@@ -483,12 +484,12 @@ TAG       ::= "@" IDENT
 IDENT     ::= { A..Z | a..z | 0..9 | "_" | "-" }+
 ```
 
-Implementation stores the parsed expression as an AST shared by both macros so
-they emit identical diagnostics. `#[scenario]` continues to default to the
-first matching scenario but emits a compile error when a supplied `name` or
-`index` refers to a scenario that fails the tag filter. Scenario outlines prune
-unmatched example rows at expansion, ensuring the generated `rstest` only
-contains relevant cases.
+Implementation stores the parsed expression as an abstract syntax tree (AST)
+shared by both macros so they emit identical diagnostics. `#[scenario]`
+continues to default to the first matching scenario but emits a compile error
+when a supplied `name` or `index` refers to a scenario that fails the tag
+filter. Scenario outlines prune unmatched example rows at expansion, ensuring
+the generated `rstest` only contains relevant cases.
 
 Example diagnostic:
 
@@ -498,7 +499,7 @@ error: invalid tag expression at byte 7: expected tag or '(' after 'and'
 
 `scenarios!` usage:
 
-```rust
+```rust,no_run
 // Include smoke OR (critical AND not wip):
 scenarios!("tests/features/", tags = "@smoke or (@critical and not @wip)");
 
@@ -509,13 +510,13 @@ scenarios!("tests/features/", tags = "not @slow");
 scenarios!("tests/features/", tags = "@SMOKE Or Not @Wip");
 ```
 
-## Part 2: Architectural and API Specification
+## Part 2: Architectural and API specification
 
 This part transitions from the user's perspective to the technical
 implementation, detailing the procedural macro API, the core architectural
 challenges and solutions, and the end-to-end code generation process.
 
-### 2.1 Procedural Macro API Design
+### 2.1 Procedural macro API design
 
 The user-facing functionality is enabled by a suite of procedural macros. Each
 macro has a distinct role in the compile-time orchestration of the BDD tests.
@@ -564,7 +565,7 @@ macro has a distinct role in the compile-time orchestration of the BDD tests.
   either by annotating it with `#[datatable]` or by naming it `datatable`.
   Legacy consumers can continue to request a `Vec<Vec<String>>`. A future
   `datatable::Rows<T>` newtype will be supported. When implemented, the wrapper
-  will materialise the runtime `&[&[&str]]` payload into `Vec<Vec<String>>` and
+  will materialize the runtime `&[&[&str]]` payload into `Vec<Vec<String>>` and
   invoke `TryFrom<Vec<Vec<String>>>`. The planned implementation will cover
   `Rows<T>` where `T: DataTableRow`. Conversion failures will yield a
   `DataTableError`, and the generated wrapper will format the error's `Display`
@@ -614,7 +615,7 @@ sequenceDiagram
 Figure: Procedural macros compile patterns through the shared parser and cache
 successful results to avoid redundant work within a single expansion.
 
-### 2.2 The Core Architectural Challenge: Stateless Step Discovery
+### 2.2 The core architectural challenge: Stateless step discovery
 
 The most significant technical hurdle in this design is the inherent nature of
 Rust's procedural macros. Each macro invocation is executed by the compiler in
@@ -732,7 +733,7 @@ them. Declaring a scenario first would trigger validation before the step is
 registered, producing a spurious "No matching step definition" error. A UI test
 (`scenario_out_of_order`) documents this requirement.
 
-### 2.3 The `inventory` Solution: A Global Step Registry
+### 2.3 The `inventory` solution: A global step registry
 
 The `inventory` crate provides a clean and powerful abstraction over the
 link-time collection mechanism described above. It offers "typed distributed
@@ -747,7 +748,7 @@ location information for generating clear error messages.
 
 **Definition of the** `Step` **struct (within the** `rstest-bdd` **crate):**
 
-```rust
+```rust,no_run
 // A simplified representation of the step metadata.
 #[derive(Debug)]
 pub struct Step {
@@ -891,7 +892,7 @@ the type when they begin submitting steps to the registry.
 
 A small convenience macro, `step!`, wraps `inventory::submit!` and directly
 constructs a `Step`. It captures the file and line number automatically so that
-users only provide the keyword, pattern and handler when registering a step.
+users only provide the keyword, pattern, and handler when registering a step.
 
 The `#[given]`, `#[when]`, and `#[then]` macros will expand into an
 `inventory::submit!` block. This macro call constructs an instance of the
@@ -956,7 +957,7 @@ classDiagram
     Step o-- StepFn
 ```
 
-#### Registry Interaction Diagrams
+#### Registry interaction diagrams
 
 ```mermaid
 sequenceDiagram
@@ -995,7 +996,7 @@ sequenceDiagram
 
   U->>RSO: register_step(pattern, handler)
   RSO->>RSI: register_step_inner(current_crate_id(), ...)
-  RSI->>RSI: normalise_crate_id -> Box<str>
+  RSI->>RSI: normalize_crate_id -> Box<str>
   RSI->>REG: Insert step pattern under crate key
   REG-->>U: Registered
 ```
@@ -1032,7 +1033,7 @@ classDiagram
 
 Figure: Core types involved in registration and validation.
 
-### 2.4 The Macro Expansion Process: A Compile-Time to Runtime Journey
+### 2.4 The macro expansion process: A compile-time to runtime journey
 
 The interaction between the user's code, the `rstest-bdd` macros, and the final
 test execution can be broken down into a sequence of compile-time and runtime
@@ -1042,7 +1043,7 @@ events.
 
 - **Input Code:**
 
-```rust
+```rust,no_run
 
 #[given("a user exists")]
 fn given_i_am_a_user(mut user_context: UserContext) { /\*... \*/ }
@@ -1058,17 +1059,17 @@ fn given_i_am_a_user(mut user_context: UserContext) { /\*... \*/ }
 
 - **Input Code:**
 
-```rust
-fn test_my_scenario(my_fixture: MyFixture) { /\* final assertion \*/ }
+```rust,no_run
+fn test_sample_scenario(my_fixture: MyFixture) { /\* final assertion \*/ }
 ```
 
 - **Macro Action:**
 
-1. The `#[scenario]` proc-macro performs file I/O to read the contents of
+1. The `#[scenario]` proc-macro performs file reads to load the contents of
    `f.feature`.
 2. It uses a Gherkin parser crate (such as `gherkin` [^15]) to parse the feature
-   file content into an Abstract Syntax Tree (AST).
-3. It traverses the AST to find the `Scenario` with the name "My Scenario".
+   file content into an abstract syntax tree (AST).
+3. It traverses the AST to find the `Scenario` with the name "Sample Scenario".
 4. During compilation, the macro validates that each Gherkin step has a
    matching definition recorded by the step macros and emits `compile_error!`
    when one is missing. At runtime, the generated test still performs lookup
@@ -1077,7 +1078,7 @@ fn test_my_scenario(my_fixture: MyFixture) { /\* final assertion \*/ }
 5. Using the `quote!` macro [^16], it generates a completely new Rust function.
    This generated function replaces the original
 
-   `test_my_scenario` function.
+   `test_sample_scenario` function.
 6. The generated function is annotated with `#[rstest]`, and it preserves the
    original function's signature, including the `my_fixture: MyFixture`
    argument. This is critical for ensuring `rstest`'s dependency injection
@@ -1087,8 +1088,8 @@ fn test_my_scenario(my_fixture: MyFixture) { /\* final assertion \*/ }
 
    - It initializes a context or state object for the scenario.
 
-   - It iterates through the steps of "My Scenario" as defined in the Gherkin
-     AST.
+   - It iterates through the steps of "Sample Scenario" as defined in the
+     Gherkin AST.
 
    - For each Gherkin step, it iterates through the global step registry again
      (this time at runtime) by calling `inventory::iter::<Step>()`.
@@ -1105,7 +1106,7 @@ fn test_my_scenario(my_fixture: MyFixture) { /\* final assertion \*/ }
    - After the step-execution loop, it includes the user's original code from
      the body of `test_my_scenario`.
 
-### 3. Test Execution (Runtime)
+### 3. Test execution (runtime)
 
 1. The user runs `cargo test`.
 2. The `rstest` test runner discovers the generated `test_my_scenario` function.
@@ -1124,14 +1125,14 @@ compile-time world of procedural macros and the stateful, ordered execution
 required for a BDD scenario, all while remaining fully compatible with the
 `rstest` framework.
 
-## Part 3: Implementation and Strategic Analysis
+## Part 3: Implementation and strategic analysis
 
 This final part outlines a practical implementation strategy for `rstest-bdd`
 and provides a critical analysis of the proposed design, including its
 strengths, weaknesses, limitations, and a comparison to the existing `cucumber`
 crate.
 
-### 3.1 Phased Implementation Strategy
+### 3.1 Phased implementation strategy
 
 A phased approach is recommended to manage complexity and deliver value
 incrementally.
@@ -1192,14 +1193,14 @@ incrementally.
   which can automatically bind all scenarios within one or more feature files,
   reducing boilerplate for the user.
 
-  - Increase the minimum supported Rust version to 1.75 and remove the
+  - Increase the minimum supported Rust version (MSRV) to 1.75 and remove the
     `async_trait` dependency from `World` and writer traits to simplify
     implementations and match Cucumber v0.21. Set `rust-version = "1.75"` in
     all Cargo manifests, remove `async-trait` from dependencies and imports,
     and add a CI check that fails if it reappears.
 
     The project advertises Rust 1.75 as the stable baseline across every crate
-    in the workspace and standardises on the Rust 2021 edition to keep the
+    in the workspace and standardizes on the Rust 2021 edition to keep the
     edition compatible with that MSRV. The development toolchain remains pinned
     to nightly because the runtime depends on auto traits and negative impls,
     but those features do not affect the documented MSRV. Step registration
@@ -1210,9 +1211,9 @@ incrementally.
 
 - Introduce a `skip!` macro that step or hook functions can invoke to record a
   `Skipped` outcome and halt the remaining steps. The macro accepts an optional
-  message and integrates with the scenario orchestrator so the scenario is
+  message and integrates with the scenario orchestrator, so the scenario is
   marked as skipped rather than failed. The concrete implementation mirrors
-  familiar formatting macros: additional arguments invoke `format!` so callers
+  familiar formatting macros: additional arguments invoke `format!`, so callers
   may interpolate contextual state without constructing the message manually.
   Using `panic::resume_unwind` maintains the existing panic-based plumbing,
   allowing step wrappers to intercept the payload and convert it into
@@ -1220,7 +1221,7 @@ incrementally.
 
   Subsequent ergonomic work replaced the macro helper with a thread-local scope
   stack. Attribute macros still inject a guard, but `skip!` discovers the
-  innermost scope at runtime so helper functions can call it transparently.
+  innermost scope at runtime, so helper functions can call it transparently.
   When no scope is active the macro panics with
   `rstest_bdd::skip! may only be used inside a step or hook generated by rstest-bdd`,
    which surfaces misuse without breaking helper-based flows. The guard records
@@ -1236,7 +1237,7 @@ incrementally.
   (false). Scenarios tagged `@allow_skipped` never cause a failure when
   `fail_on_skipped` is enabled.
 
-  The initial implementation recognises `@allow_skipped` on the feature or
+  The initial implementation recognizes `@allow_skipped` on the feature or
   scenario itself. Example-level tags are currently ignored because the runner
   does not yet have case indices from `rstest`; once that metadata is available
   the per-example override can be reinstated without altering public APIs.
@@ -1266,7 +1267,7 @@ Subsequent phases refine these capabilities: Phase 5 will streamline the
 macro’s syntax and add compile-time diagnostics, while Phase 6 will surface
 skip details in diagnostic tooling and IDE integrations.
 
-### 3.2 Strengths and Weaknesses of the Proposed Architecture
+### 3.2 Strengths and weaknesses of the proposed architecture
 
 The proposed design has a distinct set of advantages and disadvantages rooted
 in its tight integration with the Rust compiler and `rstest`.
@@ -1302,15 +1303,16 @@ in its tight integration with the Rust compiler and `rstest`.
 #### 3.2.2 Disadvantages
 
 - **High Macro Complexity:** The implementation of the `#[scenario]` macro is
-  non-trivial. It involves compile-time file I/O, parsing, and extensive code
-  generation via `quote!`. Debugging and maintaining this macro will be a
-  significant challenge.[^17]
+  non-trivial. It involves compile-time file reads and writes, parsing, and
+  extensive code generation via `quote!`. Debugging and maintaining this macro
+  will be a significant challenge.[^17]
 
 - **Reliance on "Magic" and Portability:** The `inventory` crate's use of
   linker sections is powerful but potentially "magic." It abstracts away
   complex system-level behaviour that may be a conceptual hurdle for some users
   and has platform-specific considerations that may not be suitable for all
-  targets, such as some embedded systems or Windows/PE environments.[^14]
+  targets, such as some embedded systems or Windows/portable executable (PE)
+  environments.[^14]
 
 **Mitigation:** For niche targets, a `no-inventory` feature flag could be
 provided. This would trigger a fallback mechanism using a `build.rs` script to
@@ -1318,12 +1320,13 @@ scan for step definitions and generate a central registry file (e.g.,
 `OUT_DIR/steps.rs`), which is then included via `include!` by the `#[scenario]`
 macro.
 
-- **Compile-Time Overhead:** The `#[scenario]` macro performs file I/O and
-  parsing during compilation. For projects with many feature files, this could
-  introduce a noticeable overhead to compile times. **Mitigation:** This can be
-  significantly optimized by caching the parsed Gherkin ASTs in the `OUT_DIR`.
-  The macro would only re-parse a `.feature` file if its modification time has
-  changed, similar to how tools like `prost-build` handle `.proto` files.
+- **Compile-Time Overhead:** The `#[scenario]` macro performs file reads and
+  writes and parsing during compilation. For projects with many feature files,
+  this could introduce a noticeable overhead to compile times. **Mitigation:**
+  This can be significantly optimized by caching the parsed Gherkin ASTs in the
+  `OUT_DIR`. The macro would only re-parse a `.feature` file if its
+  modification time has changed, similar to how tools like `prost-build` handle
+  `.proto` files.
 
 - **Runtime Step Matching:** The connection between a Gherkin step and its
   implementing function is resolved at the beginning of each scenario's
@@ -1331,7 +1334,7 @@ macro.
   it carries a minor performance cost compared to a fully pre-compiled approach
   where function calls are resolved at compile time.
 
-### 3.3 Framework Limitations
+### 3.3 Framework limitations
 
 The design choices lead to several inherent limitations that users should be
 aware of.
@@ -1341,8 +1344,8 @@ aware of.
   files dynamically at runtime.
 
 - **Static Step Definitions:** All step definitions must be known at compile
-  time so they can be registered. It is not possible to dynamically generate or
-  register new step definitions at runtime.
+  time, so they can be registered. It is not possible to dynamically generate
+  or register new step definitions at runtime.
 
 - **IDE Support Challenges:** While test execution via `cargo test` will
   integrate perfectly with IDEs, more advanced features like "Go to Definition"
@@ -1354,7 +1357,7 @@ aware of.
   extension that generates virtual documents to bridge the gap between
   `.feature` files and Rust code.
 
-### 3.4 Comparative Analysis: `rstest-bdd` vs. `cucumber`
+### 3.4 Comparative analysis: `rstest-bdd` vs. `cucumber`
 
 The primary existing BDD framework in the Rust ecosystem is `cucumber`. A
 comparison highlights the fundamental philosophical differences between the two
@@ -1373,14 +1376,13 @@ Rust testing ecosystem*. It adapts BDD principles to be idiomatic within the
 existing paradigms of `cargo test` and `rstest`.[^18] This leads to a different
 developer experience. A
 
-`cucumber-rs` user asks, "How do I manage state in my `World` struct?" A
-`rstest-bdd` user asks, "Which `rstest` fixture should I inject to provide this
-state?" This makes `rstest-bdd` a potentially more natural fit for teams
-already heavily invested in `rstest`, as they can leverage their existing
-knowledge and fixtures directly. `cucumber-rs` is better suited for teams
-seeking strict adherence to the global Cucumber standard or those who prefer a
-hard separation between their BDD acceptance tests and their other
-unit/integration tests.
+`cucumber-rs` users often ask how to manage state in a `World` struct, whereas
+`rstest-bdd` users focus on which `rstest` fixture should provide that state.
+This makes `rstest-bdd` a potentially more natural fit for teams already
+heavily invested in `rstest`, as they can leverage their existing knowledge and
+fixtures directly. `cucumber-rs` is better suited for teams seeking strict
+adherence to the global Cucumber standard or those who prefer a hard separation
+between their BDD acceptance tests and their other unit/integration tests.
 
 The following table summarizes the key differences:
 
@@ -1395,7 +1397,7 @@ The following table summarizes the key differences:
 | Ergonomics       | pytest-bdd-like; explicit #[scenario] binding links test code to features [^6]                                               | cucumber-jvm/js-like; feature-driven, with a central test runner                  |
 | Core Philosophy  | BDD as an extension of the existing rstest framework                                                                         | A native Rust implementation of the Cucumber framework standard                   |
 
-### 3.5 Potential Extensions
+### 3.5 Potential extensions
 
 Based on the successful patterns of `pytest-bdd` and the needs of a growing
 Rust testing ecosystem, several extensions could be considered after the core
@@ -1539,7 +1541,7 @@ a compelling alternative for a different audience: developers who prioritize
 deep integration with Rust's native testing tools and want to unify their BDD
 and unit testing workflows under the powerful `rstest` umbrella.
 
-### 3.6 Workspace Layout Decisions
+### 3.6 Workspace layout decisions
 
 The project uses a Cargo workspace to keep the runtime and procedural macro
 crates separate. The workspace contains two members:
@@ -1550,7 +1552,7 @@ crates separate. The workspace contains two members:
 This layout allows each crate to evolve independently while sharing common
 configuration and lints at the workspace level.
 
-### 3.7 Initial Scenario Macro Implementation
+### 3.7 Initial scenario macro implementation
 
 The first implementation of the `#[scenario]` macro kept the scope narrow to
 validate the overall approach. It accepted only a `path` argument pointing to a
@@ -1570,7 +1572,7 @@ orchestration works.
 
 Binding scenarios by zero-based index is brittle in active feature files,
 because inserting a new scenario silently retargets existing tests. The macro
-therefore accepts an alternative `name` argument so call sites can reference a
+therefore accepts an alternative `name` argument, so call sites can reference a
 scenario by its title. The string literal is matched case-sensitively against
 every `Scenario` and `Scenario Outline` heading in the parsed feature. Phase 3
 tightens the supporting diagnostics so title-based bindings stay deterministic.
@@ -1579,7 +1581,7 @@ tightens the supporting diagnostics so title-based bindings stay deterministic.
   When both are present the macro emits paired spans explaining that callers
   must choose a single selector.
 - When a unique title matches, the macro resolves the corresponding index and
-  reuses the existing code generation path so downstream behaviour remains
+  reuses the existing code generation path, so downstream behaviour remains
   unchanged.
 - When no title matches, the macro emits a `compile_error!` that quotes the
   requested title and lists all available scenario headings, or clarifies that
@@ -1592,10 +1594,10 @@ tightens the supporting diagnostics so title-based bindings stay deterministic.
 
 This implementation relies on a single pass over the parsed feature to collect
 matching scenarios. Unit and trybuild tests cover the happy path, missing
-title, and ambiguous cases so the diagnostics remain stable as the macro
+title, and ambiguous cases, so the diagnostics remain stable as the macro
 evolves.
 
-### 3.8 Fixture Integration Implementation
+### 3.8 Fixture integration implementation
 
 The second phase extends the macro system to support fixtures. Step definition
 macros parse the pattern's `{name}` placeholders up front and inspect the
@@ -1707,7 +1709,7 @@ steps appear in different modules. The macro also emits a compile-time array
 length assertion to ensure the generated fixture list matches the wrapper
 signature. Any mismatch is reported during compilation rather than at runtime.
 
-### 3.9 Step-Argument Parsing Implementation
+### 3.9 Step-argument parsing implementation
 
 The third phase introduces typed placeholders to step patterns. The runtime
 library exposes an `extract_placeholders` helper that converts a pattern with
@@ -1722,7 +1724,7 @@ PlaceholderError: API shape and examples
   Programmes should branch on the enum variant rather than parsing strings.
 - Shape: a Rust enum with the following variants and display formats:
 
-```rust
+```rust,no_run
 enum PlaceholderError {
   // Display: "pattern mismatch"
   PatternMismatch,
@@ -1794,7 +1796,7 @@ nested brace pairs, and treats other backslash escapes literally, preventing
 greedy captures while still requiring well‑formed placeholders.
 
 When available, if a table parameter implements `TryFrom<Vec<Vec<String>>>`,
-the wrapper will run the conversion after materialising the nested vectors. The
+the wrapper will run the conversion after materializing the nested vectors. The
 `datatable::Rows<T>` path will map any `DataTableError` into `StepError`,
 preserving formatted row and column context.
 
@@ -1825,7 +1827,7 @@ sequenceDiagram
     StepWrapper-->>ScenarioRunner: returns
 ```
 
-### 3.10 Implicit Fixture Injection Implementation
+### 3.10 Implicit fixture injection implementation
 
 To streamline step definitions, the macro system infers fixtures by analysing
 the step pattern during expansion. Placeholder names are extracted from the
@@ -1839,10 +1841,10 @@ compile, surfacing the missing dependency before tests run. Conversely, if the
 pattern declares placeholders without matching parameters, macro expansion
 aborts with a clear diagnostic listing the missing arguments.
 
-### 3.11 Runtime Module Layout (for Contributors)
+### 3.11 Runtime module layout (for contributors)
 
-To keep responsibilities cohesive the runtime is split into focused modules.
-Public APIs are re‑exported from `lib.rs` so consumers continue to import from
+To keep responsibilities cohesive, the runtime is split into focused modules.
+Public APIs are re‑exported from `lib.rs`, so consumers continue to import from
 `rstest_bdd::*` as before.
 
 - `types.rs` — Core types and errors:
@@ -1895,7 +1897,7 @@ All modules use en‑GB spelling and include `//!` module‑level documentation.
   offers focused helpers (`set`, `replace`, `take`, `get_or_insert_with`,
   `with_ref`, `with_mut`) plus predicates to inspect whether a slot currently
   holds a value.
-- Introduced the `ScenarioState` trait so state containers can declare a
+- Introduced the `ScenarioState` trait, so state containers can declare a
   canonical reset operation. The trait requires `Default`, aligning with the
   fixture story in `rstest`.
 - Implemented a `#[derive(ScenarioState)]` macro in `rstest-bdd-macros`. The
@@ -1904,13 +1906,13 @@ All modules use en‑GB spelling and include `//!` module‑level documentation.
   exposing a deterministic cleanup hook for scenarios that need to reuse the
   state within the same test body.
 
-  **Warning:** The derive *always* synthesises a `Default` implementation that
-  initialises each slot as empty. Adding a manual `Default` derive or `impl`
+  **Warning:** The derive *always* synthesizes a `Default` implementation that
+  initializes each slot as empty. Adding a manual `Default` derive or `impl`
   alongside the macro triggers a duplicate-implementation error, so callers
   must not do so unless they first disable the generated impl. A future
   `#[scenario_state(no_default)]` flag (or equivalent) will opt out of the
-  auto-generated `Default` so bespoke initialisation logic can be supplied when
-  required.
+  auto-generated `Default`, so bespoke initialization logic can be supplied
+  when required.
 - Rejected a single global “world” object to keep the API congruent with
   `rstest` fixtures and avoid obscuring data flow. `Slot<T>` composes naturally
   with existing fixtures and keeps ownership explicit.
@@ -1929,7 +1931,7 @@ These macros keep test code succinct while still surfacing detailed diagnostics.
 
 ### Skipped outcome assertions (2025-11-15)
 
-- Added `assert_step_skipped!(expr, message = ..?)` so unit tests can unwrap a
+- Added `assert_step_skipped!(expr, message = ..?)`, so unit tests can unwrap a
   `StepExecution::Skipped` outcome without hand-written `match` expressions. An
   optional `message_absent = true` guard asserts that no skip reason was
   provided, whilst the string forms accept any type implementing `Into<String>`
@@ -1937,15 +1939,15 @@ These macros keep test code succinct while still surfacing detailed diagnostics.
 - Added
   `assert_scenario_skipped!(status, message/allow_skipped/forced_failure = ..)`
   to assert that `ScenarioStatus` or `&ScenarioStatus` values represent skips.
-  The macro clones and returns the `SkippedScenario` payload so tests may make
+  The macro clones and returns the `SkippedScenario` payload, so tests may make
   stronger assertions after the helper validates message and flag invariants.
-- Both macros share diagnostic helpers that emit localised error messages for
+- Both macros share diagnostic helpers that emit localized error messages for
   missing messages or mismatched flags, ensuring failure output mirrors the
   `assert_step_ok!` ergonomics.
 
-## Part 4: Internationalization and Localization Roadmap
+## Part 4: Internationalization and localization roadmap
 
-### 4.1 Phase 1: Foundational Gherkin Internationalization (target v0.4)
+### 4.1 Phase 1: foundational Gherkin internationalization (target v0.4)
 
 - **Language detection:** Update the macro parser to honour the optional
   `# language: <lang>` declaration in feature files. The parser creates a
@@ -1967,21 +1969,22 @@ These macros keep test code succinct while still surfacing detailed diagnostics.
 - Reused a shared `RefCell<i32>` accumulator fixture so Given/And/When steps
   manipulate the same state without introducing asynchronous complexity.
 - Asserted both positive and negative outcomes to verify that conjunction
-  keywords normalise onto the preceding semantic keyword and continue to
+  keywords normalize onto the preceding semantic keyword and continue to
   dispatch correctly.
 
 #### Japanese household ledger example crate (2025-10-11)
 
 - Created the `examples/japanese-ledger` crate to document an end-to-end BDD
   workflow in Japanese, covering feature files, step definitions, and fixtures.
-- Modelled the domain with a `HouseholdLedger` wrapper that uses `Cell<i32>`
+- Modelled the domain with a `HouseholdLedger` wrapper that uses `Cell<i32>`,
   so steps can borrow the ledger immutably, keeping the example idiomatic and
   avoiding mutable references in feature modules.
 - Demonstrated language-specific keywords and Unicode step patterns in
   `tests/features/household_ledger.feature`, ensuring the example doubles as a
-  regression test for non-ASCII step text.
+  regression test for non-American Standard Code for Information Interchange
+  (ASCII) step text.
 
-### 4.2 Phase 2: Localization of Library Messages with Fluent (target v0.5)
+### 4.2 Phase 2: Localization of library messages with Fluent (target v0.5)
 
 - **Dependency integration:** Add `i18n-embed`, `rust-embed`, and `fluent` as
   dependencies to supply localization infrastructure.
@@ -2000,7 +2003,7 @@ These macros keep test code succinct while still surfacing detailed diagnostics.
   `rstest-bdd-i18n` crate to host common assets.
 - **Resource embedding and loading:** Embed the `i18n` directory using
   `rust-embed` and expose it through a `Localizations` struct implementing
-  `I18nAssets` so the Fluent loader can discover translations. Missing keys or
+  `I18nAssets`, so the Fluent loader can discover translations. Missing keys or
   unsupported locales fall back to English.
 - **Refactor diagnostic messages:** Keep proc‑macro diagnostics stable and in
   English for deterministic builds. Localize user‑facing runtime messages in
@@ -2012,14 +2015,14 @@ These macros keep test code succinct while still surfacing detailed diagnostics.
 - Added an `i18n.toml` describing the Fluent domain and bundled the
   `i18n/<locale>/rstest-bdd.ftl` catalogue via `rust-embed`. The derived
   `Localizations` struct implements `I18nAssets`, allowing applications to load
-  our messages into their own `FluentLanguageLoader` or reuse the crate’s
+  the crate’s messages into their own `FluentLanguageLoader` or reuse the
   built-in loader.
 - Exposed `select_localizations` and `current_languages` helpers around the
-  shared loader so applications can request locales at runtime whilst retaining
-  the caller-supplied preference order. The loader initializes with English and
-  falls back to it when a requested language is unavailable.
-- Added a thread-local `ScopedLocalization` guard so unit and behaviour tests
-  can swap locales without serializing the entire test suite. When active the
+  shared loader, so applications can request locales at runtime whilst
+  retaining the caller-supplied preference order. The loader initializes with
+  English and falls back to it when a requested language is unavailable.
+- Added a thread-local `ScopedLocalization` guard, so unit and behaviour tests
+  can swap locales without serializing the entire test suite. When active, the
   guard shadows the global loader, ensuring concurrent tests remain isolated.
 - Introduced helper macros for mapping `StepError` variants to Fluent messages
   and for emitting localized panic strings, eliminating duplicated argument
@@ -2038,7 +2041,7 @@ These macros keep test code succinct while still surfacing detailed diagnostics.
 - The wrapper honours a `#[step_args]` marker on exactly one parameter.
   The attribute is required because procedural macros cannot discover whether
   an arbitrary type derives `StepArgs` without extra user input.[^12][^13] The
-  marker is stripped from the signature before compilation so the final code
+  marker is stripped from the signature before compilation, so the final code
   does not depend on unstable custom attributes.
 - All placeholders defined in the step pattern are parsed into the derived
   struct. A const assertion binds `<T as StepArgs>::FIELD_COUNT` to the number
@@ -2050,7 +2053,7 @@ These macros keep test code succinct while still surfacing detailed diagnostics.
   Parse failures surface as `StepArgsError` values that bubble up as
   `StepError::ExecutionError` at runtime.
 
-### 4.3 Phase 3: Documentation and User Guidance (target v0.6)
+### 4.3 Phase 3: Documentation and user guidance (target v0.6)
 
 - **Update user documentation:** Extend `README.md` and `docs/users-guide.md`
   with guidance on writing non‑English feature files and selecting locales for
@@ -2085,8 +2088,8 @@ These macros keep test code succinct while still surfacing detailed diagnostics.
     <https://qaautomation.expert/2024/04/11/scenario-outline-in-pytest-bdd/>.
     See also chapter 5 of Behaviour-Driven Python with pytest-bdd,
     <https://testautomationu.applitools.com/behaviour-driven-python-with-pytest-bdd/chapter5.html>.
-[^9]: How can I create parameterised tests in Rust? - Stack Overflow, accessed
-    on 20 July 2025,
+[^9]: How can developers create parameterised tests in Rust? - Stack Overflow,
+    accessed on 20 July 2025,
     <https://stackoverflow.com/questions/34662713/how-can-i-create-parameterised-tests-in-rust>.
 [^10]: pytest-bdd - Read the Docs, accessed on 20 July 2025,
     <https://readthedocs.org/projects/pytest-bdd/downloads/pdf/latest/>.

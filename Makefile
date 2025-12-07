@@ -1,4 +1,6 @@
-.PHONY: help all clean test build release lint fmt check-fmt markdownlint nixie publish-check forbid-async-trait
+VALE ?= vale
+
+.PHONY: help all clean test build release lint fmt check-fmt markdownlint nixie publish-check forbid-async-trait vale
 
 SHELL := bash
 APP ?= cargo-bdd
@@ -8,6 +10,7 @@ RUST_FLAGS ?= -D warnings
 CARGO_FLAGS ?= --workspace --all-targets --all-features 
 CLIPPY_FLAGS ?= $(CARGO_FLAGS) -- $(RUST_FLAGS)
 MDLINT ?= markdownlint
+ACRONYM_SCRIPT ?= scripts/update_acronym_allowlist.py
 UV ?= uv
 
 build: target/debug/$(APP) ## Build debug binary
@@ -62,3 +65,8 @@ publish-check: ## Package crates in release order to validate publish readiness
 help: ## Show available targets
 	@grep -E '^[a-zA-Z_-]+:.*?##' $(MAKEFILE_LIST) | \
 	awk 'BEGIN {FS=":"; printf "Available targets:\n"} {printf "  %-20s %s\n", $$1, $$2}'
+
+vale: ## Check prose
+	$(VALE) sync
+	uv run $(ACRONYM_SCRIPT)
+	$(VALE) --no-global --output line .

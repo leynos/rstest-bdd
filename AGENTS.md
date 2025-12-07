@@ -252,8 +252,7 @@ The following tooling is available in this environment:
 - `strace` – Traces system calls and signals made by a process; useful for
   debugging runtime characteristics and syscalls.
 - `gdb` – The Gnu's Not Unix (GNU) Project debugger, for inspecting and
-  controlling
-  programs as they execute (or post-mortem via core dumps).
+  controlling programs as they execute (or post-mortem via core dumps).
 - `ripgrep` – Fast, recursive text search tool (`grep` alternative) that
   respects `.gitignore` files.
 - `ltrace` – Traces calls to dynamic library functions made by a process.
