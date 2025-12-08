@@ -2,8 +2,8 @@
 
 *Where Rustaceans come for their gourd‑related puns.*
 
-> **TL;DR**: Behaviour‑Driven Development, idiomatic to Rust. Keep your unit
-> tests and your acceptance tests on the same vine, run everything with
+> **TL;DR**: Behaviour‑Driven Development (BDD), idiomatic to Rust. Keep your
+> unit tests and your acceptance tests on the same vine, run everything with
 > `cargo test`, and reuse your `rstest` fixtures.
 
 ______________________________________________________________________
@@ -33,7 +33,7 @@ builds on the excellent `rstest` fixture and parametrisation model:
 
   Migration (since 0.1.0-alpha2):
 
-  ```rust
+  ```rust,no_run
   // Before
   #[scenario(index = 0)]
   // After
@@ -53,7 +53,7 @@ Add the crates to your **dev‑dependencies**:
 # Cargo.toml
 [dev-dependencies]
 rstest = "0.26.1"
-rstest-bdd = "0.1.0"
+rstest-bdd = "0.2.0"
 ```
 
 Feature flags:
@@ -75,7 +75,7 @@ crate. Enable them in your `Cargo.toml` with:
 
 ```toml
 [dependencies]
-rstest-bdd-macros = { version = "0.1.0", features = ["compile-time-validation"] }
+rstest-bdd-macros = { version = "0.2.0", features = ["compile-time-validation"] }
 ```
 
 Or via CLI:
@@ -87,7 +87,7 @@ cargo test --features "rstest-bdd-macros/strict-compile-time-validation"
 
 ______________________________________________________________________
 
-## Quick start (end‑to‑end “Web Search”)
+## Quick start (end‑to‑end “Web search”)
 
 **Feature file**: `tests/features/web_search.feature`
 
@@ -105,7 +105,7 @@ Feature: Web Search
 
 **Step definitions**: `tests/test_web_search.rs`
 
-```rust
+```rust,no_run
 use rstest::fixture;
 use rstest_bdd::{scenario, given, when, then};
 // Browser automation example — pick your favourite WebDriver crate.
@@ -170,7 +170,7 @@ Feature files can opt into another language by adding `# language: <code>` to
 the first line. The Gherkin parser loads the appropriate keyword catalogue so
 that teams can keep authoring steps in their preferred language. The
 `examples/japanese-ledger` crate shows the full workflow in Japanese, including
-Unicode step patterns and a household ledger domain. Run it with
+Unicode step patterns, and a household ledger domain. Run it with
 `cargo test -p japanese-ledger` to see two Japanese scenarios execute end to
 end.
 
@@ -180,7 +180,7 @@ ______________________________________________________________________
 
 Decorate plain Rust functions:
 
-```rust
+```rust,no_run
 use rstest_bdd::{given, when, then};
 
 #[given("an empty basket")]
@@ -213,62 +213,7 @@ Implicit fixtures such as `basket` must already be in scope in the test module;
 
 ______________________________________________________________________
 
-## Mutable world fixtures
-
-Scenarios own their fixtures, so `#[scenario]` binds value fixtures mutably and
-step functions can request `&mut Fixture` parameters. This keeps test worlds
-plain and borrow‑checked instead of wrapped in `Cell` or `RefCell`.
-
-### Before — interior mutability wrapper
-
-```rust
-#[derive(Default)]
-struct PredicateWorld {
-    limit: std::cell::Cell<usize>,
-    branches: std::cell::Cell<usize>,
-}
-
-#[given("the branch limit is {limit}")]
-fn given_limit(world: &PredicateWorld, limit: usize) {
-    world.limit.set(limit);
-}
-```
-
-### After — direct mutable access
-
-```rust
-#[derive(Default)]
-struct PredicateWorld {
-    limit: usize,
-    branches: usize,
-}
-
-#[given("the branch limit is {limit}")]
-fn given_limit(world: &mut PredicateWorld, limit: usize) {
-    world.limit = limit;
-}
-
-#[scenario(
-    path = "tests/features/mutable_world.feature",
-    name = "Steps mutate shared state"
-)]
-fn predicate_branches(world: PredicateWorld) {
-    assert_eq!(world.branches, 0);
-}
-```
-
-The runner stores owned fixtures using `StepContext::insert_owned`, so mutable
-borrows stay confined to each scenario and are checked at compile time. See
-`crates/rstest-bdd/tests/mutable_world_macro.rs` for a full macro‑driven
-example and `crates/rstest-bdd/tests/mutable_fixture.rs` for the underlying
-context‑level regression test. A rustc internal compiler error (ICE) affecting
-some nightly compilers is tracked in
-`docs/known-issues.md#rustc-ice-with-mutable-world-macro`; enable the macro
-test once the upstream fix lands.
-
-______________________________________________________________________
-
-## Scenario Outline ≈ parametrised tests
+## Scenario outline ≈ parametrised tests
 
 Write once, test many:
 
@@ -289,7 +234,7 @@ Scenario Outline: Login with different credentials
 
 **Test**:
 
-```rust
+```rust,no_run
 #[scenario(path = "tests/features/login.feature", name = "Login with different credentials")]
 #[tokio::test]
 async fn test_login_scenarios(#[future] browser: WebDriver) {}
@@ -324,7 +269,7 @@ ______________________________________________________________________
 
 - **Docstrings** arrive as a `String`.
 
-```rust
+```rust,no_run
 #[given("the following users exist:")]
 fn create_users(
     db: &mut DbConnection,
@@ -361,7 +306,7 @@ Runtime diagnostics ship as Fluent translations bundled with the crate. English
 messages are always available; call `select_localizations` to request another
 locale before running scenarios:
 
-```rust
+```rust,no_run
 use rstest_bdd::select_localizations;
 use unic_langid::langid;
 
@@ -405,7 +350,8 @@ ______________________________________________________________________
 
 - **Fail fast**: resolve missing steps at compile time.
 
-- **Zero new runners**: keep CI/CD and IDE behaviour unchanged.
+- **Zero new runners**: keep Continuous Integration (CI) / Continuous Delivery
+  (CD) and IDE behaviour unchanged.
 
 ______________________________________________________________________
 
@@ -485,7 +431,7 @@ Ensure a supported runner is available (listed in preferred order):
 - pnpm: `pnpm dlx @mermaid-js/mermaid-cli`
 - Node.js: `npx --yes @mermaid-js/mermaid-cli`
 
-If none is installed, install one and re-run `make nixie`.
+If none is installed, install one, and re-run `make nixie`.
 
 ______________________________________________________________________
 
@@ -519,10 +465,10 @@ ______________________________________________________________________
 ## Licence
 
 ISC Licence — because that’s how we roll. You’re free to use, copy, modify, and
-distribute this software for any purpose, with or without fee, provided that
-the copyright notice and this permission notice are included in all copies. The
-software is provided “as is”, without warranty of any kind. See `LICENSE` for
-the full text.
+distribute this software for any purpose, with or without fee, and provided
+that the copyright notice and this permission notice are included in all
+copies. The software is provided “as is”, without warranty of any kind. See
+`LICENSE` for the full text.
 
 ______________________________________________________________________
 
