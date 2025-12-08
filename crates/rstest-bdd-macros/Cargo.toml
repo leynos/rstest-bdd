@@ -45,7 +45,6 @@ newt-hype.workspace = true
 rstest.workspace = true
 serial_test.workspace = true
 tempfile.workspace = true
-rstest-bdd.workspace = true
 
 [package.metadata.docs.rs]
 all-features = true

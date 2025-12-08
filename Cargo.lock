@@ -1209,7 +1209,6 @@ dependencies = [
  "quote",
  "regex",
  "rstest",
- "rstest-bdd",
  "rstest-bdd-patterns",
  "serial_test",
  "syn 2.0.106",
