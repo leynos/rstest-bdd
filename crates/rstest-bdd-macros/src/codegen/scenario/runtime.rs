@@ -24,6 +24,22 @@ pub(crate) struct TestTokensConfig<'a> {
     pub(crate) allow_skipped: bool,
 }
 
+struct ScenarioLiterals {
+    allow_literal: syn::LitBool,
+    feature_literal: syn::LitStr,
+    scenario_literal: syn::LitStr,
+    scenario_line_literal: syn::LitInt,
+    tag_literals: Vec<syn::LitStr>,
+}
+
+struct CodeComponents {
+    step_executor: TokenStream2,
+    skip_decoder: TokenStream2,
+    scenario_guard: TokenStream2,
+    step_executor_loop: TokenStream2,
+    skip_handler: TokenStream2,
+}
+
 pub(crate) fn execute_single_step(
     feature_path: &FeaturePath,
     scenario_name: &ScenarioName,
@@ -243,6 +259,60 @@ fn generate_skip_handler() -> TokenStream2 {
     }
 }
 
+fn create_scenario_literals(
+    feature_path: &FeaturePath,
+    scenario_name: &ScenarioName,
+    scenario_line: u32,
+    tags: &[String],
+    allow_skipped: bool,
+) -> ScenarioLiterals {
+    let allow_literal = syn::LitBool::new(allow_skipped, proc_macro2::Span::call_site());
+    let feature_literal = syn::LitStr::new(feature_path.as_str(), proc_macro2::Span::call_site());
+    let scenario_literal = syn::LitStr::new(scenario_name.as_str(), proc_macro2::Span::call_site());
+    let scenario_line_literal =
+        syn::LitInt::new(&scenario_line.to_string(), proc_macro2::Span::call_site());
+    let tag_literals = tags
+        .iter()
+        .map(|tag| syn::LitStr::new(tag, proc_macro2::Span::call_site()))
+        .collect();
+
+    ScenarioLiterals {
+        allow_literal,
+        feature_literal,
+        scenario_literal,
+        scenario_line_literal,
+        tag_literals,
+    }
+}
+
+fn generate_code_components(
+    processed_steps: &ProcessedSteps,
+    feature_path: &FeaturePath,
+    scenario_name: &ScenarioName,
+) -> CodeComponents {
+    let ProcessedSteps {
+        keyword_tokens,
+        values,
+        docstrings,
+        tables,
+    } = processed_steps;
+
+    let step_executor = execute_single_step(feature_path, scenario_name);
+    let skip_decoder = generate_skip_decoder();
+    let scenario_guard = generate_scenario_guard();
+    let step_executor_loop =
+        generate_step_executor_loop(keyword_tokens, values, docstrings, tables);
+    let skip_handler = generate_skip_handler();
+
+    CodeComponents {
+        step_executor,
+        skip_decoder,
+        scenario_guard,
+        step_executor_loop,
+        skip_handler,
+    }
+}
+
 pub(crate) fn generate_test_tokens(
     config: TestTokensConfig<'_>,
     ctx_prelude: impl Iterator<Item = TokenStream2>,
@@ -250,13 +320,7 @@ pub(crate) fn generate_test_tokens(
     ctx_postlude: impl Iterator<Item = TokenStream2>,
 ) -> TokenStream2 {
     let TestTokensConfig {
-        processed_steps:
-            ProcessedSteps {
-                keyword_tokens,
-                values,
-                docstrings,
-                tables,
-            },
+        processed_steps,
         feature_path,
         scenario_name,
         scenario_line,
@@ -268,22 +332,29 @@ pub(crate) fn generate_test_tokens(
     let ctx_inserts: Vec<_> = ctx_inserts.collect();
     let ctx_postlude: Vec<_> = ctx_postlude.collect();
 
+    let ScenarioLiterals {
+        allow_literal,
+        feature_literal,
+        scenario_literal,
+        scenario_line_literal,
+        tag_literals,
+    } = create_scenario_literals(
+        feature_path,
+        scenario_name,
+        scenario_line,
+        tags,
+        allow_skipped,
+    );
+
+    let CodeComponents {
+        step_executor,
+        skip_decoder,
+        scenario_guard,
+        step_executor_loop,
+        skip_handler,
+    } = generate_code_components(&processed_steps, feature_path, scenario_name);
+
     let path = crate::codegen::rstest_bdd_path();
-    let allow_literal = syn::LitBool::new(allow_skipped, proc_macro2::Span::call_site());
-    let feature_literal = syn::LitStr::new(feature_path.as_str(), proc_macro2::Span::call_site());
-    let scenario_literal = syn::LitStr::new(scenario_name.as_str(), proc_macro2::Span::call_site());
-    let scenario_line_literal =
-        syn::LitInt::new(&scenario_line.to_string(), proc_macro2::Span::call_site());
-    let tag_literals: Vec<_> = tags
-        .iter()
-        .map(|tag| syn::LitStr::new(tag, proc_macro2::Span::call_site()))
-        .collect();
-    let step_executor = execute_single_step(feature_path, scenario_name);
-    let skip_decoder = generate_skip_decoder();
-    let scenario_guard = generate_scenario_guard();
-    let step_executor_loop =
-        generate_step_executor_loop(&keyword_tokens, &values, &docstrings, &tables);
-    let skip_handler = generate_skip_handler();
     quote! {
         const FEATURE_PATH: &str = #feature_literal;
         const SCENARIO_NAME: &str = #scenario_literal;

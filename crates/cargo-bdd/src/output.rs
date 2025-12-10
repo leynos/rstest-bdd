@@ -70,35 +70,51 @@ fn write_scenario(
     scenario: &Scenario,
     options: ScenarioDisplayOptions,
 ) -> Result<()> {
-    let location = if options.include_line && scenario.line != 0 {
-        format!("{}:{}", scenario.feature_path, scenario.line)
-    } else {
-        scenario.feature_path.clone()
-    };
+    let location = format_scenario_location(scenario, options.include_line);
     let mut line = format!("skipped {location} :: {}", scenario.name);
-    if scenario.forced_failure {
-        line.push_str(" [forced failure]");
-    }
-    if !scenario.allow_skipped && !scenario.forced_failure {
-        line.push_str(" [skip disallowed]");
-    }
-    if options.include_tags && !scenario.tags.is_empty() {
-        line.push_str(" [tags: ");
-        line.push_str(&scenario.tags.join(", "));
-        line.push(']');
-    }
-    if options.include_reason {
-        if let Some(message) = &scenario.message {
-            line.push_str(" - ");
-            line.push_str(message);
-        }
-    }
+    append_scenario_annotations(&mut line, scenario);
+    append_scenario_tags(&mut line, scenario, options.include_tags);
+    append_scenario_reason(&mut line, scenario, options.include_reason);
     writeln!(writer, "{line}").wrap_err_with(|| {
         format!(
             "failed to write scenario status for {} :: {}",
             scenario.feature_path, scenario.name
         )
     })
+}
+
+fn format_scenario_location(scenario: &Scenario, include_line: bool) -> String {
+    if include_line && scenario.line != 0 {
+        format!("{}:{}", scenario.feature_path, scenario.line)
+    } else {
+        scenario.feature_path.clone()
+    }
+}
+
+fn append_scenario_annotations(line: &mut String, scenario: &Scenario) {
+    if scenario.forced_failure {
+        line.push_str(" [forced failure]");
+    }
+    if !scenario.allow_skipped && !scenario.forced_failure {
+        line.push_str(" [skip disallowed]");
+    }
+}
+
+fn append_scenario_tags(line: &mut String, scenario: &Scenario, include_tags: bool) {
+    if include_tags && !scenario.tags.is_empty() {
+        line.push_str(" [tags: ");
+        line.push_str(&scenario.tags.join(", "));
+        line.push(']');
+    }
+}
+
+fn append_scenario_reason(line: &mut String, scenario: &Scenario, include_reason: bool) {
+    if include_reason {
+        if let Some(message) = &scenario.message {
+            line.push_str(" - ");
+            line.push_str(message);
+        }
+    }
 }
 
 pub(crate) fn write_bypassed_steps(writer: &mut dyn Write, steps: &[BypassedStep]) -> Result<()> {
