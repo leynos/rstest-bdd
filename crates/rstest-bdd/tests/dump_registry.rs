@@ -2,7 +2,7 @@
 //! Unit tests for registry dumping.
 
 use rstest_bdd::{
-    StepContext, StepExecution, StepKeyword, dump_registry, find_step,
+    StepContext, StepExecution, StepKeyword, dump_registry, find_step, record_bypassed_steps,
     reporting::{self, ScenarioRecord, ScenarioStatus, SkippedScenario},
     step,
 };
@@ -73,13 +73,26 @@ fn reports_usage_flags() {
     reporting::record(ScenarioRecord::new(
         "tests/features/dump.feature",
         "skipped entry",
+        3,
+        vec!["@allow_skipped".into()],
         ScenarioStatus::Skipped(SkippedScenario::new(Some("reason".into()), true, false)),
     ));
     reporting::record(ScenarioRecord::new(
         "tests/features/dump.feature",
         "passing entry",
+        4,
+        Vec::new(),
         ScenarioStatus::Passed,
     ));
+
+    record_bypassed_steps(
+        "tests/features/dump.feature",
+        "skipped entry",
+        3,
+        vec!["@allow_skipped".into()],
+        Some("reason"),
+        [(StepKeyword::Given, "dump unused")],
+    );
 
     execute_and_validate_step(StepKeyword::Given, "dump used");
 
@@ -101,6 +114,9 @@ fn reports_usage_flags() {
             .any(|s| s["pattern"] == "dump unused" && s["used"].as_bool() == Some(false)),
         "expected 'dump unused' to be marked unused"
     );
+    assert!(steps
+        .iter()
+        .any(|s| s["pattern"] == "dump unused" && s["bypassed"].as_bool() == Some(true)));
 
     let scenarios = parsed
         .get("scenarios")
@@ -109,5 +125,17 @@ fn reports_usage_flags() {
     assert!(scenarios.iter().all(|entry| entry.get("status").is_some()));
     validate_skipped_scenario(scenarios);
     validate_passed_scenario(scenarios);
+
+    let bypassed_steps = parsed
+        .get("bypassed_steps")
+        .and_then(Value::as_array)
+        .unwrap_or_else(|| panic!("bypassed_steps array"));
+    assert!(bypassed_steps.iter().any(|entry| {
+        entry.get("pattern") == Some(&Value::String("dump unused".into()))
+            && entry
+                .get("reason")
+                .and_then(Value::as_str)
+                .is_some_and(|msg| msg.contains("reason"))
+    }));
     let _ = reporting::drain();
 }

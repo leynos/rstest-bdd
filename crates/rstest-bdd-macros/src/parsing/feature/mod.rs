@@ -49,6 +49,7 @@ pub(crate) struct ScenarioData {
     pub steps: Vec<ParsedStep>,
     pub(crate) examples: Option<ExampleTable>,
     pub(crate) tags: Vec<String>,
+    pub(crate) line: u32,
 }
 
 /// Cache parsed features to avoid repeated filesystem IO.
@@ -224,6 +225,7 @@ pub(crate) fn extract_scenario_steps(
     };
 
     let scenario_name = scenario.name.clone();
+    let scenario_line = u32::try_from(scenario.position.line).unwrap_or(u32::MAX);
 
     let parse = |step: &Step| -> Result<ParsedStep, proc_macro2::TokenStream> {
         Ok(ParsedStep::from(step))
@@ -249,6 +251,7 @@ pub(crate) fn extract_scenario_steps(
         steps,
         examples,
         tags: base_tags,
+        line: scenario_line,
     })
 }
 

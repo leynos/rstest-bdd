@@ -354,6 +354,8 @@ fn junit_writer_escapes_special_characters() {
     record_scenario(ScenarioRecord::new(
         "tests/features/<feature>&special",
         "Scenario with <&>\"'",
+        1,
+        Vec::new(),
         ScenarioStatus::Skipped(SkippedScenario::new(
             Some("message with <bad>&chars\u{0007}".into()),
             true,

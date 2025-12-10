@@ -12,6 +12,47 @@ use serial_test::serial;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 #[cfg(feature = "diagnostics")]
+use rstest_bdd::{step, StepContext, StepExecution, StepKeyword};
+
+#[cfg(feature = "diagnostics")]
+step!(
+    StepKeyword::Given,
+    "fixture bypassed step",
+    bypassed_step,
+    &[]
+);
+
+#[cfg(feature = "diagnostics")]
+step!(
+    StepKeyword::Then,
+    "fixture forced bypass",
+    forced_bypass,
+    &[]
+);
+
+#[cfg(feature = "diagnostics")]
+#[allow(clippy::unnecessary_wraps)]
+fn bypassed_step(
+    _ctx: &mut StepContext<'_>,
+    _text: &str,
+    _docstring: Option<&str>,
+    _table: Option<&[&[&str]]>,
+) -> Result<StepExecution, bdd::StepError> {
+    Ok(StepExecution::Continue { value: None })
+}
+
+#[cfg(feature = "diagnostics")]
+#[allow(clippy::unnecessary_wraps)]
+fn forced_bypass(
+    _ctx: &mut StepContext<'_>,
+    _text: &str,
+    _docstring: Option<&str>,
+    _table: Option<&[&[&str]]>,
+) -> Result<StepExecution, bdd::StepError> {
+    Ok(StepExecution::Continue { value: None })
+}
+
+#[cfg(feature = "diagnostics")]
 static SHOULD_SEED: AtomicBool = AtomicBool::new(false);
 
 #[cfg(feature = "diagnostics")]
@@ -23,6 +64,8 @@ fn seed_reporting_fixture() {
     bdd::reporting::record(bdd::reporting::ScenarioRecord::new(
         "tests/features/diagnostics.fixture",
         "fixture skipped scenario",
+        7,
+        vec!["@allow_skipped".into()],
         bdd::reporting::ScenarioStatus::Skipped(bdd::reporting::SkippedScenario::new(
             Some("fixture skip message".into()),
             true,
@@ -30,9 +73,20 @@ fn seed_reporting_fixture() {
         )),
     ));
 
+    bdd::record_bypassed_steps(
+        "tests/features/diagnostics.fixture",
+        "fixture skipped scenario",
+        7,
+        vec!["@allow_skipped".into()],
+        Some("fixture skip message"),
+        [(StepKeyword::Given, "fixture bypassed step")],
+    );
+
     bdd::reporting::record(bdd::reporting::ScenarioRecord::new(
         "tests/features/diagnostics.fixture",
         "fixture forced failure skip",
+        12,
+        vec!["@critical".into()],
         bdd::reporting::ScenarioStatus::Skipped(bdd::reporting::SkippedScenario::new(
             Some("fixture forced skip".into()),
             false,
@@ -40,9 +94,20 @@ fn seed_reporting_fixture() {
         )),
     ));
 
+    bdd::record_bypassed_steps(
+        "tests/features/diagnostics.fixture",
+        "fixture forced failure skip",
+        12,
+        vec!["@critical".into()],
+        Some("fixture forced skip"),
+        [(StepKeyword::Then, "fixture forced bypass")],
+    );
+
     bdd::reporting::record(bdd::reporting::ScenarioRecord::new(
         "tests/features/diagnostics.fixture",
         "fixture passing scenario",
+        18,
+        Vec::new(),
         bdd::reporting::ScenarioStatus::Passed,
     ));
 }

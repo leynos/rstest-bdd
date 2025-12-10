@@ -645,6 +645,8 @@ assert_eq!(message, Some("maintenance pending".into()));
 let record = ScenarioRecord::new(
     "features/unhappy.feature",
     "pending work",
+    12,
+    vec!["@allow_skipped".into()],
     ScenarioStatus::Skipped(SkippedScenario::new(None, true, false)),
 );
 let details = assert_scenario_skipped!(
@@ -1146,24 +1148,32 @@ https://docs.rs/i18n-embed/latest/i18n_embed/fluent/struct.FluentLanguageLoader.
 Synopsis
 
 - `cargo bdd steps`
+- `cargo bdd steps --skipped`
 - `cargo bdd unused`
 - `cargo bdd duplicates`
+- `cargo bdd skipped`
 
 Examples
 
 - `cargo bdd steps`
+- `cargo bdd steps --skipped --json`
 - `cargo bdd unused --quiet`
 - `cargo bdd duplicates --json`
+- `cargo bdd skipped --reasons`
 
-The tool inspects the runtime step registry and offers three commands:
+The tool inspects the runtime step registry and offers four commands:
 
 - `cargo bdd steps` prints every registered step with its source location and
   appends any skipped scenario outcomes using lowercase status labels whilst
   preserving long messages.
+- `cargo bdd steps --skipped` limits the listing to step definitions that were
+  bypassed after a scenario requested a skip, preserving the scenario context.
 - `cargo bdd unused` lists steps that were never executed in the current
   process.
 - `cargo bdd duplicates` groups step definitions that share the same keyword
   and pattern, helping to identify accidental copies.
+- `cargo bdd skipped` lists skipped scenarios and supports `--reasons` to show
+  file and line numbers alongside the explanatory message.
 
 The subcommand builds each test target in the workspace and runs the resulting
 binary with `RSTEST_BDD_DUMP_STEPS=1` and a private `--dump-steps` flag to
@@ -1172,6 +1182,12 @@ Because usage tracking is process local, `unused` only reflects steps invoked
 during that same execution. The merged output powers the commands above and the
 skip status summary, helping to keep the step library tidy and discover dead
 code early in the development cycle.
+
+`steps --skipped` and `skipped` accept `--json` and emit objects that always
+include `feature`, `scenario`, `line`, `tags`, and `reason` fields. The former
+adds an embedded `step` object describing each bypassed definition (keyword,
+pattern, file, and line) to help trace which definitions were sidelined by a
+runtime skip.
 
 ### Scenario report writers
 

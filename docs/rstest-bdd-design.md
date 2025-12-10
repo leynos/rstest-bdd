@@ -1267,6 +1267,12 @@ Subsequent phases refine these capabilities: Phase 5 will streamline the
 macro’s syntax and add compile-time diagnostics, while Phase 6 will surface
 skip details in diagnostic tooling and IDE integrations.
 
+- 2025-12-10: Diagnostic tooling now records scenario line numbers and tag
+  sets alongside skip reasons, and tracks bypassed step definitions when
+  execution halts early. `cargo bdd skipped` and `cargo bdd steps --skipped`
+  surface this data (with JSON fields `feature`, `scenario`, `line`, `tags`,
+  and `reason`) to support IDE integrations and CLI consumers.
+
 ### 3.2 Strengths and weaknesses of the proposed architecture
 
 The proposed design has a distinct set of advantages and disadvantages rooted

@@ -2,12 +2,13 @@
 
 use assert_cmd::Command;
 use eyre::{Context, Result};
+use serde_json::Value;
 use serial_test::serial;
 use std::fs;
 use std::path::PathBuf;
 use std::str;
 
-fn run_cargo_bdd_steps() -> Result<String> {
+fn run_cargo_bdd(args: &[&str]) -> Result<String> {
     let fixture_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/minimal");
     let target_dir = fixture_dir.join("target");
     fs::create_dir_all(&target_dir)
@@ -17,13 +18,16 @@ fn run_cargo_bdd_steps() -> Result<String> {
     let output = cmd
         .current_dir(fixture_dir)
         .env("CARGO_TARGET_DIR", &target_dir)
-        .arg("steps")
+        .args(args)
         .output()
-        .wrap_err("failed to execute `cargo bdd steps`")?;
-    assert!(output.status.success(), "`cargo bdd steps` should succeed");
-    let stdout =
-        str::from_utf8(&output.stdout).wrap_err("`cargo bdd steps` emitted invalid UTF-8")?;
+        .wrap_err("failed to execute `cargo bdd`")?;
+    assert!(output.status.success(), "`cargo bdd` should succeed");
+    let stdout = str::from_utf8(&output.stdout).wrap_err("`cargo bdd` emitted invalid UTF-8")?;
     Ok(stdout.to_string())
+}
+
+fn run_cargo_bdd_steps() -> Result<String> {
+    run_cargo_bdd(&["steps"])
 }
 
 #[test]
@@ -66,6 +70,80 @@ fn steps_output_marks_forced_failure_skips() -> Result<()> {
     assert!(
         stdout.contains("fixture forced skip"),
         "expected forced skip message in cargo bdd output: {stdout}",
+    );
+    Ok(())
+}
+
+#[test]
+#[serial]
+fn skipped_subcommand_includes_reasons_and_lines() -> Result<()> {
+    let stdout = run_cargo_bdd(&["skipped", "--reasons"])?;
+    assert!(
+        stdout.contains("tests/features/diagnostics.fixture:7"),
+        "skipped output should include feature location",
+    );
+    assert!(
+        stdout.contains("fixture skip message"),
+        "skip reason should appear in skipped output",
+    );
+    assert!(stdout.contains("[forced failure]"));
+    Ok(())
+}
+
+#[test]
+fn skipped_subcommand_emits_json() -> Result<()> {
+    let stdout = run_cargo_bdd(&["skipped", "--json"])?;
+    let parsed: Value = serde_json::from_str(&stdout)?;
+    let entries = parsed
+        .as_array()
+        .ok_or_else(|| eyre::eyre!("skipped output should be a JSON array"))?;
+    let fixture_entry = entries
+        .iter()
+        .find(|entry| {
+            entry.get("scenario") == Some(&Value::String("fixture skipped scenario".to_string()))
+        })
+        .ok_or_else(|| eyre::eyre!("expected fixture skipped scenario entry"))?;
+    assert_eq!(
+        fixture_entry.get("feature").and_then(Value::as_str),
+        Some("tests/features/diagnostics.fixture"),
+    );
+    assert_eq!(
+        fixture_entry.get("reason").and_then(Value::as_str),
+        Some("fixture skip message"),
+    );
+    assert!(fixture_entry.get("line").and_then(Value::as_u64).is_some());
+    Ok(())
+}
+
+#[test]
+#[serial]
+fn steps_skipped_outputs_bypassed_definitions() -> Result<()> {
+    let stdout = run_cargo_bdd(&["steps", "--skipped"])?;
+    assert!(stdout.contains("fixture bypassed step"));
+    assert!(stdout.contains("fixture skip message"));
+    Ok(())
+}
+
+#[test]
+fn steps_skipped_emits_json() -> Result<()> {
+    let stdout = run_cargo_bdd(&["steps", "--skipped", "--json"])?;
+    let parsed: Value = serde_json::from_str(&stdout)?;
+    let entries = parsed
+        .as_array()
+        .ok_or_else(|| eyre::eyre!("steps --skipped output should be an array"))?;
+    let forced_entry = entries
+        .iter()
+        .find(|entry| {
+            entry.get("scenario") == Some(&Value::String("fixture forced failure skip".to_string()))
+        })
+        .ok_or_else(|| eyre::eyre!("expected forced failure skip entry"))?;
+    assert_eq!(
+        forced_entry.get("reason").and_then(Value::as_str),
+        Some("fixture forced skip"),
+    );
+    assert!(
+        forced_entry.get("step").is_some(),
+        "bypassed steps should include step info"
     );
     Ok(())
 }

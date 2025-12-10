@@ -20,6 +20,8 @@ struct JsonScenario<'a> {
     feature_path: &'a str,
     scenario_name: &'a str,
     status: &'static str,
+    line: u32,
+    tags: &'a [String],
     #[serde(skip_serializing_if = "Option::is_none")]
     skip: Option<JsonSkip<'a>>,
 }
@@ -52,6 +54,8 @@ impl<'a> From<&'a ScenarioRecord> for JsonScenario<'a> {
             feature_path: record.feature_path(),
             scenario_name: record.scenario_name(),
             status: record.status().label(),
+            line: record.line(),
+            tags: record.tags(),
             skip,
         }
     }
@@ -64,7 +68,11 @@ impl<'a> From<&'a ScenarioRecord> for JsonScenario<'a> {
 /// use rstest_bdd::reporting::{json, ScenarioRecord, ScenarioStatus};
 ///
 /// let records = vec![ScenarioRecord::new(
-///     "feature", "scenario", ScenarioStatus::Passed,
+///     "feature",
+///     "scenario",
+///     1,
+///     Vec::new(),
+///     ScenarioStatus::Passed,
 /// )];
 /// let mut buffer = Vec::new();
 /// json::write(&mut buffer, &records).unwrap();
@@ -85,7 +93,11 @@ pub fn write<W: Write>(writer: &mut W, records: &[ScenarioRecord]) -> serde_json
 /// use rstest_bdd::reporting::{json, record, ScenarioRecord, ScenarioStatus};
 ///
 /// record(ScenarioRecord::new(
-///     "feature", "scenario", ScenarioStatus::Passed,
+///     "feature",
+///     "scenario",
+///     1,
+///     Vec::new(),
+///     ScenarioStatus::Passed,
 /// ));
 /// let mut buffer = Vec::new();
 /// json::write_snapshot(&mut buffer).unwrap();
@@ -106,7 +118,11 @@ pub fn write_snapshot<W: Write>(writer: &mut W) -> serde_json::Result<()> {
 /// use rstest_bdd::reporting::{json, ScenarioRecord, ScenarioStatus};
 ///
 /// let records = vec![ScenarioRecord::new(
-///     "feature", "scenario", ScenarioStatus::Passed,
+///     "feature",
+///     "scenario",
+///     1,
+///     Vec::new(),
+///     ScenarioStatus::Passed,
 /// )];
 /// let json = json::to_string(&records).unwrap();
 /// assert!(json.contains("\"scenario_name\":\"scenario\""));
@@ -125,7 +141,11 @@ pub fn to_string(records: &[ScenarioRecord]) -> serde_json::Result<String> {
 /// use rstest_bdd::reporting::{json, record, ScenarioRecord, ScenarioStatus};
 ///
 /// record(ScenarioRecord::new(
-///     "feature", "scenario", ScenarioStatus::Passed,
+///     "feature",
+///     "scenario",
+///     1,
+///     Vec::new(),
+///     ScenarioStatus::Passed,
 /// ));
 /// let json = json::snapshot_string().unwrap();
 /// assert!(json.contains("\"feature_path\":\"feature\""));
