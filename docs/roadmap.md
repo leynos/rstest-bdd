@@ -379,3 +379,63 @@ at improving maintainability and IDE integration.
 
   - [ ] Implement caching for parsed Gherkin ASTs in the `OUT_DIR` to reduce
     compile-time overhead, only re-parsing files on modification.
+
+## Phase 7: Language server foundations
+
+This phase delivers the first `rstest-bdd-server` release, focused on
+navigation between Rust step definitions and Gherkin features plus on-save
+consistency diagnostics. Real-time analysis and autocomplete remain out of
+scope until the core workflow is stable.
+
+- [ ] **Server scaffolding**
+
+  - [ ] Add a new `rstest-bdd-server` crate (binary `rstest-bdd-lsp`) that
+    depends on `async-lsp`, `gherkin`, and the shared pattern parser to align
+    semantics with the macros.
+
+  - [ ] Implement LSP initialise/shutdown handlers, crate-root discovery via
+    `cargo metadata`, and structured logging configurable through environment
+    variables.
+
+- [ ] **Indexing pipeline**
+
+  - [ ] Parse `.feature` files with `gherkin` on save to capture steps,
+    docstrings, tables, example columns, and byte offsets.
+
+  - [ ] Parse Rust files with `syn` to collect `#[given]`, `#[when]`, and
+    `#[then]` functions, including pattern strings, keyword, parameter list,
+    and expectations for tables or docstrings.
+
+  - [ ] Compile step patterns with `rstest-bdd-patterns` and populate an
+    in-memory registry keyed by keyword, invalidated incrementally on file
+    change notifications.
+
+- [ ] **Navigation handlers**
+
+  - [ ] Implement `textDocument/definition` to jump from a Rust step function
+    to every matching feature step using keyword-aware regex matching.
+
+  - [ ] Implement `textDocument/implementation` to jump from a feature step to
+    all matching Rust implementations, returning multiple locations when
+    duplicates exist.
+
+- [ ] **Diagnostics (on save)**
+
+  - [ ] Emit diagnostics for unimplemented feature steps and unused step
+    definitions by cross-referencing the registry.
+
+  - [ ] Validate placeholder counts, typed placeholders, and data table or
+    docstring expectations against function signatures, emitting precise byte
+    offsets in the source.
+
+  - [ ] Check scenario outline example columns against referenced parameters,
+    flagging missing or surplus columns in either the feature or test binding.
+
+- [ ] **Packaging and editor enablement**
+
+  - [ ] Ship CLI options for log level, workspace root, and debounce interval;
+    document VS Code and Neovim launch examples in `docs/rstest-bdd-language-
+    server-design.md` and the user guide.
+
+  - [ ] Add smoke tests that start the server, answer a definition request,
+    and emit diagnostics for one feature file; gate them in CI.
