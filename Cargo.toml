@@ -4,6 +4,7 @@ members = [
     "crates/rstest-bdd",
     "crates/rstest-bdd-macros",
     "crates/rstest-bdd-patterns",
+    "crates/rstest-bdd-server",
     "crates/cargo-bdd",
     "examples/todo-cli",
     "examples/japanese-ledger",
@@ -53,6 +54,14 @@ i18n-embed = { version = "0.16", features = ["fluent-system", "desktop-requester
 rust-embed = "8.5.0"
 fluent = "0.17"
 unic-langid = { version = "0.9", features = ["macros"] }
+async-lsp = { version = "0.2", features = ["tokio"] }
+lsp-types = "0.95"
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "io-std", "sync"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+clap = { version = "4.5", features = ["derive"] }
+tower = "0.4"
+tokio-util = { version = "0.7", features = ["compat"] }
 
 [workspace.lints.clippy]
 pedantic = { level = "warn", priority = -1 }

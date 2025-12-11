@@ -387,13 +387,13 @@ navigation between Rust step definitions and Gherkin features plus on-save
 consistency diagnostics. Real-time analysis and autocomplete remain out of
 scope until the core workflow is stable.
 
-- [ ] **Server scaffolding**
+- [x] **Server scaffolding**
 
-  - [ ] Add a new `rstest-bdd-server` crate (binary `rstest-bdd-lsp`) that
+  - [x] Add a new `rstest-bdd-server` crate (binary `rstest-bdd-lsp`) that
     depends on `async-lsp`, `gherkin`, and the shared pattern parser to align
     semantics with the macros.
 
-  - [ ] Implement LSP initialise/shutdown handlers, crate-root discovery via
+  - [x] Implement LSP initialise/shutdown handlers, crate-root discovery via
     `cargo metadata`, and structured logging configurable through environment
     variables.
 
