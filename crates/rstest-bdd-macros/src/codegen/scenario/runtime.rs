@@ -1,44 +1,13 @@
 //! Helpers that generate the runtime scaffolding for scenario tests.
 
+mod types;
+
 use proc_macro2::TokenStream as TokenStream2;
 use quote::quote;
 
 use crate::codegen::scenario::{FeaturePath, ScenarioName};
-
-/// Grouped tokens for scenario steps.
-pub(crate) struct ProcessedSteps {
-    pub(crate) keyword_tokens: Vec<TokenStream2>,
-    pub(crate) values: Vec<TokenStream2>,
-    pub(crate) docstrings: Vec<TokenStream2>,
-    pub(crate) tables: Vec<TokenStream2>,
-}
-
-/// Configuration for generating test tokens.
-pub(crate) struct TestTokensConfig<'a> {
-    pub(crate) processed_steps: ProcessedSteps,
-    pub(crate) feature_path: &'a FeaturePath,
-    pub(crate) scenario_name: &'a ScenarioName,
-    pub(crate) scenario_line: u32,
-    pub(crate) tags: &'a [String],
-    pub(crate) block: &'a syn::Block,
-    pub(crate) allow_skipped: bool,
-}
-
-struct ScenarioLiterals {
-    allow_literal: syn::LitBool,
-    feature_literal: syn::LitStr,
-    scenario_literal: syn::LitStr,
-    scenario_line_literal: syn::LitInt,
-    tag_literals: Vec<syn::LitStr>,
-}
-
-struct CodeComponents {
-    step_executor: TokenStream2,
-    skip_decoder: TokenStream2,
-    scenario_guard: TokenStream2,
-    step_executor_loop: TokenStream2,
-    skip_handler: TokenStream2,
-}
+use types::{CodeComponents, ScenarioLiterals, ScenarioLiteralsInput};
+pub(crate) use types::{ProcessedSteps, TestTokensConfig};
 
 pub(crate) fn execute_single_step(
     feature_path: &FeaturePath,
@@ -259,19 +228,18 @@ fn generate_skip_handler() -> TokenStream2 {
     }
 }
 
-fn create_scenario_literals(
-    feature_path: &FeaturePath,
-    scenario_name: &ScenarioName,
-    scenario_line: u32,
-    tags: &[String],
-    allow_skipped: bool,
-) -> ScenarioLiterals {
-    let allow_literal = syn::LitBool::new(allow_skipped, proc_macro2::Span::call_site());
-    let feature_literal = syn::LitStr::new(feature_path.as_str(), proc_macro2::Span::call_site());
-    let scenario_literal = syn::LitStr::new(scenario_name.as_str(), proc_macro2::Span::call_site());
-    let scenario_line_literal =
-        syn::LitInt::new(&scenario_line.to_string(), proc_macro2::Span::call_site());
-    let tag_literals = tags
+fn create_scenario_literals(input: &ScenarioLiteralsInput<'_>) -> ScenarioLiterals {
+    let allow_literal = syn::LitBool::new(input.allow_skipped, proc_macro2::Span::call_site());
+    let feature_literal =
+        syn::LitStr::new(input.feature_path.as_str(), proc_macro2::Span::call_site());
+    let scenario_literal =
+        syn::LitStr::new(input.scenario_name.as_str(), proc_macro2::Span::call_site());
+    let scenario_line_literal = syn::LitInt::new(
+        &input.scenario_line.to_string(),
+        proc_macro2::Span::call_site(),
+    );
+    let tag_literals = input
+        .tags
         .iter()
         .map(|tag| syn::LitStr::new(tag, proc_macro2::Span::call_site()))
         .collect();
@@ -332,19 +300,42 @@ pub(crate) fn generate_test_tokens(
     let ctx_inserts: Vec<_> = ctx_inserts.collect();
     let ctx_postlude: Vec<_> = ctx_postlude.collect();
 
+    let literals = create_scenario_literals(&ScenarioLiteralsInput::new(
+        feature_path,
+        scenario_name,
+        scenario_line,
+        tags,
+        allow_skipped,
+    ));
+
+    let components = generate_code_components(&processed_steps, feature_path, scenario_name);
+    let block_tokens = quote! { #block };
+
+    assemble_test_tokens(
+        literals,
+        components,
+        &ctx_prelude,
+        &ctx_inserts,
+        &ctx_postlude,
+        &block_tokens,
+    )
+}
+
+fn assemble_test_tokens(
+    literals: ScenarioLiterals,
+    components: CodeComponents,
+    ctx_prelude: &[TokenStream2],
+    ctx_inserts: &[TokenStream2],
+    ctx_postlude: &[TokenStream2],
+    block: &TokenStream2,
+) -> TokenStream2 {
     let ScenarioLiterals {
         allow_literal,
         feature_literal,
         scenario_literal,
         scenario_line_literal,
         tag_literals,
-    } = create_scenario_literals(
-        feature_path,
-        scenario_name,
-        scenario_line,
-        tags,
-        allow_skipped,
-    );
+    } = literals;
 
     let CodeComponents {
         step_executor,
@@ -352,7 +343,7 @@ pub(crate) fn generate_test_tokens(
         scenario_guard,
         step_executor_loop,
         skip_handler,
-    } = generate_code_components(&processed_steps, feature_path, scenario_name);
+    } = components;
 
     let path = crate::codegen::rstest_bdd_path();
     quote! {

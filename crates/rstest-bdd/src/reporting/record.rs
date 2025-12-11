@@ -82,13 +82,8 @@ impl ScenarioRecord {
         tags: impl Into<Vec<String>>,
         status: ScenarioStatus,
     ) -> Self {
-        Self {
-            feature_path: feature_path.into(),
-            scenario_name: scenario_name.into(),
-            line,
-            tags: tags.into(),
-            status,
-        }
+        let metadata = ScenarioMetadata::new(feature_path, scenario_name, line, tags);
+        Self::from_metadata(metadata, status)
     }
 
     /// Construct a record from prepared scenario metadata.
