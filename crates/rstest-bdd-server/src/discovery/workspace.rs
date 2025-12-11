@@ -116,6 +116,7 @@ fn find_manifest_path(path: &Path) -> Result<PathBuf, ServerError> {
 ///     println!("Found feature: {}", path.display());
 /// }
 /// ```
+#[must_use]
 pub fn find_feature_files(workspace_root: &Path) -> Vec<PathBuf> {
     let mut features = Vec::new();
 
@@ -132,19 +133,31 @@ pub fn find_feature_files(workspace_root: &Path) -> Vec<PathBuf> {
     }
 
     // Also search in crate subdirectories
-    if let Ok(entries) = std::fs::read_dir(workspace_root) {
-        for entry in entries.filter_map(Result::ok) {
-            let path = entry.path();
-            if path.is_dir() {
-                let crate_features = path.join("tests").join("features");
-                if crate_features.is_dir() {
-                    collect_feature_files_recursive(&crate_features, &mut features);
-                }
-            }
-        }
-    }
+    search_crate_subdirectories(workspace_root, &mut features);
 
     features
+}
+
+/// Search for feature files in crate subdirectories.
+///
+/// Looks for `tests/features/` directories within each subdirectory of the
+/// workspace root (typical layout for multi-crate workspaces).
+fn search_crate_subdirectories(workspace_root: &Path, features: &mut Vec<PathBuf>) {
+    let Ok(entries) = std::fs::read_dir(workspace_root) else {
+        return;
+    };
+
+    for entry in entries.filter_map(Result::ok) {
+        let path = entry.path();
+        if !path.is_dir() {
+            continue;
+        }
+
+        let crate_features = path.join("tests").join("features");
+        if crate_features.is_dir() {
+            collect_feature_files_recursive(&crate_features, features);
+        }
+    }
 }
 
 /// Recursively collect `.feature` files from a directory.
