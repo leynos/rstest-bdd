@@ -208,11 +208,17 @@ mod tests {
 
     #[test]
     fn url_to_path_handles_file_url() {
-        let url = Url::from_file_path("/test/path").expect("valid path");
+        // Use a platform-appropriate test path
+        #[cfg(windows)]
+        let test_path = PathBuf::from("C:\\test\\path");
+        #[cfg(not(windows))]
+        let test_path = PathBuf::from("/test/path");
+
+        let url = Url::from_file_path(&test_path).expect("valid path");
         let path = url_to_path(&url);
 
         assert!(path.is_some());
-        assert_eq!(path.expect("should have path"), PathBuf::from("/test/path"));
+        assert_eq!(path.expect("should have path"), test_path);
     }
 
     #[test]
@@ -225,18 +231,21 @@ mod tests {
 
     #[test]
     fn extract_workspace_path_from_folders() {
+        // Use a platform-appropriate test path
+        #[cfg(windows)]
+        let test_path = PathBuf::from("C:\\folder\\path");
+        #[cfg(not(windows))]
+        let test_path = PathBuf::from("/folder/path");
+
         let folders = vec![lsp_types::WorkspaceFolder {
-            uri: Url::from_file_path("/folder/path").expect("valid path"),
+            uri: Url::from_file_path(&test_path).expect("valid path"),
             name: "folder".to_string(),
         }];
 
         let path = extract_workspace_path(&folders);
 
         assert!(path.is_some());
-        assert_eq!(
-            path.expect("should have path"),
-            PathBuf::from("/folder/path")
-        );
+        assert_eq!(path.expect("should have path"), test_path);
     }
 
     #[test]

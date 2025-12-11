@@ -236,15 +236,40 @@ edition = "2021"
         assert!(err.to_string().contains("no Cargo.toml found"));
     }
 
-    #[rstest]
-    fn finds_feature_files_in_tests_features() {
+    /// Creates a test workspace with a feature file in a specified directory.
+    ///
+    /// # Arguments
+    ///
+    /// * `relative_dir` - Path segments relative to the workspace root (e.g., `&["tests", "features"]`)
+    /// * `filename` - Name of the feature file to create
+    /// * `content` - Content to write to the feature file
+    ///
+    /// # Returns
+    ///
+    /// A tuple of `(TempDir, Vec<PathBuf>)` containing the workspace directory
+    /// and the result of calling `find_feature_files` on it.
+    fn create_workspace_with_feature(
+        relative_dir: &[&str],
+        filename: &str,
+        content: &str,
+    ) -> (TempDir, Vec<PathBuf>) {
         let workspace = create_test_workspace();
-        let features_dir = workspace.path().join("tests").join("features");
-        fs::create_dir_all(&features_dir).expect("failed to create features dir");
-        fs::write(features_dir.join("example.feature"), "Feature: Test")
-            .expect("failed to write feature file");
+        let mut dir = workspace.path().to_path_buf();
+        for segment in relative_dir {
+            dir = dir.join(segment);
+        }
+        fs::create_dir_all(&dir).expect("failed to create feature dir");
+        fs::write(dir.join(filename), content).expect("failed to write feature file");
 
         let features = find_feature_files(workspace.path());
+        (workspace, features)
+    }
+
+    #[rstest]
+    fn finds_feature_files_in_tests_features() {
+        let (_workspace, features) =
+            create_workspace_with_feature(&["tests", "features"], "example.feature", "Feature: Test");
+
         assert_eq!(features.len(), 1);
         assert!(features
             .first()
@@ -254,17 +279,12 @@ edition = "2021"
 
     #[rstest]
     fn finds_feature_files_recursively() {
-        let workspace = create_test_workspace();
-        let nested_dir = workspace
-            .path()
-            .join("tests")
-            .join("features")
-            .join("nested");
-        fs::create_dir_all(&nested_dir).expect("failed to create nested dir");
-        fs::write(nested_dir.join("nested.feature"), "Feature: Nested")
-            .expect("failed to write nested feature file");
+        let (_workspace, features) = create_workspace_with_feature(
+            &["tests", "features", "nested"],
+            "nested.feature",
+            "Feature: Nested",
+        );
 
-        let features = find_feature_files(workspace.path());
         assert_eq!(features.len(), 1);
         assert!(features
             .first()
