@@ -1,7 +1,8 @@
 # rstest-bdd-server
 
-Language Server Protocol (LSP) implementation for the rstest-bdd BDD testing
-framework. Provides IDE integration for navigation between Rust step
+Language Server Protocol (LSP) implementation for the rstest-bdd
+Behaviour-Driven Development (BDD) testing framework. Provides Integrated
+Development Environment (IDE) integration for navigation between Rust step
 definitions and Gherkin feature files.
 
 ## Installation

@@ -152,6 +152,9 @@ fn search_crate_subdirectories(workspace_root: &Path, features: &mut Vec<PathBuf
         if !path.is_dir() {
             continue;
         }
+        if !path.join("Cargo.toml").is_file() {
+            continue;
+        }
 
         let crate_features = path.join("tests").join("features");
         if crate_features.is_dir() {
@@ -182,10 +185,11 @@ fn collect_feature_files_recursive(dir: &Path, features: &mut Vec<PathBuf>) {
 )]
 mod tests {
     use super::*;
-    use rstest::rstest;
+    use rstest::{fixture, rstest};
     use std::fs;
     use tempfile::TempDir;
 
+    #[fixture]
     fn create_test_workspace() -> TempDir {
         let dir = TempDir::new().expect("failed to create temp dir");
         let cargo_toml = dir.path().join("Cargo.toml");
@@ -208,8 +212,8 @@ edition = "2021"
     }
 
     #[rstest]
-    fn discovers_workspace_from_root() {
-        let workspace = create_test_workspace();
+    fn discovers_workspace_from_root(create_test_workspace: TempDir) {
+        let workspace = create_test_workspace;
         let result = discover_workspace(workspace.path());
         assert!(result.is_ok());
         let info = result.expect("should discover workspace");
@@ -218,8 +222,8 @@ edition = "2021"
     }
 
     #[rstest]
-    fn discovers_workspace_from_subdirectory() {
-        let workspace = create_test_workspace();
+    fn discovers_workspace_from_subdirectory(create_test_workspace: TempDir) {
+        let workspace = create_test_workspace;
         let subdir = workspace.path().join("src");
         let result = discover_workspace(&subdir);
         assert!(result.is_ok());
@@ -246,14 +250,13 @@ edition = "2021"
     ///
     /// # Returns
     ///
-    /// A tuple of `(TempDir, Vec<PathBuf>)` containing the workspace directory
-    /// and the result of calling `find_feature_files` on it.
+    /// The result of calling `find_feature_files` on the workspace.
     fn create_workspace_with_feature(
+        workspace: &TempDir,
         relative_dir: &[&str],
         filename: &str,
         content: &str,
-    ) -> (TempDir, Vec<PathBuf>) {
-        let workspace = create_test_workspace();
+    ) -> Vec<PathBuf> {
         let mut dir = workspace.path().to_path_buf();
         for segment in relative_dir {
             dir = dir.join(segment);
@@ -261,19 +264,20 @@ edition = "2021"
         fs::create_dir_all(&dir).expect("failed to create feature dir");
         fs::write(dir.join(filename), content).expect("failed to write feature file");
 
-        let features = find_feature_files(workspace.path());
-        (workspace, features)
+        find_feature_files(workspace.path())
     }
 
     #[rstest]
     #[case(&["tests", "features"], "example.feature", "Feature: Test")]
     #[case(&["tests", "features", "nested"], "nested.feature", "Feature: Nested")]
     fn finds_feature_files_in_various_locations(
+        create_test_workspace: TempDir,
         #[case] relative_dir: &[&str],
         #[case] filename: &str,
         #[case] content: &str,
     ) {
-        let (_workspace, features) = create_workspace_with_feature(relative_dir, filename, content);
+        let features =
+            create_workspace_with_feature(&create_test_workspace, relative_dir, filename, content);
 
         assert_eq!(features.len(), 1);
         assert!(features
@@ -283,9 +287,8 @@ edition = "2021"
     }
 
     #[rstest]
-    fn returns_empty_when_no_feature_files() {
-        let workspace = create_test_workspace();
-        let features = find_feature_files(workspace.path());
+    fn returns_empty_when_no_feature_files(create_test_workspace: TempDir) {
+        let features = find_feature_files(create_test_workspace.path());
         assert!(features.is_empty());
     }
 }

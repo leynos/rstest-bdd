@@ -11,7 +11,7 @@ use crate::error::ServerError;
 
 /// Log level enumeration matching tracing crate levels.
 ///
-/// Defaults to `Info` when not specified or when an invalid value is provided.
+/// Defaults to `Info` when not specified.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum LogLevel {
     /// Most verbose logging, includes all trace spans.
@@ -92,7 +92,7 @@ impl ServerConfig {
     /// Load configuration from environment variables.
     ///
     /// Reads `RSTEST_BDD_LSP_LOG_LEVEL` and `RSTEST_BDD_LSP_DEBOUNCE_MS`.
-    /// Falls back to defaults for missing or invalid values.
+    /// Falls back to defaults for missing values.
     ///
     /// # Errors
     ///
@@ -117,6 +117,27 @@ impl ServerConfig {
             log_level,
             debounce_ms,
         })
+    }
+
+    /// Apply optional overrides to an existing configuration.
+    ///
+    /// This is intended for CLI overrides that should take precedence over
+    /// environment-based defaults.
+    #[must_use]
+    pub fn apply_overrides(
+        mut self,
+        log_level: Option<LogLevel>,
+        debounce_ms: Option<u64>,
+    ) -> Self {
+        if let Some(level) = log_level {
+            self.log_level = level;
+        }
+
+        if let Some(ms) = debounce_ms {
+            self.debounce_ms = ms;
+        }
+
+        self
     }
 
     /// Create a new configuration with the specified log level.
@@ -182,5 +203,16 @@ mod tests {
     fn server_config_with_log_level_builder() {
         let config = ServerConfig::default().with_log_level(LogLevel::Debug);
         assert_eq!(config.log_level, LogLevel::Debug);
+    }
+
+    #[test]
+    fn server_config_apply_overrides_updates_selected_fields() {
+        let config = ServerConfig::default().apply_overrides(Some(LogLevel::Error), Some(42));
+        assert_eq!(config.log_level, LogLevel::Error);
+        assert_eq!(config.debounce_ms, 42);
+
+        let config = ServerConfig::default().apply_overrides(None, None);
+        assert_eq!(config.log_level, LogLevel::Info);
+        assert_eq!(config.debounce_ms, 300);
     }
 }

@@ -1,7 +1,8 @@
 //! Language server binary for rstest-bdd.
 //!
-//! This binary provides an LSP server for IDE integration with the rstest-bdd
-//! BDD testing framework. It communicates via JSON-RPC over stdin/stdout.
+//! This binary provides an LSP server for Integrated Development Environment
+//! (IDE) integration with the rstest-bdd Behaviour-Driven Development (BDD)
+//! testing framework. It communicates via JSON-RPC over stdin/stdout.
 
 use std::ops::ControlFlow;
 
@@ -10,45 +11,38 @@ use async_lsp::panic::CatchUnwindLayer;
 use async_lsp::router::Router;
 use async_lsp::server::LifecycleLayer;
 use async_lsp::tracing::TracingLayer;
-use async_lsp::ClientSocket;
 use clap::Parser;
 use lsp_types::{notification, request};
 use tower::ServiceBuilder;
 use tracing::info;
 
 use rstest_bdd_server::config::{LogLevel, ServerConfig};
+use rstest_bdd_server::error::ServerError;
 use rstest_bdd_server::handlers::{handle_initialise, handle_initialised, handle_shutdown};
 use rstest_bdd_server::logging::init_logging;
 use rstest_bdd_server::server::ServerState;
 
-/// LSP server for rstest-bdd BDD testing framework.
+/// LSP server for rstest-bdd Behaviour-Driven Development (BDD) testing framework.
 #[derive(Parser, Debug)]
 #[command(name = "rstest-bdd-lsp", version, about)]
 struct Args {
     /// Log level (trace, debug, info, warn, error).
-    #[arg(long, default_value = "info")]
-    log_level: String,
-}
-
-/// Internal server state that includes the client socket.
-struct ServerStateWithClient {
-    /// The underlying server state.
-    state: ServerState,
-    /// Socket for sending notifications to the client.
-    #[allow(dead_code)]
-    client: ClientSocket,
+    #[arg(long)]
+    log_level: Option<LogLevel>,
 }
 
 fn main() {
     let args = Args::parse();
 
-    // Parse log level from CLI, falling back to environment or default
-    let log_level: LogLevel = args
-        .log_level
-        .parse()
-        .unwrap_or_else(|_| LogLevel::default());
-
-    let config = ServerConfig::default().with_log_level(log_level);
+    let config = match build_config(&args) {
+        Ok(config) => config,
+        Err(e) => {
+            let fallback = ServerConfig::default();
+            init_logging(&fallback);
+            tracing::error!(error = %e, "invalid configuration");
+            std::process::exit(2);
+        }
+    };
     init_logging(&config);
 
     info!(
@@ -71,26 +65,28 @@ fn run_server(config: ServerConfig) -> std::io::Result<()> {
         .block_on(run_server_async(config))
 }
 
+fn build_config(args: &Args) -> Result<ServerConfig, ServerError> {
+    let config = ServerConfig::from_env()?;
+    Ok(config.apply_overrides(args.log_level, None))
+}
+
 /// Asynchronously run the language server main loop.
 async fn run_server_async(config: ServerConfig) -> std::io::Result<()> {
-    let (server, _client) = async_lsp::MainLoop::new_server(|client| {
-        let state = ServerStateWithClient {
-            state: ServerState::new(config.clone()),
-            client: client.clone(),
-        };
+    let (server, _client) = async_lsp::MainLoop::new_server(|_client| {
+        let state = ServerState::new(config.clone());
 
         let mut router = Router::new(state);
         router
             .request::<request::Initialize, _>(|st, params| {
-                let result = handle_initialise(&mut st.state, params);
+                let result = handle_initialise(st, params);
                 std::future::ready(result)
             })
             .request::<request::Shutdown, _>(|st, _params| {
-                let result = handle_shutdown(&mut st.state);
+                let result = handle_shutdown(st);
                 std::future::ready(result)
             })
             .notification::<notification::Initialized>(|st, params| {
-                handle_initialised(&mut st.state, params);
+                handle_initialised(st, params);
                 ControlFlow::Continue(())
             })
             .notification::<notification::Exit>(|_, ()| ControlFlow::Break(Ok(())))

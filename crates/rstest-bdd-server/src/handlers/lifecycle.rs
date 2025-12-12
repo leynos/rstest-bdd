@@ -1,4 +1,4 @@
-//! LSP lifecycle handlers for initialisation and shutdown.
+//! LSP lifecycle handlers for initialization and shutdown.
 //!
 //! This module implements the core lifecycle protocol handlers required by
 //! the LSP specification: `initialize`, `initialized`, and `shutdown`.
@@ -22,13 +22,14 @@ use crate::server::{build_server_capabilities, ServerState};
 /// # Arguments
 ///
 /// * `state` - Mutable reference to the server state
-/// * `params` - Initialisation parameters from the client
+/// * `params` - Initialization parameters from the client
 ///
 /// # Errors
 ///
-/// Returns a `ResponseError` if:
-/// - The server is already initialised
-/// - Workspace discovery fails (logged as warning, does not fail the request)
+/// Returns a `ResponseError` when the server is already initialized.
+///
+/// Workspace discovery failures are logged as warnings and do not fail the
+/// request.
 pub fn handle_initialise(
     state: &mut ServerState,
     params: InitializeParams,
@@ -41,15 +42,25 @@ pub fn handle_initialise(
     }
 
     // Store client capabilities
-    state.client_capabilities = Some(params.capabilities);
+    #[expect(
+        deprecated,
+        reason = "Some clients still populate root_uri instead of workspace_folders."
+    )]
+    let InitializeParams {
+        capabilities,
+        workspace_folders,
+        root_uri,
+        ..
+    } = params;
+    state.client_capabilities = Some(capabilities);
 
     // Store workspace folders if provided
-    if let Some(folders) = params.workspace_folders {
+    if let Some(folders) = workspace_folders {
         state.workspace_folders = folders;
     }
 
-    // Attempt workspace discovery from workspace folders
-    let workspace_path = extract_workspace_path(&state.workspace_folders);
+    // Attempt workspace discovery from workspace folders or the root URI.
+    let workspace_path = extract_workspace_path(&state.workspace_folders, root_uri.as_ref());
     if let Some(path) = workspace_path {
         match discover_workspace(&path) {
             Ok(info) => {
@@ -79,7 +90,7 @@ pub fn handle_initialise(
 ///
 /// This notification signals that the client has processed the initialize
 /// response and is ready for normal operation. The server marks itself as
-/// fully initialised at this point.
+/// fully initialized at this point.
 ///
 /// # Arguments
 ///
@@ -111,9 +122,16 @@ pub fn handle_shutdown(_state: &mut ServerState) -> Result<(), ResponseError> {
 
 /// Extract a workspace path from workspace folders.
 ///
-/// Returns the path of the first workspace folder with a file:// scheme.
-fn extract_workspace_path(workspace_folders: &[lsp_types::WorkspaceFolder]) -> Option<PathBuf> {
-    workspace_folders.first().and_then(|f| url_to_path(&f.uri))
+/// Returns the path of the first workspace folder with a file:// scheme. When
+/// no folders are provided, the root URI is used (for single-root clients).
+fn extract_workspace_path(
+    workspace_folders: &[lsp_types::WorkspaceFolder],
+    root_uri: Option<&Url>,
+) -> Option<PathBuf> {
+    workspace_folders
+        .first()
+        .and_then(|f| url_to_path(&f.uri))
+        .or_else(|| root_uri.and_then(url_to_path))
 }
 
 /// Convert a URL to a file system path.
@@ -137,12 +155,15 @@ mod tests {
     use super::*;
     use crate::config::ServerConfig;
     use lsp_types::ClientCapabilities;
+    use rstest::{fixture, rstest};
     use std::str::FromStr;
 
+    #[fixture]
     fn create_test_state() -> ServerState {
         ServerState::new(ServerConfig::default())
     }
 
+    #[fixture]
     fn create_init_params() -> InitializeParams {
         InitializeParams {
             capabilities: ClientCapabilities::default(),
@@ -151,24 +172,24 @@ mod tests {
         }
     }
 
-    #[test]
-    fn handle_initialise_stores_client_capabilities() {
-        let mut state = create_test_state();
-        let params = create_init_params();
-
-        let result = handle_initialise(&mut state, params);
+    #[rstest]
+    fn handle_initialise_stores_client_capabilities(
+        mut create_test_state: ServerState,
+        create_init_params: InitializeParams,
+    ) {
+        let result = handle_initialise(&mut create_test_state, create_init_params);
 
         assert!(result.is_ok());
-        assert!(state.client_capabilities.is_some());
+        assert!(create_test_state.client_capabilities.is_some());
     }
 
-    #[test]
-    fn handle_initialise_returns_server_info() {
-        let mut state = create_test_state();
-        let params = create_init_params();
-
-        let result = handle_initialise(&mut state, params);
-        let init_result = result.expect("initialisation should succeed");
+    #[rstest]
+    fn handle_initialise_returns_server_info(
+        mut create_test_state: ServerState,
+        create_init_params: InitializeParams,
+    ) {
+        let result = handle_initialise(&mut create_test_state, create_init_params);
+        let init_result = result.expect("initialization should succeed");
 
         assert!(init_result.server_info.is_some());
         let info = init_result.server_info.expect("should have server info");
@@ -176,32 +197,30 @@ mod tests {
         assert!(info.version.is_some());
     }
 
-    #[test]
-    fn handle_initialise_fails_when_already_initialised() {
-        let mut state = create_test_state();
-        state.mark_initialised();
-        let params = create_init_params();
+    #[rstest]
+    fn handle_initialise_fails_when_already_initialised(
+        mut create_test_state: ServerState,
+        create_init_params: InitializeParams,
+    ) {
+        create_test_state.mark_initialised();
 
-        let result = handle_initialise(&mut state, params);
+        let result = handle_initialise(&mut create_test_state, create_init_params);
 
         assert!(result.is_err());
     }
 
-    #[test]
-    fn handle_initialised_marks_state_as_initialised() {
-        let mut state = create_test_state();
-        assert!(!state.is_initialised());
+    #[rstest]
+    fn handle_initialised_marks_state_as_initialised(mut create_test_state: ServerState) {
+        assert!(!create_test_state.is_initialised());
 
-        handle_initialised(&mut state, InitializedParams {});
+        handle_initialised(&mut create_test_state, InitializedParams {});
 
-        assert!(state.is_initialised());
+        assert!(create_test_state.is_initialised());
     }
 
-    #[test]
-    fn handle_shutdown_returns_ok() {
-        let mut state = create_test_state();
-
-        let result = handle_shutdown(&mut state);
+    #[rstest]
+    fn handle_shutdown_returns_ok(mut create_test_state: ServerState) {
+        let result = handle_shutdown(&mut create_test_state);
 
         assert!(result.is_ok());
     }
@@ -242,7 +261,7 @@ mod tests {
             name: "folder".to_string(),
         }];
 
-        let path = extract_workspace_path(&folders);
+        let path = extract_workspace_path(&folders, None);
 
         assert!(path.is_some());
         assert_eq!(path.expect("should have path"), test_path);
@@ -250,8 +269,23 @@ mod tests {
 
     #[test]
     fn extract_workspace_path_returns_none_when_empty() {
-        let path = extract_workspace_path(&[]);
+        let path = extract_workspace_path(&[], None);
 
         assert!(path.is_none());
+    }
+
+    #[test]
+    fn extract_workspace_path_uses_root_uri_when_no_folders() {
+        // Use a platform-appropriate test path
+        #[cfg(windows)]
+        let test_path = PathBuf::from("C:\\folder\\path");
+        #[cfg(not(windows))]
+        let test_path = PathBuf::from("/folder/path");
+
+        let root_uri = Url::from_file_path(&test_path).expect("valid path");
+        let path = extract_workspace_path(&[], Some(&root_uri));
+
+        assert!(path.is_some());
+        assert_eq!(path.expect("should have path"), test_path);
     }
 }

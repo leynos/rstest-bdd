@@ -1213,7 +1213,7 @@ Build and install the language server from the workspace:
 cargo install --path crates/rstest-bdd-server
 ```
 
-The binary `rstest-bdd-lsp` will be placed in your Cargo bin directory.
+The binary `rstest-bdd-lsp` is placed in the Cargo bin directory.
 
 ### Configuration
 
@@ -1234,8 +1234,8 @@ RSTEST_BDD_LSP_LOG_LEVEL=debug rstest-bdd-lsp
 
 #### VS Code
 
-Add a configuration in your `settings.json` or use an extension that allows
-custom LSP servers. A minimal example using the
+Add a configuration in the `settings.json` file or use an extension that
+allows custom LSP servers. A minimal example using the
 [LSP-client](https://marketplace.visualstudio.com/items?itemName=ACharLuk.easy-lsp-client)
 extension:
 
