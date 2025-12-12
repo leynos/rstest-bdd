@@ -55,37 +55,6 @@ pub struct ScenarioRecord {
 }
 
 impl ScenarioRecord {
-    /// Construct a new record for the provided scenario metadata.
-    ///
-    /// # Examples
-    /// ```
-    /// use rstest_bdd::reporting::{ScenarioMetadata, ScenarioRecord, ScenarioStatus};
-    ///
-    /// let metadata = ScenarioMetadata::new(
-    ///     "features/example.feature",
-    ///     "example scenario",
-    ///     3,
-    ///     vec!["@allow_skipped".into()],
-    /// );
-    /// let record = ScenarioRecord::from_metadata(metadata, ScenarioStatus::Passed);
-    /// assert_eq!(record.feature_path(), "features/example.feature");
-    /// assert_eq!(record.scenario_name(), "example scenario");
-    /// assert_eq!(record.line(), 3);
-    /// assert_eq!(record.tags(), ["@allow_skipped"]);
-    /// assert!(matches!(record.status(), ScenarioStatus::Passed));
-    /// ```
-    #[must_use]
-    pub fn new(
-        feature_path: impl Into<String>,
-        scenario_name: impl Into<String>,
-        line: u32,
-        tags: impl Into<Vec<String>>,
-        status: ScenarioStatus,
-    ) -> Self {
-        let metadata = ScenarioMetadata::new(feature_path, scenario_name, line, tags);
-        Self::from_metadata(metadata, status)
-    }
-
     /// Construct a record from prepared scenario metadata.
     ///
     /// # Examples
