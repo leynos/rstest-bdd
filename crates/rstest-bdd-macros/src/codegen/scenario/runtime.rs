@@ -122,7 +122,7 @@ fn generate_scenario_guard() -> TokenStream2 {
         impl Drop for ScenarioReportGuard {
             fn drop(&mut self) {
                 if !self.recorded && !std::thread::panicking() {
-                    #path::reporting::record(#path::reporting::ScenarioRecord::new(
+                    let metadata = #path::reporting::ScenarioMetadata::new(
                         self.feature_path,
                         self.scenario_name,
                         self.line,
@@ -130,6 +130,9 @@ fn generate_scenario_guard() -> TokenStream2 {
                             .iter()
                             .map(|tag| tag.to_string())
                             .collect::<Vec<_>>(),
+                    );
+                    #path::reporting::record(#path::reporting::ScenarioRecord::from_metadata(
+                        metadata,
                         #path::reporting::ScenarioStatus::Passed,
                     ));
                 }
@@ -204,7 +207,7 @@ fn generate_skip_handler() -> TokenStream2 {
                 allow_skipped,
                 forced_failure,
             );
-            #path::reporting::record(#path::reporting::ScenarioRecord::new(
+            let metadata = #path::reporting::ScenarioMetadata::new(
                 FEATURE_PATH,
                 SCENARIO_NAME,
                 SCENARIO_LINE,
@@ -212,6 +215,9 @@ fn generate_skip_handler() -> TokenStream2 {
                     .iter()
                     .map(|tag| tag.to_string())
                     .collect::<Vec<_>>(),
+            );
+            #path::reporting::record(#path::reporting::ScenarioRecord::from_metadata(
+                metadata,
                 #path::reporting::ScenarioStatus::Skipped(skip_details),
             ));
             if forced_failure {

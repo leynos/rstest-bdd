@@ -9,8 +9,7 @@ use rstest_bdd_macros::{given, scenario, then};
 use serial_test::serial;
 
 use bdd::reporting::{
-    self, ScenarioRecord, ScenarioStatus, SkippedScenario, drain as drain_reports,
-    record as record_scenario,
+    self, ScenarioRecord, ScenarioStatus, SkippedScenario, drain as drain_reports, record as record_scenario, ScenarioMetadata,
 };
 #[cfg(feature = "diagnostics")]
 use serde_json::Value;
@@ -351,11 +350,14 @@ fn junit_writer_marks_forced_failure_skips() {
 #[serial]
 fn junit_writer_escapes_special_characters() {
     let _ = drain_reports();
-    record_scenario(ScenarioRecord::new(
+    let metadata = ScenarioMetadata::new(
         "tests/features/<feature>&special",
         "Scenario with <&>\"'",
         1,
         Vec::new(),
+    );
+    record_scenario(ScenarioRecord::from_metadata(
+        metadata,
         ScenarioStatus::Skipped(SkippedScenario::new(
             Some("message with <bad>&chars\u{0007}".into()),
             true,

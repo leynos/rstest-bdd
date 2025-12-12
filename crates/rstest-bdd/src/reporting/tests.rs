@@ -7,11 +7,9 @@ use serial_test::serial;
 #[serial]
 fn drain_clears_records() {
     let _ = drain();
-    record(ScenarioRecord::new(
-        "feature",
-        "scenario",
-        1,
-        Vec::new(),
+    let metadata = ScenarioMetadata::new("feature", "scenario", 1, Vec::new());
+    record(ScenarioRecord::from_metadata(
+        metadata,
         ScenarioStatus::Passed,
     ));
     assert_eq!(snapshot().len(), 1);
@@ -25,11 +23,9 @@ fn drain_clears_records() {
 fn skipped_records_store_metadata() {
     let _ = drain();
     let details = SkippedScenario::new(Some("pending".into()), true, false);
-    record(ScenarioRecord::new(
-        "feature",
-        "scenario",
-        2,
-        vec!["@allow_skipped".into()],
+    let metadata = ScenarioMetadata::new("feature", "scenario", 2, vec!["@allow_skipped".into()]);
+    record(ScenarioRecord::from_metadata(
+        metadata,
         ScenarioStatus::Skipped(details.clone()),
     ));
     let records = drain();

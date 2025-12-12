@@ -59,15 +59,15 @@ impl ScenarioRecord {
     ///
     /// # Examples
     /// ```
-    /// use rstest_bdd::reporting::{ScenarioRecord, ScenarioStatus};
+    /// use rstest_bdd::reporting::{ScenarioMetadata, ScenarioRecord, ScenarioStatus};
     ///
-    /// let record = ScenarioRecord::new(
+    /// let metadata = ScenarioMetadata::new(
     ///     "features/example.feature",
     ///     "example scenario",
     ///     3,
     ///     vec!["@allow_skipped".into()],
-    ///     ScenarioStatus::Passed,
     /// );
+    /// let record = ScenarioRecord::from_metadata(metadata, ScenarioStatus::Passed);
     /// assert_eq!(record.feature_path(), "features/example.feature");
     /// assert_eq!(record.scenario_name(), "example scenario");
     /// assert_eq!(record.line(), 3);
@@ -111,15 +111,10 @@ impl ScenarioRecord {
     ///
     /// # Examples
     /// ```
-    /// use rstest_bdd::reporting::{ScenarioRecord, ScenarioStatus};
+    /// use rstest_bdd::reporting::{ScenarioMetadata, ScenarioRecord, ScenarioStatus};
     ///
-    /// let record = ScenarioRecord::new(
-    ///     "feature",
-    ///     "scenario",
-    ///     1,
-    ///     Vec::new(),
-    ///     ScenarioStatus::Passed,
-    /// );
+    /// let metadata = ScenarioMetadata::new("feature", "scenario", 1, Vec::new());
+    /// let record = ScenarioRecord::from_metadata(metadata, ScenarioStatus::Passed);
     /// assert_eq!(record.feature_path(), "feature");
     /// ```
     #[must_use]
@@ -131,15 +126,10 @@ impl ScenarioRecord {
     ///
     /// # Examples
     /// ```
-    /// use rstest_bdd::reporting::{ScenarioRecord, ScenarioStatus};
+    /// use rstest_bdd::reporting::{ScenarioMetadata, ScenarioRecord, ScenarioStatus};
     ///
-    /// let record = ScenarioRecord::new(
-    ///     "feature",
-    ///     "scenario",
-    ///     1,
-    ///     Vec::new(),
-    ///     ScenarioStatus::Passed,
-    /// );
+    /// let metadata = ScenarioMetadata::new("feature", "scenario", 1, Vec::new());
+    /// let record = ScenarioRecord::from_metadata(metadata, ScenarioStatus::Passed);
     /// assert_eq!(record.scenario_name(), "scenario");
     /// ```
     #[must_use]
@@ -163,15 +153,10 @@ impl ScenarioRecord {
     ///
     /// # Examples
     /// ```
-    /// use rstest_bdd::reporting::{ScenarioRecord, ScenarioStatus};
+    /// use rstest_bdd::reporting::{ScenarioMetadata, ScenarioRecord, ScenarioStatus};
     ///
-    /// let record = ScenarioRecord::new(
-    ///     "feature",
-    ///     "scenario",
-    ///     1,
-    ///     Vec::new(),
-    ///     ScenarioStatus::Passed,
-    /// );
+    /// let metadata = ScenarioMetadata::new("feature", "scenario", 1, Vec::new());
+    /// let record = ScenarioRecord::from_metadata(metadata, ScenarioStatus::Passed);
     /// assert!(matches!(record.status(), ScenarioStatus::Passed));
     /// ```
     #[must_use]
@@ -196,13 +181,8 @@ impl ScenarioStatus {
     /// ```
     /// use rstest_bdd::reporting::{ScenarioRecord, ScenarioStatus};
     ///
-    /// let passed = ScenarioRecord::new(
-    ///     "feature",
-    ///     "scenario",
-    ///     1,
-    ///     Vec::new(),
-    ///     ScenarioStatus::Passed,
-    /// );
+    /// let metadata = ScenarioMetadata::new("feature", "scenario", 1, Vec::new());
+    /// let passed = ScenarioRecord::from_metadata(metadata, ScenarioStatus::Passed);
     /// assert_eq!(passed.status().label(), "passed");
     /// ```
     #[must_use]
@@ -227,14 +207,12 @@ impl SkippedScenario {
     ///
     /// # Examples
     /// ```
-    /// use rstest_bdd::reporting::{ScenarioStatus, SkippedScenario, ScenarioRecord};
+    /// use rstest_bdd::reporting::{ScenarioMetadata, ScenarioStatus, SkippedScenario, ScenarioRecord};
     ///
     /// let skipped = SkippedScenario::new(Some("pending".into()), true, false);
-    /// let record = ScenarioRecord::new(
-    ///     "feature",
-    ///     "scenario",
-    ///     1,
-    ///     Vec::new(),
+    /// let metadata = ScenarioMetadata::new("feature", "scenario", 1, Vec::new());
+    /// let record = ScenarioRecord::from_metadata(
+    ///     metadata,
     ///     ScenarioStatus::Skipped(skipped.clone()),
     /// );
     /// assert!(matches!(

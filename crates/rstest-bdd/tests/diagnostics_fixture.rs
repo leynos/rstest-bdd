@@ -61,11 +61,14 @@ fn seed_reporting_fixture() {
         return;
     }
 
-    bdd::reporting::record(bdd::reporting::ScenarioRecord::new(
+    let metadata = bdd::reporting::ScenarioMetadata::new(
         "tests/features/diagnostics.fixture",
         "fixture skipped scenario",
         7,
         vec!["@allow_skipped".into()],
+    );
+    bdd::reporting::record(bdd::reporting::ScenarioRecord::from_metadata(
+        metadata,
         bdd::reporting::ScenarioStatus::Skipped(bdd::reporting::SkippedScenario::new(
             Some("fixture skip message".into()),
             true,
@@ -82,11 +85,14 @@ fn seed_reporting_fixture() {
         [(StepKeyword::Given, "fixture bypassed step")],
     );
 
-    bdd::reporting::record(bdd::reporting::ScenarioRecord::new(
+    let forced_metadata = bdd::reporting::ScenarioMetadata::new(
         "tests/features/diagnostics.fixture",
         "fixture forced failure skip",
         12,
         vec!["@critical".into()],
+    );
+    bdd::reporting::record(bdd::reporting::ScenarioRecord::from_metadata(
+        forced_metadata,
         bdd::reporting::ScenarioStatus::Skipped(bdd::reporting::SkippedScenario::new(
             Some("fixture forced skip".into()),
             false,
@@ -103,11 +109,14 @@ fn seed_reporting_fixture() {
         [(StepKeyword::Then, "fixture forced bypass")],
     );
 
-    bdd::reporting::record(bdd::reporting::ScenarioRecord::new(
+    let passing_metadata = bdd::reporting::ScenarioMetadata::new(
         "tests/features/diagnostics.fixture",
         "fixture passing scenario",
         18,
         Vec::new(),
+    );
+    bdd::reporting::record(bdd::reporting::ScenarioRecord::from_metadata(
+        passing_metadata,
         bdd::reporting::ScenarioStatus::Passed,
     ));
 }

@@ -636,17 +636,20 @@ substring matching to confirm that a message contains the expected reason.
 
 ```rust,no_run
 use rstest_bdd::{assert_scenario_skipped, assert_step_skipped, StepExecution};
-use rstest_bdd::reporting::{ScenarioRecord, ScenarioStatus, SkippedScenario};
+use rstest_bdd::reporting::{ScenarioMetadata, ScenarioRecord, ScenarioStatus, SkippedScenario};
 
 let outcome = StepExecution::skipped(Some("maintenance pending".into()));
 let message = assert_step_skipped!(outcome, message = "maintenance");
 assert_eq!(message, Some("maintenance pending".into()));
 
-let record = ScenarioRecord::new(
+let metadata = ScenarioMetadata::new(
     "features/unhappy.feature",
     "pending work",
     12,
     vec!["@allow_skipped".into()],
+);
+let record = ScenarioRecord::from_metadata(
+    metadata,
     ScenarioStatus::Skipped(SkippedScenario::new(None, true, false)),
 );
 let details = assert_scenario_skipped!(

@@ -107,13 +107,8 @@ pub fn run_dump_seeds() {
 /// ```
 /// use rstest_bdd::reporting::{record, drain, snapshot, ScenarioRecord, ScenarioStatus};
 ///
-/// record(ScenarioRecord::new(
-///     "feature",
-///     "scenario",
-///     1,
-///     Vec::new(),
-///     ScenarioStatus::Passed,
-/// ));
+/// let metadata = ScenarioMetadata::new("feature", "scenario", 1, Vec::new());
+/// record(ScenarioRecord::from_metadata(metadata, ScenarioStatus::Passed));
 /// let records = drain();
 /// assert_eq!(records.len(), 1);
 /// ```
@@ -127,13 +122,8 @@ pub fn record(record: ScenarioRecord) {
 /// ```
 /// use rstest_bdd::reporting::{record, snapshot, ScenarioRecord, ScenarioStatus};
 ///
-/// record(ScenarioRecord::new(
-///     "feature",
-///     "scenario",
-///     1,
-///     Vec::new(),
-///     ScenarioStatus::Passed,
-/// ));
+/// let metadata = ScenarioMetadata::new("feature", "scenario", 1, Vec::new());
+/// record(ScenarioRecord::from_metadata(metadata, ScenarioStatus::Passed));
 /// let records = snapshot();
 /// assert_eq!(records[0].scenario_name(), "scenario");
 /// ```
@@ -148,13 +138,8 @@ pub fn snapshot() -> Vec<ScenarioRecord> {
 /// ```
 /// use rstest_bdd::reporting::{record, drain, ScenarioRecord, ScenarioStatus};
 ///
-/// record(ScenarioRecord::new(
-///     "feature",
-///     "scenario",
-///     1,
-///     Vec::new(),
-///     ScenarioStatus::Passed,
-/// ));
+/// let metadata = ScenarioMetadata::new("feature", "scenario", 1, Vec::new());
+/// record(ScenarioRecord::from_metadata(metadata, ScenarioStatus::Passed));
 /// let drained = drain();
 /// assert!(snapshot().is_empty());
 /// assert_eq!(drained.len(), 1);

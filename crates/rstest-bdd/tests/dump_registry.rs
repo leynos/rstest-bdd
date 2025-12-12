@@ -3,7 +3,7 @@
 
 use rstest_bdd::{
     StepContext, StepExecution, StepKeyword, dump_registry, find_step, record_bypassed_steps,
-    reporting::{self, ScenarioRecord, ScenarioStatus, SkippedScenario},
+    reporting::{self, ScenarioMetadata, ScenarioRecord, ScenarioStatus, SkippedScenario},
     step,
 };
 use serde_json::Value;
@@ -70,18 +70,25 @@ fn validate_passed_scenario(scenarios: &[Value]) {
 #[test]
 fn reports_usage_flags() {
     let _ = reporting::drain();
-    reporting::record(ScenarioRecord::new(
+    let skipped_metadata = ScenarioMetadata::new(
         "tests/features/dump.feature",
         "skipped entry",
         3,
         vec!["@allow_skipped".into()],
+    );
+    reporting::record(ScenarioRecord::from_metadata(
+        skipped_metadata,
         ScenarioStatus::Skipped(SkippedScenario::new(Some("reason".into()), true, false)),
     ));
-    reporting::record(ScenarioRecord::new(
+
+    let passing_metadata = ScenarioMetadata::new(
         "tests/features/dump.feature",
         "passing entry",
         4,
         Vec::new(),
+    );
+    reporting::record(ScenarioRecord::from_metadata(
+        passing_metadata,
         ScenarioStatus::Passed,
     ));
 
