@@ -14,8 +14,8 @@
 //!   for the key type and the cache `OnceLock<HashMap<...>>`, so we can
 //!   reference them while generating argument initialisation code.
 
-use super::super::args::{classify::is_cached_table, DataTableArg};
-use super::{step_error_tokens, StepMeta};
+use super::super::args::{DataTableArg, classify::is_cached_table};
+use super::{StepMeta, step_error_tokens};
 use crate::codegen::wrapper::datatable_shared::{
     record_cache_miss_tokens, table_arc_tokens, table_content_match_tokens,
 };

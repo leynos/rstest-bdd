@@ -11,7 +11,7 @@ use tracing::{info, warn};
 
 use crate::discovery::discover_workspace;
 use crate::error::ServerError;
-use crate::server::{build_server_capabilities, ServerState};
+use crate::server::{ServerState, build_server_capabilities};
 
 /// Handle the `initialize` request from the client.
 ///
@@ -52,15 +52,15 @@ pub fn handle_initialise(
         root_uri,
         ..
     } = params;
-    state.client_capabilities = Some(capabilities);
+    state.set_client_capabilities(capabilities);
 
     // Store workspace folders if provided
     if let Some(folders) = workspace_folders {
-        state.workspace_folders = folders;
+        state.set_workspace_folders(folders);
     }
 
     // Attempt workspace discovery from workspace folders or the root URI.
-    let workspace_path = extract_workspace_path(&state.workspace_folders, root_uri.as_ref());
+    let workspace_path = extract_workspace_path(state.workspace_folders(), root_uri.as_ref());
     if let Some(path) = workspace_path {
         match discover_workspace(&path) {
             Ok(info) => {
@@ -69,7 +69,7 @@ pub fn handle_initialise(
                     packages = ?info.packages,
                     "discovered workspace"
                 );
-                state.workspace_info = Some(info);
+                state.set_workspace_info(info);
             }
             Err(e) => {
                 warn!(error = %e, "workspace discovery failed");
@@ -98,7 +98,7 @@ pub fn handle_initialise(
 /// * `_params` - Initialised notification parameters (currently unused)
 pub fn handle_initialised(state: &mut ServerState, _params: InitializedParams) {
     state.mark_initialised();
-    info!("server initialised");
+    info!("server initialized");
 }
 
 /// Handle the `shutdown` request from the client.
@@ -154,7 +154,7 @@ fn response_error(err: &ServerError, code: async_lsp::ErrorCode) -> ResponseErro
 mod tests {
     use super::*;
     use crate::config::ServerConfig;
-    use lsp_types::ClientCapabilities;
+    use lsp_types::{ClientCapabilities, WorkspaceFolder};
     use rstest::{fixture, rstest};
     use std::str::FromStr;
 
@@ -172,6 +172,16 @@ mod tests {
         }
     }
 
+    /// Fixture providing a platform-specific test path.
+    #[fixture]
+    fn platform_test_path() -> PathBuf {
+        #[cfg(windows)]
+        let path = PathBuf::from("C:\\test\\path");
+        #[cfg(not(windows))]
+        let path = PathBuf::from("/test/path");
+        path
+    }
+
     #[rstest]
     fn handle_initialise_stores_client_capabilities(
         mut create_test_state: ServerState,
@@ -180,7 +190,7 @@ mod tests {
         let result = handle_initialise(&mut create_test_state, create_init_params);
 
         assert!(result.is_ok());
-        assert!(create_test_state.client_capabilities.is_some());
+        assert!(create_test_state.client_capabilities().is_some());
     }
 
     #[rstest]
@@ -226,21 +236,6 @@ mod tests {
     }
 
     #[test]
-    fn url_to_path_handles_file_url() {
-        // Use a platform-appropriate test path
-        #[cfg(windows)]
-        let test_path = PathBuf::from("C:\\test\\path");
-        #[cfg(not(windows))]
-        let test_path = PathBuf::from("/test/path");
-
-        let url = Url::from_file_path(&test_path).expect("valid path");
-        let path = url_to_path(&url);
-
-        assert!(path.is_some());
-        assert_eq!(path.expect("should have path"), test_path);
-    }
-
-    #[test]
     fn url_to_path_returns_none_for_non_file_url() {
         let url = Url::from_str("https://example.com/path").expect("valid URL");
         let path = url_to_path(&url);
@@ -248,23 +243,45 @@ mod tests {
         assert!(path.is_none());
     }
 
-    #[test]
-    fn extract_workspace_path_from_folders() {
-        // Use a platform-appropriate test path
-        #[cfg(windows)]
-        let test_path = PathBuf::from("C:\\folder\\path");
-        #[cfg(not(windows))]
-        let test_path = PathBuf::from("/folder/path");
-
-        let folders = vec![lsp_types::WorkspaceFolder {
-            uri: Url::from_file_path(&test_path).expect("valid path"),
-            name: "folder".to_string(),
-        }];
-
-        let path = extract_workspace_path(&folders, None);
+    #[rstest]
+    fn url_to_path_handles_file_url(platform_test_path: PathBuf) {
+        let url = Url::from_file_path(&platform_test_path).expect("valid path");
+        let path = url_to_path(&url);
 
         assert!(path.is_some());
-        assert_eq!(path.expect("should have path"), test_path);
+        assert_eq!(path.expect("should have path"), platform_test_path);
+    }
+
+    #[rstest]
+    #[case::from_workspace_folders(true, None)]
+    #[case::from_root_uri(false, Some("root_uri"))]
+    #[expect(
+        clippy::used_underscore_binding,
+        reason = "rstest uses this parameter; name matches review instructions"
+    )]
+    fn extract_workspace_path_from_various_sources(
+        platform_test_path: PathBuf,
+        #[case] use_folders: bool,
+        #[case] _description: Option<&str>,
+    ) {
+        let url = Url::from_file_path(&platform_test_path).expect("valid path");
+
+        let (folders, root_uri) = if use_folders {
+            (
+                vec![WorkspaceFolder {
+                    uri: url.clone(),
+                    name: "folder".to_string(),
+                }],
+                None,
+            )
+        } else {
+            (Vec::new(), Some(url.clone()))
+        };
+
+        let path = extract_workspace_path(&folders, root_uri.as_ref());
+
+        assert!(path.is_some());
+        assert_eq!(path.expect("should have path"), platform_test_path);
     }
 
     #[test]
@@ -272,20 +289,5 @@ mod tests {
         let path = extract_workspace_path(&[], None);
 
         assert!(path.is_none());
-    }
-
-    #[test]
-    fn extract_workspace_path_uses_root_uri_when_no_folders() {
-        // Use a platform-appropriate test path
-        #[cfg(windows)]
-        let test_path = PathBuf::from("C:\\folder\\path");
-        #[cfg(not(windows))]
-        let test_path = PathBuf::from("/folder/path");
-
-        let root_uri = Url::from_file_path(&test_path).expect("valid path");
-        let path = extract_workspace_path(&[], Some(&root_uri));
-
-        assert!(path.is_some());
-        assert_eq!(path.expect("should have path"), test_path);
     }
 }

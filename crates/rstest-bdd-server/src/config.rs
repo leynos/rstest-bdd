@@ -99,12 +99,19 @@ impl ServerConfig {
     /// Returns `ServerError::InvalidConfig` if an environment variable contains
     /// an invalid value.
     pub fn from_env() -> Result<Self, ServerError> {
-        let log_level = match env::var("RSTEST_BDD_LSP_LOG_LEVEL") {
+        Self::from_env_with(|key| env::var(key))
+    }
+
+    fn from_env_with<F>(get_var: F) -> Result<Self, ServerError>
+    where
+        F: Fn(&str) -> Result<String, env::VarError>,
+    {
+        let log_level = match get_var("RSTEST_BDD_LSP_LOG_LEVEL") {
             Ok(val) => val.parse()?,
             Err(_) => LogLevel::default(),
         };
 
-        let debounce_ms = match env::var("RSTEST_BDD_LSP_DEBOUNCE_MS") {
+        let debounce_ms = match get_var("RSTEST_BDD_LSP_DEBOUNCE_MS") {
             Ok(val) => val.parse().map_err(|_| {
                 ServerError::InvalidConfig(format!(
                     "invalid debounce value '{val}', expected a positive integer"
@@ -151,6 +158,7 @@ impl ServerConfig {
 #[cfg(test)]
 #[expect(
     clippy::unwrap_used,
+    clippy::expect_used,
     reason = "tests require explicit panic messages for debugging failures"
 )]
 mod tests {
@@ -177,10 +185,12 @@ mod tests {
     fn log_level_rejects_invalid_values() {
         let result = "invalid".parse::<LogLevel>();
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("unknown log level"));
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("unknown log level")
+        );
     }
 
     #[test]
@@ -214,5 +224,42 @@ mod tests {
         let config = ServerConfig::default().apply_overrides(None, None);
         assert_eq!(config.log_level, LogLevel::Info);
         assert_eq!(config.debounce_ms, 300);
+    }
+
+    #[test]
+    fn server_config_from_env_with_reads_defaults_when_missing() {
+        let config = ServerConfig::from_env_with(|_| Err(env::VarError::NotPresent))
+            .expect("expected defaults");
+
+        assert_eq!(config.log_level, LogLevel::Info);
+        assert_eq!(config.debounce_ms, 300);
+    }
+
+    #[test]
+    fn server_config_from_env_with_reads_values() {
+        let config = ServerConfig::from_env_with(|key| match key {
+            "RSTEST_BDD_LSP_LOG_LEVEL" => Ok("debug".to_string()),
+            "RSTEST_BDD_LSP_DEBOUNCE_MS" => Ok("123".to_string()),
+            _ => Err(env::VarError::NotPresent),
+        })
+        .expect("expected parsed config");
+
+        assert_eq!(config.log_level, LogLevel::Debug);
+        assert_eq!(config.debounce_ms, 123);
+    }
+
+    #[test]
+    fn server_config_from_env_with_rejects_invalid_values() {
+        let result = ServerConfig::from_env_with(|key| match key {
+            "RSTEST_BDD_LSP_LOG_LEVEL" => Ok("invalid".to_string()),
+            _ => Err(env::VarError::NotPresent),
+        });
+        assert!(result.is_err());
+
+        let result = ServerConfig::from_env_with(|key| match key {
+            "RSTEST_BDD_LSP_DEBOUNCE_MS" => Ok("invalid".to_string()),
+            _ => Err(env::VarError::NotPresent),
+        });
+        assert!(result.is_err());
     }
 }

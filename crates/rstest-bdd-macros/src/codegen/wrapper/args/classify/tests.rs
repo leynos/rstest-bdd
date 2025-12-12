@@ -4,7 +4,7 @@ use super::*;
 use proc_macro2::{Span, TokenStream as TokenStream2};
 use quote::quote;
 use std::collections::HashSet;
-use syn::{parse_quote, FnArg};
+use syn::{FnArg, parse_quote};
 
 fn ident(name: &str) -> syn::Ident {
     syn::Ident::new(name, Span::call_site())
@@ -19,7 +19,10 @@ fn pat_type(tokens: TokenStream2) -> syn::PatType {
 }
 
 /// Helper to execute `classify_fixture_or_step` and return the results for assertion.
-#[allow(clippy::expect_used)] // Tests must panic with context when classification unexpectedly fails.
+#[expect(
+    clippy::expect_used,
+    reason = "tests must panic with context when classification unexpectedly fails"
+)]
 fn execute_classify_fixture_or_step(
     placeholders_init: HashSet<String>,
     arg_tokens: TokenStream2,
@@ -107,9 +110,10 @@ fn classify_fixture_or_step_respects_blocked_placeholders() {
         panic!("classification should fail");
     };
 
-    assert!(err
-        .to_string()
-        .contains("#[step_args] cannot be combined with named step arguments"));
+    assert!(
+        err.to_string()
+            .contains("#[step_args] cannot be combined with named step arguments")
+    );
 }
 
 #[test]
@@ -139,7 +143,9 @@ fn classify_step_struct_blocks_placeholders() {
         extracted.blocked_placeholders,
         HashSet::from(["alpha".to_string(), "beta".to_string()])
     );
-    assert!(extracted
-        .step_struct()
-        .is_some_and(|step| step.pat == "args"));
+    assert!(
+        extracted
+            .step_struct()
+            .is_some_and(|step| step.pat == "args")
+    );
 }

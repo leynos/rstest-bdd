@@ -4,8 +4,8 @@
 //! Logs are written to stderr to avoid interfering with JSON-RPC communication
 //! on stdout.
 
-use tracing_subscriber::fmt::format::FmtSpan;
 use tracing_subscriber::EnvFilter;
+use tracing_subscriber::fmt::format::FmtSpan;
 
 use crate::config::ServerConfig;
 

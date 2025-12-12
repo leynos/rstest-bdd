@@ -16,15 +16,15 @@ use crate::discovery::WorkspaceInfo;
 #[derive(Debug)]
 pub struct ServerState {
     /// Client capabilities received during initialisation.
-    pub client_capabilities: Option<ClientCapabilities>,
+    client_capabilities: Option<ClientCapabilities>,
     /// Discovered workspace information.
-    pub workspace_info: Option<WorkspaceInfo>,
+    workspace_info: Option<WorkspaceInfo>,
     /// Workspace folders from the client.
-    pub workspace_folders: Vec<WorkspaceFolder>,
+    workspace_folders: Vec<WorkspaceFolder>,
     /// Whether the server has been initialised.
-    pub initialised: bool,
+    initialised: bool,
     /// Configuration loaded from environment and client.
-    pub config: ServerConfig,
+    config: ServerConfig,
 }
 
 impl ServerState {
@@ -49,6 +49,45 @@ impl ServerState {
             initialised: false,
             config,
         }
+    }
+
+    /// Store client capabilities received during initialization.
+    pub fn set_client_capabilities(&mut self, capabilities: ClientCapabilities) {
+        self.client_capabilities = Some(capabilities);
+    }
+
+    /// Access the stored client capabilities, if any.
+    #[must_use]
+    pub fn client_capabilities(&self) -> Option<&ClientCapabilities> {
+        self.client_capabilities.as_ref()
+    }
+
+    /// Store workspace folders provided by the client.
+    pub fn set_workspace_folders(&mut self, folders: Vec<WorkspaceFolder>) {
+        self.workspace_folders = folders;
+    }
+
+    /// Access the workspace folders provided by the client.
+    #[must_use]
+    pub fn workspace_folders(&self) -> &[WorkspaceFolder] {
+        &self.workspace_folders
+    }
+
+    /// Store discovered workspace information.
+    pub fn set_workspace_info(&mut self, workspace_info: WorkspaceInfo) {
+        self.workspace_info = Some(workspace_info);
+    }
+
+    /// Access discovered workspace information, if available.
+    #[must_use]
+    pub fn workspace_info(&self) -> Option<&WorkspaceInfo> {
+        self.workspace_info.as_ref()
+    }
+
+    /// Access the current server configuration.
+    #[must_use]
+    pub fn config(&self) -> &ServerConfig {
+        &self.config
     }
 
     /// Mark the server as initialised.
@@ -81,9 +120,9 @@ mod tests {
         let config = ServerConfig::default();
         let state = ServerState::new(config);
         assert!(!state.is_initialised());
-        assert!(state.client_capabilities.is_none());
-        assert!(state.workspace_info.is_none());
-        assert!(state.workspace_folders.is_empty());
+        assert!(state.client_capabilities().is_none());
+        assert!(state.workspace_info().is_none());
+        assert!(state.workspace_folders().is_empty());
     }
 
     #[test]

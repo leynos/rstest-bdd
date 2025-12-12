@@ -1,12 +1,11 @@
 //! Localization utilities used by the public macros and runtime diagnostics.
 
 use std::cell::RefCell;
-use std::sync::RwLock;
+use std::sync::{LazyLock, RwLock};
 
 use fluent::FluentArgs;
-use i18n_embed::fluent::{fluent_language_loader, FluentLanguageLoader};
 use i18n_embed::I18nEmbedError;
-use once_cell::sync::Lazy;
+use i18n_embed::fluent::{FluentLanguageLoader, fluent_language_loader};
 use rust_embed::RustEmbed;
 use thiserror::Error;
 use unic_langid::LanguageIdentifier;
@@ -29,7 +28,7 @@ use unic_langid::LanguageIdentifier;
 #[folder = "i18n"]
 pub struct Localizations;
 
-static LANGUAGE_LOADER: Lazy<RwLock<FluentLanguageLoader>> = Lazy::new(|| {
+static LANGUAGE_LOADER: LazyLock<RwLock<FluentLanguageLoader>> = LazyLock::new(|| {
     let loader = fluent_language_loader!();
     i18n_embed::select(&loader, &Localizations, &[unic_langid::langid!("en-US")])
         .unwrap_or_else(|error| panic!("failed to load default English translations: {error}"));

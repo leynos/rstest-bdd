@@ -1219,10 +1219,10 @@ The binary `rstest-bdd-lsp` is placed in the Cargo bin directory.
 
 The server reads configuration from environment variables:
 
-| Variable                  | Description                              | Default |
-| ------------------------- | ---------------------------------------- | ------- |
-| `RSTEST_BDD_LSP_LOG_LEVEL`| Logging verbosity (trace, debug, info, warn, error) | `info` |
-| `RSTEST_BDD_LSP_DEBOUNCE_MS` | Delay (ms) before processing file changes | `300` |
+| Variable                     | Description                                         | Default |
+| ---------------------------- | --------------------------------------------------- | ------- |
+| `RSTEST_BDD_LSP_LOG_LEVEL`   | Logging verbosity (trace, debug, info, warn, error) | `info`  |
+| `RSTEST_BDD_LSP_DEBOUNCE_MS` | Delay (ms) before processing file changes           | `300`   |
 
 Example:
 
@@ -1234,10 +1234,10 @@ RSTEST_BDD_LSP_LOG_LEVEL=debug rstest-bdd-lsp
 
 #### VS Code
 
-Add a configuration in the `settings.json` file or use an extension that
-allows custom LSP servers. A minimal example using the
+Add a configuration in the `settings.json` file or use an extension that allows
+custom LSP servers. A minimal example using the
 [LSP-client](https://marketplace.visualstudio.com/items?itemName=ACharLuk.easy-lsp-client)
-extension:
+ extension:
 
 ```json
 {
@@ -1281,8 +1281,8 @@ The initial release provides the LSP scaffolding:
   written to stderr using the `tracing` framework.
 
 Future releases will add indexing, navigation (go-to-definition,
-go-to-implementation), and diagnostics as outlined in the [Language Server
-Design Document](rstest-bdd-language-server-design.md).
+go-to-implementation), and diagnostics as outlined in the
+[Language Server Design Document](rstest-bdd-language-server-design.md).
 
 ## Summary
 

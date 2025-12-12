@@ -5,14 +5,13 @@
 //! to the original input so compile errors reference the user-specified path.
 
 use cap_std::{ambient_authority, fs::Dir};
-use once_cell::sync::Lazy;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use std::sync::RwLock;
+use std::sync::{LazyLock, RwLock};
 
 /// Cache of canonicalised feature paths to avoid repeated filesystem lookups.
-static FEATURE_PATH_CACHE: Lazy<RwLock<HashMap<PathBuf, String>>> =
-    Lazy::new(|| RwLock::new(HashMap::new()));
+static FEATURE_PATH_CACHE: LazyLock<RwLock<HashMap<PathBuf, String>>> =
+    LazyLock::new(|| RwLock::new(HashMap::new()));
 
 /// Normalise path components so equivalent inputs share cache entries.
 ///

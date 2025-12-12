@@ -7,7 +7,7 @@ use quote::{format_ident, quote};
 
 mod datatable;
 mod fixtures;
-use datatable::{gen_datatable_decl, CacheIdents};
+use datatable::{CacheIdents, gen_datatable_decl};
 use fixtures::gen_fixture_decls;
 
 #[derive(Copy, Clone)]

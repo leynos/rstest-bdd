@@ -32,6 +32,6 @@ rstest-bdd-lsp --help
 See the [User Guide](../../docs/users-guide.md) for editor-specific setup
 instructions.
 
-## License
+## Licence
 
 ISC

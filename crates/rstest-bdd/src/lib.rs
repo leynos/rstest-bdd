@@ -45,19 +45,19 @@ mod types;
 
 pub use context::{FixtureRef, FixtureRefMut, StepContext};
 pub use localization::{
-    current_languages, install_localization_loader, select_localizations, LocalizationError,
-    Localizations,
+    LocalizationError, Localizations, current_languages, install_localization_loader,
+    select_localizations,
 };
 pub use pattern::StepPattern;
 pub use placeholder::extract_placeholders;
 #[cfg(feature = "diagnostics")]
 pub use registry::dump_registry;
-pub use registry::{duplicate_steps, find_step, lookup_step, unused_steps, Step};
+pub use registry::{Step, duplicate_steps, find_step, lookup_step, unused_steps};
 #[doc(hidden)]
 pub use skip::{
+    ScopeKind as __rstest_bdd_scope_kind, SkipRequest, StepScopeGuard as __rstest_bdd_scope_guard,
     enter_scope as __rstest_bdd_enter_scope,
     request_current_skip as __rstest_bdd_request_current_skip,
-    ScopeKind as __rstest_bdd_scope_kind, SkipRequest, StepScopeGuard as __rstest_bdd_scope_guard,
 };
 #[doc(hidden)]
 pub use skip_helpers::{

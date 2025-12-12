@@ -1,6 +1,6 @@
 //! Placeholder parsing utilities used by the lexer.
 
-use crate::errors::{placeholder_error, PatternError};
+use crate::errors::{PatternError, placeholder_error};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct PlaceholderSpec {
@@ -343,9 +343,10 @@ mod tests {
     fn errors_on_whitespace_before_hint() {
         let pattern = "{value :u32}";
         let err = parse_err(pattern);
-        assert!(err
-            .to_string()
-            .contains("invalid placeholder in step pattern"));
+        assert!(
+            err.to_string()
+                .contains("invalid placeholder in step pattern")
+        );
     }
 
     #[test]

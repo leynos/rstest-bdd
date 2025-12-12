@@ -3,7 +3,7 @@
 use rstest::fixture;
 use rstest_bdd::ScenarioState as _;
 use rstest_bdd::Slot;
-use rstest_bdd_macros::{given, scenario, then, when, ScenarioState};
+use rstest_bdd_macros::{ScenarioState, given, scenario, then, when};
 
 #[derive(Default, ScenarioState)]
 struct CartState {

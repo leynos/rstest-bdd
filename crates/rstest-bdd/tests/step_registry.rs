@@ -1,9 +1,9 @@
 //! Behavioural test for step registry
 
 use rstest::rstest;
-use rstest_bdd::localization::{strip_directional_isolates, ScopedLocalization};
+use rstest_bdd::localization::{ScopedLocalization, strip_directional_isolates};
 use rstest_bdd::{
-    iter, panic_message, step, Step, StepContext, StepError, StepExecution, StepKeyword,
+    Step, StepContext, StepError, StepExecution, StepKeyword, iter, panic_message, step,
 };
 use unic_langid::langid;
 
@@ -53,7 +53,7 @@ fn panicking_wrapper(
     _docstring: Option<&str>,
     _table: Option<&[&[&str]]>,
 ) -> Result<StepExecution, StepError> {
-    use std::panic::{catch_unwind, AssertUnwindSafe};
+    use std::panic::{AssertUnwindSafe, catch_unwind};
     let _ = ctx;
     catch_unwind(AssertUnwindSafe(|| panic!("snap"))).map_err(|e| StepError::PanicError {
         pattern: "panics".into(),

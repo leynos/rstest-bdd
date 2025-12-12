@@ -3,7 +3,7 @@
 mod support;
 
 use rstest::rstest;
-use rstest_bdd::{extract_placeholders, StepPattern, StepPatternError, StepText};
+use rstest_bdd::{StepPattern, StepPatternError, StepText, extract_placeholders};
 use support::{compiled, expect_placeholder_syntax};
 
 #[test]

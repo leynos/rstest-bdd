@@ -10,11 +10,11 @@ use std::collections::HashSet;
 use quote::ToTokens;
 
 use super::{
-    classify::{
-        classify_datatable, classify_docstring, classify_fixture_or_step, classify_step_struct,
-        extract_step_struct_attribute, ClassificationContext,
-    },
     ExtractedArgs,
+    classify::{
+        ClassificationContext, classify_datatable, classify_docstring, classify_fixture_or_step,
+        classify_step_struct, extract_step_struct_attribute,
+    },
 };
 
 fn next_typed_argument(
@@ -72,7 +72,7 @@ fn classify_step_or_fixture(
             return Err(syn::Error::new_spanned(
                 other,
                 "unsupported parameter pattern; use a simple identifier (e.g., `arg: T`)",
-            ))
+            ));
         }
     };
     let ty = (*arg.ty).clone();

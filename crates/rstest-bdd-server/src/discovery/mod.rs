@@ -5,4 +5,4 @@
 
 mod workspace;
 
-pub use workspace::{discover_workspace, find_feature_files, WorkspaceInfo};
+pub use workspace::{WorkspaceInfo, discover_workspace, find_feature_files};

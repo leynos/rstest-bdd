@@ -9,7 +9,7 @@
 
 use gherkin::{Step, StepType};
 use proc_macro2::TokenStream as TokenStream2;
-use quote::{quote, ToTokens};
+use quote::{ToTokens, quote};
 use std::fmt;
 
 #[derive(Debug, Clone, PartialEq, Eq)]

@@ -5,7 +5,7 @@
 //! field specifications consumed by the bindings module.
 
 use proc_macro2::{Ident, Span};
-use syn::{spanned::Spanned, Attribute, ExprPath, Field, Fields, LitStr, Token, Type};
+use syn::{Attribute, ExprPath, Field, Fields, LitStr, Token, Type, spanned::Spanned};
 
 use crate::datatable::config::{Accessor, DefaultValue, FieldConfig, FieldSpec, StructConfig};
 use crate::datatable::rename::RenameRule;
@@ -241,7 +241,7 @@ fn ensure_when(violation: bool, span: Span, message: &str) -> syn::Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use syn::{parse_quote, Data};
+    use syn::{Data, parse_quote};
 
     #[test]
     fn parse_struct_config_reads_rename_rule() {
@@ -308,9 +308,10 @@ mod tests {
         let err = collect_fields(fields, &config)
             .err()
             .expect("optional on non-Option should error");
-        assert!(err
-            .to_string()
-            .contains("#[datatable(optional)] requires an Option<T> field"));
+        assert!(
+            err.to_string()
+                .contains("#[datatable(optional)] requires an Option<T> field")
+        );
     }
 
     #[test]
@@ -331,8 +332,9 @@ mod tests {
         let err = collect_fields(fields, &config)
             .err()
             .expect("truthy on non-bool should error");
-        assert!(err
-            .to_string()
-            .contains("#[datatable(truthy)] requires a bool field"));
+        assert!(
+            err.to_string()
+                .contains("#[datatable(truthy)] requires a bool field")
+        );
     }
 }

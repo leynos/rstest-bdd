@@ -8,7 +8,7 @@ use std::process::{Command, Stdio};
 
 use cargo_metadata::{Message, Package, PackageId, Target};
 use clap::{Parser, Subcommand};
-use eyre::{bail, eyre, Context, Result};
+use eyre::{Context, Result, bail, eyre};
 use serde::Deserialize;
 
 mod output;

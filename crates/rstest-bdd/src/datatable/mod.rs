@@ -5,11 +5,11 @@ mod parsers;
 mod rows;
 mod spec;
 
+pub use cached::{CachedTable, OwnedTableArc, record_cache_miss};
 #[cfg(any(test, feature = "diagnostics"))]
 pub use cached::{cache_miss_count, reset_cache_miss_count};
-pub use cached::{record_cache_miss, CachedTable, OwnedTableArc};
 pub use error::DataTableError;
-pub use parsers::{trimmed, truthy_bool, TrimmedParseError, TruthyBoolError};
+pub use parsers::{TrimmedParseError, TruthyBoolError, trimmed, truthy_bool};
 pub use rows::{DataTableRow, Rows};
 pub use spec::{HeaderSpec, RowSpec};
 

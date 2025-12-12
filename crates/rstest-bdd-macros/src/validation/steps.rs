@@ -13,13 +13,12 @@
 mod crate_id;
 mod messages;
 
-use once_cell::sync::Lazy;
 use std::collections::HashMap;
-use std::sync::Mutex;
+use std::sync::{LazyLock, Mutex};
 
+use crate::StepKeyword;
 use crate::parsing::feature::ParsedStep;
 use crate::pattern::MacroPattern;
-use crate::StepKeyword;
 #[cfg(not(test))]
 use proc_macro_error::emit_warning;
 
@@ -49,7 +48,7 @@ impl CrateDefs {
 /// total allocation is bounded by the step definitions registered in the
 /// current compilation session. Entries are grouped by crate to enable
 /// fast, crate-scoped lookups during validation.
-static REGISTERED: Lazy<Mutex<Registry>> = Lazy::new(|| Mutex::new(HashMap::new()));
+static REGISTERED: LazyLock<Mutex<Registry>> = LazyLock::new(|| Mutex::new(HashMap::new()));
 
 /// Leak and compile a step pattern before registering.
 ///

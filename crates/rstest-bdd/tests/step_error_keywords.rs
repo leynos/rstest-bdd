@@ -5,7 +5,7 @@ mod step_error_common;
 use rstest::rstest;
 use rstest_bdd::{StepError, StepKeyword};
 
-use step_error_common::{invoke_step, StepInvocation};
+use step_error_common::{StepInvocation, invoke_step};
 
 fn assert_step_error(
     actual: &StepError,

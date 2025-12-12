@@ -11,7 +11,7 @@ pub use compiler::build_regex_from_pattern;
 #[cfg(test)]
 mod tests {
     use super::build_regex_from_pattern;
-    use crate::{compile_regex_from_pattern, PatternError};
+    use crate::{PatternError, compile_regex_from_pattern};
     use std::fmt::Display;
 
     fn expect_ok<T, E: Display>(result: Result<T, E>, context: &str) -> T {

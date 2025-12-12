@@ -11,9 +11,9 @@ members = [
 ]
 
 [workspace.package]
-edition = "2021"
+edition = "2024"
 version = "0.2.0"
-rust-version = "1.75"
+rust-version = "1.85"
 license = "ISC"
 authors = ["Payton McIntosh <pmcintosh@df12.net>"]
 description = "A BDD testing framework for Rust, built on rstest."

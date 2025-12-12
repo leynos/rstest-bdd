@@ -3,8 +3,8 @@
 
 use super::args::{Arg, ExtractedArgs};
 use super::arguments::{
-    collect_ordered_arguments, prepare_argument_processing, step_error_tokens, PreparedArgs,
-    StepMeta,
+    PreparedArgs, StepMeta, collect_ordered_arguments, prepare_argument_processing,
+    step_error_tokens,
 };
 use crate::utils::ident::sanitize_ident;
 use proc_macro2::TokenStream as TokenStream2;
@@ -12,7 +12,7 @@ use quote::{format_ident, quote};
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 mod datatable_cache;
-use datatable_cache::{generate_datatable_cache_definitions, DatatableCacheComponents};
+use datatable_cache::{DatatableCacheComponents, generate_datatable_cache_definitions};
 
 /// Configuration required to generate a wrapper.
 pub(crate) struct WrapperConfig<'a> {

@@ -97,7 +97,7 @@ mod tests {
     use super::*;
     use proc_macro2::{Span, TokenStream as TokenStream2};
     use quote::quote;
-    use syn::{parse_quote, FnArg, Ident};
+    use syn::{FnArg, Ident, parse_quote};
 
     fn placeholder_set(names: &[&str]) -> HashSet<String> {
         names.iter().map(|name| (*name).to_string()).collect()

@@ -88,7 +88,7 @@ fn find_manifest_path(path: &Path) -> Result<PathBuf, ServerError> {
                 return Err(ServerError::WorkspaceDiscovery(format!(
                     "no Cargo.toml found in {} or any parent directory",
                     start.display()
-                )))
+                )));
             }
         }
     }
@@ -280,10 +280,12 @@ edition = "2021"
             create_workspace_with_feature(&create_test_workspace, relative_dir, filename, content);
 
         assert_eq!(features.len(), 1);
-        assert!(features
-            .first()
-            .expect("should have one feature")
-            .ends_with(filename));
+        assert!(
+            features
+                .first()
+                .expect("should have one feature")
+                .ends_with(filename)
+        );
     }
 
     #[rstest]

@@ -88,9 +88,11 @@ fn diagnostics_fixture_runs() {
         let _guard = DumpStepsGuard::set();
         bdd::reporting::run_dump_seeds();
         let snapshot = bdd::reporting::snapshot();
-        assert!(snapshot
-            .iter()
-            .any(|record| matches!(record.status(), bdd::reporting::ScenarioStatus::Passed)));
+        assert!(
+            snapshot
+                .iter()
+                .any(|record| matches!(record.status(), bdd::reporting::ScenarioStatus::Passed))
+        );
         assert!(snapshot.iter().any(|record| {
             matches!(record.status(), bdd::reporting::ScenarioStatus::Skipped(details) if details
                 .forced_failure())

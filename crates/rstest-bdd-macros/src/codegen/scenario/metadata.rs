@@ -1,6 +1,8 @@
 //! Strongly typed metadata for generated scenarios.
-#![allow(clippy::expl_impl_clone_on_copy)]
-// base_newtype! generates paired Copy and Clone impls we cannot alter.
+#![allow(
+    clippy::expl_impl_clone_on_copy,
+    reason = "base_newtype! generates paired Copy and Clone impls we cannot alter"
+)]
 
 //! Scenario metadata wrappers shared across macro code generation.
 use newt_hype::base_newtype;

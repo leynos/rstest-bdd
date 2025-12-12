@@ -1,11 +1,10 @@
 //! Crate ID normalisation utilities for step validation.
 
-use once_cell::sync::Lazy;
-
 use camino::{Utf8Path, Utf8PathBuf};
+use std::sync::LazyLock;
 
-pub(super) static CURRENT_CRATE_ID: Lazy<Box<str>> =
-    Lazy::new(|| normalise_crate_id(&current_crate_id_raw()));
+pub(super) static CURRENT_CRATE_ID: LazyLock<Box<str>> =
+    LazyLock::new(|| normalise_crate_id(&current_crate_id_raw()));
 
 pub(super) fn current_crate_id() -> &'static str {
     CURRENT_CRATE_ID.as_ref()

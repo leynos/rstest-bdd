@@ -124,7 +124,7 @@ fn format_malformed_examples_error(row: usize, actual: usize, expected: usize) -
 #[cfg(all(test, feature = "compile-time-validation"))]
 mod column_tests {
     //! Tests for column counting in Examples tables.
-    use super::{count_columns, TableRow};
+    use super::{TableRow, count_columns};
     use rstest::rstest;
 
     #[rstest]

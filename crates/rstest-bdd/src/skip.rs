@@ -309,9 +309,7 @@ mod tests {
             .expect("thread id");
         guard.thread = other_id;
         let result = panic::catch_unwind(|| request_skip(&guard, Some("msg".into())));
-        let Err(payload) = result else {
-            panic!("request_skip should panic on thread mismatch");
-        };
+        let payload = result.expect_err("request_skip should panic on thread mismatch");
         let rendered = payload
             .downcast::<String>()
             .map(|msg| *msg)

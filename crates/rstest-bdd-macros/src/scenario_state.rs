@@ -13,7 +13,7 @@
 use proc_macro::TokenStream;
 use proc_macro2::TokenStream as TokenStream2;
 use quote::quote;
-use syn::{spanned::Spanned, DeriveInput};
+use syn::{DeriveInput, spanned::Spanned};
 
 pub(crate) fn derive(input: TokenStream) -> TokenStream {
     let input = syn::parse_macro_input!(input as DeriveInput);
@@ -170,8 +170,9 @@ mod tests {
             Ok(tokens) => panic!("expected error, received tokens: {tokens}"),
             Err(err) => err,
         };
-        assert!(err
-            .to_string()
-            .contains("ScenarioState field 'value' must use Slot<T>"));
+        assert!(
+            err.to_string()
+                .contains("ScenarioState field 'value' must use Slot<T>")
+        );
     }
 }
