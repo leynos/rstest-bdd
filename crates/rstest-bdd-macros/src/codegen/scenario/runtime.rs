@@ -6,7 +6,7 @@ use proc_macro2::TokenStream as TokenStream2;
 use quote::quote;
 
 use crate::codegen::scenario::{FeaturePath, ScenarioName};
-use types::{CodeComponents, ScenarioLiterals, ScenarioLiteralsInput};
+use types::{CodeComponents, ScenarioLiterals, ScenarioLiteralsInput, TokenAssemblyContext};
 pub(crate) use types::{ProcessedSteps, TestTokensConfig};
 
 pub(crate) fn execute_single_step(
@@ -300,13 +300,13 @@ pub(crate) fn generate_test_tokens(
     let ctx_inserts: Vec<_> = ctx_inserts.collect();
     let ctx_postlude: Vec<_> = ctx_postlude.collect();
 
-    let literals = create_scenario_literals(&ScenarioLiteralsInput::new(
+    let literals = create_scenario_literals(&ScenarioLiteralsInput {
         feature_path,
         scenario_name,
         scenario_line,
         tags,
         allow_skipped,
-    ));
+    });
 
     let components = generate_code_components(&processed_steps, feature_path, scenario_name);
     let block_tokens = quote! { #block };
@@ -314,20 +314,14 @@ pub(crate) fn generate_test_tokens(
     assemble_test_tokens(
         literals,
         components,
-        &ctx_prelude,
-        &ctx_inserts,
-        &ctx_postlude,
-        &block_tokens,
+        &TokenAssemblyContext::new(&ctx_prelude, &ctx_inserts, &ctx_postlude, &block_tokens),
     )
 }
 
 fn assemble_test_tokens(
     literals: ScenarioLiterals,
     components: CodeComponents,
-    ctx_prelude: &[TokenStream2],
-    ctx_inserts: &[TokenStream2],
-    ctx_postlude: &[TokenStream2],
-    block: &TokenStream2,
+    context: &TokenAssemblyContext<'_>,
 ) -> TokenStream2 {
     let ScenarioLiterals {
         allow_literal,
@@ -344,6 +338,11 @@ fn assemble_test_tokens(
         step_executor_loop,
         skip_handler,
     } = components;
+
+    let ctx_prelude = context.ctx_prelude;
+    let ctx_inserts = context.ctx_inserts;
+    let ctx_postlude = context.ctx_postlude;
+    let block = context.block;
 
     let path = crate::codegen::rstest_bdd_path();
     quote! {
