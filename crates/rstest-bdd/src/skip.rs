@@ -301,7 +301,10 @@ mod tests {
     }
 
     #[test]
-    #[expect(clippy::expect_used, reason = "test asserts join success")]
+    #[expect(
+        clippy::expect_used,
+        reason = "test asserts join success and panic on thread mismatch"
+    )]
     fn request_skip_complains_when_thread_changes() {
         let mut guard = enter_scope(ScopeKind::Step, "thread_check", file!(), line!());
         let other_id = std::thread::spawn(|| thread::current().id())
