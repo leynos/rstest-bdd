@@ -266,30 +266,20 @@ edition = "2021"
     }
 
     #[rstest]
-    fn finds_feature_files_in_tests_features() {
-        let (_workspace, features) =
-            create_workspace_with_feature(&["tests", "features"], "example.feature", "Feature: Test");
+    #[case(&["tests", "features"], "example.feature", "Feature: Test")]
+    #[case(&["tests", "features", "nested"], "nested.feature", "Feature: Nested")]
+    fn finds_feature_files_in_various_locations(
+        #[case] relative_dir: &[&str],
+        #[case] filename: &str,
+        #[case] content: &str,
+    ) {
+        let (_workspace, features) = create_workspace_with_feature(relative_dir, filename, content);
 
         assert_eq!(features.len(), 1);
         assert!(features
             .first()
             .expect("should have one feature")
-            .ends_with("example.feature"));
-    }
-
-    #[rstest]
-    fn finds_feature_files_recursively() {
-        let (_workspace, features) = create_workspace_with_feature(
-            &["tests", "features", "nested"],
-            "nested.feature",
-            "Feature: Nested",
-        );
-
-        assert_eq!(features.len(), 1);
-        assert!(features
-            .first()
-            .expect("should have one feature")
-            .ends_with("nested.feature"));
+            .ends_with(filename));
     }
 
     #[rstest]
