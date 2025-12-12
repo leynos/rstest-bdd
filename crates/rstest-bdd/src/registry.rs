@@ -10,11 +10,10 @@ use crate::reporting::{self, ScenarioStatus};
 use crate::types::{PatternStr, StepFn, StepKeyword, StepText};
 use hashbrown::{HashMap, HashSet};
 use inventory::iter;
-use once_cell::sync::Lazy;
 #[cfg(feature = "diagnostics")]
 use serde::Serialize;
 use std::hash::{BuildHasher, Hash, Hasher};
-use std::sync::Mutex;
+use std::sync::{LazyLock, Mutex};
 
 /// Represents a single step definition registered with the framework.
 #[derive(Debug)]
@@ -63,7 +62,7 @@ inventory::collect!(Step);
 
 type StepKey = (StepKeyword, &'static StepPattern);
 
-static STEP_MAP: Lazy<HashMap<StepKey, StepFn>> = Lazy::new(|| {
+static STEP_MAP: LazyLock<HashMap<StepKey, StepFn>> = LazyLock::new(|| {
     let steps: Vec<_> = iter::<Step>.into_iter().collect();
     let mut map = HashMap::with_capacity(steps.len());
     for step in steps {
@@ -92,7 +91,7 @@ static STEP_MAP: Lazy<HashMap<StepKey, StepFn>> = Lazy::new(|| {
 // Tracks step invocations for the lifetime of the current process only. The
 // data is not persisted across binaries, keeping usage bookkeeping lightweight
 // and ephemeral.
-static USED_STEPS: Lazy<Mutex<HashSet<StepKey>>> = Lazy::new(|| Mutex::new(HashSet::new()));
+static USED_STEPS: LazyLock<Mutex<HashSet<StepKey>>> = LazyLock::new(|| Mutex::new(HashSet::new()));
 
 fn mark_used(key: StepKey) {
     USED_STEPS

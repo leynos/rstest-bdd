@@ -10,11 +10,11 @@ use std::collections::HashSet;
 use quote::ToTokens;
 
 use super::{
-    classify::{
-        classify_datatable, classify_docstring, classify_fixture_or_step, classify_step_struct,
-        extract_step_struct_attribute, ClassificationContext,
-    },
     ExtractedArgs,
+    classify::{
+        ClassificationContext, classify_datatable, classify_docstring, classify_fixture_or_step,
+        classify_step_struct, extract_step_struct_attribute,
+    },
 };
 
 fn next_typed_argument(
@@ -69,10 +69,13 @@ fn classify_step_or_fixture(
     let pat = match &*arg.pat {
         syn::Pat::Ident(pat_ident) => pat_ident.ident.clone(),
         other => {
+            let pattern = other.to_token_stream().to_string();
             return Err(syn::Error::new_spanned(
                 other,
-                "unsupported parameter pattern; use a simple identifier (e.g., `arg: T`)",
-            ))
+                format!(
+                    "unsupported parameter pattern `{pattern}`; use a simple identifier (e.g., `arg: T`)"
+                ),
+            ));
         }
     };
     let ty = (*arg.ty).clone();
@@ -159,6 +162,9 @@ mod tests {
         let Err(err) = classify_step_or_fixture(&mut ctx, &mut arg) else {
             panic!("non-identifier patterns must error");
         };
-        assert!(err.to_string().contains("unsupported parameter pattern"));
+        let msg = err.to_string();
+        assert!(msg.contains("unsupported parameter pattern"));
+        assert!(msg.contains("value"));
+        assert!(msg.contains("other"));
     }
 }

@@ -1,7 +1,7 @@
 //! Behavioural tests for inferred step patterns.
 
 use rstest::rstest;
-use rstest_bdd::{find_step, StepContext, StepKeyword};
+use rstest_bdd::{StepContext, StepKeyword, find_step};
 use rstest_bdd_macros::{given, then, when};
 
 #[given]

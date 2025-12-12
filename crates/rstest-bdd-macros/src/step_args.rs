@@ -8,7 +8,7 @@
 use proc_macro::TokenStream;
 use proc_macro2::{Span, TokenStream as TokenStream2};
 use quote::quote;
-use syn::{parse_quote, spanned::Spanned, DeriveInput};
+use syn::{DeriveInput, parse_quote, spanned::Spanned};
 
 pub(crate) fn derive(input: TokenStream) -> TokenStream {
     let input = syn::parse_macro_input!(input as DeriveInput);
@@ -236,8 +236,10 @@ mod tests {
             struct TupleArgs(u32, String);
         })
         .expect_err("tuple structs should fail");
-        assert!(err
-            .to_string()
-            .contains("StepArgs requires named struct fields"));
+        let msg = err.to_string();
+        assert!(
+            msg.contains("StepArgs requires named struct fields"),
+            "unexpected error: {msg}"
+        );
     }
 }

@@ -1,9 +1,9 @@
 //! Error message construction for step validation.
 
-use super::{get_step_span, CrateDefs};
+use super::{CrateDefs, get_step_span};
+use crate::StepKeyword;
 use crate::parsing::feature::ParsedStep;
 use crate::pattern::MacroPattern;
-use crate::StepKeyword;
 
 pub(super) fn format_missing_step_error(
     resolved: StepKeyword,

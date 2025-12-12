@@ -1,7 +1,7 @@
 //! Helpers shared by skip assertion macros.
 
 use crate::reporting::SkippedScenario;
-use crate::{panic_localized, StepExecution};
+use crate::{StepExecution, panic_localized};
 
 #[doc(hidden)]
 /// Ensure a skip message contains the expected substring, otherwise panic with

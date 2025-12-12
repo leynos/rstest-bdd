@@ -5,14 +5,14 @@
 
 mod attributes;
 
-use attributes::{parse_struct_attrs, MapKind, TableConfig};
+use attributes::{MapKind, TableConfig, parse_struct_attrs};
 
 use proc_macro::TokenStream;
 use proc_macro2::TokenStream as TokenStream2;
 use quote::quote;
 use syn::{
-    parse_macro_input, spanned::Spanned, Data, DataStruct, DeriveInput, Field, Fields,
-    GenericArgument, PathArguments, Type, TypePath,
+    Data, DataStruct, DeriveInput, Field, Fields, GenericArgument, PathArguments, Type, TypePath,
+    parse_macro_input, spanned::Spanned,
 };
 
 use crate::codegen::rstest_bdd_path;

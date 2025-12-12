@@ -16,8 +16,14 @@ use quote::{format_ident, quote};
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 
-use crate::codegen::scenario::{generate_scenario_code, FeaturePath, ScenarioConfig, ScenarioName};
-use crate::parsing::feature::{extract_scenario_steps, parse_and_load_feature, ScenarioData};
+#[rustfmt::skip]
+use crate::codegen::scenario::{
+    generate_scenario_code, FeaturePath, ScenarioConfig, ScenarioName,
+};
+#[rustfmt::skip]
+use crate::parsing::feature::{
+    extract_scenario_steps, parse_and_load_feature, ScenarioData,
+};
 use crate::parsing::tags::TagExpression;
 use crate::utils::errors::{error_to_tokens, normalized_dir_read_error};
 use crate::utils::fixtures::extract_function_fixtures;
@@ -146,7 +152,7 @@ fn process_scenarios(
     for idx in 0..feature.scenarios.len() {
         match extract_scenario_steps(feature, Some(idx)) {
             Ok(mut data) => {
-                if tag_filter.map_or(true, |filter| data.filter_by_tags(filter)) {
+                if tag_filter.is_none_or(|filter| data.filter_by_tags(filter)) {
                     tests.push(generate_scenario_test(ctx, used_names, data));
                 }
             }

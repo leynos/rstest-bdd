@@ -1,6 +1,6 @@
 //! Behavioural tests for step usage diagnostics.
 
-use rstest_bdd::{find_step, step, unused_steps, StepContext, StepExecution, StepKeyword};
+use rstest_bdd::{StepContext, StepExecution, StepKeyword, find_step, step, unused_steps};
 
 mod common;
 use common::noop_wrapper;

@@ -1,7 +1,7 @@
 //! Unit tests for shared core types and helper enums.
 
 use super::*;
-use crate::localization::{strip_directional_isolates, ScopedLocalization};
+use crate::localization::{ScopedLocalization, strip_directional_isolates};
 use gherkin::StepType;
 use rstest::rstest;
 use unic_langid::langid;

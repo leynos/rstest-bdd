@@ -2,9 +2,9 @@
 //! Unit tests for registry dumping.
 
 use rstest_bdd::{
-    dump_registry, find_step,
+    StepContext, StepExecution, StepKeyword, dump_registry, find_step,
     reporting::{self, ScenarioRecord, ScenarioStatus, SkippedScenario},
-    step, StepContext, StepExecution, StepKeyword,
+    step,
 };
 use serde_json::Value;
 
@@ -89,12 +89,18 @@ fn reports_usage_flags() {
         .get("steps")
         .and_then(Value::as_array)
         .unwrap_or_else(|| panic!("steps array"));
-    assert!(steps
-        .iter()
-        .any(|s| s["pattern"] == "dump used" && s["used"].as_bool() == Some(true)));
-    assert!(steps
-        .iter()
-        .any(|s| s["pattern"] == "dump unused" && s["used"].as_bool() == Some(false)));
+    assert!(
+        steps
+            .iter()
+            .any(|s| s["pattern"] == "dump used" && s["used"].as_bool() == Some(true)),
+        "expected 'dump used' to be marked used"
+    );
+    assert!(
+        steps
+            .iter()
+            .any(|s| s["pattern"] == "dump unused" && s["used"].as_bool() == Some(false)),
+        "expected 'dump unused' to be marked unused"
+    );
 
     let scenarios = parsed
         .get("scenarios")

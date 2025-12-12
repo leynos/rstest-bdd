@@ -23,19 +23,20 @@ owner, the developer, and the tester.
 
 ## Toolchain requirements
 
-`rstest-bdd` targets Rust 1.75 or newer across every crate in the workspace.
-Each `Cargo.toml` declares `rust-version = "1.75"`, so `cargo` will refuse to
-compile the project on older stable compilers. The workspace now settles on the
-Rust 2021 edition to keep the declared Minimum Supported Rust Version (MSRV)
-and edition compatible. The repository still pins a nightly toolchain for
-development because the runtime uses auto traits and negative impls. Those
-nightly-only features remain behind the existing `rust-toolchain.toml` pin and
-do not alter the public MSRV. Step definitions and writers remain synchronous
-functions; the framework no longer depends on the `async-trait` crate to
-express async methods in traits. Projects that previously relied on
-`#[async_trait]` in helper traits should replace those methods with ordinary
-functions—`StepFn` continues to execute synchronously and exposes results via
-`StepExecution`.
+`rstest-bdd` targets Rust 1.85 or newer across every crate in the workspace.
+Each `Cargo.toml` declares `rust-version = "1.85"`, so `cargo` will refuse to
+compile the project on older compilers. The workspace uses the Rust 2024
+edition.
+
+The `rstest-bdd` crate currently requires the Rust nightly compiler because it
+relies on auto traits and negative impls to normalise step return values. The
+repository pins a nightly toolchain for development via `rust-toolchain.toml`.
+
+Step definitions and writers remain synchronous functions; the framework no
+longer depends on the `async-trait` crate to express async methods in traits.
+Projects that previously relied on `#[async_trait]` in helper traits should
+replace those methods with ordinary functions—`StepFn` continues to execute
+synchronously and exposes results via `StepExecution`.
 
 ## The three amigos
 
@@ -1196,6 +1197,93 @@ rstest_bdd::reporting::junit::write_snapshot(&mut xml)?;
 
 Both writers accept explicit `&[ScenarioRecord]` slices when callers want to
 serialize a custom selection of outcomes rather than the full snapshot.
+
+## Language server
+
+The `rstest-bdd-server` crate provides a Language Server Protocol (LSP)
+implementation that bridges Gherkin `.feature` files and Rust step definitions.
+The binary is named `rstest-bdd-lsp` and communicates over stdin/stdout using
+JSON-RPC, making it compatible with any editor supporting the LSP (VS Code,
+Neovim, Zed, Helix, etc.).
+
+### Installation
+
+Build and install the language server from the workspace:
+
+```bash
+cargo install --path crates/rstest-bdd-server
+```
+
+The binary `rstest-bdd-lsp` is placed in the Cargo bin directory.
+
+### Configuration
+
+The server reads configuration from environment variables:
+
+| Variable                     | Description                                         | Default |
+| ---------------------------- | --------------------------------------------------- | ------- |
+| `RSTEST_BDD_LSP_LOG_LEVEL`   | Logging verbosity (trace, debug, info, warn, error) | `info`  |
+| `RSTEST_BDD_LSP_DEBOUNCE_MS` | Delay (ms) before processing file changes           | `300`   |
+
+Example:
+
+```bash
+RSTEST_BDD_LSP_LOG_LEVEL=debug rstest-bdd-lsp
+```
+
+### Editor integration
+
+#### VS Code
+
+Add a configuration in the `settings.json` file or use an extension that allows
+custom LSP servers. A minimal example using the
+[LSP-client](https://marketplace.visualstudio.com/items?itemName=ACharLuk.easy-lsp-client)
+ extension:
+
+```json
+{
+  "easylsp.servers": [
+    {
+      "language": ["rust", "gherkin"],
+      "command": "rstest-bdd-lsp"
+    }
+  ]
+}
+```
+
+#### Neovim (nvim-lspconfig)
+
+```lua
+local lspconfig = require('lspconfig')
+local configs = require('lspconfig.configs')
+
+if not configs.rstest_bdd then
+  configs.rstest_bdd = {
+    default_config = {
+      cmd = { 'rstest-bdd-lsp' },
+      filetypes = { 'rust', 'cucumber' },
+      root_dir = lspconfig.util.root_pattern('Cargo.toml'),
+    },
+  }
+end
+
+lspconfig.rstest_bdd.setup({})
+```
+
+### Current capabilities
+
+The initial release provides the LSP scaffolding:
+
+- **Lifecycle handlers**: Responds to `initialize`, `initialized`, and
+  `shutdown` requests per the LSP specification.
+- **Workspace discovery**: Uses `cargo metadata` to locate the workspace root
+  and enumerate packages.
+- **Structured logging**: Configurable via environment variables; logs are
+  written to stderr using the `tracing` framework.
+
+Future releases will add indexing, navigation (go-to-definition,
+go-to-implementation), and diagnostics as outlined in the
+[Language Server Design Document](rstest-bdd-language-server-design.md).
 
 ## Summary
 

@@ -8,7 +8,7 @@ use std::io::Write;
 
 use serde::Serialize;
 
-use super::{snapshot, ScenarioRecord, ScenarioStatus};
+use super::{ScenarioRecord, ScenarioStatus, snapshot};
 
 #[derive(Serialize)]
 struct JsonReport<'a> {

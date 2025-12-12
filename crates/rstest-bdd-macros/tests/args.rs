@@ -11,7 +11,7 @@ use syn::parse_quote;
 // the internal module directly to exercise helper APIs.
 mod args_impl;
 
-use args_impl::{extract_args, Arg, ExtractedArgs};
+use args_impl::{Arg, ExtractedArgs, extract_args};
 
 mod support;
 use support::{

@@ -188,12 +188,13 @@ Development (BDD) frameworks and improves the developer experience.
     - Invalid: `@a && @b`, `""`, `()`, `@a and`, `(@a or @b`,
       `@a or and @b`
 
-- [ ] **Rust 1.75 and Skipping Support**
+- [ ] **Rust 1.85 / Edition 2024 and Skipping Support**
 
-  - [x] Raise the minimum supported Rust version to 1.75 and remove the
+  - [x] Raise the minimum supported Rust version to 1.85 and remove the
     `async_trait` dependency from `World` and writer traits.
-    - [x] Set `rust-version = "1.75"` in all Cargo manifests.
-    - [x] Record that nightly tooling remains required for unstable features.
+    - [x] Set `rust-version = "1.85"` in all Cargo manifests.
+    - [x] Record that nightly tooling remains required for unstable features
+      and Rust 2024 edition support.
     - [x] Remove `async-trait` from dependencies and code imports.
     - [x] Add a Continuous Integration (CI) check that fails if `async-trait`
       reappears.
@@ -208,7 +209,7 @@ Development (BDD) frameworks and improves the developer experience.
     consistent casing.
 
   - [x] Document the `skip!` macro, the `@allow_skipped` tag and migration
-    guidance for adopting Rust 1.75.
+    guidance for adopting Rust 1.85 / edition 2024.
 
 [design §1.3.4]: ./rstest-bdd-design.md#134-filtering-scenarios-with-tags
 
@@ -387,13 +388,13 @@ navigation between Rust step definitions and Gherkin features plus on-save
 consistency diagnostics. Real-time analysis and autocomplete remain out of
 scope until the core workflow is stable.
 
-- [ ] **Server scaffolding**
+- [x] **Server scaffolding**
 
-  - [ ] Add a new `rstest-bdd-server` crate (binary `rstest-bdd-lsp`) that
+  - [x] Add a new `rstest-bdd-server` crate (binary `rstest-bdd-lsp`) that
     depends on `async-lsp`, `gherkin`, and the shared pattern parser to align
     semantics with the macros.
 
-  - [ ] Implement LSP initialise/shutdown handlers, crate-root discovery via
+  - [x] Implement LSP initialise/shutdown handlers, crate-root discovery via
     `cargo metadata`, and structured logging configurable through environment
     variables.
 

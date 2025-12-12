@@ -1,6 +1,6 @@
 //! Test support builders for feature parsing tests.
 
-use super::{extract_scenario_steps, ParsedStep, ScenarioData};
+use super::{ParsedStep, ScenarioData, extract_scenario_steps};
 use gherkin::{Background, LineCol, Scenario, Span, Step, StepType};
 
 // Intentionally expect `unreachable_patterns` today (we match all current variants).

@@ -88,17 +88,34 @@ fn diagnostics_fixture_runs() {
         let _guard = DumpStepsGuard::set();
         bdd::reporting::run_dump_seeds();
         let snapshot = bdd::reporting::snapshot();
-        assert!(snapshot
+        let has_passed = snapshot
             .iter()
-            .any(|record| matches!(record.status(), bdd::reporting::ScenarioStatus::Passed)));
-        assert!(snapshot.iter().any(|record| {
-            matches!(record.status(), bdd::reporting::ScenarioStatus::Skipped(details) if details
-                .forced_failure())
-        }));
-        assert!(snapshot.iter().any(|record| {
-            matches!(record.status(), bdd::reporting::ScenarioStatus::Skipped(details) if !details
-                .forced_failure())
-        }));
+            .any(|record| matches!(record.status(), bdd::reporting::ScenarioStatus::Passed));
+        let has_forced_skip = snapshot.iter().any(|record| {
+            matches!(
+                record.status(),
+                bdd::reporting::ScenarioStatus::Skipped(details) if details.forced_failure()
+            )
+        });
+        let has_non_forced_skip = snapshot.iter().any(|record| {
+            matches!(
+                record.status(),
+                bdd::reporting::ScenarioStatus::Skipped(details) if !details.forced_failure()
+            )
+        });
+
+        assert!(
+            has_passed,
+            "expected at least one Passed scenario in diagnostics snapshot",
+        );
+        assert!(
+            has_forced_skip,
+            "expected at least one forced-failure Skipped scenario in diagnostics snapshot",
+        );
+        assert!(
+            has_non_forced_skip,
+            "expected at least one non-forced Skipped scenario in diagnostics snapshot",
+        );
         let _ = bdd::reporting::drain();
     }
 

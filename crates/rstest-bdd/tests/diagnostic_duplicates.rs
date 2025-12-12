@@ -1,6 +1,6 @@
 //! Behavioural test for duplicate step detection.
 
-use rstest_bdd::{duplicate_steps, step, StepKeyword};
+use rstest_bdd::{StepKeyword, duplicate_steps, step};
 
 mod common;
 use common::noop_wrapper;

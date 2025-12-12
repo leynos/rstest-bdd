@@ -6,4 +6,4 @@ mod datatable_shared;
 pub(crate) mod emit;
 
 pub use args::extract_args;
-pub(crate) use emit::{generate_wrapper_code, WrapperConfig};
+pub(crate) use emit::{WrapperConfig, generate_wrapper_code};

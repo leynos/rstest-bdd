@@ -1,7 +1,7 @@
 //! Behavioural tests for cached data table conversion.
 
 use rstest_bdd::datatable::CachedTable;
-use rstest_bdd::{lookup_step, StepContext, StepKeyword};
+use rstest_bdd::{StepContext, StepKeyword, lookup_step};
 use rstest_bdd_macros::given;
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicUsize, Ordering};

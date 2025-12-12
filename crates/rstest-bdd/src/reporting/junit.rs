@@ -7,7 +7,7 @@
 
 use std::fmt::{self, Write};
 
-use super::{snapshot, ScenarioRecord, ScenarioStatus};
+use super::{ScenarioRecord, ScenarioStatus, snapshot};
 
 const FAIL_ON_SKIPPED_MESSAGE: &str = "Scenario skipped with fail_on_skipped enabled";
 

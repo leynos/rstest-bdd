@@ -1,0 +1,38 @@
+[package]
+name = "rstest-bdd-server"
+version = "0.2.0"
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "Language server for rstest-bdd BDD testing framework"
+readme = "README.md"
+homepage.workspace = true
+repository.workspace = true
+keywords = ["lsp", "language-server", "bdd", "gherkin", "rstest"]
+categories = ["development-tools", "development-tools::testing"]
+rust-version.workspace = true
+
+[[bin]]
+name = "rstest-bdd-lsp"
+path = "src/main.rs"
+
+[lints]
+workspace = true
+
+[dependencies]
+async-lsp.workspace = true
+lsp-types.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+cargo_metadata.workspace = true
+thiserror.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+clap.workspace = true
+tower.workspace = true
+tokio-util.workspace = true
+
+[dev-dependencies]
+rstest.workspace = true
+tempfile.workspace = true

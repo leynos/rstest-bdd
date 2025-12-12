@@ -377,9 +377,8 @@ LSP file events:
 When a Rust file is saved:
 
 - Parse/scan it for `#[given]/#[when]/#[then]` definitions. The implementation
-  can use
-  `syn::parse_file` to get the AST and then walk it to find functions with
-  those attributes, extracting the attribute string and function signature.
+  can use `syn::parse_file` to get the AST and then walk it to find functions
+  with those attributes, extracting the attribute string and function signature.
 
 - Update the registry with any new, removed, or modified step definitions. This
   includes compiling the new pattern into a regex (using `rstest-bdd-patterns`)
@@ -658,6 +657,58 @@ features include:
   a ground truth of all step definitions registered in a fully compiled test
   binary. However, running that on the fly is heavyweight. Still, for
   verification or maybe a manual command, it might be integrated.
+
+## Implementation status
+
+### Phase 1: Server scaffolding (completed)
+
+The initial implementation delivers the foundational server infrastructure:
+
+**Crate structure:**
+
+- `rstest-bdd-server` library crate with public API for embedding
+- `rstest-bdd-lsp` binary that runs the server over stdin/stdout
+
+**Modules implemented:**
+
+- `config` - Environment variable parsing (`RSTEST_BDD_LSP_LOG_LEVEL`,
+  `RSTEST_BDD_LSP_DEBOUNCE_MS`) with typed configuration struct
+- `error` - Unified error types using `thiserror` for LSP operations
+- `logging` - Tracing subscriber setup with configurable log levels
+- `discovery` - Workspace discovery via `cargo metadata`, feature file
+  enumeration
+- `server` - Server state management and capability declarations
+- `handlers/lifecycle` - LSP `initialize`, `initialized`, and `shutdown`
+  handlers
+
+**Technology choices:**
+
+- **async-lsp** for the LSP protocol implementation with Tower service layers
+- **tracing/tracing-subscriber** for structured logging to stderr
+- **cargo_metadata** for workspace introspection
+- **lsp-types** for LSP type definitions
+
+**Capabilities declared:**
+
+The server currently advertises no specific capabilities beyond basic lifecycle
+support. Future phases will add `textDocumentSync`, `definitionProvider`, and
+`implementationProvider` as features are implemented.
+
+**Testing:**
+
+- Unit tests cover configuration parsing, error formatting, workspace
+  discovery, and lifecycle handlers
+- Tests use temporary directories and fixture workspaces to validate discovery
+  logic
+
+### Next phases
+
+Subsequent work will implement:
+
+1. **Indexing pipeline** - Parse feature files and Rust step definitions
+2. **Navigation handlers** - Go-to-definition and go-to-implementation
+3. **Diagnostics** - Unimplemented steps, unused definitions, signature
+   mismatches
 
 ## Conclusion
 
