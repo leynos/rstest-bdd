@@ -23,19 +23,20 @@ owner, the developer, and the tester.
 
 ## Toolchain requirements
 
-`rstest-bdd` targets Rust 1.75 or newer across every crate in the workspace.
-Each `Cargo.toml` declares `rust-version = "1.75"`, so `cargo` will refuse to
-compile the project on older stable compilers. The workspace now settles on the
-Rust 2021 edition to keep the declared Minimum Supported Rust Version (MSRV)
-and edition compatible. The repository still pins a nightly toolchain for
-development because the runtime uses auto traits and negative impls. Those
-nightly-only features remain behind the existing `rust-toolchain.toml` pin and
-do not alter the public MSRV. Step definitions and writers remain synchronous
-functions; the framework no longer depends on the `async-trait` crate to
-express async methods in traits. Projects that previously relied on
-`#[async_trait]` in helper traits should replace those methods with ordinary
-functions—`StepFn` continues to execute synchronously and exposes results via
-`StepExecution`.
+`rstest-bdd` targets Rust 1.85 or newer across every crate in the workspace.
+Each `Cargo.toml` declares `rust-version = "1.85"`, so `cargo` will refuse to
+compile the project on older compilers. The workspace uses the Rust 2024
+edition.
+
+The `rstest-bdd` crate currently requires the Rust nightly compiler because it
+relies on auto traits and negative impls to normalise step return values. The
+repository pins a nightly toolchain for development via `rust-toolchain.toml`.
+
+Step definitions and writers remain synchronous functions; the framework no
+longer depends on the `async-trait` crate to express async methods in traits.
+Projects that previously relied on `#[async_trait]` in helper traits should
+replace those methods with ordinary functions—`StepFn` continues to execute
+synchronously and exposes results via `StepExecution`.
 
 ## The three amigos
 

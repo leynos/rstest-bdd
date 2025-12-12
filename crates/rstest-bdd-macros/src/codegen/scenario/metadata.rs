@@ -1,5 +1,5 @@
 //! Strongly typed metadata for generated scenarios.
-#![allow(
+#![expect(
     clippy::expl_impl_clone_on_copy,
     reason = "base_newtype! generates paired Copy and Clone impls we cannot alter"
 )]

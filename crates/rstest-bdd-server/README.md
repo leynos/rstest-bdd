@@ -22,6 +22,13 @@ rstest-bdd-lsp --help
 
 ### Environment Variables
 
+Configuration precedence (lowest to highest): defaults → environment variables
+→ CLI flags.
+
+The CLI currently exposes `--log-level`, which overrides
+`RSTEST_BDD_LSP_LOG_LEVEL` when provided. Debounce configuration is controlled
+via `RSTEST_BDD_LSP_DEBOUNCE_MS`.
+
 | Variable                     | Default | Description                                     |
 | ---------------------------- | ------- | ----------------------------------------------- |
 | `RSTEST_BDD_LSP_LOG_LEVEL`   | `info`  | Log verbosity (trace, debug, info, warn, error) |
@@ -30,7 +37,8 @@ rstest-bdd-lsp --help
 ## Editor Configuration
 
 See the [User Guide](../../docs/users-guide.md) for editor-specific setup
-instructions.
+instructions. On crates.io, the GitHub-hosted copy is available at
+`https://github.com/leynos/rstest-bdd/blob/main/docs/users-guide.md`.
 
 ## Licence
 

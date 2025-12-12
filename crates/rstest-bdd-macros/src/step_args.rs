@@ -236,9 +236,10 @@ mod tests {
             struct TupleArgs(u32, String);
         })
         .expect_err("tuple structs should fail");
+        let msg = err.to_string();
         assert!(
-            err.to_string()
-                .contains("StepArgs requires named struct fields")
+            msg.contains("StepArgs requires named struct fields"),
+            "unexpected error: {msg}"
         );
     }
 }

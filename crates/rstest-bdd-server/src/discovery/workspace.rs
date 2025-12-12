@@ -198,7 +198,7 @@ mod tests {
             r#"[package]
 name = "test-project"
 version = "0.1.0"
-edition = "2021"
+edition = "2024"
 "#,
         )
         .expect("failed to write Cargo.toml");
@@ -252,11 +252,11 @@ edition = "2021"
     ///
     /// The result of calling `find_feature_files` on the workspace.
     fn create_workspace_with_feature(
-        workspace: &TempDir,
         relative_dir: &[&str],
         filename: &str,
         content: &str,
     ) -> Vec<PathBuf> {
+        let workspace = create_test_workspace();
         let mut dir = workspace.path().to_path_buf();
         for segment in relative_dir {
             dir = dir.join(segment);
@@ -271,13 +271,11 @@ edition = "2021"
     #[case(&["tests", "features"], "example.feature", "Feature: Test")]
     #[case(&["tests", "features", "nested"], "nested.feature", "Feature: Nested")]
     fn finds_feature_files_in_various_locations(
-        create_test_workspace: TempDir,
         #[case] relative_dir: &[&str],
         #[case] filename: &str,
         #[case] content: &str,
     ) {
-        let features =
-            create_workspace_with_feature(&create_test_workspace, relative_dir, filename, content);
+        let features = create_workspace_with_feature(relative_dir, filename, content);
 
         assert_eq!(features.len(), 1);
         assert!(

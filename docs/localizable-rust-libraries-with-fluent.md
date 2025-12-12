@@ -80,7 +80,7 @@ bundle the `.ftl` files into the binary.1
 [package]
 name = "my-lib"
 version = "0.1.0"
-edition = "2021"
+edition = "2024"
 
 [dependencies]
 i18n-embed = { version = "0.14", features = ["fluent-system"] }
@@ -136,7 +136,7 @@ to `i18n-embed` to detect the system's locale.2
 [package]
 name = "my-app"
 version = "0.1.0"
-edition = "2021"
+edition = "2024"
 
 [dependencies]
 my-lib = { path = "../my-lib" }

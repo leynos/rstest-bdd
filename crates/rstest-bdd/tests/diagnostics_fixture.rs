@@ -104,9 +104,18 @@ fn diagnostics_fixture_runs() {
             )
         });
 
-        assert!(has_passed);
-        assert!(has_forced_skip);
-        assert!(has_non_forced_skip);
+        assert!(
+            has_passed,
+            "expected at least one Passed scenario in diagnostics snapshot",
+        );
+        assert!(
+            has_forced_skip,
+            "expected at least one forced-failure Skipped scenario in diagnostics snapshot",
+        );
+        assert!(
+            has_non_forced_skip,
+            "expected at least one non-forced Skipped scenario in diagnostics snapshot",
+        );
         let _ = bdd::reporting::drain();
     }
 

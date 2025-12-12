@@ -27,8 +27,14 @@ use proc_macro::TokenStream;
 use proc_macro2::Span;
 use std::path::PathBuf;
 
-use crate::codegen::scenario::{FeaturePath, ScenarioConfig, ScenarioName, generate_scenario_code};
-use crate::parsing::feature::{ScenarioData, extract_scenario_steps, parse_and_load_feature};
+#[rustfmt::skip]
+use crate::codegen::scenario::{
+    generate_scenario_code, FeaturePath, ScenarioConfig, ScenarioName,
+};
+#[rustfmt::skip]
+use crate::parsing::feature::{
+    extract_scenario_steps, parse_and_load_feature, ScenarioData,
+};
 use crate::parsing::tags::TagExpression;
 use crate::utils::fixtures::extract_function_fixtures;
 use crate::validation::parameters::process_scenario_outline_examples;

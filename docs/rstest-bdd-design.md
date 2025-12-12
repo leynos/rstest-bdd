@@ -1193,21 +1193,21 @@ incrementally.
   which can automatically bind all scenarios within one or more feature files,
   reducing boilerplate for the user.
 
-  - Increase the minimum supported Rust version (MSRV) to 1.75 and remove the
+  - Increase the minimum supported Rust version (MSRV) to 1.85 and remove the
     `async_trait` dependency from `World` and writer traits to simplify
-    implementations and match Cucumber v0.21. Set `rust-version = "1.75"` in
+    implementations and match Cucumber v0.21. Set `rust-version = "1.85"` in
     all Cargo manifests, remove `async-trait` from dependencies and imports,
     and add a CI check that fails if it reappears.
 
-    The project advertises Rust 1.75 as the stable baseline across every crate
-    in the workspace and standardizes on the Rust 2021 edition to keep the
-    edition compatible with that MSRV. The development toolchain remains pinned
-    to nightly because the runtime depends on auto traits and negative impls,
-    but those features do not affect the documented MSRV. Step registration
-    continues to rely on synchronous function pointers (`StepFn`), so no trait
-    requires async method sugar and `async-trait` stays absent from the
-    dependency graph. A small CI guard (`make forbid-async-trait`) scans Rust
-    and Cargo sources and fails the workflow should the crate reappear.
+    The project advertises Rust 1.85 as the baseline across every crate in the
+    workspace and standardizes on the Rust 2024 edition. The development
+    toolchain remains pinned to nightly because the runtime depends on auto
+    traits and negative impls, so users must use a nightly toolchain version
+    that supports Rust 1.85 and edition 2024. Step registration continues to
+    rely on synchronous function pointers (`StepFn`), so no trait requires async
+    method sugar and `async-trait` stays absent from the dependency graph. A
+    small CI guard (`make forbid-async-trait`) scans Rust and Cargo sources and
+    fails the workflow should the crate reappear.
 
 - Introduce a `skip!` macro that step or hook functions can invoke to record a
   `Skipped` outcome and halt the remaining steps. The macro accepts an optional
@@ -1260,8 +1260,8 @@ incrementally.
     the writer adds a `<failure>` element so CI systems surface the failure
     alongside the skip reason.
 
-- Document the `skip!` macro, the `@allow_skipped` tag and the Rust 1.75
-  migration with examples illustrating `fail_on_skipped` behaviour.
+- Document the `skip!` macro, the `@allow_skipped` tag and the Rust 1.85 /
+  edition 2024 migration with examples illustrating `fail_on_skipped` behaviour.
 
 Subsequent phases refine these capabilities: Phase 5 will streamline the
 macro’s syntax and add compile-time diagnostics, while Phase 6 will surface
