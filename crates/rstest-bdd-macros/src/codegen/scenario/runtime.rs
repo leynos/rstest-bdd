@@ -185,24 +185,21 @@ fn generate_skip_handler() -> TokenStream2 {
                 .iter()
                 .map(|tag| tag.to_string())
                 .collect::<Vec<_>>();
-            #[cfg(feature = "diagnostics")]
-            {
-                if #path::diagnostics_enabled() {
-                    if let Some(start) = skipped_at {
-                        let bypassed = steps
-                            .iter()
-                            .enumerate()
-                            .skip(start + 1)
-                            .map(|(_, (keyword, text, _, _))| (*keyword, *text));
-                        #path::record_bypassed_steps(
-                            FEATURE_PATH,
-                            SCENARIO_NAME,
-                            SCENARIO_LINE,
-                            scenario_tags_owned.clone(),
-                            message.as_deref(),
-                            bypassed,
-                        );
-                    }
+            if #path::diagnostics_enabled() {
+                if let Some(start) = skipped_at {
+                    let bypassed = steps
+                        .iter()
+                        .enumerate()
+                        .skip(start + 1)
+                        .map(|(_, (keyword, text, _, _))| (*keyword, *text));
+                    #path::record_bypassed_steps_with_tags(
+                        FEATURE_PATH,
+                        SCENARIO_NAME,
+                        SCENARIO_LINE,
+                        &scenario_tags_owned,
+                        message.as_deref(),
+                        bypassed,
+                    );
                 }
             }
             scenario_guard.mark_recorded();

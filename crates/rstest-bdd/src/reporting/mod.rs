@@ -108,7 +108,9 @@ pub fn run_dump_seeds() {
 ///
 /// # Examples
 /// ```
-/// use rstest_bdd::reporting::{record, drain, snapshot, ScenarioRecord, ScenarioStatus};
+/// use rstest_bdd::reporting::{
+///     drain, record, snapshot, ScenarioMetadata, ScenarioRecord, ScenarioStatus,
+/// };
 ///
 /// let metadata = ScenarioMetadata::new("feature", "scenario", 1, Vec::new());
 /// record(ScenarioRecord::from_metadata(metadata, ScenarioStatus::Passed));
@@ -123,7 +125,7 @@ pub fn record(record: ScenarioRecord) {
 ///
 /// # Examples
 /// ```
-/// use rstest_bdd::reporting::{record, snapshot, ScenarioRecord, ScenarioStatus};
+/// use rstest_bdd::reporting::{record, snapshot, ScenarioMetadata, ScenarioRecord, ScenarioStatus};
 ///
 /// let metadata = ScenarioMetadata::new("feature", "scenario", 1, Vec::new());
 /// record(ScenarioRecord::from_metadata(metadata, ScenarioStatus::Passed));
@@ -139,7 +141,7 @@ pub fn snapshot() -> Vec<ScenarioRecord> {
 ///
 /// # Examples
 /// ```
-/// use rstest_bdd::reporting::{record, drain, ScenarioRecord, ScenarioStatus};
+/// use rstest_bdd::reporting::{drain, record, snapshot, ScenarioMetadata, ScenarioRecord, ScenarioStatus};
 ///
 /// let metadata = ScenarioMetadata::new("feature", "scenario", 1, Vec::new());
 /// record(ScenarioRecord::from_metadata(metadata, ScenarioStatus::Passed));

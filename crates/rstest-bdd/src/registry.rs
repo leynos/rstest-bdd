@@ -5,15 +5,14 @@
 
 use crate::pattern::StepPattern;
 use crate::placeholder::extract_placeholders;
-#[cfg(feature = "diagnostics")]
-use crate::reporting::{self, ScenarioStatus};
 use crate::types::{PatternStr, StepFn, StepKeyword, StepText};
 use hashbrown::{HashMap, HashSet};
 use inventory::iter;
-#[cfg(feature = "diagnostics")]
-use serde::Serialize;
 use std::hash::{BuildHasher, Hash, Hasher};
 use std::sync::{LazyLock, Mutex};
+
+#[cfg(feature = "diagnostics")]
+mod diagnostics;
 
 /// Represents a single step definition registered with the framework.
 #[derive(Debug)]
@@ -98,39 +97,6 @@ fn mark_used(key: StepKey) {
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner)
         .insert(key);
-}
-
-#[cfg(feature = "diagnostics")]
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
-struct BypassedStepRecord {
-    key: StepKey,
-    feature_path: String,
-    scenario_name: String,
-    scenario_line: u32,
-    tags: Vec<String>,
-    reason: Option<String>,
-}
-
-#[cfg(feature = "diagnostics")]
-static BYPASSED_STEPS: LazyLock<Mutex<HashSet<BypassedStepRecord>>> =
-    LazyLock::new(|| Mutex::new(HashSet::new()));
-
-#[cfg(feature = "diagnostics")]
-fn mark_bypassed(record: BypassedStepRecord) {
-    BYPASSED_STEPS
-        .lock()
-        .unwrap_or_else(std::sync::PoisonError::into_inner)
-        .insert(record);
-}
-
-#[cfg(feature = "diagnostics")]
-fn bypassed_records() -> Vec<BypassedStepRecord> {
-    BYPASSED_STEPS
-        .lock()
-        .unwrap_or_else(std::sync::PoisonError::into_inner)
-        .iter()
-        .cloned()
-        .collect()
 }
 
 fn all_steps() -> Vec<&'static Step> {
@@ -231,21 +197,14 @@ pub fn record_bypassed_steps<'a, I>(
         let feature_path = feature_path.into();
         let scenario_name = scenario_name.into();
         let tags = tags.into();
-        let reason = reason.map(str::to_owned);
-
-        for (keyword, text) in steps {
-            if let Some(step) = resolve_step(keyword, text.into()) {
-                let record = BypassedStepRecord {
-                    key: (step.keyword, step.pattern),
-                    feature_path: feature_path.clone(),
-                    scenario_name: scenario_name.clone(),
-                    scenario_line,
-                    tags: tags.clone(),
-                    reason: reason.clone(),
-                };
-                mark_bypassed(record);
-            }
-        }
+        diagnostics::record_bypassed_steps_impl(
+            feature_path.as_str(),
+            scenario_name.as_str(),
+            scenario_line,
+            &tags,
+            reason,
+            steps,
+        );
     }
 
     #[cfg(not(feature = "diagnostics"))]
@@ -261,52 +220,46 @@ pub fn record_bypassed_steps<'a, I>(
     }
 }
 
-#[cfg(feature = "diagnostics")]
-#[derive(Serialize)]
-struct DumpedStep {
-    keyword: &'static str,
-    pattern: &'static str,
-    file: &'static str,
-    line: u32,
-    used: bool,
-    #[serde(default)]
-    bypassed: bool,
-}
-
-#[cfg(feature = "diagnostics")]
-#[derive(Serialize)]
-struct DumpedScenario {
-    feature_path: String,
-    scenario_name: String,
-    status: &'static str,
-    message: Option<String>,
-    allow_skipped: bool,
-    forced_failure: bool,
-    line: u32,
-    tags: Vec<String>,
-}
-
-#[cfg(feature = "diagnostics")]
-#[derive(Serialize)]
-struct DumpedBypassedStep {
-    keyword: &'static str,
-    pattern: &'static str,
-    file: &'static str,
-    line: u32,
-    feature_path: String,
-    scenario_name: String,
+/// Record bypassed steps using previously owned tags.
+///
+/// Generated scenario code often already owns a `Vec<String>` for reporting.
+/// Borrowing it here avoids an additional `Vec<String>` clone at call sites
+/// whilst still behaving as a no-op when diagnostics are disabled.
+pub fn record_bypassed_steps_with_tags<'a, I>(
+    feature_path: impl Into<String>,
+    scenario_name: impl Into<String>,
     scenario_line: u32,
-    tags: Vec<String>,
-    reason: Option<String>,
-}
+    tags: &[String],
+    reason: Option<&str>,
+    steps: I,
+) where
+    I: IntoIterator<Item = (StepKeyword, &'a str)>,
+{
+    #[cfg(feature = "diagnostics")]
+    {
+        let feature_path = feature_path.into();
+        let scenario_name = scenario_name.into();
+        diagnostics::record_bypassed_steps_impl(
+            feature_path.as_str(),
+            scenario_name.as_str(),
+            scenario_line,
+            tags,
+            reason,
+            steps,
+        );
+    }
 
-#[cfg(feature = "diagnostics")]
-#[derive(Serialize)]
-struct RegistryDump {
-    steps: Vec<DumpedStep>,
-    scenarios: Vec<DumpedScenario>,
-    #[serde(default)]
-    bypassed_steps: Vec<DumpedBypassedStep>,
+    #[cfg(not(feature = "diagnostics"))]
+    {
+        let _ = (
+            feature_path,
+            scenario_name,
+            scenario_line,
+            tags,
+            reason,
+            steps,
+        );
+    }
 }
 
 /// Serialize the registry to a JSON array.
@@ -329,68 +282,5 @@ struct RegistryDump {
 /// ```
 #[cfg(feature = "diagnostics")]
 pub fn dump_registry() -> serde_json::Result<String> {
-    let used = USED_STEPS
-        .lock()
-        .unwrap_or_else(std::sync::PoisonError::into_inner);
-    let bypassed = bypassed_records();
-    let bypassed_keys: HashSet<StepKey> = bypassed.iter().map(|entry| entry.key).collect();
-    let steps: Vec<_> = all_steps()
-        .into_iter()
-        .map(|s| DumpedStep {
-            keyword: s.keyword.as_str(),
-            pattern: s.pattern.as_str(),
-            file: s.file,
-            line: s.line,
-            used: used.contains(&(s.keyword, s.pattern)),
-            bypassed: bypassed_keys.contains(&(s.keyword, s.pattern)),
-        })
-        .collect();
-
-    let scenarios = reporting::snapshot()
-        .into_iter()
-        .map(|record| {
-            let (status, message, allow_skipped, forced_failure) = match record.status() {
-                ScenarioStatus::Passed => ("passed", None, false, false),
-                ScenarioStatus::Skipped(details) => (
-                    "skipped",
-                    details.message().map(str::to_owned),
-                    details.allow_skipped(),
-                    details.forced_failure(),
-                ),
-            };
-            DumpedScenario {
-                feature_path: record.feature_path().to_owned(),
-                scenario_name: record.scenario_name().to_owned(),
-                status,
-                message,
-                allow_skipped,
-                forced_failure,
-                line: record.line(),
-                tags: record.tags().to_vec(),
-            }
-        })
-        .collect();
-
-    let bypassed_steps = bypassed
-        .into_iter()
-        .filter_map(|entry| {
-            step_by_key(entry.key).map(|step| DumpedBypassedStep {
-                keyword: step.keyword.as_str(),
-                pattern: step.pattern.as_str(),
-                file: step.file,
-                line: step.line,
-                feature_path: entry.feature_path,
-                scenario_name: entry.scenario_name,
-                scenario_line: entry.scenario_line,
-                tags: entry.tags,
-                reason: entry.reason,
-            })
-        })
-        .collect();
-
-    serde_json::to_string(&RegistryDump {
-        steps,
-        scenarios,
-        bypassed_steps,
-    })
+    diagnostics::dump_registry()
 }
