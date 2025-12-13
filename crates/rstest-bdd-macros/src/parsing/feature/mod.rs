@@ -225,7 +225,13 @@ pub(crate) fn extract_scenario_steps(
     };
 
     let scenario_name = scenario.name.clone();
-    let scenario_line = u32::try_from(scenario.position.line).unwrap_or(u32::MAX);
+    let scenario_line = u32::try_from(scenario.position.line).map_err(|_| {
+        let msg = format!(
+            "scenario line number out of range: {}",
+            scenario.position.line
+        );
+        error_to_tokens(&syn::Error::new(proc_macro2::Span::call_site(), msg))
+    })?;
 
     let parse = |step: &Step| -> Result<ParsedStep, proc_macro2::TokenStream> {
         Ok(ParsedStep::from(step))

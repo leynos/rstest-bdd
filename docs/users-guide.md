@@ -1164,7 +1164,7 @@ Examples
 - `cargo bdd duplicates --json`
 - `cargo bdd skipped --reasons`
 - `cargo bdd steps --skipped --json` must be paired; using `--json` without
-  `--skipped` is rejected by the CLI so invalid combinations fail fast.
+  `--skipped` is rejected by the CLI, so invalid combinations fail fast.
 
 The tool inspects the runtime step registry and offers four commands:
 

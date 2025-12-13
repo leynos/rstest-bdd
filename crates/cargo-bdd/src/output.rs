@@ -86,9 +86,34 @@ fn write_scenario(
     })
 }
 
+fn format_location(path: &str, line: u32) -> String {
+    if line == 0 {
+        path.to_owned()
+    } else {
+        format!("{path}:{line}")
+    }
+}
+
+fn append_tags(line: &mut String, tags: &[String]) {
+    if tags.is_empty() {
+        return;
+    }
+    line.push_str(" [tags: ");
+    line.push_str(&tags.join(", "));
+    line.push(']');
+}
+
+fn append_reason(line: &mut String, reason: Option<&str>) {
+    let Some(message) = reason else {
+        return;
+    };
+    line.push_str(" - ");
+    line.push_str(message);
+}
+
 fn format_scenario_location(scenario: &Scenario, include_line: bool) -> String {
-    if include_line && scenario.line != 0 {
-        format!("{}:{}", scenario.feature_path, scenario.line)
+    if include_line {
+        format_location(&scenario.feature_path, scenario.line)
     } else {
         scenario.feature_path.clone()
     }
@@ -104,42 +129,26 @@ fn append_scenario_annotations(line: &mut String, scenario: &Scenario) {
 }
 
 fn append_scenario_tags(line: &mut String, scenario: &Scenario, include_tags: bool) {
-    if include_tags && !scenario.tags.is_empty() {
-        line.push_str(" [tags: ");
-        line.push_str(&scenario.tags.join(", "));
-        line.push(']');
+    if include_tags {
+        append_tags(line, &scenario.tags);
     }
 }
 
 fn append_scenario_reason(line: &mut String, scenario: &Scenario, include_reason: bool) {
     if include_reason {
-        if let Some(message) = &scenario.message {
-            line.push_str(" - ");
-            line.push_str(message);
-        }
+        append_reason(line, scenario.message.as_deref());
     }
 }
 
 pub(crate) fn write_bypassed_steps(writer: &mut dyn Write, steps: &[BypassedStep]) -> Result<()> {
     for step in steps {
-        let location = if step.scenario_line == 0 {
-            step.feature_path.clone()
-        } else {
-            format!("{}:{}", step.feature_path, step.scenario_line)
-        };
+        let location = format_location(&step.feature_path, step.scenario_line);
         let mut line = format!(
             "{} '{}' ({}:{}) - skipped in {} :: {}",
             step.keyword, step.pattern, step.file, step.line, location, step.scenario_name,
         );
-        if !step.tags.is_empty() {
-            line.push_str(" [tags: ");
-            line.push_str(&step.tags.join(", "));
-            line.push(']');
-        }
-        if let Some(reason) = &step.reason {
-            line.push_str(" - ");
-            line.push_str(reason);
-        }
+        append_tags(&mut line, &step.tags);
+        append_reason(&mut line, step.reason.as_deref());
         writeln!(writer, "{line}").wrap_err_with(|| {
             format!(
                 "failed to write bypassed step {} '{}' at {}:{}",

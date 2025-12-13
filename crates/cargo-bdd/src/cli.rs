@@ -183,20 +183,11 @@ fn handle_skipped(args: &SkippedArgs) -> Result<()> {
         return write_skip_reports_json(&reports);
     }
 
-    let options = if args.reasons {
-        ScenarioDisplayOptions {
-            include_line: true,
-            include_tags: true,
-            include_reason: true,
-            insert_leading_newline: false,
-        }
-    } else {
-        ScenarioDisplayOptions {
-            include_line: false,
-            include_tags: false,
-            include_reason: false,
-            insert_leading_newline: false,
-        }
+    let options = ScenarioDisplayOptions {
+        include_line: args.reasons,
+        include_tags: args.reasons,
+        include_reason: args.reasons,
+        insert_leading_newline: false,
     };
 
     let mut stdout = io::stdout();

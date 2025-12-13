@@ -339,7 +339,7 @@ at improving maintainability and IDE integration.
 
   - [x] Implement a `list-duplicates` command to group duplicate definitions.
 
-  - [x] Report skipped scenarios and their reasons (done).
+  - [x] Report skipped scenarios and their reasons.
 
     - Provide a `cargo bdd skipped --reasons` subcommand that lists each
       skipped scenario with its file, line and message.

@@ -10,11 +10,9 @@ use types::{CodeComponents, ScenarioLiterals, ScenarioLiteralsInput, TokenAssemb
 pub(crate) use types::{ProcessedSteps, TestTokensConfig};
 
 pub(crate) fn execute_single_step(
-    feature_path: &FeaturePath,
-    scenario_name: &ScenarioName,
+    _feature_path: &FeaturePath,
+    _scenario_name: &ScenarioName,
 ) -> TokenStream2 {
-    let _ = feature_path.as_str();
-    let _ = scenario_name.as_str();
     let path = crate::codegen::rstest_bdd_path();
     quote! {
         #[expect(
@@ -95,7 +93,7 @@ fn generate_scenario_guard() -> TokenStream2 {
             feature_path: &'static str,
             scenario_name: &'static str,
             line: u32,
-            tags: &'static [&'static str],
+            tags: Vec<String>,
         }
 
         impl ScenarioReportGuard {
@@ -110,26 +108,32 @@ fn generate_scenario_guard() -> TokenStream2 {
                     feature_path,
                     scenario_name,
                     line,
-                    tags,
+                    tags: tags.iter().map(|tag| (*tag).to_string()).collect(),
                 }
             }
 
             fn mark_recorded(&mut self) {
                 self.recorded = true;
             }
+
+            fn tags(&self) -> &[String] {
+                &self.tags
+            }
+
+            fn take_tags(&mut self) -> Vec<String> {
+                std::mem::take(&mut self.tags)
+            }
         }
 
         impl Drop for ScenarioReportGuard {
             fn drop(&mut self) {
                 if !self.recorded && !std::thread::panicking() {
+                    let tags = self.take_tags();
                     let metadata = #path::reporting::ScenarioMetadata::new(
                         self.feature_path,
                         self.scenario_name,
                         self.line,
-                        self.tags
-                            .iter()
-                            .map(|tag| tag.to_string())
-                            .collect::<Vec<_>>(),
+                        tags,
                     );
                     #path::reporting::record(#path::reporting::ScenarioRecord::from_metadata(
                         metadata,
@@ -181,10 +185,6 @@ fn generate_skip_handler() -> TokenStream2 {
         if let Some(message) = skipped {
             let fail_on_skipped_enabled = #path::config::fail_on_skipped();
             let forced_failure = fail_on_skipped_enabled && !allow_skipped;
-            let scenario_tags_owned = SCENARIO_TAGS
-                .iter()
-                .map(|tag| tag.to_string())
-                .collect::<Vec<_>>();
             if #path::diagnostics_enabled() {
                 if let Some(start) = skipped_at {
                     let bypassed = steps
@@ -196,13 +196,14 @@ fn generate_skip_handler() -> TokenStream2 {
                         FEATURE_PATH,
                         SCENARIO_NAME,
                         SCENARIO_LINE,
-                        &scenario_tags_owned,
+                        scenario_guard.tags(),
                         message.as_deref(),
                         bypassed,
                     );
                 }
             }
             scenario_guard.mark_recorded();
+            let scenario_tags_owned = scenario_guard.take_tags();
             let skip_details = #path::reporting::SkippedScenario::new(
                 message.clone(),
                 allow_skipped,

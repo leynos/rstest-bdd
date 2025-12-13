@@ -62,57 +62,62 @@ fn forced_bypass(
 static SHOULD_SEED: AtomicBool = AtomicBool::new(false);
 
 #[cfg(feature = "diagnostics")]
+fn record_skipped_with_bypass(
+    scenario_name: &str,
+    line: u32,
+    tags: Vec<String>,
+    message: &str,
+    allow_skipped: bool,
+    forced_failure: bool,
+    bypassed_step: (StepKeyword, &str),
+) {
+    const FEATURE_PATH: &str = "tests/features/diagnostics.fixture";
+
+    let metadata =
+        bdd::reporting::ScenarioMetadata::new(FEATURE_PATH, scenario_name, line, tags.clone());
+    bdd::reporting::record(bdd::reporting::ScenarioRecord::from_metadata(
+        metadata,
+        bdd::reporting::ScenarioStatus::Skipped(bdd::reporting::SkippedScenario::new(
+            Some(message.into()),
+            allow_skipped,
+            forced_failure,
+        )),
+    ));
+
+    bdd::record_bypassed_steps(
+        FEATURE_PATH,
+        scenario_name,
+        line,
+        tags,
+        Some(message),
+        [bypassed_step],
+    );
+}
+
+#[cfg(feature = "diagnostics")]
 fn seed_reporting_fixture() {
     if !should_seed_dump_steps() {
         return;
     }
 
-    let metadata = bdd::reporting::ScenarioMetadata::new(
-        "tests/features/diagnostics.fixture",
+    record_skipped_with_bypass(
         "fixture skipped scenario",
         7,
         vec!["@allow_skipped".into()],
-    );
-    bdd::reporting::record(bdd::reporting::ScenarioRecord::from_metadata(
-        metadata,
-        bdd::reporting::ScenarioStatus::Skipped(bdd::reporting::SkippedScenario::new(
-            Some("fixture skip message".into()),
-            true,
-            false,
-        )),
-    ));
-
-    bdd::record_bypassed_steps(
-        "tests/features/diagnostics.fixture",
-        "fixture skipped scenario",
-        7,
-        vec!["@allow_skipped".into()],
-        Some("fixture skip message"),
-        [(StepKeyword::Given, "fixture bypassed step")],
+        "fixture skip message",
+        true,
+        false,
+        (StepKeyword::Given, "fixture bypassed step"),
     );
 
-    let forced_metadata = bdd::reporting::ScenarioMetadata::new(
-        "tests/features/diagnostics.fixture",
+    record_skipped_with_bypass(
         "fixture forced failure skip",
         12,
         vec!["@critical".into()],
-    );
-    bdd::reporting::record(bdd::reporting::ScenarioRecord::from_metadata(
-        forced_metadata,
-        bdd::reporting::ScenarioStatus::Skipped(bdd::reporting::SkippedScenario::new(
-            Some("fixture forced skip".into()),
-            false,
-            true,
-        )),
-    ));
-
-    bdd::record_bypassed_steps(
-        "tests/features/diagnostics.fixture",
-        "fixture forced failure skip",
-        12,
-        vec!["@critical".into()],
-        Some("fixture forced skip"),
-        [(StepKeyword::Then, "fixture forced bypass")],
+        "fixture forced skip",
+        false,
+        true,
+        (StepKeyword::Then, "fixture forced bypass"),
     );
 
     let passing_metadata = bdd::reporting::ScenarioMetadata::new(

@@ -104,12 +104,18 @@ fn has_test_targets(metadata: &cargo_metadata::Metadata) -> bool {
 fn build_test_binaries(metadata: &cargo_metadata::Metadata) -> Result<Vec<PathBuf>> {
     let workspace: HashSet<_> = metadata.workspace_members.iter().collect();
     let mut bins = Vec::new();
+    let mut seen = HashSet::new();
     for package in workspace_packages(&metadata.packages, &workspace) {
         for target in test_targets(&package.targets) {
             let mut extracted = build_test_target(package, target)?;
-            bins.append(&mut extracted);
+            for bin in extracted.drain(..) {
+                if seen.insert(bin.clone()) {
+                    bins.push(bin);
+                }
+            }
         }
     }
+    bins.sort_by(|a, b| a.as_os_str().cmp(b.as_os_str()));
     Ok(bins)
 }
 
@@ -153,8 +159,14 @@ fn build_test_target(package: &Package, target: &Target) -> Result<Vec<PathBuf>>
     })?;
     let reader = BufReader::new(stdout);
     let mut bins = Vec::new();
-    for m in Message::parse_stream(reader).flatten() {
-        if let Some(exe) = extract_test_executable(&m) {
+    for message in Message::parse_stream(reader) {
+        let message = message.wrap_err_with(|| {
+            format!(
+                "failed to parse cargo metadata message for target {} in package {}",
+                target.name, package.name
+            )
+        })?;
+        if let Some(exe) = extract_test_executable(&message) {
             bins.push(exe);
         }
     }
@@ -211,16 +223,18 @@ fn handle_binary_execution_failure(
 /// recognise the `--dump-steps` flag.
 pub(crate) fn is_unrecognised_dump_steps(stderr: &str) -> bool {
     let lower = stderr.to_ascii_lowercase();
-    let has_flag = lower.contains("--dump-steps") || lower.contains("'dump-steps'");
-    has_flag
-        && [
-            "unrecognized option",
-            "wasn't expected",
-            "unknown option",
-            "invalid option",
-        ]
-        .iter()
-        .any(|p| lower.contains(p))
+    lower.lines().any(|line| {
+        let mentions_flag = line.contains("--dump-steps") || line.contains("'dump-steps'");
+        mentions_flag
+            && [
+                "unrecognized option",
+                "wasn't expected",
+                "unknown option",
+                "invalid option",
+            ]
+            .iter()
+            .any(|pattern| line.contains(pattern))
+    })
 }
 
 /// Attempt to extract the test executable path from a Cargo message.
@@ -239,6 +253,27 @@ pub(crate) fn extract_test_executable(msg: &Message) -> Option<PathBuf> {
 mod tests {
     use super::*;
     use cargo_metadata::Message as MetadataMessage;
+
+    #[test]
+    fn detects_unrecognised_flag_from_libtest_getopts() {
+        let stderr = "error: Unrecognized option: 'dump-steps'\n";
+        assert!(is_unrecognised_dump_steps(stderr));
+    }
+
+    #[test]
+    fn detects_unrecognised_flag_from_clap() {
+        let stderr = "error: Found argument '--dump-steps' which wasn't expected\n";
+        assert!(is_unrecognised_dump_steps(stderr));
+    }
+
+    #[test]
+    fn ignores_unrelated_failures_containing_dump_steps() {
+        let stderr = concat!(
+            "test failed: invalid option for upstream tool\n",
+            "hint: rerun with --dump-steps for diagnostics\n"
+        );
+        assert!(!is_unrecognised_dump_steps(stderr));
+    }
 
     #[test]
     fn parses_registry_dump_with_bypassed_steps() {

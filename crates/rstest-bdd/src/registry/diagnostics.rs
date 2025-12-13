@@ -73,7 +73,6 @@ struct DumpedStep {
     file: &'static str,
     line: u32,
     used: bool,
-    #[serde(default)]
     bypassed: bool,
 }
 
@@ -106,7 +105,6 @@ struct DumpedBypassedStep {
 struct RegistryDump {
     steps: Vec<DumpedStep>,
     scenarios: Vec<DumpedScenario>,
-    #[serde(default)]
     bypassed_steps: Vec<DumpedBypassedStep>,
 }
 

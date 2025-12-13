@@ -3,7 +3,6 @@
 //!
 //! These tests demonstrate internationalised step definitions and fixture
 //! injection with `rstest-bdd`.
-#![allow(unexpected_cfgs)]
 
 use japanese_ledger::HouseholdLedger;
 use rstest::fixture;

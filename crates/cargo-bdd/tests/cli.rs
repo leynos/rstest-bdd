@@ -8,37 +8,30 @@ use std::fs;
 use std::path::PathBuf;
 use std::str;
 
-fn run_cargo_bdd(args: &[&str]) -> Result<String> {
+/// Execute cargo-bdd with the given arguments and return the raw output.
+fn run_cargo_bdd_raw(args: &[&str]) -> Result<std::process::Output> {
     let fixture_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/minimal");
     let target_dir = fixture_dir.join("target");
     fs::create_dir_all(&target_dir)
         .with_context(|| format!("failed to create {}", target_dir.display()))?;
     let mut cmd = Command::cargo_bin("cargo-bdd")
         .wrap_err("cargo-bdd binary should exist in this workspace")?;
-    let output = cmd
-        .current_dir(fixture_dir)
+    cmd.current_dir(fixture_dir)
         .env("CARGO_TARGET_DIR", &target_dir)
         .args(args)
         .output()
-        .wrap_err("failed to execute `cargo bdd`")?;
+        .wrap_err("failed to execute `cargo bdd`")
+}
+
+fn run_cargo_bdd(args: &[&str]) -> Result<String> {
+    let output = run_cargo_bdd_raw(args)?;
     assert!(output.status.success(), "`cargo bdd` should succeed");
     let stdout = str::from_utf8(&output.stdout).wrap_err("`cargo bdd` emitted invalid UTF-8")?;
     Ok(stdout.to_string())
 }
 
 fn run_cargo_bdd_failure(args: &[&str]) -> Result<String> {
-    let fixture_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/minimal");
-    let target_dir = fixture_dir.join("target");
-    fs::create_dir_all(&target_dir)
-        .with_context(|| format!("failed to create {}", target_dir.display()))?;
-    let mut cmd = Command::cargo_bin("cargo-bdd")
-        .wrap_err("cargo-bdd binary should exist in this workspace")?;
-    let output = cmd
-        .current_dir(fixture_dir)
-        .env("CARGO_TARGET_DIR", &target_dir)
-        .args(args)
-        .output()
-        .wrap_err("failed to execute `cargo bdd`")?;
+    let output = run_cargo_bdd_raw(args)?;
     assert!(
         !output.status.success(),
         "`cargo bdd` should fail for invalid arguments"

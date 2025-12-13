@@ -1,5 +1,4 @@
 //! Behavioural tests for the `todo-cli` crate.
-#![allow(unexpected_cfgs)]
 
 use rstest::fixture;
 use rstest_bdd_macros::{given, scenario, then, when};
