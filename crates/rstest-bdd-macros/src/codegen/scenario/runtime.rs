@@ -6,7 +6,7 @@ use proc_macro2::TokenStream as TokenStream2;
 use quote::quote;
 
 use crate::codegen::scenario::{FeaturePath, ScenarioName};
-use types::{CodeComponents, ScenarioLiterals, ScenarioLiteralsInput, TokenAssemblyContext};
+use types::{CodeComponents, ScenarioLiterals, ScenarioLiteralsInput};
 pub(crate) use types::{ProcessedSteps, TestTokensConfig};
 
 pub(crate) fn execute_single_step(
@@ -153,13 +153,13 @@ pub(crate) fn generate_step_executor_loop(
 ) -> TokenStream2 {
     quote! {
         let steps = [#((#keyword_tokens, #values, #docstrings, #tables)),*];
-        for (index, (keyword, text, docstring, table)) in steps.iter().enumerate() {
+        for (index, (keyword, text, docstring, table)) in steps.iter().copied().enumerate() {
             match execute_single_step(
                 index,
-                *keyword,
-                *text,
-                *docstring,
-                *table,
+                keyword,
+                text,
+                docstring,
+                table,
                 &mut ctx,
                 FEATURE_PATH,
                 SCENARIO_NAME,
@@ -319,14 +319,20 @@ pub(crate) fn generate_test_tokens(
     assemble_test_tokens(
         literals,
         components,
-        TokenAssemblyContext::new(&ctx_prelude, &ctx_inserts, &ctx_postlude, &block_tokens),
+        &ctx_prelude,
+        &ctx_inserts,
+        &ctx_postlude,
+        &block_tokens,
     )
 }
 
 fn assemble_test_tokens(
     literals: ScenarioLiterals,
     components: CodeComponents,
-    context: TokenAssemblyContext<'_>,
+    ctx_prelude: &[TokenStream2],
+    ctx_inserts: &[TokenStream2],
+    ctx_postlude: &[TokenStream2],
+    block: &TokenStream2,
 ) -> TokenStream2 {
     let ScenarioLiterals {
         allow_literal,
@@ -343,11 +349,6 @@ fn assemble_test_tokens(
         step_executor_loop,
         skip_handler,
     } = components;
-
-    let ctx_prelude = context.ctx_prelude;
-    let ctx_inserts = context.ctx_inserts;
-    let ctx_postlude = context.ctx_postlude;
-    let block = context.block;
 
     let path = crate::codegen::rstest_bdd_path();
     quote! {

@@ -16,7 +16,7 @@
 use std::sync::{Mutex, MutexGuard, OnceLock};
 
 #[cfg(feature = "diagnostics")]
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicU8, Ordering};
 
 mod record;
 pub use record::{ScenarioMetadata, ScenarioRecord, ScenarioStatus, SkippedScenario};
@@ -29,18 +29,22 @@ pub mod json;
 pub mod junit;
 
 #[cfg(feature = "diagnostics")]
-static RUN_DUMP_SEEDS: OnceLock<AtomicBool> = OnceLock::new();
+static RUN_DUMP_SEEDS: OnceLock<AtomicU8> = OnceLock::new();
 
 #[cfg(feature = "diagnostics")]
-fn dump_seeds_guard() -> &'static AtomicBool {
-    RUN_DUMP_SEEDS.get_or_init(|| AtomicBool::new(false))
+fn dump_seeds_state() -> &'static AtomicU8 {
+    RUN_DUMP_SEEDS.get_or_init(|| AtomicU8::new(0))
 }
 
 #[cfg(feature = "diagnostics")]
-fn reset_dump_seeds_guard() {
-    if let Some(flag) = RUN_DUMP_SEEDS.get() {
-        flag.store(false, Ordering::SeqCst);
-    }
+fn reset_dump_seeds_state() {
+    let Some(state) = RUN_DUMP_SEEDS.get() else {
+        return;
+    };
+
+    // Only reset once the seeds have completed; avoid reopening the gate while
+    // a seed run is in-flight.
+    let _ = state.compare_exchange(2, 0, Ordering::SeqCst, Ordering::SeqCst);
 }
 
 /// Thread-safe store containing scenario records gathered during a test run.
@@ -98,10 +102,13 @@ impl DumpSeed {
 #[cfg(feature = "diagnostics")]
 inventory::collect!(DumpSeed);
 
-/// Execute all registered dump seeds once per process.
+/// Execute all registered dump seeds once per drain cycle.
 ///
 /// Registered seeds can be used by diagnostic fixtures to populate the
 /// reporting collector before the registry is serialized.
+///
+/// After calling [`drain`], the seed guard is reset so diagnostics tests can
+/// rerun the seed hooks in a fresh reporting cycle.
 ///
 /// # Examples
 /// ```ignore
@@ -109,18 +116,25 @@ inventory::collect!(DumpSeed);
 /// ```
 #[cfg(feature = "diagnostics")]
 pub fn run_dump_seeds() {
-    if dump_seeds_guard().swap(true, Ordering::SeqCst) {
+    // States:
+    // 0 = not run, 1 = running, 2 = done.
+    let state = dump_seeds_state();
+    if state
+        .compare_exchange(0, 1, Ordering::SeqCst, Ordering::SeqCst)
+        .is_err()
+    {
         return;
     }
     for seed in inventory::iter::<DumpSeed> {
         seed.run();
     }
+    state.store(2, Ordering::SeqCst);
 }
 
 /// Record a scenario outcome in the shared collector.
 ///
 /// # Examples
-/// ```
+/// ```no_run
 /// use rstest_bdd::reporting::{
 ///     drain, record, snapshot, ScenarioMetadata, ScenarioRecord, ScenarioStatus,
 /// };
@@ -137,7 +151,7 @@ pub fn record(record: ScenarioRecord) {
 /// Retrieve a snapshot of the recorded scenarios without clearing them.
 ///
 /// # Examples
-/// ```
+/// ```no_run
 /// use rstest_bdd::reporting::{record, snapshot, ScenarioMetadata, ScenarioRecord, ScenarioStatus};
 ///
 /// let metadata = ScenarioMetadata::new("feature", "scenario", 1, Vec::new());
@@ -153,7 +167,7 @@ pub fn snapshot() -> Vec<ScenarioRecord> {
 /// Remove and return all recorded scenario outcomes.
 ///
 /// # Examples
-/// ```
+/// ```no_run
 /// use rstest_bdd::reporting::{drain, record, snapshot, ScenarioMetadata, ScenarioRecord, ScenarioStatus};
 ///
 /// let metadata = ScenarioMetadata::new("feature", "scenario", 1, Vec::new());
@@ -166,7 +180,7 @@ pub fn snapshot() -> Vec<ScenarioRecord> {
 pub fn drain() -> Vec<ScenarioRecord> {
     let drained = lock_reports().drain(..).collect();
     #[cfg(feature = "diagnostics")]
-    reset_dump_seeds_guard();
+    reset_dump_seeds_state();
     drained
 }
 

@@ -228,7 +228,11 @@ fn diagnostics_fixture_records_bypassed_metadata() {
         .unwrap_or_else(|| panic!("bypassed array"));
     let entry = bypassed
         .iter()
-        .find(|value| value["pattern"] == "fixture bypassed step")
+        .find(|value| {
+            value["pattern"] == "fixture bypassed step"
+                && value["scenario_name"] == "fixture skipped scenario"
+                && value["scenario_line"].as_u64() == Some(7)
+        })
         .unwrap_or_else(|| panic!("bypassed entry"));
     assert_eq!(entry["feature_path"], "tests/features/diagnostics.fixture");
     assert_eq!(entry["scenario_name"], "fixture skipped scenario");

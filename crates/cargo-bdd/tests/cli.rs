@@ -23,22 +23,30 @@ fn run_cargo_bdd_raw(args: &[&str]) -> Result<std::process::Output> {
         .wrap_err("failed to execute `cargo bdd`")
 }
 
-fn run_cargo_bdd(args: &[&str]) -> Result<String> {
+fn run_cargo_bdd_with_expectation(args: &[&str], expect_success: bool) -> Result<String> {
     let output = run_cargo_bdd_raw(args)?;
-    assert!(output.status.success(), "`cargo bdd` should succeed");
-    let stdout = str::from_utf8(&output.stdout).wrap_err("`cargo bdd` emitted invalid UTF-8")?;
-    Ok(stdout.to_string())
+    if expect_success {
+        assert!(output.status.success(), "`cargo bdd` should succeed");
+        let stdout =
+            str::from_utf8(&output.stdout).wrap_err("`cargo bdd` emitted invalid UTF-8")?;
+        Ok(stdout.to_string())
+    } else {
+        assert!(
+            !output.status.success(),
+            "`cargo bdd` should fail for invalid arguments"
+        );
+        let stderr = str::from_utf8(&output.stderr)
+            .wrap_err("`cargo bdd` emitted invalid UTF-8 to stderr")?;
+        Ok(stderr.to_string())
+    }
+}
+
+fn run_cargo_bdd(args: &[&str]) -> Result<String> {
+    run_cargo_bdd_with_expectation(args, true)
 }
 
 fn run_cargo_bdd_failure(args: &[&str]) -> Result<String> {
-    let output = run_cargo_bdd_raw(args)?;
-    assert!(
-        !output.status.success(),
-        "`cargo bdd` should fail for invalid arguments"
-    );
-    let stderr =
-        str::from_utf8(&output.stderr).wrap_err("`cargo bdd` emitted invalid UTF-8 to stderr")?;
-    Ok(stderr.to_string())
+    run_cargo_bdd_with_expectation(args, false)
 }
 
 fn run_cargo_bdd_steps() -> Result<String> {

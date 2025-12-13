@@ -86,7 +86,8 @@ fn validate_step_usage_flags(steps: &[Value]) {
     assert!(
         steps
             .iter()
-            .any(|s| s["pattern"] == "dump unused" && s["bypassed"].as_bool() == Some(true))
+            .any(|s| s["pattern"] == "dump unused" && s["bypassed"].as_bool() == Some(true)),
+        "expected 'dump unused' to be marked bypassed"
     );
 }
 
