@@ -8,10 +8,13 @@ use rstest_bdd::assert_scenario_skipped;
 use rstest_bdd_macros::{given, scenario, then};
 use serial_test::serial;
 
+#[cfg(feature = "diagnostics")]
+use bdd::reporting;
+#[cfg(feature = "diagnostics")]
 use bdd::reporting::{
-    self, ScenarioMetadata, ScenarioRecord, ScenarioStatus, SkippedScenario,
-    drain as drain_reports, record as record_scenario,
+    ScenarioMetadata, ScenarioRecord, SkippedScenario, record as record_scenario,
 };
+use bdd::reporting::{ScenarioStatus, drain as drain_reports};
 #[cfg(feature = "diagnostics")]
 use serde_json::Value;
 
@@ -300,6 +303,7 @@ fn json_writer_omits_absent_skip_messages() {
     let _ = drain_reports();
 }
 
+#[cfg(feature = "diagnostics")]
 #[test]
 #[serial]
 fn junit_writer_emits_skipped_child_element() {
@@ -323,6 +327,7 @@ fn junit_writer_emits_skipped_child_element() {
     let _ = drain_reports();
 }
 
+#[cfg(feature = "diagnostics")]
 #[test]
 #[serial]
 fn junit_writer_marks_forced_failure_skips() {
@@ -347,6 +352,7 @@ fn junit_writer_marks_forced_failure_skips() {
     let _ = drain_reports();
 }
 
+#[cfg(feature = "diagnostics")]
 #[test]
 #[serial]
 fn junit_writer_escapes_special_characters() {

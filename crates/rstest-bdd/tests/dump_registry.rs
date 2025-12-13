@@ -1,4 +1,3 @@
-#![cfg(feature = "diagnostics")]
 //! Unit tests for registry dumping.
 
 use rstest_bdd::{

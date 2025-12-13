@@ -13,7 +13,10 @@
 //! serially (for example via [`serial_test::serial`]) to avoid cross-test
 //! contamination. The API does not reset records automatically; callers
 //! remain responsible for draining the collector between assertions.
-use std::sync::{Mutex, MutexGuard, Once, OnceLock};
+use std::sync::{Mutex, MutexGuard, OnceLock};
+
+#[cfg(feature = "diagnostics")]
+use std::sync::Once;
 
 mod record;
 pub use record::{ScenarioMetadata, ScenarioRecord, ScenarioStatus, SkippedScenario};

@@ -212,7 +212,10 @@ pub fn duplicate_steps() -> Vec<Vec<&'static Step>> {
 }
 
 /// Record step definitions that were bypassed after a scenario requested a skip.
-#[cfg(feature = "diagnostics")]
+///
+/// This is a no-op when the `diagnostics` feature is disabled so that generated
+/// test code can reference this function unconditionally without breaking
+/// `default-features = false` builds.
 pub fn record_bypassed_steps<'a, I>(
     feature_path: impl Into<String>,
     scenario_name: impl Into<String>,
@@ -223,23 +226,38 @@ pub fn record_bypassed_steps<'a, I>(
 ) where
     I: IntoIterator<Item = (StepKeyword, &'a str)>,
 {
-    let feature_path = feature_path.into();
-    let scenario_name = scenario_name.into();
-    let tags = tags.into();
-    let reason = reason.map(str::to_owned);
+    #[cfg(feature = "diagnostics")]
+    {
+        let feature_path = feature_path.into();
+        let scenario_name = scenario_name.into();
+        let tags = tags.into();
+        let reason = reason.map(str::to_owned);
 
-    for (keyword, text) in steps {
-        if let Some(step) = resolve_step(keyword, text.into()) {
-            let record = BypassedStepRecord {
-                key: (step.keyword, step.pattern),
-                feature_path: feature_path.clone(),
-                scenario_name: scenario_name.clone(),
-                scenario_line,
-                tags: tags.clone(),
-                reason: reason.clone(),
-            };
-            mark_bypassed(record);
+        for (keyword, text) in steps {
+            if let Some(step) = resolve_step(keyword, text.into()) {
+                let record = BypassedStepRecord {
+                    key: (step.keyword, step.pattern),
+                    feature_path: feature_path.clone(),
+                    scenario_name: scenario_name.clone(),
+                    scenario_line,
+                    tags: tags.clone(),
+                    reason: reason.clone(),
+                };
+                mark_bypassed(record);
+            }
         }
+    }
+
+    #[cfg(not(feature = "diagnostics"))]
+    {
+        let _ = (
+            feature_path,
+            scenario_name,
+            scenario_line,
+            tags,
+            reason,
+            steps,
+        );
     }
 }
 
