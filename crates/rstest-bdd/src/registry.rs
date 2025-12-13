@@ -112,8 +112,8 @@ struct BypassedStepRecord {
 }
 
 #[cfg(feature = "diagnostics")]
-static BYPASSED_STEPS: Lazy<Mutex<HashSet<BypassedStepRecord>>> =
-    Lazy::new(|| Mutex::new(HashSet::new()));
+static BYPASSED_STEPS: LazyLock<Mutex<HashSet<BypassedStepRecord>>> =
+    LazyLock::new(|| Mutex::new(HashSet::new()));
 
 #[cfg(feature = "diagnostics")]
 fn mark_bypassed(record: BypassedStepRecord) {

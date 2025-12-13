@@ -50,9 +50,9 @@ pub use localization::{
 };
 pub use pattern::StepPattern;
 pub use placeholder::extract_placeholders;
+pub use registry::{Step, duplicate_steps, find_step, lookup_step, unused_steps};
 #[cfg(feature = "diagnostics")]
 pub use registry::{dump_registry, record_bypassed_steps};
-pub use registry::{Step, duplicate_steps, find_step, lookup_step, unused_steps};
 
 /// Whether the crate was built with the `diagnostics` feature enabled.
 #[must_use]

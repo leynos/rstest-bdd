@@ -121,9 +121,11 @@ fn reports_usage_flags() {
             .any(|s| s["pattern"] == "dump unused" && s["used"].as_bool() == Some(false)),
         "expected 'dump unused' to be marked unused"
     );
-    assert!(steps
-        .iter()
-        .any(|s| s["pattern"] == "dump unused" && s["bypassed"].as_bool() == Some(true)));
+    assert!(
+        steps
+            .iter()
+            .any(|s| s["pattern"] == "dump unused" && s["bypassed"].as_bool() == Some(true))
+    );
 
     let scenarios = parsed
         .get("scenarios")

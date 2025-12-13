@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
 use cargo_metadata::{Message, Package, PackageId, Target};
-use eyre::{bail, eyre, Context, Result};
+use eyre::{Context, Result, bail, eyre};
 use serde::Deserialize;
 
 /// Registry step entry including location metadata and execution status.

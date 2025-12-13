@@ -25,7 +25,10 @@ pub(crate) fn write_group_separator(writer: &mut dyn Write) -> Result<()> {
 }
 
 #[derive(Clone, Copy)]
-#[allow(clippy::struct_excessive_bools)]
+#[expect(
+    clippy::struct_excessive_bools,
+    reason = "Rendering flags are independent CLI switches; booleans keep call sites readable."
+)]
 pub(crate) struct ScenarioDisplayOptions {
     pub include_line: bool,
     pub include_tags: bool,

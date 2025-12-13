@@ -11,7 +11,7 @@ mod runtime;
 use helpers::generate_case_attrs;
 pub(crate) use helpers::process_steps;
 pub(crate) use metadata::{FeaturePath, ScenarioName};
-use runtime::{generate_test_tokens, ProcessedSteps, TestTokensConfig};
+use runtime::{ProcessedSteps, TestTokensConfig, generate_test_tokens};
 
 /// Configuration for generating code for a single scenario test.
 pub(crate) struct ScenarioConfig<'a> {

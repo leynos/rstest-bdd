@@ -4,14 +4,14 @@ use std::collections::HashMap;
 use std::io::{self, Write};
 
 use clap::{Args, Parser, Subcommand};
-use eyre::{bail, Context, Result};
+use eyre::{Context, Result, bail};
 use serde::Serialize;
 
 use crate::output::{
-    write_bypassed_steps, write_group_separator, write_scenarios, write_step,
-    ScenarioDisplayOptions,
+    ScenarioDisplayOptions, write_bypassed_steps, write_group_separator, write_scenarios,
+    write_step,
 };
-use crate::registry::{collect_registry, BypassedStep, Scenario, ScenarioOutcome, Step};
+use crate::registry::{BypassedStep, Scenario, ScenarioOutcome, Step, collect_registry};
 
 /// Cargo subcommand providing diagnostics for rstest-bdd.
 #[derive(Parser)]

@@ -9,7 +9,8 @@ use rstest_bdd_macros::{given, scenario, then};
 use serial_test::serial;
 
 use bdd::reporting::{
-    self, ScenarioRecord, ScenarioStatus, SkippedScenario, drain as drain_reports, record as record_scenario, ScenarioMetadata,
+    self, ScenarioMetadata, ScenarioRecord, ScenarioStatus, SkippedScenario,
+    drain as drain_reports, record as record_scenario,
 };
 #[cfg(feature = "diagnostics")]
 use serde_json::Value;

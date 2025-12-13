@@ -12,7 +12,7 @@ use serial_test::serial;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 #[cfg(feature = "diagnostics")]
-use rstest_bdd::{step, StepContext, StepExecution, StepKeyword};
+use rstest_bdd::{StepContext, StepExecution, StepKeyword, step};
 
 #[cfg(feature = "diagnostics")]
 step!(
@@ -31,7 +31,10 @@ step!(
 );
 
 #[cfg(feature = "diagnostics")]
-#[allow(clippy::unnecessary_wraps)]
+#[expect(
+    clippy::unnecessary_wraps,
+    reason = "Step handlers must return Result<StepExecution, StepError>."
+)]
 fn bypassed_step(
     _ctx: &mut StepContext<'_>,
     _text: &str,
@@ -42,7 +45,10 @@ fn bypassed_step(
 }
 
 #[cfg(feature = "diagnostics")]
-#[allow(clippy::unnecessary_wraps)]
+#[expect(
+    clippy::unnecessary_wraps,
+    reason = "Step handlers must return Result<StepExecution, StepError>."
+)]
 fn forced_bypass(
     _ctx: &mut StepContext<'_>,
     _text: &str,
