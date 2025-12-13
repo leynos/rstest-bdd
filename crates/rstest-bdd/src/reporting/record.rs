@@ -1,5 +1,10 @@
 //! Data structures representing scenario results captured by the reporter.
 
+use std::sync::Arc;
+
+/// Tags applied to a scenario.
+pub type ScenarioTags = Arc<[String]>;
+
 /// Metadata describing a scenario to be recorded.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ScenarioMetadata {
@@ -10,7 +15,7 @@ pub struct ScenarioMetadata {
     /// Line number where the scenario is declared.
     pub line: u32,
     /// Tags applied to the scenario.
-    pub tags: Vec<String>,
+    pub tags: ScenarioTags,
 }
 
 impl ScenarioMetadata {
@@ -33,7 +38,7 @@ impl ScenarioMetadata {
         feature_path: impl Into<String>,
         scenario_name: impl Into<String>,
         line: u32,
-        tags: impl Into<Vec<String>>,
+        tags: impl Into<ScenarioTags>,
     ) -> Self {
         Self {
             feature_path: feature_path.into(),
@@ -50,7 +55,7 @@ pub struct ScenarioRecord {
     feature_path: String,
     scenario_name: String,
     line: u32,
-    tags: Vec<String>,
+    tags: ScenarioTags,
     status: ScenarioStatus,
 }
 
@@ -115,7 +120,7 @@ impl ScenarioRecord {
     /// Access the recorded scenario tags.
     #[must_use]
     pub fn tags(&self) -> &[String] {
-        &self.tags
+        self.tags.as_ref()
     }
 
     /// Access the stored status value.

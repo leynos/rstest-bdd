@@ -51,3 +51,27 @@ pub(super) struct CodeComponents {
     pub(super) step_executor_loop: TokenStream2,
     pub(super) skip_handler: TokenStream2,
 }
+
+#[derive(Debug, Clone, Copy)]
+pub(super) struct TokenAssemblyContext<'a> {
+    pub(super) ctx_prelude: &'a [TokenStream2],
+    pub(super) ctx_inserts: &'a [TokenStream2],
+    pub(super) ctx_postlude: &'a [TokenStream2],
+    pub(super) block: &'a TokenStream2,
+}
+
+impl<'a> TokenAssemblyContext<'a> {
+    pub(super) fn new(
+        ctx_prelude: &'a [TokenStream2],
+        ctx_inserts: &'a [TokenStream2],
+        ctx_postlude: &'a [TokenStream2],
+        block: &'a TokenStream2,
+    ) -> Self {
+        Self {
+            ctx_prelude,
+            ctx_inserts,
+            ctx_postlude,
+            block,
+        }
+    }
+}

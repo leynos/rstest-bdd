@@ -6,7 +6,7 @@ use proc_macro2::TokenStream as TokenStream2;
 use quote::quote;
 
 use crate::codegen::scenario::{FeaturePath, ScenarioName};
-use types::{CodeComponents, ScenarioLiterals, ScenarioLiteralsInput};
+use types::{CodeComponents, ScenarioLiterals, ScenarioLiteralsInput, TokenAssemblyContext};
 pub(crate) use types::{ProcessedSteps, TestTokensConfig};
 
 pub(crate) fn execute_single_step(
@@ -93,7 +93,7 @@ fn generate_scenario_guard() -> TokenStream2 {
             feature_path: &'static str,
             scenario_name: &'static str,
             line: u32,
-            tags: Vec<String>,
+            tags: #path::reporting::ScenarioTags,
         }
 
         impl ScenarioReportGuard {
@@ -101,14 +101,14 @@ fn generate_scenario_guard() -> TokenStream2 {
                 feature_path: &'static str,
                 scenario_name: &'static str,
                 line: u32,
-                tags: &'static [&'static str],
+                tags: #path::reporting::ScenarioTags,
             ) -> Self {
                 Self {
                     recorded: false,
                     feature_path,
                     scenario_name,
                     line,
-                    tags: tags.iter().map(|tag| (*tag).to_string()).collect(),
+                    tags,
                 }
             }
 
@@ -117,10 +117,10 @@ fn generate_scenario_guard() -> TokenStream2 {
             }
 
             fn tags(&self) -> &[String] {
-                &self.tags
+                self.tags.as_ref()
             }
 
-            fn take_tags(&mut self) -> Vec<String> {
+            fn take_tags(&mut self) -> #path::reporting::ScenarioTags {
                 std::mem::take(&mut self.tags)
             }
         }
@@ -315,25 +315,23 @@ pub(crate) fn generate_test_tokens(
 
     let components = generate_code_components(&processed_steps, feature_path, scenario_name);
     let block_tokens = quote! { #block };
+    let context =
+        TokenAssemblyContext::new(&ctx_prelude, &ctx_inserts, &ctx_postlude, &block_tokens);
 
-    assemble_test_tokens(
-        literals,
-        components,
-        &ctx_prelude,
-        &ctx_inserts,
-        &ctx_postlude,
-        &block_tokens,
-    )
+    assemble_test_tokens(literals, components, context)
 }
 
 fn assemble_test_tokens(
     literals: ScenarioLiterals,
     components: CodeComponents,
-    ctx_prelude: &[TokenStream2],
-    ctx_inserts: &[TokenStream2],
-    ctx_postlude: &[TokenStream2],
-    block: &TokenStream2,
+    context: TokenAssemblyContext<'_>,
 ) -> TokenStream2 {
+    let TokenAssemblyContext {
+        ctx_prelude,
+        ctx_inserts,
+        ctx_postlude,
+        block,
+    } = context;
     let ScenarioLiterals {
         allow_literal,
         feature_literal,
@@ -355,7 +353,10 @@ fn assemble_test_tokens(
         const FEATURE_PATH: &str = #feature_literal;
         const SCENARIO_NAME: &str = #scenario_literal;
         const SCENARIO_LINE: u32 = #scenario_line_literal;
-        const SCENARIO_TAGS: &[&str] = &[#(#tag_literals),*];
+        static SCENARIO_TAGS: std::sync::LazyLock<#path::reporting::ScenarioTags> =
+            std::sync::LazyLock::new(|| {
+                std::sync::Arc::<[String]>::from(vec![#(#tag_literals.to_string()),*])
+            });
         const SKIP_NONE_PREFIX: char = '\u{0}';
         const SKIP_SOME_PREFIX: char = '\u{1}';
         #step_executor
@@ -374,7 +375,7 @@ fn assemble_test_tokens(
             FEATURE_PATH,
             SCENARIO_NAME,
             SCENARIO_LINE,
-            SCENARIO_TAGS,
+            SCENARIO_TAGS.clone(),
         );
         let mut skipped: Option<Option<String>> = None;
         let mut skipped_at: Option<usize> = None;

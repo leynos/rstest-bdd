@@ -2,6 +2,7 @@
 
 use super::*;
 use cargo_metadata::Message as MetadataMessage;
+use rstest::rstest;
 
 #[test]
 fn detects_unrecognised_flag_from_libtest_getopts() {
@@ -82,10 +83,9 @@ fn verify_extraction(json: &str, expected: Option<PathBuf>) {
     assert_eq!(extract_test_executable(&msg), expected);
 }
 
-#[test]
-fn extract_test_executable_filters_non_tests() {
-    verify_extraction(
-        r#"{
+#[rstest]
+#[case::filters_non_tests(
+    r#"{
             "reason": "compiler-artifact",
             "package_id": "pkg 0.1.0 (path+file:///tmp/pkg)",
             "target": {
@@ -110,14 +110,10 @@ fn extract_test_executable_filters_non_tests() {
             "executable": "/tmp/bin",
             "fresh": true
         }"#,
-        None,
-    );
-}
-
-#[test]
-fn extract_test_executable_accepts_tests() {
-    verify_extraction(
-        r#"{
+    None
+)]
+#[case::accepts_tests(
+    r#"{
             "reason": "compiler-artifact",
             "package_id": "pkg 0.1.0 (path+file:///tmp/pkg)",
             "target": {
@@ -142,6 +138,8 @@ fn extract_test_executable_accepts_tests() {
             "executable": "/tmp/test-bin",
             "fresh": true
         }"#,
-        Some(PathBuf::from("/tmp/test-bin")),
-    );
+    Some(PathBuf::from("/tmp/test-bin"))
+)]
+fn extract_test_executable_behaviour(#[case] json: &str, #[case] expected: Option<PathBuf>) {
+    verify_extraction(json, expected);
 }

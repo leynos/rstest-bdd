@@ -19,7 +19,7 @@ use std::sync::{Mutex, MutexGuard, OnceLock};
 use std::sync::atomic::{AtomicU8, Ordering};
 
 mod record;
-pub use record::{ScenarioMetadata, ScenarioRecord, ScenarioStatus, SkippedScenario};
+pub use record::{ScenarioMetadata, ScenarioRecord, ScenarioStatus, ScenarioTags, SkippedScenario};
 
 /// JSON report writer for scenario outcomes.
 #[cfg(feature = "diagnostics")]
