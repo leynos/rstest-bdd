@@ -9,7 +9,7 @@ use std::str;
 
 fn run_cargo_bdd_steps() -> Result<String> {
     let fixture_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/minimal");
-    let target_dir = fixture_dir.join("target");
+    let target_dir = workspace_target_dir()?;
     fs::create_dir_all(&target_dir)
         .with_context(|| format!("failed to create {}", target_dir.display()))?;
     let mut cmd = Command::cargo_bin("cargo-bdd")
@@ -24,6 +24,17 @@ fn run_cargo_bdd_steps() -> Result<String> {
     let stdout =
         str::from_utf8(&output.stdout).wrap_err("`cargo bdd steps` emitted invalid UTF-8")?;
     Ok(stdout.to_string())
+}
+
+fn workspace_target_dir() -> Result<PathBuf> {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let crates_dir = manifest_dir
+        .parent()
+        .ok_or_else(|| eyre::eyre!("failed to locate crates directory"))?;
+    let workspace_root = crates_dir
+        .parent()
+        .ok_or_else(|| eyre::eyre!("failed to locate workspace root"))?;
+    Ok(workspace_root.join("target"))
 }
 
 #[test]
