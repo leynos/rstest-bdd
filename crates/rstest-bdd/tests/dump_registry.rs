@@ -66,6 +66,67 @@ fn validate_passed_scenario(scenarios: &[Value]) {
     );
 }
 
+fn parse_registry_json(json: &str) -> Value {
+    serde_json::from_str(json).unwrap_or_else(|e| panic!("valid json: {e}"))
+}
+
+fn validate_step_usage_flags(steps: &[Value]) {
+    assert!(
+        steps
+            .iter()
+            .any(|s| s["pattern"] == "dump used" && s["used"].as_bool() == Some(true)),
+        "expected 'dump used' to be marked used"
+    );
+    assert!(
+        steps
+            .iter()
+            .any(|s| s["pattern"] == "dump unused" && s["used"].as_bool() == Some(false)),
+        "expected 'dump unused' to be marked unused"
+    );
+    assert!(
+        steps
+            .iter()
+            .any(|s| s["pattern"] == "dump unused" && s["bypassed"].as_bool() == Some(true))
+    );
+}
+
+fn validate_scenario_metadata(scenarios: &[Value]) {
+    let skipped = scenarios
+        .iter()
+        .find(|entry| entry["scenario_name"] == "skipped entry")
+        .unwrap_or_else(|| panic!("skipped scenario present"));
+    assert_eq!(skipped["line"].as_u64(), Some(3));
+    assert_eq!(
+        skipped["tags"]
+            .as_array()
+            .and_then(|tags| tags.first())
+            .and_then(Value::as_str),
+        Some("@allow_skipped")
+    );
+}
+
+fn validate_bypassed_steps_metadata(bypassed_steps: &[Value]) {
+    assert!(bypassed_steps.iter().any(|entry| {
+        entry.get("pattern") == Some(&Value::String("dump unused".into()))
+            && entry
+                .get("reason")
+                .and_then(Value::as_str)
+                .is_some_and(|msg| msg.contains("reason"))
+    }));
+    let entry = bypassed_steps
+        .iter()
+        .find(|value| value["pattern"] == "dump unused")
+        .unwrap_or_else(|| panic!("bypassed entry present"));
+    assert_eq!(entry["scenario_line"].as_u64(), Some(3));
+    assert_eq!(
+        entry["tags"]
+            .as_array()
+            .and_then(|tags| tags.first())
+            .and_then(Value::as_str),
+        Some("@allow_skipped")
+    );
+}
+
 #[test]
 fn reports_usage_flags() {
     let _ = reporting::drain();
@@ -103,28 +164,12 @@ fn reports_usage_flags() {
     execute_and_validate_step(StepKeyword::Given, "dump used");
 
     let json = dump_registry().unwrap_or_else(|e| panic!("dump registry: {e}"));
-    let parsed: Value = serde_json::from_str(&json).unwrap_or_else(|e| panic!("valid json: {e}"));
+    let parsed = parse_registry_json(&json);
     let steps = parsed
         .get("steps")
         .and_then(Value::as_array)
         .unwrap_or_else(|| panic!("steps array"));
-    assert!(
-        steps
-            .iter()
-            .any(|s| s["pattern"] == "dump used" && s["used"].as_bool() == Some(true)),
-        "expected 'dump used' to be marked used"
-    );
-    assert!(
-        steps
-            .iter()
-            .any(|s| s["pattern"] == "dump unused" && s["used"].as_bool() == Some(false)),
-        "expected 'dump unused' to be marked unused"
-    );
-    assert!(
-        steps
-            .iter()
-            .any(|s| s["pattern"] == "dump unused" && s["bypassed"].as_bool() == Some(true))
-    );
+    validate_step_usage_flags(steps);
 
     let scenarios = parsed
         .get("scenarios")
@@ -133,41 +178,12 @@ fn reports_usage_flags() {
     assert!(scenarios.iter().all(|entry| entry.get("status").is_some()));
     validate_skipped_scenario(scenarios);
     validate_passed_scenario(scenarios);
-    let skipped = scenarios
-        .iter()
-        .find(|entry| entry["scenario_name"] == "skipped entry")
-        .unwrap_or_else(|| panic!("skipped scenario present"));
-    assert_eq!(skipped["line"].as_u64(), Some(3));
-    assert_eq!(
-        skipped["tags"]
-            .as_array()
-            .and_then(|tags| tags.first())
-            .and_then(Value::as_str),
-        Some("@allow_skipped")
-    );
+    validate_scenario_metadata(scenarios);
 
     let bypassed_steps = parsed
         .get("bypassed_steps")
         .and_then(Value::as_array)
         .unwrap_or_else(|| panic!("bypassed_steps array"));
-    assert!(bypassed_steps.iter().any(|entry| {
-        entry.get("pattern") == Some(&Value::String("dump unused".into()))
-            && entry
-                .get("reason")
-                .and_then(Value::as_str)
-                .is_some_and(|msg| msg.contains("reason"))
-    }));
-    let entry = bypassed_steps
-        .iter()
-        .find(|value| value["pattern"] == "dump unused")
-        .unwrap_or_else(|| panic!("bypassed entry present"));
-    assert_eq!(entry["scenario_line"].as_u64(), Some(3));
-    assert_eq!(
-        entry["tags"]
-            .as_array()
-            .and_then(|tags| tags.first())
-            .and_then(Value::as_str),
-        Some("@allow_skipped")
-    );
+    validate_bypassed_steps_metadata(bypassed_steps);
     let _ = reporting::drain();
 }
