@@ -34,5 +34,6 @@ pub mod config;
 pub mod discovery;
 pub mod error;
 pub mod handlers;
+pub mod indexing;
 pub mod logging;
 pub mod server;

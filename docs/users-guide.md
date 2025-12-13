@@ -1299,6 +1299,10 @@ The initial release provides the LSP scaffolding:
   `shutdown` requests per the LSP specification.
 - **Workspace discovery**: Uses `cargo metadata` to locate the workspace root
   and enumerate packages.
+- **Feature indexing (on save)**: Parses saved `.feature` files using the
+  `gherkin` parser and records steps, doc strings, data tables, and Examples
+  header columns with byte offsets. Parse failures are logged; diagnostics are
+  added in later phases.
 - **Structured logging**: Configurable via environment variables; logs are
   written to stderr using the `tracing` framework.
 

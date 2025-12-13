@@ -18,7 +18,9 @@ use tracing::info;
 
 use rstest_bdd_server::config::{LogLevel, ServerConfig};
 use rstest_bdd_server::error::ServerError;
-use rstest_bdd_server::handlers::{handle_initialise, handle_initialised, handle_shutdown};
+use rstest_bdd_server::handlers::{
+    handle_did_save_text_document, handle_initialise, handle_initialised, handle_shutdown,
+};
 use rstest_bdd_server::logging::init_logging;
 use rstest_bdd_server::server::ServerState;
 
@@ -92,7 +94,10 @@ async fn run_server_async(config: ServerConfig) -> std::io::Result<()> {
             .notification::<notification::Exit>(|_, ()| ControlFlow::Break(Ok(())))
             .notification::<notification::DidOpenTextDocument>(|_, _| ControlFlow::Continue(()))
             .notification::<notification::DidChangeTextDocument>(|_, _| ControlFlow::Continue(()))
-            .notification::<notification::DidSaveTextDocument>(|_, _| ControlFlow::Continue(()))
+            .notification::<notification::DidSaveTextDocument>(|st, params| {
+                handle_did_save_text_document(st, params);
+                ControlFlow::Continue(())
+            })
             .notification::<notification::DidCloseTextDocument>(|_, _| ControlFlow::Continue(()));
 
         ServiceBuilder::new()

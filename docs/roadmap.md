@@ -400,7 +400,7 @@ scope until the core workflow is stable.
 
 - [ ] **Indexing pipeline**
 
-  - [ ] Parse `.feature` files with `gherkin` on save to capture steps,
+  - [x] Parse `.feature` files with `gherkin` on save to capture steps,
     docstrings, tables, example columns, and byte offsets.
 
   - [ ] Parse Rust files with `syn` to collect `#[given]`, `#[when]`, and
