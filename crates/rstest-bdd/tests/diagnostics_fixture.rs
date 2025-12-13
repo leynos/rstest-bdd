@@ -200,3 +200,35 @@ fn diagnostics_fixture_runs() {
         let _ = bdd::reporting::snapshot();
     }
 }
+
+#[test]
+#[cfg(feature = "diagnostics")]
+#[serial]
+fn diagnostics_fixture_records_bypassed_metadata() {
+    let _ = bdd::reporting::drain();
+    let _guard = DumpStepsGuard::set();
+    bdd::reporting::run_dump_seeds();
+    let json = bdd::dump_registry().unwrap_or_else(|e| panic!("dump registry: {e}"));
+    let parsed: serde_json::Value =
+        serde_json::from_str(&json).unwrap_or_else(|e| panic!("valid json: {e}"));
+    let bypassed = parsed
+        .get("bypassed_steps")
+        .and_then(|v| v.as_array())
+        .unwrap_or_else(|| panic!("bypassed array"));
+    let entry = bypassed
+        .iter()
+        .find(|value| value["pattern"] == "fixture bypassed step")
+        .unwrap_or_else(|| panic!("bypassed entry"));
+    assert_eq!(entry["feature_path"], "tests/features/diagnostics.fixture");
+    assert_eq!(entry["scenario_name"], "fixture skipped scenario");
+    assert_eq!(entry["scenario_line"].as_u64(), Some(7));
+    assert_eq!(
+        entry["tags"]
+            .as_array()
+            .and_then(|tags| tags.first())
+            .and_then(|v| v.as_str()),
+        Some("@allow_skipped")
+    );
+    assert_eq!(entry["reason"], "fixture skip message");
+    let _ = bdd::reporting::drain();
+}

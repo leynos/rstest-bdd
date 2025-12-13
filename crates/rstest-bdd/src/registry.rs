@@ -112,17 +112,15 @@ struct BypassedStepRecord {
 }
 
 #[cfg(feature = "diagnostics")]
-static BYPASSED_STEPS: Lazy<Mutex<Vec<BypassedStepRecord>>> = Lazy::new(|| Mutex::new(Vec::new()));
+static BYPASSED_STEPS: Lazy<Mutex<HashSet<BypassedStepRecord>>> =
+    Lazy::new(|| Mutex::new(HashSet::new()));
 
 #[cfg(feature = "diagnostics")]
 fn mark_bypassed(record: BypassedStepRecord) {
-    let mut guard = BYPASSED_STEPS
+    BYPASSED_STEPS
         .lock()
-        .unwrap_or_else(std::sync::PoisonError::into_inner);
-    let already_recorded = guard.iter().any(|existing| existing == &record);
-    if !already_recorded {
-        guard.push(record);
-    }
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .insert(record);
 }
 
 #[cfg(feature = "diagnostics")]
@@ -130,7 +128,9 @@ fn bypassed_records() -> Vec<BypassedStepRecord> {
     BYPASSED_STEPS
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner)
-        .clone()
+        .iter()
+        .cloned()
+        .collect()
 }
 
 fn all_steps() -> Vec<&'static Step> {

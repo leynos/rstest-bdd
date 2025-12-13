@@ -234,3 +234,125 @@ pub(crate) fn extract_test_executable(msg: &Message) -> Option<PathBuf> {
         _ => None,
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use cargo_metadata::Message as MetadataMessage;
+
+    #[test]
+    fn parses_registry_dump_with_bypassed_steps() {
+        let json = r#"
+        {
+          "steps": [{"keyword":"Given","pattern":"x","file":"f","line":1,"used":false}],
+          "scenarios": [{
+            "feature_path":"feature",
+            "scenario_name":"scenario",
+            "status":"skipped",
+            "message":"reason",
+            "allow_skipped":true,
+            "forced_failure":false,
+            "line":42,
+            "tags":["@t"]
+          }],
+          "bypassed_steps": [{
+            "keyword":"Given",
+            "pattern":"x",
+            "file":"f",
+            "line":1,
+            "feature_path":"feature",
+            "scenario_name":"scenario",
+            "scenario_line":42,
+            "tags":["@t"],
+            "reason":"reason"
+          }]
+        }
+        "#;
+        let parsed =
+            parse_registry_dump(json.as_bytes()).unwrap_or_else(|err| panic!("valid dump: {err}"));
+        let scenario = parsed
+            .scenarios
+            .first()
+            .unwrap_or_else(|| panic!("scenario entry"));
+        assert_eq!(scenario.line, 42);
+        assert_eq!(scenario.tags, vec!["@t".to_string()]);
+        let bypassed = parsed
+            .bypassed_steps
+            .first()
+            .unwrap_or_else(|| panic!("bypassed entry"));
+        assert_eq!(bypassed.scenario_line, 42);
+        assert_eq!(bypassed.tags, vec!["@t".to_string()]);
+        assert_eq!(bypassed.reason.as_deref(), Some("reason"));
+    }
+
+    fn parse_message(json: &str) -> MetadataMessage {
+        serde_json::from_str(json).unwrap_or_else(|err| panic!("message should parse: {err}"))
+    }
+
+    #[test]
+    fn extract_test_executable_filters_non_tests() {
+        let msg = parse_message(
+            r#"{
+                "reason": "compiler-artifact",
+                "package_id": "pkg 0.1.0 (path+file:///tmp/pkg)",
+                "target": {
+                    "kind": ["bin"],
+                    "crate_types": ["bin"],
+                    "name": "pkg",
+                    "src_path": "/tmp/src/main.rs",
+                    "edition": "2021",
+                    "doc": false,
+                    "doctest": false,
+                    "test": false
+                },
+                "profile": {
+                    "opt_level": "0",
+                    "debuginfo": 0,
+                    "debug_assertions": false,
+                    "overflow_checks": false,
+                    "test": false
+                },
+                "features": [],
+                "filenames": ["/tmp/bin"],
+                "executable": "/tmp/bin",
+                "fresh": true
+            }"#,
+        );
+        assert!(extract_test_executable(&msg).is_none());
+    }
+
+    #[test]
+    fn extract_test_executable_accepts_tests() {
+        let msg = parse_message(
+            r#"{
+                "reason": "compiler-artifact",
+                "package_id": "pkg 0.1.0 (path+file:///tmp/pkg)",
+                "target": {
+                    "kind": ["test"],
+                    "crate_types": ["test"],
+                    "name": "pkg",
+                    "src_path": "/tmp/src/main.rs",
+                    "edition": "2021",
+                    "doc": false,
+                    "doctest": false,
+                    "test": true
+                },
+                "profile": {
+                    "opt_level": "0",
+                    "debuginfo": 0,
+                    "debug_assertions": false,
+                    "overflow_checks": false,
+                    "test": true
+                },
+                "features": [],
+                "filenames": ["/tmp/test-bin"],
+                "executable": "/tmp/test-bin",
+                "fresh": true
+            }"#,
+        );
+        assert_eq!(
+            extract_test_executable(&msg),
+            Some(PathBuf::from("/tmp/test-bin"))
+        );
+    }
+}

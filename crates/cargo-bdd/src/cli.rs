@@ -40,7 +40,7 @@ pub(crate) struct StepsArgs {
     #[arg(long)]
     pub skipped: bool,
     /// Emit JSON instead of human-readable text.
-    #[arg(long)]
+    #[arg(long, requires = "skipped")]
     pub json: bool,
 }
 
@@ -233,4 +233,59 @@ fn write_skip_reports_json(reports: &[SkipReport<'_>]) -> Result<()> {
         .write_all(b"\n")
         .wrap_err("failed to terminate JSON output with newline")?;
     stdout.flush().wrap_err("failed to flush JSON output")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn write_skip_reports_json_emits_fields() -> eyre::Result<()> {
+        let report = SkipReport {
+            feature: "feature",
+            scenario: "scenario",
+            line: 3,
+            tags: &[String::from("@a")],
+            reason: Some("why"),
+            step: Some(SkippedDefinition {
+                keyword: "Given",
+                pattern: "x",
+                file: "file",
+                line: 7,
+            }),
+        };
+        let mut buffer = Vec::new();
+        serde_json::to_writer(&mut buffer, &[report])?;
+        let parsed: serde_json::Value = serde_json::from_slice(&buffer)?;
+        let entry = parsed
+            .as_array()
+            .and_then(|array| array.first())
+            .ok_or_else(|| eyre::eyre!("missing entry"))?;
+        assert_eq!(
+            entry.get("feature"),
+            Some(&serde_json::Value::String("feature".into()))
+        );
+        assert_eq!(
+            entry.get("scenario"),
+            Some(&serde_json::Value::String("scenario".into()))
+        );
+        assert_eq!(entry.get("line"), Some(&serde_json::Value::from(3_u64)));
+        assert_eq!(
+            entry.get("reason"),
+            Some(&serde_json::Value::String("why".into()))
+        );
+        let step = entry
+            .get("step")
+            .and_then(serde_json::Value::as_object)
+            .ok_or_else(|| eyre::eyre!("missing step object"))?;
+        assert_eq!(
+            step.get("keyword"),
+            Some(&serde_json::Value::String("Given".into()))
+        );
+        assert_eq!(
+            step.get("pattern"),
+            Some(&serde_json::Value::String("x".into()))
+        );
+        Ok(())
+    }
 }

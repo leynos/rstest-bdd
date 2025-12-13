@@ -181,24 +181,28 @@ fn generate_skip_handler() -> TokenStream2 {
         if let Some(message) = skipped {
             let fail_on_skipped_enabled = #path::config::fail_on_skipped();
             let forced_failure = fail_on_skipped_enabled && !allow_skipped;
-            if #path::diagnostics_enabled() {
-                if let Some(start) = skipped_at {
-                    let bypassed = steps
-                        .iter()
-                        .enumerate()
-                        .skip(start + 1)
-                        .map(|(_, (keyword, text, _, _))| (*keyword, *text));
-                    #path::record_bypassed_steps(
-                        FEATURE_PATH,
-                        SCENARIO_NAME,
-                        SCENARIO_LINE,
-                        SCENARIO_TAGS
+            let scenario_tags_owned = SCENARIO_TAGS
+                .iter()
+                .map(|tag| tag.to_string())
+                .collect::<Vec<_>>();
+            #[cfg(feature = "diagnostics")]
+            {
+                if #path::diagnostics_enabled() {
+                    if let Some(start) = skipped_at {
+                        let bypassed = steps
                             .iter()
-                            .map(|tag| tag.to_string())
-                            .collect::<Vec<_>>(),
-                        message.as_deref(),
-                        bypassed,
-                    );
+                            .enumerate()
+                            .skip(start + 1)
+                            .map(|(_, (keyword, text, _, _))| (*keyword, *text));
+                        #path::record_bypassed_steps(
+                            FEATURE_PATH,
+                            SCENARIO_NAME,
+                            SCENARIO_LINE,
+                            scenario_tags_owned.clone(),
+                            message.as_deref(),
+                            bypassed,
+                        );
+                    }
                 }
             }
             scenario_guard.mark_recorded();
@@ -211,10 +215,7 @@ fn generate_skip_handler() -> TokenStream2 {
                 FEATURE_PATH,
                 SCENARIO_NAME,
                 SCENARIO_LINE,
-                SCENARIO_TAGS
-                    .iter()
-                    .map(|tag| tag.to_string())
-                    .collect::<Vec<_>>(),
+                scenario_tags_owned,
             );
             #path::reporting::record(#path::reporting::ScenarioRecord::from_metadata(
                 metadata,
@@ -234,7 +235,7 @@ fn generate_skip_handler() -> TokenStream2 {
     }
 }
 
-fn create_scenario_literals(input: &ScenarioLiteralsInput<'_>) -> ScenarioLiterals {
+fn create_scenario_literals(input: ScenarioLiteralsInput<'_>) -> ScenarioLiterals {
     let allow_literal = syn::LitBool::new(input.allow_skipped, proc_macro2::Span::call_site());
     let feature_literal =
         syn::LitStr::new(input.feature_path.as_str(), proc_macro2::Span::call_site());
@@ -306,7 +307,7 @@ pub(crate) fn generate_test_tokens(
     let ctx_inserts: Vec<_> = ctx_inserts.collect();
     let ctx_postlude: Vec<_> = ctx_postlude.collect();
 
-    let literals = create_scenario_literals(&ScenarioLiteralsInput {
+    let literals = create_scenario_literals(ScenarioLiteralsInput {
         feature_path,
         scenario_name,
         scenario_line,
@@ -320,14 +321,14 @@ pub(crate) fn generate_test_tokens(
     assemble_test_tokens(
         literals,
         components,
-        &TokenAssemblyContext::new(&ctx_prelude, &ctx_inserts, &ctx_postlude, &block_tokens),
+        TokenAssemblyContext::new(&ctx_prelude, &ctx_inserts, &ctx_postlude, &block_tokens),
     )
 }
 
 fn assemble_test_tokens(
     literals: ScenarioLiterals,
     components: CodeComponents,
-    context: &TokenAssemblyContext<'_>,
+    context: TokenAssemblyContext<'_>,
 ) -> TokenStream2 {
     let ScenarioLiterals {
         allow_literal,

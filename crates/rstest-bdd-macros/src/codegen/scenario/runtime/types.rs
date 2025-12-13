@@ -31,6 +31,7 @@ pub(super) struct ScenarioLiterals {
     pub(super) tag_literals: Vec<syn::LitStr>,
 }
 
+#[derive(Clone, Copy)]
 pub(super) struct ScenarioLiteralsInput<'a> {
     pub(super) feature_path: &'a FeaturePath,
     pub(super) scenario_name: &'a ScenarioName,
@@ -47,6 +48,7 @@ pub(super) struct CodeComponents {
     pub(super) skip_handler: TokenStream2,
 }
 
+#[derive(Clone, Copy)]
 pub(super) struct TokenAssemblyContext<'a> {
     pub(super) ctx_prelude: &'a [TokenStream2],
     pub(super) ctx_inserts: &'a [TokenStream2],

@@ -26,6 +26,28 @@ fn run_cargo_bdd(args: &[&str]) -> Result<String> {
     Ok(stdout.to_string())
 }
 
+fn run_cargo_bdd_failure(args: &[&str]) -> Result<String> {
+    let fixture_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/minimal");
+    let target_dir = fixture_dir.join("target");
+    fs::create_dir_all(&target_dir)
+        .with_context(|| format!("failed to create {}", target_dir.display()))?;
+    let mut cmd = Command::cargo_bin("cargo-bdd")
+        .wrap_err("cargo-bdd binary should exist in this workspace")?;
+    let output = cmd
+        .current_dir(fixture_dir)
+        .env("CARGO_TARGET_DIR", &target_dir)
+        .args(args)
+        .output()
+        .wrap_err("failed to execute `cargo bdd`")?;
+    assert!(
+        !output.status.success(),
+        "`cargo bdd` should fail for invalid arguments"
+    );
+    let stderr =
+        str::from_utf8(&output.stderr).wrap_err("`cargo bdd` emitted invalid UTF-8 to stderr")?;
+    Ok(stderr.to_string())
+}
+
 fn run_cargo_bdd_steps() -> Result<String> {
     run_cargo_bdd(&["steps"])
 }
@@ -144,6 +166,16 @@ fn steps_skipped_emits_json() -> Result<()> {
     assert!(
         forced_entry.get("step").is_some(),
         "bypassed steps should include step info"
+    );
+    Ok(())
+}
+
+#[test]
+fn steps_json_requires_skipped_flag() -> Result<()> {
+    let stderr = run_cargo_bdd_failure(&["steps", "--json"])?;
+    assert!(
+        stderr.contains("--json") && stderr.contains("--skipped"),
+        "error should mention --json requires --skipped: {stderr}"
     );
     Ok(())
 }

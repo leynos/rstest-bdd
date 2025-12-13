@@ -148,7 +148,7 @@ impl ScenarioStatus {
     ///
     /// # Examples
     /// ```
-    /// use rstest_bdd::reporting::{ScenarioRecord, ScenarioStatus};
+    /// use rstest_bdd::reporting::{ScenarioMetadata, ScenarioRecord, ScenarioStatus};
     ///
     /// let metadata = ScenarioMetadata::new("feature", "scenario", 1, Vec::new());
     /// let passed = ScenarioRecord::from_metadata(metadata, ScenarioStatus::Passed);

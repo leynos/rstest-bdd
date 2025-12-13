@@ -132,6 +132,18 @@ fn reports_usage_flags() {
     assert!(scenarios.iter().all(|entry| entry.get("status").is_some()));
     validate_skipped_scenario(scenarios);
     validate_passed_scenario(scenarios);
+    let skipped = scenarios
+        .iter()
+        .find(|entry| entry["scenario_name"] == "skipped entry")
+        .unwrap_or_else(|| panic!("skipped scenario present"));
+    assert_eq!(skipped["line"].as_u64(), Some(3));
+    assert_eq!(
+        skipped["tags"]
+            .as_array()
+            .and_then(|tags| tags.first())
+            .and_then(Value::as_str),
+        Some("@allow_skipped")
+    );
 
     let bypassed_steps = parsed
         .get("bypassed_steps")
@@ -144,5 +156,17 @@ fn reports_usage_flags() {
                 .and_then(Value::as_str)
                 .is_some_and(|msg| msg.contains("reason"))
     }));
+    let entry = bypassed_steps
+        .iter()
+        .find(|value| value["pattern"] == "dump unused")
+        .unwrap_or_else(|| panic!("bypassed entry present"));
+    assert_eq!(entry["scenario_line"].as_u64(), Some(3));
+    assert_eq!(
+        entry["tags"]
+            .as_array()
+            .and_then(|tags| tags.first())
+            .and_then(Value::as_str),
+        Some("@allow_skipped")
+    );
     let _ = reporting::drain();
 }
