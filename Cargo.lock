@@ -1437,6 +1437,7 @@ dependencies = [
  "async-lsp",
  "cargo_metadata",
  "clap",
+ "gherkin",
  "lsp-types",
  "rstest",
  "serde",

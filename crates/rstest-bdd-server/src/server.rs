@@ -3,10 +3,15 @@
 //! This module defines the central state shared across all LSP handlers and
 //! provides the service construction for the language server.
 
+use std::collections::HashMap;
+use std::path::Path;
+
 use lsp_types::{ClientCapabilities, ServerCapabilities, WorkspaceFolder};
+use lsp_types::{TextDocumentSyncCapability, TextDocumentSyncKind, TextDocumentSyncOptions};
 
 use crate::config::ServerConfig;
 use crate::discovery::WorkspaceInfo;
+use crate::indexing::FeatureFileIndex;
 
 /// Central state shared across all LSP handlers.
 ///
@@ -25,6 +30,8 @@ pub struct ServerState {
     initialised: bool,
     /// Configuration loaded from environment and client.
     config: ServerConfig,
+    /// Indexed `.feature` files keyed by absolute path.
+    feature_indices: HashMap<std::path::PathBuf, FeatureFileIndex>,
 }
 
 impl ServerState {
@@ -48,6 +55,7 @@ impl ServerState {
             workspace_folders: Vec::new(),
             initialised: false,
             config,
+            feature_indices: HashMap::new(),
         }
     }
 
@@ -100,15 +108,41 @@ impl ServerState {
     pub fn is_initialised(&self) -> bool {
         self.initialised
     }
+
+    /// Insert or update the cached index for a `.feature` file.
+    pub fn upsert_feature_index(&mut self, index: FeatureFileIndex) {
+        self.feature_indices.insert(index.path.clone(), index);
+    }
+
+    /// Retrieve the cached index for a `.feature` file, if present.
+    #[must_use]
+    pub fn feature_index(&self, path: &Path) -> Option<&FeatureFileIndex> {
+        self.feature_indices.get(path)
+    }
 }
 
 /// Build the server capabilities to advertise to the client.
 ///
-/// Currently returns minimal capabilities as Phase 7 focuses on scaffolding.
-/// Future phases will add navigation and diagnostic capabilities.
+/// Phase 7 advertises text document sync to receive save notifications for
+/// `.feature` file indexing. Navigation and diagnostics are added in later
+/// phases.
 #[must_use]
 pub fn build_server_capabilities() -> ServerCapabilities {
-    ServerCapabilities::default()
+    ServerCapabilities {
+        text_document_sync: Some(TextDocumentSyncCapability::Options(
+            TextDocumentSyncOptions {
+                open_close: Some(true),
+                change: Some(TextDocumentSyncKind::INCREMENTAL),
+                save: Some(lsp_types::TextDocumentSyncSaveOptions::SaveOptions(
+                    lsp_types::SaveOptions {
+                        include_text: Some(false),
+                    },
+                )),
+                ..Default::default()
+            },
+        )),
+        ..ServerCapabilities::default()
+    }
 }
 
 #[cfg(test)]
@@ -136,8 +170,7 @@ mod tests {
     #[test]
     fn build_server_capabilities_returns_default() {
         let capabilities = build_server_capabilities();
-        // Phase 7 returns minimal capabilities
-        assert!(capabilities.text_document_sync.is_none());
+        assert!(capabilities.text_document_sync.is_some());
         assert!(capabilities.definition_provider.is_none());
     }
 }
