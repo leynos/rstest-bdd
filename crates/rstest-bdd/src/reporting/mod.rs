@@ -16,7 +16,7 @@
 use std::sync::{Mutex, MutexGuard, OnceLock};
 
 #[cfg(feature = "diagnostics")]
-use std::sync::Once;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 mod record;
 pub use record::{ScenarioMetadata, ScenarioRecord, ScenarioStatus, SkippedScenario};
@@ -29,7 +29,19 @@ pub mod json;
 pub mod junit;
 
 #[cfg(feature = "diagnostics")]
-static RUN_DUMP_SEEDS: Once = Once::new();
+static RUN_DUMP_SEEDS: OnceLock<AtomicBool> = OnceLock::new();
+
+#[cfg(feature = "diagnostics")]
+fn dump_seeds_guard() -> &'static AtomicBool {
+    RUN_DUMP_SEEDS.get_or_init(|| AtomicBool::new(false))
+}
+
+#[cfg(feature = "diagnostics")]
+fn reset_dump_seeds_guard() {
+    if let Some(flag) = RUN_DUMP_SEEDS.get() {
+        flag.store(false, Ordering::SeqCst);
+    }
+}
 
 /// Thread-safe store containing scenario records gathered during a test run.
 static REPORTS: OnceLock<Mutex<Vec<ScenarioRecord>>> = OnceLock::new();
@@ -97,11 +109,12 @@ inventory::collect!(DumpSeed);
 /// ```
 #[cfg(feature = "diagnostics")]
 pub fn run_dump_seeds() {
-    RUN_DUMP_SEEDS.call_once(|| {
-        for seed in inventory::iter::<DumpSeed> {
-            seed.run();
-        }
-    });
+    if dump_seeds_guard().swap(true, Ordering::SeqCst) {
+        return;
+    }
+    for seed in inventory::iter::<DumpSeed> {
+        seed.run();
+    }
 }
 
 /// Record a scenario outcome in the shared collector.
@@ -151,7 +164,10 @@ pub fn snapshot() -> Vec<ScenarioRecord> {
 /// ```
 #[must_use]
 pub fn drain() -> Vec<ScenarioRecord> {
-    lock_reports().drain(..).collect()
+    let drained = lock_reports().drain(..).collect();
+    #[cfg(feature = "diagnostics")]
+    reset_dump_seeds_guard();
+    drained
 }
 
 #[cfg(test)]
