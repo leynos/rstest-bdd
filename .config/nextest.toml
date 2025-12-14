@@ -5,6 +5,13 @@ slow-timeout = { period = "60s", terminate-after = 1, grace-period = "5s" }
 # Put a hard ceiling on the whole run.
 global-timeout = "5m"
 
+[[profile.default.overrides]]
+# `cargo-bdd` CLI integration tests compile a small fixture crate on the fly on
+# their first run, which can legitimately exceed the default 60s slow-timeout
+# on cold caches.
+filter = "binary_id(cargo-bdd::cli)"
+slow-timeout = { period = "180s", terminate-after = 1, grace-period = "5s" }
+
 [profile.long]
 slow-timeout = { period = "180s", terminate-after = 1, grace-period = "5s" }
 global-timeout = "15m"
