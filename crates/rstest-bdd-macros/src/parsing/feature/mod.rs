@@ -1,6 +1,6 @@
 //! Feature file loading and scenario extraction.
 
-use gherkin::{Feature, GherkinEnv, Step, StepType};
+use gherkin::{Feature, GherkinEnv, Scenario, Step, StepType};
 use std::collections::HashMap;
 use std::{
     path::{Path, PathBuf},
@@ -259,7 +259,7 @@ mod tests;
 /// letting callers decide how to collect or extend the resulting iterator.
 fn iter_parsed_steps_with_background<'a>(
     feature: &'a Feature,
-    scenario: &'a gherkin::Scenario,
+    scenario: &'a Scenario,
 ) -> impl Iterator<Item = ParsedStep> + 'a {
     feature
         .background
@@ -270,7 +270,7 @@ fn iter_parsed_steps_with_background<'a>(
         .map(ParsedStep::from)
 }
 
-fn collect_base_tags(feature: &Feature, scenario: &gherkin::Scenario) -> Vec<String> {
+fn collect_base_tags(feature: &Feature, scenario: &Scenario) -> Vec<String> {
     let mut tags = Vec::new();
     tags::extend_tag_set(&mut tags, &feature.tags);
     tags::extend_tag_set(&mut tags, &scenario.tags);
