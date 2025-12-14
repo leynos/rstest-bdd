@@ -1,9 +1,8 @@
-#![cfg(feature = "diagnostics")]
 //! Unit tests for registry dumping.
 
 use rstest_bdd::{
-    StepContext, StepExecution, StepKeyword, dump_registry, find_step,
-    reporting::{self, ScenarioRecord, ScenarioStatus, SkippedScenario},
+    StepContext, StepExecution, StepKeyword, dump_registry, find_step, record_bypassed_steps,
+    reporting::{self, ScenarioMetadata, ScenarioRecord, ScenarioStatus, SkippedScenario},
     step,
 };
 use serde_json::Value;
@@ -67,28 +66,11 @@ fn validate_passed_scenario(scenarios: &[Value]) {
     );
 }
 
-#[test]
-fn reports_usage_flags() {
-    let _ = reporting::drain();
-    reporting::record(ScenarioRecord::new(
-        "tests/features/dump.feature",
-        "skipped entry",
-        ScenarioStatus::Skipped(SkippedScenario::new(Some("reason".into()), true, false)),
-    ));
-    reporting::record(ScenarioRecord::new(
-        "tests/features/dump.feature",
-        "passing entry",
-        ScenarioStatus::Passed,
-    ));
+fn parse_registry_json(json: &str) -> Value {
+    serde_json::from_str(json).unwrap_or_else(|e| panic!("valid json: {e}"))
+}
 
-    execute_and_validate_step(StepKeyword::Given, "dump used");
-
-    let json = dump_registry().unwrap_or_else(|e| panic!("dump registry: {e}"));
-    let parsed: Value = serde_json::from_str(&json).unwrap_or_else(|e| panic!("valid json: {e}"));
-    let steps = parsed
-        .get("steps")
-        .and_then(Value::as_array)
-        .unwrap_or_else(|| panic!("steps array"));
+fn validate_step_usage_flags(steps: &[Value]) {
     assert!(
         steps
             .iter()
@@ -101,6 +83,103 @@ fn reports_usage_flags() {
             .any(|s| s["pattern"] == "dump unused" && s["used"].as_bool() == Some(false)),
         "expected 'dump unused' to be marked unused"
     );
+    assert!(
+        steps
+            .iter()
+            .any(|s| s["pattern"] == "dump unused" && s["bypassed"].as_bool() == Some(true)),
+        "expected 'dump unused' to be marked bypassed"
+    );
+}
+
+fn validate_scenario_metadata(scenarios: &[Value]) {
+    let skipped = scenarios
+        .iter()
+        .find(|entry| entry["scenario_name"] == "skipped entry")
+        .unwrap_or_else(|| panic!("skipped scenario present"));
+    assert_eq!(skipped["line"].as_u64(), Some(3));
+    assert_eq!(
+        skipped["tags"]
+            .as_array()
+            .and_then(|tags| tags.first())
+            .and_then(Value::as_str),
+        Some("@allow_skipped")
+    );
+}
+
+fn validate_bypassed_steps_metadata(bypassed_steps: &[Value]) {
+    assert!(
+        bypassed_steps.iter().any(|entry| {
+            entry.get("pattern") == Some(&Value::String("dump unused".into()))
+                && entry.get("scenario_name") == Some(&Value::String("skipped entry".into()))
+                && entry.get("scenario_line").and_then(Value::as_u64) == Some(3)
+                && entry
+                    .get("reason")
+                    .and_then(Value::as_str)
+                    .is_some_and(|msg| msg.contains("reason"))
+        }),
+        "expected bypassed entry for skipped entry to capture the skip reason"
+    );
+    let entry = bypassed_steps
+        .iter()
+        .find(|value| {
+            value["pattern"] == "dump unused"
+                && value["scenario_name"] == "skipped entry"
+                && value["scenario_line"].as_u64() == Some(3)
+        })
+        .unwrap_or_else(|| panic!("bypassed entry present"));
+    assert_eq!(entry["scenario_line"].as_u64(), Some(3));
+    assert_eq!(
+        entry["tags"]
+            .as_array()
+            .and_then(|tags| tags.first())
+            .and_then(Value::as_str),
+        Some("@allow_skipped")
+    );
+}
+
+#[test]
+fn reports_usage_flags() {
+    let _ = reporting::drain();
+    let skipped_metadata = ScenarioMetadata::new(
+        "tests/features/dump.feature",
+        "skipped entry",
+        3,
+        vec!["@allow_skipped".into()],
+    );
+    reporting::record(ScenarioRecord::from_metadata(
+        skipped_metadata,
+        ScenarioStatus::Skipped(SkippedScenario::new(Some("reason".into()), true, false)),
+    ));
+
+    let passing_metadata = ScenarioMetadata::new(
+        "tests/features/dump.feature",
+        "passing entry",
+        4,
+        Vec::new(),
+    );
+    reporting::record(ScenarioRecord::from_metadata(
+        passing_metadata,
+        ScenarioStatus::Passed,
+    ));
+
+    record_bypassed_steps(
+        "tests/features/dump.feature",
+        "skipped entry",
+        3,
+        vec!["@allow_skipped".into()],
+        Some("reason"),
+        [(StepKeyword::Given, "dump unused")],
+    );
+
+    execute_and_validate_step(StepKeyword::Given, "dump used");
+
+    let json = dump_registry().unwrap_or_else(|e| panic!("dump registry: {e}"));
+    let parsed = parse_registry_json(&json);
+    let steps = parsed
+        .get("steps")
+        .and_then(Value::as_array)
+        .unwrap_or_else(|| panic!("steps array"));
+    validate_step_usage_flags(steps);
 
     let scenarios = parsed
         .get("scenarios")
@@ -109,5 +188,12 @@ fn reports_usage_flags() {
     assert!(scenarios.iter().all(|entry| entry.get("status").is_some()));
     validate_skipped_scenario(scenarios);
     validate_passed_scenario(scenarios);
+    validate_scenario_metadata(scenarios);
+
+    let bypassed_steps = parsed
+        .get("bypassed_steps")
+        .and_then(Value::as_array)
+        .unwrap_or_else(|| panic!("bypassed_steps array"));
+    validate_bypassed_steps_metadata(bypassed_steps);
     let _ = reporting::drain();
 }

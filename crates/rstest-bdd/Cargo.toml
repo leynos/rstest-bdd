@@ -49,3 +49,8 @@ diagnostics = ["serde", "serde_json"]
 # Remove once the upstream compiler issue is fixed and the test can run
 # without gating.
 mutable_world_macro = []
+
+[[test]]
+name = "dump_registry"
+path = "tests/dump_registry.rs"
+required-features = ["diagnostics"]

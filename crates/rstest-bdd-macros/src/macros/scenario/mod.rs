@@ -101,6 +101,7 @@ fn try_scenario(
         steps,
         examples,
         tags,
+        line,
     } = scenario_data;
     let allow_skipped = crate::codegen::scenario::scenario_allows_skip(&tags);
 
@@ -128,6 +129,8 @@ fn try_scenario(
             steps,
             examples,
             allow_skipped,
+            line,
+            tags: &tags,
         },
         ctx_prelude.into_iter(),
         ctx_inserts.into_iter(),

@@ -52,7 +52,15 @@ pub use pattern::StepPattern;
 pub use placeholder::extract_placeholders;
 #[cfg(feature = "diagnostics")]
 pub use registry::dump_registry;
+pub use registry::record_bypassed_steps;
+pub use registry::record_bypassed_steps_with_tags;
 pub use registry::{Step, duplicate_steps, find_step, lookup_step, unused_steps};
+
+/// Whether the crate was built with the `diagnostics` feature enabled.
+#[must_use]
+pub const fn diagnostics_enabled() -> bool {
+    cfg!(feature = "diagnostics")
+}
 #[doc(hidden)]
 pub use skip::{
     ScopeKind as __rstest_bdd_scope_kind, SkipRequest, StepScopeGuard as __rstest_bdd_scope_guard,

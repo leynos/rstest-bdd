@@ -13,8 +13,13 @@
 //! serially (for example via [`serial_test::serial`]) to avoid cross-test
 //! contamination. The API does not reset records automatically; callers
 //! remain responsible for draining the collector between assertions.
+use std::sync::{Mutex, MutexGuard, OnceLock};
 
-use std::sync::{Mutex, MutexGuard, Once, OnceLock};
+#[cfg(feature = "diagnostics")]
+use std::sync::atomic::{AtomicU8, Ordering};
+
+mod record;
+pub use record::{ScenarioMetadata, ScenarioRecord, ScenarioStatus, ScenarioTags, SkippedScenario};
 
 /// JSON report writer for scenario outcomes.
 #[cfg(feature = "diagnostics")]
@@ -24,7 +29,23 @@ pub mod json;
 pub mod junit;
 
 #[cfg(feature = "diagnostics")]
-static RUN_DUMP_SEEDS: Once = Once::new();
+static RUN_DUMP_SEEDS: OnceLock<AtomicU8> = OnceLock::new();
+
+#[cfg(feature = "diagnostics")]
+fn dump_seeds_state() -> &'static AtomicU8 {
+    RUN_DUMP_SEEDS.get_or_init(|| AtomicU8::new(0))
+}
+
+#[cfg(feature = "diagnostics")]
+fn reset_dump_seeds_state() {
+    let Some(state) = RUN_DUMP_SEEDS.get() else {
+        return;
+    };
+
+    // Only reset once the seeds have completed; avoid reopening the gate while
+    // a seed run is in-flight.
+    let _ = state.compare_exchange(2, 0, Ordering::SeqCst, Ordering::SeqCst);
+}
 
 /// Thread-safe store containing scenario records gathered during a test run.
 static REPORTS: OnceLock<Mutex<Vec<ScenarioRecord>>> = OnceLock::new();
@@ -81,10 +102,13 @@ impl DumpSeed {
 #[cfg(feature = "diagnostics")]
 inventory::collect!(DumpSeed);
 
-/// Execute all registered dump seeds once per process.
+/// Execute all registered dump seeds once per drain cycle.
 ///
 /// Registered seeds can be used by diagnostic fixtures to populate the
 /// reporting collector before the registry is serialized.
+///
+/// After calling [`drain`], the seed guard is reset so diagnostics tests can
+/// rerun the seed hooks in a fresh reporting cycle.
 ///
 /// # Examples
 /// ```ignore
@@ -92,204 +116,39 @@ inventory::collect!(DumpSeed);
 /// ```
 #[cfg(feature = "diagnostics")]
 pub fn run_dump_seeds() {
-    RUN_DUMP_SEEDS.call_once(|| {
-        for seed in inventory::iter::<DumpSeed> {
-            seed.run();
-        }
-    });
-}
+    struct SetDone(&'static AtomicU8);
 
-/// Outcome recorded for a single scenario execution.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct ScenarioRecord {
-    feature_path: String,
-    scenario_name: String,
-    status: ScenarioStatus,
-}
-
-impl ScenarioRecord {
-    /// Construct a new record for the provided scenario metadata.
-    ///
-    /// # Examples
-    /// ```
-    /// use rstest_bdd::reporting::{ScenarioRecord, ScenarioStatus};
-    ///
-    /// let record = ScenarioRecord::new(
-    ///     "features/example.feature",
-    ///     "example scenario",
-    ///     ScenarioStatus::Passed,
-    /// );
-    /// assert_eq!(record.feature_path(), "features/example.feature");
-    /// assert_eq!(record.scenario_name(), "example scenario");
-    /// assert!(matches!(record.status(), ScenarioStatus::Passed));
-    /// ```
-    #[must_use]
-    pub fn new(
-        feature_path: impl Into<String>,
-        scenario_name: impl Into<String>,
-        status: ScenarioStatus,
-    ) -> Self {
-        Self {
-            feature_path: feature_path.into(),
-            scenario_name: scenario_name.into(),
-            status,
+    impl Drop for SetDone {
+        fn drop(&mut self) {
+            self.0.store(2, Ordering::SeqCst);
         }
     }
 
-    /// Access the recorded feature path.
-    ///
-    /// # Examples
-    /// ```
-    /// use rstest_bdd::reporting::{ScenarioRecord, ScenarioStatus};
-    ///
-    /// let record = ScenarioRecord::new("feature", "scenario", ScenarioStatus::Passed);
-    /// assert_eq!(record.feature_path(), "feature");
-    /// ```
-    #[must_use]
-    pub fn feature_path(&self) -> &str {
-        &self.feature_path
+    // States:
+    // 0 = not run, 1 = running, 2 = done.
+    let state = dump_seeds_state();
+    if state
+        .compare_exchange(0, 1, Ordering::SeqCst, Ordering::SeqCst)
+        .is_err()
+    {
+        return;
     }
-
-    /// Access the recorded scenario name.
-    ///
-    /// # Examples
-    /// ```
-    /// use rstest_bdd::reporting::{ScenarioRecord, ScenarioStatus};
-    ///
-    /// let record = ScenarioRecord::new("feature", "scenario", ScenarioStatus::Passed);
-    /// assert_eq!(record.scenario_name(), "scenario");
-    /// ```
-    #[must_use]
-    pub fn scenario_name(&self) -> &str {
-        &self.scenario_name
-    }
-
-    /// Access the stored status value.
-    ///
-    /// # Examples
-    /// ```
-    /// use rstest_bdd::reporting::{ScenarioRecord, ScenarioStatus};
-    ///
-    /// let record = ScenarioRecord::new("feature", "scenario", ScenarioStatus::Passed);
-    /// assert!(matches!(record.status(), ScenarioStatus::Passed));
-    /// ```
-    #[must_use]
-    pub fn status(&self) -> &ScenarioStatus {
-        &self.status
-    }
-}
-
-/// Status of a scenario execution recorded by the collector.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum ScenarioStatus {
-    /// Scenario executed every step and reached the body without errors.
-    Passed,
-    /// Scenario requested to skip at runtime.
-    Skipped(SkippedScenario),
-}
-
-impl ScenarioStatus {
-    /// Retrieve the lowercase label for the stored status.
-    ///
-    /// # Examples
-    /// ```
-    /// use rstest_bdd::reporting::{ScenarioRecord, ScenarioStatus};
-    ///
-    /// let passed = ScenarioRecord::new("feature", "scenario", ScenarioStatus::Passed);
-    /// assert_eq!(passed.status().label(), "passed");
-    /// ```
-    #[must_use]
-    pub fn label(&self) -> &'static str {
-        match self {
-            Self::Passed => "passed",
-            Self::Skipped(_) => "skipped",
-        }
-    }
-}
-
-/// Details captured when a scenario skips.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct SkippedScenario {
-    message: Option<String>,
-    allow_skipped: bool,
-    forced_failure: bool,
-}
-
-impl SkippedScenario {
-    /// Create a new skip record with the supplied metadata.
-    ///
-    /// # Examples
-    /// ```
-    /// use rstest_bdd::reporting::{ScenarioStatus, SkippedScenario, ScenarioRecord};
-    ///
-    /// let skipped = SkippedScenario::new(Some("pending".into()), true, false);
-    /// let record = ScenarioRecord::new(
-    ///     "feature", "scenario", ScenarioStatus::Skipped(skipped.clone()),
-    /// );
-    /// assert!(matches!(
-    ///     record.status(),
-    ///     ScenarioStatus::Skipped(data) if data.message() == Some("pending")
-    /// ));
-    /// ```
-    #[must_use]
-    pub fn new(message: Option<String>, allow_skipped: bool, forced_failure: bool) -> Self {
-        Self {
-            message,
-            allow_skipped,
-            forced_failure,
-        }
-    }
-
-    /// Retrieve the message provided by the skipping step, if any.
-    ///
-    /// # Examples
-    /// ```
-    /// use rstest_bdd::reporting::SkippedScenario;
-    ///
-    /// let skipped = SkippedScenario::new(Some("not implemented".into()), true, false);
-    /// assert_eq!(skipped.message(), Some("not implemented"));
-    /// ```
-    #[must_use]
-    pub fn message(&self) -> Option<&str> {
-        self.message.as_deref()
-    }
-
-    /// Whether the scenario allowed skipping without failing the run.
-    ///
-    /// # Examples
-    /// ```
-    /// use rstest_bdd::reporting::SkippedScenario;
-    ///
-    /// let skipped = SkippedScenario::new(None, true, false);
-    /// assert!(skipped.allow_skipped());
-    /// ```
-    #[must_use]
-    pub fn allow_skipped(&self) -> bool {
-        self.allow_skipped
-    }
-
-    /// Whether a skip forced the suite to fail due to the global configuration.
-    ///
-    /// # Examples
-    /// ```
-    /// use rstest_bdd::reporting::SkippedScenario;
-    ///
-    /// let skipped = SkippedScenario::new(None, false, true);
-    /// assert!(skipped.forced_failure());
-    /// ```
-    #[must_use]
-    pub fn forced_failure(&self) -> bool {
-        self.forced_failure
+    let _guard = SetDone(state);
+    for seed in inventory::iter::<DumpSeed> {
+        seed.run();
     }
 }
 
 /// Record a scenario outcome in the shared collector.
 ///
 /// # Examples
-/// ```
-/// use rstest_bdd::reporting::{record, drain, snapshot, ScenarioRecord, ScenarioStatus};
+/// ```no_run
+/// use rstest_bdd::reporting::{
+///     drain, record, snapshot, ScenarioMetadata, ScenarioRecord, ScenarioStatus,
+/// };
 ///
-/// record(ScenarioRecord::new("feature", "scenario", ScenarioStatus::Passed));
+/// let metadata = ScenarioMetadata::new("feature", "scenario", 1, Vec::new());
+/// record(ScenarioRecord::from_metadata(metadata, ScenarioStatus::Passed));
 /// let records = drain();
 /// assert_eq!(records.len(), 1);
 /// ```
@@ -300,10 +159,11 @@ pub fn record(record: ScenarioRecord) {
 /// Retrieve a snapshot of the recorded scenarios without clearing them.
 ///
 /// # Examples
-/// ```
-/// use rstest_bdd::reporting::{record, snapshot, ScenarioRecord, ScenarioStatus};
+/// ```no_run
+/// use rstest_bdd::reporting::{record, snapshot, ScenarioMetadata, ScenarioRecord, ScenarioStatus};
 ///
-/// record(ScenarioRecord::new("feature", "scenario", ScenarioStatus::Passed));
+/// let metadata = ScenarioMetadata::new("feature", "scenario", 1, Vec::new());
+/// record(ScenarioRecord::from_metadata(metadata, ScenarioStatus::Passed));
 /// let records = snapshot();
 /// assert_eq!(records[0].scenario_name(), "scenario");
 /// ```
@@ -315,61 +175,22 @@ pub fn snapshot() -> Vec<ScenarioRecord> {
 /// Remove and return all recorded scenario outcomes.
 ///
 /// # Examples
-/// ```
-/// use rstest_bdd::reporting::{record, drain, ScenarioRecord, ScenarioStatus};
+/// ```no_run
+/// use rstest_bdd::reporting::{drain, record, snapshot, ScenarioMetadata, ScenarioRecord, ScenarioStatus};
 ///
-/// record(ScenarioRecord::new("feature", "scenario", ScenarioStatus::Passed));
+/// let metadata = ScenarioMetadata::new("feature", "scenario", 1, Vec::new());
+/// record(ScenarioRecord::from_metadata(metadata, ScenarioStatus::Passed));
 /// let drained = drain();
 /// assert!(snapshot().is_empty());
 /// assert_eq!(drained.len(), 1);
 /// ```
 #[must_use]
 pub fn drain() -> Vec<ScenarioRecord> {
-    lock_reports().drain(..).collect()
+    let drained = lock_reports().drain(..).collect();
+    #[cfg(feature = "diagnostics")]
+    reset_dump_seeds_state();
+    drained
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use serial_test::serial;
-
-    #[test]
-    #[serial]
-    fn drain_clears_records() {
-        let _ = drain();
-        record(ScenarioRecord::new(
-            "feature",
-            "scenario",
-            ScenarioStatus::Passed,
-        ));
-        assert_eq!(snapshot().len(), 1);
-        let drained = drain();
-        assert_eq!(drained.len(), 1);
-        assert!(snapshot().is_empty());
-    }
-
-    #[test]
-    #[serial]
-    fn skipped_records_store_metadata() {
-        let _ = drain();
-        let details = SkippedScenario::new(Some("pending".into()), true, false);
-        record(ScenarioRecord::new(
-            "feature",
-            "scenario",
-            ScenarioStatus::Skipped(details.clone()),
-        ));
-        let records = drain();
-        assert_eq!(records.len(), 1);
-        let Some(record) = records.first() else {
-            panic!("collector should retain the recorded skip");
-        };
-        match record.status() {
-            ScenarioStatus::Skipped(stored) => {
-                assert_eq!(stored.message(), Some("pending"));
-                assert!(stored.allow_skipped());
-                assert!(!stored.forced_failure());
-            }
-            ScenarioStatus::Passed => panic!("expected skipped record"),
-        }
-    }
-}
+mod tests;

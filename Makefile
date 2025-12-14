@@ -1,13 +1,13 @@
 VALE ?= vale
 
-.PHONY: help all clean test build release lint fmt check-fmt markdownlint nixie publish-check forbid-async-trait vale
+.PHONY: help all clean test build release lint typecheck fmt check-fmt markdownlint nixie publish-check forbid-async-trait vale
 
 SHELL := bash
 APP ?= cargo-bdd
 CARGO ?= cargo
 BUILD_JOBS ?=
 RUST_FLAGS ?= -D warnings
-CARGO_FLAGS ?= --workspace --all-targets --all-features 
+CARGO_FLAGS ?= --workspace --all-targets --all-features
 CLIPPY_FLAGS ?= $(CARGO_FLAGS) -- $(RUST_FLAGS)
 MDLINT ?= markdownlint
 ACRONYM_SCRIPT ?= scripts/update_acronym_allowlist.py
@@ -38,6 +38,9 @@ lint: ## Run Clippy with warnings denied
 	$(CARGO) clippy $(CLIPPY_FLAGS)
 	find scripts -type f -name "*.py" -print0 | xargs -r -0 uvx ruff check
 	python3 scripts/check_rs_file_lengths.py
+
+typecheck: ## Run cargo check with warnings denied
+	RUSTFLAGS="$(RUST_FLAGS)" $(CARGO) check $(CARGO_FLAGS) $(BUILD_JOBS)
 
 forbid-async-trait: ## Ensure the async-trait crate and macro remain absent
 	python3 scripts/check_forbidden_async_trait.py
