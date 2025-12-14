@@ -95,6 +95,7 @@ jobs:
       - name: Test and Measure Coverage (with features)
         if: ${{ matrix.coverage && matrix.features != '' }}
         uses: leynos/shared-actions/.github/actions/generate-coverage@ebbaaa0d7a776ec3187f3940667e5c7c9379cdf5
+        continue-on-error: true
         with:
           output-path: lcov.info
           format: lcov
@@ -104,11 +105,18 @@ jobs:
       - name: Test and Measure Coverage (no features)
         if: ${{ matrix.coverage && matrix.features == '' }}
         uses: leynos/shared-actions/.github/actions/generate-coverage@ebbaaa0d7a776ec3187f3940667e5c7c9379cdf5
+        continue-on-error: true
         with:
           output-path: lcov.info
           format: lcov
           features: rstest-bdd/diagnostics rstest-bdd-macros/compile-time-validation
           with-default-features: ${{ matrix.with-default-features }}
+
+      - name: Verify coverage output exists
+        if: ${{ matrix.coverage }}
+        run: |
+          set -euo pipefail
+          test -s lcov.info
 
       - name: Publish dry run
         run: make publish-check
