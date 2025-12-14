@@ -5,14 +5,10 @@ mod types;
 use proc_macro2::TokenStream as TokenStream2;
 use quote::quote;
 
-use crate::codegen::scenario::{FeaturePath, ScenarioName};
 use types::{CodeComponents, ScenarioLiterals, ScenarioLiteralsInput, TokenAssemblyContext};
 pub(crate) use types::{ProcessedSteps, TestTokensConfig};
 
-pub(crate) fn execute_single_step(
-    _feature_path: &FeaturePath,
-    _scenario_name: &ScenarioName,
-) -> TokenStream2 {
+pub(crate) fn execute_single_step() -> TokenStream2 {
     let path = crate::codegen::rstest_bdd_path();
     quote! {
         #[expect(
@@ -258,11 +254,7 @@ fn create_scenario_literals(input: ScenarioLiteralsInput<'_>) -> ScenarioLiteral
     }
 }
 
-fn generate_code_components(
-    processed_steps: &ProcessedSteps,
-    feature_path: &FeaturePath,
-    scenario_name: &ScenarioName,
-) -> CodeComponents {
+fn generate_code_components(processed_steps: &ProcessedSteps) -> CodeComponents {
     let ProcessedSteps {
         keyword_tokens,
         values,
@@ -270,7 +262,7 @@ fn generate_code_components(
         tables,
     } = processed_steps;
 
-    let step_executor = execute_single_step(feature_path, scenario_name);
+    let step_executor = execute_single_step();
     let skip_decoder = generate_skip_decoder();
     let scenario_guard = generate_scenario_guard();
     let step_executor_loop =
@@ -313,7 +305,7 @@ pub(crate) fn generate_test_tokens(
         allow_skipped,
     });
 
-    let components = generate_code_components(&processed_steps, feature_path, scenario_name);
+    let components = generate_code_components(&processed_steps);
     let block_tokens = quote! { #block };
     let context =
         TokenAssemblyContext::new(&ctx_prelude, &ctx_inserts, &ctx_postlude, &block_tokens);

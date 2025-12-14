@@ -125,10 +125,15 @@ pub fn run_dump_seeds() {
     {
         return;
     }
-    for seed in inventory::iter::<DumpSeed> {
-        seed.run();
-    }
+    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        for seed in inventory::iter::<DumpSeed> {
+            seed.run();
+        }
+    }));
     state.store(2, Ordering::SeqCst);
+    if let Err(payload) = result {
+        std::panic::resume_unwind(payload);
+    }
 }
 
 /// Record a scenario outcome in the shared collector.

@@ -107,16 +107,25 @@ fn validate_scenario_metadata(scenarios: &[Value]) {
 }
 
 fn validate_bypassed_steps_metadata(bypassed_steps: &[Value]) {
-    assert!(bypassed_steps.iter().any(|entry| {
-        entry.get("pattern") == Some(&Value::String("dump unused".into()))
-            && entry
-                .get("reason")
-                .and_then(Value::as_str)
-                .is_some_and(|msg| msg.contains("reason"))
-    }));
+    assert!(
+        bypassed_steps.iter().any(|entry| {
+            entry.get("pattern") == Some(&Value::String("dump unused".into()))
+                && entry.get("scenario_name") == Some(&Value::String("skipped entry".into()))
+                && entry.get("scenario_line").and_then(Value::as_u64) == Some(3)
+                && entry
+                    .get("reason")
+                    .and_then(Value::as_str)
+                    .is_some_and(|msg| msg.contains("reason"))
+        }),
+        "expected bypassed entry for skipped entry to capture the skip reason"
+    );
     let entry = bypassed_steps
         .iter()
-        .find(|value| value["pattern"] == "dump unused")
+        .find(|value| {
+            value["pattern"] == "dump unused"
+                && value["scenario_name"] == "skipped entry"
+                && value["scenario_line"].as_u64() == Some(3)
+        })
         .unwrap_or_else(|| panic!("bypassed entry present"));
     assert_eq!(entry["scenario_line"].as_u64(), Some(3));
     assert_eq!(

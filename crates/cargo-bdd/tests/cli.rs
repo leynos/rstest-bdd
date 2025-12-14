@@ -2,11 +2,31 @@
 
 use assert_cmd::Command;
 use eyre::{Context, Result};
-use serde_json::Value;
+use serde::Deserialize;
 use serial_test::serial;
 use std::fs;
 use std::path::PathBuf;
 use std::str;
+
+#[derive(Debug, Deserialize)]
+struct SkippedDefinition {
+    keyword: String,
+    pattern: String,
+    file: String,
+    line: u32,
+}
+
+#[derive(Debug, Deserialize)]
+struct SkipReport {
+    feature: String,
+    scenario: String,
+    line: u32,
+    tags: Vec<String>,
+    #[serde(default)]
+    reason: Option<String>,
+    #[serde(default)]
+    step: Option<SkippedDefinition>,
+}
 
 /// Execute cargo-bdd with the given arguments and return the raw output.
 fn run_cargo_bdd_raw(args: &[&str]) -> Result<std::process::Output> {
@@ -25,20 +45,30 @@ fn run_cargo_bdd_raw(args: &[&str]) -> Result<std::process::Output> {
 
 fn run_cargo_bdd_with_expectation(args: &[&str], expect_success: bool) -> Result<String> {
     let output = run_cargo_bdd_raw(args)?;
-    if expect_success {
-        assert!(output.status.success(), "`cargo bdd` should succeed");
-        let stdout =
-            str::from_utf8(&output.stdout).wrap_err("`cargo bdd` emitted invalid UTF-8")?;
-        Ok(stdout.to_string())
+    let args_debug = args.join(" ");
+    let (expected_success, bytes, stream) = if expect_success {
+        (true, &output.stdout, "stdout")
+    } else {
+        (false, &output.stderr, "stderr")
+    };
+    let status = output.status;
+    if expected_success {
+        assert!(
+            status.success(),
+            "`cargo bdd` should succeed (args: [{args_debug}], status: {status})"
+        );
     } else {
         assert!(
-            !output.status.success(),
-            "`cargo bdd` should fail for invalid arguments"
+            !status.success(),
+            "`cargo bdd` should fail for invalid arguments (args: [{args_debug}], status: {status})"
         );
-        let stderr = str::from_utf8(&output.stderr)
-            .wrap_err("`cargo bdd` emitted invalid UTF-8 to stderr")?;
-        Ok(stderr.to_string())
     }
+    let text = str::from_utf8(bytes).wrap_err_with(|| {
+        format!(
+            "`cargo bdd` emitted invalid UTF-8 to {stream} (args: [{args_debug}], status: {status})"
+        )
+    })?;
+    Ok(text.to_string())
 }
 
 fn run_cargo_bdd(args: &[&str]) -> Result<String> {
@@ -80,6 +110,7 @@ fn steps_output_includes_skipped_statuses() -> Result<()> {
 }
 
 #[test]
+#[serial]
 fn steps_output_marks_forced_failure_skips() -> Result<()> {
     let stdout = run_cargo_bdd_steps()?;
     assert!(
@@ -114,27 +145,25 @@ fn skipped_subcommand_includes_reasons_and_lines() -> Result<()> {
 }
 
 #[test]
+#[serial]
 fn skipped_subcommand_emits_json() -> Result<()> {
     let stdout = run_cargo_bdd(&["skipped", "--json"])?;
-    let parsed: Value = serde_json::from_str(&stdout)?;
-    let entries = parsed
-        .as_array()
-        .ok_or_else(|| eyre::eyre!("skipped output should be a JSON array"))?;
+    let entries: Vec<SkipReport> = serde_json::from_str(&stdout)?;
     let fixture_entry = entries
         .iter()
-        .find(|entry| {
-            entry.get("scenario") == Some(&Value::String("fixture skipped scenario".to_string()))
-        })
+        .find(|entry| entry.scenario == "fixture skipped scenario")
         .ok_or_else(|| eyre::eyre!("expected fixture skipped scenario entry"))?;
+    assert_eq!(fixture_entry.feature, "tests/features/diagnostics.fixture",);
     assert_eq!(
-        fixture_entry.get("feature").and_then(Value::as_str),
-        Some("tests/features/diagnostics.fixture"),
-    );
-    assert_eq!(
-        fixture_entry.get("reason").and_then(Value::as_str),
+        fixture_entry.reason.as_deref(),
         Some("fixture skip message"),
     );
-    assert!(fixture_entry.get("line").and_then(Value::as_u64).is_some());
+    assert!(fixture_entry.line > 0, "expected a 1-based line number");
+    assert_eq!(
+        fixture_entry.tags,
+        vec!["@allow_skipped".to_string()],
+        "expected fixture skipped scenario tags to be preserved"
+    );
     Ok(())
 }
 
@@ -148,30 +177,38 @@ fn steps_skipped_outputs_bypassed_definitions() -> Result<()> {
 }
 
 #[test]
+#[serial]
 fn steps_skipped_emits_json() -> Result<()> {
     let stdout = run_cargo_bdd(&["steps", "--skipped", "--json"])?;
-    let parsed: Value = serde_json::from_str(&stdout)?;
-    let entries = parsed
-        .as_array()
-        .ok_or_else(|| eyre::eyre!("steps --skipped output should be an array"))?;
+    let entries: Vec<SkipReport> = serde_json::from_str(&stdout)?;
     let forced_entry = entries
         .iter()
-        .find(|entry| {
-            entry.get("scenario") == Some(&Value::String("fixture forced failure skip".to_string()))
-        })
+        .find(|entry| entry.scenario == "fixture forced failure skip")
         .ok_or_else(|| eyre::eyre!("expected forced failure skip entry"))?;
-    assert_eq!(
-        forced_entry.get("reason").and_then(Value::as_str),
-        Some("fixture forced skip"),
+    assert_eq!(forced_entry.reason.as_deref(), Some("fixture forced skip"),);
+    assert!(
+        forced_entry.step.is_some(),
+        "bypassed steps should include step info"
+    );
+    let Some(step) = forced_entry.step.as_ref() else {
+        unreachable!("assertion above ensures step is present");
+    };
+    assert_eq!(step.keyword, "Then");
+    assert_eq!(step.pattern, "fixture forced bypass");
+    assert!(
+        step.file.contains("diagnostics_fixture.rs"),
+        "expected step file path to include diagnostics_fixture.rs, got: {}",
+        step.file
     );
     assert!(
-        forced_entry.get("step").is_some(),
-        "bypassed steps should include step info"
+        step.line > 0,
+        "expected bypassed step to include a line number"
     );
     Ok(())
 }
 
 #[test]
+#[serial]
 fn steps_json_requires_skipped_flag() -> Result<()> {
     let stderr = run_cargo_bdd_failure(&["steps", "--json"])?;
     assert!(

@@ -120,9 +120,11 @@ fn collect_package_binaries(
     for target in test_targets(&package.targets) {
         let extracted = build_test_target(package, target)?;
         for bin in extracted {
-            if seen.insert(bin.clone()) {
-                bins.push(bin);
+            if seen.contains(&bin) {
+                continue;
             }
+            seen.insert(bin.clone());
+            bins.push(bin);
         }
     }
     Ok(())
@@ -169,12 +171,19 @@ fn build_test_target(package: &Package, target: &Target) -> Result<Vec<PathBuf>>
     let reader = BufReader::new(stdout);
     let mut bins = Vec::new();
     for message in Message::parse_stream(reader) {
-        let message = message.wrap_err_with(|| {
-            format!(
-                "failed to parse cargo metadata message for target {} in package {}",
-                target.name, package.name
-            )
-        })?;
+        let message = match message {
+            Ok(message) => message,
+            Err(err) => {
+                let _ = child.kill();
+                let _ = child.wait();
+                return Err(eyre!(err)).wrap_err_with(|| {
+                    format!(
+                        "failed to parse cargo metadata message for target {} in package {}",
+                        target.name, package.name
+                    )
+                });
+            }
+        };
         if let Some(exe) = extract_test_executable(&message) {
             bins.push(exe);
         }
@@ -213,6 +222,9 @@ fn collect_registry_from_binary(bin: &Path) -> Result<Option<RegistryDump>> {
 }
 
 fn parse_registry_dump(bytes: &[u8]) -> serde_json::Result<RegistryDump> {
+    // Deliberately lenient: unknown fields are ignored so newer rstest-bdd
+    // versions can extend the registry dump schema without breaking older
+    // cargo-bdd consumers.
     serde_json::from_slice(bytes)
 }
 

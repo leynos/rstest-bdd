@@ -70,8 +70,12 @@ fn parses_registry_dump_with_bypassed_steps() {
     assert_eq!(bypassed.reason.as_deref(), Some("reason"));
 }
 
+#[expect(
+    clippy::expect_used,
+    reason = "Test helper should abort when the embedded cargo JSON payload is invalid."
+)]
 fn parse_message(json: &str) -> MetadataMessage {
-    serde_json::from_str(json).unwrap_or_else(|err| panic!("message should parse: {err}"))
+    serde_json::from_str(json).expect("message should parse")
 }
 
 #[expect(

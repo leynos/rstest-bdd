@@ -112,12 +112,30 @@ impl ScenarioRecord {
     }
 
     /// Access the recorded scenario line number.
+    ///
+    /// # Examples
+    /// ```
+    /// use rstest_bdd::reporting::{ScenarioMetadata, ScenarioRecord, ScenarioStatus};
+    ///
+    /// let metadata = ScenarioMetadata::new("feature", "scenario", 42, Vec::new());
+    /// let record = ScenarioRecord::from_metadata(metadata, ScenarioStatus::Passed);
+    /// assert_eq!(record.line(), 42);
+    /// ```
     #[must_use]
     pub fn line(&self) -> u32 {
         self.line
     }
 
     /// Access the recorded scenario tags.
+    ///
+    /// # Examples
+    /// ```
+    /// use rstest_bdd::reporting::{ScenarioMetadata, ScenarioRecord, ScenarioStatus};
+    ///
+    /// let metadata = ScenarioMetadata::new("feature", "scenario", 1, vec!["@tag".to_string()]);
+    /// let record = ScenarioRecord::from_metadata(metadata, ScenarioStatus::Passed);
+    /// assert_eq!(record.tags(), &["@tag".to_string()]);
+    /// ```
     #[must_use]
     pub fn tags(&self) -> &[String] {
         self.tags.as_ref()
