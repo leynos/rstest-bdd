@@ -33,6 +33,30 @@ references. In Rust async code, holding non-`Send` borrows or guards across
 `.await` points constrains which Tokio runtime configuration can execute the
 steps safely.
 
+## Coexistence and migration
+
+Async support must coexist with the current synchronous implementation.
+Consumers should not be forced onto Tokio merely by upgrading `rstest-bdd`.
+
+The migration strategy needs to define:
+
+- How async support is enabled (feature flag, macro argument, or a dedicated
+  attribute).
+- What the default remains for existing projects (expected to remain
+  synchronous).
+- Whether synchronous scenarios remain supported without Tokio (expected to
+  remain supported indefinitely).
+
+One plausible approach is a dual execution pipeline:
+
+- Synchronous pipeline remains the default for step definitions and scenario
+  generation.
+- Async pipeline is opt-in and only activated when a scenario test (or a
+  `scenarios!` invocation) explicitly selects Tokio.
+
+This preserves the current behaviour for users who do not need async support,
+whilst allowing async projects to adopt Tokio step execution incrementally.
+
 ## Decision drivers
 
 - Step definitions should support `async fn` under Tokio.
@@ -130,6 +154,62 @@ Table 1 compares the two Tokio modes.
 | Risk surface                      | Lower                             | Higher (locks, `Send` constraints)       |
 
 _Table 1: Trade-offs between Tokio current-thread and multi-thread modes._
+
+## Tokio wrapping for generated tests
+
+Manual scenario tests already permit the user to choose the runtime by
+annotating the test function (for example, `#[tokio::test]`) and writing an
+`async fn`. Auto-generated tests from `scenarios!` cannot be annotated by the
+user, so the macro must emit Tokio-compatible tests when Tokio is selected.
+
+One design is to add a macro argument selecting the runtime. For example:
+
+```rust,no_run
+rstest_bdd::scenarios!("tests/features", runtime = "tokio-current-thread");
+```
+
+The expansion would generate `async fn` tests and attach the Tokio test
+attribute. The following is illustrative, not an exact expansion:
+
+```rust,no_run
+mod features_scenarios {
+    use super::*;
+
+    #[rstest::rstest]
+    #[tokio::test(flavor = "current_thread")]
+    async fn login_happy_path() {
+        // Build StepContext, then execute and await each step wrapper.
+    }
+}
+```
+
+Alternative designs include:
+
+- A separate macro (for example, `tokio_scenarios!`) which always generates
+  Tokio-backed tests.
+- A helper attribute macro which wraps an existing `#[rstest::rstest]` test in
+  a Tokio runtime.
+
+## Current-thread limitations and failure modes
+
+When Tokio current-thread is the initial runtime, expected limitations and
+failure modes should be documented so users can select an appropriate mode.
+
+- Blocking operations (for example, `std::thread::sleep`, blocking I/O, or CPU
+  heavy work) will block the entire runtime thread and can stall the scenario.
+  Users may need to move blocking work to `tokio::task::spawn_blocking` or
+  refactor the step to use async I/O.
+- Code which assumes a multi-thread runtime and uses `tokio::spawn` may fail
+  when the future captured by the spawned task is `!Send`. In that case, users
+  must switch to `spawn_local` patterns (and potentially `LocalSet`), or select
+  multi-thread mode.
+- Nested runtimes can fail at runtime. For example, a test already running
+  under `#[tokio::test]` should not attempt to create and block on a new Tokio
+  runtime within a step.
+- When step definitions hold mutable borrows across `.await`, they are
+  inherently coupled to a single-threaded execution model. This can complicate
+  later migration to multi-thread mode and should be treated as a design
+  constraint rather than an incidental implementation detail.
 
 ## Outstanding decisions
 
