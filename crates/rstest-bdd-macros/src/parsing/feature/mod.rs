@@ -235,7 +235,7 @@ pub(crate) fn extract_scenario_steps(
         error_to_tokens(&syn::Error::new(proc_macro2::Span::call_site(), msg))
     })?;
 
-    let steps = extract_steps_with_background(feature, scenario)?;
+    let steps = iter_parsed_steps_with_background(feature, scenario).collect();
 
     let base_tags = collect_base_tags(feature, scenario);
     let examples = crate::parsing::examples::extract_examples(scenario, &base_tags)?;
@@ -252,36 +252,22 @@ pub(crate) fn extract_scenario_steps(
 #[cfg(test)]
 mod tests;
 
-/// Extract scenario steps, prefixing any feature `Background` steps.
+/// Return scenario steps, prefixing any feature `Background` steps.
 ///
 /// Keeping this logic in a dedicated helper keeps `extract_scenario_steps`
-/// focused on scenario selection, tagging, and examples extraction.
-fn extract_steps_with_background(
-    feature: &Feature,
-    scenario: &gherkin::Scenario,
-) -> Result<Vec<ParsedStep>, proc_macro2::TokenStream> {
-    let parse = |step: &Step| -> Result<ParsedStep, proc_macro2::TokenStream> {
-        Ok(ParsedStep::from(step))
-    };
-
-    let mut steps = Vec::new();
-    if let Some(background) = feature.background.as_ref() {
-        steps.extend(
-            background
-                .steps
-                .iter()
-                .map(parse)
-                .collect::<Result<Vec<_>, _>>()?,
-        );
-    }
-    steps.extend(
-        scenario
-            .steps
-            .iter()
-            .map(parse)
-            .collect::<Result<Vec<_>, _>>()?,
-    );
-    Ok(steps)
+/// focused on scenario selection, tagging, and examples extraction, whilst
+/// letting callers decide how to collect or extend the resulting iterator.
+fn iter_parsed_steps_with_background<'a>(
+    feature: &'a Feature,
+    scenario: &'a gherkin::Scenario,
+) -> impl Iterator<Item = ParsedStep> + 'a {
+    feature
+        .background
+        .as_ref()
+        .into_iter()
+        .flat_map(|background| background.steps.iter())
+        .chain(scenario.steps.iter())
+        .map(ParsedStep::from)
 }
 
 fn collect_base_tags(feature: &Feature, scenario: &gherkin::Scenario) -> Vec<String> {
