@@ -1,6 +1,7 @@
 //! Gherkin `.feature` file indexing support.
 
 use std::path::{Path, PathBuf};
+use std::ops::Range;
 
 use gherkin::{GherkinEnv, Span};
 
@@ -8,6 +9,62 @@ use super::{
     FeatureFileIndex, FeatureIndexError, IndexedDocstring, IndexedExampleColumn, IndexedStep,
     IndexedTable,
 };
+
+#[derive(Clone, Copy, Debug)]
+struct FeatureSource<'a>(&'a str);
+
+impl<'a> FeatureSource<'a> {
+    fn new(source: &'a str) -> Self {
+        Self(source)
+    }
+
+    fn as_str(&self) -> &'a str {
+        self.0
+    }
+
+    fn get(&self, range: Range<usize>) -> Option<&'a str> {
+        self.0.get(range)
+    }
+
+    fn len(&self) -> usize {
+        self.0.len()
+    }
+}
+
+impl AsRef<str> for FeatureSource<'_> {
+    fn as_ref(&self) -> &str {
+        self.0
+    }
+}
+
+impl<'a> From<&'a str> for FeatureSource<'a> {
+    fn from(source: &'a str) -> Self {
+        Self::new(source)
+    }
+}
+
+#[derive(Clone, Copy, Debug)]
+struct LineContent<'a>(&'a str);
+
+impl<'a> LineContent<'a> {
+    fn new(line: &'a str) -> Self {
+        Self(line)
+    }
+
+    fn as_str(&self) -> &'a str {
+        self.0
+    }
+
+    fn trim_start(&self) -> &'a str {
+        self.0.trim_start()
+    }
+}
+
+impl AsRef<str> for LineContent<'_> {
+    fn as_ref(&self) -> &str {
+        self.0
+    }
+}
 
 /// Parse and index a `.feature` file from disk.
 ///
@@ -22,11 +79,14 @@ use super::{
 pub fn index_feature_file(path: &Path) -> Result<FeatureFileIndex, FeatureIndexError> {
     let mut text = std::fs::read_to_string(path)?;
     normalise_trailing_newline(&mut text);
-    index_feature_text(path.to_path_buf(), &text)
+    index_feature_text(path.to_path_buf(), FeatureSource::new(&text))
 }
 
-fn index_feature_text(path: PathBuf, source: &str) -> Result<FeatureFileIndex, FeatureIndexError> {
-    let feature = gherkin::Feature::parse(source, GherkinEnv::default())?;
+fn index_feature_text(
+    path: PathBuf,
+    source: FeatureSource<'_>,
+) -> Result<FeatureFileIndex, FeatureIndexError> {
+    let feature = gherkin::Feature::parse(source.as_str(), GherkinEnv::default())?;
 
     let mut steps = Vec::new();
     if let Some(background) = feature.background.as_ref() {
@@ -62,7 +122,7 @@ fn normalise_trailing_newline(text: &mut String) {
 }
 
 fn index_steps_for_container(
-    source: &str,
+    source: FeatureSource<'_>,
     steps: &[gherkin::Step],
 ) -> Result<Vec<IndexedStep>, FeatureIndexError> {
     let mut indexed = Vec::with_capacity(steps.len());
@@ -97,7 +157,10 @@ fn index_steps_for_container(
     Ok(indexed)
 }
 
-fn extract_example_columns(source: &str, feature: &gherkin::Feature) -> Vec<IndexedExampleColumn> {
+fn extract_example_columns(
+    source: FeatureSource<'_>,
+    feature: &gherkin::Feature,
+) -> Vec<IndexedExampleColumn> {
     let mut columns = Vec::new();
     for scenario in &feature.scenarios {
         collect_example_columns_for_scenario(source, &scenario.examples, &mut columns);
@@ -111,7 +174,7 @@ fn extract_example_columns(source: &str, feature: &gherkin::Feature) -> Vec<Inde
 }
 
 fn collect_example_columns_for_scenario(
-    source: &str,
+    source: FeatureSource<'_>,
     examples: &[gherkin::Examples],
     columns: &mut Vec<IndexedExampleColumn>,
 ) {
@@ -131,11 +194,14 @@ fn collect_example_columns_for_scenario(
     }
 }
 
-fn extract_header_cell_spans(source: &str, table_span: Span) -> Option<Vec<Span>> {
+fn extract_header_cell_spans(source: FeatureSource<'_>, table_span: Span) -> Option<Vec<Span>> {
     let table_text = source.get(table_span.start..table_span.end)?;
     let (header_line, header_line_start) = find_first_table_row_line(table_text)
         .map(|(line, offset)| (line, table_span.start + offset))?;
-    Some(split_table_header_cells(header_line, header_line_start))
+    Some(split_table_header_cells(
+        LineContent::new(header_line),
+        header_line_start,
+    ))
 }
 
 fn find_first_table_row_line(table_text: &str) -> Option<(&str, usize)> {
@@ -151,8 +217,8 @@ fn find_first_table_row_line(table_text: &str) -> Option<(&str, usize)> {
     None
 }
 
-fn split_table_header_cells(line: &str, global_line_start: usize) -> Vec<Span> {
-    let bytes = line.as_bytes();
+fn split_table_header_cells(line: LineContent<'_>, global_line_start: usize) -> Vec<Span> {
+    let bytes = line.as_str().as_bytes();
     let mut pipe_positions = Vec::new();
     for (idx, b) in bytes.iter().enumerate() {
         if *b == b'|' {
@@ -204,10 +270,13 @@ fn is_ascii_space(b: u8) -> bool {
     matches!(b, b' ' | b'\t')
 }
 
-fn find_docstring_span(source: &str, start_from: usize) -> Option<Span> {
+fn find_docstring_span(source: FeatureSource<'_>, start_from: usize) -> Option<Span> {
     let mut cursor = start_from.min(source.len());
     // Ensure we start scanning from the next line boundary.
-    if let Some(next_newline) = source.get(cursor..).and_then(|tail| tail.find('\n')) {
+    if let Some(next_newline) = source
+        .get(cursor..source.len())
+        .and_then(|tail| tail.find('\n'))
+    {
         cursor = cursor.saturating_add(next_newline).saturating_add(1);
     }
 
@@ -215,12 +284,13 @@ fn find_docstring_span(source: &str, start_from: usize) -> Option<Span> {
     let mut docstring_start = 0usize;
 
     while cursor <= source.len() {
-        let tail = source.get(cursor..)?;
+        let tail = source.get(cursor..source.len())?;
         let line_end = tail
             .find('\n')
             .map_or(source.len(), |idx| cursor.saturating_add(idx));
         let line = source.get(cursor..line_end)?;
-        let line_trimmed = line.trim_start();
+        let line_content = LineContent::new(line);
+        let line_trimmed = LineContent::new(line_content.trim_start());
 
         if pending_delimiter.is_none() {
             if let Some(delim) = parse_docstring_delimiter(line_trimmed) {
@@ -242,109 +312,28 @@ fn find_docstring_span(source: &str, start_from: usize) -> Option<Span> {
     None
 }
 
-fn parse_docstring_delimiter(line_trimmed: &str) -> Option<&'static str> {
-    if line_trimmed.starts_with("\"\"\"") {
+fn parse_docstring_delimiter(line_trimmed: LineContent<'_>) -> Option<&'static str> {
+    if line_trimmed.as_str().starts_with("\"\"\"") {
         return Some("\"\"\"");
     }
-    if line_trimmed.starts_with("```") {
+    if line_trimmed.as_str().starts_with("```") {
         return Some("```");
     }
     None
 }
 
-fn matches_docstring_closing(line_trimmed: &str, delim: Option<&'static str>) -> bool {
+fn matches_docstring_closing(line_trimmed: LineContent<'_>, delim: Option<&'static str>) -> bool {
     let Some(delim) = delim else {
         return false;
     };
-    if !line_trimmed.starts_with(delim) {
+    if !line_trimmed.as_str().starts_with(delim) {
         return false;
     }
     line_trimmed
+        .as_str()
         .strip_prefix(delim)
         .is_some_and(|rest| rest.trim().is_empty())
 }
 
 #[cfg(test)]
-#[expect(
-    clippy::expect_used,
-    reason = "tests use explicit failures for clarity"
-)]
-mod tests {
-    use super::*;
-    use tempfile::TempDir;
-
-    #[test]
-    fn indexes_steps_tables_docstrings_and_example_columns() {
-        let dir = TempDir::new().expect("temp dir");
-        let path = dir.path().join("demo.feature");
-
-        let feature = concat!(
-            "Feature: demo\n",
-            "  Scenario Outline: outline\n",
-            "    Given a message\n",
-            "      \"\"\"\n",
-            "      hello\n",
-            "      \"\"\"\n",
-            "    When numbers\n",
-            "      | a | b |\n",
-            "      | 1 | 2 |\n",
-            "    Then result is <Result>\n",
-            "    Examples:\n",
-            "      | Result | Extra |\n",
-            "      | ok     | x     |\n",
-        );
-
-        std::fs::write(&path, feature).expect("write feature file");
-
-        let index = index_feature_file(&path).expect("index feature file");
-        assert_eq!(index.steps.len(), 3);
-        assert_eq!(index.example_columns.len(), 2);
-        let first_column = index
-            .example_columns
-            .first()
-            .expect("expected example columns");
-        assert_eq!(first_column.name, "Result");
-        let second_column = index
-            .example_columns
-            .get(1)
-            .expect("expected second example column");
-        assert_eq!(second_column.name, "Extra");
-
-        let given = index.steps.first().expect("expected indexed steps");
-        assert_eq!(given.keyword.trim(), "Given");
-        assert!(given.docstring.is_some());
-        let doc = given.docstring.as_ref().expect("doc string present");
-        assert!(doc.span.start < doc.span.end);
-
-        let when = index.steps.get(1).expect("expected second step");
-        assert_eq!(when.keyword.trim(), "When");
-        assert!(when.table.is_some());
-        let table = when.table.as_ref().expect("table present");
-        let first_row = table.rows.first().expect("table should have rows");
-        assert_eq!(first_row, &vec!["a".to_string(), "b".to_string()]);
-        assert!(table.span.start < table.span.end);
-    }
-
-    #[test]
-    fn docstring_span_includes_backtick_delimiters() {
-        let dir = TempDir::new().expect("temp dir");
-        let path = dir.path().join("ticks.feature");
-        let feature = concat!(
-            "Feature: demo\n",
-            "  Scenario: s\n",
-            "    Given a message\n",
-            "      ```\n",
-            "      hello\n",
-            "      ```\n",
-        );
-        std::fs::write(&path, feature).expect("write feature file");
-
-        let index = index_feature_file(&path).expect("index feature file");
-        let step = index.steps.first().expect("expected indexed step");
-        let doc = step.docstring.as_ref().expect("doc string present");
-        let doc_text = feature
-            .get(doc.span.start..doc.span.end)
-            .expect("doc span should be valid for source");
-        assert!(doc_text.contains("```"));
-    }
-}
+mod tests;

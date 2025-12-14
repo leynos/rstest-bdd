@@ -45,7 +45,7 @@ impl ServerState {
     ///
     /// let config = ServerConfig::default();
     /// let state = ServerState::new(config);
-    /// assert!(!state.initialised);
+    /// assert!(!state.is_initialised());
     /// ```
     #[must_use]
     pub fn new(config: ServerConfig) -> Self {
