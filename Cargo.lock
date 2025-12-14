@@ -231,6 +231,7 @@ dependencies = [
  "cargo_metadata",
  "clap",
  "eyre",
+ "rstest",
  "rstest-bdd",
  "serde",
  "serde_json",

@@ -27,3 +27,4 @@ eyre.workspace = true
 assert_cmd = "2"
 tempfile.workspace = true
 serial_test = "2"
+rstest.workspace = true

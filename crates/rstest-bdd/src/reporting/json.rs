@@ -20,6 +20,8 @@ struct JsonScenario<'a> {
     feature_path: &'a str,
     scenario_name: &'a str,
     status: &'static str,
+    line: u32,
+    tags: &'a [String],
     #[serde(skip_serializing_if = "Option::is_none")]
     skip: Option<JsonSkip<'a>>,
 }
@@ -52,6 +54,8 @@ impl<'a> From<&'a ScenarioRecord> for JsonScenario<'a> {
             feature_path: record.feature_path(),
             scenario_name: record.scenario_name(),
             status: record.status().label(),
+            line: record.line(),
+            tags: record.tags(),
             skip,
         }
     }
@@ -61,11 +65,10 @@ impl<'a> From<&'a ScenarioRecord> for JsonScenario<'a> {
 ///
 /// # Examples
 /// ```rust
-/// use rstest_bdd::reporting::{json, ScenarioRecord, ScenarioStatus};
+/// use rstest_bdd::reporting::{json, ScenarioMetadata, ScenarioRecord, ScenarioStatus};
 ///
-/// let records = vec![ScenarioRecord::new(
-///     "feature", "scenario", ScenarioStatus::Passed,
-/// )];
+/// let metadata = ScenarioMetadata::new("feature", "scenario", 1, Vec::new());
+/// let records = vec![ScenarioRecord::from_metadata(metadata, ScenarioStatus::Passed)];
 /// let mut buffer = Vec::new();
 /// json::write(&mut buffer, &records).unwrap();
 /// let output = String::from_utf8(buffer).unwrap();
@@ -82,11 +85,10 @@ pub fn write<W: Write>(writer: &mut W, records: &[ScenarioRecord]) -> serde_json
 ///
 /// # Examples
 /// ```rust
-/// use rstest_bdd::reporting::{json, record, ScenarioRecord, ScenarioStatus};
+/// use rstest_bdd::reporting::{json, record, ScenarioMetadata, ScenarioRecord, ScenarioStatus};
 ///
-/// record(ScenarioRecord::new(
-///     "feature", "scenario", ScenarioStatus::Passed,
-/// ));
+/// let metadata = ScenarioMetadata::new("feature", "scenario", 1, Vec::new());
+/// record(ScenarioRecord::from_metadata(metadata, ScenarioStatus::Passed));
 /// let mut buffer = Vec::new();
 /// json::write_snapshot(&mut buffer).unwrap();
 /// assert!(!buffer.is_empty());
@@ -103,11 +105,10 @@ pub fn write_snapshot<W: Write>(writer: &mut W) -> serde_json::Result<()> {
 ///
 /// # Examples
 /// ```rust
-/// use rstest_bdd::reporting::{json, ScenarioRecord, ScenarioStatus};
+/// use rstest_bdd::reporting::{json, ScenarioMetadata, ScenarioRecord, ScenarioStatus};
 ///
-/// let records = vec![ScenarioRecord::new(
-///     "feature", "scenario", ScenarioStatus::Passed,
-/// )];
+/// let metadata = ScenarioMetadata::new("feature", "scenario", 1, Vec::new());
+/// let records = vec![ScenarioRecord::from_metadata(metadata, ScenarioStatus::Passed)];
 /// let json = json::to_string(&records).unwrap();
 /// assert!(json.contains("\"scenario_name\":\"scenario\""));
 /// ```
@@ -122,11 +123,10 @@ pub fn to_string(records: &[ScenarioRecord]) -> serde_json::Result<String> {
 ///
 /// # Examples
 /// ```rust
-/// use rstest_bdd::reporting::{json, record, ScenarioRecord, ScenarioStatus};
+/// use rstest_bdd::reporting::{json, record, ScenarioMetadata, ScenarioRecord, ScenarioStatus};
 ///
-/// record(ScenarioRecord::new(
-///     "feature", "scenario", ScenarioStatus::Passed,
-/// ));
+/// let metadata = ScenarioMetadata::new("feature", "scenario", 1, Vec::new());
+/// record(ScenarioRecord::from_metadata(metadata, ScenarioStatus::Passed));
 /// let json = json::snapshot_string().unwrap();
 /// assert!(json.contains("\"feature_path\":\"feature\""));
 /// ```

@@ -49,6 +49,9 @@ pub(crate) struct ScenarioData {
     pub steps: Vec<ParsedStep>,
     pub(crate) examples: Option<ExampleTable>,
     pub(crate) tags: Vec<String>,
+    /// 1-based source line number of the scenario declaration in the feature
+    /// file.
+    pub(crate) line: u32,
 }
 
 /// Cache parsed features to avoid repeated filesystem IO.
@@ -224,6 +227,13 @@ pub(crate) fn extract_scenario_steps(
     };
 
     let scenario_name = scenario.name.clone();
+    let scenario_line = u32::try_from(scenario.position.line).map_err(|_| {
+        let msg = format!(
+            "scenario line number out of range: {} (maximum supported: u32::MAX = 4,294,967,295)",
+            scenario.position.line,
+        );
+        error_to_tokens(&syn::Error::new(proc_macro2::Span::call_site(), msg))
+    })?;
 
     let parse = |step: &Step| -> Result<ParsedStep, proc_macro2::TokenStream> {
         Ok(ParsedStep::from(step))
@@ -249,6 +259,7 @@ pub(crate) fn extract_scenario_steps(
         steps,
         examples,
         tags: base_tags,
+        line: scenario_line,
     })
 }
 
