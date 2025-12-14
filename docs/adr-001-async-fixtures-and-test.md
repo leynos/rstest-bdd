@@ -1,4 +1,4 @@
-# ADR 001: Async fixtures and tests (Tokio)
+# Architectural decision record (ADR) 001: Async fixtures and tests (Tokio)
 
 ## Status
 
@@ -28,7 +28,7 @@ way that matches user expectations, the step execution boundary must become
 asynchronous end-to-end.
 
 The most significant constraint is the mutable fixture model. `rstest-bdd`
-stores owned fixtures in `RefCell` containers so steps can borrow mutable
+stores owned fixtures in `RefCell` containers, so steps can borrow mutable
 references. In Rust async code, holding non-`Send` borrows or guards across
 `.await` points constrains which Tokio runtime configuration can execute the
 steps safely.
@@ -77,7 +77,7 @@ whilst allowing async projects to adopt Tokio step execution incrementally.
   scheduling).
 - Scenario tests must support `rstest` asynchronous fixtures (including cases
   which require `#[future]` bindings).
-- The `scenarios!` macro must be able to generate Tokio-compatible tests,
+- The `scenarios!` macro must be able to generate Tokio-compatible tests
   because generated test functions cannot be manually annotated with
   `#[tokio::test]`.
 - `skip!` must continue to stop scenario execution and record a skipped
@@ -88,6 +88,32 @@ whilst allowing async projects to adopt Tokio step execution incrementally.
 ### Technical requirements
 
 - The step registry must store step wrappers which can be awaited.
+- The step registry must store an async step wrapper whose signature ties the
+  returned future to the lifetime of the borrowed `StepContext` and therefore
+  cannot be a `'static` future.
+
+  For screen readers: The following Rust snippet outlines a likely stored step
+  wrapper signature for async execution.
+
+  ```rust,no_run
+  use std::future::Future;
+  use std::pin::Pin;
+
+  type StepFuture<'a> =
+      Pin<Box<dyn Future<Output = Result<StepExecution, StepError>> + 'a>>;
+
+  type StepFn = for<'a> fn(
+      &'a mut StepContext<'a>,
+      &str,
+      Option<&str>,
+      Option<&[&[&str]]>,
+  ) -> StepFuture<'a>;
+  ```
+
+  This shape constrains unwind handling (the implementation needs
+  `Future`-aware unwind capture to preserve `skip!` interception) and the
+  required trait bounds (`Send` depends on current-thread versus multi-thread
+  mode).
 - Wrapper generation must normalise sync and async step definitions into a
   single callable interface.
 - The implementation must preserve unwind handling so panics continue to be
