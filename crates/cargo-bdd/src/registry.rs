@@ -120,9 +120,11 @@ fn collect_package_binaries(
     for target in test_targets(&package.targets) {
         let extracted = build_test_target(package, target)?;
         for bin in extracted {
-            if seen.insert(bin.clone()) {
-                bins.push(bin);
+            if seen.contains(&bin) {
+                continue;
             }
+            seen.insert(bin.clone());
+            bins.push(bin);
         }
     }
     Ok(())
