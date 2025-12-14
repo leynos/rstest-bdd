@@ -58,7 +58,7 @@ fn validate_no_from_attr(arg: &syn::PatType) -> syn::Result<()> {
 
 fn validate_owned_type(ty: &syn::Type) -> syn::Result<()> {
     validate_condition(
-        matches!(ty, syn::Type::Reference(_)),
+        matches!(ty, &syn::Type::Reference(_)),
         ty,
         "#[step_args] parameters must own their struct type",
     )
