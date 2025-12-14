@@ -63,7 +63,7 @@ whilst allowing async projects to adopt Tokio step execution incrementally.
 - `rstest` asynchronous fixtures should remain usable in scenario tests.
 - Skipping (`skip!`) and error reporting must continue to produce actionable
   diagnostics.
-- The default path should minimise disruption to existing step signatures and
+- The default path should minimize disruption to existing step signatures and
   fixture usage.
 - The design should keep the cost model predictable (allocations, dynamic
   dispatch, and runtime constraints).
@@ -116,7 +116,7 @@ whilst allowing async projects to adopt Tokio step execution incrementally.
   mode).
 - Wrapper generation must normalise sync and async step definitions into a
   single callable interface.
-- The implementation must preserve unwind handling so panics continue to be
+- The implementation must preserve unwind handling, so panics continue to be
   surfaced with context, and `skip!` continues to be intercepted.
 - The approach must define and document the Tokio runtime constraints for
   step futures (for example, whether `Send` is required).
@@ -131,14 +131,14 @@ non-`Send` futures.
 
 This option aligns with the existing `RefCell`-backed mutable fixture design.
 It permits step futures to hold `RefMut` guards or `&mut T` borrows across
-`.await` points without requiring additional synchronisation primitives.
+`.await` points without requiring additional synchronization primitives.
 
 Consequences:
 
 - Minimal changes to fixture storage are required.
 - Step definitions can use `&mut T` fixtures and await within the step.
 - A current-thread runtime reduces incidental concurrency and can make
-  starvation bugs easier to reproduce, but it may underutilise multi-core
+  starvation bugs easier to reproduce, but it may underutilize multicore
   systems for tests that spawn background tasks.
 - Crates and test code that rely on spawning `Send` tasks onto the Tokio
   multi-thread scheduler may require additional configuration or refactoring.
@@ -164,7 +164,7 @@ Consequences:
 - More invasive changes to `StepContext` and fixture binding are required.
 - Step signatures may need to change, or step wrappers must introduce mutex
   guards which are held across `.await`.
-- Additional synchronisation may reduce performance for heavily mutable
+- Additional synchronization may reduce performance for heavily mutable
   scenarios and introduces deadlock risks if locks are held too broadly.
 - The design must define clear guidance for preventing long-lived locks across
   `.await` points.
@@ -243,7 +243,7 @@ failure modes should be documented so users can select an appropriate mode.
   current-thread, multi-thread, or a user-selected configuration.
 - How Tokio selection should be expressed:
   - feature flags (for example, `rstest-bdd-macros/tokio`),
-  - macro arguments (for example, `scenarios!(..., runtime = "tokio")`), or
+  - macro arguments (for example, `scenarios!(…, runtime = "tokio")`), or
   - a dedicated attribute macro which expands to the appropriate test wrapper.
 - Whether `rstest-bdd` should support both modes simultaneously, and if so,
   whether that is a compile-time selection or a per-test selection.
@@ -260,7 +260,7 @@ failure modes should be documented so users can select an appropriate mode.
 - The policy for mixed sync and async step definitions within a single
   scenario, including error messaging when an unsupported form is used.
 - The intended scope beyond Tokio (for example, parity for `async-std`) and
-  whether the runtime selection model should be generalised.
+  whether the runtime selection model should be generalized.
 
 ## Proposed direction
 
