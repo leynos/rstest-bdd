@@ -116,6 +116,14 @@ inventory::collect!(DumpSeed);
 /// ```
 #[cfg(feature = "diagnostics")]
 pub fn run_dump_seeds() {
+    struct SetDone(&'static AtomicU8);
+
+    impl Drop for SetDone {
+        fn drop(&mut self) {
+            self.0.store(2, Ordering::SeqCst);
+        }
+    }
+
     // States:
     // 0 = not run, 1 = running, 2 = done.
     let state = dump_seeds_state();
@@ -125,14 +133,9 @@ pub fn run_dump_seeds() {
     {
         return;
     }
-    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        for seed in inventory::iter::<DumpSeed> {
-            seed.run();
-        }
-    }));
-    state.store(2, Ordering::SeqCst);
-    if let Err(payload) = result {
-        std::panic::resume_unwind(payload);
+    let _guard = SetDone(state);
+    for seed in inventory::iter::<DumpSeed> {
+        seed.run();
     }
 }
 

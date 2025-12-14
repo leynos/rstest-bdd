@@ -6,6 +6,7 @@ use serde::Deserialize;
 use serial_test::serial;
 use std::fs;
 use std::path::PathBuf;
+use std::process::ExitStatus;
 use std::str;
 
 #[derive(Debug, Deserialize)]
@@ -43,40 +44,41 @@ fn run_cargo_bdd_raw(args: &[&str]) -> Result<std::process::Output> {
         .wrap_err("failed to execute `cargo bdd`")
 }
 
-fn run_cargo_bdd_with_expectation(args: &[&str], expect_success: bool) -> Result<String> {
+fn run_cargo_bdd_captured(args: &[&str]) -> Result<(ExitStatus, String, String)> {
     let output = run_cargo_bdd_raw(args)?;
     let args_debug = args.join(" ");
-    let (expected_success, bytes, stream) = if expect_success {
-        (true, &output.stdout, "stdout")
-    } else {
-        (false, &output.stderr, "stderr")
-    };
     let status = output.status;
-    if expected_success {
-        assert!(
-            status.success(),
-            "`cargo bdd` should succeed (args: [{args_debug}], status: {status})"
-        );
-    } else {
-        assert!(
-            !status.success(),
-            "`cargo bdd` should fail for invalid arguments (args: [{args_debug}], status: {status})"
-        );
-    }
-    let text = str::from_utf8(bytes).wrap_err_with(|| {
+    let stdout = str::from_utf8(&output.stdout).wrap_err_with(|| {
         format!(
-            "`cargo bdd` emitted invalid UTF-8 to {stream} (args: [{args_debug}], status: {status})"
+            "`cargo bdd` emitted invalid UTF-8 to stdout (args: [{args_debug}], status: {status})"
         )
     })?;
-    Ok(text.to_string())
+    let stderr = str::from_utf8(&output.stderr).wrap_err_with(|| {
+        format!(
+            "`cargo bdd` emitted invalid UTF-8 to stderr (args: [{args_debug}], status: {status})"
+        )
+    })?;
+    Ok((status, stdout.to_string(), stderr.to_string()))
 }
 
 fn run_cargo_bdd(args: &[&str]) -> Result<String> {
-    run_cargo_bdd_with_expectation(args, true)
+    let args_debug = args.join(" ");
+    let (status, stdout, _stderr) = run_cargo_bdd_captured(args)?;
+    assert!(
+        status.success(),
+        "`cargo bdd` should succeed (args: [{args_debug}], status: {status})"
+    );
+    Ok(stdout)
 }
 
 fn run_cargo_bdd_failure(args: &[&str]) -> Result<String> {
-    run_cargo_bdd_with_expectation(args, false)
+    let args_debug = args.join(" ");
+    let (status, _stdout, stderr) = run_cargo_bdd_captured(args)?;
+    assert!(
+        !status.success(),
+        "`cargo bdd` should fail for invalid arguments (args: [{args_debug}], status: {status})"
+    );
+    Ok(stderr)
 }
 
 fn run_cargo_bdd_steps() -> Result<String> {

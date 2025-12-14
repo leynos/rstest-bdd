@@ -1,9 +1,9 @@
 //! Registry collection helpers shared by the CLI subcommands.
 
 use std::collections::HashSet;
-use std::io::{self, BufReader, Write};
+use std::io::{self, BufReader, Read, Write};
 use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio};
+use std::process::{Child, Command, Stdio};
 
 use cargo_metadata::{Message, Package, PackageId, Target};
 use eyre::{Context, Result, bail, eyre};
@@ -120,11 +120,9 @@ fn collect_package_binaries(
     for target in test_targets(&package.targets) {
         let extracted = build_test_target(package, target)?;
         for bin in extracted {
-            if seen.contains(&bin) {
-                continue;
+            if seen.insert(bin.clone()) {
+                bins.push(bin);
             }
-            seen.insert(bin.clone());
-            bins.push(bin);
         }
     }
     Ok(())
@@ -141,6 +139,42 @@ fn test_targets(targets: &[Target]) -> impl Iterator<Item = &Target> + '_ {
     targets
         .iter()
         .filter(|t| t.kind.iter().any(|k| k == "test"))
+}
+
+fn parse_cargo_messages(
+    reader: BufReader<impl Read>,
+    child: &mut Child,
+    package_name: &str,
+    target_name: &str,
+) -> Result<Vec<PathBuf>> {
+    let mut bins = Vec::new();
+    for message in Message::parse_stream(reader) {
+        let message = match message {
+            Ok(message) => message,
+            Err(err) => {
+                let _ = child.kill();
+                let _ = child.wait();
+                return Err(eyre!(err)).wrap_err_with(|| {
+                    format!(
+                        "failed to parse cargo metadata message for target {target_name} in package {package_name}",
+                    )
+                });
+            }
+        };
+        if let Some(exe) = extract_test_executable(&message) {
+            bins.push(exe);
+        }
+    }
+    Ok(bins)
+}
+
+fn handle_build_failure(package_name: &str, target_name: &str) -> Result<()> {
+    let mut stderr = io::stderr();
+    writeln!(
+        &mut stderr,
+        "warning: cargo test failed for target {target_name} in package {package_name}; skipping",
+    )
+    .wrap_err("failed to write warning to stderr")
 }
 
 fn build_test_target(package: &Package, target: &Target) -> Result<Vec<PathBuf>> {
@@ -169,25 +203,7 @@ fn build_test_target(package: &Package, target: &Target) -> Result<Vec<PathBuf>>
         )
     })?;
     let reader = BufReader::new(stdout);
-    let mut bins = Vec::new();
-    for message in Message::parse_stream(reader) {
-        let message = match message {
-            Ok(message) => message,
-            Err(err) => {
-                let _ = child.kill();
-                let _ = child.wait();
-                return Err(eyre!(err)).wrap_err_with(|| {
-                    format!(
-                        "failed to parse cargo metadata message for target {} in package {}",
-                        target.name, package.name
-                    )
-                });
-            }
-        };
-        if let Some(exe) = extract_test_executable(&message) {
-            bins.push(exe);
-        }
-    }
+    let bins = parse_cargo_messages(reader, &mut child, &package.name, &target.name)?;
     let status = child.wait().wrap_err_with(|| {
         format!(
             "cargo test failed for target {} in package {}",
@@ -195,13 +211,7 @@ fn build_test_target(package: &Package, target: &Target) -> Result<Vec<PathBuf>>
         )
     })?;
     if !status.success() {
-        let mut stderr = io::stderr();
-        writeln!(
-            &mut stderr,
-            "warning: cargo test failed for target {} in package {}; skipping",
-            target.name, package.name
-        )
-        .wrap_err("failed to write warning to stderr")?;
+        handle_build_failure(&package.name, &target.name)?;
         return Ok(Vec::new());
     }
     Ok(bins)
