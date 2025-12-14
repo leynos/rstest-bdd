@@ -114,6 +114,7 @@ jobs:
 
       - name: Verify coverage output exists
         if: ${{ matrix.coverage }}
+        shell: bash
         run: |
           set -euo pipefail
           test -s lcov.info
