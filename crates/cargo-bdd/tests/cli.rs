@@ -32,7 +32,12 @@ struct SkipReport {
 /// Execute cargo-bdd with the given arguments and return the raw output.
 fn run_cargo_bdd_raw(args: &[&str]) -> Result<std::process::Output> {
     let fixture_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/minimal");
-    let target_dir = fixture_dir.join("target");
+    // Reuse the workspace target directory so path dependencies (rstest-bdd and
+    // rstest-bdd-macros) are already compiled before invoking `cargo bdd`.
+    //
+    // This avoids slow first-run compiles within the fixture directory causing
+    // nextest's per-test slow-timeout to terminate CLI smoke tests.
+    let target_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../target");
     fs::create_dir_all(&target_dir)
         .with_context(|| format!("failed to create {}", target_dir.display()))?;
     let mut cmd = Command::cargo_bin("cargo-bdd")

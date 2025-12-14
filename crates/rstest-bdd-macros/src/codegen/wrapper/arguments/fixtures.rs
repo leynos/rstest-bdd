@@ -100,10 +100,6 @@ fn gen_fixture_decl_inner(
     }
 }
 
-/// Generate declarations for fixture values.
-///
-/// Non-reference fixtures must implement [`Clone`] because wrappers clone
-/// them to hand ownership to the step function.
 fn gen_mut_ref_fixture_decl(ctx: FixtureDeclContext<'_>, elem: &syn::Type) -> TokenStream2 {
     let config = FixtureDeclConfig::new(elem, elem, BorrowKind::Mutable, ValueExtraction::MutRef);
     gen_fixture_decl_inner(ctx, config)
@@ -167,6 +163,12 @@ fn gen_owned_fixture_decl(ctx: FixtureDeclContext<'_>) -> TokenStream2 {
     gen_fixture_decl_inner(ctx, config)
 }
 
+/// Generate declarations for fixture values.
+///
+/// Owned (non-reference) fixtures must implement [`Clone`] because wrappers
+/// clone them to hand ownership to the step function. Reference-typed fixtures
+/// (for example `&T` or `&mut T`) are borrowed from the context and are not
+/// cloned.
 pub(super) fn gen_fixture_decls(
     fixtures: &[&Arg],
     ident: &syn::Ident,
