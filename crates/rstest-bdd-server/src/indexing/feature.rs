@@ -1,7 +1,7 @@
 //! Gherkin `.feature` file indexing support.
 
-use std::path::{Path, PathBuf};
 use std::ops::Range;
+use std::path::{Path, PathBuf};
 
 use gherkin::{GherkinEnv, Span};
 

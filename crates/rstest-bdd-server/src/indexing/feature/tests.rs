@@ -3,7 +3,10 @@
 use super::*;
 use tempfile::TempDir;
 
-#[expect(clippy::expect_used, reason = "tests use explicit failures for clarity")]
+#[expect(
+    clippy::expect_used,
+    reason = "tests use explicit failures for clarity"
+)]
 #[test]
 fn indexes_steps_tables_docstrings_and_example_columns() {
     let dir = TempDir::new().expect("temp dir");
@@ -56,7 +59,10 @@ fn indexes_steps_tables_docstrings_and_example_columns() {
     assert!(table.span.start < table.span.end);
 }
 
-#[expect(clippy::expect_used, reason = "tests use explicit failures for clarity")]
+#[expect(
+    clippy::expect_used,
+    reason = "tests use explicit failures for clarity"
+)]
 #[test]
 fn docstring_span_includes_backtick_delimiters() {
     let dir = TempDir::new().expect("temp dir");
@@ -79,4 +85,3 @@ fn docstring_span_includes_backtick_delimiters() {
         .expect("doc span should be valid for source");
     assert!(doc_text.contains("```"));
 }
-
