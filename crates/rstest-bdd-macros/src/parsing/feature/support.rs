@@ -143,22 +143,32 @@ impl FeatureBuilder {
         }
     }
 
+    fn push_scenario(
+        &mut self,
+        keyword: &str,
+        name: &str,
+        steps: Vec<Step>,
+        examples: Vec<Examples>,
+    ) {
+        self.scenarios.push(Scenario {
+            keyword: keyword.into(),
+            name: name.to_string(),
+            description: None,
+            steps,
+            examples,
+            tags: Vec::new(),
+            span: zero_span(),
+            position: zero_pos(),
+        });
+    }
+
     pub(super) fn with_background(mut self, steps: Vec<Step>) -> Self {
         self.background = Some(steps);
         self
     }
 
     pub(super) fn with_scenario(mut self, name: &str, steps: Vec<Step>) -> Self {
-        self.scenarios.push(Scenario {
-            keyword: "Scenario".into(),
-            name: name.to_string(),
-            description: None,
-            steps,
-            examples: Vec::new(),
-            tags: Vec::new(),
-            span: zero_span(),
-            position: zero_pos(),
-        });
+        self.push_scenario("Scenario", name, steps, Vec::new());
         self
     }
 
@@ -168,16 +178,7 @@ impl FeatureBuilder {
         steps: Vec<Step>,
         examples: Examples,
     ) -> Self {
-        self.scenarios.push(Scenario {
-            keyword: "Scenario Outline".into(),
-            name: name.to_string(),
-            description: None,
-            steps,
-            examples: vec![examples],
-            tags: Vec::new(),
-            span: zero_span(),
-            position: zero_pos(),
-        });
+        self.push_scenario("Scenario Outline", name, steps, vec![examples]);
         self
     }
 
