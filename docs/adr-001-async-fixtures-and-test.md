@@ -1,4 +1,4 @@
-# Architectural decision record (ADR) 001: Async fixtures and tests (Tokio)
+# Architectural decision record (ADR) 001: async fixtures and tests (Tokio)
 
 ## Status
 
@@ -114,7 +114,7 @@ whilst allowing async projects to adopt Tokio step execution incrementally.
   `Future`-aware unwind capture to preserve `skip!` interception) and the
   required trait bounds (`Send` depends on current-thread versus multi-thread
   mode).
-- Wrapper generation must normalise sync and async step definitions into a
+- Wrapper generation must normalize sync and async step definitions into a
   single callable interface.
 - The implementation must preserve unwind handling, so panics continue to be
   surfaced with context, and `skip!` continues to be intercepted.
@@ -219,7 +219,7 @@ Alternative designs include:
 ## Current-thread limitations and failure modes
 
 When Tokio current-thread is the initial runtime, expected limitations and
-failure modes should be documented so users can select an appropriate mode.
+failure modes should be documented, so users can select an appropriate mode.
 
 - Blocking operations (for example, `std::thread::sleep`, blocking I/O, or CPU
   heavy work) will block the entire runtime thread and can stall the scenario.
