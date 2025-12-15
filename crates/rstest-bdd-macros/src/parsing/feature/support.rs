@@ -1,6 +1,6 @@
 //! Test support builders for feature parsing tests.
 
-use super::{ParsedStep, ScenarioData, extract_scenario_steps};
+use super::{ParsedStep, ScenarioData as ExtractedScenarioData, extract_scenario_steps};
 use gherkin::{Background, Examples, LineCol, Scenario, Span, Step, StepType, Table};
 
 // Intentionally expect `unreachable_patterns` today (we match all current variants).
@@ -134,6 +134,13 @@ pub(super) struct FeatureBuilder {
     scenarios: Vec<Scenario>,
 }
 
+struct ScenarioData {
+    keyword: String,
+    name: String,
+    steps: Vec<Step>,
+    examples: Vec<Examples>,
+}
+
 impl FeatureBuilder {
     pub(super) fn new(name: &str) -> Self {
         Self {
@@ -143,19 +150,13 @@ impl FeatureBuilder {
         }
     }
 
-    fn push_scenario(
-        &mut self,
-        keyword: &str,
-        name: &str,
-        steps: Vec<Step>,
-        examples: Vec<Examples>,
-    ) {
+    fn push_scenario(&mut self, data: ScenarioData) {
         self.scenarios.push(Scenario {
-            keyword: keyword.into(),
-            name: name.to_string(),
+            keyword: data.keyword,
+            name: data.name,
             description: None,
-            steps,
-            examples,
+            steps: data.steps,
+            examples: data.examples,
             tags: Vec::new(),
             span: zero_span(),
             position: zero_pos(),
@@ -168,7 +169,12 @@ impl FeatureBuilder {
     }
 
     pub(super) fn with_scenario(mut self, name: &str, steps: Vec<Step>) -> Self {
-        self.push_scenario("Scenario", name, steps, Vec::new());
+        self.push_scenario(ScenarioData {
+            keyword: "Scenario".to_string(),
+            name: name.to_string(),
+            steps,
+            examples: Vec::new(),
+        });
         self
     }
 
@@ -178,7 +184,12 @@ impl FeatureBuilder {
         steps: Vec<Step>,
         examples: Examples,
     ) -> Self {
-        self.push_scenario("Scenario Outline", name, steps, vec![examples]);
+        self.push_scenario(ScenarioData {
+            keyword: "Scenario Outline".to_string(),
+            name: name.to_string(),
+            steps,
+            examples: vec![examples],
+        });
         self
     }
 
@@ -213,7 +224,7 @@ pub(super) fn assert_feature_extraction(
     scenario_index: Option<usize>,
 ) {
     let feature = feature_builder.build();
-    let ScenarioData { steps, .. } = extract_scenario_steps(&feature, scenario_index)
+    let ExtractedScenarioData { steps, .. } = extract_scenario_steps(&feature, scenario_index)
         .unwrap_or_else(|e| {
             panic!("failed to extract scenario steps at index {scenario_index:?}: {e}")
         });
