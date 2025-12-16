@@ -1,5 +1,7 @@
 //! Helpers that generate the runtime scaffolding for scenario tests.
 
+#[cfg(test)]
+mod tests;
 mod types;
 
 use proc_macro2::TokenStream as TokenStream2;
@@ -25,7 +27,7 @@ pub(crate) fn execute_single_step() -> TokenStream2 {
             feature_path: &str,
             scenario_name: &str,
         ) -> Result<Option<Box<dyn std::any::Any>>, String> {
-            if let Some(f) = #path::find_step(keyword, text.into()) {
+            if let Some(f) = #path::find_step(keyword, #path::StepText::from(text)) {
                 match f(ctx, text, docstring, table) {
                     Ok(#path::StepExecution::Continue { value }) => Ok(value),
                     Ok(#path::StepExecution::Skipped { message }) => {
