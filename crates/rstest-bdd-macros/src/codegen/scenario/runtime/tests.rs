@@ -2,10 +2,17 @@
 
 use super::execute_single_step;
 
+/// Return the identifier of the final segment in a `syn::Path`.
+///
+/// Returns `None` when the path has no segments (for example, if it was parsed
+/// from an empty token stream).
 fn path_last_ident(path: &syn::Path) -> Option<&syn::Ident> {
     path.segments.last().map(|seg| &seg.ident)
 }
 
+/// Return the identifier of the segment before the final segment in a `syn::Path`.
+///
+/// Returns `None` when the path contains fewer than two segments.
 fn path_second_last_ident(path: &syn::Path) -> Option<&syn::Ident> {
     path.segments.iter().rev().nth(1).map(|seg| &seg.ident)
 }
@@ -66,17 +73,26 @@ fn assert_path_ends_with(path: &syn::Path, expected: &str, context: &str) {
     reason = "indexing is guarded by explicit arg length assertions"
 )]
 fn execute_single_step_looks_up_steps_with_steptext_from() {
+    // Parse the generated helper tokens so we can assert on the AST structure,
+    // keeping this test resilient to formatting-only changes.
     let item: syn::ItemFn =
         syn::parse2(execute_single_step()).expect("execute_single_step parses as a function");
+
+    // The step lookup happens inside the first `if let Some(f) = ...` guard;
+    // validate that the guard calls `find_step(...)` with the expected shape.
     let expr_if = extract_if_expr(&item.block.stmts);
     let expr_let = extract_let_from_cond(expr_if.cond.as_ref());
     let find_step_call = extract_call(expr_let.expr.as_ref());
     let func_path = extract_path(find_step_call.func.as_ref());
     assert_path_ends_with(func_path, "find_step", "expected to call find_step(...)");
 
+    // Confirm `find_step` has exactly two arguments and then inspect the second
+    // one to ensure we pass a `StepText` wrapper rather than allocating.
     let args: Vec<_> = find_step_call.args.iter().collect();
     assert_eq!(args.len(), 2, "expected find_step(keyword, text)");
 
+    // Validate the second argument is `StepText::from(text)` so the generated
+    // code uses the intended step-text newtype conversion.
     let steptext_call = extract_call(args[1]);
     let steptext_func_path = extract_path(steptext_call.func.as_ref());
     assert_path_ends_with(steptext_func_path, "from", "expected StepText::from(...)");
@@ -88,6 +104,8 @@ fn execute_single_step_looks_up_steps_with_steptext_from() {
         "expected StepText::from(...)",
     );
 
+    // Verify `StepText::from` is invoked with the `text` identifier from
+    // `execute_single_step`, ensuring the conversion wraps the string slice.
     let inner_args: Vec<_> = steptext_call.args.iter().collect();
     assert_eq!(inner_args.len(), 1, "expected StepText::from(text)");
     let inner_path = extract_path(inner_args[0]);
