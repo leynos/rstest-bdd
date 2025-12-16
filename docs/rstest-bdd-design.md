@@ -249,7 +249,7 @@ fn deposit_amount(#[from(account)] acc: &mut Account, amount: u32) {
 The framework will parse the string "50", use `u32::from_str("50")` to convert
 it, and pass the resulting `u32` value to the `deposit_amount` function.
 
-#### 1.3.3 Using `Background`, data tables, and Docstrings
+#### 1.3.3 Using `Background`, data tables, and Doc strings
 
 To achieve feature parity with modern BDD tools, the framework supports other
 essential Gherkin constructs.
@@ -419,7 +419,7 @@ fn create_users(
 }
 ```
 
-- Docstrings: A Gherkin docstring allows a larger block of multi-line text
+- Doc strings: A Gherkin docstring allows a larger block of multi-line text
   to be passed to a step. This will be provided as a `String` argument to the
   step function, again mirroring `pytest-bdd`.[^11]
 
@@ -573,7 +573,7 @@ macro has a distinct role in the compile-time orchestration of the BDD tests.
   The data table parameter must precede any Doc String argument, must not be
   combined with `#[from]`, and a missing table triggers a runtime error.
 
-- Docstrings: A multi-line text block immediately following a step is
+- Doc strings: A multi-line text block immediately following a step is
   exposed to the step function through an optional `docstring` parameter of
   type `String`. The runner passes the raw block to the wrapper as
   `Option<&str>`, and the wrapper clones it into an owned `String` before
@@ -1179,7 +1179,7 @@ incrementally.
 
 - **Phase 3: Advanced Gherkin Features & Ergonomics**
 
-- Add support for Data Tables and Docstrings, passing them as special
+- Add support for Data Tables and Doc strings, passing them as special
   arguments to step functions.
 
 - Implement robust compile-time error handling. The `#[scenario]` macro should

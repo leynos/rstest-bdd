@@ -284,7 +284,7 @@ make typed tables ergonomic. Implement `DataTableRow` for the row type and set
 
 Sometimes the data required by a step is not a simple value or structured
 table, but a larger, free-form block of text. This is common when working with
-APIs (JSON/XML payloads), email content, or snippets of code. `Docstrings` are
+APIs (JSON/XML payloads), email content, or snippets of code. `Doc strings` are
 Gherkin's solution for this. A `Docstring` allows a multi-line string to be
 passed to a step definition.[^10] Syntax: The text block is enclosed by a pair
 of triple double-quotes (""") or triple backticks (\`\`\`\`\`\`) on their own

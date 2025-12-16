@@ -1,5 +1,6 @@
 //! Gherkin `.feature` file indexing support.
 
+use std::borrow::Cow;
 use std::ops::Range;
 use std::path::{Path, PathBuf};
 
@@ -82,6 +83,23 @@ pub fn index_feature_file(path: &Path) -> Result<FeatureFileIndex, FeatureIndexE
     index_feature_text(path.to_path_buf(), FeatureSource::new(&text))
 }
 
+/// Parse and index a `.feature` file from source text.
+///
+/// This is primarily intended for language-server integrations that receive
+/// the saved document contents from the client and want to avoid a race with
+/// filesystem writes.
+///
+/// # Errors
+///
+/// Returns an error when the feature text cannot be parsed as valid Gherkin.
+pub fn index_feature_source(
+    path: PathBuf,
+    source: &str,
+) -> Result<FeatureFileIndex, FeatureIndexError> {
+    let source = normalise_source_text(source);
+    index_feature_text(path, FeatureSource::new(source.as_ref()))
+}
+
 fn index_feature_text(
     path: PathBuf,
     source: FeatureSource<'_>,
@@ -119,6 +137,13 @@ fn normalise_trailing_newline(text: &mut String) {
     if !text.ends_with('\n') {
         text.push('\n');
     }
+}
+
+fn normalise_source_text(source: &str) -> Cow<'_, str> {
+    if source.ends_with('\n') {
+        return Cow::Borrowed(source);
+    }
+    Cow::Owned(format!("{source}\n"))
 }
 
 fn index_steps_for_container(

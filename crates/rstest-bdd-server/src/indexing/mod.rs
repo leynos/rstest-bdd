@@ -19,7 +19,7 @@ use gherkin::{Span, StepType};
 
 mod feature;
 
-pub use feature::index_feature_file;
+pub use feature::{index_feature_file, index_feature_source};
 
 /// Parsed index for a single `.feature` file.
 #[derive(Debug, Clone, PartialEq, Eq)]

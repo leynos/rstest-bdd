@@ -401,11 +401,11 @@ scope until the core workflow is stable.
 - [ ] **Indexing pipeline**
 
   - [x] Parse `.feature` files with `gherkin` on save to capture steps,
-    docstrings, tables, example columns, and byte offsets.
+    doc strings, tables, example columns, and byte offsets.
 
   - [ ] Parse Rust files with `syn` to collect `#[given]`, `#[when]`, and
     `#[then]` functions, including pattern strings, keyword, parameter list,
-    and expectations for tables or docstrings.
+    and expectations for tables or doc strings.
 
   - [ ] Compile step patterns with `rstest-bdd-patterns` and populate an
     in-memory registry keyed by keyword, invalidated incrementally on file

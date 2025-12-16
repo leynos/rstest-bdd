@@ -699,8 +699,8 @@ are implemented.
 
 - Unit tests cover configuration parsing, error formatting, workspace
   discovery, and lifecycle handlers
-- Unit tests cover the `.feature` indexing pipeline, ensuring steps, doc
-  strings, data tables, and Examples header columns are captured with byte
+- Unit tests cover the `.feature` indexing pipeline, ensuring steps,
+  Doc strings, data tables, and Examples header columns are captured with byte
   offsets
 - Behavioural tests cover the `textDocument/didSave` workflow, validating that
   saving a `.feature` file updates the in-memory index

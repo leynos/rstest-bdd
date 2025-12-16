@@ -135,7 +135,7 @@ pub fn build_server_capabilities() -> ServerCapabilities {
                 change: Some(TextDocumentSyncKind::INCREMENTAL),
                 save: Some(lsp_types::TextDocumentSyncSaveOptions::SaveOptions(
                     lsp_types::SaveOptions {
-                        include_text: Some(false),
+                        include_text: Some(true),
                     },
                 )),
                 ..Default::default()

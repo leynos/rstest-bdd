@@ -7,7 +7,7 @@
 use lsp_types::DidSaveTextDocumentParams;
 use tracing::{debug, warn};
 
-use crate::indexing::index_feature_file;
+use crate::indexing::{index_feature_file, index_feature_source};
 use crate::server::ServerState;
 
 /// Handle `textDocument/didSave` notifications.
@@ -22,11 +22,16 @@ pub fn handle_did_save_text_document(state: &mut ServerState, params: DidSaveTex
         return;
     };
 
-    if !matches!(path.extension(), Some(ext) if ext == "feature") {
+    if !is_feature_file_path(&path) {
         return;
     }
 
-    match index_feature_file(&path) {
+    let index_result = params.text.as_deref().map_or_else(
+        || index_feature_file(&path),
+        |text| index_feature_source(path.clone(), text),
+    );
+
+    match index_result {
         Ok(index) => {
             debug!(
                 path = %path.display(),
@@ -40,4 +45,10 @@ pub fn handle_did_save_text_document(state: &mut ServerState, params: DidSaveTex
             warn!(path = %path.display(), error = %err, "failed to index feature file");
         }
     }
+}
+
+fn is_feature_file_path(path: &std::path::Path) -> bool {
+    path.extension()
+        .and_then(std::ffi::OsStr::to_str)
+        .is_some_and(|ext| ext.eq_ignore_ascii_case("feature"))
 }
