@@ -161,7 +161,7 @@ struct ScenarioData {
 }
 
 impl ScenarioData {
-    fn scenario(name: &str, steps: Vec<Step>) -> Self {
+    fn new_scenario(name: &str, steps: Vec<Step>) -> Self {
         Self {
             keyword: "Scenario".to_string(),
             name: name.to_string(),
@@ -170,7 +170,7 @@ impl ScenarioData {
         }
     }
 
-    fn scenario_outline(name: &str, steps: Vec<Step>, examples: Examples) -> Self {
+    fn new_scenario_outline(name: &str, steps: Vec<Step>, examples: Examples) -> Self {
         Self {
             keyword: "Scenario Outline".to_string(),
             name: name.to_string(),
@@ -211,7 +211,7 @@ impl FeatureBuilder {
     }
 
     pub(super) fn with_scenario(mut self, name: &str, steps: Vec<Step>) -> Self {
-        self.push_scenario(ScenarioData::scenario(name, steps));
+        self.push_scenario(ScenarioData::new_scenario(name, steps));
         self
     }
 
@@ -226,7 +226,7 @@ impl FeatureBuilder {
         steps: Vec<Step>,
         examples: Examples,
     ) -> Self {
-        self.push_scenario(ScenarioData::scenario_outline(name, steps, examples));
+        self.push_scenario(ScenarioData::new_scenario_outline(name, steps, examples));
         self
     }
 
