@@ -1,4 +1,11 @@
-//! Scenario step extraction tests.
+//! Tests for scenario step extraction via `iter_parsed_steps_with_background`.
+//!
+//! This module verifies that background steps are correctly prepended to
+//! scenario steps and that step payloads (data tables, docstrings, and keyword
+//! synonyms) are preserved during extraction.
+//!
+//! These tests live separately from `tests.rs` to keep the entry-point test
+//! module small, whilst still covering the richer step-extraction surface area.
 
 use super::*;
 use gherkin::StepType;

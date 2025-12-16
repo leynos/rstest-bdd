@@ -28,6 +28,10 @@ fn zero_pos() -> LineCol {
     LineCol { line: 0, col: 0 }
 }
 
+/// Construct a `Table` from an iterable of rows (each row being an iterable of cells).
+///
+/// The returned table uses a zero `span` and `position`, as these builders are
+/// used in tests where source locations are irrelevant.
 fn table_from_rows<I, R, S>(rows: I) -> Table
 where
     I: IntoIterator<Item = R>,
@@ -96,15 +100,22 @@ impl StepBuilder {
     }
 }
 
+/// Builder for constructing `Examples` blocks in test support.
+///
+/// Produces `Examples` with zero span/position, empty tags, and no name or
+/// description, mirroring the minimal fixtures used throughout the parsing
+/// tests.
 pub(super) struct ExamplesBuilder {
     table: Option<Table>,
 }
 
 impl ExamplesBuilder {
+    /// Start building an Examples block.
     pub(super) fn new() -> Self {
         Self { table: None }
     }
 
+    /// Set the Examples table rows (including the header row).
     pub(super) fn with_table<I, R, S>(mut self, rows: I) -> Self
     where
         I: IntoIterator<Item = R>,
@@ -115,6 +126,10 @@ impl ExamplesBuilder {
         self
     }
 
+    /// Build the final `Examples` block with keyword "Examples".
+    ///
+    /// The returned block has no name or description, empty tags, and a zero
+    /// span/position.
     pub(super) fn build(self) -> Examples {
         Examples {
             keyword: "Examples".into(),
@@ -134,11 +149,35 @@ pub(super) struct FeatureBuilder {
     scenarios: Vec<Scenario>,
 }
 
+/// Internal parameter object staging scenario data before conversion to `gherkin::Scenario`.
+///
+/// Used by `push_scenario` to reduce argument count; the final `Scenario` will
+/// have `description: None`, empty tags, and a zero span/position.
 struct ScenarioData {
     keyword: String,
     name: String,
     steps: Vec<Step>,
     examples: Vec<Examples>,
+}
+
+impl ScenarioData {
+    fn scenario(name: &str, steps: Vec<Step>) -> Self {
+        Self {
+            keyword: "Scenario".to_string(),
+            name: name.to_string(),
+            steps,
+            examples: Vec::new(),
+        }
+    }
+
+    fn scenario_outline(name: &str, steps: Vec<Step>, examples: Examples) -> Self {
+        Self {
+            keyword: "Scenario Outline".to_string(),
+            name: name.to_string(),
+            steps,
+            examples: vec![examples],
+        }
+    }
 }
 
 impl FeatureBuilder {
@@ -150,6 +189,9 @@ impl FeatureBuilder {
         }
     }
 
+    /// Convert staged `ScenarioData` into a `gherkin::Scenario` and append it to the feature.
+    ///
+    /// Sets `description: None`, empty `tags`, and zero `span`/`position`.
     fn push_scenario(&mut self, data: ScenarioData) {
         self.scenarios.push(Scenario {
             keyword: data.keyword,
@@ -169,27 +211,22 @@ impl FeatureBuilder {
     }
 
     pub(super) fn with_scenario(mut self, name: &str, steps: Vec<Step>) -> Self {
-        self.push_scenario(ScenarioData {
-            keyword: "Scenario".to_string(),
-            name: name.to_string(),
-            steps,
-            examples: Vec::new(),
-        });
+        self.push_scenario(ScenarioData::scenario(name, steps));
         self
     }
 
+    /// Add a Scenario Outline with the given name, steps, and Examples block.
+    ///
+    /// The Examples block is wrapped in a vector; the final scenario has the
+    /// keyword "Scenario Outline", no description, empty tags, and a zero
+    /// span/position.
     pub(super) fn with_scenario_outline(
         mut self,
         name: &str,
         steps: Vec<Step>,
         examples: Examples,
     ) -> Self {
-        self.push_scenario(ScenarioData {
-            keyword: "Scenario Outline".to_string(),
-            name: name.to_string(),
-            steps,
-            examples: vec![examples],
-        });
+        self.push_scenario(ScenarioData::scenario_outline(name, steps, examples));
         self
     }
 
@@ -281,6 +318,23 @@ mod tests {
             panic!("expected scenarios");
         };
         assert_eq!(scenario.steps.len(), 1);
+
+        // Assert second scenario is an outline with examples.
+        let Some(outline) = feature.scenarios.get(1) else {
+            panic!("expected second scenario");
+        };
+        assert_eq!(outline.keyword, "Scenario Outline");
+        assert_eq!(outline.examples.len(), 1);
+        let Some(examples) = outline.examples.first() else {
+            panic!("expected outline to have examples");
+        };
+        let Some(examples_table) = examples.table.as_ref() else {
+            panic!("outline should have examples table");
+        };
+        assert_eq!(
+            examples_table.rows,
+            vec![vec!["x".to_string()], vec!["1".to_string()]]
+        );
     }
 
     #[test]
