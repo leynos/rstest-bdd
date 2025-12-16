@@ -21,9 +21,10 @@ fn extract_if_expr(stmts: &[syn::Stmt]) -> &syn::ExprIf {
             syn::Stmt::Expr(syn::Expr::If(expr_if), _) => Some(expr_if),
             _ => None,
         })
-        .expect("contains an if expression")
+        .expect("expected statements to contain an if expression")
 }
 
+#[expect(clippy::panic, reason = "test helper panics for clearer failures")]
 fn extract_let_from_cond(cond: &syn::Expr) -> &syn::ExprLet {
     match cond {
         syn::Expr::Let(expr_let) => expr_let,
@@ -31,6 +32,7 @@ fn extract_let_from_cond(cond: &syn::Expr) -> &syn::ExprLet {
     }
 }
 
+#[expect(clippy::panic, reason = "test helper panics for clearer failures")]
 fn extract_call(expr: &syn::Expr) -> &syn::ExprCall {
     match expr {
         syn::Expr::Call(call) => call,
@@ -38,6 +40,7 @@ fn extract_call(expr: &syn::Expr) -> &syn::ExprCall {
     }
 }
 
+#[expect(clippy::panic, reason = "test helper panics for clearer failures")]
 fn extract_path(expr: &syn::Expr) -> &syn::Path {
     match expr {
         syn::Expr::Path(expr_path) => &expr_path.path,
