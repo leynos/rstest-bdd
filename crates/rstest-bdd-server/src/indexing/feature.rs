@@ -322,11 +322,13 @@ fn find_docstring_span(source: FeatureSource<'_>, start_from: usize) -> Option<S
                 pending_delimiter = Some(delim);
                 docstring_start = cursor;
             }
-        } else if matches_docstring_closing(line_trimmed, pending_delimiter) {
-            return Some(Span {
-                start: docstring_start,
-                end: line_end,
-            });
+        } else if let Some(delim) = pending_delimiter {
+            if matches_docstring_closing(line_trimmed, delim) {
+                return Some(Span {
+                    start: docstring_start,
+                    end: line_end,
+                });
+            }
         }
 
         if line_end == source.len() {
@@ -347,10 +349,7 @@ fn parse_docstring_delimiter(line_trimmed: LineContent<'_>) -> Option<&'static s
     None
 }
 
-fn matches_docstring_closing(line_trimmed: LineContent<'_>, delim: Option<&'static str>) -> bool {
-    let Some(delim) = delim else {
-        return false;
-    };
+fn matches_docstring_closing(line_trimmed: LineContent<'_>, delim: &'static str) -> bool {
     if !line_trimmed.as_str().starts_with(delim) {
         return false;
     }

@@ -716,8 +716,9 @@ server derives those byte offsets by scanning the raw feature text:
 
 - Doc strings: locate the opening delimiter line (triple quotes or triple
   backticks), then capture the block through the closing delimiter line.
-- Example columns: parse the first table row line within the Examples table
-  span and compute spans for the header cell contents between pipe separators.
+- Example columns: the server parses the first table-row line inside the
+  Examples block and computes spans for each header cell from the text between
+  pipe separators.
 
 ### Next phases
 
