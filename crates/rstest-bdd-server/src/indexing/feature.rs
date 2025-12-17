@@ -234,7 +234,7 @@ fn find_first_table_row_line(table_text: &str) -> Option<(&str, usize)> {
     for line in table_text.split_inclusive('\n') {
         let line_no_nl = line.strip_suffix('\n').unwrap_or(line);
         let line_no_cr = line_no_nl.strip_suffix('\r').unwrap_or(line_no_nl);
-        if line_no_cr.trim_start().starts_with('|') {
+        if LineContent::new(line_no_cr).trim_start().starts_with('|') {
             return Some((line_no_cr, offset));
         }
         offset = offset.saturating_add(line.len());
@@ -296,47 +296,83 @@ fn is_ascii_space(b: u8) -> bool {
 }
 
 fn find_docstring_span(source: FeatureSource<'_>, start_from: usize) -> Option<Span> {
+    let cursor = advance_to_next_line_boundary(source, start_from)?;
+
+    let mut pending_delimiter: Option<&'static str> = None;
+    let mut docstring_start = 0usize;
+    let mut current_cursor = cursor;
+
+    while current_cursor <= source.len() {
+        let (line_trimmed, line_end) = extract_line_info(source, current_cursor)?;
+
+        if let Some(span) = process_line_for_docstring(
+            line_trimmed,
+            current_cursor,
+            line_end,
+            &mut pending_delimiter,
+            &mut docstring_start,
+        ) {
+            return Some(span);
+        }
+
+        if line_end == source.len() {
+            break;
+        }
+        current_cursor = line_end.saturating_add(1);
+    }
+    None
+}
+
+fn advance_to_next_line_boundary(source: FeatureSource<'_>, start_from: usize) -> Option<usize> {
+    if start_from > source.len() {
+        return None;
+    }
     let mut cursor = start_from.min(source.len());
-    // Ensure we start scanning from the next line boundary.
     if let Some(next_newline) = source
         .get(cursor..source.len())
         .and_then(|tail| tail.find('\n'))
     {
         cursor = cursor.saturating_add(next_newline).saturating_add(1);
     }
+    Some(cursor)
+}
 
-    let mut pending_delimiter: Option<&'static str> = None;
-    let mut docstring_start = 0usize;
+fn extract_line_info(source: FeatureSource<'_>, cursor: usize) -> Option<(LineContent<'_>, usize)> {
+    let tail = source.get(cursor..source.len())?;
+    let line_end = tail
+        .find('\n')
+        .map_or(source.len(), |idx| cursor.saturating_add(idx));
+    let line = source.get(cursor..line_end)?;
+    let line_trimmed = LineContent::new(line.trim_start());
+    Some((line_trimmed, line_end))
+}
 
-    while cursor <= source.len() {
-        let tail = source.get(cursor..source.len())?;
-        let line_end = tail
-            .find('\n')
-            .map_or(source.len(), |idx| cursor.saturating_add(idx));
-        let line = source.get(cursor..line_end)?;
-        let line_content = LineContent::new(line);
-        let line_trimmed = LineContent::new(line_content.trim_start());
-
-        if pending_delimiter.is_none() {
+fn process_line_for_docstring(
+    line_trimmed: LineContent<'_>,
+    cursor: usize,
+    line_end: usize,
+    pending_delimiter: &mut Option<&'static str>,
+    docstring_start: &mut usize,
+) -> Option<Span> {
+    match *pending_delimiter {
+        None => {
             if let Some(delim) = parse_docstring_delimiter(line_trimmed) {
-                pending_delimiter = Some(delim);
-                docstring_start = cursor;
+                *pending_delimiter = Some(delim);
+                *docstring_start = cursor;
             }
-        } else if let Some(delim) = pending_delimiter {
+            None
+        }
+        Some(delim) => {
             if matches_docstring_closing(line_trimmed, delim) {
-                return Some(Span {
-                    start: docstring_start,
+                Some(Span {
+                    start: *docstring_start,
                     end: line_end,
-                });
+                })
+            } else {
+                None
             }
         }
-
-        if line_end == source.len() {
-            break;
-        }
-        cursor = line_end.saturating_add(1);
     }
-    None
 }
 
 fn parse_docstring_delimiter(line_trimmed: LineContent<'_>) -> Option<&'static str> {
