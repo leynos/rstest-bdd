@@ -1035,8 +1035,8 @@ fn capture_both(datatable: Vec<Vec<String>>, docstring: String) {
 
 At runtime, the generated wrapper converts the table cells or copies the block
 text and passes them to the step function. It panics if the step declares
-`datatable` or `docstring` but the feature omits the content. Doc strings may be
-delimited by triple double-quotes or triple backticks.
+`datatable` or `docstring` but the feature omits the content. Doc strings may
+be delimited by triple double-quotes or triple backticks.
 
 ## Limitations and roadmap
 

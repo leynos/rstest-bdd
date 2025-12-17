@@ -11,6 +11,10 @@ use super::{
     IndexedTable,
 };
 
+mod table;
+
+use table::extract_header_cell_spans;
+
 #[derive(Clone, Copy, Debug)]
 struct FeatureSource<'a>(&'a str);
 
@@ -77,6 +81,26 @@ impl AsRef<str> for LineContent<'_> {
 ///
 /// Returns an error when the feature file cannot be read or when it cannot be
 /// parsed as valid Gherkin.
+///
+/// # Examples
+///
+/// ```rust,no_run
+/// use rstest_bdd_server::indexing::{index_feature_file, FeatureIndexError};
+///
+/// # fn main() -> Result<(), FeatureIndexError> {
+/// let path = std::env::temp_dir().join("rstest-bdd-index-demo.feature");
+/// std::fs::write(
+///     &path,
+///     "Feature: demo\n  Scenario: s\n    Given a message\n",
+/// )
+/// .expect("feature file write should succeed");
+///
+/// let index = index_feature_file(&path)?;
+/// assert_eq!(index.steps.len(), 1);
+/// # std::fs::remove_file(path).ok();
+/// # Ok(())
+/// # }
+/// ```
 pub fn index_feature_file(path: &Path) -> Result<FeatureFileIndex, FeatureIndexError> {
     let mut text = std::fs::read_to_string(path)?;
     normalise_trailing_newline(&mut text);
@@ -92,6 +116,21 @@ pub fn index_feature_file(path: &Path) -> Result<FeatureFileIndex, FeatureIndexE
 /// # Errors
 ///
 /// Returns an error when the feature text cannot be parsed as valid Gherkin.
+///
+/// # Examples
+///
+/// ```rust,no_run
+/// use std::path::PathBuf;
+///
+/// use rstest_bdd_server::indexing::{index_feature_source, FeatureIndexError};
+///
+/// # fn main() -> Result<(), FeatureIndexError> {
+/// let feature = "Feature: demo\n  Scenario: s\n    Given a message\n";
+/// let index = index_feature_source(PathBuf::from("demo.feature"), feature)?;
+/// assert_eq!(index.steps.len(), 1);
+/// # Ok(())
+/// # }
+/// ```
 pub fn index_feature_source(
     path: PathBuf,
     source: &str,
@@ -213,93 +252,41 @@ fn collect_example_columns_for_scenario(
         let Some(header_row) = table.rows.first() else {
             continue;
         };
-        for (name, span) in header_row.iter().cloned().zip(header_spans) {
+        if header_row.len() != header_spans.len() {
+            continue;
+        }
+        for (name, span) in header_row.iter().cloned().zip(header_spans.into_iter()) {
             columns.push(IndexedExampleColumn { name, span });
         }
     }
 }
 
-fn extract_header_cell_spans(source: FeatureSource<'_>, table_span: Span) -> Option<Vec<Span>> {
-    let table_text = source.get(table_span.start..table_span.end)?;
-    let (header_line, header_line_start) = find_first_table_row_line(table_text)
-        .map(|(line, offset)| (line, table_span.start + offset))?;
-    Some(split_table_header_cells(
-        LineContent::new(header_line),
-        header_line_start,
-    ))
+/// Tracks the state whilst scanning for docstring delimiters.
+#[derive(Debug)]
+struct DocstringState {
+    pending_delimiter: Option<&'static str>,
+    docstring_start: usize,
 }
 
-fn find_first_table_row_line(table_text: &str) -> Option<(&str, usize)> {
-    let mut offset = 0usize;
-    for line in table_text.split_inclusive('\n') {
-        let line_no_nl = line.strip_suffix('\n').unwrap_or(line);
-        let line_no_cr = line_no_nl.strip_suffix('\r').unwrap_or(line_no_nl);
-        if LineContent::new(line_no_cr).trim_start().starts_with('|') {
-            return Some((line_no_cr, offset));
-        }
-        offset = offset.saturating_add(line.len());
-    }
-    None
-}
-
-fn split_table_header_cells(line: LineContent<'_>, global_line_start: usize) -> Vec<Span> {
-    let bytes = line.as_str().as_bytes();
-    let mut pipe_positions = Vec::new();
-    for (idx, b) in bytes.iter().enumerate() {
-        if *b == b'|' {
-            pipe_positions.push(idx);
+impl DocstringState {
+    fn new() -> Self {
+        Self {
+            pending_delimiter: None,
+            docstring_start: 0,
         }
     }
-    if pipe_positions.len() < 2 {
-        return Vec::new();
-    }
-
-    let mut spans = Vec::with_capacity(pipe_positions.len().saturating_sub(1));
-    for window in pipe_positions.windows(2) {
-        let &[left, right] = window else {
-            continue;
-        };
-        if right <= left + 1 {
-            spans.push(Span {
-                start: global_line_start + right,
-                end: global_line_start + right,
-            });
-            continue;
-        }
-        let cell_start = left + 1;
-        let cell_end = right;
-        let (trimmed_start, trimmed_end) = trim_ascii_whitespace(bytes, cell_start, cell_end);
-        spans.push(Span {
-            start: global_line_start + trimmed_start,
-            end: global_line_start + trimmed_end,
-        });
-    }
-    spans
 }
 
-fn trim_ascii_whitespace(bytes: &[u8], mut start: usize, mut end: usize) -> (usize, usize) {
-    while start < end && bytes.get(start).is_some_and(|b| is_ascii_space(*b)) {
-        start = start.saturating_add(1);
-    }
-    while end > start
-        && bytes
-            .get(end.saturating_sub(1))
-            .is_some_and(|b| is_ascii_space(*b))
-    {
-        end = end.saturating_sub(1);
-    }
-    (start, end)
-}
-
-fn is_ascii_space(b: u8) -> bool {
-    matches!(b, b' ' | b'\t')
+#[derive(Debug, Clone, Copy)]
+struct LineBounds {
+    cursor: usize,
+    end: usize,
 }
 
 fn find_docstring_span(source: FeatureSource<'_>, start_from: usize) -> Option<Span> {
     let cursor = advance_to_next_line_boundary(source, start_from)?;
 
-    let mut pending_delimiter: Option<&'static str> = None;
-    let mut docstring_start = 0usize;
+    let mut state = DocstringState::new();
     let mut current_cursor = cursor;
 
     while current_cursor <= source.len() {
@@ -307,10 +294,11 @@ fn find_docstring_span(source: FeatureSource<'_>, start_from: usize) -> Option<S
 
         if let Some(span) = process_line_for_docstring(
             line_trimmed,
-            current_cursor,
-            line_end,
-            &mut pending_delimiter,
-            &mut docstring_start,
+            LineBounds {
+                cursor: current_cursor,
+                end: line_end,
+            },
+            &mut state,
         ) {
             return Some(span);
         }
@@ -349,24 +337,22 @@ fn extract_line_info(source: FeatureSource<'_>, cursor: usize) -> Option<(LineCo
 
 fn process_line_for_docstring(
     line_trimmed: LineContent<'_>,
-    cursor: usize,
-    line_end: usize,
-    pending_delimiter: &mut Option<&'static str>,
-    docstring_start: &mut usize,
+    bounds: LineBounds,
+    state: &mut DocstringState,
 ) -> Option<Span> {
-    match *pending_delimiter {
+    match state.pending_delimiter {
         None => {
             if let Some(delim) = parse_docstring_delimiter(line_trimmed) {
-                *pending_delimiter = Some(delim);
-                *docstring_start = cursor;
+                state.pending_delimiter = Some(delim);
+                state.docstring_start = bounds.cursor;
             }
             None
         }
         Some(delim) => {
             if matches_docstring_closing(line_trimmed, delim) {
                 Some(Span {
-                    start: *docstring_start,
-                    end: line_end,
+                    start: state.docstring_start,
+                    end: bounds.end,
                 })
             } else {
                 None
