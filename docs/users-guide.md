@@ -65,7 +65,7 @@ Scenarios follow the simple `Given‑When‑Then` pattern. Support for **Scenari
 Outline** is available, enabling a single scenario to run with multiple sets of
 data from an `Examples` table. A `Background` section defines steps that run
 before each `Scenario` in a feature file, enabling shared setup across
-scenarios. Advanced constructs such as data tables and Doc strings provide
+scenarios. Advanced constructs such as data tables and doc strings provide
 structured or free‑form arguments to steps.
 
 ### Example feature file
@@ -768,7 +768,7 @@ Best practices for writing effective scenarios include:
   treated as generic placeholders and capture any non-newline text using a
   non-greedy match.
 
-## Data tables and Doc strings
+## Data tables and doc strings
 
 Steps may supply structured or free-form data via a trailing argument. A data
 table is received by including a parameter annotated with `#[datatable]` or
@@ -1035,8 +1035,8 @@ fn capture_both(datatable: Vec<Vec<String>>, docstring: String) {
 
 At runtime, the generated wrapper converts the table cells or copies the block
 text and passes them to the step function. It panics if the step declares
-`datatable` or `docstring` but the feature omits the content. Doc strings may
-be delimited by triple double-quotes or triple backticks.
+`datatable` or `docstring` but the feature omits the content. These doc strings
+may be delimited by triple double-quotes or triple backticks.
 
 ## Limitations and roadmap
 
@@ -1300,7 +1300,7 @@ The initial release provides the LSP scaffolding:
 - **Workspace discovery**: Uses `cargo metadata` to locate the workspace root
   and enumerate packages.
 - **Feature indexing (on save)**: Parses saved `.feature` files using the
-  `gherkin` parser and records steps, Doc strings, data tables, and Examples
+  `gherkin` parser and records steps, doc strings, data tables, and Examples
   header columns with byte offsets. Parse failures are logged; diagnostics are
   added in later phases.
 - **Structured logging**: Configurable via environment variables; logs are

@@ -4,6 +4,15 @@ use gherkin::Span;
 
 use super::{FeatureSource, LineContent};
 
+/// Extract byte spans for each header cell in a Gherkin Examples table.
+///
+/// The upstream `gherkin` AST stores the table contents but does not provide
+/// per-cell spans. This helper scans the source text within the table span,
+/// locates the first pipe-delimited row, trims ASCII whitespace inside each
+/// cell, and returns a byte span for each header cell's content.
+///
+/// Returns `None` when the source slice cannot be accessed or when no header
+/// row can be located.
 pub(super) fn extract_header_cell_spans(
     source: FeatureSource<'_>,
     table_span: Span,

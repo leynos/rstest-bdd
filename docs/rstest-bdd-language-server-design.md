@@ -715,8 +715,8 @@ expose spans for DocString blocks or per-cell Examples table header cell
 offsets, so the server derives those byte offsets by scanning the raw feature
 text:
 
-- DocString: locate the opening fence line (triple quotes or triple backticks),
-  then capture the block through the closing fence line.
+- DocString: locate the opening fence line (triple quotes or triple
+  backticks), then capture the block through the closing fence line.
 - Examples table header cells: the server parses the first table-row line
   inside the Examples block and computes spans for each header cell from the
   text between pipe separators.
