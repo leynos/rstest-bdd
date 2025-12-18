@@ -1,0 +1,385 @@
+//! Gherkin `.feature` file indexing support.
+
+use std::borrow::Cow;
+use std::ops::Range;
+use std::path::{Path, PathBuf};
+
+use gherkin::{GherkinEnv, Span};
+
+use super::{
+    FeatureFileIndex, FeatureIndexError, IndexedDocstring, IndexedExampleColumn, IndexedStep,
+    IndexedTable,
+};
+
+mod table;
+
+use table::extract_header_cell_spans;
+
+#[derive(Clone, Copy, Debug)]
+struct FeatureSource<'a>(&'a str);
+
+impl<'a> FeatureSource<'a> {
+    fn new(source: &'a str) -> Self {
+        Self(source)
+    }
+
+    fn as_str(&self) -> &'a str {
+        self.0
+    }
+
+    fn get(&self, range: Range<usize>) -> Option<&'a str> {
+        self.0.get(range)
+    }
+
+    fn len(&self) -> usize {
+        self.0.len()
+    }
+}
+
+impl AsRef<str> for FeatureSource<'_> {
+    fn as_ref(&self) -> &str {
+        self.0
+    }
+}
+
+impl<'a> From<&'a str> for FeatureSource<'a> {
+    fn from(source: &'a str) -> Self {
+        Self::new(source)
+    }
+}
+
+#[derive(Clone, Copy, Debug)]
+struct LineContent<'a>(&'a str);
+
+impl<'a> LineContent<'a> {
+    fn new(line: &'a str) -> Self {
+        Self(line)
+    }
+
+    fn as_str(&self) -> &'a str {
+        self.0
+    }
+
+    fn trim_start(&self) -> &'a str {
+        self.0.trim_start()
+    }
+}
+
+impl AsRef<str> for LineContent<'_> {
+    fn as_ref(&self) -> &str {
+        self.0
+    }
+}
+
+/// Parse and index a `.feature` file from disk.
+///
+/// The returned index uses byte offsets within the (normalised) feature text,
+/// matching the behaviour of `gherkin` which appends a trailing newline when
+/// missing.
+///
+/// # Errors
+///
+/// Returns an error when the feature file cannot be read or when it cannot be
+/// parsed as valid Gherkin.
+///
+/// # Examples
+///
+/// ```rust,no_run
+/// use rstest_bdd_server::indexing::{index_feature_file, FeatureIndexError};
+///
+/// # fn main() -> Result<(), FeatureIndexError> {
+/// let path = std::env::temp_dir().join("rstest-bdd-index-demo.feature");
+/// std::fs::write(
+///     &path,
+///     "Feature: demo\n  Scenario: s\n    Given a message\n",
+/// )
+/// .expect("feature file write should succeed");
+///
+/// let index = index_feature_file(&path)?;
+/// assert_eq!(index.steps.len(), 1);
+/// # std::fs::remove_file(path).ok();
+/// # Ok(())
+/// # }
+/// ```
+pub fn index_feature_file(path: &Path) -> Result<FeatureFileIndex, FeatureIndexError> {
+    let mut text = std::fs::read_to_string(path)?;
+    normalise_trailing_newline(&mut text);
+    index_feature_text(path.to_path_buf(), FeatureSource::new(&text))
+}
+
+/// Parse and index a `.feature` file from source text.
+///
+/// This is primarily intended for language-server integrations that receive
+/// the saved document contents from the client and want to avoid a race with
+/// filesystem writes.
+///
+/// # Errors
+///
+/// Returns an error when the feature text cannot be parsed as valid Gherkin.
+///
+/// # Examples
+///
+/// ```rust,no_run
+/// use std::path::PathBuf;
+///
+/// use rstest_bdd_server::indexing::{index_feature_source, FeatureIndexError};
+///
+/// # fn main() -> Result<(), FeatureIndexError> {
+/// let feature = "Feature: demo\n  Scenario: s\n    Given a message\n";
+/// let index = index_feature_source(PathBuf::from("demo.feature"), feature)?;
+/// assert_eq!(index.steps.len(), 1);
+/// # Ok(())
+/// # }
+/// ```
+pub fn index_feature_source(
+    path: PathBuf,
+    source: &str,
+) -> Result<FeatureFileIndex, FeatureIndexError> {
+    let source = normalise_source_text(source);
+    index_feature_text(path, FeatureSource::new(source.as_ref()))
+}
+
+fn index_feature_text(
+    path: PathBuf,
+    source: FeatureSource<'_>,
+) -> Result<FeatureFileIndex, FeatureIndexError> {
+    let feature = gherkin::Feature::parse(source.as_str(), GherkinEnv::default())?;
+
+    let mut steps = Vec::new();
+    if let Some(background) = feature.background.as_ref() {
+        steps.extend(index_steps_for_container(source, &background.steps)?);
+    }
+
+    for scenario in &feature.scenarios {
+        steps.extend(index_steps_for_container(source, &scenario.steps)?);
+    }
+
+    for rule in &feature.rules {
+        if let Some(background) = rule.background.as_ref() {
+            steps.extend(index_steps_for_container(source, &background.steps)?);
+        }
+        for scenario in &rule.scenarios {
+            steps.extend(index_steps_for_container(source, &scenario.steps)?);
+        }
+    }
+
+    let example_columns = extract_example_columns(source, &feature);
+
+    Ok(FeatureFileIndex {
+        path,
+        steps,
+        example_columns,
+    })
+}
+
+fn normalise_trailing_newline(text: &mut String) {
+    if !text.ends_with('\n') {
+        text.push('\n');
+    }
+}
+
+fn normalise_source_text(source: &str) -> Cow<'_, str> {
+    if source.ends_with('\n') {
+        return Cow::Borrowed(source);
+    }
+    Cow::Owned(format!("{source}\n"))
+}
+
+fn index_steps_for_container(
+    source: FeatureSource<'_>,
+    steps: &[gherkin::Step],
+) -> Result<Vec<IndexedStep>, FeatureIndexError> {
+    let mut indexed = Vec::with_capacity(steps.len());
+    for step in steps {
+        let table = step.table.as_ref().map(|t| IndexedTable {
+            rows: t.rows.clone(),
+            span: t.span,
+        });
+
+        let docstring = match step.docstring.as_ref() {
+            Some(value) => {
+                let start_from = table.as_ref().map_or(step.span.end, |table| table.span.end);
+                let span = find_docstring_span(source, start_from)
+                    .ok_or(FeatureIndexError::DocstringSpanNotFound(step.span))?;
+                Some(IndexedDocstring {
+                    value: value.clone(),
+                    span,
+                })
+            }
+            None => None,
+        };
+
+        indexed.push(IndexedStep {
+            keyword: step.keyword.clone(),
+            step_type: step.ty,
+            text: step.value.clone(),
+            span: step.span,
+            docstring,
+            table,
+        });
+    }
+    Ok(indexed)
+}
+
+fn extract_example_columns(
+    source: FeatureSource<'_>,
+    feature: &gherkin::Feature,
+) -> Vec<IndexedExampleColumn> {
+    let mut columns = Vec::new();
+    for scenario in &feature.scenarios {
+        collect_example_columns_for_scenario(source, &scenario.examples, &mut columns);
+    }
+    for rule in &feature.rules {
+        for scenario in &rule.scenarios {
+            collect_example_columns_for_scenario(source, &scenario.examples, &mut columns);
+        }
+    }
+    columns
+}
+
+fn collect_example_columns_for_scenario(
+    source: FeatureSource<'_>,
+    examples: &[gherkin::Examples],
+    columns: &mut Vec<IndexedExampleColumn>,
+) {
+    for ex in examples {
+        let Some(table) = ex.table.as_ref() else {
+            continue;
+        };
+        let Some(header_spans) = extract_header_cell_spans(source, table.span) else {
+            continue;
+        };
+        let Some(header_row) = table.rows.first() else {
+            continue;
+        };
+        if header_row.len() != header_spans.len() {
+            continue;
+        }
+        for (name, span) in header_row.iter().cloned().zip(header_spans.into_iter()) {
+            columns.push(IndexedExampleColumn { name, span });
+        }
+    }
+}
+
+/// Tracks the state whilst scanning for docstring delimiters.
+#[derive(Debug)]
+struct DocstringState {
+    pending_delimiter: Option<&'static str>,
+    docstring_start: usize,
+}
+
+impl DocstringState {
+    fn new() -> Self {
+        Self {
+            pending_delimiter: None,
+            docstring_start: 0,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+struct LineBounds {
+    cursor: usize,
+    end: usize,
+}
+
+fn find_docstring_span(source: FeatureSource<'_>, start_from: usize) -> Option<Span> {
+    let cursor = advance_to_next_line_boundary(source, start_from)?;
+
+    let mut state = DocstringState::new();
+    let mut current_cursor = cursor;
+
+    while current_cursor <= source.len() {
+        let (line_trimmed, line_end) = extract_line_info(source, current_cursor)?;
+
+        if let Some(span) = process_line_for_docstring(
+            line_trimmed,
+            LineBounds {
+                cursor: current_cursor,
+                end: line_end,
+            },
+            &mut state,
+        ) {
+            return Some(span);
+        }
+
+        if line_end == source.len() {
+            break;
+        }
+        current_cursor = line_end.saturating_add(1);
+    }
+    None
+}
+
+fn advance_to_next_line_boundary(source: FeatureSource<'_>, start_from: usize) -> Option<usize> {
+    if start_from > source.len() {
+        return None;
+    }
+    let mut cursor = start_from.min(source.len());
+    if let Some(next_newline) = source
+        .get(cursor..source.len())
+        .and_then(|tail| tail.find('\n'))
+    {
+        cursor = cursor.saturating_add(next_newline).saturating_add(1);
+    }
+    Some(cursor)
+}
+
+fn extract_line_info(source: FeatureSource<'_>, cursor: usize) -> Option<(LineContent<'_>, usize)> {
+    let tail = source.get(cursor..source.len())?;
+    let line_end = tail
+        .find('\n')
+        .map_or(source.len(), |idx| cursor.saturating_add(idx));
+    let line = source.get(cursor..line_end)?;
+    let line_trimmed = LineContent::new(line.trim_start());
+    Some((line_trimmed, line_end))
+}
+
+fn process_line_for_docstring(
+    line_trimmed: LineContent<'_>,
+    bounds: LineBounds,
+    state: &mut DocstringState,
+) -> Option<Span> {
+    match state.pending_delimiter {
+        None => {
+            if let Some(delim) = parse_docstring_delimiter(line_trimmed) {
+                state.pending_delimiter = Some(delim);
+                state.docstring_start = bounds.cursor;
+            }
+            None
+        }
+        Some(delim) => {
+            if matches_docstring_closing(line_trimmed, delim) {
+                Some(Span {
+                    start: state.docstring_start,
+                    end: bounds.end,
+                })
+            } else {
+                None
+            }
+        }
+    }
+}
+
+fn parse_docstring_delimiter(line_trimmed: LineContent<'_>) -> Option<&'static str> {
+    if line_trimmed.as_str().starts_with("\"\"\"") {
+        return Some("\"\"\"");
+    }
+    if line_trimmed.as_str().starts_with("```") {
+        return Some("```");
+    }
+    None
+}
+
+fn matches_docstring_closing(line_trimmed: LineContent<'_>, delim: &'static str) -> bool {
+    if !line_trimmed.as_str().starts_with(delim) {
+        return false;
+    }
+    line_trimmed
+        .as_str()
+        .strip_prefix(delim)
+        .is_some_and(|rest| rest.trim().is_empty())
+}
+
+#[cfg(test)]
+mod tests;

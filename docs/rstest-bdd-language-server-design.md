@@ -690,16 +690,36 @@ The initial implementation delivers the foundational server infrastructure:
 
 **Capabilities declared:**
 
-The server currently advertises no specific capabilities beyond basic lifecycle
-support. Future phases will add `textDocumentSync`, `definitionProvider`, and
-`implementationProvider` as features are implemented.
+The server advertises `textDocumentSync` so it can receive save notifications
+and keep an internal index of `.feature` files up to date. Future phases will
+add `definitionProvider` and `implementationProvider` as navigation features
+are implemented.
 
 **Testing:**
 
 - Unit tests cover configuration parsing, error formatting, workspace
   discovery, and lifecycle handlers
+- Unit tests cover the `.feature` indexing pipeline, ensuring steps,
+  DocString, data tables, and Examples table header cell offsets are captured
+  as byte offsets
+- Behavioural tests cover the `textDocument/didSave` workflow, validating that
+  saving a `.feature` file updates the in-memory index
 - Tests use temporary directories and fixture workspaces to validate discovery
   logic
+
+**Index spans and offsets:**
+
+The indexing pipeline uses `gherkin::Span` as the canonical byte offset model
+for step lines and data tables. The upstream `gherkin` AST does not currently
+expose spans for DocString blocks or per-cell Examples table header cell
+offsets, so the server derives those byte offsets by scanning the raw feature
+text:
+
+- DocString: locate the opening fence line (triple quotes or triple
+  backticks), then capture the block through the closing fence line.
+- Examples table header cells: the server parses the first table-row line
+  inside the Examples block and computes spans for each header cell from the
+  text between pipe separators.
 
 ### Next phases
 
