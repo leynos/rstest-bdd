@@ -11,7 +11,7 @@ use lsp_types::{TextDocumentSyncCapability, TextDocumentSyncKind, TextDocumentSy
 
 use crate::config::ServerConfig;
 use crate::discovery::WorkspaceInfo;
-use crate::indexing::FeatureFileIndex;
+use crate::indexing::{FeatureFileIndex, RustStepFileIndex};
 
 /// Central state shared across all LSP handlers.
 ///
@@ -32,6 +32,8 @@ pub struct ServerState {
     config: ServerConfig,
     /// Indexed `.feature` files keyed by absolute path.
     feature_indices: HashMap<std::path::PathBuf, FeatureFileIndex>,
+    /// Indexed Rust step definition files keyed by absolute path.
+    rust_step_indices: HashMap<std::path::PathBuf, RustStepFileIndex>,
 }
 
 impl ServerState {
@@ -56,6 +58,7 @@ impl ServerState {
             initialised: false,
             config,
             feature_indices: HashMap::new(),
+            rust_step_indices: HashMap::new(),
         }
     }
 
@@ -119,6 +122,17 @@ impl ServerState {
     pub fn feature_index(&self, path: &Path) -> Option<&FeatureFileIndex> {
         self.feature_indices.get(path)
     }
+
+    /// Insert or update the cached index for a Rust source file.
+    pub fn upsert_rust_step_index(&mut self, index: RustStepFileIndex) {
+        self.rust_step_indices.insert(index.path.clone(), index);
+    }
+
+    /// Retrieve the cached index for a Rust source file, if present.
+    #[must_use]
+    pub fn rust_step_index(&self, path: &Path) -> Option<&RustStepFileIndex> {
+        self.rust_step_indices.get(path)
+    }
 }
 
 /// Build the server capabilities to advertise to the client.
@@ -157,6 +171,8 @@ mod tests {
         assert!(state.client_capabilities().is_none());
         assert!(state.workspace_info().is_none());
         assert!(state.workspace_folders().is_empty());
+        assert!(state.feature_indices.is_empty());
+        assert!(state.rust_step_indices.is_empty());
     }
 
     #[test]

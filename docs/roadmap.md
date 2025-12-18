@@ -403,7 +403,7 @@ scope until the core workflow is stable.
   - [x] Parse `.feature` files with `gherkin` on save to capture steps,
     doc strings, tables, example columns, and byte offsets.
 
-  - [ ] Parse Rust files with `syn` to collect `#[given]`, `#[when]`, and
+  - [x] Parse Rust files with `syn` to collect `#[given]`, `#[when]`, and
     `#[then]` functions, including pattern strings, keyword, parameter list,
     and expectations for tables or doc strings.
 

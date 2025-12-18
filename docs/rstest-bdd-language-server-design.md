@@ -321,6 +321,27 @@ coupled to Rust Analyzer.
   count, whether it expects a data table or docstring, etc.) to assist in
   diagnostics.
 
+#### Step extraction semantics (implemented)
+
+The first implementation indexes Rust step definitions by parsing saved `.rs`
+files with `syn` and extracting free functions annotated with `#[given]`,
+`#[when]`, or `#[then]`. The extractor intentionally mirrors the macro rules
+documented in `docs/rstest-bdd-design.md`:
+
+- Attribute identification matches the last segment of the attribute path, so
+  both `#[when]` and `#[rstest_bdd_macros::when]` are recognised.
+- The pattern string is taken from the attribute argument when present.
+  Omitting the argument (for example `#[when]` or `#[when()]`) infers the
+  pattern by replacing underscores in the function name with spaces. A
+  whitespace-only literal (for example `#[when("   ")]`) also infers, while an
+  empty string literal (`#[when("")]`) registers an empty pattern.
+- The index records the function parameter list (names and tokenised types),
+  plus whether the function expects a data table or doc string:
+  - `datatable`: detected when the parameter is named `datatable` or has a
+    `#[datatable]` parameter attribute.
+  - `docstring`: detected when the parameter is named `docstring` and its type
+    resolves to `String` (either `String` or `std::string::String`).
+
 **Project Structure:** The `rstest-bdd-server` crate will live in the same
 workspace as `rstest-bdd`. It can depend on `rstest-bdd` or its sub-crates
 (`rstest-bdd-patterns`, etc.) to reuse logic. For example, the server will use
