@@ -1,6 +1,7 @@
 //! Tests for Rust step definition indexing.
 
 use super::*;
+use rstest::rstest;
 
 #[expect(
     clippy::expect_used,
@@ -189,51 +190,50 @@ fn returns_error_when_multiple_step_attributes_present() {
     }
 }
 
-#[expect(
-    clippy::expect_used,
-    reason = "tests use explicit failures for clarity"
+#[rstest]
+#[case(
+    concat!(
+        "use rstest_bdd_macros::given;\n",
+        "\n",
+        "#[given(123)]\n",
+        "fn invalid_args() {}\n",
+    ),
+    "invalid_args"
 )]
-#[test]
-fn returns_error_when_step_attribute_arguments_are_invalid() {
-    let cases = [
-        (
-            concat!(
-                "use rstest_bdd_macros::given;\n",
-                "\n",
-                "#[given(123)]\n",
-                "fn invalid_args() {}\n",
-            ),
-            "invalid_args",
+#[case(
+    concat!(
+        "use rstest_bdd_macros::given;\n",
+        "\n",
+        "#[given(foo = 42)]\n",
+        "fn invalid_named_args() {}\n",
+    ),
+    "invalid_named_args"
+)]
+fn returns_error_when_step_attribute_arguments_are_invalid(
+    #[case] source: &'static str,
+    #[case] expected_function: &'static str,
+) {
+    let err = match index_rust_source(PathBuf::from("steps.rs"), source) {
+        Ok(index) => panic!(
+            "expected indexing to fail, but got {} step definitions",
+            index.step_definitions.len()
         ),
-        (
-            concat!(
-                "use rstest_bdd_macros::given;\n",
-                "\n",
-                "#[given(foo = 42)]\n",
-                "fn invalid_named_args() {}\n",
-            ),
-            "invalid_named_args",
-        ),
-    ];
+        Err(err) => err,
+    };
 
-    for (source, function) in cases {
-        let err = index_rust_source(PathBuf::from("steps.rs"), source)
-            .expect_err("expected indexing to fail");
-
-        match err {
-            RustStepIndexError::InvalidStepAttributeArguments {
-                function: err_function,
-                attribute,
-                message,
-            } => {
-                assert_eq!(err_function, function);
-                assert_eq!(attribute, "given");
-                assert!(
-                    !message.trim().is_empty(),
-                    "expected an explanatory error message"
-                );
-            }
-            other => panic!("unexpected error: {other:?}"),
+    match err {
+        RustStepIndexError::InvalidStepAttributeArguments {
+            function,
+            attribute,
+            message,
+        } => {
+            assert_eq!(function, expected_function);
+            assert_eq!(attribute, "given");
+            assert!(
+                !message.trim().is_empty(),
+                "expected an explanatory error message"
+            );
         }
+        other => panic!("unexpected error: {other:?}"),
     }
 }

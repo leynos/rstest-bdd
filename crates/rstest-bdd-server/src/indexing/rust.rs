@@ -144,6 +144,7 @@ fn index_step_function(
 
         step_attribute = Some(StepAttribute {
             keyword: attr_keyword.step_type,
+            attribute: attr_keyword.name,
             attr,
         });
     }
@@ -152,7 +153,11 @@ fn index_step_function(
         return Ok(None);
     };
 
-    let (pattern, pattern_inferred) = parse_step_pattern(step_attribute.attr, &item_fn.sig.ident)?;
+    let (pattern, pattern_inferred) = parse_step_pattern(
+        step_attribute.attr,
+        &item_fn.sig.ident,
+        step_attribute.attribute,
+    )?;
 
     let mut parameters = Vec::new();
     for input in &item_fn.sig.inputs {
@@ -221,14 +226,15 @@ fn step_attribute_keyword(attr: &syn::Attribute) -> Option<AttributeKeyword> {
 
 struct StepAttribute<'a> {
     keyword: StepType,
+    attribute: &'static str,
     attr: &'a syn::Attribute,
 }
 
 fn parse_step_pattern(
     attr: &syn::Attribute,
     function_ident: &syn::Ident,
+    attribute: &'static str,
 ) -> Result<(String, bool), RustStepIndexError> {
-    let attribute = step_attribute_keyword(attr).map_or("step", |kw| kw.name);
     match &attr.meta {
         syn::Meta::Path(_) => Ok((infer_pattern(function_ident), true)),
         syn::Meta::List(meta_list) => {
