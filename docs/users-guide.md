@@ -28,9 +28,9 @@ Each `Cargo.toml` declares `rust-version = "1.85"`, so `cargo` will refuse to
 compile the project on older compilers. The workspace uses the Rust 2024
 edition.
 
-The `rstest-bdd` crate currently requires the Rust nightly compiler because it
-relies on auto traits and negative impls to normalise step return values. The
-repository pins a nightly toolchain for development via `rust-toolchain.toml`.
+`rstest-bdd` builds on stable Rust. The repository pins a stable toolchain for
+development via `rust-toolchain.toml` so contributors get consistent `rustfmt`
+and `clippy` behaviour.
 
 Step definitions and writers remain synchronous functions; the framework no
 longer depends on the `async-trait` crate to express async methods in traits.
@@ -288,7 +288,18 @@ missing matches leave fixtures untouched, keeping scenarios predictable while
 still allowing a functional style without mutable fixtures.
 
 Steps may also return `Result<T, E>`. An `Err` aborts the scenario, while an
-`Ok` value is injected as above. Type aliases to `Result` behave identically.
+`Ok` value is injected as above.
+
+The step macros recognise these `Result` shapes during expansion:
+
+- `Result<..>`, `std::result::Result<..>`, and `core::result::Result<..>`
+- `rstest_bdd::StepResult<..>` (an alias provided by the runtime crate)
+
+When inference cannot determine whether a return type is a `Result` (for
+example, a type alias from another crate), add an explicit return-kind hint:
+`#[when("...", result)]` / `#[when("...", value)]` (or `#[when(result)]` /
+`#[when(value)]` when using the inferred pattern).
+
 Returning `()` or `Ok(())` produces no stored value, so fixtures of `()` are
 not overwritten.
 

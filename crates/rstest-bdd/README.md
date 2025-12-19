@@ -125,13 +125,13 @@ async fn test_simple_search(#[future] browser: WebDriver) {
     // Optional: final assertions / cleanup that aren't natural Gherkin steps.
 }
 
-#[given("the DuckDuckGo home page is displayed")]
+#[given("the DuckDuckGo home page is displayed", result)]
 async fn go_to_home(browser: &mut WebDriver) -> WebDriverResult<()> {
     browser.goto("https://duckduckgo.com/").await?;
     Ok(())
 }
 
-#[when("I search for \"(.*)\"")]
+#[when("I search for \"(.*)\"", result)]
 async fn search_for_phrase(browser: &mut WebDriver, phrase: String) -> WebDriverResult<()> {
     let form = browser.find(By::Id("search_form_input_homepage")).await?;
     form.send_keys(&phrase).await?;
@@ -139,13 +139,13 @@ async fn search_for_phrase(browser: &mut WebDriver, phrase: String) -> WebDriver
     Ok(())
 }
 
-#[then("the search results page is displayed")]
+#[then("the search results page is displayed", result)]
 async fn results_page_is_displayed(browser: &mut WebDriver) -> WebDriverResult<()> {
     browser.find(By::Id("links")).await?;
     Ok(())
 }
 
-#[then("the results contain \"(.*)\"")]
+#[then("the results contain \"(.*)\"", result)]
 async fn results_contain_text(browser: &mut WebDriver, text: String) -> WebDriverResult<()> {
     let content = browser.source().await?;
     if content.contains(&text) { Ok(()) }

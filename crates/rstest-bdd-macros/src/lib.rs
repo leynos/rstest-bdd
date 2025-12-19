@@ -14,6 +14,7 @@ mod datatable;
 mod macros;
 mod parsing;
 mod pattern;
+mod return_classifier;
 mod scenario_state;
 mod step_args;
 mod step_keyword;
