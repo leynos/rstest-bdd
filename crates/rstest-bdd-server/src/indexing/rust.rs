@@ -31,6 +31,29 @@ use super::{
 /// # Errors
 ///
 /// Returns an error when the file cannot be read or parsed as Rust source.
+///
+/// # Examples
+///
+/// ```
+/// use rstest_bdd_server::indexing::index_rust_file;
+///
+/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+/// let path = std::env::temp_dir().join(format!(
+///     "rstest-bdd-server-index-rust-file-{}-{}.rs",
+///     std::process::id(),
+///     std::time::SystemTime::now()
+///         .duration_since(std::time::UNIX_EPOCH)?
+///         .as_nanos(),
+/// ));
+/// std::fs::write(&path, "#[given(\"a message\")]\nfn a_message() {}\n")?;
+///
+/// let index = index_rust_file(&path)?;
+/// assert_eq!(index.path, path);
+///
+/// # std::fs::remove_file(&index.path).ok();
+/// # Ok(())
+/// # }
+/// ```
 pub fn index_rust_file(path: &Path) -> Result<RustStepFileIndex, RustStepIndexError> {
     let source = std::fs::read_to_string(path)?;
     index_rust_source(path.to_path_buf(), &source)
@@ -44,6 +67,24 @@ pub fn index_rust_file(path: &Path) -> Result<RustStepFileIndex, RustStepIndexEr
 /// # Errors
 ///
 /// Returns an error when the source cannot be parsed by `syn`.
+///
+/// # Examples
+///
+/// ```
+/// use std::path::PathBuf;
+///
+/// use rstest_bdd_server::indexing::index_rust_source;
+///
+/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+/// let source = "#[when]\nfn do_the_thing() {}\n";
+/// let index = index_rust_source(PathBuf::from("steps.rs"), source)?;
+/// assert_eq!(index.step_definitions.len(), 1);
+///
+/// let step = index.step_definitions.first().expect("indexed step");
+/// assert_eq!(step.pattern, "do the thing");
+/// # Ok(())
+/// # }
+/// ```
 pub fn index_rust_source(
     path: PathBuf,
     source: &str,

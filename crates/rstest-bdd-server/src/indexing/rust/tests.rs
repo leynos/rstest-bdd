@@ -163,3 +163,77 @@ fn preserves_module_path_for_nested_definitions() {
     );
     assert_eq!(step.function.name, "nested_step");
 }
+
+#[expect(
+    clippy::expect_used,
+    reason = "tests use explicit failures for clarity"
+)]
+#[test]
+fn returns_error_when_multiple_step_attributes_present() {
+    let source = concat!(
+        "use rstest_bdd_macros::{given, when};\n",
+        "\n",
+        "#[given(\"a\")]\n",
+        "#[when(\"b\")]\n",
+        "fn conflicting_step() {}\n",
+    );
+
+    let err = index_rust_source(PathBuf::from("steps.rs"), source)
+        .expect_err("expected indexing to fail");
+
+    match err {
+        RustStepIndexError::MultipleStepAttributes { function } => {
+            assert_eq!(function, "conflicting_step");
+        }
+        other => panic!("unexpected error: {other:?}"),
+    }
+}
+
+#[expect(
+    clippy::expect_used,
+    reason = "tests use explicit failures for clarity"
+)]
+#[test]
+fn returns_error_when_step_attribute_arguments_are_invalid() {
+    let cases = [
+        (
+            concat!(
+                "use rstest_bdd_macros::given;\n",
+                "\n",
+                "#[given(123)]\n",
+                "fn invalid_args() {}\n",
+            ),
+            "invalid_args",
+        ),
+        (
+            concat!(
+                "use rstest_bdd_macros::given;\n",
+                "\n",
+                "#[given(foo = 42)]\n",
+                "fn invalid_named_args() {}\n",
+            ),
+            "invalid_named_args",
+        ),
+    ];
+
+    for (source, function) in cases {
+        let err = index_rust_source(PathBuf::from("steps.rs"), source)
+            .expect_err("expected indexing to fail");
+
+        match err {
+            RustStepIndexError::InvalidStepAttributeArguments {
+                function: err_function,
+                attribute,
+                message,
+            } => {
+                assert_eq!(err_function, function);
+                assert_eq!(attribute, "given");
+                assert!(
+                    !message.trim().is_empty(),
+                    "expected an explanatory error message"
+                );
+            }
+            other => panic!("unexpected error: {other:?}"),
+        }
+    }
+}

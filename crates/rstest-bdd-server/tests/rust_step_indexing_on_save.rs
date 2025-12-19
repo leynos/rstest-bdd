@@ -46,3 +46,51 @@ fn did_save_indexes_rust_step_files_and_caches_result() {
     assert!(inferred.pattern_inferred);
     assert_eq!(inferred.pattern, "I do the thing");
 }
+
+#[expect(clippy::expect_used, reason = "behavioural tests use explicit panics")]
+#[test]
+fn did_save_prefers_provided_text_over_filesystem_contents() {
+    let dir = TempDir::new().expect("temp dir");
+    let path = dir.path().join("steps.rs");
+    std::fs::write(
+        &path,
+        concat!(
+            "use rstest_bdd_macros::given;\n",
+            "\n",
+            "#[given(\"disk pattern\")]\n",
+            "fn a_message() {}\n",
+        ),
+    )
+    .expect("write rust source file");
+
+    let provided_text = concat!(
+        "use rstest_bdd_macros::{given, when};\n",
+        "\n",
+        "#[given(\"provided pattern\")]\n",
+        "fn a_message() {}\n",
+        "\n",
+        "#[when]\n",
+        "fn I_do_the_thing() {}\n",
+    )
+    .to_string();
+
+    let uri = Url::from_file_path(&path).expect("file URI");
+    let params = DidSaveTextDocumentParams {
+        text_document: TextDocumentIdentifier { uri },
+        text: Some(provided_text),
+    };
+
+    let mut state = ServerState::new(ServerConfig::default());
+    handle_did_save_text_document(&mut state, params);
+
+    let index = state
+        .rust_step_index(&path)
+        .expect("rust step index cached");
+    assert_eq!(index.step_definitions.len(), 2);
+    let a_message = index
+        .step_definitions
+        .iter()
+        .find(|step| step.function.name == "a_message")
+        .expect("expected a_message step");
+    assert_eq!(a_message.pattern, "provided pattern");
+}
