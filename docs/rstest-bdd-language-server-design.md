@@ -342,6 +342,72 @@ documented in `docs/rstest-bdd-design.md`:
   - `docstring`: detected when the parameter is named `docstring` and its type
     resolves to `String` (either `String` or `std::string::String`).
 
+Figure: Class diagram of the Rust step indexing data structures and how they
+are cached in the language server state.
+
+```mermaid
+classDiagram
+    class RustStepFileIndex {
+        +PathBuf path
+        +Vec~IndexedStepDefinition~ step_definitions
+    }
+
+    class IndexedStepDefinition {
+        +StepType keyword
+        +String pattern
+        +bool pattern_inferred
+        +RustFunctionId function
+        +Vec~IndexedStepParameter~ parameters
+        +bool expects_table
+        +bool expects_docstring
+    }
+
+    class RustFunctionId {
+        +Vec~String~ module_path
+        +String name
+    }
+
+    class IndexedStepParameter {
+        +Option~String~ name
+        +String ty
+        +bool is_datatable
+        +bool is_docstring
+    }
+
+    class RustStepIndexError {
+        <<enum>>
+        +Read(std_io_Error)
+        +Parse(syn_Error)
+        +MultipleStepAttributes_function_String
+        +InvalidStepAttributeArguments_function_String
+        +InvalidStepAttributeArguments_attribute_static_str
+        +InvalidStepAttributeArguments_message_String
+    }
+
+    class ServerState {
+        -HashMap~PathBuf,FeatureFileIndex~ feature_indices
+        -HashMap~PathBuf,RustStepFileIndex~ rust_step_indices
+        +upsert_rust_step_index(index RustStepFileIndex) void
+        +rust_step_index(path Path) Option~&RustStepFileIndex~
+        +feature_index(path Path) Option~&FeatureFileIndex~
+    }
+
+    class RustIndexingModule {
+        +index_rust_file(path Path) Result~RustStepFileIndex,RustStepIndexError~
+        +index_rust_source(path PathBuf, source &str) Result~RustStepFileIndex,RustStepIndexError~
+    }
+
+    RustStepFileIndex "1" o-- "*" IndexedStepDefinition : contains
+    IndexedStepDefinition "1" o-- "1" RustFunctionId : function
+    IndexedStepDefinition "1" o-- "*" IndexedStepParameter : parameters
+    ServerState "1" o-- "*" RustStepFileIndex : rust_step_indices
+    ServerState "1" o-- "*" FeatureFileIndex : feature_indices
+    RustIndexingModule ..> RustStepFileIndex : creates
+    RustIndexingModule ..> RustStepIndexError : returns
+    RustIndexingModule ..> IndexedStepDefinition : builds
+    RustIndexingModule ..> IndexedStepParameter : builds
+```
+
 **Project Structure:** The `rstest-bdd-server` crate will live in the same
 workspace as `rstest-bdd`. It can depend on `rstest-bdd` or its sub-crates
 (`rstest-bdd-patterns`, etc.) to reuse logic. For example, the server will use
