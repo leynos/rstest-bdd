@@ -3,6 +3,7 @@
 use proc_macro::TokenStream;
 use quote::quote;
 use syn::parse_quote;
+use syn::parse::{Parse, ParseStream};
 
 mod given;
 mod scenario;
@@ -17,28 +18,91 @@ pub(crate) use then::then;
 pub(crate) use when::when;
 
 use crate::codegen::wrapper::{WrapperConfig, extract_args, generate_wrapper_code};
+use crate::return_classifier::{ReturnKind, ReturnOverride, classify_return_type};
 use crate::utils::{
     errors::error_to_tokens,
     pattern::{infer_pattern, placeholder_names},
 };
 
+struct StepAttrArgs {
+    pattern: Option<syn::LitStr>,
+    return_override: Option<ReturnOverride>,
+}
+
+impl Parse for StepAttrArgs {
+    fn parse(input: ParseStream<'_>) -> syn::Result<Self> {
+        if input.is_empty() {
+            return Ok(Self {
+                pattern: None,
+                return_override: None,
+            });
+        }
+
+        if input.peek(syn::LitStr) {
+            let pattern: syn::LitStr = input.parse()?;
+            let return_override = if input.is_empty() {
+                None
+            } else {
+                input.parse::<syn::Token![,]>()?;
+                Some(parse_return_override(input)?)
+            };
+            if !input.is_empty() {
+                return Err(input.error("unexpected tokens in step attribute"));
+            }
+            return Ok(Self {
+                pattern: Some(pattern),
+                return_override,
+            });
+        }
+
+        let return_override = Some(parse_return_override(input)?);
+        if !input.is_empty() {
+            return Err(input.error("unexpected tokens in step attribute"));
+        }
+        Ok(Self {
+            pattern: None,
+            return_override,
+        })
+    }
+}
+
+fn parse_return_override(input: ParseStream<'_>) -> syn::Result<ReturnOverride> {
+    let ident: syn::Ident = input.parse()?;
+    match ident.to_string().as_str() {
+        "result" => Ok(ReturnOverride::Result),
+        "value" => Ok(ReturnOverride::Value),
+        _ => Err(syn::Error::new_spanned(
+            ident,
+            "expected `result` or `value`",
+        )),
+    }
+}
+
 fn step_attr(attr: TokenStream, item: TokenStream, keyword: crate::StepKeyword) -> TokenStream {
     let mut func = syn::parse_macro_input!(item as syn::ItemFn);
     inject_skip_scope(&mut func);
+    let attr_args = if attr.is_empty() {
+        StepAttrArgs {
+            pattern: None,
+            return_override: None,
+        }
+    } else {
+        syn::parse_macro_input!(attr as StepAttrArgs)
+    };
     // TokenStream discards comments; a missing attribute or one containing only
     // whitespace infers the pattern from the function name. An explicit empty
     // string literal registers an empty pattern.
-    let pattern = if attr.is_empty() {
-        infer_pattern(&func.sig.ident)
-    } else {
-        let lit = syn::parse_macro_input!(attr as syn::LitStr);
-        let value = lit.value();
-        if value.is_empty() {
-            lit
-        } else if value.trim().is_empty() {
-            infer_pattern(&func.sig.ident)
-        } else {
-            lit
+    let pattern = match attr_args.pattern {
+        None => infer_pattern(&func.sig.ident),
+        Some(lit) => {
+            let value = lit.value();
+            if value.is_empty() {
+                lit
+            } else if value.trim().is_empty() {
+                infer_pattern(&func.sig.ident)
+            } else {
+                lit
+            }
         }
     };
     #[cfg(feature = "compile-time-validation")]
@@ -77,6 +141,10 @@ fn step_attr(attr: TokenStream, item: TokenStream, keyword: crate::StepKeyword) 
         .map(|name| syn::LitStr::new(name, pattern.span()))
         .collect();
     let capture_count = placeholder_literals.len();
+    let return_kind = match classify_return_type(&func.sig.output, attr_args.return_override) {
+        Ok(kind) => kind,
+        Err(err) => return error_to_tokens(&err).into(),
+    };
 
     let config = WrapperConfig {
         ident,
@@ -85,6 +153,7 @@ fn step_attr(attr: TokenStream, item: TokenStream, keyword: crate::StepKeyword) 
         keyword,
         placeholder_names: &placeholder_literals,
         capture_count,
+        return_kind,
     };
     let wrapper_code = generate_wrapper_code(&config);
 

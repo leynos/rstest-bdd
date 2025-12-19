@@ -6,6 +6,7 @@ use super::arguments::{
     PreparedArgs, StepMeta, collect_ordered_arguments, prepare_argument_processing,
     step_error_tokens,
 };
+use crate::return_classifier::ReturnKind;
 use crate::utils::ident::sanitize_ident;
 use proc_macro2::TokenStream as TokenStream2;
 use quote::{format_ident, quote};
@@ -22,6 +23,7 @@ pub(crate) struct WrapperConfig<'a> {
     pub(crate) keyword: crate::StepKeyword,
     pub(crate) placeholder_names: &'a [syn::LitStr],
     pub(crate) capture_count: usize,
+    pub(crate) return_kind: ReturnKind,
 }
 
 static COUNTER: AtomicUsize = AtomicUsize::new(0);
@@ -64,6 +66,7 @@ struct WrapperAssembly<'a> {
     prepared: PreparedArgs,
     arg_idents: Vec<&'a syn::Ident>,
     capture_count: usize,
+    return_kind: ReturnKind,
 }
 
 /// Identifiers used during wrapper generation.
@@ -140,6 +143,7 @@ fn assemble_wrapper_function(
         prepared,
         arg_idents,
         capture_count,
+        return_kind,
     } = assembly;
     let PreparedArgs {
         declares,
@@ -158,7 +162,23 @@ fn assemble_wrapper_function(
     let expected = capture_count;
     let path = crate::codegen::rstest_bdd_path();
     let call = quote! { #ident(#(#arg_idents),*) };
-    let call_expr = quote! { #path::IntoStepResult::into_step_result(#call) };
+    let call_expr = match return_kind {
+        ReturnKind::Unit => quote! {{
+            #call;
+            Ok(None)
+        }},
+        ReturnKind::Value => quote! {
+            Ok(Some(Box::new(#call) as Box<dyn std::any::Any>))
+        },
+        ReturnKind::ResultUnit => quote! {
+            #call.map(|()| None).map_err(|e| e.to_string())
+        },
+        ReturnKind::ResultValue => quote! {
+            #call
+                .map(|value| Some(Box::new(value) as Box<dyn std::any::Any>))
+                .map_err(|e| e.to_string())
+        },
+    };
 
     quote! {
         fn #wrapper_ident(
@@ -210,6 +230,7 @@ fn generate_wrapper_body(
         pattern,
         placeholder_names,
         capture_count,
+        return_kind,
         ..
     } = *config;
 
@@ -257,6 +278,7 @@ fn generate_wrapper_body(
             prepared,
             arg_idents,
             capture_count,
+            return_kind,
         },
     );
 

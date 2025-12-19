@@ -30,7 +30,7 @@ fn increment(number: Number) -> Number {
 #[when("a fallible unit step succeeds")]
 #[expect(
     clippy::unnecessary_wraps,
-    reason = "step intentionally returns Result to exercise IntoStepResult"
+    reason = "step intentionally returns Result to exercise wrapper normalisation"
 )]
 fn fallible_unit_step_succeeds(number: Number) -> Result<(), &'static str> {
     assert_eq!(number.0, 1);
@@ -40,7 +40,7 @@ fn fallible_unit_step_succeeds(number: Number) -> Result<(), &'static str> {
 #[when("a fallible increment succeeds")]
 #[expect(
     clippy::unnecessary_wraps,
-    reason = "step intentionally returns Result to exercise IntoStepResult"
+    reason = "step intentionally returns Result to exercise wrapper normalisation"
 )]
 fn fallible_increment_succeeds(number: Number) -> Result<Number, &'static str> {
     Ok(Number(number.0 + 1))
