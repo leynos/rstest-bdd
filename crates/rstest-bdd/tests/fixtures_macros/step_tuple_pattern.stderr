@@ -1,7 +1,8 @@
 error: invalid step function signature: unsupported parameter pattern `(x, y)`; use a simple identifier (e.g., `arg: T`)
+
+         = help: Use `#[given] fn name(...args...)` with supported step arguments/fixtures; remove self.
+
  --> tests/fixtures_macros/step_tuple_pattern.rs:8:20
   |
 8 | fn step_with_tuple((x, y): (i32, i32)) {}
   |                    ^^^^^^
-  |
-  = help: Use `#[given] fn name(...args...)` with supported step arguments/fixtures; remove self.

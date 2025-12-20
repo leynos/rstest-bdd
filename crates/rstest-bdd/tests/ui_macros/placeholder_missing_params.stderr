@@ -1,23 +1,26 @@
 error: invalid step function signature: missing step arguments for placeholders: a, b, c
+
+         = help: Use `#[given] fn name(...args...)` with supported step arguments/fixtures; remove self.
+
  --> tests/ui_macros/placeholder_missing_params.rs:5:4
   |
 5 | fn missing_multi() {}
   |    ^^^^^^^^^^^^^
-  |
-  = help: Use `#[given] fn name(...args...)` with supported step arguments/fixtures; remove self.
 
 error: invalid step function signature: missing step arguments for placeholders: v
+
+         = help: Use `#[given] fn name(...args...)` with supported step arguments/fixtures; remove self.
+
  --> tests/ui_macros/placeholder_missing_params.rs:8:4
   |
 8 | fn type_mismatch(_v: String) {}
   |    ^^^^^^^^^^^^^
-  |
-  = help: Use `#[given] fn name(...args...)` with supported step arguments/fixtures; remove self.
 
 error: invalid step function signature: missing step arguments for placeholders: x, y
+
+         = help: Use `#[given] fn name(...args...)` with supported step arguments/fixtures; remove self.
+
   --> tests/ui_macros/placeholder_missing_params.rs:11:4
    |
 11 | fn extra_param(_x: u32, _y: u32, _z: u32) {}
    |    ^^^^^^^^^^^
-   |
-   = help: Use `#[given] fn name(...args...)` with supported step arguments/fixtures; remove self.
