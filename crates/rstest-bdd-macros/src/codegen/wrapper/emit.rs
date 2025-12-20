@@ -170,12 +170,9 @@ fn assemble_wrapper_function(
         ReturnKind::Value => quote! {
             Ok(Some(Box::new(#call) as Box<dyn std::any::Any>))
         },
-        ReturnKind::ResultUnit => quote! {
-            #call.map(|()| None).map_err(|e| e.to_string())
-        },
-        ReturnKind::ResultValue => quote! {
+        ReturnKind::ResultUnit | ReturnKind::ResultValue => quote! {
             #call
-                .map(|value| Some(Box::new(value) as Box<dyn std::any::Any>))
+                .map(|value| #path::__rstest_bdd_payload_from_value(value))
                 .map_err(|e| e.to_string())
         },
     };

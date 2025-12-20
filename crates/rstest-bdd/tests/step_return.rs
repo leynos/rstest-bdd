@@ -1,6 +1,7 @@
 //! Behavioural test verifying step return value injection
 
 use rstest::fixture;
+use rstest_bdd::StepResult;
 use rstest_bdd_macros::{given, scenario, then, when};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -50,6 +51,42 @@ fn fallible_increment_succeeds(number: Number) -> Result<Number, &'static str> {
 fn fallible_increment_fails(number: Number) -> Result<Number, &'static str> {
     assert_eq!(number.0, 1);
     Err("value failure")
+}
+
+#[when("a std fallible unit step succeeds")]
+#[expect(
+    clippy::unnecessary_wraps,
+    reason = "step intentionally returns Result to exercise wrapper normalisation"
+)]
+fn std_fallible_unit_step_succeeds(number: Number) -> std::result::Result<(), &'static str> {
+    assert_eq!(number.0, 1);
+    Ok(())
+}
+
+#[when("a core fallible increment succeeds")]
+#[expect(
+    clippy::unnecessary_wraps,
+    reason = "step intentionally returns Result to exercise wrapper normalisation"
+)]
+fn core_fallible_increment_succeeds(number: Number) -> core::result::Result<Number, &'static str> {
+    Ok(Number(number.0 + 1))
+}
+
+#[when("a StepResult increment succeeds")]
+#[expect(
+    clippy::unnecessary_wraps,
+    reason = "step intentionally returns Result to exercise wrapper normalisation"
+)]
+fn stepresult_increment_succeeds(number: Number) -> StepResult<Number, &'static str> {
+    Ok(Number(number.0 + 1))
+}
+
+type AliasResult<T> = Result<T, &'static str>;
+
+#[when(result)]
+fn alias_increment_fails(number: Number) -> AliasResult<Number> {
+    assert_eq!(number.0, 1);
+    Err("alias failure")
 }
 
 #[then("the result is 2")]
@@ -147,5 +184,26 @@ fn scenario_fallible_result_success(number: Number) {
 #[scenario(path = "tests/features/step_return_fallible_result_failure.feature")]
 #[should_panic(expected = "value failure")]
 fn scenario_fallible_result_failure(number: Number) {
+    let _ = number;
+}
+
+#[scenario(path = "tests/features/step_return_std_result.feature")]
+fn scenario_std_result(number: Number) {
+    let _ = number;
+}
+
+#[scenario(path = "tests/features/step_return_core_result.feature")]
+fn scenario_core_result(number: Number) {
+    let _ = number;
+}
+
+#[scenario(path = "tests/features/step_return_stepresult.feature")]
+fn scenario_stepresult(number: Number) {
+    let _ = number;
+}
+
+#[scenario(path = "tests/features/step_return_alias_override.feature")]
+#[should_panic(expected = "alias failure")]
+fn scenario_alias_override(number: Number) {
     let _ = number;
 }
