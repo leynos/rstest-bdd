@@ -121,22 +121,25 @@ fn extract_step_args_or_abort(
     }
 }
 
-fn build_and_generate_wrapper<'a>(
+#[derive(Clone, Copy)]
+struct WrapperInputs<'a> {
     func: &'a syn::ItemFn,
     pattern: &'a syn::LitStr,
     keyword: crate::StepKeyword,
     args: &'a ExtractedArgs,
     placeholder_names: &'a [syn::LitStr],
     return_kind: ReturnKind,
-) -> proc_macro2::TokenStream {
+}
+
+fn build_and_generate_wrapper(inputs: WrapperInputs<'_>) -> proc_macro2::TokenStream {
     let config = WrapperConfig {
-        ident: &func.sig.ident,
-        args,
-        pattern,
-        keyword,
-        placeholder_names,
-        capture_count: placeholder_names.len(),
-        return_kind,
+        ident: &inputs.func.sig.ident,
+        args: inputs.args,
+        pattern: inputs.pattern,
+        keyword: inputs.keyword,
+        placeholder_names: inputs.placeholder_names,
+        capture_count: inputs.placeholder_names.len(),
+        return_kind: inputs.return_kind,
     };
     generate_wrapper_code(&config)
 }
@@ -174,14 +177,14 @@ fn step_attr(attr: TokenStream, item: TokenStream, keyword: crate::StepKeyword) 
         .collect();
     let return_kind = classify_return_type(&func.sig.output, attr_args.return_override);
 
-    let wrapper_code = build_and_generate_wrapper(
-        &func,
-        &pattern,
+    let wrapper_code = build_and_generate_wrapper(WrapperInputs {
+        func: &func,
+        pattern: &pattern,
         keyword,
-        &args,
-        &placeholder_literals,
+        args: &args,
+        placeholder_names: &placeholder_literals,
         return_kind,
-    );
+    });
 
     TokenStream::from(quote! {
         #func
