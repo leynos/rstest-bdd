@@ -101,8 +101,22 @@ impl StepDefinitionRegistry {
     pub fn replace_rust_file(&mut self, index: &RustStepFileIndex) -> Vec<StepPatternCompileError> {
         self.invalidate_file(&index.path);
 
+        let (compiled, errors) = self.compile_steps(index);
+        self.insert_compiled_steps(&index.path, compiled);
+        errors
+    }
+
+    #[expect(
+        clippy::unused_self,
+        reason = "method kept on the registry type to allow future use of configuration/state while matching the refactor contract"
+    )]
+    fn compile_steps(
+        &self,
+        index: &RustStepFileIndex,
+    ) -> (Vec<CompiledStepDefinition>, Vec<StepPatternCompileError>) {
         let mut compiled = Vec::new();
         let mut errors = Vec::new();
+
         for step in &index.step_definitions {
             match compile_step_definition(&index.path, step) {
                 Ok(step) => compiled.push(step),
@@ -110,18 +124,25 @@ impl StepDefinitionRegistry {
             }
         }
 
-        if !compiled.is_empty() {
-            self.steps_by_file
-                .insert(index.path.clone(), compiled.clone());
-            for step in compiled {
-                self.steps_by_keyword
-                    .entry(step.keyword)
-                    .or_default()
-                    .push(step);
-            }
+        (compiled, errors)
+    }
+
+    #[expect(
+        clippy::ptr_arg,
+        reason = "signature uses &PathBuf to match the refactor contract; PathBuf cloning is required for HashMap keys"
+    )]
+    fn insert_compiled_steps(&mut self, path: &PathBuf, compiled: Vec<CompiledStepDefinition>) {
+        if compiled.is_empty() {
+            return;
         }
 
-        errors
+        self.steps_by_file.insert(path.clone(), compiled.clone());
+        for step in compiled {
+            self.steps_by_keyword
+                .entry(step.keyword)
+                .or_default()
+                .push(step);
+        }
     }
 
     /// Remove all compiled step definitions for a given Rust source path.
