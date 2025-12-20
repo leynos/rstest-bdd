@@ -33,6 +33,8 @@ clap.workspace = true
 tower.workspace = true
 tokio-util.workspace = true
 gherkin.workspace = true
+syn.workspace = true
+quote.workspace = true
 
 [dev-dependencies]
 rstest.workspace = true

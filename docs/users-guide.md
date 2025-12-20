@@ -1303,6 +1303,11 @@ The initial release provides the LSP scaffolding:
   `gherkin` parser and records steps, doc strings, data tables, and Examples
   header columns with byte offsets. Parse failures are logged; diagnostics are
   added in later phases.
+- **Rust step indexing (on save)**: Parses saved `.rs` files with `syn` and
+  records `#[given]`, `#[when]`, and `#[then]` functions, including the step
+  keyword, pattern string (including inferred patterns when the attribute has
+  no arguments), the parameter list, and whether the step expects a data table
+  or doc string.
 - **Structured logging**: Configurable via environment variables; logs are
   written to stderr using the `tracing` framework.
 
