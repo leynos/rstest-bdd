@@ -48,13 +48,13 @@ pub struct CompiledStepDefinition {
 )]
 pub struct StepPatternCompileError {
     /// Absolute path to the Rust source file containing the step.
-    pub path: String,
+    pub path: Box<str>,
     /// Fully qualified function name (module path + function identifier).
-    pub function: String,
+    pub function: Box<str>,
     /// Step keyword (Given/When/Then).
     pub keyword: StepType,
     /// The original pattern string.
-    pub pattern: String,
+    pub pattern: Box<str>,
     /// The underlying pattern compilation error.
     #[source]
     pub source: PatternError,
@@ -63,10 +63,10 @@ pub struct StepPatternCompileError {
 impl StepPatternCompileError {
     fn new(path: &Path, step: &IndexedStepDefinition, source: PatternError) -> Self {
         Self {
-            path: path.display().to_string(),
-            function: format_function_id(&step.function),
+            path: path.display().to_string().into_boxed_str(),
+            function: format_function_id(&step.function).into_boxed_str(),
             keyword: step.keyword,
-            pattern: step.pattern.clone(),
+            pattern: step.pattern.clone().into_boxed_str(),
             source,
         }
     }
@@ -77,13 +77,7 @@ fn format_function_id(function: &RustFunctionId) -> String {
         return function.name.clone();
     }
 
-    let mut fq = String::new();
-    for segment in &function.module_path {
-        fq.push_str(segment);
-        fq.push_str("::");
-    }
-    fq.push_str(&function.name);
-    fq
+    format!("{}::{}", function.module_path.join("::"), function.name)
 }
 
 /// In-memory registry of compiled step patterns.
@@ -120,7 +114,7 @@ impl StepDefinitionRegistry {
         for step in &index.step_definitions {
             match compile_step_definition(&index.path, step) {
                 Ok(step) => compiled.push(step),
-                Err(err) => errors.push(*err),
+                Err(err) => errors.push(err),
             }
         }
 
@@ -136,13 +130,13 @@ impl StepDefinitionRegistry {
             return;
         }
 
-        self.steps_by_file.insert(path.clone(), compiled.clone());
-        for step in compiled {
+        for step in &compiled {
             self.steps_by_keyword
                 .entry(step.keyword)
                 .or_default()
-                .push(step);
+                .push(step.clone());
         }
+        self.steps_by_file.insert(path.clone(), compiled);
     }
 
     /// Remove all compiled step definitions for a given Rust source path.
@@ -171,9 +165,9 @@ impl StepDefinitionRegistry {
 fn compile_step_definition(
     path: &Path,
     step: &IndexedStepDefinition,
-) -> Result<CompiledStepDefinition, Box<StepPatternCompileError>> {
+) -> Result<CompiledStepDefinition, StepPatternCompileError> {
     let regex = compile_regex_from_pattern(&step.pattern)
-        .map_err(|err| Box::new(StepPatternCompileError::new(path, step, err)))?;
+        .map_err(|err| StepPatternCompileError::new(path, step, err))?;
 
     Ok(CompiledStepDefinition {
         keyword: step.keyword,

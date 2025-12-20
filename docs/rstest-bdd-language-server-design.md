@@ -818,7 +818,7 @@ incrementally on `textDocument/didSave` for Rust sources:
 
 - When a Rust file is re-indexed, the registry first invalidates the existing
   compiled entries for that file path and then inserts the newly compiled steps.
-- Compilation failures are logged and the failing patterns are skipped so a
+- Compilation failures are logged, and the failing patterns are skipped, so a
   single invalid pattern does not prevent indexing other steps in the same file.
 
 ### Next phases

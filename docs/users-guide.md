@@ -1310,7 +1310,7 @@ The initial release provides the LSP scaffolding:
   or doc string.
 - **Step pattern registry (on save)**: Compiles the indexed step patterns with
   `rstest-bdd-patterns` and caches compiled regex matchers in a keyword-keyed
-  in-memory registry. The registry is updated incrementally per file save so
+  in-memory registry. The registry is updated incrementally per file save, so
   removed steps do not linger.
 - **Structured logging**: Configurable via environment variables; logs are
   written to stderr using the `tracing` framework.
