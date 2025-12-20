@@ -2,8 +2,8 @@
 
 use proc_macro::TokenStream;
 use quote::quote;
-use syn::parse_quote;
 use syn::parse::{Parse, ParseStream};
+use syn::parse_quote;
 
 mod given;
 mod scenario;
@@ -18,7 +18,7 @@ pub(crate) use then::then;
 pub(crate) use when::when;
 
 use crate::codegen::wrapper::{WrapperConfig, extract_args, generate_wrapper_code};
-use crate::return_classifier::{ReturnKind, ReturnOverride, classify_return_type};
+use crate::return_classifier::{ReturnOverride, classify_return_type};
 use crate::utils::{
     errors::error_to_tokens,
     pattern::{infer_pattern, placeholder_names},
@@ -141,10 +141,7 @@ fn step_attr(attr: TokenStream, item: TokenStream, keyword: crate::StepKeyword) 
         .map(|name| syn::LitStr::new(name, pattern.span()))
         .collect();
     let capture_count = placeholder_literals.len();
-    let return_kind = match classify_return_type(&func.sig.output, attr_args.return_override) {
-        Ok(kind) => kind,
-        Err(err) => return error_to_tokens(&err).into(),
-    };
+    let return_kind = classify_return_type(&func.sig.output, attr_args.return_override);
 
     let config = WrapperConfig {
         ident,

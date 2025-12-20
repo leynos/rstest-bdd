@@ -104,6 +104,18 @@ fn dump_steps() {
 
 pub use panic_support::panic_message;
 
+#[doc(hidden)]
+#[must_use]
+pub fn __rstest_bdd_payload_from_value<T: std::any::Any>(
+    value: T,
+) -> Option<Box<dyn std::any::Any>> {
+    if std::any::TypeId::of::<T>() == std::any::TypeId::of::<()>() {
+        None
+    } else {
+        Some(Box::new(value) as Box<dyn std::any::Any>)
+    }
+}
+
 /// Error type produced by step wrappers.
 ///
 /// The variants categorize the possible failure modes when invoking a step.

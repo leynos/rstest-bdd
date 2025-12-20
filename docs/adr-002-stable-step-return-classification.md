@@ -66,4 +66,3 @@ For cases the macro cannot infer (notably user-defined type aliases to
   unnecessarily disruptive for common `Result<T, E>` usage.
 - Wait for stable specialisation/negative bounds: rejected because there is no
   stable timeline and it does not address immediate downstream compatibility.
-
