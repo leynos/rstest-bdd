@@ -127,6 +127,29 @@ fn prepare_wrapper_errors(meta: StepMeta<'_>, text_ident: &proc_macro2::Ident) -
     }
 }
 
+fn generate_call_expression(
+    return_kind: ReturnKind,
+    ident: &syn::Ident,
+    arg_idents: &[&syn::Ident],
+) -> TokenStream2 {
+    let path = crate::codegen::rstest_bdd_path();
+    let call = quote! { #ident(#(#arg_idents),*) };
+    match return_kind {
+        ReturnKind::Unit => quote! {{
+            #call;
+            Ok(None)
+        }},
+        ReturnKind::Value => quote! {
+            Ok(Some(Box::new(#call) as Box<dyn std::any::Any>))
+        },
+        ReturnKind::ResultUnit | ReturnKind::ResultValue => quote! {
+            #call
+                .map(|value| #path::__rstest_bdd_payload_from_value(value))
+                .map_err(|e| e.to_string())
+        },
+    }
+}
+
 /// Assemble the final wrapper function using prepared components.
 fn assemble_wrapper_function(
     identifiers: WrapperIdentifiers<'_>,
@@ -161,22 +184,7 @@ fn assemble_wrapper_function(
     let StepMeta { pattern: _, ident } = meta;
     let expected = capture_count;
     let path = crate::codegen::rstest_bdd_path();
-    let call = quote! { #ident(#(#arg_idents),*) };
-    let call_expr = match return_kind {
-        ReturnKind::Unit => quote! {{
-            #call;
-            Ok(None)
-        }},
-        ReturnKind::Value => quote! {
-            Ok(Some(Box::new(#call) as Box<dyn std::any::Any>))
-        },
-        ReturnKind::ResultUnit | ReturnKind::ResultValue => quote! {
-            #call
-                .map(|value| #path::__rstest_bdd_payload_from_value(value))
-                .map_err(|e| e.to_string())
-        },
-    };
-
+    let call_expr = generate_call_expression(return_kind, ident, &arg_idents);
     quote! {
         fn #wrapper_ident(
             #ctx_ident: &mut #path::StepContext<'_>,
@@ -185,20 +193,17 @@ fn assemble_wrapper_function(
             _table: Option<&[&[&str]]>,
         ) -> Result<#path::StepExecution, #path::StepError> {
             use std::panic::{catch_unwind, AssertUnwindSafe};
-
             let captures = #path::extract_placeholders(&#pattern_ident, #text_ident.into())
                 .map_err(|e| #placeholder_err)?;
             let expected: usize = #expected;
             if captures.len() != expected {
                 return Err(#capture_mismatch_err);
             }
-
             #(#declares)*
             #(#step_arg_parses)*
             #step_struct_decl
             #datatable_decl
             #docstring_decl
-
             match catch_unwind(AssertUnwindSafe(|| { #call_expr })) {
                 Ok(res) => res
                     .map(|value| #path::StepExecution::from_value(value))
