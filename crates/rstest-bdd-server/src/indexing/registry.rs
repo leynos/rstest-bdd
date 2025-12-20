@@ -143,9 +143,7 @@ impl StepDefinitionRegistry {
     /// Return compiled steps originating from a single Rust source file.
     #[must_use]
     pub fn steps_for_file(&self, path: &Path) -> &[CompiledStepDefinition] {
-        self.steps_by_file
-            .get(path)
-            .map_or(&[], Vec::as_slice)
+        self.steps_by_file.get(path).map_or(&[], Vec::as_slice)
     }
 }
 
