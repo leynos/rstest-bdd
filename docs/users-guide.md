@@ -1312,6 +1312,10 @@ The initial release provides the LSP scaffolding:
   `rstest-bdd-patterns` and caches compiled regex matchers in a keyword-keyed
   in-memory registry. The registry is updated incrementally per file save, so
   removed steps do not linger.
+  - **API note (embedding)**: `StepDefinitionRegistry::{steps_for_keyword,
+    steps_for_file}` returns `Arc<CompiledStepDefinition>` entries so the
+    compiled matcher and metadata are shared between the per-file and
+    per-keyword indices.
 - **Structured logging**: Configurable via environment variables; logs are
   written to stderr using the `tracing` framework.
 
