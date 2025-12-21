@@ -127,6 +127,17 @@ fn prepare_wrapper_errors(meta: StepMeta<'_>, text_ident: &proc_macro2::Ident) -
     }
 }
 
+/// Generate the call expression for a step function based on its return kind.
+///
+/// This helper emits the token stream that invokes the user's step function
+/// and wraps the result according to the inferred [`ReturnKind`]:
+///
+/// - [`ReturnKind::Unit`]: Discards the return value and yields `Ok(None)`.
+/// - [`ReturnKind::Value`]: Wraps the value via `__rstest_bdd_payload_from_value`,
+///   which boxes non-unit values or returns `None` for unit.
+/// - [`ReturnKind::ResultUnit`] / [`ReturnKind::ResultValue`]: Unpacks the
+///   `Result`, mapping `Ok(value)` through the payload helper and converting
+///   `Err(e)` to a `String` for the step error.
 fn generate_call_expression(
     return_kind: ReturnKind,
     ident: &syn::Ident,

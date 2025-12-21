@@ -64,5 +64,5 @@ For cases the macro cannot infer (notably user-defined type aliases to
   expansion for downstream crates.
 - Require all fallible steps to return a dedicated wrapper type: rejected as
   unnecessarily disruptive for common `Result<T, E>` usage.
-- Wait for stable specialisation/negative bounds: rejected because there is no
+- Wait for stable specialization/negative bounds: rejected because there is no
   stable timeline and it does not address immediate downstream compatibility.

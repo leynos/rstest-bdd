@@ -5,6 +5,20 @@
 //! on overlapping trait impls (nor negative impls) to differentiate between
 //! `T`, `()`, and `Result<..>`, so we perform best-effort classification during
 //! macro expansion instead.
+//!
+//! ## Recognized Result paths
+//!
+//! The classifier recognizes these `Result` shapes:
+//!
+//! - `Result<..>` (bare name)
+//! - `std::result::Result<..>` / `core::result::Result<..>`
+//! - `StepResult<..>` (bare name)
+//! - `rstest_bdd::StepResult<..>`, `crate::StepResult<..>`, `self::StepResult<..>`,
+//!   `super::StepResult<..>`
+//!
+//! User-defined type aliases (e.g., `type MyResult<T> = Result<T, MyError>`)
+//! are **not** resolved at macro expansion time; use the explicit `result` or
+//! `value` hint on the step attribute when necessary.
 
 use syn::{Path, ReturnType, Type};
 
@@ -69,6 +83,13 @@ fn classify_result_like(ty: &Type) -> Option<ReturnKind> {
     None
 }
 
+/// Check if a type is the literal unit type `()`.
+///
+/// This only recognizes the syntactic `()` tuple; type aliases to unit
+/// (e.g., `type UnitAlias = ()`) are *not* resolved at macro expansion time.
+/// However, the runtime helper [`__rstest_bdd_payload_from_value`] identifies
+/// unit aliases via `TypeId` comparison, so steps returning unit aliases will
+/// still produce `None` payloads rather than boxed `()` values.
 fn is_unit_type(ty: &Type) -> bool {
     matches!(ty, Type::Tuple(tuple) if tuple.elems.is_empty())
 }
