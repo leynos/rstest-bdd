@@ -96,7 +96,10 @@ fn is_step_result_path(path: &Path) -> bool {
         .collect();
     match segments.as_slice() {
         [single] => single == "StepResult",
-        [root, leaf] => root == "rstest_bdd" && leaf == "StepResult",
+        [root, leaf] => {
+            matches!(root.as_str(), "rstest_bdd" | "crate" | "self" | "super")
+                && leaf == "StepResult"
+        }
         _ => false,
     }
 }
@@ -197,6 +200,28 @@ mod tests {
     fn recognises_step_result() {
         let func: syn::ItemFn = syn::parse_quote!(
             fn step() -> StepResult<u8, &'static str> {
+                Ok(1)
+            }
+        );
+        let kind = classify_return_type(&func.sig.output, None);
+        assert_eq!(kind, ReturnKind::ResultValue);
+    }
+
+    #[test]
+    fn recognises_crate_step_result() {
+        let func: syn::ItemFn = syn::parse_quote!(
+            fn step() -> crate::StepResult<u8, &'static str> {
+                Ok(1)
+            }
+        );
+        let kind = classify_return_type(&func.sig.output, None);
+        assert_eq!(kind, ReturnKind::ResultValue);
+    }
+
+    #[test]
+    fn recognises_super_step_result() {
+        let func: syn::ItemFn = syn::parse_quote!(
+            fn step() -> super::StepResult<u8, &'static str> {
                 Ok(1)
             }
         );

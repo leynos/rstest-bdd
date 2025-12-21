@@ -1676,7 +1676,7 @@ sequenceDiagram
     Scenario->>Wrap: call(ctx, text, doc, table)
     Wrap->>Step: invoke(...)
     Step-->>Wrap: returns (any type or Result<T,E>)
-    Wrap->>Wrap: normalise return value
+    Wrap->>Wrap: normalize return value
     alt Ok(Some(payload))
       Wrap-->>Scenario: Ok(Some(Box<dyn Any>))
       Scenario->>Ctx: insert_value(payload)
@@ -1690,7 +1690,7 @@ sequenceDiagram
   end
 ```
 
-Figure: The wrapper normalises each return value (unit/value/result) so
+Figure: The wrapper normalizes each return value (unit/value/result) so
 successful payloads override fixtures and errors abort the scenario.
 
 ```mermaid

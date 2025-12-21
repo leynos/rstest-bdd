@@ -11,7 +11,7 @@ Accepted.
 ## Context
 
 The `#[given]`, `#[when]`, and `#[then]` macros generate wrapper functions that
-normalise the user step’s return value into a common representation understood
+normalize the user step’s return value into a common representation understood
 by the runtime:
 
 - `()` -> success, no payload
@@ -19,7 +19,7 @@ by the runtime:
 - `Result<(), E>` -> success/no payload or error
 - `Result<T, E>` -> success/payload or error
 
-Historically, `rstest-bdd` implemented this normalisation via a runtime trait
+Historically, `rstest-bdd` implemented this normalization via a runtime trait
 (`IntoStepResult`) with overlapping impls differentiated using nightly-only
 auto traits and negative impls. This forced the entire workspace onto nightly,
 blocking downstream users pinned to stable Rust.
@@ -29,14 +29,14 @@ except `Result<_, _>` and `()`” without overlapping-impl conflicts.
 
 ## Decision
 
-Move return-value normalisation into macro expansion:
+Move return-value normalization into macro expansion:
 
 - The step macros inspect the user function signature and classify the return
   type as one of: unit, value, result-unit, result-value.
-- The generated wrapper body contains a specialised code path per return kind,
+- The generated wrapper body contains a specialized code path per return kind,
   removing the need for trait trickery.
 
-To preserve ergonomics where possible, the macro recognises these `Result`
+To preserve ergonomics where possible, the macro recognizes these `Result`
 shapes during expansion:
 
 - `Result<..>`, `std::result::Result<..>`, and `core::result::Result<..>`

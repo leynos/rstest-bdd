@@ -1,6 +1,6 @@
 error: invalid step function signature: unsupported parameter pattern `(x, y)`; use a simple identifier (e.g., `arg: T`)
 
-         = help: Use `#[given] fn name(...args...)` with supported step arguments/fixtures; remove self.
+         = help: Use `#[given] fn name(...args...)` with supported step arguments/fixtures (step attributes include `#[given]`, `#[when]`, and `#[then]`); remove `self` if present.
 
  --> tests/fixtures_macros/step_tuple_pattern.rs:8:20
   |

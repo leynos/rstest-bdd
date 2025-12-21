@@ -1,6 +1,6 @@
 error: invalid step function signature: missing step arguments for placeholders: a, b, c
 
-         = help: Use `#[given] fn name(...args...)` with supported step arguments/fixtures; remove self.
+         = help: Use `#[given] fn name(...args...)` with supported step arguments/fixtures (step attributes include `#[given]`, `#[when]`, and `#[then]`); remove `self` if present.
 
  --> tests/ui_macros/placeholder_missing_params.rs:5:4
   |
@@ -9,7 +9,7 @@ error: invalid step function signature: missing step arguments for placeholders:
 
 error: invalid step function signature: missing step arguments for placeholders: v
 
-         = help: Use `#[given] fn name(...args...)` with supported step arguments/fixtures; remove self.
+         = help: Use `#[given] fn name(...args...)` with supported step arguments/fixtures (step attributes include `#[given]`, `#[when]`, and `#[then]`); remove `self` if present.
 
  --> tests/ui_macros/placeholder_missing_params.rs:8:4
   |
@@ -18,7 +18,7 @@ error: invalid step function signature: missing step arguments for placeholders:
 
 error: invalid step function signature: missing step arguments for placeholders: x, y
 
-         = help: Use `#[given] fn name(...args...)` with supported step arguments/fixtures; remove self.
+         = help: Use `#[given] fn name(...args...)` with supported step arguments/fixtures (step attributes include `#[given]`, `#[when]`, and `#[then]`); remove `self` if present.
 
   --> tests/ui_macros/placeholder_missing_params.rs:11:4
    |
