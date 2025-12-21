@@ -48,9 +48,10 @@ explicit escape hatch on the step attribute:
 - `#[given("pattern", result)]` / `#[given("pattern", value)]`
 - `#[given(result)]` / `#[given(value)]` (when using the inferred pattern)
 
-The `result` hint is validated and rejected for non-`Result` return types so
-misconfiguration surfaces as a macro diagnostic rather than a confusing wrapper
-error.
+The `result` hint is validated for obvious misconfigurations (for example,
+primitive return types). For type aliases, the macro cannot validate the alias
+and assumes `Result<..>` semantics; if the return type is not actually
+`Result`-like, the compiler will surface a type error.
 
 ## Consequences
 

@@ -17,8 +17,9 @@
 //!   `super::StepResult<..>`
 //!
 //! User-defined type aliases (e.g., `type MyResult<T> = Result<T, MyError>`)
-//! are **not** resolved at macro expansion time; use the explicit `result` or
-//! `value` hint on the step attribute when necessary.
+//! are **not** resolved at macro expansion time. The explicit `result` hint
+//! opts into a wrapper shape that expects `Result<..>` semantics and allows
+//! aliases to compile as long as the return type is ultimately `Result`-like.
 
 use syn::{Path, ReturnType, Type};
 
@@ -60,12 +61,23 @@ pub(crate) fn classify_return_type(
 
     match override_hint {
         Some(ReturnOverride::Value) => Ok(ReturnKind::Value),
-        Some(ReturnOverride::Result) => classify_result_like(ty).ok_or_else(|| {
-            syn::Error::new_spanned(
-                ty,
-                "return override `result` requires a return type shaped like `Result<T, E>` or `StepResult<T, E>`",
-            )
-        }),
+        Some(ReturnOverride::Result) => classify_result_like(ty).map_or_else(
+            || {
+                if is_definitely_non_result_type(ty) {
+                    Err(syn::Error::new_spanned(
+                        ty,
+                        "return override `result` requires a return type shaped like `Result<T, E>` or `StepResult<T, E>`",
+                    ))
+                } else {
+                    // We cannot resolve type aliases during macro expansion.
+                    // Assume the return type behaves like `Result<T, E>` and let
+                    // the compiler validate that the invoked step is actually
+                    // result-like.
+                    Ok(ReturnKind::ResultValue)
+                }
+            },
+            Ok,
+        ),
         None => Ok(classify_result_like(ty).unwrap_or(ReturnKind::Value)),
     }
 }
@@ -97,6 +109,52 @@ fn classify_result_like(ty: &Type) -> Option<ReturnKind> {
 /// still produce `None` payloads rather than boxed `()` values.
 fn is_unit_type(ty: &Type) -> bool {
     matches!(ty, Type::Tuple(tuple) if tuple.elems.is_empty())
+}
+
+fn is_definitely_non_result_type(ty: &Type) -> bool {
+    match ty {
+        Type::Path(type_path) => is_primitive_path(&type_path.path),
+        _ => true,
+    }
+}
+
+fn is_primitive_path(path: &Path) -> bool {
+    let segments: Vec<_> = path
+        .segments
+        .iter()
+        .map(|seg| seg.ident.to_string())
+        .collect();
+    match segments.as_slice() {
+        [single] => is_primitive_ident(single.as_str()),
+        [root, module, leaf] => {
+            (root == "std" || root == "core")
+                && module == "primitive"
+                && is_primitive_ident(leaf.as_str())
+        }
+        _ => false,
+    }
+}
+
+fn is_primitive_ident(ident: &str) -> bool {
+    matches!(
+        ident,
+        "u8" | "u16"
+            | "u32"
+            | "u64"
+            | "u128"
+            | "usize"
+            | "i8"
+            | "i16"
+            | "i32"
+            | "i64"
+            | "i128"
+            | "isize"
+            | "f32"
+            | "f64"
+            | "bool"
+            | "char"
+            | "str"
+    )
 }
 
 fn is_result_path(path: &Path) -> bool {
