@@ -290,7 +290,7 @@ still allowing a functional style without mutable fixtures.
 Steps may also return `Result<T, E>`. An `Err` aborts the scenario, while an
 `Ok` value is injected as above.
 
-The step macros recognise these `Result` shapes during expansion:
+The step macros recognize these `Result` shapes during expansion:
 
 - `Result<..>`, `std::result::Result<..>`, and `core::result::Result<..>`
 - `rstest_bdd::StepResult<..>` (an alias provided by the runtime crate)

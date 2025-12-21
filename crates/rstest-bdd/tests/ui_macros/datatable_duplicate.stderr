@@ -1,6 +1,6 @@
 error: invalid step function signature: only one DataTable parameter is permitted
 
-         = help: Use `#[given] fn name(...args...)` with supported step arguments/fixtures; remove self.
+         = help: Use `#[given] fn name(...args...)` with supported step arguments/fixtures (step attributes include `#[given]`, `#[when]`, and `#[then]`); remove `self` if present.
 
  --> tests/ui_macros/datatable_duplicate.rs:6:60
   |

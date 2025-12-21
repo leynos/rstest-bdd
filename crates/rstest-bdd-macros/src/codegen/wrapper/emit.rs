@@ -140,13 +140,14 @@ fn generate_call_expression(
             Ok(None)
         }},
         ReturnKind::Value => quote! {
-            Ok(Some(Box::new(#call) as Box<dyn std::any::Any>))
+            Ok(#path::__rstest_bdd_payload_from_value(#call))
         },
-        ReturnKind::ResultUnit | ReturnKind::ResultValue => quote! {
-            #call
-                .map(|value| #path::__rstest_bdd_payload_from_value(value))
-                .map_err(|e| e.to_string())
-        },
+        ReturnKind::ResultUnit | ReturnKind::ResultValue => quote! {{
+            match #call {
+                ::core::result::Result::Ok(value) => Ok(#path::__rstest_bdd_payload_from_value(value)),
+                ::core::result::Result::Err(error) => Err(error.to_string()),
+            }
+        }},
     }
 }
 

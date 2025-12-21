@@ -114,7 +114,7 @@ fn extract_step_args_or_abort(
                 crate::StepKeyword::But => "but",
             };
             let help = format!(
-                "Use `#[{kw_name}] fn name(...args...)` with supported step arguments/fixtures; remove self."
+                "Use `#[{kw_name}] fn name(...args...)` with supported step arguments/fixtures (step attributes include `#[given]`, `#[when]`, and `#[then]`); remove `self` if present."
             );
             proc_macro_error::abort!(err.span(), "invalid step function signature: {}", err; help = help);
         }
