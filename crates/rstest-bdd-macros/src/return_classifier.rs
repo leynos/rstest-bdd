@@ -147,134 +147,113 @@ fn first_type_argument(path: &Path) -> Option<&Type> {
 mod tests {
     use super::{ReturnKind, ReturnOverride, classify_return_type};
 
+    /// Helper to assert that a given function signature classifies to the expected kind.
+    fn assert_classifies_to(
+        func_tokens: proc_macro2::TokenStream,
+        override_hint: Option<ReturnOverride>,
+        expected: ReturnKind,
+    ) {
+        let func: syn::ItemFn = syn::parse2(func_tokens).unwrap_or_else(|err| {
+            panic!("test input should be valid function syntax: {err}");
+        });
+        let kind = classify_return_type(&func.sig.output, override_hint)
+            .unwrap_or_else(|err| panic!("expected classification to succeed: {err}"));
+        assert_eq!(kind, expected);
+    }
+
     #[test]
     fn classifies_unit_by_default() {
-        let func: syn::ItemFn = syn::parse_quote!(
-            fn step() {}
-        );
-        let kind = classify_return_type(&func.sig.output, None)
-            .unwrap_or_else(|err| panic!("expected unit classification to succeed: {err}"));
-        assert_eq!(kind, ReturnKind::Unit);
+        assert_classifies_to(quote::quote! { fn step() {} }, None, ReturnKind::Unit);
     }
 
     #[test]
     fn classifies_unit_tuple_return() {
-        let func: syn::ItemFn = syn::parse_quote!(
-            fn step() -> () {
-                ()
-            }
+        assert_classifies_to(
+            quote::quote! { fn step() -> () { () } },
+            None,
+            ReturnKind::Unit,
         );
-        let kind = classify_return_type(&func.sig.output, None)
-            .unwrap_or_else(|err| panic!("expected unit classification to succeed: {err}"));
-        assert_eq!(kind, ReturnKind::Unit);
     }
 
     #[test]
     fn classifies_value_return() {
-        let func: syn::ItemFn = syn::parse_quote!(
-            fn step() -> u32 {
-                1
-            }
+        assert_classifies_to(
+            quote::quote! { fn step() -> u32 { 1 } },
+            None,
+            ReturnKind::Value,
         );
-        let kind = classify_return_type(&func.sig.output, None)
-            .unwrap_or_else(|err| panic!("expected value classification to succeed: {err}"));
-        assert_eq!(kind, ReturnKind::Value);
     }
 
     #[test]
     fn classifies_result_unit() {
-        let func: syn::ItemFn = syn::parse_quote!(
-            fn step() -> Result<(), &'static str> {
-                Ok(())
-            }
+        assert_classifies_to(
+            quote::quote! { fn step() -> Result<(), &'static str> { Ok(()) } },
+            None,
+            ReturnKind::ResultUnit,
         );
-        let kind = classify_return_type(&func.sig.output, None)
-            .unwrap_or_else(|err| panic!("expected result-unit classification to succeed: {err}"));
-        assert_eq!(kind, ReturnKind::ResultUnit);
     }
 
     #[test]
     fn classifies_result_value() {
-        let func: syn::ItemFn = syn::parse_quote!(
-            fn step() -> Result<u8, &'static str> {
-                Ok(1)
-            }
+        assert_classifies_to(
+            quote::quote! { fn step() -> Result<u8, &'static str> { Ok(1) } },
+            None,
+            ReturnKind::ResultValue,
         );
-        let kind = classify_return_type(&func.sig.output, None)
-            .unwrap_or_else(|err| panic!("expected result-value classification to succeed: {err}"));
-        assert_eq!(kind, ReturnKind::ResultValue);
     }
 
     #[test]
     fn recognises_std_result_path() {
-        let func: syn::ItemFn = syn::parse_quote!(
-            fn step() -> std::result::Result<u8, &'static str> {
-                Ok(1)
-            }
+        assert_classifies_to(
+            quote::quote! { fn step() -> std::result::Result<u8, &'static str> { Ok(1) } },
+            None,
+            ReturnKind::ResultValue,
         );
-        let kind = classify_return_type(&func.sig.output, None)
-            .unwrap_or_else(|err| panic!("expected std::result::Result to classify: {err}"));
-        assert_eq!(kind, ReturnKind::ResultValue);
     }
 
     #[test]
     fn recognises_core_result_path() {
-        let func: syn::ItemFn = syn::parse_quote!(
-            fn step() -> core::result::Result<(), &'static str> {
-                Ok(())
-            }
+        assert_classifies_to(
+            quote::quote! { fn step() -> core::result::Result<(), &'static str> { Ok(()) } },
+            None,
+            ReturnKind::ResultUnit,
         );
-        let kind = classify_return_type(&func.sig.output, None)
-            .unwrap_or_else(|err| panic!("expected core::result::Result to classify: {err}"));
-        assert_eq!(kind, ReturnKind::ResultUnit);
     }
 
     #[test]
     fn recognises_step_result() {
-        let func: syn::ItemFn = syn::parse_quote!(
-            fn step() -> StepResult<u8, &'static str> {
-                Ok(1)
-            }
+        assert_classifies_to(
+            quote::quote! { fn step() -> StepResult<u8, &'static str> { Ok(1) } },
+            None,
+            ReturnKind::ResultValue,
         );
-        let kind = classify_return_type(&func.sig.output, None)
-            .unwrap_or_else(|err| panic!("expected StepResult to classify: {err}"));
-        assert_eq!(kind, ReturnKind::ResultValue);
     }
 
     #[test]
     fn recognises_crate_step_result() {
-        let func: syn::ItemFn = syn::parse_quote!(
-            fn step() -> crate::StepResult<u8, &'static str> {
-                Ok(1)
-            }
+        assert_classifies_to(
+            quote::quote! { fn step() -> crate::StepResult<u8, &'static str> { Ok(1) } },
+            None,
+            ReturnKind::ResultValue,
         );
-        let kind = classify_return_type(&func.sig.output, None)
-            .unwrap_or_else(|err| panic!("expected crate::StepResult to classify: {err}"));
-        assert_eq!(kind, ReturnKind::ResultValue);
     }
 
     #[test]
     fn recognises_super_step_result() {
-        let func: syn::ItemFn = syn::parse_quote!(
-            fn step() -> super::StepResult<u8, &'static str> {
-                Ok(1)
-            }
+        assert_classifies_to(
+            quote::quote! { fn step() -> super::StepResult<u8, &'static str> { Ok(1) } },
+            None,
+            ReturnKind::ResultValue,
         );
-        let kind = classify_return_type(&func.sig.output, None)
-            .unwrap_or_else(|err| panic!("expected super::StepResult to classify: {err}"));
-        assert_eq!(kind, ReturnKind::ResultValue);
     }
 
     #[test]
     fn override_value_forces_value() {
-        let func: syn::ItemFn = syn::parse_quote!(
-            fn step() -> Result<u8, &'static str> {
-                Ok(1)
-            }
+        assert_classifies_to(
+            quote::quote! { fn step() -> Result<u8, &'static str> { Ok(1) } },
+            Some(ReturnOverride::Value),
+            ReturnKind::Value,
         );
-        let kind = classify_return_type(&func.sig.output, Some(ReturnOverride::Value))
-            .unwrap_or_else(|err| panic!("expected override value to be accepted: {err}"));
-        assert_eq!(kind, ReturnKind::Value);
     }
 
     #[test]
