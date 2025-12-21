@@ -13,6 +13,7 @@
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 use gherkin::StepType;
 use regex::Regex;
@@ -83,8 +84,8 @@ fn format_function_id(function: &RustFunctionId) -> String {
 /// In-memory registry of compiled step patterns.
 #[derive(Debug, Default)]
 pub struct StepDefinitionRegistry {
-    steps_by_file: HashMap<PathBuf, Vec<CompiledStepDefinition>>,
-    steps_by_keyword: HashMap<StepType, Vec<CompiledStepDefinition>>,
+    steps_by_file: HashMap<PathBuf, Vec<Arc<CompiledStepDefinition>>>,
+    steps_by_keyword: HashMap<StepType, Vec<Arc<CompiledStepDefinition>>>,
 }
 
 impl StepDefinitionRegistry {
@@ -130,13 +131,16 @@ impl StepDefinitionRegistry {
             return;
         }
 
-        for step in &compiled {
+        let shared: Vec<_> = compiled.into_iter().map(Arc::new).collect();
+
+        for step in &shared {
             self.steps_by_keyword
                 .entry(step.keyword)
                 .or_default()
-                .push(step.clone());
+                .push(Arc::clone(step));
         }
-        self.steps_by_file.insert(path.clone(), compiled);
+
+        self.steps_by_file.insert(path.clone(), shared);
     }
 
     /// Remove all compiled step definitions for a given Rust source path.
@@ -149,7 +153,7 @@ impl StepDefinitionRegistry {
 
     /// Return compiled steps for a given keyword.
     #[must_use]
-    pub fn steps_for_keyword(&self, keyword: StepType) -> &[CompiledStepDefinition] {
+    pub fn steps_for_keyword(&self, keyword: StepType) -> &[Arc<CompiledStepDefinition>] {
         self.steps_by_keyword
             .get(&keyword)
             .map_or(&[], Vec::as_slice)
@@ -157,7 +161,7 @@ impl StepDefinitionRegistry {
 
     /// Return compiled steps originating from a single Rust source file.
     #[must_use]
-    pub fn steps_for_file(&self, path: &Path) -> &[CompiledStepDefinition] {
+    pub fn steps_for_file(&self, path: &Path) -> &[Arc<CompiledStepDefinition>] {
         self.steps_by_file.get(path).map_or(&[], Vec::as_slice)
     }
 }
