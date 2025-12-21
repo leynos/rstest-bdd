@@ -175,7 +175,10 @@ fn step_attr(attr: TokenStream, item: TokenStream, keyword: crate::StepKeyword) 
         .iter()
         .map(|name| syn::LitStr::new(name, pattern.span()))
         .collect();
-    let return_kind = classify_return_type(&func.sig.output, attr_args.return_override);
+    let return_kind = match classify_return_type(&func.sig.output, attr_args.return_override) {
+        Ok(kind) => kind,
+        Err(err) => return error_to_tokens(&err).into(),
+    };
 
     let wrapper_code = build_and_generate_wrapper(WrapperInputs {
         func: &func,

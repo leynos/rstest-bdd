@@ -15,7 +15,6 @@ use std::panic::{self, AssertUnwindSafe};
 use std::path::Path as StdPath;
 use std::sync::OnceLock;
 use wrappers::{FixturePathLine, MacroFixtureCase, NormaliserInput, UiFixtureCase};
-
 #[path = "trybuild_macros/wrappers.rs"]
 mod wrappers;
 const MACROS_FIXTURES_DIR: &str = "tests/fixtures_macros";
@@ -213,6 +212,7 @@ fn run_failing_ui_tests(t: &trybuild::TestCases) {
         UiFixtureCase::from("placeholder_missing_param.rs"),
         UiFixtureCase::from("implicit_fixture_missing.rs"),
         UiFixtureCase::from("placeholder_missing_params.rs"),
+        UiFixtureCase::from("return_override_result_requires_result.rs"),
     ] {
         t.compile_fail(ui_fixture(case).as_std_path());
     }

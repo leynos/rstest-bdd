@@ -48,20 +48,25 @@ pub(crate) enum ReturnOverride {
 pub(crate) fn classify_return_type(
     output: &ReturnType,
     override_hint: Option<ReturnOverride>,
-) -> ReturnKind {
+) -> syn::Result<ReturnKind> {
     let ty = match output {
-        ReturnType::Default => return ReturnKind::Unit,
+        ReturnType::Default => return Ok(ReturnKind::Unit),
         ReturnType::Type(_, ty) => ty.as_ref(),
     };
 
     if is_unit_type(ty) {
-        return ReturnKind::Unit;
+        return Ok(ReturnKind::Unit);
     }
 
     match override_hint {
-        Some(ReturnOverride::Value) => ReturnKind::Value,
-        Some(ReturnOverride::Result) => classify_result_like(ty).unwrap_or(ReturnKind::ResultValue),
-        None => classify_result_like(ty).unwrap_or(ReturnKind::Value),
+        Some(ReturnOverride::Value) => Ok(ReturnKind::Value),
+        Some(ReturnOverride::Result) => classify_result_like(ty).ok_or_else(|| {
+            syn::Error::new_spanned(
+                ty,
+                "return override `result` requires a return type shaped like `Result<T, E>` or `StepResult<T, E>`",
+            )
+        }),
+        None => Ok(classify_result_like(ty).unwrap_or(ReturnKind::Value)),
     }
 }
 
@@ -147,7 +152,8 @@ mod tests {
         let func: syn::ItemFn = syn::parse_quote!(
             fn step() {}
         );
-        let kind = classify_return_type(&func.sig.output, None);
+        let kind = classify_return_type(&func.sig.output, None)
+            .unwrap_or_else(|err| panic!("expected unit classification to succeed: {err}"));
         assert_eq!(kind, ReturnKind::Unit);
     }
 
@@ -158,7 +164,8 @@ mod tests {
                 ()
             }
         );
-        let kind = classify_return_type(&func.sig.output, None);
+        let kind = classify_return_type(&func.sig.output, None)
+            .unwrap_or_else(|err| panic!("expected unit classification to succeed: {err}"));
         assert_eq!(kind, ReturnKind::Unit);
     }
 
@@ -169,7 +176,8 @@ mod tests {
                 1
             }
         );
-        let kind = classify_return_type(&func.sig.output, None);
+        let kind = classify_return_type(&func.sig.output, None)
+            .unwrap_or_else(|err| panic!("expected value classification to succeed: {err}"));
         assert_eq!(kind, ReturnKind::Value);
     }
 
@@ -180,7 +188,8 @@ mod tests {
                 Ok(())
             }
         );
-        let kind = classify_return_type(&func.sig.output, None);
+        let kind = classify_return_type(&func.sig.output, None)
+            .unwrap_or_else(|err| panic!("expected result-unit classification to succeed: {err}"));
         assert_eq!(kind, ReturnKind::ResultUnit);
     }
 
@@ -191,7 +200,8 @@ mod tests {
                 Ok(1)
             }
         );
-        let kind = classify_return_type(&func.sig.output, None);
+        let kind = classify_return_type(&func.sig.output, None)
+            .unwrap_or_else(|err| panic!("expected result-value classification to succeed: {err}"));
         assert_eq!(kind, ReturnKind::ResultValue);
     }
 
@@ -202,7 +212,8 @@ mod tests {
                 Ok(1)
             }
         );
-        let kind = classify_return_type(&func.sig.output, None);
+        let kind = classify_return_type(&func.sig.output, None)
+            .unwrap_or_else(|err| panic!("expected std::result::Result to classify: {err}"));
         assert_eq!(kind, ReturnKind::ResultValue);
     }
 
@@ -213,7 +224,8 @@ mod tests {
                 Ok(())
             }
         );
-        let kind = classify_return_type(&func.sig.output, None);
+        let kind = classify_return_type(&func.sig.output, None)
+            .unwrap_or_else(|err| panic!("expected core::result::Result to classify: {err}"));
         assert_eq!(kind, ReturnKind::ResultUnit);
     }
 
@@ -224,7 +236,8 @@ mod tests {
                 Ok(1)
             }
         );
-        let kind = classify_return_type(&func.sig.output, None);
+        let kind = classify_return_type(&func.sig.output, None)
+            .unwrap_or_else(|err| panic!("expected StepResult to classify: {err}"));
         assert_eq!(kind, ReturnKind::ResultValue);
     }
 
@@ -235,7 +248,8 @@ mod tests {
                 Ok(1)
             }
         );
-        let kind = classify_return_type(&func.sig.output, None);
+        let kind = classify_return_type(&func.sig.output, None)
+            .unwrap_or_else(|err| panic!("expected crate::StepResult to classify: {err}"));
         assert_eq!(kind, ReturnKind::ResultValue);
     }
 
@@ -246,7 +260,8 @@ mod tests {
                 Ok(1)
             }
         );
-        let kind = classify_return_type(&func.sig.output, None);
+        let kind = classify_return_type(&func.sig.output, None)
+            .unwrap_or_else(|err| panic!("expected super::StepResult to classify: {err}"));
         assert_eq!(kind, ReturnKind::ResultValue);
     }
 
@@ -257,18 +272,26 @@ mod tests {
                 Ok(1)
             }
         );
-        let kind = classify_return_type(&func.sig.output, Some(ReturnOverride::Value));
+        let kind = classify_return_type(&func.sig.output, Some(ReturnOverride::Value))
+            .unwrap_or_else(|err| panic!("expected override value to be accepted: {err}"));
         assert_eq!(kind, ReturnKind::Value);
     }
 
     #[test]
-    fn override_result_errors_for_non_result() {
+    fn override_result_requires_result_like_return_type() {
         let func: syn::ItemFn = syn::parse_quote!(
             fn step() -> u8 {
                 1
             }
         );
-        let kind = classify_return_type(&func.sig.output, Some(ReturnOverride::Result));
-        assert_eq!(kind, ReturnKind::ResultValue);
+        let err = match classify_return_type(&func.sig.output, Some(ReturnOverride::Result)) {
+            Ok(kind) => panic!("expected result override to fail, got {kind:?}"),
+            Err(err) => err,
+        };
+        assert!(
+            err.to_string()
+                .contains("return override `result` requires"),
+            "unexpected error: {err}"
+        );
     }
 }

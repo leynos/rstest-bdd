@@ -42,11 +42,15 @@ shapes during expansion:
 - `Result<..>`, `std::result::Result<..>`, and `core::result::Result<..>`
 - `rstest_bdd::StepResult<..>` (a runtime-provided alias)
 
-For cases the macro cannot infer (notably user-defined type aliases to
-`Result`), provide an explicit escape hatch on the step attribute:
+For cases callers need to override the default classification, provide an
+explicit escape hatch on the step attribute:
 
 - `#[given("pattern", result)]` / `#[given("pattern", value)]`
 - `#[given(result)]` / `#[given(value)]` (when using the inferred pattern)
+
+The `result` hint is validated and rejected for non-`Result` return types so
+misconfiguration surfaces as a macro diagnostic rather than a confusing wrapper
+error.
 
 ## Consequences
 

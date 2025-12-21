@@ -296,9 +296,16 @@ The step macros recognize these `Result` shapes during expansion:
 - `rstest_bdd::StepResult<..>` (an alias provided by the runtime crate)
 
 When inference cannot determine whether a return type is a `Result` (for
-example, a type alias from another crate), add an explicit return-kind hint:
-`#[when("...", result)]` / `#[when("...", value)]` (or `#[when(result)]` /
-`#[when(value)]` when using the inferred pattern).
+example, after introducing a project-local return wrapper), prefer returning
+`rstest_bdd::StepResult<..>` or spelling out `Result<..>` in the signature.
+
+The `result`/`value` hints are validated. `result` is rejected for non-`Result`
+return types so misconfiguration surfaces as a macro diagnostic rather than a
+confusing wrapper error.
+
+Use `#[when("...", value)]` (or `#[when(value)]` when using the inferred
+pattern) to force treating the return value as a payload even when it is
+`Result<..>`.
 
 Returning `()` or `Ok(())` produces no stored value, so fixtures of `()` are
 not overwritten.

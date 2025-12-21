@@ -81,24 +81,6 @@ fn stepresult_increment_succeeds(number: Number) -> StepResult<Number, &'static 
     Ok(Number(number.0 + 1))
 }
 
-type AliasResult<T> = Result<T, &'static str>;
-
-#[when(result)]
-#[expect(
-    clippy::unnecessary_wraps,
-    reason = "step intentionally returns a Result alias to exercise return-kind override"
-)]
-fn alias_increment_succeeds(number: Number) -> AliasResult<Number> {
-    assert_eq!(number.0, 1);
-    Ok(Number(number.0 + 1))
-}
-
-#[when(result)]
-fn alias_increment_fails(number: Number) -> AliasResult<Number> {
-    assert_eq!(number.0, 1);
-    Err("alias failure")
-}
-
 #[when(value)]
 fn value_increment_succeeds(number: Number) -> Number {
     assert_eq!(number.0, 1);
@@ -215,17 +197,6 @@ fn scenario_core_result(number: Number) {
 
 #[scenario(path = "tests/features/step_return_stepresult.feature")]
 fn scenario_stepresult(number: Number) {
-    let _ = number;
-}
-
-#[scenario(path = "tests/features/step_return_alias_override.feature")]
-#[should_panic(expected = "alias failure")]
-fn scenario_alias_override(number: Number) {
-    let _ = number;
-}
-
-#[scenario(path = "tests/features/step_return_alias_override_success.feature")]
-fn scenario_alias_override_success(number: Number) {
     let _ = number;
 }
 
