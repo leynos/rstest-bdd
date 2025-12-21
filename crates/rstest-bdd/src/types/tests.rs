@@ -96,3 +96,15 @@ fn step_execution_skipped_carries_message() {
         }
     }
 }
+
+#[test]
+fn payload_from_value_returns_none_for_unit() {
+    assert!(crate::__rstest_bdd_payload_from_value(()).is_none());
+}
+
+#[test]
+fn payload_from_value_returns_none_for_unit_alias() {
+    type UnitAlias = ();
+    let value: UnitAlias = ();
+    assert!(crate::__rstest_bdd_payload_from_value(value).is_none());
+}

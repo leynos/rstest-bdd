@@ -1,7 +1,8 @@
 error: invalid step function signature: unsupported parameter pattern `User { coords : (x, y) }`; use a simple identifier (e.g., `arg: T`)
+
+         = help: Use `#[given] fn name(...args...)` with supported step arguments/fixtures (step attributes include `#[given]`, `#[when]`, and `#[then]`); remove `self` if present.
+
   --> tests/fixtures_macros/step_nested_pattern.rs:11:16
    |
 11 | fn step_nested(User { coords: (x, y) }: User) {}
-   |                ^^^^^^^^^^^^^^^^^^^^^^^
-   |
-   = help: Use `#[given] fn name(...args...)` with supported step arguments/fixtures; remove self.
+   |                ^^^^

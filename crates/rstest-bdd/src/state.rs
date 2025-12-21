@@ -67,10 +67,8 @@ impl<T> Slot<T> {
             *borrow = Some(init());
         }
         RefMut::map(borrow, |opt| {
-            opt.as_mut().map_or_else(
-                || unreachable!("slot initialised immediately before mapping"),
-                |value| value,
-            )
+            opt.as_mut()
+                .unwrap_or_else(|| unreachable!("slot initialised immediately before mapping"))
         })
     }
 

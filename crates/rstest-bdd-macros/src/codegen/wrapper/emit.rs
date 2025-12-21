@@ -6,6 +6,7 @@ use super::arguments::{
     PreparedArgs, StepMeta, collect_ordered_arguments, prepare_argument_processing,
     step_error_tokens,
 };
+use crate::return_classifier::ReturnKind;
 use crate::utils::ident::sanitize_ident;
 use proc_macro2::TokenStream as TokenStream2;
 use quote::{format_ident, quote};
@@ -22,6 +23,7 @@ pub(crate) struct WrapperConfig<'a> {
     pub(crate) keyword: crate::StepKeyword,
     pub(crate) placeholder_names: &'a [syn::LitStr],
     pub(crate) capture_count: usize,
+    pub(crate) return_kind: ReturnKind,
 }
 
 static COUNTER: AtomicUsize = AtomicUsize::new(0);
@@ -64,6 +66,7 @@ struct WrapperAssembly<'a> {
     prepared: PreparedArgs,
     arg_idents: Vec<&'a syn::Ident>,
     capture_count: usize,
+    return_kind: ReturnKind,
 }
 
 /// Identifiers used during wrapper generation.
@@ -124,6 +127,30 @@ fn prepare_wrapper_errors(meta: StepMeta<'_>, text_ident: &proc_macro2::Ident) -
     }
 }
 
+fn generate_call_expression(
+    return_kind: ReturnKind,
+    ident: &syn::Ident,
+    arg_idents: &[&syn::Ident],
+) -> TokenStream2 {
+    let path = crate::codegen::rstest_bdd_path();
+    let call = quote! { #ident(#(#arg_idents),*) };
+    match return_kind {
+        ReturnKind::Unit => quote! {{
+            #call;
+            Ok(None)
+        }},
+        ReturnKind::Value => quote! {
+            Ok(#path::__rstest_bdd_payload_from_value(#call))
+        },
+        ReturnKind::ResultUnit | ReturnKind::ResultValue => quote! {{
+            match #call {
+                ::core::result::Result::Ok(value) => Ok(#path::__rstest_bdd_payload_from_value(value)),
+                ::core::result::Result::Err(error) => Err(error.to_string()),
+            }
+        }},
+    }
+}
+
 /// Assemble the final wrapper function using prepared components.
 fn assemble_wrapper_function(
     identifiers: WrapperIdentifiers<'_>,
@@ -140,6 +167,7 @@ fn assemble_wrapper_function(
         prepared,
         arg_idents,
         capture_count,
+        return_kind,
     } = assembly;
     let PreparedArgs {
         declares,
@@ -157,9 +185,7 @@ fn assemble_wrapper_function(
     let StepMeta { pattern: _, ident } = meta;
     let expected = capture_count;
     let path = crate::codegen::rstest_bdd_path();
-    let call = quote! { #ident(#(#arg_idents),*) };
-    let call_expr = quote! { #path::IntoStepResult::into_step_result(#call) };
-
+    let call_expr = generate_call_expression(return_kind, ident, &arg_idents);
     quote! {
         fn #wrapper_ident(
             #ctx_ident: &mut #path::StepContext<'_>,
@@ -168,20 +194,17 @@ fn assemble_wrapper_function(
             _table: Option<&[&[&str]]>,
         ) -> Result<#path::StepExecution, #path::StepError> {
             use std::panic::{catch_unwind, AssertUnwindSafe};
-
             let captures = #path::extract_placeholders(&#pattern_ident, #text_ident.into())
                 .map_err(|e| #placeholder_err)?;
             let expected: usize = #expected;
             if captures.len() != expected {
                 return Err(#capture_mismatch_err);
             }
-
             #(#declares)*
             #(#step_arg_parses)*
             #step_struct_decl
             #datatable_decl
             #docstring_decl
-
             match catch_unwind(AssertUnwindSafe(|| { #call_expr })) {
                 Ok(res) => res
                     .map(|value| #path::StepExecution::from_value(value))
@@ -210,6 +233,7 @@ fn generate_wrapper_body(
         pattern,
         placeholder_names,
         capture_count,
+        return_kind,
         ..
     } = *config;
 
@@ -257,6 +281,7 @@ fn generate_wrapper_body(
             prepared,
             arg_idents,
             capture_count,
+            return_kind,
         },
     );
 

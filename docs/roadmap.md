@@ -193,8 +193,8 @@ Development (BDD) frameworks and improves the developer experience.
   - [x] Raise the minimum supported Rust version to 1.85 and remove the
     `async_trait` dependency from `World` and writer traits.
     - [x] Set `rust-version = "1.85"` in all Cargo manifests.
-    - [x] Record that nightly tooling remains required for unstable features
-      and Rust 2024 edition support.
+    - [x] Record that stable tooling supports Rust 2024 and that contributors
+      should use the pinned toolchain for consistent formatting and linting.
     - [x] Remove `async-trait` from dependencies and code imports.
     - [x] Add a Continuous Integration (CI) check that fails if `async-trait`
       reappears.
