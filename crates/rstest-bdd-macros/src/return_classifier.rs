@@ -1,6 +1,6 @@
 //! Return type classification for step wrappers.
 //!
-//! `rstest-bdd` step macros generate wrapper functions that normalise user step
+//! `rstest-bdd` step macros generate wrapper functions that normalize user step
 //! return values into a common representation. On stable Rust, we cannot rely
 //! on overlapping trait impls (nor negative impls) to differentiate between
 //! `T`, `()`, and `Result<..>`, so we perform best-effort classification during
@@ -23,7 +23,7 @@
 
 use syn::{Path, ReturnType, Type};
 
-/// How a step return value should be normalised by the generated wrapper.
+/// How a step return value should be normalized by the generated wrapper.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum ReturnKind {
     /// The step returns `()` or has no explicit return type.
@@ -288,9 +288,27 @@ mod tests {
     }
 
     #[test]
+    fn recognises_self_step_result() {
+        assert_classifies_to(
+            quote::quote! { fn step() -> self::StepResult<u8, &'static str> { Ok(1) } },
+            None,
+            ReturnKind::ResultValue,
+        );
+    }
+
+    #[test]
     fn recognises_super_step_result() {
         assert_classifies_to(
             quote::quote! { fn step() -> super::StepResult<u8, &'static str> { Ok(1) } },
+            None,
+            ReturnKind::ResultValue,
+        );
+    }
+
+    #[test]
+    fn recognises_rstest_bdd_step_result() {
+        assert_classifies_to(
+            quote::quote! { fn step() -> rstest_bdd::StepResult<u8, &'static str> { Ok(1) } },
             None,
             ReturnKind::ResultValue,
         );
