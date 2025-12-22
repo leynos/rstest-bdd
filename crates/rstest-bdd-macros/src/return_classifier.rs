@@ -151,24 +151,31 @@ fn is_primitive_ident(ident: &str) -> bool {
     PRIMITIVE_IDENTS.contains(&ident)
 }
 
-fn is_result_path(path: &Path) -> bool {
+/// Match a path to a type by bare name or qualified path validator.
+fn matches_type_path<F>(path: &Path, bare_name: &str, validate_qualified: F) -> bool
+where
+    F: Fn(&[String]) -> bool,
+{
     match_path_segments(path, |segments| match segments {
-        [single] => single == "Result",
-        [root, module, leaf] => {
-            (root == "std" || root == "core") && module == "result" && leaf == "Result"
-        }
-        _ => false,
+        [single] if single == bare_name => true,
+        qualified => validate_qualified(qualified),
+    })
+}
+
+fn is_result_path(path: &Path) -> bool {
+    matches_type_path(path, "Result", |segments| {
+        let segments: Vec<_> = segments.iter().map(String::as_str).collect();
+        matches!(segments.as_slice(), ["std" | "core", "result", "Result"])
     })
 }
 
 fn is_step_result_path(path: &Path) -> bool {
-    match_path_segments(path, |segments| match segments {
-        [single] => single == "StepResult",
-        [root, leaf] => {
-            matches!(root.as_str(), "rstest_bdd" | "crate" | "self" | "super")
-                && leaf == "StepResult"
-        }
-        _ => false,
+    matches_type_path(path, "StepResult", |segments| {
+        let segments: Vec<_> = segments.iter().map(String::as_str).collect();
+        matches!(
+            segments.as_slice(),
+            ["rstest_bdd" | "crate" | "self" | "super", "StepResult"]
+        )
     })
 }
 
