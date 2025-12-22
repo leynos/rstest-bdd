@@ -86,6 +86,14 @@ fn format_function_id(function: &RustFunctionId) -> String {
 pub struct StepDefinitionRegistry {
     steps_by_file: HashMap<PathBuf, Vec<Arc<CompiledStepDefinition>>>,
     steps_by_keyword: HashMap<StepType, Vec<Arc<CompiledStepDefinition>>>,
+    reverse_index: HashMap<PathBuf, Vec<ReverseIndexEntry>>,
+    keyword_positions: HashMap<StepType, HashMap<usize, usize>>,
+}
+
+#[derive(Debug, Clone, Copy)]
+struct ReverseIndexEntry {
+    keyword: StepType,
+    key: usize,
 }
 
 impl StepDefinitionRegistry {
@@ -133,21 +141,61 @@ impl StepDefinitionRegistry {
 
         let shared: Vec<_> = compiled.into_iter().map(Arc::new).collect();
 
+        let mut reverse_entries = Vec::with_capacity(shared.len());
+
         for step in &shared {
-            self.steps_by_keyword
+            let key = Arc::as_ptr(step) as usize;
+
+            let steps = self.steps_by_keyword.entry(step.keyword).or_default();
+            let index = steps.len();
+            steps.push(Arc::clone(step));
+            self.keyword_positions
                 .entry(step.keyword)
                 .or_default()
-                .push(Arc::clone(step));
+                .insert(key, index);
+
+            reverse_entries.push(ReverseIndexEntry {
+                keyword: step.keyword,
+                key,
+            });
         }
 
+        self.reverse_index.insert(path.clone(), reverse_entries);
         self.steps_by_file.insert(path.clone(), shared);
     }
 
     /// Remove all compiled step definitions for a given Rust source path.
     pub fn invalidate_file(&mut self, path: &Path) {
         self.steps_by_file.remove(path);
-        for steps in self.steps_by_keyword.values_mut() {
-            steps.retain(|step| step.source_path.as_path() != path);
+        let Some(entries) = self.reverse_index.remove(path) else {
+            return;
+        };
+
+        for ReverseIndexEntry { keyword, key } in entries {
+            let Some(steps) = self.steps_by_keyword.get_mut(&keyword) else {
+                continue;
+            };
+            let Some(positions) = self.keyword_positions.get_mut(&keyword) else {
+                continue;
+            };
+            let Some(&index) = positions.get(&key) else {
+                continue;
+            };
+
+            let _removed = steps.swap_remove(index);
+            positions.remove(&key);
+
+            if index < steps.len() {
+                if let Some(moved) = steps.get(index) {
+                    let moved_key = Arc::as_ptr(moved) as usize;
+                    positions.insert(moved_key, index);
+                }
+            }
+
+            if steps.is_empty() {
+                self.steps_by_keyword.remove(&keyword);
+                self.keyword_positions.remove(&keyword);
+            }
         }
     }
 
