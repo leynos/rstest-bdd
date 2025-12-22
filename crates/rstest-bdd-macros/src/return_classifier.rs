@@ -118,13 +118,21 @@ fn is_definitely_non_result_type(ty: &Type) -> bool {
     }
 }
 
-fn is_primitive_path(path: &Path) -> bool {
+/// Helper to extract path segments and apply a matching function.
+fn match_path_segments<F>(path: &Path, matcher: F) -> bool
+where
+    F: FnOnce(&[String]) -> bool,
+{
     let segments: Vec<_> = path
         .segments
         .iter()
         .map(|seg| seg.ident.to_string())
         .collect();
-    match segments.as_slice() {
+    matcher(segments.as_slice())
+}
+
+fn is_primitive_path(path: &Path) -> bool {
+    match_path_segments(path, |segments| match segments {
         [single] => is_primitive_ident(single.as_str()),
         [root, module, leaf] => {
             (root == "std" || root == "core")
@@ -132,60 +140,36 @@ fn is_primitive_path(path: &Path) -> bool {
                 && is_primitive_ident(leaf.as_str())
         }
         _ => false,
-    }
+    })
 }
 
 fn is_primitive_ident(ident: &str) -> bool {
-    matches!(
-        ident,
-        "u8" | "u16"
-            | "u32"
-            | "u64"
-            | "u128"
-            | "usize"
-            | "i8"
-            | "i16"
-            | "i32"
-            | "i64"
-            | "i128"
-            | "isize"
-            | "f32"
-            | "f64"
-            | "bool"
-            | "char"
-            | "str"
-    )
+    const PRIMITIVE_IDENTS: &[&str] = &[
+        "u8", "u16", "u32", "u64", "u128", "usize", "i8", "i16", "i32", "i64", "i128", "isize",
+        "f32", "f64", "bool", "char", "str",
+    ];
+    PRIMITIVE_IDENTS.contains(&ident)
 }
 
 fn is_result_path(path: &Path) -> bool {
-    let segments: Vec<_> = path
-        .segments
-        .iter()
-        .map(|seg| seg.ident.to_string())
-        .collect();
-    match segments.as_slice() {
+    match_path_segments(path, |segments| match segments {
         [single] => single == "Result",
         [root, module, leaf] => {
             (root == "std" || root == "core") && module == "result" && leaf == "Result"
         }
         _ => false,
-    }
+    })
 }
 
 fn is_step_result_path(path: &Path) -> bool {
-    let segments: Vec<_> = path
-        .segments
-        .iter()
-        .map(|seg| seg.ident.to_string())
-        .collect();
-    match segments.as_slice() {
+    match_path_segments(path, |segments| match segments {
         [single] => single == "StepResult",
         [root, leaf] => {
             matches!(root.as_str(), "rstest_bdd" | "crate" | "self" | "super")
                 && leaf == "StepResult"
         }
         _ => false,
-    }
+    })
 }
 
 fn first_type_argument(path: &Path) -> Option<&Type> {

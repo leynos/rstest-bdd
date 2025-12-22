@@ -31,7 +31,7 @@ fn increment(number: Number) -> Number {
 #[when("a fallible unit step succeeds")]
 #[expect(
     clippy::unnecessary_wraps,
-    reason = "step intentionally returns Result to exercise wrapper normalisation"
+    reason = "step intentionally returns Result to exercise wrapper normalization"
 )]
 fn fallible_unit_step_succeeds(number: Number) -> Result<(), &'static str> {
     assert_eq!(number.0, 1);
@@ -41,7 +41,7 @@ fn fallible_unit_step_succeeds(number: Number) -> Result<(), &'static str> {
 #[when("a fallible increment succeeds")]
 #[expect(
     clippy::unnecessary_wraps,
-    reason = "step intentionally returns Result to exercise wrapper normalisation"
+    reason = "step intentionally returns Result to exercise wrapper normalization"
 )]
 fn fallible_increment_succeeds(number: Number) -> Result<Number, &'static str> {
     Ok(Number(number.0 + 1))
@@ -56,7 +56,7 @@ fn fallible_increment_fails(number: Number) -> Result<Number, &'static str> {
 #[when("a std fallible unit step succeeds")]
 #[expect(
     clippy::unnecessary_wraps,
-    reason = "step intentionally returns Result to exercise wrapper normalisation"
+    reason = "step intentionally returns Result to exercise wrapper normalization"
 )]
 fn std_fallible_unit_step_succeeds(number: Number) -> std::result::Result<(), &'static str> {
     assert_eq!(number.0, 1);
@@ -66,7 +66,7 @@ fn std_fallible_unit_step_succeeds(number: Number) -> std::result::Result<(), &'
 #[when("a core fallible increment succeeds")]
 #[expect(
     clippy::unnecessary_wraps,
-    reason = "step intentionally returns Result to exercise wrapper normalisation"
+    reason = "step intentionally returns Result to exercise wrapper normalization"
 )]
 fn core_fallible_increment_succeeds(number: Number) -> core::result::Result<Number, &'static str> {
     Ok(Number(number.0 + 1))
@@ -75,7 +75,7 @@ fn core_fallible_increment_succeeds(number: Number) -> core::result::Result<Numb
 #[when("a StepResult increment succeeds")]
 #[expect(
     clippy::unnecessary_wraps,
-    reason = "step intentionally returns Result to exercise wrapper normalisation"
+    reason = "step intentionally returns Result to exercise wrapper normalization"
 )]
 fn stepresult_increment_succeeds(number: Number) -> StepResult<Number, &'static str> {
     Ok(Number(number.0 + 1))

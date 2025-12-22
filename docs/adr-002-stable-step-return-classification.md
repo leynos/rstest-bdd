@@ -65,7 +65,7 @@ and assumes `Result<..>` semantics; if the return type is not actually
 ## Alternatives considered
 
 - Keep the nightly-only auto-trait + negative-impl design: rejected because it
-  blocks stable toolchains and cannot be feature-gated without breaking macro
+  blocks stable toolchains, and cannot be feature-gated without breaking macro
   expansion for downstream crates.
 - Require all fallible steps to return a dedicated wrapper type: rejected as
   unnecessarily disruptive for common `Result<T, E>` usage.
