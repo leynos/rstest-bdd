@@ -18,9 +18,11 @@ use std::path::PathBuf;
 use gherkin::{Span, StepType};
 
 mod feature;
+mod registry;
 mod rust;
 
 pub use feature::{index_feature_file, index_feature_source};
+pub use registry::{CompiledStepDefinition, StepDefinitionRegistry, StepPatternCompileError};
 pub use rust::{index_rust_file, index_rust_source};
 
 /// Parsed index for a single `.feature` file.

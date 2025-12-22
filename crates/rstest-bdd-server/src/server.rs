@@ -8,10 +8,11 @@ use std::path::Path;
 
 use lsp_types::{ClientCapabilities, ServerCapabilities, WorkspaceFolder};
 use lsp_types::{TextDocumentSyncCapability, TextDocumentSyncKind, TextDocumentSyncOptions};
+use tracing::warn;
 
 use crate::config::ServerConfig;
 use crate::discovery::WorkspaceInfo;
-use crate::indexing::{FeatureFileIndex, RustStepFileIndex};
+use crate::indexing::{FeatureFileIndex, RustStepFileIndex, StepDefinitionRegistry};
 
 /// Central state shared across all LSP handlers.
 ///
@@ -34,6 +35,8 @@ pub struct ServerState {
     feature_indices: HashMap<std::path::PathBuf, FeatureFileIndex>,
     /// Indexed Rust step definition files keyed by absolute path.
     rust_step_indices: HashMap<std::path::PathBuf, RustStepFileIndex>,
+    /// Compiled step patterns keyed by keyword, built from Rust step indices.
+    step_registry: StepDefinitionRegistry,
 }
 
 impl ServerState {
@@ -59,6 +62,7 @@ impl ServerState {
             config,
             feature_indices: HashMap::new(),
             rust_step_indices: HashMap::new(),
+            step_registry: StepDefinitionRegistry::default(),
         }
     }
 
@@ -123,15 +127,38 @@ impl ServerState {
         self.feature_indices.get(path)
     }
 
-    /// Insert or update the cached index for a Rust source file.
-    pub fn upsert_rust_step_index(&mut self, index: RustStepFileIndex) {
-        self.rust_step_indices.insert(index.path.clone(), index);
-    }
-
     /// Retrieve the cached index for a Rust source file, if present.
     #[must_use]
     pub fn rust_step_index(&self, path: &Path) -> Option<&RustStepFileIndex> {
         self.rust_step_indices.get(path)
+    }
+
+    /// Access the compiled step registry.
+    #[must_use]
+    pub fn step_registry(&self) -> &StepDefinitionRegistry {
+        &self.step_registry
+    }
+
+    /// Insert or update the cached index for a Rust source file.
+    ///
+    /// This also refreshes the compiled step registry entries for the file so
+    /// navigation and diagnostics have keyword-keyed access to compiled
+    /// patterns without a full reindex.
+    pub fn upsert_rust_step_index(&mut self, index: RustStepFileIndex) {
+        let path = index.path.clone();
+        let compile_errors = self.step_registry.replace_rust_file(&index);
+        self.rust_step_indices.insert(path.clone(), index);
+
+        if !compile_errors.is_empty() {
+            warn!(
+                path = %path.display(),
+                errors = compile_errors.len(),
+                "failed to compile one or more step patterns"
+            );
+            for err in compile_errors {
+                warn!(path = %path.display(), error = %err, "step pattern compilation error");
+            }
+        }
     }
 }
 
@@ -173,6 +200,12 @@ mod tests {
         assert!(state.workspace_folders().is_empty());
         assert!(state.feature_indices.is_empty());
         assert!(state.rust_step_indices.is_empty());
+        assert!(
+            state
+                .step_registry
+                .steps_for_keyword(gherkin::StepType::Given)
+                .is_empty()
+        );
     }
 
     #[test]

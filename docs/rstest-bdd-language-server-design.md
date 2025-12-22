@@ -808,6 +808,19 @@ text:
   inside the Examples block and computes spans for each header cell from the
   text between pipe separators.
 
+**Step pattern compilation and registry:**
+
+Rust step patterns are compiled using `rstest-bdd-patterns` so the language
+server uses the same placeholder and regex semantics as the runtime and macro
+crates. The server stores the resulting compiled regex matchers in an in-memory
+registry keyed by the step keyword (`Given`, `When`, `Then`) and updated
+incrementally on `textDocument/didSave` for Rust sources:
+
+- When a Rust file is re-indexed, the registry first invalidates the existing
+  compiled entries for that file path and then inserts the newly compiled steps.
+- Compilation failures are logged, and the failing patterns are skipped, so a
+  single invalid pattern does not prevent indexing other steps in the same file.
+
 ### Next phases
 
 Subsequent work will implement:

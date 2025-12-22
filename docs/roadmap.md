@@ -398,7 +398,7 @@ scope until the core workflow is stable.
     `cargo metadata`, and structured logging configurable through environment
     variables.
 
-- [ ] **Indexing pipeline**
+- [x] **Indexing pipeline**
 
   - [x] Parse `.feature` files with `gherkin` on save to capture steps,
     doc strings, tables, example columns, and byte offsets.
@@ -407,7 +407,7 @@ scope until the core workflow is stable.
     `#[then]` functions, including pattern strings, keyword, parameter list,
     and expectations for tables or doc strings.
 
-  - [ ] Compile step patterns with `rstest-bdd-patterns` and populate an
+  - [x] Compile step patterns with `rstest-bdd-patterns` and populate an
     in-memory registry keyed by keyword, invalidated incrementally on file
     change notifications.
 
