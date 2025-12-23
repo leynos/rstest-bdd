@@ -4,7 +4,7 @@
 //! diagnostics. We avoid `quote` here by rendering common `syn::Type` shapes
 //! directly, falling back to `Debug` output for rarely used syntaxes.
 
-use std::fmt::Write as _;
+use std::fmt::Write;
 
 use syn::{Expr, GenericArgument, Path, PathArguments, ReturnType, Type, TypeParamBound};
 
@@ -12,36 +12,8 @@ pub(super) fn render_type(ty: &Type) -> String {
     match ty {
         Type::Path(type_path) => render_path(&type_path.path),
         Type::BareFn(bare_fn) => render_bare_fn(bare_fn),
-        Type::Reference(type_ref) => {
-            let mut rendered = String::from("&");
-            if let Some(lifetime) = &type_ref.lifetime {
-                rendered.push('\'');
-                rendered.push_str(&lifetime.ident.to_string());
-                rendered.push(' ');
-            }
-            if type_ref.mutability.is_some() {
-                rendered.push_str("mut ");
-            }
-            rendered.push_str(&render_type(&type_ref.elem));
-            rendered
-        }
-        Type::Tuple(tuple) => {
-            if tuple.elems.is_empty() {
-                "()".to_string()
-            } else {
-                let elems = tuple
-                    .elems
-                    .iter()
-                    .map(render_type)
-                    .collect::<Vec<_>>()
-                    .join(", ");
-                if tuple.elems.len() == 1 {
-                    format!("({elems},)")
-                } else {
-                    format!("({elems})")
-                }
-            }
-        }
+        Type::Reference(type_ref) => render_reference(type_ref),
+        Type::Tuple(tuple) => render_tuple(tuple),
         Type::Slice(slice) => format!("[{}]", render_type(&slice.elem)),
         Type::Array(array) => {
             let len = render_expr(&array.len);
@@ -65,18 +37,68 @@ pub(super) fn render_type(ty: &Type) -> String {
     }
 }
 
-fn render_bare_fn(bare_fn: &syn::TypeBareFn) -> String {
-    let mut rendered = String::new();
-    if bare_fn.unsafety.is_some() {
-        rendered.push_str("unsafe ");
+fn render_reference(type_ref: &syn::TypeReference) -> String {
+    let mut rendered = String::from("&");
+    if let Some(lifetime) = &type_ref.lifetime {
+        rendered.push('\'');
+        rendered.push_str(&lifetime.ident.to_string());
+        rendered.push(' ');
     }
-    if let Some(abi) = &bare_fn.abi {
-        rendered.push_str("extern ");
-        if let Some(name) = &abi.name {
-            let _ = write!(rendered, "{:?} ", name.value());
-        }
+    if type_ref.mutability.is_some() {
+        rendered.push_str("mut ");
+    }
+    rendered.push_str(&render_type(&type_ref.elem));
+    rendered
+}
+
+fn render_tuple(tuple: &syn::TypeTuple) -> String {
+    if tuple.elems.is_empty() {
+        return "()".to_string();
     }
 
+    let elems = tuple
+        .elems
+        .iter()
+        .map(render_type)
+        .collect::<Vec<_>>()
+        .join(", ");
+    if tuple.elems.len() == 1 {
+        format!("({elems},)")
+    } else {
+        format!("({elems})")
+    }
+}
+
+/// Render the unsafety and ABI prefix for a bare function type.
+fn render_fn_prefix(unsafety: Option<&syn::token::Unsafe>, abi: Option<&syn::Abi>) -> String {
+    let mut prefix = String::new();
+    if unsafety.is_some() {
+        prefix.push_str("unsafe ");
+    }
+    if let Some(abi) = abi {
+        prefix.push_str("extern ");
+        if let Some(name) = &abi.name {
+            let _ = write!(prefix, "{:?} ", name.value());
+        }
+    }
+    prefix
+}
+
+/// Render variadic parameters suffix if present.
+fn render_variadic(variadic: Option<&syn::BareVariadic>, has_inputs: bool) -> String {
+    if variadic.is_some() {
+        if has_inputs {
+            ", ...".to_string()
+        } else {
+            "...".to_string()
+        }
+    } else {
+        String::new()
+    }
+}
+
+fn render_bare_fn(bare_fn: &syn::TypeBareFn) -> String {
+    let mut rendered = render_fn_prefix(bare_fn.unsafety.as_ref(), bare_fn.abi.as_ref());
     rendered.push_str("fn(");
     let inputs = bare_fn
         .inputs
@@ -85,12 +107,10 @@ fn render_bare_fn(bare_fn: &syn::TypeBareFn) -> String {
         .collect::<Vec<_>>()
         .join(", ");
     rendered.push_str(&inputs);
-    if bare_fn.variadic.is_some() {
-        if !bare_fn.inputs.is_empty() {
-            rendered.push_str(", ");
-        }
-        rendered.push_str("...");
-    }
+    rendered.push_str(&render_variadic(
+        bare_fn.variadic.as_ref(),
+        !bare_fn.inputs.is_empty(),
+    ));
     rendered.push(')');
 
     if let ReturnType::Type(_, ty) = &bare_fn.output {
@@ -181,15 +201,19 @@ fn render_generic_argument(argument: &GenericArgument) -> String {
     }
 }
 
+fn render_lit(lit: &syn::Lit) -> String {
+    match lit {
+        syn::Lit::Int(lit) => lit.to_string(),
+        syn::Lit::Bool(lit) => lit.value.to_string(),
+        syn::Lit::Char(lit) => format!("{:?}", lit.value()),
+        syn::Lit::Str(lit) => format!("{:?}", lit.value()),
+        other => format!("{other:?}"),
+    }
+}
+
 fn render_expr(expr: &Expr) -> String {
     match expr {
-        Expr::Lit(expr_lit) => match &expr_lit.lit {
-            syn::Lit::Int(lit) => lit.to_string(),
-            syn::Lit::Bool(lit) => lit.value.to_string(),
-            syn::Lit::Char(lit) => format!("{:?}", lit.value()),
-            syn::Lit::Str(lit) => format!("{:?}", lit.value()),
-            other => format!("{other:?}"),
-        },
+        Expr::Lit(expr_lit) => render_lit(&expr_lit.lit),
         Expr::Path(expr_path) => render_path(&expr_path.path),
         other => format!("{other:?}"),
     }
