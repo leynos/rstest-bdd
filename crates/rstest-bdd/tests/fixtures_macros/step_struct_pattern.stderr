@@ -1,6 +1,6 @@
 error: invalid step function signature: unsupported parameter pattern `User { name }`; use a simple identifier (e.g., `arg: T`)
 
-         = help: Use `#[given] fn name(...args...)` with supported step arguments/fixtures (step attributes include `#[given]`, `#[when]`, and `#[then]`); remove `self` if present.
+         = help: Use a step attribute (such as `#[given]`) on `fn name(...args...)` with supported step arguments/fixtures (step attributes include `#[given]`, `#[when]`, and `#[then]`); remove `self` if present.
 
   --> tests/fixtures_macros/step_struct_pattern.rs:11:21
    |

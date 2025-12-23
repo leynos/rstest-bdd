@@ -106,16 +106,23 @@ fn extract_step_args_or_abort(
     match extract_args(func, unique_placeholders) {
         Ok(args) => args,
         Err(err) => {
-            let kw_name = match keyword {
-                crate::StepKeyword::Given => "given",
-                crate::StepKeyword::When => "when",
-                crate::StepKeyword::Then => "then",
-                crate::StepKeyword::And => "and",
-                crate::StepKeyword::But => "but",
+            let help = if err
+                .to_string()
+                .contains("duplicate `#[datatable]` attribute")
+            {
+                "Remove one of the duplicate `#[datatable]` attributes.".to_string()
+            } else {
+                let kw_name = match keyword {
+                    crate::StepKeyword::Given => "given",
+                    crate::StepKeyword::When => "when",
+                    crate::StepKeyword::Then => "then",
+                    crate::StepKeyword::And => "and",
+                    crate::StepKeyword::But => "but",
+                };
+                format!(
+                    "Use a step attribute (such as `#[{kw_name}]`) on `fn name(...args...)` with supported step arguments/fixtures (step attributes include `#[given]`, `#[when]`, and `#[then]`); remove `self` if present."
+                )
             };
-            let help = format!(
-                "Use `#[{kw_name}] fn name(...args...)` with supported step arguments/fixtures (step attributes include `#[given]`, `#[when]`, and `#[then]`); remove `self` if present."
-            );
             proc_macro_error::abort!(err.span(), "invalid step function signature: {}", err; help = help);
         }
     }

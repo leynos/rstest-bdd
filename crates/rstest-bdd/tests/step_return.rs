@@ -72,6 +72,12 @@ fn core_fallible_increment_succeeds(number: Number) -> core::result::Result<Numb
     Ok(Number(number.0 + 1))
 }
 
+#[when("a core fallible increment fails")]
+fn core_fallible_increment_fails(number: Number) -> core::result::Result<Number, &'static str> {
+    assert_eq!(number.0, 1);
+    Err("core failure")
+}
+
 #[when("a StepResult increment succeeds")]
 #[expect(
     clippy::unnecessary_wraps,
@@ -79,6 +85,12 @@ fn core_fallible_increment_succeeds(number: Number) -> core::result::Result<Numb
 )]
 fn stepresult_increment_succeeds(number: Number) -> StepResult<Number, &'static str> {
     Ok(Number(number.0 + 1))
+}
+
+#[when("a StepResult increment fails")]
+fn stepresult_increment_fails(number: Number) -> StepResult<Number, &'static str> {
+    assert_eq!(number.0, 1);
+    Err("stepresult failure")
 }
 
 type AliasResult<T> = Result<T, &'static str>;
@@ -213,8 +225,20 @@ fn scenario_core_result(number: Number) {
     let _ = number;
 }
 
+#[scenario(path = "tests/features/step_return_core_result_failure.feature")]
+#[should_panic(expected = "core failure")]
+fn scenario_core_result_failure(number: Number) {
+    let _ = number;
+}
+
 #[scenario(path = "tests/features/step_return_stepresult.feature")]
 fn scenario_stepresult(number: Number) {
+    let _ = number;
+}
+
+#[scenario(path = "tests/features/step_return_stepresult_failure.feature")]
+#[should_panic(expected = "stepresult failure")]
+fn scenario_stepresult_failure(number: Number) {
     let _ = number;
 }
 

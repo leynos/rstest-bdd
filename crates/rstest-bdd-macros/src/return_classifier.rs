@@ -252,7 +252,7 @@ mod tests {
     }
 
     #[test]
-    fn recognises_std_result_path() {
+    fn recognizes_std_result_path() {
         assert_classifies_to(
             quote::quote! { fn step() -> std::result::Result<u8, &'static str> { Ok(1) } },
             None,
@@ -261,7 +261,7 @@ mod tests {
     }
 
     #[test]
-    fn recognises_core_result_path() {
+    fn recognizes_core_result_path() {
         assert_classifies_to(
             quote::quote! { fn step() -> core::result::Result<(), &'static str> { Ok(()) } },
             None,
@@ -270,7 +270,7 @@ mod tests {
     }
 
     #[test]
-    fn recognises_step_result() {
+    fn recognizes_step_result() {
         assert_classifies_to(
             quote::quote! { fn step() -> StepResult<u8, &'static str> { Ok(1) } },
             None,
@@ -279,7 +279,7 @@ mod tests {
     }
 
     #[test]
-    fn recognises_crate_step_result() {
+    fn recognizes_crate_step_result() {
         assert_classifies_to(
             quote::quote! { fn step() -> crate::StepResult<u8, &'static str> { Ok(1) } },
             None,
@@ -288,7 +288,7 @@ mod tests {
     }
 
     #[test]
-    fn recognises_self_step_result() {
+    fn recognizes_self_step_result() {
         assert_classifies_to(
             quote::quote! { fn step() -> self::StepResult<u8, &'static str> { Ok(1) } },
             None,
@@ -297,7 +297,7 @@ mod tests {
     }
 
     #[test]
-    fn recognises_super_step_result() {
+    fn recognizes_super_step_result() {
         assert_classifies_to(
             quote::quote! { fn step() -> super::StepResult<u8, &'static str> { Ok(1) } },
             None,
@@ -306,7 +306,7 @@ mod tests {
     }
 
     #[test]
-    fn recognises_rstest_bdd_step_result() {
+    fn recognizes_rstest_bdd_step_result() {
         assert_classifies_to(
             quote::quote! { fn step() -> rstest_bdd::StepResult<u8, &'static str> { Ok(1) } },
             None,
