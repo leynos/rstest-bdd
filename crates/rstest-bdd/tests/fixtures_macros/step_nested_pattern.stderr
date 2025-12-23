@@ -2,7 +2,7 @@ error: invalid step function signature: unsupported parameter pattern `User { co
 
          = help: Bind the parameter to a simple identifier (e.g., `tuple: (i32, i32)` or `user: User`) and destructure it inside the step body.
 
-  --> tests/fixtures_macros/step_nested_pattern.rs:11:21
+  --> tests/fixtures_macros/step_nested_pattern.rs:11:16
    |
 11 | fn step_nested(User { coords: (x, y) }: User) {}
-   |                     ^^^^^^^^^^^^^^^^^^
+   |                ^^^^^^^^^^^^^^^^^^^^^^^

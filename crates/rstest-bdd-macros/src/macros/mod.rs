@@ -121,6 +121,16 @@ fn extract_step_args_or_abort(
         Err(err) => {
             let err_message = err.to_string();
             let help = signature_error_help(&err_message, keyword);
+            if err_message.contains("unsupported parameter pattern") {
+                if let Some(pattern) = first_non_identifier_pattern(func) {
+                    proc_macro_error::abort!(
+                        pattern,
+                        "invalid step function signature: {}",
+                        err;
+                        help = help
+                    );
+                }
+            }
             proc_macro_error::abort!(
                 err.span(),
                 "invalid step function signature: {}",
@@ -128,6 +138,26 @@ fn extract_step_args_or_abort(
                 help = help
             );
         }
+    }
+}
+
+fn first_non_identifier_pattern(func: &syn::ItemFn) -> Option<&syn::Pat> {
+    func.sig.inputs.iter().find_map(|arg| match arg {
+        syn::FnArg::Typed(pat_ty) => match &*pat_ty.pat {
+            syn::Pat::Ident(_) => None,
+            other => Some(other),
+        },
+        syn::FnArg::Receiver(_) => None,
+    })
+}
+
+fn keyword_name(keyword: crate::StepKeyword) -> &'static str {
+    match keyword {
+        crate::StepKeyword::Given => "given",
+        crate::StepKeyword::When => "when",
+        crate::StepKeyword::Then => "then",
+        crate::StepKeyword::And => "and",
+        crate::StepKeyword::But => "but",
     }
 }
 
@@ -152,13 +182,7 @@ fn signature_error_help(err_message: &str, keyword: crate::StepKeyword) -> Strin
         return "Remove `self` from step functions.".to_string();
     }
 
-    let kw_name = match keyword {
-        crate::StepKeyword::Given => "given",
-        crate::StepKeyword::When => "when",
-        crate::StepKeyword::Then => "then",
-        crate::StepKeyword::And => "and",
-        crate::StepKeyword::But => "but",
-    };
+    let kw_name = keyword_name(keyword);
     format!(
         "Use a step attribute (such as `#[{kw_name}]`) on `fn name(...args...)` with supported step arguments/fixtures (step attributes include `#[given]`, `#[when]`, and `#[then]`); remove `self` if present."
     )
