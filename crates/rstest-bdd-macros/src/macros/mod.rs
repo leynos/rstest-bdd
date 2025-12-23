@@ -141,6 +141,7 @@ fn extract_step_args_or_abort(
     }
 }
 
+/// Find the first function parameter pattern that is not a simple identifier.
 fn first_non_identifier_pattern(func: &syn::ItemFn) -> Option<&syn::Pat> {
     func.sig.inputs.iter().find_map(|arg| match arg {
         syn::FnArg::Typed(pat_ty) => match &*pat_ty.pat {
@@ -151,6 +152,7 @@ fn first_non_identifier_pattern(func: &syn::ItemFn) -> Option<&syn::Pat> {
     })
 }
 
+/// Return the lowercase attribute name for a [`StepKeyword`].
 fn keyword_name(keyword: crate::StepKeyword) -> &'static str {
     match keyword {
         crate::StepKeyword::Given => "given",
@@ -161,6 +163,7 @@ fn keyword_name(keyword: crate::StepKeyword) -> &'static str {
     }
 }
 
+/// Produce a keyword-specific help message for a step signature diagnostic.
 fn signature_error_help(err_message: &str, keyword: crate::StepKeyword) -> String {
     if err_message.contains("duplicate `#[datatable]` attribute") {
         return "Remove one of the duplicate `#[datatable]` attributes.".to_string();

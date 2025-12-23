@@ -206,13 +206,6 @@ mod tests {
         arg
     }
 
-    fn expect_err<T, E>(result: Result<T, E>, message: &str) -> E {
-        match result {
-            Ok(_) => panic!("{message}"),
-            Err(err) => err,
-        }
-    }
-
     #[test]
     fn classify_step_or_fixture_reports_pattern_in_error() {
         let mut extracted = ExtractedArgs::default();
@@ -230,12 +223,13 @@ mod tests {
     }
 
     #[test]
+    #[expect(clippy::expect_used, reason = "test asserts error contents and span")]
     fn next_typed_argument_reports_pattern_in_error() {
         let src = "fn step((a, b): (i32, i32)) {}";
         let func = parse_fn(src);
         let mut input = first_input(func);
 
-        let err = expect_err(next_typed_argument(&mut input), "tuple patterns must error");
+        let err = next_typed_argument(&mut input).expect_err("tuple patterns must error");
 
         let msg = err.to_string();
         assert!(
@@ -285,15 +279,17 @@ mod tests {
     }
 
     #[test]
+    #[expect(
+        clippy::expect_used,
+        reason = "test asserts the returned span covers the destructuring group"
+    )]
     fn span_for_pattern_points_to_full_destructuring_pattern() {
         let src = "fn step(User { name }: User) {}";
         let func = parse_fn(src);
         let mut input = first_input(func);
 
-        let err = expect_err(
-            next_typed_argument(&mut input),
-            "struct destructuring patterns must error",
-        );
+        let err =
+            next_typed_argument(&mut input).expect_err("struct destructuring patterns must error");
 
         let Some(pattern_start) = src.find("{ name }") else {
             panic!("test input should contain struct destructuring group");
