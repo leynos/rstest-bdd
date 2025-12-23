@@ -141,7 +141,10 @@ fn render_trait_object(trait_object: &syn::TypeTraitObject) -> String {
         .join(" + ");
 
     if bounds.is_empty() {
-        "dyn".to_string()
+        // Defensive fallback for malformed inputs: `dyn` without bounds is not valid
+        // Rust syntax, but we prefer returning a readable placeholder over a noisy
+        // debug dump.
+        "dyn _".to_string()
     } else {
         format!("dyn {bounds}")
     }
@@ -216,5 +219,100 @@ fn render_expr(expr: &Expr) -> String {
         Expr::Lit(expr_lit) => render_lit(&expr_lit.lit),
         Expr::Path(expr_path) => render_path(&expr_path.path),
         other => format!("{other:?}"),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use syn::{Type, parse_quote};
+
+    fn assert_renders(ty: &Type, expected: &str) {
+        assert_eq!(render_type(ty), expected);
+    }
+
+    #[test]
+    fn renders_path_types() {
+        assert_renders(&parse_quote!(u8), "u8");
+        assert_renders(&parse_quote!(std::string::String), "std::string::String");
+        assert_renders(
+            &parse_quote!(::std::collections::HashMap<String, u8>),
+            "::std::collections::HashMap<String, u8>",
+        );
+    }
+
+    #[test]
+    fn renders_references() {
+        assert_renders(&parse_quote!(&u8), "&u8");
+        assert_renders(&parse_quote!(&mut u8), "&mut u8");
+        assert_renders(&parse_quote!(&'a u8), "&'a u8");
+        assert_renders(&parse_quote!(&'a mut u8), "&'a mut u8");
+    }
+
+    #[test]
+    fn renders_tuples() {
+        assert_renders(&parse_quote!(()), "()");
+        assert_renders(&parse_quote!((u8,)), "(u8,)");
+        assert_renders(&parse_quote!((u8, u16)), "(u8, u16)");
+    }
+
+    #[test]
+    fn renders_arrays_slices_and_pointers() {
+        assert_renders(&parse_quote!([u8]), "[u8]");
+        assert_renders(&parse_quote!([u8; 3]), "[u8; 3]");
+        assert_renders(&parse_quote!(*const u8), "*const u8");
+        assert_renders(&parse_quote!(*mut u8), "*mut u8");
+    }
+
+    #[test]
+    fn renders_function_pointers() {
+        assert_renders(&parse_quote!(fn(u8) -> u16), "fn(u8) -> u16");
+        assert_renders(&parse_quote!(unsafe fn(u8) -> u16), "unsafe fn(u8) -> u16");
+        assert_renders(
+            &parse_quote!(extern "C" fn(u8) -> u16),
+            "extern \"C\" fn(u8) -> u16",
+        );
+        assert_renders(
+            &parse_quote!(unsafe extern "C" fn(i32, ...) -> i32),
+            "unsafe extern \"C\" fn(i32, ...) -> i32",
+        );
+    }
+
+    #[test]
+    fn renders_trait_objects() {
+        assert_renders(&parse_quote!(dyn Send), "dyn Send");
+        assert_renders(&parse_quote!(dyn Send + Sync), "dyn Send + Sync");
+        assert_renders(
+            &parse_quote!(dyn std::fmt::Debug + Send + 'static),
+            "dyn std::fmt::Debug + Send + 'static",
+        );
+    }
+
+    #[test]
+    fn renders_trait_object_maybe_modifier() {
+        let mut ty: syn::TypeTraitObject = parse_quote!(dyn Sized);
+        let mut bound: syn::TraitBound = parse_quote!(Sized);
+        bound.modifier = syn::TraitBoundModifier::Maybe(syn::token::Question::default());
+        ty.bounds = std::iter::once(syn::TypeParamBound::Trait(bound)).collect();
+        assert_eq!(render_trait_object(&ty), "dyn ?Sized");
+    }
+
+    #[test]
+    fn renders_trait_object_with_no_bounds_as_placeholder() {
+        let ty = syn::TypeTraitObject {
+            dyn_token: Option::default(),
+            bounds: syn::punctuated::Punctuated::default(),
+        };
+        assert_eq!(render_trait_object(&ty), "dyn _");
+    }
+
+    #[test]
+    fn falls_back_to_debug_for_unhandled_types() {
+        let ty: Type = parse_quote!(impl std::fmt::Debug);
+        let rendered = render_type(&ty);
+        assert!(
+            rendered.contains("ImplTrait"),
+            "expected debug fallback to contain variant name, got {rendered:?}"
+        );
     }
 }

@@ -17,6 +17,16 @@ use super::{
     },
 };
 
+fn pattern_display_for_error(pat: &syn::Pat) -> String {
+    match pat {
+        syn::Pat::Struct(pat_struct) => pat_struct.path.to_token_stream().to_string(),
+        syn::Pat::TupleStruct(pat_tuple_struct) => {
+            pat_tuple_struct.path.to_token_stream().to_string()
+        }
+        other => other.to_token_stream().to_string(),
+    }
+}
+
 fn next_typed_argument(
     input: &mut syn::FnArg,
 ) -> syn::Result<(&mut syn::PatType, syn::Ident, syn::Type)> {
@@ -29,9 +39,9 @@ fn next_typed_argument(
     let pat = match &*arg.pat {
         syn::Pat::Ident(pat_ident) => pat_ident.ident.clone(),
         other => {
-            let pattern = other.to_token_stream().to_string();
+            let pattern = pattern_display_for_error(other);
             return Err(syn::Error::new_spanned(
-                other,
+                arg,
                 format!(
                     "unsupported parameter pattern `{pattern}`; use a simple identifier (e.g., `arg: T`)"
                 ),
@@ -69,9 +79,9 @@ fn classify_step_or_fixture(
     let pat = match &*arg.pat {
         syn::Pat::Ident(pat_ident) => pat_ident.ident.clone(),
         other => {
-            let pattern = other.to_token_stream().to_string();
+            let pattern = pattern_display_for_error(other);
             return Err(syn::Error::new_spanned(
-                other,
+                arg,
                 format!(
                     "unsupported parameter pattern `{pattern}`; use a simple identifier (e.g., `arg: T`)"
                 ),

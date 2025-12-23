@@ -106,11 +106,15 @@ fn extract_step_args_or_abort(
     match extract_args(func, unique_placeholders) {
         Ok(args) => args,
         Err(err) => {
-            let help = if err
-                .to_string()
-                .contains("duplicate `#[datatable]` attribute")
-            {
+            let err_message = err.to_string();
+            let help = if err_message.contains("duplicate `#[datatable]` attribute") {
                 "Remove one of the duplicate `#[datatable]` attributes.".to_string()
+            } else if err_message.contains("only one DataTable parameter is permitted") {
+                "Remove one of the DataTable parameters.".to_string()
+            } else if err_message.contains("unsupported parameter pattern") {
+                "Use a plain identifier in the parameter pattern (e.g., `user: User`) instead of destructuring patterns.".to_string()
+            } else if err_message.contains("methods are not supported; remove `self`") {
+                "Remove `self` from step functions.".to_string()
             } else {
                 let kw_name = match keyword {
                     crate::StepKeyword::Given => "given",

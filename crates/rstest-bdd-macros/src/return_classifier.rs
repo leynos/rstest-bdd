@@ -113,7 +113,9 @@ fn is_unit_type(ty: &Type) -> bool {
 
 fn is_definitely_non_result_type(ty: &Type) -> bool {
     match ty {
-        Type::Path(type_path) => is_primitive_path(&type_path.path),
+        Type::Path(type_path) => {
+            is_primitive_path(&type_path.path) || is_known_non_result_path(&type_path.path)
+        }
         _ => true,
     }
 }
@@ -140,6 +142,19 @@ fn is_primitive_path(path: &Path) -> bool {
                 && is_primitive_ident(leaf.as_str())
         }
         _ => false,
+    })
+}
+
+fn is_known_non_result_path(path: &Path) -> bool {
+    match_path_segments(path, |segments| {
+        let segments: Vec<_> = segments.iter().map(String::as_str).collect();
+        matches!(
+            segments.as_slice(),
+            ["String" | "Option" | "Vec"]
+                | ["std" | "alloc", "string", "String"]
+                | ["std" | "core", "option", "Option"]
+                | ["std" | "alloc", "vec", "Vec"]
+        )
     })
 }
 
