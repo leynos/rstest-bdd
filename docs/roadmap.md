@@ -440,3 +440,58 @@ scope until the core workflow is stable.
 
   - [ ] Add smoke tests that start the server, answer a definition request,
     and emit diagnostics for one feature file; gate them in CI.
+
+## Phase 8: Async step execution
+
+This phase introduces Tokio-based asynchronous step execution, enabling
+`async fn` step definitions and proper fixture integration under the Tokio
+runtime. Multi-thread mode remains out of scope until the fixture storage model
+is redesigned. For the full architectural decision record, see
+[ADR-001](adr-001-async-fixtures-and-test.md).
+
+- [ ] **Async step registry**
+
+  - [ ] Define `StepFuture<'a>` type alias for the step wrapper return type.
+
+  - [ ] Implement `AsyncStepFn` wrapper type that returns `StepFuture`.
+
+  - [ ] Update `Step` struct to store async step wrappers alongside sync.
+
+  - [ ] Generate wrapper code that normalises sync step definitions into the
+    async interface, wrapping results in immediately-ready futures.
+
+- [ ] **Tokio current-thread integration**
+
+  - [ ] Add `runtime` argument to `scenarios!` macro accepting
+    `"tokio-current-thread"`.
+
+  - [ ] Generate `#[tokio::test(flavor = "current_thread")]` attribute for
+    async scenario tests.
+
+  - [ ] Preserve `RefCell`-backed fixture model for mutable borrows across
+    `.await` points.
+
+  - [ ] Support `#[scenario]` macro with explicit `#[tokio::test]` annotation
+    for manual async scenario tests.
+
+- [ ] **Unwind and skip handling**
+
+  - [ ] Implement `Future`-aware `catch_unwind` using `futures::FutureExt` or
+    equivalent.
+
+  - [ ] Preserve `skip!` interception across `.await` points.
+
+  - [ ] Maintain panic context (step index, keyword, text, feature/scenario
+    metadata) in async error reports.
+
+- [ ] **Documentation and migration**
+
+  - [ ] Document async step authoring in the user guide.
+
+  - [ ] Document Tokio current-thread limitations (blocking operations, nested
+    runtimes, `spawn_local` patterns).
+
+  - [ ] Provide migration guide for projects adopting async steps.
+
+  - [ ] Update design document §2.5 with implementation details as the feature
+    matures.
