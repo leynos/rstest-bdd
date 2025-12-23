@@ -18,25 +18,41 @@ use super::{
     },
 };
 
-fn pattern_display_for_error(pat: &syn::Pat) -> String {
-    pat.to_token_stream().to_string()
-}
-
+/// Compute a best-effort span for a parameter pattern.
+///
+/// We prefer producing a span that covers the whole pattern so rustc can
+/// underline the full destructuring region. On stable toolchains, procedural
+/// macro spans cannot always be joined across tokens, so we fall back to a
+/// reasonably informative token span (e.g. the group containing the tuple or
+/// struct fields).
 fn span_for_pattern(pat: &syn::Pat) -> proc_macro2::Span {
-    let tokens = pat.to_token_stream();
-    let mut iter = tokens.into_iter();
-    let Some(first) = iter.next() else {
+    let tokens: Vec<_> = pat.to_token_stream().into_iter().collect();
+    debug_assert!(
+        !tokens.is_empty(),
+        "syn::Pat should not produce an empty token stream"
+    );
+    let Some(first) = tokens.first() else {
         return proc_macro2::Span::call_site();
     };
-    let mut last = first.clone();
-    for token in iter {
-        last = token;
-    }
-    let first_span = span_for_token_tree(&first);
-    let last_span = span_for_token_tree(&last);
-    first_span.join(last_span).unwrap_or(first_span)
+    let Some(last) = tokens.last() else {
+        return proc_macro2::Span::call_site();
+    };
+
+    let first_span = span_for_token_tree(first);
+    let last_span = span_for_token_tree(last);
+    first_span.join(last_span).unwrap_or_else(|| {
+        tokens
+            .iter()
+            .rev()
+            .find_map(|token| match token {
+                TokenTree::Group(group) => Some(group.span()),
+                _ => None,
+            })
+            .unwrap_or(first_span)
+    })
 }
 
+/// Extract the span from a single token tree node.
 fn span_for_token_tree(token: &TokenTree) -> proc_macro2::Span {
     match token {
         TokenTree::Group(group) => group.span(),
@@ -58,7 +74,7 @@ fn next_typed_argument(
     let pat = match &*arg.pat {
         syn::Pat::Ident(pat_ident) => pat_ident.ident.clone(),
         other => {
-            let pattern = pattern_display_for_error(other);
+            let pattern = other.to_token_stream().to_string();
             return Err(syn::Error::new(
                 span_for_pattern(other),
                 format!(
@@ -98,7 +114,7 @@ fn classify_step_or_fixture(
     let pat = match &*arg.pat {
         syn::Pat::Ident(pat_ident) => pat_ident.ident.clone(),
         other => {
-            let pattern = pattern_display_for_error(other);
+            let pattern = other.to_token_stream().to_string();
             return Err(syn::Error::new(
                 span_for_pattern(other),
                 format!(
@@ -181,6 +197,20 @@ mod tests {
     use super::*;
     use syn::parse_quote;
 
+    fn parse_fn(src: &str) -> syn::ItemFn {
+        match syn::parse_str(src) {
+            Ok(func) => func,
+            Err(err) => panic!("test input should parse: {err}"),
+        }
+    }
+
+    fn first_input(func: syn::ItemFn) -> syn::FnArg {
+        let Some(arg) = func.sig.inputs.into_iter().next() else {
+            panic!("test input should contain one argument");
+        };
+        arg
+    }
+
     #[test]
     fn classify_step_or_fixture_reports_pattern_in_error() {
         let mut extracted = ExtractedArgs::default();
@@ -195,5 +225,97 @@ mod tests {
         assert!(msg.contains("unsupported parameter pattern"));
         assert!(msg.contains("value"));
         assert!(msg.contains("other"));
+    }
+
+    #[test]
+    fn next_typed_argument_reports_pattern_in_error() {
+        let src = "fn step((a, b): (i32, i32)) {}";
+        let func = parse_fn(src);
+        let mut input = first_input(func);
+
+        let Err(err) = next_typed_argument(&mut input) else {
+            panic!("tuple patterns must error");
+        };
+
+        let msg = err.to_string();
+        assert!(
+            msg.contains("unsupported parameter pattern"),
+            "unexpected: {msg}"
+        );
+        assert!(msg.contains('a'), "unexpected: {msg}");
+        assert!(msg.contains('b'), "unexpected: {msg}");
+
+        let Some(expected_start) = src.find("(a, b)") else {
+            panic!("test input should contain tuple pattern");
+        };
+        assert_eq!(err.span().start().line, 1);
+        assert_eq!(err.span().start().column, expected_start);
+    }
+
+    #[test]
+    fn span_for_pattern_handles_single_token() {
+        let src = "fn step(value: i32) {}";
+        let func = parse_fn(src);
+        let arg = first_input(func);
+        let syn::FnArg::Typed(pat_ty) = arg else {
+            panic!("test input should contain a typed argument");
+        };
+
+        let span = span_for_pattern(&pat_ty.pat);
+        let Some(expected_start) = src.find("value") else {
+            panic!("test input should contain identifier");
+        };
+        assert_eq!(span.start().line, 1);
+        assert_eq!(span.end().line, 1);
+        assert_eq!(span.start().column, expected_start);
+        assert!(
+            span.end().column > span.start().column,
+            "unexpected span end: {:?}",
+            span.end()
+        );
+    }
+
+    #[test]
+    fn span_for_pattern_handles_multi_token() {
+        let src = "fn step((value, other): (i32, i32)) {}";
+        let func = parse_fn(src);
+        let arg = first_input(func);
+        let syn::FnArg::Typed(pat_ty) = arg else {
+            panic!("test input should contain a typed argument");
+        };
+
+        let span = span_for_pattern(&pat_ty.pat);
+        let Some(expected_start) = src.find("(value, other)") else {
+            panic!("test input should contain tuple pattern");
+        };
+        assert_eq!(span.start().line, 1);
+        assert_eq!(span.end().line, 1);
+        assert_eq!(span.start().column, expected_start);
+        assert!(
+            span.end().column > span.start().column,
+            "unexpected span end: {:?}",
+            span.end()
+        );
+    }
+
+    #[test]
+    fn span_for_pattern_points_to_full_destructuring_pattern() {
+        let src = "fn step(User { name }: User) {}";
+        let func = parse_fn(src);
+        let mut input = first_input(func);
+
+        let Err(err) = next_typed_argument(&mut input) else {
+            panic!("struct destructuring patterns must error");
+        };
+
+        let Some(pattern_start) = src.find("User { name }") else {
+            panic!("test input should contain struct pattern");
+        };
+        assert_eq!(err.span().start().line, 1);
+        assert_eq!(err.span().start().column, pattern_start);
+        assert!(
+            err.span().end().column > err.span().start().column,
+            "expected span to cover at least one token"
+        );
     }
 }

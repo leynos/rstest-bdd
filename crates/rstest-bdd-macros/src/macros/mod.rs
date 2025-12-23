@@ -70,6 +70,10 @@ impl Parse for StepAttrArgs {
     }
 }
 
+/// Parse the return override hint for a step attribute.
+///
+/// Accepts either `result` (treat the step return type as Result-like) or
+/// `value` (treat the step return type as a non-Result payload).
 fn parse_return_override(input: ParseStream<'_>) -> syn::Result<ReturnOverride> {
     let ident: syn::Ident = input.parse()?;
     match ident.to_string().as_str() {

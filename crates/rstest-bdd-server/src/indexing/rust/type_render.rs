@@ -13,6 +13,14 @@ use syn::{Expr, GenericArgument, Path, PathArguments, ReturnType, Type, TypePara
 /// The language server stores type information as strings for display and
 /// diagnostics. Common type forms are rendered directly; rarely used syntaxes
 /// fall back to [`core::fmt::Debug`] output.
+///
+/// # Examples
+/// ```rust,ignore
+/// use syn::parse_quote;
+///
+/// let ty: syn::Type = parse_quote!(&'a mut u8);
+/// assert_eq!(render_type(&ty), \"&'a mut u8\");
+/// ```
 pub(super) fn render_type(ty: &Type) -> String {
     match ty {
         Type::Path(type_path) => render_path(&type_path.path),
