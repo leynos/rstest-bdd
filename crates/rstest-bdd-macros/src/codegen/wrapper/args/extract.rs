@@ -31,25 +31,20 @@ fn span_for_pattern(pat: &syn::Pat) -> proc_macro2::Span {
         !tokens.is_empty(),
         "syn::Pat should not produce an empty token stream"
     );
-    let Some(first) = tokens.first() else {
-        return proc_macro2::Span::call_site();
-    };
-    let Some(last) = tokens.last() else {
-        return proc_macro2::Span::call_site();
-    };
 
-    let first_span = span_for_token_tree(first);
-    let last_span = span_for_token_tree(last);
-    first_span.join(last_span).unwrap_or_else(|| {
-        tokens
-            .iter()
-            .rev()
-            .find_map(|token| match token {
-                TokenTree::Group(group) => Some(group.span()),
-                _ => None,
-            })
-            .unwrap_or(first_span)
-    })
+    // Prefer highlighting the token group (e.g. tuple/struct destructuring),
+    // which tends to underline more of the unsupported syntax than the leading
+    // identifier span alone.
+    if let Some(group) = tokens.iter().find_map(|token| match token {
+        TokenTree::Group(group) => Some(group),
+        _ => None,
+    }) {
+        return group.span();
+    }
+
+    tokens
+        .first()
+        .map_or_else(proc_macro2::Span::call_site, span_for_token_tree)
 }
 
 /// Extract the span from a single token tree node.
@@ -252,9 +247,8 @@ mod tests {
         assert_eq!(err.span().start().column, expected_start);
     }
 
-    #[test]
-    fn span_for_pattern_handles_single_token() {
-        let src = "fn step(value: i32) {}";
+    /// Helper to assert that `span_for_pattern` covers the expected region in source.
+    fn assert_span_covers_pattern(src: &str, expected_pattern: &str, pattern_description: &str) {
         let func = parse_fn(src);
         let arg = first_input(func);
         let syn::FnArg::Typed(pat_ty) = arg else {
@@ -262,8 +256,8 @@ mod tests {
         };
 
         let span = span_for_pattern(&pat_ty.pat);
-        let Some(expected_start) = src.find("value") else {
-            panic!("test input should contain identifier");
+        let Some(expected_start) = src.find(expected_pattern) else {
+            panic!("test input should contain {pattern_description}");
         };
         assert_eq!(span.start().line, 1);
         assert_eq!(span.end().line, 1);
@@ -276,25 +270,12 @@ mod tests {
     }
 
     #[test]
-    fn span_for_pattern_handles_multi_token() {
-        let src = "fn step((value, other): (i32, i32)) {}";
-        let func = parse_fn(src);
-        let arg = first_input(func);
-        let syn::FnArg::Typed(pat_ty) = arg else {
-            panic!("test input should contain a typed argument");
-        };
-
-        let span = span_for_pattern(&pat_ty.pat);
-        let Some(expected_start) = src.find("(value, other)") else {
-            panic!("test input should contain tuple pattern");
-        };
-        assert_eq!(span.start().line, 1);
-        assert_eq!(span.end().line, 1);
-        assert_eq!(span.start().column, expected_start);
-        assert!(
-            span.end().column > span.start().column,
-            "unexpected span end: {:?}",
-            span.end()
+    fn span_for_pattern_handles_single_and_multi_token_patterns() {
+        assert_span_covers_pattern("fn step(value: i32) {}", "value", "identifier");
+        assert_span_covers_pattern(
+            "fn step((value, other): (i32, i32)) {}",
+            "(value, other)",
+            "tuple pattern",
         );
     }
 
@@ -308,11 +289,16 @@ mod tests {
             panic!("struct destructuring patterns must error");
         };
 
-        let Some(pattern_start) = src.find("User { name }") else {
-            panic!("test input should contain struct pattern");
+        let Some(pattern_start) = src.find("{ name }") else {
+            panic!("test input should contain struct destructuring group");
         };
         assert_eq!(err.span().start().line, 1);
         assert_eq!(err.span().start().column, pattern_start);
+        assert!(
+            err.span().end().column >= pattern_start + "{ name }".len(),
+            "expected span to cover the destructuring group, got {:?}",
+            err.span()
+        );
         assert!(
             err.span().end().column > err.span().start().column,
             "expected span to cover at least one token"

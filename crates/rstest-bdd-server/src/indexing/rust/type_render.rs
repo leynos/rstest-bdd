@@ -64,6 +64,10 @@ fn render_reference(type_ref: &syn::TypeReference) -> String {
     rendered
 }
 
+/// Render tuple types (`(T, U)`).
+///
+/// Rust requires a trailing comma for single-element tuples. For example,
+/// `(u8,)` is a tuple, while `(u8)` is just parenthesized `u8`.
 fn render_tuple(tuple: &syn::TypeTuple) -> String {
     if tuple.elems.is_empty() {
         return "()".to_string();
@@ -110,6 +114,10 @@ fn render_variadic(variadic: Option<&syn::BareVariadic>, has_inputs: bool) -> St
     }
 }
 
+/// Render a bare function type (`fn(..) -> ..`).
+///
+/// This composes the unsafety and ABI prefix (`unsafe`, `extern "..."`), the
+/// input parameter list (including variadics), and the return type.
 fn render_bare_fn(bare_fn: &syn::TypeBareFn) -> String {
     let mut rendered = render_fn_prefix(bare_fn.unsafety.as_ref(), bare_fn.abi.as_ref());
     rendered.push_str("fn(");

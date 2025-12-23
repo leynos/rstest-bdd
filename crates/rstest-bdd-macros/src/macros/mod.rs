@@ -120,33 +120,48 @@ fn extract_step_args_or_abort(
         Ok(args) => args,
         Err(err) => {
             let err_message = err.to_string();
-            let help = if err_message.contains("duplicate `#[datatable]` attribute") {
-                "Remove one of the duplicate `#[datatable]` attributes.".to_string()
-            } else if err_message.contains("only one DataTable parameter is permitted") {
-                "Remove one of the DataTable parameters.".to_string()
-            } else if err_message.contains("unsupported parameter pattern") {
-                concat!(
-                    "Bind the parameter to a simple identifier (e.g., `tuple: (i32, i32)` or `user: User`) ",
-                    "and destructure it inside the step body."
-                )
-                .to_string()
-            } else if err_message.contains("methods are not supported; remove `self`") {
-                "Remove `self` from step functions.".to_string()
-            } else {
-                let kw_name = match keyword {
-                    crate::StepKeyword::Given => "given",
-                    crate::StepKeyword::When => "when",
-                    crate::StepKeyword::Then => "then",
-                    crate::StepKeyword::And => "and",
-                    crate::StepKeyword::But => "but",
-                };
-                format!(
-                    "Use a step attribute (such as `#[{kw_name}]`) on `fn name(...args...)` with supported step arguments/fixtures (step attributes include `#[given]`, `#[when]`, and `#[then]`); remove `self` if present."
-                )
-            };
-            proc_macro_error::abort!(err.span(), "invalid step function signature: {}", err; help = help);
+            let help = signature_error_help(&err_message, keyword);
+            proc_macro_error::abort!(
+                err.span(),
+                "invalid step function signature: {}",
+                err;
+                help = help
+            );
         }
     }
+}
+
+fn signature_error_help(err_message: &str, keyword: crate::StepKeyword) -> String {
+    if err_message.contains("duplicate `#[datatable]` attribute") {
+        return "Remove one of the duplicate `#[datatable]` attributes.".to_string();
+    }
+
+    if err_message.contains("only one DataTable parameter is permitted") {
+        return "Remove one of the DataTable parameters.".to_string();
+    }
+
+    if err_message.contains("unsupported parameter pattern") {
+        return concat!(
+            "Bind the parameter to a simple identifier (e.g., `tuple: (i32, i32)` or `user: User`) ",
+            "and destructure it inside the step body."
+        )
+        .to_string();
+    }
+
+    if err_message.contains("methods are not supported; remove `self`") {
+        return "Remove `self` from step functions.".to_string();
+    }
+
+    let kw_name = match keyword {
+        crate::StepKeyword::Given => "given",
+        crate::StepKeyword::When => "when",
+        crate::StepKeyword::Then => "then",
+        crate::StepKeyword::And => "and",
+        crate::StepKeyword::But => "but",
+    };
+    format!(
+        "Use a step attribute (such as `#[{kw_name}]`) on `fn name(...args...)` with supported step arguments/fixtures (step attributes include `#[given]`, `#[when]`, and `#[then]`); remove `self` if present."
+    )
 }
 
 /// Inputs used to generate wrapper code for a step function.
