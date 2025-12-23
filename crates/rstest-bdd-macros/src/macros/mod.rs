@@ -109,7 +109,7 @@ fn determine_step_pattern(pattern: Option<syn::LitStr>, ident: &syn::Ident) -> s
 
 /// Extract step arguments from the function signature or abort macro expansion.
 ///
-/// This centralises argument extraction so we can provide keyword-specific
+/// This centralizes argument extraction so we can provide keyword-specific
 /// diagnostics and help text while preserving accurate spans.
 fn extract_step_args_or_abort(
     func: &mut syn::ItemFn,

@@ -199,11 +199,13 @@ mod tests {
         }
     }
 
+    #[expect(clippy::expect_used, reason = "test helper with descriptive failures")]
     fn first_input(func: syn::ItemFn) -> syn::FnArg {
-        let Some(arg) = func.sig.inputs.into_iter().next() else {
-            panic!("test input should contain one argument");
-        };
-        arg
+        func.sig
+            .inputs
+            .into_iter()
+            .next()
+            .expect("test input should contain one argument")
     }
 
     #[test]
