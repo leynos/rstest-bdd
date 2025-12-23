@@ -7,6 +7,7 @@
 
 use std::collections::HashSet;
 
+use proc_macro2::TokenTree;
 use quote::ToTokens;
 
 use super::{
@@ -18,12 +19,30 @@ use super::{
 };
 
 fn pattern_display_for_error(pat: &syn::Pat) -> String {
-    match pat {
-        syn::Pat::Struct(pat_struct) => pat_struct.path.to_token_stream().to_string(),
-        syn::Pat::TupleStruct(pat_tuple_struct) => {
-            pat_tuple_struct.path.to_token_stream().to_string()
-        }
-        other => other.to_token_stream().to_string(),
+    pat.to_token_stream().to_string()
+}
+
+fn span_for_pattern(pat: &syn::Pat) -> proc_macro2::Span {
+    let tokens = pat.to_token_stream();
+    let mut iter = tokens.into_iter();
+    let Some(first) = iter.next() else {
+        return proc_macro2::Span::call_site();
+    };
+    let mut last = first.clone();
+    for token in iter {
+        last = token;
+    }
+    let first_span = span_for_token_tree(&first);
+    let last_span = span_for_token_tree(&last);
+    first_span.join(last_span).unwrap_or(first_span)
+}
+
+fn span_for_token_tree(token: &TokenTree) -> proc_macro2::Span {
+    match token {
+        TokenTree::Group(group) => group.span(),
+        TokenTree::Ident(ident) => ident.span(),
+        TokenTree::Punct(punct) => punct.span(),
+        TokenTree::Literal(literal) => literal.span(),
     }
 }
 
@@ -40,8 +59,8 @@ fn next_typed_argument(
         syn::Pat::Ident(pat_ident) => pat_ident.ident.clone(),
         other => {
             let pattern = pattern_display_for_error(other);
-            return Err(syn::Error::new_spanned(
-                arg,
+            return Err(syn::Error::new(
+                span_for_pattern(other),
                 format!(
                     "unsupported parameter pattern `{pattern}`; use a simple identifier (e.g., `arg: T`)"
                 ),
@@ -80,8 +99,8 @@ fn classify_step_or_fixture(
         syn::Pat::Ident(pat_ident) => pat_ident.ident.clone(),
         other => {
             let pattern = pattern_display_for_error(other);
-            return Err(syn::Error::new_spanned(
-                arg,
+            return Err(syn::Error::new(
+                span_for_pattern(other),
                 format!(
                     "unsupported parameter pattern `{pattern}`; use a simple identifier (e.g., `arg: T`)"
                 ),

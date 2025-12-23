@@ -25,6 +25,9 @@ use crate::utils::{
     pattern::{infer_pattern, placeholder_names},
 };
 
+/// Parsed arguments for step attribute macros.
+///
+/// Supports an optional step pattern literal and an optional return override hint.
 struct StepAttrArgs {
     pattern: Option<syn::LitStr>,
     return_override: Option<ReturnOverride>,
@@ -79,10 +82,12 @@ fn parse_return_override(input: ParseStream<'_>) -> syn::Result<ReturnOverride> 
     }
 }
 
+/// Determine the step pattern literal for a step function.
+///
+/// When no pattern is provided (or only whitespace is provided), the pattern is
+/// inferred from the step function name. An explicit empty string literal is
+/// preserved and registers an empty pattern.
 fn determine_step_pattern(pattern: Option<syn::LitStr>, ident: &syn::Ident) -> syn::LitStr {
-    // TokenStream discards comments; a missing attribute or one containing only
-    // whitespace infers the pattern from the function name. An explicit empty
-    // string literal registers an empty pattern.
     pattern.map_or_else(
         || infer_pattern(ident),
         |lit| {
@@ -98,6 +103,10 @@ fn determine_step_pattern(pattern: Option<syn::LitStr>, ident: &syn::Ident) -> s
     )
 }
 
+/// Extract step arguments from the function signature or abort macro expansion.
+///
+/// This centralises argument extraction so we can provide keyword-specific
+/// diagnostics and help text while preserving accurate spans.
 fn extract_step_args_or_abort(
     func: &mut syn::ItemFn,
     unique_placeholders: &mut std::collections::HashSet<String>,
@@ -112,7 +121,11 @@ fn extract_step_args_or_abort(
             } else if err_message.contains("only one DataTable parameter is permitted") {
                 "Remove one of the DataTable parameters.".to_string()
             } else if err_message.contains("unsupported parameter pattern") {
-                "Use a plain identifier in the parameter pattern (e.g., `user: User`) instead of destructuring patterns.".to_string()
+                concat!(
+                    "Bind the parameter to a simple identifier (e.g., `tuple: (i32, i32)` or `user: User`) ",
+                    "and destructure it inside the step body."
+                )
+                .to_string()
             } else if err_message.contains("methods are not supported; remove `self`") {
                 "Remove `self` from step functions.".to_string()
             } else {
@@ -132,6 +145,7 @@ fn extract_step_args_or_abort(
     }
 }
 
+/// Inputs used to generate wrapper code for a step function.
 #[derive(Clone, Copy)]
 struct WrapperInputs<'a> {
     func: &'a syn::ItemFn,
@@ -142,6 +156,7 @@ struct WrapperInputs<'a> {
     return_kind: ReturnKind,
 }
 
+/// Build wrapper configuration from [`WrapperInputs`] and emit the wrapper tokens.
 fn build_and_generate_wrapper(inputs: WrapperInputs<'_>) -> proc_macro2::TokenStream {
     let config = WrapperConfig {
         ident: &inputs.func.sig.ident,
@@ -155,6 +170,11 @@ fn build_and_generate_wrapper(inputs: WrapperInputs<'_>) -> proc_macro2::TokenSt
     generate_wrapper_code(&config)
 }
 
+/// Core implementation for step attribute macros.
+///
+/// Parses the attribute arguments, determines the step pattern, extracts and
+/// classifies function arguments, computes the return kind, and generates the
+/// wrapper code. Emits the original function alongside the generated wrapper.
 fn step_attr(attr: TokenStream, item: TokenStream, keyword: crate::StepKeyword) -> TokenStream {
     let mut func = syn::parse_macro_input!(item as syn::ItemFn);
     inject_skip_scope(&mut func);

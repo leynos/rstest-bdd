@@ -8,6 +8,11 @@ use std::fmt::Write;
 
 use syn::{Expr, GenericArgument, Path, PathArguments, ReturnType, Type, TypeParamBound};
 
+/// Render a Rust [`syn::Type`] into a user-facing string.
+///
+/// The language server stores type information as strings for display and
+/// diagnostics. Common type forms are rendered directly; rarely used syntaxes
+/// fall back to [`core::fmt::Debug`] output.
 pub(super) fn render_type(ty: &Type) -> String {
     match ty {
         Type::Path(type_path) => render_path(&type_path.path),
