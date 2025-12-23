@@ -458,7 +458,7 @@ is redesigned. For the full architectural decision record, see
   - [ ] Update `Step` struct to store async step wrappers alongside sync.
 
   - [ ] Generate wrapper code that normalises sync step definitions into the
-    async interface, wrapping results in immediately-ready futures.
+    async interface, wrapping results in immediately ready futures.
 
 - [ ] **Tokio current-thread integration**
 

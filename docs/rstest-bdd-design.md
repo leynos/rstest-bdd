@@ -936,10 +936,10 @@ classDiagram
     Step --> AsyncStepFn : run_async (async)
     AsyncStepFn --> StepFuture~'a~ : returns
     class STEP_MAP {
-        + (StepKeyword, &'static StepPattern) => StepFn
+        + (StepKeyword, &'static StepPattern) => Step
     }
     StepPattern : +as_str(&self) -> &'static str
-    STEP_MAP --> StepFn : maps to
+    STEP_MAP --> Step : maps to
     StepContext --> Step : uses
 ```
 
@@ -1224,8 +1224,14 @@ is selected per scenario or per `scenarios!` invocation:
   `#[tokio::test]` or when the `scenarios!` macro specifies a runtime argument.
 
 Sync step definitions are normalised into the async interface by wrapping their
-result in an immediately-ready future. This allows mixed sync and async step
+result in an immediately ready future. This allows mixed sync and async step
 definitions within a single scenario when async mode is enabled.
+
+When a scenario runs in synchronous mode but references an `async fn` step
+definition, the framework rejects this at compile time. The step wrapper
+generated for synchronous execution cannot await a future, so the macro emits
+a `compile_error!` diagnostic indicating that the step requires async mode.
+This fail-fast behaviour prevents silent runtime issues.
 
 #### 2.5.4 Tokio current-thread mode
 
