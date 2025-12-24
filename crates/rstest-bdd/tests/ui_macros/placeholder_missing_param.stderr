@@ -1,7 +1,8 @@
 error: invalid step function signature: missing step arguments for placeholders: count
+
+         = help: Use a step attribute (such as `#[given]`) on `fn name(...args...)` with supported step arguments/fixtures (step attributes include `#[given]`, `#[when]`, and `#[then]`); remove `self` if present.
+
  --> tests/ui_macros/placeholder_missing_param.rs:5:4
   |
 5 | fn step() {}
   |    ^^^^
-  |
-  = help: Use `#[given] fn name(...args...)` with supported step arguments/fixtures; remove self.

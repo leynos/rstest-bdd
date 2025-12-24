@@ -19,12 +19,13 @@
 use std::path::{Path, PathBuf};
 
 use gherkin::StepType;
-use quote::ToTokens;
 
 use super::{
     IndexedStepDefinition, IndexedStepParameter, RustFunctionId, RustStepFileIndex,
     RustStepIndexError,
 };
+
+mod type_render;
 
 /// Parse and index a Rust source file from disk.
 ///
@@ -170,7 +171,7 @@ fn index_step_function(
             }),
             syn::FnArg::Typed(pat_type) => {
                 let name = param_name(&pat_type.pat);
-                let ty = pat_type.ty.to_token_stream().to_string();
+                let ty = type_render::render_type(&pat_type.ty);
                 let is_datatable = parameter_is_datatable(pat_type, name.as_deref());
                 let is_docstring = parameter_is_docstring(name.as_deref(), &pat_type.ty);
                 parameters.push(IndexedStepParameter {
@@ -319,11 +320,23 @@ fn type_is_string(ty: &syn::Type) -> bool {
         return false;
     };
 
-    type_path
-        .path
-        .segments
-        .last()
-        .is_some_and(|seg| seg.ident == "String")
+    let mut segments = type_path.path.segments.iter();
+    let Some(first) = segments.next() else {
+        return false;
+    };
+    let Some(second) = segments.next() else {
+        return first.ident == "String";
+    };
+    let Some(third) = segments.next() else {
+        return false;
+    };
+    if segments.next().is_some() {
+        return false;
+    }
+
+    (first.ident == "std" || first.ident == "alloc")
+        && second.ident == "string"
+        && third.ident == "String"
 }
 
 #[cfg(test)]

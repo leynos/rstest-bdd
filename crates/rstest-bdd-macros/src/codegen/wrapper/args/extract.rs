@@ -7,6 +7,7 @@
 
 use std::collections::HashSet;
 
+use proc_macro2::TokenTree;
 use quote::ToTokens;
 
 use super::{
@@ -16,6 +17,45 @@ use super::{
         classify_step_struct, extract_step_struct_attribute,
     },
 };
+
+/// Compute a best-effort span for a parameter pattern.
+///
+/// We prefer producing a span that covers the whole pattern so rustc can
+/// underline the full destructuring region. On stable toolchains, procedural
+/// macro spans cannot always be joined across tokens, so we fall back to a
+/// reasonably informative token span (e.g. the group containing the tuple or
+/// struct fields).
+fn span_for_pattern(pat: &syn::Pat) -> proc_macro2::Span {
+    let tokens: Vec<_> = pat.to_token_stream().into_iter().collect();
+    debug_assert!(
+        !tokens.is_empty(),
+        "syn::Pat should not produce an empty token stream"
+    );
+
+    // Prefer highlighting the token group (e.g. tuple/struct destructuring),
+    // which tends to underline more of the unsupported syntax than the leading
+    // identifier span alone.
+    if let Some(group) = tokens.iter().find_map(|token| match token {
+        TokenTree::Group(group) => Some(group),
+        _ => None,
+    }) {
+        return group.span();
+    }
+
+    tokens
+        .first()
+        .map_or_else(proc_macro2::Span::call_site, span_for_token_tree)
+}
+
+/// Extract the span from a single token tree node.
+fn span_for_token_tree(token: &TokenTree) -> proc_macro2::Span {
+    match token {
+        TokenTree::Group(group) => group.span(),
+        TokenTree::Ident(ident) => ident.span(),
+        TokenTree::Punct(punct) => punct.span(),
+        TokenTree::Literal(literal) => literal.span(),
+    }
+}
 
 fn next_typed_argument(
     input: &mut syn::FnArg,
@@ -30,8 +70,8 @@ fn next_typed_argument(
         syn::Pat::Ident(pat_ident) => pat_ident.ident.clone(),
         other => {
             let pattern = other.to_token_stream().to_string();
-            return Err(syn::Error::new_spanned(
-                other,
+            return Err(syn::Error::new(
+                span_for_pattern(other),
                 format!(
                     "unsupported parameter pattern `{pattern}`; use a simple identifier (e.g., `arg: T`)"
                 ),
@@ -70,8 +110,8 @@ fn classify_step_or_fixture(
         syn::Pat::Ident(pat_ident) => pat_ident.ident.clone(),
         other => {
             let pattern = other.to_token_stream().to_string();
-            return Err(syn::Error::new_spanned(
-                other,
+            return Err(syn::Error::new(
+                span_for_pattern(other),
                 format!(
                     "unsupported parameter pattern `{pattern}`; use a simple identifier (e.g., `arg: T`)"
                 ),
@@ -152,6 +192,22 @@ mod tests {
     use super::*;
     use syn::parse_quote;
 
+    fn parse_fn(src: &str) -> syn::ItemFn {
+        match syn::parse_str(src) {
+            Ok(func) => func,
+            Err(err) => panic!("test input should parse: {err}"),
+        }
+    }
+
+    #[expect(clippy::expect_used, reason = "test helper with descriptive failures")]
+    fn first_input(func: syn::ItemFn) -> syn::FnArg {
+        func.sig
+            .inputs
+            .into_iter()
+            .next()
+            .expect("test input should contain one argument")
+    }
+
     #[test]
     fn classify_step_or_fixture_reports_pattern_in_error() {
         let mut extracted = ExtractedArgs::default();
@@ -166,5 +222,90 @@ mod tests {
         assert!(msg.contains("unsupported parameter pattern"));
         assert!(msg.contains("value"));
         assert!(msg.contains("other"));
+    }
+
+    #[test]
+    #[expect(clippy::expect_used, reason = "test asserts error contents and span")]
+    fn next_typed_argument_reports_pattern_in_error() {
+        let src = "fn step((a, b): (i32, i32)) {}";
+        let func = parse_fn(src);
+        let mut input = first_input(func);
+
+        let err = next_typed_argument(&mut input).expect_err("tuple patterns must error");
+
+        let msg = err.to_string();
+        assert!(
+            msg.contains("unsupported parameter pattern"),
+            "unexpected: {msg}"
+        );
+        assert!(msg.contains('a'), "unexpected: {msg}");
+        assert!(msg.contains('b'), "unexpected: {msg}");
+
+        let Some(expected_start) = src.find("(a, b)") else {
+            panic!("test input should contain tuple pattern");
+        };
+        assert_eq!(err.span().start().line, 1);
+        assert_eq!(err.span().start().column, expected_start);
+    }
+
+    /// Helper to assert that `span_for_pattern` covers the expected region in source.
+    fn assert_span_covers_pattern(src: &str, expected_pattern: &str, pattern_description: &str) {
+        let func = parse_fn(src);
+        let arg = first_input(func);
+        let syn::FnArg::Typed(pat_ty) = arg else {
+            panic!("test input should contain a typed argument");
+        };
+
+        let span = span_for_pattern(&pat_ty.pat);
+        let Some(expected_start) = src.find(expected_pattern) else {
+            panic!("test input should contain {pattern_description}");
+        };
+        assert_eq!(span.start().line, 1);
+        assert_eq!(span.end().line, 1);
+        assert_eq!(span.start().column, expected_start);
+        assert!(
+            span.end().column > span.start().column,
+            "unexpected span end: {:?}",
+            span.end()
+        );
+    }
+
+    #[test]
+    fn span_for_pattern_handles_single_and_multi_token_patterns() {
+        assert_span_covers_pattern("fn step(value: i32) {}", "value", "identifier");
+        assert_span_covers_pattern(
+            "fn step((value, other): (i32, i32)) {}",
+            "(value, other)",
+            "tuple pattern",
+        );
+    }
+
+    #[test]
+    #[expect(
+        clippy::expect_used,
+        reason = "test asserts the returned span covers the destructuring group"
+    )]
+    fn span_for_pattern_points_to_full_destructuring_pattern() {
+        let src = "fn step(User { name }: User) {}";
+        let func = parse_fn(src);
+        let mut input = first_input(func);
+
+        let err =
+            next_typed_argument(&mut input).expect_err("struct destructuring patterns must error");
+
+        let Some(pattern_start) = src.find("{ name }") else {
+            panic!("test input should contain struct destructuring group");
+        };
+        assert_eq!(err.span().start().line, 1);
+        assert_eq!(err.span().start().column, pattern_start);
+        assert!(
+            err.span().end().column >= pattern_start + "{ name }".len(),
+            "expected span to cover the destructuring group, got {:?}",
+            err.span()
+        );
+        assert!(
+            err.span().end().column > err.span().start().column,
+            "expected span to cover at least one token"
+        );
     }
 }

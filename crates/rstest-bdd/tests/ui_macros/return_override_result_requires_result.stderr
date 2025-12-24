@@ -1,0 +1,5 @@
+error: return override `result` requires a return type shaped like `Result<T, E>` or `StepResult<T, E>`
+ --> tests/ui_macros/return_override_result_requires_result.rs:6:22
+  |
+6 | fn not_a_result() -> u8 {
+  |                      ^^

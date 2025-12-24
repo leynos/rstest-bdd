@@ -92,11 +92,11 @@ impl fmt::Display for FancyError {
     }
 }
 
-/// Step that surfaces an alias error to exercise `IntoStepResult`.
+/// Step that surfaces an alias error to exercise step wrapper normalisation.
 ///
 /// # Errors
 /// Always returns an error describing the failure.
-#[given("an alias error step")]
+#[given("an alias error step", result)]
 pub fn alias_error_step() -> StepResult<()> {
     Err("alias boom")
 }
