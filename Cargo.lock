@@ -225,7 +225,7 @@ dependencies = [
 
 [[package]]
 name = "cargo-bdd"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "assert_cmd",
  "cargo_metadata",
@@ -1001,7 +1001,7 @@ checksum = "4a5f13b858c8d314ee3e8f639011f7ccefe71f97f96e50151fb991f267928e2c"
 
 [[package]]
 name = "japanese-ledger"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "rstest",
  "rstest-bdd",
@@ -1372,7 +1372,7 @@ dependencies = [
 
 [[package]]
 name = "rstest-bdd"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "camino",
  "cap-std",
@@ -1401,7 +1401,7 @@ dependencies = [
 
 [[package]]
 name = "rstest-bdd-macros"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "camino",
  "cap-std",
@@ -1425,7 +1425,7 @@ dependencies = [
 
 [[package]]
 name = "rstest-bdd-patterns"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "regex",
  "thiserror 1.0.69",
@@ -1433,7 +1433,7 @@ dependencies = [
 
 [[package]]
 name = "rstest-bdd-server"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "async-lsp",
  "cargo_metadata",
@@ -1911,7 +1911,7 @@ dependencies = [
 
 [[package]]
 name = "todo-cli"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "assert_cmd",
  "assert_fs",
