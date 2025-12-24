@@ -90,6 +90,12 @@ for unit tests, promoting a Don't Repeat Yourself (DRY) approach.[^1]
 
 **File:** `tests/test_web_search.rs`
 
+> **Note:** This example demonstrates the intended async API using `async fn`
+> step definitions with `#[tokio::test]`. Async step execution is planned but
+> not yet implemented. See §2.5 for the async execution design and the roadmap
+> for implementation status. In the current synchronous implementation, step
+> functions must be non-async.
+
 ```rust,no_run
 use rstest::fixture;
 use rstest_bdd::{scenario, given, when, then};
@@ -200,6 +206,9 @@ Feature: User Login
 ```
 
 **Step Definition (**`test_login.rs`**):**
+
+> **Note:** This example uses `async fn` step definitions, which require async
+> execution mode. See the note above §1.2.2 and §2.5 for details.
 
 ```rust,no_run
 //...
@@ -904,7 +913,9 @@ calling `inventory::iter::<Step>()`. This provides an iterator over all
 registered `Step` instances, regardless of the file, module, or crate in which
 they were defined.
 
-The relationships among the core step types are shown below:
+For screen readers: The following class diagram shows the relationships among
+the core step types. The `Step` struct references `StepKeyword`, `StepPattern`,
+and either `StepFn` (synchronous) or `AsyncStepFn` (asynchronous, see §2.5).
 
 ```mermaid
 classDiagram
@@ -912,20 +923,31 @@ classDiagram
         + keyword: StepKeyword
         + pattern: &'static StepPattern
         + run: StepFn
+        + run_async: AsyncStepFn
     }
     class StepKeyword
     class StepFn
+    class AsyncStepFn
+    class StepFuture~'a~
     class StepContext
     Step --> StepPattern : pattern
     Step --> StepKeyword : keyword
-    Step --> StepFn : run
+    Step --> StepFn : run (sync)
+    Step --> AsyncStepFn : run_async (async)
+    AsyncStepFn --> StepFuture~'a~ : returns
     class STEP_MAP {
-        + (StepKeyword, &'static StepPattern) => StepFn
+        + (StepKeyword, &'static StepPattern) => Step
     }
     StepPattern : +as_str(&self) -> &'static str
-    STEP_MAP --> StepFn : maps to
+    STEP_MAP --> Step : maps to
     StepContext --> Step : uses
 ```
+
+*Figure: Core step types showing both synchronous and asynchronous execution
+paths.*
+
+For screen readers: The following class diagram shows the step wrapper
+architecture for both synchronous and asynchronous execution modes.
 
 ```mermaid
 classDiagram
@@ -944,18 +966,32 @@ classDiagram
         keyword: StepKeyword
         pattern: StepPattern
         run: StepFn
+        run_async: AsyncStepFn
     }
     class StepFn
+    class AsyncStepFn
     class StepWrapper
+    class AsyncStepWrapper
     StepWrapper : extract_placeholders(pattern, text)
     StepWrapper : parse captures with FromStr
     StepWrapper : call StepFunction
+    AsyncStepWrapper : extract_placeholders(pattern, text)
+    AsyncStepWrapper : parse captures with FromStr
+    AsyncStepWrapper : call async StepFunction
+    AsyncStepWrapper : returns StepFuture<'a>
     StepFn <|-- StepWrapper
+    AsyncStepFn <|-- AsyncStepWrapper
     StepContext <.. StepWrapper
+    StepContext <.. AsyncStepWrapper
     StepArg <.. StepWrapper
+    StepArg <.. AsyncStepWrapper
     FixtureArg <.. StepWrapper
+    FixtureArg <.. AsyncStepWrapper
     Step o-- StepFn
+    Step o-- AsyncStepFn
 ```
+
+*Figure: Step wrapper architecture for sync and async execution.*
 
 #### Registry interaction diagrams
 
@@ -1125,6 +1161,161 @@ compile-time world of procedural macros and the stateful, ordered execution
 required for a BDD scenario, all while remaining fully compatible with the
 `rstest` framework.
 
+### 2.5 Async step execution
+
+The step execution model described in §2.4 is synchronous: step wrappers are
+function pointers that execute immediately and return a `Result`. This section
+describes the planned asynchronous execution model that enables `async fn` step
+definitions under Tokio. For the full architectural decision record, see
+[ADR-001](adr-001-async-fixtures-and-test.md).
+
+#### 2.5.1 Motivation
+
+Many Rust applications use Tokio for asynchronous I/O, and their integration
+tests naturally involve async operations such as HTTP requests, database
+queries, and message queue interactions. Without native async support, step
+definitions must resort to blocking the runtime with `block_on` calls or
+restructuring tests to avoid async fixtures entirely.
+
+The async execution model addresses this by:
+
+- Supporting `async fn` step definitions that are awaited sequentially.
+- Preserving compatibility with `rstest` asynchronous fixtures.
+- Maintaining the existing `skip!` and panic interception behaviour.
+
+#### 2.5.2 Step future type
+
+Async step wrappers return a boxed future tied to the lifetime of the borrowed
+`StepContext`. The returned future cannot be `'static` because it may hold
+references to fixtures stored in the context.
+
+For screen readers: The following Rust snippet shows the type aliases for async
+step execution.
+
+```rust,no_run
+use std::future::Future;
+use std::pin::Pin;
+
+/// The future returned by an async step wrapper.
+type StepFuture<'a> =
+    Pin<Box<dyn Future<Output = Result<StepExecution, StepError>> + 'a>>;
+
+/// An async step function pointer.
+type AsyncStepFn = for<'a> fn(
+    &'a mut StepContext<'a>,
+    &str,                     // step text
+    Option<&str>,             // docstring
+    Option<&[&[&str]]>,       // datatable
+) -> StepFuture<'a>;
+```
+
+*Figure: Type aliases for async step wrappers.*
+
+#### 2.5.3 Dual execution model
+
+Async support coexists with the synchronous implementation. The execution model
+is selected per scenario or per `scenarios!` invocation:
+
+- **Synchronous pipeline (default):** Step wrappers are called and return
+  immediately. This is the existing behaviour and remains the default for
+  backwards compatibility.
+- **Async pipeline (opt-in):** Step wrappers return futures that the scenario
+  runner awaits sequentially. This mode is activated when a scenario test uses
+  `#[tokio::test]` or when the `scenarios!` macro specifies a runtime argument.
+
+Sync step definitions are normalised into the async interface by wrapping their
+result in an immediately ready future. This allows mixed sync and async step
+definitions within a single scenario when async mode is enabled.
+
+When a scenario runs in synchronous mode but references an `async fn` step
+definition, the framework rejects this at compile time. The step wrapper
+generated for synchronous execution cannot await a future, so the macro emits
+a `compile_error!` diagnostic indicating that the step requires async mode.
+This fail-fast behaviour prevents silent runtime issues.
+
+#### 2.5.4 Tokio current-thread mode
+
+The initial implementation targets Tokio current-thread mode
+(`#[tokio::test(flavor = "current_thread")]`). This mode aligns with the
+existing `RefCell`-backed fixture model:
+
+- Step futures may be `!Send` because they execute on a single thread.
+- Steps can hold `RefMut` guards or `&mut T` borrows across `.await` points.
+- No additional synchronisation primitives are required for mutable fixtures.
+
+Multi-thread mode (`#[tokio::test(flavor = "multi_thread")]`) requires step
+futures to be `Send`, which would necessitate redesigning the fixture storage
+model. This is deferred to a follow-on ADR.
+
+For screen readers: The following diagram shows the async step execution flow.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant Test as Scenario Test
+    participant Runner as ScenarioRunner
+    participant Registry as StepRegistry
+    participant Wrapper as AsyncStepWrapper
+
+    Test->>Runner: execute_async(scenario)
+    loop for each Gherkin step
+        Runner->>Registry: lookup(keyword, text)
+        Registry-->>Runner: AsyncStepFn
+        Runner->>Wrapper: call(ctx, text, docstring, table)
+        Wrapper-->>Runner: StepFuture<'a>
+        Runner->>Runner: .await StepFuture
+        alt step panics or skips
+            Runner->>Runner: catch_unwind / intercept skip
+        end
+    end
+    Runner-->>Test: scenario result
+```
+
+*Figure: Sequence diagram for async step execution.*
+
+#### 2.5.5 Macro integration
+
+Manual scenario tests can opt into async execution by annotating the test
+function with `#[tokio::test]` and declaring it `async fn`. For auto-generated
+tests, the `scenarios!` macro accepts a `runtime` argument:
+
+```rust,no_run
+rstest_bdd::scenarios!("tests/features", runtime = "tokio-current-thread");
+```
+
+The expansion generates `async fn` tests with the appropriate Tokio attribute.
+The exact syntax for the runtime argument is subject to finalisation; see
+[ADR-001 §Outstanding decisions](adr-001-async-fixtures-and-test.md#outstanding-decisions).
+
+#### 2.5.6 Unwind and skip handling
+
+The synchronous runner uses `std::panic::catch_unwind` to intercept panics and
+`skip!` requests. For async steps, the implementation must use a `Future`-aware
+catch mechanism (for example, `futures::FutureExt::catch_unwind` or an
+equivalent).
+
+Key behaviours preserved in async mode:
+
+- Panics are captured with step index, keyword, and text context.
+- `skip!` continues to halt execution and record a skipped outcome.
+- Feature and scenario metadata remain available in failure reports.
+
+#### 2.5.7 Current-thread limitations
+
+Tokio current-thread mode has documented limitations that affect step authoring:
+
+- **Blocking operations:** Calls to `std::thread::sleep`, synchronous I/O, or
+  CPU-intensive work block the runtime thread and can stall the scenario. Move
+  blocking work to `tokio::task::spawn_blocking`.
+- **`tokio::spawn` with `!Send` futures:** Code that spawns tasks with
+  `tokio::spawn` will fail if the captured future is `!Send`. Use `spawn_local`
+  with a `LocalSet` instead, or select multi-thread mode when available.
+- **Nested runtimes:** Creating a new Tokio runtime inside a step will panic.
+  Avoid `Runtime::block_on` within step definitions.
+
+These constraints are inherent to the current-thread execution model and should
+be considered when designing step implementations.
+
 ## Part 3: Implementation and strategic analysis
 
 This final part outlines a practical implementation strategy for `rstest-bdd`
@@ -1206,7 +1397,9 @@ incrementally.
     synchronous function pointers (`StepFn`), so no trait requires async method
     sugar and `async-trait` stays absent from the dependency graph. A small CI
     guard (`make forbid-async-trait`) scans Rust and Cargo sources and fails the
-    workflow should the crate reappear.
+    workflow should the crate reappear. Asynchronous step execution under Tokio
+    is planned; see §2.5 for the design and the roadmap for implementation
+    status.
 
 - Introduce a `skip!` macro that step or hook functions can invoke to record a
   `Skipped` outcome and halt the remaining steps. The macro accepts an optional
@@ -1396,16 +1589,16 @@ between their BDD acceptance tests and their other unit/integration tests.
 
 The following table summarizes the key differences:
 
-| Feature          | rstest-bdd (Proposed)                                                                                                        | cucumber                                                                          |
-| ---------------- | ---------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
-| Test Runner      | Standard cargo test (via rstest expansion)                                                                                   | Custom runner invoked from a main function (World::run(…)) [^19]                  |
-| State Management | rstest fixtures; dependency injection model [^1]                                                                             | Mandatory World struct; a central state object per scenario [^11]                 |
-| Step Discovery   | Automatic via compile-time registration (inventory) and runtime matching                                                     | Explicit collection in the test runner setup (World::cucumber().steps(…)) [^20]   |
-| Parameterisation | Gherkin Scenario Outline maps to rstest's #[case] parameterisation [^21]                                                     | Handled internally by the cucumber runner                                         |
-| Async Support    | Runtime-agnostic via feature flags (e.g., tokio, async-std) which emit the appropriate test attribute (#[tokio::test], etc.) | Built-in; requires specifying an async runtime [^11]                              |
-| Ecosystem        | Seamless integration with rstest and cargo features                                                                          | Self-contained framework; can use any Rust library within steps                   |
-| Ergonomics       | pytest-bdd-like; explicit #[scenario] binding links test code to features [^6]                                               | cucumber-jvm/js-like; feature-driven, with a central test runner                  |
-| Core Philosophy  | BDD as an extension of the existing rstest framework                                                                         | A native Rust implementation of the Cucumber framework standard                   |
+| Feature          | rstest-bdd (Proposed)                                                                                                                             | cucumber                                                                          |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| Test Runner      | Standard cargo test (via rstest expansion)                                                                                                        | Custom runner invoked from a main function (World::run(…)) [^19]                  |
+| State Management | rstest fixtures; dependency injection model [^1]                                                                                                  | Mandatory World struct; a central state object per scenario [^11]                 |
+| Step Discovery   | Automatic via compile-time registration (inventory) and runtime matching                                                                          | Explicit collection in the test runner setup (World::cucumber().steps(…)) [^20]   |
+| Parameterisation | Gherkin Scenario Outline maps to rstest's #[case] parameterisation [^21]                                                                          | Handled internally by the cucumber runner                                         |
+| Async Support    | Tokio current-thread mode (planned); multi-thread and other runtimes as future work (see §2.5 and [ADR-001](adr-001-async-fixtures-and-test.md))  | Built-in; requires specifying an async runtime [^11]                              |
+| Ecosystem        | Seamless integration with rstest and cargo features                                                                                               | Self-contained framework; can use any Rust library within steps                   |
+| Ergonomics       | pytest-bdd-like; explicit #[scenario] binding links test code to features [^6]                                                                    | cucumber-jvm/js-like; feature-driven, with a central test runner                  |
+| Core Philosophy  | BDD as an extension of the existing rstest framework                                                                                              | A native Rust implementation of the Cucumber framework standard                   |
 
 ### 3.5 Potential extensions
 
