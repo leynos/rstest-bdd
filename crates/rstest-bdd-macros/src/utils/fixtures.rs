@@ -87,13 +87,13 @@ fn ensure_binding_ident(pat_ty: &mut syn::PatType, counter: usize) -> syn::Resul
                 &format!("__rstest_bdd_fixture_{counter}"),
                 proc_macro2::Span::call_site(),
             );
-            pat_ty.pat = Box::new(syn::Pat::Ident(syn::PatIdent {
+            *pat_ty.pat = syn::Pat::Ident(syn::PatIdent {
                 attrs: Vec::new(),
                 by_ref: None,
                 mutability: None,
                 ident: ident.clone(),
                 subpat: None,
-            }));
+            });
             Ok(ident)
         }
         pat => Err(syn::Error::new_spanned(

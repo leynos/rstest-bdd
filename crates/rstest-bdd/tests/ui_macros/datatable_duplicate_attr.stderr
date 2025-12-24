@@ -1,7 +1,8 @@
 error: invalid step function signature: duplicate `#[datatable]` attribute
+
+         = help: Remove one of the duplicate `#[datatable]` attributes.
+
  --> tests/ui_macros/datatable_duplicate_attr.rs:6:35
   |
 6 | fn step(#[datatable] #[datatable] table: Vec<Vec<String>>) {}
   |                                   ^^^^^
-  |
-  = help: Use `#[given] fn name(...args...)` with supported step arguments/fixtures; remove self.

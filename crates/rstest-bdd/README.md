@@ -107,7 +107,7 @@ Feature: Web Search
 
 ```rust,no_run
 use rstest::fixture;
-use rstest_bdd::{scenario, given, when, then};
+use rstest_bdd::{scenario, given, when, then, StepResult};
 // Browser automation example — pick your favourite WebDriver crate.
 use thirtyfour::prelude::*;
 
@@ -126,13 +126,16 @@ async fn test_simple_search(#[future] browser: WebDriver) {
 }
 
 #[given("the DuckDuckGo home page is displayed")]
-async fn go_to_home(browser: &mut WebDriver) -> WebDriverResult<()> {
+async fn go_to_home(browser: &mut WebDriver) -> StepResult<(), thirtyfour::error::WebDriverError> {
     browser.goto("https://duckduckgo.com/").await?;
     Ok(())
 }
 
 #[when("I search for \"(.*)\"")]
-async fn search_for_phrase(browser: &mut WebDriver, phrase: String) -> WebDriverResult<()> {
+async fn search_for_phrase(
+    browser: &mut WebDriver,
+    phrase: String,
+) -> StepResult<(), thirtyfour::error::WebDriverError> {
     let form = browser.find(By::Id("search_form_input_homepage")).await?;
     form.send_keys(&phrase).await?;
     form.submit().await?;
@@ -140,13 +143,18 @@ async fn search_for_phrase(browser: &mut WebDriver, phrase: String) -> WebDriver
 }
 
 #[then("the search results page is displayed")]
-async fn results_page_is_displayed(browser: &mut WebDriver) -> WebDriverResult<()> {
+async fn results_page_is_displayed(
+    browser: &mut WebDriver,
+) -> StepResult<(), thirtyfour::error::WebDriverError> {
     browser.find(By::Id("links")).await?;
     Ok(())
 }
 
 #[then("the results contain \"(.*)\"")]
-async fn results_contain_text(browser: &mut WebDriver, text: String) -> WebDriverResult<()> {
+async fn results_contain_text(
+    browser: &mut WebDriver,
+    text: String,
+) -> StepResult<(), thirtyfour::error::WebDriverError> {
     let content = browser.source().await?;
     if content.contains(&text) { Ok(()) }
     else { Err(thirtyfour::error::WebDriverError::CustomError(

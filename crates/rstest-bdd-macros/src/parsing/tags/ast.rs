@@ -31,9 +31,9 @@ type TagSet<'tags> = HashSet<Cow<'tags, str>>;
 #[derive(Clone, Debug)]
 pub(super) enum Expr {
     Tag(String),
-    Not(Box<Expr>),
-    And(Box<Expr>, Box<Expr>),
-    Or(Box<Expr>, Box<Expr>),
+    Not(Box<Self>),
+    And(Box<Self>, Box<Self>),
+    Or(Box<Self>, Box<Self>),
 }
 
 #[derive(Debug)]

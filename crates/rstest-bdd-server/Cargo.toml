@@ -34,7 +34,6 @@ tower.workspace = true
 tokio-util.workspace = true
 gherkin.workspace = true
 syn.workspace = true
-quote.workspace = true
 regex.workspace = true
 rstest-bdd-patterns.workspace = true
 

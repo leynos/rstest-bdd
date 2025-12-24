@@ -205,7 +205,7 @@ fn validate_field_config(
     ensure_when(
         config.optional && config.default.is_some(),
         span,
-        "optional fields cannot specify a default",
+        "optional fields already default to None; remove the `default` attribute",
     )?;
     ensure_when(
         config.truthy && config.parse_with.is_some(),
