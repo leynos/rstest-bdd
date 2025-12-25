@@ -28,35 +28,7 @@ pub(crate) fn execute_single_step() -> TokenStream2 {
             scenario_name: &str,
         ) -> Result<Option<Box<dyn std::any::Any>>, String> {
             if let Some(step) = #path::find_step_with_metadata(keyword, #path::StepText::from(text)) {
-                // Validate that all required fixtures are available from the scenario
-                let available: std::collections::HashSet<&str> =
-                    ctx.available_fixtures().collect();
-                let missing: Vec<_> = step.fixtures
-                    .iter()
-                    .copied()
-                    .filter(|f| !available.contains(f))
-                    .collect();
-
-                if !missing.is_empty() {
-                    let mut available_list: Vec<_> = available.into_iter().collect();
-                    available_list.sort_unstable();
-                    panic!(
-                        concat!(
-                            "Step '{}' (defined at {}:{}) requires fixtures {:?}, ",
-                            "but the following are missing: {:?}\n",
-                            "Available fixtures from scenario: {:?}\n",
-                            "(feature: {}, scenario: {})",
-                        ),
-                        text,
-                        step.file,
-                        step.line,
-                        step.fixtures,
-                        missing,
-                        available_list,
-                        feature_path,
-                        scenario_name,
-                    );
-                }
+                validate_required_fixtures(&step, ctx, text, feature_path, scenario_name);
 
                 match (step.run)(ctx, text, docstring, table) {
                     Ok(#path::StepExecution::Continue { value }) => Ok(value),
@@ -92,6 +64,43 @@ pub(crate) fn execute_single_step() -> TokenStream2 {
                     text,
                     feature_path,
                     scenario_name
+                );
+            }
+        }
+
+        fn validate_required_fixtures(
+            step: &#path::Step,
+            ctx: &#path::StepContext,
+            text: &str,
+            feature_path: &str,
+            scenario_name: &str,
+        ) {
+            let available: std::collections::HashSet<&str> =
+                ctx.available_fixtures().collect();
+            let missing: Vec<_> = step.fixtures
+                .iter()
+                .copied()
+                .filter(|f| !available.contains(f))
+                .collect();
+
+            if !missing.is_empty() {
+                let mut available_list: Vec<_> = available.into_iter().collect();
+                available_list.sort_unstable();
+                panic!(
+                    concat!(
+                        "Step '{}' (defined at {}:{}) requires fixtures {:?}, ",
+                        "but the following are missing: {:?}\n",
+                        "Available fixtures from scenario: {:?}\n",
+                        "(feature: {}, scenario: {})",
+                    ),
+                    text,
+                    step.file,
+                    step.line,
+                    step.fixtures,
+                    missing,
+                    available_list,
+                    feature_path,
+                    scenario_name,
                 );
             }
         }
