@@ -30,24 +30,35 @@ pub(crate) struct WrapperConfig<'a> {
 
 static COUNTER: AtomicUsize = AtomicUsize::new(0);
 
+/// Identifiers for sync and async wrapper components.
+struct WrapperIdents {
+    sync_wrapper: proc_macro2::Ident,
+    async_wrapper: proc_macro2::Ident,
+    const_ident: proc_macro2::Ident,
+    pattern_ident: proc_macro2::Ident,
+}
+
 /// Generate unique identifiers for the wrapper components.
 ///
 /// The provided step function identifier may contain Unicode. It is
 /// sanitized to ASCII before constructing constant names to avoid emitting
 /// invalid identifiers.
 ///
-/// Returns identifiers for the wrapper function, fixture array constant, and
-/// pattern constant.
-fn generate_wrapper_identifiers(
-    ident: &syn::Ident,
-    id: usize,
-) -> (proc_macro2::Ident, proc_macro2::Ident, proc_macro2::Ident) {
+/// Returns identifiers for the sync wrapper function, async wrapper function,
+/// fixture array constant, and pattern constant.
+fn generate_wrapper_identifiers(ident: &syn::Ident, id: usize) -> WrapperIdents {
     let ident_sanitized = sanitize_ident(&ident.to_string());
-    let wrapper_ident = format_ident!("__rstest_bdd_wrapper_{}_{}", ident_sanitized, id);
+    let sync_wrapper = format_ident!("__rstest_bdd_wrapper_{}_{}", ident_sanitized, id);
+    let async_wrapper = format_ident!("__rstest_bdd_async_wrapper_{}_{}", ident_sanitized, id);
     let ident_upper = ident_sanitized.to_ascii_uppercase();
     let const_ident = format_ident!("__RSTEST_BDD_FIXTURES_{}_{}", ident_upper, id);
     let pattern_ident = format_ident!("__RSTEST_BDD_PATTERN_{}_{}", ident_upper, id);
-    (wrapper_ident, const_ident, pattern_ident)
+    WrapperIdents {
+        sync_wrapper,
+        async_wrapper,
+        const_ident,
+        pattern_ident,
+    }
 }
 
 /// Generate the `StepPattern` constant used by a wrapper.
@@ -59,6 +70,35 @@ fn generate_wrapper_signature(
     quote! {
         static #pattern_ident: #path::StepPattern =
             #path::StepPattern::new(#pattern);
+    }
+}
+
+/// Generate an async wrapper that wraps a sync step in an immediately-ready future.
+///
+/// This function produces a thin shim that calls the synchronous wrapper and wraps
+/// its result using `std::future::ready`. The async wrapper enables sync step
+/// definitions to participate in async scenario execution without modification.
+fn generate_async_wrapper_from_sync(
+    sync_wrapper_ident: &proc_macro2::Ident,
+    async_wrapper_ident: &proc_macro2::Ident,
+) -> TokenStream2 {
+    let path = crate::codegen::rstest_bdd_path();
+    quote! {
+        fn #async_wrapper_ident<'a>(
+            __rstest_bdd_ctx: &'a mut #path::StepContext<'a>,
+            __rstest_bdd_text: &str,
+            __rstest_bdd_docstring: Option<&str>,
+            __rstest_bdd_table: Option<&[&[&str]]>,
+        ) -> #path::StepFuture<'a> {
+            Box::pin(::std::future::ready(
+                #sync_wrapper_ident(
+                    __rstest_bdd_ctx,
+                    __rstest_bdd_text,
+                    __rstest_bdd_docstring,
+                    __rstest_bdd_table,
+                )
+            ))
+        }
     }
 }
 
@@ -327,7 +367,8 @@ fn generate_wrapper_body(
 fn generate_registration_code(
     config: &WrapperConfig<'_>,
     pattern_ident: &proc_macro2::Ident,
-    wrapper_ident: &proc_macro2::Ident,
+    sync_wrapper_ident: &proc_macro2::Ident,
+    async_wrapper_ident: &proc_macro2::Ident,
     const_ident: &proc_macro2::Ident,
 ) -> TokenStream2 {
     let fixture_names: Vec<_> = config
@@ -348,23 +389,38 @@ fn generate_registration_code(
         const #const_ident: [&'static str; #fixture_len] = [#(#fixture_names),*];
         const _: [(); #fixture_len] = [(); #const_ident.len()];
 
-        #path::step!(@pattern #keyword, &#pattern_ident, #wrapper_ident, &#const_ident);
+        #path::step!(@pattern #keyword, &#pattern_ident, #sync_wrapper_ident, #async_wrapper_ident, &#const_ident);
     }
 }
 
 /// Generate the wrapper function and inventory registration.
+///
+/// This function generates both a synchronous wrapper and an async wrapper. The
+/// async wrapper delegates to the sync wrapper, wrapping its result in an
+/// immediately-ready future via `std::future::ready`.
 pub(crate) fn generate_wrapper_code(config: &WrapperConfig<'_>) -> TokenStream2 {
     // Relaxed ordering suffices: the counter only ensures a unique suffix and
     // is not used for synchronisation with other data.
     let id = COUNTER.fetch_add(1, Ordering::Relaxed);
-    let (wrapper_ident, const_ident, pattern_ident) =
-        generate_wrapper_identifiers(config.ident, id);
-    let body = generate_wrapper_body(config, &wrapper_ident, &pattern_ident);
-    let registration =
-        generate_registration_code(config, &pattern_ident, &wrapper_ident, &const_ident);
+    let WrapperIdents {
+        sync_wrapper,
+        async_wrapper,
+        const_ident,
+        pattern_ident,
+    } = generate_wrapper_identifiers(config.ident, id);
+    let body = generate_wrapper_body(config, &sync_wrapper, &pattern_ident);
+    let async_wrapper_fn = generate_async_wrapper_from_sync(&sync_wrapper, &async_wrapper);
+    let registration = generate_registration_code(
+        config,
+        &pattern_ident,
+        &sync_wrapper,
+        &async_wrapper,
+        &const_ident,
+    );
 
     quote! {
         #body
+        #async_wrapper_fn
         #registration
     }
 }

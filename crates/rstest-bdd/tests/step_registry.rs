@@ -3,8 +3,9 @@
 use rstest::rstest;
 use rstest_bdd::localization::{ScopedLocalization, strip_directional_isolates};
 use rstest_bdd::{
-    Step, StepContext, StepError, StepExecution, StepKeyword, StepText, find_step_with_metadata,
-    iter, panic_message, step, unused_steps,
+    Step, StepContext, StepError, StepExecution, StepFuture, StepKeyword, StepText, find_step_with_metadata,
+    iter, panic_message,
+    step, unused_steps,
 };
 use unic_langid::langid;
 
@@ -25,7 +26,16 @@ fn wrapper(
     Ok(StepExecution::from_value(None))
 }
 
-step!(rstest_bdd::StepKeyword::When, "behavioural", wrapper, &[]);
+fn wrapper_async<'a>(
+    ctx: &'a mut StepContext<'a>,
+    text: &str,
+    docstring: Option<&str>,
+    table: Option<&[&[&str]]>,
+) -> StepFuture<'a> {
+    Box::pin(std::future::ready(wrapper(ctx, text, docstring, table)))
+}
+
+step!(rstest_bdd::StepKeyword::When, "behavioural", wrapper, wrapper_async, &[]);
 
 fn failing_wrapper(
     ctx: &mut StepContext<'_>,
@@ -41,10 +51,20 @@ fn failing_wrapper(
     })
 }
 
+fn failing_wrapper_async<'a>(
+    ctx: &'a mut StepContext<'a>,
+    text: &str,
+    docstring: Option<&str>,
+    table: Option<&[&[&str]]>,
+) -> StepFuture<'a> {
+    Box::pin(std::future::ready(failing_wrapper(ctx, text, docstring, table)))
+}
+
 step!(
     rstest_bdd::StepKeyword::Given,
     "fails",
     failing_wrapper,
+    failing_wrapper_async,
     &[]
 );
 
@@ -64,10 +84,20 @@ fn panicking_wrapper(
     Ok(StepExecution::from_value(None))
 }
 
+fn panicking_wrapper_async<'a>(
+    ctx: &'a mut StepContext<'a>,
+    text: &str,
+    docstring: Option<&str>,
+    table: Option<&[&[&str]]>,
+) -> StepFuture<'a> {
+    Box::pin(std::future::ready(panicking_wrapper(ctx, text, docstring, table)))
+}
+
 step!(
     rstest_bdd::StepKeyword::When,
     "panics",
     panicking_wrapper,
+    panicking_wrapper_async,
     &[]
 );
 
@@ -88,10 +118,20 @@ fn needs_fixture_wrapper(
     }
 }
 
+fn needs_fixture_wrapper_async<'a>(
+    ctx: &'a mut StepContext<'a>,
+    text: &str,
+    docstring: Option<&str>,
+    table: Option<&[&[&str]]>,
+) -> StepFuture<'a> {
+    Box::pin(std::future::ready(needs_fixture_wrapper(ctx, text, docstring, table)))
+}
+
 step!(
     rstest_bdd::StepKeyword::Then,
     "needs fixture",
     needs_fixture_wrapper,
+    needs_fixture_wrapper_async,
     &["missing"]
 );
 

@@ -5,7 +5,7 @@
 
 use crate::pattern::StepPattern;
 use crate::placeholder::extract_placeholders;
-use crate::types::{PatternStr, StepFn, StepKeyword, StepText};
+use crate::types::{AsyncStepFn, PatternStr, StepFn, StepKeyword, StepText};
 use hashbrown::{HashMap, HashSet};
 use inventory::iter;
 use rstest_bdd_patterns::SpecificityScore;
@@ -22,8 +22,13 @@ pub struct Step {
     pub keyword: StepKeyword,
     /// Pattern text used to match a Gherkin step.
     pub pattern: &'static StepPattern,
-    /// Function pointer executed when the step is invoked.
+    /// Function pointer executed when the step is invoked (sync mode).
     pub run: StepFn,
+    /// Function pointer executed when the step is invoked (async mode).
+    ///
+    /// For sync step definitions, this wraps the result in an immediately-ready
+    /// future, enabling mixed sync and async steps within async scenarios.
+    pub run_async: AsyncStepFn,
     /// Names of fixtures this step requires.
     pub fixtures: &'static [&'static str],
     /// Source file where the step is defined.
@@ -33,15 +38,20 @@ pub struct Step {
 }
 
 /// Register a step definition with the global registry.
+///
+/// This macro accepts both sync and async handler function pointers. The async
+/// handler wraps the sync result in an immediately-ready future for sync step
+/// definitions, enabling unified execution in async scenarios.
 #[macro_export]
 macro_rules! step {
-    (@pattern $keyword:expr, $pattern:expr, $handler:path, $fixtures:expr) => {
+    (@pattern $keyword:expr, $pattern:expr, $handler:path, $async_handler:path, $fixtures:expr) => {
         const _: () = {
             $crate::submit! {
                 $crate::Step {
                     keyword: $keyword,
                     pattern: $pattern,
                     run: $handler,
+                    run_async: $async_handler,
                     fixtures: $fixtures,
                     file: file!(),
                     line: line!(),
@@ -50,10 +60,10 @@ macro_rules! step {
         };
     };
 
-    ($keyword:expr, $pattern:expr, $handler:path, $fixtures:expr) => {
+    ($keyword:expr, $pattern:expr, $handler:path, $async_handler:path, $fixtures:expr) => {
         const _: () = {
             static PATTERN: $crate::StepPattern = $crate::StepPattern::new($pattern);
-    $crate::step!(@pattern $keyword, &PATTERN, $handler, $fixtures);
+            $crate::step!(@pattern $keyword, &PATTERN, $handler, $async_handler, $fixtures);
         };
     };
 }
@@ -170,6 +180,32 @@ pub fn find_step(keyword: StepKeyword, text: StepText<'_>) -> Option<StepFn> {
     resolve_step(keyword, text).map(|step| {
         mark_used((step.keyword, step.pattern));
         step.run
+    })
+}
+
+/// Look up a registered async step by keyword and pattern.
+///
+/// Returns the async step function pointer for use in async scenario execution.
+/// The async wrapper returns an immediately-ready future for sync step
+/// definitions.
+#[must_use]
+pub fn lookup_step_async(keyword: StepKeyword, pattern: PatternStr<'_>) -> Option<AsyncStepFn> {
+    resolve_exact_step(keyword, pattern).map(|step| {
+        mark_used((step.keyword, step.pattern));
+        step.run_async
+    })
+}
+
+/// Find a registered async step whose pattern matches the provided text.
+///
+/// Returns the async step function pointer for use in async scenario execution.
+/// The async wrapper returns an immediately-ready future for sync step
+/// definitions.
+#[must_use]
+pub fn find_step_async(keyword: StepKeyword, text: StepText<'_>) -> Option<AsyncStepFn> {
+    resolve_step(keyword, text).map(|step| {
+        mark_used((step.keyword, step.pattern));
+        step.run_async
     })
 }
 
