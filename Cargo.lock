@@ -1427,7 +1427,9 @@ dependencies = [
 name = "rstest-bdd-patterns"
 version = "0.3.0"
 dependencies = [
+ "gherkin",
  "regex",
+ "rstest",
  "thiserror 1.0.69",
 ]
 

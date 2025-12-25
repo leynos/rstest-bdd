@@ -5,11 +5,57 @@
 //! by the registry and runner.
 
 use crate::localization;
-use gherkin::StepType;
 use std::any::Any;
 use std::borrow::Cow;
 use std::fmt;
-use std::str::FromStr;
+
+// Re-export shared keyword types from rstest-bdd-patterns.
+pub use rstest_bdd_patterns::{
+    StepKeyword, StepKeywordParseError, UnsupportedStepType as UnsupportedStepTypeBase,
+};
+
+/// Error raised when converting a parsed Gherkin [`gherkin::StepType`] into a
+/// [`StepKeyword`] fails.
+///
+/// This is a localized wrapper around [`UnsupportedStepTypeBase`] that uses the
+/// runtime localization system for user-friendly error messages.
+///
+/// # Examples
+///
+/// ```rust
+/// use gherkin::StepType;
+/// use rstest_bdd::{StepKeyword, UnsupportedStepType};
+///
+/// fn convert(ty: StepType) -> Result<StepKeyword, UnsupportedStepType> {
+///     StepKeyword::try_from(ty).map_err(UnsupportedStepType::from)
+/// }
+///
+/// match convert(StepType::Given) {
+///     Ok(keyword) => assert_eq!(keyword, StepKeyword::Given),
+///     Err(error) => {
+///         eprintln!("unsupported step type: {:?}", error.0);
+///     }
+/// }
+/// ```
+#[derive(Debug)]
+pub struct UnsupportedStepType(pub gherkin::StepType);
+
+impl fmt::Display for UnsupportedStepType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let message = localization::message_with_args("unsupported-step-type", |args| {
+            args.set("step_type", format!("{:?}", self.0));
+        });
+        f.write_str(&message)
+    }
+}
+
+impl std::error::Error for UnsupportedStepType {}
+
+impl From<UnsupportedStepTypeBase> for UnsupportedStepType {
+    fn from(base: UnsupportedStepTypeBase) -> Self {
+        Self(base.0)
+    }
+}
 
 /// Wrapper for step pattern strings used in matching logic.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -56,125 +102,6 @@ impl<'a> StepText<'a> {
 impl<'a> From<&'a str> for StepText<'a> {
     fn from(s: &'a str) -> Self {
         Self::new(s)
-    }
-}
-
-/// Keyword used to categorize a step definition.
-///
-/// The enum includes `And` and `But` variants for completeness, but feature
-/// parsing resolves them against the preceding `Given`/`When`/`Then`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum StepKeyword {
-    /// Setup preconditions for a scenario.
-    Given,
-    /// Perform an action when testing behaviour.
-    When,
-    /// Assert the expected outcome of a scenario.
-    Then,
-    /// Additional conditions that share context with the previous step.
-    And,
-    /// Negative or contrasting conditions.
-    But,
-}
-
-impl StepKeyword {
-    /// Return the keyword as a string slice.
-    #[must_use]
-    pub const fn as_str(&self) -> &'static str {
-        match self {
-            Self::Given => "Given",
-            Self::When => "When",
-            Self::Then => "Then",
-            Self::And => "And",
-            Self::But => "But",
-        }
-    }
-}
-
-/// Error returned when parsing a `StepKeyword` from a string fails.
-#[derive(Debug)]
-pub struct StepKeywordParseError(pub String);
-
-impl fmt::Display for StepKeywordParseError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let message = localization::message_with_args("step-keyword-parse-error", |args| {
-            args.set("keyword", self.0.clone());
-        });
-        f.write_str(&message)
-    }
-}
-
-impl std::error::Error for StepKeywordParseError {}
-
-impl FromStr for StepKeyword {
-    type Err = StepKeywordParseError;
-
-    fn from_str(value: &str) -> Result<Self, Self::Err> {
-        let kw = match value.trim().to_ascii_lowercase().as_str() {
-            "given" => Self::Given,
-            "when" => Self::When,
-            "then" => Self::Then,
-            "and" => Self::And,
-            "but" => Self::But,
-            other => return Err(StepKeywordParseError(other.to_string())),
-        };
-        Ok(kw)
-    }
-}
-
-/// Error raised when converting a parsed Gherkin [`StepType`] into a
-/// [`StepKeyword`] fails.
-///
-/// Captures the offending [`StepType`] to help callers diagnose missing
-/// language support. Implements [`fmt::Display`] and [`std::error::Error`]
-/// for consumption by callers via conventional error handling.
-///
-/// # Examples
-///
-/// ```rust
-/// use gherkin::StepType;
-/// use rstest_bdd::{StepKeyword, UnsupportedStepType};
-///
-/// fn convert(ty: StepType) -> Result<StepKeyword, UnsupportedStepType> {
-///     StepKeyword::try_from(ty)
-/// }
-///
-/// match convert(StepType::Given) {
-///     Ok(keyword) => assert_eq!(keyword, StepKeyword::Given),
-///     Err(error) => {
-///         eprintln!("unsupported step type: {:?}", error.0);
-///     }
-/// }
-/// ```
-#[derive(Debug)]
-pub struct UnsupportedStepType(pub StepType);
-
-impl fmt::Display for UnsupportedStepType {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let message = localization::message_with_args("unsupported-step-type", |args| {
-            args.set("step_type", format!("{:?}", self.0));
-        });
-        f.write_str(&message)
-    }
-}
-
-impl std::error::Error for UnsupportedStepType {}
-
-impl core::convert::TryFrom<StepType> for StepKeyword {
-    type Error = UnsupportedStepType;
-
-    fn try_from(ty: StepType) -> Result<Self, Self::Error> {
-        match ty {
-            StepType::Given => Ok(Self::Given),
-            StepType::When => Ok(Self::When),
-            StepType::Then => Ok(Self::Then),
-            #[expect(unreachable_patterns, reason = "guard future StepType variants")]
-            other => match format!("{other:?}") {
-                s if s == "And" => Ok(Self::And),
-                s if s == "But" => Ok(Self::But),
-                _ => Err(UnsupportedStepType(other)),
-            },
-        }
     }
 }
 

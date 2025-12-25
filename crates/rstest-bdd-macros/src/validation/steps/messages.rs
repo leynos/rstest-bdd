@@ -47,7 +47,7 @@ fn build_missing_step_message(
 ) -> String {
     let mut msg = format!(
         "No matching step definition found for '{} {}'",
-        resolved.display_name(),
+        resolved.as_str(),
         step.text
     );
     msg.push_str(&format_item_list(

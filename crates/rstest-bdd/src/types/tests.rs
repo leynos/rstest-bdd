@@ -4,10 +4,12 @@ use super::*;
 use crate::localization::{ScopedLocalization, strip_directional_isolates};
 use gherkin::StepType;
 use rstest::rstest;
+use std::str::FromStr;
 use unic_langid::langid;
 
 fn kw_from_type(ty: StepType) -> StepKeyword {
     StepKeyword::try_from(ty)
+        .map_err(UnsupportedStepType::from)
         .unwrap_or_else(|e| panic!("failed to convert '{ty:?}' into StepKeyword: {e}"))
 }
 
