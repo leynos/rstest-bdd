@@ -1,12 +1,19 @@
 //! Validation for function parameters against scenario outline headers.
+//!
+//! Underscore-prefixed parameter names (e.g., `_param`) match unprefixed headers
+//! (e.g., `param`), enabling idiomatic Rust unused parameter marking.
 
 use crate::utils::errors::error_to_tokens;
+use crate::utils::pattern::normalize_param_name;
 use proc_macro2::TokenStream;
 
 fn parameter_matches_header(arg: &syn::FnArg, header: &str) -> bool {
     match arg {
         syn::FnArg::Typed(p) => match &*p.pat {
-            syn::Pat::Ident(id) => id.ident == *header,
+            syn::Pat::Ident(id) => {
+                let param_name = id.ident.to_string();
+                normalize_param_name(&param_name) == header
+            }
             _ => false,
         },
         syn::FnArg::Receiver(_) => false,

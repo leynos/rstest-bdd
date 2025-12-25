@@ -10,6 +10,13 @@ use std::collections::HashSet;
 
 use super::{Arg, ExtractedArgs};
 
+/// Strip a single leading underscore from a parameter name for matching.
+///
+/// Enables `_param` to match placeholder `param`. Only one underscore is
+/// stripped (`__param` becomes `_param`) to preserve Rust's double-underscore
+/// convention.
+fn normalize_param_name(name: &str) -> &str { name.strip_prefix('_').unwrap_or(name) }
+
 mod step_struct;
 
 pub(super) use step_struct::{classify_step_struct, extract_step_struct_attribute};
@@ -322,8 +329,9 @@ fn classify_by_placeholder_match(
 ) -> syn::Result<()> {
     let target = from_name.clone().unwrap_or_else(|| pat.clone());
     let target_name = target.to_string();
-    if ctx.placeholders.remove(&target_name) {
-        validate_no_step_struct_conflict(ctx, &target_name, &pat)?;
+    let normalized = normalize_param_name(&target_name);
+    if ctx.placeholders.remove(normalized) {
+        validate_no_step_struct_conflict(ctx, normalized, &pat)?;
         ctx.extracted.push(Arg::Step { pat, ty });
         Ok(())
     } else {

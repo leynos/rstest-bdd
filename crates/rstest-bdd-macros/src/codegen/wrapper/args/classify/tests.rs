@@ -149,3 +149,31 @@ fn classify_step_struct_blocks_placeholders() {
             .is_some_and(|step| step.pat == "args")
     );
 }
+
+#[test]
+fn classify_fixture_or_step_matches_underscore_prefixed_param_to_placeholder() {
+    let (extracted, handled, placeholders) = execute_classify_fixture_or_step(
+        HashSet::from(["value".to_string()]),
+        quote!(_value: String),
+        "_value",
+        quote!(String),
+    );
+
+    assert!(handled);
+    assert!(placeholders.is_empty());
+    assert!(matches!(extracted.args.as_slice(), [Arg::Step { .. }]));
+}
+
+#[test]
+fn classify_fixture_or_step_double_underscore_matches_single_underscore_placeholder() {
+    let (extracted, handled, placeholders) = execute_classify_fixture_or_step(
+        HashSet::from(["_value".to_string()]),
+        quote!(__value: String),
+        "__value",
+        quote!(String),
+    );
+
+    assert!(handled);
+    assert!(placeholders.is_empty());
+    assert!(matches!(extracted.args.as_slice(), [Arg::Step { .. }]));
+}
