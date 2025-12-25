@@ -7,6 +7,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 
 use rstest_bdd::{StepContext, StepExecution, StepKeyword, find_step};
 use rstest_bdd_macros::given;
+use serial_test::serial;
 
 // Counters to track which step was executed
 static WORKSPACE_EXECUTABLE_CALLED: AtomicUsize = AtomicUsize::new(0);
@@ -57,6 +58,7 @@ fn reset_counters() {
 }
 
 #[test]
+#[serial]
 fn specific_pattern_beats_generic_from_issue_350() {
     reset_counters();
 
@@ -91,6 +93,7 @@ fn specific_pattern_beats_generic_from_issue_350() {
 }
 
 #[test]
+#[serial]
 fn generic_pattern_matches_when_specific_does_not() {
     reset_counters();
 
@@ -120,6 +123,7 @@ fn generic_pattern_matches_when_specific_does_not() {
 }
 
 #[test]
+#[serial]
 fn typed_placeholder_beats_untyped_as_tiebreaker() {
     reset_counters();
 
@@ -144,6 +148,7 @@ fn typed_placeholder_beats_untyped_as_tiebreaker() {
 }
 
 #[test]
+#[serial]
 fn most_specific_wins_among_three_patterns() {
     reset_counters();
 
