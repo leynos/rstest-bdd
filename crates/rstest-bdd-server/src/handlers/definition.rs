@@ -78,6 +78,14 @@ fn is_rust_file(path: &Path) -> bool {
 ///
 /// Uses line-based matching: returns the step whose function definition
 /// line matches the cursor's line.
+///
+/// # Limitations
+///
+/// The current heuristic assumes the step attribute is on the line immediately
+/// before the function definition. This may not match correctly when:
+/// - Doc comments exist between the attribute and function
+/// - Multiple attributes are present on the function
+/// - The attribute spans multiple lines
 fn find_step_at_position(
     state: &ServerState,
     path: &Path,

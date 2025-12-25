@@ -73,6 +73,8 @@ impl DefinitionTestScenario {
 
     /// Sets the Rust step definitions file content.
     fn with_rust_steps(mut self, content: &str) -> Self {
+        // Using clone_into() as recommended by Clippy for efficiency
+        // (can reuse existing String allocation)
         content.clone_into(&mut self.rust_file_content);
         self
     }

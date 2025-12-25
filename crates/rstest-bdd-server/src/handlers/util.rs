@@ -37,6 +37,10 @@ pub fn gherkin_span_to_lsp_range(source: &str, span: Span) -> Range {
 }
 
 /// Convert a byte offset to an LSP Position (0-based line and character).
+///
+/// The LSP specification defines character positions as UTF-16 code unit offsets.
+/// Characters outside the BMP (code points > 0xFFFF) require two UTF-16 code units
+/// (a surrogate pair), so they contribute 2 to the column count, not 1.
 fn byte_offset_to_position(source: &str, byte_offset: usize) -> Position {
     let mut line = 0u32;
     let mut col = 0u32;
@@ -50,7 +54,8 @@ fn byte_offset_to_position(source: &str, byte_offset: usize) -> Position {
             line += 1;
             col = 0;
         } else {
-            col += 1;
+            // UTF-16 code units: BMP characters (≤0xFFFF) use 1, non-BMP use 2
+            col += if u32::from(ch) <= 0xFFFF { 1 } else { 2 };
         }
         current_byte += ch.len_utf8();
     }
@@ -111,5 +116,23 @@ mod tests {
         assert_eq!(range.start.character, 0);
         assert_eq!(range.end.line, 0);
         assert_eq!(range.end.character, 0);
+    }
+
+    #[test]
+    fn byte_offset_to_position_counts_utf16_code_units() {
+        // Emoji U+1F600 (😀) is outside the BMP and requires 2 UTF-16 code units
+        let source = "hello😀";
+        let pos = byte_offset_to_position(source, source.len());
+        // 5 ASCII chars (1 UTF-16 code unit each) + 1 emoji (2 UTF-16 code units) = 7
+        assert_eq!(pos.character, 7);
+    }
+
+    #[test]
+    fn byte_offset_to_position_handles_mixed_characters() {
+        // Mix of ASCII, BMP (é = U+00E9), and non-BMP (🎉 = U+1F389)
+        let source = "café🎉";
+        let pos = byte_offset_to_position(source, source.len());
+        // 'c' (1) + 'a' (1) + 'f' (1) + 'é' (1, BMP) + '🎉' (2, non-BMP) = 6
+        assert_eq!(pos.character, 6);
     }
 }

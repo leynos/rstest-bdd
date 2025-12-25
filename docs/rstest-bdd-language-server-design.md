@@ -857,7 +857,7 @@ The handler converts `gherkin::Span` (byte offsets) to `lsp_types::Range`
 - Unit tests in `handlers/definition.rs` cover position matching and keyword
   filtering.
 - Behavioural tests in `tests/definition_navigation.rs` verify end-to-end
-  navigation including parameterized patterns and multiple matches.
+  navigation, including parameterised patterns and multiple matches.
 
 ### Next phases
 
