@@ -43,7 +43,16 @@ impl StepKeyword {
 
     /// Return the keyword as a string slice.
     #[must_use]
-    pub(crate) fn as_str(self) -> &'static str { self.0.as_str() }
+    #[cfg_attr(
+        not(feature = "compile-time-validation"),
+        expect(
+            dead_code,
+            reason = "used by validation module behind compile-time-validation feature"
+        )
+    )]
+    pub(crate) fn as_str(self) -> &'static str {
+        self.0.as_str()
+    }
 
     /// Resolve conjunctions to the semantic keyword of the previous step.
     ///
@@ -85,7 +94,9 @@ impl FromStr for StepKeyword {
 impl TryFrom<&str> for StepKeyword {
     type Error = StepKeywordParseError;
 
-    fn try_from(value: &str) -> Result<Self, Self::Error> { value.parse() }
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        value.parse()
+    }
 }
 
 impl TryFrom<gherkin::StepType> for StepKeyword {
