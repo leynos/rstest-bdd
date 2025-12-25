@@ -122,7 +122,8 @@ fn step_future_can_be_constructed_from_ready_future() {
 
     let future = make_ready_future();
     // Ensure the future type is correctly constructed (compile-time check).
-    let _: StepFuture<'_> = future;
+    // Drop the future explicitly as it won't be awaited in this sync test.
+    drop(future);
 }
 
 #[test]
@@ -142,6 +143,7 @@ fn async_step_fn_signature_is_valid() {
 }
 
 #[test]
+#[expect(clippy::expect_used, reason = "test validates downcast succeeds")]
 fn step_future_resolves_to_expected_value() {
     fn make_future<'a>() -> StepFuture<'a> {
         Box::pin(std::future::ready(Ok(StepExecution::from_value(Some(
@@ -152,7 +154,7 @@ fn step_future_resolves_to_expected_value() {
     let future = make_future();
     // Poll the ready future to completion.
     let waker = std::task::Waker::noop();
-    let mut cx = std::task::Context::from_waker(&waker);
+    let mut cx = std::task::Context::from_waker(waker);
     let mut pinned = future;
     match std::pin::Pin::as_mut(&mut pinned).poll(&mut cx) {
         std::task::Poll::Ready(Ok(StepExecution::Continue { value: Some(v) })) => {

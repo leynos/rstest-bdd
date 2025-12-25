@@ -10,8 +10,20 @@ use serde_json::Value;
 mod common;
 use common::{noop_async_wrapper, noop_wrapper};
 
-step!(StepKeyword::Given, "dump used", noop_wrapper, noop_async_wrapper, &[]);
-step!(StepKeyword::Given, "dump unused", noop_wrapper, noop_async_wrapper, &[]);
+step!(
+    StepKeyword::Given,
+    "dump used",
+    noop_wrapper,
+    noop_async_wrapper,
+    &[]
+);
+step!(
+    StepKeyword::Given,
+    "dump unused",
+    noop_wrapper,
+    noop_async_wrapper,
+    &[]
+);
 
 fn execute_and_validate_step(keyword: StepKeyword, pattern: &str) {
     let runner = find_step(keyword, pattern.into()).unwrap_or_else(|| panic!("step not found"));

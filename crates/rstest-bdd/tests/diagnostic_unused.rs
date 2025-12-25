@@ -5,8 +5,20 @@ use rstest_bdd::{StepContext, StepExecution, StepKeyword, find_step, step, unuse
 mod common;
 use common::{noop_async_wrapper, noop_wrapper};
 
-step!(StepKeyword::Given, "a used step", noop_wrapper, noop_async_wrapper, &[]);
-step!(StepKeyword::Given, "an unused step", noop_wrapper, noop_async_wrapper, &[]);
+step!(
+    StepKeyword::Given,
+    "a used step",
+    noop_wrapper,
+    noop_async_wrapper,
+    &[]
+);
+step!(
+    StepKeyword::Given,
+    "an unused step",
+    noop_wrapper,
+    noop_async_wrapper,
+    &[]
+);
 
 #[test]
 fn reports_unused_steps() {

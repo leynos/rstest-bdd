@@ -3,8 +3,7 @@
 //! These tests verify that the async step registry infrastructure correctly
 //! normalises synchronous step definitions into the async interface.
 
-use rstest_bdd::{given, then, when};
-use rstest_bdd_macros::scenario;
+use rstest_bdd_macros::{given, scenario, then, when};
 use std::cell::RefCell;
 
 thread_local! {

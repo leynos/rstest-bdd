@@ -42,5 +42,7 @@ pub fn noop_async_wrapper<'a>(
     docstring: Option<&str>,
     table: Option<&[&[&str]]>,
 ) -> StepFuture<'a> {
-    Box::pin(std::future::ready(noop_wrapper(ctx, text, docstring, table)))
+    Box::pin(std::future::ready(noop_wrapper(
+        ctx, text, docstring, table,
+    )))
 }

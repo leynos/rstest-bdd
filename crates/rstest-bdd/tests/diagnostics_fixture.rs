@@ -53,7 +53,9 @@ fn bypassed_step_async<'a>(
     docstring: Option<&str>,
     table: Option<&[&[&str]]>,
 ) -> StepFuture<'a> {
-    Box::pin(std::future::ready(bypassed_step(ctx, text, docstring, table)))
+    Box::pin(std::future::ready(bypassed_step(
+        ctx, text, docstring, table,
+    )))
 }
 
 #[cfg(feature = "diagnostics")]
@@ -77,7 +79,9 @@ fn forced_bypass_async<'a>(
     docstring: Option<&str>,
     table: Option<&[&[&str]]>,
 ) -> StepFuture<'a> {
-    Box::pin(std::future::ready(forced_bypass(ctx, text, docstring, table)))
+    Box::pin(std::future::ready(forced_bypass(
+        ctx, text, docstring, table,
+    )))
 }
 
 #[cfg(feature = "diagnostics")]

@@ -38,7 +38,7 @@ fn async_step_fn_can_be_stored_and_invoked() {
 
     // Poll the future to completion using a noop waker.
     let waker = std::task::Waker::noop();
-    let mut cx = std::task::Context::from_waker(&waker);
+    let mut cx = std::task::Context::from_waker(waker);
     let mut pinned = future;
     match std::pin::Pin::as_mut(&mut pinned).poll(&mut cx) {
         std::task::Poll::Ready(Ok(StepExecution::Continue { .. })) => {}
@@ -47,6 +47,10 @@ fn async_step_fn_can_be_stored_and_invoked() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "test asserts Option is Some before expect"
+)]
 fn step_struct_has_run_async_field() {
     let found = iter::<Step>
         .into_iter()
@@ -61,7 +65,7 @@ fn step_struct_has_run_async_field() {
 
     // Poll to completion.
     let waker = std::task::Waker::noop();
-    let mut cx = std::task::Context::from_waker(&waker);
+    let mut cx = std::task::Context::from_waker(waker);
     let mut pinned = future;
     match std::pin::Pin::as_mut(&mut pinned).poll(&mut cx) {
         std::task::Poll::Ready(Ok(StepExecution::Continue { .. })) => {}
@@ -70,17 +74,17 @@ fn step_struct_has_run_async_field() {
 }
 
 #[test]
+#[expect(clippy::expect_used, reason = "test validates step lookup succeeds")]
 fn find_step_async_returns_async_wrapper() {
-    let async_fn =
-        find_step_async(StepKeyword::Given, "an async registry test step".into())
-            .expect("step should be found");
+    let async_fn = find_step_async(StepKeyword::Given, "an async registry test step".into())
+        .expect("step should be found");
 
     let mut ctx = StepContext::default();
     let future = async_fn(&mut ctx, "an async registry test step", None, None);
 
     // Poll to completion.
     let waker = std::task::Waker::noop();
-    let mut cx = std::task::Context::from_waker(&waker);
+    let mut cx = std::task::Context::from_waker(waker);
     let mut pinned = future;
     match std::pin::Pin::as_mut(&mut pinned).poll(&mut cx) {
         std::task::Poll::Ready(Ok(StepExecution::Continue { .. })) => {}
@@ -89,19 +93,17 @@ fn find_step_async_returns_async_wrapper() {
 }
 
 #[test]
+#[expect(clippy::expect_used, reason = "test validates step lookup succeeds")]
 fn lookup_step_async_returns_async_wrapper() {
-    let async_fn = lookup_step_async(
-        StepKeyword::Given,
-        "an async registry test step".into(),
-    )
-    .expect("step should be found");
+    let async_fn = lookup_step_async(StepKeyword::Given, "an async registry test step".into())
+        .expect("step should be found");
 
     let mut ctx = StepContext::default();
     let future = async_fn(&mut ctx, "an async registry test step", None, None);
 
     // Poll to completion.
     let waker = std::task::Waker::noop();
-    let mut cx = std::task::Context::from_waker(&waker);
+    let mut cx = std::task::Context::from_waker(waker);
     let mut pinned = future;
     match std::pin::Pin::as_mut(&mut pinned).poll(&mut cx) {
         std::task::Poll::Ready(Ok(StepExecution::Continue { .. })) => {}

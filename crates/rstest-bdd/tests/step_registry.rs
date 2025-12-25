@@ -4,8 +4,7 @@ use rstest::rstest;
 use rstest_bdd::localization::{ScopedLocalization, strip_directional_isolates};
 use rstest_bdd::{
     Step, StepContext, StepError, StepExecution, StepFuture, StepKeyword, StepText, find_step_with_metadata,
-    iter, panic_message,
-    step, unused_steps,
+    iter, panic_message, step, unused_steps,
 };
 use unic_langid::langid;
 
@@ -35,7 +34,13 @@ fn wrapper_async<'a>(
     Box::pin(std::future::ready(wrapper(ctx, text, docstring, table)))
 }
 
-step!(rstest_bdd::StepKeyword::When, "behavioural", wrapper, wrapper_async, &[]);
+step!(
+    rstest_bdd::StepKeyword::When,
+    "behavioural",
+    wrapper,
+    wrapper_async,
+    &[]
+);
 
 fn failing_wrapper(
     ctx: &mut StepContext<'_>,
@@ -57,7 +62,9 @@ fn failing_wrapper_async<'a>(
     docstring: Option<&str>,
     table: Option<&[&[&str]]>,
 ) -> StepFuture<'a> {
-    Box::pin(std::future::ready(failing_wrapper(ctx, text, docstring, table)))
+    Box::pin(std::future::ready(failing_wrapper(
+        ctx, text, docstring, table,
+    )))
 }
 
 step!(
@@ -90,7 +97,9 @@ fn panicking_wrapper_async<'a>(
     docstring: Option<&str>,
     table: Option<&[&[&str]]>,
 ) -> StepFuture<'a> {
-    Box::pin(std::future::ready(panicking_wrapper(ctx, text, docstring, table)))
+    Box::pin(std::future::ready(panicking_wrapper(
+        ctx, text, docstring, table,
+    )))
 }
 
 step!(
@@ -124,7 +133,9 @@ fn needs_fixture_wrapper_async<'a>(
     docstring: Option<&str>,
     table: Option<&[&[&str]]>,
 ) -> StepFuture<'a> {
-    Box::pin(std::future::ready(needs_fixture_wrapper(ctx, text, docstring, table)))
+    Box::pin(std::future::ready(needs_fixture_wrapper(
+        ctx, text, docstring, table,
+    )))
 }
 
 step!(
