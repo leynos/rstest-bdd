@@ -4,7 +4,7 @@
 
 use crate::types::{PlaceholderSyntaxError, StepPatternError};
 use regex::Regex;
-use rstest_bdd_patterns::{PatternError, compile_regex_from_pattern};
+use rstest_bdd_patterns::{PatternError, SpecificityScore, compile_regex_from_pattern};
 use std::borrow::Cow;
 use std::hash::{Hash, Hasher};
 use std::sync::OnceLock;
@@ -14,6 +14,7 @@ use std::sync::OnceLock;
 pub struct StepPattern {
     text: &'static str,
     pub(crate) regex: OnceLock<Regex>,
+    specificity: OnceLock<SpecificityScore>,
 }
 
 // Equality and hashing are by the underlying literal text. This allows
@@ -51,6 +52,7 @@ impl StepPattern {
         Self {
             text: value,
             regex: OnceLock::new(),
+            specificity: OnceLock::new(),
         }
     }
 
@@ -102,6 +104,36 @@ impl StepPattern {
         self.regex.get().ok_or(StepPatternError::NotCompiled {
             pattern: Cow::Borrowed(self.text),
         })
+    }
+
+    /// Calculate and cache the specificity score for this pattern.
+    ///
+    /// Used to rank patterns when multiple match the same step text.
+    /// Higher scores indicate more specific patterns.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`StepPatternError`] if the pattern contains invalid syntax.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use rstest_bdd::StepPattern;
+    ///
+    /// let specific = StepPattern::from("overlap apples");
+    /// let generic = StepPattern::from("overlap {item}");
+    ///
+    /// let specific_score = specific.specificity().unwrap();
+    /// let generic_score = generic.specificity().unwrap();
+    /// assert!(specific_score > generic_score);
+    /// ```
+    pub fn specificity(&self) -> Result<SpecificityScore, StepPatternError> {
+        if let Some(score) = self.specificity.get() {
+            return Ok(*score);
+        }
+        let score = SpecificityScore::calculate(self.text)?;
+        let _ = self.specificity.set(score);
+        Ok(score)
     }
 }
 

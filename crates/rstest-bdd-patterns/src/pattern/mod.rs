@@ -1,7 +1,7 @@
 //! Step-pattern lexing and compilation helpers.
 
 mod compiler;
-mod lexer;
+pub mod lexer;
 mod placeholder;
 #[cfg(test)]
 pub(crate) mod test_support;

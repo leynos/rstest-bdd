@@ -127,10 +127,30 @@ fn resolve_exact_step(keyword: StepKeyword, pattern: PatternStr<'_>) -> Option<&
 }
 
 fn resolve_step(keyword: StepKeyword, text: StepText<'_>) -> Option<&'static Step> {
-    resolve_exact_step(keyword, text.as_str().into()).or_else(|| {
-        iter::<Step>.into_iter().find(|step| {
-            step.keyword == keyword && extract_placeholders(step.pattern, text).is_ok()
-        })
+    // Fast path: exact pattern match
+    if let Some(step) = resolve_exact_step(keyword, text.as_str().into()) {
+        return Some(step);
+    }
+
+    // Collect all matching steps
+    let matches: Vec<_> = iter::<Step>
+        .into_iter()
+        .filter(|step| step.keyword == keyword && extract_placeholders(step.pattern, text).is_ok())
+        .collect();
+
+    match matches.as_slice() {
+        [] => None,
+        [single] => Some(*single),
+        _ => select_most_specific_step(matches),
+    }
+}
+
+/// Select the step with the highest specificity score from multiple matches.
+fn select_most_specific_step(matches: Vec<&'static Step>) -> Option<&'static Step> {
+    matches.into_iter().max_by(|a, b| {
+        let a_spec = a.pattern.specificity().unwrap_or_default();
+        let b_spec = b.pattern.specificity().unwrap_or_default();
+        a_spec.cmp(&b_spec)
     })
 }
 
