@@ -9,6 +9,31 @@ fn sample_meta<'a>(pattern: &'a syn::LitStr, ident: &'a syn::Ident) -> StepMeta<
     StepMeta { pattern, ident }
 }
 
+/// Generate step parse code for a single argument with the given type.
+///
+/// This helper encapsulates the common setup for testing `gen_step_parses`:
+/// pattern creation, meta creation, argument/capture construction, and
+/// token extraction. Returns the generated code as a string for assertions.
+fn generate_step_parse_for_single_arg(ty: syn::Type) -> String {
+    let pattern: syn::LitStr = parse_quote!("test {name}");
+    let ident: syn::Ident = parse_quote!(test_step);
+    let meta = sample_meta(&pattern, &ident);
+
+    let arg = Arg::Step {
+        pat: parse_quote!(name),
+        ty,
+    };
+    let args = vec![&arg];
+    let captures = vec![quote! { captures.get(0).map(|m| m.as_str()) }];
+
+    let tokens = gen_step_parses(&args, &captures, meta);
+
+    let [token] = tokens.as_slice() else {
+        panic!("expected single token stream");
+    };
+    token.to_string()
+}
+
 fn build_arguments() -> Vec<Arg> {
     vec![
         Arg::Fixture {
@@ -214,23 +239,7 @@ fn is_str_reference_rejects_non_str_references() {
 
 #[test]
 fn gen_step_parses_uses_direct_assignment_for_str_reference() {
-    let pattern: syn::LitStr = parse_quote!("test {name}");
-    let ident: syn::Ident = parse_quote!(test_step);
-    let meta = sample_meta(&pattern, &ident);
-
-    let str_arg = Arg::Step {
-        pat: parse_quote!(name),
-        ty: parse_quote!(&str),
-    };
-    let args = vec![&str_arg];
-    let captures = vec![quote! { captures.get(0).map(|m| m.as_str()) }];
-
-    let tokens = gen_step_parses(&args, &captures, meta);
-
-    let [token] = tokens.as_slice() else {
-        panic!("expected single token stream");
-    };
-    let code = token.to_string();
+    let code = generate_step_parse_for_single_arg(parse_quote!(&str));
 
     assert!(
         !code.contains("parse"),
@@ -244,23 +253,7 @@ fn gen_step_parses_uses_direct_assignment_for_str_reference() {
 
 #[test]
 fn gen_step_parses_uses_parse_for_owned_string() {
-    let pattern: syn::LitStr = parse_quote!("test {name}");
-    let ident: syn::Ident = parse_quote!(test_step);
-    let meta = sample_meta(&pattern, &ident);
-
-    let string_arg = Arg::Step {
-        pat: parse_quote!(name),
-        ty: parse_quote!(String),
-    };
-    let args = vec![&string_arg];
-    let captures = vec![quote! { captures.get(0).map(|m| m.as_str()) }];
-
-    let tokens = gen_step_parses(&args, &captures, meta);
-
-    let [token] = tokens.as_slice() else {
-        panic!("expected single token stream");
-    };
-    let code = token.to_string();
+    let code = generate_step_parse_for_single_arg(parse_quote!(String));
 
     assert!(code.contains("parse"), "String should use parse(): {code}");
 }
