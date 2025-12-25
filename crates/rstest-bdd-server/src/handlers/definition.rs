@@ -100,6 +100,47 @@ fn find_step_at_position(
     None
 }
 
+/// Process a single feature index to find matching step locations.
+///
+/// Returns a vector of locations for steps that match the given step definition
+/// by keyword and regex pattern.
+fn process_feature_index(
+    feature_index: &crate::indexing::FeatureFileIndex,
+    step_def: &CompiledStepDefinition,
+) -> Vec<Location> {
+    // Read feature file for span conversion
+    let source = match std::fs::read_to_string(&feature_index.path) {
+        Ok(s) => s,
+        Err(err) => {
+            debug!(
+                path = %feature_index.path.display(),
+                error = %err,
+                "failed to read feature file for span conversion"
+            );
+            return Vec::new();
+        }
+    };
+
+    let Ok(uri) = Url::from_file_path(&feature_index.path) else {
+        debug!(
+            path = %feature_index.path.display(),
+            "failed to convert path to URI"
+        );
+        return Vec::new();
+    };
+
+    feature_index
+        .steps
+        .iter()
+        .filter(|step| step.step_type == step_def.keyword)
+        .filter(|step| step_def.regex.is_match(&step.text))
+        .map(|step| Location {
+            uri: uri.clone(),
+            range: gherkin_span_to_lsp_range(&source, step.span),
+        })
+        .collect()
+}
+
 /// Find all feature step locations that match the given step definition.
 ///
 /// Matches are determined by:
@@ -109,48 +150,10 @@ fn find_matching_feature_locations(
     state: &ServerState,
     step_def: &CompiledStepDefinition,
 ) -> Vec<Location> {
-    let mut locations = Vec::new();
-
-    for feature_index in state.all_feature_indices() {
-        // Read feature file for span conversion
-        let source = match std::fs::read_to_string(&feature_index.path) {
-            Ok(s) => s,
-            Err(err) => {
-                debug!(
-                    path = %feature_index.path.display(),
-                    error = %err,
-                    "failed to read feature file for span conversion"
-                );
-                continue;
-            }
-        };
-
-        let Ok(uri) = Url::from_file_path(&feature_index.path) else {
-            debug!(
-                path = %feature_index.path.display(),
-                "failed to convert path to URI"
-            );
-            continue;
-        };
-
-        for indexed_step in &feature_index.steps {
-            // Match step type (keyword-aware)
-            if indexed_step.step_type != step_def.keyword {
-                continue;
-            }
-
-            // Match using compiled regex
-            if step_def.regex.is_match(&indexed_step.text) {
-                let range = gherkin_span_to_lsp_range(&source, indexed_step.span);
-                locations.push(Location {
-                    uri: uri.clone(),
-                    range,
-                });
-            }
-        }
-    }
-
-    locations
+    state
+        .all_feature_indices()
+        .flat_map(|index| process_feature_index(index, step_def))
+        .collect()
 }
 
 #[cfg(test)]
