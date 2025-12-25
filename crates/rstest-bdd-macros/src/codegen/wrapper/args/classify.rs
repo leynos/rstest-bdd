@@ -15,7 +15,9 @@ use super::{Arg, ExtractedArgs};
 /// Enables `_param` to match placeholder `param`. Only one underscore is
 /// stripped (`__param` becomes `_param`) to preserve Rust's double-underscore
 /// convention.
-fn normalize_param_name(name: &str) -> &str { name.strip_prefix('_').unwrap_or(name) }
+fn normalize_param_name(name: &str) -> &str {
+    name.strip_prefix('_').unwrap_or(name)
+}
 
 mod step_struct;
 
