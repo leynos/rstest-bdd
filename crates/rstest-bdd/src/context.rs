@@ -139,6 +139,28 @@ impl<'a> StepContext<'a> {
         self.fixtures.get(name)?.borrow_mut::<T>()
     }
 
+    /// Returns an iterator over the names of all available fixtures.
+    ///
+    /// This method is useful for diagnostic purposes, such as generating error
+    /// messages that list which fixtures are available when a required fixture
+    /// is missing.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use rstest_bdd::StepContext;
+    ///
+    /// let mut ctx = StepContext::default();
+    /// let value = 42;
+    /// ctx.insert("my_fixture", &value);
+    ///
+    /// let names: Vec<_> = ctx.available_fixtures().collect();
+    /// assert!(names.contains(&"my_fixture"));
+    /// ```
+    pub fn available_fixtures(&self) -> impl Iterator<Item = &'static str> + '_ {
+        self.fixtures.keys().copied()
+    }
+
     /// Insert a value produced by a prior step.
     /// The value overrides a fixture only if exactly one fixture has the same
     /// type; otherwise it is ignored to avoid ambiguity.
@@ -379,5 +401,40 @@ mod tests {
         let result = ctx.insert_value(Box::new(5u32));
         assert!(result.is_none(), "missing fixture should skip override");
         assert!(ctx.get::<u32>("text").is_none());
+    }
+
+    #[test]
+    fn available_fixtures_returns_inserted_names() {
+        let value_a = 1u32;
+        let value_b = "text";
+        let mut ctx = StepContext::default();
+        ctx.insert("fixture_a", &value_a);
+        ctx.insert("fixture_b", &value_b);
+
+        let names: Vec<_> = ctx.available_fixtures().collect();
+        assert_eq!(names.len(), 2);
+        assert!(names.contains(&"fixture_a"));
+        assert!(names.contains(&"fixture_b"));
+    }
+
+    #[test]
+    fn available_fixtures_includes_owned_fixtures() {
+        let value = 42u32;
+        let cell: RefCell<Box<dyn Any>> = RefCell::new(Box::new(String::from("owned")));
+        let mut ctx = StepContext::default();
+        ctx.insert("shared", &value);
+        ctx.insert_owned::<String>("owned", &cell);
+
+        let names: Vec<_> = ctx.available_fixtures().collect();
+        assert_eq!(names.len(), 2);
+        assert!(names.contains(&"shared"));
+        assert!(names.contains(&"owned"));
+    }
+
+    #[test]
+    fn available_fixtures_empty_when_no_fixtures() {
+        let ctx = StepContext::default();
+        let names: Vec<_> = ctx.available_fixtures().collect();
+        assert!(names.is_empty());
     }
 }

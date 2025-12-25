@@ -78,18 +78,28 @@ fn execute_single_step_looks_up_steps_with_steptext_from() {
     let item: syn::ItemFn =
         syn::parse2(execute_single_step()).expect("execute_single_step parses as a function");
 
-    // The step lookup happens inside the first `if let Some(f) = ...` guard;
-    // validate that the guard calls `find_step(...)` with the expected shape.
+    // The step lookup happens inside the first `if let Some(step) = ...` guard;
+    // validate that the guard calls `find_step_with_metadata(...)` with the
+    // expected shape.
     let expr_if = extract_if_expr(&item.block.stmts);
     let expr_let = extract_let_from_cond(expr_if.cond.as_ref());
     let find_step_call = extract_call(expr_let.expr.as_ref());
     let func_path = extract_path(find_step_call.func.as_ref());
-    assert_path_ends_with(func_path, "find_step", "expected to call find_step(...)");
+    assert_path_ends_with(
+        func_path,
+        "find_step_with_metadata",
+        "expected to call find_step_with_metadata(...)",
+    );
 
-    // Confirm `find_step` has exactly two arguments and then inspect the second
-    // one to ensure we pass a `StepText` wrapper rather than allocating.
+    // Confirm `find_step_with_metadata` has exactly two arguments and then
+    // inspect the second one to ensure we pass a `StepText` wrapper rather than
+    // allocating.
     let args: Vec<_> = find_step_call.args.iter().collect();
-    assert_eq!(args.len(), 2, "expected find_step(keyword, text)");
+    assert_eq!(
+        args.len(),
+        2,
+        "expected find_step_with_metadata(keyword, text)"
+    );
 
     // Validate the second argument is `StepText::from(text)` so the generated
     // code uses the intended step-text newtype conversion.

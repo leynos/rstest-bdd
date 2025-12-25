@@ -3,7 +3,8 @@
 use rstest::rstest;
 use rstest_bdd::localization::{ScopedLocalization, strip_directional_isolates};
 use rstest_bdd::{
-    Step, StepContext, StepError, StepExecution, StepKeyword, iter, panic_message, step,
+    Step, StepContext, StepError, StepExecution, StepKeyword, StepText, find_step_with_metadata,
+    iter, panic_message, step,
 };
 use unic_langid::langid;
 
@@ -197,4 +198,97 @@ fn wrapper_errors_localize(
         message.contains(expected_snippet),
         "expected '{expected_snippet}' in '{message}'",
     );
+}
+
+#[test]
+#[expect(clippy::expect_used, reason = "step lookup must succeed for test")]
+fn find_step_with_metadata_returns_step_with_fixtures() {
+    let step = find_step_with_metadata(StepKeyword::Then, StepText::from("needs fixture"))
+        .expect("step 'needs fixture' not found in registry");
+
+    assert_eq!(step.pattern.as_str(), "needs fixture");
+    assert_eq!(step.keyword, StepKeyword::Then);
+    assert_eq!(step.fixtures, &["missing"]);
+}
+
+#[test]
+fn find_step_with_metadata_returns_none_for_unknown_step() {
+    let result = find_step_with_metadata(
+        StepKeyword::Given,
+        StepText::from("nonexistent step pattern"),
+    );
+
+    assert!(result.is_none());
+}
+
+#[test]
+#[expect(clippy::expect_used, reason = "step lookup must succeed for test")]
+fn find_step_with_metadata_returns_empty_fixtures_for_no_fixture_step() {
+    let step = find_step_with_metadata(StepKeyword::When, StepText::from("behavioural"))
+        .expect("step 'behavioural' not found in registry");
+
+    assert_eq!(step.pattern.as_str(), "behavioural");
+    assert!(step.fixtures.is_empty());
+}
+
+#[test]
+fn available_fixtures_lists_scenario_fixtures() {
+    let value_a = 42u32;
+    let value_b = "hello";
+    let mut ctx = StepContext::default();
+    ctx.insert("fixture_a", &value_a);
+    ctx.insert("fixture_b", &value_b);
+
+    let available: std::collections::HashSet<_> = ctx.available_fixtures().collect();
+
+    assert_eq!(available.len(), 2);
+    assert!(available.contains("fixture_a"));
+    assert!(available.contains("fixture_b"));
+}
+
+#[test]
+#[expect(clippy::expect_used, reason = "step lookup must succeed for test")]
+fn fixture_validation_detects_missing_fixtures() {
+    // This test validates the fixture validation logic that is used in
+    // execute_single_step() by replicating the same check here.
+    let step = find_step_with_metadata(StepKeyword::Then, StepText::from("needs fixture"))
+        .expect("step 'needs fixture' not found in registry");
+
+    // Create a context with some fixtures but NOT the "missing" fixture
+    let some_value = 123u32;
+    let mut ctx = StepContext::default();
+    ctx.insert("some_other_fixture", &some_value);
+
+    let available: std::collections::HashSet<&str> = ctx.available_fixtures().collect();
+    let missing: Vec<_> = step
+        .fixtures
+        .iter()
+        .copied()
+        .filter(|f| !available.contains(f))
+        .collect();
+
+    assert!(!missing.is_empty());
+    assert!(missing.contains(&"missing"));
+}
+
+#[test]
+#[expect(clippy::expect_used, reason = "step lookup must succeed for test")]
+fn fixture_validation_passes_when_all_fixtures_present() {
+    let step = find_step_with_metadata(StepKeyword::Then, StepText::from("needs fixture"))
+        .expect("step 'needs fixture' not found in registry");
+
+    // Create a context with the required "missing" fixture
+    let value = 42u32;
+    let mut ctx = StepContext::default();
+    ctx.insert("missing", &value);
+
+    let available: std::collections::HashSet<&str> = ctx.available_fixtures().collect();
+    let missing: Vec<_> = step
+        .fixtures
+        .iter()
+        .copied()
+        .filter(|f| !available.contains(f))
+        .collect();
+
+    assert!(missing.is_empty());
 }
