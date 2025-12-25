@@ -5,9 +5,9 @@ use rstest_bdd_macros::given;
 fn missing_multi() {}
 
 #[given("value {v:u32}")]
-fn type_mismatch(_v: String) {}
+fn missing_single() {}
 
 #[given("sum {x} and {y}")]
-fn extra_param(_x: u32, _y: u32, _z: u32) {}
+fn missing_two_of_three(_z: u32) {}
 
 fn main() {}
