@@ -350,29 +350,30 @@ fn test_step_struct_errors(
 }
 
 #[rstest]
-fn str_reference_is_classified_as_step_argument() {
-    let func = parse_quote! { fn step(tag: &str) {} };
-    #[expect(clippy::expect_used, reason = "test asserts valid extraction")]
-    let args = test_extract_args_scenario(func, vec!["tag"]).expect("failed to extract args");
-    assert_eq!(step_arg_count(&args), 1);
-    assert_eq!(fixture_count(&args), 0);
-    assert_eq!(ordered_parameter_names(&args), ["tag"]);
-}
-
-#[rstest]
-fn lifetime_str_reference_is_classified_as_step_argument() {
-    let func = parse_quote! { fn step(tag: &'a str) {} };
-    #[expect(clippy::expect_used, reason = "test asserts valid extraction")]
-    let args = test_extract_args_scenario(func, vec!["tag"]).expect("failed to extract args");
-    assert_eq!(step_arg_count(&args), 1);
-}
-
-#[rstest]
-fn static_str_reference_is_classified_as_step_argument() {
-    let func = parse_quote! { fn step(tag: &'static str) {} };
-    #[expect(clippy::expect_used, reason = "test asserts valid extraction")]
-    let args = test_extract_args_scenario(func, vec!["tag"]).expect("failed to extract args");
-    assert_eq!(step_arg_count(&args), 1);
+#[case(parse_quote! { fn step(tag: &str) {} }, "&str")]
+#[case(parse_quote! { fn step(tag: &'a str) {} }, "&'a str")]
+#[case(parse_quote! { fn step(tag: &'static str) {} }, "&'static str")]
+fn str_reference_variants_are_classified_as_step_arguments(
+    #[case] func: syn::ItemFn,
+    #[case] description: &str,
+) {
+    let args = test_extract_args_scenario(func, vec!["tag"])
+        .unwrap_or_else(|e| panic!("failed to extract args for {description}: {e}"));
+    assert_eq!(
+        step_arg_count(&args),
+        1,
+        "{description}: unexpected step_arg_count"
+    );
+    assert_eq!(
+        fixture_count(&args),
+        0,
+        "{description}: unexpected fixture_count"
+    );
+    assert_eq!(
+        ordered_parameter_names(&args),
+        ["tag"],
+        "{description}: unexpected parameter names"
+    );
 }
 
 #[rstest]
