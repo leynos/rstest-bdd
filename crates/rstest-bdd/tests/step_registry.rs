@@ -4,7 +4,7 @@ use rstest::rstest;
 use rstest_bdd::localization::{ScopedLocalization, strip_directional_isolates};
 use rstest_bdd::{
     Step, StepContext, StepError, StepExecution, StepKeyword, StepText, find_step_with_metadata,
-    iter, panic_message, step,
+    iter, panic_message, step, unused_steps,
 };
 use unic_langid::langid;
 
@@ -291,4 +291,22 @@ fn fixture_validation_passes_when_all_fixtures_present() {
         .collect();
 
     assert!(missing.is_empty());
+}
+
+#[test]
+#[expect(clippy::expect_used, reason = "step lookup must succeed for test")]
+fn find_step_with_metadata_marks_step_as_used() {
+    // The step "needs fixture" should be marked as used after find_step_with_metadata
+    let step = find_step_with_metadata(StepKeyword::Then, StepText::from("needs fixture"))
+        .expect("step 'needs fixture' not found in registry");
+
+    // Verify the step is no longer in the unused_steps list by comparing pointers.
+    // Both `step` and items in `unused` are `&'static Step`, so we compare them directly.
+    let unused = unused_steps();
+    let is_still_unused = unused.iter().any(|s| std::ptr::eq(*s, step));
+
+    assert!(
+        !is_still_unused,
+        "step 'needs fixture' should be marked as used after find_step_with_metadata"
+    );
 }

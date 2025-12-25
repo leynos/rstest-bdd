@@ -109,6 +109,10 @@ fn generate_fixture_validator() -> TokenStream2 {
             feature_path: &str,
             scenario_name: &str,
         ) {
+            if step.fixtures.is_empty() {
+                return;
+            }
+
             let available: std::collections::HashSet<&str> =
                 ctx.available_fixtures().collect();
             let missing: Vec<_> = step.fixtures
