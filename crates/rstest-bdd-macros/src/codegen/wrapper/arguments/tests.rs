@@ -160,3 +160,146 @@ fn step_error_tokens_embed_variant_and_message() {
     assert!(tokens.contains("message :"));
     assert!(tokens.contains(r#""failure""#));
 }
+
+#[test]
+fn is_str_reference_detects_borrowed_str() {
+    let str_ref: syn::Type = parse_quote!(&str);
+    assert!(is_str_reference(&str_ref), "&str should be detected");
+
+    let lifetime_str_ref: syn::Type = parse_quote!(&'a str);
+    assert!(
+        is_str_reference(&lifetime_str_ref),
+        "&'a str should be detected"
+    );
+
+    let static_str_ref: syn::Type = parse_quote!(&'static str);
+    assert!(
+        is_str_reference(&static_str_ref),
+        "&'static str should be detected"
+    );
+}
+
+#[test]
+fn is_str_reference_rejects_non_str_references() {
+    let string_type: syn::Type = parse_quote!(String);
+    assert!(
+        !is_str_reference(&string_type),
+        "String should not be detected as &str"
+    );
+
+    let string_ref: syn::Type = parse_quote!(&String);
+    assert!(
+        !is_str_reference(&string_ref),
+        "&String should not be detected as &str"
+    );
+
+    let mut_str_ref: syn::Type = parse_quote!(&mut str);
+    assert!(
+        !is_str_reference(&mut_str_ref),
+        "&mut str should not be supported"
+    );
+
+    let u8_ref: syn::Type = parse_quote!(&u8);
+    assert!(
+        !is_str_reference(&u8_ref),
+        "&u8 should not be detected as &str"
+    );
+
+    let slice_ref: syn::Type = parse_quote!(&[u8]);
+    assert!(
+        !is_str_reference(&slice_ref),
+        "&[u8] should not be detected as &str"
+    );
+}
+
+#[test]
+fn gen_step_parses_uses_direct_assignment_for_str_reference() {
+    let pattern: syn::LitStr = parse_quote!("test {name}");
+    let ident: syn::Ident = parse_quote!(test_step);
+    let meta = sample_meta(&pattern, &ident);
+
+    let str_arg = Arg::Step {
+        pat: parse_quote!(name),
+        ty: parse_quote!(&str),
+    };
+    let args = vec![&str_arg];
+    let captures = vec![quote! { captures.get(0).map(|m| m.as_str()) }];
+
+    let tokens = gen_step_parses(&args, &captures, meta);
+
+    let [token] = tokens.as_slice() else {
+        panic!("expected single token stream");
+    };
+    let code = token.to_string();
+
+    assert!(
+        !code.contains("parse"),
+        "&str should not use parse(): {code}"
+    );
+    assert!(
+        code.contains("__raw0 : & str"),
+        "should have typed raw variable: {code}"
+    );
+}
+
+#[test]
+fn gen_step_parses_uses_parse_for_owned_string() {
+    let pattern: syn::LitStr = parse_quote!("test {name}");
+    let ident: syn::Ident = parse_quote!(test_step);
+    let meta = sample_meta(&pattern, &ident);
+
+    let string_arg = Arg::Step {
+        pat: parse_quote!(name),
+        ty: parse_quote!(String),
+    };
+    let args = vec![&string_arg];
+    let captures = vec![quote! { captures.get(0).map(|m| m.as_str()) }];
+
+    let tokens = gen_step_parses(&args, &captures, meta);
+
+    let [token] = tokens.as_slice() else {
+        panic!("expected single token stream");
+    };
+    let code = token.to_string();
+
+    assert!(code.contains("parse"), "String should use parse(): {code}");
+}
+
+#[test]
+fn gen_step_parses_handles_mixed_str_and_parsed_types() {
+    let pattern: syn::LitStr = parse_quote!("test {tag} {count}");
+    let ident: syn::Ident = parse_quote!(test_step);
+    let meta = sample_meta(&pattern, &ident);
+
+    let str_arg = Arg::Step {
+        pat: parse_quote!(tag),
+        ty: parse_quote!(&str),
+    };
+    let usize_arg = Arg::Step {
+        pat: parse_quote!(count),
+        ty: parse_quote!(usize),
+    };
+    let args = vec![&str_arg, &usize_arg];
+    let captures = vec![
+        quote! { captures.get(0).map(|m| m.as_str()) },
+        quote! { captures.get(1).map(|m| m.as_str()) },
+    ];
+
+    let tokens = gen_step_parses(&args, &captures, meta);
+
+    let [str_token, usize_token] = tokens.as_slice() else {
+        panic!("expected two token streams");
+    };
+
+    let str_code = str_token.to_string();
+    assert!(
+        !str_code.contains("parse"),
+        "&str should not use parse(): {str_code}"
+    );
+
+    let usize_code = usize_token.to_string();
+    assert!(
+        usize_code.contains("parse"),
+        "usize should use parse(): {usize_code}"
+    );
+}

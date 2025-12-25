@@ -348,3 +348,39 @@ fn test_step_struct_errors(
         "unexpected error message for {description}: {msg}"
     );
 }
+
+#[rstest]
+fn str_reference_is_classified_as_step_argument() {
+    let func = parse_quote! { fn step(tag: &str) {} };
+    #[expect(clippy::expect_used, reason = "test asserts valid extraction")]
+    let args = test_extract_args_scenario(func, vec!["tag"]).expect("failed to extract args");
+    assert_eq!(step_arg_count(&args), 1);
+    assert_eq!(fixture_count(&args), 0);
+    assert_eq!(ordered_parameter_names(&args), ["tag"]);
+}
+
+#[rstest]
+fn lifetime_str_reference_is_classified_as_step_argument() {
+    let func = parse_quote! { fn step(tag: &'a str) {} };
+    #[expect(clippy::expect_used, reason = "test asserts valid extraction")]
+    let args = test_extract_args_scenario(func, vec!["tag"]).expect("failed to extract args");
+    assert_eq!(step_arg_count(&args), 1);
+}
+
+#[rstest]
+fn static_str_reference_is_classified_as_step_argument() {
+    let func = parse_quote! { fn step(tag: &'static str) {} };
+    #[expect(clippy::expect_used, reason = "test asserts valid extraction")]
+    let args = test_extract_args_scenario(func, vec!["tag"]).expect("failed to extract args");
+    assert_eq!(step_arg_count(&args), 1);
+}
+
+#[rstest]
+fn mixed_str_reference_and_parsed_types() {
+    let func = parse_quote! { fn step(tag: &str, count: u32, name: String) {} };
+    #[expect(clippy::expect_used, reason = "test asserts valid extraction")]
+    let args =
+        test_extract_args_scenario(func, vec!["tag", "count", "name"]).expect("extraction failed");
+    assert_eq!(step_arg_count(&args), 3);
+    assert_eq!(ordered_parameter_names(&args), ["tag", "count", "name"]);
+}

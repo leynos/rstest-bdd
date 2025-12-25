@@ -24,6 +24,26 @@ pub(super) struct PreparedArgs {
     pub(super) docstring_decl: Option<TokenStream2>,
 }
 
+/// Check if a type is a reference to str (i.e., `&str` or `&'a str`).
+///
+/// This function examines the type structure to determine if it represents
+/// a borrowed string slice. It handles both simple `&str` and lifetime-annotated
+/// variants like `&'a str`. Mutable references (`&mut str`) are not considered
+/// valid for step arguments since captured values are immutable.
+fn is_str_reference(ty: &syn::Type) -> bool {
+    if let syn::Type::Reference(type_ref) = ty {
+        if type_ref.mutability.is_some() {
+            return false;
+        }
+        matches!(
+            &*type_ref.elem,
+            syn::Type::Path(path) if path.qself.is_none() && path.path.is_ident("str")
+        )
+    } else {
+        false
+    }
+}
+
 /// Quote construction for [`StepError`] variants sharing `pattern`,
 /// `function` and `message` fields.
 pub(super) fn step_error_tokens(
@@ -175,6 +195,10 @@ fn gen_step_struct_decl(
 }
 
 /// Generate code to parse step arguments from regex captures.
+///
+/// For borrowed `&str` parameters, the captured string slice is used directly
+/// without parsing. For all other types, the standard `.parse()` path is used
+/// which requires the target type to implement [`FromStr`].
 pub(super) fn gen_step_parses(
     step_args: &[&Arg],
     captured: &[TokenStream2],
@@ -201,23 +225,33 @@ pub(super) fn gen_step_parses(
                     )
                 },
             );
-            let parse_err = step_error_tokens(
-                &format_ident!("ExecutionError"),
-                pattern,
-                ident,
-                &quote! {
-                    format!(
-                        "failed to parse argument '{}' of type '{}' from pattern '{}' with captured value: '{:?}'",
-                        stringify!(#pat),
-                        stringify!(#ty),
-                        #pattern,
-                        #raw_ident,
-                    )
-                },
-            );
-            quote! {
-                let #raw_ident = #capture.ok_or_else(|| #missing_cap_err)?;
-                let #pat: #ty = (#raw_ident).parse().map_err(|_| #parse_err)?;
+
+            if is_str_reference(ty) {
+                // Direct assignment for &str - no parsing needed
+                quote! {
+                    let #raw_ident: &str = #capture.ok_or_else(|| #missing_cap_err)?;
+                    let #pat: #ty = #raw_ident;
+                }
+            } else {
+                // Standard parse path for owned/parseable types
+                let parse_err = step_error_tokens(
+                    &format_ident!("ExecutionError"),
+                    pattern,
+                    ident,
+                    &quote! {
+                        format!(
+                            "failed to parse argument '{}' of type '{}' from pattern '{}' with captured value: '{:?}'",
+                            stringify!(#pat),
+                            stringify!(#ty),
+                            #pattern,
+                            #raw_ident,
+                        )
+                    },
+                );
+                quote! {
+                    let #raw_ident = #capture.ok_or_else(|| #missing_cap_err)?;
+                    let #pat: #ty = (#raw_ident).parse().map_err(|_| #parse_err)?;
+                }
             }
         })
         .collect()
