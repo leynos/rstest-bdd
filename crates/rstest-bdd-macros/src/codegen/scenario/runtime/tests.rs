@@ -1,6 +1,6 @@
 //! Tests for runtime scaffolding code generation.
 
-use super::execute_single_step;
+use super::generate_step_executor;
 
 /// Return the identifier of the final segment in a `syn::Path`.
 ///
@@ -75,8 +75,16 @@ fn assert_path_ends_with(path: &syn::Path, expected: &str, context: &str) {
 fn execute_single_step_looks_up_steps_with_steptext_from() {
     // Parse the generated helper tokens so we can assert on the AST structure,
     // keeping this test resilient to formatting-only changes.
-    let item: syn::ItemFn =
-        syn::parse2(execute_single_step()).expect("execute_single_step parses as a function");
+    let file: syn::File =
+        syn::parse2(generate_step_executor()).expect("generate_step_executor parses as a file");
+    let item = file
+        .items
+        .iter()
+        .find_map(|item| match item {
+            syn::Item::Fn(f) if f.sig.ident == "execute_single_step" => Some(f),
+            _ => None,
+        })
+        .expect("expected execute_single_step function");
 
     // The step lookup happens inside the first `if let Some(step) = ...` guard;
     // validate that the guard calls `find_step_with_metadata(...)` with the

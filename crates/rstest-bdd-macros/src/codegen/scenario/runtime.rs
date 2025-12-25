@@ -10,7 +10,7 @@ use quote::quote;
 use types::{CodeComponents, ScenarioLiterals, ScenarioLiteralsInput, TokenAssemblyContext};
 pub(crate) use types::{ProcessedSteps, TestTokensConfig};
 
-pub(crate) fn execute_single_step() -> TokenStream2 {
+fn generate_step_executor() -> TokenStream2 {
     let path = crate::codegen::rstest_bdd_path();
     quote! {
         #[expect(
@@ -29,33 +29,7 @@ pub(crate) fn execute_single_step() -> TokenStream2 {
         ) -> Result<Option<Box<dyn std::any::Any>>, String> {
             if let Some(step) = #path::find_step_with_metadata(keyword, #path::StepText::from(text)) {
                 validate_required_fixtures(&step, ctx, text, feature_path, scenario_name);
-
-                match (step.run)(ctx, text, docstring, table) {
-                    Ok(#path::StepExecution::Continue { value }) => Ok(value),
-                    Ok(#path::StepExecution::Skipped { message }) => {
-                        let encoded = message.map_or_else(
-                            || SKIP_NONE_PREFIX.to_string(),
-                            |msg| {
-                                let mut encoded = String::with_capacity(1 + msg.len());
-                                encoded.push(SKIP_SOME_PREFIX);
-                                encoded.push_str(&msg);
-                                encoded
-                            },
-                        );
-                        Err(encoded)
-                    }
-                    Err(err) => {
-                        panic!(
-                            "Step failed at index {}: {} {} - {}\n(feature: {}, scenario: {})",
-                            index,
-                            keyword.as_str(),
-                            text,
-                            err,
-                            feature_path,
-                            scenario_name
-                        );
-                    }
-                }
+                run_step(index, keyword, text, docstring, table, ctx, feature_path, scenario_name, &step)
             } else {
                 panic!(
                     "Step not found at index {}: {} {} (feature: {}, scenario: {})",
@@ -67,7 +41,67 @@ pub(crate) fn execute_single_step() -> TokenStream2 {
                 );
             }
         }
+    }
+}
 
+fn generate_step_runner() -> TokenStream2 {
+    let path = crate::codegen::rstest_bdd_path();
+    quote! {
+        #[expect(
+            clippy::too_many_arguments,
+            reason = "helper preserves step execution context for error messages",
+        )]
+        fn run_step(
+            index: usize,
+            keyword: #path::StepKeyword,
+            text: &str,
+            docstring: Option<&str>,
+            table: Option<&[&[&str]]>,
+            ctx: &mut #path::StepContext,
+            feature_path: &str,
+            scenario_name: &str,
+            step: &#path::Step,
+        ) -> Result<Option<Box<dyn std::any::Any>>, String> {
+            match (step.run)(ctx, text, docstring, table) {
+                Ok(#path::StepExecution::Continue { value }) => Ok(value),
+                Ok(#path::StepExecution::Skipped { message }) => {
+                    Err(encode_skip_message(message))
+                }
+                Err(err) => {
+                    panic!(
+                        "Step failed at index {}: {} {} - {}\n(feature: {}, scenario: {})",
+                        index,
+                        keyword.as_str(),
+                        text,
+                        err,
+                        feature_path,
+                        scenario_name
+                    );
+                }
+            }
+        }
+    }
+}
+
+fn generate_skip_encoder() -> TokenStream2 {
+    quote! {
+        fn encode_skip_message(message: Option<String>) -> String {
+            message.map_or_else(
+                || SKIP_NONE_PREFIX.to_string(),
+                |msg| {
+                    let mut encoded = String::with_capacity(1 + msg.len());
+                    encoded.push(SKIP_SOME_PREFIX);
+                    encoded.push_str(&msg);
+                    encoded
+                },
+            )
+        }
+    }
+}
+
+fn generate_fixture_validator() -> TokenStream2 {
+    let path = crate::codegen::rstest_bdd_path();
+    quote! {
         fn validate_required_fixtures(
             step: &#path::Step,
             ctx: &#path::StepContext,
@@ -303,7 +337,10 @@ fn generate_code_components(processed_steps: &ProcessedSteps) -> CodeComponents 
         tables,
     } = processed_steps;
 
-    let step_executor = execute_single_step();
+    let step_executor = generate_step_executor();
+    let step_runner = generate_step_runner();
+    let skip_encoder = generate_skip_encoder();
+    let fixture_validator = generate_fixture_validator();
     let skip_decoder = generate_skip_decoder();
     let scenario_guard = generate_scenario_guard();
     let step_executor_loop =
@@ -312,6 +349,9 @@ fn generate_code_components(processed_steps: &ProcessedSteps) -> CodeComponents 
 
     CodeComponents {
         step_executor,
+        step_runner,
+        skip_encoder,
+        fixture_validator,
         skip_decoder,
         scenario_guard,
         step_executor_loop,
@@ -375,6 +415,9 @@ fn assemble_test_tokens(
 
     let CodeComponents {
         step_executor,
+        step_runner,
+        skip_encoder,
+        fixture_validator,
         skip_decoder,
         scenario_guard,
         step_executor_loop,
@@ -393,6 +436,9 @@ fn assemble_test_tokens(
         const SKIP_NONE_PREFIX: char = '\u{0}';
         const SKIP_SOME_PREFIX: char = '\u{1}';
         #step_executor
+        #step_runner
+        #skip_encoder
+        #fixture_validator
         #skip_decoder
         #scenario_guard
 
