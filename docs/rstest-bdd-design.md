@@ -1229,9 +1229,9 @@ definitions within a single scenario when async mode is enabled.
 
 When a scenario runs in synchronous mode but references an `async fn` step
 definition, the framework rejects this at compile time. The step wrapper
-generated for synchronous execution cannot await a future, so the macro emits
-a `compile_error!` diagnostic indicating that the step requires async mode.
-This fail-fast behaviour prevents silent runtime issues.
+generated for synchronous execution cannot await a future, so the macro emits a
+`compile_error!` diagnostic indicating that the step requires async mode. This
+fail-fast behaviour prevents silent runtime issues.
 
 #### 2.5.4 Tokio current-thread mode
 

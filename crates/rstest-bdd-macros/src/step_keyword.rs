@@ -1,17 +1,75 @@
-//! Local representation of step keywords used during macro expansion.
+//! Step keyword support for macro expansion.
 //!
-//! This lightweight enum mirrors the variants provided by `rstest-bdd` but
-//! avoids a compile-time dependency on that crate. It is only used internally
-//! for parsing feature files and generating code. The enum includes `And` and
-//! `But` for completeness; conjunction resolution is centralized in
-//! `validation::steps::resolve_keywords` and consumed by validation and code generation,
-//! falling back to `Given` when unseeded.
+//! This module wraps the shared [`rstest_bdd_patterns::StepKeyword`] type and
+//! provides additional macro-specific implementations for code generation.
+//! A newtype wrapper is used to satisfy Rust's orphan rules when implementing
+//! foreign traits like `ToTokens`.
 
-use gherkin::{Step, StepType};
+use gherkin::Step;
 use proc_macro2::TokenStream as TokenStream2;
 use quote::{ToTokens, quote};
+use rstest_bdd_patterns::StepKeyword as BaseKeyword;
 use std::fmt;
+use std::str::FromStr;
 
+// Re-export error types from the patterns crate.
+pub(crate) use rstest_bdd_patterns::UnsupportedStepType;
+
+/// Keyword used to categorise a step definition.
+///
+/// This is a newtype wrapper around [`rstest_bdd_patterns::StepKeyword`] that
+/// enables implementing `ToTokens` and other macro-specific traits while
+/// satisfying Rust's orphan rules.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub(crate) struct StepKeyword(BaseKeyword);
+
+// Associated constants with PascalCase names to mirror enum variant syntax.
+// The lint suppression is intentional to preserve API ergonomics.
+#[expect(
+    non_upper_case_globals,
+    reason = "associated constants mirror enum variant naming for API consistency"
+)]
+impl StepKeyword {
+    /// Setup preconditions for a scenario.
+    pub(crate) const Given: Self = Self(BaseKeyword::Given);
+    /// Perform an action when testing behaviour.
+    pub(crate) const When: Self = Self(BaseKeyword::When);
+    /// Assert the expected outcome of a scenario.
+    pub(crate) const Then: Self = Self(BaseKeyword::Then);
+    /// Additional conditions that share context with the previous step.
+    pub(crate) const And: Self = Self(BaseKeyword::And);
+    /// Negative or contrasting conditions.
+    pub(crate) const But: Self = Self(BaseKeyword::But);
+
+    /// Return the keyword as a string slice.
+    #[must_use]
+    #[cfg_attr(
+        not(feature = "compile-time-validation"),
+        expect(
+            dead_code,
+            reason = "used by validation module behind compile-time-validation feature"
+        )
+    )]
+    pub(crate) fn as_str(self) -> &'static str {
+        self.0.as_str()
+    }
+
+    /// Resolve conjunctions to the semantic keyword of the previous step.
+    ///
+    /// When the current keyword is `And` or `But`, returns the value stored in
+    /// `prev`. For primary keywords (`Given`/`When`/`Then`), updates `prev` and
+    /// returns the keyword unchanged.
+    #[must_use]
+    pub(crate) fn resolve(self, prev: &mut Option<Self>) -> Self {
+        // Convert to/from the patterns type for the resolution logic
+        let mut inner_prev = prev.map(|p| p.0);
+        let resolved = self.0.resolve(&mut inner_prev);
+        *prev = inner_prev.map(Self);
+        Self(resolved)
+    }
+}
+
+/// Error returned when parsing a [`StepKeyword`] from a string fails.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct StepKeywordParseError(pub String);
 
@@ -23,63 +81,17 @@ impl fmt::Display for StepKeywordParseError {
 
 impl std::error::Error for StepKeywordParseError {}
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct UnsupportedStepType(pub StepType);
-
-impl fmt::Display for UnsupportedStepType {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "unsupported step type: {:?}", self.0)
-    }
-}
-
-impl std::error::Error for UnsupportedStepType {}
-
-/// Keyword used to categorize a step definition.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub(crate) enum StepKeyword {
-    /// Setup preconditions for a scenario.
-    Given,
-    /// Perform an action when testing behaviour.
-    When,
-    /// Assert the expected outcome of a scenario.
-    Then,
-    /// Additional conditions that share context with the previous step.
-    And,
-    /// Negative or contrasting conditions.
-    But,
-}
-
-/// Trim and match step keywords case-insensitively, returning `None` when no
-/// known keyword is found.
-///
-/// Note: textual conjunction detection handles English ("And"/"But");
-/// other locales rely on `StepType` and are resolved centrally.
-fn parse_step_keyword(value: &str) -> Option<StepKeyword> {
-    let s = value.trim();
-    if s.eq_ignore_ascii_case("given") {
-        Some(StepKeyword::Given)
-    } else if s.eq_ignore_ascii_case("when") {
-        Some(StepKeyword::When)
-    } else if s.eq_ignore_ascii_case("then") {
-        Some(StepKeyword::Then)
-    } else if s.eq_ignore_ascii_case("and") {
-        Some(StepKeyword::And)
-    } else if s.eq_ignore_ascii_case("but") {
-        Some(StepKeyword::But)
-    } else {
-        None
-    }
-}
-
-impl core::str::FromStr for StepKeyword {
+impl FromStr for StepKeyword {
     type Err = StepKeywordParseError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        parse_step_keyword(s).ok_or_else(|| StepKeywordParseError(s.trim().to_string()))
+        rstest_bdd_patterns::StepKeyword::from_str(s)
+            .map(Self)
+            .map_err(|e| StepKeywordParseError(e.0))
     }
 }
 
-impl core::convert::TryFrom<&str> for StepKeyword {
+impl TryFrom<&str> for StepKeyword {
     type Error = StepKeywordParseError;
 
     fn try_from(value: &str) -> Result<Self, Self::Error> {
@@ -87,27 +99,15 @@ impl core::convert::TryFrom<&str> for StepKeyword {
     }
 }
 
-impl core::convert::TryFrom<StepType> for StepKeyword {
+impl TryFrom<gherkin::StepType> for StepKeyword {
     type Error = UnsupportedStepType;
 
-    fn try_from(ty: StepType) -> Result<Self, Self::Error> {
-        match ty {
-            StepType::Given => Ok(Self::Given),
-            StepType::When => Ok(Self::When),
-            StepType::Then => Ok(Self::Then),
-            // Intentionally expect `unreachable_patterns` for the current StepType set.
-            // New variants break the expectation and fail the build.
-            #[expect(unreachable_patterns, reason = "guard future StepType variants")]
-            other => match format!("{other:?}") {
-                s if s == "And" => Ok(Self::And),
-                s if s == "But" => Ok(Self::But),
-                _ => Err(UnsupportedStepType(other)),
-            },
-        }
+    fn try_from(ty: gherkin::StepType) -> Result<Self, Self::Error> {
+        rstest_bdd_patterns::StepKeyword::try_from(ty).map(Self)
     }
 }
 
-impl core::convert::TryFrom<&Step> for StepKeyword {
+impl TryFrom<&Step> for StepKeyword {
     type Error = UnsupportedStepType;
 
     fn try_from(step: &Step) -> Result<Self, Self::Error> {
@@ -132,43 +132,14 @@ impl core::convert::TryFrom<&Step> for StepKeyword {
 impl ToTokens for StepKeyword {
     fn to_tokens(&self, tokens: &mut TokenStream2) {
         let path = crate::codegen::rstest_bdd_path();
-        let variant = match self {
-            Self::Given => quote!(Given),
-            Self::When => quote!(When),
-            Self::Then => quote!(Then),
-            Self::And => quote!(And),
-            Self::But => quote!(But),
+        let variant = match self.0 {
+            BaseKeyword::Given => quote!(Given),
+            BaseKeyword::When => quote!(When),
+            BaseKeyword::Then => quote!(Then),
+            BaseKeyword::And => quote!(And),
+            BaseKeyword::But => quote!(But),
         };
         tokens.extend(quote! { #path::StepKeyword::#variant });
-    }
-}
-
-impl StepKeyword {
-    /// Resolve conjunctions to the semantic keyword of the previous step or a
-    /// seeded first primary keyword.
-    ///
-    /// `resolve_keywords` seeds `prev` with the first primary keyword so leading
-    /// conjunctions inherit that seed. When `prev` is `None`, conjunctions
-    /// default to `Given`.
-    pub(crate) fn resolve(self, prev: &mut Option<Self>) -> Self {
-        if matches!(self, Self::And | Self::But) {
-            prev.as_ref().copied().unwrap_or(Self::Given)
-        } else {
-            *prev = Some(self);
-            self
-        }
-    }
-
-    /// Canonical display label used by diagnostics and generated code.
-    #[cfg(feature = "compile-time-validation")]
-    pub(crate) fn display_name(self) -> &'static str {
-        match self {
-            Self::Given => "Given",
-            Self::When => "When",
-            Self::Then => "Then",
-            Self::And => "And",
-            Self::But => "But",
-        }
     }
 }
 
@@ -197,11 +168,27 @@ mod tests {
     fn rejects_invalid_keyword_via_from_str() {
         assert!("invalid".parse::<StepKeyword>().is_err());
     }
-    #[rstest::rstest]
+
+    #[rstest]
     #[case(StepType::Given, StepKeyword::Given)]
     #[case(StepType::When, StepKeyword::When)]
     #[case(StepType::Then, StepKeyword::Then)]
     fn maps_step_type(#[case] ty: StepType, #[case] expected: StepKeyword) {
         assert_eq!(StepKeyword::try_from(ty).ok(), Some(expected));
+    }
+
+    #[test]
+    fn resolve_returns_previous_for_conjunctions() {
+        let mut prev = Some(StepKeyword::When);
+        assert_eq!(StepKeyword::And.resolve(&mut prev), StepKeyword::When);
+        assert_eq!(StepKeyword::But.resolve(&mut prev), StepKeyword::When);
+        assert_eq!(prev, Some(StepKeyword::When));
+    }
+
+    #[test]
+    fn resolve_updates_previous_for_primary_keywords() {
+        let mut prev = Some(StepKeyword::Given);
+        assert_eq!(StepKeyword::When.resolve(&mut prev), StepKeyword::When);
+        assert_eq!(prev, Some(StepKeyword::When));
     }
 }
