@@ -141,19 +141,29 @@ impl std::error::Error for UnsupportedStepType {}
 impl TryFrom<StepType> for StepKeyword {
     type Error = UnsupportedStepType;
 
+    /// Convert a parsed Gherkin [`StepType`] to a [`StepKeyword`].
+    ///
+    /// # Gherkin coupling
+    ///
+    /// The `gherkin` crate (v0.14) defines `StepType` with only `Given`, `When`,
+    /// and `Then` variants. Gherkin syntax also includes `And` and `But`
+    /// keywords, but the parser resolves these to the preceding primary keyword
+    /// before exposing them via `StepType`.
+    ///
+    /// If a future `gherkin` release adds new `StepType` variants (e.g., `And`,
+    /// `But`, or others), the `#[expect(unreachable_patterns)]` guard below will
+    /// trigger a compiler warning, prompting an update to this match arm.
     fn try_from(ty: StepType) -> Result<Self, Self::Error> {
         match ty {
             StepType::Given => Ok(Self::Given),
             StepType::When => Ok(Self::When),
             StepType::Then => Ok(Self::Then),
-            // Guard future StepType variants; new variants break the expectation
-            // and fail the build.
+            // Guard against future StepType variants. If gherkin adds new
+            // variants, this pattern becomes reachable and the `expect`
+            // attribute fires a compiler warning, prompting maintainers to
+            // update this conversion.
             #[expect(unreachable_patterns, reason = "guard future StepType variants")]
-            other => match format!("{other:?}") {
-                s if s == "And" => Ok(Self::And),
-                s if s == "But" => Ok(Self::But),
-                _ => Err(UnsupportedStepType(other)),
-            },
+            other => Err(UnsupportedStepType(other)),
         }
     }
 }
