@@ -57,25 +57,16 @@ fn reset_counters() {
     UNTYPED_PLACEHOLDER_CALLED.store(0, Ordering::Relaxed);
 }
 
-#[test]
-#[serial]
-fn specific_pattern_beats_generic_from_issue_350() {
-    reset_counters();
-
-    #[expect(clippy::expect_used, reason = "test ensures step exists")]
-    let step_fn = find_step(
-        StepKeyword::Given,
-        "the stdlib output is the workspace executable /usr/bin/foo".into(),
-    )
-    .expect("step not found");
+#[expect(clippy::expect_used, reason = "test helper ensures step exists")]
+fn assert_step_execution(
+    step_text: &str,
+    expected_counters: (usize, usize, usize),
+    assertion_message: &str,
+) {
+    let step_fn = find_step(StepKeyword::Given, step_text.into()).expect("step not found");
 
     let mut ctx = StepContext::default();
-    match step_fn(
-        &mut ctx,
-        "the stdlib output is the workspace executable /usr/bin/foo",
-        None,
-        None,
-    ) {
+    match step_fn(&mut ctx, step_text, None, None) {
         Ok(StepExecution::Continue { .. }) => {}
         Ok(StepExecution::Skipped { .. }) => panic!("step unexpectedly skipped"),
         Err(e) => panic!("unexpected error: {e:?}"),
@@ -87,8 +78,19 @@ fn specific_pattern_beats_generic_from_issue_350() {
 
     assert_eq!(
         (workspace, generic, very_generic),
+        expected_counters,
+        "{assertion_message}"
+    );
+}
+
+#[test]
+#[serial]
+fn specific_pattern_beats_generic_from_issue_350() {
+    reset_counters();
+    assert_step_execution(
+        "the stdlib output is the workspace executable /usr/bin/foo",
         (1, 0, 0),
-        "workspace executable pattern (45 literal chars) must win over generic (21 literal chars)"
+        "workspace executable pattern (45 literal chars) must win over generic (21 literal chars)",
     );
 }
 
@@ -96,29 +98,10 @@ fn specific_pattern_beats_generic_from_issue_350() {
 #[serial]
 fn generic_pattern_matches_when_specific_does_not() {
     reset_counters();
-
-    #[expect(clippy::expect_used, reason = "test ensures step exists")]
-    let step_fn = find_step(
-        StepKeyword::Given,
-        "the stdlib output is something else".into(),
-    )
-    .expect("step not found");
-
-    let mut ctx = StepContext::default();
-    match step_fn(&mut ctx, "the stdlib output is something else", None, None) {
-        Ok(StepExecution::Continue { .. }) => {}
-        Ok(StepExecution::Skipped { .. }) => panic!("step unexpectedly skipped"),
-        Err(e) => panic!("unexpected error: {e:?}"),
-    }
-
-    let workspace = WORKSPACE_EXECUTABLE_CALLED.load(Ordering::Relaxed);
-    let generic = GENERIC_OUTPUT_CALLED.load(Ordering::Relaxed);
-    let very_generic = VERY_GENERIC_CALLED.load(Ordering::Relaxed);
-
-    assert_eq!(
-        (workspace, generic, very_generic),
+    assert_step_execution(
+        "the stdlib output is something else",
         (0, 1, 0),
-        "generic pattern should match when specific pattern does not"
+        "generic pattern should match when specific pattern does not",
     );
 }
 
@@ -151,37 +134,13 @@ fn typed_placeholder_beats_untyped_as_tiebreaker() {
 #[serial]
 fn most_specific_wins_among_three_patterns() {
     reset_counters();
-
     // This text matches all three patterns:
     // - "the stdlib output is the workspace executable {path}" (45 literals)
     // - "the stdlib output is {expected}" (21 literals)
     // - "{output}" (0 literals)
-    #[expect(clippy::expect_used, reason = "test ensures step exists")]
-    let step_fn = find_step(
-        StepKeyword::Given,
-        "the stdlib output is the workspace executable test/path".into(),
-    )
-    .expect("step not found");
-
-    let mut ctx = StepContext::default();
-    match step_fn(
-        &mut ctx,
+    assert_step_execution(
         "the stdlib output is the workspace executable test/path",
-        None,
-        None,
-    ) {
-        Ok(StepExecution::Continue { .. }) => {}
-        Ok(StepExecution::Skipped { .. }) => panic!("step unexpectedly skipped"),
-        Err(e) => panic!("unexpected error: {e:?}"),
-    }
-
-    let workspace = WORKSPACE_EXECUTABLE_CALLED.load(Ordering::Relaxed);
-    let generic = GENERIC_OUTPUT_CALLED.load(Ordering::Relaxed);
-    let very_generic = VERY_GENERIC_CALLED.load(Ordering::Relaxed);
-
-    assert_eq!(
-        (workspace, generic, very_generic),
         (1, 0, 0),
-        "most specific pattern must win among all three candidates"
+        "most specific pattern must win among all three candidates",
     );
 }
