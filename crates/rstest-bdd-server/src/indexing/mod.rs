@@ -121,6 +121,8 @@ pub struct IndexedStepDefinition {
     pub expects_table: bool,
     /// Whether the step expects a doc string argument.
     pub expects_docstring: bool,
+    /// 0-based line number of the function definition in the Rust source.
+    pub line: u32,
 }
 
 /// Stable identifier for a Rust function within a source file.

@@ -778,9 +778,10 @@ The initial implementation delivers the foundational server infrastructure:
 **Capabilities declared:**
 
 The server advertises `textDocumentSync` so it can receive save notifications
-and keep an internal index of `.feature` files up to date. Future phases will
-add `definitionProvider` and `implementationProvider` as navigation features
-are implemented.
+and keep an internal index of `.feature` files up to date. The server also
+advertises `definitionProvider` for Rust-to-feature navigation.
+`implementationProvider` will be added when feature-to-Rust navigation is
+implemented.
 
 **Testing:**
 
@@ -821,13 +822,50 @@ incrementally on `textDocument/didSave` for Rust sources:
 - Compilation failures are logged, and the failing patterns are skipped, so a
   single invalid pattern does not prevent indexing other steps in the same file.
 
+### Phase 2: Navigation handlers (in progress)
+
+**Go to Definition (Rust → Feature):**
+
+The `textDocument/definition` handler enables navigation from Rust step
+functions to matching feature steps. When the cursor is on a function annotated
+with `#[given]`, `#[when]`, or `#[then]`, the handler returns all matching
+feature step locations.
+
+**Implementation approach:**
+
+- The handler receives a position in a Rust file and determines if it
+  corresponds to a step function by matching line numbers against the indexed
+  step definitions.
+- Each `IndexedStepDefinition` now includes a `line` field (0-based) captured
+  from the `syn` AST during indexing.
+- The `CompiledStepDefinition` in the registry also stores this line number for
+  position matching.
+- Matching is keyword-aware: a `#[given]` step only matches `Given` steps in
+  feature files (the `gherkin` parser resolves `And`/`But` to their contextual
+  step type).
+- Pattern matching uses the compiled regex from `rstest-bdd-patterns`, ensuring
+  consistency with the runtime.
+
+**Span conversion:**
+
+The handler converts `gherkin::Span` (byte offsets) to `lsp_types::Range`
+(0-based line/column) by scanning the source text. A utility module
+(`handlers/util.rs`) provides `gherkin_span_to_lsp_range()` for this purpose.
+
+**Testing:**
+
+- Unit tests in `handlers/definition.rs` cover position matching and keyword
+  filtering.
+- Behavioural tests in `tests/definition_navigation.rs` verify end-to-end
+  navigation including parameterized patterns and multiple matches.
+
 ### Next phases
 
 Subsequent work will implement:
 
-1. **Indexing pipeline** - Parse feature files and Rust step definitions
-2. **Navigation handlers** - Go-to-definition and go-to-implementation
-3. **Diagnostics** - Unimplemented steps, unused definitions, signature
+1. **Go to Implementation (Feature → Rust)** - Navigate from feature steps to
+   Rust implementations
+2. **Diagnostics** - Unimplemented steps, unused definitions, signature
    mismatches
 
 ## Conclusion

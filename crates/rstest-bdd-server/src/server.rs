@@ -127,6 +127,11 @@ impl ServerState {
         self.feature_indices.get(path)
     }
 
+    /// Iterate over all cached feature file indices.
+    pub fn all_feature_indices(&self) -> impl Iterator<Item = &FeatureFileIndex> {
+        self.feature_indices.values()
+    }
+
     /// Retrieve the cached index for a Rust source file, if present.
     #[must_use]
     pub fn rust_step_index(&self, path: &Path) -> Option<&RustStepFileIndex> {
@@ -165,8 +170,8 @@ impl ServerState {
 /// Build the server capabilities to advertise to the client.
 ///
 /// Phase 7 advertises text document sync to receive save notifications for
-/// `.feature` file indexing. Navigation and diagnostics are added in later
-/// phases.
+/// `.feature` file indexing and definition navigation for Rust-to-feature
+/// step navigation.
 #[must_use]
 pub fn build_server_capabilities() -> ServerCapabilities {
     ServerCapabilities {
@@ -182,6 +187,7 @@ pub fn build_server_capabilities() -> ServerCapabilities {
                 ..Default::default()
             },
         )),
+        definition_provider: Some(lsp_types::OneOf::Left(true)),
         ..ServerCapabilities::default()
     }
 }
@@ -217,9 +223,9 @@ mod tests {
     }
 
     #[test]
-    fn build_server_capabilities_returns_default() {
+    fn build_server_capabilities_includes_definition_provider() {
         let capabilities = build_server_capabilities();
         assert!(capabilities.text_document_sync.is_some());
-        assert!(capabilities.definition_provider.is_none());
+        assert!(capabilities.definition_provider.is_some());
     }
 }

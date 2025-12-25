@@ -1313,7 +1313,7 @@ lspconfig.rstest_bdd.setup({})
 
 ### Current capabilities
 
-The initial release provides the LSP scaffolding:
+The language server provides the following capabilities:
 
 - **Lifecycle handlers**: Responds to `initialize`, `initialized`, and
   `shutdown` requests per the LSP specification.
@@ -1339,8 +1339,32 @@ The initial release provides the LSP scaffolding:
 - **Structured logging**: Configurable via environment variables; logs are
   written to stderr using the `tracing` framework.
 
-Future releases will add indexing, navigation (go-to-definition,
-go-to-implementation), and diagnostics as outlined in the
+### Navigation (Go to Definition)
+
+The language server supports navigation from Rust step definitions to matching
+feature steps. This enables developers to quickly find all usages of a step
+definition across feature files.
+
+**Usage:**
+
+1. Place the cursor on a Rust function annotated with `#[given]`, `#[when]`, or
+   `#[then]`.
+2. Invoke "Go to Definition" (typically F12 or Ctrl+Click in most editors).
+3. The editor navigates to all matching steps in `.feature` files.
+
+When multiple feature files contain matching steps, the editor presents a list
+of locations to choose from.
+
+**How matching works:**
+
+- Matching is keyword-aware: a `#[given]` step only matches `Given` steps in
+  feature files. The parser correctly handles `And` and `But` keywords by
+  resolving them to their contextual step type.
+- Patterns with placeholders (e.g., `"I have {count:u32} items"`) match feature
+  steps using the same regex semantics as the runtime.
+
+Future releases will add go-to-implementation (Feature → Rust) and diagnostics
+as outlined in the
 [Language Server Design Document](rstest-bdd-language-server-design.md).
 
 ## Summary

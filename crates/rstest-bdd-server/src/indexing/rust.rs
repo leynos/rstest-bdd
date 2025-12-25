@@ -19,6 +19,7 @@
 use std::path::{Path, PathBuf};
 
 use gherkin::StepType;
+use syn::spanned::Spanned;
 
 use super::{
     IndexedStepDefinition, IndexedStepParameter, RustFunctionId, RustStepFileIndex,
@@ -187,6 +188,14 @@ fn index_step_function(
     let expects_table = parameters.iter().any(|param| param.is_datatable);
     let expects_docstring = parameters.iter().any(|param| param.is_docstring);
 
+    // Extract 0-based line number from the function's span (syn uses 1-based).
+    // Line numbers in practice will never exceed u32::MAX, so truncation is safe.
+    #[expect(
+        clippy::cast_possible_truncation,
+        reason = "line numbers from syn will not exceed u32::MAX in practice"
+    )]
+    let line = item_fn.sig.fn_token.span().start().line.saturating_sub(1) as u32;
+
     Ok(Some(IndexedStepDefinition {
         keyword: step_attribute.keyword,
         pattern,
@@ -198,6 +207,7 @@ fn index_step_function(
         parameters,
         expects_table,
         expects_docstring,
+        line,
     }))
 }
 

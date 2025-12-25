@@ -40,6 +40,8 @@ pub struct CompiledStepDefinition {
     pub expects_table: bool,
     /// Whether the step expects a doc string argument.
     pub expects_docstring: bool,
+    /// 0-based line number of the function definition in the Rust source.
+    pub line: u32,
 }
 
 /// Error raised when a step pattern cannot be compiled.
@@ -230,6 +232,7 @@ fn compile_step_definition(
         source_path: path.to_path_buf(),
         expects_table: step.expects_table,
         expects_docstring: step.expects_docstring,
+        line: step.line,
     })
 }
 
