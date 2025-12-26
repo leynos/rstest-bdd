@@ -8,16 +8,7 @@
 
 use std::collections::HashSet;
 
-use super::{Arg, ExtractedArgs};
-
-/// Strip a single leading underscore from a parameter name for matching.
-///
-/// Enables `_param` to match placeholder `param`. Only one underscore is
-/// stripped (`__param` becomes `_param`) to preserve Rust's double-underscore
-/// convention.
-fn normalize_param_name(name: &str) -> &str {
-    name.strip_prefix('_').unwrap_or(name)
-}
+use super::{Arg, ExtractedArgs, normalize_param_name};
 
 mod step_struct;
 
