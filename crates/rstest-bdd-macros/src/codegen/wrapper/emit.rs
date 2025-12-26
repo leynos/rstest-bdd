@@ -234,6 +234,37 @@ fn assemble_wrapper_function(
     }
 }
 
+/// Generate the compile-time assertion for step struct field count.
+fn generate_struct_assertion(args: &ExtractedArgs, capture_count: usize) -> Option<TokenStream2> {
+    args.step_struct().map(|arg| {
+        let ty = arg.ty;
+        let path = crate::codegen::rstest_bdd_path();
+        quote! {
+            const _: [(); <#ty as #path::step_args::StepArgs>::FIELD_COUNT] = [(); #capture_count];
+        }
+    })
+}
+
+/// Generate datatable cache components and extract identifier references.
+fn process_datatable_cache(
+    args: &ExtractedArgs,
+    wrapper_ident: &proc_macro2::Ident,
+) -> (
+    TokenStream2,
+    Option<(proc_macro2::Ident, proc_macro2::Ident)>,
+) {
+    let cache_components =
+        generate_datatable_cache_definitions(args.datatable().is_some(), wrapper_ident);
+    match cache_components {
+        DatatableCacheComponents::None => (proc_macro2::TokenStream::new(), None),
+        DatatableCacheComponents::Some {
+            tokens,
+            key_ident,
+            cache_ident,
+        } => (tokens, Some((key_ident, cache_ident))),
+    }
+}
+
 /// Generate the wrapper function body and pattern constant.
 fn generate_wrapper_body(
     config: &WrapperConfig<'_>,
@@ -255,25 +286,9 @@ fn generate_wrapper_body(
     let text_ident = format_ident!("__rstest_bdd_text");
     let args_slice = &args.args;
     let step_meta = StepMeta { pattern, ident };
-    let struct_assert = args.step_struct().map(|arg| {
-        let ty = arg.ty;
-        let count = capture_count;
-        let path = crate::codegen::rstest_bdd_path();
-        quote! {
-            const _: [(); <#ty as #path::step_args::StepArgs>::FIELD_COUNT] = [(); #count];
-        }
-    });
+    let struct_assert = generate_struct_assertion(args, capture_count);
     let signature = generate_wrapper_signature(pattern, pattern_ident);
-    let cache_components =
-        generate_datatable_cache_definitions(args.datatable().is_some(), wrapper_ident);
-    let (cache_tokens, datatable_idents) = match cache_components {
-        DatatableCacheComponents::None => (proc_macro2::TokenStream::new(), None),
-        DatatableCacheComponents::Some {
-            tokens,
-            key_ident,
-            cache_ident,
-        } => (tokens, Some((key_ident, cache_ident))),
-    };
+    let (cache_tokens, datatable_idents) = process_datatable_cache(args, wrapper_ident);
     let datatable_idents_refs = datatable_idents.as_ref().map(|(key, cache)| (key, cache));
     let prepared = prepare_argument_processing(
         args_slice,

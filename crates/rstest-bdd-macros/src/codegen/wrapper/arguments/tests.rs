@@ -277,34 +277,28 @@ fn gen_step_parses_handles_mixed_str_and_parsed_types() {
     );
 }
 
-#[test]
-fn gen_step_parses_strips_quotes_for_string_hint_with_str() {
-    let code = generate_step_parse_with_hint(parse_quote!(&str), Some("string".to_string()));
+#[rstest]
+#[case(parse_quote!(&str), false, "&str with :string hint should not use parse()")]
+#[case(parse_quote!(String), true, "String with :string hint should use parse()")]
+fn gen_step_parses_strips_quotes_for_string_hint(
+    #[case] ty: syn::Type,
+    #[case] should_parse: bool,
+    #[case] parse_description: &str,
+) {
+    let code = generate_step_parse_with_hint(ty, Some("string".to_string()));
 
     // Should contain quote stripping code
     assert!(
         code.contains("__raw0 . len () - 1"),
         "should strip quotes: {code}"
     );
-    assert!(
-        !code.contains("parse"),
-        "&str with :string hint should not use parse(): {code}"
-    );
-}
 
-#[test]
-fn gen_step_parses_strips_quotes_for_string_hint_with_owned_string() {
-    let code = generate_step_parse_with_hint(parse_quote!(String), Some("string".to_string()));
-
-    // Should contain quote stripping code and parse
-    assert!(
-        code.contains("__raw0 . len () - 1"),
-        "should strip quotes: {code}"
-    );
-    assert!(
-        code.contains("parse"),
-        "String with :string hint should use parse(): {code}"
-    );
+    // Conditionally assert parse() presence based on type
+    if should_parse {
+        assert!(code.contains("parse"), "{parse_description}: {code}");
+    } else {
+        assert!(!code.contains("parse"), "{parse_description}: {code}");
+    }
 }
 
 #[test]

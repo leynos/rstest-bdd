@@ -142,18 +142,28 @@ fn string_hint_matches_double_quoted_strings() {
     );
 }
 
+/// Assert that a pattern matches or does not match the given test cases.
+///
+/// Each test case is a tuple of (input string, expected match result, description).
+fn assert_pattern_matches(pattern: &str, test_cases: &[(&str, bool, &str)]) {
+    let regex = compile_regex_from_pattern(pattern).expect("pattern should compile");
+    for (input, expected, description) in test_cases {
+        assert_eq!(regex.is_match(input), *expected, "{description}");
+    }
+}
+
 #[test]
 fn string_hint_matches_single_quoted_strings() {
-    let regex = compile_regex_from_pattern("name is {name:string}")
-        .expect("string type hint should compile");
-
-    assert!(
-        regex.is_match("name is 'Alice'"),
-        "should match single-quoted string"
-    );
-    assert!(
-        regex.is_match(r#"name is "Bob""#),
-        "should match double-quoted string"
+    assert_pattern_matches(
+        "name is {name:string}",
+        &[
+            ("name is 'Alice'", true, "should match single-quoted string"),
+            (
+                r#"name is "Bob""#,
+                true,
+                "should match double-quoted string",
+            ),
+        ],
     );
 }
 
@@ -178,15 +188,19 @@ fn string_hint_captures_include_quotes() {
 
 #[test]
 fn string_hint_matches_empty_quoted_strings() {
-    let regex =
-        compile_regex_from_pattern("value is {text:string}").expect("string type should compile");
-
-    assert!(
-        regex.is_match(r#"value is """#),
-        "should match empty double-quoted string"
-    );
-    assert!(
-        regex.is_match("value is ''"),
-        "should match empty single-quoted string"
+    assert_pattern_matches(
+        "value is {text:string}",
+        &[
+            (
+                r#"value is """#,
+                true,
+                "should match empty double-quoted string",
+            ),
+            (
+                "value is ''",
+                true,
+                "should match empty single-quoted string",
+            ),
+        ],
     );
 }

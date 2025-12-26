@@ -194,6 +194,88 @@ fn gen_step_struct_decl(
     })
 }
 
+/// Generate parsing code for a single step argument from a regex capture.
+///
+/// Handles both borrowed `&str` references (direct assignment) and owned types
+/// (using `.parse()`). When the placeholder has a `:string` type hint, the
+/// surrounding quotes are stripped from the captured value before assignment
+/// or parsing.
+///
+/// Returns the generated [`TokenStream2`] for declaring and initializing the
+/// argument variable.
+fn gen_single_step_parse(
+    arg: &Arg,
+    idx: usize,
+    capture: &TokenStream2,
+    hint: Option<&str>,
+    pattern: &syn::LitStr,
+    ident: &syn::Ident,
+) -> TokenStream2 {
+    let Arg::Step { pat, ty } = arg else {
+        unreachable!("step argument vector must contain step args");
+    };
+    let raw_ident = format_ident!("__raw{}", idx);
+    let missing_cap_err = step_error_tokens(
+        &format_ident!("ExecutionError"),
+        pattern,
+        ident,
+        &quote! {
+            format!(
+                "pattern '{}' missing capture for argument '{}'",
+                #pattern,
+                stringify!(#pat),
+            )
+        },
+    );
+
+    // Check if this placeholder has a :string hint requiring quote stripping
+    let needs_quote_strip = rstest_bdd_patterns::requires_quote_stripping(hint);
+
+    if is_str_reference(ty) {
+        // Direct assignment for &str - no parsing needed
+        if needs_quote_strip {
+            quote! {
+                let #raw_ident: &str = #capture.ok_or_else(|| #missing_cap_err)?;
+                let #raw_ident: &str = &#raw_ident[1..#raw_ident.len() - 1];
+                let #pat: #ty = #raw_ident;
+            }
+        } else {
+            quote! {
+                let #raw_ident: &str = #capture.ok_or_else(|| #missing_cap_err)?;
+                let #pat: #ty = #raw_ident;
+            }
+        }
+    } else {
+        // Standard parse path for owned/parseable types
+        let parse_err = step_error_tokens(
+            &format_ident!("ExecutionError"),
+            pattern,
+            ident,
+            &quote! {
+                format!(
+                    "failed to parse argument '{}' of type '{}' from pattern '{}' with captured value: '{:?}'",
+                    stringify!(#pat),
+                    stringify!(#ty),
+                    #pattern,
+                    #raw_ident,
+                )
+            },
+        );
+        if needs_quote_strip {
+            quote! {
+                let #raw_ident = #capture.ok_or_else(|| #missing_cap_err)?;
+                let #raw_ident = &#raw_ident[1..#raw_ident.len() - 1];
+                let #pat: #ty = (#raw_ident).parse().map_err(|_| #parse_err)?;
+            }
+        } else {
+            quote! {
+                let #raw_ident = #capture.ok_or_else(|| #missing_cap_err)?;
+                let #pat: #ty = (#raw_ident).parse().map_err(|_| #parse_err)?;
+            }
+        }
+    }
+}
+
 /// Generate code to parse step arguments from regex captures.
 ///
 /// For borrowed `&str` parameters, the captured string slice is used directly
@@ -213,70 +295,8 @@ pub(super) fn gen_step_parses(
         .iter()
         .zip(captured.iter().enumerate())
         .map(|(arg, (idx, capture))| {
-            let Arg::Step { pat, ty } = *arg else {
-                unreachable!("step argument vector must contain step args");
-            };
-            let raw_ident = format_ident!("__raw{}", idx);
-            let missing_cap_err = step_error_tokens(
-                &format_ident!("ExecutionError"),
-                pattern,
-                ident,
-                &quote! {
-                    format!(
-                        "pattern '{}' missing capture for argument '{}'",
-                        #pattern,
-                        stringify!(#pat),
-                    )
-                },
-            );
-
-            // Check if this placeholder has a :string hint requiring quote stripping
             let hint = hints.get(idx).and_then(|h| h.as_deref());
-            let needs_quote_strip = rstest_bdd_patterns::requires_quote_stripping(hint);
-
-            if is_str_reference(ty) {
-                // Direct assignment for &str - no parsing needed
-                if needs_quote_strip {
-                    quote! {
-                        let #raw_ident: &str = #capture.ok_or_else(|| #missing_cap_err)?;
-                        let #raw_ident: &str = &#raw_ident[1..#raw_ident.len() - 1];
-                        let #pat: #ty = #raw_ident;
-                    }
-                } else {
-                    quote! {
-                        let #raw_ident: &str = #capture.ok_or_else(|| #missing_cap_err)?;
-                        let #pat: #ty = #raw_ident;
-                    }
-                }
-            } else {
-                // Standard parse path for owned/parseable types
-                let parse_err = step_error_tokens(
-                    &format_ident!("ExecutionError"),
-                    pattern,
-                    ident,
-                    &quote! {
-                        format!(
-                            "failed to parse argument '{}' of type '{}' from pattern '{}' with captured value: '{:?}'",
-                            stringify!(#pat),
-                            stringify!(#ty),
-                            #pattern,
-                            #raw_ident,
-                        )
-                    },
-                );
-                if needs_quote_strip {
-                    quote! {
-                        let #raw_ident = #capture.ok_or_else(|| #missing_cap_err)?;
-                        let #raw_ident = &#raw_ident[1..#raw_ident.len() - 1];
-                        let #pat: #ty = (#raw_ident).parse().map_err(|_| #parse_err)?;
-                    }
-                } else {
-                    quote! {
-                        let #raw_ident = #capture.ok_or_else(|| #missing_cap_err)?;
-                        let #pat: #ty = (#raw_ident).parse().map_err(|_| #parse_err)?;
-                    }
-                }
-            }
+            gen_single_step_parse(arg, idx, capture, hint, pattern, ident)
         })
         .collect()
 }
