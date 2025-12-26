@@ -128,14 +128,15 @@ fn find_matching_rust_locations(state: &ServerState, step: &IndexedStep) -> Vec<
 /// Build an LSP Location for a Rust step definition.
 ///
 /// The location points to the function definition line in the Rust source file.
+/// The range spans the entire line (from column 0 to the start of the next line).
 fn build_rust_location(step_def: &Arc<CompiledStepDefinition>) -> Option<Location> {
     let uri = Url::from_file_path(&step_def.source_path).ok()?;
 
-    // Create a range for the function definition line.
-    // The line number is 0-based, and we point to the start of the line.
+    // Create a range spanning the entire function definition line.
+    // Using (line, 0) to (line+1, 0) is a common LSP idiom for "the whole line".
     let range = Range {
         start: Position::new(step_def.line, 0),
-        end: Position::new(step_def.line, 0),
+        end: Position::new(step_def.line + 1, 0),
     };
 
     Some(Location { uri, range })
@@ -273,6 +274,10 @@ mod tests {
         assert_eq!(locations.len(), 1);
         let loc = locations.first().expect("at least one location");
         assert!(loc.uri.path().ends_with("steps.rs"));
-        assert_eq!(loc.range.start.line, 3); // "fn a_step() {}" is on line 3 (0-indexed)
+        // Range spans the entire function definition line (line 3, 0-indexed)
+        assert_eq!(loc.range.start.line, 3);
+        assert_eq!(loc.range.start.character, 0);
+        assert_eq!(loc.range.end.line, 4);
+        assert_eq!(loc.range.end.character, 0);
     }
 }

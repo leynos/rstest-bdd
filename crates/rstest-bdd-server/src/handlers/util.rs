@@ -45,6 +45,10 @@ pub fn gherkin_span_to_lsp_range(source: &str, span: Span) -> Range {
 /// Characters outside the BMP (code points > 0xFFFF) require two UTF-16 code units
 /// (a surrogate pair), so they contribute 2 to the column count, not 1.
 ///
+/// If the character position exceeds the line length, this function clamps to the
+/// end of the line (just before the newline character, or the end of file for the
+/// last line).
+///
 /// # Arguments
 ///
 /// * `source` - The full source text
@@ -69,14 +73,22 @@ pub fn lsp_position_to_byte_offset(source: &str, position: Position) -> usize {
     let mut current_line = 0u32;
     let mut current_col = 0u32;
     let mut current_byte = 0usize;
+    // Track the byte offset of the last character on the target line (for clamping)
+    let mut last_byte_on_target_line = 0usize;
 
     for ch in source.chars() {
         // Check if we've reached the target position
         if current_line == target_line && current_col >= target_col {
             break;
         }
+        // If we've moved past the target line, clamp to the end of that line
         if current_line > target_line {
-            break;
+            return last_byte_on_target_line;
+        }
+
+        // Track the last byte position on the target line (before the newline)
+        if current_line == target_line {
+            last_byte_on_target_line = current_byte;
         }
 
         current_byte += ch.len_utf8();
@@ -87,10 +99,25 @@ pub fn lsp_position_to_byte_offset(source: &str, position: Position) -> usize {
         } else {
             // UTF-16 code units: BMP characters (≤0xFFFF) use 1, non-BMP use 2
             current_col += if u32::from(ch) <= 0xFFFF { 1 } else { 2 };
+            // Update last byte position after processing non-newline character
+            if current_line == target_line {
+                last_byte_on_target_line = current_byte;
+            }
         }
     }
 
-    current_byte
+    // If we ran off the end while still on or past the target line, return the
+    // appropriate clamped position. If we're past the target line (processed a
+    // newline), return last_byte_on_target_line. If we're still on the target
+    // line but ran out of characters, the column exceeded the line length.
+    if current_line > target_line {
+        last_byte_on_target_line
+    } else if current_line == target_line && current_col < target_col {
+        // Column exceeded line length, clamp to end of line
+        last_byte_on_target_line
+    } else {
+        current_byte
+    }
 }
 
 /// Convert a byte offset to an LSP Position (0-based line and character).
@@ -254,5 +281,25 @@ mod tests {
                 "roundtrip failed for offset {byte_offset}"
             );
         }
+    }
+
+    #[test]
+    fn lsp_position_to_byte_offset_clamps_to_end_of_line() {
+        let source = "abc\ndef\n";
+        // Request column 100 on line 0 - should clamp to end of "abc" (byte 3)
+        let offset = lsp_position_to_byte_offset(source, Position::new(0, 100));
+        assert_eq!(offset, 3, "should clamp to end of line 0");
+
+        // Request column 100 on line 1 - should clamp to end of "def" (byte 7)
+        let offset = lsp_position_to_byte_offset(source, Position::new(1, 100));
+        assert_eq!(offset, 7, "should clamp to end of line 1");
+    }
+
+    #[test]
+    fn lsp_position_to_byte_offset_clamps_to_eof_on_final_line() {
+        let source = "abc\ndef"; // No trailing newline
+        // Request column 100 on line 1 - should clamp to end of file (byte 7)
+        let offset = lsp_position_to_byte_offset(source, Position::new(1, 100));
+        assert_eq!(offset, 7, "should clamp to end of file");
     }
 }

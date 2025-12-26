@@ -75,7 +75,7 @@ patterns appear. To implement Go-to-Definition:
   presented for disambiguation.
 
 - This feature leverages the Gherkin parser to normalize comparison (ignoring
-  trivial differences like keyword or casing if needed). For parameterized
+  trivial differences like keyword or casing if needed). For parameterised
   steps, the server will use the same pattern matching logic as the runtime to
   ensure equivalence. For example, a Rust step with pattern
   `I search for "{phrase}"` will be considered a match for a feature step
