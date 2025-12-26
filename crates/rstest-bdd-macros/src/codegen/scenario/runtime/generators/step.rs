@@ -208,6 +208,13 @@ pub(in crate::codegen::scenario::runtime) fn generate_step_executor() -> TokenSt
 /// The generated function reverses the encoding done by `encode_skip_message`,
 /// extracting the original message from the prefixed format.
 ///
+/// # Usage
+///
+/// ```ignore
+/// let decoder_tokens = generate_skip_decoder();
+/// // decoder_tokens is embedded into the scenario test function body
+/// ```
+///
 /// # Generated code
 ///
 /// ```text
@@ -245,6 +252,13 @@ pub(in crate::codegen::scenario::runtime) fn generate_skip_decoder() -> TokenStr
 /// The generated code iterates through all scenario steps, executing each one
 /// and handling the results. On success, values are inserted into the context.
 /// On skip, the loop breaks and records the skip position.
+///
+/// # Usage
+///
+/// ```ignore
+/// let loop_tokens = generate_step_executor_loop(&keywords, &values, &docstrings, &tables);
+/// // loop_tokens is embedded into the scenario test function body
+/// ```
 ///
 /// # Generated code
 ///
