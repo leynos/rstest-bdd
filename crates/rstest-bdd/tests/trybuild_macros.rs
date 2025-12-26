@@ -86,6 +86,16 @@ fn stage_trybuild_support_files() -> io::Result<()> {
         &fixture_features,
     )?;
 
+    // Stage auto-discovery feature files for `scenarios!` compile-pass test.
+    let auto_features_dir = crate_dir.open_dir("tests/features/auto")?;
+    let mut auto_features = Vec::new();
+    collect_feature_files(&auto_features_dir, Utf8Path::new("."), &mut auto_features)?;
+    auto_features.sort_by(|a, b| a.0.cmp(&b.0));
+
+    let auto_dest = trybuild_crate_relative.join("tests/features/auto");
+    workspace_dir.create_dir_all(auto_dest.as_std_path())?;
+    write_feature_files(&workspace_dir, auto_dest.as_std_path(), &auto_features)?;
+
     Ok(())
 }
 
@@ -160,9 +170,6 @@ fn step_macros_compile() {
     let t = trybuild::TestCases::new();
 
     run_passing_macro_tests(&t);
-    // `scenarios!` should succeed when the directory exists.
-    // t.pass("tests/fixtures/scenarios_autodiscovery.rs");
-
     run_failing_macro_tests(&t);
     run_failing_ui_tests(&t);
     t.compile_fail(
@@ -179,6 +186,7 @@ fn run_passing_macro_tests(t: &trybuild::TestCases) {
         MacroFixtureCase::from("scenario_single_match.rs"),
         MacroFixtureCase::from("scenario_state_default.rs"),
         MacroFixtureCase::from("scenarios_fixtures.rs"),
+        MacroFixtureCase::from("scenarios_autodiscovery.rs"),
     ] {
         t.pass(macros_fixture(case).as_std_path());
     }
