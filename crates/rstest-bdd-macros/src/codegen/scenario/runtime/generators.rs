@@ -128,7 +128,7 @@ pub(super) fn generate_step_executor() -> TokenStream2 {
                             scenario_name
                         );
                     }
-                    // SAFETY: Skipped case handled above via is_skipped predicate
+                    // UNREACHABLE: Skipped case handled above via is_skipped predicate
                     Ok(#path::StepExecution::Skipped { .. }) => unreachable!(),
                 }
             } else {
