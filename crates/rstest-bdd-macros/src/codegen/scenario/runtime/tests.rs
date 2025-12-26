@@ -1,6 +1,6 @@
 //! Tests for runtime scaffolding code generation.
 
-use super::generate_step_executor;
+use super::generators::generate_step_executor;
 
 /// Return the identifier of the final segment in a `syn::Path`.
 ///
