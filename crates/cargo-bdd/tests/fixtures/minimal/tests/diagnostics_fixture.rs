@@ -7,20 +7,19 @@ use serial_test::serial;
 /// Wrap a synchronous step handler into an immediately-ready future.
 fn sync_to_async<'a, F>(
     sync_fn: F,
-    ctx: &'a mut StepContext<'a>,
-    text: &str,
-    docstring: Option<&str>,
-    table: Option<&[&[&str]]>,
-) -> StepFuture<'a>
+) -> impl FnOnce(&'a mut StepContext<'a>, &str, Option<&str>, Option<&[&[&str]]>) -> StepFuture<'a>
 where
     F: FnOnce(
         &mut StepContext<'_>,
         &str,
         Option<&str>,
         Option<&[&[&str]]>,
-    ) -> Result<StepExecution, bdd::StepError>,
+    ) -> Result<StepExecution, bdd::StepError>
+        + 'a,
 {
-    Box::pin(std::future::ready(sync_fn(ctx, text, docstring, table)))
+    move |ctx, text, docstring, table| {
+        Box::pin(std::future::ready(sync_fn(ctx, text, docstring, table)))
+    }
 }
 
 step!(
@@ -57,7 +56,7 @@ fn bypassed_step_async<'a>(
     docstring: Option<&str>,
     table: Option<&[&[&str]]>,
 ) -> StepFuture<'a> {
-    sync_to_async(bypassed_step, ctx, text, docstring, table)
+    sync_to_async(bypassed_step)(ctx, text, docstring, table)
 }
 
 #[expect(
@@ -79,7 +78,7 @@ fn forced_bypass_async<'a>(
     docstring: Option<&str>,
     table: Option<&[&[&str]]>,
 ) -> StepFuture<'a> {
-    sync_to_async(forced_bypass, ctx, text, docstring, table)
+    sync_to_async(forced_bypass)(ctx, text, docstring, table)
 }
 
 fn record_skipped_with_bypass(
