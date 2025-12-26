@@ -1,2 +1,5 @@
 # Temporary exemptions while large modules are refactored.
 # Tracked for refactor: see issue #50 to shrink allowlisted files below 400 lines.
+# Added during fixture injection feature (issue #359):
+crates/rstest-bdd/src/context.rs
+crates/rstest-bdd-macros/src/codegen/scenario/runtime.rs

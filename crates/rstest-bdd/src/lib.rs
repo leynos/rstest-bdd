@@ -51,7 +51,9 @@ pub use placeholder::extract_placeholders;
 pub use registry::dump_registry;
 pub use registry::record_bypassed_steps;
 pub use registry::record_bypassed_steps_with_tags;
-pub use registry::{Step, duplicate_steps, find_step, lookup_step, unused_steps};
+pub use registry::{
+    Step, duplicate_steps, find_step, find_step_with_metadata, lookup_step, unused_steps,
+};
 
 /// Whether the crate was built with the `diagnostics` feature enabled.
 #[must_use]
