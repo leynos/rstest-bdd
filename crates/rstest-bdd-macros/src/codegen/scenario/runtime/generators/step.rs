@@ -271,6 +271,8 @@ pub(in crate::codegen::scenario::runtime) fn generate_step_executor_loop(
             ) {
                 Ok(__rstest_bdd_value) => {
                     if let Some(__rstest_bdd_val) = __rstest_bdd_value {
+                        // Intentionally discarded: insert_value returns None when no fixture
+                        // slot matches the value's TypeId or when matches are ambiguous.
                         let _ = ctx.insert_value(__rstest_bdd_val);
                     }
                 }
