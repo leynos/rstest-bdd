@@ -9,6 +9,7 @@ use crate::types::{PatternStr, StepFn, StepKeyword, StepText};
 use rstest_bdd_patterns::SpecificityScore;
 use hashbrown::{HashMap, HashSet};
 use inventory::iter;
+use rstest_bdd_patterns::SpecificityScore;
 use std::hash::{BuildHasher, Hash, Hasher};
 use std::sync::{LazyLock, Mutex};
 
