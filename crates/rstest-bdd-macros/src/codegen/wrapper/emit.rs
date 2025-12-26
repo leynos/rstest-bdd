@@ -28,6 +28,17 @@ pub(crate) struct WrapperConfig<'a> {
 
 static COUNTER: AtomicUsize = AtomicUsize::new(0);
 
+/// Reset the wrapper counter to zero for deterministic test output.
+///
+/// This function is only available in test builds and should be called
+/// at the start of tests that require predictable wrapper identifier
+/// generation.
+#[cfg(test)]
+#[expect(dead_code, reason = "utility for future golden tests per issue #59")]
+pub(crate) fn reset_wrapper_counter_for_tests() {
+    COUNTER.store(0, Ordering::SeqCst);
+}
+
 /// Generate unique identifiers for the wrapper components.
 ///
 /// The provided step function identifier may contain Unicode. It is
