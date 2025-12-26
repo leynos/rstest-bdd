@@ -3,14 +3,88 @@
 use proc_macro2::TokenStream as TokenStream2;
 use quote::quote;
 
+/// Generates the `validate_required_fixtures` inner function.
+fn generate_validate_fixtures_fn() -> TokenStream2 {
+    let path = crate::codegen::rstest_bdd_path();
+    quote! {
+        fn validate_required_fixtures(
+            step: &#path::Step,
+            ctx: &#path::StepContext,
+            text: &str,
+            feature_path: &str,
+            scenario_name: &str,
+        ) {
+            if step.fixtures.is_empty() {
+                return;
+            }
+
+            let available: std::collections::HashSet<&str> =
+                ctx.available_fixtures().collect();
+            let missing: Vec<_> = step.fixtures
+                .iter()
+                .copied()
+                .filter(|f| !available.contains(f))
+                .collect();
+
+            if !missing.is_empty() {
+                let mut available_list: Vec<_> = available.into_iter().collect();
+                available_list.sort_unstable();
+                panic!(
+                    concat!(
+                        "Step '{}' (defined at {}:{}) requires fixtures {:?}, ",
+                        "but the following are missing: {:?}\n",
+                        "Available fixtures from scenario: {:?}\n",
+                        "(feature: {}, scenario: {})",
+                    ),
+                    text,
+                    step.file,
+                    step.line,
+                    step.fixtures,
+                    missing,
+                    available_list,
+                    feature_path,
+                    scenario_name,
+                );
+            }
+        }
+    }
+}
+
+/// Generates the `encode_skip_message` inner function.
+fn generate_encode_skip_fn() -> TokenStream2 {
+    quote! {
+        fn encode_skip_message(message: Option<String>) -> String {
+            message.map_or_else(
+                || SKIP_NONE_PREFIX.to_string(),
+                |msg| {
+                    let mut encoded = String::with_capacity(1 + msg.len());
+                    encoded.push(SKIP_SOME_PREFIX);
+                    encoded.push_str(&msg);
+                    encoded
+                },
+            )
+        }
+    }
+}
+
+/// Generates the `is_skipped` predicate inner function.
+fn generate_is_skipped_fn() -> TokenStream2 {
+    let path = crate::codegen::rstest_bdd_path();
+    quote! {
+        fn is_skipped(result: &Result<#path::StepExecution, #path::StepError>) -> bool {
+            matches!(result, Ok(#path::StepExecution::Skipped { .. }))
+        }
+    }
+}
+
 /// Generates the `__rstest_bdd_execute_single_step` function that looks up
 /// and runs a step, handling fixture validation and skip encoding.
-#[expect(
-    clippy::too_many_lines,
-    reason = "single function contains all step execution logic with inlined helpers"
-)]
 pub(super) fn generate_step_executor() -> TokenStream2 {
     let path = crate::codegen::rstest_bdd_path();
+    let validate_fixtures = generate_validate_fixtures_fn();
+    let encode_skip = generate_encode_skip_fn();
+    let is_skipped = generate_is_skipped_fn();
+
     quote! {
         #[expect(
             clippy::too_many_arguments,
@@ -26,62 +100,9 @@ pub(super) fn generate_step_executor() -> TokenStream2 {
             feature_path: &str,
             scenario_name: &str,
         ) -> Result<Option<Box<dyn std::any::Any>>, String> {
-            fn validate_required_fixtures(
-                step: &#path::Step,
-                ctx: &#path::StepContext,
-                text: &str,
-                feature_path: &str,
-                scenario_name: &str,
-            ) {
-                if step.fixtures.is_empty() {
-                    return;
-                }
-
-                let available: std::collections::HashSet<&str> =
-                    ctx.available_fixtures().collect();
-                let missing: Vec<_> = step.fixtures
-                    .iter()
-                    .copied()
-                    .filter(|f| !available.contains(f))
-                    .collect();
-
-                if !missing.is_empty() {
-                    let mut available_list: Vec<_> = available.into_iter().collect();
-                    available_list.sort_unstable();
-                    panic!(
-                        concat!(
-                            "Step '{}' (defined at {}:{}) requires fixtures {:?}, ",
-                            "but the following are missing: {:?}\n",
-                            "Available fixtures from scenario: {:?}\n",
-                            "(feature: {}, scenario: {})",
-                        ),
-                        text,
-                        step.file,
-                        step.line,
-                        step.fixtures,
-                        missing,
-                        available_list,
-                        feature_path,
-                        scenario_name,
-                    );
-                }
-            }
-
-            fn encode_skip_message(message: Option<String>) -> String {
-                message.map_or_else(
-                    || SKIP_NONE_PREFIX.to_string(),
-                    |msg| {
-                        let mut encoded = String::with_capacity(1 + msg.len());
-                        encoded.push(SKIP_SOME_PREFIX);
-                        encoded.push_str(&msg);
-                        encoded
-                    },
-                )
-            }
-
-            fn is_skipped(result: &Result<#path::StepExecution, #path::StepError>) -> bool {
-                matches!(result, Ok(#path::StepExecution::Skipped { .. }))
-            }
+            #validate_fixtures
+            #encode_skip
+            #is_skipped
 
             if let Some(step) = #path::find_step_with_metadata(keyword, #path::StepText::from(text)) {
                 validate_required_fixtures(&step, ctx, text, feature_path, scenario_name);
