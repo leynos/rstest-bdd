@@ -413,7 +413,7 @@ scope until the core workflow is stable.
 
 - [ ] **Navigation handlers**
 
-  - [ ] Implement `textDocument/definition` to jump from a Rust step function
+  - [x] Implement `textDocument/definition` to jump from a Rust step function
     to every matching feature step using keyword-aware regex matching.
 
   - [ ] Implement `textDocument/implementation` to jump from a feature step to

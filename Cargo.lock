@@ -1442,6 +1442,7 @@ dependencies = [
  "clap",
  "gherkin",
  "lsp-types",
+ "proc-macro2",
  "regex",
  "rstest",
  "rstest-bdd-patterns",

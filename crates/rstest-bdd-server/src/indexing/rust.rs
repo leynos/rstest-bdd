@@ -19,6 +19,7 @@
 use std::path::{Path, PathBuf};
 
 use gherkin::StepType;
+use syn::spanned::Spanned;
 
 use super::{
     IndexedStepDefinition, IndexedStepParameter, RustFunctionId, RustStepFileIndex,
@@ -127,11 +128,15 @@ fn collect_step_definitions(
     Ok(())
 }
 
-fn index_step_function(
+/// Find and validate the step attribute on a function.
+///
+/// Returns `None` if no step attribute is found, or `Some(StepAttribute)` if
+/// exactly one is present. Returns an error if multiple step attributes exist.
+fn find_step_attribute(
     item_fn: &syn::ItemFn,
-    module_path: &[String],
-) -> Result<Option<IndexedStepDefinition>, RustStepIndexError> {
+) -> Result<Option<StepAttribute<'_>>, RustStepIndexError> {
     let mut step_attribute: Option<StepAttribute<'_>> = None;
+
     for attr in &item_fn.attrs {
         let Some(attr_keyword) = step_attribute_keyword(attr) else {
             continue;
@@ -150,7 +155,43 @@ fn index_step_function(
         });
     }
 
-    let Some(step_attribute) = step_attribute else {
+    Ok(step_attribute)
+}
+
+/// Parse function parameters into indexed step parameters.
+fn parse_function_parameters(
+    sig_inputs: &syn::punctuated::Punctuated<syn::FnArg, syn::token::Comma>,
+) -> Vec<IndexedStepParameter> {
+    sig_inputs
+        .iter()
+        .map(|input| match input {
+            syn::FnArg::Receiver(_) => IndexedStepParameter {
+                name: Some("self".to_string()),
+                ty: "Self".to_string(),
+                is_datatable: false,
+                is_docstring: false,
+            },
+            syn::FnArg::Typed(pat_type) => {
+                let name = param_name(&pat_type.pat);
+                let ty = type_render::render_type(&pat_type.ty);
+                let is_datatable = parameter_is_datatable(pat_type, name.as_deref());
+                let is_docstring = parameter_is_docstring(name.as_deref(), &pat_type.ty);
+                IndexedStepParameter {
+                    name,
+                    ty,
+                    is_datatable,
+                    is_docstring,
+                }
+            }
+        })
+        .collect()
+}
+
+fn index_step_function(
+    item_fn: &syn::ItemFn,
+    module_path: &[String],
+) -> Result<Option<IndexedStepDefinition>, RustStepIndexError> {
+    let Some(step_attribute) = find_step_attribute(item_fn)? else {
         return Ok(None);
     };
 
@@ -160,32 +201,17 @@ fn index_step_function(
         step_attribute.attribute,
     )?;
 
-    let mut parameters = Vec::new();
-    for input in &item_fn.sig.inputs {
-        match input {
-            syn::FnArg::Receiver(_) => parameters.push(IndexedStepParameter {
-                name: Some("self".to_string()),
-                ty: "Self".to_string(),
-                is_datatable: false,
-                is_docstring: false,
-            }),
-            syn::FnArg::Typed(pat_type) => {
-                let name = param_name(&pat_type.pat);
-                let ty = type_render::render_type(&pat_type.ty);
-                let is_datatable = parameter_is_datatable(pat_type, name.as_deref());
-                let is_docstring = parameter_is_docstring(name.as_deref(), &pat_type.ty);
-                parameters.push(IndexedStepParameter {
-                    name,
-                    ty,
-                    is_datatable,
-                    is_docstring,
-                });
-            }
-        }
-    }
-
+    let parameters = parse_function_parameters(&item_fn.sig.inputs);
     let expects_table = parameters.iter().any(|param| param.is_datatable);
     let expects_docstring = parameters.iter().any(|param| param.is_docstring);
+
+    // Extract 0-based line number from the function's span (syn uses 1-based).
+    // Line numbers in practice will never exceed u32::MAX, so truncation is safe.
+    #[expect(
+        clippy::cast_possible_truncation,
+        reason = "line numbers from syn will not exceed u32::MAX in practice"
+    )]
+    let line = item_fn.sig.fn_token.span().start().line.saturating_sub(1) as u32;
 
     Ok(Some(IndexedStepDefinition {
         keyword: step_attribute.keyword,
@@ -198,6 +224,7 @@ fn index_step_function(
         parameters,
         expects_table,
         expects_docstring,
+        line,
     }))
 }
 

@@ -19,7 +19,8 @@ use tracing::info;
 use rstest_bdd_server::config::{LogLevel, ServerConfig};
 use rstest_bdd_server::error::ServerError;
 use rstest_bdd_server::handlers::{
-    handle_did_save_text_document, handle_initialise, handle_initialised, handle_shutdown,
+    handle_definition, handle_did_save_text_document, handle_initialise, handle_initialised,
+    handle_shutdown,
 };
 use rstest_bdd_server::logging::init_logging;
 use rstest_bdd_server::server::ServerState;
@@ -85,6 +86,10 @@ async fn run_server_async(config: ServerConfig) -> std::io::Result<()> {
             })
             .request::<request::Shutdown, _>(|st, _params| {
                 let result = handle_shutdown(st);
+                std::future::ready(result)
+            })
+            .request::<request::GotoDefinition, _>(|st, params| {
+                let result = handle_definition(st, &params);
                 std::future::ready(result)
             })
             .notification::<notification::Initialized>(|st, params| {
