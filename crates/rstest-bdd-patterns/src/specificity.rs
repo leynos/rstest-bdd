@@ -195,7 +195,7 @@ mod tests {
     fn stray_braces_count_as_literal_chars() {
         let with_stray = score("{ literal }");
 
-        // "{ literal }" tokenises as OpenBrace + Literal(" literal ") + CloseBrace
+        // "{ literal }" tokenizes as OpenBrace + Literal(" literal ") + CloseBrace
         assert_eq!(with_stray.literal_chars, 11); // 1 + 9 + 1
         assert_eq!(with_stray.placeholder_count, 0);
     }
