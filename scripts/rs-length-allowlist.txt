@@ -5,4 +5,5 @@ crates/rstest-bdd-macros/src/codegen/wrapper/arguments/tests.rs
 crates/rstest-bdd-macros/src/codegen/wrapper/emit.rs
 crates/rstest-bdd-macros/src/utils/pattern.rs
 crates/rstest-bdd/src/context.rs
+crates/rstest-bdd/src/registry.rs
 crates/rstest-bdd/src/types.rs

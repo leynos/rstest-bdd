@@ -163,6 +163,29 @@ step!(
     &["missing"]
 );
 
+// Test the 4-argument form (auto-generated async handler)
+#[expect(
+    clippy::unnecessary_wraps,
+    reason = "wrapper must match StepFn signature"
+)]
+fn auto_async_wrapper(
+    ctx: &mut StepContext<'_>,
+    _text: &str,
+    _docstring: Option<&str>,
+    _table: Option<&[&[&str]]>,
+) -> Result<StepExecution, StepError> {
+    let _ = ctx;
+    Ok(StepExecution::from_value(None))
+}
+
+// Register using the 4-argument backward-compatible form
+step!(
+    rstest_bdd::StepKeyword::Given,
+    "auto async step",
+    auto_async_wrapper,
+    &[]
+);
+
 #[test]
 fn step_is_registered() {
     let found = iter::<Step>
@@ -377,4 +400,49 @@ fn find_step_with_metadata_marks_step_as_used() {
         !is_still_unused,
         "step 'needs fixture' should be marked as used after find_step_with_metadata"
     );
+}
+
+#[test]
+fn step_with_auto_async_is_registered() {
+    let found = iter::<Step>.into_iter().any(|step| {
+        step.pattern.as_str() == "auto async step" && step.keyword == StepKeyword::Given
+    });
+    assert!(
+        found,
+        "expected step with auto-generated async wrapper not found"
+    );
+}
+
+#[test]
+#[expect(clippy::expect_used, reason = "test validates step lookup succeeds")]
+fn step_with_auto_async_sync_handler_works() {
+    let step = iter::<Step>
+        .into_iter()
+        .find(|s| s.pattern.as_str() == "auto async step" && s.keyword == StepKeyword::Given)
+        .expect("step 'auto async step' not found in registry");
+
+    let mut ctx = StepContext::default();
+    let result = (step.run)(&mut ctx, "auto async step", None, None);
+    assert!(result.is_ok(), "sync handler should succeed");
+}
+
+#[test]
+#[expect(clippy::expect_used, reason = "test validates step lookup succeeds")]
+fn step_with_auto_async_handler_works() {
+    let step = iter::<Step>
+        .into_iter()
+        .find(|s| s.pattern.as_str() == "auto async step" && s.keyword == StepKeyword::Given)
+        .expect("step 'auto async step' not found in registry");
+
+    let mut ctx = StepContext::default();
+    let future = (step.run_async)(&mut ctx, "auto async step", None, None);
+
+    // Poll to completion using a noop waker.
+    let waker = std::task::Waker::noop();
+    let mut cx = std::task::Context::from_waker(waker);
+    let mut pinned = future;
+    match std::pin::Pin::as_mut(&mut pinned).poll(&mut cx) {
+        std::task::Poll::Ready(Ok(StepExecution::Continue { .. })) => {}
+        other => panic!("auto-generated async handler failed: {other:?}"),
+    }
 }

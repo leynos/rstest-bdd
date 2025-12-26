@@ -42,8 +42,29 @@ pub struct Step {
 /// This macro accepts both sync and async handler function pointers. The async
 /// handler wraps the sync result in an immediately-ready future for sync step
 /// definitions, enabling unified execution in async scenarios.
+///
+/// # Forms
+///
+/// The macro supports two forms:
+///
+/// ## 5-argument form (explicit async handler)
+///
+/// ```ignore
+/// step!(keyword, pattern, sync_handler, async_handler, fixtures);
+/// ```
+///
+/// ## 4-argument form (auto-generated async handler)
+///
+/// ```ignore
+/// step!(keyword, pattern, sync_handler, fixtures);
+/// ```
+///
+/// The 4-argument form automatically generates an async wrapper that delegates
+/// to the sync handler via an immediately-ready future. This provides backward
+/// compatibility for call sites that only define sync handlers.
 #[macro_export]
 macro_rules! step {
+    // Internal arm: 5 arguments with pre-compiled pattern reference
     (@pattern $keyword:expr, $pattern:expr, $handler:path, $async_handler:path, $fixtures:expr) => {
         const _: () = {
             $crate::submit! {
@@ -60,6 +81,43 @@ macro_rules! step {
         };
     };
 
+    // Internal arm: 4 arguments with pre-compiled pattern reference (auto-generate async)
+    (@pattern $keyword:expr, $pattern:expr, $handler:path, $fixtures:expr) => {
+        const _: () = {
+            fn __rstest_bdd_auto_async<'a>(
+                ctx: &'a mut $crate::StepContext<'a>,
+                text: &str,
+                docstring: ::core::option::Option<&str>,
+                table: ::core::option::Option<&[&[&str]]>,
+            ) -> $crate::StepFuture<'a> {
+                ::std::boxed::Box::pin(::std::future::ready($handler(ctx, text, docstring, table)))
+            }
+
+            $crate::submit! {
+                $crate::Step {
+                    keyword: $keyword,
+                    pattern: $pattern,
+                    run: $handler,
+                    run_async: __rstest_bdd_auto_async,
+                    fixtures: $fixtures,
+                    file: file!(),
+                    line: line!(),
+                }
+            }
+        };
+    };
+
+    // Public arm: 4 arguments (auto-generate async handler for backward compatibility)
+    // This arm MUST come before the 5-argument arm because Rust macro matching
+    // is greedy and would otherwise try to parse fixtures as an async_handler path.
+    ($keyword:expr, $pattern:expr, $handler:path, & $fixtures:expr) => {
+        const _: () = {
+            static PATTERN: $crate::StepPattern = $crate::StepPattern::new($pattern);
+    $crate::step!(@pattern $keyword, &PATTERN, $handler, &$fixtures);
+        };
+    };
+
+    // Public arm: 5 arguments (explicit async handler)
     ($keyword:expr, $pattern:expr, $handler:path, $async_handler:path, $fixtures:expr) => {
         const _: () = {
             static PATTERN: $crate::StepPattern = $crate::StepPattern::new($pattern);
