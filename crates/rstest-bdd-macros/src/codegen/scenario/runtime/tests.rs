@@ -161,16 +161,10 @@ fn find_call_statement_index(stmts: &[syn::Stmt], func_name: &str) -> Option<usi
     })
 }
 
-/// Find the index of a statement containing a let binding with a call expression.
-fn find_let_call_statement_index(stmts: &[syn::Stmt], var_name: &str) -> Option<usize> {
+/// Find the index of a statement containing a match expression.
+fn find_match_statement_index(stmts: &[syn::Stmt]) -> Option<usize> {
     find_statement_index(stmts, |stmt| {
-        let syn::Stmt::Local(local) = stmt else {
-            return false;
-        };
-        let syn::Pat::Ident(pat_ident) = &local.pat else {
-            return false;
-        };
-        pat_ident.ident == var_name
+        matches!(stmt, syn::Stmt::Expr(syn::Expr::Match(_), _))
     })
 }
 
@@ -217,11 +211,11 @@ fn execute_single_step_looks_up_steps_with_steptext_from() {
         "first argument to validate_required_fixtures should be &step"
     );
 
-    // Verify step execution (let result = ...) appears after validate_required_fixtures
-    let result_idx = find_let_call_statement_index(then_stmts, "result")
-        .expect("expected 'let result = ...' in then branch");
+    // Verify step execution (match expression) appears after validate_required_fixtures
+    let match_idx =
+        find_match_statement_index(then_stmts).expect("expected match expression in then branch");
     assert!(
-        validate_idx < result_idx,
-        "validate_required_fixtures (index {validate_idx}) should be called before step execution (index {result_idx})"
+        validate_idx < match_idx,
+        "validate_required_fixtures (index {validate_idx}) should be called before step execution (index {match_idx})"
     );
 }
