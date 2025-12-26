@@ -134,6 +134,51 @@ fn assert_has_is_skipped_predicate(stmts: &[syn::Stmt]) {
     assert_has_inner_function(stmts, "is_skipped");
 }
 
+/// Check if an expression is a reference to a specific identifier (e.g., `&step`).
+fn is_reference_to_ident(expr: &syn::Expr, name: &str) -> bool {
+    let syn::Expr::Reference(ref_expr) = expr else {
+        return false;
+    };
+    let syn::Expr::Path(path_expr) = ref_expr.expr.as_ref() else {
+        return false;
+    };
+    path_expr.path.is_ident(name)
+}
+
+/// Find the index of the first statement matching the given predicate.
+fn find_statement_index<F>(stmts: &[syn::Stmt], predicate: F) -> Option<usize>
+where
+    F: Fn(&syn::Stmt) -> bool,
+{
+    stmts.iter().position(predicate)
+}
+
+/// Find the index of a statement containing a call to a named function.
+fn find_call_statement_index(stmts: &[syn::Stmt], func_name: &str) -> Option<usize> {
+    find_statement_index(stmts, |stmt| {
+        let syn::Stmt::Expr(syn::Expr::Call(call), _) = stmt else {
+            return false;
+        };
+        let syn::Expr::Path(path_expr) = call.func.as_ref() else {
+            return false;
+        };
+        path_expr.path.is_ident(func_name)
+    })
+}
+
+/// Find the index of a statement containing a let binding with a call expression.
+fn find_let_call_statement_index(stmts: &[syn::Stmt], var_name: &str) -> Option<usize> {
+    find_statement_index(stmts, |stmt| {
+        let syn::Stmt::Local(local) = stmt else {
+            return false;
+        };
+        let syn::Pat::Ident(pat_ident) = &local.pat else {
+            return false;
+        };
+        pat_ident.ident == var_name
+    })
+}
+
 #[test]
 #[expect(
     clippy::expect_used,
@@ -155,4 +200,33 @@ fn execute_single_step_looks_up_steps_with_steptext_from() {
     let expr_if = extract_if_expr(&item.block.stmts);
     let find_step_call = assert_find_step_with_metadata_call(expr_if);
     assert_steptext_from_wrapper(find_step_call);
+
+    // Extract the then_branch statements from the if-let
+    let then_stmts = &expr_if.then_branch.stmts;
+
+    // Verify validate_required_fixtures is called with &step as the first argument
+    let validate_idx = find_call_statement_index(then_stmts, "validate_required_fixtures")
+        .expect("expected validate_required_fixtures call in then branch");
+    let validate_stmt = then_stmts
+        .get(validate_idx)
+        .expect("validate_idx should be valid");
+    let syn::Stmt::Expr(syn::Expr::Call(validate_call), _) = validate_stmt else {
+        panic!("expected call statement");
+    };
+    let first_arg = validate_call
+        .args
+        .first()
+        .expect("validate_required_fixtures should have arguments");
+    assert!(
+        is_reference_to_ident(first_arg, "step"),
+        "first argument to validate_required_fixtures should be &step"
+    );
+
+    // Verify step execution (let result = ...) appears after validate_required_fixtures
+    let result_idx = find_let_call_statement_index(then_stmts, "result")
+        .expect("expected 'let result = ...' in then branch");
+    assert!(
+        validate_idx < result_idx,
+        "validate_required_fixtures (index {validate_idx}) should be called before step execution (index {result_idx})"
+    );
 }
