@@ -3,3 +3,4 @@
 
 crates/rstest-bdd/src/context.rs
 crates/rstest-bdd-macros/src/codegen/wrapper/arguments.rs
+crates/rstest-bdd-macros/src/utils/pattern.rs

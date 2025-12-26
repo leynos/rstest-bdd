@@ -230,3 +230,56 @@ fn placeholder_error_display_in_french() {
     assert!(display.contains("syntaxe de paramètre invalide"));
     drop(guard);
 }
+
+#[test]
+fn string_hint_captures_quoted_values() {
+    // :string hint matches double-quoted strings
+    let pat = compiled("message is {text:string}");
+    let text = StepText::from(r#"message is "hello world""#);
+    let Ok(caps) = extract_placeholders(&pat, text) else {
+        panic!("match expected for :string with double quotes");
+    };
+    // Captured value includes quotes (stripping happens in generated code)
+    assert_eq!(caps, vec![r#""hello world""#]);
+
+    // :string hint matches single-quoted strings
+    let text = StepText::from("message is 'hello world'");
+    let Ok(caps) = extract_placeholders(&pat, text) else {
+        panic!("match expected for :string with single quotes");
+    };
+    assert_eq!(caps, vec!["'hello world'"]);
+
+    // :string hint does not match unquoted text
+    assert!(
+        extract_placeholders(&pat, StepText::from("message is hello world")).is_err(),
+        "unquoted text should not match :string",
+    );
+
+    // :string hint matches empty quoted strings
+    let text = StepText::from(r#"message is """#);
+    let Ok(caps) = extract_placeholders(&pat, text) else {
+        panic!("match expected for :string with empty double quotes");
+    };
+    assert_eq!(caps, vec![r#""""#]);
+}
+
+#[test]
+fn string_hint_with_multiple_placeholders() {
+    // Mixed placeholders: :string and :u32
+    let pat = compiled("user {name:string} has {count:u32} items");
+    let text = StepText::from(r#"user "Alice" has 5 items"#);
+    let Ok(caps) = extract_placeholders(&pat, text) else {
+        panic!("match expected for mixed :string and :u32");
+    };
+    assert_eq!(caps, vec![r#""Alice""#, "5"]);
+
+    // Verify type constraints are enforced for each placeholder
+    assert!(
+        extract_placeholders(&pat, StepText::from("user Alice has 5 items")).is_err(),
+        "unquoted name should not match :string",
+    );
+    assert!(
+        extract_placeholders(&pat, StepText::from(r#"user "Alice" has five items"#)).is_err(),
+        "non-numeric count should not match :u32",
+    );
+}

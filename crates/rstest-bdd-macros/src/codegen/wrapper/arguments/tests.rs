@@ -311,3 +311,54 @@ fn gen_step_parses_no_quote_strip_without_string_hint() {
         "should not strip quotes without hint: {code}"
     );
 }
+
+#[test]
+fn gen_step_parses_applies_hints_only_to_matching_arguments() {
+    let pattern: syn::LitStr = parse_quote!("test {name} {count}");
+    let ident: syn::Ident = parse_quote!(test_step);
+    let meta = sample_meta(&pattern, &ident);
+
+    let name_arg = Arg::Step {
+        pat: parse_quote!(name),
+        ty: parse_quote!(&str),
+    };
+    let count_arg = Arg::Step {
+        pat: parse_quote!(count),
+        ty: parse_quote!(usize),
+    };
+    let args = vec![&name_arg, &count_arg];
+    let captures = vec![
+        quote! { captures.get(0).map(|m| m.as_str()) },
+        quote! { captures.get(1).map(|m| m.as_str()) },
+    ];
+
+    // Only first argument has :string hint
+    let hints: Vec<Option<String>> = vec![Some("string".to_string()), None];
+    let tokens = gen_step_parses(&args, &captures, &hints, meta);
+
+    assert_eq!(tokens.len(), 2, "expected two token streams");
+
+    // First argument (with :string hint) should have quote stripping
+    #[expect(clippy::indexing_slicing, reason = "length verified above")]
+    let name_code = tokens[0].to_string();
+    assert!(
+        name_code.contains("__raw0 . len () - 1"),
+        "first arg with :string hint should strip quotes: {name_code}"
+    );
+    assert!(
+        !name_code.contains("parse"),
+        "&str should not use parse(): {name_code}"
+    );
+
+    // Second argument (without hint) should NOT have quote stripping
+    #[expect(clippy::indexing_slicing, reason = "length verified above")]
+    let count_code = tokens[1].to_string();
+    assert!(
+        !count_code.contains("len () - 1"),
+        "second arg without :string hint should not strip quotes: {count_code}"
+    );
+    assert!(
+        count_code.contains("parse"),
+        "usize should use parse(): {count_code}"
+    );
+}

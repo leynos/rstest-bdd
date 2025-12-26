@@ -384,4 +384,38 @@ mod tests {
         assert_eq!(summary.ordered[1].name, "count");
         assert_eq!(summary.ordered[1].hint, Some("u32".to_string()));
     }
+
+    #[test]
+    #[expect(
+        clippy::expect_used,
+        clippy::indexing_slicing,
+        reason = "test asserts valid pattern"
+    )]
+    fn placeholder_hints_align_with_names_for_wrapper_config() {
+        // This test verifies that hints extracted from PlaceholderSummary maintain
+        // correct alignment with placeholder names when converted to separate vectors.
+        // This pattern matches the extraction logic in macros/mod.rs.
+        let summary = placeholder_names("user {name:string} has {count:u32} and {note}")
+            .expect("valid pattern");
+
+        // Simulate the extraction done in macros/mod.rs for WrapperInputs
+        let placeholder_names: Vec<_> = summary.ordered.iter().map(|info| &info.name).collect();
+        let placeholder_hints: Vec<_> = summary.ordered.iter().map(|info| &info.hint).collect();
+
+        // Verify alignment: each name maps to its corresponding hint
+        assert_eq!(placeholder_names.len(), 3);
+        assert_eq!(placeholder_hints.len(), 3);
+
+        // First: {name:string}
+        assert_eq!(placeholder_names[0], "name");
+        assert_eq!(placeholder_hints[0], &Some("string".to_string()));
+
+        // Second: {count:u32}
+        assert_eq!(placeholder_names[1], "count");
+        assert_eq!(placeholder_hints[1], &Some("u32".to_string()));
+
+        // Third: {note} - no hint
+        assert_eq!(placeholder_names[2], "note");
+        assert_eq!(placeholder_hints[2], &None);
+    }
 }
