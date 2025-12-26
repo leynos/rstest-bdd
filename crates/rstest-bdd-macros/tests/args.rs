@@ -289,6 +289,25 @@ fn from_attribute_targets_placeholder() {
     assert_eq!(ordered_parameter_names(&args), ["renamed"]);
 }
 
+#[rstest]
+fn underscore_prefixed_param_matches_placeholder() {
+    let func = parse_quote! { fn step(_count: u32) {} };
+    #[expect(clippy::expect_used, reason = "test asserts classification")]
+    let args = test_extract_args_scenario(func, vec!["count"]).expect("extraction");
+    assert_eq!(step_arg_count(&args), 1);
+    assert_eq!(fixture_count(&args), 0);
+    assert_eq!(ordered_parameter_names(&args), ["_count"]);
+}
+
+#[rstest]
+fn underscore_prefixed_param_preserves_original_name() {
+    let func = parse_quote! { fn step(_value: String, other: i32) {} };
+    #[expect(clippy::expect_used, reason = "test asserts classification")]
+    let args = test_extract_args_scenario(func, vec!["value", "other"]).expect("extraction");
+    assert_eq!(step_arg_count(&args), 2);
+    assert_eq!(ordered_parameter_names(&args), ["_value", "other"]);
+}
+
 #[test]
 fn step_struct_argument_is_classified() {
     let mut func: syn::ItemFn = parse_quote! {

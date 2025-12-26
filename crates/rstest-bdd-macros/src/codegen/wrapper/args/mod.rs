@@ -10,6 +10,18 @@ pub(crate) mod classify;
 mod extract;
 pub use extract::extract_args;
 
+// Re-export `normalize_param_name` for internal use by `classify`. When this
+// module is included via `#[path]` in tests, `crate::utils` is unavailable, so
+// we provide a standalone implementation here that matches the canonical one in
+// `crate::utils::pattern`.
+#[cfg(not(test))]
+pub(super) use crate::utils::pattern::normalize_param_name;
+
+#[cfg(test)]
+pub(super) fn normalize_param_name(name: &str) -> &str {
+    name.strip_prefix('_').unwrap_or(name)
+}
+
 /// Everything required to describe a single step-function argument.
 #[derive(Clone)]
 pub enum Arg {

@@ -48,6 +48,20 @@ fn execute_classify_fixture_or_step(
     (extracted, handled, placeholders)
 }
 
+/// Helper to execute classification and assert the parameter matches a placeholder as a step.
+fn assert_classifies_as_step(
+    placeholders_init: HashSet<String>,
+    arg_tokens: TokenStream2,
+    pat_name: &str,
+    ty_tokens: TokenStream2,
+) {
+    let (extracted, handled, placeholders) =
+        execute_classify_fixture_or_step(placeholders_init, arg_tokens, pat_name, ty_tokens);
+    assert!(handled);
+    assert!(placeholders.is_empty());
+    assert!(matches!(extracted.args.as_slice(), [Arg::Step { .. }]));
+}
+
 #[test]
 fn context_new_links_borrows() {
     let mut extracted = ExtractedArgs::default();
@@ -68,16 +82,12 @@ fn context_new_links_borrows() {
 
 #[test]
 fn classify_fixture_or_step_claims_placeholder_as_step() {
-    let (extracted, handled, placeholders) = execute_classify_fixture_or_step(
+    assert_classifies_as_step(
         HashSet::from(["value".to_string()]),
         quote!(value: String),
         "value",
         quote!(String),
     );
-
-    assert!(handled);
-    assert!(placeholders.is_empty());
-    assert!(matches!(extracted.args.as_slice(), [Arg::Step { .. }]));
 }
 
 #[test]
@@ -148,4 +158,41 @@ fn classify_step_struct_blocks_placeholders() {
             .step_struct()
             .is_some_and(|step| step.pat == "args")
     );
+}
+
+#[test]
+fn classify_fixture_or_step_matches_underscore_prefixed_param_to_placeholder() {
+    assert_classifies_as_step(
+        HashSet::from(["value".to_string()]),
+        quote!(_value: String),
+        "_value",
+        quote!(String),
+    );
+}
+
+#[test]
+fn classify_fixture_or_step_double_underscore_matches_single_underscore_placeholder() {
+    assert_classifies_as_step(
+        HashSet::from(["_value".to_string()]),
+        quote!(__value: String),
+        "__value",
+        quote!(String),
+    );
+}
+
+#[test]
+fn classify_fixture_or_step_double_underscore_does_not_match_plain_placeholder() {
+    // Placeholder set only contains "value"; "__value" should NOT be classified as a step
+    // and "value" should remain in the placeholder set (it is unmatched).
+    let (extracted, handled, placeholders) = execute_classify_fixture_or_step(
+        HashSet::from(["value".to_string()]),
+        quote!(__value: String),
+        "__value",
+        quote!(String),
+    );
+    assert!(handled);
+    // Should be classified as a fixture since "__value" normalises to "_value", not "value"
+    assert!(matches!(extracted.args.as_slice(), [Arg::Fixture { .. }]));
+    // "value" placeholder remains unconsumed
+    assert!(placeholders.contains("value"));
 }

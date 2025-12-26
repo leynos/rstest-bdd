@@ -3,6 +3,9 @@
 //! Provides helper to extract placeholder names from step patterns so the macro
 //! can distinguish fixtures from step arguments. The parser is intentionally
 //! minimal and recognises the same escape rules as the runtime pattern parser.
+//!
+//! Also provides name normalisation for underscore-prefixed parameters, enabling
+//! `_param` to match placeholder `param` for idiomatic unused parameter marking.
 
 use std::collections::HashSet;
 
@@ -224,4 +227,70 @@ pub(crate) fn infer_pattern(ident: &Ident) -> LitStr {
     }
     let inferred = name.replace('_', " ");
     LitStr::new(&inferred, ident.span())
+}
+
+/// Strip a single leading underscore from a parameter name for matching.
+///
+/// This enables idiomatic Rust unused parameter marking: `_param` matches
+/// placeholder `param`. Only one underscore is stripped (`__param` becomes
+/// `_param`) to preserve Rust's double-underscore convention.
+///
+/// # Examples
+/// ```rust,ignore
+/// assert_eq!(normalize_param_name("_param"), "param");
+/// assert_eq!(normalize_param_name("param"), "param");
+/// assert_eq!(normalize_param_name("__param"), "_param");
+/// ```
+pub(crate) fn normalize_param_name(name: &str) -> &str {
+    name.strip_prefix('_').unwrap_or(name)
+}
+
+/// Check if an identifier matches a header after normalisation.
+///
+/// Compares the identifier to the header, applying the same underscore-stripping
+/// logic as [`normalize_param_name`]. If the ident starts with `_`, compares the
+/// suffix to the header; otherwise compares directly.
+///
+/// # Examples
+/// ```rust,ignore
+/// use syn::parse_quote;
+/// let ident: syn::Ident = parse_quote!(_param);
+/// assert!(ident_matches_normalized(&ident, "param"));
+/// ```
+pub(crate) fn ident_matches_normalized(ident: &Ident, header: &str) -> bool {
+    // Check for leading underscore and compare normalized form to header.
+    // This still requires to_string(), but consolidates the logic for matching.
+    let ident_str = ident.to_string();
+    normalize_param_name(&ident_str) == header
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rstest::rstest;
+    use syn::parse_quote;
+
+    #[rstest]
+    #[case("_param", "param")]
+    #[case("param", "param")]
+    #[case("__param", "_param")]
+    #[case("_", "")]
+    #[case("", "")]
+    fn normalize_param_name_cases(#[case] input: &str, #[case] expected: &str) {
+        assert_eq!(normalize_param_name(input), expected);
+    }
+
+    #[rstest]
+    #[case(parse_quote!(_param), "param", true)]
+    #[case(parse_quote!(param), "param", true)]
+    #[case(parse_quote!(__param), "_param", true)]
+    #[case(parse_quote!(__param), "param", false)]
+    #[case(parse_quote!(_other), "param", false)]
+    fn ident_matches_normalized_cases(
+        #[case] ident: Ident,
+        #[case] header: &str,
+        #[case] expected: bool,
+    ) {
+        assert_eq!(ident_matches_normalized(&ident, header), expected);
+    }
 }

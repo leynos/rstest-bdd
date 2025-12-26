@@ -8,7 +8,7 @@
 
 use std::collections::HashSet;
 
-use super::{Arg, ExtractedArgs};
+use super::{Arg, ExtractedArgs, normalize_param_name};
 
 mod step_struct;
 
@@ -322,8 +322,9 @@ fn classify_by_placeholder_match(
 ) -> syn::Result<()> {
     let target = from_name.clone().unwrap_or_else(|| pat.clone());
     let target_name = target.to_string();
-    if ctx.placeholders.remove(&target_name) {
-        validate_no_step_struct_conflict(ctx, &target_name, &pat)?;
+    let normalized = normalize_param_name(&target_name);
+    if ctx.placeholders.remove(normalized) {
+        validate_no_step_struct_conflict(ctx, normalized, &pat)?;
         ctx.extracted.push(Arg::Step { pat, ty });
         Ok(())
     } else {
