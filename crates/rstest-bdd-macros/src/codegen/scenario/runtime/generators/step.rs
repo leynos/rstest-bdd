@@ -125,27 +125,6 @@ fn generate_encode_skip_fn() -> TokenStream2 {
     }
 }
 
-/// Generates the `is_skipped` predicate inner function.
-///
-/// The generated function checks whether a step execution result indicates
-/// the step was skipped.
-///
-/// # Generated code
-///
-/// ```text
-/// fn is_skipped(result: &Result<StepExecution, StepError>) -> bool {
-///     matches!(result, Ok(StepExecution::Skipped { .. }))
-/// }
-/// ```
-fn generate_is_skipped_fn() -> TokenStream2 {
-    let path = crate::codegen::rstest_bdd_path();
-    quote! {
-        fn is_skipped(result: &Result<#path::StepExecution, #path::StepError>) -> bool {
-            matches!(result, Ok(#path::StepExecution::Skipped { .. }))
-        }
-    }
-}
-
 /// Generates the `__rstest_bdd_execute_single_step` function that looks up
 /// and runs a step, handling fixture validation and skip encoding.
 ///
@@ -170,7 +149,6 @@ pub(in crate::codegen::scenario::runtime) fn generate_step_executor() -> TokenSt
     let path = crate::codegen::rstest_bdd_path();
     let validate_fixtures = generate_validate_fixtures_fn();
     let encode_skip = generate_encode_skip_fn();
-    let is_skipped = generate_is_skipped_fn();
 
     quote! {
         #[expect(
@@ -189,20 +167,14 @@ pub(in crate::codegen::scenario::runtime) fn generate_step_executor() -> TokenSt
         ) -> Result<Option<Box<dyn std::any::Any>>, String> {
             #validate_fixtures
             #encode_skip
-            #is_skipped
 
             if let Some(step) = #path::find_step_with_metadata(keyword, #path::StepText::from(text)) {
                 validate_required_fixtures(&step, ctx, text, feature_path, scenario_name);
 
-                let result = (step.run)(ctx, text, docstring, table);
-
-                if is_skipped(&result) {
-                    if let Ok(#path::StepExecution::Skipped { message }) = result {
+                match (step.run)(ctx, text, docstring, table) {
+                    Ok(#path::StepExecution::Skipped { message }) => {
                         return Err(encode_skip_message(message));
                     }
-                }
-
-                match result {
                     Ok(#path::StepExecution::Continue { value }) => Ok(value),
                     Err(err) => {
                         panic!(
@@ -215,8 +187,6 @@ pub(in crate::codegen::scenario::runtime) fn generate_step_executor() -> TokenSt
                             scenario_name
                         );
                     }
-                    // UNREACHABLE: Skipped case handled above via is_skipped predicate
-                    Ok(#path::StepExecution::Skipped { .. }) => unreachable!(),
                 }
             } else {
                 panic!(

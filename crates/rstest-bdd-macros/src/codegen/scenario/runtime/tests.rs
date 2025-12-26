@@ -129,11 +129,6 @@ fn assert_has_inner_function(stmts: &[syn::Stmt], name: &str) {
     assert!(found, "expected inner function '{name}' to be defined");
 }
 
-/// Verify that the `is_skipped` predicate is defined as an inner function.
-fn assert_has_is_skipped_predicate(stmts: &[syn::Stmt]) {
-    assert_has_inner_function(stmts, "is_skipped");
-}
-
 /// Check if an expression is a reference to a specific identifier (e.g., `&step`).
 fn is_reference_to_ident(expr: &syn::Expr, name: &str) -> bool {
     let syn::Expr::Reference(ref_expr) = expr else {
@@ -195,7 +190,6 @@ fn execute_single_step_looks_up_steps_with_steptext_from() {
     // Validate that inner helper functions are defined inside execute_single_step
     assert_has_inner_function(&item.block.stmts, "validate_required_fixtures");
     assert_has_inner_function(&item.block.stmts, "encode_skip_message");
-    assert_has_is_skipped_predicate(&item.block.stmts);
 
     // Validate the `if let Some(step) = find_step_with_metadata(...)` guard
     let expr_if = extract_if_expr(&item.block.stmts);
