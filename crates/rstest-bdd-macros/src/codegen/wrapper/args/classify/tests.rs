@@ -179,3 +179,20 @@ fn classify_fixture_or_step_double_underscore_matches_single_underscore_placehol
         quote!(String),
     );
 }
+
+#[test]
+fn classify_fixture_or_step_double_underscore_does_not_match_plain_placeholder() {
+    // Placeholder set only contains "value"; "__value" should NOT be classified as a step
+    // and "value" should remain in the placeholder set (it is unmatched).
+    let (extracted, handled, placeholders) = execute_classify_fixture_or_step(
+        HashSet::from(["value".to_string()]),
+        quote!(__value: String),
+        "__value",
+        quote!(String),
+    );
+    assert!(handled);
+    // Should be classified as a fixture since "__value" normalises to "_value", not "value"
+    assert!(matches!(extracted.args.as_slice(), [Arg::Fixture { .. }]));
+    // "value" placeholder remains unconsumed
+    assert!(placeholders.contains("value"));
+}

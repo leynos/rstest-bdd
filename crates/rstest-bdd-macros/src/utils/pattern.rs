@@ -245,32 +245,52 @@ pub(crate) fn normalize_param_name(name: &str) -> &str {
     name.strip_prefix('_').unwrap_or(name)
 }
 
+/// Check if an identifier matches a header after normalisation.
+///
+/// Compares the identifier to the header, applying the same underscore-stripping
+/// logic as [`normalize_param_name`]. If the ident starts with `_`, compares the
+/// suffix to the header; otherwise compares directly.
+///
+/// # Examples
+/// ```rust,ignore
+/// use syn::parse_quote;
+/// let ident: syn::Ident = parse_quote!(_param);
+/// assert!(ident_matches_normalized(&ident, "param"));
+/// ```
+pub(crate) fn ident_matches_normalized(ident: &Ident, header: &str) -> bool {
+    // Check for leading underscore and compare normalized form to header.
+    // This still requires to_string(), but consolidates the logic for matching.
+    let ident_str = ident.to_string();
+    normalize_param_name(&ident_str) == header
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use rstest::rstest;
+    use syn::parse_quote;
 
-    #[test]
-    fn normalize_strips_single_underscore() {
-        assert_eq!(normalize_param_name("_param"), "param");
+    #[rstest]
+    #[case("_param", "param")]
+    #[case("param", "param")]
+    #[case("__param", "_param")]
+    #[case("_", "")]
+    #[case("", "")]
+    fn normalize_param_name_cases(#[case] input: &str, #[case] expected: &str) {
+        assert_eq!(normalize_param_name(input), expected);
     }
 
-    #[test]
-    fn normalize_preserves_unprefixed() {
-        assert_eq!(normalize_param_name("param"), "param");
-    }
-
-    #[test]
-    fn normalize_strips_only_one_underscore() {
-        assert_eq!(normalize_param_name("__param"), "_param");
-    }
-
-    #[test]
-    fn normalize_handles_underscore_only() {
-        assert_eq!(normalize_param_name("_"), "");
-    }
-
-    #[test]
-    fn normalize_handles_empty() {
-        assert_eq!(normalize_param_name(""), "");
+    #[rstest]
+    #[case(parse_quote!(_param), "param", true)]
+    #[case(parse_quote!(param), "param", true)]
+    #[case(parse_quote!(__param), "_param", true)]
+    #[case(parse_quote!(__param), "param", false)]
+    #[case(parse_quote!(_other), "param", false)]
+    fn ident_matches_normalized_cases(
+        #[case] ident: Ident,
+        #[case] header: &str,
+        #[case] expected: bool,
+    ) {
+        assert_eq!(ident_matches_normalized(&ident, header), expected);
     }
 }
