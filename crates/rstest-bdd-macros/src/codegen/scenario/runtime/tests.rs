@@ -1,6 +1,6 @@
 //! Tests for runtime scaffolding code generation.
 
-use super::execute_single_step;
+use super::generators::generate_step_executor;
 
 /// Return the identifier of the final segment in a `syn::Path`.
 ///
@@ -63,36 +63,46 @@ fn assert_path_ends_with(path: &syn::Path, expected: &str, context: &str) {
     );
 }
 
-#[test]
 #[expect(
     clippy::expect_used,
-    reason = "test parses generated tokens and uses expect for clearer failures"
+    reason = "test helper uses expect for clearer failures"
 )]
+fn find_execute_single_step_function(file: &syn::File) -> &syn::ItemFn {
+    file.items
+        .iter()
+        .find_map(|item| match item {
+            syn::Item::Fn(f) if f.sig.ident == "__rstest_bdd_execute_single_step" => Some(f),
+            _ => None,
+        })
+        .expect("expected __rstest_bdd_execute_single_step function")
+}
+
+fn assert_find_step_with_metadata_call(expr_if: &syn::ExprIf) -> &syn::ExprCall {
+    let expr_let = extract_let_from_cond(expr_if.cond.as_ref());
+    let find_step_call = extract_call(expr_let.expr.as_ref());
+    let func_path = extract_path(find_step_call.func.as_ref());
+    assert_path_ends_with(
+        func_path,
+        "find_step_with_metadata",
+        "expected to call find_step_with_metadata(...)",
+    );
+
+    let args: Vec<_> = find_step_call.args.iter().collect();
+    assert_eq!(
+        args.len(),
+        2,
+        "expected find_step_with_metadata(keyword, text)"
+    );
+
+    find_step_call
+}
+
 #[expect(
     clippy::indexing_slicing,
     reason = "indexing is guarded by explicit arg length assertions"
 )]
-fn execute_single_step_looks_up_steps_with_steptext_from() {
-    // Parse the generated helper tokens so we can assert on the AST structure,
-    // keeping this test resilient to formatting-only changes.
-    let item: syn::ItemFn =
-        syn::parse2(execute_single_step()).expect("execute_single_step parses as a function");
-
-    // The step lookup happens inside the first `if let Some(f) = ...` guard;
-    // validate that the guard calls `find_step(...)` with the expected shape.
-    let expr_if = extract_if_expr(&item.block.stmts);
-    let expr_let = extract_let_from_cond(expr_if.cond.as_ref());
-    let find_step_call = extract_call(expr_let.expr.as_ref());
-    let func_path = extract_path(find_step_call.func.as_ref());
-    assert_path_ends_with(func_path, "find_step", "expected to call find_step(...)");
-
-    // Confirm `find_step` has exactly two arguments and then inspect the second
-    // one to ensure we pass a `StepText` wrapper rather than allocating.
+fn assert_steptext_from_wrapper(find_step_call: &syn::ExprCall) {
     let args: Vec<_> = find_step_call.args.iter().collect();
-    assert_eq!(args.len(), 2, "expected find_step(keyword, text)");
-
-    // Validate the second argument is `StepText::from(text)` so the generated
-    // code uses the intended step-text newtype conversion.
     let steptext_call = extract_call(args[1]);
     let steptext_func_path = extract_path(steptext_call.func.as_ref());
     assert_path_ends_with(steptext_func_path, "from", "expected StepText::from(...)");
@@ -104,10 +114,108 @@ fn execute_single_step_looks_up_steps_with_steptext_from() {
         "expected StepText::from(...)",
     );
 
-    // Verify `StepText::from` is invoked with the `text` identifier from
-    // `execute_single_step`, ensuring the conversion wraps the string slice.
     let inner_args: Vec<_> = steptext_call.args.iter().collect();
     assert_eq!(inner_args.len(), 1, "expected StepText::from(text)");
     let inner_path = extract_path(inner_args[0]);
     assert_path_ends_with(inner_path, "text", "expected StepText::from(text)");
+}
+
+/// Verify that a named function is defined as an inner function.
+fn assert_has_inner_function(stmts: &[syn::Stmt], name: &str) {
+    let found = stmts.iter().any(|stmt| match stmt {
+        syn::Stmt::Item(syn::Item::Fn(f)) => f.sig.ident == name,
+        _ => false,
+    });
+    assert!(found, "expected inner function '{name}' to be defined");
+}
+
+/// Check if an expression is a reference to a specific identifier (e.g., `&step`).
+fn is_reference_to_ident(expr: &syn::Expr, name: &str) -> bool {
+    let syn::Expr::Reference(ref_expr) = expr else {
+        return false;
+    };
+    let syn::Expr::Path(path_expr) = ref_expr.expr.as_ref() else {
+        return false;
+    };
+    path_expr.path.is_ident(name)
+}
+
+/// Find the index of the first statement matching the given predicate.
+fn find_statement_index<F>(stmts: &[syn::Stmt], predicate: F) -> Option<usize>
+where
+    F: Fn(&syn::Stmt) -> bool,
+{
+    stmts.iter().position(predicate)
+}
+
+/// Find the index of a statement containing a call to a named function.
+fn find_call_statement_index(stmts: &[syn::Stmt], func_name: &str) -> Option<usize> {
+    find_statement_index(stmts, |stmt| {
+        let syn::Stmt::Expr(syn::Expr::Call(call), _) = stmt else {
+            return false;
+        };
+        let syn::Expr::Path(path_expr) = call.func.as_ref() else {
+            return false;
+        };
+        path_expr.path.is_ident(func_name)
+    })
+}
+
+/// Find the index of a statement containing a match expression.
+fn find_match_statement_index(stmts: &[syn::Stmt]) -> Option<usize> {
+    find_statement_index(stmts, |stmt| {
+        matches!(stmt, syn::Stmt::Expr(syn::Expr::Match(_), _))
+    })
+}
+
+#[test]
+#[expect(
+    clippy::expect_used,
+    clippy::panic,
+    reason = "test parses generated tokens and uses expect for clearer failures"
+)]
+fn execute_single_step_looks_up_steps_with_steptext_from() {
+    // Parse the generated helper tokens so we can assert on the AST structure,
+    // keeping this test resilient to formatting-only changes.
+    let file: syn::File =
+        syn::parse2(generate_step_executor()).expect("generate_step_executor parses as a file");
+    let item = find_execute_single_step_function(&file);
+
+    // Validate that inner helper functions are defined inside execute_single_step
+    assert_has_inner_function(&item.block.stmts, "validate_required_fixtures");
+    assert_has_inner_function(&item.block.stmts, "encode_skip_message");
+
+    // Validate the `if let Some(step) = find_step_with_metadata(...)` guard
+    let expr_if = extract_if_expr(&item.block.stmts);
+    let find_step_call = assert_find_step_with_metadata_call(expr_if);
+    assert_steptext_from_wrapper(find_step_call);
+
+    // Extract the then_branch statements from the if-let
+    let then_stmts = &expr_if.then_branch.stmts;
+
+    // Verify validate_required_fixtures is called with &step as the first argument
+    let validate_idx = find_call_statement_index(then_stmts, "validate_required_fixtures")
+        .expect("expected validate_required_fixtures call in then branch");
+    let validate_stmt = then_stmts
+        .get(validate_idx)
+        .expect("validate_idx should be valid");
+    let syn::Stmt::Expr(syn::Expr::Call(validate_call), _) = validate_stmt else {
+        panic!("expected call statement");
+    };
+    let first_arg = validate_call
+        .args
+        .first()
+        .expect("validate_required_fixtures should have arguments");
+    assert!(
+        is_reference_to_ident(first_arg, "step"),
+        "first argument to validate_required_fixtures should be &step"
+    );
+
+    // Verify step execution (match expression) appears after validate_required_fixtures
+    let match_idx =
+        find_match_statement_index(then_stmts).expect("expected match expression in then branch");
+    assert!(
+        validate_idx < match_idx,
+        "validate_required_fixtures (index {validate_idx}) should be called before step execution (index {match_idx})"
+    );
 }

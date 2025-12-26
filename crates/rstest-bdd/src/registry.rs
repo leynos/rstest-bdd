@@ -173,6 +173,30 @@ pub fn find_step(keyword: StepKeyword, text: StepText<'_>) -> Option<StepFn> {
     })
 }
 
+/// Find a registered step and return its full metadata.
+///
+/// Unlike [`find_step`], this function returns the entire [`Step`] struct,
+/// providing access to the step's required fixtures, source location, and
+/// other metadata. This is useful for fixture validation and error reporting.
+///
+/// # Examples
+///
+/// ```ignore
+/// use rstest_bdd::{find_step_with_metadata, StepKeyword, StepText};
+///
+/// if let Some(step) = find_step_with_metadata(StepKeyword::Given, StepText::from("a value")) {
+///     println!("Step requires fixtures: {:?}", step.fixtures);
+///     // Invoke the step function
+///     let result = (step.run)(&mut ctx, text, None, None);
+/// }
+/// ```
+#[must_use]
+pub fn find_step_with_metadata(keyword: StepKeyword, text: StepText<'_>) -> Option<&'static Step> {
+    resolve_step(keyword, text).inspect(|step| {
+        mark_used((step.keyword, step.pattern));
+    })
+}
+
 /// Return registered steps that were never executed.
 #[must_use]
 pub fn unused_steps() -> Vec<&'static Step> {
