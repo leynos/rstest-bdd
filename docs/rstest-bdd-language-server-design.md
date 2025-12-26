@@ -863,9 +863,9 @@ The handler converts `gherkin::Span` (byte offsets) to `lsp_types::Range`
 
 Subsequent work will implement:
 
-1. **Go to Implementation (Feature → Rust)** - Navigate from feature steps to
+1. **Go to Implementation (Feature → Rust)** — Navigate from feature steps to
    Rust implementations
-2. **Diagnostics** - Unimplemented steps, unused definitions, signature
+2. **Diagnostics** — Unimplemented steps, unused definitions, signature
    mismatches
 
 ## Conclusion
