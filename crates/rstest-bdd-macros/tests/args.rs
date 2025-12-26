@@ -383,5 +383,6 @@ fn mixed_str_reference_and_parsed_types() {
     let args =
         test_extract_args_scenario(func, vec!["tag", "count", "name"]).expect("extraction failed");
     assert_eq!(step_arg_count(&args), 3);
+    assert_eq!(fixture_count(&args), 0);
     assert_eq!(ordered_parameter_names(&args), ["tag", "count", "name"]);
 }

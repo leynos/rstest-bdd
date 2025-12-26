@@ -3,6 +3,7 @@
 use super::*;
 use crate::codegen::wrapper::args::Arg;
 use quote::{format_ident, quote};
+use rstest::rstest;
 use syn::parse_quote;
 
 fn sample_meta<'a>(pattern: &'a syn::LitStr, ident: &'a syn::Ident) -> StepMeta<'a> {
@@ -28,9 +29,11 @@ fn generate_step_parse_for_single_arg(ty: syn::Type) -> String {
 
     let tokens = gen_step_parses(&args, &captures, meta);
 
-    let [token] = tokens.as_slice() else {
-        panic!("expected single token stream");
-    };
+    #[expect(
+        clippy::expect_used,
+        reason = "test helper asserts single token output"
+    )]
+    let token = tokens.first().expect("expected single token stream");
     token.to_string()
 }
 
@@ -186,55 +189,22 @@ fn step_error_tokens_embed_variant_and_message() {
     assert!(tokens.contains(r#""failure""#));
 }
 
-#[test]
-fn is_str_reference_detects_borrowed_str() {
-    let str_ref: syn::Type = parse_quote!(&str);
-    assert!(is_str_reference(&str_ref), "&str should be detected");
-
-    let lifetime_str_ref: syn::Type = parse_quote!(&'a str);
-    assert!(
-        is_str_reference(&lifetime_str_ref),
-        "&'a str should be detected"
-    );
-
-    let static_str_ref: syn::Type = parse_quote!(&'static str);
-    assert!(
-        is_str_reference(&static_str_ref),
-        "&'static str should be detected"
-    );
+#[rstest]
+#[case(parse_quote!(&str), "&str")]
+#[case(parse_quote!(&'a str), "&'a str")]
+#[case(parse_quote!(&'static str), "&'static str")]
+fn is_str_reference_detects_borrowed_str(#[case] ty: syn::Type, #[case] description: &str) {
+    assert!(is_str_reference(&ty), "{description} should be detected");
 }
 
-#[test]
-fn is_str_reference_rejects_non_str_references() {
-    let string_type: syn::Type = parse_quote!(String);
-    assert!(
-        !is_str_reference(&string_type),
-        "String should not be detected as &str"
-    );
-
-    let string_ref: syn::Type = parse_quote!(&String);
-    assert!(
-        !is_str_reference(&string_ref),
-        "&String should not be detected as &str"
-    );
-
-    let mut_str_ref: syn::Type = parse_quote!(&mut str);
-    assert!(
-        !is_str_reference(&mut_str_ref),
-        "&mut str should not be supported"
-    );
-
-    let u8_ref: syn::Type = parse_quote!(&u8);
-    assert!(
-        !is_str_reference(&u8_ref),
-        "&u8 should not be detected as &str"
-    );
-
-    let slice_ref: syn::Type = parse_quote!(&[u8]);
-    assert!(
-        !is_str_reference(&slice_ref),
-        "&[u8] should not be detected as &str"
-    );
+#[rstest]
+#[case(parse_quote!(String), "String should not be detected as &str")]
+#[case(parse_quote!(&String), "&String should not be detected as &str")]
+#[case(parse_quote!(&mut str), "&mut str should not be supported")]
+#[case(parse_quote!(&u8), "&u8 should not be detected as &str")]
+#[case(parse_quote!(&[u8]), "&[u8] should not be detected as &str")]
+fn is_str_reference_rejects_non_str_references(#[case] ty: syn::Type, #[case] reason: &str) {
+    assert!(!is_str_reference(&ty), "{reason}");
 }
 
 #[test]
@@ -282,17 +252,16 @@ fn gen_step_parses_handles_mixed_str_and_parsed_types() {
 
     let tokens = gen_step_parses(&args, &captures, meta);
 
-    let [str_token, usize_token] = tokens.as_slice() else {
-        panic!("expected two token streams");
-    };
-
-    let str_code = str_token.to_string();
+    assert_eq!(tokens.len(), 2, "expected two token streams");
+    #[expect(clippy::indexing_slicing, reason = "length verified above")]
+    let str_code = tokens[0].to_string();
     assert!(
         !str_code.contains("parse"),
         "&str should not use parse(): {str_code}"
     );
 
-    let usize_code = usize_token.to_string();
+    #[expect(clippy::indexing_slicing, reason = "length verified above")]
+    let usize_code = tokens[1].to_string();
     assert!(
         usize_code.contains("parse"),
         "usize should use parse(): {usize_code}"
