@@ -46,9 +46,6 @@ pub(super) struct ScenarioLiteralsInput<'a> {
 #[derive(Debug)]
 pub(super) struct CodeComponents {
     pub(super) step_executor: TokenStream2,
-    pub(super) step_runner: TokenStream2,
-    pub(super) skip_encoder: TokenStream2,
-    pub(super) fixture_validator: TokenStream2,
     pub(super) skip_decoder: TokenStream2,
     pub(super) scenario_guard: TokenStream2,
     pub(super) step_executor_loop: TokenStream2,

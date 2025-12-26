@@ -10,6 +10,10 @@ use quote::quote;
 use types::{CodeComponents, ScenarioLiterals, ScenarioLiteralsInput, TokenAssemblyContext};
 pub(crate) use types::{ProcessedSteps, TestTokensConfig};
 
+#[expect(
+    clippy::too_many_lines,
+    reason = "single function contains all step execution logic with inlined helpers"
+)]
 fn generate_step_executor() -> TokenStream2 {
     let path = crate::codegen::rstest_bdd_path();
     quote! {
@@ -17,7 +21,7 @@ fn generate_step_executor() -> TokenStream2 {
             clippy::too_many_arguments,
             reason = "helper mirrors generated step inputs to keep panic messaging intact",
         )]
-        fn execute_single_step(
+        fn __rstest_bdd_execute_single_step(
             index: usize,
             keyword: #path::StepKeyword,
             text: &str,
@@ -27,9 +31,90 @@ fn generate_step_executor() -> TokenStream2 {
             feature_path: &str,
             scenario_name: &str,
         ) -> Result<Option<Box<dyn std::any::Any>>, String> {
+            fn validate_required_fixtures(
+                step: &#path::Step,
+                ctx: &#path::StepContext,
+                text: &str,
+                feature_path: &str,
+                scenario_name: &str,
+            ) {
+                if step.fixtures.is_empty() {
+                    return;
+                }
+
+                let available: std::collections::HashSet<&str> =
+                    ctx.available_fixtures().collect();
+                let missing: Vec<_> = step.fixtures
+                    .iter()
+                    .copied()
+                    .filter(|f| !available.contains(f))
+                    .collect();
+
+                if !missing.is_empty() {
+                    let mut available_list: Vec<_> = available.into_iter().collect();
+                    available_list.sort_unstable();
+                    panic!(
+                        concat!(
+                            "Step '{}' (defined at {}:{}) requires fixtures {:?}, ",
+                            "but the following are missing: {:?}\n",
+                            "Available fixtures from scenario: {:?}\n",
+                            "(feature: {}, scenario: {})",
+                        ),
+                        text,
+                        step.file,
+                        step.line,
+                        step.fixtures,
+                        missing,
+                        available_list,
+                        feature_path,
+                        scenario_name,
+                    );
+                }
+            }
+
+            fn encode_skip_message(message: Option<String>) -> String {
+                message.map_or_else(
+                    || SKIP_NONE_PREFIX.to_string(),
+                    |msg| {
+                        let mut encoded = String::with_capacity(1 + msg.len());
+                        encoded.push(SKIP_SOME_PREFIX);
+                        encoded.push_str(&msg);
+                        encoded
+                    },
+                )
+            }
+
+            fn is_skipped(result: &Result<#path::StepExecution, #path::StepError>) -> bool {
+                matches!(result, Ok(#path::StepExecution::Skipped { .. }))
+            }
+
             if let Some(step) = #path::find_step_with_metadata(keyword, #path::StepText::from(text)) {
                 validate_required_fixtures(&step, ctx, text, feature_path, scenario_name);
-                run_step(index, keyword, text, docstring, table, ctx, feature_path, scenario_name, &step)
+
+                let result = (step.run)(ctx, text, docstring, table);
+
+                if is_skipped(&result) {
+                    if let Ok(#path::StepExecution::Skipped { message }) = result {
+                        return Err(encode_skip_message(message));
+                    }
+                }
+
+                match result {
+                    Ok(#path::StepExecution::Continue { value }) => Ok(value),
+                    Err(err) => {
+                        panic!(
+                            "Step failed at index {}: {} {} - {}\n(feature: {}, scenario: {})",
+                            index,
+                            keyword.as_str(),
+                            text,
+                            err,
+                            feature_path,
+                            scenario_name
+                        );
+                    }
+                    // SAFETY: Skipped case handled above via is_skipped predicate
+                    Ok(#path::StepExecution::Skipped { .. }) => unreachable!(),
+                }
             } else {
                 panic!(
                     "Step not found at index {}: {} {} (feature: {}, scenario: {})",
@@ -44,118 +129,29 @@ fn generate_step_executor() -> TokenStream2 {
     }
 }
 
-fn generate_step_runner() -> TokenStream2 {
-    let path = crate::codegen::rstest_bdd_path();
-    quote! {
-        #[expect(
-            clippy::too_many_arguments,
-            reason = "helper preserves step execution context for error messages",
-        )]
-        fn run_step(
-            index: usize,
-            keyword: #path::StepKeyword,
-            text: &str,
-            docstring: Option<&str>,
-            table: Option<&[&[&str]]>,
-            ctx: &mut #path::StepContext,
-            feature_path: &str,
-            scenario_name: &str,
-            step: &#path::Step,
-        ) -> Result<Option<Box<dyn std::any::Any>>, String> {
-            match (step.run)(ctx, text, docstring, table) {
-                Ok(#path::StepExecution::Continue { value }) => Ok(value),
-                Ok(#path::StepExecution::Skipped { message }) => {
-                    Err(encode_skip_message(message))
-                }
-                Err(err) => {
-                    panic!(
-                        "Step failed at index {}: {} {} - {}\n(feature: {}, scenario: {})",
-                        index,
-                        keyword.as_str(),
-                        text,
-                        err,
-                        feature_path,
-                        scenario_name
-                    );
-                }
-            }
-        }
-    }
-}
-
-fn generate_skip_encoder() -> TokenStream2 {
-    quote! {
-        fn encode_skip_message(message: Option<String>) -> String {
-            message.map_or_else(
-                || SKIP_NONE_PREFIX.to_string(),
-                |msg| {
-                    let mut encoded = String::with_capacity(1 + msg.len());
-                    encoded.push(SKIP_SOME_PREFIX);
-                    encoded.push_str(&msg);
-                    encoded
-                },
-            )
-        }
-    }
-}
-
-fn generate_fixture_validator() -> TokenStream2 {
-    let path = crate::codegen::rstest_bdd_path();
-    quote! {
-        fn validate_required_fixtures(
-            step: &#path::Step,
-            ctx: &#path::StepContext,
-            text: &str,
-            feature_path: &str,
-            scenario_name: &str,
-        ) {
-            if step.fixtures.is_empty() {
-                return;
-            }
-
-            let available: std::collections::HashSet<&str> =
-                ctx.available_fixtures().collect();
-            let missing: Vec<_> = step.fixtures
-                .iter()
-                .copied()
-                .filter(|f| !available.contains(f))
-                .collect();
-
-            if !missing.is_empty() {
-                let mut available_list: Vec<_> = available.into_iter().collect();
-                available_list.sort_unstable();
-                panic!(
-                    concat!(
-                        "Step '{}' (defined at {}:{}) requires fixtures {:?}, ",
-                        "but the following are missing: {:?}\n",
-                        "Available fixtures from scenario: {:?}\n",
-                        "(feature: {}, scenario: {})",
-                    ),
-                    text,
-                    step.file,
-                    step.line,
-                    step.fixtures,
-                    missing,
-                    available_list,
-                    feature_path,
-                    scenario_name,
-                );
-            }
-        }
-    }
-}
-
 fn generate_skip_decoder() -> TokenStream2 {
     quote! {
-        fn decode_skip_message(encoded: String) -> Option<String> {
-            match encoded.chars().next() {
-                Some(prefix) if prefix == SKIP_NONE_PREFIX => None,
-                Some(prefix) if prefix == SKIP_SOME_PREFIX => {
-                    let prefix_len = prefix.len_utf8();
-                    Some(encoded[prefix_len..].to_string())
-                }
-                _ => Some(encoded),
+        fn __rstest_bdd_decode_skip_message(encoded: String) -> Option<String> {
+            fn is_skip_none(c: Option<char>) -> bool {
+                matches!(c, Some(prefix) if prefix == SKIP_NONE_PREFIX)
             }
+
+            fn is_skip_some(c: Option<char>) -> bool {
+                matches!(c, Some(prefix) if prefix == SKIP_SOME_PREFIX)
+            }
+
+            let first = encoded.chars().next();
+
+            if is_skip_none(first) {
+                return None;
+            }
+
+            if is_skip_some(first) {
+                let prefix_len = first.expect("checked above").len_utf8();
+                return Some(encoded[prefix_len..].to_string());
+            }
+
+            Some(encoded)
         }
     }
 }
@@ -163,7 +159,7 @@ fn generate_skip_decoder() -> TokenStream2 {
 fn generate_scenario_guard() -> TokenStream2 {
     let path = crate::codegen::rstest_bdd_path();
     quote! {
-        struct ScenarioReportGuard {
+        struct __RstestBddScenarioReportGuard {
             recorded: bool,
             feature_path: &'static str,
             scenario_name: &'static str,
@@ -171,7 +167,7 @@ fn generate_scenario_guard() -> TokenStream2 {
             tags: #path::reporting::ScenarioTags,
         }
 
-        impl ScenarioReportGuard {
+        impl __RstestBddScenarioReportGuard {
             fn new(
                 feature_path: &'static str,
                 scenario_name: &'static str,
@@ -200,7 +196,7 @@ fn generate_scenario_guard() -> TokenStream2 {
             }
         }
 
-        impl Drop for ScenarioReportGuard {
+        impl Drop for __RstestBddScenarioReportGuard {
             fn drop(&mut self) {
                 if !self.recorded && !std::thread::panicking() {
                     let tags = self.take_tags();
@@ -227,26 +223,26 @@ pub(crate) fn generate_step_executor_loop(
     tables: &[TokenStream2],
 ) -> TokenStream2 {
     quote! {
-        let steps = [#((#keyword_tokens, #values, #docstrings, #tables)),*];
-        for (index, (keyword, text, docstring, table)) in steps.iter().copied().enumerate() {
-            match execute_single_step(
-                index,
-                keyword,
-                text,
-                docstring,
-                table,
+        let __rstest_bdd_steps = [#((#keyword_tokens, #values, #docstrings, #tables)),*];
+        for (__rstest_bdd_index, (__rstest_bdd_keyword, __rstest_bdd_text, __rstest_bdd_docstring, __rstest_bdd_table)) in __rstest_bdd_steps.iter().copied().enumerate() {
+            match __rstest_bdd_execute_single_step(
+                __rstest_bdd_index,
+                __rstest_bdd_keyword,
+                __rstest_bdd_text,
+                __rstest_bdd_docstring,
+                __rstest_bdd_table,
                 &mut ctx,
-                FEATURE_PATH,
-                SCENARIO_NAME,
+                __RSTEST_BDD_FEATURE_PATH,
+                __RSTEST_BDD_SCENARIO_NAME,
             ) {
-                Ok(value) => {
-                    if let Some(val) = value {
-                        let _ = ctx.insert_value(val);
+                Ok(__rstest_bdd_value) => {
+                    if let Some(__rstest_bdd_val) = __rstest_bdd_value {
+                        let _ = ctx.insert_value(__rstest_bdd_val);
                     }
                 }
-                Err(encoded) => {
-                    skipped = Some(decode_skip_message(encoded));
-                    skipped_at = Some(index);
+                Err(__rstest_bdd_encoded) => {
+                    __rstest_bdd_skipped = Some(__rstest_bdd_decode_skip_message(__rstest_bdd_encoded));
+                    __rstest_bdd_skipped_at = Some(__rstest_bdd_index);
                     break;
                 }
             }
@@ -257,50 +253,50 @@ pub(crate) fn generate_step_executor_loop(
 fn generate_skip_handler() -> TokenStream2 {
     let path = crate::codegen::rstest_bdd_path();
     quote! {
-        if let Some(message) = skipped {
-            let fail_on_skipped_enabled = #path::config::fail_on_skipped();
-            let forced_failure = fail_on_skipped_enabled && !allow_skipped;
+        if let Some(__rstest_bdd_message) = __rstest_bdd_skipped {
+            let __rstest_bdd_fail_on_skipped_enabled = #path::config::fail_on_skipped();
+            let __rstest_bdd_forced_failure = __rstest_bdd_fail_on_skipped_enabled && !__rstest_bdd_allow_skipped;
             if #path::diagnostics_enabled() {
-                if let Some(start) = skipped_at {
-                    let bypassed = steps
+                if let Some(__rstest_bdd_start) = __rstest_bdd_skipped_at {
+                    let __rstest_bdd_bypassed = __rstest_bdd_steps
                         .iter()
                         .enumerate()
-                        .skip(start + 1)
-                        .map(|(_, (keyword, text, _, _))| (*keyword, *text));
+                        .skip(__rstest_bdd_start + 1)
+                        .map(|(_, (__rstest_bdd_kw, __rstest_bdd_txt, _, _))| (*__rstest_bdd_kw, *__rstest_bdd_txt));
                     #path::record_bypassed_steps_with_tags(
-                        FEATURE_PATH,
-                        SCENARIO_NAME,
-                        SCENARIO_LINE,
-                        scenario_guard.tags(),
-                        message.as_deref(),
-                        bypassed,
+                        __RSTEST_BDD_FEATURE_PATH,
+                        __RSTEST_BDD_SCENARIO_NAME,
+                        __RSTEST_BDD_SCENARIO_LINE,
+                        __rstest_bdd_scenario_guard.tags(),
+                        __rstest_bdd_message.as_deref(),
+                        __rstest_bdd_bypassed,
                     );
                 }
             }
-            scenario_guard.mark_recorded();
-            let scenario_tags_owned = scenario_guard.take_tags();
-            let skip_details = #path::reporting::SkippedScenario::new(
-                message.clone(),
-                allow_skipped,
-                forced_failure,
+            __rstest_bdd_scenario_guard.mark_recorded();
+            let __rstest_bdd_scenario_tags_owned = __rstest_bdd_scenario_guard.take_tags();
+            let __rstest_bdd_skip_details = #path::reporting::SkippedScenario::new(
+                __rstest_bdd_message.clone(),
+                __rstest_bdd_allow_skipped,
+                __rstest_bdd_forced_failure,
             );
-            let metadata = #path::reporting::ScenarioMetadata::new(
-                FEATURE_PATH,
-                SCENARIO_NAME,
-                SCENARIO_LINE,
-                scenario_tags_owned,
+            let __rstest_bdd_metadata = #path::reporting::ScenarioMetadata::new(
+                __RSTEST_BDD_FEATURE_PATH,
+                __RSTEST_BDD_SCENARIO_NAME,
+                __RSTEST_BDD_SCENARIO_LINE,
+                __rstest_bdd_scenario_tags_owned,
             );
             #path::reporting::record(#path::reporting::ScenarioRecord::from_metadata(
-                metadata,
-                #path::reporting::ScenarioStatus::Skipped(skip_details),
+                __rstest_bdd_metadata,
+                #path::reporting::ScenarioStatus::Skipped(__rstest_bdd_skip_details),
             ));
-            if forced_failure {
-                let detail = message.unwrap_or_else(|| "scenario skipped".to_string());
+            if __rstest_bdd_forced_failure {
+                let __rstest_bdd_detail = __rstest_bdd_message.unwrap_or_else(|| "scenario skipped".to_string());
                 panic!(
                     "Scenario skipped with fail_on_skipped enabled: {}\n(feature: {}, scenario: {})",
-                    detail,
-                    FEATURE_PATH,
-                    SCENARIO_NAME
+                    __rstest_bdd_detail,
+                    __RSTEST_BDD_FEATURE_PATH,
+                    __RSTEST_BDD_SCENARIO_NAME
                 );
             }
             return;
@@ -342,9 +338,6 @@ fn generate_code_components(processed_steps: &ProcessedSteps) -> CodeComponents 
     } = processed_steps;
 
     let step_executor = generate_step_executor();
-    let step_runner = generate_step_runner();
-    let skip_encoder = generate_skip_encoder();
-    let fixture_validator = generate_fixture_validator();
     let skip_decoder = generate_skip_decoder();
     let scenario_guard = generate_scenario_guard();
     let step_executor_loop =
@@ -353,9 +346,6 @@ fn generate_code_components(processed_steps: &ProcessedSteps) -> CodeComponents 
 
     CodeComponents {
         step_executor,
-        step_runner,
-        skip_encoder,
-        fixture_validator,
         skip_decoder,
         scenario_guard,
         step_executor_loop,
@@ -419,9 +409,6 @@ fn assemble_test_tokens(
 
     let CodeComponents {
         step_executor,
-        step_runner,
-        skip_encoder,
-        fixture_validator,
         skip_decoder,
         scenario_guard,
         step_executor_loop,
@@ -430,23 +417,20 @@ fn assemble_test_tokens(
 
     let path = crate::codegen::rstest_bdd_path();
     quote! {
-        const FEATURE_PATH: &str = #feature_literal;
-        const SCENARIO_NAME: &str = #scenario_literal;
-        const SCENARIO_LINE: u32 = #scenario_line_literal;
-        static SCENARIO_TAGS: std::sync::LazyLock<#path::reporting::ScenarioTags> =
+        const __RSTEST_BDD_FEATURE_PATH: &str = #feature_literal;
+        const __RSTEST_BDD_SCENARIO_NAME: &str = #scenario_literal;
+        const __RSTEST_BDD_SCENARIO_LINE: u32 = #scenario_line_literal;
+        static __RSTEST_BDD_SCENARIO_TAGS: std::sync::LazyLock<#path::reporting::ScenarioTags> =
             std::sync::LazyLock::new(|| {
                 std::sync::Arc::<[String]>::from(vec![#(#tag_literals.to_string()),*])
             });
         const SKIP_NONE_PREFIX: char = '\u{0}';
         const SKIP_SOME_PREFIX: char = '\u{1}';
         #step_executor
-        #step_runner
-        #skip_encoder
-        #fixture_validator
         #skip_decoder
         #scenario_guard
 
-        let allow_skipped: bool = #allow_literal;
+        let __rstest_bdd_allow_skipped: bool = #allow_literal;
         #(#ctx_prelude)*
         let mut ctx = {
             let mut ctx = #path::StepContext::default();
@@ -454,14 +438,14 @@ fn assemble_test_tokens(
             ctx
         };
 
-        let mut scenario_guard = ScenarioReportGuard::new(
-            FEATURE_PATH,
-            SCENARIO_NAME,
-            SCENARIO_LINE,
-            SCENARIO_TAGS.clone(),
+        let mut __rstest_bdd_scenario_guard = __RstestBddScenarioReportGuard::new(
+            __RSTEST_BDD_FEATURE_PATH,
+            __RSTEST_BDD_SCENARIO_NAME,
+            __RSTEST_BDD_SCENARIO_LINE,
+            __RSTEST_BDD_SCENARIO_TAGS.clone(),
         );
-        let mut skipped: Option<Option<String>> = None;
-        let mut skipped_at: Option<usize> = None;
+        let mut __rstest_bdd_skipped: Option<Option<String>> = None;
+        let mut __rstest_bdd_skipped_at: Option<usize> = None;
         #step_executor_loop
         #skip_handler
         #(#ctx_postlude)*
