@@ -1,2 +1,3 @@
 # Temporary exemptions while large modules are refactored.
 # Tracked for refactor: see issue #50 to shrink allowlisted files below 400 lines.
+crates/rstest-bdd-macros/tests/args.rs

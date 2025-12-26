@@ -13,7 +13,7 @@ mod specificity;
 
 pub use capture::extract_captured_values;
 pub use errors::{PatternError, PlaceholderErrorInfo};
-pub use hint::get_type_pattern;
+pub use hint::{get_type_pattern, requires_quote_stripping};
 pub use keyword::{StepKeyword, StepKeywordParseError, UnsupportedStepType};
 pub use pattern::build_regex_from_pattern;
 pub use specificity::SpecificityScore;

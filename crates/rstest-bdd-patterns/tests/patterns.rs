@@ -122,3 +122,71 @@ fn rejects_placeholder_hint_with_braces() {
     };
     assert!(err.to_string().contains("invalid placeholder"));
 }
+
+#[test]
+fn string_hint_matches_double_quoted_strings() {
+    let regex = compile_regex_from_pattern("CLI is parsed with {args:string}")
+        .expect("string type hint should compile");
+
+    assert!(
+        regex.is_match(r#"CLI is parsed with "build --file foo.yml""#),
+        "should match double-quoted string"
+    );
+    assert!(
+        !regex.is_match("CLI is parsed with build --file foo.yml"),
+        "should not match unquoted text"
+    );
+    assert!(
+        !regex.is_match("CLI is parsed with"),
+        "should not match missing value"
+    );
+}
+
+#[test]
+fn string_hint_matches_single_quoted_strings() {
+    let regex = compile_regex_from_pattern("name is {name:string}")
+        .expect("string type hint should compile");
+
+    assert!(
+        regex.is_match("name is 'Alice'"),
+        "should match single-quoted string"
+    );
+    assert!(
+        regex.is_match(r#"name is "Bob""#),
+        "should match double-quoted string"
+    );
+}
+
+#[test]
+fn string_hint_captures_include_quotes() {
+    let regex_src =
+        build_regex_from_pattern("value is {text:string}").expect("pattern should compile");
+    let regex = Regex::new(&regex_src).expect("regex should compile");
+
+    let captures = extract_captured_values(&regex, r#"value is "hello world""#)
+        .expect("expected captures for quoted string");
+    assert_eq!(
+        captures,
+        vec![r#""hello world""#.to_string()],
+        "captured value should include quotes (stripping happens in generated code)"
+    );
+
+    let captures = extract_captured_values(&regex, "value is 'single quoted'")
+        .expect("expected captures for single-quoted string");
+    assert_eq!(captures, vec!["'single quoted'".to_string()]);
+}
+
+#[test]
+fn string_hint_matches_empty_quoted_strings() {
+    let regex =
+        compile_regex_from_pattern("value is {text:string}").expect("string type should compile");
+
+    assert!(
+        regex.is_match(r#"value is """#),
+        "should match empty double-quoted string"
+    );
+    assert!(
+        regex.is_match("value is ''"),
+        "should match empty single-quoted string"
+    );
+}

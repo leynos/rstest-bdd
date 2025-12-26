@@ -22,6 +22,8 @@ pub(crate) struct WrapperConfig<'a> {
     pub(crate) pattern: &'a syn::LitStr,
     pub(crate) keyword: crate::StepKeyword,
     pub(crate) placeholder_names: &'a [syn::LitStr],
+    /// Optional type hints for each placeholder, parallel to `placeholder_names`.
+    pub(crate) placeholder_hints: &'a [Option<String>],
     pub(crate) capture_count: usize,
     pub(crate) return_kind: ReturnKind,
 }
@@ -243,6 +245,7 @@ fn generate_wrapper_body(
         args,
         pattern,
         placeholder_names,
+        placeholder_hints,
         capture_count,
         return_kind,
         ..
@@ -277,6 +280,7 @@ fn generate_wrapper_body(
         step_meta,
         &ctx_ident,
         placeholder_names,
+        placeholder_hints,
         datatable_idents_refs,
     );
     let arg_idents = collect_ordered_arguments(args_slice);

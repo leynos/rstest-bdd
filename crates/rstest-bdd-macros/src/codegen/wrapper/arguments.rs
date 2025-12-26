@@ -199,9 +199,13 @@ fn gen_step_struct_decl(
 /// For borrowed `&str` parameters, the captured string slice is used directly
 /// without parsing. For all other types, the standard `.parse()` path is used
 /// which requires the target type to implement [`FromStr`].
+///
+/// When a placeholder has the `:string` type hint, the surrounding quotes are
+/// stripped from the captured value before assignment or parsing.
 pub(super) fn gen_step_parses(
     step_args: &[&Arg],
     captured: &[TokenStream2],
+    hints: &[Option<String>],
     meta: StepMeta<'_>,
 ) -> Vec<TokenStream2> {
     let StepMeta { pattern, ident } = meta;
@@ -226,11 +230,23 @@ pub(super) fn gen_step_parses(
                 },
             );
 
+            // Check if this placeholder has a :string hint requiring quote stripping
+            let hint = hints.get(idx).and_then(|h| h.as_deref());
+            let needs_quote_strip = rstest_bdd_patterns::requires_quote_stripping(hint);
+
             if is_str_reference(ty) {
                 // Direct assignment for &str - no parsing needed
-                quote! {
-                    let #raw_ident: &str = #capture.ok_or_else(|| #missing_cap_err)?;
-                    let #pat: #ty = #raw_ident;
+                if needs_quote_strip {
+                    quote! {
+                        let #raw_ident: &str = #capture.ok_or_else(|| #missing_cap_err)?;
+                        let #raw_ident: &str = &#raw_ident[1..#raw_ident.len() - 1];
+                        let #pat: #ty = #raw_ident;
+                    }
+                } else {
+                    quote! {
+                        let #raw_ident: &str = #capture.ok_or_else(|| #missing_cap_err)?;
+                        let #pat: #ty = #raw_ident;
+                    }
                 }
             } else {
                 // Standard parse path for owned/parseable types
@@ -248,9 +264,17 @@ pub(super) fn gen_step_parses(
                         )
                     },
                 );
-                quote! {
-                    let #raw_ident = #capture.ok_or_else(|| #missing_cap_err)?;
-                    let #pat: #ty = (#raw_ident).parse().map_err(|_| #parse_err)?;
+                if needs_quote_strip {
+                    quote! {
+                        let #raw_ident = #capture.ok_or_else(|| #missing_cap_err)?;
+                        let #raw_ident = &#raw_ident[1..#raw_ident.len() - 1];
+                        let #pat: #ty = (#raw_ident).parse().map_err(|_| #parse_err)?;
+                    }
+                } else {
+                    quote! {
+                        let #raw_ident = #capture.ok_or_else(|| #missing_cap_err)?;
+                        let #pat: #ty = (#raw_ident).parse().map_err(|_| #parse_err)?;
+                    }
                 }
             }
         })
@@ -263,6 +287,7 @@ pub(super) fn prepare_argument_processing(
     step_meta: StepMeta<'_>,
     ctx_ident: &proc_macro2::Ident,
     placeholder_names: &[syn::LitStr],
+    placeholder_hints: &[Option<String>],
     datatable_idents: Option<(&proc_macro2::Ident, &proc_macro2::Ident)>,
 ) -> PreparedArgs {
     let StepMeta { pattern, ident } = step_meta;
@@ -301,7 +326,8 @@ pub(super) fn prepare_argument_processing(
                 all_captures.len()
             )
         });
-        gen_step_parses(&step_args, capture_slice, step_meta)
+        let hint_slice = placeholder_hints.get(..step_args.len()).unwrap_or(&[]);
+        gen_step_parses(&step_args, capture_slice, hint_slice, step_meta)
     };
     let step_struct_decl = gen_step_struct_decl(
         step_struct.and_then(Arg::as_step_struct),

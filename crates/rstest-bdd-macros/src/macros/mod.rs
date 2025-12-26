@@ -192,24 +192,25 @@ fn signature_error_help(err_message: &str, keyword: crate::StepKeyword) -> Strin
 }
 
 /// Inputs used to generate wrapper code for a step function.
-#[derive(Clone, Copy)]
 struct WrapperInputs<'a> {
     func: &'a syn::ItemFn,
     pattern: &'a syn::LitStr,
     keyword: crate::StepKeyword,
     args: &'a ExtractedArgs,
     placeholder_names: &'a [syn::LitStr],
+    placeholder_hints: &'a [Option<String>],
     return_kind: ReturnKind,
 }
 
 /// Build wrapper configuration from [`WrapperInputs`] and emit the wrapper tokens.
-fn build_and_generate_wrapper(inputs: WrapperInputs<'_>) -> proc_macro2::TokenStream {
+fn build_and_generate_wrapper(inputs: &WrapperInputs<'_>) -> proc_macro2::TokenStream {
     let config = WrapperConfig {
         ident: &inputs.func.sig.ident,
         args: inputs.args,
         pattern: inputs.pattern,
         keyword: inputs.keyword,
         placeholder_names: inputs.placeholder_names,
+        placeholder_hints: inputs.placeholder_hints,
         capture_count: inputs.placeholder_names.len(),
         return_kind: inputs.return_kind,
     };
@@ -250,19 +251,25 @@ fn step_attr(attr: TokenStream, item: TokenStream, keyword: crate::StepKeyword) 
     let placeholder_literals: Vec<_> = placeholder_summary
         .ordered
         .iter()
-        .map(|name| syn::LitStr::new(name, pattern.span()))
+        .map(|info| syn::LitStr::new(&info.name, pattern.span()))
+        .collect();
+    let placeholder_hints: Vec<_> = placeholder_summary
+        .ordered
+        .iter()
+        .map(|info| info.hint.clone())
         .collect();
     let return_kind = match classify_return_type(&func.sig.output, attr_args.return_override) {
         Ok(kind) => kind,
         Err(err) => return error_to_tokens(&err).into(),
     };
 
-    let wrapper_code = build_and_generate_wrapper(WrapperInputs {
+    let wrapper_code = build_and_generate_wrapper(&WrapperInputs {
         func: &func,
         pattern: &pattern,
         keyword,
         args: &args,
         placeholder_names: &placeholder_literals,
+        placeholder_hints: &placeholder_hints,
         return_kind,
     });
 
