@@ -2,5 +2,4 @@
 # Tracked for refactor: see issue #50 to shrink allowlisted files below 400 lines.
 
 crates/rstest-bdd/src/context.rs
-crates/rstest-bdd-macros/src/codegen/wrapper/arguments.rs
 crates/rstest-bdd-macros/src/utils/pattern.rs

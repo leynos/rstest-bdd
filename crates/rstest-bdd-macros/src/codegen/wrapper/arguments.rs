@@ -1,5 +1,4 @@
 //! Argument code generation utilities shared by wrapper emission logic.
-// TODO(issue #50): Reduce this module below 400 lines and drop the rs-length allowlist entry.
 
 use super::args::{Arg, DocStringArg, StepStructArg};
 use proc_macro2::TokenStream as TokenStream2;
@@ -7,8 +6,10 @@ use quote::{format_ident, quote};
 
 mod datatable;
 mod fixtures;
+mod step_parse;
 use datatable::{CacheIdents, gen_datatable_decl};
 use fixtures::gen_fixture_decls;
+use step_parse::{ArgParseContext, gen_single_step_parse};
 
 #[derive(Copy, Clone)]
 pub(super) struct StepMeta<'a> {
@@ -192,101 +193,6 @@ fn gen_step_struct_decl(
                 .map_err(|error| #convert_err)?;
         }
     })
-}
-
-/// Context for parsing a single step argument from a regex capture.
-#[derive(Copy, Clone)]
-struct ArgParseContext<'a> {
-    /// The argument being parsed.
-    arg: &'a Arg,
-    /// Index of this argument in the capture list.
-    idx: usize,
-    /// Token stream representing the capture expression.
-    capture: &'a TokenStream2,
-    /// Optional type hint (e.g., "string") for this placeholder.
-    hint: Option<&'a str>,
-}
-
-/// Generate parsing code for a single step argument from a regex capture.
-///
-/// Handles both borrowed `&str` references (direct assignment) and owned types
-/// (using `.parse()`). When the placeholder has a `:string` type hint, the
-/// surrounding quotes are stripped from the captured value before assignment
-/// or parsing.
-///
-/// Returns the generated [`TokenStream2`] for declaring and initializing the
-/// argument variable.
-fn gen_single_step_parse(ctx: ArgParseContext<'_>, meta: StepMeta<'_>) -> TokenStream2 {
-    let ArgParseContext {
-        arg,
-        idx,
-        capture,
-        hint,
-    } = ctx;
-    let StepMeta { pattern, ident } = meta;
-    let Arg::Step { pat, ty } = arg else {
-        unreachable!("step argument vector must contain step args");
-    };
-    let raw_ident = format_ident!("__raw{}", idx);
-    let missing_cap_err = step_error_tokens(
-        &format_ident!("ExecutionError"),
-        pattern,
-        ident,
-        &quote! {
-            format!(
-                "pattern '{}' missing capture for argument '{}'",
-                #pattern,
-                stringify!(#pat),
-            )
-        },
-    );
-
-    // Check if this placeholder has a :string hint requiring quote stripping
-    let needs_quote_strip = rstest_bdd_patterns::requires_quote_stripping(hint);
-
-    if is_str_reference(ty) {
-        // Direct assignment for &str - no parsing needed
-        if needs_quote_strip {
-            quote! {
-                let #raw_ident: &str = #capture.ok_or_else(|| #missing_cap_err)?;
-                let #raw_ident: &str = &#raw_ident[1..#raw_ident.len() - 1];
-                let #pat: #ty = #raw_ident;
-            }
-        } else {
-            quote! {
-                let #raw_ident: &str = #capture.ok_or_else(|| #missing_cap_err)?;
-                let #pat: #ty = #raw_ident;
-            }
-        }
-    } else {
-        // Standard parse path for owned/parseable types
-        let parse_err = step_error_tokens(
-            &format_ident!("ExecutionError"),
-            pattern,
-            ident,
-            &quote! {
-                format!(
-                    "failed to parse argument '{}' of type '{}' from pattern '{}' with captured value: '{:?}'",
-                    stringify!(#pat),
-                    stringify!(#ty),
-                    #pattern,
-                    #raw_ident,
-                )
-            },
-        );
-        if needs_quote_strip {
-            quote! {
-                let #raw_ident = #capture.ok_or_else(|| #missing_cap_err)?;
-                let #raw_ident = &#raw_ident[1..#raw_ident.len() - 1];
-                let #pat: #ty = (#raw_ident).parse().map_err(|_| #parse_err)?;
-            }
-        } else {
-            quote! {
-                let #raw_ident = #capture.ok_or_else(|| #missing_cap_err)?;
-                let #pat: #ty = (#raw_ident).parse().map_err(|_| #parse_err)?;
-            }
-        }
-    }
 }
 
 /// Generate code to parse step arguments from regex captures.
