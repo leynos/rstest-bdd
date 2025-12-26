@@ -182,6 +182,7 @@ fn find_let_call_statement_index(stmts: &[syn::Stmt], var_name: &str) -> Option<
 #[test]
 #[expect(
     clippy::expect_used,
+    clippy::panic,
     reason = "test parses generated tokens and uses expect for clearer failures"
 )]
 fn execute_single_step_looks_up_steps_with_steptext_from() {
