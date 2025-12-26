@@ -220,6 +220,11 @@ pub(in crate::codegen::scenario::runtime) fn generate_step_executor() -> TokenSt
 /// }
 /// ```
 pub(in crate::codegen::scenario::runtime) fn generate_skip_decoder() -> TokenStream2 {
+    // The match arms for SKIP_NONE_PREFIX and SKIP_SOME_PREFIX cover all strings
+    // produced by encode_skip_message, which always prepends a known prefix.
+    // The `_ => Some(encoded)` fallback is a defensive guard for unexpected inputs
+    // (e.g., empty string or missing prefix). Rather than panicking, it returns
+    // the original encoded string to surface the anomaly without crashing.
     quote! {
         fn __rstest_bdd_decode_skip_message(encoded: String) -> Option<String> {
             match encoded.chars().next() {
@@ -228,6 +233,7 @@ pub(in crate::codegen::scenario::runtime) fn generate_skip_decoder() -> TokenStr
                     let prefix_len = c.len_utf8();
                     Some(encoded[prefix_len..].to_string())
                 }
+                // Defensive: preserve unexpected/malformed input rather than panic
                 _ => Some(encoded),
             }
         }
