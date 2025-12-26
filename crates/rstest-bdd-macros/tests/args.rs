@@ -367,3 +367,41 @@ fn test_step_struct_errors(
         "unexpected error message for {description}: {msg}"
     );
 }
+
+#[rstest]
+#[case(parse_quote! { fn step(tag: &str) {} }, "&str")]
+#[case(parse_quote! { fn step(tag: &'a str) {} }, "&'a str")]
+#[case(parse_quote! { fn step(tag: &'static str) {} }, "&'static str")]
+fn str_reference_variants_are_classified_as_step_arguments(
+    #[case] func: syn::ItemFn,
+    #[case] description: &str,
+) {
+    let args = test_extract_args_scenario(func, vec!["tag"])
+        .unwrap_or_else(|e| panic!("failed to extract args for {description}: {e}"));
+    assert_eq!(
+        step_arg_count(&args),
+        1,
+        "{description}: unexpected step_arg_count"
+    );
+    assert_eq!(
+        fixture_count(&args),
+        0,
+        "{description}: unexpected fixture_count"
+    );
+    assert_eq!(
+        ordered_parameter_names(&args),
+        ["tag"],
+        "{description}: unexpected parameter names"
+    );
+}
+
+#[rstest]
+fn mixed_str_reference_and_parsed_types() {
+    let func = parse_quote! { fn step(tag: &str, count: u32, name: String) {} };
+    #[expect(clippy::expect_used, reason = "test asserts valid extraction")]
+    let args =
+        test_extract_args_scenario(func, vec!["tag", "count", "name"]).expect("extraction failed");
+    assert_eq!(step_arg_count(&args), 3);
+    assert_eq!(fixture_count(&args), 0);
+    assert_eq!(ordered_parameter_names(&args), ["tag", "count", "name"]);
+}

@@ -3,10 +3,38 @@
 use super::*;
 use crate::codegen::wrapper::args::Arg;
 use quote::{format_ident, quote};
+use rstest::rstest;
 use syn::parse_quote;
 
 fn sample_meta<'a>(pattern: &'a syn::LitStr, ident: &'a syn::Ident) -> StepMeta<'a> {
     StepMeta { pattern, ident }
+}
+
+/// Generate step parse code for a single argument with the given type.
+///
+/// This helper encapsulates the common setup for testing `gen_step_parses`:
+/// pattern creation, meta creation, argument/capture construction, and
+/// token extraction. Returns the generated code as a string for assertions.
+fn generate_step_parse_for_single_arg(ty: syn::Type) -> String {
+    let pattern: syn::LitStr = parse_quote!("test {name}");
+    let ident: syn::Ident = parse_quote!(test_step);
+    let meta = sample_meta(&pattern, &ident);
+
+    let arg = Arg::Step {
+        pat: parse_quote!(name),
+        ty,
+    };
+    let args = vec![&arg];
+    let captures = vec![quote! { captures.get(0).map(|m| m.as_str()) }];
+
+    let tokens = gen_step_parses(&args, &captures, meta);
+
+    #[expect(
+        clippy::expect_used,
+        reason = "test helper asserts single token output"
+    )]
+    let token = tokens.first().expect("expected single token stream");
+    token.to_string()
 }
 
 fn build_arguments() -> Vec<Arg> {
@@ -159,4 +187,83 @@ fn step_error_tokens_embed_variant_and_message() {
     assert!(tokens.contains("function :"));
     assert!(tokens.contains("message :"));
     assert!(tokens.contains(r#""failure""#));
+}
+
+#[rstest]
+#[case(parse_quote!(&str), "&str")]
+#[case(parse_quote!(&'a str), "&'a str")]
+#[case(parse_quote!(&'static str), "&'static str")]
+fn is_str_reference_detects_borrowed_str(#[case] ty: syn::Type, #[case] description: &str) {
+    assert!(is_str_reference(&ty), "{description} should be detected");
+}
+
+#[rstest]
+#[case(parse_quote!(String), "String should not be detected as &str")]
+#[case(parse_quote!(&String), "&String should not be detected as &str")]
+#[case(parse_quote!(&mut str), "&mut str should not be supported")]
+#[case(parse_quote!(&u8), "&u8 should not be detected as &str")]
+#[case(parse_quote!(&[u8]), "&[u8] should not be detected as &str")]
+fn is_str_reference_rejects_non_str_references(#[case] ty: syn::Type, #[case] reason: &str) {
+    assert!(!is_str_reference(&ty), "{reason}");
+}
+
+#[test]
+fn gen_step_parses_uses_direct_assignment_for_str_reference() {
+    let code = generate_step_parse_for_single_arg(parse_quote!(&str));
+
+    assert!(
+        !code.contains("parse"),
+        "&str should not use parse(): {code}"
+    );
+    // Use whitespace-normalised comparison to avoid fragility from token stream formatting
+    let normalised = code.split_whitespace().collect::<Vec<_>>().join(" ");
+    assert!(
+        normalised.contains("__raw0 : & str"),
+        "should have typed raw variable: {code}"
+    );
+}
+
+#[test]
+fn gen_step_parses_uses_parse_for_owned_string() {
+    let code = generate_step_parse_for_single_arg(parse_quote!(String));
+
+    assert!(code.contains("parse"), "String should use parse(): {code}");
+}
+
+#[test]
+fn gen_step_parses_handles_mixed_str_and_parsed_types() {
+    let pattern: syn::LitStr = parse_quote!("test {tag} {count}");
+    let ident: syn::Ident = parse_quote!(test_step);
+    let meta = sample_meta(&pattern, &ident);
+
+    let str_arg = Arg::Step {
+        pat: parse_quote!(tag),
+        ty: parse_quote!(&str),
+    };
+    let usize_arg = Arg::Step {
+        pat: parse_quote!(count),
+        ty: parse_quote!(usize),
+    };
+    let args = vec![&str_arg, &usize_arg];
+    let captures = vec![
+        quote! { captures.get(0).map(|m| m.as_str()) },
+        quote! { captures.get(1).map(|m| m.as_str()) },
+    ];
+
+    let tokens = gen_step_parses(&args, &captures, meta);
+
+    assert_eq!(tokens.len(), 2, "expected two token streams");
+    #[expect(clippy::indexing_slicing, reason = "length verified above")]
+    let str_code = tokens[0].to_string();
+    assert!(
+        !str_code.contains("parse"),
+        "&str should not use parse(): {str_code}"
+    );
+
+    #[expect(clippy::indexing_slicing, reason = "length verified above")]
+    let usize_code = tokens[1].to_string();
+    assert!(
+        usize_code.contains("parse"),
+        "usize should use parse(): {usize_code}"
+    );
 }
