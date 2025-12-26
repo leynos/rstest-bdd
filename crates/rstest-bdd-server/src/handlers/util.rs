@@ -36,6 +36,63 @@ pub fn gherkin_span_to_lsp_range(source: &str, span: Span) -> Range {
     Range { start, end }
 }
 
+/// Convert an LSP Position to a byte offset in the source text.
+///
+/// This is the inverse of [`byte_offset_to_position`]. It scans the source text
+/// to find the byte offset corresponding to the given line and character position.
+///
+/// The LSP specification defines character positions as UTF-16 code unit offsets.
+/// Characters outside the BMP (code points > 0xFFFF) require two UTF-16 code units
+/// (a surrogate pair), so they contribute 2 to the column count, not 1.
+///
+/// # Arguments
+///
+/// * `source` - The full source text
+/// * `position` - The LSP position (0-based line and character)
+///
+/// # Examples
+///
+/// ```
+/// use lsp_types::Position;
+/// use rstest_bdd_server::handlers::util::lsp_position_to_byte_offset;
+///
+/// let source = "Feature: demo\n  Scenario: s\n    Given a step\n";
+/// // Line 2, column 4 is where "Given" starts
+/// let offset = lsp_position_to_byte_offset(source, Position::new(2, 4));
+/// assert_eq!(offset, 32);
+/// ```
+#[must_use]
+pub fn lsp_position_to_byte_offset(source: &str, position: Position) -> usize {
+    let target_line = position.line;
+    let target_col = position.character;
+
+    let mut current_line = 0u32;
+    let mut current_col = 0u32;
+    let mut current_byte = 0usize;
+
+    for ch in source.chars() {
+        // Check if we've reached the target position
+        if current_line == target_line && current_col >= target_col {
+            break;
+        }
+        if current_line > target_line {
+            break;
+        }
+
+        current_byte += ch.len_utf8();
+
+        if ch == '\n' {
+            current_line += 1;
+            current_col = 0;
+        } else {
+            // UTF-16 code units: BMP characters (≤0xFFFF) use 1, non-BMP use 2
+            current_col += if u32::from(ch) <= 0xFFFF { 1 } else { 2 };
+        }
+    }
+
+    current_byte
+}
+
 /// Convert a byte offset to an LSP Position (0-based line and character).
 ///
 /// The LSP specification defines character positions as UTF-16 code unit offsets.
@@ -134,5 +191,68 @@ mod tests {
         let pos = byte_offset_to_position(source, source.len());
         // 'c' (1) + 'a' (1) + 'f' (1) + 'é' (1, BMP) + '🎉' (2, non-BMP) = 6
         assert_eq!(pos.character, 6);
+    }
+
+    #[test]
+    fn lsp_position_to_byte_offset_first_line() {
+        let source = "Feature: demo\n  Scenario: s\n";
+        // Position (0, 0) is byte 0
+        let offset = lsp_position_to_byte_offset(source, Position::new(0, 0));
+        assert_eq!(offset, 0);
+
+        // Position (0, 9) is byte 9 ("demo" starts here)
+        let offset = lsp_position_to_byte_offset(source, Position::new(0, 9));
+        assert_eq!(offset, 9);
+    }
+
+    #[test]
+    fn lsp_position_to_byte_offset_second_line() {
+        let source = "Feature: demo\n  Scenario: s\n";
+        // Second line starts at byte 14 (after "Feature: demo\n")
+        let offset = lsp_position_to_byte_offset(source, Position::new(1, 0));
+        assert_eq!(offset, 14);
+
+        // "Scenario" starts at byte 16 (after two spaces, column 2)
+        let offset = lsp_position_to_byte_offset(source, Position::new(1, 2));
+        assert_eq!(offset, 16);
+    }
+
+    #[test]
+    fn lsp_position_to_byte_offset_third_line() {
+        let source = "Feature: demo\n  Scenario: s\n    Given a step\n";
+        // "Given" on line 2 (0-indexed), column 4, starts at byte 32
+        let offset = lsp_position_to_byte_offset(source, Position::new(2, 4));
+        assert_eq!(offset, 32);
+    }
+
+    #[test]
+    fn lsp_position_to_byte_offset_handles_empty_source() {
+        let source = "";
+        let offset = lsp_position_to_byte_offset(source, Position::new(0, 0));
+        assert_eq!(offset, 0);
+    }
+
+    #[test]
+    fn lsp_position_to_byte_offset_handles_non_bmp_characters() {
+        // Emoji U+1F600 (😀) is outside the BMP and requires 2 UTF-16 code units
+        let source = "hello😀world";
+        // After "hello" (5 chars) + emoji (2 UTF-16 units) = column 7
+        // "world" starts at byte 5 + 4 (emoji UTF-8) = 9
+        let offset = lsp_position_to_byte_offset(source, Position::new(0, 7));
+        assert_eq!(offset, 9);
+    }
+
+    #[test]
+    fn lsp_position_to_byte_offset_roundtrip() {
+        let source = "Feature: demo\n  Scenario: s\n    Given a step\n";
+        // Test roundtrip: byte -> position -> byte
+        for byte_offset in [0, 9, 14, 16, 32, 44] {
+            let pos = byte_offset_to_position(source, byte_offset);
+            let recovered = lsp_position_to_byte_offset(source, pos);
+            assert_eq!(
+                recovered, byte_offset,
+                "roundtrip failed for offset {byte_offset}"
+            );
+        }
     }
 }

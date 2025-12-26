@@ -822,7 +822,7 @@ incrementally on `textDocument/didSave` for Rust sources:
 - Compilation failures are logged, and the failing patterns are skipped, so a
   single invalid pattern does not prevent indexing other steps in the same file.
 
-### Phase 2: Navigation handlers (in progress)
+### Phase 2: Navigation handlers (completed)
 
 **Go to Definition (Rust → Feature):**
 
@@ -851,6 +851,8 @@ feature step locations.
 The handler converts `gherkin::Span` (byte offsets) to `lsp_types::Range`
 (0-based line/column) by scanning the source text. A utility module
 (`handlers/util.rs`) provides `gherkin_span_to_lsp_range()` for this purpose.
+The inverse function `lsp_position_to_byte_offset()` converts LSP positions
+back to byte offsets for feature file position matching.
 
 **Testing:**
 
@@ -859,13 +861,38 @@ The handler converts `gherkin::Span` (byte offsets) to `lsp_types::Range`
 - Behavioural tests in `tests/definition_navigation.rs` verify end-to-end
   navigation, including parameterised patterns and multiple matches.
 
+**Go to Implementation (Feature → Rust):**
+
+The `textDocument/implementation` handler enables navigation from feature steps
+to matching Rust implementations. When the cursor is on a step line in a
+`.feature` file, the handler returns all matching Rust function locations.
+
+**Implementation approach:**
+
+- The handler receives a position in a feature file and determines if it
+  corresponds to a step by converting the LSP position to a byte offset and
+  finding the `IndexedStep` whose span contains that offset.
+- The compiled step registry is queried by keyword (Given/When/Then) to find
+  candidate implementations.
+- Each candidate's compiled regex is tested against the feature step text.
+- Matching is keyword-aware: a `Given` step in a feature file only matches
+  `#[given]` implementations in Rust.
+- If multiple implementations match (duplicate step patterns), all locations
+  are returned, allowing the editor to present a choice.
+
+**Testing:**
+
+- Unit tests in `handlers/implementation.rs` cover feature file detection,
+  position-to-step resolution, and keyword filtering.
+- Behavioural tests in `tests/implementation_navigation.rs` verify end-to-end
+  navigation, including parameterised patterns, duplicate implementations, and
+  keyword matching.
+
 ### Next phases
 
 Subsequent work will implement:
 
-1. **Go to Implementation (Feature → Rust)** — Navigate from feature steps to
-   Rust implementations
-2. **Diagnostics** — Unimplemented steps, unused definitions, signature
+1. **Diagnostics** — Unimplemented steps, unused definitions, signature
    mismatches
 
 ## Conclusion
