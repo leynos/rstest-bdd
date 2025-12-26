@@ -80,37 +80,21 @@ fn is_reference_to_ident(expr: &syn::Expr, name: &str) -> bool {
     matches!(expr, syn::Expr::Reference(r) if matches!(&*r.expr, syn::Expr::Path(p) if p.path.is_ident(name)))
 }
 
-#[test]
 #[expect(
     clippy::expect_used,
-    reason = "test parses generated tokens and uses expect for clearer failures"
+    reason = "test helper uses expect for clearer failures"
 )]
-#[expect(
-    clippy::indexing_slicing,
-    reason = "indexing is guarded by explicit arg length assertions"
-)]
-#[expect(
-    clippy::too_many_lines,
-    reason = "comprehensive AST test for generated code structure"
-)]
-fn execute_single_step_looks_up_steps_with_steptext_from() {
-    // Parse the generated helper tokens so we can assert on the AST structure,
-    // keeping this test resilient to formatting-only changes.
-    let file: syn::File =
-        syn::parse2(generate_step_executor()).expect("generate_step_executor parses as a file");
-    let item = file
-        .items
+fn find_execute_single_step_function(file: &syn::File) -> &syn::ItemFn {
+    file.items
         .iter()
         .find_map(|item| match item {
             syn::Item::Fn(f) if f.sig.ident == "execute_single_step" => Some(f),
             _ => None,
         })
-        .expect("expected execute_single_step function");
+        .expect("expected execute_single_step function")
+}
 
-    // The step lookup happens inside the first `if let Some(step) = ...` guard;
-    // validate that the guard calls `find_step_with_metadata(...)` with the
-    // expected shape.
-    let expr_if = extract_if_expr(&item.block.stmts);
+fn assert_find_step_with_metadata_call(expr_if: &syn::ExprIf) -> &syn::ExprCall {
     let expr_let = extract_let_from_cond(expr_if.cond.as_ref());
     let find_step_call = extract_call(expr_let.expr.as_ref());
     let func_path = extract_path(find_step_call.func.as_ref());
@@ -120,9 +104,6 @@ fn execute_single_step_looks_up_steps_with_steptext_from() {
         "expected to call find_step_with_metadata(...)",
     );
 
-    // Confirm `find_step_with_metadata` has exactly two arguments and then
-    // inspect the second one to ensure we pass a `StepText` wrapper rather than
-    // allocating.
     let args: Vec<_> = find_step_call.args.iter().collect();
     assert_eq!(
         args.len(),
@@ -130,8 +111,15 @@ fn execute_single_step_looks_up_steps_with_steptext_from() {
         "expected find_step_with_metadata(keyword, text)"
     );
 
-    // Validate the second argument is `StepText::from(text)` so the generated
-    // code uses the intended step-text newtype conversion.
+    find_step_call
+}
+
+#[expect(
+    clippy::indexing_slicing,
+    reason = "indexing is guarded by explicit arg length assertions"
+)]
+fn assert_steptext_from_wrapper(find_step_call: &syn::ExprCall) {
+    let args: Vec<_> = find_step_call.args.iter().collect();
     let steptext_call = extract_call(args[1]);
     let steptext_func_path = extract_path(steptext_call.func.as_ref());
     assert_path_ends_with(steptext_func_path, "from", "expected StepText::from(...)");
@@ -143,23 +131,17 @@ fn execute_single_step_looks_up_steps_with_steptext_from() {
         "expected StepText::from(...)",
     );
 
-    // Verify `StepText::from` is invoked with the `text` identifier from
-    // `execute_single_step`, ensuring the conversion wraps the string slice.
     let inner_args: Vec<_> = steptext_call.args.iter().collect();
     assert_eq!(inner_args.len(), 1, "expected StepText::from(text)");
     let inner_path = extract_path(inner_args[0]);
     assert_path_ends_with(inner_path, "text", "expected StepText::from(text)");
+}
 
-    // The if body should contain two statements:
-    // 1. validate_required_fixtures(&step, ctx, text, feature_path, scenario_name);
-    // 2. run_step(index, keyword, text, docstring, table, ctx, feature_path, scenario_name, &step)
-    let if_body_stmts = &expr_if.then_branch.stmts;
-    assert!(
-        if_body_stmts.len() >= 2,
-        "expected at least 2 statements in if body for validate_required_fixtures and run_step"
-    );
-
-    // First statement: validate_required_fixtures call
+#[expect(
+    clippy::indexing_slicing,
+    reason = "indexing is guarded by explicit arg length assertions"
+)]
+fn assert_validate_required_fixtures_call(if_body_stmts: &[syn::Stmt]) {
     let validate_call = extract_stmt_call(&if_body_stmts[0]);
     let validate_path = extract_path(validate_call.func.as_ref());
     assert_path_ends_with(
@@ -168,7 +150,6 @@ fn execute_single_step_looks_up_steps_with_steptext_from() {
         "expected first statement to call validate_required_fixtures",
     );
 
-    // Verify validate_required_fixtures arguments: &step, ctx, text, feature_path, scenario_name
     let validate_args: Vec<_> = validate_call.args.iter().collect();
     assert_eq!(
         validate_args.len(),
@@ -195,8 +176,13 @@ fn execute_single_step_looks_up_steps_with_steptext_from() {
         is_path_ident(validate_args[4], "scenario_name"),
         "expected fifth arg to be scenario_name"
     );
+}
 
-    // Second statement: run_step call
+#[expect(
+    clippy::indexing_slicing,
+    reason = "indexing is guarded by explicit arg length assertions"
+)]
+fn assert_run_step_call(if_body_stmts: &[syn::Stmt]) {
     let run_step_call = extract_stmt_call(&if_body_stmts[1]);
     let run_step_path = extract_path(run_step_call.func.as_ref());
     assert_path_ends_with(
@@ -205,7 +191,6 @@ fn execute_single_step_looks_up_steps_with_steptext_from() {
         "expected second statement to call run_step",
     );
 
-    // Verify run_step arguments: index, keyword, text, docstring, table, ctx, feature_path, scenario_name, &step
     let run_step_args: Vec<_> = run_step_call.args.iter().collect();
     assert_eq!(
         run_step_args.len(),
@@ -248,4 +233,31 @@ fn execute_single_step_looks_up_steps_with_steptext_from() {
         is_reference_to_ident(run_step_args[8], "step"),
         "expected ninth arg to be &step"
     );
+}
+
+#[test]
+#[expect(
+    clippy::expect_used,
+    reason = "test parses generated tokens and uses expect for clearer failures"
+)]
+fn execute_single_step_looks_up_steps_with_steptext_from() {
+    // Parse the generated helper tokens so we can assert on the AST structure,
+    // keeping this test resilient to formatting-only changes.
+    let file: syn::File =
+        syn::parse2(generate_step_executor()).expect("generate_step_executor parses as a file");
+    let item = find_execute_single_step_function(&file);
+
+    // Validate the `if let Some(step) = find_step_with_metadata(...)` guard
+    let expr_if = extract_if_expr(&item.block.stmts);
+    let find_step_call = assert_find_step_with_metadata_call(expr_if);
+    assert_steptext_from_wrapper(find_step_call);
+
+    // Validate the if body contains validate_required_fixtures and run_step calls
+    let if_body_stmts = &expr_if.then_branch.stmts;
+    assert!(
+        if_body_stmts.len() >= 2,
+        "expected at least 2 statements in if body for validate_required_fixtures and run_step"
+    );
+    assert_validate_required_fixtures_call(if_body_stmts);
+    assert_run_step_call(if_body_stmts);
 }
