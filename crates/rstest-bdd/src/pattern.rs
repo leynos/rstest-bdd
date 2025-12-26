@@ -115,6 +115,13 @@ impl StepPattern {
     ///
     /// Returns [`StepPatternError`] if the pattern contains invalid syntax.
     ///
+    /// # Notes
+    ///
+    /// - This operation is idempotent. Subsequent calls after a successful
+    ///   calculation are no-ops.
+    /// - This method is thread-safe; concurrent calls may race to compute
+    ///   the score, but only the first successful value is cached.
+    ///
     /// # Examples
     ///
     /// ```
@@ -123,8 +130,8 @@ impl StepPattern {
     /// let specific = StepPattern::from("overlap apples");
     /// let generic = StepPattern::from("overlap {item}");
     ///
-    /// let specific_score = specific.specificity().unwrap();
-    /// let generic_score = generic.specificity().unwrap();
+    /// let specific_score = specific.specificity().expect("specific pattern is valid");
+    /// let generic_score = generic.specificity().expect("generic pattern is valid");
     /// assert!(specific_score > generic_score);
     /// ```
     pub fn specificity(&self) -> Result<SpecificityScore, StepPatternError> {

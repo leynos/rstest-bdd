@@ -25,8 +25,10 @@ use std::cmp::Ordering;
 /// ```
 /// use rstest_bdd_patterns::SpecificityScore;
 ///
-/// let specific = SpecificityScore::calculate("the output is foo").unwrap();
-/// let generic = SpecificityScore::calculate("the output is {value}").unwrap();
+/// let specific = SpecificityScore::calculate("the output is foo")
+///     .expect("valid specific pattern");
+/// let generic = SpecificityScore::calculate("the output is {value}")
+///     .expect("valid generic pattern");
 /// assert!(specific > generic);
 /// ```
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -51,7 +53,8 @@ impl SpecificityScore {
     /// ```
     /// use rstest_bdd_patterns::SpecificityScore;
     ///
-    /// let score = SpecificityScore::calculate("I have {count:u32} apples").unwrap();
+    /// let score = SpecificityScore::calculate("I have {count:u32} apples")
+    ///     .expect("valid pattern");
     /// assert_eq!(score.literal_chars, 16); // "I have " + " apples"
     /// assert_eq!(score.placeholder_count, 1);
     /// assert_eq!(score.typed_placeholder_count, 1);

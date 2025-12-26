@@ -20,19 +20,19 @@ static UNTYPED_PLACEHOLDER_CALLED: AtomicUsize = AtomicUsize::new(0);
 // Pattern from issue #350: workspace executable pattern should beat generic
 #[given("the stdlib output is the workspace executable {path}")]
 fn workspace_executable_step(path: String) {
-    let _ = path.into_boxed_str();
+    drop(path);
     WORKSPACE_EXECUTABLE_CALLED.fetch_add(1, Ordering::Relaxed);
 }
 
 #[given("the stdlib output is {expected}")]
 fn generic_output_step(expected: String) {
-    let _ = expected.into_boxed_str();
+    drop(expected);
     GENERIC_OUTPUT_CALLED.fetch_add(1, Ordering::Relaxed);
 }
 
 #[given("{output}")]
 fn very_generic_step(output: String) {
-    let _ = output.into_boxed_str();
+    drop(output);
     VERY_GENERIC_CALLED.fetch_add(1, Ordering::Relaxed);
 }
 
@@ -45,7 +45,7 @@ fn typed_placeholder_step(count: u32) {
 
 #[given("I have {count} items")]
 fn untyped_placeholder_step(count: String) {
-    let _ = count.into_boxed_str();
+    drop(count);
     UNTYPED_PLACEHOLDER_CALLED.fetch_add(1, Ordering::Relaxed);
 }
 
@@ -83,6 +83,27 @@ fn assert_step_execution(
     );
 }
 
+#[expect(clippy::expect_used, reason = "test helper ensures step exists")]
+fn assert_typed_step_execution(
+    step_text: &str,
+    expected_counters: (usize, usize),
+    assertion_message: &str,
+) {
+    let step_fn = find_step(StepKeyword::Given, step_text.into()).expect("step not found");
+
+    let mut ctx = StepContext::default();
+    match step_fn(&mut ctx, step_text, None, None) {
+        Ok(StepExecution::Continue { .. }) => {}
+        Ok(StepExecution::Skipped { .. }) => panic!("step unexpectedly skipped"),
+        Err(e) => panic!("unexpected error: {e:?}"),
+    }
+
+    let typed = TYPED_PLACEHOLDER_CALLED.load(Ordering::Relaxed);
+    let untyped = UNTYPED_PLACEHOLDER_CALLED.load(Ordering::Relaxed);
+
+    assert_eq!((typed, untyped), expected_counters, "{assertion_message}");
+}
+
 #[test]
 #[serial]
 fn specific_pattern_beats_generic_from_issue_350() {
@@ -109,24 +130,10 @@ fn generic_pattern_matches_when_specific_does_not() {
 #[serial]
 fn typed_placeholder_beats_untyped_as_tiebreaker() {
     reset_counters();
-
-    #[expect(clippy::expect_used, reason = "test ensures step exists")]
-    let step_fn = find_step(StepKeyword::Given, "I have 42 items".into()).expect("step not found");
-
-    let mut ctx = StepContext::default();
-    match step_fn(&mut ctx, "I have 42 items", None, None) {
-        Ok(StepExecution::Continue { .. }) => {}
-        Ok(StepExecution::Skipped { .. }) => panic!("step unexpectedly skipped"),
-        Err(e) => panic!("unexpected error: {e:?}"),
-    }
-
-    let typed = TYPED_PLACEHOLDER_CALLED.load(Ordering::Relaxed);
-    let untyped = UNTYPED_PLACEHOLDER_CALLED.load(Ordering::Relaxed);
-
-    assert_eq!(
-        (typed, untyped),
+    assert_typed_step_execution(
+        "I have 42 items",
         (1, 0),
-        "typed placeholder should win as tiebreaker when literal counts are equal"
+        "typed placeholder should win as tiebreaker when literal counts are equal",
     );
 }
 

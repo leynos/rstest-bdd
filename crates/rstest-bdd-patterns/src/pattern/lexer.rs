@@ -92,7 +92,7 @@ impl<'pattern> LexerContext<'pattern> {
 /// ```
 /// use rstest_bdd_patterns::pattern::lexer::{lex_pattern, Token};
 ///
-/// let tokens = lex_pattern("Given {value:u32}").unwrap();
+/// let tokens = lex_pattern("Given {value:u32}").expect("valid pattern syntax");
 /// assert_eq!(tokens.len(), 2);
 /// ```
 pub fn lex_pattern(pattern: &str) -> Result<Vec<Token>, PatternError> {
