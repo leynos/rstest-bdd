@@ -49,14 +49,17 @@ fn bypassed_step(
 /// Helper to wrap a synchronous step function into an async one by returning
 /// an immediately-ready future.
 #[cfg(feature = "diagnostics")]
+#[expect(
+    clippy::type_complexity,
+    reason = "currying pattern produces complex return type to reduce parameter count"
+)]
 fn wrap_sync_step_as_async<'a>(
     sync_fn: StepFn,
-    ctx: &'a mut StepContext<'a>,
-    text: &str,
-    docstring: Option<&str>,
-    table: Option<&[&[&str]]>,
-) -> StepFuture<'a> {
-    Box::pin(std::future::ready(sync_fn(ctx, text, docstring, table)))
+) -> impl FnOnce(&'a mut StepContext<'a>, &str, Option<&str>, Option<&[&[&str]]>) -> StepFuture<'a>
+{
+    move |ctx, text, docstring, table| {
+        Box::pin(std::future::ready(sync_fn(ctx, text, docstring, table)))
+    }
 }
 
 #[cfg(feature = "diagnostics")]
@@ -66,7 +69,7 @@ fn bypassed_step_async<'a>(
     docstring: Option<&str>,
     table: Option<&[&[&str]]>,
 ) -> StepFuture<'a> {
-    wrap_sync_step_as_async(bypassed_step, ctx, text, docstring, table)
+    wrap_sync_step_as_async(bypassed_step)(ctx, text, docstring, table)
 }
 
 #[cfg(feature = "diagnostics")]
@@ -90,7 +93,7 @@ fn forced_bypass_async<'a>(
     docstring: Option<&str>,
     table: Option<&[&[&str]]>,
 ) -> StepFuture<'a> {
-    wrap_sync_step_as_async(forced_bypass, ctx, text, docstring, table)
+    wrap_sync_step_as_async(forced_bypass)(ctx, text, docstring, table)
 }
 
 #[cfg(feature = "diagnostics")]
