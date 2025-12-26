@@ -74,18 +74,18 @@ fn generate_validate_fixtures_fn() -> TokenStream2 {
 ///
 /// ```text
 /// fn encode_skip_message(message: Option<String>) -> String {
-///     // Returns SKIP_NONE_PREFIX if None
-///     // Returns SKIP_SOME_PREFIX + message if Some
+///     // Returns __RSTEST_BDD_SKIP_NONE_PREFIX if None
+///     // Returns __RSTEST_BDD_SKIP_SOME_PREFIX + message if Some
 /// }
 /// ```
 fn generate_encode_skip_fn() -> TokenStream2 {
     quote! {
         fn encode_skip_message(message: Option<String>) -> String {
             message.map_or_else(
-                || SKIP_NONE_PREFIX.to_string(),
+                || __RSTEST_BDD_SKIP_NONE_PREFIX.to_string(),
                 |msg| {
                     let mut encoded = String::with_capacity(1 + msg.len());
-                    encoded.push(SKIP_SOME_PREFIX);
+                    encoded.push(__RSTEST_BDD_SKIP_SOME_PREFIX);
                     encoded.push_str(&msg);
                     encoded
                 },
@@ -212,8 +212,8 @@ pub(in crate::codegen::scenario::runtime) fn generate_step_executor() -> TokenSt
 /// ```text
 /// fn __rstest_bdd_decode_skip_message(encoded: String) -> Option<String> {
 ///     match encoded.chars().next() {
-///         Some(c) if c == SKIP_NONE_PREFIX => None,
-///         Some(c) if c == SKIP_SOME_PREFIX => Some(message),
+///         Some(c) if c == __RSTEST_BDD_SKIP_NONE_PREFIX => None,
+///         Some(c) if c == __RSTEST_BDD_SKIP_SOME_PREFIX => Some(message),
 ///         _ => Some(encoded),
 ///     }
 /// }
@@ -222,8 +222,8 @@ pub(in crate::codegen::scenario::runtime) fn generate_skip_decoder() -> TokenStr
     quote! {
         fn __rstest_bdd_decode_skip_message(encoded: String) -> Option<String> {
             match encoded.chars().next() {
-                Some(c) if c == SKIP_NONE_PREFIX => None,
-                Some(c) if c == SKIP_SOME_PREFIX => {
+                Some(c) if c == __RSTEST_BDD_SKIP_NONE_PREFIX => None,
+                Some(c) if c == __RSTEST_BDD_SKIP_SOME_PREFIX => {
                     let prefix_len = c.len_utf8();
                     Some(encoded[prefix_len..].to_string())
                 }
