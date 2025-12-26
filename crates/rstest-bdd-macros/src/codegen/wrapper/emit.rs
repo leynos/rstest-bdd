@@ -366,10 +366,7 @@ fn generate_wrapper_body(
 /// Generate fixture registration and inventory code for the wrapper.
 fn generate_registration_code(
     config: &WrapperConfig<'_>,
-    pattern_ident: &proc_macro2::Ident,
-    sync_wrapper_ident: &proc_macro2::Ident,
-    async_wrapper_ident: &proc_macro2::Ident,
-    const_ident: &proc_macro2::Ident,
+    wrapper_idents: &WrapperIdents,
 ) -> TokenStream2 {
     let fixture_names: Vec<_> = config
         .args
@@ -385,6 +382,10 @@ fn generate_registration_code(
     let fixture_len = fixture_names.len();
     let keyword = config.keyword;
     let path = crate::codegen::rstest_bdd_path();
+    let pattern_ident = &wrapper_idents.pattern_ident;
+    let sync_wrapper_ident = &wrapper_idents.sync_wrapper;
+    let async_wrapper_ident = &wrapper_idents.async_wrapper;
+    let const_ident = &wrapper_idents.const_ident;
     quote! {
         const #const_ident: [&'static str; #fixture_len] = [#(#fixture_names),*];
         const _: [(); #fixture_len] = [(); #const_ident.len()];
@@ -402,21 +403,17 @@ pub(crate) fn generate_wrapper_code(config: &WrapperConfig<'_>) -> TokenStream2 
     // Relaxed ordering suffices: the counter only ensures a unique suffix and
     // is not used for synchronisation with other data.
     let id = COUNTER.fetch_add(1, Ordering::Relaxed);
-    let WrapperIdents {
-        sync_wrapper,
-        async_wrapper,
-        const_ident,
-        pattern_ident,
-    } = generate_wrapper_identifiers(config.ident, id);
-    let body = generate_wrapper_body(config, &sync_wrapper, &pattern_ident);
-    let async_wrapper_fn = generate_async_wrapper_from_sync(&sync_wrapper, &async_wrapper);
-    let registration = generate_registration_code(
+    let wrapper_idents = generate_wrapper_identifiers(config.ident, id);
+    let body = generate_wrapper_body(
         config,
-        &pattern_ident,
-        &sync_wrapper,
-        &async_wrapper,
-        &const_ident,
+        &wrapper_idents.sync_wrapper,
+        &wrapper_idents.pattern_ident,
     );
+    let async_wrapper_fn = generate_async_wrapper_from_sync(
+        &wrapper_idents.sync_wrapper,
+        &wrapper_idents.async_wrapper,
+    );
+    let registration = generate_registration_code(config, &wrapper_idents);
 
     quote! {
         #body

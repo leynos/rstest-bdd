@@ -8,6 +8,26 @@ use rstest_bdd::{
 };
 use unic_langid::langid;
 
+/// Helper to wrap a synchronous step function into an async one by returning
+/// an immediately-ready future.
+fn sync_to_async<'a, F>(
+    sync_fn: F,
+    ctx: &'a mut StepContext<'a>,
+    text: &str,
+    docstring: Option<&str>,
+    table: Option<&[&[&str]]>,
+) -> StepFuture<'a>
+where
+    F: FnOnce(
+        &mut StepContext<'_>,
+        &str,
+        Option<&str>,
+        Option<&[&[&str]]>,
+    ) -> Result<StepExecution, StepError>,
+{
+    Box::pin(std::future::ready(sync_fn(ctx, text, docstring, table)))
+}
+
 fn sample() {}
 #[expect(
     clippy::unnecessary_wraps,
@@ -31,7 +51,7 @@ fn wrapper_async<'a>(
     docstring: Option<&str>,
     table: Option<&[&[&str]]>,
 ) -> StepFuture<'a> {
-    Box::pin(std::future::ready(wrapper(ctx, text, docstring, table)))
+    sync_to_async(wrapper, ctx, text, docstring, table)
 }
 
 step!(
@@ -62,9 +82,7 @@ fn failing_wrapper_async<'a>(
     docstring: Option<&str>,
     table: Option<&[&[&str]]>,
 ) -> StepFuture<'a> {
-    Box::pin(std::future::ready(failing_wrapper(
-        ctx, text, docstring, table,
-    )))
+    sync_to_async(failing_wrapper, ctx, text, docstring, table)
 }
 
 step!(
@@ -97,9 +115,7 @@ fn panicking_wrapper_async<'a>(
     docstring: Option<&str>,
     table: Option<&[&[&str]]>,
 ) -> StepFuture<'a> {
-    Box::pin(std::future::ready(panicking_wrapper(
-        ctx, text, docstring, table,
-    )))
+    sync_to_async(panicking_wrapper, ctx, text, docstring, table)
 }
 
 step!(
@@ -133,9 +149,7 @@ fn needs_fixture_wrapper_async<'a>(
     docstring: Option<&str>,
     table: Option<&[&[&str]]>,
 ) -> StepFuture<'a> {
-    Box::pin(std::future::ready(needs_fixture_wrapper(
-        ctx, text, docstring, table,
-    )))
+    sync_to_async(needs_fixture_wrapper, ctx, text, docstring, table)
 }
 
 step!(

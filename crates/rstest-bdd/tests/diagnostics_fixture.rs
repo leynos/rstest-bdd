@@ -12,7 +12,7 @@ use serial_test::serial;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 #[cfg(feature = "diagnostics")]
-use rstest_bdd::{StepContext, StepExecution, StepFuture, StepKeyword, step};
+use rstest_bdd::{StepContext, StepExecution, StepFn, StepFuture, StepKeyword, step};
 
 #[cfg(feature = "diagnostics")]
 step!(
@@ -46,6 +46,19 @@ fn bypassed_step(
     Ok(StepExecution::Continue { value: None })
 }
 
+/// Helper to wrap a synchronous step function into an async one by returning
+/// an immediately-ready future.
+#[cfg(feature = "diagnostics")]
+fn wrap_sync_step_as_async<'a>(
+    sync_fn: StepFn,
+    ctx: &'a mut StepContext<'a>,
+    text: &str,
+    docstring: Option<&str>,
+    table: Option<&[&[&str]]>,
+) -> StepFuture<'a> {
+    Box::pin(std::future::ready(sync_fn(ctx, text, docstring, table)))
+}
+
 #[cfg(feature = "diagnostics")]
 fn bypassed_step_async<'a>(
     ctx: &'a mut StepContext<'a>,
@@ -53,9 +66,7 @@ fn bypassed_step_async<'a>(
     docstring: Option<&str>,
     table: Option<&[&[&str]]>,
 ) -> StepFuture<'a> {
-    Box::pin(std::future::ready(bypassed_step(
-        ctx, text, docstring, table,
-    )))
+    wrap_sync_step_as_async(bypassed_step, ctx, text, docstring, table)
 }
 
 #[cfg(feature = "diagnostics")]
@@ -79,9 +90,7 @@ fn forced_bypass_async<'a>(
     docstring: Option<&str>,
     table: Option<&[&[&str]]>,
 ) -> StepFuture<'a> {
-    Box::pin(std::future::ready(forced_bypass(
-        ctx, text, docstring, table,
-    )))
+    wrap_sync_step_as_async(forced_bypass, ctx, text, docstring, table)
 }
 
 #[cfg(feature = "diagnostics")]
