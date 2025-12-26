@@ -150,26 +150,14 @@ pub(super) fn generate_step_executor() -> TokenStream2 {
 pub(super) fn generate_skip_decoder() -> TokenStream2 {
     quote! {
         fn __rstest_bdd_decode_skip_message(encoded: String) -> Option<String> {
-            fn is_skip_none(c: Option<char>) -> bool {
-                matches!(c, Some(prefix) if prefix == SKIP_NONE_PREFIX)
+            match encoded.chars().next() {
+                Some(c) if c == SKIP_NONE_PREFIX => None,
+                Some(c) if c == SKIP_SOME_PREFIX => {
+                    let prefix_len = c.len_utf8();
+                    Some(encoded[prefix_len..].to_string())
+                }
+                _ => Some(encoded),
             }
-
-            fn is_skip_some(c: Option<char>) -> bool {
-                matches!(c, Some(prefix) if prefix == SKIP_SOME_PREFIX)
-            }
-
-            let first = encoded.chars().next();
-
-            if is_skip_none(first) {
-                return None;
-            }
-
-            if is_skip_some(first) {
-                let prefix_len = first.expect("checked above").len_utf8();
-                return Some(encoded[prefix_len..].to_string());
-            }
-
-            Some(encoded)
         }
     }
 }
