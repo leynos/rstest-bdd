@@ -194,6 +194,19 @@ fn gen_step_struct_decl(
     })
 }
 
+/// Context for parsing a single step argument from a regex capture.
+#[derive(Copy, Clone)]
+struct ArgParseContext<'a> {
+    /// The argument being parsed.
+    arg: &'a Arg,
+    /// Index of this argument in the capture list.
+    idx: usize,
+    /// Token stream representing the capture expression.
+    capture: &'a TokenStream2,
+    /// Optional type hint (e.g., "string") for this placeholder.
+    hint: Option<&'a str>,
+}
+
 /// Generate parsing code for a single step argument from a regex capture.
 ///
 /// Handles both borrowed `&str` references (direct assignment) and owned types
@@ -203,14 +216,14 @@ fn gen_step_struct_decl(
 ///
 /// Returns the generated [`TokenStream2`] for declaring and initializing the
 /// argument variable.
-fn gen_single_step_parse(
-    arg: &Arg,
-    idx: usize,
-    capture: &TokenStream2,
-    hint: Option<&str>,
-    pattern: &syn::LitStr,
-    ident: &syn::Ident,
-) -> TokenStream2 {
+fn gen_single_step_parse(ctx: ArgParseContext<'_>, meta: StepMeta<'_>) -> TokenStream2 {
+    let ArgParseContext {
+        arg,
+        idx,
+        capture,
+        hint,
+    } = ctx;
+    let StepMeta { pattern, ident } = meta;
     let Arg::Step { pat, ty } = arg else {
         unreachable!("step argument vector must contain step args");
     };
@@ -290,13 +303,18 @@ pub(super) fn gen_step_parses(
     hints: &[Option<String>],
     meta: StepMeta<'_>,
 ) -> Vec<TokenStream2> {
-    let StepMeta { pattern, ident } = meta;
     step_args
         .iter()
         .zip(captured.iter().enumerate())
         .map(|(arg, (idx, capture))| {
             let hint = hints.get(idx).and_then(|h| h.as_deref());
-            gen_single_step_parse(arg, idx, capture, hint, pattern, ident)
+            let ctx = ArgParseContext {
+                arg,
+                idx,
+                capture,
+                hint,
+            };
+            gen_single_step_parse(ctx, meta)
         })
         .collect()
 }
