@@ -8,13 +8,15 @@ mod capture;
 mod errors;
 mod hint;
 mod keyword;
-mod pattern;
+pub mod pattern;
+mod specificity;
 
 pub use capture::extract_captured_values;
 pub use errors::{PatternError, PlaceholderErrorInfo};
 pub use hint::get_type_pattern;
 pub use keyword::{StepKeyword, StepKeywordParseError, UnsupportedStepType};
 pub use pattern::build_regex_from_pattern;
+pub use specificity::SpecificityScore;
 
 /// Build and compile a `Regex` from a step pattern.
 ///

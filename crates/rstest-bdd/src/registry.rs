@@ -8,6 +8,7 @@ use crate::placeholder::extract_placeholders;
 use crate::types::{PatternStr, StepFn, StepKeyword, StepText};
 use hashbrown::{HashMap, HashSet};
 use inventory::iter;
+use rstest_bdd_patterns::SpecificityScore;
 use std::hash::{BuildHasher, Hash, Hasher};
 use std::sync::{LazyLock, Mutex};
 
@@ -127,10 +128,30 @@ fn resolve_exact_step(keyword: StepKeyword, pattern: PatternStr<'_>) -> Option<&
 }
 
 fn resolve_step(keyword: StepKeyword, text: StepText<'_>) -> Option<&'static Step> {
-    resolve_exact_step(keyword, text.as_str().into()).or_else(|| {
-        iter::<Step>.into_iter().find(|step| {
-            step.keyword == keyword && extract_placeholders(step.pattern, text).is_ok()
+    // Fast path: exact pattern match
+    if let Some(step) = resolve_exact_step(keyword, text.as_str().into()) {
+        return Some(step);
+    }
+
+    // Find the most specific matching step directly via iterator
+    iter::<Step>
+        .into_iter()
+        .filter(|step| step.keyword == keyword && extract_placeholders(step.pattern, text).is_ok())
+        .max_by(|a, b| {
+            let a_spec = step_specificity(a);
+            let b_spec = step_specificity(b);
+            a_spec.cmp(&b_spec)
         })
+}
+
+/// Compute the specificity score for a step, logging any errors.
+fn step_specificity(step: &Step) -> SpecificityScore {
+    step.pattern.specificity().unwrap_or_else(|e| {
+        log::warn!(
+            "specificity calculation failed for pattern '{}': {e}",
+            step.pattern.as_str()
+        );
+        SpecificityScore::default()
     })
 }
 

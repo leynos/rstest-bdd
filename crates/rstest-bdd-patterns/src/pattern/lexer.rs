@@ -7,18 +7,32 @@ use crate::errors::PatternError;
 
 use super::placeholder::{PlaceholderSpec, parse_placeholder};
 
+/// Token produced by the pattern lexer.
+///
+/// Patterns are tokenised into a sequence of literal text segments and
+/// placeholder markers. Stray braces that do not form valid placeholders
+/// are preserved as separate tokens.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) enum Token {
+pub enum Token {
+    /// Literal text segment (e.g., `"Given "` from `"Given {value}"`).
     Literal(String),
+    /// A valid placeholder with an optional type hint.
     Placeholder {
+        /// Byte offset of the opening brace in the original pattern.
         start: usize,
+        /// Placeholder identifier (e.g., `"value"` from `{value:u32}`).
         name: String,
+        /// Optional type hint (e.g., `Some("u32")` from `{value:u32}`).
         hint: Option<String>,
     },
+    /// An unmatched opening brace that does not start a valid placeholder.
     OpenBrace {
+        /// Byte offset of the brace in the original pattern.
         index: usize,
     },
+    /// An unmatched closing brace.
     CloseBrace {
+        /// Byte offset of the brace in the original pattern.
         index: usize,
     },
 }
@@ -67,7 +81,21 @@ impl<'pattern> LexerContext<'pattern> {
     }
 }
 
-pub(crate) fn lex_pattern(pattern: &str) -> Result<Vec<Token>, PatternError> {
+/// Tokenise a step pattern into literals and placeholders.
+///
+/// # Errors
+///
+/// Returns [`PatternError`] if the pattern contains invalid placeholder syntax.
+///
+/// # Examples
+///
+/// ```
+/// use rstest_bdd_patterns::pattern::lexer::{lex_pattern, Token};
+///
+/// let tokens = lex_pattern("Given {value:u32}").expect("valid pattern syntax");
+/// assert_eq!(tokens.len(), 2);
+/// ```
+pub fn lex_pattern(pattern: &str) -> Result<Vec<Token>, PatternError> {
     let bytes = pattern.as_bytes();
     let mut context = LexerContext::new(pattern);
 
