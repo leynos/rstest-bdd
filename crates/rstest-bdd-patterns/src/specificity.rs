@@ -55,7 +55,7 @@ impl SpecificityScore {
     ///
     /// let score = SpecificityScore::calculate("I have {count:u32} apples")
     ///     .expect("valid pattern");
-    /// assert_eq!(score.literal_chars, 16); // "I have " + " apples"
+    /// assert_eq!(score.literal_chars, 14); // "I have " + " apples"
     /// assert_eq!(score.placeholder_count, 1);
     /// assert_eq!(score.typed_placeholder_count, 1);
     /// ```
