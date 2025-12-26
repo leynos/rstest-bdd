@@ -6,7 +6,6 @@
 use crate::pattern::StepPattern;
 use crate::placeholder::extract_placeholders;
 use crate::types::{PatternStr, StepFn, StepKeyword, StepText};
-use rstest_bdd_patterns::SpecificityScore;
 use hashbrown::{HashMap, HashSet};
 use inventory::iter;
 use rstest_bdd_patterns::SpecificityScore;
@@ -134,37 +133,25 @@ fn resolve_step(keyword: StepKeyword, text: StepText<'_>) -> Option<&'static Ste
         return Some(step);
     }
 
-    // Collect all matching steps
-    let matches: Vec<_> = iter::<Step>
+    // Find the most specific matching step directly via iterator
+    iter::<Step>
         .into_iter()
         .filter(|step| step.keyword == keyword && extract_placeholders(step.pattern, text).is_ok())
-        .collect();
-
-    match matches.as_slice() {
-        [] => None,
-        [single] => Some(*single),
-        _ => select_most_specific_step(matches),
-    }
+        .max_by(|a, b| {
+            let a_spec = step_specificity(a);
+            let b_spec = step_specificity(b);
+            a_spec.cmp(&b_spec)
+        })
 }
 
-/// Select the step with the highest specificity score from multiple matches.
-fn select_most_specific_step(matches: Vec<&'static Step>) -> Option<&'static Step> {
-    matches.into_iter().max_by(|a, b| {
-        let a_spec = a.pattern.specificity().unwrap_or_else(|e| {
-            log::warn!(
-                "specificity calculation failed for pattern '{}': {e}",
-                a.pattern.as_str()
-            );
-            SpecificityScore::default()
-        });
-        let b_spec = b.pattern.specificity().unwrap_or_else(|e| {
-            log::warn!(
-                "specificity calculation failed for pattern '{}': {e}",
-                b.pattern.as_str()
-            );
-            SpecificityScore::default()
-        });
-        a_spec.cmp(&b_spec)
+/// Compute the specificity score for a step, logging any errors.
+fn step_specificity(step: &Step) -> SpecificityScore {
+    step.pattern.specificity().unwrap_or_else(|e| {
+        log::warn!(
+            "specificity calculation failed for pattern '{}': {e}",
+            step.pattern.as_str()
+        );
+        SpecificityScore::default()
     })
 }
 

@@ -150,15 +150,7 @@ mod tests {
 
     #[test]
     fn fewer_placeholders_wins_with_equal_literals() {
-        let one_placeholder = score("value is {x}");
-        let two_placeholders = score("value is {x} {y}");
-
-        // Both have same literal char count, but one has fewer placeholders
-        assert_eq!(one_placeholder.literal_chars, 9); // "value is "
-        assert_eq!(two_placeholders.literal_chars, 10); // "value is " + " "
-
-        // Actually two_placeholders has more literal chars, so it wins
-        // Let's test with equal literals
+        // Patterns with equal literal char counts but different placeholder counts
         let a = score("ab {x}");
         let b = score("a {x} {y}");
 
