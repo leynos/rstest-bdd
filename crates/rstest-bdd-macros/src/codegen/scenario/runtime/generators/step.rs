@@ -1,4 +1,35 @@
 //! Step execution code generators.
+//!
+//! This module generates the runtime Rust code responsible for executing individual
+//! scenario steps. It receives step metadata (keywords, text patterns, fixtures) from
+//! the scenario parser and produces `TokenStream2` fragments that are injected into
+//! the generated test function body.
+//!
+//! # Responsibilities
+//!
+//! - Generate `__rstest_bdd_execute_single_step`: the main step executor that performs
+//!   registry lookup via `find_step_with_metadata`, validates fixture availability,
+//!   runs the step, and encodes skip signals for propagation.
+//! - Generate `__rstest_bdd_decode_skip_message`: decodes encoded skip messages back
+//!   into their original `Option<String>` form.
+//! - Generate the step executor loop that iterates over scenario steps, dispatching
+//!   each to the executor and handling results (value insertion or skip propagation).
+//!
+//! # Integration
+//!
+//! These generators are called by the parent `runtime` module during scenario codegen.
+//! The produced tokens are combined with scenario-level scaffolding (from `scenario.rs`)
+//! to form the complete test function body. Inner helper functions like
+//! `validate_required_fixtures` and `encode_skip_message` are defined within the
+//! generated executor to keep the public API minimal.
+//!
+//! # Invariants
+//!
+//! - Skip messages are encoded with `__RSTEST_BDD_SKIP_NONE_PREFIX` (no message) or
+//!   `__RSTEST_BDD_SKIP_SOME_PREFIX` (message present) to distinguish skip signals
+//!   from execution errors in the `Result<_, String>` return type.
+//! - Fixture validation occurs before step execution, ensuring missing fixtures
+//!   produce clear panic messages with diagnostic context.
 
 use proc_macro2::TokenStream as TokenStream2;
 use quote::quote;
