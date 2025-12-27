@@ -48,23 +48,14 @@ pub fn handle_implementation(
         return Ok(None);
     }
 
-    // Get the feature index for this file
+    // Get the feature index for this file (includes the cached source text)
     let Some(feature_index) = state.feature_index(&path) else {
         debug!(?path, "no feature index found for file");
         return Ok(None);
     };
 
-    // Read the source for position-to-byte-offset conversion
-    let source = match std::fs::read_to_string(&path) {
-        Ok(s) => s,
-        Err(err) => {
-            debug!(?path, %err, "failed to read feature file");
-            return Ok(None);
-        }
-    };
-
-    // Find the step at cursor position
-    let Some(step) = find_step_at_position(feature_index, &source, position) else {
+    // Find the step at cursor position using the cached source
+    let Some(step) = find_step_at_position(feature_index, &feature_index.source, position) else {
         debug!(?position, "no step at cursor position");
         return Ok(None);
     };
@@ -172,12 +163,13 @@ mod tests {
 
     #[test]
     fn find_step_at_position_returns_none_for_empty_index() {
+        let source = "Feature: test\n";
         let index = FeatureFileIndex {
             path: PathBuf::from("/tmp/test.feature"),
+            source: source.to_owned(),
             steps: Vec::new(),
             example_columns: Vec::new(),
         };
-        let source = "Feature: test\n";
         let position = Position::new(0, 0);
         assert!(find_step_at_position(&index, source, position).is_none());
     }
@@ -187,8 +179,10 @@ mod tests {
         use crate::indexing::IndexedStep;
         use gherkin::StepType;
 
+        let source = "Feature: demo\n  Scenario: s\n    Given a step\n";
         let index = FeatureFileIndex {
             path: PathBuf::from("/tmp/test.feature"),
+            source: source.to_owned(),
             steps: vec![IndexedStep {
                 keyword: "Given".to_owned(),
                 step_type: StepType::Given,
@@ -199,8 +193,6 @@ mod tests {
             }],
             example_columns: Vec::new(),
         };
-
-        let source = "Feature: demo\n  Scenario: s\n    Given a step\n";
         // Position on the step line (line 2, column 4 = "Given")
         let position = Position::new(2, 4);
         let step = find_step_at_position(&index, source, position);

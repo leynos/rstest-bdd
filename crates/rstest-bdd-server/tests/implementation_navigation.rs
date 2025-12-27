@@ -314,3 +314,30 @@ fn implementation_resolves_and_but_keywords_to_preceding_step_type() {
         "But step should match Then implementation"
     );
 }
+
+#[expect(clippy::expect_used, reason = "test uses expect for clarity")]
+#[test]
+fn implementation_returns_none_for_unindexed_feature_file() {
+    // Create a feature file on disk but do NOT index it in the server state.
+    // This exercises the `state.feature_index(&path) == None` branch.
+    let dir = TempDir::new().expect("temp dir");
+    let feature_path = dir.path().join("unindexed.feature");
+    std::fs::write(
+        &feature_path,
+        "Feature: unindexed\n  Scenario: example\n    Given an unindexed step\n",
+    )
+    .expect("write feature file");
+
+    // Create a fresh state without indexing the feature file
+    let state = ServerState::new(ServerConfig::default());
+
+    // Request implementation on the step line
+    let feature_uri = Url::from_file_path(&feature_path).expect("feature URI");
+    let params = make_params(feature_uri, 2, 4);
+    let response = handle_implementation(&state, &params).expect("implementation response");
+
+    assert!(
+        response.is_none(),
+        "should return None for unindexed feature file"
+    );
+}
