@@ -42,6 +42,32 @@ impl Parse for StepAttrArgs {
             });
         }
 
+        // Check for expr = "..." syntax (cucumber-rs compatibility)
+        if input.peek(syn::Ident) {
+            let fork = input.fork();
+            if let Ok(ident) = fork.parse::<syn::Ident>() {
+                if ident == "expr" && fork.peek(syn::Token![=]) {
+                    // Commit to this branch
+                    let _: syn::Ident = input.parse()?;
+                    input.parse::<syn::Token![=]>()?;
+                    let pattern: syn::LitStr = input.parse()?;
+                    let return_override = if input.is_empty() {
+                        None
+                    } else {
+                        input.parse::<syn::Token![,]>()?;
+                        Some(parse_return_override(input)?)
+                    };
+                    if !input.is_empty() {
+                        return Err(input.error("unexpected tokens in step attribute"));
+                    }
+                    return Ok(Self {
+                        pattern: Some(pattern),
+                        return_override,
+                    });
+                }
+            }
+        }
+
         if input.peek(syn::LitStr) {
             let pattern: syn::LitStr = input.parse()?;
             let return_override = if input.is_empty() {

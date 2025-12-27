@@ -216,8 +216,32 @@ Implicit fixtures such as `basket` must already be in scope in the test module;
 - Fixtures are injected automatically when parameter names match fixtures;
   use `#[from(name)]` only to rename a parameter.
 
-- Prefer readable step text first; compile‑time checks ensure you don’t forget
+- Prefer readable step text first; compile‑time checks ensure you don't forget
   an implementation.
+
+### cucumber-rs migration
+
+For easier migration from cucumber-rs, step macros also accept the `expr = "..."`
+syntax:
+
+```rust,no_run
+use rstest_bdd::{given, when, then};
+
+// cucumber-rs style (supported for migration):
+#[given(expr = "an empty basket")]
+fn empty_basket(basket: &mut Basket) {
+    basket.clear();
+}
+
+// rstest-bdd style (preferred for new code):
+#[given("an empty basket")]
+fn empty_basket_alt(basket: &mut Basket) {
+    basket.clear();
+}
+```
+
+Both forms are functionally equivalent. The direct string literal syntax is
+recommended for new code as it is more concise.
 
 ______________________________________________________________________
 
