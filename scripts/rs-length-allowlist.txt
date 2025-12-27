@@ -7,3 +7,4 @@ crates/rstest-bdd-macros/src/utils/pattern.rs
 crates/rstest-bdd/src/context.rs
 crates/rstest-bdd/src/registry.rs
 crates/rstest-bdd/src/types.rs
+crates/rstest-bdd/tests/step_registry.rs
