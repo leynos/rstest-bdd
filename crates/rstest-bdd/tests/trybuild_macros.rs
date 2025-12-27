@@ -81,6 +81,7 @@ fn run_failing_macro_tests(t: &trybuild::TestCases) {
         MacroFixtureCase::from("step_nested_pattern.rs"),
         MacroFixtureCase::from("scenarios_fixtures_duplicate.rs"),
         MacroFixtureCase::from("scenarios_fixtures_malformed.rs"),
+        MacroFixtureCase::from("scenarios_autodiscovery_invalid_path.rs"),
     ] {
         t.compile_fail(macros_fixture(case).as_std_path());
     }
