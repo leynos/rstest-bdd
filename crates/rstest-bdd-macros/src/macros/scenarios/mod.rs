@@ -33,6 +33,14 @@ struct TagFilter {
     raw: String,
 }
 
+/// Context for processing feature files, bundling configuration
+/// that remains constant across multiple feature file operations.
+struct FeatureProcessingContext<'a> {
+    manifest_dir: &'a Path,
+    tag_filter: Option<&'a TagExpression>,
+    fixtures: &'a [FixtureSpec],
+}
+
 #[expect(
     clippy::single_match_else,
     clippy::option_if_let_else,
@@ -55,8 +63,6 @@ fn process_scenarios(
     feature: &gherkin::Feature,
     ctx: &ScenarioTestContext<'_>,
     used_names: &mut HashSet<String>,
-    tag_filter: Option<&TagExpression>,
-    fixtures: &[FixtureSpec],
 ) -> (Vec<TokenStream2>, Vec<TokenStream2>) {
     let mut tests = Vec::new();
     let mut errors = Vec::new();
@@ -64,8 +70,11 @@ fn process_scenarios(
     for idx in 0..feature.scenarios.len() {
         match extract_scenario_steps(feature, Some(idx)) {
             Ok(mut data) => {
-                if tag_filter.is_none_or(|filter| data.filter_by_tags(filter)) {
-                    tests.push(generate_scenario_test(ctx, used_names, data, fixtures));
+                if ctx
+                    .tag_filter
+                    .is_none_or(|filter| data.filter_by_tags(filter))
+                {
+                    tests.push(generate_scenario_test(ctx, used_names, data));
                 }
             }
             Err(err) => errors.push(err),
@@ -77,13 +86,11 @@ fn process_scenarios(
 
 fn process_feature_file(
     abs_path: &Path,
-    manifest_dir: &Path,
+    ctx: &FeatureProcessingContext<'_>,
     used_names: &mut HashSet<String>,
-    tag_filter: Option<&TagExpression>,
-    fixtures: &[FixtureSpec],
 ) -> (Vec<TokenStream2>, Vec<TokenStream2>) {
     let rel_path = abs_path
-        .strip_prefix(manifest_dir)
+        .strip_prefix(ctx.manifest_dir)
         .map_or_else(|_| abs_path.to_path_buf(), Path::to_path_buf);
 
     let feature = match parse_and_load_feature(rel_path.as_path()) {
@@ -97,13 +104,15 @@ fn process_feature_file(
             .and_then(|s| s.to_str())
             .unwrap_or("feature"),
     );
-    let ctx = ScenarioTestContext {
+    let test_ctx = ScenarioTestContext {
         feature_stem: &feature_stem,
-        manifest_dir,
+        manifest_dir: ctx.manifest_dir,
         rel_path: &rel_path,
+        tag_filter: ctx.tag_filter,
+        fixtures: ctx.fixtures,
     };
 
-    process_scenarios(&feature, &ctx, used_names, tag_filter, fixtures)
+    process_scenarios(&feature, &test_ctx, used_names)
 }
 
 fn generate_tests_from_features(
@@ -116,14 +125,14 @@ fn generate_tests_from_features(
     let mut tests = Vec::new();
     let mut errors = Vec::new();
 
+    let ctx = FeatureProcessingContext {
+        manifest_dir,
+        tag_filter,
+        fixtures,
+    };
+
     for abs_path in feature_paths {
-        let (mut t, mut errs) = process_feature_file(
-            abs_path.as_path(),
-            manifest_dir,
-            &mut used_names,
-            tag_filter,
-            fixtures,
-        );
+        let (mut t, mut errs) = process_feature_file(abs_path.as_path(), &ctx, &mut used_names);
         tests.append(&mut t);
         errors.append(&mut errs);
     }

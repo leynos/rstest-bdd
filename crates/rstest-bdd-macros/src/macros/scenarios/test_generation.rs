@@ -10,7 +10,9 @@ use std::collections::HashSet;
 use std::path::Path;
 
 use crate::codegen::scenario::{FeaturePath, ScenarioConfig, ScenarioName, generate_scenario_code};
+use crate::parsing::examples::ExampleTable;
 use crate::parsing::feature::ScenarioData;
+use crate::parsing::tags::TagExpression;
 use crate::utils::fixtures::extract_function_fixtures;
 use crate::utils::ident::sanitize_ident;
 
@@ -19,12 +21,21 @@ use super::macro_args::FixtureSpec;
 /// Context for generating a scenario test.
 ///
 /// Captures the sanitised feature file stem for naming tests, the Cargo
-/// manifest directory used to render absolute feature paths, and the relative
-/// path from that manifest to the feature file when embedding diagnostics.
+/// manifest directory used to render absolute feature paths, the relative
+/// path from that manifest to the feature file when embedding diagnostics,
+/// an optional tag expression for filtering scenarios, and a slice of fixture
+/// specifications to inject into generated test functions.
 pub(super) struct ScenarioTestContext<'a> {
+    /// Sanitised stem of the feature file used in test function names.
     pub(super) feature_stem: &'a str,
+    /// Cargo manifest directory for constructing absolute feature paths.
     pub(super) manifest_dir: &'a Path,
+    /// Relative path from `manifest_dir` to the feature file.
     pub(super) rel_path: &'a Path,
+    /// Optional tag expression to filter scenarios before test generation.
+    pub(super) tag_filter: Option<&'a TagExpression>,
+    /// Fixture specifications to inject as parameters in generated tests.
+    pub(super) fixtures: &'a [FixtureSpec],
 }
 
 pub(super) fn dedupe_name(base: &str, used: &mut HashSet<String>) -> String {
@@ -38,22 +49,78 @@ pub(super) fn dedupe_name(base: &str, used: &mut HashSet<String>) -> String {
     name
 }
 
+/// Builds lint suppression attributes when fixtures are present.
+fn build_lint_attributes(fixtures: &[FixtureSpec]) -> Vec<syn::Attribute> {
+    if fixtures.is_empty() {
+        Vec::new()
+    } else {
+        vec![syn::parse_quote! {
+            #[expect(
+                unused_variables,
+                reason = "fixture variables are consumed via StepContext, \
+                          not referenced directly in the scenario test body"
+            )]
+        }]
+    }
+}
+
+/// Builds fixture parameters for the test function signature.
+fn build_fixture_params(fixtures: &[FixtureSpec]) -> Vec<TokenStream2> {
+    fixtures
+        .iter()
+        .map(|spec| {
+            let name = &spec.name;
+            let ty = &spec.ty;
+            quote! { #name: #ty }
+        })
+        .collect()
+}
+
+/// Builds example parameters for scenario outline test functions.
+fn build_example_params(examples: Option<&ExampleTable>) -> Vec<TokenStream2> {
+    examples.map_or_else(Vec::new, |ex| {
+        ex.headers
+            .iter()
+            .map(|h| {
+                let param_ident = format_ident!("{}", sanitize_ident(h));
+                quote! { #[case] #param_ident: &'static str }
+            })
+            .collect()
+    })
+}
+
+/// Builds the test function signature from fixture and example parameters.
+fn build_test_signature(
+    fn_ident: &syn::Ident,
+    fixture_params: &[TokenStream2],
+    example_params: &[TokenStream2],
+) -> syn::Signature {
+    if fixture_params.is_empty() && example_params.is_empty() {
+        syn::parse_quote! { fn #fn_ident() }
+    } else if fixture_params.is_empty() {
+        syn::parse_quote! { fn #fn_ident( #(#example_params),* ) }
+    } else if example_params.is_empty() {
+        syn::parse_quote! { fn #fn_ident( #(#fixture_params),* ) }
+    } else {
+        syn::parse_quote! { fn #fn_ident( #(#fixture_params,)* #(#example_params),* ) }
+    }
+}
+
 /// Generate the test for a single scenario within a feature.
 ///
 /// Derives a unique, rstest-backed function for the scenario using `ctx` to
 /// build stable identifiers and feature paths, updating `used_names` to avoid
 /// name collisions and returning the resulting `TokenStream2`.
 ///
-/// When `fixtures` is non-empty, the generated test function includes fixture
-/// parameters that rstest resolves via `#[fixture]` functions, and the function
-/// is annotated with `#[expect(unused_variables)]` because fixture variables
-/// are consumed via `StepContext` rather than referenced directly in the test
-/// body.
+/// When `ctx.fixtures` is non-empty, the generated test function includes
+/// fixture parameters that rstest resolves via `#[fixture]` functions, and the
+/// function is annotated with `#[expect(unused_variables)]` because fixture
+/// variables are consumed via `StepContext` rather than referenced directly in
+/// the test body.
 pub(super) fn generate_scenario_test(
     ctx: &ScenarioTestContext<'_>,
     used_names: &mut HashSet<String>,
     data: ScenarioData,
-    fixtures: &[FixtureSpec],
 ) -> TokenStream2 {
     let ScenarioData {
         name,
@@ -67,63 +134,18 @@ pub(super) fn generate_scenario_test(
     let fn_name = dedupe_name(&base_name, used_names);
     let fn_ident = format_ident!("{}", fn_name);
 
-    // Add lint suppression when fixtures are present, since fixture variables
-    // are consumed via StepContext insertion rather than direct reference.
-    let attrs: Vec<syn::Attribute> = if fixtures.is_empty() {
-        Vec::new()
-    } else {
-        vec![syn::parse_quote! {
-            #[expect(
-                unused_variables,
-                reason = "fixture variables are consumed via StepContext, \
-                          not referenced directly in the scenario test body"
-            )]
-        }]
-    };
-
-    let vis = syn::Visibility::Inherited;
-
-    // Build fixture parameters for the function signature.
-    let fixture_params: Vec<TokenStream2> = fixtures
-        .iter()
-        .map(|spec| {
-            let name = &spec.name;
-            let ty = &spec.ty;
-            quote! { #name: #ty }
-        })
-        .collect();
-
-    // Build example parameters for scenario outlines.
-    let example_params: Vec<TokenStream2> = examples.as_ref().map_or_else(Vec::new, |ex| {
-        ex.headers
-            .iter()
-            .map(|h| {
-                let param_ident = format_ident!("{}", sanitize_ident(h));
-                quote! { #[case] #param_ident: &'static str }
-            })
-            .collect()
-    });
-
-    // Combine fixture and example parameters into the function signature.
-    let mut sig: syn::Signature = if fixture_params.is_empty() && example_params.is_empty() {
-        syn::parse_quote! { fn #fn_ident() }
-    } else if fixture_params.is_empty() {
-        syn::parse_quote! { fn #fn_ident( #(#example_params),* ) }
-    } else if example_params.is_empty() {
-        syn::parse_quote! { fn #fn_ident( #(#fixture_params),* ) }
-    } else {
-        syn::parse_quote! { fn #fn_ident( #(#fixture_params,)* #(#example_params),* ) }
-    };
+    let attrs = build_lint_attributes(ctx.fixtures);
+    let fixture_params = build_fixture_params(ctx.fixtures);
+    let example_params = build_example_params(examples.as_ref());
+    let mut sig = build_test_signature(&fn_ident, &fixture_params, &example_params);
 
     let Ok((_args, fixture_setup)) = extract_function_fixtures(&mut sig) else {
         unreachable!("failed to bind fixtures for generated signature");
     };
-    let ctx_prelude = fixture_setup.prelude;
-    let ctx_inserts = fixture_setup.ctx_inserts;
-    let ctx_postlude = fixture_setup.postlude;
-    let block: syn::Block = syn::parse_quote!({});
 
     let feature_path = ctx.manifest_dir.join(ctx.rel_path).display().to_string();
+    let vis = syn::Visibility::Inherited;
+    let block: syn::Block = syn::parse_quote!({});
 
     let config = ScenarioConfig {
         attrs: &attrs,
@@ -140,9 +162,9 @@ pub(super) fn generate_scenario_test(
     };
     TokenStream2::from(generate_scenario_code(
         config,
-        ctx_prelude.into_iter(),
-        ctx_inserts.into_iter(),
-        ctx_postlude.into_iter(),
+        fixture_setup.prelude.into_iter(),
+        fixture_setup.ctx_inserts.into_iter(),
+        fixture_setup.postlude.into_iter(),
     ))
 }
 
