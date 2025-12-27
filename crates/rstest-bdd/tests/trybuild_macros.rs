@@ -194,6 +194,7 @@ fn run_failing_macro_tests(t: &trybuild::TestCases) {
         MacroFixtureCase::from("step_tuple_pattern.rs"),
         MacroFixtureCase::from("step_struct_pattern.rs"),
         MacroFixtureCase::from("step_nested_pattern.rs"),
+        MacroFixtureCase::from("outline_undefined_placeholder.rs"),
     ] {
         t.compile_fail(macros_fixture(case).as_std_path());
     }
@@ -394,7 +395,6 @@ fn strip_nightly_macro_backtrace_hint(input: NormaliserInput<'_>) -> String {
         "",
     )
 }
-
 #[cfg(test)]
 #[path = "trybuild_macros/helper_tests.rs"]
 mod helper_tests;

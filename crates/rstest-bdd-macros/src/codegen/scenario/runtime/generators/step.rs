@@ -34,6 +34,8 @@
 use proc_macro2::TokenStream as TokenStream2;
 use quote::quote;
 
+use crate::codegen::scenario::helpers::ProcessedStepTokens;
+
 /// Generates the `validate_required_fixtures` inner function.
 ///
 /// The generated function checks that all fixtures required by a step are
@@ -294,6 +296,75 @@ pub(in crate::codegen::scenario::runtime) fn generate_step_executor_loop(
                     if let Some(__rstest_bdd_val) = __rstest_bdd_value {
                         // Intentionally discarded: insert_value returns None when no fixture
                         // slot matches the value's TypeId or when matches are ambiguous.
+                        let _ = ctx.insert_value(__rstest_bdd_val);
+                    }
+                }
+                Err(__rstest_bdd_encoded) => {
+                    __rstest_bdd_skipped = Some(__rstest_bdd_decode_skip_message(__rstest_bdd_encoded));
+                    __rstest_bdd_skipped_at = Some(__rstest_bdd_index);
+                    break;
+                }
+            }
+        }
+    }
+}
+
+/// Generates the step executor loop for scenario outlines with placeholder substitution.
+///
+/// For scenario outlines, steps are organised as a 2D array where each row contains
+/// the substituted steps for one Examples row. The `__rstest_bdd_case_idx` parameter
+/// selects which row to use.
+///
+/// # Arguments
+///
+/// * `all_rows_steps` - A vector where each element contains the processed steps for
+///   one Examples row. Each inner tuple contains (keywords, values, docstrings, tables).
+///
+/// # Generated code
+///
+/// ```text
+/// const __RSTEST_BDD_ALL_STEPS: &[&[(StepKeyword, &str, Option<&str>, Option<&[&[&str]]>)]] = &[
+///     &[(kw0, "substituted text row 0", ...), ...],
+///     &[(kw0, "substituted text row 1", ...), ...],
+/// ];
+/// let __rstest_bdd_steps = __RSTEST_BDD_ALL_STEPS[__rstest_bdd_case_idx];
+/// for (index, (keyword, text, docstring, table)) in steps.iter().copied().enumerate() {
+///     // ... same execution logic as regular loop
+/// }
+/// ```
+pub(in crate::codegen::scenario::runtime) fn generate_step_executor_loop_outline(
+    all_rows_steps: &[ProcessedStepTokens],
+) -> TokenStream2 {
+    let path = crate::codegen::rstest_bdd_path();
+
+    // Build the 2D array of steps: one inner array per Examples row
+    let row_arrays: Vec<TokenStream2> = all_rows_steps
+        .iter()
+        .map(|(keywords, values, docstrings, tables)| {
+            quote! {
+                &[#((#keywords, #values, #docstrings, #tables)),*]
+            }
+        })
+        .collect();
+
+    quote! {
+        const __RSTEST_BDD_ALL_STEPS: &[&[(#path::StepKeyword, &str, Option<&str>, Option<&[&[&str]]>)]] = &[
+            #(#row_arrays),*
+        ];
+        let __rstest_bdd_steps = __RSTEST_BDD_ALL_STEPS[__rstest_bdd_case_idx];
+        for (__rstest_bdd_index, (__rstest_bdd_keyword, __rstest_bdd_text, __rstest_bdd_docstring, __rstest_bdd_table)) in __rstest_bdd_steps.iter().copied().enumerate() {
+            match __rstest_bdd_execute_single_step(
+                __rstest_bdd_index,
+                __rstest_bdd_keyword,
+                __rstest_bdd_text,
+                __rstest_bdd_docstring,
+                __rstest_bdd_table,
+                &mut ctx,
+                __RSTEST_BDD_FEATURE_PATH,
+                __RSTEST_BDD_SCENARIO_NAME,
+            ) {
+                Ok(__rstest_bdd_value) => {
+                    if let Some(__rstest_bdd_val) = __rstest_bdd_value {
                         let _ = ctx.insert_value(__rstest_bdd_val);
                     }
                 }
