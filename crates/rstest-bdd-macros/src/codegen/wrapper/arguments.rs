@@ -9,7 +9,7 @@ mod fixtures;
 mod step_parse;
 use datatable::{CacheIdents, gen_datatable_decl};
 use fixtures::gen_fixture_decls;
-use step_parse::{ArgParseContext, gen_single_step_parse};
+use step_parse::{ArgParseContext, gen_quote_strip_to_stripped, gen_single_step_parse};
 
 #[derive(Copy, Clone)]
 pub(super) struct StepMeta<'a> {
@@ -152,6 +152,7 @@ fn generate_capture_initializers(
     struct_pat: &syn::Ident,
 ) -> Vec<TokenStream2> {
     let StepMeta { pattern, ident } = meta;
+    let raw_ident = format_ident!("raw");
     captures
         .iter()
         .zip(missing_errs.iter())
@@ -173,12 +174,10 @@ fn generate_capture_initializers(
                         )
                     },
                 );
+                let quote_strip = gen_quote_strip_to_stripped(&raw_ident, &malformed_err);
                 quote! {
                     let raw = #capture.ok_or_else(|| #missing)?;
-                    if raw.len() < 2 {
-                        return Err(#malformed_err);
-                    }
-                    let stripped = &raw[1..raw.len() - 1];
+                    #quote_strip
                     #values_ident.push(stripped.to_string());
                 }
             } else {
