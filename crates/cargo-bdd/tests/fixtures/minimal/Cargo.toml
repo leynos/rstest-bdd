@@ -6,7 +6,7 @@ edition = "2024"
 [dependencies]
 inventory = "0.3"
 serial_test = "2"
-rstest-bdd = { path = "../../../../../crates/rstest-bdd", features = ["diagnostics"] }
+rstest-bdd = { path = "../../../../../crates/rstest-bdd", features = ["diagnostics", "test-support"] }
 
 [dev-dependencies]
 rstest-bdd-macros = { path = "../../../../../crates/rstest-bdd-macros" }

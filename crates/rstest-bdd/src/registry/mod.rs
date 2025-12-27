@@ -5,15 +5,18 @@
 
 use crate::pattern::StepPattern;
 use crate::placeholder::extract_placeholders;
-use crate::types::{PatternStr, StepFn, StepKeyword, StepText};
+use crate::types::{AsyncStepFn, PatternStr, StepFn, StepKeyword, StepText};
 use hashbrown::{HashMap, HashSet};
 use inventory::iter;
 use rstest_bdd_patterns::SpecificityScore;
 use std::hash::{BuildHasher, Hash, Hasher};
 use std::sync::{LazyLock, Mutex};
 
+mod bypassed;
 #[cfg(feature = "diagnostics")]
-mod diagnostics;
+pub(crate) mod diagnostics;
+
+pub use bypassed::{record_bypassed_steps, record_bypassed_steps_with_tags};
 
 /// Represents a single step definition registered with the framework.
 #[derive(Debug)]
@@ -22,8 +25,13 @@ pub struct Step {
     pub keyword: StepKeyword,
     /// Pattern text used to match a Gherkin step.
     pub pattern: &'static StepPattern,
-    /// Function pointer executed when the step is invoked.
+    /// Function pointer executed when the step is invoked (sync mode).
     pub run: StepFn,
+    /// Function pointer executed when the step is invoked (async mode).
+    ///
+    /// For sync step definitions, this wraps the result in an immediately-ready
+    /// future, enabling mixed sync and async steps within async scenarios.
+    pub run_async: AsyncStepFn,
     /// Names of fixtures this step requires.
     pub fixtures: &'static [&'static str],
     /// Source file where the step is defined.
@@ -33,15 +41,41 @@ pub struct Step {
 }
 
 /// Register a step definition with the global registry.
+///
+/// This macro accepts both sync and async handler function pointers. The async
+/// handler wraps the sync result in an immediately-ready future for sync step
+/// definitions, enabling unified execution in async scenarios.
+///
+/// # Forms
+///
+/// The macro supports two forms:
+///
+/// ## 5-argument form (explicit async handler)
+///
+/// ```ignore
+/// step!(keyword, pattern, sync_handler, async_handler, fixtures);
+/// ```
+///
+/// ## 4-argument form (auto-generated async handler)
+///
+/// ```ignore
+/// step!(keyword, pattern, sync_handler, fixtures);
+/// ```
+///
+/// The 4-argument form automatically generates an async wrapper that delegates
+/// to the sync handler via an immediately-ready future. This provides backward
+/// compatibility for call sites that only define sync handlers.
 #[macro_export]
 macro_rules! step {
-    (@pattern $keyword:expr, $pattern:expr, $handler:path, $fixtures:expr) => {
+    // Internal arm: 5 arguments with pre-compiled pattern reference
+    (@pattern $keyword:expr, $pattern:expr, $handler:path, $async_handler:path, $fixtures:expr) => {
         const _: () = {
             $crate::submit! {
                 $crate::Step {
                     keyword: $keyword,
                     pattern: $pattern,
                     run: $handler,
+                    run_async: $async_handler,
                     fixtures: $fixtures,
                     file: file!(),
                     line: line!(),
@@ -50,10 +84,47 @@ macro_rules! step {
         };
     };
 
-    ($keyword:expr, $pattern:expr, $handler:path, $fixtures:expr) => {
+    // Internal arm: 4 arguments with pre-compiled pattern reference (auto-generate async)
+    (@pattern $keyword:expr, $pattern:expr, $handler:path, $fixtures:expr) => {
+        const _: () = {
+            fn __rstest_bdd_auto_async<'a>(
+                ctx: &'a mut $crate::StepContext<'a>,
+                text: &str,
+                docstring: ::core::option::Option<&str>,
+                table: ::core::option::Option<&[&[&str]]>,
+            ) -> $crate::StepFuture<'a> {
+                ::std::boxed::Box::pin(::std::future::ready($handler(ctx, text, docstring, table)))
+            }
+
+            $crate::submit! {
+                $crate::Step {
+                    keyword: $keyword,
+                    pattern: $pattern,
+                    run: $handler,
+                    run_async: __rstest_bdd_auto_async,
+                    fixtures: $fixtures,
+                    file: file!(),
+                    line: line!(),
+                }
+            }
+        };
+    };
+
+    // Public arm: 4 arguments (auto-generate async handler for backward compatibility)
+    // This arm MUST come before the 5-argument arm because Rust macro matching
+    // is greedy and would otherwise try to parse fixtures as an async_handler path.
+    ($keyword:expr, $pattern:expr, $handler:path, & $fixtures:expr) => {
         const _: () = {
             static PATTERN: $crate::StepPattern = $crate::StepPattern::new($pattern);
-    $crate::step!(@pattern $keyword, &PATTERN, $handler, $fixtures);
+    $crate::step!(@pattern $keyword, &PATTERN, $handler, &$fixtures);
+        };
+    };
+
+    // Public arm: 5 arguments (explicit async handler)
+    ($keyword:expr, $pattern:expr, $handler:path, $async_handler:path, $fixtures:expr) => {
+        const _: () = {
+            static PATTERN: $crate::StepPattern = $crate::StepPattern::new($pattern);
+    $crate::step!(@pattern $keyword, &PATTERN, $handler, $async_handler, $fixtures);
         };
     };
 }
@@ -62,7 +133,7 @@ inventory::collect!(Step);
 
 type StepKey = (StepKeyword, &'static StepPattern);
 
-static STEP_MAP: LazyLock<HashMap<StepKey, StepFn>> = LazyLock::new(|| {
+static STEP_MAP: LazyLock<HashMap<StepKey, &'static Step>> = LazyLock::new(|| {
     let steps: Vec<_> = iter::<Step>.into_iter().collect();
     let mut map = HashMap::with_capacity(steps.len());
     for step in steps {
@@ -83,7 +154,7 @@ static STEP_MAP: LazyLock<HashMap<StepKey, StepFn>> = LazyLock::new(|| {
             step.file,
             step.line
         );
-        map.insert(key, step.run);
+        map.insert(key, step);
     }
     map
 });
@@ -105,9 +176,7 @@ fn all_steps() -> Vec<&'static Step> {
 }
 
 fn step_by_key(key: StepKey) -> Option<&'static Step> {
-    iter::<Step>
-        .into_iter()
-        .find(|step| (step.keyword, step.pattern) == key)
+    STEP_MAP.get(&key).copied()
 }
 
 fn resolve_exact_step(keyword: StepKeyword, pattern: PatternStr<'_>) -> Option<&'static Step> {
@@ -124,7 +193,7 @@ fn resolve_exact_step(keyword: StepKeyword, pattern: PatternStr<'_>) -> Option<&
         .from_hash(hash, |(kw, pat)| {
             *kw == keyword && pat.as_str() == pattern.as_str()
         })
-        .and_then(|(key, _)| step_by_key(*key))
+        .map(|(_, step)| *step)
 }
 
 fn resolve_step(keyword: StepKeyword, text: StepText<'_>) -> Option<&'static Step> {
@@ -170,6 +239,32 @@ pub fn find_step(keyword: StepKeyword, text: StepText<'_>) -> Option<StepFn> {
     resolve_step(keyword, text).map(|step| {
         mark_used((step.keyword, step.pattern));
         step.run
+    })
+}
+
+/// Look up a registered async step by keyword and pattern.
+///
+/// Returns the async step function pointer for use in async scenario execution.
+/// The async wrapper returns an immediately-ready future for sync step
+/// definitions.
+#[must_use]
+pub fn lookup_step_async(keyword: StepKeyword, pattern: PatternStr<'_>) -> Option<AsyncStepFn> {
+    resolve_exact_step(keyword, pattern).map(|step| {
+        mark_used((step.keyword, step.pattern));
+        step.run_async
+    })
+}
+
+/// Find a registered async step whose pattern matches the provided text.
+///
+/// Returns the async step function pointer for use in async scenario execution.
+/// The async wrapper returns an immediately-ready future for sync step
+/// definitions.
+#[must_use]
+pub fn find_step_async(keyword: StepKeyword, text: StepText<'_>) -> Option<AsyncStepFn> {
+    resolve_step(keyword, text).map(|step| {
+        mark_used((step.keyword, step.pattern));
+        step.run_async
     })
 }
 
@@ -220,91 +315,6 @@ pub fn duplicate_steps() -> Vec<Vec<&'static Step>> {
             .push(step);
     }
     groups.into_values().filter(|v| v.len() > 1).collect()
-}
-
-/// Record step definitions that were bypassed after a scenario requested a skip.
-///
-/// This is a no-op when the `diagnostics` feature is disabled so that generated
-/// test code can reference this function unconditionally without breaking
-/// `default-features = false` builds.
-pub fn record_bypassed_steps<'a, I>(
-    feature_path: impl Into<String>,
-    scenario_name: impl Into<String>,
-    scenario_line: u32,
-    tags: impl Into<Vec<String>>,
-    reason: Option<&str>,
-    steps: I,
-) where
-    I: IntoIterator<Item = (StepKeyword, &'a str)>,
-{
-    #[cfg(feature = "diagnostics")]
-    {
-        let feature_path = feature_path.into();
-        let scenario_name = scenario_name.into();
-        let tags = tags.into();
-        diagnostics::record_bypassed_steps_impl(
-            feature_path.as_str(),
-            scenario_name.as_str(),
-            scenario_line,
-            &tags,
-            reason,
-            steps,
-        );
-    }
-
-    #[cfg(not(feature = "diagnostics"))]
-    {
-        let _ = (
-            feature_path,
-            scenario_name,
-            scenario_line,
-            tags,
-            reason,
-            steps,
-        );
-    }
-}
-
-/// Record bypassed steps using previously owned tags.
-///
-/// Generated scenario code often already owns a `Vec<String>` for reporting.
-/// Borrowing it here avoids an additional `Vec<String>` clone at call sites
-/// whilst still behaving as a no-op when diagnostics are disabled.
-pub fn record_bypassed_steps_with_tags<'a, I>(
-    feature_path: impl Into<String>,
-    scenario_name: impl Into<String>,
-    scenario_line: u32,
-    tags: &[String],
-    reason: Option<&str>,
-    steps: I,
-) where
-    I: IntoIterator<Item = (StepKeyword, &'a str)>,
-{
-    #[cfg(feature = "diagnostics")]
-    {
-        let feature_path = feature_path.into();
-        let scenario_name = scenario_name.into();
-        diagnostics::record_bypassed_steps_impl(
-            feature_path.as_str(),
-            scenario_name.as_str(),
-            scenario_line,
-            tags,
-            reason,
-            steps,
-        );
-    }
-
-    #[cfg(not(feature = "diagnostics"))]
-    {
-        let _ = (
-            feature_path,
-            scenario_name,
-            scenario_line,
-            tags,
-            reason,
-            steps,
-        );
-    }
 }
 
 /// Serialize the registry to a JSON array.

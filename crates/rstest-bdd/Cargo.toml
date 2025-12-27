@@ -49,6 +49,8 @@ diagnostics = ["serde", "serde_json"]
 # Remove once the upstream compiler issue is fixed and the test can run
 # without gating.
 mutable_world_macro = []
+# Test support helpers for async step testing across crates.
+test-support = []
 
 [[test]]
 name = "dump_registry"

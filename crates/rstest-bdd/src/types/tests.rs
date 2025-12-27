@@ -110,3 +110,57 @@ fn payload_from_value_returns_none_for_unit_alias() {
     let value: UnitAlias = ();
     assert!(crate::__rstest_bdd_payload_from_value(value).is_none());
 }
+
+// Async type tests ---------------------------------------------------------
+
+#[test]
+fn step_future_can_be_constructed_from_ready_future() {
+    // Verify that StepFuture can be created from an immediately-ready future.
+    fn make_ready_future<'a>() -> StepFuture<'a> {
+        Box::pin(std::future::ready(Ok(StepExecution::from_value(None))))
+    }
+
+    let future = make_ready_future();
+    // Ensure the future type is correctly constructed (compile-time check).
+    // Drop the future explicitly as it won't be awaited in this sync test.
+    drop(future);
+}
+
+#[test]
+fn async_step_fn_signature_is_valid() {
+    // Verify that the AsyncStepFn type alias matches the expected signature.
+    fn dummy_async_step<'a>(
+        _ctx: &'a mut crate::context::StepContext<'a>,
+        _text: &str,
+        _docstring: Option<&str>,
+        _table: Option<&[&[&str]]>,
+    ) -> StepFuture<'a> {
+        Box::pin(std::future::ready(Ok(StepExecution::from_value(None))))
+    }
+
+    // This assignment verifies the function signature matches AsyncStepFn.
+    let _: AsyncStepFn = dummy_async_step;
+}
+
+#[test]
+#[expect(clippy::expect_used, reason = "test validates downcast succeeds")]
+fn step_future_resolves_to_expected_value() {
+    fn make_future<'a>() -> StepFuture<'a> {
+        Box::pin(std::future::ready(Ok(StepExecution::from_value(Some(
+            Box::new(42_u32),
+        )))))
+    }
+
+    let future = make_future();
+    // Poll the ready future to completion.
+    let waker = std::task::Waker::noop();
+    let mut cx = std::task::Context::from_waker(waker);
+    let mut pinned = future;
+    match std::pin::Pin::as_mut(&mut pinned).poll(&mut cx) {
+        std::task::Poll::Ready(Ok(StepExecution::Continue { value: Some(v) })) => {
+            let num = v.downcast::<u32>().expect("expected u32");
+            assert_eq!(*num, 42);
+        }
+        other => panic!("unexpected poll result: {other:?}"),
+    }
+}

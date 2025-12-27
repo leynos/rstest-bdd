@@ -8,6 +8,8 @@ use crate::localization;
 use std::any::Any;
 use std::borrow::Cow;
 use std::fmt;
+use std::future::Future;
+use std::pin::Pin;
 
 // Re-export shared keyword types from rstest-bdd-patterns.
 pub use rstest_bdd_patterns::{
@@ -306,6 +308,30 @@ pub type StepFn = for<'a> fn(
     Option<&str>,
     Option<&[&[&str]]>,
 ) -> Result<StepExecution, crate::StepError>;
+
+/// A boxed future returned by async step wrappers.
+///
+/// The lifetime `'a` ties the future to the borrowed [`StepContext`], allowing
+/// the future to hold references to fixtures. The future is `!Send` to support
+/// Tokio current-thread mode without requiring synchronisation primitives for
+/// mutable fixtures.
+///
+/// [`StepContext`]: crate::context::StepContext
+pub type StepFuture<'a> =
+    Pin<Box<dyn Future<Output = Result<StepExecution, crate::StepError>> + 'a>>;
+
+/// Function pointer type for async step wrappers.
+///
+/// Async step definitions are normalised into this interface by the
+/// macro-generated wrapper code. Sync step definitions are wrapped in
+/// immediately-ready futures when async mode is enabled, allowing mixed sync
+/// and async steps within a single scenario.
+pub type AsyncStepFn = for<'a> fn(
+    &'a mut crate::context::StepContext<'a>,
+    &str,
+    Option<&str>,
+    Option<&[&[&str]]>,
+) -> StepFuture<'a>;
 
 #[cfg(test)]
 mod tests;

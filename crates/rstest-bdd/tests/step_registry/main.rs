@@ -1,99 +1,18 @@
-//! Behavioural test for step registry
+//! Behavioural test for step registry.
 
 use rstest::rstest;
 use rstest_bdd::localization::{ScopedLocalization, strip_directional_isolates};
 use rstest_bdd::{
     Step, StepContext, StepError, StepExecution, StepKeyword, StepText, find_step_with_metadata,
-    iter, panic_message, step, unused_steps,
+    iter, unused_steps,
 };
 use unic_langid::langid;
 
-fn sample() {}
-#[expect(
-    clippy::unnecessary_wraps,
-    reason = "wrapper must match StepFn signature"
-)]
-fn wrapper(
-    ctx: &mut StepContext<'_>,
-    _text: &str,
-    _docstring: Option<&str>,
-    _table: Option<&[&[&str]]>,
-) -> Result<StepExecution, StepError> {
-    // Adapter for zero-argument step functions
-    let _ = ctx;
-    sample();
-    Ok(StepExecution::from_value(None))
-}
+#[path = "../common/mod.rs"]
+mod common;
+use common::poll_step_future;
 
-step!(rstest_bdd::StepKeyword::When, "behavioural", wrapper, &[]);
-
-fn failing_wrapper(
-    ctx: &mut StepContext<'_>,
-    _text: &str,
-    _docstring: Option<&str>,
-    _table: Option<&[&[&str]]>,
-) -> Result<StepExecution, StepError> {
-    let _ = ctx;
-    Err(StepError::ExecutionError {
-        pattern: "fails".into(),
-        function: "failing_wrapper".into(),
-        message: "boom".into(),
-    })
-}
-
-step!(
-    rstest_bdd::StepKeyword::Given,
-    "fails",
-    failing_wrapper,
-    &[]
-);
-
-fn panicking_wrapper(
-    ctx: &mut StepContext<'_>,
-    _text: &str,
-    _docstring: Option<&str>,
-    _table: Option<&[&[&str]]>,
-) -> Result<StepExecution, StepError> {
-    use std::panic::{AssertUnwindSafe, catch_unwind};
-    let _ = ctx;
-    catch_unwind(AssertUnwindSafe(|| panic!("snap"))).map_err(|e| StepError::PanicError {
-        pattern: "panics".into(),
-        function: "panicking_wrapper".into(),
-        message: panic_message(e.as_ref()),
-    })?;
-    Ok(StepExecution::from_value(None))
-}
-
-step!(
-    rstest_bdd::StepKeyword::When,
-    "panics",
-    panicking_wrapper,
-    &[]
-);
-
-fn needs_fixture_wrapper(
-    ctx: &mut StepContext<'_>,
-    _text: &str,
-    _docstring: Option<&str>,
-    _table: Option<&[&[&str]]>,
-) -> Result<StepExecution, StepError> {
-    if ctx.get::<u32>("missing").is_some() {
-        Ok(StepExecution::from_value(None))
-    } else {
-        Err(StepError::MissingFixture {
-            name: "missing".into(),
-            ty: "u32".into(),
-            step: "needs_fixture".into(),
-        })
-    }
-}
-
-step!(
-    rstest_bdd::StepKeyword::Then,
-    "needs fixture",
-    needs_fixture_wrapper,
-    &["missing"]
-);
+mod wrappers;
 
 #[test]
 fn step_is_registered() {
@@ -308,5 +227,46 @@ fn find_step_with_metadata_marks_step_as_used() {
     assert!(
         !is_still_unused,
         "step 'needs fixture' should be marked as used after find_step_with_metadata"
+    );
+}
+
+#[test]
+fn step_with_auto_async_is_registered() {
+    let found = iter::<Step>.into_iter().any(|step| {
+        step.pattern.as_str() == "auto async step" && step.keyword == StepKeyword::Given
+    });
+    assert!(
+        found,
+        "expected step with auto-generated async wrapper not found"
+    );
+}
+
+#[test]
+#[expect(clippy::expect_used, reason = "test validates step lookup succeeds")]
+fn step_with_auto_async_sync_handler_works() {
+    let step = iter::<Step>
+        .into_iter()
+        .find(|s| s.pattern.as_str() == "auto async step" && s.keyword == StepKeyword::Given)
+        .expect("step 'auto async step' not found in registry");
+
+    let mut ctx = StepContext::default();
+    let result = (step.run)(&mut ctx, "auto async step", None, None);
+    assert!(result.is_ok(), "sync handler should succeed");
+}
+
+#[test]
+#[expect(clippy::expect_used, reason = "test validates step lookup succeeds")]
+fn step_with_auto_async_handler_works() {
+    let step = iter::<Step>
+        .into_iter()
+        .find(|s| s.pattern.as_str() == "auto async step" && s.keyword == StepKeyword::Given)
+        .expect("step 'auto async step' not found in registry");
+
+    let mut ctx = StepContext::default();
+    let future = (step.run_async)(&mut ctx, "auto async step", None, None);
+    let result = poll_step_future(future);
+    assert!(
+        matches!(result, StepExecution::Continue { .. }),
+        "auto-generated async handler failed: {result:?}"
     );
 }

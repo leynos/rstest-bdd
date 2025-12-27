@@ -1,11 +1,24 @@
 //! Fixture seeding reporting diagnostics for snapshot-based integration tests.
 
 use rstest_bdd as bdd;
-use rstest_bdd::{step, StepContext, StepExecution, StepKeyword};
+use rstest_bdd::test_support::sync_to_async;
+use rstest_bdd::{step, StepContext, StepExecution, StepFuture, StepKeyword};
 use serial_test::serial;
 
-step!(StepKeyword::Given, "fixture bypassed step", bypassed_step, &[]);
-step!(StepKeyword::Then, "fixture forced bypass", forced_bypass, &[]);
+step!(
+    StepKeyword::Given,
+    "fixture bypassed step",
+    bypassed_step,
+    bypassed_step_async,
+    &[]
+);
+step!(
+    StepKeyword::Then,
+    "fixture forced bypass",
+    forced_bypass,
+    forced_bypass_async,
+    &[]
+);
 
 #[expect(
     clippy::unnecessary_wraps,
@@ -20,6 +33,15 @@ fn bypassed_step(
     Ok(StepExecution::Continue { value: None })
 }
 
+fn bypassed_step_async<'a>(
+    ctx: &'a mut StepContext<'a>,
+    text: &str,
+    docstring: Option<&str>,
+    table: Option<&[&[&str]]>,
+) -> StepFuture<'a> {
+    sync_to_async(bypassed_step)(ctx, text, docstring, table)
+}
+
 #[expect(
     clippy::unnecessary_wraps,
     reason = "Step handlers must return Result<StepExecution, StepError>."
@@ -31,6 +53,15 @@ fn forced_bypass(
     _table: Option<&[&[&str]]>,
 ) -> Result<StepExecution, bdd::StepError> {
     Ok(StepExecution::Continue { value: None })
+}
+
+fn forced_bypass_async<'a>(
+    ctx: &'a mut StepContext<'a>,
+    text: &str,
+    docstring: Option<&str>,
+    table: Option<&[&[&str]]>,
+) -> StepFuture<'a> {
+    sync_to_async(forced_bypass)(ctx, text, docstring, table)
 }
 
 fn record_skipped_with_bypass(
