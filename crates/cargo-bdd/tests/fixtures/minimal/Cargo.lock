@@ -730,7 +730,7 @@ checksum = "7a2d987857b319362043e95f5353c0535c1f58eec5336fdfcf626430af7def58"
 
 [[package]]
 name = "rstest-bdd"
-version = "0.3.2"
+version = "0.3.1"
 dependencies = [
  "ctor",
  "derive_more",
@@ -762,7 +762,7 @@ dependencies = [
 
 [[package]]
 name = "rstest-bdd-macros"
-version = "0.3.2"
+version = "0.3.1"
 dependencies = [
  "camino",
  "cap-std",
@@ -783,7 +783,7 @@ dependencies = [
 
 [[package]]
 name = "rstest-bdd-patterns"
-version = "0.3.2"
+version = "0.3.1"
 dependencies = [
  "gherkin",
  "regex",
