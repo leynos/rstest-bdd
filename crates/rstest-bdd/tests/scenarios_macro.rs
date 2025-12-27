@@ -8,9 +8,9 @@ fn precondition() {}
 #[when("an action occurs")]
 fn action() {}
 
-#[when("an action occurs with <num>")]
-fn action_with_num(num: &'static str) {
-    let _ = num;
+#[when("an action occurs with {n}")]
+fn action_with_num(n: i32) {
+    let _ = n;
 }
 
 #[then("events are recorded")]

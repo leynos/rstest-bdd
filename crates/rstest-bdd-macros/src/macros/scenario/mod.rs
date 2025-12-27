@@ -38,6 +38,7 @@ use crate::parsing::feature::{
 use crate::parsing::tags::TagExpression;
 use crate::utils::fixtures::extract_function_fixtures;
 use crate::validation::parameters::process_scenario_outline_examples;
+use crate::validation::placeholder::validate_step_placeholders;
 
 use self::args::{ScenarioArgs, ScenarioSelector};
 use self::paths::canonical_feature_path;
@@ -104,6 +105,12 @@ fn try_scenario(
         line,
     } = scenario_data;
     let allow_skipped = crate::codegen::scenario::scenario_allows_skip(&tags);
+
+    // Validate placeholder references in scenario outline steps
+    if let Some(ref ex) = examples {
+        validate_step_placeholders(&steps, &ex.headers)
+            .map_err(|e| proc_macro::TokenStream::from(e.into_compile_error()))?;
+    }
 
     if let Some(err) = validate_steps_compile_time(&steps) {
         return Err(err);

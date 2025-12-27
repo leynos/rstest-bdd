@@ -82,6 +82,7 @@ fn run_failing_macro_tests(t: &trybuild::TestCases) {
         MacroFixtureCase::from("scenarios_fixtures_duplicate.rs"),
         MacroFixtureCase::from("scenarios_fixtures_malformed.rs"),
         MacroFixtureCase::from("scenarios_autodiscovery_invalid_path.rs"),
+        MacroFixtureCase::from("outline_undefined_placeholder.rs"),
     ] {
         t.compile_fail(macros_fixture(case).as_std_path());
     }
@@ -228,7 +229,6 @@ fn apply_normalisers<'a>(input: NormaliserInput<'a>, normalisers: &[Normaliser])
     }
     value
 }
-
 #[cfg(test)]
 #[path = "trybuild_macros/helper_tests.rs"]
 mod helper_tests;
