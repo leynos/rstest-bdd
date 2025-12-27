@@ -1,7 +1,8 @@
 //! Parses arguments supplied to the `scenarios!` macro.
 //!
 //! Accepts either a positional directory literal or the `dir = "..."` and
-//! `path = "..."` named arguments alongside an optional `tags = "..."` filter.
+//! `path = "..."` named arguments alongside an optional `tags = "..."` filter
+//! and an optional `fixtures = [name: Type, ...]` list.
 //! The parser enforces that each input appears at most once, mirroring both
 //! accepted spellings in duplicate and missing-argument diagnostics so users
 //! immediately see which synonym needs adjusting.
@@ -11,9 +12,26 @@ use syn::parse::{Parse, ParseStream};
 use syn::punctuated::Punctuated;
 use syn::token::Comma;
 
+/// A single fixture specification: `name: Type`.
+#[derive(Clone)]
+pub(super) struct FixtureSpec {
+    pub(super) name: syn::Ident,
+    pub(super) ty: syn::Type,
+}
+
+impl Parse for FixtureSpec {
+    fn parse(input: ParseStream<'_>) -> syn::Result<Self> {
+        let name: syn::Ident = input.parse()?;
+        input.parse::<syn::token::Colon>()?;
+        let ty: syn::Type = input.parse()?;
+        Ok(Self { name, ty })
+    }
+}
+
 pub(super) struct ScenariosArgs {
     pub(super) dir: LitStr,
     pub(super) tag_filter: Option<LitStr>,
+    pub(super) fixtures: Vec<FixtureSpec>,
 }
 
 enum ScenariosArg {
