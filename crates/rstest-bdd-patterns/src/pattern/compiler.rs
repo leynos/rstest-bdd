@@ -22,7 +22,7 @@ fn process_token(
             regex.push(')');
         }
         Token::OpenBrace { .. } => {
-            *stray_depth = stray_depth.saturating_add(1);
+            *stray_depth += 1;
             regex.push_str(&regex::escape("{"));
         }
         Token::CloseBrace { index } => {
@@ -37,17 +37,6 @@ fn process_token(
 
 fn unmatched_close_brace_error(index: usize) -> PatternError {
     placeholder_error("unmatched closing brace '}' in step pattern", index, None)
-}
-
-fn validate_brace_balance(depth: usize, pattern_len: usize) -> Result<(), PatternError> {
-    if depth != 0 {
-        return Err(placeholder_error(
-            "unbalanced braces in step pattern",
-            pattern_len,
-            None,
-        ));
-    }
-    Ok(())
 }
 
 /// Build an anchored regular expression from lexed pattern tokens.
@@ -73,7 +62,14 @@ pub fn build_regex_from_pattern(pat: &str) -> Result<String, PatternError> {
         process_token(token, &mut regex, &mut stray_depth)?;
     }
 
-    validate_brace_balance(stray_depth, pat.len())?;
+    if stray_depth != 0 {
+        return Err(placeholder_error(
+            "unbalanced braces in step pattern",
+            pat.len(),
+            None,
+        ));
+    }
+
     regex.push('$');
     Ok(regex)
 }
