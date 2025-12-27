@@ -94,3 +94,53 @@ borrowed_str_newtype!(FixturePathLine);
 borrowed_str_newtype!(FixtureTestPath);
 
 borrowed_str_newtype!(FixtureStderr);
+
+/// Normalises fixture paths in trybuild error output by stripping directory
+/// prefixes, making assertions platform-independent.
+pub(crate) fn normalise_fixture_paths(input: NormaliserInput<'_>) -> String {
+    let text = input.as_ref();
+    let mut normalised = text
+        .lines()
+        .map(|line| normalise_fixture_path_line(FixturePathLine::from(line)))
+        .collect::<Vec<_>>()
+        .join("\n");
+    if text.ends_with('\n') {
+        normalised.push('\n');
+    }
+    normalised
+}
+
+fn normalise_fixture_path_line(line: FixturePathLine<'_>) -> String {
+    const ARROW: &str = "-->";
+    let value = line.as_ref();
+    let Some((prefix, remainder)) = value.split_once(ARROW) else {
+        return value.to_owned();
+    };
+    let trimmed = remainder.trim_start();
+    if trimmed.is_empty() || !trimmed.contains(".rs") {
+        return value.to_owned();
+    }
+    let mut parts = trimmed.splitn(2, ':');
+    let path = parts.next().unwrap_or(trimmed);
+    let suffix = parts.next();
+    let file_name = Utf8Path::new(path).file_name().unwrap_or(path);
+    let mut rebuilt = format!("{prefix}{ARROW} ");
+    rebuilt.push('$');
+    rebuilt.push_str("DIR/");
+    rebuilt.push_str(file_name);
+    if let Some(rest) = suffix {
+        if !rest.is_empty() {
+            rebuilt.push(':');
+            rebuilt.push_str(rest);
+        }
+    }
+    rebuilt
+}
+
+/// Strips nightly-only macro backtrace hints from compiler output.
+pub(crate) fn strip_nightly_macro_backtrace_hint(input: NormaliserInput<'_>) -> String {
+    input.as_ref().replace(
+        " (in Nightly builds, run with -Z macro-backtrace for more info)",
+        "",
+    )
+}

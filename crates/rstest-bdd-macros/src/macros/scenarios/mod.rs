@@ -2,13 +2,15 @@
 //!
 //! The module is split into focused helpers: `macro_args` parses the macro
 //! input, `feature_discovery` walks the filesystem to enumerate `.feature`
-//! files, and `path_resolution` canonicalises paths so diagnostics remain
-//! stable across builds. This file stitches those pieces together, applying any
-//! compile-time tag filters and generating the rstest-backed test functions.
+//! files, `path_resolution` canonicalises paths so diagnostics remain stable
+//! across builds, and `test_generation` creates rstest-backed test functions.
+//! This file stitches those pieces together, applying any compile-time tag
+//! filters and generating the rstest-backed test functions.
 
 mod feature_discovery;
 mod macro_args;
 mod path_resolution;
+mod test_generation;
 
 use proc_macro::TokenStream;
 use proc_macro2::{Span, TokenStream as TokenStream2};
@@ -16,43 +18,14 @@ use quote::{format_ident, quote};
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 
-#[rustfmt::skip]
-use crate::codegen::scenario::{
-    generate_scenario_code, FeaturePath, ScenarioConfig, ScenarioName,
-};
-#[rustfmt::skip]
-use crate::parsing::feature::{
-    extract_scenario_steps, parse_and_load_feature, ScenarioData,
-};
+use crate::parsing::feature::{extract_scenario_steps, parse_and_load_feature};
 use crate::parsing::tags::TagExpression;
 use crate::utils::errors::{error_to_tokens, normalized_dir_read_error};
-use crate::utils::fixtures::extract_function_fixtures;
 use crate::utils::ident::sanitize_ident;
 
 use self::feature_discovery::collect_feature_files;
-use self::macro_args::ScenariosArgs;
-
-/// Context for generating a scenario test.
-///
-/// Captures the sanitised feature file stem for naming tests, the Cargo
-/// manifest directory used to render absolute feature paths, and the relative
-/// path from that manifest to the feature file when embedding diagnostics.
-struct ScenarioTestContext<'a> {
-    feature_stem: &'a str,
-    manifest_dir: &'a Path,
-    rel_path: &'a Path,
-}
-
-fn dedupe_name(base: &str, used: &mut HashSet<String>) -> String {
-    let mut name = base.to_string();
-    let mut counter = 1usize;
-    while used.contains(&name) {
-        name = format!("{base}_{counter}");
-        counter += 1;
-    }
-    used.insert(name.clone());
-    name
-}
+use self::macro_args::{FixtureSpec, ScenariosArgs};
+use self::test_generation::{ScenarioTestContext, generate_scenario_test};
 
 struct TagFilter {
     expr: TagExpression,
@@ -60,69 +33,12 @@ struct TagFilter {
     raw: String,
 }
 
-/// Generate the test for a single scenario within a feature.
-///
-/// Derives a unique, rstest-backed function for the scenario using `ctx` to
-/// build stable identifiers and feature paths, updating `used_names` to avoid
-/// name collisions and returning the resulting `TokenStream2`.
-fn generate_scenario_test(
-    ctx: &ScenarioTestContext<'_>,
-    used_names: &mut HashSet<String>,
-    data: ScenarioData,
-) -> TokenStream2 {
-    let ScenarioData {
-        name,
-        steps,
-        examples,
-        tags,
-        line,
-    } = data;
-    let allow_skipped = crate::codegen::scenario::scenario_allows_skip(&tags);
-    let base_name = format!("{}_{}", ctx.feature_stem, sanitize_ident(&name));
-    let fn_name = dedupe_name(&base_name, used_names);
-    let fn_ident = format_ident!("{}", fn_name);
-
-    let attrs: Vec<syn::Attribute> = Vec::new();
-    let vis = syn::Visibility::Inherited;
-    let mut sig: syn::Signature = examples.as_ref().map_or_else(
-        || syn::parse_quote! { fn #fn_ident() },
-        |ex| {
-            let params = ex.headers.iter().map(|h| {
-                let param_ident = format_ident!("{}", sanitize_ident(h));
-                quote! { #[case] #param_ident: &'static str }
-            });
-            syn::parse_quote! { fn #fn_ident( #(#params),* ) }
-        },
-    );
-    let Ok((_args, fixture_setup)) = extract_function_fixtures(&mut sig) else {
-        unreachable!("failed to bind fixtures for generated signature");
-    };
-    let ctx_prelude = fixture_setup.prelude;
-    let ctx_inserts = fixture_setup.ctx_inserts;
-    let ctx_postlude = fixture_setup.postlude;
-    let block: syn::Block = syn::parse_quote!({});
-
-    let feature_path = ctx.manifest_dir.join(ctx.rel_path).display().to_string();
-
-    let config = ScenarioConfig {
-        attrs: &attrs,
-        vis: &vis,
-        sig: &sig,
-        block: &block,
-        feature_path: FeaturePath::new(feature_path),
-        scenario_name: ScenarioName::new(name),
-        steps,
-        examples,
-        allow_skipped,
-        line,
-        tags: &tags,
-    };
-    TokenStream2::from(generate_scenario_code(
-        config,
-        ctx_prelude.into_iter(),
-        ctx_inserts.into_iter(),
-        ctx_postlude.into_iter(),
-    ))
+/// Context for processing feature files, bundling configuration
+/// that remains constant across multiple feature file operations.
+struct FeatureProcessingContext<'a> {
+    manifest_dir: &'a Path,
+    tag_filter: Option<&'a TagExpression>,
+    fixtures: &'a [FixtureSpec],
 }
 
 #[expect(
@@ -147,7 +63,6 @@ fn process_scenarios(
     feature: &gherkin::Feature,
     ctx: &ScenarioTestContext<'_>,
     used_names: &mut HashSet<String>,
-    tag_filter: Option<&TagExpression>,
 ) -> (Vec<TokenStream2>, Vec<TokenStream2>) {
     let mut tests = Vec::new();
     let mut errors = Vec::new();
@@ -155,7 +70,10 @@ fn process_scenarios(
     for idx in 0..feature.scenarios.len() {
         match extract_scenario_steps(feature, Some(idx)) {
             Ok(mut data) => {
-                if tag_filter.is_none_or(|filter| data.filter_by_tags(filter)) {
+                if ctx
+                    .tag_filter
+                    .is_none_or(|filter| data.filter_by_tags(filter))
+                {
                     tests.push(generate_scenario_test(ctx, used_names, data));
                 }
             }
@@ -168,12 +86,11 @@ fn process_scenarios(
 
 fn process_feature_file(
     abs_path: &Path,
-    manifest_dir: &Path,
+    ctx: &FeatureProcessingContext<'_>,
     used_names: &mut HashSet<String>,
-    tag_filter: Option<&TagExpression>,
 ) -> (Vec<TokenStream2>, Vec<TokenStream2>) {
     let rel_path = abs_path
-        .strip_prefix(manifest_dir)
+        .strip_prefix(ctx.manifest_dir)
         .map_or_else(|_| abs_path.to_path_buf(), Path::to_path_buf);
 
     let feature = match parse_and_load_feature(rel_path.as_path()) {
@@ -187,31 +104,35 @@ fn process_feature_file(
             .and_then(|s| s.to_str())
             .unwrap_or("feature"),
     );
-    let ctx = ScenarioTestContext {
+    let test_ctx = ScenarioTestContext {
         feature_stem: &feature_stem,
-        manifest_dir,
+        manifest_dir: ctx.manifest_dir,
         rel_path: &rel_path,
+        tag_filter: ctx.tag_filter,
+        fixtures: ctx.fixtures,
     };
 
-    process_scenarios(&feature, &ctx, used_names, tag_filter)
+    process_scenarios(&feature, &test_ctx, used_names)
 }
 
 fn generate_tests_from_features(
     feature_paths: Vec<PathBuf>,
     manifest_dir: &Path,
     tag_filter: Option<&TagExpression>,
+    fixtures: &[FixtureSpec],
 ) -> (Vec<TokenStream2>, Vec<TokenStream2>) {
     let mut used_names = HashSet::new();
     let mut tests = Vec::new();
     let mut errors = Vec::new();
 
+    let ctx = FeatureProcessingContext {
+        manifest_dir,
+        tag_filter,
+        fixtures,
+    };
+
     for abs_path in feature_paths {
-        let (mut t, mut errs) = process_feature_file(
-            abs_path.as_path(),
-            manifest_dir,
-            &mut used_names,
-            tag_filter,
-        );
+        let (mut t, mut errs) = process_feature_file(abs_path.as_path(), &ctx, &mut used_names);
         tests.append(&mut t);
         errors.append(&mut errs);
     }
@@ -256,6 +177,7 @@ pub(crate) fn scenarios(input: TokenStream) -> TokenStream {
     let ScenariosArgs {
         dir: dir_lit,
         tag_filter: tag_lit,
+        fixtures,
     } = syn::parse_macro_input!(input as ScenariosArgs);
     let dir = PathBuf::from(dir_lit.value());
 
@@ -283,6 +205,7 @@ pub(crate) fn scenarios(input: TokenStream) -> TokenStream {
         feature_paths,
         &manifest_dir,
         tag_filter.as_ref().map(|f| &f.expr),
+        &fixtures,
     );
 
     check_empty_results(&tests, &mut errors, tag_filter.as_ref());
@@ -306,58 +229,47 @@ pub(crate) fn scenarios(input: TokenStream) -> TokenStream {
     })
 }
 
+#[cfg(unix)]
 #[cfg(test)]
 mod tests {
-    use super::dedupe_name;
-    use std::collections::HashSet;
+    use super::feature_discovery::collect_feature_files;
+    use std::fs;
+    use std::io;
+    use std::os::unix::fs::symlink;
+    use std::path::Path;
+    use tempfile::tempdir;
 
     #[test]
-    fn deduplicates_duplicate_titles() {
-        let mut used = HashSet::new();
-        let first = dedupe_name("dup_same_name", &mut used);
-        let second = dedupe_name("dup_same_name", &mut used);
-        assert_eq!(first, "dup_same_name");
-        assert_eq!(second, "dup_same_name_1");
+    fn collects_symlinked_feature_files_without_following_directory_loops() -> io::Result<()> {
+        let temp = tempdir()?;
+        let features_root = temp.path().join("features");
+        fs::create_dir_all(features_root.join("nested"))?;
+
+        let feature_path = features_root.join("nested/example.feature");
+        fs::write(&feature_path, "Feature: Example\n")?;
+
+        let symlink_path = features_root.join("symlink.feature");
+        symlink(&feature_path, &symlink_path)?;
+
+        let relative_symlink_path = features_root.join("relative_link.feature");
+        symlink(Path::new("nested/example.feature"), &relative_symlink_path)?;
+
+        let loop_dir = features_root.join("loop");
+        symlink(&features_root, &loop_dir)?;
+
+        let files = collect_feature_files(features_root.as_path())?;
+
+        let mut expected = vec![feature_path, symlink_path, relative_symlink_path];
+        expected.sort();
+        assert_eq!(files, expected);
+
+        Ok(())
     }
+}
 
-    #[cfg(unix)]
-    mod unix {
-        use super::super::feature_discovery::collect_feature_files;
-        use std::fs;
-        use std::io;
-        use std::os::unix::fs::symlink;
-        use std::path::Path;
-        use tempfile::tempdir;
-
-        #[test]
-        fn collects_symlinked_feature_files_without_following_directory_loops() -> io::Result<()> {
-            let temp = tempdir()?;
-            let features_root = temp.path().join("features");
-            fs::create_dir_all(features_root.join("nested"))?;
-
-            let feature_path = features_root.join("nested/example.feature");
-            fs::write(&feature_path, "Feature: Example\n")?;
-
-            let symlink_path = features_root.join("symlink.feature");
-            symlink(&feature_path, &symlink_path)?;
-
-            let relative_symlink_path = features_root.join("relative_link.feature");
-            symlink(Path::new("nested/example.feature"), &relative_symlink_path)?;
-
-            let loop_dir = features_root.join("loop");
-            symlink(&features_root, &loop_dir)?;
-
-            let files = collect_feature_files(features_root.as_path())?;
-
-            let mut expected = vec![feature_path, symlink_path, relative_symlink_path];
-            expected.sort();
-            assert_eq!(files, expected);
-
-            Ok(())
-        }
-    }
-
-    #[cfg(not(unix))]
+#[cfg(not(unix))]
+#[cfg(test)]
+mod tests {
     #[test]
     fn collects_symlinked_feature_files_without_following_directory_loops() {
         assert!(cfg!(not(unix)));
