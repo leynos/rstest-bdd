@@ -1,19 +1,21 @@
 //! Code emission helpers for wrapper generation.
-// TODO(issue #50): Reduce this module below 400 lines and remove the rs-length allowlist entry.
 
 use super::args::{Arg, ExtractedArgs};
 use super::arguments::{
     PreparedArgs, StepMeta, collect_ordered_arguments, prepare_argument_processing,
-    step_error_tokens,
 };
 use crate::return_classifier::ReturnKind;
-use crate::utils::ident::sanitize_ident;
 use proc_macro2::TokenStream as TokenStream2;
 use quote::{format_ident, quote};
 use std::sync::atomic::{AtomicUsize, Ordering};
 
+mod call_expr;
 mod datatable_cache;
+mod errors;
+
+use call_expr::generate_call_expression;
 use datatable_cache::{DatatableCacheComponents, generate_datatable_cache_definitions};
+use errors::{WrapperErrors, prepare_wrapper_errors};
 
 /// Configuration required to generate a wrapper.
 pub(crate) struct WrapperConfig<'a> {
@@ -54,6 +56,7 @@ struct WrapperIdents {
 /// Returns identifiers for the sync wrapper function, async wrapper function,
 /// fixture array constant, and pattern constant.
 fn generate_wrapper_identifiers(ident: &syn::Ident, id: usize) -> WrapperIdents {
+    use crate::utils::ident::sanitize_ident;
     let ident_sanitized = sanitize_ident(&ident.to_string());
     let sync_wrapper = format_ident!("__rstest_bdd_wrapper_{}_{}", ident_sanitized, id);
     let async_wrapper = format_ident!("__rstest_bdd_async_wrapper_{}_{}", ident_sanitized, id);
@@ -125,90 +128,6 @@ struct WrapperIdentifiers<'a> {
     pattern: &'a proc_macro2::Ident,
     ctx: &'a proc_macro2::Ident,
     text: &'a proc_macro2::Ident,
-}
-
-struct WrapperErrors {
-    placeholder: TokenStream2,
-    panic: TokenStream2,
-    execution: TokenStream2,
-    capture_mismatch: TokenStream2,
-}
-
-fn prepare_wrapper_errors(meta: StepMeta<'_>, text_ident: &proc_macro2::Ident) -> WrapperErrors {
-    let StepMeta { pattern, ident } = meta;
-    let execution_error = format_ident!("ExecutionError");
-    let panic_error = format_ident!("PanicError");
-    let placeholder = step_error_tokens(
-        &execution_error,
-        pattern,
-        ident,
-        &quote! {
-            format!(
-                "Step text '{}' does not match pattern '{}': {}",
-                #text_ident,
-                #pattern,
-                e
-            )
-        },
-    );
-    let panic = step_error_tokens(&panic_error, pattern, ident, &quote! { message });
-    let execution = step_error_tokens(&execution_error, pattern, ident, &quote! { message });
-    let capture_mismatch = step_error_tokens(
-        &execution_error,
-        pattern,
-        ident,
-        &quote! {
-            format!(
-                "pattern '{}' produced {} captures but step '{}' expects {}",
-                #pattern,
-                captures.len(),
-                stringify!(#ident),
-                expected
-            )
-        },
-    );
-
-    WrapperErrors {
-        placeholder,
-        panic,
-        execution,
-        capture_mismatch,
-    }
-}
-
-/// Generate the call expression for a step function based on its return kind.
-///
-/// This helper emits the token stream that invokes the user's step function
-/// and wraps the result according to the inferred [`ReturnKind`]:
-///
-/// - [`ReturnKind::Unit`]: Discards the return value and yields `Ok(None)`.
-/// - [`ReturnKind::Value`]: Wraps the value via `__rstest_bdd_payload_from_value`,
-///   which boxes non-unit values or returns `None` for unit.
-/// - [`ReturnKind::ResultUnit`] / [`ReturnKind::ResultValue`]: Unpacks the
-///   `Result`, mapping `Ok(value)` through the payload helper and converting
-///   `Err(e)` to a `String` for the step error.
-fn generate_call_expression(
-    return_kind: ReturnKind,
-    ident: &syn::Ident,
-    arg_idents: &[&syn::Ident],
-) -> TokenStream2 {
-    let path = crate::codegen::rstest_bdd_path();
-    let call = quote! { #ident(#(#arg_idents),*) };
-    match return_kind {
-        ReturnKind::Unit => quote! {{
-            #call;
-            Ok(None)
-        }},
-        ReturnKind::Value => quote! {
-            Ok(#path::__rstest_bdd_payload_from_value(#call))
-        },
-        ReturnKind::ResultUnit | ReturnKind::ResultValue => quote! {{
-            match #call {
-                ::core::result::Result::Ok(value) => Ok(#path::__rstest_bdd_payload_from_value(value)),
-                ::core::result::Result::Err(error) => Err(error.to_string()),
-            }
-        }},
-    }
 }
 
 /// Assemble the final wrapper function using prepared components.

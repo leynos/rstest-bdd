@@ -40,6 +40,9 @@ pub mod state;
 pub mod step_args;
 mod types;
 
+#[cfg(feature = "test-support")]
+pub mod test_support;
+
 pub use context::{FixtureRef, FixtureRefMut, StepContext};
 pub use localization::{
     LocalizationError, Localizations, current_languages, install_localization_loader,

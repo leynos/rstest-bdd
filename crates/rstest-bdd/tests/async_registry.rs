@@ -6,6 +6,7 @@
 //! patterns or keywords do not match, and that async lookups properly mark
 //! steps as used.
 
+use rstest::rstest;
 use rstest_bdd::{
     AsyncStepFn, Step, StepContext, StepExecution, StepFuture, StepKeyword, find_step_async, iter,
     lookup_step_async, step, unused_steps,
@@ -126,81 +127,64 @@ fn lookup_step_async_returns_async_wrapper() {
 }
 
 // ----------------------------------------------------------------------------
-// Tests for async lookup failure behaviour
+// Parameterized tests for async lookup failure behaviour
 // ----------------------------------------------------------------------------
 
-/// Verify that an async lookup returns None for a given keyword and pattern.
-fn assert_async_lookup_returns_none(
-    lookup_fn: impl FnOnce(StepKeyword, &str) -> Option<AsyncStepFn>,
-    keyword: StepKeyword,
-    pattern: &str,
-    api_name: &str,
-    failure_reason: &str,
+/// Test that async lookup APIs return None when the pattern or keyword does not match.
+///
+/// This parameterized test consolidates all failure cases for both `find_step_async`
+/// and `lookup_step_async` into a single test with multiple cases.
+#[rstest]
+#[case::find_unknown_pattern(
+    "find_step_async",
+    StepKeyword::Given,
+    "a completely unknown pattern xyz123",
+    "for an unknown pattern"
+)]
+#[case::find_mismatched_when(
+    "find_step_async",
+    StepKeyword::When,
+    "an async registry test step",
+    "when keyword does not match (When)"
+)]
+#[case::find_mismatched_then(
+    "find_step_async",
+    StepKeyword::Then,
+    "an async registry test step",
+    "when keyword does not match (Then)"
+)]
+#[case::lookup_unknown_pattern(
+    "lookup_step_async",
+    StepKeyword::Given,
+    "a completely unknown pattern xyz123",
+    "for an unknown pattern"
+)]
+#[case::lookup_mismatched_when(
+    "lookup_step_async",
+    StepKeyword::When,
+    "an async registry test step",
+    "when keyword does not match (When)"
+)]
+#[case::lookup_mismatched_then(
+    "lookup_step_async",
+    StepKeyword::Then,
+    "an async registry test step",
+    "when keyword does not match (Then)"
+)]
+fn async_lookup_returns_none_for_invalid_input(
+    #[case] api_name: &str,
+    #[case] keyword: StepKeyword,
+    #[case] pattern: &str,
+    #[case] failure_reason: &str,
 ) {
-    let result = lookup_fn(keyword, pattern);
+    let result = match api_name {
+        "find_step_async" => find_step_async(keyword, pattern.into()),
+        "lookup_step_async" => lookup_step_async(keyword, pattern.into()),
+        _ => panic!("unknown API: {api_name}"),
+    };
     assert!(
         result.is_none(),
         "{api_name} should return None {failure_reason}"
-    );
-}
-
-#[test]
-fn find_step_async_returns_none_for_unknown_pattern() {
-    assert_async_lookup_returns_none(
-        |kw, pat| find_step_async(kw, pat.into()),
-        StepKeyword::Given,
-        "a completely unknown pattern xyz123",
-        "find_step_async",
-        "for an unknown pattern",
-    );
-}
-
-#[test]
-fn find_step_async_returns_none_for_mismatched_keyword() {
-    // The registered step uses StepKeyword::Given, so When/Then should not match.
-    assert_async_lookup_returns_none(
-        |kw, pat| find_step_async(kw, pat.into()),
-        StepKeyword::When,
-        "an async registry test step",
-        "find_step_async",
-        "when keyword does not match (When)",
-    );
-    assert_async_lookup_returns_none(
-        |kw, pat| find_step_async(kw, pat.into()),
-        StepKeyword::Then,
-        "an async registry test step",
-        "find_step_async",
-        "when keyword does not match (Then)",
-    );
-}
-
-#[test]
-fn lookup_step_async_returns_none_for_unknown_pattern() {
-    assert_async_lookup_returns_none(
-        |kw, pat| lookup_step_async(kw, pat.into()),
-        StepKeyword::Given,
-        "a completely unknown pattern xyz123",
-        "lookup_step_async",
-        "for an unknown pattern",
-    );
-}
-
-#[test]
-fn lookup_step_async_returns_none_for_mismatched_keyword() {
-    // The registered step uses StepKeyword::Given, so When/Then should not match.
-    assert_async_lookup_returns_none(
-        |kw, pat| lookup_step_async(kw, pat.into()),
-        StepKeyword::When,
-        "an async registry test step",
-        "lookup_step_async",
-        "when keyword does not match (When)",
-    );
-    assert_async_lookup_returns_none(
-        |kw, pat| lookup_step_async(kw, pat.into()),
-        StepKeyword::Then,
-        "an async registry test step",
-        "lookup_step_async",
-        "when keyword does not match (Then)",
     );
 }
 

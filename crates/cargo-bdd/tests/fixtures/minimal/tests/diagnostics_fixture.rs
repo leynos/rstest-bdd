@@ -1,32 +1,9 @@
 //! Fixture seeding reporting diagnostics for snapshot-based integration tests.
 
 use rstest_bdd as bdd;
+use rstest_bdd::test_support::sync_to_async;
 use rstest_bdd::{step, StepContext, StepExecution, StepFuture, StepKeyword};
 use serial_test::serial;
-
-/// Wrap a synchronous step handler into an immediately-ready future.
-///
-/// This helper duplicates the implementation in `rstest-bdd/tests/common/mod.rs`
-/// because this fixture resides in a separate crate (`cargo-bdd`) and cannot
-/// import from the `rstest-bdd` test utilities. If this pattern is needed in
-/// more places, consider exporting it from `rstest_bdd` behind a `test-support`
-/// feature.
-fn sync_to_async<'a, F>(
-    sync_fn: F,
-) -> impl FnOnce(&'a mut StepContext<'a>, &str, Option<&str>, Option<&[&[&str]]>) -> StepFuture<'a>
-where
-    F: FnOnce(
-        &mut StepContext<'_>,
-        &str,
-        Option<&str>,
-        Option<&[&[&str]]>,
-    ) -> Result<StepExecution, bdd::StepError>
-        + 'a,
-{
-    move |ctx, text, docstring, table| {
-        Box::pin(std::future::ready(sync_fn(ctx, text, docstring, table)))
-    }
-}
 
 step!(
     StepKeyword::Given,
