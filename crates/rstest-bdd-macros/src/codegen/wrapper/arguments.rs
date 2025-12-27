@@ -146,15 +146,27 @@ fn generate_missing_capture_errors(
 fn generate_capture_initializers(
     captures: &[TokenStream2],
     missing_errs: &[TokenStream2],
+    hints: &[Option<String>],
     values_ident: &proc_macro2::Ident,
 ) -> Vec<TokenStream2> {
     captures
         .iter()
         .zip(missing_errs.iter())
-        .map(|(capture, missing)| {
-            quote! {
-                let raw = #capture.ok_or_else(|| #missing)?;
-                #values_ident.push(raw.to_string());
+        .enumerate()
+        .map(|(idx, (capture, missing))| {
+            let hint = hints.get(idx).and_then(|h| h.as_deref());
+            let needs_quote_strip = rstest_bdd_patterns::requires_quote_stripping(hint);
+            if needs_quote_strip {
+                quote! {
+                    let raw = #capture.ok_or_else(|| #missing)?;
+                    let stripped = &raw[1..raw.len() - 1];
+                    #values_ident.push(stripped.to_string());
+                }
+            } else {
+                quote! {
+                    let raw = #capture.ok_or_else(|| #missing)?;
+                    #values_ident.push(raw.to_string());
+                }
             }
         })
         .collect()
@@ -164,6 +176,7 @@ fn gen_step_struct_decl(
     step_struct: Option<StepStructArg<'_>>,
     captures: &[TokenStream2],
     placeholder_names: &[syn::LitStr],
+    placeholder_hints: &[Option<String>],
     meta: StepMeta<'_>,
 ) -> Option<TokenStream2> {
     let capture_count = placeholder_names.len();
@@ -172,7 +185,12 @@ fn gen_step_struct_decl(
         let values_ident = format_ident!("__rstest_bdd_struct_values");
         let StepMeta { pattern, ident } = meta;
         let missing_errs = generate_missing_capture_errors(placeholder_names, pattern, ident, pat);
-        let capture_inits = generate_capture_initializers(captures, &missing_errs, &values_ident);
+        let capture_inits = generate_capture_initializers(
+            captures,
+            &missing_errs,
+            placeholder_hints,
+            &values_ident,
+        );
         let convert_err = step_error_tokens(
             &format_ident!("ExecutionError"),
             pattern,
@@ -283,6 +301,7 @@ pub(super) fn prepare_argument_processing(
         step_struct.and_then(Arg::as_step_struct),
         &all_captures,
         placeholder_names,
+        placeholder_hints,
         step_meta,
     );
     let datatable_decl = match (datatable.and_then(Arg::as_datatable), datatable_idents) {

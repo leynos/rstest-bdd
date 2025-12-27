@@ -2,6 +2,7 @@
 #![expect(clippy::expect_used, reason = "test asserts conversion path")]
 
 use regex::Regex;
+use rstest::rstest;
 
 use rstest_bdd_patterns::{
     build_regex_from_pattern, compile_regex_from_pattern, extract_captured_values, get_type_pattern,
@@ -205,52 +206,21 @@ fn string_hint_matches_empty_quoted_strings() {
     );
 }
 
-#[test]
-fn string_hint_matches_escaped_double_quotes() {
-    assert_pattern_matches(
-        "message is {text:string}",
-        &[
-            (
-                r#"message is "Hello \"World\"""#,
-                true,
-                "should match double-quoted string with escaped internal quotes",
-            ),
-            (
-                r#"message is "Say \"Hello\" to \"World\"""#,
-                true,
-                "should match double-quoted string with multiple escaped quotes",
-            ),
-            (
-                r#"message is "Escaped backslash: \\""#,
-                true,
-                "should match double-quoted string with escaped backslash",
-            ),
-        ],
-    );
-}
-
-#[test]
-fn string_hint_matches_escaped_single_quotes() {
-    assert_pattern_matches(
-        "message is {text:string}",
-        &[
-            (
-                r"message is 'Hello \'World\''",
-                true,
-                "should match single-quoted string with escaped internal quotes",
-            ),
-            (
-                r"message is 'Say \'Hello\' to \'World\''",
-                true,
-                "should match single-quoted string with multiple escaped quotes",
-            ),
-            (
-                r"message is 'Escaped backslash: \\'",
-                true,
-                "should match single-quoted string with escaped backslash",
-            ),
-        ],
-    );
+#[rstest]
+#[case::double_escaped_internal(r#"message is "Hello \"World\"""#, "escaped internal quotes")]
+#[case::double_multiple_escaped(
+    r#"message is "Say \"Hello\" to \"World\"""#,
+    "multiple escaped quotes"
+)]
+#[case::double_escaped_backslash(r#"message is "Escaped backslash: \\""#, "escaped backslash")]
+#[case::single_escaped_internal(r"message is 'Hello \'World\''", "escaped internal quotes")]
+#[case::single_multiple_escaped(
+    r"message is 'Say \'Hello\' to \'World\''",
+    "multiple escaped quotes"
+)]
+#[case::single_escaped_backslash(r"message is 'Escaped backslash: \\'", "escaped backslash")]
+fn string_hint_matches_escaped_quotes(#[case] input: &str, #[case] description: &str) {
+    assert_pattern_matches("message is {text:string}", &[(input, true, description)]);
 }
 
 #[test]

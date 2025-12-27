@@ -16,9 +16,26 @@ struct CartInput {
     price: f32,
 }
 
+/// Product input with a string-hinted name field to verify quote stripping in step_args.
+#[derive(Clone, Debug, StepArgs)]
+struct ProductInput {
+    name: String,
+    price: f32,
+}
+
+#[derive(Default, ScenarioState)]
+struct ProductState {
+    product: Slot<ProductInput>,
+}
+
 #[fixture]
 fn cart_state() -> CartState {
     CartState::default()
+}
+
+#[fixture]
+fn product_state() -> ProductState {
+    ProductState::default()
 }
 
 #[given("a cart containing {quantity:u32} {item} at ${price:f32}")]
@@ -56,9 +73,47 @@ fn cart_summary_matches(#[step_args] expected: CartInput, cart_state: &CartState
     assert_eq!(actual_price.to_bits(), expected_price.to_bits());
 }
 
+/// Step that captures a quoted product name using :string hint with step_args.
+#[given("a product named {name:string} priced at ${price:f32}")]
+fn set_product(#[step_args] product: ProductInput, product_state: &ProductState) {
+    product_state.product.set(product);
+}
+
+/// Verify the product was captured with quotes stripped from the name.
+#[then("the product summary shows {name:string} at ${price:f32}")]
+#[expect(
+    clippy::expect_used,
+    reason = "behaviour test panics with clear message when state missing"
+)]
+fn product_summary_matches(#[step_args] expected: ProductInput, product_state: &ProductState) {
+    let actual = product_state
+        .product
+        .get()
+        .expect("product state should be populated before verification");
+    assert_eq!(
+        actual.name, expected.name,
+        "product name should match without quotes"
+    );
+    assert_eq!(
+        actual.price.to_bits(),
+        expected.price.to_bits(),
+        "product price should match"
+    );
+}
+
 #[scenario(path = "tests/features/struct_step_args.feature")]
 fn struct_step_args(cart_state: CartState) {
+    // Binding registers fixture for step injection; intentionally unused here
     let _ = cart_state;
+}
+
+#[scenario(
+    path = "tests/features/struct_step_args.feature",
+    name = "String hints with step_args struct"
+)]
+fn struct_step_args_with_string_hint(product_state: ProductState) {
+    // Binding registers fixture for step injection; intentionally unused here
+    let _ = product_state;
 }
 
 #[test]
