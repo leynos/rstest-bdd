@@ -411,12 +411,12 @@ scope until the core workflow is stable.
     in-memory registry keyed by keyword, invalidated incrementally on file
     change notifications.
 
-- [ ] **Navigation handlers**
+- [x] **Navigation handlers**
 
   - [x] Implement `textDocument/definition` to jump from a Rust step function
     to every matching feature step using keyword-aware regex matching.
 
-  - [ ] Implement `textDocument/implementation` to jump from a feature step to
+  - [x] Implement `textDocument/implementation` to jump from a feature step to
     all matching Rust implementations, returning multiple locations when
     duplicates exist.
 

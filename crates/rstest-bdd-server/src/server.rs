@@ -170,8 +170,9 @@ impl ServerState {
 /// Build the server capabilities to advertise to the client.
 ///
 /// Phase 7 advertises text document sync to receive save notifications for
-/// `.feature` file indexing and definition navigation for Rust-to-feature
-/// step navigation.
+/// `.feature` file indexing, definition navigation for Rust-to-feature step
+/// navigation, and implementation navigation for feature-to-Rust step
+/// navigation.
 #[must_use]
 pub fn build_server_capabilities() -> ServerCapabilities {
     ServerCapabilities {
@@ -188,6 +189,7 @@ pub fn build_server_capabilities() -> ServerCapabilities {
             },
         )),
         definition_provider: Some(lsp_types::OneOf::Left(true)),
+        implementation_provider: Some(lsp_types::ImplementationProviderCapability::Simple(true)),
         ..ServerCapabilities::default()
     }
 }
@@ -227,5 +229,11 @@ mod tests {
         let capabilities = build_server_capabilities();
         assert!(capabilities.text_document_sync.is_some());
         assert!(capabilities.definition_provider.is_some());
+    }
+
+    #[test]
+    fn build_server_capabilities_includes_implementation_provider() {
+        let capabilities = build_server_capabilities();
+        assert!(capabilities.implementation_provider.is_some());
     }
 }
