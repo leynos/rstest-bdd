@@ -37,6 +37,7 @@ pub(super) struct ScenariosArgs {
 enum ScenariosArg {
     Dir(LitStr),
     Tags(LitStr),
+    Fixtures(Vec<FixtureSpec>),
 }
 
 impl Parse for ScenariosArg {
@@ -50,8 +51,13 @@ impl Parse for ScenariosArg {
                 Ok(Self::Dir(input.parse()?))
             } else if ident == "tags" {
                 Ok(Self::Tags(input.parse()?))
+            } else if ident == "fixtures" {
+                let content;
+                syn::bracketed!(content in input);
+                let specs = Punctuated::<FixtureSpec, Comma>::parse_terminated(&content)?;
+                Ok(Self::Fixtures(specs.into_iter().collect()))
             } else {
-                Err(input.error("expected `dir`, `path`, or `tags`"))
+                Err(input.error("expected `dir`, `path`, `tags`, or `fixtures`"))
             }
         }
     }
@@ -62,6 +68,7 @@ impl Parse for ScenariosArgs {
         let args = Punctuated::<ScenariosArg, Comma>::parse_terminated(input)?;
         let mut dir = None;
         let mut tag_filter = None;
+        let mut fixtures = None;
 
         for arg in args {
             match arg {
@@ -77,11 +84,21 @@ impl Parse for ScenariosArgs {
                     }
                     tag_filter = Some(lit);
                 }
+                ScenariosArg::Fixtures(specs) => {
+                    if fixtures.is_some() {
+                        return Err(input.error("duplicate `fixtures` argument"));
+                    }
+                    fixtures = Some(specs);
+                }
             }
         }
 
         let dir = dir.ok_or_else(|| input.error("`dir` (or `path`) argument is required"))?;
 
-        Ok(Self { dir, tag_filter })
+        Ok(Self {
+            dir,
+            tag_filter,
+            fixtures: fixtures.unwrap_or_default(),
+        })
     }
 }
