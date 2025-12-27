@@ -1,5 +1,4 @@
 //! Argument code generation utilities shared by wrapper emission logic.
-// TODO(issue #50): Reduce this module below 400 lines and drop the rs-length allowlist entry.
 
 use super::args::{Arg, DocStringArg, StepStructArg};
 use proc_macro2::TokenStream as TokenStream2;
@@ -7,8 +6,10 @@ use quote::{format_ident, quote};
 
 mod datatable;
 mod fixtures;
+mod step_parse;
 use datatable::{CacheIdents, gen_datatable_decl};
 use fixtures::gen_fixture_decls;
+use step_parse::{ArgParseContext, gen_quote_strip_to_stripped, gen_single_step_parse};
 
 #[derive(Copy, Clone)]
 pub(super) struct StepMeta<'a> {
@@ -116,6 +117,19 @@ pub(super) fn gen_docstring_decl(
     )
 }
 
+/// Context for generating capture initialisers in struct-based step arguments.
+///
+/// Groups the parameters required by [`generate_capture_initializers`] to reduce
+/// the function's argument count.
+struct CaptureInitContext<'a> {
+    captures: &'a [TokenStream2],
+    missing_errs: &'a [TokenStream2],
+    hints: &'a [Option<String>],
+    values_ident: &'a proc_macro2::Ident,
+    meta: StepMeta<'a>,
+    struct_pat: &'a syn::Ident,
+}
+
 fn generate_missing_capture_errors(
     placeholder_names: &[syn::LitStr],
     pattern: &syn::LitStr,
@@ -142,36 +156,86 @@ fn generate_missing_capture_errors(
         .collect()
 }
 
-fn generate_capture_initializers(
-    captures: &[TokenStream2],
-    missing_errs: &[TokenStream2],
-    values_ident: &proc_macro2::Ident,
-) -> Vec<TokenStream2> {
+fn generate_capture_initializers(ctx: &CaptureInitContext<'_>) -> Vec<TokenStream2> {
+    let CaptureInitContext {
+        captures,
+        missing_errs,
+        hints,
+        values_ident,
+        meta,
+        struct_pat,
+    } = ctx;
+    let StepMeta { pattern, ident } = meta;
+    let raw_ident = format_ident!("raw");
     captures
         .iter()
         .zip(missing_errs.iter())
-        .map(|(capture, missing)| {
-            quote! {
-                let raw = #capture.ok_or_else(|| #missing)?;
-                #values_ident.push(raw.to_string());
+        .enumerate()
+        .map(|(idx, (capture, missing))| {
+            let hint = hints.get(idx).and_then(|h| h.as_deref());
+            let needs_quote_strip = rstest_bdd_patterns::requires_quote_stripping(hint);
+            if needs_quote_strip {
+                let malformed_err = step_error_tokens(
+                    &format_ident!("ExecutionError"),
+                    pattern,
+                    ident,
+                    &quote! {
+                        format!(
+                            "malformed quoted string for '{}' capture {}: expected at least 2 characters, got '{}'",
+                            stringify!(#struct_pat),
+                            #idx,
+                            #raw_ident,
+                        )
+                    },
+                );
+                let quote_strip = gen_quote_strip_to_stripped(&raw_ident, &malformed_err);
+                quote! {
+                    let #raw_ident = #capture.ok_or_else(|| #missing)?;
+                    #quote_strip
+                    #values_ident.push(stripped.to_string());
+                }
+            } else {
+                quote! {
+                    let #raw_ident = #capture.ok_or_else(|| #missing)?;
+                    #values_ident.push(#raw_ident.to_string());
+                }
             }
         })
         .collect()
 }
 
+/// Placeholder information needed for step struct code generation.
+struct PlaceholderInfo<'a> {
+    captures: &'a [TokenStream2],
+    names: &'a [syn::LitStr],
+    hints: &'a [Option<String>],
+}
+
 fn gen_step_struct_decl(
     step_struct: Option<StepStructArg<'_>>,
-    captures: &[TokenStream2],
-    placeholder_names: &[syn::LitStr],
+    placeholders: &PlaceholderInfo<'_>,
     meta: StepMeta<'_>,
 ) -> Option<TokenStream2> {
-    let capture_count = placeholder_names.len();
+    let PlaceholderInfo {
+        captures,
+        names,
+        hints,
+    } = placeholders;
+    let capture_count = names.len();
     step_struct.map(|arg| {
         let StepStructArg { pat, ty } = arg;
         let values_ident = format_ident!("__rstest_bdd_struct_values");
         let StepMeta { pattern, ident } = meta;
-        let missing_errs = generate_missing_capture_errors(placeholder_names, pattern, ident, pat);
-        let capture_inits = generate_capture_initializers(captures, &missing_errs, &values_ident);
+        let missing_errs = generate_missing_capture_errors(names, pattern, ident, pat);
+        let capture_init_ctx = CaptureInitContext {
+            captures,
+            missing_errs: &missing_errs,
+            hints,
+            values_ident: &values_ident,
+            meta,
+            struct_pat: pat,
+        };
+        let capture_inits = generate_capture_initializers(&capture_init_ctx);
         let convert_err = step_error_tokens(
             &format_ident!("ExecutionError"),
             pattern,
@@ -199,60 +263,27 @@ fn gen_step_struct_decl(
 /// For borrowed `&str` parameters, the captured string slice is used directly
 /// without parsing. For all other types, the standard `.parse()` path is used
 /// which requires the target type to implement [`FromStr`].
+///
+/// When a placeholder has the `:string` type hint, the surrounding quotes are
+/// stripped from the captured value before assignment or parsing.
 pub(super) fn gen_step_parses(
     step_args: &[&Arg],
     captured: &[TokenStream2],
+    hints: &[Option<String>],
     meta: StepMeta<'_>,
 ) -> Vec<TokenStream2> {
-    let StepMeta { pattern, ident } = meta;
     step_args
         .iter()
         .zip(captured.iter().enumerate())
         .map(|(arg, (idx, capture))| {
-            let Arg::Step { pat, ty } = *arg else {
-                unreachable!("step argument vector must contain step args");
+            let hint = hints.get(idx).and_then(|h| h.as_deref());
+            let ctx = ArgParseContext {
+                arg,
+                idx,
+                capture,
+                hint,
             };
-            let raw_ident = format_ident!("__raw{}", idx);
-            let missing_cap_err = step_error_tokens(
-                &format_ident!("ExecutionError"),
-                pattern,
-                ident,
-                &quote! {
-                    format!(
-                        "pattern '{}' missing capture for argument '{}'",
-                        #pattern,
-                        stringify!(#pat),
-                    )
-                },
-            );
-
-            if is_str_reference(ty) {
-                // Direct assignment for &str - no parsing needed
-                quote! {
-                    let #raw_ident: &str = #capture.ok_or_else(|| #missing_cap_err)?;
-                    let #pat: #ty = #raw_ident;
-                }
-            } else {
-                // Standard parse path for owned/parseable types
-                let parse_err = step_error_tokens(
-                    &format_ident!("ExecutionError"),
-                    pattern,
-                    ident,
-                    &quote! {
-                        format!(
-                            "failed to parse argument '{}' of type '{}' from pattern '{}' with captured value: '{:?}'",
-                            stringify!(#pat),
-                            stringify!(#ty),
-                            #pattern,
-                            #raw_ident,
-                        )
-                    },
-                );
-                quote! {
-                    let #raw_ident = #capture.ok_or_else(|| #missing_cap_err)?;
-                    let #pat: #ty = (#raw_ident).parse().map_err(|_| #parse_err)?;
-                }
-            }
+            gen_single_step_parse(ctx, meta)
         })
         .collect()
 }
@@ -263,6 +294,7 @@ pub(super) fn prepare_argument_processing(
     step_meta: StepMeta<'_>,
     ctx_ident: &proc_macro2::Ident,
     placeholder_names: &[syn::LitStr],
+    placeholder_hints: &[Option<String>],
     datatable_idents: Option<(&proc_macro2::Ident, &proc_macro2::Ident)>,
 ) -> PreparedArgs {
     let StepMeta { pattern, ident } = step_meta;
@@ -301,12 +333,22 @@ pub(super) fn prepare_argument_processing(
                 all_captures.len()
             )
         });
-        gen_step_parses(&step_args, capture_slice, step_meta)
+        let hint_slice = placeholder_hints.get(..step_args.len()).unwrap_or_else(|| {
+            panic!(
+                "placeholder hints ({}) must match or exceed step argument count ({})",
+                placeholder_hints.len(),
+                step_args.len()
+            )
+        });
+        gen_step_parses(&step_args, capture_slice, hint_slice, step_meta)
     };
     let step_struct_decl = gen_step_struct_decl(
         step_struct.and_then(Arg::as_step_struct),
-        &all_captures,
-        placeholder_names,
+        &PlaceholderInfo {
+            captures: &all_captures,
+            names: placeholder_names,
+            hints: placeholder_hints,
+        },
         step_meta,
     );
     let datatable_decl = match (datatable.and_then(Arg::as_datatable), datatable_idents) {

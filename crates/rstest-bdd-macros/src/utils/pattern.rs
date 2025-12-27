@@ -11,10 +11,19 @@ use std::collections::HashSet;
 
 use syn::{Ident, LitStr, Result};
 
+/// Information about a single placeholder extracted from a pattern.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct PlaceholderInfo {
+    /// The placeholder name (e.g., `args` from `{args:string}`).
+    pub name: String,
+    /// The optional type hint (e.g., `string` from `{args:string}`).
+    pub hint: Option<String>,
+}
+
 /// Ordered and deduplicated placeholder information extracted from a pattern.
 pub(crate) struct PlaceholderSummary {
-    /// Placeholder names in textual order (duplicates preserved).
-    pub ordered: Vec<String>,
+    /// Placeholder info in textual order (duplicates preserved).
+    pub ordered: Vec<PlaceholderInfo>,
     /// Unique placeholder names used for parameter classification.
     pub unique: HashSet<String>,
 }
@@ -43,9 +52,9 @@ pub(crate) fn placeholder_names(pattern: &str) -> Result<PlaceholderSummary> {
                     continue;
                 }
 
-                let (name, next) = parse_placeholder(bytes, i)?;
-                let _ = names.insert(name.clone());
-                ordered.push(name);
+                let (info, next) = parse_placeholder(bytes, i)?;
+                let _ = names.insert(info.name.clone());
+                ordered.push(info);
                 i = next;
             }
             b'}' => {
@@ -68,23 +77,30 @@ pub(crate) fn placeholder_names(pattern: &str) -> Result<PlaceholderSummary> {
     })
 }
 
-/// Parse a placeholder starting at `start`, returning the name and the index of
+/// Parse a placeholder starting at `start`, returning the info and the index of
 /// the next character after the closing brace.
 ///
 /// # Examples
 /// ```ignore
 /// let pattern = b"{world}";
-/// let (name, end) = parse_placeholder(pattern, 0).unwrap();
-/// assert_eq!(name, "world");
+/// let (info, end) = parse_placeholder(pattern, 0).unwrap();
+/// assert_eq!(info.name, "world");
+/// assert_eq!(info.hint, None);
 /// assert_eq!(end, 7);
 /// ```
-fn parse_placeholder(bytes: &[u8], start: usize) -> Result<(String, usize)> {
+fn parse_placeholder(bytes: &[u8], start: usize) -> Result<(PlaceholderInfo, usize)> {
     let mut j = start + 1;
     j = parse_placeholder_name(bytes, j)?;
     let name = extract_placeholder_name(bytes, start + 1, j)?;
-    j = skip_type_hint_if_present(bytes, j)?;
+    let (hint, j) = extract_type_hint_if_present(bytes, j)?;
     validate_closing_brace(bytes, j)?;
-    Ok((name.to_string(), j + 1))
+    Ok((
+        PlaceholderInfo {
+            name: name.to_string(),
+            hint,
+        },
+        j + 1,
+    ))
 }
 
 /// Parse the identifier portion of a placeholder, returning the index after the
@@ -141,32 +157,52 @@ fn extract_placeholder_name(bytes: &[u8], start: usize, end: usize) -> Result<&s
     Ok(name)
 }
 
-/// Skip an optional `:type` hint, returning the index of the closing brace or
-/// the character that should be the closing brace.
+/// Extract an optional `:type` hint, returning the hint value and the index of
+/// the closing brace or the character that should be the closing brace.
 ///
 /// # Examples
 /// ```ignore
 /// let bytes = b"{foo:bar}";
-/// let end = skip_type_hint_if_present(bytes, 4).unwrap();
+/// let (hint, end) = extract_type_hint_if_present(bytes, 4).unwrap();
+/// assert_eq!(hint, Some("bar".to_string()));
 /// assert_eq!(end, 8);
 /// ```
-fn skip_type_hint_if_present(bytes: &[u8], mut j: usize) -> Result<usize> {
-    if bytes.get(j) == Some(&b':') {
-        j += 1;
-        while let Some(&b) = bytes.get(j) {
-            if b == b'}' {
-                break;
-            }
-            if b == b'{' {
-                return Err(syn::Error::new(
-                    proc_macro2::Span::call_site(),
-                    "unmatched '{' in type hint",
-                ));
-            }
-            j += 1;
-        }
+fn extract_type_hint_if_present(bytes: &[u8], mut j: usize) -> Result<(Option<String>, usize)> {
+    if bytes.get(j) != Some(&b':') {
+        return Ok((None, j));
     }
-    Ok(j)
+
+    let hint_start = j + 1;
+    j = hint_start;
+
+    while let Some(&b) = bytes.get(j) {
+        if b == b'}' {
+            break;
+        }
+        if b == b'{' {
+            return Err(syn::Error::new(
+                proc_macro2::Span::call_site(),
+                "unmatched '{' in type hint",
+            ));
+        }
+        j += 1;
+    }
+
+    let hint_slice = bytes.get(hint_start..j).ok_or_else(|| {
+        syn::Error::new(proc_macro2::Span::call_site(), "invalid type hint range")
+    })?;
+    let hint = std::str::from_utf8(hint_slice)
+        .map_err(|_| {
+            syn::Error::new(
+                proc_macro2::Span::call_site(),
+                "type hint must be valid UTF-8",
+            )
+        })?
+        .to_string();
+
+    // Return None for empty hints (just a trailing colon with no content)
+    let hint = if hint.is_empty() { None } else { Some(hint) };
+    Ok((hint, j))
 }
 
 /// Ensure the placeholder ends with a closing brace.
@@ -292,5 +328,94 @@ mod tests {
         #[case] expected: bool,
     ) {
         assert_eq!(ident_matches_normalized(&ident, header), expected);
+    }
+
+    #[test]
+    #[expect(
+        clippy::expect_used,
+        clippy::indexing_slicing,
+        reason = "test asserts valid pattern"
+    )]
+    fn placeholder_without_hint_has_none() {
+        let summary = placeholder_names("{foo}").expect("valid pattern");
+        assert_eq!(summary.ordered.len(), 1);
+        assert_eq!(summary.ordered[0].name, "foo");
+        assert_eq!(summary.ordered[0].hint, None);
+    }
+
+    #[test]
+    #[expect(
+        clippy::expect_used,
+        clippy::indexing_slicing,
+        reason = "test asserts valid pattern"
+    )]
+    fn placeholder_with_type_hint_extracts_hint() {
+        let summary = placeholder_names("{foo:u32}").expect("valid pattern");
+        assert_eq!(summary.ordered.len(), 1);
+        assert_eq!(summary.ordered[0].name, "foo");
+        assert_eq!(summary.ordered[0].hint, Some("u32".to_string()));
+    }
+
+    #[test]
+    #[expect(
+        clippy::expect_used,
+        clippy::indexing_slicing,
+        reason = "test asserts valid pattern"
+    )]
+    fn placeholder_with_string_hint() {
+        let summary = placeholder_names("{args:string}").expect("valid pattern");
+        assert_eq!(summary.ordered.len(), 1);
+        assert_eq!(summary.ordered[0].name, "args");
+        assert_eq!(summary.ordered[0].hint, Some("string".to_string()));
+    }
+
+    #[test]
+    #[expect(
+        clippy::expect_used,
+        clippy::indexing_slicing,
+        reason = "test asserts valid pattern"
+    )]
+    fn multiple_placeholders_with_mixed_hints() {
+        let summary =
+            placeholder_names("given {name} has {count:u32} items").expect("valid pattern");
+        assert_eq!(summary.ordered.len(), 2);
+        assert_eq!(summary.ordered[0].name, "name");
+        assert_eq!(summary.ordered[0].hint, None);
+        assert_eq!(summary.ordered[1].name, "count");
+        assert_eq!(summary.ordered[1].hint, Some("u32".to_string()));
+    }
+
+    #[test]
+    #[expect(
+        clippy::expect_used,
+        clippy::indexing_slicing,
+        reason = "test asserts valid pattern"
+    )]
+    fn placeholder_hints_align_with_names_for_wrapper_config() {
+        // This test verifies that hints extracted from PlaceholderSummary maintain
+        // correct alignment with placeholder names when converted to separate vectors.
+        // This pattern matches the extraction logic in macros/mod.rs.
+        let summary = placeholder_names("user {name:string} has {count:u32} and {note}")
+            .expect("valid pattern");
+
+        // Simulate the extraction done in macros/mod.rs for WrapperInputs
+        let placeholder_names: Vec<_> = summary.ordered.iter().map(|info| &info.name).collect();
+        let placeholder_hints: Vec<_> = summary.ordered.iter().map(|info| &info.hint).collect();
+
+        // Verify alignment: each name maps to its corresponding hint
+        assert_eq!(placeholder_names.len(), 3);
+        assert_eq!(placeholder_hints.len(), 3);
+
+        // First: {name:string}
+        assert_eq!(placeholder_names[0], "name");
+        assert_eq!(placeholder_hints[0], &Some("string".to_string()));
+
+        // Second: {count:u32}
+        assert_eq!(placeholder_names[1], "count");
+        assert_eq!(placeholder_hints[1], &Some("u32".to_string()));
+
+        // Third: {note} - no hint
+        assert_eq!(placeholder_names[2], "note");
+        assert_eq!(placeholder_hints[2], &None);
     }
 }

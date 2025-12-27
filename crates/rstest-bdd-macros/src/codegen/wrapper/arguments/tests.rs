@@ -10,12 +10,17 @@ fn sample_meta<'a>(pattern: &'a syn::LitStr, ident: &'a syn::Ident) -> StepMeta<
     StepMeta { pattern, ident }
 }
 
-/// Generate step parse code for a single argument with the given type.
+/// Generate step parse code for a single argument with the given type and optional hint.
 ///
 /// This helper encapsulates the common setup for testing `gen_step_parses`:
 /// pattern creation, meta creation, argument/capture construction, and
 /// token extraction. Returns the generated code as a string for assertions.
 fn generate_step_parse_for_single_arg(ty: syn::Type) -> String {
+    generate_step_parse_with_hint(ty, None)
+}
+
+/// Generate step parse code for a single argument with the given type and hint.
+fn generate_step_parse_with_hint(ty: syn::Type, hint: Option<String>) -> String {
     let pattern: syn::LitStr = parse_quote!("test {name}");
     let ident: syn::Ident = parse_quote!(test_step);
     let meta = sample_meta(&pattern, &ident);
@@ -26,8 +31,9 @@ fn generate_step_parse_for_single_arg(ty: syn::Type) -> String {
     };
     let args = vec![&arg];
     let captures = vec![quote! { captures.get(0).map(|m| m.as_str()) }];
+    let hints = vec![hint];
 
-    let tokens = gen_step_parses(&args, &captures, meta);
+    let tokens = gen_step_parses(&args, &captures, &hints, meta);
 
     #[expect(
         clippy::expect_used,
@@ -67,6 +73,7 @@ fn prepare_argument_processing_handles_all_argument_types() {
 
     let ctx_ident = format_ident!("__rstest_bdd_ctx");
     let placeholder_names = vec![syn::LitStr::new("count", proc_macro2::Span::call_site())];
+    let placeholder_hints: Vec<Option<String>> = vec![None];
     let key_ident = format_ident!("__rstest_bdd_table_key_test");
     let cache_ident = format_ident!("__RSTEST_BDD_TABLE_CACHE_TEST");
     let prepared = prepare_argument_processing(
@@ -74,6 +81,7 @@ fn prepare_argument_processing_handles_all_argument_types() {
         meta,
         &ctx_ident,
         &placeholder_names,
+        &placeholder_hints,
         Some((&key_ident, &cache_ident)),
     );
 
@@ -250,7 +258,8 @@ fn gen_step_parses_handles_mixed_str_and_parsed_types() {
         quote! { captures.get(1).map(|m| m.as_str()) },
     ];
 
-    let tokens = gen_step_parses(&args, &captures, meta);
+    let hints: Vec<Option<String>> = vec![None, None];
+    let tokens = gen_step_parses(&args, &captures, &hints, meta);
 
     assert_eq!(tokens.len(), 2, "expected two token streams");
     #[expect(clippy::indexing_slicing, reason = "length verified above")]
@@ -265,5 +274,135 @@ fn gen_step_parses_handles_mixed_str_and_parsed_types() {
     assert!(
         usize_code.contains("parse"),
         "usize should use parse(): {usize_code}"
+    );
+}
+
+#[rstest]
+#[case(parse_quote!(&str), false, "&str with :string hint should not use parse()")]
+#[case(parse_quote!(String), true, "String with :string hint should use parse()")]
+fn gen_step_parses_strips_quotes_for_string_hint(
+    #[case] ty: syn::Type,
+    #[case] should_parse: bool,
+    #[case] parse_description: &str,
+) {
+    let code = generate_step_parse_with_hint(ty, Some("string".to_string()));
+
+    // Should contain quote stripping code
+    assert!(
+        code.contains("__raw0 . len () - 1"),
+        "should strip quotes: {code}"
+    );
+
+    // Conditionally assert parse() presence based on type
+    if should_parse {
+        assert!(code.contains("parse"), "{parse_description}: {code}");
+    } else {
+        assert!(!code.contains("parse"), "{parse_description}: {code}");
+    }
+}
+
+#[test]
+fn gen_step_parses_no_quote_strip_without_string_hint() {
+    let code = generate_step_parse_for_single_arg(parse_quote!(String));
+
+    // Should NOT contain quote stripping code
+    assert!(
+        !code.contains("len () - 1"),
+        "should not strip quotes without hint: {code}"
+    );
+}
+
+#[test]
+fn gen_step_parses_applies_hints_only_to_matching_arguments() {
+    let pattern: syn::LitStr = parse_quote!("test {name} {count}");
+    let ident: syn::Ident = parse_quote!(test_step);
+    let meta = sample_meta(&pattern, &ident);
+
+    let name_arg = Arg::Step {
+        pat: parse_quote!(name),
+        ty: parse_quote!(&str),
+    };
+    let count_arg = Arg::Step {
+        pat: parse_quote!(count),
+        ty: parse_quote!(usize),
+    };
+    let args = vec![&name_arg, &count_arg];
+    let captures = vec![
+        quote! { captures.get(0).map(|m| m.as_str()) },
+        quote! { captures.get(1).map(|m| m.as_str()) },
+    ];
+
+    // Only first argument has :string hint
+    let hints: Vec<Option<String>> = vec![Some("string".to_string()), None];
+    let tokens = gen_step_parses(&args, &captures, &hints, meta);
+
+    assert_eq!(tokens.len(), 2, "expected two token streams");
+
+    // First argument (with :string hint) should have quote stripping
+    #[expect(clippy::indexing_slicing, reason = "length verified above")]
+    let name_code = tokens[0].to_string();
+    assert!(
+        name_code.contains("__raw0 . len () - 1"),
+        "first arg with :string hint should strip quotes: {name_code}"
+    );
+    assert!(
+        !name_code.contains("parse"),
+        "&str should not use parse(): {name_code}"
+    );
+
+    // Second argument (without hint) should NOT have quote stripping
+    #[expect(clippy::indexing_slicing, reason = "length verified above")]
+    let count_code = tokens[1].to_string();
+    assert!(
+        !count_code.contains("len () - 1"),
+        "second arg without :string hint should not strip quotes: {count_code}"
+    );
+    assert!(
+        count_code.contains("parse"),
+        "usize should use parse(): {count_code}"
+    );
+}
+
+#[test]
+fn gen_step_parses_string_hint_includes_parse_error_message() {
+    // When :string hint is used with an owned type, the error message should still
+    // reference the original type and pattern for debugging purposes
+    let code = generate_step_parse_with_hint(parse_quote!(String), Some("string".to_string()));
+
+    // Should contain error message with type information
+    assert!(
+        code.contains("failed to parse argument"),
+        "should include parse error message: {code}"
+    );
+    assert!(
+        code.contains("stringify ! (name)"),
+        "error should reference argument name: {code}"
+    );
+    assert!(
+        code.contains("stringify ! (String)"),
+        "error should reference type: {code}"
+    );
+}
+
+#[rstest]
+#[case("u32", "u32 hint should use standard parse path")]
+#[case("i64", "i64 hint should use standard parse path")]
+#[case("f64", "f64 hint should use standard parse path")]
+#[case("unknown", "unknown hint should use standard parse path")]
+fn gen_step_parses_non_string_hints_use_standard_parse_path(
+    #[case] hint: &str,
+    #[case] description: &str,
+) {
+    let code = generate_step_parse_with_hint(parse_quote!(i32), Some(hint.to_string()));
+
+    // Non-:string hints should NOT strip quotes
+    assert!(
+        !code.contains("len () - 1"),
+        "{description} - should not strip quotes: {code}"
+    );
+    // Should use standard parse path
+    assert!(
+        code.contains("parse"),
+        "{description} - should use parse(): {code}"
     );
 }
