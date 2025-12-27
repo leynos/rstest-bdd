@@ -130,7 +130,7 @@ inventory::collect!(Step);
 
 type StepKey = (StepKeyword, &'static StepPattern);
 
-static STEP_MAP: LazyLock<HashMap<StepKey, StepFn>> = LazyLock::new(|| {
+static STEP_MAP: LazyLock<HashMap<StepKey, &'static Step>> = LazyLock::new(|| {
     let steps: Vec<_> = iter::<Step>.into_iter().collect();
     let mut map = HashMap::with_capacity(steps.len());
     for step in steps {
@@ -151,7 +151,7 @@ static STEP_MAP: LazyLock<HashMap<StepKey, StepFn>> = LazyLock::new(|| {
             step.file,
             step.line
         );
-        map.insert(key, step.run);
+        map.insert(key, step);
     }
     map
 });
@@ -173,9 +173,7 @@ fn all_steps() -> Vec<&'static Step> {
 }
 
 fn step_by_key(key: StepKey) -> Option<&'static Step> {
-    iter::<Step>
-        .into_iter()
-        .find(|step| (step.keyword, step.pattern) == key)
+    STEP_MAP.get(&key).copied()
 }
 
 fn resolve_exact_step(keyword: StepKeyword, pattern: PatternStr<'_>) -> Option<&'static Step> {
@@ -192,7 +190,7 @@ fn resolve_exact_step(keyword: StepKeyword, pattern: PatternStr<'_>) -> Option<&
         .from_hash(hash, |(kw, pat)| {
             *kw == keyword && pat.as_str() == pattern.as_str()
         })
-        .and_then(|(key, _)| step_by_key(*key))
+        .map(|(_, step)| *step)
 }
 
 fn resolve_step(keyword: StepKeyword, text: StepText<'_>) -> Option<&'static Step> {
