@@ -9,6 +9,26 @@ use super::{StepMeta, is_str_reference, step_error_tokens};
 use proc_macro2::TokenStream as TokenStream2;
 use quote::{format_ident, quote};
 
+/// Context for generating argument binding code.
+struct BindingContext<'a> {
+    /// Identifier for the raw captured string.
+    raw_ident: &'a proc_macro2::Ident,
+    /// Token stream representing the capture expression.
+    capture: &'a TokenStream2,
+    /// Pattern for the argument variable.
+    pat: &'a syn::Ident,
+    /// Type of the argument.
+    ty: &'a syn::Type,
+}
+
+/// Pre-generated code tokens for binding operations.
+struct CodeTokens<'a> {
+    /// Error for missing capture.
+    missing_cap_err: &'a TokenStream2,
+    /// Quote-stripping code (empty if not needed).
+    quote_strip: &'a TokenStream2,
+}
+
 /// Generate a token stream that validates and strips surrounding quotes.
 ///
 /// The generated code validates the captured string (bound to `raw_ident`) has
@@ -50,13 +70,11 @@ fn gen_quote_strip(raw_ident: &proc_macro2::Ident, malformed_err: &TokenStream2)
 ///
 /// This helper constructs the `StepError::ExecutionError` variant used when
 /// `.parse()` fails to convert a captured string to the expected type.
-fn gen_parse_err(
-    pattern: &syn::LitStr,
-    ident: &syn::Ident,
-    pat: &syn::Ident,
-    ty: &syn::Type,
-    raw_ident: &proc_macro2::Ident,
-) -> TokenStream2 {
+fn gen_parse_err(meta: StepMeta<'_>, binding: &BindingContext<'_>) -> TokenStream2 {
+    let StepMeta { pattern, ident } = meta;
+    let BindingContext {
+        raw_ident, pat, ty, ..
+    } = binding;
     step_error_tokens(
         &format_ident!("ExecutionError"),
         pattern,
@@ -77,13 +95,19 @@ fn gen_parse_err(
 ///
 /// Optionally strips surrounding quotes if the hint requires it.
 fn gen_str_reference_binding(
-    raw_ident: &proc_macro2::Ident,
-    capture: &TokenStream2,
-    pat: &syn::Ident,
-    ty: &syn::Type,
-    missing_cap_err: &TokenStream2,
-    quote_strip: &TokenStream2,
+    binding: &BindingContext<'_>,
+    tokens: &CodeTokens<'_>,
 ) -> TokenStream2 {
+    let BindingContext {
+        raw_ident,
+        capture,
+        pat,
+        ty,
+    } = binding;
+    let CodeTokens {
+        quote_strip,
+        missing_cap_err,
+    } = tokens;
     quote! {
         let #raw_ident: &str = #capture.ok_or_else(|| #missing_cap_err)?;
         #quote_strip
@@ -95,14 +119,20 @@ fn gen_str_reference_binding(
 ///
 /// Optionally strips surrounding quotes if the hint requires it.
 fn gen_parsed_type_binding(
-    raw_ident: &proc_macro2::Ident,
-    capture: &TokenStream2,
-    pat: &syn::Ident,
-    ty: &syn::Type,
-    missing_cap_err: &TokenStream2,
+    binding: &BindingContext<'_>,
+    tokens: &CodeTokens<'_>,
     parse_err: &TokenStream2,
-    quote_strip: &TokenStream2,
 ) -> TokenStream2 {
+    let BindingContext {
+        raw_ident,
+        capture,
+        pat,
+        ty,
+    } = binding;
+    let CodeTokens {
+        quote_strip,
+        missing_cap_err,
+    } = tokens;
     quote! {
         let #raw_ident = #capture.ok_or_else(|| #missing_cap_err)?;
         #quote_strip
@@ -181,18 +211,21 @@ pub(super) fn gen_single_step_parse(ctx: ArgParseContext<'_>, meta: StepMeta<'_>
         quote! {}
     };
 
+    let binding = BindingContext {
+        raw_ident: &raw_ident,
+        capture,
+        pat,
+        ty,
+    };
+    let tokens = CodeTokens {
+        missing_cap_err: &missing_cap_err,
+        quote_strip: &quote_strip,
+    };
+
     if is_str_reference(ty) {
-        gen_str_reference_binding(&raw_ident, capture, pat, ty, &missing_cap_err, &quote_strip)
+        gen_str_reference_binding(&binding, &tokens)
     } else {
-        let parse_err = gen_parse_err(pattern, ident, pat, ty, &raw_ident);
-        gen_parsed_type_binding(
-            &raw_ident,
-            capture,
-            pat,
-            ty,
-            &missing_cap_err,
-            &parse_err,
-            &quote_strip,
-        )
+        let parse_err = gen_parse_err(meta, &binding);
+        gen_parsed_type_binding(&binding, &tokens, &parse_err)
     }
 }

@@ -184,20 +184,20 @@ fn generate_capture_initializers(ctx: &CaptureInitContext<'_>) -> Vec<TokenStrea
                             "malformed quoted string for '{}' capture {}: expected at least 2 characters, got '{}'",
                             stringify!(#struct_pat),
                             #idx,
-                            raw,
+                            #raw_ident,
                         )
                     },
                 );
                 let quote_strip = gen_quote_strip_to_stripped(&raw_ident, &malformed_err);
                 quote! {
-                    let raw = #capture.ok_or_else(|| #missing)?;
+                    let #raw_ident = #capture.ok_or_else(|| #missing)?;
                     #quote_strip
                     #values_ident.push(stripped.to_string());
                 }
             } else {
                 quote! {
-                    let raw = #capture.ok_or_else(|| #missing)?;
-                    #values_ident.push(raw.to_string());
+                    let #raw_ident = #capture.ok_or_else(|| #missing)?;
+                    #values_ident.push(#raw_ident.to_string());
                 }
             }
         })
