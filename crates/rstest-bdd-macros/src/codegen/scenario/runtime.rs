@@ -8,12 +8,26 @@ mod types;
 use proc_macro2::TokenStream as TokenStream2;
 use quote::quote;
 
+use super::helpers::ProcessedStepTokens;
 use generators::{
     generate_scenario_guard, generate_skip_decoder, generate_skip_handler, generate_step_executor,
-    generate_step_executor_loop,
+    generate_step_executor_loop, generate_step_executor_loop_outline,
 };
 use types::{CodeComponents, ScenarioLiterals, ScenarioLiteralsInput, TokenAssemblyContext};
 pub(crate) use types::{ProcessedSteps, TestTokensConfig};
+
+/// Configuration for generating test tokens for scenario outlines.
+#[derive(Debug)]
+pub(crate) struct OutlineTestTokensConfig<'a> {
+    /// Processed steps for each Examples row (one set per row).
+    pub(crate) all_rows_steps: Vec<ProcessedStepTokens>,
+    pub(crate) feature_path: &'a super::FeaturePath,
+    pub(crate) scenario_name: &'a super::ScenarioName,
+    pub(crate) scenario_line: u32,
+    pub(crate) tags: &'a [String],
+    pub(crate) block: &'a syn::Block,
+    pub(crate) allow_skipped: bool,
+}
 
 fn create_scenario_literals(input: ScenarioLiteralsInput<'_>) -> ScenarioLiterals {
     let allow_literal = syn::LitBool::new(input.allow_skipped, proc_macro2::Span::call_site());
@@ -162,4 +176,63 @@ fn assemble_test_tokens(
         #(#ctx_postlude)*
         #block
     }
+}
+
+/// Generates code components for scenario outlines using 2D step arrays.
+fn generate_code_components_outline(all_rows_steps: &[ProcessedStepTokens]) -> CodeComponents {
+    let step_executor = generate_step_executor();
+    let skip_decoder = generate_skip_decoder();
+    let scenario_guard = generate_scenario_guard();
+    let step_executor_loop = generate_step_executor_loop_outline(all_rows_steps);
+    let skip_handler = generate_skip_handler();
+
+    CodeComponents {
+        step_executor,
+        skip_decoder,
+        scenario_guard,
+        step_executor_loop,
+        skip_handler,
+    }
+}
+
+/// Generates test tokens for scenario outlines with placeholder substitution.
+///
+/// This function creates the test body for scenario outlines where step text
+/// contains placeholders that are substituted with values from the Examples table.
+/// Each Examples row produces a separate test case, and the substituted steps
+/// are organised in a 2D array indexed by case.
+pub(crate) fn generate_test_tokens_outline(
+    config: OutlineTestTokensConfig<'_>,
+    ctx_prelude: impl Iterator<Item = TokenStream2>,
+    ctx_inserts: impl Iterator<Item = TokenStream2>,
+    ctx_postlude: impl Iterator<Item = TokenStream2>,
+) -> TokenStream2 {
+    let OutlineTestTokensConfig {
+        all_rows_steps,
+        feature_path,
+        scenario_name,
+        scenario_line,
+        tags,
+        block,
+        allow_skipped,
+    } = config;
+
+    let ctx_prelude: Vec<_> = ctx_prelude.collect();
+    let ctx_inserts: Vec<_> = ctx_inserts.collect();
+    let ctx_postlude: Vec<_> = ctx_postlude.collect();
+
+    let literals = create_scenario_literals(ScenarioLiteralsInput {
+        feature_path,
+        scenario_name,
+        scenario_line,
+        tags,
+        allow_skipped,
+    });
+
+    let components = generate_code_components_outline(&all_rows_steps);
+    let block_tokens = quote! { #block };
+    let context =
+        TokenAssemblyContext::new(&ctx_prelude, &ctx_inserts, &ctx_postlude, &block_tokens);
+
+    assemble_test_tokens(literals, components, context)
 }

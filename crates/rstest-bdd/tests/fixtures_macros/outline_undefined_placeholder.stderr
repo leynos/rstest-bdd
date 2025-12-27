@@ -1,0 +1,7 @@
+error: Placeholder '<undefined>' in step not found in Examples table. Available columns: [valid]
+ --> tests/fixtures_macros/outline_undefined_placeholder.rs:7:1
+  |
+7 | #[scenario(path = "../features/macros/outline_undefined_placeholder.feature")]
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  |
+  = note: this error originates in the attribute macro `scenario` (in Nightly builds, run with -Z macro-backtrace for more info)
