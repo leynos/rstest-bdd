@@ -14,6 +14,48 @@ use rstest_bdd::{
 mod common;
 use common::{noop_async_wrapper, noop_wrapper, poll_step_future};
 
+// ----------------------------------------------------------------------------
+// Test helper functions
+// ----------------------------------------------------------------------------
+
+/// Verify that an async step wrapper lookup succeeds and can be polled to completion.
+#[expect(clippy::expect_used, reason = "test helper validates lookup succeeds")]
+fn assert_async_wrapper_works(lookup_fn: impl FnOnce() -> Option<AsyncStepFn>, test_text: &str) {
+    let async_fn = lookup_fn().expect("step should be found");
+    let mut ctx = StepContext::default();
+    let future = async_fn(&mut ctx, test_text, None, None);
+    let result = poll_step_future(future);
+    assert!(
+        matches!(result, StepExecution::Continue { .. }),
+        "unexpected result: {result:?}"
+    );
+}
+
+/// Verify that a step is marked as used after being looked up.
+fn assert_step_marked_as_used(
+    pattern: &str,
+    lookup_fn: impl FnOnce() -> Option<AsyncStepFn>,
+    api_name: &str,
+) {
+    // Verify the step is initially in the unused list.
+    let unused_before: Vec<_> = unused_steps().iter().map(|s| s.pattern.as_str()).collect();
+    assert!(
+        unused_before.contains(&pattern),
+        "Step should initially appear in unused_steps"
+    );
+
+    // Resolve the step.
+    let result = lookup_fn();
+    assert!(result.is_some(), "Step should be found");
+
+    // Verify the step is no longer in the unused list.
+    let unused_after: Vec<_> = unused_steps().iter().map(|s| s.pattern.as_str()).collect();
+    assert!(
+        !unused_after.contains(&pattern),
+        "Step should no longer appear in unused_steps after {api_name}"
+    );
+}
+
 // Register a test step for async registry tests.
 step!(
     StepKeyword::Given,
@@ -68,32 +110,18 @@ fn step_struct_has_run_async_field() {
 }
 
 #[test]
-#[expect(clippy::expect_used, reason = "test validates step lookup succeeds")]
 fn find_step_async_returns_async_wrapper() {
-    let async_fn = find_step_async(StepKeyword::Given, "an async registry test step".into())
-        .expect("step should be found");
-
-    let mut ctx = StepContext::default();
-    let future = async_fn(&mut ctx, "an async registry test step", None, None);
-    let result = poll_step_future(future);
-    assert!(
-        matches!(result, StepExecution::Continue { .. }),
-        "unexpected result: {result:?}"
+    assert_async_wrapper_works(
+        || find_step_async(StepKeyword::Given, "an async registry test step".into()),
+        "an async registry test step",
     );
 }
 
 #[test]
-#[expect(clippy::expect_used, reason = "test validates step lookup succeeds")]
 fn lookup_step_async_returns_async_wrapper() {
-    let async_fn = lookup_step_async(StepKeyword::Given, "an async registry test step".into())
-        .expect("step should be found");
-
-    let mut ctx = StepContext::default();
-    let future = async_fn(&mut ctx, "an async registry test step", None, None);
-    let result = poll_step_future(future);
-    assert!(
-        matches!(result, StepExecution::Continue { .. }),
-        "unexpected result: {result:?}"
+    assert_async_wrapper_works(
+        || lookup_step_async(StepKeyword::Given, "an async registry test step".into()),
+        "an async registry test step",
     );
 }
 
@@ -175,22 +203,10 @@ step!(
 
 #[test]
 fn find_step_async_marks_step_as_used() {
-    // Verify the step is initially in the unused list.
-    let unused_before: Vec<_> = unused_steps().iter().map(|s| s.pattern.as_str()).collect();
-    assert!(
-        unused_before.contains(&"async unused tracking test step"),
-        "Step should initially appear in unused_steps"
-    );
-
-    // Resolve the step via the async API.
-    let result = find_step_async(StepKeyword::Given, "async unused tracking test step".into());
-    assert!(result.is_some(), "Step should be found");
-
-    // Verify the step is no longer in the unused list.
-    let unused_after: Vec<_> = unused_steps().iter().map(|s| s.pattern.as_str()).collect();
-    assert!(
-        !unused_after.contains(&"async unused tracking test step"),
-        "Step should no longer appear in unused_steps after find_step_async"
+    assert_step_marked_as_used(
+        "async unused tracking test step",
+        || find_step_async(StepKeyword::Given, "async unused tracking test step".into()),
+        "find_step_async",
     );
 }
 
@@ -205,24 +221,14 @@ step!(
 
 #[test]
 fn lookup_step_async_marks_step_as_used() {
-    // Verify the step is initially in the unused list.
-    let unused_before: Vec<_> = unused_steps().iter().map(|s| s.pattern.as_str()).collect();
-    assert!(
-        unused_before.contains(&"async lookup unused tracking test step"),
-        "Step should initially appear in unused_steps"
-    );
-
-    // Resolve the step via the async lookup API.
-    let result = lookup_step_async(
-        StepKeyword::When,
-        "async lookup unused tracking test step".into(),
-    );
-    assert!(result.is_some(), "Step should be found");
-
-    // Verify the step is no longer in the unused list.
-    let unused_after: Vec<_> = unused_steps().iter().map(|s| s.pattern.as_str()).collect();
-    assert!(
-        !unused_after.contains(&"async lookup unused tracking test step"),
-        "Step should no longer appear in unused_steps after lookup_step_async"
+    assert_step_marked_as_used(
+        "async lookup unused tracking test step",
+        || {
+            lookup_step_async(
+                StepKeyword::When,
+                "async lookup unused tracking test step".into(),
+            )
+        },
+        "lookup_step_async",
     );
 }
