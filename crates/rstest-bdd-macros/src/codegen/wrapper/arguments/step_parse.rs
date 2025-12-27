@@ -9,6 +9,16 @@ use super::{StepMeta, is_str_reference, step_error_tokens};
 use proc_macro2::TokenStream as TokenStream2;
 use quote::{format_ident, quote};
 
+/// Generate a token stream that strips surrounding quotes from a string slice.
+///
+/// The generated code reassigns `raw_ident` to a substring excluding the first
+/// and last characters (the surrounding quotes).
+fn gen_quote_strip(raw_ident: &proc_macro2::Ident) -> TokenStream2 {
+    quote! {
+        let #raw_ident: &str = &#raw_ident[1..#raw_ident.len() - 1];
+    }
+}
+
 /// Context for parsing a single step argument from a regex capture.
 #[derive(Copy, Clone)]
 pub(super) struct ArgParseContext<'a> {
@@ -61,17 +71,15 @@ pub(super) fn gen_single_step_parse(ctx: ArgParseContext<'_>, meta: StepMeta<'_>
 
     if is_str_reference(ty) {
         // Direct assignment for &str - no parsing needed
-        if needs_quote_strip {
-            quote! {
-                let #raw_ident: &str = #capture.ok_or_else(|| #missing_cap_err)?;
-                let #raw_ident: &str = &#raw_ident[1..#raw_ident.len() - 1];
-                let #pat: #ty = #raw_ident;
-            }
+        let quote_strip = if needs_quote_strip {
+            gen_quote_strip(&raw_ident)
         } else {
-            quote! {
-                let #raw_ident: &str = #capture.ok_or_else(|| #missing_cap_err)?;
-                let #pat: #ty = #raw_ident;
-            }
+            quote! {}
+        };
+        quote! {
+            let #raw_ident: &str = #capture.ok_or_else(|| #missing_cap_err)?;
+            #quote_strip
+            let #pat: #ty = #raw_ident;
         }
     } else {
         // Standard parse path for owned/parseable types
@@ -89,17 +97,15 @@ pub(super) fn gen_single_step_parse(ctx: ArgParseContext<'_>, meta: StepMeta<'_>
                 )
             },
         );
-        if needs_quote_strip {
-            quote! {
-                let #raw_ident = #capture.ok_or_else(|| #missing_cap_err)?;
-                let #raw_ident = &#raw_ident[1..#raw_ident.len() - 1];
-                let #pat: #ty = (#raw_ident).parse().map_err(|_| #parse_err)?;
-            }
+        let quote_strip = if needs_quote_strip {
+            gen_quote_strip(&raw_ident)
         } else {
-            quote! {
-                let #raw_ident = #capture.ok_or_else(|| #missing_cap_err)?;
-                let #pat: #ty = (#raw_ident).parse().map_err(|_| #parse_err)?;
-            }
+            quote! {}
+        };
+        quote! {
+            let #raw_ident = #capture.ok_or_else(|| #missing_cap_err)?;
+            #quote_strip
+            let #pat: #ty = (#raw_ident).parse().map_err(|_| #parse_err)?;
         }
     }
 }

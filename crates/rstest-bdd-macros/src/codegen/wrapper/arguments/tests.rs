@@ -362,3 +362,47 @@ fn gen_step_parses_applies_hints_only_to_matching_arguments() {
         "usize should use parse(): {count_code}"
     );
 }
+
+#[test]
+fn gen_step_parses_string_hint_includes_parse_error_message() {
+    // When :string hint is used with an owned type, the error message should still
+    // reference the original type and pattern for debugging purposes
+    let code = generate_step_parse_with_hint(parse_quote!(String), Some("string".to_string()));
+
+    // Should contain error message with type information
+    assert!(
+        code.contains("failed to parse argument"),
+        "should include parse error message: {code}"
+    );
+    assert!(
+        code.contains("stringify ! (name)"),
+        "error should reference argument name: {code}"
+    );
+    assert!(
+        code.contains("stringify ! (String)"),
+        "error should reference type: {code}"
+    );
+}
+
+#[rstest]
+#[case("u32", "u32 hint should use standard parse path")]
+#[case("i64", "i64 hint should use standard parse path")]
+#[case("f64", "f64 hint should use standard parse path")]
+#[case("unknown", "unknown hint should use standard parse path")]
+fn gen_step_parses_non_string_hints_use_standard_parse_path(
+    #[case] hint: &str,
+    #[case] description: &str,
+) {
+    let code = generate_step_parse_with_hint(parse_quote!(i32), Some(hint.to_string()));
+
+    // Non-:string hints should NOT strip quotes
+    assert!(
+        !code.contains("len () - 1"),
+        "{description} - should not strip quotes: {code}"
+    );
+    // Should use standard parse path
+    assert!(
+        code.contains("parse"),
+        "{description} - should use parse(): {code}"
+    );
+}

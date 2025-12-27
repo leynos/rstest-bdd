@@ -270,7 +270,13 @@ pub(super) fn prepare_argument_processing(
                 all_captures.len()
             )
         });
-        let hint_slice = placeholder_hints.get(..step_args.len()).unwrap_or(&[]);
+        let hint_slice = placeholder_hints.get(..step_args.len()).unwrap_or_else(|| {
+            panic!(
+                "placeholder hints ({}) must match or exceed step argument count ({})",
+                placeholder_hints.len(),
+                step_args.len()
+            )
+        });
         gen_step_parses(&step_args, capture_slice, hint_slice, step_meta)
     };
     let step_struct_decl = gen_step_struct_decl(
