@@ -172,25 +172,31 @@ fn generate_capture_initializers(
         .collect()
 }
 
+/// Placeholder information needed for step struct code generation.
+struct PlaceholderInfo<'a> {
+    captures: &'a [TokenStream2],
+    names: &'a [syn::LitStr],
+    hints: &'a [Option<String>],
+}
+
 fn gen_step_struct_decl(
     step_struct: Option<StepStructArg<'_>>,
-    captures: &[TokenStream2],
-    placeholder_names: &[syn::LitStr],
-    placeholder_hints: &[Option<String>],
+    placeholders: &PlaceholderInfo<'_>,
     meta: StepMeta<'_>,
 ) -> Option<TokenStream2> {
-    let capture_count = placeholder_names.len();
+    let PlaceholderInfo {
+        captures,
+        names,
+        hints,
+    } = placeholders;
+    let capture_count = names.len();
     step_struct.map(|arg| {
         let StepStructArg { pat, ty } = arg;
         let values_ident = format_ident!("__rstest_bdd_struct_values");
         let StepMeta { pattern, ident } = meta;
-        let missing_errs = generate_missing_capture_errors(placeholder_names, pattern, ident, pat);
-        let capture_inits = generate_capture_initializers(
-            captures,
-            &missing_errs,
-            placeholder_hints,
-            &values_ident,
-        );
+        let missing_errs = generate_missing_capture_errors(names, pattern, ident, pat);
+        let capture_inits =
+            generate_capture_initializers(captures, &missing_errs, hints, &values_ident);
         let convert_err = step_error_tokens(
             &format_ident!("ExecutionError"),
             pattern,
@@ -299,9 +305,11 @@ pub(super) fn prepare_argument_processing(
     };
     let step_struct_decl = gen_step_struct_decl(
         step_struct.and_then(Arg::as_step_struct),
-        &all_captures,
-        placeholder_names,
-        placeholder_hints,
+        &PlaceholderInfo {
+            captures: &all_captures,
+            names: placeholder_names,
+            hints: placeholder_hints,
+        },
         step_meta,
     );
     let datatable_decl = match (datatable.and_then(Arg::as_datatable), datatable_idents) {

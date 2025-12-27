@@ -16,7 +16,7 @@ struct CartInput {
     price: f32,
 }
 
-/// Product input with a string-hinted name field to verify quote stripping in step_args.
+/// Product input with a `:string`-hinted `name` field to verify quote stripping in `#[step_args]`.
 #[derive(Clone, Debug, StepArgs)]
 struct ProductInput {
     name: String,
@@ -73,7 +73,7 @@ fn cart_summary_matches(#[step_args] expected: CartInput, cart_state: &CartState
     assert_eq!(actual_price.to_bits(), expected_price.to_bits());
 }
 
-/// Step that captures a quoted product name using :string hint with step_args.
+/// Step that captures a quoted product name using `:string` hint with `#[step_args]`.
 #[given("a product named {name:string} priced at ${price:f32}")]
 fn set_product(#[step_args] product: ProductInput, product_state: &ProductState) {
     product_state.product.set(product);
