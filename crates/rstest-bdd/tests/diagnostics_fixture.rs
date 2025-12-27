@@ -12,7 +12,12 @@ use serial_test::serial;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 #[cfg(feature = "diagnostics")]
-use rstest_bdd::{StepContext, StepExecution, StepFn, StepFuture, StepKeyword, step};
+use rstest_bdd::{StepContext, StepExecution, StepFuture, StepKeyword, step};
+
+#[cfg(feature = "diagnostics")]
+mod common;
+#[cfg(feature = "diagnostics")]
+use common::wrap_sync_step_as_async;
 
 #[cfg(feature = "diagnostics")]
 step!(
@@ -44,22 +49,6 @@ fn bypassed_step(
     _table: Option<&[&[&str]]>,
 ) -> Result<StepExecution, bdd::StepError> {
     Ok(StepExecution::Continue { value: None })
-}
-
-/// Helper to wrap a synchronous step function into an async one by returning
-/// an immediately-ready future.
-#[cfg(feature = "diagnostics")]
-#[expect(
-    clippy::type_complexity,
-    reason = "currying pattern produces complex return type to reduce parameter count"
-)]
-fn wrap_sync_step_as_async<'a>(
-    sync_fn: StepFn,
-) -> impl FnOnce(&'a mut StepContext<'a>, &str, Option<&str>, Option<&[&[&str]]>) -> StepFuture<'a>
-{
-    move |ctx, text, docstring, table| {
-        Box::pin(std::future::ready(sync_fn(ctx, text, docstring, table)))
-    }
 }
 
 #[cfg(feature = "diagnostics")]

@@ -31,10 +31,17 @@ pub(crate) struct WrapperConfig<'a> {
 static COUNTER: AtomicUsize = AtomicUsize::new(0);
 
 /// Identifiers for sync and async wrapper components.
+///
+/// Groups the four identifiers generated for each step wrapper to simplify
+/// function signatures and reduce parameter counts.
 struct WrapperIdents {
+    /// Identifier for the synchronous wrapper function.
     sync_wrapper: proc_macro2::Ident,
+    /// Identifier for the asynchronous wrapper function.
     async_wrapper: proc_macro2::Ident,
+    /// Identifier for the fixture array constant.
     const_ident: proc_macro2::Ident,
+    /// Identifier for the step pattern constant.
     pattern_ident: proc_macro2::Ident,
 }
 

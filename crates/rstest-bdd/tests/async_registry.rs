@@ -12,7 +12,7 @@ use rstest_bdd::{
 };
 
 mod common;
-use common::{noop_async_wrapper, noop_wrapper};
+use common::{noop_async_wrapper, noop_wrapper, poll_step_future};
 
 // Register a test step for async registry tests.
 step!(
@@ -37,15 +37,11 @@ fn async_step_fn_can_be_stored_and_invoked() {
     let step_fn: AsyncStepFn = test_step;
     let mut ctx = StepContext::default();
     let future = step_fn(&mut ctx, "test", None, None);
-
-    // Poll the future to completion using a noop waker.
-    let waker = std::task::Waker::noop();
-    let mut cx = std::task::Context::from_waker(waker);
-    let mut pinned = future;
-    match std::pin::Pin::as_mut(&mut pinned).poll(&mut cx) {
-        std::task::Poll::Ready(Ok(StepExecution::Continue { .. })) => {}
-        other => panic!("unexpected result: {other:?}"),
-    }
+    let result = poll_step_future(future);
+    assert!(
+        matches!(result, StepExecution::Continue { .. }),
+        "unexpected result: {result:?}"
+    );
 }
 
 #[test]
@@ -64,15 +60,11 @@ fn step_struct_has_run_async_field() {
     // Verify that run_async is callable.
     let mut ctx = StepContext::default();
     let future = (step.run_async)(&mut ctx, "test", None, None);
-
-    // Poll to completion.
-    let waker = std::task::Waker::noop();
-    let mut cx = std::task::Context::from_waker(waker);
-    let mut pinned = future;
-    match std::pin::Pin::as_mut(&mut pinned).poll(&mut cx) {
-        std::task::Poll::Ready(Ok(StepExecution::Continue { .. })) => {}
-        other => panic!("unexpected result: {other:?}"),
-    }
+    let result = poll_step_future(future);
+    assert!(
+        matches!(result, StepExecution::Continue { .. }),
+        "unexpected result: {result:?}"
+    );
 }
 
 #[test]
@@ -83,15 +75,11 @@ fn find_step_async_returns_async_wrapper() {
 
     let mut ctx = StepContext::default();
     let future = async_fn(&mut ctx, "an async registry test step", None, None);
-
-    // Poll to completion.
-    let waker = std::task::Waker::noop();
-    let mut cx = std::task::Context::from_waker(waker);
-    let mut pinned = future;
-    match std::pin::Pin::as_mut(&mut pinned).poll(&mut cx) {
-        std::task::Poll::Ready(Ok(StepExecution::Continue { .. })) => {}
-        other => panic!("unexpected result: {other:?}"),
-    }
+    let result = poll_step_future(future);
+    assert!(
+        matches!(result, StepExecution::Continue { .. }),
+        "unexpected result: {result:?}"
+    );
 }
 
 #[test]
@@ -102,15 +90,11 @@ fn lookup_step_async_returns_async_wrapper() {
 
     let mut ctx = StepContext::default();
     let future = async_fn(&mut ctx, "an async registry test step", None, None);
-
-    // Poll to completion.
-    let waker = std::task::Waker::noop();
-    let mut cx = std::task::Context::from_waker(waker);
-    let mut pinned = future;
-    match std::pin::Pin::as_mut(&mut pinned).poll(&mut cx) {
-        std::task::Poll::Ready(Ok(StepExecution::Continue { .. })) => {}
-        other => panic!("unexpected result: {other:?}"),
-    }
+    let result = poll_step_future(future);
+    assert!(
+        matches!(result, StepExecution::Continue { .. }),
+        "unexpected result: {result:?}"
+    );
 }
 
 // ----------------------------------------------------------------------------

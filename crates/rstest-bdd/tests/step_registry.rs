@@ -8,28 +8,8 @@ use rstest_bdd::{
 };
 use unic_langid::langid;
 
-/// Helper to wrap a synchronous step function into an async one by returning
-/// an immediately-ready future.
-#[expect(
-    clippy::type_complexity,
-    reason = "currying pattern produces complex return type to reduce parameter count"
-)]
-fn sync_to_async<'a, F>(
-    sync_fn: F,
-) -> impl FnOnce(&'a mut StepContext<'a>, &str, Option<&str>, Option<&[&[&str]]>) -> StepFuture<'a>
-where
-    F: FnOnce(
-            &mut StepContext<'_>,
-            &str,
-            Option<&str>,
-            Option<&[&[&str]]>,
-        ) -> Result<StepExecution, StepError>
-        + 'a,
-{
-    move |ctx, text, docstring, table| {
-        Box::pin(std::future::ready(sync_fn(ctx, text, docstring, table)))
-    }
-}
+mod common;
+use common::{poll_step_future, sync_to_async};
 
 fn sample() {}
 #[expect(
@@ -436,13 +416,9 @@ fn step_with_auto_async_handler_works() {
 
     let mut ctx = StepContext::default();
     let future = (step.run_async)(&mut ctx, "auto async step", None, None);
-
-    // Poll to completion using a noop waker.
-    let waker = std::task::Waker::noop();
-    let mut cx = std::task::Context::from_waker(waker);
-    let mut pinned = future;
-    match std::pin::Pin::as_mut(&mut pinned).poll(&mut cx) {
-        std::task::Poll::Ready(Ok(StepExecution::Continue { .. })) => {}
-        other => panic!("auto-generated async handler failed: {other:?}"),
-    }
+    let result = poll_step_future(future);
+    assert!(
+        matches!(result, StepExecution::Continue { .. }),
+        "auto-generated async handler failed: {result:?}"
+    );
 }
