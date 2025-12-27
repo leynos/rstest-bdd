@@ -204,3 +204,75 @@ fn string_hint_matches_empty_quoted_strings() {
         ],
     );
 }
+
+#[test]
+fn string_hint_matches_escaped_double_quotes() {
+    assert_pattern_matches(
+        "message is {text:string}",
+        &[
+            (
+                r#"message is "Hello \"World\"""#,
+                true,
+                "should match double-quoted string with escaped internal quotes",
+            ),
+            (
+                r#"message is "Say \"Hello\" to \"World\"""#,
+                true,
+                "should match double-quoted string with multiple escaped quotes",
+            ),
+            (
+                r#"message is "Escaped backslash: \\""#,
+                true,
+                "should match double-quoted string with escaped backslash",
+            ),
+        ],
+    );
+}
+
+#[test]
+fn string_hint_matches_escaped_single_quotes() {
+    assert_pattern_matches(
+        "message is {text:string}",
+        &[
+            (
+                r"message is 'Hello \'World\''",
+                true,
+                "should match single-quoted string with escaped internal quotes",
+            ),
+            (
+                r"message is 'Say \'Hello\' to \'World\''",
+                true,
+                "should match single-quoted string with multiple escaped quotes",
+            ),
+            (
+                r"message is 'Escaped backslash: \\'",
+                true,
+                "should match single-quoted string with escaped backslash",
+            ),
+        ],
+    );
+}
+
+#[test]
+fn string_hint_captures_escaped_quotes() {
+    let regex = compile_regex_from_pattern("message is {text:string}")
+        .expect("pattern with string hint should compile");
+
+    // Double-quoted with escaped internal quotes
+    let captures = extract_captured_values(&regex, r#"message is "Hello \"World\"""#)
+        .expect("expected captures for escaped double quotes");
+    assert_eq!(
+        captures,
+        vec![r#""Hello \"World\"""#.to_string()],
+        "captured value should include outer quotes and escaped internal quotes"
+    );
+
+    // Single-quoted with escaped internal quotes
+    let captures = extract_captured_values(&regex, r"message is 'Hello \'World\''")
+        .expect("expected captures for escaped single quotes");
+    assert_eq!(
+        captures,
+        vec![r"'Hello \'World\''".to_string()],
+        "captured value should include outer quotes and escaped internal quotes"
+    );
+}

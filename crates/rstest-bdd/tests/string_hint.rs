@@ -34,6 +34,7 @@ fn check_message(message: &RefCell<String>, expected: &str) {
     name = "Parse quoted string with double quotes"
 )]
 fn double_quoted_string(message: RefCell<String>) {
+    // Binding registers fixture for step injection; intentionally unused here
     let _ = message;
 }
 
@@ -42,6 +43,7 @@ fn double_quoted_string(message: RefCell<String>) {
     name = "Parse quoted string with single quotes"
 )]
 fn single_quoted_string(message: RefCell<String>) {
+    // Binding registers fixture for step injection; intentionally unused here
     let _ = message;
 }
 
@@ -50,5 +52,24 @@ fn single_quoted_string(message: RefCell<String>) {
     name = "Parse empty quoted string"
 )]
 fn empty_quoted_string(message: RefCell<String>) {
+    // Binding registers fixture for step injection; intentionally unused here
+    let _ = message;
+}
+
+#[scenario(
+    path = "tests/features/string_hint.feature",
+    name = "Parse double-quoted string with escaped internal quotes"
+)]
+fn double_quoted_escaped(message: RefCell<String>) {
+    // Binding registers fixture for step injection; intentionally unused here
+    let _ = message;
+}
+
+#[scenario(
+    path = "tests/features/string_hint.feature",
+    name = "Parse single-quoted string with escaped internal quotes"
+)]
+fn single_quoted_escaped(message: RefCell<String>) {
+    // Binding registers fixture for step injection; intentionally unused here
     let _ = message;
 }

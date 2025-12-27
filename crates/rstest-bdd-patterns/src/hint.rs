@@ -17,7 +17,7 @@ pub fn get_type_pattern(type_hint: Option<&str>) -> &'static str {
         Some("f32" | "f64") => {
             r"(?i:(?:[+-]?(?:\d+\.\d*|\.\d+|\d+)(?:[eE][+-]?\d+)?|nan|inf|infinity))"
         }
-        Some("string") => r#""[^"]*"|'[^']*'"#,
+        Some("string") => r#""(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'"#,
         _ => r".+?",
     }
 }
@@ -65,7 +65,10 @@ mod tests {
 
     #[test]
     fn returns_quoted_string_pattern_for_string_type() {
-        assert_eq!(get_type_pattern(Some("string")), r#""[^"]*"|'[^']*'"#);
+        assert_eq!(
+            get_type_pattern(Some("string")),
+            r#""(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'"#
+        );
     }
 
     #[test]
