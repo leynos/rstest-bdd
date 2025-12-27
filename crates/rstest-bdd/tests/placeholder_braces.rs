@@ -4,17 +4,11 @@ mod support;
 
 use rstest::rstest;
 use rstest_bdd::{StepPattern, StepPatternError, StepText, extract_placeholders};
-use support::{compiled, expect_placeholder_syntax};
+use support::{compile_and_extract, compiled, expect_placeholder_syntax};
 
 #[test]
 fn handles_escaped_braces() {
-    let pat = StepPattern::from(r"literal \{ brace {v} \}");
-    pat.compile()
-        .unwrap_or_else(|e| panic!("Failed to compile pattern: {e}"));
-    let text = StepText::from("literal { brace data }");
-    let Ok(caps) = extract_placeholders(&pat, text) else {
-        panic!("match expected");
-    };
+    let caps = compile_and_extract(r"literal \{ brace {v} \}", "literal { brace data }");
     assert_eq!(caps, vec!["data"]);
 }
 
@@ -89,13 +83,7 @@ fn test_brace_escaping_scenarios(
 fn handles_nested_braces() {
     // The outer braces form stray text; the inner `{inner}` is a real placeholder.
     // This ensures the scanner handles nested brace pairs without mis-parsing placeholders.
-    let pat = StepPattern::from("before {outer {inner}} after");
-    pat.compile()
-        .unwrap_or_else(|e| panic!("Failed to compile pattern: {e}"));
-    let text = StepText::from("before value after");
-    let Ok(caps) = extract_placeholders(&pat, text) else {
-        panic!("match expected");
-    };
+    let caps = compile_and_extract("before {outer {inner}} after", "before value after");
     assert_eq!(caps, vec!["value"]);
 }
 
