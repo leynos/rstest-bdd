@@ -12,7 +12,7 @@ members = [
 
 [workspace.package]
 edition = "2024"
-version = "0.3.0"
+version = "0.3.1"
 rust-version = "1.85"
 license = "ISC"
 authors = ["Payton McIntosh <pmcintosh@df12.net>"]
@@ -44,9 +44,9 @@ cargo_metadata = "0.18"
 eyre = "0.6"
 ctor = "0.2"
 newt-hype = "0.2.0"
-rstest-bdd = { version = "0.3.0", path = "crates/rstest-bdd" }
-rstest-bdd-macros = { version = "0.3.0", path = "crates/rstest-bdd-macros" }
-rstest-bdd-patterns = { version = "0.3.0", path = "crates/rstest-bdd-patterns" }
+rstest-bdd = { version = "0.3.1", path = "crates/rstest-bdd" }
+rstest-bdd-macros = { version = "0.3.1", path = "crates/rstest-bdd-macros" }
+rstest-bdd-patterns = { version = "0.3.1", path = "crates/rstest-bdd-patterns" }
 log = "0.4"
 fs2 = "0.4"
 tempfile = "3.23"
