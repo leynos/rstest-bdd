@@ -10,6 +10,7 @@ use std::io;
 use std::path::Path as StdPath;
 
 const MACROS_FIXTURES_DIR: &str = "tests/fixtures_macros";
+const FEATURES_DIR: &str = "tests/features";
 
 pub(crate) fn macros_fixture(case: &str) -> Utf8PathBuf {
     ensure_trybuild_support_files();
@@ -50,7 +51,7 @@ fn stage_trybuild_support_files() -> io::Result<()> {
     workspace_dir.create_dir_all(trybuild_crate_relative.as_std_path())?;
 
     let crate_dir = Dir::open_ambient_dir(crate_root.as_std_path(), ambient_authority())?;
-    let features_dir = crate_dir.open_dir("tests/features")?;
+    let features_dir = crate_dir.open_dir(FEATURES_DIR)?;
     let mut features = Vec::new();
     collect_feature_files(&features_dir, Utf8Path::new("."), &mut features)?;
     features.sort_by(|a, b| a.0.cmp(&b.0));
@@ -72,14 +73,18 @@ fn stage_trybuild_support_files() -> io::Result<()> {
     )?;
 
     // Stage auto-discovery feature files for `scenarios!` compile-pass test.
-    let auto_features_dir = crate_dir.open_dir("tests/features/auto")?;
-    let mut auto_features = Vec::new();
-    collect_feature_files(&auto_features_dir, Utf8Path::new("."), &mut auto_features)?;
-    auto_features.sort_by(|a, b| a.0.cmp(&b.0));
+    // Derive auto features as a subset of the main features list to avoid
+    // re-walking the filesystem.
+    let auto_features = features
+        .into_iter()
+        .filter(|(path, _)| path.starts_with("auto/"))
+        .collect::<Vec<_>>();
 
-    let auto_dest = trybuild_crate_relative.join("tests/features/auto");
-    workspace_dir.create_dir_all(auto_dest.as_std_path())?;
-    write_feature_files(&workspace_dir, auto_dest.as_std_path(), &auto_features)?;
+    if !auto_features.is_empty() {
+        let auto_dest = trybuild_crate_relative.join("tests/features/auto");
+        workspace_dir.create_dir_all(auto_dest.as_std_path())?;
+        write_feature_files(&workspace_dir, auto_dest.as_std_path(), &auto_features)?;
+    }
 
     Ok(())
 }
