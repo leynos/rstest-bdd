@@ -40,6 +40,7 @@ pub fn __rstest_bdd_expect_skip_message_absent(actual: Option<&str>, target: &'s
 #[doc(hidden)]
 /// Extract the optional skip message, panicking if the execution was not
 /// skipped.
+#[must_use]
 pub fn __rstest_bdd_unwrap_step_skipped(exec: StepExecution) -> Option<String> {
     unwrap_skipped_message(exec)
 }
