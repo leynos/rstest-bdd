@@ -11,10 +11,14 @@ use quote::{format_ident, quote};
 
 /// Generate a token stream that strips surrounding quotes from a string slice.
 ///
-/// The generated code reassigns `raw_ident` to a substring excluding the first
-/// and last characters (the surrounding quotes).
-fn gen_quote_strip(raw_ident: &proc_macro2::Ident) -> TokenStream2 {
+/// The generated code validates the captured string has at least 2 characters
+/// (the surrounding quotes) before slicing, then reassigns `raw_ident` to the
+/// substring excluding the first and last characters.
+fn gen_quote_strip(raw_ident: &proc_macro2::Ident, malformed_err: &TokenStream2) -> TokenStream2 {
     quote! {
+        if #raw_ident.len() < 2 {
+            return Err(#malformed_err);
+        }
         let #raw_ident: &str = &#raw_ident[1..#raw_ident.len() - 1];
     }
 }
@@ -69,10 +73,24 @@ pub(super) fn gen_single_step_parse(ctx: ArgParseContext<'_>, meta: StepMeta<'_>
     // Check if this placeholder has a :string hint requiring quote stripping
     let needs_quote_strip = rstest_bdd_patterns::requires_quote_stripping(hint);
 
+    // Generate error for malformed quoted string (fewer than 2 chars)
+    let malformed_quote_err = step_error_tokens(
+        &format_ident!("ExecutionError"),
+        pattern,
+        ident,
+        &quote! {
+            format!(
+                "malformed quoted string for argument '{}': expected at least 2 characters, got '{}'",
+                stringify!(#pat),
+                #raw_ident,
+            )
+        },
+    );
+
     if is_str_reference(ty) {
         // Direct assignment for &str - no parsing needed
         let quote_strip = if needs_quote_strip {
-            gen_quote_strip(&raw_ident)
+            gen_quote_strip(&raw_ident, &malformed_quote_err)
         } else {
             quote! {}
         };
@@ -98,7 +116,7 @@ pub(super) fn gen_single_step_parse(ctx: ArgParseContext<'_>, meta: StepMeta<'_>
             },
         );
         let quote_strip = if needs_quote_strip {
-            gen_quote_strip(&raw_ident)
+            gen_quote_strip(&raw_ident, &malformed_quote_err)
         } else {
             quote! {}
         };

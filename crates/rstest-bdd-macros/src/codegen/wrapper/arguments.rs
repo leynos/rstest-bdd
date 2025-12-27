@@ -148,7 +148,10 @@ fn generate_capture_initializers(
     missing_errs: &[TokenStream2],
     hints: &[Option<String>],
     values_ident: &proc_macro2::Ident,
+    meta: StepMeta<'_>,
+    struct_pat: &syn::Ident,
 ) -> Vec<TokenStream2> {
+    let StepMeta { pattern, ident } = meta;
     captures
         .iter()
         .zip(missing_errs.iter())
@@ -157,8 +160,24 @@ fn generate_capture_initializers(
             let hint = hints.get(idx).and_then(|h| h.as_deref());
             let needs_quote_strip = rstest_bdd_patterns::requires_quote_stripping(hint);
             if needs_quote_strip {
+                let malformed_err = step_error_tokens(
+                    &format_ident!("ExecutionError"),
+                    pattern,
+                    ident,
+                    &quote! {
+                        format!(
+                            "malformed quoted string for '{}' capture {}: expected at least 2 characters, got '{}'",
+                            stringify!(#struct_pat),
+                            #idx,
+                            raw,
+                        )
+                    },
+                );
                 quote! {
                     let raw = #capture.ok_or_else(|| #missing)?;
+                    if raw.len() < 2 {
+                        return Err(#malformed_err);
+                    }
                     let stripped = &raw[1..raw.len() - 1];
                     #values_ident.push(stripped.to_string());
                 }
@@ -196,7 +215,7 @@ fn gen_step_struct_decl(
         let StepMeta { pattern, ident } = meta;
         let missing_errs = generate_missing_capture_errors(names, pattern, ident, pat);
         let capture_inits =
-            generate_capture_initializers(captures, &missing_errs, hints, &values_ident);
+            generate_capture_initializers(captures, &missing_errs, hints, &values_ident, meta, pat);
         let convert_err = step_error_tokens(
             &format_ident!("ExecutionError"),
             pattern,
