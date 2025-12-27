@@ -30,7 +30,7 @@ use crate::utils::fixtures::extract_function_fixtures;
 use crate::utils::ident::sanitize_ident;
 
 use self::feature_discovery::collect_feature_files;
-use self::macro_args::ScenariosArgs;
+use self::macro_args::{FixtureSpec, ScenariosArgs};
 
 /// Context for generating a scenario test.
 ///
@@ -41,6 +41,7 @@ struct ScenarioTestContext<'a> {
     feature_stem: &'a str,
     manifest_dir: &'a Path,
     rel_path: &'a Path,
+    fixtures: &'a [FixtureSpec],
 }
 
 fn dedupe_name(base: &str, used: &mut HashSet<String>) -> String {
@@ -84,14 +85,36 @@ fn generate_scenario_test(
 
     let attrs: Vec<syn::Attribute> = Vec::new();
     let vis = syn::Visibility::Inherited;
+
+    // Generate fixture parameters for the function signature
+    let fixture_params: Vec<TokenStream2> = ctx
+        .fixtures
+        .iter()
+        .map(|spec| {
+            let name = &spec.name;
+            let ty = &spec.ty;
+            quote! { #name: #ty }
+        })
+        .collect();
+
     let mut sig: syn::Signature = examples.as_ref().map_or_else(
-        || syn::parse_quote! { fn #fn_ident() },
+        || {
+            if fixture_params.is_empty() {
+                syn::parse_quote! { fn #fn_ident() }
+            } else {
+                syn::parse_quote! { fn #fn_ident( #(#fixture_params),* ) }
+            }
+        },
         |ex| {
-            let params = ex.headers.iter().map(|h| {
+            let example_params = ex.headers.iter().map(|h| {
                 let param_ident = format_ident!("{}", sanitize_ident(h));
                 quote! { #[case] #param_ident: &'static str }
             });
-            syn::parse_quote! { fn #fn_ident( #(#params),* ) }
+            if fixture_params.is_empty() {
+                syn::parse_quote! { fn #fn_ident( #(#example_params),* ) }
+            } else {
+                syn::parse_quote! { fn #fn_ident( #(#fixture_params,)* #(#example_params),* ) }
+            }
         },
     );
     let Ok((_args, fixture_setup)) = extract_function_fixtures(&mut sig) else {
@@ -171,6 +194,7 @@ fn process_feature_file(
     manifest_dir: &Path,
     used_names: &mut HashSet<String>,
     tag_filter: Option<&TagExpression>,
+    fixtures: &[FixtureSpec],
 ) -> (Vec<TokenStream2>, Vec<TokenStream2>) {
     let rel_path = abs_path
         .strip_prefix(manifest_dir)
@@ -191,6 +215,7 @@ fn process_feature_file(
         feature_stem: &feature_stem,
         manifest_dir,
         rel_path: &rel_path,
+        fixtures,
     };
 
     process_scenarios(&feature, &ctx, used_names, tag_filter)
@@ -200,6 +225,7 @@ fn generate_tests_from_features(
     feature_paths: Vec<PathBuf>,
     manifest_dir: &Path,
     tag_filter: Option<&TagExpression>,
+    fixtures: &[FixtureSpec],
 ) -> (Vec<TokenStream2>, Vec<TokenStream2>) {
     let mut used_names = HashSet::new();
     let mut tests = Vec::new();
@@ -211,6 +237,7 @@ fn generate_tests_from_features(
             manifest_dir,
             &mut used_names,
             tag_filter,
+            fixtures,
         );
         tests.append(&mut t);
         errors.append(&mut errs);
@@ -256,6 +283,7 @@ pub(crate) fn scenarios(input: TokenStream) -> TokenStream {
     let ScenariosArgs {
         dir: dir_lit,
         tag_filter: tag_lit,
+        fixtures,
     } = syn::parse_macro_input!(input as ScenariosArgs);
     let dir = PathBuf::from(dir_lit.value());
 
@@ -283,6 +311,7 @@ pub(crate) fn scenarios(input: TokenStream) -> TokenStream {
         feature_paths,
         &manifest_dir,
         tag_filter.as_ref().map(|f| &f.expr),
+        &fixtures,
     );
 
     check_empty_results(&tests, &mut errors, tag_filter.as_ref());
