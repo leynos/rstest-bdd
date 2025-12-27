@@ -1,11 +1,11 @@
 //! Common helper functions for behavioural tests.
 //!
-//! Not all test binaries use all helpers, so we allow unused code at the
+//! Not all test binaries use all helpers, so we expect unused code at the
 //! module level rather than per-function.
 
 // Not all test binaries use all helpers; each binary compiles this module
 // separately, so some helpers may appear unused in certain binaries.
-#![allow(
+#![expect(
     dead_code,
     reason = "shared test helpers may be unused in some binaries"
 )]
@@ -44,8 +44,24 @@ pub fn noop_wrapper(
 
 /// Async version of the no-op step wrapper matching the `AsyncStepFn` signature.
 ///
-/// This wrapper delegates to `noop_wrapper` and wraps the result in an
+/// This wrapper delegates to [`noop_wrapper`] and wraps the result in an
 /// immediately-ready future.
+///
+/// # Examples
+///
+/// ```rust
+/// use rstest_bdd::{StepContext, StepExecution, StepKeyword, step, find_step_async};
+///
+/// # mod common { include!("common/mod.rs"); }
+/// # use common::{noop_wrapper, noop_async_wrapper, poll_step_future};
+/// step!(StepKeyword::Given, "async example", noop_wrapper, noop_async_wrapper, &[]);
+///
+/// let async_fn = find_step_async(StepKeyword::Given, "async example".into()).unwrap();
+/// let mut ctx = StepContext::default();
+/// let future = async_fn(&mut ctx, "async example", None, None);
+/// let result = poll_step_future(future);
+/// assert!(matches!(result, StepExecution::Continue { .. }));
+/// ```
 pub fn noop_async_wrapper<'a>(
     ctx: &'a mut StepContext<'a>,
     text: &str,
@@ -110,7 +126,7 @@ where
 
 /// Wrap a synchronous step function (`StepFn`) into an async wrapper.
 ///
-/// This is a convenience alias for `sync_to_async` that takes a `StepFn`
+/// This is a convenience alias for [`sync_to_async`] that takes a `StepFn`
 /// function pointer rather than a generic closure.
 #[expect(
     clippy::type_complexity,
@@ -120,9 +136,7 @@ pub fn wrap_sync_step_as_async<'a>(
     sync_fn: StepFn,
 ) -> impl FnOnce(&'a mut StepContext<'a>, &str, Option<&str>, Option<&[&[&str]]>) -> StepFuture<'a>
 {
-    move |ctx, text, docstring, table| {
-        Box::pin(std::future::ready(sync_fn(ctx, text, docstring, table)))
-    }
+    sync_to_async(sync_fn)
 }
 
 /// Poll a step future to completion using a noop waker.
