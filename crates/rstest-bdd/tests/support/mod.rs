@@ -22,9 +22,8 @@ pub fn compiled(pattern: &'static str) -> StepPattern {
 /// Panics if the pattern fails to compile or if matching fails.
 #[must_use]
 #[expect(clippy::expect_used, reason = "test helper should fail loudly")]
-pub fn compile_and_extract(pattern: &'static str, text: &'static str) -> Vec<String> {
-    let pat = StepPattern::from(pattern);
-    pat.compile().expect("failed to compile pattern");
+pub fn compile_and_extract(pattern: &'static str, text: &str) -> Vec<String> {
+    let pat = compiled(pattern);
     extract_placeholders(&pat, StepText::from(text)).expect("match expected")
 }
 

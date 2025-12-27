@@ -7,7 +7,7 @@ use std::borrow::Cow;
 use std::ptr;
 use unic_langid::langid;
 
-#[expect(dead_code, reason = "test uses only selected helpers from support")]
+#[expect(dead_code, reason = "compile_and_extract is used only by placeholder_braces tests")]
 mod support;
 use support::{compiled, expect_placeholder_syntax};
 
