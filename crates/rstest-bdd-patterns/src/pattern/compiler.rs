@@ -5,6 +5,51 @@ use crate::hint::get_type_pattern;
 
 use super::lexer::{Token, lex_pattern};
 
+/// Process a single token, appending its regex representation to the output.
+///
+/// Handles brace depth tracking for stray (non-placeholder) braces. Returns an
+/// error when an unmatched closing brace is encountered.
+fn process_token(
+    token: Token,
+    regex: &mut String,
+    stray_depth: &mut usize,
+) -> Result<(), PatternError> {
+    match token {
+        Token::Literal(text) => regex.push_str(&regex::escape(&text)),
+        Token::Placeholder { hint, .. } => {
+            regex.push('(');
+            regex.push_str(get_type_pattern(hint.as_deref()));
+            regex.push(')');
+        }
+        Token::OpenBrace { .. } => {
+            *stray_depth = stray_depth.saturating_add(1);
+            regex.push_str(&regex::escape("{"));
+        }
+        Token::CloseBrace { index } => {
+            *stray_depth = stray_depth
+                .checked_sub(1)
+                .ok_or_else(|| unmatched_close_brace_error(index))?;
+            regex.push_str(&regex::escape("}"));
+        }
+    }
+    Ok(())
+}
+
+fn unmatched_close_brace_error(index: usize) -> PatternError {
+    placeholder_error("unmatched closing brace '}' in step pattern", index, None)
+}
+
+fn validate_brace_balance(depth: usize, pattern_len: usize) -> Result<(), PatternError> {
+    if depth != 0 {
+        return Err(placeholder_error(
+            "unbalanced braces in step pattern",
+            pattern_len,
+            None,
+        ));
+    }
+    Ok(())
+}
+
 /// Build an anchored regular expression from lexed pattern tokens.
 ///
 /// # Errors
@@ -25,39 +70,10 @@ pub fn build_regex_from_pattern(pat: &str) -> Result<String, PatternError> {
     let mut stray_depth = 0usize;
 
     for token in tokens {
-        match token {
-            Token::Literal(text) => regex.push_str(&regex::escape(&text)),
-            Token::Placeholder { hint, .. } => {
-                regex.push('(');
-                regex.push_str(get_type_pattern(hint.as_deref()));
-                regex.push(')');
-            }
-            Token::OpenBrace { .. } => {
-                stray_depth = stray_depth.saturating_add(1);
-                regex.push_str(&regex::escape("{"));
-            }
-            Token::CloseBrace { index } => {
-                if stray_depth == 0 {
-                    return Err(placeholder_error(
-                        "unmatched closing brace '}' in step pattern",
-                        index,
-                        None,
-                    ));
-                }
-                stray_depth -= 1;
-                regex.push_str(&regex::escape("}"));
-            }
-        }
+        process_token(token, &mut regex, &mut stray_depth)?;
     }
 
-    if stray_depth != 0 {
-        return Err(placeholder_error(
-            "unbalanced braces in step pattern",
-            pat.len(),
-            None,
-        ));
-    }
-
+    validate_brace_balance(stray_depth, pat.len())?;
     regex.push('$');
     Ok(regex)
 }
