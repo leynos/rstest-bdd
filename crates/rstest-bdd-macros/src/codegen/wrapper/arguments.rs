@@ -117,6 +117,19 @@ pub(super) fn gen_docstring_decl(
     )
 }
 
+/// Context for generating capture initialisers in struct-based step arguments.
+///
+/// Groups the parameters required by [`generate_capture_initializers`] to reduce
+/// the function's argument count.
+struct CaptureInitContext<'a> {
+    captures: &'a [TokenStream2],
+    missing_errs: &'a [TokenStream2],
+    hints: &'a [Option<String>],
+    values_ident: &'a proc_macro2::Ident,
+    meta: StepMeta<'a>,
+    struct_pat: &'a syn::Ident,
+}
+
 fn generate_missing_capture_errors(
     placeholder_names: &[syn::LitStr],
     pattern: &syn::LitStr,
@@ -143,14 +156,15 @@ fn generate_missing_capture_errors(
         .collect()
 }
 
-fn generate_capture_initializers(
-    captures: &[TokenStream2],
-    missing_errs: &[TokenStream2],
-    hints: &[Option<String>],
-    values_ident: &proc_macro2::Ident,
-    meta: StepMeta<'_>,
-    struct_pat: &syn::Ident,
-) -> Vec<TokenStream2> {
+fn generate_capture_initializers(ctx: &CaptureInitContext<'_>) -> Vec<TokenStream2> {
+    let CaptureInitContext {
+        captures,
+        missing_errs,
+        hints,
+        values_ident,
+        meta,
+        struct_pat,
+    } = ctx;
     let StepMeta { pattern, ident } = meta;
     let raw_ident = format_ident!("raw");
     captures
@@ -213,8 +227,15 @@ fn gen_step_struct_decl(
         let values_ident = format_ident!("__rstest_bdd_struct_values");
         let StepMeta { pattern, ident } = meta;
         let missing_errs = generate_missing_capture_errors(names, pattern, ident, pat);
-        let capture_inits =
-            generate_capture_initializers(captures, &missing_errs, hints, &values_ident, meta, pat);
+        let capture_init_ctx = CaptureInitContext {
+            captures,
+            missing_errs: &missing_errs,
+            hints,
+            values_ident: &values_ident,
+            meta,
+            struct_pat: pat,
+        };
+        let capture_inits = generate_capture_initializers(&capture_init_ctx);
         let convert_err = step_error_tokens(
             &format_ident!("ExecutionError"),
             pattern,

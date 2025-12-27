@@ -46,6 +46,70 @@ fn gen_quote_strip(raw_ident: &proc_macro2::Ident, malformed_err: &TokenStream2)
     }
 }
 
+/// Generate an error token stream for failed argument parsing.
+///
+/// This helper constructs the `StepError::ExecutionError` variant used when
+/// `.parse()` fails to convert a captured string to the expected type.
+fn gen_parse_err(
+    pattern: &syn::LitStr,
+    ident: &syn::Ident,
+    pat: &syn::Ident,
+    ty: &syn::Type,
+    raw_ident: &proc_macro2::Ident,
+) -> TokenStream2 {
+    step_error_tokens(
+        &format_ident!("ExecutionError"),
+        pattern,
+        ident,
+        &quote! {
+            format!(
+                "failed to parse argument '{}' of type '{}' from pattern '{}' with captured value: '{:?}'",
+                stringify!(#pat),
+                stringify!(#ty),
+                #pattern,
+                #raw_ident,
+            )
+        },
+    )
+}
+
+/// Generate code to bind a `&str` reference argument from a regex capture.
+///
+/// Optionally strips surrounding quotes if the hint requires it.
+fn gen_str_reference_binding(
+    raw_ident: &proc_macro2::Ident,
+    capture: &TokenStream2,
+    pat: &syn::Ident,
+    ty: &syn::Type,
+    missing_cap_err: &TokenStream2,
+    quote_strip: &TokenStream2,
+) -> TokenStream2 {
+    quote! {
+        let #raw_ident: &str = #capture.ok_or_else(|| #missing_cap_err)?;
+        #quote_strip
+        let #pat: #ty = #raw_ident;
+    }
+}
+
+/// Generate code to bind an owned type argument from a regex capture using `.parse()`.
+///
+/// Optionally strips surrounding quotes if the hint requires it.
+fn gen_parsed_type_binding(
+    raw_ident: &proc_macro2::Ident,
+    capture: &TokenStream2,
+    pat: &syn::Ident,
+    ty: &syn::Type,
+    missing_cap_err: &TokenStream2,
+    parse_err: &TokenStream2,
+    quote_strip: &TokenStream2,
+) -> TokenStream2 {
+    quote! {
+        let #raw_ident = #capture.ok_or_else(|| #missing_cap_err)?;
+        #quote_strip
+        let #pat: #ty = (#raw_ident).parse().map_err(|_| #parse_err)?;
+    }
+}
+
 /// Context for parsing a single step argument from a regex capture.
 #[derive(Copy, Clone)]
 pub(super) struct ArgParseContext<'a> {
@@ -118,32 +182,17 @@ pub(super) fn gen_single_step_parse(ctx: ArgParseContext<'_>, meta: StepMeta<'_>
     };
 
     if is_str_reference(ty) {
-        // Direct assignment for &str - no parsing needed
-        quote! {
-            let #raw_ident: &str = #capture.ok_or_else(|| #missing_cap_err)?;
-            #quote_strip
-            let #pat: #ty = #raw_ident;
-        }
+        gen_str_reference_binding(&raw_ident, capture, pat, ty, &missing_cap_err, &quote_strip)
     } else {
-        // Standard parse path for owned/parseable types
-        let parse_err = step_error_tokens(
-            &format_ident!("ExecutionError"),
-            pattern,
-            ident,
-            &quote! {
-                format!(
-                    "failed to parse argument '{}' of type '{}' from pattern '{}' with captured value: '{:?}'",
-                    stringify!(#pat),
-                    stringify!(#ty),
-                    #pattern,
-                    #raw_ident,
-                )
-            },
-        );
-        quote! {
-            let #raw_ident = #capture.ok_or_else(|| #missing_cap_err)?;
-            #quote_strip
-            let #pat: #ty = (#raw_ident).parse().map_err(|_| #parse_err)?;
-        }
+        let parse_err = gen_parse_err(pattern, ident, pat, ty, &raw_ident);
+        gen_parsed_type_binding(
+            &raw_ident,
+            capture,
+            pat,
+            ty,
+            &missing_cap_err,
+            &parse_err,
+            &quote_strip,
+        )
     }
 }
