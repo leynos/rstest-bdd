@@ -126,6 +126,25 @@ mod tests {
         quote!(#ty).to_string()
     }
 
+    /// Assert that parsing fails and the error message contains the expected keyword.
+    fn assert_parse_error_contains(result: syn::Result<ScenariosArgs>, expected_keyword: &str) {
+        match result {
+            Ok(_) => panic!("parsing should fail"),
+            Err(err) => {
+                let msg = err.to_string();
+                assert!(
+                    msg.contains(expected_keyword),
+                    "error message should contain '{expected_keyword}': {msg}"
+                );
+            }
+        }
+    }
+
+    /// Assert that fixture spec parsing fails and the error exists.
+    fn assert_fixture_parse_fails(tokens: proc_macro2::TokenStream) {
+        assert!(parse_fixture_spec(tokens).is_err(), "parsing should fail");
+    }
+
     // Tests for FixtureSpec parsing
 
     #[test]
@@ -154,14 +173,12 @@ mod tests {
 
     #[test]
     fn fixture_spec_rejects_missing_colon() {
-        let result = parse_fixture_spec(parse_quote!(world TestWorld));
-        assert!(result.is_err());
+        assert_fixture_parse_fails(parse_quote!(world TestWorld));
     }
 
     #[test]
     fn fixture_spec_rejects_missing_type() {
-        let result = parse_fixture_spec(parse_quote!(world:));
-        assert!(result.is_err());
+        assert_fixture_parse_fails(parse_quote!(world:));
     }
 
     // Tests for ScenariosArgs parsing
@@ -246,46 +263,19 @@ mod tests {
     #[test]
     fn scenarios_args_rejects_missing_dir() {
         let result = parse_scenarios_args(parse_quote!(tags = "@fast"));
-        match result {
-            Ok(_) => panic!("should reject missing dir"),
-            Err(err) => {
-                let msg = err.to_string();
-                assert!(
-                    msg.contains("dir") || msg.contains("path"),
-                    "error should mention dir or path: {msg}"
-                );
-            }
-        }
+        assert_parse_error_contains(result, "dir");
     }
 
     #[test]
     fn scenarios_args_rejects_duplicate_dir() {
         let result = parse_scenarios_args(parse_quote!(dir = "a", path = "b"));
-        match result {
-            Ok(_) => panic!("should reject duplicate dir"),
-            Err(err) => {
-                let msg = err.to_string();
-                assert!(
-                    msg.contains("duplicate"),
-                    "error should mention duplicate: {msg}"
-                );
-            }
-        }
+        assert_parse_error_contains(result, "duplicate");
     }
 
     #[test]
     fn scenarios_args_rejects_duplicate_tags() {
         let result = parse_scenarios_args(parse_quote!("tests/features", tags = "@a", tags = "@b"));
-        match result {
-            Ok(_) => panic!("should reject duplicate tags"),
-            Err(err) => {
-                let msg = err.to_string();
-                assert!(
-                    msg.contains("duplicate"),
-                    "error should mention duplicate: {msg}"
-                );
-            }
-        }
+        assert_parse_error_contains(result, "duplicate");
     }
 
     #[test]
@@ -295,16 +285,7 @@ mod tests {
             fixtures = [a: A],
             fixtures = [b: B]
         ));
-        match result {
-            Ok(_) => panic!("should reject duplicate fixtures"),
-            Err(err) => {
-                let msg = err.to_string();
-                assert!(
-                    msg.contains("duplicate"),
-                    "error should mention duplicate: {msg}"
-                );
-            }
-        }
+        assert_parse_error_contains(result, "duplicate");
     }
 
     #[test]
