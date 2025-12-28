@@ -10,6 +10,23 @@ use rstest_bdd::{
 
 use super::common::sync_to_async;
 
+/// Generates an async wrapper function that delegates to a sync step function.
+///
+/// This eliminates boilerplate when registering sync steps that need explicit
+/// async handlers for testing purposes.
+macro_rules! async_wrapper {
+    ($async_name:ident, $sync_fn:path) => {
+        fn $async_name<'a>(
+            ctx: &'a mut StepContext<'a>,
+            text: &str,
+            docstring: Option<&str>,
+            table: Option<&[&[&str]]>,
+        ) -> StepFuture<'a> {
+            sync_to_async($sync_fn)(ctx, text, docstring, table)
+        }
+    };
+}
+
 /// Minimal step wrapper that succeeds without performing any action.
 ///
 /// Used to verify that step registration and lookup work correctly.
@@ -18,23 +35,15 @@ use super::common::sync_to_async;
     reason = "wrapper must match StepFn signature"
 )]
 fn wrapper(
-    ctx: &mut StepContext<'_>,
+    _ctx: &mut StepContext<'_>,
     _text: &str,
     _docstring: Option<&str>,
     _table: Option<&[&[&str]]>,
 ) -> Result<StepExecution, StepError> {
-    let _ = ctx;
     Ok(StepExecution::from_value(None))
 }
 
-fn wrapper_async<'a>(
-    ctx: &'a mut StepContext<'a>,
-    text: &str,
-    docstring: Option<&str>,
-    table: Option<&[&[&str]]>,
-) -> StepFuture<'a> {
-    sync_to_async(wrapper)(ctx, text, docstring, table)
-}
+async_wrapper!(wrapper_async, wrapper);
 
 step!(
     StepKeyword::When,
@@ -45,12 +54,11 @@ step!(
 );
 
 fn failing_wrapper(
-    ctx: &mut StepContext<'_>,
+    _ctx: &mut StepContext<'_>,
     _text: &str,
     _docstring: Option<&str>,
     _table: Option<&[&[&str]]>,
 ) -> Result<StepExecution, StepError> {
-    let _ = ctx;
     Err(StepError::ExecutionError {
         pattern: "fails".into(),
         function: "failing_wrapper".into(),
@@ -58,14 +66,7 @@ fn failing_wrapper(
     })
 }
 
-fn failing_wrapper_async<'a>(
-    ctx: &'a mut StepContext<'a>,
-    text: &str,
-    docstring: Option<&str>,
-    table: Option<&[&[&str]]>,
-) -> StepFuture<'a> {
-    sync_to_async(failing_wrapper)(ctx, text, docstring, table)
-}
+async_wrapper!(failing_wrapper_async, failing_wrapper);
 
 step!(
     StepKeyword::Given,
@@ -76,13 +77,12 @@ step!(
 );
 
 fn panicking_wrapper(
-    ctx: &mut StepContext<'_>,
+    _ctx: &mut StepContext<'_>,
     _text: &str,
     _docstring: Option<&str>,
     _table: Option<&[&[&str]]>,
 ) -> Result<StepExecution, StepError> {
     use std::panic::{AssertUnwindSafe, catch_unwind};
-    let _ = ctx;
     catch_unwind(AssertUnwindSafe(|| panic!("snap"))).map_err(|e| StepError::PanicError {
         pattern: "panics".into(),
         function: "panicking_wrapper".into(),
@@ -91,14 +91,7 @@ fn panicking_wrapper(
     Ok(StepExecution::from_value(None))
 }
 
-fn panicking_wrapper_async<'a>(
-    ctx: &'a mut StepContext<'a>,
-    text: &str,
-    docstring: Option<&str>,
-    table: Option<&[&[&str]]>,
-) -> StepFuture<'a> {
-    sync_to_async(panicking_wrapper)(ctx, text, docstring, table)
-}
+async_wrapper!(panicking_wrapper_async, panicking_wrapper);
 
 step!(
     StepKeyword::When,
@@ -125,14 +118,7 @@ fn needs_fixture_wrapper(
     }
 }
 
-fn needs_fixture_wrapper_async<'a>(
-    ctx: &'a mut StepContext<'a>,
-    text: &str,
-    docstring: Option<&str>,
-    table: Option<&[&[&str]]>,
-) -> StepFuture<'a> {
-    sync_to_async(needs_fixture_wrapper)(ctx, text, docstring, table)
-}
+async_wrapper!(needs_fixture_wrapper_async, needs_fixture_wrapper);
 
 step!(
     StepKeyword::Then,
@@ -142,22 +128,21 @@ step!(
     &["missing"]
 );
 
-// Test the 4-argument form (auto-generated async handler)
+// Test the step! macro's ability to auto-generate an async handler from a sync function
 #[expect(
     clippy::unnecessary_wraps,
     reason = "wrapper must match StepFn signature"
 )]
 fn auto_async_wrapper(
-    ctx: &mut StepContext<'_>,
+    _ctx: &mut StepContext<'_>,
     _text: &str,
     _docstring: Option<&str>,
     _table: Option<&[&[&str]]>,
 ) -> Result<StepExecution, StepError> {
-    let _ = ctx;
     Ok(StepExecution::from_value(None))
 }
 
-// Register using the 4-argument backward-compatible form
+// Register using the backward-compatible form that auto-generates the async handler
 step!(
     StepKeyword::Given,
     "auto async step",
