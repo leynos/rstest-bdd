@@ -13,7 +13,7 @@ use syn::punctuated::Punctuated;
 use syn::token::Comma;
 
 /// A single fixture specification: `name: Type`.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub(super) struct FixtureSpec {
     pub(super) name: syn::Ident,
     pub(super) ty: syn::Type,
