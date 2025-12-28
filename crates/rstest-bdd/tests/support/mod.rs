@@ -6,6 +6,15 @@ use rstest_bdd::{
 
 /// Compile a placeholder pattern for use in assertions.
 ///
+/// # Example
+///
+/// ```no_run
+/// use support::compiled;
+///
+/// let pat = compiled("value {n:u32}");
+/// assert!(pat.regex().unwrap().is_match("value 42"));
+/// ```
+///
 /// # Panics
 /// Panics if the pattern fails to compile.
 #[must_use]
@@ -30,14 +39,6 @@ pub fn compiled(pattern: &'static str) -> StepPattern {
 /// # Panics
 /// Panics if the pattern fails to compile or if matching fails.
 #[must_use]
-#[allow(
-    clippy::allow_attributes,
-    reason = "allow is required; expect fails when function is used"
-)]
-#[allow(
-    dead_code,
-    reason = "used by placeholder_braces tests, not placeholder_parsing"
-)]
 #[expect(clippy::expect_used, reason = "test helper should fail loudly")]
 pub fn compile_and_extract(pattern: &'static str, text: &str) -> Vec<String> {
     let pat = compiled(pattern);
@@ -45,6 +46,16 @@ pub fn compile_and_extract(pattern: &'static str, text: &str) -> Vec<String> {
 }
 
 /// Expect the provided pattern to emit a placeholder syntax error.
+///
+/// # Example
+///
+/// ```no_run
+/// use rstest_bdd::StepPattern;
+/// use support::expect_placeholder_syntax;
+///
+/// let err = expect_placeholder_syntax(StepPattern::from("value {n:}"));
+/// assert_eq!(err.position, 6);
+/// ```
 ///
 /// # Panics
 /// Panics if compilation succeeds or returns a different error type.
