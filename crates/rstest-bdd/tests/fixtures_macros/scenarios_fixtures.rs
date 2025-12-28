@@ -7,7 +7,6 @@
 //!   lint warnings for fixture variables consumed via StepContext.
 
 use rstest::fixture;
-use rstest_bdd::StepContext;
 use rstest_bdd_macros::{given, scenarios, then, when};
 use std::cell::RefCell;
 
@@ -39,7 +38,7 @@ fn the_counter_equals_1(counter_world: &RefCell<CounterWorld>) {
 }
 
 scenarios!(
-    "tests/fixtures_macros",
+    "scenarios_fixtures_dir",
     fixtures = [counter_world: RefCell<CounterWorld>]
 );
 
