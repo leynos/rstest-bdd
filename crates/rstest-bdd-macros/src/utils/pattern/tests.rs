@@ -28,43 +28,30 @@ fn ident_matches_normalized_cases(
     assert_eq!(ident_matches_normalized(&ident, header), expected);
 }
 
-#[test]
+/// Helper to assert placeholder extraction for a single-placeholder pattern.
 #[expect(
     clippy::expect_used,
     clippy::indexing_slicing,
     reason = "test asserts valid pattern"
 )]
-fn placeholder_without_hint_has_none() {
-    let summary = placeholder_names("{foo}").expect("valid pattern");
+fn assert_single_placeholder(pattern: &str, expected_name: &str, expected_hint: Option<&str>) {
+    let summary = placeholder_names(pattern).expect("valid pattern");
     assert_eq!(summary.ordered.len(), 1);
-    assert_eq!(summary.ordered[0].name, "foo");
-    assert_eq!(summary.ordered[0].hint, None);
+    assert_eq!(summary.ordered[0].name, expected_name);
+    assert_eq!(summary.ordered[0].hint, expected_hint.map(String::from));
 }
 
-#[test]
-#[expect(
-    clippy::expect_used,
-    clippy::indexing_slicing,
-    reason = "test asserts valid pattern"
-)]
-fn placeholder_with_type_hint_extracts_hint() {
-    let summary = placeholder_names("{foo:u32}").expect("valid pattern");
-    assert_eq!(summary.ordered.len(), 1);
-    assert_eq!(summary.ordered[0].name, "foo");
-    assert_eq!(summary.ordered[0].hint, Some("u32".to_string()));
-}
-
-#[test]
-#[expect(
-    clippy::expect_used,
-    clippy::indexing_slicing,
-    reason = "test asserts valid pattern"
-)]
-fn placeholder_with_string_hint() {
-    let summary = placeholder_names("{args:string}").expect("valid pattern");
-    assert_eq!(summary.ordered.len(), 1);
-    assert_eq!(summary.ordered[0].name, "args");
-    assert_eq!(summary.ordered[0].hint, Some("string".to_string()));
+/// Test that single-placeholder patterns correctly extract name and hint.
+#[rstest]
+#[case::without_hint("{foo}", "foo", None)]
+#[case::with_u32_hint("{foo:u32}", "foo", Some("u32"))]
+#[case::with_string_hint("{args:string}", "args", Some("string"))]
+fn placeholder_hint_extraction(
+    #[case] pattern: &str,
+    #[case] expected_name: &str,
+    #[case] expected_hint: Option<&str>,
+) {
+    assert_single_placeholder(pattern, expected_name, expected_hint);
 }
 
 #[test]

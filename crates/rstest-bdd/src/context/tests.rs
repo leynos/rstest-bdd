@@ -16,6 +16,9 @@ impl log::Log for NoopLogger {
 static LOGGER: NoopLogger = NoopLogger;
 static INIT_LOGGER: Once = Once::new();
 
+/// Initialize the logger for tests requiring log output.
+///
+/// Uses `Once` to ensure the logger is set exactly once across all tests.
 fn ensure_logger() {
     INIT_LOGGER.call_once(|| {
         let _ = log::set_logger(&LOGGER);

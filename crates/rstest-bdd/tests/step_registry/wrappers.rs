@@ -10,8 +10,9 @@ use rstest_bdd::{
 
 use super::common::sync_to_async;
 
-fn sample() {}
-
+/// Minimal step wrapper that succeeds without performing any action.
+///
+/// Used to verify that step registration and lookup work correctly.
 #[expect(
     clippy::unnecessary_wraps,
     reason = "wrapper must match StepFn signature"
@@ -22,9 +23,7 @@ fn wrapper(
     _docstring: Option<&str>,
     _table: Option<&[&[&str]]>,
 ) -> Result<StepExecution, StepError> {
-    // Adapter for zero-argument step functions
     let _ = ctx;
-    sample();
     Ok(StepExecution::from_value(None))
 }
 
