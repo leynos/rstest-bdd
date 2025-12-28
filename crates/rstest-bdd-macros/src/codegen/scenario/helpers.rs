@@ -3,6 +3,7 @@
 use proc_macro2::TokenStream as TokenStream2;
 use quote::{ToTokens, quote};
 
+use super::domain::{Docstring, ExampleHeaders, ExampleRow, StepText};
 use crate::parsing::placeholder::substitute_placeholders;
 
 /// Result type for substituted step content: (text, docstring, table).
@@ -16,6 +17,21 @@ pub(crate) type ProcessedStepTokens = (
     Vec<TokenStream2>,
 );
 
+/// Context for placeholder substitution containing headers and row values.
+pub(crate) struct SubstitutionContext<'a> {
+    /// Column headers from the Examples table.
+    pub(crate) headers: &'a ExampleHeaders,
+    /// Row values aligned with headers.
+    pub(crate) row: &'a ExampleRow,
+}
+
+impl<'a> SubstitutionContext<'a> {
+    /// Creates a new substitution context.
+    pub(crate) fn new(headers: &'a ExampleHeaders, row: &'a ExampleRow) -> Self {
+        Self { headers, row }
+    }
+}
+
 /// Create a `LitStr` from an examples table cell.
 fn cell_to_lit(value: &str) -> syn::LitStr {
     syn::LitStr::new(value, proc_macro2::Span::call_site())
@@ -25,16 +41,31 @@ fn cell_to_lit(value: &str) -> syn::LitStr {
 pub(crate) fn generate_case_attrs(
     examples: &crate::parsing::examples::ExampleTable,
 ) -> Vec<TokenStream2> {
+    generate_case_attrs_internal(examples, false)
+}
+
+/// Internal helper for generating case attributes with optional index prepending.
+fn generate_case_attrs_internal(
+    examples: &crate::parsing::examples::ExampleTable,
+    prepend_index: bool,
+) -> Vec<TokenStream2> {
     examples
         .rows
         .iter()
-        .filter(|row| row.iter().any(|cell| !cell.is_empty()))
-        .map(|row| {
+        .enumerate()
+        .filter(|(_, row)| row.iter().any(|cell| !cell.is_empty()))
+        .map(|(idx, row)| {
             let cells = row.iter().map(|v| {
                 let lit = cell_to_lit(v);
                 quote! { #lit }
             });
-            quote! { #[case( #(#cells),* )] }
+            if prepend_index {
+                let idx_lit =
+                    syn::LitInt::new(&format!("{idx}usize"), proc_macro2::Span::call_site());
+                quote! { #[case( #idx_lit, #(#cells),* )] }
+            } else {
+                quote! { #[case( #(#cells),* )] }
+            }
         })
         .collect()
 }
@@ -142,37 +173,29 @@ pub(crate) fn process_steps(
 pub(crate) fn generate_indexed_case_attrs(
     examples: &crate::parsing::examples::ExampleTable,
 ) -> Vec<TokenStream2> {
-    examples
-        .rows
-        .iter()
-        .enumerate()
-        .filter(|(_, row)| row.iter().any(|cell| !cell.is_empty()))
-        .map(|(idx, row)| {
-            let idx_lit = syn::LitInt::new(&format!("{idx}usize"), proc_macro2::Span::call_site());
-            let cells = row.iter().map(|v| {
-                let lit = cell_to_lit(v);
-                quote! { #lit }
-            });
-            quote! { #[case( #idx_lit, #(#cells),* )] }
-        })
-        .collect()
+    generate_case_attrs_internal(examples, true)
 }
 
 /// Substitutes placeholders in step text, docstring, and table cells.
 ///
 /// Returns the substituted text, docstring, and table for a single step given
-/// the Examples table headers and a specific row's values.
+/// the substitution context containing Examples table headers and row values.
 fn substitute_step_content(
-    text: &str,
-    docstring: Option<&String>,
+    text: &StepText,
+    docstring: Option<&Docstring>,
     table: Option<&[Vec<String>]>,
-    headers: &[String],
-    row: &[String],
+    context: &SubstitutionContext<'_>,
 ) -> Result<SubstitutedStepContent, crate::parsing::placeholder::PlaceholderError> {
-    let substituted_text = substitute_placeholders(text, headers, row)?;
+    let substituted_text = substitute_placeholders(
+        text.as_str(),
+        context.headers.as_slice(),
+        context.row.as_slice(),
+    )?;
 
     let substituted_docstring = docstring
-        .map(|d| substitute_placeholders(d, headers, row))
+        .map(|d| {
+            substitute_placeholders(d.as_str(), context.headers.as_slice(), context.row.as_slice())
+        })
         .transpose()?;
 
     let substituted_table = table
@@ -181,7 +204,13 @@ fn substitute_step_content(
                 .map(|table_row| {
                     table_row
                         .iter()
-                        .map(|cell| substitute_placeholders(cell, headers, row))
+                        .map(|cell| {
+                            substitute_placeholders(
+                                cell,
+                                context.headers.as_slice(),
+                                context.row.as_slice(),
+                            )
+                        })
                         .collect::<Result<Vec<_>, _>>()
                 })
                 .collect::<Result<Vec<_>, _>>()
@@ -208,9 +237,11 @@ fn substitute_step_content(
 /// with all placeholders substituted.
 pub(crate) fn process_steps_substituted(
     steps: &[crate::parsing::feature::ParsedStep],
-    headers: &[String],
-    row: &[String],
+    headers: &ExampleHeaders,
+    row: &ExampleRow,
 ) -> Result<ProcessedStepTokens, proc_macro2::TokenStream> {
+    let context = SubstitutionContext::new(headers, row);
+
     // Resolve textual conjunctions (And/But) to the previous primary keyword
     let keyword_tokens = {
         let mut prev = steps
@@ -230,12 +261,13 @@ pub(crate) fn process_steps_substituted(
     let mut tables = Vec::with_capacity(steps.len());
 
     for step in steps {
+        let step_text = StepText::new(&step.text);
+        let step_docstring = step.docstring.as_ref().map(Docstring::new);
         let (sub_text, sub_doc, sub_table) = substitute_step_content(
-            &step.text,
-            step.docstring.as_ref(),
+            &step_text,
+            step_docstring.as_ref(),
             step.table.as_deref(),
-            headers,
-            row,
+            &context,
         )
         .map_err(|e| {
             let err = syn::Error::new(proc_macro2::Span::call_site(), e.to_string());
