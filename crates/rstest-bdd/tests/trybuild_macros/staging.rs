@@ -11,6 +11,7 @@ use std::path::Path as StdPath;
 
 const MACROS_FIXTURES_DIR: &str = "tests/fixtures_macros";
 const FEATURES_DIR: &str = "tests/features";
+const FEATURES_AUTO_DIR: &str = "tests/features/auto";
 
 pub(crate) fn macros_fixture(case: &str) -> Utf8PathBuf {
     ensure_trybuild_support_files();
@@ -81,7 +82,7 @@ fn stage_trybuild_support_files() -> io::Result<()> {
         .collect::<Vec<_>>();
 
     if !auto_features.is_empty() {
-        let auto_dest = trybuild_crate_relative.join("tests/features/auto");
+        let auto_dest = trybuild_crate_relative.join(FEATURES_AUTO_DIR);
         workspace_dir.create_dir_all(auto_dest.as_std_path())?;
         write_feature_files(&workspace_dir, auto_dest.as_std_path(), &auto_features)?;
     }
