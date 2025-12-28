@@ -22,13 +22,12 @@ pub(crate) fn ui_fixture(case: &str) -> Utf8PathBuf {
     Utf8PathBuf::from("tests/ui_macros").join(case)
 }
 
+#[expect(clippy::expect_used, reason = "test setup failure should panic")]
 fn ensure_trybuild_support_files() {
     use std::sync::OnceLock;
     static TRYBUILD_SUPPORT: OnceLock<()> = OnceLock::new();
     TRYBUILD_SUPPORT.get_or_init(|| {
-        stage_trybuild_support_files().unwrap_or_else(|error| {
-            panic!("failed to stage trybuild support files: {error}");
-        });
+        stage_trybuild_support_files().expect("failed to stage trybuild support files");
     });
 }
 
