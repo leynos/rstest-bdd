@@ -78,7 +78,7 @@ attribute:
   `#[allow]`).
 
 This follows the existing pattern in
-`crates/rstest-bdd-macros/src/utils/ fixtures.rs` where `#[expect(unused_mut)]`
+`crates/rstest-bdd-macros/src/utils/fixtures.rs` where `#[expect(unused_mut)]`
 is used with a reason for similar generated code.
 
 ## Relationship to Cucumber
