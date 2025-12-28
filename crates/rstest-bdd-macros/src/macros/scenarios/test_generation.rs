@@ -139,8 +139,9 @@ pub(super) fn generate_scenario_test(
     let example_params = build_example_params(examples.as_ref());
     let mut sig = build_test_signature(&fn_ident, &fixture_params, &example_params);
 
-    let Ok((_args, fixture_setup)) = extract_function_fixtures(&mut sig) else {
-        unreachable!("failed to bind fixtures for generated signature");
+    let (_args, fixture_setup) = match extract_function_fixtures(&mut sig) {
+        Ok(result) => result,
+        Err(err) => return err.to_compile_error(),
     };
 
     let feature_path = ctx.manifest_dir.join(ctx.rel_path).display().to_string();
