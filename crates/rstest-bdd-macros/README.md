@@ -216,8 +216,8 @@ Implicit fixtures such as `basket` must already be in scope in the test module;
 - Fixtures are injected automatically when parameter names match fixtures;
   use `#[from(name)]` only to rename a parameter.
 
-- Prefer readable step text first; compile‑time checks ensure you don't forget
-  an implementation.
+- Prefer readable step text first; compile‑time checks ensure implementations
+  are not forgotten.
 
 ### cucumber-rs migration
 
