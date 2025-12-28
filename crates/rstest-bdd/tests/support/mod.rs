@@ -30,6 +30,14 @@ pub fn compiled(pattern: &'static str) -> StepPattern {
 /// # Panics
 /// Panics if the pattern fails to compile or if matching fails.
 #[must_use]
+#[allow(
+    clippy::allow_attributes,
+    reason = "allow is required; expect fails when function is used"
+)]
+#[allow(
+    dead_code,
+    reason = "used by placeholder_braces tests, not placeholder_parsing"
+)]
 #[expect(clippy::expect_used, reason = "test helper should fail loudly")]
 pub fn compile_and_extract(pattern: &'static str, text: &str) -> Vec<String> {
     let pat = compiled(pattern);

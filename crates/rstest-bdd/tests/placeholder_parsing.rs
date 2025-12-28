@@ -7,7 +7,6 @@ use std::borrow::Cow;
 use std::ptr;
 use unic_langid::langid;
 
-#[expect(dead_code, reason = "shared module includes helpers not used by this test file")]
 mod support;
 use support::{compiled, expect_placeholder_syntax};
 
