@@ -20,9 +20,9 @@ pub fn compiled(pattern: &'static str) -> StepPattern {
 ///
 /// # Example
 ///
-/// ```
-/// # mod support { include!("support/mod.rs"); }
-/// # use support::compile_and_extract;
+/// ```no_run
+/// use support::compile_and_extract;
+///
 /// let caps = compile_and_extract("value {n:u32}", "value 42");
 /// assert_eq!(caps, vec!["42"]);
 /// ```
