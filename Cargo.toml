@@ -12,7 +12,7 @@ members = [
 
 [workspace.package]
 edition = "2024"
-version = "0.3.1"
+version = "0.3.2"
 rust-version = "1.85"
 license = "ISC"
 authors = ["Payton McIntosh <pmcintosh@df12.net>"]
