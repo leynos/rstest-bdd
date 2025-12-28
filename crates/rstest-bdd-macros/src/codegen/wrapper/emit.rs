@@ -52,9 +52,12 @@ struct WrapperIdents {
 /// at the start of tests that require predictable wrapper identifier
 /// generation.
 #[cfg(test)]
-#[expect(dead_code, reason = "utility for future golden tests per issue #59")]
+#[expect(
+    dead_code,
+    reason = "FIXME: https://github.com/leynos/rstest-bdd/issues/59 – utility for future golden tests"
+)]
 pub(crate) fn reset_wrapper_counter_for_tests() {
-    COUNTER.store(0, Ordering::SeqCst);
+    COUNTER.store(0, Ordering::Relaxed);
 }
 
 /// Generate unique identifiers for the wrapper components.
