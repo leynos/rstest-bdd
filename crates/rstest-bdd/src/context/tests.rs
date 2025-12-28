@@ -16,10 +16,12 @@ impl log::Log for NoopLogger {
 static LOGGER: NoopLogger = NoopLogger;
 static INIT_LOGGER: Once = Once::new();
 
-/// Initialize the logger for tests requiring log output.
+/// Fixture that initializes the logger for tests requiring log output.
 ///
 /// Uses `Once` to ensure the logger is set exactly once across all tests.
-fn ensure_logger() {
+/// Inject this fixture to ensure logging is available during test execution.
+#[rstest::fixture]
+fn logger() {
     INIT_LOGGER.call_once(|| {
         let _ = log::set_logger(&LOGGER);
         log::set_max_level(log::LevelFilter::Warn);
@@ -58,10 +60,13 @@ fn borrow_mut_returns_none_for_shared_fixture() {
     assert!(ctx.borrow_mut::<i32>("number").is_none());
 }
 
-#[test]
+#[rstest::rstest]
 #[expect(clippy::expect_used, reason = "tests require explicit panic messages")]
-fn insert_value_overrides_unique_fixture() {
-    ensure_logger();
+#[expect(
+    clippy::used_underscore_binding,
+    reason = "rstest fixture injection requires the parameter"
+)]
+fn insert_value_overrides_unique_fixture(_logger: ()) {
     let fixture = 1u32;
     let mut ctx = StepContext::default();
     ctx.insert("number", &fixture);
@@ -86,9 +91,12 @@ fn insert_value_overrides_unique_fixture() {
     assert_eq!(*current, 7);
 }
 
-#[test]
-fn insert_value_returns_none_when_type_ambiguous() {
-    ensure_logger();
+#[rstest::rstest]
+#[expect(
+    clippy::used_underscore_binding,
+    reason = "rstest fixture injection requires the parameter"
+)]
+fn insert_value_returns_none_when_type_ambiguous(_logger: ()) {
     let first = 1u32;
     let second = 2u32;
     let mut ctx = StepContext::default();
@@ -101,9 +109,12 @@ fn insert_value_returns_none_when_type_ambiguous() {
     assert_eq!(ctx.get::<u32>("two"), Some(&2));
 }
 
-#[test]
-fn insert_value_returns_none_when_type_missing() {
-    ensure_logger();
+#[rstest::rstest]
+#[expect(
+    clippy::used_underscore_binding,
+    reason = "rstest fixture injection requires the parameter"
+)]
+fn insert_value_returns_none_when_type_missing(_logger: ()) {
     let text = "fixture";
     let mut ctx = StepContext::default();
     ctx.insert("text", &text);
