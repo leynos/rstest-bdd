@@ -102,3 +102,231 @@ impl Parse for ScenariosArgs {
         })
     }
 }
+
+#[cfg(test)]
+#[expect(
+    clippy::unwrap_used,
+    clippy::indexing_slicing,
+    reason = "test code uses infallible unwraps and indexed access for clarity"
+)]
+mod tests {
+    use super::{FixtureSpec, ScenariosArgs};
+    use quote::quote;
+    use syn::parse_quote;
+
+    fn parse_scenarios_args(tokens: proc_macro2::TokenStream) -> syn::Result<ScenariosArgs> {
+        syn::parse2(tokens)
+    }
+
+    fn parse_fixture_spec(tokens: proc_macro2::TokenStream) -> syn::Result<FixtureSpec> {
+        syn::parse2(tokens)
+    }
+
+    fn type_to_string(ty: &syn::Type) -> String {
+        quote!(#ty).to_string()
+    }
+
+    // Tests for FixtureSpec parsing
+
+    #[test]
+    fn fixture_spec_parses_simple_type() {
+        let spec: FixtureSpec = parse_fixture_spec(parse_quote!(world: TestWorld)).unwrap();
+        assert_eq!(spec.name.to_string(), "world");
+        assert!(type_to_string(&spec.ty).contains("TestWorld"));
+    }
+
+    #[test]
+    fn fixture_spec_parses_generic_type() {
+        let spec: FixtureSpec =
+            parse_fixture_spec(parse_quote!(counter: RefCell<CounterWorld>)).unwrap();
+        assert_eq!(spec.name.to_string(), "counter");
+        let ty_str = type_to_string(&spec.ty);
+        assert!(ty_str.contains("RefCell"));
+        assert!(ty_str.contains("CounterWorld"));
+    }
+
+    #[test]
+    fn fixture_spec_parses_path_type() {
+        let spec: FixtureSpec =
+            parse_fixture_spec(parse_quote!(db: std::sync::Arc<Database>)).unwrap();
+        assert_eq!(spec.name.to_string(), "db");
+    }
+
+    #[test]
+    fn fixture_spec_rejects_missing_colon() {
+        let result = parse_fixture_spec(parse_quote!(world TestWorld));
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn fixture_spec_rejects_missing_type() {
+        let result = parse_fixture_spec(parse_quote!(world:));
+        assert!(result.is_err());
+    }
+
+    // Tests for ScenariosArgs parsing
+
+    #[test]
+    fn scenarios_args_parses_positional_dir() {
+        let args: ScenariosArgs = parse_scenarios_args(parse_quote!("tests/features")).unwrap();
+        assert_eq!(args.dir.value(), "tests/features");
+        assert!(args.tag_filter.is_none());
+        assert!(args.fixtures.is_empty());
+    }
+
+    #[test]
+    fn scenarios_args_parses_named_dir() {
+        let args: ScenariosArgs =
+            parse_scenarios_args(parse_quote!(dir = "tests/features")).unwrap();
+        assert_eq!(args.dir.value(), "tests/features");
+    }
+
+    #[test]
+    fn scenarios_args_parses_named_path() {
+        let args: ScenariosArgs =
+            parse_scenarios_args(parse_quote!(path = "tests/features")).unwrap();
+        assert_eq!(args.dir.value(), "tests/features");
+    }
+
+    #[test]
+    fn scenarios_args_parses_with_tags() {
+        let args: ScenariosArgs =
+            parse_scenarios_args(parse_quote!("tests/features", tags = "@fast")).unwrap();
+        assert_eq!(args.dir.value(), "tests/features");
+        assert_eq!(args.tag_filter.as_ref().unwrap().value(), "@fast");
+    }
+
+    #[test]
+    fn scenarios_args_parses_single_fixture() {
+        let args: ScenariosArgs =
+            parse_scenarios_args(parse_quote!("tests/features", fixtures = [world: TestWorld]))
+                .unwrap();
+        assert_eq!(args.fixtures.len(), 1);
+        assert_eq!(args.fixtures[0].name.to_string(), "world");
+    }
+
+    #[test]
+    fn scenarios_args_parses_multiple_fixtures() {
+        let args: ScenariosArgs = parse_scenarios_args(parse_quote!(
+            "tests/features",
+            fixtures = [world: TestWorld, db: Database]
+        ))
+        .unwrap();
+        assert_eq!(args.fixtures.len(), 2);
+        assert_eq!(args.fixtures[0].name.to_string(), "world");
+        assert_eq!(args.fixtures[1].name.to_string(), "db");
+    }
+
+    #[test]
+    fn scenarios_args_parses_all_arguments() {
+        let args: ScenariosArgs = parse_scenarios_args(parse_quote!(
+            "tests/features",
+            tags = "@smoke",
+            fixtures = [world: TestWorld]
+        ))
+        .unwrap();
+        assert_eq!(args.dir.value(), "tests/features");
+        assert_eq!(args.tag_filter.as_ref().unwrap().value(), "@smoke");
+        assert_eq!(args.fixtures.len(), 1);
+    }
+
+    #[test]
+    fn scenarios_args_allows_arguments_in_any_order() {
+        let args: ScenariosArgs = parse_scenarios_args(parse_quote!(
+            fixtures = [world: TestWorld],
+            tags = "@smoke",
+            dir = "tests/features"
+        ))
+        .unwrap();
+        assert_eq!(args.dir.value(), "tests/features");
+        assert_eq!(args.tag_filter.as_ref().unwrap().value(), "@smoke");
+        assert_eq!(args.fixtures.len(), 1);
+    }
+
+    #[test]
+    fn scenarios_args_rejects_missing_dir() {
+        let result = parse_scenarios_args(parse_quote!(tags = "@fast"));
+        match result {
+            Ok(_) => panic!("should reject missing dir"),
+            Err(err) => {
+                let msg = err.to_string();
+                assert!(
+                    msg.contains("dir") || msg.contains("path"),
+                    "error should mention dir or path: {msg}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn scenarios_args_rejects_duplicate_dir() {
+        let result = parse_scenarios_args(parse_quote!(dir = "a", path = "b"));
+        match result {
+            Ok(_) => panic!("should reject duplicate dir"),
+            Err(err) => {
+                let msg = err.to_string();
+                assert!(
+                    msg.contains("duplicate"),
+                    "error should mention duplicate: {msg}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn scenarios_args_rejects_duplicate_tags() {
+        let result = parse_scenarios_args(parse_quote!("tests/features", tags = "@a", tags = "@b"));
+        match result {
+            Ok(_) => panic!("should reject duplicate tags"),
+            Err(err) => {
+                let msg = err.to_string();
+                assert!(
+                    msg.contains("duplicate"),
+                    "error should mention duplicate: {msg}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn scenarios_args_rejects_duplicate_fixtures() {
+        let result = parse_scenarios_args(parse_quote!(
+            "tests/features",
+            fixtures = [a: A],
+            fixtures = [b: B]
+        ));
+        match result {
+            Ok(_) => panic!("should reject duplicate fixtures"),
+            Err(err) => {
+                let msg = err.to_string();
+                assert!(
+                    msg.contains("duplicate"),
+                    "error should mention duplicate: {msg}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn scenarios_args_rejects_unknown_argument() {
+        let result = parse_scenarios_args(parse_quote!("tests/features", unknown = "value"));
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn scenarios_args_parses_empty_fixtures() {
+        let args: ScenariosArgs =
+            parse_scenarios_args(parse_quote!("tests/features", fixtures = [])).unwrap();
+        assert!(args.fixtures.is_empty());
+    }
+
+    #[test]
+    fn scenarios_args_parses_fixtures_with_trailing_comma() {
+        let args: ScenariosArgs = parse_scenarios_args(parse_quote!(
+            "tests/features",
+            fixtures = [world: TestWorld,]
+        ))
+        .unwrap();
+        assert_eq!(args.fixtures.len(), 1);
+    }
+}

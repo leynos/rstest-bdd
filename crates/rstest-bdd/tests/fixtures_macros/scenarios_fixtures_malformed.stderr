@@ -1,0 +1,5 @@
+error: expected `:`
+ --> tests/fixtures_macros/scenarios_fixtures_malformed.rs:8:22
+  |
+8 |     fixtures = [world]
+  |                      ^

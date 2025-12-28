@@ -1,0 +1,11 @@
+error: unexpected end of input, duplicate `fixtures` argument
+  --> tests/fixtures_macros/scenarios_fixtures_duplicate.rs:6:1
+   |
+ 6 | / scenarios!(
+ 7 | |     "scenarios_fixtures_dir",
+ 8 | |     fixtures = [a: A],
+ 9 | |     fixtures = [b: B]
+10 | | );
+   | |_^
+   |
+   = note: this error originates in the macro `scenarios` (in Nightly builds, run with -Z macro-backtrace for more info)

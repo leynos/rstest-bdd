@@ -165,5 +165,5 @@ fn scenario(_world: TestWorld) { /* ... */ }
 ```
 
 This was rejected because it would require changes to
-`extract_function_ fixtures` and would obscure the fixture's purpose in
+`extract_function_fixtures` and would obscure the fixture's purpose in
 diagnostics and generated code.
