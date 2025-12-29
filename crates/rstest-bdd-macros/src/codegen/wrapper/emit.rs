@@ -71,7 +71,7 @@ struct WrapperIdents {
     reason = "FIXME: https://github.com/leynos/rstest-bdd/issues/59 – utility for future golden tests"
 )]
 pub(crate) fn reset_wrapper_counter_for_tests() {
-    COUNTER.store(0, Ordering::Relaxed);
+    COUNTER.store(0, Ordering::SeqCst);
 }
 
 /// Generate unique identifiers for the wrapper components.
