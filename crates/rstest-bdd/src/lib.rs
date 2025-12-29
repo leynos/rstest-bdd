@@ -40,6 +40,9 @@ pub mod state;
 pub mod step_args;
 mod types;
 
+#[cfg(feature = "test-support")]
+pub mod test_support;
+
 pub use context::{FixtureRef, FixtureRefMut, StepContext};
 pub use localization::{
     LocalizationError, Localizations, current_languages, install_localization_loader,
@@ -52,7 +55,8 @@ pub use registry::dump_registry;
 pub use registry::record_bypassed_steps;
 pub use registry::record_bypassed_steps_with_tags;
 pub use registry::{
-    Step, duplicate_steps, find_step, find_step_with_metadata, lookup_step, unused_steps,
+    Step, duplicate_steps, find_step, find_step_async, find_step_with_metadata, lookup_step,
+    lookup_step_async, unused_steps,
 };
 
 /// Whether the crate was built with the `diagnostics` feature enabled.
@@ -77,8 +81,9 @@ pub use skip_helpers::{
 pub use state::{ScenarioState, Slot};
 pub use step_args::{StepArgs, StepArgsError};
 pub use types::{
-    PatternStr, PlaceholderError, PlaceholderSyntaxError, StepExecution, StepFn, StepKeyword,
-    StepKeywordParseError, StepPatternError, StepText, UnsupportedStepType,
+    AsyncStepFn, PatternStr, PlaceholderError, PlaceholderSyntaxError, StepExecution, StepFn,
+    StepFuture, StepKeyword, StepKeywordParseError, StepPatternError, StepText,
+    UnsupportedStepType,
 };
 
 #[cfg(feature = "diagnostics")]

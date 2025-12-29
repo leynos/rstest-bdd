@@ -1,23 +1,18 @@
 //! Tests for argument extraction helpers.
-
 use quote::quote;
 use rstest::rstest;
 use std::collections::HashSet;
 use syn::parse_quote;
-
 #[path = "../src/codegen/wrapper/args/mod.rs"]
 #[expect(dead_code, reason = "test reuses only selected helpers")]
 // Proc-macro crates cannot expose non-macro items to downstream crates; include
 // the internal module directly to exercise helper APIs.
 mod args_impl;
-
 use args_impl::{Arg, ExtractedArgs, extract_args};
-
 mod support;
 use support::{
     find_datatable, fixture_count, has_docstring, ordered_parameter_names, step_arg_count,
 };
-
 /// Helper for invoking `extract_args` with placeholder names.
 /// Consolidates repeated placeholder setup across tests.
 fn test_extract_args_scenario(
@@ -28,7 +23,6 @@ fn test_extract_args_scenario(
     let mut placeholder_set: HashSet<String> = placeholders.into_iter().map(String::from).collect();
     extract_args(&mut func, &mut placeholder_set)
 }
-
 #[rstest]
 #[case(
     parse_quote! { fn step(docstring: String, datatable: Vec<Vec<String>>) {} },
@@ -71,7 +65,6 @@ fn test_extract_args_errors(
         "unexpected error message for {test_description}: {msg}"
     );
 }
-
 #[rstest]
 #[case(
     parse_quote! { fn step(docstring: String, #[datatable] data: Vec<Vec<String>>) {} },

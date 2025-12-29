@@ -1,19 +1,21 @@
 //! Code emission helpers for wrapper generation.
-// TODO(issue #50): Reduce this module below 400 lines and remove the rs-length allowlist entry.
 
 use super::args::{Arg, ExtractedArgs};
 use super::arguments::{
     PreparedArgs, StepMeta, collect_ordered_arguments, prepare_argument_processing,
-    step_error_tokens,
 };
 use crate::return_classifier::ReturnKind;
-use crate::utils::ident::sanitize_ident;
 use proc_macro2::TokenStream as TokenStream2;
 use quote::{format_ident, quote};
 use std::sync::atomic::{AtomicUsize, Ordering};
 
+mod call_expr;
 mod datatable_cache;
+mod errors;
+
+use call_expr::generate_call_expression;
 use datatable_cache::{DatatableCacheComponents, generate_datatable_cache_definitions};
+use errors::{WrapperErrors, prepare_wrapper_errors};
 
 /// Configuration required to generate a wrapper.
 pub(crate) struct WrapperConfig<'a> {
@@ -30,24 +32,43 @@ pub(crate) struct WrapperConfig<'a> {
 
 static COUNTER: AtomicUsize = AtomicUsize::new(0);
 
+/// Identifiers for sync and async wrapper components.
+///
+/// Groups the four identifiers generated for each step wrapper to simplify
+/// function signatures and reduce parameter counts.
+struct WrapperIdents {
+    /// Identifier for the synchronous wrapper function.
+    sync_wrapper: proc_macro2::Ident,
+    /// Identifier for the asynchronous wrapper function.
+    async_wrapper: proc_macro2::Ident,
+    /// Identifier for the fixture array constant.
+    const_ident: proc_macro2::Ident,
+    /// Identifier for the step pattern constant.
+    pattern_ident: proc_macro2::Ident,
+}
+
 /// Generate unique identifiers for the wrapper components.
 ///
 /// The provided step function identifier may contain Unicode. It is
 /// sanitized to ASCII before constructing constant names to avoid emitting
 /// invalid identifiers.
 ///
-/// Returns identifiers for the wrapper function, fixture array constant, and
-/// pattern constant.
-fn generate_wrapper_identifiers(
-    ident: &syn::Ident,
-    id: usize,
-) -> (proc_macro2::Ident, proc_macro2::Ident, proc_macro2::Ident) {
+/// Returns identifiers for the sync wrapper function, async wrapper function,
+/// fixture array constant, and pattern constant.
+fn generate_wrapper_identifiers(ident: &syn::Ident, id: usize) -> WrapperIdents {
+    use crate::utils::ident::sanitize_ident;
     let ident_sanitized = sanitize_ident(&ident.to_string());
-    let wrapper_ident = format_ident!("__rstest_bdd_wrapper_{}_{}", ident_sanitized, id);
+    let sync_wrapper = format_ident!("__rstest_bdd_wrapper_{}_{}", ident_sanitized, id);
+    let async_wrapper = format_ident!("__rstest_bdd_async_wrapper_{}_{}", ident_sanitized, id);
     let ident_upper = ident_sanitized.to_ascii_uppercase();
     let const_ident = format_ident!("__RSTEST_BDD_FIXTURES_{}_{}", ident_upper, id);
     let pattern_ident = format_ident!("__RSTEST_BDD_PATTERN_{}_{}", ident_upper, id);
-    (wrapper_ident, const_ident, pattern_ident)
+    WrapperIdents {
+        sync_wrapper,
+        async_wrapper,
+        const_ident,
+        pattern_ident,
+    }
 }
 
 /// Generate the `StepPattern` constant used by a wrapper.
@@ -59,6 +80,35 @@ fn generate_wrapper_signature(
     quote! {
         static #pattern_ident: #path::StepPattern =
             #path::StepPattern::new(#pattern);
+    }
+}
+
+/// Generate an async wrapper that wraps a sync step in an immediately-ready future.
+///
+/// This function produces a thin shim that calls the synchronous wrapper and wraps
+/// its result using `std::future::ready`. The async wrapper enables sync step
+/// definitions to participate in async scenario execution without modification.
+fn generate_async_wrapper_from_sync(
+    sync_wrapper_ident: &proc_macro2::Ident,
+    async_wrapper_ident: &proc_macro2::Ident,
+) -> TokenStream2 {
+    let path = crate::codegen::rstest_bdd_path();
+    quote! {
+        fn #async_wrapper_ident<'a>(
+            __rstest_bdd_ctx: &'a mut #path::StepContext<'a>,
+            __rstest_bdd_text: &str,
+            __rstest_bdd_docstring: Option<&str>,
+            __rstest_bdd_table: Option<&[&[&str]]>,
+        ) -> #path::StepFuture<'a> {
+            Box::pin(::std::future::ready(
+                #sync_wrapper_ident(
+                    __rstest_bdd_ctx,
+                    __rstest_bdd_text,
+                    __rstest_bdd_docstring,
+                    __rstest_bdd_table,
+                )
+            ))
+        }
     }
 }
 
@@ -78,90 +128,6 @@ struct WrapperIdentifiers<'a> {
     pattern: &'a proc_macro2::Ident,
     ctx: &'a proc_macro2::Ident,
     text: &'a proc_macro2::Ident,
-}
-
-struct WrapperErrors {
-    placeholder: TokenStream2,
-    panic: TokenStream2,
-    execution: TokenStream2,
-    capture_mismatch: TokenStream2,
-}
-
-fn prepare_wrapper_errors(meta: StepMeta<'_>, text_ident: &proc_macro2::Ident) -> WrapperErrors {
-    let StepMeta { pattern, ident } = meta;
-    let execution_error = format_ident!("ExecutionError");
-    let panic_error = format_ident!("PanicError");
-    let placeholder = step_error_tokens(
-        &execution_error,
-        pattern,
-        ident,
-        &quote! {
-            format!(
-                "Step text '{}' does not match pattern '{}': {}",
-                #text_ident,
-                #pattern,
-                e
-            )
-        },
-    );
-    let panic = step_error_tokens(&panic_error, pattern, ident, &quote! { message });
-    let execution = step_error_tokens(&execution_error, pattern, ident, &quote! { message });
-    let capture_mismatch = step_error_tokens(
-        &execution_error,
-        pattern,
-        ident,
-        &quote! {
-            format!(
-                "pattern '{}' produced {} captures but step '{}' expects {}",
-                #pattern,
-                captures.len(),
-                stringify!(#ident),
-                expected
-            )
-        },
-    );
-
-    WrapperErrors {
-        placeholder,
-        panic,
-        execution,
-        capture_mismatch,
-    }
-}
-
-/// Generate the call expression for a step function based on its return kind.
-///
-/// This helper emits the token stream that invokes the user's step function
-/// and wraps the result according to the inferred [`ReturnKind`]:
-///
-/// - [`ReturnKind::Unit`]: Discards the return value and yields `Ok(None)`.
-/// - [`ReturnKind::Value`]: Wraps the value via `__rstest_bdd_payload_from_value`,
-///   which boxes non-unit values or returns `None` for unit.
-/// - [`ReturnKind::ResultUnit`] / [`ReturnKind::ResultValue`]: Unpacks the
-///   `Result`, mapping `Ok(value)` through the payload helper and converting
-///   `Err(e)` to a `String` for the step error.
-fn generate_call_expression(
-    return_kind: ReturnKind,
-    ident: &syn::Ident,
-    arg_idents: &[&syn::Ident],
-) -> TokenStream2 {
-    let path = crate::codegen::rstest_bdd_path();
-    let call = quote! { #ident(#(#arg_idents),*) };
-    match return_kind {
-        ReturnKind::Unit => quote! {{
-            #call;
-            Ok(None)
-        }},
-        ReturnKind::Value => quote! {
-            Ok(#path::__rstest_bdd_payload_from_value(#call))
-        },
-        ReturnKind::ResultUnit | ReturnKind::ResultValue => quote! {{
-            match #call {
-                ::core::result::Result::Ok(value) => Ok(#path::__rstest_bdd_payload_from_value(value)),
-                ::core::result::Result::Err(error) => Err(error.to_string()),
-            }
-        }},
-    }
 }
 
 /// Assemble the final wrapper function using prepared components.
@@ -326,9 +292,7 @@ fn generate_wrapper_body(
 /// Generate fixture registration and inventory code for the wrapper.
 fn generate_registration_code(
     config: &WrapperConfig<'_>,
-    pattern_ident: &proc_macro2::Ident,
-    wrapper_ident: &proc_macro2::Ident,
-    const_ident: &proc_macro2::Ident,
+    wrapper_idents: &WrapperIdents,
 ) -> TokenStream2 {
     let fixture_names: Vec<_> = config
         .args
@@ -344,27 +308,42 @@ fn generate_registration_code(
     let fixture_len = fixture_names.len();
     let keyword = config.keyword;
     let path = crate::codegen::rstest_bdd_path();
+    let pattern_ident = &wrapper_idents.pattern_ident;
+    let sync_wrapper_ident = &wrapper_idents.sync_wrapper;
+    let async_wrapper_ident = &wrapper_idents.async_wrapper;
+    let const_ident = &wrapper_idents.const_ident;
     quote! {
         const #const_ident: [&'static str; #fixture_len] = [#(#fixture_names),*];
         const _: [(); #fixture_len] = [(); #const_ident.len()];
 
-        #path::step!(@pattern #keyword, &#pattern_ident, #wrapper_ident, &#const_ident);
+        #path::step!(@pattern #keyword, &#pattern_ident, #sync_wrapper_ident, #async_wrapper_ident, &#const_ident);
     }
 }
 
 /// Generate the wrapper function and inventory registration.
+///
+/// This function generates both a synchronous wrapper and an async wrapper. The
+/// async wrapper delegates to the sync wrapper, wrapping its result in an
+/// immediately-ready future via `std::future::ready`.
 pub(crate) fn generate_wrapper_code(config: &WrapperConfig<'_>) -> TokenStream2 {
     // Relaxed ordering suffices: the counter only ensures a unique suffix and
     // is not used for synchronisation with other data.
     let id = COUNTER.fetch_add(1, Ordering::Relaxed);
-    let (wrapper_ident, const_ident, pattern_ident) =
-        generate_wrapper_identifiers(config.ident, id);
-    let body = generate_wrapper_body(config, &wrapper_ident, &pattern_ident);
-    let registration =
-        generate_registration_code(config, &pattern_ident, &wrapper_ident, &const_ident);
+    let wrapper_idents = generate_wrapper_identifiers(config.ident, id);
+    let body = generate_wrapper_body(
+        config,
+        &wrapper_idents.sync_wrapper,
+        &wrapper_idents.pattern_ident,
+    );
+    let async_wrapper_fn = generate_async_wrapper_from_sync(
+        &wrapper_idents.sync_wrapper,
+        &wrapper_idents.async_wrapper,
+    );
+    let registration = generate_registration_code(config, &wrapper_idents);
 
     quote! {
         #body
+        #async_wrapper_fn
         #registration
     }
 }

@@ -1227,6 +1227,37 @@ Sync step definitions are normalised into the async interface by wrapping their
 result in an immediately ready future. This allows mixed sync and async step
 definitions within a single scenario when async mode is enabled.
 
+For screen readers: The following sequence diagram shows how a synchronous step
+definition executes through the async pathway, including the registry lookup
+and the immediate resolution of the wrapped future.
+
+```mermaid
+sequenceDiagram
+    actor TestCode
+    participant Registry
+    participant Step
+    participant SyncWrapper
+    participant AsyncWrapper
+    participant TokioRuntime
+
+    TestCode->>Registry: find_step_async(keyword, text)
+    Registry->>Registry: resolve_step(keyword, text)
+    Registry-->>TestCode: AsyncStepFn (Step.run_async)
+
+    TestCode->>TokioRuntime: spawn(async move { call AsyncStepFn })
+
+    Note over TestCode,AsyncWrapper: Async execution of a sync-defined step
+
+    TokioRuntime->>AsyncWrapper: async_fn(&mut ctx, text, doc, table)
+    AsyncWrapper->>SyncWrapper: call sync_wrapper(&mut ctx, text, doc, table)
+    SyncWrapper-->>AsyncWrapper: Result~StepExecution, StepError~
+    AsyncWrapper-->>TokioRuntime: StepFuture (ready(Result))
+    TokioRuntime-->>TestCode: await StepFuture => Result
+```
+
+*Figure: Async execution of a sync-defined step via the normalised async
+wrapper.*
+
 When a scenario runs in synchronous mode but references an `async fn` step
 definition, the framework rejects this at compile time. The step wrapper
 generated for synchronous execution cannot await a future, so the macro emits a

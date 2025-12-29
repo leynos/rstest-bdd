@@ -12,13 +12,19 @@ use serial_test::serial;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 #[cfg(feature = "diagnostics")]
-use rstest_bdd::{StepContext, StepExecution, StepKeyword, step};
+use rstest_bdd::{StepContext, StepExecution, StepFuture, StepKeyword, step};
+
+#[cfg(feature = "diagnostics")]
+mod common;
+#[cfg(feature = "diagnostics")]
+use common::wrap_sync_step_as_async;
 
 #[cfg(feature = "diagnostics")]
 step!(
     StepKeyword::Given,
     "fixture bypassed step",
     bypassed_step,
+    bypassed_step_async,
     &[]
 );
 
@@ -27,6 +33,7 @@ step!(
     StepKeyword::Then,
     "fixture forced bypass",
     forced_bypass,
+    forced_bypass_async,
     &[]
 );
 
@@ -45,6 +52,16 @@ fn bypassed_step(
 }
 
 #[cfg(feature = "diagnostics")]
+fn bypassed_step_async<'a>(
+    ctx: &'a mut StepContext<'a>,
+    text: &str,
+    docstring: Option<&str>,
+    table: Option<&[&[&str]]>,
+) -> StepFuture<'a> {
+    wrap_sync_step_as_async(bypassed_step)(ctx, text, docstring, table)
+}
+
+#[cfg(feature = "diagnostics")]
 #[expect(
     clippy::unnecessary_wraps,
     reason = "Step handlers must return Result<StepExecution, StepError>."
@@ -56,6 +73,16 @@ fn forced_bypass(
     _table: Option<&[&[&str]]>,
 ) -> Result<StepExecution, bdd::StepError> {
     Ok(StepExecution::Continue { value: None })
+}
+
+#[cfg(feature = "diagnostics")]
+fn forced_bypass_async<'a>(
+    ctx: &'a mut StepContext<'a>,
+    text: &str,
+    docstring: Option<&str>,
+    table: Option<&[&[&str]]>,
+) -> StepFuture<'a> {
+    wrap_sync_step_as_async(forced_bypass)(ctx, text, docstring, table)
 }
 
 #[cfg(feature = "diagnostics")]
