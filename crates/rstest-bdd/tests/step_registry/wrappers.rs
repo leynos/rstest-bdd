@@ -21,9 +21,17 @@ use super::common::sync_to_async;
 ///
 /// ```ignore
 /// async_wrapper!(my_step_async, my_step);
-/// ```
 ///
-/// Expands to a function `my_step_async` that wraps `my_step` using `sync_to_async`.
+/// // Expands to:
+/// // fn my_step_async<'a>(
+/// //     ctx: &'a mut StepContext<'a>,
+/// //     text: &str,
+/// //     docstring: Option<&str>,
+/// //     table: Option<&[&[&str]]>,
+/// // ) -> StepFuture<'a> {
+/// //     sync_to_async(my_step)(ctx, text, docstring, table)
+/// // }
+/// ```
 macro_rules! async_wrapper {
     ($async_name:ident, $sync_fn:path) => {
         fn $async_name<'a>(
