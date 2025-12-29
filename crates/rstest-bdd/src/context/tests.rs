@@ -60,101 +60,122 @@ fn borrow_mut_returns_none_for_shared_fixture() {
     assert!(ctx.borrow_mut::<i32>("number").is_none());
 }
 
+/// Describes which `insert_value` scenario to test.
+#[derive(Debug, Clone, Copy)]
+enum InsertValueScenario {
+    /// One u32 fixture; `insert_value` twice expects first None, second returns previous.
+    UniqueOverride,
+    /// Two u32 fixtures; `insert_value` returns None because type is ambiguous.
+    AmbiguousType,
+    /// One &str fixture; `insert_value` with u32 returns None because type is missing.
+    MissingType,
+}
+
 #[rstest::rstest]
-#[expect(clippy::expect_used, reason = "tests require explicit panic messages")]
+#[case::unique_override(InsertValueScenario::UniqueOverride)]
+#[case::ambiguous_type(InsertValueScenario::AmbiguousType)]
+#[case::missing_type(InsertValueScenario::MissingType)]
 #[expect(
     clippy::used_underscore_binding,
     reason = "rstest fixture injection requires the parameter"
 )]
-fn insert_value_overrides_unique_fixture(_logger: ()) {
-    let fixture = 1u32;
+fn insert_value_behavior(_logger: (), #[case] scenario: InsertValueScenario) {
+    // Storage for fixtures must outlive the context
+    let fixture_one: u32 = 1;
+    let fixture_two: u32 = 2;
+    let fixture_text: &str = "fixture";
+
     let mut ctx = StepContext::default();
-    ctx.insert("number", &fixture);
 
-    let first = ctx.insert_value(Box::new(5u32));
-    assert!(
-        first.is_none(),
-        "first override should have no previous value"
-    );
+    match scenario {
+        InsertValueScenario::UniqueOverride => {
+            #[expect(clippy::expect_used, reason = "tests require explicit panic messages")]
+            fn assert_unique_override(ctx: &mut StepContext<'_>) {
+                let first = ctx.insert_value(Box::new(5u32));
+                assert!(
+                    first.is_none(),
+                    "first override should have no previous value"
+                );
 
-    let second = ctx
-        .insert_value(Box::new(7u32))
-        .expect("expected previous override to be returned");
-    let previous = second
-        .downcast::<u32>()
-        .expect("override should downcast to u32");
-    assert_eq!(*previous, 5);
+                let second = ctx
+                    .insert_value(Box::new(7u32))
+                    .expect("expected previous override to be returned");
+                let previous = second
+                    .downcast::<u32>()
+                    .expect("override should downcast to u32");
+                assert_eq!(*previous, 5);
 
-    let current = ctx
-        .get::<u32>("number")
-        .expect("retrieved fixture should exist");
-    assert_eq!(*current, 7);
+                let current = ctx
+                    .get::<u32>("number")
+                    .expect("retrieved fixture should exist");
+                assert_eq!(*current, 7);
+            }
+            ctx.insert("number", &fixture_one);
+            assert_unique_override(&mut ctx);
+        }
+        InsertValueScenario::AmbiguousType => {
+            ctx.insert("one", &fixture_one);
+            ctx.insert("two", &fixture_two);
+
+            let result = ctx.insert_value(Box::new(5u32));
+            assert!(result.is_none(), "ambiguous overrides must be ignored");
+            assert_eq!(ctx.get::<u32>("one"), Some(&1));
+            assert_eq!(ctx.get::<u32>("two"), Some(&2));
+        }
+        InsertValueScenario::MissingType => {
+            ctx.insert("text", &fixture_text);
+
+            let result = ctx.insert_value(Box::new(5u32));
+            assert!(result.is_none(), "missing fixture should skip override");
+            assert!(ctx.get::<u32>("text").is_none());
+        }
+    }
+}
+
+/// Describes which `available_fixtures` scenario to test.
+#[derive(Debug, Clone, Copy)]
+enum AvailableFixturesScenario {
+    /// Two shared fixtures only.
+    SharedOnly,
+    /// One shared and one owned fixture.
+    SharedAndOwned,
+    /// No fixtures at all.
+    Empty,
 }
 
 #[rstest::rstest]
-#[expect(
-    clippy::used_underscore_binding,
-    reason = "rstest fixture injection requires the parameter"
-)]
-fn insert_value_returns_none_when_type_ambiguous(_logger: ()) {
-    let first = 1u32;
-    let second = 2u32;
-    let mut ctx = StepContext::default();
-    ctx.insert("one", &first);
-    ctx.insert("two", &second);
-
-    let result = ctx.insert_value(Box::new(5u32));
-    assert!(result.is_none(), "ambiguous overrides must be ignored");
-    assert_eq!(ctx.get::<u32>("one"), Some(&1));
-    assert_eq!(ctx.get::<u32>("two"), Some(&2));
-}
-
-#[rstest::rstest]
-#[expect(
-    clippy::used_underscore_binding,
-    reason = "rstest fixture injection requires the parameter"
-)]
-fn insert_value_returns_none_when_type_missing(_logger: ()) {
-    let text = "fixture";
-    let mut ctx = StepContext::default();
-    ctx.insert("text", &text);
-
-    let result = ctx.insert_value(Box::new(5u32));
-    assert!(result.is_none(), "missing fixture should skip override");
-    assert!(ctx.get::<u32>("text").is_none());
-}
-
-#[test]
-fn available_fixtures_returns_inserted_names() {
-    let value_a = 1u32;
-    let value_b = "text";
-    let mut ctx = StepContext::default();
-    ctx.insert("fixture_a", &value_a);
-    ctx.insert("fixture_b", &value_b);
-
-    let names: Vec<_> = ctx.available_fixtures().collect();
-    assert_eq!(names.len(), 2);
-    assert!(names.contains(&"fixture_a"));
-    assert!(names.contains(&"fixture_b"));
-}
-
-#[test]
-fn available_fixtures_includes_owned_fixtures() {
-    let value = 42u32;
+#[case::shared_only(AvailableFixturesScenario::SharedOnly, &["fixture_a", "fixture_b"])]
+#[case::shared_and_owned(AvailableFixturesScenario::SharedAndOwned, &["shared", "owned"])]
+#[case::empty(AvailableFixturesScenario::Empty, &[])]
+fn available_fixtures_behavior(
+    #[case] scenario: AvailableFixturesScenario,
+    #[case] expected: &[&str],
+) {
+    // Storage for fixtures must outlive the context
+    let value_a: u32 = 1;
+    let value_b: &str = "text";
+    let shared_value: u32 = 42;
     let cell: RefCell<Box<dyn Any>> = RefCell::new(Box::new(String::from("owned")));
+
     let mut ctx = StepContext::default();
-    ctx.insert("shared", &value);
-    ctx.insert_owned::<String>("owned", &cell);
+
+    match scenario {
+        AvailableFixturesScenario::SharedOnly => {
+            ctx.insert("fixture_a", &value_a);
+            ctx.insert("fixture_b", &value_b);
+        }
+        AvailableFixturesScenario::SharedAndOwned => {
+            ctx.insert("shared", &shared_value);
+            ctx.insert_owned::<String>("owned", &cell);
+        }
+        AvailableFixturesScenario::Empty => {
+            // No fixtures inserted
+        }
+    }
 
     let names: Vec<_> = ctx.available_fixtures().collect();
-    assert_eq!(names.len(), 2);
-    assert!(names.contains(&"shared"));
-    assert!(names.contains(&"owned"));
-}
-
-#[test]
-fn available_fixtures_empty_when_no_fixtures() {
-    let ctx = StepContext::default();
-    let names: Vec<_> = ctx.available_fixtures().collect();
-    assert!(names.is_empty());
+    assert_eq!(names.len(), expected.len());
+    for name in expected {
+        assert!(names.contains(name));
+    }
 }

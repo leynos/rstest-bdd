@@ -4,6 +4,8 @@
 //! error conditions (failures, panics, missing fixtures) and the auto-generated
 //! async handler feature.
 
+use std::panic::{AssertUnwindSafe, catch_unwind};
+
 use rstest_bdd::{
     StepContext, StepError, StepExecution, StepFuture, StepKeyword, panic_message, step,
 };
@@ -82,7 +84,6 @@ fn panicking_wrapper(
     _docstring: Option<&str>,
     _table: Option<&[&[&str]]>,
 ) -> Result<StepExecution, StepError> {
-    use std::panic::{AssertUnwindSafe, catch_unwind};
     catch_unwind(AssertUnwindSafe(|| panic!("snap"))).map_err(|e| StepError::PanicError {
         pattern: "panics".into(),
         function: "panicking_wrapper".into(),
