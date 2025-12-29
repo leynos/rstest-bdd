@@ -18,6 +18,14 @@ const FEATURES_AUTO_DIR: &str = "tests/features/auto";
 /// Ensures that feature files are staged to the trybuild test environment
 /// before returning the fixture path, so that macros can locate their
 /// dependencies at compile time.
+///
+/// # Parameters
+///
+/// * `case` - The fixture file name (e.g., `"step_macros.rs"`).
+///
+/// # Returns
+///
+/// The full path to the fixture file as a [`Utf8PathBuf`].
 pub(crate) fn macros_fixture(case: &str) -> Utf8PathBuf {
     ensure_trybuild_support_files();
     Utf8PathBuf::from(MACROS_FIXTURES_DIR).join(case)
@@ -27,6 +35,14 @@ pub(crate) fn macros_fixture(case: &str) -> Utf8PathBuf {
 ///
 /// UI fixtures do not require feature file staging since they test
 /// attribute macro diagnostics rather than scenario parsing.
+///
+/// # Parameters
+///
+/// * `case` - The fixture file name (e.g., `"datatable_wrong_type.rs"`).
+///
+/// # Returns
+///
+/// The full path to the fixture file as a [`Utf8PathBuf`].
 pub(crate) fn ui_fixture(case: &str) -> Utf8PathBuf {
     Utf8PathBuf::from("tests/ui_macros").join(case)
 }
