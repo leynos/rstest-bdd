@@ -71,6 +71,31 @@ enum InsertValueScenario {
     MissingType,
 }
 
+/// Verifies that a unique fixture can be overridden twice via `insert_value`.
+///
+/// First call returns None, second returns the previous override, final value is correct.
+#[expect(clippy::expect_used, reason = "tests require explicit panic messages")]
+fn assert_unique_fixture_can_be_overridden_twice(ctx: &mut StepContext<'_>) {
+    let first = ctx.insert_value(Box::new(5u32));
+    assert!(
+        first.is_none(),
+        "first override should have no previous value"
+    );
+
+    let second = ctx
+        .insert_value(Box::new(7u32))
+        .expect("expected previous override to be returned");
+    let previous = second
+        .downcast::<u32>()
+        .expect("override should downcast to u32");
+    assert_eq!(*previous, 5);
+
+    let current = ctx
+        .get::<u32>("number")
+        .expect("retrieved fixture should exist");
+    assert_eq!(*current, 7);
+}
+
 #[rstest::rstest]
 #[case::unique_override(InsertValueScenario::UniqueOverride)]
 #[case::ambiguous_type(InsertValueScenario::AmbiguousType)]
@@ -89,29 +114,8 @@ fn insert_value_behavior(_logger: (), #[case] scenario: InsertValueScenario) {
 
     match scenario {
         InsertValueScenario::UniqueOverride => {
-            #[expect(clippy::expect_used, reason = "tests require explicit panic messages")]
-            fn assert_unique_override(ctx: &mut StepContext<'_>) {
-                let first = ctx.insert_value(Box::new(5u32));
-                assert!(
-                    first.is_none(),
-                    "first override should have no previous value"
-                );
-
-                let second = ctx
-                    .insert_value(Box::new(7u32))
-                    .expect("expected previous override to be returned");
-                let previous = second
-                    .downcast::<u32>()
-                    .expect("override should downcast to u32");
-                assert_eq!(*previous, 5);
-
-                let current = ctx
-                    .get::<u32>("number")
-                    .expect("retrieved fixture should exist");
-                assert_eq!(*current, 7);
-            }
             ctx.insert("number", &fixture_one);
-            assert_unique_override(&mut ctx);
+            assert_unique_fixture_can_be_overridden_twice(&mut ctx);
         }
         InsertValueScenario::AmbiguousType => {
             ctx.insert("one", &fixture_one);

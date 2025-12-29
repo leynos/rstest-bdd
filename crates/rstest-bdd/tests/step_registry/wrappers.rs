@@ -16,6 +16,14 @@ use super::common::sync_to_async;
 ///
 /// This eliminates boilerplate when registering sync steps that need explicit
 /// async handlers for testing purposes.
+///
+/// # Usage
+///
+/// ```ignore
+/// async_wrapper!(my_step_async, my_step);
+/// ```
+///
+/// Expands to a function `my_step_async` that wraps `my_step` using `sync_to_async`.
 macro_rules! async_wrapper {
     ($async_name:ident, $sync_fn:path) => {
         fn $async_name<'a>(
@@ -55,6 +63,10 @@ step!(
     &[]
 );
 
+/// Step wrapper that always returns an `ExecutionError`.
+///
+/// Used to verify that step execution failures are correctly propagated
+/// and reported by the test harness.
 fn failing_wrapper(
     _ctx: &mut StepContext<'_>,
     _text: &str,
@@ -78,6 +90,10 @@ step!(
     &[]
 );
 
+/// Step wrapper that triggers a panic and converts it to a `PanicError`.
+///
+/// Used to verify that panics during step execution are caught, converted
+/// to errors, and correctly reported by the test harness.
 fn panicking_wrapper(
     _ctx: &mut StepContext<'_>,
     _text: &str,
@@ -102,6 +118,10 @@ step!(
     &[]
 );
 
+/// Step wrapper that requires a fixture named "missing" of type `u32`.
+///
+/// Returns `MissingFixture` error when the fixture is not present, allowing
+/// tests to verify that missing fixture errors are correctly detected and reported.
 fn needs_fixture_wrapper(
     ctx: &mut StepContext<'_>,
     _text: &str,
@@ -129,7 +149,10 @@ step!(
     &["missing"]
 );
 
-// Test the step! macro's ability to auto-generate an async handler from a sync function
+/// Step wrapper used to test the `step!` macro's auto-generation of async handlers.
+///
+/// When registered with the 4-argument form of `step!`, the macro automatically
+/// generates an async wrapper, eliminating the need for an explicit async function.
 #[expect(
     clippy::unnecessary_wraps,
     reason = "wrapper must match StepFn signature"
