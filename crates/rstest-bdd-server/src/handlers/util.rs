@@ -36,6 +36,15 @@ pub fn gherkin_span_to_lsp_range(source: &str, span: Span) -> Range {
     Range { start, end }
 }
 
+/// A line and column position for internal tracking.
+///
+/// Used to reduce parameter count in helper functions by grouping related values.
+#[derive(Clone, Copy)]
+struct LineColPosition {
+    line: u32,
+    col: u32,
+}
+
 /// Calculate UTF-16 code units for a character.
 ///
 /// BMP characters (code points ≤ 0xFFFF) use 1 UTF-16 code unit.
@@ -52,16 +61,14 @@ fn utf16_code_units(ch: char) -> u32 {
 /// line. Otherwise, return the current byte position.
 #[inline]
 fn clamp_final_offset(
-    current_line: u32,
-    current_col: u32,
-    target_line: u32,
-    target_col: u32,
+    current: LineColPosition,
+    target: LineColPosition,
     last_byte_on_target_line: usize,
     current_byte: usize,
 ) -> usize {
-    if current_line > target_line {
+    if current.line > target.line {
         last_byte_on_target_line
-    } else if current_line == target_line && current_col < target_col {
+    } else if current.line == target.line && current.col < target.col {
         // Column exceeded line length, clamp to end of line
         last_byte_on_target_line
     } else {
@@ -139,10 +146,14 @@ pub fn lsp_position_to_byte_offset(source: &str, position: Position) -> usize {
     }
 
     clamp_final_offset(
-        current_line,
-        current_col,
-        target_line,
-        target_col,
+        LineColPosition {
+            line: current_line,
+            col: current_col,
+        },
+        LineColPosition {
+            line: target_line,
+            col: target_col,
+        },
         last_byte_on_target_line,
         current_byte,
     )
@@ -166,8 +177,7 @@ fn byte_offset_to_position(source: &str, byte_offset: usize) -> Position {
             line += 1;
             col = 0;
         } else {
-            // UTF-16 code units: BMP characters (≤0xFFFF) use 1, non-BMP use 2
-            col += if u32::from(ch) <= 0xFFFF { 1 } else { 2 };
+            col += utf16_code_units(ch);
         }
         current_byte += ch.len_utf8();
     }

@@ -75,7 +75,7 @@ patterns appear. To implement Go-to-Definition:
   presented for disambiguation.
 
 - This feature leverages the Gherkin parser to normalize comparison (ignoring
-  trivial differences like keyword or casing if needed). For parameterised
+  trivial differences like keyword or casing if needed). For parameterized
   steps, the server will use the same pattern matching logic as the runtime to
   ensure equivalence. For example, a Rust step with pattern
   `I search for "{phrase}"` will be considered a match for a feature step
@@ -859,7 +859,7 @@ back to byte offsets for feature file position matching.
 - Unit tests in `handlers/definition.rs` cover position matching and keyword
   filtering.
 - Behavioural tests in `tests/definition_navigation.rs` verify end-to-end
-  navigation, including parameterised patterns and multiple matches.
+  navigation, including parameterized patterns and multiple matches.
 
 **Go to Implementation (Feature → Rust):**
 
@@ -885,7 +885,7 @@ to matching Rust implementations. When the cursor is on a step line in a
 - Unit tests in `handlers/implementation.rs` cover feature file detection,
   position-to-step resolution, and keyword filtering.
 - Behavioural tests in `tests/implementation_navigation.rs` verify end-to-end
-  navigation, including parameterised patterns, duplicate implementations, and
+  navigation, including parameterized patterns, duplicate implementations, and
   keyword matching.
 
 ### Next phases

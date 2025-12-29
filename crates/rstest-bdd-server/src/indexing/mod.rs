@@ -30,10 +30,10 @@ pub use rust::{index_rust_file, index_rust_source};
 pub struct FeatureFileIndex {
     /// Source path for the indexed feature.
     pub path: PathBuf,
-    /// The normalised source text of the feature file.
+    /// The normalized source text of the feature file.
     ///
     /// Stored alongside the index to avoid re-reading from disk on navigation
-    /// requests. The source is normalised to always end with a newline, matching
+    /// requests. The source is normalized to always end with a newline, matching
     /// how the gherkin parser processes the input.
     pub source: String,
     /// All steps found in the feature (including backgrounds and rules).

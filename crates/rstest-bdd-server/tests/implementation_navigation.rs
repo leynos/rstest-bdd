@@ -171,7 +171,7 @@ fn implementation_respects_keyword_matching() {
 
 #[expect(clippy::expect_used, reason = "test uses expect for clarity")]
 #[test]
-fn implementation_matches_parameterised_patterns() {
+fn implementation_matches_parameterized_patterns() {
     let (_dir, feature_path, state) = ImplementationTestScenario::new()
         .with_feature(
             "test.feature",
