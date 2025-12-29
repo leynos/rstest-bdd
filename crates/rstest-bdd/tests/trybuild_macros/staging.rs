@@ -58,6 +58,8 @@ fn ensure_trybuild_support_files() {
 
 fn stage_trybuild_support_files() -> io::Result<()> {
     let crate_root = Utf8Path::new(env!("CARGO_MANIFEST_DIR"));
+    // This crate lives two levels down from the workspace root (workspace/crates/rstest-bdd),
+    // so parent().and_then(parent) targets the workspace root. Update if the layout changes.
     let workspace_root = crate_root
         .parent()
         .and_then(Utf8Path::parent)
