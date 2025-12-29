@@ -9,6 +9,45 @@ use crate::parsing::feature::ParsedStep;
 use crate::parsing::placeholder::PLACEHOLDER_RE;
 use proc_macro2::Span;
 
+/// Location where placeholder validation is performed.
+#[derive(Debug, Clone, Copy)]
+pub(crate) enum ValidationContext {
+    /// Validation in step text
+    Step,
+    /// Validation in step docstring
+    Docstring,
+    /// Validation in data table cell
+    TableCell,
+}
+
+impl ValidationContext {
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::Step => "step",
+            Self::Docstring => "docstring",
+            Self::TableCell => "table cell",
+        }
+    }
+}
+
+/// Column headers from an Examples table.
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct ExampleHeaders<'a>(&'a [String]);
+
+impl<'a> ExampleHeaders<'a> {
+    pub fn new(headers: &'a [String]) -> Self {
+        Self(headers)
+    }
+
+    pub fn contains(&self, name: &str) -> bool {
+        self.0.iter().any(|h| h == name)
+    }
+
+    pub fn join(&self, sep: &str) -> String {
+        self.0.join(sep)
+    }
+}
+
 /// Validates all placeholders in steps reference columns in the Examples table.
 ///
 /// Checks step text, docstrings, and data table cells for placeholder references.
@@ -25,7 +64,7 @@ use proc_macro2::Span;
 /// message if any placeholder references a non-existent column.
 pub fn validate_step_placeholders(
     steps: &[ParsedStep],
-    headers: &[String],
+    headers: ExampleHeaders<'_>,
 ) -> Result<(), syn::Error> {
     for step in steps {
         validate_step_text(&step.text, headers)?;
@@ -36,17 +75,17 @@ pub fn validate_step_placeholders(
 }
 
 /// Validates placeholders in step text.
-fn validate_step_text(text: &str, headers: &[String]) -> Result<(), syn::Error> {
-    validate_text_placeholders(text, headers, "step")
+fn validate_step_text(text: &str, headers: ExampleHeaders<'_>) -> Result<(), syn::Error> {
+    validate_text_placeholders(text, headers, ValidationContext::Step)
 }
 
 /// Validates placeholders in step docstring if present.
 fn validate_step_docstring(
     docstring: Option<&String>,
-    headers: &[String],
+    headers: ExampleHeaders<'_>,
 ) -> Result<(), syn::Error> {
     if let Some(docstring) = docstring {
-        validate_text_placeholders(docstring, headers, "docstring")?;
+        validate_text_placeholders(docstring, headers, ValidationContext::Docstring)?;
     }
     Ok(())
 }
@@ -54,12 +93,12 @@ fn validate_step_docstring(
 /// Validates placeholders in step data table if present.
 fn validate_step_table(
     table: Option<&Vec<Vec<String>>>,
-    headers: &[String],
+    headers: ExampleHeaders<'_>,
 ) -> Result<(), syn::Error> {
     if let Some(table) = table {
         for row in table {
             for cell in row {
-                validate_text_placeholders(cell, headers, "table cell")?;
+                validate_text_placeholders(cell, headers, ValidationContext::TableCell)?;
             }
         }
     }
@@ -69,17 +108,18 @@ fn validate_step_table(
 /// Validates placeholders in a single text string.
 fn validate_text_placeholders(
     text: &str,
-    headers: &[String],
-    context: &str,
+    headers: ExampleHeaders<'_>,
+    context: ValidationContext,
 ) -> Result<(), syn::Error> {
     for cap in PLACEHOLDER_RE.captures_iter(text) {
         let placeholder = &cap[1];
-        if !headers.iter().any(|h| h == placeholder) {
+        if !headers.contains(placeholder) {
             return Err(syn::Error::new(
                 Span::call_site(),
                 format!(
-                    "Placeholder '<{placeholder}>' in {context} not found in Examples table. \
+                    "Placeholder '<{placeholder}>' in {} not found in Examples table. \
                      Available columns: [{}]",
+                    context.as_str(),
                     headers.join(", ")
                 ),
             ));
@@ -140,9 +180,9 @@ mod tests {
     /// Asserts that placeholder validation fails with expected error content.
     fn assert_placeholder_error(
         steps: &[ParsedStep],
-        headers: &[String],
+        headers: ExampleHeaders<'_>,
         expected_placeholder: &str,
-        expected_context: &str,
+        expected_context: ValidationContext,
     ) {
         let result = validate_step_placeholders(steps, headers);
         assert!(result.is_err());
@@ -154,8 +194,9 @@ mod tests {
             "Error should contain placeholder '{expected_placeholder}': {msg}"
         );
         assert!(
-            msg.contains(expected_context),
-            "Error should contain context '{expected_context}': {msg}"
+            msg.contains(expected_context.as_str()),
+            "Error should contain context '{}': {msg}",
+            expected_context.as_str()
         );
     }
 
@@ -168,7 +209,7 @@ mod tests {
         ];
         let headers = vec!["count".to_string()];
 
-        let result = validate_step_placeholders(&steps, &headers);
+        let result = validate_step_placeholders(&steps, ExampleHeaders::new(&headers));
         assert!(result.is_ok());
     }
 
@@ -181,7 +222,7 @@ mod tests {
         ];
         let headers = vec!["count".to_string(), "item".to_string()];
 
-        let result = validate_step_placeholders(&steps, &headers);
+        let result = validate_step_placeholders(&steps, ExampleHeaders::new(&headers));
         assert!(result.is_ok());
     }
 
@@ -194,7 +235,12 @@ mod tests {
         ];
         let headers = vec!["count".to_string()];
 
-        assert_placeholder_error(&steps, &headers, "<undefined>", "step");
+        assert_placeholder_error(
+            &steps,
+            ExampleHeaders::new(&headers),
+            "<undefined>",
+            ValidationContext::Step,
+        );
     }
 
     #[test]
@@ -207,7 +253,7 @@ mod tests {
         ];
         let headers = vec!["value".to_string()];
 
-        let result = validate_step_placeholders(&steps, &headers);
+        let result = validate_step_placeholders(&steps, ExampleHeaders::new(&headers));
         assert!(result.is_ok());
     }
 
@@ -221,7 +267,12 @@ mod tests {
         ];
         let headers = vec!["value".to_string()];
 
-        assert_placeholder_error(&steps, &headers, "<undefined>", "docstring");
+        assert_placeholder_error(
+            &steps,
+            ExampleHeaders::new(&headers),
+            "<undefined>",
+            ValidationContext::Docstring,
+        );
     }
 
     #[test]
@@ -234,7 +285,7 @@ mod tests {
         ];
         let headers = vec!["value".to_string()];
 
-        let result = validate_step_placeholders(&steps, &headers);
+        let result = validate_step_placeholders(&steps, ExampleHeaders::new(&headers));
         assert!(result.is_ok());
     }
 
@@ -248,7 +299,12 @@ mod tests {
         ];
         let headers = vec!["value".to_string()];
 
-        assert_placeholder_error(&steps, &headers, "<undefined>", "table cell");
+        assert_placeholder_error(
+            &steps,
+            ExampleHeaders::new(&headers),
+            "<undefined>",
+            ValidationContext::TableCell,
+        );
     }
 
     #[test]
@@ -256,7 +312,7 @@ mod tests {
         let steps = vec![make_step_builder().with_text("I have 5 items").build()];
         let headers = vec!["count".to_string()];
 
-        let result = validate_step_placeholders(&steps, &headers);
+        let result = validate_step_placeholders(&steps, ExampleHeaders::new(&headers));
         assert!(result.is_ok());
     }
 
@@ -265,7 +321,7 @@ mod tests {
         let steps: Vec<ParsedStep> = vec![];
         let headers = vec!["count".to_string()];
 
-        let result = validate_step_placeholders(&steps, &headers);
+        let result = validate_step_placeholders(&steps, ExampleHeaders::new(&headers));
         assert!(result.is_ok());
     }
 }
