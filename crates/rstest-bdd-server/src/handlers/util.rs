@@ -36,6 +36,129 @@ pub fn gherkin_span_to_lsp_range(source: &str, span: Span) -> Range {
     Range { start, end }
 }
 
+/// A line and column position for internal tracking.
+///
+/// Used to reduce parameter count in helper functions by grouping related values.
+#[derive(Clone, Copy)]
+struct LineColPosition {
+    line: u32,
+    col: u32,
+}
+
+/// Calculate UTF-16 code units for a character.
+///
+/// BMP characters (code points ≤ 0xFFFF) use 1 UTF-16 code unit.
+/// Non-BMP characters (code points > 0xFFFF) use 2 UTF-16 code units (surrogate pair).
+#[inline]
+fn utf16_code_units(ch: char) -> u32 {
+    if u32::from(ch) <= 0xFFFF { 1 } else { 2 }
+}
+
+/// Return the clamped byte offset after exhausting the source.
+///
+/// If we've moved past the target line, or if we're on the target line but the
+/// column exceeded the line length, return the last byte position on the target
+/// line. Otherwise, return the current byte position.
+#[inline]
+fn clamp_final_offset(
+    current: LineColPosition,
+    target: LineColPosition,
+    last_byte_on_target_line: usize,
+    current_byte: usize,
+) -> usize {
+    if current.line > target.line {
+        last_byte_on_target_line
+    } else if current.line == target.line && current.col < target.col {
+        // Column exceeded line length, clamp to end of line
+        last_byte_on_target_line
+    } else {
+        current_byte
+    }
+}
+
+/// Convert an LSP Position to a byte offset in the source text.
+///
+/// This is the inverse of [`byte_offset_to_position`]. It scans the source text
+/// to find the byte offset corresponding to the given line and character position.
+///
+/// The LSP specification defines character positions as UTF-16 code unit offsets.
+/// Characters outside the BMP (code points > 0xFFFF) require two UTF-16 code units
+/// (a surrogate pair), so they contribute 2 to the column count, not 1.
+///
+/// If the character position exceeds the line length, this function clamps to the
+/// end of the line (just before the newline character, or the end of file for the
+/// last line).
+///
+/// # Arguments
+///
+/// * `source` - The full source text
+/// * `position` - The LSP position (0-based line and character)
+///
+/// # Examples
+///
+/// ```
+/// use lsp_types::Position;
+/// use rstest_bdd_server::handlers::util::lsp_position_to_byte_offset;
+///
+/// let source = "Feature: demo\n  Scenario: s\n    Given a step\n";
+/// // Line 2, column 4 is where "Given" starts
+/// let offset = lsp_position_to_byte_offset(source, Position::new(2, 4));
+/// assert_eq!(offset, 32);
+/// ```
+#[must_use]
+pub fn lsp_position_to_byte_offset(source: &str, position: Position) -> usize {
+    let target_line = position.line;
+    let target_col = position.character;
+
+    let mut current_line = 0u32;
+    let mut current_col = 0u32;
+    let mut current_byte = 0usize;
+    // Track the byte offset of the last character on the target line (for clamping)
+    let mut last_byte_on_target_line = 0usize;
+
+    for ch in source.chars() {
+        // Check if we've reached the target position
+        if current_line == target_line && current_col >= target_col {
+            break;
+        }
+        // If we've moved past the target line, clamp to the end of that line
+        if current_line > target_line {
+            return last_byte_on_target_line;
+        }
+
+        // Track the last byte position on the target line (before the newline)
+        if current_line == target_line {
+            last_byte_on_target_line = current_byte;
+        }
+
+        current_byte += ch.len_utf8();
+
+        if ch == '\n' {
+            current_line += 1;
+            current_col = 0;
+        } else {
+            current_col += utf16_code_units(ch);
+            // Update last byte position after processing non-newline character
+            if current_line == target_line {
+                last_byte_on_target_line = current_byte;
+            }
+        }
+    }
+
+    clamp_final_offset(
+        LineColPosition {
+            line: current_line,
+            col: current_col,
+        },
+        LineColPosition {
+            line: target_line,
+            col: target_col,
+        },
+        last_byte_on_target_line,
+        current_byte,
+    )
+}
+
 /// Convert a byte offset to an LSP Position (0-based line and character).
 ///
 /// The LSP specification defines character positions as UTF-16 code unit offsets.
@@ -54,8 +177,7 @@ fn byte_offset_to_position(source: &str, byte_offset: usize) -> Position {
             line += 1;
             col = 0;
         } else {
-            // UTF-16 code units: BMP characters (≤0xFFFF) use 1, non-BMP use 2
-            col += if u32::from(ch) <= 0xFFFF { 1 } else { 2 };
+            col += utf16_code_units(ch);
         }
         current_byte += ch.len_utf8();
     }
@@ -134,5 +256,88 @@ mod tests {
         let pos = byte_offset_to_position(source, source.len());
         // 'c' (1) + 'a' (1) + 'f' (1) + 'é' (1, BMP) + '🎉' (2, non-BMP) = 6
         assert_eq!(pos.character, 6);
+    }
+
+    #[test]
+    fn lsp_position_to_byte_offset_first_line() {
+        let source = "Feature: demo\n  Scenario: s\n";
+        // Position (0, 0) is byte 0
+        let offset = lsp_position_to_byte_offset(source, Position::new(0, 0));
+        assert_eq!(offset, 0);
+
+        // Position (0, 9) is byte 9 ("demo" starts here)
+        let offset = lsp_position_to_byte_offset(source, Position::new(0, 9));
+        assert_eq!(offset, 9);
+    }
+
+    #[test]
+    fn lsp_position_to_byte_offset_second_line() {
+        let source = "Feature: demo\n  Scenario: s\n";
+        // Second line starts at byte 14 (after "Feature: demo\n")
+        let offset = lsp_position_to_byte_offset(source, Position::new(1, 0));
+        assert_eq!(offset, 14);
+
+        // "Scenario" starts at byte 16 (after two spaces, column 2)
+        let offset = lsp_position_to_byte_offset(source, Position::new(1, 2));
+        assert_eq!(offset, 16);
+    }
+
+    #[test]
+    fn lsp_position_to_byte_offset_third_line() {
+        let source = "Feature: demo\n  Scenario: s\n    Given a step\n";
+        // "Given" on line 2 (0-indexed), column 4, starts at byte 32
+        let offset = lsp_position_to_byte_offset(source, Position::new(2, 4));
+        assert_eq!(offset, 32);
+    }
+
+    #[test]
+    fn lsp_position_to_byte_offset_handles_empty_source() {
+        let source = "";
+        let offset = lsp_position_to_byte_offset(source, Position::new(0, 0));
+        assert_eq!(offset, 0);
+    }
+
+    #[test]
+    fn lsp_position_to_byte_offset_handles_non_bmp_characters() {
+        // Emoji U+1F600 (😀) is outside the BMP and requires 2 UTF-16 code units
+        let source = "hello😀world";
+        // After "hello" (5 chars) + emoji (2 UTF-16 units) = column 7
+        // "world" starts at byte 5 + 4 (emoji UTF-8) = 9
+        let offset = lsp_position_to_byte_offset(source, Position::new(0, 7));
+        assert_eq!(offset, 9);
+    }
+
+    #[test]
+    fn lsp_position_to_byte_offset_roundtrip() {
+        let source = "Feature: demo\n  Scenario: s\n    Given a step\n";
+        // Test roundtrip: byte -> position -> byte
+        for byte_offset in [0, 9, 14, 16, 32, 44] {
+            let pos = byte_offset_to_position(source, byte_offset);
+            let recovered = lsp_position_to_byte_offset(source, pos);
+            assert_eq!(
+                recovered, byte_offset,
+                "roundtrip failed for offset {byte_offset}"
+            );
+        }
+    }
+
+    #[test]
+    fn lsp_position_to_byte_offset_clamps_to_end_of_line() {
+        let source = "abc\ndef\n";
+        // Request column 100 on line 0 - should clamp to end of "abc" (byte 3)
+        let offset = lsp_position_to_byte_offset(source, Position::new(0, 100));
+        assert_eq!(offset, 3, "should clamp to end of line 0");
+
+        // Request column 100 on line 1 - should clamp to end of "def" (byte 7)
+        let offset = lsp_position_to_byte_offset(source, Position::new(1, 100));
+        assert_eq!(offset, 7, "should clamp to end of line 1");
+    }
+
+    #[test]
+    fn lsp_position_to_byte_offset_clamps_to_eof_on_final_line() {
+        let source = "abc\ndef"; // No trailing newline
+        // Request column 100 on line 1 - should clamp to end of file (byte 7)
+        let offset = lsp_position_to_byte_offset(source, Position::new(1, 100));
+        assert_eq!(offset, 7, "should clamp to end of file");
     }
 }

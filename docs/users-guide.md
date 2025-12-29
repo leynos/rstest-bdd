@@ -1363,8 +1363,32 @@ of locations to choose from.
 - Patterns with placeholders (e.g., `"I have {count:u32} items"`) match feature
   steps using the same regex semantics as the runtime.
 
-Future releases will add go-to-implementation (Feature → Rust) and diagnostics
-as outlined in the
+#### Go to Implementation (Feature → Rust)
+
+The inverse navigation—from feature steps to Rust implementations—is provided
+via the `textDocument/implementation` handler. This enables developers to jump
+from a step line in a `.feature` file directly to the Rust function(s) that
+implement it.
+
+**Usage:**
+
+1. Place the cursor on a step line in a `.feature` file (e.g., `Given a user
+   exists`).
+2. Invoke "Go to Implementation" (typically Ctrl+F12 or a similar keybinding in
+   most editors).
+3. The editor navigates to all matching Rust step functions.
+
+When multiple implementations match (duplicate step patterns), the editor
+presents a list of locations to choose from.
+
+**How matching works:**
+
+- Matching is keyword-aware: a `Given` step in a feature file only matches
+  `#[given]` implementations in Rust.
+- The step text is matched against the compiled regex patterns from the step
+  registry, ensuring consistency with the runtime.
+
+Future releases will add diagnostics as outlined in the
 [Language Server Design Document](rstest-bdd-language-server-design.md).
 
 ## Summary

@@ -167,6 +167,7 @@ fn index_feature_text(
 
     Ok(FeatureFileIndex {
         path,
+        source: source.as_str().to_owned(),
         steps,
         example_columns,
     })
