@@ -108,13 +108,12 @@ fn panicking_wrapper(
     _docstring: Option<&str>,
     _table: Option<&[&[&str]]>,
 ) -> Result<StepExecution, StepError> {
-    catch_unwind(AssertUnwindSafe(|| panic!("snap")))
-        .map(|()| StepExecution::from_value(None))
-        .map_err(|e| StepError::PanicError {
-            pattern: "panics".into(),
-            function: "panicking_wrapper".into(),
-            message: panic_message(e.as_ref()),
-        })
+    let panic_payload = catch_unwind(AssertUnwindSafe(|| panic!("snap"))).unwrap_err();
+    Err(StepError::PanicError {
+        pattern: "panics".into(),
+        function: "panicking_wrapper".into(),
+        message: panic_message(panic_payload.as_ref()),
+    })
 }
 
 async_wrapper!(panicking_wrapper_async, panicking_wrapper);
