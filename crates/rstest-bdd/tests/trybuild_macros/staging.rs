@@ -101,13 +101,16 @@ fn stage_trybuild_support_files() -> io::Result<()> {
 
     // Stage auto-discovery feature files for `scenarios!` compile-pass test.
     // Derive auto features as a subset of the main features list to avoid
-    // re-walking the filesystem. Strip the "auto/" prefix since the destination
-    // directory already includes the "auto" segment.
+    // re-walking the filesystem. Strip the "auto" prefix since the destination
+    // directory already includes the "auto" segment. Use Utf8Path::strip_prefix
+    // for cross-platform path separator handling.
     let auto_features: Vec<_> = features
         .into_iter()
         .filter_map(|(path, contents)| {
-            path.strip_prefix("auto/")
-                .map(|stripped| (stripped.to_owned(), contents))
+            Utf8Path::new(&path)
+                .strip_prefix("auto")
+                .ok()
+                .map(|stripped| (stripped.to_string(), contents))
         })
         .collect();
 
