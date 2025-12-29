@@ -108,7 +108,8 @@ fn panicking_wrapper(
     _docstring: Option<&str>,
     _table: Option<&[&[&str]]>,
 ) -> Result<StepExecution, StepError> {
-    let panic_payload = catch_unwind(AssertUnwindSafe(|| panic!("snap"))).unwrap_err();
+    let panic_payload = catch_unwind(AssertUnwindSafe(|| panic!("snap")))
+        .expect_err("closure unconditionally panics, so catch_unwind must return Err");
     Err(StepError::PanicError {
         pattern: "panics".into(),
         function: "panicking_wrapper".into(),
