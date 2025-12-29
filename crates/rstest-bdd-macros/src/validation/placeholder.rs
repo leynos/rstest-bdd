@@ -161,9 +161,11 @@ mod tests {
 
     #[test]
     fn valid_placeholder_in_step_text() {
-        let steps = vec![make_step_builder()
-            .with_text("I have <count> items")
-            .build()];
+        let steps = vec![
+            make_step_builder()
+                .with_text("I have <count> items")
+                .build(),
+        ];
         let headers = vec!["count".to_string()];
 
         let result = validate_step_placeholders(&steps, &headers);
@@ -172,9 +174,11 @@ mod tests {
 
     #[test]
     fn valid_multiple_placeholders() {
-        let steps = vec![make_step_builder()
-            .with_text("I have <count> <item>")
-            .build()];
+        let steps = vec![
+            make_step_builder()
+                .with_text("I have <count> <item>")
+                .build(),
+        ];
         let headers = vec!["count".to_string(), "item".to_string()];
 
         let result = validate_step_placeholders(&steps, &headers);
@@ -183,9 +187,11 @@ mod tests {
 
     #[test]
     fn invalid_placeholder_in_step_text() {
-        let steps = vec![make_step_builder()
-            .with_text("I have <undefined> items")
-            .build()];
+        let steps = vec![
+            make_step_builder()
+                .with_text("I have <undefined> items")
+                .build(),
+        ];
         let headers = vec!["count".to_string()];
 
         assert_placeholder_error(&steps, &headers, "<undefined>", "step");
@@ -193,10 +199,12 @@ mod tests {
 
     #[test]
     fn valid_placeholder_in_docstring() {
-        let steps = vec![make_step_builder()
-            .with_text("step text")
-            .with_docstring("docstring with <value>")
-            .build()];
+        let steps = vec![
+            make_step_builder()
+                .with_text("step text")
+                .with_docstring("docstring with <value>")
+                .build(),
+        ];
         let headers = vec!["value".to_string()];
 
         let result = validate_step_placeholders(&steps, &headers);
@@ -205,10 +213,12 @@ mod tests {
 
     #[test]
     fn invalid_placeholder_in_docstring() {
-        let steps = vec![make_step_builder()
-            .with_text("step text")
-            .with_docstring("docstring with <undefined>")
-            .build()];
+        let steps = vec![
+            make_step_builder()
+                .with_text("step text")
+                .with_docstring("docstring with <undefined>")
+                .build(),
+        ];
         let headers = vec!["value".to_string()];
 
         assert_placeholder_error(&steps, &headers, "<undefined>", "docstring");
@@ -216,10 +226,12 @@ mod tests {
 
     #[test]
     fn valid_placeholder_in_table() {
-        let steps = vec![make_step_builder()
-            .with_text("step text")
-            .with_table(vec![vec!["<value>".to_string(), "static".to_string()]])
-            .build()];
+        let steps = vec![
+            make_step_builder()
+                .with_text("step text")
+                .with_table(vec![vec!["<value>".to_string(), "static".to_string()]])
+                .build(),
+        ];
         let headers = vec!["value".to_string()];
 
         let result = validate_step_placeholders(&steps, &headers);
@@ -228,10 +240,12 @@ mod tests {
 
     #[test]
     fn invalid_placeholder_in_table() {
-        let steps = vec![make_step_builder()
-            .with_text("step text")
-            .with_table(vec![vec!["<undefined>".to_string()]])
-            .build()];
+        let steps = vec![
+            make_step_builder()
+                .with_text("step text")
+                .with_table(vec![vec!["<undefined>".to_string()]])
+                .build(),
+        ];
         let headers = vec!["value".to_string()];
 
         assert_placeholder_error(&steps, &headers, "<undefined>", "table cell");
@@ -239,9 +253,7 @@ mod tests {
 
     #[test]
     fn no_placeholders_is_valid() {
-        let steps = vec![make_step_builder()
-            .with_text("I have 5 items")
-            .build()];
+        let steps = vec![make_step_builder().with_text("I have 5 items").build()];
         let headers = vec!["count".to_string()];
 
         let result = validate_step_placeholders(&steps, &headers);

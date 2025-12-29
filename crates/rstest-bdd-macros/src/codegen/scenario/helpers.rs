@@ -194,7 +194,11 @@ fn substitute_step_content(
 
     let substituted_docstring = docstring
         .map(|d| {
-            substitute_placeholders(d.as_str(), context.headers.as_slice(), context.row.as_slice())
+            substitute_placeholders(
+                d.as_str(),
+                context.headers.as_slice(),
+                context.row.as_slice(),
+            )
         })
         .transpose()?;
 
