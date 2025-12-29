@@ -13,11 +13,20 @@ const MACROS_FIXTURES_DIR: &str = "tests/fixtures_macros";
 const FEATURES_DIR: &str = "tests/features";
 const FEATURES_AUTO_DIR: &str = "tests/features/auto";
 
+/// Returns the path to a macro fixture file, staging support files first.
+///
+/// Ensures that feature files are staged to the trybuild test environment
+/// before returning the fixture path, so that macros can locate their
+/// dependencies at compile time.
 pub(crate) fn macros_fixture(case: &str) -> Utf8PathBuf {
     ensure_trybuild_support_files();
     Utf8PathBuf::from(MACROS_FIXTURES_DIR).join(case)
 }
 
+/// Returns the path to a UI fixture file.
+///
+/// UI fixtures do not require feature file staging since they test
+/// attribute macro diagnostics rather than scenario parsing.
 pub(crate) fn ui_fixture(case: &str) -> Utf8PathBuf {
     Utf8PathBuf::from("tests/ui_macros").join(case)
 }
@@ -74,11 +83,15 @@ fn stage_trybuild_support_files() -> io::Result<()> {
 
     // Stage auto-discovery feature files for `scenarios!` compile-pass test.
     // Derive auto features as a subset of the main features list to avoid
-    // re-walking the filesystem.
-    let auto_features = features
+    // re-walking the filesystem. Strip the "auto/" prefix since the destination
+    // directory already includes the "auto" segment.
+    let auto_features: Vec<_> = features
         .into_iter()
-        .filter(|(path, _)| path.starts_with("auto/"))
-        .collect::<Vec<_>>();
+        .filter_map(|(path, contents)| {
+            path.strip_prefix("auto/")
+                .map(|stripped| (stripped.to_owned(), contents))
+        })
+        .collect();
 
     if !auto_features.is_empty() {
         let auto_dest = trybuild_crate_relative.join(FEATURES_AUTO_DIR);
@@ -129,7 +142,16 @@ fn collect_feature_files(
     let is_root = current == Utf8Path::new(".");
     for entry in dir.read_dir(current.as_std_path())? {
         let entry = entry?;
-        let file_name = entry.file_name().to_string_lossy().into_owned();
+        let file_name = entry
+            .file_name()
+            .to_str()
+            .ok_or_else(|| {
+                io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    format!("file name is not valid UTF-8: {:?}", entry.file_name()),
+                )
+            })?
+            .to_owned();
         let relative = if is_root {
             Utf8PathBuf::from(file_name.as_str())
         } else {
