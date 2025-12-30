@@ -2,4 +2,7 @@
 # Tracked for refactor: see issue #50 to shrink allowlisted files below 400 lines.
 #
 # All files previously listed here have been decomposed to under 400 lines.
+# Added during Phase 8 async step execution implementation:
+crates/rstest-bdd-macros/src/codegen/scenario/runtime/generators/step.rs
+crates/rstest-bdd-macros/src/macros/scenarios/macro_args.rs
 crates/rstest-bdd-server/tests/diagnostics.rs

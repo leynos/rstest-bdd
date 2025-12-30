@@ -1395,6 +1395,7 @@ dependencies = [
  "serial_test",
  "the-newtype",
  "thiserror 1.0.69",
+ "tokio",
  "trybuild",
  "unic-langid",
 ]

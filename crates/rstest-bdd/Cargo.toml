@@ -41,6 +41,7 @@ rstest-bdd-macros.workspace = true
 trybuild.workspace = true
 serial_test.workspace = true
 the-newtype = "0.1.1"
+tokio = { version = "1", features = ["macros", "rt"] }
 
 [features]
 default = ["diagnostics"]

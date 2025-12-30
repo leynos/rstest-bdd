@@ -11,6 +11,7 @@ mod step;
 
 pub(super) use scenario::{generate_scenario_guard, generate_skip_handler};
 pub(super) use step::{
-    generate_skip_decoder, generate_step_executor, generate_step_executor_loop,
-    generate_step_executor_loop_outline,
+    generate_async_step_executor, generate_async_step_executor_loop,
+    generate_async_step_executor_loop_outline, generate_skip_decoder, generate_step_executor,
+    generate_step_executor_loop, generate_step_executor_loop_outline,
 };

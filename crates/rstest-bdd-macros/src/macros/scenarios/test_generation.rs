@@ -16,7 +16,7 @@ use crate::parsing::tags::TagExpression;
 use crate::utils::fixtures::extract_function_fixtures;
 use crate::utils::ident::sanitize_ident;
 
-use super::macro_args::FixtureSpec;
+use super::macro_args::{FixtureSpec, RuntimeMode};
 
 /// Context for generating a scenario test.
 ///
@@ -36,6 +36,8 @@ pub(super) struct ScenarioTestContext<'a> {
     pub(super) tag_filter: Option<&'a TagExpression>,
     /// Fixture specifications to inject as parameters in generated tests.
     pub(super) fixtures: &'a [FixtureSpec],
+    /// Runtime mode for test execution (sync or async/Tokio).
+    pub(super) runtime: RuntimeMode,
 }
 
 pub(super) fn dedupe_name(base: &str, used: &mut HashSet<String>) -> String {
@@ -94,8 +96,19 @@ fn build_test_signature(
     fn_ident: &syn::Ident,
     fixture_params: &[TokenStream2],
     example_params: &[TokenStream2],
+    is_async: bool,
 ) -> syn::Signature {
-    if fixture_params.is_empty() && example_params.is_empty() {
+    if is_async {
+        if fixture_params.is_empty() && example_params.is_empty() {
+            syn::parse_quote! { async fn #fn_ident() }
+        } else if fixture_params.is_empty() {
+            syn::parse_quote! { async fn #fn_ident( #(#example_params),* ) }
+        } else if example_params.is_empty() {
+            syn::parse_quote! { async fn #fn_ident( #(#fixture_params),* ) }
+        } else {
+            syn::parse_quote! { async fn #fn_ident( #(#fixture_params,)* #(#example_params),* ) }
+        }
+    } else if fixture_params.is_empty() && example_params.is_empty() {
         syn::parse_quote! { fn #fn_ident() }
     } else if fixture_params.is_empty() {
         syn::parse_quote! { fn #fn_ident( #(#example_params),* ) }
@@ -137,7 +150,8 @@ pub(super) fn generate_scenario_test(
     let attrs = build_lint_attributes(ctx.fixtures);
     let fixture_params = build_fixture_params(ctx.fixtures);
     let example_params = build_example_params(examples.as_ref());
-    let mut sig = build_test_signature(&fn_ident, &fixture_params, &example_params);
+    let is_async = ctx.runtime.is_async();
+    let mut sig = build_test_signature(&fn_ident, &fixture_params, &example_params, is_async);
 
     let (_args, fixture_setup) = match extract_function_fixtures(&mut sig) {
         Ok(result) => result,
@@ -160,6 +174,7 @@ pub(super) fn generate_scenario_test(
         allow_skipped,
         line,
         tags: &tags,
+        runtime: ctx.runtime,
     };
     TokenStream2::from(generate_scenario_code(
         &config,
@@ -253,8 +268,15 @@ mod tests {
     #[test]
     fn build_test_signature_no_fixtures_no_examples() {
         let fn_ident = syn::Ident::new("test_name", proc_macro2::Span::call_site());
-        let sig = build_test_signature(&fn_ident, &[], &[]);
+        let sig = build_test_signature(&fn_ident, &[], &[], false);
         assert_eq!(sig_to_string(&sig), "fn test_name ()");
+    }
+
+    #[test]
+    fn build_test_signature_async_no_fixtures_no_examples() {
+        let fn_ident = syn::Ident::new("test_name", proc_macro2::Span::call_site());
+        let sig = build_test_signature(&fn_ident, &[], &[], true);
+        assert_eq!(sig_to_string(&sig), "async fn test_name ()");
     }
 
     #[test]
@@ -262,11 +284,23 @@ mod tests {
         let fn_ident = syn::Ident::new("test_name", proc_macro2::Span::call_site());
         let fixture_params: Vec<TokenStream2> = vec![quote!(f1: T1), quote!(f2: T2)];
 
-        let sig = build_test_signature(&fn_ident, &fixture_params, &[]);
+        let sig = build_test_signature(&fn_ident, &fixture_params, &[], false);
         let sig_str = sig_to_string(&sig);
 
         assert!(sig_str.contains("f1 : T1"), "should contain f1: T1");
         assert!(sig_str.contains("f2 : T2"), "should contain f2: T2");
+    }
+
+    #[test]
+    fn build_test_signature_async_fixtures_only() {
+        let fn_ident = syn::Ident::new("test_name", proc_macro2::Span::call_site());
+        let fixture_params: Vec<TokenStream2> = vec![quote!(f1: T1)];
+
+        let sig = build_test_signature(&fn_ident, &fixture_params, &[], true);
+        let sig_str = sig_to_string(&sig);
+
+        assert!(sig_str.starts_with("async fn"), "should be async fn");
+        assert!(sig_str.contains("f1 : T1"), "should contain f1: T1");
     }
 
     #[test]
@@ -277,7 +311,7 @@ mod tests {
             quote!(#[case] col2: &'static str),
         ];
 
-        let sig = build_test_signature(&fn_ident, &[], &example_params);
+        let sig = build_test_signature(&fn_ident, &[], &example_params, false);
         let sig_str = sig_to_string(&sig);
 
         assert!(sig_str.contains("# [case]"), "should contain #[case]");
@@ -294,7 +328,7 @@ mod tests {
             quote!(#[case] col2: &'static str),
         ];
 
-        let sig = build_test_signature(&fn_ident, &fixture_params, &example_params);
+        let sig = build_test_signature(&fn_ident, &fixture_params, &example_params, false);
         let sig_str = sig_to_string(&sig);
 
         // Fixtures must come first, followed by #[case] example parameters

@@ -249,6 +249,57 @@ pub(in crate::codegen::scenario::runtime) fn generate_skip_decoder() -> TokenStr
     }
 }
 
+/// Generates helper functions for async step execution.
+///
+/// Instead of a separate async function (which has HRTB lifetime issues), this generates
+/// helper functions that will be used inline in the async step executor loop.
+///
+/// This includes:
+/// - `validate_required_fixtures`: validates fixtures before step execution
+/// - `encode_skip_message`: encodes skip messages for propagation
+pub(in crate::codegen::scenario::runtime) fn generate_async_step_executor() -> TokenStream2 {
+    let validate_fixtures = generate_validate_fixtures_fn();
+    let encode_skip = generate_encode_skip_fn();
+
+    quote! {
+        #validate_fixtures
+        #encode_skip
+    }
+}
+
+/// Generates the async step executor loop that iterates over steps and awaits each.
+///
+/// The generated code iterates through all scenario steps, executing each one
+/// asynchronously and handling the results. On success, values are inserted into
+/// the context. On skip, the loop breaks and records the skip position.
+///
+/// This implementation uses the sync `run` function directly rather than
+/// `run_async`. This avoids HRTB lifetime issues since sync steps don't create
+/// futures that hold borrows across `.await` points. For scenarios using actual
+/// async step definitions (future work), a different approach will be needed.
+///
+/// # Usage
+///
+/// ```ignore
+/// let loop_tokens = generate_async_step_executor_loop(&keywords, &values, &docstrings, &tables);
+/// // loop_tokens is embedded into the async scenario test function body
+/// ```
+pub(in crate::codegen::scenario::runtime) fn generate_async_step_executor_loop(
+    keyword_tokens: &[TokenStream2],
+    values: &[TokenStream2],
+    docstrings: &[TokenStream2],
+    tables: &[TokenStream2],
+) -> TokenStream2 {
+    let loop_body = generate_async_step_executor_loop_body();
+
+    quote! {
+        let __rstest_bdd_steps = [#((#keyword_tokens, #values, #docstrings, #tables)),*];
+        for (__rstest_bdd_index, (__rstest_bdd_keyword, __rstest_bdd_text, __rstest_bdd_docstring, __rstest_bdd_table)) in __rstest_bdd_steps.iter().copied().enumerate() {
+            #loop_body
+        }
+    }
+}
+
 /// Generates the step executor loop that iterates over steps and handles results.
 ///
 /// The generated code iterates through all scenario steps, executing each one
@@ -338,6 +389,33 @@ pub(in crate::codegen::scenario::runtime) fn generate_step_executor_loop_outline
     }
 }
 
+/// Generates the async step executor loop for scenario outlines.
+pub(in crate::codegen::scenario::runtime) fn generate_async_step_executor_loop_outline(
+    all_rows_steps: &[ProcessedStepTokens],
+) -> TokenStream2 {
+    let path = crate::codegen::rstest_bdd_path();
+    let loop_body = generate_async_step_executor_loop_body();
+
+    let row_arrays: Vec<TokenStream2> = all_rows_steps
+        .iter()
+        .map(|(keywords, values, docstrings, tables)| {
+            quote! {
+                &[#((#keywords, #values, #docstrings, #tables)),*]
+            }
+        })
+        .collect();
+
+    quote! {
+        const __RSTEST_BDD_ALL_STEPS: &[&[(#path::StepKeyword, &str, Option<&str>, Option<&[&[&str]]>)]] = &[
+            #(#row_arrays),*
+        ];
+        let __rstest_bdd_steps = __RSTEST_BDD_ALL_STEPS[__rstest_bdd_case_idx];
+        for (__rstest_bdd_index, (__rstest_bdd_keyword, __rstest_bdd_text, __rstest_bdd_docstring, __rstest_bdd_table)) in __rstest_bdd_steps.iter().copied().enumerate() {
+            #loop_body
+        }
+    }
+}
+
 fn generate_step_executor_loop_body() -> TokenStream2 {
     quote! {
         match __rstest_bdd_execute_single_step(
@@ -360,6 +438,71 @@ fn generate_step_executor_loop_body() -> TokenStream2 {
             Err(__rstest_bdd_encoded) => {
                 __rstest_bdd_skipped =
                     Some(__rstest_bdd_decode_skip_message(__rstest_bdd_encoded));
+                __rstest_bdd_skipped_at = Some(__rstest_bdd_index);
+                break;
+            }
+        }
+    }
+}
+
+fn generate_async_step_executor_loop_body() -> TokenStream2 {
+    let path = crate::codegen::rstest_bdd_path();
+
+    quote! {
+        // Step 1: Look up step (immutable operations)
+        let __rstest_bdd_step = match #path::find_step_with_metadata(__rstest_bdd_keyword, #path::StepText::from(__rstest_bdd_text)) {
+            Some(step) => step,
+            None => {
+                panic!(
+                    "Step not found at index {}: {} {} (feature: {}, scenario: {})",
+                    __rstest_bdd_index,
+                    __rstest_bdd_keyword.as_str(),
+                    __rstest_bdd_text,
+                    __RSTEST_BDD_FEATURE_PATH,
+                    __RSTEST_BDD_SCENARIO_NAME
+                );
+            }
+        };
+
+        // Step 2: Validate fixtures (immutable borrow of ctx)
+        validate_required_fixtures(&__rstest_bdd_step, &ctx, __rstest_bdd_text, __RSTEST_BDD_FEATURE_PATH, __RSTEST_BDD_SCENARIO_NAME);
+
+        // Step 3: Get the sync handler function pointer
+        let __rstest_bdd_sync_handler = __rstest_bdd_step.run;
+
+        // Step 4: Execute the sync step directly (avoids HRTB lifetime issues)
+        // For sync steps wrapped in async scenarios, we call the sync handler
+        // directly rather than going through run_async. This avoids creating
+        // futures that hold mutable borrows across .await points.
+        let __rstest_bdd_result: Result<Option<Box<dyn std::any::Any>>, String> =
+            match __rstest_bdd_sync_handler(&mut ctx, __rstest_bdd_text, __rstest_bdd_docstring, __rstest_bdd_table) {
+                Ok(#path::StepExecution::Skipped { message }) => {
+                    Err(encode_skip_message(message))
+                }
+                Ok(#path::StepExecution::Continue { value }) => Ok(value),
+                Err(__rstest_bdd_err) => {
+                    panic!(
+                        "Step failed at index {}: {} {} - {}\n(feature: {}, scenario: {})",
+                        __rstest_bdd_index,
+                        __rstest_bdd_keyword.as_str(),
+                        __rstest_bdd_text,
+                        __rstest_bdd_err,
+                        __RSTEST_BDD_FEATURE_PATH,
+                        __RSTEST_BDD_SCENARIO_NAME
+                    );
+                }
+            };
+
+        match __rstest_bdd_result {
+            Ok(__rstest_bdd_value) => {
+                if let Some(__rstest_bdd_val) = __rstest_bdd_value {
+                    // Intentionally discarded: insert_value returns None when no fixture
+                    // slot matches the value's TypeId or when matches are ambiguous.
+                    let _ = ctx.insert_value(__rstest_bdd_val);
+                }
+            }
+            Err(__rstest_bdd_encoded) => {
+                __rstest_bdd_skipped = Some(__rstest_bdd_decode_skip_message(__rstest_bdd_encoded));
                 __rstest_bdd_skipped_at = Some(__rstest_bdd_index);
                 break;
             }

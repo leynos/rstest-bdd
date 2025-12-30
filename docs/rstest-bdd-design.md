@@ -90,11 +90,12 @@ for unit tests, promoting a Don't Repeat Yourself (DRY) approach.[^1]
 
 **File:** `tests/test_web_search.rs`
 
-> **Note:** This example demonstrates the intended async API using `async fn`
-> step definitions with `#[tokio::test]`. Async step execution is planned but
-> not yet implemented. See §2.5 for the async execution design and the roadmap
-> for implementation status. In the current synchronous implementation, step
-> functions must be non-async.
+> **Note:** This example demonstrates the async API using `async fn` test
+> functions with `#[tokio::test]`. Async scenario execution is now implemented
+> for Tokio current-thread mode; see §2.5 and the users guide for details.
+> Step definitions themselves remain synchronous—the async executor calls the
+> sync handler directly to avoid HRTB lifetime issues. True async step bodies
+> are planned for a future release.
 
 ```rust,no_run
 use rstest::fixture;
@@ -207,8 +208,9 @@ Feature: User Login
 
 **Step Definition (**`test_login.rs`**):**
 
-> **Note:** This example uses `async fn` step definitions, which require async
-> execution mode. See the note above §1.2.2 and §2.5 for details.
+> **Note:** This example shows async scenario execution. The test function uses
+> `async fn` with `#[tokio::test]`. Step definitions remain synchronous—the
+> async executor calls sync handlers directly. See §2.5 for design details.
 
 ```rust,no_run
 //...
@@ -1165,9 +1167,17 @@ required for a BDD scenario, all while remaining fully compatible with the
 
 The step execution model described in §2.4 is synchronous: step wrappers are
 function pointers that execute immediately and return a `Result`. This section
-describes the planned asynchronous execution model that enables `async fn` step
-definitions under Tokio. For the full architectural decision record, see
+describes the asynchronous execution model that enables async scenario tests
+under Tokio. For the full architectural decision record, see
 [ADR-001](adr-001-async-fixtures-and-test.md).
+
+> **Implementation status:** Async scenario execution is now implemented for
+> Tokio current-thread mode. The `scenarios!` macro accepts
+> `runtime = "tokio-current-thread"`, and `#[scenario]` detects `async fn` test
+> signatures. Step definitions remain synchronous—the async executor calls the
+> sync handler directly to avoid HRTB lifetime issues with `AsyncStepFn`. True
+> async step bodies (with `async fn` implementations) are planned for a future
+> release.
 
 #### 2.5.1 Motivation
 
