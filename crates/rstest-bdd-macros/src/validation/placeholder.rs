@@ -200,6 +200,16 @@ mod tests {
         );
     }
 
+    /// Asserts that placeholder validation succeeds.
+    fn assert_valid_placeholders(steps: &[ParsedStep], headers: &[String]) {
+        let result = validate_step_placeholders(steps, ExampleHeaders::new(headers));
+        assert!(
+            result.is_ok(),
+            "Expected validation to pass but got error: {:?}",
+            result.unwrap_err()
+        );
+    }
+
     #[test]
     fn valid_placeholder_in_step_text() {
         let steps = vec![
@@ -209,8 +219,7 @@ mod tests {
         ];
         let headers = vec!["count".to_string()];
 
-        let result = validate_step_placeholders(&steps, ExampleHeaders::new(&headers));
-        assert!(result.is_ok());
+        assert_valid_placeholders(&steps, &headers);
     }
 
     #[test]
@@ -222,8 +231,7 @@ mod tests {
         ];
         let headers = vec!["count".to_string(), "item".to_string()];
 
-        let result = validate_step_placeholders(&steps, ExampleHeaders::new(&headers));
-        assert!(result.is_ok());
+        assert_valid_placeholders(&steps, &headers);
     }
 
     #[test]
@@ -253,8 +261,7 @@ mod tests {
         ];
         let headers = vec!["value".to_string()];
 
-        let result = validate_step_placeholders(&steps, ExampleHeaders::new(&headers));
-        assert!(result.is_ok());
+        assert_valid_placeholders(&steps, &headers);
     }
 
     #[test]
@@ -285,8 +292,7 @@ mod tests {
         ];
         let headers = vec!["value".to_string()];
 
-        let result = validate_step_placeholders(&steps, ExampleHeaders::new(&headers));
-        assert!(result.is_ok());
+        assert_valid_placeholders(&steps, &headers);
     }
 
     #[test]
@@ -312,8 +318,7 @@ mod tests {
         let steps = vec![make_step_builder().with_text("I have 5 items").build()];
         let headers = vec!["count".to_string()];
 
-        let result = validate_step_placeholders(&steps, ExampleHeaders::new(&headers));
-        assert!(result.is_ok());
+        assert_valid_placeholders(&steps, &headers);
     }
 
     #[test]
@@ -321,7 +326,6 @@ mod tests {
         let steps: Vec<ParsedStep> = vec![];
         let headers = vec!["count".to_string()];
 
-        let result = validate_step_placeholders(&steps, ExampleHeaders::new(&headers));
-        assert!(result.is_ok());
+        assert_valid_placeholders(&steps, &headers);
     }
 }

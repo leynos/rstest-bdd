@@ -38,7 +38,7 @@ use crate::parsing::feature::{
 use crate::parsing::tags::TagExpression;
 use crate::utils::fixtures::extract_function_fixtures;
 use crate::validation::parameters::process_scenario_outline_examples;
-use crate::validation::placeholder::{validate_step_placeholders, ExampleHeaders};
+use crate::validation::placeholder::{ExampleHeaders, validate_step_placeholders};
 
 use self::args::{ScenarioArgs, ScenarioSelector};
 use self::paths::canonical_feature_path;
