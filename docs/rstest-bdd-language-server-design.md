@@ -888,12 +888,64 @@ to matching Rust implementations. When the cursor is on a step line in a
   navigation, including parameterized patterns, duplicate implementations, and
   keyword matching.
 
+### Diagnostics (on save)
+
+**Status: Implemented**
+
+The language server publishes diagnostics when files are saved, identifying
+consistency issues between feature files and Rust step definitions.
+
+**Implementation details:**
+
+- A new `handlers/diagnostics.rs` module provides diagnostic computation and
+  publishing functions.
+- `ServerState` stores the `ClientSocket` to send `publishDiagnostics`
+  notifications.
+- After indexing a feature file, diagnostics for unimplemented steps are
+  computed and published.
+- After indexing a Rust file, diagnostics for all feature files are recomputed
+  (since step definition changes may affect which feature steps are
+  implemented), and unused step definition diagnostics are computed for the
+  saved Rust file.
+
+**Diagnostic types:**
+
+1. **Unimplemented feature steps** (`unimplemented-step`): Warning diagnostic
+   on steps in `.feature` files that have no matching Rust implementation.
+   The message format is:
+   `No Rust implementation found for Given step: "step text"`
+
+2. **Unused step definitions** (`unused-step-definition`): Warning diagnostic
+   on Rust functions annotated with `#[given]`, `#[when]`, or `#[then]` that
+   are not matched by any feature step. The message format is:
+   `Step definition is not used by any feature file: #[given("pattern")]`
+
+**Matching algorithm:**
+
+- For each feature step, the server queries the registry for compiled step
+  definitions with the same keyword (Given/When/Then) and tests whether the
+  step text matches any of the compiled regex patterns.
+- For each Rust step definition, the server iterates all feature indices and
+  checks if any step with the matching keyword is matched by the definition's
+  regex.
+
+**Testing:**
+
+- Unit tests in `handlers/diagnostics.rs` cover diagnostic computation,
+  keyword matching, parameterized patterns, and message formatting.
+- Behavioural tests in `tests/diagnostics.rs` verify end-to-end diagnostic
+  generation including multiple feature files and cross-file dependency
+  scenarios.
+
 ### Next phases
 
 Subsequent work will implement:
 
-1. **Diagnostics** — Unimplemented steps, unused definitions, signature
-   mismatches
+1. **Placeholder count validation** — Verify that step patterns and function
+   signatures agree on the number of captured arguments
+2. **Data table/docstring expectation mismatches** — Warn when a step expects
+   a data table or docstring but the feature step doesn't provide one, or
+   vice versa
 
 ## Conclusion
 
