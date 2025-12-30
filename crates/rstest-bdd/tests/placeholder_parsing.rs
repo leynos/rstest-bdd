@@ -10,6 +10,9 @@ use unic_langid::langid;
 mod support;
 use support::{compiled, expect_placeholder_syntax};
 
+/// Anchor the helper so it is not flagged as dead code when compiling this test.
+const _: fn(&'static str, &str) -> Vec<String> = support::compile_and_extract;
+
 #[test]
 fn regex_requires_prior_compilation_and_caches() {
     let pattern = StepPattern::from("literal text");
