@@ -121,24 +121,14 @@ fn process_feature_file(
 
 fn generate_tests_from_features(
     feature_paths: Vec<PathBuf>,
-    manifest_dir: &Path,
-    tag_filter: Option<&TagExpression>,
-    fixtures: &[FixtureSpec],
-    runtime: RuntimeMode,
+    ctx: &FeatureProcessingContext<'_>,
 ) -> (Vec<TokenStream2>, Vec<TokenStream2>) {
     let mut used_names = HashSet::new();
     let mut tests = Vec::new();
     let mut errors = Vec::new();
 
-    let ctx = FeatureProcessingContext {
-        manifest_dir,
-        tag_filter,
-        fixtures,
-        runtime,
-    };
-
     for abs_path in feature_paths {
-        let (mut t, mut errs) = process_feature_file(abs_path.as_path(), &ctx, &mut used_names);
+        let (mut t, mut errs) = process_feature_file(abs_path.as_path(), ctx, &mut used_names);
         tests.append(&mut t);
         errors.append(&mut errs);
     }
@@ -208,13 +198,13 @@ pub(crate) fn scenarios(input: TokenStream) -> TokenStream {
         }
     };
 
-    let (tests, mut errors) = generate_tests_from_features(
-        feature_paths,
-        &manifest_dir,
-        tag_filter.as_ref().map(|f| &f.expr),
-        &fixtures,
+    let ctx = FeatureProcessingContext {
+        manifest_dir: &manifest_dir,
+        tag_filter: tag_filter.as_ref().map(|f| &f.expr),
+        fixtures: &fixtures,
         runtime,
-    );
+    };
+    let (tests, mut errors) = generate_tests_from_features(feature_paths, &ctx);
 
     check_empty_results(&tests, &mut errors, tag_filter.as_ref());
 

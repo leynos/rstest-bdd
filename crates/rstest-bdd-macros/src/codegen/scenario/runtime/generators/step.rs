@@ -249,21 +249,83 @@ pub(in crate::codegen::scenario::runtime) fn generate_skip_decoder() -> TokenStr
     }
 }
 
-/// Generates helper functions for async step execution.
+/// Generates the `__rstest_bdd_process_async_step` helper function for async step execution.
 ///
-/// Instead of a separate async function (which has HRTB lifetime issues), this generates
-/// helper functions that will be used inline in the async step executor loop.
+/// The generated function encapsulates step lookup, fixture validation, step execution,
+/// and result handling. This mirrors `__rstest_bdd_execute_single_step` for sync execution
+/// but is designed for use in async contexts.
 ///
-/// This includes:
-/// - `validate_required_fixtures`: validates fixtures before step execution
-/// - `encode_skip_message`: encodes skip messages for propagation
+/// Note: The function itself is not async—it calls the sync step handler directly to avoid
+/// HRTB lifetime issues with `AsyncStepFn`. This allows the async executor loop to remain
+/// simple while still supporting async test functions.
+///
+/// # Generated code
+///
+/// ```text
+/// fn __rstest_bdd_process_async_step(
+///     index: usize,
+///     keyword: StepKeyword,
+///     text: &str,
+///     docstring: Option<&str>,
+///     table: Option<&[&[&str]]>,
+///     ctx: &mut StepContext,
+///     feature_path: &str,
+///     scenario_name: &str,
+/// ) -> Result<Option<Box<dyn std::any::Any>>, String> { ... }
+/// ```
 pub(in crate::codegen::scenario::runtime) fn generate_async_step_executor() -> TokenStream2 {
+    let path = crate::codegen::rstest_bdd_path();
     let validate_fixtures = generate_validate_fixtures_fn();
     let encode_skip = generate_encode_skip_fn();
 
     quote! {
-        #validate_fixtures
-        #encode_skip
+        #[expect(
+            clippy::too_many_arguments,
+            reason = "helper mirrors generated step inputs to keep panic messaging intact",
+        )]
+        fn __rstest_bdd_process_async_step(
+            index: usize,
+            keyword: #path::StepKeyword,
+            text: &str,
+            docstring: Option<&str>,
+            table: Option<&[&[&str]]>,
+            ctx: &mut #path::StepContext,
+            feature_path: &str,
+            scenario_name: &str,
+        ) -> Result<Option<Box<dyn std::any::Any>>, String> {
+            #validate_fixtures
+            #encode_skip
+
+            let step = #path::find_step_with_metadata(keyword, #path::StepText::from(text))
+                .unwrap_or_else(|| {
+                    panic!(
+                        "Step not found at index {}: {} {} (feature: {}, scenario: {})",
+                        index,
+                        keyword.as_str(),
+                        text,
+                        feature_path,
+                        scenario_name
+                    )
+                });
+
+            validate_required_fixtures(&step, ctx, text, feature_path, scenario_name);
+
+            match (step.run)(ctx, text, docstring, table) {
+                Ok(#path::StepExecution::Skipped { message }) => Err(encode_skip_message(message)),
+                Ok(#path::StepExecution::Continue { value }) => Ok(value),
+                Err(err) => {
+                    panic!(
+                        "Step failed at index {}: {} {} - {}\n(feature: {}, scenario: {})",
+                        index,
+                        keyword.as_str(),
+                        text,
+                        err,
+                        feature_path,
+                        scenario_name
+                    );
+                }
+            }
+        }
     }
 }
 
@@ -446,63 +508,26 @@ fn generate_step_executor_loop_body() -> TokenStream2 {
 }
 
 fn generate_async_step_executor_loop_body() -> TokenStream2 {
-    let path = crate::codegen::rstest_bdd_path();
-
     quote! {
-        // Step 1: Look up step (immutable operations)
-        let __rstest_bdd_step = match #path::find_step_with_metadata(__rstest_bdd_keyword, #path::StepText::from(__rstest_bdd_text)) {
-            Some(step) => step,
-            None => {
-                panic!(
-                    "Step not found at index {}: {} {} (feature: {}, scenario: {})",
-                    __rstest_bdd_index,
-                    __rstest_bdd_keyword.as_str(),
-                    __rstest_bdd_text,
-                    __RSTEST_BDD_FEATURE_PATH,
-                    __RSTEST_BDD_SCENARIO_NAME
-                );
+        match __rstest_bdd_process_async_step(
+            __rstest_bdd_index,
+            __rstest_bdd_keyword,
+            __rstest_bdd_text,
+            __rstest_bdd_docstring,
+            __rstest_bdd_table,
+            &mut ctx,
+            __RSTEST_BDD_FEATURE_PATH,
+            __RSTEST_BDD_SCENARIO_NAME,
+        ) {
+            Ok(Some(__rstest_bdd_val)) => {
+                // Intentionally discarded: insert_value returns None when no fixture
+                // slot matches the value's TypeId or when matches are ambiguous.
+                let _ = ctx.insert_value(__rstest_bdd_val);
             }
-        };
-
-        // Step 2: Validate fixtures (immutable borrow of ctx)
-        validate_required_fixtures(&__rstest_bdd_step, &ctx, __rstest_bdd_text, __RSTEST_BDD_FEATURE_PATH, __RSTEST_BDD_SCENARIO_NAME);
-
-        // Step 3: Get the sync handler function pointer
-        let __rstest_bdd_sync_handler = __rstest_bdd_step.run;
-
-        // Step 4: Execute the sync step directly (avoids HRTB lifetime issues)
-        // For sync steps wrapped in async scenarios, we call the sync handler
-        // directly rather than going through run_async. This avoids creating
-        // futures that hold mutable borrows across .await points.
-        let __rstest_bdd_result: Result<Option<Box<dyn std::any::Any>>, String> =
-            match __rstest_bdd_sync_handler(&mut ctx, __rstest_bdd_text, __rstest_bdd_docstring, __rstest_bdd_table) {
-                Ok(#path::StepExecution::Skipped { message }) => {
-                    Err(encode_skip_message(message))
-                }
-                Ok(#path::StepExecution::Continue { value }) => Ok(value),
-                Err(__rstest_bdd_err) => {
-                    panic!(
-                        "Step failed at index {}: {} {} - {}\n(feature: {}, scenario: {})",
-                        __rstest_bdd_index,
-                        __rstest_bdd_keyword.as_str(),
-                        __rstest_bdd_text,
-                        __rstest_bdd_err,
-                        __RSTEST_BDD_FEATURE_PATH,
-                        __RSTEST_BDD_SCENARIO_NAME
-                    );
-                }
-            };
-
-        match __rstest_bdd_result {
-            Ok(__rstest_bdd_value) => {
-                if let Some(__rstest_bdd_val) = __rstest_bdd_value {
-                    // Intentionally discarded: insert_value returns None when no fixture
-                    // slot matches the value's TypeId or when matches are ambiguous.
-                    let _ = ctx.insert_value(__rstest_bdd_val);
-                }
-            }
+            Ok(None) => {}
             Err(__rstest_bdd_encoded) => {
-                __rstest_bdd_skipped = Some(__rstest_bdd_decode_skip_message(__rstest_bdd_encoded));
+                __rstest_bdd_skipped =
+                    Some(__rstest_bdd_decode_skip_message(__rstest_bdd_encoded));
                 __rstest_bdd_skipped_at = Some(__rstest_bdd_index);
                 break;
             }
