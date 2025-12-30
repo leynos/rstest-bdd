@@ -91,6 +91,19 @@ fn build_example_params(examples: Option<&ExampleTable>) -> Vec<TokenStream2> {
     })
 }
 
+/// Combines fixture and example parameters into a single token stream.
+fn combine_params(
+    fixture_params: &[TokenStream2],
+    example_params: &[TokenStream2],
+) -> TokenStream2 {
+    match (fixture_params.is_empty(), example_params.is_empty()) {
+        (true, true) => quote! {},
+        (true, false) => quote! { #(#example_params),* },
+        (false, true) => quote! { #(#fixture_params),* },
+        (false, false) => quote! { #(#fixture_params,)* #(#example_params),* },
+    }
+}
+
 /// Builds the test function signature from fixture and example parameters.
 fn build_test_signature(
     fn_ident: &syn::Ident,
@@ -98,24 +111,11 @@ fn build_test_signature(
     example_params: &[TokenStream2],
     is_async: bool,
 ) -> syn::Signature {
+    let params = combine_params(fixture_params, example_params);
     if is_async {
-        if fixture_params.is_empty() && example_params.is_empty() {
-            syn::parse_quote! { async fn #fn_ident() }
-        } else if fixture_params.is_empty() {
-            syn::parse_quote! { async fn #fn_ident( #(#example_params),* ) }
-        } else if example_params.is_empty() {
-            syn::parse_quote! { async fn #fn_ident( #(#fixture_params),* ) }
-        } else {
-            syn::parse_quote! { async fn #fn_ident( #(#fixture_params,)* #(#example_params),* ) }
-        }
-    } else if fixture_params.is_empty() && example_params.is_empty() {
-        syn::parse_quote! { fn #fn_ident() }
-    } else if fixture_params.is_empty() {
-        syn::parse_quote! { fn #fn_ident( #(#example_params),* ) }
-    } else if example_params.is_empty() {
-        syn::parse_quote! { fn #fn_ident( #(#fixture_params),* ) }
+        syn::parse_quote! { async fn #fn_ident(#params) }
     } else {
-        syn::parse_quote! { fn #fn_ident( #(#fixture_params,)* #(#example_params),* ) }
+        syn::parse_quote! { fn #fn_ident(#params) }
     }
 }
 
