@@ -142,7 +142,20 @@ fn compute_rust_diagnostics(
         .collect()
 }
 
-#[expect(clippy::expect_used, reason = "test uses expect for clarity")]
+/// Helper to assert a single diagnostic with an expected message substring.
+#[expect(clippy::expect_used, reason = "test helper uses expect for clarity")]
+fn assert_single_diagnostic_contains(diagnostics: &[lsp_types::Diagnostic], expected_substring: &str) {
+    assert_eq!(diagnostics.len(), 1, "expected exactly one diagnostic");
+    assert!(
+        diagnostics
+            .first()
+            .expect("one diagnostic")
+            .message
+            .contains(expected_substring),
+        "diagnostic message should contain '{expected_substring}'"
+    );
+}
+
 #[test]
 fn feature_with_unimplemented_steps_reports_diagnostics() {
     let (dir, state) = DiagnosticsTestScenario::new()
@@ -166,14 +179,7 @@ fn feature_with_unimplemented_steps_reports_diagnostics() {
 
     let diagnostics = compute_feature_diagnostics(&state, &dir, "test.feature");
 
-    assert_eq!(diagnostics.len(), 1);
-    assert!(
-        diagnostics
-            .first()
-            .expect("one diagnostic")
-            .message
-            .contains("an unimplemented step")
-    );
+    assert_single_diagnostic_contains(&diagnostics, "an unimplemented step");
 }
 
 #[test]
@@ -208,7 +214,6 @@ fn feature_with_all_steps_implemented_reports_no_diagnostics() {
     assert!(diagnostics.is_empty());
 }
 
-#[expect(clippy::expect_used, reason = "test uses expect for clarity")]
 #[test]
 fn rust_file_with_unused_definitions_reports_diagnostics() {
     let (dir, state) = DiagnosticsTestScenario::new()
@@ -230,14 +235,7 @@ fn rust_file_with_unused_definitions_reports_diagnostics() {
 
     let diagnostics = compute_rust_diagnostics(&state, &dir, "steps.rs");
 
-    assert_eq!(diagnostics.len(), 1);
-    assert!(
-        diagnostics
-            .first()
-            .expect("one diagnostic")
-            .message
-            .contains("unused step")
-    );
+    assert_single_diagnostic_contains(&diagnostics, "unused step");
 }
 
 #[test]
