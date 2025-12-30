@@ -1,8 +1,9 @@
 //! Parses arguments supplied to the `scenarios!` macro.
 //!
 //! Accepts either a positional directory literal or the `dir = "..."` and
-//! `path = "..."` named arguments alongside an optional `tags = "..."` filter
-//! and an optional `fixtures = [name: Type, ...]` list.
+//! `path = "..."` named arguments alongside an optional `tags = "..."` filter,
+//! an optional `fixtures = [name: Type, ...]` list, and an optional
+//! `runtime = "..."` mode selection.
 //! The parser enforces that each input appears at most once, mirroring both
 //! accepted spellings in duplicate and missing-argument diagnostics so users
 //! immediately see which synonym needs adjusting.
@@ -11,6 +12,23 @@ use syn::LitStr;
 use syn::parse::{Parse, ParseStream};
 use syn::punctuated::Punctuated;
 use syn::token::Comma;
+
+/// Runtime mode for scenario test execution.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(crate) enum RuntimeMode {
+    /// Synchronous execution (default).
+    #[default]
+    Sync,
+    /// Tokio current-thread runtime (`#[tokio::test(flavor = "current_thread")]`).
+    TokioCurrentThread,
+}
+
+impl RuntimeMode {
+    /// Returns `true` if this mode requires async test generation.
+    pub fn is_async(self) -> bool {
+        matches!(self, Self::TokioCurrentThread)
+    }
+}
 
 /// A single fixture specification: `name: Type`.
 #[derive(Clone, Debug)]
@@ -32,12 +50,14 @@ pub(super) struct ScenariosArgs {
     pub(super) dir: LitStr,
     pub(super) tag_filter: Option<LitStr>,
     pub(super) fixtures: Vec<FixtureSpec>,
+    pub(super) runtime: RuntimeMode,
 }
 
 enum ScenariosArg {
     Dir(LitStr),
     Tags(LitStr),
     Fixtures(Vec<FixtureSpec>),
+    Runtime(RuntimeMode),
 }
 
 impl Parse for ScenariosArg {
@@ -56,8 +76,23 @@ impl Parse for ScenariosArg {
                 syn::bracketed!(content in input);
                 let specs = Punctuated::<FixtureSpec, Comma>::parse_terminated(&content)?;
                 Ok(Self::Fixtures(specs.into_iter().collect()))
+            } else if ident == "runtime" {
+                let value: LitStr = input.parse()?;
+                let mode = match value.value().as_str() {
+                    "tokio-current-thread" => RuntimeMode::TokioCurrentThread,
+                    other => {
+                        return Err(syn::Error::new(
+                            value.span(),
+                            format!(
+                                "unknown runtime `{other}`; \
+                                 supported: \"tokio-current-thread\""
+                            ),
+                        ));
+                    }
+                };
+                Ok(Self::Runtime(mode))
             } else {
-                Err(input.error("expected `dir`, `path`, `tags`, or `fixtures`"))
+                Err(input.error("expected `dir`, `path`, `tags`, `fixtures`, or `runtime`"))
             }
         }
     }
@@ -69,6 +104,7 @@ impl Parse for ScenariosArgs {
         let mut dir = None;
         let mut tag_filter = None;
         let mut fixtures = None;
+        let mut runtime = None;
 
         for arg in args {
             match arg {
@@ -90,6 +126,12 @@ impl Parse for ScenariosArgs {
                     }
                     fixtures = Some(specs);
                 }
+                ScenariosArg::Runtime(mode) => {
+                    if runtime.is_some() {
+                        return Err(input.error("duplicate `runtime` argument"));
+                    }
+                    runtime = Some(mode);
+                }
             }
         }
 
@@ -99,6 +141,7 @@ impl Parse for ScenariosArgs {
             dir,
             tag_filter,
             fixtures: fixtures.unwrap_or_default(),
+            runtime: runtime.unwrap_or_default(),
         })
     }
 }
@@ -110,7 +153,7 @@ impl Parse for ScenariosArgs {
     reason = "test code uses infallible unwraps and indexed access for clarity"
 )]
 mod tests {
-    use super::{FixtureSpec, ScenariosArgs};
+    use super::{FixtureSpec, RuntimeMode, ScenariosArgs};
     use quote::quote;
     use syn::parse_quote;
 
@@ -309,5 +352,57 @@ mod tests {
         ))
         .unwrap();
         assert_eq!(args.fixtures.len(), 1);
+    }
+
+    // Tests for runtime argument parsing
+
+    #[test]
+    fn scenarios_args_defaults_to_sync_runtime() {
+        let args: ScenariosArgs = parse_scenarios_args(parse_quote!("tests/features")).unwrap();
+        assert_eq!(args.runtime, RuntimeMode::Sync);
+        assert!(!args.runtime.is_async());
+    }
+
+    #[test]
+    fn scenarios_args_parses_runtime_tokio_current_thread() {
+        let args: ScenariosArgs = parse_scenarios_args(parse_quote!(
+            "tests/features",
+            runtime = "tokio-current-thread"
+        ))
+        .unwrap();
+        assert_eq!(args.runtime, RuntimeMode::TokioCurrentThread);
+        assert!(args.runtime.is_async());
+    }
+
+    #[test]
+    fn scenarios_args_parses_runtime_with_other_arguments() {
+        let args: ScenariosArgs = parse_scenarios_args(parse_quote!(
+            "tests/features",
+            tags = "@async",
+            runtime = "tokio-current-thread",
+            fixtures = [world: TestWorld]
+        ))
+        .unwrap();
+        assert_eq!(args.dir.value(), "tests/features");
+        assert_eq!(args.tag_filter.as_ref().unwrap().value(), "@async");
+        assert_eq!(args.runtime, RuntimeMode::TokioCurrentThread);
+        assert_eq!(args.fixtures.len(), 1);
+    }
+
+    #[test]
+    fn scenarios_args_rejects_unknown_runtime() {
+        let result =
+            parse_scenarios_args(parse_quote!("tests/features", runtime = "unknown-runtime"));
+        assert_parse_error_contains(result, "unknown runtime");
+    }
+
+    #[test]
+    fn scenarios_args_rejects_duplicate_runtime() {
+        let result = parse_scenarios_args(parse_quote!(
+            "tests/features",
+            runtime = "tokio-current-thread",
+            runtime = "tokio-current-thread"
+        ));
+        assert_parse_error_contains(result, "duplicate");
     }
 }

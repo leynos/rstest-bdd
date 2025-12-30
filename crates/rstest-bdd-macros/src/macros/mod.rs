@@ -7,7 +7,7 @@ use syn::parse_quote;
 
 mod given;
 mod scenario;
-mod scenarios;
+pub(crate) mod scenarios;
 mod then;
 mod when;
 

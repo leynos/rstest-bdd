@@ -22,6 +22,8 @@ pub(crate) struct ScenarioMetadata<'a> {
     pub(crate) tags: &'a [String],
     pub(crate) block: &'a syn::Block,
     pub(crate) allow_skipped: bool,
+    /// Whether to generate async step execution code.
+    pub(crate) is_async: bool,
 }
 
 impl<'a> ScenarioMetadata<'a> {

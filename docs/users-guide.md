@@ -736,6 +736,87 @@ The macro adds `#[expect(unused_variables)]` to generated test functions when
 fixtures are present, preventing lint warnings since fixture parameters are
 consumed via `StepContext` rather than referenced directly in the test body.
 
+## Async scenario execution
+
+Scenarios can run asynchronously under Tokio's current-thread runtime. This
+enables test code to `.await` async operations while preserving the
+`RefCell`-backed fixture model for mutable borrows across await points.
+
+### Using `#[scenario]` with async
+
+Declare the test function as `async fn` and add `#[tokio::test]` before the
+`#[scenario]` attribute. The macro detects the async signature and generates
+an async step executor:
+
+```rust,no_run
+use rstest_bdd_macros::{given, scenario, then, when};
+use rstest::fixture;
+
+#[derive(Default)]
+struct Counter {
+    value: i32,
+}
+
+#[fixture]
+fn counter() -> Counter {
+    Counter::default()
+}
+
+#[given("a counter initialised to 0")]
+fn init(counter: &mut Counter) {
+    counter.value = 0;
+}
+
+#[when("the counter is incremented")]
+fn increment(counter: &mut Counter) {
+    counter.value += 1;
+}
+
+#[then(expr = "the counter value is {n}")]
+fn check_value(counter: &Counter, n: i32) {
+    assert_eq!(counter.value, n);
+}
+
+#[scenario(path = "tests/features/counter.feature", name = "Increment counter")]
+#[tokio::test]
+async fn increment_counter(counter: Counter) {}
+```
+
+The macro generates `#[rstest::rstest]` without duplicating `#[tokio::test]`
+when the user already supplies it.
+
+### Using `scenarios!` with async
+
+The `scenarios!` macro accepts a `runtime` argument to generate async tests for
+all discovered scenarios:
+
+```rust,no_run
+use rstest_bdd_macros::{given, then, when, scenarios};
+
+#[given("a precondition")] fn precondition() {}
+#[when("an action occurs")] fn action() {}
+#[then("events are recorded")] fn events() {}
+
+scenarios!("tests/features/auto", runtime = "tokio-current-thread");
+```
+
+When `runtime = "tokio-current-thread"` is specified:
+
+- Generated test functions are `async fn`.
+- Each test is annotated with `#[tokio::test(flavor = "current_thread")]`.
+- Steps execute sequentially within the single-threaded Tokio runtime.
+
+### Current limitations
+
+- **Sync step definitions only:** The async executor currently calls the sync
+  `run` handler directly rather than `run_async`. This avoids HRTB lifetime
+  issues but means steps cannot `.await` internally. True async step
+  definitions (with `async fn` bodies) are planned for a future release.
+- **Current-thread mode only:** Multi-threaded Tokio mode would require `Send`
+  futures, which conflicts with the `RefCell`-based fixture storage. See
+  [ADR-001](adr-001-async-fixtures-and-test.md) for the full design rationale.
+- **No `async_std` runtime:** Only Tokio is supported at present.
+
 ## Running and maintaining tests
 
 Once feature files and step definitions are in place, scenarios run via the
