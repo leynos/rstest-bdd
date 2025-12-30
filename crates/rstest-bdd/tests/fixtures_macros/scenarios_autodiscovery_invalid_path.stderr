@@ -1,0 +1,7 @@
+error: failed to read directory `$WORKSPACE/target/tests/trybuild/rstest-bdd/tests/features/nonexistent_auto`: directory not found
+ --> tests/fixtures_macros/scenarios_autodiscovery_invalid_path.rs:6:1
+  |
+6 | scenarios!("tests/features/nonexistent_auto");
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  |
+  = note: this error originates in the macro `scenarios` (in Nightly builds, run with -Z macro-backtrace for more info)
