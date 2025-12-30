@@ -68,7 +68,15 @@ fn collect_ordered_arguments_preserves_call_order() {
         .map(std::string::ToString::to_string)
         .collect();
 
-    assert_eq!(names, ["db", "count", "table", "doc"]);
+    assert_eq!(
+        names,
+        [
+            "rstest_bdd_arg_0",
+            "rstest_bdd_arg_1",
+            "rstest_bdd_arg_2",
+            "rstest_bdd_arg_3"
+        ]
+    );
 }
 
 #[test]
@@ -102,7 +110,16 @@ fn gen_fixture_decls_handles_reference_types() {
     ];
     let ident: syn::Ident = parse_quote!(step_fn);
     let ctx_ident = format_ident!("__rstest_bdd_ctx");
-    let fixture_refs: Vec<_> = fixtures.iter().collect();
+    let bindings: Vec<_> = fixtures
+        .iter()
+        .enumerate()
+        .map(|(idx, _)| wrapper_binding_ident(idx))
+        .collect();
+    let fixture_refs: Vec<_> = fixtures
+        .iter()
+        .zip(bindings.iter())
+        .map(|(arg, binding)| BoundArg { arg, binding })
+        .collect();
     let tokens = gen_fixture_decls(&fixture_refs, &ident, &ctx_ident);
     let [owned, str_ref, bytes_ref, mut_ref, cell_ref] = tokens.as_slice() else {
         panic!("expected five fixture declarations");
@@ -126,6 +143,39 @@ fn gen_fixture_decls_handles_reference_types() {
     let cell_code = cell_ref.to_string();
     assert!(!cell_code.contains("cloned"));
     assert!(!cell_code.contains("copied"));
+}
+
+#[test]
+fn wrapper_bindings_avoid_leading_underscores() {
+    let fixture = Arg::Fixture {
+        pat: parse_quote!(_state),
+        name: parse_quote!(state),
+        ty: parse_quote!(String),
+    };
+    let binding = wrapper_binding_ident(0);
+    let ident: syn::Ident = parse_quote!(step_fn);
+    let ctx_ident = format_ident!("__rstest_bdd_ctx");
+    let tokens = gen_fixture_decls(
+        &[BoundArg {
+            arg: &fixture,
+            binding: &binding,
+        }],
+        &ident,
+        &ctx_ident,
+    );
+
+    let Some(code) = tokens.first() else {
+        panic!("expected fixture declaration");
+    };
+    let code = code.to_string();
+    assert!(
+        code.contains("rstest_bdd_arg_0"),
+        "wrapper binding should avoid underscore prefix: {code}"
+    );
+    assert!(
+        !code.contains("_state"),
+        "fixture binding should not reuse the underscore identifier: {code}"
+    );
 }
 
 #[test]
@@ -199,7 +249,17 @@ fn gen_step_parses_handles_mixed_str_and_parsed_types() {
         pat: parse_quote!(count),
         ty: parse_quote!(usize),
     };
-    let args = vec![&str_arg, &usize_arg];
+    let bindings = [wrapper_binding_ident(0), wrapper_binding_ident(1)];
+    let args = vec![
+        BoundArg {
+            arg: &str_arg,
+            binding: &bindings[0],
+        },
+        BoundArg {
+            arg: &usize_arg,
+            binding: &bindings[1],
+        },
+    ];
     let captures = vec![
         quote! { captures.get(0).map(|m| m.as_str()) },
         quote! { captures.get(1).map(|m| m.as_str()) },
@@ -273,7 +333,17 @@ fn gen_step_parses_applies_hints_only_to_matching_arguments() {
         pat: parse_quote!(count),
         ty: parse_quote!(usize),
     };
-    let args = vec![&name_arg, &count_arg];
+    let bindings = [wrapper_binding_ident(0), wrapper_binding_ident(1)];
+    let args = vec![
+        BoundArg {
+            arg: &name_arg,
+            binding: &bindings[0],
+        },
+        BoundArg {
+            arg: &count_arg,
+            binding: &bindings[1],
+        },
+    ];
     let captures = vec![
         quote! { captures.get(0).map(|m| m.as_str()) },
         quote! { captures.get(1).map(|m| m.as_str()) },

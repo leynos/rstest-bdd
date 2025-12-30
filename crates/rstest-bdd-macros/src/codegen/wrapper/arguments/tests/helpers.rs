@@ -29,7 +29,11 @@ pub fn generate_step_parse_with_hint(ty: syn::Type, hint: Option<String>) -> Str
         pat: parse_quote!(name),
         ty,
     };
-    let args = vec![&arg];
+    let binding = wrapper_binding_ident(0);
+    let args = vec![BoundArg {
+        arg: &arg,
+        binding: &binding,
+    }];
     let captures = vec![quote! { captures.get(0).map(|m| m.as_str()) }];
     let hints = vec![hint];
 

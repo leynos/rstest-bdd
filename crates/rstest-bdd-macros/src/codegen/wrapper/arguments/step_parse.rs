@@ -15,8 +15,10 @@ struct BindingContext<'a> {
     raw_ident: &'a proc_macro2::Ident,
     /// Token stream representing the capture expression.
     capture: &'a TokenStream2,
-    /// Pattern for the argument variable.
-    pat: &'a syn::Ident,
+    /// Wrapper-local binding for the argument variable.
+    binding: &'a syn::Ident,
+    /// Original argument name for diagnostics.
+    display_pat: &'a syn::Ident,
     /// Type of the argument.
     ty: &'a syn::Type,
 }
@@ -73,7 +75,10 @@ fn gen_quote_strip(raw_ident: &proc_macro2::Ident, malformed_err: &TokenStream2)
 fn gen_parse_err(meta: StepMeta<'_>, binding: &BindingContext<'_>) -> TokenStream2 {
     let StepMeta { pattern, ident } = meta;
     let BindingContext {
-        raw_ident, pat, ty, ..
+        raw_ident,
+        display_pat,
+        ty,
+        ..
     } = binding;
     step_error_tokens(
         &format_ident!("ExecutionError"),
@@ -82,7 +87,7 @@ fn gen_parse_err(meta: StepMeta<'_>, binding: &BindingContext<'_>) -> TokenStrea
         &quote! {
             format!(
                 "failed to parse argument '{}' of type '{}' from pattern '{}' with captured value: '{:?}'",
-                stringify!(#pat),
+                stringify!(#display_pat),
                 stringify!(#ty),
                 #pattern,
                 #raw_ident,
@@ -101,8 +106,9 @@ fn gen_str_reference_binding(
     let BindingContext {
         raw_ident,
         capture,
-        pat,
+        binding,
         ty,
+        ..
     } = binding;
     let CodeTokens {
         quote_strip,
@@ -111,7 +117,7 @@ fn gen_str_reference_binding(
     quote! {
         let #raw_ident: &str = #capture.ok_or_else(|| #missing_cap_err)?;
         #quote_strip
-        let #pat: #ty = #raw_ident;
+        let #binding: #ty = #raw_ident;
     }
 }
 
@@ -126,8 +132,9 @@ fn gen_parsed_type_binding(
     let BindingContext {
         raw_ident,
         capture,
-        pat,
+        binding,
         ty,
+        ..
     } = binding;
     let CodeTokens {
         quote_strip,
@@ -136,7 +143,7 @@ fn gen_parsed_type_binding(
     quote! {
         let #raw_ident = #capture.ok_or_else(|| #missing_cap_err)?;
         #quote_strip
-        let #pat: #ty = (#raw_ident).parse().map_err(|_| #parse_err)?;
+        let #binding: #ty = (#raw_ident).parse().map_err(|_| #parse_err)?;
     }
 }
 
@@ -145,6 +152,8 @@ fn gen_parsed_type_binding(
 pub(super) struct ArgParseContext<'a> {
     /// The argument being parsed.
     pub(super) arg: &'a Arg,
+    /// Wrapper-local binding name for the argument.
+    pub(super) binding: &'a syn::Ident,
     /// Index of this argument in the capture list.
     pub(super) idx: usize,
     /// Token stream representing the capture expression.
@@ -165,6 +174,7 @@ pub(super) struct ArgParseContext<'a> {
 pub(super) fn gen_single_step_parse(ctx: ArgParseContext<'_>, meta: StepMeta<'_>) -> TokenStream2 {
     let ArgParseContext {
         arg,
+        binding,
         idx,
         capture,
         hint,
@@ -214,7 +224,8 @@ pub(super) fn gen_single_step_parse(ctx: ArgParseContext<'_>, meta: StepMeta<'_>
     let binding = BindingContext {
         raw_ident: &raw_ident,
         capture,
-        pat,
+        binding,
+        display_pat: pat,
         ty,
     };
     let tokens = CodeTokens {

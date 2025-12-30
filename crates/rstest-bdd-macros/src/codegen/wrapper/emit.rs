@@ -76,7 +76,7 @@ fn generate_async_wrapper_from_sync(
 struct WrapperAssembly<'a> {
     meta: StepMeta<'a>,
     prepared: PreparedArgs,
-    arg_idents: Vec<&'a syn::Ident>,
+    arg_idents: Vec<syn::Ident>,
     capture_count: usize,
     return_kind: ReturnKind,
 }

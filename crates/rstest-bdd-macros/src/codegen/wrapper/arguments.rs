@@ -1,6 +1,6 @@
 //! Argument code generation utilities shared by wrapper emission logic.
 
-use super::args::{Arg, DocStringArg, StepStructArg};
+use super::args::{Arg, DataTableArg, DocStringArg, StepStructArg};
 use proc_macro2::TokenStream as TokenStream2;
 use quote::{format_ident, quote};
 
@@ -23,6 +23,42 @@ pub(super) struct PreparedArgs {
     pub(super) step_struct_decl: Option<TokenStream2>,
     pub(super) datatable_decl: Option<TokenStream2>,
     pub(super) docstring_decl: Option<TokenStream2>,
+}
+
+/// Wrapper-local argument bindings avoid leading underscores to keep Clippy happy.
+#[derive(Copy, Clone)]
+struct BoundArg<'a> {
+    arg: &'a Arg,
+    binding: &'a syn::Ident,
+}
+
+#[derive(Copy, Clone)]
+struct BoundStepStructArg<'a> {
+    arg: StepStructArg<'a>,
+    binding: &'a syn::Ident,
+}
+
+#[derive(Copy, Clone)]
+struct BoundDataTableArg<'a> {
+    arg: DataTableArg<'a>,
+    binding: &'a syn::Ident,
+}
+
+#[derive(Copy, Clone)]
+struct BoundDocStringArg<'a> {
+    arg: DocStringArg<'a>,
+    binding: &'a syn::Ident,
+}
+
+fn wrapper_binding_ident(index: usize) -> syn::Ident {
+    format_ident!("rstest_bdd_arg_{index}")
+}
+
+fn wrapper_binding_idents(args: &[Arg]) -> Vec<syn::Ident> {
+    args.iter()
+        .enumerate()
+        .map(|(idx, _)| wrapper_binding_ident(idx))
+        .collect()
 }
 
 /// Check if a type is a reference to str (i.e., `&str` or `&'a str`).
@@ -100,7 +136,7 @@ where
 ///
 /// Step functions require an owned `String`, so the wrapper copies the block.
 pub(super) fn gen_docstring_decl(
-    docstring: Option<DocStringArg<'_>>,
+    docstring: Option<BoundDocStringArg<'_>>,
     pattern: &syn::LitStr,
     ident: &syn::Ident,
 ) -> Option<TokenStream2> {
@@ -108,8 +144,8 @@ pub(super) fn gen_docstring_decl(
         docstring,
         StepMeta { pattern, ident },
         "requires a doc string",
-        |arg: DocStringArg<'_>| {
-            let pat = arg.pat.clone();
+        |arg: BoundDocStringArg<'_>| {
+            let pat = arg.binding.clone();
             let ty = quote! { String };
             let expr = quote! { _docstring.map(|s| s.to_owned()) };
             (pat, ty, expr)
@@ -212,7 +248,7 @@ struct PlaceholderInfo<'a> {
 }
 
 fn gen_step_struct_decl(
-    step_struct: Option<StepStructArg<'_>>,
+    step_struct: Option<BoundStepStructArg<'_>>,
     placeholders: &PlaceholderInfo<'_>,
     meta: StepMeta<'_>,
 ) -> Option<TokenStream2> {
@@ -223,7 +259,8 @@ fn gen_step_struct_decl(
     } = placeholders;
     let capture_count = names.len();
     step_struct.map(|arg| {
-        let StepStructArg { pat, ty } = arg;
+        let StepStructArg { pat, ty } = arg.arg;
+        let binding = arg.binding;
         let values_ident = format_ident!("__rstest_bdd_struct_values");
         let StepMeta { pattern, ident } = meta;
         let missing_errs = generate_missing_capture_errors(names, pattern, ident, pat);
@@ -252,7 +289,7 @@ fn gen_step_struct_decl(
         quote! {
             let mut #values_ident = Vec::with_capacity(#capture_count);
             #(#capture_inits)*
-            let #pat: #ty = ::std::convert::TryFrom::try_from(#values_ident)
+            let #binding: #ty = ::std::convert::TryFrom::try_from(#values_ident)
                 .map_err(|error| #convert_err)?;
         }
     })
@@ -267,7 +304,7 @@ fn gen_step_struct_decl(
 /// When a placeholder has the `:string` type hint, the surrounding quotes are
 /// stripped from the captured value before assignment or parsing.
 pub(super) fn gen_step_parses(
-    step_args: &[&Arg],
+    step_args: &[BoundArg<'_>],
     captured: &[TokenStream2],
     hints: &[Option<String>],
     meta: StepMeta<'_>,
@@ -278,7 +315,8 @@ pub(super) fn gen_step_parses(
         .map(|(arg, (idx, capture))| {
             let hint = hints.get(idx).and_then(|h| h.as_deref());
             let ctx = ArgParseContext {
-                arg,
+                arg: arg.arg,
+                binding: arg.binding,
                 idx,
                 capture,
                 hint,
@@ -298,19 +336,36 @@ pub(super) fn prepare_argument_processing(
     datatable_idents: Option<(&proc_macro2::Ident, &proc_macro2::Ident)>,
 ) -> PreparedArgs {
     let StepMeta { pattern, ident } = step_meta;
+    let binding_idents = wrapper_binding_idents(args);
     let mut fixtures = Vec::new();
     let mut step_args = Vec::new();
-    let mut step_struct: Option<&Arg> = None;
-    let mut datatable: Option<&Arg> = None;
-    let mut docstring: Option<&Arg> = None;
+    let mut step_struct: Option<BoundStepStructArg<'_>> = None;
+    let mut datatable: Option<BoundDataTableArg<'_>> = None;
+    let mut docstring: Option<BoundDocStringArg<'_>> = None;
 
-    for arg in args {
+    for (idx, arg) in args.iter().enumerate() {
+        let binding = &binding_idents[idx];
         match arg {
-            Arg::Fixture { .. } => fixtures.push(arg),
-            Arg::Step { .. } => step_args.push(arg),
-            Arg::StepStruct { .. } => step_struct = Some(arg),
-            Arg::DataTable { .. } => datatable = Some(arg),
-            Arg::DocString { .. } => docstring = Some(arg),
+            Arg::Fixture { .. } => fixtures.push(BoundArg { arg, binding }),
+            Arg::Step { .. } => step_args.push(BoundArg { arg, binding }),
+            Arg::StepStruct { pat, ty } => {
+                step_struct = Some(BoundStepStructArg {
+                    arg: StepStructArg { pat, ty },
+                    binding,
+                })
+            }
+            Arg::DataTable { pat, ty } => {
+                datatable = Some(BoundDataTableArg {
+                    arg: DataTableArg { pat, ty },
+                    binding,
+                })
+            }
+            Arg::DocString { pat } => {
+                docstring = Some(BoundDocStringArg {
+                    arg: DocStringArg { pat },
+                    binding,
+                })
+            }
         }
     }
 
@@ -343,7 +398,7 @@ pub(super) fn prepare_argument_processing(
         gen_step_parses(&step_args, capture_slice, hint_slice, step_meta)
     };
     let step_struct_decl = gen_step_struct_decl(
-        step_struct.and_then(Arg::as_step_struct),
+        step_struct,
         &PlaceholderInfo {
             captures: &all_captures,
             names: placeholder_names,
@@ -351,7 +406,7 @@ pub(super) fn prepare_argument_processing(
         },
         step_meta,
     );
-    let datatable_decl = match (datatable.and_then(Arg::as_datatable), datatable_idents) {
+    let datatable_decl = match (datatable, datatable_idents) {
         (Some(dt), Some((key_ident, cache_ident))) => {
             let cache_idents = CacheIdents {
                 key: key_ident,
@@ -361,7 +416,7 @@ pub(super) fn prepare_argument_processing(
         }
         _ => None,
     };
-    let docstring_decl = gen_docstring_decl(docstring.and_then(Arg::as_docstring), pattern, ident);
+    let docstring_decl = gen_docstring_decl(docstring, pattern, ident);
     PreparedArgs {
         declares,
         step_arg_parses,
@@ -371,9 +426,9 @@ pub(super) fn prepare_argument_processing(
     }
 }
 
-/// Collect argument identifiers in the order declared by the step function.
-pub(super) fn collect_ordered_arguments(args: &[Arg]) -> Vec<&syn::Ident> {
-    args.iter().map(Arg::pat).collect()
+/// Collect wrapper-local argument bindings in the order declared by the step function.
+pub(super) fn collect_ordered_arguments(args: &[Arg]) -> Vec<syn::Ident> {
+    wrapper_binding_idents(args)
 }
 
 #[cfg(test)]
