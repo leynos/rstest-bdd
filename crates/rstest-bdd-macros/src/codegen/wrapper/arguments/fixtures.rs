@@ -2,8 +2,8 @@
 use proc_macro2::TokenStream as TokenStream2;
 use quote::format_ident;
 
-use super::{BoundArg};
 use super::super::args::Arg;
+use super::BoundArg;
 use crate::codegen::rstest_bdd_path;
 
 /// Context for generating fixture declarations in step wrappers.

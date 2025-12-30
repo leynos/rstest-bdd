@@ -14,8 +14,8 @@
 //!   for the key type and the cache `OnceLock<HashMap<...>>`, so we can
 //!   reference them while generating argument initialisation code.
 
-use super::{BoundDataTableArg};
 use super::super::args::{DataTableArg, classify::is_cached_table};
+use super::BoundDataTableArg;
 use super::{StepMeta, step_error_tokens};
 use crate::codegen::wrapper::datatable_shared::{
     record_cache_miss_tokens, table_arc_tokens, table_content_match_tokens,
@@ -210,7 +210,7 @@ pub(super) fn gen_datatable_decl(
     cache_idents: &CacheIdents<'_>,
 ) -> Option<TokenStream2> {
     datatable.map(|arg| {
-        let DataTableArg { pat: _, ty } = arg.arg;
+        let DataTableArg { ty } = arg.arg;
         let binding = arg.binding;
         let body = gen_datatable_body(is_cached_table(ty), step_meta, cache_idents);
         quote::quote! {

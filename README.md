@@ -221,8 +221,8 @@ Implicit fixtures such as `basket` must already be in scope in the test module;
 
 ### cucumber-rs migration
 
-For easier migration from cucumber-rs, step macros also accept the `expr = "..."`
-syntax:
+For easier migration from cucumber-rs, step macros also accept the
+`expr = "..."` syntax:
 
 ```rust,no_run
 use rstest_bdd::{given, when, then};

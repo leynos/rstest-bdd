@@ -1,5 +1,6 @@
 //! Test helper functions for argument preparation tests.
 
+use super::super::bindings;
 use super::super::*;
 use crate::codegen::wrapper::args::Arg;
 use quote::quote;
@@ -29,7 +30,7 @@ pub fn generate_step_parse_with_hint(ty: syn::Type, hint: Option<String>) -> Str
         pat: parse_quote!(name),
         ty,
     };
-    let binding = wrapper_binding_ident(0);
+    let binding = bindings::wrapper_binding_ident(0);
     let args = vec![BoundArg {
         arg: &arg,
         binding: &binding,

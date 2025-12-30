@@ -55,13 +55,7 @@ pub struct StepStructArg<'a> {
 
 #[derive(Clone, Copy)]
 pub struct DataTableArg<'a> {
-    pub pat: &'a syn::Ident,
     pub ty: &'a syn::Type,
-}
-
-#[derive(Clone, Copy)]
-pub struct DocStringArg<'a> {
-    pub pat: &'a syn::Ident,
 }
 
 #[expect(
@@ -69,17 +63,6 @@ pub struct DocStringArg<'a> {
     reason = "enum variant paths remain explicit in match arms"
 )]
 impl Arg {
-    /// Identifier bound in the user function signature.
-    pub fn pat(&self) -> &syn::Ident {
-        match self {
-            Arg::Fixture { pat, .. }
-            | Arg::Step { pat, .. }
-            | Arg::StepStruct { pat, .. }
-            | Arg::DataTable { pat, .. }
-            | Arg::DocString { pat } => pat,
-        }
-    }
-
     pub fn as_step_struct(&self) -> Option<StepStructArg<'_>> {
         match self {
             Arg::StepStruct { pat, ty } => Some(StepStructArg { pat, ty }),
@@ -89,14 +72,7 @@ impl Arg {
 
     pub fn as_datatable(&self) -> Option<DataTableArg<'_>> {
         match self {
-            Arg::DataTable { pat, ty } => Some(DataTableArg { pat, ty }),
-            _ => None,
-        }
-    }
-
-    pub fn as_docstring(&self) -> Option<DocStringArg<'_>> {
-        match self {
-            Arg::DocString { pat } => Some(DocStringArg { pat }),
+            Arg::DataTable { ty, .. } => Some(DataTableArg { ty }),
             _ => None,
         }
     }
