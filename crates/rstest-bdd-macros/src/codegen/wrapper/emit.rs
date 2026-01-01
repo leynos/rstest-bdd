@@ -81,6 +81,33 @@ struct WrapperIdents {
     /// Identifier for the step pattern constant.
     pattern_ident: proc_macro2::Ident,
 }
+/// Reset the wrapper counter to zero for deterministic test output.
+///
+/// This function is only available in test builds and should be called
+/// at the start of tests that require predictable wrapper identifier
+/// generation.
+///
+/// # Example
+///
+/// ```ignore
+/// #[test]
+/// fn wrapper_identifiers_are_deterministic() {
+///     // Reset before generating wrappers to ensure IDs start from 0.
+///     reset_wrapper_counter_for_tests();
+///
+///     let code = generate_wrapper_code(&config);
+///     // First wrapper gets ID 0: `__rstest_bdd_wrapper_my_step_0`
+///     assert!(code.to_string().contains("__rstest_bdd_wrapper_my_step_0"));
+/// }
+/// ```
+#[cfg(test)]
+#[expect(
+    dead_code,
+    reason = "FIXME: https://github.com/leynos/rstest-bdd/issues/59 – utility for future golden tests"
+)]
+pub(crate) fn reset_wrapper_counter_for_tests() {
+    COUNTER.store(0, Ordering::SeqCst);
+}
 
 /// Generate unique identifiers for the wrapper components.
 ///
