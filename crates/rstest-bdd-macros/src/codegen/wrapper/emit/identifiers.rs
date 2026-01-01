@@ -39,52 +39,13 @@ pub(in crate::codegen::wrapper::emit) struct WrapperIdents {
 /// - The `#[serial]` attribute from the `serial_test` crate
 /// - The `--test-threads=1` flag when running tests
 /// - A shared mutex guard to coordinate access
-///
-/// # Example
-///
-/// ```ignore
-/// use super::__rstest_bdd_reset_wrapper_counter_for_tests;
-///
-/// #[test]
-/// #[serial]
-/// fn deterministic_wrapper_ids() {
-///     __rstest_bdd_reset_wrapper_counter_for_tests();
-///     // Wrapper identifiers now start from 0
-/// }
-/// ```
+// FIXME: https://github.com/leynos/rstest-bdd/issues/59 – utility for future golden tests
 #[cfg(test)]
-pub(crate) fn __rstest_bdd_reset_wrapper_counter_for_tests() {
+#[expect(dead_code, reason = "reserved for future golden tests (issue #59)")]
+pub(crate) fn reset_wrapper_counter_for_tests() {
     // Use SeqCst ordering (rather than Relaxed used in production) to ensure
     // the reset is immediately visible to all threads. This is appropriate for
     // test setup where correctness matters more than performance.
-    COUNTER.store(0, Ordering::SeqCst);
-}
-
-/// Reset the wrapper counter to zero for deterministic test output.
-///
-/// This function is only available in test builds and should be called
-/// at the start of tests that require predictable wrapper identifier
-/// generation.
-///
-/// # Example
-///
-/// ```ignore
-/// #[test]
-/// fn wrapper_identifiers_are_deterministic() {
-///     // Reset before generating wrappers to ensure IDs start from 0.
-///     reset_wrapper_counter_for_tests();
-///
-///     let code = generate_wrapper_code(&config);
-///     // First wrapper gets ID 0: `__rstest_bdd_wrapper_my_step_0`
-///     assert!(code.to_string().contains("__rstest_bdd_wrapper_my_step_0"));
-/// }
-/// ```
-#[cfg(test)]
-#[expect(
-    dead_code,
-    reason = "FIXME: https://github.com/leynos/rstest-bdd/issues/59 – utility for future golden tests"
-)]
-pub(crate) fn reset_wrapper_counter_for_tests() {
     COUNTER.store(0, Ordering::SeqCst);
 }
 
