@@ -37,8 +37,33 @@ static COUNTER: AtomicUsize = AtomicUsize::new(0);
 /// This function is intended **only for test code** to ensure deterministic
 /// identifier generation across test runs. Production code must never call
 /// this function.
+///
+/// # Thread Safety
+///
+/// Rust tests run in parallel by default. Tests that call this function must
+/// be serialised to avoid non-deterministic identifier generation. Use one of:
+///
+/// - The `#[serial]` attribute from the `serial_test` crate
+/// - The `--test-threads=1` flag when running tests
+/// - A shared mutex guard to coordinate access
+///
+/// # Example
+///
+/// ```ignore
+/// use super::__rstest_bdd_reset_wrapper_counter_for_tests;
+///
+/// #[test]
+/// #[serial]
+/// fn deterministic_wrapper_ids() {
+///     __rstest_bdd_reset_wrapper_counter_for_tests();
+///     // Wrapper identifiers now start from 0
+/// }
+/// ```
 #[cfg(test)]
 pub(crate) fn __rstest_bdd_reset_wrapper_counter_for_tests() {
+    // Use SeqCst ordering (rather than Relaxed used in production) to ensure
+    // the reset is immediately visible to all threads. This is appropriate for
+    // test setup where correctness matters more than performance.
     COUNTER.store(0, Ordering::SeqCst);
 }
 
