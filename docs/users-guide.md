@@ -708,8 +708,33 @@ union of feature, scenario, and example tags described above. Scenarios that do
 not match simply do not generate a test, and outline examples drop unmatched
 rows.
 
-Generated tests cannot currently accept fixtures; use `#[scenario]` when
-fixture injection or custom assertions are required.
+### Fixture injection with `scenarios!`
+
+The `fixtures = [name: Type, ...]` parameter injects fixtures into all
+generated scenario tests. Fixtures are bound via rstest and inserted into the
+step context, making them available to step functions that declare the
+corresponding parameter.
+
+```rust,no_run
+use rstest::fixture;
+use rstest_bdd_macros::{given, scenarios};
+
+struct TestWorld { value: i32 }
+
+#[fixture]
+fn world() -> TestWorld { TestWorld { value: 42 } }
+
+#[given("a precondition")]
+fn step_uses_world(world: &TestWorld) {
+    assert_eq!(world.value, 42);
+}
+
+scenarios!("tests/features/auto", fixtures = [world: TestWorld]);
+```
+
+The macro adds `#[expect(unused_variables)]` to generated test functions when
+fixtures are present, preventing lint warnings since fixture parameters are
+consumed via `StepContext` rather than referenced directly in the test body.
 
 ## Running and maintaining tests
 
