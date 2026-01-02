@@ -99,24 +99,19 @@ pub(crate) fn generate_test_tokens(
         block,
         allow_skipped,
     } = config;
-    let ctx_prelude: Vec<_> = ctx_prelude.collect();
-    let ctx_inserts: Vec<_> = ctx_inserts.collect();
-    let ctx_postlude: Vec<_> = ctx_postlude.collect();
-
-    let literals = create_scenario_literals(ScenarioLiteralsInput {
+    let components = generate_code_components(&processed_steps);
+    assemble_test_tokens_with_context(
         feature_path,
         scenario_name,
         scenario_line,
         tags,
+        block,
         allow_skipped,
-    });
-
-    let components = generate_code_components(&processed_steps);
-    let block_tokens = quote! { #block };
-    let context =
-        TokenAssemblyContext::new(&ctx_prelude, &ctx_inserts, &ctx_postlude, &block_tokens);
-
-    assemble_test_tokens(literals, components, context)
+        components,
+        ctx_prelude,
+        ctx_inserts,
+        ctx_postlude,
+    )
 }
 
 fn assemble_test_tokens(
@@ -184,6 +179,42 @@ fn assemble_test_tokens(
     }
 }
 
+/// Assembles test tokens using the provided components and configuration.
+///
+/// This helper consolidates the common pipeline shared by regular and outline
+/// test token generation: collecting context iterators, creating literals,
+/// and assembling the final token stream.
+fn assemble_test_tokens_with_context(
+    feature_path: &super::FeaturePath,
+    scenario_name: &super::ScenarioName,
+    scenario_line: u32,
+    tags: &[String],
+    block: &syn::Block,
+    allow_skipped: bool,
+    components: CodeComponents,
+    ctx_prelude: impl Iterator<Item = TokenStream2>,
+    ctx_inserts: impl Iterator<Item = TokenStream2>,
+    ctx_postlude: impl Iterator<Item = TokenStream2>,
+) -> TokenStream2 {
+    let ctx_prelude: Vec<_> = ctx_prelude.collect();
+    let ctx_inserts: Vec<_> = ctx_inserts.collect();
+    let ctx_postlude: Vec<_> = ctx_postlude.collect();
+
+    let literals = create_scenario_literals(ScenarioLiteralsInput {
+        feature_path,
+        scenario_name,
+        scenario_line,
+        tags,
+        allow_skipped,
+    });
+
+    let block_tokens = quote! { #block };
+    let context =
+        TokenAssemblyContext::new(&ctx_prelude, &ctx_inserts, &ctx_postlude, &block_tokens);
+
+    assemble_test_tokens(literals, components, context)
+}
+
 /// Generates code components for scenario outlines using 2D step arrays.
 fn generate_code_components_outline(all_rows_steps: &[ProcessedStepTokens]) -> CodeComponents {
     let (step_executor, skip_decoder, scenario_guard, skip_handler) = generate_common_components();
@@ -219,23 +250,17 @@ pub(crate) fn generate_test_tokens_outline(
         block,
         allow_skipped,
     } = config;
-
-    let ctx_prelude: Vec<_> = ctx_prelude.collect();
-    let ctx_inserts: Vec<_> = ctx_inserts.collect();
-    let ctx_postlude: Vec<_> = ctx_postlude.collect();
-
-    let literals = create_scenario_literals(ScenarioLiteralsInput {
+    let components = generate_code_components_outline(&all_rows_steps);
+    assemble_test_tokens_with_context(
         feature_path,
         scenario_name,
         scenario_line,
         tags,
+        block,
         allow_skipped,
-    });
-
-    let components = generate_code_components_outline(&all_rows_steps);
-    let block_tokens = quote! { #block };
-    let context =
-        TokenAssemblyContext::new(&ctx_prelude, &ctx_inserts, &ctx_postlude, &block_tokens);
-
-    assemble_test_tokens(literals, components, context)
+        components,
+        ctx_prelude,
+        ctx_inserts,
+        ctx_postlude,
+    )
 }
