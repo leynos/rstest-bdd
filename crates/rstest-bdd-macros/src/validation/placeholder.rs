@@ -133,6 +133,7 @@ fn validate_text_placeholders(
 mod tests {
     use super::*;
     use crate::StepKeyword;
+    use rstest::rstest;
 
     /// Builder for creating test `ParsedStep` instances.
     struct ParsedStepBuilder {
@@ -155,13 +156,13 @@ mod tests {
             self
         }
 
-        fn with_docstring(mut self, docstring: &str) -> Self {
-            self.docstring = Some(docstring.to_string());
+        fn with_docstring(mut self, docstring: Option<&str>) -> Self {
+            self.docstring = docstring.map(ToString::to_string);
             self
         }
 
-        fn with_table(mut self, table: Vec<Vec<String>>) -> Self {
-            self.table = Some(table);
+        fn with_table(mut self, table: Option<Vec<Vec<String>>>) -> Self {
+            self.table = table;
             self
         }
 
@@ -210,115 +211,57 @@ mod tests {
         );
     }
 
-    #[test]
-    fn valid_placeholder_in_step_text() {
+    #[rstest]
+    #[case::step_text("I have <count> items", vec!["count"], None, None)]
+    #[case::multiple_placeholders("I have <count> <item>", vec!["count", "item"], None, None)]
+    #[case::docstring("step text", vec!["value"], Some("docstring with <value>"), None)]
+    #[case::table("step text", vec!["value"], None, Some(vec![vec!["<value>".to_string(), "static".to_string()]]))]
+    #[case::no_placeholders("I have 5 items", vec!["count"], None, None)]
+    fn valid_placeholder_tests(
+        #[case] text: &str,
+        #[case] header_strs: Vec<&str>,
+        #[case] docstring: Option<&str>,
+        #[case] table: Option<Vec<Vec<String>>>,
+    ) {
         let steps = vec![
             make_step_builder()
-                .with_text("I have <count> items")
+                .with_text(text)
+                .with_docstring(docstring)
+                .with_table(table)
                 .build(),
         ];
-        let headers = vec!["count".to_string()];
+        let headers: Vec<String> = header_strs.into_iter().map(ToString::to_string).collect();
 
         assert_valid_placeholders(&steps, &headers);
     }
 
-    #[test]
-    fn valid_multiple_placeholders() {
+    #[rstest]
+    #[case::step_text("I have <undefined> items", vec!["count"], None, None, "<undefined>", ValidationContext::Step)]
+    #[case::docstring("step text", vec!["value"], Some("docstring with <undefined>"), None, "<undefined>", ValidationContext::Docstring)]
+    #[case::table("step text", vec!["value"], None, Some(vec![vec!["<undefined>".to_string()]]), "<undefined>", ValidationContext::TableCell)]
+    fn invalid_placeholder_tests(
+        #[case] text: &str,
+        #[case] header_strs: Vec<&str>,
+        #[case] docstring: Option<&str>,
+        #[case] table: Option<Vec<Vec<String>>>,
+        #[case] expected_placeholder: &str,
+        #[case] expected_context: ValidationContext,
+    ) {
         let steps = vec![
             make_step_builder()
-                .with_text("I have <count> <item>")
+                .with_text(text)
+                .with_docstring(docstring)
+                .with_table(table)
                 .build(),
         ];
-        let headers = vec!["count".to_string(), "item".to_string()];
-
-        assert_valid_placeholders(&steps, &headers);
-    }
-
-    #[test]
-    fn invalid_placeholder_in_step_text() {
-        let steps = vec![
-            make_step_builder()
-                .with_text("I have <undefined> items")
-                .build(),
-        ];
-        let headers = vec!["count".to_string()];
+        let headers: Vec<String> = header_strs.into_iter().map(ToString::to_string).collect();
 
         assert_placeholder_error(
             &steps,
             ExampleHeaders::new(&headers),
-            "<undefined>",
-            ValidationContext::Step,
+            expected_placeholder,
+            expected_context,
         );
-    }
-
-    #[test]
-    fn valid_placeholder_in_docstring() {
-        let steps = vec![
-            make_step_builder()
-                .with_text("step text")
-                .with_docstring("docstring with <value>")
-                .build(),
-        ];
-        let headers = vec!["value".to_string()];
-
-        assert_valid_placeholders(&steps, &headers);
-    }
-
-    #[test]
-    fn invalid_placeholder_in_docstring() {
-        let steps = vec![
-            make_step_builder()
-                .with_text("step text")
-                .with_docstring("docstring with <undefined>")
-                .build(),
-        ];
-        let headers = vec!["value".to_string()];
-
-        assert_placeholder_error(
-            &steps,
-            ExampleHeaders::new(&headers),
-            "<undefined>",
-            ValidationContext::Docstring,
-        );
-    }
-
-    #[test]
-    fn valid_placeholder_in_table() {
-        let steps = vec![
-            make_step_builder()
-                .with_text("step text")
-                .with_table(vec![vec!["<value>".to_string(), "static".to_string()]])
-                .build(),
-        ];
-        let headers = vec!["value".to_string()];
-
-        assert_valid_placeholders(&steps, &headers);
-    }
-
-    #[test]
-    fn invalid_placeholder_in_table() {
-        let steps = vec![
-            make_step_builder()
-                .with_text("step text")
-                .with_table(vec![vec!["<undefined>".to_string()]])
-                .build(),
-        ];
-        let headers = vec!["value".to_string()];
-
-        assert_placeholder_error(
-            &steps,
-            ExampleHeaders::new(&headers),
-            "<undefined>",
-            ValidationContext::TableCell,
-        );
-    }
-
-    #[test]
-    fn no_placeholders_is_valid() {
-        let steps = vec![make_step_builder().with_text("I have 5 items").build()];
-        let headers = vec!["count".to_string()];
-
-        assert_valid_placeholders(&steps, &headers);
     }
 
     #[test]
