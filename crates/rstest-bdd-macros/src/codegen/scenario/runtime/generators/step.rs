@@ -329,6 +329,47 @@ pub(in crate::codegen::scenario::runtime) fn generate_async_step_executor() -> T
     }
 }
 
+/// Generates a step executor loop that iterates over steps and handles results.
+///
+/// This is a shared implementation used by both sync and async executor loop generators.
+fn generate_step_executor_loop_impl(
+    executor_fn_name: &str,
+    keyword_tokens: &[TokenStream2],
+    values: &[TokenStream2],
+    docstrings: &[TokenStream2],
+    tables: &[TokenStream2],
+) -> TokenStream2 {
+    let executor_ident = syn::Ident::new(executor_fn_name, proc_macro2::Span::call_site());
+    quote! {
+        let __rstest_bdd_steps = [#((#keyword_tokens, #values, #docstrings, #tables)),*];
+        for (__rstest_bdd_index, (__rstest_bdd_keyword, __rstest_bdd_text, __rstest_bdd_docstring, __rstest_bdd_table)) in __rstest_bdd_steps.iter().copied().enumerate() {
+            match #executor_ident(
+                __rstest_bdd_index,
+                __rstest_bdd_keyword,
+                __rstest_bdd_text,
+                __rstest_bdd_docstring,
+                __rstest_bdd_table,
+                &mut ctx,
+                __RSTEST_BDD_FEATURE_PATH,
+                __RSTEST_BDD_SCENARIO_NAME,
+            ) {
+                Ok(Some(__rstest_bdd_val)) => {
+                    // Intentionally discarded: insert_value returns None when no fixture
+                    // slot matches the value's TypeId or when matches are ambiguous.
+                    let _ = ctx.insert_value(__rstest_bdd_val);
+                }
+                Ok(None) => {}
+                Err(__rstest_bdd_encoded) => {
+                    __rstest_bdd_skipped =
+                        Some(__rstest_bdd_decode_skip_message(__rstest_bdd_encoded));
+                    __rstest_bdd_skipped_at = Some(__rstest_bdd_index);
+                    break;
+                }
+            }
+        }
+    }
+}
+
 /// Generates the async step executor loop that iterates over steps and awaits each.
 ///
 /// The generated code iterates through all scenario steps, executing each one
@@ -352,14 +393,13 @@ pub(in crate::codegen::scenario::runtime) fn generate_async_step_executor_loop(
     docstrings: &[TokenStream2],
     tables: &[TokenStream2],
 ) -> TokenStream2 {
-    let loop_body = generate_async_step_executor_loop_body();
-
-    quote! {
-        let __rstest_bdd_steps = [#((#keyword_tokens, #values, #docstrings, #tables)),*];
-        for (__rstest_bdd_index, (__rstest_bdd_keyword, __rstest_bdd_text, __rstest_bdd_docstring, __rstest_bdd_table)) in __rstest_bdd_steps.iter().copied().enumerate() {
-            #loop_body
-        }
-    }
+    generate_step_executor_loop_impl(
+        "__rstest_bdd_process_async_step",
+        keyword_tokens,
+        values,
+        docstrings,
+        tables,
+    )
 }
 
 /// Generates the step executor loop that iterates over steps and handles results.
@@ -392,11 +432,63 @@ pub(in crate::codegen::scenario::runtime) fn generate_step_executor_loop(
     docstrings: &[TokenStream2],
     tables: &[TokenStream2],
 ) -> TokenStream2 {
-    let loop_body = generate_step_executor_loop_body();
+    generate_step_executor_loop_impl(
+        "__rstest_bdd_execute_single_step",
+        keyword_tokens,
+        values,
+        docstrings,
+        tables,
+    )
+}
+
+/// Generates a step executor loop for scenario outlines with placeholder substitution.
+///
+/// This shared implementation selects the executor function by name.
+fn generate_step_executor_loop_outline_impl(
+    executor_fn_name: &str,
+    all_rows_steps: &[ProcessedStepTokens],
+) -> TokenStream2 {
+    let executor_ident = syn::Ident::new(executor_fn_name, proc_macro2::Span::call_site());
+    let path = crate::codegen::rstest_bdd_path();
+
+    let row_arrays: Vec<TokenStream2> = all_rows_steps
+        .iter()
+        .map(|(keywords, values, docstrings, tables)| {
+            quote! {
+                &[#((#keywords, #values, #docstrings, #tables)),*]
+            }
+        })
+        .collect();
+
     quote! {
-        let __rstest_bdd_steps = [#((#keyword_tokens, #values, #docstrings, #tables)),*];
+        const __RSTEST_BDD_ALL_STEPS: &[&[(#path::StepKeyword, &str, Option<&str>, Option<&[&[&str]]>)]] = &[
+            #(#row_arrays),*
+        ];
+        let __rstest_bdd_steps = __RSTEST_BDD_ALL_STEPS[__rstest_bdd_case_idx];
         for (__rstest_bdd_index, (__rstest_bdd_keyword, __rstest_bdd_text, __rstest_bdd_docstring, __rstest_bdd_table)) in __rstest_bdd_steps.iter().copied().enumerate() {
-            #loop_body
+            match #executor_ident(
+                __rstest_bdd_index,
+                __rstest_bdd_keyword,
+                __rstest_bdd_text,
+                __rstest_bdd_docstring,
+                __rstest_bdd_table,
+                &mut ctx,
+                __RSTEST_BDD_FEATURE_PATH,
+                __RSTEST_BDD_SCENARIO_NAME,
+            ) {
+                Ok(Some(__rstest_bdd_val)) => {
+                    // Intentionally discarded: insert_value returns None when no fixture
+                    // slot matches the value's TypeId or when matches are ambiguous.
+                    let _ = ctx.insert_value(__rstest_bdd_val);
+                }
+                Ok(None) => {}
+                Err(__rstest_bdd_encoded) => {
+                    __rstest_bdd_skipped =
+                        Some(__rstest_bdd_decode_skip_message(__rstest_bdd_encoded));
+                    __rstest_bdd_skipped_at = Some(__rstest_bdd_index);
+                    break;
+                }
+            }
         }
     }
 }
@@ -427,110 +519,12 @@ pub(in crate::codegen::scenario::runtime) fn generate_step_executor_loop(
 pub(in crate::codegen::scenario::runtime) fn generate_step_executor_loop_outline(
     all_rows_steps: &[ProcessedStepTokens],
 ) -> TokenStream2 {
-    let path = crate::codegen::rstest_bdd_path();
-    let loop_body = generate_step_executor_loop_body();
-
-    // Build the 2D array of steps: one inner array per Examples row
-    let row_arrays: Vec<TokenStream2> = all_rows_steps
-        .iter()
-        .map(|(keywords, values, docstrings, tables)| {
-            quote! {
-                &[#((#keywords, #values, #docstrings, #tables)),*]
-            }
-        })
-        .collect();
-
-    quote! {
-        const __RSTEST_BDD_ALL_STEPS: &[&[(#path::StepKeyword, &str, Option<&str>, Option<&[&[&str]]>)]] = &[
-            #(#row_arrays),*
-        ];
-        let __rstest_bdd_steps = __RSTEST_BDD_ALL_STEPS[__rstest_bdd_case_idx];
-        for (__rstest_bdd_index, (__rstest_bdd_keyword, __rstest_bdd_text, __rstest_bdd_docstring, __rstest_bdd_table)) in __rstest_bdd_steps.iter().copied().enumerate() {
-            #loop_body
-        }
-    }
+    generate_step_executor_loop_outline_impl("__rstest_bdd_execute_single_step", all_rows_steps)
 }
 
 /// Generates the async step executor loop for scenario outlines.
 pub(in crate::codegen::scenario::runtime) fn generate_async_step_executor_loop_outline(
     all_rows_steps: &[ProcessedStepTokens],
 ) -> TokenStream2 {
-    let path = crate::codegen::rstest_bdd_path();
-    let loop_body = generate_async_step_executor_loop_body();
-
-    let row_arrays: Vec<TokenStream2> = all_rows_steps
-        .iter()
-        .map(|(keywords, values, docstrings, tables)| {
-            quote! {
-                &[#((#keywords, #values, #docstrings, #tables)),*]
-            }
-        })
-        .collect();
-
-    quote! {
-        const __RSTEST_BDD_ALL_STEPS: &[&[(#path::StepKeyword, &str, Option<&str>, Option<&[&[&str]]>)]] = &[
-            #(#row_arrays),*
-        ];
-        let __rstest_bdd_steps = __RSTEST_BDD_ALL_STEPS[__rstest_bdd_case_idx];
-        for (__rstest_bdd_index, (__rstest_bdd_keyword, __rstest_bdd_text, __rstest_bdd_docstring, __rstest_bdd_table)) in __rstest_bdd_steps.iter().copied().enumerate() {
-            #loop_body
-        }
-    }
-}
-
-fn generate_step_executor_loop_body() -> TokenStream2 {
-    quote! {
-        match __rstest_bdd_execute_single_step(
-            __rstest_bdd_index,
-            __rstest_bdd_keyword,
-            __rstest_bdd_text,
-            __rstest_bdd_docstring,
-            __rstest_bdd_table,
-            &mut ctx,
-            __RSTEST_BDD_FEATURE_PATH,
-            __RSTEST_BDD_SCENARIO_NAME,
-        ) {
-            Ok(__rstest_bdd_value) => {
-                if let Some(__rstest_bdd_val) = __rstest_bdd_value {
-                    // Intentionally discarded: insert_value returns None when no fixture
-                    // slot matches the value's TypeId or when matches are ambiguous.
-                    let _ = ctx.insert_value(__rstest_bdd_val);
-                }
-            }
-            Err(__rstest_bdd_encoded) => {
-                __rstest_bdd_skipped =
-                    Some(__rstest_bdd_decode_skip_message(__rstest_bdd_encoded));
-                __rstest_bdd_skipped_at = Some(__rstest_bdd_index);
-                break;
-            }
-        }
-    }
-}
-
-fn generate_async_step_executor_loop_body() -> TokenStream2 {
-    quote! {
-        match __rstest_bdd_process_async_step(
-            __rstest_bdd_index,
-            __rstest_bdd_keyword,
-            __rstest_bdd_text,
-            __rstest_bdd_docstring,
-            __rstest_bdd_table,
-            &mut ctx,
-            __RSTEST_BDD_FEATURE_PATH,
-            __RSTEST_BDD_SCENARIO_NAME,
-        ) {
-            Ok(Some(__rstest_bdd_val)) => {
-                // Intentionally discarded: insert_value returns None when no fixture
-                // slot matches the value's TypeId or when matches are ambiguous.
-                let _ = ctx.insert_value(__rstest_bdd_val);
-            }
-            Ok(None) => {}
-            Err(__rstest_bdd_encoded) => {
-                __rstest_bdd_skipped =
-                    Some(__rstest_bdd_decode_skip_message(__rstest_bdd_encoded));
-                __rstest_bdd_skipped_at = Some(__rstest_bdd_index);
-                break;
-            }
-        }
-    }
+    generate_step_executor_loop_outline_impl("__rstest_bdd_process_async_step", all_rows_steps)
 }
