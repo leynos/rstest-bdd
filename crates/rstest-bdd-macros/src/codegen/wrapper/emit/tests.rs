@@ -1,6 +1,6 @@
 //! Tests for wrapper code generation helpers.
 
-use super::{WrapperIdents, generate_wrapper_identifiers};
+use super::identifiers::{WrapperIdents, generate_wrapper_identifiers};
 use crate::utils::ident::sanitize_ident;
 use rstest::rstest;
 use syn::parse_str;

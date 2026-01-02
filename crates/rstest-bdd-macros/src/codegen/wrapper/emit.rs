@@ -7,15 +7,16 @@ use super::arguments::{
 use crate::return_classifier::ReturnKind;
 use proc_macro2::TokenStream as TokenStream2;
 use quote::{format_ident, quote};
-use std::sync::atomic::{AtomicUsize, Ordering};
 
 mod call_expr;
 mod datatable_cache;
 mod errors;
+mod identifiers;
 
 use call_expr::generate_call_expression;
 use datatable_cache::{DatatableCacheComponents, generate_datatable_cache_definitions};
 use errors::{WrapperErrors, prepare_wrapper_errors};
+use identifiers::{WrapperIdents, generate_wrapper_identifiers, next_wrapper_id};
 
 /// Configuration required to generate a wrapper.
 pub(crate) struct WrapperConfig<'a> {
@@ -28,109 +29,6 @@ pub(crate) struct WrapperConfig<'a> {
     pub(crate) placeholder_hints: &'a [Option<String>],
     pub(crate) capture_count: usize,
     pub(crate) return_kind: ReturnKind,
-}
-
-static COUNTER: AtomicUsize = AtomicUsize::new(0);
-
-/// Resets the wrapper identifier counter to zero.
-///
-/// This function is intended **only for test code** to ensure deterministic
-/// identifier generation across test runs. Production code must never call
-/// this function.
-///
-/// # Thread Safety
-///
-/// Rust tests run in parallel by default. Tests that call this function must
-/// be serialised to avoid non-deterministic identifier generation. Use one of:
-///
-/// - The `#[serial]` attribute from the `serial_test` crate
-/// - The `--test-threads=1` flag when running tests
-/// - A shared mutex guard to coordinate access
-///
-/// # Example
-///
-/// ```ignore
-/// use super::__rstest_bdd_reset_wrapper_counter_for_tests;
-///
-/// #[test]
-/// #[serial]
-/// fn deterministic_wrapper_ids() {
-///     __rstest_bdd_reset_wrapper_counter_for_tests();
-///     // Wrapper identifiers now start from 0
-/// }
-/// ```
-#[cfg(test)]
-pub(crate) fn __rstest_bdd_reset_wrapper_counter_for_tests() {
-    // Use SeqCst ordering (rather than Relaxed used in production) to ensure
-    // the reset is immediately visible to all threads. This is appropriate for
-    // test setup where correctness matters more than performance.
-    COUNTER.store(0, Ordering::SeqCst);
-}
-
-/// Identifiers for sync and async wrapper components.
-///
-/// Groups the four identifiers generated for each step wrapper to simplify
-/// function signatures and reduce parameter counts.
-struct WrapperIdents {
-    /// Identifier for the synchronous wrapper function.
-    sync_wrapper: proc_macro2::Ident,
-    /// Identifier for the asynchronous wrapper function.
-    async_wrapper: proc_macro2::Ident,
-    /// Identifier for the fixture array constant.
-    const_ident: proc_macro2::Ident,
-    /// Identifier for the step pattern constant.
-    pattern_ident: proc_macro2::Ident,
-}
-/// Reset the wrapper counter to zero for deterministic test output.
-///
-/// This function is only available in test builds and should be called
-/// at the start of tests that require predictable wrapper identifier
-/// generation.
-///
-/// # Example
-///
-/// ```ignore
-/// #[test]
-/// fn wrapper_identifiers_are_deterministic() {
-///     // Reset before generating wrappers to ensure IDs start from 0.
-///     reset_wrapper_counter_for_tests();
-///
-///     let code = generate_wrapper_code(&config);
-///     // First wrapper gets ID 0: `__rstest_bdd_wrapper_my_step_0`
-///     assert!(code.to_string().contains("__rstest_bdd_wrapper_my_step_0"));
-/// }
-/// ```
-#[cfg(test)]
-#[expect(
-    dead_code,
-    reason = "FIXME: https://github.com/leynos/rstest-bdd/issues/59 – utility for future golden tests"
-)]
-pub(crate) fn reset_wrapper_counter_for_tests() {
-    COUNTER.store(0, Ordering::SeqCst);
-}
-
-/// Generate unique identifiers for the wrapper components.
-///
-/// The provided step function identifier may contain Unicode. It is
-/// sanitized to ASCII before constructing constant names to avoid emitting
-/// invalid identifiers.
-///
-/// Returns identifiers for the sync wrapper function, async wrapper function,
-/// fixture array constant, and pattern constant.
-fn generate_wrapper_identifiers(ident: &syn::Ident, id: usize) -> WrapperIdents {
-    use crate::utils::ident::sanitize_ident;
-    let ident_sanitized = sanitize_ident(&ident.to_string());
-    let sync_wrapper = format_ident!("__rstest_bdd_wrapper_{}_{}", ident_sanitized, id);
-    let async_wrapper = format_ident!("__rstest_bdd_async_wrapper_{}_{}", ident_sanitized, id);
-    let ident_upper = ident_sanitized.to_ascii_uppercase();
-    let const_ident = format_ident!("__RSTEST_BDD_FIXTURES_{}_{}", ident_upper, id);
-    let pattern_ident = format_ident!("__RSTEST_BDD_PATTERN_{}_{}", ident_upper, id);
-    WrapperIdents {
-        sync_wrapper,
-        async_wrapper,
-        const_ident,
-        pattern_ident,
-    }
 }
 
 /// Generate the `StepPattern` constant used by a wrapper.
@@ -388,9 +286,7 @@ fn generate_registration_code(
 /// async wrapper delegates to the sync wrapper, wrapping its result in an
 /// immediately-ready future via `std::future::ready`.
 pub(crate) fn generate_wrapper_code(config: &WrapperConfig<'_>) -> TokenStream2 {
-    // Relaxed ordering suffices: the counter only ensures a unique suffix and
-    // is not used for synchronisation with other data.
-    let id = COUNTER.fetch_add(1, Ordering::Relaxed);
+    let id = next_wrapper_id();
     let wrapper_idents = generate_wrapper_identifiers(config.ident, id);
     let body = generate_wrapper_body(
         config,

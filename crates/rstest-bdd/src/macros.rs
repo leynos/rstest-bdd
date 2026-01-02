@@ -106,12 +106,7 @@ macro_rules! assert_step_err {
 #[macro_export]
 macro_rules! __rstest_bdd_assert_step_skipped_base {
     ($expr:expr) => {
-        match $expr {
-            $crate::StepExecution::Skipped { message } => message,
-            $crate::StepExecution::Continue { .. } => {
-                $crate::panic_localized!("assert-skip-not-skipped", target = "step execution")
-            }
-        }
+        $crate::__rstest_bdd_unwrap_step_skipped($expr)
     };
 }
 

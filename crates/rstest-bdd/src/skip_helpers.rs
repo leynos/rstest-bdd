@@ -40,15 +40,14 @@ pub fn __rstest_bdd_expect_skip_message_absent(actual: Option<&str>, target: &'s
 #[doc(hidden)]
 /// Extract the optional skip message, panicking if the execution was not
 /// skipped.
+#[must_use]
 pub fn __rstest_bdd_unwrap_step_skipped(exec: StepExecution) -> Option<String> {
-    match exec {
-        StepExecution::Skipped { message } => message,
-        StepExecution::Continue { .. } => {
-            panic_localized!("assert-skip-not-skipped", target = "step execution")
-        }
-    }
+    unwrap_skipped_message(exec)
 }
 
+// Shared helper that extracts skip messages from `StepExecution`.
+// Panics with a localised message if the execution was not skipped.
+// Used by public assertion helpers to centralise skip extraction logic.
 fn unwrap_skipped_message(exec: StepExecution) -> Option<String> {
     match exec {
         StepExecution::Skipped { message } => message,

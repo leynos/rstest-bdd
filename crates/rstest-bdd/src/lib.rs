@@ -77,6 +77,7 @@ pub use skip_helpers::{
     __rstest_bdd_assert_step_skipped_message_absent,
     __rstest_bdd_assert_step_skipped_message_contains, __rstest_bdd_expect_skip_flag,
     __rstest_bdd_expect_skip_message_absent, __rstest_bdd_expect_skip_message_contains,
+    __rstest_bdd_unwrap_step_skipped,
 };
 pub use state::{ScenarioState, Slot};
 pub use step_args::{StepArgs, StepArgsError};
