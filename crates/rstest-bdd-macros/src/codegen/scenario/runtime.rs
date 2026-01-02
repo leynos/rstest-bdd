@@ -101,12 +101,14 @@ pub(crate) fn generate_test_tokens(
     } = config;
     let components = generate_code_components(&processed_steps);
     assemble_test_tokens_with_context(
-        feature_path,
-        scenario_name,
-        scenario_line,
-        tags,
+        ScenarioLiteralsInput {
+            feature_path,
+            scenario_name,
+            scenario_line,
+            tags,
+            allow_skipped,
+        },
         block,
-        allow_skipped,
         components,
         ctx_prelude,
         ctx_inserts,
@@ -185,12 +187,8 @@ fn assemble_test_tokens(
 /// test token generation: collecting context iterators, creating literals,
 /// and assembling the final token stream.
 fn assemble_test_tokens_with_context(
-    feature_path: &super::FeaturePath,
-    scenario_name: &super::ScenarioName,
-    scenario_line: u32,
-    tags: &[String],
+    literals_input: ScenarioLiteralsInput<'_>,
     block: &syn::Block,
-    allow_skipped: bool,
     components: CodeComponents,
     ctx_prelude: impl Iterator<Item = TokenStream2>,
     ctx_inserts: impl Iterator<Item = TokenStream2>,
@@ -200,13 +198,7 @@ fn assemble_test_tokens_with_context(
     let ctx_inserts: Vec<_> = ctx_inserts.collect();
     let ctx_postlude: Vec<_> = ctx_postlude.collect();
 
-    let literals = create_scenario_literals(ScenarioLiteralsInput {
-        feature_path,
-        scenario_name,
-        scenario_line,
-        tags,
-        allow_skipped,
-    });
+    let literals = create_scenario_literals(literals_input);
 
     let block_tokens = quote! { #block };
     let context =
@@ -252,12 +244,14 @@ pub(crate) fn generate_test_tokens_outline(
     } = config;
     let components = generate_code_components_outline(&all_rows_steps);
     assemble_test_tokens_with_context(
-        feature_path,
-        scenario_name,
-        scenario_line,
-        tags,
+        ScenarioLiteralsInput {
+            feature_path,
+            scenario_name,
+            scenario_line,
+            tags,
+            allow_skipped,
+        },
         block,
-        allow_skipped,
         components,
         ctx_prelude,
         ctx_inserts,
