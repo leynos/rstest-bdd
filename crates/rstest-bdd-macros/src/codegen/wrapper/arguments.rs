@@ -174,8 +174,9 @@ pub(super) fn prepare_argument_processing(
     let mut docstring: Option<BoundDocStringArg<'_>> = None;
 
     for (idx, arg) in args.iter().enumerate() {
+        // `wrapper_binding_idents` mirrors `args`, so missing bindings signal a bug here.
         let Some(binding) = binding_idents.get(idx) else {
-            panic!("missing wrapper binding for argument index {idx}");
+            unreachable!("wrapper binding missing for argument index {idx}");
         };
         match arg {
             Arg::Fixture { .. } => fixtures.push(BoundArg { arg, binding }),

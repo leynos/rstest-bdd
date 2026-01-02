@@ -1,4 +1,9 @@
 //! Step-struct argument code generation.
+//!
+//! Step-struct arguments (from `#[step_args]`) bundle all placeholder captures
+//! into a single type implementing `TryFrom<Vec<String>>`. This module emits
+//! the capture collection and conversion code, including `:string` hint
+//! handling for quoted captures.
 
 use super::step_parse::gen_quote_strip_to_stripped;
 use super::{StepMeta, step_error_tokens};

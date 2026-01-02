@@ -1,4 +1,9 @@
 //! Wrapper-local argument binding helpers.
+//!
+//! Step wrappers need local bindings that never start with `_` so Clippy does
+//! not flag `used_underscore_binding` when generated wrappers call user steps.
+//! This module centralizes the `rstest_bdd_arg_{n}` naming scheme and keeps the
+//! binding metadata next to each extracted argument.
 
 use super::super::args::{Arg, DataTableArg, StepStructArg};
 use quote::format_ident;

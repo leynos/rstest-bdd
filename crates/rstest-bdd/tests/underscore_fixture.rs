@@ -1,4 +1,4 @@
-//! Behaviour tests covering underscore-named fixture bindings in steps.
+//! End-to-end behaviour tests for underscore-prefixed fixture parameters.
 
 use rstest::fixture;
 use rstest_bdd_macros::{given, scenario, then, when};
@@ -8,6 +8,7 @@ const PARAGRAPH_TEI: &str = "<p>Paragraph TEI</p>";
 #[derive(Default)]
 struct StreamingState {
     xml: Option<&'static str>,
+    parsed: bool,
 }
 
 #[fixture]
@@ -24,13 +25,15 @@ fn paragraph_fixture(#[from(state)] state: &mut StreamingState) {
 }
 
 #[when("I stream parse the events")]
-fn stream_parse_events(#[from(state)] state: &StreamingState) {
-    assert!(state.xml.is_some());
+fn stream_parse_events(#[from(state)] state: &mut StreamingState) {
+    assert_eq!(state.xml, Some(PARAGRAPH_TEI));
+    state.parsed = true;
 }
 
 #[then("all events decode into msgspec Event instances")]
 fn events_decode(#[from(state)] state: &StreamingState) {
-    assert!(state.xml.is_some());
+    assert_eq!(state.xml, Some(PARAGRAPH_TEI));
+    assert!(state.parsed, "events should be parsed before decoding");
 }
 
 #[scenario(
