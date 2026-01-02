@@ -54,7 +54,17 @@ fn create_scenario_literals(input: ScenarioLiteralsInput<'_>) -> ScenarioLiteral
     }
 }
 
+fn generate_common_components() -> (TokenStream2, TokenStream2, TokenStream2, TokenStream2) {
+    (
+        generate_step_executor(),
+        generate_skip_decoder(),
+        generate_scenario_guard(),
+        generate_skip_handler(),
+    )
+}
+
 fn generate_code_components(processed_steps: &ProcessedSteps) -> CodeComponents {
+    let (step_executor, skip_decoder, scenario_guard, skip_handler) = generate_common_components();
     let ProcessedSteps {
         keyword_tokens,
         values,
@@ -62,12 +72,8 @@ fn generate_code_components(processed_steps: &ProcessedSteps) -> CodeComponents 
         tables,
     } = processed_steps;
 
-    let step_executor = generate_step_executor();
-    let skip_decoder = generate_skip_decoder();
-    let scenario_guard = generate_scenario_guard();
     let step_executor_loop =
         generate_step_executor_loop(keyword_tokens, values, docstrings, tables);
-    let skip_handler = generate_skip_handler();
 
     CodeComponents {
         step_executor,
@@ -180,11 +186,8 @@ fn assemble_test_tokens(
 
 /// Generates code components for scenario outlines using 2D step arrays.
 fn generate_code_components_outline(all_rows_steps: &[ProcessedStepTokens]) -> CodeComponents {
-    let step_executor = generate_step_executor();
-    let skip_decoder = generate_skip_decoder();
-    let scenario_guard = generate_scenario_guard();
+    let (step_executor, skip_decoder, scenario_guard, skip_handler) = generate_common_components();
     let step_executor_loop = generate_step_executor_loop_outline(all_rows_steps);
-    let skip_handler = generate_skip_handler();
 
     CodeComponents {
         step_executor,

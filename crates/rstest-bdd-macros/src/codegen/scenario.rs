@@ -11,7 +11,9 @@ mod runtime;
 
 pub(crate) use domain::*;
 pub(crate) use helpers::process_steps;
-use helpers::{generate_case_attrs, generate_indexed_case_attrs, process_steps_substituted};
+use helpers::{
+    generate_case_attrs, generate_indexed_case_attrs, process_steps_substituted, row_has_values,
+};
 pub(crate) use metadata::{FeaturePath, ScenarioName};
 use runtime::{
     OutlineTestTokensConfig, ProcessedSteps, TestTokensConfig, generate_test_tokens,
@@ -160,7 +162,7 @@ where
     let all_rows_steps: Result<Vec<_>, _> = examples
         .rows
         .iter()
-        .filter(|row| row.iter().any(|cell| !cell.is_empty()))
+        .filter(|row| row_has_values(row))
         .map(|row| {
             let row = ExampleRow::new(row.clone());
             process_steps_substituted(&config.steps, &headers, &row)

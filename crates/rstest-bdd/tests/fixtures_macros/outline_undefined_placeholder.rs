@@ -5,6 +5,6 @@
 use rstest_bdd_macros::scenario;
 
 #[scenario(path = "../features/macros/outline_undefined_placeholder.feature")]
-fn undefined_placeholder(valid: String) {}
+fn undefined_placeholder(valid: &'static str) {}
 
 fn main() {}

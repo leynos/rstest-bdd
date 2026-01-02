@@ -279,32 +279,11 @@ pub(in crate::codegen::scenario::runtime) fn generate_step_executor_loop(
     docstrings: &[TokenStream2],
     tables: &[TokenStream2],
 ) -> TokenStream2 {
+    let loop_body = generate_step_executor_loop_body();
     quote! {
         let __rstest_bdd_steps = [#((#keyword_tokens, #values, #docstrings, #tables)),*];
         for (__rstest_bdd_index, (__rstest_bdd_keyword, __rstest_bdd_text, __rstest_bdd_docstring, __rstest_bdd_table)) in __rstest_bdd_steps.iter().copied().enumerate() {
-            match __rstest_bdd_execute_single_step(
-                __rstest_bdd_index,
-                __rstest_bdd_keyword,
-                __rstest_bdd_text,
-                __rstest_bdd_docstring,
-                __rstest_bdd_table,
-                &mut ctx,
-                __RSTEST_BDD_FEATURE_PATH,
-                __RSTEST_BDD_SCENARIO_NAME,
-            ) {
-                Ok(__rstest_bdd_value) => {
-                    if let Some(__rstest_bdd_val) = __rstest_bdd_value {
-                        // Intentionally discarded: insert_value returns None when no fixture
-                        // slot matches the value's TypeId or when matches are ambiguous.
-                        let _ = ctx.insert_value(__rstest_bdd_val);
-                    }
-                }
-                Err(__rstest_bdd_encoded) => {
-                    __rstest_bdd_skipped = Some(__rstest_bdd_decode_skip_message(__rstest_bdd_encoded));
-                    __rstest_bdd_skipped_at = Some(__rstest_bdd_index);
-                    break;
-                }
-            }
+            #loop_body
         }
     }
 }
@@ -336,6 +315,7 @@ pub(in crate::codegen::scenario::runtime) fn generate_step_executor_loop_outline
     all_rows_steps: &[ProcessedStepTokens],
 ) -> TokenStream2 {
     let path = crate::codegen::rstest_bdd_path();
+    let loop_body = generate_step_executor_loop_body();
 
     // Build the 2D array of steps: one inner array per Examples row
     let row_arrays: Vec<TokenStream2> = all_rows_steps
@@ -353,26 +333,35 @@ pub(in crate::codegen::scenario::runtime) fn generate_step_executor_loop_outline
         ];
         let __rstest_bdd_steps = __RSTEST_BDD_ALL_STEPS[__rstest_bdd_case_idx];
         for (__rstest_bdd_index, (__rstest_bdd_keyword, __rstest_bdd_text, __rstest_bdd_docstring, __rstest_bdd_table)) in __rstest_bdd_steps.iter().copied().enumerate() {
-            match __rstest_bdd_execute_single_step(
-                __rstest_bdd_index,
-                __rstest_bdd_keyword,
-                __rstest_bdd_text,
-                __rstest_bdd_docstring,
-                __rstest_bdd_table,
-                &mut ctx,
-                __RSTEST_BDD_FEATURE_PATH,
-                __RSTEST_BDD_SCENARIO_NAME,
-            ) {
-                Ok(__rstest_bdd_value) => {
-                    if let Some(__rstest_bdd_val) = __rstest_bdd_value {
-                        let _ = ctx.insert_value(__rstest_bdd_val);
-                    }
+            #loop_body
+        }
+    }
+}
+
+fn generate_step_executor_loop_body() -> TokenStream2 {
+    quote! {
+        match __rstest_bdd_execute_single_step(
+            __rstest_bdd_index,
+            __rstest_bdd_keyword,
+            __rstest_bdd_text,
+            __rstest_bdd_docstring,
+            __rstest_bdd_table,
+            &mut ctx,
+            __RSTEST_BDD_FEATURE_PATH,
+            __RSTEST_BDD_SCENARIO_NAME,
+        ) {
+            Ok(__rstest_bdd_value) => {
+                if let Some(__rstest_bdd_val) = __rstest_bdd_value {
+                    // Intentionally discarded: insert_value returns None when no fixture
+                    // slot matches the value's TypeId or when matches are ambiguous.
+                    let _ = ctx.insert_value(__rstest_bdd_val);
                 }
-                Err(__rstest_bdd_encoded) => {
-                    __rstest_bdd_skipped = Some(__rstest_bdd_decode_skip_message(__rstest_bdd_encoded));
-                    __rstest_bdd_skipped_at = Some(__rstest_bdd_index);
-                    break;
-                }
+            }
+            Err(__rstest_bdd_encoded) => {
+                __rstest_bdd_skipped =
+                    Some(__rstest_bdd_decode_skip_message(__rstest_bdd_encoded));
+                __rstest_bdd_skipped_at = Some(__rstest_bdd_index);
+                break;
             }
         }
     }

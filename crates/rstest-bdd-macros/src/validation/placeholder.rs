@@ -67,25 +67,31 @@ pub fn validate_step_placeholders(
     headers: ExampleHeaders<'_>,
 ) -> Result<(), syn::Error> {
     for step in steps {
-        validate_step_text(&step.text, headers)?;
-        validate_step_docstring(step.docstring.as_ref(), headers)?;
-        validate_step_table(step.table.as_ref(), headers)?;
+        let span = step_span(step);
+        validate_step_text(&step.text, headers, span)?;
+        validate_step_docstring(step.docstring.as_ref(), headers, span)?;
+        validate_step_table(step.table.as_ref(), headers, span)?;
     }
     Ok(())
 }
 
 /// Validates placeholders in step text.
-fn validate_step_text(text: &str, headers: ExampleHeaders<'_>) -> Result<(), syn::Error> {
-    validate_text_placeholders(text, headers, ValidationContext::Step)
+fn validate_step_text(
+    text: &str,
+    headers: ExampleHeaders<'_>,
+    span: Span,
+) -> Result<(), syn::Error> {
+    validate_text_placeholders(text, headers, ValidationContext::Step, span)
 }
 
 /// Validates placeholders in step docstring if present.
 fn validate_step_docstring(
     docstring: Option<&String>,
     headers: ExampleHeaders<'_>,
+    span: Span,
 ) -> Result<(), syn::Error> {
     if let Some(docstring) = docstring {
-        validate_text_placeholders(docstring, headers, ValidationContext::Docstring)?;
+        validate_text_placeholders(docstring, headers, ValidationContext::Docstring, span)?;
     }
     Ok(())
 }
@@ -94,11 +100,12 @@ fn validate_step_docstring(
 fn validate_step_table(
     table: Option<&Vec<Vec<String>>>,
     headers: ExampleHeaders<'_>,
+    span: Span,
 ) -> Result<(), syn::Error> {
     if let Some(table) = table {
         for row in table {
             for cell in row {
-                validate_text_placeholders(cell, headers, ValidationContext::TableCell)?;
+                validate_text_placeholders(cell, headers, ValidationContext::TableCell, span)?;
             }
         }
     }
@@ -110,12 +117,13 @@ fn validate_text_placeholders(
     text: &str,
     headers: ExampleHeaders<'_>,
     context: ValidationContext,
+    span: Span,
 ) -> Result<(), syn::Error> {
     for cap in PLACEHOLDER_RE.captures_iter(text) {
         let placeholder = &cap[1];
         if !headers.contains(placeholder) {
             return Err(syn::Error::new(
-                Span::call_site(),
+                span,
                 format!(
                     "Placeholder '<{placeholder}>' in {} not found in Examples table. \
                      Available columns: [{}]",
@@ -126,6 +134,16 @@ fn validate_text_placeholders(
         }
     }
     Ok(())
+}
+
+#[cfg(feature = "compile-time-validation")]
+fn step_span(step: &ParsedStep) -> Span {
+    step.span
+}
+
+#[cfg(not(feature = "compile-time-validation"))]
+fn step_span(_step: &ParsedStep) -> Span {
+    Span::call_site()
 }
 
 #[cfg(test)]

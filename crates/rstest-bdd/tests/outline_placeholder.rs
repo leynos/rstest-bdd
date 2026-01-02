@@ -18,7 +18,10 @@ static COUNT: LazyLock<Mutex<i32>> = LazyLock::new(|| Mutex::new(0));
 fn get_count_guard() -> MutexGuard<'static, i32> {
     match COUNT.lock() {
         Ok(g) => g,
-        Err(p) => p.into_inner(),
+        Err(p) => {
+            // Tests intentionally recover after poisoning to keep isolation between scenarios.
+            p.into_inner()
+        }
     }
 }
 

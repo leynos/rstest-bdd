@@ -37,6 +37,29 @@ fn cell_to_lit(value: &str) -> syn::LitStr {
     syn::LitStr::new(value, proc_macro2::Span::call_site())
 }
 
+/// Returns true when an Examples row contains at least one non-empty cell.
+pub(crate) fn row_has_values(row: &[String]) -> bool {
+    row.iter().any(|cell| !cell.is_empty())
+}
+
+fn resolve_keyword_tokens(steps: &[crate::parsing::feature::ParsedStep]) -> Vec<TokenStream2> {
+    // Resolve textual conjunctions (And/But) to the previous primary keyword
+    // without depending on the validation module, which is behind an optional
+    // feature. We seed with the first primary keyword or Given by default.
+    let mut prev = steps
+        .iter()
+        .find_map(|s| match s.keyword {
+            crate::StepKeyword::And | crate::StepKeyword::But => None,
+            other => Some(other),
+        })
+        .or(Some(crate::StepKeyword::Given));
+    steps
+        .iter()
+        .map(move |s| s.keyword.resolve(&mut prev))
+        .map(|kw| kw.to_token_stream())
+        .collect()
+}
+
 /// Generate attributes for rstest cases based on examples.
 pub(crate) fn generate_case_attrs(
     examples: &crate::parsing::examples::ExampleTable,
@@ -53,7 +76,7 @@ fn generate_case_attrs_internal(
         .rows
         .iter()
         .enumerate()
-        .filter(|(_, row)| row.iter().any(|cell| !cell.is_empty()))
+        .filter(|(_, row)| row_has_values(row))
         .map(|(idx, row)| {
             let cells = row.iter().map(|v| {
                 let lit = cell_to_lit(v);
@@ -116,21 +139,7 @@ pub(crate) fn process_steps(
     Vec<TokenStream2>,
     Vec<TokenStream2>,
 ) {
-    // Resolve textual conjunctions (And/But) to the previous primary keyword
-    // without depending on the validation module, which is behind an optional
-    // feature. We seed with the first primary keyword or Given by default.
-    let keyword_tokens = {
-        let mut prev = steps
-            .iter()
-            .find_map(|s| match s.keyword {
-                crate::StepKeyword::And | crate::StepKeyword::But => None,
-                other => Some(other),
-            })
-            .or(Some(crate::StepKeyword::Given));
-        steps.iter().map(move |s| s.keyword.resolve(&mut prev))
-    }
-    .map(|kw| kw.to_token_stream())
-    .collect::<Vec<_>>();
+    let keyword_tokens = resolve_keyword_tokens(steps);
     debug_assert_eq!(keyword_tokens.len(), steps.len());
     let values = steps
         .iter()
@@ -176,6 +185,27 @@ pub(crate) fn generate_indexed_case_attrs(
     generate_case_attrs_internal(examples, true)
 }
 
+fn substitute_table_placeholders(
+    table: &[Vec<String>],
+    context: &SubstitutionContext<'_>,
+) -> Result<Vec<Vec<String>>, crate::parsing::placeholder::PlaceholderError> {
+    table
+        .iter()
+        .map(|table_row| {
+            table_row
+                .iter()
+                .map(|cell| {
+                    substitute_placeholders(
+                        cell,
+                        context.headers.as_slice(),
+                        context.row.as_slice(),
+                    )
+                })
+                .collect::<Result<Vec<_>, _>>()
+        })
+        .collect::<Result<Vec<_>, _>>()
+}
+
 /// Substitutes placeholders in step text, docstring, and table cells.
 ///
 /// Returns the substituted text, docstring, and table for a single step given
@@ -203,22 +233,7 @@ fn substitute_step_content(
         .transpose()?;
 
     let substituted_table = table
-        .map(|t| {
-            t.iter()
-                .map(|table_row| {
-                    table_row
-                        .iter()
-                        .map(|cell| {
-                            substitute_placeholders(
-                                cell,
-                                context.headers.as_slice(),
-                                context.row.as_slice(),
-                            )
-                        })
-                        .collect::<Result<Vec<_>, _>>()
-                })
-                .collect::<Result<Vec<_>, _>>()
-        })
+        .map(|t| substitute_table_placeholders(t, context))
         .transpose()?;
 
     Ok((substituted_text, substituted_docstring, substituted_table))
@@ -246,19 +261,7 @@ pub(crate) fn process_steps_substituted(
 ) -> Result<ProcessedStepTokens, proc_macro2::TokenStream> {
     let context = SubstitutionContext::new(headers, row);
 
-    // Resolve textual conjunctions (And/But) to the previous primary keyword
-    let keyword_tokens = {
-        let mut prev = steps
-            .iter()
-            .find_map(|s| match s.keyword {
-                crate::StepKeyword::And | crate::StepKeyword::But => None,
-                other => Some(other),
-            })
-            .or(Some(crate::StepKeyword::Given));
-        steps.iter().map(move |s| s.keyword.resolve(&mut prev))
-    }
-    .map(|kw| kw.to_token_stream())
-    .collect::<Vec<_>>();
+    let keyword_tokens = resolve_keyword_tokens(steps);
 
     let mut values = Vec::with_capacity(steps.len());
     let mut docstrings = Vec::with_capacity(steps.len());
