@@ -115,6 +115,16 @@ pub(super) fn gen_step_struct_decl(
         names,
         hints,
     } = placeholders;
+    debug_assert_eq!(
+        captures.len(),
+        names.len(),
+        "placeholder captures and names must stay aligned"
+    );
+    debug_assert_eq!(
+        hints.len(),
+        names.len(),
+        "placeholder hints must stay aligned with names"
+    );
     let capture_count = names.len();
     step_struct.map(|arg| {
         let StepStructArg { pat, ty } = arg.arg;

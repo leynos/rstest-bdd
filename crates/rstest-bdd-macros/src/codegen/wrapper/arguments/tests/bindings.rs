@@ -24,6 +24,7 @@ fn collect_ordered_arguments_preserves_call_order() {
     );
 }
 
+#[expect(clippy::expect_used, reason = "test asserts fixture declaration")]
 #[test]
 fn wrapper_bindings_avoid_leading_underscores() {
     let fixture = Arg::Fixture {
@@ -43,9 +44,7 @@ fn wrapper_bindings_avoid_leading_underscores() {
         &ctx_ident,
     );
 
-    let Some(code) = tokens.first() else {
-        panic!("expected fixture declaration");
-    };
+    let code = tokens.first().expect("expected fixture declaration");
     let code = code.to_string();
     assert!(
         code.contains("rstest_bdd_arg_0"),

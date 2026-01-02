@@ -68,11 +68,16 @@ pub fn build_arguments() -> Vec<Arg> {
 }
 
 /// Generate wrapper-local binding identifiers for tests.
+///
+/// Bindings follow the `rstest_bdd_arg_N` format to mirror wrapper output.
 pub fn build_bindings(count: usize) -> Vec<syn::Ident> {
     (0..count).map(bindings::wrapper_binding_ident).collect()
 }
 
 /// Pair extracted arguments with wrapper-local bindings for tests.
+///
+/// # Panics
+/// Panics when the binding and argument counts do not match.
 pub fn bind_args<'a>(args: &[&'a Arg], bindings: &'a [syn::Ident]) -> Vec<BoundArg<'a>> {
     assert!(
         args.len() == bindings.len(),

@@ -1,3 +1,5 @@
+# This feature uses Python-flavoured wording to exercise the Rust BDD fixture
+# and step-binding machinery; it does not execute Python code.
 Feature: Python streaming parser
 
   Scenario: Events decode into published structs
