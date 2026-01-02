@@ -1,4 +1,9 @@
 //! Wrapper body assembly for wrapper emission.
+//!
+//! This module combines prepared argument handling, error reporting, and the
+//! call expression into a single wrapper body token stream. It keeps the
+//! emission entry point focused on orchestration while centralising the logic
+//! that shapes the wrapper's structure.
 
 use super::super::args::ExtractedArgs;
 use super::super::arguments::{
@@ -69,8 +74,8 @@ fn assemble_wrapper_function(
         fn #wrapper_ident(
             #ctx_ident: &mut #path::StepContext<'_>,
             #text_ident: &str,
-            _docstring: Option<&str>,
-            _table: Option<&[&[&str]]>,
+            docstring: Option<&str>,
+            table: Option<&[&[&str]]>,
         ) -> Result<#path::StepExecution, #path::StepError> {
             use std::panic::{catch_unwind, AssertUnwindSafe};
             let captures = #path::extract_placeholders(&#pattern_ident, #text_ident.into())

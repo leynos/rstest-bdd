@@ -119,7 +119,7 @@ pub(super) fn gen_docstring_decl(
         |arg: BoundDocStringArg<'_>| {
             let pat = arg.binding.clone();
             let ty = quote! { String };
-            let expr = quote! { _docstring.map(|s| s.to_owned()) };
+            let expr = quote! { docstring.map(|s| s.to_owned()) };
             (pat, ty, expr)
         },
     )
@@ -167,17 +167,19 @@ pub(super) fn prepare_argument_processing(
 ) -> PreparedArgs {
     let StepMeta { pattern, ident } = step_meta;
     let binding_idents = wrapper_binding_idents(args);
+    debug_assert_eq!(
+        binding_idents.len(),
+        args.len(),
+        "expected one wrapper binding per argument"
+    );
     let mut fixtures = Vec::new();
     let mut step_args = Vec::new();
     let mut step_struct: Option<BoundStepStructArg<'_>> = None;
     let mut datatable: Option<BoundDataTableArg<'_>> = None;
     let mut docstring: Option<BoundDocStringArg<'_>> = None;
 
-    for (idx, arg) in args.iter().enumerate() {
-        // `wrapper_binding_idents` mirrors `args`, so missing bindings signal a bug here.
-        let Some(binding) = binding_idents.get(idx) else {
-            unreachable!("wrapper binding missing for argument index {idx}");
-        };
+    for (arg, binding) in args.iter().zip(binding_idents.iter()) {
+        // `wrapper_binding_idents` mirrors `args`, so a straight zip stays in sync.
         match arg {
             Arg::Fixture { .. } => fixtures.push(BoundArg { arg, binding }),
             Arg::Step { .. } => step_args.push(BoundArg { arg, binding }),
