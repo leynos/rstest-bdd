@@ -39,6 +39,21 @@ pub(in crate::codegen::wrapper::emit) struct WrapperIdents {
 /// - The `#[serial]` attribute from the `serial_test` crate
 /// - The `--test-threads=1` flag when running tests
 /// - A shared mutex guard to coordinate access
+///
+/// # Example
+///
+/// ```ignore
+/// use serial_test::serial;
+///
+/// #[test]
+/// #[serial]
+/// fn wrapper_identifiers_are_deterministic() {
+///     reset_wrapper_counter_for_tests();
+///     // First call returns 0, second returns 1, etc.
+///     assert_eq!(next_wrapper_id(), 0);
+///     assert_eq!(next_wrapper_id(), 1);
+/// }
+/// ```
 // FIXME: https://github.com/leynos/rstest-bdd/issues/59 – utility for future golden tests
 #[cfg(test)]
 #[expect(dead_code, reason = "reserved for future golden tests (issue #59)")]
@@ -57,6 +72,18 @@ pub(crate) fn reset_wrapper_counter_for_tests() {
 ///
 /// Returns identifiers for the sync wrapper function, async wrapper function,
 /// fixture array constant, and pattern constant.
+///
+/// # Example
+///
+/// ```ignore
+/// let ident: syn::Ident = syn::parse_str("my_step").expect("valid ident");
+/// let ids = generate_wrapper_identifiers(&ident, 0);
+///
+/// assert_eq!(ids.sync_wrapper.to_string(), "__rstest_bdd_wrapper_my_step_0");
+/// assert_eq!(ids.async_wrapper.to_string(), "__rstest_bdd_async_wrapper_my_step_0");
+/// assert_eq!(ids.const_ident.to_string(), "__RSTEST_BDD_FIXTURES_MY_STEP_0");
+/// assert_eq!(ids.pattern_ident.to_string(), "__RSTEST_BDD_PATTERN_MY_STEP_0");
+/// ```
 pub(in crate::codegen::wrapper::emit) fn generate_wrapper_identifiers(
     ident: &syn::Ident,
     id: usize,
@@ -80,6 +107,15 @@ pub(in crate::codegen::wrapper::emit) fn generate_wrapper_identifiers(
 /// Returns the current counter value before incrementing. Uses relaxed ordering
 /// since the counter only ensures a unique suffix and is not used for
 /// synchronisation with other data.
+///
+/// # Example
+///
+/// ```ignore
+/// // Each call returns the next sequential ID.
+/// let first = next_wrapper_id();   // e.g. 0
+/// let second = next_wrapper_id();  // e.g. 1
+/// assert_eq!(second, first + 1);
+/// ```
 pub(super) fn next_wrapper_id() -> usize {
     COUNTER.fetch_add(1, Ordering::Relaxed)
 }
