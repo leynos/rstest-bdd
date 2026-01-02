@@ -74,14 +74,23 @@ impl DiagnosticsTestScenario {
         }
     }
 
+    /// Helper to add a file to a specific collection.
+    fn add_file(
+        collection: &mut Vec<(String, String)>,
+        filename: impl Into<Filename>,
+        content: impl Into<FileContent>,
+    ) {
+        let filename = filename.into();
+        let content = content.into();
+        collection.push((filename.0, content.0));
+    }
+
     fn with_feature(
         mut self,
         filename: impl Into<Filename>,
         content: impl Into<FileContent>,
     ) -> Self {
-        let filename = filename.into();
-        let content = content.into();
-        self.feature_files.push((filename.0, content.0));
+        Self::add_file(&mut self.feature_files, filename, content);
         self
     }
 
@@ -90,9 +99,7 @@ impl DiagnosticsTestScenario {
         filename: impl Into<Filename>,
         content: impl Into<FileContent>,
     ) -> Self {
-        let filename = filename.into();
-        let content = content.into();
-        self.rust_files.push((filename.0, content.0));
+        Self::add_file(&mut self.rust_files, filename, content);
         self
     }
 

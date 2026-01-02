@@ -215,6 +215,7 @@ mod tests {
     use crate::config::ServerConfig;
     use crate::handlers::handle_did_save_text_document;
     use lsp_types::{DidSaveTextDocumentParams, TextDocumentIdentifier};
+    use rstest::rstest;
     use tempfile::TempDir;
 
     fn index_file(state: &mut ServerState, path: &std::path::Path) {
@@ -316,18 +317,6 @@ mod tests {
     }
 
     #[test]
-    fn implemented_step_produces_no_diagnostic() {
-        assert_scenario_has_no_feature_diagnostics(
-            "Feature: test\n  Scenario: s\n    Given a step\n",
-            concat!(
-                "use rstest_bdd_macros::given;\n\n",
-                "#[given(\"a step\")]\n",
-                "fn step() {}\n",
-            ),
-        );
-    }
-
-    #[test]
     fn unused_step_definition_produces_diagnostic() {
         let (_dir, _feature_path, rust_path, state) = setup_scenario(
             "Feature: test\n  Scenario: s\n    Given a step\n",
@@ -353,28 +342,45 @@ mod tests {
         );
     }
 
-    #[test]
-    fn used_step_definition_produces_no_diagnostic() {
-        assert_scenario_has_no_rust_diagnostics(
-            "Feature: test\n  Scenario: s\n    Given a step\n",
-            concat!(
-                "use rstest_bdd_macros::given;\n\n",
-                "#[given(\"a step\")]\n",
-                "fn step() {}\n",
-            ),
-        );
-    }
-
-    #[test]
-    fn parameterized_pattern_matches_feature_step() {
-        assert_scenario_has_no_diagnostics(
-            "Feature: test\n  Scenario: s\n    Given I have 5 items\n",
-            concat!(
-                "use rstest_bdd_macros::given;\n\n",
-                "#[given(\"I have {n:u32} items\")]\n",
-                "fn items() {}\n",
-            ),
-        );
+    #[rstest]
+    #[case::implemented_step(
+        "Feature: test\n  Scenario: s\n    Given a step\n",
+        concat!(
+            "use rstest_bdd_macros::given;\n\n",
+            "#[given(\"a step\")]\n",
+            "fn step() {}\n",
+        ),
+        "feature"
+    )]
+    #[case::used_step_definition(
+        "Feature: test\n  Scenario: s\n    Given a step\n",
+        concat!(
+            "use rstest_bdd_macros::given;\n\n",
+            "#[given(\"a step\")]\n",
+            "fn step() {}\n",
+        ),
+        "rust"
+    )]
+    #[case::parameterized_pattern(
+        "Feature: test\n  Scenario: s\n    Given I have 5 items\n",
+        concat!(
+            "use rstest_bdd_macros::given;\n\n",
+            "#[given(\"I have {n:u32} items\")]\n",
+            "fn items() {}\n",
+        ),
+        "both"
+    )]
+    fn no_diagnostics_scenarios(
+        #[case] feature_content: &str,
+        #[case] rust_content: &str,
+        #[case] check_type: &str,
+    ) {
+        match check_type {
+            "feature" => assert_scenario_has_no_feature_diagnostics(feature_content, rust_content),
+            "rust" => assert_scenario_has_no_rust_diagnostics(feature_content, rust_content),
+            "both" => assert_scenario_has_no_diagnostics(feature_content, rust_content),
+            _ => panic!("invalid check_type: {check_type}"),
+        }
     }
 
     #[test]
