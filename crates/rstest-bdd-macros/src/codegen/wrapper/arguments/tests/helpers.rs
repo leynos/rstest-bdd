@@ -76,8 +76,7 @@ pub fn build_bindings(count: usize) -> Vec<syn::Ident> {
 pub fn bind_args<'a>(args: &[&'a Arg], bindings: &'a [syn::Ident]) -> Vec<BoundArg<'a>> {
     assert!(
         args.len() == bindings.len(),
-        "expected {} bindings for {} args, got {} bindings",
-        args.len(),
+        "expected {} bindings, got {} bindings",
         args.len(),
         bindings.len()
     );
