@@ -125,20 +125,22 @@ fn try_scenario(
     let ctx_inserts = fixture_setup.ctx_inserts;
     let ctx_postlude = fixture_setup.postlude;
 
+    let config = ScenarioConfig {
+        attrs,
+        vis,
+        sig,
+        block,
+        feature_path: FeaturePath::new(feature_path_str),
+        scenario_name: ScenarioName::new(scenario_name),
+        steps,
+        examples,
+        allow_skipped,
+        line,
+        tags: &tags,
+    };
+
     Ok(generate_scenario_code(
-        ScenarioConfig {
-            attrs,
-            vis,
-            sig,
-            block,
-            feature_path: FeaturePath::new(feature_path_str),
-            scenario_name: ScenarioName::new(scenario_name),
-            steps,
-            examples,
-            allow_skipped,
-            line,
-            tags: &tags,
-        },
+        &config,
         ctx_prelude.into_iter(),
         ctx_inserts.into_iter(),
         ctx_postlude.into_iter(),

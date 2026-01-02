@@ -74,7 +74,7 @@ fn steps_contain_placeholders(steps: &[crate::parsing::feature::ParsedStep]) -> 
 
 /// Generate the runtime test for a single scenario.
 pub(crate) fn generate_scenario_code(
-    config: ScenarioConfig<'_>,
+    config: &ScenarioConfig<'_>,
     ctx_prelude: impl Iterator<Item = TokenStream2>,
     ctx_inserts: impl Iterator<Item = TokenStream2>,
     ctx_postlude: impl Iterator<Item = TokenStream2>,
@@ -89,9 +89,9 @@ pub(crate) fn generate_scenario_code(
     };
 
     if is_outline_with_placeholders {
-        generate_outline_scenario_code(&config, ctx)
+        generate_outline_scenario_code(config, ctx)
     } else {
-        generate_regular_scenario_code(&config, ctx)
+        generate_regular_scenario_code(config, ctx)
     }
 }
 
@@ -149,15 +149,12 @@ where
     Q: Iterator<Item = TokenStream2>,
 {
     // Generate substituted steps for each Examples row
-    let examples = match config.examples.as_ref() {
-        Some(examples) => examples,
-        None => {
-            let err = syn::Error::new(
-                proc_macro2::Span::call_site(),
-                "Scenario outline examples missing",
-            );
-            return TokenStream::from(err.into_compile_error());
-        }
+    let Some(examples) = config.examples.as_ref() else {
+        let err = syn::Error::new(
+            proc_macro2::Span::call_site(),
+            "Scenario outline examples missing",
+        );
+        return TokenStream::from(err.into_compile_error());
     };
     let headers = ExampleHeaders::new(examples.headers.clone());
     let all_rows_steps: Result<Vec<_>, _> = examples
