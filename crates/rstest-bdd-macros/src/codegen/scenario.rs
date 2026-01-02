@@ -46,6 +46,13 @@ pub(crate) struct ScenarioConfig<'a> {
     pub(crate) tags: &'a [String],
 }
 
+/// Configuration for context iterators in scenario code generation.
+pub(crate) struct ContextConfig<P, I, Q> {
+    pub(crate) prelude: P,
+    pub(crate) inserts: I,
+    pub(crate) postlude: Q,
+}
+
 pub(crate) fn scenario_allows_skip(tags: &[String]) -> bool {
     tags.iter().any(|tag| tag == "@allow_skipped")
 }
@@ -72,114 +79,34 @@ pub(crate) fn generate_scenario_code(
     ctx_inserts: impl Iterator<Item = TokenStream2>,
     ctx_postlude: impl Iterator<Item = TokenStream2>,
 ) -> TokenStream {
-    let ScenarioConfig {
-        attrs,
-        vis,
-        sig,
-        block,
-        feature_path,
-        scenario_name,
-        steps,
-        examples,
-        allow_skipped,
-        line,
-        tags,
-    } = config;
-
     // Check if this is a scenario outline with placeholders in steps
-    let is_outline_with_placeholders = examples.is_some() && steps_contain_placeholders(&steps);
-
-    let func_meta = FunctionMetadata {
-        attrs,
-        vis,
-        sig,
-        block,
-    };
-    let scenario_meta = ScenarioMeta {
-        feature_path: &feature_path,
-        scenario_name: &scenario_name,
-        steps: &steps,
-        allow_skipped,
-        line,
-        tags,
-    };
-    let ctx_iterators = ContextIterators {
+    let is_outline_with_placeholders =
+        config.examples.is_some() && steps_contain_placeholders(&config.steps);
+    let ctx = ContextConfig {
         prelude: ctx_prelude,
         inserts: ctx_inserts,
         postlude: ctx_postlude,
     };
 
-    // Use match to ensure examples is available for outline without expect
-    match (is_outline_with_placeholders, examples.as_ref()) {
-        (true, Some(ex)) => {
-            generate_outline_scenario_code(&func_meta, &scenario_meta, ex, ctx_iterators)
-        }
-        _ => generate_regular_scenario_code(
-            &func_meta,
-            &scenario_meta,
-            examples.as_ref(),
-            ctx_iterators,
-        ),
+    if is_outline_with_placeholders {
+        generate_outline_scenario_code(&config, ctx)
+    } else {
+        generate_regular_scenario_code(&config, ctx)
     }
 }
 
-/// Function metadata from the annotated test function.
-pub(crate) struct FunctionMetadata<'a> {
-    pub(crate) attrs: &'a [syn::Attribute],
-    pub(crate) vis: &'a syn::Visibility,
-    pub(crate) sig: &'a syn::Signature,
-    pub(crate) block: &'a syn::Block,
-}
-
-/// Context iterators for test generation.
-pub(crate) struct ContextIterators<P, I, T> {
-    pub(crate) prelude: P,
-    pub(crate) inserts: I,
-    pub(crate) postlude: T,
-}
-
-/// Scenario metadata for code generation.
-struct ScenarioMeta<'a> {
-    feature_path: &'a FeaturePath,
-    scenario_name: &'a ScenarioName,
-    steps: &'a [crate::parsing::feature::ParsedStep],
-    allow_skipped: bool,
-    line: u32,
-    tags: &'a [String],
-}
-
 /// Generate code for a regular scenario (no placeholder substitution).
-fn generate_regular_scenario_code(
-    func_meta: &FunctionMetadata<'_>,
-    scenario_meta: &ScenarioMeta<'_>,
-    examples: Option<&crate::parsing::examples::ExampleTable>,
-    ctx_iterators: ContextIterators<
-        impl Iterator<Item = TokenStream2>,
-        impl Iterator<Item = TokenStream2>,
-        impl Iterator<Item = TokenStream2>,
-    >,
-) -> TokenStream {
-    let FunctionMetadata {
-        attrs,
-        vis,
-        sig,
-        block,
-    } = func_meta;
-    let ScenarioMeta {
-        feature_path,
-        scenario_name,
-        steps,
-        allow_skipped,
-        line,
-        tags,
-    } = scenario_meta;
-    let ContextIterators {
-        prelude: ctx_prelude,
-        inserts: ctx_inserts,
-        postlude: ctx_postlude,
-    } = ctx_iterators;
-    let (keyword_tokens, values, docstrings, tables) = process_steps(steps);
-    debug_assert_eq!(keyword_tokens.len(), steps.len());
+fn generate_regular_scenario_code<P, I, Q>(
+    config: &ScenarioConfig<'_>,
+    ctx: ContextConfig<P, I, Q>,
+) -> TokenStream
+where
+    P: Iterator<Item = TokenStream2>,
+    I: Iterator<Item = TokenStream2>,
+    Q: Iterator<Item = TokenStream2>,
+{
+    let (keyword_tokens, values, docstrings, tables) = process_steps(&config.steps);
+    debug_assert_eq!(keyword_tokens.len(), config.steps.len());
     let processed_steps = ProcessedSteps {
         keyword_tokens,
         values,
@@ -188,15 +115,21 @@ fn generate_regular_scenario_code(
     };
     let test_config = TestTokensConfig {
         processed_steps,
-        feature_path,
-        scenario_name,
-        scenario_line: *line,
-        tags,
-        block,
-        allow_skipped: *allow_skipped,
+        feature_path: &config.feature_path,
+        scenario_name: &config.scenario_name,
+        scenario_line: config.line,
+        tags: config.tags,
+        block: config.block,
+        allow_skipped: config.allow_skipped,
     };
-    let case_attrs = examples.map_or_else(Vec::new, generate_case_attrs);
-    let body = generate_test_tokens(test_config, ctx_prelude, ctx_inserts, ctx_postlude);
+    let case_attrs = config
+        .examples
+        .as_ref()
+        .map_or_else(Vec::new, generate_case_attrs);
+    let body = generate_test_tokens(test_config, ctx.prelude, ctx.inserts, ctx.postlude);
+    let attrs = config.attrs;
+    let vis = config.vis;
+    let sig = config.sig;
     TokenStream::from(quote! {
         #[rstest::rstest]
         #(#case_attrs)*
@@ -206,37 +139,26 @@ fn generate_regular_scenario_code(
 }
 
 /// Generate code for a scenario outline with placeholder substitution.
-fn generate_outline_scenario_code(
-    func_meta: &FunctionMetadata<'_>,
-    scenario_meta: &ScenarioMeta<'_>,
-    examples: &crate::parsing::examples::ExampleTable,
-    ctx_iterators: ContextIterators<
-        impl Iterator<Item = TokenStream2>,
-        impl Iterator<Item = TokenStream2>,
-        impl Iterator<Item = TokenStream2>,
-    >,
-) -> TokenStream {
-    let FunctionMetadata {
-        attrs,
-        vis,
-        sig,
-        block,
-    } = func_meta;
-    let ScenarioMeta {
-        feature_path,
-        scenario_name,
-        steps,
-        allow_skipped,
-        line,
-        tags,
-    } = scenario_meta;
-    let ContextIterators {
-        prelude: ctx_prelude,
-        inserts: ctx_inserts,
-        postlude: ctx_postlude,
-    } = ctx_iterators;
-
+fn generate_outline_scenario_code<P, I, Q>(
+    config: &ScenarioConfig<'_>,
+    ctx: ContextConfig<P, I, Q>,
+) -> TokenStream
+where
+    P: Iterator<Item = TokenStream2>,
+    I: Iterator<Item = TokenStream2>,
+    Q: Iterator<Item = TokenStream2>,
+{
     // Generate substituted steps for each Examples row
+    let examples = match config.examples.as_ref() {
+        Some(examples) => examples,
+        None => {
+            let err = syn::Error::new(
+                proc_macro2::Span::call_site(),
+                "Scenario outline examples missing",
+            );
+            return TokenStream::from(err.into_compile_error());
+        }
+    };
     let headers = ExampleHeaders::new(examples.headers.clone());
     let all_rows_steps: Result<Vec<_>, _> = examples
         .rows
@@ -244,7 +166,7 @@ fn generate_outline_scenario_code(
         .filter(|row| row.iter().any(|cell| !cell.is_empty()))
         .map(|row| {
             let row = ExampleRow::new(row.clone());
-            process_steps_substituted(steps, &headers, &row)
+            process_steps_substituted(&config.steps, &headers, &row)
         })
         .collect();
 
@@ -255,24 +177,26 @@ fn generate_outline_scenario_code(
 
     let outline_config = OutlineTestTokensConfig {
         all_rows_steps,
-        feature_path,
-        scenario_name,
-        scenario_line: *line,
-        tags,
-        block,
-        allow_skipped: *allow_skipped,
+        feature_path: &config.feature_path,
+        scenario_name: &config.scenario_name,
+        scenario_line: config.line,
+        tags: config.tags,
+        block: config.block,
+        allow_skipped: config.allow_skipped,
     };
 
     let case_attrs = generate_indexed_case_attrs(examples);
-    let body = generate_test_tokens_outline(outline_config, ctx_prelude, ctx_inserts, ctx_postlude);
+    let body = generate_test_tokens_outline(outline_config, ctx.prelude, ctx.inserts, ctx.postlude);
 
     // Add the hidden case index parameter to the signature
-    let mut modified_sig = (*sig).clone();
+    let mut modified_sig = (*config.sig).clone();
     let case_idx_param: syn::FnArg = syn::parse_quote! {
         #[case] __rstest_bdd_case_idx: usize
     };
     modified_sig.inputs.insert(0, case_idx_param);
 
+    let attrs = config.attrs;
+    let vis = config.vis;
     TokenStream::from(quote! {
         #[rstest::rstest]
         #(#case_attrs)*
