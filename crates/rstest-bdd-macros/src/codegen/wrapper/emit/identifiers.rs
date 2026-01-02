@@ -1,10 +1,12 @@
-//! Unique identifier generation for wrapper components.
+//! Identifier helpers for wrapper emission.
 //!
-//! This module provides functionality for generating unique, deterministic
-//! identifiers for sync/async wrapper functions, fixture arrays, and pattern
-//! constants. A global counter ensures uniqueness across all generated wrappers.
+//! Generates the internal wrapper, pattern, and fixture identifiers used by
+//! emitted step wrappers. The identifiers are sanitised to ASCII to avoid
+//! generating invalid symbols when step function names contain Unicode.
+//! A global counter ensures uniqueness across all generated wrappers.
 
 use crate::utils::ident::sanitize_ident;
+use proc_macro2::TokenStream as TokenStream2;
 use quote::format_ident;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
@@ -67,7 +69,7 @@ pub(crate) fn reset_wrapper_counter_for_tests() {
 /// Generate unique identifiers for the wrapper components.
 ///
 /// The provided step function identifier may contain Unicode. It is
-/// sanitized to ASCII before constructing constant names to avoid emitting
+/// sanitised to ASCII before constructing constant names to avoid emitting
 /// invalid identifiers.
 ///
 /// Returns identifiers for the sync wrapper function, async wrapper function,
@@ -99,6 +101,30 @@ pub(in crate::codegen::wrapper::emit) fn generate_wrapper_identifiers(
         async_wrapper,
         const_ident,
         pattern_ident,
+    }
+}
+
+/// Generate the `StepPattern` constant used by a wrapper.
+///
+/// # Example
+///
+/// ```ignore
+/// let pattern = syn::LitStr::new("^I log in$", proc_macro2::Span::call_site());
+/// let ident = syn::Ident::new(
+///     "__RSTEST_BDD_PATTERN_LOGIN_0",
+///     proc_macro2::Span::call_site(),
+/// );
+/// let tokens = generate_wrapper_signature(&pattern, &ident);
+/// assert!(tokens.to_string().contains("__RSTEST_BDD_PATTERN_LOGIN_0"));
+/// ```
+pub(in crate::codegen::wrapper::emit) fn generate_wrapper_signature(
+    pattern: &syn::LitStr,
+    pattern_ident: &proc_macro2::Ident,
+) -> TokenStream2 {
+    let path = crate::codegen::rstest_bdd_path();
+    quote::quote! {
+        static #pattern_ident: #path::StepPattern =
+            #path::StepPattern::new(#pattern);
     }
 }
 

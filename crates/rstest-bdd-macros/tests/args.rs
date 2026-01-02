@@ -162,8 +162,8 @@ fn datatable_attribute_recognised_and_preserves_type() {
     let args = extract_args(&mut func, &mut HashSet::new()).expect("failed to extract args");
     #[expect(clippy::expect_used, reason = "datatable presence required")]
     let dt = find_datatable(&args).expect("missing datatable");
-    assert_eq!(dt.pat().to_string(), "table");
-    if let Arg::DataTable { ty, .. } = dt {
+    if let Arg::DataTable { pat, ty } = dt {
+        assert_eq!(pat.to_string(), "table");
         if let syn::Type::Path(tp) = ty {
             #[expect(clippy::expect_used, reason = "path has at least one segment")]
             let seg = tp.path.segments.last().expect("missing segment");
@@ -193,7 +193,10 @@ fn datatable_attribute_removed_from_signature() {
     let args = extract_args(&mut func, &mut HashSet::new()).expect("failed to extract args");
     #[expect(clippy::expect_used, reason = "datatable presence required")]
     let dt = find_datatable(&args).expect("missing datatable after strip");
-    assert_eq!(dt.pat().to_string(), "data");
+    match dt {
+        Arg::DataTable { pat, .. } => assert_eq!(pat.to_string(), "data"),
+        _ => panic!("expected datatable argument"),
+    }
     #[expect(clippy::expect_used, reason = "test inspects parameter attributes")]
     let syn::FnArg::Typed(arg) = func.sig.inputs.first().expect("missing arg") else {
         panic!("expected typed argument");

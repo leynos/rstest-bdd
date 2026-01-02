@@ -17,7 +17,16 @@ pub(crate) fn step_arg_count(args: &ExtractedArgs) -> usize {
 }
 
 pub(crate) fn ordered_parameter_names(args: &ExtractedArgs) -> Vec<String> {
-    args.args.iter().map(|arg| arg.pat().to_string()).collect()
+    args.args
+        .iter()
+        .map(|arg| match arg {
+            Arg::Fixture { pat, .. }
+            | Arg::Step { pat, .. }
+            | Arg::StepStruct { pat, .. }
+            | Arg::DataTable { pat, .. }
+            | Arg::DocString { pat } => pat.to_string(),
+        })
+        .collect()
 }
 
 pub(crate) fn find_datatable(args: &ExtractedArgs) -> Option<&Arg> {

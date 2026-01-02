@@ -18,7 +18,7 @@ use quote::quote;
 pub(super) fn generate_call_expression(
     return_kind: ReturnKind,
     ident: &syn::Ident,
-    arg_idents: &[&syn::Ident],
+    arg_idents: &[syn::Ident],
 ) -> TokenStream2 {
     let path = crate::codegen::rstest_bdd_path();
     let call = quote! { #ident(#(#arg_idents),*) };

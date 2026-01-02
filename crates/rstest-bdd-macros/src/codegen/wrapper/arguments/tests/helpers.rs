@@ -1,5 +1,6 @@
 //! Test helper functions for argument preparation tests.
 
+use super::super::bindings;
 use super::super::*;
 use crate::codegen::wrapper::args::Arg;
 use quote::quote;
@@ -29,7 +30,8 @@ pub fn generate_step_parse_with_hint(ty: syn::Type, hint: Option<String>) -> Str
         pat: parse_quote!(name),
         ty,
     };
-    let args = vec![&arg];
+    let bindings = build_bindings(1);
+    let args = bind_args(&[&arg], &bindings);
     let captures = vec![quote! { captures.get(0).map(|m| m.as_str()) }];
     let hints = vec![hint];
 
@@ -63,4 +65,28 @@ pub fn build_arguments() -> Vec<Arg> {
             pat: parse_quote!(doc),
         },
     ]
+}
+
+/// Generate wrapper-local binding identifiers for tests.
+///
+/// Bindings follow the `rstest_bdd_arg_N` format to mirror wrapper output.
+pub fn build_bindings(count: usize) -> Vec<syn::Ident> {
+    (0..count).map(bindings::wrapper_binding_ident).collect()
+}
+
+/// Pair extracted arguments with wrapper-local bindings for tests.
+///
+/// # Panics
+/// Panics when the binding and argument counts do not match.
+pub fn bind_args<'a>(args: &[&'a Arg], bindings: &'a [syn::Ident]) -> Vec<BoundArg<'a>> {
+    assert!(
+        args.len() == bindings.len(),
+        "expected {} bindings, got {} bindings",
+        args.len(),
+        bindings.len()
+    );
+    args.iter()
+        .zip(bindings.iter())
+        .map(|(arg, binding)| BoundArg { arg, binding })
+        .collect()
 }

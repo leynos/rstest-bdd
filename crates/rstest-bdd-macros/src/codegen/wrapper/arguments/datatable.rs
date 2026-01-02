@@ -15,6 +15,7 @@
 //!   reference them while generating argument initialisation code.
 
 use super::super::args::{DataTableArg, classify::is_cached_table};
+use super::BoundDataTableArg;
 use super::{StepMeta, step_error_tokens};
 use crate::codegen::wrapper::datatable_shared::{
     record_cache_miss_tokens, table_arc_tokens, table_content_match_tokens,
@@ -120,7 +121,7 @@ fn gen_cache_entry_match_tokens(
 
 /// Emit the datatable extraction, caching, and conversion block.
 ///
-/// 1. Ensures the optional `_table` is present, otherwise raises a missing
+/// 1. Ensures the optional table input is present, otherwise raises a missing
 ///    datatable error.
 /// 2. Builds a cache key from pointer plus FNV-1a hash.
 /// 3. Checks the cache: reuses an existing `Arc` when contents match; records
@@ -173,7 +174,7 @@ fn gen_datatable_body(
     );
 
     quote::quote! {
-        let table = _table.ok_or_else(|| #missing_err)?;
+        let table = table.ok_or_else(|| #missing_err)?;
         let key = #key_ident::new(table);
         let cache = #cache_map_ident.get_or_init(|| {
             std::sync::Mutex::new(std::collections::HashMap::new())
@@ -204,16 +205,16 @@ fn gen_datatable_body(
 /// `Some(TokenStream2)` containing the datatable binding, or `None` if no
 /// datatable argument is present.
 pub(super) fn gen_datatable_decl(
-    datatable: Option<DataTableArg<'_>>,
+    datatable: Option<BoundDataTableArg<'_>>,
     step_meta: StepMeta<'_>,
     cache_idents: &CacheIdents<'_>,
 ) -> Option<TokenStream2> {
     datatable.map(|arg| {
-        let pat = arg.pat;
-        let ty = arg.ty;
-        let body = gen_datatable_body(is_cached_table(arg.ty), step_meta, cache_idents);
+        let DataTableArg { ty } = arg.arg;
+        let binding = arg.binding;
+        let body = gen_datatable_body(is_cached_table(ty), step_meta, cache_idents);
         quote::quote! {
-            let #pat: #ty = {
+            let #binding: #ty = {
                 #body
             };
         }

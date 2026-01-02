@@ -1,11 +1,13 @@
 //! Tests for argument preparation helpers.
 
+mod bindings;
 mod helpers;
 
 use super::*;
 use crate::codegen::wrapper::args::Arg;
 use helpers::{
-    build_arguments, generate_step_parse_for_single_arg, generate_step_parse_with_hint, sample_meta,
+    bind_args, build_arguments, build_bindings, generate_step_parse_for_single_arg,
+    generate_step_parse_with_hint, sample_meta,
 };
 use quote::{format_ident, quote};
 use rstest::rstest;
@@ -61,17 +63,6 @@ fn prepare_argument_processing_handles_all_argument_types() {
 }
 
 #[test]
-fn collect_ordered_arguments_preserves_call_order() {
-    let args = build_arguments();
-    let names: Vec<String> = collect_ordered_arguments(&args)
-        .into_iter()
-        .map(std::string::ToString::to_string)
-        .collect();
-
-    assert_eq!(names, ["db", "count", "table", "doc"]);
-}
-
-#[test]
 fn gen_fixture_decls_handles_reference_types() {
     let fixtures = [
         Arg::Fixture {
@@ -103,6 +94,8 @@ fn gen_fixture_decls_handles_reference_types() {
     let ident: syn::Ident = parse_quote!(step_fn);
     let ctx_ident = format_ident!("__rstest_bdd_ctx");
     let fixture_refs: Vec<_> = fixtures.iter().collect();
+    let bindings = build_bindings(fixture_refs.len());
+    let fixture_refs = bind_args(&fixture_refs, &bindings);
     let tokens = gen_fixture_decls(&fixture_refs, &ident, &ctx_ident);
     let [owned, str_ref, bytes_ref, mut_ref, cell_ref] = tokens.as_slice() else {
         panic!("expected five fixture declarations");
@@ -199,7 +192,8 @@ fn gen_step_parses_handles_mixed_str_and_parsed_types() {
         pat: parse_quote!(count),
         ty: parse_quote!(usize),
     };
-    let args = vec![&str_arg, &usize_arg];
+    let bindings = build_bindings(2);
+    let args = bind_args(&[&str_arg, &usize_arg], &bindings);
     let captures = vec![
         quote! { captures.get(0).map(|m| m.as_str()) },
         quote! { captures.get(1).map(|m| m.as_str()) },
@@ -273,7 +267,8 @@ fn gen_step_parses_applies_hints_only_to_matching_arguments() {
         pat: parse_quote!(count),
         ty: parse_quote!(usize),
     };
-    let args = vec![&name_arg, &count_arg];
+    let bindings = build_bindings(2);
+    let args = bind_args(&[&name_arg, &count_arg], &bindings);
     let captures = vec![
         quote! { captures.get(0).map(|m| m.as_str()) },
         quote! { captures.get(1).map(|m| m.as_str()) },

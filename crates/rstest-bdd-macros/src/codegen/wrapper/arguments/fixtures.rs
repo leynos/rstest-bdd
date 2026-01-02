@@ -3,12 +3,13 @@ use proc_macro2::TokenStream as TokenStream2;
 use quote::format_ident;
 
 use super::super::args::Arg;
+use super::BoundArg;
 use crate::codegen::rstest_bdd_path;
 
 /// Context for generating fixture declarations in step wrappers.
 #[derive(Copy, Clone)]
 struct FixtureDeclContext<'a> {
-    pat: &'a syn::Ident,
+    binding: &'a syn::Ident,
     name: &'a syn::Ident,
     ty: &'a syn::Type,
     ident: &'a syn::Ident,
@@ -71,13 +72,13 @@ fn gen_fixture_decl_inner(
 ) -> TokenStream2 {
     let missing_err = gen_missing_fixture_error(&ctx, config.error_ty);
     let FixtureDeclContext {
-        pat,
+        binding,
         name,
         ty,
         ctx_ident,
         ..
     } = ctx;
-    let guard_ident = format_ident!("__rstest_bdd_guard_{}", pat);
+    let guard_ident = format_ident!("__rstest_bdd_guard_{}", binding);
 
     let (guard_binding, borrow_method) = match config.borrow_kind {
         BorrowKind::Mutable => (quote::quote! { mut }, quote::quote! { borrow_mut }),
@@ -96,7 +97,7 @@ fn gen_fixture_decl_inner(
         let #guard_binding #guard_ident = #ctx_ident
             .#borrow_method::<#borrow_ty>(stringify!(#name))
             .ok_or_else(|| #missing_err)?;
-        let #pat: #ty = #value_expr;
+        let #binding: #ty = #value_expr;
     }
 }
 
@@ -118,15 +119,15 @@ fn gen_unsized_ref_fixture_decl(ctx: FixtureDeclContext<'_>, _elem: &syn::Type) 
 fn gen_sized_ref_fixture_decl(ctx: FixtureDeclContext<'_>, elem: &syn::Type) -> TokenStream2 {
     let missing_err = gen_missing_fixture_error(&ctx, elem);
     let FixtureDeclContext {
-        pat,
+        binding,
         name,
         ty,
         ctx_ident,
         ..
     } = ctx;
     let path = rstest_bdd_path();
-    let guard_ident = format_ident!("__rstest_bdd_guard_{}", pat);
-    let guard_enum_ident = format_ident!("__rstest_bdd_guard_enum_{}", pat);
+    let guard_ident = format_ident!("__rstest_bdd_guard_{}", binding);
+    let guard_enum_ident = format_ident!("__rstest_bdd_guard_enum_{}", binding);
     let elem_ref_ty = quote::quote! { &'static #elem };
 
     quote::quote! {
@@ -146,7 +147,7 @@ fn gen_sized_ref_fixture_decl(ctx: FixtureDeclContext<'_>, elem: &syn::Type) -> 
             )
         };
 
-        let #pat: #ty = match &#guard_ident {
+        let #binding: #ty = match &#guard_ident {
             #guard_enum_ident::Owned(g) => g.value(),
             #guard_enum_ident::Shared(g) => *g.value(),
         };
@@ -170,18 +171,19 @@ fn gen_owned_fixture_decl(ctx: FixtureDeclContext<'_>) -> TokenStream2 {
 /// (for example `&T` or `&mut T`) are borrowed from the context and are not
 /// cloned.
 pub(super) fn gen_fixture_decls(
-    fixtures: &[&Arg],
+    fixtures: &[BoundArg<'_>],
     ident: &syn::Ident,
     ctx_ident: &proc_macro2::Ident,
 ) -> Vec<TokenStream2> {
     fixtures
         .iter()
         .map(|fixture| {
-            let Arg::Fixture { pat, name, ty } = fixture else {
+            let BoundArg { arg, binding } = *fixture;
+            let Arg::Fixture { name, ty, .. } = arg else {
                 unreachable!("fixture vector must contain fixtures");
             };
             let ctx = FixtureDeclContext {
-                pat,
+                binding,
                 name,
                 ty,
                 ident,
