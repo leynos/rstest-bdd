@@ -255,7 +255,6 @@ mod tests {
         compute_unimplemented_step_diagnostics(state, feature_index)
     }
 
-    /// Helper to assert feature diagnostics are empty.
     fn assert_feature_has_no_unimplemented_steps(state: &ServerState, feature_path: &Path) {
         let diags = compute_feature_diagnostics_for_path(state, feature_path);
         assert!(
@@ -265,7 +264,6 @@ mod tests {
         );
     }
 
-    /// Helper to assert rust diagnostics are empty.
     fn assert_rust_has_no_unused_steps(state: &ServerState, rust_path: &Path) {
         let diags = compute_unused_step_diagnostics(state, rust_path);
         assert!(
@@ -273,6 +271,22 @@ mod tests {
             "expected no unused step definitions, found {}",
             diags.len()
         );
+    }
+
+    fn assert_scenario_has_no_feature_diagnostics(feature_content: &str, rust_content: &str) {
+        let (_dir, feature_path, _rust_path, state) = setup_scenario(feature_content, rust_content);
+        assert_feature_has_no_unimplemented_steps(&state, &feature_path);
+    }
+
+    fn assert_scenario_has_no_rust_diagnostics(feature_content: &str, rust_content: &str) {
+        let (_dir, _feature_path, rust_path, state) = setup_scenario(feature_content, rust_content);
+        assert_rust_has_no_unused_steps(&state, &rust_path);
+    }
+
+    fn assert_scenario_has_no_diagnostics(feature_content: &str, rust_content: &str) {
+        let (_dir, feature_path, rust_path, state) = setup_scenario(feature_content, rust_content);
+        assert_feature_has_no_unimplemented_steps(&state, &feature_path);
+        assert_rust_has_no_unused_steps(&state, &rust_path);
     }
 
     #[test]
@@ -303,7 +317,7 @@ mod tests {
 
     #[test]
     fn implemented_step_produces_no_diagnostic() {
-        let (_dir, feature_path, _rust_path, state) = setup_scenario(
+        assert_scenario_has_no_feature_diagnostics(
             "Feature: test\n  Scenario: s\n    Given a step\n",
             concat!(
                 "use rstest_bdd_macros::given;\n\n",
@@ -311,8 +325,6 @@ mod tests {
                 "fn step() {}\n",
             ),
         );
-
-        assert_feature_has_no_unimplemented_steps(&state, &feature_path);
     }
 
     #[test]
@@ -343,7 +355,7 @@ mod tests {
 
     #[test]
     fn used_step_definition_produces_no_diagnostic() {
-        let (_dir, _feature_path, rust_path, state) = setup_scenario(
+        assert_scenario_has_no_rust_diagnostics(
             "Feature: test\n  Scenario: s\n    Given a step\n",
             concat!(
                 "use rstest_bdd_macros::given;\n\n",
@@ -351,13 +363,11 @@ mod tests {
                 "fn step() {}\n",
             ),
         );
-
-        assert_rust_has_no_unused_steps(&state, &rust_path);
     }
 
     #[test]
     fn parameterized_pattern_matches_feature_step() {
-        let (_dir, feature_path, rust_path, state) = setup_scenario(
+        assert_scenario_has_no_diagnostics(
             "Feature: test\n  Scenario: s\n    Given I have 5 items\n",
             concat!(
                 "use rstest_bdd_macros::given;\n\n",
@@ -365,9 +375,6 @@ mod tests {
                 "fn items() {}\n",
             ),
         );
-
-        assert_feature_has_no_unimplemented_steps(&state, &feature_path);
-        assert_rust_has_no_unused_steps(&state, &rust_path);
     }
 
     #[test]

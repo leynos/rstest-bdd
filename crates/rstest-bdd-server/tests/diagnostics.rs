@@ -13,6 +13,38 @@ use rstest_bdd_server::handlers::handle_did_save_text_document;
 use rstest_bdd_server::server::ServerState;
 use tempfile::TempDir;
 
+/// Newtype for test file names to improve type safety.
+#[derive(Debug, Clone)]
+struct Filename(String);
+
+impl From<&str> for Filename {
+    fn from(s: &str) -> Self {
+        Self(s.to_owned())
+    }
+}
+
+impl AsRef<str> for Filename {
+    fn as_ref(&self) -> &str {
+        &self.0
+    }
+}
+
+/// Newtype for file contents to improve type safety.
+#[derive(Debug, Clone)]
+struct FileContent(String);
+
+impl From<&str> for FileContent {
+    fn from(s: &str) -> Self {
+        Self(s.to_owned())
+    }
+}
+
+impl AsRef<str> for FileContent {
+    fn as_ref(&self) -> &str {
+        &self.0
+    }
+}
+
 #[expect(clippy::expect_used, reason = "test helper uses expect for clarity")]
 fn index_file(state: &mut ServerState, path: &std::path::Path) {
     let uri = Url::from_file_path(path).expect("file URI");
@@ -42,15 +74,25 @@ impl DiagnosticsTestScenario {
         }
     }
 
-    fn with_feature(mut self, filename: &str, content: &str) -> Self {
-        self.feature_files
-            .push((filename.to_owned(), content.to_owned()));
+    fn with_feature(
+        mut self,
+        filename: impl Into<Filename>,
+        content: impl Into<FileContent>,
+    ) -> Self {
+        let filename = filename.into();
+        let content = content.into();
+        self.feature_files.push((filename.0, content.0));
         self
     }
 
-    fn with_rust_steps(mut self, filename: &str, content: &str) -> Self {
-        self.rust_files
-            .push((filename.to_owned(), content.to_owned()));
+    fn with_rust_steps(
+        mut self,
+        filename: impl Into<Filename>,
+        content: impl Into<FileContent>,
+    ) -> Self {
+        let filename = filename.into();
+        let content = content.into();
+        self.rust_files.push((filename.0, content.0));
         self
     }
 
@@ -76,9 +118,9 @@ impl DiagnosticsTestScenario {
 fn compute_feature_diagnostics(
     state: &ServerState,
     dir: &TempDir,
-    filename: &str,
+    filename: impl AsRef<str>,
 ) -> Vec<lsp_types::Diagnostic> {
-    let path = dir.path().join(filename);
+    let path = dir.path().join(filename.as_ref());
     let feature_index = state.feature_index(&path).expect("feature index");
 
     // Reuse the same logic as the diagnostics module
@@ -108,9 +150,9 @@ fn compute_feature_diagnostics(
 fn compute_rust_diagnostics(
     state: &ServerState,
     dir: &TempDir,
-    filename: &str,
+    filename: impl AsRef<str>,
 ) -> Vec<lsp_types::Diagnostic> {
-    let path = dir.path().join(filename);
+    let path = dir.path().join(filename.as_ref());
 
     state
         .step_registry()
@@ -159,6 +201,48 @@ fn assert_single_diagnostic_contains(
     );
 }
 
+/// Helper to assert a feature file has a diagnostic with expected message.
+fn assert_feature_has_diagnostic(
+    state: &ServerState,
+    dir: &TempDir,
+    filename: &str,
+    message_substring: &str,
+) {
+    let diagnostics = compute_feature_diagnostics(state, dir, filename);
+    assert_single_diagnostic_contains(&diagnostics, message_substring);
+}
+
+/// Helper to assert a rust file has a diagnostic with expected message.
+fn assert_rust_has_diagnostic(
+    state: &ServerState,
+    dir: &TempDir,
+    filename: &str,
+    message_substring: &str,
+) {
+    let diagnostics = compute_rust_diagnostics(state, dir, filename);
+    assert_single_diagnostic_contains(&diagnostics, message_substring);
+}
+
+/// Helper to assert a feature file has no diagnostics.
+fn assert_feature_has_no_diagnostics(state: &ServerState, dir: &TempDir, filename: &str) {
+    let diagnostics = compute_feature_diagnostics(state, dir, filename);
+    assert!(
+        diagnostics.is_empty(),
+        "expected no diagnostics, found {}",
+        diagnostics.len()
+    );
+}
+
+/// Helper to assert a rust file has no diagnostics.
+fn assert_rust_has_no_diagnostics(state: &ServerState, dir: &TempDir, filename: &str) {
+    let diagnostics = compute_rust_diagnostics(state, dir, filename);
+    assert!(
+        diagnostics.is_empty(),
+        "expected no diagnostics, found {}",
+        diagnostics.len()
+    );
+}
+
 #[test]
 fn feature_with_unimplemented_steps_reports_diagnostics() {
     let (dir, state) = DiagnosticsTestScenario::new()
@@ -180,9 +264,7 @@ fn feature_with_unimplemented_steps_reports_diagnostics() {
         )
         .build();
 
-    let diagnostics = compute_feature_diagnostics(&state, &dir, "test.feature");
-
-    assert_single_diagnostic_contains(&diagnostics, "an unimplemented step");
+    assert_feature_has_diagnostic(&state, &dir, "test.feature", "an unimplemented step");
 }
 
 #[test]
@@ -212,9 +294,7 @@ fn feature_with_all_steps_implemented_reports_no_diagnostics() {
         )
         .build();
 
-    let diagnostics = compute_feature_diagnostics(&state, &dir, "test.feature");
-
-    assert!(diagnostics.is_empty());
+    assert_feature_has_no_diagnostics(&state, &dir, "test.feature");
 }
 
 #[test]
@@ -236,9 +316,7 @@ fn rust_file_with_unused_definitions_reports_diagnostics() {
         )
         .build();
 
-    let diagnostics = compute_rust_diagnostics(&state, &dir, "steps.rs");
-
-    assert_single_diagnostic_contains(&diagnostics, "unused step");
+    assert_rust_has_diagnostic(&state, &dir, "steps.rs", "unused step");
 }
 
 #[test]
@@ -258,9 +336,7 @@ fn rust_file_with_all_definitions_used_reports_no_diagnostics() {
         )
         .build();
 
-    let diagnostics = compute_rust_diagnostics(&state, &dir, "steps.rs");
-
-    assert!(diagnostics.is_empty());
+    assert_rust_has_no_diagnostics(&state, &dir, "steps.rs");
 }
 
 #[test]
@@ -284,11 +360,8 @@ fn parameterized_step_matches_feature_step() {
         )
         .build();
 
-    let feature_diags = compute_feature_diagnostics(&state, &dir, "test.feature");
-    let rust_diags = compute_rust_diagnostics(&state, &dir, "steps.rs");
-
-    assert!(feature_diags.is_empty(), "parameterized step should match");
-    assert!(rust_diags.is_empty(), "step definition should be used");
+    assert_feature_has_no_diagnostics(&state, &dir, "test.feature");
+    assert_rust_has_no_diagnostics(&state, &dir, "steps.rs");
 }
 
 #[test]

@@ -890,7 +890,7 @@ to matching Rust implementations. When the cursor is on a step line in a
 
 ### Diagnostics (on save)
 
-**Status: Implemented**
+> Status: Implemented
 
 The language server publishes diagnostics when files are saved, identifying
 consistency issues between feature files and Rust step definitions.
