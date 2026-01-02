@@ -9,8 +9,7 @@
 //! - **Unused step definitions**: Rust step definitions not matched by any
 //!   feature step.
 
-use std::path::Path;
-use std::sync::Arc;
+use std::{path::Path, sync::Arc};
 
 use async_lsp::lsp_types::notification;
 use lsp_types::{Diagnostic, DiagnosticSeverity, PublishDiagnosticsParams, Range, Url};
@@ -247,6 +246,35 @@ mod tests {
         (dir, feature_path, rust_path, state)
     }
 
+    /// Helper to compute feature diagnostics for a path.
+    fn compute_feature_diagnostics_for_path(
+        state: &ServerState,
+        feature_path: &Path,
+    ) -> Vec<Diagnostic> {
+        let feature_index = state.feature_index(feature_path).expect("feature index");
+        compute_unimplemented_step_diagnostics(state, feature_index)
+    }
+
+    /// Helper to assert feature diagnostics are empty.
+    fn assert_feature_has_no_unimplemented_steps(state: &ServerState, feature_path: &Path) {
+        let diags = compute_feature_diagnostics_for_path(state, feature_path);
+        assert!(
+            diags.is_empty(),
+            "expected no unimplemented steps, found {}",
+            diags.len()
+        );
+    }
+
+    /// Helper to assert rust diagnostics are empty.
+    fn assert_rust_has_no_unused_steps(state: &ServerState, rust_path: &Path) {
+        let diags = compute_unused_step_diagnostics(state, rust_path);
+        assert!(
+            diags.is_empty(),
+            "expected no unused step definitions, found {}",
+            diags.len()
+        );
+    }
+
     #[test]
     fn unimplemented_step_produces_diagnostic() {
         let (_dir, feature_path, _rust_path, state) = setup_scenario(
@@ -284,10 +312,7 @@ mod tests {
             ),
         );
 
-        let feature_index = state.feature_index(&feature_path).expect("index");
-        let diagnostics = compute_unimplemented_step_diagnostics(&state, feature_index);
-
-        assert!(diagnostics.is_empty());
+        assert_feature_has_no_unimplemented_steps(&state, &feature_path);
     }
 
     #[test]
@@ -327,9 +352,7 @@ mod tests {
             ),
         );
 
-        let diagnostics = compute_unused_step_diagnostics(&state, &rust_path);
-
-        assert!(diagnostics.is_empty());
+        assert_rust_has_no_unused_steps(&state, &rust_path);
     }
 
     #[test]
@@ -343,14 +366,8 @@ mod tests {
             ),
         );
 
-        // Feature step should be implemented
-        let feature_index = state.feature_index(&feature_path).expect("index");
-        let feature_diags = compute_unimplemented_step_diagnostics(&state, feature_index);
-        assert!(feature_diags.is_empty(), "parameterized step should match");
-
-        // Rust step should be used
-        let rust_diags = compute_unused_step_diagnostics(&state, &rust_path);
-        assert!(rust_diags.is_empty(), "step definition should be used");
+        assert_feature_has_no_unimplemented_steps(&state, &feature_path);
+        assert_rust_has_no_unused_steps(&state, &rust_path);
     }
 
     #[test]
@@ -366,8 +383,7 @@ mod tests {
         );
 
         // Feature step should be unimplemented (Given != When)
-        let feature_index = state.feature_index(&feature_path).expect("index");
-        let feature_diags = compute_unimplemented_step_diagnostics(&state, feature_index);
+        let feature_diags = compute_feature_diagnostics_for_path(&state, &feature_path);
         assert_eq!(feature_diags.len(), 1, "keyword mismatch should be caught");
 
         // Rust step should be unused (When != Given)

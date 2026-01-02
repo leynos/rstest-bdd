@@ -144,7 +144,10 @@ fn compute_rust_diagnostics(
 
 /// Helper to assert a single diagnostic with an expected message substring.
 #[expect(clippy::expect_used, reason = "test helper uses expect for clarity")]
-fn assert_single_diagnostic_contains(diagnostics: &[lsp_types::Diagnostic], expected_substring: &str) {
+fn assert_single_diagnostic_contains(
+    diagnostics: &[lsp_types::Diagnostic],
+    expected_substring: &str,
+) {
     assert_eq!(diagnostics.len(), 1, "expected exactly one diagnostic");
     assert!(
         diagnostics
