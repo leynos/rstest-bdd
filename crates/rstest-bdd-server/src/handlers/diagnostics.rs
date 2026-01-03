@@ -214,14 +214,12 @@ fn step_type_to_attribute(step_type: gherkin::StepType) -> &'static str {
 )]
 mod tests {
     use super::*;
-    use crate::config::ServerConfig;
-    use crate::handlers::handle_did_save_text_document;
-    use lsp_types::{DidSaveTextDocumentParams, TextDocumentIdentifier};
+    use crate::test_support::ScenarioBuilder;
     use rstest::{fixture, rstest};
     use std::path::PathBuf;
     use tempfile::TempDir;
 
-    /// Test scenario components produced by the fixture.
+    /// Test scenario components produced by the single-file scenario builder.
     struct TestScenario {
         #[expect(dead_code, reason = "kept alive to preserve temp directory")]
         dir: TempDir,
@@ -230,49 +228,38 @@ mod tests {
         state: ServerState,
     }
 
-    /// Builder for constructing test scenarios with specific file contents.
-    struct ScenarioBuilder {
-        dir: TempDir,
-        state: ServerState,
-    }
+    /// Adapter for building single feature+rust file test scenarios.
+    ///
+    /// This wraps the shared `ScenarioBuilder` to provide a simpler API
+    /// for unit tests that only need a single pair of files.
+    struct SingleFileScenario(ScenarioBuilder);
 
-    impl ScenarioBuilder {
-        fn index_file(&mut self, path: &std::path::Path) {
-            let uri = Url::from_file_path(path).expect("file URI");
-            let params = DidSaveTextDocumentParams {
-                text_document: TextDocumentIdentifier { uri },
-                text: None,
-            };
-            handle_did_save_text_document(&mut self.state, params);
+    impl SingleFileScenario {
+        fn new() -> Self {
+            Self(ScenarioBuilder::new())
         }
 
-        fn with_files(mut self, feature_content: &str, rust_content: &str) -> TestScenario {
-            let feature_path = self.dir.path().join("test.feature");
-            let rust_path = self.dir.path().join("steps.rs");
-
-            std::fs::write(&feature_path, feature_content).expect("write feature");
-            std::fs::write(&rust_path, rust_content).expect("write rust");
-
-            // Index feature file first, then Rust file
-            self.index_file(&feature_path);
-            self.index_file(&rust_path);
-
+        fn with_files(self, feature_content: &str, rust_content: &str) -> TestScenario {
+            let (dir, state) = self
+                .0
+                .with_feature("test.feature", feature_content)
+                .with_rust_steps("steps.rs", rust_content)
+                .build();
+            let feature_path = dir.path().join("test.feature");
+            let rust_path = dir.path().join("steps.rs");
             TestScenario {
-                dir: self.dir,
+                dir,
                 feature_path,
                 rust_path,
-                state: self.state,
+                state,
             }
         }
     }
 
     /// Fixture providing the infrastructure for diagnostic tests.
     #[fixture]
-    fn scenario_builder() -> ScenarioBuilder {
-        ScenarioBuilder {
-            dir: TempDir::new().expect("temp dir"),
-            state: ServerState::new(ServerConfig::default()),
-        }
+    fn scenario_builder() -> SingleFileScenario {
+        SingleFileScenario::new()
     }
 
     /// Helper to compute feature diagnostics for a path.
@@ -303,7 +290,7 @@ mod tests {
     }
 
     #[rstest]
-    fn unimplemented_step_produces_diagnostic(scenario_builder: ScenarioBuilder) {
+    fn unimplemented_step_produces_diagnostic(scenario_builder: SingleFileScenario) {
         let scenario = scenario_builder.with_files(
             "Feature: test\n  Scenario: s\n    Given an unimplemented step\n",
             concat!(
@@ -332,7 +319,7 @@ mod tests {
     }
 
     #[rstest]
-    fn unused_step_definition_produces_diagnostic(scenario_builder: ScenarioBuilder) {
+    fn unused_step_definition_produces_diagnostic(scenario_builder: SingleFileScenario) {
         let scenario = scenario_builder.with_files(
             "Feature: test\n  Scenario: s\n    Given a step\n",
             concat!(
@@ -386,7 +373,7 @@ mod tests {
         "both"
     )]
     fn no_diagnostics_scenarios(
-        scenario_builder: ScenarioBuilder,
+        scenario_builder: SingleFileScenario,
         #[case] feature_content: &str,
         #[case] rust_content: &str,
         #[case] check_type: &str,
@@ -406,7 +393,7 @@ mod tests {
     }
 
     #[rstest]
-    fn keyword_matching_is_enforced(scenario_builder: ScenarioBuilder) {
+    fn keyword_matching_is_enforced(scenario_builder: SingleFileScenario) {
         // Given step should not match When implementation
         let scenario = scenario_builder.with_files(
             "Feature: test\n  Scenario: s\n    Given a step\n",

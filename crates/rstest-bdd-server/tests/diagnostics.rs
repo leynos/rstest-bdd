@@ -7,116 +7,20 @@
 //! Note: These tests verify the diagnostic computation logic rather than the
 //! actual LSP notification publishing, as that requires a full client socket.
 
-use lsp_types::{DidSaveTextDocumentParams, TextDocumentIdentifier, Url};
+mod support;
+
 use rstest::{fixture, rstest};
-use rstest_bdd_server::config::ServerConfig;
 use rstest_bdd_server::handlers::{
     compute_unimplemented_step_diagnostics, compute_unused_step_diagnostics,
-    handle_did_save_text_document,
 };
 use rstest_bdd_server::server::ServerState;
+use support::ScenarioBuilder;
 use tempfile::TempDir;
-
-/// Newtype for test file names to improve type safety.
-#[derive(Debug, Clone)]
-struct Filename(String);
-
-impl From<&str> for Filename {
-    fn from(s: &str) -> Self {
-        Self(s.to_owned())
-    }
-}
-
-impl AsRef<str> for Filename {
-    fn as_ref(&self) -> &str {
-        &self.0
-    }
-}
-
-/// Newtype for file contents to improve type safety.
-#[derive(Debug, Clone)]
-struct FileContent(String);
-
-impl From<&str> for FileContent {
-    fn from(s: &str) -> Self {
-        Self(s.to_owned())
-    }
-}
-
-impl AsRef<str> for FileContent {
-    fn as_ref(&self) -> &str {
-        &self.0
-    }
-}
-
-/// Builder for test scenarios involving diagnostics.
-struct ScenarioBuilder {
-    dir: TempDir,
-    feature_files: Vec<(String, String)>,
-    rust_files: Vec<(String, String)>,
-    state: ServerState,
-}
-
-/// Index a file by simulating a save event.
-#[expect(clippy::expect_used, reason = "test helper uses expect for clarity")]
-fn index_file(state: &mut ServerState, path: &std::path::Path) {
-    let uri = Url::from_file_path(path).expect("file URI");
-    let params = DidSaveTextDocumentParams {
-        text_document: TextDocumentIdentifier { uri },
-        text: None,
-    };
-    handle_did_save_text_document(state, params);
-}
-
-#[expect(clippy::expect_used, reason = "test builder uses expect for clarity")]
-impl ScenarioBuilder {
-    fn with_feature(
-        mut self,
-        filename: impl Into<Filename>,
-        content: impl Into<FileContent>,
-    ) -> Self {
-        self.feature_files
-            .push((filename.into().0, content.into().0));
-        self
-    }
-
-    fn with_rust_steps(
-        mut self,
-        filename: impl Into<Filename>,
-        content: impl Into<FileContent>,
-    ) -> Self {
-        self.rust_files.push((filename.into().0, content.into().0));
-        self
-    }
-
-    fn build(mut self) -> (TempDir, ServerState) {
-        // Write and index feature files first
-        for (filename, content) in &self.feature_files {
-            let path = self.dir.path().join(filename);
-            std::fs::write(&path, content).expect("write feature file");
-            index_file(&mut self.state, &path);
-        }
-        // Write and index Rust files
-        for (filename, content) in &self.rust_files {
-            let path = self.dir.path().join(filename);
-            std::fs::write(&path, content).expect("write rust file");
-            index_file(&mut self.state, &path);
-        }
-        (self.dir, self.state)
-    }
-}
 
 /// Fixture providing a fresh scenario builder for each test.
 #[fixture]
 fn scenario_builder() -> ScenarioBuilder {
-    #[expect(clippy::expect_used, reason = "fixture panics on temp dir failure")]
-    let dir = TempDir::new().expect("temp dir");
-    ScenarioBuilder {
-        dir,
-        feature_files: Vec::new(),
-        rust_files: Vec::new(),
-        state: ServerState::new(ServerConfig::default()),
-    }
+    ScenarioBuilder::new()
 }
 
 /// Helper to compute unimplemented step diagnostics for a feature file.

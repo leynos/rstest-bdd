@@ -37,3 +37,6 @@ pub mod handlers;
 pub mod indexing;
 pub mod logging;
 pub mod server;
+
+#[cfg(test)]
+pub mod test_support;
