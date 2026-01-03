@@ -329,17 +329,34 @@ pub(in crate::codegen::scenario::runtime) fn generate_async_step_executor() -> T
     }
 }
 
+/// Parameter object grouping step data slices for code generation.
+///
+/// This struct bundles the four parallel arrays of step metadata (keywords,
+/// values, docstrings, tables) that are used together during step executor
+/// loop generation.
+#[derive(Clone, Copy)]
+struct StepDataSlices<'a> {
+    keyword_tokens: &'a [TokenStream2],
+    values: &'a [TokenStream2],
+    docstrings: &'a [TokenStream2],
+    tables: &'a [TokenStream2],
+}
+
 /// Generates a step executor loop that iterates over steps and handles results.
 ///
 /// This is a shared implementation used by both sync and async executor loop generators.
 /// The `callee` parameter is a token stream containing the executor function identifier.
 fn generate_step_executor_loop_impl(
     callee: &TokenStream2,
-    keyword_tokens: &[TokenStream2],
-    values: &[TokenStream2],
-    docstrings: &[TokenStream2],
-    tables: &[TokenStream2],
+    step_data: StepDataSlices<'_>,
 ) -> TokenStream2 {
+    let StepDataSlices {
+        keyword_tokens,
+        values,
+        docstrings,
+        tables,
+    } = step_data;
+
     quote! {
         let __rstest_bdd_steps = [#((#keyword_tokens, #values, #docstrings, #tables)),*];
         for (__rstest_bdd_index, (__rstest_bdd_keyword, __rstest_bdd_text, __rstest_bdd_docstring, __rstest_bdd_table)) in __rstest_bdd_steps.iter().copied().enumerate() {
@@ -394,7 +411,15 @@ pub(in crate::codegen::scenario::runtime) fn generate_async_step_executor_loop(
     tables: &[TokenStream2],
 ) -> TokenStream2 {
     let callee = quote! { __rstest_bdd_process_async_step };
-    generate_step_executor_loop_impl(&callee, keyword_tokens, values, docstrings, tables)
+    generate_step_executor_loop_impl(
+        &callee,
+        StepDataSlices {
+            keyword_tokens,
+            values,
+            docstrings,
+            tables,
+        },
+    )
 }
 
 /// Generates the step executor loop that iterates over steps and handles results.
@@ -428,7 +453,15 @@ pub(in crate::codegen::scenario::runtime) fn generate_step_executor_loop(
     tables: &[TokenStream2],
 ) -> TokenStream2 {
     let callee = quote! { __rstest_bdd_execute_single_step };
-    generate_step_executor_loop_impl(&callee, keyword_tokens, values, docstrings, tables)
+    generate_step_executor_loop_impl(
+        &callee,
+        StepDataSlices {
+            keyword_tokens,
+            values,
+            docstrings,
+            tables,
+        },
+    )
 }
 
 /// Generates a step executor loop for scenario outlines with placeholder substitution.
