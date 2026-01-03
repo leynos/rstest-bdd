@@ -329,16 +329,31 @@ pub(in crate::codegen::scenario::runtime) fn generate_async_step_executor() -> T
     }
 }
 
+/// Parameter object grouping step data slices for code generation.
+///
+/// This struct bundles the four parallel arrays of step metadata (keywords,
+/// values, docstrings, tables) that are used together during step executor
+/// loop generation.
+struct StepDataSlices<'a> {
+    keyword_tokens: &'a [TokenStream2],
+    values: &'a [TokenStream2],
+    docstrings: &'a [TokenStream2],
+    tables: &'a [TokenStream2],
+}
+
 /// Generates a step executor loop that iterates over steps and handles results.
 ///
 /// This is a shared implementation used by both sync and async executor loop generators.
 fn generate_step_executor_loop_impl(
     executor_fn_name: &str,
-    keyword_tokens: &[TokenStream2],
-    values: &[TokenStream2],
-    docstrings: &[TokenStream2],
-    tables: &[TokenStream2],
+    step_data: &StepDataSlices<'_>,
 ) -> TokenStream2 {
+    let StepDataSlices {
+        keyword_tokens,
+        values,
+        docstrings,
+        tables,
+    } = step_data;
     let executor_ident = syn::Ident::new(executor_fn_name, proc_macro2::Span::call_site());
     quote! {
         let __rstest_bdd_steps = [#((#keyword_tokens, #values, #docstrings, #tables)),*];
@@ -395,10 +410,12 @@ pub(in crate::codegen::scenario::runtime) fn generate_async_step_executor_loop(
 ) -> TokenStream2 {
     generate_step_executor_loop_impl(
         "__rstest_bdd_process_async_step",
-        keyword_tokens,
-        values,
-        docstrings,
-        tables,
+        &StepDataSlices {
+            keyword_tokens,
+            values,
+            docstrings,
+            tables,
+        },
     )
 }
 
@@ -434,10 +451,12 @@ pub(in crate::codegen::scenario::runtime) fn generate_step_executor_loop(
 ) -> TokenStream2 {
     generate_step_executor_loop_impl(
         "__rstest_bdd_execute_single_step",
-        keyword_tokens,
-        values,
-        docstrings,
-        tables,
+        &StepDataSlices {
+            keyword_tokens,
+            values,
+            docstrings,
+            tables,
+        },
     )
 }
 
