@@ -191,7 +191,7 @@ fn classify_fixture_or_step_double_underscore_does_not_match_plain_placeholder()
         quote!(String),
     );
     assert!(handled);
-    // Should be classified as a fixture since "__value" normalises to "_value", not "value"
+    // Should be classified as a fixture since "__value" normalizes to "_value", not "value"
     assert!(matches!(extracted.args.as_slice(), [Arg::Fixture { .. }]));
     // "value" placeholder remains unconsumed
     assert!(placeholders.contains("value"));

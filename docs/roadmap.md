@@ -463,7 +463,7 @@ redesigned. For the full architectural decision record, see
 
   - [x] Update `Step` struct to store async step wrappers alongside sync.
 
-  - [x] Generate wrapper code that normalises sync step definitions into the
+  - [x] Generate wrapper code that normalizes sync step definitions into the
     async interface, wrapping results in immediately ready futures.
 
 - [x] **Tokio current-thread integration**

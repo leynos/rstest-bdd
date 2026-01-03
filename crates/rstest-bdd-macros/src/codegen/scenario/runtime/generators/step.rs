@@ -127,6 +127,78 @@ fn generate_encode_skip_fn() -> TokenStream2 {
     }
 }
 
+/// Generates the step execution body (lookup, validation, execution, result handling).
+///
+/// This shared implementation is used by both sync and async step executors.
+/// The only difference is the function name in the generated code.
+fn generate_step_executor_body(path: &TokenStream2) -> TokenStream2 {
+    quote! {
+        let step = #path::find_step_with_metadata(keyword, #path::StepText::from(text))
+            .unwrap_or_else(|| {
+                panic!(
+                    "Step not found at index {}: {} {} (feature: {}, scenario: {})",
+                    index,
+                    keyword.as_str(),
+                    text,
+                    feature_path,
+                    scenario_name
+                )
+            });
+
+        validate_required_fixtures(&step, ctx, text, feature_path, scenario_name);
+
+        match (step.run)(ctx, text, docstring, table) {
+            Ok(#path::StepExecution::Skipped { message }) => Err(encode_skip_message(message)),
+            Ok(#path::StepExecution::Continue { value }) => Ok(value),
+            Err(err) => {
+                panic!(
+                    "Step failed at index {}: {} {} - {}\n(feature: {}, scenario: {})",
+                    index,
+                    keyword.as_str(),
+                    text,
+                    err,
+                    feature_path,
+                    scenario_name
+                );
+            }
+        }
+    }
+}
+
+/// Generates a step executor function with the given name.
+///
+/// This shared implementation is used by both sync and async step executor generators.
+/// Both executors have identical logic—the async variant is named differently for
+/// clarity in generated code but calls the sync step handler directly.
+fn generate_step_executor_impl(fn_name: &str) -> TokenStream2 {
+    let path = crate::codegen::rstest_bdd_path();
+    let validate_fixtures = generate_validate_fixtures_fn();
+    let encode_skip = generate_encode_skip_fn();
+    let body = generate_step_executor_body(&path);
+    let fn_ident = syn::Ident::new(fn_name, proc_macro2::Span::call_site());
+
+    quote! {
+        #[expect(
+            clippy::too_many_arguments,
+            reason = "helper mirrors generated step inputs to keep panic messaging intact",
+        )]
+        fn #fn_ident(
+            index: usize,
+            keyword: #path::StepKeyword,
+            text: &str,
+            docstring: Option<&str>,
+            table: Option<&[&[&str]]>,
+            ctx: &mut #path::StepContext,
+            feature_path: &str,
+            scenario_name: &str,
+        ) -> Result<Option<Box<dyn std::any::Any>>, String> {
+            #validate_fixtures
+            #encode_skip
+            #body
+        }
+    }
+}
+
 /// Generates the `__rstest_bdd_execute_single_step` function that looks up
 /// and runs a step, handling fixture validation and skip encoding.
 ///
@@ -148,60 +220,7 @@ fn generate_encode_skip_fn() -> TokenStream2 {
 /// }
 /// ```
 pub(in crate::codegen::scenario::runtime) fn generate_step_executor() -> TokenStream2 {
-    let path = crate::codegen::rstest_bdd_path();
-    let validate_fixtures = generate_validate_fixtures_fn();
-    let encode_skip = generate_encode_skip_fn();
-
-    quote! {
-        #[expect(
-            clippy::too_many_arguments,
-            reason = "helper mirrors generated step inputs to keep panic messaging intact",
-        )]
-        fn __rstest_bdd_execute_single_step(
-            index: usize,
-            keyword: #path::StepKeyword,
-            text: &str,
-            docstring: Option<&str>,
-            table: Option<&[&[&str]]>,
-            ctx: &mut #path::StepContext,
-            feature_path: &str,
-            scenario_name: &str,
-        ) -> Result<Option<Box<dyn std::any::Any>>, String> {
-            #validate_fixtures
-            #encode_skip
-
-            if let Some(step) = #path::find_step_with_metadata(keyword, #path::StepText::from(text)) {
-                validate_required_fixtures(&step, ctx, text, feature_path, scenario_name);
-
-                match (step.run)(ctx, text, docstring, table) {
-                    Ok(#path::StepExecution::Skipped { message }) => {
-                        return Err(encode_skip_message(message));
-                    }
-                    Ok(#path::StepExecution::Continue { value }) => Ok(value),
-                    Err(err) => {
-                        panic!(
-                            "Step failed at index {}: {} {} - {}\n(feature: {}, scenario: {})",
-                            index,
-                            keyword.as_str(),
-                            text,
-                            err,
-                            feature_path,
-                            scenario_name
-                        );
-                    }
-                }
-            } else {
-                panic!(
-                    "Step not found at index {}: {} {} (feature: {}, scenario: {})",
-                    index,
-                    keyword.as_str(),
-                    text,
-                    feature_path,
-                    scenario_name
-                );
-            }
-        }
-    }
+    generate_step_executor_impl("__rstest_bdd_execute_single_step")
 }
 
 /// Generates the `__rstest_bdd_decode_skip_message` function that decodes
@@ -256,8 +275,8 @@ pub(in crate::codegen::scenario::runtime) fn generate_skip_decoder() -> TokenStr
 /// but is designed for use in async contexts.
 ///
 /// Note: The function itself is not async—it calls the sync step handler directly to avoid
-/// HRTB lifetime issues with `AsyncStepFn`. This allows the async executor loop to remain
-/// simple while still supporting async test functions.
+/// higher-ranked trait bound (HRTB) lifetime issues with `AsyncStepFn`. This allows the
+/// async executor loop to remain simple while still supporting async test functions.
 ///
 /// # Generated code
 ///
@@ -274,59 +293,7 @@ pub(in crate::codegen::scenario::runtime) fn generate_skip_decoder() -> TokenStr
 /// ) -> Result<Option<Box<dyn std::any::Any>>, String> { ... }
 /// ```
 pub(in crate::codegen::scenario::runtime) fn generate_async_step_executor() -> TokenStream2 {
-    let path = crate::codegen::rstest_bdd_path();
-    let validate_fixtures = generate_validate_fixtures_fn();
-    let encode_skip = generate_encode_skip_fn();
-
-    quote! {
-        #[expect(
-            clippy::too_many_arguments,
-            reason = "helper mirrors generated step inputs to keep panic messaging intact",
-        )]
-        fn __rstest_bdd_process_async_step(
-            index: usize,
-            keyword: #path::StepKeyword,
-            text: &str,
-            docstring: Option<&str>,
-            table: Option<&[&[&str]]>,
-            ctx: &mut #path::StepContext,
-            feature_path: &str,
-            scenario_name: &str,
-        ) -> Result<Option<Box<dyn std::any::Any>>, String> {
-            #validate_fixtures
-            #encode_skip
-
-            let step = #path::find_step_with_metadata(keyword, #path::StepText::from(text))
-                .unwrap_or_else(|| {
-                    panic!(
-                        "Step not found at index {}: {} {} (feature: {}, scenario: {})",
-                        index,
-                        keyword.as_str(),
-                        text,
-                        feature_path,
-                        scenario_name
-                    )
-                });
-
-            validate_required_fixtures(&step, ctx, text, feature_path, scenario_name);
-
-            match (step.run)(ctx, text, docstring, table) {
-                Ok(#path::StepExecution::Skipped { message }) => Err(encode_skip_message(message)),
-                Ok(#path::StepExecution::Continue { value }) => Ok(value),
-                Err(err) => {
-                    panic!(
-                        "Step failed at index {}: {} {} - {}\n(feature: {}, scenario: {})",
-                        index,
-                        keyword.as_str(),
-                        text,
-                        err,
-                        feature_path,
-                        scenario_name
-                    );
-                }
-            }
-        }
-    }
+    generate_step_executor_impl("__rstest_bdd_process_async_step")
 }
 
 /// Parameter object grouping step data slices for code generation.
@@ -466,12 +433,12 @@ pub(in crate::codegen::scenario::runtime) fn generate_step_executor_loop(
 
 /// Generates a step executor loop for scenario outlines with placeholder substitution.
 ///
-/// This shared implementation selects the executor function by name.
+/// This shared implementation accepts a `TokenStream2` callee for consistency with
+/// `generate_step_executor_loop_impl`.
 fn generate_step_executor_loop_outline_impl(
-    executor_fn_name: &str,
+    callee: &TokenStream2,
     all_rows_steps: &[ProcessedStepTokens],
 ) -> TokenStream2 {
-    let executor_ident = syn::Ident::new(executor_fn_name, proc_macro2::Span::call_site());
     let path = crate::codegen::rstest_bdd_path();
 
     let row_arrays: Vec<TokenStream2> = all_rows_steps
@@ -489,7 +456,7 @@ fn generate_step_executor_loop_outline_impl(
         ];
         let __rstest_bdd_steps = __RSTEST_BDD_ALL_STEPS[__rstest_bdd_case_idx];
         for (__rstest_bdd_index, (__rstest_bdd_keyword, __rstest_bdd_text, __rstest_bdd_docstring, __rstest_bdd_table)) in __rstest_bdd_steps.iter().copied().enumerate() {
-            match #executor_ident(
+            match #callee(
                 __rstest_bdd_index,
                 __rstest_bdd_keyword,
                 __rstest_bdd_text,
@@ -542,12 +509,14 @@ fn generate_step_executor_loop_outline_impl(
 pub(in crate::codegen::scenario::runtime) fn generate_step_executor_loop_outline(
     all_rows_steps: &[ProcessedStepTokens],
 ) -> TokenStream2 {
-    generate_step_executor_loop_outline_impl("__rstest_bdd_execute_single_step", all_rows_steps)
+    let callee = quote! { __rstest_bdd_execute_single_step };
+    generate_step_executor_loop_outline_impl(&callee, all_rows_steps)
 }
 
 /// Generates the async step executor loop for scenario outlines.
 pub(in crate::codegen::scenario::runtime) fn generate_async_step_executor_loop_outline(
     all_rows_steps: &[ProcessedStepTokens],
 ) -> TokenStream2 {
-    generate_step_executor_loop_outline_impl("__rstest_bdd_process_async_step", all_rows_steps)
+    let callee = quote! { __rstest_bdd_process_async_step };
+    generate_step_executor_loop_outline_impl(&callee, all_rows_steps)
 }

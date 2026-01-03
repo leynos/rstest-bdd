@@ -1,6 +1,6 @@
 //! Builds binding expressions for `#[derive(DataTableRow)]` fields.
 //!
-//! This module normalises how generated code fetches cell values from the
+//! This module normalizes how generated code fetches cell values from the
 //! runtime `DataTable`, including graceful handling for optional and defaulted
 //! fields. Optional members yield `None` when the source column is absent,
 //! while defaults fall back to either `Default::default()` or a caller-supplied
