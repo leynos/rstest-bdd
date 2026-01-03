@@ -214,7 +214,7 @@ fn step_type_to_attribute(step_type: gherkin::StepType) -> &'static str {
 )]
 mod tests {
     use super::*;
-    use crate::test_support::ScenarioBuilder;
+    use crate::test_support::{DiagnosticCheckType, ScenarioBuilder};
     use rstest::{fixture, rstest};
     use std::path::PathBuf;
     use tempfile::TempDir;
@@ -352,7 +352,7 @@ mod tests {
             "#[given(\"a step\")]\n",
             "fn step() {}\n",
         ),
-        "feature"
+        DiagnosticCheckType::Feature
     )]
     #[case::used_step_definition_no_rust_diagnostic(
         "Feature: test\n  Scenario: s\n    Given a step\n",
@@ -361,7 +361,7 @@ mod tests {
             "#[given(\"a step\")]\n",
             "fn step() {}\n",
         ),
-        "rust"
+        DiagnosticCheckType::Rust
     )]
     #[case::parameterized_pattern_no_diagnostics(
         "Feature: test\n  Scenario: s\n    Given I have 5 items\n",
@@ -370,25 +370,26 @@ mod tests {
             "#[given(\"I have {n:u32} items\")]\n",
             "fn items() {}\n",
         ),
-        "both"
+        DiagnosticCheckType::Both
     )]
     fn no_diagnostics_scenarios(
         scenario_builder: SingleFileScenario,
         #[case] feature_content: &str,
         #[case] rust_content: &str,
-        #[case] check_type: &str,
+        #[case] check_type: DiagnosticCheckType,
     ) {
         let scenario = scenario_builder.with_files(feature_content, rust_content);
         match check_type {
-            "feature" => {
+            DiagnosticCheckType::Feature => {
                 assert_feature_has_no_unimplemented_steps(&scenario.state, &scenario.feature_path);
             }
-            "rust" => assert_rust_has_no_unused_steps(&scenario.state, &scenario.rust_path),
-            "both" => {
+            DiagnosticCheckType::Rust => {
+                assert_rust_has_no_unused_steps(&scenario.state, &scenario.rust_path);
+            }
+            DiagnosticCheckType::Both => {
                 assert_feature_has_no_unimplemented_steps(&scenario.state, &scenario.feature_path);
                 assert_rust_has_no_unused_steps(&scenario.state, &scenario.rust_path);
             }
-            _ => panic!("invalid check_type: {check_type}"),
         }
     }
 
@@ -414,10 +415,14 @@ mod tests {
         assert_eq!(rust_diags.len(), 1, "When step should be unused");
     }
 
-    #[test]
-    fn step_type_to_attribute_returns_correct_names() {
-        assert_eq!(step_type_to_attribute(gherkin::StepType::Given), "given");
-        assert_eq!(step_type_to_attribute(gherkin::StepType::When), "when");
-        assert_eq!(step_type_to_attribute(gherkin::StepType::Then), "then");
+    #[rstest]
+    #[case::given(gherkin::StepType::Given, "given")]
+    #[case::when(gherkin::StepType::When, "when")]
+    #[case::then(gherkin::StepType::Then, "then")]
+    fn step_type_to_attribute_returns_correct_names(
+        #[case] step_type: gherkin::StepType,
+        #[case] expected: &str,
+    ) {
+        assert_eq!(step_type_to_attribute(step_type), expected);
     }
 }

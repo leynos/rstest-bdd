@@ -14,7 +14,7 @@ use rstest_bdd_server::handlers::{
     compute_unimplemented_step_diagnostics, compute_unused_step_diagnostics,
 };
 use rstest_bdd_server::server::ServerState;
-use support::ScenarioBuilder;
+use support::{DiagnosticCheckType, ScenarioBuilder};
 use tempfile::TempDir;
 
 /// Fixture providing a fresh scenario builder for each test.
@@ -190,7 +190,7 @@ fn unused_rust_step_reports_diagnostic(scenario_builder: ScenarioBuilder) {
         "#[given(\"a step\")]\n",
         "fn step() {}\n",
     ),
-    "rust"
+    DiagnosticCheckType::Rust
 )]
 #[case::parameterized_match(
     "test.feature",
@@ -205,7 +205,7 @@ fn unused_rust_step_reports_diagnostic(scenario_builder: ScenarioBuilder) {
         "#[given(\"I have {n:u32} items\")]\n",
         "fn items() {}\n",
     ),
-    "both"
+    DiagnosticCheckType::Both
 )]
 fn no_diagnostics_reported(
     scenario_builder: ScenarioBuilder,
@@ -213,7 +213,7 @@ fn no_diagnostics_reported(
     #[case] feature_content: &str,
     #[case] rust_filename: &str,
     #[case] rust_content: &str,
-    #[case] check_type: &str,
+    #[case] check_type: DiagnosticCheckType,
 ) {
     let (dir, state) = scenario_builder
         .with_feature(feature_filename, feature_content)
@@ -221,13 +221,16 @@ fn no_diagnostics_reported(
         .build();
 
     match check_type {
-        "rust" => assert_rust_has_no_diagnostics(&state, &dir, rust_filename),
-        "feature" => assert_feature_has_no_diagnostics(&state, &dir, feature_filename),
-        "both" => {
+        DiagnosticCheckType::Rust => {
+            assert_rust_has_no_diagnostics(&state, &dir, rust_filename);
+        }
+        DiagnosticCheckType::Feature => {
+            assert_feature_has_no_diagnostics(&state, &dir, feature_filename);
+        }
+        DiagnosticCheckType::Both => {
             assert_feature_has_no_diagnostics(&state, &dir, feature_filename);
             assert_rust_has_no_diagnostics(&state, &dir, rust_filename);
         }
-        _ => panic!("invalid check_type: {check_type}"),
     }
 }
 

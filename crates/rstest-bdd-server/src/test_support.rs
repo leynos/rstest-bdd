@@ -5,6 +5,7 @@
 //! - Temporary directory and file management
 //! - File indexing via simulated LSP save events
 //! - Scenario building for diagnostic and navigation tests
+//! - Newtype wrappers for improved type safety
 
 use lsp_types::{DidSaveTextDocumentParams, TextDocumentIdentifier, Url};
 use std::path::Path;
@@ -13,6 +14,61 @@ use tempfile::TempDir;
 use crate::config::ServerConfig;
 use crate::handlers::handle_did_save_text_document;
 use crate::server::ServerState;
+
+/// Newtype wrapper for test file names to improve type safety.
+#[derive(Debug, Clone)]
+pub struct Filename(pub(crate) String);
+
+impl From<&str> for Filename {
+    fn from(s: &str) -> Self {
+        Self(s.to_owned())
+    }
+}
+
+impl From<String> for Filename {
+    fn from(s: String) -> Self {
+        Self(s)
+    }
+}
+
+impl AsRef<str> for Filename {
+    fn as_ref(&self) -> &str {
+        &self.0
+    }
+}
+
+/// Newtype wrapper for file contents to improve type safety.
+#[derive(Debug, Clone)]
+pub struct FileContent(pub(crate) String);
+
+impl From<&str> for FileContent {
+    fn from(s: &str) -> Self {
+        Self(s.to_owned())
+    }
+}
+
+impl From<String> for FileContent {
+    fn from(s: String) -> Self {
+        Self(s)
+    }
+}
+
+impl AsRef<str> for FileContent {
+    fn as_ref(&self) -> &str {
+        &self.0
+    }
+}
+
+/// Specifies which diagnostic checks to run in parameterised tests.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DiagnosticCheckType {
+    /// Check only Rust file diagnostics.
+    Rust,
+    /// Check only feature file diagnostics.
+    Feature,
+    /// Check both Rust and feature file diagnostics.
+    Both,
+}
 
 /// Index a file by simulating an LSP `textDocument/didSave` event.
 ///
@@ -63,8 +119,13 @@ impl ScenarioBuilder {
 
     /// Add a feature file to be created and indexed.
     #[must_use]
-    pub fn with_feature(mut self, filename: impl Into<String>, content: impl Into<String>) -> Self {
-        self.feature_files.push((filename.into(), content.into()));
+    pub fn with_feature(
+        mut self,
+        filename: impl Into<Filename>,
+        content: impl Into<FileContent>,
+    ) -> Self {
+        self.feature_files
+            .push((filename.into().0, content.into().0));
         self
     }
 
@@ -72,10 +133,10 @@ impl ScenarioBuilder {
     #[must_use]
     pub fn with_rust_steps(
         mut self,
-        filename: impl Into<String>,
-        content: impl Into<String>,
+        filename: impl Into<Filename>,
+        content: impl Into<FileContent>,
     ) -> Self {
-        self.rust_files.push((filename.into(), content.into()));
+        self.rust_files.push((filename.into().0, content.into().0));
         self
     }
 
