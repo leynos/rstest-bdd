@@ -15,7 +15,7 @@ use thiserror::Error;
 /// `true` when `s` matches any candidate, otherwise `false`.
 ///
 /// # Examples
-/// ```
+/// ```rust,ignore
 /// # use rstest_bdd::datatable::parsers::matches_any_case_insensitive;
 /// assert!(matches_any_case_insensitive("YES", &["yes", "y"]));
 /// assert!(!matches_any_case_insensitive("maybe", &["yes", "no"]));

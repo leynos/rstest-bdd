@@ -162,7 +162,7 @@ pub(super) fn generate_scenario_test(
         tags: &tags,
     };
     TokenStream2::from(generate_scenario_code(
-        config,
+        &config,
         fixture_setup.prelude.into_iter(),
         fixture_setup.ctx_inserts.into_iter(),
         fixture_setup.postlude.into_iter(),

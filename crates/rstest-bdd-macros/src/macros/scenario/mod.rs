@@ -38,6 +38,7 @@ use crate::parsing::feature::{
 use crate::parsing::tags::TagExpression;
 use crate::utils::fixtures::extract_function_fixtures;
 use crate::validation::parameters::process_scenario_outline_examples;
+use crate::validation::placeholder::{ExampleHeaders, validate_step_placeholders};
 
 use self::args::{ScenarioArgs, ScenarioSelector};
 use self::paths::canonical_feature_path;
@@ -105,6 +106,12 @@ fn try_scenario(
     } = scenario_data;
     let allow_skipped = crate::codegen::scenario::scenario_allows_skip(&tags);
 
+    // Validate placeholder references in scenario outline steps
+    if let Some(ref ex) = examples {
+        validate_step_placeholders(&steps, ExampleHeaders::new(&ex.headers))
+            .map_err(|e| proc_macro::TokenStream::from(e.into_compile_error()))?;
+    }
+
     if let Some(err) = validate_steps_compile_time(&steps) {
         return Err(err);
     }
@@ -118,20 +125,22 @@ fn try_scenario(
     let ctx_inserts = fixture_setup.ctx_inserts;
     let ctx_postlude = fixture_setup.postlude;
 
+    let config = ScenarioConfig {
+        attrs,
+        vis,
+        sig,
+        block,
+        feature_path: FeaturePath::new(feature_path_str),
+        scenario_name: ScenarioName::new(scenario_name),
+        steps,
+        examples,
+        allow_skipped,
+        line,
+        tags: &tags,
+    };
+
     Ok(generate_scenario_code(
-        ScenarioConfig {
-            attrs,
-            vis,
-            sig,
-            block,
-            feature_path: FeaturePath::new(feature_path_str),
-            scenario_name: ScenarioName::new(scenario_name),
-            steps,
-            examples,
-            allow_skipped,
-            line,
-            tags: &tags,
-        },
+        &config,
         ctx_prelude.into_iter(),
         ctx_inserts.into_iter(),
         ctx_postlude.into_iter(),

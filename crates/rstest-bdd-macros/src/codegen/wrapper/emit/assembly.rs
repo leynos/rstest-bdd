@@ -66,7 +66,7 @@ fn assemble_wrapper_function(
         execution: exec_err,
         capture_mismatch: capture_mismatch_err,
     } = prepare_wrapper_errors(meta, text_ident);
-    let StepMeta { pattern: _, ident } = meta;
+    let StepMeta { ident, .. } = meta;
     let expected = capture_count;
     let path = crate::codegen::rstest_bdd_path();
     let call_expr = generate_call_expression(return_kind, ident, &arg_idents);

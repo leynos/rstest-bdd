@@ -778,6 +778,7 @@ dependencies = [
  "regex",
  "rstest-bdd-patterns",
  "syn 2.0.111",
+ "thiserror 1.0.69",
  "walkdir",
 ]
 
