@@ -8,6 +8,7 @@
 //! actual LSP notification publishing, as that requires a full client socket.
 
 use lsp_types::{DiagnosticSeverity, DidSaveTextDocumentParams, TextDocumentIdentifier, Url};
+use rstest::rstest;
 use rstest_bdd_server::config::ServerConfig;
 use rstest_bdd_server::handlers::handle_did_save_text_document;
 use rstest_bdd_server::server::ServerState;
@@ -251,30 +252,6 @@ fn assert_rust_has_no_diagnostics(state: &ServerState, dir: &TempDir, filename: 
 }
 
 #[test]
-fn feature_with_unimplemented_steps_reports_diagnostics() {
-    let (dir, state) = DiagnosticsTestScenario::new()
-        .with_feature(
-            "test.feature",
-            concat!(
-                "Feature: test\n",
-                "  Scenario: s\n",
-                "    Given an unimplemented step\n",
-            ),
-        )
-        .with_rust_steps(
-            "steps.rs",
-            concat!(
-                "use rstest_bdd_macros::given;\n\n",
-                "#[given(\"a different step\")]\n",
-                "fn diff() {}\n",
-            ),
-        )
-        .build();
-
-    assert_feature_has_diagnostic(&state, &dir, "test.feature", "an unimplemented step");
-}
-
-#[test]
 fn feature_with_all_steps_implemented_reports_no_diagnostics() {
     let (dir, state) = DiagnosticsTestScenario::new()
         .with_feature(
@@ -304,71 +281,108 @@ fn feature_with_all_steps_implemented_reports_no_diagnostics() {
     assert_feature_has_no_diagnostics(&state, &dir, "test.feature");
 }
 
-#[test]
-fn rust_file_with_unused_definitions_reports_diagnostics() {
+#[rstest]
+#[case::feature_unimplemented_step(
+    "test.feature",
+    concat!(
+        "Feature: test\n",
+        "  Scenario: s\n",
+        "    Given an unimplemented step\n",
+    ),
+    "steps.rs",
+    concat!(
+        "use rstest_bdd_macros::given;\n\n",
+        "#[given(\"a different step\")]\n",
+        "fn diff() {}\n",
+    ),
+    "test.feature",
+    "an unimplemented step",
+    "feature"
+)]
+#[case::rust_unused_definition(
+    "test.feature",
+    concat!("Feature: test\n", "  Scenario: s\n", "    Given a step\n",),
+    "steps.rs",
+    concat!(
+        "use rstest_bdd_macros::given;\n\n",
+        "#[given(\"a step\")]\n",
+        "fn step() {}\n\n",
+        "#[given(\"unused step\")]\n",
+        "fn unused() {}\n",
+    ),
+    "steps.rs",
+    "unused step",
+    "rust"
+)]
+fn diagnostic_is_reported(
+    #[case] feature_filename: &str,
+    #[case] feature_content: &str,
+    #[case] rust_filename: &str,
+    #[case] rust_content: &str,
+    #[case] check_filename: &str,
+    #[case] expected_message: &str,
+    #[case] check_type: &str,
+) {
     let (dir, state) = DiagnosticsTestScenario::new()
-        .with_feature(
-            "test.feature",
-            concat!("Feature: test\n", "  Scenario: s\n", "    Given a step\n",),
-        )
-        .with_rust_steps(
-            "steps.rs",
-            concat!(
-                "use rstest_bdd_macros::given;\n\n",
-                "#[given(\"a step\")]\n",
-                "fn step() {}\n\n",
-                "#[given(\"unused step\")]\n",
-                "fn unused() {}\n",
-            ),
-        )
+        .with_feature(feature_filename, feature_content)
+        .with_rust_steps(rust_filename, rust_content)
         .build();
 
-    assert_rust_has_diagnostic(&state, &dir, "steps.rs", "unused step");
+    match check_type {
+        "feature" => assert_feature_has_diagnostic(&state, &dir, check_filename, expected_message),
+        "rust" => assert_rust_has_diagnostic(&state, &dir, check_filename, expected_message),
+        _ => panic!("invalid check_type: {check_type}"),
+    }
 }
 
-#[test]
-fn rust_file_with_all_definitions_used_reports_no_diagnostics() {
+#[rstest]
+#[case::rust_all_used(
+    "test.feature",
+    concat!("Feature: test\n", "  Scenario: s\n", "    Given a step\n",),
+    "steps.rs",
+    concat!(
+        "use rstest_bdd_macros::given;\n\n",
+        "#[given(\"a step\")]\n",
+        "fn step() {}\n",
+    ),
+    "rust"
+)]
+#[case::parameterized_match(
+    "test.feature",
+    concat!(
+        "Feature: test\n",
+        "  Scenario: s\n",
+        "    Given I have 42 items\n",
+    ),
+    "steps.rs",
+    concat!(
+        "use rstest_bdd_macros::given;\n\n",
+        "#[given(\"I have {n:u32} items\")]\n",
+        "fn items() {}\n",
+    ),
+    "both"
+)]
+fn no_diagnostics_reported(
+    #[case] feature_filename: &str,
+    #[case] feature_content: &str,
+    #[case] rust_filename: &str,
+    #[case] rust_content: &str,
+    #[case] check_type: &str,
+) {
     let (dir, state) = DiagnosticsTestScenario::new()
-        .with_feature(
-            "test.feature",
-            concat!("Feature: test\n", "  Scenario: s\n", "    Given a step\n",),
-        )
-        .with_rust_steps(
-            "steps.rs",
-            concat!(
-                "use rstest_bdd_macros::given;\n\n",
-                "#[given(\"a step\")]\n",
-                "fn step() {}\n",
-            ),
-        )
+        .with_feature(feature_filename, feature_content)
+        .with_rust_steps(rust_filename, rust_content)
         .build();
 
-    assert_rust_has_no_diagnostics(&state, &dir, "steps.rs");
-}
-
-#[test]
-fn parameterized_step_matches_feature_step() {
-    let (dir, state) = DiagnosticsTestScenario::new()
-        .with_feature(
-            "test.feature",
-            concat!(
-                "Feature: test\n",
-                "  Scenario: s\n",
-                "    Given I have 42 items\n",
-            ),
-        )
-        .with_rust_steps(
-            "steps.rs",
-            concat!(
-                "use rstest_bdd_macros::given;\n\n",
-                "#[given(\"I have {n:u32} items\")]\n",
-                "fn items() {}\n",
-            ),
-        )
-        .build();
-
-    assert_feature_has_no_diagnostics(&state, &dir, "test.feature");
-    assert_rust_has_no_diagnostics(&state, &dir, "steps.rs");
+    match check_type {
+        "rust" => assert_rust_has_no_diagnostics(&state, &dir, rust_filename),
+        "feature" => assert_feature_has_no_diagnostics(&state, &dir, feature_filename),
+        "both" => {
+            assert_feature_has_no_diagnostics(&state, &dir, feature_filename);
+            assert_rust_has_no_diagnostics(&state, &dir, rust_filename);
+        }
+        _ => panic!("invalid check_type: {check_type}"),
+    }
 }
 
 #[test]
