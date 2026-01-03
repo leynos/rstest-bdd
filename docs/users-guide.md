@@ -809,9 +809,10 @@ When `runtime = "tokio-current-thread"` is specified:
 ### Current limitations
 
 - **Sync step definitions only:** The async executor currently calls the sync
-  `run` handler directly rather than `run_async`. This avoids HRTB lifetime
-  issues but means steps cannot `.await` internally. True async step
-  definitions (with `async fn` bodies) are planned for a future release.
+  `run` handler directly rather than `run_async`. This avoids higher-ranked
+  trait bound (HRTB) lifetime issues but means steps cannot `.await`
+  internally. True async step definitions (with `async fn` bodies) are planned
+  for a future release.
 - **Current-thread mode only:** Multi-threaded Tokio mode would require `Send`
   futures, which conflicts with the `RefCell`-based fixture storage. See
   [ADR-001](adr-001-async-fixtures-and-test.md) for the full design rationale.

@@ -169,7 +169,7 @@ def build_cargo_command_context(
     """Create the execution context for a Cargo command.
 
     The helper resolves the workspace-relative crate directory, initialises the
-    environment overrides, and normalises the timeout configuration to simplify
+    environment overrides, and normalizes the timeout configuration to simplify
     subsequent :func:`run_cargo_command` invocations.
 
     Examples
