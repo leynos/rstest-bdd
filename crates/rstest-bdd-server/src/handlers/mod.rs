@@ -13,6 +13,7 @@ pub mod util;
 
 pub use definition::handle_definition;
 pub use diagnostics::{
+    compute_unimplemented_step_diagnostics, compute_unused_step_diagnostics,
     publish_all_feature_diagnostics, publish_feature_diagnostics, publish_rust_diagnostics,
 };
 pub use implementation::handle_implementation;

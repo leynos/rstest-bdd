@@ -98,7 +98,8 @@ pub fn publish_rust_diagnostics(state: &ServerState, rust_path: &Path) {
 ///
 /// For each step in the feature file, checks if there is at least one matching
 /// Rust implementation. Steps without implementations get a warning diagnostic.
-fn compute_unimplemented_step_diagnostics(
+#[must_use]
+pub fn compute_unimplemented_step_diagnostics(
     state: &ServerState,
     feature_index: &FeatureFileIndex,
 ) -> Vec<Diagnostic> {
@@ -148,7 +149,8 @@ fn build_unimplemented_step_diagnostic(
 ///
 /// For each step definition in the file, checks if any feature step matches it.
 /// Definitions without matches get a warning diagnostic.
-fn compute_unused_step_diagnostics(state: &ServerState, rust_path: &Path) -> Vec<Diagnostic> {
+#[must_use]
+pub fn compute_unused_step_diagnostics(state: &ServerState, rust_path: &Path) -> Vec<Diagnostic> {
     state
         .step_registry()
         .steps_for_file(rust_path)
@@ -215,36 +217,62 @@ mod tests {
     use crate::config::ServerConfig;
     use crate::handlers::handle_did_save_text_document;
     use lsp_types::{DidSaveTextDocumentParams, TextDocumentIdentifier};
-    use rstest::rstest;
+    use rstest::{fixture, rstest};
+    use std::path::PathBuf;
     use tempfile::TempDir;
 
-    fn index_file(state: &mut ServerState, path: &std::path::Path) {
-        let uri = Url::from_file_path(path).expect("file URI");
-        let params = DidSaveTextDocumentParams {
-            text_document: TextDocumentIdentifier { uri },
-            text: None,
-        };
-        handle_did_save_text_document(state, params);
+    /// Test scenario components produced by the fixture.
+    struct TestScenario {
+        #[expect(dead_code, reason = "kept alive to preserve temp directory")]
+        dir: TempDir,
+        feature_path: PathBuf,
+        rust_path: PathBuf,
+        state: ServerState,
     }
 
-    fn setup_scenario(
-        feature_content: &str,
-        rust_content: &str,
-    ) -> (TempDir, std::path::PathBuf, std::path::PathBuf, ServerState) {
-        let dir = TempDir::new().expect("temp dir");
-        let feature_path = dir.path().join("test.feature");
-        let rust_path = dir.path().join("steps.rs");
+    /// Builder for constructing test scenarios with specific file contents.
+    struct ScenarioBuilder {
+        dir: TempDir,
+        state: ServerState,
+    }
 
-        std::fs::write(&feature_path, feature_content).expect("write feature");
-        std::fs::write(&rust_path, rust_content).expect("write rust");
+    impl ScenarioBuilder {
+        fn index_file(&mut self, path: &std::path::Path) {
+            let uri = Url::from_file_path(path).expect("file URI");
+            let params = DidSaveTextDocumentParams {
+                text_document: TextDocumentIdentifier { uri },
+                text: None,
+            };
+            handle_did_save_text_document(&mut self.state, params);
+        }
 
-        let mut state = ServerState::new(ServerConfig::default());
+        fn with_files(mut self, feature_content: &str, rust_content: &str) -> TestScenario {
+            let feature_path = self.dir.path().join("test.feature");
+            let rust_path = self.dir.path().join("steps.rs");
 
-        // Index feature file first, then Rust file
-        index_file(&mut state, &feature_path);
-        index_file(&mut state, &rust_path);
+            std::fs::write(&feature_path, feature_content).expect("write feature");
+            std::fs::write(&rust_path, rust_content).expect("write rust");
 
-        (dir, feature_path, rust_path, state)
+            // Index feature file first, then Rust file
+            self.index_file(&feature_path);
+            self.index_file(&rust_path);
+
+            TestScenario {
+                dir: self.dir,
+                feature_path,
+                rust_path,
+                state: self.state,
+            }
+        }
+    }
+
+    /// Fixture providing the infrastructure for diagnostic tests.
+    #[fixture]
+    fn scenario_builder() -> ScenarioBuilder {
+        ScenarioBuilder {
+            dir: TempDir::new().expect("temp dir"),
+            state: ServerState::new(ServerConfig::default()),
+        }
     }
 
     /// Helper to compute feature diagnostics for a path.
@@ -274,25 +302,9 @@ mod tests {
         );
     }
 
-    fn assert_scenario_has_no_feature_diagnostics(feature_content: &str, rust_content: &str) {
-        let (_dir, feature_path, _rust_path, state) = setup_scenario(feature_content, rust_content);
-        assert_feature_has_no_unimplemented_steps(&state, &feature_path);
-    }
-
-    fn assert_scenario_has_no_rust_diagnostics(feature_content: &str, rust_content: &str) {
-        let (_dir, _feature_path, rust_path, state) = setup_scenario(feature_content, rust_content);
-        assert_rust_has_no_unused_steps(&state, &rust_path);
-    }
-
-    fn assert_scenario_has_no_diagnostics(feature_content: &str, rust_content: &str) {
-        let (_dir, feature_path, rust_path, state) = setup_scenario(feature_content, rust_content);
-        assert_feature_has_no_unimplemented_steps(&state, &feature_path);
-        assert_rust_has_no_unused_steps(&state, &rust_path);
-    }
-
-    #[test]
-    fn unimplemented_step_produces_diagnostic() {
-        let (_dir, feature_path, _rust_path, state) = setup_scenario(
+    #[rstest]
+    fn unimplemented_step_produces_diagnostic(scenario_builder: ScenarioBuilder) {
+        let scenario = scenario_builder.with_files(
             "Feature: test\n  Scenario: s\n    Given an unimplemented step\n",
             concat!(
                 "use rstest_bdd_macros::given;\n\n",
@@ -301,8 +313,11 @@ mod tests {
             ),
         );
 
-        let feature_index = state.feature_index(&feature_path).expect("index");
-        let diagnostics = compute_unimplemented_step_diagnostics(&state, feature_index);
+        let feature_index = scenario
+            .state
+            .feature_index(&scenario.feature_path)
+            .expect("index");
+        let diagnostics = compute_unimplemented_step_diagnostics(&scenario.state, feature_index);
 
         assert_eq!(diagnostics.len(), 1);
         let diag = diagnostics.first().expect("diagnostic");
@@ -316,9 +331,9 @@ mod tests {
         );
     }
 
-    #[test]
-    fn unused_step_definition_produces_diagnostic() {
-        let (_dir, _feature_path, rust_path, state) = setup_scenario(
+    #[rstest]
+    fn unused_step_definition_produces_diagnostic(scenario_builder: ScenarioBuilder) {
+        let scenario = scenario_builder.with_files(
             "Feature: test\n  Scenario: s\n    Given a step\n",
             concat!(
                 "use rstest_bdd_macros::given;\n\n",
@@ -329,7 +344,7 @@ mod tests {
             ),
         );
 
-        let diagnostics = compute_unused_step_diagnostics(&state, &rust_path);
+        let diagnostics = compute_unused_step_diagnostics(&scenario.state, &scenario.rust_path);
 
         assert_eq!(diagnostics.len(), 1);
         let diag = diagnostics.first().expect("diagnostic");
@@ -343,7 +358,7 @@ mod tests {
     }
 
     #[rstest]
-    #[case::implemented_step(
+    #[case::implemented_step_no_feature_diagnostic(
         "Feature: test\n  Scenario: s\n    Given a step\n",
         concat!(
             "use rstest_bdd_macros::given;\n\n",
@@ -352,7 +367,7 @@ mod tests {
         ),
         "feature"
     )]
-    #[case::used_step_definition(
+    #[case::used_step_definition_no_rust_diagnostic(
         "Feature: test\n  Scenario: s\n    Given a step\n",
         concat!(
             "use rstest_bdd_macros::given;\n\n",
@@ -361,7 +376,7 @@ mod tests {
         ),
         "rust"
     )]
-    #[case::parameterized_pattern(
+    #[case::parameterized_pattern_no_diagnostics(
         "Feature: test\n  Scenario: s\n    Given I have 5 items\n",
         concat!(
             "use rstest_bdd_macros::given;\n\n",
@@ -371,22 +386,29 @@ mod tests {
         "both"
     )]
     fn no_diagnostics_scenarios(
+        scenario_builder: ScenarioBuilder,
         #[case] feature_content: &str,
         #[case] rust_content: &str,
         #[case] check_type: &str,
     ) {
+        let scenario = scenario_builder.with_files(feature_content, rust_content);
         match check_type {
-            "feature" => assert_scenario_has_no_feature_diagnostics(feature_content, rust_content),
-            "rust" => assert_scenario_has_no_rust_diagnostics(feature_content, rust_content),
-            "both" => assert_scenario_has_no_diagnostics(feature_content, rust_content),
+            "feature" => {
+                assert_feature_has_no_unimplemented_steps(&scenario.state, &scenario.feature_path);
+            }
+            "rust" => assert_rust_has_no_unused_steps(&scenario.state, &scenario.rust_path),
+            "both" => {
+                assert_feature_has_no_unimplemented_steps(&scenario.state, &scenario.feature_path);
+                assert_rust_has_no_unused_steps(&scenario.state, &scenario.rust_path);
+            }
             _ => panic!("invalid check_type: {check_type}"),
         }
     }
 
-    #[test]
-    fn keyword_matching_is_enforced() {
+    #[rstest]
+    fn keyword_matching_is_enforced(scenario_builder: ScenarioBuilder) {
         // Given step should not match When implementation
-        let (_dir, feature_path, rust_path, state) = setup_scenario(
+        let scenario = scenario_builder.with_files(
             "Feature: test\n  Scenario: s\n    Given a step\n",
             concat!(
                 "use rstest_bdd_macros::when;\n\n",
@@ -396,11 +418,12 @@ mod tests {
         );
 
         // Feature step should be unimplemented (Given != When)
-        let feature_diags = compute_feature_diagnostics_for_path(&state, &feature_path);
+        let feature_diags =
+            compute_feature_diagnostics_for_path(&scenario.state, &scenario.feature_path);
         assert_eq!(feature_diags.len(), 1, "keyword mismatch should be caught");
 
         // Rust step should be unused (When != Given)
-        let rust_diags = compute_unused_step_diagnostics(&state, &rust_path);
+        let rust_diags = compute_unused_step_diagnostics(&scenario.state, &scenario.rust_path);
         assert_eq!(rust_diags.len(), 1, "When step should be unused");
     }
 

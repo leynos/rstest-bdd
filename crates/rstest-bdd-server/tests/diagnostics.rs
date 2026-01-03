@@ -7,10 +7,13 @@
 //! Note: These tests verify the diagnostic computation logic rather than the
 //! actual LSP notification publishing, as that requires a full client socket.
 
-use lsp_types::{DiagnosticSeverity, DidSaveTextDocumentParams, TextDocumentIdentifier, Url};
-use rstest::rstest;
+use lsp_types::{DidSaveTextDocumentParams, TextDocumentIdentifier, Url};
+use rstest::{fixture, rstest};
 use rstest_bdd_server::config::ServerConfig;
-use rstest_bdd_server::handlers::handle_did_save_text_document;
+use rstest_bdd_server::handlers::{
+    compute_unimplemented_step_diagnostics, compute_unused_step_diagnostics,
+    handle_did_save_text_document,
+};
 use rstest_bdd_server::server::ServerState;
 use tempfile::TempDir;
 
@@ -46,6 +49,15 @@ impl AsRef<str> for FileContent {
     }
 }
 
+/// Builder for test scenarios involving diagnostics.
+struct ScenarioBuilder {
+    dir: TempDir,
+    feature_files: Vec<(String, String)>,
+    rust_files: Vec<(String, String)>,
+    state: ServerState,
+}
+
+/// Index a file by simulating a save event.
 #[expect(clippy::expect_used, reason = "test helper uses expect for clarity")]
 fn index_file(state: &mut ServerState, path: &std::path::Path) {
     let uri = Url::from_file_path(path).expect("file URI");
@@ -56,42 +68,15 @@ fn index_file(state: &mut ServerState, path: &std::path::Path) {
     handle_did_save_text_document(state, params);
 }
 
-/// Builder for test scenarios involving diagnostics.
-struct DiagnosticsTestScenario {
-    dir: TempDir,
-    feature_files: Vec<(String, String)>,
-    rust_files: Vec<(String, String)>,
-    state: ServerState,
-}
-
 #[expect(clippy::expect_used, reason = "test builder uses expect for clarity")]
-impl DiagnosticsTestScenario {
-    fn new() -> Self {
-        Self {
-            dir: TempDir::new().expect("temp dir"),
-            feature_files: Vec::new(),
-            rust_files: Vec::new(),
-            state: ServerState::new(ServerConfig::default()),
-        }
-    }
-
-    /// Helper to add a file to a specific collection.
-    fn add_file(
-        collection: &mut Vec<(String, String)>,
-        filename: impl Into<Filename>,
-        content: impl Into<FileContent>,
-    ) {
-        let filename = filename.into();
-        let content = content.into();
-        collection.push((filename.0, content.0));
-    }
-
+impl ScenarioBuilder {
     fn with_feature(
         mut self,
         filename: impl Into<Filename>,
         content: impl Into<FileContent>,
     ) -> Self {
-        Self::add_file(&mut self.feature_files, filename, content);
+        self.feature_files
+            .push((filename.into().0, content.into().0));
         self
     }
 
@@ -100,7 +85,7 @@ impl DiagnosticsTestScenario {
         filename: impl Into<Filename>,
         content: impl Into<FileContent>,
     ) -> Self {
-        Self::add_file(&mut self.rust_files, filename, content);
+        self.rust_files.push((filename.into().0, content.into().0));
         self
     }
 
@@ -121,6 +106,19 @@ impl DiagnosticsTestScenario {
     }
 }
 
+/// Fixture providing a fresh scenario builder for each test.
+#[fixture]
+fn scenario_builder() -> ScenarioBuilder {
+    #[expect(clippy::expect_used, reason = "fixture panics on temp dir failure")]
+    let dir = TempDir::new().expect("temp dir");
+    ScenarioBuilder {
+        dir,
+        feature_files: Vec::new(),
+        rust_files: Vec::new(),
+        state: ServerState::new(ServerConfig::default()),
+    }
+}
+
 /// Helper to compute unimplemented step diagnostics for a feature file.
 #[expect(clippy::expect_used, reason = "test helper uses expect for clarity")]
 fn compute_feature_diagnostics(
@@ -130,28 +128,7 @@ fn compute_feature_diagnostics(
 ) -> Vec<lsp_types::Diagnostic> {
     let path = dir.path().join(filename.as_ref());
     let feature_index = state.feature_index(&path).expect("feature index");
-
-    // Reuse the same logic as the diagnostics module
-    feature_index
-        .steps
-        .iter()
-        .filter(|step| {
-            !state
-                .step_registry()
-                .steps_for_keyword(step.step_type)
-                .iter()
-                .any(|compiled| compiled.regex.is_match(&step.text))
-        })
-        .map(|step| lsp_types::Diagnostic {
-            range: lsp_types::Range::default(),
-            severity: Some(DiagnosticSeverity::WARNING),
-            message: format!(
-                "No Rust implementation found for {} step: \"{}\"",
-                step.keyword, step.text
-            ),
-            ..Default::default()
-        })
-        .collect()
+    compute_unimplemented_step_diagnostics(state, feature_index)
 }
 
 /// Helper to compute unused step definition diagnostics for a Rust file.
@@ -161,35 +138,7 @@ fn compute_rust_diagnostics(
     filename: impl AsRef<str>,
 ) -> Vec<lsp_types::Diagnostic> {
     let path = dir.path().join(filename.as_ref());
-
-    state
-        .step_registry()
-        .steps_for_file(&path)
-        .iter()
-        .filter(|step_def| {
-            !state.all_feature_indices().any(|feature_index| {
-                feature_index
-                    .steps
-                    .iter()
-                    .filter(|step| step.step_type == step_def.keyword)
-                    .any(|step| step_def.regex.is_match(&step.text))
-            })
-        })
-        .map(|step_def| lsp_types::Diagnostic {
-            range: lsp_types::Range::default(),
-            severity: Some(DiagnosticSeverity::WARNING),
-            message: format!(
-                "Step definition is not used by any feature file: #[{}(\"{}\")]",
-                match step_def.keyword {
-                    gherkin::StepType::Given => "given",
-                    gherkin::StepType::When => "when",
-                    gherkin::StepType::Then => "then",
-                },
-                step_def.pattern
-            ),
-            ..Default::default()
-        })
-        .collect()
+    compute_unused_step_diagnostics(state, &path)
 }
 
 /// Helper to assert a single diagnostic with an expected message substring.
@@ -251,9 +200,9 @@ fn assert_rust_has_no_diagnostics(state: &ServerState, dir: &TempDir, filename: 
     );
 }
 
-#[test]
-fn feature_with_all_steps_implemented_reports_no_diagnostics() {
-    let (dir, state) = DiagnosticsTestScenario::new()
+#[rstest]
+fn feature_with_all_steps_implemented_reports_no_diagnostics(scenario_builder: ScenarioBuilder) {
+    let (dir, state) = scenario_builder
         .with_feature(
             "test.feature",
             concat!(
@@ -282,57 +231,49 @@ fn feature_with_all_steps_implemented_reports_no_diagnostics() {
 }
 
 #[rstest]
-#[case::feature_unimplemented_step(
-    "test.feature",
-    concat!(
-        "Feature: test\n",
-        "  Scenario: s\n",
-        "    Given an unimplemented step\n",
-    ),
-    "steps.rs",
-    concat!(
-        "use rstest_bdd_macros::given;\n\n",
-        "#[given(\"a different step\")]\n",
-        "fn diff() {}\n",
-    ),
-    "test.feature",
-    "an unimplemented step",
-    "feature"
-)]
-#[case::rust_unused_definition(
-    "test.feature",
-    concat!("Feature: test\n", "  Scenario: s\n", "    Given a step\n",),
-    "steps.rs",
-    concat!(
-        "use rstest_bdd_macros::given;\n\n",
-        "#[given(\"a step\")]\n",
-        "fn step() {}\n\n",
-        "#[given(\"unused step\")]\n",
-        "fn unused() {}\n",
-    ),
-    "steps.rs",
-    "unused step",
-    "rust"
-)]
-fn diagnostic_is_reported(
-    #[case] feature_filename: &str,
-    #[case] feature_content: &str,
-    #[case] rust_filename: &str,
-    #[case] rust_content: &str,
-    #[case] check_filename: &str,
-    #[case] expected_message: &str,
-    #[case] check_type: &str,
-) {
-    let (dir, state) = DiagnosticsTestScenario::new()
-        .with_feature(feature_filename, feature_content)
-        .with_rust_steps(rust_filename, rust_content)
+fn unimplemented_feature_step_reports_diagnostic(scenario_builder: ScenarioBuilder) {
+    let (dir, state) = scenario_builder
+        .with_feature(
+            "test.feature",
+            concat!(
+                "Feature: test\n",
+                "  Scenario: s\n",
+                "    Given an unimplemented step\n",
+            ),
+        )
+        .with_rust_steps(
+            "steps.rs",
+            concat!(
+                "use rstest_bdd_macros::given;\n\n",
+                "#[given(\"a different step\")]\n",
+                "fn diff() {}\n",
+            ),
+        )
         .build();
 
-    match check_type {
-        "feature" => assert_feature_has_diagnostic(&state, &dir, check_filename, expected_message),
-        "rust" => assert_rust_has_diagnostic(&state, &dir, check_filename, expected_message),
-        _ => panic!("invalid check_type: {check_type}"),
-    }
+    assert_feature_has_diagnostic(&state, &dir, "test.feature", "an unimplemented step");
+}
+
+#[rstest]
+fn unused_rust_step_reports_diagnostic(scenario_builder: ScenarioBuilder) {
+    let (dir, state) = scenario_builder
+        .with_feature(
+            "test.feature",
+            concat!("Feature: test\n", "  Scenario: s\n", "    Given a step\n",),
+        )
+        .with_rust_steps(
+            "steps.rs",
+            concat!(
+                "use rstest_bdd_macros::given;\n\n",
+                "#[given(\"a step\")]\n",
+                "fn step() {}\n\n",
+                "#[given(\"unused step\")]\n",
+                "fn unused() {}\n",
+            ),
+        )
+        .build();
+
+    assert_rust_has_diagnostic(&state, &dir, "steps.rs", "unused step");
 }
 
 #[rstest]
@@ -363,13 +304,14 @@ fn diagnostic_is_reported(
     "both"
 )]
 fn no_diagnostics_reported(
+    scenario_builder: ScenarioBuilder,
     #[case] feature_filename: &str,
     #[case] feature_content: &str,
     #[case] rust_filename: &str,
     #[case] rust_content: &str,
     #[case] check_type: &str,
 ) {
-    let (dir, state) = DiagnosticsTestScenario::new()
+    let (dir, state) = scenario_builder
         .with_feature(feature_filename, feature_content)
         .with_rust_steps(rust_filename, rust_content)
         .build();
@@ -385,10 +327,10 @@ fn no_diagnostics_reported(
     }
 }
 
-#[test]
-fn keyword_mismatch_produces_diagnostics() {
+#[rstest]
+fn keyword_mismatch_produces_diagnostics(scenario_builder: ScenarioBuilder) {
     // Given step should not match When implementation
-    let (dir, state) = DiagnosticsTestScenario::new()
+    let (dir, state) = scenario_builder
         .with_feature(
             "test.feature",
             concat!("Feature: test\n", "  Scenario: s\n", "    Given a step\n",),
@@ -414,9 +356,9 @@ fn keyword_mismatch_produces_diagnostics() {
     assert_eq!(rust_diags.len(), 1, "When step should be unused");
 }
 
-#[test]
-fn multiple_feature_files_are_checked() {
-    let (dir, state) = DiagnosticsTestScenario::new()
+#[rstest]
+fn multiple_feature_files_are_checked(scenario_builder: ScenarioBuilder) {
+    let (dir, state) = scenario_builder
         .with_feature(
             "one.feature",
             concat!("Feature: one\n", "  Scenario: s\n", "    Given step one\n",),
@@ -442,9 +384,9 @@ fn multiple_feature_files_are_checked() {
     assert_eq!(diags_two.len(), 1, "step two should be unimplemented");
 }
 
-#[test]
-fn step_used_in_any_feature_is_not_unused() {
-    let (dir, state) = DiagnosticsTestScenario::new()
+#[rstest]
+fn step_used_in_any_feature_is_not_unused(scenario_builder: ScenarioBuilder) {
+    let (dir, state) = scenario_builder
         .with_feature(
             "one.feature",
             concat!(
