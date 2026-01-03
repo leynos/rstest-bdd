@@ -3,90 +3,100 @@
 //! These types provide semantic wrappers around string-based data structures
 //! to improve code clarity and type safety in scenario code generation.
 
-/// Wraps step text content.
-#[derive(Debug, Clone)]
-pub(crate) struct StepText(String);
+#![expect(
+    clippy::expl_impl_clone_on_copy,
+    reason = "base_newtype! generates paired Copy and Clone impls we cannot alter"
+)]
 
-impl StepText {
-    /// Creates a new step text wrapper.
-    pub(crate) fn new(text: impl Into<String>) -> Self {
-        Self(text.into())
-    }
+use newt_hype::base_newtype;
 
-    /// Returns the step text as a string slice.
-    pub(crate) fn as_str(&self) -> &str {
-        &self.0
-    }
+macro_rules! string_wrapper {
+    ($(#[$meta:meta])* $name:ident, $base:ident) => {
+        base_newtype!($base);
+
+        $(#[$meta])*
+        #[doc = ""]
+        #[doc = " # Examples"]
+        #[doc = ""]
+        #[doc = concat!(
+            "```rust,ignore\n",
+            "let value = ",
+            stringify!($name),
+            "::new(\"Given I have 5 items\");\n",
+            "assert_eq!(value.as_str(), \"Given I have 5 items\");\n",
+            "```"
+        )]
+        pub(crate) type $name = $base<String>;
+
+        impl $name {
+            /// Returns the wrapper contents as a string slice.
+            pub(crate) fn as_str(&self) -> &str {
+                self.as_ref()
+            }
+        }
+
+        impl AsRef<str> for $name {
+            fn as_ref(&self) -> &str {
+                <Self as AsRef<String>>::as_ref(self).as_str()
+            }
+        }
+    };
 }
 
-impl AsRef<str> for StepText {
-    fn as_ref(&self) -> &str {
-        self.as_str()
-    }
+macro_rules! vec_string_wrapper {
+    ($(#[$meta:meta])* $name:ident, $base:ident) => {
+        base_newtype!($base);
+
+        $(#[$meta])*
+        #[doc = ""]
+        #[doc = " # Examples"]
+        #[doc = ""]
+        #[doc = concat!(
+            "```rust,ignore\n",
+            "let values = vec![\"count\".to_string()];\n",
+            "let wrapper = ",
+            stringify!($name),
+            "::new(values);\n",
+            "assert_eq!(wrapper.as_slice(), &[\"count\".to_string()]);\n",
+            "```"
+        )]
+        pub(crate) type $name = $base<Vec<String>>;
+
+        impl $name {
+            /// Returns the wrapper contents as a slice.
+            pub(crate) fn as_slice(&self) -> &[String] {
+                self.as_ref()
+            }
+        }
+
+        impl AsRef<[String]> for $name {
+            fn as_ref(&self) -> &[String] {
+                <Self as AsRef<Vec<String>>>::as_ref(self).as_slice()
+            }
+        }
+    };
 }
 
-/// Wraps Examples table column names.
-#[derive(Debug, Clone)]
-pub(crate) struct ExampleHeaders(Vec<String>);
+string_wrapper!(
+    /// Wraps step text content.
+    StepText,
+    StepTextBase
+);
 
-impl ExampleHeaders {
-    /// Creates a new headers wrapper.
-    pub(crate) fn new(headers: Vec<String>) -> Self {
-        Self(headers)
-    }
+vec_string_wrapper!(
+    /// Wraps Examples table column names.
+    ExampleHeaders,
+    ExampleHeadersBase
+);
 
-    /// Returns the headers as a slice.
-    pub(crate) fn as_slice(&self) -> &[String] {
-        &self.0
-    }
-}
+vec_string_wrapper!(
+    /// Wraps Examples table row values.
+    ExampleRow,
+    ExampleRowBase
+);
 
-impl AsRef<[String]> for ExampleHeaders {
-    fn as_ref(&self) -> &[String] {
-        self.as_slice()
-    }
-}
-
-/// Wraps Examples table row values.
-#[derive(Debug, Clone)]
-pub(crate) struct ExampleRow(Vec<String>);
-
-impl ExampleRow {
-    /// Creates a new row wrapper.
-    pub(crate) fn new(row: Vec<String>) -> Self {
-        Self(row)
-    }
-
-    /// Returns the row values as a slice.
-    pub(crate) fn as_slice(&self) -> &[String] {
-        &self.0
-    }
-}
-
-impl AsRef<[String]> for ExampleRow {
-    fn as_ref(&self) -> &[String] {
-        self.as_slice()
-    }
-}
-
-/// Wraps multiline documentation strings.
-#[derive(Debug, Clone)]
-pub(crate) struct Docstring(String);
-
-impl Docstring {
-    /// Creates a new docstring wrapper.
-    pub(crate) fn new(content: impl Into<String>) -> Self {
-        Self(content.into())
-    }
-
-    /// Returns the docstring as a string slice.
-    pub(crate) fn as_str(&self) -> &str {
-        &self.0
-    }
-}
-
-impl AsRef<str> for Docstring {
-    fn as_ref(&self) -> &str {
-        self.as_str()
-    }
-}
+string_wrapper!(
+    /// Wraps multiline documentation strings.
+    Docstring,
+    DocstringBase
+);

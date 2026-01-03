@@ -14,19 +14,81 @@ use generators::{
     generate_step_executor_loop, generate_step_executor_loop_outline,
 };
 use types::{CodeComponents, ScenarioLiterals, ScenarioLiteralsInput, TokenAssemblyContext};
-pub(crate) use types::{ProcessedSteps, TestTokensConfig};
+pub(crate) use types::{ProcessedSteps, ScenarioMetadata, TestTokensConfig};
 
 /// Configuration for generating test tokens for scenario outlines.
 #[derive(Debug)]
 pub(crate) struct OutlineTestTokensConfig<'a> {
     /// Processed steps for each Examples row (one set per row).
     pub(crate) all_rows_steps: Vec<ProcessedStepTokens>,
-    pub(crate) feature_path: &'a super::FeaturePath,
-    pub(crate) scenario_name: &'a super::ScenarioName,
-    pub(crate) scenario_line: u32,
-    pub(crate) tags: &'a [String],
-    pub(crate) block: &'a syn::Block,
-    pub(crate) allow_skipped: bool,
+    pub(crate) metadata: ScenarioMetadata<'a>,
+}
+
+/// Common interface for scenario test configuration types.
+trait ScenarioTestConfig {
+    /// Generates the code components for this scenario type.
+    fn generate_components(&self) -> CodeComponents;
+
+    /// Extracts the common scenario metadata fields.
+    fn literals_input(&self) -> ScenarioLiteralsInput<'_>;
+
+    /// Returns the test function block.
+    fn block(&self) -> &syn::Block;
+}
+
+impl ScenarioTestConfig for TestTokensConfig<'_> {
+    fn generate_components(&self) -> CodeComponents {
+        generate_code_components(&self.processed_steps)
+    }
+
+    fn literals_input(&self) -> ScenarioLiteralsInput<'_> {
+        self.metadata.literals_input()
+    }
+
+    fn block(&self) -> &syn::Block {
+        self.metadata.block
+    }
+}
+
+impl ScenarioTestConfig for OutlineTestTokensConfig<'_> {
+    fn generate_components(&self) -> CodeComponents {
+        generate_code_components_outline(&self.all_rows_steps)
+    }
+
+    fn literals_input(&self) -> ScenarioLiteralsInput<'_> {
+        self.metadata.literals_input()
+    }
+
+    fn block(&self) -> &syn::Block {
+        self.metadata.block
+    }
+}
+
+/// Context token stream iterators for test generation.
+pub(super) struct ContextIterators<P, I, Q>
+where
+    P: Iterator<Item = TokenStream2>,
+    I: Iterator<Item = TokenStream2>,
+    Q: Iterator<Item = TokenStream2>,
+{
+    pub prelude: P,
+    pub inserts: I,
+    pub postlude: Q,
+}
+
+impl<P, I, Q> ContextIterators<P, I, Q>
+where
+    P: Iterator<Item = TokenStream2>,
+    I: Iterator<Item = TokenStream2>,
+    Q: Iterator<Item = TokenStream2>,
+{
+    pub fn new(prelude: P, inserts: I, postlude: Q) -> Self {
+        Self {
+            prelude,
+            inserts,
+            postlude,
+        }
+    }
 }
 
 fn create_scenario_literals(input: ScenarioLiteralsInput<'_>) -> ScenarioLiterals {
@@ -54,6 +116,11 @@ fn create_scenario_literals(input: ScenarioLiteralsInput<'_>) -> ScenarioLiteral
     }
 }
 
+/// Returns the common runtime components shared by regular and outline scenarios.
+///
+/// Extracts `step_executor`, `skip_decoder`, `scenario_guard`, and `skip_handler` to avoid
+/// duplicating these generators in both `generate_code_components` and
+/// `generate_code_components_outline`.
 fn generate_common_components() -> (TokenStream2, TokenStream2, TokenStream2, TokenStream2) {
     (
         generate_step_executor(),
@@ -85,34 +152,14 @@ fn generate_code_components(processed_steps: &ProcessedSteps) -> CodeComponents 
 }
 
 pub(crate) fn generate_test_tokens(
-    config: TestTokensConfig<'_>,
+    config: &TestTokensConfig<'_>,
     ctx_prelude: impl Iterator<Item = TokenStream2>,
     ctx_inserts: impl Iterator<Item = TokenStream2>,
     ctx_postlude: impl Iterator<Item = TokenStream2>,
 ) -> TokenStream2 {
-    let TestTokensConfig {
-        processed_steps,
-        feature_path,
-        scenario_name,
-        scenario_line,
-        tags,
-        block,
-        allow_skipped,
-    } = config;
-    let components = generate_code_components(&processed_steps);
-    assemble_test_tokens_with_context(
-        ScenarioLiteralsInput {
-            feature_path,
-            scenario_name,
-            scenario_line,
-            tags,
-            allow_skipped,
-        },
-        block,
-        components,
-        ctx_prelude,
-        ctx_inserts,
-        ctx_postlude,
+    generate_test_tokens_for_config(
+        config,
+        ContextIterators::new(ctx_prelude, ctx_inserts, ctx_postlude),
     )
 }
 
@@ -186,17 +233,20 @@ fn assemble_test_tokens(
 /// This helper consolidates the common pipeline shared by regular and outline
 /// test token generation: collecting context iterators, creating literals,
 /// and assembling the final token stream.
-fn assemble_test_tokens_with_context(
+fn assemble_test_tokens_with_context<P, I, Q>(
     literals_input: ScenarioLiteralsInput<'_>,
     block: &syn::Block,
     components: CodeComponents,
-    ctx_prelude: impl Iterator<Item = TokenStream2>,
-    ctx_inserts: impl Iterator<Item = TokenStream2>,
-    ctx_postlude: impl Iterator<Item = TokenStream2>,
-) -> TokenStream2 {
-    let ctx_prelude: Vec<_> = ctx_prelude.collect();
-    let ctx_inserts: Vec<_> = ctx_inserts.collect();
-    let ctx_postlude: Vec<_> = ctx_postlude.collect();
+    ctx_iterators: ContextIterators<P, I, Q>,
+) -> TokenStream2
+where
+    P: Iterator<Item = TokenStream2>,
+    I: Iterator<Item = TokenStream2>,
+    Q: Iterator<Item = TokenStream2>,
+{
+    let ctx_prelude: Vec<_> = ctx_iterators.prelude.collect();
+    let ctx_inserts: Vec<_> = ctx_iterators.inserts.collect();
+    let ctx_postlude: Vec<_> = ctx_iterators.postlude.collect();
 
     let literals = create_scenario_literals(literals_input);
 
@@ -207,7 +257,30 @@ fn assemble_test_tokens_with_context(
     assemble_test_tokens(literals, components, context)
 }
 
-/// Generates code components for scenario outlines using 2D step arrays.
+/// Generates test tokens for any scenario configuration.
+fn generate_test_tokens_for_config<P, I, Q>(
+    config: &impl ScenarioTestConfig,
+    ctx_iterators: ContextIterators<P, I, Q>,
+) -> TokenStream2
+where
+    P: Iterator<Item = TokenStream2>,
+    I: Iterator<Item = TokenStream2>,
+    Q: Iterator<Item = TokenStream2>,
+{
+    let components = config.generate_components();
+    assemble_test_tokens_with_context(
+        config.literals_input(),
+        config.block(),
+        components,
+        ctx_iterators,
+    )
+}
+
+/// Generates code components for scenario outlines with per-row step substitution.
+///
+/// Unlike `generate_code_components`, which handles a single step array,
+/// this function accepts a 2D array of processed steps (one set per Examples row)
+/// and produces a loop executor that iterates over rows at runtime.
 fn generate_code_components_outline(all_rows_steps: &[ProcessedStepTokens]) -> CodeComponents {
     let (step_executor, skip_decoder, scenario_guard, skip_handler) = generate_common_components();
     let step_executor_loop = generate_step_executor_loop_outline(all_rows_steps);
@@ -228,33 +301,13 @@ fn generate_code_components_outline(all_rows_steps: &[ProcessedStepTokens]) -> C
 /// Each Examples row produces a separate test case, and the substituted steps
 /// are organised in a 2D array indexed by case.
 pub(crate) fn generate_test_tokens_outline(
-    config: OutlineTestTokensConfig<'_>,
+    config: &OutlineTestTokensConfig<'_>,
     ctx_prelude: impl Iterator<Item = TokenStream2>,
     ctx_inserts: impl Iterator<Item = TokenStream2>,
     ctx_postlude: impl Iterator<Item = TokenStream2>,
 ) -> TokenStream2 {
-    let OutlineTestTokensConfig {
-        all_rows_steps,
-        feature_path,
-        scenario_name,
-        scenario_line,
-        tags,
-        block,
-        allow_skipped,
-    } = config;
-    let components = generate_code_components_outline(&all_rows_steps);
-    assemble_test_tokens_with_context(
-        ScenarioLiteralsInput {
-            feature_path,
-            scenario_name,
-            scenario_line,
-            tags,
-            allow_skipped,
-        },
-        block,
-        components,
-        ctx_prelude,
-        ctx_inserts,
-        ctx_postlude,
+    generate_test_tokens_for_config(
+        config,
+        ContextIterators::new(ctx_prelude, ctx_inserts, ctx_postlude),
     )
 }

@@ -16,8 +16,8 @@ use helpers::{
 };
 pub(crate) use metadata::{FeaturePath, ScenarioName};
 use runtime::{
-    OutlineTestTokensConfig, ProcessedSteps, TestTokensConfig, generate_test_tokens,
-    generate_test_tokens_outline,
+    OutlineTestTokensConfig, ProcessedSteps, ScenarioMetadata, TestTokensConfig,
+    generate_test_tokens, generate_test_tokens_outline,
 };
 
 use crate::parsing::placeholder::contains_placeholders;
@@ -115,8 +115,7 @@ where
         docstrings,
         tables,
     };
-    let test_config = TestTokensConfig {
-        processed_steps,
+    let metadata = ScenarioMetadata {
         feature_path: &config.feature_path,
         scenario_name: &config.scenario_name,
         scenario_line: config.line,
@@ -124,11 +123,15 @@ where
         block: config.block,
         allow_skipped: config.allow_skipped,
     };
+    let test_config = TestTokensConfig {
+        processed_steps,
+        metadata,
+    };
     let case_attrs = config
         .examples
         .as_ref()
         .map_or_else(Vec::new, generate_case_attrs);
-    let body = generate_test_tokens(test_config, ctx.prelude, ctx.inserts, ctx.postlude);
+    let body = generate_test_tokens(&test_config, ctx.prelude, ctx.inserts, ctx.postlude);
     let attrs = config.attrs;
     let vis = config.vis;
     let sig = config.sig;
@@ -174,8 +177,7 @@ where
         Err(err) => return TokenStream::from(err),
     };
 
-    let outline_config = OutlineTestTokensConfig {
-        all_rows_steps,
+    let metadata = ScenarioMetadata {
         feature_path: &config.feature_path,
         scenario_name: &config.scenario_name,
         scenario_line: config.line,
@@ -183,9 +185,14 @@ where
         block: config.block,
         allow_skipped: config.allow_skipped,
     };
+    let outline_config = OutlineTestTokensConfig {
+        all_rows_steps,
+        metadata,
+    };
 
     let case_attrs = generate_indexed_case_attrs(examples);
-    let body = generate_test_tokens_outline(outline_config, ctx.prelude, ctx.inserts, ctx.postlude);
+    let body =
+        generate_test_tokens_outline(&outline_config, ctx.prelude, ctx.inserts, ctx.postlude);
 
     // Add the hidden case index parameter to the signature
     let mut modified_sig = (*config.sig).clone();

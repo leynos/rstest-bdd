@@ -268,8 +268,11 @@ pub(crate) fn process_steps_substituted(
     let mut tables = Vec::with_capacity(steps.len());
 
     for step in steps {
-        let step_text = StepText::new(&step.text);
-        let step_docstring = step.docstring.as_ref().map(Docstring::new);
+        let step_text = StepText::new(step.text.clone());
+        let step_docstring = step
+            .docstring
+            .as_ref()
+            .map(|doc| Docstring::new(doc.clone()));
         let (sub_text, sub_doc, sub_table) = substitute_step_content(
             &step_text,
             step_docstring.as_ref(),

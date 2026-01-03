@@ -3,7 +3,7 @@
 //! This module contains generators for the runtime code that executes BDD scenarios.
 //! The generators are split into submodules by concern:
 //!
-//! - [`step`]: Step execution generators (executor, decoder, loop)
+//! - [`step`]: Step execution generators (executor, decoder, loop, outline loop)
 //! - [`scenario`]: Scenario-level generators (guard, skip handler)
 
 mod scenario;
