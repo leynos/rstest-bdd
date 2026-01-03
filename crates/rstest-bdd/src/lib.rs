@@ -199,6 +199,7 @@ impl StepError {
     ///     step: "Given a database".into(),
     /// };
     /// let message = error.format_with_loader(&loader);
+    /// // Check the key components (name, type, step) rather than exact format.
     /// assert!(message.contains("db"));
     /// assert!(message.contains("Pool"));
     /// assert!(message.contains("Given a database"));
