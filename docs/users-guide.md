@@ -745,8 +745,8 @@ enables test code to `.await` async operations while preserving the
 ### Using `#[scenario]` with async
 
 Declare the test function as `async fn` and add `#[tokio::test]` before the
-`#[scenario]` attribute. The macro detects the async signature and generates
-an async step executor:
+`#[scenario]` attribute. The macro detects the async signature and generates an
+async step executor:
 
 ```rust,no_run
 use rstest_bdd_macros::{given, scenario, then, when};

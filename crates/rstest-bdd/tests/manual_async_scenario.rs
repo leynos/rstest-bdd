@@ -32,8 +32,25 @@ fn manual_async_then() {
 }
 
 #[scenario(path = "tests/features/manual_async_scenario.feature")]
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn manual_async_scenario_test() {
     // The steps execute before this body
     // This body runs after all steps complete successfully
+}
+
+#[given("a failing manual async step")]
+fn manual_async_failing_step() {
+    panic!("manual async failing step panicked");
+}
+
+#[scenario(
+    path = "tests/features/manual_async_failing_scenario.feature",
+    name = "Manual async scenario with failing step"
+)]
+#[tokio::test(flavor = "current_thread")]
+#[should_panic(expected = "manual async failing step panicked")]
+async fn manual_async_failing_scenario_test() {
+    // The steps execute before this body.
+    // The failing step should cause this test to panic,
+    // and the test harness will verify the panic message.
 }

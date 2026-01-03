@@ -149,6 +149,7 @@ impl Parse for ScenariosArgs {
 #[cfg(test)]
 #[expect(
     clippy::unwrap_used,
+    clippy::expect_used,
     clippy::indexing_slicing,
     reason = "test code uses infallible unwraps and indexed access for clarity"
 )]
@@ -358,7 +359,8 @@ mod tests {
 
     #[test]
     fn scenarios_args_defaults_to_sync_runtime() {
-        let args: ScenariosArgs = parse_scenarios_args(parse_quote!("tests/features")).unwrap();
+        let args: ScenariosArgs = parse_scenarios_args(parse_quote!("tests/features"))
+            .expect("parse_scenarios_args should succeed");
         assert_eq!(args.runtime, RuntimeMode::Sync);
         assert!(!args.runtime.is_async());
     }
@@ -369,7 +371,7 @@ mod tests {
             "tests/features",
             runtime = "tokio-current-thread"
         ))
-        .unwrap();
+        .expect("parse_scenarios_args should succeed");
         assert_eq!(args.runtime, RuntimeMode::TokioCurrentThread);
         assert!(args.runtime.is_async());
     }
@@ -382,9 +384,15 @@ mod tests {
             runtime = "tokio-current-thread",
             fixtures = [world: TestWorld]
         ))
-        .unwrap();
+        .expect("parse_scenarios_args should succeed");
         assert_eq!(args.dir.value(), "tests/features");
-        assert_eq!(args.tag_filter.as_ref().unwrap().value(), "@async");
+        assert_eq!(
+            args.tag_filter
+                .as_ref()
+                .expect("tag_filter should be set")
+                .value(),
+            "@async"
+        );
         assert_eq!(args.runtime, RuntimeMode::TokioCurrentThread);
         assert_eq!(args.fixtures.len(), 1);
     }

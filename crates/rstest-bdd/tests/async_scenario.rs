@@ -29,6 +29,11 @@ fn async_step_skip() {
     skip!("Skipping from async context");
 }
 
+#[when("the async counter is incremented after skip")]
+fn async_counter_increment_after_skip() {
+    panic!("async counter increment after skip should not run when scenario is skipped");
+}
+
 #[then(expr = "the async counter value is {n}")]
 fn async_counter_value(n: i32) {
     ASYNC_COUNTER.with(|c| {
