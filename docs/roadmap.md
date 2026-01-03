@@ -451,8 +451,9 @@ redesigned. For the full architectural decision record, see
 
 > **Note:** This phase implements async *scenario* execution. Step definitions
 > themselves remain synchronous—the async executor calls the sync handler
-> directly to avoid HRTB lifetime issues with `AsyncStepFn`. True async step
-> bodies (with `async fn` implementations) are planned for a future release.
+> directly to avoid higher-ranked trait bound (HRTB) lifetime issues with
+> `AsyncStepFn`. True async step bodies (with `async fn` implementations) are
+> planned for a future release.
 
 - [x] **Async step registry**
 

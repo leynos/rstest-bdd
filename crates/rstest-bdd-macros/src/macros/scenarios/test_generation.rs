@@ -340,6 +340,30 @@ mod tests {
         );
     }
 
+    #[test]
+    fn build_test_signature_async_fixtures_then_examples() {
+        let fn_ident = syn::Ident::new("test_name", proc_macro2::Span::call_site());
+        let fixture_params: Vec<TokenStream2> = vec![quote!(world: TestWorld)];
+        let example_params: Vec<TokenStream2> = vec![
+            quote!(#[case] col1: &'static str),
+            quote!(#[case] col2: &'static str),
+        ];
+
+        let sig = build_test_signature(&fn_ident, &fixture_params, &example_params, true);
+        let sig_str = sig_to_string(&sig);
+
+        // Must be async function
+        assert!(sig_str.starts_with("async fn"), "should be async fn");
+
+        // Fixtures must come first, followed by #[case] example parameters
+        let world_pos = sig_str.find("world").expect("should contain world");
+        let col1_pos = sig_str.find("col1").expect("should contain col1");
+        assert!(
+            world_pos < col1_pos,
+            "fixture 'world' should appear before example 'col1'"
+        );
+    }
+
     // Tests for build_fixture_params
 
     #[test]

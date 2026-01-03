@@ -94,8 +94,8 @@ for unit tests, promoting a Don't Repeat Yourself (DRY) approach.[^1]
 > functions with `#[tokio::test]`. Async scenario execution is now implemented
 > for Tokio current-thread mode; see §2.5 and the users guide for details.
 > Step definitions themselves remain synchronous—the async executor calls the
-> sync handler directly to avoid HRTB lifetime issues. True async step bodies
-> are planned for a future release.
+> sync handler directly to avoid higher-ranked trait bound (HRTB) lifetime
+> issues. True async step bodies are planned for a future release.
 
 ```rust,no_run
 use rstest::fixture;
@@ -1175,9 +1175,9 @@ under Tokio. For the full architectural decision record, see
 > Tokio current-thread mode. The `scenarios!` macro accepts
 > `runtime = "tokio-current-thread"`, and `#[scenario]` detects `async fn` test
 > signatures. Step definitions remain synchronous—the async executor calls the
-> sync handler directly to avoid HRTB lifetime issues with `AsyncStepFn`. True
-> async step bodies (with `async fn` implementations) are planned for a future
-> release.
+> sync handler directly to avoid higher-ranked trait bound (HRTB) lifetime
+> issues with `AsyncStepFn`. True async step bodies (with `async fn`
+> implementations) are planned for a future release.
 
 #### 2.5.1 Motivation
 
