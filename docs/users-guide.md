@@ -744,9 +744,10 @@ enables test code to `.await` async operations while preserving the
 
 ### Using `#[scenario]` with async
 
-Declare the test function as `async fn` and add `#[tokio::test]` before the
-`#[scenario]` attribute. The macro detects the async signature and generates an
-async step executor:
+Declare the test function as `async fn` and add
+`#[tokio::test(flavor = "current_thread")]` before the `#[scenario]`
+attribute. The macro detects the async signature and generates an async step
+executor:
 
 ```rust,no_run
 use rstest_bdd_macros::{given, scenario, then, when};
@@ -778,12 +779,12 @@ fn check_value(counter: &Counter, n: i32) {
 }
 
 #[scenario(path = "tests/features/counter.feature", name = "Increment counter")]
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn increment_counter(counter: Counter) {}
 ```
 
-The macro generates `#[rstest::rstest]` without duplicating `#[tokio::test]`
-when the user already supplies it.
+The macro generates `#[rstest::rstest]` without duplicating
+`#[tokio::test(flavor = "current_thread")]` when the user already supplies it.
 
 ### Using `scenarios!` with async
 
@@ -814,7 +815,7 @@ When `runtime = "tokio-current-thread"` is specified:
   internally. True async step definitions (with `async fn` bodies) are planned
   for a future release.
 - **Current-thread mode only:** Multi-threaded Tokio mode would require `Send`
-  futures, which conflicts with the `RefCell`-based fixture storage. See
+  futures, which conflicts with the `RefCell`-backed fixture storage. See
   [ADR-001](adr-001-async-fixtures-and-test.md) for the full design rationale.
 - **No `async_std` runtime:** Only Tokio is supported at present.
 

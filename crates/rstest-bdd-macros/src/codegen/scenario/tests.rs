@@ -91,6 +91,7 @@ fn tokens_contain(tokens: &TokenStream2, needle: &str) -> bool {
 #[case::tokio_test_with_args("#[tokio::test(flavor = \"current_thread\")]", true)]
 #[case::plain_test("#[test]", false)]
 #[case::test_case("#[test_case]", false)]
+#[case::tokio_test_case("#[tokio::test_case]", false)]
 #[case::rstest_test("#[rstest::rstest]", false)]
 #[case::tokio_runtime_not_test("#[tokio::main]", false)]
 fn has_tokio_test_detection(#[case] attr_str: &str, #[case] expected_tokio: bool) {
