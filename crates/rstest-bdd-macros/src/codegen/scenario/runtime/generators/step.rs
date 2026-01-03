@@ -309,23 +309,16 @@ struct StepDataSlices<'a> {
     tables: &'a [TokenStream2],
 }
 
-/// Generates a step executor loop that iterates over steps and handles results.
+/// Generates the step executor loop body for a given steps expression.
 ///
-/// This is a shared implementation used by both sync and async executor loop generators.
-/// The `callee` parameter is a token stream containing the executor function identifier.
-fn generate_step_executor_loop_impl(
+/// The `steps_expr` should evaluate to an array/slice of step tuples with the
+/// shape `(keyword, text, docstring, table)`.
+fn generate_step_executor_loop_body(
     callee: &TokenStream2,
-    step_data: StepDataSlices<'_>,
+    steps_expr: &TokenStream2,
 ) -> TokenStream2 {
-    let StepDataSlices {
-        keyword_tokens,
-        values,
-        docstrings,
-        tables,
-    } = step_data;
-
     quote! {
-        let __rstest_bdd_steps = [#((#keyword_tokens, #values, #docstrings, #tables)),*];
+        let __rstest_bdd_steps = #steps_expr;
         for (__rstest_bdd_index, (__rstest_bdd_keyword, __rstest_bdd_text, __rstest_bdd_docstring, __rstest_bdd_table)) in __rstest_bdd_steps.iter().copied().enumerate() {
             match #callee(
                 __rstest_bdd_index,
@@ -352,6 +345,24 @@ fn generate_step_executor_loop_impl(
             }
         }
     }
+}
+
+/// Generates a step executor loop that iterates over steps and handles results.
+///
+/// This is a shared implementation used by both sync and async executor loop generators.
+/// The `callee` parameter is a token stream containing the executor function identifier.
+fn generate_step_executor_loop_impl(
+    callee: &TokenStream2,
+    step_data: StepDataSlices<'_>,
+) -> TokenStream2 {
+    let StepDataSlices {
+        keyword_tokens,
+        values,
+        docstrings,
+        tables,
+    } = step_data;
+    let steps_expr = quote! { [#((#keyword_tokens, #values, #docstrings, #tables)),*] };
+    generate_step_executor_loop_body(callee, &steps_expr)
 }
 
 /// Generates the async step executor loop that iterates over steps and awaits each.
@@ -449,37 +460,14 @@ fn generate_step_executor_loop_outline_impl(
             }
         })
         .collect();
+    let steps_expr = quote! { __RSTEST_BDD_ALL_STEPS[__rstest_bdd_case_idx] };
+    let loop_body = generate_step_executor_loop_body(callee, &steps_expr);
 
     quote! {
         const __RSTEST_BDD_ALL_STEPS: &[&[(#path::StepKeyword, &str, Option<&str>, Option<&[&[&str]]>)]] = &[
             #(#row_arrays),*
         ];
-        let __rstest_bdd_steps = __RSTEST_BDD_ALL_STEPS[__rstest_bdd_case_idx];
-        for (__rstest_bdd_index, (__rstest_bdd_keyword, __rstest_bdd_text, __rstest_bdd_docstring, __rstest_bdd_table)) in __rstest_bdd_steps.iter().copied().enumerate() {
-            match #callee(
-                __rstest_bdd_index,
-                __rstest_bdd_keyword,
-                __rstest_bdd_text,
-                __rstest_bdd_docstring,
-                __rstest_bdd_table,
-                &mut ctx,
-                __RSTEST_BDD_FEATURE_PATH,
-                __RSTEST_BDD_SCENARIO_NAME,
-            ) {
-                Ok(Some(__rstest_bdd_val)) => {
-                    // Intentionally discarded: insert_value returns None when no fixture
-                    // slot matches the value's TypeId or when matches are ambiguous.
-                    let _ = ctx.insert_value(__rstest_bdd_val);
-                }
-                Ok(None) => {}
-                Err(__rstest_bdd_encoded) => {
-                    __rstest_bdd_skipped =
-                        Some(__rstest_bdd_decode_skip_message(__rstest_bdd_encoded));
-                    __rstest_bdd_skipped_at = Some(__rstest_bdd_index);
-                    break;
-                }
-            }
-        }
+        #loop_body
     }
 }
 

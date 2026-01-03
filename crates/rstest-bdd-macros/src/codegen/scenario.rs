@@ -63,16 +63,21 @@ pub(crate) fn scenario_allows_skip(tags: &[String]) -> bool {
     tags.iter().any(|tag| tag == "@allow_skipped")
 }
 
+fn is_tokio_test_attr(attr: &syn::Attribute) -> bool {
+    let mut segments = attr.path().segments.iter();
+    let Some(first) = segments.next() else {
+        return false;
+    };
+    let Some(second) = segments.next() else {
+        return false;
+    };
+    segments.next().is_none() && first.ident == "tokio" && second.ident == "test"
+}
+
 fn generate_test_attrs(attrs: &[syn::Attribute], runtime: RuntimeMode) -> TokenStream2 {
     // Check if user already has a tokio::test attribute.
-    // We specifically check for paths ending in "test" that also contain "tokio",
-    // to avoid false positives with #[test], #[test_case], etc.
-    let has_tokio_test = attrs.iter().any(|attr| {
-        let segments: Vec<_> = attr.path().segments.iter().collect();
-        let has_tokio = segments.iter().any(|seg| seg.ident == "tokio");
-        let ends_with_test = segments.last().is_some_and(|seg| seg.ident == "test");
-        has_tokio && ends_with_test
-    });
+    // Match only tokio::test to avoid false positives like #[test] or #[test_case].
+    let has_tokio_test = attrs.iter().any(is_tokio_test_attr);
 
     match (runtime, has_tokio_test) {
         (RuntimeMode::Sync, _) | (RuntimeMode::TokioCurrentThread, true) => {
