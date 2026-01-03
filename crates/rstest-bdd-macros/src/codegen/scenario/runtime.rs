@@ -11,9 +11,9 @@ use quote::quote;
 use super::helpers::ProcessedStepTokens;
 use generators::{
     generate_async_step_executor, generate_async_step_executor_loop,
-    generate_async_step_executor_loop_outline, generate_scenario_guard,
-    generate_skip_decoder, generate_skip_handler, generate_step_executor,
-    generate_step_executor_loop, generate_step_executor_loop_outline,
+    generate_async_step_executor_loop_outline, generate_scenario_guard, generate_skip_decoder,
+    generate_skip_handler, generate_step_executor, generate_step_executor_loop,
+    generate_step_executor_loop_outline,
 };
 use types::{CodeComponents, ScenarioLiterals, ScenarioLiteralsInput, TokenAssemblyContext};
 pub(crate) use types::{ProcessedSteps, ScenarioMetadata, TestTokensConfig};
@@ -123,7 +123,9 @@ fn create_scenario_literals(input: ScenarioLiteralsInput<'_>) -> ScenarioLiteral
 /// Extracts `step_executor`, `skip_decoder`, `scenario_guard`, and `skip_handler` to avoid
 /// duplicating these generators in both `generate_code_components` and
 /// `generate_code_components_outline`.
-fn generate_common_components(is_async: bool) -> (TokenStream2, TokenStream2, TokenStream2, TokenStream2) {
+fn generate_common_components(
+    is_async: bool,
+) -> (TokenStream2, TokenStream2, TokenStream2, TokenStream2) {
     let step_executor = if is_async {
         generate_async_step_executor()
     } else {
