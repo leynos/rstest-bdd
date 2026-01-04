@@ -66,3 +66,90 @@ fn tags(list: &[&str]) -> Vec<String> {
 fn detects_allow_skipped_tag(#[case] tags: Vec<String>, #[case] expected: bool) {
     assert_eq!(scenario_allows_skip(&tags), expected);
 }
+
+// -----------------------------------------------------------------------------
+// Tests for generate_test_attrs: has_tokio_test detection and attribute generation
+// -----------------------------------------------------------------------------
+
+#[expect(clippy::expect_used, reason = "test helper with descriptive failures")]
+fn parse_attr(s: &str) -> syn::Attribute {
+    syn::parse_str::<syn::DeriveInput>(&format!("{s} struct S;"))
+        .expect("parse derive input")
+        .attrs
+        .into_iter()
+        .next()
+        .expect("at least one attribute")
+}
+
+fn tokens_contain(tokens: &TokenStream2, needle: &str) -> bool {
+    tokens.to_string().contains(needle)
+}
+
+#[rstest::rstest]
+#[case::tokio_test("#[tokio::test]", true)]
+#[case::tokio_test_leading_colons("#[::tokio::test]", true)]
+#[case::tokio_test_with_args("#[tokio::test(flavor = \"current_thread\")]", true)]
+#[case::plain_test("#[test]", false)]
+#[case::test_case("#[test_case]", false)]
+#[case::tokio_test_case("#[tokio::test_case]", false)]
+#[case::rstest_test("#[rstest::rstest]", false)]
+#[case::tokio_runtime_not_test("#[tokio::main]", false)]
+fn has_tokio_test_detection(#[case] attr_str: &str, #[case] expected_tokio: bool) {
+    let attr = parse_attr(attr_str);
+    let attrs = vec![attr];
+
+    // When runtime is TokioCurrentThread and tokio::test is already present,
+    // we should NOT emit another tokio::test attribute.
+    let tokens = generate_test_attrs(&attrs, RuntimeMode::TokioCurrentThread);
+    let has_tokio_in_output = tokens_contain(&tokens, "tokio :: test");
+
+    if expected_tokio {
+        // tokio::test detected, so output should NOT include tokio::test
+        assert!(
+            !has_tokio_in_output,
+            "expected no tokio::test in output when user already has one: {attr_str}"
+        );
+    } else {
+        // tokio::test NOT detected, so output SHOULD include tokio::test
+        assert!(
+            has_tokio_in_output,
+            "expected tokio::test in output when user does not have one: {attr_str}"
+        );
+    }
+}
+
+#[rstest::rstest]
+#[case::sync_no_attrs(RuntimeMode::Sync, vec![], false)]
+#[case::sync_with_tokio(RuntimeMode::Sync, vec!["#[tokio::test]"], false)]
+#[case::tokio_no_attrs(RuntimeMode::TokioCurrentThread, vec![], true)]
+#[case::tokio_with_tokio(RuntimeMode::TokioCurrentThread, vec!["#[tokio::test]"], false)]
+#[case::tokio_with_test(RuntimeMode::TokioCurrentThread, vec!["#[test]"], true)]
+fn generate_test_attrs_output(
+    #[case] runtime: RuntimeMode,
+    #[case] attr_strs: Vec<&str>,
+    #[case] expect_tokio_test: bool,
+) {
+    let attrs: Vec<syn::Attribute> = attr_strs.iter().map(|s| parse_attr(s)).collect();
+    let tokens = generate_test_attrs(&attrs, runtime);
+    let output = tokens.to_string();
+
+    // All outputs should contain rstest::rstest
+    assert!(
+        output.contains("rstest :: rstest"),
+        "expected rstest::rstest in output: {output}"
+    );
+
+    let has_tokio = output.contains("tokio :: test");
+    assert_eq!(
+        has_tokio, expect_tokio_test,
+        "tokio::test presence mismatch for runtime={runtime:?}, attrs={attr_strs:?}"
+    );
+
+    // When tokio::test is emitted, it should specify current_thread flavor
+    if expect_tokio_test {
+        assert!(
+            output.contains("current_thread"),
+            "expected current_thread flavor in output: {output}"
+        );
+    }
+}

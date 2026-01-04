@@ -10,8 +10,10 @@ use quote::quote;
 
 use super::helpers::ProcessedStepTokens;
 use generators::{
-    generate_scenario_guard, generate_skip_decoder, generate_skip_handler, generate_step_executor,
-    generate_step_executor_loop, generate_step_executor_loop_outline,
+    generate_async_step_executor, generate_async_step_executor_loop,
+    generate_async_step_executor_loop_outline, generate_scenario_guard, generate_skip_decoder,
+    generate_skip_handler, generate_step_executor, generate_step_executor_loop,
+    generate_step_executor_loop_outline,
 };
 use types::{CodeComponents, ScenarioLiterals, ScenarioLiteralsInput, TokenAssemblyContext};
 pub(crate) use types::{ProcessedSteps, ScenarioMetadata, TestTokensConfig};
@@ -38,7 +40,7 @@ trait ScenarioTestConfig {
 
 impl ScenarioTestConfig for TestTokensConfig<'_> {
     fn generate_components(&self) -> CodeComponents {
-        generate_code_components(&self.processed_steps)
+        generate_code_components(&self.processed_steps, self.metadata.is_async)
     }
 
     fn literals_input(&self) -> ScenarioLiteralsInput<'_> {
@@ -52,7 +54,7 @@ impl ScenarioTestConfig for TestTokensConfig<'_> {
 
 impl ScenarioTestConfig for OutlineTestTokensConfig<'_> {
     fn generate_components(&self) -> CodeComponents {
-        generate_code_components_outline(&self.all_rows_steps)
+        generate_code_components_outline(&self.all_rows_steps, self.metadata.is_async)
     }
 
     fn literals_input(&self) -> ScenarioLiteralsInput<'_> {
@@ -121,17 +123,26 @@ fn create_scenario_literals(input: ScenarioLiteralsInput<'_>) -> ScenarioLiteral
 /// Extracts `step_executor`, `skip_decoder`, `scenario_guard`, and `skip_handler` to avoid
 /// duplicating these generators in both `generate_code_components` and
 /// `generate_code_components_outline`.
-fn generate_common_components() -> (TokenStream2, TokenStream2, TokenStream2, TokenStream2) {
+fn generate_common_components(
+    is_async: bool,
+) -> (TokenStream2, TokenStream2, TokenStream2, TokenStream2) {
+    let step_executor = if is_async {
+        generate_async_step_executor()
+    } else {
+        generate_step_executor()
+    };
+
     (
-        generate_step_executor(),
+        step_executor,
         generate_skip_decoder(),
         generate_scenario_guard(),
         generate_skip_handler(),
     )
 }
 
-fn generate_code_components(processed_steps: &ProcessedSteps) -> CodeComponents {
-    let (step_executor, skip_decoder, scenario_guard, skip_handler) = generate_common_components();
+fn generate_code_components(processed_steps: &ProcessedSteps, is_async: bool) -> CodeComponents {
+    let (step_executor, skip_decoder, scenario_guard, skip_handler) =
+        generate_common_components(is_async);
     let ProcessedSteps {
         keyword_tokens,
         values,
@@ -139,8 +150,11 @@ fn generate_code_components(processed_steps: &ProcessedSteps) -> CodeComponents 
         tables,
     } = processed_steps;
 
-    let step_executor_loop =
-        generate_step_executor_loop(keyword_tokens, values, docstrings, tables);
+    let step_executor_loop = if is_async {
+        generate_async_step_executor_loop(keyword_tokens, values, docstrings, tables)
+    } else {
+        generate_step_executor_loop(keyword_tokens, values, docstrings, tables)
+    };
 
     CodeComponents {
         step_executor,
@@ -281,9 +295,17 @@ where
 /// Unlike `generate_code_components`, which handles a single step array,
 /// this function accepts a 2D array of processed steps (one set per Examples row)
 /// and produces a loop executor that iterates over rows at runtime.
-fn generate_code_components_outline(all_rows_steps: &[ProcessedStepTokens]) -> CodeComponents {
-    let (step_executor, skip_decoder, scenario_guard, skip_handler) = generate_common_components();
-    let step_executor_loop = generate_step_executor_loop_outline(all_rows_steps);
+fn generate_code_components_outline(
+    all_rows_steps: &[ProcessedStepTokens],
+    is_async: bool,
+) -> CodeComponents {
+    let (step_executor, skip_decoder, scenario_guard, skip_handler) =
+        generate_common_components(is_async);
+    let step_executor_loop = if is_async {
+        generate_async_step_executor_loop_outline(all_rows_steps)
+    } else {
+        generate_step_executor_loop_outline(all_rows_steps)
+    };
 
     CodeComponents {
         step_executor,

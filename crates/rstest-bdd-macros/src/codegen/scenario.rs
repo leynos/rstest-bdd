@@ -20,6 +20,8 @@ use runtime::{
     generate_test_tokens, generate_test_tokens_outline,
 };
 
+pub(crate) use crate::macros::scenarios::ScenariosRuntimeMode as RuntimeMode;
+
 use crate::parsing::placeholder::contains_placeholders;
 
 /// Configuration for generating code for a single scenario test.
@@ -46,6 +48,8 @@ pub(crate) struct ScenarioConfig<'a> {
     pub(crate) line: u32,
     /// Tags inherited from the feature and scenario declarations.
     pub(crate) tags: &'a [String],
+    /// Runtime mode for test execution (sync or async/Tokio).
+    pub(crate) runtime: RuntimeMode,
 }
 
 /// Configuration for context iterators in scenario code generation.
@@ -57,6 +61,33 @@ pub(crate) struct ContextConfig<P, I, Q> {
 
 pub(crate) fn scenario_allows_skip(tags: &[String]) -> bool {
     tags.iter().any(|tag| tag == "@allow_skipped")
+}
+
+fn is_tokio_test_attr(attr: &syn::Attribute) -> bool {
+    let mut segments = attr.path().segments.iter();
+    let Some(first) = segments.next() else {
+        return false;
+    };
+    let Some(second) = segments.next() else {
+        return false;
+    };
+    segments.next().is_none() && first.ident == "tokio" && second.ident == "test"
+}
+
+fn generate_test_attrs(attrs: &[syn::Attribute], runtime: RuntimeMode) -> TokenStream2 {
+    // Check if user already has a tokio::test attribute.
+    // Match only tokio::test to avoid false positives like #[test] or #[test_case].
+    let has_tokio_test = attrs.iter().any(is_tokio_test_attr);
+
+    match (runtime, has_tokio_test) {
+        (RuntimeMode::Sync, _) | (RuntimeMode::TokioCurrentThread, true) => {
+            quote! { #[rstest::rstest] }
+        }
+        (RuntimeMode::TokioCurrentThread, false) => quote! {
+            #[rstest::rstest]
+            #[tokio::test(flavor = "current_thread")]
+        },
+    }
 }
 
 /// Checks if any step in the scenario contains placeholder tokens.
@@ -122,6 +153,7 @@ where
         tags: config.tags,
         block: config.block,
         allow_skipped: config.allow_skipped,
+        is_async: config.runtime.is_async(),
     };
     let test_config = TestTokensConfig {
         processed_steps,
@@ -132,11 +164,12 @@ where
         .as_ref()
         .map_or_else(Vec::new, generate_case_attrs);
     let body = generate_test_tokens(&test_config, ctx.prelude, ctx.inserts, ctx.postlude);
+    let test_attrs = generate_test_attrs(config.attrs, config.runtime);
     let attrs = config.attrs;
     let vis = config.vis;
     let sig = config.sig;
     TokenStream::from(quote! {
-        #[rstest::rstest]
+        #test_attrs
         #(#case_attrs)*
         #(#attrs)*
         #vis #sig { #body }
@@ -184,6 +217,7 @@ where
         tags: config.tags,
         block: config.block,
         allow_skipped: config.allow_skipped,
+        is_async: config.runtime.is_async(),
     };
     let outline_config = OutlineTestTokensConfig {
         all_rows_steps,
@@ -201,10 +235,11 @@ where
     };
     modified_sig.inputs.insert(0, case_idx_param);
 
+    let test_attrs = generate_test_attrs(config.attrs, config.runtime);
     let attrs = config.attrs;
     let vis = config.vis;
     TokenStream::from(quote! {
-        #[rstest::rstest]
+        #test_attrs
         #(#case_attrs)*
         #(#attrs)*
         #vis #modified_sig { #body }

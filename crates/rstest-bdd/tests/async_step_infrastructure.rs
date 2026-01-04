@@ -1,7 +1,7 @@
 //! Behavioural tests for async step infrastructure.
 //!
 //! These tests verify that the async step registry infrastructure correctly
-//! normalises synchronous step definitions into the async interface.
+//! normalizes synchronous step definitions into the async interface.
 
 use rstest_bdd_macros::{given, scenario, then, when};
 use std::cell::RefCell;
