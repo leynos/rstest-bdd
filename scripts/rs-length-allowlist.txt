@@ -2,5 +2,4 @@
 # Tracked for refactor: see issue #50 to shrink allowlisted files below 400 lines.
 #
 # All files previously listed here have been decomposed to under 400 lines.
-crates/rstest-bdd-server/src/handlers/diagnostics.rs
 crates/rstest-bdd-server/tests/diagnostics.rs

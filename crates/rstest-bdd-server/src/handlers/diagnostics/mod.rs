@@ -9,16 +9,8 @@
 //! - **Unused step definitions**: Rust step definitions not matched by any
 //!   feature step.
 
-use std::{path::Path, sync::Arc};
-
-use async_lsp::lsp_types::notification;
-use lsp_types::{Diagnostic, DiagnosticSeverity, PublishDiagnosticsParams, Range, Url};
-use tracing::{debug, warn};
-
-use crate::indexing::{CompiledStepDefinition, FeatureFileIndex, IndexedStep};
-use crate::server::ServerState;
-
-use super::util::gherkin_span_to_lsp_range;
+mod compute;
+mod publish;
 
 /// Diagnostic source identifier for rstest-bdd diagnostics.
 const DIAGNOSTIC_SOURCE: &str = "rstest-bdd";
@@ -29,183 +21,11 @@ const CODE_UNIMPLEMENTED_STEP: &str = "unimplemented-step";
 /// Diagnostic code for unused step definitions.
 const CODE_UNUSED_STEP_DEFINITION: &str = "unused-step-definition";
 
-/// Publish diagnostics for a single feature file.
-///
-/// Computes unimplemented step diagnostics and publishes them via the client
-/// socket. Publishes an empty array if all steps have implementations,
-/// clearing any previous diagnostics.
-pub fn publish_feature_diagnostics(state: &ServerState, feature_path: &Path) {
-    let Some(client) = state.client() else {
-        debug!("no client socket available for publishing diagnostics");
-        return;
-    };
-
-    let Some(feature_index) = state.feature_index(feature_path) else {
-        debug!(path = %feature_path.display(), "no feature index for diagnostics");
-        return;
-    };
-
-    let Ok(uri) = Url::from_file_path(feature_path) else {
-        warn!(path = %feature_path.display(), "cannot convert path to URI");
-        return;
-    };
-
-    let diagnostics = compute_unimplemented_step_diagnostics(state, feature_index);
-
-    let params = PublishDiagnosticsParams::new(uri, diagnostics, None);
-    if let Err(err) = client.notify::<notification::PublishDiagnostics>(params) {
-        warn!(error = %err, "failed to publish feature diagnostics");
-    }
-}
-
-/// Publish diagnostics for all feature files.
-///
-/// Called when a Rust file is saved, as step definition changes may affect
-/// which feature steps are unimplemented.
-pub fn publish_all_feature_diagnostics(state: &ServerState) {
-    // Collect paths first to avoid borrowing issues
-    let feature_paths: Vec<_> = state
-        .all_feature_indices()
-        .map(|index| index.path.clone())
-        .collect();
-
-    for path in feature_paths {
-        publish_feature_diagnostics(state, &path);
-    }
-}
-
-/// Publish diagnostics for unused step definitions in a Rust file.
-pub fn publish_rust_diagnostics(state: &ServerState, rust_path: &Path) {
-    let Some(client) = state.client() else {
-        debug!("no client socket available for publishing diagnostics");
-        return;
-    };
-
-    let Ok(uri) = Url::from_file_path(rust_path) else {
-        warn!(path = %rust_path.display(), "cannot convert path to URI");
-        return;
-    };
-
-    let diagnostics = compute_unused_step_diagnostics(state, rust_path);
-
-    let params = PublishDiagnosticsParams::new(uri, diagnostics, None);
-    if let Err(err) = client.notify::<notification::PublishDiagnostics>(params) {
-        warn!(error = %err, "failed to publish rust diagnostics");
-    }
-}
-
-/// Compute diagnostics for unimplemented feature steps.
-///
-/// For each step in the feature file, checks if there is at least one matching
-/// Rust implementation. Steps without implementations get a warning diagnostic.
-#[must_use]
-pub fn compute_unimplemented_step_diagnostics(
-    state: &ServerState,
-    feature_index: &FeatureFileIndex,
-) -> Vec<Diagnostic> {
-    feature_index
-        .steps
-        .iter()
-        .filter(|step| !has_matching_implementation(state, step))
-        .map(|step| build_unimplemented_step_diagnostic(feature_index, step))
-        .collect()
-}
-
-/// Check if a feature step has at least one matching Rust implementation.
-fn has_matching_implementation(state: &ServerState, step: &IndexedStep) -> bool {
-    state
-        .step_registry()
-        .steps_for_keyword(step.step_type)
-        .iter()
-        .any(|compiled| compiled.regex.is_match(&step.text))
-}
-
-/// Build a diagnostic for an unimplemented feature step.
-fn build_unimplemented_step_diagnostic(
-    feature_index: &FeatureFileIndex,
-    step: &IndexedStep,
-) -> Diagnostic {
-    let range = gherkin_span_to_lsp_range(&feature_index.source, step.span);
-
-    Diagnostic {
-        range,
-        severity: Some(DiagnosticSeverity::WARNING),
-        code: Some(lsp_types::NumberOrString::String(
-            CODE_UNIMPLEMENTED_STEP.to_owned(),
-        )),
-        code_description: None,
-        source: Some(DIAGNOSTIC_SOURCE.to_owned()),
-        message: format!(
-            "No Rust implementation found for {} step: \"{}\"",
-            step.keyword, step.text
-        ),
-        related_information: None,
-        tags: None,
-        data: None,
-    }
-}
-
-/// Compute diagnostics for unused step definitions in a Rust file.
-///
-/// For each step definition in the file, checks if any feature step matches it.
-/// Definitions without matches get a warning diagnostic.
-#[must_use]
-pub fn compute_unused_step_diagnostics(state: &ServerState, rust_path: &Path) -> Vec<Diagnostic> {
-    state
-        .step_registry()
-        .steps_for_file(rust_path)
-        .iter()
-        .filter(|step_def| !has_matching_feature_step(state, step_def))
-        .map(build_unused_step_diagnostic)
-        .collect()
-}
-
-/// Check if a Rust step definition is matched by at least one feature step.
-fn has_matching_feature_step(state: &ServerState, step_def: &Arc<CompiledStepDefinition>) -> bool {
-    state.all_feature_indices().any(|feature_index| {
-        feature_index
-            .steps
-            .iter()
-            .filter(|step| step.step_type == step_def.keyword)
-            .any(|step| step_def.regex.is_match(&step.text))
-    })
-}
-
-/// Build a diagnostic for an unused step definition.
-fn build_unused_step_diagnostic(step_def: &Arc<CompiledStepDefinition>) -> Diagnostic {
-    // Range spans the function definition line.
-    let range = Range {
-        start: lsp_types::Position::new(step_def.line, 0),
-        end: lsp_types::Position::new(step_def.line + 1, 0),
-    };
-
-    Diagnostic {
-        range,
-        severity: Some(DiagnosticSeverity::WARNING),
-        code: Some(lsp_types::NumberOrString::String(
-            CODE_UNUSED_STEP_DEFINITION.to_owned(),
-        )),
-        code_description: None,
-        source: Some(DIAGNOSTIC_SOURCE.to_owned()),
-        message: format!(
-            "Step definition is not used by any feature file: #[{}(\"{}\")]",
-            step_type_to_attribute(step_def.keyword),
-            step_def.pattern
-        ),
-        related_information: None,
-        tags: None,
-        data: None,
-    }
-}
-
-/// Convert a `StepType` to the corresponding attribute name.
-fn step_type_to_attribute(step_type: gherkin::StepType) -> &'static str {
-    match step_type {
-        gherkin::StepType::Given => "given",
-        gherkin::StepType::When => "when",
-        gherkin::StepType::Then => "then",
-    }
-}
+// Re-export public items
+pub use compute::{compute_unimplemented_step_diagnostics, compute_unused_step_diagnostics};
+pub use publish::{
+    publish_all_feature_diagnostics, publish_feature_diagnostics, publish_rust_diagnostics,
+};
 
 #[cfg(test)]
 #[expect(
@@ -213,12 +33,15 @@ fn step_type_to_attribute(step_type: gherkin::StepType) -> &'static str {
     reason = "tests require explicit panic messages for debugging failures"
 )]
 mod tests {
+    use super::compute::step_type_to_attribute;
     use super::*;
+    use crate::server::ServerState;
     use crate::test_support::{
         DiagnosticCheckType, ScenarioBuilder, TestScenario as BaseTestScenario,
     };
+    use lsp_types::{Diagnostic, DiagnosticSeverity};
     use rstest::{fixture, rstest};
-    use std::path::PathBuf;
+    use std::path::{Path, PathBuf};
     use tempfile::TempDir;
 
     /// Test scenario components produced by the single-file scenario builder.
