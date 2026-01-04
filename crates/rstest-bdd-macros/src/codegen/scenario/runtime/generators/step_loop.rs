@@ -111,9 +111,9 @@ generate_step_executor_loop_fn! {
     ///
     /// This implementation uses the sync `run` function directly rather than
     /// `run_async`. This avoids higher-ranked trait bound (HRTB) lifetime issues since
-    /// sync steps don't create futures that hold borrows across `.await` points. For
-    /// scenarios using actual
-    /// async step definitions (future work), a different approach will be needed.
+    /// sync steps don't create futures that hold borrows across `.await` points.
+    /// For scenarios using actual async step definitions (future work), a different
+    /// approach will be needed.
     ///
     /// # Usage
     ///
