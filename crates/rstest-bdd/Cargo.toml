@@ -31,7 +31,6 @@ i18n-embed.workspace = true
 rust-embed.workspace = true
 fluent.workspace = true
 unic-langid.workspace = true
-once_cell.workspace = true
 
 [dev-dependencies]
 camino.workspace = true
