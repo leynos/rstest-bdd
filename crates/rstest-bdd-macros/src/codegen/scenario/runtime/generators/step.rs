@@ -365,81 +365,79 @@ fn generate_step_executor_loop_impl(
     }
 }
 
-/// Generates the async step executor loop that iterates over steps and awaits each.
-///
-/// The generated code iterates through all scenario steps, executing each one
-/// asynchronously and handling the results. On success, values are inserted into
-/// the context. On skip, the loop breaks and records the skip position.
-///
-/// This implementation uses the sync `run` function directly rather than
-/// `run_async`. This avoids HRTB lifetime issues since sync steps don't create
-/// futures that hold borrows across `.await` points. For scenarios using actual
-/// async step definitions (future work), a different approach will be needed.
-///
-/// # Usage
-///
-/// ```ignore
-/// let loop_tokens = generate_async_step_executor_loop(&keywords, &values, &docstrings, &tables);
-/// // loop_tokens is embedded into the async scenario test function body
-/// ```
-pub(in crate::codegen::scenario::runtime) fn generate_async_step_executor_loop(
-    keyword_tokens: &[TokenStream2],
-    values: &[TokenStream2],
-    docstrings: &[TokenStream2],
-    tables: &[TokenStream2],
-) -> TokenStream2 {
-    let callee = quote! { __rstest_bdd_process_async_step };
-    generate_step_executor_loop_impl(
-        &callee,
-        StepDataSlices {
-            keyword_tokens,
-            values,
-            docstrings,
-            tables,
-        },
-    )
+/// Macro to generate step executor loop functions that differ only in the
+/// executor callee. This macro eliminates duplication between async and sync
+/// variants whilst preserving distinct public APIs and documentation.
+macro_rules! generate_step_executor_loop_fn {
+    ($(#[$meta:meta])* $vis:vis fn $fn_name:ident => $executor_ident:ident) => {
+        $(#[$meta])*
+        $vis fn $fn_name(
+            keyword_tokens: &[TokenStream2],
+            values: &[TokenStream2],
+            docstrings: &[TokenStream2],
+            tables: &[TokenStream2],
+        ) -> TokenStream2 {
+            let callee = quote! { $executor_ident };
+            generate_step_executor_loop_impl(
+                &callee,
+                StepDataSlices {
+                    keyword_tokens,
+                    values,
+                    docstrings,
+                    tables,
+                },
+            )
+        }
+    };
 }
 
-/// Generates the step executor loop that iterates over steps and handles results.
-///
-/// The generated code iterates through all scenario steps, executing each one
-/// and handling the results. On success, values are inserted into the context.
-/// On skip, the loop breaks and records the skip position.
-///
-/// # Usage
-///
-/// ```ignore
-/// let loop_tokens = generate_step_executor_loop(&keywords, &values, &docstrings, &tables);
-/// // loop_tokens is embedded into the scenario test function body
-/// ```
-///
-/// # Generated code
-///
-/// ```text
-/// let __rstest_bdd_steps = [(keyword, text, docstring, table), ...];
-/// for (index, (keyword, text, docstring, table)) in steps.iter().enumerate() {
-///     match __rstest_bdd_execute_single_step(...) {
-///         Ok(value) => { /* insert value into context */ }
-///         Err(encoded) => { /* decode skip, record position, break */ }
-///     }
-/// }
-/// ```
-pub(in crate::codegen::scenario::runtime) fn generate_step_executor_loop(
-    keyword_tokens: &[TokenStream2],
-    values: &[TokenStream2],
-    docstrings: &[TokenStream2],
-    tables: &[TokenStream2],
-) -> TokenStream2 {
-    let callee = quote! { __rstest_bdd_execute_single_step };
-    generate_step_executor_loop_impl(
-        &callee,
-        StepDataSlices {
-            keyword_tokens,
-            values,
-            docstrings,
-            tables,
-        },
-    )
+generate_step_executor_loop_fn! {
+    /// Generates the async step executor loop that iterates over steps and awaits each.
+    ///
+    /// The generated code iterates through all scenario steps, executing each one
+    /// asynchronously and handling the results. On success, values are inserted into
+    /// the context. On skip, the loop breaks and records the skip position.
+    ///
+    /// This implementation uses the sync `run` function directly rather than
+    /// `run_async`. This avoids HRTB lifetime issues since sync steps don't create
+    /// futures that hold borrows across `.await` points. For scenarios using actual
+    /// async step definitions (future work), a different approach will be needed.
+    ///
+    /// # Usage
+    ///
+    /// ```ignore
+    /// let loop_tokens = generate_async_step_executor_loop(&keywords, &values, &docstrings, &tables);
+    /// // loop_tokens is embedded into the async scenario test function body
+    /// ```
+    pub(in crate::codegen::scenario::runtime) fn generate_async_step_executor_loop => __rstest_bdd_process_async_step
+}
+
+generate_step_executor_loop_fn! {
+    /// Generates the step executor loop that iterates over steps and handles results.
+    ///
+    /// The generated code iterates through all scenario steps, executing each one
+    /// and handling the results. On success, values are inserted into the context.
+    /// On skip, the loop breaks and records the skip position.
+    ///
+    /// # Usage
+    ///
+    /// ```ignore
+    /// let loop_tokens = generate_step_executor_loop(&keywords, &values, &docstrings, &tables);
+    /// // loop_tokens is embedded into the scenario test function body
+    /// ```
+    ///
+    /// # Generated code
+    ///
+    /// ```text
+    /// let __rstest_bdd_steps = [(keyword, text, docstring, table), ...];
+    /// for (index, (keyword, text, docstring, table)) in steps.iter().enumerate() {
+    ///     match __rstest_bdd_execute_single_step(...) {
+    ///         Ok(value) => { /* insert value into context */ }
+    ///         Err(encoded) => { /* decode skip, record position, break */ }
+    ///     }
+    /// }
+    /// ```
+    pub(in crate::codegen::scenario::runtime) fn generate_step_executor_loop => __rstest_bdd_execute_single_step
 }
 
 /// Generates a step executor loop for scenario outlines with placeholder substitution.
