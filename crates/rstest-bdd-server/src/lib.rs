@@ -41,8 +41,6 @@ pub mod server;
 /// Test support utilities for unit and integration tests.
 ///
 /// This module is hidden from documentation as it's intended for internal
-/// test use only. Enable the `test-support` feature to use these utilities
-/// from integration tests.
+/// test use only.
 #[doc(hidden)]
-#[cfg(any(test, feature = "test-support"))]
 pub mod test_support;
