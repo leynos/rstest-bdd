@@ -110,8 +110,9 @@ generate_step_executor_loop_fn! {
     /// the context. On skip, the loop breaks and records the skip position.
     ///
     /// This implementation uses the sync `run` function directly rather than
-    /// `run_async`. This avoids HRTB lifetime issues since sync steps don't create
-    /// futures that hold borrows across `.await` points. For scenarios using actual
+    /// `run_async`. This avoids higher-ranked trait bound (HRTB) lifetime issues since
+    /// sync steps don't create futures that hold borrows across `.await` points. For
+    /// scenarios using actual
     /// async step definitions (future work), a different approach will be needed.
     ///
     /// # Usage
