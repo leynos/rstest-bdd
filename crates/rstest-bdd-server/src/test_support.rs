@@ -197,3 +197,48 @@ impl Default for ScenarioBuilder {
         Self::new()
     }
 }
+
+/// Test scenario with a single feature and Rust file pair.
+///
+/// Provides convenience access to the file paths, useful for unit tests that
+/// only need a single pair of files.
+pub struct SingleFilePairScenario {
+    /// Temporary directory containing the test files.
+    pub dir: TempDir,
+    /// Path to the feature file.
+    pub feature_path: std::path::PathBuf,
+    /// Path to the Rust step definitions file.
+    pub rust_path: std::path::PathBuf,
+    /// Server state with indexed files.
+    pub state: ServerState,
+}
+
+impl ScenarioBuilder {
+    /// Build a scenario with a single feature and Rust file pair.
+    ///
+    /// This is a convenience method for tests that only need one pair of files.
+    /// The feature file is named `test.feature` and the Rust file is named `steps.rs`.
+    ///
+    /// # Panics
+    ///
+    /// Panics if files cannot be written.
+    #[must_use]
+    pub fn with_single_file_pair(
+        self,
+        feature_content: impl Into<FileContent>,
+        rust_content: impl Into<FileContent>,
+    ) -> SingleFilePairScenario {
+        let TestScenario { dir, state } = self
+            .with_feature("test.feature", feature_content)
+            .with_rust_steps("steps.rs", rust_content)
+            .build();
+        let feature_path = dir.path().join("test.feature");
+        let rust_path = dir.path().join("steps.rs");
+        SingleFilePairScenario {
+            dir,
+            feature_path,
+            rust_path,
+            state,
+        }
+    }
+}

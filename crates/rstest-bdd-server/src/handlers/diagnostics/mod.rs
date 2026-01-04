@@ -28,69 +28,26 @@ pub use publish::{
 };
 
 #[cfg(test)]
-#[expect(
-    clippy::expect_used,
-    reason = "tests require explicit panic messages for debugging failures"
-)]
 mod tests {
     use super::compute::step_type_to_attribute;
     use super::*;
     use crate::server::ServerState;
-    use crate::test_support::{
-        DiagnosticCheckType, ScenarioBuilder, TestScenario as BaseTestScenario,
-    };
+    use crate::test_support::{DiagnosticCheckType, ScenarioBuilder};
     use lsp_types::{Diagnostic, DiagnosticSeverity};
     use rstest::{fixture, rstest};
-    use std::path::{Path, PathBuf};
-    use tempfile::TempDir;
-
-    /// Test scenario components produced by the single-file scenario builder.
-    ///
-    /// Extends the base [`BaseTestScenario`] with convenience fields for the
-    /// feature and Rust file paths.
-    struct TestScenario {
-        #[expect(dead_code, reason = "kept alive to preserve temp directory")]
-        dir: TempDir,
-        feature_path: PathBuf,
-        rust_path: PathBuf,
-        state: ServerState,
-    }
-
-    /// Adapter for building single feature+rust file test scenarios.
-    ///
-    /// This wraps the shared `ScenarioBuilder` to provide a simpler API
-    /// for unit tests that only need a single pair of files.
-    struct SingleFileScenario(ScenarioBuilder);
-
-    impl SingleFileScenario {
-        fn new() -> Self {
-            Self(ScenarioBuilder::new())
-        }
-
-        fn with_files(self, feature_content: &str, rust_content: &str) -> TestScenario {
-            let BaseTestScenario { dir, state } = self
-                .0
-                .with_feature("test.feature", feature_content)
-                .with_rust_steps("steps.rs", rust_content)
-                .build();
-            let feature_path = dir.path().join("test.feature");
-            let rust_path = dir.path().join("steps.rs");
-            TestScenario {
-                dir,
-                feature_path,
-                rust_path,
-                state,
-            }
-        }
-    }
+    use std::path::Path;
 
     /// Fixture providing the infrastructure for diagnostic tests.
     #[fixture]
-    fn scenario_builder() -> SingleFileScenario {
-        SingleFileScenario::new()
+    fn scenario_builder() -> ScenarioBuilder {
+        ScenarioBuilder::new()
     }
 
     /// Helper to compute feature diagnostics for a path.
+    #[expect(
+        clippy::expect_used,
+        reason = "test helper requires explicit panic for debugging failures"
+    )]
     fn compute_feature_diagnostics_for_path(
         state: &ServerState,
         feature_path: &Path,
@@ -118,8 +75,12 @@ mod tests {
     }
 
     #[rstest]
-    fn unimplemented_step_produces_diagnostic(scenario_builder: SingleFileScenario) {
-        let scenario = scenario_builder.with_files(
+    #[expect(
+        clippy::expect_used,
+        reason = "test requires explicit panic for debugging failures"
+    )]
+    fn unimplemented_step_produces_diagnostic(scenario_builder: ScenarioBuilder) {
+        let scenario = scenario_builder.with_single_file_pair(
             "Feature: test\n  Scenario: s\n    Given an unimplemented step\n",
             concat!(
                 "use rstest_bdd_macros::given;\n\n",
@@ -147,8 +108,12 @@ mod tests {
     }
 
     #[rstest]
-    fn unused_step_definition_produces_diagnostic(scenario_builder: SingleFileScenario) {
-        let scenario = scenario_builder.with_files(
+    #[expect(
+        clippy::expect_used,
+        reason = "test requires explicit panic for debugging failures"
+    )]
+    fn unused_step_definition_produces_diagnostic(scenario_builder: ScenarioBuilder) {
+        let scenario = scenario_builder.with_single_file_pair(
             "Feature: test\n  Scenario: s\n    Given a step\n",
             concat!(
                 "use rstest_bdd_macros::given;\n\n",
@@ -201,12 +166,12 @@ mod tests {
         DiagnosticCheckType::Both
     )]
     fn no_diagnostics_scenarios(
-        scenario_builder: SingleFileScenario,
+        scenario_builder: ScenarioBuilder,
         #[case] feature_content: &str,
         #[case] rust_content: &str,
         #[case] check_type: DiagnosticCheckType,
     ) {
-        let scenario = scenario_builder.with_files(feature_content, rust_content);
+        let scenario = scenario_builder.with_single_file_pair(feature_content, rust_content);
         match check_type {
             DiagnosticCheckType::Feature => {
                 assert_feature_has_no_unimplemented_steps(&scenario.state, &scenario.feature_path);
@@ -222,9 +187,9 @@ mod tests {
     }
 
     #[rstest]
-    fn keyword_matching_is_enforced(scenario_builder: SingleFileScenario) {
+    fn keyword_matching_is_enforced(scenario_builder: ScenarioBuilder) {
         // Given step should not match When implementation
-        let scenario = scenario_builder.with_files(
+        let scenario = scenario_builder.with_single_file_pair(
             "Feature: test\n  Scenario: s\n    Given a step\n",
             concat!(
                 "use rstest_bdd_macros::when;\n\n",
