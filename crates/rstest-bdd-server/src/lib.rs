@@ -37,3 +37,10 @@ pub mod handlers;
 pub mod indexing;
 pub mod logging;
 pub mod server;
+
+/// Test support utilities for unit and integration tests.
+///
+/// This module is hidden from documentation as it's intended for internal
+/// test use only.
+#[doc(hidden)]
+pub mod test_support;

@@ -75,8 +75,9 @@ fn build_config(args: &Args) -> Result<ServerConfig, ServerError> {
 
 /// Asynchronously run the language server main loop.
 async fn run_server_async(config: ServerConfig) -> std::io::Result<()> {
-    let (server, _client) = async_lsp::MainLoop::new_server(|_client| {
-        let state = ServerState::new(config.clone());
+    let (server, _client) = async_lsp::MainLoop::new_server(|client| {
+        let mut state = ServerState::new(config.clone());
+        state.set_client(client.clone());
 
         let mut router = Router::new(state);
         router

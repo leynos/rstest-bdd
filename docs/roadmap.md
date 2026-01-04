@@ -420,9 +420,9 @@ scope until the core workflow is stable.
     all matching Rust implementations, returning multiple locations when
     duplicates exist.
 
-- [ ] **Diagnostics (on save)**
+- [x] **Diagnostics (on save)**
 
-  - [ ] Emit diagnostics for unimplemented feature steps and unused step
+  - [x] Emit diagnostics for unimplemented feature steps and unused step
     definitions by cross-referencing the registry.
 
   - [ ] Validate placeholder counts, typed placeholders, and data table or
