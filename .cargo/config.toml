@@ -1,8 +1,3 @@
 [profile.dev]
 opt-level = 1          # default is 0; 1 shrinks a bit without killing compile times
 debug = 1              # 2 is "full debuginfo"; 1 is usually enough
-debug-assertions = true
-overflow-checks = true
-incremental = true
-panic = "unwind"       # keep nice backtraces in normal dev builds
-strip = "none"         # don't strip by default for dev
