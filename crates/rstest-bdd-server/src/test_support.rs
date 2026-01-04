@@ -117,6 +117,17 @@ impl ScenarioBuilder {
         }
     }
 
+    /// Helper to add a file to a specific collection.
+    fn add_file(
+        collection: &mut Vec<(String, String)>,
+        filename: impl Into<Filename>,
+        content: impl Into<FileContent>,
+    ) {
+        let filename = filename.into();
+        let content = content.into();
+        collection.push((filename.0, content.0));
+    }
+
     /// Add a feature file to be created and indexed.
     #[must_use]
     pub fn with_feature(
@@ -124,8 +135,7 @@ impl ScenarioBuilder {
         filename: impl Into<Filename>,
         content: impl Into<FileContent>,
     ) -> Self {
-        self.feature_files
-            .push((filename.into().0, content.into().0));
+        Self::add_file(&mut self.feature_files, filename, content);
         self
     }
 
@@ -136,7 +146,7 @@ impl ScenarioBuilder {
         filename: impl Into<Filename>,
         content: impl Into<FileContent>,
     ) -> Self {
-        self.rust_files.push((filename.into().0, content.into().0));
+        Self::add_file(&mut self.rust_files, filename, content);
         self
     }
 
