@@ -190,30 +190,7 @@ impl ScenarioBuilder {
             state: self.state,
         }
     }
-}
 
-impl Default for ScenarioBuilder {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-/// Test scenario with a single feature and Rust file pair.
-///
-/// Provides convenience access to the file paths, useful for unit tests that
-/// only need a single pair of files.
-pub struct SingleFilePairScenario {
-    /// Temporary directory containing the test files.
-    pub dir: TempDir,
-    /// Path to the feature file.
-    pub feature_path: std::path::PathBuf,
-    /// Path to the Rust step definitions file.
-    pub rust_path: std::path::PathBuf,
-    /// Server state with indexed files.
-    pub state: ServerState,
-}
-
-impl ScenarioBuilder {
     /// Build a scenario with a single feature and Rust file pair.
     ///
     /// This is a convenience method for tests that only need one pair of files.
@@ -241,4 +218,25 @@ impl ScenarioBuilder {
             state,
         }
     }
+}
+
+impl Default for ScenarioBuilder {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+/// Test scenario with a single feature and Rust file pair.
+///
+/// Provides convenience access to the file paths, useful for unit tests that
+/// only need a single pair of files.
+pub struct SingleFilePairScenario {
+    /// Temporary directory containing the test files.
+    pub dir: TempDir,
+    /// Path to the feature file.
+    pub feature_path: std::path::PathBuf,
+    /// Path to the Rust step definitions file.
+    pub rust_path: std::path::PathBuf,
+    /// Server state with indexed files.
+    pub state: ServerState,
 }
