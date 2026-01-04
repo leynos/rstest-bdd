@@ -37,3 +37,20 @@ pub mod handlers;
 pub mod indexing;
 pub mod logging;
 pub mod server;
+
+/// Test support utilities for unit and integration tests.
+///
+/// This module provides shared infrastructure for the integration tests in the
+/// `tests/` directory. It is unconditionally compiled when the `test-support`
+/// feature is enabled to allow integration tests to access it.
+///
+/// Enable the `test-support` feature to use these utilities from integration
+/// tests:
+///
+/// ```toml
+/// [dev-dependencies]
+/// rstest-bdd-server = { version = "0.3", features = ["test-support"] }
+/// ```
+#[doc(hidden)]
+#[cfg(any(test, feature = "test-support"))]
+pub mod test_support;

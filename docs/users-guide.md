@@ -1346,8 +1346,7 @@ The language server provides the following capabilities:
   and enumerate packages.
 - **Feature indexing (on save)**: Parses saved `.feature` files using the
   `gherkin` parser and records steps, doc strings, data tables, and Examples
-  header columns with byte offsets. Parse failures are logged; diagnostics are
-  added in later phases.
+  header columns with byte offsets. Parse failures are logged.
 - **Rust step indexing (on save)**: Parses saved `.rs` files with `syn` and
   records `#[given]`, `#[when]`, and `#[then]` functions, including the step
   keyword, pattern string (including inferred patterns when the attribute has
@@ -1413,8 +1412,32 @@ presents a list of locations to choose from.
 - The step text is matched against the compiled regex patterns from the step
   registry, ensuring consistency with the runtime.
 
-Future releases will add diagnostics as outlined in the
-[Language Server Design Document](rstest-bdd-language-server-design.md).
+### Diagnostics (on save)
+
+The language server publishes diagnostics when files are saved, helping
+developers identify consistency issues between feature files and Rust step
+definitions:
+
+- **Unimplemented feature steps**: When a step in a `.feature` file has no
+  matching Rust implementation, a warning diagnostic is published at the step
+  location. The message indicates the step keyword and text that needs an
+  implementation.
+
+- **Unused step definitions**: When a Rust step definition (annotated with
+  `#[given]`, `#[when]`, or `#[then]`) is not matched by any feature step, a
+  warning diagnostic is published at the function definition. This helps
+  identify dead code or typos in step patterns.
+
+Diagnostics are updated incrementally:
+
+- Saving a `.feature` file recomputes diagnostics for that file.
+- Saving a `.rs` file recomputes diagnostics for all feature files (since new
+  or removed step definitions may affect which steps are implemented) and
+  checks for unused definitions in the saved file.
+
+Diagnostics appear in the editor's Problems panel and as inline warnings,
+similar to compiler diagnostics. They use the source `rstest-bdd` and codes
+`unimplemented-step` and `unused-step-definition` for filtering.
 
 ## Summary
 

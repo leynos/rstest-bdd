@@ -6,6 +6,7 @@
 use std::collections::HashMap;
 use std::path::Path;
 
+use async_lsp::ClientSocket;
 use lsp_types::{ClientCapabilities, ServerCapabilities, WorkspaceFolder};
 use lsp_types::{TextDocumentSyncCapability, TextDocumentSyncKind, TextDocumentSyncOptions};
 use tracing::warn;
@@ -19,7 +20,9 @@ use crate::indexing::{FeatureFileIndex, RustStepFileIndex, StepDefinitionRegistr
 /// This struct holds the in-memory state of the language server, including
 /// the workspace configuration and any cached data. It is passed to handlers
 /// via the async-lsp router.
-#[derive(Debug)]
+///
+/// Note: `Debug` is manually implemented because `ClientSocket` does not
+/// derive `Debug`.
 pub struct ServerState {
     /// Client capabilities received during initialisation.
     client_capabilities: Option<ClientCapabilities>,
@@ -37,6 +40,24 @@ pub struct ServerState {
     rust_step_indices: HashMap<std::path::PathBuf, RustStepFileIndex>,
     /// Compiled step patterns keyed by keyword, built from Rust step indices.
     step_registry: StepDefinitionRegistry,
+    /// Client socket for sending notifications (e.g., diagnostics).
+    client: Option<ClientSocket>,
+}
+
+impl std::fmt::Debug for ServerState {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ServerState")
+            .field("client_capabilities", &self.client_capabilities)
+            .field("workspace_info", &self.workspace_info)
+            .field("workspace_folders", &self.workspace_folders)
+            .field("initialised", &self.initialised)
+            .field("config", &self.config)
+            .field("feature_indices", &self.feature_indices)
+            .field("rust_step_indices", &self.rust_step_indices)
+            .field("step_registry", &self.step_registry)
+            .field("client", &self.client.as_ref().map(|_| "<ClientSocket>"))
+            .finish()
+    }
 }
 
 impl ServerState {
@@ -63,7 +84,19 @@ impl ServerState {
             feature_indices: HashMap::new(),
             rust_step_indices: HashMap::new(),
             step_registry: StepDefinitionRegistry::default(),
+            client: None,
         }
+    }
+
+    /// Store the client socket for sending notifications.
+    pub fn set_client(&mut self, client: ClientSocket) {
+        self.client = Some(client);
+    }
+
+    /// Access the client socket for sending notifications.
+    #[must_use]
+    pub fn client(&self) -> Option<&ClientSocket> {
+        self.client.as_ref()
     }
 
     /// Store client capabilities received during initialization.
