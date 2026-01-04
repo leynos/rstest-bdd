@@ -40,7 +40,17 @@ pub mod server;
 
 /// Test support utilities for unit and integration tests.
 ///
-/// This module is hidden from documentation as it's intended for internal
-/// test use only.
+/// This module provides shared infrastructure for the integration tests in the
+/// `tests/` directory. It is unconditionally compiled when the `test-support`
+/// feature is enabled to allow integration tests to access it.
+///
+/// Enable the `test-support` feature to use these utilities from integration
+/// tests:
+///
+/// ```toml
+/// [dev-dependencies]
+/// rstest-bdd-server = { version = "0.3", features = ["test-support"] }
+/// ```
 #[doc(hidden)]
+#[cfg(any(test, feature = "test-support"))]
 pub mod test_support;

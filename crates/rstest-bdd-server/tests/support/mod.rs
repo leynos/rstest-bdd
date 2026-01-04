@@ -6,4 +6,4 @@
 // Re-export test support utilities from the crate.
 // Note: Integration tests cannot directly access #[cfg(test)] modules,
 // so we re-export via the crate's public test interface.
-pub use rstest_bdd_server::test_support::{DiagnosticCheckType, ScenarioBuilder};
+pub use rstest_bdd_server::test_support::{DiagnosticCheckType, ScenarioBuilder, TestScenario};

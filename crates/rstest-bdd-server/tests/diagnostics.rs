@@ -14,7 +14,7 @@ use rstest_bdd_server::handlers::{
     compute_unimplemented_step_diagnostics, compute_unused_step_diagnostics,
 };
 use rstest_bdd_server::server::ServerState;
-use support::{DiagnosticCheckType, ScenarioBuilder};
+use support::{DiagnosticCheckType, ScenarioBuilder, TestScenario};
 use tempfile::TempDir;
 
 /// Fixture providing a fresh scenario builder for each test.
@@ -106,7 +106,7 @@ fn assert_rust_has_no_diagnostics(state: &ServerState, dir: &TempDir, filename: 
 
 #[rstest]
 fn feature_with_all_steps_implemented_reports_no_diagnostics(scenario_builder: ScenarioBuilder) {
-    let (dir, state) = scenario_builder
+    let TestScenario { dir, state } = scenario_builder
         .with_feature(
             "test.feature",
             concat!(
@@ -136,7 +136,7 @@ fn feature_with_all_steps_implemented_reports_no_diagnostics(scenario_builder: S
 
 #[rstest]
 fn unimplemented_feature_step_reports_diagnostic(scenario_builder: ScenarioBuilder) {
-    let (dir, state) = scenario_builder
+    let TestScenario { dir, state } = scenario_builder
         .with_feature(
             "test.feature",
             concat!(
@@ -160,7 +160,7 @@ fn unimplemented_feature_step_reports_diagnostic(scenario_builder: ScenarioBuild
 
 #[rstest]
 fn unused_rust_step_reports_diagnostic(scenario_builder: ScenarioBuilder) {
-    let (dir, state) = scenario_builder
+    let TestScenario { dir, state } = scenario_builder
         .with_feature(
             "test.feature",
             concat!("Feature: test\n", "  Scenario: s\n", "    Given a step\n",),
@@ -215,7 +215,7 @@ fn no_diagnostics_reported(
     #[case] rust_content: &str,
     #[case] check_type: DiagnosticCheckType,
 ) {
-    let (dir, state) = scenario_builder
+    let TestScenario { dir, state } = scenario_builder
         .with_feature(feature_filename, feature_content)
         .with_rust_steps(rust_filename, rust_content)
         .build();
@@ -237,7 +237,7 @@ fn no_diagnostics_reported(
 #[rstest]
 fn keyword_mismatch_produces_diagnostics(scenario_builder: ScenarioBuilder) {
     // Given step should not match When implementation
-    let (dir, state) = scenario_builder
+    let TestScenario { dir, state } = scenario_builder
         .with_feature(
             "test.feature",
             concat!("Feature: test\n", "  Scenario: s\n", "    Given a step\n",),
@@ -265,7 +265,7 @@ fn keyword_mismatch_produces_diagnostics(scenario_builder: ScenarioBuilder) {
 
 #[rstest]
 fn multiple_feature_files_are_checked(scenario_builder: ScenarioBuilder) {
-    let (dir, state) = scenario_builder
+    let TestScenario { dir, state } = scenario_builder
         .with_feature(
             "one.feature",
             concat!("Feature: one\n", "  Scenario: s\n", "    Given step one\n",),
@@ -293,7 +293,7 @@ fn multiple_feature_files_are_checked(scenario_builder: ScenarioBuilder) {
 
 #[rstest]
 fn step_used_in_any_feature_is_not_unused(scenario_builder: ScenarioBuilder) {
-    let (dir, state) = scenario_builder
+    let TestScenario { dir, state } = scenario_builder
         .with_feature(
             "one.feature",
             concat!(

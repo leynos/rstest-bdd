@@ -21,7 +21,7 @@ pub struct Filename(pub(crate) String);
 
 impl From<&str> for Filename {
     fn from(s: &str) -> Self {
-        Self(s.to_owned())
+        Self(s.into())
     }
 }
 
@@ -43,7 +43,7 @@ pub struct FileContent(pub(crate) String);
 
 impl From<&str> for FileContent {
     fn from(s: &str) -> Self {
-        Self(s.to_owned())
+        Self(s.into())
     }
 }
 
@@ -68,6 +68,17 @@ pub enum DiagnosticCheckType {
     Feature,
     /// Check both Rust and feature file diagnostics.
     Both,
+}
+
+/// Result of building a test scenario.
+///
+/// Contains the temporary directory (for constructing file paths) and the
+/// server state (for querying indices and computing diagnostics).
+pub struct TestScenario {
+    /// Temporary directory containing the test files.
+    pub dir: TempDir,
+    /// Server state with indexed files.
+    pub state: ServerState,
 }
 
 /// Index a file by simulating an LSP `textDocument/didSave` event.
@@ -152,15 +163,16 @@ impl ScenarioBuilder {
 
     /// Build the scenario, writing and indexing all files.
     ///
-    /// Returns the temp directory (for path construction) and the server state
-    /// (for querying indices and computing diagnostics).
+    /// Returns a [`TestScenario`] containing the temp directory (for path
+    /// construction) and the server state (for querying indices and computing
+    /// diagnostics).
     ///
     /// # Panics
     ///
     /// Panics if any file cannot be written.
     #[expect(clippy::expect_used, reason = "builder panics on write failure")]
     #[must_use]
-    pub fn build(mut self) -> (TempDir, ServerState) {
+    pub fn build(mut self) -> TestScenario {
         // Write and index feature files first
         for (filename, content) in &self.feature_files {
             let path = self.dir.path().join(filename);
@@ -173,7 +185,10 @@ impl ScenarioBuilder {
             std::fs::write(&path, content).expect("write rust file");
             index_file(&mut self.state, &path);
         }
-        (self.dir, self.state)
+        TestScenario {
+            dir: self.dir,
+            state: self.state,
+        }
     }
 }
 

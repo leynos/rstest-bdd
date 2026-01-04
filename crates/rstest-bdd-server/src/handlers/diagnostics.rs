@@ -214,12 +214,17 @@ fn step_type_to_attribute(step_type: gherkin::StepType) -> &'static str {
 )]
 mod tests {
     use super::*;
-    use crate::test_support::{DiagnosticCheckType, ScenarioBuilder};
+    use crate::test_support::{
+        DiagnosticCheckType, ScenarioBuilder, TestScenario as BaseTestScenario,
+    };
     use rstest::{fixture, rstest};
     use std::path::PathBuf;
     use tempfile::TempDir;
 
     /// Test scenario components produced by the single-file scenario builder.
+    ///
+    /// Extends the base [`BaseTestScenario`] with convenience fields for the
+    /// feature and Rust file paths.
     struct TestScenario {
         #[expect(dead_code, reason = "kept alive to preserve temp directory")]
         dir: TempDir,
@@ -240,7 +245,7 @@ mod tests {
         }
 
         fn with_files(self, feature_content: &str, rust_content: &str) -> TestScenario {
-            let (dir, state) = self
+            let BaseTestScenario { dir, state } = self
                 .0
                 .with_feature("test.feature", feature_content)
                 .with_rust_steps("steps.rs", rust_content)
