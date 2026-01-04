@@ -106,8 +106,8 @@ generate_step_executor_loop_fn! {
     /// Generates the async step executor loop that iterates over steps and awaits each.
     ///
     /// The generated code iterates through all scenario steps, executing each one
-    /// asynchronously and handling the results. On success, values are inserted into
-    /// the context. On skip, the loop breaks and records the skip position.
+    /// and handling the results. On success, values are inserted into the context.
+    /// On skip, the loop breaks and records the skip position.
     ///
     /// This implementation uses the sync `run` function directly rather than
     /// `run_async`. This avoids higher-ranked trait bound (HRTB) lifetime issues since
