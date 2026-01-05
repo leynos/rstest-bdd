@@ -29,7 +29,7 @@ use std::path::PathBuf;
 
 #[rustfmt::skip]
 use crate::codegen::scenario::{
-    generate_scenario_code, FeaturePath, ScenarioConfig, ScenarioName,
+    generate_scenario_code, FeaturePath, RuntimeMode, ScenarioConfig, ScenarioName,
 };
 #[rustfmt::skip]
 use crate::parsing::feature::{
@@ -80,6 +80,13 @@ fn try_scenario(
     let vis = &item_fn.vis;
     let sig = &mut item_fn.sig;
     let block = &item_fn.block;
+
+    // Detect async function signature for runtime mode selection.
+    let runtime = if sig.asyncness.is_some() {
+        RuntimeMode::TokioCurrentThread
+    } else {
+        RuntimeMode::Sync
+    };
 
     // Retrieve cached feature to avoid repeated parsing.
     let feature = parse_and_load_feature(&path).map_err(proc_macro::TokenStream::from)?;
@@ -137,6 +144,7 @@ fn try_scenario(
         allow_skipped,
         line,
         tags: &tags,
+        runtime,
     };
 
     Ok(generate_scenario_code(

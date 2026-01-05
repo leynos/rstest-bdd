@@ -40,8 +40,7 @@ fn run_cargo_bdd_raw(args: &[&str]) -> Result<std::process::Output> {
     let target_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../target");
     fs::create_dir_all(&target_dir)
         .with_context(|| format!("failed to create {}", target_dir.display()))?;
-    let mut cmd = Command::cargo_bin("cargo-bdd")
-        .wrap_err("cargo-bdd binary should exist in this workspace")?;
+    let mut cmd = Command::cargo_bin("cargo-bdd").wrap_err("failed to locate cargo-bdd binary")?;
     cmd.current_dir(fixture_dir)
         .env("CARGO_TARGET_DIR", &target_dir)
         .args(args)

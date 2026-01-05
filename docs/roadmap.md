@@ -443,55 +443,58 @@ scope until the core workflow is stable.
 
 ## Phase 8: Async step execution
 
-This phase introduces Tokio-based asynchronous step execution, enabling
-`async fn` step definitions and proper fixture integration under the Tokio
-runtime. Multi-thread mode remains out of scope until the fixture storage model
-is redesigned. For the full architectural decision record, see
+This phase introduces Tokio-based asynchronous scenario execution, enabling
+async test functions with proper fixture integration under the Tokio runtime.
+Multi-thread mode remains out of scope until the fixture storage model is
+redesigned. For the full architectural decision record, see
 [ADR-001](adr-001-async-fixtures-and-test.md).
 
-- [ ] **Async step registry**
+> **Note:** This phase implements async *scenario* execution. Step definitions
+> themselves remain synchronous—the async executor calls the sync handler
+> directly to avoid higher-ranked trait bound (HRTB) lifetime issues with
+> `AsyncStepFn`. True async step bodies (with `async fn` implementations) are
+> planned for a future release.
 
-  - [ ] Define `StepFuture<'a>` type alias for the step wrapper return type.
+- [x] **Async step registry**
 
-  - [ ] Implement `AsyncStepFn` wrapper type that returns `StepFuture`.
+  - [x] Define `StepFuture<'a>` type alias for the step wrapper return type.
 
-  - [ ] Update `Step` struct to store async step wrappers alongside sync.
+  - [x] Implement `AsyncStepFn` wrapper type that returns `StepFuture`.
 
-  - [ ] Generate wrapper code that normalises sync step definitions into the
+  - [x] Update `Step` struct to store async step wrappers alongside sync.
+
+  - [x] Generate wrapper code that normalizes sync step definitions into the
     async interface, wrapping results in immediately ready futures.
 
-- [ ] **Tokio current-thread integration**
+- [x] **Tokio current-thread integration**
 
-  - [ ] Add `runtime` argument to `scenarios!` macro accepting
+  - [x] Add `runtime` argument to `scenarios!` macro accepting
     `"tokio-current-thread"`.
 
-  - [ ] Generate `#[tokio::test(flavor = "current_thread")]` attribute for
+  - [x] Generate `#[tokio::test(flavor = "current_thread")]` attribute for
     async scenario tests.
 
-  - [ ] Preserve `RefCell`-backed fixture model for mutable borrows across
+  - [x] Preserve `RefCell`-backed fixture model for mutable borrows across
     `.await` points.
 
-  - [ ] Support `#[scenario]` macro with explicit `#[tokio::test]` annotation
+  - [x] Support `#[scenario]` macro with explicit `#[tokio::test]` annotation
     for manual async scenario tests.
 
-- [ ] **Unwind and skip handling**
+- [x] **Unwind and skip handling**
 
-  - [ ] Implement `Future`-aware `catch_unwind` using `futures::FutureExt` or
-    equivalent.
+  - [x] Reuse sync unwind/skip handling by calling sync handler directly.
 
-  - [ ] Preserve `skip!` interception across `.await` points.
+  - [x] Preserve `skip!` interception (sync path remains unchanged).
 
-  - [ ] Maintain panic context (step index, keyword, text, feature/scenario
+  - [x] Maintain panic context (step index, keyword, text, feature/scenario
     metadata) in async error reports.
 
-- [ ] **Documentation and migration**
+- [x] **Documentation and migration**
 
-  - [ ] Document async step authoring in the user guide.
+  - [x] Document async scenario execution in the user guide (see
+    [users-guide.md §Async scenario execution](users-guide.md#async-scenario-execution)).
 
-  - [ ] Document Tokio current-thread limitations (blocking operations, nested
-    runtimes, `spawn_local` patterns).
+  - [x] Document Tokio current-thread limitations (blocking operations, nested
+    runtimes, `spawn_local` patterns) in the design document §2.5.
 
-  - [ ] Provide migration guide for projects adopting async steps.
-
-  - [ ] Update design document §2.5 with implementation details as the feature
-    matures.
+  - [x] Update design document §2.5 with implementation status.

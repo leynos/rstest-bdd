@@ -3,15 +3,14 @@
 ## Introduction and goals
 
 `rstest-bdd` is a Behaviour-Driven Development (BDD) framework for Rust,
-integrating Gherkin feature files with Rust’s `rstest` testing
-framework([1](https://github.com/leynos/rstest-bdd/blob/969d40a366c08cb385f108734c9ea42928e9bde2/docs/rstest-bdd-design.md#L52-L60))([1](https://github.com/leynos/rstest-bdd/blob/969d40a366c08cb385f108734c9ea42928e9bde2/docs/rstest-bdd-design.md#L76-L84)).
- To enhance developer experience, this document proposes a dedicated language
-server (LSP) for `rstest-bdd` (to be implemented as a new crate,
-`rstest-bdd-server`). This language server will be editor-agnostic and provide
-rich IDE features for working with Gherkin `.feature` files and their
-corresponding Rust step definitions. The LSP is built using the asynchronous
-LSP framework `async-lsp`, ensuring robust, concurrent handling of language
-server protocol requests.
+integrating Gherkin feature files with Rust's `rstest` testing framework
+([1][design-goals])([2][design-rstest]). To enhance developer experience, this
+document proposes a dedicated language server (LSP) for `rstest-bdd` (to be
+implemented as a new crate, `rstest-bdd-server`). This language server will be
+editor-agnostic and provide rich IDE features for working with Gherkin
+`.feature` files and their corresponding Rust step definitions. The LSP is
+built using the asynchronous LSP framework `async-lsp`, ensuring robust,
+concurrent handling of language server protocol requests.
 
 **Key capabilities of the `rstest-bdd` language server:**
 
@@ -89,9 +88,8 @@ scenario([2](https://github.com/leynos/rstest-bdd/blob/969d40a366c08cb385f108734
 navigation remains accurate and only triggers when the texts truly correspond.
 (Notably, the `rstest-bdd` macros use a shared `rstest-bdd-patterns` crate to
 compile step patterns into regexes so that compile-time and runtime agree on
-semantics([1](https://github.com/leynos/rstest-bdd/blob/969d40a366c08cb385f108734c9ea42928e9bde2/docs/rstest-bdd-design.md#L586-L593)).
- The LSP will reuse this library to interpret patterns, ensuring consistency
-with the test framework.)
+semantics. The LSP will reuse this library to interpret patterns, ensuring
+consistency with the test framework.)
 
 ### 2. Go to implementation (feature to Rust)
 
@@ -231,7 +229,9 @@ Catching these issues early provides immediate feedback akin to compiler
 errors, but at the BDD level. This extends the robust error checking
 `rstest-bdd` already strives for (e.g., compile-time feature parsing and step
 existence
-checks([2](https://github.com/leynos/rstest-bdd/blob/969d40a366c08cb385f108734c9ea42928e9bde2/docs/roadmap.md#L43-L50))([2](https://github.com/leynos/rstest-bdd/blob/969d40a366c08cb385f108734c9ea42928e9bde2/docs/roadmap.md#L119-L122))),
+checks([2](https://github.com/leynos/rstest-bdd/blob/969d40a366c08cb385f108734c9ea42928e9bde2/docs/roadmap.md#L43-L50)
+ )(
+[2](https://github.com/leynos/rstest-bdd/blob/969d40a366c08cb385f108734c9ea42928e9bde2/docs/roadmap.md#L119-L122))),
  into the editing experience.
 
 ## Architecture and implementation
@@ -296,7 +296,8 @@ coupled to Rust Analyzer.
   option. Tree-sitter can parse code incrementally as it changes, which would
   help in providing real-time diagnostics. The `codegraph-rust` crate, for
   example, uses tree-sitter to extract code
-  entities([3](https://lib.rs/crates/codegraph-rust#:~:text=codegraph,))([4](https://glama.ai/mcp/servers/@Jakedismo/codegraph-rust/blob/5ecff3e63528ef3931bda96fc510cd11e9287de5/crates/codegraph-parser/src/languages/rust.rs#:~:text=CodeGraph%20CLI%20MCP%20Server%20,derive%28Default%2C%20Clone%29%5D%20struct)).
+  entities([3](https://lib.rs/crates/codegraph-rust#:~:text=codegraph,))(
+  [4](https://glama.ai/mcp/servers/@Jakedismo/codegraph-rust/blob/5ecff3e63528ef3931bda96fc510cd11e9287de5/crates/codegraph-parser/src/languages/rust.rs#:~:text=CodeGraph%20CLI%20MCP%20Server%20,derive%28Default%2C%20Clone%29%5D%20struct)).
    This can maintain an up-to-date index of functions without re-parsing entire
   files from scratch on every edit. Initially, however, the simpler approach
   (full parse on save) may be preferable, with an incremental parser considered
@@ -616,7 +617,8 @@ Diagnostics are produced by cross-referencing the feature and code indices:
   mismatch is found (extra column or missing column vs test function
   arguments), either the feature file or the test function can be annotated.
   The design suggests the macro emits errors listing available parameters for
-  mismatches([1](https://github.com/leynos/rstest-bdd/blob/969d40a366c08cb385f108734c9ea42928e9bde2/docs/rstest-bdd-design.md#L48-L56));
+  mismatches(
+  [1](https://github.com/leynos/rstest-bdd/blob/969d40a366c08cb385f108734c9ea42928e9bde2/docs/rstest-bdd-design.md#L48-L56));
    the LSP can do similarly. Since linking a scenario outline to its test
   function requires knowing which test corresponds (the `#[scenario]` macro
   call includes the feature path and an
@@ -654,7 +656,9 @@ consistent. Many of these checks are analogous to what the `rstest-bdd` macros
 and runtime do (or will do) at compile/run time, but the LSP provides them
 earlier in the development flow. This immediate feedback loop will greatly
 improve the developer experience (a focus of Phase 5 and 6 in the
-roadmap([2](https://github.com/leynos/rstest-bdd/blob/969d40a366c08cb385f108734c9ea42928e9bde2/docs/roadmap.md#L330-L338))([2](https://github.com/leynos/rstest-bdd/blob/969d40a366c08cb385f108734c9ea42928e9bde2/docs/roadmap.md#L362-L368))).
+roadmap([2](https://github.com/leynos/rstest-bdd/blob/969d40a366c08cb385f108734c9ea42928e9bde2/docs/roadmap.md#L330-L338)
+ )(
+[2](https://github.com/leynos/rstest-bdd/blob/969d40a366c08cb385f108734c9ea42928e9bde2/docs/roadmap.md#L362-L368))).
 
 ## Editor integration and usage
 
@@ -956,7 +960,8 @@ envisioned in the `rstest-bdd` project’s design. Implementing it as a
 standalone, async LSP server ensures it remains modular and editor-independent,
 aligning with modern Rust tooling practices. By building on existing crates
 like `gherkin` for parsing and reusing the `rstest-bdd` framework’s own pattern
-logic([1](https://github.com/leynos/rstest-bdd/blob/969d40a366c08cb385f108734c9ea42928e9bde2/docs/rstest-bdd-design.md#L2-L5)),
+logic(
+[1](https://github.com/leynos/rstest-bdd/blob/969d40a366c08cb385f108734c9ea42928e9bde2/docs/rstest-bdd-design.md#L2-L5)),
  this approach guarantees consistency between what developers see in their IDE
 and what happens at compile/test time. This design lays out a clear path to
 deliver the three core capabilities, with an eye toward future enhancements
@@ -964,19 +969,14 @@ like auto-complete and deeper integration.
 
 Ultimately, the `rstest-bdd-server` will make writing BDD tests in Rust as
 seamless as writing regular Rust tests, fulfilling the promise of uniting
-high-level feature specs with low-level test code in one unified
-workflow([1](https://github.com/leynos/rstest-bdd/blob/969d40a366c08cb385f108734c9ea42928e9bde2/docs/rstest-bdd-design.md#L26-L33))([1](https://github.com/leynos/rstest-bdd/blob/969d40a366c08cb385f108734c9ea42928e9bde2/docs/rstest-bdd-design.md#L80-L89)).
+high-level feature specs with low-level test code in one unified workflow.
 
 **Sources:**
 
-- `rstest-bdd` Design
-  Document([1](https://github.com/leynos/rstest-bdd/blob/969d40a366c08cb385f108734c9ea42928e9bde2/docs/rstest-bdd-design.md#L554-L562))([1](https://github.com/leynos/rstest-bdd/blob/969d40a366c08cb385f108734c9ea42928e9bde2/docs/rstest-bdd-design.md#L586-L593))([1](https://github.com/leynos/rstest-bdd/blob/969d40a366c08cb385f108734c9ea42928e9bde2/docs/rstest-bdd-design.md#L529-L537))([1](https://github.com/leynos/rstest-bdd/blob/969d40a366c08cb385f108734c9ea42928e9bde2/docs/rstest-bdd-design.md#L2-L5))
+- [`rstest-bdd` Design Document](rstest-bdd-design.md)
+- [`rstest-bdd` Project Roadmap](roadmap.md)
 
-- `rstest-bdd` Project
-  Roadmap([2](https://github.com/leynos/rstest-bdd/blob/969d40a366c08cb385f108734c9ea42928e9bde2/docs/roadmap.md#L43-L50))([2](https://github.com/leynos/rstest-bdd/blob/969d40a366c08cb385f108734c9ea42928e9bde2/docs/roadmap.md#L119-L122))([2](https://github.com/leynos/rstest-bdd/blob/969d40a366c08cb385f108734c9ea42928e9bde2/docs/roadmap.md#L330-L338))([2](https://github.com/leynos/rstest-bdd/blob/969d40a366c08cb385f108734c9ea42928e9bde2/docs/roadmap.md#L362-L368))
-
-- Usage example from `rstest-bdd`
-  docs([1](https://github.com/leynos/rstest-bdd/blob/969d40a366c08cb385f108734c9ea42928e9bde2/docs/rstest-bdd-design.md#L52-L60))([1](https://github.com/leynos/rstest-bdd/blob/969d40a366c08cb385f108734c9ea42928e9bde2/docs/rstest-bdd-design.md#L76-L84))
-
-- Gherkin and step parsing details from design
-  docs([1](https://github.com/leynos/rstest-bdd/blob/969d40a366c08cb385f108734c9ea42928e9bde2/docs/rstest-bdd-design.md#L564-L572))([1](https://github.com/leynos/rstest-bdd/blob/969d40a366c08cb385f108734c9ea42928e9bde2/docs/rstest-bdd-design.md#L48-L56))
+[design-goals]:
+https://github.com/leynos/rstest-bdd/blob/main/docs/rstest-bdd-design.md#121-step-1-the-feature-file
+[design-rstest]:
+https://github.com/leynos/rstest-bdd/blob/main/docs/rstest-bdd-design.md#122-step-2-the-step-definition-file

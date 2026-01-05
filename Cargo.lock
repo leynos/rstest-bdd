@@ -1384,7 +1384,6 @@ dependencies = [
  "i18n-embed",
  "inventory",
  "log",
- "once_cell",
  "regex",
  "rstest",
  "rstest-bdd-macros",
@@ -1395,6 +1394,7 @@ dependencies = [
  "serial_test",
  "the-newtype",
  "thiserror 1.0.69",
+ "tokio",
  "trybuild",
  "unic-langid",
 ]
@@ -1409,7 +1409,6 @@ dependencies = [
  "convert_case 0.6.0",
  "gherkin",
  "newt-hype",
- "once_cell",
  "proc-macro-crate 3.3.0",
  "proc-macro-error",
  "proc-macro2",

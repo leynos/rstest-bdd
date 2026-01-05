@@ -1,0 +1,3 @@
+[profile.dev]
+opt-level = 1          # default is 0; 1 shrinks a bit without killing compile times
+debug = 1              # 2 is "full debuginfo"; 1 is usually enough

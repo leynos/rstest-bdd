@@ -3,9 +3,13 @@
 use assert_cmd::Command;
 use predicates::prelude::*;
 
+fn todo_cli_cmd() -> Result<Command, Box<dyn std::error::Error>> {
+    Ok(Command::cargo_bin("todo-cli")?)
+}
+
 #[test]
 fn add_succeeds() -> Result<(), Box<dyn std::error::Error>> {
-    Command::cargo_bin("todo-cli")?
+    todo_cli_cmd()?
         .args(["add", "Buy milk"])
         .assert()
         .success()
@@ -15,17 +19,13 @@ fn add_succeeds() -> Result<(), Box<dyn std::error::Error>> {
 
 #[test]
 fn list_is_empty_by_default() -> Result<(), Box<dyn std::error::Error>> {
-    Command::cargo_bin("todo-cli")?
-        .arg("list")
-        .assert()
-        .success()
-        .stdout("\n");
+    todo_cli_cmd()?.arg("list").assert().success().stdout("\n");
     Ok(())
 }
 
 #[test]
 fn unknown_subcommand_fails() -> Result<(), Box<dyn std::error::Error>> {
-    Command::cargo_bin("todo-cli")?
+    todo_cli_cmd()?
         .arg("bogus")
         .assert()
         .failure()
@@ -35,7 +35,7 @@ fn unknown_subcommand_fails() -> Result<(), Box<dyn std::error::Error>> {
 
 #[test]
 fn add_rejects_blank_description() -> Result<(), Box<dyn std::error::Error>> {
-    Command::cargo_bin("todo-cli")?
+    todo_cli_cmd()?
         .args(["add", "   "])
         .assert()
         .failure()
