@@ -915,9 +915,8 @@ consistency issues between feature files and Rust step definitions.
 **Diagnostic types:**
 
 1. **Unimplemented feature steps** (`unimplemented-step`): Warning diagnostic
-   on steps in `.feature` files that have no matching Rust implementation.
-   The message format is:
-   `No Rust implementation found for Given step: "step text"`
+   on steps in `.feature` files that have no matching Rust implementation. The
+   message format is: `No Rust implementation found for Given step: "step text"`
 
 2. **Unused step definitions** (`unused-step-definition`): Warning diagnostic
    on Rust functions annotated with `#[given]`, `#[when]`, or `#[then]` that
@@ -948,8 +947,8 @@ Subsequent work will implement:
 1. **Placeholder count validation** — Verify that step patterns and function
    signatures agree on the number of captured arguments
 2. **Data table/docstring expectation mismatches** — Warn when a step expects
-   a data table or docstring but the feature step doesn't provide one, or
-   vice versa
+   a data table or docstring but the feature step doesn't provide one, or vice
+   versa
 
 ## Conclusion
 
@@ -978,5 +977,5 @@ high-level feature specs with low-level test code in one unified workflow.
 
 [design-goals]:
 https://github.com/leynos/rstest-bdd/blob/main/docs/rstest-bdd-design.md#121-step-1-the-feature-file
-[design-rstest]:
+ [design-rstest]:
 https://github.com/leynos/rstest-bdd/blob/main/docs/rstest-bdd-design.md#122-step-2-the-step-definition-file
