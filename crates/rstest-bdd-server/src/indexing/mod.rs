@@ -12,6 +12,10 @@
 //! Where `gherkin` does not expose spans (for example doc string blocks and
 //! per-cell column offsets), the indexer performs a lightweight scan of the
 //! raw feature text to derive stable byte offsets.
+//!
+//! For Rust step definitions, the module captures precise span information for
+//! the step attribute (e.g., `#[given("...")]`) to enable accurate diagnostic
+//! highlighting in language server clients.
 
 use std::path::PathBuf;
 
@@ -110,6 +114,27 @@ pub struct RustStepFileIndex {
     pub step_definitions: Vec<IndexedStepDefinition>,
 }
 
+/// Span information for a Rust step attribute.
+///
+/// Captures the start and end positions of an attribute (e.g., `#[given("...")]`)
+/// in terms of 0-based line and column offsets. The column values represent
+/// character offsets from the start of the line.
+///
+/// Note: `syn` provides column as byte offset from line start. Since step
+/// attribute syntax is ASCII-only, byte offset equals character offset. For
+/// LSP compatibility (which uses UTF-16 code units), ASCII characters map 1:1.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct RustAttributeSpan {
+    /// 0-based starting line number.
+    pub start_line: u32,
+    /// 0-based starting column (character offset from line start).
+    pub start_column: u32,
+    /// 0-based ending line number.
+    pub end_line: u32,
+    /// 0-based ending column (character offset from line start).
+    pub end_column: u32,
+}
+
 /// A Rust function annotated with `#[given]`, `#[when]`, or `#[then]`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct IndexedStepDefinition {
@@ -127,8 +152,8 @@ pub struct IndexedStepDefinition {
     pub expects_table: bool,
     /// Whether the step expects a doc string argument.
     pub expects_docstring: bool,
-    /// 0-based line number of the function definition in the Rust source.
-    pub line: u32,
+    /// Span of the step attribute (e.g., `#[given("...")]`) in the Rust source.
+    pub attribute_span: RustAttributeSpan,
 }
 
 /// Stable identifier for a Rust function within a source file.

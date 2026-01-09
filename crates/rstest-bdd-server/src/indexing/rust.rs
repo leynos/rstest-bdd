@@ -22,8 +22,8 @@ use gherkin::StepType;
 use syn::spanned::Spanned;
 
 use super::{
-    IndexedStepDefinition, IndexedStepParameter, RustFunctionId, RustStepFileIndex,
-    RustStepIndexError,
+    IndexedStepDefinition, IndexedStepParameter, RustAttributeSpan, RustFunctionId,
+    RustStepFileIndex, RustStepIndexError,
 };
 
 mod type_render;
@@ -205,13 +205,9 @@ fn index_step_function(
     let expects_table = parameters.iter().any(|param| param.is_datatable);
     let expects_docstring = parameters.iter().any(|param| param.is_docstring);
 
-    // Extract 0-based line number from the function's span (syn uses 1-based).
-    // Line numbers in practice will never exceed u32::MAX, so truncation is safe.
-    #[expect(
-        clippy::cast_possible_truncation,
-        reason = "line numbers from syn will not exceed u32::MAX in practice"
-    )]
-    let line = item_fn.sig.fn_token.span().start().line.saturating_sub(1) as u32;
+    // Extract span from the step attribute (syn uses 1-based line numbers).
+    // Line/column numbers in practice will never exceed u32::MAX, so truncation is safe.
+    let attribute_span = extract_attribute_span(step_attribute.attr);
 
     Ok(Some(IndexedStepDefinition {
         keyword: step_attribute.keyword,
@@ -224,7 +220,7 @@ fn index_step_function(
         parameters,
         expects_table,
         expects_docstring,
-        line,
+        attribute_span,
     }))
 }
 
@@ -256,6 +252,28 @@ struct StepAttribute<'a> {
     keyword: StepType,
     attribute: &'static str,
     attr: &'a syn::Attribute,
+}
+
+/// Extract the span of a step attribute as 0-based line/column positions.
+///
+/// Converts `syn`'s 1-based line numbers to 0-based for LSP compatibility.
+/// Column values from `syn` are byte offsets from line start, which equal
+/// character offsets for ASCII content (typical in attribute syntax).
+#[expect(
+    clippy::cast_possible_truncation,
+    reason = "line/column numbers from syn will not exceed u32::MAX in practice"
+)]
+fn extract_attribute_span(attr: &syn::Attribute) -> RustAttributeSpan {
+    let span = attr.span();
+    let start = span.start();
+    let end = span.end();
+
+    RustAttributeSpan {
+        start_line: start.line.saturating_sub(1) as u32,
+        start_column: start.column as u32,
+        end_line: end.line.saturating_sub(1) as u32,
+        end_column: end.column as u32,
+    }
 }
 
 fn parse_step_pattern(

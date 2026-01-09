@@ -93,11 +93,10 @@ fn has_matching_feature_step(state: &ServerState, step_def: &Arc<CompiledStepDef
 
 /// Build a diagnostic for an unused step definition.
 fn build_unused_step_diagnostic(step_def: &Arc<CompiledStepDefinition>) -> Diagnostic {
-    // TODO(#387): Use precise column/start/end span fields from CompiledStepDefinition
-    // once available. Currently spans entire line as fallback.
+    let span = &step_def.attribute_span;
     let range = Range {
-        start: lsp_types::Position::new(step_def.line, 0),
-        end: lsp_types::Position::new(step_def.line + 1, 0),
+        start: lsp_types::Position::new(span.start_line, span.start_column),
+        end: lsp_types::Position::new(span.end_line, span.end_column),
     };
 
     Diagnostic {
