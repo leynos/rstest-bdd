@@ -1,0 +1,93 @@
+//! Unit tests for the execution module.
+
+use super::{RuntimeMode, TestAttributeHint, decode_skip_message, encode_skip_message};
+
+#[test]
+fn runtime_mode_sync_is_default() {
+    assert_eq!(RuntimeMode::default(), RuntimeMode::Sync);
+}
+
+#[test]
+fn runtime_mode_sync_is_not_async() {
+    assert!(!RuntimeMode::Sync.is_async());
+}
+
+#[test]
+fn runtime_mode_tokio_current_thread_is_async() {
+    assert!(RuntimeMode::TokioCurrentThread.is_async());
+}
+
+#[test]
+fn runtime_mode_sync_hint_is_rstest_only() {
+    assert_eq!(
+        RuntimeMode::Sync.test_attribute_hint(),
+        TestAttributeHint::RstestOnly
+    );
+}
+
+#[test]
+fn runtime_mode_tokio_hint_is_rstest_with_tokio() {
+    assert_eq!(
+        RuntimeMode::TokioCurrentThread.test_attribute_hint(),
+        TestAttributeHint::RstestWithTokioCurrentThread
+    );
+}
+
+#[test]
+fn encode_skip_message_none_produces_prefix_only() {
+    let encoded = encode_skip_message(None);
+    assert_eq!(encoded.len(), 1);
+    assert_eq!(encoded.chars().next(), Some('\u{0}'));
+}
+
+#[test]
+fn encode_skip_message_some_includes_message() {
+    let encoded = encode_skip_message(Some("test message".to_string()));
+    assert!(encoded.starts_with('\u{1}'));
+    assert!(encoded.contains("test message"));
+}
+
+#[test]
+fn decode_skip_message_round_trip_none() {
+    let encoded = encode_skip_message(None);
+    let decoded = decode_skip_message(encoded);
+    assert_eq!(decoded, None);
+}
+
+#[test]
+fn decode_skip_message_round_trip_some() {
+    let original = "skip reason";
+    let encoded = encode_skip_message(Some(original.to_string()));
+    let decoded = decode_skip_message(encoded);
+    assert_eq!(decoded, Some(original.to_string()));
+}
+
+#[test]
+fn decode_skip_message_round_trip_empty_string() {
+    let encoded = encode_skip_message(Some(String::new()));
+    let decoded = decode_skip_message(encoded);
+    assert_eq!(decoded, Some(String::new()));
+}
+
+#[test]
+fn decode_skip_message_round_trip_unicode() {
+    let original = "Unicode: \u{1F600} \u{1F389}";
+    let encoded = encode_skip_message(Some(original.to_string()));
+    let decoded = decode_skip_message(encoded);
+    assert_eq!(decoded, Some(original.to_string()));
+}
+
+#[test]
+fn decode_skip_message_malformed_input_preserved() {
+    // Malformed input (no valid prefix) should be returned as-is
+    let malformed = "unexpected input".to_string();
+    let decoded = decode_skip_message(malformed.clone());
+    assert_eq!(decoded, Some(malformed));
+}
+
+#[test]
+fn decode_skip_message_empty_string_preserved() {
+    // Empty string has no prefix character
+    let decoded = decode_skip_message(String::new());
+    assert_eq!(decoded, Some(String::new()));
+}

@@ -11,21 +11,6 @@ fn path_last_ident(path: &syn::Path) -> Option<&syn::Ident> {
     path.segments.last().map(|seg| &seg.ident)
 }
 
-/// Return the identifier of the segment before the final segment in a `syn::Path`.
-///
-/// Returns `None` when the path contains fewer than two segments.
-fn path_second_last_ident(path: &syn::Path) -> Option<&syn::Ident> {
-    path.segments.iter().rev().nth(1).map(|seg| &seg.ident)
-}
-
-#[expect(clippy::panic, reason = "test helper panics for clearer failures")]
-fn extract_call(expr: &syn::Expr) -> &syn::ExprCall {
-    match expr {
-        syn::Expr::Call(call) => call,
-        other => panic!("expected call expression, got {other:?}"),
-    }
-}
-
 #[expect(clippy::panic, reason = "test helper panics for clearer failures")]
 fn extract_path(expr: &syn::Expr) -> &syn::Path {
     match expr {
@@ -89,134 +74,87 @@ fn find_call_in_block<'a>(block: &'a syn::Block, name: &str) -> Option<&'a syn::
     finder.found
 }
 
-#[expect(
-    clippy::indexing_slicing,
-    reason = "indexing is guarded by explicit arg length assertions"
-)]
-fn assert_steptext_from_wrapper(find_step_call: &syn::ExprCall) {
-    let args: Vec<_> = find_step_call.args.iter().collect();
-    let steptext_call = extract_call(args[1]);
-    let steptext_func_path = extract_path(steptext_call.func.as_ref());
-    assert_path_ends_with(steptext_func_path, "from", "expected StepText::from(...)");
-    assert_eq!(
-        path_second_last_ident(steptext_func_path)
-            .map(syn::Ident::to_string)
-            .as_deref(),
-        Some("StepText"),
-        "expected StepText::from(...)",
-    );
-
-    let inner_args: Vec<_> = steptext_call.args.iter().collect();
-    assert_eq!(inner_args.len(), 1, "expected StepText::from(text)");
-    let inner_path = extract_path(inner_args[0]);
-    assert_path_ends_with(inner_path, "text", "expected StepText::from(text)");
-}
-
-/// Verify that a named function is defined as an inner function.
-fn assert_has_inner_function(stmts: &[syn::Stmt], name: &str) {
-    let found = stmts.iter().any(|stmt| match stmt {
-        syn::Stmt::Item(syn::Item::Fn(f)) => f.sig.ident == name,
-        _ => false,
-    });
-    assert!(found, "expected inner function '{name}' to be defined");
-}
-
-/// Check if an expression is a reference to a specific identifier (e.g., `&step`).
-fn is_reference_to_ident(expr: &syn::Expr, name: &str) -> bool {
-    let syn::Expr::Reference(ref_expr) = expr else {
-        return false;
-    };
-    let syn::Expr::Path(path_expr) = ref_expr.expr.as_ref() else {
-        return false;
-    };
-    path_expr.path.is_ident(name)
-}
-
-/// Find the index of the first statement matching the given predicate.
-fn find_statement_index<F>(stmts: &[syn::Stmt], predicate: F) -> Option<usize>
-where
-    F: Fn(&syn::Stmt) -> bool,
-{
-    stmts.iter().position(predicate)
-}
-
-/// Find the index of a statement containing a call to a named function.
-fn find_call_statement_index(stmts: &[syn::Stmt], func_name: &str) -> Option<usize> {
-    find_statement_index(stmts, |stmt| {
-        let syn::Stmt::Expr(syn::Expr::Call(call), _) = stmt else {
-            return false;
-        };
-        let syn::Expr::Path(path_expr) = call.func.as_ref() else {
-            return false;
-        };
-        path_expr.path.is_ident(func_name)
-    })
-}
-
-/// Find the index of a statement containing a match expression.
-fn find_match_statement_index(stmts: &[syn::Stmt]) -> Option<usize> {
-    find_statement_index(stmts, |stmt| {
-        matches!(stmt, syn::Stmt::Expr(syn::Expr::Match(_), _))
-    })
-}
-
+/// Verify that the generated step executor delegates to `rstest_bdd::execution::execute_step`.
+///
+/// This test validates the architecture where the generated code is a thin wrapper
+/// that delegates to runtime functions, rather than containing inline implementation.
 #[test]
 #[expect(
     clippy::expect_used,
-    clippy::panic,
     reason = "test parses generated tokens and uses expect for clearer failures"
 )]
-fn execute_single_step_looks_up_steps_with_steptext_from() {
+fn execute_single_step_delegates_to_runtime() {
     // Parse the generated helper tokens so we can assert on the AST structure,
     // keeping this test resilient to formatting-only changes.
     let file: syn::File =
         syn::parse2(generate_step_executor()).expect("generate_step_executor parses as a file");
     let item = find_execute_single_step_function(&file);
 
-    // Validate that inner helper functions are defined inside execute_single_step
-    assert_has_inner_function(&item.block.stmts, "validate_required_fixtures");
-    assert_has_inner_function(&item.block.stmts, "encode_skip_message");
-
-    let find_step_call = find_call_in_block(&item.block, "find_step_with_metadata")
-        .expect("expected call to find_step_with_metadata");
-    let func_path = extract_path(find_step_call.func.as_ref());
+    // The generated function should delegate to rstest_bdd::execution::execute_step
+    let execute_step_call =
+        find_call_in_block(&item.block, "execute_step").expect("expected call to execute_step");
+    let func_path = extract_path(execute_step_call.func.as_ref());
     assert_path_ends_with(
         func_path,
-        "find_step_with_metadata",
-        "expected to call find_step_with_metadata(...)",
+        "execute_step",
+        "expected to call execute_step(...)",
     );
+
+    // Verify the path includes 'execution' module
+    let path_str = func_path
+        .segments
+        .iter()
+        .map(|s| s.ident.to_string())
+        .collect::<Vec<_>>()
+        .join("::");
+    assert!(
+        path_str.contains("execution"),
+        "expected path to include 'execution' module, got: {path_str}"
+    );
+
+    // Verify all 8 arguments are passed through
     assert_eq!(
-        find_step_call.args.len(),
-        2,
-        "expected find_step_with_metadata(keyword, text)"
+        execute_step_call.args.len(),
+        8,
+        "execute_step should receive all 8 arguments"
     );
-    assert_steptext_from_wrapper(find_step_call);
+}
 
-    let stmts = &item.block.stmts;
+/// Verify that the skip decoder delegates to `rstest_bdd::execution::decode_skip_message`.
+#[test]
+#[expect(
+    clippy::expect_used,
+    reason = "test parses generated tokens and uses expect for clearer failures"
+)]
+fn skip_decoder_delegates_to_runtime() {
+    use super::generators::generate_skip_decoder;
 
-    // Verify validate_required_fixtures is called with &step as the first argument
-    let validate_idx = find_call_statement_index(stmts, "validate_required_fixtures")
-        .expect("expected validate_required_fixtures call in then branch");
-    let validate_stmt = stmts
-        .get(validate_idx)
-        .expect("validate_idx should be valid");
-    let syn::Stmt::Expr(syn::Expr::Call(validate_call), _) = validate_stmt else {
-        panic!("expected call statement");
-    };
-    let first_arg = validate_call
-        .args
-        .first()
-        .expect("validate_required_fixtures should have arguments");
+    let file: syn::File =
+        syn::parse2(generate_skip_decoder()).expect("generate_skip_decoder parses as a file");
+
+    // Find the __rstest_bdd_decode_skip_message function
+    let item = file
+        .items
+        .iter()
+        .find_map(|item| match item {
+            syn::Item::Fn(f) if f.sig.ident == "__rstest_bdd_decode_skip_message" => Some(f),
+            _ => None,
+        })
+        .expect("expected __rstest_bdd_decode_skip_message function");
+
+    // Verify it calls decode_skip_message from execution module
+    let decode_call = find_call_in_block(&item.block, "decode_skip_message")
+        .expect("expected call to decode_skip_message");
+    let func_path = extract_path(decode_call.func.as_ref());
+
+    let path_str = func_path
+        .segments
+        .iter()
+        .map(|s| s.ident.to_string())
+        .collect::<Vec<_>>()
+        .join("::");
     assert!(
-        is_reference_to_ident(first_arg, "step"),
-        "first argument to validate_required_fixtures should be &step"
-    );
-
-    // Verify step execution (match expression) appears after validate_required_fixtures
-    let match_idx =
-        find_match_statement_index(stmts).expect("expected match expression in then branch");
-    assert!(
-        validate_idx < match_idx,
-        "validate_required_fixtures (index {validate_idx}) should be called before step execution (index {match_idx})"
+        path_str.contains("execution"),
+        "expected path to include 'execution' module, got: {path_str}"
     );
 }

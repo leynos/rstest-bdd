@@ -1357,6 +1357,72 @@ Tokio current-thread mode has documented limitations that affect step authoring:
 These constraints are inherent to the current-thread execution model and should
 be considered when designing step implementations.
 
+### 2.6 Runtime execution module
+
+The `rstest_bdd::execution` module provides the runtime infrastructure for step
+execution, centralising policy decisions that were previously embedded in the
+codegen layer. This separation keeps macro-generated code lightweight and makes
+runtime behaviour easier to test independently.
+
+#### 2.6.1 Design rationale
+
+Prior to this refactoring, the macro crate generated inline helper functions
+for fixture validation, skip message encoding/decoding, and step execution.
+This embedded policy decisions (sync vs async, error handling) within the code
+generation layer, creating architectural drift between the lightweight codegen
+principle and actual implementation.
+
+The solution moves these helpers to a dedicated runtime module:
+
+- **`execute_step`**: Core step execution logic (registry lookup, fixture
+  validation, handler invocation, result handling)
+- **`encode_skip_message` / `decode_skip_message`**: Skip signal encoding for
+  propagation through `Result<_, String>` types
+- **`validate_required_fixtures`**: Fixture availability checking with
+  diagnostic panic messages
+
+#### 2.6.2 RuntimeMode and TestAttributeHint
+
+The `RuntimeMode` enum defines available execution strategies:
+
+```rust
+pub enum RuntimeMode {
+    Sync,              // Default synchronous execution
+    TokioCurrentThread, // Tokio current-thread runtime
+}
+```
+
+The `TestAttributeHint` enum provides compile-time guidance for attribute
+generation:
+
+```rust
+pub enum TestAttributeHint {
+    RstestOnly,                    // Generate #[rstest::rstest] only
+    RstestWithTokioCurrentThread,  // Add #[tokio::test(flavor = "current_thread")]
+}
+```
+
+Note: The macro crate maintains its own copies of these enums because
+proc-macro crates cannot depend on runtime crates at compile time. The runtime
+versions serve as the canonical definitions and documentation.
+
+#### 2.6.3 Generated code structure
+
+With this architecture, macro-generated step executors become thin wrappers:
+
+```rust
+fn __rstest_bdd_execute_single_step(...) -> Result<Option<Box<dyn Any>>, String> {
+    rstest_bdd::execution::execute_step(...)
+}
+
+fn __rstest_bdd_decode_skip_message(encoded: String) -> Option<String> {
+    rstest_bdd::execution::decode_skip_message(encoded)
+}
+```
+
+This reduces generated code size and centralises policy logic where it can be
+tested and modified without regenerating macro output.
+
 ## Part 3: Implementation and strategic analysis
 
 This final part outlines a practical implementation strategy for `rstest-bdd`

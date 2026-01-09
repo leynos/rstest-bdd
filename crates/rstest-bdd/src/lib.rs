@@ -5,6 +5,7 @@
 extern crate self as rstest_bdd;
 
 pub mod config;
+pub mod execution;
 mod macros;
 mod skip;
 
