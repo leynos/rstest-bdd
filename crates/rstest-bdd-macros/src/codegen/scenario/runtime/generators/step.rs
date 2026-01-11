@@ -31,7 +31,7 @@ use quote::quote;
 /// fn __rstest_bdd_execute_single_step(
 ///     index, keyword, text, docstring, table, ctx, feature_path, scenario_name
 /// ) -> Result<Option<Box<dyn Any>>, String> {
-///     rstest_bdd::execution::execute_step(...)
+///     rstest_bdd::execution::execute_step(&StepExecutionRequest { ... }, ctx)
 /// }
 /// ```
 pub(in crate::codegen::scenario::runtime) fn generate_step_executor() -> TokenStream2 {
@@ -39,7 +39,7 @@ pub(in crate::codegen::scenario::runtime) fn generate_step_executor() -> TokenSt
     quote! {
         #[expect(
             clippy::too_many_arguments,
-            reason = "wrapper delegates to runtime with full step context",
+            reason = "wrapper bridges macro-generated calls to runtime StepExecutionRequest",
         )]
         fn __rstest_bdd_execute_single_step(
             index: usize,
@@ -52,14 +52,16 @@ pub(in crate::codegen::scenario::runtime) fn generate_step_executor() -> TokenSt
             scenario_name: &str,
         ) -> Result<Option<Box<dyn std::any::Any>>, String> {
             #path::execution::execute_step(
-                index,
-                keyword,
-                text,
-                docstring,
-                table,
+                &#path::execution::StepExecutionRequest {
+                    index,
+                    keyword,
+                    text,
+                    docstring,
+                    table,
+                    feature_path,
+                    scenario_name,
+                },
                 ctx,
-                feature_path,
-                scenario_name,
             )
         }
     }
@@ -102,7 +104,7 @@ pub(in crate::codegen::scenario::runtime) fn generate_skip_decoder() -> TokenStr
 /// fn __rstest_bdd_process_async_step(
 ///     index, keyword, text, docstring, table, ctx, feature_path, scenario_name
 /// ) -> Result<Option<Box<dyn std::any::Any>>, String> {
-///     rstest_bdd::execution::execute_step(...)
+///     rstest_bdd::execution::execute_step(&StepExecutionRequest { ... }, ctx)
 /// }
 /// ```
 pub(in crate::codegen::scenario::runtime) fn generate_async_step_executor() -> TokenStream2 {
@@ -110,7 +112,7 @@ pub(in crate::codegen::scenario::runtime) fn generate_async_step_executor() -> T
     quote! {
         #[expect(
             clippy::too_many_arguments,
-            reason = "wrapper delegates to runtime with full step context",
+            reason = "wrapper bridges macro-generated calls to runtime StepExecutionRequest",
         )]
         fn __rstest_bdd_process_async_step(
             index: usize,
@@ -123,14 +125,16 @@ pub(in crate::codegen::scenario::runtime) fn generate_async_step_executor() -> T
             scenario_name: &str,
         ) -> Result<Option<Box<dyn std::any::Any>>, String> {
             #path::execution::execute_step(
-                index,
-                keyword,
-                text,
-                docstring,
-                table,
+                &#path::execution::StepExecutionRequest {
+                    index,
+                    keyword,
+                    text,
+                    docstring,
+                    table,
+                    feature_path,
+                    scenario_name,
+                },
                 ctx,
-                feature_path,
-                scenario_name,
             )
         }
     }

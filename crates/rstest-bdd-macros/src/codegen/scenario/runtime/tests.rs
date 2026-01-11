@@ -112,11 +112,11 @@ fn execute_single_step_delegates_to_runtime() {
         "expected path to include 'execution' module, got: {path_str}"
     );
 
-    // Verify all 8 arguments are passed through
+    // Verify 2 arguments are passed: the StepExecutionRequest struct reference and ctx
     assert_eq!(
         execute_step_call.args.len(),
-        8,
-        "execute_step should receive all 8 arguments"
+        2,
+        "execute_step should receive StepExecutionRequest reference and ctx"
     );
 }
 

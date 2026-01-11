@@ -238,6 +238,38 @@ pub fn decode_skip_message(encoded: String) -> Option<String> {
     }
 }
 
+/// Groups step identification, data, and diagnostic context for execution.
+///
+/// This struct bundles all the information needed to execute a single scenario step,
+/// reducing the parameter count of [`execute_step`] and making call sites more readable.
+///
+/// # Fields
+///
+/// * `index` - Zero-based step index for error messages
+/// * `keyword` - The step keyword (Given, When, Then, etc.)
+/// * `text` - The step text to match against patterns
+/// * `docstring` - Optional docstring argument
+/// * `table` - Optional data table argument
+/// * `feature_path` - Path to the feature file for diagnostics
+/// * `scenario_name` - Name of the scenario for diagnostics
+#[derive(Debug)]
+pub struct StepExecutionRequest<'a> {
+    /// Zero-based step index for error messages.
+    pub index: usize,
+    /// The step keyword (Given, When, Then, etc.).
+    pub keyword: StepKeyword,
+    /// The step text to match against patterns.
+    pub text: &'a str,
+    /// Optional docstring argument.
+    pub docstring: Option<&'a str>,
+    /// Optional data table argument.
+    pub table: Option<&'a [&'a [&'a str]]>,
+    /// Path to the feature file for diagnostics.
+    pub feature_path: &'a str,
+    /// Name of the scenario for diagnostics.
+    pub scenario_name: &'a str,
+}
+
 /// Execute a single step with validation and error handling.
 ///
 /// This function encapsulates the core step execution logic:
@@ -248,14 +280,8 @@ pub fn decode_skip_message(encoded: String) -> Option<String> {
 ///
 /// # Arguments
 ///
-/// * `index` - Zero-based step index for error messages
-/// * `keyword` - The step keyword (Given, When, Then, etc.)
-/// * `text` - The step text to match against patterns
-/// * `docstring` - Optional docstring argument
-/// * `table` - Optional data table argument
+/// * `request` - The step execution request containing all step data and context
 /// * `ctx` - Mutable reference to the scenario context
-/// * `feature_path` - Path to the feature file for diagnostics
-/// * `scenario_name` - Name of the scenario for diagnostics
 ///
 /// # Returns
 ///
@@ -276,42 +302,42 @@ pub fn decode_skip_message(encoded: String) -> Option<String> {
 /// - The step is not found in the registry
 /// - Required fixtures are missing
 /// - The step handler returns an error
-#[expect(clippy::too_many_arguments, reason = "mirrors generated step inputs")]
 pub fn execute_step(
-    index: usize,
-    keyword: StepKeyword,
-    text: &str,
-    docstring: Option<&str>,
-    table: Option<&[&[&str]]>,
+    request: &StepExecutionRequest<'_>,
     ctx: &mut StepContext<'_>,
-    feature_path: &str,
-    scenario_name: &str,
 ) -> Result<Option<Box<dyn Any>>, String> {
-    let step = find_step_with_metadata(keyword, StepText::from(text)).unwrap_or_else(|| {
-        panic!(
-            "Step not found at index {}: {} {} (feature: {}, scenario: {})",
-            index,
-            keyword.as_str(),
-            text,
-            feature_path,
-            scenario_name
-        )
-    });
+    let step = find_step_with_metadata(request.keyword, StepText::from(request.text))
+        .unwrap_or_else(|| {
+            panic!(
+                "Step not found at index {}: {} {} (feature: {}, scenario: {})",
+                request.index,
+                request.keyword.as_str(),
+                request.text,
+                request.feature_path,
+                request.scenario_name
+            )
+        });
 
-    validate_required_fixtures(step, ctx, text, feature_path, scenario_name);
+    validate_required_fixtures(
+        step,
+        ctx,
+        request.text,
+        request.feature_path,
+        request.scenario_name,
+    );
 
-    match (step.run)(ctx, text, docstring, table) {
+    match (step.run)(ctx, request.text, request.docstring, request.table) {
         Ok(StepExecution::Skipped { message }) => Err(encode_skip_message(message)),
         Ok(StepExecution::Continue { value }) => Ok(value),
         Err(err) => {
             panic!(
                 "Step failed at index {}: {} {} - {}\n(feature: {}, scenario: {})",
-                index,
-                keyword.as_str(),
-                text,
+                request.index,
+                request.keyword.as_str(),
+                request.text,
                 err,
-                feature_path,
-                scenario_name
+                request.feature_path,
+                request.scenario_name
             );
         }
     }
