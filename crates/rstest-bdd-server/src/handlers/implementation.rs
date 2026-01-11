@@ -118,15 +118,16 @@ fn find_matching_rust_locations(state: &ServerState, step: &IndexedStep) -> Vec<
 
 /// Build an LSP Location for a Rust step definition.
 ///
-/// The location points to the step attribute in the Rust source file.
-/// The range covers precisely the attribute (e.g., `#[given("...")]`).
+/// The location points to the function signature line in the Rust source file.
+/// The range covers the function line (column 0 to end of next line), which
+/// provides a natural jump target for navigation.
 fn build_rust_location(step_def: &Arc<CompiledStepDefinition>) -> Option<Location> {
     let uri = Url::from_file_path(&step_def.source_path).ok()?;
 
-    let span = &step_def.attribute_span;
+    let fn_line = step_def.attribute_span.function_line;
     let range = Range {
-        start: Position::new(span.start_line, span.start_column),
-        end: Position::new(span.end_line, span.end_column),
+        start: Position::new(fn_line, 0),
+        end: Position::new(fn_line + 1, 0),
     };
 
     Some(Location { uri, range })
@@ -265,11 +266,10 @@ mod tests {
         assert_eq!(locations.len(), 1);
         let loc = locations.first().expect("at least one location");
         assert!(loc.uri.path().ends_with("steps.rs"));
-        // Range covers precisely the attribute #[given("a step")] on line 2
-        assert_eq!(loc.range.start.line, 2);
+        // Range covers the function line (line 3) with a full line range
+        assert_eq!(loc.range.start.line, 3);
         assert_eq!(loc.range.start.character, 0);
-        assert_eq!(loc.range.end.line, 2);
-        // End column is after the closing bracket of the attribute
-        assert_eq!(loc.range.end.character, 18);
+        assert_eq!(loc.range.end.line, 4);
+        assert_eq!(loc.range.end.character, 0);
     }
 }

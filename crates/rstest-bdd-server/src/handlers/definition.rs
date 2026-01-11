@@ -77,7 +77,7 @@ fn is_rust_file(path: &Path) -> bool {
 /// Find the step definition at the given cursor position.
 ///
 /// Uses span-based matching: returns the step whose attribute span contains
-/// the cursor position.
+/// the cursor position, or when the cursor is on the function signature line.
 fn find_step_at_position(
     state: &ServerState,
     path: &Path,
@@ -89,6 +89,11 @@ fn find_step_at_position(
 
     for step in steps {
         let span = &step.attribute_span;
+
+        // Check if cursor is on the function signature line
+        if target_line == span.function_line {
+            return Some(Arc::clone(step));
+        }
 
         // Check if cursor is within the attribute span (inclusive of start, exclusive of end)
         let after_start = target_line > span.start_line

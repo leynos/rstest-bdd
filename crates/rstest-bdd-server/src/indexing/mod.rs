@@ -114,11 +114,12 @@ pub struct RustStepFileIndex {
     pub step_definitions: Vec<IndexedStepDefinition>,
 }
 
-/// Span information for a Rust step attribute.
+/// Span information for a Rust step attribute and its associated function.
 ///
 /// Captures the start and end positions of an attribute (e.g., `#[given("...")]`)
 /// in terms of 0-based line and column offsets. The column values represent
-/// character offsets from the start of the line.
+/// character offsets from the start of the line. Also records the function
+/// signature line for navigation purposes.
 ///
 /// Note: `syn` provides column as byte offset from line start. Since step
 /// attribute syntax is ASCII-only, byte offset equals character offset. For
@@ -133,6 +134,8 @@ pub struct RustAttributeSpan {
     pub end_line: u32,
     /// 0-based ending column (character offset from line start).
     pub end_column: u32,
+    /// 0-based line number of the function signature (for navigation).
+    pub function_line: u32,
 }
 
 /// A Rust function annotated with `#[given]`, `#[when]`, or `#[then]`.

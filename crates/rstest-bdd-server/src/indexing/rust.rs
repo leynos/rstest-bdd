@@ -207,7 +207,7 @@ fn index_step_function(
 
     // Extract span from the step attribute (syn uses 1-based line numbers).
     // Line/column numbers in practice will never exceed u32::MAX, so truncation is safe.
-    let attribute_span = extract_attribute_span(step_attribute.attr);
+    let attribute_span = extract_attribute_span(step_attribute.attr, &item_fn.sig);
 
     Ok(Some(IndexedStepDefinition {
         keyword: step_attribute.keyword,
@@ -254,7 +254,7 @@ struct StepAttribute<'a> {
     attr: &'a syn::Attribute,
 }
 
-/// Extract the span of a step attribute as 0-based line/column positions.
+/// Extract the span of a step attribute and function line as 0-based positions.
 ///
 /// Converts `syn`'s 1-based line numbers to 0-based for LSP compatibility.
 /// Column values from `syn` are byte offsets from line start, which equal
@@ -263,16 +263,18 @@ struct StepAttribute<'a> {
     clippy::cast_possible_truncation,
     reason = "line/column numbers from syn will not exceed u32::MAX in practice"
 )]
-fn extract_attribute_span(attr: &syn::Attribute) -> RustAttributeSpan {
+fn extract_attribute_span(attr: &syn::Attribute, fn_sig: &syn::Signature) -> RustAttributeSpan {
     let span = attr.span();
     let start = span.start();
     let end = span.end();
+    let fn_line = fn_sig.fn_token.span.start().line.saturating_sub(1) as u32;
 
     RustAttributeSpan {
         start_line: start.line.saturating_sub(1) as u32,
         start_column: start.column as u32,
         end_line: end.line.saturating_sub(1) as u32,
         end_column: end.column as u32,
+        function_line: fn_line,
     }
 }
 
