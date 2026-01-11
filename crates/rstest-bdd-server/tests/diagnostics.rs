@@ -327,3 +327,261 @@ fn step_used_in_any_feature_is_not_unused(scenario_builder: ScenarioBuilder) {
         "step used in at least one feature should not be unused"
     );
 }
+
+// ============================================================================
+// Placeholder count mismatch tests
+// ============================================================================
+
+use rstest_bdd_server::handlers::diagnostics::compute::compute_signature_mismatch_diagnostics;
+
+/// Helper to compute placeholder mismatch diagnostics for a Rust file.
+fn compute_placeholder_diagnostics(
+    state: &ServerState,
+    dir: &TempDir,
+    filename: impl AsRef<str>,
+) -> Vec<lsp_types::Diagnostic> {
+    let path = dir.path().join(filename.as_ref());
+    compute_signature_mismatch_diagnostics(state, &path)
+}
+
+#[rstest]
+#[expect(clippy::expect_used, reason = "test uses expect after checking len")]
+fn placeholder_mismatch_missing_parameter(scenario_builder: ScenarioBuilder) {
+    // Pattern has 1 placeholder, function has 0 step arguments
+    let TestScenario { dir, state } = scenario_builder
+        .with_feature(
+            "test.feature",
+            concat!(
+                "Feature: test\n",
+                "  Scenario: s\n",
+                "    Given I have 5 apples\n",
+            ),
+        )
+        .with_rust_steps(
+            "steps.rs",
+            concat!(
+                "use rstest_bdd_macros::given;\n\n",
+                "#[given(\"I have {count} apples\")]\n",
+                "fn have_apples() {}\n",
+            ),
+        )
+        .build();
+
+    let diagnostics = compute_placeholder_diagnostics(&state, &dir, "steps.rs");
+
+    assert_eq!(diagnostics.len(), 1, "expected placeholder mismatch");
+    let diag = diagnostics.first().expect("checked len");
+    assert!(diag.message.contains("1 placeholder"));
+    assert!(diag.message.contains("0 step argument"));
+}
+
+#[rstest]
+fn placeholder_mismatch_correct_signature_no_diagnostic(scenario_builder: ScenarioBuilder) {
+    // Pattern has 1 placeholder, function has 1 step argument - should be fine
+    let TestScenario { dir, state } = scenario_builder
+        .with_feature(
+            "test.feature",
+            concat!(
+                "Feature: test\n",
+                "  Scenario: s\n",
+                "    Given I have 5 apples\n",
+            ),
+        )
+        .with_rust_steps(
+            "steps.rs",
+            concat!(
+                "use rstest_bdd_macros::given;\n\n",
+                "#[given(\"I have {count} apples\")]\n",
+                "fn have_apples(count: u32) {}\n",
+            ),
+        )
+        .build();
+
+    let diagnostics = compute_placeholder_diagnostics(&state, &dir, "steps.rs");
+
+    assert!(
+        diagnostics.is_empty(),
+        "no diagnostic when placeholder count matches"
+    );
+}
+
+// ============================================================================
+// Table/docstring expectation mismatch tests
+// ============================================================================
+
+use rstest_bdd_server::handlers::diagnostics::compute::compute_table_docstring_mismatch_diagnostics;
+
+/// Helper to compute table/docstring mismatch diagnostics for a feature file.
+#[expect(clippy::expect_used, reason = "test helper uses expect for clarity")]
+fn compute_table_docstring_diagnostics(
+    state: &ServerState,
+    dir: &TempDir,
+    filename: impl AsRef<str>,
+) -> Vec<lsp_types::Diagnostic> {
+    let path = dir.path().join(filename.as_ref());
+    let feature_index = state.feature_index(&path).expect("feature index");
+    compute_table_docstring_mismatch_diagnostics(state, feature_index)
+}
+
+#[rstest]
+#[expect(clippy::expect_used, reason = "test uses expect after checking len")]
+fn table_not_expected_produces_diagnostic(scenario_builder: ScenarioBuilder) {
+    // Feature has table, Rust doesn't expect it
+    let TestScenario { dir, state } = scenario_builder
+        .with_feature(
+            "test.feature",
+            concat!(
+                "Feature: test\n",
+                "  Scenario: s\n",
+                "    Given a step\n",
+                "      | col |\n",
+                "      | val |\n",
+            ),
+        )
+        .with_rust_steps(
+            "steps.rs",
+            concat!(
+                "use rstest_bdd_macros::given;\n\n",
+                "#[given(\"a step\")]\n",
+                "fn a_step() {}\n",
+            ),
+        )
+        .build();
+
+    let diagnostics = compute_table_docstring_diagnostics(&state, &dir, "test.feature");
+
+    assert_eq!(
+        diagnostics.len(),
+        1,
+        "expected table-not-expected diagnostic"
+    );
+    let diag = diagnostics.first().expect("checked len");
+    assert!(diag.message.contains("does not expect"));
+}
+
+#[rstest]
+#[expect(clippy::expect_used, reason = "test uses expect after checking len")]
+fn table_expected_produces_diagnostic(scenario_builder: ScenarioBuilder) {
+    // Rust expects table, feature doesn't have one
+    let TestScenario { dir, state } = scenario_builder
+        .with_feature(
+            "test.feature",
+            concat!("Feature: test\n", "  Scenario: s\n", "    Given a step\n",),
+        )
+        .with_rust_steps(
+            "steps.rs",
+            concat!(
+                "use rstest_bdd_macros::given;\n",
+                "use rstest_bdd::DataTable;\n\n",
+                "#[given(\"a step\")]\n",
+                "fn a_step(datatable: DataTable) {}\n",
+            ),
+        )
+        .build();
+
+    let diagnostics = compute_table_docstring_diagnostics(&state, &dir, "test.feature");
+
+    assert_eq!(diagnostics.len(), 1, "expected table-expected diagnostic");
+    let diag = diagnostics.first().expect("checked len");
+    assert!(diag.message.contains("expects a data table"));
+}
+
+#[rstest]
+#[expect(clippy::expect_used, reason = "test uses expect after checking len")]
+fn docstring_not_expected_produces_diagnostic(scenario_builder: ScenarioBuilder) {
+    // Feature has docstring, Rust doesn't expect it
+    let TestScenario { dir, state } = scenario_builder
+        .with_feature(
+            "test.feature",
+            concat!(
+                "Feature: test\n",
+                "  Scenario: s\n",
+                "    Given a step\n",
+                "      \"\"\"\n",
+                "      content\n",
+                "      \"\"\"\n",
+            ),
+        )
+        .with_rust_steps(
+            "steps.rs",
+            concat!(
+                "use rstest_bdd_macros::given;\n\n",
+                "#[given(\"a step\")]\n",
+                "fn a_step() {}\n",
+            ),
+        )
+        .build();
+
+    let diagnostics = compute_table_docstring_diagnostics(&state, &dir, "test.feature");
+
+    assert_eq!(
+        diagnostics.len(),
+        1,
+        "expected docstring-not-expected diagnostic"
+    );
+    let diag = diagnostics.first().expect("checked len");
+    assert!(diag.message.contains("does not expect"));
+}
+
+#[rstest]
+#[expect(clippy::expect_used, reason = "test uses expect after checking len")]
+fn docstring_expected_produces_diagnostic(scenario_builder: ScenarioBuilder) {
+    // Rust expects docstring, feature doesn't have one
+    let TestScenario { dir, state } = scenario_builder
+        .with_feature(
+            "test.feature",
+            concat!("Feature: test\n", "  Scenario: s\n", "    Given a step\n",),
+        )
+        .with_rust_steps(
+            "steps.rs",
+            concat!(
+                "use rstest_bdd_macros::given;\n\n",
+                "#[given(\"a step\")]\n",
+                "fn a_step(docstring: String) {}\n",
+            ),
+        )
+        .build();
+
+    let diagnostics = compute_table_docstring_diagnostics(&state, &dir, "test.feature");
+
+    assert_eq!(
+        diagnostics.len(),
+        1,
+        "expected docstring-expected diagnostic"
+    );
+    let diag = diagnostics.first().expect("checked len");
+    assert!(diag.message.contains("expects a doc string"));
+}
+
+#[rstest]
+fn matched_table_no_diagnostic(scenario_builder: ScenarioBuilder) {
+    // Both feature and Rust have table
+    let TestScenario { dir, state } = scenario_builder
+        .with_feature(
+            "test.feature",
+            concat!(
+                "Feature: test\n",
+                "  Scenario: s\n",
+                "    Given a step\n",
+                "      | col |\n",
+                "      | val |\n",
+            ),
+        )
+        .with_rust_steps(
+            "steps.rs",
+            concat!(
+                "use rstest_bdd_macros::given;\n",
+                "use rstest_bdd::DataTable;\n\n",
+                "#[given(\"a step\")]\n",
+                "fn a_step(datatable: DataTable) {}\n",
+            ),
+        )
+        .build();
+
+    let diagnostics = compute_table_docstring_diagnostics(&state, &dir, "test.feature");
+
+    assert!(
+        diagnostics.is_empty(),
+        "no diagnostic when table expectations match"
+    );
+}

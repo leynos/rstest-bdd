@@ -3,15 +3,25 @@
 //! This module contains the core algorithms for computing diagnostics:
 //! - Checking for unimplemented feature steps
 //! - Checking for unused step definitions
+//! - Checking for placeholder count mismatches
+//! - Checking for table/docstring expectation mismatches
 
+use std::collections::HashSet;
 use std::{path::Path, sync::Arc};
 
-use lsp_types::{Diagnostic, DiagnosticSeverity};
+use lsp_types::{Diagnostic, DiagnosticSeverity, Range};
+use rstest_bdd_patterns::pattern::lexer::{Token, lex_pattern};
 
-use crate::indexing::{CompiledStepDefinition, FeatureFileIndex, IndexedStep};
+use crate::indexing::{
+    CompiledStepDefinition, FeatureFileIndex, IndexedStep, IndexedStepParameter,
+};
 use crate::server::ServerState;
 
-use super::{CODE_UNIMPLEMENTED_STEP, CODE_UNUSED_STEP_DEFINITION, DIAGNOSTIC_SOURCE};
+use super::{
+    CODE_DOCSTRING_EXPECTED, CODE_DOCSTRING_NOT_EXPECTED, CODE_PLACEHOLDER_COUNT_MISMATCH,
+    CODE_TABLE_EXPECTED, CODE_TABLE_NOT_EXPECTED, CODE_UNIMPLEMENTED_STEP,
+    CODE_UNUSED_STEP_DEFINITION, DIAGNOSTIC_SOURCE,
+};
 use crate::handlers::util::gherkin_span_to_lsp_range;
 
 /// Compute diagnostics for unimplemented feature steps.
@@ -120,5 +130,295 @@ pub(super) fn step_type_to_attribute(step_type: gherkin::StepType) -> &'static s
         gherkin::StepType::Given => "given",
         gherkin::StepType::When => "when",
         gherkin::StepType::Then => "then",
+    }
+}
+
+// ============================================================================
+// Placeholder count validation
+// ============================================================================
+
+/// Compute diagnostics for signature mismatches in step definitions.
+///
+/// Checks that each step definition's placeholder count matches the number of
+/// step arguments in the function signature. A step argument is a function
+/// parameter whose normalised name appears in the pattern's placeholder set.
+#[must_use]
+pub fn compute_signature_mismatch_diagnostics(
+    state: &ServerState,
+    rust_path: &Path,
+) -> Vec<Diagnostic> {
+    state
+        .step_registry()
+        .steps_for_file(rust_path)
+        .iter()
+        .filter_map(check_placeholder_count_mismatch)
+        .collect()
+}
+
+/// Check if a step definition has a placeholder count mismatch.
+///
+/// Returns `Some(Diagnostic)` if the number of placeholders in the pattern
+/// differs from the number of step arguments in the function signature.
+fn check_placeholder_count_mismatch(step_def: &Arc<CompiledStepDefinition>) -> Option<Diagnostic> {
+    let placeholder_names = extract_placeholder_names(&step_def.pattern)?;
+    let placeholder_count = placeholder_names.len();
+    let step_arg_count = count_step_arguments(&step_def.parameters, &placeholder_names);
+
+    if placeholder_count == step_arg_count {
+        return None;
+    }
+
+    Some(build_placeholder_mismatch_diagnostic(
+        step_def,
+        placeholder_count,
+        step_arg_count,
+    ))
+}
+
+/// Extract placeholder names from a step pattern.
+///
+/// Uses `lex_pattern()` as the single source of truth for placeholder parsing.
+/// Returns `None` if the pattern cannot be lexed (malformed patterns are
+/// handled elsewhere and should not produce additional diagnostics here).
+fn extract_placeholder_names(pattern: &str) -> Option<HashSet<String>> {
+    let tokens = lex_pattern(pattern).ok()?;
+    let names = tokens
+        .into_iter()
+        .filter_map(|token| match token {
+            Token::Placeholder { name, .. } => Some(normalise_param_name(&name)),
+            _ => None,
+        })
+        .collect();
+    Some(names)
+}
+
+/// Count step arguments among the function parameters.
+///
+/// A step argument is a parameter that:
+/// 1. Is not a datatable parameter
+/// 2. Is not a docstring parameter
+/// 3. Has a normalised name that appears in the placeholder set
+fn count_step_arguments(
+    parameters: &[IndexedStepParameter],
+    placeholder_names: &HashSet<String>,
+) -> usize {
+    parameters
+        .iter()
+        .filter(|param| !param.is_datatable && !param.is_docstring)
+        .filter(|param| {
+            param
+                .name
+                .as_ref()
+                .is_some_and(|name| placeholder_names.contains(&normalise_param_name(name)))
+        })
+        .count()
+}
+
+/// Normalise a parameter or placeholder name for comparison.
+///
+/// Currently this is a no-op, but future enhancements could handle case
+/// differences or underscore/hyphen normalisation.
+fn normalise_param_name(name: &str) -> String {
+    name.to_owned()
+}
+
+/// Build a diagnostic for a placeholder count mismatch.
+fn build_placeholder_mismatch_diagnostic(
+    step_def: &Arc<CompiledStepDefinition>,
+    placeholder_count: usize,
+    step_arg_count: usize,
+) -> Diagnostic {
+    let range = Range {
+        start: lsp_types::Position::new(step_def.line, 0),
+        end: lsp_types::Position::new(step_def.line + 1, 0),
+    };
+
+    Diagnostic {
+        range,
+        severity: Some(DiagnosticSeverity::WARNING),
+        code: Some(lsp_types::NumberOrString::String(
+            CODE_PLACEHOLDER_COUNT_MISMATCH.to_owned(),
+        )),
+        code_description: None,
+        source: Some(DIAGNOSTIC_SOURCE.to_owned()),
+        message: format!(
+            "Placeholder count mismatch: pattern has {} placeholder(s) but function has {} \
+             step argument(s) - #[{}(\"{}\")]",
+            placeholder_count,
+            step_arg_count,
+            step_type_to_attribute(step_def.keyword),
+            step_def.pattern
+        ),
+        related_information: None,
+        tags: None,
+        data: None,
+    }
+}
+
+// ============================================================================
+// Table and docstring expectation validation
+// ============================================================================
+
+/// Compute diagnostics for table/docstring expectation mismatches.
+///
+/// For each feature step, checks if the step has a table or docstring and
+/// whether the matching Rust implementation expects them.
+#[must_use]
+pub fn compute_table_docstring_mismatch_diagnostics(
+    state: &ServerState,
+    feature_index: &FeatureFileIndex,
+) -> Vec<Diagnostic> {
+    feature_index
+        .steps
+        .iter()
+        .flat_map(|step| check_table_docstring_mismatches(state, feature_index, step))
+        .collect()
+}
+
+/// Check a single feature step for table/docstring mismatches.
+fn check_table_docstring_mismatches(
+    state: &ServerState,
+    feature_index: &FeatureFileIndex,
+    step: &IndexedStep,
+) -> Vec<Diagnostic> {
+    let mut diagnostics = Vec::new();
+
+    // Find the best matching implementation
+    let matching_impl = find_best_matching_implementation(state, step);
+    let Some(impl_def) = matching_impl else {
+        // No implementation found - handled by unimplemented step diagnostic
+        return diagnostics;
+    };
+
+    // Check table expectation
+    let step_has_table = step.table.is_some();
+    if step_has_table && !impl_def.expects_table {
+        diagnostics.push(build_table_not_expected_diagnostic(feature_index, step));
+    } else if !step_has_table && impl_def.expects_table {
+        diagnostics.push(build_table_expected_diagnostic(feature_index, step));
+    }
+
+    // Check docstring expectation
+    let step_has_docstring = step.docstring.is_some();
+    if step_has_docstring && !impl_def.expects_docstring {
+        diagnostics.push(build_docstring_not_expected_diagnostic(feature_index, step));
+    } else if !step_has_docstring && impl_def.expects_docstring {
+        diagnostics.push(build_docstring_expected_diagnostic(feature_index, step));
+    }
+
+    diagnostics
+}
+
+/// Find the best matching Rust implementation for a feature step.
+///
+/// Returns the implementation with the highest specificity score if multiple
+/// match. Returns `None` if no implementation matches.
+fn find_best_matching_implementation(
+    state: &ServerState,
+    step: &IndexedStep,
+) -> Option<Arc<CompiledStepDefinition>> {
+    state
+        .step_registry()
+        .steps_for_keyword(step.step_type)
+        .iter()
+        .filter(|compiled| compiled.regex.is_match(&step.text))
+        .max_by(|a, b| {
+            // Use literal length as a proxy for specificity (longer = more specific)
+            a.pattern.len().cmp(&b.pattern.len())
+        })
+        .cloned()
+}
+
+/// Build a diagnostic for when the feature step has a table but the impl doesn't expect one.
+fn build_table_not_expected_diagnostic(
+    feature_index: &FeatureFileIndex,
+    step: &IndexedStep,
+) -> Diagnostic {
+    let range = step.table.as_ref().map_or_else(
+        || gherkin_span_to_lsp_range(&feature_index.source, step.span),
+        |t| gherkin_span_to_lsp_range(&feature_index.source, t.span),
+    );
+
+    Diagnostic {
+        range,
+        severity: Some(DiagnosticSeverity::WARNING),
+        code: Some(lsp_types::NumberOrString::String(
+            CODE_TABLE_NOT_EXPECTED.to_owned(),
+        )),
+        code_description: None,
+        source: Some(DIAGNOSTIC_SOURCE.to_owned()),
+        message: "Data table provided but step implementation does not expect one".to_owned(),
+        related_information: None,
+        tags: None,
+        data: None,
+    }
+}
+
+/// Build a diagnostic for when the impl expects a table but the step doesn't have one.
+fn build_table_expected_diagnostic(
+    feature_index: &FeatureFileIndex,
+    step: &IndexedStep,
+) -> Diagnostic {
+    let range = gherkin_span_to_lsp_range(&feature_index.source, step.span);
+
+    Diagnostic {
+        range,
+        severity: Some(DiagnosticSeverity::WARNING),
+        code: Some(lsp_types::NumberOrString::String(
+            CODE_TABLE_EXPECTED.to_owned(),
+        )),
+        code_description: None,
+        source: Some(DIAGNOSTIC_SOURCE.to_owned()),
+        message: "Step implementation expects a data table but none is provided".to_owned(),
+        related_information: None,
+        tags: None,
+        data: None,
+    }
+}
+
+/// Build a diagnostic for when the feature step has a docstring but the impl doesn't expect one.
+fn build_docstring_not_expected_diagnostic(
+    feature_index: &FeatureFileIndex,
+    step: &IndexedStep,
+) -> Diagnostic {
+    let range = step.docstring.as_ref().map_or_else(
+        || gherkin_span_to_lsp_range(&feature_index.source, step.span),
+        |d| gherkin_span_to_lsp_range(&feature_index.source, d.span),
+    );
+
+    Diagnostic {
+        range,
+        severity: Some(DiagnosticSeverity::WARNING),
+        code: Some(lsp_types::NumberOrString::String(
+            CODE_DOCSTRING_NOT_EXPECTED.to_owned(),
+        )),
+        code_description: None,
+        source: Some(DIAGNOSTIC_SOURCE.to_owned()),
+        message: "Doc string provided but step implementation does not expect one".to_owned(),
+        related_information: None,
+        tags: None,
+        data: None,
+    }
+}
+
+/// Build a diagnostic for when the impl expects a docstring but the step doesn't have one.
+fn build_docstring_expected_diagnostic(
+    feature_index: &FeatureFileIndex,
+    step: &IndexedStep,
+) -> Diagnostic {
+    let range = gherkin_span_to_lsp_range(&feature_index.source, step.span);
+
+    Diagnostic {
+        range,
+        severity: Some(DiagnosticSeverity::WARNING),
+        code: Some(lsp_types::NumberOrString::String(
+            CODE_DOCSTRING_EXPECTED.to_owned(),
+        )),
+        code_description: None,
+        source: Some(DIAGNOSTIC_SOURCE.to_owned()),
+        message: "Step implementation expects a doc string but none is provided".to_owned(),
+        related_information: None,
+        tags: None,
+        data: None,
     }
 }

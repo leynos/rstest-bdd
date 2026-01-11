@@ -1,14 +1,13 @@
 # Validate placeholder counts, typed placeholders, and data table/docstring expectations
 
-This ExecPlan is a living document. The sections `Constraints`, `Tolerances`,
-`Risks`, `Progress`, `Surprises & Discoveries`, `Decision Log`, and
-`Outcomes & Retrospective` must be kept up to date as work proceeds.
+This execution plan (ExecPlan) is a living document. The sections `Constraints`,
+`Tolerances`, `Risks`, `Progress`, `Surprises & Discoveries`, `Decision Log`,
+and `Outcomes & Retrospective` must be kept up to date as work proceeds.
 
-Status: DRAFT
+Status: IN PROGRESS
 
-This document is maintained in accordance with `PLANS.md` (located at
-`/root/repo/PLANS.md`, though no such file exists as of this writing, so this
-plan follows the ExecPlans skill template).
+This document is maintained in accordance with `PLANS.md` (though no such file
+exists as of this writing, so this plan follows the ExecPlans skill template).
 
 ## Purpose / Big Picture
 
@@ -31,7 +30,7 @@ Observable outcomes:
 - Running `rstest-bdd-lsp` against a workspace with mismatched step definitions
   produces diagnostics at precise byte offsets in both feature and Rust files.
 - Users receive immediate feedback in their editor (VS Code, Neovim, etc.) via
-  the LSP diagnostics protocol without waiting for compilation.
+  the Language Server Protocol (LSP) diagnostics without waiting for compilation.
 - All existing tests continue to pass (`make test`), and the new diagnostics are
   validated by unit tests and behavioural tests in `rstest-bdd-server`.
 - The feature is documented in `docs/users-guide.md` under a "Language Server
@@ -44,10 +43,10 @@ Hard invariants that must hold throughout implementation:
 
 - **Do not modify macro crates:** `rstest-bdd-macros` and `rstest-bdd` crates
   must not be changed unless strictly necessary for a shared utility.
-- **Reuse existing pattern parsing:** Placeholder extraction must use
-  `rstest_bdd_patterns::SpecificityScore::calculate()` or
-  `rstest_bdd_patterns::pattern::lexer::lex_pattern()` to ensure consistency
-  with the runtime.
+- **Single source of truth for placeholders:** All placeholder extraction must
+  use `rstest_bdd_patterns::pattern::lexer::lex_pattern()` as the single source
+  of truth. The LSP server must not duplicate placeholder parsing logic. This
+  ensures consistency between the language server and the runtime macros.
 - **Preserve existing diagnostic behaviour:** The current "unimplemented step"
   and "unused step definition" diagnostics must continue to work unchanged.
 - **Do not introduce new external dependencies:** The implementation must use
@@ -108,35 +107,34 @@ Known uncertainties that might affect the plan:
 
 ## Progress
 
-- [ ] Stage A: Design and prototyping (no code changes to main logic yet)
-  - [ ] Read and understand existing diagnostic computation in
+- [x] Stage A: Design and prototyping (no code changes to main logic yet)
+  - [x] Read and understand existing diagnostic computation in
         `handlers/diagnostics/compute.rs`
-  - [ ] Read and understand `SpecificityScore::calculate()` in
+  - [x] Read and understand `SpecificityScore::calculate()` in
         `rstest-bdd-patterns/src/specificity.rs`
-  - [ ] Design the new diagnostic types and message formats
-  - [ ] Document decision on placeholder vs. fixture parameter classification
+  - [x] Design the new diagnostic types and message formats
+  - [x] Document decision on placeholder vs. fixture parameter classification
 
-- [ ] Stage B: Implement placeholder count validation
-  - [ ] Add new diagnostic code constant(s) to `handlers/diagnostics/mod.rs`
-  - [ ] Add placeholder extraction helper in `handlers/diagnostics/` (or reuse
-        `SpecificityScore::calculate()`)
-  - [ ] Implement `compute_placeholder_mismatch_diagnostics()` for Rust files
-  - [ ] Add unit tests for placeholder count validation
+- [x] Stage B: Implement placeholder count validation
+  - [x] Add new diagnostic code constant(s) to `handlers/diagnostics/mod.rs`
+  - [x] Add placeholder extraction helper in `handlers/diagnostics/compute.rs`
+  - [x] Implement `compute_signature_mismatch_diagnostics()` for Rust files
+  - [x] Add unit tests for placeholder count validation
 
-- [ ] Stage C: Implement data table and docstring expectation validation
-  - [ ] Implement `compute_table_mismatch_diagnostics()` for feature files
-  - [ ] Implement `compute_docstring_mismatch_diagnostics()` for feature files
-  - [ ] Add unit tests for table/docstring validation
+- [x] Stage C: Implement data table and docstring expectation validation
+  - [x] Implement `compute_table_docstring_mismatch_diagnostics()` for feature
+        files (combined function)
+  - [x] Add unit tests for table/docstring validation
 
-- [ ] Stage D: Integration and behavioural tests
-  - [ ] Add behavioural tests in `tests/diagnostics.rs` for placeholder
+- [x] Stage D: Integration and behavioural tests
+  - [x] Add behavioural tests in `tests/diagnostics.rs` for placeholder
         mismatches
-  - [ ] Add behavioural tests for data table/docstring mismatches
-  - [ ] Verify end-to-end diagnostic publishing on file save
+  - [x] Add behavioural tests for data table/docstring mismatches
+  - [x] Verify end-to-end diagnostic publishing via publish functions
 
-- [ ] Stage E: Documentation and cleanup
-  - [ ] Update `docs/users-guide.md` with diagnostics section
-  - [ ] Update `docs/roadmap.md` to mark the feature as done
+- [x] Stage E: Documentation and cleanup
+  - [x] Update `docs/users-guide.md` with diagnostics section
+  - [x] Update `docs/roadmap.md` to mark the feature as done
   - [ ] Run full quality gates (`make check-fmt`, `make lint`, `make test`)
   - [ ] Commit changes
 
@@ -146,7 +144,30 @@ Known uncertainties that might affect the plan:
 
 ## Decision Log
 
-(To be updated as decisions are made)
+### 2025-01-11: Parameter classification approach
+
+**Decision:** Use placeholder name matching to classify parameters as step
+arguments vs. fixtures.
+
+**Rationale:** The LSP server does not have access to rstest fixture
+definitions. A parameter is a "step argument" if its normalised name appears in
+the set of placeholder names extracted from the pattern via `lex_pattern()`.
+Parameters marked `is_datatable` or `is_docstring` are excluded. All remaining
+parameters are assumed to be fixtures and not counted.
+
+**Alternatives considered:**
+1. Type-based heuristics (e.g., primitives are step args) - rejected as
+   unreliable and not matching macro behaviour.
+2. Require explicit fixture annotations - rejected as too invasive for users.
+
+### 2025-01-11: Placeholder extraction source of truth
+
+**Decision:** Use `rstest_bdd_patterns::pattern::lexer::lex_pattern()` as the
+single source of truth for placeholder extraction.
+
+**Rationale:** This ensures consistency between the language server and the
+runtime macros. The `SpecificityScore::calculate()` internally uses
+`lex_pattern()`, so the same tokens are used throughout.
 
 ## Outcomes & Retrospective
 
@@ -233,9 +254,13 @@ already provides:
   placeholder name in the pattern.
 - **Fixture:** A function parameter that is injected by rstest and does not
   correspond to a placeholder.
-- **Datatable parameter:** A parameter named `datatable` or annotated with
-  `#[datatable]`.
-- **Docstring parameter:** A parameter named `docstring` with type `String`.
+- **Datatable parameter:** A parameter marked with `is_datatable: true` by the
+  Rust indexer. This is determined by either the `#[datatable]` attribute or
+  the parameter name `datatable`. The canonical type is `DataTable` from
+  `rstest_bdd`.
+- **Docstring parameter:** A parameter marked with `is_docstring: true` by the
+  Rust indexer. This is determined by either the `#[docstring]` attribute or
+  the parameter name `docstring`. The canonical type is `String`.
 - **Placeholder count mismatch:** The number of placeholders in the pattern
   differs from the number of step arguments in the function signature.
 
@@ -377,7 +402,7 @@ Add end-to-end tests in `tests/diagnostics.rs` using `ScenarioBuilder`:
 
 ## Concrete Steps
 
-All commands are run from the repository root `/root/repo`.
+All commands are run from the repository root.
 
 ### Stage B Commands
 

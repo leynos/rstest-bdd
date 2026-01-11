@@ -425,7 +425,7 @@ scope until the core workflow is stable.
   - [x] Emit diagnostics for unimplemented feature steps and unused step
     definitions by cross-referencing the registry.
 
-  - [ ] Validate placeholder counts, typed placeholders, and data table or
+  - [x] Validate placeholder counts, typed placeholders, and data table or
     docstring expectations against function signatures, emitting precise byte
     offsets in the source.
 

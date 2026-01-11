@@ -1500,26 +1500,52 @@ The language server publishes diagnostics when files are saved, helping
 developers identify consistency issues between feature files and Rust step
 definitions:
 
-- **Unimplemented feature steps**: When a step in a `.feature` file has no
-  matching Rust implementation, a warning diagnostic is published at the step
-  location. The message indicates the step keyword and text that needs an
-  implementation.
+- **Unimplemented feature steps** (`unimplemented-step`): When a step in a
+  `.feature` file has no matching Rust implementation, a warning diagnostic is
+  published at the step location. The message indicates the step keyword and
+  text that needs an implementation.
 
-- **Unused step definitions**: When a Rust step definition (annotated with
-  `#[given]`, `#[when]`, or `#[then]`) is not matched by any feature step, a
-  warning diagnostic is published at the function definition. This helps
-  identify dead code or typos in step patterns.
+- **Unused step definitions** (`unused-step-definition`): When a Rust step
+  definition (annotated with `#[given]`, `#[when]`, or `#[then]`) is not matched
+  by any feature step, a warning diagnostic is published at the function
+  definition. This helps identify dead code or typos in step patterns.
+
+- **Placeholder count mismatch** (`placeholder-count-mismatch`): When a step
+  pattern contains a different number of placeholders than the function has step
+  arguments, a warning diagnostic is published on the Rust step definition. A
+  step argument is a function parameter whose name matches a placeholder in the
+  pattern. Parameters named `datatable` or `docstring` (or annotated with
+  `#[datatable]`) are excluded from the count, as are fixture parameters that
+  don't correspond to placeholders.
+
+- **Data table expected** (`table-expected`): When a Rust step expects a data
+  table (has a `datatable` parameter) but the matching feature step does not
+  provide one, a warning diagnostic is published on the feature step.
+
+- **Data table not expected** (`table-not-expected`): When a feature step
+  provides a data table but the matching Rust implementation does not expect
+  one, a warning diagnostic is published on the data table in the feature file.
+
+- **Doc string expected** (`docstring-expected`): When a Rust step expects a doc
+  string (has a `docstring: String` parameter) but the matching feature step
+  does not provide one, a warning diagnostic is published on the feature step.
+
+- **Doc string not expected** (`docstring-not-expected`): When a feature step
+  provides a doc string but the matching Rust implementation does not expect
+  one, a warning diagnostic is published on the doc string in the feature file.
 
 Diagnostics are updated incrementally:
 
-- Saving a `.feature` file recomputes diagnostics for that file.
+- Saving a `.feature` file recomputes diagnostics for that file, including
+  unimplemented steps and table/docstring expectation mismatches.
 - Saving a `.rs` file recomputes diagnostics for all feature files (since new
   or removed step definitions may affect which steps are implemented) and
-  checks for unused definitions in the saved file.
+  checks for unused definitions and placeholder count mismatches in the saved
+  file.
 
 Diagnostics appear in the editor's Problems panel and as inline warnings,
-similar to compiler diagnostics. They use the source `rstest-bdd` and codes
-`unimplemented-step` and `unused-step-definition` for filtering.
+similar to compiler diagnostics. They use the source `rstest-bdd` and the codes
+listed above for filtering.
 
 ## Summary
 

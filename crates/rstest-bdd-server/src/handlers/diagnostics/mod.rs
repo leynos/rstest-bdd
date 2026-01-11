@@ -8,8 +8,12 @@
 //!   matching Rust implementation.
 //! - **Unused step definitions**: Rust step definitions not matched by any
 //!   feature step.
+//! - **Placeholder count mismatches**: Step patterns with a different number
+//!   of placeholders than the function has step arguments.
+//! - **Table/docstring expectation mismatches**: Feature steps with tables or
+//!   docstrings that don't match what the Rust implementation expects.
 
-mod compute;
+pub mod compute;
 mod publish;
 
 /// Diagnostic source identifier for rstest-bdd diagnostics.
@@ -20,6 +24,21 @@ const CODE_UNIMPLEMENTED_STEP: &str = "unimplemented-step";
 
 /// Diagnostic code for unused step definitions.
 const CODE_UNUSED_STEP_DEFINITION: &str = "unused-step-definition";
+
+/// Diagnostic code for placeholder count mismatch in step definitions.
+const CODE_PLACEHOLDER_COUNT_MISMATCH: &str = "placeholder-count-mismatch";
+
+/// Diagnostic code for step expecting a data table but feature doesn't provide one.
+const CODE_TABLE_EXPECTED: &str = "table-expected";
+
+/// Diagnostic code for feature providing a data table but step doesn't expect one.
+const CODE_TABLE_NOT_EXPECTED: &str = "table-not-expected";
+
+/// Diagnostic code for step expecting a docstring but feature doesn't provide one.
+const CODE_DOCSTRING_EXPECTED: &str = "docstring-expected";
+
+/// Diagnostic code for feature providing a docstring but step doesn't expect one.
+const CODE_DOCSTRING_NOT_EXPECTED: &str = "docstring-not-expected";
 
 // Re-export public items
 pub use compute::{compute_unimplemented_step_diagnostics, compute_unused_step_diagnostics};
@@ -217,5 +236,307 @@ mod tests {
         #[case] expected: &str,
     ) {
         assert_eq!(step_type_to_attribute(step_type), expected);
+    }
+
+    // ========================================================================
+    // Placeholder count mismatch tests
+    // ========================================================================
+
+    /// Helper to compute signature mismatch diagnostics.
+    fn compute_signature_diagnostics_for_path(
+        state: &ServerState,
+        rust_path: &Path,
+    ) -> Vec<Diagnostic> {
+        compute::compute_signature_mismatch_diagnostics(state, rust_path)
+    }
+
+    #[rstest]
+    fn placeholder_count_mismatch_missing_param(scenario_builder: ScenarioBuilder) {
+        // Pattern has 1 placeholder, function has 0 step arguments
+        let scenario = scenario_builder.with_single_file_pair(
+            "Feature: test\n  Scenario: s\n    Given I have 5 apples\n",
+            concat!(
+                "use rstest_bdd_macros::given;\n\n",
+                "#[given(\"I have {count} apples\")]\n",
+                "fn have_apples() {}\n",
+            ),
+        );
+
+        let diagnostics =
+            compute_signature_diagnostics_for_path(&scenario.state, &scenario.rust_path);
+
+        assert_eq!(diagnostics.len(), 1, "expected placeholder mismatch");
+        #[expect(clippy::unwrap_used, reason = "test - checked len equals 1")]
+        let diag = diagnostics.first().unwrap();
+        assert_eq!(
+            diag.code,
+            Some(lsp_types::NumberOrString::String(
+                CODE_PLACEHOLDER_COUNT_MISMATCH.to_owned()
+            ))
+        );
+        assert!(diag.message.contains("1 placeholder"));
+        assert!(diag.message.contains("0 step argument"));
+    }
+
+    #[rstest]
+    fn placeholder_count_mismatch_extra_placeholder(scenario_builder: ScenarioBuilder) {
+        // Pattern has 2 placeholders, function has 1 step argument
+        let scenario = scenario_builder.with_single_file_pair(
+            "Feature: test\n  Scenario: s\n    Given I have 5 red apples\n",
+            concat!(
+                "use rstest_bdd_macros::given;\n\n",
+                "#[given(\"I have {count} {color} apples\")]\n",
+                "fn have_apples(count: u32) {}\n",
+            ),
+        );
+
+        let diagnostics =
+            compute_signature_diagnostics_for_path(&scenario.state, &scenario.rust_path);
+
+        assert_eq!(diagnostics.len(), 1, "expected placeholder mismatch");
+        #[expect(clippy::unwrap_used, reason = "test - checked len equals 1")]
+        let diag = diagnostics.first().unwrap();
+        assert!(diag.message.contains("2 placeholder"));
+        assert!(diag.message.contains("1 step argument"));
+    }
+
+    #[rstest]
+    fn no_placeholder_mismatch_when_counts_match(scenario_builder: ScenarioBuilder) {
+        // Pattern has 1 placeholder, function has 1 step argument
+        let scenario = scenario_builder.with_single_file_pair(
+            "Feature: test\n  Scenario: s\n    Given I have 5 apples\n",
+            concat!(
+                "use rstest_bdd_macros::given;\n\n",
+                "#[given(\"I have {count} apples\")]\n",
+                "fn have_apples(count: u32) {}\n",
+            ),
+        );
+
+        let diagnostics =
+            compute_signature_diagnostics_for_path(&scenario.state, &scenario.rust_path);
+
+        assert!(
+            diagnostics.is_empty(),
+            "expected no diagnostics when counts match"
+        );
+    }
+
+    #[rstest]
+    fn fixture_params_excluded_from_step_arg_count(scenario_builder: ScenarioBuilder) {
+        // Pattern has 1 placeholder, function has 1 step arg (count) and 1 fixture (context)
+        let scenario = scenario_builder.with_single_file_pair(
+            "Feature: test\n  Scenario: s\n    Given I have 5 apples\n",
+            concat!(
+                "use rstest_bdd_macros::given;\n\n",
+                "#[given(\"I have {count} apples\")]\n",
+                "fn have_apples(count: u32, context: &mut TestContext) {}\n",
+            ),
+        );
+
+        let diagnostics =
+            compute_signature_diagnostics_for_path(&scenario.state, &scenario.rust_path);
+
+        // context is not in placeholder set, so it's a fixture and shouldn't be counted
+        assert!(
+            diagnostics.is_empty(),
+            "fixture params should be excluded from count"
+        );
+    }
+
+    #[rstest]
+    fn datatable_and_docstring_params_excluded(scenario_builder: ScenarioBuilder) {
+        // Pattern has 1 placeholder, function has count + datatable + docstring
+        let scenario = scenario_builder.with_single_file_pair(
+            "Feature: test\n  Scenario: s\n    Given I have 5 apples\n      | col |\n      | val |\n",
+            concat!(
+                "use rstest_bdd_macros::given;\n",
+                "use rstest_bdd::DataTable;\n\n",
+                "#[given(\"I have {count} apples\")]\n",
+                "fn have_apples(count: u32, datatable: DataTable, docstring: String) {}\n",
+            ),
+        );
+
+        let diagnostics =
+            compute_signature_diagnostics_for_path(&scenario.state, &scenario.rust_path);
+
+        assert!(
+            diagnostics.is_empty(),
+            "datatable and docstring should be excluded"
+        );
+    }
+
+    // ========================================================================
+    // Table/docstring expectation mismatch tests
+    // ========================================================================
+
+    /// Helper to compute table/docstring mismatch diagnostics.
+    #[expect(
+        clippy::expect_used,
+        reason = "test helper requires explicit panic for debugging failures"
+    )]
+    fn compute_table_docstring_diagnostics_for_path(
+        state: &ServerState,
+        feature_path: &Path,
+    ) -> Vec<Diagnostic> {
+        let feature_index = state.feature_index(feature_path).expect("feature index");
+        compute::compute_table_docstring_mismatch_diagnostics(state, feature_index)
+    }
+
+    #[rstest]
+    fn table_not_expected_diagnostic(scenario_builder: ScenarioBuilder) {
+        // Feature has table, Rust doesn't expect it
+        let scenario = scenario_builder.with_single_file_pair(
+            concat!(
+                "Feature: test\n",
+                "  Scenario: s\n",
+                "    Given a step\n",
+                "      | col |\n",
+                "      | val |\n",
+            ),
+            concat!(
+                "use rstest_bdd_macros::given;\n\n",
+                "#[given(\"a step\")]\n",
+                "fn a_step() {}\n",
+            ),
+        );
+
+        let diagnostics =
+            compute_table_docstring_diagnostics_for_path(&scenario.state, &scenario.feature_path);
+
+        assert_eq!(
+            diagnostics.len(),
+            1,
+            "expected table-not-expected diagnostic"
+        );
+        #[expect(clippy::unwrap_used, reason = "test - checked len equals 1")]
+        let diag = diagnostics.first().unwrap();
+        assert_eq!(
+            diag.code,
+            Some(lsp_types::NumberOrString::String(
+                CODE_TABLE_NOT_EXPECTED.to_owned()
+            ))
+        );
+    }
+
+    #[rstest]
+    fn table_expected_diagnostic(scenario_builder: ScenarioBuilder) {
+        // Rust expects table, feature doesn't have one
+        let scenario = scenario_builder.with_single_file_pair(
+            "Feature: test\n  Scenario: s\n    Given a step\n",
+            concat!(
+                "use rstest_bdd_macros::given;\n",
+                "use rstest_bdd::DataTable;\n\n",
+                "#[given(\"a step\")]\n",
+                "fn a_step(datatable: DataTable) {}\n",
+            ),
+        );
+
+        let diagnostics =
+            compute_table_docstring_diagnostics_for_path(&scenario.state, &scenario.feature_path);
+
+        assert_eq!(diagnostics.len(), 1, "expected table-expected diagnostic");
+        #[expect(clippy::unwrap_used, reason = "test - checked len equals 1")]
+        let diag = diagnostics.first().unwrap();
+        assert_eq!(
+            diag.code,
+            Some(lsp_types::NumberOrString::String(
+                CODE_TABLE_EXPECTED.to_owned()
+            ))
+        );
+    }
+
+    #[rstest]
+    fn no_table_diagnostic_when_matched(scenario_builder: ScenarioBuilder) {
+        // Both have table
+        let scenario = scenario_builder.with_single_file_pair(
+            concat!(
+                "Feature: test\n",
+                "  Scenario: s\n",
+                "    Given a step\n",
+                "      | col |\n",
+                "      | val |\n",
+            ),
+            concat!(
+                "use rstest_bdd_macros::given;\n",
+                "use rstest_bdd::DataTable;\n\n",
+                "#[given(\"a step\")]\n",
+                "fn a_step(datatable: DataTable) {}\n",
+            ),
+        );
+
+        let diagnostics =
+            compute_table_docstring_diagnostics_for_path(&scenario.state, &scenario.feature_path);
+
+        assert!(
+            diagnostics.is_empty(),
+            "no diagnostic when table expectations match"
+        );
+    }
+
+    #[rstest]
+    fn docstring_not_expected_diagnostic(scenario_builder: ScenarioBuilder) {
+        // Feature has docstring, Rust doesn't expect it
+        let scenario = scenario_builder.with_single_file_pair(
+            concat!(
+                "Feature: test\n",
+                "  Scenario: s\n",
+                "    Given a step\n",
+                "      \"\"\"\n",
+                "      some content\n",
+                "      \"\"\"\n",
+            ),
+            concat!(
+                "use rstest_bdd_macros::given;\n\n",
+                "#[given(\"a step\")]\n",
+                "fn a_step() {}\n",
+            ),
+        );
+
+        let diagnostics =
+            compute_table_docstring_diagnostics_for_path(&scenario.state, &scenario.feature_path);
+
+        assert_eq!(
+            diagnostics.len(),
+            1,
+            "expected docstring-not-expected diagnostic"
+        );
+        #[expect(clippy::unwrap_used, reason = "test - checked len equals 1")]
+        let diag = diagnostics.first().unwrap();
+        assert_eq!(
+            diag.code,
+            Some(lsp_types::NumberOrString::String(
+                CODE_DOCSTRING_NOT_EXPECTED.to_owned()
+            ))
+        );
+    }
+
+    #[rstest]
+    fn docstring_expected_diagnostic(scenario_builder: ScenarioBuilder) {
+        // Rust expects docstring, feature doesn't have one
+        let scenario = scenario_builder.with_single_file_pair(
+            "Feature: test\n  Scenario: s\n    Given a step\n",
+            concat!(
+                "use rstest_bdd_macros::given;\n\n",
+                "#[given(\"a step\")]\n",
+                "fn a_step(docstring: String) {}\n",
+            ),
+        );
+
+        let diagnostics =
+            compute_table_docstring_diagnostics_for_path(&scenario.state, &scenario.feature_path);
+
+        assert_eq!(
+            diagnostics.len(),
+            1,
+            "expected docstring-expected diagnostic"
+        );
+        #[expect(clippy::unwrap_used, reason = "test - checked len equals 1")]
+        let diag = diagnostics.first().unwrap();
+        assert_eq!(
+            diag.code,
+            Some(lsp_types::NumberOrString::String(
+                CODE_DOCSTRING_EXPECTED.to_owned()
+            ))
+        );
     }
 }
