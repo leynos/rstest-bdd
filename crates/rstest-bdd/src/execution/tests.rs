@@ -91,3 +91,35 @@ fn decode_skip_message_empty_string_preserved() {
     let decoded = decode_skip_message(String::new());
     assert_eq!(decoded, Some(String::new()));
 }
+
+/// Verify that `RuntimeMode` and `TestAttributeHint` have matching variant counts.
+///
+/// This test serves as a compile-time-adjacent guard against enum drift. While Rust's
+/// exhaustive pattern matching in `RuntimeMode::test_attribute_hint()` will catch
+/// missing variants, this test provides explicit validation that both enums have
+/// the same number of variants and that each `RuntimeMode` maps to a unique hint.
+#[test]
+fn runtime_mode_and_test_attribute_hint_variant_parity() {
+    // Collect all RuntimeMode variants and their corresponding hints
+    let runtime_modes = [RuntimeMode::Sync, RuntimeMode::TokioCurrentThread];
+    let expected_hints = [
+        TestAttributeHint::RstestOnly,
+        TestAttributeHint::RstestWithTokioCurrentThread,
+    ];
+
+    // Verify variant counts match
+    assert_eq!(
+        runtime_modes.len(),
+        expected_hints.len(),
+        "RuntimeMode and TestAttributeHint should have the same number of variants"
+    );
+
+    // Verify each RuntimeMode maps to the expected TestAttributeHint
+    for (mode, expected_hint) in runtime_modes.iter().zip(expected_hints.iter()) {
+        assert_eq!(
+            mode.test_attribute_hint(),
+            *expected_hint,
+            "RuntimeMode::{mode:?} should map to TestAttributeHint::{expected_hint:?}"
+        );
+    }
+}

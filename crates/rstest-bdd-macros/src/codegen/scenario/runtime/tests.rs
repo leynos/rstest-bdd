@@ -1,6 +1,8 @@
 //! Tests for runtime scaffolding code generation.
 
-use super::generators::{generate_async_step_executor, generate_step_executor};
+use super::generators::{
+    generate_async_step_executor, generate_skip_decoder, generate_step_executor,
+};
 use syn::visit::Visit;
 
 /// Return the identifier of the final segment in a `syn::Path`.
@@ -186,8 +188,6 @@ fn execute_async_step_delegates_to_runtime() {
     reason = "test parses generated tokens and uses expect for clearer failures"
 )]
 fn skip_decoder_delegates_to_runtime() {
-    use super::generators::generate_skip_decoder;
-
     let file: syn::File =
         syn::parse2(generate_skip_decoder()).expect("generate_skip_decoder parses as a file");
 
