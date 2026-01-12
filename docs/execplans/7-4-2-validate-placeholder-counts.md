@@ -156,6 +156,7 @@ Parameters marked `is_datatable` or `is_docstring` are excluded. All remaining
 parameters are assumed to be fixtures and not counted.
 
 **Alternatives considered:**
+
 1. Type-based heuristics (e.g., primitives are step args) - rejected as
    unreliable and not matching macro behaviour.
 2. Require explicit fixture annotations - rejected as too invasive for users.
