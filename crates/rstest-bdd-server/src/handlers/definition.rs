@@ -74,6 +74,23 @@ fn is_rust_file(path: &Path) -> bool {
         .is_some_and(|ext| ext.eq_ignore_ascii_case("rs"))
 }
 
+/// Check if a position falls within an attribute span.
+///
+/// Returns `true` if the position is within the span boundaries, where the
+/// start position is inclusive and the end position is exclusive.
+fn position_in_span(
+    target_line: u32,
+    target_col: u32,
+    span: &crate::indexing::RustAttributeSpan,
+) -> bool {
+    let after_start = target_line > span.start_line
+        || (target_line == span.start_line && target_col >= span.start_column);
+    let before_end = target_line < span.end_line
+        || (target_line == span.end_line && target_col < span.end_column);
+
+    after_start && before_end
+}
+
 /// Find the step definition at the given cursor position.
 ///
 /// Uses span-based matching: returns the step whose attribute span contains
@@ -89,19 +106,10 @@ fn find_step_at_position(
 
     for step in steps {
         let span = &step.attribute_span;
+        let on_function_line = target_line == span.function_line;
+        let in_attribute_span = position_in_span(target_line, target_col, span);
 
-        // Check if cursor is on the function signature line
-        if target_line == span.function_line {
-            return Some(Arc::clone(step));
-        }
-
-        // Check if cursor is within the attribute span (inclusive of start, exclusive of end)
-        let after_start = target_line > span.start_line
-            || (target_line == span.start_line && target_col >= span.start_column);
-        let before_end = target_line < span.end_line
-            || (target_line == span.end_line && target_col < span.end_column);
-
-        if after_start && before_end {
+        if on_function_line || in_attribute_span {
             return Some(Arc::clone(step));
         }
     }
