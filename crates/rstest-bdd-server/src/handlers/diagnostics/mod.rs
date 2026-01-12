@@ -93,6 +93,38 @@ mod tests {
         );
     }
 
+    /// Asserts exactly one diagnostic exists with the expected code and returns it.
+    #[expect(clippy::unwrap_used, reason = "test helper - checked len equals 1")]
+    fn assert_single_diagnostic_with_code<'a>(
+        diagnostics: &'a [Diagnostic],
+        expected_code: &str,
+    ) -> &'a Diagnostic {
+        assert_eq!(
+            diagnostics.len(),
+            1,
+            "expected exactly 1 diagnostic, found {}",
+            diagnostics.len()
+        );
+        let diag = diagnostics.first().unwrap();
+        assert_eq!(
+            diag.code,
+            Some(lsp_types::NumberOrString::String(expected_code.to_owned())),
+            "expected diagnostic code '{expected_code}'"
+        );
+        diag
+    }
+
+    /// Asserts all fragments appear in the diagnostic message.
+    fn assert_diagnostic_message_contains(diag: &Diagnostic, fragments: &[&str]) {
+        for fragment in fragments {
+            assert!(
+                diag.message.contains(fragment),
+                "diagnostic message should contain '{fragment}', got: {}",
+                diag.message
+            );
+        }
+    }
+
     #[rstest]
     #[expect(
         clippy::expect_used,
@@ -265,17 +297,9 @@ mod tests {
         let diagnostics =
             compute_signature_diagnostics_for_path(&scenario.state, &scenario.rust_path);
 
-        assert_eq!(diagnostics.len(), 1, "expected placeholder mismatch");
-        #[expect(clippy::unwrap_used, reason = "test - checked len equals 1")]
-        let diag = diagnostics.first().unwrap();
-        assert_eq!(
-            diag.code,
-            Some(lsp_types::NumberOrString::String(
-                CODE_PLACEHOLDER_COUNT_MISMATCH.to_owned()
-            ))
-        );
-        assert!(diag.message.contains("1 placeholder"));
-        assert!(diag.message.contains("0 step argument"));
+        let diag =
+            assert_single_diagnostic_with_code(&diagnostics, CODE_PLACEHOLDER_COUNT_MISMATCH);
+        assert_diagnostic_message_contains(diag, &["1 placeholder", "0 step argument"]);
     }
 
     #[rstest]
@@ -293,11 +317,9 @@ mod tests {
         let diagnostics =
             compute_signature_diagnostics_for_path(&scenario.state, &scenario.rust_path);
 
-        assert_eq!(diagnostics.len(), 1, "expected placeholder mismatch");
-        #[expect(clippy::unwrap_used, reason = "test - checked len equals 1")]
-        let diag = diagnostics.first().unwrap();
-        assert!(diag.message.contains("2 placeholder"));
-        assert!(diag.message.contains("1 step argument"));
+        let diag =
+            assert_single_diagnostic_with_code(&diagnostics, CODE_PLACEHOLDER_COUNT_MISMATCH);
+        assert_diagnostic_message_contains(diag, &["2 placeholder", "1 step argument"]);
     }
 
     #[rstest]
@@ -403,19 +425,7 @@ mod tests {
         let diagnostics =
             compute_table_docstring_diagnostics_for_path(&scenario.state, &scenario.feature_path);
 
-        assert_eq!(
-            diagnostics.len(),
-            1,
-            "expected table-not-expected diagnostic"
-        );
-        #[expect(clippy::unwrap_used, reason = "test - checked len equals 1")]
-        let diag = diagnostics.first().unwrap();
-        assert_eq!(
-            diag.code,
-            Some(lsp_types::NumberOrString::String(
-                CODE_TABLE_NOT_EXPECTED.to_owned()
-            ))
-        );
+        assert_single_diagnostic_with_code(&diagnostics, CODE_TABLE_NOT_EXPECTED);
     }
 
     #[rstest]
@@ -434,15 +444,7 @@ mod tests {
         let diagnostics =
             compute_table_docstring_diagnostics_for_path(&scenario.state, &scenario.feature_path);
 
-        assert_eq!(diagnostics.len(), 1, "expected table-expected diagnostic");
-        #[expect(clippy::unwrap_used, reason = "test - checked len equals 1")]
-        let diag = diagnostics.first().unwrap();
-        assert_eq!(
-            diag.code,
-            Some(lsp_types::NumberOrString::String(
-                CODE_TABLE_EXPECTED.to_owned()
-            ))
-        );
+        assert_single_diagnostic_with_code(&diagnostics, CODE_TABLE_EXPECTED);
     }
 
     #[rstest]
@@ -495,19 +497,7 @@ mod tests {
         let diagnostics =
             compute_table_docstring_diagnostics_for_path(&scenario.state, &scenario.feature_path);
 
-        assert_eq!(
-            diagnostics.len(),
-            1,
-            "expected docstring-not-expected diagnostic"
-        );
-        #[expect(clippy::unwrap_used, reason = "test - checked len equals 1")]
-        let diag = diagnostics.first().unwrap();
-        assert_eq!(
-            diag.code,
-            Some(lsp_types::NumberOrString::String(
-                CODE_DOCSTRING_NOT_EXPECTED.to_owned()
-            ))
-        );
+        assert_single_diagnostic_with_code(&diagnostics, CODE_DOCSTRING_NOT_EXPECTED);
     }
 
     #[rstest]
@@ -525,18 +515,6 @@ mod tests {
         let diagnostics =
             compute_table_docstring_diagnostics_for_path(&scenario.state, &scenario.feature_path);
 
-        assert_eq!(
-            diagnostics.len(),
-            1,
-            "expected docstring-expected diagnostic"
-        );
-        #[expect(clippy::unwrap_used, reason = "test - checked len equals 1")]
-        let diag = diagnostics.first().unwrap();
-        assert_eq!(
-            diag.code,
-            Some(lsp_types::NumberOrString::String(
-                CODE_DOCSTRING_EXPECTED.to_owned()
-            ))
-        );
+        assert_single_diagnostic_with_code(&diagnostics, CODE_DOCSTRING_EXPECTED);
     }
 }
