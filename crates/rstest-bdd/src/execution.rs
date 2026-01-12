@@ -113,19 +113,15 @@ pub enum TestAttributeHint {
 ///
 /// * `step` - The step definition containing fixture requirements
 /// * `ctx` - The scenario context with available fixtures
-/// * `text` - The step text for error messages
-/// * `feature_path` - Path to the feature file for diagnostics
-/// * `scenario_name` - Name of the scenario for diagnostics
+/// * `request` - The step execution request for diagnostic context
 ///
 /// # Panics
 ///
 /// Panics if any fixture listed in `step.fixtures` is not available in `ctx`.
-pub fn validate_required_fixtures(
+fn validate_required_fixtures(
     step: &Step,
     ctx: &StepContext<'_>,
-    text: &str,
-    feature_path: &str,
-    scenario_name: &str,
+    request: &StepExecutionRequest<'_>,
 ) {
     if step.fixtures.is_empty() {
         return;
@@ -149,14 +145,14 @@ pub fn validate_required_fixtures(
                 "Available fixtures from scenario: {:?}\n",
                 "(feature: {}, scenario: {})",
             ),
-            text,
+            request.text,
             step.file,
             step.line,
             step.fixtures,
             missing,
             available_list,
-            feature_path,
-            scenario_name,
+            request.feature_path,
+            request.scenario_name,
         );
     }
 }
@@ -318,13 +314,7 @@ pub fn execute_step(
             )
         });
 
-    validate_required_fixtures(
-        step,
-        ctx,
-        request.text,
-        request.feature_path,
-        request.scenario_name,
-    );
+    validate_required_fixtures(step, ctx, request);
 
     match (step.run)(ctx, request.text, request.docstring, request.table) {
         Ok(StepExecution::Skipped { message }) => Err(encode_skip_message(message)),
