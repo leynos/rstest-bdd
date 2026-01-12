@@ -50,29 +50,92 @@ fn has_matching_implementation(state: &ServerState, step: &IndexedStep) -> bool 
         .any(|compiled| compiled.regex.is_match(&step.text))
 }
 
-/// Build a diagnostic for a feature step with the given code and message.
+/// Specification for building a step diagnostic.
+struct DiagnosticSpec {
+    code: &'static str,
+    message: String,
+    custom_range: Option<Range>,
+}
+
+/// Build a diagnostic for a feature step from a specification.
 ///
-/// Uses `custom_range` if provided, otherwise computes the range from `step.span`.
+/// Uses `spec.custom_range` if provided, otherwise computes the range from `step.span`.
 fn build_step_diagnostic(
     feature_index: &FeatureFileIndex,
     step: &IndexedStep,
-    code: &str,
-    message: String,
-    custom_range: Option<Range>,
+    spec: DiagnosticSpec,
 ) -> Diagnostic {
-    let range =
-        custom_range.unwrap_or_else(|| gherkin_span_to_lsp_range(&feature_index.source, step.span));
+    let range = spec
+        .custom_range
+        .unwrap_or_else(|| gherkin_span_to_lsp_range(&feature_index.source, step.span));
 
     Diagnostic {
         range,
         severity: Some(DiagnosticSeverity::WARNING),
-        code: Some(lsp_types::NumberOrString::String(code.to_owned())),
+        code: Some(lsp_types::NumberOrString::String(spec.code.to_owned())),
         code_description: None,
         source: Some(DIAGNOSTIC_SOURCE.to_owned()),
-        message,
+        message: spec.message,
         related_information: None,
         tags: None,
         data: None,
+    }
+}
+
+/// Kinds of diagnostics that can be reported for feature steps.
+enum FeatureStepDiagnosticKind {
+    /// No Rust implementation found for the step.
+    UnimplementedStep { keyword: String, text: String },
+    /// Feature step has a data table but implementation doesn't expect one.
+    TableNotExpected,
+    /// Implementation expects a data table but feature step doesn't have one.
+    TableExpected,
+    /// Feature step has a docstring but implementation doesn't expect one.
+    DocstringNotExpected,
+    /// Implementation expects a docstring but feature step doesn't have one.
+    DocstringExpected,
+}
+
+impl FeatureStepDiagnosticKind {
+    /// Build a diagnostic from this kind for the given step.
+    fn build(self, feature_index: &FeatureFileIndex, step: &IndexedStep) -> Diagnostic {
+        let spec = match self {
+            Self::UnimplementedStep { keyword, text } => DiagnosticSpec {
+                code: CODE_UNIMPLEMENTED_STEP,
+                message: format!("No Rust implementation found for {keyword} step: \"{text}\""),
+                custom_range: None,
+            },
+            Self::TableNotExpected => DiagnosticSpec {
+                code: CODE_TABLE_NOT_EXPECTED,
+                message: "Data table provided but step implementation does not expect one"
+                    .to_owned(),
+                custom_range: step
+                    .table
+                    .as_ref()
+                    .map(|t| gherkin_span_to_lsp_range(&feature_index.source, t.span)),
+            },
+            Self::TableExpected => DiagnosticSpec {
+                code: CODE_TABLE_EXPECTED,
+                message: "Step implementation expects a data table but none is provided".to_owned(),
+                custom_range: None,
+            },
+            Self::DocstringNotExpected => DiagnosticSpec {
+                code: CODE_DOCSTRING_NOT_EXPECTED,
+                message: "Doc string provided but step implementation does not expect one"
+                    .to_owned(),
+                custom_range: step
+                    .docstring
+                    .as_ref()
+                    .map(|d| gherkin_span_to_lsp_range(&feature_index.source, d.span)),
+            },
+            Self::DocstringExpected => DiagnosticSpec {
+                code: CODE_DOCSTRING_EXPECTED,
+                message: "Step implementation expects a doc string but none is provided".to_owned(),
+                custom_range: None,
+            },
+        };
+
+        build_step_diagnostic(feature_index, step, spec)
     }
 }
 
@@ -81,16 +144,11 @@ fn build_unimplemented_step_diagnostic(
     feature_index: &FeatureFileIndex,
     step: &IndexedStep,
 ) -> Diagnostic {
-    build_step_diagnostic(
-        feature_index,
-        step,
-        CODE_UNIMPLEMENTED_STEP,
-        format!(
-            "No Rust implementation found for {} step: \"{}\"",
-            step.keyword, step.text
-        ),
-        None,
-    )
+    FeatureStepDiagnosticKind::UnimplementedStep {
+        keyword: step.keyword.clone(),
+        text: step.text.clone(),
+    }
+    .build(feature_index, step)
 }
 
 /// Compute diagnostics for unused step definitions in a Rust file.
@@ -332,9 +390,9 @@ fn check_table_expectation(
     let step_has_table = step.table.is_some();
 
     if step_has_table && !impl_def.expects_table {
-        Some(build_table_not_expected_diagnostic(feature_index, step))
+        Some(FeatureStepDiagnosticKind::TableNotExpected.build(feature_index, step))
     } else if !step_has_table && impl_def.expects_table {
-        Some(build_table_expected_diagnostic(feature_index, step))
+        Some(FeatureStepDiagnosticKind::TableExpected.build(feature_index, step))
     } else {
         None
     }
@@ -353,9 +411,9 @@ fn check_docstring_expectation(
     let step_has_docstring = step.docstring.is_some();
 
     if step_has_docstring && !impl_def.expects_docstring {
-        Some(build_docstring_not_expected_diagnostic(feature_index, step))
+        Some(FeatureStepDiagnosticKind::DocstringNotExpected.build(feature_index, step))
     } else if !step_has_docstring && impl_def.expects_docstring {
-        Some(build_docstring_expected_diagnostic(feature_index, step))
+        Some(FeatureStepDiagnosticKind::DocstringExpected.build(feature_index, step))
     } else {
         None
     }
@@ -379,70 +437,4 @@ fn find_best_matching_implementation(
             a.pattern.len().cmp(&b.pattern.len())
         })
         .cloned()
-}
-
-/// Build a diagnostic for when the feature step has a table but the impl doesn't expect one.
-fn build_table_not_expected_diagnostic(
-    feature_index: &FeatureFileIndex,
-    step: &IndexedStep,
-) -> Diagnostic {
-    let custom_range = step
-        .table
-        .as_ref()
-        .map(|t| gherkin_span_to_lsp_range(&feature_index.source, t.span));
-
-    build_step_diagnostic(
-        feature_index,
-        step,
-        CODE_TABLE_NOT_EXPECTED,
-        "Data table provided but step implementation does not expect one".to_owned(),
-        custom_range,
-    )
-}
-
-/// Build a diagnostic for when the impl expects a table but the step doesn't have one.
-fn build_table_expected_diagnostic(
-    feature_index: &FeatureFileIndex,
-    step: &IndexedStep,
-) -> Diagnostic {
-    build_step_diagnostic(
-        feature_index,
-        step,
-        CODE_TABLE_EXPECTED,
-        "Step implementation expects a data table but none is provided".to_owned(),
-        None,
-    )
-}
-
-/// Build a diagnostic for when the feature step has a docstring but the impl doesn't expect one.
-fn build_docstring_not_expected_diagnostic(
-    feature_index: &FeatureFileIndex,
-    step: &IndexedStep,
-) -> Diagnostic {
-    let custom_range = step
-        .docstring
-        .as_ref()
-        .map(|d| gherkin_span_to_lsp_range(&feature_index.source, d.span));
-
-    build_step_diagnostic(
-        feature_index,
-        step,
-        CODE_DOCSTRING_NOT_EXPECTED,
-        "Doc string provided but step implementation does not expect one".to_owned(),
-        custom_range,
-    )
-}
-
-/// Build a diagnostic for when the impl expects a docstring but the step doesn't have one.
-fn build_docstring_expected_diagnostic(
-    feature_index: &FeatureFileIndex,
-    step: &IndexedStep,
-) -> Diagnostic {
-    build_step_diagnostic(
-        feature_index,
-        step,
-        CODE_DOCSTRING_EXPECTED,
-        "Step implementation expects a doc string but none is provided".to_owned(),
-        None,
-    )
 }
