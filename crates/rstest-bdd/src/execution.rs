@@ -7,9 +7,21 @@
 //!
 //! # Key Components
 //!
-//! - [`RuntimeMode`]: Enumeration of execution modes (sync, async variants)
-//! - [`TestAttributeHint`]: Compile-time hint for test attribute generation
-//! - Helper functions for step execution, fixture validation, and skip encoding
+//! - [`RuntimeMode`]: Canonical definition of execution modes (sync, async variants).
+//!   This is the runtime authoritative source; the macro crate maintains a parallel
+//!   enum for compile-time use (see `rstest_bdd_macros::macros::scenarios::macro_args`).
+//! - [`TestAttributeHint`]: Canonical definition for test attribute generation hints.
+//!   Also mirrored in the macro crate for compile-time attribute decisions.
+//! - [`StepExecutionRequest`]: Groups step data and diagnostic context for execution.
+//! - Helper functions for step execution, fixture validation, and skip encoding.
+//!
+//! # Enum Synchronisation
+//!
+//! The [`RuntimeMode`] and [`TestAttributeHint`] enums are intentionally duplicated
+//! in the macro crate (`rstest_bdd_macros::macros::scenarios::macro_args`). This
+//! duplication is necessary because proc-macro crates cannot depend on runtime crates
+//! at compile time. **Both definitions must be kept in sync manually.** When adding
+//! new variants or changing semantics, update both locations and their tests.
 
 use std::any::Any;
 use std::collections::HashSet;
@@ -23,11 +35,14 @@ const SKIP_NONE_PREFIX: char = '\u{0}';
 /// Prefix character for encoded skip messages with message content.
 const SKIP_SOME_PREFIX: char = '\u{1}';
 
-/// Runtime mode for scenario test execution.
+/// Runtime mode for scenario test execution (canonical definition).
 ///
 /// This enum represents the available execution strategies for scenarios.
-/// It is parsed from macro arguments and used to guide both compile-time
-/// attribute generation and runtime execution.
+/// It serves as the runtime authoritative definition for execution policy.
+///
+/// **Note:** The macro crate (`rstest_bdd_macros`) maintains a parallel enum
+/// for compile-time use. Both must be kept in sync—see the module-level
+/// documentation for details.
 ///
 /// # Examples
 ///
@@ -93,10 +108,14 @@ impl RuntimeMode {
     }
 }
 
-/// Hint for which test attributes the macro layer should generate.
+/// Hint for which test attributes the macro layer should generate (canonical definition).
 ///
 /// This enum provides a compile-time bridge between runtime policy decisions
 /// and macro-generated test attributes.
+///
+/// **Note:** The macro crate (`rstest_bdd_macros`) maintains a parallel enum
+/// for compile-time use. Both must be kept in sync—see the module-level
+/// documentation for details.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum TestAttributeHint {
     /// Generate only `#[rstest::rstest]`.

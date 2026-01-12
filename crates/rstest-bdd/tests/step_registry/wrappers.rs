@@ -182,3 +182,75 @@ step!(
     auto_async_wrapper,
     &[]
 );
+
+/// Step wrapper that succeeds and returns a value.
+///
+/// Used to test that `execute_step` correctly handles successful step execution
+/// with a return value.
+#[expect(
+    clippy::unnecessary_wraps,
+    reason = "wrapper must match StepFn signature"
+)]
+fn value_returning_wrapper(
+    _ctx: &mut StepContext<'_>,
+    _text: &str,
+    _docstring: Option<&str>,
+    _table: Option<&[&[&str]]>,
+) -> Result<StepExecution, StepError> {
+    Ok(StepExecution::from_value(Some(Box::new(42i32))))
+}
+
+step!(
+    StepKeyword::Given,
+    "returns value",
+    value_returning_wrapper,
+    &[]
+);
+
+/// Step wrapper that requests a skip without a message.
+///
+/// Used to test that `execute_step` correctly handles skip requests.
+#[expect(
+    clippy::unnecessary_wraps,
+    reason = "wrapper must match StepFn signature"
+)]
+fn skip_wrapper(
+    _ctx: &mut StepContext<'_>,
+    _text: &str,
+    _docstring: Option<&str>,
+    _table: Option<&[&[&str]]>,
+) -> Result<StepExecution, StepError> {
+    Ok(StepExecution::Skipped { message: None })
+}
+
+step!(
+    StepKeyword::When,
+    "skips without message",
+    skip_wrapper,
+    &[]
+);
+
+/// Step wrapper that requests a skip with a message.
+///
+/// Used to test that `execute_step` correctly encodes and propagates skip messages.
+#[expect(
+    clippy::unnecessary_wraps,
+    reason = "wrapper must match StepFn signature"
+)]
+fn skip_with_message_wrapper(
+    _ctx: &mut StepContext<'_>,
+    _text: &str,
+    _docstring: Option<&str>,
+    _table: Option<&[&[&str]]>,
+) -> Result<StepExecution, StepError> {
+    Ok(StepExecution::Skipped {
+        message: Some("test skip reason".to_string()),
+    })
+}
+
+step!(
+    StepKeyword::Then,
+    "skips with message",
+    skip_with_message_wrapper,
+    &[]
+);

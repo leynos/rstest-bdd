@@ -440,4 +440,24 @@ mod tests {
         ));
         assert_parse_error_contains(result, "duplicate");
     }
+
+    // Tests for RuntimeMode::test_attribute_hint
+
+    #[test]
+    fn runtime_mode_sync_returns_rstest_only_hint() {
+        use super::TestAttributeHint;
+        assert_eq!(
+            RuntimeMode::Sync.test_attribute_hint(),
+            TestAttributeHint::RstestOnly
+        );
+    }
+
+    #[test]
+    fn runtime_mode_tokio_current_thread_returns_rstest_with_tokio_hint() {
+        use super::TestAttributeHint;
+        assert_eq!(
+            RuntimeMode::TokioCurrentThread.test_attribute_hint(),
+            TestAttributeHint::RstestWithTokioCurrentThread
+        );
+    }
 }
