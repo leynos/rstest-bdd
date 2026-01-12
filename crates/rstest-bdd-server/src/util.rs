@@ -73,29 +73,29 @@ pub fn byte_col_to_utf16_col(source: &str, line_0: usize, byte_col: usize) -> u3
 
 #[cfg(test)]
 mod tests {
+    use rstest::rstest;
+
     use super::*;
 
     // --- utf16_code_units tests ---
 
-    #[test]
-    fn utf16_code_units_ascii_characters() {
-        assert_eq!(utf16_code_units('a'), 1);
-        assert_eq!(utf16_code_units('Z'), 1);
-        assert_eq!(utf16_code_units('0'), 1);
-        assert_eq!(utf16_code_units(' '), 1);
-        assert_eq!(utf16_code_units('\n'), 1);
+    #[rstest]
+    #[case('a', 1)]
+    #[case('Z', 1)]
+    #[case('0', 1)]
+    #[case(' ', 1)]
+    #[case('\n', 1)]
+    fn utf16_code_units_ascii_characters(#[case] ch: char, #[case] expected: u32) {
+        assert_eq!(utf16_code_units(ch), expected);
     }
 
-    #[test]
-    fn utf16_code_units_bmp_non_ascii() {
-        // Latin Extended (é = U+00E9)
-        assert_eq!(utf16_code_units('é'), 1);
-        // Greek (α = U+03B1)
-        assert_eq!(utf16_code_units('α'), 1);
-        // CJK (日 = U+65E5)
-        assert_eq!(utf16_code_units('日'), 1);
-        // Arabic (ع = U+0639)
-        assert_eq!(utf16_code_units('ع'), 1);
+    #[rstest]
+    #[case('é', 1)] // Latin Extended (U+00E9)
+    #[case('α', 1)] // Greek (U+03B1)
+    #[case('日', 1)] // CJK (U+65E5)
+    #[case('ع', 1)] // Arabic (U+0639)
+    fn utf16_code_units_bmp_non_ascii(#[case] ch: char, #[case] expected: u32) {
+        assert_eq!(utf16_code_units(ch), expected);
     }
 
     #[test]
@@ -151,28 +151,35 @@ mod tests {
         assert_eq!(byte_col_to_utf16_col(source, 0, 14), 12);
     }
 
-    #[test]
-    fn byte_col_mixed_characters() {
-        // Mix of ASCII, BMP non-ASCII, and non-BMP
-        // "café🎉" = c(1) + a(1) + f(1) + é(2) + 🎉(4) = 9 bytes
+    /// Mix of ASCII, BMP non-ASCII, and non-BMP.
+    /// "café🎉" = c(1) + a(1) + f(1) + é(2) + 🎉(4) = 9 bytes
+    #[rstest]
+    #[case(0, 0)]
+    #[case(3, 3)] // After "caf"
+    #[case(5, 4)] // After "café"
+    #[case(9, 6)] // After "café🎉"
+    fn byte_col_mixed_characters(#[case] byte_col: usize, #[case] expected: u32) {
         let source = "café🎉";
-        assert_eq!(byte_col_to_utf16_col(source, 0, 0), 0);
-        assert_eq!(byte_col_to_utf16_col(source, 0, 3), 3); // After "caf"
-        assert_eq!(byte_col_to_utf16_col(source, 0, 5), 4); // After "café"
-        assert_eq!(byte_col_to_utf16_col(source, 0, 9), 6); // After "café🎉"
+        assert_eq!(byte_col_to_utf16_col(source, 0, byte_col), expected);
     }
 
-    #[test]
-    fn byte_col_multiline_source() {
+    /// Multiline source: "line1\nlinéé2\nline3"
+    /// Line 0: "line1" (ASCII only)
+    /// Line 1: "linéé2" - "lin" = 3 bytes/units, then "é" = 2 bytes each
+    /// Line 2: "line3" (ASCII only)
+    #[rstest]
+    #[case(0, 3, 3)] // Line 0: after "lin"
+    #[case(1, 3, 3)] // Line 1: after "lin"
+    #[case(1, 5, 4)] // Line 1: after first "é"
+    #[case(1, 7, 5)] // Line 1: after second "é"
+    #[case(2, 5, 5)] // Line 2: after "line3"
+    fn byte_col_multiline_source(
+        #[case] line: usize,
+        #[case] byte_col: usize,
+        #[case] expected: u32,
+    ) {
         let source = "line1\nlinéé2\nline3";
-        // Line 0: "line1" (ASCII only)
-        assert_eq!(byte_col_to_utf16_col(source, 0, 3), 3);
-        // Line 1: "linéé2" - "lin" = 3 bytes/units, then "é" = 2 bytes each
-        assert_eq!(byte_col_to_utf16_col(source, 1, 3), 3); // After "lin"
-        assert_eq!(byte_col_to_utf16_col(source, 1, 5), 4); // After first "é"
-        assert_eq!(byte_col_to_utf16_col(source, 1, 7), 5); // After second "é"
-        // Line 2: "line3" (ASCII only)
-        assert_eq!(byte_col_to_utf16_col(source, 2, 5), 5);
+        assert_eq!(byte_col_to_utf16_col(source, line, byte_col), expected);
     }
 
     #[test]
@@ -197,15 +204,16 @@ mod tests {
         assert_eq!(byte_col_to_utf16_col(source, 0, 100), 5);
     }
 
-    #[test]
-    fn byte_col_cjk_characters() {
-        // CJK characters are BMP (1 UTF-16 unit) but 3 bytes in UTF-8
-        // "日本語" = 9 bytes, 3 UTF-16 units
+    /// CJK characters are BMP (1 UTF-16 unit) but 3 bytes in UTF-8.
+    /// "日本語" = 9 bytes, 3 UTF-16 units
+    #[rstest]
+    #[case(0, 0)]
+    #[case(3, 1)] // After first char
+    #[case(6, 2)] // After second char
+    #[case(9, 3)] // After third char
+    fn byte_col_cjk_characters(#[case] byte_col: usize, #[case] expected: u32) {
         let source = "日本語";
-        assert_eq!(byte_col_to_utf16_col(source, 0, 0), 0);
-        assert_eq!(byte_col_to_utf16_col(source, 0, 3), 1); // After first char
-        assert_eq!(byte_col_to_utf16_col(source, 0, 6), 2); // After second char
-        assert_eq!(byte_col_to_utf16_col(source, 0, 9), 3); // After third char
+        assert_eq!(byte_col_to_utf16_col(source, 0, byte_col), expected);
     }
 
     #[test]
