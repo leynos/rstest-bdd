@@ -19,7 +19,7 @@ fn extract_path(expr: &syn::Expr) -> &syn::Path {
     }
 }
 
-/// Assert that a path ends with `execution::execute_step`.
+/// Assert that a path ends with `{module}::{function}`.
 ///
 /// This is more robust than string matching as it checks specific path segments
 /// rather than substring containment, ensuring the test remains valid even if
@@ -28,53 +28,36 @@ fn extract_path(expr: &syn::Expr) -> &syn::Path {
     clippy::indexing_slicing,
     reason = "indices are bounds-checked by the preceding assert"
 )]
-fn assert_path_is_execution_execute_step(path: &syn::Path) {
+fn assert_path_ends_with_module_function(path: &syn::Path, module: &str, function: &str) {
     let segments: Vec<_> = path.segments.iter().map(|s| s.ident.to_string()).collect();
     let len = segments.len();
 
     assert!(
         len >= 2,
-        "expected path with at least 2 segments (execution::execute_step), got: {segments:?}"
+        "expected path with at least 2 segments ({module}::{function}), got: {segments:?}"
     );
 
     assert_eq!(
         segments[len - 2],
-        "execution",
-        "expected second-to-last segment to be 'execution', got path: {segments:?}"
+        module,
+        "expected second-to-last segment to be '{module}', got path: {segments:?}"
     );
 
     assert_eq!(
         segments[len - 1],
-        "execute_step",
-        "expected last segment to be 'execute_step', got path: {segments:?}"
+        function,
+        "expected last segment to be '{function}', got path: {segments:?}"
     );
 }
 
+/// Assert that a path ends with `execution::execute_step`.
+fn assert_path_is_execution_execute_step(path: &syn::Path) {
+    assert_path_ends_with_module_function(path, "execution", "execute_step");
+}
+
 /// Assert that a path ends with `execution::decode_skip_message`.
-#[expect(
-    clippy::indexing_slicing,
-    reason = "indices are bounds-checked by the preceding assert"
-)]
 fn assert_path_is_execution_decode_skip_message(path: &syn::Path) {
-    let segments: Vec<_> = path.segments.iter().map(|s| s.ident.to_string()).collect();
-    let len = segments.len();
-
-    assert!(
-        len >= 2,
-        "expected path with at least 2 segments (execution::decode_skip_message), got: {segments:?}"
-    );
-
-    assert_eq!(
-        segments[len - 2],
-        "execution",
-        "expected second-to-last segment to be 'execution', got path: {segments:?}"
-    );
-
-    assert_eq!(
-        segments[len - 1],
-        "decode_skip_message",
-        "expected last segment to be 'decode_skip_message', got path: {segments:?}"
-    );
+    assert_path_ends_with_module_function(path, "execution", "decode_skip_message");
 }
 
 #[expect(

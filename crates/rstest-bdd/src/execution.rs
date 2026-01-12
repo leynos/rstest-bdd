@@ -248,7 +248,13 @@ pub fn decode_skip_message(encoded: String) -> Option<String> {
             let prefix_len = c.len_utf8();
             Some(encoded.get(prefix_len..)?.to_string())
         }
-        // Defensive: preserve unexpected/malformed input rather than panic
+        // Defensive fallback: preserve unexpected or malformed input rather than
+        // panicking. This handles edge cases such as:
+        // - Empty strings (no prefix character present)
+        // - Future format changes where the prefix characters evolve
+        // - Corrupted messages from unexpected runtime conditions
+        // Returning the original input wrapped in `Some` allows downstream code
+        // to inspect and diagnose the unexpected format.
         _ => Some(encoded),
     }
 }
