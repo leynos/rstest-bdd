@@ -94,7 +94,7 @@ pub fn index_rust_source(
     let file = syn::parse_file(source)?;
     let mut step_definitions = Vec::new();
     let mut module_path = Vec::new();
-    collect_step_definitions(&file.items, &mut module_path, &mut step_definitions)?;
+    collect_step_definitions(&file.items, source, &mut module_path, &mut step_definitions)?;
 
     Ok(RustStepFileIndex {
         path,
@@ -104,13 +104,14 @@ pub fn index_rust_source(
 
 fn collect_step_definitions(
     items: &[syn::Item],
+    source: &str,
     module_path: &mut Vec<String>,
     out: &mut Vec<IndexedStepDefinition>,
 ) -> Result<(), RustStepIndexError> {
     for item in items {
         match item {
             syn::Item::Fn(item_fn) => {
-                if let Some(step) = index_step_function(item_fn, module_path)? {
+                if let Some(step) = index_step_function(item_fn, source, module_path)? {
                     out.push(step);
                 }
             }
@@ -119,7 +120,7 @@ fn collect_step_definitions(
                     continue;
                 };
                 module_path.push(item_mod.ident.to_string());
-                collect_step_definitions(items, module_path, out)?;
+                collect_step_definitions(items, source, module_path, out)?;
                 module_path.pop();
             }
             _ => {}
@@ -189,6 +190,7 @@ fn parse_function_parameters(
 
 fn index_step_function(
     item_fn: &syn::ItemFn,
+    source: &str,
     module_path: &[String],
 ) -> Result<Option<IndexedStepDefinition>, RustStepIndexError> {
     let Some(step_attribute) = find_step_attribute(item_fn)? else {
@@ -207,7 +209,7 @@ fn index_step_function(
 
     // Extract span from the step attribute (syn uses 1-based line numbers).
     // Line/column numbers in practice will never exceed u32::MAX, so truncation is safe.
-    let attribute_span = extract_attribute_span(step_attribute.attr, &item_fn.sig);
+    let attribute_span = extract_attribute_span(step_attribute.attr, &item_fn.sig, source);
 
     Ok(Some(IndexedStepDefinition {
         keyword: step_attribute.keyword,
@@ -257,23 +259,31 @@ struct StepAttribute<'a> {
 /// Extract the span of a step attribute and function line as 0-based positions.
 ///
 /// Converts `syn`'s 1-based line numbers to 0-based for LSP compatibility.
-/// Column values from `syn` are byte offsets from line start, which equal
-/// character offsets for ASCII content (typical in attribute syntax).
+/// Byte column offsets from `syn` are converted to UTF-16 code units as required
+/// by the LSP specification.
 #[expect(
     clippy::cast_possible_truncation,
     reason = "line/column numbers from syn will not exceed u32::MAX in practice"
 )]
-fn extract_attribute_span(attr: &syn::Attribute, fn_sig: &syn::Signature) -> RustAttributeSpan {
+fn extract_attribute_span(
+    attr: &syn::Attribute,
+    fn_sig: &syn::Signature,
+    source: &str,
+) -> RustAttributeSpan {
+    use crate::handlers::util::byte_col_to_utf16_col;
     let span = attr.span();
     let start = span.start();
     let end = span.end();
-    let fn_line = fn_sig.fn_token.span.start().line.saturating_sub(1) as u32;
-
+    let fn_line = fn_sig.fn_token.span().start().line.saturating_sub(1) as u32;
+    let start_line_0 = start.line.saturating_sub(1);
+    let end_line_0 = end.line.saturating_sub(1);
+    let start_col_utf16 = byte_col_to_utf16_col(source, start_line_0, start.column);
+    let end_col_utf16 = byte_col_to_utf16_col(source, end_line_0, end.column);
     RustAttributeSpan {
-        start_line: start.line.saturating_sub(1) as u32,
-        start_column: start.column as u32,
-        end_line: end.line.saturating_sub(1) as u32,
-        end_column: end.column as u32,
+        start_line: start_line_0 as u32,
+        start_column: start_col_utf16,
+        end_line: end_line_0 as u32,
+        end_column: end_col_utf16,
         function_line: fn_line,
     }
 }

@@ -78,6 +78,10 @@ fn is_rust_file(path: &Path) -> bool {
 ///
 /// Returns `true` if the position is within the span boundaries, where the
 /// start position is inclusive and the end position is exclusive.
+///
+/// Both the target position and the span use UTF-16 code unit columns, matching
+/// the LSP `Position::character` specification. This allows direct comparison
+/// without conversion.
 fn position_in_span(
     target_line: u32,
     target_col: u32,

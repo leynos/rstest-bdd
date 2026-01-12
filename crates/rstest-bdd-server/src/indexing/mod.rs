@@ -117,25 +117,49 @@ pub struct RustStepFileIndex {
 /// Span information for a Rust step attribute and its associated function.
 ///
 /// Captures the start and end positions of an attribute (e.g., `#[given("...")]`)
-/// in terms of 0-based line and column offsets. The column values represent
-/// character offsets from the start of the line. Also records the function
-/// signature line for navigation purposes.
+/// in terms of 0-based line numbers and UTF-16 code unit column offsets. Column
+/// values are converted from `syn`'s byte offsets to UTF-16 code units for LSP
+/// compatibility. Also records the function signature line for navigation.
 ///
-/// Note: `syn` provides column as byte offset from line start. Since step
-/// attribute syntax is ASCII-only, byte offset equals character offset. For
-/// LSP compatibility (which uses UTF-16 code units), ASCII characters map 1:1.
+/// # LSP Compatibility
+///
+/// All column values are stored as UTF-16 code units, matching the LSP
+/// specification for `Position::character`. This allows direct comparison with
+/// LSP positions without conversion. The conversion from `syn`'s byte offsets
+/// occurs during indexing in `extract_attribute_span`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RustAttributeSpan {
     /// 0-based starting line number.
     pub start_line: u32,
-    /// 0-based starting column (character offset from line start).
+    /// 0-based starting column (UTF-16 code units from line start).
     pub start_column: u32,
     /// 0-based ending line number.
     pub end_line: u32,
-    /// 0-based ending column (character offset from line start).
+    /// 0-based ending column (UTF-16 code units from line start).
     pub end_column: u32,
     /// 0-based line number of the function signature (for navigation).
     pub function_line: u32,
+}
+
+impl RustAttributeSpan {
+    /// Convert this span to an LSP `Range`.
+    ///
+    /// Returns a range covering the attribute (e.g., `#[given("...")]`). The
+    /// start position is inclusive and the end position is exclusive, following
+    /// LSP semantics.
+    #[must_use]
+    pub fn to_lsp_range(&self) -> lsp_types::Range {
+        lsp_types::Range {
+            start: lsp_types::Position {
+                line: self.start_line,
+                character: self.start_column,
+            },
+            end: lsp_types::Position {
+                line: self.end_line,
+                character: self.end_column,
+            },
+        }
+    }
 }
 
 /// A Rust function annotated with `#[given]`, `#[when]`, or `#[then]`.

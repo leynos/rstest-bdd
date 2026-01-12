@@ -6,7 +6,7 @@
 
 use std::{path::Path, sync::Arc};
 
-use lsp_types::{Diagnostic, DiagnosticSeverity, Range};
+use lsp_types::{Diagnostic, DiagnosticSeverity};
 
 use crate::indexing::{CompiledStepDefinition, FeatureFileIndex, IndexedStep};
 use crate::server::ServerState;
@@ -93,11 +93,7 @@ fn has_matching_feature_step(state: &ServerState, step_def: &Arc<CompiledStepDef
 
 /// Build a diagnostic for an unused step definition.
 fn build_unused_step_diagnostic(step_def: &Arc<CompiledStepDefinition>) -> Diagnostic {
-    let span = &step_def.attribute_span;
-    let range = Range {
-        start: lsp_types::Position::new(span.start_line, span.start_column),
-        end: lsp_types::Position::new(span.end_line, span.end_column),
-    };
+    let range = step_def.attribute_span.to_lsp_range();
 
     Diagnostic {
         range,
