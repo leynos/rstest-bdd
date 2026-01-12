@@ -270,7 +270,7 @@ fn extract_attribute_span(
     fn_sig: &syn::Signature,
     source: &str,
 ) -> RustAttributeSpan {
-    use crate::handlers::util::byte_col_to_utf16_col;
+    use crate::util::byte_col_to_utf16_col;
     let span = attr.span();
     let start = span.start();
     let end = span.end();

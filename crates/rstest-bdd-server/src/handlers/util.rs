@@ -2,9 +2,17 @@
 //!
 //! This module provides helper functions for converting between `gherkin` types
 //! and LSP protocol types, particularly for span and position conversions.
+//!
+//! Note: Fundamental UTF-16 conversion utilities are in [`crate::util`] to avoid
+//! circular dependencies between modules.
 
 use gherkin::Span;
 use lsp_types::{Position, Range};
+
+use crate::util::utf16_code_units;
+
+// Re-export for backwards compatibility
+pub use crate::util::byte_col_to_utf16_col;
 
 /// Convert a `gherkin::Span` (byte offsets) to an `lsp_types::Range` (0-based line/col).
 ///
@@ -43,15 +51,6 @@ pub fn gherkin_span_to_lsp_range(source: &str, span: Span) -> Range {
 struct LineColPosition {
     line: u32,
     col: u32,
-}
-
-/// Calculate UTF-16 code units for a character.
-///
-/// BMP characters (code points ≤ 0xFFFF) use 1 UTF-16 code unit.
-/// Non-BMP characters (code points > 0xFFFF) use 2 UTF-16 code units (surrogate pair).
-#[inline]
-fn utf16_code_units(ch: char) -> u32 {
-    if u32::from(ch) <= 0xFFFF { 1 } else { 2 }
 }
 
 /// Return the clamped byte offset after exhausting the source.
@@ -157,44 +156,6 @@ pub fn lsp_position_to_byte_offset(source: &str, position: Position) -> usize {
         last_byte_on_target_line,
         current_byte,
     )
-}
-
-/// Convert a byte column offset to UTF-16 code units for a single line.
-///
-/// Given a 0-based line number and a byte offset within that line, returns the
-/// equivalent UTF-16 code unit column position. This is useful for converting
-/// `syn` span columns (which are byte offsets) to LSP positions.
-///
-/// # Arguments
-///
-/// * `source` - The full source text
-/// * `line_0` - The 0-based line number
-/// * `byte_col` - The byte offset within the line
-///
-/// # Examples
-///
-/// ```
-/// use rstest_bdd_server::handlers::util::byte_col_to_utf16_col;
-///
-/// // ASCII: byte offset equals UTF-16 column
-/// let source = "fn foo() {}";
-/// assert_eq!(byte_col_to_utf16_col(source, 0, 3), 3);
-///
-/// // Non-ASCII: "é" is 2 bytes but 1 UTF-16 code unit
-/// let source = "#[given(\"café\")]";
-/// // At byte 14 (after "café" ends), UTF-16 column is 13 (one less than bytes)
-/// assert_eq!(byte_col_to_utf16_col(source, 0, 14), 13);
-/// ```
-#[must_use]
-pub fn byte_col_to_utf16_col(source: &str, line_0: usize, byte_col: usize) -> u32 {
-    let line_text = source.lines().nth(line_0).unwrap_or("");
-
-    // Count UTF-16 code units for characters whose byte position is before byte_col
-    line_text
-        .char_indices()
-        .take_while(|(byte_pos, _)| *byte_pos < byte_col)
-        .map(|(_, ch)| utf16_code_units(ch))
-        .sum::<u32>()
 }
 
 /// Convert a byte offset to an LSP Position (0-based line and character).
