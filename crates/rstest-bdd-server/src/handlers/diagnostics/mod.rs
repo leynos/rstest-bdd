@@ -283,108 +283,83 @@ mod tests {
     }
 
     #[rstest]
-    fn placeholder_count_mismatch_missing_param(scenario_builder: ScenarioBuilder) {
+    #[case::missing_param(
         // Pattern has 1 placeholder, function has 0 step arguments
-        let scenario = scenario_builder.with_single_file_pair(
-            "Feature: test\n  Scenario: s\n    Given I have 5 apples\n",
-            concat!(
-                "use rstest_bdd_macros::given;\n\n",
-                "#[given(\"I have {count} apples\")]\n",
-                "fn have_apples() {}\n",
-            ),
-        );
-
-        let diagnostics =
-            compute_signature_diagnostics_for_path(&scenario.state, &scenario.rust_path);
-
-        let diag =
-            assert_single_diagnostic_with_code(&diagnostics, CODE_PLACEHOLDER_COUNT_MISMATCH);
-        assert_diagnostic_message_contains(diag, &["1 placeholder", "0 step argument"]);
-    }
-
-    #[rstest]
-    fn placeholder_count_mismatch_extra_placeholder(scenario_builder: ScenarioBuilder) {
+        "Feature: test\n  Scenario: s\n    Given I have 5 apples\n",
+        concat!(
+            "use rstest_bdd_macros::given;\n\n",
+            "#[given(\"I have {count} apples\")]\n",
+            "fn have_apples() {}\n",
+        ),
+        1,
+        Some(("1 placeholder", "0 step argument")),
+    )]
+    #[case::extra_placeholder(
         // Pattern has 2 placeholders, function has 1 step argument
-        let scenario = scenario_builder.with_single_file_pair(
-            "Feature: test\n  Scenario: s\n    Given I have 5 red apples\n",
-            concat!(
-                "use rstest_bdd_macros::given;\n\n",
-                "#[given(\"I have {count} {color} apples\")]\n",
-                "fn have_apples(count: u32) {}\n",
-            ),
-        );
-
+        "Feature: test\n  Scenario: s\n    Given I have 5 red apples\n",
+        concat!(
+            "use rstest_bdd_macros::given;\n\n",
+            "#[given(\"I have {count} {color} apples\")]\n",
+            "fn have_apples(count: u32) {}\n",
+        ),
+        1,
+        Some(("2 placeholder", "1 step argument")),
+    )]
+    #[case::counts_match(
+        // Pattern has 1 placeholder, function has 1 step argument - no diagnostic
+        "Feature: test\n  Scenario: s\n    Given I have 5 apples\n",
+        concat!(
+            "use rstest_bdd_macros::given;\n\n",
+            "#[given(\"I have {count} apples\")]\n",
+            "fn have_apples(count: u32) {}\n",
+        ),
+        0,
+        None,
+    )]
+    #[case::fixture_excluded(
+        // Pattern has 1 placeholder, function has 1 step arg + 1 fixture - no diagnostic
+        "Feature: test\n  Scenario: s\n    Given I have 5 apples\n",
+        concat!(
+            "use rstest_bdd_macros::given;\n\n",
+            "#[given(\"I have {count} apples\")]\n",
+            "fn have_apples(count: u32, context: &mut TestContext) {}\n",
+        ),
+        0,
+        None,
+    )]
+    #[case::datatable_docstring_excluded(
+        // Pattern has 1 placeholder, function has count + datatable + docstring - no diagnostic
+        "Feature: test\n  Scenario: s\n    Given I have 5 apples\n      | col |\n      | val |\n",
+        concat!(
+            "use rstest_bdd_macros::given;\n",
+            "use rstest_bdd::DataTable;\n\n",
+            "#[given(\"I have {count} apples\")]\n",
+            "fn have_apples(count: u32, datatable: DataTable, docstring: String) {}\n",
+        ),
+        0,
+        None,
+    )]
+    fn placeholder_count_validation(
+        scenario_builder: ScenarioBuilder,
+        #[case] feature_content: &str,
+        #[case] rust_content: &str,
+        #[case] expected_count: usize,
+        #[case] message_fragments: Option<(&str, &str)>,
+    ) {
+        let scenario = scenario_builder.with_single_file_pair(feature_content, rust_content);
         let diagnostics =
             compute_signature_diagnostics_for_path(&scenario.state, &scenario.rust_path);
 
-        let diag =
-            assert_single_diagnostic_with_code(&diagnostics, CODE_PLACEHOLDER_COUNT_MISMATCH);
-        assert_diagnostic_message_contains(diag, &["2 placeholder", "1 step argument"]);
-    }
-
-    #[rstest]
-    fn no_placeholder_mismatch_when_counts_match(scenario_builder: ScenarioBuilder) {
-        // Pattern has 1 placeholder, function has 1 step argument
-        let scenario = scenario_builder.with_single_file_pair(
-            "Feature: test\n  Scenario: s\n    Given I have 5 apples\n",
-            concat!(
-                "use rstest_bdd_macros::given;\n\n",
-                "#[given(\"I have {count} apples\")]\n",
-                "fn have_apples(count: u32) {}\n",
-            ),
+        assert_eq!(
+            diagnostics.len(),
+            expected_count,
+            "expected {expected_count} diagnostic(s)"
         );
-
-        let diagnostics =
-            compute_signature_diagnostics_for_path(&scenario.state, &scenario.rust_path);
-
-        assert!(
-            diagnostics.is_empty(),
-            "expected no diagnostics when counts match"
-        );
-    }
-
-    #[rstest]
-    fn fixture_params_excluded_from_step_arg_count(scenario_builder: ScenarioBuilder) {
-        // Pattern has 1 placeholder, function has 1 step arg (count) and 1 fixture (context)
-        let scenario = scenario_builder.with_single_file_pair(
-            "Feature: test\n  Scenario: s\n    Given I have 5 apples\n",
-            concat!(
-                "use rstest_bdd_macros::given;\n\n",
-                "#[given(\"I have {count} apples\")]\n",
-                "fn have_apples(count: u32, context: &mut TestContext) {}\n",
-            ),
-        );
-
-        let diagnostics =
-            compute_signature_diagnostics_for_path(&scenario.state, &scenario.rust_path);
-
-        // context is not in placeholder set, so it's a fixture and shouldn't be counted
-        assert!(
-            diagnostics.is_empty(),
-            "fixture params should be excluded from count"
-        );
-    }
-
-    #[rstest]
-    fn datatable_and_docstring_params_excluded(scenario_builder: ScenarioBuilder) {
-        // Pattern has 1 placeholder, function has count + datatable + docstring
-        let scenario = scenario_builder.with_single_file_pair(
-            "Feature: test\n  Scenario: s\n    Given I have 5 apples\n      | col |\n      | val |\n",
-            concat!(
-                "use rstest_bdd_macros::given;\n",
-                "use rstest_bdd::DataTable;\n\n",
-                "#[given(\"I have {count} apples\")]\n",
-                "fn have_apples(count: u32, datatable: DataTable, docstring: String) {}\n",
-            ),
-        );
-
-        let diagnostics =
-            compute_signature_diagnostics_for_path(&scenario.state, &scenario.rust_path);
-
-        assert!(
-            diagnostics.is_empty(),
-            "datatable and docstring should be excluded"
-        );
+        if let Some((frag1, frag2)) = message_fragments {
+            let diag =
+                assert_single_diagnostic_with_code(&diagnostics, CODE_PLACEHOLDER_COUNT_MISMATCH);
+            assert_diagnostic_message_contains(diag, &[frag1, frag2]);
+        }
     }
 
     // ========================================================================
@@ -405,116 +380,98 @@ mod tests {
     }
 
     #[rstest]
-    fn table_not_expected_diagnostic(scenario_builder: ScenarioBuilder) {
+    #[case::table_not_expected(
         // Feature has table, Rust doesn't expect it
-        let scenario = scenario_builder.with_single_file_pair(
-            concat!(
-                "Feature: test\n",
-                "  Scenario: s\n",
-                "    Given a step\n",
-                "      | col |\n",
-                "      | val |\n",
-            ),
-            concat!(
-                "use rstest_bdd_macros::given;\n\n",
-                "#[given(\"a step\")]\n",
-                "fn a_step() {}\n",
-            ),
-        );
-
-        let diagnostics =
-            compute_table_docstring_diagnostics_for_path(&scenario.state, &scenario.feature_path);
-
-        assert_single_diagnostic_with_code(&diagnostics, CODE_TABLE_NOT_EXPECTED);
-    }
-
-    #[rstest]
-    fn table_expected_diagnostic(scenario_builder: ScenarioBuilder) {
+        concat!(
+            "Feature: test\n",
+            "  Scenario: s\n",
+            "    Given a step\n",
+            "      | col |\n",
+            "      | val |\n",
+        ),
+        concat!(
+            "use rstest_bdd_macros::given;\n\n",
+            "#[given(\"a step\")]\n",
+            "fn a_step() {}\n",
+        ),
+        Some(CODE_TABLE_NOT_EXPECTED),
+    )]
+    #[case::table_expected(
         // Rust expects table, feature doesn't have one
-        let scenario = scenario_builder.with_single_file_pair(
-            "Feature: test\n  Scenario: s\n    Given a step\n",
-            concat!(
-                "use rstest_bdd_macros::given;\n",
-                "use rstest_bdd::DataTable;\n\n",
-                "#[given(\"a step\")]\n",
-                "fn a_step(datatable: DataTable) {}\n",
-            ),
-        );
-
-        let diagnostics =
-            compute_table_docstring_diagnostics_for_path(&scenario.state, &scenario.feature_path);
-
-        assert_single_diagnostic_with_code(&diagnostics, CODE_TABLE_EXPECTED);
-    }
-
-    #[rstest]
-    fn no_table_diagnostic_when_matched(scenario_builder: ScenarioBuilder) {
-        // Both have table
-        let scenario = scenario_builder.with_single_file_pair(
-            concat!(
-                "Feature: test\n",
-                "  Scenario: s\n",
-                "    Given a step\n",
-                "      | col |\n",
-                "      | val |\n",
-            ),
-            concat!(
-                "use rstest_bdd_macros::given;\n",
-                "use rstest_bdd::DataTable;\n\n",
-                "#[given(\"a step\")]\n",
-                "fn a_step(datatable: DataTable) {}\n",
-            ),
-        );
-
-        let diagnostics =
-            compute_table_docstring_diagnostics_for_path(&scenario.state, &scenario.feature_path);
-
-        assert!(
-            diagnostics.is_empty(),
-            "no diagnostic when table expectations match"
-        );
-    }
-
-    #[rstest]
-    fn docstring_not_expected_diagnostic(scenario_builder: ScenarioBuilder) {
+        "Feature: test\n  Scenario: s\n    Given a step\n",
+        concat!(
+            "use rstest_bdd_macros::given;\n",
+            "use rstest_bdd::DataTable;\n\n",
+            "#[given(\"a step\")]\n",
+            "fn a_step(datatable: DataTable) {}\n",
+        ),
+        Some(CODE_TABLE_EXPECTED),
+    )]
+    #[case::table_matched(
+        // Both have table - no diagnostic
+        concat!(
+            "Feature: test\n",
+            "  Scenario: s\n",
+            "    Given a step\n",
+            "      | col |\n",
+            "      | val |\n",
+        ),
+        concat!(
+            "use rstest_bdd_macros::given;\n",
+            "use rstest_bdd::DataTable;\n\n",
+            "#[given(\"a step\")]\n",
+            "fn a_step(datatable: DataTable) {}\n",
+        ),
+        None,
+    )]
+    #[case::docstring_not_expected(
         // Feature has docstring, Rust doesn't expect it
-        let scenario = scenario_builder.with_single_file_pair(
-            concat!(
-                "Feature: test\n",
-                "  Scenario: s\n",
-                "    Given a step\n",
-                "      \"\"\"\n",
-                "      some content\n",
-                "      \"\"\"\n",
-            ),
-            concat!(
-                "use rstest_bdd_macros::given;\n\n",
-                "#[given(\"a step\")]\n",
-                "fn a_step() {}\n",
-            ),
-        );
-
-        let diagnostics =
-            compute_table_docstring_diagnostics_for_path(&scenario.state, &scenario.feature_path);
-
-        assert_single_diagnostic_with_code(&diagnostics, CODE_DOCSTRING_NOT_EXPECTED);
-    }
-
-    #[rstest]
-    fn docstring_expected_diagnostic(scenario_builder: ScenarioBuilder) {
+        concat!(
+            "Feature: test\n",
+            "  Scenario: s\n",
+            "    Given a step\n",
+            "      \"\"\"\n",
+            "      some content\n",
+            "      \"\"\"\n",
+        ),
+        concat!(
+            "use rstest_bdd_macros::given;\n\n",
+            "#[given(\"a step\")]\n",
+            "fn a_step() {}\n",
+        ),
+        Some(CODE_DOCSTRING_NOT_EXPECTED),
+    )]
+    #[case::docstring_expected(
         // Rust expects docstring, feature doesn't have one
-        let scenario = scenario_builder.with_single_file_pair(
-            "Feature: test\n  Scenario: s\n    Given a step\n",
-            concat!(
-                "use rstest_bdd_macros::given;\n\n",
-                "#[given(\"a step\")]\n",
-                "fn a_step(docstring: String) {}\n",
-            ),
-        );
-
+        "Feature: test\n  Scenario: s\n    Given a step\n",
+        concat!(
+            "use rstest_bdd_macros::given;\n\n",
+            "#[given(\"a step\")]\n",
+            "fn a_step(docstring: String) {}\n",
+        ),
+        Some(CODE_DOCSTRING_EXPECTED),
+    )]
+    fn table_docstring_validation(
+        scenario_builder: ScenarioBuilder,
+        #[case] feature_content: &str,
+        #[case] rust_content: &str,
+        #[case] expected_code: Option<&str>,
+    ) {
+        let scenario = scenario_builder.with_single_file_pair(feature_content, rust_content);
         let diagnostics =
             compute_table_docstring_diagnostics_for_path(&scenario.state, &scenario.feature_path);
 
-        assert_single_diagnostic_with_code(&diagnostics, CODE_DOCSTRING_EXPECTED);
+        match expected_code {
+            Some(code) => {
+                assert_single_diagnostic_with_code(&diagnostics, code);
+            }
+            None => {
+                assert!(
+                    diagnostics.is_empty(),
+                    "expected no diagnostics, found {}",
+                    diagnostics.len()
+                );
+            }
+        }
     }
 }

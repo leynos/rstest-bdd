@@ -19,11 +19,11 @@ function signatures. Users will see warnings in their editor when:
    placeholders than the function has step arguments (excluding fixtures,
    datatable, and docstring parameters).
 
-2. **Data table expectation mismatch:** A feature step provides a data table but
-   the Rust implementation does not expect one (or vice versa).
+2. **Data table expectation mismatch:** A feature step provides a data table,
+   but the Rust implementation does not expect one (or vice versa).
 
-3. **Docstring expectation mismatch:** A feature step provides a docstring but
-   the Rust implementation does not expect one (or vice versa).
+3. **Docstring expectation mismatch:** A feature step provides a docstring,
+   but the Rust implementation does not expect one (or vice versa).
 
 Observable outcomes:
 
@@ -208,44 +208,52 @@ already provides:
 
 `IndexedStepDefinition` (from Rust parsing):
 
-    struct IndexedStepDefinition {
-        keyword: StepType,
-        pattern: String,
-        pattern_inferred: bool,
-        function: RustFunctionId,
-        parameters: Vec<IndexedStepParameter>,
-        expects_table: bool,
-        expects_docstring: bool,
-        line: u32,
-    }
+```rust
+struct IndexedStepDefinition {
+    keyword: StepType,
+    pattern: String,
+    pattern_inferred: bool,
+    function: RustFunctionId,
+    parameters: Vec<IndexedStepParameter>,
+    expects_table: bool,
+    expects_docstring: bool,
+    line: u32,
+}
+```
 
 `IndexedStepParameter`:
 
-    struct IndexedStepParameter {
-        name: Option<String>,
-        ty: String,
-        is_datatable: bool,
-        is_docstring: bool,
-    }
+```rust
+struct IndexedStepParameter {
+    name: Option<String>,
+    ty: String,
+    is_datatable: bool,
+    is_docstring: bool,
+}
+```
 
 `IndexedStep` (from feature file parsing):
 
-    struct IndexedStep {
-        keyword: String,
-        step_type: StepType,
-        text: String,
-        span: Span,
-        docstring: Option<IndexedDocstring>,
-        table: Option<IndexedTable>,
-    }
+```rust
+struct IndexedStep {
+    keyword: String,
+    step_type: StepType,
+    text: String,
+    span: Span,
+    docstring: Option<IndexedDocstring>,
+    table: Option<IndexedTable>,
+}
+```
 
 `SpecificityScore` (from rstest-bdd-patterns):
 
-    struct SpecificityScore {
-        literal_chars: usize,
-        placeholder_count: usize,
-        typed_placeholder_count: usize,
-    }
+```rust
+struct SpecificityScore {
+    literal_chars: usize,
+    placeholder_count: usize,
+    typed_placeholder_count: usize,
+}
+```
 
 ### Term Definitions
 
@@ -381,7 +389,7 @@ Add end-to-end tests in `tests/diagnostics.rs` using `ScenarioBuilder`:
    - Provide examples of patterns that trigger each diagnostic.
 
 2. Update `docs/roadmap.md`:
-   - Mark the "Validate placeholder counts..." item as `[x]` under Phase 7.
+   - Mark the "Validate placeholder counts…" item as `[x]` under Phase 7.
 
 3. Run quality gates:
    - `make check-fmt`
@@ -450,8 +458,8 @@ Quality criteria:
 Quality method:
 
 - Run `make test` and verify all tests pass.
-- Run `make lint` and verify clean output.
-- Run `make check-fmt` and verify clean output.
+- Verify `make lint` produces clean output.
+- Confirm `make check-fmt` exits without errors.
 - Manually test with VS Code (optional) by opening a project with mismatched
   step definitions and observing diagnostics.
 
