@@ -130,13 +130,15 @@ mod tests {
     #[test]
     fn byte_col_multi_byte_utf8_bmp() {
         // "é" is 2 bytes in UTF-8 but 1 UTF-16 code unit
+        // String: #[given("café")] = 17 bytes, 16 UTF-16 units
+        // "é" starts at byte 12 (2 bytes), ends at byte 14
         let source = "#[given(\"café\")]";
-        // Positions before "é": #[given("caf = 11 bytes, 11 UTF-16 units
-        assert_eq!(byte_col_to_utf16_col(source, 0, 11), 11);
-        // After "é" (byte 13), UTF-16 column is 12
-        assert_eq!(byte_col_to_utf16_col(source, 0, 13), 12);
-        // At end (byte 16 = after closing ]), UTF-16 is 14
-        assert_eq!(byte_col_to_utf16_col(source, 0, 16), 14);
+        // Before "é": #[given("caf = 12 bytes, 12 UTF-16 units
+        assert_eq!(byte_col_to_utf16_col(source, 0, 12), 12);
+        // After "é" (byte 14), UTF-16 column is 13 (12 + 1 for é)
+        assert_eq!(byte_col_to_utf16_col(source, 0, 14), 13);
+        // At end (byte 17 = after closing ]), UTF-16 is 16
+        assert_eq!(byte_col_to_utf16_col(source, 0, 17), 16);
     }
 
     #[test]
@@ -219,12 +221,14 @@ mod tests {
     #[test]
     fn byte_col_realistic_step_attribute() {
         // Realistic step attribute with non-ASCII in the pattern
+        // String: #[given("a user named José")] = 30 bytes, 29 UTF-16 units
+        // "é" starts at byte 25 (2 bytes), ends at byte 27
         let source = "#[given(\"a user named José\")]";
-        // #[given("a user named Jos = 24 bytes, 24 UTF-16 units
-        assert_eq!(byte_col_to_utf16_col(source, 0, 24), 24);
-        // After "é" (byte 26), UTF-16 column is 25
-        assert_eq!(byte_col_to_utf16_col(source, 0, 26), 25);
-        // End of attribute (byte 29), UTF-16 column is 27
-        assert_eq!(byte_col_to_utf16_col(source, 0, 29), 27);
+        // #[given("a user named Jos = 25 bytes, 25 UTF-16 units
+        assert_eq!(byte_col_to_utf16_col(source, 0, 25), 25);
+        // After "é" (byte 27), UTF-16 column is 26 (25 + 1 for é)
+        assert_eq!(byte_col_to_utf16_col(source, 0, 27), 26);
+        // End of attribute (byte 30), UTF-16 column is 29
+        assert_eq!(byte_col_to_utf16_col(source, 0, 30), 29);
     }
 }
