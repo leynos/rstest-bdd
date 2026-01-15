@@ -288,10 +288,12 @@ cases in `tests/diagnostics.rs` and `handlers/diagnostics.rs`.
 
 2. In `handlers/diagnostics/compute.rs`, add a new function:
 
-       pub fn compute_signature_mismatch_diagnostics(
-           state: &ServerState,
-           rust_path: &Path,
-       ) -> Vec<Diagnostic>
+   ```rust
+   pub fn compute_signature_mismatch_diagnostics(
+       state: &ServerState,
+       rust_path: &Path,
+   ) -> Vec<Diagnostic>
+   ```
 
    This function:
    - Retrieves `CompiledStepDefinition`s for the given Rust file from the
@@ -307,16 +309,20 @@ cases in `tests/diagnostics.rs` and `handlers/diagnostics.rs`.
 
 3. Add a helper function to extract placeholder names from a pattern:
 
-       fn extract_placeholder_names(pattern: &str) -> HashSet<String>
+   ```rust
+   fn extract_placeholder_names(pattern: &str) -> HashSet<String>
+   ```
 
    Uses `lex_pattern()` and collects `Token::Placeholder { name, .. }` names.
 
 4. Add a helper to classify parameters:
 
-       fn count_step_arguments(
-           parameters: &[IndexedStepParameter],
-           placeholder_names: &HashSet<String>,
-       ) -> usize
+   ```rust
+   fn count_step_arguments(
+       parameters: &[IndexedStepParameter],
+       placeholder_names: &HashSet<String>,
+   ) -> usize
+   ```
 
    Counts parameters where:
    - `!param.is_datatable && !param.is_docstring`
@@ -342,10 +348,12 @@ cases in `tests/diagnostics.rs` and `handlers/diagnostics.rs`.
 
 2. Create a new function for feature-side validation:
 
-       pub fn compute_table_docstring_mismatch_diagnostics(
-           state: &ServerState,
-           feature_index: &FeatureFileIndex,
-       ) -> Vec<Diagnostic>
+   ```rust
+   pub fn compute_table_docstring_mismatch_diagnostics(
+       state: &ServerState,
+       feature_index: &FeatureFileIndex,
+   ) -> Vec<Diagnostic>
+   ```
 
    For each step in the feature file:
    - Find matching Rust implementation(s) by keyword and regex.
@@ -398,16 +406,18 @@ Add end-to-end tests in `tests/diagnostics.rs` using `ScenarioBuilder`:
 
 4. Commit with message:
 
-       Add placeholder and table/docstring mismatch diagnostics to LSP
+   ```text
+   Add placeholder and table/docstring mismatch diagnostics to LSP
 
-       Implement on-save diagnostics for:
-       - Placeholder count mismatches between patterns and function signatures
-       - Data table expectation mismatches
-       - Docstring expectation mismatches
+   Implement on-save diagnostics for:
+   - Placeholder count mismatches between patterns and function signatures
+   - Data table expectation mismatches
+   - Docstring expectation mismatches
 
-       closes #<issue-number-if-any>
+   closes #<issue-number-if-any>
 
-       Generated with Claude Code
+   Generated with Claude Code
+   ```
 
 ## Concrete Steps
 
@@ -415,34 +425,42 @@ All commands are run from the repository root.
 
 ### Stage B Commands
 
-    # After implementing the changes, run unit tests for the server crate:
-    cargo test -p rstest-bdd-server
+```bash
+# After implementing the changes, run unit tests for the server crate:
+cargo test -p rstest-bdd-server
 
-    # Expected output: all tests pass including new placeholder validation tests
+# Expected output: all tests pass including new placeholder validation tests
+```
 
 ### Stage C Commands
 
-    # Same as Stage B:
-    cargo test -p rstest-bdd-server
+```bash
+# Same as Stage B:
+cargo test -p rstest-bdd-server
+```
 
 ### Stage D Commands
 
-    # Run behavioural tests:
-    cargo test -p rstest-bdd-server --test diagnostics
+```bash
+# Run behavioural tests:
+cargo test -p rstest-bdd-server --test diagnostics
 
-    # Expected output: all tests pass including new end-to-end scenarios
+# Expected output: all tests pass including new end-to-end scenarios
+```
 
 ### Stage E Commands
 
-    # Full quality gate:
-    set -o pipefail && make check-fmt 2>&1 | tee /tmp/check-fmt.log
-    # Expected: exit 0
+```bash
+# Full quality gate:
+set -o pipefail && make check-fmt 2>&1 | tee /tmp/check-fmt.log
+# Expected: exit 0
 
-    set -o pipefail && make lint 2>&1 | tee /tmp/lint.log
-    # Expected: exit 0
+set -o pipefail && make lint 2>&1 | tee /tmp/lint.log
+# Expected: exit 0
 
-    set -o pipefail && make test 2>&1 | tee /tmp/test.log
-    # Expected: exit 0, all tests pass
+set -o pipefail && make test 2>&1 | tee /tmp/test.log
+# Expected: exit 0, all tests pass
+```
 
 ## Validation and Acceptance
 
@@ -493,36 +511,42 @@ All stages are re-runnable. If a stage fails partway:
 
 In `crates/rstest-bdd-server/src/handlers/diagnostics/compute.rs`:
 
-    /// Compute diagnostics for signature mismatches in step definitions.
-    ///
-    /// Checks that each step definition's placeholder count matches the number
-    /// of step arguments in the function signature.
-    pub fn compute_signature_mismatch_diagnostics(
-        state: &ServerState,
-        rust_path: &Path,
-    ) -> Vec<Diagnostic>
+```rust
+/// Compute diagnostics for signature mismatches in step definitions.
+///
+/// Checks that each step definition's placeholder count matches the number
+/// of step arguments in the function signature.
+pub fn compute_signature_mismatch_diagnostics(
+    state: &ServerState,
+    rust_path: &Path,
+) -> Vec<Diagnostic>
 
-    /// Compute diagnostics for table/docstring expectation mismatches.
-    ///
-    /// Checks that feature steps with tables/docstrings have matching Rust
-    /// implementations that expect them, and vice versa.
-    pub fn compute_table_docstring_mismatch_diagnostics(
-        state: &ServerState,
-        feature_index: &FeatureFileIndex,
-    ) -> Vec<Diagnostic>
+/// Compute diagnostics for table/docstring expectation mismatches.
+///
+/// Checks that feature steps with tables/docstrings have matching Rust
+/// implementations that expect them, and vice versa.
+pub fn compute_table_docstring_mismatch_diagnostics(
+    state: &ServerState,
+    feature_index: &FeatureFileIndex,
+) -> Vec<Diagnostic>
+```
 
 **Reused APIs (rstest-bdd-patterns):**
 
-    rstest_bdd_patterns::SpecificityScore::calculate(pattern: &str)
-        -> Result<SpecificityScore, PatternError>
+```rust
+rstest_bdd_patterns::SpecificityScore::calculate(pattern: &str)
+    -> Result<SpecificityScore, PatternError>
 
-    rstest_bdd_patterns::pattern::lexer::lex_pattern(pattern: &str)
-        -> Result<Vec<Token>, PatternError>
+rstest_bdd_patterns::pattern::lexer::lex_pattern(pattern: &str)
+    -> Result<Vec<Token>, PatternError>
+```
 
 **Diagnostic Codes:**
 
-    CODE_PLACEHOLDER_COUNT_MISMATCH = "placeholder-count-mismatch"
-    CODE_TABLE_EXPECTED = "table-expected"
-    CODE_TABLE_NOT_EXPECTED = "table-not-expected"
-    CODE_DOCSTRING_EXPECTED = "docstring-expected"
-    CODE_DOCSTRING_NOT_EXPECTED = "docstring-not-expected"
+```rust
+CODE_PLACEHOLDER_COUNT_MISMATCH = "placeholder-count-mismatch"
+CODE_TABLE_EXPECTED = "table-expected"
+CODE_TABLE_NOT_EXPECTED = "table-not-expected"
+CODE_DOCSTRING_EXPECTED = "docstring-expected"
+CODE_DOCSTRING_NOT_EXPECTED = "docstring-not-expected"
+```
