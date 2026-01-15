@@ -62,18 +62,15 @@ fn assert_path_is_execution_decode_skip_message(path: &syn::Path) {
     assert_path_ends_with_module_function(path, "execution", "decode_skip_message");
 }
 
-#[expect(
-    clippy::expect_used,
-    reason = "test helper uses expect for clearer failures"
-)]
-fn find_execute_single_step_function(file: &syn::File) -> &syn::ItemFn {
+#[expect(clippy::panic, reason = "test helper panics for clearer failures")]
+fn find_function_by_name<'a>(file: &'a syn::File, name: &str) -> &'a syn::ItemFn {
     file.items
         .iter()
         .find_map(|item| match item {
-            syn::Item::Fn(f) if f.sig.ident == "__rstest_bdd_execute_single_step" => Some(f),
+            syn::Item::Fn(f) if f.sig.ident == name => Some(f),
             _ => None,
         })
-        .expect("expected __rstest_bdd_execute_single_step function")
+        .unwrap_or_else(|| panic!("expected {name} function"))
 }
 
 struct CallFinder<'ast> {
@@ -123,7 +120,7 @@ fn execute_single_step_delegates_to_runtime() {
     // keeping this test resilient to formatting-only changes.
     let file: syn::File =
         syn::parse2(generate_step_executor()).expect("generate_step_executor parses as a file");
-    let item = find_execute_single_step_function(&file);
+    let item = find_function_by_name(&file, "__rstest_bdd_execute_single_step");
 
     // The generated function should delegate to rstest_bdd::execution::execute_step
     let execute_step_call =
@@ -155,15 +152,7 @@ fn execute_async_step_delegates_to_runtime() {
     let file: syn::File = syn::parse2(generate_async_step_executor())
         .expect("generate_async_step_executor parses as a file");
 
-    // Find the __rstest_bdd_process_async_step function
-    let item = file
-        .items
-        .iter()
-        .find_map(|item| match item {
-            syn::Item::Fn(f) if f.sig.ident == "__rstest_bdd_process_async_step" => Some(f),
-            _ => None,
-        })
-        .expect("expected __rstest_bdd_process_async_step function");
+    let item = find_function_by_name(&file, "__rstest_bdd_process_async_step");
 
     // The generated function should delegate to rstest_bdd::execution::execute_step
     let execute_step_call =
@@ -191,15 +180,7 @@ fn skip_decoder_delegates_to_runtime() {
     let file: syn::File =
         syn::parse2(generate_skip_decoder()).expect("generate_skip_decoder parses as a file");
 
-    // Find the __rstest_bdd_decode_skip_message function
-    let item = file
-        .items
-        .iter()
-        .find_map(|item| match item {
-            syn::Item::Fn(f) if f.sig.ident == "__rstest_bdd_decode_skip_message" => Some(f),
-            _ => None,
-        })
-        .expect("expected __rstest_bdd_decode_skip_message function");
+    let item = find_function_by_name(&file, "__rstest_bdd_decode_skip_message");
 
     // Verify it calls decode_skip_message from execution module
     let decode_call = find_call_in_block(&item.block, "decode_skip_message")

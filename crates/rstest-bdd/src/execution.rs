@@ -30,10 +30,10 @@ use crate::context::StepContext;
 use crate::{Step, StepExecution, StepKeyword, StepText, find_step_with_metadata};
 
 /// Prefix character for encoded skip messages with no message content.
-const SKIP_NONE_PREFIX: char = '\u{0}';
+pub(crate) const SKIP_NONE_PREFIX: char = '\u{0}';
 
 /// Prefix character for encoded skip messages with message content.
-const SKIP_SOME_PREFIX: char = '\u{1}';
+pub(crate) const SKIP_SOME_PREFIX: char = '\u{1}';
 
 /// Runtime mode for scenario test execution (canonical definition).
 ///

@@ -1,6 +1,11 @@
 //! Unit tests for the execution module.
 
-use super::{RuntimeMode, TestAttributeHint, decode_skip_message, encode_skip_message};
+use rstest::rstest;
+
+use super::{
+    RuntimeMode, SKIP_NONE_PREFIX, SKIP_SOME_PREFIX, TestAttributeHint, decode_skip_message,
+    encode_skip_message,
+};
 
 #[test]
 fn runtime_mode_sync_is_default() {
@@ -37,44 +42,36 @@ fn runtime_mode_tokio_hint_is_rstest_with_tokio() {
 fn encode_skip_message_none_produces_prefix_only() {
     let encoded = encode_skip_message(None);
     assert_eq!(encoded.len(), 1);
-    assert_eq!(encoded.chars().next(), Some('\u{0}'));
+    assert_eq!(encoded.chars().next(), Some(SKIP_NONE_PREFIX));
 }
 
 #[test]
 fn encode_skip_message_some_includes_message() {
     let encoded = encode_skip_message(Some("test message".to_string()));
-    assert!(encoded.starts_with('\u{1}'));
+    assert!(encoded.starts_with(SKIP_SOME_PREFIX));
     assert!(encoded.contains("test message"));
 }
 
-#[test]
-fn decode_skip_message_round_trip_none() {
-    let encoded = encode_skip_message(None);
+/// The `none` case passes `true` for `input_is_none`, effectively encoding `None`.
+/// Other cases pass `false` for `input_is_none` and a message string.
+#[rstest]
+#[case::none(true, "", None)]
+#[case::some(false, "skip reason", Some("skip reason".to_string()))]
+#[case::empty_string(false, "", Some(String::new()))]
+#[case::unicode(false, "Unicode: 😀 🎉", Some("Unicode: 😀 🎉".to_string()))]
+fn decode_skip_message_round_trip(
+    #[case] input_is_none: bool,
+    #[case] input_msg: &str,
+    #[case] expected: Option<String>,
+) {
+    let input = if input_is_none {
+        None
+    } else {
+        Some(input_msg.to_string())
+    };
+    let encoded = encode_skip_message(input);
     let decoded = decode_skip_message(encoded);
-    assert_eq!(decoded, None);
-}
-
-#[test]
-fn decode_skip_message_round_trip_some() {
-    let original = "skip reason";
-    let encoded = encode_skip_message(Some(original.to_string()));
-    let decoded = decode_skip_message(encoded);
-    assert_eq!(decoded, Some(original.to_string()));
-}
-
-#[test]
-fn decode_skip_message_round_trip_empty_string() {
-    let encoded = encode_skip_message(Some(String::new()));
-    let decoded = decode_skip_message(encoded);
-    assert_eq!(decoded, Some(String::new()));
-}
-
-#[test]
-fn decode_skip_message_round_trip_unicode() {
-    let original = "Unicode: \u{1F600} \u{1F389}";
-    let encoded = encode_skip_message(Some(original.to_string()));
-    let decoded = decode_skip_message(encoded);
-    assert_eq!(decoded, Some(original.to_string()));
+    assert_eq!(decoded, expected);
 }
 
 #[test]
