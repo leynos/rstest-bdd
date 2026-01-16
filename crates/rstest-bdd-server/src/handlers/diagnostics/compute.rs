@@ -305,10 +305,7 @@ fn build_placeholder_mismatch_diagnostic(
     placeholder_count: usize,
     step_arg_count: usize,
 ) -> Diagnostic {
-    let range = Range {
-        start: lsp_types::Position::new(step_def.line, 0),
-        end: lsp_types::Position::new(step_def.line + 1, 0),
-    };
+    let range = step_def.attribute_span.to_lsp_range();
 
     Diagnostic {
         range,

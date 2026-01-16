@@ -10,6 +10,9 @@
 mod support;
 
 use rstest::{fixture, rstest};
+use rstest_bdd_server::handlers::diagnostics::compute::{
+    compute_signature_mismatch_diagnostics, compute_table_docstring_mismatch_diagnostics,
+};
 use rstest_bdd_server::handlers::{
     compute_unimplemented_step_diagnostics, compute_unused_step_diagnostics,
 };
@@ -332,8 +335,6 @@ fn step_used_in_any_feature_is_not_unused(scenario_builder: ScenarioBuilder) {
 // Placeholder count mismatch tests
 // ============================================================================
 
-use rstest_bdd_server::handlers::diagnostics::compute::compute_signature_mismatch_diagnostics;
-
 /// Helper to compute placeholder mismatch diagnostics for a Rust file.
 fn compute_placeholder_diagnostics(
     state: &ServerState,
@@ -405,8 +406,6 @@ fn placeholder_count_validation(
 // ============================================================================
 // Table/docstring expectation mismatch tests
 // ============================================================================
-
-use rstest_bdd_server::handlers::diagnostics::compute::compute_table_docstring_mismatch_diagnostics;
 
 /// Helper to compute table/docstring mismatch diagnostics for a feature file.
 #[expect(clippy::expect_used, reason = "test helper uses expect for clarity")]

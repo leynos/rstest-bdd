@@ -93,7 +93,7 @@ Known uncertainties that might affect the plan:
   Severity: medium
   Likelihood: medium
   Mitigation: Use placeholder name matching. A parameter is a "step argument" if
-  its normalised name matches a placeholder name in the pattern. Parameters
+  its normalized name matches a placeholder name in the pattern. Parameters
   named `datatable` or `docstring` (or with `#[datatable]` attribute) are
   special. All other parameters are assumed to be fixtures.
 
@@ -150,7 +150,7 @@ Known uncertainties that might affect the plan:
 arguments vs. fixtures.
 
 **Rationale:** The LSP server does not have access to rstest fixture
-definitions. A parameter is a "step argument" if its normalised name appears in
+definitions. A parameter is a "step argument" if its normalized name appears in
 the set of placeholder names extracted from the pattern via `lex_pattern()`.
 Parameters marked `is_datatable` or `is_docstring` are excluded. All remaining
 parameters are assumed to be fixtures and not counted.
@@ -259,7 +259,7 @@ struct SpecificityScore {
 
 - **Placeholder:** A `{name}` or `{name:type}` token in a step pattern that
   captures a value from the step text at runtime.
-- **Step argument:** A function parameter whose normalised name matches a
+- **Step argument:** A function parameter whose normalized name matches a
   placeholder name in the pattern.
 - **Fixture:** A function parameter that is injected by rstest and does not
   correspond to a placeholder.
@@ -301,7 +301,7 @@ cases in `tests/diagnostics.rs` and `handlers/diagnostics.rs`.
    - For each definition, extracts placeholder names from the pattern using
      `rstest_bdd_patterns::SpecificityScore::calculate()` to get
      `placeholder_count`.
-   - Counts step arguments: parameters whose normalised names appear in the
+   - Counts step arguments: parameters whose normalized names appear in the
      placeholder set (derived from `lex_pattern()` and filtering for
      `Token::Placeholder`).
    - If `placeholder_count != step_argument_count`, emit a diagnostic on the
@@ -326,7 +326,7 @@ cases in `tests/diagnostics.rs` and `handlers/diagnostics.rs`.
 
    Counts parameters where:
    - `!param.is_datatable && !param.is_docstring`
-   - `param.name` (normalised) appears in `placeholder_names`
+   - `param.name` (normalized) appears in `placeholder_names`
 
 5. Wire the new diagnostic computation into `publish_rust_diagnostics()` in
    `handlers/diagnostics/publish.rs`.
