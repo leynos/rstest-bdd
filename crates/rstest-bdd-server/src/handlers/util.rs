@@ -2,9 +2,17 @@
 //!
 //! This module provides helper functions for converting between `gherkin` types
 //! and LSP protocol types, particularly for span and position conversions.
+//!
+//! Note: Fundamental UTF-16 conversion utilities are in [`crate::util`] to avoid
+//! circular dependencies between modules.
 
 use gherkin::Span;
 use lsp_types::{Position, Range};
+
+use crate::util::utf16_code_units;
+
+// Re-export for backwards compatibility
+pub use crate::util::byte_col_to_utf16_col;
 
 /// Convert a `gherkin::Span` (byte offsets) to an `lsp_types::Range` (0-based line/col).
 ///
@@ -43,15 +51,6 @@ pub fn gherkin_span_to_lsp_range(source: &str, span: Span) -> Range {
 struct LineColPosition {
     line: u32,
     col: u32,
-}
-
-/// Calculate UTF-16 code units for a character.
-///
-/// BMP characters (code points ≤ 0xFFFF) use 1 UTF-16 code unit.
-/// Non-BMP characters (code points > 0xFFFF) use 2 UTF-16 code units (surrogate pair).
-#[inline]
-fn utf16_code_units(ch: char) -> u32 {
-    if u32::from(ch) <= 0xFFFF { 1 } else { 2 }
 }
 
 /// Return the clamped byte offset after exhausting the source.

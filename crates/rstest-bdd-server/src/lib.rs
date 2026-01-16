@@ -37,6 +37,7 @@ pub mod handlers;
 pub mod indexing;
 pub mod logging;
 pub mod server;
+pub mod util;
 
 /// Test support utilities for unit and integration tests.
 ///

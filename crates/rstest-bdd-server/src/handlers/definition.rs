@@ -74,18 +74,31 @@ fn is_rust_file(path: &Path) -> bool {
         .is_some_and(|ext| ext.eq_ignore_ascii_case("rs"))
 }
 
+/// Check if a position falls within an attribute span.
+///
+/// Returns `true` if the position is within the span boundaries, where the
+/// start position is inclusive and the end position is exclusive.
+///
+/// Both the target position and the span use UTF-16 code unit columns, matching
+/// the LSP `Position::character` specification. This allows direct comparison
+/// without conversion.
+fn position_in_span(
+    target_line: u32,
+    target_col: u32,
+    span: &crate::indexing::RustAttributeSpan,
+) -> bool {
+    let after_start = target_line > span.start_line
+        || (target_line == span.start_line && target_col >= span.start_column);
+    let before_end = target_line < span.end_line
+        || (target_line == span.end_line && target_col < span.end_column);
+
+    after_start && before_end
+}
+
 /// Find the step definition at the given cursor position.
 ///
-/// Uses line-based matching: returns the step whose function definition
-/// line matches the cursor's line.
-///
-/// # Limitations
-///
-/// The current heuristic assumes the step attribute is on the line immediately
-/// before the function definition. This may not match correctly when:
-/// - Doc comments exist between the attribute and function
-/// - Multiple attributes are present on the function
-/// - The attribute spans multiple lines
+/// Uses span-based matching: returns the step whose attribute span contains
+/// the cursor position, or when the cursor is on the function signature line.
 fn find_step_at_position(
     state: &ServerState,
     path: &Path,
@@ -93,14 +106,14 @@ fn find_step_at_position(
 ) -> Option<Arc<CompiledStepDefinition>> {
     let steps = state.step_registry().steps_for_file(path);
     let target_line = position.line;
+    let target_col = position.character;
 
-    // Find step whose line matches the cursor position.
-    // A step matches if the cursor is on the function definition line or
-    // within a reasonable range (attribute line through function line).
     for step in steps {
-        // Match if cursor is on the step's function line or the line before
-        // (where the attribute typically is)
-        if step.line == target_line || step.line == target_line + 1 {
+        let span = &step.attribute_span;
+        let on_function_line = target_line == span.function_line;
+        let in_attribute_span = position_in_span(target_line, target_col, span);
+
+        if on_function_line || in_attribute_span {
             return Some(Arc::clone(step));
         }
     }
@@ -228,8 +241,8 @@ mod tests {
         let mut state = ServerState::new(ServerConfig::default());
         handle_did_save_text_document(&mut state, params);
 
-        // Line 3 (0-indexed) is "fn a_step() {}"
-        let position = Position::new(3, 0);
+        // Line 2 (0-indexed) is "#[given("a step")]" - the attribute span
+        let position = Position::new(2, 0);
         let step = find_step_at_position(&state, &rust_path, position);
         assert!(step.is_some());
         assert_eq!(step.expect("step").pattern, "a step");
