@@ -10,6 +10,7 @@ use std::collections::HashSet;
 use std::{path::Path, sync::Arc};
 
 use lsp_types::{Diagnostic, DiagnosticSeverity, Range};
+use rstest_bdd_patterns::SpecificityScore;
 use rstest_bdd_patterns::pattern::lexer::{Token, lex_pattern};
 
 use crate::indexing::{
@@ -292,10 +293,10 @@ fn count_step_arguments(
 
 /// Normalise a parameter or placeholder name for comparison.
 ///
-/// Currently this is a no-op, but future enhancements could handle case
-/// differences or underscore/hyphen normalisation.
+/// Strips a single leading underscore to match the macro behaviour, where
+/// users prefix parameters with `_` to suppress unused warnings.
 fn normalise_param_name(name: &str) -> String {
-    name.to_owned()
+    name.strip_prefix('_').unwrap_or(name).to_owned()
 }
 
 /// Build a diagnostic for a placeholder count mismatch.
@@ -422,7 +423,8 @@ fn check_docstring_expectation(
 /// Find the best matching Rust implementation for a feature step.
 ///
 /// Returns the implementation with the highest specificity score if multiple
-/// match. Returns `None` if no implementation matches.
+/// match. Uses the same scoring algorithm as the runtime registry to ensure
+/// diagnostics are consistent with actual execution.
 fn find_best_matching_implementation(
     state: &ServerState,
     step: &IndexedStep,
@@ -433,8 +435,11 @@ fn find_best_matching_implementation(
         .iter()
         .filter(|compiled| compiled.regex.is_match(&step.text))
         .max_by(|a, b| {
-            // Use literal length as a proxy for specificity (longer = more specific)
-            a.pattern.len().cmp(&b.pattern.len())
+            // Use SpecificityScore for consistent ordering with runtime resolution.
+            // Patterns that fail to parse (shouldn't happen for compiled defs) sort last.
+            let score_a = SpecificityScore::calculate(&a.pattern).ok();
+            let score_b = SpecificityScore::calculate(&b.pattern).ok();
+            score_a.cmp(&score_b)
         })
         .cloned()
 }
