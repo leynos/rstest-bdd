@@ -357,9 +357,9 @@ cases in `tests/diagnostics.rs` and `handlers/diagnostics.rs`.
 
    For each step in the feature file:
    - Find matching Rust implementation(s) by keyword and regex.
-   - If the feature step has a table but the Rust step does not expect one, emit
+   - If the feature step has a table, but the Rust step does not expect one, emit
      `table-not-expected` on the table span.
-   - If the Rust step expects a table but the feature step has none, emit
+   - If the Rust step expects a table, but the feature step has none, emit
      `table-expected` on the step span.
    - Same logic for docstrings.
 

@@ -360,6 +360,20 @@ fn compute_placeholder_diagnostics(
     1,
     Some("1 placeholder"),
 )]
+#[case::extra_placeholder(
+    concat!(
+        "Feature: test\n",
+        "  Scenario: s\n",
+        "    Given I have 5 red apples\n",
+    ),
+    concat!(
+        "use rstest_bdd_macros::given;\n\n",
+        "#[given(\"I have {count} {color} apples\")]\n",
+        "fn have_apples(count: u32) {}\n",
+    ),
+    1,
+    Some("2 placeholder"),
+)]
 #[case::correct_signature(
     concat!(
         "Feature: test\n",
@@ -492,6 +506,24 @@ fn compute_table_docstring_diagnostics(
         "use rstest_bdd::DataTable;\n\n",
         "#[given(\"a step\")]\n",
         "fn a_step(datatable: DataTable) {}\n",
+    ),
+    0,
+    None,
+)]
+#[case::matched_docstring(
+    // Both feature and Rust have docstring - no diagnostic
+    concat!(
+        "Feature: test\n",
+        "  Scenario: s\n",
+        "    Given a step\n",
+        "      \"\"\"\n",
+        "      some content\n",
+        "      \"\"\"\n",
+    ),
+    concat!(
+        "use rstest_bdd_macros::given;\n\n",
+        "#[given(\"a step\")]\n",
+        "fn a_step(docstring: String) {}\n",
     ),
     0,
     None,
