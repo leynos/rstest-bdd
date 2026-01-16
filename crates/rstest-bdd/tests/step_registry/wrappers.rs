@@ -207,6 +207,16 @@ step!(
     &[]
 );
 
+/// Helper to create a skip execution with an optional message.
+///
+/// This centralizes the skip construction logic to reduce duplication
+/// between skip test wrappers.
+fn create_skip_execution(message: Option<&str>) -> StepExecution {
+    StepExecution::Skipped {
+        message: message.map(String::from),
+    }
+}
+
 /// Step wrapper that requests a skip without a message.
 ///
 /// Used to test that `execute_step` correctly handles skip requests.
@@ -220,7 +230,7 @@ fn skip_wrapper(
     _docstring: Option<&str>,
     _table: Option<&[&[&str]]>,
 ) -> Result<StepExecution, StepError> {
-    Ok(StepExecution::Skipped { message: None })
+    Ok(create_skip_execution(None))
 }
 
 step!(
@@ -243,9 +253,7 @@ fn skip_with_message_wrapper(
     _docstring: Option<&str>,
     _table: Option<&[&[&str]]>,
 ) -> Result<StepExecution, StepError> {
-    Ok(StepExecution::Skipped {
-        message: Some("test skip reason".to_string()),
-    })
+    Ok(create_skip_execution(Some("test skip reason")))
 }
 
 step!(
