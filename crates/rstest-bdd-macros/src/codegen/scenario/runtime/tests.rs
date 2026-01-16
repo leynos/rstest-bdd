@@ -106,35 +106,53 @@ fn find_call_in_block<'a>(block: &'a syn::Block, name: &str) -> Option<&'a syn::
     finder.found
 }
 
+/// Assert that generated step executor code delegates to `rstest_bdd::execution::execute_step`.
+///
+/// This helper validates the architecture where generated code is a thin wrapper
+/// that delegates to runtime functions, rather than containing inline implementation.
+///
+/// # Arguments
+///
+/// * `tokens` - The generated token stream to parse
+/// * `function_name` - The name of the function to find in the generated code
+/// * `description` - A human-readable description for error messages
+#[expect(
+    clippy::panic,
+    reason = "test helper panics for clearer failure messages"
+)]
+fn assert_step_executor_delegates_to_runtime(
+    tokens: proc_macro2::TokenStream,
+    function_name: &str,
+    description: &str,
+) {
+    let file: syn::File = syn::parse2(tokens)
+        .unwrap_or_else(|e| panic!("{description}: failed to parse tokens: {e}"));
+
+    let item = find_function_by_name(&file, function_name);
+
+    let execute_step_call = find_call_in_block(&item.block, "execute_step")
+        .unwrap_or_else(|| panic!("{description}: expected call to execute_step"));
+
+    let func_path = extract_path(execute_step_call.func.as_ref());
+    assert_path_is_execution_execute_step(func_path);
+
+    assert_eq!(
+        execute_step_call.args.len(),
+        2,
+        "{description}: execute_step should receive StepExecutionRequest reference and ctx"
+    );
+}
+
 /// Verify that the generated step executor delegates to `rstest_bdd::execution::execute_step`.
 ///
 /// This test validates the architecture where the generated code is a thin wrapper
 /// that delegates to runtime functions, rather than containing inline implementation.
 #[test]
-#[expect(
-    clippy::expect_used,
-    reason = "test parses generated tokens and uses expect for clearer failures"
-)]
 fn execute_single_step_delegates_to_runtime() {
-    // Parse the generated helper tokens so we can assert on the AST structure,
-    // keeping this test resilient to formatting-only changes.
-    let file: syn::File =
-        syn::parse2(generate_step_executor()).expect("generate_step_executor parses as a file");
-    let item = find_function_by_name(&file, "__rstest_bdd_execute_single_step");
-
-    // The generated function should delegate to rstest_bdd::execution::execute_step
-    let execute_step_call =
-        find_call_in_block(&item.block, "execute_step").expect("expected call to execute_step");
-    let func_path = extract_path(execute_step_call.func.as_ref());
-
-    // Assert the path ends with execution::execute_step using segment-based check
-    assert_path_is_execution_execute_step(func_path);
-
-    // Verify 2 arguments are passed: the StepExecutionRequest struct reference and ctx
-    assert_eq!(
-        execute_step_call.args.len(),
-        2,
-        "execute_step should receive StepExecutionRequest reference and ctx"
+    assert_step_executor_delegates_to_runtime(
+        generate_step_executor(),
+        "__rstest_bdd_execute_single_step",
+        "sync step executor",
     );
 }
 
@@ -143,30 +161,11 @@ fn execute_single_step_delegates_to_runtime() {
 /// This mirrors `execute_single_step_delegates_to_runtime` but for the async helper
 /// `__rstest_bdd_process_async_step`, ensuring it stays a thin wrapper over the runtime.
 #[test]
-#[expect(
-    clippy::expect_used,
-    reason = "test parses generated tokens and uses expect for clearer failures"
-)]
 fn execute_async_step_delegates_to_runtime() {
-    // Parse the generated async step executor tokens
-    let file: syn::File = syn::parse2(generate_async_step_executor())
-        .expect("generate_async_step_executor parses as a file");
-
-    let item = find_function_by_name(&file, "__rstest_bdd_process_async_step");
-
-    // The generated function should delegate to rstest_bdd::execution::execute_step
-    let execute_step_call =
-        find_call_in_block(&item.block, "execute_step").expect("expected call to execute_step");
-    let func_path = extract_path(execute_step_call.func.as_ref());
-
-    // Assert the path ends with execution::execute_step using segment-based check
-    assert_path_is_execution_execute_step(func_path);
-
-    // Verify 2 arguments are passed: the StepExecutionRequest struct reference and ctx
-    assert_eq!(
-        execute_step_call.args.len(),
-        2,
-        "execute_step should receive StepExecutionRequest reference and ctx"
+    assert_step_executor_delegates_to_runtime(
+        generate_async_step_executor(),
+        "__rstest_bdd_process_async_step",
+        "async step executor",
     );
 }
 

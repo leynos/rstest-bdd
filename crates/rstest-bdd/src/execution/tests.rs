@@ -52,26 +52,15 @@ fn encode_skip_message_some_includes_message() {
     assert!(encoded.contains("test message"));
 }
 
-/// The `none` case passes `true` for `input_is_none`, effectively encoding `None`.
-/// Other cases pass `false` for `input_is_none` and a message string.
 #[rstest]
-#[case::none(true, "", None)]
-#[case::some(false, "skip reason", Some("skip reason".to_string()))]
-#[case::empty_string(false, "", Some(String::new()))]
-#[case::unicode(false, "Unicode: 😀 🎉", Some("Unicode: 😀 🎉".to_string()))]
-fn decode_skip_message_round_trip(
-    #[case] input_is_none: bool,
-    #[case] input_msg: &str,
-    #[case] expected: Option<String>,
-) {
-    let input = if input_is_none {
-        None
-    } else {
-        Some(input_msg.to_string())
-    };
-    let encoded = encode_skip_message(input);
+#[case::none(None)]
+#[case::some(Some("skip reason".to_string()))]
+#[case::empty_string(Some(String::new()))]
+#[case::unicode(Some("Unicode: 😀 🎉".to_string()))]
+fn decode_skip_message_round_trip(#[case] input: Option<String>) {
+    let encoded = encode_skip_message(input.clone());
     let decoded = decode_skip_message(encoded);
-    assert_eq!(decoded, expected);
+    assert_eq!(decoded, input);
 }
 
 #[test]
