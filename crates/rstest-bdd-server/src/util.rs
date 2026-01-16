@@ -98,22 +98,19 @@ mod tests {
         assert_eq!(utf16_code_units(ch), expected);
     }
 
-    #[test]
-    fn utf16_code_units_non_bmp_emojis() {
-        // Emoji (😀 = U+1F600)
-        assert_eq!(utf16_code_units('😀'), 2);
-        // Emoji (🎉 = U+1F389)
-        assert_eq!(utf16_code_units('🎉'), 2);
-        // Emoji (🦀 = U+1F980, Rust crab!)
-        assert_eq!(utf16_code_units('🦀'), 2);
+    #[rstest]
+    #[case('😀', 2)] // Emoji (U+1F600)
+    #[case('🎉', 2)] // Emoji (U+1F389)
+    #[case('🦀', 2)] // Emoji (U+1F980, Rust crab!)
+    fn utf16_code_units_non_bmp_emojis(#[case] ch: char, #[case] expected: u32) {
+        assert_eq!(utf16_code_units(ch), expected);
     }
 
-    #[test]
-    fn utf16_code_units_boundary_cases() {
-        // Last BMP character (U+FFFF)
-        assert_eq!(utf16_code_units('\u{FFFF}'), 1);
-        // First non-BMP character (U+10000)
-        assert_eq!(utf16_code_units('\u{10000}'), 2);
+    #[rstest]
+    #[case('\u{FFFF}', 1)] // Last BMP character (U+FFFF)
+    #[case('\u{10000}', 2)] // First non-BMP character (U+10000)
+    fn utf16_code_units_boundary_cases(#[case] ch: char, #[case] expected: u32) {
+        assert_eq!(utf16_code_units(ch), expected);
     }
 
     // --- byte_col_to_utf16_col tests ---
