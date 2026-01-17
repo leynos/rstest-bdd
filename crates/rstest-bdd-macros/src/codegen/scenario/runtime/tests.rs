@@ -1,6 +1,8 @@
 //! Tests for runtime scaffolding code generation.
 
-use super::generators::generate_step_executor;
+use super::generators::{
+    generate_async_step_executor, generate_skip_decoder, generate_step_executor,
+};
 use syn::visit::Visit;
 
 /// Return the identifier of the final segment in a `syn::Path`.
@@ -11,21 +13,6 @@ fn path_last_ident(path: &syn::Path) -> Option<&syn::Ident> {
     path.segments.last().map(|seg| &seg.ident)
 }
 
-/// Return the identifier of the segment before the final segment in a `syn::Path`.
-///
-/// Returns `None` when the path contains fewer than two segments.
-fn path_second_last_ident(path: &syn::Path) -> Option<&syn::Ident> {
-    path.segments.iter().rev().nth(1).map(|seg| &seg.ident)
-}
-
-#[expect(clippy::panic, reason = "test helper panics for clearer failures")]
-fn extract_call(expr: &syn::Expr) -> &syn::ExprCall {
-    match expr {
-        syn::Expr::Call(call) => call,
-        other => panic!("expected call expression, got {other:?}"),
-    }
-}
-
 #[expect(clippy::panic, reason = "test helper panics for clearer failures")]
 fn extract_path(expr: &syn::Expr) -> &syn::Path {
     match expr {
@@ -34,26 +21,56 @@ fn extract_path(expr: &syn::Expr) -> &syn::Path {
     }
 }
 
-fn assert_path_ends_with(path: &syn::Path, expected: &str, context: &str) {
+/// Assert that a path ends with `{module}::{function}`.
+///
+/// This is more robust than string matching as it checks specific path segments
+/// rather than substring containment, ensuring the test remains valid even if
+/// module paths change as long as the architectural intent is preserved.
+#[expect(
+    clippy::indexing_slicing,
+    reason = "indices are bounds-checked by the preceding assert"
+)]
+fn assert_path_ends_with_module_function(path: &syn::Path, module: &str, function: &str) {
+    let segments: Vec<_> = path.segments.iter().map(|s| s.ident.to_string()).collect();
+    let len = segments.len();
+
+    assert!(
+        len >= 2,
+        "expected path with at least 2 segments ({module}::{function}), got: {segments:?}"
+    );
+
     assert_eq!(
-        path_last_ident(path).map(syn::Ident::to_string).as_deref(),
-        Some(expected),
-        "{context}",
+        segments[len - 2],
+        module,
+        "expected second-to-last segment to be '{module}', got path: {segments:?}"
+    );
+
+    assert_eq!(
+        segments[len - 1],
+        function,
+        "expected last segment to be '{function}', got path: {segments:?}"
     );
 }
 
-#[expect(
-    clippy::expect_used,
-    reason = "test helper uses expect for clearer failures"
-)]
-fn find_execute_single_step_function(file: &syn::File) -> &syn::ItemFn {
+/// Assert that a path ends with `execution::execute_step`.
+fn assert_path_is_execution_execute_step(path: &syn::Path) {
+    assert_path_ends_with_module_function(path, "execution", "execute_step");
+}
+
+/// Assert that a path ends with `execution::decode_skip_message`.
+fn assert_path_is_execution_decode_skip_message(path: &syn::Path) {
+    assert_path_ends_with_module_function(path, "execution", "decode_skip_message");
+}
+
+#[expect(clippy::panic, reason = "test helper panics for clearer failures")]
+fn find_function_by_name<'a>(file: &'a syn::File, name: &str) -> &'a syn::ItemFn {
     file.items
         .iter()
         .find_map(|item| match item {
-            syn::Item::Fn(f) if f.sig.ident == "__rstest_bdd_execute_single_step" => Some(f),
+            syn::Item::Fn(f) if f.sig.ident == name => Some(f),
             _ => None,
         })
-        .expect("expected __rstest_bdd_execute_single_step function")
+        .unwrap_or_else(|| panic!("expected {name} function"))
 }
 
 struct CallFinder<'ast> {
@@ -89,134 +106,86 @@ fn find_call_in_block<'a>(block: &'a syn::Block, name: &str) -> Option<&'a syn::
     finder.found
 }
 
+/// Assert that generated step executor code delegates to `rstest_bdd::execution::execute_step`.
+///
+/// This helper validates the architecture where generated code is a thin wrapper
+/// that delegates to runtime functions, rather than containing inline implementation.
+///
+/// # Arguments
+///
+/// * `tokens` - The generated token stream to parse
+/// * `function_name` - The name of the function to find in the generated code
+/// * `description` - A human-readable description for error messages
 #[expect(
-    clippy::indexing_slicing,
-    reason = "indexing is guarded by explicit arg length assertions"
+    clippy::panic,
+    reason = "test helper panics for clearer failure messages"
 )]
-fn assert_steptext_from_wrapper(find_step_call: &syn::ExprCall) {
-    let args: Vec<_> = find_step_call.args.iter().collect();
-    let steptext_call = extract_call(args[1]);
-    let steptext_func_path = extract_path(steptext_call.func.as_ref());
-    assert_path_ends_with(steptext_func_path, "from", "expected StepText::from(...)");
+fn assert_step_executor_delegates_to_runtime(
+    tokens: proc_macro2::TokenStream,
+    function_name: &str,
+    description: &str,
+) {
+    let file: syn::File = syn::parse2(tokens)
+        .unwrap_or_else(|e| panic!("{description}: failed to parse tokens: {e}"));
+
+    let item = find_function_by_name(&file, function_name);
+
+    let execute_step_call = find_call_in_block(&item.block, "execute_step")
+        .unwrap_or_else(|| panic!("{description}: expected call to execute_step"));
+
+    let func_path = extract_path(execute_step_call.func.as_ref());
+    assert_path_is_execution_execute_step(func_path);
+
     assert_eq!(
-        path_second_last_ident(steptext_func_path)
-            .map(syn::Ident::to_string)
-            .as_deref(),
-        Some("StepText"),
-        "expected StepText::from(...)",
+        execute_step_call.args.len(),
+        2,
+        "{description}: execute_step should receive StepExecutionRequest reference and ctx"
     );
-
-    let inner_args: Vec<_> = steptext_call.args.iter().collect();
-    assert_eq!(inner_args.len(), 1, "expected StepText::from(text)");
-    let inner_path = extract_path(inner_args[0]);
-    assert_path_ends_with(inner_path, "text", "expected StepText::from(text)");
 }
 
-/// Verify that a named function is defined as an inner function.
-fn assert_has_inner_function(stmts: &[syn::Stmt], name: &str) {
-    let found = stmts.iter().any(|stmt| match stmt {
-        syn::Stmt::Item(syn::Item::Fn(f)) => f.sig.ident == name,
-        _ => false,
-    });
-    assert!(found, "expected inner function '{name}' to be defined");
+/// Verify that the generated step executor delegates to `rstest_bdd::execution::execute_step`.
+///
+/// This test validates the architecture where the generated code is a thin wrapper
+/// that delegates to runtime functions, rather than containing inline implementation.
+#[test]
+fn execute_single_step_delegates_to_runtime() {
+    assert_step_executor_delegates_to_runtime(
+        generate_step_executor(),
+        "__rstest_bdd_execute_single_step",
+        "sync step executor",
+    );
 }
 
-/// Check if an expression is a reference to a specific identifier (e.g., `&step`).
-fn is_reference_to_ident(expr: &syn::Expr, name: &str) -> bool {
-    let syn::Expr::Reference(ref_expr) = expr else {
-        return false;
-    };
-    let syn::Expr::Path(path_expr) = ref_expr.expr.as_ref() else {
-        return false;
-    };
-    path_expr.path.is_ident(name)
+/// Verify that the generated async step executor delegates to `rstest_bdd::execution::execute_step`.
+///
+/// This mirrors `execute_single_step_delegates_to_runtime` but for the async helper
+/// `__rstest_bdd_process_async_step`, ensuring it stays a thin wrapper over the runtime.
+#[test]
+fn execute_async_step_delegates_to_runtime() {
+    assert_step_executor_delegates_to_runtime(
+        generate_async_step_executor(),
+        "__rstest_bdd_process_async_step",
+        "async step executor",
+    );
 }
 
-/// Find the index of the first statement matching the given predicate.
-fn find_statement_index<F>(stmts: &[syn::Stmt], predicate: F) -> Option<usize>
-where
-    F: Fn(&syn::Stmt) -> bool,
-{
-    stmts.iter().position(predicate)
-}
-
-/// Find the index of a statement containing a call to a named function.
-fn find_call_statement_index(stmts: &[syn::Stmt], func_name: &str) -> Option<usize> {
-    find_statement_index(stmts, |stmt| {
-        let syn::Stmt::Expr(syn::Expr::Call(call), _) = stmt else {
-            return false;
-        };
-        let syn::Expr::Path(path_expr) = call.func.as_ref() else {
-            return false;
-        };
-        path_expr.path.is_ident(func_name)
-    })
-}
-
-/// Find the index of a statement containing a match expression.
-fn find_match_statement_index(stmts: &[syn::Stmt]) -> Option<usize> {
-    find_statement_index(stmts, |stmt| {
-        matches!(stmt, syn::Stmt::Expr(syn::Expr::Match(_), _))
-    })
-}
-
+/// Verify that the skip decoder delegates to `rstest_bdd::execution::decode_skip_message`.
 #[test]
 #[expect(
     clippy::expect_used,
-    clippy::panic,
     reason = "test parses generated tokens and uses expect for clearer failures"
 )]
-fn execute_single_step_looks_up_steps_with_steptext_from() {
-    // Parse the generated helper tokens so we can assert on the AST structure,
-    // keeping this test resilient to formatting-only changes.
+fn skip_decoder_delegates_to_runtime() {
     let file: syn::File =
-        syn::parse2(generate_step_executor()).expect("generate_step_executor parses as a file");
-    let item = find_execute_single_step_function(&file);
+        syn::parse2(generate_skip_decoder()).expect("generate_skip_decoder parses as a file");
 
-    // Validate that inner helper functions are defined inside execute_single_step
-    assert_has_inner_function(&item.block.stmts, "validate_required_fixtures");
-    assert_has_inner_function(&item.block.stmts, "encode_skip_message");
+    let item = find_function_by_name(&file, "__rstest_bdd_decode_skip_message");
 
-    let find_step_call = find_call_in_block(&item.block, "find_step_with_metadata")
-        .expect("expected call to find_step_with_metadata");
-    let func_path = extract_path(find_step_call.func.as_ref());
-    assert_path_ends_with(
-        func_path,
-        "find_step_with_metadata",
-        "expected to call find_step_with_metadata(...)",
-    );
-    assert_eq!(
-        find_step_call.args.len(),
-        2,
-        "expected find_step_with_metadata(keyword, text)"
-    );
-    assert_steptext_from_wrapper(find_step_call);
+    // Verify it calls decode_skip_message from execution module
+    let decode_call = find_call_in_block(&item.block, "decode_skip_message")
+        .expect("expected call to decode_skip_message");
+    let func_path = extract_path(decode_call.func.as_ref());
 
-    let stmts = &item.block.stmts;
-
-    // Verify validate_required_fixtures is called with &step as the first argument
-    let validate_idx = find_call_statement_index(stmts, "validate_required_fixtures")
-        .expect("expected validate_required_fixtures call in then branch");
-    let validate_stmt = stmts
-        .get(validate_idx)
-        .expect("validate_idx should be valid");
-    let syn::Stmt::Expr(syn::Expr::Call(validate_call), _) = validate_stmt else {
-        panic!("expected call statement");
-    };
-    let first_arg = validate_call
-        .args
-        .first()
-        .expect("validate_required_fixtures should have arguments");
-    assert!(
-        is_reference_to_ident(first_arg, "step"),
-        "first argument to validate_required_fixtures should be &step"
-    );
-
-    // Verify step execution (match expression) appears after validate_required_fixtures
-    let match_idx =
-        find_match_statement_index(stmts).expect("expected match expression in then branch");
-    assert!(
-        validate_idx < match_idx,
-        "validate_required_fixtures (index {validate_idx}) should be called before step execution (index {match_idx})"
-    );
+    // Assert the path ends with execution::decode_skip_message using segment-based check
+    assert_path_is_execution_decode_skip_message(func_path);
 }

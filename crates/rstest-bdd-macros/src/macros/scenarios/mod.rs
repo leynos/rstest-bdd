@@ -28,6 +28,7 @@ use self::macro_args::{FixtureSpec, RuntimeMode, ScenariosArgs};
 use self::test_generation::{ScenarioTestContext, generate_scenario_test};
 
 pub(crate) use self::macro_args::RuntimeMode as ScenariosRuntimeMode;
+pub(crate) use self::macro_args::TestAttributeHint as ScenariosTestAttributeHint;
 
 struct TagFilter {
     expr: TagExpression,

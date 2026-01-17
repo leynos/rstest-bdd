@@ -213,8 +213,6 @@ fn assemble_test_tokens(
             std::sync::LazyLock::new(|| {
                 std::sync::Arc::<[String]>::from(vec![#(#tag_literals.to_string()),*])
             });
-        const __RSTEST_BDD_SKIP_NONE_PREFIX: char = '\u{0}';
-        const __RSTEST_BDD_SKIP_SOME_PREFIX: char = '\u{1}';
         #step_executor
         #skip_decoder
         #scenario_guard

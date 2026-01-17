@@ -21,6 +21,7 @@ use runtime::{
 };
 
 pub(crate) use crate::macros::scenarios::ScenariosRuntimeMode as RuntimeMode;
+use crate::macros::scenarios::ScenariosTestAttributeHint as TestAttributeHint;
 
 use crate::parsing::placeholder::contains_placeholders;
 
@@ -79,11 +80,14 @@ fn generate_test_attrs(attrs: &[syn::Attribute], runtime: RuntimeMode) -> TokenS
     // Match only tokio::test to avoid false positives like #[test] or #[test_case].
     let has_tokio_test = attrs.iter().any(is_tokio_test_attr);
 
-    match (runtime, has_tokio_test) {
-        (RuntimeMode::Sync, _) | (RuntimeMode::TokioCurrentThread, true) => {
+    // Use TestAttributeHint to centralise the attribute selection policy
+    match (runtime.test_attribute_hint(), has_tokio_test) {
+        // User already has tokio::test or sync mode: just add rstest
+        (_, true) | (TestAttributeHint::RstestOnly, _) => {
             quote! { #[rstest::rstest] }
         }
-        (RuntimeMode::TokioCurrentThread, false) => quote! {
+        // Async mode without existing tokio::test: add both attributes
+        (TestAttributeHint::RstestWithTokioCurrentThread, false) => quote! {
             #[rstest::rstest]
             #[tokio::test(flavor = "current_thread")]
         },
