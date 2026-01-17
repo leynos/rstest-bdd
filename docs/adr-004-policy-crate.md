@@ -16,8 +16,8 @@ depend on the runtime crate, so it maintains a parallel copy of those enums for
 compile-time use. The duplication creates a manual synchronisation burden and
 invites drift between the macro and runtime layers.
 
-We need a single source of truth for the runtime policy types that both crates
-can depend on, without introducing a new external dependency.
+A single source of truth is required for the runtime policy types that both
+crates can depend on, without introducing a new external dependency.
 
 ## Decision
 

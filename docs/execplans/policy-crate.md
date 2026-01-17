@@ -1,6 +1,7 @@
 # Add shared policy crate and ADR
 
-This ExecPlan is a living document. The sections `Constraints`, `Tolerances`,
+This execution plan (ExecPlan) is a living document. The sections
+`Constraints`, `Tolerances`,
 `Risks`, `Progress`, `Surprises & Discoveries`, `Decision Log`, and
 `Outcomes & Retrospective` must be kept up to date as work proceeds.
 
@@ -10,7 +11,8 @@ Status: COMPLETE
 
 Create a small `rstest-bdd-policy` crate that centralises runtime policy types
 for both the runtime crate and the proc-macro crate, and document the decision
-in a minimal ADR. Success is observable when the duplicated `RuntimeMode` and
+in a minimal architectural decision record (ADR). Success is observable when
+the duplicated `RuntimeMode` and
 `TestAttributeHint` enums are removed from the macro crate, the runtime crate
 re-exports or depends on the shared types, and all tests/lints pass.
 
@@ -28,8 +30,8 @@ re-exports or depends on the shared types, and all tests/lints pass.
 
 ## Tolerances (Exception Triggers)
 
-- Scope: if implementation needs more than 20 files or 800 net LOC changes,
-  stop and escalate.
+- Scope: if implementation needs more than 20 files or 800 net lines of code
+  (LOC) changes, stop and escalate.
 - Interfaces: if a public API signature must change (beyond re-exporting
   existing names), stop and escalate.
 - Dependencies: if a new external dependency is required, stop and escalate.
