@@ -1,6 +1,6 @@
 //! Shared execution policy types for rstest-bdd.
 //!
-//! This crate centralises runtime policy enums so both the runtime crate and
+//! This crate centralizes runtime policy enums so both the runtime crate and
 //! the proc-macro crate can depend on a single, canonical definition without
 //! creating a proc-macro dependency cycle.
 

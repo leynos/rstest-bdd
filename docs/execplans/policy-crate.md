@@ -7,9 +7,9 @@ proceeds.
 
 Status: COMPLETE
 
-## Purpose / Big Picture
+## Purpose / Big picture
 
-Create a small `rstest-bdd-policy` crate that centralises runtime policy types
+Create a small `rstest-bdd-policy` crate that centralizes runtime policy types
 for both the runtime crate and the proc-macro crate, and document the decision
 in a minimal architectural decision record (ADR). Success is observable when
 the duplicated `RuntimeMode` and `TestAttributeHint` enums are removed from the
@@ -28,7 +28,7 @@ all tests/lints pass.
 - Run required Makefile quality gates using `tee` logs before committing.
 - Commit only after tests, lint, and formatting checks pass.
 
-## Tolerances (Exception Triggers)
+## Tolerances (exception triggers)
 
 - Scope: if implementation needs more than 20 files or 800 net lines of code
   (LOC) changes, stop and escalate.
@@ -68,13 +68,13 @@ all tests/lints pass.
       duplication.
 - [x] (2026-01-17 01:30Z) Run format, lint, and test quality gates.
 
-## Surprises & Discoveries
+## Surprises & discoveries
 
 - Observation: `make markdownlint` failed because `markdownlint` was missing.
   Evidence: `xargs: markdownlint: No such file or directory`. Impact: reran the
   gate with `MDLINT=markdownlint-cli2` to complete the markdown lint step.
 
-## Decision Log
+## Decision log
 
 - Decision: proceed with implementation after plan approval.
   Rationale: explicit user approval granted for Stages A-D. Date/Author:
@@ -84,7 +84,7 @@ all tests/lints pass.
   environment, and the Makefile supports overriding `MDLINT`. Date/Author:
   2026-01-17 01:30Z / Codex
 
-## Outcomes & Retrospective
+## Outcomes & retrospective
 
 The policy enums now live in `rstest-bdd-policy`, eliminating macro/runtime
 duplication while preserving the public `rstest_bdd::execution` API via
@@ -92,7 +92,7 @@ re-exports. Documentation now includes ADR-004 and ADR-001 references the new
 policy crate. Running the full quality gate suite confirms the changes across
 formatting, lint, and tests.
 
-## Context and Orientation
+## Context and orientation
 
 The runtime crate currently defines `RuntimeMode` and `TestAttributeHint` in
 `crates/rstest-bdd/src/execution.rs` and the macro crate mirrors them in
@@ -101,12 +101,16 @@ was necessary because proc-macro crates cannot depend on runtime crates. The
 new policy crate will house those shared types so both crates can depend on it
 without duplication.
 
-Documentation lives in `docs/`. ADRs are in
-`docs/adr-001-async-fixtures-and-test.md` through
-`docs/adr-003-scenarios-macro-fixtures.md`. The new ADR should live in
-`docs/adr-004-policy-crate.md` (or the next available number).
+Documentation lives in `docs/`. ADRs include
+`docs/adr-004-policy-crate.md`, which records moving `RuntimeMode` and
+`TestAttributeHint` from `crates/rstest-bdd/src/execution.rs` and the mirrored
+definitions in `crates/rstest-bdd-macros/src/macros/scenarios/macro_args.rs`
+into `crates/rstest-bdd-policy`.
+Workspace layout documentation appears in the root `README.md`, the crate
+READMEs, and `docs/rstest-bdd-design.md`, and should list the policy crate
+alongside the runtime and macro crates.
 
-## Plan of Work
+## Plan of work
 
 Stage A: Baseline and doc alignment. Run the full test suite before any code
 changes to establish a baseline. Draft a minimal ADR describing the policy
@@ -129,7 +133,7 @@ Stage D: Validation and commit. Run formatting and lint/test gates using the
 project Makefile. Commit the changes with a descriptive message once all
 quality gates pass.
 
-## Concrete Steps
+## Concrete steps
 
 1) Baseline tests (before edits) from the repo root:
 
@@ -169,7 +173,7 @@ quality gates pass.
 
 6) Commit once all gates pass. Use an imperative subject and a wrapped body.
 
-## Validation and Acceptance
+## Validation and acceptance
 
 Acceptance means:
 
@@ -181,13 +185,13 @@ Acceptance means:
 - `make check-fmt`, `make markdownlint`, `make nixie`, `make lint`, and
   `make test` succeed.
 
-## Idempotence and Recovery
+## Idempotence and recovery
 
 All steps are repeatable. If a command fails, review the log in `/tmp/` and
 re-run only the failed command after fixing the issue. Avoid partial commits;
 use `git status` to confirm a clean staging area before committing.
 
-## Artifacts and Notes
+## Artifacts and notes
 
 Expected log files after validation:
 
@@ -198,7 +202,7 @@ Expected log files after validation:
     /tmp/lint-$(get-project)-$(git branch --show).out
     /tmp/test-$(get-project)-$(git branch --show).out
 
-## Interfaces and Dependencies
+## Interfaces and dependencies
 
 - New crate: `rstest-bdd-policy` with public enums:
   - `pub enum RuntimeMode { Sync, TokioCurrentThread }`

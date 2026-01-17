@@ -271,7 +271,7 @@ clear.
 
 ## Related decisions
 
-ADR-004 introduces a shared `rstest-bdd-policy` crate to centralise
+ADR-004 introduces a shared `rstest-bdd-policy` crate to centralize
 `RuntimeMode` and `TestAttributeHint` for both the runtime and macro crates.
 This ADR does not change the async execution direction above; it only removes
 policy duplication between crates.

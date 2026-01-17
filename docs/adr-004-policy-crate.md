@@ -13,7 +13,7 @@ Proposed.
 The runtime crate (`rstest-bdd`) defines `RuntimeMode` and `TestAttributeHint`
 in `rstest_bdd::execution`. The proc-macro crate (`rstest-bdd-macros`) cannot
 depend on the runtime crate, so it maintains a parallel copy of those enums for
-compile-time use. The duplication creates a manual synchronisation burden and
+compile-time use. The duplication creates a manual synchronization burden and
 invites drift between the macro and runtime layers.
 
 A single source of truth is required for the runtime policy types that both
@@ -29,6 +29,15 @@ Introduce a new internal crate, `rstest-bdd-policy`, that owns `RuntimeMode`,
 - The macro crate will import the types directly from
   `rstest-bdd-policy`, removing its local copies.
 
+## Outstanding Decisions
+
+- Whether `rstest-bdd-policy` is published to crates.io or treated as a
+  workspace-only crate.
+- The naming and versioning policy for `rstest-bdd-policy` relative to the
+  rest of the workspace releases.
+- Whether future policy types should live in `rstest-bdd-policy` by default or
+  remain owned by the runtime crate when they are runtime-only concerns.
+
 ## Consequences
 
 - The workspace gains one small, dependency-free crate.
@@ -39,7 +48,7 @@ Introduce a new internal crate, `rstest-bdd-policy`, that owns `RuntimeMode`,
 
 ## Alternatives considered
 
-- Keep the duplicated enums and rely on manual synchronisation. Rejected due to
-  drift risk and ongoing maintenance cost.
+- Keep the duplicated enums and rely on manual synchronization. Rejected due
+  to drift risk and ongoing maintenance cost.
 - Move policy into the macro crate and expose it from there. Rejected because
   it would invert layering and tie runtime logic to proc-macro concerns.
