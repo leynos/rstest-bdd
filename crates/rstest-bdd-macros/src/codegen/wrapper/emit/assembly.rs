@@ -17,6 +17,9 @@ use crate::return_classifier::ReturnKind;
 use proc_macro2::TokenStream as TokenStream2;
 use quote::{format_ident, quote};
 
+const WRAPPER_EXPECT_REASON: &str = "rstest-bdd step wrapper pattern requires these patterns \
+for parameter extraction, Result normalization, and closure-based error handling";
+
 /// Prepared wrapper inputs consumed by `assemble_wrapper_function`.
 struct WrapperAssembly<'a> {
     meta: StepMeta<'a>,
@@ -70,7 +73,19 @@ fn assemble_wrapper_function(
     let expected = capture_count;
     let path = crate::codegen::rstest_bdd_path();
     let call_expr = generate_call_expression(return_kind, ident, &arg_idents);
+    let expect_attr = quote! {
+        #[expect(
+            clippy::shadow_reuse,
+            clippy::unnecessary_wraps,
+            clippy::str_to_string,
+            clippy::redundant_closure_for_method_calls,
+            clippy::needless_pass_by_value,
+            clippy::redundant_closure,
+            reason = #WRAPPER_EXPECT_REASON
+        )]
+    };
     quote! {
+        #expect_attr
         fn #wrapper_ident(
             #ctx_ident: &mut #path::StepContext<'_>,
             #text_ident: &str,
@@ -191,5 +206,128 @@ pub(super) fn generate_wrapper_body(
         #cache_tokens
         #signature
         #wrapper_fn
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    //! Tests for wrapper lint suppression emission.
+
+    use super::{
+        PreparedArgs, StepMeta, WRAPPER_EXPECT_REASON, WrapperAssembly, WrapperIdentifiers,
+        assemble_wrapper_function,
+    };
+    use crate::return_classifier::ReturnKind;
+    use proc_macro2::Span;
+    use quote::format_ident;
+    use std::collections::HashSet;
+    use syn::Token;
+    use syn::punctuated::Punctuated;
+
+    fn path_to_string(path: &syn::Path) -> String {
+        path.segments
+            .iter()
+            .map(|segment| segment.ident.to_string())
+            .collect::<Vec<_>>()
+            .join("::")
+    }
+
+    #[test]
+    #[expect(
+        clippy::expect_used,
+        reason = "test validates emitted wrapper attributes"
+    )]
+    fn wrapper_emits_expect_attribute_for_clippy_lints() {
+        let wrapper_ident = format_ident!("__rstest_bdd_wrapper_test");
+        let pattern_ident = format_ident!("__RSTEST_BDD_PATTERN_TEST");
+        let ctx_ident = format_ident!("__rstest_bdd_ctx");
+        let text_ident = format_ident!("__rstest_bdd_text");
+        let step_ident = format_ident!("step_given");
+        let pattern = syn::LitStr::new("a value {x:string}", Span::call_site());
+
+        let tokens = assemble_wrapper_function(
+            WrapperIdentifiers {
+                wrapper: &wrapper_ident,
+                pattern: &pattern_ident,
+                ctx: &ctx_ident,
+                text: &text_ident,
+            },
+            WrapperAssembly {
+                meta: StepMeta {
+                    pattern: &pattern,
+                    ident: &step_ident,
+                },
+                prepared: PreparedArgs {
+                    declares: Vec::new(),
+                    step_arg_parses: Vec::new(),
+                    step_struct_decl: None,
+                    datatable_decl: None,
+                    docstring_decl: None,
+                },
+                arg_idents: Vec::new(),
+                capture_count: 0,
+                return_kind: ReturnKind::Unit,
+            },
+        );
+
+        let wrapper_fn: syn::ItemFn = syn::parse2(tokens).expect("wrapper should parse");
+        let expect_attr = wrapper_fn
+            .attrs
+            .iter()
+            .find(|attr| attr.path().is_ident("expect"))
+            .expect("wrapper should include expect attribute");
+        let metas: Punctuated<syn::Meta, Token![,]> = expect_attr
+            .parse_args_with(Punctuated::parse_terminated)
+            .expect("parse expect attribute arguments");
+
+        let mut lint_names = HashSet::new();
+        let mut reason = None;
+        let mut unexpected_meta = false;
+        for meta in metas {
+            match meta {
+                syn::Meta::Path(path) => {
+                    lint_names.insert(path_to_string(&path));
+                }
+                syn::Meta::NameValue(name_value) if name_value.path.is_ident("reason") => {
+                    let expr_lit = match name_value.value {
+                        syn::Expr::Lit(expr_lit) => Some(expr_lit),
+                        _ => None,
+                    }
+                    .expect("expected reason value to be a string literal");
+                    let lit_str = match expr_lit.lit {
+                        syn::Lit::Str(lit_str) => Some(lit_str),
+                        _ => None,
+                    }
+                    .expect("expected reason value to be a string literal");
+                    reason = Some(lit_str.value());
+                }
+                _ => {
+                    unexpected_meta = true;
+                }
+            }
+        }
+
+        let expected: HashSet<String> = [
+            "clippy::shadow_reuse",
+            "clippy::unnecessary_wraps",
+            "clippy::str_to_string",
+            "clippy::redundant_closure_for_method_calls",
+            "clippy::needless_pass_by_value",
+            "clippy::redundant_closure",
+        ]
+        .into_iter()
+        .map(String::from)
+        .collect();
+
+        assert_eq!(lint_names, expected, "expect attribute lint list mismatch");
+        assert!(
+            !unexpected_meta,
+            "unexpected meta entry in expect attribute"
+        );
+        assert_eq!(
+            reason.as_deref(),
+            Some(WRAPPER_EXPECT_REASON),
+            "expect attribute reason mismatch",
+        );
     }
 }

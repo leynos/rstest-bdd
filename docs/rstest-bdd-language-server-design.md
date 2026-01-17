@@ -947,8 +947,8 @@ Subsequent work will implement:
 1. **Placeholder count validation** — Verify that step patterns and function
    signatures agree on the number of captured arguments
 2. **Data table/docstring expectation mismatches** — Warn when a step expects
-   a data table or docstring, but the feature step doesn't provide one (or
-   vice versa)
+   a data table or docstring, but the feature step doesn't provide one (or vice
+   versa)
 
 ## Conclusion
 
@@ -977,5 +977,5 @@ high-level feature specs with low-level test code in one unified workflow.
 
 [design-goals]:
 https://github.com/leynos/rstest-bdd/blob/main/docs/rstest-bdd-design.md#121-step-1-the-feature-file
-[design-rstest]:
+ [design-rstest]:
 https://github.com/leynos/rstest-bdd/blob/main/docs/rstest-bdd-design.md#122-step-2-the-step-definition-file
