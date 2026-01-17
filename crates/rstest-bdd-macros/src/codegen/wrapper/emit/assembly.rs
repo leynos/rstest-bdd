@@ -237,6 +237,18 @@ mod tests {
             .join("::")
     }
 
+    fn extract_reason_from_meta(name_value: &syn::MetaNameValue) -> Option<String> {
+        if let syn::Expr::Lit(syn::ExprLit {
+            lit: syn::Lit::Str(lit_str),
+            ..
+        }) = &name_value.value
+        {
+            Some(lit_str.value())
+        } else {
+            None
+        }
+    }
+
     #[test]
     #[expect(
         clippy::expect_used,
@@ -293,18 +305,11 @@ mod tests {
                 syn::Meta::Path(path) => {
                     lint_names.insert(path_to_string(&path));
                 }
-                syn::Meta::NameValue(name_value) if name_value.path.is_ident("reason") => {
-                    let expr_lit = match name_value.value {
-                        syn::Expr::Lit(expr_lit) => Some(expr_lit),
-                        _ => None,
-                    }
-                    .expect("expected reason value to be a string literal");
-                    let lit_str = match expr_lit.lit {
-                        syn::Lit::Str(lit_str) => Some(lit_str),
-                        _ => None,
-                    }
-                    .expect("expected reason value to be a string literal");
-                    reason = Some(lit_str.value());
+                syn::Meta::NameValue(ref name_value) if name_value.path.is_ident("reason") => {
+                    reason = Some(
+                        extract_reason_from_meta(name_value)
+                            .expect("expected reason value to be a string literal"),
+                    );
                 }
                 _ => {
                     unexpected_meta = true;
