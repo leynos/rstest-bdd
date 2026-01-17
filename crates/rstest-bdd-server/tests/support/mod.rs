@@ -3,10 +3,8 @@
 //! This module re-exports utilities from the crate's `test_support` module,
 //! providing a single source of truth for test infrastructure.
 
-// Allow unused imports since different test binaries use different subsets.
 #![allow(
     unused_imports,
-    dead_code,
     reason = "each test binary uses a different subset of helpers"
 )]
 

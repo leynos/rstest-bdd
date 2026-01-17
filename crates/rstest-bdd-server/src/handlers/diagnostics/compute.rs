@@ -218,7 +218,7 @@ pub(super) fn step_type_to_attribute(step_type: gherkin::StepType) -> &'static s
 ///
 /// Checks that each step definition's placeholder count matches the number of
 /// step arguments in the function signature. A step argument is a function
-/// parameter whose normalised name appears in the pattern's placeholder set.
+/// parameter whose normalized name appears in the pattern's placeholder set.
 #[must_use]
 pub fn compute_signature_mismatch_diagnostics(
     state: &ServerState,
@@ -262,7 +262,7 @@ fn extract_placeholder_names(pattern: &str) -> Option<HashSet<String>> {
     let names = tokens
         .into_iter()
         .filter_map(|token| match token {
-            Token::Placeholder { name, .. } => Some(normalise_param_name(&name)),
+            Token::Placeholder { name, .. } => Some(normalize_param_name(&name)),
             _ => None,
         })
         .collect();
@@ -274,7 +274,7 @@ fn extract_placeholder_names(pattern: &str) -> Option<HashSet<String>> {
 /// A step argument is a parameter that:
 /// 1. Is not a datatable parameter
 /// 2. Is not a docstring parameter
-/// 3. Has a normalised name that appears in the placeholder set
+/// 3. Has a normalized name that appears in the placeholder set
 fn count_step_arguments(
     parameters: &[IndexedStepParameter],
     placeholder_names: &HashSet<String>,
@@ -286,16 +286,16 @@ fn count_step_arguments(
             param
                 .name
                 .as_ref()
-                .is_some_and(|name| placeholder_names.contains(&normalise_param_name(name)))
+                .is_some_and(|name| placeholder_names.contains(&normalize_param_name(name)))
         })
         .count()
 }
 
-/// Normalise a parameter or placeholder name for comparison.
+/// Normalize a parameter or placeholder name for comparison.
 ///
-/// Strips a single leading underscore to match the macro behaviour, where
+/// Strips a single leading underscore to match the macro behavior, where
 /// users prefix parameters with `_` to suppress unused warnings.
-fn normalise_param_name(name: &str) -> String {
+fn normalize_param_name(name: &str) -> String {
     name.strip_prefix('_').unwrap_or(name).to_owned()
 }
 

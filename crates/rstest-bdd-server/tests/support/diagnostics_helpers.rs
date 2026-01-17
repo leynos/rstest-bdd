@@ -1,4 +1,10 @@
 //! Helper functions for diagnostic integration tests.
+//!
+//! These helpers are shared across multiple test binaries, but each binary
+//! uses only a subset. The `dead_code` allow suppresses warnings for helpers
+//! that aren't used in a particular binary.
+
+#![allow(dead_code, reason = "each test binary uses a different subset of helpers")]
 
 use rstest_bdd_server::handlers::diagnostics::compute::{
     compute_signature_mismatch_diagnostics, compute_table_docstring_mismatch_diagnostics,

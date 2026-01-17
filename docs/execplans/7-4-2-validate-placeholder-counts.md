@@ -126,9 +126,10 @@ Known uncertainties that might affect the plan:
   - [x] Add unit tests for table/docstring validation
 
 - [x] Stage D: Integration and behavioural tests
-  - [x] Add behavioural tests in `tests/diagnostics.rs` for placeholder
-        mismatches
-  - [x] Add behavioural tests for data table/docstring mismatches
+  - [x] Add behavioural tests in `tests/diagnostics_placeholder.rs` for
+        placeholder mismatches
+  - [x] Add behavioural tests in `tests/diagnostics_table_docstring.rs` for
+        data table/docstring mismatches
   - [x] Verify end-to-end diagnostic publishing via publish functions
 
 - [x] Stage E: Documentation and cleanup
@@ -441,8 +442,13 @@ cargo test -p rstest-bdd-server
 ### Stage D Commands
 
 ```bash
-# Run behavioural tests:
-cargo test -p rstest-bdd-server --test diagnostics
+# Run behavioural tests (split across multiple test binaries):
+cargo test -p rstest-bdd-server --test diagnostics_basic
+cargo test -p rstest-bdd-server --test diagnostics_placeholder
+cargo test -p rstest-bdd-server --test diagnostics_table_docstring
+
+# Or run all diagnostics tests at once:
+cargo test -p rstest-bdd-server diagnostics
 
 # Expected output: all tests pass including new end-to-end scenarios
 ```
