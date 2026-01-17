@@ -249,6 +249,45 @@ mod tests {
         }
     }
 
+    /// Parse and validate the expect attribute from a wrapper function.
+    /// Returns (`lint_names`, `reason`, `has_unexpected_meta`).
+    #[expect(
+        clippy::expect_used,
+        reason = "test helper asserts wrapper expect attribute presence and shape"
+    )]
+    fn parse_expect_attribute(wrapper_fn: &syn::ItemFn) -> (HashSet<String>, Option<String>, bool) {
+        let expect_attr = wrapper_fn
+            .attrs
+            .iter()
+            .find(|attr| attr.path().is_ident("expect"))
+            .expect("wrapper should include expect attribute");
+        let metas: Punctuated<syn::Meta, Token![,]> = expect_attr
+            .parse_args_with(Punctuated::parse_terminated)
+            .expect("parse expect attribute arguments");
+
+        let mut lint_names = HashSet::new();
+        let mut reason = None;
+        let mut unexpected_meta = false;
+        for meta in metas {
+            match meta {
+                syn::Meta::Path(path) => {
+                    lint_names.insert(path_to_string(&path));
+                }
+                syn::Meta::NameValue(ref name_value) if name_value.path.is_ident("reason") => {
+                    reason = Some(
+                        extract_reason_from_meta(name_value)
+                            .expect("expected reason value to be a string literal"),
+                    );
+                }
+                _ => {
+                    unexpected_meta = true;
+                }
+            }
+        }
+
+        (lint_names, reason, unexpected_meta)
+    }
+
     #[test]
     #[expect(
         clippy::expect_used,
@@ -288,34 +327,7 @@ mod tests {
         );
 
         let wrapper_fn: syn::ItemFn = syn::parse2(tokens).expect("wrapper should parse");
-        let expect_attr = wrapper_fn
-            .attrs
-            .iter()
-            .find(|attr| attr.path().is_ident("expect"))
-            .expect("wrapper should include expect attribute");
-        let metas: Punctuated<syn::Meta, Token![,]> = expect_attr
-            .parse_args_with(Punctuated::parse_terminated)
-            .expect("parse expect attribute arguments");
-
-        let mut lint_names = HashSet::new();
-        let mut reason = None;
-        let mut unexpected_meta = false;
-        for meta in metas {
-            match meta {
-                syn::Meta::Path(path) => {
-                    lint_names.insert(path_to_string(&path));
-                }
-                syn::Meta::NameValue(ref name_value) if name_value.path.is_ident("reason") => {
-                    reason = Some(
-                        extract_reason_from_meta(name_value)
-                            .expect("expected reason value to be a string literal"),
-                    );
-                }
-                _ => {
-                    unexpected_meta = true;
-                }
-            }
-        }
+        let (lint_names, reason, unexpected_meta) = parse_expect_attribute(&wrapper_fn);
 
         let expected: HashSet<String> = [
             "clippy::shadow_reuse",
