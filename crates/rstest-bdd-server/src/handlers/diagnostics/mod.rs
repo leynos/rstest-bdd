@@ -94,7 +94,10 @@ mod tests {
     }
 
     /// Asserts exactly one diagnostic exists with the expected code and returns it.
-    #[expect(clippy::unwrap_used, reason = "test helper - checked len equals 1")]
+    #[expect(
+        clippy::expect_used,
+        reason = "test helper - diagnostics.len() was asserted to be 1 above"
+    )]
     fn assert_single_diagnostic_with_code<'a>(
         diagnostics: &'a [Diagnostic],
         expected_code: &str,
@@ -105,7 +108,9 @@ mod tests {
             "expected exactly 1 diagnostic, found {}",
             diagnostics.len()
         );
-        let diag = diagnostics.first().unwrap();
+        let diag = diagnostics
+            .first()
+            .expect("diagnostics.len() was asserted to be 1 above");
         assert_eq!(
             diag.code,
             Some(lsp_types::NumberOrString::String(expected_code.to_owned())),

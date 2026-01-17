@@ -316,8 +316,8 @@ fn build_placeholder_mismatch_diagnostic(
         code_description: None,
         source: Some(DIAGNOSTIC_SOURCE.to_owned()),
         message: format!(
-            "Placeholder count mismatch: pattern has {} placeholder(s) but function has {} \
-             step argument(s) - #[{}(\"{}\")]",
+            "Placeholder count mismatch: pattern has {} distinct placeholder name(s) but \
+             function has {} step argument(s) - #[{}(\"{}\")]",
             placeholder_count,
             step_arg_count,
             step_type_to_attribute(step_def.keyword),
