@@ -53,10 +53,13 @@ fn generate_expect_attribute() -> TokenStream2 {
     }
 }
 
-/// Assemble the final wrapper function using prepared components.
-fn assemble_wrapper_function(
+/// Render the wrapper function tokens from prepared inputs.
+fn render_wrapper_function(
     identifiers: WrapperIdentifiers<'_>,
-    assembly: WrapperAssembly<'_>,
+    prepared: PreparedArgs,
+    errors: WrapperErrors,
+    capture_count: usize,
+    call_expr: &TokenStream2,
 ) -> TokenStream2 {
     let WrapperIdentifiers {
         wrapper: wrapper_ident,
@@ -64,13 +67,6 @@ fn assemble_wrapper_function(
         ctx: ctx_ident,
         text: text_ident,
     } = identifiers;
-    let WrapperAssembly {
-        meta,
-        prepared,
-        arg_idents,
-        capture_count,
-        return_kind,
-    } = assembly;
     let PreparedArgs {
         declares,
         step_arg_parses,
@@ -83,11 +79,9 @@ fn assemble_wrapper_function(
         panic: panic_err,
         execution: exec_err,
         capture_mismatch: capture_mismatch_err,
-    } = prepare_wrapper_errors(meta, text_ident);
-    let StepMeta { ident, .. } = meta;
+    } = errors;
     let expected = capture_count;
     let path = crate::codegen::rstest_bdd_path();
-    let call_expr = generate_call_expression(return_kind, ident, &arg_idents);
     let expect_attr = generate_expect_attribute();
     quote! {
         #expect_attr
@@ -123,6 +117,27 @@ fn assemble_wrapper_function(
             }
         }
     }
+}
+
+/// Assemble the final wrapper function using prepared components.
+fn assemble_wrapper_function(
+    identifiers: WrapperIdentifiers<'_>,
+    assembly: WrapperAssembly<'_>,
+) -> TokenStream2 {
+    let WrapperAssembly {
+        meta,
+        prepared,
+        arg_idents,
+        capture_count,
+        return_kind,
+    } = assembly;
+    let WrapperIdentifiers {
+        text: text_ident, ..
+    } = identifiers;
+    let errors = prepare_wrapper_errors(meta, text_ident);
+    let StepMeta { ident, .. } = meta;
+    let call_expr = generate_call_expression(return_kind, ident, &arg_idents);
+    render_wrapper_function(identifiers, prepared, errors, capture_count, &call_expr)
 }
 
 /// Generate the compile-time assertion for step struct field count.
