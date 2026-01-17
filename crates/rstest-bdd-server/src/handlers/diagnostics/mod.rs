@@ -13,7 +13,7 @@
 //! - **Table/docstring expectation mismatches**: Feature steps with tables or
 //!   docstrings that don't match what the Rust implementation expects.
 
-pub mod compute;
+mod compute;
 mod publish;
 
 /// Diagnostic source identifier for rstest-bdd diagnostics.
@@ -41,7 +41,10 @@ const CODE_DOCSTRING_EXPECTED: &str = "docstring-expected";
 const CODE_DOCSTRING_NOT_EXPECTED: &str = "docstring-not-expected";
 
 // Re-export public items
-pub use compute::{compute_unimplemented_step_diagnostics, compute_unused_step_diagnostics};
+pub use compute::{
+    compute_signature_mismatch_diagnostics, compute_table_docstring_mismatch_diagnostics,
+    compute_unimplemented_step_diagnostics, compute_unused_step_diagnostics,
+};
 pub use publish::{
     publish_all_feature_diagnostics, publish_feature_diagnostics, publish_rust_diagnostics,
 };

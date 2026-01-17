@@ -6,10 +6,8 @@
 
 #![allow(dead_code, reason = "each test binary uses a different subset of helpers")]
 
-use rstest_bdd_server::handlers::diagnostics::compute::{
-    compute_signature_mismatch_diagnostics, compute_table_docstring_mismatch_diagnostics,
-};
 use rstest_bdd_server::handlers::{
+    compute_signature_mismatch_diagnostics, compute_table_docstring_mismatch_diagnostics,
     compute_unimplemented_step_diagnostics, compute_unused_step_diagnostics,
 };
 use rstest_bdd_server::server::ServerState;
