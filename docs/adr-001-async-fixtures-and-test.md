@@ -268,3 +268,10 @@ Implement Tokio current-thread mode first to unlock correct async step and
 fixture behaviour with minimal disruption, then evaluate multi-thread support
 as a follow-on ADR once the fixture storage model and `Send` requirements are
 clear.
+
+## Related decisions
+
+ADR-004 introduces a shared `rstest-bdd-policy` crate to centralise
+`RuntimeMode` and `TestAttributeHint` for both the runtime and macro crates.
+This ADR does not change the async execution direction above; it only removes
+policy duplication between crates.

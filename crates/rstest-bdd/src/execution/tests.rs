@@ -80,10 +80,8 @@ fn decode_skip_message_empty_string_preserved() {
 
 /// Verify that `RuntimeMode` and `TestAttributeHint` have matching variant counts.
 ///
-/// This test serves as a compile-time-adjacent guard against enum drift. While Rust's
-/// exhaustive pattern matching in `RuntimeMode::test_attribute_hint()` will catch
-/// missing variants, this test provides explicit validation that both enums have
-/// the same number of variants and that each `RuntimeMode` maps to a unique hint.
+/// This test provides explicit validation that both enums have the same number
+/// of variants and that each `RuntimeMode` maps to a unique hint.
 #[test]
 fn runtime_mode_and_test_attribute_hint_variant_parity() {
     // Collect all RuntimeMode variants and their corresponding hints

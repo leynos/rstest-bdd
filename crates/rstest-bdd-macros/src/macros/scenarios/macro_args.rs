@@ -8,54 +8,11 @@
 //! accepted spellings in duplicate and missing-argument diagnostics so users
 //! immediately see which synonym needs adjusting.
 
+pub(crate) use rstest_bdd_policy::{RuntimeMode, TestAttributeHint};
 use syn::LitStr;
 use syn::parse::{Parse, ParseStream};
 use syn::punctuated::Punctuated;
 use syn::token::Comma;
-
-/// Runtime mode for scenario test execution.
-///
-/// This enum mirrors [`rstest_bdd::execution::RuntimeMode`] in the runtime crate.
-/// The duplication is necessary because proc-macro crates cannot depend on
-/// runtime crates at compile time.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub(crate) enum RuntimeMode {
-    /// Synchronous execution (default).
-    #[default]
-    Sync,
-    /// Tokio current-thread runtime (`#[tokio::test(flavor = "current_thread")]`).
-    TokioCurrentThread,
-}
-
-impl RuntimeMode {
-    /// Returns `true` if this mode requires async test generation.
-    pub fn is_async(self) -> bool {
-        matches!(self, Self::TokioCurrentThread)
-    }
-
-    /// Returns a hint for which test attributes to generate.
-    ///
-    /// This provides a clean abstraction for test attribute decisions,
-    /// keeping the policy centralised in `RuntimeMode`.
-    pub fn test_attribute_hint(self) -> TestAttributeHint {
-        match self {
-            Self::Sync => TestAttributeHint::RstestOnly,
-            Self::TokioCurrentThread => TestAttributeHint::RstestWithTokioCurrentThread,
-        }
-    }
-}
-
-/// Hint for which test attributes the macro layer should generate.
-///
-/// This enum mirrors [`rstest_bdd::execution::TestAttributeHint`] and provides
-/// a clean abstraction for compile-time test attribute decisions.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum TestAttributeHint {
-    /// Generate only `#[rstest::rstest]`.
-    RstestOnly,
-    /// Generate `#[rstest::rstest]` and `#[tokio::test(flavor = "current_thread")]`.
-    RstestWithTokioCurrentThread,
-}
 
 /// A single fixture specification: `name: Type`.
 #[derive(Clone, Debug)]
