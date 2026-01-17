@@ -6,8 +6,7 @@ and `Outcomes & Retrospective` must be kept up to date as work proceeds.
 
 Status: IN PROGRESS
 
-This document is maintained in accordance with `PLANS.md` (though no such file
-exists as of this writing, so this plan follows the ExecPlans skill template).
+This document follows the ExecPlans skill template.
 
 ## Purpose / Big Picture
 
