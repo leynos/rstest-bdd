@@ -1,9 +1,9 @@
 # Add shared policy crate and ADR
 
 This execution plan (ExecPlan) is a living document. The sections
-`Constraints`, `Tolerances`,
-`Risks`, `Progress`, `Surprises & Discoveries`, `Decision Log`, and
-`Outcomes & Retrospective` must be kept up to date as work proceeds.
+`Constraints`, `Tolerances`, `Risks`, `Progress`, `Surprises & Discoveries`,
+`Decision Log`, and `Outcomes & Retrospective` must be kept up to date as work
+proceeds.
 
 Status: COMPLETE
 
@@ -12,9 +12,9 @@ Status: COMPLETE
 Create a small `rstest-bdd-policy` crate that centralises runtime policy types
 for both the runtime crate and the proc-macro crate, and document the decision
 in a minimal architectural decision record (ADR). Success is observable when
-the duplicated `RuntimeMode` and
-`TestAttributeHint` enums are removed from the macro crate, the runtime crate
-re-exports or depends on the shared types, and all tests/lints pass.
+the duplicated `RuntimeMode` and `TestAttributeHint` enums are removed from the
+macro crate, the runtime crate re-exports or depends on the shared types, and
+all tests/lints pass.
 
 ## Constraints
 
