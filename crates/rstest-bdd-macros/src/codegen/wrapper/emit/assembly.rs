@@ -38,6 +38,21 @@ struct WrapperIdentifiers<'a> {
     text: &'a proc_macro2::Ident,
 }
 
+/// Generate the expect attribute for suppressing known Clippy lints in wrapper functions.
+fn generate_expect_attribute() -> TokenStream2 {
+    quote! {
+        #[expect(
+            clippy::shadow_reuse,
+            clippy::unnecessary_wraps,
+            clippy::str_to_string,
+            clippy::redundant_closure_for_method_calls,
+            clippy::needless_pass_by_value,
+            clippy::redundant_closure,
+            reason = #WRAPPER_EXPECT_REASON
+        )]
+    }
+}
+
 /// Assemble the final wrapper function using prepared components.
 fn assemble_wrapper_function(
     identifiers: WrapperIdentifiers<'_>,
@@ -73,17 +88,7 @@ fn assemble_wrapper_function(
     let expected = capture_count;
     let path = crate::codegen::rstest_bdd_path();
     let call_expr = generate_call_expression(return_kind, ident, &arg_idents);
-    let expect_attr = quote! {
-        #[expect(
-            clippy::shadow_reuse,
-            clippy::unnecessary_wraps,
-            clippy::str_to_string,
-            clippy::redundant_closure_for_method_calls,
-            clippy::needless_pass_by_value,
-            clippy::redundant_closure,
-            reason = #WRAPPER_EXPECT_REASON
-        )]
-    };
+    let expect_attr = generate_expect_attribute();
     quote! {
         #expect_attr
         fn #wrapper_ident(
