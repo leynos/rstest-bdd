@@ -78,11 +78,11 @@ all tests/lints pass.
 
 - Decision: proceed with implementation after plan approval.
   Rationale: explicit user approval granted for Stages A-D. Date/Author:
-  2026-01-17 01:20Z / Codex
+  2026-01-17 01:20Z / Codex.
 - Decision: rerun markdown lint with `MDLINT=markdownlint-cli2`.
   Rationale: the default `markdownlint` binary is unavailable in this
   environment, and the Makefile supports overriding `MDLINT`. Date/Author:
-  2026-01-17 01:30Z / Codex
+  2026-01-17 01:30Z / Codex.
 
 ## Outcomes & retrospective
 
@@ -98,7 +98,7 @@ The runtime crate currently defines `RuntimeMode` and `TestAttributeHint` in
 `crates/rstest-bdd/src/execution.rs` and the macro crate mirrors them in
 `crates/rstest-bdd-macros/src/macros/scenarios/macro_args.rs`. The duplication
 was necessary because proc-macro crates cannot depend on runtime crates. The
-new policy crate will house those shared types so both crates can depend on it
+new policy crate will house those shared types, so both crates can depend on it
 without duplication.
 
 Documentation lives in `docs/`. ADRs include
@@ -115,7 +115,7 @@ alongside the runtime and macro crates.
 Stage A: Baseline and doc alignment. Run the full test suite before any code
 changes to establish a baseline. Draft a minimal ADR describing the policy
 crate decision and update `docs/adr-001-async-fixtures-and-test.md` if its
-runtime policy references need to reflect the new shared crate.
+runtime policy references to the new shared crate need to be updated.
 
 Stage B: Policy crate implementation. Create a new crate at
 `crates/rstest-bdd-policy` with a `Cargo.toml` and `src/lib.rs` that defines

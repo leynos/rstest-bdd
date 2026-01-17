@@ -8,7 +8,7 @@ Proposed.
 
 2026-01-17.
 
-## Context
+## Context and problem statement
 
 The runtime crate (`rstest-bdd`) defines `RuntimeMode` and `TestAttributeHint`
 in `rstest_bdd::execution`. The proc-macro crate (`rstest-bdd-macros`) cannot
@@ -16,8 +16,16 @@ depend on the runtime crate, so it maintains a parallel copy of those enums for
 compile-time use. The duplication creates a manual synchronization burden and
 invites drift between the macro and runtime layers.
 
-A single source of truth is required for the runtime policy types that both
-crates can depend on, without introducing a new external dependency.
+The workspace needs a single source of truth for the runtime policy types that
+both crates can depend on, without introducing a new external dependency.
+
+## Decision drivers
+
+- Avoid policy drift between runtime and macro crates.
+- Preserve the public API of `rstest_bdd::execution` without adding new
+  dependency cycles.
+- Keep the solution internal to the workspace without introducing new external
+  dependencies.
 
 ## Decision
 
