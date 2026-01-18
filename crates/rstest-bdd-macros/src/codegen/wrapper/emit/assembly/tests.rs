@@ -8,6 +8,7 @@ use super::{
 use crate::return_classifier::ReturnKind;
 use proc_macro2::Span;
 use quote::{format_ident, quote};
+use rstest::rstest;
 use std::collections::HashSet;
 use syn::Token;
 use syn::punctuated::Punctuated;
@@ -147,39 +148,39 @@ fn assert_wrapper_expect_lints(config: WrapperTestConfig, expected_lint_names: &
     assert_eq!(reason.as_deref(), Some(WRAPPER_EXPECT_REASON));
 }
 
-#[test]
-fn wrapper_emits_expect_attribute_for_clippy_lints() {
-    assert_wrapper_expect_lints(
-        WrapperTestConfig {
-            step_struct_decl: None,
-            has_step_arg_quote_strip: true,
-            capture_count: 1,
-            return_kind: ReturnKind::Unit,
-        },
-        &[
-            LINT_SHADOW_REUSE,
-            LINT_UNNECESSARY_WRAPS,
-            LINT_REDUNDANT_CLOSURE_FOR_METHOD_CALLS,
-            LINT_NEEDLESS_PASS_BY_VALUE,
-            LINT_REDUNDANT_CLOSURE,
-        ],
-    );
-}
-
-#[test]
-fn wrapper_emits_expect_attribute_for_step_structs() {
-    assert_wrapper_expect_lints(
-        WrapperTestConfig {
-            step_struct_decl: Some(quote! {}),
-            has_step_arg_quote_strip: false,
-            capture_count: 1,
-            return_kind: ReturnKind::ResultValue,
-        },
-        &[
-            LINT_STR_TO_STRING,
-            LINT_REDUNDANT_CLOSURE_FOR_METHOD_CALLS,
-            LINT_NEEDLESS_PASS_BY_VALUE,
-            LINT_REDUNDANT_CLOSURE,
-        ],
-    );
+#[rstest]
+#[case::wrapper_emits_expect_attribute_for_clippy_lints(
+    WrapperTestConfig {
+        step_struct_decl: None,
+        has_step_arg_quote_strip: true,
+        capture_count: 1,
+        return_kind: ReturnKind::Unit,
+    },
+    &[
+        LINT_SHADOW_REUSE,
+        LINT_UNNECESSARY_WRAPS,
+        LINT_REDUNDANT_CLOSURE_FOR_METHOD_CALLS,
+        LINT_NEEDLESS_PASS_BY_VALUE,
+        LINT_REDUNDANT_CLOSURE,
+    ],
+)]
+#[case::wrapper_emits_expect_attribute_for_step_structs(
+    WrapperTestConfig {
+        step_struct_decl: Some(quote! {}),
+        has_step_arg_quote_strip: false,
+        capture_count: 1,
+        return_kind: ReturnKind::ResultValue,
+    },
+    &[
+        LINT_STR_TO_STRING,
+        LINT_REDUNDANT_CLOSURE_FOR_METHOD_CALLS,
+        LINT_NEEDLESS_PASS_BY_VALUE,
+        LINT_REDUNDANT_CLOSURE,
+    ],
+)]
+fn wrapper_emits_expect_attribute(
+    #[case] config: WrapperTestConfig,
+    #[case] expected_lint_names: &'static [&'static str],
+) {
+    assert_wrapper_expect_lints(config, expected_lint_names);
 }
