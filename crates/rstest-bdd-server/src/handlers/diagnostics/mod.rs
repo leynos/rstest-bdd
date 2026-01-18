@@ -300,7 +300,7 @@ mod tests {
             "fn have_apples() {}\n",
         ),
         1,
-        Some(("1 distinct placeholder", "0 step argument")),
+        Some(("1 placeholder", "0 step argument")),
     )]
     #[case::extra_placeholder(
         // Pattern has 2 placeholders, function has 1 step argument
@@ -311,7 +311,7 @@ mod tests {
             "fn have_apples(count: u32) {}\n",
         ),
         1,
-        Some(("2 distinct placeholder", "1 step argument")),
+        Some(("2 placeholder", "1 step argument")),
     )]
     #[case::counts_match(
         // Pattern has 1 placeholder, function has 1 step argument - no diagnostic

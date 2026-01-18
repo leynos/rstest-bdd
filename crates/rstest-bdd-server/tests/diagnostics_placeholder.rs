@@ -28,7 +28,7 @@ fn scenario_builder() -> ScenarioBuilder {
         "fn have_apples() {}\n",
     ),
     1,
-    Some("1 distinct placeholder"),
+    Some("1 placeholder"),
 )]
 #[case::extra_placeholder(
     concat!(
@@ -42,7 +42,7 @@ fn scenario_builder() -> ScenarioBuilder {
         "fn have_apples(count: u32) {}\n",
     ),
     1,
-    Some("2 distinct placeholder"),
+    Some("2 placeholder"),
 )]
 #[case::correct_signature(
     concat!(
