@@ -194,20 +194,36 @@ fn build_step_arg_parses(
         };
     }
 
-    let capture_slice = all_captures.get(..step_args.len()).unwrap_or_else(|| {
-        panic!(
-            "step arguments ({}) cannot exceed capture count ({})",
-            step_args.len(),
-            all_captures.len()
+    let Some(capture_slice) = all_captures.get(..step_args.len()) else {
+        let error = syn::Error::new(
+            step_meta.pattern.span(),
+            format!(
+                "step arguments ({}) cannot exceed capture count ({})",
+                step_args.len(),
+                all_captures.len()
+            ),
         )
-    });
-    let hint_slice = placeholder_hints.get(..step_args.len()).unwrap_or_else(|| {
-        panic!(
-            "placeholder hints ({}) must match or exceed step argument count ({})",
-            placeholder_hints.len(),
-            step_args.len()
+        .to_compile_error();
+        return StepArgParseResult {
+            step_arg_parses: vec![error],
+            has_step_arg_quote_strip: false,
+        };
+    };
+    let Some(hint_slice) = placeholder_hints.get(..step_args.len()) else {
+        let error = syn::Error::new(
+            step_meta.pattern.span(),
+            format!(
+                "placeholder hints ({}) must match or exceed step argument count ({})",
+                placeholder_hints.len(),
+                step_args.len()
+            ),
         )
-    });
+        .to_compile_error();
+        return StepArgParseResult {
+            step_arg_parses: vec![error],
+            has_step_arg_quote_strip: false,
+        };
+    };
     let has_step_arg_quote_strip = hint_slice
         .iter()
         .any(|hint| requires_quote_stripping(hint.as_deref()));
