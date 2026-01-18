@@ -494,8 +494,8 @@ Acceptance behaviour:
    (macro and empty body).
 3. Save both files.
 4. Observe diagnostic on the Rust step definition:
-   `Placeholder count mismatch: pattern has 1 distinct placeholder name(s) but
-   function has 0 step argument(s)`
+   `Placeholder count mismatch: pattern has 1 distinct placeholder name(s)
+   but function has 0 step argument(s)`
 5. Add parameter `count: u32` to the function and save.
 6. Observe diagnostic clears.
 

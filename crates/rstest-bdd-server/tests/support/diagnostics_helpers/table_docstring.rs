@@ -1,6 +1,9 @@
 //! Helpers for table/docstring expectation mismatch diagnostic tests.
 
-#![allow(dead_code, reason = "only used by diagnostics_table_docstring test binary")]
+#![allow(
+    dead_code,
+    reason = "only used by diagnostics_table_docstring test binary"
+)]
 
 use rstest_bdd_server::handlers::compute_table_docstring_mismatch_diagnostics;
 use rstest_bdd_server::server::ServerState;
