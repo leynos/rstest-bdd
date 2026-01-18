@@ -27,20 +27,27 @@ both crates can depend on, without introducing a new external dependency.
 - Keep the solution internal to the workspace without introducing new external
   dependencies.
 
-## Decision
+## Options considered
+
+| Option                  | Pros                                   | Cons                                     |
+| ----------------------- | -------------------------------------- | ---------------------------------------- |
+| Keep duplicated enums   | No new crate                           | Drift risk; ongoing maintenance cost     |
+| Move policy into macros | Single definition                      | Inverts layering; ties runtime to macros |
+| New policy crate        | Single source of truth; clean layering | New crate to publish and maintain        |
+
+Table: Options compared for policy type ownership.
+
+## Decision outcome / proposed direction
 
 Introduce a new internal crate, `rstest-bdd-policy`, that owns `RuntimeMode`,
 `TestAttributeHint`, and their associated helpers.
 
+- Adopt `rstest-bdd-policy` as the single source of truth for policy types
+  within the workspace and re-export from `rstest_bdd::execution`.
 - The runtime crate will re-export these types from
   `rstest_bdd::execution` to preserve the public API.
 - The macro crate will import the types directly from
   `rstest-bdd-policy`, removing its local copies.
-
-## Decision outcome / proposed direction
-
-- Adopt `rstest-bdd-policy` as the single source of truth for policy types
-  within the workspace and re-export from `rstest_bdd::execution`.
 
 ## Outstanding decisions
 
@@ -79,13 +86,3 @@ Introduce a new internal crate, `rstest-bdd-policy`, that owns `RuntimeMode`,
   dependency rules.
 - The public API for `rstest_bdd::execution::RuntimeMode` and
   `rstest_bdd::execution::TestAttributeHint` remains stable.
-
-## Options considered
-
-| Option                 | Pros                                  | Cons                                      |
-| ---                    | ---                                   | ---                                       |
-| Keep duplicated enums  | No new crate                          | Drift risk; ongoing maintenance cost      |
-| Move policy into macros| Single definition                     | Inverts layering; ties runtime to macros  |
-| New policy crate       | Single source of truth; clean layering| New crate to publish and maintain         |
-
-Table: Options compared for policy type ownership.

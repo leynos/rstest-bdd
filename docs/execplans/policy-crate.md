@@ -101,14 +101,13 @@ was necessary because proc-macro crates cannot depend on runtime crates. The
 new policy crate will house those shared types, so both crates can depend on it
 without duplication.
 
-Documentation lives in `docs/`. ADRs include
-`docs/adr-004-policy-crate.md`, which records moving `RuntimeMode` and
-`TestAttributeHint` from `crates/rstest-bdd/src/execution.rs` and the mirrored
-definitions in `crates/rstest-bdd-macros/src/macros/scenarios/macro_args.rs`
-into `crates/rstest-bdd-policy`.
-Workspace layout documentation appears in the root `README.md`, the crate
-READMEs, and `docs/rstest-bdd-design.md`, and should list the policy crate
-alongside the runtime and macro crates.
+Documentation lives in `docs/`. ADRs include `docs/adr-004-policy-crate.md`,
+which records moving `RuntimeMode` and `TestAttributeHint` from
+`crates/rstest-bdd/src/execution.rs` and the mirrored definitions in
+`crates/rstest-bdd-macros/src/macros/scenarios/macro_args.rs` into
+`crates/rstest-bdd-policy`. Workspace layout documentation appears in the root
+`README.md`, the crate READMEs, and `docs/rstest-bdd-design.md`, and should
+list the policy crate alongside the runtime and macro crates.
 
 ## Plan of work
 
