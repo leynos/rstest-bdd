@@ -62,9 +62,7 @@ fn parse_expect_attribute(wrapper_fn: &syn::ItemFn) -> (HashSet<String>, Option<
             }
             syn::Meta::NameValue(ref name_value) if name_value.path.is_ident("reason") => {
                 reason = extract_reason_from_meta(name_value);
-                if reason.is_none() {
-                    unexpected_meta = true;
-                }
+                unexpected_meta |= reason.is_none();
             }
             _ => unexpected_meta = true,
         }
