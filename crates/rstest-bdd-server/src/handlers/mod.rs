@@ -5,7 +5,7 @@
 //! implementation navigation, and diagnostic publishing.
 
 mod definition;
-pub mod diagnostics;
+mod diagnostics;
 mod implementation;
 mod lifecycle;
 mod text_document;

@@ -6,7 +6,6 @@
 //! - Checking for placeholder count mismatches
 //! - Checking for table/docstring expectation mismatches
 
-use std::collections::HashSet;
 use std::{path::Path, sync::Arc};
 
 use lsp_types::{Diagnostic, DiagnosticSeverity, Range};
@@ -253,12 +252,13 @@ pub fn compute_signature_mismatch_diagnostics(
 
 /// Check if a step definition has a placeholder count mismatch.
 ///
-/// Returns `Some(Diagnostic)` if the number of placeholders in the pattern
-/// differs from the number of step arguments in the function signature.
+/// Returns `Some(Diagnostic)` if the number of placeholder occurrences in the
+/// pattern differs from the number of step arguments in the function signature.
+/// This mirrors the macro's `capture_count` semantics which counts every
+/// placeholder occurrence, not just distinct names.
 fn check_placeholder_count_mismatch(step_def: &Arc<CompiledStepDefinition>) -> Option<Diagnostic> {
-    let placeholder_names = extract_placeholder_names(&step_def.pattern)?;
-    let placeholder_count = placeholder_names.len();
-    let step_arg_count = count_step_arguments(&step_def.parameters, &placeholder_names);
+    let placeholder_count = count_placeholder_occurrences(&step_def.pattern)?;
+    let step_arg_count = count_step_arguments(&step_def.parameters);
 
     if placeholder_count == step_arg_count {
         return None;
@@ -271,51 +271,33 @@ fn check_placeholder_count_mismatch(step_def: &Arc<CompiledStepDefinition>) -> O
     ))
 }
 
-/// Extract placeholder names from a step pattern.
+/// Count placeholder occurrences in a step pattern.
 ///
 /// Uses `lex_pattern()` as the single source of truth for placeholder parsing.
-/// Returns `None` if the pattern cannot be lexed (malformed patterns are
-/// handled elsewhere and should not produce additional diagnostics here).
-fn extract_placeholder_names(pattern: &str) -> Option<HashSet<String>> {
+/// Returns the total number of `Token::Placeholder` occurrences to match the
+/// macro's `capture_count` semantics (which counts every placeholder, not just
+/// distinct names). Returns `None` if the pattern cannot be lexed (malformed
+/// patterns are handled elsewhere and should not produce additional diagnostics
+/// here).
+fn count_placeholder_occurrences(pattern: &str) -> Option<usize> {
     let tokens = lex_pattern(pattern).ok()?;
-    let names = tokens
-        .into_iter()
-        .filter_map(|token| match token {
-            Token::Placeholder { name, .. } => Some(normalize_param_name(&name)),
-            _ => None,
-        })
-        .collect();
-    Some(names)
+    let count = tokens
+        .iter()
+        .filter(|token| matches!(token, Token::Placeholder { .. }))
+        .count();
+    Some(count)
 }
 
 /// Count step arguments among the function parameters.
 ///
-/// A step argument is a parameter that:
-/// 1. Is not a datatable parameter
-/// 2. Is not a docstring parameter
-/// 3. Has a normalized name that appears in the placeholder set
-fn count_step_arguments(
-    parameters: &[IndexedStepParameter],
-    placeholder_names: &HashSet<String>,
-) -> usize {
+/// A step argument is a parameter that is neither a datatable nor a docstring
+/// parameter. This count is compared against placeholder occurrences to mirror
+/// the macro's `ordered.len()` behaviour.
+fn count_step_arguments(parameters: &[IndexedStepParameter]) -> usize {
     parameters
         .iter()
         .filter(|param| !param.is_datatable && !param.is_docstring)
-        .filter(|param| {
-            param
-                .name
-                .as_ref()
-                .is_some_and(|name| placeholder_names.contains(&normalize_param_name(name)))
-        })
         .count()
-}
-
-/// Normalize a parameter or placeholder name for comparison.
-///
-/// Strips a single leading underscore to match the macro behavior, where
-/// users prefix parameters with `_` to suppress unused warnings.
-fn normalize_param_name(name: &str) -> String {
-    name.strip_prefix('_').unwrap_or(name).to_owned()
 }
 
 /// Build a diagnostic for a placeholder count mismatch.
@@ -335,7 +317,7 @@ fn build_placeholder_mismatch_diagnostic(
         code_description: None,
         source: Some(DIAGNOSTIC_SOURCE.to_owned()),
         message: format!(
-            "Placeholder count mismatch: pattern has {} distinct placeholder name(s) but \
+            "Placeholder count mismatch: pattern has {} placeholder(s) but \
              function has {} step argument(s) - #[{}(\"{}\")]",
             placeholder_count,
             step_arg_count,

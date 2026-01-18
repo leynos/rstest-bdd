@@ -279,7 +279,10 @@ struct SpecificityScore {
 
 Review the existing diagnostic infrastructure and placeholder parsing. No code
 changes; only reading and note-taking. Verify understanding by examining test
-cases in `tests/diagnostics.rs` and `handlers/diagnostics.rs`.
+cases in `crates/rstest-bdd-server/tests/diagnostics_basic.rs`,
+`crates/rstest-bdd-server/tests/diagnostics_placeholder.rs`,
+`crates/rstest-bdd-server/tests/diagnostics_table_docstring.rs`, and
+`crates/rstest-bdd-server/src/handlers/diagnostics/compute.rs`.
 
 ### Stage B: Placeholder Count Validation
 
@@ -494,7 +497,7 @@ Acceptance behaviour:
    (macro and empty body).
 3. Save both files.
 4. Observe diagnostic on the Rust step definition:
-   `Placeholder count mismatch: pattern has 1 distinct placeholder name(s)
+   `Placeholder count mismatch: pattern has 1 placeholder(s)
    but function has 0 step argument(s)`
 5. Add parameter `count: u32` to the function and save.
 6. Observe diagnostic clears.
