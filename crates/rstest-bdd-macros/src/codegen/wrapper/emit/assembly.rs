@@ -53,13 +53,18 @@ fn generate_expect_attribute() -> TokenStream2 {
     }
 }
 
+/// Rendering context for wrapper function generation.
+struct WrapperRenderContext<'a> {
+    errors: WrapperErrors,
+    capture_count: usize,
+    call_expr: &'a TokenStream2,
+}
+
 /// Render the wrapper function tokens from prepared inputs.
 fn render_wrapper_function(
     identifiers: WrapperIdentifiers<'_>,
     prepared: PreparedArgs,
-    errors: WrapperErrors,
-    capture_count: usize,
-    call_expr: &TokenStream2,
+    context: WrapperRenderContext<'_>,
 ) -> TokenStream2 {
     let WrapperIdentifiers {
         wrapper: wrapper_ident,
@@ -74,6 +79,11 @@ fn render_wrapper_function(
         datatable_decl,
         docstring_decl,
     } = prepared;
+    let WrapperRenderContext {
+        errors,
+        capture_count,
+        call_expr,
+    } = context;
     let WrapperErrors {
         placeholder: placeholder_err,
         panic: panic_err,
@@ -137,7 +147,15 @@ fn assemble_wrapper_function(
     let errors = prepare_wrapper_errors(meta, text_ident);
     let StepMeta { ident, .. } = meta;
     let call_expr = generate_call_expression(return_kind, ident, &arg_idents);
-    render_wrapper_function(identifiers, prepared, errors, capture_count, &call_expr)
+    render_wrapper_function(
+        identifiers,
+        prepared,
+        WrapperRenderContext {
+            errors,
+            capture_count,
+            call_expr: &call_expr,
+        },
+    )
 }
 
 /// Generate the compile-time assertion for step struct field count.
