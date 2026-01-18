@@ -140,7 +140,7 @@ Known uncertainties that might affect the plan:
 
 ## Decision Log
 
-### 2025-01-11: Parameter classification approach
+### 2026-01-11: Parameter classification approach
 
 **Decision:** Use placeholder name matching to classify parameters as step
 arguments vs. fixtures.
@@ -157,7 +157,7 @@ parameters are assumed to be fixtures and not counted.
    unreliable and not matching macro behaviour.
 2. Require explicit fixture annotations - rejected as too invasive for users.
 
-### 2025-01-11: Placeholder extraction source of truth
+### 2026-01-11: Placeholder extraction source of truth
 
 **Decision:** Use `rstest_bdd_patterns::pattern::lexer::lex_pattern()` as the
 single source of truth for placeholder extraction.
@@ -377,7 +377,12 @@ cases in `crates/rstest-bdd-server/tests/diagnostics_basic.rs`,
 
 ### Stage D: Behavioural Tests
 
-Add end-to-end tests in `tests/diagnostics.rs` using `ScenarioBuilder`:
+Add end-to-end tests using `ScenarioBuilder` in:
+
+- `crates/rstest-bdd-server/tests/diagnostics_placeholder.rs`
+- `crates/rstest-bdd-server/tests/diagnostics_table_docstring.rs`
+
+Test scenarios:
 
 1. Placeholder count mismatch scenario:
    - Feature: `Given I have {count} apples`

@@ -6,6 +6,7 @@
 //! - Checking for placeholder count mismatches
 //! - Checking for table/docstring expectation mismatches
 
+use std::collections::HashSet;
 use std::{path::Path, sync::Arc};
 
 use lsp_types::{Diagnostic, DiagnosticSeverity, Range};
@@ -258,7 +259,8 @@ pub fn compute_signature_mismatch_diagnostics(
 /// placeholder occurrence, not just distinct names.
 fn check_placeholder_count_mismatch(step_def: &Arc<CompiledStepDefinition>) -> Option<Diagnostic> {
     let placeholder_count = count_placeholder_occurrences(&step_def.pattern)?;
-    let step_arg_count = count_step_arguments(&step_def.parameters);
+    let placeholder_names = extract_placeholder_names(&step_def.pattern)?;
+    let step_arg_count = count_step_arguments(&step_def.parameters, &placeholder_names);
 
     if placeholder_count == step_arg_count {
         return None;
@@ -288,16 +290,54 @@ fn count_placeholder_occurrences(pattern: &str) -> Option<usize> {
     Some(count)
 }
 
+/// Extract placeholder names from a step pattern.
+///
+/// Uses `lex_pattern()` as the single source of truth for placeholder parsing.
+/// Returns `None` if the pattern cannot be lexed (malformed patterns are
+/// handled elsewhere and should not produce additional diagnostics here).
+fn extract_placeholder_names(pattern: &str) -> Option<HashSet<String>> {
+    let tokens = lex_pattern(pattern).ok()?;
+    let names = tokens
+        .into_iter()
+        .filter_map(|token| match token {
+            Token::Placeholder { name, .. } => Some(normalize_param_name(&name)),
+            _ => None,
+        })
+        .collect();
+    Some(names)
+}
+
 /// Count step arguments among the function parameters.
 ///
-/// A step argument is a parameter that is neither a datatable nor a docstring
-/// parameter. This count is compared against placeholder occurrences to mirror
-/// the macro's `ordered.len()` behaviour.
-fn count_step_arguments(parameters: &[IndexedStepParameter]) -> usize {
+/// A step argument is a parameter that:
+/// 1. Is not a datatable parameter
+/// 2. Is not a docstring parameter
+/// 3. Has a normalised name that appears in the placeholder set
+///
+/// This distinguishes step arguments from fixture parameters, which do not
+/// correspond to placeholders in the pattern.
+fn count_step_arguments(
+    parameters: &[IndexedStepParameter],
+    placeholder_names: &HashSet<String>,
+) -> usize {
     parameters
         .iter()
         .filter(|param| !param.is_datatable && !param.is_docstring)
+        .filter(|param| {
+            param
+                .name
+                .as_ref()
+                .is_some_and(|name| placeholder_names.contains(&normalize_param_name(name)))
+        })
         .count()
+}
+
+/// Normalise a parameter or placeholder name for comparison.
+///
+/// Strips a single leading underscore to match the macro behaviour, where
+/// users prefix parameters with `_` to suppress unused warnings.
+fn normalize_param_name(name: &str) -> String {
+    name.strip_prefix('_').unwrap_or(name).to_owned()
 }
 
 /// Build a diagnostic for a placeholder count mismatch.
@@ -386,56 +426,61 @@ fn check_table_docstring_mismatches(
         return diagnostics;
     };
 
-    if let Some(diag) = check_table_expectation(feature_index, step, &impl_def) {
+    if let Some(diag) = StepArgumentKind::Table.check_expectation(feature_index, step, &impl_def) {
         diagnostics.push(diag);
     }
 
-    if let Some(diag) = check_docstring_expectation(feature_index, step, &impl_def) {
+    if let Some(diag) =
+        StepArgumentKind::Docstring.check_expectation(feature_index, step, &impl_def)
+    {
         diagnostics.push(diag);
     }
 
     diagnostics
 }
 
-/// Check if the step's table matches the implementation's expectation.
-///
-/// Returns a diagnostic if there's a mismatch:
-/// - Step has a table but impl doesn't expect one
-/// - Impl expects a table but step doesn't have one
-fn check_table_expectation(
-    feature_index: &FeatureFileIndex,
-    step: &IndexedStep,
-    impl_def: &CompiledStepDefinition,
-) -> Option<Diagnostic> {
-    let step_has_table = step.table.is_some();
-
-    if step_has_table && !impl_def.expects_table {
-        Some(FeatureStepDiagnosticKind::TableNotExpected.build(feature_index, step))
-    } else if !step_has_table && impl_def.expects_table {
-        Some(FeatureStepDiagnosticKind::TableExpected.build(feature_index, step))
-    } else {
-        None
-    }
+/// The type of step argument expectation to validate.
+enum StepArgumentKind {
+    /// Data table expectation.
+    Table,
+    /// Docstring expectation.
+    Docstring,
 }
 
-/// Check if the step's docstring matches the implementation's expectation.
-///
-/// Returns a diagnostic if there's a mismatch:
-/// - Step has a docstring but impl doesn't expect one
-/// - Impl expects a docstring but step doesn't have one
-fn check_docstring_expectation(
-    feature_index: &FeatureFileIndex,
-    step: &IndexedStep,
-    impl_def: &CompiledStepDefinition,
-) -> Option<Diagnostic> {
-    let step_has_docstring = step.docstring.is_some();
+impl StepArgumentKind {
+    /// Check if the step's argument matches the implementation's expectation.
+    ///
+    /// Returns a diagnostic if there's a mismatch:
+    /// - Step has the argument but impl doesn't expect it
+    /// - Impl expects the argument but step doesn't have it
+    fn check_expectation(
+        self,
+        feature_index: &FeatureFileIndex,
+        step: &IndexedStep,
+        impl_def: &CompiledStepDefinition,
+    ) -> Option<Diagnostic> {
+        let (step_has_arg, impl_expects_arg, not_expected_kind, expected_kind) = match self {
+            Self::Table => (
+                step.table.is_some(),
+                impl_def.expects_table,
+                FeatureStepDiagnosticKind::TableNotExpected,
+                FeatureStepDiagnosticKind::TableExpected,
+            ),
+            Self::Docstring => (
+                step.docstring.is_some(),
+                impl_def.expects_docstring,
+                FeatureStepDiagnosticKind::DocstringNotExpected,
+                FeatureStepDiagnosticKind::DocstringExpected,
+            ),
+        };
 
-    if step_has_docstring && !impl_def.expects_docstring {
-        Some(FeatureStepDiagnosticKind::DocstringNotExpected.build(feature_index, step))
-    } else if !step_has_docstring && impl_def.expects_docstring {
-        Some(FeatureStepDiagnosticKind::DocstringExpected.build(feature_index, step))
-    } else {
-        None
+        if step_has_arg && !impl_expects_arg {
+            Some(not_expected_kind.build(feature_index, step))
+        } else if !step_has_arg && impl_expects_arg {
+            Some(expected_kind.build(feature_index, step))
+        } else {
+            None
+        }
     }
 }
 
