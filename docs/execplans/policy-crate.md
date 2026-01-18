@@ -1,9 +1,9 @@
 # Add shared policy crate and ADR
 
 This execution plan (ExecPlan) is a living document. The sections
-`Constraints`, `Tolerances`, `Risks`, `Progress`, `Surprises & Discoveries`,
-`Decision Log`, and `Outcomes & Retrospective` must be kept up to date as work
-proceeds.
+`Constraints`, `Tolerances`, `Risks`, `Progress`, `Surprises and Discoveries`,
+`Decision Log`, and `Outcomes and Retrospective` must be kept up to date as
+work proceeds.
 
 Status: COMPLETE
 
@@ -68,7 +68,7 @@ all tests/lints pass.
       duplication.
 - [x] (2026-01-17 01:30Z) Run format, lint, and test quality gates.
 
-## Surprises & discoveries
+## Surprises and discoveries
 
 - Observation: `make markdownlint` failed because `markdownlint` was missing.
   Evidence: `xargs: markdownlint: No such file or directory`. Impact: reran the
@@ -84,7 +84,7 @@ all tests/lints pass.
   environment, and the Makefile supports overriding `MDLINT`. Date/Author:
   2026-01-17 01:30Z / Codex.
 
-## Outcomes & retrospective
+## Outcomes and retrospective
 
 The policy enums live in `rstest-bdd-policy`, eliminating macro/runtime
 duplication while preserving the public `rstest_bdd::execution` API via

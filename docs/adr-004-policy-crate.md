@@ -6,7 +6,7 @@ Proposed.
 
 ## Date
 
-2026-01-17.
+2026-01-17
 
 ## Context and problem statement
 
