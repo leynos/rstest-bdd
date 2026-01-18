@@ -493,8 +493,9 @@ Acceptance behaviour:
 2. Create a Rust file with `#[given("I have {count} apples")] fn step() {}`
    (macro and empty body).
 3. Save both files.
-4. Observe diagnostic on the Rust step definition (placeholder count
-   mismatch message).
+4. Observe diagnostic on the Rust step definition:
+   `Placeholder count mismatch: pattern has 1 distinct placeholder name(s) but
+   function has 0 step argument(s)`
 5. Add parameter `count: u32` to the function and save.
 6. Observe diagnostic clears.
 

@@ -1,16 +1,8 @@
-//! Helper functions for diagnostic integration tests.
-//!
-//! These helpers are shared across multiple test binaries, but each binary
-//! uses only a subset. The `dead_code` allow suppresses warnings for helpers
-//! that aren't used in a particular binary.
+//! Helpers for basic diagnostic tests (unimplemented steps, unused definitions).
 
-#![allow(
-    dead_code,
-    reason = "each test binary uses a different subset of helpers"
-)]
+#![allow(dead_code, reason = "only used by diagnostics_basic test binary")]
 
 use rstest_bdd_server::handlers::{
-    compute_signature_mismatch_diagnostics, compute_table_docstring_mismatch_diagnostics,
     compute_unimplemented_step_diagnostics, compute_unused_step_diagnostics,
 };
 use rstest_bdd_server::server::ServerState;
@@ -38,31 +30,9 @@ pub fn compute_rust_diagnostics(
     compute_unused_step_diagnostics(state, &path)
 }
 
-/// Helper to compute placeholder mismatch diagnostics for a Rust file.
-pub fn compute_placeholder_diagnostics(
-    state: &ServerState,
-    dir: &TempDir,
-    filename: impl AsRef<str>,
-) -> Vec<lsp_types::Diagnostic> {
-    let path = dir.path().join(filename.as_ref());
-    compute_signature_mismatch_diagnostics(state, &path)
-}
-
-/// Helper to compute table/docstring mismatch diagnostics for a feature file.
-#[expect(clippy::expect_used, reason = "test helper uses expect for clarity")]
-pub fn compute_table_docstring_diagnostics(
-    state: &ServerState,
-    dir: &TempDir,
-    filename: impl AsRef<str>,
-) -> Vec<lsp_types::Diagnostic> {
-    let path = dir.path().join(filename.as_ref());
-    let feature_index = state.feature_index(&path).expect("feature index");
-    compute_table_docstring_mismatch_diagnostics(state, feature_index)
-}
-
 /// Helper to assert a single diagnostic with an expected message substring.
 #[expect(clippy::expect_used, reason = "test helper uses expect for clarity")]
-pub fn assert_single_diagnostic_contains(
+fn assert_single_diagnostic_contains(
     diagnostics: &[lsp_types::Diagnostic],
     expected_substring: &str,
 ) {

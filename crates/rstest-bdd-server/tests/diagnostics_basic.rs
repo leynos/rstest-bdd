@@ -11,7 +11,7 @@ mod support;
 
 use rstest::{fixture, rstest};
 use rstest_bdd_server::test_support::DiagnosticCheckType;
-use support::diagnostics_helpers::{
+use support::diagnostics_helpers::basic::{
     assert_feature_has_diagnostic, assert_feature_has_no_diagnostics, assert_rust_has_diagnostic,
     assert_rust_has_no_diagnostics, compute_feature_diagnostics, compute_rust_diagnostics,
 };

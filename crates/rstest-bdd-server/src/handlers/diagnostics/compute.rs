@@ -219,6 +219,25 @@ pub(super) fn step_type_to_attribute(step_type: gherkin::StepType) -> &'static s
 /// Checks that each step definition's placeholder count matches the number of
 /// step arguments in the function signature. A step argument is a function
 /// parameter whose normalized name appears in the pattern's placeholder set.
+///
+/// # Example
+///
+/// ```no_run
+/// use rstest_bdd_server::server::ServerState;
+/// use std::path::Path;
+///
+/// let state = ServerState::default();
+/// let rust_path = Path::new("steps.rs");
+///
+/// let diagnostics = rstest_bdd_server::handlers::compute_signature_mismatch_diagnostics(
+///     &state,
+///     rust_path,
+/// );
+/// // Returns diagnostics for any step where placeholder count != step argument count
+/// for diag in &diagnostics {
+///     println!("{}", diag.message);
+/// }
+/// ```
 #[must_use]
 pub fn compute_signature_mismatch_diagnostics(
     state: &ServerState,
@@ -337,6 +356,27 @@ fn build_placeholder_mismatch_diagnostic(
 ///
 /// For each feature step, checks if the step has a table or docstring and
 /// whether the matching Rust implementation expects them.
+///
+/// # Example
+///
+/// ```no_run
+/// use rstest_bdd_server::server::ServerState;
+/// use rstest_bdd_server::indexing::FeatureFileIndex;
+///
+/// let state = ServerState::default();
+/// // Obtain a FeatureFileIndex from state.feature_index(path)
+/// # let feature_index: FeatureFileIndex = todo!();
+///
+/// let diagnostics = rstest_bdd_server::handlers::compute_table_docstring_mismatch_diagnostics(
+///     &state,
+///     &feature_index,
+/// );
+/// // Returns diagnostics when feature steps have tables/docstrings
+/// // but the Rust implementation doesn't expect them (or vice versa)
+/// for diag in &diagnostics {
+///     println!("{}", diag.message);
+/// }
+/// ```
 #[must_use]
 pub fn compute_table_docstring_mismatch_diagnostics(
     state: &ServerState,
