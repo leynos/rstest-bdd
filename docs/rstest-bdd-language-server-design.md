@@ -975,7 +975,5 @@ high-level feature specs with low-level test code in one unified workflow.
 - [`rstest-bdd` Design Document](rstest-bdd-design.md)
 - [`rstest-bdd` Project Roadmap](roadmap.md)
 
-[design-goals]:
-https://github.com/leynos/rstest-bdd/blob/main/docs/rstest-bdd-design.md#121-step-1-the-feature-file
- [design-rstest]:
-https://github.com/leynos/rstest-bdd/blob/main/docs/rstest-bdd-design.md#122-step-2-the-step-definition-file
+[design-goals]: rstest-bdd-design.md#121-step-1-the-feature-file
+[design-rstest]: rstest-bdd-design.md#122-step-2-the-step-definition-file
