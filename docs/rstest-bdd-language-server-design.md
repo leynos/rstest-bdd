@@ -6,7 +6,8 @@
 integrating Gherkin feature files with Rust's `rstest` testing framework
 ([design goals](rstest-bdd-design.md#121-step-1-the-feature-file)) and
 ([step definition file](rstest-bdd-design.md#122-step-2-the-step-definition-file)).
- To enhance developer experience, this document proposes a dedicated language
+
+To enhance developer experience, this document proposes a dedicated language
 server (LSP) for `rstest-bdd` (to be implemented as a new crate,
 `rstest-bdd-server`). This language server will be editor-agnostic and provide
 rich IDE features for working with Gherkin `.feature` files and their
