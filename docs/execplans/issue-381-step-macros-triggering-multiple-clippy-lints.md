@@ -1,4 +1,4 @@
-# Add Clippy expect attributes to step wrappers
+# Emit Conditional Clippy Expect Lints
 
 This ExecPlan is a living document. The sections `Constraints`, `Tolerances`,
 `Risks`, `Progress`, `Surprises & Discoveries`, `Decision Log`, and
@@ -11,150 +11,132 @@ applies.
 
 ## Purpose / Big Picture
 
-Downstream crates using `rstest-bdd` with strict Clippy pedantic settings
-currently receive warnings from macro-generated step wrapper code. The goal is
-for every generated wrapper function to include tightly scoped `#[expect(..)]`
-attributes so downstream users no longer need module-level lint suppressions.
-Success is observable by running `cargo clippy` (with pedantic enabled) in the
-example projects and seeing no warnings tied to wrapper generation, and by
-verifying the macro expansion includes the `#[expect(...)]` attributes.
+Downstream crates using `rstest-bdd` with strict Clippy pedantic settings still
+receive warnings because `#[expect(...)]` is emitted unconditionally and trips
+`unused_lint_expectations` on wrappers that do not exercise every lint. The
+goal is to emit `#[expect(...)]` entries only when the corresponding wrapper
+patterns can occur, while deduplicating the lint list used by codegen and tests
+and keeping the tests simple. Success is observable by running `make lint`
+without new warnings and by confirming the wrapper tests assert against the
+same shared lint list and reason string.
 
 ## Constraints
 
-- Only adjust macro-generated wrapper emission in
-  `crates/rstest-bdd-macros/src/codegen/wrapper/emit/assembly.rs`.
-- Use `#[expect(...)]`, not `#[allow(...)]`, and include a single clear reason
-  string that matches the specified wording.
-- Do not change public macro input syntax or runtime behaviour of steps; only
-  add lint suppression attributes.
+- Keep lint suppression scoped to generated wrapper functions using
+  `#[expect(...)]` with the existing reason string.
 - Do not add new dependencies or change `Cargo.toml`.
+- Preserve public macro input syntax and runtime behaviour; only adjust emitted
+  wrapper attributes and supporting tests.
+- Update documentation references without altering meaning.
 - All commits must be gated by `make check-fmt`, `make lint`, and `make test`.
 
 ## Tolerances (Exception Triggers)
 
-- Scope: if the change requires edits to more than 4 files or more than 200 net
-  lines, stop and escalate.
+- Scope: if edits exceed 6 files or 250 net lines, stop and escalate.
 - Interface: if any public API signature must change, stop and escalate.
 - Dependencies: if a new dependency is required, stop and escalate.
-- Iterations: if any required test/lint command fails more than twice, stop and
-  escalate with the failure logs.
-- Time: if any single milestone takes more than 2 hours, stop and escalate.
-- Ambiguity: if the suppression list or reason text conflicts with existing
-  documentation, stop and ask for confirmation.
+- Iterations: if any required test or lint command fails more than twice, stop
+  and escalate with logs.
+- Ambiguity: if the conditions for emitting specific lints are unclear or
+  contested, stop and confirm the intended mapping.
 
 ## Risks
 
-    - Risk: the attribute is emitted in the wrong position, causing parsing or
-      attribute-order issues.
-      Severity: medium
-      Likelihood: low
-      Mitigation: follow the existing `#[expect(...)]` pattern in
-      `crates/rstest-bdd-macros/src/macros/scenarios/test_generation.rs` and
-      add a unit test that parses the generated wrapper into `syn::ItemFn` to
-      verify the attribute list.
-
-    - Risk: tests for wrapper generation are missing or hard to write, leading
-      to unvalidated behaviour.
+    - Risk: conditional lint emission misses a wrapper shape that triggers a
+      lint, causing Clippy warnings to reappear downstream.
       Severity: medium
       Likelihood: medium
-      Mitigation: add a focused unit test in
-      `crates/rstest-bdd-macros/src/codegen/wrapper/emit/assembly.rs` that calls
-      the local `assemble_wrapper_function` directly with minimal inputs.
+      Mitigation: map lint emission to explicit wrapper patterns and cover those
+      in the unit test expectations.
+
+    - Risk: a shared lint list used in tests diverges from codegen logic.
+      Severity: medium
+      Likelihood: low
+      Mitigation: centralise lint names in one constant and reuse it in both
+      generation and tests.
+
+    - Risk: documentation reference changes could break existing links.
+      Severity: low
+      Likelihood: low
+      Mitigation: keep reference definitions valid and let `make fmt` reformat.
 
 ## Progress
 
-    - [x] (2026-01-17 00:00Z) Drafted ExecPlan.
-    - [x] (2026-01-17 00:05Z) Inspected wrapper emission and lint suppression
-          patterns.
-    - [x] (2026-01-17 01:40Z) Added wrapper lint suppression emission and unit
-          test.
-    - [x] (2026-01-17 01:46Z) Ran format, lint, and test gates; captured logs.
-    - [x] (2026-01-17 01:49Z) Committed the change with a descriptive message.
+    - [x] (2026-01-18 19:05Z) Update wrapper emit logic to build a conditional
+          lint list per wrapper.
+    - [x] (2026-01-18 19:12Z) Share lint names between codegen and tests.
+    - [x] (2026-01-18 19:24Z) Simplify wrapper expect attribute test helpers and
+          split tests into `assembly/tests.rs`.
+    - [x] (2026-01-18 19:26Z) Fix documentation reference indentation.
+    - [x] (2026-01-18 19:40Z) Run format, lint, and test gates with logs.
+    - [x] (2026-01-18 19:43Z) Commit and push the changes.
 
 ## Surprises & Discoveries
 
-    - Observation: `make markdownlint` failed because `markdownlint` was not
-      installed; the repository uses `markdownlint-cli2` via `mdformat-all`.
-      Evidence: `make markdownlint` exited with `xargs: markdownlint: No such
-      file or directory`.
-      Impact: Overrode `MDLINT` to `markdownlint-cli2` for the lint step.
+    - Observation: `assembly.rs` exceeded the 400-line limit after adding
+      conditional lint logic and expanded tests.
+      Evidence: `make lint` failed with `check_rs_file_lengths.py` reporting
+      the file length.
+      Impact: moved tests into `assembly/tests.rs` to keep the module within
+      size limits.
 
 ## Decision Log
 
-    - Decision: Use `#[expect(...)]` on wrapper functions with a single reason
-      clause covering all six Clippy lints.
-      Rationale: Aligns with existing lint handling in scenario generation and
-      keeps suppressions narrowly scoped to generated wrappers.
-      Date/Author: 2026-01-17 (assistant)
-    - Decision: Run `make markdownlint` with `MDLINT=markdownlint-cli2` because
-      `markdownlint` is not installed in this environment.
-      Rationale: The Makefile supports an override, and the CLI2 tool is
-      already present via `mdformat-all`.
-      Date/Author: 2026-01-17 (assistant)
+    - Decision: compute wrapper lint expectations from explicit wrapper
+      shape flags (placeholders, return kind, quote stripping, step structs).
+      Rationale: ensures `#[expect(...)]` only lists lints that can occur,
+      avoiding `unused_lint_expectations`.
+      Date/Author: 2026-01-18 (assistant)
+
+    - Decision: move wrapper lint tests into `assembly/tests.rs`.
+      Rationale: keep `assembly.rs` below the 400-line limit enforced by the
+      repository lint gate.
+      Date/Author: 2026-01-18 (assistant)
 
 ## Outcomes & Retrospective
 
-Added a wrapper-level `#[expect(...)]` attribute for the six unavoidable Clippy
-lints and a unit test that parses the generated wrapper to assert the attribute
-contents. All formatting, linting, and test gates passed, including Mermaid
-validation. The only surprise was the missing `markdownlint` binary, handled
-via the `MDLINT` override.
+Wrapper emission now computes a conditional list of Clippy lint expectations
+per wrapper shape, preventing `unused_lint_expectations` while keeping
+suppression scopes tight. Lint names are shared between codegen and tests, and
+the wrapper attribute tests were moved into a dedicated module to stay under
+the file length limit. All format, lint, and test gates passed.
 
 ## Context and Orientation
 
-Wrapper functions are emitted in the macro crate under
-`crates/rstest-bdd-macros`. The wrapper body is assembled in
-`crates/rstest-bdd-macros/src/codegen/wrapper/emit/assembly.rs` by the
-`assemble_wrapper_function` function, which returns a `TokenStream2` for the
-synchronous wrapper. The wrapper code is then included in the output of
-`generate_wrapper_code` in
-`crates/rstest-bdd-macros/src/codegen/wrapper/emit.rs`. The existing pattern
-for emitting `#[expect(...)]` attributes lives in
-`crates/rstest-bdd-macros/src/macros/scenarios/test_generation.rs` in
-`build_lint_attributes`, which uses `syn::parse_quote!` to create a structured
-attribute with a reason string.
-
-The requested change is to emit a single `#[expect(...)]` attribute on every
-wrapper function with these lint names: `clippy::shadow_reuse`,
-`clippy::unnecessary_wraps`, `clippy::str_to_string`,
-`clippy::redundant_closure_for_method_calls`, `clippy::needless_pass_by_value`,
-and `clippy::redundant_closure`, plus the reason text: "rstest-bdd step wrapper
-pattern requires these patterns for parameter extraction, Result normalization,
-and closure-based error handling".
+Wrapper functions are emitted in
+`crates/rstest-bdd-macros/src/codegen/wrapper/emit/assembly.rs`. Argument
+preparation happens in
+`crates/rstest-bdd-macros/src/codegen/wrapper/arguments.rs`. The existing unit
+tests for wrapper attributes live in
+`crates/rstest-bdd-macros/src/codegen/wrapper/emit/assembly/tests.rs`.
+Documentation references appear in `docs/rstest-bdd-language-server-design.md`.
 
 ## Plan of Work
 
-Stage A: understand and propose (no code changes).
+Stage A: inspect and confirm wrapper patterns.
 
-Review `assemble_wrapper_function` in
-`crates/rstest-bdd-macros/src/codegen/wrapper/emit/assembly.rs` to confirm
-where wrapper attributes and signatures are assembled. Review
-`crates/rstest-bdd-macros/src/macros/scenarios/test_generation.rs` to mirror
-the existing `#[expect(...)]` attribute construction style and reason
-formatting.
+Review wrapper assembly and argument preparation to identify which wrapper
+patterns trigger specific Clippy lints (shadowing, wraps, quote stripping,
+closure usage). Decide on explicit conditions for each lint in a small helper
+function and confirm the reason string remains unchanged.
 
-Stage B: scaffolding and tests (small, verifiable diffs).
+Stage B: implement conditional lint list and shared constants.
 
-Add a unit test in
-`crates/rstest-bdd-macros/src/codegen/wrapper/emit/assembly.rs` (under
-`#[cfg(test)]`) that constructs minimal wrapper inputs and calls the local
-`assemble_wrapper_function`. Parse the resulting token stream into
-`syn::ItemFn` and assert the `expect` attribute contains all six lints and the
-reason string. This test should fail before the attribute is added and pass
-once implemented.
+Introduce a single constant list of lint names. Add a helper that returns a
+per-wrapper set based on the prepared arguments and return kind. Thread that
+list into `generate_expect_attribute` so it emits only when non-empty. Update
+argument preparation if needed to carry lint info into rendering.
 
-Stage C: implementation (minimal change to satisfy tests).
+Stage C: simplify tests and align with shared list.
 
-Update `assemble_wrapper_function` to emit a `#[expect(...)]` attribute before
-`fn #wrapper_ident(...)` using the exact lint list and reason clause specified
-above. Follow the `syn::parse_quote!` pattern from `build_lint_attributes` and
-ensure the attribute is applied to every wrapper function unconditionally.
+Refactor the wrapper expect attribute test helper to parse only the expected
+attribute shape and assert against the shared lint list and reason string.
 
-Stage D: hardening, documentation, cleanup.
+Stage D: documentation, validation, and commit.
 
-Run formatting, linting, and tests via Makefile targets. If the change affects
-user-facing guidance or documented lint policy, update the relevant docs under
-`docs/` (none expected for this change unless a new policy is introduced).
+Fix the reference indentation in `docs/rstest-bdd-language-server-design.md`,
+run formatting and lint/test Makefile targets, then commit and push once all
+gates succeed.
 
 ## Concrete Steps
 
@@ -163,91 +145,59 @@ All commands run from the repository root
  Use `tee` for long outputs as required. If `get-project` is unavailable,
 replace `$(get-project)` with `$(basename "$PWD")`.
 
-1. Inspect wrapper assembly and lint attribute patterns:
+1. Inspect wrapper assembly and argument preparation:
 
-    rg -n "assemble_wrapper_function" \
+    rg -n "assemble_wrapper_function|render_wrapper_function" \
       crates/rstest-bdd-macros/src/codegen/wrapper/emit/assembly.rs
-    rg -n "expect\(" \
-      crates/rstest-bdd-macros/src/macros/scenarios/test_generation.rs
+    rg -n "PreparedArgs" \
+      crates/rstest-bdd-macros/src/codegen/wrapper/arguments.rs
 
-2. Add the unit test in
-   `crates/rstest-bdd-macros/src/codegen/wrapper/emit/assembly.rs` as described
-   in Stage B.
+2. Implement conditional lint list and thread it into wrapper emission.
 
-3. Add the `#[expect(...)]` attribute emission in `assemble_wrapper_function`.
+3. Simplify the wrapper attribute test helper and update expectations.
 
-4. Run quality gates (capture logs):
+4. Fix the documentation reference indentation.
 
+5. Run quality gates:
+
+    make fmt 2>&1 | tee /tmp/fmt-$(get-project)-$(git branch --show).out
+    make markdownlint MDLINT=markdownlint-cli2 2>&1 | tee \
+      /tmp/markdownlint-$(get-project)-$(git branch --show).out
+    make nixie 2>&1 | tee /tmp/nixie-$(get-project)-$(git branch --show).out
     make check-fmt 2>&1 | tee /tmp/check-fmt-$(get-project)-$(git branch --show).out
     make lint 2>&1 | tee /tmp/lint-$(get-project)-$(git branch --show).out
     make test 2>&1 | tee /tmp/test-$(get-project)-$(git branch --show).out
 
-5. Optional downstream verification (if time permits) to confirm example
-   projects are clean with pedantic Clippy:
-
-    (cd examples/todo-cli && cargo clippy --all-targets --all-features \
-      2>&1 | tee /tmp/clippy-todo-$(get-project)-$(git branch --show).out)
-    (cd examples/japanese-ledger && cargo clippy --all-targets --all-features \
-      2>&1 | tee /tmp/clippy-jledger-$(get-project)-$(git branch --show).out)
-
-6. Commit once all gates pass. Suggested message:
-
-    Add wrapper expect attributes for Clippy lints
-
-    Add a single `#[expect(...)]` attribute to generated step wrapper
-    functions to suppress unavoidable pedantic Clippy warnings. Includes a
-    unit test that validates the attribute contents.
+6. Commit and push once all gates pass.
 
 ## Validation and Acceptance
 
 Acceptance means:
 
-- The generated wrapper function includes a single `#[expect(...)]` attribute
-  listing all six Clippy lints and the specified reason string.
-- The new unit test passes and verifies the attribute emission.
-- `make check-fmt`, `make lint`, and `make test` succeed without warnings.
-- Optional: `cargo clippy` in the example projects emits no warnings tied to
-  wrapper generation when pedantic lints are enabled.
-
-Quality criteria:
-
-- Tests: `make test` passes; the new wrapper emission unit test fails before
-  the change and passes after.
-- Lint/typecheck: `make lint` succeeds with `-D warnings`.
-- Formatting: `make check-fmt` passes.
+- Wrapper functions only emit `#[expect(...)]` lints that can trigger for their
+  specific structure, avoiding `unused_lint_expectations` warnings.
+- The wrapper expect attribute test passes and asserts against the shared lint
+  list and reason string.
+- Documentation reference definitions remain valid after formatting.
+- `make check-fmt`, `make lint`, and `make test` succeed.
 
 ## Idempotence and Recovery
 
-All edits are additive or small adjustments to existing code. If any command
-fails, fix the reported issue and re-run the same command. If the new test is
-flaky, stop and reassess rather than loosening assertions.
+All steps are safe to repeat. If any gate fails, fix the issue and re-run the
+same command. If conditional lint selection is ambiguous, stop and request
+clarification rather than broadening suppressions.
 
 ## Artifacts and Notes
 
-Capture key command logs in `/tmp/*-$(get-project)-$(git branch --show).out`.
-If needed, include a brief excerpt of the new test assertion and the emitted
-attribute in a follow-up note or commit message body.
+Capture logs in `/tmp/*-$(get-project)-$(git branch --show).out` for each gate.
 
 ## Interfaces and Dependencies
 
-No new dependencies are permitted. The wrapper function signature and runtime
-behaviour remain unchanged. The only interface-level change is the addition of
-one `#[expect(...)]` attribute applied to the generated wrapper function. The
-attribute must include the six lint names and the exact reason string provided
-in the task description.
+No new dependencies or public API changes are expected. The only interface
+change is the set of `#[expect(...)]` lints emitted on wrapper functions, which
+must remain scoped and reasoned.
 
 ## Revision note (required when editing an ExecPlan)
 
-Initial draft created on 2026-01-17. No revisions yet.
-
-Revision note (2026-01-17): Marked the plan as in progress and recorded the
-initial inspection step as complete. No implementation changes yet.
-
-Revision note (2026-01-17): Recorded completion of the wrapper lint suppression
-emission and unit test work. Validation and commit steps remain.
-
-Revision note (2026-01-17): Marked the format/lint/test gates as complete after
-rerunning the required Makefile targets.
-
-Revision note (2026-01-17): Marked the plan complete, added the markdownlint
-tooling discovery, and summarised outcomes after the final gate runs.
+Revision note (2026-01-18): Marked the plan complete, recorded the conditional
+lint selection and test module split, and captured the final gate runs.

@@ -19,14 +19,12 @@ use quote::{format_ident, quote};
 
 const WRAPPER_EXPECT_REASON: &str = "rstest-bdd step wrapper pattern requires these patterns \
 for parameter extraction, Result normalization, and closure-based error handling";
-const WRAPPER_EXPECT_LINTS: [&str; 6] = [
-    "clippy::shadow_reuse",
-    "clippy::unnecessary_wraps",
-    "clippy::str_to_string",
-    "clippy::redundant_closure_for_method_calls",
-    "clippy::needless_pass_by_value",
-    "clippy::redundant_closure",
-];
+const LINT_SHADOW_REUSE: &str = "clippy::shadow_reuse";
+const LINT_UNNECESSARY_WRAPS: &str = "clippy::unnecessary_wraps";
+const LINT_STR_TO_STRING: &str = "clippy::str_to_string";
+const LINT_REDUNDANT_CLOSURE_FOR_METHOD_CALLS: &str = "clippy::redundant_closure_for_method_calls";
+const LINT_NEEDLESS_PASS_BY_VALUE: &str = "clippy::needless_pass_by_value";
+const LINT_REDUNDANT_CLOSURE: &str = "clippy::redundant_closure";
 
 /// Prepared wrapper inputs consumed by `assemble_wrapper_function`.
 struct WrapperAssembly<'a> {
@@ -46,26 +44,64 @@ struct WrapperIdentifiers<'a> {
     text: &'a proc_macro2::Ident,
 }
 
-fn wrapper_expect_lint_paths() -> Vec<syn::Path> {
-    WRAPPER_EXPECT_LINTS
+/// Context struct groups related render inputs.
+struct WrapperRenderContext<'a> {
+    errors: WrapperErrors,
+    capture_count: usize,
+    call_expr: &'a TokenStream2,
+}
+
+#[derive(Copy, Clone)]
+struct WrapperLintConfig {
+    has_placeholders: bool,
+    has_step_struct: bool,
+    has_step_arg_quote_strip: bool,
+    return_kind: ReturnKind,
+}
+
+fn wrapper_expect_lint_names(config: WrapperLintConfig) -> Vec<&'static str> {
+    let mut lints = Vec::new();
+    if config.has_step_arg_quote_strip {
+        lints.push(LINT_SHADOW_REUSE);
+    }
+    if matches!(config.return_kind, ReturnKind::Unit | ReturnKind::Value) {
+        lints.push(LINT_UNNECESSARY_WRAPS);
+    }
+    if config.has_step_struct && config.has_placeholders {
+        lints.push(LINT_STR_TO_STRING);
+    }
+    if config.has_placeholders {
+        lints.push(LINT_REDUNDANT_CLOSURE_FOR_METHOD_CALLS);
+    }
+    lints.push(LINT_NEEDLESS_PASS_BY_VALUE);
+    lints.push(LINT_REDUNDANT_CLOSURE);
+    lints
+}
+
+fn lint_path_from_str(lint: &str) -> syn::Path {
+    let mut segments = syn::punctuated::Punctuated::new();
+    for segment in lint.split("::") {
+        let ident = syn::Ident::new(segment, proc_macro2::Span::call_site());
+        segments.push(syn::PathSegment::from(ident));
+    }
+    syn::Path {
+        leading_colon: None,
+        segments,
+    }
+}
+
+fn wrapper_expect_lint_paths(config: WrapperLintConfig) -> Vec<syn::Path> {
+    wrapper_expect_lint_names(config)
         .iter()
-        .map(|lint| {
-            let mut segments = syn::punctuated::Punctuated::new();
-            for segment in lint.split("::") {
-                let ident = syn::Ident::new(segment, proc_macro2::Span::call_site());
-                segments.push(syn::PathSegment::from(ident));
-            }
-            syn::Path {
-                leading_colon: None,
-                segments,
-            }
-        })
+        .map(|lint| lint_path_from_str(lint))
         .collect()
 }
 
 /// Generate the expect attribute for suppressing known Clippy lints in wrapper functions.
-fn generate_expect_attribute() -> TokenStream2 {
-    let lint_paths = wrapper_expect_lint_paths();
+fn generate_expect_attribute(lint_paths: &[syn::Path]) -> TokenStream2 {
+    if lint_paths.is_empty() {
+        return TokenStream2::new();
+    }
     quote! {
         #[expect(
             #(#lint_paths,)*
@@ -78,9 +114,7 @@ fn generate_expect_attribute() -> TokenStream2 {
 fn render_wrapper_function(
     identifiers: WrapperIdentifiers<'_>,
     prepared: PreparedArgs,
-    errors: WrapperErrors,
-    capture_count: usize,
-    call_expr: &TokenStream2,
+    context: WrapperRenderContext<'_>,
 ) -> TokenStream2 {
     let WrapperIdentifiers {
         wrapper: wrapper_ident,
@@ -94,7 +128,14 @@ fn render_wrapper_function(
         step_struct_decl,
         datatable_decl,
         docstring_decl,
+        expect_lints,
+        ..
     } = prepared;
+    let WrapperRenderContext {
+        errors,
+        capture_count,
+        call_expr,
+    } = context;
     let WrapperErrors {
         placeholder: placeholder_err,
         panic: panic_err,
@@ -103,7 +144,7 @@ fn render_wrapper_function(
     } = errors;
     let expected = capture_count;
     let path = crate::codegen::rstest_bdd_path();
-    let expect_attr = generate_expect_attribute();
+    let expect_attr = generate_expect_attribute(&expect_lints);
     quote! {
         #expect_attr
         fn #wrapper_ident(
@@ -147,7 +188,7 @@ fn assemble_wrapper_function(
 ) -> TokenStream2 {
     let WrapperAssembly {
         meta,
-        prepared,
+        mut prepared,
         arg_idents,
         capture_count,
         return_kind,
@@ -158,7 +199,22 @@ fn assemble_wrapper_function(
     let errors = prepare_wrapper_errors(meta, text_ident);
     let StepMeta { ident, .. } = meta;
     let call_expr = generate_call_expression(return_kind, ident, &arg_idents);
-    render_wrapper_function(identifiers, prepared, errors, capture_count, &call_expr)
+    let lint_config = WrapperLintConfig {
+        has_placeholders: capture_count > 0,
+        has_step_struct: prepared.step_struct_decl.is_some(),
+        has_step_arg_quote_strip: prepared.has_step_arg_quote_strip,
+        return_kind,
+    };
+    prepared.expect_lints = wrapper_expect_lint_paths(lint_config);
+    render_wrapper_function(
+        identifiers,
+        prepared,
+        WrapperRenderContext {
+            errors,
+            capture_count,
+            call_expr: &call_expr,
+        },
+    )
 }
 
 /// Generate the compile-time assertion for step struct field count.
@@ -251,123 +307,4 @@ pub(super) fn generate_wrapper_body(
 }
 
 #[cfg(test)]
-mod tests {
-    //! Tests for wrapper lint suppression emission.
-
-    use super::{
-        PreparedArgs, StepMeta, WRAPPER_EXPECT_LINTS, WRAPPER_EXPECT_REASON, WrapperAssembly,
-        WrapperIdentifiers, assemble_wrapper_function,
-    };
-    use crate::return_classifier::ReturnKind;
-    use proc_macro2::Span;
-    use quote::format_ident;
-    use std::collections::HashSet;
-    use syn::Token;
-    use syn::punctuated::Punctuated;
-
-    struct ExpectInfo {
-        lints: HashSet<String>,
-        reason: String,
-    }
-
-    /// Parse and validate the expect attribute from a wrapper function.
-    /// Returns parsed `ExpectInfo`.
-    #[expect(
-        clippy::expect_used,
-        clippy::panic,
-        reason = "test helper asserts wrapper expect attribute presence and shape"
-    )]
-    fn parse_expect_attribute(wrapper_fn: &syn::ItemFn) -> ExpectInfo {
-        let expect_attr = wrapper_fn
-            .attrs
-            .iter()
-            .find(|attr| attr.path().is_ident("expect"))
-            .expect("wrapper should include expect attribute");
-        let metas: Punctuated<syn::Meta, Token![,]> = expect_attr
-            .parse_args_with(Punctuated::parse_terminated)
-            .expect("parse expect attribute arguments");
-
-        let mut lint_names = HashSet::new();
-        let mut reason = None;
-        for meta in metas {
-            match meta {
-                syn::Meta::Path(path) => {
-                    let lint = path
-                        .segments
-                        .iter()
-                        .map(|segment| segment.ident.to_string())
-                        .collect::<Vec<_>>()
-                        .join("::");
-                    lint_names.insert(lint);
-                }
-                syn::Meta::NameValue(ref name_value) if name_value.path.is_ident("reason") => {
-                    if let syn::Expr::Lit(syn::ExprLit {
-                        lit: syn::Lit::Str(lit_str),
-                        ..
-                    }) = &name_value.value
-                    {
-                        reason = Some(lit_str.value());
-                    } else {
-                        panic!("expected reason value to be a string literal");
-                    }
-                }
-                _ => panic!("unexpected meta entry in expect attribute"),
-            }
-        }
-
-        ExpectInfo {
-            lints: lint_names,
-            reason: reason.expect("expect attribute must include a reason"),
-        }
-    }
-
-    #[test]
-    #[expect(
-        clippy::expect_used,
-        reason = "test validates emitted wrapper attributes"
-    )]
-    fn wrapper_emits_expect_attribute_for_clippy_lints() {
-        let wrapper_ident = format_ident!("__rstest_bdd_wrapper_test");
-        let pattern_ident = format_ident!("__RSTEST_BDD_PATTERN_TEST");
-        let ctx_ident = format_ident!("__rstest_bdd_ctx");
-        let text_ident = format_ident!("__rstest_bdd_text");
-        let step_ident = format_ident!("step_given");
-        let pattern = syn::LitStr::new("a value {x:string}", Span::call_site());
-
-        let tokens = assemble_wrapper_function(
-            WrapperIdentifiers {
-                wrapper: &wrapper_ident,
-                pattern: &pattern_ident,
-                ctx: &ctx_ident,
-                text: &text_ident,
-            },
-            WrapperAssembly {
-                meta: StepMeta {
-                    pattern: &pattern,
-                    ident: &step_ident,
-                },
-                prepared: PreparedArgs {
-                    declares: Vec::new(),
-                    step_arg_parses: Vec::new(),
-                    step_struct_decl: None,
-                    datatable_decl: None,
-                    docstring_decl: None,
-                },
-                arg_idents: Vec::new(),
-                capture_count: 0,
-                return_kind: ReturnKind::Unit,
-            },
-        );
-
-        let wrapper_fn: syn::ItemFn = syn::parse2(tokens).expect("wrapper should parse");
-        let info = parse_expect_attribute(&wrapper_fn);
-
-        let expected: HashSet<String> = WRAPPER_EXPECT_LINTS
-            .iter()
-            .map(|lint| (*lint).to_string())
-            .collect();
-
-        assert_eq!(info.lints, expected, "expect attribute lint list mismatch");
-        assert_eq!(info.reason, WRAPPER_EXPECT_REASON);
-    }
-}
+mod tests;
