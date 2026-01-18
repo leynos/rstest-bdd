@@ -3,10 +3,12 @@
 //! This module re-exports utilities from the crate's `test_support` module,
 //! providing a single source of truth for test infrastructure.
 
-#![allow(
-    unused_imports,
-    reason = "each test binary uses a different subset of helpers"
-)]
+// Each integration test binary compiles this support module independently,
+// and each uses a different subset of these re-exports. Item-level #[expect]
+// fails with "unfulfilled lint expectation" when a binary uses all imports.
+// Item-level #[allow] triggers clippy::allow_attributes. File-level allow is
+// the only workable solution for cross-binary shared support modules.
+#![allow(unused_imports, reason = "each test binary uses a different subset")]
 
 // Re-export test support utilities from the crate.
 // Note: Integration tests cannot directly access #[cfg(test)] modules,

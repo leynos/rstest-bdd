@@ -1506,17 +1506,17 @@ definitions:
   text that needs an implementation.
 
 - **Unused step definitions** (`unused-step-definition`): When a Rust step
-  definition (annotated with `#[given]`, `#[when]`, or `#[then]`) is not matched
-  by any feature step, a warning diagnostic is published at the function
-  definition. This helps identify dead code or typos in step patterns.
+  definition (annotated with `#[given]`, `#[when]`, or `#[then]`) is not
+  matched by any feature step, a warning diagnostic is published at the
+  function definition. This helps identify dead code or typos in step patterns.
 
 - **Placeholder count mismatch** (`placeholder-count-mismatch`): When a step
-  pattern contains a different number of placeholders than the function has step
-  arguments, a warning diagnostic is published on the Rust step definition. A
-  step argument is a function parameter whose name matches a placeholder in the
-  pattern. Parameters named `datatable` or `docstring` (or annotated with
-  `#[datatable]`) are excluded from the count, as are fixture parameters that
-  don't correspond to placeholders.
+  pattern contains a different number of placeholders than the function has
+  step arguments, a warning diagnostic is published on the Rust step
+  definition. A step argument is a function parameter whose name matches a
+  placeholder in the pattern. Parameters named `datatable` or `docstring` (or
+  annotated with `#[datatable]`) are excluded from the count, as are fixture
+  parameters that don't correspond to placeholders.
 
 - **Data table expected** (`table-expected`): When a Rust step expects a data
   table (has a `datatable` parameter) but the matching feature step does not

@@ -1,8 +1,9 @@
 # Validate placeholder counts, typed placeholders, and data table/docstring expectations
 
-This execution plan (ExecPlan) is a living document. The sections `Constraints`,
-`Tolerances`, `Risks`, `Progress`, `Surprises & Discoveries`, `Decision Log`,
-and `Outcomes & Retrospective` must be kept up to date as work proceeds.
+This execution plan (ExecPlan) is a living document. The sections
+`Constraints`, `Tolerances`, `Risks`, `Progress`, `Surprises & Discoveries`,
+`Decision Log`, and `Outcomes & Retrospective` must be kept up to date as work
+proceeds.
 
 Status: IN PROGRESS
 
@@ -29,7 +30,8 @@ Observable outcomes:
 - Running `rstest-bdd-lsp` against a workspace with mismatched step definitions
   produces diagnostics at precise byte offsets in both feature and Rust files.
 - Users receive immediate feedback in their editor (VS Code, Neovim, etc.) via
-  the Language Server Protocol (LSP) diagnostics without waiting for compilation.
+  the Language Server Protocol (LSP) diagnostics without waiting for
+  compilation.
 - All existing tests continue to pass (`make test`), and the new diagnostics are
   validated by unit tests and behavioural tests in `rstest-bdd-server`.
 - The feature is documented in `docs/users-guide.md` under a "Language Server
@@ -79,30 +81,24 @@ Thresholds that trigger escalation when breached:
 Known uncertainties that might affect the plan:
 
 - Risk: Placeholder extraction from `IndexedStepDefinition` parameters may not
-  align perfectly with how the macros count step arguments.
-  Severity: medium
-  Likelihood: low
-  Mitigation: Use the same classification logic: step arguments are parameters
-  whose names appear in the pattern's placeholder set; fixtures, datatable, and
-  docstring parameters are excluded from the count.
+  align perfectly with how the macros count step arguments. Severity: medium
+  Likelihood: low Mitigation: Use the same classification logic: step arguments
+  are parameters whose names appear in the pattern's placeholder set; fixtures,
+  datatable, and docstring parameters are excluded from the count.
 
 - Risk: Determining which parameters are "fixtures" vs. "step arguments" in the
   LSP context is non-trivial since the LSP does not have access to rstest
-  fixture definitions.
-  Severity: medium
-  Likelihood: medium
-  Mitigation: Use placeholder name matching. A parameter is a "step argument" if
-  its normalized name matches a placeholder name in the pattern. Parameters
-  named `datatable` or `docstring` (or with `#[datatable]` attribute) are
-  special. All other parameters are assumed to be fixtures.
+  fixture definitions. Severity: medium Likelihood: medium Mitigation: Use
+  placeholder name matching. A parameter is a "step argument" if its normalized
+  name matches a placeholder name in the pattern. Parameters named `datatable`
+  or `docstring` (or with `#[datatable]` attribute) are special. All other
+  parameters are assumed to be fixtures.
 
 - Risk: Feature steps with data tables or docstrings may not perfectly align
   with the "expects_table" / "expects_docstring" flags from Rust indexing.
-  Severity: low
-  Likelihood: low
-  Mitigation: The `IndexedStepDefinition` already captures `expects_table` and
-  `expects_docstring`. The `IndexedStep` already captures `.table` and
-  `.docstring` presence. Cross-reference these directly.
+  Severity: low Likelihood: low Mitigation: The `IndexedStepDefinition` already
+  captures `expects_table` and `expects_docstring`. The `IndexedStep` already
+  captures `.table` and `.docstring` presence. Cross-reference these directly.
 
 ## Progress
 
@@ -197,8 +193,12 @@ already provides:
   and `StepDefinitionRegistry`
 - `crates/rstest-bdd-server/src/test_support.rs`: Test utilities
   (`ScenarioBuilder`, `SingleFilePairScenario`)
-- `crates/rstest-bdd-server/tests/diagnostics.rs`: Behavioural tests for
-  diagnostics
+- `crates/rstest-bdd-server/tests/diagnostics_basic.rs`: Behavioral tests for
+  unimplemented step and unused definition diagnostics
+- `crates/rstest-bdd-server/tests/diagnostics_placeholder.rs`: Behavioral tests
+  for placeholder count mismatch diagnostics
+- `crates/rstest-bdd-server/tests/diagnostics_table_docstring.rs`: Behavioral
+  tests for table/docstring expectation mismatch diagnostics
 - `crates/rstest-bdd-patterns/src/specificity.rs`: `SpecificityScore` with
   `placeholder_count`
 - `crates/rstest-bdd-patterns/src/pattern/lexer.rs`: `lex_pattern()` returns
@@ -357,7 +357,8 @@ cases in `tests/diagnostics.rs` and `handlers/diagnostics.rs`.
 
    For each step in the feature file:
    - Find matching Rust implementation(s) by keyword and regex.
-   - If the feature step has a table, but the Rust step does not expect one, emit
+   - If the feature step has a table, but the Rust step does not expect one,
+     emit
      `table-not-expected` on the table span.
    - If the Rust step expects a table, but the feature step has none, emit
      `table-expected` on the step span.
@@ -489,11 +490,11 @@ Quality method:
 Acceptance behaviour:
 
 1. Open a feature file with a step `Given I have {count} apples`.
-2. Create a Rust file with `#[given("I have {count} apples")] fn step() {}`.
+2. Create a Rust file with `#[given("I have {count} apples")] fn step() {}`
+   (macro and empty body).
 3. Save both files.
-4. Observe diagnostic on the Rust step definition:
-   `Placeholder count mismatch: pattern has 1 placeholder(s) but function has 0
-   step argument(s)`
+4. Observe diagnostic on the Rust step definition (placeholder count
+   mismatch message).
 5. Add parameter `count: u32` to the function and save.
 6. Observe diagnostic clears.
 
