@@ -43,7 +43,7 @@ Introduce a new internal crate, `rstest-bdd-policy`, that owns `RuntimeMode`,
 `TestAttributeHint`, and their associated helpers.
 
 - Adopt `rstest-bdd-policy` as the single source of truth for policy types
-  within the workspace and re-export from `rstest_bdd::execution`.
+  within the workspace, and re-export from `rstest_bdd::execution`.
 - The runtime crate will re-export these types from
   `rstest_bdd::execution` to preserve the public API.
 - The macro crate will import the types directly from
