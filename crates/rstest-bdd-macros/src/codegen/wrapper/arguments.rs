@@ -164,13 +164,24 @@ struct StepArgParseResult {
     has_step_arg_quote_strip: bool,
 }
 
+/// Input data for building step argument parse expressions.
+#[derive(Copy, Clone)]
+struct StepArgParseInputs<'a> {
+    step_args: &'a [BoundArg<'a>],
+    all_captures: &'a [TokenStream2],
+    placeholder_hints: &'a [Option<String>],
+}
+
 fn build_step_arg_parses(
-    step_args: &[BoundArg<'_>],
-    all_captures: &[TokenStream2],
-    placeholder_hints: &[Option<String>],
+    inputs: StepArgParseInputs<'_>,
     step_meta: StepMeta<'_>,
     step_struct_present: bool,
 ) -> StepArgParseResult {
+    let StepArgParseInputs {
+        step_args,
+        all_captures,
+        placeholder_hints,
+    } = inputs;
     if step_struct_present {
         return StepArgParseResult {
             step_arg_parses: Vec::new(),
@@ -262,9 +273,11 @@ pub(super) fn prepare_argument_processing(
         step_arg_parses,
         has_step_arg_quote_strip,
     } = build_step_arg_parses(
-        &step_args,
-        &all_captures,
-        placeholder_hints,
+        StepArgParseInputs {
+            step_args: &step_args,
+            all_captures: &all_captures,
+            placeholder_hints,
+        },
         step_meta,
         step_struct_present,
     );
