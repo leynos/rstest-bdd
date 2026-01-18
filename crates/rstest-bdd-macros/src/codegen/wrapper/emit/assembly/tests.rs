@@ -8,6 +8,7 @@ use super::{
 use crate::return_classifier::ReturnKind;
 use proc_macro2::Span;
 use quote::{format_ident, quote};
+use rstest::rstest;
 use std::collections::HashSet;
 use syn::Token;
 use syn::punctuated::Punctuated;
@@ -139,35 +140,44 @@ fn assert_wrapper_expect_lints(
     assert_eq!(reason.as_deref(), Some(WRAPPER_EXPECT_REASON));
 }
 
-#[test]
-fn wrapper_emits_expect_attribute_for_clippy_lints() {
+#[rstest]
+#[case::wrapper_emits_expect_attribute_for_clippy_lints(
+    None,
+    true,
+    1,
+    ReturnKind::Unit,
+    &[
+        LINT_SHADOW_REUSE,
+        LINT_UNNECESSARY_WRAPS,
+        LINT_REDUNDANT_CLOSURE_FOR_METHOD_CALLS,
+        LINT_NEEDLESS_PASS_BY_VALUE,
+        LINT_REDUNDANT_CLOSURE,
+    ],
+)]
+#[case::wrapper_emits_expect_attribute_for_step_structs(
+    Some(quote! {}),
+    false,
+    1,
+    ReturnKind::ResultValue,
+    &[
+        LINT_STR_TO_STRING,
+        LINT_REDUNDANT_CLOSURE_FOR_METHOD_CALLS,
+        LINT_NEEDLESS_PASS_BY_VALUE,
+        LINT_REDUNDANT_CLOSURE,
+    ],
+)]
+fn wrapper_emits_expect_attribute(
+    #[case] step_struct_decl: Option<proc_macro2::TokenStream>,
+    #[case] has_step_arg_quote_strip: bool,
+    #[case] capture_count: usize,
+    #[case] return_kind: ReturnKind,
+    #[case] expected_lint_names: &'static [&'static str],
+) {
     assert_wrapper_expect_lints(
-        None,
-        true,
-        1,
-        ReturnKind::Unit,
-        &[
-            LINT_SHADOW_REUSE,
-            LINT_UNNECESSARY_WRAPS,
-            LINT_REDUNDANT_CLOSURE_FOR_METHOD_CALLS,
-            LINT_NEEDLESS_PASS_BY_VALUE,
-            LINT_REDUNDANT_CLOSURE,
-        ],
-    );
-}
-
-#[test]
-fn wrapper_emits_expect_attribute_for_step_structs() {
-    assert_wrapper_expect_lints(
-        Some(quote! {}),
-        false,
-        1,
-        ReturnKind::ResultValue,
-        &[
-            LINT_STR_TO_STRING,
-            LINT_REDUNDANT_CLOSURE_FOR_METHOD_CALLS,
-            LINT_NEEDLESS_PASS_BY_VALUE,
-            LINT_REDUNDANT_CLOSURE,
-        ],
+        step_struct_decl,
+        has_step_arg_quote_strip,
+        capture_count,
+        return_kind,
+        expected_lint_names,
     );
 }
