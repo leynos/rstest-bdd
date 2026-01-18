@@ -948,8 +948,8 @@ Subsequent work will implement:
 
 1. **Placeholder count validation** — Verify that step patterns and function
    signatures agree on the number of captured arguments
-2. **Data table/docstring expectation mismatches** — Warn when a step expects
-   a data table or docstring, but the feature step doesn't provide one (or vice
+2. **Data table/docstring expectation mismatches** — Warn when a step expects a
+   data table or docstring, but the feature step does not provide one (or vice
    versa)
 
 ## Conclusion
