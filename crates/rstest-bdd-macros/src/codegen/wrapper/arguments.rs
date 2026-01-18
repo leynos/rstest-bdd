@@ -159,6 +159,7 @@ pub(super) fn gen_step_parses(
         .collect()
 }
 
+/// Generated step argument parses and quote-stripping indicator.
 struct StepArgParseResult {
     step_arg_parses: Vec<TokenStream2>,
     has_step_arg_quote_strip: bool,
@@ -172,6 +173,10 @@ struct StepArgParseInputs<'a> {
     placeholder_hints: &'a [Option<String>],
 }
 
+/// Build parsers for step arguments from `StepArgParseInputs` and `StepMeta`.
+///
+/// When `step_struct_present` is true, the step struct handles argument parsing,
+/// so this returns an empty `StepArgParseResult` with no quote-stripping.
 fn build_step_arg_parses(
     inputs: StepArgParseInputs<'_>,
     step_meta: StepMeta<'_>,
