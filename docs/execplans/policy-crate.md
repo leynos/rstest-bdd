@@ -7,7 +7,7 @@ work proceeds.
 
 Status: COMPLETE
 
-## Purpose / Big picture
+## Purpose / big picture
 
 Create a small `rstest-bdd-policy` crate that centralizes runtime policy types
 for both the runtime crate and the proc-macro crate, and document the decision
@@ -88,7 +88,7 @@ all tests/lints pass.
 
 The policy enums live in `rstest-bdd-policy`, eliminating macro/runtime
 duplication while preserving the public `rstest_bdd::execution` API via
-re-exports. Documentation now includes ADR-004, and ADR-001 now references the
+re-exports. Documentation now includes ADR-004, and ADR-001 references the new
 new policy crate. Running the full quality gate suite confirms the changes
 across all outcomes: formatting, lint, and tests.
 
