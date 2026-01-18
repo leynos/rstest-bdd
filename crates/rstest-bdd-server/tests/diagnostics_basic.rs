@@ -10,11 +10,12 @@
 mod support;
 
 use rstest::{fixture, rstest};
-use support::{
-    DiagnosticCheckType, ScenarioBuilder, TestScenario, assert_feature_has_diagnostic,
-    assert_feature_has_no_diagnostics, assert_rust_has_diagnostic, assert_rust_has_no_diagnostics,
-    compute_feature_diagnostics, compute_rust_diagnostics,
+use rstest_bdd_server::test_support::DiagnosticCheckType;
+use support::diagnostics_helpers::{
+    assert_feature_has_diagnostic, assert_feature_has_no_diagnostics, assert_rust_has_diagnostic,
+    assert_rust_has_no_diagnostics, compute_feature_diagnostics, compute_rust_diagnostics,
 };
+use support::{ScenarioBuilder, TestScenario};
 
 /// Fixture providing a fresh scenario builder for each test.
 #[fixture]

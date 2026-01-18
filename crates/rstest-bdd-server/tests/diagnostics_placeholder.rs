@@ -6,7 +6,8 @@
 mod support;
 
 use rstest::{fixture, rstest};
-use support::{ScenarioBuilder, TestScenario, compute_placeholder_diagnostics};
+use support::diagnostics_helpers::compute_placeholder_diagnostics;
+use support::{ScenarioBuilder, TestScenario};
 
 /// Fixture providing a fresh scenario builder for each test.
 #[fixture]
