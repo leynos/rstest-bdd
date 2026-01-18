@@ -11,10 +11,9 @@ use tracing::{debug, warn};
 
 use crate::server::ServerState;
 
-use super::compute::{
-    compute_signature_mismatch_diagnostics, compute_table_docstring_mismatch_diagnostics,
-    compute_unimplemented_step_diagnostics, compute_unused_step_diagnostics,
-};
+use super::compute::{compute_unimplemented_step_diagnostics, compute_unused_step_diagnostics};
+use super::placeholder::compute_signature_mismatch_diagnostics;
+use super::table_docstring::compute_table_docstring_mismatch_diagnostics;
 
 /// Publish diagnostics for a single feature file.
 ///

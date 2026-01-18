@@ -3,7 +3,7 @@
 //! These helpers are shared across multiple test binaries. Each binary compiles
 //! the support module independently, so functions used by `diagnostics_placeholder`
 //! appear as dead code when compiling other test binaries. The
-//! `unfulfilled_lint_expectations` allow handles the reverse case where the
+//! `unfulfilled_lint_expectations` lint handles the reverse case where the
 //! function IS used and the `expect(dead_code)` would otherwise fail.
 
 // Allow `#[allow]` for `unfulfilled_lint_expectations` - this is unavoidable because:

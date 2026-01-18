@@ -14,7 +14,9 @@
 //!   docstrings that don't match what the Rust implementation expects.
 
 mod compute;
+mod placeholder;
 mod publish;
+mod table_docstring;
 
 /// Diagnostic source identifier for rstest-bdd diagnostics.
 const DIAGNOSTIC_SOURCE: &str = "rstest-bdd";
@@ -41,13 +43,12 @@ const CODE_DOCSTRING_EXPECTED: &str = "docstring-expected";
 const CODE_DOCSTRING_NOT_EXPECTED: &str = "docstring-not-expected";
 
 // Re-export public items
-pub use compute::{
-    compute_signature_mismatch_diagnostics, compute_table_docstring_mismatch_diagnostics,
-    compute_unimplemented_step_diagnostics, compute_unused_step_diagnostics,
-};
+pub use compute::{compute_unimplemented_step_diagnostics, compute_unused_step_diagnostics};
+pub use placeholder::compute_signature_mismatch_diagnostics;
 pub use publish::{
     publish_all_feature_diagnostics, publish_feature_diagnostics, publish_rust_diagnostics,
 };
+pub use table_docstring::compute_table_docstring_mismatch_diagnostics;
 
 #[cfg(test)]
 mod tests {
@@ -287,7 +288,7 @@ mod tests {
         state: &ServerState,
         rust_path: &Path,
     ) -> Vec<Diagnostic> {
-        compute::compute_signature_mismatch_diagnostics(state, rust_path)
+        placeholder::compute_signature_mismatch_diagnostics(state, rust_path)
     }
 
     #[rstest]
@@ -384,7 +385,7 @@ mod tests {
         feature_path: &Path,
     ) -> Vec<Diagnostic> {
         let feature_index = state.feature_index(feature_path).expect("feature index");
-        compute::compute_table_docstring_mismatch_diagnostics(state, feature_index)
+        table_docstring::compute_table_docstring_mismatch_diagnostics(state, feature_index)
     }
 
     #[rstest]
