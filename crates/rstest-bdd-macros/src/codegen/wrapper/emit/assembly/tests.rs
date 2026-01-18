@@ -109,27 +109,27 @@ fn assemble_wrapper_for_test(
     syn::parse2(tokens).expect("wrapper should parse")
 }
 
-#[test]
-fn wrapper_emits_expect_attribute_for_clippy_lints() {
+/// Helper to assert that a wrapper emits the expected Clippy expect attribute.
+fn assert_wrapper_expect_lints(
+    step_struct_decl: Option<proc_macro2::TokenStream>,
+    has_step_arg_quote_strip: bool,
+    capture_count: usize,
+    return_kind: ReturnKind,
+    expected_lint_names: &[&str],
+) {
     let prepared = PreparedArgs {
         declares: Vec::new(),
         step_arg_parses: Vec::new(),
-        step_struct_decl: None,
+        step_struct_decl,
         datatable_decl: None,
         docstring_decl: None,
         expect_lints: Vec::new(),
-        has_step_arg_quote_strip: true,
+        has_step_arg_quote_strip,
     };
-    let wrapper_fn = assemble_wrapper_for_test(prepared, 1, ReturnKind::Unit);
+    let wrapper_fn = assemble_wrapper_for_test(prepared, capture_count, return_kind);
     let (lint_names, reason, unexpected_meta) = parse_expect_attribute(&wrapper_fn);
 
-    let expected = expected_lints(&[
-        LINT_SHADOW_REUSE,
-        LINT_UNNECESSARY_WRAPS,
-        LINT_REDUNDANT_CLOSURE_FOR_METHOD_CALLS,
-        LINT_NEEDLESS_PASS_BY_VALUE,
-        LINT_REDUNDANT_CLOSURE,
-    ]);
+    let expected = expected_lints(expected_lint_names);
 
     assert!(
         !unexpected_meta,
@@ -140,30 +140,34 @@ fn wrapper_emits_expect_attribute_for_clippy_lints() {
 }
 
 #[test]
-fn wrapper_emits_expect_attribute_for_step_structs() {
-    let prepared = PreparedArgs {
-        declares: Vec::new(),
-        step_arg_parses: Vec::new(),
-        step_struct_decl: Some(quote! {}),
-        datatable_decl: None,
-        docstring_decl: None,
-        expect_lints: Vec::new(),
-        has_step_arg_quote_strip: false,
-    };
-    let wrapper_fn = assemble_wrapper_for_test(prepared, 1, ReturnKind::ResultValue);
-    let (lint_names, reason, unexpected_meta) = parse_expect_attribute(&wrapper_fn);
-
-    let expected = expected_lints(&[
-        LINT_STR_TO_STRING,
-        LINT_REDUNDANT_CLOSURE_FOR_METHOD_CALLS,
-        LINT_NEEDLESS_PASS_BY_VALUE,
-        LINT_REDUNDANT_CLOSURE,
-    ]);
-
-    assert!(
-        !unexpected_meta,
-        "unexpected meta entry in expect attribute"
+fn wrapper_emits_expect_attribute_for_clippy_lints() {
+    assert_wrapper_expect_lints(
+        None,
+        true,
+        1,
+        ReturnKind::Unit,
+        &[
+            LINT_SHADOW_REUSE,
+            LINT_UNNECESSARY_WRAPS,
+            LINT_REDUNDANT_CLOSURE_FOR_METHOD_CALLS,
+            LINT_NEEDLESS_PASS_BY_VALUE,
+            LINT_REDUNDANT_CLOSURE,
+        ],
     );
-    assert_eq!(lint_names, expected, "expect attribute lint list mismatch");
-    assert_eq!(reason.as_deref(), Some(WRAPPER_EXPECT_REASON));
+}
+
+#[test]
+fn wrapper_emits_expect_attribute_for_step_structs() {
+    assert_wrapper_expect_lints(
+        Some(quote! {}),
+        false,
+        1,
+        ReturnKind::ResultValue,
+        &[
+            LINT_STR_TO_STRING,
+            LINT_REDUNDANT_CLOSURE_FOR_METHOD_CALLS,
+            LINT_NEEDLESS_PASS_BY_VALUE,
+            LINT_REDUNDANT_CLOSURE,
+        ],
+    );
 }
