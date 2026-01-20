@@ -4,13 +4,16 @@
 
 `rstest-bdd` is a Behaviour-Driven Development (BDD) framework for Rust,
 integrating Gherkin feature files with Rust's `rstest` testing framework
-([1][design-goals])([2][design-rstest]). To enhance developer experience, this
-document proposes a dedicated language server (LSP) for `rstest-bdd` (to be
-implemented as a new crate, `rstest-bdd-server`). This language server will be
-editor-agnostic and provide rich IDE features for working with Gherkin
-`.feature` files and their corresponding Rust step definitions. The LSP is
-built using the asynchronous LSP framework `async-lsp`, ensuring robust,
-concurrent handling of language server protocol requests.
+([design goals](rstest-bdd-design.md#121-step-1-the-feature-file)) and
+([step definition file](rstest-bdd-design.md#122-step-2-the-step-definition-file)).
+
+To enhance developer experience, this document proposes a dedicated language
+server (LSP) for `rstest-bdd` (to be implemented as a new crate,
+`rstest-bdd-server`). This language server will be editor-agnostic and provide
+rich IDE features for working with Gherkin `.feature` files and their
+corresponding Rust step definitions. The LSP is built using the asynchronous
+LSP framework `async-lsp`, ensuring robust, concurrent handling of language
+server protocol requests.
 
 **Key capabilities of the `rstest-bdd` language server:**
 
@@ -947,7 +950,7 @@ Subsequent work will implement:
 1. **Placeholder count validation** — Verify that step patterns and function
    signatures agree on the number of captured arguments
 2. **Data table/docstring expectation mismatches** — Warn when a step expects
-   a data table or docstring, but the feature step doesn't provide one (or
+   a data table or docstring, but the feature step does not provide one (or
    vice versa)
 
 ## Conclusion
@@ -974,8 +977,3 @@ high-level feature specs with low-level test code in one unified workflow.
 
 - [`rstest-bdd` Design Document](rstest-bdd-design.md)
 - [`rstest-bdd` Project Roadmap](roadmap.md)
-
-[design-goals]:
-https://github.com/leynos/rstest-bdd/blob/main/docs/rstest-bdd-design.md#121-step-1-the-feature-file
-[design-rstest]:
-https://github.com/leynos/rstest-bdd/blob/main/docs/rstest-bdd-design.md#122-step-2-the-step-definition-file
