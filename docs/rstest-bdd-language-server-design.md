@@ -19,12 +19,10 @@ server protocol requests.
 
 - **Go to Definition (Rust -> Feature):** Navigate from a Rust step function
   (annotated with `#[given]`, `#[when]`, or `#[then]`) to its definition in the
-  Gherkin feature
-  file([2](https://github.com/leynos/rstest-bdd/blob/969d40a366c08cb385f108734c9ea42928e9bde2/docs/roadmap.md#L364-L368)).
+  Gherkin feature file[^1].
 
 - **Go to Implementation (Feature -> Rust):** Navigate from a Gherkin step in a
-  `.feature` file to the implementing Rust
-  function([2](https://github.com/leynos/rstest-bdd/blob/969d40a366c08cb385f108734c9ea42928e9bde2/docs/roadmap.md#L364-L368)).
+  `.feature` file to the implementing Rust function[^1].
 
 - **Diagnostics and Error Reporting:** Provide real-time (or on-save)
   diagnostics for common BDD consistency issues:
@@ -66,10 +64,10 @@ known step definition patterns and the locations in feature files where those
 patterns appear. To implement Go-to-Definition:
 
 - When the user triggers this action on a Rust step function, the server
-  retrieves the pattern string from that function’s attribute (e.g.
+  retrieves the pattern string from that function's attribute (e.g.
   `"the DuckDuckGo home page is displayed"` in
   `#[given("the DuckDuckGo home page is displayed")]`). It will then look up
-  all occurrences of that Gherkin step text in the project’s feature files.
+  all occurrences of that Gherkin step text in the project's feature files.
 
 - If a match is found, the LSP returns the location(s) in the `.feature`
   file(s) where that step is defined. In most cases, there should be a unique
@@ -85,14 +83,13 @@ patterns appear. To implement Go-to-Definition:
   `{phrase}` as a placeholder.
 
 **Rationale:** This mirrors the design goal in the roadmap for IDE integration,
-where “Go to Definition” from Rust code should jump to the Gherkin
-scenario([2](https://github.com/leynos/rstest-bdd/blob/969d40a366c08cb385f108734c9ea42928e9bde2/docs/roadmap.md#L362-L368)).
- By using the same pattern syntax and parser as the `rstest-bdd` macros, the
-navigation remains accurate and only triggers when the texts truly correspond.
-(Notably, the `rstest-bdd` macros use a shared `rstest-bdd-patterns` crate to
-compile step patterns into regexes so that compile-time and runtime agree on
-semantics. The LSP will reuse this library to interpret patterns, ensuring
-consistency with the test framework.)
+where "Go to Definition" from Rust code should jump to the Gherkin
+scenario[^2]. By using the same pattern syntax and parser as the `rstest-bdd`
+macros, the navigation remains accurate and only triggers when the texts truly
+correspond. (Notably, the `rstest-bdd` macros use a shared
+`rstest-bdd-patterns` crate to compile step patterns into regexes so that
+compile-time and runtime agree on semantics. The LSP will reuse this library to
+interpret patterns, ensuring consistency with the test framework.)
 
 ### 2. Go to implementation (feature to Rust)
 
@@ -104,7 +101,7 @@ open the Rust source file and jump to the
 `#[then("the search results page is displayed")]` function.
 
 **Design Approach:** The language server will parse feature files and identify
-each step’s text (and keyword). It will then map these to Rust step definitions
+each step's text (and keyword). It will then map these to Rust step definitions
 via pattern matching:
 
 - On a "Go to Implementation" request, the server takes the step text under the
@@ -118,8 +115,7 @@ via pattern matching:
   instance, a feature step
   `Then the results contain "Rust Programming Language"` would match a Rust
   step definition with pattern `#[then("the results contain \"(.*)\"")]` by
-  regex
-  matching([1](https://github.com/leynos/rstest-bdd/blob/969d40a366c08cb385f108734c9ea42928e9bde2/docs/rstest-bdd-design.md#L142-L150)).
+  regex matching[^3].
 
 - In case multiple implementations exist for the same step text (which ideally
   should be avoided – duplicates would be flagged as a diagnostic), all
@@ -131,14 +127,12 @@ via pattern matching:
 
 This feature addresses the need for quickly finding where a scenario step is
 implemented in code, significantly improving the BDD workflow. It aligns with
-the project’s plan to support editor features for jumping from `.feature` steps
-to
-code([2](https://github.com/leynos/rstest-bdd/blob/969d40a366c08cb385f108734c9ea42928e9bde2/docs/roadmap.md#L364-L368)).
- Using the exact same pattern matching logic as the test runtime ensures that
-"Go to Implementation" only succeeds when the code truly implements the step,
-preventing false positives. (The use of the shared pattern parser ensures
-placeholders and regex in step definitions are handled
-correctly([1](https://github.com/leynos/rstest-bdd/blob/969d40a366c08cb385f108734c9ea42928e9bde2/docs/rstest-bdd-design.md#L586-L593)).)
+the project's plan to support editor features for jumping from `.feature` steps
+to code[^1]. Using the exact same pattern matching logic as the test runtime
+ensures that "Go to Implementation" only succeeds when the code truly
+implements the step, preventing false positives. (The use of the shared pattern
+parser ensures placeholders and regex in step definitions are handled
+correctly[^4].)
 
 ### 3. Diagnostics and error reporting
 
@@ -148,28 +142,25 @@ warnings) in the editor. The following diagnostic checks will be performed:
 
 - **Unimplemented Feature Step:** If a Gherkin step in a `.feature` file has no
   corresponding Rust step function, the server will report a diagnostic on that
-  line in the feature file. This mirrors the framework’s compile-time check in
+  line in the feature file. This mirrors the framework's compile-time check in
   the `#[scenario]` macro (which is supposed to emit a compile error if a step
-  is missing an
-  implementation([2](https://github.com/leynos/rstest-bdd/blob/969d40a366c08cb385f108734c9ea42928e9bde2/docs/roadmap.md#L119-L122))).
-   For example, if a scenario has a step "Given the database is empty", but no
-  function is annotated with `#[given("the database is empty")]`, the LSP will
-  highlight that step as an error (e.g. "No step implementation found for this
-  step").
+  is missing an implementation[^5]). For example, if a scenario has a step
+  "Given the database is empty", but no function is annotated with
+  `#[given("the database is empty")]`, the LSP will highlight that step as an
+  error (e.g. "No step implementation found for this step").
 
 - **Undeclared (Unused) Step Function:** If a Rust step definition function
   (e.g. a function annotated with `#[when(...)]` or other step macros) is not
   referenced by any scenario in any feature file, the server will emit a
   warning on that function (or its attribute) indicating it is never used. This
   is similar to a dead code warning and aligns with the planned `cargo bdd`
-  tooling to list unused
-  definitions([2](https://github.com/leynos/rstest-bdd/blob/969d40a366c08cb385f108734c9ea42928e9bde2/docs/roadmap.md#L334-L338)).
-   It helps developers clean up or recognize mismatches (perhaps a typo in the
-  feature text or attribute pattern causing the function to never be called).
+  tooling to list unused definitions[^6]. It helps developers clean up or
+  recognize mismatches (perhaps a typo in the feature text or attribute pattern
+  causing the function to never be called).
 
 - **Step Definition Pattern/Signature Mismatch:** If the pattern string in a
-  step function’s attribute does not align with the function’s parameters, an
-  error will be reported. For instance, if a step function’s attribute contains
+  step function's attribute does not align with the function's parameters, an
+  error will be reported. For instance, if a step function's attribute contains
   placeholders (e.g. `{count}`), but the function signature has a different
   number of parameters or incompatible types, this is a mismatch. The
   `rstest-bdd` macros themselves enforce many of these conditions at
@@ -185,10 +176,9 @@ warnings) in the editor. The following diagnostic checks will be performed:
   warn if a placeholder has an explicit type (like `{n:i32}` in the pattern),
   but the corresponding parameter in the function is a different type or
   missing. The language server relies on the same parsing logic that
-  `rstest-bdd` macros use to interpret placeholders with
-  types([1](https://github.com/leynos/rstest-bdd/blob/969d40a366c08cb385f108734c9ea42928e9bde2/docs/rstest-bdd-design.md#L2-L5)).
-   If the macro would fail (e.g. unknown type or no parameter), the LSP should
-  catch that too. (This diagnostic is mostly to catch mistakes early; the Rust
+  `rstest-bdd` macros use to interpret placeholders with types[^7]. If the
+  macro would fail (e.g. unknown type or no parameter), the LSP should catch
+  that too. (This diagnostic is mostly to catch mistakes early; the Rust
   compiler/macros would also error in many such cases.)
 
 - **Data Table and Scenario Outline Mismatches:** `rstest-bdd` supports Gherkin
@@ -197,7 +187,7 @@ warnings) in the editor. The following diagnostic checks will be performed:
 
 - If a step in a feature file includes an inline data table but the
   corresponding Rust step function does not accept a `datatable` parameter (or
-  vice versa), that’s an inconsistency. For example, a feature step:
+  vice versa), that's an inconsistency. For example, a feature step:
 
 ```gherkin
 When the user inputs the following credentials:
@@ -212,30 +202,23 @@ step implementation. Conversely, if a step function is defined with a
 table, that function will never be invoked correctly (the runtime would error
 as well). The LSP will warn about the missing table for that step usage.
 According to the design, a missing table when one is expected triggers a
-runtime
-error([1](https://github.com/leynos/rstest-bdd/blob/969d40a366c08cb385f108734c9ea42928e9bde2/docs/rstest-bdd-design.md#L564-L572)),
- so surfacing it at edit-time is valuable.
+runtime error[^8], so surfacing it at edit-time is valuable.
 
-- For **Scenario Outlines** (Examples tables): If an outline’s example columns
-  don’t match the test function’s parameters, it’s an error. For instance, if a
+- For **Scenario Outlines** (Examples tables): If an outline's example columns
+  don't match the test function's parameters, it's an error. For instance, if a
   scenario outline has columns `<username>` and `<password>` but the Rust
   `#[scenario]` test function or its called steps only define a parameter for
   `username`, the second column is unconsumed. The macros aim to emit
-  compile-time errors in such
-  cases([1](https://github.com/leynos/rstest-bdd/blob/969d40a366c08cb385f108734c9ea42928e9bde2/docs/rstest-bdd-design.md#L48-L56)).
-   The LSP will similarly flag the scenario outline or test definition with a
-  diagnostic like "Column 'password' has no matching parameter". This ensures
-  scenario outlines and code stay in sync, avoiding runtime surprises.
+  compile-time errors in such cases[^9]. The LSP will similarly flag the
+  scenario outline or test definition with a diagnostic like "Column 'password'
+  has no matching parameter". This ensures scenario outlines and code stay in
+  sync, avoiding runtime surprises.
 
 All diagnostics will update on file save (initial implementation) or on demand.
 Catching these issues early provides immediate feedback akin to compiler
 errors, but at the BDD level. This extends the robust error checking
 `rstest-bdd` already strives for (e.g., compile-time feature parsing and step
-existence
-checks([2](https://github.com/leynos/rstest-bdd/blob/969d40a366c08cb385f108734c9ea42928e9bde2/docs/roadmap.md#L43-L50)
- )(
-[2](https://github.com/leynos/rstest-bdd/blob/969d40a366c08cb385f108734c9ea42928e9bde2/docs/roadmap.md#L119-L122))),
- into the editing experience.
+existence checks[^10][^5]), into the editing experience.
 
 ## Architecture and implementation
 
@@ -244,11 +227,10 @@ checks([2](https://github.com/leynos/rstest-bdd/blob/969d40a366c08cb385f108734c9
 The `rstest-bdd-server` will be a standalone LSP server binary, implemented in
 Rust using **`async-lsp`**. It will run alongside the standard Rust Analyzer
 (which handles general Rust language features), focusing specifically on
-BDD-specific logic. This design choice aligns with the roadmap’s consideration
-of either extending rust-analyzer or building a dedicated
-extension([2](https://github.com/leynos/rstest-bdd/blob/969d40a366c08cb385f108734c9ea42928e9bde2/docs/roadmap.md#L362-L368));
- by building a separate LSP, the design remains editor-agnostic and loosely
-coupled to Rust Analyzer.
+BDD-specific logic. This design choice aligns with the roadmap's consideration
+of either extending rust-analyzer or building a dedicated extension[^2]; by
+building a separate LSP, the design remains editor-agnostic and loosely coupled
+to Rust Analyzer.
 
 **Key components:**
 
@@ -267,11 +249,10 @@ coupled to Rust Analyzer.
 
 - **Feature File Parser (Gherkin):** The server uses the `gherkin` crate to
   parse `.feature` files into an abstract syntax tree (AST) or data
-  structure([2](https://github.com/leynos/rstest-bdd/blob/969d40a366c08cb385f108734c9ea42928e9bde2/docs/roadmap.md#L43-L50)).
-   This allows extraction of scenarios, steps (with their text, line numbers,
-  and possibly step type), and example tables. The parser handles Gherkin
-  syntax (including language variations if needed, though initial focus is
-  likely English by default). Each feature file parse yields:
+  structure[^10]. This allows extraction of scenarios, steps (with their text,
+  line numbers, and possibly step type), and example tables. The parser handles
+  Gherkin syntax (including language variations if needed, though initial focus
+  is likely English by default). Each feature file parse yields:
 
 - A list of scenario definitions (with steps, tags, etc).
 
@@ -283,7 +264,7 @@ coupled to Rust Analyzer.
   `#[when]`, `#[then]` attributes in the crate need to be identified. Strategy
   options include:
 
-- Using the Rust compiler’s data (like rust-analyzer’s syntax tree) – however,
+- Using the Rust compiler's data (like rust-analyzer's syntax tree) – however,
   integrating deeply with rust-analyzer may be complex.
 
 - **Syn crate or Rust AST parser:** Using `syn` (or the Rust compiler AST via
@@ -298,21 +279,17 @@ coupled to Rust Analyzer.
   a tree-sitter parser for Rust (as used by projects like CodeGraph) is an
   option. Tree-sitter can parse code incrementally as it changes, which would
   help in providing real-time diagnostics. The `codegraph-rust` crate, for
-  example, uses tree-sitter to extract code
-  entities([3](https://lib.rs/crates/codegraph-rust#:~:text=codegraph,))(
-  [4](https://glama.ai/mcp/servers/@Jakedismo/codegraph-rust/blob/5ecff3e63528ef3931bda96fc510cd11e9287de5/crates/codegraph-parser/src/languages/rust.rs#:~:text=CodeGraph%20CLI%20MCP%20Server%20,derive%28Default%2C%20Clone%29%5D%20struct)).
-   This can maintain an up-to-date index of functions without re-parsing entire
-  files from scratch on every edit. Initially, however, the simpler approach
-  (full parse on save) may be preferable, with an incremental parser considered
-  once the basic functionality is stable.
+  example, uses tree-sitter to extract code entities[^11][^12]. This can
+  maintain an up-to-date index of functions without re-parsing entire files
+  from scratch on every edit. Initially, however, the simpler approach (full
+  parse on save) may be preferable, with an incremental parser considered once
+  the basic functionality is stable.
 
 - **Step Definition Registry (in LSP):** The server will maintain an in-memory
   registry or mapping that correlates Gherkin step texts/patterns with Rust
   step functions. Conceptually, this mirrors the runtime registry that the test
-  framework builds via
-  `inventory`([1](https://github.com/leynos/rstest-bdd/blob/969d40a366c08cb385f108734c9ea42928e9bde2/docs/rstest-bdd-design.md#L554-L562)),
-   but constructed at analysis time. This registry might be represented by two
-  maps:
+  framework builds via `inventory`[^13], but constructed at analysis time. This
+  registry might be represented by two maps:
 
 - Map from **Rust step definition** (function identifier or some stable
   identifier (ID)) to its **pattern string** and source location.
@@ -416,12 +393,9 @@ classDiagram
 workspace as `rstest-bdd`. It can depend on `rstest-bdd` or its sub-crates
 (`rstest-bdd-patterns`, etc.) to reuse logic. For example, the server will use
 the **`rstest-bdd-patterns`** crate to parse attribute patterns into regexes,
-ensuring identical interpretation of placeholders as the macros
-do([1](https://github.com/leynos/rstest-bdd/blob/969d40a366c08cb385f108734c9ea42928e9bde2/docs/rstest-bdd-design.md#L2-L5)).
- It will also use the `gherkin` crate (the same one used by the procedural
-macro at compile
-time([2](https://github.com/leynos/rstest-bdd/blob/969d40a366c08cb385f108734c9ea42928e9bde2/docs/roadmap.md#L43-L50)))
- to parse feature files in the LSP context.
+ensuring identical interpretation of placeholders as the macros do[^7]. It will
+also use the `gherkin` crate (the same one used by the procedural macro at
+compile time[^10]) to parse feature files in the LSP context.
 
 Co-locating the server in the repository ensures it stays in sync with changes
 to the `rstest-bdd` macro semantics. If new features (like localised keywords
@@ -484,12 +458,12 @@ When a Rust file is saved:
   unused).
 
 - **On Feature File Open:** Optionally, the server could parse and index a
-  feature file as soon as it’s opened (even before save) to provide
+  feature file as soon as it's opened (even before save) to provide
   diagnostics. To keep initial implementation simpler, the workflow likely
   sticks to on-save. Even on open, if the file was already parsed from a
   previous save (or initial scan), its diagnostics are shown.
 
-- **Performance consideration:** Parsing an entire crate’s tests on each save
+- **Performance consideration:** Parsing an entire crate's tests on each save
   could be expensive for large projects. However, given BDD tests are typically
   not extremely large in number, this is a reasonable starting point.
   Performance will be monitored and optimisations introduced as needed:
@@ -509,7 +483,7 @@ When a Rust file is saved:
   live for continuous parsing. Early focus, however, is correctness and
   completeness on save.
 
-### Implementing “Go to definition” and “Go to implementation”
+### Implementing "Go to definition" and "Go to implementation"
 
 With the registry in place, handling the LSP requests is straightforward:
 
@@ -517,16 +491,16 @@ With the registry in place, handling the LSP requests is straightforward:
   in a Rust file. The handler determines whether the symbol under the cursor is
   a step function (possibly restricting this to when the cursor is on the
   attribute or function name of a step definition). If so, the handler
-  retrieves that function’s pattern string from the index, then looks up all
+  retrieves that function's pattern string from the index, then looks up all
   feature file locations that contain a matching step. Because the index maps
   patterns to feature locations (possibly precomputed, or via a quick search
   through parsed feature ASTs), the handler gathers the target locations. The
   response is one or multiple `Location` objects pointing to the `.feature`
   file Uniform Resource Identifier (URI) and range of the step text. If the
-  function’s pattern is not found in any feature, the response is empty (and
+  function's pattern is not found in any feature, the response is empty (and
   this situation would likely also trigger an "unused step" warning separately).
 
-- The search for a matching feature step will use the pattern’s regex if it
+- The search for a matching feature step will use the pattern's regex if it
   contains placeholders. For exact literal patterns (no parameters), a direct
   string match is sufficient. For patterns with regex or type placeholders, the
   stored regex runs against each candidate step text (or uses an indexed
@@ -544,10 +518,10 @@ With the registry in place, handling the LSP requests is straightforward:
   pattern matches this text:
 
 - Each pattern is likely stored as a compiled regex or a structured pattern.
-  Matching attempts run the feature’s step text against each pattern of the
+  Matching attempts run the feature's step text against each pattern of the
   same keyword category. Grouping patterns by keyword (Given/When/Then) helps,
   because a "Then …" step should only match a `#[then]` function, etc., but
-  `And` can match the previous step’s keyword category.
+  `And` can match the previous step's keyword category.
 
 - If a match is found, the handler returns the `Location` of the Rust function
   (file and line). If multiple matches exist (which could indicate duplicate
@@ -569,16 +543,15 @@ Diagnostics are produced by cross-referencing the feature and code indices:
 - **Unimplemented Step (Feature->Code):** After parsing feature files, for each
   step in each scenario, the diagnostic pass tries to find at least one
   matching Rust step definition in the registry. If none is found, a diagnostic
-  is recorded on that step’s location in the feature file (likely as an error).
+  is recorded on that step's location in the feature file (likely as an error).
   This check runs for all steps, or optimisation can mark steps as resolved as
   they are matched. This logic parallels what the `#[scenario]` macro does at
-  compile time — reading the feature and ensuring a matching step
-  exists([2](https://github.com/leynos/rstest-bdd/blob/969d40a366c08cb385f108734c9ea42928e9bde2/docs/roadmap.md#L119-L122)).
-   Unlike the macro, the LSP can also catch steps in feature files that
-  *aren’t* currently bound by any `#[scenario]` macro (for example, if a
-  feature file exists but no Rust test references it yet). Those steps would
-  never run, but the LSP can still inform the user that "This step is not
-  implemented" so they know to write a code function for it or remove it.
+  compile time — reading the feature and ensuring a matching step exists[^5].
+  Unlike the macro, the LSP can also catch steps in feature files that *aren't*
+  currently bound by any `#[scenario]` macro (for example, if a feature file
+  exists but no Rust test references it yet). Those steps would never run, but
+  the LSP can still inform the user that "This step is not implemented" so they
+  know to write a code function for it or remove it.
 
 - **Unused Step Definition (Code->Feature):** After scanning all feature files,
   the registry indicates which step patterns are actually used. The analyser
@@ -586,22 +559,21 @@ Diagnostics are produced by cross-referencing the feature and code indices:
   was matched to at least one feature step. Any that were not matched are
   marked with a warning diagnostic at the function (e.g. on the `#[given]`
   attribute line) indicating it appears to be unused. This is analogous to the
-  planned `cargo bdd list-unused`
-  tool([2](https://github.com/leynos/rstest-bdd/blob/969d40a366c08cb385f108734c9ea42928e9bde2/docs/roadmap.md#L334-L338)),
-   but in real-time. It helps catch situations like a typo in the Gherkin text
-  or in the attribute pattern that prevents the linkage.
+  planned `cargo bdd list-unused` tool[^6], but in real-time. It helps catch
+  situations like a typo in the Gherkin text or in the attribute pattern that
+  prevents the linkage.
 
 - **Pattern/Signature Mismatch:** When parsing a Rust step function, the server
-  will perform checks similar to the macro’s checks:
+  will perform checks similar to the macro's checks:
 
 - Count placeholders vs function parameters (excluding fixture parameters and
   special `datatable`/`docstring`). If mismatch, emit an error on the attribute
-  or function signature. (The macros ensure that if placeholders don’t match
+  or function signature. (The macros ensure that if placeholders don't match
   parameters, a compile error or runtime error will occur; the LSP replicates
   that as an LSP diagnostic for immediate feedback.)
 
 - Verify that if the function expects a `datatable` parameter or `docstring`,
-  the pattern should allow those (in Gherkin, a data table or docstring isn’t
+  the pattern should allow those (in Gherkin, a data table or docstring isn't
   part of the step text pattern but an attached structure). The LSP cannot
   infer from the pattern alone, but it can ensure, for example, that at most
   one `datatable` parameter is present and that the feature actually supplies a
@@ -620,13 +592,10 @@ Diagnostics are produced by cross-referencing the feature and code indices:
   mismatch is found (extra column or missing column vs test function
   arguments), either the feature file or the test function can be annotated.
   The design suggests the macro emits errors listing available parameters for
-  mismatches(
-  [1](https://github.com/leynos/rstest-bdd/blob/969d40a366c08cb385f108734c9ea42928e9bde2/docs/rstest-bdd-design.md#L48-L56));
-   the LSP can do similarly. Since linking a scenario outline to its test
-  function requires knowing which test corresponds (the `#[scenario]` macro
-  call includes the feature path and an
-  index/name([1](https://github.com/leynos/rstest-bdd/blob/969d40a366c08cb385f108734c9ea42928e9bde2/docs/rstest-bdd-design.md#L529-L537))),
-   the server can use that to identify the test function and compare parameters.
+  mismatches[^9]; the LSP can do similarly. Since linking a scenario outline to
+  its test function requires knowing which test corresponds (the `#[scenario]`
+  macro call includes the feature path and an index/name[^14]), the server can
+  use that to identify the test function and compare parameters.
 
 All diagnostics computations will be triggered on changes. Initially, this runs
 on file save events for performance. This means as a user edits, they might not
@@ -659,9 +628,7 @@ consistent. Many of these checks are analogous to what the `rstest-bdd` macros
 and runtime do (or will do) at compile/run time, but the LSP provides them
 earlier in the development flow. This immediate feedback loop will greatly
 improve the developer experience (a focus of Phase 5 and 6 in the
-roadmap([2](https://github.com/leynos/rstest-bdd/blob/969d40a366c08cb385f108734c9ea42928e9bde2/docs/roadmap.md#L330-L338)
- )(
-[2](https://github.com/leynos/rstest-bdd/blob/969d40a366c08cb385f108734c9ea42928e9bde2/docs/roadmap.md#L362-L368))).
+roadmap[^15][^2]).
 
 ## Editor integration and usage
 
@@ -689,14 +656,12 @@ supports LSP. Anticipated usage includes:
 reside in the same crate (as per the project assumption). It will locate the
 crate root (by finding `Cargo.toml` of the opened workspace) to resolve
 relative paths. Notably, the `#[scenario]` attribute in code specifies the path
-to the feature file relative to crate
-root([1](https://github.com/leynos/rstest-bdd/blob/969d40a366c08cb385f108734c9ea42928e9bde2/docs/rstest-bdd-design.md#L529-L537)).
- The server can use this to double-check it is opening the correct feature
-file, and even to infer relationships (e.g., if a scenario macro refers to
-`features/foo.feature`, the server knows to link that test function to that
-file’s steps). Ensuring the crate root is known also helps in reading files
-(standard Rust file IO or perhaps `cargo metadata` will be used if needed to
-get workspace layout).
+to the feature file relative to crate root[^14]. The server can use this to
+double-check it is opening the correct feature file, and even to infer
+relationships (e.g., if a scenario macro refers to `features/foo.feature`, the
+server knows to link that test function to that file's steps). Ensuring the
+crate root is known also helps in reading files (standard Rust file IO or
+perhaps `cargo metadata` will be used if needed to get workspace layout).
 
 **Editor Features:** Once running, the language server will provide:
 
@@ -709,7 +674,7 @@ get workspace layout).
   auto-completion (suggesting existing step texts while editing a feature file,
   to avoid duplication or typos). These are considered future enhancements.
 
-- Diagnostics appear in the editor’s Problems panel and inline underlines, just
+- Diagnostics appear in the editor's Problems panel and inline underlines, just
   like compiler errors, making it clear where inconsistencies lie.
 
 ## Future work and enhancements
@@ -731,7 +696,7 @@ features include:
 
 - **Enhanced Real-time Diagnostics:** Depending on the performance of the
   chosen parsing approach, the roadmap will work toward real-time (on-change)
-  diagnostics. This could involve deeper integration with the Rust Analyzer’s
+  diagnostics. This could involve deeper integration with the Rust Analyzer's
   live analysis (perhaps via a rust-analyzer plugin architecture) or continued
   optimisation of the parsing approach. The goal is to provide immediate
   feedback without waiting for file saves, if possible.
@@ -744,13 +709,12 @@ features include:
   hard-coding assumptions beyond the crate root paths.
 
 - **Leverage `cargo bdd` outputs:** The `cargo bdd` subcommand (if and when
-  it’s implemented with features like `list-steps`,
-  etc.([2](https://github.com/leynos/rstest-bdd/blob/969d40a366c08cb385f108734c9ea42928e9bde2/docs/roadmap.md#L330-L338)))
-   could be harnessed by the LSP for double-checking its own index or even
-  populating it. For example, running `cargo bdd list-steps --json` might give
-  a ground truth of all step definitions registered in a fully compiled test
-  binary. However, running that on the fly is heavyweight. Still, for
-  verification or maybe a manual command, it might be integrated.
+  it's implemented with features like `list-steps`, etc.[^15]) could be
+  harnessed by the LSP for double-checking its own index or even populating it.
+  For example, running `cargo bdd list-steps --json` might give a ground truth
+  of all step definitions registered in a fully compiled test binary. However,
+  running that on the fly is heavyweight. Still, for verification or maybe a
+  manual command, it might be integrated.
 
 ## Implementation status
 
@@ -958,16 +922,14 @@ Subsequent work will implement:
 The `rstest-bdd` language server will significantly improve the developer
 experience for BDD-style testing in Rust. By providing cross-navigation between
 Gherkin and Rust and early detection of mismatches, it closes the feedback loop
-envisioned in the `rstest-bdd` project’s design. Implementing it as a
+envisioned in the `rstest-bdd` project's design. Implementing it as a
 standalone, async LSP server ensures it remains modular and editor-independent,
 aligning with modern Rust tooling practices. By building on existing crates
-like `gherkin` for parsing and reusing the `rstest-bdd` framework’s own pattern
-logic(
-[1](https://github.com/leynos/rstest-bdd/blob/969d40a366c08cb385f108734c9ea42928e9bde2/docs/rstest-bdd-design.md#L2-L5)),
- this approach guarantees consistency between what developers see in their IDE
-and what happens at compile/test time. This design lays out a clear path to
-deliver the three core capabilities, with an eye toward future enhancements
-like auto-complete and deeper integration.
+like `gherkin` for parsing and reusing the `rstest-bdd` framework's own pattern
+logic[^7], this approach guarantees consistency between what developers see in
+their IDE and what happens at compile/test time. This design lays out a clear
+path to deliver the three core capabilities, with an eye toward future
+enhancements like auto-complete and deeper integration.
 
 Ultimately, the `rstest-bdd-server` will make writing BDD tests in Rust as
 seamless as writing regular Rust tests, fulfilling the promise of uniting
@@ -978,7 +940,18 @@ high-level feature specs with low-level test code in one unified workflow.
 - [`rstest-bdd` Design Document](rstest-bdd-design.md)
 - [`rstest-bdd` Project Roadmap](roadmap.md)
 
-[design-goals]:
-https://github.com/leynos/rstest-bdd/blob/main/docs/rstest-bdd-design.md#121-step-1-the-feature-file
-[design-rstest]:
-https://github.com/leynos/rstest-bdd/blob/main/docs/rstest-bdd-design.md#122-step-2-the-step-definition-file
+[^1]: <https://github.com/leynos/rstest-bdd/blob/969d40a366c08cb385f108734c9ea42928e9bde2/docs/roadmap.md#L364-L368>
+[^2]: <https://github.com/leynos/rstest-bdd/blob/969d40a366c08cb385f108734c9ea42928e9bde2/docs/roadmap.md#L362-L368>
+[^3]: <https://github.com/leynos/rstest-bdd/blob/969d40a366c08cb385f108734c9ea42928e9bde2/docs/rstest-bdd-design.md#L142-L150>
+[^4]: <https://github.com/leynos/rstest-bdd/blob/969d40a366c08cb385f108734c9ea42928e9bde2/docs/rstest-bdd-design.md#L586-L593>
+[^5]: <https://github.com/leynos/rstest-bdd/blob/969d40a366c08cb385f108734c9ea42928e9bde2/docs/roadmap.md#L119-L122>
+[^6]: <https://github.com/leynos/rstest-bdd/blob/969d40a366c08cb385f108734c9ea42928e9bde2/docs/roadmap.md#L334-L338>
+[^7]: <https://github.com/leynos/rstest-bdd/blob/969d40a366c08cb385f108734c9ea42928e9bde2/docs/rstest-bdd-design.md#L2-L5>
+[^8]: <https://github.com/leynos/rstest-bdd/blob/969d40a366c08cb385f108734c9ea42928e9bde2/docs/rstest-bdd-design.md#L564-L572>
+[^9]: <https://github.com/leynos/rstest-bdd/blob/969d40a366c08cb385f108734c9ea42928e9bde2/docs/rstest-bdd-design.md#L48-L56>
+[^10]: <https://github.com/leynos/rstest-bdd/blob/969d40a366c08cb385f108734c9ea42928e9bde2/docs/roadmap.md#L43-L50>
+[^11]: <https://lib.rs/crates/codegraph-rust#:~:text=codegraph,>
+[^12]: <https://glama.ai/mcp/servers/@Jakedismo/codegraph-rust/blob/5ecff3e63528ef3931bda96fc510cd11e9287de5/crates/codegraph-parser/src/languages/rust.rs#:~:text=CodeGraph%20CLI%20MCP%20Server%20,derive%28Default%2C%20Clone%29%5D%20struct>
+[^13]: <https://github.com/leynos/rstest-bdd/blob/969d40a366c08cb385f108734c9ea42928e9bde2/docs/rstest-bdd-design.md#L554-L562>
+[^14]: <https://github.com/leynos/rstest-bdd/blob/969d40a366c08cb385f108734c9ea42928e9bde2/docs/rstest-bdd-design.md#L529-L537>
+[^15]: <https://github.com/leynos/rstest-bdd/blob/969d40a366c08cb385f108734c9ea42928e9bde2/docs/roadmap.md#L330-L338>
