@@ -466,7 +466,7 @@ When a Rust file is saved:
 - **Performance consideration:** Parsing an entire crate's tests on each save
   could be expensive for large projects. However, given BDD tests are typically
   not extremely large in number, this is a reasonable starting point.
-  Performance will be monitored and optimisations introduced as needed:
+  Performance will be monitored and optimizations introduced as needed:
 
 - Use incremental parsing for Rust via Tree-sitter or a persisted AST between
   edits (to avoid full reparse).
@@ -544,7 +544,7 @@ Diagnostics are produced by cross-referencing the feature and code indices:
   step in each scenario, the diagnostic pass tries to find at least one
   matching Rust step definition in the registry. If none is found, a diagnostic
   is recorded on that step's location in the feature file (likely as an error).
-  This check runs for all steps, or optimisation can mark steps as resolved as
+  This check runs for all steps, or optimization can mark steps as resolved as
   they are matched. This logic parallels what the `#[scenario]` macro does at
   compile time — reading the feature and ensuring a matching step exists[^5].
   Unlike the macro, the LSP can also catch steps in feature files that *aren't*
@@ -567,10 +567,10 @@ Diagnostics are produced by cross-referencing the feature and code indices:
   will perform checks similar to the macro's checks:
 
 - Count placeholders vs function parameters (excluding fixture parameters and
-  special `datatable`/`docstring`). If mismatch, emit an error on the attribute
-  or function signature. (The macros ensure that if placeholders don't match
-  parameters, a compile error or runtime error will occur; the LSP replicates
-  that as an LSP diagnostic for immediate feedback.)
+  special `datatable`/`docstring`). If mismatched, emit an error on the
+  attribute or function signature. (The macros ensure that if placeholders
+  don't match parameters, a compile error or runtime error will occur; the LSP
+  replicates that as an LSP diagnostic for immediate feedback.)
 
 - Verify that if the function expects a `datatable` parameter or `docstring`,
   the pattern should allow those (in Gherkin, a data table or docstring isn't
@@ -698,7 +698,7 @@ features include:
   chosen parsing approach, the roadmap will work toward real-time (on-change)
   diagnostics. This could involve deeper integration with the Rust Analyzer's
   live analysis (perhaps via a rust-analyzer plugin architecture) or continued
-  optimisation of the parsing approach. The goal is to provide immediate
+  optimization of the parsing approach. The goal is to provide immediate
   feedback without waiting for file saves, if possible.
 
 - **Multi-crate or Workspace Support:** Currently the design assumes one crate.

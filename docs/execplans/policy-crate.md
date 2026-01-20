@@ -204,10 +204,28 @@ Expected log files after validation:
 ## Interfaces and dependencies
 
 - New crate: `rstest-bdd-policy` with public enums:
-  - `pub enum RuntimeMode { Sync, TokioCurrentThread }`
-  - `impl RuntimeMode { pub const fn is_async(self) -> bool; pub const fn
-    test_attribute_hint(self) -> TestAttributeHint; }`
-  - `pub enum TestAttributeHint { RstestOnly, RstestWithTokioCurrentThread }`
+
+<!-- markdownlint-disable MD046 -->
+
+```rust
+pub enum RuntimeMode {
+    Sync,
+    TokioCurrentThread,
+}
+
+impl RuntimeMode {
+    pub const fn is_async(self) -> bool;
+    pub const fn test_attribute_hint(self) -> TestAttributeHint;
+}
+
+pub enum TestAttributeHint {
+    RstestOnly,
+    RstestWithTokioCurrentThread,
+}
+```
+
+<!-- markdownlint-enable MD046 -->
+
 - Runtime crate: re-export the policy types from
   `crates/rstest-bdd/src/execution.rs`.
 - Macro crate: import policy types from `rstest-bdd-policy` instead of defining
