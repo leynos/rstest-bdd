@@ -89,7 +89,7 @@ all tests/lints pass.
 The policy enums live in `rstest-bdd-policy`, eliminating macro/runtime
 duplication while preserving the public `rstest_bdd::execution` API via
 re-exports. Documentation now includes ADR-004, and ADR-001 references the new
-new policy crate. Running the full quality gate suite confirms the changes
+policy crate. Running the full quality gate suite confirms the changes
 across all outcomes: formatting, lint, and tests.
 
 ## Context and orientation
