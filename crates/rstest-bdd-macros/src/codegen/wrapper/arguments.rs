@@ -3,6 +3,7 @@
 use super::args::{Arg, DataTableArg, StepStructArg};
 use proc_macro2::TokenStream as TokenStream2;
 use quote::{format_ident, quote};
+use rstest_bdd_patterns::requires_quote_stripping;
 
 mod bindings;
 
@@ -31,6 +32,8 @@ pub(super) struct PreparedArgs {
     pub(super) step_struct_decl: Option<TokenStream2>,
     pub(super) datatable_decl: Option<TokenStream2>,
     pub(super) docstring_decl: Option<TokenStream2>,
+    pub(super) expect_lints: Vec<syn::Path>,
+    pub(super) has_step_arg_quote_strip: bool,
 }
 
 /// Check if a type is a reference to str (i.e., `&str` or `&'a str`).
@@ -156,6 +159,82 @@ pub(super) fn gen_step_parses(
         .collect()
 }
 
+/// Generated step argument parses and quote-stripping indicator.
+struct StepArgParseResult {
+    step_arg_parses: Vec<TokenStream2>,
+    has_step_arg_quote_strip: bool,
+}
+
+/// Input data for building step argument parse expressions.
+#[derive(Copy, Clone)]
+struct StepArgParseInputs<'a> {
+    step_args: &'a [BoundArg<'a>],
+    all_captures: &'a [TokenStream2],
+    placeholder_hints: &'a [Option<String>],
+}
+
+/// Build parsers for step arguments from `StepArgParseInputs` and `StepMeta`.
+///
+/// When `step_struct_present` is true, the step struct handles argument parsing,
+/// so this returns an empty `StepArgParseResult` with no quote-stripping.
+fn build_step_arg_parses(
+    inputs: StepArgParseInputs<'_>,
+    step_meta: StepMeta<'_>,
+    step_struct_present: bool,
+) -> StepArgParseResult {
+    let StepArgParseInputs {
+        step_args,
+        all_captures,
+        placeholder_hints,
+    } = inputs;
+    if step_struct_present {
+        return StepArgParseResult {
+            step_arg_parses: Vec::new(),
+            has_step_arg_quote_strip: false,
+        };
+    }
+
+    let Some(capture_slice) = all_captures.get(..step_args.len()) else {
+        let error = syn::Error::new(
+            step_meta.pattern.span(),
+            format!(
+                "step arguments ({}) cannot exceed capture count ({})",
+                step_args.len(),
+                all_captures.len()
+            ),
+        )
+        .to_compile_error();
+        return StepArgParseResult {
+            step_arg_parses: vec![error],
+            has_step_arg_quote_strip: false,
+        };
+    };
+    let Some(hint_slice) = placeholder_hints.get(..step_args.len()) else {
+        let error = syn::Error::new(
+            step_meta.pattern.span(),
+            format!(
+                "placeholder hints ({}) must match or exceed step argument count ({})",
+                placeholder_hints.len(),
+                step_args.len()
+            ),
+        )
+        .to_compile_error();
+        return StepArgParseResult {
+            step_arg_parses: vec![error],
+            has_step_arg_quote_strip: false,
+        };
+    };
+    let has_step_arg_quote_strip = hint_slice
+        .iter()
+        .any(|hint| requires_quote_stripping(hint.as_deref()));
+    let step_arg_parses = gen_step_parses(step_args, capture_slice, hint_slice, step_meta);
+
+    StepArgParseResult {
+        step_arg_parses,
+        has_step_arg_quote_strip,
+    }
+}
+
 /// Generate declarations and parsing logic for wrapper arguments.
 pub(super) fn prepare_argument_processing(
     args: &[Arg],
@@ -210,25 +289,19 @@ pub(super) fn prepare_argument_processing(
             quote! { captures.get(#index).map(|m| m.as_str()) }
         })
         .collect();
-    let step_arg_parses = if step_struct.is_some() {
-        Vec::new()
-    } else {
-        let capture_slice = all_captures.get(..step_args.len()).unwrap_or_else(|| {
-            panic!(
-                "step arguments ({}) cannot exceed capture count ({})",
-                step_args.len(),
-                all_captures.len()
-            )
-        });
-        let hint_slice = placeholder_hints.get(..step_args.len()).unwrap_or_else(|| {
-            panic!(
-                "placeholder hints ({}) must match or exceed step argument count ({})",
-                placeholder_hints.len(),
-                step_args.len()
-            )
-        });
-        gen_step_parses(&step_args, capture_slice, hint_slice, step_meta)
-    };
+    let step_struct_present = step_struct.is_some();
+    let StepArgParseResult {
+        step_arg_parses,
+        has_step_arg_quote_strip,
+    } = build_step_arg_parses(
+        StepArgParseInputs {
+            step_args: &step_args,
+            all_captures: &all_captures,
+            placeholder_hints,
+        },
+        step_meta,
+        step_struct_present,
+    );
     let step_struct_decl = gen_step_struct_decl(
         step_struct,
         &PlaceholderInfo {
@@ -255,6 +328,8 @@ pub(super) fn prepare_argument_processing(
         step_struct_decl,
         datatable_decl,
         docstring_decl,
+        expect_lints: Vec::new(),
+        has_step_arg_quote_strip,
     }
 }
 
