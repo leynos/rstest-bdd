@@ -10,18 +10,108 @@
 mod support;
 
 use rstest::{fixture, rstest};
-use rstest_bdd_server::test_support::DiagnosticCheckType;
-use support::diagnostics_helpers::basic::{
-    assert_feature_has_diagnostic, assert_feature_has_no_diagnostics, assert_rust_has_diagnostic,
-    assert_rust_has_no_diagnostics, compute_feature_diagnostics, compute_rust_diagnostics,
+use rstest_bdd_server::handlers::{
+    compute_unimplemented_step_diagnostics, compute_unused_step_diagnostics,
 };
+use rstest_bdd_server::server::ServerState;
+use rstest_bdd_server::test_support::DiagnosticCheckType;
 use support::{ScenarioBuilder, TestScenario};
+use tempfile::TempDir;
 
 /// Fixture providing a fresh scenario builder for each test.
 #[fixture]
 fn scenario_builder() -> ScenarioBuilder {
     ScenarioBuilder::new()
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Test-local helpers
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Helper to compute unimplemented step diagnostics for a feature file.
+#[expect(clippy::expect_used, reason = "test helper uses expect for clarity")]
+fn compute_feature_diagnostics(
+    state: &ServerState,
+    dir: &TempDir,
+    filename: impl AsRef<str>,
+) -> Vec<lsp_types::Diagnostic> {
+    let path = dir.path().join(filename.as_ref());
+    let feature_index = state.feature_index(&path).expect("feature index");
+    compute_unimplemented_step_diagnostics(state, feature_index)
+}
+
+/// Helper to compute unused step definition diagnostics for a Rust file.
+fn compute_rust_diagnostics(
+    state: &ServerState,
+    dir: &TempDir,
+    filename: impl AsRef<str>,
+) -> Vec<lsp_types::Diagnostic> {
+    let path = dir.path().join(filename.as_ref());
+    compute_unused_step_diagnostics(state, &path)
+}
+
+/// Helper to assert a single diagnostic with an expected message substring.
+#[expect(clippy::expect_used, reason = "test helper uses expect for clarity")]
+fn assert_single_diagnostic_contains(
+    diagnostics: &[lsp_types::Diagnostic],
+    expected_substring: &str,
+) {
+    assert_eq!(diagnostics.len(), 1, "expected exactly one diagnostic");
+    assert!(
+        diagnostics
+            .first()
+            .expect("one diagnostic")
+            .message
+            .contains(expected_substring),
+        "diagnostic message should contain '{expected_substring}'"
+    );
+}
+
+/// Helper to assert a feature file has a diagnostic with expected message.
+fn assert_feature_has_diagnostic(
+    state: &ServerState,
+    dir: &TempDir,
+    filename: &str,
+    message_substring: &str,
+) {
+    let diagnostics = compute_feature_diagnostics(state, dir, filename);
+    assert_single_diagnostic_contains(&diagnostics, message_substring);
+}
+
+/// Helper to assert a rust file has a diagnostic with expected message.
+fn assert_rust_has_diagnostic(
+    state: &ServerState,
+    dir: &TempDir,
+    filename: &str,
+    message_substring: &str,
+) {
+    let diagnostics = compute_rust_diagnostics(state, dir, filename);
+    assert_single_diagnostic_contains(&diagnostics, message_substring);
+}
+
+/// Helper to assert a feature file has no diagnostics.
+fn assert_feature_has_no_diagnostics(state: &ServerState, dir: &TempDir, filename: &str) {
+    let diagnostics = compute_feature_diagnostics(state, dir, filename);
+    assert!(
+        diagnostics.is_empty(),
+        "expected no diagnostics, found {}",
+        diagnostics.len()
+    );
+}
+
+/// Helper to assert a rust file has no diagnostics.
+fn assert_rust_has_no_diagnostics(state: &ServerState, dir: &TempDir, filename: &str) {
+    let diagnostics = compute_rust_diagnostics(state, dir, filename);
+    assert!(
+        diagnostics.is_empty(),
+        "expected no diagnostics, found {}",
+        diagnostics.len()
+    );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Tests
+// ─────────────────────────────────────────────────────────────────────────────
 
 #[rstest]
 fn feature_with_all_steps_implemented_reports_no_diagnostics(scenario_builder: ScenarioBuilder) {

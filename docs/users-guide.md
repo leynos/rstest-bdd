@@ -1515,8 +1515,9 @@ definitions:
   function has step arguments, a warning diagnostic is published on the Rust
   step definition. Each placeholder occurrence is counted separately (e.g.,
   `{x} and {x}` counts as two placeholders), matching the macro's capture
-  semantics. A step argument is any function parameter that is neither a
-  `datatable` nor a `docstring` parameter.
+  semantics. A step argument is a function parameter whose normalized name
+  matches a placeholder name in the pattern; `datatable`, `docstring`, and
+  fixture parameters are excluded from the count.
 
 - **Data table expected** (`table-expected`): When a Rust step expects a data
   table (has a `datatable` parameter) but the matching feature step does not

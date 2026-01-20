@@ -153,9 +153,9 @@ parameters are assumed to be fixtures and not counted.
 
 **Alternatives considered:**
 
-1. Type-based heuristics (e.g., primitives are step args) - rejected as
+1. Type-based heuristics (e.g., primitives are step args) — rejected as
    unreliable and not matching macro behaviour.
-2. Require explicit fixture annotations - rejected as too invasive for users.
+2. Require explicit fixture annotations — rejected as too invasive for users.
 
 ### 2026-01-11: Placeholder extraction source of truth
 

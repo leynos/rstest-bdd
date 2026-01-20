@@ -6,14 +6,34 @@
 mod support;
 
 use rstest::{fixture, rstest};
-use support::diagnostics_helpers::placeholder::compute_placeholder_diagnostics;
+use rstest_bdd_server::handlers::compute_signature_mismatch_diagnostics;
+use rstest_bdd_server::server::ServerState;
 use support::{ScenarioBuilder, TestScenario};
+use tempfile::TempDir;
 
 /// Fixture providing a fresh scenario builder for each test.
 #[fixture]
 fn scenario_builder() -> ScenarioBuilder {
     ScenarioBuilder::new()
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Test-local helpers
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Helper to compute placeholder mismatch diagnostics for a Rust file.
+fn compute_placeholder_diagnostics(
+    state: &ServerState,
+    dir: &TempDir,
+    filename: impl AsRef<str>,
+) -> Vec<lsp_types::Diagnostic> {
+    let path = dir.path().join(filename.as_ref());
+    compute_signature_mismatch_diagnostics(state, &path)
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Tests
+// ─────────────────────────────────────────────────────────────────────────────
 
 #[rstest]
 #[case::missing_parameter(

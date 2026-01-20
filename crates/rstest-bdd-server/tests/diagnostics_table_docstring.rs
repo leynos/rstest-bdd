@@ -7,14 +7,36 @@
 mod support;
 
 use rstest::{fixture, rstest};
-use support::diagnostics_helpers::table_docstring::compute_table_docstring_diagnostics;
+use rstest_bdd_server::handlers::compute_table_docstring_mismatch_diagnostics;
+use rstest_bdd_server::server::ServerState;
 use support::{ScenarioBuilder, TestScenario};
+use tempfile::TempDir;
 
 /// Fixture providing a fresh scenario builder for each test.
 #[fixture]
 fn scenario_builder() -> ScenarioBuilder {
     ScenarioBuilder::new()
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Test-local helpers
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Helper to compute table/docstring mismatch diagnostics for a feature file.
+#[expect(clippy::expect_used, reason = "test helper uses expect for clarity")]
+fn compute_table_docstring_diagnostics(
+    state: &ServerState,
+    dir: &TempDir,
+    filename: impl AsRef<str>,
+) -> Vec<lsp_types::Diagnostic> {
+    let path = dir.path().join(filename.as_ref());
+    let feature_index = state.feature_index(&path).expect("feature index");
+    compute_table_docstring_mismatch_diagnostics(state, feature_index)
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Tests
+// ─────────────────────────────────────────────────────────────────────────────
 
 #[rstest]
 #[case::table_not_expected(

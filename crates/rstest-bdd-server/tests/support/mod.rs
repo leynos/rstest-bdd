@@ -7,7 +7,3 @@
 // Note: Integration tests cannot directly access #[cfg(test)] modules,
 // so we re-export via the crate's public test interface.
 pub use rstest_bdd_server::test_support::{ScenarioBuilder, TestScenario};
-
-// Re-export diagnostic helpers. Each test binary imports only what it needs,
-// avoiding unused_imports warnings without file-level lint suppression.
-pub mod diagnostics_helpers;
