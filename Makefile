@@ -9,7 +9,7 @@ BUILD_JOBS ?=
 RUST_FLAGS ?= -D warnings
 CARGO_FLAGS ?= --workspace --all-targets --all-features
 CLIPPY_FLAGS ?= $(CARGO_FLAGS) -- $(RUST_FLAGS)
-MDLINT ?= markdownlint
+MDLINT ?= markdownlint-cli2
 ACRONYM_SCRIPT ?= scripts/update_acronym_allowlist.py
 UV ?= uv
 

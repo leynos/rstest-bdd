@@ -1282,7 +1282,7 @@ existing `RefCell`-backed fixture model:
 
 - Step futures may be `!Send` because they execute on a single thread.
 - Steps can hold `RefMut` guards or `&mut T` borrows across `.await` points.
-- No additional synchronisation primitives are required for mutable fixtures.
+- No additional synchronization primitives are required for mutable fixtures.
 
 Multi-thread mode (`#[tokio::test(flavor = "multi_thread")]`) requires step
 futures to be `Send`, which would necessitate redesigning the fixture storage
@@ -1854,10 +1854,11 @@ and unit testing workflows under the powerful `rstest` umbrella.
 ### 3.6 Workspace layout decisions
 
 The project uses a Cargo workspace to keep the runtime and procedural macro
-crates separate. The workspace contains two members:
+crates separate. The workspace contains three members:
 
 - `rstest-bdd` — the runtime library.
 - `rstest-bdd-macros` — the crate providing attribute macros.
+- `rstest-bdd-policy` — shared execution policy enums.
 
 This layout allows each crate to evolve independently while sharing common
 configuration and lints at the workspace level.

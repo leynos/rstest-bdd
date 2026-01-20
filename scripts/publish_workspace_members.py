@@ -19,6 +19,7 @@ if typ.TYPE_CHECKING:
 
 PUBLISHABLE_CRATES: typ.Final[tuple[str, ...]] = (
     "rstest-bdd-patterns",
+    "rstest-bdd-policy",
     "rstest-bdd-macros",
     "rstest-bdd",
     "cargo-bdd",

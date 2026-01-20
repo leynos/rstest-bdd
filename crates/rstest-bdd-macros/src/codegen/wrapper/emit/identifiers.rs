@@ -132,7 +132,7 @@ pub(in crate::codegen::wrapper::emit) fn generate_wrapper_signature(
 ///
 /// Returns the current counter value before incrementing. Uses relaxed ordering
 /// since the counter only ensures a unique suffix and is not used for
-/// synchronisation with other data.
+/// synchronization with other data.
 ///
 /// # Example
 ///

@@ -313,7 +313,7 @@ pub type StepFn = for<'a> fn(
 ///
 /// The lifetime `'a` ties the future to the borrowed [`StepContext`], allowing
 /// the future to hold references to fixtures. The future is `!Send` to support
-/// Tokio current-thread mode without requiring synchronisation primitives for
+/// Tokio current-thread mode without requiring synchronization primitives for
 /// mutable fixtures.
 ///
 /// [`StepContext`]: crate::context::StepContext

@@ -45,11 +45,13 @@ REPLACEMENTS: dict[str, tuple[DependencyPatch, ...]] = {
         DependencyPatch(
             "dependencies", "rstest-bdd-patterns", "../rstest-bdd-patterns"
         ),
+        DependencyPatch("dependencies", "rstest-bdd-policy", "../rstest-bdd-policy"),
     ),
     "rstest-bdd": (
         DependencyPatch(
             "dependencies", "rstest-bdd-patterns", "../rstest-bdd-patterns"
         ),
+        DependencyPatch("dependencies", "rstest-bdd-policy", "../rstest-bdd-policy"),
         DependencyPatch(
             "dev-dependencies", "rstest-bdd-macros", "../rstest-bdd-macros"
         ),

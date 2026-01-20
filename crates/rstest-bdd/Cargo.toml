@@ -17,6 +17,7 @@ workspace = true
 
 [dependencies]
 rstest-bdd-patterns.workspace = true
+rstest-bdd-policy.workspace = true
 gherkin.workspace = true
 inventory.workspace = true
 regex.workspace = true

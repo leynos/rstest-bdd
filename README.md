@@ -435,6 +435,7 @@ ______________________________________________________________________
 ```text
 rstest-bdd/             # Runtime crate (re-exports macros for convenience)
 rstest-bdd-macros/      # Procedural macro crate
+rstest-bdd-policy/      # Shared execution policy enums
 ```
 
 ## Examples

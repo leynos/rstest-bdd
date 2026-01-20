@@ -3,6 +3,7 @@ resolver = "2"
 members = [
     "crates/rstest-bdd",
     "crates/rstest-bdd-macros",
+    "crates/rstest-bdd-policy",
     "crates/rstest-bdd-patterns",
     "crates/rstest-bdd-server",
     "crates/cargo-bdd",
@@ -45,6 +46,7 @@ ctor = "0.2"
 newt-hype = "0.2.0"
 rstest-bdd = { version = "0.3.2", path = "crates/rstest-bdd" }
 rstest-bdd-macros = { version = "0.3.2", path = "crates/rstest-bdd-macros" }
+rstest-bdd-policy = { version = "0.3.2", path = "crates/rstest-bdd-policy" }
 rstest-bdd-patterns = { version = "0.3.2", path = "crates/rstest-bdd-patterns" }
 log = "0.4"
 tempfile = "3.23"

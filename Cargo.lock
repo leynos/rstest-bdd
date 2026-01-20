@@ -1388,6 +1388,7 @@ dependencies = [
  "rstest",
  "rstest-bdd-macros",
  "rstest-bdd-patterns",
+ "rstest-bdd-policy",
  "rust-embed",
  "serde",
  "serde_json",
@@ -1416,6 +1417,7 @@ dependencies = [
  "regex",
  "rstest",
  "rstest-bdd-patterns",
+ "rstest-bdd-policy",
  "serial_test",
  "syn 2.0.106",
  "tempfile",
@@ -1432,6 +1434,10 @@ dependencies = [
  "rstest",
  "thiserror 1.0.69",
 ]
+
+[[package]]
+name = "rstest-bdd-policy"
+version = "0.3.2"
 
 [[package]]
 name = "rstest-bdd-server"

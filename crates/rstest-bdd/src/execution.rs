@@ -7,21 +7,12 @@
 //!
 //! # Key Components
 //!
-//! - [`RuntimeMode`]: Canonical definition of execution modes (sync, async variants).
-//!   This is the runtime authoritative source; the macro crate maintains a parallel
-//!   enum for compile-time use (see `rstest_bdd_macros::macros::scenarios::macro_args`).
-//! - [`TestAttributeHint`]: Canonical definition for test attribute generation hints.
-//!   Also mirrored in the macro crate for compile-time attribute decisions.
+//! - [`RuntimeMode`]: Canonical definition of execution modes (sync, async
+//!   variants), re-exported from `rstest_bdd_policy`.
+//! - [`TestAttributeHint`]: Canonical definition for test attribute generation
+//!   hints, re-exported from `rstest_bdd_policy`.
 //! - [`StepExecutionRequest`]: Groups step data and diagnostic context for execution.
 //! - Helper functions for step execution, fixture validation, and skip encoding.
-//!
-//! # Enum Synchronisation
-//!
-//! The [`RuntimeMode`] and [`TestAttributeHint`] enums are intentionally duplicated
-//! in the macro crate (`rstest_bdd_macros::macros::scenarios::macro_args`). This
-//! duplication is necessary because proc-macro crates cannot depend on runtime crates
-//! at compile time. **Both definitions must be kept in sync manually.** When adding
-//! new variants or changing semantics, update both locations and their tests.
 
 use std::any::Any;
 use std::collections::HashSet;
@@ -37,92 +28,16 @@ pub(crate) const SKIP_SOME_PREFIX: char = '\u{1}';
 
 /// Runtime mode for scenario test execution (canonical definition).
 ///
-/// This enum represents the available execution strategies for scenarios.
-/// It serves as the runtime authoritative definition for execution policy.
-///
-/// **Note:** The macro crate (`rstest_bdd_macros`) maintains a parallel enum
-/// for compile-time use. Both must be kept in sync—see the module-level
-/// documentation for details.
-///
-/// # Examples
-///
-/// ```
-/// use rstest_bdd::execution::RuntimeMode;
-///
-/// let mode = RuntimeMode::default();
-/// assert!(!mode.is_async());
-///
-/// let async_mode = RuntimeMode::TokioCurrentThread;
-/// assert!(async_mode.is_async());
-/// ```
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub enum RuntimeMode {
-    /// Synchronous execution (default).
-    #[default]
-    Sync,
-    /// Tokio current-thread runtime (`#[tokio::test(flavor = "current_thread")]`).
-    TokioCurrentThread,
-}
+/// This type is re-exported from `rstest_bdd_policy` to keep the public API in
+/// `rstest_bdd::execution` stable for downstream users.
+pub use rstest_bdd_policy::RuntimeMode;
 
-impl RuntimeMode {
-    /// Returns `true` if this mode requires async test generation.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use rstest_bdd::execution::RuntimeMode;
-    ///
-    /// assert!(!RuntimeMode::Sync.is_async());
-    /// assert!(RuntimeMode::TokioCurrentThread.is_async());
-    /// ```
-    #[must_use]
-    pub const fn is_async(self) -> bool {
-        matches!(self, Self::TokioCurrentThread)
-    }
-
-    /// Returns a hint for which test attributes to generate.
-    ///
-    /// This is used by the macro layer to emit appropriate test attributes
-    /// at compile time while keeping the policy decision centralised here.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use rstest_bdd::execution::{RuntimeMode, TestAttributeHint};
-    ///
-    /// assert_eq!(
-    ///     RuntimeMode::Sync.test_attribute_hint(),
-    ///     TestAttributeHint::RstestOnly
-    /// );
-    /// assert_eq!(
-    ///     RuntimeMode::TokioCurrentThread.test_attribute_hint(),
-    ///     TestAttributeHint::RstestWithTokioCurrentThread
-    /// );
-    /// ```
-    #[must_use]
-    pub const fn test_attribute_hint(self) -> TestAttributeHint {
-        match self {
-            Self::Sync => TestAttributeHint::RstestOnly,
-            Self::TokioCurrentThread => TestAttributeHint::RstestWithTokioCurrentThread,
-        }
-    }
-}
-
-/// Hint for which test attributes the macro layer should generate (canonical definition).
+/// Hint for which test attributes the macro layer should generate
+/// (canonical definition).
 ///
-/// This enum provides a compile-time bridge between runtime policy decisions
-/// and macro-generated test attributes.
-///
-/// **Note:** The macro crate (`rstest_bdd_macros`) maintains a parallel enum
-/// for compile-time use. Both must be kept in sync—see the module-level
-/// documentation for details.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum TestAttributeHint {
-    /// Generate only `#[rstest::rstest]`.
-    RstestOnly,
-    /// Generate `#[rstest::rstest]` and `#[tokio::test(flavor = "current_thread")]`.
-    RstestWithTokioCurrentThread,
-}
+/// This type is re-exported from `rstest_bdd_policy` to keep the public API in
+/// `rstest_bdd::execution` stable for downstream users.
+pub use rstest_bdd_policy::TestAttributeHint;
 
 /// Validate that all required fixtures are present in the context.
 ///
