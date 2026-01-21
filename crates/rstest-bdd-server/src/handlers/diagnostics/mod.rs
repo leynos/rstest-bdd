@@ -634,51 +634,42 @@ mod tests {
     }
 
     #[rstest]
-    fn placeholder_in_docstring_detected(scenario_builder: ScenarioBuilder) {
-        // Placeholder in docstring should also be checked
-        let scenario = scenario_builder.with_single_file_pair(
-            concat!(
-                "Feature: test\n",
-                "  Scenario Outline: outline\n",
-                "    Given a message\n",
-                "      \"\"\"\n",
-                "      Hello <name>\n",
-                "      \"\"\"\n",
-                "    Examples:\n",
-                "      | name |\n",
-                "      | World |\n",
-            ),
-            "// no step definitions\n",
-        );
+    #[case::docstring(
+        concat!(
+            "Feature: test\n",
+            "  Scenario Outline: outline\n",
+            "    Given a message\n",
+            "      \"\"\"\n",
+            "      Hello <name>\n",
+            "      \"\"\"\n",
+            "    Examples:\n",
+            "      | name |\n",
+            "      | World |\n",
+        ),
+        "placeholder in docstring should match column"
+    )]
+    #[case::table_cell(
+        concat!(
+            "Feature: test\n",
+            "  Scenario Outline: outline\n",
+            "    Given a table\n",
+            "      | key   | value   |\n",
+            "      | item  | <value> |\n",
+            "    Examples:\n",
+            "      | value |\n",
+            "      | 42    |\n",
+        ),
+        "placeholder in table cell should match column"
+    )]
+    fn placeholder_detected_in_various_contexts(
+        scenario_builder: ScenarioBuilder,
+        #[case] feature_content: &str,
+        #[case] assertion_message: &str,
+    ) {
+        let scenario =
+            scenario_builder.with_single_file_pair(feature_content, "// no step definitions\n");
         let diagnostics =
             compute_scenario_outline_diagnostics_for_path(&scenario.state, &scenario.feature_path);
-        assert!(
-            diagnostics.is_empty(),
-            "placeholder in docstring should match column"
-        );
-    }
-
-    #[rstest]
-    fn placeholder_in_table_cell_detected(scenario_builder: ScenarioBuilder) {
-        // Placeholder in data table cell should also be checked
-        let scenario = scenario_builder.with_single_file_pair(
-            concat!(
-                "Feature: test\n",
-                "  Scenario Outline: outline\n",
-                "    Given a table\n",
-                "      | key   | value   |\n",
-                "      | item  | <value> |\n",
-                "    Examples:\n",
-                "      | value |\n",
-                "      | 42    |\n",
-            ),
-            "// no step definitions\n",
-        );
-        let diagnostics =
-            compute_scenario_outline_diagnostics_for_path(&scenario.state, &scenario.feature_path);
-        assert!(
-            diagnostics.is_empty(),
-            "placeholder in table cell should match column"
-        );
+        assert!(diagnostics.is_empty(), "{assertion_message}");
     }
 }

@@ -6,7 +6,10 @@ use std::path::{Path, PathBuf};
 
 use gherkin::{GherkinEnv, Span};
 
-use super::{FeatureFileIndex, FeatureIndexError, IndexedDocstring, IndexedStep, IndexedTable};
+use super::{
+    FeatureFileIndex, FeatureIndexError, IndexedDocstring, IndexedScenarioOutline, IndexedStep,
+    IndexedTable,
+};
 
 mod outline;
 mod table;
@@ -150,33 +153,15 @@ fn index_feature_text(
         steps.extend(index_steps_for_container(source, &background.steps)?);
     }
 
-    for scenario in &feature.scenarios {
-        let step_start_index = steps.len();
-        steps.extend(index_steps_for_container(source, &scenario.steps)?);
-        let step_end_index = steps.len();
-
-        if is_scenario_outline(scenario) {
-            let outline =
-                build_scenario_outline(source, scenario, step_start_index, step_end_index);
-            scenario_outlines.push(outline);
-        }
-    }
+    process_scenarios(
+        source,
+        &feature.scenarios,
+        &mut steps,
+        &mut scenario_outlines,
+    )?;
 
     for rule in &feature.rules {
-        if let Some(background) = rule.background.as_ref() {
-            steps.extend(index_steps_for_container(source, &background.steps)?);
-        }
-        for scenario in &rule.scenarios {
-            let step_start_index = steps.len();
-            steps.extend(index_steps_for_container(source, &scenario.steps)?);
-            let step_end_index = steps.len();
-
-            if is_scenario_outline(scenario) {
-                let outline =
-                    build_scenario_outline(source, scenario, step_start_index, step_end_index);
-                scenario_outlines.push(outline);
-            }
-        }
+        process_rule(source, rule, &mut steps, &mut scenario_outlines)?;
     }
 
     let example_columns = extract_example_columns(source, &feature);
@@ -188,6 +173,40 @@ fn index_feature_text(
         example_columns,
         scenario_outlines,
     })
+}
+
+/// Process a list of scenarios, indexing their steps and building scenario outlines.
+fn process_scenarios(
+    source: FeatureSource<'_>,
+    scenarios: &[gherkin::Scenario],
+    steps: &mut Vec<IndexedStep>,
+    scenario_outlines: &mut Vec<IndexedScenarioOutline>,
+) -> Result<(), FeatureIndexError> {
+    for scenario in scenarios {
+        let step_start_index = steps.len();
+        steps.extend(index_steps_for_container(source, &scenario.steps)?);
+        let step_end_index = steps.len();
+
+        if is_scenario_outline(scenario) {
+            let outline =
+                build_scenario_outline(source, scenario, step_start_index, step_end_index);
+            scenario_outlines.push(outline);
+        }
+    }
+    Ok(())
+}
+
+/// Process a rule, indexing its background (if present) and scenarios.
+fn process_rule(
+    source: FeatureSource<'_>,
+    rule: &gherkin::Rule,
+    steps: &mut Vec<IndexedStep>,
+    scenario_outlines: &mut Vec<IndexedScenarioOutline>,
+) -> Result<(), FeatureIndexError> {
+    if let Some(background) = rule.background.as_ref() {
+        steps.extend(index_steps_for_container(source, &background.steps)?);
+    }
+    process_scenarios(source, &rule.scenarios, steps, scenario_outlines)
 }
 
 fn normalise_trailing_newline(text: &mut String) {

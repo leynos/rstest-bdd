@@ -144,34 +144,45 @@ fn check_examples_table(
     examples: &IndexedExamplesTable,
     all_placeholders: &HashSet<String>,
 ) -> Vec<Diagnostic> {
-    let mut diagnostics = Vec::new();
-
-    // Build set of column names from this Examples table
     let column_names: HashSet<String> = examples
         .columns
         .iter()
         .map(|col| col.name.clone())
         .collect();
 
-    // Check for missing columns (placeholders without matching columns)
-    let missing: Vec<&String> = all_placeholders.difference(&column_names).collect();
-    for placeholder in missing {
-        // Report on the first step that uses this placeholder
-        if let Some(diag) =
-            build_missing_column_diagnostic(feature_index, outline, placeholder, &column_names)
-        {
-            diagnostics.push(diag);
-        }
-    }
+    let missing = check_missing_columns(feature_index, outline, all_placeholders, &column_names);
+    let surplus = check_surplus_columns(feature_index, examples, all_placeholders);
 
-    // Check for surplus columns (columns without matching placeholders)
-    for column in &examples.columns {
-        if !all_placeholders.contains(&column.name) {
-            diagnostics.push(build_surplus_column_diagnostic(feature_index, column));
-        }
-    }
+    missing.into_iter().chain(surplus).collect()
+}
 
-    diagnostics
+/// Check for placeholders without matching columns in the Examples table.
+fn check_missing_columns(
+    feature_index: &FeatureFileIndex,
+    outline: &IndexedScenarioOutline,
+    all_placeholders: &HashSet<String>,
+    column_names: &HashSet<String>,
+) -> Vec<Diagnostic> {
+    all_placeholders
+        .difference(column_names)
+        .filter_map(|placeholder| {
+            build_missing_column_diagnostic(feature_index, outline, placeholder, column_names)
+        })
+        .collect()
+}
+
+/// Check for columns without matching placeholders in any step.
+fn check_surplus_columns(
+    feature_index: &FeatureFileIndex,
+    examples: &IndexedExamplesTable,
+    all_placeholders: &HashSet<String>,
+) -> Vec<Diagnostic> {
+    examples
+        .columns
+        .iter()
+        .filter(|column| !all_placeholders.contains(&column.name))
+        .map(|column| build_surplus_column_diagnostic(feature_index, column))
+        .collect()
 }
 
 /// Build a diagnostic for a missing column.
