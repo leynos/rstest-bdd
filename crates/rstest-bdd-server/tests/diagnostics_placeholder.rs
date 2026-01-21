@@ -116,8 +116,9 @@ fn placeholder_count_validation(
         "expected {expected_count} diagnostic(s)"
     );
     if let Some(substring) = message_substring {
-        #[expect(clippy::expect_used, reason = "checked count > 0 in conditional")]
-        let diag = diagnostics.first().expect("checked count > 0");
+        let Some(diag) = diagnostics.first() else {
+            panic!("expected at least one diagnostic to check message substring");
+        };
         assert!(
             diag.message.contains(substring),
             "diagnostic message should contain '{substring}'"

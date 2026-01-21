@@ -112,12 +112,13 @@ fn extract_placeholder_names(pattern: &str) -> Option<HashSet<String>> {
 
 /// Count step arguments among the function parameters.
 ///
-/// A step argument is a parameter that:
-/// 1. Is not a datatable parameter
-/// 2. Is not a docstring parameter
-/// 3. Either:
-///    - Has a normalized name that appears in the placeholder set, OR
-///    - Is a step struct (`#[step_args]`) which bundles all placeholders
+/// A step argument is a parameter that either:
+/// - Is a step struct (`#[step_args]`) which bundles all placeholders, OR
+/// - Is not a datatable/docstring parameter AND has a normalized name that
+///   appears in the placeholder set
+///
+/// Step structs bypass the datatable/docstring exclusion because they are
+/// explicitly marked as step arguments regardless of other attributes.
 ///
 /// This distinguishes step arguments from fixture parameters, which do not
 /// correspond to placeholders in the pattern.
@@ -127,15 +128,23 @@ fn count_step_arguments(
 ) -> usize {
     parameters
         .iter()
-        .filter(|param| !param.is_datatable && !param.is_docstring)
         .filter(|param| {
             // Step structs bundle all placeholders, so they count as step arguments
-            // regardless of their parameter name.
-            param.is_step_struct
-                || param
-                    .name
-                    .as_ref()
-                    .is_some_and(|name| placeholder_names.contains(&normalize_param_name(name)))
+            // unconditionally—bypassing the datatable/docstring exclusion.
+            if param.is_step_struct {
+                return true;
+            }
+
+            // Regular parameters: exclude datatable/docstring, then check if
+            // the normalized name matches a placeholder.
+            if param.is_datatable || param.is_docstring {
+                return false;
+            }
+
+            param
+                .name
+                .as_ref()
+                .is_some_and(|name| placeholder_names.contains(&normalize_param_name(name)))
         })
         .count()
 }

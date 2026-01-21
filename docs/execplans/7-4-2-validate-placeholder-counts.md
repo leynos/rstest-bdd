@@ -272,13 +272,35 @@ struct SpecificityScore {
   the parameter name `docstring`. The canonical type is `String`.
 - **Placeholder count mismatch:** The number of placeholder occurrences in the
   pattern differs from the number of step arguments in the function signature.
-  The diagnostic counts total placeholder occurrences (via
-  `count_placeholder_occurrences`), not distinct names. For example, the pattern
-  `"I compare {x} with {x}"` has 2 placeholder occurrences but only 1 distinct
-  name. The step argument count uses `extract_placeholder_names` (which returns
-  a `HashSet` of distinct names) to identify which parameters are step
-  arguments, but the comparison is against total occurrences. This matches the
-  macro's `capture_count` semantics.
+
+  **Counting rules:**
+
+  - **Pattern side:** `count_placeholder_occurrences` counts every `{name}`
+    token in the pattern, including duplicates. The pattern `"I compare {x}
+    with {x}"` yields **2 occurrences**. This matches the macro's
+    `capture_count` semantics, where each occurrence corresponds to a captured
+    value at runtime.
+
+  - **Signature side:** `extract_placeholder_names` returns a `HashSet` of
+    distinct placeholder names (here, just `x`). A function parameter is
+    counted as a step argument if its normalized name appears in that set (or
+    if it is a step struct). Therefore a function with one parameter `x: u32`
+    contributes **1 step argument**.
+
+  - **Comparison:** The diagnostic fires when these two counts differ.
+
+  **Concrete examples for pattern `"I compare {x} with {x}"` (2 occurrences):**
+
+  | Function signature          | Step args | Diagnostic?                   |
+  | --------------------------- | --------- | ----------------------------- |
+
+  | `fn compare() {}`           | 0         | Yes — 2 ≠ 0                   |
+  | `fn compare(x: u32) {}`     | 1         | Yes — 2 ≠ 1                   |
+  | `fn compare(x: u32, y: u32)`| 1         | Yes — 2 ≠ 1 (`y` not in set)  |
+  | `fn compare(x: u32, _x: u32)`| 2        | No — 2 = 2 (both normalize)   |
+
+  In the last row both `x` and `_x` normalize to `x`, which is in the
+  placeholder set, so each counts as a step argument.
 
 ## Plan of Work
 
