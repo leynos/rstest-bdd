@@ -203,6 +203,11 @@ pub struct IndexedStepParameter {
     pub is_datatable: bool,
     /// Whether the parameter is treated as the step's doc string argument.
     pub is_docstring: bool,
+    /// Whether the parameter is a step struct (`#[step_args]`).
+    ///
+    /// A step struct bundles all placeholders into a single struct parameter,
+    /// so it should be counted as a step argument regardless of its name.
+    pub is_step_struct: bool,
 }
 
 /// Errors that can occur during Rust step definition indexing.

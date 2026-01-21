@@ -1,12 +1,15 @@
-//! Diagnostic computation logic.
+//! Core diagnostic computation logic.
 //!
 //! This module contains the core algorithms for computing diagnostics:
 //! - Checking for unimplemented feature steps
 //! - Checking for unused step definitions
+//!
+//! Placeholder count validation is in the `placeholder` submodule.
+//! Table/docstring expectation validation is in the `table_docstring` submodule.
 
 use std::{path::Path, sync::Arc};
 
-use lsp_types::{Diagnostic, DiagnosticSeverity};
+use lsp_types::{Diagnostic, DiagnosticSeverity, Range};
 
 use crate::indexing::{CompiledStepDefinition, FeatureFileIndex, IndexedStep};
 use crate::server::ServerState;
@@ -40,29 +43,83 @@ fn has_matching_implementation(state: &ServerState, step: &IndexedStep) -> bool 
         .any(|compiled| compiled.regex.is_match(&step.text))
 }
 
+/// Specification for building a step diagnostic.
+pub(super) struct DiagnosticSpec {
+    pub(super) code: &'static str,
+    pub(super) message: String,
+    pub(super) custom_range: Option<Range>,
+}
+
+/// Build a diagnostic for a feature step from a specification.
+///
+/// Uses `spec.custom_range` if provided, otherwise computes the range from `step.span`.
+pub(super) fn build_step_diagnostic(
+    feature_index: &FeatureFileIndex,
+    step: &IndexedStep,
+    spec: DiagnosticSpec,
+) -> Diagnostic {
+    let range = spec
+        .custom_range
+        .unwrap_or_else(|| gherkin_span_to_lsp_range(&feature_index.source, step.span));
+
+    Diagnostic {
+        range,
+        severity: Some(DiagnosticSeverity::WARNING),
+        code: Some(lsp_types::NumberOrString::String(spec.code.to_owned())),
+        code_description: None,
+        source: Some(DIAGNOSTIC_SOURCE.to_owned()),
+        message: spec.message,
+        related_information: None,
+        tags: None,
+        data: None,
+    }
+}
+
+/// Kinds of diagnostics that can be reported for feature steps.
+pub(super) enum FeatureStepDiagnosticKind {
+    /// No Rust implementation found for the step.
+    UnimplementedStep { keyword: String, text: String },
+    /// Feature step has a data table but implementation doesn't expect one.
+    TableNotExpected,
+    /// Implementation expects a data table but feature step doesn't have one.
+    TableExpected,
+    /// Feature step has a docstring but implementation doesn't expect one.
+    DocstringNotExpected,
+    /// Implementation expects a docstring but feature step doesn't have one.
+    DocstringExpected,
+}
+
+impl FeatureStepDiagnosticKind {
+    /// Build a diagnostic for an unimplemented step.
+    fn build_unimplemented(
+        self,
+        feature_index: &FeatureFileIndex,
+        step: &IndexedStep,
+    ) -> Diagnostic {
+        match self {
+            Self::UnimplementedStep { keyword, text } => {
+                let spec = DiagnosticSpec {
+                    code: CODE_UNIMPLEMENTED_STEP,
+                    message: format!("No Rust implementation found for {keyword} step: \"{text}\""),
+                    custom_range: None,
+                };
+                build_step_diagnostic(feature_index, step, spec)
+            }
+            _ => unreachable!("build_unimplemented called with non-UnimplementedStep variant"),
+        }
+    }
+}
+
 /// Build a diagnostic for an unimplemented feature step.
 fn build_unimplemented_step_diagnostic(
     feature_index: &FeatureFileIndex,
     step: &IndexedStep,
 ) -> Diagnostic {
-    let range = gherkin_span_to_lsp_range(&feature_index.source, step.span);
-
-    Diagnostic {
-        range,
-        severity: Some(DiagnosticSeverity::WARNING),
-        code: Some(lsp_types::NumberOrString::String(
-            CODE_UNIMPLEMENTED_STEP.to_owned(),
-        )),
-        code_description: None,
-        source: Some(DIAGNOSTIC_SOURCE.to_owned()),
-        message: format!(
-            "No Rust implementation found for {} step: \"{}\"",
-            step.keyword, step.text
-        ),
-        related_information: None,
-        tags: None,
-        data: None,
+    FeatureStepDiagnosticKind::UnimplementedStep {
+        keyword: step.keyword.clone(),
+        text: step.text.clone(),
     }
+    .build_unimplemented(feature_index, step)
 }
 
 /// Compute diagnostics for unused step definitions in a Rust file.

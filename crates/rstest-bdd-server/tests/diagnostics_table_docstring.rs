@@ -1,0 +1,176 @@
+//! Behavioural tests for table/docstring expectation mismatch diagnostics.
+//!
+//! These tests verify that diagnostics are correctly emitted when a step
+//! definition's data table or docstring expectations don't match what's
+//! provided in the feature file.
+
+mod support;
+
+use rstest::{fixture, rstest};
+use rstest_bdd_server::handlers::compute_table_docstring_mismatch_diagnostics;
+use rstest_bdd_server::server::ServerState;
+use support::{ScenarioBuilder, TestScenario};
+use tempfile::TempDir;
+
+/// Fixture providing a fresh scenario builder for each test.
+#[fixture]
+fn scenario_builder() -> ScenarioBuilder {
+    ScenarioBuilder::new()
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Test-local helpers
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Helper to compute table/docstring mismatch diagnostics for a feature file.
+///
+/// # Examples
+///
+/// ```ignore
+/// use rstest_bdd_server::server::ServerState;
+/// use tempfile::TempDir;
+///
+/// let state: ServerState = unimplemented!("obtain from ScenarioBuilder");
+/// let dir: TempDir = unimplemented!("obtain from ScenarioBuilder");
+///
+/// let diagnostics = compute_table_docstring_diagnostics(&state, &dir, "test.feature");
+/// assert!(diagnostics.is_empty());
+/// ```
+#[expect(clippy::expect_used, reason = "test helper uses expect for clarity")]
+fn compute_table_docstring_diagnostics(
+    state: &ServerState,
+    dir: &TempDir,
+    filename: impl AsRef<str>,
+) -> Vec<lsp_types::Diagnostic> {
+    let path = dir.path().join(filename.as_ref());
+    let feature_index = state.feature_index(&path).expect("feature index");
+    compute_table_docstring_mismatch_diagnostics(state, feature_index)
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Tests
+// ─────────────────────────────────────────────────────────────────────────────
+
+#[rstest]
+#[case::table_not_expected(
+    // Feature has table, Rust doesn't expect it
+    concat!(
+        "Feature: test\n",
+        "  Scenario: s\n",
+        "    Given a step\n",
+        "      | col |\n",
+        "      | val |\n",
+    ),
+    concat!(
+        "use rstest_bdd_macros::given;\n\n",
+        "#[given(\"a step\")]\n",
+        "fn a_step() {}\n",
+    ),
+    1,
+    Some("does not expect"),
+)]
+#[case::table_expected(
+    // Rust expects table, feature doesn't have one
+    concat!("Feature: test\n", "  Scenario: s\n", "    Given a step\n"),
+    concat!(
+        "use rstest_bdd_macros::given;\n",
+        "use rstest_bdd::DataTable;\n\n",
+        "#[given(\"a step\")]\n",
+        "fn a_step(datatable: DataTable) {}\n",
+    ),
+    1,
+    Some("expects a data table"),
+)]
+#[case::docstring_not_expected(
+    // Feature has docstring, Rust doesn't expect it
+    concat!(
+        "Feature: test\n",
+        "  Scenario: s\n",
+        "    Given a step\n",
+        "      \"\"\"\n",
+        "      content\n",
+        "      \"\"\"\n",
+    ),
+    concat!(
+        "use rstest_bdd_macros::given;\n\n",
+        "#[given(\"a step\")]\n",
+        "fn a_step() {}\n",
+    ),
+    1,
+    Some("does not expect"),
+)]
+#[case::docstring_expected(
+    // Rust expects docstring, feature doesn't have one
+    concat!("Feature: test\n", "  Scenario: s\n", "    Given a step\n"),
+    concat!(
+        "use rstest_bdd_macros::given;\n\n",
+        "#[given(\"a step\")]\n",
+        "fn a_step(docstring: String) {}\n",
+    ),
+    1,
+    Some("expects a doc string"),
+)]
+#[case::matched_table(
+    // Both feature and Rust have table - no diagnostic
+    concat!(
+        "Feature: test\n",
+        "  Scenario: s\n",
+        "    Given a step\n",
+        "      | col |\n",
+        "      | val |\n",
+    ),
+    concat!(
+        "use rstest_bdd_macros::given;\n",
+        "use rstest_bdd::DataTable;\n\n",
+        "#[given(\"a step\")]\n",
+        "fn a_step(datatable: DataTable) {}\n",
+    ),
+    0,
+    None,
+)]
+#[case::matched_docstring(
+    // Both feature and Rust have docstring - no diagnostic
+    concat!(
+        "Feature: test\n",
+        "  Scenario: s\n",
+        "    Given a step\n",
+        "      \"\"\"\n",
+        "      some content\n",
+        "      \"\"\"\n",
+    ),
+    concat!(
+        "use rstest_bdd_macros::given;\n\n",
+        "#[given(\"a step\")]\n",
+        "fn a_step(docstring: String) {}\n",
+    ),
+    0,
+    None,
+)]
+fn table_docstring_validation(
+    scenario_builder: ScenarioBuilder,
+    #[case] feature_content: &str,
+    #[case] rust_content: &str,
+    #[case] expected_count: usize,
+    #[case] message_substring: Option<&str>,
+) {
+    let TestScenario { dir, state } = scenario_builder
+        .with_feature("test.feature", feature_content)
+        .with_rust_steps("steps.rs", rust_content)
+        .build();
+
+    let diagnostics = compute_table_docstring_diagnostics(&state, &dir, "test.feature");
+
+    assert_eq!(
+        diagnostics.len(),
+        expected_count,
+        "expected {expected_count} diagnostic(s)"
+    );
+    if let Some(substring) = message_substring {
+        #[expect(clippy::expect_used, reason = "checked count > 0 in conditional")]
+        let diag = diagnostics.first().expect("checked count > 0");
+        assert!(
+            diag.message.contains(substring),
+            "diagnostic message should contain '{substring}'"
+        );
+    }
+}

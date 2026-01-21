@@ -12,12 +12,17 @@ use tracing::{debug, warn};
 use crate::server::ServerState;
 
 use super::compute::{compute_unimplemented_step_diagnostics, compute_unused_step_diagnostics};
+use super::placeholder::compute_signature_mismatch_diagnostics;
+use super::table_docstring::compute_table_docstring_mismatch_diagnostics;
 
 /// Publish diagnostics for a single feature file.
 ///
-/// Computes unimplemented step diagnostics and publishes them via the client
-/// socket. Publishes an empty array if all steps have implementations,
-/// clearing any previous diagnostics.
+/// Computes diagnostics for:
+/// - Unimplemented steps
+/// - Table/docstring expectation mismatches
+///
+/// Publishes them via the client socket. Publishes an empty array if no issues
+/// are found, clearing any previous diagnostics.
 pub fn publish_feature_diagnostics(state: &ServerState, feature_path: &Path) {
     let Some(client) = state.client() else {
         debug!("no client socket available for publishing diagnostics");
@@ -34,7 +39,11 @@ pub fn publish_feature_diagnostics(state: &ServerState, feature_path: &Path) {
         return;
     };
 
-    let diagnostics = compute_unimplemented_step_diagnostics(state, feature_index);
+    let mut diagnostics = compute_unimplemented_step_diagnostics(state, feature_index);
+    diagnostics.extend(compute_table_docstring_mismatch_diagnostics(
+        state,
+        feature_index,
+    ));
 
     let params = PublishDiagnosticsParams::new(uri, diagnostics, None);
     if let Err(err) = client.notify::<notification::PublishDiagnostics>(params) {
@@ -58,7 +67,14 @@ pub fn publish_all_feature_diagnostics(state: &ServerState) {
     }
 }
 
-/// Publish diagnostics for unused step definitions in a Rust file.
+/// Publish diagnostics for Rust step definition files.
+///
+/// Computes diagnostics for:
+/// - Unused step definitions
+/// - Placeholder count mismatches
+///
+/// Publishes them via the client socket. Publishes an empty array if no issues
+/// are found, clearing any previous diagnostics.
 pub fn publish_rust_diagnostics(state: &ServerState, rust_path: &Path) {
     let Some(client) = state.client() else {
         debug!("no client socket available for publishing diagnostics");
@@ -70,7 +86,8 @@ pub fn publish_rust_diagnostics(state: &ServerState, rust_path: &Path) {
         return;
     };
 
-    let diagnostics = compute_unused_step_diagnostics(state, rust_path);
+    let mut diagnostics = compute_unused_step_diagnostics(state, rust_path);
+    diagnostics.extend(compute_signature_mismatch_diagnostics(state, rust_path));
 
     let params = PublishDiagnosticsParams::new(uri, diagnostics, None);
     if let Err(err) = client.notify::<notification::PublishDiagnostics>(params) {

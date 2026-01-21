@@ -1,4 +1,4 @@
-//! Behavioural tests for on-save diagnostics.
+//! Behavioural tests for on-save diagnostics (unimplemented/unused steps).
 //!
 //! These tests verify that diagnostics are correctly computed for unimplemented
 //! feature steps and unused step definitions. Diagnostics are triggered on
@@ -14,7 +14,8 @@ use rstest_bdd_server::handlers::{
     compute_unimplemented_step_diagnostics, compute_unused_step_diagnostics,
 };
 use rstest_bdd_server::server::ServerState;
-use support::{DiagnosticCheckType, ScenarioBuilder, TestScenario};
+use rstest_bdd_server::test_support::DiagnosticCheckType;
+use support::{ScenarioBuilder, TestScenario};
 use tempfile::TempDir;
 
 /// Fixture providing a fresh scenario builder for each test.
@@ -22,6 +23,10 @@ use tempfile::TempDir;
 fn scenario_builder() -> ScenarioBuilder {
     ScenarioBuilder::new()
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Test-local helpers
+// ─────────────────────────────────────────────────────────────────────────────
 
 /// Helper to compute unimplemented step diagnostics for a feature file.
 #[expect(clippy::expect_used, reason = "test helper uses expect for clarity")]
@@ -103,6 +108,10 @@ fn assert_rust_has_no_diagnostics(state: &ServerState, dir: &TempDir, filename: 
         diagnostics.len()
     );
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Tests
+// ─────────────────────────────────────────────────────────────────────────────
 
 #[rstest]
 fn feature_with_all_steps_implemented_reports_no_diagnostics(scenario_builder: ScenarioBuilder) {

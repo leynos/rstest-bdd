@@ -19,7 +19,10 @@ use gherkin::StepType;
 use regex::Regex;
 use rstest_bdd_patterns::{PatternError, compile_regex_from_pattern};
 
-use super::{IndexedStepDefinition, RustAttributeSpan, RustFunctionId, RustStepFileIndex};
+use super::{
+    IndexedStepDefinition, IndexedStepParameter, RustAttributeSpan, RustFunctionId,
+    RustStepFileIndex,
+};
 
 /// A Rust step definition with a compiled regular expression.
 #[derive(Debug, Clone)]
@@ -36,6 +39,8 @@ pub struct CompiledStepDefinition {
     pub function: RustFunctionId,
     /// Absolute path to the Rust source file containing the step.
     pub source_path: PathBuf,
+    /// The function's parameters, in source order.
+    pub parameters: Vec<IndexedStepParameter>,
     /// Whether the step expects a data table argument.
     pub expects_table: bool,
     /// Whether the step expects a doc string argument.
@@ -230,6 +235,7 @@ fn compile_step_definition(
         regex,
         function: step.function.clone(),
         source_path: path.to_path_buf(),
+        parameters: step.parameters.clone(),
         expects_table: step.expects_table,
         expects_docstring: step.expects_docstring,
         attribute_span: step.attribute_span,
