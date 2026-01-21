@@ -159,6 +159,7 @@ placeholder.
 **Decision:** Report all diagnostics on the feature file, not the Rust file.
 
 **Rationale:** The mismatch is fundamentally a Gherkin structural issue:
+
 - Missing columns mean the Examples table is incomplete
 - Surplus columns mean the Examples table has unused data
 
@@ -191,6 +192,7 @@ diagnostics for the rstest-bdd language server. The implementation:
 - Marked the roadmap entry as complete
 
 **Files changed:** 14 files (10 modified, 4 new)
+
 - New: `indexing/feature/outline.rs`, `handlers/diagnostics/scenario_outline.rs`,
   `tests/diagnostics_scenario_outline.rs`, `docs/execplans/7-4-3-*.md`
 
