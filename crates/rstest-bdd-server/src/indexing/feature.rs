@@ -6,14 +6,12 @@ use std::path::{Path, PathBuf};
 
 use gherkin::{GherkinEnv, Span};
 
-use super::{
-    FeatureFileIndex, FeatureIndexError, IndexedDocstring, IndexedExampleColumn, IndexedStep,
-    IndexedTable,
-};
+use super::{FeatureFileIndex, FeatureIndexError, IndexedDocstring, IndexedStep, IndexedTable};
 
+mod outline;
 mod table;
 
-use table::extract_header_cell_spans;
+use outline::{build_scenario_outline, extract_example_columns, is_scenario_outline};
 
 #[derive(Clone, Copy, Debug)]
 struct FeatureSource<'a>(&'a str);
@@ -146,12 +144,22 @@ fn index_feature_text(
     let feature = gherkin::Feature::parse(source.as_str(), GherkinEnv::default())?;
 
     let mut steps = Vec::new();
+    let mut scenario_outlines = Vec::new();
+
     if let Some(background) = feature.background.as_ref() {
         steps.extend(index_steps_for_container(source, &background.steps)?);
     }
 
     for scenario in &feature.scenarios {
+        let step_start_index = steps.len();
         steps.extend(index_steps_for_container(source, &scenario.steps)?);
+        let step_end_index = steps.len();
+
+        if is_scenario_outline(scenario) {
+            let outline =
+                build_scenario_outline(source, scenario, step_start_index, step_end_index);
+            scenario_outlines.push(outline);
+        }
     }
 
     for rule in &feature.rules {
@@ -159,7 +167,15 @@ fn index_feature_text(
             steps.extend(index_steps_for_container(source, &background.steps)?);
         }
         for scenario in &rule.scenarios {
+            let step_start_index = steps.len();
             steps.extend(index_steps_for_container(source, &scenario.steps)?);
+            let step_end_index = steps.len();
+
+            if is_scenario_outline(scenario) {
+                let outline =
+                    build_scenario_outline(source, scenario, step_start_index, step_end_index);
+                scenario_outlines.push(outline);
+            }
         }
     }
 
@@ -170,6 +186,7 @@ fn index_feature_text(
         source: source.as_str().to_owned(),
         steps,
         example_columns,
+        scenario_outlines,
     })
 }
 
@@ -220,46 +237,6 @@ fn index_steps_for_container(
         });
     }
     Ok(indexed)
-}
-
-fn extract_example_columns(
-    source: FeatureSource<'_>,
-    feature: &gherkin::Feature,
-) -> Vec<IndexedExampleColumn> {
-    let mut columns = Vec::new();
-    for scenario in &feature.scenarios {
-        collect_example_columns_for_scenario(source, &scenario.examples, &mut columns);
-    }
-    for rule in &feature.rules {
-        for scenario in &rule.scenarios {
-            collect_example_columns_for_scenario(source, &scenario.examples, &mut columns);
-        }
-    }
-    columns
-}
-
-fn collect_example_columns_for_scenario(
-    source: FeatureSource<'_>,
-    examples: &[gherkin::Examples],
-    columns: &mut Vec<IndexedExampleColumn>,
-) {
-    for ex in examples {
-        let Some(table) = ex.table.as_ref() else {
-            continue;
-        };
-        let Some(header_spans) = extract_header_cell_spans(source, table.span) else {
-            continue;
-        };
-        let Some(header_row) = table.rows.first() else {
-            continue;
-        };
-        if header_row.len() != header_spans.len() {
-            continue;
-        }
-        for (name, span) in header_row.iter().cloned().zip(header_spans.into_iter()) {
-            columns.push(IndexedExampleColumn { name, span });
-        }
-    }
 }
 
 /// Tracks the state whilst scanning for docstring delimiters.

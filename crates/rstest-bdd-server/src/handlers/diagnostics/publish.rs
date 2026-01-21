@@ -13,6 +13,7 @@ use crate::server::ServerState;
 
 use super::compute::{compute_unimplemented_step_diagnostics, compute_unused_step_diagnostics};
 use super::placeholder::compute_signature_mismatch_diagnostics;
+use super::scenario_outline::compute_scenario_outline_column_diagnostics;
 use super::table_docstring::compute_table_docstring_mismatch_diagnostics;
 
 /// Publish diagnostics for a single feature file.
@@ -20,6 +21,7 @@ use super::table_docstring::compute_table_docstring_mismatch_diagnostics;
 /// Computes diagnostics for:
 /// - Unimplemented steps
 /// - Table/docstring expectation mismatches
+/// - Scenario outline column mismatches
 ///
 /// Publishes them via the client socket. Publishes an empty array if no issues
 /// are found, clearing any previous diagnostics.
@@ -44,6 +46,7 @@ pub fn publish_feature_diagnostics(state: &ServerState, feature_path: &Path) {
         state,
         feature_index,
     ));
+    diagnostics.extend(compute_scenario_outline_column_diagnostics(feature_index));
 
     let params = PublishDiagnosticsParams::new(uri, diagnostics, None);
     if let Err(err) = client.notify::<notification::PublishDiagnostics>(params) {
