@@ -78,6 +78,24 @@ fn compute_placeholder_diagnostics(
     0,
     None,
 )]
+#[case::repeated_placeholder_name(
+    // Pattern has {x} twice (2 occurrences), but only 1 distinct name.
+    // The macro counts occurrences, so the function needs 2 parameters named `x`.
+    // However, Rust syntax doesn't allow duplicate parameter names, so this tests
+    // the diagnostic correctly flags the mismatch (2 placeholders, 1 step arg).
+    concat!(
+        "Feature: test\n",
+        "  Scenario: s\n",
+        "    Given I compare 5 with 10\n",
+    ),
+    concat!(
+        "use rstest_bdd_macros::given;\n\n",
+        "#[given(\"I compare {x} with {x}\")]\n",
+        "fn compare(x: u32) {}\n",
+    ),
+    1,
+    Some("2 placeholder"),
+)]
 fn placeholder_count_validation(
     scenario_builder: ScenarioBuilder,
     #[case] feature_content: &str,

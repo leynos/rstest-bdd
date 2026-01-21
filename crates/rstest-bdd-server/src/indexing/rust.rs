@@ -171,17 +171,20 @@ fn parse_function_parameters(
                 ty: "Self".to_string(),
                 is_datatable: false,
                 is_docstring: false,
+                is_step_struct: false,
             },
             syn::FnArg::Typed(pat_type) => {
                 let name = param_name(&pat_type.pat);
                 let ty = type_render::render_type(&pat_type.ty);
                 let is_datatable = parameter_is_datatable(pat_type, name.as_deref());
                 let is_docstring = parameter_is_docstring(name.as_deref(), &pat_type.ty);
+                let is_step_struct = parameter_is_step_struct(pat_type);
                 IndexedStepParameter {
                     name,
                     ty,
                     is_datatable,
                     is_docstring,
+                    is_step_struct,
                 }
             }
         })
@@ -362,6 +365,19 @@ fn parameter_is_datatable(pat_type: &syn::PatType, name: Option<&str>) -> bool {
             .segments
             .last()
             .is_some_and(|seg| seg.ident == "datatable")
+    })
+}
+
+/// Check if a parameter has the `#[step_args]` attribute.
+///
+/// Step struct parameters bundle all placeholders into a single struct,
+/// so they should be counted as step arguments regardless of their name.
+fn parameter_is_step_struct(pat_type: &syn::PatType) -> bool {
+    pat_type.attrs.iter().any(|attr| {
+        attr.path()
+            .segments
+            .last()
+            .is_some_and(|seg| seg.ident == "step_args")
     })
 }
 

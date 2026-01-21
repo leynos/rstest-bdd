@@ -115,7 +115,9 @@ fn extract_placeholder_names(pattern: &str) -> Option<HashSet<String>> {
 /// A step argument is a parameter that:
 /// 1. Is not a datatable parameter
 /// 2. Is not a docstring parameter
-/// 3. Has a normalized name that appears in the placeholder set
+/// 3. Either:
+///    - Has a normalized name that appears in the placeholder set, OR
+///    - Is a step struct (`#[step_args]`) which bundles all placeholders
 ///
 /// This distinguishes step arguments from fixture parameters, which do not
 /// correspond to placeholders in the pattern.
@@ -127,10 +129,13 @@ fn count_step_arguments(
         .iter()
         .filter(|param| !param.is_datatable && !param.is_docstring)
         .filter(|param| {
-            param
-                .name
-                .as_ref()
-                .is_some_and(|name| placeholder_names.contains(&normalize_param_name(name)))
+            // Step structs bundle all placeholders, so they count as step arguments
+            // regardless of their parameter name.
+            param.is_step_struct
+                || param
+                    .name
+                    .as_ref()
+                    .is_some_and(|name| placeholder_names.contains(&normalize_param_name(name)))
         })
         .count()
 }

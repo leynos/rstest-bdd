@@ -8,3 +8,4 @@ crates/rstest-bdd-macros/src/macros/scenarios/macro_args.rs
 # Added during Phase 7 placeholder count validation feature:
 crates/rstest-bdd-server/src/handlers/diagnostics/compute.rs
 crates/rstest-bdd-server/src/handlers/diagnostics/mod.rs
+crates/rstest-bdd-server/src/indexing/rust.rs
