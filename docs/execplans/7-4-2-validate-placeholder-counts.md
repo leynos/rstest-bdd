@@ -533,7 +533,7 @@ Acceptance behaviour:
 4. Observe diagnostic on the Rust step definition:
 
    ```plaintext
-   Placeholder count mismatch: pattern has 1 placeholder(s) but function has 0 step argument(s)
+   Placeholder count mismatch: pattern has 1 placeholder occurrence(s) but function has 0 step argument(s)
    ```
 
 5. Add parameter `count: u32` to the function and save.

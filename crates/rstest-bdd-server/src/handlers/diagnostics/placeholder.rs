@@ -105,7 +105,7 @@ fn extract_placeholder_names(tokens: &[Token]) -> HashSet<String> {
         .collect()
 }
 
-/// Count step arguments among the function parameters.
+/// Check if a parameter is a step argument.
 ///
 /// A step argument is a parameter that either:
 /// - Is a step struct (`#[step_args]`) which bundles all placeholders, OR
@@ -114,6 +114,26 @@ fn extract_placeholder_names(tokens: &[Token]) -> HashSet<String> {
 ///
 /// Step structs bypass the datatable/docstring exclusion because they are
 /// explicitly marked as step arguments regardless of other attributes.
+fn is_step_argument(param: &IndexedStepParameter, placeholder_names: &HashSet<String>) -> bool {
+    // Step structs bundle all placeholders, so they count as step arguments
+    // unconditionally—bypassing the datatable/docstring exclusion.
+    if param.is_step_struct {
+        return true;
+    }
+
+    // Regular parameters: exclude datatable/docstring, then check if
+    // the normalized name matches a placeholder.
+    if param.is_datatable || param.is_docstring {
+        return false;
+    }
+
+    param
+        .name
+        .as_ref()
+        .is_some_and(|name| placeholder_names.contains(&normalize_param_name(name)))
+}
+
+/// Count step arguments among the function parameters.
 ///
 /// This distinguishes step arguments from fixture parameters, which do not
 /// correspond to placeholders in the pattern.
@@ -123,24 +143,7 @@ fn count_step_arguments(
 ) -> usize {
     parameters
         .iter()
-        .filter(|param| {
-            // Step structs bundle all placeholders, so they count as step arguments
-            // unconditionally—bypassing the datatable/docstring exclusion.
-            if param.is_step_struct {
-                return true;
-            }
-
-            // Regular parameters: exclude datatable/docstring, then check if
-            // the normalized name matches a placeholder.
-            if param.is_datatable || param.is_docstring {
-                return false;
-            }
-
-            param
-                .name
-                .as_ref()
-                .is_some_and(|name| placeholder_names.contains(&normalize_param_name(name)))
-        })
+        .filter(|param| is_step_argument(param, placeholder_names))
         .count()
 }
 
@@ -169,7 +172,7 @@ fn build_placeholder_mismatch_diagnostic(
         code_description: None,
         source: Some(DIAGNOSTIC_SOURCE.to_owned()),
         message: format!(
-            "Placeholder count mismatch: pattern has {} placeholder(s) but \
+            "Placeholder count mismatch: pattern has {} placeholder occurrence(s) but \
              function has {} step argument(s) - #[{}(\"{}\")]",
             placeholder_count,
             step_arg_count,

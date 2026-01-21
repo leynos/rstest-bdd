@@ -23,6 +23,19 @@ fn scenario_builder() -> ScenarioBuilder {
 // ─────────────────────────────────────────────────────────────────────────────
 
 /// Helper to compute table/docstring mismatch diagnostics for a feature file.
+///
+/// # Examples
+///
+/// ```ignore
+/// use rstest_bdd_server::server::ServerState;
+/// use tempfile::TempDir;
+///
+/// let state: ServerState = unimplemented!("obtain from ScenarioBuilder");
+/// let dir: TempDir = unimplemented!("obtain from ScenarioBuilder");
+///
+/// let diagnostics = compute_table_docstring_diagnostics(&state, &dir, "test.feature");
+/// assert!(diagnostics.is_empty());
+/// ```
 #[expect(clippy::expect_used, reason = "test helper uses expect for clarity")]
 fn compute_table_docstring_diagnostics(
     state: &ServerState,
