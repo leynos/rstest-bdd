@@ -61,8 +61,11 @@ pub fn compute_signature_mismatch_diagnostics(
 /// This mirrors the macro's `capture_count` semantics which counts every
 /// placeholder occurrence, not just distinct names.
 fn check_placeholder_count_mismatch(step_def: &Arc<CompiledStepDefinition>) -> Option<Diagnostic> {
-    let placeholder_count = count_placeholder_occurrences(&step_def.pattern)?;
-    let placeholder_names = extract_placeholder_names(&step_def.pattern)?;
+    // Lex once and reuse tokens for both placeholder count and name extraction.
+    let tokens = lex_pattern(&step_def.pattern).ok()?;
+
+    let placeholder_count = count_placeholder_occurrences(&tokens);
+    let placeholder_names = extract_placeholder_names(&tokens);
     let step_arg_count = count_step_arguments(&step_def.parameters, &placeholder_names);
 
     if placeholder_count == step_arg_count {
@@ -76,38 +79,30 @@ fn check_placeholder_count_mismatch(step_def: &Arc<CompiledStepDefinition>) -> O
     ))
 }
 
-/// Count placeholder occurrences in a step pattern.
+/// Count placeholder occurrences from pre-lexed tokens.
 ///
-/// Uses `lex_pattern()` as the single source of truth for placeholder parsing.
 /// Returns the total number of `Token::Placeholder` occurrences to match the
 /// macro's `capture_count` semantics (which counts every placeholder, not just
-/// distinct names). Returns `None` if the pattern cannot be lexed (malformed
-/// patterns are handled elsewhere and should not produce additional diagnostics
-/// here).
-fn count_placeholder_occurrences(pattern: &str) -> Option<usize> {
-    let tokens = lex_pattern(pattern).ok()?;
-    let count = tokens
+/// distinct names).
+fn count_placeholder_occurrences(tokens: &[Token]) -> usize {
+    tokens
         .iter()
         .filter(|token| matches!(token, Token::Placeholder { .. }))
-        .count();
-    Some(count)
+        .count()
 }
 
-/// Extract placeholder names from a step pattern.
+/// Extract placeholder names from pre-lexed tokens.
 ///
-/// Uses `lex_pattern()` as the single source of truth for placeholder parsing.
-/// Returns `None` if the pattern cannot be lexed (malformed patterns are
-/// handled elsewhere and should not produce additional diagnostics here).
-fn extract_placeholder_names(pattern: &str) -> Option<HashSet<String>> {
-    let tokens = lex_pattern(pattern).ok()?;
-    let names = tokens
-        .into_iter()
+/// Returns a `HashSet` of normalized placeholder names for matching against
+/// function parameter names.
+fn extract_placeholder_names(tokens: &[Token]) -> HashSet<String> {
+    tokens
+        .iter()
         .filter_map(|token| match token {
-            Token::Placeholder { name, .. } => Some(normalize_param_name(&name)),
+            Token::Placeholder { name, .. } => Some(normalize_param_name(name)),
             _ => None,
         })
-        .collect();
-    Some(names)
+        .collect()
 }
 
 /// Count step arguments among the function parameters.

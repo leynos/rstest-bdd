@@ -284,7 +284,7 @@ struct SpecificityScore {
   - **Signature side:** `extract_placeholder_names` returns a `HashSet` of
     distinct placeholder names (here, just `x`). A function parameter is
     counted as a step argument if its normalized name appears in that set (or
-    if it is a step struct). Therefore a function with one parameter `x: u32`
+    if it is a step struct). Therefore, a function with one parameter `x: u32`
     contributes **1 step argument**.
 
   - **Comparison:** The diagnostic fires when these two counts differ.
