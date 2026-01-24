@@ -4,3 +4,4 @@ target/
 .crush
 __pycache__/
 .vale/
+.grepai/
