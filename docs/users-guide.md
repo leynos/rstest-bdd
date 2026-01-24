@@ -806,13 +806,77 @@ When `runtime = "tokio-current-thread"` is specified:
 - Each test is annotated with `#[tokio::test(flavor = "current_thread")]`.
 - Steps execute sequentially within the single-threaded Tokio runtime.
 
+### Recommended async pattern for steps
+
+Step functions are synchronous, even when a scenario runs in an async runtime.
+Use one of the following patterns to keep async work safe and predictable:
+
+- **Prefer async fixtures:** If a step needs async data, move the async call
+  into a fixture and inject the resolved value into the step. The scenario
+  runtime awaits the fixture once, then passes the result to the synchronous
+  step.
+
+```rust,no_run
+use rstest::fixture;
+use rstest_bdd_macros::{given, scenarios, when};
+
+struct StreamEnd;
+
+impl StreamEnd {
+    async fn connect() -> Self {
+        StreamEnd
+    }
+
+    fn trigger(&self) {}
+}
+
+#[fixture]
+async fn stream_end() -> StreamEnd {
+    StreamEnd::connect().await
+}
+
+#[when("the stream ends")]
+fn end_stream(stream_end: &StreamEnd) {
+    stream_end.trigger();
+}
+
+scenarios!(
+    "tests/features/streams.feature",
+    runtime = "tokio-current-thread",
+    fixtures = [stream_end]
+);
+```
+
+- **Use a per-step runtime only in synchronous scenarios:** If a step must call
+  async code and the scenario is not running under Tokio, build a runtime in
+  the step and block on the async work. Avoid this inside an async scenario,
+  because nested runtimes can fail. For async scenarios, prefer fixtures or the
+  async test body instead. See [ADR-005](adr-005-async-step-functions.md) for
+  the current strategy.
+
+```rust,no_run
+use rstest_bdd_macros::when;
+
+#[when("the stream ends")]
+fn end_stream() {
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("build step runtime");
+    runtime.block_on(async {
+        // async work here
+    });
+}
+```
+
 ### Current limitations
 
 - **Sync step definitions only:** The async executor currently calls the sync
   `run` handler directly rather than `run_async`. This avoids higher-ranked
   trait bound (HRTB) lifetime issues but means steps cannot `.await`
-  internally. True async step definitions (with `async fn` bodies) are planned
-  for a future release.
+  internally. See [ADR-005](adr-005-async-step-functions.md) for the current
+  pattern, and [ADR-001](adr-001-async-fixtures-and-test.md) for the design
+  rationale.
 - **Current-thread mode only:** Multi-threaded Tokio mode would require `Send`
   futures, which conflicts with the `RefCell`-backed fixture storage. See
   [ADR-001](adr-001-async-fixtures-and-test.md) for the full design rationale.
