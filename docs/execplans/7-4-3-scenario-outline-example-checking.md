@@ -389,7 +389,7 @@ Review existing infrastructure and design the approach. No code changes.
 
 2. Add unit tests in `handlers/diagnostics/mod.rs` tests module.
 
-3. Create `tests/diagnostics_scenario_outline.rs` with parameterised test cases.
+3. Create `tests/diagnostics_scenario_outline.rs` with parameterized test cases.
 
 ### Stage E: Documentation and Cleanup
 
@@ -461,7 +461,7 @@ Acceptance behaviour:
 
    ```gherkin
    Scenario Outline: test
-     Given I have <count> items
+     Given the system has <count> items
      Examples:
        | other |
        | 5     |

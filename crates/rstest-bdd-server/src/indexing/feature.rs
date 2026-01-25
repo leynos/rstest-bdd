@@ -149,19 +149,31 @@ fn index_feature_text(
     let mut steps = Vec::new();
     let mut scenario_outlines = Vec::new();
 
+    // Index feature-level background steps and track their indices
+    let feature_background_start = steps.len();
     if let Some(background) = feature.background.as_ref() {
         steps.extend(index_steps_for_container(source, &background.steps)?);
     }
+    let feature_background_end = steps.len();
+    let feature_background_indices: Vec<usize> =
+        (feature_background_start..feature_background_end).collect();
 
     process_scenarios(
         source,
         &feature.scenarios,
         &mut steps,
         &mut scenario_outlines,
+        &feature_background_indices,
     )?;
 
     for rule in &feature.rules {
-        process_rule(source, rule, &mut steps, &mut scenario_outlines)?;
+        process_rule(
+            source,
+            rule,
+            &mut steps,
+            &mut scenario_outlines,
+            &feature_background_indices,
+        )?;
     }
 
     let example_columns = extract_example_columns(source, &feature);
@@ -181,6 +193,7 @@ fn process_scenarios(
     scenarios: &[gherkin::Scenario],
     steps: &mut Vec<IndexedStep>,
     scenario_outlines: &mut Vec<IndexedScenarioOutline>,
+    background_step_indices: &[usize],
 ) -> Result<(), FeatureIndexError> {
     for scenario in scenarios {
         let step_start_index = steps.len();
@@ -188,8 +201,13 @@ fn process_scenarios(
         let step_end_index = steps.len();
 
         if is_scenario_outline(scenario) {
-            let outline =
-                build_scenario_outline(source, scenario, step_start_index, step_end_index);
+            let outline = build_scenario_outline(
+                source,
+                scenario,
+                step_start_index,
+                step_end_index,
+                background_step_indices.to_vec(),
+            );
             scenario_outlines.push(outline);
         }
     }
@@ -202,11 +220,26 @@ fn process_rule(
     rule: &gherkin::Rule,
     steps: &mut Vec<IndexedStep>,
     scenario_outlines: &mut Vec<IndexedScenarioOutline>,
+    feature_background_indices: &[usize],
 ) -> Result<(), FeatureIndexError> {
+    // Index rule-level background steps and track their indices
+    let rule_background_start = steps.len();
     if let Some(background) = rule.background.as_ref() {
         steps.extend(index_steps_for_container(source, &background.steps)?);
     }
-    process_scenarios(source, &rule.scenarios, steps, scenario_outlines)
+    let rule_background_end = steps.len();
+
+    // Combine feature-level and rule-level background indices
+    let mut combined_background_indices = feature_background_indices.to_vec();
+    combined_background_indices.extend(rule_background_start..rule_background_end);
+
+    process_scenarios(
+        source,
+        &rule.scenarios,
+        steps,
+        scenario_outlines,
+        &combined_background_indices,
+    )
 }
 
 fn normalise_trailing_newline(text: &mut String) {

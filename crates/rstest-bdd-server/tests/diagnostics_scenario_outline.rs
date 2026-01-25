@@ -256,3 +256,227 @@ fn multiple_examples_tables_validated_independently(scenario_builder: ScenarioBu
         "second Examples table should produce diagnostics"
     );
 }
+
+#[rstest]
+fn outline_inside_rule_validates_columns(scenario_builder: ScenarioBuilder) {
+    // Scenario Outlines inside Rules should be validated
+    let TestScenario { dir, state } = scenario_builder
+        .with_feature(
+            "test.feature",
+            concat!(
+                "Feature: test\n",
+                "  Rule: business rule\n",
+                "    Scenario Outline: outline in rule\n",
+                "      Given the system has <count> items\n",
+                "      Examples:\n",
+                "        | other |\n",
+                "        | 5     |\n",
+            ),
+        )
+        .with_rust_steps("steps.rs", "// no step definitions\n")
+        .build();
+
+    let diagnostics = compute_outline_column_diagnostics(&state, &dir, "test.feature");
+    // Missing 'count' and surplus 'other'
+    assert_eq!(
+        diagnostics.len(),
+        2,
+        "outline inside Rule should produce diagnostics"
+    );
+    assert!(
+        diagnostics.iter().any(|d| d.message.contains("count")),
+        "should report missing 'count' column"
+    );
+    assert!(
+        diagnostics.iter().any(|d| d.message.contains("other")),
+        "should report surplus 'other' column"
+    );
+}
+
+#[rstest]
+fn multiple_outlines_diagnostics_scoped_correctly(scenario_builder: ScenarioBuilder) {
+    // Multiple outlines - diagnostics should not leak between them
+    let TestScenario { dir, state } = scenario_builder
+        .with_feature(
+            "test.feature",
+            concat!(
+                "Feature: test\n",
+                "  Scenario Outline: first outline\n",
+                "    Given the system has <alpha> items\n",
+                "    Examples:\n",
+                "      | alpha |\n",
+                "      | 1     |\n",
+                "  Scenario Outline: second outline\n",
+                "    Given the system has <beta> items\n",
+                "    Examples:\n",
+                "      | gamma |\n",
+                "      | 2     |\n",
+            ),
+        )
+        .with_rust_steps("steps.rs", "// no step definitions\n")
+        .build();
+
+    let diagnostics = compute_outline_column_diagnostics(&state, &dir, "test.feature");
+    // First outline is correct, second has missing 'beta' and surplus 'gamma'
+    assert_eq!(
+        diagnostics.len(),
+        2,
+        "only second outline should produce diagnostics"
+    );
+    // Ensure diagnostics relate to second outline, not first
+    assert!(
+        diagnostics.iter().any(|d| d.message.contains("beta")),
+        "should report missing 'beta' from second outline"
+    );
+    assert!(
+        diagnostics.iter().any(|d| d.message.contains("gamma")),
+        "should report surplus 'gamma' from second outline"
+    );
+    assert!(
+        !diagnostics.iter().any(|d| d.message.contains("alpha")),
+        "first outline's column 'alpha' should not appear in diagnostics"
+    );
+}
+
+#[rstest]
+fn outline_with_empty_examples_no_crash(scenario_builder: ScenarioBuilder) {
+    // An Examples block without a table should not cause a crash
+    let TestScenario { dir, state } = scenario_builder
+        .with_feature(
+            "test.feature",
+            concat!(
+                "Feature: test\n",
+                "  Scenario Outline: outline\n",
+                "    Given the system has <value> items\n",
+                "    Examples:\n",
+            ),
+        )
+        .with_rust_steps("steps.rs", "// no step definitions\n")
+        .build();
+
+    let diagnostics = compute_outline_column_diagnostics(&state, &dir, "test.feature");
+    // No valid table means we cannot check columns - expect no diagnostics
+    assert!(
+        diagnostics.is_empty(),
+        "outline with empty Examples should produce no diagnostics, got: {diagnostics:?}"
+    );
+}
+
+#[rstest]
+fn outline_with_header_only_no_diagnostics(scenario_builder: ScenarioBuilder) {
+    // An Examples table with only a header row (no body rows) should not crash
+    let TestScenario { dir, state } = scenario_builder
+        .with_feature(
+            "test.feature",
+            concat!(
+                "Feature: test\n",
+                "  Scenario Outline: outline\n",
+                "    Given the system has <value> items\n",
+                "    Examples:\n",
+                "      | value |\n",
+            ),
+        )
+        .with_rust_steps("steps.rs", "// no step definitions\n")
+        .build();
+
+    let diagnostics = compute_outline_column_diagnostics(&state, &dir, "test.feature");
+    // Header-only table is valid - column matches placeholder
+    assert!(
+        diagnostics.is_empty(),
+        "outline with header-only Examples should produce no diagnostics"
+    );
+}
+
+#[rstest]
+fn background_placeholder_requires_column(scenario_builder: ScenarioBuilder) {
+    // Placeholders in feature Background should be validated against Examples
+    let TestScenario { dir, state } = scenario_builder
+        .with_feature(
+            "test.feature",
+            concat!(
+                "Feature: test\n",
+                "  Background:\n",
+                "    Given the environment is <env>\n",
+                "  Scenario Outline: outline\n",
+                "    Given the system has <count> items\n",
+                "    Examples:\n",
+                "      | count |\n",
+                "      | 5     |\n",
+            ),
+        )
+        .with_rust_steps("steps.rs", "// no step definitions\n")
+        .build();
+
+    let diagnostics = compute_outline_column_diagnostics(&state, &dir, "test.feature");
+    // Background uses <env> but Examples only has | count |
+    assert_eq!(
+        diagnostics.len(),
+        1,
+        "background placeholder without matching column should produce diagnostic"
+    );
+    assert!(
+        diagnostics.iter().any(|d| d.message.contains("env")),
+        "diagnostic should mention missing 'env' column"
+    );
+}
+
+#[rstest]
+fn background_placeholder_with_matching_column_no_diagnostic(scenario_builder: ScenarioBuilder) {
+    // Background placeholder with matching column should not produce diagnostic
+    let TestScenario { dir, state } = scenario_builder
+        .with_feature(
+            "test.feature",
+            concat!(
+                "Feature: test\n",
+                "  Background:\n",
+                "    Given the environment is <env>\n",
+                "  Scenario Outline: outline\n",
+                "    Given the system has <count> items\n",
+                "    Examples:\n",
+                "      | env  | count |\n",
+                "      | prod | 5     |\n",
+            ),
+        )
+        .with_rust_steps("steps.rs", "// no step definitions\n")
+        .build();
+
+    let diagnostics = compute_outline_column_diagnostics(&state, &dir, "test.feature");
+    assert!(
+        diagnostics.is_empty(),
+        "background placeholder with matching column should produce no diagnostics"
+    );
+}
+
+#[rstest]
+fn rule_background_placeholder_requires_column(scenario_builder: ScenarioBuilder) {
+    // Placeholders in Rule Background should be validated against Examples
+    let TestScenario { dir, state } = scenario_builder
+        .with_feature(
+            "test.feature",
+            concat!(
+                "Feature: test\n",
+                "  Rule: business rule\n",
+                "    Background:\n",
+                "      Given the context is <context>\n",
+                "    Scenario Outline: outline in rule\n",
+                "      Given the system has <count> items\n",
+                "      Examples:\n",
+                "        | count |\n",
+                "        | 5     |\n",
+            ),
+        )
+        .with_rust_steps("steps.rs", "// no step definitions\n")
+        .build();
+
+    let diagnostics = compute_outline_column_diagnostics(&state, &dir, "test.feature");
+    // Rule background uses <context> but Examples only has | count |
+    assert_eq!(
+        diagnostics.len(),
+        1,
+        "rule background placeholder without matching column should produce diagnostic"
+    );
+    assert!(
+        diagnostics.iter().any(|d| d.message.contains("context")),
+        "diagnostic should mention missing 'context' column"
+    );
+}

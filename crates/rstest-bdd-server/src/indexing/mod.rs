@@ -126,6 +126,10 @@ pub struct IndexedScenarioOutline {
     /// Indices into `FeatureFileIndex.steps` for steps belonging to this
     /// outline.
     pub step_indices: Vec<usize>,
+    /// Indices into `FeatureFileIndex.steps` for background steps that apply
+    /// to this outline. Background steps are executed for each example row,
+    /// so any placeholders they contain must be present in the Examples table.
+    pub background_step_indices: Vec<usize>,
     /// Example tables belonging to this outline.
     pub examples: Vec<IndexedExamplesTable>,
 }

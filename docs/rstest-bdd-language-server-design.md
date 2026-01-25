@@ -896,15 +896,15 @@ consistency issues between feature files and Rust step definitions.
    function signature. Each placeholder occurrence is counted separately, and
    `datatable`, `docstring`, and fixture parameters are excluded.
 
-4. **Data table expected/not expected** (`table-expected`, `table-not-expected`):
-   Warning diagnostics when a step expects a data table but the feature step
-   does not provide one, or when a feature step provides a data table but the
-   implementation does not expect one.
+4. **Data table expected/not expected** (`table-expected`,
+   `table-not-expected`): Warning diagnostics when a step expects a data table,
+   but the feature step does not provide one, or when a feature step provides a
+   data table, but the implementation does not expect one.
 
 5. **Doc string expected/not expected** (`docstring-expected`,
    `docstring-not-expected`): Warning diagnostics when a step expects a doc
-   string but the feature step does not provide one, or when a feature step
-   provides a doc string but the implementation does not expect one.
+   string, but the feature step does not provide one, or when a feature step
+   provides a doc string, but the implementation does not expect one.
 
 6. **Missing Examples column** (`example-column-missing`): Warning diagnostic
    on steps in a Scenario Outline that use a placeholder (e.g., `<count>`) with

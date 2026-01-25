@@ -23,6 +23,7 @@ pub(super) fn build_scenario_outline(
     scenario: &gherkin::Scenario,
     step_start_index: usize,
     step_end_index: usize,
+    background_step_indices: Vec<usize>,
 ) -> IndexedScenarioOutline {
     let step_indices: Vec<usize> = (step_start_index..step_end_index).collect();
     let examples = build_examples_tables(source, &scenario.examples);
@@ -31,6 +32,7 @@ pub(super) fn build_scenario_outline(
         name: scenario.name.clone(),
         span: scenario.span,
         step_indices,
+        background_step_indices,
         examples,
     }
 }
@@ -47,6 +49,12 @@ fn build_examples_tables(
             continue;
         };
         let columns = extract_columns_for_table(source, table.span, &table.rows);
+
+        // Skip tables with empty columns (e.g., unresolved header spans or
+        // length mismatches) to avoid misleading diagnostics.
+        if columns.is_empty() {
+            continue;
+        }
 
         tables.push(IndexedExamplesTable {
             span: ex.span,
@@ -69,10 +77,19 @@ fn extract_columns_for_table(
     let Some(header_row) = rows.first() else {
         return Vec::new();
     };
+    build_indexed_example_columns(header_row, header_spans)
+}
+
+/// Build indexed example columns from a header row and corresponding spans.
+///
+/// Returns an empty vector if the header row and spans have different lengths.
+fn build_indexed_example_columns(
+    header_row: &[String],
+    header_spans: Vec<Span>,
+) -> Vec<IndexedExampleColumn> {
     if header_row.len() != header_spans.len() {
         return Vec::new();
     }
-
     header_row
         .iter()
         .cloned()
@@ -114,11 +131,6 @@ fn collect_example_columns_for_scenario(
         let Some(header_row) = table.rows.first() else {
             continue;
         };
-        if header_row.len() != header_spans.len() {
-            continue;
-        }
-        for (name, span) in header_row.iter().cloned().zip(header_spans.into_iter()) {
-            columns.push(IndexedExampleColumn { name, span });
-        }
+        columns.extend(build_indexed_example_columns(header_row, header_spans));
     }
 }

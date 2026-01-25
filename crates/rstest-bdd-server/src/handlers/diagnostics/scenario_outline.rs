@@ -8,7 +8,7 @@
 //! - **Surplus column**: The Examples table has a `bar` column but no step
 //!   references `<bar>`.
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::sync::LazyLock;
 
 use lsp_types::{Diagnostic, DiagnosticSeverity};
@@ -25,8 +25,23 @@ use super::{CODE_EXAMPLE_COLUMN_MISSING, CODE_EXAMPLE_COLUMN_SURPLUS, DIAGNOSTIC
 ///
 /// This pattern matches the angle-bracket placeholder syntax used in Gherkin
 /// Scenario Outlines, consistent with the macros crate's `PLACEHOLDER_RE`.
+///
+/// The `unreachable!()` is safe here because this is a compile-time constant
+/// regex pattern that has been validated and cannot fail to compile.
 static OUTLINE_PLACEHOLDER_RE: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"<([^>\s][^>]*)>").unwrap_or_else(|_| unreachable!()));
+
+/// Collected placeholders from a scenario outline with first-step tracking.
+///
+/// Tracks all unique placeholders found in the outline's steps along with
+/// the index of the first step that uses each placeholder. This enables
+/// single-pass collection and efficient diagnostic generation.
+struct OutlinePlaceholders {
+    /// All unique placeholder names found.
+    all: HashSet<String>,
+    /// Maps placeholder name to the index of the first step that uses it.
+    first_step_for: HashMap<String, usize>,
+}
 
 /// Compute diagnostics for scenario outline example column mismatches.
 ///
@@ -70,36 +85,53 @@ fn check_outline_columns(
 ) -> Vec<Diagnostic> {
     let mut diagnostics = Vec::new();
 
-    // Collect all placeholders from all steps in the outline
-    let all_placeholders = collect_all_placeholders(feature_index, outline);
+    // Collect all placeholders from all steps in the outline (single pass)
+    let placeholders = collect_outline_placeholders(feature_index, outline);
 
     // Check each Examples table independently
     for examples in &outline.examples {
-        diagnostics.extend(check_examples_table(
-            feature_index,
-            outline,
-            examples,
-            &all_placeholders,
-        ));
+        diagnostics.extend(check_examples_table(feature_index, examples, &placeholders));
     }
 
     diagnostics
 }
 
 /// Collect all unique placeholder names from steps in a scenario outline.
-fn collect_all_placeholders(
+///
+/// Scans both background steps and outline steps to collect all placeholders.
+/// Background steps are executed for each example row, so their placeholders
+/// must be validated against Examples columns.
+///
+/// Also records the index of the first step that uses each placeholder,
+/// enabling efficient diagnostic generation without re-scanning steps.
+fn collect_outline_placeholders(
     feature_index: &FeatureFileIndex,
     outline: &IndexedScenarioOutline,
-) -> HashSet<String> {
-    let mut placeholders = HashSet::new();
+) -> OutlinePlaceholders {
+    let mut all = HashSet::new();
+    let mut first_step_for = HashMap::new();
 
-    for &step_idx in &outline.step_indices {
+    // Process background steps first, then outline steps
+    let all_step_indices = outline
+        .background_step_indices
+        .iter()
+        .chain(outline.step_indices.iter());
+
+    for &step_idx in all_step_indices {
         if let Some(step) = feature_index.steps.get(step_idx) {
-            placeholders.extend(extract_placeholders_from_step(step));
+            for placeholder in extract_placeholders_from_step(step) {
+                if all.insert(placeholder.clone()) {
+                    // First occurrence of this placeholder
+                    first_step_for.insert(placeholder, step_idx);
+                }
+            }
         }
     }
 
-    placeholders
+    OutlinePlaceholders {
+        all,
+        first_step_for,
+    }
 }
 
 /// Extract all placeholder names from a single step.
@@ -140,49 +172,39 @@ fn extract_placeholders_from_text(text: &str) -> HashSet<String> {
 /// Check an Examples table against the collected placeholders.
 fn check_examples_table(
     feature_index: &FeatureFileIndex,
-    outline: &IndexedScenarioOutline,
     examples: &IndexedExamplesTable,
-    all_placeholders: &HashSet<String>,
+    placeholders: &OutlinePlaceholders,
 ) -> Vec<Diagnostic> {
-    let column_names: HashSet<String> = examples
-        .columns
-        .iter()
-        .map(|col| col.name.clone())
-        .collect();
+    // Build views over column names for set operations and message formatting
+    let column_names: Vec<&str> = examples.columns.iter().map(|c| c.name.as_str()).collect();
+    let column_set: HashSet<&str> = column_names.iter().copied().collect();
 
-    let missing = check_missing_columns(feature_index, outline, all_placeholders, &column_names);
-    let surplus = check_surplus_columns(feature_index, examples, all_placeholders);
+    let mut diagnostics = Vec::new();
 
-    missing.into_iter().chain(surplus).collect()
-}
+    // Check for missing columns (placeholders not in column_set)
+    for placeholder in &placeholders.all {
+        if !column_set.contains(placeholder.as_str()) {
+            if let Some(diag) = build_missing_column_diagnostic(
+                feature_index,
+                placeholder,
+                placeholders,
+                &column_names,
+            ) {
+                diagnostics.push(diag);
+            }
+        }
+    }
 
-/// Check for placeholders without matching columns in the Examples table.
-fn check_missing_columns(
-    feature_index: &FeatureFileIndex,
-    outline: &IndexedScenarioOutline,
-    all_placeholders: &HashSet<String>,
-    column_names: &HashSet<String>,
-) -> Vec<Diagnostic> {
-    all_placeholders
-        .difference(column_names)
-        .filter_map(|placeholder| {
-            build_missing_column_diagnostic(feature_index, outline, placeholder, column_names)
-        })
-        .collect()
-}
+    // Check for surplus columns (columns not in placeholders.all)
+    diagnostics.extend(
+        examples
+            .columns
+            .iter()
+            .filter(|col| !placeholders.all.contains(&col.name))
+            .map(|col| build_surplus_column_diagnostic(feature_index, col)),
+    );
 
-/// Check for columns without matching placeholders in any step.
-fn check_surplus_columns(
-    feature_index: &FeatureFileIndex,
-    examples: &IndexedExamplesTable,
-    all_placeholders: &HashSet<String>,
-) -> Vec<Diagnostic> {
-    examples
-        .columns
-        .iter()
-        .filter(|column| !all_placeholders.contains(&column.name))
-        .map(|column| build_surplus_column_diagnostic(feature_index, column))
-        .collect()
+    diagnostics
 }
 
 /// Build a diagnostic for a missing column.
@@ -190,19 +212,23 @@ fn check_surplus_columns(
 /// Reports on the step that references the undefined placeholder.
 fn build_missing_column_diagnostic(
     feature_index: &FeatureFileIndex,
-    outline: &IndexedScenarioOutline,
     placeholder: &str,
-    available_columns: &HashSet<String>,
+    placeholders: &OutlinePlaceholders,
+    available_columns: &[&str],
 ) -> Option<Diagnostic> {
-    // Find the first step that uses this placeholder
-    let step = find_step_with_placeholder(feature_index, outline, placeholder)?;
+    // Look up the first step that uses this placeholder
+    let &step_idx = placeholders.first_step_for.get(placeholder)?;
+    let step = feature_index.steps.get(step_idx)?;
     let range = gherkin_span_to_lsp_range(&feature_index.source, step.span);
 
-    let available: Vec<&str> = available_columns.iter().map(String::as_str).collect();
-    let available_str = if available.is_empty() {
+    // Sort columns for deterministic output
+    let mut sorted_columns: Vec<&str> = available_columns.to_vec();
+    sorted_columns.sort_unstable();
+
+    let available_str = if sorted_columns.is_empty() {
         "none".to_owned()
     } else {
-        available.join(", ")
+        sorted_columns.join(", ")
     };
 
     Some(Diagnostic {
@@ -221,23 +247,6 @@ fn build_missing_column_diagnostic(
         tags: None,
         data: None,
     })
-}
-
-/// Find the first step in the outline that uses the given placeholder.
-fn find_step_with_placeholder<'a>(
-    feature_index: &'a FeatureFileIndex,
-    outline: &IndexedScenarioOutline,
-    placeholder: &str,
-) -> Option<&'a IndexedStep> {
-    for &step_idx in &outline.step_indices {
-        if let Some(step) = feature_index.steps.get(step_idx) {
-            let placeholders = extract_placeholders_from_step(step);
-            if placeholders.contains(placeholder) {
-                return Some(step);
-            }
-        }
-    }
-    None
 }
 
 /// Build a diagnostic for a surplus column.
