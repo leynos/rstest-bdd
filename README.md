@@ -53,7 +53,7 @@ Add the crates to your **dev‑dependencies**:
 # Cargo.toml
 [dev-dependencies]
 rstest = "0.26.1"
-rstest-bdd = "0.3.2"
+rstest-bdd = "0.4.0"
 ```
 
 Feature flags:
@@ -75,7 +75,7 @@ crate. Enable them in your `Cargo.toml` with:
 
 ```toml
 [dependencies]
-rstest-bdd-macros = { version = "0.3.2", features = ["compile-time-validation"] }
+rstest-bdd-macros = { version = "0.4.0", features = ["compile-time-validation"] }
 ```
 
 Or via CLI:

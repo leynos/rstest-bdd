@@ -291,13 +291,13 @@ struct SpecificityScore {
 
   **Concrete examples for pattern `"I compare {x} with {x}"` (2 occurrences):**
 
-  | Function signature          | Step args | Diagnostic?                   |
-  | --------------------------- | --------- | ----------------------------- |
+  | Function signature | Step args | Diagnostic? |
+  | ------------------ | --------- | ----------- |
 
-  | `fn compare() {}`           | 0         | Yes — 2 ≠ 0                   |
-  | `fn compare(x: u32) {}`     | 1         | Yes — 2 ≠ 1                   |
-  | `fn compare(x: u32, y: u32)`| 1         | Yes — 2 ≠ 1 (`y` not in set)  |
-  | `fn compare(x: u32, _x: u32)`| 2        | No — 2 = 2 (both normalize)   |
+  | `fn compare() {}`             | 0 | Yes — 2 ≠ 0                      |
+  | `fn compare(x: u32) {}`       | 1 | Yes — 2 ≠ 1                      |
+  | `fn compare(x: u32, y: u32)`  | 1 | Yes — 2 ≠ 1 (`y` not in set)     |
+  | `fn compare(x: u32, _x: u32)` | 2 | No — 2 = 2 (both normalize)      |
 
   In the last row both `x` and `_x` normalize to `x`, which is in the
   placeholder set, so each counts as a step argument.
