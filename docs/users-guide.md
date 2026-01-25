@@ -813,7 +813,7 @@ When `runtime = "tokio-current-thread"` is specified:
 
 Step functions are synchronous, even when a scenario runs in an async runtime.
 Use one of the following patterns to keep async work safe and predictable: This
-section summarises the canonical guidance in
+section summarizes the canonical guidance in
 [Migration and async patterns](cucumber-rs-migration-and-async-patterns.md).
 
 - **Prefer async fixtures:** If a step needs async data, move the async call

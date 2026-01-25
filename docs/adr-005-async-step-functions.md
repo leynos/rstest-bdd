@@ -94,26 +94,24 @@ upgrade path to true async steps once `rstest-bdd` supports them directly.
 
 ## Migration Plan
 
-### Phase 1: Documented migration defaults
+### Phase 1: Fixture-first synchronous steps
 
+- Keep step functions synchronous and move async work into fixtures.
 - Use `tokio-current-thread` for async scenario execution.
-- Keep step functions synchronous; move async work into fixtures.
-- Reserve per-step runtimes for synchronous scenarios only.
-- Maintain canonical guidance in
-  `docs/cucumber-rs-migration-and-async-patterns.md`.
 
-### Phase 2: Migration validation
+### Phase 2: Prototype async step execution
 
-- Validate StreamEnd and CodecStateful migrations with the documented pattern.
-- Record any exceptions and update the guidance when new constraints appear.
+- Prototype async step execution behind a feature flag.
+
+### Phase 3: Stabilize async step API
+
+- Stabilize the async step API and publish migration notes.
 
 ## Architectural Rationale
 
-The chosen approach aligns with the existing fixture model and avoids
-runtime-in-runtime failures. Async fixtures provide a single await point per
-scenario while keeping step execution deterministic. Deferring true async step
-functions reduces the migration surface area until `rstest-bdd` can support
-async steps without higher-ranked trait bound (HRTB) complications.
+- Aligns with the single-threaded runtime and `RefCell`-backed fixture model.
+- Preserves deterministic step ordering and avoids nested runtimes.
+- Maintains step ergonomics while enabling future async support.
 
 ## Known Risks and Limitations
 
