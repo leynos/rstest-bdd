@@ -2,7 +2,8 @@
 
 ## Status
 
-Proposed.
+Accepted (2026-01-25): Use async scenarios with synchronous steps, rely on
+`tokio-current-thread`, and reserve per-step runtimes for synchronous scenarios.
 
 ## Date
 
@@ -10,20 +11,21 @@ Proposed.
 
 ## Context and Problem Statement
 
-While migrating `wireframe` from Cucumber to `rstest-bdd`, we need to run async
-operations (network I/O, codec work, and StreamEnd helpers) inside step
+While migrating `wireframe` from Cucumber to `rstest-bdd`, async operations
+(network I/O, codec work, and StreamEnd helpers) need to run inside step
 functions. The current implementation pattern keeps step functions synchronous
 and, when necessary, uses a per-step Tokio runtime to `block_on` async calls.
 
 The `scenarios!` macro already supports running scenarios with a Tokio runtime
 (e.g. `tokio-current-thread`). Moving to fully async step functions would
 require a broader step rewrite and risks nested runtime failures. The core
-question is whether we should introduce async step functions now, or retain the
-current synchronous step model with targeted async bridging.
+question is whether async step functions should be introduced now, or whether
+the current synchronous step model with targeted async bridging should be
+retained.
 
 ## Decision Drivers
 
-- Preserve step ergonomics and minimise migration rewrites from Cucumber.
+- Preserve step ergonomics and minimize migration rewrites from Cucumber.
 - Avoid runtime-in-runtime failures and other Tokio constraints.
 - Keep scenario execution deterministic and debuggable.
 - Allow async I/O where it is essential for the migration.
@@ -89,6 +91,29 @@ upgrade path to true async steps once `rstest-bdd` supports them directly.
 
 - Provide first-class async step functions in `rstest-bdd` today.
 - Guarantee zero runtime overhead for async operations within steps.
+
+## Migration Plan
+
+### Phase 1: Documented migration defaults
+
+- Use `tokio-current-thread` for async scenario execution.
+- Keep step functions synchronous; move async work into fixtures.
+- Reserve per-step runtimes for synchronous scenarios only.
+- Maintain canonical guidance in
+  `docs/cucumber-rs-migration-and-async-patterns.md`.
+
+### Phase 2: Migration validation
+
+- Validate StreamEnd and CodecStateful migrations with the documented pattern.
+- Record any exceptions and update the guidance when new constraints appear.
+
+## Architectural Rationale
+
+The chosen approach aligns with the existing fixture model and avoids
+runtime-in-runtime failures. Async fixtures provide a single await point per
+scenario while keeping step execution deterministic. Deferring true async step
+functions reduces the migration surface area until `rstest-bdd` can support
+async steps without higher-ranked trait bound (HRTB) complications.
 
 ## Known Risks and Limitations
 

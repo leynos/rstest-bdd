@@ -130,6 +130,9 @@ argument, the wrapper panics with
 `pattern '<pattern>' missing capture for argument '<name>'`, making the
 mismatch explicit.
 
+For cucumber-rs migration compatibility notes, see
+[Migration and async patterns](cucumber-rs-migration-and-async-patterns.md).
+
 The procedural macro implementation expands the annotated function into two
 parts: the original function and a wrapper function that registers the step in
 a global registry. The wrapper captures the step keyword, pattern string and
@@ -809,7 +812,9 @@ When `runtime = "tokio-current-thread"` is specified:
 ### Recommended async pattern for steps
 
 Step functions are synchronous, even when a scenario runs in an async runtime.
-Use one of the following patterns to keep async work safe and predictable:
+Use one of the following patterns to keep async work safe and predictable: This
+section summarises the canonical guidance in
+[Migration and async patterns](cucumber-rs-migration-and-async-patterns.md).
 
 - **Prefer async fixtures:** If a step needs async data, move the async call
   into a fixture and inject the resolved value into the step. The scenario
@@ -849,7 +854,7 @@ scenarios!(
 
 - **Use a per-step runtime only in synchronous scenarios:** If a step must call
   async code and the scenario is not running under Tokio, build a runtime in
-  the step and block on the async work. Avoid this inside an async scenario,
+  the step and block on the async work. Avoid this inside an async scenario
   because nested runtimes can fail. For async scenarios, prefer fixtures or the
   async test body instead. See [ADR-005](adr-005-async-step-functions.md) for
   the current strategy.
