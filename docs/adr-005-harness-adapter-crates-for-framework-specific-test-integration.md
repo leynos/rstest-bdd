@@ -28,8 +28,8 @@ approach increasingly unattractive:
   dependencies, platform backends, and build-time costs that most `rstest-bdd`
   users should not pay unless they opt in.
 
-We also need an architecture that scales beyond one-off integrations. GPUI is
-not the last harness we will need, and Bevy is already on the near horizon.
+The architecture must scale beyond one-off integrations. GPUI is not the last
+harness we will need, and Bevy is already on the near horizon.
 
 The decision is whether to keep integrating harnesses directly into the primary
 `rstest-bdd` crates, or to introduce a clean adapter boundary and publish
