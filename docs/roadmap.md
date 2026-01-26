@@ -498,3 +498,56 @@ redesigned. For the full architectural decision record, see
     runtimes, `spawn_local` patterns) in the design document §2.5.
 
   - [x] Update design document §2.5 with implementation status.
+
+## Phase 9: Harness adapters and attribute plugins
+
+This phase implements ADR-005 by introducing a harness adapter layer and an
+attribute policy plugin interface so Tokio and GPUI integrations live in opt-in
+crates rather than the core runtime or macros.
+
+- [ ] **Harness adapter core**
+
+  - [ ] Add `rstest-bdd-harness` with the harness adapter trait and shared
+    runner types.
+
+  - [ ] Provide `StdHarness` as the default synchronous implementation.
+
+  - [ ] Define the attribute policy plugin interface and a default policy that
+    emits only `#[rstest::rstest]`.
+
+- [ ] **Macro integration**
+
+  - [ ] Extend `#[scenario]` and `scenarios!` with `harness = path::ToHarness`
+    and optional `attributes = path::ToPolicy`.
+
+  - [ ] Delegate scenario execution to the selected harness adapter.
+
+  - [ ] Treat `runtime = "tokio-current-thread"` as a compatibility alias for
+    the Tokio harness adapter.
+
+- [ ] **Tokio harness plugin crate**
+
+  - [ ] Create `rstest-bdd-harness-tokio`.
+
+  - [ ] Move Tokio runtime wiring and async entry points into the adapter.
+
+  - [ ] Provide a Tokio attribute policy plugin (current-thread flavour).
+
+- [ ] **GPUI harness plugin crate**
+
+  - [ ] Create `rstest-bdd-harness-gpui`.
+
+  - [ ] Execute scenarios inside the GPUI test harness and inject fixtures
+    such as `TestAppContext`.
+
+  - [ ] Provide the matching GPUI test attribute policy plugin.
+
+- [ ] **Documentation and validation**
+
+  - [ ] Add a harness adapter chapter to the user guide and design docs.
+
+  - [ ] Add integration tests covering harness selection and attribute policy
+    resolution for Tokio and GPUI.
+
+  - [ ] Document the extension point for future harness plugins (for example,
+    `rstest-bdd-harness-bevy`).
