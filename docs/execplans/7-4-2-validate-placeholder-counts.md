@@ -19,10 +19,10 @@ function signatures. Users will see warnings in their editor when:
    placeholders than the function has step arguments (excluding fixtures,
    datatable, and docstring parameters).
 
-2. **Data table expectation mismatch:** A feature step provides a data table,
+1. **Data table expectation mismatch:** A feature step provides a data table,
    but the Rust implementation does not expect one (or vice versa).
 
-3. **Docstring expectation mismatch:** A feature step provides a docstring,
+1. **Docstring expectation mismatch:** A feature step provides a docstring,
    but the Rust implementation does not expect one (or vice versa).
 
 Observable outcomes:
@@ -103,32 +103,37 @@ Known uncertainties that might affect the plan:
 ## Progress
 
 - [x] Stage A: Design and prototyping (no code changes to main logic yet)
+
   - [x] Read and understand existing diagnostic computation in
-        `handlers/diagnostics/compute.rs`
+    `handlers/diagnostics/compute.rs`
   - [x] Read and understand `SpecificityScore::calculate()` in
-        `rstest-bdd-patterns/src/specificity.rs`
+    `rstest-bdd-patterns/src/specificity.rs`
   - [x] Design the new diagnostic types and message formats
   - [x] Document decision on placeholder vs. fixture parameter classification
 
 - [x] Stage B: Implement placeholder count validation
+
   - [x] Add new diagnostic code constant(s) to `handlers/diagnostics/mod.rs`
   - [x] Add placeholder extraction helper in `handlers/diagnostics/compute.rs`
   - [x] Implement `compute_signature_mismatch_diagnostics()` for Rust files
   - [x] Add unit tests for placeholder count validation
 
 - [x] Stage C: Implement data table and docstring expectation validation
+
   - [x] Implement `compute_table_docstring_mismatch_diagnostics()` for feature
-        files (combined function)
+    files (combined function)
   - [x] Add unit tests for table/docstring validation
 
 - [x] Stage D: Integration and behavioural tests
+
   - [x] Add behavioural tests in `tests/diagnostics_placeholder.rs` for
-        placeholder mismatches
+    placeholder mismatches
   - [x] Add behavioural tests in `tests/diagnostics_table_docstring.rs` for
-        data table/docstring mismatches
+    data table/docstring mismatches
   - [x] Verify end-to-end diagnostic publishing via publish functions
 
 - [x] Stage E: Documentation and cleanup
+
   - [x] Update `docs/users-guide.md` with diagnostics section
   - [x] Update `docs/roadmap.md` to mark the feature as done
   - [ ] Run full quality gates (`make check-fmt`, `make lint`, `make test`)
@@ -155,7 +160,7 @@ parameters are assumed to be fixtures and not counted.
 
 1. Type-based heuristics (e.g., primitives are step args) — rejected as
    unreliable and not matching macro behaviour.
-2. Require explicit fixture annotations — rejected as too invasive for users.
+1. Require explicit fixture annotations — rejected as too invasive for users.
 
 ### 2026-01-11: Placeholder extraction source of truth
 
@@ -259,25 +264,29 @@ struct SpecificityScore {
 
 - **Placeholder:** A `{name}` or `{name:type}` token in a step pattern that
   captures a value from the step text at runtime.
+
 - **Step argument:** A function parameter whose normalized name matches a
   placeholder name in the pattern.
+
 - **Fixture:** A function parameter that is injected by rstest and does not
   correspond to a placeholder.
+
 - **Datatable parameter:** A parameter marked with `is_datatable: true` by the
   Rust indexer. This is determined by either the `#[datatable]` attribute or
   the parameter name `datatable`. The canonical type is `DataTable` from
   `rstest_bdd`.
+
 - **Docstring parameter:** A parameter marked with `is_docstring: true` by the
   Rust indexer. This is determined by either the `#[docstring]` attribute or
   the parameter name `docstring`. The canonical type is `String`.
+
 - **Placeholder count mismatch:** The number of placeholder occurrences in the
   pattern differs from the number of step arguments in the function signature.
 
   **Counting rules:**
 
   - **Pattern side:** `count_placeholder_occurrences` counts every `{name}`
-    token in the pattern, including duplicates. The pattern `"I compare {x}
-    with {x}"` yields **2 occurrences**. This matches the macro's
+    token in the pattern, including duplicates. The pattern `"I compare {x} with {x}"` yields **2 occurrences**. This matches the macro's
     `capture_count` semantics, where each occurrence corresponds to a captured
     value at runtime.
 
@@ -294,10 +303,10 @@ struct SpecificityScore {
   | Function signature | Step args | Diagnostic? |
   | ------------------ | --------- | ----------- |
 
-  | `fn compare() {}`             | 0 | Yes — 2 ≠ 0                      |
-  | `fn compare(x: u32) {}`       | 1 | Yes — 2 ≠ 1                      |
-  | `fn compare(x: u32, y: u32)`  | 1 | Yes — 2 ≠ 1 (`y` not in set)     |
-  | `fn compare(x: u32, _x: u32)` | 2 | No — 2 = 2 (both normalize)      |
+  | `fn compare() {}` | 0 | Yes — 2 ≠ 0 |
+  | `fn compare(x: u32) {}` | 1 | Yes — 2 ≠ 1 |
+  | `fn compare(x: u32, y: u32)` | 1 | Yes — 2 ≠ 1 (`y` not in set) |
+  | `fn compare(x: u32, _x: u32)` | 2 | No — 2 = 2 (both normalize) |
 
   In the last row both `x` and `_x` normalize to `x`, which is in the
   placeholder set, so each counts as a step argument.
@@ -316,9 +325,10 @@ cases in `crates/rstest-bdd-server/tests/diagnostics_basic.rs`,
 ### Stage B: Placeholder Count Validation
 
 1. In `handlers/diagnostics/mod.rs`, add:
+
    - `const CODE_PLACEHOLDER_COUNT_MISMATCH: &str = "placeholder-count-mismatch";`
 
-2. In `handlers/diagnostics/compute.rs`, add a new function:
+1. In `handlers/diagnostics/compute.rs`, add a new function:
 
    ```rust
    pub fn compute_signature_mismatch_diagnostics(
@@ -328,6 +338,7 @@ cases in `crates/rstest-bdd-server/tests/diagnostics_basic.rs`,
    ```
 
    This function:
+
    - Retrieves `CompiledStepDefinition`s for the given Rust file from the
      registry.
    - For each definition, extracts placeholder names from the pattern using
@@ -339,7 +350,7 @@ cases in `crates/rstest-bdd-server/tests/diagnostics_basic.rs`,
    - If `placeholder_count != step_argument_count`, emit a diagnostic on the
      step definition's line.
 
-3. Add a helper function to extract placeholder names from a pattern:
+1. Add a helper function to extract placeholder names from a pattern:
 
    ```rust
    fn extract_placeholder_names(pattern: &str) -> HashSet<String>
@@ -347,7 +358,7 @@ cases in `crates/rstest-bdd-server/tests/diagnostics_basic.rs`,
 
    Uses `lex_pattern()` and collects `Token::Placeholder { name, .. }` names.
 
-4. Add a helper to classify parameters:
+1. Add a helper to classify parameters:
 
    ```rust
    fn count_step_arguments(
@@ -357,13 +368,15 @@ cases in `crates/rstest-bdd-server/tests/diagnostics_basic.rs`,
    ```
 
    Counts parameters where:
+
    - `!param.is_datatable && !param.is_docstring`
    - `param.name` (normalized) appears in `placeholder_names`
 
-5. Wire the new diagnostic computation into `publish_rust_diagnostics()` in
+1. Wire the new diagnostic computation into `publish_rust_diagnostics()` in
    `handlers/diagnostics/publish.rs`.
 
-6. Add unit tests in `handlers/diagnostics.rs` (or a new submodule) covering:
+1. Add unit tests in `handlers/diagnostics.rs` (or a new submodule) covering:
+
    - Correct signature (no diagnostic)
    - Too few placeholders (diagnostic)
    - Too many placeholders (diagnostic)
@@ -373,12 +386,13 @@ cases in `crates/rstest-bdd-server/tests/diagnostics_basic.rs`,
 ### Stage C: Data Table and Docstring Expectation Validation
 
 1. Add additional diagnostic codes:
+
    - `const CODE_TABLE_EXPECTED: &str = "table-expected";`
    - `const CODE_TABLE_NOT_EXPECTED: &str = "table-not-expected";`
    - `const CODE_DOCSTRING_EXPECTED: &str = "docstring-expected";`
    - `const CODE_DOCSTRING_NOT_EXPECTED: &str = "docstring-not-expected";`
 
-2. Create a new function for feature-side validation:
+1. Create a new function for feature-side validation:
 
    ```rust
    pub fn compute_table_docstring_mismatch_diagnostics(
@@ -388,6 +402,7 @@ cases in `crates/rstest-bdd-server/tests/diagnostics_basic.rs`,
    ```
 
    For each step in the feature file:
+
    - Find matching Rust implementation(s) by keyword and regex.
    - If the feature step has a table, but the Rust step does not expect one,
      emit
@@ -396,9 +411,10 @@ cases in `crates/rstest-bdd-server/tests/diagnostics_basic.rs`,
      `table-expected` on the step span.
    - Same logic for docstrings.
 
-3. Wire into `publish_feature_diagnostics()`.
+1. Wire into `publish_feature_diagnostics()`.
 
-4. Add unit tests covering:
+1. Add unit tests covering:
+
    - Feature step with table, Rust expects table (no diagnostic)
    - Feature step with table, Rust does not expect table (diagnostic)
    - Feature step without table, Rust expects table (diagnostic)
@@ -414,35 +430,41 @@ Add end-to-end tests using `ScenarioBuilder` in:
 Test scenarios:
 
 1. Placeholder count mismatch scenario:
+
    - Feature: `Given I have {count} apples`
    - Rust: `#[given("I have {count} apples")] fn step() {}` (missing parameter)
    - Assert diagnostic emitted on Rust file
 
-2. Data table mismatch scenario:
+1. Data table mismatch scenario:
+
    - Feature: step with data table
    - Rust: step without `datatable` parameter
    - Assert diagnostic emitted on feature file
 
-3. Docstring mismatch scenario:
+1. Docstring mismatch scenario:
+
    - Similar to data table
 
 ### Stage E: Documentation and Finalization
 
 1. Update `docs/users-guide.md`:
+
    - Add a "Language Server Diagnostics" section under the language server
      heading (or create one if needed).
    - Document the new diagnostic codes and what they mean.
    - Provide examples of patterns that trigger each diagnostic.
 
-2. Update `docs/roadmap.md`:
+1. Update `docs/roadmap.md`:
+
    - Mark the "Validate placeholder counts…" item as `[x]` under Phase 7.
 
-3. Run quality gates:
+1. Run quality gates:
+
    - `make check-fmt`
    - `make lint`
    - `make test`
 
-4. Commit with message:
+1. Commit with message:
 
    ```text
    Add placeholder and table/docstring mismatch diagnostics to LSP
@@ -527,17 +549,21 @@ Quality method:
 Acceptance behaviour:
 
 1. Open a feature file with a step `Given I have {count} apples`.
-2. Create a Rust file with `#[given("I have {count} apples")] fn step() {}`
+
+1. Create a Rust file with `#[given("I have {count} apples")] fn step() {}`
    (macro and empty body).
-3. Save both files.
-4. Observe diagnostic on the Rust step definition:
+
+1. Save both files.
+
+1. Observe diagnostic on the Rust step definition:
 
    ```plaintext
    Placeholder count mismatch: pattern has 1 placeholder occurrence(s) but function has 0 step argument(s)
    ```
 
-5. Add parameter `count: u32` to the function and save.
-6. Observe diagnostic clears.
+1. Add parameter `count: u32` to the function and save.
+
+1. Observe diagnostic clears.
 
 ## Idempotence and Recovery
 

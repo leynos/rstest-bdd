@@ -1,5 +1,6 @@
 //! Helpers that generate the runtime scaffolding for scenario tests.
 
+mod block;
 mod generators;
 #[cfg(test)]
 mod tests;
@@ -9,6 +10,8 @@ use proc_macro2::TokenStream as TokenStream2;
 use quote::quote;
 
 use super::helpers::ProcessedStepTokens;
+use crate::return_classifier::ReturnKind;
+use block::wrap_scenario_block;
 use generators::{
     generate_async_step_executor, generate_async_step_executor_loop,
     generate_async_step_executor_loop_outline, generate_scenario_guard, generate_skip_decoder,
@@ -36,11 +39,21 @@ trait ScenarioTestConfig {
 
     /// Returns the test function block.
     fn block(&self) -> &syn::Block;
+
+    /// Indicates whether the test function is async.
+    fn is_async(&self) -> bool;
+
+    /// Indicates whether the test returns a fallible result.
+    fn return_kind(&self) -> ReturnKind;
 }
 
 impl ScenarioTestConfig for TestTokensConfig<'_> {
     fn generate_components(&self) -> CodeComponents {
-        generate_code_components(&self.processed_steps, self.metadata.is_async)
+        generate_code_components(
+            &self.processed_steps,
+            self.metadata.is_async,
+            self.metadata.return_kind,
+        )
     }
 
     fn literals_input(&self) -> ScenarioLiteralsInput<'_> {
@@ -49,12 +62,24 @@ impl ScenarioTestConfig for TestTokensConfig<'_> {
 
     fn block(&self) -> &syn::Block {
         self.metadata.block
+    }
+
+    fn is_async(&self) -> bool {
+        self.metadata.is_async
+    }
+
+    fn return_kind(&self) -> ReturnKind {
+        self.metadata.return_kind
     }
 }
 
 impl ScenarioTestConfig for OutlineTestTokensConfig<'_> {
     fn generate_components(&self) -> CodeComponents {
-        generate_code_components_outline(&self.all_rows_steps, self.metadata.is_async)
+        generate_code_components_outline(
+            &self.all_rows_steps,
+            self.metadata.is_async,
+            self.metadata.return_kind,
+        )
     }
 
     fn literals_input(&self) -> ScenarioLiteralsInput<'_> {
@@ -63,6 +88,14 @@ impl ScenarioTestConfig for OutlineTestTokensConfig<'_> {
 
     fn block(&self) -> &syn::Block {
         self.metadata.block
+    }
+
+    fn is_async(&self) -> bool {
+        self.metadata.is_async
+    }
+
+    fn return_kind(&self) -> ReturnKind {
+        self.metadata.return_kind
     }
 }
 
@@ -125,6 +158,7 @@ fn create_scenario_literals(input: ScenarioLiteralsInput<'_>) -> ScenarioLiteral
 /// `generate_code_components_outline`.
 fn generate_common_components(
     is_async: bool,
+    return_kind: ReturnKind,
 ) -> (TokenStream2, TokenStream2, TokenStream2, TokenStream2) {
     let step_executor = if is_async {
         generate_async_step_executor()
@@ -136,13 +170,17 @@ fn generate_common_components(
         step_executor,
         generate_skip_decoder(),
         generate_scenario_guard(),
-        generate_skip_handler(),
+        generate_skip_handler(return_kind),
     )
 }
 
-fn generate_code_components(processed_steps: &ProcessedSteps, is_async: bool) -> CodeComponents {
+fn generate_code_components(
+    processed_steps: &ProcessedSteps,
+    is_async: bool,
+    return_kind: ReturnKind,
+) -> CodeComponents {
     let (step_executor, skip_decoder, scenario_guard, skip_handler) =
-        generate_common_components(is_async);
+        generate_common_components(is_async, return_kind);
     let ProcessedSteps {
         keyword_tokens,
         values,
@@ -248,6 +286,8 @@ fn assemble_test_tokens(
 fn assemble_test_tokens_with_context<P, I, Q>(
     literals_input: ScenarioLiteralsInput<'_>,
     block: &syn::Block,
+    is_async: bool,
+    return_kind: ReturnKind,
     components: CodeComponents,
     ctx_iterators: ContextIterators<P, I, Q>,
 ) -> TokenStream2
@@ -262,7 +302,7 @@ where
 
     let literals = create_scenario_literals(literals_input);
 
-    let block_tokens = quote! { #block };
+    let block_tokens = wrap_scenario_block(block, is_async, return_kind);
     let context =
         TokenAssemblyContext::new(&ctx_prelude, &ctx_inserts, &ctx_postlude, &block_tokens);
 
@@ -283,6 +323,8 @@ where
     assemble_test_tokens_with_context(
         config.literals_input(),
         config.block(),
+        config.is_async(),
+        config.return_kind(),
         components,
         ctx_iterators,
     )
@@ -296,9 +338,10 @@ where
 fn generate_code_components_outline(
     all_rows_steps: &[ProcessedStepTokens],
     is_async: bool,
+    return_kind: ReturnKind,
 ) -> CodeComponents {
     let (step_executor, skip_decoder, scenario_guard, skip_handler) =
-        generate_common_components(is_async);
+        generate_common_components(is_async, return_kind);
     let step_executor_loop = if is_async {
         generate_async_step_executor_loop_outline(all_rows_steps)
     } else {

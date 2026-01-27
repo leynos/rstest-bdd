@@ -118,6 +118,7 @@ project:
 - Run `make check-fmt`, `make lint`, and `make test` before committing. These
   targets wrap the following commands, so contributors understand the precise
   semantics and policy enforced:
+
   - `make check-fmt` executes:
 
     ```bash
@@ -125,6 +126,7 @@ project:
     ```
 
     validating formatting across the entire workspace without modifying files.
+
   - `make lint` executes:
 
     ```bash
@@ -133,6 +135,7 @@ project:
 
     linting every target with all features enabled and denying all Clippy
     warnings.
+
   - `make test` executes:
 
     ```bash
@@ -142,39 +145,63 @@ project:
     running the full workspace test suite. Use `make fmt`
     (`cargo fmt --workspace`) to apply formatting fixes reported by the
     formatter check.
+
 - Clippy warnings must be disallowed.
+
 - Fix any warnings emitted during tests in the code itself rather than
   silencing them.
+
 - Where a function is too long, extract meaningfully named helper functions
   adhering to separation of concerns and the Command Query Responsibility
   Segregation pattern.
+
 - Where a function has too many parameters, group related parameters in
   meaningfully named structs.
+
 - Where a function is returning a large error, consider using `Arc` to reduce
   the amount of data returned.
+
 - Write unit and scenario tests for new functionality. Run both before and
   after making any change.
+
 - Every module **must** begin with a module level (`//!`) comment explaining the
   module's purpose and utility.
+
 - Document public APIs using Rustdoc comments (`///`), so documentation can be
   generated with cargo doc.
+
 - Prefer immutable data and avoid unnecessary `mut` bindings.
+
 - Handle errors with the `Result` type instead of panicking where feasible.
+
 - Use explicit version ranges in `Cargo.toml` and keep dependencies up-to-date.
+
 - Avoid `unsafe` code unless absolutely necessary and document any usage
   clearly.
+
 - Place function attributes **after** doc comments.
+
 - Do not use `return` in single-line functions.
+
 - Use predicate functions for conditional criteria with more than two branches.
+
 - Lints must not be silenced except as a **last resort**.
+
 - Lint rule suppressions must be tightly scoped and include a clear reason.
+
 - Prefer `expect` over `allow`.
+
 - Use `rstest` fixtures for shared setup.
+
 - Replace duplicated tests with `#[rstest(…)]` parameterized cases.
+
 - Prefer `mockall` for mocks/stubs.
+
 - Prefer `.expect()` over `.unwrap()`.
+
 - Use `concat!()` to combine long string literals rather than escaping newlines
   with a backslash.
+
 - Prefer single line versions of functions where appropriate. For example,
 
   ```rust,no_run

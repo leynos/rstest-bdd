@@ -42,21 +42,22 @@ context provided by the step pattern.
 1. **Pattern-First Analysis:** When a step macro (`#[given]`, `#[when]`, etc.)
    is expanded, it will first parse its pattern string to identify all
    placeholders (e.g., `{count:u32}`).
-2. **Argument Classification:** It will then iterate through the step
+
+1. **Argument Classification:** It will then iterate through the step
    function's parameters:
 
-    - If a parameter's name matches a placeholder in the pattern, it will be
-  classified as a **step argument**.
-    - If a parameter's name does _not_ match any placeholder, it will be
-      classified as a **fixture**.
+   - If a parameter's name matches a placeholder in the pattern, it will be
+     classified as a **step argument**.
+   - If a parameter's name does _not_ match any placeholder, it will be
+     classified as a **fixture**.
 
-3. **Conflict Resolution:**
+1. **Conflict Resolution:**
 
-    - The explicit `#[from(name)]` attribute will be retained to handle cases
-      where a parameter name must differ from the fixture name.
-    - If a parameter is not found in the pattern's placeholders and is not
-  explicitly marked with `#[from]`, a compile-time error will be emitted if no
-  fixture with that name is in scope, preventing ambiguity.
+   - The explicit `#[from(name)]` attribute will be retained to handle cases
+     where a parameter name must differ from the fixture name.
+   - If a parameter is not found in the pattern's placeholders and is not
+     explicitly marked with `#[from]`, a compile-time error will be emitted if no
+     fixture with that name is in scope, preventing ambiguity.
 
 **User Experience:**
 
@@ -95,15 +96,16 @@ string argument optional.
 
 1. **Optional Argument:** The macros will be updated to accept `#[given]`,
    `#[given("a pattern")]`, `#[when]`, etc.
-2. **Inference Logic:** If the pattern string is omitted:
 
-    - The macro will take the identifier of the function it decorates.
-    - It will convert the identifier from `snake_case` to a sentence-case string
-  (e.g., `the_user_logs_in` becomes `"the user logs in"`).
-    - Treat parameter-like identifiers as placeholders and emit `{name}` in the
-      inferred pattern (e.g., `_var` or `var` -> `{var}`).
+1. **Inference Logic:** If the pattern string is omitted:
 
-3. **Doc Comment Fallback:** As a secondary mechanism, if no pattern is
+   - The macro will take the identifier of the function it decorates.
+   - It will convert the identifier from `snake_case` to a sentence-case string
+     (e.g., `the_user_logs_in` becomes `"the user logs in"`).
+   - Treat parameter-like identifiers as placeholders and emit `{name}` in the
+     inferred pattern (e.g., `_var` or `var` -> `{var}`).
+
+1. **Doc Comment Fallback:** As a secondary mechanism, if no pattern is
    provided and the function name is ambiguous, the macro could fall back to
    using the function's Rustdoc summary line. However, inferring from the
    function name is more direct and less prone to parsing errors. The primary
@@ -141,30 +143,31 @@ A new derive macro, StepArgs, will be introduced in rstest-bdd-macros.
 
 1. **`#[derive(StepArgs)]` Macro:**
 
-    - This macro will be applied to a user-defined struct.
-    - It will generate `TryFrom<Vec<String>>` for the struct. The implementation
-      expects a vector of captured strings from the step pattern and parses
-      each string into the corresponding field using `FromStr`. Field order
-      maps to capture order. A field/count mismatch is a compile-time error
-      emitted by the macro with the missing or excess placeholder names and
-      span highlights.
+   - This macro will be applied to a user-defined struct.
 
-      ```text
-      error: StepArgs fields do not match placeholders: missing {age}, extra field `role`
-       --> tests/steps.rs:27:10
-      27 | struct NewUser { name: String, role: String }
-         |          ^^^^^
-      ```
+   - It will generate `TryFrom<Vec<String>>` for the struct. The implementation
+     expects a vector of captured strings from the step pattern and parses
+     each string into the corresponding field using `FromStr`. Field order
+     maps to capture order. A field/count mismatch is a compile-time error
+     emitted by the macro with the missing or excess placeholder names and
+     span highlights.
 
-2. **Step Macro Integration:**
+     ```text
+     error: StepArgs fields do not match placeholders: missing {age}, extra field `role`
+      --> tests/steps.rs:27:10
+     27 | struct NewUser { name: String, role: String }
+        |          ^^^^^
+     ```
 
-    - The `extract_args` function will be updated to detect a single parameter
-  whose type derives `StepArgs`.
-    - If such a parameter is found, it will consume all available placeholders
-      from the pattern. No other step arguments will be permitted. Fixture
-      arguments will still be allowed.
-    - The generated step wrapper will capture all placeholders into a
-      `Vec<String>` and then call `try_into()` to populate the struct.
+1. **Step Macro Integration:**
+
+   - The `extract_args` function will be updated to detect a single parameter
+     whose type derives `StepArgs`.
+   - If such a parameter is found, it will consume all available placeholders
+     from the pattern. No other step arguments will be permitted. Fixture
+     arguments will still be allowed.
+   - The generated step wrapper will capture all placeholders into a
+     `Vec<String>` and then call `try_into()` to populate the struct.
 
 Implementation note: procedural macros cannot reliably detect whether an
 arbitrary type derives `StepArgs`. The final design therefore uses a
@@ -223,30 +226,31 @@ This requires changes to both the runtime and macro crates.
    storage in the `StepContext`. The key will align with the fixture whose type
    matches the returned value.
 
-    ```rust,no_run
-    pub trait StoreInContext: 'static {
-        // Provides a way to store and retrieve the value.
-        // The StepContext will handle the implementation details.
-    }
-    
-    impl<T: 'static> StoreInContext for T {}
-    ```
+   ```rust,no_run
+   pub trait StoreInContext: 'static {
+       // Provides a way to store and retrieve the value.
+       // The StepContext will handle the implementation details.
+   }
 
-2. `StepContext` **Enhancement** (in `crates/rstest-bdd/src/context.rs`): The
+   impl<T: 'static> StoreInContext for T {}
+   ```
+
+1. `StepContext` **Enhancement** (in `crates/rstest-bdd/src/context.rs`): The
    `StepContext` will match returned values against fixture types at runtime
    and store them under the fixture name when the type is unique.
-3. **Wrapper Codegen Update (in
+
+1. **Wrapper Codegen Update (in
    **`crates/rstest-bdd-macros/src/codegen/wrapper/emit.rs`**):**
 
-    - The generated wrapper for a step function will inspect its return type.
-      - If the return type is not `()` or `Result<(), E>`, the wrapper will
-        capture the `Ok(value)` from the step function's result. If the step
-        returns `Err(e)` the error is propagated unchanged and nothing is
-        stored in the context.
-      - It will then insert this `value` into the `StepContext`, keyed by the
-        matching fixture name when the `TypeId` is unambiguous.
+   - The generated wrapper for a step function will inspect its return type.
+     - If the return type is not `()` or `Result<(), E>`, the wrapper will
+       capture the `Ok(value)` from the step function's result. If the step
+       returns `Err(e)` the error is propagated unchanged and nothing is
+       stored in the context.
+     - It will then insert this `value` into the `StepContext`, keyed by the
+       matching fixture name when the `TypeId` is unambiguous.
 
-4. **Implicit Injection:** A parameter in a subsequent step that is not a
+1. **Implicit Injection:** A parameter in a subsequent step that is not a
    fixture and not a step argument, but whose type matches a value stored in
    the context, will be implicitly injected.
 
@@ -288,26 +292,26 @@ philosophy of augmenting, not obscuring, rstest.
    will be introduced. It will be a thin wrapper around `RefCell<Option<T>>`,
    providing a clean API for state manipulation.
 
-    ```rust,no_run
-    pub struct Slot<T>(RefCell<Option<T>>);
-    
-    impl<T> Slot<T> {
-      pub fn set(&self, value: T);
-      pub fn get(&self) -> Option<T> where T: Clone; // Or returns a Ref<'_, T>
-      pub fn take(&self) -> Option<T>;
-      // ... and other helpers
-    }
-    ```
+   ```rust,no_run
+   pub struct Slot<T>(RefCell<Option<T>>);
 
-2. `#[derive(ScenarioState)]` **Macro** (in `rstest-bdd-macros`):
+   impl<T> Slot<T> {
+     pub fn set(&self, value: T);
+     pub fn get(&self) -> Option<T> where T: Clone; // Or returns a Ref<'_, T>
+     pub fn take(&self) -> Option<T>;
+     // ... and other helpers
+   }
+   ```
 
-    - This derive macro will be applied to a user-defined state struct whose
-      fields are of type `Slot<T>`.
-    - It will automatically generate a `Default` implementation for the struct,
-  which initializes each `Slot` to its empty state.
-    - This encourages a pattern where the user defines their state struct,
-      derives `ScenarioState`, and then provides it as a regular `rstest`
-      fixture.
+1. `#[derive(ScenarioState)]` **Macro** (in `rstest-bdd-macros`):
+
+   - This derive macro will be applied to a user-defined state struct whose
+     fields are of type `Slot<T>`.
+   - It will automatically generate a `Default` implementation for the struct,
+     which initializes each `Slot` to its empty state.
+   - This encourages a pattern where the user defines their state struct,
+     derives `ScenarioState`, and then provides it as a regular `rstest`
+     fixture.
 
 **User Experience:**
 
@@ -393,17 +397,18 @@ A new binary crate, cargo-bdd, will be created.
 
 1. **Command:** It will provide the subcommand
    `cargo bdd scaffold <path_to_feature>`.
-2. **Functionality:**
 
-    - The command will parse the specified `.feature` file, reusing the Gherkin
-  parsing logic already present in `rstest-bdd-macros`.
-    - It will iterate through all unique step strings in the feature.
-    - It will generate a new Rust file (e.g., `tests/steps/my_feature_steps.rs`)
-  containing skeleton step functions for each unique step.
-    - Placeholders in step strings will be converted into function parameters
-      with `String` types as a default.
-    - Generated functions contain a `todo!()` macro, requiring the developer to
-      implement them.
+1. **Functionality:**
+
+   - The command will parse the specified `.feature` file, reusing the Gherkin
+     parsing logic already present in `rstest-bdd-macros`.
+   - It will iterate through all unique step strings in the feature.
+   - It will generate a new Rust file (e.g., `tests/steps/my_feature_steps.rs`)
+     containing skeleton step functions for each unique step.
+   - Placeholders in step strings will be converted into function parameters
+     with `String` types as a default.
+   - Generated functions contain a `todo!()` macro, requiring the developer to
+     implement them.
 
 **Example Output:**
 

@@ -61,8 +61,8 @@ progression: context, action, and outcome.
   While this description is ignored by test automation tools during execution,
   it is often included in generated reports and serves as valuable
   documentation.[^3] A common convention is to use this space for a user story
-  narrative (e.g., "As a \[role\], the [feature] is desired, so that
-  \[benefit\]").
+  narrative (e.g., "As a [role], the [feature] is desired, so that
+  [benefit]").
 - `Scenario`: A `Feature` contains one or more `Scenarios`. A `Scenario`
   describes a single, concrete example of the feature's behaviour—a specific
   use case or test case.[^1] Each `Scenario` should be independent and test
@@ -126,7 +126,9 @@ Gherkin provides several additional keywords.
     * the user has a profile picture
     * the user has a bio
 ```
+
 <!-- markdownlint-disable MD013 -->
+
 ### Table 1: Gherkin keyword reference
 
 For a quick and comprehensive overview, the following table summarizes the
@@ -143,13 +145,15 @@ primary and secondary keywords in the Gherkin language.
 | When             | Describes an event or action, typically performed by a user or external system. 9                                  | Follows Given steps. Ideally, only one per scenario.                    | When the user requests $20                                  |
 | Then             | Defines the expected, observable outcome of the action. Contains assertions. 9                                     | Follows When steps to verify the result.                                | Then the ATM should dispense $20                            |
 | And, But         | Used to chain multiple steps of the same type (Given, When, or Then) for readability. 10                           | Follows a Given, When, or Then step.                                    | And the account balance should be $80                       |
-| *                | An asterisk can be used in place of any step keyword (Given, When, etc.) to improve flow, especially for lists. 14 | Can replace any step keyword.                                           | * the card should be returned                               |
+| \*               | An asterisk can be used in place of any step keyword (Given, When, etc.) to improve flow, especially for lists. 14 | Can replace any step keyword.                                           | \* the card should be returned                              |
 | Examples         | A data table that provides values for the variables in a Scenario Outline. Alias: Scenarios. 14                    | Must follow a Scenario Outline.                                         | `Examples:`                                                 |
-| &#124; (pipe)    | Delimiter for Data Tables and Examples tables. 14                                                                  | Must appear immediately under the related step or Examples header.      | See lines 296–306                                           |
-| """ or ```       | Delimiters for a Docstring, a multi-line block of text passed to a single step. 14                                 | Placed on new lines immediately following a step.                       | Then the email body should contain: """Hello World"""       |
+| \| (pipe)        | Delimiter for Data Tables and Examples tables. 14                                                                  | Must appear immediately under the related step or Examples header.      | See lines 296–306                                           |
+| """ or \`\`\`    | Delimiters for a Docstring, a multi-line block of text passed to a single step. 14                                 | Placed on new lines immediately following a step.                       | Then the email body should contain: """Hello World"""       |
 | @                | Prefix for a Tag, used to organize and filter features or scenarios. 10                                            | Placed on the line(s) above Feature, Scenario, etc.                     | @smoke @regression                                          |
 | #                | Prefix for a single-line comment. Ignored by test runners. 14                                                      | Can be placed at the start of any new line.                             | # This is a comment                                         |
+
 <!-- markdownlint-enable MD013 -->
+
 ______________________________________________________________________
 
 ## Part 2: advanced Gherkin for complex scenarios
@@ -213,9 +217,9 @@ testing. It allows a scenario template to be executed multiple times with
 different data sets.[^13] **Syntax:**
 
 1. Replace the `Scenario` keyword with `Scenario Outline`.
-2. In the steps, use angle brackets (`< >`) to define placeholders for
+1. In the steps, use angle brackets (`< >`) to define placeholders for
    variables.[^7]
-3. Follow the `Scenario Outline` with an `Examples` table. The first row of
+1. Follow the `Scenario Outline` with an `Examples` table. The first row of
    this table is the header, and its column names must exactly match the
    variable names used in the steps.[^14] The test runner will execute the
    entire scenario once for each data row in the `Examples` table, substituting
@@ -312,7 +316,7 @@ which can help tools with syntax highlighting and parsing.[^10]
 
 An equivalent form uses backticks as the delimiters:
 
-```gherkin
+````gherkin
 Feature: Backtick doc string
   Scenario: uses backticks
     Given the following message:
@@ -323,7 +327,7 @@ Feature: Backtick doc string
       ```
       hello world
       ```
-```
+````
 
 ### Section 2.5: Grouping with the `Rule` keyword
 
@@ -360,6 +364,7 @@ Feature: Bank account withdrawals
 Here, the `Rule` keyword clearly separates the scenarios related to overdraft
 protection from those related to daily withdrawal limits, making the feature
 file's intent much clearer.
+
 ______________________________________________________________________
 
 ## Part 3: mastering Gherkin: organization and best practices
@@ -519,10 +524,10 @@ Python's package management.
 ```bash
   pip install pytest pytest-bdd
 
-  ```
+```
 
-  For web UI testing, `selenium` and potentially other helper libraries are
-  typically installed.[^20]
+For web UI testing, `selenium` and potentially other helper libraries are
+typically installed.[^20]
 
 - **Directory Structure:** A conventional project structure helps keep tests
   organized:
@@ -555,7 +560,7 @@ decorators.
   def test_publish():
       pass
 
-  ```
+```
 
 - **Step Decorators (**`@given`**,** `@when`**,** `@then`**):** Each Gherkin
   step is mapped to a Python function using a corresponding decorator:
@@ -583,7 +588,7 @@ decorators.
       # Code with assertions to verify publication
      ...
 
-  ```
+```
 
 ### Section 4.3: State management with pytest fixtures
 
@@ -690,9 +695,10 @@ Setting up `cucumber-rs` involves configuring the project's `Cargo.toml` file
 and establishing a conventional directory structure.
 
 - `Cargo.toml` **Configuration:**
+
   1. Add `cucumber` and an async runtime such as `tokio` to the
      `[dev-dependencies]`.
-  2. Define a new test target in the `Cargo.toml`. Crucially, set
+  1. Define a new test target in the `Cargo.toml`. Crucially, set
      `harness = false`. This tells Rust's default test harness (`libtest`) to
      stand down, allowing `cucumber-rs` to take control of the test execution
      and output formatting.[^27] Ini, TOML
@@ -710,6 +716,7 @@ and establishing a conventional directory structure.
 
 - **Directory Structure:** A typical `cucumber-rs` project organizes its files
   as follows 37:
+
   - `tests/`: The root directory for integration tests.
   - `tests/features/`: Contains the Gherkin `.feature` files.
   - `tests/steps/`: Contains the Rust modules with step definitions.
@@ -742,7 +749,7 @@ the `World`.
       memory: f64,
   }
 
-  ```
+```
 
 ### Section 5.3: Asynchronous step definitions
 
@@ -781,7 +788,7 @@ database queries or web requests.
       assert_eq!(world.current_value, expected);
   }
 
-  ```
+```
 
 ### Section 5.4: Handling data and tables
 
@@ -809,9 +816,9 @@ into Rust types.
       """
     Then the user "Alice" should exist in the system
 
-  ```
+```
 
-  **Step Definition (**`user_steps.rs`**):**
+**Step Definition (**`user_steps.rs`**):**
 
 ```rust,no_run
   use cucumber::{gherkin::Step, given};
@@ -826,10 +833,11 @@ into Rust types.
       world.create_user(name, bio);
   }
 
-  ```
+```
 
-  The same principle applies to `Data Tables`, where `step.table.as_ref()`
-  would be used to access the table data, which can then be iterated over.[^30]
+The same principle applies to `Data Tables`, where `step.table.as_ref()`
+would be used to access the table data, which can then be iterated over.[^30]
+
 ______________________________________________________________________
 
 ## Part 6: Synthesis: Implementation variations and quirks
@@ -913,65 +921,65 @@ shared understanding—remains as relevant as ever.
 
 ## **Works cited**
 
-[^1]: What is Gherkin and its role in Behaviour-Driven Development (BDD)
-      Scenarios,
-      <https://www.browserstack.com/guide/gherkin-and-its-role-bdd-scenarios>
-[^2]: What Is Gherkin? - YouTube,
-   <https://www.youtube.com/watch?v=bxeNxhOSGJg&pp=0gcJCfwAo7VqN5tD>
-[^3]: Gherkin Keywords - Cucumber - Tools QA,
-   <https://toolsqa.com/cucumber/gherkin-keywords/>
-[^4]: BDD With Cucumber | Technical Debt,
-   <https://technicaldebt.com/crib-sheets/bdd-with-cucumber/>
-[^5]: How the Gherkin language bridges the gap between customers and developers,
-   <https://opensource.com/article/23/2/gherkin-language-developers>
-[^6]: Pytest-BDD or Cucumber? : r/QualityAssurance - Reddit,
-    <https://www.reddit.com/r/QualityAssurance/comments/frlcww/pytestbdd_or_cucumber/>
-    <https://www.softwaretestinghelp.com/cucumber-gherkin-framework-tutorial/>
-[^7]: BDD 101: Writing Good Gherkin | Automation Panda,
-    <https://automationpanda.com/2017/01/30/bdd-101-writing-good-gherkin/>
-[^8]: Behaviour Driven Development with Gherkin | The Complete Guide for BDD
-   Testing,
-   <https://testsigma.com/blog/behaviour-driven-development-bdd-with-gherkin/>
-[^9]: BDD 101: Gherkin By Example - Automation Panda,
-    <https://automationpanda.com/2017/01/27/bdd-101-gherkin-by-example/>
-[^10]: Reference - Cucumber, <https://cucumber.io/docs/gherkin/reference/>
-[^11]: pytest-bdd 8.0.0 documentation - Read the Docs,
-    <https://pytest-bdd.readthedocs.io/en/8.0.0/>
-[^12]: Gherkin Keywords in SpecFlow - Tutorials Point,
-    <https://www.tutorialspoint.com/specflow/specflow_gherkin_keywords.htm>
-[^13]: Gherkin in Testing: A Beginner's Guide | by Rafał Buczyński | Medium,
-    <https://medium.com/@buczynski.rafal/gherkin-in-testing-a-beginners-guide-f2e179d5e2df>
-[^14]: Writing scenarios with Gherkin syntax - GeeksforGeeks,
-    <https://www.geeksforgeeks.org/software-testing/writing-scenarios-with-gherkin-syntax/>
-[^15]: Gherkin Keywords in Behave - Tutorials Point,
-    <https://www.tutorialspoint.com/behave/behave_gherkin_keywords.htm>
-[^16]: pytest-bdd - PyPI, <https://pypi.org/project/pytest-bdd/>
-[^17]: Gherkin best practices | 8 tips - Redsauce,
-    <https://www.redsauce.net/en/article?post=gherkin-best-practices>
-[^18]: Writing better Gherkin - Cucumber,
-    <https://cucumber.io/docs/bdd/better-gherkin/>
-[^19]: YAML Comments in Gherkin Feature Files - Automation Panda,
-    <https://automationpanda.com/2017/12/10/yaml-comments-in-gherkin-feature-files/>
-[^20]: Understanding Pytest BDD - BrowserStack,
-    <https://www.browserstack.com/guide/pytest-bdd>
-[^21]: pytest-bdd - Read the Docs,
-    <https://readthedocs.org/projects/pytest-bdd/downloads/pdf/latest/>
-[^22]: the BDD framework for pytest — pytest-bdd 8.1.0 documentation,
-    <https://pytest-bdd.readthedocs.io/en/latest/>
-[^23]: Pytest-BDD: the BDD framework for pytest — pytest-bdd 8.1.0
-       documentation, <https://pytest-bdd.readthedocs.io/>
-[^24]: A Complete Guide To Behaviour-Driven Testing With Pytest BDD,
-    <https://pytest-with-eric.com/bdd/pytest-bdd/>
-[^25]: Welcome to Pytest-BDD's documentation! — Pytest-BDD 4.1.0 …,
-    <https://pytest-bdd.readthedocs.io/en/4.1.0/>
-[^26]: Cucumber testing framework for Rust. Fully native, no external test
-       runners or dependencies. - GitHub,
-       <https://github.com/cucumber-rs/cucumber>
-[^27]: Cucumber in Rust - Beginner's Tutorial - Florianrein's Blog,
-    <https://www.florianreinhard.de/cucumber-in-rust-beginners-tutorial/>
-[^28]: Data tables - Cucumber Rust Book,
-    <https://cucumber-rs.github.io/cucumber/main/writing/data_tables.html>
-[^29]: Introduction - Cucumber Rust Book,
-    <https://cucumber-rs.github.io/cucumber/main/>
-[^30]: Python BDD Framework Comparison | Automation Panda,
-    <https://automationpanda.com/2019/04/02/python-bdd-framework-comparison/>
+\[^1\]: What is Gherkin and its role in Behaviour-Driven Development (BDD)
+Scenarios,
+<https://www.browserstack.com/guide/gherkin-and-its-role-bdd-scenarios>
+\[^2\]: What Is Gherkin? - YouTube,
+<https://www.youtube.com/watch?v=bxeNxhOSGJg&pp=0gcJCfwAo7VqN5tD>
+\[^3\]: Gherkin Keywords - Cucumber - Tools QA,
+<https://toolsqa.com/cucumber/gherkin-keywords/>
+\[^4\]: BDD With Cucumber | Technical Debt,
+<https://technicaldebt.com/crib-sheets/bdd-with-cucumber/>
+\[^5\]: How the Gherkin language bridges the gap between customers and developers,
+<https://opensource.com/article/23/2/gherkin-language-developers>
+\[^6\]: Pytest-BDD or Cucumber? : r/QualityAssurance - Reddit,
+<https://www.reddit.com/r/QualityAssurance/comments/frlcww/pytestbdd_or_cucumber/>
+<https://www.softwaretestinghelp.com/cucumber-gherkin-framework-tutorial/>
+\[^7\]: BDD 101: Writing Good Gherkin | Automation Panda,
+<https://automationpanda.com/2017/01/30/bdd-101-writing-good-gherkin/>
+\[^8\]: Behaviour Driven Development with Gherkin | The Complete Guide for BDD
+Testing,
+<https://testsigma.com/blog/behaviour-driven-development-bdd-with-gherkin/>
+\[^9\]: BDD 101: Gherkin By Example - Automation Panda,
+<https://automationpanda.com/2017/01/27/bdd-101-gherkin-by-example/>
+\[^10\]: Reference - Cucumber, <https://cucumber.io/docs/gherkin/reference/>
+\[^11\]: pytest-bdd 8.0.0 documentation - Read the Docs,
+<https://pytest-bdd.readthedocs.io/en/8.0.0/>
+\[^12\]: Gherkin Keywords in SpecFlow - Tutorials Point,
+<https://www.tutorialspoint.com/specflow/specflow_gherkin_keywords.htm>
+\[^13\]: Gherkin in Testing: A Beginner's Guide | by Rafał Buczyński | Medium,
+<https://medium.com/@buczynski.rafal/gherkin-in-testing-a-beginners-guide-f2e179d5e2df>
+\[^14\]: Writing scenarios with Gherkin syntax - GeeksforGeeks,
+<https://www.geeksforgeeks.org/software-testing/writing-scenarios-with-gherkin-syntax/>
+\[^15\]: Gherkin Keywords in Behave - Tutorials Point,
+<https://www.tutorialspoint.com/behave/behave_gherkin_keywords.htm>
+\[^16\]: pytest-bdd - PyPI, <https://pypi.org/project/pytest-bdd/>
+\[^17\]: Gherkin best practices | 8 tips - Redsauce,
+<https://www.redsauce.net/en/article?post=gherkin-best-practices>
+\[^18\]: Writing better Gherkin - Cucumber,
+<https://cucumber.io/docs/bdd/better-gherkin/>
+\[^19\]: YAML Comments in Gherkin Feature Files - Automation Panda,
+<https://automationpanda.com/2017/12/10/yaml-comments-in-gherkin-feature-files/>
+\[^20\]: Understanding Pytest BDD - BrowserStack,
+<https://www.browserstack.com/guide/pytest-bdd>
+\[^21\]: pytest-bdd - Read the Docs,
+<https://readthedocs.org/projects/pytest-bdd/downloads/pdf/latest/>
+\[^22\]: the BDD framework for pytest — pytest-bdd 8.1.0 documentation,
+<https://pytest-bdd.readthedocs.io/en/latest/>
+\[^23\]: Pytest-BDD: the BDD framework for pytest — pytest-bdd 8.1.0
+documentation, <https://pytest-bdd.readthedocs.io/>
+\[^24\]: A Complete Guide To Behaviour-Driven Testing With Pytest BDD,
+<https://pytest-with-eric.com/bdd/pytest-bdd/>
+\[^25\]: Welcome to Pytest-BDD's documentation! — Pytest-BDD 4.1.0 …,
+<https://pytest-bdd.readthedocs.io/en/4.1.0/>
+\[^26\]: Cucumber testing framework for Rust. Fully native, no external test
+runners or dependencies. - GitHub,
+<https://github.com/cucumber-rs/cucumber>
+\[^27\]: Cucumber in Rust - Beginner's Tutorial - Florianrein's Blog,
+<https://www.florianreinhard.de/cucumber-in-rust-beginners-tutorial/>
+\[^28\]: Data tables - Cucumber Rust Book,
+<https://cucumber-rs.github.io/cucumber/main/writing/data_tables.html>
+\[^29\]: Introduction - Cucumber Rust Book,
+<https://cucumber-rs.github.io/cucumber/main/>
+\[^30\]: Python BDD Framework Comparison | Automation Panda,
+<https://automationpanda.com/2019/04/02/python-bdd-framework-comparison/>

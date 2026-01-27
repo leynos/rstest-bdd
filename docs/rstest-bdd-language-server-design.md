@@ -417,7 +417,7 @@ LSP file events:
   possibly the main src if step definitions could live there) and scan/parse
   for step definitions.
 
-- Populate the internal registry mapping step texts <-> code locations.
+- Populate the internal registry mapping step texts \<-> code locations.
 
 - This initial scan provides the baseline for answering queries immediately.
 
@@ -885,7 +885,7 @@ consistency issues between feature files and Rust step definitions.
    on steps in `.feature` files that have no matching Rust implementation. The
    message format is: `No Rust implementation found for Given step: "step text"`
 
-2. **Unused step definitions** (`unused-step-definition`): Warning diagnostic
+1. **Unused step definitions** (`unused-step-definition`): Warning diagnostic
    on Rust functions annotated with `#[given]`, `#[when]`, or `#[then]` that
    are not matched by any feature step. The message format is:
    `Step definition is not used by any feature file: #[given("pattern")]`
@@ -913,7 +913,7 @@ Subsequent work will implement:
 
 1. **Placeholder count validation** — Verify that step patterns and function
    signatures agree on the number of captured arguments
-2. **Data table/docstring expectation mismatches** — Warn when a step expects
+1. **Data table/docstring expectation mismatches** — Warn when a step expects
    a data table or docstring, but the feature step does not provide one (or
    vice versa)
 
@@ -940,18 +940,17 @@ high-level feature specs with low-level test code in one unified workflow.
 - [`rstest-bdd` Design Document](rstest-bdd-design.md)
 - [`rstest-bdd` Project Roadmap](roadmap.md)
 
-[^1]: <https://github.com/leynos/rstest-bdd/blob/969d40a366c08cb385f108734c9ea42928e9bde2/docs/roadmap.md#L364-L368>
-[^2]: <https://github.com/leynos/rstest-bdd/blob/969d40a366c08cb385f108734c9ea42928e9bde2/docs/roadmap.md#L362-L368>
-[^3]: <https://github.com/leynos/rstest-bdd/blob/969d40a366c08cb385f108734c9ea42928e9bde2/docs/rstest-bdd-design.md#L142-L150>
-[^4]: <https://github.com/leynos/rstest-bdd/blob/969d40a366c08cb385f108734c9ea42928e9bde2/docs/rstest-bdd-design.md#L586-L593>
-[^5]: <https://github.com/leynos/rstest-bdd/blob/969d40a366c08cb385f108734c9ea42928e9bde2/docs/roadmap.md#L119-L122>
-[^6]: <https://github.com/leynos/rstest-bdd/blob/969d40a366c08cb385f108734c9ea42928e9bde2/docs/roadmap.md#L334-L338>
-[^7]: <https://github.com/leynos/rstest-bdd/blob/969d40a366c08cb385f108734c9ea42928e9bde2/docs/rstest-bdd-design.md#L2-L5>
-[^8]: <https://github.com/leynos/rstest-bdd/blob/969d40a366c08cb385f108734c9ea42928e9bde2/docs/rstest-bdd-design.md#L564-L572>
-[^9]: <https://github.com/leynos/rstest-bdd/blob/969d40a366c08cb385f108734c9ea42928e9bde2/docs/rstest-bdd-design.md#L48-L56>
-[^10]: <https://github.com/leynos/rstest-bdd/blob/969d40a366c08cb385f108734c9ea42928e9bde2/docs/roadmap.md#L43-L50>
-[^11]: <https://lib.rs/crates/codegraph-rust#:~:text=codegraph,>
-[^12]: <https://glama.ai/mcp/servers/@Jakedismo/codegraph-rust/blob/5ecff3e63528ef3931bda96fc510cd11e9287de5/crates/codegraph-parser/src/languages/rust.rs#:~:text=CodeGraph%20CLI%20MCP%20Server%20,derive%28Default%2C%20Clone%29%5D%20struct>
-[^13]: <https://github.com/leynos/rstest-bdd/blob/969d40a366c08cb385f108734c9ea42928e9bde2/docs/rstest-bdd-design.md#L554-L562>
-[^14]: <https://github.com/leynos/rstest-bdd/blob/969d40a366c08cb385f108734c9ea42928e9bde2/docs/rstest-bdd-design.md#L529-L537>
-[^15]: <https://github.com/leynos/rstest-bdd/blob/969d40a366c08cb385f108734c9ea42928e9bde2/docs/roadmap.md#L330-L338>
+[^1]: https://github.com/leynos/rstest-bdd/blob/969d40a366c08cb385f108734c9ea42928e9bde2/docs/roadmap.md#L364-L368
+[^10]: https://github.com/leynos/rstest-bdd/blob/969d40a366c08cb385f108734c9ea42928e9bde2/docs/roadmap.md#L43-L50
+[^12]: https://glama.ai/mcp/servers/@Jakedismo/codegraph-rust/blob/5ecff3e63528ef3931bda96fc510cd11e9287de5/crates/codegraph-parser/src/languages/rust.rs#:~:text=CodeGraph%20CLI%20MCP%20Server%20,derive%28Default%2C%20Clone%29%5D%20struct
+[^13]: https://github.com/leynos/rstest-bdd/blob/969d40a366c08cb385f108734c9ea42928e9bde2/docs/rstest-bdd-design.md#L554-L562
+[^14]: https://github.com/leynos/rstest-bdd/blob/969d40a366c08cb385f108734c9ea42928e9bde2/docs/rstest-bdd-design.md#L529-L537
+[^15]: https://github.com/leynos/rstest-bdd/blob/969d40a366c08cb385f108734c9ea42928e9bde2/docs/roadmap.md#L330-L338
+[^2]: https://github.com/leynos/rstest-bdd/blob/969d40a366c08cb385f108734c9ea42928e9bde2/docs/roadmap.md#L362-L368
+[^3]: https://github.com/leynos/rstest-bdd/blob/969d40a366c08cb385f108734c9ea42928e9bde2/docs/rstest-bdd-design.md#L142-L150
+[^4]: https://github.com/leynos/rstest-bdd/blob/969d40a366c08cb385f108734c9ea42928e9bde2/docs/rstest-bdd-design.md#L586-L593
+[^5]: https://github.com/leynos/rstest-bdd/blob/969d40a366c08cb385f108734c9ea42928e9bde2/docs/roadmap.md#L119-L122
+[^6]: https://github.com/leynos/rstest-bdd/blob/969d40a366c08cb385f108734c9ea42928e9bde2/docs/roadmap.md#L334-L338
+[^7]: https://github.com/leynos/rstest-bdd/blob/969d40a366c08cb385f108734c9ea42928e9bde2/docs/rstest-bdd-design.md#L2-L5
+[^8]: https://github.com/leynos/rstest-bdd/blob/969d40a366c08cb385f108734c9ea42928e9bde2/docs/rstest-bdd-design.md#L564-L572
+[^9]: https://github.com/leynos/rstest-bdd/blob/969d40a366c08cb385f108734c9ea42928e9bde2/docs/rstest-bdd-design.md#L48-L56

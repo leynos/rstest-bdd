@@ -3,6 +3,8 @@
 use proc_macro2::TokenStream as TokenStream2;
 use quote::quote;
 
+use crate::return_classifier::ReturnKind;
+
 /// Generates the `__RstestBddScenarioReportGuard` struct that records scenario
 /// results on drop if not already recorded.
 ///
@@ -108,8 +110,14 @@ pub(in crate::codegen::scenario::runtime) fn generate_scenario_guard() -> TokenS
 ///     // Panic if forced failure
 /// }
 /// ```
-pub(in crate::codegen::scenario::runtime) fn generate_skip_handler() -> TokenStream2 {
+pub(in crate::codegen::scenario::runtime) fn generate_skip_handler(
+    return_kind: ReturnKind,
+) -> TokenStream2 {
     let path = crate::codegen::rstest_bdd_path();
+    let return_stmt = match return_kind {
+        ReturnKind::ResultUnit | ReturnKind::ResultValue => quote! { return Ok(()); },
+        _ => quote! { return; },
+    };
     quote! {
         if let Some(__rstest_bdd_message) = __rstest_bdd_skipped {
             let __rstest_bdd_fail_on_skipped_enabled = #path::config::fail_on_skipped();
@@ -141,9 +149,9 @@ pub(in crate::codegen::scenario::runtime) fn generate_skip_handler() -> TokenStr
             let __rstest_bdd_metadata = #path::reporting::ScenarioMetadata::new(
                 __RSTEST_BDD_FEATURE_PATH,
                 __RSTEST_BDD_SCENARIO_NAME,
-                __RSTEST_BDD_SCENARIO_LINE,
-                __rstest_bdd_scenario_tags_owned,
-            );
+                    __RSTEST_BDD_SCENARIO_LINE,
+                    __rstest_bdd_scenario_tags_owned,
+                );
             #path::reporting::record(#path::reporting::ScenarioRecord::from_metadata(
                 __rstest_bdd_metadata,
                 #path::reporting::ScenarioStatus::Skipped(__rstest_bdd_skip_details),
@@ -157,7 +165,7 @@ pub(in crate::codegen::scenario::runtime) fn generate_skip_handler() -> TokenStr
                     __RSTEST_BDD_SCENARIO_NAME
                 );
             }
-            return;
+            #return_stmt
         }
     }
 }

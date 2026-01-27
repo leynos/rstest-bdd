@@ -69,7 +69,7 @@ Introduce a new internal crate, `rstest-bdd-policy`, that owns `RuntimeMode`,
 ## Migration plan
 
 1. Phase 1: Introduce `rstest-bdd-policy` and migrate runtime/macro usage.
-2. Phase 2: Publish and document versioning policy.
+1. Phase 2: Publish and document versioning policy.
 
 ## Known risks and limitations
 

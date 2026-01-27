@@ -78,15 +78,15 @@ integrations to the community.
 This minimizes official maintenance, but risks fragmentation, inconsistent UX,
 and duplicated work, especially for “obvious” harnesses like Tokio.
 
-| Topic                                | Option A: Monolithic | Option B: Official harness crates | Option C: Third-party only |
-| ------------------------------------ | -------------------- | -------------------------------- | -------------------------- |
-| Default dependency footprint          | Higher               | Low                              | Low                        |
-| SBOM size for non-async users         | Worse (often)        | Better                           | Better                     |
-| Scaling to multiple harnesses         | Poor                 | Good                             | Variable                   |
-| Integration UX consistency            | High                 | High                             | Low                        |
-| Maintenance burden in core crates     | High                 | Medium                           | Low (but external churn)   |
-| Release coordination complexity       | Low                  | Medium                           | Low (for core)             |
-| Risk of ecosystem fragmentation       | Low                  | Low                              | High                       |
+| Topic                             | Option A: Monolithic | Option B: Official harness crates | Option C: Third-party only |
+| --------------------------------- | -------------------- | --------------------------------- | -------------------------- |
+| Default dependency footprint      | Higher               | Low                               | Low                        |
+| SBOM size for non-async users     | Worse (often)        | Better                            | Better                     |
+| Scaling to multiple harnesses     | Poor                 | Good                              | Variable                   |
+| Integration UX consistency        | High                 | High                              | Low                        |
+| Maintenance burden in core crates | High                 | Medium                            | Low (but external churn)   |
+| Release coordination complexity   | Low                  | Medium                            | Low (for core)             |
+| Risk of ecosystem fragmentation   | Low                  | Low                               | High                       |
 
 _Table 1: Trade-offs between integration strategies._
 
@@ -128,81 +128,81 @@ fn async_user_flow() {
 fn ui_behaviour() {
     // Steps can request GPUI fixtures (for example, `&TestAppContext`).
 }
-````
+```
 
 ## Goals and non-goals
 
 ### Goals
 
-* Keep `rstest-bdd`’s default dependency graph free of Tokio, GPUI, Bevy, and
+- Keep `rstest-bdd`’s default dependency graph free of Tokio, GPUI, Bevy, and
   other heavyweight framework crates.
-* Provide first-party harness adapters for Tokio and GPUI with consistent UX,
+- Provide first-party harness adapters for Tokio and GPUI with consistent UX,
   documentation, and support guarantees.
-* Make future harness integrations (for example, Bevy) incremental rather than
+- Make future harness integrations (for example, Bevy) incremental rather than
   architectural rewrites.
-* Preserve (and ideally improve) current async support and step ergonomics.
+- Preserve (and ideally improve) current async support and step ergonomics.
 
 ### Non-goals
 
-* Provide dynamic “plug-in discovery” at runtime or compile time. Harness
+- Provide dynamic “plug-in discovery” at runtime or compile time. Harness
   selection remains explicit, by type path or configuration in macro attributes.
-* Standardize every harness’ fixture naming and semantics across frameworks.
+- Standardize every harness’ fixture naming and semantics across frameworks.
   Harness crates may define their own fixture conventions, as long as they are
   documented and stable.
-* Solve unrelated fixture design problems that are not driven by harness
+- Solve unrelated fixture design problems that are not driven by harness
   integration (for example, redesigning step parameter extraction).
 
 ## Migration plan
 
 1. Introduce `rstest-bdd-harness`
 
-   * Define the harness traits and minimal shared types.
-   * Provide a default “std” harness implementation (no async runtime) used when
+   - Define the harness traits and minimal shared types.
+   - Provide a default “std” harness implementation (no async runtime) used when
      no harness is specified.
 
-2. Update macro expansion to target the harness abstraction
+1. Update macro expansion to target the harness abstraction
 
-   * Generate scenario tests that call the selected harness adapter (defaulting
+   - Generate scenario tests that call the selected harness adapter (defaulting
      to the std harness).
-   * Keep the generated API source-compatible where feasible, and provide clear
+   - Keep the generated API source-compatible where feasible, and provide clear
      deprecation paths when not.
 
-3. Extract Tokio integration into `rstest-bdd-harness-tokio`
+1. Extract Tokio integration into `rstest-bdd-harness-tokio`
 
-   * Move Tokio-specific runtime mode logic and any Tokio-bound helpers into the
+   - Move Tokio-specific runtime mode logic and any Tokio-bound helpers into the
      new crate.
-   * Ensure async steps and scenarios continue to work with Tokio when users opt
+   - Ensure async steps and scenarios continue to work with Tokio when users opt
      in via the harness crate.
 
-4. Implement `rstest-bdd-harness-gpui`
+1. Implement `rstest-bdd-harness-gpui`
 
-   * Wrap scenario execution inside the GPUI test harness.
-   * Inject `TestAppContext` (and other GPUI test fixtures as needed) into the
+   - Wrap scenario execution inside the GPUI test harness.
+   - Inject `TestAppContext` (and other GPUI test fixtures as needed) into the
      step execution context.
 
-5. Document and stabilize
+1. Document and stabilize
 
-   * Add a “Harness adapters” chapter describing: selection, configuration,
+   - Add a “Harness adapters” chapter describing: selection, configuration,
      fixture injection, and portability expectations.
-   * Provide cookbook examples for Tokio and GPUI, plus a “template” for future
+   - Provide cookbook examples for Tokio and GPUI, plus a “template” for future
      harness authors.
 
-6. Add `rstest-bdd-harness-bevy`
+1. Add `rstest-bdd-harness-bevy`
 
-   * Reuse the same traits, and validate that the abstraction fits another
+   - Reuse the same traits, and validate that the abstraction fits another
      real-world harness without retrofitting.
 
 ## Known risks and limitations
 
-* More crates increase publishing and release coordination overhead, especially
+- More crates increase publishing and release coordination overhead, especially
   when changes span macros, harness traits, and adapters.
-* A too-opinionated harness trait can paint us into a corner; a too-generic trait
+- A too-opinionated harness trait can paint us into a corner; a too-generic trait
   can leak complexity into every adapter. We need to keep the trait surface small
   and evolve it cautiously.
-* Users may find harness selection confusing without strong documentation and
+- Users may find harness selection confusing without strong documentation and
   examples, particularly when troubleshooting async execution and fixture
   injection.
-* Harness adapters can accidentally diverge in semantics (for example, panic
+- Harness adapters can accidentally diverge in semantics (for example, panic
   handling, timeouts, or ordering guarantees). We need explicit behavioural
   contracts in each harness crate’s documentation.
 

@@ -127,8 +127,7 @@ Development (BDD) frameworks and improves the developer experience.
     `HeaderSpec`, `RowSpec`, `Rows<T>`, and convenience parsers such as
     `truthy_bool` and `trimmed<T: FromStr>`.
 
-  - [x] Implement `TryFrom<Vec<Vec<String>>> for Rows<T>` (with `T:
-    DataTableRow`) to split optional headers, build index maps, and surface row
+  - [x] Implement `TryFrom<Vec<Vec<String>>> for Rows<T>` (with `T: DataTableRow`) to split optional headers, build index maps, and surface row
     and column context on errors.
 
   - [x] Provide `#[derive(DataTableRow)]` and `#[derive(DataTable)]` macros with
@@ -142,6 +141,7 @@ Development (BDD) frameworks and improves the developer experience.
 
   - [x] Extend documentation (users guide, design document) and add integration
     tests covering headered tables and tolerant boolean parsing.
+
   - [x] Add compile-fail fixtures covering optional columns and invalid
     attribute combinations.
 
@@ -164,6 +164,7 @@ Development (BDD) frameworks and improves the developer experience.
     `error: invalid tag expression at byte 7: expected tag or '(' after 'and'`.
 
   - [x] Define tag scope and inheritance:
+
     - Scenarios inherit `Feature:` tags.
     - `Scenario Outline` cases inherit tags from the outline and their
       originating `Examples:` block.
@@ -172,6 +173,7 @@ Development (BDD) frameworks and improves the developer experience.
     and reject unknown tokens (`&&`, `||`, `!`) at compile time.
 
   - [x] Specify case rules and identifier grammar:
+
     - Tag identifiers are case-sensitive and match `[A-Za-z_][A-Za-z0-9_]*`.
     - Operator keywords (`and`, `or`, `not`) are case-insensitive and
       reserved; they cannot be used as identifiers.
@@ -184,6 +186,7 @@ Development (BDD) frameworks and improves the developer experience.
     the flag is set and the tag is absent.
 
   - [x] Add conformance tests for precedence, associativity, and scope:
+
     - Valid: `@a and not (@b or @c)`
     - Invalid: `@a && @b`, `""`, `()`, `@a and`, `(@a or @b`,
       `@a or and @b`
@@ -192,6 +195,7 @@ Development (BDD) frameworks and improves the developer experience.
 
   - [x] Raise the minimum supported Rust version to 1.85 and remove the
     `async_trait` dependency from `World` and writer traits.
+
     - [x] Set `rust-version = "1.85"` in all Cargo manifests.
     - [x] Record that stable tooling supports Rust 2024 and that contributors
       should use the pinned toolchain for consistent formatting and linting.
@@ -211,9 +215,7 @@ Development (BDD) frameworks and improves the developer experience.
   - [x] Document the `skip!` macro, the `@allow_skipped` tag and migration
     guidance for adopting Rust 1.85 / edition 2024.
 
-[design §1.3.4]: ./rstest-bdd-design.md#134-filtering-scenarios-with-tags
-
-- [x] **Boilerplate Reduction**
+* [x] **Boilerplate Reduction**
 
   - [x] Implement the `scenarios!("path/to/features/")` macro to automatically
     discover all `.feature` files in a directory and generate a test module
@@ -246,9 +248,12 @@ diagnostic messages.
 - [x] **Localization of Library Messages with Fluent**
 
   - [x] Integrate the `i18n-embed`, `rust-embed`, and `fluent` crates.
+
   - [x] Enable required features:
-        `i18n-embed = { features = ["fluent-system", "desktop-requester"] }`.
+    `i18n-embed = { features = ["fluent-system", "desktop-requester"] }`.
+
   - [x] Pin minimum supported versions in `Cargo.toml`.
+
   - [x] Add a minimal `Cargo.toml` example to the docs.
 
   - [x] Create `.ftl` resource files under an `i18n/` directory for all
@@ -287,31 +292,34 @@ experience by introducing more powerful and intuitive APIs.
 - [ ] **Ergonomic Improvements**
 
   - [x] **Implicit Fixture Injection:** Automatically inject fixtures when a
-      step function's parameter name matches a fixture name, removing the need
-      for `#[from(...)]` in most cases.
-      [User guide](users-guide.md#implicit-fixture-injection) ·
-      [trybuild](../crates/rstest-bdd-macros/tests/ui/implicit_fixture_missing.rs)
+    step function's parameter name matches a fixture name, removing the need
+    for `#[from(...)]` in most cases.
+    [User guide](users-guide.md#implicit-fixture-injection) ·
+    [trybuild](../crates/rstest-bdd-macros/tests/ui/implicit_fixture_missing.rs)
 
   - [x] **Inferred Step Patterns:** Allow step definition macros (`#[given]`,
     etc.) to be used without an explicit pattern string. The pattern will be
     inferred from the function's name (e.g., `fn user_logs_in()` becomes "user
     logs in"). [User’s guide](users-guide.md#inferred-step-patterns)
+
   - [x] **Streamlined `Result` Assertions:** Introduce helper macros like
     `assert_step_ok!` and `assert_step_err!` to reduce boilerplate when testing
     `Result`-returning steps.
+
   - [x] **Refined `skip!` Macro:** Polish the macro's syntax and surface clear
     diagnostics when misused. Coverage: disallow usage outside a step or hook
     (panic with a descriptive message), reject calls from non-test threads,
     verify short-circuit behaviour, and preserve the message in writer outputs.
+
   - [x] **Skipped-Step Assertions:** Provide helper macros for verifying that
     steps or scenarios were skipped as expected.
 
 - [ ] **State Management and Data Flow**
 
   - [x] **Step Return Values:** Allow `#[when]` steps to return values, which
-      can then be automatically injected into subsequent `#[then]` steps,
-      enabling a more functional style of testing. Returned values override
-      fixtures of the same type.
+    can then be automatically injected into subsequent `#[then]` steps,
+    enabling a more functional style of testing. Returned values override
+    fixtures of the same type.
 
   - [x] **Scenario State Management:** Introduce a `#[derive(ScenarioState)]`
     macro and a `Slot<T>` type to simplify the management of shared state
@@ -333,7 +341,7 @@ at improving maintainability and IDE integration.
   - [x] Create a helper binary or `cargo` subcommand (`cargo bdd`).
 
   - [x] Implement a `list-steps` command to print the entire registered step
-     registry.
+    registry.
 
   - [x] Implement a `list-unused` command to report definitions never executed.
 
@@ -435,8 +443,7 @@ scope until the core workflow is stable.
 - [ ] **Packaging and editor enablement**
 
   - [ ] Ship CLI options for log level, workspace root, and debounce interval;
-    document VS Code and Neovim launch examples in `docs/rstest-bdd-language-
-    server-design.md` and the user guide.
+    document VS Code and Neovim launch examples in `docs/rstest-bdd-language- server-design.md` and the user guide.
 
   - [ ] Add smoke tests that start the server, answer a definition request,
     and emit diagnostics for one feature file; gate them in CI.
@@ -498,3 +505,5 @@ redesigned. For the full architectural decision record, see
     runtimes, `spawn_local` patterns) in the design document §2.5.
 
   - [x] Update design document §2.5 with implementation status.
+
+[design §1.3.4]: ./rstest-bdd-design.md#134-filtering-scenarios-with-tags

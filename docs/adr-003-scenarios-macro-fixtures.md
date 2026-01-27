@@ -58,12 +58,12 @@ scenarios!("tests/features", fixtures = [world: TestWorld]);
 
 1. Each generated test function includes the specified fixtures as parameters
    in its signature.
-2. rstest resolves these parameters by calling the corresponding `#[fixture]`
+1. rstest resolves these parameters by calling the corresponding `#[fixture]`
    functions.
-3. Fixture values are inserted into `StepContext` via the existing
+1. Fixture values are inserted into `StepContext` via the existing
    `extract_function_fixtures` utility, making them available to step
    definitions.
-4. When fixtures are present, the generated test function is annotated with
+1. When fixtures are present, the generated test function is annotated with
    `#[expect(unused_variables)]` to suppress the lint warning.
 
 ### Lint suppression rationale

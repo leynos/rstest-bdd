@@ -13,6 +13,7 @@ use crate::codegen::scenario::{FeaturePath, ScenarioConfig, ScenarioName, genera
 use crate::parsing::examples::ExampleTable;
 use crate::parsing::feature::ScenarioData;
 use crate::parsing::tags::TagExpression;
+use crate::return_classifier::ReturnKind;
 use crate::utils::fixtures::extract_function_fixtures;
 use crate::utils::ident::sanitize_ident;
 
@@ -175,6 +176,7 @@ pub(super) fn generate_scenario_test(
         line,
         tags: &tags,
         runtime: ctx.runtime,
+        return_kind: ReturnKind::Unit,
     };
     TokenStream2::from(generate_scenario_code(
         &config,
