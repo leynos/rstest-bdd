@@ -21,14 +21,14 @@ libraries in Rust using the Fluent ecosystem.
 1. **The Application is the Authority:** The application is solely responsible
    for detecting the user's locale, creating and configuring a single,
    authoritative `LanguageLoader`, and managing the overall localization state.
-2. **Libraries Provide Resources:** The library's role is to embed its `.ftl`
+1. **Libraries Provide Resources:** The library's role is to embed its `.ftl`
    translation files as assets and expose public functions that require a
    `LanguageLoader` to produce a translated string. The library defines _what_
    can be translated.
-3. **Localization via Dependency Injection:** The application "injects" its
+1. **Localization via Dependency Injection:** The application "injects" its
    configured `LanguageLoader` into the library's functions when it needs a
    localized message. The library never creates its own loader.
-4. **Composability:** This pattern is highly composable. An application can
+1. **Composability:** This pattern is highly composable. An application can
    aggregate translation assets from multiple independent libraries into one
    unified localization context, ensuring consistency across the entire program.
 
@@ -222,5 +222,5 @@ seamlessly.
 1. i18n_embed - Rust - [Docs.rs](http://Docs.rs), accessed on August 18, 2025,
    [https://docs.rs/i18n-embed](https://docs.rs/i18n-embed)
 
-2. i18n_embed - Rust - [Docs.rs](http://Docs.rs), accessed on August 18, 2025,
+1. i18n_embed - Rust - [Docs.rs](http://Docs.rs), accessed on August 18, 2025,
    [https://docs.rs/i18n-embed/0.14.1/i18n_embed/](https://docs.rs/i18n-embed/0.14.1/i18n_embed/)

@@ -88,6 +88,7 @@ whilst allowing async projects to adopt Tokio step execution incrementally.
 ### Technical requirements
 
 - The step registry must store step wrappers which can be awaited.
+
 - The step registry must store an async step wrapper whose signature ties the
   returned future to the lifetime of the borrowed `StepContext` and therefore
   cannot be a `'static` future.
@@ -114,10 +115,13 @@ whilst allowing async projects to adopt Tokio step execution incrementally.
   `Future`-aware unwind capture to preserve `skip!` interception) and the
   required trait bounds (`Send` depends on current-thread versus multi-thread
   mode).
+
 - Wrapper generation must normalize sync and async step definitions into a
   single callable interface.
+
 - The implementation must preserve unwind handling, so panics continue to be
   surfaced with context, and `skip!` continues to be intercepted.
+
 - The approach must define and document the Tokio runtime constraints for
   step futures (for example, whether `Send` is required).
 

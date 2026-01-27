@@ -22,6 +22,7 @@ use runtime::{
 
 pub(crate) use crate::macros::scenarios::ScenariosRuntimeMode as RuntimeMode;
 use crate::macros::scenarios::ScenariosTestAttributeHint as TestAttributeHint;
+use crate::return_classifier::ReturnKind;
 
 use crate::parsing::placeholder::contains_placeholders;
 
@@ -51,6 +52,8 @@ pub(crate) struct ScenarioConfig<'a> {
     pub(crate) tags: &'a [String],
     /// Runtime mode for test execution (sync or async/Tokio).
     pub(crate) runtime: RuntimeMode,
+    /// Return kind for the scenario test function.
+    pub(crate) return_kind: ReturnKind,
 }
 
 /// Configuration for context iterators in scenario code generation.
@@ -158,6 +161,7 @@ where
         block: config.block,
         allow_skipped: config.allow_skipped,
         is_async: config.runtime.is_async(),
+        return_kind: config.return_kind,
     };
     let test_config = TestTokensConfig {
         processed_steps,
@@ -222,6 +226,7 @@ where
         block: config.block,
         allow_skipped: config.allow_skipped,
         is_async: config.runtime.is_async(),
+        return_kind: config.return_kind,
     };
     let outline_config = OutlineTestTokensConfig {
         all_rows_steps,

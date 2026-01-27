@@ -36,6 +36,7 @@ use crate::parsing::feature::{
     extract_scenario_steps, parse_and_load_feature, ScenarioData,
 };
 use crate::parsing::tags::TagExpression;
+use crate::return_classifier::{ReturnKind, classify_return_type};
 use crate::utils::fixtures::extract_function_fixtures;
 use crate::validation::parameters::process_scenario_outline_examples;
 use crate::validation::placeholder::{ExampleHeaders, validate_step_placeholders};
@@ -87,6 +88,15 @@ fn try_scenario(
     } else {
         RuntimeMode::Sync
     };
+    let return_kind = classify_return_type(&sig.output, None)
+        .map_err(|err| proc_macro::TokenStream::from(err.into_compile_error()))?;
+    if matches!(return_kind, ReturnKind::ResultValue) {
+        let err = syn::Error::new_spanned(
+            &sig.output,
+            "fallible scenarios must return Result<(), E> or StepResult<(), E>",
+        );
+        return Err(proc_macro::TokenStream::from(err.into_compile_error()));
+    }
 
     // Retrieve cached feature to avoid repeated parsing.
     let feature = parse_and_load_feature(&path).map_err(proc_macro::TokenStream::from)?;
@@ -145,6 +155,7 @@ fn try_scenario(
         line,
         tags: &tags,
         runtime,
+        return_kind,
     };
 
     Ok(generate_scenario_code(

@@ -453,16 +453,16 @@ def test_spy_and_record(cmd_mox, monkeypatch, tmp_path):
 ## Migration guidance (Typer → Cyclopts)
 
 1. Dependencies: replace Typer with Cyclopts in the script’s `uv` block.
-2. Entry point: replace `app = typer.Typer(…)` with `app = App(…)` and
+1. Entry point: replace `app = typer.Typer(…)` with `app = App(…)` and
    configure `Env("INPUT_", command=False)` where environment variables are
    authoritative in CI.
-3. Parameters: replace `typer.Option(…)` with annotations and
+1. Parameters: replace `typer.Option(…)` with annotations and
    `Parameter(…)`. Mark required options with `required=True`. Map any
    non‑matching environment names via `env_var=…`.
-4. Lists: remove custom split/trim code. Use list‑typed parameters; add
+1. Lists: remove custom split/trim code. Use list‑typed parameters; add
    `env_var_split=","` where a non‑whitespace delimiter is required.
-5. Compatibility: retain legacy flag names using `aliases=["--old-name"]`.
-6. Bash glue: delete argument arrays and conditional appends in GitHub
+1. Compatibility: retain legacy flag names using `aliases=["--old-name"]`.
+1. Bash glue: delete argument arrays and conditional appends in GitHub
    Actions. Export `INPUT_*` environment variables and call `uv run` on the
    script.
 

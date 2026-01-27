@@ -38,10 +38,10 @@ consuming the raw output.
 
 1. Ask Cargo for metadata, then build each workspace test target with
    `cargo test --no-run --message-format=json --all-features`.
-2. Collect every compiled test binary path from the JSON stream.
-3. For each binary, run it with `RSTEST_BDD_DUMP_STEPS=1 --dump-steps` to make
+1. Collect every compiled test binary path from the JSON stream.
+1. For each binary, run it with `RSTEST_BDD_DUMP_STEPS=1 --dump-steps` to make
    it spill a JSON inventory of registered steps.
-4. Stitch the responses together and apply whichever subcommand filter you
+1. Stitch the responses together and apply whichever subcommand filter you
    requested.
 
 Any binary that crashes without recognising `--dump-steps` is politely skipped

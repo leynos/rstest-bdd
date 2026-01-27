@@ -3,12 +3,15 @@
 ## rustc internal compiler error (ICE) with mutable world macro
 
 - **Status:** Open; gated by the `mutable_world_macro` Cargo feature.
+
 - **Affected toolchains:** Rust toolchains that still trigger the ICE. This
   repository pins a toolchain in `rust-toolchain.toml` to keep contributor
   behaviour consistent.
+
 - **Symptom:** Enabling `--features mutable_world_macro` and compiling the
   macro-driven test `tests/mutable_world_macro.rs` triggers a rustc internal
   compiler error (ICE) during macro expansion.
+
 - **Reproduction:**
 
   ```bash
@@ -20,6 +23,7 @@
   test in `crates/rstest-bdd/tests/mutable_fixture.rs`, which avoids the macro
   path that currently triggers the compiler bug. The macro-driven test is
   guarded behind the feature flag until the upstream issue is resolved.
+
 - **Next steps:** Once an upstream rustc issue is filed, update this section
   with the issue number and remove the feature gate when the fix ships.
 

@@ -6,6 +6,7 @@
 
 - Added `assert_step_skipped!` and `assert_scenario_skipped!` macros to assert
   skipped steps and scenario records, reducing boilerplate in behaviour tests.
+
 - `#[scenario]` fixtures passed by value are now registered mutably, so step
   functions can declare `&mut Fixture` parameters and mutate world state
   without interior mutability wrappers. A new `StepContext::insert_owned`

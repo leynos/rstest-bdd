@@ -142,6 +142,12 @@ fn scenario_step_return(number: Number) {
     let _ = number;
 }
 
+#[scenario(path = "tests/features/step_return.feature")]
+fn scenario_step_return_fallible(number: Number) -> Result<(), &'static str> {
+    let _ = number;
+    Ok(())
+}
+
 #[fixture]
 fn primary_value() -> PrimaryValue {
     PrimaryValue(10)

@@ -55,7 +55,7 @@ High Cyclomatic Complexity indicates a more intricate control flow, which
 directly impacts testability, maintainability, and defect discovery effort.[^1]
 More paths mean more test cases are required for comprehensive coverage.[^4]
 McCabe proposed the following risk categorization based on Cyclomatic
-Complexity scores[^3]:
+Complexity scores\[^3\]:
 
 - 1-10: Simple procedure, little risk.
 
@@ -82,18 +82,18 @@ understanding code than writing it.[^8]
 
 Core Principles of Calculation:
 
-Cognitive Complexity is incremented based on three main rules[^8]:
+Cognitive Complexity is incremented based on three main rules\[^8\]:
 
 1. **Breaks in Linear Flow:** Each time the code breaks the normal linear
    reading flow (e.g., loops, conditionals like `if`/`else`/`switch`,
    `try-catch` blocks, jumps to labels, and sequences of logical operators like
    `&&` and `||`), a penalty is applied.
 
-2. **Nesting:** Each level of nesting of these flow-breaking structures adds an
+1. **Nesting:** Each level of nesting of these flow-breaking structures adds an
    additional penalty. This is because deeper nesting makes it harder to keep
    the context in mind.
 
-3. **Shorthand Discount:** Structures that allow multiple statements to be read
+1. **Shorthand Discount:** Structures that allow multiple statements to be read
    as a single unit (e.g., a well-named method call) do not incur the same
    penalties as the raw statements they encapsulate. Method calls are generally
    "free" in terms of cognitive complexity, as a well-chosen name summarizes
@@ -159,7 +159,7 @@ Each "bump" in the road—a segment of deeply indented code—often signifies a
 distinct responsibility, or even a separate logical chunk, that has not been
 properly encapsulated.[^9]
 
-Key characteristics include[^6]:
+Key characteristics include\[^6\]:
 
 - **Multiple Chunks of Nested Logic:** The function isn't just deeply nested in
   one place, but has several such areas.
@@ -180,7 +180,7 @@ Key characteristics include[^6]:
   intertwined, leading to complex state management and a higher likelihood of
   defects.[^9]
 
-The severity of a Bumpy Road can be assessed by[^6]:
+The severity of a Bumpy Road can be assessed by\[^6\]:
 
 - The depth of nesting within each bump (deeper is worse).
 
@@ -250,24 +250,24 @@ engineering principles from the outset.
    When a function handles multiple distinct logical blocks, decompose it
    immediately.
 
-2. **Incremental Refactoring:** Don't wait for complexity to accumulate.
+1. **Incremental Refactoring:** Don't wait for complexity to accumulate.
    Refactor code regularly as part of the development process, not as a
    separate, deferred task.[^10] "Make the change easy, and then make the easy
    change".[^11]
 
-3. **Early Abstraction:** When a new piece of logic is being added, consider if
+1. **Early Abstraction:** When a new piece of logic is being added, consider if
    it represents a distinct concept that warrants its own function or class.
    Well-named abstractions improve clarity.[^8]
 
-4. **Code Reviews Focused on Structure:** Code reviews should not only check for
+1. **Code Reviews Focused on Structure:** Code reviews should not only check for
    correctness but also for structural integrity and complexity. Reviewers
    should look for emerging "bumps" or excessive nesting.
 
-5. **Using Complexity Metrics:** Regularly monitor Cognitive Complexity scores
+1. **Using Complexity Metrics:** Regularly monitor Cognitive Complexity scores
    using tools like SonarQube.[^1] Set thresholds and address violations
    promptly.
 
-6. **Return Early / Guard Clauses:** To avoid deep nesting for validation or
+1. **Return Early / Guard Clauses:** To avoid deep nesting for validation or
    pre-condition checks, process exceptional cases first and return early.[^8]
    This approach flattens the main logic path and reduces nesting. For example,
    instead of:
@@ -316,7 +316,7 @@ Once a Bumpy Road is identified, the primary remediation strategy is the
    corresponds to a specific sub-task or responsibility within the larger
    method.[^9]
 
-2. **Extract to New Methods/Functions:** Encapsulate each identified chunk into
+1. **Extract to New Methods/Functions:** Encapsulate each identified chunk into
    its own well-named method or function.[^8] The name of the new method should
    clearly describe its purpose.
 
@@ -327,11 +327,11 @@ Once a Bumpy Road is identified, the primary remediation strategy is the
      significantly, the complexity is spread out, making individual functions
      easier to grasp.[^8]
 
-3. **Parameterize Extracted Methods:** Pass necessary data to the new methods as
+1. **Parameterize Extracted Methods:** Pass necessary data to the new methods as
    parameters. Avoid relying on shared mutable state within the original class
    if possible, as this can maintain coupling.
 
-4. **Iterative Refinement:** Refactoring complex code is often an iterative
+1. **Iterative Refinement:** Refactoring complex code is often an iterative
    process. After initial extractions, further opportunities for simplification
    or abstraction may become apparent.[^10] Sometimes, extracting methods
    reveals that a more significant restructuring, perhaps involving new classes
@@ -351,31 +351,31 @@ escalating into full-blown Bumpy Roads.
    score, as reported for a method in static analysis tools, is a direct
    indicator.[^8]
 
-2. **Deeply Nested Logic:** Even a single area of deep nesting (more than 2–3
+1. **Deeply Nested Logic:** Even a single area of deep nesting (more than 2–3
    levels) should be a concern. If multiple such areas appear in the same
    function, it's a strong red flag.[^9]
 
-3. **Functions Doing "Too Much":** If describing what a function does requires
+1. **Functions Doing "Too Much":** If describing what a function does requires
    using the word "and" multiple times (e.g., "it validates the input, and
    processes the data, and then updates the UI, and logs the result"), it's
    likely violating the Single Responsibility Principle and on its way to
    becoming bumpy.[^8]
 
-4. **Frequent Modifications to the Same Function for Different Reasons:** If a
+1. **Frequent Modifications to the Same Function for Different Reasons:** If a
    function needs to be changed for various unrelated feature enhancements or
    bug fixes, it indicates it has too many responsibilities (related to the
    "Shotgun Surgery" code smell, which can be a consequence or co-occur with
    Bumpy Roads).[^2]
 
-5. **Difficulty in Unit Testing:** If a method becomes hard to unit test due to
+1. **Difficulty in Unit Testing:** If a method becomes hard to unit test due to
    numerous conditions and paths that need to be set up and verified, it often
    correlates with high complexity that could manifest as a Bumpy Road.
 
-6. **Code "Smells" like Long Method:** A Bumpy Road is often, though not always,
+1. **Code "Smells" like Long Method:** A Bumpy Road is often, though not always,
    a Long Method.[^12] The length itself isn't the core problem, but it
    provides more space for bumps to accumulate.
 
-7. **Declining Code Health Metrics:** Tools like CodeScene provide "Code Health"
+1. **Declining Code Health Metrics:** Tools like CodeScene provide "Code Health"
    metrics which can degrade if Bumpy Roads are introduced.[^9]
 
 By proactively addressing these red flags through disciplined refactoring,
@@ -496,7 +496,7 @@ pieces—making it as difficult to follow as the original spaghetti.[^17]
    achieve a single, well-defined purpose. Don't break down code arbitrarily
    based on length alone; base it on behaviour and meaningful abstractions.[^10]
 
-2. **Balance Abstraction Levels:** Abstraction is about hiding unnecessary
+1. **Balance Abstraction Levels:** Abstraction is about hiding unnecessary
    details and exposing essential features.[^18]
 
    - **Under-abstraction** (common in Spaghetti Code) leads to duplication and
@@ -513,31 +513,31 @@ pieces—making it as difficult to follow as the original spaghetti.[^17]
      classes/objects.[^19] Start with simple, straightforward code and
      introduce abstractions only when genuinely needed.[^20]
 
-3. **Meaningful Naming:** Clear and descriptive names for classes, methods, and
+1. **Meaningful Naming:** Clear and descriptive names for classes, methods, and
    variables are crucial, especially when dealing with many small components.
    Good names help convey the purpose and relationships between different parts
    of the code.[^10]
 
-4. **Consider the "Why," Not Just the "How":** When refactoring, understand the
+1. **Consider the "Why," Not Just the "How":** When refactoring, understand the
    underlying responsibilities and collaborations. Simply breaking code into
    smaller pieces without a clear architectural vision can lead to Ravioli.
    Design patterns, when applied appropriately, can provide a "system metaphor"
    or structure that makes the "ravioli" manageable by revealing symmetries and
    common sense in the design.[^21]
 
-5. **Iterative Refactoring and Review:** Refactoring is not always a one-shot
+1. **Iterative Refactoring and Review:** Refactoring is not always a one-shot
    process. Continuously review the abstractions. Consider whether they help or
    hinder understanding, and whether too many trivial classes could be
    consolidated.[^10] Pair programming can also help maintain a balanced
    perspective during refactoring.[^21]
 
-6. **The “Ya Ain't Gonna Need It” (YAGNI) principle:** The initialism
+1. **The “Ya Ain't Gonna Need It” (YAGNI) principle:** The initialism
    summarizes the reminder that speculative features will probably go unused.
    It helps avoid unnecessary abstractions and features, which can contribute
    to Ravioli code if abstractions are created for anticipated but not actual
    needs.[^21]
 
-7. **Focus on System Flow:** While individual components in Ravioli code might
+1. **Focus on System Flow:** While individual components in Ravioli code might
    be simple, the difficulty lies in tracing the overall execution flow. Ensure
    that the interactions, and the dependencies between components, are clear
    and easy to follow. A slightly larger, more cohesive component often proves
@@ -614,7 +614,7 @@ represented as dictionaries.[^24]
           handle_keypress(key)
   #… and so on for other event types
 
-   ```
+```
 
 - *Declarative with Structural Pattern Matching (Python* `match-case`*):*
 
@@ -811,77 +811,77 @@ maintain.
 
 ## Works cited
 
-[^1]: How to Identify and Reduce Cognitive Complexity in a Codebase — Axify,
-      <https://axify.io/blog/cognitive-complexity>
-[^2]: Top 5 Software Anti Patterns to Avoid for Better Development Outcomes |
-      BairesDev, <https://www.bairesdev.com/blog/software-anti-patterns/>
-[^3]: Cyclomatic complexity — Wikipedia,
-      <https://en.wikipedia.org/wiki/Cyclomatic_complexity>
-[^4]: Cyclomatic complexity: Definition and limits in understanding code
-      quality — the Developer Experience platform,
-      <https://getdx.com/blog/cyclomatic-complexity/>
-      <https://getdx.com/blog/cyclomatic-complexity/>
-[^5]: Cyclomatic complexity — Wikipedia (risk classification),
-      <https://en.wikipedia.org/wiki/Cyclomatic_complexity>
-[^6]: Cognitive Complexity — Code Climate,
-      <https://docs.codeclimate.com/docs/cognitive-complexity>
-[^7]: Cognitive Complexity | Sonar SonarSource | Sonar,
-      <https://www.sonarsource.com/resources/cognitive-complexity/#:~:text=This%20paper%20describes%20Cognitive%20Complexity,Complexity%20precedents%20with%20human%20assessment.>
-[^8]: Cognitive Complexity of functions should not be too high — Rules -
-      SonarQube Server,
-      <https://next.sonarqube.com/sonarqube/coding_rules?languages=cpp&q=cognitive&open=cpp%3AS3776>
-[^9]: The Bumpy Road Code Smell: Measuring Code Complexity by its Shape and
-      Distribution,
-      <https://codescene.com/engineering-blog/bumpy-road-code-complexity-in-context/>
-[^10]: Bumpy Road — Samman Technical Coaching,
-      <https://sammancoaching.org/code_smells/bumpy_road.html>
-[^11]: Adam Tornhill, *Code as a Crime Scene*, Second Edition,
-       <https://media.pragprog.com/titles/atcrime2/logic.pdf>
-[^12]: The software antipatterns that are killing development speed | Okoone,
-       <https://www.okoone.com/spark/strategy-transformation/the-software-anti-patterns-that-are-killing-development-speed/>
-[^13]: How to *resist* refactoring a large spaghetti codebase? :
-       r/SoftwareEngineering — Reddit,
-       <https://www.reddit.com/r/SoftwareEngineering/comments/11smgtp/how_to_resist_refactoring_a_large_spaghetti/>
-[^14]: Refactoring nested conditional statements — Software Engineering
-       Stack Exchange,
-       <https://softwareengineering.stackexchange.com/questions/47789/>
-[^15]: CodeScene Automatic Code Evolution (ACE): Auto-Refactor Code,
-       <https://codescene.io/docs/auto-refactor/index.html>
-[^16]: Code Smells — Samman Technical Coaching,
-       <https://sammancoaching.org/reference/code_smells/>
-[^17]: src/sas/sascalc/poresize/maxEnt_method.py — CodeScene,
-       <https://codescene.io/projects/64300/delta?repo-id=263464&review-id=3247&biomarker=Overall+Code+Complexity&filename=src%2Fsas%2Fsascalc%2Fporesize%2FmaxEnt_method.py&method=>
-[^18]: Separation of concerns — Wikipedia,
-       <https://en.wikipedia.org/wiki/Separation_of_concerns>
-[^19]: Command Query Responsibility Segregation pattern — Azure Architecture
-       Center | Microsoft Learn,
-       <https://learn.microsoft.com/en-us/azure/architecture/patterns/cqrs>
-[^20]: Mastering Command Query Responsibility Segregation: 7 Powerful Benefits,
-       <https://hyscaler.com/insights/mastering-cqrs-benefits-of-command-query/>
-[^21]: Implementing Command Query Responsibility Segregation in the dotnet
-       ecosystem — Dev Community,
-       <https://dev.to/moh_moh701/enhancing-net-applications-with-cqrs-and-solid-principles-30i8>
-[^22]: Refactoring a God class — Stack Overflow,
-       <https://stackoverflow.com/questions/14870377/>
-[^23]: Command Query Responsibility Segregation: Understanding From First
-       Principles — NDepend Blog,
-       <https://blog.ndepend.com/cqrs-understanding-first-principles/>
-[^24]: When to use the Command Query Responsibility Segregation design
-       pattern? — architecture — Stack Overflow,
-       <https://stackoverflow.com/questions/8820748/when-to-use-the-cqrs-design-pattern>
-[^25]: Another pasta-themed programming problem is "ravioli code". That …,
-       <https://news.ycombinator.com/item?id=4537664>
-[^26]: Ravioli Code — C2 wiki, <https://wiki.c2.com/?RavioliCode>
-[^27]: Ravioli code — why an antipattern? — Stack Overflow,
-       <https://stackoverflow.com/questions/2052017/ravioli-code-why-an-anti-pattern>
-[^28]: A Guide to Data Abstraction and Its Significant Benefits — CelerData,
-       <https://celerdata.com/glossary/a-guide-to-data-abstraction>
-[^29]: The Role of Abstraction in Software Development | Bebras Armenia,
-       <https://bebras.am/en/blog/The-Role-of-Abstraction-in-Software-Development>
-[^30]: Abstraction, Refactoring, Complexity, and Tradeoffs — Part 1 | Synth
-       …, <https://omux.dev/blog/abstraction-refactoring-complexity/>
-[^31]: Don't create over abstractions — Castineiras thoughts -,
-       <https://www.castineiras.com/?p=102>
-[^32]: Refactor `if-else` Statements to `match-case` for Improved Readability
-       and Maintainability in Python 3.10+ · Issue #453 — GitHub,
-       <https://github.com/sourcery-ai/sourcery/issues/453>
+\[^1\]: How to Identify and Reduce Cognitive Complexity in a Codebase — Axify,
+<https://axify.io/blog/cognitive-complexity>
+\[^2\]: Top 5 Software Anti Patterns to Avoid for Better Development Outcomes |
+BairesDev, <https://www.bairesdev.com/blog/software-anti-patterns/>
+\[^3\]: Cyclomatic complexity — Wikipedia,
+<https://en.wikipedia.org/wiki/Cyclomatic_complexity>
+\[^4\]: Cyclomatic complexity: Definition and limits in understanding code
+quality — the Developer Experience platform,
+<https://getdx.com/blog/cyclomatic-complexity/>
+<https://getdx.com/blog/cyclomatic-complexity/>
+\[^5\]: Cyclomatic complexity — Wikipedia (risk classification),
+<https://en.wikipedia.org/wiki/Cyclomatic_complexity>
+\[^6\]: Cognitive Complexity — Code Climate,
+<https://docs.codeclimate.com/docs/cognitive-complexity>
+\[^7\]: Cognitive Complexity | Sonar SonarSource | Sonar,
+<https://www.sonarsource.com/resources/cognitive-complexity/#:~:text=This%20paper%20describes%20Cognitive%20Complexity,Complexity%20precedents%20with%20human%20assessment.>
+\[^8\]: Cognitive Complexity of functions should not be too high — Rules -
+SonarQube Server,
+<https://next.sonarqube.com/sonarqube/coding_rules?languages=cpp&q=cognitive&open=cpp%3AS3776>
+\[^9\]: The Bumpy Road Code Smell: Measuring Code Complexity by its Shape and
+Distribution,
+<https://codescene.com/engineering-blog/bumpy-road-code-complexity-in-context/>
+\[^10\]: Bumpy Road — Samman Technical Coaching,
+<https://sammancoaching.org/code_smells/bumpy_road.html>
+\[^11\]: Adam Tornhill, *Code as a Crime Scene*, Second Edition,
+<https://media.pragprog.com/titles/atcrime2/logic.pdf>
+\[^12\]: The software antipatterns that are killing development speed | Okoone,
+<https://www.okoone.com/spark/strategy-transformation/the-software-anti-patterns-that-are-killing-development-speed/>
+\[^13\]: How to *resist* refactoring a large spaghetti codebase? :
+r/SoftwareEngineering — Reddit,
+<https://www.reddit.com/r/SoftwareEngineering/comments/11smgtp/how_to_resist_refactoring_a_large_spaghetti/>
+\[^14\]: Refactoring nested conditional statements — Software Engineering
+Stack Exchange,
+<https://softwareengineering.stackexchange.com/questions/47789/>
+\[^15\]: CodeScene Automatic Code Evolution (ACE): Auto-Refactor Code,
+<https://codescene.io/docs/auto-refactor/index.html>
+\[^16\]: Code Smells — Samman Technical Coaching,
+<https://sammancoaching.org/reference/code_smells/>
+\[^17\]: src/sas/sascalc/poresize/maxEnt_method.py — CodeScene,
+<https://codescene.io/projects/64300/delta?repo-id=263464&review-id=3247&biomarker=Overall+Code+Complexity&filename=src%2Fsas%2Fsascalc%2Fporesize%2FmaxEnt_method.py&method=>
+\[^18\]: Separation of concerns — Wikipedia,
+<https://en.wikipedia.org/wiki/Separation_of_concerns>
+\[^19\]: Command Query Responsibility Segregation pattern — Azure Architecture
+Center | Microsoft Learn,
+<https://learn.microsoft.com/en-us/azure/architecture/patterns/cqrs>
+\[^20\]: Mastering Command Query Responsibility Segregation: 7 Powerful Benefits,
+<https://hyscaler.com/insights/mastering-cqrs-benefits-of-command-query/>
+\[^21\]: Implementing Command Query Responsibility Segregation in the dotnet
+ecosystem — Dev Community,
+<https://dev.to/moh_moh701/enhancing-net-applications-with-cqrs-and-solid-principles-30i8>
+\[^22\]: Refactoring a God class — Stack Overflow,
+<https://stackoverflow.com/questions/14870377/>
+\[^23\]: Command Query Responsibility Segregation: Understanding From First
+Principles — NDepend Blog,
+<https://blog.ndepend.com/cqrs-understanding-first-principles/>
+\[^24\]: When to use the Command Query Responsibility Segregation design
+pattern? — architecture — Stack Overflow,
+<https://stackoverflow.com/questions/8820748/when-to-use-the-cqrs-design-pattern>
+\[^25\]: Another pasta-themed programming problem is "ravioli code". That …,
+<https://news.ycombinator.com/item?id=4537664>
+\[^26\]: Ravioli Code — C2 wiki, <https://wiki.c2.com/?RavioliCode>
+\[^27\]: Ravioli code — why an antipattern? — Stack Overflow,
+<https://stackoverflow.com/questions/2052017/ravioli-code-why-an-anti-pattern>
+\[^28\]: A Guide to Data Abstraction and Its Significant Benefits — CelerData,
+<https://celerdata.com/glossary/a-guide-to-data-abstraction>
+\[^29\]: The Role of Abstraction in Software Development | Bebras Armenia,
+<https://bebras.am/en/blog/The-Role-of-Abstraction-in-Software-Development>
+\[^30\]: Abstraction, Refactoring, Complexity, and Tradeoffs — Part 1 | Synth
+…, <https://omux.dev/blog/abstraction-refactoring-complexity/>
+\[^31\]: Don't create over abstractions — Castineiras thoughts -,
+<https://www.castineiras.com/?p=102>
+\[^32\]: Refactor `if-else` Statements to `match-case` for Improved Readability
+and Maintainability in Python 3.10+ · Issue #453 — GitHub,
+<https://github.com/sourcery-ai/sourcery/issues/453>

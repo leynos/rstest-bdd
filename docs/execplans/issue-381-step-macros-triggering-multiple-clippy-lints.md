@@ -42,56 +42,64 @@ same shared lint list and reason string.
 
 ## Risks
 
-    - Risk: conditional lint emission misses a wrapper shape that triggers a
-      lint, causing Clippy warnings to reappear downstream.
-      Severity: medium
-      Likelihood: medium
-      Mitigation: map lint emission to explicit wrapper patterns and cover those
-      in the unit test expectations.
+```
+- Risk: conditional lint emission misses a wrapper shape that triggers a
+  lint, causing Clippy warnings to reappear downstream.
+  Severity: medium
+  Likelihood: medium
+  Mitigation: map lint emission to explicit wrapper patterns and cover those
+  in the unit test expectations.
 
-    - Risk: a shared lint list used in tests diverges from codegen logic.
-      Severity: medium
-      Likelihood: low
-      Mitigation: centralise lint names in one constant and reuse it in both
-      generation and tests.
+- Risk: a shared lint list used in tests diverges from codegen logic.
+  Severity: medium
+  Likelihood: low
+  Mitigation: centralise lint names in one constant and reuse it in both
+  generation and tests.
 
-    - Risk: documentation reference changes could break existing links.
-      Severity: low
-      Likelihood: low
-      Mitigation: keep reference definitions valid and let `make fmt` reformat.
+- Risk: documentation reference changes could break existing links.
+  Severity: low
+  Likelihood: low
+  Mitigation: keep reference definitions valid and let `make fmt` reformat.
+```
 
 ## Progress
 
-    - [x] (2026-01-18 19:05Z) Update wrapper emit logic to build a conditional
-          lint list per wrapper.
-    - [x] (2026-01-18 19:12Z) Share lint names between codegen and tests.
-    - [x] (2026-01-18 19:24Z) Simplify wrapper expect attribute test helpers and
-          split tests into `assembly/tests.rs`.
-    - [x] (2026-01-18 19:26Z) Fix documentation reference indentation.
-    - [x] (2026-01-18 19:40Z) Run format, lint, and test gates with logs.
-    - [x] (2026-01-18 19:43Z) Commit and push the changes.
+```
+- [x] (2026-01-18 19:05Z) Update wrapper emit logic to build a conditional
+      lint list per wrapper.
+- [x] (2026-01-18 19:12Z) Share lint names between codegen and tests.
+- [x] (2026-01-18 19:24Z) Simplify wrapper expect attribute test helpers and
+      split tests into `assembly/tests.rs`.
+- [x] (2026-01-18 19:26Z) Fix documentation reference indentation.
+- [x] (2026-01-18 19:40Z) Run format, lint, and test gates with logs.
+- [x] (2026-01-18 19:43Z) Commit and push the changes.
+```
 
 ## Surprises & Discoveries
 
-    - Observation: `assembly.rs` exceeded the 400-line limit after adding
-      conditional lint logic and expanded tests.
-      Evidence: `make lint` failed with `check_rs_file_lengths.py` reporting
-      the file length.
-      Impact: moved tests into `assembly/tests.rs` to keep the module within
-      size limits.
+```
+- Observation: `assembly.rs` exceeded the 400-line limit after adding
+  conditional lint logic and expanded tests.
+  Evidence: `make lint` failed with `check_rs_file_lengths.py` reporting
+  the file length.
+  Impact: moved tests into `assembly/tests.rs` to keep the module within
+  size limits.
+```
 
 ## Decision Log
 
-    - Decision: compute wrapper lint expectations from explicit wrapper
-      shape flags (placeholders, return kind, quote stripping, step structs).
-      Rationale: ensures `#[expect(...)]` only lists lints that can occur,
-      avoiding `unused_lint_expectations`.
-      Date/Author: 2026-01-18 (assistant)
+```
+- Decision: compute wrapper lint expectations from explicit wrapper
+  shape flags (placeholders, return kind, quote stripping, step structs).
+  Rationale: ensures `#[expect(...)]` only lists lints that can occur,
+  avoiding `unused_lint_expectations`.
+  Date/Author: 2026-01-18 (assistant)
 
-    - Decision: move wrapper lint tests into `assembly/tests.rs`.
-      Rationale: keep `assembly.rs` below the 400-line limit enforced by the
-      repository lint gate.
-      Date/Author: 2026-01-18 (assistant)
+- Decision: move wrapper lint tests into `assembly/tests.rs`.
+  Rationale: keep `assembly.rs` below the 400-line limit enforced by the
+  repository lint gate.
+  Date/Author: 2026-01-18 (assistant)
+```
 
 ## Outcomes & Retrospective
 
@@ -142,33 +150,33 @@ gates succeed.
 
 All commands run from the repository root
 `/data/leynos/Projects/rstest-bdd.worktrees/issue-381-step-macros-triggering-multiple-clippy-lints`.
- Use `tee` for long outputs as required. If `get-project` is unavailable,
+Use `tee` for long outputs as required. If `get-project` is unavailable,
 replace `$(get-project)` with `$(basename "$PWD")`.
 
 1. Inspect wrapper assembly and argument preparation:
 
-    rg -n "assemble_wrapper_function|render_wrapper_function" \
-      crates/rstest-bdd-macros/src/codegen/wrapper/emit/assembly.rs
-    rg -n "PreparedArgs" \
-      crates/rstest-bdd-macros/src/codegen/wrapper/arguments.rs
+   rg -n "assemble_wrapper_function|render_wrapper_function" \
+   crates/rstest-bdd-macros/src/codegen/wrapper/emit/assembly.rs
+   rg -n "PreparedArgs" \
+   crates/rstest-bdd-macros/src/codegen/wrapper/arguments.rs
 
-2. Implement conditional lint list and thread it into wrapper emission.
+1. Implement conditional lint list and thread it into wrapper emission.
 
-3. Simplify the wrapper attribute test helper and update expectations.
+1. Simplify the wrapper attribute test helper and update expectations.
 
-4. Fix the documentation reference indentation.
+1. Fix the documentation reference indentation.
 
-5. Run quality gates:
+1. Run quality gates:
 
-    make fmt 2>&1 | tee /tmp/fmt-$(get-project)-$(git branch --show).out
-    make markdownlint MDLINT=markdownlint-cli2 2>&1 | tee \
-      /tmp/markdownlint-$(get-project)-$(git branch --show).out
-    make nixie 2>&1 | tee /tmp/nixie-$(get-project)-$(git branch --show).out
-    make check-fmt 2>&1 | tee /tmp/check-fmt-$(get-project)-$(git branch --show).out
-    make lint 2>&1 | tee /tmp/lint-$(get-project)-$(git branch --show).out
-    make test 2>&1 | tee /tmp/test-$(get-project)-$(git branch --show).out
+   make fmt 2>&1 | tee /tmp/fmt-$(get-project)-$(git branch --show).out
+   make markdownlint MDLINT=markdownlint-cli2 2>&1 | tee \
+   /tmp/markdownlint-$(get-project)-$(git branch --show).out
+   make nixie 2>&1 | tee /tmp/nixie-$(get-project)-$(git branch --show).out
+   make check-fmt 2>&1 | tee /tmp/check-fmt-$(get-project)-$(git branch --show).out
+   make lint 2>&1 | tee /tmp/lint-$(get-project)-$(git branch --show).out
+   make test 2>&1 | tee /tmp/test-$(get-project)-$(git branch --show).out
 
-6. Commit and push once all gates pass.
+1. Commit and push once all gates pass.
 
 ## Validation and Acceptance
 

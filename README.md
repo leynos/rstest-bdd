@@ -295,6 +295,7 @@ ______________________________________________________________________
 ## Background, tables, and docstrings
 
 - **Background** runs before every scenario in the feature.
+
 - **Data tables** arrive in a `datatable` parameter whose type implements
   `TryFrom<Vec<Vec<String>>>`. Continue using `Vec<Vec<String>>` or upgrade to
   `rstest_bdd::datatable::Rows<T>` for typed parsing.
@@ -404,13 +405,13 @@ ______________________________________________________________________
 
 1. **Core mechanics**: step registry, `#[scenario]`, exact matching (done/PoC).
 
-2. **Fixtures & parametrisation**: typed placeholders, Scenario Outline →
+1. **Fixtures & parametrisation**: typed placeholders, Scenario Outline →
    `#[case]`.
 
-3. **Feature parity & ergonomics**: Background, tables, docstrings,
+1. **Feature parity & ergonomics**: Background, tables, docstrings,
    `scenarios!` macro, richer diagnostics.
 
-4. **Developer tools**: `cargo bdd list-steps`, editor integrations.
+1. **Developer tools**: `cargo bdd list-steps`, editor integrations.
 
 We’re not here to replace `cucumber`; we’re here to offer a different trade‑off
 for teams already invested in `rstest` and `cargo test`.
@@ -419,14 +420,14 @@ ______________________________________________________________________
 
 ## Comparison at a glance
 
-| Feature          | `rstest-bdd` (proposed)                     | `cucumber` (Rust)                 |
-| ---------------- | ------------------------------------------- | --------------------------------- |
-| Test runner      | `cargo test` (`rstest` under the hood)      | Custom runner (`World::run(...)`) |
-| State management | `rstest` fixtures                           | `World` struct                    |
-| Step discovery   | Compile‑time registration + runtime match   | Runner‑driven collection          |
-| Scenario Outline | Maps to `rstest` parametrisation            | Built into runner                 |
-| Async            | Runtime‑agnostic via features               | Built‑in with specified runtime   |
-| Philosophy       | BDD as an **extension** of `rstest`         | Rust port of classic Cucumber     |
+| Feature          | `rstest-bdd` (proposed)                   | `cucumber` (Rust)                 |
+| ---------------- | ----------------------------------------- | --------------------------------- |
+| Test runner      | `cargo test` (`rstest` under the hood)    | Custom runner (`World::run(...)`) |
+| State management | `rstest` fixtures                         | `World` struct                    |
+| Step discovery   | Compile‑time registration + runtime match | Runner‑driven collection          |
+| Scenario Outline | Maps to `rstest` parametrisation          | Built into runner                 |
+| Async            | Runtime‑agnostic via features             | Built‑in with specified runtime   |
+| Philosophy       | BDD as an **extension** of `rstest`       | Rust port of classic Cucumber     |
 
 ______________________________________________________________________
 

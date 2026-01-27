@@ -59,13 +59,13 @@ all tests/lints pass.
 - [x] (2026-01-17 01:16Z) Draft ExecPlan and obtain approval.
 - [x] (2026-01-17 01:20Z) Run baseline test suite before edits.
 - [x] (2026-01-17 01:26Z) Add minimal ADR for the policy crate and update
-      ADR-001 if needed.
+  ADR-001 if needed.
 - [x] (2026-01-17 01:26Z) Add `crates/rstest-bdd-policy` with shared enums and
-      docs.
+  docs.
 - [x] (2026-01-17 01:26Z) Update runtime and macro crates to use shared policy
-      types.
+  types.
 - [x] (2026-01-17 01:26Z) Update tests to validate policy mapping and remove
-      duplication.
+  duplication.
 - [x] (2026-01-17 01:30Z) Run format, lint, and test quality gates.
 
 ## Surprises and discoveries
@@ -134,17 +134,17 @@ quality gates pass.
 
 ## Concrete steps
 
-1) Baseline tests (before edits) from the repo root:
+1. Baseline tests (before edits) from the repo root:
 
    - `make test 2>&1 | tee /tmp/test-$(get-project)-$(git branch --show).out`
 
-2) Documentation updates:
+1. Documentation updates:
 
    - Add `docs/adr-004-policy-crate.md` with a minimal ADR.
    - Update `docs/adr-001-async-fixtures-and-test.md` if it mentions the policy
      duplication or trait abstraction in a way that now changes.
 
-3) Policy crate scaffolding:
+1. Policy crate scaffolding:
 
    - Add `crates/rstest-bdd-policy/Cargo.toml` with workspace metadata and no
      extra dependencies.
@@ -153,24 +153,23 @@ quality gates pass.
    - Add the crate to workspace members and dependencies in the root
      `Cargo.toml`.
 
-4) Integration changes:
+1. Integration changes:
 
    - Update `crates/rstest-bdd/src/execution.rs` to re-export the policy types
      and remove local enum definitions and duplication notes.
    - Update macro crate code and tests to import the shared enums from
      `rstest-bdd-policy`.
 
-5) Format and quality gates (after edits):
+1. Format and quality gates (after edits):
 
    - `make fmt 2>&1 | tee /tmp/fmt-$(get-project)-$(git branch --show).out`
    - `make check-fmt 2>&1 | tee /tmp/check-fmt-$(get-project)-$(git branch --show).out`
-   - `make markdownlint 2>&1 | tee /tmp/markdownlint-$(get-project)-$(git branch
-     --show).out`
+   - `make markdownlint 2>&1 | tee /tmp/markdownlint-$(get-project)-$(git branch --show).out`
    - `make nixie 2>&1 | tee /tmp/nixie-$(get-project)-$(git branch --show).out`
    - `make lint 2>&1 | tee /tmp/lint-$(get-project)-$(git branch --show).out`
    - `make test 2>&1 | tee /tmp/test-$(get-project)-$(git branch --show).out`
 
-6) Commit once all gates pass. Use an imperative subject and a wrapped body.
+1. Commit once all gates pass. Use an imperative subject and a wrapped body.
 
 ## Validation and acceptance
 
@@ -194,12 +193,14 @@ use `git status` to confirm a clean staging area before committing.
 
 Expected log files after validation:
 
-    /tmp/fmt-$(get-project)-$(git branch --show).out
-    /tmp/check-fmt-$(get-project)-$(git branch --show).out
-    /tmp/markdownlint-$(get-project)-$(git branch --show).out
-    /tmp/nixie-$(get-project)-$(git branch --show).out
-    /tmp/lint-$(get-project)-$(git branch --show).out
-    /tmp/test-$(get-project)-$(git branch --show).out
+```
+/tmp/fmt-$(get-project)-$(git branch --show).out
+/tmp/check-fmt-$(get-project)-$(git branch --show).out
+/tmp/markdownlint-$(get-project)-$(git branch --show).out
+/tmp/nixie-$(get-project)-$(git branch --show).out
+/tmp/lint-$(get-project)-$(git branch --show).out
+/tmp/test-$(get-project)-$(git branch --show).out
+```
 
 ## Interfaces and dependencies
 
