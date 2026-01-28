@@ -33,6 +33,18 @@ fn compute_outline_column_diagnostics(
     compute_scenario_outline_column_diagnostics(feature_index)
 }
 
+/// Helper to build a test scenario and compute diagnostics.
+fn setup_and_compute_diagnostics(
+    scenario_builder: ScenarioBuilder,
+    feature_content: &str,
+) -> Vec<lsp_types::Diagnostic> {
+    let TestScenario { dir, state } = scenario_builder
+        .with_feature("test.feature", feature_content)
+        .with_rust_steps("steps.rs", "// no step definitions\n")
+        .build();
+    compute_outline_column_diagnostics(&state, &dir, "test.feature")
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Tests
 // ─────────────────────────────────────────────────────────────────────────────
@@ -117,13 +129,7 @@ fn scenario_outline_column_validation(
     #[case] expected_message_fragment: Option<&str>,
     #[case] secondary_fragment: Option<&str>,
 ) {
-    let TestScenario { dir, state } = scenario_builder
-        .with_feature("test.feature", feature_content)
-        // No Rust steps needed for column validation
-        .with_rust_steps("steps.rs", "// no step definitions\n")
-        .build();
-
-    let diagnostics = compute_outline_column_diagnostics(&state, &dir, "test.feature");
+    let diagnostics = setup_and_compute_diagnostics(scenario_builder, feature_content);
 
     assert_eq!(
         diagnostics.len(),
@@ -150,105 +156,100 @@ fn scenario_outline_column_validation(
     }
 }
 
+/// Tests for scenarios that should produce no column diagnostics.
 #[rstest]
-fn regular_scenario_no_column_diagnostics(scenario_builder: ScenarioBuilder) {
+#[case::regular_scenario(
     // Regular scenarios (not outlines) should produce no column diagnostics
-    let TestScenario { dir, state } = scenario_builder
-        .with_feature(
-            "test.feature",
-            concat!(
-                "Feature: test\n",
-                "  Scenario: regular\n",
-                "    Given a step\n",
-            ),
-        )
-        .with_rust_steps("steps.rs", "// no step definitions\n")
-        .build();
-
-    let diagnostics = compute_outline_column_diagnostics(&state, &dir, "test.feature");
-    assert!(
-        diagnostics.is_empty(),
-        "regular scenarios should produce no column diagnostics"
-    );
-}
-
-#[rstest]
-fn placeholder_in_docstring_matches_column(scenario_builder: ScenarioBuilder) {
+    concat!(
+        "Feature: test\n",
+        "  Scenario: regular\n",
+        "    Given a step\n",
+    ),
+)]
+#[case::placeholder_in_docstring(
     // Placeholders in docstrings should also be matched against columns
-    let TestScenario { dir, state } = scenario_builder
-        .with_feature(
-            "test.feature",
-            concat!(
-                "Feature: test\n",
-                "  Scenario Outline: outline\n",
-                "    Given a message\n",
-                "      \"\"\"\n",
-                "      Hello <name>\n",
-                "      \"\"\"\n",
-                "    Examples:\n",
-                "      | name  |\n",
-                "      | World |\n",
-            ),
-        )
-        .with_rust_steps("steps.rs", "// no step definitions\n")
-        .build();
-
-    let diagnostics = compute_outline_column_diagnostics(&state, &dir, "test.feature");
-    assert!(
-        diagnostics.is_empty(),
-        "placeholder in docstring should match column"
-    );
-}
-
-#[rstest]
-fn placeholder_in_table_cell_matches_column(scenario_builder: ScenarioBuilder) {
+    concat!(
+        "Feature: test\n",
+        "  Scenario Outline: outline\n",
+        "    Given a message\n",
+        "      \"\"\"\n",
+        "      Hello <name>\n",
+        "      \"\"\"\n",
+        "    Examples:\n",
+        "      | name  |\n",
+        "      | World |\n",
+    ),
+)]
+#[case::placeholder_in_table_cell(
     // Placeholders in data table cells should also be matched against columns
-    let TestScenario { dir, state } = scenario_builder
-        .with_feature(
-            "test.feature",
-            concat!(
-                "Feature: test\n",
-                "  Scenario Outline: outline\n",
-                "    Given a table\n",
-                "      | key  | value   |\n",
-                "      | item | <value> |\n",
-                "    Examples:\n",
-                "      | value |\n",
-                "      | 42    |\n",
-            ),
-        )
-        .with_rust_steps("steps.rs", "// no step definitions\n")
-        .build();
-
-    let diagnostics = compute_outline_column_diagnostics(&state, &dir, "test.feature");
+    concat!(
+        "Feature: test\n",
+        "  Scenario Outline: outline\n",
+        "    Given a table\n",
+        "      | key  | value   |\n",
+        "      | item | <value> |\n",
+        "    Examples:\n",
+        "      | value |\n",
+        "      | 42    |\n",
+    ),
+)]
+#[case::empty_examples(
+    // An Examples block without a table should not cause a crash
+    concat!(
+        "Feature: test\n",
+        "  Scenario Outline: outline\n",
+        "    Given the system has <value> items\n",
+        "    Examples:\n",
+    ),
+)]
+#[case::header_only_examples(
+    // An Examples table with only a header row (no body rows) should not crash
+    concat!(
+        "Feature: test\n",
+        "  Scenario Outline: outline\n",
+        "    Given the system has <value> items\n",
+        "    Examples:\n",
+        "      | value |\n",
+    ),
+)]
+#[case::background_placeholder_with_matching_column(
+    // Background placeholder with matching column should not produce diagnostic
+    concat!(
+        "Feature: test\n",
+        "  Background:\n",
+        "    Given the environment is <env>\n",
+        "  Scenario Outline: outline\n",
+        "    Given the system has <count> items\n",
+        "    Examples:\n",
+        "      | env  | count |\n",
+        "      | prod | 5     |\n",
+    ),
+)]
+fn no_diagnostics_scenarios(scenario_builder: ScenarioBuilder, #[case] feature_content: &str) {
+    let diagnostics = setup_and_compute_diagnostics(scenario_builder, feature_content);
     assert!(
         diagnostics.is_empty(),
-        "placeholder in table cell should match column"
+        "expected no diagnostics, got: {diagnostics:?}"
     );
 }
 
 #[rstest]
 fn multiple_examples_tables_validated_independently(scenario_builder: ScenarioBuilder) {
     // Each Examples table should be validated independently
-    let TestScenario { dir, state } = scenario_builder
-        .with_feature(
-            "test.feature",
-            concat!(
-                "Feature: test\n",
-                "  Scenario Outline: outline\n",
-                "    Given I have <count> items\n",
-                "    Examples: complete\n",
-                "      | count |\n",
-                "      | 5     |\n",
-                "    Examples: missing column\n",
-                "      | other |\n",
-                "      | x     |\n",
-            ),
-        )
-        .with_rust_steps("steps.rs", "// no step definitions\n")
-        .build();
-
-    let diagnostics = compute_outline_column_diagnostics(&state, &dir, "test.feature");
+    let diagnostics = setup_and_compute_diagnostics(
+        scenario_builder,
+        concat!(
+            "Feature: test\n",
+            "  Scenario Outline: outline\n",
+            "    Given I have <count> items\n",
+            "    Examples: complete\n",
+            "      | count |\n",
+            "      | 5     |\n",
+            "    Examples: missing column\n",
+            "      | other |\n",
+            "      | x     |\n",
+        ),
+    );
     // Second table has both: missing 'count' and surplus 'other'
     assert_eq!(
         diagnostics.len(),
@@ -260,23 +261,18 @@ fn multiple_examples_tables_validated_independently(scenario_builder: ScenarioBu
 #[rstest]
 fn outline_inside_rule_validates_columns(scenario_builder: ScenarioBuilder) {
     // Scenario Outlines inside Rules should be validated
-    let TestScenario { dir, state } = scenario_builder
-        .with_feature(
-            "test.feature",
-            concat!(
-                "Feature: test\n",
-                "  Rule: business rule\n",
-                "    Scenario Outline: outline in rule\n",
-                "      Given the system has <count> items\n",
-                "      Examples:\n",
-                "        | other |\n",
-                "        | 5     |\n",
-            ),
-        )
-        .with_rust_steps("steps.rs", "// no step definitions\n")
-        .build();
-
-    let diagnostics = compute_outline_column_diagnostics(&state, &dir, "test.feature");
+    let diagnostics = setup_and_compute_diagnostics(
+        scenario_builder,
+        concat!(
+            "Feature: test\n",
+            "  Rule: business rule\n",
+            "    Scenario Outline: outline in rule\n",
+            "      Given the system has <count> items\n",
+            "      Examples:\n",
+            "        | other |\n",
+            "        | 5     |\n",
+        ),
+    );
     // Missing 'count' and surplus 'other'
     assert_eq!(
         diagnostics.len(),
@@ -296,27 +292,22 @@ fn outline_inside_rule_validates_columns(scenario_builder: ScenarioBuilder) {
 #[rstest]
 fn multiple_outlines_diagnostics_scoped_correctly(scenario_builder: ScenarioBuilder) {
     // Multiple outlines - diagnostics should not leak between them
-    let TestScenario { dir, state } = scenario_builder
-        .with_feature(
-            "test.feature",
-            concat!(
-                "Feature: test\n",
-                "  Scenario Outline: first outline\n",
-                "    Given the system has <alpha> items\n",
-                "    Examples:\n",
-                "      | alpha |\n",
-                "      | 1     |\n",
-                "  Scenario Outline: second outline\n",
-                "    Given the system has <beta> items\n",
-                "    Examples:\n",
-                "      | gamma |\n",
-                "      | 2     |\n",
-            ),
-        )
-        .with_rust_steps("steps.rs", "// no step definitions\n")
-        .build();
-
-    let diagnostics = compute_outline_column_diagnostics(&state, &dir, "test.feature");
+    let diagnostics = setup_and_compute_diagnostics(
+        scenario_builder,
+        concat!(
+            "Feature: test\n",
+            "  Scenario Outline: first outline\n",
+            "    Given the system has <alpha> items\n",
+            "    Examples:\n",
+            "      | alpha |\n",
+            "      | 1     |\n",
+            "  Scenario Outline: second outline\n",
+            "    Given the system has <beta> items\n",
+            "    Examples:\n",
+            "      | gamma |\n",
+            "      | 2     |\n",
+        ),
+    );
     // First outline is correct, second has missing 'beta' and surplus 'gamma'
     assert_eq!(
         diagnostics.len(),
@@ -339,75 +330,21 @@ fn multiple_outlines_diagnostics_scoped_correctly(scenario_builder: ScenarioBuil
 }
 
 #[rstest]
-fn outline_with_empty_examples_no_crash(scenario_builder: ScenarioBuilder) {
-    // An Examples block without a table should not cause a crash
-    let TestScenario { dir, state } = scenario_builder
-        .with_feature(
-            "test.feature",
-            concat!(
-                "Feature: test\n",
-                "  Scenario Outline: outline\n",
-                "    Given the system has <value> items\n",
-                "    Examples:\n",
-            ),
-        )
-        .with_rust_steps("steps.rs", "// no step definitions\n")
-        .build();
-
-    let diagnostics = compute_outline_column_diagnostics(&state, &dir, "test.feature");
-    // No valid table means we cannot check columns - expect no diagnostics
-    assert!(
-        diagnostics.is_empty(),
-        "outline with empty Examples should produce no diagnostics, got: {diagnostics:?}"
-    );
-}
-
-#[rstest]
-fn outline_with_header_only_no_diagnostics(scenario_builder: ScenarioBuilder) {
-    // An Examples table with only a header row (no body rows) should not crash
-    let TestScenario { dir, state } = scenario_builder
-        .with_feature(
-            "test.feature",
-            concat!(
-                "Feature: test\n",
-                "  Scenario Outline: outline\n",
-                "    Given the system has <value> items\n",
-                "    Examples:\n",
-                "      | value |\n",
-            ),
-        )
-        .with_rust_steps("steps.rs", "// no step definitions\n")
-        .build();
-
-    let diagnostics = compute_outline_column_diagnostics(&state, &dir, "test.feature");
-    // Header-only table is valid - column matches placeholder
-    assert!(
-        diagnostics.is_empty(),
-        "outline with header-only Examples should produce no diagnostics"
-    );
-}
-
-#[rstest]
 fn background_placeholder_requires_column(scenario_builder: ScenarioBuilder) {
     // Placeholders in feature Background should be validated against Examples
-    let TestScenario { dir, state } = scenario_builder
-        .with_feature(
-            "test.feature",
-            concat!(
-                "Feature: test\n",
-                "  Background:\n",
-                "    Given the environment is <env>\n",
-                "  Scenario Outline: outline\n",
-                "    Given the system has <count> items\n",
-                "    Examples:\n",
-                "      | count |\n",
-                "      | 5     |\n",
-            ),
-        )
-        .with_rust_steps("steps.rs", "// no step definitions\n")
-        .build();
-
-    let diagnostics = compute_outline_column_diagnostics(&state, &dir, "test.feature");
+    let diagnostics = setup_and_compute_diagnostics(
+        scenario_builder,
+        concat!(
+            "Feature: test\n",
+            "  Background:\n",
+            "    Given the environment is <env>\n",
+            "  Scenario Outline: outline\n",
+            "    Given the system has <count> items\n",
+            "    Examples:\n",
+            "      | count |\n",
+            "      | 5     |\n",
+        ),
+    );
     // Background uses <env> but Examples only has | count |
     assert_eq!(
         diagnostics.len(),
@@ -421,54 +358,22 @@ fn background_placeholder_requires_column(scenario_builder: ScenarioBuilder) {
 }
 
 #[rstest]
-fn background_placeholder_with_matching_column_no_diagnostic(scenario_builder: ScenarioBuilder) {
-    // Background placeholder with matching column should not produce diagnostic
-    let TestScenario { dir, state } = scenario_builder
-        .with_feature(
-            "test.feature",
-            concat!(
-                "Feature: test\n",
-                "  Background:\n",
-                "    Given the environment is <env>\n",
-                "  Scenario Outline: outline\n",
-                "    Given the system has <count> items\n",
-                "    Examples:\n",
-                "      | env  | count |\n",
-                "      | prod | 5     |\n",
-            ),
-        )
-        .with_rust_steps("steps.rs", "// no step definitions\n")
-        .build();
-
-    let diagnostics = compute_outline_column_diagnostics(&state, &dir, "test.feature");
-    assert!(
-        diagnostics.is_empty(),
-        "background placeholder with matching column should produce no diagnostics"
-    );
-}
-
-#[rstest]
 fn rule_background_placeholder_requires_column(scenario_builder: ScenarioBuilder) {
     // Placeholders in Rule Background should be validated against Examples
-    let TestScenario { dir, state } = scenario_builder
-        .with_feature(
-            "test.feature",
-            concat!(
-                "Feature: test\n",
-                "  Rule: business rule\n",
-                "    Background:\n",
-                "      Given the context is <context>\n",
-                "    Scenario Outline: outline in rule\n",
-                "      Given the system has <count> items\n",
-                "      Examples:\n",
-                "        | count |\n",
-                "        | 5     |\n",
-            ),
-        )
-        .with_rust_steps("steps.rs", "// no step definitions\n")
-        .build();
-
-    let diagnostics = compute_outline_column_diagnostics(&state, &dir, "test.feature");
+    let diagnostics = setup_and_compute_diagnostics(
+        scenario_builder,
+        concat!(
+            "Feature: test\n",
+            "  Rule: business rule\n",
+            "    Background:\n",
+            "      Given the context is <context>\n",
+            "    Scenario Outline: outline in rule\n",
+            "      Given the system has <count> items\n",
+            "      Examples:\n",
+            "        | count |\n",
+            "        | 5     |\n",
+        ),
+    );
     // Rule background uses <context> but Examples only has | count |
     assert_eq!(
         diagnostics.len(),

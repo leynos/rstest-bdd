@@ -9,6 +9,19 @@ use super::FeatureSource;
 use super::table::extract_header_cell_spans;
 use crate::indexing::{IndexedExampleColumn, IndexedExamplesTable, IndexedScenarioOutline};
 
+/// Step index ranges for building a scenario outline.
+///
+/// Groups the step-related indices together to reduce parameter count in
+/// `build_scenario_outline`.
+pub(super) struct ScenarioStepIndices {
+    /// Start index of this scenario's steps in the shared step list.
+    pub start: usize,
+    /// End index (exclusive) of this scenario's steps in the shared step list.
+    pub end: usize,
+    /// Indices of background steps that apply to this scenario.
+    pub background: Vec<usize>,
+}
+
 /// Check if a scenario is a Scenario Outline (or Scenario Template).
 ///
 /// A scenario is considered an outline if it has any examples, regardless of
@@ -21,18 +34,16 @@ pub(super) fn is_scenario_outline(scenario: &gherkin::Scenario) -> bool {
 pub(super) fn build_scenario_outline(
     source: FeatureSource<'_>,
     scenario: &gherkin::Scenario,
-    step_start_index: usize,
-    step_end_index: usize,
-    background_step_indices: Vec<usize>,
+    indices: ScenarioStepIndices,
 ) -> IndexedScenarioOutline {
-    let step_indices: Vec<usize> = (step_start_index..step_end_index).collect();
+    let step_indices: Vec<usize> = (indices.start..indices.end).collect();
     let examples = build_examples_tables(source, &scenario.examples);
 
     IndexedScenarioOutline {
         name: scenario.name.clone(),
         span: scenario.span,
         step_indices,
-        background_step_indices,
+        background_step_indices: indices.background,
         examples,
     }
 }

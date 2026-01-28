@@ -14,7 +14,18 @@ use super::{
 mod outline;
 mod table;
 
-use outline::{build_scenario_outline, extract_example_columns, is_scenario_outline};
+use outline::{
+    ScenarioStepIndices, build_scenario_outline, extract_example_columns, is_scenario_outline,
+};
+
+/// Accumulates indexed steps and scenario outlines during feature indexing.
+///
+/// Groups the mutable output vectors together to reduce parameter count in
+/// `process_scenarios` and `process_rule`.
+struct IndexingAccumulators<'a> {
+    steps: &'a mut Vec<IndexedStep>,
+    scenario_outlines: &'a mut Vec<IndexedScenarioOutline>,
+}
 
 #[derive(Clone, Copy, Debug)]
 struct FeatureSource<'a>(&'a str);
@@ -158,22 +169,20 @@ fn index_feature_text(
     let feature_background_indices: Vec<usize> =
         (feature_background_start..feature_background_end).collect();
 
+    let mut accumulators = IndexingAccumulators {
+        steps: &mut steps,
+        scenario_outlines: &mut scenario_outlines,
+    };
+
     process_scenarios(
         source,
         &feature.scenarios,
-        &mut steps,
-        &mut scenario_outlines,
+        &mut accumulators,
         &feature_background_indices,
     )?;
 
     for rule in &feature.rules {
-        process_rule(
-            source,
-            rule,
-            &mut steps,
-            &mut scenario_outlines,
-            &feature_background_indices,
-        )?;
+        process_rule(source, rule, &mut accumulators, &feature_background_indices)?;
     }
 
     let example_columns = extract_example_columns(source, &feature);
@@ -191,24 +200,24 @@ fn index_feature_text(
 fn process_scenarios(
     source: FeatureSource<'_>,
     scenarios: &[gherkin::Scenario],
-    steps: &mut Vec<IndexedStep>,
-    scenario_outlines: &mut Vec<IndexedScenarioOutline>,
+    accumulators: &mut IndexingAccumulators<'_>,
     background_step_indices: &[usize],
 ) -> Result<(), FeatureIndexError> {
     for scenario in scenarios {
-        let step_start_index = steps.len();
-        steps.extend(index_steps_for_container(source, &scenario.steps)?);
-        let step_end_index = steps.len();
+        let step_start_index = accumulators.steps.len();
+        accumulators
+            .steps
+            .extend(index_steps_for_container(source, &scenario.steps)?);
+        let step_end_index = accumulators.steps.len();
 
         if is_scenario_outline(scenario) {
-            let outline = build_scenario_outline(
-                source,
-                scenario,
-                step_start_index,
-                step_end_index,
-                background_step_indices.to_vec(),
-            );
-            scenario_outlines.push(outline);
+            let indices = ScenarioStepIndices {
+                start: step_start_index,
+                end: step_end_index,
+                background: background_step_indices.to_vec(),
+            };
+            let outline = build_scenario_outline(source, scenario, indices);
+            accumulators.scenario_outlines.push(outline);
         }
     }
     Ok(())
@@ -218,16 +227,17 @@ fn process_scenarios(
 fn process_rule(
     source: FeatureSource<'_>,
     rule: &gherkin::Rule,
-    steps: &mut Vec<IndexedStep>,
-    scenario_outlines: &mut Vec<IndexedScenarioOutline>,
+    accumulators: &mut IndexingAccumulators<'_>,
     feature_background_indices: &[usize],
 ) -> Result<(), FeatureIndexError> {
     // Index rule-level background steps and track their indices
-    let rule_background_start = steps.len();
+    let rule_background_start = accumulators.steps.len();
     if let Some(background) = rule.background.as_ref() {
-        steps.extend(index_steps_for_container(source, &background.steps)?);
+        accumulators
+            .steps
+            .extend(index_steps_for_container(source, &background.steps)?);
     }
-    let rule_background_end = steps.len();
+    let rule_background_end = accumulators.steps.len();
 
     // Combine feature-level and rule-level background indices
     let mut combined_background_indices = feature_background_indices.to_vec();
@@ -236,8 +246,7 @@ fn process_rule(
     process_scenarios(
         source,
         &rule.scenarios,
-        steps,
-        scenario_outlines,
+        accumulators,
         &combined_background_indices,
     )
 }

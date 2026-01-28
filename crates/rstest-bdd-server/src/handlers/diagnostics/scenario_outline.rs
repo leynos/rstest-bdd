@@ -118,19 +118,35 @@ fn collect_outline_placeholders(
         .chain(outline.step_indices.iter());
 
     for &step_idx in all_step_indices {
-        if let Some(step) = feature_index.steps.get(step_idx) {
-            for placeholder in extract_placeholders_from_step(step) {
-                if all.insert(placeholder.clone()) {
-                    // First occurrence of this placeholder
-                    first_step_for.insert(placeholder, step_idx);
-                }
-            }
-        }
+        process_step_placeholders(feature_index, step_idx, &mut all, &mut first_step_for);
     }
 
     OutlinePlaceholders {
         all,
         first_step_for,
+    }
+}
+
+/// Process placeholders from a single step and record first occurrences.
+///
+/// Extracts placeholders from the step at the given index and adds them to
+/// the accumulator sets. Records the step index for first-time occurrences
+/// to enable efficient diagnostic generation.
+fn process_step_placeholders(
+    feature_index: &FeatureFileIndex,
+    step_idx: usize,
+    all: &mut HashSet<String>,
+    first_step_for: &mut HashMap<String, usize>,
+) {
+    let Some(step) = feature_index.steps.get(step_idx) else {
+        return;
+    };
+
+    for placeholder in extract_placeholders_from_step(step) {
+        if all.insert(placeholder.clone()) {
+            // First occurrence of this placeholder
+            first_step_for.insert(placeholder, step_idx);
+        }
     }
 }
 
