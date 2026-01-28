@@ -43,7 +43,16 @@ pub struct FeatureFileIndex {
     /// All steps found in the feature (including backgrounds and rules).
     pub steps: Vec<IndexedStep>,
     /// Example header columns extracted from scenario outlines.
+    ///
+    /// This flat list is retained for backward compatibility. For structured
+    /// access to columns per scenario outline, use `scenario_outlines`.
     pub example_columns: Vec<IndexedExampleColumn>,
+    /// Scenario outlines with their steps and example tables.
+    ///
+    /// Each outline tracks which steps belong to it (via indices into `steps`)
+    /// and which Examples tables it contains, enabling validation of
+    /// placeholder references against column headers.
+    pub scenario_outlines: Vec<IndexedScenarioOutline>,
 }
 
 /// A step captured from a Gherkin feature file.
@@ -88,6 +97,41 @@ pub struct IndexedExampleColumn {
     pub name: String,
     /// Byte span covering the header cell contents in the source.
     pub span: Span,
+}
+
+/// An Examples table from a scenario outline.
+///
+/// Captures the byte span and column headers for a single Examples block,
+/// enabling diagnostics to pinpoint specific tables when multiple Examples
+/// blocks exist within a single scenario outline.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct IndexedExamplesTable {
+    /// Byte span covering the Examples block in the source.
+    pub span: Span,
+    /// Column headers with their individual spans.
+    pub columns: Vec<IndexedExampleColumn>,
+}
+
+/// A scenario outline with its steps and example tables.
+///
+/// Captures the relationship between a scenario outline's steps and its
+/// Examples tables, enabling validation of placeholder references against
+/// available column headers.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct IndexedScenarioOutline {
+    /// The scenario outline's name (title text).
+    pub name: String,
+    /// Byte span covering the scenario outline block in the source.
+    pub span: Span,
+    /// Indices into `FeatureFileIndex.steps` for steps belonging to this
+    /// outline.
+    pub step_indices: Vec<usize>,
+    /// Indices into `FeatureFileIndex.steps` for background steps that apply
+    /// to this outline. Background steps are executed for each example row,
+    /// so any placeholders they contain must be present in the Examples table.
+    pub background_step_indices: Vec<usize>,
+    /// Example tables belonging to this outline.
+    pub examples: Vec<IndexedExamplesTable>,
 }
 
 /// Errors that can occur during `.feature` indexing.

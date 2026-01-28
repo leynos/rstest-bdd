@@ -1604,10 +1604,23 @@ definitions:
   provides a doc string but the matching Rust implementation does not expect
   one, a warning diagnostic is published on the doc string in the feature file.
 
+- **Missing Examples column** (`example-column-missing`): When a step in a
+  Scenario Outline uses a placeholder (e.g., `<count>`) that has no matching
+  column header in the Examples table, a warning diagnostic is published on
+  the step that references the undefined placeholder. The message lists the
+  available columns to help identify typos or missing data.
+
+- **Surplus Examples column** (`example-column-surplus`): When an Examples
+  table includes a column header that is not referenced by any `<placeholder>`
+  in the Scenario Outline's steps, a warning diagnostic is published on the
+  unused column header. This helps identify redundant data in the Examples
+  table that may indicate a copy-paste error or an incomplete refactoring.
+
 Diagnostics are updated incrementally:
 
 - Saving a `.feature` file recomputes diagnostics for that file, including
-  unimplemented steps and table/docstring expectation mismatches.
+  unimplemented steps, table/docstring expectation mismatches, and scenario
+  outline column mismatches.
 - Saving a `.rs` file recomputes diagnostics for all feature files (since new
   or removed step definitions may affect which steps are implemented) and
   checks for unused definitions and placeholder count mismatches in the saved
