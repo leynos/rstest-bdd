@@ -24,6 +24,7 @@ approach increasingly unattractive:
 
 - Tokio support introduces a large, visible dependency surface, even when many
   consumers do not need async tests.
+
 - UI frameworks such as GPUI (and soon Bevy) bring heavy transitive
   dependencies, platform backends, and build-time costs that most `rstest-bdd`
   users should not pay unless they opt in.
@@ -39,13 +40,17 @@ harness integrations as separate crates.
 
 - Keep `rstest-bdd`’s default dependency footprint small for the majority of
   users.
+
 - Avoid pulling Tokio into `rstest-bdd`’s dependency graph to reduce SBOM size
   and transitive supply-chain surface.
+
 - Support multiple harnesses (Tokio, GPUI, Bevy, and others) without
   accumulating framework-specific conditionals in core code generation and
   runtime logic.
+
 - Maintain a coherent, well-documented, and stable integration surface for
   harness authors.
+
 - Preserve a smooth user experience for test authors, including clear, explicit
   opt-in behaviour.
 
@@ -148,8 +153,8 @@ fn ui_behaviour() {
 - Provide dynamic “plug-in discovery” at runtime or compile time. Harness
   selection remains explicit, by type path or configuration in macro attributes.
 - Standardize every harness’ fixture naming and semantics across frameworks.
-  Harness crates may define their own fixture conventions, as long as they are
-  documented and stable.
+  Harness crates may define fixture conventions, as long as they are documented
+  and stable.
 - Solve unrelated fixture design problems that are not driven by harness
   integration (for example, redesigning step parameter extraction).
 
@@ -158,8 +163,8 @@ fn ui_behaviour() {
 1. Introduce `rstest-bdd-harness`
 
    - Define the harness traits and minimal shared types.
-   - Provide a default “std” harness implementation (no async runtime) used when
-     no harness is specified.
+   - Provide a default “std” harness implementation (no async runtime) used
+     when no harness is specified.
 
 2. Update macro expansion to target the harness abstraction
 
@@ -185,8 +190,8 @@ fn ui_behaviour() {
 
    - Add a “Harness adapters” chapter describing: selection, configuration,
      fixture injection, and portability expectations.
-   - Provide cookbook examples for Tokio and GPUI, plus a “template” for future
-     harness authors.
+   - Provide cookbook examples for Tokio and GPUI, plus a “template” for
+     future harness authors.
 
 6. Add `rstest-bdd-harness-bevy`
 
