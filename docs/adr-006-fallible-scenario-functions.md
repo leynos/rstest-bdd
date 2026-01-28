@@ -13,11 +13,14 @@ outcomes do not record a passed scenario.
 ## Context and problem statement
 
 Scenario bodies currently return `()` while steps already support fallible
-return types via the shared `ReturnKind` classification. During the fallible
-scenario experiment, the macro could not express a fallible scenario signature
-without breaking the skip path or misreporting the scenario outcome. The
-framework needs a way to let scenario bodies use `?` while keeping status
-recording accurate and compiler diagnostics clear.
+return types via the shared `ReturnKind` classification. See
+[ADR 002](adr-002-stable-step-return-classification.md) for the return-kind
+design and [Users guide §Step return values](users-guide.md#step-return-values)
+for macro classification details. During the fallible scenario experiment, the
+macro could not express a fallible scenario signature without breaking the skip
+path or misreporting the scenario outcome. The framework needs a way to let
+scenario bodies use `?` while keeping status recording accurate and compiler
+diagnostics clear.
 
 ## Decision drivers
 
