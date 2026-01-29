@@ -13,7 +13,7 @@ members = [
 
 [workspace.package]
 edition = "2024"
-version = "0.3.2"
+version = "0.4.0"
 rust-version = "1.85"
 license = "ISC"
 authors = ["Payton McIntosh <pmcintosh@df12.net>"]
@@ -44,10 +44,10 @@ cargo_metadata = "0.18"
 eyre = "0.6"
 ctor = "0.2"
 newt-hype = "0.2.0"
-rstest-bdd = { version = "0.3.2", path = "crates/rstest-bdd" }
-rstest-bdd-macros = { version = "0.3.2", path = "crates/rstest-bdd-macros" }
-rstest-bdd-policy = { version = "0.3.2", path = "crates/rstest-bdd-policy" }
-rstest-bdd-patterns = { version = "0.3.2", path = "crates/rstest-bdd-patterns" }
+rstest-bdd = { version = "0.4.0", path = "crates/rstest-bdd" }
+rstest-bdd-macros = { version = "0.4.0", path = "crates/rstest-bdd-macros" }
+rstest-bdd-policy = { version = "0.4.0", path = "crates/rstest-bdd-policy" }
+rstest-bdd-patterns = { version = "0.4.0", path = "crates/rstest-bdd-patterns" }
 log = "0.4"
 tempfile = "3.23"
 i18n-embed = { version = "0.16", features = ["fluent-system", "desktop-requester"] }
