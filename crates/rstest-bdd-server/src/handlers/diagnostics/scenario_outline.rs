@@ -196,31 +196,45 @@ fn check_examples_table(
     let column_set: HashSet<&str> = column_names.iter().copied().collect();
 
     let mut diagnostics = Vec::new();
-
-    // Check for missing columns (placeholders not in column_set)
-    for placeholder in &placeholders.all {
-        if !column_set.contains(placeholder.as_str()) {
-            if let Some(diag) = build_missing_column_diagnostic(
-                feature_index,
-                placeholder,
-                placeholders,
-                &column_names,
-            ) {
-                diagnostics.push(diag);
-            }
-        }
-    }
-
-    // Check for surplus columns (columns not in placeholders.all)
-    diagnostics.extend(
-        examples
-            .columns
-            .iter()
-            .filter(|col| !placeholders.all.contains(&col.name))
-            .map(|col| build_surplus_column_diagnostic(feature_index, col)),
-    );
-
+    diagnostics.extend(check_missing_columns(
+        feature_index,
+        placeholders,
+        &column_set,
+        &column_names,
+    ));
+    diagnostics.extend(check_surplus_columns(feature_index, examples, placeholders));
     diagnostics
+}
+
+/// Check for placeholders that have no matching column in the Examples table.
+fn check_missing_columns(
+    feature_index: &FeatureFileIndex,
+    placeholders: &OutlinePlaceholders,
+    column_set: &HashSet<&str>,
+    column_names: &[&str],
+) -> Vec<Diagnostic> {
+    placeholders
+        .all
+        .iter()
+        .filter(|placeholder| !column_set.contains(placeholder.as_str()))
+        .filter_map(|placeholder| {
+            build_missing_column_diagnostic(feature_index, placeholder, placeholders, column_names)
+        })
+        .collect()
+}
+
+/// Check for columns that are not referenced by any step placeholder.
+fn check_surplus_columns(
+    feature_index: &FeatureFileIndex,
+    examples: &IndexedExamplesTable,
+    placeholders: &OutlinePlaceholders,
+) -> Vec<Diagnostic> {
+    examples
+        .columns
+        .iter()
+        .filter(|col| !placeholders.all.contains(&col.name))
+        .map(|col| build_surplus_column_diagnostic(feature_index, col))
+        .collect()
 }
 
 /// Build a diagnostic for a missing column.
@@ -331,9 +345,14 @@ mod tests {
 
     #[test]
     fn extract_placeholders_handles_nested_angles() {
-        let text = "I have <count> items";
+        // Test that nested angle brackets result in the inner-most valid match
+        // The regex `<([^>\s][^>]*)>` matches from < to the first >, so
+        // `<a<b>` matches `a<b` as the placeholder name (not ideal, but documented behavior)
+        let text = "I have <outer<inner>> and <valid>";
         let placeholders = extract_placeholders_from_text(text);
-        assert_eq!(placeholders.len(), 1);
-        assert!(placeholders.contains("count"));
+        // <outer<inner> matches "outer<inner", and <valid> matches "valid"
+        assert_eq!(placeholders.len(), 2);
+        assert!(placeholders.contains("outer<inner"));
+        assert!(placeholders.contains("valid"));
     }
 }

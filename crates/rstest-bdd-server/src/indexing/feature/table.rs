@@ -2,7 +2,8 @@
 
 use gherkin::Span;
 
-use super::{FeatureSource, LineContent};
+use super::FeatureSource;
+use super::docstring::LineContent;
 
 /// Extract byte spans for each header cell in a Gherkin Examples table.
 ///

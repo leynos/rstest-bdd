@@ -330,58 +330,49 @@ fn multiple_outlines_diagnostics_scoped_correctly(scenario_builder: ScenarioBuil
 }
 
 #[rstest]
-fn background_placeholder_requires_column(scenario_builder: ScenarioBuilder) {
+#[case::feature_background(
     // Placeholders in feature Background should be validated against Examples
-    let diagnostics = setup_and_compute_diagnostics(
-        scenario_builder,
-        concat!(
-            "Feature: test\n",
-            "  Background:\n",
-            "    Given the environment is <env>\n",
-            "  Scenario Outline: outline\n",
-            "    Given the system has <count> items\n",
-            "    Examples:\n",
-            "      | count |\n",
-            "      | 5     |\n",
-        ),
-    );
-    // Background uses <env> but Examples only has | count |
-    assert_eq!(
-        diagnostics.len(),
-        1,
-        "background placeholder without matching column should produce diagnostic"
-    );
-    assert!(
-        diagnostics.iter().any(|d| d.message.contains("env")),
-        "diagnostic should mention missing 'env' column"
-    );
-}
-
-#[rstest]
-fn rule_background_placeholder_requires_column(scenario_builder: ScenarioBuilder) {
+    concat!(
+        "Feature: test\n",
+        "  Background:\n",
+        "    Given the environment is <env>\n",
+        "  Scenario Outline: outline\n",
+        "    Given the system has <count> items\n",
+        "    Examples:\n",
+        "      | count |\n",
+        "      | 5     |\n",
+    ),
+    "env",
+    "feature background placeholder without matching column should produce diagnostic",
+)]
+#[case::rule_background(
     // Placeholders in Rule Background should be validated against Examples
-    let diagnostics = setup_and_compute_diagnostics(
-        scenario_builder,
-        concat!(
-            "Feature: test\n",
-            "  Rule: business rule\n",
-            "    Background:\n",
-            "      Given the context is <context>\n",
-            "    Scenario Outline: outline in rule\n",
-            "      Given the system has <count> items\n",
-            "      Examples:\n",
-            "        | count |\n",
-            "        | 5     |\n",
-        ),
-    );
-    // Rule background uses <context> but Examples only has | count |
-    assert_eq!(
-        diagnostics.len(),
-        1,
-        "rule background placeholder without matching column should produce diagnostic"
-    );
+    concat!(
+        "Feature: test\n",
+        "  Rule: business rule\n",
+        "    Background:\n",
+        "      Given the context is <context>\n",
+        "    Scenario Outline: outline in rule\n",
+        "      Given the system has <count> items\n",
+        "      Examples:\n",
+        "        | count |\n",
+        "        | 5     |\n",
+    ),
+    "context",
+    "rule background placeholder without matching column should produce diagnostic",
+)]
+fn background_placeholder_requires_column(
+    scenario_builder: ScenarioBuilder,
+    #[case] feature_content: &str,
+    #[case] missing_placeholder: &str,
+    #[case] assertion_message: &str,
+) {
+    let diagnostics = setup_and_compute_diagnostics(scenario_builder, feature_content);
+    assert_eq!(diagnostics.len(), 1, "{assertion_message}");
     assert!(
-        diagnostics.iter().any(|d| d.message.contains("context")),
-        "diagnostic should mention missing 'context' column"
+        diagnostics
+            .iter()
+            .any(|d| d.message.contains(missing_placeholder)),
+        "diagnostic should mention missing '{missing_placeholder}' column"
     );
 }

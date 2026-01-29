@@ -10,5 +10,4 @@ crates/rstest-bdd-server/src/handlers/diagnostics/compute.rs
 crates/rstest-bdd-server/src/handlers/diagnostics/mod.rs
 crates/rstest-bdd-server/src/indexing/rust.rs
 # Added during Phase 7.4.3 scenario outline example column checking:
-crates/rstest-bdd-server/src/indexing/feature.rs
 crates/rstest-bdd-server/tests/diagnostics_scenario_outline.rs
