@@ -5,9 +5,9 @@
 Accepted 2026-01-25: Introduce a small, framework-agnostic harness abstraction
 in `rstest-bdd-harness`, and ship official harness adapters as separate crates:
 `rstest-bdd-harness-tokio` and `rstest-bdd-harness-gpui`. This keeps Tokio and
-GPUI out of `rstest-bdd`’s dependency graph by default (lighter SBOMs), while
-enabling BDD-style tests to execute inside external test harnesses. A Bevy
-harness will follow the same pattern.
+GPUI out of `rstest-bdd`’s dependency graph by default (lighter SBOM (Software
+Bill of Materials) entries), while enabling BDD-style tests to execute inside
+external test harnesses. A Bevy harness will follow the same pattern.
 
 ## Date
 
