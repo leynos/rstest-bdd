@@ -152,7 +152,7 @@ fn ui_behaviour() {
 
 - Provide dynamic “plug-in discovery” at runtime or compile time. Harness
   selection remains explicit, by type path or configuration in macro attributes.
-- Standardize every harness’ fixture naming and semantics across frameworks.
+- Standardize every harness's fixture naming and semantics across frameworks.
   Harness crates may define fixture conventions, as long as they are documented
   and stable.
 - Solve unrelated fixture design problems that are not driven by harness
