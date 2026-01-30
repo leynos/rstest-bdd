@@ -197,13 +197,13 @@ fn ui_behaviour() {
 - More crates increase publishing and release coordination overhead, especially
   when changes span macros, harness traits, and adapters.
 - A too-opinionated harness trait can paint us into a corner; a too-generic trait
-  can leak complexity into every adapter. We need to keep the trait surface small
-  and evolve it cautiously.
+  can leak complexity into every adapter. Keep the trait surface small and evolve
+  it cautiously.
 - Users may find harness selection confusing without strong documentation and
   examples, particularly when troubleshooting async execution and fixture
   injection.
 - Harness adapters can accidentally diverge in semantics (for example, panic
-  handling, timeouts, or ordering guarantees). We need explicit behavioural
+  handling, timeouts, or ordering guarantees). Provide explicit behavioural
   contracts in each harness crate's documentation.
 
 ## Architectural rationale
