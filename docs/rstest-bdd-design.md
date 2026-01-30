@@ -1490,8 +1490,8 @@ The first official adapters and policies are:
   harness, injects GPUI fixtures such as `TestAppContext`, and provides the
   matching GPUI test attribute policy.
 
-Future adapters (for example, Bevy) follow the same pattern without requiring
-new dependencies in `rstest-bdd` or `rstest-bdd-macros`.
+Future adapters (for example, Bevy) are planned to follow the same pattern
+without requiring new dependencies in `rstest-bdd` or `rstest-bdd-macros`.
 
 ## Part 3: Implementation and strategic analysis
 
@@ -2275,36 +2275,12 @@ All modules use en‑GB spelling and include `//!` module‑level documentation.
 
 ### 3.12 Harness adapters and attribute plugins (ADR-005)
 
-The harness adapter architecture requires explicit implementation work in the
-core and in new plugin crates. The sequencing below keeps core crates lean
-while delivering Tokio and GPUI as first-party targets.
-
-- **Introduce `rstest-bdd-harness`.**
-  - Define the harness adapter trait plus shared runner types.
-  - Provide a default `StdHarness` implementation for synchronous tests.
-  - Define the attribute policy interface and a `StdAttributes` policy that
-    emits only `#[rstest::rstest]`.
-- **Update macro expansion.**
-  - Accept `harness = path::ToHarness` and optional
-    `attributes = path::ToPolicy` on `#[scenario]` and `scenarios!`.
-  - Generate test bodies that delegate execution to the harness adapter.
-  - Treat `runtime = "tokio-current-thread"` as a compatibility alias that
-    maps to the Tokio harness adapter.
-- **Extract Tokio integration into a plugin crate.**
-  - Create `rstest-bdd-harness-tokio`.
-  - Move Tokio runtime wiring and async scenario entry points into the adapter.
-  - Provide a Tokio attribute policy that emits the current-thread test
-    attribute.
-- **Implement the GPUI adapter.**
-  - Create `rstest-bdd-harness-gpui`.
-  - Execute scenarios inside the GPUI test harness.
-  - Inject GPUI fixtures such as `TestAppContext` and expose the matching test
-    attribute policy.
-- **Document and harden.**
-  - Add a harness adapter chapter to the user guide and design docs.
-  - Add integration tests covering harness selection, attribute policies, and
-    fixture injection for Tokio and GPUI.
-  - Leave a clear extension point for Bevy and other future harnesses.
+The harness adapter architecture introduces a small core harness crate, macro
+integration for selecting harnesses and attribute policies, and opt-in adapter
+crates for Tokio and GPUI. The detailed sequencing, milestones, and validation
+steps live in the roadmap to avoid duplication and drift; see
+[Phase 9](roadmap.md#phase-9-harness-adapters-and-attribute-plugins) for the
+current plan and acceptance criteria.
 
 ### Scenario state management design (2025-03-16)
 
