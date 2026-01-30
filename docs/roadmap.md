@@ -119,7 +119,7 @@ Development (BDD) frameworks and improves the developer experience.
 - [x] 3.3.4. Update generated wrappers to forward conversion failures by
   formatting the `DataTableError` into the emitted `StepError`, ensuring
   diagnostics reach recorders.
-- [x] 3.3.5. Extend documentation (users guide, design document) and add
+- [x] 3.3.5. Extend documentation (user guide, design document) and add
   integration tests covering headered tables and tolerant boolean parsing.
 - [x] 3.3.6. Add compile-fail fixtures covering optional columns and invalid
   attribute combinations.
@@ -246,12 +246,12 @@ experience by introducing more powerful and intuitive APIs.
 
 - [x] 5.1.1. Implicit fixture injection: Automatically inject fixtures when a
   step function's parameter name matches a fixture name, removing the need for
-  `#[from(...)]` in most cases. [User guide][implicit-fixture-guide] ·
+  `#[from(...)]` in most cases. [user guide][implicit-fixture-guide] ·
   [trybuild][implicit-fixture-trybuild]
 - [x] 5.1.2. Inferred step patterns: Allow step definition macros (`#[given]`,
   etc.) to be used without an explicit pattern string. The pattern will be
   inferred from the function's name (e.g., `fn user_logs_in()` becomes "user
-  logs in"). [User's guide](users-guide.md#inferred-step-patterns)
+  logs in"). [user guide](users-guide.md#inferred-step-patterns)
 - [x] 5.1.3. Streamlined `Result` assertions: Introduce helper macros like
   `assert_step_ok!` and `assert_step_err!` to reduce boilerplate when testing
   `Result`-returning steps.
@@ -297,11 +297,11 @@ improving maintainability and IDE integration.
   definitions.
 - [x] 6.1.5. Report skipped scenarios and their reasons.
   - Provide a `cargo bdd skipped --reasons` subcommand that lists each skipped
-    scenario with its file, line and message.
+    scenario with its file, line, and message.
   - Allow `cargo bdd steps --skipped` to filter the step registry for
     definitions bypassed at runtime.
   - Both commands accept `--json` and emit objects with fields `feature`,
-    `scenario`, `line`, `tags` and `reason`:
+    `scenario`, `line`, `tags`, and `reason`:
 
     ```json
     {
@@ -344,7 +344,8 @@ core workflow is stable.
 - [x] 7.1.1. Add a new `rstest-bdd-server` crate (binary `rstest-bdd-lsp`) that
   depends on `async-lsp`, `gherkin`, and the shared pattern parser to align
   semantics with the macros.
-- [x] 7.1.2. Implement LSP initialise/shutdown handlers, crate-root discovery
+- [x] 7.1.2. Implement Language Server Protocol (LSP) initialize/shutdown
+  handlers, crate-root discovery
   via `cargo metadata`, and structured logging configurable through environment
   variables.
 
@@ -439,7 +440,7 @@ redesigned. For the full architectural decision record, see
 ## 9. Harness adapters and attribute plugins
 
 This phase implements ADR-005 by introducing a harness adapter layer and an
-attribute policy plugin interface so Tokio and GPUI integrations live in opt-in
+attribute policy plugin interface, so Tokio and GPUI integrations live in opt-in
 crates rather than the core runtime or macros.
 
 ### 9.1. Harness adapter core
