@@ -147,8 +147,8 @@ fn ui_behaviour() {
 - Provide dynamic "plug-in discovery" at runtime or compile time. Harness
   selection remains explicit, by type path or configuration in macro attributes.
 - Standardize every harness' fixture naming and semantics across frameworks.
-  Harness crates may define their own fixture conventions, as long as they are
-  documented and stable.
+  Harness crates may define fixture conventions, as long as they are documented
+  and stable.
 - Solve unrelated fixture design problems that are not driven by harness
   integration (for example, redesigning step parameter extraction).
 
@@ -219,7 +219,3 @@ still allowing a polished, supported path for those who do.
 Separating GPUI (and later Bevy) into dedicated harness crates avoids imposing UI
 framework build and platform costs on consumers who are not doing UI testing, and
 provides a clear home for framework-specific fixtures and execution semantics.
-
-```text
-::contentReference[oaicite:0]{index=0}
-```
