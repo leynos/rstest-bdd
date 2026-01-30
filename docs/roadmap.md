@@ -212,6 +212,9 @@ Development (BDD) frameworks and improves the developer experience.
     guidance for adopting Rust 1.85 / edition 2024.
 
 [design §1.3.4]: ./rstest-bdd-design.md#134-filtering-scenarios-with-tags
+[implicit-fixture-guide]: users-guide.md#implicit-fixture-injection
+[implicit-fixture-trybuild]:
+../crates/rstest-bdd-macros/tests/ui/implicit_fixture_missing.rs
 
 - [x] **Boilerplate Reduction**
 
@@ -279,49 +282,55 @@ diagnostic messages.
   - [x] Update `CONTRIBUTING.md` with guidelines for adding and maintaining
     translations for new diagnostic messages.
 
-## Phase 5: Ergonomics and developer experience
+## 5. Ergonomics and developer experience
 
 This phase focuses on reducing boilerplate and improving the developer
 experience by introducing more powerful and intuitive APIs.
 
-- [ ] **Ergonomic Improvements**
+### 5.1 Ergonomic improvements
 
-  - [x] **Implicit Fixture Injection:** Automatically inject fixtures when a
-      step function's parameter name matches a fixture name, removing the need
-      for `#[from(...)]` in most cases.
-      [User guide](users-guide.md#implicit-fixture-injection) ·
-      [trybuild](../crates/rstest-bdd-macros/tests/ui/implicit_fixture_missing.rs)
+- [x] 5.1.1 Implicit fixture injection: Automatically inject fixtures when a
+  step function's parameter name matches a fixture name, removing the need for
+  `#[from(...)]` in most cases. [User guide][implicit-fixture-guide] ·
+  [trybuild][implicit-fixture-trybuild]
 
-  - [x] **Inferred Step Patterns:** Allow step definition macros (`#[given]`,
-    etc.) to be used without an explicit pattern string. The pattern will be
-    inferred from the function's name (e.g., `fn user_logs_in()` becomes "user
-    logs in"). [User’s guide](users-guide.md#inferred-step-patterns)
-  - [x] **Streamlined `Result` Assertions:** Introduce helper macros like
-    `assert_step_ok!` and `assert_step_err!` to reduce boilerplate when testing
-    `Result`-returning steps.
-  - [x] **Refined `skip!` Macro:** Polish the macro's syntax and surface clear
-    diagnostics when misused. Coverage: disallow usage outside a step or hook
-    (panic with a descriptive message), reject calls from non-test threads,
-    verify short-circuit behaviour, and preserve the message in writer outputs.
-  - [x] **Skipped-Step Assertions:** Provide helper macros for verifying that
-    steps or scenarios were skipped as expected.
+- [x] 5.1.2 Inferred step patterns: Allow step definition macros (`#[given]`,
+  etc.) to be used without an explicit pattern string. The pattern will be
+  inferred from the function's name (e.g., `fn user_logs_in()` becomes "user
+  logs in"). [User's guide](users-guide.md#inferred-step-patterns)
 
-- [ ] **State Management and Data Flow**
+- [x] 5.1.3 Streamlined `Result` assertions: Introduce helper macros like
+  `assert_step_ok!` and `assert_step_err!` to reduce boilerplate when testing
+  `Result`-returning steps.
 
-  - [x] **Step Return Values:** Allow `#[when]` steps to return values, which
-      can then be automatically injected into subsequent `#[then]` steps,
-      enabling a more functional style of testing. Returned values override
-      fixtures of the same type.
+- [x] 5.1.4 Refined `skip!` macro: Polish the macro's syntax and surface clear
+  diagnostics when misused. Coverage: disallow usage outside a step or hook
+  (panic with a descriptive message), reject calls from non-test threads,
+  verify short-circuit behaviour, and preserve the message in writer outputs.
 
-  - [x] **Scenario State Management:** Introduce a `#[derive(ScenarioState)]`
-    macro and a `Slot<T>` type to simplify the management of shared state
-    across steps, reducing the need for manual `RefCell<Option<T>>` boilerplate.
+- [x] 5.1.5 Skipped-step assertions: Provide helper macros for verifying that
+  steps or scenarios were skipped as expected.
 
-- [ ] **Advanced Ergonomics**
+- [x] 5.1.6 Fallible scenario bodies: Allow `#[scenario]` functions to return
+  `Result<(), E>` or `StepResult<(), E>`, returning `Ok(())` for skipped
+  scenarios and ensuring `Err` outcomes do not record a pass.
 
-  - [x] **Struct-based Step Arguments:** Introduce a `#[step_args]` derive
-    macro to allow multiple placeholders from a step pattern to be parsed
-    directly into the fields of a struct, simplifying step function signatures.
+### 5.2 State management and data flow
+
+- [x] 5.2.1 Step return values: Allow `#[when]` steps to return values, which
+  can then be automatically injected into subsequent `#[then]` steps, enabling
+  a more functional style of testing. Returned values override fixtures of the
+  same type.
+
+- [x] 5.2.2 Scenario state management: Introduce a `#[derive(ScenarioState)]`
+  macro and a `Slot<T>` type to simplify the management of shared state across
+  steps, reducing the need for manual `RefCell<Option<T>>` boilerplate.
+
+### 5.3 Advanced ergonomics
+
+- [x] 5.3.1 Struct-based step arguments: Introduce a `#[step_args]` derive
+  macro to allow multiple placeholders from a step pattern to be parsed
+  directly into the fields of a struct, simplifying step function signatures.
 
 ## Phase 6: Extensions and tooling
 

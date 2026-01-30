@@ -4,7 +4,7 @@
 
 `rstest-bdd` is a Behaviour-Driven Development (BDD) framework for Rust,
 integrating Gherkin feature files with Rust's `rstest` testing framework
-([design goals](rstest-bdd-design.md#121-step-1-the-feature-file)) and ([step
+([design goals](rstest-bdd-design.md#121-step-1-the-feature-file)) and a ([step
 definition file](rstest-bdd-design.md#122-step-2-the-step-definition-file)).
 
 To enhance developer experience, this document proposes a dedicated language

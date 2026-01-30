@@ -1,13 +1,14 @@
-# Architectural decision record (ADR) 005: Introduce harness adapter crates for framework-specific test integration
+# Architectural decision record (ADR) 005: introduce harness adapter crates for framework-specific test integration
 
 ## Status
 
 Accepted 2026-01-25: Introduce a small, framework-agnostic harness abstraction
 in `rstest-bdd-harness`, and ship official harness adapters as separate crates:
 `rstest-bdd-harness-tokio` and `rstest-bdd-harness-gpui`. This keeps Tokio and
-GPUI out of `rstest-bdd`’s dependency graph by default (lighter SBOMs), while
-enabling BDD-style tests to execute inside external test harnesses. A Bevy
-harness is planned to follow the same pattern.
+GPUI out of `rstest-bdd`’s dependency graph by default (lighter SBOM (Software
+Bill of Materials) entries), while enabling Behaviour-Driven Development
+(BDD)-style tests to execute inside external test harnesses. A Bevy harness
+will follow the same pattern.
 
 ## Date
 
@@ -15,21 +16,23 @@ harness is planned to follow the same pattern.
 
 ## Context and problem statement
 
-`rstest-bdd` needs to support BDD-style scenarios that run inside framework-
-specific test harnesses, while still allowing users to write step functions
-that receive harness-provided fixtures (for example, GPUI’s `TestAppContext`).
+`rstest-bdd` needs to support Behaviour-Driven Development (BDD)-style
+scenarios that run inside framework-specific test harnesses, while still
+allowing users to write step functions that receive harness-provided fixtures
+(for example, GPUI’s `TestAppContext`).
 
 Two existing pressures make a “just add more features to the main crate”
 approach increasingly unattractive:
 
 - Tokio support introduces a large, visible dependency surface, even when many
   consumers do not need async tests.
+
 - UI frameworks such as GPUI (and soon Bevy) bring heavy transitive
   dependencies, platform backends, and build-time costs that most `rstest-bdd`
   users should not pay unless they opt in.
 
-The architecture must scale beyond one-off integrations. GPUI is not the last
-harness expected, and Bevy is already on the near horizon.
+An architecture is needed that scales beyond one-off integrations. GPUI is not
+the last harness required, and Bevy is already on the near horizon.
 
 The decision is whether to keep integrating harnesses directly into the primary
 `rstest-bdd` crates, or to introduce a clean adapter boundary and publish
@@ -39,13 +42,17 @@ harness integrations as separate crates.
 
 - Keep `rstest-bdd`’s default dependency footprint small for the majority of
   users.
+
 - Avoid pulling Tokio into `rstest-bdd`’s dependency graph to reduce SBOM size
   and transitive supply-chain surface.
+
 - Support multiple harnesses (Tokio, GPUI, Bevy, and others) without
   accumulating framework-specific conditionals in core code generation and
   runtime logic.
+
 - Maintain a coherent, well-documented, and stable integration surface for
   harness authors.
+
 - Preserve a smooth user experience for test authors, including clear, explicit
   opt-in behaviour.
 
@@ -98,14 +105,13 @@ Adopt Option B.
 Introduce a harness abstraction layer and move framework-specific integrations
 into dedicated crates:
 
-- `rstest-bdd-harness` will define the stable adapter interface used by macro
+- `rstest-bdd-harness` defines the stable adapter interface used by macro
   expansions and scenario execution.
-- `rstest-bdd-harness-tokio` will provide Tokio async test support without
-  bringing Tokio into `rstest-bdd`’s dependencies.
-- `rstest-bdd-harness-gpui` will provide GPUI integration, including the ability
-  to inject `TestAppContext` into BDD step execution.
-- A Bevy harness crate is planned to follow, reusing the same adapter
-  interface.
+- `rstest-bdd-harness-tokio` provides Tokio async test support without bringing
+  Tokio into `rstest-bdd`’s dependencies.
+- `rstest-bdd-harness-gpui` provides GPUI integration, including the ability to
+  inject `TestAppContext` into BDD step execution.
+- A Bevy harness crate is planned next, reusing the same adapter interface.
 
 This approach keeps core crates lean, makes harness selection explicit, and
 provides a repeatable pattern for future harness adapters.
@@ -148,9 +154,9 @@ fn ui_behaviour() {
 
 - Provide dynamic “plug-in discovery” at runtime or compile time. Harness
   selection remains explicit, by type path or configuration in macro attributes.
-- Standardize every harness’ fixture naming and semantics across frameworks.
-  Harness crates may define their own fixture conventions, as long as they are
-  documented and stable.
+- Standardize every harness's fixture naming and semantics across frameworks.
+  Harness crates may define fixture conventions, as long as they are documented
+  and stable.
 - Solve unrelated fixture design problems that are not driven by harness
   integration (for example, redesigning step parameter extraction).
 
@@ -159,8 +165,8 @@ fn ui_behaviour() {
 1. Introduce `rstest-bdd-harness`
 
    - Define the harness traits and minimal shared types.
-   - Provide a default “std” harness implementation (no async runtime) used when
-     no harness is specified.
+   - Provide a default “std” harness implementation (no async runtime) used
+     when no harness is specified.
 
 2. Update macro expansion to target the harness abstraction
 
@@ -186,10 +192,10 @@ fn ui_behaviour() {
 
    - Add a “Harness adapters” chapter describing: selection, configuration,
      fixture injection, and portability expectations.
-   - Provide cookbook examples for Tokio and GPUI, plus a “template” for future
-     harness authors.
+   - Provide cookbook examples for Tokio and GPUI, plus a “template” for
+     future harness authors.
 
-6. Plan for `rstest-bdd-harness-bevy`
+6. Add `rstest-bdd-harness-bevy`
 
    - Reuse the same traits, and validate that the abstraction fits another
      real-world harness without retrofitting.
@@ -198,15 +204,15 @@ fn ui_behaviour() {
 
 - More crates increase publishing and release coordination overhead, especially
   when changes span macros, harness traits, and adapters.
-- A too-opinionated harness trait can paint the design into a corner; a
+- A too-opinionated harness trait can paint maintainers into a corner; a
   too-generic trait can leak complexity into every adapter. The trait surface
-  must stay small and evolve cautiously.
-- Harness selection may be confusing without strong documentation and
+  must remain small and evolve cautiously.
+- Users may find harness selection confusing without strong documentation and
   examples, particularly when troubleshooting async execution and fixture
   injection.
 - Harness adapters can accidentally diverge in semantics (for example, panic
   handling, timeouts, or ordering guarantees). Explicit behavioural contracts
-  are needed in each harness crate’s documentation.
+  are required in each harness crate’s documentation.
 
 ## Architectural rationale
 
