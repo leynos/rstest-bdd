@@ -444,8 +444,8 @@ scope until the core workflow is stable.
 - [ ] **Packaging and editor enablement**
 
   - [ ] Ship CLI options for log level, workspace root, and debounce interval;
-    document VS Code and Neovim launch examples in `docs/rstest-bdd-language-
-    server-design.md` and the user guide.
+    document VS Code and Neovim launch examples in
+    `docs/rstest-bdd-language-server-design.md` and the user guide.
 
   - [ ] Add smoke tests that start the server, answer a definition request,
     and emit diagnostics for one feature file; gate them in CI.
