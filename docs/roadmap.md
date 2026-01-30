@@ -330,8 +330,7 @@ improving maintainability and IDE integration.
 ### 6.4. Performance optimization
 
 - [ ] 6.4.1. Implement caching for parsed Gherkin ASTs in the `OUT_DIR` to
-  reduce compile-time overhead, only re-parsing files on modification.
-
+  reduce compile-time overhead, only reparsing files on modification.
 ## 7. Language server foundations
 
 This phase delivers the first `rstest-bdd-server` release, focused on navigation
