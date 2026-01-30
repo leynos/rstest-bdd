@@ -429,7 +429,7 @@ scope until the core workflow is stable.
     docstring expectations against function signatures, emitting precise byte
     offsets in the source.
 
-  - [ ] Check scenario outline example columns against referenced parameters,
+  - [x] Check scenario outline example columns against referenced parameters,
     flagging missing or surplus columns in either the feature or test binding.
 
 - [ ] **Packaging and editor enablement**

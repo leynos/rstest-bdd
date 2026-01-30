@@ -890,6 +890,31 @@ consistency issues between feature files and Rust step definitions.
    are not matched by any feature step. The message format is:
    `Step definition is not used by any feature file: #[given("pattern")]`
 
+3. **Placeholder count mismatch** (`placeholder-count-mismatch`): Warning
+   diagnostic on Rust step definitions where the number of placeholder
+   occurrences in the pattern differs from the number of step arguments in the
+   function signature. Each placeholder occurrence is counted separately, and
+   `datatable`, `docstring`, and fixture parameters are excluded.
+
+4. **Data table expected/not expected** (`table-expected`,
+   `table-not-expected`): Warning diagnostics when a step expects a data table,
+   but the feature step does not provide one, or when a feature step provides a
+   data table, but the implementation does not expect one.
+
+5. **Doc string expected/not expected** (`docstring-expected`,
+   `docstring-not-expected`): Warning diagnostics when a step expects a doc
+   string, but the feature step does not provide one, or when a feature step
+   provides a doc string, but the implementation does not expect one.
+
+6. **Missing Examples column** (`example-column-missing`): Warning diagnostic
+   on steps in a Scenario Outline that use a placeholder (e.g., `<count>`) with
+   no matching column header in the Examples table. The message includes the
+   list of available columns.
+
+7. **Surplus Examples column** (`example-column-surplus`): Warning diagnostic
+   on Examples table column headers that are not referenced by any step
+   placeholder in the Scenario Outline.
+
 **Matching algorithm:**
 
 - For each feature step, the server queries the registry for compiled step
@@ -909,13 +934,13 @@ consistency issues between feature files and Rust step definitions.
 
 ### Next phases
 
-Subsequent work will implement:
+The initial diagnostics implementation is now complete. Potential future
+enhancements include:
 
-1. **Placeholder count validation** — Verify that step patterns and function
-   signatures agree on the number of captured arguments
-2. **Data table/docstring expectation mismatches** — Warn when a step expects
-   a data table or docstring, but the feature step does not provide one (or
-   vice versa)
+1. **Real-time diagnostics** — Update diagnostics on each keystroke rather than
+   only on file save, possibly using Tree-sitter for incremental parsing.
+2. **Quick fixes** — Provide code actions to generate missing step definitions
+   or add missing Examples columns.
 
 ## Conclusion
 

@@ -4,16 +4,30 @@ use std::borrow::Cow;
 use std::ops::Range;
 use std::path::{Path, PathBuf};
 
-use gherkin::{GherkinEnv, Span};
+use gherkin::GherkinEnv;
 
 use super::{
-    FeatureFileIndex, FeatureIndexError, IndexedDocstring, IndexedExampleColumn, IndexedStep,
+    FeatureFileIndex, FeatureIndexError, IndexedDocstring, IndexedScenarioOutline, IndexedStep,
     IndexedTable,
 };
 
+mod docstring;
+mod outline;
 mod table;
 
-use table::extract_header_cell_spans;
+use docstring::find_docstring_span;
+use outline::{
+    ScenarioStepIndices, build_scenario_outline, extract_example_columns, is_scenario_outline,
+};
+
+/// Accumulates indexed steps and scenario outlines during feature indexing.
+///
+/// Groups the mutable output vectors together to reduce parameter count in
+/// `process_scenarios` and `process_rule`.
+struct IndexingAccumulators<'a> {
+    steps: &'a mut Vec<IndexedStep>,
+    scenario_outlines: &'a mut Vec<IndexedScenarioOutline>,
+}
 
 #[derive(Clone, Copy, Debug)]
 struct FeatureSource<'a>(&'a str);
@@ -45,29 +59,6 @@ impl AsRef<str> for FeatureSource<'_> {
 impl<'a> From<&'a str> for FeatureSource<'a> {
     fn from(source: &'a str) -> Self {
         Self::new(source)
-    }
-}
-
-#[derive(Clone, Copy, Debug)]
-struct LineContent<'a>(&'a str);
-
-impl<'a> LineContent<'a> {
-    fn new(line: &'a str) -> Self {
-        Self(line)
-    }
-
-    fn as_str(&self) -> &'a str {
-        self.0
-    }
-
-    fn trim_start(&self) -> &'a str {
-        self.0.trim_start()
-    }
-}
-
-impl AsRef<str> for LineContent<'_> {
-    fn as_ref(&self) -> &str {
-        self.0
     }
 }
 
@@ -146,21 +137,31 @@ fn index_feature_text(
     let feature = gherkin::Feature::parse(source.as_str(), GherkinEnv::default())?;
 
     let mut steps = Vec::new();
+    let mut scenario_outlines = Vec::new();
+
+    // Index feature-level background steps and track their indices
+    let feature_background_start = steps.len();
     if let Some(background) = feature.background.as_ref() {
         steps.extend(index_steps_for_container(source, &background.steps)?);
     }
+    let feature_background_end = steps.len();
+    let feature_background_indices: Vec<usize> =
+        (feature_background_start..feature_background_end).collect();
 
-    for scenario in &feature.scenarios {
-        steps.extend(index_steps_for_container(source, &scenario.steps)?);
-    }
+    let mut accumulators = IndexingAccumulators {
+        steps: &mut steps,
+        scenario_outlines: &mut scenario_outlines,
+    };
+
+    process_scenarios(
+        source,
+        &feature.scenarios,
+        &mut accumulators,
+        &feature_background_indices,
+    )?;
 
     for rule in &feature.rules {
-        if let Some(background) = rule.background.as_ref() {
-            steps.extend(index_steps_for_container(source, &background.steps)?);
-        }
-        for scenario in &rule.scenarios {
-            steps.extend(index_steps_for_container(source, &scenario.steps)?);
-        }
+        process_rule(source, rule, &mut accumulators, &feature_background_indices)?;
     }
 
     let example_columns = extract_example_columns(source, &feature);
@@ -170,7 +171,63 @@ fn index_feature_text(
         source: source.as_str().to_owned(),
         steps,
         example_columns,
+        scenario_outlines,
     })
+}
+
+/// Process a list of scenarios, indexing their steps and building scenario outlines.
+fn process_scenarios(
+    source: FeatureSource<'_>,
+    scenarios: &[gherkin::Scenario],
+    accumulators: &mut IndexingAccumulators<'_>,
+    background_step_indices: &[usize],
+) -> Result<(), FeatureIndexError> {
+    for scenario in scenarios {
+        let step_start_index = accumulators.steps.len();
+        accumulators
+            .steps
+            .extend(index_steps_for_container(source, &scenario.steps)?);
+        let step_end_index = accumulators.steps.len();
+
+        if is_scenario_outline(scenario) {
+            let indices = ScenarioStepIndices {
+                start: step_start_index,
+                end: step_end_index,
+                background: background_step_indices.to_vec(),
+            };
+            let outline = build_scenario_outline(source, scenario, indices);
+            accumulators.scenario_outlines.push(outline);
+        }
+    }
+    Ok(())
+}
+
+/// Process a rule, indexing its background (if present) and scenarios.
+fn process_rule(
+    source: FeatureSource<'_>,
+    rule: &gherkin::Rule,
+    accumulators: &mut IndexingAccumulators<'_>,
+    feature_background_indices: &[usize],
+) -> Result<(), FeatureIndexError> {
+    // Index rule-level background steps and track their indices
+    let rule_background_start = accumulators.steps.len();
+    if let Some(background) = rule.background.as_ref() {
+        accumulators
+            .steps
+            .extend(index_steps_for_container(source, &background.steps)?);
+    }
+    let rule_background_end = accumulators.steps.len();
+
+    // Combine feature-level and rule-level background indices
+    let mut combined_background_indices = feature_background_indices.to_vec();
+    combined_background_indices.extend(rule_background_start..rule_background_end);
+
+    process_scenarios(
+        source,
+        &rule.scenarios,
+        accumulators,
+        &combined_background_indices,
+    )
 }
 
 fn normalise_trailing_newline(text: &mut String) {
@@ -220,166 +277,6 @@ fn index_steps_for_container(
         });
     }
     Ok(indexed)
-}
-
-fn extract_example_columns(
-    source: FeatureSource<'_>,
-    feature: &gherkin::Feature,
-) -> Vec<IndexedExampleColumn> {
-    let mut columns = Vec::new();
-    for scenario in &feature.scenarios {
-        collect_example_columns_for_scenario(source, &scenario.examples, &mut columns);
-    }
-    for rule in &feature.rules {
-        for scenario in &rule.scenarios {
-            collect_example_columns_for_scenario(source, &scenario.examples, &mut columns);
-        }
-    }
-    columns
-}
-
-fn collect_example_columns_for_scenario(
-    source: FeatureSource<'_>,
-    examples: &[gherkin::Examples],
-    columns: &mut Vec<IndexedExampleColumn>,
-) {
-    for ex in examples {
-        let Some(table) = ex.table.as_ref() else {
-            continue;
-        };
-        let Some(header_spans) = extract_header_cell_spans(source, table.span) else {
-            continue;
-        };
-        let Some(header_row) = table.rows.first() else {
-            continue;
-        };
-        if header_row.len() != header_spans.len() {
-            continue;
-        }
-        for (name, span) in header_row.iter().cloned().zip(header_spans.into_iter()) {
-            columns.push(IndexedExampleColumn { name, span });
-        }
-    }
-}
-
-/// Tracks the state whilst scanning for docstring delimiters.
-#[derive(Debug)]
-struct DocstringState {
-    pending_delimiter: Option<&'static str>,
-    docstring_start: usize,
-}
-
-impl DocstringState {
-    fn new() -> Self {
-        Self {
-            pending_delimiter: None,
-            docstring_start: 0,
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy)]
-struct LineBounds {
-    cursor: usize,
-    end: usize,
-}
-
-fn find_docstring_span(source: FeatureSource<'_>, start_from: usize) -> Option<Span> {
-    let cursor = advance_to_next_line_boundary(source, start_from)?;
-
-    let mut state = DocstringState::new();
-    let mut current_cursor = cursor;
-
-    while current_cursor <= source.len() {
-        let (line_trimmed, line_end) = extract_line_info(source, current_cursor)?;
-
-        if let Some(span) = process_line_for_docstring(
-            line_trimmed,
-            LineBounds {
-                cursor: current_cursor,
-                end: line_end,
-            },
-            &mut state,
-        ) {
-            return Some(span);
-        }
-
-        if line_end == source.len() {
-            break;
-        }
-        current_cursor = line_end.saturating_add(1);
-    }
-    None
-}
-
-fn advance_to_next_line_boundary(source: FeatureSource<'_>, start_from: usize) -> Option<usize> {
-    if start_from > source.len() {
-        return None;
-    }
-    let mut cursor = start_from.min(source.len());
-    if let Some(next_newline) = source
-        .get(cursor..source.len())
-        .and_then(|tail| tail.find('\n'))
-    {
-        cursor = cursor.saturating_add(next_newline).saturating_add(1);
-    }
-    Some(cursor)
-}
-
-fn extract_line_info(source: FeatureSource<'_>, cursor: usize) -> Option<(LineContent<'_>, usize)> {
-    let tail = source.get(cursor..source.len())?;
-    let line_end = tail
-        .find('\n')
-        .map_or(source.len(), |idx| cursor.saturating_add(idx));
-    let line = source.get(cursor..line_end)?;
-    let line_trimmed = LineContent::new(line.trim_start());
-    Some((line_trimmed, line_end))
-}
-
-fn process_line_for_docstring(
-    line_trimmed: LineContent<'_>,
-    bounds: LineBounds,
-    state: &mut DocstringState,
-) -> Option<Span> {
-    match state.pending_delimiter {
-        None => {
-            if let Some(delim) = parse_docstring_delimiter(line_trimmed) {
-                state.pending_delimiter = Some(delim);
-                state.docstring_start = bounds.cursor;
-            }
-            None
-        }
-        Some(delim) => {
-            if matches_docstring_closing(line_trimmed, delim) {
-                Some(Span {
-                    start: state.docstring_start,
-                    end: bounds.end,
-                })
-            } else {
-                None
-            }
-        }
-    }
-}
-
-fn parse_docstring_delimiter(line_trimmed: LineContent<'_>) -> Option<&'static str> {
-    if line_trimmed.as_str().starts_with("\"\"\"") {
-        return Some("\"\"\"");
-    }
-    if line_trimmed.as_str().starts_with("```") {
-        return Some("```");
-    }
-    None
-}
-
-fn matches_docstring_closing(line_trimmed: LineContent<'_>, delim: &'static str) -> bool {
-    if !line_trimmed.as_str().starts_with(delim) {
-        return false;
-    }
-    line_trimmed
-        .as_str()
-        .strip_prefix(delim)
-        .is_some_and(|rest| rest.trim().is_empty())
 }
 
 #[cfg(test)]

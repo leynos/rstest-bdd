@@ -169,6 +169,7 @@ mod tests {
             source: source.to_owned(),
             steps: Vec::new(),
             example_columns: Vec::new(),
+            scenario_outlines: Vec::new(),
         };
         let position = Position::new(0, 0);
         assert!(find_step_at_position(&index, source, position).is_none());
@@ -192,6 +193,7 @@ mod tests {
                 table: None,
             }],
             example_columns: Vec::new(),
+            scenario_outlines: Vec::new(),
         };
         // Position on the step line (line 2, column 4 = "Given")
         let position = Position::new(2, 4);
