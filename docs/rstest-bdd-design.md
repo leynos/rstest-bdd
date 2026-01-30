@@ -95,7 +95,9 @@ for unit tests, promoting a Don't Repeat Yourself (DRY) approach.[^1]
 > for Tokio current-thread mode; see §2.5 and the users guide for details.
 > Step definitions themselves remain synchronous—the async executor calls the
 > sync handler directly to avoid higher-ranked trait bound (HRTB) lifetime
-> issues. True async step bodies are planned for a future release.
+> issues. True async step bodies are planned for a future release. ADR-005
+> introduces harness adapters and attribute policies so Tokio (or GPUI) test
+> attributes are supplied by opt-in plugin crates rather than core features.
 
 ```rust,no_run
 use rstest::fixture;
@@ -114,8 +116,8 @@ async fn browser() -> WebDriverResult<WebDriver> {
 
 // The #[scenario] macro binds this test function to a specific scenario.
 // It will generate the necessary code to run the Gherkin steps.
-// The test attribute (e.g., #[tokio::test]) would be configured via
-// feature flags in Cargo.toml to support different async runtimes.
+// The test attribute (e.g., #[tokio::test]) is supplied by the selected
+// harness adapter or attribute policy plugin, keeping core crates lean.
 #[tokio::test]
 async fn test_simple_search(#[future] browser: WebDriver) {
     // The body of this function runs *after* all Gherkin steps have passed.
@@ -210,7 +212,9 @@ Feature: User Login
 
 > **Note:** This example shows async scenario execution. The test function uses
 > `async fn` with `#[tokio::test]`. Step definitions remain synchronous—the
-> async executor calls sync handlers directly. See §2.5 for design details.
+> async executor calls sync handlers directly. See §2.5 for design details. In
+> the harness adapter architecture (ADR-005), this attribute comes from the
+> selected attribute policy plugin rather than core macros.
 
 ```rust,no_run
 //...
@@ -1177,7 +1181,9 @@ under Tokio. For the full architectural decision record, see
 > signatures. Step definitions remain synchronous—the async executor calls the
 > sync handler directly to avoid higher-ranked trait bound (HRTB) lifetime
 > issues with `AsyncStepFn`. True async step bodies (with `async fn`
-> implementations) are planned for a future release.
+> implementations) are planned for a future release. ADR-005 moves runtime
+> selection into harness adapters and attribute policy plugins, so the `runtime`
+> argument will become a compatibility alias for the Tokio harness adapter.
 
 #### 2.5.1 Motivation
 
@@ -1328,6 +1334,12 @@ The expansion generates `async fn` tests with the appropriate Tokio attribute.
 The exact syntax for the runtime argument is subject to finalisation; see
 [ADR-001 §Outstanding decisions](adr-001-async-fixtures-and-test.md#outstanding-decisions).
 
+ADR-005 introduces a harness adapter selection path, so future macro expansion
+will prefer `harness = path::ToHarness` (and optional attribute policy plugins)
+over the bespoke `runtime` argument. The `runtime` argument remains as a
+compatibility alias that maps to the Tokio harness adapter, while manual tests
+may still use `#[tokio::test]` when authors want explicit control.
+
 #### 2.5.6 Unwind and skip handling
 
 The synchronous runner uses `std::panic::catch_unwind` to intercept panics and
@@ -1406,6 +1418,12 @@ Note: The macro crate maintains its own copies of these enums because
 proc-macro crates cannot depend on runtime crates at compile time. The runtime
 versions serve as the canonical definitions and documentation.
 
+ADR-005 supersedes these enums with harness adapters and attribute policy
+plugins. The harness adapter selects the execution strategy (sync, Tokio, GPUI,
+etc.), while an attribute policy plugin supplies the test attributes that must
+decorate generated scenario functions. This avoids embedding Tokio or GPUI
+knowledge in the core runtime and macro crates, keeping dependencies opt-in.
+
 #### 2.6.3 Generated code structure
 
 With this architecture, macro-generated step executors become thin wrappers:
@@ -1422,6 +1440,58 @@ fn __rstest_bdd_decode_skip_message(encoded: String) -> Option<String> {
 
 This reduces generated code size and centralises policy logic where it can be
 tested and modified without regenerating macro output.
+
+### 2.7 Harness adapters and attribute policy plugins (ADR-005)
+
+Framework-specific test harnesses (Tokio, GPUI, Bevy, and others) should not
+inflate the default dependency graph of the core runtime or macros. ADR-005
+introduces a harness adapter layer and a small attribute policy plugin
+interface so those integrations live in opt-in crates.
+
+#### 2.7.1 Harness adapter core (`rstest-bdd-harness`)
+
+The harness adapter layer isolates runtime execution from framework details.
+The core crate defines:
+
+- A small harness adapter trait that executes a scenario runner closure inside
+  a harness-specific environment.
+- Shared types describing the scenario runner entry point and harness-provided
+  fixtures (for example, GPUI's `TestAppContext`).
+- A default `StdHarness` implementation that runs the synchronous pipeline
+  without an async runtime or UI harness.
+
+The `#[scenario]` and `scenarios!` macros accept `harness = path::ToHarness`,
+defaulting to `StdHarness` when omitted. The generated test body delegates to
+the chosen harness adapter, which controls runtime setup, teardown, and any
+framework-specific fixture injection.
+
+#### 2.7.2 Attribute policy plugins
+
+Harnesses frequently require a specific test attribute (for example,
+`#[tokio::test]` or a GPUI test attribute). To avoid hard-coding those
+attributes in `rstest-bdd-macros`, attribute policy plugins provide a simple
+opt-in layer:
+
+- `rstest-bdd-harness` defines a minimal attribute policy interface that
+  supplies a list of test attributes to apply during macro expansion.
+- The `#[scenario]` and `scenarios!` macros accept
+  `attributes = path::ToPolicy` or infer a policy from the chosen harness.
+- Policies live in separate crates so additional attributes can be introduced
+  without adding framework dependencies to the core runtime or macros.
+
+#### 2.7.3 First-party plugin targets
+
+The first official adapters and policies are:
+
+- `rstest-bdd-harness-tokio`: wraps scenario execution in Tokio
+  current-thread mode and ships a Tokio attribute policy (for example,
+  `#[tokio::test(flavor = "current_thread")]`).
+- `rstest-bdd-harness-gpui`: wraps scenario execution inside the GPUI test
+  harness, injects GPUI fixtures such as `TestAppContext`, and provides the
+  matching GPUI test attribute policy.
+
+Future adapters (for example, Bevy) are planned to follow the same pattern
+without requiring new dependencies in `rstest-bdd` or `rstest-bdd-macros`.
 
 ## Part 3: Implementation and strategic analysis
 
@@ -2202,6 +2272,15 @@ Public APIs are re‑exported from `lib.rs`, so consumers continue to import fro
   - `greet` example function
 
 All modules use en‑GB spelling and include `//!` module‑level documentation.
+
+### 3.12 Harness adapters and attribute plugins (ADR-005)
+
+The harness adapter architecture introduces a small core harness crate, macro
+integration for selecting harnesses and attribute policies, and opt-in adapter
+crates for Tokio and GPUI. The detailed sequencing, milestones, and validation
+steps live in the roadmap to avoid duplication and drift; see
+[Phase 9](roadmap.md#phase-9-harness-adapters-and-attribute-plugins) for the
+current plan and acceptance criteria.
 
 ### Scenario state management design (2025-03-16)
 
