@@ -18,7 +18,15 @@ assert-step-err-success = krok zakończył się powodzeniem niespodziewanie
 assert-step-err-missing-substring = błąd « { $display } » nie zawiera « { $expected } »
 
 assert-skip-not-skipped = oczekiwano, że { $target } zarejestruje pominięty wynik
-assert-skip-missing-message = oczekiwano, że { $target } dostarczy komunikat pominięcia zawierający „{ $expected }”
-assert-skip-missing-substring = komunikat pominięcia „{ $actual }” nie zawiera „{ $expected }”
+assert-skip-missing-message = oczekiwano, że { $target } dostarczy komunikat pominięcia zawierający „{ $expected }"
+assert-skip-missing-substring = komunikat pominięcia „{ $actual }" nie zawiera „{ $expected }"
 assert-skip-unexpected-message = oczekiwano, że { $target } nie dostarczy komunikatu pominięcia
-assert-skip-flag-mismatch = oczekiwano, że flaga „{ $flag }” dla { $target } będzie równa { $expected }, lecz była { $actual }
+assert-skip-flag-mismatch = oczekiwano, że flaga „{ $flag }" dla { $target } będzie równa { $expected }, lecz była { $actual }
+
+execution-error-skip = Step skipped{ $message ->
+    [none] {""}
+    *[other] : { $message }
+}
+execution-error-step-not-found = Step not found at index { $index }: { $keyword } { $text } (feature: { $feature_path }, scenario: { $scenario_name })
+execution-error-missing-fixtures = Step '{ $step_pattern }' (defined at { $step_location }) requires fixtures { $required }, but the following are missing: { $missing }. Available fixtures from scenario: { $available } (feature: { $feature_path }, scenario: { $scenario_name })
+execution-error-handler-failed = Step failed at index { $index }: { $keyword } { $text } - { $error } (feature: { $feature_path }, scenario: { $scenario_name })

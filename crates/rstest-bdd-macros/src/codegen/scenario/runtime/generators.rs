@@ -18,6 +18,6 @@ pub(super) use outline::{
 };
 pub(super) use scenario::{generate_scenario_guard, generate_skip_handler};
 pub(super) use step::{
-    generate_async_step_executor, generate_skip_decoder, generate_step_executor,
+    generate_async_step_executor, generate_skip_extractor, generate_step_executor,
 };
 pub(super) use step_loop::{generate_async_step_executor_loop, generate_step_executor_loop};

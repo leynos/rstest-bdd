@@ -22,3 +22,11 @@ assert-skip-missing-message = 預期 { $target } 提供包含「{ $expected }」
 assert-skip-missing-substring = 略過訊息「{ $actual }」不包含「{ $expected }」
 assert-skip-unexpected-message = 預期 { $target } 不會提供略過訊息
 assert-skip-flag-mismatch = 預期 { $target } 的旗標「{ $flag }」為 { $expected }，但實際為 { $actual }
+
+execution-error-skip = Step skipped{ $message ->
+    [none] {""}
+    *[other] : { $message }
+}
+execution-error-step-not-found = Step not found at index { $index }: { $keyword } { $text } (feature: { $feature_path }, scenario: { $scenario_name })
+execution-error-missing-fixtures = Step '{ $step_pattern }' (defined at { $step_location }) requires fixtures { $required }, but the following are missing: { $missing }. Available fixtures from scenario: { $available } (feature: { $feature_path }, scenario: { $scenario_name })
+execution-error-handler-failed = Step failed at index { $index }: { $keyword } { $text } - { $error } (feature: { $feature_path }, scenario: { $scenario_name })

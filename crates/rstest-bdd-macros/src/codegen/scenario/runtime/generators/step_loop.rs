@@ -23,7 +23,8 @@ struct StepDataSlices<'a> {
 /// Generates the result-handling match block for step execution loops.
 ///
 /// This shared implementation is used by both regular and outline executor loops to
-/// handle step execution results: value insertion on success, skip propagation on error.
+/// handle step execution results: value insertion on success, skip propagation on skip,
+/// and panic on actual errors.
 pub(super) fn generate_step_result_handler(callee: &TokenStream2) -> TokenStream2 {
     quote! {
         match #callee(
@@ -42,11 +43,18 @@ pub(super) fn generate_step_result_handler(callee: &TokenStream2) -> TokenStream
                 let _ = ctx.insert_value(__rstest_bdd_val);
             }
             Ok(None) => {}
-            Err(__rstest_bdd_encoded) => {
-                __rstest_bdd_skipped =
-                    Some(__rstest_bdd_decode_skip_message(__rstest_bdd_encoded));
-                __rstest_bdd_skipped_at = Some(__rstest_bdd_index);
-                break;
+            Err(ref __rstest_bdd_error) => {
+                // Check if this is a skip signal or an actual error
+                if let Some(__rstest_bdd_skip_msg) =
+                    __rstest_bdd_extract_skip_message(__rstest_bdd_error)
+                {
+                    __rstest_bdd_skipped = Some(__rstest_bdd_skip_msg);
+                    __rstest_bdd_skipped_at = Some(__rstest_bdd_index);
+                    break;
+                } else {
+                    // Propagate non-skip errors by panicking with the error message
+                    panic!("{}", __rstest_bdd_error);
+                }
             }
         }
     }
@@ -145,7 +153,7 @@ generate_step_executor_loop_fn! {
     /// for (index, (keyword, text, docstring, table)) in steps.iter().enumerate() {
     ///     match __rstest_bdd_execute_single_step(...) {
     ///         Ok(value) => { /* insert value into context */ }
-    ///         Err(encoded) => { /* decode skip, record position, break */ }
+    ///         Err(error) => { /* extract skip or panic on error, break */ }
     ///     }
     /// }
     /// ```

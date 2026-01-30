@@ -16,9 +16,10 @@
 
 use std::any::Any;
 use std::collections::HashSet;
+use std::sync::Arc;
 
 use crate::context::StepContext;
-use crate::{Step, StepExecution, StepKeyword, StepText, find_step_with_metadata};
+use crate::{Step, StepError, StepExecution, StepKeyword, StepText, find_step_with_metadata};
 
 /// Prefix character for encoded skip messages with no message content.
 pub(crate) const SKIP_NONE_PREFIX: char = '\u{0}';
@@ -39,9 +40,240 @@ pub use rstest_bdd_policy::RuntimeMode;
 /// `rstest_bdd::execution` stable for downstream users.
 pub use rstest_bdd_policy::TestAttributeHint;
 
+/// Error type for step execution failures.
+///
+/// This enum captures all failure modes during step execution, distinguishing
+/// between control flow signals (skip requests) and actual errors (missing steps,
+/// fixture validation failures, handler errors).
+///
+/// # Variants
+///
+/// - [`Skip`][Self::Skip]: Control flow signal indicating the step requested
+///   skipping. This is not an error condition but a deliberate execution path.
+/// - [`StepNotFound`][Self::StepNotFound]: The step pattern was not found in
+///   the registry.
+/// - [`MissingFixtures`][Self::MissingFixtures]: Required fixtures were not
+///   available in the context.
+/// - [`HandlerFailed`][Self::HandlerFailed]: The step handler returned an error.
+///
+/// # Examples
+///
+/// ```
+/// use rstest_bdd::execution::ExecutionError;
+///
+/// let error = ExecutionError::Skip { message: Some("not implemented yet".into()) };
+/// assert!(error.is_skip());
+/// assert_eq!(error.skip_message(), Some("not implemented yet"));
+/// ```
+#[derive(Debug, Clone)]
+#[non_exhaustive]
+pub enum ExecutionError {
+    /// Step requested to skip execution.
+    Skip {
+        /// Optional message explaining why the step was skipped.
+        message: Option<String>,
+    },
+    /// Step pattern not found in the registry.
+    StepNotFound {
+        /// Zero-based step index.
+        index: usize,
+        /// The step keyword (Given, When, Then, etc.).
+        keyword: StepKeyword,
+        /// The step text that was not found.
+        text: String,
+        /// Path to the feature file.
+        feature_path: String,
+        /// Name of the scenario.
+        scenario_name: String,
+    },
+    /// Required fixtures missing from context.
+    ///
+    /// The details are wrapped in `Arc` to reduce the size of `Result<T, ExecutionError>`.
+    MissingFixtures(Arc<MissingFixturesDetails>),
+    /// Step handler returned an error.
+    HandlerFailed {
+        /// Zero-based step index.
+        index: usize,
+        /// The step keyword (Given, When, Then, etc.).
+        keyword: StepKeyword,
+        /// The step text.
+        text: String,
+        /// The error returned by the handler, wrapped in Arc for Clone.
+        error: Arc<StepError>,
+        /// Path to the feature file.
+        feature_path: String,
+        /// Name of the scenario.
+        scenario_name: String,
+    },
+}
+
+/// Details about missing fixture errors.
+///
+/// This struct is separated from `ExecutionError::MissingFixtures` to allow
+/// wrapping in `Arc`, reducing the overall size of `Result<T, ExecutionError>`.
+#[derive(Debug, Clone)]
+pub struct MissingFixturesDetails {
+    /// The step pattern text.
+    pub step_pattern: String,
+    /// Source location of the step definition (`file:line`).
+    pub step_location: String,
+    /// List of all required fixture names.
+    pub required: Vec<&'static str>,
+    /// List of missing fixture names.
+    pub missing: Vec<&'static str>,
+    /// List of available fixture names in the context.
+    pub available: Vec<String>,
+    /// Path to the feature file.
+    pub feature_path: String,
+    /// Name of the scenario.
+    pub scenario_name: String,
+}
+
+impl ExecutionError {
+    /// Returns `true` if this error represents a skip request.
+    ///
+    /// Skip requests are control flow signals, not actual errors. Use this
+    /// method to distinguish between errors that should fail a test and
+    /// skip signals that should mark the test as skipped.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use rstest_bdd::execution::ExecutionError;
+    ///
+    /// let skip = ExecutionError::Skip { message: None };
+    /// assert!(skip.is_skip());
+    ///
+    /// let not_found = ExecutionError::StepNotFound {
+    ///     index: 0,
+    ///     keyword: rstest_bdd::StepKeyword::Given,
+    ///     text: "missing".into(),
+    ///     feature_path: "test.feature".into(),
+    ///     scenario_name: "test".into(),
+    /// };
+    /// assert!(!not_found.is_skip());
+    /// ```
+    #[must_use]
+    pub fn is_skip(&self) -> bool {
+        matches!(self, Self::Skip { .. })
+    }
+
+    /// Returns the skip message if this is a skip error.
+    ///
+    /// Returns `None` if this is not a skip error, or if the skip has no
+    /// message.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use rstest_bdd::execution::ExecutionError;
+    ///
+    /// let skip_with_msg = ExecutionError::Skip { message: Some("reason".into()) };
+    /// assert_eq!(skip_with_msg.skip_message(), Some("reason"));
+    ///
+    /// let skip_no_msg = ExecutionError::Skip { message: None };
+    /// assert_eq!(skip_no_msg.skip_message(), None);
+    ///
+    /// let not_skip = ExecutionError::StepNotFound {
+    ///     index: 0,
+    ///     keyword: rstest_bdd::StepKeyword::Given,
+    ///     text: "missing".into(),
+    ///     feature_path: "test.feature".into(),
+    ///     scenario_name: "test".into(),
+    /// };
+    /// assert_eq!(not_skip.skip_message(), None);
+    /// ```
+    #[must_use]
+    pub fn skip_message(&self) -> Option<&str> {
+        match self {
+            Self::Skip { message } => message.as_deref(),
+            _ => None,
+        }
+    }
+}
+
+impl ExecutionError {
+    /// Render the error message using the provided Fluent loader.
+    #[must_use]
+    pub fn format_with_loader(&self, loader: &crate::FluentLanguageLoader) -> String {
+        match self {
+            Self::Skip { message } => {
+                crate::localization::message_with_loader(loader, "execution-error-skip", |args| {
+                    args.set("message", message.as_deref().unwrap_or("none").to_string());
+                })
+            }
+            Self::StepNotFound {
+                index,
+                keyword,
+                text,
+                feature_path,
+                scenario_name,
+            } => crate::localization::message_with_loader(
+                loader,
+                "execution-error-step-not-found",
+                |args| {
+                    args.set("index", index.to_string());
+                    args.set("keyword", keyword.as_str().to_string());
+                    args.set("text", text.clone());
+                    args.set("feature_path", feature_path.clone());
+                    args.set("scenario_name", scenario_name.clone());
+                },
+            ),
+            Self::MissingFixtures(details) => crate::localization::message_with_loader(
+                loader,
+                "execution-error-missing-fixtures",
+                |args| {
+                    args.set("step_pattern", details.step_pattern.clone());
+                    args.set("step_location", details.step_location.clone());
+                    args.set("required", format!("{:?}", details.required));
+                    args.set("missing", format!("{:?}", details.missing));
+                    args.set("available", format!("{:?}", details.available));
+                    args.set("feature_path", details.feature_path.clone());
+                    args.set("scenario_name", details.scenario_name.clone());
+                },
+            ),
+            Self::HandlerFailed {
+                index,
+                keyword,
+                text,
+                error,
+                feature_path,
+                scenario_name,
+            } => crate::localization::message_with_loader(
+                loader,
+                "execution-error-handler-failed",
+                |args| {
+                    args.set("index", index.to_string());
+                    args.set("keyword", keyword.as_str().to_string());
+                    args.set("text", text.clone());
+                    args.set("error", error.to_string());
+                    args.set("feature_path", feature_path.clone());
+                    args.set("scenario_name", scenario_name.clone());
+                },
+            ),
+        }
+    }
+}
+
+impl std::fmt::Display for ExecutionError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let message = crate::localization::with_loader(|loader| self.format_with_loader(loader));
+        f.write_str(&message)
+    }
+}
+
+impl std::error::Error for ExecutionError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            Self::HandlerFailed { error, .. } => Some(error.as_ref()),
+            _ => None,
+        }
+    }
+}
+
 /// Validate that all required fixtures are present in the context.
 ///
-/// Panics with a detailed diagnostic message if any required fixtures are missing.
+/// Returns an error if any required fixtures are missing from the context.
 ///
 /// # Arguments
 ///
@@ -49,16 +281,17 @@ pub use rstest_bdd_policy::TestAttributeHint;
 /// * `ctx` - The scenario context with available fixtures
 /// * `request` - The step execution request for diagnostic context
 ///
-/// # Panics
+/// # Errors
 ///
-/// Panics if any fixture listed in `step.fixtures` is not available in `ctx`.
+/// Returns [`ExecutionError::MissingFixtures`] if any fixture listed in
+/// `step.fixtures` is not available in `ctx`.
 fn validate_required_fixtures(
     step: &Step,
     ctx: &StepContext<'_>,
     request: &StepExecutionRequest<'_>,
-) {
+) -> Result<(), ExecutionError> {
     if step.fixtures.is_empty() {
-        return;
+        return Ok(());
     }
 
     let available: HashSet<&str> = ctx.available_fixtures().collect();
@@ -69,25 +302,22 @@ fn validate_required_fixtures(
         .filter(|f| !available.contains(f))
         .collect();
 
-    if !missing.is_empty() {
-        let mut available_list: Vec<_> = available.into_iter().collect();
+    if missing.is_empty() {
+        Ok(())
+    } else {
+        let mut available_list: Vec<_> = available.into_iter().map(String::from).collect();
         available_list.sort_unstable();
-        panic!(
-            concat!(
-                "Step '{}' (defined at {}:{}) requires fixtures {:?}, ",
-                "but the following are missing: {:?}\n",
-                "Available fixtures from scenario: {:?}\n",
-                "(feature: {}, scenario: {})",
-            ),
-            request.text,
-            step.file,
-            step.line,
-            step.fixtures,
-            missing,
-            available_list,
-            request.feature_path,
-            request.scenario_name,
-        );
+        Err(ExecutionError::MissingFixtures(Arc::new(
+            MissingFixturesDetails {
+                step_pattern: request.text.to_string(),
+                step_location: format!("{}:{}", step.file, step.line),
+                required: step.fixtures.to_vec(),
+                missing,
+                available: available_list,
+                feature_path: request.feature_path.to_string(),
+                scenario_name: request.scenario_name.to_string(),
+            },
+        )))
     }
 }
 
@@ -96,6 +326,12 @@ fn validate_required_fixtures(
 /// The encoding uses prefix characters to distinguish between skip requests
 /// with and without messages, allowing the skip signal to be transmitted
 /// through `Result<_, String>` return types.
+///
+/// # Deprecation
+///
+/// This function is deprecated in favour of using [`ExecutionError::Skip`]
+/// directly. The new error type provides structured skip handling without
+/// string encoding.
 ///
 /// # Arguments
 ///
@@ -119,6 +355,10 @@ fn validate_required_fixtures(
 /// let encoded = encode_skip_message(Some("reason".to_string()));
 /// assert_eq!(decode_skip_message(encoded), Some("reason".to_string()));
 /// ```
+#[deprecated(
+    since = "0.8.0",
+    note = "Use ExecutionError::Skip variant instead of string encoding"
+)]
 #[must_use]
 pub fn encode_skip_message(message: Option<String>) -> String {
     message.map_or_else(
@@ -137,6 +377,13 @@ pub fn encode_skip_message(message: Option<String>) -> String {
 /// Reverses the encoding performed by [`encode_skip_message`], extracting
 /// the original message content from the prefixed format.
 ///
+/// # Deprecation
+///
+/// This function is deprecated in favour of using [`ExecutionError::Skip`]
+/// directly. The new error type provides structured skip handling without
+/// string encoding. Use [`ExecutionError::skip_message`] to extract skip
+/// messages from the new error type.
+///
 /// # Arguments
 ///
 /// * `encoded` - The encoded skip message string
@@ -154,6 +401,10 @@ pub fn encode_skip_message(message: Option<String>) -> String {
 /// let encoded = encode_skip_message(Some("test".to_string()));
 /// assert_eq!(decode_skip_message(encoded), Some("test".to_string()));
 /// ```
+#[deprecated(
+    since = "0.8.0",
+    note = "Use ExecutionError::skip_message() instead of string decoding"
+)]
 #[must_use]
 pub fn decode_skip_message(encoded: String) -> Option<String> {
     match encoded.chars().next() {
@@ -223,53 +474,50 @@ pub struct StepExecutionRequest<'a> {
 ///
 /// * `Ok(Some(value))` - Step succeeded and returned a value
 /// * `Ok(None)` - Step succeeded without returning a value
-/// * `Err(encoded_skip)` - Step requested a skip (use [`decode_skip_message`])
+/// * `Err(ExecutionError::Skip { .. })` - Step requested to be skipped
+/// * `Err(ExecutionError::StepNotFound { .. })` - Step pattern not in registry
+/// * `Err(ExecutionError::MissingFixtures { .. })` - Required fixtures missing
+/// * `Err(ExecutionError::HandlerFailed { .. })` - Step handler returned error
 ///
 /// # Errors
 ///
-/// Returns `Err` containing an encoded skip message when the step requests
-/// skipping via [`StepExecution::Skipped`]. This is not an error condition
-/// but a control flow signal. Use [`decode_skip_message`] to extract the
-/// optional skip reason.
+/// Returns [`ExecutionError`] for all failure cases:
 ///
-/// # Panics
-///
-/// Panics if:
-/// - The step is not found in the registry
-/// - Required fixtures are missing
-/// - The step handler returns an error
+/// - [`ExecutionError::Skip`]: The step requested skipping (control flow signal,
+///   not an error). Use [`ExecutionError::is_skip`] to detect this case.
+/// - [`ExecutionError::StepNotFound`]: No step matching the keyword and text
+///   was found in the registry.
+/// - [`ExecutionError::MissingFixtures`]: The step requires fixtures that are
+///   not available in the context.
+/// - [`ExecutionError::HandlerFailed`]: The step handler function returned an
+///   error during execution.
 pub fn execute_step(
     request: &StepExecutionRequest<'_>,
     ctx: &mut StepContext<'_>,
-) -> Result<Option<Box<dyn Any>>, String> {
-    let step = find_step_with_metadata(request.keyword, StepText::from(request.text))
-        .unwrap_or_else(|| {
-            panic!(
-                "Step not found at index {}: {} {} (feature: {}, scenario: {})",
-                request.index,
-                request.keyword.as_str(),
-                request.text,
-                request.feature_path,
-                request.scenario_name
-            )
-        });
+) -> Result<Option<Box<dyn Any>>, ExecutionError> {
+    let step = find_step_with_metadata(request.keyword, StepText::from(request.text)).ok_or_else(
+        || ExecutionError::StepNotFound {
+            index: request.index,
+            keyword: request.keyword,
+            text: request.text.to_string(),
+            feature_path: request.feature_path.to_string(),
+            scenario_name: request.scenario_name.to_string(),
+        },
+    )?;
 
-    validate_required_fixtures(step, ctx, request);
+    validate_required_fixtures(step, ctx, request)?;
 
     match (step.run)(ctx, request.text, request.docstring, request.table) {
-        Ok(StepExecution::Skipped { message }) => Err(encode_skip_message(message)),
+        Ok(StepExecution::Skipped { message }) => Err(ExecutionError::Skip { message }),
         Ok(StepExecution::Continue { value }) => Ok(value),
-        Err(err) => {
-            panic!(
-                "Step failed at index {}: {} {} - {}\n(feature: {}, scenario: {})",
-                request.index,
-                request.keyword.as_str(),
-                request.text,
-                err,
-                request.feature_path,
-                request.scenario_name
-            );
-        }
+        Err(err) => Err(ExecutionError::HandlerFailed {
+            index: request.index,
+            keyword: request.keyword,
+            text: request.text.to_string(),
+            error: Arc::new(err),
+            feature_path: request.feature_path.to_string(),
+            scenario_name: request.scenario_name.to_string(),
+        }),
     }
 }
 

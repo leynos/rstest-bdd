@@ -7,7 +7,6 @@
 //! # Responsibilities
 //!
 //! - Generate `__rstest_bdd_execute_single_step`: thin wrapper calling runtime execution
-//! - Generate `__rstest_bdd_decode_skip_message`: thin wrapper calling runtime decoder
 //! - Generate `__rstest_bdd_process_async_step`: async variant (currently identical to sync)
 //!
 //! # Design
@@ -30,7 +29,7 @@ use quote::quote;
 /// ```text
 /// fn __rstest_bdd_execute_single_step(
 ///     index, keyword, text, docstring, table, ctx, feature_path, scenario_name
-/// ) -> Result<Option<Box<dyn Any>>, String> {
+/// ) -> Result<Option<Box<dyn Any>>, ExecutionError> {
 ///     rstest_bdd::execution::execute_step(&StepExecutionRequest { ... }, ctx)
 /// }
 /// ```
@@ -50,7 +49,7 @@ pub(in crate::codegen::scenario::runtime) fn generate_step_executor() -> TokenSt
             ctx: &mut #path::StepContext,
             feature_path: &str,
             scenario_name: &str,
-        ) -> Result<Option<Box<dyn std::any::Any>>, String> {
+        ) -> Result<Option<Box<dyn std::any::Any>>, #path::execution::ExecutionError> {
             #path::execution::execute_step(
                 &#path::execution::StepExecutionRequest {
                     index,
@@ -67,23 +66,35 @@ pub(in crate::codegen::scenario::runtime) fn generate_step_executor() -> TokenSt
     }
 }
 
-/// Generates the `__rstest_bdd_decode_skip_message` function.
+/// Generates the `__rstest_bdd_extract_skip_message` function.
 ///
-/// The generated function is a thin wrapper that delegates to
-/// [`rstest_bdd::execution::decode_skip_message`] for decoding.
+/// The generated function extracts the skip message from an [`ExecutionError::Skip`]
+/// variant, returning `Some(Option<String>)` for skips and `None` for other errors.
 ///
 /// # Generated code
 ///
 /// ```text
-/// fn __rstest_bdd_decode_skip_message(encoded: String) -> Option<String> {
-///     rstest_bdd::execution::decode_skip_message(encoded)
+/// fn __rstest_bdd_extract_skip_message(
+///     error: &ExecutionError
+/// ) -> Option<Option<String>> {
+///     if error.is_skip() {
+///         Some(error.skip_message().map(String::from))
+///     } else {
+///         None
+///     }
 /// }
 /// ```
-pub(in crate::codegen::scenario::runtime) fn generate_skip_decoder() -> TokenStream2 {
+pub(in crate::codegen::scenario::runtime) fn generate_skip_extractor() -> TokenStream2 {
     let path = crate::codegen::rstest_bdd_path();
     quote! {
-        fn __rstest_bdd_decode_skip_message(encoded: String) -> Option<String> {
-            #path::execution::decode_skip_message(encoded)
+        fn __rstest_bdd_extract_skip_message(
+            error: &#path::execution::ExecutionError,
+        ) -> Option<Option<String>> {
+            if error.is_skip() {
+                Some(error.skip_message().map(String::from))
+            } else {
+                None
+            }
         }
     }
 }
@@ -103,7 +114,7 @@ pub(in crate::codegen::scenario::runtime) fn generate_skip_decoder() -> TokenStr
 /// ```text
 /// fn __rstest_bdd_process_async_step(
 ///     index, keyword, text, docstring, table, ctx, feature_path, scenario_name
-/// ) -> Result<Option<Box<dyn std::any::Any>>, String> {
+/// ) -> Result<Option<Box<dyn std::any::Any>>, ExecutionError> {
 ///     rstest_bdd::execution::execute_step(&StepExecutionRequest { ... }, ctx)
 /// }
 /// ```
@@ -123,7 +134,7 @@ pub(in crate::codegen::scenario::runtime) fn generate_async_step_executor() -> T
             ctx: &mut #path::StepContext,
             feature_path: &str,
             scenario_name: &str,
-        ) -> Result<Option<Box<dyn std::any::Any>>, String> {
+        ) -> Result<Option<Box<dyn std::any::Any>>, #path::execution::ExecutionError> {
             #path::execution::execute_step(
                 &#path::execution::StepExecutionRequest {
                     index,

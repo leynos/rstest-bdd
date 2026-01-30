@@ -22,3 +22,11 @@ assert-skip-missing-message = { $target } öğesinin '{ $expected }' içeren bir
 assert-skip-missing-substring = atlama mesajı '{ $actual }' '{ $expected }' içermiyor
 assert-skip-unexpected-message = { $target } öğesinin atlama mesajı sağlamaması bekleniyordu
 assert-skip-flag-mismatch = { $target } öğesinin '{ $flag }' bayrağının { $expected } olması bekleniyordu, ancak { $actual } idi
+
+execution-error-skip = Step skipped{ $message ->
+    [none] {""}
+    *[other] : { $message }
+}
+execution-error-step-not-found = Step not found at index { $index }: { $keyword } { $text } (feature: { $feature_path }, scenario: { $scenario_name })
+execution-error-missing-fixtures = Step '{ $step_pattern }' (defined at { $step_location }) requires fixtures { $required }, but the following are missing: { $missing }. Available fixtures from scenario: { $available } (feature: { $feature_path }, scenario: { $scenario_name })
+execution-error-handler-failed = Step failed at index { $index }: { $keyword } { $text } - { $error } (feature: { $feature_path }, scenario: { $scenario_name })

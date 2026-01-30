@@ -22,3 +22,11 @@ assert-skip-missing-message = verwachtte dat { $target } een skip-bericht zou ge
 assert-skip-missing-substring = skip-bericht '{ $actual }' bevat niet '{ $expected }'
 assert-skip-unexpected-message = verwachtte dat { $target } geen skip-bericht zou geven
 assert-skip-flag-mismatch = verwachtte dat vlag '{ $flag }' van { $target } { $expected } zou zijn, maar het was { $actual }
+
+execution-error-skip = Step skipped{ $message ->
+    [none] {""}
+    *[other] : { $message }
+}
+execution-error-step-not-found = Step not found at index { $index }: { $keyword } { $text } (feature: { $feature_path }, scenario: { $scenario_name })
+execution-error-missing-fixtures = Step '{ $step_pattern }' (defined at { $step_location }) requires fixtures { $required }, but the following are missing: { $missing }. Available fixtures from scenario: { $available } (feature: { $feature_path }, scenario: { $scenario_name })
+execution-error-handler-failed = Step failed at index { $index }: { $keyword } { $text } - { $error } (feature: { $feature_path }, scenario: { $scenario_name })

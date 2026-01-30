@@ -1,7 +1,7 @@
 //! Behavioural test for step registry.
 
 use rstest::rstest;
-use rstest_bdd::execution::{StepExecutionRequest, decode_skip_message, execute_step};
+use rstest_bdd::execution::{ExecutionError, StepExecutionRequest, execute_step};
 use rstest_bdd::localization::{ScopedLocalization, strip_directional_isolates};
 use rstest_bdd::{
     Step, StepContext, StepError, StepExecution, StepKeyword, StepText, find_step_with_metadata,
@@ -320,65 +320,112 @@ fn execute_step_succeeds_with_value() {
 }
 
 #[test]
-#[expect(clippy::expect_used, reason = "test extracts encoded skip signal")]
-fn execute_step_skip_without_message_returns_encoded_err() {
+#[expect(
+    clippy::expect_used,
+    reason = "test uses expect_err to unwrap for assertions"
+)]
+fn execute_step_skip_without_message_returns_skip_error() {
     let request = make_request(0, StepKeyword::When, "skips without message");
     let mut ctx = StepContext::default();
 
     let result = execute_step(&request, &mut ctx);
 
     assert!(result.is_err(), "execute_step should return Err for skip");
-    let encoded = result.expect_err("expected skip signal");
-    let decoded = decode_skip_message(encoded);
-    assert_eq!(decoded, None, "skip without message should decode to None");
+    let error = result.expect_err("expected skip signal");
+    assert!(error.is_skip(), "error should be a skip signal");
+    assert_eq!(
+        error.skip_message(),
+        None,
+        "skip without message should have None"
+    );
 }
 
 #[test]
-#[expect(clippy::expect_used, reason = "test extracts encoded skip signal")]
-fn execute_step_skip_with_message_returns_encoded_err() {
+#[expect(
+    clippy::expect_used,
+    reason = "test uses expect_err to unwrap for assertions"
+)]
+fn execute_step_skip_with_message_returns_skip_error() {
     let request = make_request(0, StepKeyword::Then, "skips with message");
     let mut ctx = StepContext::default();
 
     let result = execute_step(&request, &mut ctx);
 
     assert!(result.is_err(), "execute_step should return Err for skip");
-    let encoded = result.expect_err("expected skip signal");
-    let decoded = decode_skip_message(encoded);
+    let error = result.expect_err("expected skip signal");
+    assert!(error.is_skip(), "error should be a skip signal");
     assert_eq!(
-        decoded,
-        Some("test skip reason".to_string()),
-        "skip message should round-trip correctly"
+        error.skip_message(),
+        Some("test skip reason"),
+        "skip message should be preserved"
     );
 }
 
 #[test]
-#[should_panic(expected = "Step not found at index 0")]
-fn execute_step_panics_for_missing_step() {
+#[expect(
+    clippy::expect_used,
+    reason = "test uses expect_err to unwrap for assertions"
+)]
+fn execute_step_returns_step_not_found_error() {
     let request = make_request(0, StepKeyword::Given, "nonexistent step pattern");
     let mut ctx = StepContext::default();
 
-    // This should panic because the step doesn't exist
-    let _ = execute_step(&request, &mut ctx);
+    let result = execute_step(&request, &mut ctx);
+
+    assert!(result.is_err(), "execute_step should return Err");
+    let error = result.expect_err("expected error");
+    assert!(
+        matches!(error, ExecutionError::StepNotFound { index: 0, .. }),
+        "expected StepNotFound error, got: {error:?}"
+    );
+    assert!(!error.is_skip(), "StepNotFound should not be a skip");
 }
 
 #[test]
-#[should_panic(expected = "Step failed at index 0")]
-fn execute_step_panics_on_handler_error() {
+#[expect(
+    clippy::expect_used,
+    reason = "test uses expect_err to unwrap for assertions"
+)]
+fn execute_step_returns_handler_failed_error() {
     let request = make_request(0, StepKeyword::Given, "fails");
     let mut ctx = StepContext::default();
 
-    // This should panic because the step handler returns an error
-    let _ = execute_step(&request, &mut ctx);
+    let result = execute_step(&request, &mut ctx);
+
+    assert!(result.is_err(), "execute_step should return Err");
+    let error = result.expect_err("expected error");
+    assert!(
+        matches!(error, ExecutionError::HandlerFailed { index: 0, .. }),
+        "expected HandlerFailed error, got: {error:?}"
+    );
+    assert!(!error.is_skip(), "HandlerFailed should not be a skip");
 }
 
 #[test]
-#[should_panic(expected = "requires fixtures")]
-fn execute_step_panics_on_missing_fixtures() {
+#[expect(
+    clippy::expect_used,
+    reason = "test uses expect_err to unwrap for assertions"
+)]
+fn execute_step_returns_missing_fixtures_error() {
     let request = make_request(0, StepKeyword::Then, "needs fixture");
     let mut ctx = StepContext::default();
 
-    // This should panic because the "missing" fixture is not provided
-    let _ = execute_step(&request, &mut ctx);
+    let result = execute_step(&request, &mut ctx);
+
+    assert!(result.is_err(), "execute_step should return Err");
+    let error = result.expect_err("expected error");
+    assert!(
+        matches!(error, ExecutionError::MissingFixtures(_)),
+        "expected MissingFixtures error, got: {error:?}"
+    );
+    assert!(!error.is_skip(), "MissingFixtures should not be a skip");
+    // Verify the missing fixture is correctly identified
+    if let ExecutionError::MissingFixtures(details) = &error {
+        assert!(
+            details.missing.contains(&"missing"),
+            "expected 'missing' in missing fixtures list"
+        );
+    }
 }
 
 #[test]

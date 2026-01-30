@@ -22,3 +22,11 @@ assert-skip-missing-message = odotettiin, että { $target } antaa ohitusviestin,
 assert-skip-missing-substring = ohitusviesti '{ $actual }' ei sisällä '{ $expected }'
 assert-skip-unexpected-message = odotettiin, että { $target } ei anna ohitusviestiä
 assert-skip-flag-mismatch = odotettiin, että { $target } -lipun '{ $flag }' arvo olisi { $expected }, mutta se oli { $actual }
+
+execution-error-skip = Step skipped{ $message ->
+    [none] {""}
+    *[other] : { $message }
+}
+execution-error-step-not-found = Step not found at index { $index }: { $keyword } { $text } (feature: { $feature_path }, scenario: { $scenario_name })
+execution-error-missing-fixtures = Step '{ $step_pattern }' (defined at { $step_location }) requires fixtures { $required }, but the following are missing: { $missing }. Available fixtures from scenario: { $available } (feature: { $feature_path }, scenario: { $scenario_name })
+execution-error-handler-failed = Step failed at index { $index }: { $keyword } { $text } - { $error } (feature: { $feature_path }, scenario: { $scenario_name })

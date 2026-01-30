@@ -1,10 +1,22 @@
 //! Unit tests for the execution module.
+//!
+//! This module includes tests for deprecated functions (`encode_skip_message`,
+//! `decode_skip_message`) to ensure backward compatibility during the
+//! deprecation period.
+#![expect(
+    deprecated,
+    reason = "tests include deprecated skip encoding functions for backward compatibility"
+)]
+
+use std::sync::Arc;
 
 use rstest::rstest;
 
+use crate::{StepError, StepKeyword};
+
 use super::{
-    RuntimeMode, SKIP_NONE_PREFIX, SKIP_SOME_PREFIX, TestAttributeHint, decode_skip_message,
-    encode_skip_message,
+    ExecutionError, RuntimeMode, SKIP_NONE_PREFIX, SKIP_SOME_PREFIX, TestAttributeHint,
+    decode_skip_message, encode_skip_message,
 };
 
 #[test]
@@ -37,6 +49,10 @@ fn runtime_mode_tokio_hint_is_rstest_with_tokio() {
         TestAttributeHint::RstestWithTokioCurrentThread
     );
 }
+
+// ============================================================================
+// Deprecated skip encoding functions (kept for backward compatibility)
+// ============================================================================
 
 #[test]
 fn encode_skip_message_none_produces_prefix_only() {
@@ -76,6 +92,124 @@ fn decode_skip_message_empty_string_preserved() {
     // Empty string has no prefix character
     let decoded = decode_skip_message(String::new());
     assert_eq!(decoded, Some(String::new()));
+}
+
+// ============================================================================
+// ExecutionError tests
+// ============================================================================
+
+#[test]
+fn execution_error_skip_is_skip_returns_true() {
+    let error = ExecutionError::Skip { message: None };
+    assert!(error.is_skip());
+}
+
+#[test]
+fn execution_error_skip_with_message_is_skip_returns_true() {
+    let error = ExecutionError::Skip {
+        message: Some("reason".into()),
+    };
+    assert!(error.is_skip());
+}
+
+#[test]
+fn execution_error_step_not_found_is_skip_returns_false() {
+    let error = ExecutionError::StepNotFound {
+        index: 0,
+        keyword: StepKeyword::Given,
+        text: "missing".into(),
+        feature_path: "test.feature".into(),
+        scenario_name: "test".into(),
+    };
+    assert!(!error.is_skip());
+}
+
+#[test]
+fn execution_error_missing_fixtures_is_skip_returns_false() {
+    use super::MissingFixturesDetails;
+    let error = ExecutionError::MissingFixtures(Arc::new(MissingFixturesDetails {
+        step_pattern: "test step".into(),
+        step_location: "test.rs:1".into(),
+        required: vec!["fixture"],
+        missing: vec!["fixture"],
+        available: vec![],
+        feature_path: "test.feature".into(),
+        scenario_name: "test".into(),
+    }));
+    assert!(!error.is_skip());
+}
+
+#[test]
+fn execution_error_handler_failed_is_skip_returns_false() {
+    let error = ExecutionError::HandlerFailed {
+        index: 0,
+        keyword: StepKeyword::When,
+        text: "failing step".into(),
+        error: Arc::new(StepError::ExecutionError {
+            pattern: "failing step".into(),
+            function: "test_fn".into(),
+            message: "boom".into(),
+        }),
+        feature_path: "test.feature".into(),
+        scenario_name: "test".into(),
+    };
+    assert!(!error.is_skip());
+}
+
+#[test]
+fn execution_error_skip_message_returns_none_for_skip_without_message() {
+    let error = ExecutionError::Skip { message: None };
+    assert_eq!(error.skip_message(), None);
+}
+
+#[test]
+fn execution_error_skip_message_returns_message_for_skip_with_message() {
+    let error = ExecutionError::Skip {
+        message: Some("test reason".into()),
+    };
+    assert_eq!(error.skip_message(), Some("test reason"));
+}
+
+#[test]
+fn execution_error_skip_message_returns_none_for_non_skip_errors() {
+    let error = ExecutionError::StepNotFound {
+        index: 0,
+        keyword: StepKeyword::Given,
+        text: "missing".into(),
+        feature_path: "test.feature".into(),
+        scenario_name: "test".into(),
+    };
+    assert_eq!(error.skip_message(), None);
+}
+
+#[test]
+fn execution_error_implements_std_error() {
+    let error = ExecutionError::Skip { message: None };
+    let _: &dyn std::error::Error = &error;
+}
+
+#[test]
+fn execution_error_handler_failed_source_returns_inner_error() {
+    let inner = StepError::ExecutionError {
+        pattern: "test".into(),
+        function: "fn".into(),
+        message: "boom".into(),
+    };
+    let error = ExecutionError::HandlerFailed {
+        index: 0,
+        keyword: StepKeyword::When,
+        text: "test".into(),
+        error: Arc::new(inner),
+        feature_path: "test.feature".into(),
+        scenario_name: "test".into(),
+    };
+    assert!(std::error::Error::source(&error).is_some());
+}
+
+#[test]
+fn execution_error_skip_source_returns_none() {
+    let error = ExecutionError::Skip { message: None };
+    assert!(std::error::Error::source(&error).is_none());
 }
 
 /// Verify that `RuntimeMode` and `TestAttributeHint` have matching variant counts.

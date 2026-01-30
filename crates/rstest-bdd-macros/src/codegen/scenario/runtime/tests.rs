@@ -1,7 +1,7 @@
 //! Tests for runtime scaffolding code generation.
 
 use super::generators::{
-    generate_async_step_executor, generate_skip_decoder, generate_skip_handler,
+    generate_async_step_executor, generate_skip_extractor, generate_skip_handler,
     generate_step_executor,
 };
 use crate::codegen::scenario::ScenarioReturnKind;
@@ -59,9 +59,9 @@ fn assert_path_is_execution_execute_step(path: &syn::Path) {
     assert_path_ends_with_module_function(path, "execution", "execute_step");
 }
 
-/// Assert that a path ends with `execution::decode_skip_message`.
-fn assert_path_is_execution_decode_skip_message(path: &syn::Path) {
-    assert_path_ends_with_module_function(path, "execution", "decode_skip_message");
+/// Assert that a path ends with `execution::ExecutionError`.
+fn assert_path_is_execution_error(path: &syn::Path) {
+    assert_path_ends_with_module_function(path, "execution", "ExecutionError");
 }
 
 #[expect(clippy::panic, reason = "test helper panics for clearer failures")]
@@ -216,25 +216,42 @@ fn execute_async_step_delegates_to_runtime() {
     );
 }
 
-/// Verify that the skip decoder delegates to `rstest_bdd::execution::decode_skip_message`.
+/// Verify that the skip extractor references `rstest_bdd::execution::ExecutionError`.
+///
+/// The generated `__rstest_bdd_extract_skip_message` function accepts an
+/// `ExecutionError` reference and calls its `is_skip()` and `skip_message()`
+/// methods to extract skip information.
 #[test]
 #[expect(
     clippy::expect_used,
     reason = "test parses generated tokens and uses expect for clearer failures"
 )]
-fn skip_decoder_delegates_to_runtime() {
+fn skip_extractor_references_execution_error() {
     let file: syn::File =
-        syn::parse2(generate_skip_decoder()).expect("generate_skip_decoder parses as a file");
+        syn::parse2(generate_skip_extractor()).expect("generate_skip_extractor parses as a file");
 
-    let item = find_function_by_name(&file, "__rstest_bdd_decode_skip_message");
+    let item = find_function_by_name(&file, "__rstest_bdd_extract_skip_message");
 
-    // Verify it calls decode_skip_message from execution module
-    let decode_call = find_call_in_block(&item.block, "decode_skip_message")
-        .expect("expected call to decode_skip_message");
-    let func_path = extract_path(decode_call.func.as_ref());
+    // Verify the function signature references ExecutionError
+    // The function takes a reference to ExecutionError as its parameter
+    let inputs = &item.sig.inputs;
+    assert_eq!(inputs.len(), 1, "expected single parameter");
 
-    // Assert the path ends with execution::decode_skip_message using segment-based check
-    assert_path_is_execution_decode_skip_message(func_path);
+    let param = inputs.first().expect("expected first parameter");
+    if let syn::FnArg::Typed(pat_type) = param {
+        // The type should be a reference to a path ending in ExecutionError
+        if let syn::Type::Reference(type_ref) = pat_type.ty.as_ref() {
+            if let syn::Type::Path(type_path) = type_ref.elem.as_ref() {
+                assert_path_is_execution_error(&type_path.path);
+            } else {
+                panic!("expected path type inside reference");
+            }
+        } else {
+            panic!("expected reference type for parameter");
+        }
+    } else {
+        panic!("expected typed parameter");
+    }
 }
 
 #[expect(clippy::panic, reason = "test helper panics for clearer failures")]

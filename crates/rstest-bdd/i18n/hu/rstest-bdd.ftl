@@ -22,3 +22,11 @@ assert-skip-missing-message = elvártuk, hogy { $target } olyan kihagyási üzen
 assert-skip-missing-substring = a kihagyási üzenet '{ $actual }' nem tartalmazza a '{ $expected }' értéket
 assert-skip-unexpected-message = elvártuk, hogy { $target } ne adjon kihagyási üzenetet
 assert-skip-flag-mismatch = elvártuk, hogy { $target } '{ $flag }' jelzője { $expected } legyen, de { $actual } volt
+
+execution-error-skip = Step skipped{ $message ->
+    [none] {""}
+    *[other] : { $message }
+}
+execution-error-step-not-found = Step not found at index { $index }: { $keyword } { $text } (feature: { $feature_path }, scenario: { $scenario_name })
+execution-error-missing-fixtures = Step '{ $step_pattern }' (defined at { $step_location }) requires fixtures { $required }, but the following are missing: { $missing }. Available fixtures from scenario: { $available } (feature: { $feature_path }, scenario: { $scenario_name })
+execution-error-handler-failed = Step failed at index { $index }: { $keyword } { $text } - { $error } (feature: { $feature_path }, scenario: { $scenario_name })

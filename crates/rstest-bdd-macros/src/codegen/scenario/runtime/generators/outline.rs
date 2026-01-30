@@ -96,7 +96,7 @@ pub(in crate::codegen::scenario::runtime) fn generate_step_executor_loop_outline
 /// for (index, (keyword, text, docstring, table)) in steps.iter().copied().enumerate() {
 ///     match __rstest_bdd_process_async_step(...) {
 ///         Ok(value) => { /* insert value into context */ }
-///         Err(encoded) => { /* decode skip, record position, break */ }
+///         Err(error) => { /* extract skip or panic on error, break */ }
 ///     }
 /// }
 /// ```

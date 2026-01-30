@@ -22,3 +22,11 @@ assert-skip-missing-message = अपेक्षा थी कि { $target } �
 assert-skip-missing-substring = स्किप संदेश « { $actual } » में « { $expected } » शामिल नहीं है
 assert-skip-unexpected-message = अपेक्षा थी कि { $target } कोई स्किप संदेश नहीं देगा
 assert-skip-flag-mismatch = अपेक्षा थी कि { $target } के फ़्लैग « { $flag } » का मान « { $expected } » होगा, परन्तु वह « { $actual } » था
+
+execution-error-skip = Step skipped{ $message ->
+    [none] {""}
+    *[other] : { $message }
+}
+execution-error-step-not-found = Step not found at index { $index }: { $keyword } { $text } (feature: { $feature_path }, scenario: { $scenario_name })
+execution-error-missing-fixtures = Step '{ $step_pattern }' (defined at { $step_location }) requires fixtures { $required }, but the following are missing: { $missing }. Available fixtures from scenario: { $available } (feature: { $feature_path }, scenario: { $scenario_name })
+execution-error-handler-failed = Step failed at index { $index }: { $keyword } { $text } - { $error } (feature: { $feature_path }, scenario: { $scenario_name })
