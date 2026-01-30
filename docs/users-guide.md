@@ -236,7 +236,7 @@ fn check(cart_state: &CartState, expected: i32) {
 }
 
 #[scenario(path = "tests/features/scenario_state.feature", name = "Recording a single value")]
-fn keeps_value(cart_state: CartState) { let _ = cart_state; }
+fn keeps_value(_cart_state: CartState) {}
 ```
 
 #### Mixed approach
@@ -482,9 +482,7 @@ fn reset_state(cli_state: &CliState) {
 }
 
 #[scenario(path = "tests/features/cli.feature")]
-fn cli_behaviour(cli_state: CliState) {
-    let _ = cli_state;
-}
+fn cli_behaviour(_cli_state: CliState) {}
 ```
 
 Slots are independent, so scenarios can freely mix eager `set` calls with lazy
@@ -1606,8 +1604,8 @@ definitions:
 
 - **Missing Examples column** (`example-column-missing`): When a step in a
   Scenario Outline uses a placeholder (e.g., `<count>`) that has no matching
-  column header in the Examples table, a warning diagnostic is published on
-  the step that references the undefined placeholder. The message lists the
+  column header in the Examples table, a warning diagnostic is published on the
+  step that references the undefined placeholder. The message lists the
   available columns to help identify typos or missing data.
 
 - **Surplus Examples column** (`example-column-surplus`): When an Examples

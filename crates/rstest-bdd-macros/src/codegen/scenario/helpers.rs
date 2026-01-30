@@ -42,6 +42,22 @@ pub(crate) fn row_has_values(row: &[String]) -> bool {
     row.iter().any(|cell| !cell.is_empty())
 }
 
+/// Returns true when any parameter uses an underscore-prefixed identifier.
+///
+/// The single underscore `_` pattern is ignored.
+pub(crate) fn has_underscore_prefixed_params(sig: &syn::Signature) -> bool {
+    sig.inputs.iter().any(|arg| {
+        let syn::FnArg::Typed(pat_type) = arg else {
+            return false;
+        };
+        let syn::Pat::Ident(pat_ident) = pat_type.pat.as_ref() else {
+            return false;
+        };
+        let name = pat_ident.ident.to_string();
+        name.starts_with('_') && name.len() > 1
+    })
+}
+
 fn resolve_keyword_tokens(steps: &[crate::parsing::feature::ParsedStep]) -> Vec<TokenStream2> {
     // Resolve textual conjunctions (And/But) to the previous primary keyword
     // without depending on the validation module, which is behind an optional
@@ -300,4 +316,40 @@ pub(crate) fn process_steps_substituted(
     }
 
     Ok((keyword_tokens, values, docstrings, tables))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use syn::parse_quote;
+
+    #[test]
+    fn detects_underscore_prefixed_param() {
+        let sig: syn::Signature = parse_quote! { fn test(_state: State) };
+        assert!(has_underscore_prefixed_params(&sig));
+    }
+
+    #[test]
+    fn ignores_single_underscore() {
+        let sig: syn::Signature = parse_quote! { fn test(_: State) };
+        assert!(!has_underscore_prefixed_params(&sig));
+    }
+
+    #[test]
+    fn ignores_non_underscore_params() {
+        let sig: syn::Signature = parse_quote! { fn test(state: State) };
+        assert!(!has_underscore_prefixed_params(&sig));
+    }
+
+    #[test]
+    fn detects_mixed_params() {
+        let sig: syn::Signature = parse_quote! { fn test(normal: i32, _unused: State) };
+        assert!(has_underscore_prefixed_params(&sig));
+    }
+
+    #[test]
+    fn handles_no_params() {
+        let sig: syn::Signature = parse_quote! { fn test() };
+        assert!(!has_underscore_prefixed_params(&sig));
+    }
 }

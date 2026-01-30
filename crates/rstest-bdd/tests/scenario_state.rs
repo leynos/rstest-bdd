@@ -45,14 +45,10 @@ fn no_value(cart_state: &CartState) {
     path = "tests/features/scenario_state.feature",
     name = "Recording a single value"
 )]
-fn scenario_preserves_value(cart_state: CartState) {
-    let _ = cart_state;
-}
+fn scenario_preserves_value(#[from(cart_state)] _cart_state: CartState) {}
 
 #[scenario(
     path = "tests/features/scenario_state.feature",
     name = "Clearing stored values"
 )]
-fn scenario_clears_value(cart_state: CartState) {
-    let _ = cart_state;
-}
+fn scenario_clears_value(#[from(cart_state)] _cart_state: CartState) {}

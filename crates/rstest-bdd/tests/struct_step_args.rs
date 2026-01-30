@@ -102,19 +102,13 @@ fn product_summary_matches(#[step_args] expected: ProductInput, product_state: &
 }
 
 #[scenario(path = "tests/features/struct_step_args.feature")]
-fn struct_step_args(cart_state: CartState) {
-    // Binding registers fixture for step injection; intentionally unused here
-    let _ = cart_state;
-}
+fn struct_step_args(#[from(cart_state)] _cart_state: CartState) {}
 
 #[scenario(
     path = "tests/features/struct_step_args.feature",
     name = "String hints with step_args struct"
 )]
-fn struct_step_args_with_string_hint(product_state: ProductState) {
-    // Binding registers fixture for step injection; intentionally unused here
-    let _ = product_state;
-}
+fn struct_step_args_with_string_hint(#[from(product_state)] _product_state: ProductState) {}
 
 #[test]
 fn struct_step_args_reports_parse_failure() {
