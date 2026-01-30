@@ -311,7 +311,7 @@ experience by introducing more powerful and intuitive APIs.
 - [x] 5.1.5 Skipped-step assertions: Provide helper macros for verifying that
   steps or scenarios were skipped as expected.
 
-- [x] 5.1.6 Fallible scenario bodies: Allow `#[scenario]` functions to return
+- [ ] 5.1.6 Fallible scenario bodies: Allow `#[scenario]` functions to return
   `Result<(), E>` or `StepResult<(), E>`, returning `Ok(())` for skipped
   scenarios and ensuring `Err` outcomes do not record a pass.
 
