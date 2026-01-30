@@ -196,9 +196,9 @@ fn ui_behaviour() {
 
 - More crates increase publishing and release coordination overhead, especially
   when changes span macros, harness traits, and adapters.
-- A too-opinionated harness trait can paint us into a corner; a too-generic trait
-  can leak complexity into every adapter. Keep the trait surface small and evolve
-  it cautiously.
+- A too-opinionated harness trait risks becoming overly constraining; a
+  too-generic trait can leak complexity into every adapter. Keep the trait surface
+  small and evolve it cautiously.
 - Users may find harness selection confusing without strong documentation and
   examples, particularly when troubleshooting async execution and fixture
   injection.
