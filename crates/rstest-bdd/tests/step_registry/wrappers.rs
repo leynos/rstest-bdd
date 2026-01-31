@@ -10,7 +10,7 @@ use rstest_bdd::{
     StepContext, StepError, StepExecution, StepFuture, StepKeyword, panic_message, step,
 };
 
-use super::common::wrap_sync_step_as_async;
+use super::common::{StepInvocationParams, wrap_sync_step_as_async};
 
 /// Generates an async wrapper function that delegates to a sync step function.
 ///
@@ -40,7 +40,13 @@ macro_rules! async_wrapper {
             docstring: Option<&'ctx str>,
             table: Option<&'ctx [&'ctx [&'ctx str]]>,
         ) -> StepFuture<'ctx> {
-            wrap_sync_step_as_async($sync_fn, ctx, text, docstring, table)
+            let params = StepInvocationParams {
+                ctx,
+                text,
+                docstring,
+                table,
+            };
+            wrap_sync_step_as_async($sync_fn, params)
         }
     };
 }

@@ -17,7 +17,7 @@ use rstest_bdd::{StepContext, StepExecution, StepFuture, StepKeyword, step};
 #[cfg(feature = "diagnostics")]
 mod common;
 #[cfg(feature = "diagnostics")]
-use common::wrap_sync_step_as_async;
+use common::{StepInvocationParams, wrap_sync_step_as_async};
 
 #[cfg(feature = "diagnostics")]
 step!(
@@ -58,7 +58,13 @@ fn bypassed_step_async<'ctx>(
     docstring: Option<&'ctx str>,
     table: Option<&'ctx [&'ctx [&'ctx str]]>,
 ) -> StepFuture<'ctx> {
-    wrap_sync_step_as_async(bypassed_step, ctx, text, docstring, table)
+    let params = StepInvocationParams {
+        ctx,
+        text,
+        docstring,
+        table,
+    };
+    wrap_sync_step_as_async(bypassed_step, params)
 }
 
 #[cfg(feature = "diagnostics")]
@@ -82,7 +88,13 @@ fn forced_bypass_async<'ctx>(
     docstring: Option<&'ctx str>,
     table: Option<&'ctx [&'ctx [&'ctx str]]>,
 ) -> StepFuture<'ctx> {
-    wrap_sync_step_as_async(forced_bypass, ctx, text, docstring, table)
+    let params = StepInvocationParams {
+        ctx,
+        text,
+        docstring,
+        table,
+    };
+    wrap_sync_step_as_async(forced_bypass, params)
 }
 
 #[cfg(feature = "diagnostics")]

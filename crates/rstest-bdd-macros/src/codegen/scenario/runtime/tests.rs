@@ -182,6 +182,29 @@ fn is_ok_unit_expr(expr: &syn::Expr) -> bool {
     matches!(call.args.first(), Some(syn::Expr::Tuple(tuple)) if tuple.elems.is_empty())
 }
 
+#[derive(Clone, Copy)]
+struct StepExecutorExpectation<'a> {
+    function_name: &'a str,
+    description: &'a str,
+    runtime_function: &'a str,
+    should_be_async: bool,
+}
+
+impl<'a> StepExecutorExpectation<'a> {
+    fn new(
+        function_name: &'a str,
+        description: &'a str,
+        runtime_function: &'a str,
+        should_be_async: bool,
+    ) -> Self {
+        Self {
+            function_name,
+            description,
+            runtime_function,
+            should_be_async,
+        }
+    }
+}
 /// Assert that generated step executor code delegates to `rstest_bdd::execution::execute_step`.
 ///
 /// This helper validates the architecture where generated code is a thin wrapper
@@ -198,42 +221,53 @@ fn is_ok_unit_expr(expr: &syn::Expr) -> bool {
 )]
 fn assert_step_executor_delegates_to_runtime(
     tokens: proc_macro2::TokenStream,
-    function_name: &str,
-    description: &str,
-    runtime_function: &str,
-    should_be_async: bool,
+    expectation: StepExecutorExpectation<'_>,
 ) {
     let file: syn::File = syn::parse2(tokens)
-        .unwrap_or_else(|e| panic!("{description}: failed to parse tokens: {e}"));
+        .unwrap_or_else(|e| panic!("{}: failed to parse tokens: {e}", expectation.description));
 
-    let item = find_function_by_name(&file, function_name);
+    let item = find_function_by_name(&file, expectation.function_name);
 
-    if should_be_async {
+    if expectation.should_be_async {
         assert!(
             item.sig.asyncness.is_some(),
-            "{description}: expected {function_name} to be async"
+            "{}: expected {} to be async",
+            expectation.description,
+            expectation.function_name
         );
     } else {
         assert!(
             item.sig.asyncness.is_none(),
-            "{description}: expected {function_name} to be non-async"
+            "{}: expected {} to be non-async",
+            expectation.description,
+            expectation.function_name
         );
     }
 
-    let execute_step_call = find_call_in_block(&item.block, runtime_function)
-        .unwrap_or_else(|| panic!("{description}: expected call to {runtime_function}"));
+    let execute_step_call = find_call_in_block(&item.block, expectation.runtime_function)
+        .unwrap_or_else(|| {
+            panic!(
+                "{}: expected call to {}",
+                expectation.description, expectation.runtime_function
+            )
+        });
 
     let func_path = extract_path(execute_step_call.func.as_ref());
-    match runtime_function {
+    match expectation.runtime_function {
         "execute_step" => assert_path_is_execution_execute_step(func_path),
         "execute_step_async" => assert_path_is_execution_execute_step_async(func_path),
-        other => panic!("{description}: unexpected runtime function name: {other}"),
+        other => panic!(
+            "{}: unexpected runtime function name: {other}",
+            expectation.description
+        ),
     }
 
     assert_eq!(
         execute_step_call.args.len(),
         2,
-        "{description}: {runtime_function} should receive StepExecutionRequest reference and ctx"
+        "{}: {} should receive StepExecutionRequest reference and ctx",
+        expectation.description,
+        expectation.runtime_function
     );
 }
 
@@ -245,10 +279,12 @@ fn assert_step_executor_delegates_to_runtime(
 fn execute_single_step_delegates_to_runtime() {
     assert_step_executor_delegates_to_runtime(
         generate_step_executor(),
-        "__rstest_bdd_execute_single_step",
-        "sync step executor",
-        "execute_step",
-        false,
+        StepExecutorExpectation::new(
+            "__rstest_bdd_execute_single_step",
+            "sync step executor",
+            "execute_step",
+            false,
+        ),
     );
 }
 
@@ -260,10 +296,12 @@ fn execute_single_step_delegates_to_runtime() {
 fn execute_async_step_delegates_to_runtime() {
     assert_step_executor_delegates_to_runtime(
         generate_async_step_executor(),
-        "__rstest_bdd_process_async_step",
-        "async step executor",
-        "execute_step_async",
-        true,
+        StepExecutorExpectation::new(
+            "__rstest_bdd_process_async_step",
+            "async step executor",
+            "execute_step_async",
+            true,
+        ),
     );
 }
 

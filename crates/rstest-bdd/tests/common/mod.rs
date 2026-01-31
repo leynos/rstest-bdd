@@ -73,17 +73,28 @@ pub fn noop_async_wrapper<'ctx>(
     )))
 }
 
+/// Parameters for invoking a step function.
+pub struct StepInvocationParams<'ctx, 'fixtures> {
+    pub ctx: &'ctx mut StepContext<'fixtures>,
+    pub text: &'ctx str,
+    pub docstring: Option<&'ctx str>,
+    pub table: Option<&'ctx [&'ctx [&'ctx str]]>,
+}
+
 /// Wrap a synchronous step function (`StepFn`) into an async wrapper.
 ///
 /// This helper is used to build explicit async wrappers for sync steps in
 /// integration tests.
 pub fn wrap_sync_step_as_async<'ctx>(
     sync_fn: StepFn,
-    ctx: &'ctx mut StepContext<'_>,
-    text: &'ctx str,
-    docstring: Option<&'ctx str>,
-    table: Option<&'ctx [&'ctx [&'ctx str]]>,
+    params: StepInvocationParams<'ctx, '_>,
 ) -> StepFuture<'ctx> {
+    let StepInvocationParams {
+        ctx,
+        text,
+        docstring,
+        table,
+    } = params;
     Box::pin(std::future::ready(sync_fn(ctx, text, docstring, table)))
 }
 

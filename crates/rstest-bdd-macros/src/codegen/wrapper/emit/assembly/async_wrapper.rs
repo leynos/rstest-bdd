@@ -20,6 +20,46 @@ use super::{
     process_datatable_cache, wrapper_expect_lint_paths,
 };
 
+fn generate_capture_validation(
+    path: &TokenStream2,
+    pattern_ident: &proc_macro2::Ident,
+    text_ident: &proc_macro2::Ident,
+    expected: usize,
+    placeholder_err: &TokenStream2,
+    capture_mismatch_err: &TokenStream2,
+) -> TokenStream2 {
+    quote! {
+        let captures = #path::extract_placeholders(&#pattern_ident, #text_ident.into())
+            .map_err(|e| #placeholder_err)?;
+        let expected: usize = #expected;
+        if captures.len() != expected {
+            return Err(#capture_mismatch_err);
+        }
+    }
+}
+
+fn generate_unwind_handling(
+    path: &TokenStream2,
+    call_expr: &TokenStream2,
+    exec_err: &TokenStream2,
+    panic_err: &TokenStream2,
+) -> TokenStream2 {
+    quote! {
+        match #path::__rstest_bdd_catch_unwind_future(async move { #call_expr }).await {
+            Ok(res) => res
+                .map(|value| #path::StepExecution::from_value(value))
+                .map_err(|message| #exec_err),
+            Err(payload) => match payload.downcast::<#path::SkipRequest>() {
+                Ok(skip) => Ok(#path::StepExecution::skipped(skip.into_message())),
+                Err(payload) => {
+                    let message = #path::panic_message(payload.as_ref());
+                    Err(#panic_err)
+                }
+            },
+        }
+    }
+}
+
 /// Render an async wrapper function that awaits the user step.
 fn render_async_wrapper_function(
     identifiers: WrapperIdentifiers<'_>,
@@ -52,9 +92,17 @@ fn render_async_wrapper_function(
         execution: exec_err,
         capture_mismatch: capture_mismatch_err,
     } = errors;
-    let expected = capture_count;
     let path = crate::codegen::rstest_bdd_path();
     let expect_attr = super::generate_expect_attribute(&expect_lints);
+    let capture_validation = generate_capture_validation(
+        &path,
+        pattern_ident,
+        text_ident,
+        capture_count,
+        &placeholder_err,
+        &capture_mismatch_err,
+    );
+    let unwind_handling = generate_unwind_handling(&path, call_expr, &exec_err, &panic_err);
 
     quote! {
         #expect_attr
@@ -65,30 +113,14 @@ fn render_async_wrapper_function(
             table: Option<&'ctx [&'ctx [&'ctx str]]>,
         ) -> #path::StepFuture<'ctx> {
             Box::pin(async move {
-                let captures = #path::extract_placeholders(&#pattern_ident, #text_ident.into())
-                    .map_err(|e| #placeholder_err)?;
-                let expected: usize = #expected;
-                if captures.len() != expected {
-                    return Err(#capture_mismatch_err);
-                }
+                #capture_validation
                 #(#declares)*
                 #(#step_arg_parses)*
                 #step_struct_decl
                 #datatable_decl
                 #docstring_decl
 
-                match #path::__rstest_bdd_catch_unwind_future(async move { #call_expr }).await {
-                    Ok(res) => res
-                        .map(|value| #path::StepExecution::from_value(value))
-                        .map_err(|message| #exec_err),
-                    Err(payload) => match payload.downcast::<#path::SkipRequest>() {
-                        Ok(skip) => Ok(#path::StepExecution::skipped(skip.into_message())),
-                        Err(payload) => {
-                            let message = #path::panic_message(payload.as_ref());
-                            Err(#panic_err)
-                        }
-                    },
-                }
+                #unwind_handling
             })
         }
     }
