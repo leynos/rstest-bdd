@@ -26,6 +26,19 @@ use crate::macros::scenarios::ScenariosTestAttributeHint as TestAttributeHint;
 
 use crate::parsing::placeholder::contains_placeholders;
 
+/// Return kinds supported by scenario bodies.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum ScenarioReturnKind {
+    Unit,
+    ResultUnit,
+}
+
+impl ScenarioReturnKind {
+    pub(crate) fn is_fallible(self) -> bool {
+        matches!(self, Self::ResultUnit)
+    }
+}
+
 /// Configuration for generating code for a single scenario test.
 pub(crate) struct ScenarioConfig<'a> {
     /// Attributes on the annotated function.
@@ -52,6 +65,8 @@ pub(crate) struct ScenarioConfig<'a> {
     pub(crate) tags: &'a [String],
     /// Runtime mode for test execution (sync or async/Tokio).
     pub(crate) runtime: RuntimeMode,
+    /// Return shape expected from the scenario body.
+    pub(crate) return_kind: ScenarioReturnKind,
 }
 
 /// Configuration for context iterators in scenario code generation.
@@ -159,6 +174,7 @@ where
         block: config.block,
         allow_skipped: config.allow_skipped,
         is_async: config.runtime.is_async(),
+        return_kind: config.return_kind,
     };
     let test_config = TestTokensConfig {
         processed_steps,
@@ -225,6 +241,7 @@ where
         block: config.block,
         allow_skipped: config.allow_skipped,
         is_async: config.runtime.is_async(),
+        return_kind: config.return_kind,
     };
     let outline_config = OutlineTestTokensConfig {
         all_rows_steps,

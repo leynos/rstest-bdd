@@ -42,8 +42,8 @@ Hard invariants that must hold throughout implementation:
 - **Diagnostics on feature files only**: The mismatch is a Gherkin structural
   issue. Reporting on the feature file provides the most actionable feedback.
 - **Use existing indexing infrastructure**: Extend the current
-  `FeatureFileIndex`
-  and related structures rather than building parallel systems.
+  `FeatureFileIndex` and related structures rather than building parallel
+  systems.
 - **Single source of truth for placeholders**: Use a regex consistent with the
   macros crate's `PLACEHOLDER_RE` pattern (`<([^>\s][^>]*)>`).
 - **Preserve existing diagnostic behaviour**: The current diagnostics
@@ -124,10 +124,9 @@ Known uncertainties that might affect the plan:
 ## Surprises & Discoveries
 
 1. **File length limit refactoring**: The `indexing/feature.rs` file exceeded
-   the
-   400-line limit after adding scenario outline indexing. Solution: extracted
-   scenario outline helper functions to a new `indexing/feature/outline.rs`
-   submodule.
+   the 400-line limit after adding scenario outline indexing. Solution:
+   extracted scenario outline helper functions to a new
+   `indexing/feature/outline.rs` submodule.
 
 2. **Clippy `expect_used` lint**: The `expect()` call on regex compilation
    triggered a lint error. Solution: use `unwrap_or_else(|_| unreachable!())`
@@ -289,8 +288,12 @@ pub struct IndexedExamplesTable {
 - **Scenario Outline placeholder**: A `<name>` token in a scenario outline step
   that is substituted with values from the Examples table at runtime.
 - **Examples table column**: A header cell in an Examples table (e.g.,
+<<<<<<< HEAD
   `| name |`
   becomes column "name").
+=======
+  `| name |` becomes column "name").
+>>>>>>> deb5912 (feat(scenario): add support for fallible scenario bodies returning Result<(), E])
 - **Missing column**: A placeholder referenced in steps but absent from the
   Examples table headers.
 - **Surplus column**: A column in the Examples table that no step placeholder

@@ -582,6 +582,11 @@ the following steps:
    include extra assertions or cleanup logic beyond the behaviour described in
    the feature.
 
+Scenario bodies may return `Result<(), E>` or `StepResult<(), E>` when they
+need to use `?` or propagate errors. On `Err`, the generated test stops and the
+error is surfaced to the test harness. Skipped scenarios still short‑circuit
+before the body and return `Ok(())` for fallible signatures.
+
 Because the generated code uses `#[rstest::rstest]`, it integrates seamlessly
 with `rstest` features such as parameterized tests and asynchronous fixtures.
 Tests are still discovered and executed by the standard Rust test runner, so

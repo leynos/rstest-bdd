@@ -2,7 +2,7 @@
 
 use proc_macro2::TokenStream as TokenStream2;
 
-use crate::codegen::scenario::{FeaturePath, ScenarioName};
+use crate::codegen::scenario::{FeaturePath, ScenarioName, ScenarioReturnKind};
 
 /// Grouped tokens for scenario steps.
 #[derive(Debug)]
@@ -24,6 +24,8 @@ pub(crate) struct ScenarioMetadata<'a> {
     pub(crate) allow_skipped: bool,
     /// Whether to generate async step execution code.
     pub(crate) is_async: bool,
+    /// Expected return kind for the scenario body.
+    pub(crate) return_kind: ScenarioReturnKind,
 }
 
 impl<'a> ScenarioMetadata<'a> {

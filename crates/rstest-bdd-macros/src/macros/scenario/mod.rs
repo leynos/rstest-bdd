@@ -22,6 +22,7 @@
 
 mod args;
 mod paths;
+mod return_kind;
 
 use proc_macro::TokenStream;
 use proc_macro2::Span;
@@ -42,6 +43,7 @@ use crate::validation::placeholder::{ExampleHeaders, validate_step_placeholders}
 
 use self::args::{ScenarioArgs, ScenarioSelector};
 use self::paths::canonical_feature_path;
+use self::return_kind::classify_scenario_return;
 
 struct ScenarioTagFilter {
     expr: TagExpression,
@@ -80,6 +82,8 @@ fn try_scenario(
     let vis = &item_fn.vis;
     let sig = &mut item_fn.sig;
     let block = &item_fn.block;
+    let return_kind = classify_scenario_return(sig)
+        .map_err(|err| proc_macro::TokenStream::from(err.into_compile_error()))?;
 
     // Detect async function signature for runtime mode selection.
     let runtime = if sig.asyncness.is_some() {
@@ -145,6 +149,7 @@ fn try_scenario(
         line,
         tags: &tags,
         runtime,
+        return_kind,
     };
 
     Ok(generate_scenario_code(
