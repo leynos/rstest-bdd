@@ -135,3 +135,36 @@ fn find_from_attr(attrs: &[syn::Attribute]) -> syn::Result<Option<syn::Path>> {
     }
     Ok(None)
 }
+
+#[cfg(test)]
+mod tests {
+    #![expect(
+        clippy::expect_used,
+        reason = "test asserts fixture extraction for underscore bindings"
+    )]
+
+    use super::*;
+    use syn::parse_quote;
+
+    #[test]
+    fn non_ref_fixture_cell_ident_uses_index() {
+        let mut sig: syn::Signature = parse_quote! {
+            fn scenario(_state: MyState)
+        };
+        let (_idents, code) =
+            extract_function_fixtures(&mut sig).expect("fixture extraction should succeed");
+        let prelude = code
+            .prelude
+            .first()
+            .expect("owned fixtures should generate a prelude binding");
+        let prelude_str = prelude.to_string();
+        assert!(
+            prelude_str.contains("__rstest_bdd_cell_0"),
+            "cell identifier should use the fixture index for underscore bindings"
+        );
+        assert!(
+            !prelude_str.contains("__rstest_bdd_cell__"),
+            "cell identifier should not embed the raw underscore binding"
+        );
+    }
+}

@@ -44,7 +44,8 @@ pub(crate) fn row_has_values(row: &[String]) -> bool {
 
 /// Returns true when any parameter uses an underscore-prefixed identifier.
 ///
-/// The single underscore `_` pattern is ignored.
+/// The single underscore `_` pattern is ignored. Only identifier patterns are
+/// considered; non-identifier patterns are ignored.
 pub(crate) fn has_underscore_prefixed_params(sig: &syn::Signature) -> bool {
     sig.inputs.iter().any(|arg| {
         let syn::FnArg::Typed(pat_type) = arg else {
