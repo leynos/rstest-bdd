@@ -56,9 +56,21 @@ fn execute_step_succeeds_with_value() {
 }
 
 #[rstest]
-#[case(StepKeyword::When, "skips without message", ExpectedExecutionError::SkipWithoutMessage)]
-#[case(StepKeyword::Then, "skips with message", ExpectedExecutionError::SkipWithMessage("test skip reason"))]
-#[case(StepKeyword::Given, "nonexistent step pattern", ExpectedExecutionError::StepNotFound)]
+#[case(
+    StepKeyword::When,
+    "skips without message",
+    ExpectedExecutionError::SkipWithoutMessage
+)]
+#[case(
+    StepKeyword::Then,
+    "skips with message",
+    ExpectedExecutionError::SkipWithMessage("test skip reason")
+)]
+#[case(
+    StepKeyword::Given,
+    "nonexistent step pattern",
+    ExpectedExecutionError::StepNotFound
+)]
 #[case(StepKeyword::Given, "fails", ExpectedExecutionError::HandlerFailed)]
 fn execute_step_returns_expected_error(
     #[case] keyword: StepKeyword,
