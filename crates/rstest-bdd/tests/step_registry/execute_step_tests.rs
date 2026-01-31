@@ -4,7 +4,7 @@ use rstest::rstest;
 use rstest_bdd::execution::{ExecutionError, StepExecutionRequest, execute_step};
 use rstest_bdd::{StepContext, StepKeyword};
 
-/// Helper enum to represent expected error types for parameterised testing.
+/// Helper enum to represent expected error types for parameterized testing.
 enum ExpectedExecutionError {
     SkipWithoutMessage,
     SkipWithMessage(&'static str),
@@ -40,18 +40,18 @@ fn execute_step_succeeds_without_value() {
 }
 
 #[test]
-#[expect(clippy::expect_used, reason = "test validates downcast succeeds")]
 fn execute_step_succeeds_with_value() {
     let request = make_request(0, StepKeyword::Given, "returns value");
     let mut ctx = StepContext::default();
 
     let result = execute_step(&request, &mut ctx);
 
-    assert!(result.is_ok(), "execute_step should succeed");
-    let value = result
-        .expect("result should be Ok")
-        .expect("should have value");
-    let downcast = value.downcast_ref::<i32>().expect("should be i32");
+    let Ok(Some(value)) = result else {
+        panic!("execute_step should return Ok(Some(value))");
+    };
+    let Some(downcast) = value.downcast_ref::<i32>() else {
+        panic!("value should be i32");
+    };
     assert_eq!(*downcast, 42);
 }
 
@@ -121,30 +121,23 @@ fn execute_step_returns_expected_error(
 }
 
 #[test]
-#[expect(
-    clippy::expect_used,
-    reason = "test uses expect_err to unwrap for assertions"
-)]
 fn execute_step_returns_missing_fixtures_error() {
     let request = make_request(0, StepKeyword::Then, "needs fixture");
     let mut ctx = StepContext::default();
 
     let result = execute_step(&request, &mut ctx);
 
-    assert!(result.is_err(), "execute_step should return Err");
-    let error = result.expect_err("expected error");
-    assert!(
-        matches!(error, ExecutionError::MissingFixtures(_)),
-        "expected MissingFixtures error, got: {error:?}"
-    );
+    let Err(error) = result else {
+        panic!("execute_step should return Err");
+    };
+    let ExecutionError::MissingFixtures(details) = &error else {
+        panic!("expected MissingFixtures error, got: {error:?}");
+    };
     assert!(!error.is_skip(), "MissingFixtures should not be a skip");
-    // Verify the missing fixture is correctly identified
-    if let ExecutionError::MissingFixtures(details) = &error {
-        assert!(
-            details.missing.contains(&"missing"),
-            "expected 'missing' in missing fixtures list"
-        );
-    }
+    assert!(
+        details.missing.contains(&"missing"),
+        "expected 'missing' in missing fixtures list"
+    );
 }
 
 #[test]

@@ -23,9 +23,9 @@ assert-skip-missing-substring = a mensagem de salto '{ $actual }' não contém '
 assert-skip-unexpected-message = esperava-se que { $target } não fornecesse uma mensagem de salto
 assert-skip-flag-mismatch = esperava-se que o sinalizador '{ $flag }' de { $target } fosse { $expected }, mas era { $actual }
 
-execution-error-skip = Step skipped{ $message ->
-    [none] {""}
-    *[other] : { $message }
+execution-error-skip = Step skipped{ $has_message ->
+    *[no] {""}
+    [yes] : { $message }
 }
 execution-error-step-not-found = Step not found at index { $index }: { $keyword } { $text } (feature: { $feature_path }, scenario: { $scenario_name })
 execution-error-missing-fixtures = Step '{ $step_pattern }' (defined at { $step_location }) requires fixtures { $required }, but the following are missing: { $missing }. Available fixtures from scenario: { $available } (feature: { $feature_path }, scenario: { $scenario_name })

@@ -163,7 +163,11 @@ impl ExecutionError {
         match self {
             Self::Skip { message } => {
                 crate::localization::message_with_loader(loader, "execution-error-skip", |args| {
-                    args.set("message", message.as_deref().unwrap_or("none").to_string());
+                    args.set(
+                        "has_message",
+                        if message.is_some() { "yes" } else { "no" }.to_string(),
+                    );
+                    args.set("message", message.clone().unwrap_or_default());
                 })
             }
             Self::StepNotFound {
@@ -189,9 +193,9 @@ impl ExecutionError {
                 |args| {
                     args.set("step_pattern", details.step_pattern.clone());
                     args.set("step_location", details.step_location.clone());
-                    args.set("required", format!("{:?}", details.required));
-                    args.set("missing", format!("{:?}", details.missing));
-                    args.set("available", format!("{:?}", details.available));
+                    args.set("required", details.required.join(", "));
+                    args.set("missing", details.missing.join(", "));
+                    args.set("available", details.available.join(", "));
                     args.set("feature_path", details.feature_path.clone());
                     args.set("scenario_name", details.scenario_name.clone());
                 },

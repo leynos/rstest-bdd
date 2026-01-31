@@ -23,9 +23,9 @@ assert-skip-missing-substring = 건너뛰기 메시지 '{ $actual }' 에 '{ $exp
 assert-skip-unexpected-message = { $target } 이(가) 건너뛰기 메시지를 제공하지 않을 것으로 예상했습니다
 assert-skip-flag-mismatch = { $target } 의 플래그 '{ $flag }' 이(가) { $expected } 일 것으로 예상했지만 실제로는 { $actual }였습니다
 
-execution-error-skip = Step skipped{ $message ->
-    [none] {""}
-    *[other] : { $message }
+execution-error-skip = Step skipped{ $has_message ->
+    *[no] {""}
+    [yes] : { $message }
 }
 execution-error-step-not-found = Step not found at index { $index }: { $keyword } { $text } (feature: { $feature_path }, scenario: { $scenario_name })
 execution-error-missing-fixtures = Step '{ $step_pattern }' (defined at { $step_location }) requires fixtures { $required }, but the following are missing: { $missing }. Available fixtures from scenario: { $available } (feature: { $feature_path }, scenario: { $scenario_name })

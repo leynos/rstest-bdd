@@ -23,9 +23,9 @@ assert-skip-missing-substring = повідомлення пропуску '{ $ac
 assert-skip-unexpected-message = очікувалося, що { $target } не надасть повідомлення пропуску
 assert-skip-flag-mismatch = очікувалося, що прапорець '{ $flag }' для { $target } дорівнюватиме { $expected }, але було { $actual }
 
-execution-error-skip = Step skipped{ $message ->
-    [none] {""}
-    *[other] : { $message }
+execution-error-skip = Step skipped{ $has_message ->
+    *[no] {""}
+    [yes] : { $message }
 }
 execution-error-step-not-found = Step not found at index { $index }: { $keyword } { $text } (feature: { $feature_path }, scenario: { $scenario_name })
 execution-error-missing-fixtures = Step '{ $step_pattern }' (defined at { $step_location }) requires fixtures { $required }, but the following are missing: { $missing }. Available fixtures from scenario: { $available } (feature: { $feature_path }, scenario: { $scenario_name })

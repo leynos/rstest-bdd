@@ -23,9 +23,9 @@ assert-skip-missing-substring = el mensaje de omisión '{ $actual }' no contiene
 assert-skip-unexpected-message = se esperaba que { $target } no proporcionara un mensaje de omisión
 assert-skip-flag-mismatch = se esperaba que la bandera '{ $flag }' de { $target } fuera { $expected }, pero fue { $actual }
 
-execution-error-skip = Step skipped{ $message ->
-    [none] {""}
-    *[other] : { $message }
+execution-error-skip = Step skipped{ $has_message ->
+    *[no] {""}
+    [yes] : { $message }
 }
 execution-error-step-not-found = Step not found at index { $index }: { $keyword } { $text } (feature: { $feature_path }, scenario: { $scenario_name })
 execution-error-missing-fixtures = Step '{ $step_pattern }' (defined at { $step_location }) requires fixtures { $required }, but the following are missing: { $missing }. Available fixtures from scenario: { $available } (feature: { $feature_path }, scenario: { $scenario_name })

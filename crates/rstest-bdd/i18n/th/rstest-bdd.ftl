@@ -23,9 +23,9 @@ assert-skip-missing-substring = ข้อความการข้าม '{ $a
 assert-skip-unexpected-message = คาดหวังให้ { $target } ไม่ให้ข้อความการข้าม
 assert-skip-flag-mismatch = คาดหวังให้ธง '{ $flag }' ของ { $target } เป็น { $expected } แต่กลับเป็น { $actual }
 
-execution-error-skip = Step skipped{ $message ->
-    [none] {""}
-    *[other] : { $message }
+execution-error-skip = Step skipped{ $has_message ->
+    *[no] {""}
+    [yes] : { $message }
 }
 execution-error-step-not-found = Step not found at index { $index }: { $keyword } { $text } (feature: { $feature_path }, scenario: { $scenario_name })
 execution-error-missing-fixtures = Step '{ $step_pattern }' (defined at { $step_location }) requires fixtures { $required }, but the following are missing: { $missing }. Available fixtures from scenario: { $available } (feature: { $feature_path }, scenario: { $scenario_name })

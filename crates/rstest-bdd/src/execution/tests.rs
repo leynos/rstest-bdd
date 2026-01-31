@@ -1,23 +1,10 @@
 //! Unit tests for the execution module.
-//!
-//! This module includes tests for deprecated functions (`encode_skip_message`,
-//! `decode_skip_message`) to ensure backward compatibility during the
-//! deprecation period.
-#![expect(
-    deprecated,
-    reason = "tests include deprecated skip encoding functions for backward compatibility"
-)]
 
 use std::sync::Arc;
 
-use rstest::rstest;
-
 use crate::{StepError, StepKeyword};
 
-use super::{
-    ExecutionError, RuntimeMode, SKIP_NONE_PREFIX, SKIP_SOME_PREFIX, TestAttributeHint,
-    decode_skip_message, encode_skip_message,
-};
+use super::{ExecutionError, MissingFixturesDetails, RuntimeMode, TestAttributeHint};
 
 #[test]
 fn runtime_mode_sync_is_default() {
@@ -50,48 +37,59 @@ fn runtime_mode_tokio_hint_is_rstest_with_tokio() {
     );
 }
 
-// ============================================================================
-// Deprecated skip encoding functions (kept for backward compatibility)
-// ============================================================================
+/// Tests for deprecated skip encoding functions.
+///
+/// FIXME(#409): Remove this module when deprecated skip encoding functions are removed.
+#[expect(
+    deprecated,
+    reason = "FIXME(#409): tests for deprecated skip encoding functions for backward compatibility"
+)]
+mod deprecated_skip_encoding {
+    use rstest::rstest;
 
-#[test]
-fn encode_skip_message_none_produces_prefix_only() {
-    let encoded = encode_skip_message(None);
-    assert_eq!(encoded.len(), 1);
-    assert_eq!(encoded.chars().next(), Some(SKIP_NONE_PREFIX));
-}
+    use super::super::{
+        SKIP_NONE_PREFIX, SKIP_SOME_PREFIX, decode_skip_message, encode_skip_message,
+    };
 
-#[test]
-fn encode_skip_message_some_includes_message() {
-    let encoded = encode_skip_message(Some("test message".to_string()));
-    assert!(encoded.starts_with(SKIP_SOME_PREFIX));
-    assert!(encoded.contains("test message"));
-}
+    #[test]
+    fn encode_skip_message_none_produces_prefix_only() {
+        let encoded = encode_skip_message(None);
+        assert_eq!(encoded.len(), 1);
+        assert_eq!(encoded.chars().next(), Some(SKIP_NONE_PREFIX));
+    }
 
-#[rstest]
-#[case::none(None)]
-#[case::some(Some("skip reason".to_string()))]
-#[case::empty_string(Some(String::new()))]
-#[case::unicode(Some("Unicode: 😀 🎉".to_string()))]
-fn decode_skip_message_round_trip(#[case] input: Option<String>) {
-    let encoded = encode_skip_message(input.clone());
-    let decoded = decode_skip_message(encoded);
-    assert_eq!(decoded, input);
-}
+    #[test]
+    fn encode_skip_message_some_includes_message() {
+        let encoded = encode_skip_message(Some("test message".to_string()));
+        assert!(encoded.starts_with(SKIP_SOME_PREFIX));
+        assert!(encoded.contains("test message"));
+    }
 
-#[test]
-fn decode_skip_message_malformed_input_preserved() {
-    // Malformed input (no valid prefix) should be returned as-is
-    let malformed = "unexpected input".to_string();
-    let decoded = decode_skip_message(malformed.clone());
-    assert_eq!(decoded, Some(malformed));
-}
+    #[rstest]
+    #[case::none(None)]
+    #[case::some(Some("skip reason".to_string()))]
+    #[case::empty_string(Some(String::new()))]
+    #[case::unicode(Some("Unicode: 😀 🎉".to_string()))]
+    fn decode_skip_message_round_trip(#[case] input: Option<String>) {
+        let encoded = encode_skip_message(input.clone());
+        let decoded = decode_skip_message(encoded);
+        assert_eq!(decoded, input);
+    }
 
-#[test]
-fn decode_skip_message_empty_string_preserved() {
-    // Empty string has no prefix character
-    let decoded = decode_skip_message(String::new());
-    assert_eq!(decoded, Some(String::new()));
+    #[test]
+    fn decode_skip_message_malformed_input_preserved() {
+        // Malformed input (no valid prefix) should be returned as-is
+        let malformed = "unexpected input".to_string();
+        let decoded = decode_skip_message(malformed.clone());
+        assert_eq!(decoded, Some(malformed));
+    }
+
+    #[test]
+    fn decode_skip_message_empty_string_preserved() {
+        // Empty string has no prefix character
+        let decoded = decode_skip_message(String::new());
+        assert_eq!(decoded, Some(String::new()));
+    }
 }
 
 // ============================================================================
@@ -126,7 +124,6 @@ fn execution_error_step_not_found_is_skip_returns_false() {
 
 #[test]
 fn execution_error_missing_fixtures_is_skip_returns_false() {
-    use super::MissingFixturesDetails;
     let error = ExecutionError::MissingFixtures(Arc::new(MissingFixturesDetails {
         step_pattern: "test step".into(),
         step_location: "test.rs:1".into(),

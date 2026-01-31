@@ -23,9 +23,9 @@ assert-skip-missing-substring = hopp-meldingen '{ $actual }' inneholder ikke '{ 
 assert-skip-unexpected-message = forventet at { $target } ikke skulle gi en hopp-melding
 assert-skip-flag-mismatch = forventet at flagget '{ $flag }' for { $target } skulle være { $expected }, men det var { $actual }
 
-execution-error-skip = Step skipped{ $message ->
-    [none] {""}
-    *[other] : { $message }
+execution-error-skip = Step skipped{ $has_message ->
+    *[no] {""}
+    [yes] : { $message }
 }
 execution-error-step-not-found = Step not found at index { $index }: { $keyword } { $text } (feature: { $feature_path }, scenario: { $scenario_name })
 execution-error-missing-fixtures = Step '{ $step_pattern }' (defined at { $step_location }) requires fixtures { $required }, but the following are missing: { $missing }. Available fixtures from scenario: { $available } (feature: { $feature_path }, scenario: { $scenario_name })
