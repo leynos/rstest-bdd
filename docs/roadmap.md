@@ -39,8 +39,8 @@ discovered and executed by a procedural macro at runtime.
 - [x] 1.4.3. The macro must generate a new test function annotated with
   `#[rstest]`.
 - [x] 1.4.4. The body of the generated function must, at runtime, iterate
-  through the scenario's Gherkin steps and find matching `Step` definitions from
-  the `inventory::iter`.
+  through the scenario's Gherkin steps and find matching `Step` definitions
+  from the `inventory::iter`.
 - [x] 1.4.5. For this phase, only support exact, case-sensitive string matching
   with no argument parsing.
 
@@ -91,8 +91,8 @@ Development (BDD) frameworks and improves the developer experience.
 - [x] 3.1.1. Implement support for `Background` sections, so their steps run
   before each `Scenario` in a feature file.
 - [x] 3.1.2. Implement support for `Data Tables`, initially making the data
-  available to the step function as a `Vec<Vec<String>>` (legacy baseline; typed
-  support is planned below).
+  available to the step function as a `Vec<Vec<String>>` (legacy baseline;
+  typed support is planned below).
 - [x] 3.1.3. Implement support for `Docstring`, making the content available as
   a `String` argument named `docstring`.
 
@@ -109,9 +109,9 @@ Development (BDD) frameworks and improves the developer experience.
 - [x] 3.3.1. Add a `datatable` runtime module exposing `DataTableError`,
   `HeaderSpec`, `RowSpec`, `Rows<T>`, and convenience parsers such as
   `truthy_bool` and `trimmed<T: FromStr>`.
-- [x] 3.3.2. Implement `TryFrom<Vec<Vec<String>>> for Rows<T>` (with `T:
-  DataTableRow`) to split optional headers, build index maps, and surface row
-  and column context on errors.
+- [x] 3.3.2. Implement `TryFrom<Vec<Vec<String>>> for Rows<T>` (with
+  `T: DataTableRow`) to split optional headers, build index maps, and surface
+  row and column context on errors.
 - [x] 3.3.3. Provide `#[derive(DataTableRow)]` and `#[derive(DataTable)]` macros
   with field- and struct-level attributes for column mapping, optional or
   default cells, trimming, tolerant booleans, custom parsers, and row
@@ -131,7 +131,8 @@ Development (BDD) frameworks and improves the developer experience.
 - [x] 3.4.2. Extend the `scenarios!` macro to filter scenarios using the same
   tag syntax at macro-expansion time. See [design §1.3.4].
 - [x] 3.4.3. Document tag-expression grammar and precedence (§1.3.4).
-- [x] 3.4.4. Filter at macro-expansion time and emit `compile_error!` diagnostics
+- [x] 3.4.4. Filter at macro-expansion time and emit `compile_error!`
+      diagnostics
   for invalid tag expressions (explicit empty string `""`, empty parentheses
   `()`, dangling operators). Omitting the `tags` argument applies no filter
   (`error: missing tag (allowed)`). Diagnostics include the byte offset and a
@@ -169,10 +170,10 @@ Development (BDD) frameworks and improves the developer experience.
 - [x] 3.5.2. Provide a `skip!` macro that records a `Skipped` outcome and
   short-circuits remaining steps.
 - [x] 3.5.3. Expose skipped status through `cargo-bdd` and the JSON and JUnit
-  writers. Emit a `<skipped>` child on each `<testcase>` element in JUnit output
-  with an optional `message` attribute, and use lowercase `skipped` status
-  strings in JSON and the CLI while preserving long messages and consistent
-  casing.
+  writers. Emit a `<skipped>` child on each `<testcase>` element in JUnit
+  output with an optional `message` attribute, and use lowercase `skipped`
+  status strings in JSON and the CLI while preserving long messages and
+  consistent casing.
 - [x] 3.5.4. Document the `skip!` macro, the `@allow_skipped` tag and migration
   guidance for adopting Rust 1.85 / edition 2024.
 
@@ -184,8 +185,8 @@ Development (BDD) frameworks and improves the developer experience.
 ### 3.6. Boilerplate reduction
 
 - [x] 3.6.1. Implement the `scenarios!("path/to/features/")` macro to
-  automatically discover all `.feature` files in a directory and generate a test
-  module containing a test function for every `Scenario` found.
+  automatically discover all `.feature` files in a directory and generate a
+  test module containing a test function for every `Scenario` found.
 - [x] 3.6.2. Harden the `#[scenario]` macro's existing `name` selector with
   compile-time diagnostics: emit an error when the requested title is absent so
   bindings stay robust to feature reordering, and fall back to the index only
@@ -257,8 +258,8 @@ experience by introducing more powerful and intuitive APIs.
   `Result`-returning steps.
 - [x] 5.1.4. Refined `skip!` macro: Polish the macro's syntax and surface clear
   diagnostics when misused. Coverage: disallow usage outside a step or hook
-  (panic with a descriptive message), reject calls from non-test threads, verify
-  short-circuit behaviour, and preserve the message in writer outputs.
+  (panic with a descriptive message), reject calls from non-test threads,
+  verify short-circuit behaviour, and preserve the message in writer outputs.
 - [x] 5.1.5. Skipped-step assertions: Provide helper macros for verifying that
   steps or scenarios were skipped as expected.
 - [x] 5.1.6. Fallible scenario bodies: Allow `#[scenario]` functions to return
@@ -268,8 +269,8 @@ experience by introducing more powerful and intuitive APIs.
 ### 5.2. State management and data flow
 
 - [x] 5.2.1. Step return values: Allow `#[when]` steps to return values, which
-  can then be automatically injected into subsequent `#[then]` steps, enabling a
-  more functional style of testing. Returned values override fixtures of the
+  can then be automatically injected into subsequent `#[then]` steps, enabling
+  a more functional style of testing. Returned values override fixtures of the
   same type.
 - [x] 5.2.2. Scenario state management: Introduce a `#[derive(ScenarioState)]`
   macro and a `Slot<T>` type to simplify the management of shared state across
@@ -278,13 +279,13 @@ experience by introducing more powerful and intuitive APIs.
 ### 5.3. Advanced ergonomics
 
 - [x] 5.3.1. Struct-based step arguments: Introduce a `#[step_args]` derive
-  macro to allow multiple placeholders from a step pattern to be parsed directly
-  into the fields of a struct, simplifying step function signatures.
+  macro to allow multiple placeholders from a step pattern to be parsed
+  directly into the fields of a struct, simplifying step function signatures.
 
 ## 6. Extensions and tooling
 
-These tasks can be addressed after the core framework is stable and are aimed at
-improving maintainability and IDE integration.
+These tasks can be addressed after the core framework is stable and are aimed
+at improving maintainability and IDE integration.
 
 ### 6.1. Diagnostic tooling
 
@@ -334,10 +335,10 @@ improving maintainability and IDE integration.
 
 ## 7. Language server foundations
 
-This phase delivers the first `rstest-bdd-server` release, focused on navigation
-between Rust step definitions and Gherkin features plus on-save consistency
-diagnostics. Real-time analysis and autocomplete remain out of scope until the
-core workflow is stable.
+This phase delivers the first `rstest-bdd-server` release, focused on
+navigation between Rust step definitions and Gherkin features plus on-save
+consistency diagnostics. Real-time analysis and autocomplete remain out of
+scope until the core workflow is stable.
 
 ### 7.1. Server scaffolding
 
@@ -345,9 +346,8 @@ core workflow is stable.
   depends on `async-lsp`, `gherkin`, and the shared pattern parser to align
   semantics with the macros.
 - [x] 7.1.2. Implement Language Server Protocol (LSP) initialize/shutdown
-  handlers, crate-root discovery
-  via `cargo metadata`, and structured logging configurable through environment
-  variables.
+  handlers, crate-root discovery via `cargo metadata`, and structured logging
+  configurable through environment variables.
 
 ### 7.2. Indexing pipeline
 
@@ -431,8 +431,7 @@ redesigned. For the full architectural decision record, see
 ### 8.4. Documentation and migration
 
 - [x] 8.4.1. Document async scenario execution in the user guide (see
-  [users-guide.md §Async scenario
-  execution](users-guide.md#async-scenario-execution)).
+  [users-guide.md §Async scenario execution](users-guide.md#async-scenario-execution)).
 - [x] 8.4.2. Document Tokio current-thread limitations (blocking operations,
   nested runtimes, `spawn_local` patterns) in the design document §2.5.
 - [x] 8.4.3. Update design document §2.5 with implementation status.
@@ -440,8 +439,8 @@ redesigned. For the full architectural decision record, see
 ## 9. Harness adapters and attribute plugins
 
 This phase implements ADR-005 by introducing a harness adapter layer and an
-attribute policy plugin interface, so Tokio and GPUI integrations live in opt-in
-crates rather than the core runtime or macros.
+attribute policy plugin interface, so Tokio and GPUI integrations live in
+opt-in crates rather than the core runtime or macros.
 
 ### 9.1. Harness adapter core
 

@@ -21,11 +21,11 @@ leave a passed record in the reporting collector.
 
 ## Constraints
 
-- Follow ADR-006 exactly: allow only `Result<(), E>` or `StepResult<(), E>`
-  for fallible scenario bodies, return `Ok(())` on skips, and ensure `Err` does
-  not record a pass.
-- Reuse the existing return-type classifier in
-  `crates/rstest-bdd-macros/src/return_classifier.rs`.
+- Follow Architecture Decision Record (ADR-006) exactly: allow only
+  `Result<(), E>` or `StepResult<(), E>` for fallible scenario bodies, return
+  `Ok(())` on skips, and ensure `Err` does not record a pass.
+- Reuse the existing return-type classifier in the `rstest-bdd-macros` crate
+  (currently `crates/rstest-bdd-macros/src/return_classifier.rs`).
 - Do not introduce new external dependencies.
 - Keep module-level `//!` doc comments for any new module.
 - No file may exceed 400 lines; split helpers if needed.
@@ -39,7 +39,7 @@ leave a passed record in the reporting collector.
 - Scope: if the change requires more than 10 files or 600 net lines,
   stop and escalate.
 - Interface: if a public API signature must change in `rstest-bdd`, stop
-  and escalate (new internal helpers are ok).
+  and escalate (new internal helpers are OK).
 - Dependencies: if a new external crate is required, stop and escalate.
 - Tests: if tests fail after 3 debugging attempts on the same issue,
   stop and escalate.
@@ -112,24 +112,30 @@ leave a passed record in the reporting collector.
 
 ## Context and orientation
 
-`#[scenario]` lives in `crates/rstest-bdd-macros/src/macros/scenario/mod.rs`
-and generates tests via `crates/rstest-bdd-macros/src/codegen/scenario.rs`. The
-runtime scaffolding (scenario guard, skip handler, step executor loop) comes
-from `crates/rstest-bdd-macros/src/codegen/scenario/runtime/`.
+`#[scenario]` lives in the `rstest-bdd-macros` crate module `macros::scenario`
+(currently `crates/rstest-bdd-macros/src/macros/scenario/mod.rs`) and generates
+tests via the `codegen::scenario` module (currently
+`crates/rstest-bdd-macros/src/codegen/scenario.rs`). The runtime scaffolding
+(scenario guard, skip handler, step executor loop) comes from
+`codegen::scenario::runtime` (currently
+`crates/rstest-bdd-macros/src/codegen/scenario/runtime/`).
 `__RstestBddScenarioReportGuard` records `Passed` on drop if not already
 recorded; this is the key mechanism that must be updated to avoid marking `Err`
-returns as passed. The shared return-type classifier lives in
-`crates/rstest-bdd-macros/src/return_classifier.rs` and already recognises
+returns as passed. The shared return-type classifier lives in the
+`rstest-bdd-macros` crate (currently
+`crates/rstest-bdd-macros/src/return_classifier.rs`) and already recognizes
 `Result` and `StepResult` paths.
 
-Tests and fixtures to reference:
+Tests and fixtures to reference (by crate/module name, paths may move):
 
-- `crates/rstest-bdd/tests/scenario.rs` for behavioural scenario coverage.
-- `crates/rstest-bdd/tests/skip.rs` for skip handling and reporting.
-- `crates/rstest-bdd/tests/trybuild_macros.rs` plus
-  `crates/rstest-bdd/tests/ui_macros/` for compile-fail macro tests.
-- `crates/rstest-bdd-macros/src/codegen/scenario/runtime/tests.rs` for
-  generator unit tests.
+- `rstest-bdd` integration test `scenario.rs` for behavioural scenario
+  coverage.
+- `rstest-bdd` integration test `skip.rs` for skip handling and reporting.
+- `rstest-bdd` trybuild harness `trybuild_macros.rs` and the `ui_macros`
+  fixtures for compile-fail macro tests.
+- `rstest-bdd-macros` module `codegen::scenario::runtime` tests for generator
+  unit coverage (currently
+  `crates/rstest-bdd-macros/src/codegen/scenario/runtime/tests.rs`).
 
 Docs to update:
 
@@ -196,10 +202,10 @@ Behavioural tests:
 
 Trybuild tests:
 
-- Add a new UI fixture under `crates/rstest-bdd/tests/ui_macros/` that
-  defines a `#[scenario]` returning `Result<u8, E>` and asserts the compile
-  error matches ADR-006. Register the fixture in
-  `crates/rstest-bdd/tests/trybuild_macros.rs`.
+- Add a new user interface (UI) fixture under
+  `crates/rstest-bdd/tests/ui_macros/` that defines a `#[scenario]` returning
+  `Result<u8, E>` and asserts the compile error matches ADR-006. Register the
+  fixture in `crates/rstest-bdd/tests/trybuild_macros.rs`.
 
 Stage E: documentation and roadmap updates.
 
