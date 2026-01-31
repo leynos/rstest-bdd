@@ -138,15 +138,14 @@ fn find_from_attr(attrs: &[syn::Attribute]) -> syn::Result<Option<syn::Path>> {
 
 #[cfg(test)]
 mod tests {
-    #![expect(
-        clippy::expect_used,
-        reason = "test asserts fixture extraction for underscore bindings"
-    )]
-
     use super::*;
     use syn::parse_quote;
 
     #[test]
+    #[expect(
+        clippy::expect_used,
+        reason = "test asserts fixture extraction for underscore bindings"
+    )]
     fn non_ref_fixture_cell_ident_uses_index() {
         let mut sig: syn::Signature = parse_quote! {
             fn scenario(_state: MyState)

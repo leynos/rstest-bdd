@@ -46,6 +46,16 @@ pub(crate) fn row_has_values(row: &[String]) -> bool {
 ///
 /// The single underscore `_` pattern is ignored. Only identifier patterns are
 /// considered; non-identifier patterns are ignored.
+///
+/// # Examples
+///
+/// ```rust,ignore
+/// use syn::parse_quote;
+/// use crate::codegen::scenario::helpers::has_underscore_prefixed_params;
+///
+/// let sig: syn::Signature = parse_quote! { fn test(_state: State) };
+/// assert!(has_underscore_prefixed_params(&sig));
+/// ```
 pub(crate) fn has_underscore_prefixed_params(sig: &syn::Signature) -> bool {
     sig.inputs.iter().any(|arg| {
         let syn::FnArg::Typed(pat_type) = arg else {
@@ -336,35 +346,16 @@ pub(crate) fn process_steps_substituted(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use rstest::rstest;
     use syn::parse_quote;
 
-    #[test]
-    fn detects_underscore_prefixed_param() {
-        let sig: syn::Signature = parse_quote! { fn test(_state: State) };
-        assert!(has_underscore_prefixed_params(&sig));
-    }
-
-    #[test]
-    fn ignores_single_underscore() {
-        let sig: syn::Signature = parse_quote! { fn test(_: State) };
-        assert!(!has_underscore_prefixed_params(&sig));
-    }
-
-    #[test]
-    fn ignores_non_underscore_params() {
-        let sig: syn::Signature = parse_quote! { fn test(state: State) };
-        assert!(!has_underscore_prefixed_params(&sig));
-    }
-
-    #[test]
-    fn detects_mixed_params() {
-        let sig: syn::Signature = parse_quote! { fn test(normal: i32, _unused: State) };
-        assert!(has_underscore_prefixed_params(&sig));
-    }
-
-    #[test]
-    fn handles_no_params() {
-        let sig: syn::Signature = parse_quote! { fn test() };
-        assert!(!has_underscore_prefixed_params(&sig));
+    #[rstest]
+    #[case(parse_quote! { fn test(_state: State) }, true)]
+    #[case(parse_quote! { fn test(_: State) }, false)]
+    #[case(parse_quote! { fn test(state: State) }, false)]
+    #[case(parse_quote! { fn test(normal: i32, _unused: State) }, true)]
+    #[case(parse_quote! { fn test() }, false)]
+    fn detects_underscore_prefixed_params(#[case] sig: syn::Signature, #[case] expected: bool) {
+        assert_eq!(has_underscore_prefixed_params(&sig), expected);
     }
 }
