@@ -20,14 +20,35 @@ use super::{
     process_datatable_cache, wrapper_expect_lint_paths,
 };
 
+/// Identifiers used in capture validation code generation.
+#[derive(Clone, Copy)]
+struct CaptureValidationIdentifiers<'a> {
+    pattern: &'a proc_macro2::Ident,
+    text: &'a proc_macro2::Ident,
+}
+
+/// Error token streams for capture validation failures.
+#[derive(Clone, Copy)]
+struct CaptureValidationErrors<'a> {
+    placeholder: &'a TokenStream2,
+    capture_mismatch: &'a TokenStream2,
+}
+
 fn generate_capture_validation(
     path: &TokenStream2,
-    pattern_ident: &proc_macro2::Ident,
-    text_ident: &proc_macro2::Ident,
+    identifiers: CaptureValidationIdentifiers<'_>,
     expected: usize,
-    placeholder_err: &TokenStream2,
-    capture_mismatch_err: &TokenStream2,
+    errors: CaptureValidationErrors<'_>,
 ) -> TokenStream2 {
+    let CaptureValidationIdentifiers {
+        pattern: pattern_ident,
+        text: text_ident,
+    } = identifiers;
+    let CaptureValidationErrors {
+        placeholder: placeholder_err,
+        capture_mismatch: capture_mismatch_err,
+    } = errors;
+
     quote! {
         let captures = #path::extract_placeholders(&#pattern_ident, #text_ident.into())
             .map_err(|e| #placeholder_err)?;
@@ -96,11 +117,15 @@ fn render_async_wrapper_function(
     let expect_attr = super::generate_expect_attribute(&expect_lints);
     let capture_validation = generate_capture_validation(
         &path,
-        pattern_ident,
-        text_ident,
+        CaptureValidationIdentifiers {
+            pattern: pattern_ident,
+            text: text_ident,
+        },
         capture_count,
-        &placeholder_err,
-        &capture_mismatch_err,
+        CaptureValidationErrors {
+            placeholder: &placeholder_err,
+            capture_mismatch: &capture_mismatch_err,
+        },
     );
     let unwind_handling = generate_unwind_handling(&path, call_expr, &exec_err, &panic_err);
 

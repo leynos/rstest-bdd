@@ -52,20 +52,27 @@ fn bypassed_step(
 }
 
 #[cfg(feature = "diagnostics")]
-fn bypassed_step_async<'ctx>(
-    ctx: &'ctx mut StepContext<'_>,
-    text: &'ctx str,
-    docstring: Option<&'ctx str>,
-    table: Option<&'ctx [&'ctx [&'ctx str]]>,
-) -> StepFuture<'ctx> {
-    let params = StepInvocationParams {
-        ctx,
-        text,
-        docstring,
-        table,
+macro_rules! generate_async_wrapper {
+    ($async_fn:ident, $sync_fn:ident) => {
+        fn $async_fn<'ctx>(
+            ctx: &'ctx mut StepContext<'_>,
+            text: &'ctx str,
+            docstring: Option<&'ctx str>,
+            table: Option<&'ctx [&'ctx [&'ctx str]]>,
+        ) -> StepFuture<'ctx> {
+            let params = StepInvocationParams {
+                ctx,
+                text,
+                docstring,
+                table,
+            };
+            wrap_sync_step_as_async($sync_fn, params)
+        }
     };
-    wrap_sync_step_as_async(bypassed_step, params)
 }
+
+#[cfg(feature = "diagnostics")]
+generate_async_wrapper!(bypassed_step_async, bypassed_step);
 
 #[cfg(feature = "diagnostics")]
 #[expect(
@@ -82,20 +89,7 @@ fn forced_bypass(
 }
 
 #[cfg(feature = "diagnostics")]
-fn forced_bypass_async<'ctx>(
-    ctx: &'ctx mut StepContext<'_>,
-    text: &'ctx str,
-    docstring: Option<&'ctx str>,
-    table: Option<&'ctx [&'ctx [&'ctx str]]>,
-) -> StepFuture<'ctx> {
-    let params = StepInvocationParams {
-        ctx,
-        text,
-        docstring,
-        table,
-    };
-    wrap_sync_step_as_async(forced_bypass, params)
-}
+generate_async_wrapper!(forced_bypass_async, forced_bypass);
 
 #[cfg(feature = "diagnostics")]
 static SHOULD_SEED: AtomicBool = AtomicBool::new(false);

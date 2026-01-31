@@ -5,6 +5,7 @@ use super::generators::{
     generate_step_executor,
 };
 use crate::codegen::scenario::ScenarioReturnKind;
+use rstest::rstest;
 use syn::visit::Visit;
 
 /// Return the identifier of the final segment in a `syn::Path`.
@@ -271,37 +272,50 @@ fn assert_step_executor_delegates_to_runtime(
     );
 }
 
-/// Verify that the generated step executor delegates to `rstest_bdd::execution::execute_step`.
-///
-/// This test validates the architecture where the generated code is a thin wrapper
-/// that delegates to runtime functions, rather than containing inline implementation.
-#[test]
-fn execute_single_step_delegates_to_runtime() {
-    assert_step_executor_delegates_to_runtime(
-        generate_step_executor(),
-        StepExecutorExpectation::new(
-            "__rstest_bdd_execute_single_step",
-            "sync step executor",
-            "execute_step",
-            false,
-        ),
-    );
+#[derive(Debug, Clone, Copy)]
+enum ExecutorType {
+    Sync,
+    Async,
 }
 
-/// Verify that the generated async step executor delegates to `rstest_bdd::execution::execute_step`.
+impl ExecutorType {
+    fn generate(self) -> proc_macro2::TokenStream {
+        match self {
+            Self::Sync => generate_step_executor(),
+            Self::Async => generate_async_step_executor(),
+        }
+    }
+
+    fn expectation(self) -> StepExecutorExpectation<'static> {
+        match self {
+            Self::Sync => StepExecutorExpectation::new(
+                "__rstest_bdd_execute_single_step",
+                "sync step executor",
+                "execute_step",
+                false,
+            ),
+            Self::Async => StepExecutorExpectation::new(
+                "__rstest_bdd_process_async_step",
+                "async step executor",
+                "execute_step_async",
+                true,
+            ),
+        }
+    }
+}
+
+/// Verify that generated step executors remain thin wrappers over the runtime.
 ///
-/// This mirrors `execute_single_step_delegates_to_runtime` but for the async helper
-/// `__rstest_bdd_process_async_step`, ensuring it stays a thin wrapper over the runtime.
-#[test]
-fn execute_async_step_delegates_to_runtime() {
+/// This parameterised test covers both synchronous and asynchronous executor
+/// variants, ensuring they delegate to the appropriate `rstest_bdd::execution`
+/// function without embedding inline implementation details.
+#[rstest]
+#[case(ExecutorType::Sync)]
+#[case(ExecutorType::Async)]
+fn step_executor_delegates_to_runtime(#[case] executor_type: ExecutorType) {
     assert_step_executor_delegates_to_runtime(
-        generate_async_step_executor(),
-        StepExecutorExpectation::new(
-            "__rstest_bdd_process_async_step",
-            "async step executor",
-            "execute_step_async",
-            true,
-        ),
+        executor_type.generate(),
+        executor_type.expectation(),
     );
 }
 
