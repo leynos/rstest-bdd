@@ -59,6 +59,20 @@ pub(crate) fn has_underscore_prefixed_params(sig: &syn::Signature) -> bool {
     })
 }
 
+/// Emit a lint suppression attribute when underscore-prefixed parameters exist.
+pub(crate) fn generate_underscore_expect(sig: &syn::Signature) -> TokenStream2 {
+    if has_underscore_prefixed_params(sig) {
+        quote! {
+            #[expect(
+                clippy::used_underscore_binding,
+                reason = "rstest-bdd scenario parameters are used by generated code"
+            )]
+        }
+    } else {
+        quote! {}
+    }
+}
+
 fn resolve_keyword_tokens(steps: &[crate::parsing::feature::ParsedStep]) -> Vec<TokenStream2> {
     // Resolve textual conjunctions (And/But) to the previous primary keyword
     // without depending on the validation module, which is behind an optional

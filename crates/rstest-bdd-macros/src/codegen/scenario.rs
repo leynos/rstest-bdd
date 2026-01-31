@@ -12,7 +12,7 @@ mod runtime;
 pub(crate) use domain::*;
 pub(crate) use helpers::process_steps;
 use helpers::{
-    generate_case_attrs, generate_indexed_case_attrs, has_underscore_prefixed_params,
+    generate_case_attrs, generate_indexed_case_attrs, generate_underscore_expect,
     process_steps_substituted, row_has_values,
 };
 pub(crate) use metadata::{FeaturePath, ScenarioName};
@@ -95,19 +95,6 @@ fn generate_test_attrs(attrs: &[syn::Attribute], runtime: RuntimeMode) -> TokenS
     }
 }
 
-fn underscore_expect_for_sig(sig: &syn::Signature) -> TokenStream2 {
-    if has_underscore_prefixed_params(sig) {
-        quote! {
-            #[expect(
-                clippy::used_underscore_binding,
-                reason = "rstest-bdd scenario parameters are used by generated code"
-            )]
-        }
-    } else {
-        quote! {}
-    }
-}
-
 /// Checks if any step in the scenario contains placeholder tokens.
 fn steps_contain_placeholders(steps: &[crate::parsing::feature::ParsedStep]) -> bool {
     steps.iter().any(|step| {
@@ -186,7 +173,7 @@ where
     let attrs = config.attrs;
     let vis = config.vis;
     let sig = config.sig;
-    let underscore_expect = underscore_expect_for_sig(sig);
+    let underscore_expect = generate_underscore_expect(sig);
     TokenStream::from(quote! {
         #test_attrs
         #(#case_attrs)*
@@ -258,7 +245,7 @@ where
     let test_attrs = generate_test_attrs(config.attrs, config.runtime);
     let attrs = config.attrs;
     let vis = config.vis;
-    let underscore_expect = underscore_expect_for_sig(&modified_sig);
+    let underscore_expect = generate_underscore_expect(&modified_sig);
     TokenStream::from(quote! {
         #test_attrs
         #(#case_attrs)*
