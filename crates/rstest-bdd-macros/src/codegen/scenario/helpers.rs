@@ -70,6 +70,17 @@ pub(crate) fn has_underscore_prefixed_params(sig: &syn::Signature) -> bool {
 }
 
 /// Emit a lint suppression attribute when underscore-prefixed parameters exist.
+///
+/// # Examples
+///
+/// ```rust,ignore
+/// use syn::parse_quote;
+/// use crate::codegen::scenario::helpers::generate_underscore_expect;
+///
+/// let sig: syn::Signature = parse_quote! { fn test(_state: State) };
+/// let attr = generate_underscore_expect(&sig);
+/// assert!(!attr.is_empty());
+/// ```
 pub(crate) fn generate_underscore_expect(sig: &syn::Signature) -> TokenStream2 {
     if has_underscore_prefixed_params(sig) {
         quote! {
