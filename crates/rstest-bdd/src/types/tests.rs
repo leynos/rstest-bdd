@@ -129,12 +129,12 @@ fn step_future_can_be_constructed_from_ready_future() {
 #[test]
 fn async_step_fn_signature_is_valid() {
     // Verify that the AsyncStepFn type alias matches the expected signature.
-    fn dummy_async_step<'a>(
-        _ctx: &'a mut crate::context::StepContext<'a>,
-        _text: &str,
-        _docstring: Option<&str>,
-        _table: Option<&[&[&str]]>,
-    ) -> StepFuture<'a> {
+    fn dummy_async_step<'ctx>(
+        _ctx: &'ctx mut crate::context::StepContext<'_>,
+        _text: &'ctx str,
+        _docstring: Option<&'ctx str>,
+        _table: Option<&'ctx [&'ctx [&'ctx str]]>,
+    ) -> StepFuture<'ctx> {
         Box::pin(std::future::ready(Ok(StepExecution::from_value(None))))
     }
 

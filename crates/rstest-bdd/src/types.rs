@@ -301,6 +301,26 @@ impl StepExecution {
     }
 }
 
+/// Declares how a step prefers to execute when both sync and async runtimes
+/// are available.
+///
+/// The registry stores both `run` and `run_async` pointers for ergonomic
+/// backwards compatibility. This enum records whether a step has a native async
+/// body, a native sync body, or can run efficiently in both contexts.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[expect(
+    clippy::exhaustive_enums,
+    reason = "public API; execution modes may expand over time"
+)]
+pub enum StepExecutionMode {
+    /// Step body is synchronous and should prefer the sync handler.
+    Sync,
+    /// Step body is asynchronous (`async fn`) and should prefer the async handler.
+    Async,
+    /// Step body can execute efficiently in both sync and async contexts.
+    Both,
+}
+
 /// Type alias for the stored step function pointer.
 pub type StepFn = for<'a> fn(
     &mut crate::context::StepContext<'a>,
@@ -326,12 +346,12 @@ pub type StepFuture<'a> =
 /// macro-generated wrapper code. Sync step definitions are wrapped in
 /// immediately-ready futures when async mode is enabled, allowing mixed sync
 /// and async steps within a single scenario.
-pub type AsyncStepFn = for<'a> fn(
-    &'a mut crate::context::StepContext<'a>,
-    &str,
-    Option<&str>,
-    Option<&[&[&str]]>,
-) -> StepFuture<'a>;
+pub type AsyncStepFn = for<'ctx, 'fixtures> fn(
+    &'ctx mut crate::context::StepContext<'fixtures>,
+    &'ctx str,
+    Option<&'ctx str>,
+    Option<&'ctx [&'ctx [&'ctx str]]>,
+) -> StepFuture<'ctx>;
 
 #[cfg(test)]
 mod tests;

@@ -52,13 +52,13 @@ fn bypassed_step(
 }
 
 #[cfg(feature = "diagnostics")]
-fn bypassed_step_async<'a>(
-    ctx: &'a mut StepContext<'a>,
-    text: &str,
-    docstring: Option<&str>,
-    table: Option<&[&[&str]]>,
-) -> StepFuture<'a> {
-    wrap_sync_step_as_async(bypassed_step)(ctx, text, docstring, table)
+fn bypassed_step_async<'ctx>(
+    ctx: &'ctx mut StepContext<'_>,
+    text: &'ctx str,
+    docstring: Option<&'ctx str>,
+    table: Option<&'ctx [&'ctx [&'ctx str]]>,
+) -> StepFuture<'ctx> {
+    wrap_sync_step_as_async(bypassed_step, ctx, text, docstring, table)
 }
 
 #[cfg(feature = "diagnostics")]
@@ -76,13 +76,13 @@ fn forced_bypass(
 }
 
 #[cfg(feature = "diagnostics")]
-fn forced_bypass_async<'a>(
-    ctx: &'a mut StepContext<'a>,
-    text: &str,
-    docstring: Option<&str>,
-    table: Option<&[&[&str]]>,
-) -> StepFuture<'a> {
-    wrap_sync_step_as_async(forced_bypass)(ctx, text, docstring, table)
+fn forced_bypass_async<'ctx>(
+    ctx: &'ctx mut StepContext<'_>,
+    text: &'ctx str,
+    docstring: Option<&'ctx str>,
+    table: Option<&'ctx [&'ctx [&'ctx str]]>,
+) -> StepFuture<'ctx> {
+    wrap_sync_step_as_async(forced_bypass, ctx, text, docstring, table)
 }
 
 #[cfg(feature = "diagnostics")]

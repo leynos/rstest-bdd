@@ -68,12 +68,12 @@ step!(
 
 #[test]
 fn async_step_fn_can_be_stored_and_invoked() {
-    fn test_step<'a>(
-        _ctx: &'a mut StepContext<'a>,
-        _text: &str,
-        _docstring: Option<&str>,
-        _table: Option<&[&[&str]]>,
-    ) -> StepFuture<'a> {
+    fn test_step<'ctx>(
+        _ctx: &'ctx mut StepContext<'_>,
+        _text: &'ctx str,
+        _docstring: Option<&'ctx str>,
+        _table: Option<&'ctx [&'ctx [&'ctx str]]>,
+    ) -> StepFuture<'ctx> {
         Box::pin(std::future::ready(Ok(StepExecution::from_value(None))))
     }
 

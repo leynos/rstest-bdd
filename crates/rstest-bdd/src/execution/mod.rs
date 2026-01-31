@@ -21,7 +21,9 @@ use std::collections::HashSet;
 use std::sync::Arc;
 
 use crate::context::StepContext;
-use crate::{Step, StepExecution, StepKeyword, StepText, find_step_with_metadata};
+use crate::{
+    Step, StepExecution, StepExecutionMode, StepKeyword, StepText, find_step_with_metadata,
+};
 
 pub use error::{ExecutionError, MissingFixturesDetails};
 
@@ -305,6 +307,55 @@ pub fn execute_step(
     validate_required_fixtures(step, ctx, request)?;
 
     match (step.run)(ctx, request.text, request.docstring, request.table) {
+        Ok(StepExecution::Skipped { message }) => Err(ExecutionError::Skip { message }),
+        Ok(StepExecution::Continue { value }) => Ok(value),
+        Err(err) => Err(ExecutionError::HandlerFailed {
+            index: request.index,
+            keyword: request.keyword,
+            text: request.text.to_string(),
+            error: Arc::new(err),
+            feature_path: request.feature_path.to_string(),
+            scenario_name: request.scenario_name.to_string(),
+        }),
+    }
+}
+
+/// Execute a single step via the async handler with validation and error handling.
+///
+/// This mirrors [`execute_step`] but drives execution through the registered
+/// async handler (`Step::run_async`) and awaits the returned future. This
+/// enables true `async fn` step bodies under async scenario runtimes while
+/// preserving the same fixture validation and error reporting behaviour.
+///
+/// # Errors
+///
+/// Returns [`ExecutionError`] for all failure cases, mirroring [`execute_step`].
+pub async fn execute_step_async(
+    request: &StepExecutionRequest<'_>,
+    ctx: &mut StepContext<'_>,
+) -> Result<Option<Box<dyn Any>>, ExecutionError> {
+    let step = find_step_with_metadata(request.keyword, StepText::from(request.text)).ok_or_else(
+        || ExecutionError::StepNotFound {
+            index: request.index,
+            keyword: request.keyword,
+            text: request.text.to_string(),
+            feature_path: request.feature_path.to_string(),
+            scenario_name: request.scenario_name.to_string(),
+        },
+    )?;
+
+    validate_required_fixtures(step, ctx, request)?;
+
+    let result = match step.execution_mode {
+        StepExecutionMode::Async => {
+            (step.run_async)(ctx, request.text, request.docstring, request.table).await
+        }
+        StepExecutionMode::Sync | StepExecutionMode::Both => {
+            (step.run)(ctx, request.text, request.docstring, request.table)
+        }
+    };
+
+    match result {
         Ok(StepExecution::Skipped { message }) => Err(ExecutionError::Skip { message }),
         Ok(StepExecution::Continue { value }) => Ok(value),
         Err(err) => Err(ExecutionError::HandlerFailed {

@@ -64,6 +64,11 @@ fn assert_path_is_execution_error(path: &syn::Path) {
     assert_path_ends_with_module_function(path, "execution", "ExecutionError");
 }
 
+/// Assert that a path ends with `execution::execute_step_async`.
+fn assert_path_is_execution_execute_step_async(path: &syn::Path) {
+    assert_path_ends_with_module_function(path, "execution", "execute_step_async");
+}
+
 #[expect(clippy::panic, reason = "test helper panics for clearer failures")]
 fn find_function_by_name<'a>(file: &'a syn::File, name: &str) -> &'a syn::ItemFn {
     file.items
@@ -195,22 +200,40 @@ fn assert_step_executor_delegates_to_runtime(
     tokens: proc_macro2::TokenStream,
     function_name: &str,
     description: &str,
+    runtime_function: &str,
+    should_be_async: bool,
 ) {
     let file: syn::File = syn::parse2(tokens)
         .unwrap_or_else(|e| panic!("{description}: failed to parse tokens: {e}"));
 
     let item = find_function_by_name(&file, function_name);
 
-    let execute_step_call = find_call_in_block(&item.block, "execute_step")
-        .unwrap_or_else(|| panic!("{description}: expected call to execute_step"));
+    if should_be_async {
+        assert!(
+            item.sig.asyncness.is_some(),
+            "{description}: expected {function_name} to be async"
+        );
+    } else {
+        assert!(
+            item.sig.asyncness.is_none(),
+            "{description}: expected {function_name} to be non-async"
+        );
+    }
+
+    let execute_step_call = find_call_in_block(&item.block, runtime_function)
+        .unwrap_or_else(|| panic!("{description}: expected call to {runtime_function}"));
 
     let func_path = extract_path(execute_step_call.func.as_ref());
-    assert_path_is_execution_execute_step(func_path);
+    match runtime_function {
+        "execute_step" => assert_path_is_execution_execute_step(func_path),
+        "execute_step_async" => assert_path_is_execution_execute_step_async(func_path),
+        other => panic!("{description}: unexpected runtime function name: {other}"),
+    }
 
     assert_eq!(
         execute_step_call.args.len(),
         2,
-        "{description}: execute_step should receive StepExecutionRequest reference and ctx"
+        "{description}: {runtime_function} should receive StepExecutionRequest reference and ctx"
     );
 }
 
@@ -224,6 +247,8 @@ fn execute_single_step_delegates_to_runtime() {
         generate_step_executor(),
         "__rstest_bdd_execute_single_step",
         "sync step executor",
+        "execute_step",
+        false,
     );
 }
 
@@ -237,6 +262,8 @@ fn execute_async_step_delegates_to_runtime() {
         generate_async_step_executor(),
         "__rstest_bdd_process_async_step",
         "async step executor",
+        "execute_step_async",
+        true,
     );
 }
 

@@ -17,6 +17,9 @@ use crate::return_classifier::ReturnKind;
 use proc_macro2::TokenStream as TokenStream2;
 use quote::{format_ident, quote};
 
+#[path = "assembly/async_wrapper.rs"]
+mod async_wrapper;
+
 const WRAPPER_EXPECT_REASON: &str = "rstest-bdd step wrapper pattern requires these patterns \
 for parameter extraction, Result normalization, and closure-based error handling";
 const LINT_SHADOW_REUSE: &str = "clippy::shadow_reuse";
@@ -25,6 +28,7 @@ const LINT_STR_TO_STRING: &str = "clippy::str_to_string";
 const LINT_REDUNDANT_CLOSURE_FOR_METHOD_CALLS: &str = "clippy::redundant_closure_for_method_calls";
 const LINT_NEEDLESS_PASS_BY_VALUE: &str = "clippy::needless_pass_by_value";
 const LINT_REDUNDANT_CLOSURE: &str = "clippy::redundant_closure";
+const LINT_NEEDLESS_LIFETIMES: &str = "clippy::needless_lifetimes";
 
 /// Prepared wrapper inputs consumed by `assemble_wrapper_function`.
 struct WrapperAssembly<'a> {
@@ -51,12 +55,19 @@ struct WrapperRenderContext<'a> {
     call_expr: &'a TokenStream2,
 }
 
+#[derive(Copy, Clone, PartialEq, Eq)]
+enum WrapperKind {
+    Sync,
+    Async,
+}
+
 #[derive(Copy, Clone)]
 struct WrapperLintConfig {
-    has_placeholders: bool,
+    capture_count: usize,
     has_step_struct: bool,
     has_step_arg_quote_strip: bool,
     return_kind: ReturnKind,
+    wrapper_kind: WrapperKind,
 }
 
 fn wrapper_expect_lint_names(config: WrapperLintConfig) -> Vec<&'static str> {
@@ -67,11 +78,15 @@ fn wrapper_expect_lint_names(config: WrapperLintConfig) -> Vec<&'static str> {
     if matches!(config.return_kind, ReturnKind::Unit | ReturnKind::Value) {
         lints.push(LINT_UNNECESSARY_WRAPS);
     }
-    if config.has_step_struct && config.has_placeholders {
+    let has_placeholders = config.capture_count > 0;
+    if config.has_step_struct && has_placeholders {
         lints.push(LINT_STR_TO_STRING);
     }
-    if config.has_placeholders {
+    if has_placeholders {
         lints.push(LINT_REDUNDANT_CLOSURE_FOR_METHOD_CALLS);
+    }
+    if config.wrapper_kind == WrapperKind::Async {
+        lints.push(LINT_NEEDLESS_LIFETIMES);
     }
     lints.push(LINT_NEEDLESS_PASS_BY_VALUE);
     lints.push(LINT_REDUNDANT_CLOSURE);
@@ -185,6 +200,7 @@ fn render_wrapper_function(
 fn assemble_wrapper_function(
     identifiers: WrapperIdentifiers<'_>,
     assembly: WrapperAssembly<'_>,
+    is_async_step: bool,
 ) -> TokenStream2 {
     let WrapperAssembly {
         meta,
@@ -198,12 +214,13 @@ fn assemble_wrapper_function(
     } = identifiers;
     let errors = prepare_wrapper_errors(meta, text_ident);
     let StepMeta { ident, .. } = meta;
-    let call_expr = generate_call_expression(return_kind, ident, &arg_idents);
+    let call_expr = generate_call_expression(return_kind, ident, &arg_idents, is_async_step);
     let lint_config = WrapperLintConfig {
-        has_placeholders: capture_count > 0,
+        capture_count,
         has_step_struct: prepared.step_struct_decl.is_some(),
         has_step_arg_quote_strip: prepared.has_step_arg_quote_strip,
         return_kind,
+        wrapper_kind: WrapperKind::Sync,
     };
     prepared.expect_lints = wrapper_expect_lint_paths(lint_config);
     render_wrapper_function(
@@ -296,6 +313,7 @@ pub(super) fn generate_wrapper_body(
             capture_count,
             return_kind,
         },
+        false,
     );
 
     quote! {
@@ -304,6 +322,14 @@ pub(super) fn generate_wrapper_body(
         #signature
         #wrapper_fn
     }
+}
+
+pub(super) fn generate_async_wrapper_body(
+    config: &super::WrapperConfig<'_>,
+    wrapper_ident: &proc_macro2::Ident,
+    pattern_ident: &proc_macro2::Ident,
+) -> TokenStream2 {
+    async_wrapper::generate_async_wrapper_body(config, wrapper_ident, pattern_ident)
 }
 
 #[cfg(test)]

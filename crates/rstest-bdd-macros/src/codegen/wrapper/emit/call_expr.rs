@@ -19,9 +19,14 @@ pub(super) fn generate_call_expression(
     return_kind: ReturnKind,
     ident: &syn::Ident,
     arg_idents: &[syn::Ident],
+    is_async: bool,
 ) -> TokenStream2 {
     let path = crate::codegen::rstest_bdd_path();
-    let call = quote! { #ident(#(#arg_idents),*) };
+    let call = if is_async {
+        quote! { #ident(#(#arg_idents),*).await }
+    } else {
+        quote! { #ident(#(#arg_idents),*) }
+    };
     match return_kind {
         ReturnKind::Unit => quote! {{
             #call;

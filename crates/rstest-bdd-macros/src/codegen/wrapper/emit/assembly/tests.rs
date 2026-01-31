@@ -105,6 +105,7 @@ fn assemble_wrapper_for_test(
             capture_count,
             return_kind,
         },
+        false,
     );
 
     syn::parse2(tokens).expect("wrapper should parse")
