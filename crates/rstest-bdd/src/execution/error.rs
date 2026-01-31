@@ -77,7 +77,7 @@ pub enum ExecutionError {
 /// wrapping in `Arc`, reducing the overall size of `Result<T, ExecutionError>`.
 #[derive(Debug, Clone)]
 pub struct MissingFixturesDetails {
-    /// The step pattern text.
+    /// The step definition's pattern (e.g., `"a user named {name}"`).
     pub step_pattern: String,
     /// Source location of the step definition (`file:line`).
     pub step_location: String,
@@ -158,6 +158,30 @@ impl ExecutionError {
 
 impl ExecutionError {
     /// Render the error message using the provided Fluent loader.
+    ///
+    /// This allows formatting the error using a specific locale loader rather than
+    /// the global default. This is useful when you need consistent locale handling
+    /// across nested error types.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use i18n_embed::fluent::fluent_language_loader;
+    /// use unic_langid::langid;
+    /// use rstest_bdd::execution::ExecutionError;
+    ///
+    /// let loader = {
+    ///     use i18n_embed::LanguageLoader;
+    ///     use rstest_bdd::Localizations;
+    ///     let loader = fluent_language_loader!();
+    ///     i18n_embed::select(&loader, &Localizations, &[langid!("en-US")]).unwrap();
+    ///     loader
+    /// };
+    /// let error = ExecutionError::Skip { message: Some("not implemented".into()) };
+    /// let message = error.format_with_loader(&loader);
+    /// assert!(message.contains("skipped"));
+    /// assert!(message.contains("not implemented"));
+    /// ```
     #[must_use]
     pub fn format_with_loader(&self, loader: &crate::FluentLanguageLoader) -> String {
         match self {
@@ -214,7 +238,7 @@ impl ExecutionError {
                     args.set("index", index.to_string());
                     args.set("keyword", keyword.as_str().to_string());
                     args.set("text", text.clone());
-                    args.set("error", error.to_string());
+                    args.set("error", error.format_with_loader(loader));
                     args.set("feature_path", feature_path.clone());
                     args.set("scenario_name", scenario_name.clone());
                 },

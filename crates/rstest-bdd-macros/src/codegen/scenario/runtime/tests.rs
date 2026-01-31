@@ -99,6 +99,30 @@ impl<'ast> Visit<'ast> for CallFinder<'ast> {
     }
 }
 
+/// Visitor to find method calls by name.
+struct MethodCallFinder {
+    name: String,
+    count: usize,
+}
+
+impl<'ast> Visit<'ast> for MethodCallFinder {
+    fn visit_expr_method_call(&mut self, node: &'ast syn::ExprMethodCall) {
+        if node.method == self.name {
+            self.count += 1;
+        }
+        syn::visit::visit_expr_method_call(self, node);
+    }
+}
+
+fn count_method_calls_in_block(block: &syn::Block, method_name: &str) -> usize {
+    let mut finder = MethodCallFinder {
+        name: method_name.to_string(),
+        count: 0,
+    };
+    finder.visit_block(block);
+    finder.count
+}
+
 fn find_call_in_block<'a>(block: &'a syn::Block, name: &str) -> Option<&'a syn::ExprCall> {
     let mut finder = CallFinder {
         name: name.to_string(),
@@ -252,6 +276,19 @@ fn skip_extractor_references_execution_error() {
     } else {
         panic!("expected typed parameter");
     }
+
+    // Verify the function body calls is_skip() and skip_message() on the error parameter
+    let is_skip_calls = count_method_calls_in_block(&item.block, "is_skip");
+    assert!(
+        is_skip_calls >= 1,
+        "expected at least one call to is_skip(), found {is_skip_calls}"
+    );
+
+    let skip_message_calls = count_method_calls_in_block(&item.block, "skip_message");
+    assert!(
+        skip_message_calls >= 1,
+        "expected at least one call to skip_message(), found {skip_message_calls}"
+    );
 }
 
 #[expect(clippy::panic, reason = "test helper panics for clearer failures")]

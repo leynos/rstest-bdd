@@ -68,7 +68,7 @@ pub(in crate::codegen::scenario::runtime) fn generate_step_executor() -> TokenSt
 
 /// Generates the `__rstest_bdd_extract_skip_message` function.
 ///
-/// The generated function extracts the skip message from an [`ExecutionError::Skip`]
+/// The generated function extracts the skip message from an [`rstest_bdd::execution::ExecutionError::Skip`]
 /// variant, returning `Some(Option<String>)` for skips and `None` for other errors.
 ///
 /// # Generated code

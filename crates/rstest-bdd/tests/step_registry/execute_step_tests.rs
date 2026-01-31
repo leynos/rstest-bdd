@@ -104,16 +104,49 @@ fn execute_step_returns_expected_error(
             );
         }
         ExpectedExecutionError::StepNotFound => {
-            assert!(
-                matches!(error, ExecutionError::StepNotFound { index: 0, .. }),
-                "expected StepNotFound error, got: {error:?}"
-            );
+            let ExecutionError::StepNotFound {
+                index,
+                keyword: err_keyword,
+                text: err_text,
+                feature_path,
+                scenario_name,
+            } = &error
+            else {
+                panic!("expected StepNotFound error, got: {error:?}");
+            };
+            assert_eq!(*index, 0, "index should match request");
+            assert_eq!(*err_keyword, keyword, "keyword should match request");
+            assert_eq!(err_text, text, "text should match request");
+            assert_eq!(feature_path, "test.feature", "feature_path should match");
+            assert_eq!(scenario_name, "Test Scenario", "scenario_name should match");
             assert!(!error.is_skip(), "StepNotFound should not be a skip");
         }
         ExpectedExecutionError::HandlerFailed => {
+            let ExecutionError::HandlerFailed {
+                index,
+                keyword: err_keyword,
+                text: err_text,
+                error: inner_error,
+                feature_path,
+                scenario_name,
+            } = &error
+            else {
+                panic!("expected HandlerFailed error, got: {error:?}");
+            };
+            assert_eq!(*index, 0, "index should match request");
+            assert_eq!(*err_keyword, keyword, "keyword should match request");
+            assert_eq!(err_text, text, "text should match request");
+            assert_eq!(feature_path, "test.feature", "feature_path should match");
+            assert_eq!(scenario_name, "Test Scenario", "scenario_name should match");
             assert!(
-                matches!(error, ExecutionError::HandlerFailed { index: 0, .. }),
-                "expected HandlerFailed error, got: {error:?}"
+                std::error::Error::source(&error).is_some(),
+                "HandlerFailed should have a source error"
+            );
+            // Verify the inner error is accessible and contains relevant info
+            let inner_str = inner_error.to_string();
+            assert!(
+                !inner_str.is_empty(),
+                "inner error should have a non-empty message"
             );
             assert!(!error.is_skip(), "HandlerFailed should not be a skip");
         }

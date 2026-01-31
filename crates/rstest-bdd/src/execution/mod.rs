@@ -82,7 +82,7 @@ fn validate_required_fixtures(
         available_list.sort_unstable();
         Err(ExecutionError::MissingFixtures(Arc::new(
             MissingFixturesDetails {
-                step_pattern: request.text.to_string(),
+                step_pattern: step.pattern.as_str().to_string(),
                 step_location: format!("{}:{}", step.file, step.line),
                 required: step.fixtures.to_vec(),
                 missing,

@@ -2,6 +2,8 @@
 
 use std::sync::Arc;
 
+use rstest::rstest;
+
 use crate::{StepError, StepKeyword};
 
 use super::{ExecutionError, MissingFixturesDetails, RuntimeMode, TestAttributeHint};
@@ -153,30 +155,76 @@ fn execution_error_handler_failed_is_skip_returns_false() {
     assert!(!error.is_skip());
 }
 
-#[test]
-fn execution_error_skip_message_returns_none_for_skip_without_message() {
-    let error = ExecutionError::Skip { message: None };
-    assert_eq!(error.skip_message(), None);
+/// Helper enum for parameterized `skip_message` tests.
+enum SkipMessageTestCase {
+    SkipWithoutMessage,
+    SkipWithMessage(&'static str),
+    StepNotFound,
+    HandlerFailed,
+    MissingFixtures,
 }
 
-#[test]
-fn execution_error_skip_message_returns_message_for_skip_with_message() {
-    let error = ExecutionError::Skip {
-        message: Some("test reason".into()),
-    };
-    assert_eq!(error.skip_message(), Some("test reason"));
+impl SkipMessageTestCase {
+    fn make_error(&self) -> ExecutionError {
+        match self {
+            Self::SkipWithoutMessage => ExecutionError::Skip { message: None },
+            Self::SkipWithMessage(msg) => ExecutionError::Skip {
+                message: Some((*msg).into()),
+            },
+            Self::StepNotFound => ExecutionError::StepNotFound {
+                index: 0,
+                keyword: StepKeyword::Given,
+                text: "missing".into(),
+                feature_path: "test.feature".into(),
+                scenario_name: "test".into(),
+            },
+            Self::HandlerFailed => ExecutionError::HandlerFailed {
+                index: 0,
+                keyword: StepKeyword::When,
+                text: "failing".into(),
+                error: Arc::new(StepError::ExecutionError {
+                    pattern: "failing".into(),
+                    function: "test_fn".into(),
+                    message: "boom".into(),
+                }),
+                feature_path: "test.feature".into(),
+                scenario_name: "test".into(),
+            },
+            Self::MissingFixtures => {
+                ExecutionError::MissingFixtures(Arc::new(MissingFixturesDetails {
+                    step_pattern: "test step".into(),
+                    step_location: "test.rs:1".into(),
+                    required: vec!["fixture"],
+                    missing: vec!["fixture"],
+                    available: vec![],
+                    feature_path: "test.feature".into(),
+                    scenario_name: "test".into(),
+                }))
+            }
+        }
+    }
+
+    fn expected_skip_message(&self) -> Option<&'static str> {
+        match self {
+            Self::SkipWithMessage(msg) => Some(msg),
+            Self::SkipWithoutMessage
+            | Self::StepNotFound
+            | Self::HandlerFailed
+            | Self::MissingFixtures => None,
+        }
+    }
 }
 
-#[test]
-fn execution_error_skip_message_returns_none_for_non_skip_errors() {
-    let error = ExecutionError::StepNotFound {
-        index: 0,
-        keyword: StepKeyword::Given,
-        text: "missing".into(),
-        feature_path: "test.feature".into(),
-        scenario_name: "test".into(),
-    };
-    assert_eq!(error.skip_message(), None);
+#[rstest]
+#[case::skip_without_message(SkipMessageTestCase::SkipWithoutMessage)]
+#[case::skip_with_message(SkipMessageTestCase::SkipWithMessage("test reason"))]
+#[case::step_not_found(SkipMessageTestCase::StepNotFound)]
+#[case::handler_failed(SkipMessageTestCase::HandlerFailed)]
+#[case::missing_fixtures(SkipMessageTestCase::MissingFixtures)]
+fn execution_error_skip_message_returns_expected_value(#[case] test_case: SkipMessageTestCase) {
+    let error = test_case.make_error();
+    let expected = test_case.expected_skip_message();
+    assert_eq!(error.skip_message(), expected);
 }
 
 #[test]
@@ -207,6 +255,88 @@ fn execution_error_handler_failed_source_returns_inner_error() {
 fn execution_error_skip_source_returns_none() {
     let error = ExecutionError::Skip { message: None };
     assert!(std::error::Error::source(&error).is_none());
+}
+
+// ============================================================================
+// Skip extraction tests (mirrors generated __rstest_bdd_extract_skip_message)
+// ============================================================================
+
+/// Helper function that mirrors the generated `__rstest_bdd_extract_skip_message`.
+///
+/// This allows us to test the extraction logic that is used in generated code.
+/// The `Option<Option<String>>` type is intentional: the outer `Option` distinguishes
+/// skip errors from non-skip errors, while the inner `Option` carries the optional
+/// skip message.
+#[expect(
+    clippy::option_option,
+    reason = "mirrors generated code which uses Option<Option<String>> intentionally"
+)]
+fn extract_skip_message(error: &ExecutionError) -> Option<Option<String>> {
+    if error.is_skip() {
+        Some(error.skip_message().map(String::from))
+    } else {
+        None
+    }
+}
+
+#[test]
+fn extract_skip_message_returns_some_none_for_skip_without_message() {
+    let error = ExecutionError::Skip { message: None };
+    assert_eq!(extract_skip_message(&error), Some(None));
+}
+
+#[test]
+fn extract_skip_message_returns_some_some_for_skip_with_message() {
+    let error = ExecutionError::Skip {
+        message: Some("reason".into()),
+    };
+    assert_eq!(
+        extract_skip_message(&error),
+        Some(Some("reason".to_string()))
+    );
+}
+
+#[test]
+fn extract_skip_message_returns_none_for_step_not_found() {
+    let error = ExecutionError::StepNotFound {
+        index: 0,
+        keyword: StepKeyword::Given,
+        text: "missing".into(),
+        feature_path: "test.feature".into(),
+        scenario_name: "test".into(),
+    };
+    assert_eq!(extract_skip_message(&error), None);
+}
+
+#[test]
+fn extract_skip_message_returns_none_for_handler_failed() {
+    let error = ExecutionError::HandlerFailed {
+        index: 0,
+        keyword: StepKeyword::When,
+        text: "failing".into(),
+        error: Arc::new(StepError::ExecutionError {
+            pattern: "failing".into(),
+            function: "test_fn".into(),
+            message: "boom".into(),
+        }),
+        feature_path: "test.feature".into(),
+        scenario_name: "test".into(),
+    };
+    assert_eq!(extract_skip_message(&error), None);
+}
+
+#[test]
+fn extract_skip_message_returns_none_for_missing_fixtures() {
+    let error = ExecutionError::MissingFixtures(Arc::new(MissingFixturesDetails {
+        step_pattern: "test step".into(),
+        step_location: "test.rs:1".into(),
+        required: vec!["fixture"],
+        missing: vec!["fixture"],
+        available: vec![],
+        feature_path: "test.feature".into(),
+        scenario_name: "test".into(),
+    }));
+    assert_eq!(extract_skip_message(&error), None);
 }
 
 /// Verify that `RuntimeMode` and `TestAttributeHint` have matching variant counts.

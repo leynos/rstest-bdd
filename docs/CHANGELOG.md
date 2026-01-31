@@ -3,6 +3,12 @@
 ## Unreleased
 
 - Mandated `cap-std` and `camino` for cross-platform file system access.
+- Added `ExecutionError` enum for structured step execution failures, replacing
+  string-encoded skip messages with proper error variants: `Skip`, `StepNotFound`,
+  `MissingFixtures`, and `HandlerFailed`. The `ExecutionError` type and
+  `MissingFixturesDetails` struct are now public re-exports from `rstest_bdd`.
+- Deprecated `encode_skip_message` and `decode_skip_message` functions; use
+  `ExecutionError::Skip` variant and `ExecutionError::skip_message()` method instead.
 
 - Deprecated `From<&str>` for `StepKeyword`; use `StepKeyword::try_from` or
   `StepKeyword::from_str` instead.
