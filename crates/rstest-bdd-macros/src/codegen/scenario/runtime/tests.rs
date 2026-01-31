@@ -1,8 +1,10 @@
 //! Tests for runtime scaffolding code generation.
 
 use super::generators::{
-    generate_async_step_executor, generate_skip_decoder, generate_step_executor,
+    generate_async_step_executor, generate_skip_decoder, generate_skip_handler,
+    generate_step_executor,
 };
+use crate::codegen::scenario::ScenarioReturnKind;
 use syn::visit::Visit;
 
 /// Return the identifier of the final segment in a `syn::Path`.
@@ -188,4 +190,26 @@ fn skip_decoder_delegates_to_runtime() {
 
     // Assert the path ends with execution::decode_skip_message using segment-based check
     assert_path_is_execution_decode_skip_message(func_path);
+}
+
+#[test]
+fn skip_handler_returns_unit_for_unit_scenarios() {
+    let output = generate_skip_handler(ScenarioReturnKind::Unit).to_string();
+    assert!(
+        output.contains("return ;") || output.contains("return;"),
+        "expected unit skip handler to return without value: {output}"
+    );
+    assert!(
+        !output.contains("return Ok"),
+        "unit skip handler should not return Ok(()): {output}"
+    );
+}
+
+#[test]
+fn skip_handler_returns_ok_for_fallible_scenarios() {
+    let output = generate_skip_handler(ScenarioReturnKind::ResultUnit).to_string();
+    assert!(
+        output.contains("return Ok"),
+        "expected fallible skip handler to return Ok(()): {output}"
+    );
 }

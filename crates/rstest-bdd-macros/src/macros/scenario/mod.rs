@@ -36,12 +36,31 @@ use crate::parsing::feature::{
     extract_scenario_steps, parse_and_load_feature, ScenarioData,
 };
 use crate::parsing::tags::TagExpression;
+use crate::return_classifier::{ReturnKind, classify_return_type};
 use crate::utils::fixtures::extract_function_fixtures;
 use crate::validation::parameters::process_scenario_outline_examples;
 use crate::validation::placeholder::{ExampleHeaders, validate_step_placeholders};
 
 use self::args::{ScenarioArgs, ScenarioSelector};
 use self::paths::canonical_feature_path;
+
+fn classify_scenario_return(
+    sig: &syn::Signature,
+) -> Result<crate::codegen::scenario::ScenarioReturnKind, syn::Error> {
+    let return_kind = classify_return_type(&sig.output, None)?;
+    match return_kind {
+        ReturnKind::Unit => Ok(crate::codegen::scenario::ScenarioReturnKind::Unit),
+        ReturnKind::ResultUnit => Ok(crate::codegen::scenario::ScenarioReturnKind::ResultUnit),
+        ReturnKind::ResultValue => Err(syn::Error::new_spanned(
+            &sig.output,
+            "fallible scenarios must return Result<(), E> or StepResult<(), E>",
+        )),
+        ReturnKind::Value => Err(syn::Error::new_spanned(
+            &sig.output,
+            "scenario bodies must return () or Result<(), E> or StepResult<(), E>",
+        )),
+    }
+}
 
 struct ScenarioTagFilter {
     expr: TagExpression,
@@ -126,6 +145,9 @@ fn try_scenario(
     process_scenario_outline_examples(sig, examples.as_ref())
         .map_err(proc_macro::TokenStream::from)?;
 
+    let return_kind = classify_scenario_return(sig)
+        .map_err(|err| proc_macro::TokenStream::from(err.into_compile_error()))?;
+
     let (_args, fixture_setup) = extract_function_fixtures(sig)
         .map_err(|err| proc_macro::TokenStream::from(err.into_compile_error()))?;
     let ctx_prelude = fixture_setup.prelude;
@@ -143,6 +165,7 @@ fn try_scenario(
         examples,
         allow_skipped,
         line,
+        return_kind,
         tags: &tags,
         runtime,
     };

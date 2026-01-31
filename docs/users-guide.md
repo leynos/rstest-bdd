@@ -646,6 +646,27 @@ Scenario: Behaviour pending external contract
   Given a dependent service is unavailable
 ```
 
+### Fallible scenario bodies
+
+Scenario bodies may return `Result<(), E>` or `StepResult<(), E>` so the
+annotated function can use `?` for fallible setup or assertions after the steps
+execute. The macro only accepts unit success payloads; returning `Result<T, E>`
+where `T != ()` triggers a compile-time error.
+
+When a step requests a skip, fallible scenarios return `Ok(())` so the test
+completes without a type mismatch. When a fallible scenario returns `Err`, the
+error propagates to the test harness and the scenario is not recorded as passed.
+
+```rust,no_run
+use rstest_bdd_macros::scenario;
+
+#[scenario(path = "features/fallible.feature", name = "Fallible setup")]
+fn fallible_setup() -> Result<(), std::io::Error> {
+    let _config = std::fs::read_to_string("config.toml")?;
+    Ok(())
+}
+```
+
 ### Asserting skipped outcomes
 
 Tests that exercise skip-heavy flows no longer need to match on enums to verify
@@ -1606,8 +1627,8 @@ definitions:
 
 - **Missing Examples column** (`example-column-missing`): When a step in a
   Scenario Outline uses a placeholder (e.g., `<count>`) that has no matching
-  column header in the Examples table, a warning diagnostic is published on
-  the step that references the undefined placeholder. The message lists the
+  column header in the Examples table, a warning diagnostic is published on the
+  step that references the undefined placeholder. The message lists the
   available columns to help identify typos or missing data.
 
 - **Surplus Examples column** (`example-column-surplus`): When an Examples

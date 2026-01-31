@@ -25,6 +25,15 @@ use crate::macros::scenarios::ScenariosTestAttributeHint as TestAttributeHint;
 
 use crate::parsing::placeholder::contains_placeholders;
 
+/// Return types supported by `#[scenario]` bodies.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum ScenarioReturnKind {
+    /// Scenario returns `()` or has no explicit return type.
+    Unit,
+    /// Scenario returns `Result<(), E>` or `StepResult<(), E>`.
+    ResultUnit,
+}
+
 /// Configuration for generating code for a single scenario test.
 pub(crate) struct ScenarioConfig<'a> {
     /// Attributes on the annotated function.
@@ -47,6 +56,8 @@ pub(crate) struct ScenarioConfig<'a> {
     pub(crate) allow_skipped: bool,
     /// Line number where the scenario is declared in the feature file.
     pub(crate) line: u32,
+    /// Return type classification for the scenario body.
+    pub(crate) return_kind: ScenarioReturnKind,
     /// Tags inherited from the feature and scenario declarations.
     pub(crate) tags: &'a [String],
     /// Runtime mode for test execution (sync or async/Tokio).
@@ -157,6 +168,7 @@ where
         tags: config.tags,
         block: config.block,
         allow_skipped: config.allow_skipped,
+        return_kind: config.return_kind,
         is_async: config.runtime.is_async(),
     };
     let test_config = TestTokensConfig {
@@ -221,6 +233,7 @@ where
         tags: config.tags,
         block: config.block,
         allow_skipped: config.allow_skipped,
+        return_kind: config.return_kind,
         is_async: config.runtime.is_async(),
     };
     let outline_config = OutlineTestTokensConfig {

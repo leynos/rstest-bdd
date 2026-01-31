@@ -1,31 +1,29 @@
 # Enable fallible scenario bodies for #[scenario]
 
-This ExecPlan is a living document. The sections `Constraints`,
-`Tolerances`, `Risks`, `Progress`, `Surprises & Discoveries`,
-`Decision Log`, and `Outcomes & Retrospective` must be kept up to date
-as work proceeds.
+This ExecPlan is a living document. The sections `Constraints`, `Tolerances`,
+`Risks`, `Progress`, `Surprises & Discoveries`, `Decision Log`, and
+`Outcomes & Retrospective` must be kept up to date as work proceeds.
 
-Status: DRAFT
+Status: COMPLETE
 
 PLANS.md is not present in this repository.
 
 ## Purpose / big picture
 
 After this change, `#[scenario]` tests can return `Result<(), E>` or
-`StepResult<(), E>` so scenario bodies can use `?` without extra
-boilerplate. When a step requests a skip, the generated test should
-return `Ok(())` for fallible scenarios, and when a scenario body returns
-`Err`, the scenario must not be recorded as passed. Success is observable
-by compiling and running a fallible scenario that uses `?`, by seeing a
-skipped fallible scenario return `Ok(())`, and by confirming that a
-fallible scenario returning `Err` does not leave a passed record in the
-reporting collector.
+`StepResult<(), E>` so scenario bodies can use `?` without extra boilerplate.
+When a step requests a skip, the generated test should return `Ok(())` for
+fallible scenarios, and when a scenario body returns `Err`, the scenario must
+not be recorded as passed. Success is observable by compiling and running a
+fallible scenario that uses `?`, by seeing a skipped fallible scenario return
+`Ok(())`, and by confirming that a fallible scenario returning `Err` does not
+leave a passed record in the reporting collector.
 
 ## Constraints
 
 - Follow ADR-006 exactly: allow only `Result<(), E>` or `StepResult<(), E>`
-  for fallible scenario bodies, return `Ok(())` on skips, and ensure `Err`
-  does not record a pass.
+  for fallible scenario bodies, return `Ok(())` on skips, and ensure `Err` does
+  not record a pass.
 - Reuse the existing return-type classifier in
   `crates/rstest-bdd-macros/src/return_classifier.rs`.
 - Do not introduce new external dependencies.
@@ -51,71 +49,76 @@ reporting collector.
 ## Risks
 
 - Risk: `?` in fallible scenario bodies might bypass the error-handling
-  shim if the body is not wrapped correctly.
-  Severity: high
-  Likelihood: medium
-  Mitigation: wrap the body in a closure/async block so `?` is captured
-  and matched before returning.
+  shim if the body is not wrapped correctly. Severity: high Likelihood: medium
+  Mitigation: wrap the body in a closure/async block so `?` is captured and
+  matched before returning.
 
 - Risk: async scenarios might need a different wrapper to avoid borrow
-  or lifetime issues.
-  Severity: medium
-  Likelihood: medium
-  Mitigation: use an `async { ... }` block and `await` the result so the
-  error handling mirrors sync behaviour.
+  or lifetime issues. Severity: medium Likelihood: medium Mitigation: use an
+  `async { ... }` block and `await` the result so the error handling mirrors
+  sync behaviour.
 
 - Risk: skip handler return types could mismatch the scenario signature.
-  Severity: medium
-  Likelihood: low
-  Mitigation: generate skip handler code based on the classified scenario
-  return kind and add unit tests that assert the emitted tokens.
+  Severity: medium Likelihood: low Mitigation: generate skip handler code based
+  on the classified scenario return kind and add unit tests that assert the
+  emitted tokens.
 
 ## Progress
 
 - [x] (2026-01-30 00:00Z) Drafted ExecPlan for fallible scenario bodies.
-- [ ] Stage A: Confirm existing scenario codegen and reporting behaviour.
-- [ ] Stage B: Add scenario return classification and fallible body wrapper.
-- [ ] Stage C: Update skip handler generation for fallible returns.
-- [ ] Stage D: Add unit + behavioural tests for fallible scenarios.
-- [ ] Stage E: Update docs and roadmap; run quality gates.
+- [x] (2026-01-31 00:00Z) Stage A: Confirmed scenario codegen and reporting.
+- [x] (2026-01-31 00:00Z) Stage B: Added return classification and body wrapper.
+- [x] (2026-01-31 00:00Z) Stage C: Updated skip handler for fallible returns.
+- [x] (2026-01-31 00:00Z) Stage D: Added unit + behavioural tests.
+- [x] (2026-01-31 00:00Z) Stage E: Updated docs and roadmap; ran quality gates.
 
 ## Surprises & discoveries
 
-None yet.
+- Observation: `make fmt` relies on `fd`, which is not installed in this
+  environment. Evidence: `mdformat-all` failed with
+  `/root/.local/bin/mdformat-all: line 20: fd: command not found`. Impact:
+  Introduced a temporary `fd` shim for formatting runs; quality gates still
+  need to be re-run after final edits.
 
 ## Decision log
 
 - Decision: Use the existing return classifier to detect scenario return
-  kinds and reject `Result<T, E>` where `T != ()` with the ADR-006
-  diagnostic message.
-  Rationale: Keeps step and scenario return semantics aligned while
-  meeting the ADR requirements.
-  Date/Author: 2026-01-30 / Codex
+  kinds and reject `Result<T, E>` where `T != ()` with the ADR-006 diagnostic
+  message. Rationale: Keeps step and scenario return semantics aligned while
+  meeting the ADR requirements. Date/Author: 2026-01-30 / Codex
 
 - Decision: Wrap fallible scenario bodies in a closure (sync) or async
-  block (async) so `?` returns are captured and can be matched.
-  Rationale: Prevents early returns from bypassing the scenario guard.
-  Date/Author: 2026-01-30 / Codex
+  block (async) so `?` returns are captured and can be matched. Rationale:
+  Prevents early returns from bypassing the scenario guard. Date/Author:
+  2026-01-30 / Codex
 
 - Decision: Generate skip handler code that returns `Ok(())` for fallible
-  scenarios and `return;` for unit scenarios.
-  Rationale: Ensures type-correct short-circuiting without affecting
-  existing unit-return behaviour.
+  scenarios and `return;` for unit scenarios. Rationale: Ensures type-correct
+  short-circuiting without affecting existing unit-return behaviour.
   Date/Author: 2026-01-30 / Codex
 
 ## Outcomes & retrospective
 
-(To be completed after implementation.)
+- Outcome: Added fallible scenario return support for `Result<(), E>` and
+  `StepResult<(), E>`, returning `Ok(())` on skips and preventing `Err` results
+  from recording a pass.
+- Outcome: Added unit coverage for the skip handler and behavioural tests for
+  success, skip, and error scenarios, plus a trybuild fixture for
+  `Result<T, E>` rejection.
+- Outcome: Updated the ergonomics design notes, user guide, and roadmap entry,
+  then validated quality gates.
+- Retrospective: `make fmt` still depends on `fd`; the temporary shim works but
+  documenting or vendoring a fallback would reduce friction.
 
 ## Context and orientation
 
 `#[scenario]` lives in `crates/rstest-bdd-macros/src/macros/scenario/mod.rs`
-and generates tests via `crates/rstest-bdd-macros/src/codegen/scenario.rs`.
-The runtime scaffolding (scenario guard, skip handler, step executor loop)
-comes from `crates/rstest-bdd-macros/src/codegen/scenario/runtime/`.
+and generates tests via `crates/rstest-bdd-macros/src/codegen/scenario.rs`. The
+runtime scaffolding (scenario guard, skip handler, step executor loop) comes
+from `crates/rstest-bdd-macros/src/codegen/scenario/runtime/`.
 `__RstestBddScenarioReportGuard` records `Passed` on drop if not already
-recorded; this is the key mechanism that must be updated to avoid marking
-`Err` returns as passed. The shared return-type classifier lives in
+recorded; this is the key mechanism that must be updated to avoid marking `Err`
+returns as passed. The shared return-type classifier lives in
 `crates/rstest-bdd-macros/src/return_classifier.rs` and already recognises
 `Result` and `StepResult` paths.
 
@@ -137,84 +140,80 @@ Docs to update:
 
 Reference documents for style and context (no direct changes expected):
 `docs/rstest-bdd-design.md`, `docs/rstest-bdd-language-server-design.md`,
-`docs/rust-testing-with-rstest-fixtures.md`,
-`docs/rust-doctest-dry-guide.md`,
-`docs/complexity-antipatterns-and-refactoring-strategies.md`,
-and `docs/gherkin-syntax.md`.
+`docs/rust-testing-with-rstest-fixtures.md`, `docs/rust-doctest-dry-guide.md`,
+`docs/complexity-antipatterns-and-refactoring-strategies.md`, and
+`docs/gherkin-syntax.md`.
 
 ## Plan of work
 
-Stage A: inspect and confirm current behaviour (no code changes).
-Read the scenario macro, runtime generators, and reporting guard to
-identify the exact injection points for return handling and skip returns.
-If the existing guard or skip handler already handles fallible results,
-stop and update this plan.
+Stage A: inspect and confirm current behaviour (no code changes). Read the
+scenario macro, runtime generators, and reporting guard to identify the exact
+injection points for return handling and skip returns. If the existing guard or
+skip handler already handles fallible results, stop and update this plan.
 
-Stage B: classify scenario return types and wrap fallible bodies.
-In `crates/rstest-bdd-macros/src/macros/scenario/mod.rs`, classify the
-scenario return type using `classify_return_type`. Introduce a small
-scenario-specific return enum (for example, `ScenarioReturnKind`) with
-`Unit` and `ResultUnit`, and reject `ResultValue` with the ADR-006 error
-message. Propagate the scenario return kind into `ScenarioConfig` and
-`ScenarioMetadata` so runtime generation can adapt. In
-`crates/rstest-bdd-macros/src/codegen/scenario/runtime.rs`, wrap the
-scenario body in a closure or async block when `ResultUnit` so `?` and
+Stage B: classify scenario return types and wrap fallible bodies. In
+`crates/rstest-bdd-macros/src/macros/scenario/mod.rs`, classify the scenario
+return type using `classify_return_type`. Introduce a small scenario-specific
+return enum (for example, `ScenarioReturnKind`) with `Unit` and `ResultUnit`,
+and reject `ResultValue` with the ADR-006 error message. Propagate the scenario
+return kind into `ScenarioConfig` and `ScenarioMetadata` so runtime generation
+can adapt. In `crates/rstest-bdd-macros/src/codegen/scenario/runtime.rs`, wrap
+the scenario body in a closure or async block when `ResultUnit` so `?` and
 `return Err(...)` are captured and matched. On `Err`, call
 `__rstest_bdd_scenario_guard.mark_recorded()` before returning the error.
 
-Stage C: update skip handler generation for fallible returns.
-In `crates/rstest-bdd-macros/src/codegen/scenario/runtime/generators/
-scenario.rs`, make `generate_skip_handler` accept the scenario return
-kind (or a boolean). Emit `return Ok(())` for fallible scenarios and
-`return;` for unit scenarios. Thread this choice through
-`generate_common_components` and the code component assembly so both
-regular and outline scenarios get the correct skip handler.
+Stage C: update skip handler generation for fallible returns. In
+`crates/rstest-bdd-macros/src/codegen/scenario/runtime/generators/ scenario.rs`,
+ make `generate_skip_handler` accept the scenario return kind (or a boolean).
+Emit `return Ok(())` for fallible scenarios and `return;` for unit scenarios.
+Thread this choice through `generate_common_components` and the code component
+assembly so both regular and outline scenarios get the correct skip handler.
 
 Stage D: add tests.
 
 Unit tests:
 
 - Add generator tests in
-  `crates/rstest-bdd-macros/src/codegen/scenario/runtime/tests.rs` to
-  assert the skip handler emits `return Ok(())` for fallible scenarios
-  and `return;` for unit scenarios.
+  `crates/rstest-bdd-macros/src/codegen/scenario/runtime/tests.rs` to assert
+  the skip handler emits `return Ok(())` for fallible scenarios and `return;`
+  for unit scenarios.
 - Add unit tests in a new or existing macro test module to verify that
-  `Result<(), E>` is accepted and `Result<T, E>` (T != ()) yields the
-  ADR-006 compile-time error string.
+  `Result<(), E>` is accepted and `Result<T, E>` (T != ()) yields the ADR-006
+  compile-time error string.
 
 Behavioural tests:
 
 - Add a new feature file under `crates/rstest-bdd/tests/features/` with
   scenarios that exercise fallible bodies (one successful, one skipped).
 - Add an integration test file under `crates/rstest-bdd/tests/` that
-  defines `#[scenario]` functions returning `Result<(), E>` and uses `?`
-  inside the body. Ensure the skipped scenario returns `Ok(())` and
-  records a skipped status.
+  defines `#[scenario]` functions returning `Result<(), E>` and uses `?` inside
+  the body. Ensure the skipped scenario returns `Ok(())` and records a skipped
+  status.
 - Add a fallible scenario function that returns `Err` and mark it
-  `#[ignore]`, then add a separate `#[test]` that calls it directly,
-  asserts it returns `Err`, and confirms `drain_reports()` does not
-  contain a `Passed` record for that scenario.
+  `#[ignore]`, then add a separate `#[test]` that calls it directly, asserts it
+  returns `Err`, and confirms `drain_reports()` does not contain a `Passed`
+  record for that scenario.
 
 Trybuild tests:
 
 - Add a new UI fixture under `crates/rstest-bdd/tests/ui_macros/` that
-  defines a `#[scenario]` returning `Result<u8, E>` and asserts the
-  compile error matches ADR-006. Register the fixture in
+  defines a `#[scenario]` returning `Result<u8, E>` and asserts the compile
+  error matches ADR-006. Register the fixture in
   `crates/rstest-bdd/tests/trybuild_macros.rs`.
 
 Stage E: documentation and roadmap updates.
 
 - Update `docs/users-guide.md` with a new subsection under the scenario
-  or skipping guidance showing `Result<(), E>` and `StepResult<(), E>`
-  bodies, plus a note that skipped scenarios return `Ok(())`.
+  or skipping guidance showing `Result<(), E>` and `StepResult<(), E>` bodies,
+  plus a note that skipped scenarios return `Ok(())`.
 - Update the relevant design document
   (`docs/ergonomics-and-developer-experience.md` or
-  `docs/rstest-bdd-design.md`) to capture the final design and any
-  decisions made during implementation.
+  `docs/rstest-bdd-design.md`) to capture the final design and any decisions
+  made during implementation.
 - Mark roadmap item 5.1.6 as done in `docs/roadmap.md`.
 
-Finish with formatting and quality gates, then re-check the plan for any
-new decisions that must be logged.
+Finish with formatting and quality gates, then re-check the plan for any new
+decisions that must be logged.
 
 ## Concrete steps
 
@@ -261,14 +260,14 @@ The change is complete when:
 
 ## Idempotence and recovery
 
-All steps are re-runnable. If a stage fails, fix the cause and re-run the
-same commands. For trybuild snapshots, update only the expected `.stderr`
-files after validating the new diagnostics are correct.
+All steps are re-runnable. If a stage fails, fix the cause and re-run the same
+commands. For trybuild snapshots, update only the expected `.stderr` files
+after validating the new diagnostics are correct.
 
 ## Artifacts and notes
 
-Record any new diagnostics, helper function signatures, or test output
-snippets here as they are produced during implementation.
+Record any new diagnostics, helper function signatures, or test output snippets
+here as they are produced during implementation.
 
 ## Interfaces and dependencies
 
@@ -279,11 +278,11 @@ In `crates/rstest-bdd-macros/src/macros/scenario/mod.rs`:
 
 - A helper that classifies the scenario return type using
   `classify_return_type` and returns a `ScenarioReturnKind` (Unit or
-  ResultUnit). It must reject `Result<T, E>` where `T != ()` with the
-  ADR-006 message.
+  ResultUnit). It must reject `Result<T, E>` where `T != ()` with the ADR-006
+  message.
 
-In `crates/rstest-bdd-macros/src/codegen/scenario/runtime/generators/
-scenario.rs`:
+In
+`crates/rstest-bdd-macros/src/codegen/scenario/runtime/generators/scenario.rs`:
 
 - `generate_skip_handler` should accept the scenario return kind and emit
   `return Ok(())` for fallible scenarios.
@@ -291,5 +290,15 @@ scenario.rs`:
 In `crates/rstest-bdd-macros/src/codegen/scenario/runtime.rs`:
 
 - A helper that builds the scenario body tokens based on return kind and
-  async mode, wrapping fallible bodies in a closure/async block and
-  marking the scenario guard as recorded before returning `Err`.
+  async mode, wrapping fallible bodies in a closure/async block and marking the
+  scenario guard as recorded before returning `Err`.
+
+## Revision note
+
+- 2026-01-31: Updated progress through Stage D, documented the `fd` tooling
+  gap during formatting, and noted remaining quality gates. This clarifies the
+  remaining work is limited to running validation commands and addressing any
+  resulting failures.
+- 2026-01-31: Marked Stage E complete after running `make check-fmt`,
+  `make lint`, `make test`, plus Markdown validation (`make markdownlint`,
+  `make nixie`).

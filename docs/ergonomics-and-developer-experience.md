@@ -202,6 +202,36 @@ fn create_user(user_data: NewUser) {
 }
 ```
 
+### 2.4. Fallible scenario bodies
+
+**Goal:** Allow scenario bodies to return `Result<(), E>` or
+`StepResult<(), E>` so they can use `?` without additional wrappers, while
+keeping scenario status reporting accurate.
+
+Proposed Design:
+
+1. **Return classification:** reuse the existing return-type classifier to
+   accept only `Result<(), E>` or `StepResult<(), E>` for scenario bodies.
+   Reject `Result<T, E>` where `T != ()` with a clear compile-time error.
+2. **Body wrapper:** wrap fallible scenario bodies in a closure (sync) or
+   async block (async) to capture the `Result`. When the body returns `Err`,
+   mark the scenario guard as recorded and propagate the error so the test
+   fails without recording a passed scenario.
+3. **Skip handling:** when a step requests a skip, return `Ok(())` for fallible
+   scenarios to keep the short-circuit path type-correct.
+
+**User Experience:**
+
+```rust,no_run
+use rstest_bdd_macros::scenario;
+
+#[scenario(path = "features/fallible.feature", name = "Fallible setup")]
+fn fallible_setup() -> Result<(), std::io::Error> {
+    let _config = std::fs::read_to_string("config.toml")?;
+    Ok(())
+}
+```
+
 ## 3. Improving data flow and state management
 
 These features focus on making state management across steps more robust and

@@ -1,0 +1,5 @@
+error: fallible scenarios must return Result<(), E> or StepResult<(), E>
+ --> tests/fixtures_macros/scenario_result_requires_unit.rs:5:30
+  |
+5 | fn scenario_result_payload() -> Result<u8, &'static str> {
+  |                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^

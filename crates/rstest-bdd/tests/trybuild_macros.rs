@@ -75,6 +75,7 @@ fn run_failing_macro_tests(t: &trybuild::TestCases) {
         MacroFixtureCase::from("scenario_index_out_of_range.rs"),
         MacroFixtureCase::from("scenario_duplicate_name.rs"),
         MacroFixtureCase::from("scenario_tags_no_match.rs"),
+        MacroFixtureCase::from("scenario_result_requires_unit.rs"),
         MacroFixtureCase::from("step_macros_invalid_identifier.rs"),
         MacroFixtureCase::from("step_tuple_pattern.rs"),
         MacroFixtureCase::from("step_struct_pattern.rs"),
