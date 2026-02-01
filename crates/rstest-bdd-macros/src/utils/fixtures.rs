@@ -26,6 +26,7 @@ pub(crate) fn extract_function_fixtures(
 
         let fixture_name = resolve_fixture_name(pat_ty)?;
         let binding = ensure_binding_ident(pat_ty, counter)?;
+        let cell_index = counter;
         counter += 1;
 
         let name_lit = syn::LitStr::new(&fixture_name, proc_macro2::Span::call_site());
@@ -34,7 +35,8 @@ pub(crate) fn extract_function_fixtures(
         if matches!(ty, syn::Type::Reference(_)) {
             inserts.push(quote! { ctx.insert(#name_lit, &#binding); });
         } else {
-            let (pre, insert, post) = build_non_ref_fixture_binding(&binding, ty, &name_lit);
+            let (pre, insert, post) =
+                build_non_ref_fixture_binding(&binding, ty, &name_lit, cell_index);
             prelude.push(pre);
             inserts.push(insert);
             postlude.push(post);
@@ -55,8 +57,9 @@ fn build_non_ref_fixture_binding(
     binding: &syn::Ident,
     ty: &syn::Type,
     name_lit: &syn::LitStr,
+    cell_index: usize,
 ) -> (TokenStream2, TokenStream2, TokenStream2) {
-    let cell_ident = format_ident!("__rstest_bdd_cell_{}", binding);
+    let cell_ident = format_ident!("__rstest_bdd_cell_{cell_index}");
 
     let prelude = quote! {
         let #cell_ident: ::std::cell::RefCell<Box<dyn ::std::any::Any>> =
@@ -131,4 +134,36 @@ fn find_from_attr(attrs: &[syn::Attribute]) -> syn::Result<Option<syn::Path>> {
         }
     }
     Ok(None)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use syn::parse_quote;
+
+    #[test]
+    #[expect(
+        clippy::expect_used,
+        reason = "test asserts fixture extraction for underscore bindings"
+    )]
+    fn non_ref_fixture_cell_ident_uses_index() {
+        let mut sig: syn::Signature = parse_quote! {
+            fn scenario(_state: MyState)
+        };
+        let (_idents, code) =
+            extract_function_fixtures(&mut sig).expect("fixture extraction should succeed");
+        let prelude = code
+            .prelude
+            .first()
+            .expect("owned fixtures should generate a prelude binding");
+        let prelude_str = prelude.to_string();
+        assert!(
+            prelude_str.contains("__rstest_bdd_cell_0"),
+            "cell identifier should use the fixture index for underscore bindings"
+        );
+        assert!(
+            !prelude_str.contains("__rstest_bdd_cell__"),
+            "cell identifier should not embed the raw underscore binding"
+        );
+    }
 }

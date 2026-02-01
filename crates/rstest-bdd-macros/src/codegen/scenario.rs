@@ -12,7 +12,8 @@ mod runtime;
 pub(crate) use domain::*;
 pub(crate) use helpers::process_steps;
 use helpers::{
-    generate_case_attrs, generate_indexed_case_attrs, process_steps_substituted, row_has_values,
+    generate_case_attrs, generate_indexed_case_attrs, generate_underscore_expect,
+    process_steps_substituted, row_has_values,
 };
 pub(crate) use metadata::{FeaturePath, ScenarioName};
 use runtime::{
@@ -172,10 +173,12 @@ where
     let attrs = config.attrs;
     let vis = config.vis;
     let sig = config.sig;
+    let underscore_expect = generate_underscore_expect(sig);
     TokenStream::from(quote! {
         #test_attrs
         #(#case_attrs)*
         #(#attrs)*
+        #underscore_expect
         #vis #sig { #body }
     })
 }
@@ -242,10 +245,12 @@ where
     let test_attrs = generate_test_attrs(config.attrs, config.runtime);
     let attrs = config.attrs;
     let vis = config.vis;
+    let underscore_expect = generate_underscore_expect(&modified_sig);
     TokenStream::from(quote! {
         #test_attrs
         #(#case_attrs)*
         #(#attrs)*
+        #underscore_expect
         #vis #modified_sig { #body }
     })
 }

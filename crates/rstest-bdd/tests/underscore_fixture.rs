@@ -40,6 +40,4 @@ fn events_decode(#[from(state)] state: &StreamingState) {
     path = "tests/features/python_streaming_parser.feature",
     name = "Events decode into published structs"
 )]
-fn events_decode_into_structs(state: StreamingState) {
-    let _ = state;
-}
+fn events_decode_into_structs(#[from(state)] _state: StreamingState) {}

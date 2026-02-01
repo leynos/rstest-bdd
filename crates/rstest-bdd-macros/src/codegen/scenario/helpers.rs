@@ -42,6 +42,58 @@ pub(crate) fn row_has_values(row: &[String]) -> bool {
     row.iter().any(|cell| !cell.is_empty())
 }
 
+/// Returns true when any parameter uses an underscore-prefixed identifier.
+///
+/// The single underscore `_` pattern is ignored. Only identifier patterns are
+/// considered; non-identifier patterns are ignored.
+///
+/// # Examples
+///
+/// ```rust,ignore
+/// use syn::parse_quote;
+/// use crate::codegen::scenario::helpers::has_underscore_prefixed_params;
+///
+/// let sig: syn::Signature = parse_quote! { fn test(_state: State) };
+/// assert!(has_underscore_prefixed_params(&sig));
+/// ```
+pub(crate) fn has_underscore_prefixed_params(sig: &syn::Signature) -> bool {
+    sig.inputs.iter().any(|arg| {
+        let syn::FnArg::Typed(pat_type) = arg else {
+            return false;
+        };
+        let syn::Pat::Ident(pat_ident) = pat_type.pat.as_ref() else {
+            return false;
+        };
+        let name = pat_ident.ident.to_string();
+        name.starts_with('_') && name.len() > 1
+    })
+}
+
+/// Emit a lint suppression attribute when underscore-prefixed parameters exist.
+///
+/// # Examples
+///
+/// ```rust,ignore
+/// use syn::parse_quote;
+/// use crate::codegen::scenario::helpers::generate_underscore_expect;
+///
+/// let sig: syn::Signature = parse_quote! { fn test(_state: State) };
+/// let attr = generate_underscore_expect(&sig);
+/// assert!(!attr.is_empty());
+/// ```
+pub(crate) fn generate_underscore_expect(sig: &syn::Signature) -> TokenStream2 {
+    if has_underscore_prefixed_params(sig) {
+        quote! {
+            #[expect(
+                clippy::used_underscore_binding,
+                reason = "rstest-bdd scenario parameters are used by generated code"
+            )]
+        }
+    } else {
+        quote! {}
+    }
+}
+
 fn resolve_keyword_tokens(steps: &[crate::parsing::feature::ParsedStep]) -> Vec<TokenStream2> {
     // Resolve textual conjunctions (And/But) to the previous primary keyword
     // without depending on the validation module, which is behind an optional
@@ -300,4 +352,21 @@ pub(crate) fn process_steps_substituted(
     }
 
     Ok((keyword_tokens, values, docstrings, tables))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rstest::rstest;
+    use syn::parse_quote;
+
+    #[rstest]
+    #[case(parse_quote! { fn test(_state: State) }, true)]
+    #[case(parse_quote! { fn test(_: State) }, false)]
+    #[case(parse_quote! { fn test(state: State) }, false)]
+    #[case(parse_quote! { fn test(normal: i32, _unused: State) }, true)]
+    #[case(parse_quote! { fn test() }, false)]
+    fn detects_underscore_prefixed_params(#[case] sig: syn::Signature, #[case] expected: bool) {
+        assert_eq!(has_underscore_prefixed_params(&sig), expected);
+    }
 }

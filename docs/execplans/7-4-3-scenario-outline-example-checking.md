@@ -13,8 +13,8 @@ This document follows the ExecPlans skill template.
 
 After this change, the `rstest-bdd-server` language server will emit on-save
 diagnostics that catch mismatches between Scenario Outline placeholders
-(`<column>`) and Examples table column headers. Users will see warnings in their
-editor when:
+(`<column>`) and Examples table column headers. Users will see warnings in
+their editor when:
 
 1. **Missing column**: A step in a Scenario Outline uses a placeholder
    (e.g., `<count>`) that has no matching column header in the Examples table.
@@ -41,7 +41,8 @@ Hard invariants that must hold throughout implementation:
 
 - **Diagnostics on feature files only**: The mismatch is a Gherkin structural
   issue. Reporting on the feature file provides the most actionable feedback.
-- **Use existing indexing infrastructure**: Extend the current `FeatureFileIndex`
+- **Use existing indexing infrastructure**: Extend the current
+  `FeatureFileIndex`
   and related structures rather than building parallel systems.
 - **Single source of truth for placeholders**: Use a regex consistent with the
   macros crate's `PLACEHOLDER_RE` pattern (`<([^>\s][^>]*)>`).
@@ -122,7 +123,8 @@ Known uncertainties that might affect the plan:
 
 ## Surprises & Discoveries
 
-1. **File length limit refactoring**: The `indexing/feature.rs` file exceeded the
+1. **File length limit refactoring**: The `indexing/feature.rs` file exceeded
+   the
    400-line limit after adding scenario outline indexing. Solution: extracted
    scenario outline helper functions to a new `indexing/feature/outline.rs`
    submodule.
@@ -172,15 +174,15 @@ editing their Gherkin specifications.
 outline's step placeholders.
 
 **Rationale:** Each Examples table should be self-contained. A column is
-"surplus" if that specific table has it but no step references it. A placeholder
-is "missing" if that specific table lacks the column.
+"surplus" if that specific table has it but no step references it. A
+placeholder is "missing" if that specific table lacks the column.
 
 ## Outcomes & Retrospective
 
 **Completed:** 2026-01-21
 
-**Summary:** Successfully implemented scenario outline example column validation
-diagnostics for the rstest-bdd language server. The implementation:
+**Summary:** Successfully implemented scenario outline example column
+validation diagnostics for the rstest-bdd language server. The implementation:
 
 - Added new data structures (`IndexedScenarioOutline`, `IndexedExamplesTable`)
 - Extended feature file indexing to track scenario outlines and their Examples
@@ -193,7 +195,8 @@ diagnostics for the rstest-bdd language server. The implementation:
 
 **Files changed:** 14 files (10 modified, 4 new)
 
-- New: `indexing/feature/outline.rs`, `handlers/diagnostics/scenario_outline.rs`,
+- New: `indexing/feature/outline.rs`,
+  `handlers/diagnostics/scenario_outline.rs`,
   `tests/diagnostics_scenario_outline.rs`, `docs/execplans/7-4-3-*.md`
 
 **Quality gates:** All passed (check-fmt, lint, test)
@@ -285,7 +288,8 @@ pub struct IndexedExamplesTable {
 
 - **Scenario Outline placeholder**: A `<name>` token in a scenario outline step
   that is substituted with values from the Examples table at runtime.
-- **Examples table column**: A header cell in an Examples table (e.g., `| name |`
+- **Examples table column**: A header cell in an Examples table (e.g.,
+  `| name |`
   becomes column "name").
 - **Missing column**: A placeholder referenced in steps but absent from the
   Examples table headers.
@@ -336,8 +340,8 @@ Review existing infrastructure and design the approach. No code changes.
    ```
 
 3. Update `feature.rs` `index_feature_text()` to detect scenario outlines
-   (by checking `scenario.keyword` for "Scenario Outline" or "Scenario Template")
-   and populate the new structures.
+   (by checking `scenario.keyword` for "Scenario Outline" or "Scenario
+   Template") and populate the new structures.
 
 ### Stage C: Implement Diagnostic Computation
 
