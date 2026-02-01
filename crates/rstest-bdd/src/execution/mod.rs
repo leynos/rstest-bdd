@@ -249,7 +249,7 @@ pub struct StepExecutionRequest<'a> {
 /// * `Ok(None)` - Step succeeded without returning a value
 /// * `Err(ExecutionError::Skip { .. })` - Step requested to be skipped
 /// * `Err(ExecutionError::StepNotFound { .. })` - Step pattern not in registry
-/// * `Err(ExecutionError::MissingFixtures { .. })` - Required fixtures missing
+/// * `Err(ExecutionError::MissingFixtures(..))` - Required fixtures missing
 /// * `Err(ExecutionError::HandlerFailed { .. })` - Step handler returned error
 ///
 /// # Errors

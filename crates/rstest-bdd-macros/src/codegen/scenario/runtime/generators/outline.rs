@@ -36,7 +36,6 @@ fn generate_step_executor_loop_outline_impl(
 
     quote! {
         let mut __rstest_bdd_failed: Option<String> = None;
-        let mut __rstest_bdd_failed_at: Option<usize> = None;
         const __RSTEST_BDD_ALL_STEPS: &[&[(#path::StepKeyword, &str, Option<&str>, Option<&[&[&str]]>)]] = &[
             #(#row_arrays),*
         ];

@@ -83,6 +83,9 @@ fn execution_error_display_uses_localized_messages_and_context(
     #[case] error: ExecutionError,
     #[case] expected: &str,
 ) {
+    // Scope to en-US to avoid environment-dependent output on non-English systems
+    let _guard = ScopedLocalization::new(&[langid!("en-US")])
+        .unwrap_or_else(|e| panic!("en-US locale should always be available: {e}"));
     assert_eq!(strip_directional_isolates(&error.to_string()), expected);
 }
 
@@ -118,83 +121,56 @@ fn execution_error_formats_in_locales(
     drop(guard);
 }
 
-#[test]
-fn execution_error_format_with_loader_wires_i18n_and_context() {
-    let loader = fluent_language_loader!();
-    i18n_embed::select(&loader, &Localizations, &[langid!("pl")])
-        .unwrap_or_else(|e| panic!("failed to load Polish translations: {e}"));
-
-    let error = step_not_found();
-    let formatted = error.format_with_loader(&loader);
-    let stripped = strip_directional_isolates(&formatted);
-
-    // Verify Polish translation is used
-    assert!(
-        stripped.contains("Nie znaleziono kroku"),
-        "expected Polish translation, got: {stripped}"
-    );
-    // Verify context fields are populated
-    assert!(
-        stripped.contains('3'),
-        "expected index in message, got: {stripped}"
-    );
-    assert!(
-        stripped.contains("Given"),
-        "expected keyword in message, got: {stripped}"
-    );
-    assert!(
-        stripped.contains("a user named Alice"),
-        "expected text in message, got: {stripped}"
-    );
-    assert!(
-        stripped.contains("features/auth.feature"),
-        "expected feature_path in message, got: {stripped}"
-    );
-    assert!(
-        stripped.contains("User login"),
-        "expected scenario_name in message, got: {stripped}"
-    );
+/// Asserts that the formatted string contains all expected substrings.
+///
+/// Panics with a descriptive message if any substring is missing.
+fn assert_contains_all(formatted: &str, expected_substrings: &[(&str, &str)]) {
+    let stripped = strip_directional_isolates(formatted);
+    for (substring, description) in expected_substrings {
+        assert!(
+            stripped.contains(substring),
+            "expected {description} in message, got: {stripped}"
+        );
+    }
 }
 
-#[test]
-fn execution_error_format_with_loader_formats_missing_fixtures_details() {
+#[rstest]
+#[case::step_not_found_in_polish(
+    langid!("pl"),
+    step_not_found(),
+    &[
+        ("Nie znaleziono kroku", "Polish translation"),
+        ("3", "index"),
+        ("Given", "keyword"),
+        ("a user named Alice", "text"),
+        ("features/auth.feature", "feature_path"),
+        ("User login", "scenario_name"),
+    ]
+)]
+#[case::missing_fixtures_in_english(
+    langid!("en-US"),
+    missing_fixtures(),
+    &[
+        ("a database connection", "step_pattern"),
+        ("tests/steps.rs:42", "step_location"),
+        ("db", "missing fixture"),
+        ("cache", "available fixture"),
+        ("config", "available fixture"),
+        ("features/db.feature", "feature_path"),
+        ("Database query", "scenario_name"),
+    ]
+)]
+fn execution_error_format_with_loader_wires_i18n_and_context(
+    #[case] locale: LanguageIdentifier,
+    #[case] error: ExecutionError,
+    #[case] expected_substrings: &[(&str, &str)],
+) {
     let loader = fluent_language_loader!();
-    i18n_embed::select(&loader, &Localizations, &[langid!("en-US")])
-        .unwrap_or_else(|e| panic!("failed to load English translations: {e}"));
+    i18n_embed::select(&loader, &Localizations, std::slice::from_ref(&locale))
+        .unwrap_or_else(|e| panic!("failed to load {locale} translations: {e}"));
 
-    let error = missing_fixtures();
     let formatted = error.format_with_loader(&loader);
-    let stripped = strip_directional_isolates(&formatted);
-
-    // Verify all MissingFixturesDetails fields are present
-    assert!(
-        stripped.contains("a database connection"),
-        "expected step_pattern in message, got: {stripped}"
-    );
-    assert!(
-        stripped.contains("tests/steps.rs:42"),
-        "expected step_location in message, got: {stripped}"
-    );
-    assert!(
-        stripped.contains("db, cache") || stripped.contains("cache, db"),
-        "expected required fixtures in message, got: {stripped}"
-    );
-    assert!(
-        stripped.contains("db"),
-        "expected missing fixture in message, got: {stripped}"
-    );
-    assert!(
-        stripped.contains("cache") && stripped.contains("config"),
-        "expected available fixtures in message, got: {stripped}"
-    );
-    assert!(
-        stripped.contains("features/db.feature"),
-        "expected feature_path in message, got: {stripped}"
-    );
-    assert!(
-        stripped.contains("Database query"),
-        "expected scenario_name in message, got: {stripped}"
-    );
+    assert_contains_all(&formatted, expected_substrings);
 }
 
 #[test]

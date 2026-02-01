@@ -55,7 +55,6 @@ pub(super) fn generate_step_result_handler(callee: &TokenStream2) -> TokenStream
                 } else {
                     // Store non-skip errors for deferred panic after loop
                     __rstest_bdd_failed = Some(format!("{}", __rstest_bdd_error));
-                    __rstest_bdd_failed_at = Some(__rstest_bdd_index);
                     break;
                 }
             }
@@ -85,7 +84,6 @@ fn generate_step_executor_loop_impl(
 
     quote! {
         let mut __rstest_bdd_failed: Option<String> = None;
-        let mut __rstest_bdd_failed_at: Option<usize> = None;
         let __rstest_bdd_steps = [#((#keyword_tokens, #values, #docstrings, #tables)),*];
         for (__rstest_bdd_index, (__rstest_bdd_keyword, __rstest_bdd_text, __rstest_bdd_docstring, __rstest_bdd_table)) in __rstest_bdd_steps.iter().copied().enumerate() {
             #result_handler
@@ -162,7 +160,6 @@ generate_step_executor_loop_fn! {
     ///
     /// ```text
     /// let mut __rstest_bdd_failed: Option<String> = None;
-    /// let mut __rstest_bdd_failed_at: Option<usize> = None;
     /// let __rstest_bdd_steps = [(keyword, text, docstring, table), ...];
     /// for (index, (keyword, text, docstring, table)) in steps.iter().enumerate() {
     ///     match __rstest_bdd_execute_single_step(...) {

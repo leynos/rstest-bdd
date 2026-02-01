@@ -174,7 +174,8 @@ impl ExecutionError {
     ///     use i18n_embed::LanguageLoader;
     ///     use rstest_bdd::Localizations;
     ///     let loader = fluent_language_loader!();
-    ///     i18n_embed::select(&loader, &Localizations, &[langid!("en-US")]).unwrap();
+    ///     i18n_embed::select(&loader, &Localizations, &[langid!("en-US")])
+    ///         .expect("en-US locale should always be available");
     ///     loader
     /// };
     /// let error = ExecutionError::Skip { message: Some("not implemented".into()) };

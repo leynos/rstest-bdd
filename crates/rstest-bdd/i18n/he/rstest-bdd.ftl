@@ -27,6 +27,6 @@ execution-error-skip = הצעד דולג{ $has_message ->
     *[no] {""}
     [yes] : { $message }
 }
-execution-error-step-not-found = הצעד לא נמצא באינדקס { $index }: { $keyword } { $text } (feature: { $feature_path }, תרחיש: { $scenario_name })
-execution-error-missing-fixtures = הצעד "{ $step_pattern }" (מוגדר ב-{ $step_location }) דורש קיבועים { $required }, אך הבאים חסרים: { $missing }. קיבועים זמינים מהתרחיש: { $available } (feature: { $feature_path }, תרחיש: { $scenario_name })
-execution-error-handler-failed = הצעד נכשל באינדקס { $index }: { $keyword } { $text } - { $error } (feature: { $feature_path }, תרחיש: { $scenario_name })
+execution-error-step-not-found = הצעד לא נמצא באינדקס { $index }: { $keyword } { $text } (תכונה: { $feature_path }, תרחיש: { $scenario_name })
+execution-error-missing-fixtures = הצעד "{ $step_pattern }" (מוגדר ב-{ $step_location }) דורש קיבועים { $required }, אך הבאים חסרים: { $missing }. קיבועים זמינים מהתרחיש: { $available } (תכונה: { $feature_path }, תרחיש: { $scenario_name })
+execution-error-handler-failed = הצעד נכשל באינדקס { $index }: { $keyword } { $text } - { $error } (תכונה: { $feature_path }, תרחיש: { $scenario_name })
