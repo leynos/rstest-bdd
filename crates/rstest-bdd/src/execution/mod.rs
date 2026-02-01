@@ -96,7 +96,9 @@ fn validate_required_fixtures(
     }
 }
 
-fn resolve_step_for_request(request: &StepExecutionRequest<'_>) -> Result<&'static Step, ExecutionError> {
+fn resolve_step_for_request(
+    request: &StepExecutionRequest<'_>,
+) -> Result<&'static Step, ExecutionError> {
     find_step_with_metadata(request.keyword, StepText::from(request.text)).ok_or_else(|| {
         ExecutionError::StepNotFound {
             index: request.index,
@@ -328,7 +330,10 @@ pub fn execute_step(
 
     validate_required_fixtures(step, ctx, request)?;
 
-    handle_step_result(request, (step.run)(ctx, request.text, request.docstring, request.table))
+    handle_step_result(
+        request,
+        (step.run)(ctx, request.text, request.docstring, request.table),
+    )
 }
 
 /// Execute a single step via the async handler with validation and error handling.
