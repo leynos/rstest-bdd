@@ -1,7 +1,7 @@
 //! Tests for async step registry infrastructure.
 //!
 //! These tests verify that the async step registry correctly stores and
-//! retrieves async step wrappers, and that sync steps are properly normalised
+//! retrieves async step wrappers, and that sync steps are properly normalized
 //! into the async interface. Tests also verify correct failure behaviour when
 //! patterns or keywords do not match, and that async lookups properly mark
 //! steps as used.

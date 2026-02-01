@@ -3,7 +3,8 @@
 use super::{
     LINT_NEEDLESS_PASS_BY_VALUE, LINT_REDUNDANT_CLOSURE, LINT_REDUNDANT_CLOSURE_FOR_METHOD_CALLS,
     LINT_SHADOW_REUSE, LINT_STR_TO_STRING, LINT_UNNECESSARY_WRAPS, PreparedArgs, StepMeta,
-    WRAPPER_EXPECT_REASON, WrapperAssembly, WrapperIdentifiers, assemble_wrapper_function,
+    WRAPPER_EXPECT_REASON, WrapperAssembly, WrapperIdentifiers, WrapperKind,
+    assemble_wrapper_function,
 };
 use crate::return_classifier::ReturnKind;
 use proc_macro2::Span;
@@ -105,6 +106,7 @@ fn assemble_wrapper_for_test(
             capture_count,
             return_kind,
         },
+        WrapperKind::Sync,
         false,
     );
 

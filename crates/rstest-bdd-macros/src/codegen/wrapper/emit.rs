@@ -95,12 +95,16 @@ fn generate_sync_wrapper_from_async(
                     message: format!("failed to construct Tokio current-thread runtime: {e}"),
                 })?;
 
-            runtime.block_on(#async_wrapper_ident(
-                __rstest_bdd_ctx,
-                __rstest_bdd_text,
-                __rstest_bdd_docstring,
-                __rstest_bdd_table,
-            ))
+            let local_set = ::tokio::task::LocalSet::new();
+            local_set.block_on(
+                &runtime,
+                #async_wrapper_ident(
+                    __rstest_bdd_ctx,
+                    __rstest_bdd_text,
+                    __rstest_bdd_docstring,
+                    __rstest_bdd_table,
+                ),
+            )
         }
     }
 }

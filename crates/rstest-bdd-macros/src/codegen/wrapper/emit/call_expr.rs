@@ -15,6 +15,8 @@ use quote::quote;
 /// - [`ReturnKind::ResultUnit`] / [`ReturnKind::ResultValue`]: Unpacks the
 ///   `Result`, mapping `Ok(value)` through the payload helper and converting
 ///   `Err(e)` to a `String` for the step error.
+///
+/// When `is_async` is `true`, the generated call expression includes `.await`.
 pub(super) fn generate_call_expression(
     return_kind: ReturnKind,
     ident: &syn::Ident,

@@ -183,6 +183,7 @@ fn is_ok_unit_expr(expr: &syn::Expr) -> bool {
     matches!(call.args.first(), Some(syn::Expr::Tuple(tuple)) if tuple.elems.is_empty())
 }
 
+/// Expectations for a generated step executor helper.
 #[derive(Clone, Copy)]
 struct StepExecutorExpectation<'a> {
     function_name: &'a str,
@@ -272,6 +273,7 @@ fn assert_step_executor_delegates_to_runtime(
     );
 }
 
+/// Whether to generate and validate sync or async executor code.
 #[derive(Debug, Clone, Copy)]
 enum ExecutorType {
     Sync,

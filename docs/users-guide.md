@@ -32,9 +32,9 @@ edition.
 development via `rust-toolchain.toml` so contributors get consistent `rustfmt`
 and `clippy` behaviour.
 
-Step definitions may be synchronous functions (`fn`) or asynchronous functions
-(`async fn`). The framework no longer depends on the `async-trait` crate to
-express async methods in traits. Projects that previously relied on
+Step definitions may be synchronous functions (`fn`) or asynchronous
+functions (`async fn`). The framework no longer depends on the `async-trait`
+crate to express async methods in traits. Projects that previously relied on
 `#[async_trait]` in helper traits should replace those methods with ordinary
 functions, and use async steps or async fixtures where appropriate. Step
 wrappers normalize results into `StepExecution`.

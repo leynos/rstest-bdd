@@ -60,17 +60,31 @@ pub struct Step {
 ///
 /// ```ignore
 /// step!(keyword, pattern, sync_handler, async_handler, fixtures);
+/// // With explicit execution mode:
+/// step!(
+///     keyword,
+///     pattern,
+///     sync_handler,
+///     async_handler,
+///     fixtures,
+///     mode = StepExecutionMode::Async
+/// );
 /// ```
 ///
 /// ## 4-argument form (auto-generated async handler)
 ///
 /// ```ignore
 /// step!(keyword, pattern, sync_handler, fixtures);
+/// // With explicit execution mode:
+/// step!(keyword, pattern, sync_handler, fixtures, mode = StepExecutionMode::Sync);
 /// ```
 ///
 /// The 4-argument form automatically generates an async wrapper that delegates
 /// to the sync handler via an immediately-ready future. This provides backward
 /// compatibility for call sites that only define sync handlers.
+///
+/// When the `mode` parameter is omitted, both forms default to
+/// [`StepExecutionMode::Both`].
 #[macro_export]
 macro_rules! step {
     // Internal arm: 5 arguments with pre-compiled pattern reference

@@ -23,13 +23,19 @@ use super::common::{StepInvocationParams, wrap_sync_step_as_async};
 /// async_wrapper!(my_step_async, my_step);
 ///
 /// // Expands to:
-/// // fn my_step_async<'a>(
-/// //     ctx: &'a mut StepContext<'a>,
-/// //     text: &str,
-/// //     docstring: Option<&str>,
-/// //     table: Option<&[&[&str]]>,
-/// // ) -> StepFuture<'a> {
-/// //     sync_to_async(my_step)(ctx, text, docstring, table)
+/// // fn my_step_async<'ctx>(
+/// //     ctx: &'ctx mut StepContext<'_>,
+/// //     text: &'ctx str,
+/// //     docstring: Option<&'ctx str>,
+/// //     table: Option<&'ctx [&'ctx [&'ctx str]]>,
+/// // ) -> StepFuture<'ctx> {
+/// //     let params = StepInvocationParams {
+/// //         ctx,
+/// //         text,
+/// //         docstring,
+/// //         table,
+/// //     };
+/// //     wrap_sync_step_as_async(my_step, params)
 /// // }
 /// ```
 macro_rules! async_wrapper {

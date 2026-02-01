@@ -31,7 +31,7 @@ pub use inventory::{iter, submit};
 mod context;
 pub mod datatable;
 pub mod localization;
-mod panic_support;
+pub mod panic_support;
 mod pattern;
 mod placeholder;
 mod registry;

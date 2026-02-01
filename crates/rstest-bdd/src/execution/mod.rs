@@ -96,6 +96,36 @@ fn validate_required_fixtures(
     }
 }
 
+fn resolve_step_for_request(request: &StepExecutionRequest<'_>) -> Result<&'static Step, ExecutionError> {
+    find_step_with_metadata(request.keyword, StepText::from(request.text)).ok_or_else(|| {
+        ExecutionError::StepNotFound {
+            index: request.index,
+            keyword: request.keyword,
+            text: request.text.to_string(),
+            feature_path: request.feature_path.to_string(),
+            scenario_name: request.scenario_name.to_string(),
+        }
+    })
+}
+
+fn handle_step_result(
+    request: &StepExecutionRequest<'_>,
+    result: Result<StepExecution, crate::StepError>,
+) -> Result<Option<Box<dyn Any>>, ExecutionError> {
+    match result {
+        Ok(StepExecution::Skipped { message }) => Err(ExecutionError::Skip { message }),
+        Ok(StepExecution::Continue { value }) => Ok(value),
+        Err(err) => Err(ExecutionError::HandlerFailed {
+            index: request.index,
+            keyword: request.keyword,
+            text: request.text.to_string(),
+            error: Arc::new(err),
+            feature_path: request.feature_path.to_string(),
+            scenario_name: request.scenario_name.to_string(),
+        }),
+    }
+}
+
 /// Encode a skip message for propagation through the executor loop.
 ///
 /// The encoding uses prefix characters to distinguish between skip requests
@@ -294,30 +324,11 @@ pub fn execute_step(
     request: &StepExecutionRequest<'_>,
     ctx: &mut StepContext<'_>,
 ) -> Result<Option<Box<dyn Any>>, ExecutionError> {
-    let step = find_step_with_metadata(request.keyword, StepText::from(request.text)).ok_or_else(
-        || ExecutionError::StepNotFound {
-            index: request.index,
-            keyword: request.keyword,
-            text: request.text.to_string(),
-            feature_path: request.feature_path.to_string(),
-            scenario_name: request.scenario_name.to_string(),
-        },
-    )?;
+    let step = resolve_step_for_request(request)?;
 
     validate_required_fixtures(step, ctx, request)?;
 
-    match (step.run)(ctx, request.text, request.docstring, request.table) {
-        Ok(StepExecution::Skipped { message }) => Err(ExecutionError::Skip { message }),
-        Ok(StepExecution::Continue { value }) => Ok(value),
-        Err(err) => Err(ExecutionError::HandlerFailed {
-            index: request.index,
-            keyword: request.keyword,
-            text: request.text.to_string(),
-            error: Arc::new(err),
-            feature_path: request.feature_path.to_string(),
-            scenario_name: request.scenario_name.to_string(),
-        }),
-    }
+    handle_step_result(request, (step.run)(ctx, request.text, request.docstring, request.table))
 }
 
 /// Execute a single step via the async handler with validation and error handling.
@@ -334,15 +345,7 @@ pub async fn execute_step_async(
     request: &StepExecutionRequest<'_>,
     ctx: &mut StepContext<'_>,
 ) -> Result<Option<Box<dyn Any>>, ExecutionError> {
-    let step = find_step_with_metadata(request.keyword, StepText::from(request.text)).ok_or_else(
-        || ExecutionError::StepNotFound {
-            index: request.index,
-            keyword: request.keyword,
-            text: request.text.to_string(),
-            feature_path: request.feature_path.to_string(),
-            scenario_name: request.scenario_name.to_string(),
-        },
-    )?;
+    let step = resolve_step_for_request(request)?;
 
     validate_required_fixtures(step, ctx, request)?;
 
@@ -355,18 +358,7 @@ pub async fn execute_step_async(
         }
     };
 
-    match result {
-        Ok(StepExecution::Skipped { message }) => Err(ExecutionError::Skip { message }),
-        Ok(StepExecution::Continue { value }) => Ok(value),
-        Err(err) => Err(ExecutionError::HandlerFailed {
-            index: request.index,
-            keyword: request.keyword,
-            text: request.text.to_string(),
-            error: Arc::new(err),
-            feature_path: request.feature_path.to_string(),
-            scenario_name: request.scenario_name.to_string(),
-        }),
-    }
+    handle_step_result(request, result)
 }
 
 #[cfg(test)]
