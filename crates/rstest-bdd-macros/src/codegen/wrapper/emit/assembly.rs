@@ -5,20 +5,19 @@
 //! emission entry point focused on orchestration while centralising the logic
 //! that shapes the wrapper's structure.
 
-use super::super::args::ExtractedArgs;
-use super::super::arguments::{
-    PreparedArgs, StepMeta, collect_ordered_arguments, prepare_argument_processing,
-};
+use super::super::arguments::PreparedArgs;
+use super::super::arguments::StepMeta;
 use super::call_expr::generate_call_expression;
-use super::datatable_cache::{DatatableCacheComponents, generate_datatable_cache_definitions};
 use super::errors::{WrapperErrors, prepare_wrapper_errors};
-use super::identifiers::generate_wrapper_signature;
 use crate::return_classifier::ReturnKind;
 use proc_macro2::TokenStream as TokenStream2;
-use quote::{format_ident, quote};
+use quote::quote;
 
 #[path = "assembly/async_wrapper.rs"]
 mod async_wrapper;
+
+#[path = "assembly/body.rs"]
+mod body;
 
 const WRAPPER_EXPECT_REASON: &str = "rstest-bdd step wrapper pattern requires these patterns \
 for parameter extraction, Result normalization, and closure-based error handling";
@@ -125,31 +124,125 @@ fn generate_expect_attribute(lint_paths: &[syn::Path]) -> TokenStream2 {
     }
 }
 
+fn generate_sync_unwind_handling(
+    path: &TokenStream2,
+    call_expr: &TokenStream2,
+    exec_err: &TokenStream2,
+    panic_err: &TokenStream2,
+) -> TokenStream2 {
+    quote! {
+        match catch_unwind(AssertUnwindSafe(|| { #call_expr })) {
+            Ok(res) => res
+                .map(|value| #path::StepExecution::from_value(value))
+                .map_err(|message| #exec_err),
+            Err(payload) => match payload.downcast::<#path::SkipRequest>() {
+                Ok(skip) => Ok(#path::StepExecution::skipped(skip.into_message())),
+                Err(payload) => {
+                    let message = #path::panic_message(payload.as_ref());
+                    Err(#panic_err)
+                }
+            },
+        }
+    }
+}
+
+fn generate_sync_wrapper_quote(
+    identifiers: WrapperIdentifiers<'_>,
+    prepared: &PreparedArgs,
+    path: &TokenStream2,
+    expect_attr: &TokenStream2,
+    capture_validation: &TokenStream2,
+    unwind_handling: &TokenStream2,
+) -> TokenStream2 {
+    let WrapperIdentifiers {
+        wrapper: wrapper_ident,
+        ctx: ctx_ident,
+        text: text_ident,
+        ..
+    } = identifiers;
+    let declares = &prepared.declares;
+    let step_arg_parses = &prepared.step_arg_parses;
+    let step_struct_decl = &prepared.step_struct_decl;
+    let datatable_decl = &prepared.datatable_decl;
+    let docstring_decl = &prepared.docstring_decl;
+
+    quote! {
+        #expect_attr
+        fn #wrapper_ident(
+            #ctx_ident: &mut #path::StepContext<'_>,
+            #text_ident: &str,
+            docstring: Option<&str>,
+            table: Option<&[&[&str]]>,
+        ) -> Result<#path::StepExecution, #path::StepError> {
+            use std::panic::{catch_unwind, AssertUnwindSafe};
+            #capture_validation
+            #(#declares)*
+            #(#step_arg_parses)*
+            #step_struct_decl
+            #datatable_decl
+            #docstring_decl
+            #unwind_handling
+        }
+    }
+}
+
+fn generate_async_wrapper_quote(
+    identifiers: WrapperIdentifiers<'_>,
+    prepared: &PreparedArgs,
+    path: &TokenStream2,
+    expect_attr: &TokenStream2,
+    capture_validation: &TokenStream2,
+    unwind_handling: &TokenStream2,
+) -> TokenStream2 {
+    let WrapperIdentifiers {
+        wrapper: wrapper_ident,
+        ctx: ctx_ident,
+        text: text_ident,
+        ..
+    } = identifiers;
+    let declares = &prepared.declares;
+    let step_arg_parses = &prepared.step_arg_parses;
+    let step_struct_decl = &prepared.step_struct_decl;
+    let datatable_decl = &prepared.datatable_decl;
+    let docstring_decl = &prepared.docstring_decl;
+
+    quote! {
+        #expect_attr
+        fn #wrapper_ident<'ctx>(
+            #ctx_ident: &'ctx mut #path::StepContext<'_>,
+            #text_ident: &'ctx str,
+            docstring: Option<&'ctx str>,
+            table: Option<&'ctx [&'ctx [&'ctx str]]>,
+        ) -> #path::StepFuture<'ctx> {
+            Box::pin(async move {
+                #capture_validation
+                #(#declares)*
+                #(#step_arg_parses)*
+                #step_struct_decl
+                #datatable_decl
+                #docstring_decl
+
+                #unwind_handling
+            })
+        }
+    }
+}
+
 /// Render wrapper function tokens from prepared inputs.
 ///
 /// The wrapper kind controls whether the generated function is synchronous or
 /// returns a boxed future for `async fn` step definitions.
 fn render_wrapper_function(
     identifiers: WrapperIdentifiers<'_>,
-    prepared: PreparedArgs,
+    prepared: &PreparedArgs,
     context: WrapperRenderContext<'_>,
     wrapper_kind: WrapperKind,
 ) -> TokenStream2 {
     let WrapperIdentifiers {
-        wrapper: wrapper_ident,
         pattern: pattern_ident,
-        ctx: ctx_ident,
         text: text_ident,
-    } = identifiers;
-    let PreparedArgs {
-        declares,
-        step_arg_parses,
-        step_struct_decl,
-        datatable_decl,
-        docstring_decl,
-        expect_lints,
         ..
-    } = prepared;
+    } = identifiers;
     let WrapperRenderContext {
         errors,
         capture_count,
@@ -162,7 +255,7 @@ fn render_wrapper_function(
         capture_mismatch: capture_mismatch_err,
     } = errors;
     let path = crate::codegen::rstest_bdd_path();
-    let expect_attr = generate_expect_attribute(&expect_lints);
+    let expect_attr = generate_expect_attribute(&prepared.expect_lints);
 
     let capture_validation = async_wrapper::generate_capture_validation(
         &path,
@@ -178,58 +271,29 @@ fn render_wrapper_function(
     );
 
     match wrapper_kind {
-        WrapperKind::Sync => quote! {
-            #expect_attr
-            fn #wrapper_ident(
-                #ctx_ident: &mut #path::StepContext<'_>,
-                #text_ident: &str,
-                docstring: Option<&str>,
-                table: Option<&[&[&str]]>,
-            ) -> Result<#path::StepExecution, #path::StepError> {
-                use std::panic::{catch_unwind, AssertUnwindSafe};
-                #capture_validation
-                #(#declares)*
-                #(#step_arg_parses)*
-                #step_struct_decl
-                #datatable_decl
-                #docstring_decl
-                match catch_unwind(AssertUnwindSafe(|| { #call_expr })) {
-                    Ok(res) => res
-                        .map(|value| #path::StepExecution::from_value(value))
-                        .map_err(|message| #exec_err),
-                    Err(payload) => match payload.downcast::<#path::SkipRequest>() {
-                        Ok(skip) => Ok(#path::StepExecution::skipped(skip.into_message())),
-                        Err(payload) => {
-                            let message = #path::panic_message(payload.as_ref());
-                            Err(#panic_err)
-                        }
-                    },
-                }
-            }
-        },
+        WrapperKind::Sync => {
+            let unwind_handling =
+                generate_sync_unwind_handling(&path, call_expr, &exec_err, &panic_err);
+            generate_sync_wrapper_quote(
+                identifiers,
+                prepared,
+                &path,
+                &expect_attr,
+                &capture_validation,
+                &unwind_handling,
+            )
+        }
         WrapperKind::Async => {
             let unwind_handling =
                 async_wrapper::generate_unwind_handling(&path, call_expr, &exec_err, &panic_err);
-            quote! {
-                #expect_attr
-                fn #wrapper_ident<'ctx>(
-                    #ctx_ident: &'ctx mut #path::StepContext<'_>,
-                    #text_ident: &'ctx str,
-                    docstring: Option<&'ctx str>,
-                    table: Option<&'ctx [&'ctx [&'ctx str]]>,
-                ) -> #path::StepFuture<'ctx> {
-                    Box::pin(async move {
-                        #capture_validation
-                        #(#declares)*
-                        #(#step_arg_parses)*
-                        #step_struct_decl
-                        #datatable_decl
-                        #docstring_decl
-
-                        #unwind_handling
-                    })
-                }
-            }
+            generate_async_wrapper_quote(
+                identifiers,
+                prepared,
+                &path,
+                &expect_attr,
+                &capture_validation,
+                &unwind_handling,
+            )
         }
     }
 }
@@ -264,7 +328,7 @@ fn assemble_wrapper_function(
     prepared.expect_lints = wrapper_expect_lint_paths(lint_config);
     render_wrapper_function(
         identifiers,
-        prepared,
+        &prepared,
         WrapperRenderContext {
             errors,
             capture_count,
@@ -274,105 +338,13 @@ fn assemble_wrapper_function(
     )
 }
 
-/// Generate the compile-time assertion for step struct field count.
-fn generate_struct_assertion(args: &ExtractedArgs, capture_count: usize) -> Option<TokenStream2> {
-    args.step_struct().map(|arg| {
-        let ty = arg.ty;
-        let path = crate::codegen::rstest_bdd_path();
-        quote! {
-            const _: [(); <#ty as #path::step_args::StepArgs>::FIELD_COUNT] = [(); #capture_count];
-        }
-    })
-}
-
-/// Generate datatable cache components and extract identifier references.
-fn process_datatable_cache(
-    args: &ExtractedArgs,
-    wrapper_ident: &proc_macro2::Ident,
-) -> (
-    TokenStream2,
-    Option<(proc_macro2::Ident, proc_macro2::Ident)>,
-) {
-    let cache_components =
-        generate_datatable_cache_definitions(args.datatable().is_some(), wrapper_ident);
-    match cache_components {
-        DatatableCacheComponents::None => (proc_macro2::TokenStream::new(), None),
-        DatatableCacheComponents::Some {
-            tokens,
-            key_ident,
-            cache_ident,
-        } => (tokens, Some((key_ident, cache_ident))),
-    }
-}
-
-fn generate_wrapper_body_impl(
-    config: &super::WrapperConfig<'_>,
-    wrapper_ident: &proc_macro2::Ident,
-    pattern_ident: &proc_macro2::Ident,
-    wrapper_kind: WrapperKind,
-) -> TokenStream2 {
-    let super::WrapperConfig {
-        ident,
-        args,
-        pattern,
-        placeholder_names,
-        placeholder_hints,
-        capture_count,
-        return_kind,
-        is_async_step,
-        ..
-    } = *config;
-
-    let ctx_ident = format_ident!("__rstest_bdd_ctx");
-    let text_ident = format_ident!("__rstest_bdd_text");
-    let args_slice = &args.args;
-    let step_meta = StepMeta { pattern, ident };
-    let struct_assert = generate_struct_assertion(args, capture_count);
-    let signature = generate_wrapper_signature(pattern, pattern_ident);
-    let (cache_tokens, datatable_idents) = process_datatable_cache(args, wrapper_ident);
-    let datatable_idents_refs = datatable_idents.as_ref().map(|(key, cache)| (key, cache));
-    let prepared = prepare_argument_processing(
-        args_slice,
-        step_meta,
-        &ctx_ident,
-        placeholder_names,
-        placeholder_hints,
-        datatable_idents_refs,
-    );
-    let arg_idents = collect_ordered_arguments(args_slice);
-    let wrapper_fn = assemble_wrapper_function(
-        WrapperIdentifiers {
-            wrapper: wrapper_ident,
-            pattern: pattern_ident,
-            ctx: &ctx_ident,
-            text: &text_ident,
-        },
-        WrapperAssembly {
-            meta: step_meta,
-            prepared,
-            arg_idents,
-            capture_count,
-            return_kind,
-        },
-        wrapper_kind,
-        is_async_step,
-    );
-
-    quote! {
-        #struct_assert
-        #cache_tokens
-        #signature
-        #wrapper_fn
-    }
-}
-
 /// Generate the wrapper function body and pattern constant.
 pub(super) fn generate_wrapper_body(
     config: &super::WrapperConfig<'_>,
     wrapper_ident: &proc_macro2::Ident,
     pattern_ident: &proc_macro2::Ident,
 ) -> TokenStream2 {
-    generate_wrapper_body_impl(config, wrapper_ident, pattern_ident, WrapperKind::Sync)
+    body::generate_wrapper_body(config, wrapper_ident, pattern_ident)
 }
 
 pub(super) fn generate_async_wrapper_body(
@@ -380,7 +352,7 @@ pub(super) fn generate_async_wrapper_body(
     wrapper_ident: &proc_macro2::Ident,
     pattern_ident: &proc_macro2::Ident,
 ) -> TokenStream2 {
-    generate_wrapper_body_impl(config, wrapper_ident, pattern_ident, WrapperKind::Async)
+    body::generate_async_wrapper_body(config, wrapper_ident, pattern_ident)
 }
 
 #[cfg(test)]

@@ -62,11 +62,7 @@ pub struct Step {
 /// step!(keyword, pattern, sync_handler, async_handler, fixtures);
 /// // With explicit execution mode:
 /// step!(
-///     keyword,
-///     pattern,
-///     sync_handler,
-///     async_handler,
-///     fixtures,
+///     keyword, pattern, sync_handler, async_handler, fixtures,
 ///     mode = StepExecutionMode::Async
 /// );
 /// ```
@@ -74,9 +70,12 @@ pub struct Step {
 /// ## 4-argument form (auto-generated async handler)
 ///
 /// ```ignore
-/// step!(keyword, pattern, sync_handler, fixtures);
+/// step!(keyword, pattern, sync_handler, &fixtures);
 /// // With explicit execution mode:
-/// step!(keyword, pattern, sync_handler, fixtures, mode = StepExecutionMode::Sync);
+/// step!(
+///     keyword, pattern, sync_handler, &fixtures,
+///     mode = StepExecutionMode::Sync
+/// );
 /// ```
 ///
 /// The 4-argument form automatically generates an async wrapper that delegates
@@ -104,7 +103,6 @@ macro_rules! step {
             }
         };
     };
-
     // Internal arm: 4 arguments with pre-compiled pattern reference (auto-generate async)
     (@pattern $keyword:expr, $pattern:expr, $handler:path, $fixtures:expr, $mode:expr) => {
         const _: () = {
@@ -131,17 +129,21 @@ macro_rules! step {
             }
         };
     };
-
     // Public arm: 4 arguments (auto-generate async handler for backward compatibility)
     // This arm MUST come before the 5-argument arm because Rust macro matching
     // is greedy and would otherwise try to parse fixtures as an async_handler path.
     ($keyword:expr, $pattern:expr, $handler:path, & $fixtures:expr, mode = $mode:expr $(,)?) => {
         const _: () = {
             static PATTERN: $crate::StepPattern = $crate::StepPattern::new($pattern);
-    $crate::step!(@pattern $keyword, &PATTERN, $handler, &$fixtures, $mode);
+            $crate::step!(
+                @pattern $keyword,
+                &PATTERN,
+                $handler,
+                &$fixtures,
+                $mode
+            );
         };
     };
-
     // Public arm: 4 arguments defaulting to Both.
     ($keyword:expr, $pattern:expr, $handler:path, & $fixtures:expr) => {
         const _: () = {
@@ -155,15 +157,20 @@ macro_rules! step {
             );
         };
     };
-
     // Public arm: 5 arguments (explicit async handler)
     ($keyword:expr, $pattern:expr, $handler:path, $async_handler:path, $fixtures:expr, mode = $mode:expr $(,)?) => {
         const _: () = {
             static PATTERN: $crate::StepPattern = $crate::StepPattern::new($pattern);
-    $crate::step!(@pattern $keyword, &PATTERN, $handler, $async_handler, $fixtures, $mode);
+            $crate::step!(
+                @pattern $keyword,
+                &PATTERN,
+                $handler,
+                $async_handler,
+                $fixtures,
+                $mode
+            );
         };
     };
-
     // Public arm: 5 arguments defaulting to Both.
     ($keyword:expr, $pattern:expr, $handler:path, $async_handler:path, $fixtures:expr) => {
         const _: () = {

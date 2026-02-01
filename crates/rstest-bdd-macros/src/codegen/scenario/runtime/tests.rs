@@ -183,7 +183,7 @@ fn is_ok_unit_expr(expr: &syn::Expr) -> bool {
     matches!(call.args.first(), Some(syn::Expr::Tuple(tuple)) if tuple.elems.is_empty())
 }
 
-/// Expectations for a generated step executor helper.
+/// Encapsulates expected properties when verifying step executor delegation.
 #[derive(Clone, Copy)]
 struct StepExecutorExpectation<'a> {
     function_name: &'a str,
@@ -193,6 +193,8 @@ struct StepExecutorExpectation<'a> {
 }
 
 impl<'a> StepExecutorExpectation<'a> {
+    /// Constructs an expectation from the provided parameters for use in step
+    /// executor delegation tests.
     fn new(
         function_name: &'a str,
         description: &'a str,
