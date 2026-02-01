@@ -3,7 +3,7 @@
 use crate::return_classifier::{ReturnKind, classify_return_type};
 
 const FALLIBLE_SCENARIO_RETURN_ERROR: &str =
-    "fallible scenarios must return Result<(), E> or StepResult<(), E>";
+    "#[scenario] bodies must return () or a unit Result/StepResult";
 
 pub(super) fn classify_scenario_return(
     sig: &syn::Signature,
@@ -23,10 +23,12 @@ fn is_supported_scenario_return(return_kind: ReturnKind) -> bool {
 fn map_scenario_return_kind(
     return_kind: ReturnKind,
 ) -> crate::codegen::scenario::ScenarioReturnKind {
-    if matches!(return_kind, ReturnKind::Unit) {
-        crate::codegen::scenario::ScenarioReturnKind::Unit
-    } else {
-        crate::codegen::scenario::ScenarioReturnKind::ResultUnit
+    match return_kind {
+        ReturnKind::Unit => crate::codegen::scenario::ScenarioReturnKind::Unit,
+        ReturnKind::ResultUnit => crate::codegen::scenario::ScenarioReturnKind::ResultUnit,
+        ReturnKind::Value | ReturnKind::ResultValue => {
+            unreachable!("unsupported scenario return kind: {return_kind:?}");
+        }
     }
 }
 

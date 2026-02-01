@@ -1,4 +1,4 @@
-error: fallible scenarios must return Result<(), E> or StepResult<(), E>
+error: #[scenario] bodies must return () or a unit Result/StepResult
  --> tests/fixtures_macros/scenario_step_result_requires_unit.rs:6:35
   |
 6 | fn scenario_step_result_payload() -> rstest_bdd::StepResult<u32, &'static str> {

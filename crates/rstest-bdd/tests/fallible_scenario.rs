@@ -32,6 +32,11 @@ fn fallible_scenario_success() -> Result<(), &'static str> {
 )]
 #[serial]
 async fn fallible_scenario_async_success() -> Result<(), &'static str> {
+    fallible_async_helper().await?;
+    Ok(())
+}
+
+async fn fallible_async_helper() -> Result<(), &'static str> {
     tokio::task::yield_now().await;
     Ok(())
 }

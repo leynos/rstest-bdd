@@ -10,16 +10,16 @@ fallible scenario body support and return-kind handling in `#[scenario]`.
 - Skip handling for fallible scenarios returns `Ok(())` to keep signatures
   type-correct.
 
-## Who is affected
+## Affected cases
 
-You are affected if any of the following are true:
+Projects are affected if any of the following are true:
 
 - A `#[scenario]` function returns a non-unit type (for example, `Result<T, E>`
   where `T != ()`).
 - A `#[scenario]` function returns a type alias to `Result` or `StepResult`.
-- You want to use `?` or propagate errors directly from a scenario body.
+- Scenario bodies use `?` or propagate errors directly.
 
-## What you need to change
+## Required changes
 
 ### 1) Update scenario return types
 
@@ -44,15 +44,14 @@ fn scenario_returns_unit() -> Result<(), &'static str> {
 }
 ```
 
-If you need to surface values to later steps, return them from a step function
-instead and inject them via fixtures or slots.
+To surface values to later steps, return them from a step function instead and
+inject them via fixtures or slots.
 
 ### 2) Use explicit `Result`/`StepResult` in scenario signatures
 
-Scenario return classification does not resolve type aliases. If you previously
-used an alias like `type MyResult<T> = Result<T, MyError>`, you must spell out
-`Result<(), MyError>` or use `rstest_bdd::StepResult<(), MyError>` in the
-scenario signature.
+Scenario return classification does not resolve type aliases. When using an
+alias like `type MyResult<T> = Result<T, MyError>`, the scenario signature must
+spell out `Result<(), MyError>` or use `rstest_bdd::StepResult<(), MyError>`.
 
 ```rust
 # use rstest_bdd::StepResult;
@@ -67,7 +66,8 @@ fn scenario_step_result() -> StepResult<(), &'static str> {
 
 Async scenario bodies may return `Result<(), E>` and use `?` directly. The
 `#[scenario]` macro will emit the required test runtime attribute, so no manual
-Tokio boilerplate is needed unless you already apply your own `#[tokio::test]`.
+Tokio boilerplate is needed unless an existing `#[tokio::test]` attribute is
+already applied.
 
 ```rust
 # use rstest_bdd_macros::scenario;
@@ -80,9 +80,9 @@ async fn async_scenario() -> Result<(), &'static str> {
 
 ### 4) Skipped scenarios remain type-correct
 
-If a scenario is skipped (via `rstest_bdd::skip!`), the generated test returns
-`Ok(())` for fallible signatures. This keeps the signature valid and ensures
-the skip short-circuit continues to work without additional user code.
+When a scenario is skipped (via `rstest_bdd::skip!`), the generated test
+returns `Ok(())` for fallible signatures. This keeps the signature valid and
+ensures the skip short-circuit continues to work without additional user code.
 
 ## Migration checklist
 
@@ -91,16 +91,17 @@ the skip short-circuit continues to work without additional user code.
 - [ ] Replace any scenario return type aliases with explicit `Result` or
   `StepResult` signatures.
 - [ ] Move non-unit return values into steps, fixtures, or `ScenarioState`
-  slots if you previously returned them from scenario bodies.
+  slots when previously returned from scenario bodies.
 - [ ] Update any documentation or internal templates that describe scenario
   return types.
 
 ## Common errors and fixes
 
-- **Error:** `fallible scenarios must return Result<(), E> or StepResult<(), E>`
+- **Error:** `#[scenario] bodies must return () or a unit Result/StepResult`
   - **Fix:** Change the scenario signature to return `Result<(), E>` or
     `StepResult<(), E>` and move any payload values into steps.
 
-If you run into migration issues not covered here, check
-`docs/adr-006-fallible-scenario-functions.md` for the full design rationale and
-expected behaviour.
+For migration issues not covered here, see
+[ADR-006](docs/adr-006-fallible-scenario-functions.md).[^adr]
+
+[^adr]: docs/adr-006-fallible-scenario-functions.md

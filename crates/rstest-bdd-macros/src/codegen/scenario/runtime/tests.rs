@@ -237,47 +237,41 @@ fn skip_decoder_delegates_to_runtime() {
     assert_path_is_execution_decode_skip_message(func_path);
 }
 
+#[expect(clippy::panic, reason = "test helper panics for clearer failures")]
 fn assert_skip_handler_returns(
     return_kind: ScenarioReturnKind,
     empty_message: &str,
-    predicate: fn(&syn::ExprReturn) -> bool,
+    predicate: impl Fn(&syn::ExprReturn) -> bool,
     predicate_message: &str,
 ) {
     let if_expr = parse_skip_handler(return_kind);
     let returns = collect_returns(&if_expr.then_branch);
-    assert!(!returns.is_empty(), "{empty_message}");
-    assert!(
-        returns.iter().all(|ret| predicate(ret)),
-        "{predicate_message}"
+    let panic_with_message = |message: &str| panic!("{message}");
+
+    if returns.is_empty() {
+        panic_with_message(empty_message);
+    }
+    if !returns.iter().all(|ret| predicate(ret)) {
+        panic_with_message(predicate_message);
+    }
+}
+
+#[test]
+fn skip_handler_returns_unit_for_unit_scenarios() {
+    assert_skip_handler_returns(
+        ScenarioReturnKind::Unit,
+        "expected skip handler to include a return for unit scenarios",
+        |ret| ret.expr.is_none(),
+        "unit skip handler should only use a bare return",
     );
 }
 
-fn skip_handler_return_is_bare(ret: &syn::ExprReturn) -> bool {
-    ret.expr.is_none()
-}
-
-fn skip_handler_return_is_ok_unit(ret: &syn::ExprReturn) -> bool {
-    ret.expr.as_ref().is_some_and(|expr| is_ok_unit_expr(expr))
-}
-
-#[rstest::rstest]
-#[case::unit(
-    ScenarioReturnKind::Unit,
-    "expected skip handler to include a return for unit scenarios",
-    skip_handler_return_is_bare,
-    "unit skip handler should only use a bare return"
-)]
-#[case::fallible(
-    ScenarioReturnKind::ResultUnit,
-    "expected skip handler to include a return for fallible scenarios",
-    skip_handler_return_is_ok_unit,
-    "fallible skip handler should only return Ok(())"
-)]
-fn skip_handler_returns_expected(
-    #[case] return_kind: ScenarioReturnKind,
-    #[case] empty_message: &'static str,
-    #[case] predicate: fn(&syn::ExprReturn) -> bool,
-    #[case] predicate_message: &'static str,
-) {
-    assert_skip_handler_returns(return_kind, empty_message, predicate, predicate_message);
+#[test]
+fn skip_handler_returns_ok_for_fallible_scenarios() {
+    assert_skip_handler_returns(
+        ScenarioReturnKind::ResultUnit,
+        "expected skip handler to include a return for fallible scenarios",
+        |ret| ret.expr.as_ref().is_some_and(|expr| is_ok_unit_expr(expr)),
+        "fallible skip handler should only return Ok(())",
+    );
 }
