@@ -97,10 +97,27 @@ fn fallible_success_records_pass() {
     assert_fallible_success_records_pass(result, "fallible");
 }
 
-#[test]
-#[serial]
-fn fallible_async_success_records_pass() {
-    let _ = drain_reports();
-    let result = fallible_scenario_async_success();
-    assert_fallible_success_records_pass(result, "async fallible");
+#[tokio::test]
+async fn fallible_async_success_records_pass() {
+    #[expect(clippy::panic, reason = "test helper panics for clearer failures")]
+    async fn fallible_scenario_async_success() {
+        let join = tokio::task::spawn_blocking(|| {
+            serial_test::local_serial_core_with_return("", || {
+                let _ = drain_reports();
+                let result = crate::fallible_scenario_async_success();
+                assert_fallible_success_records_pass(result, "async fallible");
+                Ok::<(), &'static str>(())
+            })
+        })
+        .await;
+
+        match join {
+            Ok(Ok(())) => {}
+            Ok(Err(err)) => panic!("fallible async scenario failed: {err}"),
+            Err(err) if err.is_panic() => std::panic::resume_unwind(err.into_panic()),
+            Err(err) => panic!("fallible async scenario join failed: {err}"),
+        }
+    }
+
+    fallible_scenario_async_success().await;
 }

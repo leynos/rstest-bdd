@@ -1,7 +1,7 @@
 # v0.5.0 migration guide
 
-This guide highlights changes required to adopt v0.5.0, focusing on the new
-fallible scenario body support and return-kind handling in `#[scenario]`.
+This guide highlights changes required to adopt v0.5.0, focusing on fallible
+scenario body support and return-kind handling in `#[scenario]`.
 
 ## Summary of changes
 
@@ -44,8 +44,8 @@ fn scenario_returns_unit() -> Result<(), &'static str> {
 }
 ```
 
-To surface values to later steps, return them from a step function instead and
-inject them via fixtures or slots.
+Values needed by later steps should be returned from step functions and
+injected via fixtures or slots.
 
 ### 2) Use explicit `Result`/`StepResult` in scenario signatures
 
@@ -62,11 +62,11 @@ fn scenario_step_result() -> StepResult<(), &'static str> {
 }
 ```
 
-### 3) Fallible async scenarios are now supported
+### 3) Fallible async scenarios are supported
 
 Async scenario bodies may return `Result<(), E>` and use `?` directly. The
-`#[scenario]` macro will emit the required test runtime attribute, so no manual
-Tokio boilerplate is needed unless an existing `#[tokio::test]` attribute is
+`#[scenario]` macro emits the required test runtime attribute; manual Tokio
+boilerplate is only required when an existing `#[tokio::test]` attribute is
 already applied.
 
 ```rust
@@ -86,20 +86,19 @@ ensures the skip short-circuit continues to work without additional user code.
 
 ## Migration checklist
 
-- [ ] Ensure every `#[scenario]` returns `()` or `Result<(), E>`/
-  `StepResult<(), E>`.
-- [ ] Replace any scenario return type aliases with explicit `Result` or
+- [ ] Every `#[scenario]` returns `()` or `Result<(), E>`/`StepResult<(), E>`.
+- [ ] Scenario return type aliases are replaced with explicit `Result` or
   `StepResult` signatures.
-- [ ] Move non-unit return values into steps, fixtures, or `ScenarioState`
-  slots when previously returned from scenario bodies.
-- [ ] Update any documentation or internal templates that describe scenario
-  return types.
+- [ ] Non-unit return values are moved into steps, fixtures, or
+  `ScenarioState` slots when previously returned from scenario bodies.
+- [ ] Documentation or internal templates describing scenario return types are
+  updated.
 
 ## Common errors and fixes
 
 - **Error:** `#[scenario] bodies must return () or a unit Result/StepResult`
-  - **Fix:** Change the scenario signature to return `Result<(), E>` or
-    `StepResult<(), E>` and move any payload values into steps.
+  - **Fix:** Scenario signatures return `Result<(), E>` or `StepResult<(), E>`,
+    with payload values moved into steps.
 
 For migration issues not covered here, see
 [ADR-006](docs/adr-006-fallible-scenario-functions.md).[^adr]
