@@ -51,7 +51,7 @@ fn generate_step_executor_loop_outline_impl(
 
 /// Generates the step executor loop for scenario outlines with placeholder substitution.
 ///
-/// For scenario outlines, steps are organised as a 2D array where each row contains
+/// For scenario outlines, steps are organized as a 2D array where each row contains
 /// the substituted steps for one Examples row. The `__rstest_bdd_case_idx` parameter
 /// selects which row to use.
 ///
@@ -81,7 +81,7 @@ pub(in crate::codegen::scenario::runtime) fn generate_step_executor_loop_outline
 
 /// Generates the async step executor loop for scenario outlines.
 ///
-/// For scenario outlines, steps are organised as a 2D array where each row contains
+/// For scenario outlines, steps are organized as a 2D array where each row contains
 /// the substituted steps for one Examples row. The `__rstest_bdd_case_idx` parameter
 /// selects which row to use. This async variant dispatches each substituted step
 /// through the `__rstest_bdd_process_async_step` helper.

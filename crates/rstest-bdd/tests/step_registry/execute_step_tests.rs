@@ -60,21 +60,35 @@ fn execute_step_succeeds_with_value(mut ctx: StepContext<'static>) {
     assert_eq!(*downcast, 42);
 }
 
-// Asserts common error context fields match request defaults.
-fn assert_error_context(
+/// Context fields extracted from an `ExecutionError` for assertion purposes.
+struct ErrorContext<'a> {
     index: usize,
     keyword: StepKeyword,
-    text: &str,
-    feature_path: &str,
-    scenario_name: &str,
+    text: &'a str,
+    feature_path: &'a str,
+    scenario_name: &'a str,
+}
+
+// Asserts common error context fields match request defaults.
+fn assert_error_context(
+    context: &ErrorContext<'_>,
     expected_keyword: StepKeyword,
     expected_text: &str,
 ) {
-    assert_eq!(index, 0, "index should match request");
-    assert_eq!(keyword, expected_keyword, "keyword should match request");
-    assert_eq!(text, expected_text, "text should match request");
-    assert_eq!(feature_path, "test.feature", "feature_path should match");
-    assert_eq!(scenario_name, "Test Scenario", "scenario_name should match");
+    assert_eq!(context.index, 0, "index should match request");
+    assert_eq!(
+        context.keyword, expected_keyword,
+        "keyword should match request"
+    );
+    assert_eq!(context.text, expected_text, "text should match request");
+    assert_eq!(
+        context.feature_path, "test.feature",
+        "feature_path should match"
+    );
+    assert_eq!(
+        context.scenario_name, "Test Scenario",
+        "scenario_name should match"
+    );
 }
 
 fn assert_step_not_found(
@@ -92,15 +106,14 @@ fn assert_step_not_found(
     else {
         panic!("expected StepNotFound error, got: {error:?}");
     };
-    assert_error_context(
-        *index,
-        *keyword,
+    let context = ErrorContext {
+        index: *index,
+        keyword: *keyword,
         text,
         feature_path,
         scenario_name,
-        expected_keyword,
-        expected_text,
-    );
+    };
+    assert_error_context(&context, expected_keyword, expected_text);
     assert!(!error.is_skip(), "StepNotFound should not be a skip");
 }
 
@@ -120,15 +133,14 @@ fn assert_handler_failed(
     else {
         panic!("expected HandlerFailed error, got: {error:?}");
     };
-    assert_error_context(
-        *index,
-        *keyword,
+    let context = ErrorContext {
+        index: *index,
+        keyword: *keyword,
         text,
         feature_path,
         scenario_name,
-        expected_keyword,
-        expected_text,
-    );
+    };
+    assert_error_context(&context, expected_keyword, expected_text);
     assert!(
         std::error::Error::source(error).is_some(),
         "should have source"

@@ -81,5 +81,5 @@ fn step_needs_fixture(_required_fixture: &u32) {}
 /// 4. `__rstest_bdd_extract_skip_message` returns `None` (not a skip)
 /// 5. The step loop panics with the error's `Display` output
 #[scenario(path = "tests/features/missing_fixture_error.feature")]
-#[should_panic(expected = "missing")]
+#[should_panic(expected = "required_fixture")]
 fn scenario_missing_fixtures_propagates() {}

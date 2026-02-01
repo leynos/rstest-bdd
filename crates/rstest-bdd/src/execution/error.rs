@@ -1,4 +1,96 @@
-//! Error types for step execution failures.
+//! Error types for step execution failures in BDD scenarios.
+//!
+//! This module defines the [`ExecutionError`] hierarchy used during BDD step
+//! execution. These errors are produced by the [`execute_step`] function and
+//! propagate through the generated scenario code to provide structured failure
+//! information.
+//!
+//! # Error Hierarchy
+//!
+//! The [`ExecutionError`] enum distinguishes between control flow signals and
+//! genuine failures:
+//!
+//! | Variant | Source | Typical Cause |
+//! |---------|--------|---------------|
+//! | [`Skip`][ExecutionError::Skip] | Step handler calls `rstest_bdd::skip!()` | Incomplete implementation, conditional logic |
+//! | [`StepNotFound`][ExecutionError::StepNotFound] | Registry lookup failure | Missing step definition (direct API use only) |
+//! | [`MissingFixtures`][ExecutionError::MissingFixtures] | Fixture validation | Required fixture not in context |
+//! | [`HandlerFailed`][ExecutionError::HandlerFailed] | Step handler returns `Err` | Assertion failure, runtime error |
+//!
+//! # Relationship to `StepKeyword`
+//!
+//! Several variants include [`StepKeyword`] to identify which Gherkin keyword
+//! (Given, When, Then, And, But, or star) triggered the error. This context
+//! helps locate failures in feature files.
+//!
+//! # Arc Usage
+//!
+//! The [`MissingFixtures`] variant wraps its details in [`Arc`] to keep the
+//! `Result<T, ExecutionError>` type compact. This avoids inflating the size of
+//! `Ok` variants with rarely-needed diagnostic data. Access the details through
+//! pattern matching or the [`MissingFixturesDetails`] struct.
+//!
+//! # Matching and Inspection
+//!
+//! Use [`is_skip()`][ExecutionError::is_skip] to distinguish control flow from
+//! failures:
+//!
+//! ```
+//! use rstest_bdd::execution::ExecutionError;
+//!
+//! fn handle_result(error: &ExecutionError) {
+//!     if error.is_skip() {
+//!         // Mark scenario as skipped, not failed
+//!         println!("Skipped: {:?}", error.skip_message());
+//!     } else {
+//!         // Treat as test failure
+//!         panic!("{error}");
+//!     }
+//! }
+//! ```
+//!
+//! For detailed inspection, pattern match on the variants:
+//!
+//! ```
+//! use rstest_bdd::execution::ExecutionError;
+//!
+//! fn inspect_error(error: &ExecutionError) {
+//!     match error {
+//!         ExecutionError::Skip { message } => {
+//!             println!("Skip reason: {message:?}");
+//!         }
+//!         ExecutionError::StepNotFound { keyword, text, .. } => {
+//!             println!("No step matches '{keyword} {text}'");
+//!         }
+//!         ExecutionError::MissingFixtures(details) => {
+//!             println!("Missing: {:?}", details.missing);
+//!         }
+//!         ExecutionError::HandlerFailed { error, .. } => {
+//!             println!("Handler error: {error}");
+//!         }
+//!     }
+//! }
+//! ```
+//!
+//! # Propagation and Logging
+//!
+//! Generated scenario code calls [`execute_step`] for each step and checks the
+//! result. Skip errors are extracted via `__rstest_bdd_extract_skip_message`
+//! and recorded for reporting. Non-skip errors cause an immediate panic with
+//! the [`Display`] output, which includes localised messages via the i18n
+//! system.
+//!
+//! Callers using the step registry directly should:
+//!
+//! 1. Check [`is_skip()`][ExecutionError::is_skip] to separate skips from failures
+//! 2. Use [`skip_message()`][ExecutionError::skip_message] to extract optional skip reasons
+//! 3. Use [`Display`] or [`format_with_loader()`][ExecutionError::format_with_loader]
+//!    for user-facing messages
+//! 4. Access [`std::error::Error::source()`] on `HandlerFailed` to inspect the
+//!    underlying [`StepError`]
+//!
+//! [`execute_step`]: crate::execution::execute_step
+//! [`Display`]: std::fmt::Display
 
 use std::sync::Arc;
 

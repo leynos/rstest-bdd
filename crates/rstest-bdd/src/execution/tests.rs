@@ -1,5 +1,3 @@
-//! Unit tests for the execution module.
-
 use std::sync::Arc;
 
 use rstest::rstest;
