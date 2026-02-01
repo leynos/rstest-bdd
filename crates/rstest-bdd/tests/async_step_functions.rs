@@ -60,12 +60,16 @@ fn sync_scenario_can_block_on_async_steps(state: CounterState) {
 }
 
 #[tokio::test(flavor = "current_thread")]
+#[expect(
+    clippy::expect_used,
+    reason = "test asserts that the async step is registered before invoking its sync wrapper"
+)]
 async fn sync_wrapper_refuses_to_create_nested_runtime() {
     let step = find_step_with_metadata(
         StepKeyword::When,
         StepText::from("an async step increments the state"),
     )
-    .unwrap_or_else(|| panic!("expected async step to be registered"));
+    .expect("expected async step to be registered");
 
     let mut ctx = StepContext::default();
     let state_cell = StepContext::owned_cell(CounterState::default());

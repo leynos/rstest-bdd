@@ -171,8 +171,8 @@ editing their Gherkin specifications.
 **Decision:** Validate each Examples table independently against the scenario
 outline's step placeholders.
 
-**Rationale:** Each Examples table should be self-contained. A column is
-"surplus" if that specific table has it, but no step references it.
+**Rationale:** Each Examples table should be self-contained.
+A column is "surplus" if that specific table has it, but no step references it.
 A placeholder is "missing" if that specific table lacks the column.
 
 ## Outcomes & Retrospective

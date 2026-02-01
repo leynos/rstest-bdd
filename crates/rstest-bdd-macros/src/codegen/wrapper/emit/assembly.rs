@@ -124,7 +124,6 @@ fn generate_expect_attribute(lint_paths: &[syn::Path]) -> TokenStream2 {
     }
 }
 
-/// Code fragments used in wrapper function generation.
 /// Code fragments for wrapper function generation.
 #[derive(Copy, Clone)]
 struct WrapperCodeFragments<'a> {

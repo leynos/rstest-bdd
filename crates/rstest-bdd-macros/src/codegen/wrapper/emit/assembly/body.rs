@@ -15,7 +15,8 @@ use super::super::identifiers::generate_wrapper_signature;
 use proc_macro2::TokenStream as TokenStream2;
 use quote::{format_ident, quote};
 
-/// Generate the compile-time assertion for step struct field count.
+/// Generate a compile-time assertion that the step struct field count matches the
+/// expected number of placeholder captures.
 fn generate_struct_assertion(args: &ExtractedArgs, capture_count: usize) -> Option<TokenStream2> {
     args.step_struct().map(|arg| {
         let ty = arg.ty;
