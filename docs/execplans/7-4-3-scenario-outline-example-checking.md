@@ -173,7 +173,7 @@ editing their Gherkin specifications.
 outline's step placeholders.
 
 **Rationale:** Each Examples table should be self-contained. A column is
-"surplus" if that specific table has it but no step references it. A
+"surplus" if that specific table has it, but no step references it. A
 placeholder is "missing" if that specific table lacks the column.
 
 ## Outcomes & Retrospective

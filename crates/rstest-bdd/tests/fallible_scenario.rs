@@ -28,6 +28,16 @@ fn fallible_scenario_success() -> Result<(), &'static str> {
 
 #[scenario(
     path = "tests/features/fallible_scenario.feature",
+    name = "fallible scenario async success"
+)]
+#[serial]
+async fn fallible_scenario_async_success() -> Result<(), &'static str> {
+    tokio::task::yield_now().await;
+    Ok(())
+}
+
+#[scenario(
+    path = "tests/features/fallible_scenario.feature",
     name = "fallible scenario error"
 )]
 #[serial]
@@ -77,5 +87,25 @@ fn fallible_success_records_pass() {
     assert_eq!(
         1, passed_count,
         "expected exactly one Passed record for successful fallible scenario"
+    );
+}
+
+#[test]
+#[serial]
+fn fallible_async_success_records_pass() {
+    let _ = drain_reports();
+    let result = fallible_scenario_async_success();
+    assert!(
+        result.is_ok(),
+        "expected async fallible scenario to return Ok(())"
+    );
+    let records = drain_reports();
+    let passed_count = records
+        .iter()
+        .filter(|record| matches!(record.status(), ScenarioStatus::Passed))
+        .count();
+    assert_eq!(
+        1, passed_count,
+        "expected exactly one Passed record for async fallible scenario"
     );
 }
