@@ -4,6 +4,22 @@
 
 ### Added (Unreleased)
 
+- Added `ExecutionError` enum for structured step execution failures, replacing
+  string-encoded skip messages with proper error variants: `Skip`, `StepNotFound`,
+  `MissingFixtures`, and `HandlerFailed`. Both `ExecutionError` and
+  `MissingFixturesDetails` are publicly re-exported from the crate root.
+
+  **Migration**: Import these types from the crate root rather than via the
+  `execution` submodule:
+
+  ```rust
+  // Before (still works, but prefer the crate root)
+  use rstest_bdd::execution::{ExecutionError, MissingFixturesDetails};
+
+  // After (preferred)
+  use rstest_bdd::{ExecutionError, MissingFixturesDetails};
+  ```
+
 - Added `assert_step_skipped!` and `assert_scenario_skipped!` macros to assert
   skipped steps and scenario records, reducing boilerplate in behaviour tests.
 - `#[scenario]` fixtures passed by value are now registered mutably, so step
@@ -19,8 +35,15 @@
   fn limit(world: &mut PredicateWorld, limit: usize) { world.limit = limit; }
   ```
 
-  This aligns the runner with typical BDD “world” usage: plain structs, mutable
+  This aligns the runner with typical BDD "world" usage: plain structs, mutable
   steps, and compile‑time borrow checking instead of `Cell`/`RefCell` wrappers.
+
+### Deprecated (Unreleased)
+
+- Deprecated `encode_skip_message` and `decode_skip_message` functions in favour
+  of `ExecutionError::Skip` variant. Use `ExecutionError::skip_message()` to
+  extract the optional skip message. These functions will be removed in a future
+  release.
 
 ### Known issues
 

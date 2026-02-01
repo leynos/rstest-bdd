@@ -41,10 +41,11 @@ fn runtime_mode_tokio_hint_is_rstest_with_tokio() {
 
 /// Tests for deprecated skip encoding functions.
 ///
-/// FIXME(#409): Remove this module when deprecated skip encoding functions are removed.
+/// FIXME: Remove this module when deprecated skip encoding functions are removed.
+/// See: <https://github.com/leynos/rstest-bdd/issues/409>
 #[expect(
     deprecated,
-    reason = "FIXME(#409): tests for deprecated skip encoding functions for backward compatibility"
+    reason = "FIXME: https://github.com/leynos/rstest-bdd/issues/409 - testing deprecated skip encoding functions"
 )]
 mod deprecated_skip_encoding {
     use rstest::rstest;
@@ -98,65 +99,11 @@ mod deprecated_skip_encoding {
 // ExecutionError tests
 // ============================================================================
 
-#[test]
-fn execution_error_skip_is_skip_returns_true() {
-    let error = ExecutionError::Skip { message: None };
-    assert!(error.is_skip());
-}
-
-#[test]
-fn execution_error_skip_with_message_is_skip_returns_true() {
-    let error = ExecutionError::Skip {
-        message: Some("reason".into()),
-    };
-    assert!(error.is_skip());
-}
-
-#[test]
-fn execution_error_step_not_found_is_skip_returns_false() {
-    let error = ExecutionError::StepNotFound {
-        index: 0,
-        keyword: StepKeyword::Given,
-        text: "missing".into(),
-        feature_path: "test.feature".into(),
-        scenario_name: "test".into(),
-    };
-    assert!(!error.is_skip());
-}
-
-#[test]
-fn execution_error_missing_fixtures_is_skip_returns_false() {
-    let error = ExecutionError::MissingFixtures(Arc::new(MissingFixturesDetails {
-        step_pattern: "test step".into(),
-        step_location: "test.rs:1".into(),
-        required: vec!["fixture"],
-        missing: vec!["fixture"],
-        available: vec![],
-        feature_path: "test.feature".into(),
-        scenario_name: "test".into(),
-    }));
-    assert!(!error.is_skip());
-}
-
-#[test]
-fn execution_error_handler_failed_is_skip_returns_false() {
-    let error = ExecutionError::HandlerFailed {
-        index: 0,
-        keyword: StepKeyword::When,
-        text: "failing step".into(),
-        error: Arc::new(StepError::ExecutionError {
-            pattern: "failing step".into(),
-            function: "test_fn".into(),
-            message: "boom".into(),
-        }),
-        feature_path: "test.feature".into(),
-        scenario_name: "test".into(),
-    };
-    assert!(!error.is_skip());
-}
-
-/// Helper enum for parameterized `skip_message` tests.
-enum SkipMessageTestCase {
+/// Helper enum for parameterized `ExecutionError` tests.
+///
+/// Provides test data for `is_skip()` and `skip_message()` method assertions
+/// across all `ExecutionError` variants.
+enum ExecutionErrorTestCase {
     SkipWithoutMessage,
     SkipWithMessage(&'static str),
     StepNotFound,
@@ -164,7 +111,7 @@ enum SkipMessageTestCase {
     MissingFixtures,
 }
 
-impl SkipMessageTestCase {
+impl ExecutionErrorTestCase {
     fn make_error(&self) -> ExecutionError {
         match self {
             Self::SkipWithoutMessage => ExecutionError::Skip { message: None },
@@ -204,6 +151,10 @@ impl SkipMessageTestCase {
         }
     }
 
+    fn expected_is_skip(&self) -> bool {
+        matches!(self, Self::SkipWithoutMessage | Self::SkipWithMessage(_))
+    }
+
     fn expected_skip_message(&self) -> Option<&'static str> {
         match self {
             Self::SkipWithMessage(msg) => Some(msg),
@@ -216,12 +167,24 @@ impl SkipMessageTestCase {
 }
 
 #[rstest]
-#[case::skip_without_message(SkipMessageTestCase::SkipWithoutMessage)]
-#[case::skip_with_message(SkipMessageTestCase::SkipWithMessage("test reason"))]
-#[case::step_not_found(SkipMessageTestCase::StepNotFound)]
-#[case::handler_failed(SkipMessageTestCase::HandlerFailed)]
-#[case::missing_fixtures(SkipMessageTestCase::MissingFixtures)]
-fn execution_error_skip_message_returns_expected_value(#[case] test_case: SkipMessageTestCase) {
+#[case::skip_without_message(ExecutionErrorTestCase::SkipWithoutMessage)]
+#[case::skip_with_message(ExecutionErrorTestCase::SkipWithMessage("test reason"))]
+#[case::step_not_found(ExecutionErrorTestCase::StepNotFound)]
+#[case::handler_failed(ExecutionErrorTestCase::HandlerFailed)]
+#[case::missing_fixtures(ExecutionErrorTestCase::MissingFixtures)]
+fn execution_error_is_skip_returns_expected_value(#[case] test_case: ExecutionErrorTestCase) {
+    let error = test_case.make_error();
+    let expected = test_case.expected_is_skip();
+    assert_eq!(error.is_skip(), expected);
+}
+
+#[rstest]
+#[case::skip_without_message(ExecutionErrorTestCase::SkipWithoutMessage)]
+#[case::skip_with_message(ExecutionErrorTestCase::SkipWithMessage("test reason"))]
+#[case::step_not_found(ExecutionErrorTestCase::StepNotFound)]
+#[case::handler_failed(ExecutionErrorTestCase::HandlerFailed)]
+#[case::missing_fixtures(ExecutionErrorTestCase::MissingFixtures)]
+fn execution_error_skip_message_returns_expected_value(#[case] test_case: ExecutionErrorTestCase) {
     let error = test_case.make_error();
     let expected = test_case.expected_skip_message();
     assert_eq!(error.skip_message(), expected);

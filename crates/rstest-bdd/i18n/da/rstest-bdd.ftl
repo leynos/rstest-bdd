@@ -23,10 +23,10 @@ assert-skip-missing-substring = skip-beskeden '{ $actual }' indeholder ikke '{ $
 assert-skip-unexpected-message = det forventedes, at { $target } ikke gav en skip-besked
 assert-skip-flag-mismatch = det forventedes, at { $target }-flaget '{ $flag }' var { $expected }, men det var { $actual }
 
-execution-error-skip = Step skipped{ $has_message ->
+execution-error-skip = Trin sprunget over{ $has_message ->
     *[no] {""}
     [yes] : { $message }
 }
-execution-error-step-not-found = Step not found at index { $index }: { $keyword } { $text } (feature: { $feature_path }, scenario: { $scenario_name })
-execution-error-missing-fixtures = Step '{ $step_pattern }' (defined at { $step_location }) requires fixtures { $required }, but the following are missing: { $missing }. Available fixtures from scenario: { $available } (feature: { $feature_path }, scenario: { $scenario_name })
-execution-error-handler-failed = Step failed at index { $index }: { $keyword } { $text } - { $error } (feature: { $feature_path }, scenario: { $scenario_name })
+execution-error-step-not-found = Trin ikke fundet ved indeks { $index }: { $keyword } { $text } (feature: { $feature_path }, scenarie: { $scenario_name })
+execution-error-missing-fixtures = Trinnet '{ $step_pattern }' (defineret ved { $step_location }) kræver fixtures { $required }, men følgende mangler: { $missing }. Tilgængelige fixtures fra scenariet: { $available } (feature: { $feature_path }, scenarie: { $scenario_name })
+execution-error-handler-failed = Trin fejlede ved indeks { $index }: { $keyword } { $text } - { $error } (feature: { $feature_path }, scenarie: { $scenario_name })

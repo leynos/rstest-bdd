@@ -23,10 +23,10 @@ assert-skip-missing-substring = a kihagyási üzenet '{ $actual }' nem tartalmaz
 assert-skip-unexpected-message = elvártuk, hogy { $target } ne adjon kihagyási üzenetet
 assert-skip-flag-mismatch = elvártuk, hogy { $target } '{ $flag }' jelzője { $expected } legyen, de { $actual } volt
 
-execution-error-skip = Step skipped{ $has_message ->
+execution-error-skip = Lépés kihagyva{ $has_message ->
     *[no] {""}
     [yes] : { $message }
 }
-execution-error-step-not-found = Step not found at index { $index }: { $keyword } { $text } (feature: { $feature_path }, scenario: { $scenario_name })
-execution-error-missing-fixtures = Step '{ $step_pattern }' (defined at { $step_location }) requires fixtures { $required }, but the following are missing: { $missing }. Available fixtures from scenario: { $available } (feature: { $feature_path }, scenario: { $scenario_name })
-execution-error-handler-failed = Step failed at index { $index }: { $keyword } { $text } - { $error } (feature: { $feature_path }, scenario: { $scenario_name })
+execution-error-step-not-found = A(z) { $index } indexű lépés nem található: { $keyword } { $text } (funkció: { $feature_path }, forgatókönyv: { $scenario_name })
+execution-error-missing-fixtures = A(z) „{ $step_pattern }" lépés ({ $step_location } helyen meghatározva) fixtúrákat igényel: { $required }, de a következők hiányoznak: { $missing }. Elérhető fixtúrák a forgatókönyvből: { $available } (funkció: { $feature_path }, forgatókönyv: { $scenario_name })
+execution-error-handler-failed = A(z) { $index } indexű lépés sikertelen: { $keyword } { $text } - { $error } (funkció: { $feature_path }, forgatókönyv: { $scenario_name })

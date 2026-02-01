@@ -23,10 +23,10 @@ assert-skip-missing-substring = پیام رد کردن «{ $actual }» شامل 
 assert-skip-unexpected-message = انتظار می‌رفت { $target } پیام رد کردنی ارائه ندهد
 assert-skip-flag-mismatch = انتظار می‌رفت پرچم '{ $flag }' در { $target } برابر با { $expected } باشد، اما { $actual } بود
 
-execution-error-skip = Step skipped{ $has_message ->
+execution-error-skip = گام رد شد{ $has_message ->
     *[no] {""}
     [yes] : { $message }
 }
-execution-error-step-not-found = Step not found at index { $index }: { $keyword } { $text } (feature: { $feature_path }, scenario: { $scenario_name })
-execution-error-missing-fixtures = Step '{ $step_pattern }' (defined at { $step_location }) requires fixtures { $required }, but the following are missing: { $missing }. Available fixtures from scenario: { $available } (feature: { $feature_path }, scenario: { $scenario_name })
-execution-error-handler-failed = Step failed at index { $index }: { $keyword } { $text } - { $error } (feature: { $feature_path }, scenario: { $scenario_name })
+execution-error-step-not-found = گام در شاخص { $index } یافت نشد: { $keyword } { $text } (feature: { $feature_path }، سناریو: { $scenario_name })
+execution-error-missing-fixtures = گام «{ $step_pattern }» (تعریف‌شده در { $step_location }) به فیکسچرهای { $required } نیاز دارد، اما موارد زیر وجود ندارند: { $missing }. فیکسچرهای موجود از سناریو: { $available } (feature: { $feature_path }، سناریو: { $scenario_name })
+execution-error-handler-failed = گام در شاخص { $index } ناموفق بود: { $keyword } { $text } - { $error } (feature: { $feature_path }، سناریو: { $scenario_name })

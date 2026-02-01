@@ -23,10 +23,10 @@ assert-skip-missing-substring = a mensagem de salto '{ $actual }' não contém '
 assert-skip-unexpected-message = esperava-se que { $target } não fornecesse uma mensagem de salto
 assert-skip-flag-mismatch = esperava-se que o sinalizador '{ $flag }' de { $target } fosse { $expected }, mas era { $actual }
 
-execution-error-skip = Step skipped{ $has_message ->
+execution-error-skip = Passo ignorado{ $has_message ->
     *[no] {""}
     [yes] : { $message }
 }
-execution-error-step-not-found = Step not found at index { $index }: { $keyword } { $text } (feature: { $feature_path }, scenario: { $scenario_name })
-execution-error-missing-fixtures = Step '{ $step_pattern }' (defined at { $step_location }) requires fixtures { $required }, but the following are missing: { $missing }. Available fixtures from scenario: { $available } (feature: { $feature_path }, scenario: { $scenario_name })
-execution-error-handler-failed = Step failed at index { $index }: { $keyword } { $text } - { $error } (feature: { $feature_path }, scenario: { $scenario_name })
+execution-error-step-not-found = Passo não encontrado no índice { $index }: { $keyword } { $text } (feature: { $feature_path }, cenário: { $scenario_name })
+execution-error-missing-fixtures = O passo '{ $step_pattern }' (definido em { $step_location }) requer fixtures { $required }, mas os seguintes estão em falta: { $missing }. Fixtures disponíveis do cenário: { $available } (feature: { $feature_path }, cenário: { $scenario_name })
+execution-error-handler-failed = Passo falhou no índice { $index }: { $keyword } { $text } - { $error } (feature: { $feature_path }, cenário: { $scenario_name })

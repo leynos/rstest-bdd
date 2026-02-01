@@ -23,10 +23,10 @@ assert-skip-missing-substring = 跳过信息 '{ $actual }' 不包含 '{ $expecte
 assert-skip-unexpected-message = 期望 { $target } 不提供跳过信息
 assert-skip-flag-mismatch = 期望 { $target } 标志 '{ $flag }' 为 { $expected }，但实际为 { $actual }
 
-execution-error-skip = Step skipped{ $has_message ->
+execution-error-skip = 步骤已跳过{ $has_message ->
     *[no] {""}
-    [yes] : { $message }
+    [yes] ：{ $message }
 }
-execution-error-step-not-found = Step not found at index { $index }: { $keyword } { $text } (feature: { $feature_path }, scenario: { $scenario_name })
-execution-error-missing-fixtures = Step '{ $step_pattern }' (defined at { $step_location }) requires fixtures { $required }, but the following are missing: { $missing }. Available fixtures from scenario: { $available } (feature: { $feature_path }, scenario: { $scenario_name })
-execution-error-handler-failed = Step failed at index { $index }: { $keyword } { $text } - { $error } (feature: { $feature_path }, scenario: { $scenario_name })
+execution-error-step-not-found = 索引 { $index } 处未找到步骤：{ $keyword } { $text }（功能：{ $feature_path }，场景：{ $scenario_name }）
+execution-error-missing-fixtures = 步骤「{ $step_pattern }」（定义于 { $step_location }）需要夹具 { $required }，但以下夹具缺失：{ $missing }。场景中可用的夹具：{ $available }（功能：{ $feature_path }，场景：{ $scenario_name }）
+execution-error-handler-failed = 步骤在索引 { $index } 处执行失败：{ $keyword } { $text } - { $error }（功能：{ $feature_path }，场景：{ $scenario_name }）

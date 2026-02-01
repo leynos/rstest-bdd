@@ -23,10 +23,10 @@ assert-skip-missing-substring = स्किप संदेश « { $actual } �
 assert-skip-unexpected-message = अपेक्षा थी कि { $target } कोई स्किप संदेश नहीं देगा
 assert-skip-flag-mismatch = अपेक्षा थी कि { $target } के फ़्लैग « { $flag } » का मान « { $expected } » होगा, परन्तु वह « { $actual } » था
 
-execution-error-skip = Step skipped{ $has_message ->
+execution-error-skip = स्टेप छोड़ा गया{ $has_message ->
     *[no] {""}
     [yes] : { $message }
 }
-execution-error-step-not-found = Step not found at index { $index }: { $keyword } { $text } (feature: { $feature_path }, scenario: { $scenario_name })
-execution-error-missing-fixtures = Step '{ $step_pattern }' (defined at { $step_location }) requires fixtures { $required }, but the following are missing: { $missing }. Available fixtures from scenario: { $available } (feature: { $feature_path }, scenario: { $scenario_name })
-execution-error-handler-failed = Step failed at index { $index }: { $keyword } { $text } - { $error } (feature: { $feature_path }, scenario: { $scenario_name })
+execution-error-step-not-found = इंडेक्स { $index } पर स्टेप नहीं मिला: { $keyword } { $text } (फ़ीचर: { $feature_path }, सिनेरियो: { $scenario_name })
+execution-error-missing-fixtures = स्टेप « { $step_pattern } » ({ $step_location } पर परिभाषित) को फ़िक्चर { $required } की आवश्यकता है, लेकिन निम्नलिखित अनुपस्थित हैं: { $missing }। सिनेरियो से उपलब्ध फ़िक्चर: { $available } (फ़ीचर: { $feature_path }, सिनेरियो: { $scenario_name })
+execution-error-handler-failed = इंडेक्स { $index } पर स्टेप विफल: { $keyword } { $text } - { $error } (फ़ीचर: { $feature_path }, सिनेरियो: { $scenario_name })

@@ -23,10 +23,10 @@ assert-skip-missing-substring = сообщение о пропуске «{ $actu
 assert-skip-unexpected-message = ожидалось, что { $target } не предоставит сообщение о пропуске
 assert-skip-flag-mismatch = ожидалось, что флаг «{ $flag }» для { $target } будет { $expected }, но оказалось { $actual }
 
-execution-error-skip = Step skipped{ $has_message ->
+execution-error-skip = Шаг пропущен{ $has_message ->
     *[no] {""}
     [yes] : { $message }
 }
-execution-error-step-not-found = Step not found at index { $index }: { $keyword } { $text } (feature: { $feature_path }, scenario: { $scenario_name })
-execution-error-missing-fixtures = Step '{ $step_pattern }' (defined at { $step_location }) requires fixtures { $required }, but the following are missing: { $missing }. Available fixtures from scenario: { $available } (feature: { $feature_path }, scenario: { $scenario_name })
-execution-error-handler-failed = Step failed at index { $index }: { $keyword } { $text } - { $error } (feature: { $feature_path }, scenario: { $scenario_name })
+execution-error-step-not-found = Шаг не найден по индексу { $index }: { $keyword } { $text } (feature: { $feature_path }, сценарий: { $scenario_name })
+execution-error-missing-fixtures = Шаг «{ $step_pattern }» (определён в { $step_location }) требует фикстуры { $required }, но следующие отсутствуют: { $missing }. Доступные фикстуры из сценария: { $available } (feature: { $feature_path }, сценарий: { $scenario_name })
+execution-error-handler-failed = Шаг завершился ошибкой по индексу { $index }: { $keyword } { $text } - { $error } (feature: { $feature_path }, сценарий: { $scenario_name })

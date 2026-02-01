@@ -23,10 +23,10 @@ assert-skip-missing-substring = zpráva o přeskočení '{ $actual }' neobsahuje
 assert-skip-unexpected-message = očekávalo se, že { $target } neposkytne zprávu o přeskočení
 assert-skip-flag-mismatch = očekávalo se, že příznak '{ $flag }' pro { $target } bude { $expected }, ale byl { $actual }
 
-execution-error-skip = Step skipped{ $has_message ->
+execution-error-skip = Krok přeskočen{ $has_message ->
     *[no] {""}
     [yes] : { $message }
 }
-execution-error-step-not-found = Step not found at index { $index }: { $keyword } { $text } (feature: { $feature_path }, scenario: { $scenario_name })
-execution-error-missing-fixtures = Step '{ $step_pattern }' (defined at { $step_location }) requires fixtures { $required }, but the following are missing: { $missing }. Available fixtures from scenario: { $available } (feature: { $feature_path }, scenario: { $scenario_name })
-execution-error-handler-failed = Step failed at index { $index }: { $keyword } { $text } - { $error } (feature: { $feature_path }, scenario: { $scenario_name })
+execution-error-step-not-found = Krok nenalezen na indexu { $index }: { $keyword } { $text } (feature: { $feature_path }, scénář: { $scenario_name })
+execution-error-missing-fixtures = Krok „{ $step_pattern }" (definován v { $step_location }) vyžaduje fixtury { $required }, ale následující chybí: { $missing }. Dostupné fixtury ze scénáře: { $available } (feature: { $feature_path }, scénář: { $scenario_name })
+execution-error-handler-failed = Krok selhal na indexu { $index }: { $keyword } { $text } - { $error } (feature: { $feature_path }, scénář: { $scenario_name })

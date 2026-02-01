@@ -23,10 +23,10 @@ assert-skip-missing-substring = הודעת הדילוג '{ $actual }' אינה �
 assert-skip-unexpected-message = ציפינו ש-{ $target } לא יספק הודעת דילוג
 assert-skip-flag-mismatch = ציפינו שדגל '{ $flag }' אצל { $target } יהיה { $expected }, אך היה { $actual }
 
-execution-error-skip = Step skipped{ $has_message ->
+execution-error-skip = הצעד דולג{ $has_message ->
     *[no] {""}
     [yes] : { $message }
 }
-execution-error-step-not-found = Step not found at index { $index }: { $keyword } { $text } (feature: { $feature_path }, scenario: { $scenario_name })
-execution-error-missing-fixtures = Step '{ $step_pattern }' (defined at { $step_location }) requires fixtures { $required }, but the following are missing: { $missing }. Available fixtures from scenario: { $available } (feature: { $feature_path }, scenario: { $scenario_name })
-execution-error-handler-failed = Step failed at index { $index }: { $keyword } { $text } - { $error } (feature: { $feature_path }, scenario: { $scenario_name })
+execution-error-step-not-found = הצעד לא נמצא באינדקס { $index }: { $keyword } { $text } (feature: { $feature_path }, תרחיש: { $scenario_name })
+execution-error-missing-fixtures = הצעד "{ $step_pattern }" (מוגדר ב-{ $step_location }) דורש קיבועים { $required }, אך הבאים חסרים: { $missing }. קיבועים זמינים מהתרחיש: { $available } (feature: { $feature_path }, תרחיש: { $scenario_name })
+execution-error-handler-failed = הצעד נכשל באינדקס { $index }: { $keyword } { $text } - { $error } (feature: { $feature_path }, תרחיש: { $scenario_name })

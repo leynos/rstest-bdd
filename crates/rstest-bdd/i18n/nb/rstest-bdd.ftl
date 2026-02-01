@@ -23,10 +23,10 @@ assert-skip-missing-substring = hopp-meldingen '{ $actual }' inneholder ikke '{ 
 assert-skip-unexpected-message = forventet at { $target } ikke skulle gi en hopp-melding
 assert-skip-flag-mismatch = forventet at flagget '{ $flag }' for { $target } skulle være { $expected }, men det var { $actual }
 
-execution-error-skip = Step skipped{ $has_message ->
+execution-error-skip = Trinn hoppet over{ $has_message ->
     *[no] {""}
     [yes] : { $message }
 }
-execution-error-step-not-found = Step not found at index { $index }: { $keyword } { $text } (feature: { $feature_path }, scenario: { $scenario_name })
-execution-error-missing-fixtures = Step '{ $step_pattern }' (defined at { $step_location }) requires fixtures { $required }, but the following are missing: { $missing }. Available fixtures from scenario: { $available } (feature: { $feature_path }, scenario: { $scenario_name })
-execution-error-handler-failed = Step failed at index { $index }: { $keyword } { $text } - { $error } (feature: { $feature_path }, scenario: { $scenario_name })
+execution-error-step-not-found = Trinn ikke funnet ved indeks { $index }: { $keyword } { $text } (funksjon: { $feature_path }, scenario: { $scenario_name })
+execution-error-missing-fixtures = Trinn « { $step_pattern } » (definert ved { $step_location }) krever fiksturer { $required }, men følgende mangler: { $missing }. Tilgjengelige fiksturer fra scenario: { $available } (funksjon: { $feature_path }, scenario: { $scenario_name })
+execution-error-handler-failed = Trinn feilet ved indeks { $index }: { $keyword } { $text } - { $error } (funksjon: { $feature_path }, scenario: { $scenario_name })

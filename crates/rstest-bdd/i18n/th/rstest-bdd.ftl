@@ -23,10 +23,10 @@ assert-skip-missing-substring = ข้อความการข้าม '{ $a
 assert-skip-unexpected-message = คาดหวังให้ { $target } ไม่ให้ข้อความการข้าม
 assert-skip-flag-mismatch = คาดหวังให้ธง '{ $flag }' ของ { $target } เป็น { $expected } แต่กลับเป็น { $actual }
 
-execution-error-skip = Step skipped{ $has_message ->
+execution-error-skip = ขั้นตอนถูกข้าม{ $has_message ->
     *[no] {""}
     [yes] : { $message }
 }
-execution-error-step-not-found = Step not found at index { $index }: { $keyword } { $text } (feature: { $feature_path }, scenario: { $scenario_name })
-execution-error-missing-fixtures = Step '{ $step_pattern }' (defined at { $step_location }) requires fixtures { $required }, but the following are missing: { $missing }. Available fixtures from scenario: { $available } (feature: { $feature_path }, scenario: { $scenario_name })
-execution-error-handler-failed = Step failed at index { $index }: { $keyword } { $text } - { $error } (feature: { $feature_path }, scenario: { $scenario_name })
+execution-error-step-not-found = ไม่พบขั้นตอนที่ดัชนี { $index }: { $keyword } { $text } (ฟีเจอร์: { $feature_path }, สถานการณ์: { $scenario_name })
+execution-error-missing-fixtures = ขั้นตอน « { $step_pattern } » (กำหนดที่ { $step_location }) ต้องการฟิกซ์เจอร์ { $required } แต่สิ่งต่อไปนี้หายไป: { $missing } ฟิกซ์เจอร์ที่มีจากสถานการณ์: { $available } (ฟีเจอร์: { $feature_path }, สถานการณ์: { $scenario_name })
+execution-error-handler-failed = ขั้นตอนล้มเหลวที่ดัชนี { $index }: { $keyword } { $text } - { $error } (ฟีเจอร์: { $feature_path }, สถานการณ์: { $scenario_name })

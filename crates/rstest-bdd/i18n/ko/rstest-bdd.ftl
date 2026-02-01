@@ -23,10 +23,10 @@ assert-skip-missing-substring = 건너뛰기 메시지 '{ $actual }' 에 '{ $exp
 assert-skip-unexpected-message = { $target } 이(가) 건너뛰기 메시지를 제공하지 않을 것으로 예상했습니다
 assert-skip-flag-mismatch = { $target } 의 플래그 '{ $flag }' 이(가) { $expected } 일 것으로 예상했지만 실제로는 { $actual }였습니다
 
-execution-error-skip = Step skipped{ $has_message ->
+execution-error-skip = 스텝 건너뜀{ $has_message ->
     *[no] {""}
     [yes] : { $message }
 }
-execution-error-step-not-found = Step not found at index { $index }: { $keyword } { $text } (feature: { $feature_path }, scenario: { $scenario_name })
-execution-error-missing-fixtures = Step '{ $step_pattern }' (defined at { $step_location }) requires fixtures { $required }, but the following are missing: { $missing }. Available fixtures from scenario: { $available } (feature: { $feature_path }, scenario: { $scenario_name })
-execution-error-handler-failed = Step failed at index { $index }: { $keyword } { $text } - { $error } (feature: { $feature_path }, scenario: { $scenario_name })
+execution-error-step-not-found = 인덱스 { $index }에서 스텝을 찾을 수 없습니다: { $keyword } { $text } (기능: { $feature_path }, 시나리오: { $scenario_name })
+execution-error-missing-fixtures = 스텝 '{ $step_pattern }' ({ $step_location }에서 정의됨)은 픽스처 { $required }가 필요하지만 다음이 누락되었습니다: { $missing }. 시나리오에서 사용 가능한 픽스처: { $available } (기능: { $feature_path }, 시나리오: { $scenario_name })
+execution-error-handler-failed = 인덱스 { $index }에서 스텝 실패: { $keyword } { $text } - { $error } (기능: { $feature_path }, 시나리오: { $scenario_name })

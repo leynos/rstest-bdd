@@ -23,10 +23,10 @@ assert-skip-missing-substring = pesan skip '{ $actual }' tidak mengandung '{ $ex
 assert-skip-unexpected-message = diharapkan { $target } tidak menyediakan pesan skip
 assert-skip-flag-mismatch = diharapkan flag '{ $flag }' milik { $target } bernilai { $expected }, tetapi nilainya { $actual }
 
-execution-error-skip = Step skipped{ $has_message ->
+execution-error-skip = Langkah dilewati{ $has_message ->
     *[no] {""}
     [yes] : { $message }
 }
-execution-error-step-not-found = Step not found at index { $index }: { $keyword } { $text } (feature: { $feature_path }, scenario: { $scenario_name })
-execution-error-missing-fixtures = Step '{ $step_pattern }' (defined at { $step_location }) requires fixtures { $required }, but the following are missing: { $missing }. Available fixtures from scenario: { $available } (feature: { $feature_path }, scenario: { $scenario_name })
-execution-error-handler-failed = Step failed at index { $index }: { $keyword } { $text } - { $error } (feature: { $feature_path }, scenario: { $scenario_name })
+execution-error-step-not-found = Langkah tidak ditemukan pada indeks { $index }: { $keyword } { $text } (fitur: { $feature_path }, skenario: { $scenario_name })
+execution-error-missing-fixtures = Langkah « { $step_pattern } » (didefinisikan di { $step_location }) memerlukan fixture { $required }, tetapi yang berikut hilang: { $missing }. Fixture tersedia dari skenario: { $available } (fitur: { $feature_path }, skenario: { $scenario_name })
+execution-error-handler-failed = Langkah gagal pada indeks { $index }: { $keyword } { $text } - { $error } (fitur: { $feature_path }, skenario: { $scenario_name })
