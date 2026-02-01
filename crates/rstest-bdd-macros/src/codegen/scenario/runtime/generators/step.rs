@@ -14,7 +14,7 @@
 //! The step execution logic has been moved to [`rstest_bdd::execution`] to achieve
 //! clearer separation between macro codegen and runtime policy. The generated code
 //! simply delegates to the runtime functions, keeping macro output minimal and
-//! centralising policy decisions in the runtime crate.
+//! centralizing policy decisions in the runtime crate.
 
 use proc_macro2::TokenStream as TokenStream2;
 use quote::quote;

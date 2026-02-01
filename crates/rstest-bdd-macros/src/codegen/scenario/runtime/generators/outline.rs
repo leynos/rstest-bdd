@@ -63,13 +63,20 @@ fn generate_step_executor_loop_outline_impl(
 /// # Generated code
 ///
 /// ```text
+/// let mut __rstest_bdd_failed: Option<String> = None;
 /// const __RSTEST_BDD_ALL_STEPS: &[&[(StepKeyword, &str, Option<&str>, Option<&[&[&str]]>)]] = &[
 ///     &[(kw0, "substituted text row 0", ...), ...],
 ///     &[(kw0, "substituted text row 1", ...), ...],
 /// ];
 /// let __rstest_bdd_steps = __RSTEST_BDD_ALL_STEPS[__rstest_bdd_case_idx];
 /// for (index, (keyword, text, docstring, table)) in steps.iter().copied().enumerate() {
-///     // ... same execution logic as regular loop
+///     match __rstest_bdd_execute_single_step(...) {
+///         Ok(value) => { /* insert value into context */ }
+///         Err(error) => { /* extract skip or store error, break */ }
+///     }
+/// }
+/// if let Some(error_msg) = __rstest_bdd_failed {
+///     panic!("{}", error_msg);
 /// }
 /// ```
 pub(in crate::codegen::scenario::runtime) fn generate_step_executor_loop_outline(

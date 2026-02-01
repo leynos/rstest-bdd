@@ -264,6 +264,30 @@ pub struct StepExecutionRequest<'a> {
 ///   not available in the context.
 /// - [`ExecutionError::HandlerFailed`]: The step handler function returned an
 ///   error during execution.
+///
+/// # Examples
+///
+/// ```
+/// use rstest_bdd::execution::{execute_step, ExecutionError, StepExecutionRequest};
+/// use rstest_bdd::{StepContext, StepKeyword};
+///
+/// let request = StepExecutionRequest {
+///     index: 0,
+///     keyword: StepKeyword::Given,
+///     text: "undefined step",
+///     docstring: None,
+///     table: None,
+///     feature_path: "feature.feature",
+///     scenario_name: "Scenario",
+/// };
+/// let mut ctx = StepContext::default();
+///
+/// let error = match execute_step(&request, &mut ctx) {
+///     Err(error) => error,
+///     Ok(_) => panic!("expected missing step"),
+/// };
+/// assert!(matches!(error, ExecutionError::StepNotFound { .. }));
+/// ```
 pub fn execute_step(
     request: &StepExecutionRequest<'_>,
     ctx: &mut StepContext<'_>,
