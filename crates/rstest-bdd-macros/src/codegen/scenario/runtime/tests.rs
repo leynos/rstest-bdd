@@ -237,7 +237,6 @@ fn skip_decoder_delegates_to_runtime() {
     assert_path_is_execution_decode_skip_message(func_path);
 }
 
-#[expect(clippy::panic, reason = "test helper panics for clearer failures")]
 fn assert_skip_handler_returns(
     return_kind: ScenarioReturnKind,
     empty_message: &str,
@@ -247,7 +246,10 @@ fn assert_skip_handler_returns(
     let if_expr = parse_skip_handler(return_kind);
     let returns = collect_returns(&if_expr.then_branch);
     assert!(!returns.is_empty(), "{empty_message}");
-    assert!(returns.iter().all(predicate), "{predicate_message}");
+    assert!(
+        returns.iter().all(|ret| predicate(ret)),
+        "{predicate_message}"
+    );
 }
 
 #[test]
