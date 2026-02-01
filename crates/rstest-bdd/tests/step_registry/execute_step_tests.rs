@@ -60,14 +60,92 @@ fn execute_step_succeeds_with_value(mut ctx: StepContext<'static>) {
     assert_eq!(*downcast, 42);
 }
 
-/// Validates that the error matches the expected variant and contains correct context.
-///
-/// Returns `true` if the error matches expectations, panics with a descriptive message otherwise.
+// Asserts common error context fields match request defaults.
+fn assert_error_context(
+    index: usize,
+    keyword: StepKeyword,
+    text: &str,
+    feature_path: &str,
+    scenario_name: &str,
+    expected_keyword: StepKeyword,
+    expected_text: &str,
+) {
+    assert_eq!(index, 0, "index should match request");
+    assert_eq!(keyword, expected_keyword, "keyword should match request");
+    assert_eq!(text, expected_text, "text should match request");
+    assert_eq!(feature_path, "test.feature", "feature_path should match");
+    assert_eq!(scenario_name, "Test Scenario", "scenario_name should match");
+}
+
+fn assert_step_not_found(
+    error: &ExecutionError,
+    expected_keyword: StepKeyword,
+    expected_text: &str,
+) {
+    let ExecutionError::StepNotFound {
+        index,
+        keyword,
+        text,
+        feature_path,
+        scenario_name,
+    } = error
+    else {
+        panic!("expected StepNotFound error, got: {error:?}");
+    };
+    assert_error_context(
+        *index,
+        *keyword,
+        text,
+        feature_path,
+        scenario_name,
+        expected_keyword,
+        expected_text,
+    );
+    assert!(!error.is_skip(), "StepNotFound should not be a skip");
+}
+
+fn assert_handler_failed(
+    error: &ExecutionError,
+    expected_keyword: StepKeyword,
+    expected_text: &str,
+) {
+    let ExecutionError::HandlerFailed {
+        index,
+        keyword,
+        text,
+        error: inner,
+        feature_path,
+        scenario_name,
+    } = error
+    else {
+        panic!("expected HandlerFailed error, got: {error:?}");
+    };
+    assert_error_context(
+        *index,
+        *keyword,
+        text,
+        feature_path,
+        scenario_name,
+        expected_keyword,
+        expected_text,
+    );
+    assert!(
+        std::error::Error::source(error).is_some(),
+        "should have source"
+    );
+    assert!(
+        !inner.to_string().is_empty(),
+        "inner error should have message"
+    );
+    assert!(!error.is_skip(), "HandlerFailed should not be a skip");
+}
+
+// Validates that the error matches the expected variant and contains correct context.
 fn assert_error_matches(
     error: &ExecutionError,
     expected: &ExpectedExecutionError,
-    keyword: StepKeyword,
-    text: &str,
+    expected_keyword: StepKeyword,
+    expected_text: &str,
 ) {
     match expected {
         ExpectedExecutionError::SkipWithoutMessage => {
@@ -87,51 +165,10 @@ fn assert_error_matches(
             );
         }
         ExpectedExecutionError::StepNotFound => {
-            let ExecutionError::StepNotFound {
-                index,
-                keyword: err_keyword,
-                text: err_text,
-                feature_path,
-                scenario_name,
-            } = error
-            else {
-                panic!("expected StepNotFound error, got: {error:?}");
-            };
-            assert_eq!(*index, 0, "index should match request");
-            assert_eq!(*err_keyword, keyword, "keyword should match request");
-            assert_eq!(err_text, text, "text should match request");
-            assert_eq!(feature_path, "test.feature", "feature_path should match");
-            assert_eq!(scenario_name, "Test Scenario", "scenario_name should match");
-            assert!(!error.is_skip(), "StepNotFound should not be a skip");
+            assert_step_not_found(error, expected_keyword, expected_text);
         }
         ExpectedExecutionError::HandlerFailed => {
-            let ExecutionError::HandlerFailed {
-                index,
-                keyword: err_keyword,
-                text: err_text,
-                error: inner_error,
-                feature_path,
-                scenario_name,
-            } = error
-            else {
-                panic!("expected HandlerFailed error, got: {error:?}");
-            };
-            assert_eq!(*index, 0, "index should match request");
-            assert_eq!(*err_keyword, keyword, "keyword should match request");
-            assert_eq!(err_text, text, "text should match request");
-            assert_eq!(feature_path, "test.feature", "feature_path should match");
-            assert_eq!(scenario_name, "Test Scenario", "scenario_name should match");
-            assert!(
-                std::error::Error::source(error).is_some(),
-                "HandlerFailed should have a source error"
-            );
-            // Verify the inner error is accessible and contains relevant info
-            let inner_str = inner_error.to_string();
-            assert!(
-                !inner_str.is_empty(),
-                "inner error should have a non-empty message"
-            );
-            assert!(!error.is_skip(), "HandlerFailed should not be a skip");
+            assert_handler_failed(error, expected_keyword, expected_text);
         }
     }
 }
