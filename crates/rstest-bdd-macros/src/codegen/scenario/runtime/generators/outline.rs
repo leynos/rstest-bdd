@@ -15,7 +15,9 @@ use super::step_loop::generate_step_result_handler;
 /// Generates a step executor loop for scenario outlines with placeholder substitution.
 ///
 /// This shared implementation accepts a `TokenStream2` callee for consistency with
-/// `generate_step_executor_loop_impl`.
+/// `generate_step_executor_loop_impl`. It initializes tracking variables for both skip
+/// and failure states, executes the step loop, and defers any panic until after the
+/// loop completes.
 fn generate_step_executor_loop_outline_impl(
     callee: &TokenStream2,
     all_rows_steps: &[ProcessedStepTokens],
@@ -33,12 +35,17 @@ fn generate_step_executor_loop_outline_impl(
     let result_handler = generate_step_result_handler(callee);
 
     quote! {
+        let mut __rstest_bdd_failed: Option<String> = None;
+        let mut __rstest_bdd_failed_at: Option<usize> = None;
         const __RSTEST_BDD_ALL_STEPS: &[&[(#path::StepKeyword, &str, Option<&str>, Option<&[&[&str]]>)]] = &[
             #(#row_arrays),*
         ];
         let __rstest_bdd_steps = __RSTEST_BDD_ALL_STEPS[__rstest_bdd_case_idx];
         for (__rstest_bdd_index, (__rstest_bdd_keyword, __rstest_bdd_text, __rstest_bdd_docstring, __rstest_bdd_table)) in __rstest_bdd_steps.iter().copied().enumerate() {
             #result_handler
+        }
+        if let Some(error_msg) = __rstest_bdd_failed {
+            panic!("{}", error_msg);
         }
     }
 }
@@ -96,8 +103,11 @@ pub(in crate::codegen::scenario::runtime) fn generate_step_executor_loop_outline
 /// for (index, (keyword, text, docstring, table)) in steps.iter().copied().enumerate() {
 ///     match __rstest_bdd_process_async_step(...) {
 ///         Ok(value) => { /* insert value into context */ }
-///         Err(error) => { /* extract skip or panic on error, break */ }
+///         Err(error) => { /* extract skip or store error, break */ }
 ///     }
+/// }
+/// if let Some(error_msg) = __rstest_bdd_failed {
+///     panic!("{}", error_msg);
 /// }
 /// ```
 ///
