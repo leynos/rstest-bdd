@@ -121,6 +121,10 @@ pub(super) fn generate_wrapper_body(
     )
 }
 
+/// Generate the async variant of the wrapper function body and pattern constant.
+///
+/// This delegates to `generate_wrapper_body_impl`, selecting `super::WrapperKind::Async`
+/// so the generated wrapper returns a `StepFuture` and awaits the step call path.
 pub(super) fn generate_async_wrapper_body(
     config: &super::super::WrapperConfig<'_>,
     wrapper_ident: &proc_macro2::Ident,

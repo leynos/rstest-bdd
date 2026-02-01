@@ -310,7 +310,7 @@ impl ExecutorType {
 
 /// Verify that generated step executors remain thin wrappers over the runtime.
 ///
-/// This parameterised test covers both synchronous and asynchronous executor
+/// This parameterized test covers both synchronous and asynchronous executor
 /// variants, ensuring they delegate to the appropriate `rstest_bdd::execution`
 /// function without embedding inline implementation details.
 #[rstest]

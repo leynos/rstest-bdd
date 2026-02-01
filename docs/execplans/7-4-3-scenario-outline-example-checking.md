@@ -9,7 +9,7 @@ Status: COMPLETE
 
 This document follows the ExecPlans skill template.
 
-## Purpose / Big Picture
+## Purpose / big picture
 
 After this change, the `rstest-bdd-server` language server will emit on-save
 diagnostics that catch mismatches between Scenario Outline placeholders
@@ -124,9 +124,8 @@ Known uncertainties that might affect the plan:
 ## Surprises & Discoveries
 
 1. **File length limit refactoring**: The `indexing/feature.rs` file exceeded
-   the 400-line limit after adding scenario outline indexing. Solution:
-   extracted scenario outline helper functions to a new
-   `indexing/feature/outline.rs` submodule.
+   the 400-line limit. Solution: extracted scenario outline helper functions to
+   a new `indexing/feature/outline.rs` submodule.
 
 2. **Clippy `expect_used` lint**: The `expect()` call on regex compilation
    triggered a lint error. Solution: use `unwrap_or_else(|_| unreachable!())`
@@ -173,8 +172,8 @@ editing their Gherkin specifications.
 outline's step placeholders.
 
 **Rationale:** Each Examples table should be self-contained. A column is
-"surplus" if that specific table has it, but no step references it. A
-placeholder is "missing" if that specific table lacks the column.
+"surplus" if that specific table has it, but no step references it.
+A placeholder is "missing" if that specific table lacks the column.
 
 ## Outcomes & Retrospective
 
@@ -200,7 +199,7 @@ validation diagnostics for the rstest-bdd language server. The implementation:
 
 **Quality gates:** All passed (check-fmt, lint, test)
 
-## Context and Orientation
+## Context and orientation
 
 This feature extends the `rstest-bdd-server` language server crate. The server
 already provides:
@@ -211,7 +210,7 @@ already provides:
 - Diagnostics for placeholder count mismatches
 - Diagnostics for data table and docstring expectation mismatches
 
-### Key Files
+### Key files
 
 - `crates/rstest-bdd-server/src/indexing/mod.rs`: Data structures for indexed
   features and Rust files
@@ -226,7 +225,7 @@ already provides:
 - `crates/rstest-bdd-server/src/test_support.rs`: Test utilities
 - `crates/rstest-bdd-server/tests/diagnostics_*.rs`: Behavioural tests
 
-### Key Data Structures
+### Key data structures
 
 `FeatureFileIndex` (current):
 
@@ -261,7 +260,7 @@ pub struct IndexedStep {
 }
 ```
 
-### New Data Structures (to be added)
+### New data structures (to be added)
 
 `IndexedScenarioOutline`:
 
@@ -283,7 +282,7 @@ pub struct IndexedExamplesTable {
 }
 ```
 
-### Term Definitions
+### Term definitions
 
 - **Scenario Outline placeholder**: A `<name>` token in a scenario outline step
   that is substituted with values from the Examples table at runtime.
@@ -294,13 +293,13 @@ pub struct IndexedExamplesTable {
 - **Surplus column**: A column in the Examples table that no step placeholder
   references.
 
-## Plan of Work
+## Plan of work
 
-### Stage A: Research and Design (complete)
+### Stage A: Research and design (complete)
 
 Review existing infrastructure and design the approach. No code changes.
 
-### Stage B: Extend Feature File Indexing
+### Stage B: Extend feature file indexing
 
 1. In `indexing/mod.rs`, add new structs:
 
@@ -338,10 +337,10 @@ Review existing infrastructure and design the approach. No code changes.
    ```
 
 3. Update `feature.rs` `index_feature_text()` to detect scenario outlines
-   (by checking `scenario.keyword` for "Scenario Outline" or "Scenario
-   Template") and populate the new structures.
+   (by checking `scenario.keyword` for "Scenario Outline" or "Scenario Template")
+   and populate the new structures.
 
-### Stage C: Implement Diagnostic Computation
+### Stage C: Implement diagnostic computation
 
 1. Create new file `handlers/diagnostics/scenario_outline.rs`:
 
@@ -381,7 +380,7 @@ Review existing infrastructure and design the approach. No code changes.
    const CODE_EXAMPLE_COLUMN_SURPLUS: &str = "example-column-surplus";
    ```
 
-### Stage D: Wire Diagnostics and Add Tests
+### Stage D: Wire diagnostics and add tests
 
 1. In `publish.rs`, update feature diagnostics to include the new computation:
 
@@ -393,18 +392,18 @@ Review existing infrastructure and design the approach. No code changes.
 
 3. Create `tests/diagnostics_scenario_outline.rs` with parameterized test cases.
 
-### Stage E: Documentation and Cleanup
+### Stage E: Documentation and cleanup
 
 1. Update `docs/users-guide.md` with new diagnostic descriptions.
 2. Update `docs/rstest-bdd-language-server-design.md`.
 3. Mark roadmap entry as done.
 4. Run quality gates and commit.
 
-## Concrete Steps
+## Concrete steps
 
 All commands are run from the repository root.
 
-### Stage B Commands
+### Stage B commands
 
 ```bash
 # After implementing indexing changes:
@@ -412,7 +411,7 @@ cargo test -p rstest-bdd-server indexing
 # Expected: all indexing tests pass
 ```
 
-### Stage C Commands
+### Stage C commands
 
 ```bash
 # After implementing diagnostic computation:
@@ -420,7 +419,7 @@ cargo test -p rstest-bdd-server scenario_outline
 # Expected: new tests pass
 ```
 
-### Stage D Commands
+### Stage D commands
 
 ```bash
 # After adding behavioural tests:
@@ -428,7 +427,7 @@ cargo test -p rstest-bdd-server --test diagnostics_scenario_outline
 # Expected: all behavioural tests pass
 ```
 
-### Stage E Commands
+### Stage E commands
 
 ```bash
 # Full quality gate:
@@ -442,7 +441,7 @@ set -o pipefail && make test 2>&1 | tee /tmp/test.log
 # Expected: exit 0, all tests pass
 ```
 
-## Validation and Acceptance
+## Validation and acceptance
 
 Quality criteria:
 
@@ -491,7 +490,7 @@ Acceptance behaviour:
    Examples column 'other' is not referenced by any step placeholder
    ```
 
-## Idempotence and Recovery
+## Idempotence and recovery
 
 All stages are re-runnable. If a stage fails partway:
 
@@ -500,11 +499,11 @@ All stages are re-runnable. If a stage fails partway:
 - Unit tests are isolated and do not leave persistent state.
 - The language server state is in-memory only; restarting it resets all indices.
 
-## Artifacts and Notes
+## Artifacts and notes
 
 (Transcripts and key snippets will be added as work proceeds)
 
-## Interfaces and Dependencies
+## Interfaces and dependencies
 
 **New Structs (rstest-bdd-server/indexing):**
 

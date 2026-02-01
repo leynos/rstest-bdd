@@ -2,7 +2,7 @@
 //!
 //! This module combines prepared argument handling, error reporting, and the
 //! call expression into a single wrapper body token stream. It keeps the
-//! emission entry point focused on orchestration while centralising the logic
+//! emission entry point focused on orchestration while centralizing the logic
 //! that shapes the wrapper's structure.
 
 use super::super::arguments::PreparedArgs;
@@ -124,6 +124,16 @@ fn generate_expect_attribute(lint_paths: &[syn::Path]) -> TokenStream2 {
     }
 }
 
+/// Code fragments used in wrapper function generation.
+/// Code fragments for wrapper function generation.
+#[derive(Copy, Clone)]
+struct WrapperCodeFragments<'a> {
+    path: &'a TokenStream2,
+    expect_attr: &'a TokenStream2,
+    capture_validation: &'a TokenStream2,
+    unwind_handling: &'a TokenStream2,
+}
+
 fn generate_sync_unwind_handling(
     path: &TokenStream2,
     call_expr: &TokenStream2,
@@ -146,25 +156,45 @@ fn generate_sync_unwind_handling(
     }
 }
 
+/// Generate the common body components shared by sync and async wrappers.
+fn generate_wrapper_body_tokens(
+    capture_validation: &TokenStream2,
+    prepared: &PreparedArgs,
+) -> TokenStream2 {
+    let declares = &prepared.declares;
+    let step_arg_parses = &prepared.step_arg_parses;
+    let step_struct_decl = &prepared.step_struct_decl;
+    let datatable_decl = &prepared.datatable_decl;
+    let docstring_decl = &prepared.docstring_decl;
+
+    quote! {
+        #capture_validation
+        #(#declares)*
+        #(#step_arg_parses)*
+        #step_struct_decl
+        #datatable_decl
+        #docstring_decl
+    }
+}
+
 fn generate_sync_wrapper_quote(
     identifiers: WrapperIdentifiers<'_>,
     prepared: &PreparedArgs,
-    path: &TokenStream2,
-    expect_attr: &TokenStream2,
-    capture_validation: &TokenStream2,
-    unwind_handling: &TokenStream2,
+    fragments: WrapperCodeFragments<'_>,
 ) -> TokenStream2 {
+    let WrapperCodeFragments {
+        path,
+        expect_attr,
+        capture_validation,
+        unwind_handling,
+    } = fragments;
     let WrapperIdentifiers {
         wrapper: wrapper_ident,
         ctx: ctx_ident,
         text: text_ident,
         ..
     } = identifiers;
-    let declares = &prepared.declares;
-    let step_arg_parses = &prepared.step_arg_parses;
-    let step_struct_decl = &prepared.step_struct_decl;
-    let datatable_decl = &prepared.datatable_decl;
-    let docstring_decl = &prepared.docstring_decl;
+    let body_tokens = generate_wrapper_body_tokens(capture_validation, prepared);
 
     quote! {
         #expect_attr
@@ -175,12 +205,7 @@ fn generate_sync_wrapper_quote(
             table: Option<&[&[&str]]>,
         ) -> Result<#path::StepExecution, #path::StepError> {
             use std::panic::{catch_unwind, AssertUnwindSafe};
-            #capture_validation
-            #(#declares)*
-            #(#step_arg_parses)*
-            #step_struct_decl
-            #datatable_decl
-            #docstring_decl
+            #body_tokens
             #unwind_handling
         }
     }
@@ -189,22 +214,21 @@ fn generate_sync_wrapper_quote(
 fn generate_async_wrapper_quote(
     identifiers: WrapperIdentifiers<'_>,
     prepared: &PreparedArgs,
-    path: &TokenStream2,
-    expect_attr: &TokenStream2,
-    capture_validation: &TokenStream2,
-    unwind_handling: &TokenStream2,
+    fragments: WrapperCodeFragments<'_>,
 ) -> TokenStream2 {
+    let WrapperCodeFragments {
+        path,
+        expect_attr,
+        capture_validation,
+        unwind_handling,
+    } = fragments;
     let WrapperIdentifiers {
         wrapper: wrapper_ident,
         ctx: ctx_ident,
         text: text_ident,
         ..
     } = identifiers;
-    let declares = &prepared.declares;
-    let step_arg_parses = &prepared.step_arg_parses;
-    let step_struct_decl = &prepared.step_struct_decl;
-    let datatable_decl = &prepared.datatable_decl;
-    let docstring_decl = &prepared.docstring_decl;
+    let body_tokens = generate_wrapper_body_tokens(capture_validation, prepared);
 
     quote! {
         #expect_attr
@@ -215,13 +239,7 @@ fn generate_async_wrapper_quote(
             table: Option<&'ctx [&'ctx [&'ctx str]]>,
         ) -> #path::StepFuture<'ctx> {
             Box::pin(async move {
-                #capture_validation
-                #(#declares)*
-                #(#step_arg_parses)*
-                #step_struct_decl
-                #datatable_decl
-                #docstring_decl
-
+                #body_tokens
                 #unwind_handling
             })
         }
@@ -274,26 +292,24 @@ fn render_wrapper_function(
         WrapperKind::Sync => {
             let unwind_handling =
                 generate_sync_unwind_handling(&path, call_expr, &exec_err, &panic_err);
-            generate_sync_wrapper_quote(
-                identifiers,
-                prepared,
-                &path,
-                &expect_attr,
-                &capture_validation,
-                &unwind_handling,
-            )
+            let fragments = WrapperCodeFragments {
+                path: &path,
+                expect_attr: &expect_attr,
+                capture_validation: &capture_validation,
+                unwind_handling: &unwind_handling,
+            };
+            generate_sync_wrapper_quote(identifiers, prepared, fragments)
         }
         WrapperKind::Async => {
             let unwind_handling =
                 async_wrapper::generate_unwind_handling(&path, call_expr, &exec_err, &panic_err);
-            generate_async_wrapper_quote(
-                identifiers,
-                prepared,
-                &path,
-                &expect_attr,
-                &capture_validation,
-                &unwind_handling,
-            )
+            let fragments = WrapperCodeFragments {
+                path: &path,
+                expect_attr: &expect_attr,
+                capture_validation: &capture_validation,
+                unwind_handling: &unwind_handling,
+            };
+            generate_async_wrapper_quote(identifiers, prepared, fragments)
         }
     }
 }
@@ -347,6 +363,14 @@ pub(super) fn generate_wrapper_body(
     body::generate_wrapper_body(config, wrapper_ident, pattern_ident)
 }
 
+/// Generate the wrapper function body and pattern constant for async wrappers.
+///
+/// Parameters:
+/// - `config`: wrapper configuration and extracted step metadata
+/// - `wrapper_ident`: identifier for the generated wrapper function
+/// - `pattern_ident`: identifier for the generated pattern constant
+///
+/// Returns the generated tokens as a `TokenStream2`.
 pub(super) fn generate_async_wrapper_body(
     config: &super::WrapperConfig<'_>,
     wrapper_ident: &proc_macro2::Ident,
