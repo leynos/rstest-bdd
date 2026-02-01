@@ -70,15 +70,9 @@ fn fallible_error_does_not_record_pass() {
     );
 }
 
-#[test]
-#[serial]
-fn fallible_success_records_pass() {
-    let _ = drain_reports();
-    let result = fallible_scenario_success();
-    assert!(
-        result.is_ok(),
-        "expected fallible scenario to return Ok(())"
-    );
+#[expect(clippy::panic, reason = "test helper panics for clearer failures")]
+fn assert_fallible_success_records_pass(result: Result<(), &'static str>, context: &str) {
+    result.unwrap_or_else(|_| panic!("expected {context} scenario to return Ok(())"));
     let records = drain_reports();
     let passed_count = records
         .iter()
@@ -86,8 +80,16 @@ fn fallible_success_records_pass() {
         .count();
     assert_eq!(
         1, passed_count,
-        "expected exactly one Passed record for successful fallible scenario"
+        "expected exactly one Passed record for {context} scenario"
     );
+}
+
+#[test]
+#[serial]
+fn fallible_success_records_pass() {
+    let _ = drain_reports();
+    let result = fallible_scenario_success();
+    assert_fallible_success_records_pass(result, "fallible");
 }
 
 #[test]
@@ -95,17 +97,5 @@ fn fallible_success_records_pass() {
 fn fallible_async_success_records_pass() {
     let _ = drain_reports();
     let result = fallible_scenario_async_success();
-    assert!(
-        result.is_ok(),
-        "expected async fallible scenario to return Ok(())"
-    );
-    let records = drain_reports();
-    let passed_count = records
-        .iter()
-        .filter(|record| matches!(record.status(), ScenarioStatus::Passed))
-        .count();
-    assert_eq!(
-        1, passed_count,
-        "expected exactly one Passed record for async fallible scenario"
-    );
+    assert_fallible_success_records_pass(result, "async fallible");
 }
