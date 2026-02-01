@@ -115,10 +115,9 @@ fn execution_error_formats_in_locales(
     #[case] error: ExecutionError,
     #[case] expected: &str,
 ) {
-    let guard = ScopedLocalization::new(std::slice::from_ref(&locale))
+    let _guard = ScopedLocalization::new(std::slice::from_ref(&locale))
         .unwrap_or_else(|e| panic!("failed to scope locale {locale}: {e}"));
     assert_eq!(strip_directional_isolates(&error.to_string()), expected);
-    drop(guard);
 }
 
 /// Asserts that the formatted string contains all expected substrings.

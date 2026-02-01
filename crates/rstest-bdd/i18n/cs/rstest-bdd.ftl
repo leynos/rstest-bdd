@@ -28,5 +28,5 @@ execution-error-skip = Krok přeskočen{ $has_message ->
     [yes] : { $message }
 }
 execution-error-step-not-found = Krok nenalezen na indexu { $index }: { $keyword } { $text } (feature: { $feature_path }, scénář: { $scenario_name })
-execution-error-missing-fixtures = Krok „{ $step_pattern }" (definován v { $step_location }) vyžaduje fixtury { $required }, ale následující chybí: { $missing }. Dostupné fixtury ze scénáře: { $available } (feature: { $feature_path }, scénář: { $scenario_name })
+execution-error-missing-fixtures = Krok „{ $step_pattern }“ (definován v { $step_location }) vyžaduje fixtury { $required }, ale následující chybí: { $missing }. Dostupné fixtury ze scénáře: { $available } (feature: { $feature_path }, scénář: { $scenario_name })
 execution-error-handler-failed = Krok selhal na indexu { $index }: { $keyword } { $text } - { $error } (feature: { $feature_path }, scénář: { $scenario_name })

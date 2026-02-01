@@ -363,7 +363,7 @@ fn generate_code_components_outline(
 /// This function creates the test body for scenario outlines where step text
 /// contains placeholders that are substituted with values from the Examples table.
 /// Each Examples row produces a separate test case, and the substituted steps
-/// are organised in a 2D array indexed by case.
+/// are organized in a 2D array indexed by case.
 pub(crate) fn generate_test_tokens_outline(
     config: &OutlineTestTokensConfig<'_>,
     ctx_prelude: impl Iterator<Item = TokenStream2>,

@@ -1,6 +1,6 @@
 Feature: Missing fixture error propagation
 
-  Scenario: Missing fixture causes panic
+  Scenario: Missing fixture returns structured error
     Given a registered step
     When a step needs fixture
     Then this step should not execute
