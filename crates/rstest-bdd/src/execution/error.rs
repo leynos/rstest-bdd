@@ -77,7 +77,7 @@
 //! Generated scenario code calls [`execute_step`] for each step and checks the
 //! result. Skip errors are extracted via `__rstest_bdd_extract_skip_message`
 //! and recorded for reporting. Non-skip errors cause an immediate panic with
-//! the [`Display`] output, which includes localised messages via the i18n
+//! the [`Display`] output, which includes localized messages via the i18n
 //! system.
 //!
 //! Callers using the step registry directly should:

@@ -1394,8 +1394,11 @@ The solution moves these helpers to a dedicated runtime module:
   - `StepNotFound { index, keyword, text, ... }`: Unregistered step pattern
   - `MissingFixtures(Arc<MissingFixturesDetails>)`: Required fixtures unavailable
   - `HandlerFailed { index, keyword, text, error, ... }`: Step handler returned error
-- **`validate_required_fixtures`**: Fixture availability checking with
-  diagnostic panic messages
+- **`validate_required_fixtures`**: Fixture availability checking that returns
+  `Result<(), ExecutionError>`. When fixtures are unavailable, returns
+  `Err(ExecutionError::MissingFixtures(Arc<MissingFixturesDetails>))` instead of
+  panicking. Callers (primarily `execute_step`) propagate this Result through
+  the structured error flow
 
 #### 2.6.2 RuntimeMode and TestAttributeHint
 

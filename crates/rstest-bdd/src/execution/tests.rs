@@ -1,3 +1,15 @@
+//! Unit tests for the execution module.
+//!
+//! This module contains tests for the step execution infrastructure, including:
+//!
+//! - [`RuntimeMode`] and [`TestAttributeHint`] enum behaviour and mapping
+//! - [`ExecutionError`] variant construction, `is_skip()`, and `skip_message()`
+//! - Skip message extraction logic (mirroring generated code behaviour)
+//! - Deprecated skip encoding functions (scheduled for removal)
+//!
+//! These tests validate the core execution types used by generated scenario code
+//! and direct registry consumers.
+
 use std::sync::Arc;
 
 use rstest::rstest;
