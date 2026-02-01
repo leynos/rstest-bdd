@@ -1,8 +1,10 @@
 //! Tests for runtime scaffolding code generation.
 
 use super::generators::{
-    generate_async_step_executor, generate_skip_decoder, generate_step_executor,
+    generate_async_step_executor, generate_skip_decoder, generate_skip_handler,
+    generate_step_executor,
 };
+use crate::codegen::scenario::ScenarioReturnKind;
 use syn::visit::Visit;
 
 /// Return the identifier of the final segment in a `syn::Path`.
@@ -106,6 +108,51 @@ fn find_call_in_block<'a>(block: &'a syn::Block, name: &str) -> Option<&'a syn::
     finder.found
 }
 
+#[expect(clippy::panic, reason = "test helper panics for clearer failures")]
+fn parse_skip_handler(return_kind: ScenarioReturnKind) -> syn::ExprIf {
+    let stmt: syn::Stmt = syn::parse2(generate_skip_handler(return_kind))
+        .unwrap_or_else(|err| panic!("expected skip handler to parse as a statement: {err}"));
+    match stmt {
+        syn::Stmt::Expr(syn::Expr::If(expr_if), _) => expr_if,
+        other => panic!("expected if expression in skip handler, got {other:?}"),
+    }
+}
+
+struct ReturnFinder<'ast> {
+    returns: Vec<&'ast syn::ExprReturn>,
+}
+
+impl<'ast> Visit<'ast> for ReturnFinder<'ast> {
+    fn visit_expr_return(&mut self, node: &'ast syn::ExprReturn) {
+        self.returns.push(node);
+    }
+}
+
+fn collect_returns(block: &syn::Block) -> Vec<&syn::ExprReturn> {
+    let mut finder = ReturnFinder {
+        returns: Vec::new(),
+    };
+    finder.visit_block(block);
+    finder.returns
+}
+
+fn is_ok_unit_expr(expr: &syn::Expr) -> bool {
+    let syn::Expr::Call(call) = expr else {
+        return false;
+    };
+    let path = match call.func.as_ref() {
+        syn::Expr::Path(expr_path) => &expr_path.path,
+        _ => return false,
+    };
+    if path_last_ident(path).map(syn::Ident::to_string).as_deref() != Some("Ok") {
+        return false;
+    }
+    if call.args.len() != 1 {
+        return false;
+    }
+    matches!(call.args.first(), Some(syn::Expr::Tuple(tuple)) if tuple.elems.is_empty())
+}
+
 /// Assert that generated step executor code delegates to `rstest_bdd::execution::execute_step`.
 ///
 /// This helper validates the architecture where generated code is a thin wrapper
@@ -188,4 +235,43 @@ fn skip_decoder_delegates_to_runtime() {
 
     // Assert the path ends with execution::decode_skip_message using segment-based check
     assert_path_is_execution_decode_skip_message(func_path);
+}
+
+#[expect(clippy::panic, reason = "test helper panics for clearer failures")]
+fn assert_skip_handler_returns(
+    return_kind: ScenarioReturnKind,
+    empty_message: &str,
+    predicate: impl Fn(&syn::ExprReturn) -> bool,
+    predicate_message: &str,
+) {
+    let if_expr = parse_skip_handler(return_kind);
+    let returns = collect_returns(&if_expr.then_branch);
+    let panic_with_message = |message: &str| panic!("{message}");
+
+    if returns.is_empty() {
+        panic_with_message(empty_message);
+    }
+    if !returns.iter().all(|ret| predicate(ret)) {
+        panic_with_message(predicate_message);
+    }
+}
+
+#[test]
+fn skip_handler_returns_unit_for_unit_scenarios() {
+    assert_skip_handler_returns(
+        ScenarioReturnKind::Unit,
+        "expected skip handler to include a return for unit scenarios",
+        |ret| ret.expr.is_none(),
+        "unit skip handler should only use a bare return",
+    );
+}
+
+#[test]
+fn skip_handler_returns_ok_for_fallible_scenarios() {
+    assert_skip_handler_returns(
+        ScenarioReturnKind::ResultUnit,
+        "expected skip handler to include a return for fallible scenarios",
+        |ret| ret.expr.as_ref().is_some_and(|expr| is_ok_unit_expr(expr)),
+        "fallible skip handler should only return Ok(())",
+    );
 }

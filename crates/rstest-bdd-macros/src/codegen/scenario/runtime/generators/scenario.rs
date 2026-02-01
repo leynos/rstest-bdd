@@ -3,6 +3,8 @@
 use proc_macro2::TokenStream as TokenStream2;
 use quote::quote;
 
+use crate::codegen::scenario::ScenarioReturnKind;
+
 /// Generates the `__RstestBddScenarioReportGuard` struct that records scenario
 /// results on drop if not already recorded.
 ///
@@ -108,8 +110,15 @@ pub(in crate::codegen::scenario::runtime) fn generate_scenario_guard() -> TokenS
 ///     // Panic if forced failure
 /// }
 /// ```
-pub(in crate::codegen::scenario::runtime) fn generate_skip_handler() -> TokenStream2 {
+pub(in crate::codegen::scenario::runtime) fn generate_skip_handler(
+    return_kind: ScenarioReturnKind,
+) -> TokenStream2 {
     let path = crate::codegen::rstest_bdd_path();
+    let return_tokens = if return_kind.is_fallible() {
+        quote! { return Ok(()); }
+    } else {
+        quote! { return; }
+    };
     quote! {
         if let Some(__rstest_bdd_message) = __rstest_bdd_skipped {
             let __rstest_bdd_fail_on_skipped_enabled = #path::config::fail_on_skipped();
@@ -157,7 +166,7 @@ pub(in crate::codegen::scenario::runtime) fn generate_skip_handler() -> TokenStr
                     __RSTEST_BDD_SCENARIO_NAME
                 );
             }
-            return;
+            #return_tokens
         }
     }
 }

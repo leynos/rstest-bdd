@@ -81,8 +81,8 @@ using the same `ReturnKind` logic as steps and permits `Result<(), E>` and
 `StepResult<(), E>` only. The skip handler returns `Ok(())` for fallible
 scenarios, and the fallible body wrapper marks the scenario as recorded before
 propagating `Err` to the test harness. Returning `Result<T, E>` where `T != ()`
-produces a compile-time error: "fallible scenarios must return Result<(), E> or
-StepResult<(), E>".
+produces a compile-time error: "`#[scenario]` bodies must return () or a unit
+Result/StepResult".
 
 For screen readers: The following snippet shows a fallible scenario body using
 `Result<(), E>`.

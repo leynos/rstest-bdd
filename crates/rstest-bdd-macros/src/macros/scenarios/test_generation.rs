@@ -9,7 +9,9 @@ use quote::{format_ident, quote};
 use std::collections::HashSet;
 use std::path::Path;
 
-use crate::codegen::scenario::{FeaturePath, ScenarioConfig, ScenarioName, generate_scenario_code};
+use crate::codegen::scenario::{
+    FeaturePath, ScenarioConfig, ScenarioName, ScenarioReturnKind, generate_scenario_code,
+};
 use crate::parsing::examples::ExampleTable;
 use crate::parsing::feature::ScenarioData;
 use crate::parsing::tags::TagExpression;
@@ -175,6 +177,7 @@ pub(super) fn generate_scenario_test(
         line,
         tags: &tags,
         runtime: ctx.runtime,
+        return_kind: ScenarioReturnKind::Unit,
     };
     TokenStream2::from(generate_scenario_code(
         &config,
