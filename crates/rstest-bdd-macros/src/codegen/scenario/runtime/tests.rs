@@ -237,32 +237,35 @@ fn skip_decoder_delegates_to_runtime() {
     assert_path_is_execution_decode_skip_message(func_path);
 }
 
+#[expect(clippy::panic, reason = "test helper panics for clearer failures")]
+fn assert_skip_handler_returns(
+    return_kind: ScenarioReturnKind,
+    empty_message: &str,
+    predicate: impl Fn(&syn::ExprReturn) -> bool,
+    predicate_message: &str,
+) {
+    let if_expr = parse_skip_handler(return_kind);
+    let returns = collect_returns(&if_expr.then_branch);
+    assert!(!returns.is_empty(), "{empty_message}");
+    assert!(returns.iter().all(predicate), "{predicate_message}");
+}
+
 #[test]
 fn skip_handler_returns_unit_for_unit_scenarios() {
-    let if_expr = parse_skip_handler(ScenarioReturnKind::Unit);
-    let returns = collect_returns(&if_expr.then_branch);
-    assert!(
-        !returns.is_empty(),
-        "expected skip handler to include a return for unit scenarios"
-    );
-    assert!(
-        returns.iter().all(|ret| ret.expr.is_none()),
-        "unit skip handler should only use a bare return"
+    assert_skip_handler_returns(
+        ScenarioReturnKind::Unit,
+        "expected skip handler to include a return for unit scenarios",
+        |ret| ret.expr.is_none(),
+        "unit skip handler should only use a bare return",
     );
 }
 
 #[test]
 fn skip_handler_returns_ok_for_fallible_scenarios() {
-    let if_expr = parse_skip_handler(ScenarioReturnKind::ResultUnit);
-    let returns = collect_returns(&if_expr.then_branch);
-    assert!(
-        !returns.is_empty(),
-        "expected skip handler to include a return for fallible scenarios"
-    );
-    assert!(
-        returns
-            .iter()
-            .all(|ret| ret.expr.as_ref().is_some_and(|expr| is_ok_unit_expr(expr))),
-        "fallible skip handler should only return Ok(())"
+    assert_skip_handler_returns(
+        ScenarioReturnKind::ResultUnit,
+        "expected skip handler to include a return for fallible scenarios",
+        |ret| ret.expr.as_ref().is_some_and(|expr| is_ok_unit_expr(expr)),
+        "fallible skip handler should only return Ok(())",
     );
 }
