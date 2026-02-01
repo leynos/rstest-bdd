@@ -15,7 +15,9 @@ use super::step_loop::generate_step_result_handler;
 /// Generates a step executor loop for scenario outlines with placeholder substitution.
 ///
 /// This shared implementation accepts a `TokenStream2` callee for consistency with
-/// `generate_step_executor_loop_impl`.
+/// `generate_step_executor_loop_impl`. It initializes tracking variables for both skip
+/// and failure states, executes the step loop, and defers any panic until after the
+/// loop completes.
 fn generate_step_executor_loop_outline_impl(
     callee: &TokenStream2,
     all_rows_steps: &[ProcessedStepTokens],
@@ -33,6 +35,7 @@ fn generate_step_executor_loop_outline_impl(
     let result_handler = generate_step_result_handler(callee);
 
     quote! {
+        let mut __rstest_bdd_failed: Option<String> = None;
         const __RSTEST_BDD_ALL_STEPS: &[&[(#path::StepKeyword, &str, Option<&str>, Option<&[&[&str]]>)]] = &[
             #(#row_arrays),*
         ];
@@ -40,12 +43,15 @@ fn generate_step_executor_loop_outline_impl(
         for (__rstest_bdd_index, (__rstest_bdd_keyword, __rstest_bdd_text, __rstest_bdd_docstring, __rstest_bdd_table)) in __rstest_bdd_steps.iter().copied().enumerate() {
             #result_handler
         }
+        if let Some(error_msg) = __rstest_bdd_failed {
+            panic!("{}", error_msg);
+        }
     }
 }
 
 /// Generates the step executor loop for scenario outlines with placeholder substitution.
 ///
-/// For scenario outlines, steps are organised as a 2D array where each row contains
+/// For scenario outlines, steps are organized as a 2D array where each row contains
 /// the substituted steps for one Examples row. The `__rstest_bdd_case_idx` parameter
 /// selects which row to use.
 ///
@@ -57,13 +63,20 @@ fn generate_step_executor_loop_outline_impl(
 /// # Generated code
 ///
 /// ```text
+/// let mut __rstest_bdd_failed: Option<String> = None;
 /// const __RSTEST_BDD_ALL_STEPS: &[&[(StepKeyword, &str, Option<&str>, Option<&[&[&str]]>)]] = &[
 ///     &[(kw0, "substituted text row 0", ...), ...],
 ///     &[(kw0, "substituted text row 1", ...), ...],
 /// ];
 /// let __rstest_bdd_steps = __RSTEST_BDD_ALL_STEPS[__rstest_bdd_case_idx];
 /// for (index, (keyword, text, docstring, table)) in steps.iter().copied().enumerate() {
-///     // ... same execution logic as regular loop
+///     match __rstest_bdd_execute_single_step(...) {
+///         Ok(value) => { /* insert value into context */ }
+///         Err(error) => { /* extract skip or store error, break */ }
+///     }
+/// }
+/// if let Some(error_msg) = __rstest_bdd_failed {
+///     panic!("{}", error_msg);
 /// }
 /// ```
 pub(in crate::codegen::scenario::runtime) fn generate_step_executor_loop_outline(
@@ -75,7 +88,7 @@ pub(in crate::codegen::scenario::runtime) fn generate_step_executor_loop_outline
 
 /// Generates the async step executor loop for scenario outlines.
 ///
-/// For scenario outlines, steps are organised as a 2D array where each row contains
+/// For scenario outlines, steps are organized as a 2D array where each row contains
 /// the substituted steps for one Examples row. The `__rstest_bdd_case_idx` parameter
 /// selects which row to use. This async variant dispatches each substituted step
 /// through the `__rstest_bdd_process_async_step` helper.
@@ -96,8 +109,11 @@ pub(in crate::codegen::scenario::runtime) fn generate_step_executor_loop_outline
 /// for (index, (keyword, text, docstring, table)) in steps.iter().copied().enumerate() {
 ///     match __rstest_bdd_process_async_step(...) {
 ///         Ok(value) => { /* insert value into context */ }
-///         Err(encoded) => { /* decode skip, record position, break */ }
+///         Err(error) => { /* extract skip or store error, break */ }
 ///     }
+/// }
+/// if let Some(error_msg) = __rstest_bdd_failed {
+///     panic!("{}", error_msg);
 /// }
 /// ```
 ///

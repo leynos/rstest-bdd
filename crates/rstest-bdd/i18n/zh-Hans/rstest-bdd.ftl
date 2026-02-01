@@ -22,3 +22,11 @@ assert-skip-missing-message = 期望 { $target } 提供包含 '{ $expected }' �
 assert-skip-missing-substring = 跳过信息 '{ $actual }' 不包含 '{ $expected }'
 assert-skip-unexpected-message = 期望 { $target } 不提供跳过信息
 assert-skip-flag-mismatch = 期望 { $target } 标志 '{ $flag }' 为 { $expected }，但实际为 { $actual }
+
+execution-error-skip = 步骤已跳过{ $has_message ->
+    *[no] {""}
+    [yes] ：{ $message }
+}
+execution-error-step-not-found = 索引 { $index } 处未找到步骤：{ $keyword } { $text }（功能：{ $feature_path }，场景：{ $scenario_name }）
+execution-error-missing-fixtures = 步骤「{ $step_pattern }」（定义于 { $step_location }）需要夹具 { $required }，但以下夹具缺失：{ $missing }。场景中可用的夹具：{ $available }（功能：{ $feature_path }，场景：{ $scenario_name }）
+execution-error-handler-failed = 步骤在索引 { $index } 处执行失败：{ $keyword } { $text } - { $error }（功能：{ $feature_path }，场景：{ $scenario_name }）

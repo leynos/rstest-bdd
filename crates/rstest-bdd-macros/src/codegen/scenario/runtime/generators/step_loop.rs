@@ -23,7 +23,9 @@ struct StepDataSlices<'a> {
 /// Generates the result-handling match block for step execution loops.
 ///
 /// This shared implementation is used by both regular and outline executor loops to
-/// handle step execution results: value insertion on success, skip propagation on error.
+/// handle step execution results: value insertion on success, skip propagation on skip,
+/// and deferred panic on actual errors. Errors are stored and the loop breaks, with
+/// the panic occurring after the loop completes to mirror the skip-handling pattern.
 pub(super) fn generate_step_result_handler(callee: &TokenStream2) -> TokenStream2 {
     quote! {
         match #callee(
@@ -42,11 +44,19 @@ pub(super) fn generate_step_result_handler(callee: &TokenStream2) -> TokenStream
                 let _ = ctx.insert_value(__rstest_bdd_val);
             }
             Ok(None) => {}
-            Err(__rstest_bdd_encoded) => {
-                __rstest_bdd_skipped =
-                    Some(__rstest_bdd_decode_skip_message(__rstest_bdd_encoded));
-                __rstest_bdd_skipped_at = Some(__rstest_bdd_index);
-                break;
+            Err(ref __rstest_bdd_error) => {
+                // Check if this is a skip signal or an actual error
+                if let Some(__rstest_bdd_skip_msg) =
+                    __rstest_bdd_extract_skip_message(__rstest_bdd_error)
+                {
+                    __rstest_bdd_skipped = Some(__rstest_bdd_skip_msg);
+                    __rstest_bdd_skipped_at = Some(__rstest_bdd_index);
+                    break;
+                } else {
+                    // Store non-skip errors for deferred panic after loop
+                    __rstest_bdd_failed = Some(format!("{}", __rstest_bdd_error));
+                    break;
+                }
             }
         }
     }
@@ -56,6 +66,10 @@ pub(super) fn generate_step_result_handler(callee: &TokenStream2) -> TokenStream
 ///
 /// This is a shared implementation used by both sync and async executor loop generators.
 /// The `callee` parameter is a token stream containing the executor function identifier.
+///
+/// The generated code initializes tracking variables for both skip and failure states,
+/// executes the step loop, and defers any panic until after the loop completes. This
+/// mirrors the skip-handling pattern and allows for future enhancement of error context.
 fn generate_step_executor_loop_impl(
     callee: &TokenStream2,
     step_data: StepDataSlices<'_>,
@@ -69,9 +83,13 @@ fn generate_step_executor_loop_impl(
     let result_handler = generate_step_result_handler(callee);
 
     quote! {
+        let mut __rstest_bdd_failed: Option<String> = None;
         let __rstest_bdd_steps = [#((#keyword_tokens, #values, #docstrings, #tables)),*];
         for (__rstest_bdd_index, (__rstest_bdd_keyword, __rstest_bdd_text, __rstest_bdd_docstring, __rstest_bdd_table)) in __rstest_bdd_steps.iter().copied().enumerate() {
             #result_handler
+        }
+        if let Some(error_msg) = __rstest_bdd_failed {
+            panic!("{}", error_msg);
         }
     }
 }
@@ -141,12 +159,16 @@ generate_step_executor_loop_fn! {
     /// # Generated code
     ///
     /// ```text
+    /// let mut __rstest_bdd_failed: Option<String> = None;
     /// let __rstest_bdd_steps = [(keyword, text, docstring, table), ...];
     /// for (index, (keyword, text, docstring, table)) in steps.iter().enumerate() {
     ///     match __rstest_bdd_execute_single_step(...) {
     ///         Ok(value) => { /* insert value into context */ }
-    ///         Err(encoded) => { /* decode skip, record position, break */ }
+    ///         Err(error) => { /* extract skip or store error, break */ }
     ///     }
+    /// }
+    /// if let Some(error_msg) = __rstest_bdd_failed {
+    ///     panic!("{}", error_msg);
     /// }
     /// ```
     pub(in crate::codegen::scenario::runtime) fn generate_step_executor_loop => __rstest_bdd_execute_single_step

@@ -15,7 +15,7 @@ use super::helpers::ProcessedStepTokens;
 use body::wrap_scenario_block;
 use generators::{
     generate_async_step_executor, generate_async_step_executor_loop,
-    generate_async_step_executor_loop_outline, generate_scenario_guard, generate_skip_decoder,
+    generate_async_step_executor_loop_outline, generate_scenario_guard, generate_skip_extractor,
     generate_skip_handler, generate_step_executor, generate_step_executor_loop,
     generate_step_executor_loop_outline,
 };
@@ -154,7 +154,7 @@ fn create_scenario_literals(input: ScenarioLiteralsInput<'_>) -> ScenarioLiteral
 
 /// Returns the common runtime components shared by regular and outline scenarios.
 ///
-/// Extracts `step_executor`, `skip_decoder`, `scenario_guard`, and `skip_handler` to avoid
+/// Extracts `step_executor`, `skip_extractor`, `scenario_guard`, and `skip_handler` to avoid
 /// duplicating these generators in both `generate_code_components` and
 /// `generate_code_components_outline`.
 fn generate_common_components(
@@ -169,7 +169,7 @@ fn generate_common_components(
 
     (
         step_executor,
-        generate_skip_decoder(),
+        generate_skip_extractor(),
         generate_scenario_guard(),
         generate_skip_handler(return_kind),
     )
@@ -180,7 +180,7 @@ fn generate_code_components(
     is_async: bool,
     return_kind: ScenarioReturnKind,
 ) -> CodeComponents {
-    let (step_executor, skip_decoder, scenario_guard, skip_handler) =
+    let (step_executor, skip_extractor, scenario_guard, skip_handler) =
         generate_common_components(is_async, return_kind);
     let ProcessedSteps {
         keyword_tokens,
@@ -197,7 +197,7 @@ fn generate_code_components(
 
     CodeComponents {
         step_executor,
-        skip_decoder,
+        skip_extractor,
         scenario_guard,
         step_executor_loop,
         skip_handler,
@@ -237,7 +237,7 @@ fn assemble_test_tokens(
 
     let CodeComponents {
         step_executor,
-        skip_decoder,
+        skip_extractor,
         scenario_guard,
         step_executor_loop,
         skip_handler,
@@ -253,7 +253,7 @@ fn assemble_test_tokens(
                 std::sync::Arc::<[String]>::from(vec![#(#tag_literals.to_string()),*])
             });
         #step_executor
-        #skip_decoder
+        #skip_extractor
         #scenario_guard
 
         let __rstest_bdd_allow_skipped: bool = #allow_literal;
@@ -341,7 +341,7 @@ fn generate_code_components_outline(
     is_async: bool,
     return_kind: ScenarioReturnKind,
 ) -> CodeComponents {
-    let (step_executor, skip_decoder, scenario_guard, skip_handler) =
+    let (step_executor, skip_extractor, scenario_guard, skip_handler) =
         generate_common_components(is_async, return_kind);
     let step_executor_loop = if is_async {
         generate_async_step_executor_loop_outline(all_rows_steps)
@@ -351,7 +351,7 @@ fn generate_code_components_outline(
 
     CodeComponents {
         step_executor,
-        skip_decoder,
+        skip_extractor,
         scenario_guard,
         step_executor_loop,
         skip_handler,
@@ -363,7 +363,7 @@ fn generate_code_components_outline(
 /// This function creates the test body for scenario outlines where step text
 /// contains placeholders that are substituted with values from the Examples table.
 /// Each Examples row produces a separate test case, and the substituted steps
-/// are organised in a 2D array indexed by case.
+/// are organized in a 2D array indexed by case.
 pub(crate) fn generate_test_tokens_outline(
     config: &OutlineTestTokensConfig<'_>,
     ctx_prelude: impl Iterator<Item = TokenStream2>,

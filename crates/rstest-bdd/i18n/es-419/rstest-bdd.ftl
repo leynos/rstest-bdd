@@ -22,3 +22,11 @@ assert-skip-missing-message = se esperaba que { $target } proporcionara un mensa
 assert-skip-missing-substring = el mensaje de omisión '{ $actual }' no contiene '{ $expected }'
 assert-skip-unexpected-message = se esperaba que { $target } no proporcionara un mensaje de omisión
 assert-skip-flag-mismatch = se esperaba que la bandera '{ $flag }' de { $target } fuera { $expected }, pero era { $actual }
+
+execution-error-skip = Paso omitido{ $has_message ->
+    *[no] {""}
+    [yes] : { $message }
+}
+execution-error-step-not-found = Paso no encontrado en el índice { $index }: { $keyword } { $text } (feature: { $feature_path }, escenario: { $scenario_name })
+execution-error-missing-fixtures = El paso «{ $step_pattern }» (definido en { $step_location }) requiere fixtures { $required }, pero faltan los siguientes: { $missing }. Fixtures disponibles del escenario: { $available } (feature: { $feature_path }, escenario: { $scenario_name })
+execution-error-handler-failed = Paso falló en el índice { $index }: { $keyword } { $text } - { $error } (feature: { $feature_path }, escenario: { $scenario_name })

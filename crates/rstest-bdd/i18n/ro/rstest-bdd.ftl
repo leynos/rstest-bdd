@@ -22,3 +22,11 @@ assert-skip-missing-message = s-a așteptat ca { $target } să furnizeze un mesa
 assert-skip-missing-substring = mesajul de skip '{ $actual }' nu conține '{ $expected }'
 assert-skip-unexpected-message = s-a așteptat ca { $target } să nu furnizeze un mesaj de skip
 assert-skip-flag-mismatch = s-a așteptat ca flag-ul '{ $flag }' al { $target } să fie { $expected }, dar a fost { $actual }
+
+execution-error-skip = Pas omis{ $has_message ->
+    *[no] {""}
+    [yes] : { $message }
+}
+execution-error-step-not-found = Pas negăsit la indexul { $index }: { $keyword } { $text } (feature: { $feature_path }, scenariu: { $scenario_name })
+execution-error-missing-fixtures = Pasul „{ $step_pattern }" (definit la { $step_location }) necesită fixturi { $required }, dar următoarele lipsesc: { $missing }. Fixturi disponibile din scenariu: { $available } (feature: { $feature_path }, scenariu: { $scenario_name })
+execution-error-handler-failed = Pas eșuat la indexul { $index }: { $keyword } { $text } - { $error } (feature: { $feature_path }, scenariu: { $scenario_name })

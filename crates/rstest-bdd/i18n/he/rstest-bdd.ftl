@@ -22,3 +22,11 @@ assert-skip-missing-message = ציפינו ש-{ $target } יספק הודעת ד
 assert-skip-missing-substring = הודעת הדילוג '{ $actual }' אינה מכילה את '{ $expected }'
 assert-skip-unexpected-message = ציפינו ש-{ $target } לא יספק הודעת דילוג
 assert-skip-flag-mismatch = ציפינו שדגל '{ $flag }' אצל { $target } יהיה { $expected }, אך היה { $actual }
+
+execution-error-skip = הצעד דולג{ $has_message ->
+    *[no] {""}
+    [yes] : { $message }
+}
+execution-error-step-not-found = הצעד לא נמצא באינדקס { $index }: { $keyword } { $text } (תכונה: { $feature_path }, תרחיש: { $scenario_name })
+execution-error-missing-fixtures = הצעד "{ $step_pattern }" (מוגדר ב-{ $step_location }) דורש קיבועים { $required }, אך הבאים חסרים: { $missing }. קיבועים זמינים מהתרחיש: { $available } (תכונה: { $feature_path }, תרחיש: { $scenario_name })
+execution-error-handler-failed = הצעד נכשל באינדקס { $index }: { $keyword } { $text } - { $error } (תכונה: { $feature_path }, תרחיש: { $scenario_name })

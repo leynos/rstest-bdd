@@ -22,3 +22,11 @@ assert-skip-missing-message = очікувалося, що { $target } нада�
 assert-skip-missing-substring = повідомлення пропуску '{ $actual }' не містить '{ $expected }'
 assert-skip-unexpected-message = очікувалося, що { $target } не надасть повідомлення пропуску
 assert-skip-flag-mismatch = очікувалося, що прапорець '{ $flag }' для { $target } дорівнюватиме { $expected }, але було { $actual }
+
+execution-error-skip = Крок пропущено{ $has_message ->
+    *[no] {""}
+    [yes] : { $message }
+}
+execution-error-step-not-found = Крок не знайдено за індексом { $index }: { $keyword } { $text } (feature: { $feature_path }, сценарій: { $scenario_name })
+execution-error-missing-fixtures = Крок « { $step_pattern } » (визначено у { $step_location }) потребує фікстури { $required }, але відсутні: { $missing }. Доступні фікстури зі сценарію: { $available } (feature: { $feature_path }, сценарій: { $scenario_name })
+execution-error-handler-failed = Крок завершився помилкою за індексом { $index }: { $keyword } { $text } - { $error } (feature: { $feature_path }, сценарій: { $scenario_name })

@@ -22,3 +22,11 @@ assert-skip-missing-message = diharapkan { $target } menyediakan pesan skip yang
 assert-skip-missing-substring = pesan skip '{ $actual }' tidak mengandung '{ $expected }'
 assert-skip-unexpected-message = diharapkan { $target } tidak menyediakan pesan skip
 assert-skip-flag-mismatch = diharapkan flag '{ $flag }' milik { $target } bernilai { $expected }, tetapi nilainya { $actual }
+
+execution-error-skip = Langkah dilewati{ $has_message ->
+    *[no] {""}
+    [yes] : { $message }
+}
+execution-error-step-not-found = Langkah tidak ditemukan pada indeks { $index }: { $keyword } { $text } (fitur: { $feature_path }, skenario: { $scenario_name })
+execution-error-missing-fixtures = Langkah « { $step_pattern } » (didefinisikan di { $step_location }) memerlukan fixture { $required }, tetapi yang berikut hilang: { $missing }. Fixture tersedia dari skenario: { $available } (fitur: { $feature_path }, skenario: { $scenario_name })
+execution-error-handler-failed = Langkah gagal pada indeks { $index }: { $keyword } { $text } - { $error } (fitur: { $feature_path }, skenario: { $scenario_name })

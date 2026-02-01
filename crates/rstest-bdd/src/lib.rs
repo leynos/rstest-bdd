@@ -88,6 +88,8 @@ pub use types::{
     UnsupportedStepType,
 };
 
+pub use execution::{ExecutionError, MissingFixturesDetails};
+
 #[cfg(feature = "diagnostics")]
 #[ctor]
 fn dump_steps() {

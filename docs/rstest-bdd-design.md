@@ -1387,11 +1387,18 @@ principle and actual implementation.
 The solution moves these helpers to a dedicated runtime module:
 
 - **`execute_step`**: Core step execution logic (registry lookup, fixture
-  validation, handler invocation, result handling)
-- **`encode_skip_message` / `decode_skip_message`**: Skip signal encoding for
-  propagation through `Result<_, String>` types
-- **`validate_required_fixtures`**: Fixture availability checking with
-  diagnostic panic messages
+  validation, handler invocation, result handling). Returns
+  `Result<Option<Box<dyn Any>>, ExecutionError>` with structured error variants.
+- **`ExecutionError`**: Enum capturing all execution failure modes:
+  - `Skip { message }`: Control flow signal for skipping scenarios
+  - `StepNotFound { index, keyword, text, ... }`: Unregistered step pattern
+  - `MissingFixtures(Arc<MissingFixturesDetails>)`: Required fixtures unavailable
+  - `HandlerFailed { index, keyword, text, error, ... }`: Step handler returned error
+- **`validate_required_fixtures`**: Fixture availability checking that returns
+  `Result<(), ExecutionError>`. When fixtures are unavailable, returns
+  `Err(ExecutionError::MissingFixtures(Arc<MissingFixturesDetails>))` instead of
+  panicking. Callers (primarily `execute_step`) propagate this Result through
+  the structured error flow
 
 #### 2.6.2 RuntimeMode and TestAttributeHint
 
@@ -1429,12 +1436,19 @@ knowledge in the core runtime and macro crates, keeping dependencies opt-in.
 With this architecture, macro-generated step executors become thin wrappers:
 
 ```rust
-fn __rstest_bdd_execute_single_step(...) -> Result<Option<Box<dyn Any>>, String> {
+fn __rstest_bdd_execute_single_step(...) -> Result<Option<Box<dyn Any>>, ExecutionError> {
     rstest_bdd::execution::execute_step(...)
 }
 
-fn __rstest_bdd_decode_skip_message(encoded: String) -> Option<String> {
-    rstest_bdd::execution::decode_skip_message(encoded)
+fn __rstest_bdd_extract_skip_message(error: &ExecutionError) -> Option<Option<String>> {
+    // Returns Some(Some(msg)) for skip with message,
+    //         Some(None) for skip without message,
+    //         None for non-skip errors
+    if error.is_skip() {
+        Some(error.skip_message().map(String::from))
+    } else {
+        None
+    }
 }
 ```
 

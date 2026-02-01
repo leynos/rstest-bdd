@@ -22,3 +22,11 @@ assert-skip-missing-message = mong đợi { $target } cung cấp thông báo b�
 assert-skip-missing-substring = thông báo bỏ qua '{ $actual }' không chứa '{ $expected }'
 assert-skip-unexpected-message = mong đợi { $target } không cung cấp thông báo bỏ qua
 assert-skip-flag-mismatch = mong đợi cờ '{ $flag }' của { $target } là { $expected }, nhưng thực tế là { $actual }
+
+execution-error-skip = Bước đã bỏ qua{ $has_message ->
+    *[no] {""}
+    [yes] : { $message }
+}
+execution-error-step-not-found = Không tìm thấy bước tại chỉ mục { $index }: { $keyword } { $text } (tính năng: { $feature_path }, kịch bản: { $scenario_name })
+execution-error-missing-fixtures = Bước « { $step_pattern } » (định nghĩa tại { $step_location }) yêu cầu fixture { $required }, nhưng các fixture sau bị thiếu: { $missing }. Fixture có sẵn từ kịch bản: { $available } (tính năng: { $feature_path }, kịch bản: { $scenario_name })
+execution-error-handler-failed = Bước thất bại tại chỉ mục { $index }: { $keyword } { $text } - { $error } (tính năng: { $feature_path }, kịch bản: { $scenario_name })

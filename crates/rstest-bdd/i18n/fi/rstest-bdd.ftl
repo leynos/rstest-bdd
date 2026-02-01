@@ -22,3 +22,11 @@ assert-skip-missing-message = odotettiin, että { $target } antaa ohitusviestin,
 assert-skip-missing-substring = ohitusviesti '{ $actual }' ei sisällä '{ $expected }'
 assert-skip-unexpected-message = odotettiin, että { $target } ei anna ohitusviestiä
 assert-skip-flag-mismatch = odotettiin, että { $target } -lipun '{ $flag }' arvo olisi { $expected }, mutta se oli { $actual }
+
+execution-error-skip = Askel ohitettu{ $has_message ->
+    *[no] {""}
+    [yes] : { $message }
+}
+execution-error-step-not-found = Askelta ei löytynyt indeksistä { $index }: { $keyword } { $text } (feature: { $feature_path }, skenaario: { $scenario_name })
+execution-error-missing-fixtures = Askel '{ $step_pattern }' (määritelty kohdassa { $step_location }) vaatii fixtuurit { $required }, mutta seuraavat puuttuvat: { $missing }. Käytettävissä olevat fixtuurit skenaariosta: { $available } (feature: { $feature_path }, skenaario: { $scenario_name })
+execution-error-handler-failed = Askel epäonnistui indeksissä { $index }: { $keyword } { $text } - { $error } (feature: { $feature_path }, skenaario: { $scenario_name })

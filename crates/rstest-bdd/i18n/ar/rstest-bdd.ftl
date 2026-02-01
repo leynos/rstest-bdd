@@ -22,3 +22,11 @@ assert-skip-missing-message = كان من المتوقع أن يوفّر { $targ
 assert-skip-missing-substring = رسالة التخطي « { $actual } » لا تحتوي على « { $expected } »
 assert-skip-unexpected-message = كان من المتوقع ألا يقدّم { $target } رسالة تخطي
 assert-skip-flag-mismatch = كان من المتوقع أن يكون علم { $target } « { $flag } » مساويًا لـ { $expected }، لكنه كان { $actual }
+
+execution-error-skip = تم تخطّي الخطوة{ $has_message ->
+    *[no] {""}
+    [yes] : { $message }
+}
+execution-error-step-not-found = لم يتم العثور على الخطوة عند الفهرس { $index }: { $keyword } { $text } (الميزة: { $feature_path }، السيناريو: { $scenario_name })
+execution-error-missing-fixtures = الخطوة « { $step_pattern } » (المعرّفة في { $step_location }) تتطلب التجهيزات { $required }، لكن التالية مفقودة: { $missing }. التجهيزات المتاحة من السيناريو: { $available } (الميزة: { $feature_path }، السيناريو: { $scenario_name })
+execution-error-handler-failed = فشلت الخطوة عند الفهرس { $index }: { $keyword } { $text } - { $error } (الميزة: { $feature_path }، السيناريو: { $scenario_name })

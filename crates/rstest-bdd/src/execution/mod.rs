@@ -14,11 +14,16 @@
 //! - [`StepExecutionRequest`]: Groups step data and diagnostic context for execution.
 //! - Helper functions for step execution, fixture validation, and skip encoding.
 
+mod error;
+
 use std::any::Any;
 use std::collections::HashSet;
+use std::sync::Arc;
 
 use crate::context::StepContext;
 use crate::{Step, StepExecution, StepKeyword, StepText, find_step_with_metadata};
+
+pub use error::{ExecutionError, MissingFixturesDetails};
 
 /// Prefix character for encoded skip messages with no message content.
 pub(crate) const SKIP_NONE_PREFIX: char = '\u{0}';
@@ -41,7 +46,7 @@ pub use rstest_bdd_policy::TestAttributeHint;
 
 /// Validate that all required fixtures are present in the context.
 ///
-/// Panics with a detailed diagnostic message if any required fixtures are missing.
+/// Returns an error if any required fixtures are missing from the context.
 ///
 /// # Arguments
 ///
@@ -49,16 +54,17 @@ pub use rstest_bdd_policy::TestAttributeHint;
 /// * `ctx` - The scenario context with available fixtures
 /// * `request` - The step execution request for diagnostic context
 ///
-/// # Panics
+/// # Errors
 ///
-/// Panics if any fixture listed in `step.fixtures` is not available in `ctx`.
+/// Returns [`ExecutionError::MissingFixtures`] if any fixture listed in
+/// `step.fixtures` is not available in `ctx`.
 fn validate_required_fixtures(
     step: &Step,
     ctx: &StepContext<'_>,
     request: &StepExecutionRequest<'_>,
-) {
+) -> Result<(), ExecutionError> {
     if step.fixtures.is_empty() {
-        return;
+        return Ok(());
     }
 
     let available: HashSet<&str> = ctx.available_fixtures().collect();
@@ -69,25 +75,22 @@ fn validate_required_fixtures(
         .filter(|f| !available.contains(f))
         .collect();
 
-    if !missing.is_empty() {
-        let mut available_list: Vec<_> = available.into_iter().collect();
+    if missing.is_empty() {
+        Ok(())
+    } else {
+        let mut available_list: Vec<_> = available.into_iter().map(String::from).collect();
         available_list.sort_unstable();
-        panic!(
-            concat!(
-                "Step '{}' (defined at {}:{}) requires fixtures {:?}, ",
-                "but the following are missing: {:?}\n",
-                "Available fixtures from scenario: {:?}\n",
-                "(feature: {}, scenario: {})",
-            ),
-            request.text,
-            step.file,
-            step.line,
-            step.fixtures,
-            missing,
-            available_list,
-            request.feature_path,
-            request.scenario_name,
-        );
+        Err(ExecutionError::MissingFixtures(Arc::new(
+            MissingFixturesDetails {
+                step_pattern: step.pattern.as_str().to_string(),
+                step_location: format!("{}:{}", step.file, step.line),
+                required: step.fixtures.to_vec(),
+                missing,
+                available: available_list,
+                feature_path: request.feature_path.to_string(),
+                scenario_name: request.scenario_name.to_string(),
+            },
+        )))
     }
 }
 
@@ -96,6 +99,12 @@ fn validate_required_fixtures(
 /// The encoding uses prefix characters to distinguish between skip requests
 /// with and without messages, allowing the skip signal to be transmitted
 /// through `Result<_, String>` return types.
+///
+/// # Deprecation
+///
+/// This function is deprecated in favour of using [`ExecutionError::Skip`]
+/// directly. The new error type provides structured skip handling without
+/// string encoding.
 ///
 /// # Arguments
 ///
@@ -119,6 +128,10 @@ fn validate_required_fixtures(
 /// let encoded = encode_skip_message(Some("reason".to_string()));
 /// assert_eq!(decode_skip_message(encoded), Some("reason".to_string()));
 /// ```
+#[deprecated(
+    since = "0.8.0",
+    note = "Use ExecutionError::Skip variant instead of string encoding"
+)]
 #[must_use]
 pub fn encode_skip_message(message: Option<String>) -> String {
     message.map_or_else(
@@ -137,6 +150,13 @@ pub fn encode_skip_message(message: Option<String>) -> String {
 /// Reverses the encoding performed by [`encode_skip_message`], extracting
 /// the original message content from the prefixed format.
 ///
+/// # Deprecation
+///
+/// This function is deprecated in favour of using [`ExecutionError::Skip`]
+/// directly. The new error type provides structured skip handling without
+/// string encoding. Use [`ExecutionError::skip_message`] to extract skip
+/// messages from the new error type.
+///
 /// # Arguments
 ///
 /// * `encoded` - The encoded skip message string
@@ -154,6 +174,10 @@ pub fn encode_skip_message(message: Option<String>) -> String {
 /// let encoded = encode_skip_message(Some("test".to_string()));
 /// assert_eq!(decode_skip_message(encoded), Some("test".to_string()));
 /// ```
+#[deprecated(
+    since = "0.8.0",
+    note = "Use ExecutionError::skip_message() instead of string decoding"
+)]
 #[must_use]
 pub fn decode_skip_message(encoded: String) -> Option<String> {
     match encoded.chars().next() {
@@ -223,53 +247,74 @@ pub struct StepExecutionRequest<'a> {
 ///
 /// * `Ok(Some(value))` - Step succeeded and returned a value
 /// * `Ok(None)` - Step succeeded without returning a value
-/// * `Err(encoded_skip)` - Step requested a skip (use [`decode_skip_message`])
+/// * `Err(ExecutionError::Skip { .. })` - Step requested to be skipped
+/// * `Err(ExecutionError::StepNotFound { .. })` - Step pattern not in registry
+/// * `Err(ExecutionError::MissingFixtures(..))` - Required fixtures missing
+/// * `Err(ExecutionError::HandlerFailed { .. })` - Step handler returned error
 ///
 /// # Errors
 ///
-/// Returns `Err` containing an encoded skip message when the step requests
-/// skipping via [`StepExecution::Skipped`]. This is not an error condition
-/// but a control flow signal. Use [`decode_skip_message`] to extract the
-/// optional skip reason.
+/// Returns [`ExecutionError`] for all failure cases:
 ///
-/// # Panics
+/// - [`ExecutionError::Skip`]: The step requested skipping (control flow signal,
+///   not an error). Use [`ExecutionError::is_skip`] to detect this case.
+/// - [`ExecutionError::StepNotFound`]: No step matching the keyword and text
+///   was found in the registry.
+/// - [`ExecutionError::MissingFixtures`]: The step requires fixtures that are
+///   not available in the context.
+/// - [`ExecutionError::HandlerFailed`]: The step handler function returned an
+///   error during execution.
 ///
-/// Panics if:
-/// - The step is not found in the registry
-/// - Required fixtures are missing
-/// - The step handler returns an error
+/// # Examples
+///
+/// ```
+/// use rstest_bdd::execution::{execute_step, ExecutionError, StepExecutionRequest};
+/// use rstest_bdd::{StepContext, StepKeyword};
+///
+/// let request = StepExecutionRequest {
+///     index: 0,
+///     keyword: StepKeyword::Given,
+///     text: "undefined step",
+///     docstring: None,
+///     table: None,
+///     feature_path: "feature.feature",
+///     scenario_name: "Scenario",
+/// };
+/// let mut ctx = StepContext::default();
+///
+/// let error = match execute_step(&request, &mut ctx) {
+///     Err(error) => error,
+///     Ok(_) => panic!("expected missing step"),
+/// };
+/// assert!(matches!(error, ExecutionError::StepNotFound { .. }));
+/// ```
 pub fn execute_step(
     request: &StepExecutionRequest<'_>,
     ctx: &mut StepContext<'_>,
-) -> Result<Option<Box<dyn Any>>, String> {
-    let step = find_step_with_metadata(request.keyword, StepText::from(request.text))
-        .unwrap_or_else(|| {
-            panic!(
-                "Step not found at index {}: {} {} (feature: {}, scenario: {})",
-                request.index,
-                request.keyword.as_str(),
-                request.text,
-                request.feature_path,
-                request.scenario_name
-            )
-        });
+) -> Result<Option<Box<dyn Any>>, ExecutionError> {
+    let step = find_step_with_metadata(request.keyword, StepText::from(request.text)).ok_or_else(
+        || ExecutionError::StepNotFound {
+            index: request.index,
+            keyword: request.keyword,
+            text: request.text.to_string(),
+            feature_path: request.feature_path.to_string(),
+            scenario_name: request.scenario_name.to_string(),
+        },
+    )?;
 
-    validate_required_fixtures(step, ctx, request);
+    validate_required_fixtures(step, ctx, request)?;
 
     match (step.run)(ctx, request.text, request.docstring, request.table) {
-        Ok(StepExecution::Skipped { message }) => Err(encode_skip_message(message)),
+        Ok(StepExecution::Skipped { message }) => Err(ExecutionError::Skip { message }),
         Ok(StepExecution::Continue { value }) => Ok(value),
-        Err(err) => {
-            panic!(
-                "Step failed at index {}: {} {} - {}\n(feature: {}, scenario: {})",
-                request.index,
-                request.keyword.as_str(),
-                request.text,
-                err,
-                request.feature_path,
-                request.scenario_name
-            );
-        }
+        Err(err) => Err(ExecutionError::HandlerFailed {
+            index: request.index,
+            keyword: request.keyword,
+            text: request.text.to_string(),
+            error: Arc::new(err),
+            feature_path: request.feature_path.to_string(),
+            scenario_name: request.scenario_name.to_string(),
+        }),
     }
 }
 

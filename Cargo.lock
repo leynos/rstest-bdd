@@ -1452,6 +1452,7 @@ dependencies = [
  "regex",
  "rstest",
  "rstest-bdd-patterns",
+ "rstest-bdd-server",
  "serde",
  "serde_json",
  "syn 2.0.106",

@@ -1,7 +1,6 @@
 //! Behavioural test for step registry.
 
 use rstest::rstest;
-use rstest_bdd::execution::{StepExecutionRequest, decode_skip_message, execute_step};
 use rstest_bdd::localization::{ScopedLocalization, strip_directional_isolates};
 use rstest_bdd::{
     Step, StepContext, StepError, StepExecution, StepKeyword, StepText, find_step_with_metadata,
@@ -13,6 +12,7 @@ use unic_langid::langid;
 mod common;
 use common::poll_step_future;
 
+mod execute_step_tests;
 mod wrappers;
 
 #[test]
@@ -269,131 +269,5 @@ fn step_with_auto_async_handler_works() {
     assert!(
         matches!(result, StepExecution::Continue { .. }),
         "auto-generated async handler failed: {result:?}"
-    );
-}
-
-// ============================================================================
-// execute_step behavioural tests
-// ============================================================================
-
-/// Helper to create a `StepExecutionRequest` for testing.
-fn make_request(index: usize, keyword: StepKeyword, text: &str) -> StepExecutionRequest<'_> {
-    StepExecutionRequest {
-        index,
-        keyword,
-        text,
-        docstring: None,
-        table: None,
-        feature_path: "test.feature",
-        scenario_name: "Test Scenario",
-    }
-}
-
-#[test]
-fn execute_step_succeeds_without_value() {
-    let request = make_request(0, StepKeyword::When, "behavioural");
-    let mut ctx = StepContext::default();
-
-    let result = execute_step(&request, &mut ctx);
-
-    assert!(result.is_ok(), "execute_step should succeed");
-    assert!(
-        result.as_ref().is_ok_and(Option::is_none),
-        "expected no return value"
-    );
-}
-
-#[test]
-#[expect(clippy::expect_used, reason = "test validates downcast succeeds")]
-fn execute_step_succeeds_with_value() {
-    let request = make_request(0, StepKeyword::Given, "returns value");
-    let mut ctx = StepContext::default();
-
-    let result = execute_step(&request, &mut ctx);
-
-    assert!(result.is_ok(), "execute_step should succeed");
-    let value = result
-        .expect("result should be Ok")
-        .expect("should have value");
-    let downcast = value.downcast_ref::<i32>().expect("should be i32");
-    assert_eq!(*downcast, 42);
-}
-
-#[test]
-#[expect(clippy::expect_used, reason = "test extracts encoded skip signal")]
-fn execute_step_skip_without_message_returns_encoded_err() {
-    let request = make_request(0, StepKeyword::When, "skips without message");
-    let mut ctx = StepContext::default();
-
-    let result = execute_step(&request, &mut ctx);
-
-    assert!(result.is_err(), "execute_step should return Err for skip");
-    let encoded = result.expect_err("expected skip signal");
-    let decoded = decode_skip_message(encoded);
-    assert_eq!(decoded, None, "skip without message should decode to None");
-}
-
-#[test]
-#[expect(clippy::expect_used, reason = "test extracts encoded skip signal")]
-fn execute_step_skip_with_message_returns_encoded_err() {
-    let request = make_request(0, StepKeyword::Then, "skips with message");
-    let mut ctx = StepContext::default();
-
-    let result = execute_step(&request, &mut ctx);
-
-    assert!(result.is_err(), "execute_step should return Err for skip");
-    let encoded = result.expect_err("expected skip signal");
-    let decoded = decode_skip_message(encoded);
-    assert_eq!(
-        decoded,
-        Some("test skip reason".to_string()),
-        "skip message should round-trip correctly"
-    );
-}
-
-#[test]
-#[should_panic(expected = "Step not found at index 0")]
-fn execute_step_panics_for_missing_step() {
-    let request = make_request(0, StepKeyword::Given, "nonexistent step pattern");
-    let mut ctx = StepContext::default();
-
-    // This should panic because the step doesn't exist
-    let _ = execute_step(&request, &mut ctx);
-}
-
-#[test]
-#[should_panic(expected = "Step failed at index 0")]
-fn execute_step_panics_on_handler_error() {
-    let request = make_request(0, StepKeyword::Given, "fails");
-    let mut ctx = StepContext::default();
-
-    // This should panic because the step handler returns an error
-    let _ = execute_step(&request, &mut ctx);
-}
-
-#[test]
-#[should_panic(expected = "requires fixtures")]
-fn execute_step_panics_on_missing_fixtures() {
-    let request = make_request(0, StepKeyword::Then, "needs fixture");
-    let mut ctx = StepContext::default();
-
-    // This should panic because the "missing" fixture is not provided
-    let _ = execute_step(&request, &mut ctx);
-}
-
-#[test]
-fn execute_step_succeeds_when_fixtures_are_present() {
-    let request = make_request(0, StepKeyword::Then, "needs fixture");
-    let value = 42u32;
-    let mut ctx = StepContext::default();
-    ctx.insert("missing", &value);
-
-    // The step wrapper checks for the fixture and returns MissingFixture error if absent,
-    // but fixture validation happens first. With the fixture present, the step succeeds.
-    let result = execute_step(&request, &mut ctx);
-
-    assert!(
-        result.is_ok(),
-        "execute_step should succeed when fixtures present"
     );
 }

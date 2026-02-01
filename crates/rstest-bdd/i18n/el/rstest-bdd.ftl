@@ -22,3 +22,11 @@ assert-skip-missing-message = αναμενόταν το { $target } να παρ�
 assert-skip-missing-substring = το μήνυμα παράκαμψης «{ $actual }» δεν περιέχει «{ $expected }»
 assert-skip-unexpected-message = αναμενόταν το { $target } να μη δώσει μήνυμα παράκαμψης
 assert-skip-flag-mismatch = αναμενόταν η σημαία «{ $flag }» του { $target } να είναι { $expected }, αλλά ήταν { $actual }
+
+execution-error-skip = Το βήμα παρακάμφθηκε{ $has_message ->
+    *[no] {""}
+    [yes] : { $message }
+}
+execution-error-step-not-found = Το βήμα δεν βρέθηκε στον δείκτη { $index }: { $keyword } { $text } (feature: { $feature_path }, σενάριο: { $scenario_name })
+execution-error-missing-fixtures = Το βήμα «{ $step_pattern }» (ορισμένο στο { $step_location }) απαιτεί fixtures { $required }, αλλά τα ακόλουθα λείπουν: { $missing }. Διαθέσιμα fixtures από το σενάριο: { $available } (feature: { $feature_path }, σενάριο: { $scenario_name })
+execution-error-handler-failed = Το βήμα απέτυχε στον δείκτη { $index }: { $keyword } { $text } - { $error } (feature: { $feature_path }, σενάριο: { $scenario_name })

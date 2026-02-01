@@ -22,3 +22,11 @@ assert-skip-missing-message = förväntade att { $target } skulle ange ett hoppu
 assert-skip-missing-substring = hopputelämningsmeddelandet '{ $actual }' innehåller inte '{ $expected }'
 assert-skip-unexpected-message = förväntade att { $target } inte skulle ange ett hopputelämningsmeddelande
 assert-skip-flag-mismatch = förväntade att { $target }-flaggan '{ $flag }' skulle vara { $expected }, men den var { $actual }
+
+execution-error-skip = Steget hoppades över{ $has_message ->
+    *[no] {""}
+    [yes] : { $message }
+}
+execution-error-step-not-found = Steg hittades inte vid index { $index }: { $keyword } { $text } (feature: { $feature_path }, scenario: { $scenario_name })
+execution-error-missing-fixtures = Steget "{ $step_pattern }" (definierat vid { $step_location }) kräver fixturer { $required }, men följande saknas: { $missing }. Tillgängliga fixturer från scenariot: { $available } (feature: { $feature_path }, scenario: { $scenario_name })
+execution-error-handler-failed = Steget misslyckades vid index { $index }: { $keyword } { $text } - { $error } (feature: { $feature_path }, scenario: { $scenario_name })

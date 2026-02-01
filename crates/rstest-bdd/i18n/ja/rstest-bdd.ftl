@@ -22,3 +22,11 @@ assert-skip-missing-message = { $target } が '{ $expected }' を含むスキッ
 assert-skip-missing-substring = スキップメッセージ '{ $actual }' には '{ $expected }' が含まれていません
 assert-skip-unexpected-message = { $target } がスキップメッセージを提供しないと期待されました
 assert-skip-flag-mismatch = { $target } のフラグ '{ $flag }' は { $expected } であると期待されましたが、実際は { $actual } でした
+
+execution-error-skip = ステップがスキップされました{ $has_message ->
+    *[no] {""}
+    [yes] : { $message }
+}
+execution-error-step-not-found = インデックス { $index } でステップが見つかりません: { $keyword } { $text } (フィーチャー: { $feature_path }, シナリオ: { $scenario_name })
+execution-error-missing-fixtures = ステップ「{ $step_pattern }」({ $step_location } で定義)はフィクスチャー { $required } を必要としますが、以下が不足しています: { $missing }。シナリオから利用可能なフィクスチャー: { $available } (フィーチャー: { $feature_path }, シナリオ: { $scenario_name })
+execution-error-handler-failed = インデックス { $index } でステップが失敗しました: { $keyword } { $text } - { $error } (フィーチャー: { $feature_path }, シナリオ: { $scenario_name })
