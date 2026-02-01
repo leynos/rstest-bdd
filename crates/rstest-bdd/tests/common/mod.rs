@@ -75,7 +75,8 @@ pub fn noop_async_wrapper<'ctx>(
 
 /// Parameters for invoking a step function.
 ///
-/// The explicit `'fixtures` lifetime is required so that async wrapper
+/// The explicit `'fixtures` lifetime is required because struct fields cannot
+/// use placeholder lifetimes (like `StepContext<'_>`), and because async wrapper
 /// signatures remain compatible with [`rstest_bdd::AsyncStepFn`], which
 /// separates the lifetime of the borrowed [`StepContext`] from the lifetime of
 /// the fixtures stored within it.
