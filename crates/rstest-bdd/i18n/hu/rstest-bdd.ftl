@@ -1,21 +1,21 @@
-step-error-missing-fixture = Hiányzik a „{ $name }” nevű „{ $ty }” típusú fixtúra a „{ $step }” lépésfüggvényhez
-step-error-execution = Hiba történt a „{ $pattern }” lépés végrehajtása közben a „{ $function }” függvénnyel: { $message }
-step-error-panic = Pánik a „{ $pattern }” lépésben, „{ $function }” függvény: { $message }
+step-error-missing-fixture = Hiányzik a „{ $name }" nevű „{ $ty }" típusú fixtúra a „{ $step }" lépésfüggvényhez
+step-error-execution = Hiba történt a „{ $pattern }" lépés végrehajtása közben a „{ $function }" függvénnyel: { $message }
+step-error-panic = Pánik a „{ $pattern }" lépésben, „{ $function }" függvény: { $message }
 step-keyword-parse-error = érvénytelen lépéskulcsszó: { $keyword }
 unsupported-step-type = nem támogatott lépéstípus: { $step_type }
-step-pattern-not-compiled = a lépésmintához tartozó reguláris kifejezést nem fordítottuk le; hívja meg először a compile()-t a „{ $pattern }” mintára
+step-pattern-not-compiled = a lépésmintához tartozó reguláris kifejezést nem fordítottuk le; hívja meg először a compile()-t a „{ $pattern }" mintára
 placeholder-pattern-mismatch = a minta nem egyezik
 placeholder-invalid-placeholder = érvénytelen helyőrző-szintaxis: { $details }
 placeholder-invalid-pattern = érvénytelen lépésminta: { $pattern }
-placeholder-not-compiled = a „{ $pattern }” lépésmintát használat előtt le kell fordítani
+placeholder-not-compiled = a „{ $pattern }" lépésmintát használat előtt le kell fordítani
 placeholder-syntax = érvénytelen helyőrző-szintaxis: { $details }
 placeholder-syntax-detail = { $reason } a { $position }. bájtnál (nulláról induló indexelés){ $suffix }
-placeholder-syntax-suffix = a „{ $placeholder }” helyőrzőhöz
+placeholder-syntax-suffix = a „{ $placeholder }" helyőrzőhöz
 step-context-ambiguous-override = Zavaros fixtúrafelülírás: egynél több fixtúra illeszkedik a type_id { $type_id } értékére. A felülírást figyelmen kívül hagytuk.
 panic-message-opaque-payload = <nem debugolható pánik-hasznos teher { $type } típusból>
 assert-step-ok-panic = a lépés hibát adott vissza: { $error }
 assert-step-err-success = a lépés váratlanul sikeres volt
-assert-step-err-missing-substring = a „{ $display }” hiba nem tartalmazza a „{ $expected }” értéket
+assert-step-err-missing-substring = a „{ $display }" hiba nem tartalmazza a „{ $expected }" értéket
 
 assert-skip-not-skipped = elvártuk, hogy { $target } rögzíti az átugrott eredményt
 assert-skip-missing-message = elvártuk, hogy { $target } olyan kihagyási üzenetet adjon, amely tartalmazza a '{ $expected }' értéket
@@ -28,5 +28,5 @@ execution-error-skip = Lépés kihagyva{ $has_message ->
     [yes] : { $message }
 }
 execution-error-step-not-found = A(z) { $index } indexű lépés nem található: { $keyword } { $text } (funkció: { $feature_path }, forgatókönyv: { $scenario_name })
-execution-error-missing-fixtures = A(z) „{ $step_pattern }" lépés ({ $step_location } helyen meghatározva) fixtúrákat igényel: { $required }, de a következők hiányoznak: { $missing }. Elérhető fixtúrák a forgatókönyvből: { $available } (funkció: { $feature_path }, forgatókönyv: { $scenario_name })
+execution-error-missing-fixtures = A(z) „{ $step_pattern }” lépés ({ $step_location } helyen meghatározva) fixtúrákat igényel: { $required }, de a következők hiányoznak: { $missing }. Elérhető fixtúrák a forgatókönyvből: { $available } (funkció: { $feature_path }, forgatókönyv: { $scenario_name })
 execution-error-handler-failed = A(z) { $index } indexű lépés sikertelen: { $keyword } { $text } - { $error } (funkció: { $feature_path }, forgatókönyv: { $scenario_name })
