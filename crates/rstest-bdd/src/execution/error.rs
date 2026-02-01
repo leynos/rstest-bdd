@@ -60,7 +60,7 @@
 //!             println!("Skip reason: {message:?}");
 //!         }
 //!         ExecutionError::StepNotFound { keyword, text, .. } => {
-//!             println!("No step matches '{keyword} {text}'");
+//!             println!("No step matches '{} {text}'", keyword.as_str());
 //!         }
 //!         ExecutionError::MissingFixtures(details) => {
 //!             println!("Missing: {:?}", details.missing);
@@ -68,6 +68,7 @@
 //!         ExecutionError::HandlerFailed { error, .. } => {
 //!             println!("Handler error: {error}");
 //!         }
+//!         _ => println!("Unknown error variant"),
 //!     }
 //! }
 //! ```
