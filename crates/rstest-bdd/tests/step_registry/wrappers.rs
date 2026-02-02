@@ -10,7 +10,7 @@ use rstest_bdd::{
     StepContext, StepError, StepExecution, StepFuture, StepKeyword, panic_message, step,
 };
 
-use super::common::sync_to_async;
+use super::common::{StepInvocationParams, wrap_sync_step_as_async};
 
 /// Generates an async wrapper function that delegates to a sync step function.
 ///
@@ -23,24 +23,36 @@ use super::common::sync_to_async;
 /// async_wrapper!(my_step_async, my_step);
 ///
 /// // Expands to:
-/// // fn my_step_async<'a>(
-/// //     ctx: &'a mut StepContext<'a>,
-/// //     text: &str,
-/// //     docstring: Option<&str>,
-/// //     table: Option<&[&[&str]]>,
-/// // ) -> StepFuture<'a> {
-/// //     sync_to_async(my_step)(ctx, text, docstring, table)
+/// // fn my_step_async<'ctx>(
+/// //     ctx: &'ctx mut StepContext<'_>,
+/// //     text: &'ctx str,
+/// //     docstring: Option<&'ctx str>,
+/// //     table: Option<&'ctx [&'ctx [&'ctx str]]>,
+/// // ) -> StepFuture<'ctx> {
+/// //     let params = StepInvocationParams {
+/// //         ctx,
+/// //         text,
+/// //         docstring,
+/// //         table,
+/// //     };
+/// //     wrap_sync_step_as_async(my_step, params)
 /// // }
 /// ```
 macro_rules! async_wrapper {
     ($async_name:ident, $sync_fn:path) => {
-        fn $async_name<'a>(
-            ctx: &'a mut StepContext<'a>,
-            text: &str,
-            docstring: Option<&str>,
-            table: Option<&[&[&str]]>,
-        ) -> StepFuture<'a> {
-            sync_to_async($sync_fn)(ctx, text, docstring, table)
+        fn $async_name<'ctx>(
+            ctx: &'ctx mut StepContext<'_>,
+            text: &'ctx str,
+            docstring: Option<&'ctx str>,
+            table: Option<&'ctx [&'ctx [&'ctx str]]>,
+        ) -> StepFuture<'ctx> {
+            let params = StepInvocationParams {
+                ctx,
+                text,
+                docstring,
+                table,
+            };
+            wrap_sync_step_as_async($sync_fn, params)
         }
     };
 }

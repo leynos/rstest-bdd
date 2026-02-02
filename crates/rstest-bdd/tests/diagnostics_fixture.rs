@@ -17,7 +17,7 @@ use rstest_bdd::{StepContext, StepExecution, StepFuture, StepKeyword, step};
 #[cfg(feature = "diagnostics")]
 mod common;
 #[cfg(feature = "diagnostics")]
-use common::wrap_sync_step_as_async;
+use common::{StepInvocationParams, wrap_sync_step_as_async};
 
 #[cfg(feature = "diagnostics")]
 step!(
@@ -52,14 +52,27 @@ fn bypassed_step(
 }
 
 #[cfg(feature = "diagnostics")]
-fn bypassed_step_async<'a>(
-    ctx: &'a mut StepContext<'a>,
-    text: &str,
-    docstring: Option<&str>,
-    table: Option<&[&[&str]]>,
-) -> StepFuture<'a> {
-    wrap_sync_step_as_async(bypassed_step)(ctx, text, docstring, table)
+macro_rules! generate_async_wrapper {
+    ($async_fn:ident, $sync_fn:ident) => {
+        fn $async_fn<'ctx>(
+            ctx: &'ctx mut StepContext<'_>,
+            text: &'ctx str,
+            docstring: Option<&'ctx str>,
+            table: Option<&'ctx [&'ctx [&'ctx str]]>,
+        ) -> StepFuture<'ctx> {
+            let params = StepInvocationParams {
+                ctx,
+                text,
+                docstring,
+                table,
+            };
+            wrap_sync_step_as_async($sync_fn, params)
+        }
+    };
 }
+
+#[cfg(feature = "diagnostics")]
+generate_async_wrapper!(bypassed_step_async, bypassed_step);
 
 #[cfg(feature = "diagnostics")]
 #[expect(
@@ -76,14 +89,7 @@ fn forced_bypass(
 }
 
 #[cfg(feature = "diagnostics")]
-fn forced_bypass_async<'a>(
-    ctx: &'a mut StepContext<'a>,
-    text: &str,
-    docstring: Option<&str>,
-    table: Option<&[&[&str]]>,
-) -> StepFuture<'a> {
-    wrap_sync_step_as_async(forced_bypass)(ctx, text, docstring, table)
-}
+generate_async_wrapper!(forced_bypass_async, forced_bypass);
 
 #[cfg(feature = "diagnostics")]
 static SHOULD_SEED: AtomicBool = AtomicBool::new(false);

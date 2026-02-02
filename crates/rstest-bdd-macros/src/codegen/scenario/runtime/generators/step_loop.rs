@@ -26,18 +26,36 @@ struct StepDataSlices<'a> {
 /// handle step execution results: value insertion on success, skip propagation on skip,
 /// and deferred panic on actual errors. Errors are stored and the loop breaks, with
 /// the panic occurring after the loop completes to mirror the skip-handling pattern.
-pub(super) fn generate_step_result_handler(callee: &TokenStream2) -> TokenStream2 {
+pub(super) fn generate_step_result_handler(callee: &TokenStream2, is_async: bool) -> TokenStream2 {
+    let call = if is_async {
+        quote! {
+            #callee(
+                __rstest_bdd_index,
+                __rstest_bdd_keyword,
+                __rstest_bdd_text,
+                __rstest_bdd_docstring,
+                __rstest_bdd_table,
+                &mut ctx,
+                __RSTEST_BDD_FEATURE_PATH,
+                __RSTEST_BDD_SCENARIO_NAME,
+            ).await
+        }
+    } else {
+        quote! {
+            #callee(
+                __rstest_bdd_index,
+                __rstest_bdd_keyword,
+                __rstest_bdd_text,
+                __rstest_bdd_docstring,
+                __rstest_bdd_table,
+                &mut ctx,
+                __RSTEST_BDD_FEATURE_PATH,
+                __RSTEST_BDD_SCENARIO_NAME,
+            )
+        }
+    };
     quote! {
-        match #callee(
-            __rstest_bdd_index,
-            __rstest_bdd_keyword,
-            __rstest_bdd_text,
-            __rstest_bdd_docstring,
-            __rstest_bdd_table,
-            &mut ctx,
-            __RSTEST_BDD_FEATURE_PATH,
-            __RSTEST_BDD_SCENARIO_NAME,
-        ) {
+        match #call {
             Ok(Some(__rstest_bdd_val)) => {
                 // Intentionally discarded: insert_value returns None when no fixture
                 // slot matches the value's TypeId or when matches are ambiguous.
@@ -73,6 +91,7 @@ pub(super) fn generate_step_result_handler(callee: &TokenStream2) -> TokenStream
 fn generate_step_executor_loop_impl(
     callee: &TokenStream2,
     step_data: StepDataSlices<'_>,
+    is_async: bool,
 ) -> TokenStream2 {
     let StepDataSlices {
         keyword_tokens,
@@ -80,7 +99,7 @@ fn generate_step_executor_loop_impl(
         docstrings,
         tables,
     } = step_data;
-    let result_handler = generate_step_result_handler(callee);
+    let result_handler = generate_step_result_handler(callee, is_async);
 
     quote! {
         let mut __rstest_bdd_failed: Option<String> = None;
@@ -115,31 +134,10 @@ macro_rules! generate_step_executor_loop_fn {
                     docstrings,
                     tables,
                 },
+                false,
             )
         }
     };
-}
-
-generate_step_executor_loop_fn! {
-    /// Generates the async step executor loop that iterates over steps and awaits each.
-    ///
-    /// The generated code iterates through all scenario steps, executing each one
-    /// and handling the results. On success, values are inserted into the context.
-    /// On skip, the loop breaks and records the skip position.
-    ///
-    /// This implementation uses the sync `run` function directly rather than
-    /// `run_async`. This avoids higher-ranked trait bound (HRTB) lifetime issues since
-    /// sync steps don't create futures that hold borrows across `.await` points.
-    /// For scenarios using actual async step definitions (future work), a different
-    /// approach will be needed.
-    ///
-    /// # Usage
-    ///
-    /// ```ignore
-    /// let loop_tokens = generate_async_step_executor_loop(&keywords, &values, &docstrings, &tables);
-    /// // loop_tokens is embedded into the async scenario test function body
-    /// ```
-    pub(in crate::codegen::scenario::runtime) fn generate_async_step_executor_loop => __rstest_bdd_process_async_step
 }
 
 generate_step_executor_loop_fn! {
@@ -172,4 +170,24 @@ generate_step_executor_loop_fn! {
     /// }
     /// ```
     pub(in crate::codegen::scenario::runtime) fn generate_step_executor_loop => __rstest_bdd_execute_single_step
+}
+
+/// Generates the async step executor loop that iterates over steps and awaits each.
+pub(in crate::codegen::scenario::runtime) fn generate_async_step_executor_loop(
+    keyword_tokens: &[TokenStream2],
+    values: &[TokenStream2],
+    docstrings: &[TokenStream2],
+    tables: &[TokenStream2],
+) -> TokenStream2 {
+    let callee = quote! { __rstest_bdd_process_async_step };
+    generate_step_executor_loop_impl(
+        &callee,
+        StepDataSlices {
+            keyword_tokens,
+            values,
+            docstrings,
+            tables,
+        },
+        true,
+    )
 }

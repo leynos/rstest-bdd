@@ -20,8 +20,9 @@ fn async_counter_init() {
 }
 
 #[when("the async counter is incremented")]
-fn async_counter_increment() {
+async fn async_counter_increment() {
     ASYNC_COUNTER.with(|c| *c.borrow_mut() += 1);
+    tokio::task::yield_now().await;
 }
 
 #[when("the async step requests skip")]

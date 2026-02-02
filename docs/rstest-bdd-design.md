@@ -93,11 +93,10 @@ for unit tests, promoting a Don't Repeat Yourself (DRY) approach.[^1]
 > **Note:** This example demonstrates the async API using `async fn` test
 > functions with `#[tokio::test]`. Async scenario execution is now implemented
 > for Tokio current-thread mode; see §2.5 and the users guide for details.
-> Step definitions themselves remain synchronous—the async executor calls the
-> sync handler directly to avoid higher-ranked trait bound (HRTB) lifetime
-> issues. True async step bodies are planned for a future release. ADR-005
-> introduces harness adapters and attribute policies so Tokio (or GPUI) test
-> attributes are supplied by opt-in plugin crates rather than core features.
+> Step definitions may be `async fn` and are awaited sequentially under the
+> async scenario runtime. ADR-005 introduces harness adapters and attribute
+> policies so Tokio (or GPUI) test attributes are supplied by opt-in plugin
+> crates rather than core features.
 
 ```rust,no_run
 use rstest::fixture;
@@ -211,10 +210,10 @@ Feature: User Login
 **Step Definition (**`test_login.rs`**):**
 
 > **Note:** This example shows async scenario execution. The test function uses
-> `async fn` with `#[tokio::test]`. Step definitions remain synchronous—the
-> async executor calls sync handlers directly. See §2.5 for design details. In
-> the harness adapter architecture (ADR-005), this attribute comes from the
-> selected attribute policy plugin rather than core macros.
+> `async fn` with `#[tokio::test]`. Step definitions may also be `async fn` and
+> are awaited sequentially under the scenario runtime. See §2.5 for design
+> details. In the harness adapter architecture (ADR-005), this attribute comes
+> from the selected attribute policy plugin rather than core macros.
 
 ```rust,no_run
 //...
@@ -1178,12 +1177,11 @@ under Tokio. For the full architectural decision record, see
 > **Implementation status:** Async scenario execution is now implemented for
 > Tokio current-thread mode. The `scenarios!` macro accepts
 > `runtime = "tokio-current-thread"`, and `#[scenario]` detects `async fn` test
-> signatures. Step definitions remain synchronous—the async executor calls the
-> sync handler directly to avoid higher-ranked trait bound (HRTB) lifetime
-> issues with `AsyncStepFn`. True async step bodies (with `async fn`
-> implementations) are planned for a future release. ADR-005 moves runtime
-> selection into harness adapters and attribute policy plugins, so the `runtime`
-> argument will become a compatibility alias for the Tokio harness adapter.
+> signatures. Step definitions may be `async fn` and are awaited sequentially
+> via the registered async wrapper (`AsyncStepFn`). ADR-005 moves runtime
+> selection into harness adapters and attribute policy plugins, so the
+> `runtime` argument will become a compatibility alias for the Tokio harness
+> adapter.
 
 #### 2.5.1 Motivation
 
@@ -1217,12 +1215,12 @@ type StepFuture<'a> =
     Pin<Box<dyn Future<Output = Result<StepExecution, StepError>> + 'a>>;
 
 /// An async step function pointer.
-type AsyncStepFn = for<'a> fn(
-    &'a mut StepContext<'a>,
-    &str,                     // step text
-    Option<&str>,             // docstring
-    Option<&[&[&str]]>,       // datatable
-) -> StepFuture<'a>;
+type AsyncStepFn = for<'ctx, 'fixtures> fn(
+    &'ctx mut StepContext<'fixtures>,
+    &'ctx str,                          // step text
+    Option<&'ctx str>,                  // docstring
+    Option<&'ctx [&'ctx [&'ctx str]]>,  // datatable
+) -> StepFuture<'ctx>;
 ```
 
 *Figure: Type aliases for async step wrappers.*

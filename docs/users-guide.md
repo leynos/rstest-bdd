@@ -32,11 +32,12 @@ edition.
 development via `rust-toolchain.toml` so contributors get consistent `rustfmt`
 and `clippy` behaviour.
 
-Step definitions and writers remain synchronous functions; the framework no
-longer depends on the `async-trait` crate to express async methods in traits.
-Projects that previously relied on `#[async_trait]` in helper traits should
-replace those methods with ordinary functions—`StepFn` continues to execute
-synchronously and exposes results via `StepExecution`.
+Step definitions may be synchronous functions (`fn`) or asynchronous
+functions (`async fn`). The framework no longer depends on the `async-trait`
+crate to express async methods in traits. Projects that previously relied on
+`#[async_trait]` in helper traits should replace those methods with ordinary
+functions, and use async steps or async fixtures where appropriate. Step
+wrappers normalize results into `StepExecution`.
 
 ## The three amigos
 
@@ -812,11 +813,12 @@ When `runtime = "tokio-current-thread"` is specified:
 - Each test is annotated with `#[tokio::test(flavor = "current_thread")]`.
 - Steps execute sequentially within the single-threaded Tokio runtime.
 
-### Recommended async pattern for steps
+### Recommended patterns for async work in steps
 
-Step functions are synchronous, even when a scenario runs in an async runtime.
-Use one of the following patterns to keep async work safe and predictable. This
-section summarizes the canonical guidance in
+Async scenarios run on Tokio's current-thread runtime. Step functions may be
+`async fn` and are awaited sequentially, keeping fixture borrows valid across
+`.await` points. Use one of the following patterns to keep async work safe and
+predictable. This section summarizes the canonical guidance in
 [Migration and async patterns](cucumber-rs-migration-and-async-patterns.md).
 
 - **Prefer async fixtures:** If a step needs async data, move the async call
@@ -855,12 +857,11 @@ scenarios!(
 );
 ```
 
-- **Use a per-step runtime only in synchronous scenarios:** If a step must call
-  async code and the scenario is not running under Tokio, build a runtime in
-  the step and block on the async work. Avoid this inside an async scenario
-  because nested runtimes can fail. For async scenarios, prefer fixtures or the
-  async test body instead. See [ADR-005](adr-005-async-step-functions.md) for
-  the current strategy.
+- **Use a per-step runtime only in synchronous scenarios:** When an async-only
+  step runs under a synchronous scenario, `rstest-bdd` falls back to a per-step
+  Tokio runtime and blocks on the step. Avoid building additional runtimes
+  inside an async scenario because nested runtimes can fail. For async
+  scenarios, prefer async steps, async fixtures, or the async test body.
 
 ```rust,no_run
 use rstest_bdd_macros::when;
@@ -879,15 +880,13 @@ fn end_stream() {
 
 ### Current limitations
 
-- **Sync step definitions only:** The async executor currently calls the sync
-  `run` handler directly rather than `run_async`. This avoids higher-ranked
-  trait bound (HRTB) lifetime issues but means steps cannot `.await`
-  internally. See [ADR-005](adr-005-async-step-functions.md) for the current
-  pattern, and [ADR-001](adr-001-async-fixtures-and-test.md) for the design
+- **Tokio current-thread mode only:** Multi-threaded Tokio mode would require
+  `Send` futures, which conflicts with the `RefCell`-backed fixture storage.
+  See [ADR-001](adr-001-async-fixtures-and-test.md) for the full design
   rationale.
-- **Current-thread mode only:** Multi-threaded Tokio mode would require `Send`
-  futures, which conflicts with the `RefCell`-backed fixture storage. See
-  [ADR-001](adr-001-async-fixtures-and-test.md) for the full design rationale.
+- **Nested runtime safeguards:** Async-only steps running in synchronous
+  scenarios use a per-step runtime fallback, which refuses to run when a Tokio
+  runtime is already active on the current thread.
 - **No `async_std` runtime:** Only Tokio is supported at present.
 
 ## Running and maintaining tests

@@ -244,6 +244,7 @@ struct WrapperInputs<'a> {
 fn build_and_generate_wrapper(inputs: &WrapperInputs<'_>) -> proc_macro2::TokenStream {
     let config = WrapperConfig {
         ident: &inputs.func.sig.ident,
+        is_async_step: inputs.func.sig.asyncness.is_some(),
         args: inputs.args,
         pattern: inputs.pattern,
         keyword: inputs.keyword,

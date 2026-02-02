@@ -4,7 +4,7 @@
 //! It is gated behind the `test-support` feature to avoid including test
 //! utilities in production builds.
 
-use crate::{StepContext, StepError, StepExecution, StepFuture};
+use crate::{StepContext, StepExecution, StepFn, StepFuture};
 
 /// Wrap a synchronous step handler into an immediately-ready async future.
 ///
@@ -27,7 +27,7 @@ use crate::{StepContext, StepError, StepExecution, StepFuture};
 /// }
 ///
 /// fn my_async_step<'a>(
-///     ctx: &'a mut StepContext<'a>,
+///     ctx: &'a mut StepContext<'_>,
 ///     text: &str,
 ///     docstring: Option<&str>,
 ///     table: Option<&[&[&str]]>,
@@ -39,18 +39,14 @@ use crate::{StepContext, StepError, StepExecution, StepFuture};
     clippy::type_complexity,
     reason = "currying pattern produces complex return type to reduce parameter count"
 )]
-pub fn sync_to_async<'a, F>(
-    sync_fn: F,
-) -> impl FnOnce(&'a mut StepContext<'a>, &str, Option<&str>, Option<&[&[&str]]>) -> StepFuture<'a>
-where
-    F: FnOnce(
-            &mut StepContext<'_>,
-            &str,
-            Option<&str>,
-            Option<&[&[&str]]>,
-        ) -> Result<StepExecution, StepError>
-        + 'a,
-{
+pub fn sync_to_async(
+    sync_fn: StepFn,
+) -> impl for<'ctx, 'fixtures> FnOnce(
+    &'ctx mut StepContext<'fixtures>,
+    &'ctx str,
+    Option<&'ctx str>,
+    Option<&'ctx [&'ctx [&'ctx str]]>,
+) -> StepFuture<'ctx> {
     move |ctx, text, docstring, table| {
         Box::pin(std::future::ready(sync_fn(ctx, text, docstring, table)))
     }
@@ -72,7 +68,7 @@ where
 /// use rstest_bdd::test_support::poll_step_future;
 ///
 /// fn example_async<'a>(
-///     _ctx: &'a mut StepContext<'a>,
+///     _ctx: &'a mut StepContext<'_>,
 ///     _text: &str,
 ///     _docstring: Option<&str>,
 ///     _table: Option<&[&[&str]]>,

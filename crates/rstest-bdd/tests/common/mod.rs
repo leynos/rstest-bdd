@@ -62,81 +62,48 @@ pub fn noop_wrapper(
 /// let result = poll_step_future(future);
 /// assert!(matches!(result, StepExecution::Continue { .. }));
 /// ```
-pub fn noop_async_wrapper<'a>(
-    ctx: &'a mut StepContext<'a>,
-    text: &str,
-    docstring: Option<&str>,
-    table: Option<&[&[&str]]>,
-) -> StepFuture<'a> {
+pub fn noop_async_wrapper<'ctx>(
+    ctx: &'ctx mut StepContext<'_>,
+    text: &'ctx str,
+    docstring: Option<&'ctx str>,
+    table: Option<&'ctx [&'ctx [&'ctx str]]>,
+) -> StepFuture<'ctx> {
     Box::pin(std::future::ready(noop_wrapper(
         ctx, text, docstring, table,
     )))
 }
 
-/// Wrap a synchronous step handler into an immediately-ready async future.
+/// Parameters for invoking a step function.
 ///
-/// This helper uses currying to reduce the parameter count: it takes the
-/// sync function and returns a closure matching the `AsyncStepFn` signature.
+/// The explicit `'fixtures` lifetime is required because struct fields cannot
+/// use placeholder lifetimes (like `StepContext<'_>`), and because async wrapper
+/// signatures remain compatible with [`rstest_bdd::AsyncStepFn`], which
+/// separates the lifetime of the borrowed [`StepContext`] from the lifetime of
+/// the fixtures stored within it.
 ///
-/// # Examples
-///
-/// ```rust
-/// use rstest_bdd::{StepContext, StepError, StepExecution, StepFuture};
-///
-/// # mod common { include!("common/mod.rs"); }
-/// # use common::sync_to_async;
-/// fn my_sync_step(
-///     _ctx: &mut StepContext<'_>,
-///     _text: &str,
-///     _docstring: Option<&str>,
-///     _table: Option<&[&[&str]]>,
-/// ) -> Result<StepExecution, StepError> {
-///     Ok(StepExecution::from_value(None))
-/// }
-///
-/// fn my_async_step<'a>(
-///     ctx: &'a mut StepContext<'a>,
-///     text: &str,
-///     docstring: Option<&str>,
-///     table: Option<&[&[&str]]>,
-/// ) -> StepFuture<'a> {
-///     sync_to_async(my_sync_step)(ctx, text, docstring, table)
-/// }
-/// ```
-#[expect(
-    clippy::type_complexity,
-    reason = "currying pattern produces complex return type to reduce parameter count"
-)]
-pub fn sync_to_async<'a, F>(
-    sync_fn: F,
-) -> impl FnOnce(&'a mut StepContext<'a>, &str, Option<&str>, Option<&[&[&str]]>) -> StepFuture<'a>
-where
-    F: FnOnce(
-            &mut StepContext<'_>,
-            &str,
-            Option<&str>,
-            Option<&[&[&str]]>,
-        ) -> Result<StepExecution, StepError>
-        + 'a,
-{
-    move |ctx, text, docstring, table| {
-        Box::pin(std::future::ready(sync_fn(ctx, text, docstring, table)))
-    }
+/// [`StepContext`]: rstest_bdd::StepContext
+pub struct StepInvocationParams<'ctx, 'fixtures> {
+    pub ctx: &'ctx mut StepContext<'fixtures>,
+    pub text: &'ctx str,
+    pub docstring: Option<&'ctx str>,
+    pub table: Option<&'ctx [&'ctx [&'ctx str]]>,
 }
 
 /// Wrap a synchronous step function (`StepFn`) into an async wrapper.
 ///
-/// This is a convenience alias for [`sync_to_async`] that takes a `StepFn`
-/// function pointer rather than a generic closure.
-#[expect(
-    clippy::type_complexity,
-    reason = "currying pattern produces complex return type to reduce parameter count"
-)]
-pub fn wrap_sync_step_as_async<'a>(
+/// This helper is used to build explicit async wrappers for sync steps in
+/// integration tests.
+pub fn wrap_sync_step_as_async<'ctx>(
     sync_fn: StepFn,
-) -> impl FnOnce(&'a mut StepContext<'a>, &str, Option<&str>, Option<&[&[&str]]>) -> StepFuture<'a>
-{
-    sync_to_async(sync_fn)
+    params: StepInvocationParams<'ctx, '_>,
+) -> StepFuture<'ctx> {
+    let StepInvocationParams {
+        ctx,
+        text,
+        docstring,
+        table,
+    } = params;
+    Box::pin(std::future::ready(sync_fn(ctx, text, docstring, table)))
 }
 
 /// Poll a step future to completion using a noop waker.

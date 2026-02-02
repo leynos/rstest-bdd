@@ -31,7 +31,7 @@ pub use inventory::{iter, submit};
 mod context;
 pub mod datatable;
 pub mod localization;
-mod panic_support;
+pub mod panic_support;
 mod pattern;
 mod placeholder;
 mod registry;
@@ -56,8 +56,9 @@ pub use registry::dump_registry;
 pub use registry::record_bypassed_steps;
 pub use registry::record_bypassed_steps_with_tags;
 pub use registry::{
-    Step, duplicate_steps, find_step, find_step_async, find_step_with_metadata, lookup_step,
-    lookup_step_async, unused_steps,
+    Step, duplicate_steps, find_step, find_step_async, find_step_async_with_mode,
+    find_step_with_metadata, find_step_with_mode, lookup_step, lookup_step_async,
+    lookup_step_async_with_mode, unused_steps,
 };
 
 /// Whether the crate was built with the `diagnostics` feature enabled.
@@ -65,6 +66,8 @@ pub use registry::{
 pub const fn diagnostics_enabled() -> bool {
     cfg!(feature = "diagnostics")
 }
+#[doc(hidden)]
+pub use panic_support::catch_unwind_future as __rstest_bdd_catch_unwind_future;
 #[doc(hidden)]
 pub use skip::{
     ScopeKind as __rstest_bdd_scope_kind, SkipRequest, StepScopeGuard as __rstest_bdd_scope_guard,
@@ -83,9 +86,9 @@ pub use skip_helpers::{
 pub use state::{ScenarioState, Slot};
 pub use step_args::{StepArgs, StepArgsError};
 pub use types::{
-    AsyncStepFn, PatternStr, PlaceholderError, PlaceholderSyntaxError, StepExecution, StepFn,
-    StepFuture, StepKeyword, StepKeywordParseError, StepPatternError, StepText,
-    UnsupportedStepType,
+    AsyncStepFn, PatternStr, PlaceholderError, PlaceholderSyntaxError, StepExecution,
+    StepExecutionMode, StepFn, StepFuture, StepKeyword, StepKeywordParseError, StepPatternError,
+    StepText, UnsupportedStepType,
 };
 
 pub use execution::{ExecutionError, MissingFixturesDetails};

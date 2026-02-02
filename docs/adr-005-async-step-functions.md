@@ -2,8 +2,11 @@
 
 ## Status
 
-Accepted (2026-01-25): Use async scenarios with synchronous steps, rely on
-`tokio-current-thread`, and reserve per-step runtimes for synchronous scenarios.
+Superseded (2026-01-30): `rstest-bdd` now supports native `async fn` step
+definitions under `tokio-current-thread` async scenarios, eliminating the
+sync-wrapper execution path that prompted this ADR. The guidance below remains
+useful as an interim migration strategy for older releases and for codebases
+that prefer to keep steps synchronous.
 
 ## Date
 
@@ -80,6 +83,13 @@ per-step runtimes only when a step cannot be refactored into async fixture
 helpers. This gives the migration a stable path while preserving a future
 upgrade path to true async steps once `rstest-bdd` supports them directly.
 
+### Update (2026-01-30)
+
+Native async step execution is now implemented. Step functions may be declared
+as `async fn` and are awaited sequentially under async scenario runtimes. Async
+steps can still run in synchronous scenarios via a blocking fallback, but that
+fallback refuses to create a nested Tokio runtime when one is already running.
+
 ## Goals and Non-Goals
 
 ### Goals
@@ -89,7 +99,9 @@ upgrade path to true async steps once `rstest-bdd` supports them directly.
 
 ### Non-Goals
 
-- Provide first-class async step functions in `rstest-bdd` today.
+- Provide first-class async step functions in `rstest-bdd` as part of the
+  initial migration strategy described in this ADR (superseded as of
+  2026-01-30).
 - Guarantee zero runtime overhead for async operations within steps.
 
 ## Migration Plan

@@ -33,12 +33,12 @@ fn bypassed_step(
     Ok(StepExecution::Continue { value: None })
 }
 
-fn bypassed_step_async<'a>(
-    ctx: &'a mut StepContext<'a>,
-    text: &str,
-    docstring: Option<&str>,
-    table: Option<&[&[&str]]>,
-) -> StepFuture<'a> {
+fn bypassed_step_async<'ctx>(
+    ctx: &'ctx mut StepContext<'_>,
+    text: &'ctx str,
+    docstring: Option<&'ctx str>,
+    table: Option<&'ctx [&'ctx [&'ctx str]]>,
+) -> StepFuture<'ctx> {
     sync_to_async(bypassed_step)(ctx, text, docstring, table)
 }
 
@@ -55,12 +55,12 @@ fn forced_bypass(
     Ok(StepExecution::Continue { value: None })
 }
 
-fn forced_bypass_async<'a>(
-    ctx: &'a mut StepContext<'a>,
-    text: &str,
-    docstring: Option<&str>,
-    table: Option<&[&[&str]]>,
-) -> StepFuture<'a> {
+fn forced_bypass_async<'ctx>(
+    ctx: &'ctx mut StepContext<'_>,
+    text: &'ctx str,
+    docstring: Option<&'ctx str>,
+    table: Option<&'ctx [&'ctx [&'ctx str]]>,
+) -> StepFuture<'ctx> {
     sync_to_async(forced_bypass)(ctx, text, docstring, table)
 }
 

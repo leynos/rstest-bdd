@@ -30,10 +30,12 @@ fn empty_basket_alt(basket: &mut Basket) {
 
 ## Async step execution pattern
 
-Async scenarios run on Tokio's current-thread runtime. Step functions remain
-synchronous, so async work should be moved into fixtures or the scenario body.
-Use per-step runtimes only in synchronous scenarios to avoid nested runtime
-failures. ADR-005 captures the rationale and risk profile.
+Async scenarios run on Tokio's current-thread runtime. Step functions may be
+`async fn` and are awaited sequentially, keeping fixture borrows valid across
+`.await` points. Prefer async fixtures for shared setup and expensive I/O. When
+an async-only step runs under a synchronous scenario, `rstest-bdd` falls back
+to a per-step Tokio runtime and will refuse to do so if a Tokio runtime is
+already running on the current thread.
 
 ```rust,no_run
 use rstest::fixture;

@@ -7,7 +7,7 @@
 //! # Responsibilities
 //!
 //! - Generate `__rstest_bdd_execute_single_step`: thin wrapper calling runtime execution
-//! - Generate `__rstest_bdd_process_async_step`: async variant (currently identical to sync)
+//! - Generate `__rstest_bdd_process_async_step`: async variant that awaits runtime execution
 //!
 //! # Design
 //!
@@ -46,7 +46,7 @@ pub(in crate::codegen::scenario::runtime) fn generate_step_executor() -> TokenSt
             text: &str,
             docstring: Option<&str>,
             table: Option<&[&[&str]]>,
-            ctx: &mut #path::StepContext,
+            ctx: &mut #path::StepContext<'_>,
             feature_path: &str,
             scenario_name: &str,
         ) -> Result<Option<Box<dyn std::any::Any>>, #path::execution::ExecutionError> {
@@ -102,20 +102,19 @@ pub(in crate::codegen::scenario::runtime) fn generate_skip_extractor() -> TokenS
 /// Generates the `__rstest_bdd_process_async_step` helper function for async step execution.
 ///
 /// The generated function is a thin wrapper that delegates to
-/// [`rstest_bdd::execution::execute_step`]. It mirrors `__rstest_bdd_execute_single_step`
-/// but with a different name for use in async contexts.
+/// [`rstest_bdd::execution::execute_step_async`], enabling true `async fn` step
+/// definitions to run natively under async scenario runtimes.
 ///
-/// Note: The function itself is not async—it calls the sync step handler directly to avoid
-/// higher-ranked trait bound (HRTB) lifetime issues with `AsyncStepFn`. This allows the
-/// async executor loop to remain simple while still supporting async test functions.
+/// It mirrors `__rstest_bdd_execute_single_step` but is async and awaits the
+/// runtime execution function.
 ///
 /// # Generated code
 ///
 /// ```text
-/// fn __rstest_bdd_process_async_step(
+/// async fn __rstest_bdd_process_async_step(
 ///     index, keyword, text, docstring, table, ctx, feature_path, scenario_name
 /// ) -> Result<Option<Box<dyn std::any::Any>>, ExecutionError> {
-///     rstest_bdd::execution::execute_step(&StepExecutionRequest { ... }, ctx)
+///     rstest_bdd::execution::execute_step_async(&StepExecutionRequest { ... }, ctx).await
 /// }
 /// ```
 pub(in crate::codegen::scenario::runtime) fn generate_async_step_executor() -> TokenStream2 {
@@ -125,17 +124,17 @@ pub(in crate::codegen::scenario::runtime) fn generate_async_step_executor() -> T
             clippy::too_many_arguments,
             reason = "wrapper bridges macro-generated calls to runtime StepExecutionRequest",
         )]
-        fn __rstest_bdd_process_async_step(
+        async fn __rstest_bdd_process_async_step(
             index: usize,
             keyword: #path::StepKeyword,
             text: &str,
             docstring: Option<&str>,
             table: Option<&[&[&str]]>,
-            ctx: &mut #path::StepContext,
+            ctx: &mut #path::StepContext<'_>,
             feature_path: &str,
             scenario_name: &str,
         ) -> Result<Option<Box<dyn std::any::Any>>, #path::execution::ExecutionError> {
-            #path::execution::execute_step(
+            #path::execution::execute_step_async(
                 &#path::execution::StepExecutionRequest {
                     index,
                     keyword,
@@ -147,6 +146,7 @@ pub(in crate::codegen::scenario::runtime) fn generate_async_step_executor() -> T
                 },
                 ctx,
             )
+            .await
         }
     }
 }

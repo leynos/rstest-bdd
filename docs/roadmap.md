@@ -395,11 +395,11 @@ Multi-thread mode remains out of scope until the fixture storage model is
 redesigned. For the full architectural decision record, see
 [ADR-001](adr-001-async-fixtures-and-test.md).
 
-> **Note:** This phase implements async *scenario* execution. Step definitions
-> themselves remain synchronous—the async executor calls the sync handler
-> directly to avoid higher-ranked trait bound (HRTB) lifetime issues with
-> `AsyncStepFn`. True async step bodies (with `async fn` implementations) are
-> planned for a future release.
+> **Note:** This phase includes native async step bodies. Async scenarios await
+> `AsyncStepFn` step handlers sequentially, while synchronous steps run through
+> the sync handler directly for minimal overhead. Async-only steps can still be
+> executed from synchronous scenarios via a blocking fallback (with safeguards
+> against nested Tokio runtimes).
 
 ### 8.1. Async step registry
 
@@ -427,6 +427,12 @@ redesigned. For the full architectural decision record, see
 - [x] 8.3.2. Preserve `skip!` interception (sync path remains unchanged).
 - [x] 8.3.3. Maintain panic context (step index, keyword, text,
   feature/scenario metadata) in async error reports.
+- [x] 8.3.4. Support `async fn` step definitions by generating async wrappers
+  that await the user step future.
+- [x] 8.3.5. Update the async scenario executor to await `execute_step_async`
+  for each step.
+- [x] 8.3.6. Provide a blocking sync fallback for async-only steps in
+  synchronous scenarios, with safeguards against nested Tokio runtimes.
 
 ### 8.4. Documentation and migration
 

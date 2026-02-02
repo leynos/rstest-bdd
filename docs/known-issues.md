@@ -25,15 +25,14 @@
 
 ## Async step functions in async scenarios
 
-- **Status:** Open; steps are synchronous even under async scenario runtimes.
+- **Status:** Resolved (2026-01-30); async step bodies run natively under async
+  scenario runtimes.
 - **Affected usage:** `scenarios!` with `runtime = "tokio-current-thread"` and
   `#[scenario]` combined with `#[tokio::test(flavor = "current_thread")]`.
-- **Symptom:** Step functions cannot be `async fn`. Attempting to create a
-  per-step Tokio runtime inside the scenario runtime can fail with nested
-  runtime errors.
-- **Workaround:** Keep steps synchronous, move async work into fixtures or the
-  scenario test body, and only use per-step runtimes when the scenario itself
-  is synchronous. See [ADR-005](adr-005-async-step-functions.md) for the
-  current strategy.
-- **Next steps:** Once the StreamEnd and CodecStateful migrations land, keep
-  this section aligned with ADR-005 and record any migration learnings here.
+- **Behaviour:** Step functions may now be `async fn`. Async scenarios execute
+  each step by awaiting the registered async handler, keeping fixture borrows
+  valid across `.await` points.
+- **Notes:** Async step functions remain Tokio current-thread only. When an
+  async-only step runs under a synchronous scenario, `rstest-bdd` falls back to
+  a per-step Tokio runtime and will refuse to do so if a Tokio runtime is
+  already running on the current thread.

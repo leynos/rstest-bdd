@@ -21,6 +21,7 @@ use super::step_loop::generate_step_result_handler;
 fn generate_step_executor_loop_outline_impl(
     callee: &TokenStream2,
     all_rows_steps: &[ProcessedStepTokens],
+    is_async: bool,
 ) -> TokenStream2 {
     let path = crate::codegen::rstest_bdd_path();
 
@@ -32,7 +33,7 @@ fn generate_step_executor_loop_outline_impl(
             }
         })
         .collect();
-    let result_handler = generate_step_result_handler(callee);
+    let result_handler = generate_step_result_handler(callee, is_async);
 
     quote! {
         let mut __rstest_bdd_failed: Option<String> = None;
@@ -83,7 +84,7 @@ pub(in crate::codegen::scenario::runtime) fn generate_step_executor_loop_outline
     all_rows_steps: &[ProcessedStepTokens],
 ) -> TokenStream2 {
     let callee = quote! { __rstest_bdd_execute_single_step };
-    generate_step_executor_loop_outline_impl(&callee, all_rows_steps)
+    generate_step_executor_loop_outline_impl(&callee, all_rows_steps, false)
 }
 
 /// Generates the async step executor loop for scenario outlines.
@@ -125,5 +126,5 @@ pub(in crate::codegen::scenario::runtime) fn generate_async_step_executor_loop_o
     all_rows_steps: &[ProcessedStepTokens],
 ) -> TokenStream2 {
     let callee = quote! { __rstest_bdd_process_async_step };
-    generate_step_executor_loop_outline_impl(&callee, all_rows_steps)
+    generate_step_executor_loop_outline_impl(&callee, all_rows_steps, true)
 }
