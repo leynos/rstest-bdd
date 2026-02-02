@@ -4,6 +4,7 @@ use crate::codegen::scenario::ScenarioReturnKind;
 use syn::visit::Visit;
 
 use super::super::generators::generate_skip_handler;
+use super::RuntimeFunction;
 
 /// Return the identifier of the final segment in a `syn::Path`.
 ///
@@ -130,12 +131,12 @@ pub(super) fn count_method_calls_in_block(block: &syn::Block, method_name: &str)
     finder.count
 }
 
-pub(super) fn find_call_in_block<'a>(
-    block: &'a syn::Block,
-    name: &str,
-) -> Option<&'a syn::ExprCall> {
+pub(super) fn find_call_in_block(
+    block: &syn::Block,
+    name: RuntimeFunction,
+) -> Option<&syn::ExprCall> {
     let mut finder = CallFinder {
-        name: name.to_string(),
+        name: name.call_name().to_string(),
         found: None,
     };
     finder.visit_block(block);

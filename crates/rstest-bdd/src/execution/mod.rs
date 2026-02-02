@@ -346,6 +346,33 @@ pub fn execute_step(
 /// # Errors
 ///
 /// Returns [`ExecutionError`] for all failure cases, mirroring [`execute_step`].
+///
+/// # Examples
+///
+/// ```rust,no_run
+/// use rstest_bdd::execution::{execute_step_async, ExecutionError, StepExecutionRequest};
+/// use rstest_bdd::{StepContext, StepKeyword};
+///
+/// let request = StepExecutionRequest {
+///     index: 0,
+///     keyword: StepKeyword::Given,
+///     text: "undefined step",
+///     docstring: None,
+///     table: None,
+///     feature_path: "feature.feature",
+///     scenario_name: "Scenario",
+/// };
+/// let mut ctx = StepContext::default();
+///
+/// let runtime = tokio::runtime::Builder::new_current_thread()
+///     .enable_all()
+///     .build()
+///     .expect("tokio runtime builds");
+/// let error = runtime
+///     .block_on(async { execute_step_async(&request, &mut ctx).await })
+///     .unwrap_err();
+/// assert!(matches!(error, ExecutionError::StepNotFound { .. }));
+/// ```
 pub async fn execute_step_async(
     request: &StepExecutionRequest<'_>,
     ctx: &mut StepContext<'_>,

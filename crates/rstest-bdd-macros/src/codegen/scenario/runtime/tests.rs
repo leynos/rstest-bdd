@@ -10,12 +10,33 @@ mod support;
 
 use support::*;
 
+#[derive(Clone, Copy, Debug)]
+enum RuntimeFunction {
+    ExecuteStep,
+    ExecuteStepAsync,
+}
+
+impl RuntimeFunction {
+    fn call_name(self) -> &'static str {
+        match self {
+            Self::ExecuteStep => "execute_step",
+            Self::ExecuteStepAsync => "execute_step_async",
+        }
+    }
+}
+
+impl std::fmt::Display for RuntimeFunction {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.call_name())
+    }
+}
+
 /// Encapsulates expected properties when verifying step executor delegation.
 #[derive(Clone, Copy)]
 struct StepExecutorExpectation<'a> {
     function_name: &'a str,
     description: &'a str,
-    runtime_function: &'a str,
+    runtime_function: RuntimeFunction,
     should_be_async: bool,
 }
 
@@ -25,7 +46,7 @@ impl<'a> StepExecutorExpectation<'a> {
     fn new(
         function_name: &'a str,
         description: &'a str,
-        runtime_function: &'a str,
+        runtime_function: RuntimeFunction,
         should_be_async: bool,
     ) -> Self {
         Self {
@@ -85,12 +106,8 @@ fn assert_step_executor_delegates_to_runtime(
 
     let func_path = extract_path(execute_step_call.func.as_ref());
     match expectation.runtime_function {
-        "execute_step" => assert_path_is_execution_execute_step(func_path),
-        "execute_step_async" => assert_path_is_execution_execute_step_async(func_path),
-        other => panic!(
-            "{}: unexpected runtime function name: {other}",
-            expectation.description
-        ),
+        RuntimeFunction::ExecuteStep => assert_path_is_execution_execute_step(func_path),
+        RuntimeFunction::ExecuteStepAsync => assert_path_is_execution_execute_step_async(func_path),
     }
 
     assert_eq!(
@@ -122,13 +139,13 @@ impl ExecutorType {
             Self::Sync => StepExecutorExpectation::new(
                 "__rstest_bdd_execute_single_step",
                 "sync step executor",
-                "execute_step",
+                RuntimeFunction::ExecuteStep,
                 false,
             ),
             Self::Async => StepExecutorExpectation::new(
                 "__rstest_bdd_process_async_step",
                 "async step executor",
-                "execute_step_async",
+                RuntimeFunction::ExecuteStepAsync,
                 true,
             ),
         }
