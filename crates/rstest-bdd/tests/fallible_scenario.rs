@@ -77,7 +77,7 @@ fn fallible_error_does_not_record_pass() {
 
 #[expect(clippy::panic, reason = "test helper panics for clearer failures")]
 fn assert_fallible_success_records_pass(result: Result<(), &'static str>, context: &str) {
-    result.unwrap_or_else(|_| panic!("expected {context} scenario to return Ok(())"));
+    result.unwrap_or_else(|err| panic!("expected {context} scenario to return Ok(()), got {err}"));
     let records = drain_reports();
     let passed_count = records
         .iter()
