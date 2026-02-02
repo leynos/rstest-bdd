@@ -14,6 +14,11 @@ pub(super) fn path_last_ident(path: &syn::Path) -> Option<&syn::Ident> {
     path.segments.last().map(|seg| &seg.ident)
 }
 
+/// Extract the inner path from a `syn::Expr::Path` expression.
+///
+/// # Panics
+///
+/// Panics if the expression is not a path expression.
 #[expect(clippy::panic, reason = "test helper panics for clearer failures")]
 pub(super) fn extract_path(expr: &syn::Expr) -> &syn::Path {
     match expr {
@@ -72,6 +77,11 @@ pub(super) fn assert_path_is_execution_execute_step_async(path: &syn::Path) {
     assert_path_ends_with_module_function(path, "execution", "execute_step_async");
 }
 
+/// Locate a function by name in a parsed `syn::File`.
+///
+/// # Panics
+///
+/// Panics if the file does not contain a function with the requested name.
 #[expect(clippy::panic, reason = "test helper panics for clearer failures")]
 pub(super) fn find_function_by_name<'a>(file: &'a syn::File, name: &str) -> &'a syn::ItemFn {
     file.items
@@ -83,6 +93,7 @@ pub(super) fn find_function_by_name<'a>(file: &'a syn::File, name: &str) -> &'a 
         .unwrap_or_else(|| panic!("expected {name} function"))
 }
 
+/// Visitor to find function calls by name.
 struct CallFinder<'ast> {
     name: String,
     found: Option<&'ast syn::ExprCall>,
@@ -122,6 +133,7 @@ impl<'ast> Visit<'ast> for MethodCallFinder {
     }
 }
 
+/// Count method calls matching `method_name` within a block.
 pub(super) fn count_method_calls_in_block(block: &syn::Block, method_name: &str) -> usize {
     let mut finder = MethodCallFinder {
         name: method_name.to_string(),
@@ -131,6 +143,7 @@ pub(super) fn count_method_calls_in_block(block: &syn::Block, method_name: &str)
     finder.count
 }
 
+/// Find the first call expression to a runtime function within a block.
 pub(super) fn find_call_in_block(
     block: &syn::Block,
     name: RuntimeFunction,
@@ -143,6 +156,12 @@ pub(super) fn find_call_in_block(
     finder.found
 }
 
+/// Parse the skip handler body for a scenario return kind.
+///
+/// # Panics
+///
+/// Panics if the generated tokens fail to parse or do not produce an if
+/// expression.
 #[expect(clippy::panic, reason = "test helper panics for clearer failures")]
 pub(super) fn parse_skip_handler(return_kind: ScenarioReturnKind) -> syn::ExprIf {
     let stmt: syn::Stmt = syn::parse2(generate_skip_handler(return_kind))
@@ -153,6 +172,7 @@ pub(super) fn parse_skip_handler(return_kind: ScenarioReturnKind) -> syn::ExprIf
     }
 }
 
+/// Visitor to collect `return` expressions.
 struct ReturnFinder<'ast> {
     returns: Vec<&'ast syn::ExprReturn>,
 }
@@ -163,6 +183,7 @@ impl<'ast> Visit<'ast> for ReturnFinder<'ast> {
     }
 }
 
+/// Collect return expressions within a block.
 pub(super) fn collect_returns(block: &syn::Block) -> Vec<&syn::ExprReturn> {
     let mut finder = ReturnFinder {
         returns: Vec::new(),
@@ -171,6 +192,7 @@ pub(super) fn collect_returns(block: &syn::Block) -> Vec<&syn::ExprReturn> {
     finder.returns
 }
 
+/// Return `true` when the expression matches the shape `Ok(())`.
 pub(super) fn is_ok_unit_expr(expr: &syn::Expr) -> bool {
     let syn::Expr::Call(call) = expr else {
         return false;
