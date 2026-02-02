@@ -75,13 +75,13 @@ pub fn noop_async_wrapper<'ctx>(
 
 /// Parameters for invoking a step function.
 ///
-/// Rust does not allow elided lifetimes in struct fields (`E0106`), so the
-/// fixture lifetime remains explicit to keep async wrapper signatures aligned
-/// with [`rstest_bdd::AsyncStepFn`].
+/// The fixture lifetime is inferred via a placeholder lifetime on
+/// [`StepContext`], keeping call sites concise while remaining compatible with
+/// [`rstest_bdd::AsyncStepFn`].
 ///
 /// [`StepContext`]: rstest_bdd::StepContext
-pub struct StepInvocationParams<'ctx, 'fixtures> {
-    pub ctx: &'ctx mut StepContext<'fixtures>,
+pub struct StepInvocationParams<'ctx> {
+    pub ctx: &'ctx mut StepContext<'_>,
     pub text: &'ctx str,
     pub docstring: Option<&'ctx str>,
     pub table: Option<&'ctx [&'ctx [&'ctx str]]>,
@@ -93,7 +93,7 @@ pub struct StepInvocationParams<'ctx, 'fixtures> {
 /// integration tests.
 pub fn wrap_sync_step_as_async<'ctx>(
     sync_fn: StepFn,
-    params: StepInvocationParams<'ctx, '_>,
+    params: StepInvocationParams<'ctx>,
 ) -> StepFuture<'ctx> {
     let StepInvocationParams {
         ctx,
