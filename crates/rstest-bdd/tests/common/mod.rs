@@ -75,13 +75,15 @@ pub fn noop_async_wrapper<'ctx>(
 
 /// Parameters for invoking a step function.
 ///
-/// The fixture lifetime is inferred via a placeholder lifetime on
-/// [`StepContext`], keeping call sites concise while remaining compatible with
-/// [`rstest_bdd::AsyncStepFn`].
+/// The explicit `'fixtures` lifetime is required because struct fields cannot
+/// use placeholder lifetimes (like `StepContext<'_>`), and because async wrapper
+/// signatures remain compatible with [`rstest_bdd::AsyncStepFn`], which
+/// separates the lifetime of the borrowed [`StepContext`] from the lifetime of
+/// the fixtures stored within it.
 ///
 /// [`StepContext`]: rstest_bdd::StepContext
-pub struct StepInvocationParams<'ctx> {
-    pub ctx: &'ctx mut StepContext<'_>,
+pub struct StepInvocationParams<'ctx, 'fixtures> {
+    pub ctx: &'ctx mut StepContext<'fixtures>,
     pub text: &'ctx str,
     pub docstring: Option<&'ctx str>,
     pub table: Option<&'ctx [&'ctx [&'ctx str]]>,
@@ -93,7 +95,7 @@ pub struct StepInvocationParams<'ctx> {
 /// integration tests.
 pub fn wrap_sync_step_as_async<'ctx>(
     sync_fn: StepFn,
-    params: StepInvocationParams<'ctx>,
+    params: StepInvocationParams<'ctx, '_>,
 ) -> StepFuture<'ctx> {
     let StepInvocationParams {
         ctx,
