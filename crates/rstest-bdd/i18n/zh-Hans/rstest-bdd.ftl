@@ -7,7 +7,6 @@ step-pattern-not-compiled = 步骤模式的正则表达式尚未编译；请先�
 placeholder-pattern-mismatch = 模式不匹配
 placeholder-invalid-placeholder = 无效的占位符语法：{ $details }
 placeholder-invalid-pattern = 无效的步骤模式：{ $pattern }
-placeholder-not-compiled = 步骤模式「{ $pattern }」在使用前必须编译
 placeholder-syntax = 无效的占位符语法：{ $details }
 placeholder-syntax-detail = { $reason } 位于字节 { $position }（从零开始）{ $suffix }
 placeholder-syntax-suffix = 针对占位符「{ $placeholder }」

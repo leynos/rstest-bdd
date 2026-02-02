@@ -7,7 +7,6 @@ step-pattern-not-compiled = a lépésmintához tartozó reguláris kifejezést n
 placeholder-pattern-mismatch = a minta nem egyezik
 placeholder-invalid-placeholder = érvénytelen helyőrző-szintaxis: { $details }
 placeholder-invalid-pattern = érvénytelen lépésminta: { $pattern }
-placeholder-not-compiled = a „{ $pattern }” lépésmintát használat előtt le kell fordítani
 placeholder-syntax = érvénytelen helyőrző-szintaxis: { $details }
 placeholder-syntax-detail = { $reason } a { $position }. bájtnál (nulláról induló indexelés){ $suffix }
 placeholder-syntax-suffix = a „{ $placeholder }” helyőrzőhöz

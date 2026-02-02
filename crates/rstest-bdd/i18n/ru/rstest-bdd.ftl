@@ -7,7 +7,6 @@ step-pattern-not-compiled = регулярное выражение шаблон
 placeholder-pattern-mismatch = шаблон не совпадает
 placeholder-invalid-placeholder = недопустимый синтаксис заполнителя: { $details }
 placeholder-invalid-pattern = недопустимый шаблон шага: { $pattern }
-placeholder-not-compiled = шаблон шага «{ $pattern }» необходимо скомпилировать перед использованием
 placeholder-syntax = недопустимый синтаксис заполнителя: { $details }
 placeholder-syntax-detail = { $reason } в байте { $position } (нумерация с нуля){ $suffix }
 placeholder-syntax-suffix = для заполнителя «{ $placeholder }»

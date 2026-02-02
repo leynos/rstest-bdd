@@ -7,7 +7,6 @@ step-pattern-not-compiled = la expresión regular del patrón de paso no se ha c
 placeholder-pattern-mismatch = el patrón no coincide
 placeholder-invalid-placeholder = sintaxis de marcador inválida: { $details }
 placeholder-invalid-pattern = patrón de paso inválido: { $pattern }
-placeholder-not-compiled = el patrón de paso «{ $pattern }» debe compilarse antes de usarlo
 placeholder-syntax = sintaxis de marcador inválida: { $details }
 placeholder-syntax-detail = { $reason } en el byte { $position } (comenzando en cero){ $suffix }
 placeholder-syntax-suffix = para el marcador «{ $placeholder }»

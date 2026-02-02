@@ -7,7 +7,6 @@ step-pattern-not-compiled = steg-mønsterets regex er ikke kompilert; kall compi
 placeholder-pattern-mismatch = mønsteret samsvarer ikke
 placeholder-invalid-placeholder = ugyldig plassholder-syntaks: { $details }
 placeholder-invalid-pattern = ugyldig stegmønster: { $pattern }
-placeholder-not-compiled = stegmønsteret "{ $pattern }" må kompileres før bruk
 placeholder-syntax = ugyldig plassholder-syntaks: { $details }
 placeholder-syntax-detail = { $reason } ved byte { $position } (nullindeksert){ $suffix }
 placeholder-syntax-suffix = for plassholderen "{ $placeholder }"

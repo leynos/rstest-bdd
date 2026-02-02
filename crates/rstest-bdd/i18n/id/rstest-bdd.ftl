@@ -7,7 +7,6 @@ step-pattern-not-compiled = regex pola langkah belum dikompilasi; panggil compil
 placeholder-pattern-mismatch = pola tidak cocok
 placeholder-invalid-placeholder = sintaks placeholder tidak valid: { $details }
 placeholder-invalid-pattern = pola langkah tidak valid: { $pattern }
-placeholder-not-compiled = pola langkah « { $pattern } » harus dikompilasi sebelum digunakan
 placeholder-syntax = sintaks placeholder tidak valid: { $details }
 placeholder-syntax-detail = { $reason } pada byte { $position } (indeks awal nol){ $suffix }
 placeholder-syntax-suffix = untuk placeholder « { $placeholder } »

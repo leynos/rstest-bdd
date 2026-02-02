@@ -7,7 +7,6 @@ step-pattern-not-compiled = stegmönstrets regex har inte kompilerats; anropa co
 placeholder-pattern-mismatch = mönstret matchade inte
 placeholder-invalid-placeholder = ogiltig platshållarsyntax: { $details }
 placeholder-invalid-pattern = ogiltigt stegmönster: { $pattern }
-placeholder-not-compiled = stegmönstret "{ $pattern }" måste kompileras innan användning
 placeholder-syntax = ogiltig platshållarsyntax: { $details }
 placeholder-syntax-detail = { $reason } vid byte { $position } (nollindexerat){ $suffix }
 placeholder-syntax-suffix = för platshållaren "{ $placeholder }"

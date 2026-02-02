@@ -7,7 +7,6 @@ step-pattern-not-compiled = expresia regulată a șablonului de pas nu a fost co
 placeholder-pattern-mismatch = șablonul nu se potrivește
 placeholder-invalid-placeholder = sintaxă invalidă pentru loc rezervat: { $details }
 placeholder-invalid-pattern = șablon de pas invalid: { $pattern }
-placeholder-not-compiled = șablonul de pas „{ $pattern }” trebuie compilat înainte de utilizare
 placeholder-syntax = sintaxă invalidă pentru loc rezervat: { $details }
 placeholder-syntax-detail = { $reason } la octetul { $position } (indexare de la zero){ $suffix }
 placeholder-syntax-suffix = pentru locul rezervat „{ $placeholder }”

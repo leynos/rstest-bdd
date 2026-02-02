@@ -7,7 +7,6 @@ step-pattern-not-compiled = η κανονική έκφραση του προτύ
 placeholder-pattern-mismatch = το πρότυπο δεν ταιριάζει
 placeholder-invalid-placeholder = μη έγκυρη σύνταξη συμβόλου θέσης: { $details }
 placeholder-invalid-pattern = μη έγκυρο πρότυπο βήματος: { $pattern }
-placeholder-not-compiled = το πρότυπο βήματος «{ $pattern }» πρέπει να μεταγλωττιστεί πριν τη χρήση
 placeholder-syntax = μη έγκυρη σύνταξη συμβόλου θέσης: { $details }
 placeholder-syntax-detail = { $reason } στο byte { $position } (αρίθμηση από το μηδέν){ $suffix }
 placeholder-syntax-suffix = για το σύμβολο θέσης «{ $placeholder }»

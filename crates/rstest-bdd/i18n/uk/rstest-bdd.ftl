@@ -7,7 +7,6 @@ step-pattern-not-compiled = регулярний вираз шаблону кр�
 placeholder-pattern-mismatch = невідповідність шаблону
 placeholder-invalid-placeholder = некоректний синтаксис заповнювача: { $details }
 placeholder-invalid-pattern = некоректний шаблон кроку: { $pattern }
-placeholder-not-compiled = шаблон кроку « { $pattern } » потрібно скомпілювати перед використанням
 placeholder-syntax = некоректний синтаксис заповнювача: { $details }
 placeholder-syntax-detail = { $reason } на байті { $position } (нумерація від нуля){ $suffix }
 placeholder-syntax-suffix = для заповнювача « { $placeholder } »

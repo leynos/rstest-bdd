@@ -7,7 +7,6 @@ step-pattern-not-compiled = regulární výraz pro vzor kroku nebyl zkompilován
 placeholder-pattern-mismatch = vzor neodpovídá
 placeholder-invalid-placeholder = neplatná syntaxe zástupného symbolu: { $details }
 placeholder-invalid-pattern = neplatný vzor kroku: { $pattern }
-placeholder-not-compiled = vzor kroku „{ $pattern }“ musí být před použitím zkompilován
 placeholder-syntax = neplatná syntaxe zástupného symbolu: { $details }
 placeholder-syntax-detail = { $reason } na bajtu { $position } (počítáno od nuly){ $suffix }
 placeholder-syntax-suffix = pro zástupný symbol „{ $placeholder }“

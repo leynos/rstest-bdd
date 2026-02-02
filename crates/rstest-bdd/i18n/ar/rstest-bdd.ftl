@@ -7,7 +7,6 @@ step-pattern-not-compiled = لم يتم تجميع تعبير نمط الخطو�
 placeholder-pattern-mismatch = عدم تطابق في النمط
 placeholder-invalid-placeholder = صياغة عنصر نائب غير صالحة: { $details }
 placeholder-invalid-pattern = نمط خطوة غير صالح: { $pattern }
-placeholder-not-compiled = يجب تجميع نمط الخطوة « { $pattern } » قبل الاستخدام
 placeholder-syntax = صياغة عنصر نائب غير صالحة: { $details }
 placeholder-syntax-detail = { $reason } عند البايت { $position } (يبدأ العد من الصفر){ $suffix }
 placeholder-syntax-suffix = للعنصر النائب « { $placeholder } »

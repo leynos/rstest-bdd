@@ -7,7 +7,6 @@ step-pattern-not-compiled = l'espressione regolare del pattern dello step non è
 placeholder-pattern-mismatch = il pattern non corrisponde
 placeholder-invalid-placeholder = sintassi del segnaposto non valida: { $details }
 placeholder-invalid-pattern = pattern dello step non valido: { $pattern }
-placeholder-not-compiled = il pattern dello step « { $pattern } » deve essere compilato prima dell'uso
 placeholder-syntax = sintassi del segnaposto non valida: { $details }
 placeholder-syntax-detail = { $reason } al byte { $position } (indice da zero){ $suffix }
 placeholder-syntax-suffix = per il segnaposto « { $placeholder } »

@@ -7,7 +7,6 @@ step-pattern-not-compiled = l'expression régulière du motif d'étape n'a pas �
 placeholder-pattern-mismatch = le motif ne correspond pas
 placeholder-invalid-placeholder = syntaxe de paramètre invalide : { $details }
 placeholder-invalid-pattern = motif d'étape invalide : { $pattern }
-placeholder-not-compiled = le motif d'étape « { $pattern } » doit être compilé avant utilisation
 placeholder-syntax = syntaxe de paramètre invalide : { $details }
 placeholder-syntax-detail = { $reason } à l'octet { $position } (indexé depuis zéro){ $suffix }
 placeholder-syntax-suffix = pour le paramètre « { $placeholder } »

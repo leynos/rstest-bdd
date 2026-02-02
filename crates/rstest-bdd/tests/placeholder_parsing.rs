@@ -3,7 +3,6 @@
 use rstest::rstest;
 use rstest_bdd::localization::{ScopedLocalization, strip_directional_isolates};
 use rstest_bdd::{PlaceholderError, StepPattern, StepPatternError, StepText, extract_placeholders};
-use std::borrow::Cow;
 use std::ptr;
 use unic_langid::langid;
 
@@ -52,21 +51,6 @@ fn regex_remains_unavailable_after_failed_compilation() {
     assert!(
         matches!(pattern.regex(), Err(StepPatternError::NotCompiled { .. })),
         "failed compilation should not populate the cached regex",
-    );
-}
-
-#[test]
-fn placeholder_error_reports_not_compiled() {
-    let err = PlaceholderError::from(StepPatternError::NotCompiled {
-        pattern: Cow::Borrowed("example"),
-    });
-    let PlaceholderError::NotCompiled { ref pattern } = err else {
-        panic!("expected not compiled placeholder error");
-    };
-    assert_eq!(pattern, "example");
-    assert_eq!(
-        strip_directional_isolates(&err.to_string()),
-        "step pattern 'example' must be compiled before use",
     );
 }
 

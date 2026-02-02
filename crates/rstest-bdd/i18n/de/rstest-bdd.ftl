@@ -7,7 +7,6 @@ step-pattern-not-compiled = Regulärer Ausdruck des Schritt-Musters wurde nicht 
 placeholder-pattern-mismatch = Muster stimmt nicht überein
 placeholder-invalid-placeholder = ungültige Platzhalter-Syntax: { $details }
 placeholder-invalid-pattern = ungültiges Schritt-Muster: { $pattern }
-placeholder-not-compiled = Schritt-Muster „{ $pattern }“ muss vor der Verwendung kompiliert werden
 placeholder-syntax = ungültige Platzhalter-Syntax: { $details }
 placeholder-syntax-detail = { $reason } bei Byte { $position } (Null-basiert){ $suffix }
 placeholder-syntax-suffix = für den Platzhalter „{ $placeholder }“

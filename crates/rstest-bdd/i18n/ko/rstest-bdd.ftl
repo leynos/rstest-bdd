@@ -7,7 +7,6 @@ step-pattern-not-compiled = 스텝 패턴 정규식이 아직 컴파일되지 �
 placeholder-pattern-mismatch = 패턴이 일치하지 않습니다
 placeholder-invalid-placeholder = 잘못된 플레이스홀더 구문입니다: { $details }
 placeholder-invalid-pattern = 잘못된 스텝 패턴입니다: { $pattern }
-placeholder-not-compiled = 스텝 패턴 '{ $pattern }'은 사용하기 전에 컴파일해야 합니다
 placeholder-syntax = 잘못된 플레이스홀더 구문입니다: { $details }
 placeholder-syntax-detail = { $reason } (0부터 시작) 바이트 { $position }에서 발생했습니다{ $suffix }
 placeholder-syntax-suffix = 플레이스홀더 '{ $placeholder }'에 대해

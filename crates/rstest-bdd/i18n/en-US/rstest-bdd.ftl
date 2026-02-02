@@ -7,7 +7,6 @@ step-pattern-not-compiled = step pattern regex has not been compiled; call compi
 placeholder-pattern-mismatch = pattern mismatch
 placeholder-invalid-placeholder = invalid placeholder syntax: { $details }
 placeholder-invalid-pattern = invalid step pattern: { $pattern }
-placeholder-not-compiled = step pattern '{ $pattern }' must be compiled before use
 placeholder-syntax = invalid placeholder syntax: { $details }
 placeholder-syntax-detail = { $reason } at byte { $position } (zero-based){ $suffix }
 placeholder-syntax-suffix = for placeholder '{ $placeholder }'

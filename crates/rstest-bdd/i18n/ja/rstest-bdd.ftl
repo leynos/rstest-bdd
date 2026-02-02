@@ -7,7 +7,6 @@ step-pattern-not-compiled = ステップパターンの正規表現が未コン�
 placeholder-pattern-mismatch = パターンが一致しません
 placeholder-invalid-placeholder = 無効なプレースホルダー構文です: { $details }
 placeholder-invalid-pattern = 無効なステップパターンです: { $pattern }
-placeholder-not-compiled = ステップパターン「{ $pattern }」は使用前にコンパイルする必要があります
 placeholder-syntax = 無効なプレースホルダー構文です: { $details }
 placeholder-syntax-detail = { $reason } (0 起点) のバイト { $position } にあります{ $suffix }
 placeholder-syntax-suffix = プレースホルダー「{ $placeholder }」に対して

@@ -7,7 +7,6 @@ step-pattern-not-compiled = 步驟樣式的正規表示式尚未編譯；請先�
 placeholder-pattern-mismatch = 樣式不相符
 placeholder-invalid-placeholder = 無效的參數語法：{ $details }
 placeholder-invalid-pattern = 無效的步驟樣式：{ $pattern }
-placeholder-not-compiled = 步驟樣式「{ $pattern }」在使用前必須編譯
 placeholder-syntax = 無效的參數語法：{ $details }
 placeholder-syntax-detail = { $reason } 位於位元組 { $position }（從零開始）{ $suffix }
 placeholder-syntax-suffix = 針對參數「{ $placeholder }」

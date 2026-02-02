@@ -7,7 +7,6 @@ step-pattern-not-compiled = a expressão regular do padrão da etapa não foi co
 placeholder-pattern-mismatch = o padrão não corresponde
 placeholder-invalid-placeholder = sintaxe de marcador inválida: { $details }
 placeholder-invalid-pattern = padrão de etapa inválido: { $pattern }
-placeholder-not-compiled = o padrão de etapa '{ $pattern }' deve ser compilado antes de ser usado
 placeholder-syntax = sintaxe de marcador inválida: { $details }
 placeholder-syntax-detail = { $reason } no byte { $position } (indexação iniciada em zero){ $suffix }
 placeholder-syntax-suffix = para o marcador '{ $placeholder }'

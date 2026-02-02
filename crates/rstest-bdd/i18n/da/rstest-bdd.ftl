@@ -7,7 +7,6 @@ step-pattern-not-compiled = trinnets regex-mønster er ikke blevet kompileret; k
 placeholder-pattern-mismatch = mønsteret matcher ikke
 placeholder-invalid-placeholder = ugyldig pladsholdersyntaks: { $details }
 placeholder-invalid-pattern = ugyldigt trinmønster: { $pattern }
-placeholder-not-compiled = trinmønsteret "{ $pattern }" skal kompileres før brug
 placeholder-syntax = ugyldig pladsholdersyntaks: { $details }
 placeholder-syntax-detail = { $reason } ved byte { $position } (nulindekseret){ $suffix }
 placeholder-syntax-suffix = for pladsholderen "{ $placeholder }"

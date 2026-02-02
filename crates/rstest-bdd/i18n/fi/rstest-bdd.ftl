@@ -7,7 +7,6 @@ step-pattern-not-compiled = askelkuvion regexiä ei ole käännetty; kutsu compi
 placeholder-pattern-mismatch = kuvio ei täsmää
 placeholder-invalid-placeholder = virheellinen paikkamerkkisyntaksi: { $details }
 placeholder-invalid-pattern = virheellinen askelkuvio: { $pattern }
-placeholder-not-compiled = askelkuvio "{ $pattern }" on käännettävä ennen käyttöä
 placeholder-syntax = virheellinen paikkamerkkisyntaksi: { $details }
 placeholder-syntax-detail = { $reason } tavussa { $position } (nollapohjainen){ $suffix }
 placeholder-syntax-suffix = paikkamerkille "{ $placeholder }"

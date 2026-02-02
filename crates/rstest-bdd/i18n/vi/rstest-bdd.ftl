@@ -7,7 +7,6 @@ step-pattern-not-compiled = regex của mẫu bước chưa được biên dịc
 placeholder-pattern-mismatch = mẫu không khớp
 placeholder-invalid-placeholder = cú pháp placeholder không hợp lệ: { $details }
 placeholder-invalid-pattern = mẫu bước không hợp lệ: { $pattern }
-placeholder-not-compiled = mẫu bước « { $pattern } » phải được biên dịch trước khi sử dụng
 placeholder-syntax = cú pháp placeholder không hợp lệ: { $details }
 placeholder-syntax-detail = { $reason } tại byte { $position } (đếm từ 0){ $suffix }
 placeholder-syntax-suffix = cho placeholder « { $placeholder } »

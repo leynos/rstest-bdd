@@ -224,11 +224,6 @@ pub enum PlaceholderError {
     InvalidPlaceholder(String),
     /// The step pattern could not be compiled into a regular expression.
     InvalidPattern(String),
-    /// The step pattern regex was accessed before compilation.
-    NotCompiled {
-        /// Pattern text that must be compiled prior to use.
-        pattern: String,
-    },
 }
 
 impl fmt::Display for PlaceholderError {
@@ -242,11 +237,6 @@ impl fmt::Display for PlaceholderError {
             }
             Self::InvalidPattern(pattern) => {
                 localization::message_with_args("placeholder-invalid-pattern", |args| {
-                    args.set("pattern", pattern.clone());
-                })
-            }
-            Self::NotCompiled { pattern } => {
-                localization::message_with_args("placeholder-not-compiled", |args| {
                     args.set("pattern", pattern.clone());
                 })
             }
@@ -264,9 +254,9 @@ impl From<StepPatternError> for PlaceholderError {
                 Self::InvalidPlaceholder(err.user_message())
             }
             StepPatternError::InvalidPattern(err) => Self::InvalidPattern(err.to_string()),
-            StepPatternError::NotCompiled { pattern } => Self::NotCompiled {
-                pattern: pattern.into_owned(),
-            },
+            StepPatternError::NotCompiled { .. } => {
+                unreachable!("NotCompiled cannot occur after successful compilation")
+            }
         }
     }
 }

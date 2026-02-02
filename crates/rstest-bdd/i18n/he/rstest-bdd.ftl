@@ -7,7 +7,6 @@ step-pattern-not-compiled = ביטוי רגולרי של תבנית הצעד ל�
 placeholder-pattern-mismatch = התבנית אינה תואמת
 placeholder-invalid-placeholder = תחביר לא תקין של מציין מקום: { $details }
 placeholder-invalid-pattern = תבנית צעד לא תקינה: { $pattern }
-placeholder-not-compiled = יש לקמפל את תבנית הצעד "{ $pattern }" לפני השימוש
 placeholder-syntax = תחביר לא תקין של מציין מקום: { $details }
 placeholder-syntax-detail = { $reason } בבייט { $position } (ספירה מאפס){ $suffix }
 placeholder-syntax-suffix = עבור מציין המקום "{ $placeholder }"

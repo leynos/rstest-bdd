@@ -7,7 +7,6 @@ step-pattern-not-compiled = عبارت منظم الگوی گام کامپایل
 placeholder-pattern-mismatch = الگو مطابق نیست
 placeholder-invalid-placeholder = نحو جای‌نگهدار نامعتبر است: { $details }
 placeholder-invalid-pattern = الگوی گام نامعتبر است: { $pattern }
-placeholder-not-compiled = الگوی گام «{ $pattern }» باید پیش از استفاده کامپایل شود
 placeholder-syntax = نحو جای‌نگهدار نامعتبر است: { $details }
 placeholder-syntax-detail = { $reason } در بایت { $position } (شمارش از صفر){ $suffix }
 placeholder-syntax-suffix = برای جای‌نگهدار «{ $placeholder }»

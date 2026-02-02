@@ -7,7 +7,6 @@ step-pattern-not-compiled = regex van stappatroon is niet gecompileerd; roep eer
 placeholder-pattern-mismatch = patroon komt niet overeen
 placeholder-invalid-placeholder = ongeldige placeholder-syntaxis: { $details }
 placeholder-invalid-pattern = ongeldig stappatroon: { $pattern }
-placeholder-not-compiled = stappatroon « { $pattern } » moet vóór gebruik worden gecompileerd
 placeholder-syntax = ongeldige placeholder-syntaxis: { $details }
 placeholder-syntax-detail = { $reason } bij byte { $position } (nulgebaseerd){ $suffix }
 placeholder-syntax-suffix = voor placeholder « { $placeholder } »

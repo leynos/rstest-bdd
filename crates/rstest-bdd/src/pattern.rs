@@ -106,6 +106,19 @@ impl StepPattern {
         })
     }
 
+    /// Return the cached regular expression without checking compilation status.
+    ///
+    /// # Panics
+    /// Panics if called before [`compile`](Self::compile) has succeeded.
+    #[must_use]
+    #[expect(
+        clippy::expect_used,
+        reason = "internal method; callers guarantee prior compilation"
+    )]
+    pub(crate) fn regex_unchecked(&self) -> &Regex {
+        self.regex.get().expect("regex accessed before compilation")
+    }
+
     /// Calculate and cache the specificity score for this pattern.
     ///
     /// Used to rank patterns when multiple match the same step text.

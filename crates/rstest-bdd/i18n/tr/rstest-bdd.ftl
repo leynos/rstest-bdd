@@ -7,7 +7,6 @@ step-pattern-not-compiled = adım deseninin regex'i derlenmedi; önce « { $patt
 placeholder-pattern-mismatch = desen eşleşmedi
 placeholder-invalid-placeholder = geçersiz yer tutucu söz dizimi: { $details }
 placeholder-invalid-pattern = geçersiz adım deseni: { $pattern }
-placeholder-not-compiled = « { $pattern } » adım deseni kullanılmadan önce derlenmelidir
 placeholder-syntax = geçersiz yer tutucu söz dizimi: { $details }
 placeholder-syntax-detail = { $reason } { $position } baytında (sıfır tabanlı){ $suffix }
 placeholder-syntax-suffix = « { $placeholder } » yer tutucusu için

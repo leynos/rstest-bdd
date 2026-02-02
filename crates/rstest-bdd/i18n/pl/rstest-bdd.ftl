@@ -7,7 +7,6 @@ step-pattern-not-compiled = wzorzec kroku nie został skompilowany; najpierw wyw
 placeholder-pattern-mismatch = niedopasowanie wzorca
 placeholder-invalid-placeholder = nieprawidłowa składnia zastępnika: { $details }
 placeholder-invalid-pattern = nieprawidłowy wzorzec kroku: { $pattern }
-placeholder-not-compiled = wzorzec kroku « { $pattern } » musi zostać skompilowany przed użyciem
 placeholder-syntax = nieprawidłowa składnia zastępnika: { $details }
 placeholder-syntax-detail = { $reason } przy bajcie { $position } (liczenie od zera){ $suffix }
 placeholder-syntax-suffix = dla zastępnika « { $placeholder } »

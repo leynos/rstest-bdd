@@ -9,8 +9,8 @@ use rstest_bdd_patterns::extract_captured_values;
 /// Extract placeholder values from a step string using a pattern.
 ///
 /// The runtime uses this helper to materialise step arguments before
-/// invoking the registered implementation. Patterns must have been
-/// precompiled via [`StepPattern::compile`].
+/// invoking the registered implementation. The pattern is compiled on first
+/// use and cached for subsequent calls.
 ///
 /// # Errors
 /// - [`PlaceholderError::PatternMismatch`]: the provided text does not match
@@ -19,13 +19,11 @@ use rstest_bdd_patterns::extract_captured_values;
 ///   placeholders.
 /// - [`PlaceholderError::InvalidPattern`]: generated regular expression failed
 ///   to compile.
-/// - [`PlaceholderError::NotCompiled`]: the compiled regex was requested before
-///   the pattern was compiled.
 pub fn extract_placeholders(
     pattern: &StepPattern,
     text: StepText<'_>,
 ) -> Result<Vec<String>, PlaceholderError> {
     pattern.compile()?;
-    let re = pattern.regex()?;
+    let re = pattern.regex_unchecked();
     extract_captured_values(re, text.as_str()).ok_or(PlaceholderError::PatternMismatch)
 }
