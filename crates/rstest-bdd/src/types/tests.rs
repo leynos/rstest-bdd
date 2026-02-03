@@ -111,6 +111,27 @@ fn payload_from_value_returns_none_for_unit_alias() {
     assert!(crate::__rstest_bdd_payload_from_value(value).is_none());
 }
 
+// Error conversion tests ---------------------------------------------------
+
+#[test]
+fn placeholder_error_from_not_compiled_returns_invalid_pattern() {
+    use std::borrow::Cow;
+
+    let err = StepPatternError::NotCompiled {
+        pattern: Cow::Borrowed("example {n}"),
+    };
+    let converted: PlaceholderError = err.into();
+    assert!(
+        matches!(converted, PlaceholderError::InvalidPattern(_)),
+        "NotCompiled should convert to InvalidPattern, got: {converted:?}",
+    );
+    let message = converted.to_string();
+    assert!(
+        message.contains("example {n}"),
+        "error message should contain the pattern: {message}",
+    );
+}
+
 // Async type tests ---------------------------------------------------------
 
 #[test]

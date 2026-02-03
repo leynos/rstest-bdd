@@ -55,6 +55,55 @@ fn regex_remains_unavailable_after_failed_compilation() {
 }
 
 #[test]
+fn extract_placeholders_compiles_lazily_on_first_use() {
+    // Verify extract_placeholders works with an uncompiled pattern (lazy compilation)
+    let pattern = StepPattern::from("value {n:u32}");
+
+    // Pattern is not yet compiled
+    assert!(
+        matches!(pattern.regex(), Err(StepPatternError::NotCompiled { .. })),
+        "pattern should not be compiled before extract_placeholders is called",
+    );
+
+    // First call should compile and extract successfully
+    let result = extract_placeholders(&pattern, StepText::from("value 42"));
+    assert!(result.is_ok(), "first extraction should succeed");
+    #[expect(clippy::expect_used, reason = "test already asserts result is Ok")]
+    let caps = result.expect("already checked");
+    assert_eq!(caps, vec!["42"]);
+
+    // Subsequent calls reuse the cached compilation
+    let result2 = extract_placeholders(&pattern, StepText::from("value 99"));
+    assert!(result2.is_ok(), "subsequent extraction should succeed");
+    #[expect(clippy::expect_used, reason = "test already asserts result is Ok")]
+    let caps2 = result2.expect("already checked");
+    assert_eq!(caps2, vec!["99"]);
+
+    // Verify the regex is now cached
+    assert!(
+        pattern.regex().is_ok(),
+        "pattern should be compiled after extract_placeholders was called",
+    );
+}
+
+#[test]
+fn extract_placeholders_returns_error_for_invalid_pattern() {
+    // Verify that invalid patterns produce errors, not panics
+    let pattern = StepPattern::from("value {n:}");
+
+    let result = extract_placeholders(&pattern, StepText::from("value 42"));
+    assert!(result.is_err(), "invalid pattern should return an error");
+
+    // The error should be InvalidPlaceholder, not a panic
+    #[expect(clippy::expect_used, reason = "test already asserts result is Err")]
+    let err = result.expect_err("already checked");
+    assert!(
+        matches!(err, PlaceholderError::InvalidPlaceholder(_)),
+        "error should be InvalidPlaceholder, got: {err:?}",
+    );
+}
+
+#[test]
 fn type_hint_uses_specialised_fragment() {
     // u32: positive integer
     let pat = compiled("value {n:u32}");

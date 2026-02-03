@@ -162,3 +162,31 @@ impl From<&'static str> for StepPattern {
         Self::new(value)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::ptr;
+
+    #[test]
+    #[expect(clippy::expect_used, reason = "test helper validates success path")]
+    fn regex_unchecked_returns_cached_regex_after_compilation() {
+        let pattern = StepPattern::from("literal text");
+        pattern.compile().expect("literal pattern should compile");
+
+        // regex_unchecked should return the same instance as regex()
+        let re_checked = pattern.regex().expect("regex available after compilation");
+        let re_unchecked = pattern.regex_unchecked();
+
+        assert!(ptr::eq(re_checked, re_unchecked));
+        assert!(re_unchecked.is_match("literal text"));
+    }
+
+    #[test]
+    #[should_panic(expected = "regex accessed before compilation")]
+    fn regex_unchecked_panics_without_prior_compilation() {
+        let pattern = StepPattern::from("literal text");
+        // This should panic because compile() was never called
+        let _ = pattern.regex_unchecked();
+    }
+}

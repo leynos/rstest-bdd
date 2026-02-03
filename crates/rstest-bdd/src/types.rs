@@ -254,8 +254,8 @@ impl From<StepPatternError> for PlaceholderError {
                 Self::InvalidPlaceholder(err.user_message())
             }
             StepPatternError::InvalidPattern(err) => Self::InvalidPattern(err.to_string()),
-            StepPatternError::NotCompiled { .. } => {
-                unreachable!("NotCompiled cannot occur after successful compilation")
+            StepPatternError::NotCompiled { pattern } => {
+                Self::InvalidPattern(format!("pattern '{pattern}' not compiled"))
             }
         }
     }
