@@ -48,17 +48,15 @@ fn extract_placeholders_compiles_lazily_on_first_use() {
     let pattern = StepPattern::from("value {n:u32}");
 
     // First call should compile and extract successfully
-    let result = extract_placeholders(&pattern, StepText::from("value 42"));
-    assert!(result.is_ok(), "first extraction should succeed");
-    #[expect(clippy::expect_used, reason = "test already asserts result is Ok")]
-    let caps = result.expect("already checked");
+    let Ok(caps) = extract_placeholders(&pattern, StepText::from("value 42")) else {
+        panic!("first extraction should succeed");
+    };
     assert_eq!(caps, vec!["42"]);
 
     // Subsequent calls reuse the cached compilation
-    let result2 = extract_placeholders(&pattern, StepText::from("value 99"));
-    assert!(result2.is_ok(), "subsequent extraction should succeed");
-    #[expect(clippy::expect_used, reason = "test already asserts result is Ok")]
-    let caps2 = result2.expect("already checked");
+    let Ok(caps2) = extract_placeholders(&pattern, StepText::from("value 99")) else {
+        panic!("subsequent extraction should succeed");
+    };
     assert_eq!(caps2, vec!["99"]);
 }
 
@@ -67,12 +65,11 @@ fn extract_placeholders_returns_error_for_invalid_pattern() {
     // Verify that invalid patterns produce errors, not panics
     let pattern = StepPattern::from("value {n:}");
 
-    let result = extract_placeholders(&pattern, StepText::from("value 42"));
-    assert!(result.is_err(), "invalid pattern should return an error");
+    let Err(err) = extract_placeholders(&pattern, StepText::from("value 42")) else {
+        panic!("invalid pattern should return an error");
+    };
 
     // The error should be InvalidPlaceholder, not a panic
-    #[expect(clippy::expect_used, reason = "test already asserts result is Err")]
-    let err = result.expect_err("already checked");
     assert!(
         matches!(err, PlaceholderError::InvalidPlaceholder(_)),
         "error should be InvalidPlaceholder, got: {err:?}",
