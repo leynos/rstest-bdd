@@ -11,34 +11,42 @@ use support::{compiled, expect_placeholder_syntax};
 /// Anchor the helper so it is not flagged as dead code when compiling this test.
 const _: fn(&'static str, &str) -> Vec<String> = support::compile_and_extract;
 
-#[test]
-fn compile_succeeds_for_valid_pattern() {
-    let pattern = StepPattern::from("literal text");
-    assert!(
-        pattern.compile().is_ok(),
-        "compiling literal pattern should succeed",
+#[rstest]
+#[case("literal text", true)]
+#[case("value {n:}", false)]
+fn test_compile_patterns(#[case] pattern_string: &'static str, #[case] expected_ok: bool) {
+    let pattern = StepPattern::from(pattern_string);
+
+    // First compile attempt
+    let first_result = pattern.compile();
+    assert_eq!(
+        first_result.is_ok(),
+        expected_ok,
+        "first compile for '{pattern_string}' should {} but {}",
+        if expected_ok { "succeed" } else { "fail" },
+        if first_result.is_ok() {
+            "succeeded"
+        } else {
+            "failed"
+        },
     );
 
-    // Verify compile is idempotent
-    assert!(
-        pattern.compile().is_ok(),
-        "recompiling should succeed (idempotent)",
-    );
-}
-
-#[test]
-fn compile_fails_for_invalid_pattern() {
-    let pattern = StepPattern::from("value {n:}");
-
-    assert!(
-        pattern.compile().is_err(),
-        "compile should fail for invalid pattern"
-    );
-
-    // Subsequent compile attempts also fail (does not cache failure)
-    assert!(
-        pattern.compile().is_err(),
-        "compile should continue to fail for invalid pattern",
+    // Second compile verifies idempotence (success) or failure persistence
+    let second_result = pattern.compile();
+    assert_eq!(
+        second_result.is_ok(),
+        expected_ok,
+        "second compile for '{pattern_string}' should {} but {}",
+        if expected_ok {
+            "succeed (idempotent)"
+        } else {
+            "continue to fail"
+        },
+        if second_result.is_ok() {
+            "succeeded"
+        } else {
+            "failed"
+        },
     );
 }
 
