@@ -3,7 +3,6 @@ step-error-execution = Błąd wykonywania kroku « { $pattern } » przez funkcj�
 step-error-panic = Panika w kroku « { $pattern } », funkcja « { $function } »: { $message }
 step-keyword-parse-error = nieprawidłowe słowo kluczowe kroku: { $keyword }
 unsupported-step-type = nieobsługiwany typ kroku: { $step_type }
-step-pattern-not-compiled = wzorzec kroku nie został skompilowany; najpierw wywołaj compile() dla wzorca « { $pattern } »
 placeholder-pattern-mismatch = niedopasowanie wzorca
 placeholder-invalid-placeholder = nieprawidłowa składnia zastępnika: { $details }
 placeholder-invalid-pattern = nieprawidłowy wzorzec kroku: { $pattern }

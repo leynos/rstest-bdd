@@ -3,7 +3,6 @@ step-error-execution = « { $pattern } » adımı « { $function } » işleviyle
 step-error-panic = « { $pattern } » adımında, « { $function } » işlevinde panik: { $message }
 step-keyword-parse-error = geçersiz adım anahtar kelimesi: { $keyword }
 unsupported-step-type = desteklenmeyen adım türü: { $step_type }
-step-pattern-not-compiled = adım deseninin regex'i derlenmedi; önce « { $pattern } » deseni için compile() çağırın
 placeholder-pattern-mismatch = desen eşleşmedi
 placeholder-invalid-placeholder = geçersiz yer tutucu söz dizimi: { $details }
 placeholder-invalid-pattern = geçersiz adım deseni: { $pattern }

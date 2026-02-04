@@ -3,7 +3,6 @@ step-error-execution = Помилка виконання кроку « { $patter
 step-error-panic = Паніка у кроці « { $pattern } », функція « { $function } »: { $message }
 step-keyword-parse-error = некоректне ключове слово кроку: { $keyword }
 unsupported-step-type = непідтримуваний тип кроку: { $step_type }
-step-pattern-not-compiled = регулярний вираз шаблону кроку не скомпільовано; спочатку викличте compile() для шаблону « { $pattern } »
 placeholder-pattern-mismatch = невідповідність шаблону
 placeholder-invalid-placeholder = некоректний синтаксис заповнювача: { $details }
 placeholder-invalid-pattern = некоректний шаблон кроку: { $pattern }

@@ -3,7 +3,6 @@ step-error-execution = Lỗi khi thực thi bước « { $pattern } » thông qu
 step-error-panic = Hoảng loạn trong bước « { $pattern } », hàm « { $function } »: { $message }
 step-keyword-parse-error = từ khóa bước không hợp lệ: { $keyword }
 unsupported-step-type = kiểu bước không được hỗ trợ: { $step_type }
-step-pattern-not-compiled = regex của mẫu bước chưa được biên dịch; hãy gọi compile() trước với mẫu « { $pattern } »
 placeholder-pattern-mismatch = mẫu không khớp
 placeholder-invalid-placeholder = cú pháp placeholder không hợp lệ: { $details }
 placeholder-invalid-pattern = mẫu bước không hợp lệ: { $pattern }

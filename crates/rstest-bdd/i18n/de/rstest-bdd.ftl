@@ -3,7 +3,6 @@ step-error-execution = Fehler beim Ausführen des Schritts „{ $pattern }“ ü
 step-error-panic = Panic im Schritt „{ $pattern }“, Funktion „{ $function }“: { $message }
 step-keyword-parse-error = ungültiges Schritt-Stichwort: { $keyword }
 unsupported-step-type = nicht unterstützter Schritt-Typ: { $step_type }
-step-pattern-not-compiled = Regulärer Ausdruck des Schritt-Musters wurde nicht kompiliert; rufen Sie zunächst compile() für das Muster „{ $pattern }“ auf
 placeholder-pattern-mismatch = Muster stimmt nicht überein
 placeholder-invalid-placeholder = ungültige Platzhalter-Syntax: { $details }
 placeholder-invalid-pattern = ungültiges Schritt-Muster: { $pattern }

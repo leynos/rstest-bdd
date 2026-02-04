@@ -3,7 +3,6 @@
 use rstest::rstest;
 use rstest_bdd::localization::{ScopedLocalization, strip_directional_isolates};
 use rstest_bdd::{PlaceholderError, StepPattern, StepPatternError, StepText, extract_placeholders};
-use std::ptr;
 use unic_langid::langid;
 
 mod support;
@@ -13,44 +12,33 @@ use support::{compiled, expect_placeholder_syntax};
 const _: fn(&'static str, &str) -> Vec<String> = support::compile_and_extract;
 
 #[test]
-fn regex_requires_prior_compilation_and_caches() {
+fn compile_succeeds_for_valid_pattern() {
     let pattern = StepPattern::from("literal text");
     assert!(
-        matches!(pattern.regex(), Err(StepPatternError::NotCompiled { .. })),
-        "accessing the regex without compiling should return an error",
+        pattern.compile().is_ok(),
+        "compiling literal pattern should succeed",
     );
 
-    if let Err(err) = pattern.compile() {
-        panic!("compiling literal pattern should succeed: {err:?}");
-    }
-    let re1 = match pattern.regex() {
-        Ok(regex) => regex,
-        Err(err) => panic!("regex should be available after compilation: {err:?}"),
-    };
-    assert!(re1.is_match("literal text"));
-
-    let re2 = match pattern.regex() {
-        Ok(regex) => regex,
-        Err(err) => panic!("regex should be cached after compilation: {err:?}"),
-    };
-    assert!(re2.is_match("literal text"));
+    // Verify compile is idempotent
     assert!(
-        ptr::eq(re1, re2),
-        "repeated calls should return the cached regex instance",
+        pattern.compile().is_ok(),
+        "recompiling should succeed (idempotent)",
     );
 }
 
 #[test]
-fn regex_remains_unavailable_after_failed_compilation() {
+fn compile_fails_for_invalid_pattern() {
     let pattern = StepPattern::from("value {n:}");
 
     assert!(
         pattern.compile().is_err(),
         "compile should fail for invalid pattern"
     );
+
+    // Subsequent compile attempts also fail (does not cache failure)
     assert!(
-        matches!(pattern.regex(), Err(StepPatternError::NotCompiled { .. })),
-        "failed compilation should not populate the cached regex",
+        pattern.compile().is_err(),
+        "compile should continue to fail for invalid pattern",
     );
 }
 
@@ -58,12 +46,6 @@ fn regex_remains_unavailable_after_failed_compilation() {
 fn extract_placeholders_compiles_lazily_on_first_use() {
     // Verify extract_placeholders works with an uncompiled pattern (lazy compilation)
     let pattern = StepPattern::from("value {n:u32}");
-
-    // Pattern is not yet compiled
-    assert!(
-        matches!(pattern.regex(), Err(StepPatternError::NotCompiled { .. })),
-        "pattern should not be compiled before extract_placeholders is called",
-    );
 
     // First call should compile and extract successfully
     let result = extract_placeholders(&pattern, StepText::from("value 42"));
@@ -78,12 +60,6 @@ fn extract_placeholders_compiles_lazily_on_first_use() {
     #[expect(clippy::expect_used, reason = "test already asserts result is Ok")]
     let caps2 = result2.expect("already checked");
     assert_eq!(caps2, vec!["99"]);
-
-    // Verify the regex is now cached
-    assert!(
-        pattern.regex().is_ok(),
-        "pattern should be compiled after extract_placeholders was called",
-    );
 }
 
 #[test]

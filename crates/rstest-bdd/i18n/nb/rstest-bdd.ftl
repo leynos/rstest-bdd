@@ -3,7 +3,6 @@ step-error-execution = Feil ved kjøring av steget "{ $pattern }" via funksjonen
 step-error-panic = Panikk i steget "{ $pattern }", funksjonen "{ $function }": { $message }
 step-keyword-parse-error = ugyldig steg-nøkkelord: { $keyword }
 unsupported-step-type = stegtypen støttes ikke: { $step_type }
-step-pattern-not-compiled = steg-mønsterets regex er ikke kompilert; kall compile() først på mønsteret "{ $pattern }"
 placeholder-pattern-mismatch = mønsteret samsvarer ikke
 placeholder-invalid-placeholder = ugyldig plassholder-syntaks: { $details }
 placeholder-invalid-pattern = ugyldig stegmønster: { $pattern }

@@ -3,7 +3,6 @@ step-error-execution = Erreur lors de l'exécution de l'étape « { $pattern } �
 step-error-panic = Panique dans l'étape « { $pattern } », fonction « { $function } » : { $message }
 step-keyword-parse-error = mot-clé d'étape invalide : { $keyword }
 unsupported-step-type = type d'étape non pris en charge : { $step_type }
-step-pattern-not-compiled = l'expression régulière du motif d'étape n'a pas été compilée ; appelez compile() au préalable sur le motif « { $pattern } »
 placeholder-pattern-mismatch = le motif ne correspond pas
 placeholder-invalid-placeholder = syntaxe de paramètre invalide : { $details }
 placeholder-invalid-pattern = motif d'étape invalide : { $pattern }

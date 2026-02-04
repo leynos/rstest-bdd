@@ -114,21 +114,29 @@ fn payload_from_value_returns_none_for_unit_alias() {
 // Error conversion tests ---------------------------------------------------
 
 #[test]
-fn placeholder_error_from_not_compiled_returns_invalid_pattern() {
-    use std::borrow::Cow;
+fn placeholder_error_from_placeholder_syntax_returns_invalid_placeholder() {
+    let syntax_err = PlaceholderSyntaxError::new("empty type hint", 6, Some("n".to_string()));
+    let err = StepPatternError::PlaceholderSyntax(syntax_err);
+    let converted: PlaceholderError = err.into();
+    assert!(
+        matches!(converted, PlaceholderError::InvalidPlaceholder(_)),
+        "PlaceholderSyntax should convert to InvalidPlaceholder, got: {converted:?}",
+    );
+}
 
-    let err = StepPatternError::NotCompiled {
-        pattern: Cow::Borrowed("example {n}"),
-    };
+#[test]
+#[expect(
+    clippy::invalid_regex,
+    clippy::expect_used,
+    reason = "deliberate invalid regex to test error conversion"
+)]
+fn placeholder_error_from_invalid_pattern_returns_invalid_pattern() {
+    let regex_err = regex::Regex::new("(").expect_err("invalid regex should error");
+    let err = StepPatternError::InvalidPattern(regex_err);
     let converted: PlaceholderError = err.into();
     assert!(
         matches!(converted, PlaceholderError::InvalidPattern(_)),
-        "NotCompiled should convert to InvalidPattern, got: {converted:?}",
-    );
-    let message = converted.to_string();
-    assert!(
-        message.contains("example {n}"),
-        "error message should contain the pattern: {message}",
+        "InvalidPattern should convert to InvalidPattern, got: {converted:?}",
     );
 }
 

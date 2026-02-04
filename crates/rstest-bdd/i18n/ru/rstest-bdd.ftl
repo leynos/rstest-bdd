@@ -3,7 +3,6 @@ step-error-execution = Ошибка при выполнении шага «{ $pa
 step-error-panic = Паника в шаге «{ $pattern }», функция «{ $function }»: { $message }
 step-keyword-parse-error = недопустимое ключевое слово шага: { $keyword }
 unsupported-step-type = неподдерживаемый тип шага: { $step_type }
-step-pattern-not-compiled = регулярное выражение шаблона шага не скомпилировано; сначала вызовите compile() для шаблона «{ $pattern }»
 placeholder-pattern-mismatch = шаблон не совпадает
 placeholder-invalid-placeholder = недопустимый синтаксис заполнителя: { $details }
 placeholder-invalid-pattern = недопустимый шаблон шага: { $pattern }

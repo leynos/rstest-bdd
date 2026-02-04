@@ -3,7 +3,6 @@ step-error-execution = 関数「{ $function }」でステップ「{ $pattern }�
 step-error-panic = ステップ「{ $pattern }」、関数「{ $function }」でパニックが発生しました: { $message }
 step-keyword-parse-error = 無効なステップキーワードです: { $keyword }
 unsupported-step-type = サポートされていないステップタイプです: { $step_type }
-step-pattern-not-compiled = ステップパターンの正規表現が未コンパイルです。パターン「{ $pattern }」で先に compile() を呼び出してください
 placeholder-pattern-mismatch = パターンが一致しません
 placeholder-invalid-placeholder = 無効なプレースホルダー構文です: { $details }
 placeholder-invalid-pattern = 無効なステップパターンです: { $pattern }

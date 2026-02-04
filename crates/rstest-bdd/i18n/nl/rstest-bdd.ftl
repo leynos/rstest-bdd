@@ -3,7 +3,6 @@ step-error-execution = Fout bij uitvoeren van stap « { $pattern } » via functi
 step-error-panic = Paniek in stap « { $pattern } », functie « { $function } »: { $message }
 step-keyword-parse-error = ongeldig stap-trefwoord: { $keyword }
 unsupported-step-type = niet-ondersteund staptype: { $step_type }
-step-pattern-not-compiled = regex van stappatroon is niet gecompileerd; roep eerst compile() aan voor patroon « { $pattern } »
 placeholder-pattern-mismatch = patroon komt niet overeen
 placeholder-invalid-placeholder = ongeldige placeholder-syntaxis: { $details }
 placeholder-invalid-pattern = ongeldig stappatroon: { $pattern }

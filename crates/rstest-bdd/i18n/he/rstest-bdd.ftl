@@ -3,7 +3,6 @@ step-error-execution = שגיאה בעת ביצוע הצעד "{ $pattern }" דר
 step-error-panic = פאניקה בצעד "{ $pattern }", פונקציה "{ $function }": { $message }
 step-keyword-parse-error = מילת צעד לא תקינה: { $keyword }
 unsupported-step-type = סוג צעד לא נתמך: { $step_type }
-step-pattern-not-compiled = ביטוי רגולרי של תבנית הצעד לא קוּמפל; יש לקרוא תחילה ל-compile() על התבנית "{ $pattern }"
 placeholder-pattern-mismatch = התבנית אינה תואמת
 placeholder-invalid-placeholder = תחביר לא תקין של מציין מקום: { $details }
 placeholder-invalid-pattern = תבנית צעד לא תקינה: { $pattern }

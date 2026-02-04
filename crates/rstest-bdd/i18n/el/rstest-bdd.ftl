@@ -3,7 +3,6 @@ step-error-execution = Σφάλμα κατά την εκτέλεση του βή
 step-error-panic = Πανικός στο βήμα «{ $pattern }», συνάρτηση «{ $function }»: { $message }
 step-keyword-parse-error = μη έγκυρη λέξη-κλειδί βήματος: { $keyword }
 unsupported-step-type = μη υποστηριζόμενος τύπος βήματος: { $step_type }
-step-pattern-not-compiled = η κανονική έκφραση του προτύπου βήματος δεν έχει μεταγλωττιστεί· καλέστε πρώτα τη compile() στο πρότυπο «{ $pattern }»
 placeholder-pattern-mismatch = το πρότυπο δεν ταιριάζει
 placeholder-invalid-placeholder = μη έγκυρη σύνταξη συμβόλου θέσης: { $details }
 placeholder-invalid-pattern = μη έγκυρο πρότυπο βήματος: { $pattern }

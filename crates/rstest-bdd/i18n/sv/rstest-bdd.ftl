@@ -3,7 +3,6 @@ step-error-execution = Fel vid körning av steget "{ $pattern }" via funktionen 
 step-error-panic = Panik i steget "{ $pattern }", funktionen "{ $function }": { $message }
 step-keyword-parse-error = ogiltigt stegnyckelord: { $keyword }
 unsupported-step-type = stegtypen stöds inte: { $step_type }
-step-pattern-not-compiled = stegmönstrets regex har inte kompilerats; anropa compile() först på mönstret "{ $pattern }"
 placeholder-pattern-mismatch = mönstret matchade inte
 placeholder-invalid-placeholder = ogiltig platshållarsyntax: { $details }
 placeholder-invalid-pattern = ogiltigt stegmönster: { $pattern }

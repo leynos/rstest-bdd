@@ -3,7 +3,6 @@ step-error-execution = Chyba při provádění kroku „{ $pattern }“ pomocí 
 step-error-panic = Panika v kroku „{ $pattern }“, funkce „{ $function }“: { $message }
 step-keyword-parse-error = neplatné klíčové slovo kroku: { $keyword }
 unsupported-step-type = typ kroku není podporován: { $step_type }
-step-pattern-not-compiled = regulární výraz pro vzor kroku nebyl zkompilován; nejprve zavolejte compile() na vzoru „{ $pattern }“
 placeholder-pattern-mismatch = vzor neodpovídá
 placeholder-invalid-placeholder = neplatná syntaxe zástupného symbolu: { $details }
 placeholder-invalid-pattern = neplatný vzor kroku: { $pattern }

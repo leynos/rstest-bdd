@@ -3,7 +3,6 @@ step-error-execution = Hiba történt a „{ $pattern }” lépés végrehajtás
 step-error-panic = Pánik a „{ $pattern }” lépésben, „{ $function }” függvény: { $message }
 step-keyword-parse-error = érvénytelen lépéskulcsszó: { $keyword }
 unsupported-step-type = nem támogatott lépéstípus: { $step_type }
-step-pattern-not-compiled = a lépésmintához tartozó reguláris kifejezést nem fordítottuk le; hívja meg először a compile()-t a „{ $pattern }” mintára
 placeholder-pattern-mismatch = a minta nem egyezik
 placeholder-invalid-placeholder = érvénytelen helyőrző-szintaxis: { $details }
 placeholder-invalid-pattern = érvénytelen lépésminta: { $pattern }

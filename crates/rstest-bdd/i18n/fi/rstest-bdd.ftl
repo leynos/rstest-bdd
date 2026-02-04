@@ -3,7 +3,6 @@ step-error-execution = Virhe suoritettaessa askelta "{ $pattern }" funktion "{ $
 step-error-panic = Paniikki askeleessa "{ $pattern }", funktiossa "{ $function }": { $message }
 step-keyword-parse-error = virheellinen askelen avainsana: { $keyword }
 unsupported-step-type = askeltyyppiä { $step_type } ei tueta
-step-pattern-not-compiled = askelkuvion regexiä ei ole käännetty; kutsu compile() ensin kuviolle "{ $pattern }"
 placeholder-pattern-mismatch = kuvio ei täsmää
 placeholder-invalid-placeholder = virheellinen paikkamerkkisyntaksi: { $details }
 placeholder-invalid-pattern = virheellinen askelkuvio: { $pattern }

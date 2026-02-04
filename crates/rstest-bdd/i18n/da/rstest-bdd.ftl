@@ -3,7 +3,6 @@ step-error-execution = Fejl under udførelse af trinnet "{ $pattern }" via funkt
 step-error-panic = Panik i trinnet "{ $pattern }", funktionen "{ $function }": { $message }
 step-keyword-parse-error = ugyldigt trinnøgleord: { $keyword }
 unsupported-step-type = trintypen understøttes ikke: { $step_type }
-step-pattern-not-compiled = trinnets regex-mønster er ikke blevet kompileret; kald compile() først på mønsteret "{ $pattern }"
 placeholder-pattern-mismatch = mønsteret matcher ikke
 placeholder-invalid-placeholder = ugyldig pladsholdersyntaks: { $details }
 placeholder-invalid-pattern = ugyldigt trinmønster: { $pattern }

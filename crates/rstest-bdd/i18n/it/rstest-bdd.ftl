@@ -3,7 +3,6 @@ step-error-execution = Errore durante l'esecuzione dello step « { $pattern } »
 step-error-panic = Panico nello step « { $pattern } », funzione « { $function } »: { $message }
 step-keyword-parse-error = parola chiave dello step non valida: { $keyword }
 unsupported-step-type = tipo di step non supportato: { $step_type }
-step-pattern-not-compiled = l'espressione regolare del pattern dello step non è stata compilata; invocare compile() prima sul pattern « { $pattern } »
 placeholder-pattern-mismatch = il pattern non corrisponde
 placeholder-invalid-placeholder = sintassi del segnaposto non valida: { $details }
 placeholder-invalid-pattern = pattern dello step non valido: { $pattern }

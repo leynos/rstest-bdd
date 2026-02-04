@@ -3,7 +3,6 @@ step-error-execution = เกิดข้อผิดพลาดขณะรั
 step-error-panic = เกิดแพนิคในขั้นตอน « { $pattern } » ฟังก์ชัน « { $function } »: { $message }
 step-keyword-parse-error = คีย์เวิร์ดของขั้นตอนไม่ถูกต้อง: { $keyword }
 unsupported-step-type = ชนิดของขั้นตอนไม่รองรับ: { $step_type }
-step-pattern-not-compiled = เรกซ์แพตเทิร์นของขั้นตอนไม่ได้คอมไพล์; กรุณาเรียก compile() กับแพตเทิร์น « { $pattern } » ก่อน
 placeholder-pattern-mismatch = แพตเทิร์นไม่ตรงกัน
 placeholder-invalid-placeholder = ไวยากรณ์ของตัวยึดตำแหน่งไม่ถูกต้อง: { $details }
 placeholder-invalid-pattern = แพตเทิร์นของขั้นตอนไม่ถูกต้อง: { $pattern }

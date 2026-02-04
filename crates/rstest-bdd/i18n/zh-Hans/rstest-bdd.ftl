@@ -3,7 +3,6 @@ step-error-execution = 通过函数「{ $function }」执行步骤「{ $pattern 
 step-error-panic = 步骤「{ $pattern }」中的函数「{ $function }」发生 panic：{ $message }
 step-keyword-parse-error = 无效的步骤关键字：{ $keyword }
 unsupported-step-type = 不支持的步骤类型：{ $step_type }
-step-pattern-not-compiled = 步骤模式的正则表达式尚未编译；请先在模式「{ $pattern }」上调用 compile()
 placeholder-pattern-mismatch = 模式不匹配
 placeholder-invalid-placeholder = 无效的占位符语法：{ $details }
 placeholder-invalid-pattern = 无效的步骤模式：{ $pattern }

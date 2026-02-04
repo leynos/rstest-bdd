@@ -5,7 +5,6 @@
 use crate::types::{PlaceholderSyntaxError, StepPatternError};
 use regex::Regex;
 use rstest_bdd_patterns::{PatternError, SpecificityScore, compile_regex_from_pattern};
-use std::borrow::Cow;
 use std::hash::{Hash, Hasher};
 use std::sync::OnceLock;
 
@@ -82,30 +81,6 @@ impl StepPattern {
         Ok(())
     }
 
-    /// Return the cached regular expression.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use rstest_bdd::StepPattern;
-    ///
-    /// let pattern = StepPattern::from("literal text");
-    /// assert!(pattern.regex().is_err());
-    /// pattern.compile().expect("literal patterns compile");
-    /// let regex = pattern.regex().expect("regex available after compilation");
-    /// assert!(regex.is_match("literal text"));
-    /// ```
-    ///
-    /// # Errors
-    /// Returns [`StepPatternError::NotCompiled`] if [`compile`](Self::compile)
-    /// was not invoked beforehand.
-    #[must_use = "check whether compilation succeeded"]
-    pub fn regex(&self) -> Result<&Regex, StepPatternError> {
-        self.regex.get().ok_or(StepPatternError::NotCompiled {
-            pattern: Cow::Borrowed(self.text),
-        })
-    }
-
     /// Return the cached regular expression without checking compilation status.
     ///
     /// # Panics
@@ -174,12 +149,28 @@ mod tests {
         let pattern = StepPattern::from("literal text");
         pattern.compile().expect("literal pattern should compile");
 
-        // regex_unchecked should return the same instance as regex()
-        let re_checked = pattern.regex().expect("regex available after compilation");
-        let re_unchecked = pattern.regex_unchecked();
+        // Repeated calls return the same cached instance
+        let re1 = pattern.regex_unchecked();
+        let re2 = pattern.regex_unchecked();
 
-        assert!(ptr::eq(re_checked, re_unchecked));
-        assert!(re_unchecked.is_match("literal text"));
+        assert!(ptr::eq(re1, re2));
+        assert!(re1.is_match("literal text"));
+    }
+
+    #[test]
+    #[expect(clippy::expect_used, reason = "test validates compilation")]
+    fn compile_is_idempotent() {
+        let pattern = StepPattern::from("literal text");
+
+        // First compile succeeds
+        pattern.compile().expect("literal pattern should compile");
+        let re1 = pattern.regex_unchecked();
+
+        // Second compile is a no-op and returns the same regex
+        pattern.compile().expect("recompile should succeed");
+        let re2 = pattern.regex_unchecked();
+
+        assert!(ptr::eq(re1, re2), "compile should be idempotent");
     }
 
     #[test]

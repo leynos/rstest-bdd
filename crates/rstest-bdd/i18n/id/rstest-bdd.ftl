@@ -3,7 +3,6 @@ step-error-execution = Galat saat menjalankan langkah « { $pattern } » melalui
 step-error-panic = Panik pada langkah « { $pattern } », fungsi « { $function } »: { $message }
 step-keyword-parse-error = kata kunci langkah tidak valid: { $keyword }
 unsupported-step-type = jenis langkah tidak didukung: { $step_type }
-step-pattern-not-compiled = regex pola langkah belum dikompilasi; panggil compile() terlebih dahulu pada pola « { $pattern } »
 placeholder-pattern-mismatch = pola tidak cocok
 placeholder-invalid-placeholder = sintaks placeholder tidak valid: { $details }
 placeholder-invalid-pattern = pola langkah tidak valid: { $pattern }

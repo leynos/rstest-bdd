@@ -3,7 +3,6 @@ step-error-execution = Eroare la executarea pasului „{ $pattern }” prin func
 step-error-panic = Panicǎ în pasul „{ $pattern }”, funcția „{ $function }”: { $message }
 step-keyword-parse-error = cuvânt cheie de pas invalid: { $keyword }
 unsupported-step-type = tip de pas neacceptat: { $step_type }
-step-pattern-not-compiled = expresia regulată a șablonului de pas nu a fost compilată; apelați mai întâi compile() pe șablonul „{ $pattern }”
 placeholder-pattern-mismatch = șablonul nu se potrivește
 placeholder-invalid-placeholder = sintaxă invalidă pentru loc rezervat: { $details }
 placeholder-invalid-pattern = șablon de pas invalid: { $pattern }

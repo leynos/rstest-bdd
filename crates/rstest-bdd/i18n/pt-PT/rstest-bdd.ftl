@@ -3,7 +3,6 @@ step-error-execution = Erro ao executar o passo '{ $pattern }' através da funç
 step-error-panic = Pânico no passo '{ $pattern }', função '{ $function }': { $message }
 step-keyword-parse-error = palavra-chave de passo inválida: { $keyword }
 unsupported-step-type = tipo de passo não suportado: { $step_type }
-step-pattern-not-compiled = a expressão regular do padrão do passo não foi compilada; execute compile() primeiro no padrão '{ $pattern }'
 placeholder-pattern-mismatch = o padrão não corresponde
 placeholder-invalid-placeholder = sintaxe de marcador inválida: { $details }
 placeholder-invalid-pattern = padrão de passo inválido: { $pattern }

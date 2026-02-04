@@ -3,7 +3,6 @@ step-error-execution = خطا هنگام اجرای گام «{ $pattern }» با
 step-error-panic = پانیک در گام «{ $pattern }»، تابع «{ $function }»: { $message }
 step-keyword-parse-error = کلیدواژه گام نامعتبر است: { $keyword }
 unsupported-step-type = نوع گام پشتیبانی نمی‌شود: { $step_type }
-step-pattern-not-compiled = عبارت منظم الگوی گام کامپایل نشده است؛ ابتدا روی الگو «{ $pattern }» تابع compile() را فراخوانی کنید
 placeholder-pattern-mismatch = الگو مطابق نیست
 placeholder-invalid-placeholder = نحو جای‌نگهدار نامعتبر است: { $details }
 placeholder-invalid-pattern = الگوی گام نامعتبر است: { $pattern }

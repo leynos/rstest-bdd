@@ -3,7 +3,6 @@ step-error-execution = حدث خطأ أثناء تنفيذ الخطوة « { $pa
 step-error-panic = ذعر في الخطوة « { $pattern } »، الدالة « { $function } »: { $message }
 step-keyword-parse-error = كلمة خطوة مفتاحية غير صالحة: { $keyword }
 unsupported-step-type = نوع خطوة غير مدعوم: { $step_type }
-step-pattern-not-compiled = لم يتم تجميع تعبير نمط الخطوة؛ استدعِ compile() أولًا للنمط « { $pattern } »
 placeholder-pattern-mismatch = عدم تطابق في النمط
 placeholder-invalid-placeholder = صياغة عنصر نائب غير صالحة: { $details }
 placeholder-invalid-pattern = نمط خطوة غير صالح: { $pattern }
