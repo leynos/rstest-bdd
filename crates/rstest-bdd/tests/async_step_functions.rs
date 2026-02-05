@@ -6,7 +6,10 @@
 //! - Mutable fixtures borrowed from `StepContext` remain valid across `.await`
 
 use rstest::fixture;
-use rstest_bdd::{StepContext, StepKeyword, StepText, find_step_with_metadata};
+use rstest_bdd::{
+    StepContext, StepCtx, StepDoc, StepExecution, StepFuture, StepKeyword, StepTable, StepText,
+    StepTextRef, async_step::sync_to_async, find_step_with_metadata,
+};
 use rstest_bdd_macros::{given, scenario, then, when};
 
 #[derive(Default)]
@@ -83,4 +86,52 @@ async fn sync_wrapper_refuses_to_create_nested_runtime() {
         err.to_string().contains("Tokio runtime"),
         "expected nested runtime diagnostic, got: {err}"
     );
+}
+
+#[expect(
+    clippy::unnecessary_wraps,
+    reason = "helper must match the StepFn signature"
+)]
+fn manual_sync_step(
+    _ctx: &mut StepContext<'_>,
+    text: &str,
+    _docstring: Option<&str>,
+    _table: Option<&[&[&str]]>,
+) -> Result<StepExecution, rstest_bdd::StepError> {
+    let payload = format!("wrapped:{text}");
+    Ok(StepExecution::from_value(Some(Box::new(payload))))
+}
+
+fn manual_async_wrapper<'ctx>(
+    ctx: StepCtx<'ctx, '_>,
+    text: StepTextRef<'ctx>,
+    docstring: StepDoc<'ctx>,
+    table: StepTable<'ctx>,
+) -> StepFuture<'ctx> {
+    sync_to_async(manual_sync_step)(ctx, text, docstring, table)
+}
+
+#[tokio::test(flavor = "current_thread")]
+#[expect(
+    clippy::expect_used,
+    reason = "test validates payload downcast from wrapper result"
+)]
+async fn public_sync_to_async_helper_supports_alias_based_wrapper_signatures() {
+    let _: rstest_bdd::AsyncStepFn = manual_async_wrapper;
+
+    let mut ctx = StepContext::default();
+    let execution = manual_async_wrapper(&mut ctx, "example", None, None)
+        .await
+        .expect("wrapped step should execute successfully");
+
+    let StepExecution::Continue {
+        value: Some(payload),
+    } = execution
+    else {
+        panic!("expected Continue outcome with payload");
+    };
+    let value = payload
+        .downcast::<String>()
+        .expect("payload should be the wrapped sync result");
+    assert_eq!(*value, "wrapped:example");
 }

@@ -1391,7 +1391,8 @@ The solution moves these helpers to a dedicated runtime module:
   - `Skip { message }`: Control flow signal for skipping scenarios
   - `StepNotFound { index, keyword, text, ... }`: Unregistered step pattern
   - `MissingFixtures(Arc<MissingFixturesDetails>)`: Required fixtures unavailable
-  - `HandlerFailed { index, keyword, text, error, ... }`: Step handler returned error
+  - `HandlerFailed { index, keyword, text, error, ... }`: Step handler returned
+    error
 - **`validate_required_fixtures`**: Fixture availability checking that returns
   `Result<(), ExecutionError>`. When fixtures are unavailable, returns
   `Err(ExecutionError::MissingFixtures(Arc<MissingFixturesDetails>))` instead of

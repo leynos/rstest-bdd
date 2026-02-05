@@ -28,6 +28,7 @@ use ctor::ctor;
 pub use i18n_embed::fluent::FluentLanguageLoader;
 pub use inventory::{iter, submit};
 
+pub mod async_step;
 mod context;
 pub mod datatable;
 pub mod localization;
@@ -44,6 +45,7 @@ mod types;
 #[cfg(feature = "test-support")]
 pub mod test_support;
 
+pub use async_step::sync_to_async;
 pub use context::{FixtureRef, FixtureRefMut, StepContext};
 pub use localization::{
     LocalizationError, Localizations, current_languages, install_localization_loader,
@@ -86,9 +88,9 @@ pub use skip_helpers::{
 pub use state::{ScenarioState, Slot};
 pub use step_args::{StepArgs, StepArgsError};
 pub use types::{
-    AsyncStepFn, PatternStr, PlaceholderError, PlaceholderSyntaxError, StepExecution,
-    StepExecutionMode, StepFn, StepFuture, StepKeyword, StepKeywordParseError, StepPatternError,
-    StepText, UnsupportedStepType,
+    AsyncStepFn, PatternStr, PlaceholderError, PlaceholderSyntaxError, StepCtx, StepDoc,
+    StepExecution, StepExecutionMode, StepFn, StepFuture, StepKeyword, StepKeywordParseError,
+    StepPatternError, StepTable, StepText, StepTextRef, UnsupportedStepType,
 };
 
 pub use execution::{ExecutionError, MissingFixturesDetails};

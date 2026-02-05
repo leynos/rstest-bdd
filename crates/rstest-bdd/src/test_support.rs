@@ -1,56 +1,12 @@
 //! Test support utilities for async step testing.
 //!
 //! This module provides helpers for testing step implementations across crates.
-//! It is gated behind the `test-support` feature to avoid including test
+//! It is gated behind the `test-support` feature to avoid including polling
 //! utilities in production builds.
 
-use crate::{StepContext, StepExecution, StepFn, StepFuture};
+use crate::{StepExecution, StepFuture};
 
-/// Wrap a synchronous step handler into an immediately-ready async future.
-///
-/// This helper uses currying to reduce the parameter count: it takes the
-/// sync function and returns a closure matching the `AsyncStepFn` signature.
-///
-/// # Examples
-///
-/// ```rust
-/// use rstest_bdd::{StepContext, StepError, StepExecution, StepFuture};
-/// use rstest_bdd::test_support::sync_to_async;
-///
-/// fn my_sync_step(
-///     _ctx: &mut StepContext<'_>,
-///     _text: &str,
-///     _docstring: Option<&str>,
-///     _table: Option<&[&[&str]]>,
-/// ) -> Result<StepExecution, StepError> {
-///     Ok(StepExecution::from_value(None))
-/// }
-///
-/// fn my_async_step<'a>(
-///     ctx: &'a mut StepContext<'_>,
-///     text: &str,
-///     docstring: Option<&str>,
-///     table: Option<&[&[&str]]>,
-/// ) -> StepFuture<'a> {
-///     sync_to_async(my_sync_step)(ctx, text, docstring, table)
-/// }
-/// ```
-#[expect(
-    clippy::type_complexity,
-    reason = "currying pattern produces complex return type to reduce parameter count"
-)]
-pub fn sync_to_async(
-    sync_fn: StepFn,
-) -> impl for<'ctx, 'fixtures> FnOnce(
-    &'ctx mut StepContext<'fixtures>,
-    &'ctx str,
-    Option<&'ctx str>,
-    Option<&'ctx [&'ctx [&'ctx str]]>,
-) -> StepFuture<'ctx> {
-    move |ctx, text, docstring, table| {
-        Box::pin(std::future::ready(sync_fn(ctx, text, docstring, table)))
-    }
-}
+pub use crate::async_step::sync_to_async;
 
 /// Poll a step future to completion using a noop waker.
 ///

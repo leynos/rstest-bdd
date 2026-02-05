@@ -172,6 +172,47 @@ fn async_step_fn_signature_is_valid() {
 }
 
 #[test]
+fn async_step_fn_signature_supports_aliases() {
+    fn dummy_async_step_with_aliases<'ctx>(
+        _ctx: StepCtx<'ctx, '_>,
+        _text: StepTextRef<'ctx>,
+        _docstring: StepDoc<'ctx>,
+        _table: StepTable<'ctx>,
+    ) -> StepFuture<'ctx> {
+        Box::pin(std::future::ready(Ok(StepExecution::from_value(None))))
+    }
+
+    let _: AsyncStepFn = dummy_async_step_with_aliases;
+}
+
+#[test]
+#[expect(
+    clippy::unnecessary_wraps,
+    reason = "test helper must match the StepFn signature"
+)]
+fn sync_to_async_builds_async_wrapper_without_explicit_fixture_lifetime() {
+    fn dummy_sync_step(
+        _ctx: &mut crate::context::StepContext<'_>,
+        _text: &str,
+        _docstring: Option<&str>,
+        _table: Option<&[&[&str]]>,
+    ) -> Result<StepExecution, crate::StepError> {
+        Ok(StepExecution::from_value(None))
+    }
+
+    fn dummy_async_step<'ctx>(
+        ctx: StepCtx<'ctx, '_>,
+        text: StepTextRef<'ctx>,
+        docstring: StepDoc<'ctx>,
+        table: StepTable<'ctx>,
+    ) -> StepFuture<'ctx> {
+        crate::async_step::sync_to_async(dummy_sync_step)(ctx, text, docstring, table)
+    }
+
+    let _: AsyncStepFn = dummy_async_step;
+}
+
+#[test]
 #[expect(clippy::expect_used, reason = "test validates downcast succeeds")]
 fn step_future_resolves_to_expected_value() {
     fn make_future<'a>() -> StepFuture<'a> {

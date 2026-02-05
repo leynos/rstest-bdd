@@ -32,9 +32,9 @@ edition.
 development via `rust-toolchain.toml` so contributors get consistent `rustfmt`
 and `clippy` behaviour.
 
-Step definitions may be synchronous functions (`fn`) or asynchronous
-functions (`async fn`). The framework no longer depends on the `async-trait`
-crate to express async methods in traits. Projects that previously relied on
+Step definitions may be synchronous functions (`fn`) or asynchronous functions
+(`async fn`). The framework no longer depends on the `async-trait` crate to
+express async methods in traits. Projects that previously relied on
 `#[async_trait]` in helper traits should replace those methods with ordinary
 functions, and use async steps or async fixtures where appropriate. Step
 wrappers normalize results into `StepExecution`.
@@ -877,6 +877,39 @@ fn end_stream() {
     });
 }
 ```
+
+### Manual async wrapper pattern
+
+Most step code does not need to name the fixture lifetime directly. If you
+write an explicit async wrapper around a synchronous `StepFn`, prefer
+`rstest_bdd::async_step::sync_to_async` and keep the context argument as
+`StepContext<'_>`:
+
+```rust,no_run
+use rstest_bdd::async_step::sync_to_async;
+use rstest_bdd::{StepContext, StepError, StepExecution, StepFuture};
+
+fn sync_step(
+    _ctx: &mut StepContext<'_>,
+    _text: &str,
+    _docstring: Option<&str>,
+    _table: Option<&[&[&str]]>,
+) -> Result<StepExecution, StepError> {
+    Ok(StepExecution::from_value(None))
+}
+
+fn async_wrapper<'ctx>(
+    ctx: &'ctx mut StepContext<'_>,
+    text: &'ctx str,
+    docstring: Option<&'ctx str>,
+    table: Option<&'ctx [&'ctx [&'ctx str]]>,
+) -> StepFuture<'ctx> {
+    sync_to_async(sync_step)(ctx, text, docstring, table)
+}
+```
+
+For shorter signatures, use the exported aliases: `StepCtx<'ctx, '_>`,
+`StepTextRef<'ctx>`, `StepDoc<'ctx>`, and `StepTable<'ctx>`.
 
 ### Current limitations
 
