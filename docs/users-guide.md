@@ -534,7 +534,7 @@ Teams coming from cucumber-rs often ask where the shared `World` lives in
 isolation is the default.
 
 Each `#[scenario]` expansion produces an ordinary Rust test. `rstest` builds
-fresh fixture values for each test invocation unless you opt into a different
+fresh fixture values for each test invocation, unless you opt into a different
 lifetime such as `#[once]`. `StepContext` is also created per scenario run, so
 state mutated in one scenario is not automatically visible in another.
 
@@ -663,7 +663,7 @@ supports `&mut Fixture` step parameters.
 `insert_owned`.
 
 Use `insert_owned` only when building custom step-execution plumbing
-outside the usual macros and need to register a mutable fixture manually:
+outside the usual macros and registering a mutable fixture manually:
 
 ```rust,no_run
 use rstest_bdd::StepContext;
