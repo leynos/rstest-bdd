@@ -45,7 +45,6 @@ mod types;
 #[cfg(feature = "test-support")]
 pub mod test_support;
 
-pub use async_step::sync_to_async;
 pub use context::{FixtureRef, FixtureRefMut, StepContext};
 pub use localization::{
     LocalizationError, Localizations, current_languages, install_localization_loader,

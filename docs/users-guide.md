@@ -911,6 +911,32 @@ fn async_wrapper<'ctx>(
 For shorter signatures, use the exported aliases: `StepCtx<'ctx, '_>`,
 `StepTextRef<'ctx>`, `StepDoc<'ctx>`, and `StepTable<'ctx>`.
 
+```rust,no_run
+use rstest_bdd::async_step::sync_to_async;
+use rstest_bdd::{
+    StepContext, StepCtx, StepDoc, StepError, StepExecution, StepFuture,
+    StepTable, StepTextRef,
+};
+
+fn sync_step(
+    _ctx: &mut StepContext<'_>,
+    _text: &str,
+    _docstring: Option<&str>,
+    _table: Option<&[&[&str]]>,
+) -> Result<StepExecution, StepError> {
+    Ok(StepExecution::from_value(None))
+}
+
+fn async_wrapper_with_aliases<'ctx>(
+    ctx: StepCtx<'ctx, '_>,
+    text: StepTextRef<'ctx>,
+    docstring: StepDoc<'ctx>,
+    table: StepTable<'ctx>,
+) -> StepFuture<'ctx> {
+    sync_to_async(sync_step)(ctx, text, docstring, table)
+}
+```
+
 ### Current limitations
 
 - **Tokio current-thread mode only:** Multi-threaded Tokio mode would require

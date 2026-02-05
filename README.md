@@ -252,6 +252,20 @@ fn async_wrapper<'ctx>(
 `rstest_bdd` also exports compact aliases (`StepCtx`, `StepTextRef`, `StepDoc`,
 `StepTable`) for these wrapper signatures.
 
+```rust,no_run
+use rstest_bdd::async_step::sync_to_async;
+use rstest_bdd::{StepCtx, StepDoc, StepFuture, StepTable, StepTextRef};
+
+fn async_wrapper_with_aliases<'ctx>(
+    ctx: StepCtx<'ctx, '_>,
+    text: StepTextRef<'ctx>,
+    docstring: StepDoc<'ctx>,
+    table: StepTable<'ctx>,
+) -> StepFuture<'ctx> {
+    sync_to_async(sync_step)(ctx, text, docstring, table)
+}
+```
+
 ### cucumber-rs migration
 
 For easier migration from cucumber-rs, step macros also accept the
