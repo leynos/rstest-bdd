@@ -6,7 +6,6 @@
 
 use crate::localization;
 use std::any::Any;
-use std::borrow::Cow;
 use std::fmt;
 use std::future::Future;
 use std::pin::Pin;
@@ -169,11 +168,6 @@ pub enum StepPatternError {
     PlaceholderSyntax(PlaceholderSyntaxError),
     /// The generated regular expression failed to compile.
     InvalidPattern(regex::Error),
-    /// Attempted to access the compiled regex before calling [`StepPattern::compile`](crate::pattern::StepPattern::compile).
-    NotCompiled {
-        /// Pattern text that has not yet been compiled.
-        pattern: Cow<'static, str>,
-    },
 }
 
 impl From<PlaceholderSyntaxError> for StepPatternError {
@@ -193,13 +187,6 @@ impl fmt::Display for StepPatternError {
         match self {
             Self::PlaceholderSyntax(err) => err.fmt(f),
             Self::InvalidPattern(err) => err.fmt(f),
-            Self::NotCompiled { pattern } => {
-                let message =
-                    localization::message_with_args("step-pattern-not-compiled", |args| {
-                        args.set("pattern", pattern.to_string());
-                    });
-                f.write_str(&message)
-            }
         }
     }
 }
@@ -209,7 +196,6 @@ impl std::error::Error for StepPatternError {
         match self {
             Self::PlaceholderSyntax(err) => Some(err),
             Self::InvalidPattern(err) => Some(err),
-            Self::NotCompiled { .. } => None,
         }
     }
 }
@@ -224,11 +210,6 @@ pub enum PlaceholderError {
     InvalidPlaceholder(String),
     /// The step pattern could not be compiled into a regular expression.
     InvalidPattern(String),
-    /// The step pattern regex was accessed before compilation.
-    NotCompiled {
-        /// Pattern text that must be compiled prior to use.
-        pattern: String,
-    },
 }
 
 impl fmt::Display for PlaceholderError {
@@ -242,11 +223,6 @@ impl fmt::Display for PlaceholderError {
             }
             Self::InvalidPattern(pattern) => {
                 localization::message_with_args("placeholder-invalid-pattern", |args| {
-                    args.set("pattern", pattern.clone());
-                })
-            }
-            Self::NotCompiled { pattern } => {
-                localization::message_with_args("placeholder-not-compiled", |args| {
                     args.set("pattern", pattern.clone());
                 })
             }
@@ -264,9 +240,6 @@ impl From<StepPatternError> for PlaceholderError {
                 Self::InvalidPlaceholder(err.user_message())
             }
             StepPatternError::InvalidPattern(err) => Self::InvalidPattern(err.to_string()),
-            StepPatternError::NotCompiled { pattern } => Self::NotCompiled {
-                pattern: pattern.into_owned(),
-            },
         }
     }
 }

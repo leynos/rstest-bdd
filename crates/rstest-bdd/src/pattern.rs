@@ -5,7 +5,6 @@
 use crate::types::{PlaceholderSyntaxError, StepPatternError};
 use regex::Regex;
 use rstest_bdd_patterns::{PatternError, SpecificityScore, compile_regex_from_pattern};
-use std::borrow::Cow;
 use std::hash::{Hash, Hasher};
 use std::sync::OnceLock;
 
@@ -82,28 +81,17 @@ impl StepPattern {
         Ok(())
     }
 
-    /// Return the cached regular expression.
+    /// Return the cached regular expression without checking compilation status.
     ///
-    /// # Examples
-    ///
-    /// ```
-    /// use rstest_bdd::StepPattern;
-    ///
-    /// let pattern = StepPattern::from("literal text");
-    /// assert!(pattern.regex().is_err());
-    /// pattern.compile().expect("literal patterns compile");
-    /// let regex = pattern.regex().expect("regex available after compilation");
-    /// assert!(regex.is_match("literal text"));
-    /// ```
-    ///
-    /// # Errors
-    /// Returns [`StepPatternError::NotCompiled`] if [`compile`](Self::compile)
-    /// was not invoked beforehand.
-    #[must_use = "check whether compilation succeeded"]
-    pub fn regex(&self) -> Result<&Regex, StepPatternError> {
-        self.regex.get().ok_or(StepPatternError::NotCompiled {
-            pattern: Cow::Borrowed(self.text),
-        })
+    /// # Panics
+    /// Panics if called before [`compile`](Self::compile) has succeeded.
+    #[must_use]
+    #[expect(
+        clippy::expect_used,
+        reason = "internal method; callers guarantee prior compilation"
+    )]
+    pub(crate) fn regex_unchecked(&self) -> &Regex {
+        self.regex.get().expect("regex accessed before compilation")
     }
 
     /// Calculate and cache the specificity score for this pattern.
@@ -147,5 +135,49 @@ impl StepPattern {
 impl From<&'static str> for StepPattern {
     fn from(value: &'static str) -> Self {
         Self::new(value)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::ptr;
+
+    #[test]
+    #[expect(clippy::expect_used, reason = "test helper validates success path")]
+    fn regex_unchecked_returns_cached_regex_after_compilation() {
+        let pattern = StepPattern::from("literal text");
+        pattern.compile().expect("literal pattern should compile");
+
+        // Repeated calls return the same cached instance
+        let re1 = pattern.regex_unchecked();
+        let re2 = pattern.regex_unchecked();
+
+        assert!(ptr::eq(re1, re2));
+        assert!(re1.is_match("literal text"));
+    }
+
+    #[test]
+    #[expect(clippy::expect_used, reason = "test validates compilation")]
+    fn compile_is_idempotent() {
+        let pattern = StepPattern::from("literal text");
+
+        // First compile succeeds
+        pattern.compile().expect("literal pattern should compile");
+        let re1 = pattern.regex_unchecked();
+
+        // Second compile is a no-op and returns the same regex
+        pattern.compile().expect("recompile should succeed");
+        let re2 = pattern.regex_unchecked();
+
+        assert!(ptr::eq(re1, re2), "compile should be idempotent");
+    }
+
+    #[test]
+    #[should_panic(expected = "regex accessed before compilation")]
+    fn regex_unchecked_panics_without_prior_compilation() {
+        let pattern = StepPattern::from("literal text");
+        // This should panic because compile() was never called
+        let _ = pattern.regex_unchecked();
     }
 }

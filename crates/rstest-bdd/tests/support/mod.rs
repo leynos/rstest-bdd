@@ -10,9 +10,12 @@ use rstest_bdd::{
 ///
 /// ```no_run
 /// use support::compiled;
+/// use rstest_bdd::StepText;
+/// use rstest_bdd::extract_placeholders;
 ///
 /// let pat = compiled("value {n:u32}");
-/// assert!(pat.regex().unwrap().is_match("value 42"));
+/// let caps = extract_placeholders(&pat, StepText::from("value 42"));
+/// assert!(caps.is_ok());
 /// ```
 ///
 /// # Panics

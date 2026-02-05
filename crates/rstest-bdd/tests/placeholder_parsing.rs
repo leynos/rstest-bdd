@@ -3,8 +3,6 @@
 use rstest::rstest;
 use rstest_bdd::localization::{ScopedLocalization, strip_directional_isolates};
 use rstest_bdd::{PlaceholderError, StepPattern, StepPatternError, StepText, extract_placeholders};
-use std::borrow::Cow;
-use std::ptr;
 use unic_langid::langid;
 
 mod support;
@@ -13,60 +11,76 @@ use support::{compiled, expect_placeholder_syntax};
 /// Anchor the helper so it is not flagged as dead code when compiling this test.
 const _: fn(&'static str, &str) -> Vec<String> = support::compile_and_extract;
 
-#[test]
-fn regex_requires_prior_compilation_and_caches() {
-    let pattern = StepPattern::from("literal text");
-    assert!(
-        matches!(pattern.regex(), Err(StepPatternError::NotCompiled { .. })),
-        "accessing the regex without compiling should return an error",
+#[rstest]
+#[case("literal text", true)]
+#[case("value {n:}", false)]
+fn test_compile_patterns(#[case] pattern_string: &'static str, #[case] expected_ok: bool) {
+    let pattern = StepPattern::from(pattern_string);
+
+    // First compile attempt
+    let first_result = pattern.compile();
+    assert_eq!(
+        first_result.is_ok(),
+        expected_ok,
+        "first compile for '{pattern_string}' should {} but {}",
+        if expected_ok { "succeed" } else { "fail" },
+        if first_result.is_ok() {
+            "succeeded"
+        } else {
+            "failed"
+        },
     );
 
-    if let Err(err) = pattern.compile() {
-        panic!("compiling literal pattern should succeed: {err:?}");
-    }
-    let re1 = match pattern.regex() {
-        Ok(regex) => regex,
-        Err(err) => panic!("regex should be available after compilation: {err:?}"),
-    };
-    assert!(re1.is_match("literal text"));
-
-    let re2 = match pattern.regex() {
-        Ok(regex) => regex,
-        Err(err) => panic!("regex should be cached after compilation: {err:?}"),
-    };
-    assert!(re2.is_match("literal text"));
-    assert!(
-        ptr::eq(re1, re2),
-        "repeated calls should return the cached regex instance",
+    // Second compile verifies idempotence (success) or failure persistence
+    let second_result = pattern.compile();
+    assert_eq!(
+        second_result.is_ok(),
+        expected_ok,
+        "second compile for '{pattern_string}' should {} but {}",
+        if expected_ok {
+            "succeed (idempotent)"
+        } else {
+            "continue to fail"
+        },
+        if second_result.is_ok() {
+            "succeeded"
+        } else {
+            "failed"
+        },
     );
 }
 
 #[test]
-fn regex_remains_unavailable_after_failed_compilation() {
+fn extract_placeholders_compiles_lazily_on_first_use() {
+    // Verify extract_placeholders works with an uncompiled pattern (lazy compilation)
+    let pattern = StepPattern::from("value {n:u32}");
+
+    // First call should compile and extract successfully
+    let Ok(caps) = extract_placeholders(&pattern, StepText::from("value 42")) else {
+        panic!("first extraction should succeed");
+    };
+    assert_eq!(caps, vec!["42"]);
+
+    // Subsequent calls reuse the cached compilation
+    let Ok(caps2) = extract_placeholders(&pattern, StepText::from("value 99")) else {
+        panic!("subsequent extraction should succeed");
+    };
+    assert_eq!(caps2, vec!["99"]);
+}
+
+#[test]
+fn extract_placeholders_returns_error_for_invalid_pattern() {
+    // Verify that invalid patterns produce errors, not panics
     let pattern = StepPattern::from("value {n:}");
 
-    assert!(
-        pattern.compile().is_err(),
-        "compile should fail for invalid pattern"
-    );
-    assert!(
-        matches!(pattern.regex(), Err(StepPatternError::NotCompiled { .. })),
-        "failed compilation should not populate the cached regex",
-    );
-}
-
-#[test]
-fn placeholder_error_reports_not_compiled() {
-    let err = PlaceholderError::from(StepPatternError::NotCompiled {
-        pattern: Cow::Borrowed("example"),
-    });
-    let PlaceholderError::NotCompiled { ref pattern } = err else {
-        panic!("expected not compiled placeholder error");
+    let Err(err) = extract_placeholders(&pattern, StepText::from("value 42")) else {
+        panic!("invalid pattern should return an error");
     };
-    assert_eq!(pattern, "example");
-    assert_eq!(
-        strip_directional_isolates(&err.to_string()),
-        "step pattern 'example' must be compiled before use",
+
+    // The error should be InvalidPlaceholder, not a panic
+    assert!(
+        matches!(err, PlaceholderError::InvalidPlaceholder(_)),
+        "error should be InvalidPlaceholder, got: {err:?}",
     );
 }
 
