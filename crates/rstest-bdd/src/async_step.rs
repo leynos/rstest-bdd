@@ -9,7 +9,8 @@ use crate::{StepContext, StepFn, StepFuture};
 /// Wrap a synchronous step handler into an immediately-ready async future.
 ///
 /// This helper uses currying to reduce the parameter count: it takes the
-/// sync function and returns a closure matching the `AsyncStepFn` signature.
+/// sync function and returns a closure with the same arguments and return type
+/// as `AsyncStepFn`.
 ///
 /// # Examples
 ///
@@ -37,7 +38,7 @@ use crate::{StepContext, StepFn, StepFuture};
 /// ```
 #[expect(
     clippy::type_complexity,
-    reason = "currying pattern produces complex return type to reduce parameter count"
+    reason = "currying captures StepFn, so this helper cannot return the AsyncStepFn fn-pointer alias"
 )]
 pub fn sync_to_async(
     sync_fn: StepFn,

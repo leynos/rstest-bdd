@@ -221,10 +221,10 @@ Implicit fixtures such as `basket` must already be in scope in the test module;
 
 ### Manual async wrappers for sync steps
 
-If you need an explicit async wrapper around an existing synchronous step
+When an explicit async wrapper is required around an existing synchronous step
 handler, use `rstest_bdd::async_step::sync_to_async`. In parameter positions,
-`StepContext<'_>` lets Rust infer the fixture lifetime so you only name the
-borrow lifetime:
+`StepContext<'_>` lets Rust infer the fixture lifetime, leaving only the borrow
+lifetime to name:
 
 ```rust,no_run
 use rstest_bdd::async_step::sync_to_async;

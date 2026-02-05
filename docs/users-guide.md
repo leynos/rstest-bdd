@@ -880,8 +880,8 @@ fn end_stream() {
 
 ### Manual async wrapper pattern
 
-Most step code does not need to name the fixture lifetime directly. If you
-write an explicit async wrapper around a synchronous `StepFn`, prefer
+Most step code does not need to name the fixture lifetime directly. When an
+explicit async wrapper is written around a synchronous `StepFn`, prefer
 `rstest_bdd::async_step::sync_to_async` and keep the context argument as
 `StepContext<'_>`:
 

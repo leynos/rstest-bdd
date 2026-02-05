@@ -122,6 +122,11 @@ fn my_async_wrapper<'ctx>(
 }
 ```
 
+This alias-based form keeps the fixture lifetime inferred in parameter
+position (`StepCtx<'ctx, '_>`), so explicit `'fixtures` naming is rarely
+required in end-user wrapper code. For broader examples, see the
+[users guide async wrapper section](users-guide.md#manual-async-wrapper-pattern).
+
 ## Migration checklist
 
 - [ ] Every `#[scenario]` returns `()` or `Result<(), E>`/`StepResult<(), E>`.
