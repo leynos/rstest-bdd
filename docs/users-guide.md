@@ -562,13 +562,13 @@ Feature: User management
 
   Scenario: Create user
     Given a database connection
-    When I create user "alice"
+    When user "alice" is created
     Then user "alice" exists
 
   Scenario: Update user
     Given a database connection
     And user "alice" exists
-    When I update user "alice"
+    When user "alice" is updated
     Then the update succeeds
 ```
 
@@ -613,12 +613,12 @@ fn user_exists(scenario_db: &mut ScenarioDb, name: String) {
     scenario_db.ensure_user(&name);
 }
 
-#[when("I create user {name}")]
+#[when("user {name} is created")]
 fn create_user(scenario_db: &mut ScenarioDb, name: String) {
     scenario_db.create_user(&name);
 }
 
-#[when("I update user {name}")]
+#[when("user {name} is updated")]
 fn update_user(scenario_db: &mut ScenarioDb, name: String) {
     scenario_db.update_user(&name);
 }
@@ -634,26 +634,35 @@ fn assert_update_succeeds(scenario_db: &ScenarioDb) {
 }
 
 #[scenario(path = "tests/features/user_management.feature", name = "Create user")]
-fn create_user_scenario(_scenario_db: ScenarioDb) {}
+fn create_user_scenario(scenario_db: ScenarioDb) {
+    let _ = scenario_db;
+}
 
 #[scenario(path = "tests/features/user_management.feature", name = "Update user")]
-fn update_user_scenario(_scenario_db: ScenarioDb) {}
+fn update_user_scenario(scenario_db: ScenarioDb) {
+    let _ = scenario_db;
+}
 ```
 
 In this pattern:
 
 - `db_pool` is shared across scenarios (`#[once]`).
 - `scenario_db` is recreated per scenario (isolation boundary).
+- `Given a database connection` binds the scenario-scoped `scenario_db`
+  fixture; the shared `db_pool` remains an infrastructure dependency.
 - The update scenario declares its own precondition (`user {name} exists`)
   rather than depending on `Create user` running first.
 
 ### `StepContext::insert_owned` and manual mutable sharing
 
 Most suites should not call `StepContext::insert_owned` directly. The generated
-`#[scenario]` glue already inserts fixtures for you and supports `&mut Fixture`
-step parameters.
+`#[scenario]` glue already inserts fixtures for the scenario function and
+supports `&mut Fixture` step parameters.
 
-Use `insert_owned` only when you are building custom step-execution plumbing
+`StepContext::owned_cell` creates the type-erased mutable storage required by
+`insert_owned`.
+
+Use `insert_owned` only when building custom step-execution plumbing
 outside the usual macros and need to register a mutable fixture manually:
 
 ```rust,no_run
@@ -671,7 +680,7 @@ ctx.insert_owned::<World>("world", &world);
 
 ### Migration notes for cucumber-rs users
 
-If you are migrating from a cucumber `World`, map the concepts as follows:
+For migrations from a cucumber `World`, map the concepts as follows:
 
 - **`World` struct:** use one or more `rstest` fixtures.
 - **Mutable world during a scenario:** use `&mut FixtureType` in step
@@ -681,7 +690,7 @@ If you are migrating from a cucumber `World`, map the concepts as follows:
 - **Global expensive setup:** use a narrowly scoped `#[once]` fixture returning
   shared infrastructure, then derive scenario-local state from it.
 
-### Anti-patterns to avoid
+### Antipatterns to avoid
 
 - Depending on scenario execution order (for example "Scenario B uses data from
   Scenario A") because test ordering is not guaranteed.
