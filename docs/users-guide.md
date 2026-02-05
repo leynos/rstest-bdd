@@ -885,6 +885,13 @@ explicit async wrapper is written around a synchronous `StepFn`, prefer
 `rstest_bdd::async_step::sync_to_async` and keep the context argument as
 `StepContext<'_>`:
 
+This pattern is useful when a codebase already has synchronous handlers that
+must run in an async-only path, such as custom registries, reusable step helper
+layers, or adapter crates that expose async execution.
+
+The resulting wrapper function can be registered and invoked like any other
+async step handler, so existing `StepFn` implementations remain reusable.
+
 ```rust,no_run
 use rstest_bdd::async_step::sync_to_async;
 use rstest_bdd::{StepContext, StepError, StepExecution, StepFuture};

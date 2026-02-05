@@ -21,7 +21,8 @@ Projects are affected if any of the following are true:
   where `T != ()`).
 - A `#[scenario]` function returns a type alias to `Result` or `StepResult`.
 - Scenario bodies use `?` or propagate errors directly.
-- You maintain explicit async wrapper functions for synchronous step handlers.
+- The project maintains explicit async wrapper functions for synchronous step
+  handlers.
 
 ## Required changes
 
@@ -90,8 +91,8 @@ ensures the skip short-circuit continues to work without additional user code.
 
 ### 5) Use the stable async wrapper helper path
 
-If you write explicit async wrappers around synchronous step functions, prefer
-the stable helper at `rstest_bdd::async_step::sync_to_async`.
+When explicit async wrappers are required around synchronous step functions,
+prefer the stable helper at `rstest_bdd::async_step::sync_to_async`.
 
 **Before:**
 
@@ -124,8 +125,8 @@ fn my_async_wrapper<'ctx>(
 
 This alias-based form keeps the fixture lifetime inferred in parameter
 position (`StepCtx<'ctx, '_>`), so explicit `'fixtures` naming is rarely
-required in end-user wrapper code. For broader examples, see the
-[users guide async wrapper section](users-guide.md#manual-async-wrapper-pattern).
+required in end-user wrapper code. For broader examples, see
+[the user guide's async wrapper section](users-guide.md#manual-async-wrapper-pattern).
 
 ## Migration checklist
 
