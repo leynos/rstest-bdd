@@ -889,8 +889,10 @@ This pattern is useful when a codebase already has synchronous handlers that
 must run in an async-only path, such as custom registries, reusable step helper
 layers, or adapter crates that expose async execution.
 
-The resulting wrapper function can be registered and invoked like any other
-async step handler, so existing `StepFn` implementations remain reusable.
+The resulting wrapper can be wired into normal step execution points, including
+`run_async` in custom `Step` registrations or explicit step-macro functions
+that delegate to shared handlers. Existing `StepFn` implementations remain
+reusable without rewriting their business logic.
 
 ```rust,no_run
 use rstest_bdd::async_step::sync_to_async;
