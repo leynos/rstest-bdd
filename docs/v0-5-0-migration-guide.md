@@ -103,6 +103,50 @@ Fixtures are the replacement for Cucumber's shared `World` object.
 - Reserve `StepContext::insert_owned` for custom step-execution plumbing, not
   normal macro-driven suites.
 
+The flow below shows a recommended decision path for migrating shared mutable
+state to fixture-based scenario isolation.
+
+```mermaid
+flowchart TD
+    A[Start migration] --> B{Does the suite rely on
+shared mutable state
+across scenarios?}
+
+    B -- Yes --> C[Identify global World like structures
+and cross-scenario mutation]
+    C --> D[Move shared mutable data into
+scenario-local fixtures
+using &mut FixtureType or Slot]
+    D --> E{Is any expensive, mostly
+read-only infrastructure used?}
+
+    E -- Yes --> F[Wrap expensive, read-only infra
+in #once fixtures
+for reuse across scenarios]
+    E -- No --> G[Keep all fixtures per-scenario
+without #once]
+
+    F --> H[Ensure scenario data is recreated
+per scenario and does not
+depend on execution order]
+    G --> H
+
+    B -- No --> I[Keep existing fixtures
+but verify they follow
+per-scenario isolation]
+
+    H --> J[Reserve StepContext::insert_owned
+for custom plumbing only]
+    I --> J
+
+    J --> K[Update docs and templates
+around state sharing and fixtures]
+    K --> L[End migration]
+```
+
+*Figure: Decision flow for migrating from shared mutable state to scenario-
+isolated fixtures.*
+
 ### 5) Account for async runtime fallback rules
 
 If an async-only step executes inside a synchronous scenario, `rstest-bdd` runs
