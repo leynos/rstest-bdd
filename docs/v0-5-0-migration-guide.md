@@ -1,14 +1,19 @@
 # v0.5.0 migration guide
 
-This guide highlights changes required to adopt v0.5.0, focusing on fallible
-scenario body support and return-kind handling in `#[scenario]`.
+This guide highlights the significant behaviour changes between `v0.4.0` and
+`v0.5.0` that affect day-to-day usage of `rstest-bdd`.
 
 ## Summary of changes
 
-- Scenario bodies may now return `Result<(), E>` or `StepResult<(), E>`.
-- Scenario bodies returning non-unit payloads are rejected at compile time.
-- Skip handling for fallible scenarios returns `Ok(())` to keep signatures
-  type-correct.
+- Step definitions may be synchronous (`fn`) or asynchronous (`async fn`).
+- `#[scenario]` bodies may return `Result<(), E>` or `StepResult<(), E>`;
+  non-unit payload returns are rejected at compile time.
+- Scenario state isolation is explicit: fixtures are recreated per scenario by
+  default, with `#[once]` as an opt-in for shared infrastructure.
+- Async-only steps under synchronous scenarios use a per-step Tokio fallback;
+  nested runtime execution is guarded.
+- Scenario Outline diagnostics now report missing and surplus `Examples`
+  columns.
 - Manual async wrappers for sync steps should use
   `rstest_bdd::async_step::sync_to_async`; concise signature aliases are
   available for wrapper parameters.
@@ -17,18 +22,24 @@ scenario body support and return-kind handling in `#[scenario]`.
 
 Projects are affected if any of the following are true:
 
-- A `#[scenario]` function returns a non-unit type (for example, `Result<T, E>`
-  where `T != ()`).
+- A `#[scenario]` function returns a non-unit type (for example,
+  `Result<T, E>` where `T != ()`).
 - A `#[scenario]` function returns a type alias to `Result` or `StepResult`.
 - Scenario bodies use `?` or propagate errors directly.
+- Step definitions were constrained to sync-only patterns in `v0.4.0` and can
+  now benefit from native `async fn` step handlers.
+- The suite expects shared mutable state across scenarios (for example, a
+  cucumber-style global `World`).
 - The project maintains explicit async wrapper functions for synchronous step
   handlers.
+- Scenario Outlines rely on placeholders and `Examples` tables that may contain
+  typos, unused columns, or mismatched headers.
 
 ## Required changes
 
 ### 1) Update scenario return types
 
-**Before (unsupported in v0.5.0):**
+**Before (unsupported in `v0.5.0`):**
 
 ```rust
 # use rstest_bdd_macros::scenario;
@@ -67,29 +78,42 @@ fn scenario_step_result() -> StepResult<(), &'static str> {
 }
 ```
 
-### 3) Fallible async scenarios are supported
+### 3) Adopt native async step definitions where useful
 
-Async scenario bodies may return `Result<(), E>` and use `?` directly. The
-`#[scenario]` macro emits the required test runtime attribute; manual Tokio
-boilerplate is only required when an existing `#[tokio::test]` attribute is
-already applied.
+`v0.5.0` supports `async fn` step handlers directly, so async work no longer
+needs to be forced into fixtures or adapter traits.
 
 ```rust
-# use rstest_bdd_macros::scenario;
-#[scenario(path = "tests/features/example.feature")]
-async fn async_scenario() -> Result<(), &'static str> {
-    do_async_work().await?;
-    Ok(())
+# use rstest_bdd_macros::when;
+#[when("the report is fetched")]
+async fn fetch_report() {
+    fetch_remote_report().await;
 }
 ```
 
-### 4) Skipped scenarios remain type-correct
+When a scenario is skipped (via `rstest_bdd::skip!`), generated fallible tests
+still return `Ok(())` so signatures stay type-correct.
 
-When a scenario is skipped (via `rstest_bdd::skip!`), the generated test
-returns `Ok(())` for fallible signatures. This keeps the signature valid and
-ensures the skip short-circuit continues to work without additional user code.
+### 4) Align with scenario-isolated state model
 
-### 5) Use the stable async wrapper helper path
+Fixtures are the replacement for cucumber's shared `World` object.
+
+- Use ordinary fixtures plus `&mut FixtureType` and `Slot<T>` to share mutable
+  state within a single scenario.
+- Use `#[once]` only for expensive, effectively read-only infrastructure (for
+  example, connection pools).
+- Recreate scenario data per scenario; do not depend on scenario execution
+  order.
+- Reserve `StepContext::insert_owned` for custom step-execution plumbing, not
+  normal macro-driven suites.
+
+### 5) Account for async runtime fallback rules
+
+If an async-only step executes inside a synchronous scenario, `rstest-bdd` runs
+that step via a per-step Tokio runtime fallback. Avoid creating additional
+runtimes in async scenarios; nested runtimes are guarded and will fail.
+
+### 6) Use the stable async wrapper helper path
 
 When explicit async wrappers are required around synchronous step functions,
 prefer the stable helper at `rstest_bdd::async_step::sync_to_async`.
@@ -123,10 +147,22 @@ fn my_async_wrapper<'ctx>(
 }
 ```
 
-This alias-based form keeps the fixture lifetime inferred in parameter
-position (`StepCtx<'ctx, '_>`), so explicit `'fixtures` naming is rarely
-required in end-user wrapper code. For broader examples, see
-[the user guide's async wrapper section](users-guide.md#manual-async-wrapper-pattern).
+This alias-based form keeps the fixture lifetime inferred in parameter position
+(`StepCtx<'ctx, '_>`), so explicit `'fixtures` naming is rarely required in
+end-user wrapper code.
+
+### 7) Fix new Scenario Outline diagnostics
+
+`v0.5.0` warns when Scenario Outline placeholders and `Examples` columns do not
+line up.
+
+- `example-column-missing`: a `<placeholder>` has no matching `Examples`
+  header.
+- `example-column-surplus`: an `Examples` header is not referenced by any
+  `<placeholder>`.
+
+Treat these warnings as migration clean-up tasks to prevent stale or misleading
+table data.
 
 ## Migration checklist
 
@@ -135,10 +171,15 @@ required in end-user wrapper code. For broader examples, see
   `StepResult` signatures.
 - [ ] Non-unit return values are moved into steps, fixtures, or
   `ScenarioState` slots when previously returned from scenario bodies.
+- [ ] Async-capable steps that previously relied on workaround patterns are
+  migrated to direct `async fn` handlers where appropriate.
+- [ ] Shared mutable cross-scenario state is replaced with fixture-based
+  scenario isolation, with `#[once]` limited to infrastructure.
 - [ ] Explicit sync-to-async wrappers import
   `rstest_bdd::async_step::sync_to_async`.
-- [ ] Documentation or internal templates describing scenario return types are
-  updated.
+- [ ] Scenario Outline placeholder/header mismatches are fixed after upgrading.
+- [ ] Documentation or internal templates describing scenario return types,
+  async steps, and state sharing are updated.
 
 ## Common errors and fixes
 
@@ -148,6 +189,12 @@ required in end-user wrapper code. For broader examples, see
 - **Error:** `no \`sync_to_async\` in the root` when importing from
   `rstest_bdd::sync_to_async`
   - **Fix:** Update imports to `rstest_bdd::async_step::sync_to_async`.
+- **Diagnostic:** `example-column-missing`
+  - **Fix:** Add the missing `Examples` column header or correct the
+    `<placeholder>` spelling in steps.
+- **Diagnostic:** `example-column-surplus`
+  - **Fix:** Remove unused `Examples` columns or reference them from step
+    placeholders.
 
 For migration issues not covered here, see
 [ADR-006](docs/adr-006-fallible-scenario-functions.md).[^adr]
