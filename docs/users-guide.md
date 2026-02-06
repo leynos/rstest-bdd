@@ -1051,6 +1051,74 @@ fn end_stream() {
 }
 ```
 
+### Manual async wrapper pattern
+
+Most step code does not need to name the fixture lifetime directly. When an
+explicit async wrapper is written around a synchronous `StepFn`, prefer
+`rstest_bdd::async_step::sync_to_async` and keep the context argument as
+`StepContext<'_>`:
+
+This pattern is useful when a codebase already has synchronous handlers that
+must run in an async-only path, such as custom registries, reusable step helper
+layers, or adapter crates that expose async execution.
+
+The resulting wrapper can be wired into normal step execution points, including
+`run_async` in custom `Step` registrations or explicit step-macro functions
+that delegate to shared handlers. Existing `StepFn` implementations remain
+reusable without rewriting their business logic.
+
+```rust,no_run
+use rstest_bdd::async_step::sync_to_async;
+use rstest_bdd::{StepContext, StepError, StepExecution, StepFuture};
+
+fn sync_step(
+    _ctx: &mut StepContext<'_>,
+    _text: &str,
+    _docstring: Option<&str>,
+    _table: Option<&[&[&str]]>,
+) -> Result<StepExecution, StepError> {
+    Ok(StepExecution::from_value(None))
+}
+
+fn async_wrapper<'ctx>(
+    ctx: &'ctx mut StepContext<'_>,
+    text: &'ctx str,
+    docstring: Option<&'ctx str>,
+    table: Option<&'ctx [&'ctx [&'ctx str]]>,
+) -> StepFuture<'ctx> {
+    sync_to_async(sync_step)(ctx, text, docstring, table)
+}
+```
+
+For shorter signatures, use the exported aliases: `StepCtx<'ctx, '_>`,
+`StepTextRef<'ctx>`, `StepDoc<'ctx>`, and `StepTable<'ctx>`.
+
+```rust,no_run
+use rstest_bdd::async_step::sync_to_async;
+use rstest_bdd::{
+    StepContext, StepCtx, StepDoc, StepError, StepExecution, StepFuture,
+    StepTable, StepTextRef,
+};
+
+fn sync_step(
+    _ctx: &mut StepContext<'_>,
+    _text: &str,
+    _docstring: Option<&str>,
+    _table: Option<&[&[&str]]>,
+) -> Result<StepExecution, StepError> {
+    Ok(StepExecution::from_value(None))
+}
+
+fn async_wrapper_with_aliases<'ctx>(
+    ctx: StepCtx<'ctx, '_>,
+    text: StepTextRef<'ctx>,
+    docstring: StepDoc<'ctx>,
+    table: StepTable<'ctx>,
+) -> StepFuture<'ctx> {
+    sync_to_async(sync_step)(ctx, text, docstring, table)
+}
+```
+
 ### Current limitations
 
 - **Tokio current-thread mode only:** Multi-threaded Tokio mode would require

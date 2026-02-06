@@ -219,6 +219,53 @@ Implicit fixtures such as `basket` must already be in scope in the test module;
 - Prefer readable step text first; compile‑time checks ensure you don't forget
   an implementation.
 
+### Manual async wrappers for sync steps
+
+When an explicit async wrapper is required around an existing synchronous step
+handler, use `rstest_bdd::async_step::sync_to_async`. In parameter positions,
+`StepContext<'_>` lets Rust infer the fixture lifetime, leaving only the borrow
+lifetime to name:
+
+```rust,no_run
+use rstest_bdd::async_step::sync_to_async;
+use rstest_bdd::{StepContext, StepError, StepExecution, StepFuture};
+
+fn sync_step(
+    _ctx: &mut StepContext<'_>,
+    _text: &str,
+    _docstring: Option<&str>,
+    _table: Option<&[&[&str]]>,
+) -> Result<StepExecution, StepError> {
+    Ok(StepExecution::from_value(None))
+}
+
+fn async_wrapper<'ctx>(
+    ctx: &'ctx mut StepContext<'_>,
+    text: &'ctx str,
+    docstring: Option<&'ctx str>,
+    table: Option<&'ctx [&'ctx [&'ctx str]]>,
+) -> StepFuture<'ctx> {
+    sync_to_async(sync_step)(ctx, text, docstring, table)
+}
+```
+
+`rstest_bdd` also exports compact aliases (`StepCtx`, `StepTextRef`, `StepDoc`,
+`StepTable`) for these wrapper signatures.
+
+```rust,no_run
+use rstest_bdd::async_step::sync_to_async;
+use rstest_bdd::{StepCtx, StepDoc, StepFuture, StepTable, StepTextRef};
+
+fn async_wrapper_with_aliases<'ctx>(
+    ctx: StepCtx<'ctx, '_>,
+    text: StepTextRef<'ctx>,
+    docstring: StepDoc<'ctx>,
+    table: StepTable<'ctx>,
+) -> StepFuture<'ctx> {
+    sync_to_async(sync_step)(ctx, text, docstring, table)
+}
+```
+
 ### cucumber-rs migration
 
 For easier migration from cucumber-rs, step macros also accept the

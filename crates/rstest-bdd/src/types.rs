@@ -319,12 +319,62 @@ pub type StepFuture<'a> =
 /// macro-generated wrapper code. Sync step definitions are wrapped in
 /// immediately-ready futures when async mode is enabled, allowing mixed sync
 /// and async steps within a single scenario.
+///
+/// Most user code does not need to name this type directly. Prefer:
+///
+/// - `StepContext<'_>` in parameter positions so `'fixtures` is inferred.
+/// - [`crate::async_step::sync_to_async`] for explicit sync-to-async wrappers.
+/// - [`StepCtx`], [`StepTextRef`], [`StepDoc`], and [`StepTable`] for concise
+///   explicit signatures.
+///
+/// # Examples
+///
+/// ```rust
+/// use rstest_bdd::async_step::sync_to_async;
+/// use rstest_bdd::{StepContext, StepError, StepExecution, StepFuture};
+///
+/// fn my_sync_step(
+///     _ctx: &mut StepContext<'_>,
+///     _text: &str,
+///     _docstring: Option<&str>,
+///     _table: Option<&[&[&str]]>,
+/// ) -> Result<StepExecution, StepError> {
+///     Ok(StepExecution::from_value(None))
+/// }
+///
+/// fn my_async_step<'ctx>(
+///     ctx: &'ctx mut StepContext<'_>,
+///     text: &'ctx str,
+///     docstring: Option<&'ctx str>,
+///     table: Option<&'ctx [&'ctx [&'ctx str]]>,
+/// ) -> StepFuture<'ctx> {
+///     sync_to_async(my_sync_step)(ctx, text, docstring, table)
+/// }
+/// ```
 pub type AsyncStepFn = for<'ctx, 'fixtures> fn(
     &'ctx mut crate::context::StepContext<'fixtures>,
     &'ctx str,
     Option<&'ctx str>,
     Option<&'ctx [&'ctx [&'ctx str]]>,
 ) -> StepFuture<'ctx>;
+
+/// Alias for the borrowed step context argument in async wrapper signatures.
+///
+/// This preserves the crate's two-lifetime model while shortening explicit
+/// wrapper signatures in user code.
+pub type StepCtx<'ctx, 'fixtures> = &'ctx mut crate::context::StepContext<'fixtures>;
+
+/// Alias for the step text argument in async wrapper signatures.
+///
+/// This alias is named `StepTextRef` to avoid colliding with [`StepText`], the
+/// owned step-text wrapper type used by lookup APIs.
+pub type StepTextRef<'ctx> = &'ctx str;
+
+/// Alias for the optional step docstring argument in async wrapper signatures.
+pub type StepDoc<'ctx> = Option<&'ctx str>;
+
+/// Alias for the optional step table argument in async wrapper signatures.
+pub type StepTable<'ctx> = Option<&'ctx [&'ctx [&'ctx str]]>;
 
 #[cfg(test)]
 mod tests;

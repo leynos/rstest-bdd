@@ -1,8 +1,11 @@
 //! Fixture seeding reporting diagnostics for snapshot-based integration tests.
 
 use rstest_bdd as bdd;
-use rstest_bdd::test_support::sync_to_async;
-use rstest_bdd::{step, StepContext, StepExecution, StepFuture, StepKeyword};
+use rstest_bdd::async_step::sync_to_async;
+use rstest_bdd::{
+    StepContext, StepCtx, StepDoc, StepExecution, StepFuture, StepKeyword, StepTable,
+    StepTextRef, step,
+};
 use serial_test::serial;
 
 step!(
@@ -34,10 +37,10 @@ fn bypassed_step(
 }
 
 fn bypassed_step_async<'ctx>(
-    ctx: &'ctx mut StepContext<'_>,
-    text: &'ctx str,
-    docstring: Option<&'ctx str>,
-    table: Option<&'ctx [&'ctx [&'ctx str]]>,
+    ctx: StepCtx<'ctx, '_>,
+    text: StepTextRef<'ctx>,
+    docstring: StepDoc<'ctx>,
+    table: StepTable<'ctx>,
 ) -> StepFuture<'ctx> {
     sync_to_async(bypassed_step)(ctx, text, docstring, table)
 }
@@ -56,10 +59,10 @@ fn forced_bypass(
 }
 
 fn forced_bypass_async<'ctx>(
-    ctx: &'ctx mut StepContext<'_>,
-    text: &'ctx str,
-    docstring: Option<&'ctx str>,
-    table: Option<&'ctx [&'ctx [&'ctx str]]>,
+    ctx: StepCtx<'ctx, '_>,
+    text: StepTextRef<'ctx>,
+    docstring: StepDoc<'ctx>,
+    table: StepTable<'ctx>,
 ) -> StepFuture<'ctx> {
     sync_to_async(forced_bypass)(ctx, text, docstring, table)
 }
