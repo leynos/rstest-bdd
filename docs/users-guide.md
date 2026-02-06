@@ -534,9 +534,9 @@ Teams coming from cucumber-rs often ask where the shared `World` lives in
 isolation is the default.
 
 Each `#[scenario]` expansion produces an ordinary Rust test. `rstest` builds
-fresh fixture values for each test invocation, unless you opt into a different
-lifetime such as `#[once]`. `StepContext` is also created per scenario run, so
-state mutated in one scenario is not automatically visible in another.
+fresh fixture values for each test invocation, unless a different lifetime is
+opted into, such as `#[once]`. `StepContext` is also created per scenario run,
+so state mutated in one scenario is not automatically visible in another.
 
 This design keeps scenarios independent, allows parallel execution, and avoids
 order-dependent failures.
@@ -549,8 +549,8 @@ order-dependent failures.
 - **Across scenarios:** share infrastructure (for example a database pool) and
   recreate scenario data from that infrastructure in each scenario.
 - **Opt-in global sharing:** use `#[once]` fixtures only for expensive,
-  effectively read-only resources; avoid mutable process-global state unless
-  you accept coupling and ordering hazards.
+  effectively read-only resources; mutable process-global state introduces
+  coupling and ordering hazards.
 
 ### Worked example: user management with a shared pool
 
