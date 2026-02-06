@@ -92,7 +92,7 @@ still return `Ok(())` so signatures stay type-correct.
 
 ### 4) Align with scenario-isolated state model
 
-Fixtures are the replacement for cucumber's shared `World` object.
+Fixtures are the replacement for Cucumber's shared `World` object.
 
 - Use ordinary fixtures plus `&mut FixtureType` and `Slot<T>` to share mutable
   state within a single scenario.
