@@ -12,8 +12,6 @@ This guide highlights the significant behaviour changes between `v0.4.0` and
   default, with `#[once]` as an opt-in for shared infrastructure.
 - Async-only steps under synchronous scenarios use a per-step Tokio fallback;
   nested runtime execution is guarded.
-- Scenario Outline diagnostics now report missing and surplus `Examples`
-  columns.
 - Manual async wrappers for sync steps should use
   `rstest_bdd::async_step::sync_to_async`; concise signature aliases are
   available for wrapper parameters.
@@ -32,8 +30,6 @@ Projects are affected if any of the following are true:
   cucumber-style global `World`).
 - The project maintains explicit async wrapper functions for synchronous step
   handlers.
-- Scenario Outlines rely on placeholders and `Examples` tables that may contain
-  typos, unused columns, or mismatched headers.
 
 ## Required changes
 
@@ -151,19 +147,6 @@ This alias-based form keeps the fixture lifetime inferred in parameter position
 (`StepCtx<'ctx, '_>`), so explicit `'fixtures` naming is rarely required in
 end-user wrapper code.
 
-### 7) Fix new Scenario Outline diagnostics
-
-`v0.5.0` warns when Scenario Outline placeholders and `Examples` columns do not
-line up.
-
-- `example-column-missing`: a `<placeholder>` has no matching `Examples`
-  header.
-- `example-column-surplus`: an `Examples` header is not referenced by any
-  `<placeholder>`.
-
-Treat these warnings as migration clean-up tasks to prevent stale or misleading
-table data.
-
 ## Migration checklist
 
 - [ ] Every `#[scenario]` returns `()` or `Result<(), E>`/`StepResult<(), E>`.
@@ -177,7 +160,6 @@ table data.
   scenario isolation, with `#[once]` limited to infrastructure.
 - [ ] Explicit sync-to-async wrappers import
   `rstest_bdd::async_step::sync_to_async`.
-- [ ] Scenario Outline placeholder/header mismatches are fixed after upgrading.
 - [ ] Documentation or internal templates describing scenario return types,
   async steps, and state sharing are updated.
 
@@ -189,12 +171,6 @@ table data.
 - **Error:** `no \`sync_to_async\` in the root` when importing from
   `rstest_bdd::sync_to_async`
   - **Fix:** Update imports to `rstest_bdd::async_step::sync_to_async`.
-- **Diagnostic:** `example-column-missing`
-  - **Fix:** Add the missing `Examples` column header or correct the
-    `<placeholder>` spelling in steps.
-- **Diagnostic:** `example-column-surplus`
-  - **Fix:** Remove unused `Examples` columns or reference them from step
-    placeholders.
 
 For migration issues not covered here, see
 [ADR-006](docs/adr-006-fallible-scenario-functions.md).[^adr]
