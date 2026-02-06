@@ -527,6 +527,179 @@ registers an empty pattern instead of inferring one.
 > - Consecutive underscores become multiple spaces.
 > - Letter case is preserved.
 
+## State management across scenarios
+
+Teams coming from cucumber-rs often ask where the shared `World` lives in
+`rstest-bdd`. The short answer is: **fixtures are the world**, and scenario
+isolation is the default.
+
+Each `#[scenario]` expansion produces an ordinary Rust test. `rstest` builds
+fresh fixture values for each test invocation, unless a different lifetime is
+opted into, such as `#[once]`. `StepContext` is also created per scenario run,
+so state mutated in one scenario is not automatically visible in another.
+
+This design keeps scenarios independent, allows parallel execution, and avoids
+order-dependent failures.
+
+### Isolation defaults and what can be shared
+
+- **Default behaviour:** every scenario receives fresh fixture instances.
+- **Within one scenario:** use `&mut Fixture` or `Slot<T>` to share mutable
+  state across steps.
+- **Across scenarios:** share infrastructure (for example a database pool) and
+  recreate scenario data from that infrastructure in each scenario.
+- **Opt-in global sharing:** use `#[once]` fixtures only for expensive,
+  effectively read-only resources; mutable process-global state introduces
+  coupling and ordering hazards.
+
+### Worked example: user management with a shared pool
+
+The feature below reflects a common migration request. The second scenario does
+not rely on step side effects from the first scenario; it states its own setup.
+
+```gherkin
+Feature: User management
+
+  Scenario: Create user
+    Given a database connection
+    When user "alice" is created
+    Then user "alice" exists
+
+  Scenario: Update user
+    Given a database connection
+    And user "alice" exists
+    When user "alice" is updated
+    Then the update succeeds
+```
+
+```rust,no_run
+use rstest::fixture;
+use rstest_bdd_macros::{given, scenario, then, when};
+use std::sync::OnceLock;
+
+struct DbPool;
+struct ScenarioDb;
+
+impl DbPool {
+    fn connect() -> Self { Self }
+    fn begin_scenario(&'static self) -> ScenarioDb { ScenarioDb }
+}
+
+impl ScenarioDb {
+    fn create_user(&mut self, _name: &str) {}
+    fn ensure_user(&mut self, _name: &str) {}
+    fn update_user(&mut self, _name: &str) {}
+    fn has_user(&self, _name: &str) -> bool { true }
+    fn last_update_succeeded(&self) -> bool { true }
+}
+
+#[fixture]
+#[once]
+fn db_pool() -> &'static DbPool {
+    static POOL: OnceLock<DbPool> = OnceLock::new();
+    POOL.get_or_init(DbPool::connect)
+}
+
+#[fixture]
+fn scenario_db(db_pool: &'static DbPool) -> ScenarioDb {
+    db_pool.begin_scenario()
+}
+
+#[given("a database connection")]
+fn database_connection(_scenario_db: &ScenarioDb) {}
+
+#[given("user {name} exists")]
+fn user_exists(scenario_db: &mut ScenarioDb, name: String) {
+    scenario_db.ensure_user(&name);
+}
+
+#[when("user {name} is created")]
+fn create_user(scenario_db: &mut ScenarioDb, name: String) {
+    scenario_db.create_user(&name);
+}
+
+#[when("user {name} is updated")]
+fn update_user(scenario_db: &mut ScenarioDb, name: String) {
+    scenario_db.update_user(&name);
+}
+
+#[then("user {name} exists")]
+fn assert_user_exists(scenario_db: &ScenarioDb, name: String) {
+    assert!(scenario_db.has_user(&name));
+}
+
+#[then("the update succeeds")]
+fn assert_update_succeeds(scenario_db: &ScenarioDb) {
+    assert!(scenario_db.last_update_succeeded());
+}
+
+#[scenario(path = "tests/features/user_management.feature", name = "Create user")]
+fn create_user_scenario(scenario_db: ScenarioDb) {
+    let _ = scenario_db;
+}
+
+#[scenario(path = "tests/features/user_management.feature", name = "Update user")]
+fn update_user_scenario(scenario_db: ScenarioDb) {
+    let _ = scenario_db;
+}
+```
+
+In this pattern:
+
+- `db_pool` is shared across scenarios (`#[once]`).
+- `scenario_db` is recreated per scenario (isolation boundary).
+- `Given a database connection` binds the scenario-scoped `scenario_db`
+  fixture; the shared `db_pool` remains an infrastructure dependency.
+- The update scenario declares its own precondition (`user {name} exists`)
+  rather than depending on `Create user` running first.
+
+### `StepContext::insert_owned` and manual mutable sharing
+
+Most suites should not call `StepContext::insert_owned` directly. The generated
+`#[scenario]` glue already inserts fixtures for the scenario function and
+supports `&mut Fixture` step parameters.
+
+`StepContext::owned_cell` creates the type-erased mutable storage required by
+`insert_owned`.
+
+Use `insert_owned` only when building custom step-execution plumbing
+outside the usual macros and registering a mutable fixture manually:
+
+```rust,no_run
+use rstest_bdd::StepContext;
+
+#[derive(Default)]
+struct World {
+    count: usize,
+}
+
+let mut ctx = StepContext::default();
+let world = StepContext::owned_cell(World::default());
+ctx.insert_owned::<World>("world", &world);
+```
+
+### Migration notes for cucumber-rs users
+
+For migrations from a cucumber `World`, map the concepts as follows:
+
+- **`World` struct:** use one or more `rstest` fixtures.
+- **Mutable world during a scenario:** use `&mut FixtureType` in step
+  signatures.
+- **Optional/intermediate values:** use `Slot<T>` fields in a
+  `#[derive(ScenarioState)]` fixture.
+- **Global expensive setup:** use a narrowly scoped `#[once]` fixture returning
+  shared infrastructure, then derive scenario-local state from it.
+
+### Antipatterns to avoid
+
+- Depending on scenario execution order (for example "Scenario B uses data from
+  Scenario A") because test ordering is not guaranteed.
+- Putting all mutable test data in a process-global static and mutating it from
+  multiple scenarios.
+- Using `#[once]` for resources that require deterministic teardown in `Drop`.
+- Reusing one giant fixture for unrelated concerns instead of composing smaller
+  fixtures.
+
 ## Binding tests to scenarios
 
 The `#[scenario]` macro is the entry point that ties a Rust test function to a
