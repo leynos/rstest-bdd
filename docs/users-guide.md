@@ -1051,6 +1051,38 @@ fn end_stream() {
 }
 ```
 
+The sequence below shows how synchronous scenarios execute async-only steps
+through the Tokio fallback runtime.
+
+```mermaid
+sequenceDiagram
+    actor Tester
+    participant TestRunner
+    participant ScenarioSync
+    participant StepAsync
+    participant TokioFallbackRuntime
+
+    Tester->>TestRunner: run_tests()
+    TestRunner->>ScenarioSync: invoke_scenario()
+
+    ScenarioSync->>ScenarioSync: execute_sync_steps()
+    ScenarioSync->>ScenarioSync: encounter_async_only_step()
+    ScenarioSync->>TokioFallbackRuntime: create_runtime_if_needed()
+
+    TokioFallbackRuntime->>StepAsync: run_step_async()
+    StepAsync-->>TokioFallbackRuntime: await_completion()
+    TokioFallbackRuntime-->>ScenarioSync: step_result()
+
+    ScenarioSync->>TokioFallbackRuntime: drop_runtime()
+    ScenarioSync-->>TestRunner: scenario_result()
+    TestRunner-->>Tester: report_result()
+
+    Note over ScenarioSync,TokioFallbackRuntime: Nested runtimes in async scenarios are guarded and will fail
+```
+
+*Figure: Per-step Tokio fallback flow when a synchronous scenario reaches an
+async-only step.*
+
 ### Manual async wrapper pattern
 
 Most step code does not need to name the fixture lifetime directly. When an
