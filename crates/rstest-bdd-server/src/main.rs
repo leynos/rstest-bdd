@@ -5,6 +5,7 @@
 //! testing framework. It communicates via JSON-RPC over stdin/stdout.
 
 use std::ops::ControlFlow;
+use std::path::PathBuf;
 
 use async_lsp::concurrency::ConcurrencyLayer;
 use async_lsp::panic::CatchUnwindLayer;
@@ -32,6 +33,17 @@ struct Args {
     /// Log level (trace, debug, info, warn, error).
     #[arg(long)]
     log_level: Option<LogLevel>,
+
+    /// Debounce interval in milliseconds for file change events.
+    #[arg(long)]
+    debounce_ms: Option<u64>,
+
+    /// Override workspace root path for discovery.
+    ///
+    /// When provided, this path is used instead of the LSP client's
+    /// root URI or workspace folders for workspace discovery.
+    #[arg(long)]
+    workspace_root: Option<PathBuf>,
 }
 
 fn main() {
@@ -70,7 +82,11 @@ fn run_server(config: ServerConfig) -> std::io::Result<()> {
 
 fn build_config(args: &Args) -> Result<ServerConfig, ServerError> {
     let config = ServerConfig::from_env()?;
-    Ok(config.apply_overrides(args.log_level, None))
+    Ok(config.apply_overrides(
+        args.log_level,
+        args.debounce_ms,
+        args.workspace_root.clone(),
+    ))
 }
 
 /// Asynchronously run the language server main loop.

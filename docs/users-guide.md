@@ -1712,16 +1712,37 @@ The binary `rstest-bdd-lsp` is placed in the Cargo bin directory.
 
 The server reads configuration from environment variables:
 
-| Variable                     | Description                                         | Default |
-| ---------------------------- | --------------------------------------------------- | ------- |
-| `RSTEST_BDD_LSP_LOG_LEVEL`   | Logging verbosity (trace, debug, info, warn, error) | `info`  |
-| `RSTEST_BDD_LSP_DEBOUNCE_MS` | Delay (ms) before processing file changes           | `300`   |
+| Variable                        | Description                                         | Default |
+| ------------------------------- | --------------------------------------------------- | ------- |
+| `RSTEST_BDD_LSP_LOG_LEVEL`      | Logging verbosity (trace, debug, info, warn, error) | `info`  |
+| `RSTEST_BDD_LSP_DEBOUNCE_MS`    | Delay (ms) before processing file changes           | `300`   |
+| `RSTEST_BDD_LSP_WORKSPACE_ROOT` | Override workspace root path for discovery          | (auto)  |
 
 Example:
 
 ```bash
 RSTEST_BDD_LSP_LOG_LEVEL=debug rstest-bdd-lsp
 ```
+
+### Command-line options
+
+The server also accepts command-line flags that override environment variables:
+
+```bash
+rstest-bdd-lsp --log-level debug --debounce-ms 100 --workspace-root /path/to/project
+```
+
+| Flag               | Description                                            | Default |
+| ------------------ | ------------------------------------------------------ | ------- |
+| `--log-level`      | Logging verbosity (trace, debug, info, warn, error)    | `info`  |
+| `--debounce-ms`    | Delay (ms) before processing file changes              | `300`   |
+| `--workspace-root` | Override workspace root path; bypasses LSP client root | (auto)  |
+
+Configuration precedence: Default → Environment variables → CLI flags.
+
+The `--workspace-root` flag overrides the LSP client's root URI and workspace
+folders for workspace discovery. This is useful when the editor sends incorrect
+paths or during headless or scripted testing scenarios.
 
 ### Editor integration
 
@@ -1761,6 +1782,31 @@ end
 
 lspconfig.rstest_bdd.setup({})
 ```
+
+#### Zed
+
+Zed uses its extension system to register language servers. Configure the
+binary via Zed's `settings.json`:
+
+```json
+{
+  "lsp": {
+    "rstest-bdd-lsp": {
+      "binary": {
+        "path": "rstest-bdd-lsp",
+        "arguments": ["--log-level", "info"]
+      }
+    }
+  },
+  "languages": {
+    "Rust": {
+      "language_servers": ["rust-analyzer", "rstest-bdd-lsp", "..."]
+    }
+  }
+}
+```
+
+Diagnostics and navigation require saving files to trigger indexing.
 
 ### Current capabilities
 

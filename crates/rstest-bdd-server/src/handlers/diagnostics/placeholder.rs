@@ -26,10 +26,11 @@ use super::{CODE_PLACEHOLDER_COUNT_MISMATCH, DIAGNOSTIC_SOURCE};
 /// # Example
 ///
 /// ```no_run
+/// use rstest_bdd_server::config::ServerConfig;
 /// use rstest_bdd_server::server::ServerState;
 /// use std::path::Path;
 ///
-/// let state = ServerState::default();
+/// let state = ServerState::new(ServerConfig::default());
 /// let rust_path = Path::new("steps.rs");
 ///
 /// let diagnostics = rstest_bdd_server::handlers::compute_signature_mismatch_diagnostics(

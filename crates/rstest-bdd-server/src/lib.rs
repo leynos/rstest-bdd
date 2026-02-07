@@ -19,6 +19,8 @@
 //! - `RSTEST_BDD_LSP_LOG_LEVEL`: Log verbosity (trace, debug, info, warn,
 //!   error)
 //! - `RSTEST_BDD_LSP_DEBOUNCE_MS`: Delay before processing file changes
+//! - `RSTEST_BDD_LSP_WORKSPACE_ROOT`: Override workspace root path for
+//!   discovery
 //!
 //! # Example
 //!
