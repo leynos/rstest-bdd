@@ -114,7 +114,8 @@ fn resolve_fixture_name(pat_ty: &syn::PatType) -> syn::Result<String> {
         return Ok(last.ident.to_string());
     }
     if let syn::Pat::Ident(id) = &*pat_ty.pat {
-        return Ok(id.ident.to_string());
+        let ident_str = id.ident.to_string();
+        return Ok(crate::utils::pattern::normalize_param_name(&ident_str).to_owned());
     }
     Err(syn::Error::new_spanned(
         &pat_ty.pat,
@@ -165,5 +166,55 @@ mod tests {
             !prelude_str.contains("__rstest_bdd_cell__"),
             "cell identifier should not embed the raw underscore binding"
         );
+    }
+
+    #[test]
+    #[expect(
+        clippy::expect_used,
+        reason = "test asserts fixture name normalization"
+    )]
+    fn resolve_fixture_name_normalizes_underscore_prefix() {
+        let pat_ty: syn::PatType = parse_quote! { _world: WorldFixture };
+        let name = resolve_fixture_name(&pat_ty).expect("fixture name resolution should succeed");
+        assert_eq!(name, "world", "leading underscore should be stripped");
+    }
+
+    #[test]
+    #[expect(
+        clippy::expect_used,
+        reason = "test asserts double underscore normalization"
+    )]
+    fn resolve_fixture_name_preserves_single_underscore_from_double() {
+        let pat_ty: syn::PatType = parse_quote! { __world: WorldFixture };
+        let name = resolve_fixture_name(&pat_ty).expect("fixture name resolution should succeed");
+        assert_eq!(
+            name, "_world",
+            "double underscore should become single underscore"
+        );
+    }
+
+    #[test]
+    #[expect(
+        clippy::expect_used,
+        reason = "test asserts from attribute takes precedence"
+    )]
+    fn resolve_fixture_name_from_attr_unchanged() {
+        let sig: syn::Signature = parse_quote! { fn test(#[from(state)] _world: WorldFixture) };
+        let syn::FnArg::Typed(pat_ty) = sig.inputs.first().expect("signature has one arg") else {
+            panic!("expected typed argument");
+        };
+        let name = resolve_fixture_name(pat_ty).expect("fixture name resolution should succeed");
+        assert_eq!(name, "state", "#[from] attribute should take precedence");
+    }
+
+    #[test]
+    #[expect(
+        clippy::expect_used,
+        reason = "test asserts non-underscore names unchanged"
+    )]
+    fn resolve_fixture_name_preserves_non_underscore() {
+        let pat_ty: syn::PatType = parse_quote! { world: WorldFixture };
+        let name = resolve_fixture_name(&pat_ty).expect("fixture name resolution should succeed");
+        assert_eq!(name, "world", "non-underscore name should be unchanged");
     }
 }

@@ -5,9 +5,9 @@
 ### Added (Unreleased)
 
 - Added `ExecutionError` enum for structured step execution failures, replacing
-  string-encoded skip messages with proper error variants: `Skip`, `StepNotFound`,
-  `MissingFixtures`, and `HandlerFailed`. Both `ExecutionError` and
-  `MissingFixturesDetails` are publicly re-exported from the crate root.
+  string-encoded skip messages with proper error variants: `Skip`,
+  `StepNotFound`, `MissingFixtures`, and `HandlerFailed`. Both `ExecutionError`
+  and `MissingFixturesDetails` are publicly re-exported from the crate root.
 
   **Migration**: Import these types from the crate root rather than via the
   `execution` submodule:
@@ -42,8 +42,8 @@
 
 - Deprecated `encode_skip_message` and `decode_skip_message` functions in favour
   of `ExecutionError::Skip` variant. Use `ExecutionError::skip_message()` to
-  extract the optional skip message. These functions will be removed in a future
-  release.
+  extract the optional skip message. These functions will be removed in a
+  future release.
 
 ### Known issues
 

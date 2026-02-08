@@ -39,4 +39,4 @@ fn then_value_is(state: &TestState, expected: i32) {
 }
 
 #[scenario(path = "tests/features/underscore_param.feature")]
-fn underscore_param_scenario(#[from(state)] _state: TestState) {}
+fn underscore_param_scenario(_state: TestState) {}
