@@ -4,7 +4,7 @@ This ExecPlan is a living document. The sections `Constraints`, `Tolerances`,
 `Risks`, `Progress`, `Surprises & Discoveries`, `Decision Log`, and
 `Outcomes & Retrospective` must be kept up to date as work proceeds.
 
-Status: DRAFT
+Status: COMPLETE
 
 `PLANS.md` is not present in the repository at the time of writing, so this
 ExecPlan is the governing plan for this task.
@@ -83,20 +83,39 @@ roadmap entries `9.1.1`, `9.1.2`, and `9.1.3` are marked complete.
 
 - [x] (2026-02-07 00:00Z) Collected roadmap and ADR-005 requirements and
       drafted this ExecPlan.
-- [ ] Run baseline validation to confirm pre-change status.
-- [ ] Add `crates/rstest-bdd-harness` and wire workspace metadata.
-- [ ] Implement harness adapter trait, runner types, and `StdHarness`.
-- [ ] Implement attribute policy plugin trait and default rstest-only policy.
-- [ ] Add unit tests and behavioural tests for the new harness core.
-- [ ] Update design document and users guide with decided interfaces and usage.
-- [ ] Mark roadmap 9.1.1, 9.1.2, and 9.1.3 as done.
-- [ ] Run full quality gates and collect evidence logs.
+- [x] (2026-02-08 01:24Z) Ran baseline validation to confirm pre-change
+      status (`make test` logged in `/tmp/9-1-1-baseline-test.log`).
+- [x] (2026-02-08 01:39Z) Added `crates/rstest-bdd-harness` and wired
+      workspace membership and dependency metadata.
+- [x] (2026-02-08 01:53Z) Implemented harness adapter trait, shared runner
+      types, and synchronous `StdHarness`.
+- [x] (2026-02-08 01:58Z) Implemented attribute policy plug-in interface and
+      default rstest-only policy.
+- [x] (2026-02-08 02:04Z) Added unit tests and behavioural tests for harness
+      execution and policy output semantics.
+- [x] (2026-02-08 02:16Z) Updated design and user docs for the new interfaces.
+- [x] (2026-02-08 02:17Z) Marked roadmap entries `9.1.1`, `9.1.2`, and
+      `9.1.3` as done.
+- [x] (2026-02-08 02:30Z) Completed final quality gates:
+      `make check-fmt`, `make lint`, and `make test` all passed and were
+      captured in `/tmp/9-1-1-*.log`.
 
 ## Surprises & Discoveries
 
 - Observation: project-memory helper command `qdrant-find` is not available in
   this environment. Evidence: shell reported `qdrant-find: command not found`.
   Impact: planning relied on repository docs and ADR files directly.
+
+- Observation: `cargo test -p rstest-bdd` failed when forcing
+  `CARGO_TARGET_DIR=/tmp/9-1-1-target` because trybuild fixtures resolve test
+  files relative to the default `target` layout. Evidence:
+  `/tmp/9-1-1-runtime-tests.log` showed
+  `feature file not found: /tmp/9-1-1-target/tests/trybuild/...`. Impact: used
+  default target dir for authoritative gate runs.
+
+- Observation: Clippy raised `must_use_candidate` for runner methods in
+  `crates/rstest-bdd-harness/src/runner.rs`. Impact: added `#[must_use]`
+  annotations to `run` helpers to keep lint strict.
 
 ## Decision Log
 
@@ -110,14 +129,50 @@ roadmap entries `9.1.1`, `9.1.2`, and `9.1.3` are marked complete.
   tests validate runner execution semantics and policy emission outputs.
   Date/Author: 2026-02-07 / Codex
 
+- Decision: model attribute output as `TestAttribute { path, arguments }` with
+  a small renderer helper rather than using proc-macro token types. Rationale:
+  keeps `rstest-bdd-harness` free from proc-macro dependencies while still
+  allowing deterministic policy assertions in behavioural tests. Date/Author:
+  2026-02-08 / Codex
+
+- Decision: keep phase 9.1 integration additive by introducing the harness
+  crate without rewiring existing macro argument handling yet. Rationale:
+  satisfies roadmap scope and preserves current
+  `runtime = "tokio-current-thread"` behaviour for existing users. Date/Author:
+  2026-02-08 / Codex
+
 ## Outcomes & Retrospective
 
-Not started. This section must be updated at completion with:
+Shipped in this phase:
 
-- what shipped,
-- what was deferred,
-- which risks occurred,
-- and follow-up work feeding phase 9.2.
+- New crate `crates/rstest-bdd-harness` with `HarnessAdapter`,
+  `ScenarioMetadata`, `ScenarioRunner<T>`, `ScenarioRunRequest<T>`,
+  `StdHarness`, `AttributePolicy`, `TestAttribute`, and
+  `DefaultAttributePolicy`.
+- Unit and behavioural tests validating runner execution semantics and
+  rstest-only default attribute emission.
+- Documentation updates in `docs/rstest-bdd-design.md`,
+  `docs/users-guide.md`, `README.md`, and roadmap completion in
+  `docs/roadmap.md`.
+
+Deferred to phase 9.2+:
+
+- Macro-level harness/policy selection wiring in `#[scenario]` and
+  `scenarios!`.
+- Tokio/GPUI adapter crates and framework-specific policy crates.
+
+Risks encountered and outcomes:
+
+- Trybuild path coupling was triggered when using a custom `CARGO_TARGET_DIR`;
+  this was contained by keeping canonical gate runs on the default target dir.
+- No regressions were observed in workspace-wide `make test` gate results.
+
+Follow-up feeding phase 9.2:
+
+- Add macro argument parsing and codegen bridge to select harness and attribute
+  policies by path.
+- Introduce first-party Tokio/GPUI adapter crates as optional workspace
+  members.
 
 ## Context and orientation
 
@@ -325,5 +380,6 @@ Dependency constraints:
 ## Revision note
 
 Initial draft created from roadmap phase 9.1, ADR-005 harness decision, and
-current macro/runtime implementation state. Subsequent revisions must update
-`Progress`, `Decision Log`, and `Outcomes & Retrospective` together.
+current macro/runtime implementation state. Revised on 2026-02-08 after
+implementation to mark completion, record test evidence, and capture
+integration caveats for phase 9.2.

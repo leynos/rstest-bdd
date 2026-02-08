@@ -472,7 +472,7 @@ ______________________________________________________________________
 | State management | `rstest` fixtures                           | `World` struct                    |
 | Step discovery   | Compile‑time registration + runtime match   | Runner‑driven collection          |
 | Scenario Outline | Maps to `rstest` parametrisation            | Built into runner                 |
-| Async            | Runtime‑agnostic via features               | Built‑in with specified runtime   |
+| Async            | Runtime‑agnostic via harness adapters       | Built‑in with specified runtime   |
 | Philosophy       | BDD as an **extension** of `rstest`         | Rust port of classic Cucumber     |
 
 ______________________________________________________________________
@@ -481,6 +481,7 @@ ______________________________________________________________________
 
 ```text
 rstest-bdd/             # Runtime crate (re-exports macros for convenience)
+rstest-bdd-harness/     # Harness adapters and attribute policy interfaces
 rstest-bdd-macros/      # Procedural macro crate
 rstest-bdd-policy/      # Shared execution policy enums
 ```

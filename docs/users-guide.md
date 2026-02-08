@@ -1162,6 +1162,68 @@ fn async_wrapper_with_aliases<'ctx>(
   runtime is already active on the current thread.
 - **No `async_std` runtime:** Only Tokio is supported at present.
 
+## Harness adapter core APIs
+
+ADR-005 introduces a harness adapter layer so framework integrations can live
+in opt-in crates. Phase 9.1 ships the core contracts in `rstest-bdd-harness`.
+
+At this stage, `#[scenario]` and `scenarios!` still use the existing runtime
+configuration surface. Harness selection via macro arguments is planned for the
+next phase. The new crate is immediately useful for adapter authors building
+Tokio, GPUI, or other harness plug-ins.
+
+### Defining a harness adapter
+
+Use `HarnessAdapter` with `ScenarioRunRequest<T>` and `ScenarioRunner<T>` to
+execute one scenario closure inside your harness environment:
+
+```rust,no_run
+use rstest_bdd_harness::{
+    HarnessAdapter, ScenarioMetadata, ScenarioRunRequest, ScenarioRunner,
+};
+
+struct MyHarness;
+
+impl HarnessAdapter for MyHarness {
+    fn run<T>(request: ScenarioRunRequest<T>) -> T {
+        // Optional harness-specific setup using request.metadata().
+        request.run()
+    }
+}
+
+let request = ScenarioRunRequest::new(
+    ScenarioMetadata::new(
+        "tests/features/login.feature",
+        "Successful login",
+        12,
+        vec!["@smoke".to_string()],
+    ),
+    ScenarioRunner::new(|| "ok"),
+);
+
+assert_eq!(MyHarness::run(request), "ok");
+```
+
+The built-in `StdHarness` implements the same trait and runs the closure
+synchronously without an async runtime or UI harness.
+
+### Defining an attribute policy
+
+`AttributePolicy` supplies test attributes that macro expansion should apply.
+The default policy emits only `#[rstest::rstest]`:
+
+```rust,no_run
+use rstest_bdd_harness::{AttributePolicy, DefaultAttributePolicy};
+
+let attrs = DefaultAttributePolicy::test_attributes();
+assert_eq!(attrs.len(), 1);
+assert_eq!(attrs[0].render(), "#[rstest::rstest]");
+```
+
+Adapter crates can define custom policies with additional attributes, such as
+Tokio runtime options, while keeping those dependencies out of the core
+`rstest-bdd` crates.
+
 ## Running and maintaining tests
 
 Once feature files and step definitions are in place, scenarios run via the

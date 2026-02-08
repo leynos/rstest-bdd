@@ -456,10 +456,10 @@ opt-in crates rather than the core runtime or macros.
 
 ### 9.1. Harness adapter core
 
-- [ ] 9.1.1. Add `rstest-bdd-harness` with the harness adapter trait and shared
+- [x] 9.1.1. Add `rstest-bdd-harness` with the harness adapter trait and shared
   runner types.
-- [ ] 9.1.2. Provide `StdHarness` as the default synchronous implementation.
-- [ ] 9.1.3. Define the attribute policy plugin interface and a default policy
+- [x] 9.1.2. Provide `StdHarness` as the default synchronous implementation.
+- [x] 9.1.3. Define the attribute policy plugin interface and a default policy
   that emits only `#[rstest::rstest]`.
 
 ### 9.2. Macro integration
