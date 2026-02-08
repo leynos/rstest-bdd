@@ -303,7 +303,7 @@ mod tests {
         let config = ServerConfig::default().with_workspace_root(override_path.clone());
         let mut state = ServerState::new(config);
 
-        // Initialisation succeeds even though the override path does not
+        // Initialization succeeds even though the override path does not
         // exist — workspace discovery logs a warning but does not fail.
         let result = handle_initialise(&mut state, create_init_params);
         assert!(result.is_ok());

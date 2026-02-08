@@ -980,10 +980,10 @@ Diagnostics and navigation require saving files to trigger indexing.
 **Smoke tests:**
 
 End-to-end smoke tests verify the server binary by starting it as a child
-process, sending JSON-RPC messages (initialise, `didSave`, definition request),
+process, sending JSON-RPC messages (initialize, `didSave`, definition request),
 and asserting correct responses and diagnostics. Three smoke tests validate:
 
-1. Initialise/shutdown lifecycle with capability verification.
+1. Initialize/shutdown lifecycle with capability verification.
 2. Definition request returning correct feature file locations.
 3. Diagnostic publication for unimplemented feature steps.
 

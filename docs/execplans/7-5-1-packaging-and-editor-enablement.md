@@ -16,17 +16,18 @@ After this change, the `rstest-bdd-lsp` binary ships with three CLI options
 editors to configure the server without relying solely on environment
 variables. Editor integration is documented for VS Code, Neovim, and Zed.
 End-to-end smoke tests validate the full server stack by starting the binary,
-exchanging JSON-RPC messages, and asserting correct behaviour.
+exchanging JSON Remote Procedure Call (JSON-RPC) messages, and asserting
+correct behaviour.
 
 Observable outcomes:
 
 - Running `rstest-bdd-lsp --help` shows all three CLI flags with descriptions.
 - CLI flags override environment variable values (precedence: Default -> env
   var -> CLI flag).
-- The `--workspace-root` flag overrides the LSP client's root URI for workspace
-  discovery.
-- Three smoke tests pass in CI: initialise/shutdown, definition navigation, and
-  diagnostic publication.
+- The `--workspace-root` flag overrides the Language Server Protocol (LSP)
+  client's root Uniform Resource Identifier (URI) for workspace discovery.
+- Three smoke tests pass in continuous integration (CI):
+  initialize/shutdown, definition navigation, and diagnostic publication.
 - The design document and user guide contain VS Code, Neovim, and Zed editor
   integration examples.
 - The corresponding roadmap entries (7.5.1, 7.5.2) are marked complete.
@@ -100,7 +101,7 @@ Known uncertainties that might affect the plan:
   - [x] Add unit test for config workspace root override
 
 - [x] Stage D: Smoke tests
-  - [x] Create `tests/smoke_lsp.rs` with JSON-RPC wire helpers
+  - [x] Create `tests/smoke_lsp/` with JSON-RPC wire helpers
   - [x] Implement `smoke_initialise_and_shutdown` test
   - [x] Implement `smoke_definition_request_returns_locations` test
   - [x] Implement `smoke_diagnostics_published_for_unimplemented_step` test
@@ -199,7 +200,8 @@ This feature completes Phase 7.5 of the roadmap — the final step in the
   overrides)
 - `crates/rstest-bdd-server/src/handlers/lifecycle.rs`: Initialize handler
   using workspace root
-- `crates/rstest-bdd-server/tests/smoke_lsp.rs`: End-to-end smoke tests
+- `crates/rstest-bdd-server/tests/smoke_lsp/main.rs`: End-to-end smoke tests
+- `crates/rstest-bdd-server/tests/smoke_lsp/wire.rs`: JSON-RPC wire helpers
 - `docs/rstest-bdd-language-server-design.md`: Design document
 - `docs/users-guide.md`: User guide
 - `docs/roadmap.md`: Project roadmap
@@ -225,7 +227,7 @@ Replace the workspace path extraction with a chain that prefers
 ### Stage D: Smoke tests (~300 lines)
 
 Create `tests/smoke_lsp.rs` with JSON-RPC wire helpers and three tests:
-initialise/shutdown, definition request, diagnostic publication.
+initialize/shutdown, definition request, diagnostic publication.
 
 ### Stage E: Documentation (~110 lines across 3 files)
 
@@ -273,7 +275,8 @@ Acceptance behaviour:
 1. Run `rstest-bdd-lsp --help` and see all three flags.
 2. Run `rstest-bdd-lsp --debounce-ms 0 --log-level trace` and verify
    trace-level output.
-3. Run `cargo test -p rstest-bdd-server --test smoke_lsp` and see 3/3 pass.
+3. Run `cargo nextest run -p rstest-bdd-server -E 'test(smoke_)'` and see
+   3/3 pass.
 
 ## Idempotence and Recovery
 
@@ -299,7 +302,8 @@ Files modified:
 
 Files created:
 
-- `crates/rstest-bdd-server/tests/smoke_lsp.rs`
+- `crates/rstest-bdd-server/tests/smoke_lsp/main.rs`
+- `crates/rstest-bdd-server/tests/smoke_lsp/wire.rs`
 - `docs/execplans/7-5-1-packaging-and-editor-enablement.md`
 
 Files updated (docs):
