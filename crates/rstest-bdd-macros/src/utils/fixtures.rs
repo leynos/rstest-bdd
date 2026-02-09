@@ -140,6 +140,7 @@ fn find_from_attr(attrs: &[syn::Attribute]) -> syn::Result<Option<syn::Path>> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use rstest::rstest;
     use syn::parse_quote;
 
     #[test]
@@ -168,29 +169,19 @@ mod tests {
         );
     }
 
-    #[test]
-    #[expect(
-        clippy::expect_used,
-        reason = "test asserts fixture name normalization"
-    )]
-    fn resolve_fixture_name_normalizes_underscore_prefix() {
-        let pat_ty: syn::PatType = parse_quote! { _world: WorldFixture };
+    #[rstest]
+    #[case("_world", "world")]
+    #[case("__world", "_world")]
+    #[case("world", "world")]
+    fn resolve_fixture_name_normalizes_param(#[case] input: &str, #[case] expected: &str) {
+        let ident = syn::Ident::new(input, proc_macro2::Span::call_site());
+        let pat_ty: syn::PatType = parse_quote! { #ident: WorldFixture };
+        #[expect(
+            clippy::expect_used,
+            reason = "test asserts fixture name normalization"
+        )]
         let name = resolve_fixture_name(&pat_ty).expect("fixture name resolution should succeed");
-        assert_eq!(name, "world", "leading underscore should be stripped");
-    }
-
-    #[test]
-    #[expect(
-        clippy::expect_used,
-        reason = "test asserts double underscore normalization"
-    )]
-    fn resolve_fixture_name_preserves_single_underscore_from_double() {
-        let pat_ty: syn::PatType = parse_quote! { __world: WorldFixture };
-        let name = resolve_fixture_name(&pat_ty).expect("fixture name resolution should succeed");
-        assert_eq!(
-            name, "_world",
-            "double underscore should become single underscore"
-        );
+        assert_eq!(name, expected);
     }
 
     #[test]
@@ -205,16 +196,5 @@ mod tests {
         };
         let name = resolve_fixture_name(pat_ty).expect("fixture name resolution should succeed");
         assert_eq!(name, "state", "#[from] attribute should take precedence");
-    }
-
-    #[test]
-    #[expect(
-        clippy::expect_used,
-        reason = "test asserts non-underscore names unchanged"
-    )]
-    fn resolve_fixture_name_preserves_non_underscore() {
-        let pat_ty: syn::PatType = parse_quote! { world: WorldFixture };
-        let name = resolve_fixture_name(&pat_ty).expect("fixture name resolution should succeed");
-        assert_eq!(name, "world", "non-underscore name should be unchanged");
     }
 }
