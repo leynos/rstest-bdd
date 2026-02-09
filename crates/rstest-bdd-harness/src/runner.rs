@@ -68,7 +68,7 @@ impl ScenarioMetadata {
 
 impl Default for ScenarioMetadata {
     fn default() -> Self {
-        Self::new("<unknown>", "<unknown>", 0, Vec::new())
+        Self::new("<unknown>", "<unknown>", 1, Vec::new())
     }
 }
 
@@ -82,14 +82,14 @@ impl Default for ScenarioMetadata {
 /// let runner = ScenarioRunner::new(|| 41 + 1);
 /// assert_eq!(runner.run(), 42);
 /// ```
-pub struct ScenarioRunner<T> {
-    inner: Box<dyn FnOnce() -> T>,
+pub struct ScenarioRunner<'a, T> {
+    inner: Box<dyn FnOnce() -> T + 'a>,
 }
 
-impl<T> ScenarioRunner<T> {
+impl<'a, T> ScenarioRunner<'a, T> {
     /// Wraps a closure as a scenario runner.
     #[must_use]
-    pub fn new(inner: impl FnOnce() -> T + 'static) -> Self {
+    pub fn new(inner: impl FnOnce() -> T + 'a) -> Self {
         Self {
             inner: Box::new(inner),
         }
@@ -115,15 +115,15 @@ impl<T> ScenarioRunner<T> {
 /// );
 /// assert_eq!(request.run(), "ok");
 /// ```
-pub struct ScenarioRunRequest<T> {
+pub struct ScenarioRunRequest<'a, T> {
     metadata: ScenarioMetadata,
-    runner: ScenarioRunner<T>,
+    runner: ScenarioRunner<'a, T>,
 }
 
-impl<T> ScenarioRunRequest<T> {
+impl<'a, T> ScenarioRunRequest<'a, T> {
     /// Creates a request from metadata and a runner.
     #[must_use]
-    pub fn new(metadata: ScenarioMetadata, runner: ScenarioRunner<T>) -> Self {
+    pub fn new(metadata: ScenarioMetadata, runner: ScenarioRunner<'a, T>) -> Self {
         Self { metadata, runner }
     }
 
@@ -135,7 +135,7 @@ impl<T> ScenarioRunRequest<T> {
 
     /// Consumes the request and returns metadata and runner separately.
     #[must_use]
-    pub fn into_parts(self) -> (ScenarioMetadata, ScenarioRunner<T>) {
+    pub fn into_parts(self) -> (ScenarioMetadata, ScenarioRunner<'a, T>) {
         (self.metadata, self.runner)
     }
 
@@ -157,7 +157,7 @@ mod tests {
         let metadata = ScenarioMetadata::default();
         assert_eq!(metadata.feature_path(), "<unknown>");
         assert_eq!(metadata.scenario_name(), "<unknown>");
-        assert_eq!(metadata.scenario_line(), 0);
+        assert_eq!(metadata.scenario_line(), 1);
         assert!(metadata.tags().is_empty());
     }
 
@@ -171,6 +171,13 @@ mod tests {
         });
         assert_eq!(runner.run(), 7);
         assert!(flag.get());
+    }
+
+    #[test]
+    fn scenario_runner_supports_non_static_borrows() {
+        let value = 42;
+        let runner = ScenarioRunner::new(|| value);
+        assert_eq!(runner.run(), 42);
     }
 
     #[test]

@@ -9,7 +9,7 @@ use std::rc::Rc;
 struct InspectHarness;
 
 impl HarnessAdapter for InspectHarness {
-    fn run<T>(request: ScenarioRunRequest<T>) -> T {
+    fn run<T>(request: ScenarioRunRequest<'_, T>) -> T {
         assert_eq!(
             request.metadata().feature_path(),
             "tests/features/payment.feature"
@@ -49,4 +49,19 @@ fn custom_harness_can_inspect_metadata_before_running() {
         ScenarioRunner::new(|| 200),
     );
     assert_eq!(InspectHarness::run(request), 200);
+}
+
+#[test]
+fn std_harness_supports_non_static_runner_borrows() {
+    let mut counter = 0u8;
+    let request = ScenarioRunRequest::new(
+        ScenarioMetadata::default(),
+        ScenarioRunner::new(|| {
+            counter += 1;
+            counter
+        }),
+    );
+
+    assert_eq!(StdHarness::run(request), 1);
+    assert_eq!(counter, 1);
 }

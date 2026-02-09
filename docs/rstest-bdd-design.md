@@ -1500,8 +1500,8 @@ let request = ScenarioRunRequest::new(
 assert_eq!(StdHarness::run(request), "ok");
 ```
 
-`ScenarioMetadata`, `ScenarioRunner<T>`, and `ScenarioRunRequest<T>` are the
-shared runner primitives for first-party and third-party harness crates.
+`ScenarioMetadata`, `ScenarioRunner<'a, T>`, and `ScenarioRunRequest<'a, T>`
+are the shared runner primitives for first-party and third-party harness crates.
 
 #### 2.7.2 Attribute policy plugins
 

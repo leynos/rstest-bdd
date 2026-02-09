@@ -17,5 +17,5 @@ use crate::runner::ScenarioRunRequest;
 /// ```
 pub trait HarnessAdapter {
     /// Executes one scenario request and returns the runner result.
-    fn run<T>(request: ScenarioRunRequest<T>) -> T;
+    fn run<T>(request: ScenarioRunRequest<'_, T>) -> T;
 }

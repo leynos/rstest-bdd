@@ -12,8 +12,8 @@ ExecPlan is the governing plan for this task.
 ## Purpose / big picture
 
 Phase 9.1 introduces the framework-agnostic harness foundation required by
-ADR-005. After this work, the codebase will have a dedicated
-`rstest-bdd-harness` crate that defines:
+Architecture Decision Record 005 (ADR-005). After this work, the codebase will
+have a dedicated `rstest-bdd-harness` crate that defines:
 
 - a harness adapter trait for executing scenario runners,
 - shared runner types used by adapter crates and macro integration,
@@ -29,8 +29,9 @@ roadmap entries `9.1.1`, `9.1.2`, and `9.1.3` are marked complete.
 
 - Implement only Phase 9.1 scope from `docs/roadmap.md`; do not implement
   `9.2+` harness selection in `#[scenario]`/`scenarios!` in this change.
-- Keep Tokio and GPUI dependencies out of core crates (`rstest-bdd`,
-  `rstest-bdd-macros`, `rstest-bdd-harness`) to preserve ADR-005 goals.
+- Keep Tokio and Graphical Processing User Interface (GPUI) dependencies out
+  of core crates (`rstest-bdd`, `rstest-bdd-macros`, `rstest-bdd-harness`) to
+  preserve ADR-005 goals.
 - Preserve existing public behaviour for current users (including
   `runtime = "tokio-current-thread"` compatibility paths) unless a change is
   explicitly documented as preparatory and non-breaking.
@@ -47,7 +48,7 @@ roadmap entries `9.1.1`, `9.1.2`, and `9.1.3` are marked complete.
 ## Tolerances (exception triggers)
 
 - Scope: if delivery requires changing more than 18 files or more than 900 net
-  LOC, stop and escalate.
+  lines of code (LOC), stop and escalate.
 - Interfaces: if any existing public API in `rstest-bdd` or
   `rstest-bdd-macros` must be removed or made incompatible, stop and escalate.
 - Dependencies: if a new external dependency is needed in core crates, stop and
@@ -146,7 +147,7 @@ roadmap entries `9.1.1`, `9.1.2`, and `9.1.3` are marked complete.
 Shipped in this phase:
 
 - New crate `crates/rstest-bdd-harness` with `HarnessAdapter`,
-  `ScenarioMetadata`, `ScenarioRunner<T>`, `ScenarioRunRequest<T>`,
+  `ScenarioMetadata`, `ScenarioRunner<'a, T>`, `ScenarioRunRequest<'a, T>`,
   `StdHarness`, `AttributePolicy`, `TestAttribute`, and
   `DefaultAttributePolicy`.
 - Unit and behavioural tests validating runner execution semantics and
@@ -271,7 +272,7 @@ Go/no-go validation for Stage D:
 
 ## Concrete steps
 
-All commands run from repository root: `/home/user/project`.
+All commands run from the repository root.
 
 1. Baseline checks before edits.
 

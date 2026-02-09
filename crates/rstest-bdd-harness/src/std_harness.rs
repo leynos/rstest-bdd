@@ -10,7 +10,7 @@ use crate::runner::ScenarioRunRequest;
 pub struct StdHarness;
 
 impl HarnessAdapter for StdHarness {
-    fn run<T>(request: ScenarioRunRequest<T>) -> T {
+    fn run<T>(request: ScenarioRunRequest<'_, T>) -> T {
         request.run()
     }
 }
