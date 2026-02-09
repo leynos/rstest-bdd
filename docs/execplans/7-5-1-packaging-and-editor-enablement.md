@@ -68,7 +68,7 @@ Known uncertainties that might affect the plan:
 
 - Risk: Smoke tests may be flaky due to timing or buffering issues. Severity:
   medium. Likelihood: medium. Mitigation: Use `--debounce-ms 0` to eliminate
-  indexing delay. Use `read_response_for_id()` to skip interleaved
+  indexing delay. Use `recv_response_for_id()` to skip interleaved
   notifications. Read with bounded message counts rather than wall-clock
   timeouts.
 
@@ -105,7 +105,7 @@ Known uncertainties that might affect the plan:
   - [x] Implement `smoke_initialise_and_shutdown` test
   - [x] Implement `smoke_definition_request_returns_locations` test
   - [x] Implement `smoke_diagnostics_published_for_unimplemented_step` test
-  - [x] Handle interleaved notifications with `read_response_for_id()`
+  - [x] Handle interleaved notifications with `recv_response_for_id()`
 
 - [x] Stage E: Documentation
   - [x] Add Phase 7.5 implementation status to design document
@@ -131,7 +131,7 @@ Known uncertainties that might affect the plan:
 
 - The definition smoke test initially failed because `read_message()` read a
   `publishDiagnostics` notification instead of the definition response. Fixed
-  by introducing `read_response_for_id()` which skips notifications until the
+  by introducing `recv_response_for_id()` which skips notifications until the
   response with the expected `id` arrives.
 
 ## Decision Log
@@ -226,8 +226,9 @@ Replace the workspace path extraction with a chain that prefers
 
 ### Stage D: Smoke tests (~300 lines)
 
-Create `tests/smoke_lsp.rs` with JSON-RPC wire helpers and three tests:
-initialize/shutdown, definition request, diagnostic publication.
+Create `crates/rstest-bdd-server/tests/smoke_lsp/` directory with JSON-RPC wire
+helpers and three tests: initialize/shutdown, definition request, diagnostic
+publication.
 
 ### Stage E: Documentation (~110 lines across 3 files)
 

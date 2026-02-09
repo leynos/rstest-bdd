@@ -21,22 +21,19 @@ use wire::{
     spawn_server,
 };
 
+/// Maximum number of JSON-RPC messages to scan through when waiting for an
+/// expected response or notification.  Extracted as a constant so CI can tune
+/// the value in one place if interleaved traffic grows.
+const MAX_RECV_MESSAGES: usize = 20;
+
 // ---------------------------------------------------------------------------
 // Fixtures
 // ---------------------------------------------------------------------------
 
 /// Fixture providing a temporary directory for each test.
 #[fixture]
-#[expect(
-    clippy::allow_attributes,
-    reason = "rstest macro expansion prevents #[expect] from being fulfilled"
-)]
-#[allow(
-    clippy::expect_used,
-    reason = "fixture setup uses .expect() for clarity"
-)]
 fn temp_dir() -> TempDir {
-    TempDir::new().expect("temp dir")
+    new_temp_dir()
 }
 
 /// Fixture providing an initialized LSP server backed by a temporary
@@ -44,15 +41,27 @@ fn temp_dir() -> TempDir {
 /// performed, and the caller receives handles needed for interaction
 /// and teardown.
 #[fixture]
-#[expect(
-    clippy::allow_attributes,
-    reason = "rstest macro expansion prevents #[expect] from being fulfilled"
-)]
-#[allow(
-    clippy::expect_used,
-    reason = "fixture setup uses .expect() for clarity"
-)]
 fn server(temp_dir: TempDir) -> ServerHandle {
+    init_server_handle(temp_dir)
+}
+
+/// Create a new temporary directory, panicking with a descriptive
+/// message on failure.
+#[expect(
+    clippy::expect_used,
+    reason = "temp dir creation failure is a test-fatal I/O error"
+)]
+fn new_temp_dir() -> TempDir {
+    TempDir::new().expect("temp dir")
+}
+
+/// Perform the full server setup: spawn, initialize handshake, and
+/// return a [`ServerHandle`].
+#[expect(
+    clippy::expect_used,
+    reason = "server setup failures are test-fatal conditions"
+)]
+fn init_server_handle(temp_dir: TempDir) -> ServerHandle {
     let root_uri = lsp_types::Url::from_directory_path(temp_dir.path()).expect("dir URI");
 
     let mut child = spawn_server(&[]);
@@ -136,17 +145,24 @@ fn index_and_wait(
     receiver: &MessageReceiver,
     feature_path: &Path,
     rust_path: &Path,
+    rust_uri: &lsp_types::Url,
 ) {
     did_save(stdin, feature_path);
     did_save(stdin, rust_path);
 
+    let expected_uri = rust_uri.as_str();
     receiver
         .recv_notification_matching(
             |msg| {
                 msg.get("method").and_then(|m| m.as_str())
                     == Some("textDocument/publishDiagnostics")
+                    && msg
+                        .get("params")
+                        .and_then(|p| p.get("uri"))
+                        .and_then(|u| u.as_str())
+                        == Some(expected_uri)
             },
-            20,
+            MAX_RECV_MESSAGES,
         )
         .expect("expected a publishDiagnostics notification after indexing");
 }
@@ -216,16 +232,17 @@ fn smoke_initialize_and_shutdown(mut server: ServerHandle) {
 )]
 fn smoke_definition_request_returns_locations(mut server: ServerHandle) {
     let (feature_path, rust_path) = create_test_files(server.workspace_root());
+    let rust_uri = lsp_types::Url::from_file_path(&rust_path).expect("rust URI");
     index_and_wait(
         &mut server.stdin,
         &server.receiver,
         &feature_path,
         &rust_path,
+        &rust_uri,
     );
 
     // Send definition request for the Rust step function
     // (line 3, 0-indexed).
-    let rust_uri = lsp_types::Url::from_file_path(&rust_path).expect("rust URI");
     let def_request = json!({
         "jsonrpc": "2.0",
         "id": 2,
@@ -237,7 +254,7 @@ fn smoke_definition_request_returns_locations(mut server: ServerHandle) {
     });
     wire::send(&mut server.stdin, &def_request);
 
-    let (def_response, _) = server.receiver.recv_response_for_id(2, 20);
+    let (def_response, _) = server.receiver.recv_response_for_id(2, MAX_RECV_MESSAGES);
     assert_eq!(def_response["id"], 2, "definition response id");
     validate_definition_locations(&def_response);
 
@@ -270,7 +287,7 @@ fn smoke_diagnostics_published_for_unimplemented_step(mut server: ServerHandle) 
     // non-empty diagnostics.
     let diag_msg = server
         .receiver
-        .recv_notification_matching(is_non_empty_diagnostics, 20)
+        .recv_notification_matching(is_non_empty_diagnostics, MAX_RECV_MESSAGES)
         .expect(
             "expected a publishDiagnostics notification \
              for the unimplemented step",

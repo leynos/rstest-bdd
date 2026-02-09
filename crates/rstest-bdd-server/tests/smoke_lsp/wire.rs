@@ -20,6 +20,10 @@ const READ_TIMEOUT: Duration = Duration::from_secs(10);
 /// notification is sent.
 const EXIT_TIMEOUT: Duration = Duration::from_secs(5);
 
+/// Maximum number of JSON-RPC messages to scan through during lifecycle
+/// handshake exchanges (initialize, shutdown).
+const MAX_HANDSHAKE_MESSAGES: usize = 10;
+
 // ---------------------------------------------------------------------------
 // Encoding
 // ---------------------------------------------------------------------------
@@ -196,7 +200,7 @@ pub fn initialize(stdin: &mut impl Write, receiver: &MessageReceiver, root_uri: 
         }
     });
     send(stdin, &init_request);
-    let (response, _notifications) = receiver.recv_response_for_id(1, 10);
+    let (response, _notifications) = receiver.recv_response_for_id(1, MAX_HANDSHAKE_MESSAGES);
 
     let initialized_notification = json!({
         "jsonrpc": "2.0",
@@ -227,7 +231,7 @@ pub fn shutdown_and_exit(
         "params": null
     });
     send(stdin, &shutdown_request);
-    let (shutdown_response, _) = receiver.recv_response_for_id(request_id, 10);
+    let (shutdown_response, _) = receiver.recv_response_for_id(request_id, MAX_HANDSHAKE_MESSAGES);
     assert_eq!(shutdown_response["id"], request_id, "shutdown response id");
 
     let exit_notification = json!({
