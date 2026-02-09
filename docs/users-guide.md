@@ -869,6 +869,8 @@ generates a module with a test for every `Scenario` found. Each test is named
 after the feature file and scenario title. Identifiers are sanitized
 (ASCII-only) and deduplicated by appending a numeric suffix when collisions
 occur.
+The `dir` argument is resolved relative to `CARGO_MANIFEST_DIR` at
+macro-expansion time.
 
 ```rust,no_run
 use rstest_bdd_macros::{given, then, when, scenarios};

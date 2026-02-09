@@ -22,7 +22,7 @@ use super::macro_args::{FixtureSpec, RuntimeMode};
 
 /// Context for generating a scenario test.
 ///
-/// Captures the sanitised feature file stem for naming tests, the Cargo
+/// Captures the sanitized feature file stem for naming tests, the Cargo
 /// manifest directory used to render absolute feature paths, the relative
 /// path from that manifest to the feature file when embedding diagnostics,
 /// an optional tag expression for filtering scenarios, and a slice of fixture
