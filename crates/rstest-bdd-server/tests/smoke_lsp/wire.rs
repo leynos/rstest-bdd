@@ -45,6 +45,35 @@ pub struct MessageReceiver {
     rx: mpsc::Receiver<Value>,
 }
 
+/// Read LSP headers and return the content length, or `None` on EOF or
+/// when no body follows.
+#[expect(
+    clippy::expect_used,
+    reason = "header parse failures are test-fatal programming errors"
+)]
+fn read_headers(reader: &mut BufReader<impl Read>) -> Option<usize> {
+    let mut content_length: usize = 0;
+    loop {
+        let mut line = String::new();
+        let bytes_read = reader.read_line(&mut line).expect("read header line");
+        if bytes_read == 0 {
+            return None; // EOF
+        }
+        let trimmed = line.trim();
+        if trimmed.is_empty() {
+            break; // End of headers
+        }
+        if let Some(len_str) = trimmed.strip_prefix("Content-Length: ") {
+            content_length = len_str.parse().expect("parse content length");
+        }
+    }
+    if content_length == 0 {
+        None
+    } else {
+        Some(content_length)
+    }
+}
+
 impl MessageReceiver {
     /// Spawn a background reader thread for the given `BufReader`.
     ///
@@ -52,32 +81,12 @@ impl MessageReceiver {
     /// channel. The thread terminates when the reader reaches EOF.
     #[expect(
         clippy::expect_used,
-        reason = "header/body parse failures are test-fatal programming errors"
+        reason = "body parse failures are test-fatal programming errors"
     )]
     pub fn spawn(mut reader: BufReader<impl Read + Send + 'static>) -> Self {
         let (tx, rx) = mpsc::channel();
         std::thread::spawn(move || {
-            loop {
-                let mut content_length: usize = 0;
-                let mut hit_eof = false;
-                loop {
-                    let mut line = String::new();
-                    let bytes_read = reader.read_line(&mut line).expect("read header line");
-                    if bytes_read == 0 {
-                        hit_eof = true;
-                        break;
-                    }
-                    let trimmed = line.trim();
-                    if trimmed.is_empty() {
-                        break;
-                    }
-                    if let Some(len_str) = trimmed.strip_prefix("Content-Length: ") {
-                        content_length = len_str.parse().expect("parse content length");
-                    }
-                }
-                if hit_eof || content_length == 0 {
-                    break;
-                }
+            while let Some(content_length) = read_headers(&mut reader) {
                 let mut buf = vec![0u8; content_length];
                 reader.read_exact(&mut buf).expect("read body");
                 let msg: Value = serde_json::from_slice(&buf).expect("parse JSON body");
