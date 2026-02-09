@@ -171,9 +171,9 @@ editing their Gherkin specifications.
 **Decision:** Validate each Examples table independently against the scenario
 outline's step placeholders.
 
-**Rationale:** Each Examples table should be self-contained.
-A column is "surplus" if that specific table has it, but no step references it.
-A placeholder is "missing" if that specific table lacks the column.
+**Rationale:** Each Examples table should be self-contained. A column is
+"surplus" if that specific table has it, but no step references it. A
+placeholder is "missing" if that specific table lacks the column.
 
 ## Outcomes & Retrospective
 
@@ -286,7 +286,8 @@ pub struct IndexedExamplesTable {
 
 - **Scenario Outline placeholder**: A `<name>` token in a scenario outline step
   that is substituted with values from the Examples table at runtime.
-- **Examples table column**: A header cell in an Examples table (e.g., `| name |`)
+- **Examples table column**: A header cell in an Examples table (e.g.,
+  `| name |`)
   becomes column "name".
 - **Missing column**: A placeholder referenced in steps but absent from the
   Examples table headers.
@@ -337,8 +338,8 @@ Review existing infrastructure and design the approach. No code changes.
    ```
 
 3. Update `feature.rs` `index_feature_text()` to detect scenario outlines
-   (by checking `scenario.keyword` for "Scenario Outline" or "Scenario Template")
-   and populate the new structures.
+   (by checking `scenario.keyword` for "Scenario Outline" or "Scenario
+   Template") and populate the new structures.
 
 ### Stage C: Implement diagnostic computation
 

@@ -662,8 +662,8 @@ supports `&mut Fixture` step parameters.
 `StepContext::owned_cell` creates the type-erased mutable storage required by
 `insert_owned`.
 
-Use `insert_owned` only when building custom step-execution plumbing
-outside the usual macros and registering a mutable fixture manually:
+Use `insert_owned` only when building custom step-execution plumbing outside
+the usual macros and registering a mutable fixture manually:
 
 ```rust,no_run
 use rstest_bdd::StepContext;

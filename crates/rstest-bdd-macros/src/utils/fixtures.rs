@@ -114,7 +114,8 @@ fn resolve_fixture_name(pat_ty: &syn::PatType) -> syn::Result<String> {
         return Ok(last.ident.to_string());
     }
     if let syn::Pat::Ident(id) = &*pat_ty.pat {
-        return Ok(id.ident.to_string());
+        let ident_str = id.ident.to_string();
+        return Ok(crate::utils::pattern::normalize_param_name(&ident_str).to_owned());
     }
     Err(syn::Error::new_spanned(
         &pat_ty.pat,
@@ -139,6 +140,7 @@ fn find_from_attr(attrs: &[syn::Attribute]) -> syn::Result<Option<syn::Path>> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use rstest::rstest;
     use syn::parse_quote;
 
     #[test]
@@ -165,5 +167,34 @@ mod tests {
             !prelude_str.contains("__rstest_bdd_cell__"),
             "cell identifier should not embed the raw underscore binding"
         );
+    }
+
+    #[rstest]
+    #[case("_world", "world")]
+    #[case("__world", "_world")]
+    #[case("world", "world")]
+    fn resolve_fixture_name_normalizes_param(#[case] input: &str, #[case] expected: &str) {
+        let ident = syn::Ident::new(input, proc_macro2::Span::call_site());
+        let pat_ty: syn::PatType = parse_quote! { #ident: WorldFixture };
+        #[expect(
+            clippy::expect_used,
+            reason = "test asserts fixture name normalization"
+        )]
+        let name = resolve_fixture_name(&pat_ty).expect("fixture name resolution should succeed");
+        assert_eq!(name, expected);
+    }
+
+    #[test]
+    #[expect(
+        clippy::expect_used,
+        reason = "test asserts from attribute takes precedence"
+    )]
+    fn resolve_fixture_name_from_attr_unchanged() {
+        let sig: syn::Signature = parse_quote! { fn test(#[from(state)] _world: WorldFixture) };
+        let syn::FnArg::Typed(pat_ty) = sig.inputs.first().expect("signature has one arg") else {
+            panic!("expected typed argument");
+        };
+        let name = resolve_fixture_name(pat_ty).expect("fixture name resolution should succeed");
+        assert_eq!(name, "state", "#[from] attribute should take precedence");
     }
 }
