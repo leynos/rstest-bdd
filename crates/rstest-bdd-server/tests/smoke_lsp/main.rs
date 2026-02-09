@@ -12,6 +12,7 @@ use std::io::BufReader;
 use std::path::{Path, PathBuf};
 use std::process::{Child, ChildStdin};
 
+use rstest::{fixture, rstest};
 use serde_json::{Value, json};
 use tempfile::TempDir;
 
@@ -19,6 +20,74 @@ use wire::{
     MessageReceiver, did_save, initialize, is_non_empty_diagnostics, shutdown_and_exit,
     spawn_server,
 };
+
+// ---------------------------------------------------------------------------
+// Fixtures
+// ---------------------------------------------------------------------------
+
+/// Fixture providing a temporary directory for each test.
+#[fixture]
+#[expect(
+    clippy::allow_attributes,
+    reason = "rstest macro expansion prevents #[expect] from being fulfilled"
+)]
+#[allow(
+    clippy::expect_used,
+    reason = "fixture setup uses .expect() for clarity"
+)]
+fn temp_dir() -> TempDir {
+    TempDir::new().expect("temp dir")
+}
+
+/// Fixture providing an initialized LSP server backed by a temporary
+/// directory.  The server is spawned, the initialize handshake is
+/// performed, and the caller receives handles needed for interaction
+/// and teardown.
+#[fixture]
+#[expect(
+    clippy::allow_attributes,
+    reason = "rstest macro expansion prevents #[expect] from being fulfilled"
+)]
+#[allow(
+    clippy::expect_used,
+    reason = "fixture setup uses .expect() for clarity"
+)]
+fn server(temp_dir: TempDir) -> ServerHandle {
+    let root_uri = lsp_types::Url::from_directory_path(temp_dir.path()).expect("dir URI");
+
+    let mut child = spawn_server(&[]);
+    let mut stdin = child.stdin.take().expect("stdin");
+    let stdout = child.stdout.take().expect("stdout");
+    let receiver = MessageReceiver::spawn(BufReader::new(stdout));
+
+    let init_response = initialize(&mut stdin, &receiver, root_uri.as_str());
+
+    ServerHandle {
+        dir: temp_dir,
+        child,
+        stdin,
+        receiver,
+        init_response,
+    }
+}
+
+/// Holds the state of a running LSP server for the duration of a test.
+struct ServerHandle {
+    /// Temporary directory whose lifetime pins the server's workspace.
+    dir: TempDir,
+    child: Child,
+    stdin: ChildStdin,
+    receiver: MessageReceiver,
+    /// The response from the `initialize` request.
+    init_response: Value,
+}
+
+impl ServerHandle {
+    /// Convenience accessor for the workspace root path.
+    fn workspace_root(&self) -> &Path {
+        self.dir.path()
+    }
+}
 
 // ---------------------------------------------------------------------------
 // Shared helpers
@@ -29,8 +98,8 @@ use wire::{
     clippy::expect_used,
     reason = "file-write failures are test-fatal I/O errors"
 )]
-fn create_test_files(dir: &TempDir) -> (PathBuf, PathBuf) {
-    let feature_path = dir.path().join("test.feature");
+fn create_test_files(dir: &Path) -> (PathBuf, PathBuf) {
+    let feature_path = dir.join("test.feature");
     std::fs::write(
         &feature_path,
         concat!(
@@ -41,7 +110,7 @@ fn create_test_files(dir: &TempDir) -> (PathBuf, PathBuf) {
     )
     .expect("write feature");
 
-    let rust_path = dir.path().join("steps.rs");
+    let rust_path = dir.join("steps.rs");
     std::fs::write(
         &rust_path,
         concat!(
@@ -54,23 +123,6 @@ fn create_test_files(dir: &TempDir) -> (PathBuf, PathBuf) {
     .expect("write rust steps");
 
     (feature_path, rust_path)
-}
-
-/// Spawn the LSP server, perform the initialize handshake, and return the
-/// child process, its stdin handle, and the message receiver.
-#[expect(
-    clippy::expect_used,
-    reason = "server setup failures are test-fatal environment errors"
-)]
-fn setup_server(root_uri: &str) -> (Child, ChildStdin, MessageReceiver) {
-    let mut child = spawn_server(&[]);
-    let mut stdin = child.stdin.take().expect("stdin");
-    let stdout = child.stdout.take().expect("stdout");
-    let receiver = MessageReceiver::spawn(BufReader::new(stdout));
-
-    initialize(&mut stdin, &receiver, root_uri);
-
-    (child, stdin, receiver)
 }
 
 /// Send `didSave` for both files and wait for a `publishDiagnostics`
@@ -130,25 +182,14 @@ fn validate_definition_locations(def_response: &Value) {
 // Smoke tests
 // ---------------------------------------------------------------------------
 
-#[test]
+#[rstest]
 #[expect(
-    clippy::expect_used,
     clippy::indexing_slicing,
-    reason = "test assertions use .expect() and indexing for clear failure messages"
+    reason = "test assertions use JSON indexing for clear failure messages"
 )]
-fn smoke_initialize_and_shutdown() {
-    let dir = TempDir::new().expect("temp dir");
-    let root_uri = lsp_types::Url::from_directory_path(dir.path()).expect("dir URI");
-
-    let mut child = spawn_server(&[]);
-    let mut stdin = child.stdin.take().expect("stdin");
-    let stdout = child.stdout.take().expect("stdout");
-    let receiver = MessageReceiver::spawn(BufReader::new(stdout));
-
-    let response = initialize(&mut stdin, &receiver, root_uri.as_str());
-
+fn smoke_initialize_and_shutdown(mut server: ServerHandle) {
     // Verify server capabilities
-    let caps = &response["result"]["capabilities"];
+    let caps = &server.init_response["result"]["capabilities"];
     assert!(
         caps["definitionProvider"].as_bool().unwrap_or(false)
             || caps["definitionProvider"].is_object(),
@@ -161,25 +202,26 @@ fn smoke_initialize_and_shutdown() {
     );
 
     // Verify server info
-    let info = &response["result"]["serverInfo"];
+    let info = &server.init_response["result"]["serverInfo"];
     assert_eq!(info["name"], "rstest-bdd-lsp");
 
-    shutdown_and_exit(&mut stdin, &receiver, &mut child, 99);
+    shutdown_and_exit(&mut server.stdin, &server.receiver, &mut server.child, 99);
 }
 
-#[test]
+#[rstest]
 #[expect(
     clippy::expect_used,
     clippy::indexing_slicing,
     reason = "test assertions use .expect() and indexing for clear failure messages"
 )]
-fn smoke_definition_request_returns_locations() {
-    let dir = TempDir::new().expect("temp dir");
-    let root_uri = lsp_types::Url::from_directory_path(dir.path()).expect("dir URI");
-    let (feature_path, rust_path) = create_test_files(&dir);
-
-    let (mut child, mut stdin, receiver) = setup_server(root_uri.as_str());
-    index_and_wait(&mut stdin, &receiver, &feature_path, &rust_path);
+fn smoke_definition_request_returns_locations(mut server: ServerHandle) {
+    let (feature_path, rust_path) = create_test_files(server.workspace_root());
+    index_and_wait(
+        &mut server.stdin,
+        &server.receiver,
+        &feature_path,
+        &rust_path,
+    );
 
     // Send definition request for the Rust step function
     // (line 3, 0-indexed).
@@ -193,27 +235,24 @@ fn smoke_definition_request_returns_locations() {
             "position": { "line": 3, "character": 0 }
         }
     });
-    wire::send(&mut stdin, &def_request);
+    wire::send(&mut server.stdin, &def_request);
 
-    let (def_response, _) = receiver.recv_response_for_id(2, 20);
+    let (def_response, _) = server.receiver.recv_response_for_id(2, 20);
     assert_eq!(def_response["id"], 2, "definition response id");
     validate_definition_locations(&def_response);
 
-    shutdown_and_exit(&mut stdin, &receiver, &mut child, 99);
+    shutdown_and_exit(&mut server.stdin, &server.receiver, &mut server.child, 99);
 }
 
-#[test]
+#[rstest]
 #[expect(
     clippy::expect_used,
     clippy::indexing_slicing,
     reason = "test assertions use .expect() and indexing for clear failure messages"
 )]
-fn smoke_diagnostics_published_for_unimplemented_step() {
-    let dir = TempDir::new().expect("temp dir");
-    let root_uri = lsp_types::Url::from_directory_path(dir.path()).expect("dir URI");
-
+fn smoke_diagnostics_published_for_unimplemented_step(mut server: ServerHandle) {
     // Write a feature file with a step that has no Rust implementation.
-    let feature_path = dir.path().join("unimpl.feature");
+    let feature_path = server.workspace_root().join("unimpl.feature");
     std::fs::write(
         &feature_path,
         concat!(
@@ -224,14 +263,13 @@ fn smoke_diagnostics_published_for_unimplemented_step() {
     )
     .expect("write feature");
 
-    let (mut child, mut stdin, receiver) = setup_server(root_uri.as_str());
-
     // Index the feature file — this should trigger diagnostics.
-    did_save(&mut stdin, &feature_path);
+    did_save(&mut server.stdin, &feature_path);
 
     // Read messages until we find a publishDiagnostics notification with
     // non-empty diagnostics.
-    let diag_msg = receiver
+    let diag_msg = server
+        .receiver
         .recv_notification_matching(is_non_empty_diagnostics, 20)
         .expect(
             "expected a publishDiagnostics notification \
@@ -255,5 +293,5 @@ fn smoke_diagnostics_published_for_unimplemented_step() {
          got: {first_msg}"
     );
 
-    shutdown_and_exit(&mut stdin, &receiver, &mut child, 99);
+    shutdown_and_exit(&mut server.stdin, &server.receiver, &mut server.child, 99);
 }

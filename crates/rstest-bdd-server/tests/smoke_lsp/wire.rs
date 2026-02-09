@@ -16,6 +16,10 @@ use serde_json::{Value, json};
 /// server has stalled.
 const READ_TIMEOUT: Duration = Duration::from_secs(10);
 
+/// Maximum time to wait for the server process to exit after the `exit`
+/// notification is sent.
+const EXIT_TIMEOUT: Duration = Duration::from_secs(5);
+
 // ---------------------------------------------------------------------------
 // Encoding
 // ---------------------------------------------------------------------------
@@ -233,11 +237,29 @@ pub fn shutdown_and_exit(
     });
     send(stdin, &exit_notification);
 
-    let status = child.wait().expect("wait for server exit");
-    assert!(
-        status.success(),
-        "server should exit cleanly, got: {status}"
-    );
+    // Wait for exit with a bounded timeout, killing the process if it
+    // stalls to prevent CI hangs.
+    let deadline = std::time::Instant::now() + EXIT_TIMEOUT;
+    loop {
+        match child.try_wait().expect("check server exit status") {
+            Some(status) => {
+                assert!(
+                    status.success(),
+                    "server should exit cleanly, got: {status}"
+                );
+                return;
+            }
+            None if std::time::Instant::now() >= deadline => {
+                let _ = child.kill();
+                let _ = child.wait();
+                panic!(
+                    "server did not exit within {} s; killed",
+                    EXIT_TIMEOUT.as_secs()
+                );
+            }
+            None => std::thread::sleep(Duration::from_millis(50)),
+        }
+    }
 }
 
 /// Send a `textDocument/didSave` notification for the given file.
