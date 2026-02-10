@@ -1164,8 +1164,9 @@ fn async_wrapper_with_aliases<'ctx>(
 
 ## Harness adapter core APIs
 
-ADR-005 introduces a harness adapter layer, so framework integrations can live
-in opt-in crates. Phase 9.1 ships the core contracts in `rstest-bdd-harness`.
+Architectural Decision Record (ADR-005) introduces a harness adapter layer, so
+framework integrations can live in opt-in crates. Phase 9.1 ships the core
+contracts in `rstest-bdd-harness`.
 
 At this stage, `#[scenario]` and `scenarios!` still use the existing runtime
 configuration surface. Harness selection via macro arguments is planned for the
