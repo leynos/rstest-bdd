@@ -1,0 +1,25 @@
+error[E0277]: the trait bound `NotAPolicy: AttributePolicy` is not satisfied
+  --> tests/fixtures_macros/scenario_attributes_invalid.rs:17:18
+   |
+17 |     attributes = NotAPolicy,
+   |                  ^^^^^^^^^^ unsatisfied trait bound
+   |
+help: the trait `AttributePolicy` is not implemented for `NotAPolicy`
+  --> tests/fixtures_macros/scenario_attributes_invalid.rs:4:1
+   |
+ 4 | struct NotAPolicy;
+   | ^^^^^^^^^^^^^^^^^
+help: the trait `AttributePolicy` is implemented for `DefaultAttributePolicy`
+  --> $WORKSPACE/crates/rstest-bdd-harness/src/policy.rs
+   |
+   | impl AttributePolicy for DefaultAttributePolicy {
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+note: required by a bound in `__assert_attr_policy`
+  --> tests/fixtures_macros/scenario_attributes_invalid.rs:15:1
+   |
+15 | / #[scenario(
+16 | |     path = "basic.feature",
+17 | |     attributes = NotAPolicy,
+18 | | )]
+   | |__^ required by this bound in `__assert_attr_policy`
+   = note: this error originates in the attribute macro `scenario` (in Nightly builds, run with -Z macro-backtrace for more info)

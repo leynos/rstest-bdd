@@ -703,14 +703,16 @@ For migrations from a cucumber `World`, map the concepts as follows:
 ## Binding tests to scenarios
 
 The `#[scenario]` macro is the entry point that ties a Rust test function to a
-scenario defined in a `.feature` file. It accepts four arguments:
+scenario defined in a `.feature` file. It accepts six arguments:
 
-| Argument       | Purpose                                               | Status                                                                                    |
-| -------------- | ----------------------------------------------------- | ----------------------------------------------------------------------------------------- |
-| `path: &str`   | Relative path to the feature file (required).         | **Implemented**: resolved and parsed at compile time.                                     |
-| `index: usize` | Optional zero-based scenario index (defaults to `0`). | **Implemented**: selects the scenario by position.                                        |
-| `name: &str`   | Optional scenario title; resolves when unique.        | **Implemented**: errors when missing and directs duplicates to `index`.                   |
-| `tags: &str`   | Optional tag-expression filter applied at expansion.  | **Implemented**: filters scenarios and outline example rows; errors when nothing matches. |
+| Argument              | Purpose                                                      | Status                                                                                    |
+| --------------------- | ------------------------------------------------------------ | ----------------------------------------------------------------------------------------- |
+| `path: &str`          | Relative path to the feature file (required).                | **Implemented**: resolved and parsed at compile time.                                     |
+| `index: usize`        | Optional zero-based scenario index (defaults to `0`).        | **Implemented**: selects the scenario by position.                                        |
+| `name: &str`          | Optional scenario title; resolves when unique.               | **Implemented**: errors when missing and directs duplicates to `index`.                   |
+| `tags: &str`          | Optional tag-expression filter applied at expansion.         | **Implemented**: filters scenarios and outline example rows; errors when nothing matches.  |
+| `harness: Path`       | Optional harness adapter type implementing `HarnessAdapter`. | **Implemented**: emits a compile-time trait-bound assertion; execution delegation pending. |
+| `attributes: Path`    | Optional attribute policy type implementing `AttributePolicy`. | **Implemented**: emits a compile-time trait-bound assertion; skips `RuntimeMode`-based attribute generation. |
 
 Tag filters run at macro-expansion time against the union of tags on the
 feature, the matched scenario, and—when dealing with `Scenario Outline`—the
@@ -726,6 +728,47 @@ expression.
 #[scenario(path = "features/search.feature", tags = "@fast and not @wip")]
 fn smoke_test() {}
 ```
+
+### Harness adapter and attribute policy
+
+The `harness` and `attributes` parameters accept Rust type paths pointing to
+types that implement `HarnessAdapter` and `AttributePolicy` from the
+`rstest-bdd-harness` crate. These enable third-party framework integrations
+(per ADR-005) without coupling the core crates to any specific runtime.
+
+When specified, the macro emits compile-time trait-bound assertions that
+produce clear compiler errors if the type does not implement the required
+trait. The built-in `StdHarness` and `DefaultAttributePolicy` types serve as
+defaults.
+
+When `attributes` is specified, the macro emits only `#[rstest::rstest]` and
+skips `RuntimeMode`-based attribute generation (e.g., `#[tokio::test]`),
+trusting the attribute policy to control test attributes.
+
+```rust,no_run
+# use rstest_bdd_macros::scenario;
+#[scenario(
+    path = "features/search.feature",
+    harness = rstest_bdd_harness::StdHarness,
+    attributes = rstest_bdd_harness::DefaultAttributePolicy,
+)]
+fn test_with_harness() {}
+```
+
+Both parameters are also accepted by `scenarios!`:
+
+```rust,no_run
+# use rstest_bdd_macros::scenarios;
+scenarios!(
+    "tests/features/auto",
+    harness = rstest_bdd_harness::StdHarness,
+    attributes = rstest_bdd_harness::DefaultAttributePolicy,
+);
+```
+
+> **Note:** execution delegation through the harness adapter is planned for a
+> future phase. In the current release, the harness and attribute policy types
+> are validated at compile time but execution follows the standard path.
 
 If the feature file cannot be found or contains invalid Gherkin, the macro
 emits a compile-time error with the offending path.

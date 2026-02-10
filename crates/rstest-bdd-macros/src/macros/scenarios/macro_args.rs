@@ -35,6 +35,8 @@ pub(super) struct ScenariosArgs {
     pub(super) tag_filter: Option<LitStr>,
     pub(super) fixtures: Vec<FixtureSpec>,
     pub(super) runtime: RuntimeMode,
+    pub(super) harness: Option<syn::Path>,
+    pub(super) attributes: Option<syn::Path>,
 }
 
 enum ScenariosArg {
@@ -42,6 +44,8 @@ enum ScenariosArg {
     Tags(LitStr),
     Fixtures(Vec<FixtureSpec>),
     Runtime(RuntimeMode),
+    Harness(syn::Path),
+    Attributes(syn::Path),
 }
 
 impl Parse for ScenariosArg {
@@ -75,8 +79,14 @@ impl Parse for ScenariosArg {
                     }
                 };
                 Ok(Self::Runtime(mode))
+            } else if ident == "harness" {
+                Ok(Self::Harness(input.parse()?))
+            } else if ident == "attributes" {
+                Ok(Self::Attributes(input.parse()?))
             } else {
-                Err(input.error("expected `dir`, `path`, `tags`, `fixtures`, or `runtime`"))
+                Err(input.error(
+                    "expected `dir`, `path`, `tags`, `fixtures`, `runtime`, `harness`, or `attributes`",
+                ))
             }
         }
     }
@@ -89,6 +99,8 @@ impl Parse for ScenariosArgs {
         let mut tag_filter = None;
         let mut fixtures = None;
         let mut runtime = None;
+        let mut harness = None;
+        let mut attributes = None;
 
         for arg in args {
             match arg {
@@ -116,6 +128,18 @@ impl Parse for ScenariosArgs {
                     }
                     runtime = Some(mode);
                 }
+                ScenariosArg::Harness(p) => {
+                    if harness.is_some() {
+                        return Err(input.error("duplicate `harness` argument"));
+                    }
+                    harness = Some(p);
+                }
+                ScenariosArg::Attributes(p) => {
+                    if attributes.is_some() {
+                        return Err(input.error("duplicate `attributes` argument"));
+                    }
+                    attributes = Some(p);
+                }
             }
         }
 
@@ -126,6 +150,8 @@ impl Parse for ScenariosArgs {
             tag_filter,
             fixtures: fixtures.unwrap_or_default(),
             runtime: runtime.unwrap_or_default(),
+            harness,
+            attributes,
         })
     }
 }
@@ -416,5 +442,104 @@ mod tests {
             RuntimeMode::TokioCurrentThread.test_attribute_hint(),
             TestAttributeHint::RstestWithTokioCurrentThread
         );
+    }
+
+    // Tests for harness and attributes argument parsing
+
+    #[test]
+    fn scenarios_args_parses_harness_argument() {
+        let args: ScenariosArgs = parse_scenarios_args(parse_quote!(
+            "tests/features",
+            harness = rstest_bdd_harness::StdHarness
+        ))
+        .unwrap();
+        assert_eq!(args.dir.value(), "tests/features");
+        let harness = args.harness.expect("harness should be set");
+        let harness_str = quote!(#harness).to_string();
+        assert!(
+            harness_str.contains("StdHarness"),
+            "should contain StdHarness: {harness_str}"
+        );
+        assert!(args.attributes.is_none());
+    }
+
+    #[test]
+    fn scenarios_args_parses_attributes_argument() {
+        let args: ScenariosArgs = parse_scenarios_args(parse_quote!(
+            "tests/features",
+            attributes = rstest_bdd_harness::DefaultAttributePolicy
+        ))
+        .unwrap();
+        let attr_policy = args.attributes.expect("attributes should be set");
+        let attr_str = quote!(#attr_policy).to_string();
+        assert!(
+            attr_str.contains("DefaultAttributePolicy"),
+            "should contain DefaultAttributePolicy: {attr_str}"
+        );
+        assert!(args.harness.is_none());
+    }
+
+    #[test]
+    fn scenarios_args_parses_harness_and_attributes_together() {
+        let args: ScenariosArgs = parse_scenarios_args(parse_quote!(
+            "tests/features",
+            harness = my::Harness,
+            attributes = my::Policy
+        ))
+        .unwrap();
+        assert!(args.harness.is_some());
+        assert!(args.attributes.is_some());
+    }
+
+    #[test]
+    fn scenarios_args_parses_harness_with_all_other_arguments() {
+        let args: ScenariosArgs = parse_scenarios_args(parse_quote!(
+            "tests/features",
+            tags = "@smoke",
+            runtime = "tokio-current-thread",
+            fixtures = [world: TestWorld],
+            harness = my::Harness,
+            attributes = my::Policy
+        ))
+        .unwrap();
+        assert_eq!(args.dir.value(), "tests/features");
+        assert_eq!(
+            args.tag_filter
+                .as_ref()
+                .expect("tag_filter should be set")
+                .value(),
+            "@smoke"
+        );
+        assert_eq!(args.runtime, RuntimeMode::TokioCurrentThread);
+        assert_eq!(args.fixtures.len(), 1);
+        assert!(args.harness.is_some());
+        assert!(args.attributes.is_some());
+    }
+
+    #[test]
+    fn scenarios_args_defaults_harness_and_attributes_to_none() {
+        let args: ScenariosArgs = parse_scenarios_args(parse_quote!("tests/features")).unwrap();
+        assert!(args.harness.is_none());
+        assert!(args.attributes.is_none());
+    }
+
+    #[test]
+    fn scenarios_args_rejects_duplicate_harness() {
+        let result = parse_scenarios_args(parse_quote!(
+            "tests/features",
+            harness = a::H,
+            harness = b::H
+        ));
+        assert_parse_error_contains(result, "duplicate");
+    }
+
+    #[test]
+    fn scenarios_args_rejects_duplicate_attributes() {
+        let result = parse_scenarios_args(parse_quote!(
+            "tests/features",
+            attributes = a::P,
+            attributes = b::P
+        ));
+        assert_parse_error_contains(result, "duplicate");
     }
 }

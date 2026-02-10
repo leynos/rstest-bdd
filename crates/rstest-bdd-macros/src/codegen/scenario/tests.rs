@@ -100,7 +100,7 @@ fn has_tokio_test_detection(#[case] attr_str: &str, #[case] expected_tokio: bool
 
     // When runtime is TokioCurrentThread and tokio::test is already present,
     // we should NOT emit another tokio::test attribute.
-    let tokens = generate_test_attrs(&attrs, RuntimeMode::TokioCurrentThread);
+    let tokens = generate_test_attrs(&attrs, RuntimeMode::TokioCurrentThread, None);
     let has_tokio_in_output = tokens_contain(&tokens, "tokio :: test");
 
     if expected_tokio {
@@ -130,7 +130,7 @@ fn generate_test_attrs_output(
     #[case] expect_tokio_test: bool,
 ) {
     let attrs: Vec<syn::Attribute> = attr_strs.iter().map(|s| parse_attr(s)).collect();
-    let tokens = generate_test_attrs(&attrs, runtime);
+    let tokens = generate_test_attrs(&attrs, runtime, None);
     let output = tokens.to_string();
 
     // All outputs should contain rstest::rstest
@@ -152,4 +152,123 @@ fn generate_test_attrs_output(
             "expected current_thread flavor in output: {output}"
         );
     }
+}
+
+// -----------------------------------------------------------------------------
+// Tests for generate_test_attrs with attributes policy parameter
+// -----------------------------------------------------------------------------
+
+#[expect(clippy::expect_used, reason = "test helper with descriptive failures")]
+fn parse_path(s: &str) -> syn::Path {
+    syn::parse_str::<syn::Path>(s).expect("valid path")
+}
+
+#[test]
+fn generate_test_attrs_with_attributes_skips_tokio() {
+    let policy_path = parse_path("my::Policy");
+    // Even with TokioCurrentThread runtime, tokio::test should NOT be emitted
+    // when an attribute policy is specified.
+    let tokens = generate_test_attrs(&[], RuntimeMode::TokioCurrentThread, Some(&policy_path));
+    let output = tokens.to_string();
+
+    assert!(
+        output.contains("rstest :: rstest"),
+        "should contain rstest::rstest: {output}"
+    );
+    assert!(
+        !output.contains("tokio :: test"),
+        "should NOT contain tokio::test when attributes is specified: {output}"
+    );
+}
+
+#[test]
+fn generate_test_attrs_without_attributes_unchanged() {
+    // Verify backward compatibility: no attributes = same old behaviour
+    let tokens = generate_test_attrs(&[], RuntimeMode::TokioCurrentThread, None);
+    let output = tokens.to_string();
+
+    assert!(
+        output.contains("rstest :: rstest"),
+        "should contain rstest::rstest: {output}"
+    );
+    assert!(
+        output.contains("tokio :: test"),
+        "should contain tokio::test for async without policy: {output}"
+    );
+}
+
+// -----------------------------------------------------------------------------
+// Tests for generate_trait_assertions
+// -----------------------------------------------------------------------------
+
+#[test]
+fn trait_assertions_with_harness() {
+    let harness_path = parse_path("my::Harness");
+    let tokens = generate_trait_assertions(Some(&harness_path), None);
+    let output = tokens.to_string();
+
+    assert!(
+        output.contains("HarnessAdapter"),
+        "should contain HarnessAdapter trait bound: {output}"
+    );
+    assert!(
+        output.contains("my :: Harness"),
+        "should contain harness type path: {output}"
+    );
+    assert!(
+        !output.contains("AttributePolicy"),
+        "should NOT contain AttributePolicy: {output}"
+    );
+}
+
+#[test]
+fn trait_assertions_with_attributes() {
+    let policy_path = parse_path("my::Policy");
+    let tokens = generate_trait_assertions(None, Some(&policy_path));
+    let output = tokens.to_string();
+
+    assert!(
+        output.contains("AttributePolicy"),
+        "should contain AttributePolicy trait bound: {output}"
+    );
+    assert!(
+        output.contains("my :: Policy"),
+        "should contain policy type path: {output}"
+    );
+    assert!(
+        !output.contains("HarnessAdapter"),
+        "should NOT contain HarnessAdapter: {output}"
+    );
+}
+
+#[test]
+fn trait_assertions_with_both() {
+    let harness_path = parse_path("my::Harness");
+    let policy_path = parse_path("my::Policy");
+    let tokens = generate_trait_assertions(Some(&harness_path), Some(&policy_path));
+    let output = tokens.to_string();
+
+    assert!(
+        output.contains("HarnessAdapter"),
+        "should contain HarnessAdapter: {output}"
+    );
+    assert!(
+        output.contains("AttributePolicy"),
+        "should contain AttributePolicy: {output}"
+    );
+}
+
+#[test]
+fn trait_assertions_with_neither() {
+    let tokens = generate_trait_assertions(None, None);
+    let output = tokens.to_string();
+
+    assert!(
+        !output.contains("HarnessAdapter"),
+        "should NOT contain HarnessAdapter: {output}"
+    );
+    assert!(
+        !output.contains("AttributePolicy"),
+        "should NOT contain AttributePolicy: {output}"
+    );
 }

@@ -60,6 +60,7 @@ fn run_passing_macro_tests(t: &trybuild::TestCases) {
         MacroFixtureCase::from("scenario_state_default.rs"),
         MacroFixtureCase::from("scenarios_fixtures.rs"),
         MacroFixtureCase::from("scenarios_autodiscovery.rs"),
+        MacroFixtureCase::from("scenario_harness_params.rs"),
     ] {
         t.pass(macros_fixture(case).as_std_path());
     }
@@ -85,6 +86,8 @@ fn run_failing_macro_tests(t: &trybuild::TestCases) {
         MacroFixtureCase::from("scenarios_fixtures_malformed.rs"),
         MacroFixtureCase::from("scenarios_autodiscovery_invalid_path.rs"),
         MacroFixtureCase::from("outline_undefined_placeholder.rs"),
+        MacroFixtureCase::from("scenario_harness_invalid.rs"),
+        MacroFixtureCase::from("scenario_attributes_invalid.rs"),
     ] {
         t.compile_fail(macros_fixture(case).as_std_path());
     }
