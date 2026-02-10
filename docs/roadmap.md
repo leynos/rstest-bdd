@@ -381,11 +381,17 @@ scope until the core workflow is stable.
 
 ### 7.5. Packaging and editor enablement
 
-- [ ] 7.5.1. Ship CLI options for log level, workspace root, and debounce
-  interval; document VS Code and Neovim launch examples in
-  `docs/rstest-bdd-language-server-design.md` and the user guide.
-- [ ] 7.5.2. Add smoke tests that start the server, answer a definition request,
-  and emit diagnostics for one feature file; gate them in CI.
+- [x] 7.5.1. Ship CLI options for log level, workspace root, and debounce
+  interval; document VS Code, Zed, and Neovim launch examples in
+  `docs/rstest-bdd-language-server-design.md` and the user guide. Finish line:
+  `rstest-bdd-lsp --help` lists all three flags, and the user guide contains
+  working editor snippets for VS Code, Neovim, and Zed. See
+  `rstest-bdd-language-server-design.md` §7.5 "Packaging and editor enablement".
+- [x] 7.5.2. Add smoke tests that start the server, answer a definition
+  request, and emit diagnostics for one feature file; gate them in CI. Finish
+  line: three smoke tests pass in `make test` (initialize/shutdown, definition
+  navigation, diagnostic publication). See
+  `rstest-bdd-language-server-design.md` §7.5 "Smoke tests".
 
 ## 8. Async step execution
 

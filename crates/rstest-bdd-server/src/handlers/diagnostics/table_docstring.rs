@@ -26,10 +26,11 @@ use crate::handlers::util::gherkin_span_to_lsp_range;
 /// # Example
 ///
 /// ```no_run
+/// use rstest_bdd_server::config::ServerConfig;
 /// use rstest_bdd_server::server::ServerState;
 /// use rstest_bdd_server::indexing::FeatureFileIndex;
 ///
-/// let state = ServerState::default();
+/// let state = ServerState::new(ServerConfig::default());
 /// // Obtain a FeatureFileIndex from state.feature_index(path)
 /// # let feature_index: FeatureFileIndex = todo!();
 ///

@@ -59,8 +59,12 @@ pub fn handle_initialise(
         state.set_workspace_folders(folders);
     }
 
-    // Attempt workspace discovery from workspace folders or the root URI.
-    let workspace_path = extract_workspace_path(state.workspace_folders(), root_uri.as_ref());
+    // Use CLI/env workspace root if provided, otherwise discover from client.
+    let workspace_path = state
+        .config()
+        .workspace_root
+        .clone()
+        .or_else(|| extract_workspace_path(state.workspace_folders(), root_uri.as_ref()));
     if let Some(path) = workspace_path {
         match discover_workspace(&path) {
             Ok(info) => {
@@ -289,5 +293,23 @@ mod tests {
         let path = extract_workspace_path(&[], None);
 
         assert!(path.is_none());
+    }
+
+    #[rstest]
+    fn handle_initialise_prefers_config_workspace_root_over_client(
+        create_init_params: InitializeParams,
+    ) {
+        let override_path = PathBuf::from("/override/workspace");
+        let config = ServerConfig::default().with_workspace_root(override_path.clone());
+        let mut state = ServerState::new(config);
+
+        // Initialization succeeds even though the override path does not
+        // exist — workspace discovery logs a warning but does not fail.
+        let result = handle_initialise(&mut state, create_init_params);
+        assert!(result.is_ok());
+
+        // The config workspace root is preserved, confirming it was used
+        // as the discovery path instead of the (empty) client root URI.
+        assert_eq!(state.config().workspace_root, Some(override_path));
     }
 }

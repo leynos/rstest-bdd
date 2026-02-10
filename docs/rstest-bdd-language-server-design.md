@@ -932,6 +932,64 @@ consistency issues between feature files and Rust step definitions.
   generation including multiple feature files and cross-file dependency
   scenarios.
 
+### Phase 7.5: Packaging and editor enablement (completed)
+
+**CLI options:**
+
+The `rstest-bdd-lsp` binary accepts the following command-line flags, which
+take precedence over environment variables:
+
+| Flag               | Description                                            | Default |
+| ------------------ | ------------------------------------------------------ | ------- |
+| `--log-level`      | Logging verbosity (trace, debug, info, warn, error)    | `info`  |
+| `--debounce-ms`    | Delay (ms) before processing file changes              | `300`   |
+| `--workspace-root` | Override workspace root path; bypasses LSP client root | (auto)  |
+
+Configuration precedence: Default → Environment variables → CLI flags.
+
+The `--workspace-root` flag acts as a hard override: when provided, it replaces
+the LSP client's `root_uri` and `workspace_folders` for workspace discovery.
+This is useful when the editor sends incorrect paths, during headless testing,
+or when the project layout does not match Cargo workspace conventions.
+
+**Zed editor integration:**
+
+Zed uses its extension system to register language servers. The binary can be
+configured via Zed's `settings.json`:
+
+```json
+{
+  "lsp": {
+    "rstest-bdd-lsp": {
+      "binary": {
+        "path": "rstest-bdd-lsp",
+        "arguments": ["--log-level", "info"]
+      }
+    }
+  },
+  "languages": {
+    "Rust": {
+      "language_servers": ["rust-analyzer", "rstest-bdd-lsp", "..."]
+    }
+  }
+}
+```
+
+Diagnostics and navigation require saving files to trigger indexing.
+
+**Smoke tests:**
+
+End-to-end smoke tests verify the server binary by starting it as a child
+process, sending JSON-RPC messages (initialize, `didSave`, definition request),
+and asserting correct responses and diagnostics. Three smoke tests validate:
+
+1. Initialize/shutdown lifecycle with capability verification.
+2. Definition request returning correct feature file locations.
+3. Diagnostic publication for unimplemented feature steps.
+
+These tests run as part of the standard CI pipeline (`make test`) and use
+`--debounce-ms 0` to eliminate indexing delay.
+
 ### Next phases
 
 The initial diagnostics implementation is now complete. Potential future

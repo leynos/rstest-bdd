@@ -5,6 +5,7 @@
 //! with `RSTEST_BDD_LSP_`.
 
 use std::env;
+use std::path::PathBuf;
 use std::str::FromStr;
 
 use crate::error::ServerError;
@@ -71,12 +72,19 @@ const DEFAULT_DEBOUNCE_MS: u64 = 300;
 /// - `RSTEST_BDD_LSP_LOG_LEVEL`: Sets the log level (trace, debug, info, warn,
 ///   error)
 /// - `RSTEST_BDD_LSP_DEBOUNCE_MS`: Delay before processing file changes
+/// - `RSTEST_BDD_LSP_WORKSPACE_ROOT`: Override workspace root path for
+///   discovery
 #[derive(Debug, Clone)]
 pub struct ServerConfig {
     /// Log level (trace, debug, info, warn, error).
     pub log_level: LogLevel,
     /// Debounce interval for file change events in milliseconds.
     pub debounce_ms: u64,
+    /// Optional workspace root override from CLI or environment.
+    ///
+    /// When set, this path is used instead of the LSP client's root URI or
+    /// workspace folders for workspace discovery.
+    pub workspace_root: Option<PathBuf>,
 }
 
 impl Default for ServerConfig {
@@ -84,6 +92,7 @@ impl Default for ServerConfig {
         Self {
             log_level: LogLevel::default(),
             debounce_ms: DEFAULT_DEBOUNCE_MS,
+            workspace_root: None,
         }
     }
 }
@@ -91,8 +100,9 @@ impl Default for ServerConfig {
 impl ServerConfig {
     /// Load configuration from environment variables.
     ///
-    /// Reads `RSTEST_BDD_LSP_LOG_LEVEL` and `RSTEST_BDD_LSP_DEBOUNCE_MS`.
-    /// Falls back to defaults for missing values.
+    /// Reads `RSTEST_BDD_LSP_LOG_LEVEL`, `RSTEST_BDD_LSP_DEBOUNCE_MS`, and
+    /// `RSTEST_BDD_LSP_WORKSPACE_ROOT`. Falls back to defaults for missing
+    /// values.
     ///
     /// # Errors
     ///
@@ -120,9 +130,14 @@ impl ServerConfig {
             Err(_) => DEFAULT_DEBOUNCE_MS,
         };
 
+        let workspace_root = get_var("RSTEST_BDD_LSP_WORKSPACE_ROOT")
+            .ok()
+            .map(PathBuf::from);
+
         Ok(Self {
             log_level,
             debounce_ms,
+            workspace_root,
         })
     }
 
@@ -135,6 +150,7 @@ impl ServerConfig {
         mut self,
         log_level: Option<LogLevel>,
         debounce_ms: Option<u64>,
+        workspace_root: Option<PathBuf>,
     ) -> Self {
         if let Some(level) = log_level {
             self.log_level = level;
@@ -144,6 +160,10 @@ impl ServerConfig {
             self.debounce_ms = ms;
         }
 
+        if let Some(root) = workspace_root {
+            self.workspace_root = Some(root);
+        }
+
         self
     }
 
@@ -151,6 +171,13 @@ impl ServerConfig {
     #[must_use]
     pub fn with_log_level(mut self, level: LogLevel) -> Self {
         self.log_level = level;
+        self
+    }
+
+    /// Create a new configuration with the specified workspace root.
+    #[must_use]
+    pub fn with_workspace_root(mut self, root: PathBuf) -> Self {
+        self.workspace_root = Some(root);
         self
     }
 }
@@ -207,6 +234,7 @@ mod tests {
         let config = ServerConfig::default();
         assert_eq!(config.log_level, LogLevel::Info);
         assert_eq!(config.debounce_ms, 300);
+        assert!(config.workspace_root.is_none());
     }
 
     #[test]
@@ -216,14 +244,28 @@ mod tests {
     }
 
     #[test]
+    fn server_config_with_workspace_root_builder() {
+        let config = ServerConfig::default().with_workspace_root(PathBuf::from("/test/path"));
+        assert_eq!(config.workspace_root, Some(PathBuf::from("/test/path")));
+    }
+
+    #[test]
     fn server_config_apply_overrides_updates_selected_fields() {
-        let config = ServerConfig::default().apply_overrides(Some(LogLevel::Error), Some(42));
+        let config = ServerConfig::default().apply_overrides(Some(LogLevel::Error), Some(42), None);
         assert_eq!(config.log_level, LogLevel::Error);
         assert_eq!(config.debounce_ms, 42);
+        assert!(config.workspace_root.is_none());
 
-        let config = ServerConfig::default().apply_overrides(None, None);
+        let config = ServerConfig::default().apply_overrides(None, None, None);
         assert_eq!(config.log_level, LogLevel::Info);
         assert_eq!(config.debounce_ms, 300);
+    }
+
+    #[test]
+    fn server_config_apply_overrides_sets_workspace_root() {
+        let root = PathBuf::from("/override/root");
+        let config = ServerConfig::default().apply_overrides(None, None, Some(root.clone()));
+        assert_eq!(config.workspace_root, Some(root));
     }
 
     #[test]
@@ -233,6 +275,7 @@ mod tests {
 
         assert_eq!(config.log_level, LogLevel::Info);
         assert_eq!(config.debounce_ms, 300);
+        assert!(config.workspace_root.is_none());
     }
 
     #[test]
@@ -246,6 +289,17 @@ mod tests {
 
         assert_eq!(config.log_level, LogLevel::Debug);
         assert_eq!(config.debounce_ms, 123);
+    }
+
+    #[test]
+    fn server_config_from_env_with_reads_workspace_root() {
+        let config = ServerConfig::from_env_with(|key| match key {
+            "RSTEST_BDD_LSP_WORKSPACE_ROOT" => Ok("/my/workspace".to_string()),
+            _ => Err(env::VarError::NotPresent),
+        })
+        .expect("expected parsed config");
+
+        assert_eq!(config.workspace_root, Some(PathBuf::from("/my/workspace")));
     }
 
     #[test]

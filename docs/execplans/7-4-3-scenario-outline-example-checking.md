@@ -287,8 +287,7 @@ pub struct IndexedExamplesTable {
 - **Scenario Outline placeholder**: A `<name>` token in a scenario outline step
   that is substituted with values from the Examples table at runtime.
 - **Examples table column**: A header cell in an Examples table (e.g.,
-  `| name |`)
-  becomes column "name".
+  `| name |`) becomes column "name".
 - **Missing column**: A placeholder referenced in steps but absent from the
   Examples table headers.
 - **Surplus column**: A column in the Examples table that no step placeholder
