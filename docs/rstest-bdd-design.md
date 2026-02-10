@@ -1479,6 +1479,31 @@ defaulting to `StdHarness` when omitted. The generated test body delegates to
 the chosen harness adapter, which controls runtime setup, teardown, and any
 framework-specific fixture injection.
 
+Phase 9.1 implements the core crate with the following interfaces:
+
+```rust,no_run
+use rstest_bdd_harness::{
+    HarnessAdapter, ScenarioMetadata, ScenarioRunRequest, ScenarioRunner,
+    StdHarness,
+};
+
+let request = ScenarioRunRequest::new(
+    ScenarioMetadata::new(
+        "tests/features/login.feature",
+        "Successful login",
+        12,
+        vec!["@smoke".to_string()],
+    ),
+    ScenarioRunner::new(|| "ok"),
+);
+
+let harness = StdHarness::new();
+assert_eq!(harness.run(request), "ok");
+```
+
+`ScenarioMetadata`, `ScenarioRunner<'a, T>`, and `ScenarioRunRequest<'a, T>`
+are the shared runner primitives for first-party and third-party harness crates.
+
 #### 2.7.2 Attribute policy plugins
 
 Harnesses frequently require a specific test attribute (for example,
@@ -1492,6 +1517,20 @@ opt-in layer:
   `attributes = path::ToPolicy` or infer a policy from the chosen harness.
 - Policies live in separate crates so additional attributes can be introduced
   without adding framework dependencies to the core runtime or macros.
+
+Phase 9.1 provides this interface in `rstest-bdd-harness`:
+
+```rust,no_run
+use rstest_bdd_harness::{AttributePolicy, DefaultAttributePolicy};
+
+let attrs = DefaultAttributePolicy::test_attributes();
+assert_eq!(attrs.len(), 1);
+assert_eq!(attrs[0].render(), "#[rstest::rstest]");
+```
+
+The default policy intentionally emits only `#[rstest::rstest]`, preserving a
+framework-agnostic baseline while Tokio and GPUI policies move to opt-in
+adapter crates.
 
 #### 2.7.3 First-party plugin targets
 
@@ -1937,12 +1976,14 @@ and unit testing workflows under the powerful `rstest` umbrella.
 
 ### 3.6 Workspace layout decisions
 
-The project uses a Cargo workspace to keep the runtime and procedural macro
-crates separate. The workspace contains three members:
+The project uses a Cargo workspace to keep runtime, macro, tooling, and
+extension crates separate. The core Behaviour-Driven Development (BDD) members
+now include:
 
 - `rstest-bdd` — the runtime library.
 - `rstest-bdd-macros` — the crate providing attribute macros.
 - `rstest-bdd-policy` — shared execution policy enums.
+- `rstest-bdd-harness` — harness adapter and attribute policy interfaces.
 
 This layout allows each crate to evolve independently while sharing common
 configuration and lints at the workspace level.
