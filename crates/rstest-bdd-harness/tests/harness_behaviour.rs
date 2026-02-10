@@ -1,5 +1,6 @@
 //! Behavioural tests for harness adapter execution semantics.
 
+use rstest::{fixture, rstest};
 use rstest_bdd_harness::{
     HarnessAdapter, ScenarioMetadata, ScenarioRunRequest, ScenarioRunner, StdHarness,
 };
@@ -21,12 +22,17 @@ impl HarnessAdapter for InspectHarness {
     }
 }
 
-#[test]
-fn std_harness_executes_runner_once() {
+#[fixture]
+fn default_metadata() -> ScenarioMetadata {
+    ScenarioMetadata::default()
+}
+
+#[rstest]
+fn std_harness_executes_runner_once(default_metadata: ScenarioMetadata) {
     let call_count = Rc::new(Cell::new(0u8));
     let call_count_clone = Rc::clone(&call_count);
     let request = ScenarioRunRequest::new(
-        ScenarioMetadata::default(),
+        default_metadata,
         ScenarioRunner::new(move || {
             call_count_clone.set(call_count_clone.get() + 1);
             "done"
@@ -51,11 +57,11 @@ fn custom_harness_can_inspect_metadata_before_running() {
     assert_eq!(InspectHarness::run(request), 200);
 }
 
-#[test]
-fn std_harness_supports_non_static_runner_borrows() {
+#[rstest]
+fn std_harness_supports_non_static_runner_borrows(default_metadata: ScenarioMetadata) {
     let mut counter = 0u8;
     let request = ScenarioRunRequest::new(
-        ScenarioMetadata::default(),
+        default_metadata,
         ScenarioRunner::new(|| {
             counter += 1;
             counter

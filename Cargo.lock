@@ -1403,6 +1403,9 @@ dependencies = [
 [[package]]
 name = "rstest-bdd-harness"
 version = "0.5.0"
+dependencies = [
+ "rstest",
+]
 
 [[package]]
 name = "rstest-bdd-macros"

@@ -17,6 +17,8 @@ impl HarnessAdapter for StdHarness {
 
 #[cfg(test)]
 mod tests {
+    //! Unit tests for the synchronous standard harness.
+
     use super::StdHarness;
     use crate::{HarnessAdapter, ScenarioMetadata, ScenarioRunRequest, ScenarioRunner};
 

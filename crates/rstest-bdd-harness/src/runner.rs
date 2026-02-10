@@ -148,6 +148,8 @@ impl<'a, T> ScenarioRunRequest<'a, T> {
 
 #[cfg(test)]
 mod tests {
+    //! Unit tests for scenario metadata and runner primitives.
+
     use super::{ScenarioMetadata, ScenarioRunRequest, ScenarioRunner};
     use std::cell::Cell;
     use std::rc::Rc;
