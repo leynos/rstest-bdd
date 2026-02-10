@@ -13,9 +13,10 @@ use crate::runner::ScenarioRunRequest;
 ///     ScenarioMetadata::new("tests/features/demo.feature", "Example", 3, vec![]),
 ///     ScenarioRunner::new(|| 5 + 5),
 /// );
-/// assert_eq!(StdHarness::run(request), 10);
+/// let harness = StdHarness::new();
+/// assert_eq!(harness.run(request), 10);
 /// ```
 pub trait HarnessAdapter {
     /// Executes one scenario request and returns the runner result.
-    fn run<T>(request: ScenarioRunRequest<'_, T>) -> T;
+    fn run<T>(&self, request: ScenarioRunRequest<'_, T>) -> T;
 }

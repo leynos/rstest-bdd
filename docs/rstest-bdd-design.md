@@ -1497,7 +1497,8 @@ let request = ScenarioRunRequest::new(
     ScenarioRunner::new(|| "ok"),
 );
 
-assert_eq!(StdHarness::run(request), "ok");
+let harness = StdHarness::new();
+assert_eq!(harness.run(request), "ok");
 ```
 
 `ScenarioMetadata`, `ScenarioRunner<'a, T>`, and `ScenarioRunRequest<'a, T>`

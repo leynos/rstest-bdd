@@ -1186,7 +1186,7 @@ use rstest_bdd_harness::{
 struct MyHarness;
 
 impl HarnessAdapter for MyHarness {
-    fn run<T>(request: ScenarioRunRequest<'_, T>) -> T {
+    fn run<T>(&self, request: ScenarioRunRequest<'_, T>) -> T {
         // Optional harness-specific setup using request.metadata().
         request.run()
     }
@@ -1202,7 +1202,8 @@ let request = ScenarioRunRequest::new(
     ScenarioRunner::new(|| "ok"),
 );
 
-assert_eq!(MyHarness::run(request), "ok");
+let harness = MyHarness;
+assert_eq!(harness.run(request), "ok");
 ```
 
 The built-in `StdHarness` implements the same trait and runs the closure

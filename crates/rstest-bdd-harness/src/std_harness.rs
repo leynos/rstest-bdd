@@ -7,10 +7,19 @@ use crate::runner::ScenarioRunRequest;
 ///
 /// `StdHarness` executes the scenario runner directly without an async runtime
 /// or UI harness.
+#[derive(Debug, Clone, Copy, Default)]
 pub struct StdHarness;
 
+impl StdHarness {
+    /// Creates a new synchronous harness instance.
+    #[must_use]
+    pub const fn new() -> Self {
+        Self
+    }
+}
+
 impl HarnessAdapter for StdHarness {
-    fn run<T>(request: ScenarioRunRequest<'_, T>) -> T {
+    fn run<T>(&self, request: ScenarioRunRequest<'_, T>) -> T {
         request.run()
     }
 }
@@ -33,6 +42,7 @@ mod tests {
             ),
             ScenarioRunner::new(|| 21 * 2),
         );
-        assert_eq!(StdHarness::run(request), 42);
+        let harness = StdHarness::new();
+        assert_eq!(harness.run(request), 42);
     }
 }
