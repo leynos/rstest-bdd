@@ -102,12 +102,20 @@ impl ServerHandle {
 // Shared helpers
 // ---------------------------------------------------------------------------
 
+/// A feature file and its matching Rust step file, created inside a
+/// temporary workspace directory.
+struct TestFiles {
+    feature_path: PathBuf,
+    rust_path: PathBuf,
+    rust_uri: lsp_types::Url,
+}
+
 /// Create a minimal feature file and a matching Rust step file inside `dir`.
 #[expect(
     clippy::expect_used,
     reason = "file-write failures are test-fatal I/O errors"
 )]
-fn create_test_files(dir: &Path) -> (PathBuf, PathBuf) {
+fn create_test_files(dir: &Path) -> TestFiles {
     let feature_path = dir.join("test.feature");
     std::fs::write(
         &feature_path,
@@ -131,7 +139,13 @@ fn create_test_files(dir: &Path) -> (PathBuf, PathBuf) {
     )
     .expect("write rust steps");
 
-    (feature_path, rust_path)
+    let rust_uri = lsp_types::Url::from_file_path(&rust_path).expect("rust URI");
+
+    TestFiles {
+        feature_path,
+        rust_path,
+        rust_uri,
+    }
 }
 
 /// Send `didSave` for both files and wait for a `publishDiagnostics`
@@ -140,17 +154,11 @@ fn create_test_files(dir: &Path) -> (PathBuf, PathBuf) {
     clippy::expect_used,
     reason = "missing diagnostics notification is a test-fatal condition"
 )]
-fn index_and_wait(
-    stdin: &mut ChildStdin,
-    receiver: &MessageReceiver,
-    feature_path: &Path,
-    rust_path: &Path,
-    rust_uri: &lsp_types::Url,
-) {
-    did_save(stdin, feature_path);
-    did_save(stdin, rust_path);
+fn index_and_wait(stdin: &mut ChildStdin, receiver: &MessageReceiver, files: &TestFiles) {
+    did_save(stdin, &files.feature_path);
+    did_save(stdin, &files.rust_path);
 
-    let expected_uri = rust_uri.as_str();
+    let expected_uri = files.rust_uri.as_str();
     receiver
         .recv_notification_matching(
             |msg| {
@@ -226,20 +234,12 @@ fn smoke_initialize_and_shutdown(mut server: ServerHandle) {
 
 #[rstest]
 #[expect(
-    clippy::expect_used,
     clippy::indexing_slicing,
-    reason = "test assertions use .expect() and indexing for clear failure messages"
+    reason = "test assertions use JSON indexing for clear failure messages"
 )]
 fn smoke_definition_request_returns_locations(mut server: ServerHandle) {
-    let (feature_path, rust_path) = create_test_files(server.workspace_root());
-    let rust_uri = lsp_types::Url::from_file_path(&rust_path).expect("rust URI");
-    index_and_wait(
-        &mut server.stdin,
-        &server.receiver,
-        &feature_path,
-        &rust_path,
-        &rust_uri,
-    );
+    let files = create_test_files(server.workspace_root());
+    index_and_wait(&mut server.stdin, &server.receiver, &files);
 
     // Send definition request for the Rust step function
     // (line 3, 0-indexed).
@@ -248,7 +248,7 @@ fn smoke_definition_request_returns_locations(mut server: ServerHandle) {
         "id": 2,
         "method": "textDocument/definition",
         "params": {
-            "textDocument": { "uri": rust_uri.as_str() },
+            "textDocument": { "uri": files.rust_uri.as_str() },
             "position": { "line": 3, "character": 0 }
         }
     });
