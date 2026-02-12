@@ -1,4 +1,4 @@
-# ExecPlan 9.2.1: Extend `#[scenario]` and `scenarios!` with harness and attribute policy parameters
+# Execution Plan (ExecPlan) 9.2.1: Extend `#[scenario]` and `scenarios!` with harness and attribute policy parameters
 
 This ExecPlan is a living document. The sections `Constraints`, `Tolerances`,
 `Risks`, `Progress`, `Surprises & Discoveries`, `Decision Log`, and
@@ -48,8 +48,10 @@ Success is observable when:
   the new macro arguments, thread them through the code generation pipeline,
   and emit compile-time trait-bound assertions. Do not implement 9.2.2
   (execution delegation) or 9.2.3 (runtime compatibility alias) in this change.
-- Keep Tokio and GPUI dependencies out of core crates (`rstest-bdd`,
-  `rstest-bdd-macros`, `rstest-bdd-harness`) per ADR-005.
+- Keep Tokio and Graphical Processing User Interface (GPUI) dependencies
+  out of core crates (`rstest-bdd`,
+  `rstest-bdd-macros`, `rstest-bdd-harness`) per Architecture Decision
+  Record (ADR) 005.
 - Preserve existing public behaviour for current users: all existing macro
   invocations without `harness`/`attributes` must produce identical output.
 - The `runtime = "tokio-current-thread"` parameter in `scenarios!` continues
@@ -223,7 +225,8 @@ Lessons learned:
 
 ## Context and orientation
 
-The `rstest-bdd` workspace implements a BDD framework for Rust built on
+The `rstest-bdd` workspace implements a behaviour-driven development (BDD)
+framework for Rust built on
 `rstest`. Two procedural macros drive test generation:
 
 1. `#[scenario(path = "...", ...)]` — an attribute macro that reads a Gherkin

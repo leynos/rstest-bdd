@@ -189,9 +189,8 @@ fn selector_conflict_error(
 
 #[cfg(test)]
 #[expect(
-    clippy::unwrap_used,
     clippy::expect_used,
-    reason = "test code uses infallible unwraps for clarity"
+    reason = "test code uses infallible expects for clarity"
 )]
 mod tests {
     use super::ScenarioArgs;
@@ -220,7 +219,7 @@ mod tests {
             path = "test.feature",
             harness = rstest_bdd_harness::StdHarness
         ))
-        .unwrap();
+        .expect("scenario args should parse");
         assert_eq!(args.path.value(), "test.feature");
         let harness = args.harness.expect("harness should be set");
         let harness_str = quote!(#harness).to_string();
@@ -236,7 +235,7 @@ mod tests {
             path = "test.feature",
             attributes = rstest_bdd_harness::DefaultAttributePolicy
         ))
-        .unwrap();
+        .expect("scenario args should parse");
         let attr_policy = args.attributes.expect("attributes should be set");
         let attr_str = quote!(#attr_policy).to_string();
         assert!(
@@ -252,7 +251,7 @@ mod tests {
             harness = my::Harness,
             attributes = my::Policy
         ))
-        .unwrap();
+        .expect("scenario args should parse");
         assert!(args.harness.is_some());
         assert!(args.attributes.is_some());
     }
@@ -266,7 +265,7 @@ mod tests {
             harness = my::Harness,
             attributes = my::Policy
         ))
-        .unwrap();
+        .expect("scenario args should parse");
         assert_eq!(args.path.value(), "test.feature");
         assert!(args.selector.is_some());
         assert!(args.tag_filter.is_some());
@@ -276,7 +275,8 @@ mod tests {
 
     #[test]
     fn defaults_harness_and_attributes_to_none() {
-        let args = parse_scenario_args(quote!(path = "test.feature")).unwrap();
+        let args =
+            parse_scenario_args(quote!(path = "test.feature")).expect("scenario args should parse");
         assert!(args.harness.is_none());
         assert!(args.attributes.is_none());
     }

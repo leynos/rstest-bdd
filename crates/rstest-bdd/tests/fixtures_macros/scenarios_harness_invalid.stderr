@@ -1,0 +1,25 @@
+error[E0277]: the trait bound `NotAHarness: HarnessAdapter` is not satisfied
+  --> tests/fixtures_macros/scenarios_harness_invalid.rs:9:15
+   |
+ 9 |     harness = NotAHarness,
+   |               ^^^^^^^^^^^ unsatisfied trait bound
+   |
+help: the trait `HarnessAdapter` is not implemented for `NotAHarness`
+  --> tests/fixtures_macros/scenarios_harness_invalid.rs:5:1
+   |
+ 5 | struct NotAHarness;
+   | ^^^^^^^^^^^^^^^^^^
+help: the trait `HarnessAdapter` is implemented for `StdHarness`
+  --> $WORKSPACE/crates/rstest-bdd-harness/src/std_harness.rs
+   |
+   | impl HarnessAdapter for StdHarness {
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+note: required by a bound in `auto_scenarios::_::__assert_harness`
+  --> tests/fixtures_macros/scenarios_harness_invalid.rs:7:1
+   |
+ 7 | / scenarios!(
+ 8 | |     "tests/features/auto",
+ 9 | |     harness = NotAHarness,
+10 | | );
+   | |_^ required by this bound in `__assert_harness`
+   = note: this error originates in the macro `scenarios` (in Nightly builds, run with -Z macro-backtrace for more info)

@@ -470,7 +470,7 @@ mod tests {
             "tests/features",
             harness = rstest_bdd_harness::StdHarness
         ))
-        .unwrap();
+        .expect("scenarios args should parse");
         assert_eq!(args.dir.value(), "tests/features");
         let harness = args.harness.expect("harness should be set");
         let harness_str = quote!(#harness).to_string();
@@ -487,7 +487,7 @@ mod tests {
             "tests/features",
             attributes = rstest_bdd_harness::DefaultAttributePolicy
         ))
-        .unwrap();
+        .expect("scenarios args should parse");
         let attr_policy = args.attributes.expect("attributes should be set");
         let attr_str = quote!(#attr_policy).to_string();
         assert!(
@@ -504,7 +504,7 @@ mod tests {
             harness = my::Harness,
             attributes = my::Policy
         ))
-        .unwrap();
+        .expect("scenarios args should parse");
         assert!(args.harness.is_some());
         assert!(args.attributes.is_some());
     }
@@ -519,7 +519,7 @@ mod tests {
             harness = my::Harness,
             attributes = my::Policy
         ))
-        .unwrap();
+        .expect("scenarios args should parse");
         assert_eq!(args.dir.value(), "tests/features");
         assert_eq!(
             args.tag_filter
@@ -536,7 +536,8 @@ mod tests {
 
     #[test]
     fn scenarios_args_defaults_harness_and_attributes_to_none() {
-        let args: ScenariosArgs = parse_scenarios_args(parse_quote!("tests/features")).unwrap();
+        let args: ScenariosArgs = parse_scenarios_args(parse_quote!("tests/features"))
+            .expect("scenarios args should parse");
         assert!(args.harness.is_none());
         assert!(args.attributes.is_none());
     }
