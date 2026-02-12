@@ -111,37 +111,41 @@ fn set_unique_field<T>(
     Ok(())
 }
 
+/// Generic helper to set a selector after checking for conflicts.
+fn set_selector<F>(
+    selector: &mut Option<ScenarioSelector>,
+    kind: SelectorKind,
+    span: Span,
+    build: F,
+) -> syn::Result<()>
+where
+    F: FnOnce() -> syn::Result<ScenarioSelector>,
+{
+    if let Some(existing) = selector {
+        return Err(selector_conflict_error(existing, kind, span));
+    }
+    *selector = Some(build()?);
+    Ok(())
+}
+
 /// Set the scenario selector to an index, rejecting conflicts with an existing selector.
 fn set_selector_index(selector: &mut Option<ScenarioSelector>, i: &LitInt) -> syn::Result<()> {
-    if let Some(existing) = selector {
-        return Err(selector_conflict_error(
-            existing,
-            SelectorKind::Index,
-            i.span(),
-        ));
-    }
-    let value = i.base10_parse()?;
-    *selector = Some(ScenarioSelector::Index {
-        value,
-        span: i.span(),
-    });
-    Ok(())
+    set_selector(selector, SelectorKind::Index, i.span(), || {
+        Ok(ScenarioSelector::Index {
+            value: i.base10_parse()?,
+            span: i.span(),
+        })
+    })
 }
 
 /// Set the scenario selector to a name, rejecting conflicts with an existing selector.
 fn set_selector_name(selector: &mut Option<ScenarioSelector>, lit: &LitStr) -> syn::Result<()> {
-    if let Some(existing) = selector {
-        return Err(selector_conflict_error(
-            existing,
-            SelectorKind::Name,
-            lit.span(),
-        ));
-    }
-    *selector = Some(ScenarioSelector::Name {
-        value: lit.value(),
-        span: lit.span(),
-    });
-    Ok(())
+    set_selector(selector, SelectorKind::Name, lit.span(), || {
+        Ok(ScenarioSelector::Name {
+            value: lit.value(),
+            span: lit.span(),
+        })
+    })
 }
 
 enum SelectorKind {

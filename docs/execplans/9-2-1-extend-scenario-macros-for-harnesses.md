@@ -251,7 +251,8 @@ Key files in the macro crate (`crates/rstest-bdd-macros/`):
 
 The harness crate (`crates/rstest-bdd-harness/`) provides:
 
-- `HarnessAdapter` trait — `fn run<T>(&self, request: ScenarioRunRequest<'_, T>) -> T`
+- `HarnessAdapter` trait —
+  `fn run<T>(&self, request: ScenarioRunRequest<'_, T>) -> T`
 - `AttributePolicy` trait — `fn test_attributes() -> &'static [TestAttribute]`
 - `StdHarness` — default synchronous pass-through harness
 - `DefaultAttributePolicy` — emits only `#[rstest::rstest]`
@@ -353,10 +354,12 @@ unit as the user's types.
 When neither parameter is specified, the existing behavior is unchanged.
 
 Update all call sites of `generate_test_attrs`:
+
 - `generate_regular_scenario_code`
 - `generate_outline_scenario_code`
 
 Add codegen unit tests in `src/codegen/scenario/tests.rs` verifying:
+
 - With `attributes` specified: output contains `rstest :: rstest` but not
   `tokio :: test`.
 - With `harness` specified: const assertion token is present.
