@@ -106,30 +106,51 @@ fn set_once<T>(
     Ok(())
 }
 
+/// Process each parsed argument and populate the corresponding field.
+#[expect(
+    clippy::type_complexity,
+    reason = "flat tuple avoids a single-use struct"
+)]
+fn process_args(
+    args: Punctuated<ScenariosArg, Comma>,
+    input: ParseStream<'_>,
+) -> syn::Result<(
+    Option<LitStr>,
+    Option<LitStr>,
+    Option<Vec<FixtureSpec>>,
+    Option<RuntimeMode>,
+    Option<syn::Path>,
+    Option<syn::Path>,
+)> {
+    let mut dir = None;
+    let mut tag_filter = None;
+    let mut fixtures = None;
+    let mut runtime = None;
+    let mut harness = None;
+    let mut attributes = None;
+
+    for arg in args {
+        match arg {
+            ScenariosArg::Dir(lit) => set_once(&mut dir, lit, "dir/path", input)?,
+            ScenariosArg::Tags(lit) => set_once(&mut tag_filter, lit, "tags", input)?,
+            ScenariosArg::Fixtures(specs) => {
+                set_once(&mut fixtures, specs, "fixtures", input)?;
+            }
+            ScenariosArg::Runtime(mode) => set_once(&mut runtime, mode, "runtime", input)?,
+            ScenariosArg::Harness(p) => set_once(&mut harness, p, "harness", input)?,
+            ScenariosArg::Attributes(p) => {
+                set_once(&mut attributes, p, "attributes", input)?;
+            }
+        }
+    }
+
+    Ok((dir, tag_filter, fixtures, runtime, harness, attributes))
+}
+
 impl Parse for ScenariosArgs {
     fn parse(input: ParseStream<'_>) -> syn::Result<Self> {
         let args = Punctuated::<ScenariosArg, Comma>::parse_terminated(input)?;
-        let mut dir = None;
-        let mut tag_filter = None;
-        let mut fixtures = None;
-        let mut runtime = None;
-        let mut harness = None;
-        let mut attributes = None;
-
-        for arg in args {
-            match arg {
-                ScenariosArg::Dir(lit) => set_once(&mut dir, lit, "dir/path", input)?,
-                ScenariosArg::Tags(lit) => set_once(&mut tag_filter, lit, "tags", input)?,
-                ScenariosArg::Fixtures(specs) => {
-                    set_once(&mut fixtures, specs, "fixtures", input)?;
-                }
-                ScenariosArg::Runtime(mode) => set_once(&mut runtime, mode, "runtime", input)?,
-                ScenariosArg::Harness(p) => set_once(&mut harness, p, "harness", input)?,
-                ScenariosArg::Attributes(p) => {
-                    set_once(&mut attributes, p, "attributes", input)?;
-                }
-            }
-        }
+        let (dir, tag_filter, fixtures, runtime, harness, attributes) = process_args(args, input)?;
 
         let dir = dir.ok_or_else(|| input.error("`dir` (or `path`) argument is required"))?;
 
