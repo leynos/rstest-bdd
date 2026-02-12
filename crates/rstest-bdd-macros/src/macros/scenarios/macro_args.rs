@@ -55,40 +55,49 @@ impl Parse for ScenariosArg {
         } else {
             let ident: syn::Ident = input.parse()?;
             input.parse::<syn::token::Eq>()?;
-            if ident == "dir" || ident == "path" {
-                Ok(Self::Dir(input.parse()?))
-            } else if ident == "tags" {
-                Ok(Self::Tags(input.parse()?))
-            } else if ident == "fixtures" {
-                let content;
-                syn::bracketed!(content in input);
-                let specs = Punctuated::<FixtureSpec, Comma>::parse_terminated(&content)?;
-                Ok(Self::Fixtures(specs.into_iter().collect()))
-            } else if ident == "runtime" {
-                let value: LitStr = input.parse()?;
-                let mode = match value.value().as_str() {
-                    "tokio-current-thread" => RuntimeMode::TokioCurrentThread,
-                    other => {
-                        return Err(syn::Error::new(
-                            value.span(),
-                            format!(
-                                "unknown runtime `{other}`; \
-                                 supported: \"tokio-current-thread\""
-                            ),
-                        ));
-                    }
-                };
-                Ok(Self::Runtime(mode))
-            } else if ident == "harness" {
-                Ok(Self::Harness(input.parse()?))
-            } else if ident == "attributes" {
-                Ok(Self::Attributes(input.parse()?))
-            } else {
-                Err(input.error(
-                    "expected `dir`, `path`, `tags`, `fixtures`, `runtime`, `harness`, or `attributes`",
-                ))
-            }
+            parse_named_arg(&ident, input)
         }
+    }
+}
+
+/// Parse a named argument based on its identifier.
+fn parse_named_arg(ident: &syn::Ident, input: ParseStream<'_>) -> syn::Result<ScenariosArg> {
+    match ident.to_string().as_str() {
+        "dir" | "path" => Ok(ScenariosArg::Dir(input.parse()?)),
+        "tags" => Ok(ScenariosArg::Tags(input.parse()?)),
+        "fixtures" => parse_fixtures_arg(input),
+        "runtime" => parse_runtime_arg(input),
+        "harness" => Ok(ScenariosArg::Harness(input.parse()?)),
+        "attributes" => Ok(ScenariosArg::Attributes(input.parse()?)),
+        _ => Err(input.error(
+            "expected `dir`, `path`, `tags`, `fixtures`, `runtime`, `harness`, or `attributes`",
+        )),
+    }
+}
+
+/// Parse the fixtures argument: `fixtures = [name: Type, ...]`
+fn parse_fixtures_arg(input: ParseStream<'_>) -> syn::Result<ScenariosArg> {
+    let content;
+    syn::bracketed!(content in input);
+    let specs = Punctuated::<FixtureSpec, Comma>::parse_terminated(&content)?;
+    Ok(ScenariosArg::Fixtures(specs.into_iter().collect()))
+}
+
+/// Parse the runtime argument: `runtime = "tokio-current-thread"`
+fn parse_runtime_arg(input: ParseStream<'_>) -> syn::Result<ScenariosArg> {
+    let value: LitStr = input.parse()?;
+    let mode = parse_runtime_mode(&value)?;
+    Ok(ScenariosArg::Runtime(mode))
+}
+
+/// Parse a runtime mode string into a `RuntimeMode` enum.
+fn parse_runtime_mode(value: &LitStr) -> syn::Result<RuntimeMode> {
+    match value.value().as_str() {
+        "tokio-current-thread" => Ok(RuntimeMode::TokioCurrentThread),
+        other => Err(syn::Error::new(
+            value.span(),
+            format!("unknown runtime `{other}`; supported: \"tokio-current-thread\""),
+        )),
     }
 }
 
