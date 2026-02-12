@@ -72,56 +72,15 @@ impl Parse for ScenarioArgs {
 
         for arg in args {
             match arg {
-                ScenarioArg::Path(lit) => {
-                    if path.is_some() {
-                        return Err(input.error("duplicate `path` argument"));
-                    }
-                    path = Some(lit);
-                }
-                ScenarioArg::Index(i) => {
-                    if let Some(existing) = &selector {
-                        return Err(selector_conflict_error(
-                            existing,
-                            SelectorKind::Index,
-                            i.span(),
-                        ));
-                    }
-                    let value = i.base10_parse()?;
-                    selector = Some(ScenarioSelector::Index {
-                        value,
-                        span: i.span(),
-                    });
-                }
-                ScenarioArg::Name(lit) => {
-                    if let Some(existing) = &selector {
-                        return Err(selector_conflict_error(
-                            existing,
-                            SelectorKind::Name,
-                            lit.span(),
-                        ));
-                    }
-                    selector = Some(ScenarioSelector::Name {
-                        value: lit.value(),
-                        span: lit.span(),
-                    });
-                }
-                ScenarioArg::Tags(lit) => {
-                    if tag_filter.is_some() {
-                        return Err(input.error("duplicate `tags` argument"));
-                    }
-                    tag_filter = Some(lit);
-                }
+                ScenarioArg::Path(lit) => set_unique_field(&mut path, lit, "path", input)?,
+                ScenarioArg::Index(i) => set_selector_index(&mut selector, &i)?,
+                ScenarioArg::Name(lit) => set_selector_name(&mut selector, &lit)?,
+                ScenarioArg::Tags(lit) => set_unique_field(&mut tag_filter, lit, "tags", input)?,
                 ScenarioArg::Harness(p) => {
-                    if harness.is_some() {
-                        return Err(input.error("duplicate `harness` argument"));
-                    }
-                    harness = Some(p);
+                    set_unique_field(&mut harness, p, "harness", input)?;
                 }
                 ScenarioArg::Attributes(p) => {
-                    if attributes.is_some() {
-                        return Err(input.error("duplicate `attributes` argument"));
-                    }
-                    attributes = Some(p);
+                    set_unique_field(&mut attributes, p, "attributes", input)?;
                 }
             }
         }
@@ -136,6 +95,53 @@ impl Parse for ScenarioArgs {
             attributes,
         })
     }
+}
+
+/// Assign `value` to `slot` if empty, or return a duplicate-argument error.
+fn set_unique_field<T>(
+    slot: &mut Option<T>,
+    value: T,
+    label: &str,
+    input: ParseStream<'_>,
+) -> syn::Result<()> {
+    if slot.is_some() {
+        return Err(input.error(format!("duplicate `{label}` argument")));
+    }
+    *slot = Some(value);
+    Ok(())
+}
+
+/// Set the scenario selector to an index, rejecting conflicts with an existing selector.
+fn set_selector_index(selector: &mut Option<ScenarioSelector>, i: &LitInt) -> syn::Result<()> {
+    if let Some(existing) = selector {
+        return Err(selector_conflict_error(
+            existing,
+            SelectorKind::Index,
+            i.span(),
+        ));
+    }
+    let value = i.base10_parse()?;
+    *selector = Some(ScenarioSelector::Index {
+        value,
+        span: i.span(),
+    });
+    Ok(())
+}
+
+/// Set the scenario selector to a name, rejecting conflicts with an existing selector.
+fn set_selector_name(selector: &mut Option<ScenarioSelector>, lit: &LitStr) -> syn::Result<()> {
+    if let Some(existing) = selector {
+        return Err(selector_conflict_error(
+            existing,
+            SelectorKind::Name,
+            lit.span(),
+        ));
+    }
+    *selector = Some(ScenarioSelector::Name {
+        value: lit.value(),
+        span: lit.span(),
+    });
+    Ok(())
 }
 
 enum SelectorKind {

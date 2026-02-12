@@ -92,6 +92,20 @@ impl Parse for ScenariosArg {
     }
 }
 
+/// Assign `value` to `slot` if empty, or return a duplicate-argument error.
+fn set_once<T>(
+    slot: &mut Option<T>,
+    value: T,
+    label: &str,
+    input: ParseStream<'_>,
+) -> syn::Result<()> {
+    if slot.is_some() {
+        return Err(input.error(format!("duplicate `{label}` argument")));
+    }
+    *slot = Some(value);
+    Ok(())
+}
+
 impl Parse for ScenariosArgs {
     fn parse(input: ParseStream<'_>) -> syn::Result<Self> {
         let args = Punctuated::<ScenariosArg, Comma>::parse_terminated(input)?;
@@ -104,41 +118,15 @@ impl Parse for ScenariosArgs {
 
         for arg in args {
             match arg {
-                ScenariosArg::Dir(lit) => {
-                    if dir.is_some() {
-                        return Err(input.error("duplicate `dir`/`path` argument"));
-                    }
-                    dir = Some(lit);
-                }
-                ScenariosArg::Tags(lit) => {
-                    if tag_filter.is_some() {
-                        return Err(input.error("duplicate `tags` argument"));
-                    }
-                    tag_filter = Some(lit);
-                }
+                ScenariosArg::Dir(lit) => set_once(&mut dir, lit, "dir/path", input)?,
+                ScenariosArg::Tags(lit) => set_once(&mut tag_filter, lit, "tags", input)?,
                 ScenariosArg::Fixtures(specs) => {
-                    if fixtures.is_some() {
-                        return Err(input.error("duplicate `fixtures` argument"));
-                    }
-                    fixtures = Some(specs);
+                    set_once(&mut fixtures, specs, "fixtures", input)?;
                 }
-                ScenariosArg::Runtime(mode) => {
-                    if runtime.is_some() {
-                        return Err(input.error("duplicate `runtime` argument"));
-                    }
-                    runtime = Some(mode);
-                }
-                ScenariosArg::Harness(p) => {
-                    if harness.is_some() {
-                        return Err(input.error("duplicate `harness` argument"));
-                    }
-                    harness = Some(p);
-                }
+                ScenariosArg::Runtime(mode) => set_once(&mut runtime, mode, "runtime", input)?,
+                ScenariosArg::Harness(p) => set_once(&mut harness, p, "harness", input)?,
                 ScenariosArg::Attributes(p) => {
-                    if attributes.is_some() {
-                        return Err(input.error("duplicate `attributes` argument"));
-                    }
-                    attributes = Some(p);
+                    set_once(&mut attributes, p, "attributes", input)?;
                 }
             }
         }

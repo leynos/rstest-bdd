@@ -201,43 +201,55 @@ fn generate_test_attrs_without_attributes_unchanged() {
 // Tests for generate_trait_assertions
 // -----------------------------------------------------------------------------
 
-#[test]
-fn trait_assertions_with_harness() {
-    let harness_path = parse_path("my::Harness");
-    let tokens = generate_trait_assertions(Some(&harness_path), None);
+/// Verify that a single-param call to `generate_trait_assertions` emits only
+/// the expected trait bound and type path, excluding the other trait.
+fn assert_single_trait_assertion(
+    param_type: &str,
+    path_str: &str,
+    expected_trait: &str,
+    excluded_trait: &str,
+) {
+    let path = parse_path(path_str);
+    let (harness, attributes) = match param_type {
+        "harness" => (Some(&path), None),
+        "attributes" => (None, Some(&path)),
+        other => panic!("unknown param_type: {other}"),
+    };
+    let tokens = generate_trait_assertions(harness, attributes);
     let output = tokens.to_string();
 
     assert!(
-        output.contains("HarnessAdapter"),
-        "should contain HarnessAdapter trait bound: {output}"
+        output.contains(expected_trait),
+        "should contain {expected_trait} trait bound: {output}"
+    );
+    let spaced_path = path_str.replace("::", " :: ");
+    assert!(
+        output.contains(&spaced_path),
+        "should contain type path `{spaced_path}`: {output}"
     );
     assert!(
-        output.contains("my :: Harness"),
-        "should contain harness type path: {output}"
+        !output.contains(excluded_trait),
+        "should NOT contain {excluded_trait}: {output}"
     );
-    assert!(
-        !output.contains("AttributePolicy"),
-        "should NOT contain AttributePolicy: {output}"
+}
+
+#[test]
+fn trait_assertions_with_harness() {
+    assert_single_trait_assertion(
+        "harness",
+        "my::Harness",
+        "HarnessAdapter",
+        "AttributePolicy",
     );
 }
 
 #[test]
 fn trait_assertions_with_attributes() {
-    let policy_path = parse_path("my::Policy");
-    let tokens = generate_trait_assertions(None, Some(&policy_path));
-    let output = tokens.to_string();
-
-    assert!(
-        output.contains("AttributePolicy"),
-        "should contain AttributePolicy trait bound: {output}"
-    );
-    assert!(
-        output.contains("my :: Policy"),
-        "should contain policy type path: {output}"
-    );
-    assert!(
-        !output.contains("HarnessAdapter"),
-        "should NOT contain HarnessAdapter: {output}"
+    assert_single_trait_assertion(
+        "attributes",
+        "my::Policy",
+        "AttributePolicy",
+        "HarnessAdapter",
     );
 }
 
