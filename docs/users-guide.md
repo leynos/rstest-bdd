@@ -707,7 +707,7 @@ scenario defined in a `.feature` file. It accepts six arguments:
 
 | Argument           | Purpose                                                        | Status                                                                                                       |
 | ------------------ | -------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| `path: &str`       | Relative path to the feature file (required).                  | **Implemented**: resolved and parsed at compile time.                                                        |
+| `path: &str`       | Relative path to the feature file (required).                  | **Implemented**: resolved and parsed at macro-expansion time.                                                |
 | `index: usize`     | Optional zero-based scenario index (defaults to `0`).          | **Implemented**: selects the scenario by position.                                                           |
 | `name: &str`       | Optional scenario title; resolves when unique.                 | **Implemented**: errors when missing and directs duplicates to `index`.                                      |
 | `tags: &str`       | Optional tag-expression filter applied at expansion.           | **Implemented**: filters scenarios and outline example rows; errors when nothing matches.                    |
@@ -734,7 +734,8 @@ fn smoke_test() {}
 The `harness` and `attributes` parameters accept Rust type paths pointing to
 types that implement `HarnessAdapter` and `AttributePolicy` from the
 `rstest-bdd-harness` crate. These enable third-party framework integrations
-(per ADR-005) without coupling the core crates to any specific runtime.
+(per Architectural Decision Record (ADR-005)) without coupling the core crates
+to any specific runtime.
 
 When specified, the macro emits compile-time trait-bound assertions that
 produce clear compiler errors if the type does not implement the required

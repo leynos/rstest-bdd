@@ -192,15 +192,15 @@ fn generate_test_attrs_respects_attributes_policy(#[case] policy_path: Option<sy
 // Tests for generate_trait_assertions
 // -----------------------------------------------------------------------------
 
-/// Which parameter is being tested in a single-param trait assertion.
+// Discriminates which single-param variant to pass, avoiding two near-identical helpers.
 #[derive(Clone, Copy)]
 enum ParamKind {
     Harness,
     Attributes,
 }
 
-/// Verify that a single-param call to `generate_trait_assertions` emits only
-/// the expected trait bound and type path, excluding the other trait.
+// Consolidates the repeated assert-contains / assert-not-contains pattern so
+// individual trait-assertion tests stay compact.
 fn assert_single_trait_assertion(
     param_kind: ParamKind,
     path_str: &str,
@@ -230,24 +230,21 @@ fn assert_single_trait_assertion(
     );
 }
 
-#[test]
-fn trait_assertions_with_harness() {
-    assert_single_trait_assertion(
-        ParamKind::Harness,
-        "my::Harness",
-        "HarnessAdapter",
-        "AttributePolicy",
-    );
-}
-
-#[test]
-fn trait_assertions_with_attributes() {
-    assert_single_trait_assertion(
-        ParamKind::Attributes,
-        "my::Policy",
-        "AttributePolicy",
-        "HarnessAdapter",
-    );
+#[rstest::rstest]
+#[case::harness(ParamKind::Harness, "my::Harness", "HarnessAdapter", "AttributePolicy")]
+#[case::attributes(
+    ParamKind::Attributes,
+    "my::Policy",
+    "AttributePolicy",
+    "HarnessAdapter"
+)]
+fn trait_assertions_single_param(
+    #[case] kind: ParamKind,
+    #[case] path_str: &str,
+    #[case] expected_trait: &str,
+    #[case] excluded_trait: &str,
+) {
+    assert_single_trait_assertion(kind, path_str, expected_trait, excluded_trait);
 }
 
 #[test]

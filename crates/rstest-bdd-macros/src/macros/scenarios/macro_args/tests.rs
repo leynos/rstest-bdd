@@ -21,7 +21,7 @@ fn type_to_string(ty: &syn::Type) -> String {
     quote!(#ty).to_string()
 }
 
-/// Assert that parsing fails and the error message contains the expected keyword.
+// Centralises error-message checking so individual rejection tests stay one-liners.
 fn assert_parse_error_contains(result: syn::Result<ScenariosArgs>, expected_keyword: &str) {
     match result {
         Ok(_) => panic!("parsing should fail"),
@@ -35,12 +35,12 @@ fn assert_parse_error_contains(result: syn::Result<ScenariosArgs>, expected_keyw
     }
 }
 
-/// Assert that fixture spec parsing fails and the error exists.
+// Keeps fixture-rejection tests concise by hiding the parse-and-check boilerplate.
 fn assert_fixture_parse_fails(tokens: proc_macro2::TokenStream) {
     assert!(parse_fixture_spec(tokens).is_err(), "parsing should fail");
 }
 
-/// Assert the tag filter matches the expected value.
+// Unwraps the optional tag filter so callers don't repeat the Option dance.
 #[expect(clippy::expect_used, reason = "test helper with descriptive failures")]
 fn assert_tag_filter_eq(args: &ScenariosArgs, expected: &str) {
     assert_eq!(
@@ -293,37 +293,42 @@ fn runtime_mode_returns_expected_hint(
     assert_eq!(mode.test_attribute_hint(), expected);
 }
 
-#[test]
-#[expect(clippy::expect_used, reason = "test with descriptive failures")]
-fn scenarios_args_parses_harness_argument() {
-    let args: ScenariosArgs = parse_scenarios_args(parse_quote!(
-        "tests/features",
-        harness = rstest_bdd_harness::StdHarness
-    ));
-    assert_eq!(args.dir.value(), "tests/features");
-    let harness = args.harness.expect("harness should be set");
-    let harness_str = quote!(#harness).to_string();
+// Extracts the harness or attributes field, renders it, and checks the other is None.
+#[expect(clippy::expect_used, reason = "test helper with descriptive failures")]
+fn assert_extension_param(args: &ScenariosArgs, expected_fragment: &str, is_harness: bool) {
+    let (rendered, other_is_none) = if is_harness {
+        let h = args.harness.as_ref().expect("harness should be set");
+        (quote!(#h).to_string(), args.attributes.is_none())
+    } else {
+        let a = args.attributes.as_ref().expect("attributes should be set");
+        (quote!(#a).to_string(), args.harness.is_none())
+    };
     assert!(
-        harness_str.contains("StdHarness"),
-        "should contain StdHarness: {harness_str}"
+        rendered.contains(expected_fragment),
+        "should contain {expected_fragment}: {rendered}"
     );
-    assert!(args.attributes.is_none());
+    assert!(other_is_none, "the other field should be None");
 }
 
-#[test]
-#[expect(clippy::expect_used, reason = "test with descriptive failures")]
-fn scenarios_args_parses_attributes_argument() {
-    let args: ScenariosArgs = parse_scenarios_args(parse_quote!(
-        "tests/features",
-        attributes = rstest_bdd_harness::DefaultAttributePolicy
-    ));
-    let attr_policy = args.attributes.expect("attributes should be set");
-    let attr_str = quote!(#attr_policy).to_string();
-    assert!(
-        attr_str.contains("DefaultAttributePolicy"),
-        "should contain DefaultAttributePolicy: {attr_str}"
-    );
-    assert!(args.harness.is_none());
+#[rstest::rstest]
+#[case::harness(
+    parse_quote!("tests/features", harness = rstest_bdd_harness::StdHarness),
+    "StdHarness",
+    true,
+)]
+#[case::attributes(
+    parse_quote!("tests/features", attributes = rstest_bdd_harness::DefaultAttributePolicy),
+    "DefaultAttributePolicy",
+    false,
+)]
+fn scenarios_args_parses_single_extension_param(
+    #[case] tokens: proc_macro2::TokenStream,
+    #[case] expected_fragment: &str,
+    #[case] is_harness: bool,
+) {
+    let args: ScenariosArgs = parse_scenarios_args(tokens);
+    assert_eq!(args.dir.value(), "tests/features");
+    assert_extension_param(&args, expected_fragment, is_harness);
 }
 
 #[test]
