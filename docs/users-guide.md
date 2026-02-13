@@ -769,6 +769,25 @@ scenarios!(
 > **Note:** execution delegation through the harness adapter is planned for a
 > future phase. In the current release, the harness and attribute policy types
 > are validated at compile time, but execution follows the standard path.
+>
+> **Async limitation (pending phase 9.3):** when `attributes` is specified,
+> the macro emits only `#[rstest::rstest]` and skips `RuntimeMode`-based
+> attribute generation. This means async scenario functions that use
+> `attributes = DefaultAttributePolicy` (or any policy) will **not** receive
+> `#[tokio::test]` automatically and will fail to compile without an executor
+> attribute. Until phase 9.3 delivers `rstest-bdd-harness-tokio` with a
+> Tokio-aware attribute policy, users requiring async execution with a custom
+> attribute policy should either:
+>
+> - Omit the `attributes` parameter and let `RuntimeMode` handle attribute
+>   generation.
+> - Manually add `#[tokio::test(flavor = "current_thread")]` alongside the
+>   `#[scenario]` attribute.
+>
+> This limitation is intentional per the design (the attribute policy is the
+> extension point for controlling test attributes, so the macro defers to the
+> policy rather than second-guessing it), but it represents a gap until a
+> Tokio-aware policy ships. Revisit this note when phase 9.3 is implemented.
 
 If the feature file cannot be found or contains invalid Gherkin, the macro
 emits a compile-time error with the offending path.

@@ -163,38 +163,29 @@ fn parse_path(s: &str) -> syn::Path {
     syn::parse_str::<syn::Path>(s).expect("valid path")
 }
 
-#[test]
-fn generate_test_attrs_with_attributes_skips_tokio() {
-    let policy_path = parse_path("my::Policy");
-    // Even with TokioCurrentThread runtime, tokio::test should NOT be emitted
-    // when an attribute policy is specified.
-    let tokens = generate_test_attrs(&[], RuntimeMode::TokioCurrentThread, Some(&policy_path));
+#[rstest::rstest]
+#[case::with_attributes_skips_tokio(Some(parse_path("my::Policy")))]
+#[case::without_attributes_unchanged(None)]
+fn generate_test_attrs_respects_attributes_policy(#[case] policy_path: Option<syn::Path>) {
+    let policy = policy_path.as_ref();
+    let tokens = generate_test_attrs(&[], RuntimeMode::TokioCurrentThread, policy);
     let output = tokens.to_string();
 
     assert!(
         output.contains("rstest :: rstest"),
         "should contain rstest::rstest: {output}"
     );
-    assert!(
-        !output.contains("tokio :: test"),
-        "should NOT contain tokio::test when attributes is specified: {output}"
-    );
-}
-
-#[test]
-fn generate_test_attrs_without_attributes_unchanged() {
-    // Verify backward compatibility: no attributes = same old behaviour
-    let tokens = generate_test_attrs(&[], RuntimeMode::TokioCurrentThread, None);
-    let output = tokens.to_string();
-
-    assert!(
-        output.contains("rstest :: rstest"),
-        "should contain rstest::rstest: {output}"
-    );
-    assert!(
-        output.contains("tokio :: test"),
-        "should contain tokio::test for async without policy: {output}"
-    );
+    if policy.is_some() {
+        assert!(
+            !output.contains("tokio :: test"),
+            "should NOT contain tokio::test when attributes is specified: {output}"
+        );
+    } else {
+        assert!(
+            output.contains("tokio :: test"),
+            "should contain tokio::test for async without policy: {output}"
+        );
+    }
 }
 
 // -----------------------------------------------------------------------------
