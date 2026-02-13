@@ -4,7 +4,6 @@
 # All files previously listed here have been decomposed to under 400 lines.
 # Added during Phase 8 async step execution implementation:
 crates/rstest-bdd-macros/src/codegen/scenario/runtime/generators/step.rs
-crates/rstest-bdd-macros/src/macros/scenarios/macro_args.rs
 # Added during Phase 7 placeholder count validation feature:
 crates/rstest-bdd-server/src/handlers/diagnostics/compute.rs
 crates/rstest-bdd-server/src/handlers/diagnostics/mod.rs

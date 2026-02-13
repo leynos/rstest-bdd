@@ -705,14 +705,14 @@ For migrations from a cucumber `World`, map the concepts as follows:
 The `#[scenario]` macro is the entry point that ties a Rust test function to a
 scenario defined in a `.feature` file. It accepts six arguments:
 
-| Argument              | Purpose                                                      | Status                                                                                    |
-| --------------------- | ------------------------------------------------------------ | ----------------------------------------------------------------------------------------- |
-| `path: &str`          | Relative path to the feature file (required).                | **Implemented**: resolved and parsed at compile time.                                     |
-| `index: usize`        | Optional zero-based scenario index (defaults to `0`).        | **Implemented**: selects the scenario by position.                                        |
-| `name: &str`          | Optional scenario title; resolves when unique.               | **Implemented**: errors when missing and directs duplicates to `index`.                   |
-| `tags: &str`          | Optional tag-expression filter applied at expansion.         | **Implemented**: filters scenarios and outline example rows; errors when nothing matches.  |
-| `harness: Path`       | Optional harness adapter type implementing `HarnessAdapter`. | **Implemented**: emits a compile-time trait-bound assertion; execution delegation pending. |
-| `attributes: Path`    | Optional attribute policy type implementing `AttributePolicy`. | **Implemented**: emits a compile-time trait-bound assertion; skips `RuntimeMode`-based attribute generation. |
+| Argument           | Purpose                                                        | Status                                                                                                       |
+| ------------------ | -------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `path: &str`       | Relative path to the feature file (required).                  | **Implemented**: resolved and parsed at compile time.                                                        |
+| `index: usize`     | Optional zero-based scenario index (defaults to `0`).          | **Implemented**: selects the scenario by position.                                                           |
+| `name: &str`       | Optional scenario title; resolves when unique.                 | **Implemented**: errors when missing and directs duplicates to `index`.                                      |
+| `tags: &str`       | Optional tag-expression filter applied at expansion.           | **Implemented**: filters scenarios and outline example rows; errors when nothing matches.                    |
+| `harness: Path`    | Optional harness adapter type implementing `HarnessAdapter`.   | **Implemented**: emits a compile-time trait-bound assertion; execution delegation pending.                   |
+| `attributes: Path` | Optional attribute policy type implementing `AttributePolicy`. | **Implemented**: emits a compile-time trait-bound assertion; skips `RuntimeMode`-based attribute generation. |
 
 Tag filters run at macro-expansion time against the union of tags on the
 feature, the matched scenario, and—when dealing with `Scenario Outline`—the
@@ -768,7 +768,7 @@ scenarios!(
 
 > **Note:** execution delegation through the harness adapter is planned for a
 > future phase. In the current release, the harness and attribute policy types
-> are validated at compile time but execution follows the standard path.
+> are validated at compile time, but execution follows the standard path.
 
 If the feature file cannot be found or contains invalid Gherkin, the macro
 emits a compile-time error with the offending path.
@@ -911,8 +911,7 @@ For large suites, it is tedious to bind each scenario manually. The
 generates a module with a test for every `Scenario` found. Each test is named
 after the feature file and scenario title. Identifiers are sanitized
 (ASCII-only) and deduplicated by appending a numeric suffix when collisions
-occur.
-The `dir` argument is resolved relative to `CARGO_MANIFEST_DIR` at
+occur. The `dir` argument is resolved relative to `CARGO_MANIFEST_DIR` at
 macro-expansion time.
 
 ```rust,no_run

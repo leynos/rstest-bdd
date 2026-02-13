@@ -27,6 +27,14 @@ where
     f(&mut guard)
 }
 
+/// Assert that the expected steps ran in order, then clear for the next test.
+fn assert_and_clear_events() {
+    with_locked_events(|events| {
+        assert_eq!(events.as_slice(), ["precondition", "action", "result"]);
+    });
+    clear_events();
+}
+
 #[given("a precondition")]
 fn precondition() {
     clear_events();
@@ -49,10 +57,7 @@ fn result() {
 )]
 #[serial]
 fn scenario_with_harness() {
-    with_locked_events(|events| {
-        assert_eq!(events.as_slice(), ["precondition", "action", "result"]);
-    });
-    clear_events();
+    assert_and_clear_events();
 }
 
 #[scenario(
@@ -61,10 +66,7 @@ fn scenario_with_harness() {
 )]
 #[serial]
 fn scenario_with_attributes() {
-    with_locked_events(|events| {
-        assert_eq!(events.as_slice(), ["precondition", "action", "result"]);
-    });
-    clear_events();
+    assert_and_clear_events();
 }
 
 #[scenario(
@@ -74,8 +76,5 @@ fn scenario_with_attributes() {
 )]
 #[serial]
 fn scenario_with_harness_and_attributes() {
-    with_locked_events(|events| {
-        assert_eq!(events.as_slice(), ["precondition", "action", "result"]);
-    });
-    clear_events();
+    assert_and_clear_events();
 }

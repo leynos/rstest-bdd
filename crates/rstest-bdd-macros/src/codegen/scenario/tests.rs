@@ -201,19 +201,25 @@ fn generate_test_attrs_without_attributes_unchanged() {
 // Tests for generate_trait_assertions
 // -----------------------------------------------------------------------------
 
+/// Which parameter is being tested in a single-param trait assertion.
+#[derive(Clone, Copy)]
+enum ParamKind {
+    Harness,
+    Attributes,
+}
+
 /// Verify that a single-param call to `generate_trait_assertions` emits only
 /// the expected trait bound and type path, excluding the other trait.
 fn assert_single_trait_assertion(
-    param_type: &str,
+    param_kind: ParamKind,
     path_str: &str,
     expected_trait: &str,
     excluded_trait: &str,
 ) {
     let path = parse_path(path_str);
-    let (harness, attributes) = match param_type {
-        "harness" => (Some(&path), None),
-        "attributes" => (None, Some(&path)),
-        other => panic!("unknown param_type: {other}"),
+    let (harness, attributes) = match param_kind {
+        ParamKind::Harness => (Some(&path), None),
+        ParamKind::Attributes => (None, Some(&path)),
     };
     let tokens = generate_trait_assertions(harness, attributes);
     let output = tokens.to_string();
@@ -236,7 +242,7 @@ fn assert_single_trait_assertion(
 #[test]
 fn trait_assertions_with_harness() {
     assert_single_trait_assertion(
-        "harness",
+        ParamKind::Harness,
         "my::Harness",
         "HarnessAdapter",
         "AttributePolicy",
@@ -246,7 +252,7 @@ fn trait_assertions_with_harness() {
 #[test]
 fn trait_assertions_with_attributes() {
     assert_single_trait_assertion(
-        "attributes",
+        ParamKind::Attributes,
         "my::Policy",
         "AttributePolicy",
         "HarnessAdapter",

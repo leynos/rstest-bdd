@@ -49,9 +49,8 @@ Success is observable when:
   and emit compile-time trait-bound assertions. Do not implement 9.2.2
   (execution delegation) or 9.2.3 (runtime compatibility alias) in this change.
 - Keep Tokio and Graphical Processing User Interface (GPUI) dependencies
-  out of core crates (`rstest-bdd`,
-  `rstest-bdd-macros`, `rstest-bdd-harness`) per Architecture Decision
-  Record (ADR) 005.
+  out of core crates (`rstest-bdd`, `rstest-bdd-macros`, `rstest-bdd-harness`)
+  per Architecture Decision Record (ADR) 005.
 - Preserve existing public behaviour for current users: all existing macro
   invocations without `harness`/`attributes` must produce identical output.
 - The `runtime = "tokio-current-thread"` parameter in `scenarios!` continues
@@ -84,36 +83,29 @@ Success is observable when:
 
 - Risk: proc macros cannot call user-defined trait methods at expansion time,
   so `AttributePolicy::test_attributes()` cannot be evaluated for arbitrary
-  user types during macro expansion.
-  Severity: medium
-  Likelihood: certain (inherent Rust proc-macro limitation)
-  Mitigation: emit compile-time const trait-bound assertions to validate the
-  type. Defer full attribute-driven codegen to 9.2.2. For 9.2.1, when
-  `attributes` is specified, emit only `#[rstest::rstest]` (always required)
-  and skip the `RuntimeMode`-based tokio attribute generation.
+  user types during macro expansion. Severity: medium Likelihood: certain
+  (inherent Rust proc-macro limitation) Mitigation: emit compile-time const
+  trait-bound assertions to validate the type. Defer full attribute-driven
+  codegen to 9.2.2. For 9.2.1, when `attributes` is specified, emit only
+  `#[rstest::rstest]` (always required) and skip the `RuntimeMode`-based tokio
+  attribute generation.
 
 - Risk: adding `rstest-bdd-harness` as a dependency of the proc-macro crate
-  could introduce unwanted transitive dependencies.
-  Severity: low
-  Likelihood: low
-  Mitigation: `rstest-bdd-harness` is dependency-light by ADR-005 design.
+  could introduce unwanted transitive dependencies. Severity: low Likelihood:
+  low Mitigation: `rstest-bdd-harness` is dependency-light by ADR-005 design.
   Verify with `cargo tree -p rstest-bdd-macros` after wiring.
 
 - Risk: trybuild snapshot files may need updating if error messages change
-  across Rust compiler versions.
-  Severity: low
-  Likelihood: low
-  Mitigation: use compile-fail tests that check for the presence of key trait
-  names in the error output rather than exact compiler messages.
+  across Rust compiler versions. Severity: low Likelihood: low Mitigation: use
+  compile-fail tests that check for the presence of key trait names in the
+  error output rather than exact compiler messages.
 
 - Risk: threading two new `Option<syn::Path>` fields through the pipeline
   touches many structs and call sites, increasing the risk of a missed
-  connection.
-  Severity: medium
-  Likelihood: medium
-  Mitigation: implement threading in a single stage, verify with
-  `cargo check -p rstest-bdd-macros` immediately, and test that existing tests
-  still pass before moving to code generation changes.
+  connection. Severity: medium Likelihood: medium Mitigation: implement
+  threading in a single stage, verify with `cargo check -p rstest-bdd-macros`
+  immediately, and test that existing tests still pass before moving to code
+  generation changes.
 
 ## Progress
 
@@ -138,7 +130,7 @@ Success is observable when:
 - [x] (2026-02-10 01:15Z) Stage H: Added trybuild compile-fail fixtures
       (`scenario_harness_invalid.rs`, `scenario_attributes_invalid.rs`) with
       generated `.stderr` snapshots.
-- [x] (2026-02-10 01:20Z) Stage I: Updated documentation (users guide, design
+- [x] (2026-02-10 01:20Z) Stage I: Updated documentation (user's guide, design
       doc, roadmap).
 - [x] (2026-02-10 01:30Z) Stage J: All quality gates passed. `make check-fmt`,
       `make lint`, and `make test` (1163 tests + 47 Python tests) all exit 0.
@@ -147,12 +139,12 @@ Success is observable when:
 
 - Observation: const assertions emitted alongside `#[rstest::rstest]` as
   "test attributes" caused `expected fn` compile errors because `const _: ()`
-  cannot appear in attribute position.
-  Evidence: integration test `scenario_harness.rs` failed with "expected `fn`"
-  when const blocks were placed before the `#[scenario]` function.
-  Impact: split `generate_test_attrs` into two functions: `generate_test_attrs`
-  (only `#[rstest::rstest]` and optional `#[tokio::test]`) and
-  `generate_trait_assertions` (const blocks emitted as sibling items).
+  cannot appear in attribute position. Evidence: integration test
+  `scenario_harness.rs` failed with "expected `fn`" when const blocks were
+  placed before the `#[scenario]` function. Impact: split `generate_test_attrs`
+  into two functions: `generate_test_attrs` (only `#[rstest::rstest]` and
+  optional `#[tokio::test]`) and `generate_trait_assertions` (const blocks
+  emitted as sibling items).
 
 ## Decision log
 
@@ -160,30 +152,28 @@ Success is observable when:
   evaluate `AttributePolicy::test_attributes()` at macro expansion time.
   Rationale: Rust proc macros cannot call arbitrary trait methods from user
   crates during expansion. Const assertions verify the type implements the
-  trait and produce clear compiler errors. Full attribute evaluation is deferred
-  to 9.2.2 (delegation).
-  Date/Author: 2026-02-10 / Codex
+  trait and produce clear compiler errors. Full attribute evaluation is
+  deferred to 9.2.2 (delegation). Date/Author: 2026-02-10 / Codex.
 
 - Decision: when `attributes = SomePolicy` is specified, emit only
   `#[rstest::rstest]` and skip the `RuntimeMode`-based `#[tokio::test]`
   generation. Rationale: the attribute policy is the new extension point for
-  controlling test attributes per ADR-005. When a user specifies a policy,
-  they are opting into the new system and the macro should not second-guess
-  the policy by also emitting framework-specific attributes. The user's policy
-  (or manual `#[tokio::test]` annotation) is trusted.
-  Date/Author: 2026-02-10 / Codex
+  controlling test attributes per ADR-005. When a user specifies a policy, they
+  are opting into the new system and the macro should not second-guess the
+  policy by also emitting framework-specific attributes. The user's policy (or
+  manual `#[tokio::test]` annotation) is trusted. Date/Author: 2026-02-10 /
+  Codex.
 
 - Decision: add `rstest-bdd-harness` as a compile-time dependency of
-  `rstest-bdd-macros` to reference `HarnessAdapter` and `AttributePolicy`
-  trait paths in const assertions. Rationale: `rstest-bdd-harness` is
+  `rstest-bdd-macros` to reference `HarnessAdapter` and `AttributePolicy` trait
+  paths in const assertions. Rationale: `rstest-bdd-harness` is
   dependency-light per ADR-005 and this enables the macro to emit
-  well-qualified trait paths.
-  Date/Author: 2026-02-10 / Codex
+  well-qualified trait paths. Date/Author: 2026-02-10 / Codex.
 
 - Decision: both `harness` and `attributes` parameters accept `syn::Path`
   values (Rust type paths). Rationale: users can reference types from any
-  crate, enabling extensibility by third-party harness crates.
-  Date/Author: 2026-02-10 / Codex
+  crate, enabling extensibility by third-party harness crates. Date/Author:
+  2026-02-10 / Codex.
 
 ## Outcomes & retrospective
 
@@ -201,7 +191,7 @@ All acceptance criteria have been met:
 - Unit tests cover argument parsing for both macros (8 new tests each).
 - Integration tests verify end-to-end scenario execution with the new params
   (3 integration tests in `scenario_harness.rs`).
-- Documentation updated: users guide, design doc, roadmap.
+- Documentation updated: user's guide, design doc, roadmap.
 - All quality gates pass: `make check-fmt`, `make lint`, `make test`.
 
 Lessons learned:
@@ -226,8 +216,8 @@ Lessons learned:
 ## Context and orientation
 
 The `rstest-bdd` workspace implements a behaviour-driven development (BDD)
-framework for Rust built on
-`rstest`. Two procedural macros drive test generation:
+framework for Rust built on `rstest`. Two procedural macros drive test
+generation:
 
 1. `#[scenario(path = "...", ...)]` — an attribute macro that reads a Gherkin
    `.feature` file at compile time and generates an `#[rstest::rstest]`-backed
@@ -438,7 +428,8 @@ All commands run from the repository root (`/home/user/project`).
 
        rstest-bdd-harness.workspace = true
 
-   Add `rstest_bdd_harness_path()` to `crates/rstest-bdd-macros/src/codegen/mod.rs`.
+   Add `rstest_bdd_harness_path()` to
+   `crates/rstest-bdd-macros/src/codegen/mod.rs`.
 
        cargo check -p rstest-bdd-macros
 
@@ -552,8 +543,8 @@ Dependency addition: `rstest-bdd-macros` gains a compile-time dependency on
 
 ## Revision note
 
-Initial draft created from roadmap phase 9.2.1, ADR-005 harness decision,
-and thorough codebase exploration of macro argument parsing, code generation
+Initial draft created from roadmap phase 9.2.1, ADR-005 harness decision, and
+thorough codebase exploration of macro argument parsing, code generation
 pipeline, and harness crate interfaces.
 
 Revision (2026-02-10): Marked COMPLETE. All stages A–J finished. Added
