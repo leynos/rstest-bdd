@@ -1532,7 +1532,49 @@ The default policy intentionally emits only `#[rstest::rstest]`, preserving a
 framework-agnostic baseline while Tokio and GPUI policies move to opt-in
 adapter crates.
 
-#### 2.7.3 First-party plugin targets
+#### 2.7.3 Macro integration (Phase 9.2.1)
+
+The `#[scenario]` and `scenarios!` macros accept two new optional parameters:
+
+- `harness = path::ToHarness` — a type implementing `HarnessAdapter`.
+- `attributes = path::ToPolicy` — a type implementing `AttributePolicy`.
+
+Both accept `syn::Path` values so users can reference types from any crate.
+Omitting both preserves exact backward compatibility.
+
+**Proc-macro evaluation constraint.** Rust procedural macros cannot call
+user-defined trait methods at expansion time. The macro cannot evaluate
+`AttributePolicy::test_attributes()` for an arbitrary user-provided type during
+expansion. Instead, the macro emits compile-time const trait-bound assertions:
+
+```rust
+const _: () = {
+    fn __assert_harness<T: rstest_bdd_harness::HarnessAdapter>() {}
+    fn __call() { __assert_harness::<UserHarness>(); }
+};
+```
+
+These assertions validate the type at compile time and produce clear errors
+when the type does not implement the required trait. Full attribute-driven
+codegen and execution delegation are deferred to Phase 9.2.2.
+
+**Attribute policy trust model.** When `attributes` is specified, the macro
+emits only `#[rstest::rstest]` and does not generate `RuntimeMode`-based
+attributes such as `#[tokio::test]`. The rationale is that the attribute policy
+is the designated extension point for controlling test attributes per ADR-005.
+Users specifying a policy opt into the new system and the macro should not
+second-guess the policy.
+
+**`rstest::rstest` is always emitted.** The `#[rstest::rstest]` attribute is
+unconditional because the framework fundamentally relies on rstest for fixture
+injection, regardless of the harness or attribute policy in use.
+
+**Dependency addition.** The macro crate (`rstest-bdd-macros`) gains a
+compile-time dependency on `rstest-bdd-harness` so it can emit fully-qualified
+trait paths in const assertions. This is acceptable because
+`rstest-bdd-harness` is dependency-light per ADR-005.
+
+#### 2.7.4 First-party plugin targets
 
 The first official adapters and policies are:
 

@@ -43,6 +43,8 @@ struct FeatureProcessingContext<'a> {
     tag_filter: Option<&'a TagExpression>,
     fixtures: &'a [FixtureSpec],
     runtime: RuntimeMode,
+    harness: Option<&'a syn::Path>,
+    attributes: Option<&'a syn::Path>,
 }
 
 #[expect(
@@ -115,6 +117,8 @@ fn process_feature_file(
         tag_filter: ctx.tag_filter,
         fixtures: ctx.fixtures,
         runtime: ctx.runtime,
+        harness: ctx.harness,
+        attributes: ctx.attributes,
     };
 
     process_scenarios(&feature, &test_ctx, used_names)
@@ -176,6 +180,8 @@ pub(crate) fn scenarios(input: TokenStream) -> TokenStream {
         tag_filter: tag_lit,
         fixtures,
         runtime,
+        harness,
+        attributes,
     } = syn::parse_macro_input!(input as ScenariosArgs);
     let dir = PathBuf::from(dir_lit.value());
 
@@ -204,6 +210,8 @@ pub(crate) fn scenarios(input: TokenStream) -> TokenStream {
         tag_filter: tag_filter.as_ref().map(|f| &f.expr),
         fixtures: &fixtures,
         runtime,
+        harness: harness.as_ref(),
+        attributes: attributes.as_ref(),
     };
     let (tests, mut errors) = generate_tests_from_features(feature_paths, &ctx);
 

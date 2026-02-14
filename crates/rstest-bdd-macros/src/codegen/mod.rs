@@ -12,43 +12,64 @@ pub(crate) mod wrapper;
 
 /// Return a token stream pointing to the `rstest_bdd` crate or its renamed form.
 pub(crate) fn rstest_bdd_path() -> TokenStream2 {
-    match crate_name("rstest-bdd") {
+    resolve_crate_path("rstest-bdd", "rstest_bdd")
+}
+
+/// Return a token stream pointing to the `rstest_bdd_harness` crate or its
+/// renamed form.
+pub(crate) fn rstest_bdd_harness_path() -> TokenStream2 {
+    resolve_crate_path("rstest-bdd-harness", "rstest_bdd_harness")
+}
+
+fn resolve_crate_path(crate_name_str: &str, default_ident: &str) -> TokenStream2 {
+    match crate_name(crate_name_str) {
         Ok(found) => {
             let ident = match found {
-                FoundCrate::Itself => Ident::new("rstest_bdd", Span::call_site()),
+                FoundCrate::Itself => Ident::new(default_ident, Span::call_site()),
                 FoundCrate::Name(name) => Ident::new(&name, Span::call_site()),
             };
             quote! { ::#ident }
         }
-        Err(err) => handle_missing_runtime(&err),
+        Err(err) => handle_missing_crate(crate_name_str, &err),
     }
 }
 
 #[cfg(test)]
-fn handle_missing_runtime(_: &proc_macro_crate::Error) -> TokenStream2 {
-    // Tests compile the macros crate in isolation without the runtime crate, so
+fn handle_missing_crate(crate_name_str: &str, _: &proc_macro_crate::Error) -> TokenStream2 {
+    // Tests compile the macros crate in isolation without dependency crates, so
     // fall back to the default package name.
-    quote! { ::rstest_bdd }
+    let ident = Ident::new(&crate_name_str.replace('-', "_"), Span::call_site());
+    quote! { ::#ident }
 }
 
 #[cfg(not(test))]
-fn handle_missing_runtime(err: &proc_macro_crate::Error) -> TokenStream2 {
-    panic!("rstest-bdd crate not found: {err}");
+fn handle_missing_crate(crate_name_str: &str, err: &proc_macro_crate::Error) -> TokenStream2 {
+    panic!("{crate_name_str} crate not found: {err}");
 }
 
 #[cfg(test)]
 mod tests {
-    use super::handle_missing_runtime;
+    use super::handle_missing_crate;
     use proc_macro_crate::Error;
     use std::path::PathBuf;
 
     #[test]
-    fn returns_fallback_path_in_tests() {
+    fn returns_fallback_path_for_runtime_crate() {
         let error = Error::CrateNotFound {
             crate_name: "rstest-bdd".to_string(),
             path: PathBuf::new(),
         };
-        let tokens = handle_missing_runtime(&error);
+        let tokens = handle_missing_crate("rstest-bdd", &error);
         assert_eq!(tokens.to_string(), ":: rstest_bdd");
+    }
+
+    #[test]
+    fn returns_fallback_path_for_harness_crate() {
+        let error = Error::CrateNotFound {
+            crate_name: "rstest-bdd-harness".to_string(),
+            path: PathBuf::new(),
+        };
+        let tokens = handle_missing_crate("rstest-bdd-harness", &error);
+        assert_eq!(tokens.to_string(), ":: rstest_bdd_harness");
     }
 }

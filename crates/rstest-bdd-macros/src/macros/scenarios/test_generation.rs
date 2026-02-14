@@ -20,13 +20,9 @@ use crate::utils::ident::sanitize_ident;
 
 use super::macro_args::{FixtureSpec, RuntimeMode};
 
-/// Context for generating a scenario test.
-///
-/// Captures the sanitized feature file stem for naming tests, the Cargo
-/// manifest directory used to render absolute feature paths, the relative
-/// path from that manifest to the feature file when embedding diagnostics,
-/// an optional tag expression for filtering scenarios, and a slice of fixture
-/// specifications to inject into generated test functions.
+/// Context for generating a scenario test, capturing the feature file stem,
+/// manifest directory, relative path, tag filter, fixtures, runtime mode,
+/// and optional harness/attributes paths.
 pub(super) struct ScenarioTestContext<'a> {
     /// Sanitized stem of the feature file used in test function names.
     pub(super) feature_stem: &'a str,
@@ -40,6 +36,10 @@ pub(super) struct ScenarioTestContext<'a> {
     pub(super) fixtures: &'a [FixtureSpec],
     /// Runtime mode for test execution (sync or async/Tokio).
     pub(super) runtime: RuntimeMode,
+    /// Optional harness adapter type for compile-time trait assertion.
+    pub(super) harness: Option<&'a syn::Path>,
+    /// Optional attribute policy type for compile-time trait assertion.
+    pub(super) attributes: Option<&'a syn::Path>,
 }
 
 pub(super) fn dedupe_name(base: &str, used: &mut HashSet<String>) -> String {
@@ -121,17 +121,13 @@ fn build_test_signature(
     }
 }
 
-/// Generate the test for a single scenario within a feature.
+/// Generate an rstest-backed test for a single scenario within a feature.
 ///
-/// Derives a unique, rstest-backed function for the scenario using `ctx` to
-/// build stable identifiers and feature paths, updating `used_names` to avoid
-/// name collisions and returning the resulting `TokenStream2`.
-///
-/// When `ctx.fixtures` is non-empty, the generated test function includes
-/// fixture parameters that rstest resolves via `#[fixture]` functions, and the
-/// function is annotated with `#[expect(unused_variables)]` because fixture
-/// variables are consumed via `StepContext` rather than referenced directly in
-/// the test body.
+/// Derives a unique function using `ctx` to build stable identifiers and
+/// feature paths, updating `used_names` to avoid collisions. When
+/// `ctx.fixtures` is non-empty, the generated function includes fixture
+/// parameters resolved via `#[fixture]` and `#[expect(unused_variables)]`
+/// because fixture variables are consumed via `StepContext`.
 pub(super) fn generate_scenario_test(
     ctx: &ScenarioTestContext<'_>,
     used_names: &mut HashSet<String>,
@@ -178,6 +174,8 @@ pub(super) fn generate_scenario_test(
         tags: &tags,
         runtime: ctx.runtime,
         return_kind: ScenarioReturnKind::Unit,
+        harness: ctx.harness,
+        attributes: ctx.attributes,
     };
     TokenStream2::from(generate_scenario_code(
         &config,

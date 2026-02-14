@@ -761,6 +761,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "rstest-bdd-harness"
+version = "0.5.0"
+
+[[package]]
 name = "rstest-bdd-macros"
 version = "0.5.0"
 dependencies = [
@@ -775,6 +779,7 @@ dependencies = [
  "proc-macro2",
  "quote",
  "regex",
+ "rstest-bdd-harness",
  "rstest-bdd-patterns",
  "rstest-bdd-policy",
  "syn 2.0.111",

@@ -73,6 +73,8 @@ fn try_scenario(
         path,
         selector,
         tag_filter,
+        harness,
+        attributes,
     }: ScenarioArgs,
     mut item_fn: syn::ItemFn,
 ) -> std::result::Result<TokenStream, TokenStream> {
@@ -150,6 +152,8 @@ fn try_scenario(
         tags: &tags,
         runtime,
         return_kind,
+        harness: harness.as_ref(),
+        attributes: attributes.as_ref(),
     };
 
     Ok(generate_scenario_code(

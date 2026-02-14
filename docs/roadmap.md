@@ -464,7 +464,7 @@ opt-in crates rather than the core runtime or macros.
 
 ### 9.2. Macro integration
 
-- [ ] 9.2.1. Extend `#[scenario]` and `scenarios!` with
+- [x] 9.2.1. Extend `#[scenario]` and `scenarios!` with
   `harness = path::ToHarness` and optional `attributes = path::ToPolicy`.
 - [ ] 9.2.2. Delegate scenario execution to the selected harness adapter.
 - [ ] 9.2.3. Treat `runtime = "tokio-current-thread"` as a compatibility alias

@@ -67,6 +67,10 @@ pub(crate) struct ScenarioConfig<'a> {
     pub(crate) runtime: RuntimeMode,
     /// Return shape expected from the scenario body.
     pub(crate) return_kind: ScenarioReturnKind,
+    /// Optional harness adapter type path for compile-time trait assertion.
+    pub(crate) harness: Option<&'a syn::Path>,
+    /// Optional attribute policy type path for compile-time trait assertion.
+    pub(crate) attributes: Option<&'a syn::Path>,
 }
 
 /// Configuration for context iterators in scenario code generation.
@@ -91,22 +95,70 @@ fn is_tokio_test_attr(attr: &syn::Attribute) -> bool {
     segments.next().is_none() && first.ident == "tokio" && second.ident == "test"
 }
 
-fn generate_test_attrs(attrs: &[syn::Attribute], runtime: RuntimeMode) -> TokenStream2 {
-    // Check if user already has a tokio::test attribute.
-    // Match only tokio::test to avoid false positives like #[test] or #[test_case].
-    let has_tokio_test = attrs.iter().any(is_tokio_test_attr);
+fn generate_test_attrs(
+    attrs: &[syn::Attribute],
+    runtime: RuntimeMode,
+    attributes: Option<&syn::Path>,
+) -> TokenStream2 {
+    // When an attribute policy is specified, emit only #[rstest::rstest] and
+    // skip RuntimeMode-based tokio attribute generation. The policy is the
+    // extension point for controlling test attributes (ADR-005).
+    if attributes.is_some() {
+        quote! { #[rstest::rstest] }
+    } else {
+        // Check if user already has a tokio::test attribute.
+        // Match only tokio::test to avoid false positives like #[test] or #[test_case].
+        let has_tokio_test = attrs.iter().any(is_tokio_test_attr);
 
-    // Use TestAttributeHint to centralise the attribute selection policy
-    match (runtime.test_attribute_hint(), has_tokio_test) {
-        // User already has tokio::test or sync mode: just add rstest
-        (_, true) | (TestAttributeHint::RstestOnly, _) => {
-            quote! { #[rstest::rstest] }
+        // Use TestAttributeHint to centralise the attribute selection policy
+        match (runtime.test_attribute_hint(), has_tokio_test) {
+            // User already has tokio::test or sync mode: just add rstest
+            (_, true) | (TestAttributeHint::RstestOnly, _) => {
+                quote! { #[rstest::rstest] }
+            }
+            // Async mode without existing tokio::test: add both attributes
+            (TestAttributeHint::RstestWithTokioCurrentThread, false) => quote! {
+                #[rstest::rstest]
+                #[tokio::test(flavor = "current_thread")]
+            },
         }
-        // Async mode without existing tokio::test: add both attributes
-        (TestAttributeHint::RstestWithTokioCurrentThread, false) => quote! {
-            #[rstest::rstest]
-            #[tokio::test(flavor = "current_thread")]
-        },
+    }
+}
+
+/// Generate compile-time trait-bound const assertions for harness and attribute
+/// policy types. These are emitted as sibling items alongside the test function
+/// so they produce clear compiler errors when a type does not implement the
+/// required trait.
+fn generate_trait_assertions(
+    harness: Option<&syn::Path>,
+    attributes: Option<&syn::Path>,
+) -> TokenStream2 {
+    if harness.is_none() && attributes.is_none() {
+        return TokenStream2::new();
+    }
+
+    let harness_crate = crate::codegen::rstest_bdd_harness_path();
+
+    let harness_assertion = harness.map(|harness_path| {
+        quote! {
+            const _: () = {
+                fn __assert_harness<T: #harness_crate::HarnessAdapter>() {}
+                fn __call() { __assert_harness::<#harness_path>(); }
+            };
+        }
+    });
+    let attributes_assertion = attributes.map(|policy_path| {
+        quote! {
+            const _: () = {
+                fn __assert_attr_policy<T: #harness_crate::AttributePolicy>() {}
+                fn __call() { __assert_attr_policy::<#policy_path>(); }
+            };
+        }
+    });
+
+    quote! {
+        #harness_assertion
+        #attributes_assertion
     }
 }
 
@@ -185,12 +237,14 @@ where
         .as_ref()
         .map_or_else(Vec::new, generate_case_attrs);
     let body = generate_test_tokens(&test_config, ctx.prelude, ctx.inserts, ctx.postlude);
-    let test_attrs = generate_test_attrs(config.attrs, config.runtime);
+    let test_attrs = generate_test_attrs(config.attrs, config.runtime, config.attributes);
+    let trait_assertions = generate_trait_assertions(config.harness, config.attributes);
     let attrs = config.attrs;
     let vis = config.vis;
     let sig = config.sig;
     let underscore_expect = generate_underscore_expect(sig);
     TokenStream::from(quote! {
+        #trait_assertions
         #test_attrs
         #(#case_attrs)*
         #(#attrs)*
@@ -259,11 +313,13 @@ where
     };
     modified_sig.inputs.insert(0, case_idx_param);
 
-    let test_attrs = generate_test_attrs(config.attrs, config.runtime);
+    let test_attrs = generate_test_attrs(config.attrs, config.runtime, config.attributes);
+    let trait_assertions = generate_trait_assertions(config.harness, config.attributes);
     let attrs = config.attrs;
     let vis = config.vis;
     let underscore_expect = generate_underscore_expect(&modified_sig);
     TokenStream::from(quote! {
+        #trait_assertions
         #test_attrs
         #(#case_attrs)*
         #(#attrs)*
