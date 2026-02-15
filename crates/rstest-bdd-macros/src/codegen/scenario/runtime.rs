@@ -323,7 +323,7 @@ where
         TokenAssemblyContext::new(&ctx_prelude, &ctx_inserts, &ctx_postlude, &block_tokens);
 
     if let Some(harness_path) = harness {
-        assemble_test_tokens_with_harness(&literals, components, context, harness_path)
+        assemble_test_tokens_with_harness(&literals, &components, context, harness_path)
     } else {
         assemble_test_tokens(literals, components, context)
     }
