@@ -49,22 +49,33 @@ fn generate_metadata_constants(
     }
 }
 
+/// Parameters for generating the runner closure body.
+#[derive(Clone, Copy)]
+struct RunnerClosureParams<'a> {
+    allow_literal: &'a syn::LitBool,
+    ctx_prelude: &'a [TokenStream2],
+    ctx_inserts: &'a [TokenStream2],
+    ctx_postlude: &'a [TokenStream2],
+    block: &'a TokenStream2,
+    step_executor_loop: &'a TokenStream2,
+    skip_handler: &'a TokenStream2,
+    path: &'a TokenStream2,
+}
+
 /// Generates the body of the `ScenarioRunner` closure: context setup, step
 /// execution loop, skip handling, postlude, and the user block.
-#[expect(
-    clippy::too_many_arguments,
-    reason = "mirrors the token groups that comprise the closure body"
-)]
-fn generate_runner_closure_body(
-    allow_literal: &syn::LitBool,
-    ctx_prelude: &[TokenStream2],
-    ctx_inserts: &[TokenStream2],
-    ctx_postlude: &[TokenStream2],
-    block: &TokenStream2,
-    step_executor_loop: &TokenStream2,
-    skip_handler: &TokenStream2,
-    path: &TokenStream2,
-) -> TokenStream2 {
+fn generate_runner_closure_body(params: RunnerClosureParams<'_>) -> TokenStream2 {
+    let RunnerClosureParams {
+        allow_literal,
+        ctx_prelude,
+        ctx_inserts,
+        ctx_postlude,
+        block,
+        step_executor_loop,
+        skip_handler,
+        path,
+    } = params;
+
     quote! {
         let __rstest_bdd_allow_skipped: bool = #allow_literal;
         #(#ctx_prelude)*
@@ -100,16 +111,16 @@ pub(super) fn assemble_test_tokens_with_harness(
     let harness_crate = crate::codegen::rstest_bdd_harness_path();
 
     let constants = generate_metadata_constants(literals, components, &path);
-    let closure_body = generate_runner_closure_body(
-        &literals.allow_literal,
-        context.ctx_prelude,
-        context.ctx_inserts,
-        context.ctx_postlude,
-        context.block,
-        &components.step_executor_loop,
-        &components.skip_handler,
-        &path,
-    );
+    let closure_body = generate_runner_closure_body(RunnerClosureParams {
+        allow_literal: &literals.allow_literal,
+        ctx_prelude: context.ctx_prelude,
+        ctx_inserts: context.ctx_inserts,
+        ctx_postlude: context.ctx_postlude,
+        block: context.block,
+        step_executor_loop: &components.step_executor_loop,
+        skip_handler: &components.skip_handler,
+        path: &path,
+    });
 
     let tag_literals = &literals.tag_literals;
 
