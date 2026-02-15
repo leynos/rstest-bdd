@@ -1,0 +1,10 @@
+error: combining `harness` with async scenarios is not yet supported; async harness delegation is planned for phase 9.3 (rstest-bdd-harness-tokio)
+  --> tests/fixtures_macros/scenario_harness_async_rejected.rs:13:1
+   |
+13 | / #[scenario(
+14 | |     path = "basic.feature",
+15 | |     harness = rstest_bdd_harness::StdHarness,
+16 | | )]
+   | |__^
+   |
+   = note: this error originates in the attribute macro `scenario` (in Nightly builds, run with -Z macro-backtrace for more info)

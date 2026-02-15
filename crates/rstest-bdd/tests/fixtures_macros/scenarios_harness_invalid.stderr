@@ -23,3 +23,24 @@ note: required by a bound in `auto_scenarios::_::__assert_harness`
 10 | | );
    | |_^ required by this bound in `__assert_harness`
    = note: this error originates in the macro `scenarios` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0277]: the trait bound `NotAHarness: Default` is not satisfied
+  --> tests/fixtures_macros/scenarios_harness_invalid.rs:9:15
+   |
+ 9 |     harness = NotAHarness,
+   |               ^^^^^^^^^^^ the trait `Default` is not implemented for `NotAHarness`
+   |
+note: required by a bound in `auto_scenarios::_::__assert_harness`
+  --> tests/fixtures_macros/scenarios_harness_invalid.rs:7:1
+   |
+ 7 | / scenarios!(
+ 8 | |     "tests/features/auto",
+ 9 | |     harness = NotAHarness,
+10 | | );
+   | |_^ required by this bound in `__assert_harness`
+   = note: this error originates in the macro `scenarios` (in Nightly builds, run with -Z macro-backtrace for more info)
+help: consider annotating `NotAHarness` with `#[derive(Default)]`
+   |
+ 5 + #[derive(Default)]
+ 6 | struct NotAHarness;
+   |
