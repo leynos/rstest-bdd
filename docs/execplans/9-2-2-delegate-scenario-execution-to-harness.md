@@ -144,7 +144,7 @@ Success is observable when:
 - [x] Stage D: update integration tests.
 - [x] Stage E: add compile-fail tests.
 - [x] Stage F: update documentation and roadmap.
-- [ ] Stage G: final quality gates.
+- [x] Stage G: final quality gates.
 
 ## Surprises & discoveries
 
@@ -189,7 +189,61 @@ Success is observable when:
 
 ## Outcomes & retrospective
 
-(To be filled on completion.)
+**Status: Complete.**
+
+All quality gates pass: `make check-fmt`, `make lint`, `make test` (1166 Rust
+tests + 47 Python tests). Roadmap entry 9.2.2 marked done.
+
+### Files changed
+
+- `crates/rstest-bdd-macros/src/codegen/scenario.rs` -- `Default` bound on
+  harness trait assertion; async+harness rejection in both regular and outline
+  code paths; `harness` field threaded through `ScenarioMetadata`.
+- `crates/rstest-bdd-macros/src/codegen/scenario/runtime.rs` -- `harness()`
+  method on `ScenarioTestConfig` trait; harness branching in
+  `assemble_test_tokens_with_context`; module declaration for new `harness`
+  submodule.
+- `crates/rstest-bdd-macros/src/codegen/scenario/runtime/harness.rs` -- **new**;
+  `assemble_test_tokens_with_harness()` extracted to keep `runtime.rs` under
+  400-line limit.
+- `crates/rstest-bdd-macros/src/codegen/scenario/runtime/types.rs` -- added
+  `harness: Option<&'a syn::Path>` to codegen `ScenarioMetadata`.
+- `crates/rstest-bdd-macros/src/codegen/scenario/tests.rs` -- unit test for
+  `Default` bound in trait assertions.
+- `crates/rstest-bdd/tests/scenario_harness.rs` -- integration tests:
+  `RecordingHarness` delegation and `MetadataCapturingHarness` metadata
+  verification.
+- `crates/rstest-bdd/tests/trybuild_macros.rs` -- registered two new
+  compile-fail fixtures.
+- `crates/rstest-bdd/tests/fixtures_macros/scenario_harness_not_default.rs` --
+  **new**; compile-fail: harness without `Default`.
+- `crates/rstest-bdd/tests/fixtures_macros/scenario_harness_async_rejected.rs`
+  -- **new**; compile-fail: harness + async fn.
+- `crates/rstest-bdd/tests/fixtures_macros/scenario_harness_not_default.stderr`,
+  `scenario_harness_async_rejected.stderr` -- **new**; expected error snapshots.
+- `crates/rstest-bdd/tests/fixtures_macros/scenario_harness_invalid.stderr`,
+  `scenarios_harness_invalid.stderr` -- updated to include `Default` bound
+  error.
+- `docs/users-guide.md` -- documented custom harness usage, `Default`
+  requirement, async limitation.
+- `docs/rstest-bdd-design.md` -- updated section 2.7.3 with delegation design.
+- `docs/roadmap.md` -- marked 9.2.2 as done.
+
+### What went well
+
+- The harness delegation is a clean, separate code path activated only when
+  `harness` is `Some`, preserving full backward compatibility.
+- The `Default::default()` instantiation pattern avoids proc-macro expression
+  evaluation complexity.
+- Compile-time async rejection prevents silent runtime misbehaviour.
+
+### What to watch
+
+- `assemble_test_tokens_with_harness` closely mirrors `assemble_test_tokens`.
+  If the non-harness path changes, the harness path must be updated in tandem.
+  Consider unifying them in a future refactor.
+- Phase 9.3 (async harness via `rstest-bdd-harness-tokio`) will need to lift
+  the async rejection and introduce an async-aware `HarnessAdapter` variant.
 
 ## Context and orientation
 

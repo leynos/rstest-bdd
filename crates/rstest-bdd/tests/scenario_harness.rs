@@ -121,10 +121,8 @@ fn scenario_delegates_to_custom_harness() {
     assert_and_clear_events();
 }
 
-static CAPTURED_FEATURE: LazyLock<Mutex<String>> =
-    LazyLock::new(|| Mutex::new(String::new()));
-static CAPTURED_SCENARIO: LazyLock<Mutex<String>> =
-    LazyLock::new(|| Mutex::new(String::new()));
+static CAPTURED_FEATURE: LazyLock<Mutex<String>> = LazyLock::new(|| Mutex::new(String::new()));
+static CAPTURED_SCENARIO: LazyLock<Mutex<String>> = LazyLock::new(|| Mutex::new(String::new()));
 
 /// A harness that captures scenario metadata for later assertion.
 #[derive(Default)]
@@ -133,10 +131,12 @@ struct MetadataCapturingHarness;
 impl HarnessAdapter for MetadataCapturingHarness {
     fn run<T>(&self, request: ScenarioRunRequest<'_, T>) -> T {
         let meta = request.metadata();
-        *CAPTURED_FEATURE.lock().unwrap_or_else(|p| p.into_inner()) =
-            meta.feature_path().to_string();
-        *CAPTURED_SCENARIO.lock().unwrap_or_else(|p| p.into_inner()) =
-            meta.scenario_name().to_string();
+        *CAPTURED_FEATURE
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner) = meta.feature_path().to_string();
+        *CAPTURED_SCENARIO
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner) = meta.scenario_name().to_string();
         request.run()
     }
 }
@@ -147,14 +147,18 @@ impl HarnessAdapter for MetadataCapturingHarness {
 )]
 #[serial]
 fn scenario_passes_correct_metadata_to_harness() {
-    let feature = CAPTURED_FEATURE.lock().unwrap_or_else(|p| p.into_inner());
+    let feature = CAPTURED_FEATURE
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
     assert!(
         feature.contains("web_search.feature"),
         "expected feature path to contain 'web_search.feature', got: {feature}"
     );
     drop(feature);
 
-    let scenario = CAPTURED_SCENARIO.lock().unwrap_or_else(|p| p.into_inner());
+    let scenario = CAPTURED_SCENARIO
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
     assert_eq!(
         scenario.as_str(),
         "Simple search",
