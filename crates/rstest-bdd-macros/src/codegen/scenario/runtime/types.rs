@@ -26,6 +26,8 @@ pub(crate) struct ScenarioMetadata<'a> {
     pub(crate) is_async: bool,
     /// Expected return kind for the scenario body.
     pub(crate) return_kind: ScenarioReturnKind,
+    /// Optional harness adapter type path for execution delegation.
+    pub(crate) harness: Option<&'a syn::Path>,
 }
 
 impl<'a> ScenarioMetadata<'a> {

@@ -46,6 +46,9 @@ trait ScenarioTestConfig {
 
     /// Whether the scenario runs asynchronously.
     fn is_async(&self) -> bool;
+
+    /// Returns the optional harness adapter type path for execution delegation.
+    fn harness(&self) -> Option<&syn::Path>;
 }
 
 impl ScenarioTestConfig for TestTokensConfig<'_> {
@@ -72,6 +75,10 @@ impl ScenarioTestConfig for TestTokensConfig<'_> {
     fn is_async(&self) -> bool {
         self.metadata.is_async
     }
+
+    fn harness(&self) -> Option<&syn::Path> {
+        self.metadata.harness
+    }
 }
 
 impl ScenarioTestConfig for OutlineTestTokensConfig<'_> {
@@ -97,6 +104,10 @@ impl ScenarioTestConfig for OutlineTestTokensConfig<'_> {
 
     fn is_async(&self) -> bool {
         self.metadata.is_async
+    }
+
+    fn harness(&self) -> Option<&syn::Path> {
+        self.metadata.harness
     }
 }
 
@@ -279,11 +290,105 @@ fn assemble_test_tokens(
     }
 }
 
+/// Assembles test tokens with harness delegation.
+///
+/// When a harness adapter type is specified, the runtime portion of the test
+/// (context setup, step executor loop, skip handler, postlude, and user block)
+/// is wrapped in a closure passed to `HarnessAdapter::run()`. Item definitions
+/// (constants, inner functions, structs) remain outside the closure because
+/// they are Rust items visible by name resolution, not captured variables.
+fn assemble_test_tokens_with_harness(
+    literals: ScenarioLiterals,
+    components: CodeComponents,
+    context: TokenAssemblyContext<'_>,
+    harness_path: &syn::Path,
+) -> TokenStream2 {
+    let TokenAssemblyContext {
+        ctx_prelude,
+        ctx_inserts,
+        ctx_postlude,
+        block,
+    } = context;
+    let ScenarioLiterals {
+        allow_literal,
+        feature_literal,
+        scenario_literal,
+        scenario_line_literal,
+        tag_literals,
+    } = &literals;
+
+    let CodeComponents {
+        step_executor,
+        skip_extractor,
+        scenario_guard,
+        step_executor_loop,
+        skip_handler,
+    } = components;
+
+    let path = crate::codegen::rstest_bdd_path();
+    let harness_crate = crate::codegen::rstest_bdd_harness_path();
+
+    // Tags used by both harness metadata and the LazyLock static.
+    let tag_literals_for_metadata = tag_literals;
+
+    quote! {
+        const __RSTEST_BDD_FEATURE_PATH: &str = #feature_literal;
+        const __RSTEST_BDD_SCENARIO_NAME: &str = #scenario_literal;
+        const __RSTEST_BDD_SCENARIO_LINE: u32 = #scenario_line_literal;
+        static __RSTEST_BDD_SCENARIO_TAGS: std::sync::LazyLock<#path::reporting::ScenarioTags> =
+            std::sync::LazyLock::new(|| {
+                std::sync::Arc::<[String]>::from(vec![#(#tag_literals_for_metadata.to_string()),*])
+            });
+
+        #step_executor
+        #skip_extractor
+        #scenario_guard
+
+        let __rstest_bdd_harness_metadata = #harness_crate::ScenarioMetadata::new(
+            __RSTEST_BDD_FEATURE_PATH,
+            __RSTEST_BDD_SCENARIO_NAME,
+            __RSTEST_BDD_SCENARIO_LINE,
+            vec![#(#tag_literals_for_metadata.to_string()),*],
+        );
+
+        let __rstest_bdd_runner = #harness_crate::ScenarioRunner::new(move || {
+            let __rstest_bdd_allow_skipped: bool = #allow_literal;
+            #(#ctx_prelude)*
+            let mut ctx = {
+                let mut ctx = #path::StepContext::default();
+                #(#ctx_inserts)*
+                ctx
+            };
+
+            let mut __rstest_bdd_scenario_guard = __RstestBddScenarioReportGuard::new(
+                __RSTEST_BDD_FEATURE_PATH,
+                __RSTEST_BDD_SCENARIO_NAME,
+                __RSTEST_BDD_SCENARIO_LINE,
+                __RSTEST_BDD_SCENARIO_TAGS.clone(),
+            );
+            let mut __rstest_bdd_skipped: Option<Option<String>> = None;
+            let mut __rstest_bdd_skipped_at: Option<usize> = None;
+            #step_executor_loop
+            #skip_handler
+            #(#ctx_postlude)*
+            #block
+        });
+
+        let __rstest_bdd_request = #harness_crate::ScenarioRunRequest::new(
+            __rstest_bdd_harness_metadata,
+            __rstest_bdd_runner,
+        );
+
+        <#harness_path as Default>::default().run(__rstest_bdd_request)
+    }
+}
+
 /// Assembles test tokens using the provided components and configuration.
 ///
 /// This helper consolidates the common pipeline shared by regular and outline
 /// test token generation: collecting context iterators, creating literals,
-/// and assembling the final token stream.
+/// and assembling the final token stream. When a harness adapter is specified,
+/// delegates to `assemble_test_tokens_with_harness` instead.
 fn assemble_test_tokens_with_context<P, I, Q>(
     literals_input: ScenarioLiteralsInput<'_>,
     block: &syn::Block,
@@ -291,6 +396,7 @@ fn assemble_test_tokens_with_context<P, I, Q>(
     is_async: bool,
     components: CodeComponents,
     ctx_iterators: ContextIterators<P, I, Q>,
+    harness: Option<&syn::Path>,
 ) -> TokenStream2
 where
     P: Iterator<Item = TokenStream2>,
@@ -307,7 +413,11 @@ where
     let context =
         TokenAssemblyContext::new(&ctx_prelude, &ctx_inserts, &ctx_postlude, &block_tokens);
 
-    assemble_test_tokens(literals, components, context)
+    if let Some(harness_path) = harness {
+        assemble_test_tokens_with_harness(literals, components, context, harness_path)
+    } else {
+        assemble_test_tokens(literals, components, context)
+    }
 }
 
 /// Generates test tokens for any scenario configuration.
@@ -328,6 +438,7 @@ where
         config.is_async(),
         components,
         ctx_iterators,
+        config.harness(),
     )
 }
 

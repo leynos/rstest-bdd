@@ -142,7 +142,7 @@ fn generate_trait_assertions(
     let harness_assertion = harness.map(|harness_path| {
         quote! {
             const _: () = {
-                fn __assert_harness<T: #harness_crate::HarnessAdapter>() {}
+                fn __assert_harness<T: #harness_crate::HarnessAdapter + Default>() {}
                 fn __call() { __assert_harness::<#harness_path>(); }
             };
         }
@@ -210,6 +210,16 @@ where
     I: Iterator<Item = TokenStream2>,
     Q: Iterator<Item = TokenStream2>,
 {
+    if config.harness.is_some() && config.runtime.is_async() {
+        let err = syn::Error::new(
+            proc_macro2::Span::call_site(),
+            "combining `harness` with async scenarios is not yet supported; \
+             async harness delegation is planned for phase 9.3 \
+             (rstest-bdd-harness-tokio)",
+        );
+        return TokenStream::from(err.into_compile_error());
+    }
+
     let (keyword_tokens, values, docstrings, tables) = process_steps(&config.steps);
     debug_assert_eq!(keyword_tokens.len(), config.steps.len());
     let processed_steps = ProcessedSteps {
@@ -227,6 +237,7 @@ where
         allow_skipped: config.allow_skipped,
         is_async: config.runtime.is_async(),
         return_kind: config.return_kind,
+        harness: config.harness,
     };
     let test_config = TestTokensConfig {
         processed_steps,
@@ -263,6 +274,16 @@ where
     I: Iterator<Item = TokenStream2>,
     Q: Iterator<Item = TokenStream2>,
 {
+    if config.harness.is_some() && config.runtime.is_async() {
+        let err = syn::Error::new(
+            proc_macro2::Span::call_site(),
+            "combining `harness` with async scenarios is not yet supported; \
+             async harness delegation is planned for phase 9.3 \
+             (rstest-bdd-harness-tokio)",
+        );
+        return TokenStream::from(err.into_compile_error());
+    }
+
     // Generate substituted steps for each Examples row
     let Some(examples) = config.examples.as_ref() else {
         let err = syn::Error::new(
@@ -296,6 +317,7 @@ where
         allow_skipped: config.allow_skipped,
         is_async: config.runtime.is_async(),
         return_kind: config.return_kind,
+        harness: config.harness,
     };
     let outline_config = OutlineTestTokensConfig {
         all_rows_steps,

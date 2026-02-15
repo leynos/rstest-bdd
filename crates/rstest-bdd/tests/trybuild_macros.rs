@@ -91,6 +91,8 @@ fn run_failing_macro_tests(t: &trybuild::TestCases) {
         MacroFixtureCase::from("scenario_attributes_invalid.rs"),
         MacroFixtureCase::from("scenarios_harness_invalid.rs"),
         MacroFixtureCase::from("scenarios_attributes_invalid.rs"),
+        MacroFixtureCase::from("scenario_harness_not_default.rs"),
+        MacroFixtureCase::from("scenario_harness_async_rejected.rs"),
     ] {
         t.compile_fail(macros_fixture(case).as_std_path());
     }
