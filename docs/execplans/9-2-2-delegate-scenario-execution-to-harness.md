@@ -14,9 +14,9 @@ ExecPlan is the governing plan for this task.
 Phase 9.2.1 (complete) extended the `#[scenario]` and `scenarios!` macros to
 accept `harness = path::ToHarness` and `attributes = path::ToPolicy`
 parameters. Those parameters produce compile-time trait-bound assertions that
-validate the user's types implement `HarnessAdapter` and `AttributePolicy`,
-but the generated test body still executes steps and the scenario block
-directly, without involving the harness adapter at runtime.
+validate the user's types implement `HarnessAdapter` and `AttributePolicy`, but
+the generated test body still executes steps and the scenario block directly,
+without involving the harness adapter at runtime.
 
 After this work, when `harness = SomeHarness` is specified, the generated test
 function will:
@@ -31,11 +31,11 @@ function will:
 5. Delegate via UFCS:
    `<HarnessType as HarnessAdapter>::run(&h, request)`.
 
-This completes the "delegation" pattern from Architectural Decision
-Record 005 (ADR-005) and enables third-party harness adapters (Tokio,
-GPUI (GPU-accelerated UI framework), Bevy) to intercept scenario
-execution, inject framework-specific fixtures, set up runtimes, and
-perform cleanup around the scenario closure.
+This completes the "delegation" pattern from Architectural Decision Record 005
+(ADR-005) and enables third-party harness adapters (Tokio, GPUI
+(GPU-accelerated UI framework), Bevy) to intercept scenario execution, inject
+framework-specific fixtures, set up runtimes, and perform cleanup around the
+scenario closure.
 
 Success is observable when:
 
@@ -101,39 +101,37 @@ Success is observable when:
   are defined outside the closure. In Rust, inner item definitions (functions
   and structs defined inside a function body) are items visible via name
   resolution, not captured variables; they remain accessible inside a `move`
-  closure in the same function body.
-  Severity: low. Likelihood: low. Mitigation: verify with a prototype in
-  Stage A.
+  closure in the same function body. Severity: low. Likelihood: low.
+  Mitigation: verify with a prototype in Stage A.
 
 - Risk: fallible scenarios return `Result<(), E>`. The `HarnessAdapter::run`
   method returns `T`. When `T = Result<(), E>`, the harness must propagate the
   `Err` faithfully. A custom harness that swallows errors would cause tests to
-  pass silently.
-  Severity: medium. Likelihood: low (harness-author responsibility).
-  Mitigation: document in the user's guide that harness adapters must propagate
-  the runner's return value.
+  pass silently. Severity: medium. Likelihood: low (harness-author
+  responsibility). Mitigation: document in the user's guide that harness
+  adapters must propagate the runner's return value.
 
 - Risk: async scenarios combined with `harness` are not supported until phase
   9.3. If a user writes `async fn` with `harness = SomeHarness`, the generated
   code would call `HarnessAdapter::run()` (which is synchronous) from an async
-  context, potentially producing confusing behaviour.
-  Severity: medium. Likelihood: medium. Mitigation: emit a `compile_error!`
-  when `harness` is specified and the scenario is async.
+  context, potentially producing confusing behaviour. Severity: medium.
+  Likelihood: medium. Mitigation: emit a `compile_error!` when `harness` is
+  specified and the scenario is async.
 
 - Risk: the generated code references `rstest_bdd_harness::ScenarioRunner`,
   `ScenarioMetadata`, and `ScenarioRunRequest`. Users specifying `harness` must
-  have `rstest-bdd-harness` in their dependency graph.
-  Severity: medium. Likelihood: high. Mitigation: the integration tests in
-  `rstest-bdd` already have the crate as a dev-dependency. Document the
-  requirement in the user's guide.
+  have `rstest-bdd-harness` in their dependency graph. Severity: medium.
+  Likelihood: high. Mitigation: the integration tests in `rstest-bdd` already
+  have the crate as a dev-dependency. Document the requirement in the user's
+  guide.
 
 - Risk: `Default` bound on harness types. The generated code instantiates the
   harness via `<HarnessType as Default>::default()`. This requires the harness
   type to implement `Default`. `StdHarness` already derives `Default`.
-  Third-party harness types must also implement `Default`.
-  Severity: low. Likelihood: low (most zero-config harnesses are naturally
-  `Default`). Mitigation: add a `Default` compile-time assertion alongside the
-  existing `HarnessAdapter` assertion and document the requirement.
+  Third-party harness types must also implement `Default`. Severity: low.
+  Likelihood: low (most zero-config harnesses are naturally `Default`).
+  Mitigation: add a `Default` compile-time assertion alongside the existing
+  `HarnessAdapter` assertion and document the requirement.
 
 ## Progress
 
@@ -157,37 +155,34 @@ Success is observable when:
   Required `TRYBUILD=overwrite` to regenerate all affected snapshots.
 
 - Stage A (closure scoping prototype) was unnecessary as a separate step.
-  Rust item definitions (`fn`, `struct`, `const`, `static`) are visible by
-  name resolution and do not participate in closure capture. This was validated
+  Rust item definitions (`fn`, `struct`, `const`, `static`) are visible by name
+  resolution and do not participate in closure capture. This was validated
   during the plan phase and confirmed correct in generated output.
 
 ## Decision log
 
 - Decision: require `Default` bound on harness types and instantiate with
-  `<HarnessType as Default>::default()`.
-  Rationale: proc macros cannot evaluate arbitrary expressions at expansion
-  time. `Default::default()` is the cleanest zero-config instantiation pattern.
-  `StdHarness` already derives `Default`. Third-party harnesses are expected to
-  be zero-config or carry configuration via global/environment state. Adding a
-  `HarnessFactory` trait or user-provided expression syntax would add
-  complexity without clear benefit.
+  `<HarnessType as Default>::default()`. Rationale: proc macros cannot evaluate
+  arbitrary expressions at expansion time. `Default::default()` is the cleanest
+  zero-config instantiation pattern. `StdHarness` already derives `Default`.
+  Third-party harnesses are expected to be zero-config or carry configuration
+  via global/environment state. Adding a `HarnessFactory` trait or
+  user-provided expression syntax would add complexity without clear benefit.
   Date/Author: 2026-02-15 / ExecPlan draft.
 
 - Decision: emit `compile_error!` when `harness` is combined with `async fn`
-  scenario signatures.
-  Rationale: ADR-005 phases async harness support into 9.3 with
-  `rstest-bdd-harness-tokio`. Allowing async + harness now would produce code
-  that compiles but behaves incorrectly (calling synchronous
+  scenario signatures. Rationale: ADR-005 phases async harness support into 9.3
+  with `rstest-bdd-harness-tokio`. Allowing async + harness now would produce
+  code that compiles but behaves incorrectly (calling synchronous
   `HarnessAdapter::run` from an async context). A clear compile error is better
-  than silent misbehaviour.
-  Date/Author: 2026-02-15 / ExecPlan draft.
+  than silent misbehaviour. Date/Author: 2026-02-15 / ExecPlan draft.
 
 - Decision: when `harness` is specified, wrap only the runtime execution
-  portion in the closure; leave item definitions (inner `fn`, `struct`) outside.
-  Rationale: inner item definitions are Rust items visible by name resolution,
-  not captured variables. Placing them outside the closure keeps the generated
-  code clean and avoids unnecessary boxing.
-  Date/Author: 2026-02-15 / ExecPlan draft.
+  portion in the closure; leave item definitions (inner `fn`, `struct`)
+  outside. Rationale: inner item definitions are Rust items visible by name
+  resolution, not captured variables. Placing them outside the closure keeps
+  the generated code clean and avoids unnecessary boxing. Date/Author:
+  2026-02-15 / ExecPlan draft.
 
 ## Outcomes & retrospective
 
@@ -319,8 +314,8 @@ Existing tests for harness parameters:
 - `crates/rstest-bdd-harness/tests/harness_behaviour.rs` -- unit-level
   behavioural tests for the harness adapter primitives.
 
-The current generated test body (from `assemble_test_tokens`, line 247
-of `runtime.rs`) looks like this (simplified):
+The current generated test body (from `assemble_test_tokens`, line 247 of
+`runtime.rs`) looks like this (simplified):
 
 ```rust
 const __RSTEST_BDD_FEATURE_PATH: &str = "...";
@@ -355,8 +350,8 @@ they are Rust items, not captured variables.
 ### Stage A: baseline and prototype validation (no production code changes)
 
 Run `make test` to confirm the workspace is green. Mentally validate that inner
-`fn` and `struct` definitions are accessible from within a `move` closure in the
-same function body. Rust's name resolution rules guarantee this: item
+`fn` and `struct` definitions are accessible from within a `move` closure in
+the same function body. Rust's name resolution rules guarantee this: item
 definitions in a function body are items, not local bindings, and are visible
 to any code in the same function scope including closures.
 
@@ -424,8 +419,8 @@ In `assemble_test_tokens_with_context()`, add `harness` parameter and branch:
 harness present calls `assemble_test_tokens_with_harness()`; harness absent
 calls existing `assemble_test_tokens()` unchanged.
 
-Go/no-go: `cargo check -p rstest-bdd-macros` succeeds. `cargo test -p
-rstest-bdd-macros` passes.
+Go/no-go: `cargo check -p rstest-bdd-macros` succeeds.
+`cargo test -p rstest-bdd-macros` passes.
 
 ### Stage D: update integration tests
 

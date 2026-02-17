@@ -24,7 +24,7 @@ use crate::utils::errors::{error_to_tokens, normalized_dir_read_error};
 use crate::utils::ident::sanitize_ident;
 
 use self::feature_discovery::collect_feature_files;
-use self::macro_args::{FixtureSpec, RuntimeMode, ScenariosArgs};
+use self::macro_args::{FixtureSpec, RuntimeCompatibilityAlias, RuntimeMode, ScenariosArgs};
 use self::test_generation::{ScenarioTestContext, generate_scenario_test};
 
 pub(crate) use self::macro_args::RuntimeMode as ScenariosRuntimeMode;
@@ -43,6 +43,7 @@ struct FeatureProcessingContext<'a> {
     tag_filter: Option<&'a TagExpression>,
     fixtures: &'a [FixtureSpec],
     runtime: RuntimeMode,
+    runtime_alias: Option<RuntimeCompatibilityAlias>,
     harness: Option<&'a syn::Path>,
     attributes: Option<&'a syn::Path>,
 }
@@ -117,6 +118,7 @@ fn process_feature_file(
         tag_filter: ctx.tag_filter,
         fixtures: ctx.fixtures,
         runtime: ctx.runtime,
+        runtime_alias: ctx.runtime_alias,
         harness: ctx.harness,
         attributes: ctx.attributes,
     };
@@ -180,6 +182,7 @@ pub(crate) fn scenarios(input: TokenStream) -> TokenStream {
         tag_filter: tag_lit,
         fixtures,
         runtime,
+        runtime_alias,
         harness,
         attributes,
     } = syn::parse_macro_input!(input as ScenariosArgs);
@@ -210,6 +213,7 @@ pub(crate) fn scenarios(input: TokenStream) -> TokenStream {
         tag_filter: tag_filter.as_ref().map(|f| &f.expr),
         fixtures: &fixtures,
         runtime,
+        runtime_alias,
         harness: harness.as_ref(),
         attributes: attributes.as_ref(),
     };

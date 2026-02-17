@@ -1,6 +1,8 @@
 //! Unit tests for `scenarios!` macro argument parsing.
 
-use super::{FixtureSpec, RuntimeMode, ScenariosArgs, TestAttributeHint};
+use super::{
+    FixtureSpec, RuntimeCompatibilityAlias, RuntimeMode, ScenariosArgs, TestAttributeHint,
+};
 use quote::quote;
 use syn::parse_quote;
 
@@ -16,7 +18,6 @@ fn parse_scenarios_args(tokens: proc_macro2::TokenStream) -> ScenariosArgs {
 fn parse_fixture_spec(tokens: proc_macro2::TokenStream) -> syn::Result<FixtureSpec> {
     syn::parse2(tokens)
 }
-
 fn type_to_string(ty: &syn::Type) -> String {
     quote!(#ty).to_string()
 }
@@ -39,7 +40,6 @@ fn assert_parse_error_contains(result: syn::Result<ScenariosArgs>, expected_keyw
 fn assert_fixture_parse_fails(tokens: proc_macro2::TokenStream) {
     assert!(parse_fixture_spec(tokens).is_err(), "parsing should fail");
 }
-
 // Unwraps the optional tag filter so callers don't repeat the Option dance.
 #[expect(clippy::expect_used, reason = "test helper with descriptive failures")]
 fn assert_tag_filter_eq(args: &ScenariosArgs, expected: &str) {
@@ -89,7 +89,6 @@ fn fixture_spec_rejects_missing_colon() {
 fn fixture_spec_rejects_missing_type() {
     assert_fixture_parse_fails(parse_quote!(world:));
 }
-
 #[test]
 fn scenarios_args_parses_positional_dir() {
     let args: ScenariosArgs = parse_scenarios_args(parse_quote!("tests/features"));
@@ -236,6 +235,7 @@ fn scenarios_args_parses_fixtures_with_trailing_comma() {
 fn scenarios_args_defaults_to_sync_runtime() {
     let args: ScenariosArgs = parse_scenarios_args(parse_quote!("tests/features"));
     assert_eq!(args.runtime, RuntimeMode::Sync);
+    assert_eq!(args.runtime_alias, None);
     assert!(!args.runtime.is_async());
 }
 
@@ -246,6 +246,10 @@ fn scenarios_args_parses_runtime_tokio_current_thread() {
         runtime = "tokio-current-thread"
     ));
     assert_eq!(args.runtime, RuntimeMode::TokioCurrentThread);
+    assert_eq!(
+        args.runtime_alias,
+        Some(RuntimeCompatibilityAlias::TokioHarnessAdapter)
+    );
     assert!(args.runtime.is_async());
 }
 
@@ -260,6 +264,10 @@ fn scenarios_args_parses_runtime_with_other_arguments() {
     assert_eq!(args.dir.value(), "tests/features");
     assert_tag_filter_eq(&args, "@async");
     assert_eq!(args.runtime, RuntimeMode::TokioCurrentThread);
+    assert_eq!(
+        args.runtime_alias,
+        Some(RuntimeCompatibilityAlias::TokioHarnessAdapter)
+    );
     assert_eq!(args.fixtures.len(), 1);
 }
 
@@ -269,7 +277,6 @@ fn scenarios_args_rejects_unknown_runtime() {
         try_parse_scenarios_args(parse_quote!("tests/features", runtime = "unknown-runtime"));
     assert_parse_error_contains(result, "unknown runtime");
 }
-
 #[test]
 fn scenarios_args_rejects_duplicate_runtime() {
     let result = try_parse_scenarios_args(parse_quote!(
@@ -355,6 +362,10 @@ fn scenarios_args_parses_harness_with_all_other_arguments() {
     assert_eq!(args.dir.value(), "tests/features");
     assert_tag_filter_eq(&args, "@smoke");
     assert_eq!(args.runtime, RuntimeMode::TokioCurrentThread);
+    assert_eq!(
+        args.runtime_alias,
+        Some(RuntimeCompatibilityAlias::TokioHarnessAdapter)
+    );
     assert_eq!(args.fixtures.len(), 1);
     assert!(args.harness.is_some());
     assert!(args.attributes.is_some());

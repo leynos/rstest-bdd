@@ -4,7 +4,7 @@ This ExecPlan is a living document. The sections `Constraints`, `Tolerances`,
 `Risks`, `Progress`, `Surprises & Discoveries`, `Decision Log`, and
 `Outcomes & Retrospective` must be kept up to date as work proceeds.
 
-Status: DRAFT
+Status: COMPLETE
 
 `PLANS.md` is not present in the repository at the time of writing, so this
 ExecPlan is the governing plan for this task.
@@ -68,91 +68,109 @@ After this change:
 ## Risks
 
 - Risk: alias semantics are underspecified relative to phase 9.3 (full Tokio
-  adapter crate), causing accidental scope creep.
-  Severity: high.
-  Likelihood: medium.
-  Mitigation: confine this task to compatibility normalisation and preserve
-  current runtime behaviour; defer full adapter extraction to 9.3.
+  adapter crate), causing accidental scope creep. Severity: high. Likelihood:
+  medium. Mitigation: confine this task to compatibility normalisation and
+  preserve current runtime behaviour; defer full adapter extraction to 9.3.
 
 - Risk: changing argument-resolution flow in `scenarios!` could accidentally
-  break interactions with `harness` and `attributes` parameters.
-  Severity: medium.
-  Likelihood: medium.
-  Mitigation: add focused unit tests covering all parameter combinations and
-  existing parser diagnostics.
+  break interactions with `harness` and `attributes` parameters. Severity:
+  medium. Likelihood: medium. Mitigation: add focused unit tests covering all
+  parameter combinations and existing parser diagnostics.
 
 - Risk: trybuild snapshots may change due diagnostic wording updates.
-  Severity: low.
-  Likelihood: medium.
-  Mitigation: update only impacted fixtures and verify no unrelated snapshot
-  churn.
+  Severity: low. Likelihood: medium. Mitigation: update only impacted fixtures
+  and verify no unrelated snapshot churn.
 
 - Risk: documentation may drift between design doc, user guide, and roadmap.
-  Severity: medium.
-  Likelihood: medium.
-  Mitigation: update all three in one milestone and verify links/wording.
+  Severity: medium. Likelihood: medium. Mitigation: update all three in one
+  milestone and verify links/wording.
 
 ## Progress
 
 - [x] (2026-02-17 16:47Z) Retrieved repository context and reviewed roadmap,
       ADR-005, prior phase ExecPlans, and current macro/runtime code paths.
 - [x] (2026-02-17 16:53Z) Drafted this ExecPlan for phase 9.2.3.
-- [ ] Stage A: confirm baseline behaviour and add failing/targeted tests for
-      alias resolution.
-- [ ] Stage B: implement macro-level runtime compatibility alias resolution.
-- [ ] Stage C: add unit tests for parser/resolution and codegen interaction.
-- [ ] Stage D: add behavioural tests (integration and/or trybuild fixtures)
-      validating compatibility behaviour.
-- [ ] Stage E: update design doc, user guide, and roadmap entry 9.2.3.
-- [ ] Stage F: run final quality gates (`make check-fmt`, `make lint`,
-      `make test`) with tee logs.
+- [x] (2026-02-17) Stage A: confirmed baseline behaviour and added targeted
+      parser/codegen tests for runtime alias resolution.
+- [x] (2026-02-17) Stage B: implemented macro-level compatibility alias
+      canonicalisation in `ScenariosArgs` and threaded alias context through
+      scenario generation.
+- [x] (2026-02-17) Stage C: expanded unit coverage for parser/runtime alias
+      semantics and harness-resolution interaction.
+- [x] (2026-02-17) Stage D: added behavioural coverage in
+      `crates/rstest-bdd/tests/runtime_compat_alias.rs` with feature fixture
+      `crates/rstest-bdd/tests/features/runtime_compat_alias.feature`.
+- [x] (2026-02-17) Stage E: updated `docs/rstest-bdd-design.md`,
+      `docs/users-guide.md`, and marked roadmap entry 9.2.3 done in
+      `docs/roadmap.md`.
+- [x] (2026-02-17) Stage F: final quality gates passed with log capture:
+      `make check-fmt`, `make lint`, `make test`; documentation gates
+      `make markdownlint` and `make nixie` also passed.
 
 ## Surprises & discoveries
 
 - Observation: project-memory MCP resources (including qdrant-backed notes)
-  are unavailable in this environment.
-  Evidence: `list_mcp_resources` and `list_mcp_resource_templates` returned no
-  entries.
-  Impact: planning relied on repository documents and code inspection only.
+  are unavailable in this environment. Evidence: `list_mcp_resources` and
+  `list_mcp_resource_templates` returned no entries. Impact: planning relied on
+  repository documents and code inspection only.
 
 - Observation: current macro code deliberately rejects `harness` combined with
   async scenario generation, which is directly adjacent to 9.2.3 alias work.
   Evidence: `generate_regular_scenario_code()` and
   `generate_outline_scenario_code()` emit a compile error when
-  `config.harness.is_some() && config.runtime.is_async()`.
-  Impact: the alias implementation must avoid accidental activation of the
-  async+harness rejection path for existing runtime compatibility users.
+  `config.harness.is_some() && config.runtime.is_async()`. Impact: the alias
+  implementation must avoid accidental activation of the async+harness
+  rejection path for existing runtime compatibility users.
 
 ## Decision log
 
 - Decision: implement 9.2.3 as a compatibility-normalisation change in macro
-  argument resolution, preserving existing runtime behaviour.
-  Rationale: this satisfies roadmap compatibility intent without pulling phase
-  9.3 adapter extraction into the same change.
-  Date/Author: 2026-02-17 / Codex.
+  argument resolution, preserving existing runtime behaviour. Rationale: this
+  satisfies roadmap compatibility intent without pulling phase 9.3 adapter
+  extraction into the same change. Date/Author: 2026-02-17 / Codex.
 
 - Decision: treat alias semantics as an internal canonical form in
   `scenarios!` generation, then keep generated observable behaviour unchanged
-  for legacy runtime users.
-  Rationale: users get stability; internals move toward ADR-005 terminology and
-  architecture.
-  Date/Author: 2026-02-17 / Codex.
+  for legacy runtime users. Rationale: users get stability; internals move
+  toward ADR-005 terminology and architecture. Date/Author: 2026-02-17 / Codex.
 
 - Decision: require both unit and behavioural coverage for alias changes.
   Rationale: parser-only tests are insufficient; we must prove end-user async
-  scenario execution is unaffected.
-  Date/Author: 2026-02-17 / Codex.
+  scenario execution is unaffected. Date/Author: 2026-02-17 / Codex.
 
 ## Outcomes & retrospective
 
-Pending implementation.
+Implemented runtime compatibility alias canonicalisation for
+`runtime = "tokio-current-thread"` without changing current runtime execution
+behaviour.
+
+What changed:
+
+- Added `RuntimeCompatibilityAlias::TokioHarnessAdapter` and
+  `runtime_compatibility_alias()` in macro argument parsing.
+- Extended `ScenariosArgs` and scenario-generation context to carry
+  `runtime_alias`.
+- Added `resolve_harness_path()` in scenario test generation so explicit
+  `harness` remains authoritative while runtime alias remains
+  compatibility-only until phase 9.3.
+- Added unit coverage for alias parsing and harness-resolution behaviour.
+- Added behavioural coverage for async scenario execution under runtime alias.
+- Updated design and user documentation, and marked roadmap item 9.2.3 done.
+
+Validation summary:
+
+- `make check-fmt` passed.
+- `make lint` passed.
+- `make test` passed (1171 Rust tests, 47 Python tests).
+- `make markdownlint` passed.
+- `make nixie` passed.
 
 Success criteria at completion:
 
-- Alias-resolution logic is implemented and tested.
-- Existing runtime-tokio behaviour is preserved.
-- Documentation and roadmap updates are complete.
-- All requested quality gates pass.
+- [x] Alias-resolution logic is implemented and tested.
+- [x] Existing runtime-tokio behaviour is preserved.
+- [x] Documentation and roadmap updates are complete.
+- [x] All requested quality gates pass.
 
 ## Context and orientation
 
@@ -219,8 +237,8 @@ alias path while preserving current generated behaviour.
 Implementation details:
 
 - Update
-  `crates/rstest-bdd-macros/src/macros/scenarios/macro_args/mod.rs`
-  with a clearly named internal representation/helper for compatibility alias
+  `crates/rstest-bdd-macros/src/macros/scenarios/macro_args/mod.rs` with a
+  clearly named internal representation/helper for compatibility alias
   resolution.
 - Thread resolved values through
   `crates/rstest-bdd-macros/src/macros/scenarios/mod.rs` and
