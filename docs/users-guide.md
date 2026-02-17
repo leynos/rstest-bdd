@@ -711,7 +711,7 @@ scenario defined in a `.feature` file. It accepts six arguments:
 | `index: usize`     | Optional zero-based scenario index (defaults to `0`).          | **Implemented**: selects the scenario by position.                                                           |
 | `name: &str`       | Optional scenario title; resolves when unique.                 | **Implemented**: errors when missing and directs duplicates to `index`.                                      |
 | `tags: &str`       | Optional tag-expression filter applied at expansion.           | **Implemented**: filters scenarios and outline example rows; errors when nothing matches.                    |
-| `harness: Path`    | Optional harness adapter type implementing `HarnessAdapter`.   | **Implemented**: emits a compile-time trait-bound assertion; execution delegation pending.                   |
+| `harness: Path`    | Optional harness adapter type implementing `HarnessAdapter + Default`.   | **Implemented**: emits trait-bound assertions and delegates execution when specified.                        |
 | `attributes: Path` | Optional attribute policy type implementing `AttributePolicy`. | **Implemented**: emits a compile-time trait-bound assertion; skips `RuntimeMode`-based attribute generation. |
 
 Tag filters run at macro-expansion time against the union of tags on the
@@ -737,10 +737,18 @@ types that implement `HarnessAdapter` and `AttributePolicy` from the
 (per Architectural Decision Record (ADR-005)) without coupling the core crates
 to any specific runtime.
 
-When specified, the macro emits compile-time trait-bound assertions that
-produce clear compiler errors if the type does not implement the required
-trait. The built-in `StdHarness` and `DefaultAttributePolicy` types serve as
-defaults.
+When `harness` is specified, the generated test body delegates scenario
+execution through the harness adapter. The macro wraps the runtime portion of
+the test (context setup, step executor loop, skip handler, and user block) in
+a `ScenarioRunner` closure, constructs a `ScenarioRunRequest` with metadata
+(feature path, scenario name, line number, and tags), and calls
+`HarnessAdapter::run()`. The harness is instantiated via
+`<HarnessType as Default>::default()`, so the harness type must implement both
+`HarnessAdapter` and `Default`. The built-in `StdHarness` satisfies both
+requirements and simply executes the closure directly.
+
+When `harness` is omitted, the generated code executes steps inline without
+any delegation, preserving backward compatibility.
 
 When `attributes` is specified, the macro emits only `#[rstest::rstest]` and
 skips `RuntimeMode`-based attribute generation (e.g., `#[tokio::test]`),
@@ -767,18 +775,44 @@ scenarios!(
 );
 ```
 
-> **Note:** execution delegation through the harness adapter is planned for a
-> future phase. In the current release, the harness and attribute policy types
-> are validated at compile time, but execution follows the standard path.
+#### Writing a custom harness adapter
+
+A custom harness adapter can intercept scenario execution to inject
+framework-specific setup and teardown. The harness type must implement both
+`HarnessAdapter` and `Default`:
+
+```rust,no_run
+use rstest_bdd_harness::{HarnessAdapter, ScenarioRunRequest};
+
+#[derive(Default)]
+struct MyHarness;
+
+impl HarnessAdapter for MyHarness {
+    fn run<T>(&self, request: ScenarioRunRequest<'_, T>) -> T {
+        // Custom pre-scenario setup using request.metadata()
+        let result = request.run();
+        // Custom post-scenario teardown
+        result
+    }
+}
+```
+
+Harness adapters must faithfully propagate the runner's return value. For
+fallible scenarios that return `Result<(), E>`, swallowing errors would cause
+tests to pass silently.
+
+> **Async limitation (pending phase 9.3):** combining `harness` with
+> `async fn` scenario signatures produces a compile error. Async harness
+> delegation requires a Tokio-aware adapter and is planned for phase 9.3
+> (`rstest-bdd-harness-tokio`).
 >
-> **Async limitation (pending phase 9.3):** when `attributes` is specified,
-> the macro emits only `#[rstest::rstest]` and skips `RuntimeMode`-based
-> attribute generation. This means async scenario functions that use
-> `attributes = DefaultAttributePolicy` (or any policy) will **not** receive
-> `#[tokio::test]` automatically and will fail to compile without an executor
-> attribute. Until phase 9.3 delivers `rstest-bdd-harness-tokio` with a
-> Tokio-aware attribute policy, users requiring async execution with a custom
-> attribute policy should either:
+> When `attributes` is specified, the macro emits only `#[rstest::rstest]` and
+> skips `RuntimeMode`-based attribute generation. This means async scenario
+> functions that use `attributes = DefaultAttributePolicy` (or any policy) will
+> **not** receive `#[tokio::test]` automatically and will fail to compile
+> without an executor attribute. Until phase 9.3 delivers
+> `rstest-bdd-harness-tokio` with a Tokio-aware attribute policy, users
+> requiring async execution with a custom attribute policy should either:
 >
 > - Omit the `attributes` parameter and let `RuntimeMode` handle attribute
 >   generation.

@@ -1532,31 +1532,63 @@ The default policy intentionally emits only `#[rstest::rstest]`, preserving a
 framework-agnostic baseline while Tokio and GPUI policies move to opt-in
 adapter crates.
 
-#### 2.7.3 Macro integration (Phase 9.2.1)
+#### 2.7.3 Macro integration (Phase 9.2)
 
 The `#[scenario]` and `scenarios!` macros accept two new optional parameters:
 
-- `harness = path::ToHarness` — a type implementing `HarnessAdapter`.
+- `harness = path::ToHarness` — a type implementing `HarnessAdapter` and
+  `Default`.
 - `attributes = path::ToPolicy` — a type implementing `AttributePolicy`.
 
 Both accept `syn::Path` values so users can reference types from any crate.
 Omitting both preserves exact backward compatibility.
 
-**Proc-macro evaluation constraint.** Rust procedural macros cannot call
-user-defined trait methods at expansion time. The macro cannot evaluate
-`AttributePolicy::test_attributes()` for an arbitrary user-provided type during
-expansion. Instead, the macro emits compile-time const trait-bound assertions:
+**Compile-time trait-bound assertions (Phase 9.2.1).** Rust procedural macros
+cannot call user-defined trait methods at expansion time. The macro cannot
+evaluate `AttributePolicy::test_attributes()` for an arbitrary user-provided
+type during expansion. Instead, the macro emits compile-time const trait-bound
+assertions:
 
 ```rust
 const _: () = {
-    fn __assert_harness<T: rstest_bdd_harness::HarnessAdapter>() {}
+    fn __assert_harness<T: rstest_bdd_harness::HarnessAdapter + Default>() {}
     fn __call() { __assert_harness::<UserHarness>(); }
 };
 ```
 
 These assertions validate the type at compile time and produce clear errors
-when the type does not implement the required trait. Full attribute-driven
-codegen and execution delegation are deferred to Phase 9.2.2.
+when the type does not implement the required trait.
+
+**Execution delegation (Phase 9.2.2).** When `harness` is specified, the
+generated test body delegates scenario execution through the harness adapter.
+The macro wraps the runtime portion of the test (context setup, step executor
+loop, skip handler, context postlude, and user block) in a
+`ScenarioRunner<'_, T>` closure. Item definitions (constants, inner `fn` and
+`struct`) remain outside the closure because they are Rust items visible by
+name resolution, not captured variables.
+
+The generated delegation code:
+
+1. Constructs a `ScenarioMetadata` from compile-time constants (feature path,
+   scenario name, line number, tags).
+2. Wraps the runtime execution in `ScenarioRunner::new(move || { ... })`.
+3. Bundles metadata and runner into `ScenarioRunRequest::new(metadata, runner)`.
+4. Instantiates the harness via `<HarnessType as Default>::default()`.
+5. Calls `<HarnessType as HarnessAdapter>::run(&harness, request)`
+   (UFCS avoids requiring the trait to be in scope).
+
+The `Default` requirement enables zero-config harness instantiation from
+proc-macro generated code without needing to evaluate arbitrary user
+expressions at expansion time. `StdHarness` derives `Default`; third-party
+harness types must also implement `Default`.
+
+For fallible scenarios (`Result<(), E>` return type), the closure's return type
+is `Result<(), E>`. The `HarnessAdapter::run` method returns `T`, so
+`T = Result<(), E>` composes naturally.
+
+**Async rejection.** Combining `harness` with `async fn` scenario signatures
+produces a `compile_error!`. Async harness delegation requires a Tokio-aware
+adapter and is planned for phase 9.3 (`rstest-bdd-harness-tokio`).
 
 **Attribute policy trust model.** When `attributes` is specified, the macro
 emits only `#[rstest::rstest]` and does not generate `RuntimeMode`-based
@@ -1571,8 +1603,8 @@ injection, regardless of the harness or attribute policy in use.
 
 **Dependency addition.** The macro crate (`rstest-bdd-macros`) gains a
 compile-time dependency on `rstest-bdd-harness` so it can emit fully-qualified
-trait paths in const assertions. This is acceptable because
-`rstest-bdd-harness` is dependency-light per ADR-005.
+trait paths in const assertions and harness delegation code. This is acceptable
+because `rstest-bdd-harness` is dependency-light per ADR-005.
 
 #### 2.7.4 First-party plugin targets
 

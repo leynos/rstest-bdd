@@ -278,3 +278,19 @@ fn trait_assertions_with_neither() {
         "should NOT contain AttributePolicy: {output}"
     );
 }
+
+#[test]
+fn trait_assertions_harness_includes_default_bound() {
+    let harness_path = parse_path("my::Harness");
+    let tokens = generate_trait_assertions(Some(&harness_path), None);
+    let output = tokens.to_string();
+
+    assert!(
+        output.contains("HarnessAdapter"),
+        "should contain HarnessAdapter: {output}"
+    );
+    assert!(
+        output.contains("Default"),
+        "should contain Default bound for harness delegation: {output}"
+    );
+}

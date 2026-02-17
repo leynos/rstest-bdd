@@ -2,6 +2,7 @@
 
 mod body;
 mod generators;
+mod harness;
 #[cfg(test)]
 mod tests;
 mod types;
@@ -19,6 +20,7 @@ use generators::{
     generate_skip_handler, generate_step_executor, generate_step_executor_loop,
     generate_step_executor_loop_outline,
 };
+use harness::assemble_test_tokens_with_harness;
 use types::{CodeComponents, ScenarioLiterals, ScenarioLiteralsInput, TokenAssemblyContext};
 pub(crate) use types::{ProcessedSteps, ScenarioMetadata, TestTokensConfig};
 
@@ -46,6 +48,9 @@ trait ScenarioTestConfig {
 
     /// Whether the scenario runs asynchronously.
     fn is_async(&self) -> bool;
+
+    /// Returns the optional harness adapter type path for execution delegation.
+    fn harness(&self) -> Option<&syn::Path>;
 }
 
 impl ScenarioTestConfig for TestTokensConfig<'_> {
@@ -72,6 +77,10 @@ impl ScenarioTestConfig for TestTokensConfig<'_> {
     fn is_async(&self) -> bool {
         self.metadata.is_async
     }
+
+    fn harness(&self) -> Option<&syn::Path> {
+        self.metadata.harness
+    }
 }
 
 impl ScenarioTestConfig for OutlineTestTokensConfig<'_> {
@@ -97,6 +106,10 @@ impl ScenarioTestConfig for OutlineTestTokensConfig<'_> {
 
     fn is_async(&self) -> bool {
         self.metadata.is_async
+    }
+
+    fn harness(&self) -> Option<&syn::Path> {
+        self.metadata.harness
     }
 }
 
@@ -283,7 +296,8 @@ fn assemble_test_tokens(
 ///
 /// This helper consolidates the common pipeline shared by regular and outline
 /// test token generation: collecting context iterators, creating literals,
-/// and assembling the final token stream.
+/// and assembling the final token stream. When a harness adapter is specified,
+/// delegates to `assemble_test_tokens_with_harness` instead.
 fn assemble_test_tokens_with_context<P, I, Q>(
     literals_input: ScenarioLiteralsInput<'_>,
     block: &syn::Block,
@@ -291,6 +305,7 @@ fn assemble_test_tokens_with_context<P, I, Q>(
     is_async: bool,
     components: CodeComponents,
     ctx_iterators: ContextIterators<P, I, Q>,
+    harness: Option<&syn::Path>,
 ) -> TokenStream2
 where
     P: Iterator<Item = TokenStream2>,
@@ -307,7 +322,11 @@ where
     let context =
         TokenAssemblyContext::new(&ctx_prelude, &ctx_inserts, &ctx_postlude, &block_tokens);
 
-    assemble_test_tokens(literals, components, context)
+    if let Some(harness_path) = harness {
+        assemble_test_tokens_with_harness(&literals, &components, context, harness_path)
+    } else {
+        assemble_test_tokens(literals, components, context)
+    }
 }
 
 /// Generates test tokens for any scenario configuration.
@@ -328,6 +347,7 @@ where
         config.is_async(),
         components,
         ctx_iterators,
+        config.harness(),
     )
 }
 
