@@ -4,7 +4,7 @@
 use rstest_bdd_harness::{HarnessAdapter, ScenarioRunRequest};
 use rstest_bdd_macros::{given, scenario, then, when};
 use serial_test::serial;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{LazyLock, Mutex, MutexGuard};
 
 static EVENTS: LazyLock<Mutex<Vec<&'static str>>> = LazyLock::new(|| Mutex::new(Vec::new()));
@@ -167,4 +167,43 @@ fn scenario_passes_correct_metadata_to_harness() {
     drop(scenario);
 
     assert_and_clear_events();
+}
+
+// ---------------------------------------------------------------------------
+// Scenario outline + harness delegation
+// ---------------------------------------------------------------------------
+
+static OUTLINE_HARNESS_CALLS: AtomicUsize = AtomicUsize::new(0);
+
+/// A harness that counts how many times it is invoked (once per outline row).
+#[derive(Default)]
+struct OutlineCountingHarness;
+
+impl HarnessAdapter for OutlineCountingHarness {
+    fn run<T>(&self, request: ScenarioRunRequest<'_, T>) -> T {
+        OUTLINE_HARNESS_CALLS.fetch_add(1, Ordering::SeqCst);
+        request.run()
+    }
+}
+
+#[given("a counted precondition for row {n}")]
+fn counted_precondition(n: i32) {
+    clear_events();
+    with_locked_events(|events| events.push("precondition"));
+    assert!(n > 0, "row number should be positive");
+}
+
+#[scenario(
+    path = "tests/features/outline_harness.feature",
+    harness = OutlineCountingHarness,
+)]
+#[serial]
+fn outline_delegates_to_harness(row: String) {
+    assert_and_clear_events();
+    // Each Examples row triggers a separate harness invocation.
+    let _ = row;
+    assert!(
+        OUTLINE_HARNESS_CALLS.load(Ordering::SeqCst) > 0,
+        "OutlineCountingHarness should have been called"
+    );
 }

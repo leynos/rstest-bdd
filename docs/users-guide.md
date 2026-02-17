@@ -742,7 +742,7 @@ execution through the harness adapter. The macro wraps the runtime portion of
 the test (context setup, step executor loop, skip handler, and user block) in
 a `ScenarioRunner` closure, constructs a `ScenarioRunRequest` with metadata
 (feature path, scenario name, line number, and tags), and calls
-`harness.run(request)`. The harness is instantiated via
+`HarnessAdapter::run()`. The harness is instantiated via
 `<HarnessType as Default>::default()`, so the harness type must implement both
 `HarnessAdapter` and `Default`. The built-in `StdHarness` satisfies both
 requirements and simply executes the closure directly.

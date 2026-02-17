@@ -1574,7 +1574,8 @@ The generated delegation code:
 2. Wraps the runtime execution in `ScenarioRunner::new(move || { ... })`.
 3. Bundles metadata and runner into `ScenarioRunRequest::new(metadata, runner)`.
 4. Instantiates the harness via `<HarnessType as Default>::default()`.
-5. Calls `harness.run(request)`.
+5. Calls `<HarnessType as HarnessAdapter>::run(&harness, request)`
+   (UFCS avoids requiring the trait to be in scope).
 
 The `Default` requirement enables zero-config harness instantiation from
 proc-macro generated code without needing to evaluate arbitrary user

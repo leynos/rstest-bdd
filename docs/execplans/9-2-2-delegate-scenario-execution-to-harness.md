@@ -1,4 +1,4 @@
-# Execution Plan (ExecPlan) 9.2.2: Delegate scenario execution to the selected harness adapter
+# ExecPlan 9.2.2: Delegate scenario execution to harness
 
 This ExecPlan is a living document. The sections `Constraints`, `Tolerances`,
 `Risks`, `Progress`, `Surprises & Discoveries`, `Decision Log`, and
@@ -28,12 +28,14 @@ function will:
    `ScenarioRunner<'_, T>` closure.
 3. Bundle the metadata and runner into a `ScenarioRunRequest`.
 4. Instantiate the harness via `<HarnessType as Default>::default()`.
-5. Call `harness.run(request)`, delegating execution to the adapter.
+5. Delegate via UFCS:
+   `<HarnessType as HarnessAdapter>::run(&h, request)`.
 
-This completes the "delegation" pattern from ADR-005 and enables third-party
-harness adapters (Tokio, GPUI, Bevy) to intercept scenario execution, inject
-framework-specific fixtures, set up runtimes, and perform cleanup around the
-scenario closure.
+This completes the "delegation" pattern from Architectural Decision
+Record 005 (ADR-005) and enables third-party harness adapters (Tokio,
+GPUI (GPU-accelerated UI framework), Bevy) to intercept scenario
+execution, inject framework-specific fixtures, set up runtimes, and
+perform cleanup around the scenario closure.
 
 Success is observable when:
 
@@ -317,28 +319,31 @@ Existing tests for harness parameters:
 - `crates/rstest-bdd-harness/tests/harness_behaviour.rs` -- unit-level
   behavioural tests for the harness adapter primitives.
 
-The current generated test body (from `assemble_test_tokens`, line 247 of
-`runtime.rs`) looks like this (simplified):
+The current generated test body (from `assemble_test_tokens`, line 247
+of `runtime.rs`) looks like this (simplified):
 
-    const __RSTEST_BDD_FEATURE_PATH: &str = "...";
-    const __RSTEST_BDD_SCENARIO_NAME: &str = "...";
-    const __RSTEST_BDD_SCENARIO_LINE: u32 = ...;
-    static __RSTEST_BDD_SCENARIO_TAGS: LazyLock<...> = ...;
+```rust
+const __RSTEST_BDD_FEATURE_PATH: &str = "...";
+const __RSTEST_BDD_SCENARIO_NAME: &str = "...";
+const __RSTEST_BDD_SCENARIO_LINE: u32 = ...;
+static __RSTEST_BDD_SCENARIO_TAGS: LazyLock<...> = ...;
 
-    fn __rstest_bdd_execute_single_step(...) { ... }   // step_executor
-    fn __rstest_bdd_extract_skip_message(...) { ... }   // skip_extractor
-    struct __RstestBddScenarioReportGuard { ... }       // scenario_guard
+fn __rstest_bdd_execute_single_step(...) { ... }   // step_executor
+fn __rstest_bdd_extract_skip_message(...) { ... }   // skip_extractor
+struct __RstestBddScenarioReportGuard { ... }       // scenario_guard
 
-    let __rstest_bdd_allow_skipped: bool = ...;
-    // ctx_prelude (fixture setup)
-    let mut ctx = { ... };                              // ctx_inserts
-    let mut __rstest_bdd_scenario_guard = __RstestBddScenarioReportGuard::new(...);
-    let mut __rstest_bdd_skipped: Option<Option<String>> = None;
-    let mut __rstest_bdd_skipped_at: Option<usize> = None;
-    // step_executor_loop
-    // skip_handler
-    // ctx_postlude
-    // user block
+let __rstest_bdd_allow_skipped: bool = ...;
+// ctx_prelude (fixture setup)
+let mut ctx = { ... };                              // ctx_inserts
+let mut __rstest_bdd_scenario_guard =
+    __RstestBddScenarioReportGuard::new(...);
+let mut __rstest_bdd_skipped: Option<Option<String>> = None;
+let mut __rstest_bdd_skipped_at: Option<usize> = None;
+// step_executor_loop
+// skip_handler
+// ctx_postlude
+// user block
+```
 
 When `harness` is specified, the portion from `let __rstest_bdd_allow_skipped`
 downward is wrapped in a closure and passed to the harness adapter. The item
@@ -365,10 +370,12 @@ Two changes in `crates/rstest-bdd-macros/src/codegen/scenario.rs`:
    `Some(harness_path)`, add `+ Default` to the existing trait bound so the
    emitted assertion becomes:
 
-       const _: () = {
-           fn __assert_harness<T: #harness_crate::HarnessAdapter + Default>() {}
-           fn __call() { __assert_harness::<#harness_path>(); }
-       };
+   ```rust
+   const _: () = {
+       fn __assert_harness<T: #harness_crate::HarnessAdapter + Default>() {}
+       fn __call() { __assert_harness::<#harness_path>(); }
+   };
+   ```
 
    This merges both bounds into a single assertion function. The existing
    `AttributePolicy` assertion is unchanged.
@@ -449,39 +456,58 @@ All commands run from the repository root (`/home/user/project`).
 
 1. Baseline:
 
-       set -o pipefail
-       make test 2>&1 | tee /tmp/9-2-2-baseline-test.log
+   ```bash
+   set -o pipefail
+   make test 2>&1 | tee /tmp/9-2-2-baseline-test.log
+   ```
 
-2. Stage B: edit `codegen/scenario.rs` and `codegen/scenario/tests.rs`. Verify:
+2. Stage B: edit `codegen/scenario.rs` and
+   `codegen/scenario/tests.rs`. Verify:
 
-       cargo test -p rstest-bdd-macros 2>&1 | tee /tmp/9-2-2-stage-b.log
+   ```bash
+   cargo test -p rstest-bdd-macros 2>&1 \
+     | tee /tmp/9-2-2-stage-b.log
+   ```
 
-3. Stage C: edit `runtime/types.rs`, `codegen/scenario.rs`, `runtime.rs`.
-   Verify:
+3. Stage C: edit `runtime/types.rs`, `codegen/scenario.rs`,
+   `runtime.rs`. Verify:
 
-       cargo check -p rstest-bdd-macros
-       cargo test -p rstest-bdd-macros 2>&1 | tee /tmp/9-2-2-stage-c.log
+   ```bash
+   cargo check -p rstest-bdd-macros
+   cargo test -p rstest-bdd-macros 2>&1 \
+     | tee /tmp/9-2-2-stage-c.log
+   ```
 
 4. Stage D: edit `tests/scenario_harness.rs`. Verify:
 
-       cargo test -p rstest-bdd 2>&1 | tee /tmp/9-2-2-stage-d.log
+   ```bash
+   cargo test -p rstest-bdd 2>&1 \
+     | tee /tmp/9-2-2-stage-d.log
+   ```
 
 5. Stage E: create compile-fail fixtures. Verify:
 
-       cargo test -p rstest-bdd 2>&1 | tee /tmp/9-2-2-stage-e.log
+   ```bash
+   cargo test -p rstest-bdd 2>&1 \
+     | tee /tmp/9-2-2-stage-e.log
+   ```
 
 6. Stage F: edit docs and roadmap.
 
 7. Stage G:
 
-       set -o pipefail; make check-fmt 2>&1 | tee /tmp/9-2-2-check-fmt.log
-       set -o pipefail; make lint 2>&1 | tee /tmp/9-2-2-lint.log
-       set -o pipefail; make test 2>&1 | tee /tmp/9-2-2-test.log
+   ```bash
+   set -o pipefail
+   make check-fmt 2>&1 | tee /tmp/9-2-2-check-fmt.log
+   make lint 2>&1 | tee /tmp/9-2-2-lint.log
+   make test 2>&1 | tee /tmp/9-2-2-test.log
+   ```
 
 ## Validation and acceptance
 
-- When `harness = SomeHarness` is specified, the generated test body delegates
-  execution to `<SomeHarness as Default>::default().run(request)`.
+- When `harness = SomeHarness` is specified, the generated test
+  body delegates execution via UFCS:
+  `<SomeHarness as HarnessAdapter>::run(&harness, request)`.
 - A custom `RecordingHarness` integration test proves the harness `run()`
   method is called exactly once and receives correct metadata.
 - `StdHarness` delegation produces identical test outcomes to the non-harness
@@ -497,7 +523,7 @@ Most steps are repeatable. If a gate fails, inspect the corresponding
 `/tmp/9-2-2-*.log`, fix the smallest local cause, re-run the failed command,
 and re-run the full gates at the end.
 
-## Artifacts and notes
+## Artefacts and notes
 
 Expected evidence files:
 
@@ -520,22 +546,30 @@ Generated code when `harness` is specified references these types from
 - `rstest_bdd_harness::ScenarioRunner::new(closure)`
 - `rstest_bdd_harness::ScenarioRunRequest::new(metadata, runner)`
 - `<HarnessType as Default>::default()`
-- `harness.run(request)`
+- `<HarnessType as HarnessAdapter>::run(&harness, request)` (UFCS)
 
 Updated compile-time assertion:
 
-    const _: () = {
-        fn __assert_harness<T: rstest_bdd_harness::HarnessAdapter + Default>() {}
-        fn __call() { __assert_harness::<#harness_path>(); }
-    };
+```rust
+const _: () = {
+    fn __assert_harness<
+        T: rstest_bdd_harness::HarnessAdapter + Default,
+    >() {}
+    fn __call() { __assert_harness::<#harness_path>(); }
+};
+```
 
 New trait method on `ScenarioTestConfig` (internal):
 
-    fn harness(&self) -> Option<&syn::Path>;
+```rust
+fn harness(&self) -> Option<&syn::Path>;
+```
 
 New field on codegen `ScenarioMetadata<'a>` (internal):
 
-    pub(crate) harness: Option<&'a syn::Path>,
+```rust
+pub(crate) harness: Option<&'a syn::Path>,
+```
 
 No changes to public APIs in `rstest-bdd-harness`.
 

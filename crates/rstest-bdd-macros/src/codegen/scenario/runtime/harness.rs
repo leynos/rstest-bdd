@@ -143,6 +143,10 @@ pub(super) fn assemble_test_tokens_with_harness(
             __rstest_bdd_runner,
         );
 
-        <#harness_path as Default>::default().run(__rstest_bdd_request)
+        let __rstest_bdd_harness = <#harness_path as Default>::default();
+        <#harness_path as #harness_crate::HarnessAdapter>::run(
+            &__rstest_bdd_harness,
+            __rstest_bdd_request,
+        )
     }
 }
