@@ -711,7 +711,7 @@ scenario defined in a `.feature` file. It accepts six arguments:
 | `index: usize`     | Optional zero-based scenario index (defaults to `0`).          | **Implemented**: selects the scenario by position.                                                           |
 | `name: &str`       | Optional scenario title; resolves when unique.                 | **Implemented**: errors when missing and directs duplicates to `index`.                                      |
 | `tags: &str`       | Optional tag-expression filter applied at expansion.           | **Implemented**: filters scenarios and outline example rows; errors when nothing matches.                    |
-| `harness: Path`    | Optional harness adapter type implementing `HarnessAdapter`.   | **Implemented**: emits a compile-time trait-bound assertion; execution delegation pending.                   |
+| `harness: Path`    | Optional harness adapter type implementing `HarnessAdapter + Default`.   | **Implemented**: emits trait-bound assertions and delegates execution when specified.                        |
 | `attributes: Path` | Optional attribute policy type implementing `AttributePolicy`. | **Implemented**: emits a compile-time trait-bound assertion; skips `RuntimeMode`-based attribute generation. |
 
 Tag filters run at macro-expansion time against the union of tags on the
