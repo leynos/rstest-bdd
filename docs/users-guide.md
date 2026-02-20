@@ -705,14 +705,14 @@ For migrations from a cucumber `World`, map the concepts as follows:
 The `#[scenario]` macro is the entry point that ties a Rust test function to a
 scenario defined in a `.feature` file. It accepts six arguments:
 
-| Argument           | Purpose                                                        | Status                                                                                                       |
-| ------------------ | -------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| `path: &str`       | Relative path to the feature file (required).                  | **Implemented**: resolved and parsed at macro-expansion time.                                                |
-| `index: usize`     | Optional zero-based scenario index (defaults to `0`).          | **Implemented**: selects the scenario by position.                                                           |
-| `name: &str`       | Optional scenario title; resolves when unique.                 | **Implemented**: errors when missing and directs duplicates to `index`.                                      |
-| `tags: &str`       | Optional tag-expression filter applied at expansion.           | **Implemented**: filters scenarios and outline example rows; errors when nothing matches.                    |
-| `harness: Path`    | Optional harness adapter type implementing `HarnessAdapter + Default`.   | **Implemented**: emits trait-bound assertions and delegates execution when specified.                        |
-| `attributes: Path` | Optional attribute policy type implementing `AttributePolicy`. | **Implemented**: emits a compile-time trait-bound assertion; skips `RuntimeMode`-based attribute generation. |
+| Argument           | Purpose                                                                | Status                                                                                                       |
+| ------------------ | ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `path: &str`       | Relative path to the feature file (required).                          | **Implemented**: resolved and parsed at macro-expansion time.                                                |
+| `index: usize`     | Optional zero-based scenario index (defaults to `0`).                  | **Implemented**: selects the scenario by position.                                                           |
+| `name: &str`       | Optional scenario title; resolves when unique.                         | **Implemented**: errors when missing and directs duplicates to `index`.                                      |
+| `tags: &str`       | Optional tag-expression filter applied at expansion.                   | **Implemented**: filters scenarios and outline example rows; errors when nothing matches.                    |
+| `harness: Path`    | Optional harness adapter type implementing `HarnessAdapter + Default`. | **Implemented**: emits trait-bound assertions and delegates execution when specified.                        |
+| `attributes: Path` | Optional attribute policy type implementing `AttributePolicy`.         | **Implemented**: emits a compile-time trait-bound assertion; skips `RuntimeMode`-based attribute generation. |
 
 Tag filters run at macro-expansion time against the union of tags on the
 feature, the matched scenario, and—when dealing with `Scenario Outline`—the
@@ -739,16 +739,16 @@ to any specific runtime.
 
 When `harness` is specified, the generated test body delegates scenario
 execution through the harness adapter. The macro wraps the runtime portion of
-the test (context setup, step executor loop, skip handler, and user block) in
-a `ScenarioRunner` closure, constructs a `ScenarioRunRequest` with metadata
+the test (context setup, step executor loop, skip handler, and user block) in a
+`ScenarioRunner` closure, constructs a `ScenarioRunRequest` with metadata
 (feature path, scenario name, line number, and tags), and calls
 `HarnessAdapter::run()`. The harness is instantiated via
 `<HarnessType as Default>::default()`, so the harness type must implement both
 `HarnessAdapter` and `Default`. The built-in `StdHarness` satisfies both
 requirements and simply executes the closure directly.
 
-When `harness` is omitted, the generated code executes steps inline without
-any delegation, preserving backward compatibility.
+When `harness` is omitted, the generated code executes steps inline without any
+delegation, preserving backward compatibility.
 
 When `attributes` is specified, the macro emits only `#[rstest::rstest]` and
 skips `RuntimeMode`-based attribute generation (e.g., `#[tokio::test]`),
@@ -1084,6 +1084,12 @@ When `runtime = "tokio-current-thread"` is specified:
 - Each test is annotated with `#[tokio::test(flavor = "current_thread")]`.
 - Steps execute sequentially within the single-threaded Tokio runtime.
 
+This `runtime` syntax is preserved as compatibility alias syntax for Tokio
+harness selection. Internally, macro argument resolution canonicalizes it to a
+Tokio harness compatibility alias while preserving existing runtime behaviour
+until the dedicated Tokio harness plug-in crate (`rstest-bdd-harness-tokio`)
+ships in phase 9.3.
+
 ### Recommended patterns for async work in steps
 
 Async scenarios run on Tokio's current-thread runtime. Step functions may be
@@ -1266,10 +1272,12 @@ Architectural Decision Record (ADR-005) introduces a harness adapter layer, so
 framework integrations can live in opt-in crates. Phase 9.1 ships the core
 contracts in `rstest-bdd-harness`.
 
-At this stage, `#[scenario]` and `scenarios!` still use the existing runtime
-configuration surface. Harness selection via macro arguments is planned for the
-next phase. The new crate is immediately useful for adapter authors building
-Tokio, Graphical Processing User Interface (GPUI), or other harness plug-ins.
+`#[scenario]` and `scenarios!` now support harness and attribute-policy macro
+parameters. The legacy `runtime = "tokio-current-thread"` argument in
+`scenarios!` remains supported as compatibility syntax for Tokio harness
+selection. The core crate remains immediately useful for adapter authors
+building Tokio, Graphical Processing User Interface (GPUI), or other harness
+plug-ins.
 
 ### Defining a harness adapter
 

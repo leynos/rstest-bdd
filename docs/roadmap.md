@@ -467,7 +467,7 @@ opt-in crates rather than the core runtime or macros.
 - [x] 9.2.1. Extend `#[scenario]` and `scenarios!` with
   `harness = path::ToHarness` and optional `attributes = path::ToPolicy`.
 - [x] 9.2.2. Delegate scenario execution to the selected harness adapter.
-- [ ] 9.2.3. Treat `runtime = "tokio-current-thread"` as a compatibility alias
+- [x] 9.2.3. Treat `runtime = "tokio-current-thread"` as a compatibility alias
   for the Tokio harness adapter.
 
 ### 9.3. Tokio harness plugin crate

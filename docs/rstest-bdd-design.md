@@ -1179,9 +1179,9 @@ under Tokio. For the full architectural decision record, see
 > `runtime = "tokio-current-thread"`, and `#[scenario]` detects `async fn` test
 > signatures. Step definitions may be `async fn` and are awaited sequentially
 > via the registered async wrapper (`AsyncStepFn`). ADR-005 moves runtime
-> selection into harness adapters and attribute policy plugins, so the
-> `runtime` argument will become a compatibility alias for the Tokio harness
-> adapter.
+> selection into harness adapters and attribute policy plugins, and
+> `scenarios!` now treats `runtime = "tokio-current-thread"` as a
+> compatibility alias for Tokio harness selection.
 
 #### 2.5.1 Motivation
 
@@ -1329,14 +1329,13 @@ rstest_bdd::scenarios!("tests/features", runtime = "tokio-current-thread");
 ```
 
 The expansion generates `async fn` tests with the appropriate Tokio attribute.
-The exact syntax for the runtime argument is subject to finalisation; see
-[ADR-001 §Outstanding decisions](adr-001-async-fixtures-and-test.md#outstanding-decisions).
 
-ADR-005 introduces a harness adapter selection path, so future macro expansion
-will prefer `harness = path::ToHarness` (and optional attribute policy plugins)
-over the bespoke `runtime` argument. The `runtime` argument remains as a
-compatibility alias that maps to the Tokio harness adapter, while manual tests
-may still use `#[tokio::test]` when authors want explicit control.
+ADR-005 introduces a harness adapter selection path. The
+`runtime = "tokio-current-thread"` argument is retained as compatibility syntax
+and internally canonicalized as the Tokio harness compatibility alias. Until
+phase 9.3 delivers `rstest-bdd-harness-tokio`, the generated code keeps the
+existing runtime execution path so behaviour remains stable for current users.
+Manual tests may still use `#[tokio::test]` when authors want explicit control.
 
 #### 2.5.6 Unwind and skip handling
 
@@ -1589,6 +1588,16 @@ is `Result<(), E>`. The `HarnessAdapter::run` method returns `T`, so
 **Async rejection.** Combining `harness` with `async fn` scenario signatures
 produces a `compile_error!`. Async harness delegation requires a Tokio-aware
 adapter and is planned for phase 9.3 (`rstest-bdd-harness-tokio`).
+
+**Runtime compatibility alias (Phase 9.2.3).** For `scenarios!`,
+`runtime = "tokio-current-thread"` is treated as compatibility syntax for Tokio
+harness selection. The macro records this as a
+`RuntimeCompatibilityAlias::TokioHarnessAdapter` during argument resolution. In
+phase 9.2.3 this alias is canonicalized internally while preserving the
+existing runtime execution behaviour; it does not yet force harness delegation.
+This keeps current async scenario execution stable and prepares the bridge to
+phase 9.3, where the dedicated Tokio harness plug-in crate will own runtime
+wiring.
 
 **Attribute policy trust model.** When `attributes` is specified, the macro
 emits only `#[rstest::rstest]` and does not generate `RuntimeMode`-based

@@ -14,6 +14,22 @@ use syn::parse::{Parse, ParseStream};
 use syn::punctuated::Punctuated;
 use syn::token::Comma;
 
+/// Compatibility aliases that map legacy runtime syntax to harness selection.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum RuntimeCompatibilityAlias {
+    /// Compatibility alias for the Tokio harness adapter path.
+    TokioHarnessAdapter,
+}
+
+pub(super) const fn runtime_compatibility_alias(
+    runtime: RuntimeMode,
+) -> Option<RuntimeCompatibilityAlias> {
+    match runtime {
+        RuntimeMode::Sync => None,
+        RuntimeMode::TokioCurrentThread => Some(RuntimeCompatibilityAlias::TokioHarnessAdapter),
+    }
+}
+
 /// A single fixture specification: `name: Type`.
 #[derive(Clone, Debug)]
 pub(super) struct FixtureSpec {
@@ -162,12 +178,13 @@ impl Parse for ScenariosArgs {
         let (dir, tag_filter, fixtures, runtime, harness, attributes) = process_args(args, input)?;
 
         let dir = dir.ok_or_else(|| input.error("`dir` (or `path`) argument is required"))?;
+        let runtime = runtime.unwrap_or_default();
 
         Ok(Self {
             dir,
             tag_filter,
             fixtures: fixtures.unwrap_or_default(),
-            runtime: runtime.unwrap_or_default(),
+            runtime,
             harness,
             attributes,
         })
