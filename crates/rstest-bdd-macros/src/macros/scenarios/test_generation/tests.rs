@@ -70,42 +70,28 @@ fn build_lint_attributes_multiple_fixtures_still_produces_single_attribute() {
     assert_eq!(attrs.len(), 1);
 }
 
-#[test]
-fn build_test_signature_no_fixtures_no_examples() {
+#[rstest::rstest]
+#[case::sync(false, "fn test_name ()")]
+#[case::async_variant(true, "async fn test_name ()")]
+fn build_test_signature_no_fixtures_no_examples(#[case] is_async: bool, #[case] expected: &str) {
     let fn_ident = syn::Ident::new("test_name", proc_macro2::Span::call_site());
-    let sig = build_test_signature(&fn_ident, &[], &[], false);
-    assert_eq!(sig_to_string(&sig), "fn test_name ()");
+    let sig = build_test_signature(&fn_ident, &[], &[], is_async);
+    assert_eq!(sig_to_string(&sig), expected);
 }
 
-#[test]
-fn build_test_signature_async_no_fixtures_no_examples() {
-    let fn_ident = syn::Ident::new("test_name", proc_macro2::Span::call_site());
-    let sig = build_test_signature(&fn_ident, &[], &[], true);
-    assert_eq!(sig_to_string(&sig), "async fn test_name ()");
-}
-
-#[test]
-fn build_test_signature_fixtures_only() {
+#[rstest::rstest]
+#[case::sync(false, "fn")]
+#[case::async_variant(true, "async fn")]
+fn build_test_signature_fixtures_only(#[case] is_async: bool, #[case] prefix: &str) {
     let fn_ident = syn::Ident::new("test_name", proc_macro2::Span::call_site());
     let fixture_params: Vec<TokenStream2> = vec![quote!(f1: T1), quote!(f2: T2)];
 
-    let sig = build_test_signature(&fn_ident, &fixture_params, &[], false);
+    let sig = build_test_signature(&fn_ident, &fixture_params, &[], is_async);
     let sig_str = sig_to_string(&sig);
 
+    assert!(sig_str.starts_with(prefix), "should start with {prefix}");
     assert!(sig_str.contains("f1 : T1"), "should contain f1: T1");
     assert!(sig_str.contains("f2 : T2"), "should contain f2: T2");
-}
-
-#[test]
-fn build_test_signature_async_fixtures_only() {
-    let fn_ident = syn::Ident::new("test_name", proc_macro2::Span::call_site());
-    let fixture_params: Vec<TokenStream2> = vec![quote!(f1: T1)];
-
-    let sig = build_test_signature(&fn_ident, &fixture_params, &[], true);
-    let sig_str = sig_to_string(&sig);
-
-    assert!(sig_str.starts_with("async fn"), "should be async fn");
-    assert!(sig_str.contains("f1 : T1"), "should contain f1: T1");
 }
 
 #[test]

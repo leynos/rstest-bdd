@@ -50,6 +50,18 @@ pub(super) struct ScenarioTestContext<'a> {
 /// can be treated as a harness-selection alias internally. Until the dedicated
 /// Tokio harness plug-in crate ships (phase 9.3), legacy runtime mode continues
 /// to use the existing runtime code path when no explicit harness is provided.
+///
+/// # Examples
+/// ```rust,ignore
+/// # use syn::parse_quote;
+/// let explicit: syn::Path = parse_quote!(MyHarness);
+/// assert!(resolve_harness_path(Some(&explicit), None).is_some());
+/// assert!(resolve_harness_path(
+///     None,
+///     Some(RuntimeCompatibilityAlias::TokioHarnessAdapter)
+/// )
+/// .is_none());
+/// ```
 fn resolve_harness_path(
     explicit_harness: Option<&syn::Path>,
     runtime_alias: Option<RuntimeCompatibilityAlias>,

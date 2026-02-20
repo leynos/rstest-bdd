@@ -377,7 +377,7 @@ Acceptance is behaviour-focused:
 - If a gate fails, fix the issue and rerun only the failed command first, then
   rerun the full gate set.
 
-## Artifacts and notes
+## Artefacts and notes
 
 Expected logs:
 
