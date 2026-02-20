@@ -126,6 +126,10 @@ fn build_test_signature_examples_only() {
 
 #[test]
 fn build_test_signature_fixtures_then_examples() {
+    assert_fixtures_before_examples(false);
+}
+
+fn assert_fixtures_before_examples(is_async: bool) -> String {
     let fn_ident = syn::Ident::new("test_name", proc_macro2::Span::call_site());
     let fixture_params: Vec<TokenStream2> = vec![quote!(world: TestWorld)];
     let example_params: Vec<TokenStream2> = vec![
@@ -133,7 +137,7 @@ fn build_test_signature_fixtures_then_examples() {
         quote!(#[case] col2: &'static str),
     ];
 
-    let sig = build_test_signature(&fn_ident, &fixture_params, &example_params, false);
+    let sig = build_test_signature(&fn_ident, &fixture_params, &example_params, is_async);
     let sig_str = sig_to_string(&sig);
 
     let world_pos = sig_str.find("world").expect("should contain world");
@@ -142,28 +146,13 @@ fn build_test_signature_fixtures_then_examples() {
         world_pos < col1_pos,
         "fixture 'world' should appear before example 'col1'"
     );
+    sig_str
 }
 
 #[test]
 fn build_test_signature_async_fixtures_then_examples() {
-    let fn_ident = syn::Ident::new("test_name", proc_macro2::Span::call_site());
-    let fixture_params: Vec<TokenStream2> = vec![quote!(world: TestWorld)];
-    let example_params: Vec<TokenStream2> = vec![
-        quote!(#[case] col1: &'static str),
-        quote!(#[case] col2: &'static str),
-    ];
-
-    let sig = build_test_signature(&fn_ident, &fixture_params, &example_params, true);
-    let sig_str = sig_to_string(&sig);
-
+    let sig_str = assert_fixtures_before_examples(true);
     assert!(sig_str.starts_with("async fn"), "should be async fn");
-
-    let world_pos = sig_str.find("world").expect("should contain world");
-    let col1_pos = sig_str.find("col1").expect("should contain col1");
-    assert!(
-        world_pos < col1_pos,
-        "fixture 'world' should appear before example 'col1'"
-    );
 }
 
 #[test]

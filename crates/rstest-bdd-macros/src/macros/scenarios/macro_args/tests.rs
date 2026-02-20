@@ -52,6 +52,8 @@ fn assert_tag_filter_eq(args: &ScenariosArgs, expected: &str) {
     );
 }
 
+mod combined_arguments;
+
 #[test]
 #[expect(clippy::expect_used, reason = "test with descriptive failures")]
 fn fixture_spec_parses_simple_type() {
@@ -159,30 +161,6 @@ fn scenarios_args_parses_multiple_fixtures() {
 }
 
 #[test]
-fn scenarios_args_parses_all_arguments() {
-    let args: ScenariosArgs = parse_scenarios_args(parse_quote!(
-        "tests/features",
-        tags = "@smoke",
-        fixtures = [world: TestWorld]
-    ));
-    assert_eq!(args.dir.value(), "tests/features");
-    assert_tag_filter_eq(&args, "@smoke");
-    assert_eq!(args.fixtures.len(), 1);
-}
-
-#[test]
-fn scenarios_args_allows_arguments_in_any_order() {
-    let args: ScenariosArgs = parse_scenarios_args(parse_quote!(
-        fixtures = [world: TestWorld],
-        tags = "@smoke",
-        dir = "tests/features"
-    ));
-    assert_eq!(args.dir.value(), "tests/features");
-    assert_tag_filter_eq(&args, "@smoke");
-    assert_eq!(args.fixtures.len(), 1);
-}
-
-#[test]
 fn scenarios_args_rejects_missing_dir() {
     let result = try_parse_scenarios_args(parse_quote!(tags = "@fast"));
     assert_parse_error_contains(result, "dir");
@@ -251,24 +229,6 @@ fn scenarios_args_parses_runtime_tokio_current_thread() {
         Some(RuntimeCompatibilityAlias::TokioHarnessAdapter)
     );
     assert!(args.runtime.is_async());
-}
-
-#[test]
-fn scenarios_args_parses_runtime_with_other_arguments() {
-    let args: ScenariosArgs = parse_scenarios_args(parse_quote!(
-        "tests/features",
-        tags = "@async",
-        runtime = "tokio-current-thread",
-        fixtures = [world: TestWorld]
-    ));
-    assert_eq!(args.dir.value(), "tests/features");
-    assert_tag_filter_eq(&args, "@async");
-    assert_eq!(args.runtime, RuntimeMode::TokioCurrentThread);
-    assert_eq!(
-        args.runtime_alias,
-        Some(RuntimeCompatibilityAlias::TokioHarnessAdapter)
-    );
-    assert_eq!(args.fixtures.len(), 1);
 }
 
 #[test]
@@ -345,28 +305,6 @@ fn scenarios_args_parses_harness_and_attributes_together() {
         harness = my::Harness,
         attributes = my::Policy
     ));
-    assert!(args.harness.is_some());
-    assert!(args.attributes.is_some());
-}
-
-#[test]
-fn scenarios_args_parses_harness_with_all_other_arguments() {
-    let args: ScenariosArgs = parse_scenarios_args(parse_quote!(
-        "tests/features",
-        tags = "@smoke",
-        runtime = "tokio-current-thread",
-        fixtures = [world: TestWorld],
-        harness = my::Harness,
-        attributes = my::Policy
-    ));
-    assert_eq!(args.dir.value(), "tests/features");
-    assert_tag_filter_eq(&args, "@smoke");
-    assert_eq!(args.runtime, RuntimeMode::TokioCurrentThread);
-    assert_eq!(
-        args.runtime_alias,
-        Some(RuntimeCompatibilityAlias::TokioHarnessAdapter)
-    );
-    assert_eq!(args.fixtures.len(), 1);
     assert!(args.harness.is_some());
     assert!(args.attributes.is_some());
 }
