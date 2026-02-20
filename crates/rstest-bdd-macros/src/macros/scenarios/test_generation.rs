@@ -56,11 +56,7 @@ pub(super) struct ScenarioTestContext<'a> {
 /// # use syn::parse_quote;
 /// let explicit: syn::Path = parse_quote!(MyHarness);
 /// assert!(resolve_harness_path(Some(&explicit), None).is_some());
-/// assert!(resolve_harness_path(
-///     None,
-///     Some(RuntimeCompatibilityAlias::TokioHarnessAdapter)
-/// )
-/// .is_none());
+/// assert!(resolve_harness_path(None, Some(RuntimeCompatibilityAlias::TokioHarnessAdapter)).is_none());
 /// ```
 fn resolve_harness_path(
     explicit_harness: Option<&syn::Path>,
