@@ -38,7 +38,8 @@ After this change:
   9.3 adapter crate delivery in this change.
 - Preserve user-visible behaviour for existing
   `runtime = "tokio-current-thread"` scenarios.
-- Keep Tokio and GPUI dependencies out of core crates (`rstest-bdd`,
+- Keep Tokio and Graphical Processing User Interface (GPUI) dependencies out
+  of core crates (`rstest-bdd`,
   `rstest-bdd-macros`, `rstest-bdd-harness`) per ADR-005.
 - Avoid public API breakage in `rstest-bdd`, `rstest-bdd-macros`, and
   `rstest-bdd-harness`.
@@ -68,8 +69,8 @@ After this change:
 ## Risks
 
 - Risk: alias semantics are underspecified relative to phase 9.3 (full Tokio
-  adapter crate), causing accidental scope creep. Severity: high. Likelihood:
-  medium. Mitigation: confine this task to compatibility normalisation and
+  adapter crate), causing accidental scope creep. Severity: high. Likelihood: medium.
+  Mitigation: confine this task to compatibility normalization and
   preserve current runtime behaviour; defer full adapter extraction to 9.3.
 
 - Risk: changing argument-resolution flow in `scenarios!` could accidentally
@@ -77,7 +78,7 @@ After this change:
   medium. Likelihood: medium. Mitigation: add focused unit tests covering all
   parameter combinations and existing parser diagnostics.
 
-- Risk: trybuild snapshots may change due diagnostic wording updates.
+- Risk: trybuild snapshots may change due to diagnostic wording updates.
   Severity: low. Likelihood: medium. Mitigation: update only impacted fixtures
   and verify no unrelated snapshot churn.
 
@@ -93,8 +94,7 @@ After this change:
 - [x] (2026-02-17) Stage A: confirmed baseline behaviour and added targeted
       parser/codegen tests for runtime alias resolution.
 - [x] (2026-02-17) Stage B: implemented macro-level compatibility alias
-      canonicalisation in `ScenariosArgs` and threaded alias context through
-      scenario generation.
+      canonicalization in runtime-derived macro/test-generation paths.
 - [x] (2026-02-17) Stage C: expanded unit coverage for parser/runtime alias
       semantics and harness-resolution interaction.
 - [x] (2026-02-17) Stage D: added behavioural coverage in
@@ -109,8 +109,9 @@ After this change:
 
 ## Surprises & discoveries
 
-- Observation: project-memory MCP resources (including qdrant-backed notes)
-  are unavailable in this environment. Evidence: `list_mcp_resources` and
+- Observation: project-memory Model Context Protocol (MCP) resources
+  (including qdrant-backed notes) are unavailable in this environment.
+  Evidence: `list_mcp_resources` and
   `list_mcp_resource_templates` returned no entries. Impact: planning relied on
   repository documents and code inspection only.
 
@@ -124,7 +125,7 @@ After this change:
 
 ## Decision log
 
-- Decision: implement 9.2.3 as a compatibility-normalisation change in macro
+- Decision: implement 9.2.3 as a compatibility-normalization change in macro
   argument resolution, preserving existing runtime behaviour. Rationale: this
   satisfies roadmap compatibility intent without pulling phase 9.3 adapter
   extraction into the same change. Date/Author: 2026-02-17 / Codex.
@@ -135,21 +136,19 @@ After this change:
   toward ADR-005 terminology and architecture. Date/Author: 2026-02-17 / Codex.
 
 - Decision: require both unit and behavioural coverage for alias changes.
-  Rationale: parser-only tests are insufficient; we must prove end-user async
+  Rationale: parser-only tests are insufficient; end-user async
   scenario execution is unaffected. Date/Author: 2026-02-17 / Codex.
 
 ## Outcomes & retrospective
 
-Implemented runtime compatibility alias canonicalisation for
+Implemented runtime compatibility alias canonicalization for
 `runtime = "tokio-current-thread"` without changing current runtime execution
 behaviour.
 
 What changed:
 
 - Added `RuntimeCompatibilityAlias::TokioHarnessAdapter` and
-  `runtime_compatibility_alias()` in macro argument parsing.
-- Extended `ScenariosArgs` and scenario-generation context to carry
-  `runtime_alias`.
+  `RuntimeMode::compatibility_alias()` for runtime-derived alias resolution.
 - Added `resolve_harness_path()` in scenario test generation so explicit
   `harness` remains authoritative while runtime alias remains
   compatibility-only until phase 9.3.
@@ -231,7 +230,7 @@ Go/no-go validation:
 ### Stage B: Implement compatibility alias resolution
 
 Introduce a small internal resolution layer for `scenarios!` arguments that
-canonicalises `runtime = "tokio-current-thread"` as the Tokio compatibility
+canonicalizes `runtime = "tokio-current-thread"` as the Tokio compatibility
 alias path while preserving current generated behaviour.
 
 Implementation details:
@@ -316,7 +315,7 @@ Implementation details:
 
 - Run `make check-fmt`, `make lint`, and `make test` from repo root with
   `set -o pipefail` and `tee` logs.
-- Review logs for warnings/errors before finalising.
+- Review logs for warnings/errors before finalizing.
 
 Go/no-go validation:
 
@@ -328,29 +327,32 @@ All commands run from repository root (`/home/user/project`).
 
 1. Baseline and targeted tests.
 
+   ```bash
    set -o pipefail && cargo test -p rstest-bdd-macros \
      2>&1 | tee /tmp/9-2-3-baseline-macros-test.log
-
    set -o pipefail && cargo test -p rstest-bdd --test async_scenario \
      2>&1 | tee /tmp/9-2-3-baseline-async-scenario.log
+   ```
 
 2. Implement stages B-E edits in the files listed above.
 
 3. Behavioural fixture verification.
 
+   ```bash
    set -o pipefail && cargo test -p rstest-bdd --test trybuild_macros \
      2>&1 | tee /tmp/9-2-3-trybuild.log
+   ```
 
 4. Final required quality gates.
 
+   ```bash
    set -o pipefail && make check-fmt \
      2>&1 | tee /tmp/9-2-3-check-fmt.log
-
    set -o pipefail && make lint \
      2>&1 | tee /tmp/9-2-3-lint.log
-
    set -o pipefail && make test \
      2>&1 | tee /tmp/9-2-3-test.log
+   ```
 
 ## Validation and acceptance
 

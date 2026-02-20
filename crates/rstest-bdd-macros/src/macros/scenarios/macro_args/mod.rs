@@ -21,7 +21,9 @@ pub(super) enum RuntimeCompatibilityAlias {
     TokioHarnessAdapter,
 }
 
-const fn runtime_compatibility_alias(runtime: RuntimeMode) -> Option<RuntimeCompatibilityAlias> {
+pub(super) const fn runtime_compatibility_alias(
+    runtime: RuntimeMode,
+) -> Option<RuntimeCompatibilityAlias> {
     match runtime {
         RuntimeMode::Sync => None,
         RuntimeMode::TokioCurrentThread => Some(RuntimeCompatibilityAlias::TokioHarnessAdapter),
@@ -49,7 +51,6 @@ pub(super) struct ScenariosArgs {
     pub(super) tag_filter: Option<LitStr>,
     pub(super) fixtures: Vec<FixtureSpec>,
     pub(super) runtime: RuntimeMode,
-    pub(super) runtime_alias: Option<RuntimeCompatibilityAlias>,
     pub(super) harness: Option<syn::Path>,
     pub(super) attributes: Option<syn::Path>,
 }
@@ -183,7 +184,6 @@ impl Parse for ScenariosArgs {
             dir,
             tag_filter,
             fixtures: fixtures.unwrap_or_default(),
-            runtime_alias: runtime_compatibility_alias(runtime),
             runtime,
             harness,
             attributes,

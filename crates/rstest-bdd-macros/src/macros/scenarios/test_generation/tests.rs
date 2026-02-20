@@ -21,8 +21,8 @@ fn deduplicates_duplicate_titles() {
 
 fn make_fixture_spec(name: &str, ty: &str) -> FixtureSpec {
     FixtureSpec {
-        name: syn::parse_str(name).unwrap(),
-        ty: syn::parse_str(ty).unwrap(),
+        name: syn::parse_str(name).expect("fixture name should parse"),
+        ty: syn::parse_str(ty).expect("fixture type should parse"),
     }
 }
 

@@ -18,7 +18,9 @@ use crate::parsing::tags::TagExpression;
 use crate::utils::fixtures::extract_function_fixtures;
 use crate::utils::ident::sanitize_ident;
 
-use super::macro_args::{FixtureSpec, RuntimeCompatibilityAlias, RuntimeMode};
+use super::macro_args::{
+    FixtureSpec, RuntimeCompatibilityAlias, RuntimeMode, runtime_compatibility_alias,
+};
 
 /// Context for generating a scenario test, capturing the feature file stem,
 /// manifest directory, relative path, tag filter, fixtures, runtime mode,
@@ -36,8 +38,6 @@ pub(super) struct ScenarioTestContext<'a> {
     pub(super) fixtures: &'a [FixtureSpec],
     /// Runtime mode for test execution (sync or async/Tokio).
     pub(super) runtime: RuntimeMode,
-    /// Optional compatibility alias inferred from legacy runtime syntax.
-    pub(super) runtime_alias: Option<RuntimeCompatibilityAlias>,
     /// Optional harness adapter type for compile-time trait assertion.
     pub(super) harness: Option<&'a syn::Path>,
     /// Optional attribute policy type for compile-time trait assertion.
@@ -196,7 +196,7 @@ pub(super) fn generate_scenario_test(
         tags: &tags,
         runtime: ctx.runtime,
         return_kind: ScenarioReturnKind::Unit,
-        harness: resolve_harness_path(ctx.harness, ctx.runtime_alias),
+        harness: resolve_harness_path(ctx.harness, runtime_compatibility_alias(ctx.runtime)),
         attributes: ctx.attributes,
     };
     TokenStream2::from(generate_scenario_code(
@@ -209,9 +209,8 @@ pub(super) fn generate_scenario_test(
 
 #[cfg(test)]
 #[expect(
-    clippy::unwrap_used,
     clippy::expect_used,
     clippy::indexing_slicing,
-    reason = "test code uses infallible unwraps and indexed access for clarity"
+    reason = "test code uses infallible expects and indexed access for clarity"
 )]
 mod tests;

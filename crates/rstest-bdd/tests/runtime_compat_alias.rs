@@ -10,7 +10,7 @@ use rstest_bdd_macros::{given, scenarios, then, when};
 
 static RUNTIME_ALIAS_COUNTER: AtomicUsize = AtomicUsize::new(0);
 
-#[given("a runtime alias counter initialised to 0")]
+#[given("a runtime alias counter initialized to 0")]
 fn runtime_alias_counter_init() {
     RUNTIME_ALIAS_COUNTER.store(0, Ordering::SeqCst);
 }

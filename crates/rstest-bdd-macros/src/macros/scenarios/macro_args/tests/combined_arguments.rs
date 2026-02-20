@@ -2,7 +2,7 @@
 
 use super::{
     RuntimeCompatibilityAlias, RuntimeMode, ScenariosArgs, assert_tag_filter_eq,
-    parse_scenarios_args,
+    parse_scenarios_args, runtime_compatibility_alias,
 };
 use syn::parse_quote;
 
@@ -104,7 +104,7 @@ fn scenarios_args_parses_combined_arguments(
         assert!(args.tag_filter.is_none());
     }
     assert_eq!(args.runtime, expected_runtime);
-    assert_eq!(args.runtime_alias, expected_alias);
+    assert_eq!(runtime_compatibility_alias(args.runtime), expected_alias);
     assert_eq!(args.fixtures.len(), expected_fixtures_len);
     assert_eq!(args.harness.is_some(), has_harness);
     assert_eq!(args.attributes.is_some(), has_attributes);

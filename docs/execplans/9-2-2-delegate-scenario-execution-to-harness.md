@@ -33,9 +33,9 @@ function will:
 
 This completes the "delegation" pattern from Architectural Decision Record 005
 (ADR-005) and enables third-party harness adapters (Tokio, GPUI
-(GPU-accelerated UI framework), Bevy) to intercept scenario execution, inject
-framework-specific fixtures, set up runtimes, and perform cleanup around the
-scenario closure.
+(GPU-accelerated UI framework), and Bevy) to intercept scenario execution,
+inject framework-specific fixtures, set up runtimes, and perform cleanup around
+the scenario closure.
 
 Success is observable when:
 

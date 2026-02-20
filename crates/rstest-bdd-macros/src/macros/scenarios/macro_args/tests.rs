@@ -2,6 +2,7 @@
 
 use super::{
     FixtureSpec, RuntimeCompatibilityAlias, RuntimeMode, ScenariosArgs, TestAttributeHint,
+    runtime_compatibility_alias,
 };
 use quote::quote;
 use syn::parse_quote;
@@ -213,7 +214,7 @@ fn scenarios_args_parses_fixtures_with_trailing_comma() {
 fn scenarios_args_defaults_to_sync_runtime() {
     let args: ScenariosArgs = parse_scenarios_args(parse_quote!("tests/features"));
     assert_eq!(args.runtime, RuntimeMode::Sync);
-    assert_eq!(args.runtime_alias, None);
+    assert_eq!(runtime_compatibility_alias(args.runtime), None);
     assert!(!args.runtime.is_async());
 }
 
@@ -225,7 +226,7 @@ fn scenarios_args_parses_runtime_tokio_current_thread() {
     ));
     assert_eq!(args.runtime, RuntimeMode::TokioCurrentThread);
     assert_eq!(
-        args.runtime_alias,
+        runtime_compatibility_alias(args.runtime),
         Some(RuntimeCompatibilityAlias::TokioHarnessAdapter)
     );
     assert!(args.runtime.is_async());
