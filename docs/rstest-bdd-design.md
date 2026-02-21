@@ -1619,12 +1619,20 @@ because `rstest-bdd-harness` is dependency-light per ADR-005.
 
 The first official adapters and policies are:
 
-- `rstest-bdd-harness-tokio`: wraps scenario execution in Tokio
-  current-thread mode and ships a Tokio attribute policy (for example,
-  `#[tokio::test(flavor = "current_thread")]`).
-- `rstest-bdd-harness-gpui`: wraps scenario execution inside the GPUI test
-  harness, injects GPUI fixtures such as `TestAppContext`, and provides the
-  matching GPUI test attribute policy.
+- `rstest-bdd-harness-tokio` (implemented, phase 9.3): provides `TokioHarness`
+  and `TokioAttributePolicy`. `TokioHarness` implements `HarnessAdapter` by
+  building a `tokio::runtime::Builder::new_current_thread().enable_all()`
+  runtime and calling `runtime.block_on(async { request.run() })`. This
+  establishes a Tokio runtime context on the current thread so that
+  `tokio::runtime::Handle::current()` and `tokio::spawn_local` are available
+  inside step functions. `TokioAttributePolicy` implements `AttributePolicy`
+  and emits `#[rstest::rstest]` followed by
+  `#[tokio::test(flavor = "current_thread")]`. The crate depends only on
+  `rstest-bdd-harness` (workspace) and `tokio` (version "1", features =
+  ["rt"]), keeping the dependency footprint minimal per ADR-005.
+- `rstest-bdd-harness-gpui` (planned, phase 9.4): wraps scenario execution
+  inside the GPUI test harness, injects GPUI fixtures such as `TestAppContext`,
+  and provides the matching GPUI test attribute policy.
 
 Future adapters (for example, Bevy) are planned to follow the same pattern
 without requiring new dependencies in `rstest-bdd` or `rstest-bdd-macros`.

@@ -472,9 +472,9 @@ opt-in crates rather than the core runtime or macros.
 
 ### 9.3. Tokio harness plugin crate
 
-- [ ] 9.3.1. Create `rstest-bdd-harness-tokio`.
-- [ ] 9.3.2. Move Tokio runtime wiring and async entry points into the adapter.
-- [ ] 9.3.3. Provide a Tokio attribute policy plugin (current-thread flavour).
+- [x] 9.3.1. Create `rstest-bdd-harness-tokio`.
+- [x] 9.3.2. Move Tokio runtime wiring and async entry points into the adapter.
+- [x] 9.3.3. Provide a Tokio attribute policy plugin (current-thread flavour).
 
 ### 9.4. GPUI harness plugin crate
 

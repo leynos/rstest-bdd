@@ -39,6 +39,7 @@ cap-std.workspace = true
 rstest.workspace = true
 rstest-bdd-macros.workspace = true
 rstest-bdd-harness.workspace = true
+rstest-bdd-harness-tokio.workspace = true
 trybuild.workspace = true
 serial_test.workspace = true
 the-newtype = "0.1.1"
