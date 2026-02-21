@@ -39,8 +39,8 @@ After this change:
 - Preserve user-visible behaviour for existing
   `runtime = "tokio-current-thread"` scenarios.
 - Keep Tokio and Graphical Processing User Interface (GPUI) dependencies out
-  of core crates (`rstest-bdd`,
-  `rstest-bdd-macros`, `rstest-bdd-harness`) per ADR-005.
+  of core crates (`rstest-bdd`, `rstest-bdd-macros`, `rstest-bdd-harness`) per
+  ADR-005.
 - Avoid public API breakage in `rstest-bdd`, `rstest-bdd-macros`, and
   `rstest-bdd-harness`.
 - Keep files under 400 lines; split modules/tests when required.
@@ -69,8 +69,8 @@ After this change:
 ## Risks
 
 - Risk: alias semantics are underspecified relative to phase 9.3 (full Tokio
-  adapter crate), causing accidental scope creep. Severity: high. Likelihood: medium.
-  Mitigation: confine this task to compatibility normalization and
+  adapter crate), causing accidental scope creep. Severity: high. Likelihood:
+  medium. Mitigation: confine this task to compatibility normalization and
   preserve current runtime behaviour; defer full adapter extraction to 9.3.
 
 - Risk: changing argument-resolution flow in `scenarios!` could accidentally
@@ -111,9 +111,9 @@ After this change:
 
 - Observation: project-memory Model Context Protocol (MCP) resources
   (including qdrant-backed notes) are unavailable in this environment.
-  Evidence: `list_mcp_resources` and
-  `list_mcp_resource_templates` returned no entries. Impact: planning relied on
-  repository documents and code inspection only.
+  Evidence: `list_mcp_resources` and `list_mcp_resource_templates` returned no
+  entries. Impact: planning relied on repository documents and code inspection
+  only.
 
 - Observation: current macro code deliberately rejects `harness` combined with
   async scenario generation, which is directly adjacent to 9.2.3 alias work.
@@ -136,8 +136,8 @@ After this change:
   toward ADR-005 terminology and architecture. Date/Author: 2026-02-17 / Codex.
 
 - Decision: require both unit and behavioural coverage for alias changes.
-  Rationale: parser-only tests are insufficient; end-user async
-  scenario execution is unaffected. Date/Author: 2026-02-17 / Codex.
+  Rationale: parser-only tests are insufficient; end-user async scenario
+  execution is unaffected. Date/Author: 2026-02-17 / Codex.
 
 ## Outcomes & retrospective
 
