@@ -47,9 +47,10 @@ pub(super) struct ScenarioTestContext<'a> {
 /// Resolves which harness path should be used for code generation.
 ///
 /// Runtime compatibility aliases are tracked so `runtime = "tokio-current-thread"`
-/// can be treated as a harness-selection alias internally. Until the dedicated
-/// Tokio harness plug-in crate ships (phase 9.3), legacy runtime mode continues
-/// to use the existing runtime code path when no explicit harness is provided.
+/// can be treated as a harness-selection alias internally. The Tokio harness
+/// plug-in crate shipped in phase 9.3; the alias is recognized but does not yet
+/// resolve to `TokioHarness` — activation is tracked as roadmap item 9.2.4.
+/// See design doc §2.5.5 and §2.7.3.
 ///
 /// # Examples
 /// ```rust,ignore
@@ -66,7 +67,7 @@ fn resolve_harness_path(
         return explicit_harness;
     }
     if runtime_alias.is_some() {
-        // Compatibility alias is recognized and reserved for future harness wiring.
+        // Alias recognized but not yet resolved — activation tracked as 9.2.4.
         return None;
     }
     None

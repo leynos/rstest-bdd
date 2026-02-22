@@ -469,16 +469,17 @@ opt-in crates rather than the core runtime or macros.
 - [x] 9.2.2. Delegate scenario execution to the selected harness adapter.
 - [x] 9.2.3. Treat `runtime = "tokio-current-thread"` as a compatibility alias
   for the Tokio harness adapter.
-- [ ] 9.2.4. Activate or deprecate the `runtime = "tokio-current-thread"`
-  compatibility alias. Phase 9.3 is now delivered, so `resolve_harness_path`
-  should either resolve the alias to `rstest_bdd_harness_tokio::TokioHarness`
-  (activating it) or the alias should emit a deprecation warning directing
-  users to `harness = TokioHarness`. Update the test assertion in
-  `resolve_harness_path_runtime_alias_does_not_force_harness_yet` and its
-  comment (which references "until phase 9.3") to match the chosen behaviour.
-  Finish line: the alias either resolves to a harness path or emits a
-  deprecation diagnostic; the stale "until phase 9.3" comment is removed.
-  (Doggylump)
+- [ ] 9.2.4. Activate the `runtime = "tokio-current-thread"` compatibility
+  alias so that `resolve_harness_path` resolves it to
+  `rstest_bdd_harness_tokio::TokioHarness`. Update the doc comment on
+  `resolve_harness_path` and the test
+  `resolve_harness_path_runtime_alias_does_not_force_harness_yet` (which
+  asserts `None` with the message "until phase 9.3") to reflect the new
+  resolved behaviour. Emit a deprecation warning recommending
+  `harness = TokioHarness` as the canonical form. Finish line: the alias
+  resolves to `TokioHarness`; the stale "until phase 9.3" comment is removed; a
+  deprecation diagnostic is emitted; existing tests updated. Prerequisite:
+  9.3.2 delivered. Design Doc: §2.5.5, §2.7.3. (Doggylump)
 
 ### 9.3. Tokio harness plugin crate
 
@@ -500,7 +501,8 @@ opt-in crates rather than the core runtime or macros.
   the returned attributes on the generated test function. Finish line: a
   scenario using `attributes = TokioAttributePolicy` emits
   `#[tokio::test(flavor = "current_thread")]` in expanded output; existing
-  tests continue to pass. Prerequisite: 9.3.3 delivered. (Pandalump)
+  tests continue to pass. Prerequisite: 9.3.3 delivered. Design Doc: §2.7.2,
+  §2.7.3. (Pandalump)
 - [ ] 9.3.5. Document the `yield_now` single-tick drain limitation in
   `TokioHarness::run`. The current implementation yields once after
   `request.run()`, which is sufficient for single-poll `spawn_local` tasks but
@@ -509,17 +511,18 @@ opt-in crates rather than the core runtime or macros.
   user-guide note explaining the constraint and recommending `.await`-based
   patterns inside steps for reliable completion. Finish line: limitation is
   documented or drain logic is hardened; behavioural test validates the chosen
-  approach. (Buzzy Bee)
+  approach. Prerequisite: 9.3.2 delivered. Design Doc: §2.7.4. (Buzzy Bee)
 - [ ] 9.3.6. Add `StdHarness` behavioural tests for parity with `TokioHarness`
   coverage. `StdHarness` currently has no dedicated behavioural tests beyond
   being the implicit default. Add tests exercising metadata forwarding, closure
   execution, and panic propagation. Finish line: at least three behavioural
-  tests for `StdHarness` pass in `make test`. (Dinolump)
-- [ ] 9.3.7. Add a negative integration test for async step + `TokioHarness`
-  runtime rejection. Verify that combining `async fn` step definitions with
-  `harness = TokioHarness` produces the expected compile-time error. Finish
-  line: a `trybuild` or compile-fail test asserts the diagnostic message.
-  (Doggylump)
+  tests for `StdHarness` pass in `make test`. Prerequisite: 9.1.2 delivered.
+  Design Doc: §2.7.1. (Dinolump)
+- [ ] 9.3.7. Add a negative integration test for `async fn` step definitions
+  combined with `harness = TokioHarness`. Verify that this combination produces
+  the expected compile-time error via a `trybuild` compile-fail fixture. Finish
+  line: `trybuild` test asserts the diagnostic message; `make test` passes.
+  Prerequisite: 9.3.2 delivered. Design Doc: §2.7.3, §2.7.4. (Doggylump)
 
 ### 9.4. GPUI harness plugin crate
 
