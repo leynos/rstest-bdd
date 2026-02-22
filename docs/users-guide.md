@@ -826,15 +826,18 @@ fn my_tokio_scenario() {
 }
 ```
 
-`TokioHarness` builds a single-threaded Tokio runtime per scenario invocation
-and executes the scenario runner inside it. `TokioAttributePolicy` emits
-`#[rstest::rstest]` and `#[tokio::test(flavor = "current_thread")]`.
+`TokioHarness` builds a single-threaded Tokio runtime with a `LocalSet` per
+scenario invocation and executes the scenario runner inside it.
+`TokioAttributePolicy` emits `#[rstest::rstest]` and
+`#[tokio::test(flavor = "current_thread")]`.
 
-> **Note:** combining `harness` with `async fn` scenario signatures still
-> produces a compile error. The `TokioHarness` wraps synchronous scenario
-> closures inside a Tokio runtime; async step functions use `block_on`
-> internally. For fully async scenarios without a harness, use
-> `runtime = "tokio-current-thread"` with `scenarios!` instead.
+> **Note:** combining `harness` with `async fn` scenario signatures produces
+> a compile error. The `TokioHarness` wraps synchronous scenario closures
+> inside a Tokio runtime, so step functions have access to
+> `tokio::runtime::Handle::current()`, `tokio::spawn`, and
+> `tokio::spawn_local` without needing `async fn` signatures. For fully async
+> scenarios without a harness, use `runtime = "tokio-current-thread"` with
+> `scenarios!` instead.
 >
 > When `attributes` is specified, the macro emits only `#[rstest::rstest]` and
 > skips `RuntimeMode`-based attribute generation. Use `TokioAttributePolicy`

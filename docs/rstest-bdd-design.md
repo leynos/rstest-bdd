@@ -1586,8 +1586,11 @@ is `Result<(), E>`. The `HarnessAdapter::run` method returns `T`, so
 `T = Result<(), E>` composes naturally.
 
 **Async rejection.** Combining `harness` with `async fn` scenario signatures
-produces a `compile_error!`. Async harness delegation requires a Tokio-aware
-adapter and is planned for phase 9.3 (`rstest-bdd-harness-tokio`).
+produces a `compile_error!`. The `TokioHarness` from `rstest-bdd-harness-tokio`
+wraps synchronous scenario closures inside a Tokio runtime, making
+`tokio::runtime::Handle::current()` and `tokio::spawn_local` available in step
+functions. Async scenario functions are not required because the harness itself
+provides the runtime context.
 
 **Runtime compatibility alias (Phase 9.2.3).** For `scenarios!`,
 `runtime = "tokio-current-thread"` is treated as compatibility syntax for Tokio
@@ -1622,14 +1625,19 @@ The first official adapters and policies are:
 - `rstest-bdd-harness-tokio` (implemented, phase 9.3): provides `TokioHarness`
   and `TokioAttributePolicy`. `TokioHarness` implements `HarnessAdapter` by
   building a `tokio::runtime::Builder::new_current_thread().enable_all()`
-  runtime and calling `runtime.block_on(async { request.run() })`. This
-  establishes a Tokio runtime context on the current thread so that
-  `tokio::runtime::Handle::current()` and `tokio::spawn_local` are available
-  inside step functions. `TokioAttributePolicy` implements `AttributePolicy`
-  and emits `#[rstest::rstest]` followed by
+  runtime with a `tokio::task::LocalSet`, then calling
+  `local_set.block_on(&runtime, async { ... })`. This establishes a Tokio
+  runtime and `LocalSet` context on the current thread so that
+  `tokio::runtime::Handle::current()` and `tokio::task::spawn_local` are
+  available inside step functions. `TokioAttributePolicy` implements
+  `AttributePolicy` and emits `#[rstest::rstest]` followed by
   `#[tokio::test(flavor = "current_thread")]`. The crate depends only on
   `rstest-bdd-harness` (workspace) and `tokio` (version "1", features =
-  ["rt"]), keeping the dependency footprint minimal per ADR-005.
+  ["rt"]), keeping the dependency footprint minimal per ADR-005. Note: async
+  step *definitions* (`async fn` steps) are not supported inside `TokioHarness`
+  because the sync wrapper in `emit.rs` rejects when a Tokio runtime is already
+  active; users should write synchronous step functions and use `tokio::spawn`
+  / `tokio::spawn_local` inside them to drive async work.
 - `rstest-bdd-harness-gpui` (planned, phase 9.4): wraps scenario execution
   inside the GPUI test harness, injects GPUI fixtures such as `TestAppContext`,
   and provides the matching GPUI test attribute policy.

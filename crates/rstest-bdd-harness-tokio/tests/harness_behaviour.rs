@@ -59,6 +59,32 @@ fn tokio_runtime_is_active_inside_harness() {
     assert!(harness.run(request));
 }
 
+/// Verify that `spawn_local` is available inside the harness, confirming that
+/// a `LocalSet` + `current_thread` runtime is active.
+#[rstest]
+fn tokio_harness_supports_spawn_local(default_metadata: ScenarioMetadata) {
+    let flag = Rc::new(Cell::new(false));
+    let flag_clone = Rc::clone(&flag);
+    let request = ScenarioRunRequest::new(
+        default_metadata,
+        ScenarioRunner::new(move || {
+            // `spawn_local` panics if no `LocalSet` context is active.
+            // Successfully calling it proves the current-thread + LocalSet
+            // wiring provided by TokioHarness.
+            tokio::task::spawn_local(async move {
+                flag_clone.set(true);
+            });
+            "spawned"
+        }),
+    );
+
+    let harness = TokioHarness::new();
+    assert_eq!(harness.run(request), "spawned");
+    // The LocalSet drives the spawned task to completion before block_on
+    // returns, so the flag should be set.
+    assert!(flag.get(), "spawn_local task should have run to completion");
+}
+
 /// Verify that the harness can inspect metadata before executing the runner.
 #[test]
 fn tokio_harness_passes_metadata_through() {

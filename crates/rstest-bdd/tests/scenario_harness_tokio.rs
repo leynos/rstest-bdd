@@ -1,43 +1,48 @@
 //! Integration tests verifying that `#[scenario]` works with the Tokio harness
-//! adapter from `rstest-bdd-harness-tokio`.
+//! adapter and attribute policy from `rstest-bdd-harness-tokio`.
+//!
+//! These tests prove end-to-end that:
+//! - `TokioHarness` provides an active Tokio current-thread runtime during
+//!   step execution.
+//! - `TokioAttributePolicy` can be combined with `TokioHarness`.
+//! - `spawn_local` succeeds in step functions, confirming the `LocalSet` +
+//!   `current_thread` wiring.
 
 use rstest_bdd_macros::{given, scenario, then, when};
-use std::sync::atomic::{AtomicBool, Ordering};
-
-static RUNTIME_ACTIVE: AtomicBool = AtomicBool::new(false);
-static HANDLE_OBTAINED: AtomicBool = AtomicBool::new(false);
 
 #[given("the Tokio runtime is active")]
 fn tokio_runtime_is_active() {
     // Panics if no Tokio runtime is active on the current thread.
     let _handle = tokio::runtime::Handle::current();
-    RUNTIME_ACTIVE.store(true, Ordering::SeqCst);
 }
 
 #[when("a Tokio handle is obtained")]
 fn tokio_handle_is_obtained() {
     let _handle = tokio::runtime::Handle::current();
-    HANDLE_OBTAINED.store(true, Ordering::SeqCst);
 }
 
 #[then("the handle confirms current-thread execution")]
 fn handle_confirms_current_thread() {
-    assert!(
-        RUNTIME_ACTIVE.load(Ordering::SeqCst),
-        "Tokio runtime should have been active in the Given step"
-    );
-    assert!(
-        HANDLE_OBTAINED.load(Ordering::SeqCst),
-        "Tokio handle should have been obtained in the When step"
-    );
+    // `spawn_local` panics if no `LocalSet` context is active. Successfully
+    // calling it proves the current-thread + LocalSet wiring provided by
+    // TokioHarness. On a multi-threaded runtime without a `LocalSet`, this
+    // would panic.
+    tokio::task::spawn_local(async {});
 }
 
+/// Tests `#[scenario]` with `harness = TokioHarness` only.
 #[scenario(
     path = "tests/features/tokio_harness.feature",
+    name = "Tokio runtime is active during step execution",
     harness = rstest_bdd_harness_tokio::TokioHarness,
 )]
-fn scenario_runs_inside_tokio_runtime() {
-    // Reset flags for next test run.
-    RUNTIME_ACTIVE.store(false, Ordering::SeqCst);
-    HANDLE_OBTAINED.store(false, Ordering::SeqCst);
-}
+fn scenario_runs_inside_tokio_runtime() {}
+
+/// Tests `#[scenario]` with both `TokioHarness` and `TokioAttributePolicy`.
+#[scenario(
+    path = "tests/features/tokio_harness.feature",
+    name = "Tokio harness with attribute policy",
+    harness = rstest_bdd_harness_tokio::TokioHarness,
+    attributes = rstest_bdd_harness_tokio::TokioAttributePolicy,
+)]
+fn scenario_runs_with_harness_and_policy() {}

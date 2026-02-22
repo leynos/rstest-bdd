@@ -8,10 +8,11 @@ Status: COMPLETE
 
 ## Purpose / big picture
 
-Phase 9 of the roadmap implements ADR-005 by introducing a harness adapter
-layer so framework-specific integrations (Tokio, GPUI, Bevy) live in opt-in
-crates rather than the core runtime or macros. Phases 9.1 and 9.2 delivered the
-core harness traits (`HarnessAdapter`, `AttributePolicy`) and macro integration
+Phase 9 of the roadmap implements Architecture Decision Record (ADR) 005 by
+introducing a harness adapter layer so framework-specific integrations (Tokio,
+Graphical Processing User Interface (GPUI), Bevy) live in opt-in crates rather
+than the core runtime or macros. Phases 9.1 and 9.2 delivered the core harness
+traits (`HarnessAdapter`, `AttributePolicy`) and macro integration
 (`harness =`, `attributes =` parameters). Phase 9.3 delivers the first official
 framework adapter: `rstest-bdd-harness-tokio`.
 
@@ -133,6 +134,17 @@ Success is observable when:
   formatting). Evidence: `make check-fmt` failed on first attempt. Impact:
   resolved by running `make fmt` before the final gate; no functional change.
 
+- Observation (code review): the `TokioHarness` does not enable async step
+  *definitions* (i.e., `async fn` step functions). The existing
+  `generate_sync_wrapper_from_async` in `emit.rs` checks
+  `tokio::runtime::Handle::try_current().is_ok()` and rejects async steps when
+  a Tokio runtime is already active. This means async step functions will fail
+  at runtime inside `TokioHarness` because the harness establishes a runtime
+  before steps execute. Evidence: `emit.rs:78-86`. Impact: the compile-time
+  error message was updated to remove the "planned for phase 9.3" wording and
+  accurately describe the current state. The user guide documents this
+  limitation clearly.
+
 ## Decision log
 
 - Decision: declare Tokio as a local dependency with `features = ["rt"]`
@@ -141,12 +153,14 @@ Success is observable when:
   which are needed by the harness adapter. A minimal feature set keeps the
   crate lightweight per ADR-005 goals. Date/Author: 2026-02-21 / plan.
 
-- Decision: use `runtime.block_on(async { request.run() })` rather than
-  calling `request.run()` directly. Rationale: wrapping the synchronous closure
-  in an async block inside `block_on` establishes the Tokio runtime context on
-  the current thread, making `tokio::runtime::Handle::current()` and
-  `tokio::spawn_local` available inside step functions. Date/Author: 2026-02-21
-  / plan.
+- Decision: use `LocalSet::block_on` with `yield_now()` after
+  `request.run()`. Rationale: a plain `runtime.block_on` does not provide a
+  `LocalSet` context, which means `tokio::task::spawn_local` would panic inside
+  step functions. Wrapping execution in a `LocalSet` makes `spawn_local`
+  available, and the `yield_now()` after `request.run()` gives the `LocalSet` a
+  chance to drive any tasks spawned during step execution. Date/Author:
+  2026-02-22 / code review (supersedes original `block_on`-only decision from
+  2026-02-21).
 
 - Decision: use `Builder::new_current_thread().enable_all().build()` for the
   runtime. Rationale: `enable_all()` activates time and I/O drivers, matching
@@ -154,21 +168,31 @@ Success is observable when:
   `flavor = "current_thread"` attribute emitted by `TokioAttributePolicy`.
   Date/Author: 2026-02-21 / plan.
 
+- Decision: update compile-time error message for async+harness rejection to
+  remove "planned for phase 9.3" and guide users towards using synchronous
+  scenario functions with `TokioHarness`. Rationale: phase 9.3 is delivered;
+  `TokioHarness` provides the Tokio runtime for step functions without
+  requiring `async fn` scenario signatures. The `.stderr` fixture was updated
+  to match. Date/Author: 2026-02-22 / code review.
+
 ## Outcomes & retrospective
 
 Shipped in this phase:
 
 - New crate `crates/rstest-bdd-harness-tokio` with `TokioHarness` and
   `TokioAttributePolicy`.
-- `TokioHarness` builds a Tokio current-thread runtime and executes the
-  scenario runner inside it, making `tokio::runtime::Handle::current()`
-  available in step functions.
+- `TokioHarness` builds a Tokio current-thread runtime with a `LocalSet` and
+  executes the scenario runner inside it, making
+  `tokio::runtime::Handle::current()` and `tokio::task::spawn_local` available
+  in step functions.
 - `TokioAttributePolicy` emits `#[rstest::rstest]` and
   `#[tokio::test(flavor = "current_thread")]`.
 - 5 unit tests (2 harness, 3 policy) with doctests.
-- 6 behavioural tests (4 harness execution, 2 policy output).
-- 1 integration test in `rstest-bdd` proving `#[scenario]` with Tokio harness
-  works end-to-end.
+- 7 behavioural tests (5 harness execution including async task completion, 2
+  policy output).
+- 2 integration tests in `rstest-bdd`: one proving `#[scenario]` with
+  `TokioHarness` works end-to-end (including `spawn_local` current-thread
+  proof), one combining `TokioHarness` with `TokioAttributePolicy`.
 - Documentation updates in `docs/rstest-bdd-design.md`,
   `docs/users-guide.md`, `docs/roadmap.md`, `docs/releasing-crates.md`, and
   `scripts/publish_workspace_members.py`.
@@ -184,14 +208,19 @@ Validation summary:
 Deferred to future phases:
 
 - Phase 9.4: GPUI harness plugin crate.
-- Removing the async+harness compile-time rejection (would require async
-  harness adapter support).
+- Async scenario function support with harness: the compile-time rejection of
+  `async fn` + `harness` remains in place. `TokioHarness` provides a Tokio
+  runtime for synchronous step functions; async step *definitions* are not
+  supported because `generate_sync_wrapper_from_async` in `emit.rs` rejects
+  when a Tokio runtime is already active. Lifting this would require an async
+  variant of `HarnessAdapter` or changes to the sync wrapper logic.
 
 ## Context and orientation
 
-The `rstest-bdd` workspace (`/home/user/project`) is a Rust BDD testing
-framework built on `rstest`. It lives in a Cargo workspace with edition 2024,
-version 0.5.0, and MSRV 1.85. The workspace root `Cargo.toml` is at
+The `rstest-bdd` workspace (`/home/user/project`) is a Rust Behaviour-Driven
+Development (BDD) testing framework built on `rstest`. It lives in a Cargo
+workspace with edition 2024, version 0.5.0, and minimum supported Rust version
+(MSRV) 1.85. The workspace root `Cargo.toml` is at
 `/home/user/project/Cargo.toml`.
 
 Key crates for this work:

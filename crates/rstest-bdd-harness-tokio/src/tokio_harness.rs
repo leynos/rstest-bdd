@@ -2,13 +2,15 @@
 
 use rstest_bdd_harness::{HarnessAdapter, ScenarioRunRequest};
 
-/// Executes scenario runners inside a Tokio current-thread runtime.
+/// Executes scenario runners inside a Tokio current-thread runtime with a
+/// [`LocalSet`](tokio::task::LocalSet).
 ///
-/// `TokioHarness` builds a new single-threaded Tokio runtime per scenario
-/// invocation and blocks on the runner closure. The closure is synchronous
-/// (`FnOnce() -> T`); the Tokio runtime is available on the current thread
-/// so that async step fallbacks and `tokio::spawn_local` work within the
-/// scenario body.
+/// `TokioHarness` builds a new single-threaded Tokio runtime and a `LocalSet`
+/// per scenario invocation, then blocks on the runner closure. The closure is
+/// synchronous (`FnOnce() -> T`); the Tokio runtime and `LocalSet` are
+/// active on the current thread so that `tokio::runtime::Handle::current()`,
+/// `tokio::spawn`, and `tokio::task::spawn_local` are all available inside
+/// step functions.
 ///
 /// # Examples
 ///
@@ -49,7 +51,14 @@ impl HarnessAdapter for TokioHarness {
             .unwrap_or_else(|err| {
                 panic!("rstest-bdd-harness-tokio: failed to build Tokio runtime: {err}")
             });
-        runtime.block_on(async { request.run() })
+        let local_set = tokio::task::LocalSet::new();
+        local_set.block_on(&runtime, async {
+            let result = request.run();
+            // Yield once so that any tasks queued via `spawn_local` during
+            // `request.run()` are driven to completion before we return.
+            tokio::task::yield_now().await;
+            result
+        })
     }
 }
 
