@@ -46,3 +46,40 @@ fn scenario_runs_inside_tokio_runtime() {}
     attributes = rstest_bdd_harness_tokio::TokioAttributePolicy,
 )]
 fn scenario_runs_with_harness_and_policy() {}
+
+// --- Async step definitions for TokioHarness ---
+
+use std::sync::atomic::{AtomicBool, Ordering};
+
+static ASYNC_GIVEN_RAN: AtomicBool = AtomicBool::new(false);
+static ASYNC_WHEN_RAN: AtomicBool = AtomicBool::new(false);
+
+#[given("an async given step runs")]
+async fn async_given_step() {
+    ASYNC_GIVEN_RAN.store(true, Ordering::Release);
+}
+
+#[when("an async when step runs")]
+async fn async_when_step() {
+    ASYNC_WHEN_RAN.store(true, Ordering::Release);
+}
+
+#[then("the async steps completed")]
+async fn async_steps_completed() {
+    assert!(
+        ASYNC_GIVEN_RAN.load(Ordering::Acquire),
+        "async given step should have executed"
+    );
+    assert!(
+        ASYNC_WHEN_RAN.load(Ordering::Acquire),
+        "async when step should have executed"
+    );
+}
+
+/// Tests that `async fn` step definitions work with `TokioHarness`.
+#[scenario(
+    path = "tests/features/tokio_harness.feature",
+    name = "Async step definitions execute under TokioHarness",
+    harness = rstest_bdd_harness_tokio::TokioHarness,
+)]
+fn scenario_async_steps_under_tokio_harness() {}
