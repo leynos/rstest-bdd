@@ -804,14 +804,14 @@ tests to pass silently.
 ### Using the Tokio harness
 
 The `rstest-bdd-harness-tokio` crate provides a ready-made Tokio integration.
-Add it as a dev-dependency:
+It is available as a dev-dependency:
 
 ```toml
 [dev-dependencies]
 rstest-bdd-harness-tokio = "0.5.0"
 ```
 
-Then use `TokioHarness` and `TokioAttributePolicy` in your scenarios:
+`TokioHarness` and `TokioAttributePolicy` can then be used in scenarios:
 
 ```rust,no_run
 # use rstest_bdd_macros::scenario;
@@ -840,8 +840,8 @@ scenario invocation and executes the scenario runner inside it.
 > `scenarios!` instead.
 >
 > When `attributes` is specified, the macro emits only `#[rstest::rstest]` and
-> skips `RuntimeMode`-based attribute generation. Use `TokioAttributePolicy`
-> to emit `#[tokio::test(flavor = "current_thread")]` alongside rstest.
+> skips `RuntimeMode`-based attribute generation. `TokioAttributePolicy`
+> emits `#[tokio::test(flavor = "current_thread")]` alongside rstest.
 
 If the feature file cannot be found or contains invalid Gherkin, the macro
 emits a compile-time error with the offending path.

@@ -446,7 +446,12 @@ In `crates/rstest-bdd-harness-tokio/src/tokio_harness.rs`:
                     "rstest-bdd-harness-tokio: failed to build Tokio \
                      runtime: {err}"
                 ));
-            runtime.block_on(async { request.run() })
+            let local_set = tokio::task::LocalSet::new();
+            local_set.block_on(&runtime, async {
+                let result = request.run();
+                tokio::task::yield_now().await;
+                result
+            })
         }
     }
 

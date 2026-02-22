@@ -472,9 +472,17 @@ opt-in crates rather than the core runtime or macros.
 
 ### 9.3. Tokio harness plugin crate
 
-- [x] 9.3.1. Create `rstest-bdd-harness-tokio`.
+- [x] 9.3.1. Create `rstest-bdd-harness-tokio`. Finish line: crate exists as a
+  workspace member, exports `TokioHarness` and `TokioAttributePolicy`, and all
+  quality gates pass. Prerequisite: 9.2 complete. Design Doc: §2.7.4.
 - [x] 9.3.2. Move Tokio runtime wiring and async entry points into the adapter.
+  Finish line: `TokioHarness` implements `HarnessAdapter` using a
+  current-thread runtime with `LocalSet`; unit and behavioural tests pass.
+  Prerequisite: 9.3.1 scaffold. Design Doc: §2.7.4.
 - [x] 9.3.3. Provide a Tokio attribute policy plugin (current-thread flavour).
+  Finish line: `TokioAttributePolicy` emits `#[rstest::rstest]` and
+  `#[tokio::test(flavor = "current_thread")]`; unit and behavioural tests pass.
+  Prerequisite: 9.3.1 scaffold. Design Doc: §2.7.4.
 
 ### 9.4. GPUI harness plugin crate
 
