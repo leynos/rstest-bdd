@@ -45,6 +45,8 @@ impl TokioHarness {
 
 impl HarnessAdapter for TokioHarness {
     fn run<T>(&self, request: ScenarioRunRequest<'_, T>) -> T {
+        // FIXME(#443): propagate runtime build errors via Result once
+        // HarnessAdapter::run returns Result<T, E>.
         let runtime = tokio::runtime::Builder::new_current_thread()
             .enable_all()
             .build()
