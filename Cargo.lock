@@ -1387,6 +1387,7 @@ dependencies = [
  "regex",
  "rstest",
  "rstest-bdd-harness",
+ "rstest-bdd-harness-tokio",
  "rstest-bdd-macros",
  "rstest-bdd-patterns",
  "rstest-bdd-policy",
@@ -1406,6 +1407,15 @@ name = "rstest-bdd-harness"
 version = "0.5.0"
 dependencies = [
  "rstest",
+]
+
+[[package]]
+name = "rstest-bdd-harness-tokio"
+version = "0.5.0"
+dependencies = [
+ "rstest",
+ "rstest-bdd-harness",
+ "tokio",
 ]
 
 [[package]]

@@ -213,9 +213,9 @@ where
     if config.harness.is_some() && config.runtime.is_async() {
         let err = syn::Error::new(
             proc_macro2::Span::call_site(),
-            "combining `harness` with async scenarios is not yet supported; \
-             async harness delegation is planned for phase 9.3 \
-             (rstest-bdd-harness-tokio)",
+            "combining `harness` with `async fn` scenarios is not supported; \
+             use a synchronous scenario function with `TokioHarness` instead \
+             (the harness provides the Tokio runtime for step functions)",
         );
         return TokenStream::from(err.into_compile_error());
     }
@@ -277,9 +277,9 @@ where
     if config.harness.is_some() && config.runtime.is_async() {
         let err = syn::Error::new(
             proc_macro2::Span::call_site(),
-            "combining `harness` with async scenarios is not yet supported; \
-             async harness delegation is planned for phase 9.3 \
-             (rstest-bdd-harness-tokio)",
+            "combining `harness` with `async fn` scenarios is not supported; \
+             use a synchronous scenario function with `TokioHarness` instead \
+             (the harness provides the Tokio runtime for step functions)",
         );
         return TokenStream::from(err.into_compile_error());
     }

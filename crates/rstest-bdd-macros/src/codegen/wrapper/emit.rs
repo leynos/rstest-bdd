@@ -60,6 +60,20 @@ fn generate_async_wrapper_from_sync(
 /// Generate a sync wrapper for an async step by blocking on the async wrapper.
 ///
 /// This supports executing async-only steps from synchronous scenarios.
+/// When a Tokio runtime is already active (e.g. provided by `TokioHarness`),
+/// the wrapper polls the future once — most async steps complete immediately
+/// without yielding. Multi-poll futures return an informative error.
+///
+/// # Examples
+///
+/// ```rust,ignore
+/// let tokens = generate_sync_wrapper_from_async(
+///     &config,
+///     &sync_ident,
+///     &async_ident,
+/// );
+/// assert!(!tokens.is_empty());
+/// ```
 fn generate_sync_wrapper_from_async(
     config: &WrapperConfig<'_>,
     sync_wrapper_ident: &proc_macro2::Ident,
@@ -76,14 +90,34 @@ fn generate_sync_wrapper_from_async(
             __rstest_bdd_table: Option<&[&[&str]]>,
         ) -> Result<#path::StepExecution, #path::StepError> {
             if ::tokio::runtime::Handle::try_current().is_ok() {
-                return Err(#path::StepError::ExecutionError {
-                    pattern: #pattern.to_string(),
-                    function: stringify!(#ident).to_string(),
-                    message: concat!(
-                        "async step executed via sync handler while a Tokio runtime is running; ",
-                        "run the scenario with `runtime = \"tokio-current-thread\"` or make the scenario test `async fn`",
-                    ).to_string(),
-                });
+                // A Tokio runtime is already active (e.g. a harness provides
+                // one). Poll the future once — most async steps complete
+                // immediately without yielding Pending.
+                let future = #async_wrapper_ident(
+                    __rstest_bdd_ctx,
+                    __rstest_bdd_text,
+                    __rstest_bdd_docstring,
+                    __rstest_bdd_table,
+                );
+                let mut future = ::std::pin::pin!(future);
+                let waker = ::std::task::Waker::noop();
+                let mut cx = ::std::task::Context::from_waker(&waker);
+                return match future.as_mut().poll(&mut cx) {
+                    ::std::task::Poll::Ready(result) => result,
+                    ::std::task::Poll::Pending => {
+                        Err(#path::StepError::ExecutionError {
+                            pattern: #pattern.to_string(),
+                            function: stringify!(#ident).to_string(),
+                            message: concat!(
+                                "async step yielded Pending inside a ",
+                                "harness-provided runtime; multi-poll async ",
+                                "steps are not supported under a harness \u{2014} use ",
+                                "`runtime = \"tokio-current-thread\"` or an ",
+                                "`async fn` scenario signature instead",
+                            ).to_string(),
+                        })
+                    }
+                };
             }
 
             let runtime = ::tokio::runtime::Builder::new_current_thread()

@@ -801,28 +801,56 @@ Harness adapters must faithfully propagate the runner's return value. For
 fallible scenarios that return `Result<(), E>`, swallowing errors would cause
 tests to pass silently.
 
-> **Async limitation (pending phase 9.3):** combining `harness` with
-> `async fn` scenario signatures produces a compile error. Async harness
-> delegation requires a Tokio-aware adapter and is planned for phase 9.3
-> (`rstest-bdd-harness-tokio`).
+### Using the Tokio harness
+
+The `rstest-bdd-harness-tokio` crate provides a ready-made Tokio integration.
+It is available as a dev-dependency:
+
+```toml
+[dev-dependencies]
+rstest-bdd-harness-tokio = "0.5.0"
+```
+
+`TokioHarness` and `TokioAttributePolicy` can then be used in scenarios:
+
+```rust,no_run
+# use rstest_bdd_macros::scenario;
+#[scenario(
+    path = "tests/features/my_async.feature",
+    harness = rstest_bdd_harness_tokio::TokioHarness,
+    attributes = rstest_bdd_harness_tokio::TokioAttributePolicy,
+)]
+fn my_tokio_scenario() {
+    // Steps execute inside a Tokio current-thread runtime.
+    // tokio::runtime::Handle::current() is available in step functions.
+}
+```
+
+`TokioHarness` builds a single-threaded Tokio runtime with a `LocalSet` per
+scenario invocation and executes the scenario runner inside it.
+`TokioAttributePolicy` emits `#[rstest::rstest]` and
+`#[tokio::test(flavor = "current_thread")]`.
+
+> **Note:** combining `harness` with `async fn` scenario signatures produces
+> a compile error because `TokioHarness` runs synchronous scenario closures
+> inside a Tokio runtime — the harness owns the runtime, so the scenario
+> function itself must be synchronous. Step functions still have access to
+> `tokio::runtime::Handle::current()`, `tokio::spawn`, and
+> `tokio::task::spawn_local` without needing `async fn` signatures.
+>
+> For fully async scenarios (where the scenario function itself is
+> `async fn`), two approaches are available without a harness:
+>
+> - **`#[scenario]`** with an explicit `#[tokio::test(flavor =
+>   "current_thread")]` attribute — see [Using `#[scenario]` with
+>   async](#using-scenario-with-async).
+> - **`scenarios!`** with `runtime = "tokio-current-thread"` for
+>   auto-discovery — see [Using `scenarios!` with
+>   async](#using-scenarios-with-async).
 >
 > When `attributes` is specified, the macro emits only `#[rstest::rstest]` and
-> skips `RuntimeMode`-based attribute generation. This means async scenario
-> functions that use `attributes = DefaultAttributePolicy` (or any policy) will
-> **not** receive `#[tokio::test]` automatically and will fail to compile
-> without an executor attribute. Until phase 9.3 delivers
-> `rstest-bdd-harness-tokio` with a Tokio-aware attribute policy, users
-> requiring async execution with a custom attribute policy should either:
->
-> - Omit the `attributes` parameter and let `RuntimeMode` handle attribute
->   generation.
-> - Manually add `#[tokio::test(flavor = "current_thread")]` alongside the
->   `#[scenario]` attribute.
->
-> This limitation is intentional per the design (the attribute policy is the
-> extension point for controlling test attributes, so the macro defers to the
-> policy rather than second-guessing it), but it represents a gap until a
-> Tokio-aware policy ships. Revisit this note when phase 9.3 is implemented.
+> skips `RuntimeMode`-based attribute generation. `TokioAttributePolicy`
+> emits `#[tokio::test(flavor = "current_thread")]` alongside rstest.
 
 If the feature file cannot be found or contains invalid Gherkin, the macro
 emits a compile-time error with the offending path.
@@ -1084,11 +1112,12 @@ When `runtime = "tokio-current-thread"` is specified:
 - Each test is annotated with `#[tokio::test(flavor = "current_thread")]`.
 - Steps execute sequentially within the single-threaded Tokio runtime.
 
-This `runtime` syntax is preserved as compatibility alias syntax for Tokio
-harness selection. Internally, macro argument resolution canonicalizes it to a
-Tokio harness compatibility alias while preserving existing runtime behaviour
-until the dedicated Tokio harness plug-in crate (`rstest-bdd-harness-tokio`)
-ships in phase 9.3.
+This `runtime` syntax is preserved as a compatibility alias for Tokio harness
+selection. Internally, macro argument resolution canonicalizes it to a Tokio
+harness compatibility alias. The dedicated `rstest-bdd-harness-tokio` crate is
+now available (phase 9.3); for new code, prefer the explicit
+`harness = TokioHarness` form described in
+[Using the Tokio harness](#using-the-tokio-harness).
 
 ### Recommended patterns for async work in steps
 

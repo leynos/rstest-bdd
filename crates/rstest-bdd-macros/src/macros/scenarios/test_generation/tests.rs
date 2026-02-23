@@ -184,6 +184,6 @@ fn resolve_harness_path_runtime_alias_does_not_force_harness_yet() {
     let resolved = resolve_harness_path(None, Some(RuntimeCompatibilityAlias::TokioHarnessAdapter));
     assert!(
         resolved.is_none(),
-        "tokio compatibility alias keeps legacy runtime path until phase 9.3"
+        "tokio compatibility alias is recognized but not yet resolved (activation tracked as 9.2.4)"
     );
 }

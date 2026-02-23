@@ -83,8 +83,8 @@ async fn sync_wrapper_refuses_to_create_nested_runtime() {
     };
 
     assert!(
-        err.to_string().contains("Tokio runtime"),
-        "expected nested runtime diagnostic, got: {err}"
+        err.to_string().contains("harness-provided runtime"),
+        "expected harness-provided runtime diagnostic, got: {err}"
     );
 }
 

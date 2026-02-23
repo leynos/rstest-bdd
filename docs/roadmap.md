@@ -469,24 +469,118 @@ opt-in crates rather than the core runtime or macros.
 - [x] 9.2.2. Delegate scenario execution to the selected harness adapter.
 - [x] 9.2.3. Treat `runtime = "tokio-current-thread"` as a compatibility alias
   for the Tokio harness adapter.
+- [ ] 9.2.4. Activate the `runtime = "tokio-current-thread"` compatibility
+  alias so that `resolve_harness_path` resolves it to
+  `rstest_bdd_harness_tokio::TokioHarness`. Update the doc comment on
+  `resolve_harness_path` and the test
+  `resolve_harness_path_runtime_alias_does_not_force_harness_yet` (which
+  asserts `None` with the message "until phase 9.3") to reflect the new
+  resolved behaviour. Emit a deprecation warning recommending
+  `harness = TokioHarness` as the canonical form. Finish line: the alias
+  resolves to `TokioHarness`; the stale "until phase 9.3" comment is removed; a
+  deprecation diagnostic is emitted; existing tests updated. Prerequisite:
+  9.3.2 delivered. Design Doc: §2.5.5, §2.7.3. (Doggylump)
 
 ### 9.3. Tokio harness plugin crate
 
-- [ ] 9.3.1. Create `rstest-bdd-harness-tokio`.
-- [ ] 9.3.2. Move Tokio runtime wiring and async entry points into the adapter.
-- [ ] 9.3.3. Provide a Tokio attribute policy plugin (current-thread flavour).
+- [x] 9.3.1. Create `rstest-bdd-harness-tokio`. Finish line: crate exists as a
+  workspace member, exports `TokioHarness` and `TokioAttributePolicy`, and all
+  quality gates pass. Prerequisite: 9.2 complete. Design Doc: §2.7.4.
+- [x] 9.3.2. Move Tokio runtime wiring and async entry points into the adapter.
+  Finish line: `TokioHarness` implements `HarnessAdapter` using a
+  current-thread runtime with `LocalSet`; unit and behavioural tests pass.
+  Prerequisite: 9.3.1 scaffold. Design Doc: §2.7.4.
+- [x] 9.3.3. Provide a Tokio attribute policy plugin (current-thread flavour).
+  Finish line: `TokioAttributePolicy` emits `#[rstest::rstest]` and
+  `#[tokio::test(flavor = "current_thread")]`; unit and behavioural tests pass.
+  Prerequisite: 9.3.1 scaffold. Design Doc: §2.7.4.
+- [ ] 9.3.4. Wire `AttributePolicy::test_attributes()` into macro codegen. The
+  macro currently ignores the attribute policy and always emits only
+  `#[rstest::rstest]`. Update `assemble_test_tokens_with_harness` (and the
+  non-harness path) to call `test_attributes()` on the resolved policy and emit
+  the returned attributes on the generated test function. Finish line: a
+  scenario using `attributes = TokioAttributePolicy` emits
+  `#[tokio::test(flavor = "current_thread")]` in expanded output; existing
+  tests continue to pass. Prerequisite: 9.3.3 delivered. Design Doc: §2.7.2,
+  §2.7.3. (Pandalump)
+- [ ] 9.3.5. Document the `yield_now` single-tick drain limitation in
+  `TokioHarness::run`. The current implementation yields once after
+  `request.run()`, which is sufficient for single-poll `spawn_local` tasks but
+  may not drive multi-poll futures to completion. Either strengthen the drain
+  logic (e.g. loop until the `LocalSet` is idle) or add a doc comment and
+  user-guide note explaining the constraint and recommending `.await`-based
+  patterns inside steps for reliable completion. Finish line: limitation is
+  documented or drain logic is hardened; behavioural test validates the chosen
+  approach. Prerequisite: 9.3.2 delivered. Design Doc: §2.7.4. (Buzzy Bee)
+- [ ] 9.3.6. Add `StdHarness` behavioural tests for parity with `TokioHarness`
+  coverage. `StdHarness` currently has no dedicated behavioural tests beyond
+  being the implicit default. Add tests exercising metadata forwarding, closure
+  execution, and panic propagation. Finish line: at least three behavioural
+  tests for `StdHarness` pass in `make test`. Prerequisite: 9.1.2 delivered.
+  Design Doc: §2.7.1. (Dinolump)
+- [ ] 9.3.7. Add a negative integration test for `async fn` step definitions
+  combined with `harness = TokioHarness`. Verify that this combination produces
+  the expected compile-time error via a `trybuild` compile-fail fixture. Finish
+  line: `trybuild` test asserts the diagnostic message; `make test` passes.
+  Prerequisite: 9.3.2 delivered. Design Doc: §2.7.3, §2.7.4. (Doggylump)
 
 ### 9.4. GPUI harness plugin crate
 
+- [ ] 9.4.0. Design the fixture injection mechanism for framework harnesses.
+  The current `HarnessAdapter::run` signature wraps a `FnOnce() -> T` closure
+  that is opaque to the harness — the harness cannot inject framework-specific
+  resources (e.g. `TestAppContext`, `bevy::ecs::World`) into step functions.
+  Produce an ADR evaluating approaches (thread-local convention, associated
+  `Context` type on `HarnessAdapter`, or a `StepContext` extension trait) and
+  select one that works for both GPUI and Bevy. Finish line: ADR is merged and
+  the chosen approach is reflected in the `HarnessAdapter` trait (or documented
+  as a convention). Prerequisite: 9.3.4 delivered (attribute wiring unblocks
+  full policy integration). (Telefono)
 - [ ] 9.4.1. Create `rstest-bdd-harness-gpui`.
 - [ ] 9.4.2. Execute scenarios inside the GPUI test harness and inject fixtures
   such as `TestAppContext`.
 - [ ] 9.4.3. Provide the matching GPUI test attribute policy plugin.
 
-### 9.5. Documentation and validation
+### 9.5. Context injection mechanism
 
-- [ ] 9.5.1. Add a harness adapter chapter to the user guide and design docs.
-- [ ] 9.5.2. Add integration tests covering harness selection and attribute
-  policy resolution for Tokio and GPUI.
-- [ ] 9.5.3. Document the extension point for future harness plugins (for
-  example, `rstest-bdd-harness-bevy`).
+- [ ] 9.5.1. Write ADR-006: Harness context injection. Evaluate three
+  approaches — (a) thread-local convention, (b) associated `Context` type on
+  `HarnessAdapter`, and (c) `StepContext` extension trait — and select one. The
+  recommended direction is an associated `Context` type:
+
+  ```rust
+  pub trait HarnessAdapter {
+      type Context: 'static;
+      fn run<T>(
+          &self,
+          request: ScenarioRunRequest<'_, Self::Context, T>,
+      ) -> T;
+  }
+  ```
+
+  This is a breaking change to the `HarnessAdapter` trait but provides
+  type-safe, per-harness fixture injection without thread-local indirection.
+  The ADR must address migration of `StdHarness` (where `Context = ()`),
+  `TokioHarness`, and the impact on macro codegen. Finish line: ADR-006 is
+  merged. Prerequisite: 9.4.0 design task complete. (Telefono, Pandalump)
+- [ ] 9.5.2. Implement `HarnessAdapter::Context` in `rstest-bdd-harness`.
+  Update the trait, `StdHarness` (`Context = ()`), `ScenarioRunRequest`, and
+  macro codegen to thread the context type through. Finish line: existing tests
+  pass with `StdHarness` and `TokioHarness` updated; `Context` is available
+  inside the runner closure. Prerequisite: ADR-006 merged. (Pandalump)
+- [ ] 9.5.3. Update `TokioHarness` to use `Context` (e.g.
+  `Context = tokio::runtime::Handle` or `()`) and validate that `spawn_local`
+  patterns still work. Finish line: Tokio harness tests pass with the new trait
+  surface. Prerequisite: 9.5.2. (Buzzy Bee)
+
+### 9.6. Documentation and validation
+
+- [ ] 9.6.1. Update the harness adapter chapter in the user guide and design
+  docs to reflect delivered 9.3 work, the attribute policy wiring (9.3.4), and
+  the context injection mechanism (9.5). Prerequisite: 9.5.3. (Pandalump)
+- [ ] 9.6.2. Add integration tests covering attribute policy resolution for
+  GPUI once 9.4 is delivered. Prerequisite: 9.4.3. (Pandalump)
+- [ ] 9.6.3. Add a third-party harness cookbook documenting how to write a
+  custom `HarnessAdapter` (for example, `rstest-bdd-harness-bevy`), including
+  the `Context` type, attribute policy, and `Cargo.toml` configuration. Finish
+  line: cookbook section in the user guide with a working example. (Dinolump)
