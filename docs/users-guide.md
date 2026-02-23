@@ -833,6 +833,12 @@ scenario invocation and executes the scenario runner inside it.
 `TokioAttributePolicy` emits `#[rstest::rstest]` and
 `#[tokio::test(flavor = "current_thread")]`.
 
+`TokioHarness::run` performs one `tokio::task::yield_now()` tick after
+`request.run()` returns. This helps simple `spawn_local` tasks complete, but it
+does not fully drain the `LocalSet`. Tasks requiring additional wakeups (for
+example timers) may still be pending when `run()` returns, so steps should
+prefer explicit `.await`-based coordination when completion is required.
+
 > **Note:** combining `harness` with `async fn` scenario signatures produces
 > a compile error because `TokioHarness` runs synchronous scenario closures
 > inside a Tokio runtime — the harness owns the runtime, so the scenario

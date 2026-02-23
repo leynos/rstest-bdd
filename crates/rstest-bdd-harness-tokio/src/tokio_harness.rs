@@ -12,6 +12,14 @@ use rstest_bdd_harness::{HarnessAdapter, ScenarioRunRequest};
 /// `tokio::spawn`, and `tokio::task::spawn_local` are all available inside
 /// step functions.
 ///
+/// After the runner returns, the harness performs a single
+/// `tokio::task::yield_now().await` tick before returning. This is enough to
+/// drive simple `spawn_local` tasks that complete in one poll, but it is not a
+/// full drain of the `LocalSet` queue. Multi-poll tasks (for example, tasks
+/// awaiting timers or additional wakeups) may still be pending when
+/// `TokioHarness::run` returns. Prefer explicit `.await`-based coordination
+/// inside step functions when completion is required.
+///
 /// # Examples
 ///
 /// ```
@@ -56,8 +64,9 @@ impl HarnessAdapter for TokioHarness {
         let local_set = tokio::task::LocalSet::new();
         local_set.block_on(&runtime, async {
             let result = request.run();
-            // Yield once so that any tasks queued via `spawn_local` during
-            // `request.run()` are driven to completion before we return.
+            // Run one cooperative tick so tasks queued via `spawn_local` can
+            // make progress. This is intentionally a single tick rather than a
+            // full `LocalSet` drain.
             tokio::task::yield_now().await;
             result
         })

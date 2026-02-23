@@ -5,6 +5,7 @@ use rstest_bdd_harness::{HarnessAdapter, ScenarioMetadata, ScenarioRunRequest, S
 use rstest_bdd_harness_tokio::TokioHarness;
 use std::cell::Cell;
 use std::rc::Rc;
+use std::time::Duration;
 
 #[fixture]
 fn default_metadata() -> ScenarioMetadata {
@@ -83,6 +84,31 @@ fn tokio_harness_supports_spawn_local(default_metadata: ScenarioMetadata) {
     // The LocalSet drives the spawned task to completion before block_on
     // returns, so the flag should be set.
     assert!(flag.get(), "spawn_local task should have run to completion");
+}
+
+/// Verify that `TokioHarness` performs only a single post-run tick and does
+/// not fully drain queued local tasks.
+#[rstest]
+fn tokio_harness_single_tick_does_not_fully_drain_localset(default_metadata: ScenarioMetadata) {
+    let completed = Rc::new(Cell::new(false));
+    let completed_clone = Rc::clone(&completed);
+    let request = ScenarioRunRequest::new(
+        default_metadata,
+        ScenarioRunner::new(move || {
+            tokio::task::spawn_local(async move {
+                tokio::time::sleep(Duration::from_millis(1)).await;
+                completed_clone.set(true);
+            });
+            "spawned-timer"
+        }),
+    );
+
+    let harness = TokioHarness::new();
+    assert_eq!(harness.run(request), "spawned-timer");
+    assert!(
+        !completed.get(),
+        "single post-run tick should not guarantee completion of timer-based local tasks"
+    );
 }
 
 /// Verify that the harness can inspect metadata before executing the runner.

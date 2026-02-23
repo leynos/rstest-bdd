@@ -1659,7 +1659,10 @@ The first official adapters and policies are:
   step *definitions* (`async fn` steps) are not supported inside `TokioHarness`
   because the sync wrapper in `emit.rs` rejects when a Tokio runtime is already
   active; users should write synchronous step functions and use `tokio::spawn`
-  / `tokio::spawn_local` inside them to drive async work.
+  / `tokio::spawn_local` inside them to drive async work. `TokioHarness::run`
+  currently performs one `tokio::task::yield_now()` tick after `request.run()`
+  returns; this advances simple queued local tasks but does not guarantee full
+  `LocalSet` drain for multi-poll futures such as timer-driven work.
 - `rstest-bdd-harness-gpui` (planned, phase 9.4): wraps scenario execution
   inside the GPUI test harness, injects GPUI fixtures such as `TestAppContext`,
   and provides the matching GPUI test attribute policy.
