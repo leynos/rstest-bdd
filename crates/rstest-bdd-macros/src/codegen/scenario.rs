@@ -8,6 +8,7 @@ mod domain;
 mod helpers;
 mod metadata;
 mod runtime;
+mod test_attrs;
 
 pub(crate) use domain::*;
 pub(crate) use helpers::process_steps;
@@ -25,6 +26,7 @@ pub(crate) use crate::macros::scenarios::ScenariosRuntimeMode as RuntimeMode;
 use crate::macros::scenarios::ScenariosTestAttributeHint as TestAttributeHint;
 
 use crate::parsing::placeholder::contains_placeholders;
+use test_attrs::generate_test_attrs;
 
 /// Return kinds supported by scenario bodies.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -82,47 +84,6 @@ pub(crate) struct ContextConfig<P, I, Q> {
 
 pub(crate) fn scenario_allows_skip(tags: &[String]) -> bool {
     tags.iter().any(|tag| tag == "@allow_skipped")
-}
-
-fn is_tokio_test_attr(attr: &syn::Attribute) -> bool {
-    let mut segments = attr.path().segments.iter();
-    let Some(first) = segments.next() else {
-        return false;
-    };
-    let Some(second) = segments.next() else {
-        return false;
-    };
-    segments.next().is_none() && first.ident == "tokio" && second.ident == "test"
-}
-
-fn generate_test_attrs(
-    attrs: &[syn::Attribute],
-    runtime: RuntimeMode,
-    attributes: Option<&syn::Path>,
-) -> TokenStream2 {
-    // When an attribute policy is specified, emit only #[rstest::rstest] and
-    // skip RuntimeMode-based tokio attribute generation. The policy is the
-    // extension point for controlling test attributes (ADR-005).
-    if attributes.is_some() {
-        quote! { #[rstest::rstest] }
-    } else {
-        // Check if user already has a tokio::test attribute.
-        // Match only tokio::test to avoid false positives like #[test] or #[test_case].
-        let has_tokio_test = attrs.iter().any(is_tokio_test_attr);
-
-        // Use TestAttributeHint to centralise the attribute selection policy
-        match (runtime.test_attribute_hint(), has_tokio_test) {
-            // User already has tokio::test or sync mode: just add rstest
-            (_, true) | (TestAttributeHint::RstestOnly, _) => {
-                quote! { #[rstest::rstest] }
-            }
-            // Async mode without existing tokio::test: add both attributes
-            (TestAttributeHint::RstestWithTokioCurrentThread, false) => quote! {
-                #[rstest::rstest]
-                #[tokio::test(flavor = "current_thread")]
-            },
-        }
-    }
 }
 
 /// Generate compile-time trait-bound const assertions for harness and attribute
@@ -248,7 +209,12 @@ where
         .as_ref()
         .map_or_else(Vec::new, generate_case_attrs);
     let body = generate_test_tokens(&test_config, ctx.prelude, ctx.inserts, ctx.postlude);
-    let test_attrs = generate_test_attrs(config.attrs, config.runtime, config.attributes);
+    let test_attrs = generate_test_attrs(
+        config.attrs,
+        config.runtime,
+        config.attributes,
+        config.runtime.is_async(),
+    );
     let trait_assertions = generate_trait_assertions(config.harness, config.attributes);
     let attrs = config.attrs;
     let vis = config.vis;
@@ -335,7 +301,12 @@ where
     };
     modified_sig.inputs.insert(0, case_idx_param);
 
-    let test_attrs = generate_test_attrs(config.attrs, config.runtime, config.attributes);
+    let test_attrs = generate_test_attrs(
+        config.attrs,
+        config.runtime,
+        config.attributes,
+        config.runtime.is_async(),
+    );
     let trait_assertions = generate_trait_assertions(config.harness, config.attributes);
     let attrs = config.attrs;
     let vis = config.vis;

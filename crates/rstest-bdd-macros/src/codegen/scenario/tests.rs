@@ -1,4 +1,5 @@
 //! Tests exercising scenario code-generation utilities.
+use super::test_attrs::generate_test_attrs;
 use super::*;
 use crate::parsing::feature::ParsedStep;
 
@@ -100,7 +101,7 @@ fn has_tokio_test_detection(#[case] attr_str: &str, #[case] expected_tokio: bool
 
     // When runtime is TokioCurrentThread and tokio::test is already present,
     // we should NOT emit another tokio::test attribute.
-    let tokens = generate_test_attrs(&attrs, RuntimeMode::TokioCurrentThread, None);
+    let tokens = generate_test_attrs(&attrs, RuntimeMode::TokioCurrentThread, None, true);
     let has_tokio_in_output = tokens_contain(&tokens, "tokio :: test");
 
     if expected_tokio {
@@ -130,7 +131,7 @@ fn generate_test_attrs_output(
     #[case] expect_tokio_test: bool,
 ) {
     let attrs: Vec<syn::Attribute> = attr_strs.iter().map(|s| parse_attr(s)).collect();
-    let tokens = generate_test_attrs(&attrs, runtime, None);
+    let tokens = generate_test_attrs(&attrs, runtime, None, runtime.is_async());
     let output = tokens.to_string();
 
     // All outputs should contain rstest::rstest
@@ -164,28 +165,53 @@ fn parse_path(s: &str) -> syn::Path {
 }
 
 #[rstest::rstest]
-#[case::with_attributes_skips_tokio(Some(parse_path("my::Policy")))]
-#[case::without_attributes_unchanged(None)]
-fn generate_test_attrs_respects_attributes_policy(#[case] policy_path: Option<syn::Path>) {
+#[case::with_default_policy_skips_tokio(
+    Some(parse_path("rstest_bdd_harness::DefaultAttributePolicy")),
+    false
+)]
+#[case::with_unknown_policy_skips_tokio(Some(parse_path("my::Policy")), false)]
+#[case::with_tokio_policy_emits_tokio(
+    Some(parse_path("rstest_bdd_harness_tokio::TokioAttributePolicy")),
+    true
+)]
+#[case::without_attributes_uses_runtime(None, true)]
+fn generate_test_attrs_respects_attributes_policy(
+    #[case] policy_path: Option<syn::Path>,
+    #[case] expect_tokio_test: bool,
+) {
     let policy = policy_path.as_ref();
-    let tokens = generate_test_attrs(&[], RuntimeMode::TokioCurrentThread, policy);
+    let tokens = generate_test_attrs(&[], RuntimeMode::TokioCurrentThread, policy, true);
     let output = tokens.to_string();
 
     assert!(
         output.contains("rstest :: rstest"),
         "should contain rstest::rstest: {output}"
     );
-    if policy.is_some() {
-        assert!(
-            !output.contains("tokio :: test"),
-            "should NOT contain tokio::test when attributes is specified: {output}"
-        );
-    } else {
-        assert!(
-            output.contains("tokio :: test"),
-            "should contain tokio::test for async without policy: {output}"
-        );
-    }
+    let has_tokio = output.contains("tokio :: test");
+    assert_eq!(
+        has_tokio, expect_tokio_test,
+        "tokio::test presence mismatch for policy={policy_path:?}: {output}"
+    );
+}
+
+#[rstest::rstest]
+#[case::tokio_policy_on_sync_function(Some(parse_path(
+    "rstest_bdd_harness_tokio::TokioAttributePolicy"
+)))]
+#[case::runtime_tokio_on_sync_function(None)]
+fn generate_test_attrs_omits_tokio_for_sync_functions(#[case] policy_path: Option<syn::Path>) {
+    let policy = policy_path.as_ref();
+    let tokens = generate_test_attrs(&[], RuntimeMode::TokioCurrentThread, policy, false);
+    let output = tokens.to_string();
+
+    assert!(
+        output.contains("rstest :: rstest"),
+        "should contain rstest::rstest: {output}"
+    );
+    assert!(
+        !output.contains("tokio :: test"),
+        "should not contain tokio::test for sync functions: {output}"
+    );
 }
 
 // -----------------------------------------------------------------------------

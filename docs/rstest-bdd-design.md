@@ -1615,12 +1615,21 @@ This keeps current async scenario execution stable and prepares the bridge to
 phase 9.3, where the dedicated Tokio harness plug-in crate will own runtime
 wiring.
 
-**Attribute policy trust model.** When `attributes` is specified, the macro
-emits only `#[rstest::rstest]` and does not generate `RuntimeMode`-based
-attributes such as `#[tokio::test]`. The rationale is that the attribute policy
-is the designated extension point for controlling test attributes per ADR-005.
-Users specifying a policy opt into the new system and the macro should not
-second-guess the policy.
+**Attribute policy trust model (updated in 9.3.4).** The macro resolves an
+attribute policy and emits its test attributes during code generation. Because
+procedural macros still cannot evaluate arbitrary user-defined trait methods at
+expansion time, this resolution is currently path-based:
+
+- `rstest_bdd_harness_tokio::TokioAttributePolicy` resolves to
+  `#[rstest::rstest]` plus `#[tokio::test(flavor = "current_thread")]` for
+  async scenario signatures.
+- `DefaultAttributePolicy` and unknown third-party policy paths resolve to
+  `#[rstest::rstest]` only.
+
+If `attributes` is omitted, `RuntimeMode` remains the compatibility fallback:
+Tokio runtime mode resolves to Tokio current-thread attributes, while sync mode
+resolves to rstest-only. `#[tokio::test]` is omitted for synchronous test
+signatures because Tokio requires `async fn`.
 
 **`rstest::rstest` is always emitted.** The `#[rstest::rstest]` attribute is
 unconditional because the framework fundamentally relies on rstest for fixture

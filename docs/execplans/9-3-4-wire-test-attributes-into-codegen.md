@@ -4,7 +4,7 @@ This ExecPlan is a living document. The sections `Constraints`, `Tolerances`,
 `Risks`, `Progress`, `Surprises & Discoveries`, `Decision Log`, and
 `Outcomes & Retrospective` must be kept up to date as work proceeds.
 
-Status: DRAFT
+Status: COMPLETE
 
 `PLANS.md` is not present in this repository at the time of writing, so this
 ExecPlan is the governing plan for this task.
@@ -62,80 +62,113 @@ After this change:
 ## Risks
 
 - Risk: Rust proc macros cannot generally execute arbitrary user-supplied
-  trait methods at expansion time.
-  Severity: high.
-  Likelihood: high.
+  trait methods at expansion time. Severity: high. Likelihood: high.
   Mitigation: add an explicit de-risk stage first; document and agree the
   resolution model before broad edits.
 
 - Risk: policy resolution diverges between harness and non-harness paths,
-  causing inconsistent attributes.
-  Severity: medium.
-  Likelihood: medium.
+  causing inconsistent attributes. Severity: medium. Likelihood: medium.
   Mitigation: centralize policy resolution in one helper and test both paths.
 
 - Risk: policy-driven attributes accidentally duplicate or conflict with
-  existing runtime-derived `tokio::test` emission.
-  Severity: medium.
-  Likelihood: medium.
-  Mitigation: add unit tests for de-duplication and precedence rules.
+  existing runtime-derived `tokio::test` emission. Severity: medium.
+  Likelihood: medium. Mitigation: add unit tests for de-duplication and
+  precedence rules.
 
 - Risk: documentation drift (design doc and user guide still describe old
-  behaviour).
-  Severity: medium.
-  Likelihood: medium.
-  Mitigation: update docs in the same milestone as code and tests.
+  behaviour). Severity: medium. Likelihood: medium. Mitigation: update docs in
+  the same milestone as code and tests.
 
 ## Progress
 
 - [x] (2026-02-23 18:34Z) Reviewed roadmap item 9.3.4, current macro code,
       and design/user docs for policy behaviour.
 - [x] (2026-02-23 18:34Z) Drafted this ExecPlan.
-- [ ] Stage A: de-risk policy-evaluation approach and lock implementation
-      strategy.
-- [ ] Stage B: implement policy resolution and attribute-token synthesis.
-- [ ] Stage C: wire attribute emission through harness and non-harness codegen
-      paths.
-- [ ] Stage D: add/adjust unit tests and behavioural tests.
-- [ ] Stage E: update design doc, user guide, and roadmap status.
-- [ ] Stage F: run final quality gates and record evidence.
+- [x] (2026-02-23) Stage A: de-risk policy-evaluation approach and lock
+      implementation strategy.
+- [x] (2026-02-23) Stage B: implement policy resolution and
+      attribute-token synthesis.
+- [x] (2026-02-23) Stage C: wire attribute emission through harness and
+      non-harness codegen paths.
+- [x] (2026-02-23) Stage D: add/adjust unit tests and behavioural tests.
+- [x] (2026-02-23) Stage E: update design doc, user guide, and roadmap status.
+- [x] (2026-02-23) Stage F: final quality gates passed (`make check-fmt`,
+      `make lint`, `make test`, `make markdownlint`, `make nixie`).
 
 ## Surprises & discoveries
 
 - Observation: `docs/rstest-bdd-design.md` §2.7.3 currently states that macros
-  cannot evaluate `AttributePolicy::test_attributes()` for arbitrary user
-  types and therefore emit only `#[rstest::rstest]` when `attributes` is set.
-  Impact: 9.3.4 intentionally supersedes this behaviour and requires explicit
+  cannot evaluate `AttributePolicy::test_attributes()` for arbitrary user types
+  and therefore emit only `#[rstest::rstest]` when `attributes` is set. Impact:
+  9.3.4 intentionally supersedes this behaviour and requires explicit
   design-doc updates.
 
 - Observation: project-memory MCP resources are unavailable in this
   environment (`list_mcp_resources` and `list_mcp_resource_templates` returned
-  no entries).
-  Impact: planning relies on repository docs and source inspection only.
+  no entries). Impact: planning relies on repository docs and source inspection
+  only.
+
+- Observation: Tokio's test attribute rejects synchronous function signatures
+  with the compiler error "the `async` keyword is missing from the function
+  declaration". Impact: codegen must omit `tokio::test` for synchronous
+  scenarios (including harness-delegated functions) even when Tokio policy is
+  selected.
 
 ## Decision log
 
 - Decision: include a mandatory de-risk stage before editing production logic,
-  because 9.3.4 touches a known proc-macro limitation from 9.2.1.
-  Rationale: avoid partial rewrites before confirming the technically viable
-  attribute-emission path.
-  Date/Author: 2026-02-23 / Codex.
+  because 9.3.4 touches a known proc-macro limitation from 9.2.1. Rationale:
+  avoid partial rewrites before confirming the technically viable
+  attribute-emission path. Date/Author: 2026-02-23 / Codex.
 
 - Decision: keep unit and behavioural coverage as separate acceptance layers.
   Rationale: token-level correctness alone is insufficient; end-user macro
-  behaviour must be exercised via integration/trybuild tests.
-  Date/Author: 2026-02-23 / Codex.
+  behaviour must be exercised via integration/trybuild tests. Date/Author:
+  2026-02-23 / Codex.
+
+- Decision: resolve policy-backed attributes using a macro-local
+  `ResolvedAttributePolicy` layer (path-based), not direct execution of
+  arbitrary user policy methods. Rationale: Rust procedural macros cannot
+  evaluate unknown user type methods at expansion time; path-based resolution
+  allows 9.3.4 delivery without introducing framework dependencies into core
+  crates. Date/Author: 2026-02-23 / Codex.
 
 ## Outcomes & retrospective
 
-Pending implementation.
+Delivered in 9.3.4:
 
-Completion criteria for this section:
+- Added a dedicated codegen policy-resolution module
+  (`crates/rstest-bdd-macros/src/codegen/scenario/test_attrs.rs`) that maps
+  resolved policies to emitted test attributes.
+- Updated scenario codegen to use policy-backed attribute emission for both
+  regular and outline paths.
+- Introduced async-safety filtering so `tokio::test` is omitted for synchronous
+  signatures (including harness-delegated scenarios), preventing invalid
+  expansion.
+- Added unit coverage for:
+  - Tokio-policy emission in async mode,
+  - default/unknown policy fallback,
+  - synchronous omission of Tokio test attributes.
+- Added behavioural coverage with a new trybuild compile-pass fixture:
+  `crates/rstest-bdd/tests/fixtures_macros/scenario_attributes_tokio.rs`,
+  registered in `crates/rstest-bdd/tests/trybuild_macros.rs`.
+- Updated documentation:
+  `docs/rstest-bdd-design.md`, `docs/users-guide.md`, and marked
+  `docs/roadmap.md` item 9.3.4 done.
 
-- Summarize what changed in macro codegen and why.
-- Record exact tests added/updated and what each proves.
-- Record final gate outcomes (`check-fmt`, `lint`, `test`).
-- Note any follow-on tasks deferred to later roadmap items.
+Validation summary:
+
+- `make check-fmt` passed.
+- `make lint` passed.
+- `make test` passed (1190 Rust tests run, 1 skipped; 47 Python tests passed).
+- `make markdownlint` passed.
+- `make nixie` passed.
+
+Follow-on considerations:
+
+- Path-based resolution remains a pragmatic compromise for proc-macro limits.
+  Supporting arbitrary third-party policy evaluation at expansion time remains
+  constrained by Rust proc-macro type-resolution boundaries.
 
 ## Context and orientation
 
