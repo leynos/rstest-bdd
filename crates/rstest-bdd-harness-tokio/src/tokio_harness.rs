@@ -69,12 +69,18 @@ mod tests {
     //! Unit tests for the Tokio current-thread harness.
 
     use super::TokioHarness;
+    use rstest::{fixture, rstest};
     use rstest_bdd_harness::{
         HarnessAdapter, ScenarioMetadata, ScenarioRunRequest, ScenarioRunner,
     };
 
-    #[test]
-    fn tokio_harness_runs_request() {
+    #[fixture]
+    fn harness() -> TokioHarness {
+        TokioHarness::new()
+    }
+
+    #[rstest]
+    fn tokio_harness_runs_request(harness: TokioHarness) {
         let request = ScenarioRunRequest::new(
             ScenarioMetadata::new(
                 "tests/features/simple.feature",
@@ -84,12 +90,11 @@ mod tests {
             ),
             ScenarioRunner::new(|| 21 * 2),
         );
-        let harness = TokioHarness::new();
         assert_eq!(harness.run(request), 42);
     }
 
-    #[test]
-    fn tokio_runtime_is_active_during_run() {
+    #[rstest]
+    fn tokio_runtime_is_active_during_run(harness: TokioHarness) {
         let request = ScenarioRunRequest::new(
             ScenarioMetadata::default(),
             ScenarioRunner::new(|| {
@@ -98,7 +103,6 @@ mod tests {
                 true
             }),
         );
-        let harness = TokioHarness::new();
         assert!(harness.run(request));
     }
 }
