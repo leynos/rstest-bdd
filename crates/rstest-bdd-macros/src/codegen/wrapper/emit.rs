@@ -63,6 +63,17 @@ fn generate_async_wrapper_from_sync(
 /// When a Tokio runtime is already active (e.g. provided by `TokioHarness`),
 /// the wrapper polls the future once — most async steps complete immediately
 /// without yielding. Multi-poll futures return an informative error.
+///
+/// # Examples
+///
+/// ```rust,ignore
+/// let tokens = generate_sync_wrapper_from_async(
+///     &config,
+///     &sync_ident,
+///     &async_ident,
+/// );
+/// assert!(!tokens.is_empty());
+/// ```
 fn generate_sync_wrapper_from_async(
     config: &WrapperConfig<'_>,
     sync_wrapper_ident: &proc_macro2::Ident,
