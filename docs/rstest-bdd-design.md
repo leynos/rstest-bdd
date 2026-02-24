@@ -1622,9 +1622,14 @@ expansion time, this resolution is currently path-based:
 
 - `rstest_bdd_harness_tokio::TokioAttributePolicy` resolves to
   `#[rstest::rstest]` plus `#[tokio::test(flavor = "current_thread")]` for
-  async scenario signatures.
+  async scenario signatures. Matching is constrained to that canonical path to
+  avoid false positives from unrelated `TokioAttributePolicy` type names.
 - `DefaultAttributePolicy` and unknown third-party policy paths resolve to
   `#[rstest::rstest]` only.
+
+The canonical path-to-hint mapping lives in `rstest-bdd-policy`, so adding
+first-party policy mappings no longer requires editing macro-local resolution
+tables.
 
 If `attributes` is omitted, `RuntimeMode` remains the compatibility fallback:
 Tokio runtime mode resolves to Tokio current-thread attributes, while sync mode

@@ -2,6 +2,7 @@
 
 use proc_macro2::TokenStream as TokenStream2;
 use quote::quote;
+use rstest_bdd_policy::resolve_test_attribute_hint_for_policy_path;
 
 use super::{RuntimeMode, TestAttributeHint};
 
@@ -41,31 +42,32 @@ impl ResolvedAttributePolicy {
     }
 }
 
-fn is_tokio_attribute_policy_path(path: &syn::Path) -> bool {
-    path.segments
-        .last()
-        .is_some_and(|segment| segment.ident == "TokioAttributePolicy")
+fn resolve_attribute_hint_from_policy_path(path: &syn::Path) -> Option<TestAttributeHint> {
+    let segment_names: Vec<_> = path
+        .segments
+        .iter()
+        .map(|segment| segment.ident.to_string())
+        .collect();
+    let segment_refs: Vec<_> = segment_names.iter().map(String::as_str).collect();
+    resolve_test_attribute_hint_for_policy_path(&segment_refs)
 }
 
 fn resolve_attribute_policy(
     runtime: RuntimeMode,
     attributes: Option<&syn::Path>,
 ) -> ResolvedAttributePolicy {
-    attributes.map_or_else(
-        || match runtime.test_attribute_hint() {
-            TestAttributeHint::RstestOnly => ResolvedAttributePolicy::Default,
-            TestAttributeHint::RstestWithTokioCurrentThread => {
-                ResolvedAttributePolicy::TokioCurrentThread
-            }
-        },
+    let hint = attributes.map_or_else(
+        || runtime.test_attribute_hint(),
         |path| {
-            if is_tokio_attribute_policy_path(path) {
-                ResolvedAttributePolicy::TokioCurrentThread
-            } else {
-                ResolvedAttributePolicy::Default
-            }
+            resolve_attribute_hint_from_policy_path(path).unwrap_or(TestAttributeHint::RstestOnly)
         },
-    )
+    );
+    match hint {
+        TestAttributeHint::RstestOnly => ResolvedAttributePolicy::Default,
+        TestAttributeHint::RstestWithTokioCurrentThread => {
+            ResolvedAttributePolicy::TokioCurrentThread
+        }
+    }
 }
 
 fn render_policy_attribute(attribute: PolicyAttribute) -> TokenStream2 {

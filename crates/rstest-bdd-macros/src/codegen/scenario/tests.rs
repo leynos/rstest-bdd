@@ -174,6 +174,15 @@ fn parse_path(s: &str) -> syn::Path {
     Some(parse_path("rstest_bdd_harness_tokio::TokioAttributePolicy")),
     true
 )]
+#[case::with_absolute_tokio_policy_path_emits_tokio(
+    Some(parse_path("::rstest_bdd_harness_tokio::TokioAttributePolicy")),
+    true
+)]
+#[case::with_single_segment_tokio_name_skips_tokio(Some(parse_path("TokioAttributePolicy")), false)]
+#[case::with_unknown_prefix_tokio_name_skips_tokio(
+    Some(parse_path("my::TokioAttributePolicy")),
+    false
+)]
 #[case::without_attributes_uses_runtime(None, true)]
 fn generate_test_attrs_respects_attributes_policy(
     #[case] policy_path: Option<syn::Path>,

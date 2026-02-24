@@ -3,6 +3,9 @@
 //! This crate centralizes runtime policy enums so both the runtime crate and
 //! the proc-macro crate can depend on a single, canonical definition without
 //! creating a proc-macro dependency cycle.
+//!
+//! It also provides canonical attribute-policy path resolution helpers used by
+//! macro codegen.
 
 /// Runtime mode for scenario test execution.
 ///
@@ -73,9 +76,60 @@ pub enum TestAttributeHint {
     RstestWithTokioCurrentThread,
 }
 
+/// Canonical path segments for `DefaultAttributePolicy`.
+pub const DEFAULT_ATTRIBUTE_POLICY_PATH: &[&str] =
+    &["rstest_bdd_harness", "DefaultAttributePolicy"];
+
+/// Canonical path segments for `TokioAttributePolicy`.
+pub const TOKIO_ATTRIBUTE_POLICY_PATH: &[&str] =
+    &["rstest_bdd_harness_tokio", "TokioAttributePolicy"];
+
+const KNOWN_ATTRIBUTE_POLICY_HINTS: [(&[&str], TestAttributeHint); 2] = [
+    (DEFAULT_ATTRIBUTE_POLICY_PATH, TestAttributeHint::RstestOnly),
+    (
+        TOKIO_ATTRIBUTE_POLICY_PATH,
+        TestAttributeHint::RstestWithTokioCurrentThread,
+    ),
+];
+
+/// Resolves a canonical attribute policy path into a test-attribute hint.
+///
+/// Path segments should be provided without a leading `::`.
+///
+/// # Examples
+///
+/// ```
+/// use rstest_bdd_policy::{
+///     resolve_test_attribute_hint_for_policy_path, TestAttributeHint,
+/// };
+///
+/// assert_eq!(
+///     resolve_test_attribute_hint_for_policy_path(&[
+///         "rstest_bdd_harness_tokio",
+///         "TokioAttributePolicy",
+///     ]),
+///     Some(TestAttributeHint::RstestWithTokioCurrentThread)
+/// );
+/// assert_eq!(
+///     resolve_test_attribute_hint_for_policy_path(&["my", "Policy"]),
+///     None
+/// );
+/// ```
+#[must_use]
+pub fn resolve_test_attribute_hint_for_policy_path(
+    path_segments: &[&str],
+) -> Option<TestAttributeHint> {
+    KNOWN_ATTRIBUTE_POLICY_HINTS
+        .iter()
+        .find_map(|(known_path, hint)| (path_segments == *known_path).then_some(*hint))
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{RuntimeMode, TestAttributeHint};
+    use super::{
+        DEFAULT_ATTRIBUTE_POLICY_PATH, RuntimeMode, TOKIO_ATTRIBUTE_POLICY_PATH, TestAttributeHint,
+        resolve_test_attribute_hint_for_policy_path,
+    };
 
     #[test]
     fn runtime_mode_sync_is_default() {
@@ -105,6 +159,38 @@ mod tests {
         assert_eq!(
             RuntimeMode::TokioCurrentThread.test_attribute_hint(),
             TestAttributeHint::RstestWithTokioCurrentThread
+        );
+    }
+
+    #[test]
+    fn resolves_default_attribute_policy_path() {
+        assert_eq!(
+            resolve_test_attribute_hint_for_policy_path(DEFAULT_ATTRIBUTE_POLICY_PATH),
+            Some(TestAttributeHint::RstestOnly)
+        );
+    }
+
+    #[test]
+    fn resolves_tokio_attribute_policy_path() {
+        assert_eq!(
+            resolve_test_attribute_hint_for_policy_path(TOKIO_ATTRIBUTE_POLICY_PATH),
+            Some(TestAttributeHint::RstestWithTokioCurrentThread)
+        );
+    }
+
+    #[test]
+    fn unknown_attribute_policy_path_returns_none() {
+        assert_eq!(
+            resolve_test_attribute_hint_for_policy_path(&["my", "Policy"]),
+            None
+        );
+    }
+
+    #[test]
+    fn partial_attribute_policy_path_returns_none() {
+        assert_eq!(
+            resolve_test_attribute_hint_for_policy_path(&["TokioAttributePolicy"]),
+            None
         );
     }
 }
