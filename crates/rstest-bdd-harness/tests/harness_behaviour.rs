@@ -2,14 +2,52 @@
 
 use rstest::{fixture, rstest};
 use rstest_bdd_harness::{
-    HarnessAdapter, ScenarioMetadata, ScenarioRunRequest, ScenarioRunner, StdHarness,
+    HarnessAdapter, STD_HARNESS_PANIC_MESSAGE, ScenarioMetadata, ScenarioRunRequest,
+    ScenarioRunner, StdHarness,
 };
+use std::any::Any;
 use std::cell::Cell;
+use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::rc::Rc;
 
 #[fixture]
 fn default_metadata() -> ScenarioMetadata {
     ScenarioMetadata::default()
+}
+
+#[derive(Debug, Default)]
+struct MetadataProbeHarness {
+    inner: StdHarness,
+}
+
+impl HarnessAdapter for MetadataProbeHarness {
+    fn run<T>(&self, request: ScenarioRunRequest<'_, T>) -> T {
+        let (metadata, runner) = request.into_parts();
+        let metadata_for_assertions = metadata.clone();
+        let wrapped_request = ScenarioRunRequest::new(
+            metadata,
+            ScenarioRunner::new(move || {
+                assert_eq!(
+                    metadata_for_assertions.feature_path(),
+                    "tests/features/payment.feature"
+                );
+                assert_eq!(metadata_for_assertions.scenario_name(), "Payment succeeds");
+                assert_eq!(metadata_for_assertions.scenario_line(), 27);
+                assert_eq!(metadata_for_assertions.tags(), ["@smoke", "@payments"]);
+                runner.run()
+            }),
+        );
+        self.inner.run(wrapped_request)
+    }
+}
+
+fn panic_payload_matches(payload: &(dyn Any + Send), expected: &str) -> bool {
+    payload
+        .downcast_ref::<&str>()
+        .is_some_and(|message| *message == expected)
+        || payload
+            .downcast_ref::<String>()
+            .is_some_and(|message| message == expected)
 }
 
 #[rstest]
@@ -40,14 +78,7 @@ fn std_harness_passes_metadata_through() {
         ),
         ScenarioRunner::new(|| 200),
     );
-    assert_eq!(
-        request.metadata().feature_path(),
-        "tests/features/payment.feature"
-    );
-    assert_eq!(request.metadata().scenario_name(), "Payment succeeds");
-    assert_eq!(request.metadata().scenario_line(), 27);
-    assert_eq!(request.metadata().tags(), ["@smoke", "@payments"]);
-    let harness = StdHarness::new();
+    let harness = MetadataProbeHarness::default();
     assert_eq!(harness.run(request), 200);
 }
 
@@ -68,12 +99,18 @@ fn std_harness_supports_non_static_runner_borrows(default_metadata: ScenarioMeta
 }
 
 #[test]
-#[should_panic(expected = "std harness panic propagation")]
 fn std_harness_propagates_runner_panics() {
     let request = ScenarioRunRequest::new(
         ScenarioMetadata::default(),
-        ScenarioRunner::new(|| panic!("std harness panic propagation")),
+        ScenarioRunner::new(|| panic!("{STD_HARNESS_PANIC_MESSAGE}")),
     );
     let harness = StdHarness::new();
-    harness.run(request);
+    let panic_result = catch_unwind(AssertUnwindSafe(|| harness.run(request)));
+
+    match panic_result {
+        Ok(_) => panic!("expected StdHarness to propagate runner panic"),
+        Err(payload) => {
+            assert!(panic_payload_matches(&*payload, STD_HARNESS_PANIC_MESSAGE));
+        }
+    }
 }

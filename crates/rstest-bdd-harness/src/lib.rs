@@ -11,4 +11,4 @@ mod std_harness;
 pub use adapter::HarnessAdapter;
 pub use policy::{AttributePolicy, DefaultAttributePolicy, TestAttribute};
 pub use runner::{ScenarioMetadata, ScenarioRunRequest, ScenarioRunner};
-pub use std_harness::StdHarness;
+pub use std_harness::{STD_HARNESS_PANIC_MESSAGE, StdHarness};
