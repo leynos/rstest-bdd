@@ -4,7 +4,7 @@ This ExecPlan is a living document. The sections `Constraints`, `Tolerances`,
 `Risks`, `Progress`, `Surprises & Discoveries`, `Decision Log`, and
 `Outcomes & Retrospective` must be kept up to date as work proceeds.
 
-Status: IN PROGRESS
+Status: COMPLETE
 
 `PLANS.md` is not present in this repository at the time of writing, so this
 ExecPlan is the governing plan for roadmap item 9.3.6.
@@ -78,19 +78,20 @@ pass in `make test`, including one panic-propagation case.
 - [x] (2026-02-24) Reviewed roadmap item 9.3.6 and Design Doc §2.7.1.
 - [x] (2026-02-24) Reviewed current `StdHarness` and `TokioHarness` tests.
 - [x] (2026-02-24) Drafted this ExecPlan.
-- [ ] Stage A: baseline test run and gap confirmation.
-- [ ] Stage B: add/adjust `StdHarness` unit tests.
-- [ ] Stage C: add/adjust `StdHarness` behavioural tests (>=3 cases).
-- [ ] Stage D: update design doc and user guide.
-- [ ] Stage E: mark roadmap item 9.3.6 done.
-- [ ] Stage F: run full quality gates and capture logs.
+- [x] (2026-02-24) Stage A: baseline test run and gap confirmation.
+- [x] (2026-02-24) Stage B: add/adjust `StdHarness` unit tests.
+- [x] (2026-02-24) Stage C: add/adjust `StdHarness` behavioural tests (>=3
+      cases).
+- [x] (2026-02-24) Stage D: update design doc and user guide.
+- [x] (2026-02-24) Stage E: mark roadmap item 9.3.6 done.
+- [x] (2026-02-24) Stage F: run full quality gates and capture logs.
 
 ## Surprises & Discoveries
 
 - Observation: project-memory MCP resources are unavailable in this
-  environment (`list_mcp_resources` and `list_mcp_resource_templates`
-  returned no entries). Impact: this plan is based on repository documents and
-  source inspection only.
+  environment (`list_mcp_resources` and `list_mcp_resource_templates` returned
+  no entries). Impact: this plan is based on repository documents and source
+  inspection only.
 
 - Observation: `crates/rstest-bdd-harness/tests/harness_behaviour.rs` already
   includes `StdHarness` closure-execution tests, but there is no dedicated
@@ -104,8 +105,8 @@ pass in `make test`, including one panic-propagation case.
 - Decision: satisfy roadmap parity by adding explicit `StdHarness` behavioural
   tests for three themes: metadata forwarding, closure execution, and panic
   propagation. Rationale: this maps directly to 9.3.6 acceptance criteria and
-  avoids ambiguous interpretation of "implicit default" coverage.
-  Date/Author: 2026-02-24 / Codex.
+  avoids ambiguous interpretation of "implicit default" coverage. Date/Author:
+  2026-02-24 / Codex.
 
 - Decision: keep one targeted unit-test addition in `std_harness.rs` and place
   richer semantics in behavioural tests under
@@ -120,14 +121,38 @@ pass in `make test`, including one panic-propagation case.
 
 ## Outcomes & Retrospective
 
-To be completed after implementation.
+Delivered in 9.3.6:
 
-Expected outcomes at completion:
+- Added `StdHarness` panic-propagation unit coverage in
+  `crates/rstest-bdd-harness/src/std_harness.rs`.
+- Updated `StdHarness` behavioural coverage in
+  `crates/rstest-bdd-harness/tests/harness_behaviour.rs` to include explicit
+  cases for:
+  - closure execution,
+  - metadata forwarding at the harness boundary,
+  - panic propagation.
+- Updated `docs/rstest-bdd-design.md` (§2.7.1) with explicit behavioural
+  guarantees for `StdHarness`.
+- Updated `docs/users-guide.md` harness section with the same test-backed
+  guarantees.
+- Marked roadmap item 9.3.6 complete in `docs/roadmap.md`.
 
-- `StdHarness` has at least three behavioural tests passing in `make test`.
-- At least one unit test and one behavioural test cover panic propagation.
-- Documentation and roadmap updates are complete and consistent.
-- `make check-fmt`, `make lint`, and `make test` all pass.
+Validation summary:
+
+- `make check-fmt` passed (`/tmp/9-3-6-impl-check-fmt.log`).
+- `make lint` passed (`/tmp/9-3-6-impl-lint.log`).
+- `make test` passed (`/tmp/9-3-6-impl-test.log`), including
+  `rstest-bdd-harness` unit and behavioural tests.
+- Documentation gates also passed:
+  - `make markdownlint` (`/tmp/9-3-6-impl-markdownlint.log`)
+  - `make nixie` (`/tmp/9-3-6-impl-nixie.log`)
+
+Result against finish line:
+
+- At least three behavioural tests for `StdHarness` pass in `make test`
+  (four pass).
+- Unit and behavioural test coverage now explicitly exercise panic
+  propagation.
 
 ## Context and orientation
 

@@ -7,21 +7,6 @@ use rstest_bdd_harness::{
 use std::cell::Cell;
 use std::rc::Rc;
 
-struct InspectHarness;
-
-impl HarnessAdapter for InspectHarness {
-    fn run<T>(&self, request: ScenarioRunRequest<'_, T>) -> T {
-        assert_eq!(
-            request.metadata().feature_path(),
-            "tests/features/payment.feature"
-        );
-        assert_eq!(request.metadata().scenario_name(), "Payment succeeds");
-        assert_eq!(request.metadata().scenario_line(), 27);
-        assert_eq!(request.metadata().tags(), ["@smoke", "@payments"]);
-        request.run()
-    }
-}
-
 #[fixture]
 fn default_metadata() -> ScenarioMetadata {
     ScenarioMetadata::default()
@@ -45,7 +30,7 @@ fn std_harness_executes_runner_once(default_metadata: ScenarioMetadata) {
 }
 
 #[test]
-fn custom_harness_can_inspect_metadata_before_running() {
+fn std_harness_passes_metadata_through() {
     let request = ScenarioRunRequest::new(
         ScenarioMetadata::new(
             "tests/features/payment.feature",
@@ -55,7 +40,14 @@ fn custom_harness_can_inspect_metadata_before_running() {
         ),
         ScenarioRunner::new(|| 200),
     );
-    let harness = InspectHarness;
+    assert_eq!(
+        request.metadata().feature_path(),
+        "tests/features/payment.feature"
+    );
+    assert_eq!(request.metadata().scenario_name(), "Payment succeeds");
+    assert_eq!(request.metadata().scenario_line(), 27);
+    assert_eq!(request.metadata().tags(), ["@smoke", "@payments"]);
+    let harness = StdHarness::new();
     assert_eq!(harness.run(request), 200);
 }
 
@@ -73,4 +65,15 @@ fn std_harness_supports_non_static_runner_borrows(default_metadata: ScenarioMeta
     let harness = StdHarness::new();
     assert_eq!(harness.run(request), 1);
     assert_eq!(counter, 1);
+}
+
+#[test]
+#[should_panic(expected = "std harness panic propagation")]
+fn std_harness_propagates_runner_panics() {
+    let request = ScenarioRunRequest::new(
+        ScenarioMetadata::default(),
+        ScenarioRunner::new(|| panic!("std harness panic propagation")),
+    );
+    let harness = StdHarness::new();
+    harness.run(request);
 }

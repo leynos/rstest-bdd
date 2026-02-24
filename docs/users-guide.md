@@ -745,7 +745,10 @@ the test (context setup, step executor loop, skip handler, and user block) in a
 `HarnessAdapter::run()`. The harness is instantiated via
 `<HarnessType as Default>::default()`, so the harness type must implement both
 `HarnessAdapter` and `Default`. The built-in `StdHarness` satisfies both
-requirements and simply executes the closure directly.
+requirements and simply executes the closure directly. `StdHarness` behavioural
+tests cover three guarantees: metadata remains visible on the request passed to
+the harness boundary, the runner closure executes once, and runner panics
+propagate unchanged.
 
 When `harness` is omitted, the generated code executes steps inline without any
 delegation, preserving backward compatibility.

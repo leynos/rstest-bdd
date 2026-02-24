@@ -45,4 +45,15 @@ mod tests {
         let harness = StdHarness::new();
         assert_eq!(harness.run(request), 42);
     }
+
+    #[test]
+    #[should_panic(expected = "std harness unit panic propagation")]
+    fn std_harness_propagates_runner_panics() {
+        let request = ScenarioRunRequest::new(
+            ScenarioMetadata::default(),
+            ScenarioRunner::new(|| panic!("std harness unit panic propagation")),
+        );
+        let harness = StdHarness::new();
+        harness.run(request);
+    }
 }
