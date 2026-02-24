@@ -88,10 +88,9 @@ pass in `make test`, including one panic-propagation case.
 
 ## Surprises & Discoveries
 
-- Observation: project-memory MCP resources are unavailable in this
-  environment (`list_mcp_resources` and `list_mcp_resource_templates` returned
-  no entries). Impact: this plan is based on repository documents and source
-  inspection only.
+- Observation: this repository does not include additional planning metadata
+  files beyond the documented roadmap and design docs. Impact: this plan is
+  based on repository documents and source inspection only.
 
 - Observation: `crates/rstest-bdd-harness/tests/harness_behaviour.rs` already
   includes `StdHarness` closure-execution tests, but there is no dedicated
