@@ -223,7 +223,7 @@ fn generate_test_attrs_omits_tokio_for_sync_functions(#[case] policy_path: Optio
     );
 }
 
-#[rstest::rstest]
+#[test]
 fn generate_test_attrs_dedupes_tokio_policy_and_user_attribute() {
     let tokio_attr: syn::Attribute = syn::parse_quote!(#[tokio::test]);
     let attrs = vec![tokio_attr];
