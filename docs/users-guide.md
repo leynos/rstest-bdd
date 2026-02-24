@@ -705,14 +705,14 @@ For migrations from a cucumber `World`, map the concepts as follows:
 The `#[scenario]` macro is the entry point that ties a Rust test function to a
 scenario defined in a `.feature` file. It accepts six arguments:
 
-| Argument           | Purpose                                                                | Status                                                                                                       |
-| ------------------ | ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| `path: &str`       | Relative path to the feature file (required).                          | **Implemented**: resolved and parsed at macro-expansion time.                                                |
-| `index: usize`     | Optional zero-based scenario index (defaults to `0`).                  | **Implemented**: selects the scenario by position.                                                           |
-| `name: &str`       | Optional scenario title; resolves when unique.                         | **Implemented**: errors when missing and directs duplicates to `index`.                                      |
-| `tags: &str`       | Optional tag-expression filter applied at expansion.                   | **Implemented**: filters scenarios and outline example rows; errors when nothing matches.                    |
-| `harness: Path`    | Optional harness adapter type implementing `HarnessAdapter + Default`. | **Implemented**: emits trait-bound assertions and delegates execution when specified.                        |
-| `attributes: Path` | Optional attribute policy type implementing `AttributePolicy`.         | **Implemented**: emits a compile-time trait-bound assertion; skips `RuntimeMode`-based attribute generation. |
+| Argument           | Purpose                                                                | Status                                                                                                  |
+| ------------------ | ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| `path: &str`       | Relative path to the feature file (required).                          | **Implemented**: resolved and parsed at macro-expansion time.                                           |
+| `index: usize`     | Optional zero-based scenario index (defaults to `0`).                  | **Implemented**: selects the scenario by position.                                                      |
+| `name: &str`       | Optional scenario title; resolves when unique.                         | **Implemented**: errors when missing and directs duplicates to `index`.                                 |
+| `tags: &str`       | Optional tag-expression filter applied at expansion.                   | **Implemented**: filters scenarios and outline example rows; errors when nothing matches.               |
+| `harness: Path`    | Optional harness adapter type implementing `HarnessAdapter + Default`. | **Implemented**: emits trait-bound assertions and delegates execution when specified.                   |
+| `attributes: Path` | Optional attribute policy type implementing `AttributePolicy`.         | **Implemented**: emits a compile-time trait-bound assertion and resolves policy-backed test attributes. |
 
 Tag filters run at macro-expansion time against the union of tags on the
 feature, the matched scenario, and—when dealing with `Scenario Outline`—the
@@ -750,9 +750,12 @@ requirements and simply executes the closure directly.
 When `harness` is omitted, the generated code executes steps inline without any
 delegation, preserving backward compatibility.
 
-When `attributes` is specified, the macro emits only `#[rstest::rstest]` and
-skips `RuntimeMode`-based attribute generation (e.g., `#[tokio::test]`),
-trusting the attribute policy to control test attributes.
+When `attributes` is specified, the macro resolves policy-backed test
+attributes. Currently this resolution is path-based: the canonical
+`rstest_bdd_harness_tokio::TokioAttributePolicy` path emits Tokio
+current-thread test attributes for async scenario signatures, while default and
+unknown policy paths emit `#[rstest::rstest]`. When `attributes` is omitted,
+`RuntimeMode` compatibility behaviour remains in place.
 
 ```rust,no_run
 # use rstest_bdd_macros::scenario;
@@ -831,6 +834,12 @@ scenario invocation and executes the scenario runner inside it.
 `TokioAttributePolicy` emits `#[rstest::rstest]` and
 `#[tokio::test(flavor = "current_thread")]`.
 
+`TokioHarness::run` performs one `tokio::task::yield_now()` tick after
+`request.run()` returns. This helps simple `spawn_local` tasks complete, but it
+does not fully drain the `LocalSet`. Tasks requiring additional wakeups (for
+example timers) may still be pending when `run()` returns, so steps should
+prefer explicit `.await`-based coordination when completion is required.
+
 > **Note:** combining `harness` with `async fn` scenario signatures produces
 > a compile error because `TokioHarness` runs synchronous scenario closures
 > inside a Tokio runtime — the harness owns the runtime, so the scenario
@@ -848,9 +857,11 @@ scenario invocation and executes the scenario runner inside it.
 >   auto-discovery — see [Using `scenarios!` with
 >   async](#using-scenarios-with-async).
 >
-> When `attributes` is specified, the macro emits only `#[rstest::rstest]` and
-> skips `RuntimeMode`-based attribute generation. `TokioAttributePolicy`
-> emits `#[tokio::test(flavor = "current_thread")]` alongside rstest.
+> When `attributes` is specified, the macro resolves policy-backed test
+> attributes. `TokioAttributePolicy` emits
+> `#[tokio::test(flavor = "current_thread")]` for async scenario signatures.
+> For synchronous signatures (including harness-delegated scenarios), Tokio's
+> test attribute is omitted because Tokio requires `async fn`.
 
 If the feature file cannot be found or contains invalid Gherkin, the macro
 emits a compile-time error with the offending path.

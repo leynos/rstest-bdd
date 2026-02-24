@@ -494,7 +494,7 @@ opt-in crates rather than the core runtime or macros.
   Finish line: `TokioAttributePolicy` emits `#[rstest::rstest]` and
   `#[tokio::test(flavor = "current_thread")]`; unit and behavioural tests pass.
   Prerequisite: 9.3.1 scaffold. Design Doc: §2.7.4.
-- [ ] 9.3.4. Wire `AttributePolicy::test_attributes()` into macro codegen. The
+- [x] 9.3.4. Wire `AttributePolicy::test_attributes()` into macro codegen. The
   macro currently ignores the attribute policy and always emits only
   `#[rstest::rstest]`. Update `assemble_test_tokens_with_harness` (and the
   non-harness path) to call `test_attributes()` on the resolved policy and emit
@@ -503,7 +503,7 @@ opt-in crates rather than the core runtime or macros.
   `#[tokio::test(flavor = "current_thread")]` in expanded output; existing
   tests continue to pass. Prerequisite: 9.3.3 delivered. Design Doc: §2.7.2,
   §2.7.3. (Pandalump)
-- [ ] 9.3.5. Document the `yield_now` single-tick drain limitation in
+- [x] 9.3.5. Document the `yield_now` single-tick drain limitation in
   `TokioHarness::run`. The current implementation yields once after
   `request.run()`, which is sufficient for single-poll `spawn_local` tasks but
   may not drive multi-poll futures to completion. Either strengthen the drain

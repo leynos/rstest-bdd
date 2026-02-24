@@ -1615,12 +1615,26 @@ This keeps current async scenario execution stable and prepares the bridge to
 phase 9.3, where the dedicated Tokio harness plug-in crate will own runtime
 wiring.
 
-**Attribute policy trust model.** When `attributes` is specified, the macro
-emits only `#[rstest::rstest]` and does not generate `RuntimeMode`-based
-attributes such as `#[tokio::test]`. The rationale is that the attribute policy
-is the designated extension point for controlling test attributes per ADR-005.
-Users specifying a policy opt into the new system and the macro should not
-second-guess the policy.
+**Attribute policy trust model (updated in 9.3.4).** The macro resolves an
+attribute policy and emits its test attributes during code generation. Because
+procedural macros still cannot evaluate arbitrary user-defined trait methods at
+expansion time, this resolution is currently path-based:
+
+- `rstest_bdd_harness_tokio::TokioAttributePolicy` resolves to
+  `#[rstest::rstest]` plus `#[tokio::test(flavor = "current_thread")]` for
+  async scenario signatures. Matching is constrained to that canonical path to
+  avoid false positives from unrelated `TokioAttributePolicy` type names.
+- `DefaultAttributePolicy` and unknown third-party policy paths resolve to
+  `#[rstest::rstest]` only.
+
+The canonical path-to-hint mapping lives in `rstest-bdd-policy`, so adding
+first-party policy mappings no longer requires editing macro-local resolution
+tables.
+
+If `attributes` is omitted, `RuntimeMode` remains the compatibility fallback:
+Tokio runtime mode resolves to Tokio current-thread attributes, while sync mode
+resolves to rstest-only. `#[tokio::test]` is omitted for synchronous test
+signatures because Tokio requires `async fn`.
 
 **`rstest::rstest` is always emitted.** The `#[rstest::rstest]` attribute is
 unconditional because the framework fundamentally relies on rstest for fixture
@@ -1650,7 +1664,10 @@ The first official adapters and policies are:
   step *definitions* (`async fn` steps) are not supported inside `TokioHarness`
   because the sync wrapper in `emit.rs` rejects when a Tokio runtime is already
   active; users should write synchronous step functions and use `tokio::spawn`
-  / `tokio::spawn_local` inside them to drive async work.
+  / `tokio::spawn_local` inside them to drive async work. `TokioHarness::run`
+  currently performs one `tokio::task::yield_now()` tick after `request.run()`
+  returns; this advances simple queued local tasks but does not guarantee full
+  `LocalSet` drain for multi-poll futures such as timer-driven work.
 - `rstest-bdd-harness-gpui` (planned, phase 9.4): wraps scenario execution
   inside the GPUI test harness, injects GPUI fixtures such as `TestAppContext`,
   and provides the matching GPUI test attribute policy.

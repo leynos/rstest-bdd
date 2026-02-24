@@ -85,6 +85,33 @@ fn tokio_harness_supports_spawn_local(default_metadata: ScenarioMetadata) {
     assert!(flag.get(), "spawn_local task should have run to completion");
 }
 
+/// Verify that `TokioHarness` performs only a single post-run tick and does
+/// not fully drain queued local tasks.
+#[rstest]
+fn tokio_harness_single_tick_does_not_fully_drain_localset(default_metadata: ScenarioMetadata) {
+    let completed = Rc::new(Cell::new(false));
+    let completed_clone = Rc::clone(&completed);
+    let request = ScenarioRunRequest::new(
+        default_metadata,
+        ScenarioRunner::new(move || {
+            tokio::task::spawn_local(async move {
+                // Require more than one cooperative scheduler tick.
+                tokio::task::yield_now().await;
+                tokio::task::yield_now().await;
+                completed_clone.set(true);
+            });
+            "spawned-yielding"
+        }),
+    );
+
+    let harness = TokioHarness::new();
+    assert_eq!(harness.run(request), "spawned-yielding");
+    assert!(
+        !completed.get(),
+        "single post-run tick should not guarantee completion of multi-yield local tasks"
+    );
+}
+
 /// Verify that the harness can inspect metadata before executing the runner.
 #[test]
 fn tokio_harness_passes_metadata_through() {
