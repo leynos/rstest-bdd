@@ -62,6 +62,8 @@ fn run_passing_macro_tests(t: &trybuild::TestCases) {
         MacroFixtureCase::from("scenarios_autodiscovery.rs"),
         MacroFixtureCase::from("scenario_harness_params.rs"),
         MacroFixtureCase::from("scenario_attributes_tokio.rs"),
+        MacroFixtureCase::from("scenario_attributes_tokio_sync.rs"),
+        MacroFixtureCase::from("scenario_attributes_tokio_dedup.rs"),
         MacroFixtureCase::from("scenarios_harness_params.rs"),
     ] {
         t.pass(macros_fixture(case).as_std_path());

@@ -751,7 +751,7 @@ When `harness` is omitted, the generated code executes steps inline without any
 delegation, preserving backward compatibility.
 
 When `attributes` is specified, the macro resolves policy-backed test
-attributes. Today this resolution is path-based: the canonical
+attributes. Currently this resolution is path-based: the canonical
 `rstest_bdd_harness_tokio::TokioAttributePolicy` path emits Tokio
 current-thread test attributes for async scenario signatures, while default and
 unknown policy paths emit `#[rstest::rstest]`. When `attributes` is omitted,

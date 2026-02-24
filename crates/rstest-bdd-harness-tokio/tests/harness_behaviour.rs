@@ -5,7 +5,6 @@ use rstest_bdd_harness::{HarnessAdapter, ScenarioMetadata, ScenarioRunRequest, S
 use rstest_bdd_harness_tokio::TokioHarness;
 use std::cell::Cell;
 use std::rc::Rc;
-use std::time::Duration;
 
 #[fixture]
 fn default_metadata() -> ScenarioMetadata {
@@ -96,18 +95,20 @@ fn tokio_harness_single_tick_does_not_fully_drain_localset(default_metadata: Sce
         default_metadata,
         ScenarioRunner::new(move || {
             tokio::task::spawn_local(async move {
-                tokio::time::sleep(Duration::from_millis(1)).await;
+                // Require more than one cooperative scheduler tick.
+                tokio::task::yield_now().await;
+                tokio::task::yield_now().await;
                 completed_clone.set(true);
             });
-            "spawned-timer"
+            "spawned-yielding"
         }),
     );
 
     let harness = TokioHarness::new();
-    assert_eq!(harness.run(request), "spawned-timer");
+    assert_eq!(harness.run(request), "spawned-yielding");
     assert!(
         !completed.get(),
-        "single post-run tick should not guarantee completion of timer-based local tasks"
+        "single post-run tick should not guarantee completion of multi-yield local tasks"
     );
 }
 

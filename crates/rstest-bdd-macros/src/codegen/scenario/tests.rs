@@ -223,6 +223,36 @@ fn generate_test_attrs_omits_tokio_for_sync_functions(#[case] policy_path: Optio
     );
 }
 
+#[rstest::rstest]
+fn generate_test_attrs_dedupes_tokio_policy_and_user_attribute() {
+    let tokio_attr: syn::Attribute = syn::parse_quote!(#[tokio::test]);
+    let attrs = vec![tokio_attr];
+
+    let policy_path = parse_path("rstest_bdd_harness_tokio::TokioAttributePolicy");
+    let generated_attrs = generate_test_attrs(
+        &attrs,
+        RuntimeMode::TokioCurrentThread,
+        Some(&policy_path),
+        true,
+    );
+
+    // The final codegen emits existing function attributes plus generated
+    // policy attributes. Verify that combination contains exactly one
+    // tokio::test.
+    let output = quote::quote! { #(#attrs)* #generated_attrs }.to_string();
+
+    assert!(
+        output.contains("rstest :: rstest"),
+        "should contain rstest::rstest: {output}"
+    );
+
+    let tokio_count = output.match_indices("tokio :: test").count();
+    assert_eq!(
+        tokio_count, 1,
+        "expected exactly one tokio::test when both user attribute and policy are present, got {tokio_count}: {output}"
+    );
+}
+
 // -----------------------------------------------------------------------------
 // Tests for generate_trait_assertions
 // -----------------------------------------------------------------------------
