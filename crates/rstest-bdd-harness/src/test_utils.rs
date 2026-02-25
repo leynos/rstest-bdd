@@ -6,6 +6,7 @@ use std::any::Any;
 pub(crate) const STD_HARNESS_PANIC_MESSAGE: &str = "std harness panic propagation";
 
 /// Returns true when a panic payload matches the expected message.
+#[must_use]
 pub(crate) fn panic_payload_matches(payload: &(dyn Any + Send), expected: &str) -> bool {
     payload
         .downcast_ref::<&str>()

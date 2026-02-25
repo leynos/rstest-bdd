@@ -18,25 +18,30 @@ fn default_metadata() -> ScenarioMetadata {
     ScenarioMetadata::default()
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 struct MetadataProbeHarness {
     inner: StdHarness,
+    expected_metadata: ScenarioMetadata,
+}
+
+impl MetadataProbeHarness {
+    fn new(expected_metadata: ScenarioMetadata) -> Self {
+        Self {
+            inner: StdHarness::new(),
+            expected_metadata,
+        }
+    }
 }
 
 impl HarnessAdapter for MetadataProbeHarness {
     fn run<T>(&self, request: ScenarioRunRequest<'_, T>) -> T {
         let (metadata, runner) = request.into_parts();
         let metadata_for_assertions = metadata.clone();
+        let expected_metadata = self.expected_metadata.clone();
         let wrapped_request = ScenarioRunRequest::new(
             metadata,
             ScenarioRunner::new(move || {
-                assert_eq!(
-                    metadata_for_assertions.feature_path(),
-                    "tests/features/payment.feature"
-                );
-                assert_eq!(metadata_for_assertions.scenario_name(), "Payment succeeds");
-                assert_eq!(metadata_for_assertions.scenario_line(), 27);
-                assert_eq!(metadata_for_assertions.tags(), ["@smoke", "@payments"]);
+                assert_eq!(metadata_for_assertions, expected_metadata);
                 runner.run()
             }),
         );
@@ -63,16 +68,14 @@ fn std_harness_executes_runner_once(default_metadata: ScenarioMetadata) {
 
 #[test]
 fn std_harness_passes_metadata_through() {
-    let request = ScenarioRunRequest::new(
-        ScenarioMetadata::new(
-            "tests/features/payment.feature",
-            "Payment succeeds",
-            27,
-            vec!["@smoke".to_string(), "@payments".to_string()],
-        ),
-        ScenarioRunner::new(|| 200),
+    let expected_metadata = ScenarioMetadata::new(
+        "tests/features/payment.feature",
+        "Payment succeeds",
+        27,
+        vec!["@smoke".to_string(), "@payments".to_string()],
     );
-    let harness = MetadataProbeHarness::default();
+    let request = ScenarioRunRequest::new(expected_metadata.clone(), ScenarioRunner::new(|| 200));
+    let harness = MetadataProbeHarness::new(expected_metadata);
     assert_eq!(harness.run(request), 200);
 }
 
