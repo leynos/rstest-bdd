@@ -7,6 +7,8 @@ mod adapter;
 mod policy;
 mod runner;
 mod std_harness;
+#[cfg(test)]
+pub(crate) mod test_utils;
 
 pub use adapter::HarnessAdapter;
 pub use policy::{AttributePolicy, DefaultAttributePolicy, TestAttribute};

@@ -31,12 +31,12 @@ impl HarnessAdapter for StdHarness {
 mod tests {
     //! Unit tests for the synchronous standard harness.
 
-    use std::any::Any;
     use std::panic::{AssertUnwindSafe, catch_unwind};
 
     use rstest::{fixture, rstest};
 
     use super::StdHarness;
+    use crate::test_utils::panic_payload_matches;
     use crate::{
         HarnessAdapter, STD_HARNESS_PANIC_MESSAGE, ScenarioMetadata, ScenarioRunRequest,
         ScenarioRunner,
@@ -57,15 +57,6 @@ mod tests {
         )
     }
 
-    fn panic_payload_matches(payload: &(dyn Any + Send), expected: &str) -> bool {
-        payload
-            .downcast_ref::<&str>()
-            .is_some_and(|message| *message == expected)
-            || payload
-                .downcast_ref::<String>()
-                .is_some_and(|message| message == expected)
-    }
-
     #[rstest]
     fn std_harness_runs_request(harness: StdHarness, metadata: ScenarioMetadata) {
         let request = ScenarioRunRequest::new(metadata, ScenarioRunner::new(|| 21 * 2));
@@ -73,9 +64,9 @@ mod tests {
     }
 
     #[rstest]
-    fn std_harness_propagates_runner_panics(harness: StdHarness) {
+    fn std_harness_propagates_runner_panics(harness: StdHarness, metadata: ScenarioMetadata) {
         let request = ScenarioRunRequest::new(
-            ScenarioMetadata::default(),
+            metadata,
             ScenarioRunner::new(|| panic!("{STD_HARNESS_PANIC_MESSAGE}")),
         );
         let panic_result = catch_unwind(AssertUnwindSafe(|| harness.run(request)));

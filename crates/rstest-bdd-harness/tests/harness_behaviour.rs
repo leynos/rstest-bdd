@@ -5,10 +5,14 @@ use rstest_bdd_harness::{
     HarnessAdapter, STD_HARNESS_PANIC_MESSAGE, ScenarioMetadata, ScenarioRunRequest,
     ScenarioRunner, StdHarness,
 };
-use std::any::Any;
 use std::cell::Cell;
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::rc::Rc;
+
+#[path = "../src/test_utils.rs"]
+mod test_utils;
+
+use test_utils::panic_payload_matches;
 
 #[fixture]
 fn default_metadata() -> ScenarioMetadata {
@@ -39,15 +43,6 @@ impl HarnessAdapter for MetadataProbeHarness {
         );
         self.inner.run(wrapped_request)
     }
-}
-
-fn panic_payload_matches(payload: &(dyn Any + Send), expected: &str) -> bool {
-    payload
-        .downcast_ref::<&str>()
-        .is_some_and(|message| *message == expected)
-        || payload
-            .downcast_ref::<String>()
-            .is_some_and(|message| message == expected)
 }
 
 #[rstest]
@@ -98,10 +93,10 @@ fn std_harness_supports_non_static_runner_borrows(default_metadata: ScenarioMeta
     assert_eq!(counter, 1);
 }
 
-#[test]
-fn std_harness_propagates_runner_panics() {
+#[rstest]
+fn std_harness_propagates_runner_panics(default_metadata: ScenarioMetadata) {
     let request = ScenarioRunRequest::new(
-        ScenarioMetadata::default(),
+        default_metadata,
         ScenarioRunner::new(|| panic!("{STD_HARNESS_PANIC_MESSAGE}")),
     );
     let harness = StdHarness::new();
