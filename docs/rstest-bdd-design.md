@@ -1503,6 +1503,12 @@ assert_eq!(harness.run(request), "ok");
 `ScenarioMetadata`, `ScenarioRunner<'a, T>`, and `ScenarioRunRequest<'a, T>`
 are the shared runner primitives for first-party and third-party harness crates.
 
+Phase 9.3.6 adds dedicated `StdHarness` behavioural coverage for parity with
+the Tokio harness test surface. The behavioural suite validates three baseline
+guarantees: request metadata remains available on the harness boundary, the
+runner closure executes exactly once and returns its value, and panics raised
+inside the runner propagate through `StdHarness::run` without being swallowed.
+
 #### 2.7.2 Attribute policy plugins
 
 Harnesses frequently require a specific test attribute (for example,

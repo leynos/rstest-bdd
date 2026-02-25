@@ -28,21 +28,48 @@ impl HarnessAdapter for StdHarness {
 mod tests {
     //! Unit tests for the synchronous standard harness.
 
+    use std::panic::{AssertUnwindSafe, catch_unwind};
+
+    use rstest::{fixture, rstest};
+
     use super::StdHarness;
+    use crate::test_utils::{STD_HARNESS_PANIC_MESSAGE, panic_payload_matches};
     use crate::{HarnessAdapter, ScenarioMetadata, ScenarioRunRequest, ScenarioRunner};
 
-    #[test]
-    fn std_harness_runs_request() {
-        let request = ScenarioRunRequest::new(
-            ScenarioMetadata::new(
-                "tests/features/simple.feature",
-                "Runs synchronously",
-                4,
-                vec!["@sync".to_string()],
-            ),
-            ScenarioRunner::new(|| 21 * 2),
-        );
-        let harness = StdHarness::new();
+    #[fixture]
+    fn harness() -> StdHarness {
+        StdHarness::new()
+    }
+
+    #[fixture]
+    fn metadata() -> ScenarioMetadata {
+        ScenarioMetadata::new(
+            "tests/features/simple.feature",
+            "Runs synchronously",
+            4,
+            vec!["@sync".to_string()],
+        )
+    }
+
+    #[rstest]
+    fn std_harness_runs_request(harness: StdHarness, metadata: ScenarioMetadata) {
+        let request = ScenarioRunRequest::new(metadata, ScenarioRunner::new(|| 21 * 2));
         assert_eq!(harness.run(request), 42);
+    }
+
+    #[rstest]
+    fn std_harness_propagates_runner_panics(harness: StdHarness, metadata: ScenarioMetadata) {
+        let request = ScenarioRunRequest::new(
+            metadata,
+            ScenarioRunner::new(|| panic!("{STD_HARNESS_PANIC_MESSAGE}")),
+        );
+        let panic_result = catch_unwind(AssertUnwindSafe(|| harness.run(request)));
+
+        match panic_result {
+            Ok(_) => panic!("expected StdHarness to propagate runner panic"),
+            Err(payload) => {
+                assert!(panic_payload_matches(&*payload, STD_HARNESS_PANIC_MESSAGE));
+            }
+        }
     }
 }

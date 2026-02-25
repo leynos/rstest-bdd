@@ -5,26 +5,48 @@ use rstest_bdd_harness::{
     HarnessAdapter, ScenarioMetadata, ScenarioRunRequest, ScenarioRunner, StdHarness,
 };
 use std::cell::Cell;
+use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::rc::Rc;
 
-struct InspectHarness;
+#[path = "../src/test_utils.rs"]
+mod test_utils;
 
-impl HarnessAdapter for InspectHarness {
-    fn run<T>(&self, request: ScenarioRunRequest<'_, T>) -> T {
-        assert_eq!(
-            request.metadata().feature_path(),
-            "tests/features/payment.feature"
-        );
-        assert_eq!(request.metadata().scenario_name(), "Payment succeeds");
-        assert_eq!(request.metadata().scenario_line(), 27);
-        assert_eq!(request.metadata().tags(), ["@smoke", "@payments"]);
-        request.run()
-    }
-}
+use test_utils::{STD_HARNESS_PANIC_MESSAGE, panic_payload_matches};
 
 #[fixture]
 fn default_metadata() -> ScenarioMetadata {
     ScenarioMetadata::default()
+}
+
+#[derive(Debug)]
+struct MetadataProbeHarness {
+    inner: StdHarness,
+    expected_metadata: ScenarioMetadata,
+}
+
+impl MetadataProbeHarness {
+    fn new(expected_metadata: ScenarioMetadata) -> Self {
+        Self {
+            inner: StdHarness::new(),
+            expected_metadata,
+        }
+    }
+}
+
+impl HarnessAdapter for MetadataProbeHarness {
+    fn run<T>(&self, request: ScenarioRunRequest<'_, T>) -> T {
+        let (metadata, runner) = request.into_parts();
+        let metadata_for_assertions = metadata.clone();
+        let expected_metadata = self.expected_metadata.clone();
+        let wrapped_request = ScenarioRunRequest::new(
+            metadata,
+            ScenarioRunner::new(move || {
+                assert_eq!(metadata_for_assertions, expected_metadata);
+                runner.run()
+            }),
+        );
+        self.inner.run(wrapped_request)
+    }
 }
 
 #[rstest]
@@ -45,17 +67,15 @@ fn std_harness_executes_runner_once(default_metadata: ScenarioMetadata) {
 }
 
 #[test]
-fn custom_harness_can_inspect_metadata_before_running() {
-    let request = ScenarioRunRequest::new(
-        ScenarioMetadata::new(
-            "tests/features/payment.feature",
-            "Payment succeeds",
-            27,
-            vec!["@smoke".to_string(), "@payments".to_string()],
-        ),
-        ScenarioRunner::new(|| 200),
+fn std_harness_passes_metadata_through() {
+    let expected_metadata = ScenarioMetadata::new(
+        "tests/features/payment.feature",
+        "Payment succeeds",
+        27,
+        vec!["@smoke".to_string(), "@payments".to_string()],
     );
-    let harness = InspectHarness;
+    let request = ScenarioRunRequest::new(expected_metadata.clone(), ScenarioRunner::new(|| 200));
+    let harness = MetadataProbeHarness::new(expected_metadata);
     assert_eq!(harness.run(request), 200);
 }
 
@@ -73,4 +93,16 @@ fn std_harness_supports_non_static_runner_borrows(default_metadata: ScenarioMeta
     let harness = StdHarness::new();
     assert_eq!(harness.run(request), 1);
     assert_eq!(counter, 1);
+}
+
+#[rstest]
+fn std_harness_propagates_runner_panics(default_metadata: ScenarioMetadata) {
+    let request = ScenarioRunRequest::new(
+        default_metadata,
+        ScenarioRunner::new(|| panic!("{STD_HARNESS_PANIC_MESSAGE}")),
+    );
+    let harness = StdHarness::new();
+    let panic_result = catch_unwind(AssertUnwindSafe(|| harness.run(request)));
+    let payload = panic_result.expect_err("expected StdHarness to propagate runner panic");
+    assert!(panic_payload_matches(&*payload, STD_HARNESS_PANIC_MESSAGE));
 }

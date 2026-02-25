@@ -512,7 +512,7 @@ opt-in crates rather than the core runtime or macros.
   patterns inside steps for reliable completion. Finish line: limitation is
   documented or drain logic is hardened; behavioural test validates the chosen
   approach. Prerequisite: 9.3.2 delivered. Design Doc: §2.7.4. (Buzzy Bee)
-- [ ] 9.3.6. Add `StdHarness` behavioural tests for parity with `TokioHarness`
+- [x] 9.3.6. Add `StdHarness` behavioural tests for parity with `TokioHarness`
   coverage. `StdHarness` currently has no dedicated behavioural tests beyond
   being the implicit default. Add tests exercising metadata forwarding, closure
   execution, and panic propagation. Finish line: at least three behavioural
