@@ -1,4 +1,4 @@
-# ExecPlan 9.3.6: Add `StdHarness` behavioural tests for parity
+# ExecPlan 9.3.6: add `StdHarness` behavioural tests for parity
 
 This ExecPlan is a living document. The sections `Constraints`, `Tolerances`,
 `Risks`, `Progress`, `Surprises & Discoveries`, `Decision Log`, and
