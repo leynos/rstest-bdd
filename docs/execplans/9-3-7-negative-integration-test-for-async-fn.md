@@ -18,7 +18,7 @@ primary harness users will reach for. Without this test, a future refactor
 could silently break the rejection path for the Tokio-specific harness without
 any test catching it.
 
-After this change a developer running `make test` will see the new trybuild
+After this change, a developer running `make test` will see the new trybuild
 fixture `scenario_harness_tokio_async_rejected.rs` exercised inside the
 `step_macros_compile` test. The fixture asserts the diagnostic message:
 
@@ -68,7 +68,7 @@ matches the compiler output exactly.
   versions (line numbers, span rendering, nightly hint wording).
   Severity: low. Likelihood: low. Mitigation: generate the `.stderr` by
   running trybuild with `TRYBUILD=overwrite`, then review and adopt the
-  generated output rather than hand-writing it.
+  generated output rather than handwriting it.
 
 - Risk: trybuild may attempt to resolve the `rstest_bdd_harness_tokio` path
   even though `compile_error!` fires first, causing a dependency error.
@@ -76,7 +76,7 @@ matches the compiler output exactly.
   emitted as an early return in the proc macro before any code referencing the
   harness type is generated. The existing `scenario_attributes_tokio.rs` test
   confirms paths in macro attributes resolve in this environment. If this
-  risk materialises, add `rstest-bdd-harness-tokio` to the fixture crate's
+  risk materializes, add `rstest-bdd-harness-tokio` to the fixture crate's
   `Cargo.toml` as a targeted fix.
 
 ## Progress
@@ -85,14 +85,14 @@ matches the compiler output exactly.
 - [x] (2026-02-25) Stage B: created fixture file and `.stderr` snapshot.
 - [x] (2026-02-25) Stage C: registered fixture in `trybuild_macros.rs`.
 - [x] (2026-02-25) Stage D: validated `.stderr` with `TRYBUILD=overwrite`
-  — hand-written snapshot matched compiler output exactly.
+  — handwritten snapshot matched compiler output exactly.
 - [x] (2026-02-25) Stage E: updated roadmap; design doc and users guide
   already cover `TokioHarness` async rejection.
 - [x] (2026-02-25) Stage F: all quality gates passed.
 
 ## Surprises & discoveries
 
-- Observation: the hand-written `.stderr` snapshot matched the compiler
+- Observation: the handwritten `.stderr` snapshot matched the compiler
   output on the first attempt. No iteration was needed.
   Evidence: `TRYBUILD=overwrite` run passed without generating a
   replacement file. Impact: none; confirmed the approach was sound.
@@ -143,18 +143,18 @@ Validation summary:
 - `make nixie` passed (`/tmp/9-3-7-nixie.log`).
 
 Result against finish line: trybuild test asserts the diagnostic message
-for `TokioHarness + async fn`; `make test` passes. No risks materialised.
+for `TokioHarness + async fn`; `make test` passes. No risks materialized.
 No tolerances were approached.
 
 Retrospective: this was a straightforward task with no surprises. The
 existing `StdHarness` negative test provided a clean template. The
-hand-written `.stderr` matched on the first attempt because the error
+handwritten `.stderr` matched on the first attempt because the error
 message is a literal string and the fixture structure is identical.
 
 ## Context and orientation
 
 The rstest-bdd project is a BDD (behaviour-driven development) testing
-framework for Rust, organised as a Cargo workspace. The crates relevant to
+framework for Rust, organized as a Cargo workspace. The crates relevant to
 this task are:
 
 - **`crates/rstest-bdd-macros`** — the procedural macro crate. Contains the
@@ -289,7 +289,7 @@ Go/no-go: the fixture is registered. Proceed.
 
 ### Stage D: validate `.stderr` with `TRYBUILD=overwrite`
 
-Goal: confirm the hand-written `.stderr` matches the actual compiler output.
+Goal: confirm the handwritten `.stderr` matches the actual compiler output.
 
 Run the trybuild test in overwrite mode to generate the actual stderr, then
 compare:
@@ -302,7 +302,7 @@ TRYBUILD=overwrite cargo test --package rstest-bdd step_macros_compile \
 
 If the generated file at
 `target/tests/wip/scenario_harness_tokio_async_rejected.stderr` differs from
-the hand-written version, adopt the generated version and investigate the
+the handwritten version, adopt the generated version and investigate the
 discrepancy.
 
 If the `.stderr` needs correction, update it and re-run:
