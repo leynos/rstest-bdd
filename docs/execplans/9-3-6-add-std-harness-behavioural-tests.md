@@ -126,7 +126,7 @@ Delivered in 9.3.6:
   `crates/rstest-bdd-harness/src/std_harness.rs`.
 - Updated `StdHarness` behavioural coverage in
   `crates/rstest-bdd-harness/tests/harness_behaviour.rs` to include explicit
-  cases for:
+  cases for
   - closure execution,
   - metadata forwarding at the harness boundary,
   - panic propagation.
@@ -223,7 +223,7 @@ Goal: deliver explicit behavioural parity with `TokioHarness` themes.
 Implementation details:
 
 - Update `crates/rstest-bdd-harness/tests/harness_behaviour.rs` so there are
-  explicit `StdHarness` behavioural tests for:
+  explicit `StdHarness` behavioural tests for
   - closure execution (runner executes once and returns value),
   - metadata forwarding (request metadata reaches harness boundary unchanged),
   - panic propagation (runner panic is not swallowed).

@@ -103,11 +103,6 @@ fn std_harness_propagates_runner_panics(default_metadata: ScenarioMetadata) {
     );
     let harness = StdHarness::new();
     let panic_result = catch_unwind(AssertUnwindSafe(|| harness.run(request)));
-
-    match panic_result {
-        Ok(_) => panic!("expected StdHarness to propagate runner panic"),
-        Err(payload) => {
-            assert!(panic_payload_matches(&*payload, STD_HARNESS_PANIC_MESSAGE));
-        }
-    }
+    let payload = panic_result.expect_err("expected StdHarness to propagate runner panic");
+    assert!(panic_payload_matches(&*payload, STD_HARNESS_PANIC_MESSAGE));
 }
