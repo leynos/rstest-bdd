@@ -3,9 +3,6 @@
 use crate::adapter::HarnessAdapter;
 use crate::runner::ScenarioRunRequest;
 
-/// Panic message used by `StdHarness` panic-propagation tests.
-pub const STD_HARNESS_PANIC_MESSAGE: &str = "std harness panic propagation";
-
 /// Framework-agnostic synchronous harness.
 ///
 /// `StdHarness` executes the scenario runner directly without an async runtime
@@ -36,11 +33,8 @@ mod tests {
     use rstest::{fixture, rstest};
 
     use super::StdHarness;
-    use crate::test_utils::panic_payload_matches;
-    use crate::{
-        HarnessAdapter, STD_HARNESS_PANIC_MESSAGE, ScenarioMetadata, ScenarioRunRequest,
-        ScenarioRunner,
-    };
+    use crate::test_utils::{STD_HARNESS_PANIC_MESSAGE, panic_payload_matches};
+    use crate::{HarnessAdapter, ScenarioMetadata, ScenarioRunRequest, ScenarioRunner};
 
     #[fixture]
     fn harness() -> StdHarness {

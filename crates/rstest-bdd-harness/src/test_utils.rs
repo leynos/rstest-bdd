@@ -2,6 +2,9 @@
 
 use std::any::Any;
 
+/// Panic message used by `StdHarness` panic-propagation tests.
+pub(crate) const STD_HARNESS_PANIC_MESSAGE: &str = "std harness panic propagation";
+
 /// Returns true when a panic payload matches the expected message.
 pub(crate) fn panic_payload_matches(payload: &(dyn Any + Send), expected: &str) -> bool {
     payload

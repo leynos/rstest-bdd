@@ -2,8 +2,7 @@
 
 use rstest::{fixture, rstest};
 use rstest_bdd_harness::{
-    HarnessAdapter, STD_HARNESS_PANIC_MESSAGE, ScenarioMetadata, ScenarioRunRequest,
-    ScenarioRunner, StdHarness,
+    HarnessAdapter, ScenarioMetadata, ScenarioRunRequest, ScenarioRunner, StdHarness,
 };
 use std::cell::Cell;
 use std::panic::{AssertUnwindSafe, catch_unwind};
@@ -12,7 +11,7 @@ use std::rc::Rc;
 #[path = "../src/test_utils.rs"]
 mod test_utils;
 
-use test_utils::panic_payload_matches;
+use test_utils::{STD_HARNESS_PANIC_MESSAGE, panic_payload_matches};
 
 #[fixture]
 fn default_metadata() -> ScenarioMetadata {
