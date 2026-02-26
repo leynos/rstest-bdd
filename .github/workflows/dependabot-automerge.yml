@@ -1,0 +1,22 @@
+name: dependabot-automerge
+
+on:
+  pull_request:
+    types:
+      - opened
+      - reopened
+      - synchronize
+      - labeled
+
+permissions:
+  contents: write
+  pull-requests: write
+  checks: read
+  statuses: read
+
+jobs:
+  automerge:
+    if: ${{ github.event.pull_request.user.login == 'dependabot[bot]' }}
+    uses: leynos/shared-actions/.github/workflows/dependabot-automerge.yml@235d2d07b9a321364a742310873f6732d7228e72
+    with:
+      pull-request-number: ${{ github.event.pull_request.number }}
