@@ -518,7 +518,7 @@ opt-in crates rather than the core runtime or macros.
   execution, and panic propagation. Finish line: at least three behavioural
   tests for `StdHarness` pass in `make test`. Prerequisite: 9.1.2 delivered.
   Design Doc: §2.7.1. (Dinolump)
-- [ ] 9.3.7. Add a negative integration test for `async fn` step definitions
+- [x] 9.3.7. Add a negative integration test for `async fn` step definitions
   combined with `harness = TokioHarness`. Verify that this combination produces
   the expected compile-time error via a `trybuild` compile-fail fixture. Finish
   line: `trybuild` test asserts the diagnostic message; `make test` passes.
