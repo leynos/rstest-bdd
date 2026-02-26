@@ -526,7 +526,7 @@ opt-in crates rather than the core runtime or macros.
 
 ### 9.4. GPUI harness plugin crate
 
-- [ ] 9.4.0. Design the fixture injection mechanism for framework harnesses.
+- [ ] 9.4.1. Design the fixture injection mechanism for framework harnesses.
   The current `HarnessAdapter::run` signature wraps a `FnOnce() -> T` closure
   that is opaque to the harness — the harness cannot inject framework-specific
   resources (e.g. `TestAppContext`, `bevy::ecs::World`) into step functions.
@@ -536,10 +536,10 @@ opt-in crates rather than the core runtime or macros.
   the chosen approach is reflected in the `HarnessAdapter` trait (or documented
   as a convention). Prerequisite: 9.3.4 delivered (attribute wiring unblocks
   full policy integration). (Telefono)
-- [ ] 9.4.1. Create `rstest-bdd-harness-gpui`.
-- [ ] 9.4.2. Execute scenarios inside the GPUI test harness and inject fixtures
+- [ ] 9.4.2. Create `rstest-bdd-harness-gpui`.
+- [ ] 9.4.3. Execute scenarios inside the GPUI test harness and inject fixtures
   such as `TestAppContext`.
-- [ ] 9.4.3. Provide the matching GPUI test attribute policy plugin.
+- [ ] 9.4.4. Provide the matching GPUI test attribute policy plugin.
 
 ### 9.5. Context injection mechanism
 
