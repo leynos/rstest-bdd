@@ -125,13 +125,32 @@ let _runner = ScenarioRunner::new(
 This establishes the typed handoff point required by GPUI and Bevy adapters,
 while keeping framework-specific conventions in opt-in harness crates.
 
-## Migration impact
+## Migration plan
 
-- Existing harness impls must define `type Context`.
-- Existing `ScenarioRunner::new(|| ...)` calls become
-  `ScenarioRunner::new(|context| ...)`.
-- Existing `request.run()` calls become `request.run(context)`.
-- Harnesses with no context use `()`.
+1. Phase 1: core trait and runtime threading.
+   Goal: establish an explicit typed context contract at the harness boundary.
+   Deliverables:
+   - Add `type Context` to `HarnessAdapter`.
+   - Thread context generics through `ScenarioRunner` and
+     `ScenarioRunRequest`.
+   - Update core harness tests to cover context propagation and metadata
+     invariants.
+
+2. Phase 2: harness and macro migration.
+   Goal: migrate built-in adapters and generated code to the new contract.
+   Deliverables:
+   - Update `StdHarness` and `TokioHarness` to set `Context = ()` and call
+     unit-context helpers.
+   - Update macro code generation to emit runner closures that accept the
+     harness context argument.
+   - Validate trybuild coverage for generated harness wrappers.
+
+3. Phase 3: downstream adoption and documentation.
+   Goal: make migration requirements explicit for third-party harness authors.
+   Deliverables:
+   - Document migration guidance for custom harness crates (`type Context`,
+     runner constructor, and request execution updates).
+   - Record the decision and rollout details in roadmap and user-facing docs.
 
 ## Goals and non-goals
 

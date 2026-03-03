@@ -24,18 +24,18 @@ use rstest_bdd_harness::{HarnessAdapter, StdScenarioRunRequest};
 ///
 /// ```
 /// use rstest_bdd_harness::{
-///     HarnessAdapter, ScenarioMetadata, ScenarioRunRequest, ScenarioRunner,
+///     HarnessAdapter, ScenarioMetadata, StdScenarioRunRequest,
 /// };
 /// use rstest_bdd_harness_tokio::TokioHarness;
 ///
-/// let request = ScenarioRunRequest::new(
+/// let request = StdScenarioRunRequest::new_without_context(
 ///     ScenarioMetadata::new(
 ///         "tests/features/demo.feature",
 ///         "Async scenario",
 ///         5,
 ///         vec![],
 ///     ),
-///     ScenarioRunner::new_without_context(|| 2 + 2),
+///     || 2 + 2,
 /// );
 /// let harness = TokioHarness::new();
 /// assert_eq!(harness.run(request), 4);
@@ -81,9 +81,7 @@ mod tests {
 
     use super::TokioHarness;
     use rstest::{fixture, rstest};
-    use rstest_bdd_harness::{
-        HarnessAdapter, ScenarioMetadata, StdScenarioRunRequest, StdScenarioRunner,
-    };
+    use rstest_bdd_harness::{HarnessAdapter, ScenarioMetadata, StdScenarioRunRequest};
 
     #[fixture]
     fn harness() -> TokioHarness {
@@ -92,28 +90,26 @@ mod tests {
 
     #[rstest]
     fn tokio_harness_runs_request(harness: TokioHarness) {
-        let request = StdScenarioRunRequest::new(
+        let request = StdScenarioRunRequest::new_without_context(
             ScenarioMetadata::new(
                 "tests/features/simple.feature",
                 "Runs in Tokio",
                 4,
                 vec!["@async".to_string()],
             ),
-            StdScenarioRunner::new_without_context(|| 21 * 2),
+            || 21 * 2,
         );
         assert_eq!(harness.run(request), 42);
     }
 
     #[rstest]
     fn tokio_runtime_is_active_during_run(harness: TokioHarness) {
-        let request = StdScenarioRunRequest::new(
-            ScenarioMetadata::default(),
-            StdScenarioRunner::new_without_context(|| {
+        let request =
+            StdScenarioRunRequest::new_without_context(ScenarioMetadata::default(), || {
                 // Panics if no Tokio runtime is active on the current thread.
                 let _handle = tokio::runtime::Handle::current();
                 true
-            }),
-        );
+            });
         assert!(harness.run(request));
     }
 }

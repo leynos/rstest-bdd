@@ -544,7 +544,7 @@ opt-in crates rather than the core runtime or macros.
 
 ### 9.5. Context injection mechanism
 
-- [ ] 9.5.1. Write ADR-007: Harness context injection. Evaluate three
+- [x] 9.5.1. Write ADR-007: Harness context injection. Evaluate three
   approaches — (a) thread-local convention, (b) associated `Context` type on
   `HarnessAdapter`, and (c) `StepContext` extension trait — and select one. The
   recommended direction is an associated `Context` type:
@@ -563,16 +563,21 @@ opt-in crates rather than the core runtime or macros.
   type-safe, per-harness fixture injection without thread-local indirection.
   The ADR must address migration of `StdHarness` (where `Context = ()`),
   `TokioHarness`, and the impact on macro codegen. Finish line: ADR-007 is
-  merged. Prerequisite: 9.4.0 design task complete. (Telefono, Pandalump)
-- [ ] 9.5.2. Implement `HarnessAdapter::Context` in `rstest-bdd-harness`.
+  merged. Delivered via `docs/adr-007-harness-context-injection.md`.
+  Prerequisite: 9.4.0 design task complete. (Telefono, Pandalump)
+- [x] 9.5.2. Implement `HarnessAdapter::Context` in `rstest-bdd-harness`.
   Update the trait, `StdHarness` (`Context = ()`), `ScenarioRunRequest`, and
   macro codegen to thread the context type through. Finish line: existing tests
   pass with `StdHarness` and `TokioHarness` updated; `Context` is available
-  inside the runner closure. Prerequisite: ADR-007 merged. (Pandalump)
-- [ ] 9.5.3. Update `TokioHarness` to use `Context` (e.g.
+  inside the runner closure. Delivered via `HarnessAdapter::Context`,
+  `ScenarioRunRequest<'_, C, T>`, and macro harness codegen updates.
+  Prerequisite: ADR-007 merged. (Pandalump)
+- [x] 9.5.3. Update `TokioHarness` to use `Context` (e.g.
   `Context = tokio::runtime::Handle` or `()`) and validate that `spawn_local`
   patterns still work. Finish line: Tokio harness tests pass with the new trait
-  surface. Prerequisite: 9.5.2. (Buzzy Bee)
+  surface. Delivered with `TokioHarness` implementing
+  `HarnessAdapter<Context = ()>` and updated behavioural coverage.
+  Prerequisite: 9.5.2. (Buzzy Bee)
 
 ### 9.6. Documentation and validation
 
