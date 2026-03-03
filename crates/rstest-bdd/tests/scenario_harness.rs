@@ -1,7 +1,7 @@
 //! Behavioural tests verifying that `#[scenario]` accepts the `harness` and
 //! `attributes` parameters and delegates execution through the harness adapter.
 
-use rstest_bdd_harness::{HarnessAdapter, ScenarioRunRequest};
+use rstest_bdd_harness::{HarnessAdapter, ScenarioRunRequest, StdScenarioRunRequest};
 use rstest_bdd_macros::{given, scenario, then, when};
 use serial_test::serial;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
@@ -92,7 +92,9 @@ static HARNESS_INVOKED: AtomicBool = AtomicBool::new(false);
 struct RecordingHarness;
 
 impl HarnessAdapter for RecordingHarness {
-    fn run<T>(&self, request: ScenarioRunRequest<'_, T>) -> T {
+    type Context = ();
+
+    fn run<T>(&self, request: StdScenarioRunRequest<'_, T>) -> T {
         HARNESS_INVOKED.store(true, Ordering::SeqCst);
         let meta = request.metadata();
         assert!(
@@ -103,7 +105,7 @@ impl HarnessAdapter for RecordingHarness {
             !meta.scenario_name().is_empty(),
             "harness should receive non-empty scenario name"
         );
-        request.run()
+        request.run_without_context()
     }
 }
 
@@ -129,7 +131,9 @@ static CAPTURED_SCENARIO: LazyLock<Mutex<String>> = LazyLock::new(|| Mutex::new(
 struct MetadataCapturingHarness;
 
 impl HarnessAdapter for MetadataCapturingHarness {
-    fn run<T>(&self, request: ScenarioRunRequest<'_, T>) -> T {
+    type Context = ();
+
+    fn run<T>(&self, request: StdScenarioRunRequest<'_, T>) -> T {
         let meta = request.metadata();
         *CAPTURED_FEATURE
             .lock()
@@ -137,7 +141,7 @@ impl HarnessAdapter for MetadataCapturingHarness {
         *CAPTURED_SCENARIO
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner) = meta.scenario_name().to_string();
-        request.run()
+        request.run_without_context()
     }
 }
 
@@ -174,15 +178,35 @@ fn scenario_passes_correct_metadata_to_harness() {
 // ---------------------------------------------------------------------------
 
 static OUTLINE_HARNESS_CALLS: AtomicUsize = AtomicUsize::new(0);
+const HARNESS_CONTEXT_SEED: usize = 7;
 
 /// A harness that counts how many times it is invoked (once per outline row).
 #[derive(Default)]
 struct OutlineCountingHarness;
 
 impl HarnessAdapter for OutlineCountingHarness {
-    fn run<T>(&self, request: ScenarioRunRequest<'_, T>) -> T {
+    type Context = ();
+
+    fn run<T>(&self, request: StdScenarioRunRequest<'_, T>) -> T {
         OUTLINE_HARNESS_CALLS.fetch_add(1, Ordering::SeqCst);
-        request.run()
+        request.run_without_context()
+    }
+}
+
+static CONTEXT_HARNESS_INVOKED: AtomicBool = AtomicBool::new(false);
+static CONTEXT_VALUE_USED: AtomicUsize = AtomicUsize::new(0);
+
+/// A harness that proves macro-generated requests support a non-unit context.
+#[derive(Default)]
+struct ContextInjectingHarness;
+
+impl HarnessAdapter for ContextInjectingHarness {
+    type Context = usize;
+
+    fn run<T>(&self, request: ScenarioRunRequest<'_, Self::Context, T>) -> T {
+        CONTEXT_HARNESS_INVOKED.store(true, Ordering::SeqCst);
+        CONTEXT_VALUE_USED.store(HARNESS_CONTEXT_SEED, Ordering::SeqCst);
+        request.run(HARNESS_CONTEXT_SEED)
     }
 }
 
@@ -207,3 +231,78 @@ fn outline_delegates_to_harness(row: String) {
         "OutlineCountingHarness should have been called"
     );
 }
+
+#[scenario(
+    path = "tests/features/web_search.feature",
+    harness = ContextInjectingHarness,
+)]
+#[serial]
+fn scenario_supports_non_unit_harness_context() {
+    assert!(
+        CONTEXT_HARNESS_INVOKED.load(Ordering::SeqCst),
+        "ContextInjectingHarness.run() should have been called"
+    );
+    assert_eq!(
+        CONTEXT_VALUE_USED.load(Ordering::SeqCst),
+        HARNESS_CONTEXT_SEED,
+        "harness should provide a concrete context value"
+    );
+    CONTEXT_HARNESS_INVOKED.store(false, Ordering::SeqCst);
+    CONTEXT_VALUE_USED.store(0, Ordering::SeqCst);
+    assert_and_clear_events();
+}
+
+#[derive(Debug)]
+struct HarnessCounterContext {
+    counter: usize,
+}
+
+#[derive(Default)]
+struct StepContextInjectingHarness;
+
+impl HarnessAdapter for StepContextInjectingHarness {
+    type Context = HarnessCounterContext;
+
+    fn run<T>(&self, request: ScenarioRunRequest<'_, Self::Context, T>) -> T {
+        request.run(HarnessCounterContext {
+            counter: HARNESS_CONTEXT_SEED,
+        })
+    }
+}
+
+#[given("harness context starts with {start}")]
+fn harness_context_starts_with(
+    #[from(rstest_bdd_harness_context)] context: &HarnessCounterContext,
+    start: usize,
+) {
+    assert_eq!(
+        context.counter, start,
+        "harness context should be injected before step execution"
+    );
+}
+
+#[when("harness context is incremented by {delta}")]
+fn harness_context_is_incremented(
+    #[from(rstest_bdd_harness_context)] context: &mut HarnessCounterContext,
+    delta: usize,
+) {
+    context.counter += delta;
+}
+
+#[then("harness context equals {expected}")]
+fn harness_context_equals(
+    #[from(rstest_bdd_harness_context)] context: &HarnessCounterContext,
+    expected: usize,
+) {
+    assert_eq!(
+        context.counter, expected,
+        "mutations to harness context should be visible in later steps"
+    );
+}
+
+#[scenario(
+    path = "tests/features/harness_context.feature",
+    harness = StepContextInjectingHarness,
+)]
+#[serial]
+fn step_functions_can_access_harness_injected_context() {}

@@ -60,6 +60,7 @@ struct RunnerClosureParams<'a> {
     step_executor_loop: &'a TokenStream2,
     skip_handler: &'a TokenStream2,
     path: &'a TokenStream2,
+    harness_context_ty: &'a TokenStream2,
 }
 
 /// Generates the body of the `ScenarioRunner` closure: context setup, step
@@ -74,14 +75,20 @@ fn generate_runner_closure_body(params: RunnerClosureParams<'_>) -> TokenStream2
         step_executor_loop,
         skip_handler,
         path,
+        harness_context_ty,
     } = params;
 
     quote! {
         let __rstest_bdd_allow_skipped: bool = #allow_literal;
         #(#ctx_prelude)*
+        let __rstest_bdd_harness_context_cell =
+            #path::StepContext::owned_cell(__rstest_bdd_harness_context);
         let mut ctx = {
             let mut ctx = #path::StepContext::default();
             #(#ctx_inserts)*
+            ctx.insert_owned_harness_context::<#harness_context_ty>(
+                &__rstest_bdd_harness_context_cell
+            );
             ctx
         };
 
@@ -109,6 +116,9 @@ pub(super) fn assemble_test_tokens_with_harness(
 ) -> TokenStream2 {
     let path = crate::codegen::rstest_bdd_path();
     let harness_crate = crate::codegen::rstest_bdd_harness_path();
+    let harness_context_ty = quote! {
+        <#harness_path as #harness_crate::HarnessAdapter>::Context
+    };
 
     let constants = generate_metadata_constants(literals, components, &path);
     let closure_body = generate_runner_closure_body(RunnerClosureParams {
@@ -120,6 +130,7 @@ pub(super) fn assemble_test_tokens_with_harness(
         step_executor_loop: &components.step_executor_loop,
         skip_handler: &components.skip_handler,
         path: &path,
+        harness_context_ty: &harness_context_ty,
     });
 
     let tag_literals = &literals.tag_literals;
@@ -134,9 +145,11 @@ pub(super) fn assemble_test_tokens_with_harness(
             vec![#(#tag_literals.to_string()),*],
         );
 
-        let __rstest_bdd_runner = #harness_crate::ScenarioRunner::new(move || {
-            #closure_body
-        });
+        let __rstest_bdd_runner = #harness_crate::ScenarioRunner::new(
+            move |__rstest_bdd_harness_context: <#harness_path as #harness_crate::HarnessAdapter>::Context| {
+                #closure_body
+            }
+        );
 
         let __rstest_bdd_request = #harness_crate::ScenarioRunRequest::new(
             __rstest_bdd_harness_metadata,

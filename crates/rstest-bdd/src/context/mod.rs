@@ -8,6 +8,14 @@ use std::any::{Any, TypeId};
 use std::cell::{Ref, RefCell, RefMut};
 use std::collections::HashMap;
 
+/// Reserved fixture key used for harness-provided context.
+///
+/// Harness-backed scenarios insert `HarnessAdapter::Context` into
+/// [`StepContext`] under this key. Step functions can then request the context
+/// fixture by naming a parameter `rstest_bdd_harness_context` or by using
+/// `#[from(rstest_bdd_harness_context)]`.
+pub const RSTEST_BDD_HARNESS_CONTEXT_FIXTURE: &str = "rstest_bdd_harness_context";
+
 /// Context passed to step functions containing references to requested fixtures.
 ///
 /// This is constructed by the `#[scenario]` macro for each step invocation. Use
@@ -91,6 +99,46 @@ impl<'a> StepContext<'a> {
             TypeId::of::<T>()
         );
         self.fixtures.insert(name, FixtureEntry::owned::<T>(cell));
+    }
+
+    /// Insert harness-provided context using the reserved fixture key.
+    pub fn insert_harness_context<T: Any>(&mut self, context: &'a T) {
+        self.insert(RSTEST_BDD_HARNESS_CONTEXT_FIXTURE, context);
+    }
+
+    /// Insert owned harness-provided context using the reserved fixture key.
+    pub fn insert_owned_harness_context<T: Any>(&mut self, cell: &'a RefCell<Box<dyn Any>>) {
+        self.insert_owned::<T>(RSTEST_BDD_HARNESS_CONTEXT_FIXTURE, cell);
+    }
+
+    /// Retrieve harness-provided context by type when it is stored by shared reference.
+    ///
+    /// This delegates to [`get`](Self::get), which returns `None` for mutable
+    /// (`insert_owned`) fixture entries. The macro-generated harness path
+    /// currently inserts context with
+    /// [`insert_owned_harness_context`](Self::insert_owned_harness_context)
+    /// under [`RSTEST_BDD_HARNESS_CONTEXT_FIXTURE`], so callers should use
+    /// [`borrow_harness_context`](Self::borrow_harness_context) for that path.
+    #[must_use]
+    pub fn harness_context<T: Any>(&'a self) -> Option<&'a T> {
+        self.get(RSTEST_BDD_HARNESS_CONTEXT_FIXTURE)
+    }
+
+    /// Borrow harness-provided context by type.
+    #[must_use]
+    pub fn borrow_harness_context<'b, T: Any>(&'b self) -> Option<FixtureRef<'b, T>>
+    where
+        'a: 'b,
+    {
+        self.borrow_ref(RSTEST_BDD_HARNESS_CONTEXT_FIXTURE)
+    }
+
+    /// Borrow harness-provided context mutably by type.
+    pub fn borrow_harness_context_mut<'b, T: Any>(&'b mut self) -> Option<FixtureRefMut<'b, T>>
+    where
+        'a: 'b,
+    {
+        self.borrow_mut(RSTEST_BDD_HARNESS_CONTEXT_FIXTURE)
     }
 
     /// Retrieve a fixture reference by name and type.
