@@ -124,11 +124,20 @@ fn run_failing_ui_tests(t: &trybuild::TestCases) {
 }
 
 fn run_lint_ui_tests() {
-    run_lint_ui_case("scenario_unused_fixture_param", &["-D", "unused_variables"]);
-    run_lint_ui_case(
-        "scenario_underscore_fixture_param",
-        &["-D", "clippy::used_underscore_binding"],
-    );
+    let cases = [
+        (
+            "scenario_unused_fixture_param",
+            &["-D", "unused_variables"][..],
+        ),
+        (
+            "scenario_underscore_fixture_param",
+            &["-D", "clippy::used_underscore_binding"][..],
+        ),
+    ];
+
+    for (bin, lint_args) in cases {
+        run_lint_ui_case(bin, lint_args);
+    }
 }
 
 fn run_lint_ui_case(bin: &str, lint_args: &[&str]) {
