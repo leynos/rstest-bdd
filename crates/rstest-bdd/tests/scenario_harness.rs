@@ -178,6 +178,7 @@ fn scenario_passes_correct_metadata_to_harness() {
 // ---------------------------------------------------------------------------
 
 static OUTLINE_HARNESS_CALLS: AtomicUsize = AtomicUsize::new(0);
+const HARNESS_CONTEXT_SEED: usize = 7;
 
 /// A harness that counts how many times it is invoked (once per outline row).
 #[derive(Default)]
@@ -204,8 +205,8 @@ impl HarnessAdapter for ContextInjectingHarness {
 
     fn run<T>(&self, request: ScenarioRunRequest<'_, Self::Context, T>) -> T {
         CONTEXT_HARNESS_INVOKED.store(true, Ordering::SeqCst);
-        CONTEXT_VALUE_USED.store(7, Ordering::SeqCst);
-        request.run(7)
+        CONTEXT_VALUE_USED.store(HARNESS_CONTEXT_SEED, Ordering::SeqCst);
+        request.run(HARNESS_CONTEXT_SEED)
     }
 }
 
@@ -243,7 +244,7 @@ fn scenario_supports_non_unit_harness_context() {
     );
     assert_eq!(
         CONTEXT_VALUE_USED.load(Ordering::SeqCst),
-        7,
+        HARNESS_CONTEXT_SEED,
         "harness should provide a concrete context value"
     );
     CONTEXT_HARNESS_INVOKED.store(false, Ordering::SeqCst);
@@ -263,7 +264,9 @@ impl HarnessAdapter for StepContextInjectingHarness {
     type Context = HarnessCounterContext;
 
     fn run<T>(&self, request: ScenarioRunRequest<'_, Self::Context, T>) -> T {
-        request.run(HarnessCounterContext { counter: 7 })
+        request.run(HarnessCounterContext {
+            counter: HARNESS_CONTEXT_SEED,
+        })
     }
 }
 

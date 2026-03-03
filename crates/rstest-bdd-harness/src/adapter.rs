@@ -23,7 +23,7 @@ pub trait HarnessAdapter {
     ///
     /// Harnesses that do not need to inject additional resources should use
     /// `()`.
-    type Context;
+    type Context: std::any::Any;
 
     /// Executes one scenario request and returns the runner result.
     fn run<T>(&self, request: ScenarioRunRequest<'_, Self::Context, T>) -> T;

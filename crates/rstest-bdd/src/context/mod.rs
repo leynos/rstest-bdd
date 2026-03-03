@@ -111,7 +111,14 @@ impl<'a> StepContext<'a> {
         self.insert_owned::<T>(RSTEST_BDD_HARNESS_CONTEXT_FIXTURE, cell);
     }
 
-    /// Retrieve harness-provided context by type.
+    /// Retrieve harness-provided context by type when it is stored by shared reference.
+    ///
+    /// This delegates to [`get`](Self::get), which returns `None` for mutable
+    /// (`insert_owned`) fixture entries. The macro-generated harness path
+    /// currently inserts context with
+    /// [`insert_owned_harness_context`](Self::insert_owned_harness_context)
+    /// under [`RSTEST_BDD_HARNESS_CONTEXT_FIXTURE`], so callers should use
+    /// [`borrow_harness_context`](Self::borrow_harness_context) for that path.
     #[must_use]
     pub fn harness_context<T: Any>(&'a self) -> Option<&'a T> {
         self.get(RSTEST_BDD_HARNESS_CONTEXT_FIXTURE)
