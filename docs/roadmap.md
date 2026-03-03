@@ -564,7 +564,7 @@ opt-in crates rather than the core runtime or macros.
   The ADR must address migration of `StdHarness` (where `Context = ()`),
   `TokioHarness`, and the impact on macro codegen. Finish line: ADR-007 is
   merged. Delivered via `docs/adr-007-harness-context-injection.md`.
-  Prerequisite: 9.4.0 design task complete. (Telefono, Pandalump)
+  Prerequisite: 9.4.1 design task complete. (Telefono, Pandalump)
 - [x] 9.5.2. Implement `HarnessAdapter::Context` in `rstest-bdd-harness`.
   Update the trait, `StdHarness` (`Context = ()`), `ScenarioRunRequest`, and
   macro codegen to thread the context type through. Finish line: existing tests

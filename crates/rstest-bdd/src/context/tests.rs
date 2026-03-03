@@ -183,3 +183,48 @@ fn available_fixtures_behavior(
         assert!(names.contains(name));
     }
 }
+
+#[test]
+fn insert_harness_context_exposes_shared_reference() {
+    let context_value = 13usize;
+    let mut ctx = StepContext::default();
+    ctx.insert_harness_context(&context_value);
+
+    assert_eq!(ctx.harness_context::<usize>(), Some(&13));
+    assert_eq!(
+        ctx.get::<usize>(RSTEST_BDD_HARNESS_CONTEXT_FIXTURE),
+        Some(&13)
+    );
+}
+
+#[test]
+#[expect(
+    clippy::expect_used,
+    reason = "downcast must succeed for the typed fixture under test"
+)]
+fn insert_owned_harness_context_supports_mutation() {
+    let harness_cell: RefCell<Box<dyn Any>> = RefCell::new(Box::new(String::from("harness")));
+    let mut ctx = StepContext::default();
+    ctx.insert_owned_harness_context::<String>(&harness_cell);
+
+    {
+        let Some(mut value) = ctx.borrow_harness_context_mut::<String>() else {
+            panic!("mutable harness context should exist");
+        };
+        value.as_mut().push_str("-updated");
+    }
+
+    {
+        let Some(value) = ctx.borrow_harness_context::<String>() else {
+            panic!("harness context should be borrowable");
+        };
+        assert_eq!(value.value(), "harness-updated");
+    }
+
+    drop(ctx);
+    let stored = harness_cell
+        .into_inner()
+        .downcast::<String>()
+        .expect("harness context should downcast to String");
+    assert_eq!(*stored, "harness-updated");
+}

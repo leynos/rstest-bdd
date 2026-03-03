@@ -152,6 +152,22 @@ while keeping framework-specific conventions in opt-in harness crates.
      runner constructor, and request execution updates).
    - Record the decision and rollout details in roadmap and user-facing docs.
 
+## Phase 2 convention: StepContext mapping
+
+Harness-backed scenario generation maps `HarnessAdapter::Context` into
+`StepContext` using the reserved fixture key `rstest_bdd_harness_context`.
+
+- Step functions consume harness context with
+  `#[from(rstest_bdd_harness_context)]`.
+- Type-safe extraction is preserved by reusing fixture borrowing and runtime
+  downcasting already used for scenario fixtures.
+
+We considered introducing a dedicated `StepContext` extension trait for this
+mapping. We chose explicit helper methods on `StepContext` instead
+(`insert_harness_context` and `insert_owned_harness_context`) because they keep
+the integration path local to existing context APIs and reduce codegen
+indirection.
+
 ## Goals and non-goals
 
 ### Goals
@@ -163,7 +179,8 @@ while keeping framework-specific conventions in opt-in harness crates.
 
 ### Non-goals
 
-- Define a universal fixture-name mapping convention in this ADR.
+- Define framework-specific fixture-name mappings beyond the reserved harness
+  context fixture key.
 - Implement GPUI or Bevy adapters in this phase.
 - Replace `StepContext` internals.
 

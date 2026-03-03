@@ -868,6 +868,58 @@ prefer explicit `.await`-based coordination when completion is required.
 > For synchronous signatures (including harness-delegated scenarios), Tokio's
 > test attribute is omitted because Tokio requires `async fn`.
 
+Harness-backed scenarios also expose harness context to step functions through
+a reserved fixture key: `rstest_bdd_harness_context`. The generated harness
+runner stores `HarnessAdapter::Context` in `StepContext` under that key before
+step execution starts.
+
+Use `#[from(rstest_bdd_harness_context)]` in step signatures to request the
+context with a domain-specific parameter name:
+
+```rust,no_run
+use rstest_bdd_harness::{HarnessAdapter, ScenarioRunRequest};
+use rstest_bdd_macros::{given, scenario, then, when};
+
+#[derive(Debug)]
+struct AppContext {
+    counter: usize,
+}
+
+#[derive(Default)]
+struct AppHarness;
+
+impl HarnessAdapter for AppHarness {
+    type Context = AppContext;
+
+    fn run<T>(&self, request: ScenarioRunRequest<'_, Self::Context, T>) -> T {
+        request.run(AppContext { counter: 7 })
+    }
+}
+
+#[given("harness context starts at {n}")]
+fn starts_at(#[from(rstest_bdd_harness_context)] app: &AppContext, n: usize) {
+    assert_eq!(app.counter, n);
+}
+
+#[when("the context is incremented by {n}")]
+fn increment(#[from(rstest_bdd_harness_context)] app: &mut AppContext, n: usize) {
+    app.counter += n;
+}
+
+#[then("the context equals {n}")]
+fn equals(#[from(rstest_bdd_harness_context)] app: &AppContext, n: usize) {
+    assert_eq!(app.counter, n);
+}
+
+#[scenario(path = "tests/features/harness_context.feature", harness = AppHarness)]
+fn harness_context_flow() {}
+```
+
+Fixture extraction remains type-safe: the generated wrapper borrows the context
+fixture as the requested type. If the requested type does not match the
+harness-provided context type, execution fails with `StepError::MissingFixture`
+for that parameter.
+
 If the feature file cannot be found or contains invalid Gherkin, the macro
 emits a compile-time error with the offending path.
 

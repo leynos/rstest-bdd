@@ -250,3 +250,56 @@ fn scenario_supports_non_unit_harness_context() {
     CONTEXT_VALUE_USED.store(0, Ordering::SeqCst);
     assert_and_clear_events();
 }
+
+#[derive(Debug)]
+struct HarnessCounterContext {
+    counter: usize,
+}
+
+#[derive(Default)]
+struct StepContextInjectingHarness;
+
+impl HarnessAdapter for StepContextInjectingHarness {
+    type Context = HarnessCounterContext;
+
+    fn run<T>(&self, request: ScenarioRunRequest<'_, Self::Context, T>) -> T {
+        request.run(HarnessCounterContext { counter: 7 })
+    }
+}
+
+#[given("harness context starts with {start}")]
+fn harness_context_starts_with(
+    #[from(rstest_bdd_harness_context)] context: &HarnessCounterContext,
+    start: usize,
+) {
+    assert_eq!(
+        context.counter, start,
+        "harness context should be injected before step execution"
+    );
+}
+
+#[when("harness context is incremented by {delta}")]
+fn harness_context_is_incremented(
+    #[from(rstest_bdd_harness_context)] context: &mut HarnessCounterContext,
+    delta: usize,
+) {
+    context.counter += delta;
+}
+
+#[then("harness context equals {expected}")]
+fn harness_context_equals(
+    #[from(rstest_bdd_harness_context)] context: &HarnessCounterContext,
+    expected: usize,
+) {
+    assert_eq!(
+        context.counter, expected,
+        "mutations to harness context should be visible in later steps"
+    );
+}
+
+#[scenario(
+    path = "tests/features/harness_context.feature",
+    harness = StepContextInjectingHarness,
+)]
+#[serial]
+fn step_functions_can_access_harness_injected_context() {}

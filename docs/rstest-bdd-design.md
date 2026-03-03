@@ -2224,6 +2224,18 @@ the context before executing each step via the registered wrapper. This
 preserves `rstest`'s fixture injection semantics while enabling steps to share
 state.
 
+For harness-backed scenarios, code generation inserts `HarnessAdapter::Context`
+into `StepContext` under the reserved fixture key `rstest_bdd_harness_context`.
+Step functions request that fixture with `#[from(rstest_bdd_harness_context)]`
+and then use a domain-specific parameter name and type in the function
+signature. This keeps extraction type-safe via the same fixture borrowing path
+used by ordinary scenario fixtures.
+
+Phase 2 adopts `StepContext` helper APIs (`insert_harness_context` and
+`insert_owned_harness_context`) instead of adding a separate extension trait.
+The helper approach keeps harness context injection on the existing context API
+surface while avoiding extra trait indirection in generated code.
+
 To support more functional flows, steps may return a value. The scenario runner
 inspects the registered fixtures for matching `TypeId`s and, when exactly one
 fixture uses that type, records the override under that fixture’s name (last
