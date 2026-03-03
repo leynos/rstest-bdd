@@ -79,17 +79,17 @@ impl Default for ScenarioMetadata {
 /// ```
 /// use rstest_bdd_harness::ScenarioRunner;
 ///
-/// let runner = ScenarioRunner::new(|| 41 + 1);
-/// assert_eq!(runner.run(), 42);
+/// let runner = ScenarioRunner::new(|value: u32| value + 1);
+/// assert_eq!(runner.run(41), 42);
 /// ```
-pub struct ScenarioRunner<'a, T> {
-    inner: Box<dyn FnOnce() -> T + 'a>,
+pub struct ScenarioRunner<'a, C, T> {
+    inner: Box<dyn FnOnce(C) -> T + 'a>,
 }
 
-impl<'a, T> ScenarioRunner<'a, T> {
+impl<'a, C, T> ScenarioRunner<'a, C, T> {
     /// Wraps a closure as a scenario runner.
     #[must_use]
-    pub fn new(inner: impl FnOnce() -> T + 'a) -> Self {
+    pub fn new(inner: impl FnOnce(C) -> T + 'a) -> Self {
         Self {
             inner: Box::new(inner),
         }
@@ -97,8 +97,8 @@ impl<'a, T> ScenarioRunner<'a, T> {
 
     /// Executes the wrapped closure.
     #[must_use]
-    pub fn run(self) -> T {
-        (self.inner)()
+    pub fn run(self, context: C) -> T {
+        (self.inner)(context)
     }
 }
 
@@ -111,19 +111,19 @@ impl<'a, T> ScenarioRunner<'a, T> {
 ///
 /// let request = ScenarioRunRequest::new(
 ///     ScenarioMetadata::new("tests/features/auth.feature", "User signs in", 9, vec![]),
-///     ScenarioRunner::new(|| "ok"),
+///     ScenarioRunner::new(|value: i32| value.to_string()),
 /// );
-/// assert_eq!(request.run(), "ok");
+/// assert_eq!(request.run(7), "7");
 /// ```
-pub struct ScenarioRunRequest<'a, T> {
+pub struct ScenarioRunRequest<'a, C, T> {
     metadata: ScenarioMetadata,
-    runner: ScenarioRunner<'a, T>,
+    runner: ScenarioRunner<'a, C, T>,
 }
 
-impl<'a, T> ScenarioRunRequest<'a, T> {
+impl<'a, C, T> ScenarioRunRequest<'a, C, T> {
     /// Creates a request from metadata and a runner.
     #[must_use]
-    pub fn new(metadata: ScenarioMetadata, runner: ScenarioRunner<'a, T>) -> Self {
+    pub fn new(metadata: ScenarioMetadata, runner: ScenarioRunner<'a, C, T>) -> Self {
         Self { metadata, runner }
     }
 
@@ -135,14 +135,14 @@ impl<'a, T> ScenarioRunRequest<'a, T> {
 
     /// Consumes the request and returns metadata and runner separately.
     #[must_use]
-    pub fn into_parts(self) -> (ScenarioMetadata, ScenarioRunner<'a, T>) {
+    pub fn into_parts(self) -> (ScenarioMetadata, ScenarioRunner<'a, C, T>) {
         (self.metadata, self.runner)
     }
 
-    /// Executes the runner directly.
+    /// Executes the runner with harness-provided context.
     #[must_use]
-    pub fn run(self) -> T {
-        self.runner.run()
+    pub fn run(self, context: C) -> T {
+        self.runner.run(context)
     }
 }
 
@@ -167,19 +167,25 @@ mod tests {
     fn scenario_runner_executes_closure() {
         let flag = Rc::new(Cell::new(false));
         let flag_clone = Rc::clone(&flag);
-        let runner = ScenarioRunner::new(move || {
+        let runner = ScenarioRunner::new(move |()| {
             flag_clone.set(true);
             7
         });
-        assert_eq!(runner.run(), 7);
+        assert_eq!(runner.run(()), 7);
         assert!(flag.get());
     }
 
     #[test]
     fn scenario_runner_supports_non_static_borrows() {
         let value = 42;
-        let runner = ScenarioRunner::new(|| value);
-        assert_eq!(runner.run(), 42);
+        let runner = ScenarioRunner::new(|()| value);
+        assert_eq!(runner.run(()), 42);
+    }
+
+    #[test]
+    fn scenario_runner_passes_context_to_closure() {
+        let runner = ScenarioRunner::new(|context: u32| context + 1);
+        assert_eq!(runner.run(41), 42);
     }
 
     #[test]
@@ -191,10 +197,10 @@ mod tests {
                 17,
                 vec!["@smoke".to_string(), "@fast".to_string()],
             ),
-            ScenarioRunner::new(|| 11),
+            ScenarioRunner::new(|context: i32| context + 1),
         );
         assert_eq!(request.metadata().scenario_name(), "Login succeeds");
         assert_eq!(request.metadata().scenario_line(), 17);
-        assert_eq!(request.run(), 11);
+        assert_eq!(request.run(10), 11);
     }
 }

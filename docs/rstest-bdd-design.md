@@ -1454,7 +1454,7 @@ fn __rstest_bdd_extract_skip_message(error: &ExecutionError) -> Option<Option<St
 This reduces generated code size and centralises policy logic where it can be
 tested and modified without regenerating macro output.
 
-### 2.7 Harness adapters and attribute policy plugins (ADR-005)
+### 2.7 Harness adapters and attribute policy plugins (ADR-005, ADR-007)
 
 Framework-specific test harnesses (Tokio, GPUI, Bevy, and others) should not
 inflate the default dependency graph of the core runtime or macros. ADR-005
@@ -1493,15 +1493,18 @@ let request = ScenarioRunRequest::new(
         12,
         vec!["@smoke".to_string()],
     ),
-    ScenarioRunner::new(|| "ok"),
+    ScenarioRunner::new(|()| "ok"),
 );
 
 let harness = StdHarness::new();
 assert_eq!(harness.run(request), "ok");
 ```
 
-`ScenarioMetadata`, `ScenarioRunner<'a, T>`, and `ScenarioRunRequest<'a, T>`
-are the shared runner primitives for first-party and third-party harness crates.
+`ScenarioMetadata`, `ScenarioRunner<'a, C, T>`, and
+`ScenarioRunRequest<'a, C, T>` are the shared runner primitives for first-party
+and third-party harness crates. ADR-007 introduces `HarnessAdapter::Context` so
+harnesses can inject typed, framework-specific resources at the runner boundary
+without thread-local conventions.
 
 Phase 9.3.6 adds dedicated `StdHarness` behavioural coverage for parity with
 the Tokio harness test surface. The behavioural suite validates three baseline
@@ -1576,7 +1579,8 @@ The generated delegation code:
 
 1. Constructs a `ScenarioMetadata` from compile-time constants (feature path,
    scenario name, line number, tags).
-2. Wraps the runtime execution in `ScenarioRunner::new(move || { ... })`.
+2. Wraps the runtime execution in `ScenarioRunner::new(move |ctx| { ... })`,
+   where `ctx` has type `<HarnessType as HarnessAdapter>::Context`.
 3. Bundles metadata and runner into `ScenarioRunRequest::new(metadata, runner)`.
 4. Instantiates the harness via `<HarnessType as Default>::default()`.
 5. Calls `<HarnessType as HarnessAdapter>::run(&harness, request)`
@@ -1590,6 +1594,20 @@ harness types must also implement `Default`.
 For fallible scenarios (`Result<(), E>` return type), the closure's return type
 is `Result<(), E>`. The `HarnessAdapter::run` method returns `T`, so
 `T = Result<(), E>` composes naturally.
+
+**Context handoff (Phase 9.4.1 / ADR-007).** The harness contract now includes
+an associated context type:
+
+```rust,no_run
+pub trait HarnessAdapter {
+    type Context;
+
+    fn run<T>(&self, request: ScenarioRunRequest<'_, Self::Context, T>) -> T;
+}
+```
+
+This keeps context injection explicit and typed for GPUI and Bevy adapters.
+`StdHarness` and `TokioHarness` use `Context = ()`.
 
 **Async rejection.** Combining `harness` with `async fn` scenario signatures
 produces a `compile_error!` (`scenario.rs`). Two cases govern how async step
@@ -1671,9 +1689,10 @@ The first official adapters and policies are:
   because the sync wrapper in `emit.rs` rejects when a Tokio runtime is already
   active; users should write synchronous step functions and use `tokio::spawn`
   / `tokio::spawn_local` inside them to drive async work. `TokioHarness::run`
-  currently performs one `tokio::task::yield_now()` tick after `request.run()`
-  returns; this advances simple queued local tasks but does not guarantee full
-  `LocalSet` drain for multi-poll futures such as timer-driven work.
+  currently performs one `tokio::task::yield_now()` tick after
+  `request.run(())` returns; this advances simple queued local tasks but does
+  not guarantee full `LocalSet` drain for multi-poll futures such as
+  timer-driven work.
 - `rstest-bdd-harness-gpui` (planned, phase 9.4): wraps scenario execution
   inside the GPUI test harness, injects GPUI fixtures such as `TestAppContext`,
   and provides the matching GPUI test attribute policy.

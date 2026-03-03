@@ -526,7 +526,7 @@ opt-in crates rather than the core runtime or macros.
 
 ### 9.4. GPUI harness plugin crate
 
-- [ ] 9.4.1. Design the fixture injection mechanism for framework harnesses.
+- [x] 9.4.1. Design the fixture injection mechanism for framework harnesses.
   The current `HarnessAdapter::run` signature wraps a `FnOnce() -> T` closure
   that is opaque to the harness — the harness cannot inject framework-specific
   resources (e.g. `TestAppContext`, `bevy::ecs::World`) into step functions.
@@ -534,8 +534,9 @@ opt-in crates rather than the core runtime or macros.
   `Context` type on `HarnessAdapter`, or a `StepContext` extension trait) and
   select one that works for both GPUI and Bevy. Finish line: ADR is merged and
   the chosen approach is reflected in the `HarnessAdapter` trait (or documented
-  as a convention). Prerequisite: 9.3.4 delivered (attribute wiring unblocks
-  full policy integration). (Telefono)
+  as a convention). Delivered via `docs/adr-007-harness-context-injection.md`.
+  Prerequisite: 9.3.4 delivered (attribute wiring unblocks full policy
+  integration). (Telefono)
 - [ ] 9.4.2. Create `rstest-bdd-harness-gpui`.
 - [ ] 9.4.3. Execute scenarios inside the GPUI test harness and inject fixtures
   such as `TestAppContext`.
@@ -543,7 +544,7 @@ opt-in crates rather than the core runtime or macros.
 
 ### 9.5. Context injection mechanism
 
-- [ ] 9.5.1. Write ADR-006: Harness context injection. Evaluate three
+- [ ] 9.5.1. Write ADR-007: Harness context injection. Evaluate three
   approaches — (a) thread-local convention, (b) associated `Context` type on
   `HarnessAdapter`, and (c) `StepContext` extension trait — and select one. The
   recommended direction is an associated `Context` type:
@@ -561,13 +562,13 @@ opt-in crates rather than the core runtime or macros.
   This is a breaking change to the `HarnessAdapter` trait but provides
   type-safe, per-harness fixture injection without thread-local indirection.
   The ADR must address migration of `StdHarness` (where `Context = ()`),
-  `TokioHarness`, and the impact on macro codegen. Finish line: ADR-006 is
+  `TokioHarness`, and the impact on macro codegen. Finish line: ADR-007 is
   merged. Prerequisite: 9.4.0 design task complete. (Telefono, Pandalump)
 - [ ] 9.5.2. Implement `HarnessAdapter::Context` in `rstest-bdd-harness`.
   Update the trait, `StdHarness` (`Context = ()`), `ScenarioRunRequest`, and
   macro codegen to thread the context type through. Finish line: existing tests
   pass with `StdHarness` and `TokioHarness` updated; `Context` is available
-  inside the runner closure. Prerequisite: ADR-006 merged. (Pandalump)
+  inside the runner closure. Prerequisite: ADR-007 merged. (Pandalump)
 - [ ] 9.5.3. Update `TokioHarness` to use `Context` (e.g.
   `Context = tokio::runtime::Handle` or `()`) and validate that `spawn_local`
   patterns still work. Finish line: Tokio harness tests pass with the new trait

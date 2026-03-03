@@ -92,7 +92,9 @@ static HARNESS_INVOKED: AtomicBool = AtomicBool::new(false);
 struct RecordingHarness;
 
 impl HarnessAdapter for RecordingHarness {
-    fn run<T>(&self, request: ScenarioRunRequest<'_, T>) -> T {
+    type Context = ();
+
+    fn run<T>(&self, request: ScenarioRunRequest<'_, Self::Context, T>) -> T {
         HARNESS_INVOKED.store(true, Ordering::SeqCst);
         let meta = request.metadata();
         assert!(
@@ -103,7 +105,7 @@ impl HarnessAdapter for RecordingHarness {
             !meta.scenario_name().is_empty(),
             "harness should receive non-empty scenario name"
         );
-        request.run()
+        request.run(())
     }
 }
 
@@ -129,7 +131,9 @@ static CAPTURED_SCENARIO: LazyLock<Mutex<String>> = LazyLock::new(|| Mutex::new(
 struct MetadataCapturingHarness;
 
 impl HarnessAdapter for MetadataCapturingHarness {
-    fn run<T>(&self, request: ScenarioRunRequest<'_, T>) -> T {
+    type Context = ();
+
+    fn run<T>(&self, request: ScenarioRunRequest<'_, Self::Context, T>) -> T {
         let meta = request.metadata();
         *CAPTURED_FEATURE
             .lock()
@@ -137,7 +141,7 @@ impl HarnessAdapter for MetadataCapturingHarness {
         *CAPTURED_SCENARIO
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner) = meta.scenario_name().to_string();
-        request.run()
+        request.run(())
     }
 }
 
@@ -180,9 +184,28 @@ static OUTLINE_HARNESS_CALLS: AtomicUsize = AtomicUsize::new(0);
 struct OutlineCountingHarness;
 
 impl HarnessAdapter for OutlineCountingHarness {
-    fn run<T>(&self, request: ScenarioRunRequest<'_, T>) -> T {
+    type Context = ();
+
+    fn run<T>(&self, request: ScenarioRunRequest<'_, Self::Context, T>) -> T {
         OUTLINE_HARNESS_CALLS.fetch_add(1, Ordering::SeqCst);
-        request.run()
+        request.run(())
+    }
+}
+
+static CONTEXT_HARNESS_INVOKED: AtomicBool = AtomicBool::new(false);
+static CONTEXT_VALUE_USED: AtomicUsize = AtomicUsize::new(0);
+
+/// A harness that proves macro-generated requests support a non-unit context.
+#[derive(Default)]
+struct ContextInjectingHarness;
+
+impl HarnessAdapter for ContextInjectingHarness {
+    type Context = usize;
+
+    fn run<T>(&self, request: ScenarioRunRequest<'_, Self::Context, T>) -> T {
+        CONTEXT_HARNESS_INVOKED.store(true, Ordering::SeqCst);
+        CONTEXT_VALUE_USED.store(7, Ordering::SeqCst);
+        request.run(7)
     }
 }
 
@@ -206,4 +229,24 @@ fn outline_delegates_to_harness(row: String) {
         OUTLINE_HARNESS_CALLS.load(Ordering::SeqCst) > 0,
         "OutlineCountingHarness should have been called"
     );
+}
+
+#[scenario(
+    path = "tests/features/web_search.feature",
+    harness = ContextInjectingHarness,
+)]
+#[serial]
+fn scenario_supports_non_unit_harness_context() {
+    assert!(
+        CONTEXT_HARNESS_INVOKED.load(Ordering::SeqCst),
+        "ContextInjectingHarness.run() should have been called"
+    );
+    assert_eq!(
+        CONTEXT_VALUE_USED.load(Ordering::SeqCst),
+        7,
+        "harness should provide a concrete context value"
+    );
+    CONTEXT_HARNESS_INVOKED.store(false, Ordering::SeqCst);
+    CONTEXT_VALUE_USED.store(0, Ordering::SeqCst);
+    assert_and_clear_events();
 }

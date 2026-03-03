@@ -4,8 +4,10 @@ use rstest_bdd_macros::{given, scenario, then, when};
 struct NoDefaultHarness;
 
 impl rstest_bdd_harness::HarnessAdapter for NoDefaultHarness {
-    fn run<T>(&self, request: rstest_bdd_harness::ScenarioRunRequest<'_, T>) -> T {
-        request.run()
+    type Context = ();
+
+    fn run<T>(&self, request: rstest_bdd_harness::ScenarioRunRequest<'_, Self::Context, T>) -> T {
+        request.run(())
     }
 }
 

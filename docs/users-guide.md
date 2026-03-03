@@ -794,9 +794,11 @@ use rstest_bdd_harness::{HarnessAdapter, ScenarioRunRequest};
 struct MyHarness;
 
 impl HarnessAdapter for MyHarness {
-    fn run<T>(&self, request: ScenarioRunRequest<'_, T>) -> T {
+    type Context = ();
+
+    fn run<T>(&self, request: ScenarioRunRequest<'_, Self::Context, T>) -> T {
         // Custom pre-scenario setup using request.metadata()
-        let result = request.run();
+        let result = request.run(());
         // Custom post-scenario teardown
         result
     }
@@ -838,8 +840,8 @@ scenario invocation and executes the scenario runner inside it.
 `#[tokio::test(flavor = "current_thread")]`.
 
 `TokioHarness::run` performs one `tokio::task::yield_now()` tick after
-`request.run()` returns. This helps simple `spawn_local` tasks complete, but it
-does not fully drain the `LocalSet`. Tasks requiring additional wakeups (for
+`request.run(())` returns. This helps simple `spawn_local` tasks complete, but
+it does not fully drain the `LocalSet`. Tasks requiring additional wakeups (for
 example timers) may still be pending when `run()` returns, so steps should
 prefer explicit `.await`-based coordination when completion is required.
 
@@ -1324,9 +1326,9 @@ plug-ins.
 
 ### Defining a harness adapter
 
-Use `HarnessAdapter` with `ScenarioRunRequest<'a, T>` and
-`ScenarioRunner<'a, T>` to execute one scenario closure inside the harness
-environment:
+Use `HarnessAdapter` with `ScenarioRunRequest<'a, C, T>` and
+`ScenarioRunner<'a, C, T>` to execute one scenario closure inside the harness
+environment. `C` is the harness-specific context type:
 
 ```rust,no_run
 use rstest_bdd_harness::{
@@ -1336,9 +1338,11 @@ use rstest_bdd_harness::{
 struct MyHarness;
 
 impl HarnessAdapter for MyHarness {
-    fn run<T>(&self, request: ScenarioRunRequest<'_, T>) -> T {
+    type Context = ();
+
+    fn run<T>(&self, request: ScenarioRunRequest<'_, Self::Context, T>) -> T {
         // Optional harness-specific setup using request.metadata().
-        request.run()
+        request.run(())
     }
 }
 
@@ -1349,12 +1353,16 @@ let request = ScenarioRunRequest::new(
         12,
         vec!["@smoke".to_string()],
     ),
-    ScenarioRunner::new(|| "ok"),
+    ScenarioRunner::new(|()| "ok"),
 );
 
 let harness = MyHarness;
 assert_eq!(harness.run(request), "ok");
 ```
+
+Harnesses that need framework resources can choose a non-unit context type and
+pass it through `request.run(context)`. For example, a GPUI harness can use
+`TestAppContext`, and a Bevy harness can use `bevy::ecs::World`.
 
 The built-in `StdHarness` implements the same trait and runs the closure
 synchronously without an async runtime or UI harness.

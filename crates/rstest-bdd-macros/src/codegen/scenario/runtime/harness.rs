@@ -134,9 +134,11 @@ pub(super) fn assemble_test_tokens_with_harness(
             vec![#(#tag_literals.to_string()),*],
         );
 
-        let __rstest_bdd_runner = #harness_crate::ScenarioRunner::new(move || {
-            #closure_body
-        });
+        let __rstest_bdd_runner = #harness_crate::ScenarioRunner::new(
+            move |__rstest_bdd_harness_context: <#harness_path as #harness_crate::HarnessAdapter>::Context| {
+                #closure_body
+            }
+        );
 
         let __rstest_bdd_request = #harness_crate::ScenarioRunRequest::new(
             __rstest_bdd_harness_metadata,

@@ -1,16 +1,16 @@
 error[E0277]: the trait bound `NoDefaultHarness: Default` is not satisfied
-  --> tests/fixtures_macros/scenario_harness_not_default.rs:23:15
+  --> tests/fixtures_macros/scenario_harness_not_default.rs:25:15
    |
-23 |     harness = NoDefaultHarness,
+25 |     harness = NoDefaultHarness,
    |               ^^^^^^^^^^^^^^^^ the trait `Default` is not implemented for `NoDefaultHarness`
    |
 note: required by a bound in `__assert_harness`
-  --> tests/fixtures_macros/scenario_harness_not_default.rs:21:1
+  --> tests/fixtures_macros/scenario_harness_not_default.rs:23:1
    |
-21 | / #[scenario(
-22 | |     path = "basic.feature",
-23 | |     harness = NoDefaultHarness,
-24 | | )]
+23 | / #[scenario(
+24 | |     path = "basic.feature",
+25 | |     harness = NoDefaultHarness,
+26 | | )]
    | |__^ required by this bound in `__assert_harness`
    = note: this error originates in the attribute macro `scenario` (in Nightly builds, run with -Z macro-backtrace for more info)
 help: consider annotating `NoDefaultHarness` with `#[derive(Default)]`

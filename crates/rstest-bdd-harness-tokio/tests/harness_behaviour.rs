@@ -17,7 +17,7 @@ fn tokio_harness_executes_runner_once(default_metadata: ScenarioMetadata) {
     let call_count_clone = Rc::clone(&call_count);
     let request = ScenarioRunRequest::new(
         default_metadata,
-        ScenarioRunner::new(move || {
+        ScenarioRunner::new(move |()| {
             call_count_clone.set(call_count_clone.get() + 1);
             "done"
         }),
@@ -33,7 +33,7 @@ fn tokio_harness_supports_non_static_runner_borrows(default_metadata: ScenarioMe
     let mut counter = 0u8;
     let request = ScenarioRunRequest::new(
         default_metadata,
-        ScenarioRunner::new(|| {
+        ScenarioRunner::new(|()| {
             counter += 1;
             counter
         }),
@@ -49,7 +49,7 @@ fn tokio_harness_supports_non_static_runner_borrows(default_metadata: ScenarioMe
 fn tokio_runtime_is_active_inside_harness() {
     let request = ScenarioRunRequest::new(
         ScenarioMetadata::default(),
-        ScenarioRunner::new(|| {
+        ScenarioRunner::new(|()| {
             // Panics if no Tokio runtime is active on the current thread.
             let _handle = tokio::runtime::Handle::current();
             true
@@ -67,7 +67,7 @@ fn tokio_harness_supports_spawn_local(default_metadata: ScenarioMetadata) {
     let flag_clone = Rc::clone(&flag);
     let request = ScenarioRunRequest::new(
         default_metadata,
-        ScenarioRunner::new(move || {
+        ScenarioRunner::new(move |()| {
             // `spawn_local` panics if no `LocalSet` context is active.
             // Successfully calling it proves the current-thread + LocalSet
             // wiring provided by TokioHarness.
@@ -93,7 +93,7 @@ fn tokio_harness_single_tick_does_not_fully_drain_localset(default_metadata: Sce
     let completed_clone = Rc::clone(&completed);
     let request = ScenarioRunRequest::new(
         default_metadata,
-        ScenarioRunner::new(move || {
+        ScenarioRunner::new(move |()| {
             tokio::task::spawn_local(async move {
                 // Require more than one cooperative scheduler tick.
                 tokio::task::yield_now().await;
@@ -122,7 +122,7 @@ fn tokio_harness_passes_metadata_through() {
             27,
             vec!["@smoke".to_string(), "@payments".to_string()],
         ),
-        ScenarioRunner::new(|| 200),
+        ScenarioRunner::new(|()| 200),
     );
     assert_eq!(
         request.metadata().feature_path(),

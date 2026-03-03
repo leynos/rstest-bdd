@@ -19,8 +19,10 @@ impl StdHarness {
 }
 
 impl HarnessAdapter for StdHarness {
-    fn run<T>(&self, request: ScenarioRunRequest<'_, T>) -> T {
-        request.run()
+    type Context = ();
+
+    fn run<T>(&self, request: ScenarioRunRequest<'_, Self::Context, T>) -> T {
+        request.run(())
     }
 }
 
@@ -53,7 +55,7 @@ mod tests {
 
     #[rstest]
     fn std_harness_runs_request(harness: StdHarness, metadata: ScenarioMetadata) {
-        let request = ScenarioRunRequest::new(metadata, ScenarioRunner::new(|| 21 * 2));
+        let request = ScenarioRunRequest::new(metadata, ScenarioRunner::new(|()| 21 * 2));
         assert_eq!(harness.run(request), 42);
     }
 
@@ -61,7 +63,7 @@ mod tests {
     fn std_harness_propagates_runner_panics(harness: StdHarness, metadata: ScenarioMetadata) {
         let request = ScenarioRunRequest::new(
             metadata,
-            ScenarioRunner::new(|| panic!("{STD_HARNESS_PANIC_MESSAGE}")),
+            ScenarioRunner::new(|()| panic!("{STD_HARNESS_PANIC_MESSAGE}")),
         );
         let panic_result = catch_unwind(AssertUnwindSafe(|| harness.run(request)));
 
