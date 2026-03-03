@@ -13,6 +13,7 @@ use std::env;
 use std::io;
 use std::panic::{self, AssertUnwindSafe};
 use std::path::Path as StdPath;
+use std::process::Command;
 use wrappers::{
     MacroFixtureCase, NormaliserInput, UiFixtureCase, normalise_fixture_paths,
     strip_nightly_macro_backtrace_hint,
@@ -45,6 +46,7 @@ fn step_macros_compile() {
     run_passing_macro_tests(&t);
     run_failing_macro_tests(&t);
     run_failing_ui_tests(&t);
+    run_lint_ui_tests();
     t.compile_fail(
         macros_fixture(MacroFixtureCase::from("scenarios_missing_dir.rs")).as_std_path(),
     );
@@ -118,6 +120,51 @@ fn run_failing_ui_tests(t: &trybuild::TestCases) {
         UiFixtureCase::from("return_override_result_requires_result.rs"),
     ] {
         t.compile_fail(ui_fixture(case).as_std_path());
+    }
+}
+
+fn run_lint_ui_tests() {
+    let cases = [
+        (
+            "scenario_unused_fixture_param",
+            &["-D", "unused_variables"][..],
+        ),
+        (
+            "scenario_underscore_fixture_param",
+            &["-D", "clippy::used_underscore_binding"][..],
+        ),
+    ];
+
+    for (bin, lint_args) in cases {
+        run_lint_ui_case(bin, lint_args);
+    }
+}
+
+fn run_lint_ui_case(bin: &str, lint_args: &[&str]) {
+    let manifest_dir = Utf8Path::new(env!("CARGO_MANIFEST_DIR"));
+    let manifest_path = manifest_dir.join("tests/ui_lints/Cargo.toml");
+    let target_dir = manifest_dir.join("target/tests/ui_lints_clippy");
+    let output = Command::new("cargo")
+        .current_dir(manifest_dir.as_std_path())
+        .env("CARGO_TARGET_DIR", target_dir.as_str())
+        .arg("clippy")
+        .arg("--locked")
+        .arg("--manifest-path")
+        .arg(manifest_path.as_str())
+        .arg("--bin")
+        .arg(bin)
+        .arg("--")
+        .args(lint_args)
+        .output()
+        .unwrap_or_else(|err| panic!("failed to run cargo clippy for {bin}: {err}"));
+
+    if !output.status.success() {
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        panic!(
+            "cargo clippy failed for {bin}\nstatus: {}\nstdout:\n{}\nstderr:\n{}",
+            output.status, stdout, stderr
+        );
     }
 }
 
