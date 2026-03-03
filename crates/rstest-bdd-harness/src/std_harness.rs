@@ -1,7 +1,7 @@
 //! Default synchronous harness implementation.
 
 use crate::adapter::HarnessAdapter;
-use crate::runner::ScenarioRunRequest;
+use crate::runner::StdScenarioRunRequest;
 
 /// Framework-agnostic synchronous harness.
 ///
@@ -21,8 +21,8 @@ impl StdHarness {
 impl HarnessAdapter for StdHarness {
     type Context = ();
 
-    fn run<T>(&self, request: ScenarioRunRequest<'_, Self::Context, T>) -> T {
-        request.run(())
+    fn run<T>(&self, request: StdScenarioRunRequest<'_, T>) -> T {
+        request.run_without_context()
     }
 }
 
@@ -36,7 +36,9 @@ mod tests {
 
     use super::StdHarness;
     use crate::test_utils::{STD_HARNESS_PANIC_MESSAGE, panic_payload_matches};
-    use crate::{HarnessAdapter, ScenarioMetadata, ScenarioRunRequest, ScenarioRunner};
+    use crate::{
+        HarnessAdapter, ScenarioMetadata, ScenarioRunner, StdScenarioRunRequest, StdScenarioRunner,
+    };
 
     #[fixture]
     fn harness() -> StdHarness {
@@ -55,15 +57,16 @@ mod tests {
 
     #[rstest]
     fn std_harness_runs_request(harness: StdHarness, metadata: ScenarioMetadata) {
-        let request = ScenarioRunRequest::new(metadata, ScenarioRunner::new(|()| 21 * 2));
+        let request =
+            StdScenarioRunRequest::new(metadata, StdScenarioRunner::new_without_context(|| 21 * 2));
         assert_eq!(harness.run(request), 42);
     }
 
     #[rstest]
     fn std_harness_propagates_runner_panics(harness: StdHarness, metadata: ScenarioMetadata) {
-        let request = ScenarioRunRequest::new(
+        let request = StdScenarioRunRequest::new(
             metadata,
-            ScenarioRunner::new(|()| panic!("{STD_HARNESS_PANIC_MESSAGE}")),
+            ScenarioRunner::new_without_context(|| panic!("{STD_HARNESS_PANIC_MESSAGE}")),
         );
         let panic_result = catch_unwind(AssertUnwindSafe(|| harness.run(request)));
 

@@ -135,7 +135,7 @@ pub(super) fn assemble_test_tokens_with_harness(
         );
 
         let __rstest_bdd_runner = #harness_crate::ScenarioRunner::new(
-            move |__rstest_bdd_harness_context: <#harness_path as #harness_crate::HarnessAdapter>::Context| {
+            move |_rstest_bdd_harness_context: <#harness_path as #harness_crate::HarnessAdapter>::Context| {
                 #closure_body
             }
         );

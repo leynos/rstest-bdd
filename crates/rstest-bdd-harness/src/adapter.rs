@@ -7,11 +7,13 @@ use crate::runner::ScenarioRunRequest;
 /// # Examples
 ///
 /// ```
-/// use rstest_bdd_harness::{HarnessAdapter, ScenarioMetadata, ScenarioRunRequest, ScenarioRunner, StdHarness};
+/// use rstest_bdd_harness::{
+///     HarnessAdapter, ScenarioMetadata, ScenarioRunRequest, ScenarioRunner, StdHarness,
+/// };
 ///
 /// let request = ScenarioRunRequest::new(
 ///     ScenarioMetadata::new("tests/features/demo.feature", "Example", 3, vec![]),
-///     ScenarioRunner::new(|()| 5 + 5),
+///     ScenarioRunner::new_without_context(|| 5 + 5),
 /// );
 /// let harness = StdHarness::new();
 /// assert_eq!(harness.run(request), 10);

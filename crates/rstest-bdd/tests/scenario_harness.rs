@@ -1,7 +1,7 @@
 //! Behavioural tests verifying that `#[scenario]` accepts the `harness` and
 //! `attributes` parameters and delegates execution through the harness adapter.
 
-use rstest_bdd_harness::{HarnessAdapter, ScenarioRunRequest};
+use rstest_bdd_harness::{HarnessAdapter, ScenarioRunRequest, StdScenarioRunRequest};
 use rstest_bdd_macros::{given, scenario, then, when};
 use serial_test::serial;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
@@ -94,7 +94,7 @@ struct RecordingHarness;
 impl HarnessAdapter for RecordingHarness {
     type Context = ();
 
-    fn run<T>(&self, request: ScenarioRunRequest<'_, Self::Context, T>) -> T {
+    fn run<T>(&self, request: StdScenarioRunRequest<'_, T>) -> T {
         HARNESS_INVOKED.store(true, Ordering::SeqCst);
         let meta = request.metadata();
         assert!(
@@ -105,7 +105,7 @@ impl HarnessAdapter for RecordingHarness {
             !meta.scenario_name().is_empty(),
             "harness should receive non-empty scenario name"
         );
-        request.run(())
+        request.run_without_context()
     }
 }
 
@@ -133,7 +133,7 @@ struct MetadataCapturingHarness;
 impl HarnessAdapter for MetadataCapturingHarness {
     type Context = ();
 
-    fn run<T>(&self, request: ScenarioRunRequest<'_, Self::Context, T>) -> T {
+    fn run<T>(&self, request: StdScenarioRunRequest<'_, T>) -> T {
         let meta = request.metadata();
         *CAPTURED_FEATURE
             .lock()
@@ -141,7 +141,7 @@ impl HarnessAdapter for MetadataCapturingHarness {
         *CAPTURED_SCENARIO
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner) = meta.scenario_name().to_string();
-        request.run(())
+        request.run_without_context()
     }
 }
 
@@ -186,9 +186,9 @@ struct OutlineCountingHarness;
 impl HarnessAdapter for OutlineCountingHarness {
     type Context = ();
 
-    fn run<T>(&self, request: ScenarioRunRequest<'_, Self::Context, T>) -> T {
+    fn run<T>(&self, request: StdScenarioRunRequest<'_, T>) -> T {
         OUTLINE_HARNESS_CALLS.fetch_add(1, Ordering::SeqCst);
-        request.run(())
+        request.run_without_context()
     }
 }
 

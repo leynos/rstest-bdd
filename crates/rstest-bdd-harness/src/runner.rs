@@ -102,6 +102,20 @@ impl<'a, C, T> ScenarioRunner<'a, C, T> {
     }
 }
 
+impl<'a, T> ScenarioRunner<'a, (), T> {
+    /// Wraps a zero-argument closure for harnesses that use unit context.
+    #[must_use]
+    pub fn new_without_context(inner: impl FnOnce() -> T + 'a) -> Self {
+        Self::new(move |()| inner())
+    }
+
+    /// Executes a unit-context runner without explicitly passing `()`.
+    #[must_use]
+    pub fn run_without_context(self) -> T {
+        self.run(())
+    }
+}
+
 /// A harness execution request for one scenario.
 ///
 /// # Examples
@@ -146,6 +160,29 @@ impl<'a, C, T> ScenarioRunRequest<'a, C, T> {
     }
 }
 
+impl<'a, T> ScenarioRunRequest<'a, (), T> {
+    /// Creates a unit-context request from metadata and a zero-argument runner.
+    #[must_use]
+    pub fn new_without_context(
+        metadata: ScenarioMetadata,
+        runner: impl FnOnce() -> T + 'a,
+    ) -> Self {
+        Self::new(metadata, ScenarioRunner::new_without_context(runner))
+    }
+
+    /// Executes a unit-context request without explicitly passing `()`.
+    #[must_use]
+    pub fn run_without_context(self) -> T {
+        self.run(())
+    }
+}
+
+/// Type alias for the common unit-context runner case.
+pub type StdScenarioRunner<'a, T> = ScenarioRunner<'a, (), T>;
+
+/// Type alias for the common unit-context request case.
+pub type StdScenarioRunRequest<'a, T> = ScenarioRunRequest<'a, (), T>;
+
 #[cfg(test)]
 mod tests {
     //! Unit tests for scenario metadata and runner primitives.
@@ -167,19 +204,19 @@ mod tests {
     fn scenario_runner_executes_closure() {
         let flag = Rc::new(Cell::new(false));
         let flag_clone = Rc::clone(&flag);
-        let runner = ScenarioRunner::new(move |()| {
+        let runner = ScenarioRunner::new_without_context(move || {
             flag_clone.set(true);
             7
         });
-        assert_eq!(runner.run(()), 7);
+        assert_eq!(runner.run_without_context(), 7);
         assert!(flag.get());
     }
 
     #[test]
     fn scenario_runner_supports_non_static_borrows() {
         let value = 42;
-        let runner = ScenarioRunner::new(|()| value);
-        assert_eq!(runner.run(()), 42);
+        let runner = ScenarioRunner::new_without_context(|| value);
+        assert_eq!(runner.run_without_context(), 42);
     }
 
     #[test]
@@ -190,17 +227,24 @@ mod tests {
 
     #[test]
     fn request_exposes_metadata_and_runs() {
-        let request = ScenarioRunRequest::new(
+        let request = ScenarioRunRequest::new_without_context(
             ScenarioMetadata::new(
                 "tests/features/auth.feature",
                 "Login succeeds",
                 17,
                 vec!["@smoke".to_string(), "@fast".to_string()],
             ),
-            ScenarioRunner::new(|context: i32| context + 1),
+            || 11,
         );
         assert_eq!(request.metadata().scenario_name(), "Login succeeds");
         assert_eq!(request.metadata().scenario_line(), 17);
-        assert_eq!(request.run(10), 11);
+        assert_eq!(request.run_without_context(), 11);
+    }
+
+    #[test]
+    fn request_without_context_constructor_executes_runner() {
+        let request =
+            ScenarioRunRequest::new_without_context(ScenarioMetadata::default(), || 5 + 6);
+        assert_eq!(request.run_without_context(), 11);
     }
 }

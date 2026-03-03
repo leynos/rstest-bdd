@@ -3,6 +3,7 @@
 use rstest::{fixture, rstest};
 use rstest_bdd_harness::{
     HarnessAdapter, ScenarioMetadata, ScenarioRunRequest, ScenarioRunner, StdHarness,
+    StdScenarioRunRequest, StdScenarioRunner,
 };
 use std::cell::Cell;
 use std::panic::{AssertUnwindSafe, catch_unwind};
@@ -36,15 +37,15 @@ impl MetadataProbeHarness {
 impl HarnessAdapter for MetadataProbeHarness {
     type Context = ();
 
-    fn run<T>(&self, request: ScenarioRunRequest<'_, Self::Context, T>) -> T {
+    fn run<T>(&self, request: StdScenarioRunRequest<'_, T>) -> T {
         let (metadata, runner) = request.into_parts();
         let metadata_for_assertions = metadata.clone();
         let expected_metadata = self.expected_metadata.clone();
-        let wrapped_request = ScenarioRunRequest::new(
+        let wrapped_request = StdScenarioRunRequest::new(
             metadata,
-            ScenarioRunner::new(move |()| {
+            StdScenarioRunner::new_without_context(move || {
                 assert_eq!(metadata_for_assertions, expected_metadata);
-                runner.run(())
+                runner.run_without_context()
             }),
         );
         self.inner.run(wrapped_request)
@@ -55,9 +56,9 @@ impl HarnessAdapter for MetadataProbeHarness {
 fn std_harness_executes_runner_once(default_metadata: ScenarioMetadata) {
     let call_count = Rc::new(Cell::new(0u8));
     let call_count_clone = Rc::clone(&call_count);
-    let request = ScenarioRunRequest::new(
+    let request = StdScenarioRunRequest::new(
         default_metadata,
-        ScenarioRunner::new(move |()| {
+        StdScenarioRunner::new_without_context(move || {
             call_count_clone.set(call_count_clone.get() + 1);
             "done"
         }),
@@ -76,7 +77,10 @@ fn std_harness_passes_metadata_through() {
         27,
         vec!["@smoke".to_string(), "@payments".to_string()],
     );
-    let request = ScenarioRunRequest::new(expected_metadata.clone(), ScenarioRunner::new(|()| 200));
+    let request = StdScenarioRunRequest::new(
+        expected_metadata.clone(),
+        StdScenarioRunner::new_without_context(|| 200),
+    );
     let harness = MetadataProbeHarness::new(expected_metadata);
     assert_eq!(harness.run(request), 200);
 }
@@ -84,9 +88,9 @@ fn std_harness_passes_metadata_through() {
 #[rstest]
 fn std_harness_supports_non_static_runner_borrows(default_metadata: ScenarioMetadata) {
     let mut counter = 0u8;
-    let request = ScenarioRunRequest::new(
+    let request = StdScenarioRunRequest::new(
         default_metadata,
-        ScenarioRunner::new(|()| {
+        StdScenarioRunner::new_without_context(|| {
             counter += 1;
             counter
         }),
@@ -99,9 +103,9 @@ fn std_harness_supports_non_static_runner_borrows(default_metadata: ScenarioMeta
 
 #[rstest]
 fn std_harness_propagates_runner_panics(default_metadata: ScenarioMetadata) {
-    let request = ScenarioRunRequest::new(
+    let request = StdScenarioRunRequest::new(
         default_metadata,
-        ScenarioRunner::new(|()| panic!("{STD_HARNESS_PANIC_MESSAGE}")),
+        StdScenarioRunner::new_without_context(|| panic!("{STD_HARNESS_PANIC_MESSAGE}")),
     );
     let harness = StdHarness::new();
     let panic_result = catch_unwind(AssertUnwindSafe(|| harness.run(request)));

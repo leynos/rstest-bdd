@@ -1,6 +1,6 @@
 //! Tokio current-thread harness adapter for scenario execution.
 
-use rstest_bdd_harness::{HarnessAdapter, ScenarioRunRequest};
+use rstest_bdd_harness::{HarnessAdapter, StdScenarioRunRequest};
 
 /// Executes scenario runners inside a Tokio current-thread runtime with a
 /// [`LocalSet`](tokio::task::LocalSet).
@@ -35,7 +35,7 @@ use rstest_bdd_harness::{HarnessAdapter, ScenarioRunRequest};
 ///         5,
 ///         vec![],
 ///     ),
-///     ScenarioRunner::new(|()| 2 + 2),
+///     ScenarioRunner::new_without_context(|| 2 + 2),
 /// );
 /// let harness = TokioHarness::new();
 /// assert_eq!(harness.run(request), 4);
@@ -54,7 +54,7 @@ impl TokioHarness {
 impl HarnessAdapter for TokioHarness {
     type Context = ();
 
-    fn run<T>(&self, request: ScenarioRunRequest<'_, Self::Context, T>) -> T {
+    fn run<T>(&self, request: StdScenarioRunRequest<'_, T>) -> T {
         // FIXME(#443): propagate runtime build errors via Result once
         // HarnessAdapter::run returns Result<T, E>.
         let runtime = tokio::runtime::Builder::new_current_thread()
@@ -65,7 +65,7 @@ impl HarnessAdapter for TokioHarness {
             });
         let local_set = tokio::task::LocalSet::new();
         local_set.block_on(&runtime, async {
-            let result = request.run(());
+            let result = request.run_without_context();
             // Run one cooperative tick so tasks queued via `spawn_local` can
             // make progress. This is intentionally a single tick rather than a
             // full `LocalSet` drain.
@@ -82,7 +82,7 @@ mod tests {
     use super::TokioHarness;
     use rstest::{fixture, rstest};
     use rstest_bdd_harness::{
-        HarnessAdapter, ScenarioMetadata, ScenarioRunRequest, ScenarioRunner,
+        HarnessAdapter, ScenarioMetadata, StdScenarioRunRequest, StdScenarioRunner,
     };
 
     #[fixture]
@@ -92,23 +92,23 @@ mod tests {
 
     #[rstest]
     fn tokio_harness_runs_request(harness: TokioHarness) {
-        let request = ScenarioRunRequest::new(
+        let request = StdScenarioRunRequest::new(
             ScenarioMetadata::new(
                 "tests/features/simple.feature",
                 "Runs in Tokio",
                 4,
                 vec!["@async".to_string()],
             ),
-            ScenarioRunner::new(|()| 21 * 2),
+            StdScenarioRunner::new_without_context(|| 21 * 2),
         );
         assert_eq!(harness.run(request), 42);
     }
 
     #[rstest]
     fn tokio_runtime_is_active_during_run(harness: TokioHarness) {
-        let request = ScenarioRunRequest::new(
+        let request = StdScenarioRunRequest::new(
             ScenarioMetadata::default(),
-            ScenarioRunner::new(|()| {
+            StdScenarioRunner::new_without_context(|| {
                 // Panics if no Tokio runtime is active on the current thread.
                 let _handle = tokio::runtime::Handle::current();
                 true
