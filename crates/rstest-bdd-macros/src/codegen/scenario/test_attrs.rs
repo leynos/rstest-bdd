@@ -6,7 +6,8 @@ use rstest_bdd_policy::resolve_test_attribute_hint_for_policy_path;
 
 use super::{RuntimeMode, TestAttributeHint};
 
-fn is_tokio_test_attr(attr: &syn::Attribute) -> bool {
+/// Returns `true` when `attr` is exactly `<crate_name>::<fn_name>`.
+fn is_two_segment_attr(attr: &syn::Attribute, crate_name: &str, fn_name: &str) -> bool {
     let mut segments = attr.path().segments.iter();
     let Some(first) = segments.next() else {
         return false;
@@ -14,18 +15,15 @@ fn is_tokio_test_attr(attr: &syn::Attribute) -> bool {
     let Some(second) = segments.next() else {
         return false;
     };
-    segments.next().is_none() && first.ident == "tokio" && second.ident == "test"
+    segments.next().is_none() && first.ident == crate_name && second.ident == fn_name
+}
+
+fn is_tokio_test_attr(attr: &syn::Attribute) -> bool {
+    is_two_segment_attr(attr, "tokio", "test")
 }
 
 fn is_gpui_test_attr(attr: &syn::Attribute) -> bool {
-    let mut segments = attr.path().segments.iter();
-    let Some(first) = segments.next() else {
-        return false;
-    };
-    let Some(second) = segments.next() else {
-        return false;
-    };
-    segments.next().is_none() && first.ident == "gpui" && second.ident == "test"
+    is_two_segment_attr(attr, "gpui", "test")
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
