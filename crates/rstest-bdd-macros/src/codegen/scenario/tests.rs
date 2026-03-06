@@ -3,6 +3,8 @@ use super::test_attrs::generate_test_attrs;
 use super::*;
 use crate::parsing::feature::ParsedStep;
 
+mod gpui_policy;
+
 #[expect(clippy::expect_used, reason = "test helper with descriptive failures")]
 fn kw(ts: &TokenStream2) -> crate::StepKeyword {
     let path = syn::parse2::<syn::Path>(ts.clone()).expect("keyword path");

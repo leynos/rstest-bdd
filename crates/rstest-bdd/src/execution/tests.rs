@@ -279,27 +279,18 @@ fn extract_skip_message_returns_expected_value(#[case] test_case: ExecutionError
     assert_eq!(extract_skip_message(&error), expected);
 }
 
-/// Verify that `RuntimeMode` and `TestAttributeHint` have matching variant counts.
+/// Verify each `RuntimeMode` maps to the expected default attribute hint.
 ///
-/// This test provides explicit validation that both enums have the same number
-/// of variants and that each `RuntimeMode` maps to a unique hint.
+/// `TestAttributeHint` may include policy-only variants that do not correspond
+/// one-to-one with `RuntimeMode` variants.
 #[test]
-fn runtime_mode_and_test_attribute_hint_variant_parity() {
-    // Collect all RuntimeMode variants and their corresponding hints
+fn runtime_mode_maps_to_expected_default_test_attribute_hints() {
     let runtime_modes = [RuntimeMode::Sync, RuntimeMode::TokioCurrentThread];
     let expected_hints = [
         TestAttributeHint::RstestOnly,
         TestAttributeHint::RstestWithTokioCurrentThread,
     ];
 
-    // Verify variant counts match
-    assert_eq!(
-        runtime_modes.len(),
-        expected_hints.len(),
-        "RuntimeMode and TestAttributeHint should have the same number of variants"
-    );
-
-    // Verify each RuntimeMode maps to the expected TestAttributeHint
     for (mode, expected_hint) in runtime_modes.iter().zip(expected_hints.iter()) {
         assert_eq!(
             mode.test_attribute_hint(),

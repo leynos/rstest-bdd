@@ -17,16 +17,29 @@ fn is_tokio_test_attr(attr: &syn::Attribute) -> bool {
     segments.next().is_none() && first.ident == "tokio" && second.ident == "test"
 }
 
+fn is_gpui_test_attr(attr: &syn::Attribute) -> bool {
+    let mut segments = attr.path().segments.iter();
+    let Some(first) = segments.next() else {
+        return false;
+    };
+    let Some(second) = segments.next() else {
+        return false;
+    };
+    segments.next().is_none() && first.ident == "gpui" && second.ident == "test"
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum PolicyAttribute {
     Rstest,
     TokioCurrentThread,
+    GpuiTest,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum ResolvedAttributePolicy {
     Default,
     TokioCurrentThread,
+    Gpui,
 }
 
 impl ResolvedAttributePolicy {
@@ -34,10 +47,12 @@ impl ResolvedAttributePolicy {
         const DEFAULT: [PolicyAttribute; 1] = [PolicyAttribute::Rstest];
         const TOKIO: [PolicyAttribute; 2] =
             [PolicyAttribute::Rstest, PolicyAttribute::TokioCurrentThread];
+        const GPUI: [PolicyAttribute; 2] = [PolicyAttribute::Rstest, PolicyAttribute::GpuiTest];
 
         match self {
             Self::Default => &DEFAULT,
             Self::TokioCurrentThread => &TOKIO,
+            Self::Gpui => &GPUI,
         }
     }
 }
@@ -67,6 +82,7 @@ fn resolve_attribute_policy(
         TestAttributeHint::RstestWithTokioCurrentThread => {
             ResolvedAttributePolicy::TokioCurrentThread
         }
+        TestAttributeHint::RstestWithGpuiTest => ResolvedAttributePolicy::Gpui,
     }
 }
 
@@ -76,6 +92,7 @@ fn render_policy_attribute(attribute: PolicyAttribute) -> TokenStream2 {
         PolicyAttribute::TokioCurrentThread => quote! {
             #[tokio::test(flavor = "current_thread")]
         },
+        PolicyAttribute::GpuiTest => quote! { #[gpui::test] },
     }
 }
 
@@ -87,6 +104,7 @@ pub(super) fn generate_test_attrs(
 ) -> TokenStream2 {
     // Match only tokio::test to avoid false positives like #[test] or #[test_case].
     let has_tokio_test = attrs.iter().any(is_tokio_test_attr);
+    let has_gpui_test = attrs.iter().any(is_gpui_test_attr);
     let resolved_policy = resolve_attribute_policy(runtime, attributes);
 
     let generated_attrs: Vec<_> = resolved_policy
@@ -96,6 +114,7 @@ pub(super) fn generate_test_attrs(
         .filter_map(|attribute| match attribute {
             // Tokio test attributes require async test signatures.
             PolicyAttribute::TokioCurrentThread if !is_async || has_tokio_test => None,
+            PolicyAttribute::GpuiTest if has_gpui_test => None,
             _ => Some(render_policy_attribute(attribute)),
         })
         .collect();

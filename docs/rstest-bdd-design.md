@@ -1648,6 +1648,10 @@ expansion time, this resolution is currently path-based:
   `#[rstest::rstest]` plus `#[tokio::test(flavor = "current_thread")]` for
   async scenario signatures. Matching is constrained to that canonical path to
   avoid false positives from unrelated `TokioAttributePolicy` type names.
+- `rstest_bdd_harness_gpui::GpuiAttributePolicy` resolves to
+  `#[rstest::rstest]` plus `#[gpui::test]` for both sync and async scenario
+  signatures. Matching is constrained to that canonical path to avoid false
+  positives from unrelated `GpuiAttributePolicy` type names.
 - `DefaultAttributePolicy` and unknown third-party policy paths resolve to
   `#[rstest::rstest]` only.
 
@@ -1693,9 +1697,16 @@ The first official adapters and policies are:
   `request.run(())` returns; this advances simple queued local tasks but does
   not guarantee full `LocalSet` drain for multi-poll futures such as
   timer-driven work.
-- `rstest-bdd-harness-gpui` (planned, phase 9.4): wraps scenario execution
-  inside the GPUI test harness, injects GPUI fixtures such as `TestAppContext`,
-  and provides the matching GPUI test attribute policy.
+- `rstest-bdd-harness-gpui` (implemented, phase 9.4): provides `GpuiHarness`
+  and `GpuiAttributePolicy`. `GpuiHarness` implements `HarnessAdapter` by
+  running each `ScenarioRunRequest` inside `gpui::run_test`, building a
+  `gpui::TestAppContext`, and passing that context through `request.run(...)`
+  so steps can access it via `#[from(rstest_bdd_harness_context)]`.
+  `GpuiAttributePolicy` implements `AttributePolicy` and emits
+  `#[rstest::rstest]` followed by `#[gpui::test]`. Due native GPUI system
+  library requirements (`xcb`/`xkbcommon`), GPUI behavioural and integration
+  tests are feature-gated (`native-gpui-tests` and `gpui-harness-tests`) so
+  default workspace gates remain portable.
 
 Future adapters (for example, Bevy) are planned to follow the same pattern
 without requiring new dependencies in `rstest-bdd` or `rstest-bdd-macros`.

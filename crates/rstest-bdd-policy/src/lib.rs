@@ -74,6 +74,8 @@ pub enum TestAttributeHint {
     RstestOnly,
     /// Generate `#[rstest::rstest]` and `#[tokio::test(flavor = "current_thread")]`.
     RstestWithTokioCurrentThread,
+    /// Generate `#[rstest::rstest]` and `#[gpui::test]`.
+    RstestWithGpuiTest,
 }
 
 /// Canonical path segments for `DefaultAttributePolicy`.
@@ -84,11 +86,18 @@ pub const DEFAULT_ATTRIBUTE_POLICY_PATH: &[&str] =
 pub const TOKIO_ATTRIBUTE_POLICY_PATH: &[&str] =
     &["rstest_bdd_harness_tokio", "TokioAttributePolicy"];
 
-const KNOWN_ATTRIBUTE_POLICY_HINTS: [(&[&str], TestAttributeHint); 2] = [
+/// Canonical path segments for `GpuiAttributePolicy`.
+pub const GPUI_ATTRIBUTE_POLICY_PATH: &[&str] = &["rstest_bdd_harness_gpui", "GpuiAttributePolicy"];
+
+const KNOWN_ATTRIBUTE_POLICY_HINTS: [(&[&str], TestAttributeHint); 3] = [
     (DEFAULT_ATTRIBUTE_POLICY_PATH, TestAttributeHint::RstestOnly),
     (
         TOKIO_ATTRIBUTE_POLICY_PATH,
         TestAttributeHint::RstestWithTokioCurrentThread,
+    ),
+    (
+        GPUI_ATTRIBUTE_POLICY_PATH,
+        TestAttributeHint::RstestWithGpuiTest,
     ),
 ];
 
@@ -127,7 +136,8 @@ pub fn resolve_test_attribute_hint_for_policy_path(
 #[cfg(test)]
 mod tests {
     use super::{
-        DEFAULT_ATTRIBUTE_POLICY_PATH, RuntimeMode, TOKIO_ATTRIBUTE_POLICY_PATH, TestAttributeHint,
+        DEFAULT_ATTRIBUTE_POLICY_PATH, GPUI_ATTRIBUTE_POLICY_PATH, RuntimeMode,
+        TOKIO_ATTRIBUTE_POLICY_PATH, TestAttributeHint,
         resolve_test_attribute_hint_for_policy_path,
     };
 
@@ -175,6 +185,14 @@ mod tests {
         assert_eq!(
             resolve_test_attribute_hint_for_policy_path(TOKIO_ATTRIBUTE_POLICY_PATH),
             Some(TestAttributeHint::RstestWithTokioCurrentThread)
+        );
+    }
+
+    #[test]
+    fn resolves_gpui_attribute_policy_path() {
+        assert_eq!(
+            resolve_test_attribute_hint_for_policy_path(GPUI_ATTRIBUTE_POLICY_PATH),
+            Some(TestAttributeHint::RstestWithGpuiTest)
         );
     }
 

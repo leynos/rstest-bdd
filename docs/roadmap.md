@@ -537,10 +537,10 @@ opt-in crates rather than the core runtime or macros.
   as a convention). Delivered via `docs/adr-007-harness-context-injection.md`.
   Prerequisite: 9.3.4 delivered (attribute wiring unblocks full policy
   integration). (Telefono)
-- [ ] 9.4.2. Create `rstest-bdd-harness-gpui`.
-- [ ] 9.4.3. Execute scenarios inside the GPUI test harness and inject fixtures
+- [x] 9.4.2. Create `rstest-bdd-harness-gpui`.
+- [x] 9.4.3. Execute scenarios inside the GPUI test harness and inject fixtures
   such as `TestAppContext`.
-- [ ] 9.4.4. Provide the matching GPUI test attribute policy plugin.
+- [x] 9.4.4. Provide the matching GPUI test attribute policy plugin.
 
 ### 9.5. Context injection mechanism
 
