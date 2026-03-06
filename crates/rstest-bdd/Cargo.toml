@@ -56,8 +56,8 @@ diagnostics = ["serde", "serde_json"]
 mutable_world_macro = []
 # Test support helpers for async step testing across crates.
 test-support = []
-# Enables GPUI harness integration tests that require native GPUI test runtime
-# system libraries.
+# Enables GPUI harness integration tests. The workspace patches GPUI test
+# support locally to keep the dependency graph stable-compatible.
 gpui-harness-tests = []
 
 [[test]]

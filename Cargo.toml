@@ -99,6 +99,8 @@ missing_docs = "deny"
 missing_crate_level_docs = "deny"
 
 [patch.crates-io]
+gpui = { path = "vendor/gpui" }
+gpui-macros = { path = "vendor/gpui-macros" }
 rstest-bdd = { path = "crates/rstest-bdd" }
 rstest-bdd-harness-tokio = { path = "crates/rstest-bdd-harness-tokio" }
 rstest-bdd-macros = { path = "crates/rstest-bdd-macros" }

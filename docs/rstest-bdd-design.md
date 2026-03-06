@@ -1703,10 +1703,11 @@ The first official adapters and policies are:
   `gpui::TestAppContext`, and passing that context through `request.run(...)`
   so steps can access it via `#[from(rstest_bdd_harness_context)]`.
   `GpuiAttributePolicy` implements `AttributePolicy` and emits
-  `#[rstest::rstest]` followed by `#[gpui::test]`. Due native GPUI system
-  library requirements (`xcb`/`xkbcommon`), GPUI behavioural and integration
-  tests are feature-gated (`native-gpui-tests` and `gpui-harness-tests`) so
-  default workspace gates remain portable.
+  `#[rstest::rstest]` followed by `#[gpui::test]`. The workspace patches GPUI
+  test support locally so the harness keeps the stable-compatible
+  `run_test`/`TestAppContext`/`#[gpui::test]` surface without reintroducing
+  `async-trait`; GPUI behavioural and integration tests remain feature-gated
+  (`native-gpui-tests` and `gpui-harness-tests`) as explicit opt-in suites.
 
 Future adapters (for example, Bevy) are planned to follow the same pattern
 without requiring new dependencies in `rstest-bdd` or `rstest-bdd-macros`.

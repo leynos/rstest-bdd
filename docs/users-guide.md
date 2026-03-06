@@ -897,10 +897,11 @@ fn my_gpui_scenario() {
 `gpui::TestAppContext`, and passes it through `HarnessAdapter::Context`.
 `GpuiAttributePolicy` emits `#[rstest::rstest]` and `#[gpui::test]`.
 
-> **Platform note:** GPUI links native X11/XKB libraries on Linux.
-> Behavioural tests for `rstest-bdd-harness-gpui` are therefore gated behind
-> the `native-gpui-tests` feature, and `rstest-bdd` integration tests that use
-> GPUI are gated behind `gpui-harness-tests`.
+> **Workspace note:** this repository patches `gpui` test support locally to
+> keep the dependency graph free of `async-trait`. The patched surface keeps
+> the `run_test`, `TestAppContext`, and `#[gpui::test]` APIs used by
+> `rstest-bdd`, while the GPUI-specific behavioural and integration suites stay
+> feature-gated behind `native-gpui-tests` and `gpui-harness-tests`.
 
 Harness-backed scenarios also expose harness context to step functions through
 a reserved fixture key: `rstest_bdd_harness_context`. The generated harness

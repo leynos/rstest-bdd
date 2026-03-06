@@ -107,7 +107,7 @@ fixture injection, and the required gates all pass: `make check-fmt`,
 - [x] (2026-03-05 00:00Z) Stage D: implement GPUI attribute policy and macro
       policy resolution.
 - [x] (2026-03-05 00:00Z) Stage E: add unit, behavioural, and integration
-      tests (feature-gated for native GPUI environments).
+      tests (feature-gated for GPUI-specific suites).
 - [x] (2026-03-05 00:00Z) Stage F: update design docs, users guide, release
       metadata, and roadmap.
 - [x] (2026-03-05 00:00Z) Stage G: run required quality gates and capture
@@ -127,12 +127,13 @@ fixture injection, and the required gates all pass: `make check-fmt`,
   `crates/rstest-bdd-macros/src/codegen/scenario/test_attrs.rs`. Impact: 9.4.4
   requires extending this mapping for GPUI policy support.
 
-- Observation: GPUI test binaries require native Linux system libraries
-  (`xcb`, `xkbcommon`, `xkbcommon-x11`) that are not present in the default
-  validation environment. Evidence: linker failures from
-  `cargo test -p rstest-bdd-harness-gpui`. Impact: GPUI behavioural/integration
-  test targets were feature-gated so default workspace gates remain portable;
-  GPUI paths are validated with `cargo check --tests --features ...`.
+- Observation: upstream `gpui` 0.2.2 pulls `async-trait` transitively on Linux
+  through `oo7` and `ashpd`, conflicting with the workspace policy that bans
+  `async-trait` entirely. Evidence: `cargo tree -i async-trait --workspace`
+  after introducing the GPUI harness adapter. Impact: the workspace now patches
+  `gpui` with a narrow stable-compatible test-support shim that keeps
+  `run_test`, `TestAppContext`, and `#[gpui::test]` available to the harness
+  crate and integration tests without carrying the forbidden dependency.
 
 ## Decision Log
 
@@ -152,11 +153,18 @@ fixture injection, and the required gates all pass: `make check-fmt`,
   naming can change; hard-coding without verification risks brittle policy
   resolution. Date/Author: 2026-03-04 / Codex.
 
-- Decision: gate GPUI behavioural and integration tests behind explicit cargo
-  features (`native-gpui-tests` and `gpui-harness-tests`). Rationale: this
-  preserves portability for default `make test` while keeping dedicated GPUI
-  coverage available in environments that satisfy native linking prerequisites.
-  Date/Author: 2026-03-05 / Codex.
+- Decision: patch `gpui` locally with a stable-compatible test-support shim
+  instead of keeping upstream Linux portal/keyring dependencies in the
+  workspace graph. Rationale: the harness adapter only uses `run_test`,
+  `TestAppContext`, and `#[gpui::test]`, while the repository policy forbids
+  any `async-trait` dependency, including transitive lockfile entries.
+  Date/Author: 2026-03-06 / Codex.
+
+- Decision: keep GPUI behavioural and integration tests behind explicit cargo
+  features (`native-gpui-tests` and `gpui-harness-tests`) even after the
+  stable-compatible shim landed. Rationale: this preserves the existing opt-in
+  test topology and keeps GPUI-specific suites isolated from the default
+  crate-level test targets. Date/Author: 2026-03-05 / Codex.
 
 ## Outcomes & Retrospective
 
@@ -170,6 +178,8 @@ Implemented outcomes:
   (`scenario_harness_gpui`) gated by `gpui-harness-tests`.
 - Added GPUI behavioural test targets in the new crate gated by
   `native-gpui-tests`.
+- Patched `gpui` test support locally so the workspace dependency graph stays
+  free of `async-trait`.
 - Updated design docs, users guide, release metadata docs/scripts, and roadmap
   checkboxes for 9.4.2-9.4.4.
 
@@ -177,8 +187,8 @@ Retrospective:
 
 - The harness/plugin boundaries from ADR-005 and context handoff from ADR-007
   held without requiring API changes.
-- Native-linking variability for GPUI should remain explicitly documented in
-  future adapter phases (for example Bevy) to avoid portability regressions.
+- Future harness adapters should verify their transitive dependency graphs
+  against the stable-only policy before landing framework-specific crates.
 
 ## Context and orientation
 
