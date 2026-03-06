@@ -5,7 +5,7 @@ This ExecPlan (execution plan) is a living document. The sections
 `Decision Log`, and `Outcomes & Retrospective` must be kept up to date as work
 proceeds.
 
-Status: COMPLETE (2026-03-05)
+Status: COMPLETE (2026-03-06)
 
 `PLANS.md` is not present in this repository at the time of writing, so this
 ExecPlan is the governing plan for roadmap items 9.4.2, 9.4.3, and 9.4.4.
@@ -65,8 +65,9 @@ fixture injection, and the required gates all pass: `make check-fmt`,
   syntax require breaking changes, stop and escalate.
 - Dependencies: if adding GPUI requires non-GPUI new dependencies in core
   crates, stop and escalate.
-- Platform: if GPUI test harness APIs are unavailable on CI-supported targets
-  without a feasible feature-gated fallback, stop and escalate.
+- Platform: if GPUI test harness APIs are unavailable on continuous integration
+  (CI)-supported targets without a feasible feature-gated fallback, stop and
+  escalate.
 - Iterations: if the same gate (`check-fmt`, `lint`, or `test`) fails three
   consecutive fix attempts, stop and escalate with logs.
 - Ambiguity: if canonical GPUI test attribute naming differs across upstream

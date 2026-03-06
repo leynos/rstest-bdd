@@ -316,7 +316,8 @@ Go/no-go: the trybuild test passes with the new fixture. Proceed.
 
 ### Stage E: update documentation
 
-Goal: keep roadmap, design doc, and users guide aligned with delivered coverage.
+Goal: keep roadmap, design doc, and user's guide aligned with delivered
+coverage.
 
 **Roadmap** (`docs/roadmap.md`, line 521): change `- [ ]` to `- [x]`:
 

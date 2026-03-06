@@ -870,9 +870,8 @@ prefer explicit `.await`-based coordination when completion is required.
 
 ### Using the GPUI harness
 
-The `rstest-bdd-harness-gpui` crate provides a Graphical Processing User
-Interface (GPUI) integration for harness delegation and test attributes. Add it
-as a dev-dependency:
+The `rstest-bdd-harness-gpui` crate provides GPUI integration for harness
+delegation and test attributes. Add it as a dev-dependency:
 
 ```toml
 [dev-dependencies]

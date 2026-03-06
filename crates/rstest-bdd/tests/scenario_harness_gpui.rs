@@ -10,6 +10,19 @@ static CONTEXT_POINTER: AtomicUsize = AtomicUsize::new(0);
 static CONTEXT_MUTATED: AtomicBool = AtomicBool::new(false);
 static GPUI_POLICY_RAN: AtomicBool = AtomicBool::new(false);
 
+#[expect(
+    clippy::unnecessary_wraps,
+    reason = "exercise gpui::test termination handling for Result-returning tests"
+)]
+#[gpui::test]
+fn gpui_test_preserves_declared_name(context: &gpui::TestAppContext) -> Result<(), &'static str> {
+    assert_eq!(
+        context.test_function_name(),
+        Some("gpui_test_preserves_declared_name")
+    );
+    Ok(())
+}
+
 #[given("a GPUI test context is injected")]
 fn gpui_context_is_injected(#[from(rstest_bdd_harness_context)] context: &gpui::TestAppContext) {
     CONTEXT_POINTER.store(std::ptr::from_ref(context) as usize, Ordering::SeqCst);

@@ -1,7 +1,7 @@
 //! GPUI harness adapter for scenario execution.
 
 use gpui::TestAppContext;
-use rstest_bdd_harness::{HarnessAdapter, ScenarioRunRequest};
+use rstest_bdd_harness::{HarnessAdapter, ScenarioRunRequest, ScenarioRunner};
 use std::sync::{Mutex, PoisonError};
 
 /// Executes scenario runners inside the GPUI test harness.
@@ -39,6 +39,76 @@ impl GpuiHarness {
     pub const fn new() -> Self {
         Self
     }
+
+    fn run_request_once<T>(
+        runner_slot: &Mutex<Option<ScenarioRunner<'_, TestAppContext, T>>>,
+        output_slot: &Mutex<Option<T>>,
+        scenario_name: &str,
+    ) {
+        gpui::run_test(
+            1,
+            &[],
+            0,
+            &mut |dispatcher, _seed| {
+                let (context, result) =
+                    Self::run_scenario(dispatcher.clone(), runner_slot, scenario_name);
+                Self::finish_context(&dispatcher, &context);
+                Self::store_output(output_slot, result);
+            },
+            None,
+        );
+    }
+
+    fn run_scenario<T>(
+        dispatcher: gpui::TestDispatcher,
+        runner_slot: &Mutex<Option<ScenarioRunner<'_, TestAppContext, T>>>,
+        scenario_name: &str,
+    ) -> (TestAppContext, T) {
+        let context = TestAppContext::build(dispatcher, None);
+        let result = Self::run_with_runner(runner_slot, context.clone(), scenario_name);
+        (context, result)
+    }
+
+    fn run_with_runner<T>(
+        runner_slot: &Mutex<Option<ScenarioRunner<'_, TestAppContext, T>>>,
+        context: TestAppContext,
+        scenario_name: &str,
+    ) -> T {
+        runner_slot
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .take()
+            .unwrap_or_else(|| {
+                panic!(
+                    "rstest-bdd-harness-gpui: scenario runner invoked more than once: \
+                     {scenario_name}"
+                )
+            })
+            .run(context)
+    }
+
+    fn finish_context(dispatcher: &gpui::TestDispatcher, context: &TestAppContext) {
+        dispatcher.run_until_parked();
+        context.executor().forbid_parking();
+        context.quit();
+        dispatcher.run_until_parked();
+    }
+
+    fn store_output<T>(output_slot: &Mutex<Option<T>>, result: T) {
+        *output_slot.lock().unwrap_or_else(PoisonError::into_inner) = Some(result);
+    }
+
+    fn extract_output<T>(output: Mutex<Option<T>>, scenario_name: &str) -> T {
+        output
+            .into_inner()
+            .unwrap_or_else(PoisonError::into_inner)
+            .unwrap_or_else(|| {
+                panic!(
+                    "rstest-bdd-harness-gpui: test harness produced no scenario result: \
+                     {scenario_name}"
+                )
+            })
+    }
 }
 
 impl HarnessAdapter for GpuiHarness {
@@ -50,39 +120,8 @@ impl HarnessAdapter for GpuiHarness {
         let runner = Mutex::new(Some(runner));
         let output = Mutex::new(None);
 
-        gpui::run_test(
-            1,
-            &[],
-            0,
-            &mut |dispatcher, _seed| {
-                let context = TestAppContext::build(dispatcher.clone(), None);
-                let runner = runner
-                .lock()
-                .unwrap_or_else(PoisonError::into_inner)
-                .take()
-                .unwrap_or_else(|| {
-                    panic!(
-                        "rstest-bdd-harness-gpui: scenario runner invoked more than once: {scenario_name}"
-                    )
-                });
-                let result = runner.run(context.clone());
-                dispatcher.run_until_parked();
-                context.executor().forbid_parking();
-                context.quit();
-                dispatcher.run_until_parked();
-                *output.lock().unwrap_or_else(PoisonError::into_inner) = Some(result);
-            },
-            None,
-        );
-
-        output
-            .into_inner()
-            .unwrap_or_else(PoisonError::into_inner)
-            .unwrap_or_else(|| {
-                panic!(
-                    "rstest-bdd-harness-gpui: test harness produced no scenario result: {scenario_name}"
-                )
-            })
+        Self::run_request_once(&runner, &output, &scenario_name);
+        Self::extract_output(output, &scenario_name)
     }
 }
 

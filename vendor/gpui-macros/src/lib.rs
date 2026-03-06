@@ -7,6 +7,38 @@ use syn::{
     parse_macro_input,
 };
 
+/// Runs a test inside the workspace GPUI shim.
+///
+/// The annotated function may be synchronous or asynchronous, may take zero or
+/// more `&gpui::TestAppContext` parameters, and may return any type that
+/// implements [`std::process::Termination`], such as `()` or
+/// `Result<(), E>`.
+///
+/// The generated wrapper preserves the declared test name in
+/// `TestAppContext::test_function_name()`.
+///
+/// # Examples
+///
+/// ```rust,no_run
+/// #[gpui::test]
+/// fn renders_a_view(context: &gpui::TestAppContext) {
+///     assert_eq!(context.test_function_name(), Some("renders_a_view"));
+/// }
+/// ```
+///
+/// ```rust,no_run
+/// #[gpui::test]
+/// async fn saves_state(context: &gpui::TestAppContext) -> Result<(), &'static str> {
+///     assert_eq!(context.test_function_name(), Some("saves_state"));
+///     Ok(())
+/// }
+/// ```
+///
+/// # Errors
+///
+/// Emits a compile error when the function is generic, uses a receiver
+/// parameter, or declares parameters other than references to
+/// `gpui::TestAppContext`.
 #[proc_macro_attribute]
 pub fn test(args: TokenStream, input: TokenStream) -> TokenStream {
     let _ = parse_macro_input!(args as Nothing);
@@ -21,7 +53,7 @@ pub fn test(args: TokenStream, input: TokenStream) -> TokenStream {
     let inner_name = format_ident!("__{outer_name}");
     function.sig.ident = inner_name.clone();
 
-    let context_setup = match build_context_setup(&function.sig) {
+    let context_setup = match build_context_setup(&function.sig, &outer_name) {
         Ok(tokens) => tokens,
         Err(error) => return error.to_compile_error().into(),
     };
@@ -34,11 +66,11 @@ pub fn test(args: TokenStream, input: TokenStream) -> TokenStream {
     let call = if function.sig.asyncness.is_some() {
         quote! {
             let executor = gpui::BackgroundExecutor::new(std::sync::Arc::new(dispatcher.clone()));
-            executor.block_test(#inner_name(#(#args),*));
+            gpui::assert_test_outcome(executor.block_test(#inner_name(#(#args),*)));
         }
     } else {
         quote! {
-            #inner_name(#(#args),*);
+            gpui::assert_test_outcome(#inner_name(#(#args),*));
         }
     };
 
@@ -120,11 +152,13 @@ fn validate_context_reference(reference: &TypeReference) -> syn::Result<()> {
     }
 }
 
-fn build_context_setup(signature: &Signature) -> syn::Result<ContextSetup> {
+fn build_context_setup(
+    signature: &Signature,
+    declared_name: &syn::Ident,
+) -> syn::Result<ContextSetup> {
     let mut setup = Vec::new();
     let mut args = Vec::new();
     let mut teardown = Vec::new();
-    let function_name = &signature.ident;
 
     for (index, input) in signature.inputs.iter().enumerate() {
         let FnArg::Typed(argument) = input else {
@@ -137,7 +171,7 @@ fn build_context_setup(signature: &Signature) -> syn::Result<ContextSetup> {
         setup.push(quote! {
             let mut #binding = gpui::TestAppContext::build(
                 dispatcher.clone(),
-                Some(stringify!(#function_name)),
+                Some(stringify!(#declared_name)),
             );
         });
         args.push(quote!(&mut #binding));

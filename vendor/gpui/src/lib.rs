@@ -5,13 +5,38 @@
 //! `TestAppContext`.
 
 use std::{
+    any::Any,
     env,
     future::Future,
     panic::{self, RefUnwindSafe},
+    process::Termination,
     sync::Arc,
 };
 
 pub use gpui_macros::test;
+
+enum AttemptAction {
+    Success,
+    Retry,
+    ResumeUnwind(Box<dyn Any + Send>),
+}
+
+impl AttemptAction {
+    const fn is_success(&self) -> bool {
+        matches!(self, Self::Success)
+    }
+
+    const fn is_retry(&self) -> bool {
+        matches!(self, Self::Retry)
+    }
+
+    fn into_panic(self) -> Box<dyn Any + Send> {
+        match self {
+            Self::ResumeUnwind(error) => error,
+            Self::Success | Self::Retry => unreachable!("only failure actions carry panic data"),
+        }
+    }
+}
 
 /// Minimal dispatcher value passed through `run_test`.
 #[derive(Clone, Debug, Default)]
@@ -99,6 +124,20 @@ impl TestAppContext {
     pub fn quit(&self) {}
 }
 
+/// Panics when a GPUI test result reports failure.
+#[doc(hidden)]
+pub fn assert_test_outcome<T>(result: T)
+where
+    T: Termination,
+{
+    let exit_code = result.report();
+    assert_eq!(
+        exit_code,
+        std::process::ExitCode::SUCCESS,
+        "gpui::test reported failure"
+    );
+}
+
 /// Runs a GPUI-style test closure for the supplied seeds and retry policy.
 pub fn run_test(
     num_iterations: usize,
@@ -116,29 +155,42 @@ pub fn run_test(
                 eprintln!("seed = {seed}");
             }
 
-            let result = panic::catch_unwind(|| {
-                let dispatcher = TestDispatcher::new(seed);
-                test_fn(dispatcher, seed);
-            });
-
-            match result {
-                Ok(()) => break,
-                Err(error) if attempt < max_retries => {
-                    println!("attempt {attempt} failed, retrying");
-                    attempt += 1;
-                    std::mem::forget(error);
-                }
-                Err(error) => {
-                    if is_multiple_runs {
-                        eprintln!("failing seed: {seed}");
-                    }
-                    if let Some(on_fail_fn) = on_fail_fn {
-                        on_fail_fn();
-                    }
-                    panic::resume_unwind(error);
-                }
+            let action = classify_attempt(seed, attempt, max_retries, test_fn);
+            if action.is_success() {
+                break;
             }
+            if action.is_retry() {
+                println!("attempt {attempt} failed, retrying");
+                attempt += 1;
+                continue;
+            }
+
+            if is_multiple_runs {
+                eprintln!("failing seed: {seed}");
+            }
+            if let Some(on_fail_fn) = on_fail_fn {
+                on_fail_fn();
+            }
+            panic::resume_unwind(action.into_panic());
         }
+    }
+}
+
+fn classify_attempt(
+    seed: u64,
+    attempt: usize,
+    max_retries: usize,
+    test_fn: &(dyn RefUnwindSafe + Fn(TestDispatcher, u64)),
+) -> AttemptAction {
+    let result = panic::catch_unwind(|| {
+        let dispatcher = TestDispatcher::new(seed);
+        test_fn(dispatcher, seed);
+    });
+
+    match result {
+        Ok(()) => AttemptAction::Success,
+        Err(_) if attempt < max_retries => AttemptAction::Retry,
+        Err(error) => AttemptAction::ResumeUnwind(error),
     }
 }
 
@@ -146,21 +198,63 @@ fn calculate_seeds(
     iterations: u64,
     explicit_seeds: &[u64],
 ) -> (impl Iterator<Item = u64> + '_, bool) {
-    let iterations = env::var("ITERATIONS")
-        .ok()
-        .map(|value| value.parse().expect("invalid ITERATIONS variable"))
-        .unwrap_or(iterations);
-
-    let env_seed = env::var("SEED")
-        .ok()
-        .map(|value| value.parse().expect("invalid SEED variable as integer"));
-
-    let seeds = match (iterations, env_seed) {
-        (_, Some(seed)) => (seed..seed + iterations.max(1)).collect::<Vec<_>>(),
-        (1, None) if explicit_seeds.is_empty() => vec![0],
-        (_, None) => (0..iterations).chain(explicit_seeds.iter().copied()).collect(),
-    };
+    let iterations = resolve_iterations(iterations);
+    let env_seed = parse_env_u64("SEED");
+    let seeds = select_seeds(iterations, explicit_seeds, env_seed);
 
     let is_multiple_runs = seeds.len() > 1;
     (seeds.into_iter(), is_multiple_runs)
+}
+
+fn resolve_iterations(default_iterations: u64) -> u64 {
+    parse_env_u64("ITERATIONS")
+        .unwrap_or(default_iterations)
+        .max(1)
+}
+
+fn parse_env_u64(key: &str) -> Option<u64> {
+    let value = env::var(key).ok()?;
+    match value.parse() {
+        Ok(parsed) => Some(parsed),
+        Err(error) => {
+            eprintln!("ignoring invalid {key} value {value:?}: {error}");
+            None
+        }
+    }
+}
+
+fn select_seeds(iterations: u64, explicit_seeds: &[u64], env_seed: Option<u64>) -> Vec<u64> {
+    if let Some(seed) = env_seed {
+        return build_seed_range(seed, iterations);
+    }
+
+    let mut seeds = build_seed_range(0, iterations);
+    if iterations == 1 && explicit_seeds.is_empty() {
+        return seeds;
+    }
+
+    seeds.extend(explicit_seeds.iter().copied());
+    seeds
+}
+
+fn build_seed_range(start: u64, iterations: u64) -> Vec<u64> {
+    let mut seeds = Vec::new();
+    for offset in 0..iterations.max(1) {
+        match start.checked_add(offset) {
+            Some(seed) => seeds.push(seed),
+            None => {
+                eprintln!(
+                    "seed range overflowed for start={start} and iterations={iterations}; \
+                     truncating generated seeds"
+                );
+                break;
+            }
+        }
+    }
+
+    if seeds.is_empty() {
+        seeds.push(start);
+    }
+
+    seeds
 }
