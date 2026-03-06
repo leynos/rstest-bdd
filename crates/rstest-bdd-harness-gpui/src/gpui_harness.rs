@@ -50,6 +50,13 @@ impl GpuiHarness {
             &[],
             0,
             &mut |dispatcher, _seed| {
+                if output_slot
+                    .lock()
+                    .unwrap_or_else(PoisonError::into_inner)
+                    .is_some()
+                {
+                    return;
+                }
                 let (context, result) =
                     Self::run_scenario(dispatcher.clone(), runner_slot, scenario_name);
                 Self::finish_context(&dispatcher, &context);

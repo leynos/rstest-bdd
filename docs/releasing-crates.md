@@ -50,8 +50,8 @@ yet release-safe for crates.io publication.
 9. **Tag the release.** Create a git tag matching the published version and
    push it to the repository.
 
-- `git tag -a vX.Y.Z -m "rstest-bdd vX.Y.Z"`
-- `git push origin vX.Y.Z`
+   - `git tag -a vX.Y.Z -m "rstest-bdd vX.Y.Z"`
+   - `git push origin vX.Y.Z`
 
 The manual steps above are now automated by
 `uv run scripts/run_publish_check.py --live`, which exports a clean copy of the

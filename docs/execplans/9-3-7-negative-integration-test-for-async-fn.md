@@ -85,7 +85,7 @@ matches the compiler output exactly.
 - [x] (2026-02-25) Stage C: registered fixture in `trybuild_macros.rs`.
 - [x] (2026-02-25) Stage D: validated `.stderr` with `TRYBUILD=overwrite`
   — handwritten snapshot matched compiler output exactly.
-- [x] (2026-02-25) Stage E: updated roadmap; design doc and users guide
+- [x] (2026-02-25) Stage E: updated roadmap; design doc and user's guide
   already cover `TokioHarness` async rejection.
 - [x] (2026-02-25) Stage F: all quality gates passed.
 
@@ -331,7 +331,7 @@ paragraph in section 2.7.3 speaks generically about "combining `harness` with
 `async fn`" and does not enumerate specific test fixtures. No content change is
 required.
 
-**Users guide** (`docs/users-guide.md`): the "Using the Tokio harness" section
+**User's guide** (`docs/users-guide.md`): the "Using the Tokio harness" section
 already contains a note explaining that combining `harness` with `async fn`
 scenario signatures produces a compile error, and specifically mentions
 `TokioHarness`. No content change is required.
