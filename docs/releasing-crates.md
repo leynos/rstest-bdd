@@ -7,10 +7,10 @@ prepared. The workspace currently contains six publishable libraries and the
 `cargo-bdd` support tool, so follow the sequence below to keep the dependency
 graph satisfied.
 
-`rstest-bdd-harness-gpui` is intentionally excluded from the publish workflow
-for now. Outside this repository, it would resolve the upstream `gpui` crate
-instead of the workspace-local shim patched in this tree, so the crate is not
-yet release-safe for crates.io publication.
+`rstest-bdd-harness-gpui` is intentionally excluded from the publishing
+workflow for now. Outside this repository, it would resolve the upstream `gpui`
+crate instead of the workspace-local shim patched in this tree, so the crate is
+not yet release-safe for crates.io publication.
 
 1. **Run the full quality gate.** Execute `make fmt`, `make lint`,
    `make markdownlint`, and `make test` from the workspace root. Resolve any
