@@ -46,6 +46,14 @@ import cyclopts
 from cyclopts import App, Parameter
 from plumbum import local
 from plumbum.commands.processes import ProcessTimedOut
+from publish_check_gpui import (
+    GPUI_HARNESS_CRATE,
+    GPUI_VALIDATOR_CRATE,
+    build_packaged_archive,
+    extract_packaged_archive,
+    packaged_archive_path,
+    write_validator_workspace,
+)
 from publish_workspace import (
     PUBLISHABLE_CRATES,
     apply_workspace_replacements,
@@ -164,6 +172,7 @@ def build_cargo_command_context(
     crate: str,
     workspace_root: Path,
     *,
+    crate_dir: Path | None = None,
     timeout_secs: int | None = None,
 ) -> CargoCommandContext:
     """Create the execution context for a Cargo command.
@@ -178,12 +187,12 @@ def build_cargo_command_context(
     >>> context.crate
     'tools'
     """
-    crate_dir = workspace_root / "crates" / crate
+    resolved_crate_dir = crate_dir or (workspace_root / "crates" / crate)
     env_overrides = {"CARGO_HOME": str(workspace_root / ".cargo-home")}
     resolved_timeout = _resolve_timeout(timeout_secs)
     return CargoCommandContext(
         crate=crate,
-        crate_dir=crate_dir,
+        crate_dir=resolved_crate_dir,
         env_overrides=env_overrides,
         timeout_secs=resolved_timeout,
     )
@@ -388,6 +397,43 @@ check_crate = _create_cargo_action(
     ["--all-features"],
     "Run ``cargo check`` for ``crate`` using the exported workspace.",
 )
+
+
+def validate_packaged_gpui_harness(
+    crate: str,
+    workspace_root: Path,
+    *,
+    timeout_secs: int | None = None,
+) -> None:
+    """Package the GPUI harness crate and test the packaged artifact.
+
+    The validator crate depends on the extracted package and the upstream
+    ``gpui`` crate from crates.io, while patching only the internal
+    ``rstest-bdd-harness`` dependency back to the exported workspace.
+    """
+    manifest = workspace_root / "Cargo.toml"
+    version = workspace_version(manifest)
+    archive = packaged_archive_path(workspace_root, crate, version)
+    build_packaged_archive(workspace_root, archive, version)
+
+    validation_root = workspace_root / ".gpui-package-check"
+    package_dir = extract_packaged_archive(archive, validation_root / "package")
+    validator_dir = write_validator_workspace(
+        validation_root / "validator",
+        package_dir=package_dir,
+        harness_dir=workspace_root / "crates" / "rstest-bdd-harness",
+        version=version,
+    )
+
+    run_cargo_command(
+        build_cargo_command_context(
+            GPUI_VALIDATOR_CRATE,
+            workspace_root,
+            crate_dir=validator_dir,
+            timeout_secs=timeout_secs,
+        ),
+        ["cargo", "check", "--tests"],
+    )
 
 
 def _contains_already_published_marker(result: CommandResult) -> bool:
@@ -629,6 +675,8 @@ def _process_crates_for_check(workspace: Path, timeout_secs: int) -> None:
     def _crate_action(crate: str, root: Path, *, timeout_secs: int) -> None:
         if crate == "rstest-bdd-patterns":
             package_crate(crate, root, timeout_secs=timeout_secs)
+        elif crate == GPUI_HARNESS_CRATE:
+            validate_packaged_gpui_harness(crate, root, timeout_secs=timeout_secs)
         else:
             check_crate(crate, root, timeout_secs=timeout_secs)
 

@@ -868,6 +868,43 @@ prefer explicit `.await`-based coordination when completion is required.
 > For synchronous signatures (including harness-delegated scenarios), Tokio's
 > test attribute is omitted because Tokio requires `async fn`.
 
+### Using the GPUI harness
+
+The `rstest-bdd-harness-gpui` crate provides Graphical Processing User
+Interface (GPUI) integration for harness delegation and test attributes. Add it
+as a dev-dependency:
+
+```toml
+[dev-dependencies]
+rstest-bdd-harness-gpui = "0.5.0"
+```
+
+`GpuiHarness` and `GpuiAttributePolicy` can then be used in scenarios:
+
+```rust,no_run
+# use rstest_bdd_macros::scenario;
+#[scenario(
+    path = "tests/features/my_ui.feature",
+    harness = rstest_bdd_harness_gpui::GpuiHarness,
+    attributes = rstest_bdd_harness_gpui::GpuiAttributePolicy,
+)]
+fn my_gpui_scenario() {
+    // Steps execute with a gpui::TestAppContext injected by GpuiHarness.
+}
+```
+
+`GpuiHarness` delegates each scenario through `gpui::run_test`, constructs a
+`gpui::TestAppContext`, and passes it through `HarnessAdapter::Context`.
+`GpuiAttributePolicy` emits `#[rstest::rstest]` and `#[gpui::test]`.
+
+> **Workspace note:** this repository patches `gpui` test support locally to
+> keep the dependency graph free of `async-trait`. The patched surface keeps
+> the `run_test`, `TestAppContext`, and `#[gpui::test]` APIs used by
+> `rstest-bdd`, while publish-check automation compiles a generated packaged
+> harness validator against the upstream `gpui` crate. GPUI-specific
+> behavioural and integration suites remain feature-gated behind
+> `native-gpui-tests` and `gpui-harness-tests`.
+
 Harness-backed scenarios also expose harness context to step functions through
 a reserved fixture key: `rstest_bdd_harness_context`. The generated harness
 runner stores `HarnessAdapter::Context` in `StepContext` under that key before

@@ -10,13 +10,12 @@ Status: COMPLETE
 ## Purpose / big picture
 
 Roadmap item 9.3.7 requires a compile-fail integration test proving that
-combining `harness = rstest_bdd_harness_tokio::TokioHarness` with an
-`async fn` scenario signature produces a clear compile-time diagnostic. An
-existing test (`scenario_harness_async_rejected.rs`) already verifies this
-rejection for `StdHarness`, but there is no coverage for `TokioHarness` — the
-primary harness users will reach for. Without this test, a future refactor
-could silently break the rejection path for the Tokio-specific harness without
-any test catching it.
+combining `harness = rstest_bdd_harness_tokio::TokioHarness` with an `async fn`
+scenario signature produces a clear compile-time diagnostic. An existing test
+(`scenario_harness_async_rejected.rs`) already verifies this rejection for
+`StdHarness`, but there is no coverage for `TokioHarness` — the primary harness
+users will reach for. Without this test, a future refactor could silently break
+the rejection path for the Tokio-specific harness without any test catching it.
 
 After this change, a developer running `make test` will see the new trybuild
 fixture `scenario_harness_tokio_async_rejected.rs` exercised inside the
@@ -65,18 +64,18 @@ matches the compiler output exactly.
 ## Risks
 
 - Risk: the `.stderr` expected output may differ subtly between toolchain
-  versions (line numbers, span rendering, nightly hint wording).
-  Severity: low. Likelihood: low. Mitigation: generate the `.stderr` by
-  running trybuild with `TRYBUILD=overwrite`, then review and adopt the
-  generated output rather than handwriting it.
+  versions (line numbers, span rendering, nightly hint wording). Severity: low.
+  Likelihood: low. Mitigation: generate the `.stderr` by running trybuild with
+  `TRYBUILD=overwrite`, then review and adopt the generated output rather than
+  handwriting it.
 
 - Risk: trybuild may attempt to resolve the `rstest_bdd_harness_tokio` path
   even though `compile_error!` fires first, causing a dependency error.
   Severity: low. Likelihood: very low. Mitigation: the `compile_error!` is
   emitted as an early return in the proc macro before any code referencing the
   harness type is generated. The existing `scenario_attributes_tokio.rs` test
-  confirms paths in macro attributes resolve in this environment. If this
-  risk materializes, add `rstest-bdd-harness-tokio` to the fixture crate's
+  confirms paths in macro attributes resolve in this environment. If this risk
+  materializes, add `rstest-bdd-harness-tokio` to the fixture crate's
   `Cargo.toml` as a targeted fix.
 
 ## Progress
@@ -86,16 +85,16 @@ matches the compiler output exactly.
 - [x] (2026-02-25) Stage C: registered fixture in `trybuild_macros.rs`.
 - [x] (2026-02-25) Stage D: validated `.stderr` with `TRYBUILD=overwrite`
   — handwritten snapshot matched compiler output exactly.
-- [x] (2026-02-25) Stage E: updated roadmap; design doc and users guide
+- [x] (2026-02-25) Stage E: updated roadmap; design doc and user's guide
   already cover `TokioHarness` async rejection.
 - [x] (2026-02-25) Stage F: all quality gates passed.
 
 ## Surprises & discoveries
 
 - Observation: the handwritten `.stderr` snapshot matched the compiler
-  output on the first attempt. No iteration was needed.
-  Evidence: `TRYBUILD=overwrite` run passed without generating a
-  replacement file. Impact: none; confirmed the approach was sound.
+  output on the first attempt. No iteration was needed. Evidence:
+  `TRYBUILD=overwrite` run passed without generating a replacement file.
+  Impact: none; confirmed the approach was sound.
 
 ## Decision log
 
@@ -109,8 +108,8 @@ matches the compiler output exactly.
 - Decision: do not add `rstest-bdd-harness-tokio` to the fixture crate
   `Cargo.toml`. Rationale: the `compile_error!` fires during macro expansion
   before type resolution, so the type path never needs to resolve in the
-  fixture crate. Adding it would imply a false requirement.
-  Date/Author: 2026-02-25 / DevBoxer.
+  fixture crate. Adding it would imply a false requirement. Date/Author:
+  2026-02-25 / DevBoxer.
 
 - Decision: the `.stderr` content will be nearly identical to the existing
   `scenario_harness_async_rejected.stderr`, differing only in the fixture file
@@ -125,9 +124,8 @@ Delivered in 9.3.7:
 
 - Added compile-fail fixture
   `scenario_harness_tokio_async_rejected.rs` verifying that
-  `harness = rstest_bdd_harness_tokio::TokioHarness` combined with
-  `async fn` scenario signatures produces the expected `compile_error!`
-  diagnostic.
+  `harness = rstest_bdd_harness_tokio::TokioHarness` combined with `async fn`
+  scenario signatures produces the expected `compile_error!` diagnostic.
 - Added matching `.stderr` snapshot.
 - Registered the fixture in `trybuild_macros.rs`
   `run_failing_macro_tests`.
@@ -142,28 +140,28 @@ Validation summary:
 - `make markdownlint` passed (`/tmp/9-3-7-markdownlint.log`).
 - `make nixie` passed (`/tmp/9-3-7-nixie.log`).
 
-Result against finish line: trybuild test asserts the diagnostic message
-for `TokioHarness + async fn`; `make test` passes. No risks materialized.
-No tolerances were approached.
+Result against finish line: trybuild test asserts the diagnostic message for
+`TokioHarness + async fn`; `make test` passes. No risks materialized. No
+tolerances were approached.
 
-Retrospective: this was a straightforward task with no surprises. The
-existing `StdHarness` negative test provided a clean template. The
-handwritten `.stderr` matched on the first attempt because the error
-message is a literal string and the fixture structure is identical.
+Retrospective: this was a straightforward task with no surprises. The existing
+`StdHarness` negative test provided a clean template. The handwritten `.stderr`
+matched on the first attempt because the error message is a literal string and
+the fixture structure is identical.
 
 ## Context and orientation
 
 The rstest-bdd project is a BDD (behaviour-driven development) testing
-framework for Rust, organized as a Cargo workspace. The crates relevant to
-this task are:
+framework for Rust, organized as a Cargo workspace. The crates relevant to this
+task are:
 
 - **`crates/rstest-bdd-macros`** — the procedural macro crate. Contains the
   `#[scenario]` attribute macro. The compile-time check that rejects
   `harness + async fn` lives in
-  `crates/rstest-bdd-macros/src/codegen/scenario.rs` at lines 174–182
-  (regular scenarios) and 243–251 (outlines). The check is
-  `if config.harness.is_some() && config.runtime.is_async()` — it fires for
-  any harness type, not just `StdHarness`.
+  `crates/rstest-bdd-macros/src/codegen/scenario.rs` at lines 174–182 (regular
+  scenarios) and 243–251 (outlines). The check is
+  `if config.harness.is_some() && config.runtime.is_async()` — it fires for any
+  harness type, not just `StdHarness`.
 
 - **`crates/rstest-bdd`** — the runtime library. Its `tests/` directory
   contains the trybuild integration tests:
@@ -179,8 +177,8 @@ this task are:
 
 - **`crates/rstest-bdd-harness-tokio`** — the Tokio harness plugin crate.
   Exports `TokioHarness` (implements `HarnessAdapter`) and
-  `TokioAttributePolicy` (implements `AttributePolicy`). The full path used
-  in fixture code is `rstest_bdd_harness_tokio::TokioHarness`.
+  `TokioAttributePolicy` (implements `AttributePolicy`). The full path used in
+  fixture code is `rstest_bdd_harness_tokio::TokioHarness`.
 
 The existing negative test that serves as the template for this work:
 
@@ -201,15 +199,14 @@ That fixture uses `harness = rstest_bdd_harness::StdHarness` with
 Goal: confirm the three key assumptions before writing any code.
 
 1. The `compile_error!` check in `scenario.rs` does not reference the harness
-   type — it checks `config.harness.is_some()` only. Confirmed by reading
-   lines 174–182 of
-   `crates/rstest-bdd-macros/src/codegen/scenario.rs`.
+   type — it checks `config.harness.is_some()` only. Confirmed by reading lines
+   174–182 of `crates/rstest-bdd-macros/src/codegen/scenario.rs`.
 
 2. The fixture crate does not need `rstest-bdd-harness-tokio`. Confirmed: the
    error fires before type resolution, and the existing passing fixture
    `scenario_attributes_tokio.rs` already uses
-   `rstest_bdd_harness_tokio::TokioAttributePolicy` without this dependency
-   in the fixture `Cargo.toml`.
+   `rstest_bdd_harness_tokio::TokioAttributePolicy` without this dependency in
+   the fixture `Cargo.toml`.
 
 3. The error message text will be identical for both harness types. Confirmed:
    it is a literal string, not interpolated with the harness path.
@@ -220,7 +217,8 @@ Go/no-go: all three assumptions hold. Proceed.
 
 Goal: produce the two new files that define the compile-fail test.
 
-Create `crates/rstest-bdd/tests/fixtures_macros/scenario_harness_tokio_async_rejected.rs`:
+Create
+`crates/rstest-bdd/tests/fixtures_macros/scenario_harness_tokio_async_rejected.rs`:
 
 ```rust
 //! Compile-fail fixture: `TokioHarness` combined with `async fn` is rejected.
@@ -246,9 +244,10 @@ const _: &str = include_str!("basic.feature");
 fn main() {}
 ```
 
-Create `crates/rstest-bdd/tests/fixtures_macros/scenario_harness_tokio_async_rejected.stderr`.
-The content mirrors the existing
-`scenario_harness_async_rejected.stderr` with two differences:
+Create
+`crates/rstest-bdd/tests/fixtures_macros/scenario_harness_tokio_async_rejected.stderr`.
+The content mirrors the existing `scenario_harness_async_rejected.stderr` with
+two differences:
 
 1. The `-->` path references the new fixture file name.
 2. Line 15 shows `harness = rstest_bdd_harness_tokio::TokioHarness,`
@@ -274,8 +273,8 @@ Goal: wire the new fixture into the trybuild test driver.
 
 Edit `crates/rstest-bdd/tests/trybuild_macros.rs`, function
 `run_failing_macro_tests`. Add one line immediately after the existing
-`scenario_harness_async_rejected.rs` entry (line 98), so that related tests
-are grouped:
+`scenario_harness_async_rejected.rs` entry (line 98), so that related tests are
+grouped:
 
 ```rust
         MacroFixtureCase::from("scenario_harness_async_rejected.rs"),
@@ -317,7 +316,7 @@ Go/no-go: the trybuild test passes with the new fixture. Proceed.
 
 ### Stage E: update documentation
 
-Goal: keep roadmap, design doc, and users guide aligned with delivered
+Goal: keep roadmap, design doc, and user's guide aligned with delivered
 coverage.
 
 **Roadmap** (`docs/roadmap.md`, line 521): change `- [ ]` to `- [x]`:
@@ -326,16 +325,16 @@ coverage.
 - [x] 9.3.7. Add a negative integration test for `async fn` step definitions
 ```
 
-**Design doc** (`docs/rstest-bdd-design.md`): sections 2.7.3 and 2.7.4
-already describe the async rejection behaviour comprehensively. The "Async
-rejection" paragraph in section 2.7.3 speaks generically about "combining
-`harness` with `async fn`" and does not enumerate specific test fixtures. No
-content change is required.
+**Design doc** (`docs/rstest-bdd-design.md`): sections 2.7.3 and 2.7.4 already
+describe the async rejection behaviour comprehensively. The "Async rejection"
+paragraph in section 2.7.3 speaks generically about "combining `harness` with
+`async fn`" and does not enumerate specific test fixtures. No content change is
+required.
 
-**Users guide** (`docs/users-guide.md`): the "Using the Tokio harness"
-section already contains a note explaining that combining `harness` with
-`async fn` scenario signatures produces a compile error, and specifically
-mentions `TokioHarness`. No content change is required.
+**User's guide** (`docs/users-guide.md`): the "Using the Tokio harness" section
+already contains a note explaining that combining `harness` with `async fn`
+scenario signatures produces a compile error, and specifically mentions
+`TokioHarness`. No content change is required.
 
 Go/no-go: documentation is accurate and complete. Proceed.
 
@@ -360,11 +359,11 @@ All commands run from the workspace root `/home/user/project`.
 
 1. Create file
    `crates/rstest-bdd/tests/fixtures_macros/scenario_harness_tokio_async_rejected.rs`
-   (content in Stage B).
+    (content in Stage B).
 
 2. Create file
    `crates/rstest-bdd/tests/fixtures_macros/scenario_harness_tokio_async_rejected.stderr`
-   (content in Stage B).
+    (content in Stage B).
 
 3. Edit `crates/rstest-bdd/tests/trybuild_macros.rs`: add one line in
    `run_failing_macro_tests` after line 98 (content in Stage C).
@@ -381,14 +380,13 @@ All commands run from the workspace root `/home/user/project`.
 
 Primary acceptance criterion: `make test` passes, and the trybuild
 `step_macros_compile` test exercises the new compile-fail fixture
-`scenario_harness_tokio_async_rejected.rs`. The fixture must produce the
-exact error message documented in the design doc §2.7.3.
+`scenario_harness_tokio_async_rejected.rs`. The fixture must produce the exact
+error message documented in the design doc §2.7.3.
 
 Quality criteria:
 
 - Tests: `make test` passes (`cargo test --workspace`). The trybuild test
-  `step_macros_compile` exercises all registered fixtures including the new
-  one.
+  `step_macros_compile` exercises all registered fixtures including the new one.
 - Lint: `make lint` passes
   (`cargo clippy --workspace --all-targets --all-features -- -D warnings`).
 - Format: `make check-fmt` passes (`cargo fmt --workspace -- --check`).
@@ -411,8 +409,8 @@ Expected: all four commands exit with status 0.
 All steps are idempotent. Creating the fixture and `.stderr` files can be
 repeated (overwriting previous content). The trybuild registration line can be
 re-added if accidentally removed. If the `.stderr` file is wrong, use
-`TRYBUILD=overwrite` to regenerate and adopt the correct output. No
-destructive operations are involved.
+`TRYBUILD=overwrite` to regenerate and adopt the correct output. No destructive
+operations are involved.
 
 ## Artifacts and notes
 
@@ -435,5 +433,4 @@ No new interfaces, traits, or dependencies. The fixture uses only existing
 macro attributes (`#[given]`, `#[when]`, `#[then]`, `#[scenario]`) and
 references the existing `rstest_bdd_harness_tokio::TokioHarness` path. The
 `compile_error!` mechanism is already implemented in
-`crates/rstest-bdd-macros/src/codegen/scenario.rs` and requires no
-modification.
+`crates/rstest-bdd-macros/src/codegen/scenario.rs` and requires no modification.

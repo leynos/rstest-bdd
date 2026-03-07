@@ -39,11 +39,13 @@ cap-std.workspace = true
 rstest.workspace = true
 rstest-bdd-macros.workspace = true
 rstest-bdd-harness.workspace = true
+rstest-bdd-harness-gpui.workspace = true
 rstest-bdd-harness-tokio.workspace = true
 trybuild.workspace = true
 serial_test.workspace = true
 the-newtype = "0.1.1"
 tokio.workspace = true
+gpui.workspace = true
 
 [features]
 default = ["diagnostics"]
@@ -54,8 +56,16 @@ diagnostics = ["serde", "serde_json"]
 mutable_world_macro = []
 # Test support helpers for async step testing across crates.
 test-support = []
+# Enables GPUI harness integration tests. The workspace patches GPUI test
+# support locally to keep the dependency graph stable-compatible.
+gpui-harness-tests = []
 
 [[test]]
 name = "dump_registry"
 path = "tests/dump_registry.rs"
 required-features = ["diagnostics"]
+
+[[test]]
+name = "scenario_harness_gpui"
+path = "tests/scenario_harness_gpui.rs"
+required-features = ["gpui-harness-tests"]

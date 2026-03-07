@@ -3,6 +3,7 @@ resolver = "2"
 members = [
     "crates/rstest-bdd",
     "crates/rstest-bdd-harness",
+    "crates/rstest-bdd-harness-gpui",
     "crates/rstest-bdd-harness-tokio",
     "crates/rstest-bdd-macros",
     "crates/rstest-bdd-policy",
@@ -48,6 +49,7 @@ ctor = "0.2"
 newt-hype = "0.2.0"
 rstest-bdd = { version = "0.5.0", path = "crates/rstest-bdd" }
 rstest-bdd-harness = { version = "0.5.0", path = "crates/rstest-bdd-harness" }
+rstest-bdd-harness-gpui = { version = "0.5.0", path = "crates/rstest-bdd-harness-gpui" }
 rstest-bdd-harness-tokio = { version = "0.5.0", path = "crates/rstest-bdd-harness-tokio" }
 rstest-bdd-macros = { version = "0.5.0", path = "crates/rstest-bdd-macros" }
 rstest-bdd-policy = { version = "0.5.0", path = "crates/rstest-bdd-policy" }
@@ -61,6 +63,7 @@ unic-langid = { version = "0.9", features = ["macros"] }
 async-lsp = { version = "0.2", features = ["tokio"] }
 lsp-types = "0.95"
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "io-std", "sync"] }
+gpui = { version = "0.2.2", default-features = false, features = ["test-support"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 clap = { version = "4.5", features = ["derive"] }
@@ -96,6 +99,8 @@ missing_docs = "deny"
 missing_crate_level_docs = "deny"
 
 [patch.crates-io]
+gpui = { path = "vendor/gpui" }
+gpui-macros = { path = "vendor/gpui-macros" }
 rstest-bdd = { path = "crates/rstest-bdd" }
 rstest-bdd-harness-tokio = { path = "crates/rstest-bdd-harness-tokio" }
 rstest-bdd-macros = { path = "crates/rstest-bdd-macros" }
