@@ -672,13 +672,15 @@ def _process_crates_for_check(workspace: Path, timeout_secs: int) -> None:
         >>> _process_crates_for_check(tmp, 900)  # doctest: +SKIP
     """
 
+    def _resolve_check_action(crate: str) -> CrateAction:
+        special_actions: dict[str, CrateAction] = {
+            "rstest-bdd-patterns": package_crate,
+            GPUI_HARNESS_CRATE: validate_packaged_gpui_harness,
+        }
+        return special_actions.get(crate, check_crate)
+
     def _crate_action(crate: str, root: Path, *, timeout_secs: int) -> None:
-        if crate == "rstest-bdd-patterns":
-            package_crate(crate, root, timeout_secs=timeout_secs)
-        elif crate == GPUI_HARNESS_CRATE:
-            validate_packaged_gpui_harness(crate, root, timeout_secs=timeout_secs)
-        else:
-            check_crate(crate, root, timeout_secs=timeout_secs)
+        _resolve_check_action(crate)(crate, root, timeout_secs=timeout_secs)
 
     config = CrateProcessingConfig(
         strip_patch=True,

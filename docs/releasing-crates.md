@@ -8,7 +8,7 @@ prepared. The workspace currently contains seven publishable libraries and the
 graph satisfied.
 
 `rstest-bdd-harness-gpui` remains developed against the workspace-local GPUI
-shim so the main repository stays free of `async-trait`. The publish-check
+shim, so the main repository stays free of `async-trait`. The publish-check
 automation now synthesizes a standalone package artifact for the crate and
 compiles a generated validator crate against the upstream `gpui` dependency, so
 the crates.io dependency surface is verified before publication.

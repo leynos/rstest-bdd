@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import dataclasses
 import typing as typ
 
 if typ.TYPE_CHECKING:
@@ -145,12 +146,17 @@ def test_process_crates_for_check_runs_local_validation(
     ]
 
 
+@dataclasses.dataclass(frozen=True)
+class _GpuiPackagePaths:
+    archive: Path
+    package_dir: Path
+    validator_dir: Path
+
+
 def _patch_gpui_harness_functions(
     monkeypatch: pytest.MonkeyPatch,
     mod: ModuleType,
-    archive: Path,
-    package_dir: Path,
-    validator_dir: Path,
+    paths: _GpuiPackagePaths,
 ) -> list[tuple[str, object]]:
     """Register GPUI harness monkeypatches and return the recorded steps."""
     steps: list[tuple[str, object]] = []
@@ -166,13 +172,13 @@ def _patch_gpui_harness_functions(
     monkeypatch.setattr(
         mod,
         "packaged_archive_path",
-        lambda root, crate, version: archive,
+        lambda _root, _crate, _version: paths.archive,
     )
     monkeypatch.setattr(
         mod,
         "extract_packaged_archive",
         lambda archive_path, destination: (
-            steps.append(("extract", (archive_path, destination))) or package_dir
+            steps.append(("extract", (archive_path, destination))) or paths.package_dir
         ),
     )
     monkeypatch.setattr(
@@ -182,7 +188,7 @@ def _patch_gpui_harness_functions(
             steps.append(
                 ("validator", (destination, package_dir, harness_dir, version))
             )
-            or validator_dir
+            or paths.validator_dir
         ),
     )
     monkeypatch.setattr(
@@ -212,9 +218,11 @@ def test_validate_packaged_gpui_harness_packages_and_tests_artifact(
     steps = _patch_gpui_harness_functions(
         monkeypatch,
         run_publish_check_module,
-        archive,
-        package_dir,
-        validator_dir,
+        _GpuiPackagePaths(
+            archive=archive,
+            package_dir=package_dir,
+            validator_dir=validator_dir,
+        ),
     )
 
     run_publish_check_module.validate_packaged_gpui_harness(
@@ -223,11 +231,13 @@ def test_validate_packaged_gpui_harness_packages_and_tests_artifact(
         timeout_secs=77,
     )
 
-    assert steps[0] == ("archive", (workspace, archive, "1.2.3"))
+    assert steps[0] == ("archive", (workspace, archive, "1.2.3")), (
+        f"expected steps[0] to archive {workspace=} {archive=} with version 1.2.3"
+    )
     assert steps[1] == (
         "extract",
         (archive, workspace / ".gpui-package-check" / "package"),
-    )
+    ), f"expected steps[1] to extract {archive=} into {workspace=}"
     assert steps[2] == (
         "validator",
         (
@@ -236,12 +246,24 @@ def test_validate_packaged_gpui_harness_packages_and_tests_artifact(
             workspace / "crates" / "rstest-bdd-harness",
             "1.2.3",
         ),
-    )
+    ), f"expected steps[2] to write validator with {package_dir=} and {validator_dir=}"
     cargo_context, cargo_command = typ.cast(
         "tuple[run_publish_check_module.CargoCommandContext, list[str]]",
         steps[3][1],
     )
-    assert cargo_context.crate == run_publish_check_module.GPUI_VALIDATOR_CRATE
-    assert cargo_context.crate_dir == validator_dir
-    assert cargo_context.timeout_secs == 77
-    assert cargo_command == ["cargo", "check", "--tests"]
+    assert steps[3][0] == "cargo", (
+        f"expected steps[3] to record cargo invocation, got {steps[3]=}"
+    )
+    assert cargo_context.crate == run_publish_check_module.GPUI_VALIDATOR_CRATE, (
+        "expected cargo_context.crate to target "
+        f"{run_publish_check_module.GPUI_VALIDATOR_CRATE} from {steps=}"
+    )
+    assert cargo_context.crate_dir == validator_dir, (
+        f"expected cargo_context.crate_dir to match {validator_dir=} from {steps=}"
+    )
+    assert cargo_context.timeout_secs == 77, (
+        f"expected cargo_context.timeout_secs to be 77 from {cargo_context=}"
+    )
+    assert cargo_command == ["cargo", "check", "--tests"], (
+        f"expected cargo_command to check tests with {cargo_command=}"
+    )

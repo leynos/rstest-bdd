@@ -246,7 +246,7 @@ fn main() {}
 
 Create
 `crates/rstest-bdd/tests/fixtures_macros/scenario_harness_tokio_async_rejected.stderr`.
-The content mirrors the existing `scenario_harness_async_rejected.stderr` with
+ The content mirrors the existing `scenario_harness_async_rejected.stderr` with
 two differences:
 
 1. The `-->` path references the new fixture file name.
@@ -349,9 +349,11 @@ set -o pipefail; make check-fmt 2>&1 | tee /tmp/9-3-7-check-fmt.log
 set -o pipefail; make lint 2>&1 | tee /tmp/9-3-7-lint.log
 set -o pipefail; make test 2>&1 | tee /tmp/9-3-7-test.log
 set -o pipefail; make markdownlint 2>&1 | tee /tmp/9-3-7-markdownlint.log
+set -o pipefail; make nixie 2>&1 | tee /tmp/9-3-7-nixie.log
 ```
 
-All four commands must exit with status 0.
+All five commands must exit with status 0. Mermaid diagram validation runs via
+`make nixie`.
 
 ## Concrete steps
 
