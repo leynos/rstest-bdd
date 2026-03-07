@@ -145,6 +145,55 @@ def test_process_crates_for_check_runs_local_validation(
     ]
 
 
+def _patch_gpui_harness_functions(
+    monkeypatch: pytest.MonkeyPatch,
+    mod: ModuleType,
+    archive: Path,
+    package_dir: Path,
+    validator_dir: Path,
+) -> list[tuple[str, object]]:
+    """Register GPUI harness monkeypatches and return the recorded steps."""
+    steps: list[tuple[str, object]] = []
+
+    monkeypatch.setattr(mod, "workspace_version", lambda _manifest: "1.2.3")
+    monkeypatch.setattr(
+        mod,
+        "build_packaged_archive",
+        lambda root, archive_path, version: steps.append(
+            ("archive", (root, archive_path, version))
+        ),
+    )
+    monkeypatch.setattr(
+        mod,
+        "packaged_archive_path",
+        lambda root, crate, version: archive,
+    )
+    monkeypatch.setattr(
+        mod,
+        "extract_packaged_archive",
+        lambda archive_path, destination: (
+            steps.append(("extract", (archive_path, destination))) or package_dir
+        ),
+    )
+    monkeypatch.setattr(
+        mod,
+        "write_validator_workspace",
+        lambda destination, *, package_dir, harness_dir, version: (
+            steps.append(
+                ("validator", (destination, package_dir, harness_dir, version))
+            )
+            or validator_dir
+        ),
+    )
+    monkeypatch.setattr(
+        mod,
+        "run_cargo_command",
+        lambda context, command: steps.append(("cargo", (context, list(command)))),
+    )
+
+    return steps
+
+
 def test_validate_packaged_gpui_harness_packages_and_tests_artifact(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -160,44 +209,12 @@ def test_validate_packaged_gpui_harness_packages_and_tests_artifact(
     package_dir = workspace / ".gpui-package-check" / "package" / "pkg"
     validator_dir = workspace / ".gpui-package-check" / "validator"
 
-    steps: list[tuple[str, object]] = []
-
-    monkeypatch.setattr(
-        run_publish_check_module, "workspace_version", lambda _manifest: "1.2.3"
-    )
-    monkeypatch.setattr(
+    steps = _patch_gpui_harness_functions(
+        monkeypatch,
         run_publish_check_module,
-        "build_packaged_archive",
-        lambda root, archive_path, version: steps.append(
-            ("archive", (root, archive_path, version))
-        ),
-    )
-    monkeypatch.setattr(
-        run_publish_check_module,
-        "packaged_archive_path",
-        lambda root, crate, version: archive,
-    )
-    monkeypatch.setattr(
-        run_publish_check_module,
-        "extract_packaged_archive",
-        lambda archive_path, destination: (
-            steps.append(("extract", (archive_path, destination))) or package_dir
-        ),
-    )
-    monkeypatch.setattr(
-        run_publish_check_module,
-        "write_validator_workspace",
-        lambda destination, *, package_dir, harness_dir, version: (
-            steps.append(
-                ("validator", (destination, package_dir, harness_dir, version))
-            )
-            or validator_dir
-        ),
-    )
-    monkeypatch.setattr(
-        run_publish_check_module,
-        "run_cargo_command",
-        lambda context, command: steps.append(("cargo", (context, list(command)))),
+        archive,
+        package_dir,
+        validator_dir,
     )
 
     run_publish_check_module.validate_packaged_gpui_harness(
