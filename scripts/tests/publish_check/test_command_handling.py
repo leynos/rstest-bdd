@@ -155,6 +155,26 @@ def test_run_cargo_command_uses_env_timeout(
     assert fake_local.invocations == [(["cargo", "mock"], 11)]
 
 
+def test_build_cargo_command_context_accepts_custom_crate_dir(
+    fake_workspace: Path,
+    run_publish_check_module: ModuleType,
+) -> None:
+    """Allow generated validator crates to run outside ``crates/<name>``."""
+    validator_dir = fake_workspace / "target" / "validator"
+
+    context = run_publish_check_module.build_cargo_command_context(
+        "validator",
+        fake_workspace,
+        crate_dir=validator_dir,
+        timeout_secs=13,
+    )
+
+    assert context.crate == "validator"
+    assert context.crate_dir == validator_dir
+    assert context.env_overrides == {"CARGO_HOME": str(fake_workspace / ".cargo-home")}
+    assert context.timeout_secs == 13
+
+
 def test_run_cargo_command_logs_failures(
     monkeypatch: pytest.MonkeyPatch,
     cargo_test_context: CargoTestContext,

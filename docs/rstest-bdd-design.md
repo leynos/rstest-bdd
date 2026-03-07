@@ -1706,8 +1706,11 @@ The first official adapters and policies are:
   `#[rstest::rstest]` followed by `#[gpui::test]`. The workspace patches GPUI
   test support locally so the harness keeps the stable-compatible
   `run_test`/`TestAppContext`/`#[gpui::test]` surface without reintroducing
-  `async-trait`; GPUI behavioural and integration tests remain feature-gated
-  (`native-gpui-tests` and `gpui-harness-tests`) as explicit opt-in suites.
+  `async-trait`. Publish-check automation synthesizes a standalone package
+  artifact for `rstest-bdd-harness-gpui` and compiles a generated validator
+  crate against upstream `gpui`; GPUI behavioural and integration tests remain
+  feature-gated (`native-gpui-tests` and `gpui-harness-tests`) as explicit
+  opt-in suites.
 
 Future adapters (for example, Bevy) are planned to follow the same pattern
 without requiring new dependencies in `rstest-bdd` or `rstest-bdd-macros`.

@@ -900,8 +900,10 @@ fn my_gpui_scenario() {
 > **Workspace note:** this repository patches `gpui` test support locally to
 > keep the dependency graph free of `async-trait`. The patched surface keeps
 > the `run_test`, `TestAppContext`, and `#[gpui::test]` APIs used by
-> `rstest-bdd`, while the GPUI-specific behavioural and integration suites stay
-> feature-gated behind `native-gpui-tests` and `gpui-harness-tests`.
+> `rstest-bdd`, while publish-check automation compiles a generated packaged
+> harness validator against the upstream `gpui` crate. GPUI-specific
+> behavioural and integration suites remain feature-gated behind
+> `native-gpui-tests` and `gpui-harness-tests`.
 
 Harness-backed scenarios also expose harness context to step functions through
 a reserved fixture key: `rstest_bdd_harness_context`. The generated harness
