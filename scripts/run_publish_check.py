@@ -414,7 +414,12 @@ def validate_packaged_gpui_harness(
     manifest = workspace_root / "Cargo.toml"
     version = workspace_version(manifest)
     archive = packaged_archive_path(workspace_root, crate, version)
-    build_packaged_archive(workspace_root, archive, version)
+    build_packaged_archive(
+        workspace_root,
+        archive,
+        version,
+        timeout_secs=timeout_secs,
+    )
 
     validation_root = workspace_root / ".gpui-package-check"
     package_dir = extract_packaged_archive(archive, validation_root / "package")

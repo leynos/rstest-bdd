@@ -36,9 +36,16 @@ def packaged_archive_path(workspace_root: Path, crate: str, version: str) -> Pat
 
 
 def build_packaged_archive(
-    workspace_root: Path, destination: Path, version: str
+    workspace_root: Path,
+    destination: Path,
+    version: str,
+    *,
+    timeout_secs: int | None = None,
 ) -> Path:
     """Create a standalone publish-shaped archive for the GPUI harness crate.
+
+    ``timeout_secs`` is reserved for future subprocess-based packaging and is
+    currently unused because this helper synthesizes the archive directly.
 
     Examples
     --------
@@ -49,6 +56,7 @@ def build_packaged_archive(
     ... )
     PosixPath('/tmp/workspace/target/package/rstest-bdd-harness-gpui-1.2.3.crate')
     """
+    _ = timeout_secs
     source_dir = workspace_root / "crates" / GPUI_HARNESS_CRATE
     package_root = destination.parent / f"{GPUI_HARNESS_CRATE}-{version}"
     if package_root.exists():
@@ -242,7 +250,7 @@ fn upstream_gpui_attribute_runs(context: &gpui::TestAppContext) {
 
 
 def _toml_path(path: Path) -> str:
-    return path.as_posix().replace("\\", "\\\\")
+    return path.as_posix()
 
 
 def _toml_list(values: list[str]) -> str:
