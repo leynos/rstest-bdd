@@ -10,9 +10,12 @@ published dependency graph still works without changing the main workspace.
 
 from __future__ import annotations
 
-import subprocess
+import pathlib
+import shutil
 import tarfile
 import typing as typ
+
+import tomllib
 
 if typ.TYPE_CHECKING:
     from pathlib import Path
@@ -35,7 +38,7 @@ def packaged_archive_path(workspace_root: Path, crate: str, version: str) -> Pat
 def build_packaged_archive(
     workspace_root: Path, destination: Path, version: str
 ) -> Path:
-    """Ask Cargo to package the GPUI harness crate into ``destination``.
+    """Create a standalone publish-shaped archive for the GPUI harness crate.
 
     Examples
     --------
@@ -46,30 +49,26 @@ def build_packaged_archive(
     ... )
     PosixPath('/tmp/workspace/target/package/rstest-bdd-harness-gpui-1.2.3.crate')
     """
-    crate_manifest = workspace_root / "crates" / GPUI_HARNESS_CRATE / "Cargo.toml"
-    destination.parent.mkdir(parents=True, exist_ok=True)
-    command = [
-        "cargo",
-        "package",
-        "--manifest-path",
-        str(crate_manifest),
-        "--allow-dirty",
-        "--no-verify",
-    ]
-    completed = subprocess.run(  # noqa: S603 - fixed cargo invocation
-        command,
-        check=False,
-        cwd=workspace_root,
-        capture_output=True,
-        text=True,
+    source_dir = workspace_root / "crates" / GPUI_HARNESS_CRATE
+    package_root = destination.parent / f"{GPUI_HARNESS_CRATE}-{version}"
+    if package_root.exists():
+        shutil.rmtree(package_root)
+    package_root.mkdir(parents=True, exist_ok=True)
+
+    shutil.copytree(source_dir / "src", package_root / "src")
+    shutil.copy2(source_dir / "README.md", package_root / "README.md")
+    (package_root / "Cargo.toml").write_text(
+        _packaged_manifest(workspace_root, version),
+        encoding="utf-8",
     )
-    if completed.returncode != 0:
-        message = completed.stderr.strip() or completed.stdout.strip()
-        error_message = f"cargo package failed for {GPUI_HARNESS_CRATE}: {message}"
-        raise SystemExit(error_message)
-    if not destination.exists():
-        message = f"cargo package did not produce expected archive {destination}"
-        raise SystemExit(message)
+
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    with tarfile.open(destination, "w:gz") as package:
+        for path in sorted(package_root.rglob("*")):
+            if not path.is_file():
+                continue
+            relative = path.relative_to(package_root)
+            package.add(path, arcname=f"{package_root.name}/{relative.as_posix()}")
 
     return destination
 
@@ -158,6 +157,58 @@ rstest-bdd-harness = {{ path = "{harness_path}" }}
 """
 
 
+def _packaged_manifest(workspace_root: Path, version: str) -> str:
+    workspace = tomllib.loads(
+        (workspace_root / "Cargo.toml").read_text(encoding="utf-8")
+    )
+    crate = tomllib.loads(
+        (workspace_root / "crates" / GPUI_HARNESS_CRATE / "Cargo.toml").read_text(
+            encoding="utf-8"
+        )
+    )
+    workspace_package = workspace["workspace"]["package"]
+    package = crate["package"]
+
+    return """[package]
+name = "{name}"
+version = "{version}"
+edition = "{edition}"
+license = "{license}"
+authors = {authors}
+description = "{description}"
+homepage = "{homepage}"
+repository = "{repository}"
+readme = "{readme}"
+keywords = {keywords}
+categories = {categories}
+rust-version = "{rust_version}"
+
+[lib]
+doctest = false
+test = false
+
+[features]
+native-gpui-tests = []
+
+[dependencies]
+rstest-bdd-harness = "{version}"
+gpui = {{ version = "0.2.2", default-features = false, features = ["test-support"] }}
+""".format(
+        name=package["name"],
+        version=version,
+        edition=workspace_package["edition"],
+        license=workspace_package["license"],
+        authors=_toml_list(workspace_package["authors"]),
+        description=package["description"],
+        homepage=workspace_package["homepage"],
+        repository=workspace_package["repository"],
+        readme=package["readme"],
+        keywords=_toml_list(workspace_package["keywords"]),
+        categories=_toml_list(workspace_package["categories"]),
+        rust_version=workspace_package["rust-version"],
+    )
+
+
 def _validator_test_source() -> str:
     return """//! Smoke tests for the packaged GPUI harness artifact.
 
@@ -194,19 +245,54 @@ def _toml_path(path: Path) -> str:
     return path.as_posix().replace("\\", "\\\\")
 
 
+def _toml_list(values: list[str]) -> str:
+    quoted = ", ".join(f'"{value}"' for value in values)
+    return f"[{quoted}]"
+
+
 def _extract_archive_safely(package: tarfile.TarFile, destination: Path) -> None:
+    resolved_destination = pathlib.Path(destination).resolve(strict=False)
     for member in package.getmembers():
-        if _is_unsafe_archive_path(member.name):
+        if _is_unsafe_archive_path(resolved_destination, member.name):
+            message = f"refusing to extract unsafe archive member {member.name!r}"
+            raise SystemExit(message)
+        member_destination = _archive_target_path(resolved_destination, member.name)
+        if member_destination is None:
             message = f"refusing to extract unsafe archive member {member.name!r}"
             raise SystemExit(message)
         if (member.issym() or member.islnk()) and _is_unsafe_archive_path(
-            member.linkname
+            resolved_destination,
+            member.linkname,
         ):
             message = f"refusing to extract unsafe archive member {member.name!r}"
             raise SystemExit(message)
         package.extract(member, destination)
 
 
-def _is_unsafe_archive_path(path_name: str) -> bool:
-    path_parts = path_name.split("/")
-    return path_name.startswith("/") or any(part == ".." for part in path_parts)
+def _is_unsafe_archive_path(
+    destination: pathlib.Path,
+    path_name: str,
+    *,
+    base_directory: pathlib.Path | None = None,
+) -> bool:
+    target = _archive_target_path(base_directory or destination, path_name)
+    return target is None or not _is_within_directory(destination, target)
+
+
+def _archive_target_path(
+    base_directory: pathlib.Path, path_name: str
+) -> pathlib.Path | None:
+    posix_path = pathlib.PurePosixPath(path_name.replace("\\", "/"))
+    windows_path = pathlib.PureWindowsPath(path_name)
+    if (
+        posix_path.is_absolute()
+        or windows_path.is_absolute()
+        or bool(windows_path.drive)
+    ):
+        return None
+    relative_parts = [part for part in posix_path.parts if part not in ("", ".")]
+    return base_directory.joinpath(*relative_parts).resolve(strict=False)
+
+
+def _is_within_directory(root: pathlib.Path, target: pathlib.Path) -> bool:
+    return target == root or root in target.parents

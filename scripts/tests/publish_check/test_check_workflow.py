@@ -67,18 +67,40 @@ def test_process_crates_for_check_delegates_configuration(
     workspace = tmp_path / "check"
     run_publish_check_module._process_crates_for_check(workspace, 17)
 
-    assert observed["workspace"] == workspace
-    assert observed["timeout"] == 17
+    assert observed["workspace"] == workspace, (
+        f"workspace mismatch: expected {workspace=}, got {observed['workspace']=}"
+    )
+    assert observed["timeout"] == 17, (
+        f"timeout mismatch: expected 17, got {observed['timeout']=}"
+    )
     config = observed["config"]
-    assert isinstance(config, run_publish_check_module.CrateProcessingConfig)
-    assert config.strip_patch is True
-    assert config.include_local_path is True
-    assert config.apply_per_crate is False
-    assert config.per_crate_cleanup is None
-    assert callable(observed["crate_action"])
-    assert package_calls == [("rstest-bdd-patterns", workspace, 11)]
-    assert gpui_calls == [("rstest-bdd-harness-gpui", workspace, 11)]
-    assert check_calls == [("demo", workspace, 11)]
+    assert isinstance(config, run_publish_check_module.CrateProcessingConfig), (
+        f"expected crate processing config type, got {type(config)=}"
+    )
+    assert config.strip_patch is True, (
+        f"expected {config.strip_patch=} for stripped patch configuration"
+    )
+    assert config.include_local_path is True, (
+        f"expected {config.include_local_path=} for local path inclusion"
+    )
+    assert config.apply_per_crate is False, (
+        f"expected {config.apply_per_crate=} for shared workspace processing"
+    )
+    assert config.per_crate_cleanup is None, (
+        f"expected {config.per_crate_cleanup=} cleanup hook"
+    )
+    assert callable(observed["crate_action"]), (
+        f"expected callable crate_action, got {observed['crate_action']=}"
+    )
+    assert package_calls == [("rstest-bdd-patterns", workspace, 11)], (
+        f"expected package_calls for patterns crate, got {package_calls=}"
+    )
+    assert gpui_calls == [("rstest-bdd-harness-gpui", workspace, 11)], (
+        f"expected gpui_calls for GPUI harness, got {gpui_calls=}"
+    )
+    assert check_calls == [("demo", workspace, 11)], (
+        f"expected check_calls for demo crate, got {check_calls=}"
+    )
 
 
 def test_process_crates_for_check_runs_local_validation(
@@ -143,7 +165,7 @@ def test_process_crates_for_check_runs_local_validation(
         ("package", ("rstest-bdd-patterns", workspace, 55)),
         ("gpui", ("rstest-bdd-harness-gpui", workspace, 55)),
         ("check", ("crate-b", workspace, 55)),
-    ]
+    ], f"expected strip/apply/package/gpui/check workflow steps, got {steps=}"
 
 
 @dataclasses.dataclass(frozen=True)

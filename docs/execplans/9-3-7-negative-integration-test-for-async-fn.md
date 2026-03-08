@@ -401,10 +401,12 @@ Quality method:
 set -o pipefail && make check-fmt 2>&1 | tee /tmp/9-3-7-check-fmt.log \
   && make lint 2>&1 | tee /tmp/9-3-7-lint.log \
   && make test 2>&1 | tee /tmp/9-3-7-test.log \
-  && make markdownlint 2>&1 | tee /tmp/9-3-7-markdownlint.log
+  && make markdownlint 2>&1 | tee /tmp/9-3-7-markdownlint.log \
+  && make nixie 2>&1 | tee /tmp/9-3-7-nixie.log
 ```
 
-Expected: all four commands exit with status 0.
+Expected: all five commands exit with status 0, including `make nixie` for
+Mermaid diagram validation.
 
 ## Idempotence and recovery
 
