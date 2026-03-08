@@ -27,6 +27,20 @@ GPUI_VALIDATOR_CRATE = "rstest-bdd-harness-gpui-package-check"
 def packaged_archive_path(workspace_root: Path, crate: str, version: str) -> Path:
     """Return the expected archive path produced by ``cargo package``.
 
+    Parameters
+    ----------
+    workspace_root : Path
+        Root directory of the exported workspace being validated.
+    crate : str
+        Name of the crate whose packaged archive path is being resolved.
+    version : str
+        Version string embedded in the packaged archive name.
+
+    Returns
+    -------
+    Path
+        Path to the expected ``.crate`` archive under ``target/package``.
+
     Examples
     --------
     >>> packaged_archive_path(Path("/tmp/workspace"), "demo", "1.2.3")
@@ -43,6 +57,24 @@ def build_packaged_archive(
     timeout_secs: int | None = None,
 ) -> Path:
     """Create a standalone publish-shaped archive for the GPUI harness crate.
+
+    Parameters
+    ----------
+    workspace_root : Path
+        Root directory of the exported workspace being validated.
+    destination : Path
+        Archive path where the generated ``.crate`` file should be written.
+    version : str
+        Version string to embed in the packaged crate manifest and archive
+        name.
+    timeout_secs : int | None, optional
+        Reserved for future subprocess-based packaging. The current synthetic
+        packaging path does not use it.
+
+    Returns
+    -------
+    Path
+        Path to the generated standalone ``.crate`` archive.
 
     ``timeout_secs`` is reserved for future subprocess-based packaging and is
     currently unused because this helper synthesizes the archive directly.
@@ -84,6 +116,18 @@ def build_packaged_archive(
 def extract_packaged_archive(archive: Path, destination: Path) -> Path:
     """Extract ``archive`` into ``destination`` and return the package root.
 
+    Parameters
+    ----------
+    archive : Path
+        Packaged ``.crate`` archive to extract.
+    destination : Path
+        Directory where the archive contents should be unpacked.
+
+    Returns
+    -------
+    Path
+        Root directory of the extracted packaged crate.
+
     Examples
     --------
     >>> archive = Path("/tmp/workspace/target/package/demo-1.2.3.crate")
@@ -115,6 +159,22 @@ def write_validator_workspace(
     version: str,
 ) -> Path:
     """Create a minimal validator crate that targets upstream ``gpui``.
+
+    Parameters
+    ----------
+    destination : Path
+        Directory where the validator workspace should be created.
+    package_dir : Path
+        Extracted packaged GPUI harness crate directory.
+    harness_dir : Path
+        Exported local ``rstest-bdd-harness`` directory used for patching.
+    version : str
+        Workspace version to pin in the validator manifest.
+
+    Returns
+    -------
+    Path
+        Root directory of the generated validator workspace.
 
     Examples
     --------

@@ -5,11 +5,11 @@ from __future__ import annotations
 import dataclasses
 import typing as typ
 
+import pytest
+
 if typ.TYPE_CHECKING:
     from pathlib import Path
     from types import ModuleType
-
-    import pytest
 
 
 def test_process_crates_for_check_delegates_configuration(
@@ -269,12 +269,12 @@ def test_validate_packaged_gpui_harness_packages_and_tests_artifact(
             "1.2.3",
         ),
     ), f"expected steps[2] to write validator with {package_dir=} and {validator_dir=}"
+    assert steps[3][0] == "cargo", (
+        f"expected steps[3] to record cargo invocation, got {steps[3]=}"
+    )
     cargo_context, cargo_command = typ.cast(
         "tuple[run_publish_check_module.CargoCommandContext, list[str]]",
         steps[3][1],
-    )
-    assert steps[3][0] == "cargo", (
-        f"expected steps[3] to record cargo invocation, got {steps[3]=}"
     )
     assert cargo_context.crate == run_publish_check_module.GPUI_VALIDATOR_CRATE, (
         "expected cargo_context.crate to target "
@@ -289,3 +289,19 @@ def test_validate_packaged_gpui_harness_packages_and_tests_artifact(
     assert cargo_command == ["cargo", "check", "--tests"], (
         f"expected cargo_command to check tests with {cargo_command=}"
     )
+
+
+def test_validate_packaged_gpui_harness_rejects_wrong_crate_name(
+    tmp_path: Path,
+    run_publish_check_module: ModuleType,
+) -> None:
+    """Refuse mismatched crate names before constructing a packaged archive."""
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+
+    with pytest.raises(SystemExit, match="validate_packaged_gpui_harness expected"):
+        run_publish_check_module.validate_packaged_gpui_harness(
+            "not-gpui-harness",
+            workspace,
+            timeout_secs=77,
+        )

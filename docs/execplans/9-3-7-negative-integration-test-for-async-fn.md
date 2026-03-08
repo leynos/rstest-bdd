@@ -45,7 +45,8 @@ matches the compiler output exactly.
   all harness types (`config.harness.is_some() && config.runtime.is_async()`).
 - No file may exceed 400 lines (AGENTS.md rule).
 - All comments and documentation must use en-GB-oxendict spelling.
-- Required quality gates: `make check-fmt`, `make lint`, `make test`.
+- Required quality gates: `make check-fmt`, `make lint`, `make test`,
+  `make markdownlint`, and `make nixie`.
 - Capture gate output with `set -o pipefail` and `tee` to log files.
 
 ## Tolerances (exception triggers)
@@ -85,7 +86,7 @@ matches the compiler output exactly.
 - [x] (2026-02-25) Stage C: registered fixture in `trybuild_macros.rs`.
 - [x] (2026-02-25) Stage D: validated `.stderr` with `TRYBUILD=overwrite`
   — handwritten snapshot matched compiler output exactly.
-- [x] (2026-02-25) Stage E: updated roadmap; design doc and user's guide
+- [x] (2026-02-25) Stage E: updated roadmap; design doc and user guide
   already cover `TokioHarness` async rejection.
 - [x] (2026-02-25) Stage F: all quality gates passed.
 
@@ -316,7 +317,7 @@ Go/no-go: the trybuild test passes with the new fixture. Proceed.
 
 ### Stage E: update documentation
 
-Goal: keep roadmap, design doc, and user's guide aligned with delivered
+Goal: keep roadmap, design doc, and user guide aligned with delivered
 coverage.
 
 **Roadmap** (`docs/roadmap.md`, line 521): change `- [ ]` to `- [x]`:

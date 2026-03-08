@@ -411,6 +411,13 @@ def validate_packaged_gpui_harness(
     ``gpui`` crate from crates.io, while patching only the internal
     ``rstest-bdd-harness`` dependency back to the exported workspace.
     """
+    if crate != GPUI_HARNESS_CRATE:
+        message = (
+            "validate_packaged_gpui_harness expected "
+            f"{GPUI_HARNESS_CRATE!r}, got {crate!r}"
+        )
+        raise SystemExit(message)
+
     manifest = workspace_root / "Cargo.toml"
     version = workspace_version(manifest)
     archive = packaged_archive_path(workspace_root, crate, version)
