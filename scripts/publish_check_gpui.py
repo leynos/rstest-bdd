@@ -138,15 +138,27 @@ def extract_packaged_archive(archive: Path, destination: Path) -> Path:
     destination.mkdir(parents=True, exist_ok=True)
     with tarfile.open(archive, "r:gz") as package:
         _extract_archive_safely(package, destination)
-        members = [member.name for member in package.getmembers() if member.name]
+        member_paths = [
+            pathlib.PurePosixPath(member.name.replace("\\", "/"))
+            for member in package.getmembers()
+            if member.name
+        ]
 
     try:
-        package_root_name = min(
-            member.split("/", 1)[0] for member in members if not member.startswith("/")
-        )
+        package_root_names = {member.parts[0] for member in member_paths}
+        package_root_name = next(iter(package_root_names))
     except ValueError as error:
         message = f"packaged archive {archive} did not contain any files"
         raise SystemExit(message) from error
+
+    if any(len(member.parts) == 1 for member in member_paths):
+        message = f"packaged archive {archive} contained top-level file entries"
+        raise SystemExit(message)
+    if len(package_root_names) != 1:
+        message = (
+            f"packaged archive {archive} must contain exactly one top-level directory"
+        )
+        raise SystemExit(message)
 
     return destination / package_root_name
 
@@ -205,6 +217,7 @@ def write_validator_workspace(
 
 
 def _validator_manifest(*, package_dir: Path, harness_dir: Path, version: str) -> str:
+    """Return the manifest for the validator crate."""
     package_path = _toml_path(package_dir)
     harness_path = _toml_path(harness_dir)
     return f"""[package]
@@ -226,6 +239,7 @@ rstest-bdd-harness = {{ path = "{harness_path}" }}
 
 
 def _packaged_manifest(workspace_root: Path, version: str) -> str:
+    """Return the standalone manifest for the packaged GPUI harness crate."""
     workspace = tomllib.loads(
         (workspace_root / "Cargo.toml").read_text(encoding="utf-8")
     )
@@ -278,6 +292,7 @@ gpui = {{ version = "0.2.2", default-features = false, features = ["test-support
 
 
 def _validator_test_source() -> str:
+    """Return the smoke test source for the validator crate."""
     return """//! Smoke tests for the packaged GPUI harness artifact.
 
 use rstest_bdd_harness::{
@@ -310,10 +325,12 @@ fn upstream_gpui_attribute_runs(context: &gpui::TestAppContext) {
 
 
 def _toml_path(path: Path) -> str:
+    """Return ``path`` as a POSIX string suitable for TOML manifests."""
     return path.as_posix()
 
 
 def _toml_list(values: list[str]) -> str:
+    """Return a TOML string-array literal for ``values``."""
     quoted = ", ".join(f'"{value}"' for value in values)
     return f"[{quoted}]"
 
@@ -323,22 +340,29 @@ def _is_link_member(member: tarfile.TarInfo) -> bool:
     return member.issym() or member.islnk()
 
 
+def _assert_member_safe(
+    resolved_destination: pathlib.Path, member: tarfile.TarInfo
+) -> None:
+    """Raise ``SystemExit`` if ``member`` would be unsafe to extract."""
+    if _is_unsafe_archive_path(resolved_destination, member.name):
+        message = f"refusing to extract unsafe archive member {member.name!r}"
+        raise SystemExit(message)
+    member_destination = _archive_target_path(resolved_destination, member.name)
+    if member_destination is None:
+        message = f"refusing to extract unsafe archive member {member.name!r}"
+        raise SystemExit(message)
+    if _is_link_member(member) and _is_unsafe_archive_path(
+        resolved_destination,
+        member.linkname,
+    ):
+        message = f"refusing to extract unsafe archive member {member.name!r}"
+        raise SystemExit(message)
+
+
 def _extract_archive_safely(package: tarfile.TarFile, destination: Path) -> None:
     resolved_destination = pathlib.Path(destination).resolve(strict=False)
     for member in package.getmembers():
-        if _is_unsafe_archive_path(resolved_destination, member.name):
-            message = f"refusing to extract unsafe archive member {member.name!r}"
-            raise SystemExit(message)
-        member_destination = _archive_target_path(resolved_destination, member.name)
-        if member_destination is None:
-            message = f"refusing to extract unsafe archive member {member.name!r}"
-            raise SystemExit(message)
-        if _is_link_member(member) and _is_unsafe_archive_path(
-            resolved_destination,
-            member.linkname,
-        ):
-            message = f"refusing to extract unsafe archive member {member.name!r}"
-            raise SystemExit(message)
+        _assert_member_safe(resolved_destination, member)
         package.extract(member, destination)
 
 

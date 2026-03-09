@@ -100,6 +100,40 @@ def test_extract_packaged_archive_returns_package_root(tmp_path: Path) -> None:
     )
 
 
+def test_extract_packaged_archive_rejects_multiple_top_level_directories(
+    tmp_path: Path,
+) -> None:
+    """Reject archives that contain more than one top-level directory."""
+    archive = tmp_path / "demo-1.2.3.crate"
+    with tarfile.open(archive, "w:gz") as package:
+        first = tmp_path / "first.txt"
+        second = tmp_path / "second.txt"
+        first.write_text("first", encoding="utf-8")
+        second.write_text("second", encoding="utf-8")
+        package.add(first, arcname="demo-1.2.3/Cargo.toml")
+        package.add(second, arcname="other-1.2.3/README.md")
+
+    with pytest.raises(
+        SystemExit,
+        match="must contain exactly one top-level directory",
+    ):
+        extract_packaged_archive(archive, tmp_path / "out")
+
+
+def test_extract_packaged_archive_rejects_top_level_file_entries(
+    tmp_path: Path,
+) -> None:
+    """Reject archives that place files directly at the archive root."""
+    archive = tmp_path / "demo-1.2.3.crate"
+    with tarfile.open(archive, "w:gz") as package:
+        source = tmp_path / "source.txt"
+        source.write_text("hello", encoding="utf-8")
+        package.add(source, arcname="Cargo.toml")
+
+    with pytest.raises(SystemExit, match="contained top-level file entries"):
+        extract_packaged_archive(archive, tmp_path / "out")
+
+
 def test_extract_packaged_archive_rejects_unsafe_symlink_target(tmp_path: Path) -> None:
     """Reject symlink members whose link target escapes the destination."""
     archive = tmp_path / "demo-1.2.3.crate"

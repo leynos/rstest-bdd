@@ -247,7 +247,7 @@ fn main() {}
 
 Create
 `crates/rstest-bdd/tests/fixtures_macros/scenario_harness_tokio_async_rejected.stderr`.
-The content mirrors the existing `scenario_harness_async_rejected.stderr` with
+ The content mirrors the existing `scenario_harness_async_rejected.stderr` with
 two differences:
 
 1. The `-->` path references the new fixture file name.
@@ -317,8 +317,7 @@ Go/no-go: the trybuild test passes with the new fixture. Proceed.
 
 ### Stage E: update documentation
 
-Goal: keep roadmap, design doc, and user guide aligned with delivered
-coverage.
+Goal: keep roadmap, design doc, and user guide aligned with delivered coverage.
 
 **Roadmap** (`docs/roadmap.md`, line 521): change `- [ ]` to `- [x]`:
 

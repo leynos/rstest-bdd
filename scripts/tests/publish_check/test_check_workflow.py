@@ -183,14 +183,17 @@ def _patch_gpui_harness_functions(
     """Register GPUI harness monkeypatches and return the recorded steps."""
     steps: list[tuple[str, object]] = []
 
+    def record_build_packaged_archive(
+        root: Path,
+        archive_path: Path,
+        version: str,
+        *,
+        timeout_secs: int | None = None,
+    ) -> None:
+        steps.append(("archive", (root, archive_path, version, timeout_secs)))
+
     monkeypatch.setattr(mod, "workspace_version", lambda _manifest: "1.2.3")
-    monkeypatch.setattr(
-        mod,
-        "build_packaged_archive",
-        lambda root, archive_path, version, *, _timeout_secs=None, **_kwargs: (
-            steps.append(("archive", (root, archive_path, version)))
-        ),
-    )
+    monkeypatch.setattr(mod, "build_packaged_archive", record_build_packaged_archive)
     monkeypatch.setattr(
         mod,
         "packaged_archive_path",
@@ -253,8 +256,9 @@ def test_validate_packaged_gpui_harness_packages_and_tests_artifact(
         timeout_secs=77,
     )
 
-    assert steps[0] == ("archive", (workspace, archive, "1.2.3")), (
-        f"expected steps[0] to archive {workspace=} {archive=} with version 1.2.3"
+    assert steps[0] == ("archive", (workspace, archive, "1.2.3", 77)), (
+        "expected steps[0] to archive "
+        f"{workspace=} {archive=} with version 1.2.3 and timeout 77"
     )
     assert steps[1] == (
         "extract",
