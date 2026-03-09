@@ -162,16 +162,17 @@ def extract_packaged_archive(archive: Path, destination: Path) -> Path:
     >>> extract_packaged_archive(archive, destination)  # doctest: +SKIP
     PosixPath('/tmp/unpacked/demo-1.2.3')
     """
-    destination.mkdir(parents=True, exist_ok=True)
     with tarfile.open(archive, "r:gz") as package:
-        _extract_archive_safely(package, destination)
+        members = package.getmembers()
         member_paths = [
             pathlib.PurePosixPath(member.name.replace("\\", "/"))
-            for member in package.getmembers()
+            for member in members
             if member.name
         ]
+        package_root_name = _resolve_archive_root(archive, member_paths)
+        destination.mkdir(parents=True, exist_ok=True)
+        _extract_archive_safely(package, destination)
 
-    package_root_name = _resolve_archive_root(archive, member_paths)
     return destination / package_root_name
 
 
@@ -366,12 +367,14 @@ def _assert_member_safe(
     if _is_link_member(member) and _is_unsafe_archive_path(
         resolved_destination,
         member.linkname,
+        base_directory=member_destination.parent,
     ):
         message = f"refusing to extract unsafe archive member {member.name!r}"
         raise SystemExit(message)
 
 
 def _extract_archive_safely(package: tarfile.TarFile, destination: Path) -> None:
+    """Safely extract tar members into ``destination`` after validation."""
     resolved_destination = pathlib.Path(destination).resolve(strict=False)
     for member in package.getmembers():
         _assert_member_safe(resolved_destination, member)
@@ -384,6 +387,7 @@ def _is_unsafe_archive_path(
     *,
     base_directory: pathlib.Path | None = None,
 ) -> bool:
+    """Return ``True`` when ``path_name`` would extract outside ``destination``."""
     target = _archive_target_path(base_directory or destination, path_name)
     return target is None or not _is_within_directory(destination, target)
 
@@ -403,6 +407,7 @@ def _is_rooted_path(
 def _archive_target_path(
     base_directory: pathlib.Path, path_name: str
 ) -> pathlib.Path | None:
+    """Resolve ``path_name`` under ``base_directory`` or return ``None`` if rooted."""
     posix_path = pathlib.PurePosixPath(path_name.replace("\\", "/"))
     windows_path = pathlib.PureWindowsPath(path_name)
     if _is_rooted_path(posix_path, windows_path):
@@ -412,4 +417,5 @@ def _archive_target_path(
 
 
 def _is_within_directory(root: pathlib.Path, target: pathlib.Path) -> bool:
+    """Return ``True`` when ``target`` is contained within ``root``."""
     return target == root or root in target.parents

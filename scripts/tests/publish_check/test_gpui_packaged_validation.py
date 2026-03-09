@@ -37,30 +37,24 @@ def test_build_packaged_archive_creates_standalone_gpui_harness_archive(
     (crate_dir / "src" / "lib.rs").write_text("// test", encoding="utf-8")
     (crate_dir / "README.md").write_text("# demo", encoding="utf-8")
     (crate_dir / "Cargo.toml").write_text(
-        "\n".join(
-            (
-                "[package]",
-                'name = "rstest-bdd-harness-gpui"',
-                'description = "demo"',
-                'readme = "README.md"',
-            )
-        ),
+        """[package]
+name = "rstest-bdd-harness-gpui"
+description = "demo"
+readme = "README.md"
+""",
         encoding="utf-8",
     )
     (workspace / "Cargo.toml").write_text(
-        "\n".join(
-            (
-                "[workspace.package]",
-                'edition = "2024"',
-                'license = "ISC"',
-                'authors = ["Tester <test@example.com>"]',
-                'homepage = "https://example.invalid"',
-                'repository = "https://example.invalid/repo"',
-                'keywords = ["bdd"]',
-                'categories = ["development-tools::testing"]',
-                'rust-version = "1.85"',
-            )
-        ),
+        """[workspace.package]
+edition = "2024"
+license = "ISC"
+authors = ["Tester <test@example.com>"]
+homepage = "https://example.invalid"
+repository = "https://example.invalid/repo"
+keywords = ["bdd"]
+categories = ["development-tools::testing"]
+rust-version = "1.85"
+""",
         encoding="utf-8",
     )
     archive = packaged_archive_path(workspace, "rstest-bdd-harness-gpui", "1.2.3")
@@ -118,6 +112,9 @@ def test_extract_packaged_archive_rejects_multiple_top_level_directories(
         match="must contain exactly one top-level directory",
     ):
         extract_packaged_archive(archive, tmp_path / "out")
+    assert not (tmp_path / "out").exists(), (
+        "expected invalid archive layout to leave destination absent"
+    )
 
 
 def test_extract_packaged_archive_rejects_unsafe_symlink_target(tmp_path: Path) -> None:
@@ -126,11 +123,35 @@ def test_extract_packaged_archive_rejects_unsafe_symlink_target(tmp_path: Path) 
     with tarfile.open(archive, "w:gz") as package:
         symlink = tarfile.TarInfo("demo-1.2.3/link")
         symlink.type = tarfile.SYMTYPE
-        symlink.linkname = "../outside"
+        symlink.linkname = "../../outside"
         package.addfile(symlink)
 
     with pytest.raises(SystemExit, match="refusing to extract unsafe archive member"):
         extract_packaged_archive(archive, tmp_path / "out")
+
+
+def test_extract_packaged_archive_accepts_symlink_relative_to_member_parent(
+    tmp_path: Path,
+) -> None:
+    """Accept symlinks whose targets stay within the package via the link parent."""
+    archive = tmp_path / "demo-1.2.3.crate"
+    with tarfile.open(archive, "w:gz") as package:
+        target = tmp_path / "target.txt"
+        target.write_text("hello", encoding="utf-8")
+        package.add(target, arcname="demo-1.2.3/target.txt")
+
+        link = tarfile.TarInfo("demo-1.2.3/subdir/link.txt")
+        link.type = tarfile.SYMTYPE
+        link.linkname = "../target.txt"
+        package.addfile(link)
+
+    extracted = extract_packaged_archive(archive, tmp_path / "out")
+    link_path = extracted / "subdir" / "link.txt"
+
+    assert link_path.is_symlink(), "expected safe relative symlink to be extracted"
+    assert link_path.readlink().as_posix() == "../target.txt", (
+        "expected extracted symlink to keep its relative target"
+    )
 
 
 @pytest.mark.parametrize(
