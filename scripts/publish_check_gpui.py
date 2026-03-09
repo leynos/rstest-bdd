@@ -318,6 +318,11 @@ def _toml_list(values: list[str]) -> str:
     return f"[{quoted}]"
 
 
+def _is_link_member(member: tarfile.TarInfo) -> bool:
+    """Return ``True`` when ``member`` is a symbolic or hard link."""
+    return member.issym() or member.islnk()
+
+
 def _extract_archive_safely(package: tarfile.TarFile, destination: Path) -> None:
     resolved_destination = pathlib.Path(destination).resolve(strict=False)
     for member in package.getmembers():
@@ -328,7 +333,7 @@ def _extract_archive_safely(package: tarfile.TarFile, destination: Path) -> None
         if member_destination is None:
             message = f"refusing to extract unsafe archive member {member.name!r}"
             raise SystemExit(message)
-        if (member.issym() or member.islnk()) and _is_unsafe_archive_path(
+        if _is_link_member(member) and _is_unsafe_archive_path(
             resolved_destination,
             member.linkname,
         ):
@@ -347,16 +352,24 @@ def _is_unsafe_archive_path(
     return target is None or not _is_within_directory(destination, target)
 
 
+def _is_rooted_path(
+    posix_path: pathlib.PurePosixPath,
+    windows_path: pathlib.PureWindowsPath,
+) -> bool:
+    """Return ``True`` when either path representation is absolute or drive-rooted."""
+    return (
+        posix_path.is_absolute()
+        or windows_path.is_absolute()
+        or bool(windows_path.drive)
+    )
+
+
 def _archive_target_path(
     base_directory: pathlib.Path, path_name: str
 ) -> pathlib.Path | None:
     posix_path = pathlib.PurePosixPath(path_name.replace("\\", "/"))
     windows_path = pathlib.PureWindowsPath(path_name)
-    if (
-        posix_path.is_absolute()
-        or windows_path.is_absolute()
-        or bool(windows_path.drive)
-    ):
+    if _is_rooted_path(posix_path, windows_path):
         return None
     relative_parts = [part for part in posix_path.parts if part not in ("", ".")]
     return base_directory.joinpath(*relative_parts).resolve(strict=False)

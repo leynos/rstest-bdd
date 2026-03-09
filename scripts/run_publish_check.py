@@ -181,6 +181,24 @@ def build_cargo_command_context(
     environment overrides, and normalizes the timeout configuration to simplify
     subsequent :func:`run_cargo_command` invocations.
 
+    Parameters
+    ----------
+    crate : str
+        Name of the crate whose Cargo command context is being created.
+    workspace_root : Path
+        Root directory of the exported workspace used for publish validation.
+    crate_dir : Path | None, optional
+        Override for the resolved crate directory. When omitted, the helper
+        uses ``workspace_root / "crates" / crate``.
+    timeout_secs : int | None, optional
+        Explicit timeout for Cargo invocations. When omitted, the helper falls
+        back to the environment or default timeout configuration.
+
+    Returns
+    -------
+    CargoCommandContext
+        Execution context describing where and how to run the Cargo command.
+
     Examples
     --------
     >>> context = build_cargo_command_context("tools", Path("/tmp/workspace"))
@@ -410,6 +428,32 @@ def validate_packaged_gpui_harness(
     The validator crate depends on the extracted package and the upstream
     ``gpui`` crate from crates.io, while patching only the internal
     ``rstest-bdd-harness`` dependency back to the exported workspace.
+
+    Parameters
+    ----------
+    crate : str
+        Name of the crate being validated. This must match
+        :data:`GPUI_HARNESS_CRATE`.
+    workspace_root : Path
+        Root directory of the exported workspace used for publish validation.
+    timeout_secs : int | None, optional
+        Timeout forwarded to downstream Cargo invocations.
+
+    Returns
+    -------
+    None
+        This helper performs packaging and validation as side effects.
+
+    Raises
+    ------
+    SystemExit
+        Raised when ``crate`` does not match :data:`GPUI_HARNESS_CRATE`.
+
+    Notes
+    -----
+    This helper creates a packaged archive, extracts it into a temporary
+    validation area, generates a validator workspace, and runs ``cargo check``
+    against the resulting artifact.
     """
     if crate != GPUI_HARNESS_CRATE:
         message = (

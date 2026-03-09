@@ -187,8 +187,8 @@ def _patch_gpui_harness_functions(
     monkeypatch.setattr(
         mod,
         "build_packaged_archive",
-        lambda root, archive_path, version, *, timeout_secs=None: steps.append(
-            ("archive", (root, archive_path, version))
+        lambda root, archive_path, version, *, _timeout_secs=None, **_kwargs: (
+            steps.append(("archive", (root, archive_path, version)))
         ),
     )
     monkeypatch.setattr(
