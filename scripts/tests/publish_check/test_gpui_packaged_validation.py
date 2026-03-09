@@ -120,20 +120,6 @@ def test_extract_packaged_archive_rejects_multiple_top_level_directories(
         extract_packaged_archive(archive, tmp_path / "out")
 
 
-def test_extract_packaged_archive_rejects_top_level_file_entries(
-    tmp_path: Path,
-) -> None:
-    """Reject archives that place files directly at the archive root."""
-    archive = tmp_path / "demo-1.2.3.crate"
-    with tarfile.open(archive, "w:gz") as package:
-        source = tmp_path / "source.txt"
-        source.write_text("hello", encoding="utf-8")
-        package.add(source, arcname="Cargo.toml")
-
-    with pytest.raises(SystemExit, match="contained top-level file entries"):
-        extract_packaged_archive(archive, tmp_path / "out")
-
-
 def test_extract_packaged_archive_rejects_unsafe_symlink_target(tmp_path: Path) -> None:
     """Reject symlink members whose link target escapes the destination."""
     archive = tmp_path / "demo-1.2.3.crate"
@@ -147,15 +133,34 @@ def test_extract_packaged_archive_rejects_unsafe_symlink_target(tmp_path: Path) 
         extract_packaged_archive(archive, tmp_path / "out")
 
 
-def test_extract_packaged_archive_rejects_windows_style_escape(tmp_path: Path) -> None:
-    """Reject backslash-separated paths that would escape on Windows."""
+@pytest.mark.parametrize(
+    ("arcname", "expected_error"),
+    [
+        pytest.param(
+            "Cargo.toml",
+            "contained top-level file entries",
+            id="top-level-file",
+        ),
+        pytest.param(
+            "..\\outside\\Cargo.toml",
+            "refusing to extract unsafe archive member",
+            id="windows-style-escape",
+        ),
+    ],
+)
+def test_extract_packaged_archive_rejects_invalid_archive_layout(
+    tmp_path: Path,
+    arcname: str,
+    expected_error: str,
+) -> None:
+    """Reject archives with top-level file entries or path-escaping member names."""
     archive = tmp_path / "demo-1.2.3.crate"
     with tarfile.open(archive, "w:gz") as package:
         source = tmp_path / "source.txt"
         source.write_text("hello", encoding="utf-8")
-        package.add(source, arcname="..\\outside\\Cargo.toml")
+        package.add(source, arcname=arcname)
 
-    with pytest.raises(SystemExit, match="refusing to extract unsafe archive member"):
+    with pytest.raises(SystemExit, match=expected_error):
         extract_packaged_archive(archive, tmp_path / "out")
 
 

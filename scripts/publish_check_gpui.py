@@ -113,6 +113,33 @@ def build_packaged_archive(
     return destination
 
 
+def _resolve_archive_root(
+    archive: Path, member_paths: list[pathlib.PurePosixPath]
+) -> str:
+    """Return the single top-level directory name from ``member_paths``.
+
+    Raises ``SystemExit`` when the archive is empty, contains top-level file
+    entries, or has more than one top-level directory.
+    """
+    try:
+        package_root_names = {member.parts[0] for member in member_paths}
+        package_root_name = next(iter(package_root_names))
+    except (StopIteration, ValueError) as error:
+        message = f"packaged archive {archive} did not contain any files"
+        raise SystemExit(message) from error
+
+    if any(len(member.parts) == 1 for member in member_paths):
+        message = f"packaged archive {archive} contained top-level file entries"
+        raise SystemExit(message)
+    if len(package_root_names) != 1:
+        message = (
+            f"packaged archive {archive} must contain exactly one top-level directory"
+        )
+        raise SystemExit(message)
+
+    return package_root_name
+
+
 def extract_packaged_archive(archive: Path, destination: Path) -> Path:
     """Extract ``archive`` into ``destination`` and return the package root.
 
@@ -144,22 +171,7 @@ def extract_packaged_archive(archive: Path, destination: Path) -> Path:
             if member.name
         ]
 
-    try:
-        package_root_names = {member.parts[0] for member in member_paths}
-        package_root_name = next(iter(package_root_names))
-    except ValueError as error:
-        message = f"packaged archive {archive} did not contain any files"
-        raise SystemExit(message) from error
-
-    if any(len(member.parts) == 1 for member in member_paths):
-        message = f"packaged archive {archive} contained top-level file entries"
-        raise SystemExit(message)
-    if len(package_root_names) != 1:
-        message = (
-            f"packaged archive {archive} must contain exactly one top-level directory"
-        )
-        raise SystemExit(message)
-
+    package_root_name = _resolve_archive_root(archive, member_paths)
     return destination / package_root_name
 
 
