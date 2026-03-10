@@ -15,7 +15,11 @@ import shutil
 import tarfile
 import typing as typ
 
-import tomllib
+from publish_check_gpui_manifest import (
+    _packaged_manifest,
+    _validator_manifest,
+    _validator_test_source,
+)
 
 if typ.TYPE_CHECKING:
     from pathlib import Path
@@ -43,7 +47,7 @@ def packaged_archive_path(workspace_root: Path, crate: str, version: str) -> Pat
 
     Examples
     --------
-    >>> packaged_archive_path(Path("/tmp/workspace"), "demo", "1.2.3")
+    >>> packaged_archive_path(pathlib.Path("/tmp/workspace"), "demo", "1.2.3")
     PosixPath('/tmp/workspace/target/package/demo-1.2.3.crate')
     """
     return workspace_root / "target" / "package" / f"{crate}-{version}.crate"
@@ -82,8 +86,10 @@ def build_packaged_archive(
     Examples
     --------
     >>> build_packaged_archive(  # doctest: +SKIP
-    ...     Path('/tmp/workspace'),
-    ...     Path('/tmp/workspace/target/package/rstest-bdd-harness-gpui-1.2.3.crate'),
+    ...     pathlib.Path('/tmp/workspace'),
+    ...     pathlib.Path(
+    ...         '/tmp/workspace/target/package/rstest-bdd-harness-gpui-1.2.3.crate'
+    ...     ),
     ...     '1.2.3',
     ... )
     PosixPath('/tmp/workspace/target/package/rstest-bdd-harness-gpui-1.2.3.crate')
@@ -98,7 +104,7 @@ def build_packaged_archive(
     shutil.copytree(source_dir / "src", package_root / "src")
     shutil.copy2(source_dir / "README.md", package_root / "README.md")
     (package_root / "Cargo.toml").write_text(
-        _packaged_manifest(workspace_root, version),
+        _packaged_manifest(workspace_root, version, GPUI_HARNESS_CRATE),
         encoding="utf-8",
     )
 
@@ -111,14 +117,6 @@ def build_packaged_archive(
             package.add(path, arcname=f"{package_root.name}/{relative.as_posix()}")
 
     return destination
-
-
-def _workspace_gpui_spec(workspace_root: Path) -> str:
-    """Return the workspace ``gpui`` dependency as an inline TOML table string."""
-    workspace = tomllib.loads(
-        (workspace_root / "Cargo.toml").read_text(encoding="utf-8")
-    )
-    return _toml_inline_table(workspace["workspace"]["dependencies"]["gpui"])
 
 
 def _has_top_level_files(member_paths: list[pathlib.PurePosixPath]) -> bool:
@@ -177,8 +175,8 @@ def extract_packaged_archive(archive: Path, destination: Path) -> Path:
 
     Examples
     --------
-    >>> archive = Path("/tmp/workspace/target/package/demo-1.2.3.crate")
-    >>> destination = Path("/tmp/unpacked")
+    >>> archive = pathlib.Path("/tmp/workspace/target/package/demo-1.2.3.crate")
+    >>> destination = pathlib.Path("/tmp/unpacked")
     >>> extract_packaged_archive(archive, destination)  # doctest: +SKIP
     PosixPath('/tmp/unpacked/demo-1.2.3')
     """
@@ -223,13 +221,14 @@ def write_validator_workspace(
     Examples
     --------
     >>> write_validator_workspace(  # doctest: +SKIP
-    ...     Path('/tmp/validator'),
-    ...     package_dir=Path('/tmp/pkg/rstest-bdd-harness-gpui-1.2.3'),
-    ...     harness_dir=Path('/tmp/workspace/crates/rstest-bdd-harness'),
+    ...     pathlib.Path('/tmp/validator'),
+    ...     package_dir=pathlib.Path('/tmp/pkg/rstest-bdd-harness-gpui-1.2.3'),
+    ...     harness_dir=pathlib.Path('/tmp/workspace/crates/rstest-bdd-harness'),
     ...     version='1.2.3',
     ... )
     PosixPath('/tmp/validator')
     """
+    _reset_directory(destination)
     destination.mkdir(parents=True, exist_ok=True)
     tests_dir = destination / "tests"
     tests_dir.mkdir(exist_ok=True)
@@ -238,6 +237,7 @@ def write_validator_workspace(
             package_dir=package_dir,
             harness_dir=harness_dir,
             version=version,
+            validator_crate=GPUI_VALIDATOR_CRATE,
         ),
         encoding="utf-8",
     )
@@ -246,149 +246,6 @@ def write_validator_workspace(
         encoding="utf-8",
     )
     return destination
-
-
-def _validator_manifest(*, package_dir: Path, harness_dir: Path, version: str) -> str:
-    """Return the manifest for the validator crate."""
-    package_path = _toml_path(package_dir)
-    harness_path = _toml_path(harness_dir)
-    packaged_manifest = tomllib.loads(
-        (package_dir / "Cargo.toml").read_text(encoding="utf-8")
-    )
-    gpui_spec = _toml_inline_table(packaged_manifest["dependencies"]["gpui"])
-    return f"""[package]
-name = "{GPUI_VALIDATOR_CRATE}"
-version = "0.0.0"
-edition = "2024"
-publish = false
-
-[workspace]
-
-[dependencies]
-gpui = {gpui_spec}
-rstest-bdd-harness = "{version}"
-rstest-bdd-harness-gpui = {{ path = "{package_path}" }}
-
-[patch.crates-io]
-rstest-bdd-harness = {{ path = "{harness_path}" }}
-"""
-
-
-def _packaged_manifest(workspace_root: Path, version: str) -> str:
-    """Return the standalone manifest for the packaged GPUI harness crate."""
-    workspace = tomllib.loads(
-        (workspace_root / "Cargo.toml").read_text(encoding="utf-8")
-    )
-    crate = tomllib.loads(
-        (workspace_root / "crates" / GPUI_HARNESS_CRATE / "Cargo.toml").read_text(
-            encoding="utf-8"
-        )
-    )
-    workspace_package = workspace["workspace"]["package"]
-    gpui_spec = _workspace_gpui_spec(workspace_root)
-    package = crate["package"]
-
-    return """[package]
-name = "{name}"
-version = "{version}"
-edition = "{edition}"
-license = "{license}"
-authors = {authors}
-description = "{description}"
-homepage = "{homepage}"
-repository = "{repository}"
-readme = "{readme}"
-keywords = {keywords}
-categories = {categories}
-rust-version = "{rust_version}"
-
-[lib]
-doctest = false
-test = false
-
-[features]
-native-gpui-tests = []
-
-[dependencies]
-rstest-bdd-harness = "{version}"
-gpui = {gpui_spec}
-""".format(
-        name=package["name"],
-        version=version,
-        edition=workspace_package["edition"],
-        license=workspace_package["license"],
-        authors=_toml_list(workspace_package["authors"]),
-        description=package["description"],
-        homepage=workspace_package["homepage"],
-        repository=workspace_package["repository"],
-        readme=package["readme"],
-        keywords=_toml_list(workspace_package["keywords"]),
-        categories=_toml_list(workspace_package["categories"]),
-        rust_version=workspace_package["rust-version"],
-        gpui_spec=gpui_spec,
-    )
-
-
-def _validator_test_source() -> str:
-    """Return the smoke test source for the validator crate."""
-    return """//! Smoke tests for the packaged GPUI harness artifact.
-
-use rstest_bdd_harness::{
-    HarnessAdapter, ScenarioMetadata, ScenarioRunRequest, ScenarioRunner,
-};
-use rstest_bdd_harness_gpui::GpuiHarness;
-
-#[test]
-fn packaged_gpui_harness_runs_against_upstream_gpui() {
-    let request = ScenarioRunRequest::new(
-        ScenarioMetadata::new(
-            "tests/features/demo.feature",
-            "Packaged GPUI harness",
-            7,
-            vec!["@ui".to_string()],
-        ),
-        ScenarioRunner::new(|context: gpui::TestAppContext| {
-            context.test_function_name().is_none()
-        }),
-    );
-
-    assert!(GpuiHarness::new().run(request));
-}
-
-#[gpui::test]
-fn upstream_gpui_attribute_runs(context: &gpui::TestAppContext) {
-    assert_eq!(context.test_function_name(), Some("upstream_gpui_attribute_runs"));
-}
-"""
-
-
-def _toml_path(path: Path) -> str:
-    """Return ``path`` as a POSIX string suitable for TOML manifests."""
-    return path.as_posix()
-
-
-def _toml_list(values: list[str]) -> str:
-    """Return a TOML string-array literal for ``values``."""
-    quoted = ", ".join(f'"{value}"' for value in values)
-    return f"[{quoted}]"
-
-
-def _toml_inline_table(values: dict[str, object]) -> str:
-    """Return ``values`` rendered as a TOML inline table."""
-    rendered_items: list[str] = []
-    for key, value in values.items():
-        match value:
-            case bool():
-                rendered = str(value).lower()
-            case str():
-                rendered = f'"{value}"'
-            case list():
-                rendered = _toml_list(value)
-            case _:
-                message = f"unsupported TOML inline-table value for {key!r}: {value!r}"
-                raise SystemExit(message)
-        rendered_items.append(f"{key} = {rendered}")
-    return "{ " + ", ".join(rendered_items) + " }"
 
 
 def _is_link_member(member: tarfile.TarInfo) -> bool:
@@ -439,9 +296,21 @@ def _extract_archive_safely(package: tarfile.TarFile, destination: Path) -> None
     members = package.getmembers()
     for member in members:
         _assert_member_safe(resolved_destination, member)
+    _reset_directory(destination)
     destination.mkdir(parents=True, exist_ok=True)
     for member in members:
         package.extract(member, destination)
+
+
+def _reset_directory(destination: Path) -> None:
+    """Remove an existing destination directory tree before repopulating it."""
+    if not destination.exists():
+        return
+    if destination.is_dir():
+        shutil.rmtree(destination)
+        return
+    message = f"refusing to reuse non-directory destination {destination!r}"
+    raise SystemExit(message)
 
 
 def _is_unsafe_archive_path(

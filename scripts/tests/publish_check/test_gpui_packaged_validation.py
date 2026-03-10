@@ -97,6 +97,28 @@ def test_extract_packaged_archive_returns_package_root(tmp_path: Path) -> None:
     )
 
 
+def test_extract_packaged_archive_clears_existing_destination(tmp_path: Path) -> None:
+    """Replace any pre-existing extraction directory with a clean tree."""
+    archive = tmp_path / "demo-1.2.3.crate"
+    destination = tmp_path / "out"
+    with tarfile.open(archive, "w:gz") as package:
+        source = tmp_path / "source.txt"
+        source.write_text("hello", encoding="utf-8")
+        package.add(source, arcname="demo-1.2.3/Cargo.toml")
+
+    destination.mkdir()
+    (destination / "stale.txt").write_text("stale", encoding="utf-8")
+
+    extracted = extract_packaged_archive(archive, destination)
+
+    assert not (destination / "stale.txt").exists(), (
+        "expected stale extraction contents to be removed"
+    )
+    assert extracted == destination / "demo-1.2.3", (
+        "expected extraction to recreate the package root"
+    )
+
+
 def test_extract_packaged_archive_rejects_multiple_top_level_directories(
     tmp_path: Path,
 ) -> None:
@@ -245,9 +267,12 @@ gpui = { version = "0.2.2", default-features = false, features = ["test-support"
 """,
         encoding="utf-8",
     )
+    validator_dir = tmp_path / "validator"
+    validator_dir.mkdir()
+    (validator_dir / "stale.txt").write_text("stale", encoding="utf-8")
 
     validator = write_validator_workspace(
-        tmp_path / "validator",
+        validator_dir,
         package_dir=package_dir,
         harness_dir=harness_dir,
         version="1.2.3",
@@ -259,6 +284,9 @@ gpui = { version = "0.2.2", default-features = false, features = ["test-support"
     )
 
     assert validator == tmp_path / "validator", "expected validator workspace path"
+    assert not (validator / "stale.txt").exists(), (
+        "expected stale validator workspace contents to be removed"
+    )
     assert f'name = "{GPUI_VALIDATOR_CRATE}"' in manifest, (
         "expected validator crate name in manifest"
     )
