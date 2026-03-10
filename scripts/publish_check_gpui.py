@@ -114,6 +114,7 @@ def build_packaged_archive(
 
 
 def _workspace_gpui_spec(workspace_root: Path) -> str:
+    """Return the workspace ``gpui`` dependency as an inline TOML table string."""
     workspace = tomllib.loads(
         (workspace_root / "Cargo.toml").read_text(encoding="utf-8")
     )
@@ -373,17 +374,19 @@ def _toml_list(values: list[str]) -> str:
 
 
 def _toml_inline_table(values: dict[str, object]) -> str:
+    """Return ``values`` rendered as a TOML inline table."""
     rendered_items: list[str] = []
     for key, value in values.items():
-        if isinstance(value, bool):
-            rendered = str(value).lower()
-        elif isinstance(value, str):
-            rendered = f'"{value}"'
-        elif isinstance(value, list):
-            rendered = _toml_list(value)
-        else:
-            message = f"unsupported TOML inline-table value for {key!r}: {value!r}"
-            raise SystemExit(message)
+        match value:
+            case bool():
+                rendered = str(value).lower()
+            case str():
+                rendered = f'"{value}"'
+            case list():
+                rendered = _toml_list(value)
+            case _:
+                message = f"unsupported TOML inline-table value for {key!r}: {value!r}"
+                raise SystemExit(message)
         rendered_items.append(f"{key} = {rendered}")
     return "{ " + ", ".join(rendered_items) + " }"
 
