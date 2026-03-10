@@ -396,12 +396,31 @@ def _is_link_member(member: tarfile.TarInfo) -> bool:
     return member.issym() or member.islnk()
 
 
+def _is_allowed_member_type(member: tarfile.TarInfo) -> bool:
+    """Return ``True`` when ``member`` is a regular file, directory, or link."""
+    return member.isreg() or member.isdir() or _is_link_member(member)
+
+
+def _assert_link_target_safe(
+    resolved_destination: pathlib.Path,
+    member: tarfile.TarInfo,
+    member_destination: pathlib.Path,
+) -> None:
+    """Raise ``SystemExit`` if a link target would escape ``resolved_destination``."""
+    if _is_link_member(member) and _is_unsafe_archive_path(
+        resolved_destination,
+        member.linkname,
+        base_directory=member_destination.parent,
+    ):
+        message = f"refusing to extract unsafe archive member {member.name!r}"
+        raise SystemExit(message)
+
+
 def _assert_member_safe(
     resolved_destination: pathlib.Path, member: tarfile.TarInfo
 ) -> None:
     """Raise ``SystemExit`` if ``member`` would be unsafe to extract."""
-    is_allowed_type = member.isreg() or member.isdir() or _is_link_member(member)
-    if not is_allowed_type:
+    if not _is_allowed_member_type(member):
         message = f"refusing to extract unsupported archive member {member.name!r}"
         raise SystemExit(message)
     if _is_unsafe_archive_path(resolved_destination, member.name):
@@ -411,13 +430,7 @@ def _assert_member_safe(
     if member_destination is None:
         message = f"refusing to extract unsafe archive member {member.name!r}"
         raise SystemExit(message)
-    if _is_link_member(member) and _is_unsafe_archive_path(
-        resolved_destination,
-        member.linkname,
-        base_directory=member_destination.parent,
-    ):
-        message = f"refusing to extract unsafe archive member {member.name!r}"
-        raise SystemExit(message)
+    _assert_link_target_safe(resolved_destination, member, member_destination)
 
 
 def _extract_archive_safely(package: tarfile.TarFile, destination: Path) -> None:
