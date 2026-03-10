@@ -54,6 +54,9 @@ repository = "https://example.invalid/repo"
 keywords = ["bdd"]
 categories = ["development-tools::testing"]
 rust-version = "1.85"
+
+[workspace.dependencies]
+gpui = { version = "0.2.2", default-features = false, features = ["test-support"] }
 """,
         encoding="utf-8",
     )
@@ -154,6 +157,46 @@ def test_extract_packaged_archive_accepts_symlink_relative_to_member_parent(
     )
 
 
+def test_extract_packaged_archive_rejects_late_unsafe_member_without_extracting(
+    tmp_path: Path,
+) -> None:
+    """Reject a later unsafe member before creating any extracted tree."""
+    archive = tmp_path / "demo-1.2.3.crate"
+    with tarfile.open(archive, "w:gz") as package:
+        safe = tmp_path / "safe.txt"
+        unsafe = tmp_path / "unsafe.txt"
+        safe.write_text("safe", encoding="utf-8")
+        unsafe.write_text("unsafe", encoding="utf-8")
+        package.add(safe, arcname="demo-1.2.3/Cargo.toml")
+        package.add(unsafe, arcname="demo-1.2.3/..\\..\\secret.txt")
+
+    with pytest.raises(SystemExit, match="refusing to extract unsafe archive member"):
+        extract_packaged_archive(archive, tmp_path / "out")
+    assert not (tmp_path / "out").exists(), (
+        "expected later unsafe member to prevent any extraction"
+    )
+
+
+def test_extract_packaged_archive_rejects_unsupported_member_types(
+    tmp_path: Path,
+) -> None:
+    """Reject special tar members such as FIFOs before extraction begins."""
+    archive = tmp_path / "demo-1.2.3.crate"
+    with tarfile.open(archive, "w:gz") as package:
+        fifo = tarfile.TarInfo("demo-1.2.3/fifo")
+        fifo.type = tarfile.FIFOTYPE
+        package.addfile(fifo)
+
+    with pytest.raises(
+        SystemExit,
+        match="refusing to extract unsupported archive member",
+    ):
+        extract_packaged_archive(archive, tmp_path / "out")
+    assert not (tmp_path / "out").exists(), (
+        "expected unsupported tar members to leave destination absent"
+    )
+
+
 @pytest.mark.parametrize(
     ("arcname", "expected_error"),
     [
@@ -191,6 +234,17 @@ def test_write_validator_workspace_writes_manifest_and_smoke_test(
     """Generate a validator crate that points at the packaged harness artifact."""
     package_dir = tmp_path / "pkg" / "rstest-bdd-harness-gpui-1.2.3"
     harness_dir = tmp_path / "workspace" / "crates" / "rstest-bdd-harness"
+    package_dir.mkdir(parents=True)
+    (package_dir / "Cargo.toml").write_text(
+        """[package]
+name = "rstest-bdd-harness-gpui"
+version = "1.2.3"
+
+[dependencies]
+gpui = { version = "0.2.2", default-features = false, features = ["test-support"] }
+""",
+        encoding="utf-8",
+    )
 
     validator = write_validator_workspace(
         tmp_path / "validator",

@@ -113,6 +113,32 @@ def build_packaged_archive(
     return destination
 
 
+def _workspace_gpui_spec(workspace_root: Path) -> str:
+    workspace = tomllib.loads(
+        (workspace_root / "Cargo.toml").read_text(encoding="utf-8")
+    )
+    return _toml_inline_table(workspace["workspace"]["dependencies"]["gpui"])
+
+
+def _has_top_level_files(member_paths: list[pathlib.PurePosixPath]) -> bool:
+    """Return ``True`` when any member sits directly at the archive root."""
+    return any(len(member.parts) == 1 for member in member_paths)
+
+
+def _find_root_names(
+    archive: Path,
+    member_paths: list[pathlib.PurePosixPath],
+) -> tuple[str, set[str]]:
+    """Return ``(root_name, all_root_names)`` or raise on an empty archive."""
+    try:
+        package_root_names = {member.parts[0] for member in member_paths}
+        package_root_name = next(iter(package_root_names))
+    except (StopIteration, ValueError) as error:
+        message = f"packaged archive {archive} did not contain any files"
+        raise SystemExit(message) from error
+    return package_root_name, package_root_names
+
+
 def _resolve_archive_root(
     archive: Path, member_paths: list[pathlib.PurePosixPath]
 ) -> str:
@@ -121,14 +147,8 @@ def _resolve_archive_root(
     Raises ``SystemExit`` when the archive is empty, contains top-level file
     entries, or has more than one top-level directory.
     """
-    try:
-        package_root_names = {member.parts[0] for member in member_paths}
-        package_root_name = next(iter(package_root_names))
-    except (StopIteration, ValueError) as error:
-        message = f"packaged archive {archive} did not contain any files"
-        raise SystemExit(message) from error
-
-    if any(len(member.parts) == 1 for member in member_paths):
+    package_root_name, package_root_names = _find_root_names(archive, member_paths)
+    if _has_top_level_files(member_paths):
         message = f"packaged archive {archive} contained top-level file entries"
         raise SystemExit(message)
     if len(package_root_names) != 1:
@@ -136,7 +156,6 @@ def _resolve_archive_root(
             f"packaged archive {archive} must contain exactly one top-level directory"
         )
         raise SystemExit(message)
-
     return package_root_name
 
 
@@ -170,7 +189,6 @@ def extract_packaged_archive(archive: Path, destination: Path) -> Path:
             if member.name
         ]
         package_root_name = _resolve_archive_root(archive, member_paths)
-        destination.mkdir(parents=True, exist_ok=True)
         _extract_archive_safely(package, destination)
 
     return destination / package_root_name
@@ -233,6 +251,10 @@ def _validator_manifest(*, package_dir: Path, harness_dir: Path, version: str) -
     """Return the manifest for the validator crate."""
     package_path = _toml_path(package_dir)
     harness_path = _toml_path(harness_dir)
+    packaged_manifest = tomllib.loads(
+        (package_dir / "Cargo.toml").read_text(encoding="utf-8")
+    )
+    gpui_spec = _toml_inline_table(packaged_manifest["dependencies"]["gpui"])
     return f"""[package]
 name = "{GPUI_VALIDATOR_CRATE}"
 version = "0.0.0"
@@ -242,7 +264,7 @@ publish = false
 [workspace]
 
 [dependencies]
-gpui = {{ version = "0.2.2", default-features = false, features = ["test-support"] }}
+gpui = {gpui_spec}
 rstest-bdd-harness = "{version}"
 rstest-bdd-harness-gpui = {{ path = "{package_path}" }}
 
@@ -262,6 +284,7 @@ def _packaged_manifest(workspace_root: Path, version: str) -> str:
         )
     )
     workspace_package = workspace["workspace"]["package"]
+    gpui_spec = _workspace_gpui_spec(workspace_root)
     package = crate["package"]
 
     return """[package]
@@ -287,7 +310,7 @@ native-gpui-tests = []
 
 [dependencies]
 rstest-bdd-harness = "{version}"
-gpui = {{ version = "0.2.2", default-features = false, features = ["test-support"] }}
+gpui = {gpui_spec}
 """.format(
         name=package["name"],
         version=version,
@@ -301,6 +324,7 @@ gpui = {{ version = "0.2.2", default-features = false, features = ["test-support
         keywords=_toml_list(workspace_package["keywords"]),
         categories=_toml_list(workspace_package["categories"]),
         rust_version=workspace_package["rust-version"],
+        gpui_spec=gpui_spec,
     )
 
 
@@ -348,6 +372,22 @@ def _toml_list(values: list[str]) -> str:
     return f"[{quoted}]"
 
 
+def _toml_inline_table(values: dict[str, object]) -> str:
+    rendered_items: list[str] = []
+    for key, value in values.items():
+        if isinstance(value, bool):
+            rendered = str(value).lower()
+        elif isinstance(value, str):
+            rendered = f'"{value}"'
+        elif isinstance(value, list):
+            rendered = _toml_list(value)
+        else:
+            message = f"unsupported TOML inline-table value for {key!r}: {value!r}"
+            raise SystemExit(message)
+        rendered_items.append(f"{key} = {rendered}")
+    return "{ " + ", ".join(rendered_items) + " }"
+
+
 def _is_link_member(member: tarfile.TarInfo) -> bool:
     """Return ``True`` when ``member`` is a symbolic or hard link."""
     return member.issym() or member.islnk()
@@ -357,6 +397,10 @@ def _assert_member_safe(
     resolved_destination: pathlib.Path, member: tarfile.TarInfo
 ) -> None:
     """Raise ``SystemExit`` if ``member`` would be unsafe to extract."""
+    is_allowed_type = member.isreg() or member.isdir() or _is_link_member(member)
+    if not is_allowed_type:
+        message = f"refusing to extract unsupported archive member {member.name!r}"
+        raise SystemExit(message)
     if _is_unsafe_archive_path(resolved_destination, member.name):
         message = f"refusing to extract unsafe archive member {member.name!r}"
         raise SystemExit(message)
@@ -376,8 +420,11 @@ def _assert_member_safe(
 def _extract_archive_safely(package: tarfile.TarFile, destination: Path) -> None:
     """Safely extract tar members into ``destination`` after validation."""
     resolved_destination = pathlib.Path(destination).resolve(strict=False)
-    for member in package.getmembers():
+    members = package.getmembers()
+    for member in members:
         _assert_member_safe(resolved_destination, member)
+    destination.mkdir(parents=True, exist_ok=True)
+    for member in members:
         package.extract(member, destination)
 
 
