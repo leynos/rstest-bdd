@@ -132,7 +132,7 @@ def _find_root_names(
     try:
         package_root_names = {member.parts[0] for member in member_paths}
         package_root_name = next(iter(package_root_names))
-    except (StopIteration, ValueError) as error:
+    except StopIteration as error:
         message = f"packaged archive {archive} did not contain any files"
         raise SystemExit(message) from error
     return package_root_name, package_root_names

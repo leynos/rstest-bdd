@@ -146,7 +146,10 @@ def _toml_path(path: Path) -> str:
 
 def _toml_list(values: list[str]) -> str:
     """Return a TOML string-array literal for ``values``."""
-    quoted = ", ".join(f'"{value}"' for value in values)
+    escaped_values = (
+        value.replace("\\", "\\\\").replace('"', '\\"') for value in values
+    )
+    quoted = ", ".join(f'"{value}"' for value in escaped_values)
     return f"[{quoted}]"
 
 
@@ -160,7 +163,8 @@ def _toml_inline_table(values: dict[str, object]) -> str:
             case str():
                 rendered = f'"{value}"'
             case list():
-                rendered = _toml_list(value)
+                casted_value = typ.cast("list[str]", value)
+                rendered = _toml_list(casted_value)
             case _:
                 message = f"unsupported TOML inline-table value for {key!r}: {value!r}"
                 raise SystemExit(message)
