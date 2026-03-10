@@ -12,6 +12,43 @@ if typ.TYPE_CHECKING:
     from types import ModuleType
 
 
+@dataclasses.dataclass(frozen=True)
+class _CrateActionCalls:
+    package: list[tuple[str, Path, int]]
+    gpui: list[tuple[str, Path, int]]
+    check: list[tuple[str, Path, int]]
+
+
+def _patch_crate_action_functions(
+    monkeypatch: pytest.MonkeyPatch,
+    mod: ModuleType,
+) -> _CrateActionCalls:
+    """Register crate-action monkeypatches and return the recorded call lists."""
+    calls = _CrateActionCalls(package=[], gpui=[], check=[])
+    monkeypatch.setattr(
+        mod,
+        "package_crate",
+        lambda crate, root, *, timeout_secs: calls.package.append(
+            (crate, root, timeout_secs)
+        ),
+    )
+    monkeypatch.setattr(
+        mod,
+        "check_crate",
+        lambda crate, root, *, timeout_secs: calls.check.append(
+            (crate, root, timeout_secs)
+        ),
+    )
+    monkeypatch.setattr(
+        mod,
+        "validate_packaged_gpui_harness",
+        lambda crate, root, *, timeout_secs: calls.gpui.append(
+            (crate, root, timeout_secs)
+        ),
+    )
+    return calls
+
+
 def test_process_crates_for_check_delegates_configuration(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -19,6 +56,7 @@ def test_process_crates_for_check_delegates_configuration(
 ) -> None:
     """Ensure the check flow supplies the expected processing configuration."""
     observed: dict[str, object] = {}
+    calls = _patch_crate_action_functions(monkeypatch, run_publish_check_module)
 
     def fake_process_crates(
         workspace: Path,
@@ -35,33 +73,8 @@ def test_process_crates_for_check_delegates_configuration(
         action("rstest-bdd-harness-gpui", workspace, timeout_secs=11)
         action("demo", workspace, timeout_secs=11)
 
-    package_calls: list[tuple[str, Path, int]] = []
-    gpui_calls: list[tuple[str, Path, int]] = []
-    check_calls: list[tuple[str, Path, int]] = []
-
     monkeypatch.setattr(
         run_publish_check_module, "_process_crates", fake_process_crates
-    )
-    monkeypatch.setattr(
-        run_publish_check_module,
-        "package_crate",
-        lambda crate, root, *, timeout_secs: package_calls.append(
-            (crate, root, timeout_secs)
-        ),
-    )
-    monkeypatch.setattr(
-        run_publish_check_module,
-        "check_crate",
-        lambda crate, root, *, timeout_secs: check_calls.append(
-            (crate, root, timeout_secs)
-        ),
-    )
-    monkeypatch.setattr(
-        run_publish_check_module,
-        "validate_packaged_gpui_harness",
-        lambda crate, root, *, timeout_secs: gpui_calls.append(
-            (crate, root, timeout_secs)
-        ),
     )
 
     workspace = tmp_path / "check"
@@ -92,14 +105,14 @@ def test_process_crates_for_check_delegates_configuration(
     assert callable(observed["crate_action"]), (
         f"expected callable crate_action, got {observed['crate_action']=}"
     )
-    assert package_calls == [("rstest-bdd-patterns", workspace, 11)], (
-        f"expected package_calls for patterns crate, got {package_calls=}"
+    assert calls.package == [("rstest-bdd-patterns", workspace, 11)], (
+        f"expected calls.package for patterns crate, got {calls.package=}"
     )
-    assert gpui_calls == [("rstest-bdd-harness-gpui", workspace, 11)], (
-        f"expected gpui_calls for GPUI harness, got {gpui_calls=}"
+    assert calls.gpui == [("rstest-bdd-harness-gpui", workspace, 11)], (
+        f"expected calls.gpui for GPUI harness, got {calls.gpui=}"
     )
-    assert check_calls == [("demo", workspace, 11)], (
-        f"expected check_calls for demo crate, got {check_calls=}"
+    assert calls.check == [("demo", workspace, 11)], (
+        f"expected calls.check for demo crate, got {calls.check=}"
     )
 
 
