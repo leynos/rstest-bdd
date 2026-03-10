@@ -143,6 +143,9 @@ fn run_lint_ui_tests() {
 fn run_lint_ui_case(bin: &str, lint_args: &[&str]) {
     let manifest_dir = Utf8Path::new(env!("CARGO_MANIFEST_DIR"));
     let manifest_path = manifest_dir.join("tests/ui_lints/Cargo.toml");
+    // Keep lint runs isolated from the workspace target directory to avoid
+    // artefact/cache conflicts and cross-test contamination; this makes
+    // per-bin `cargo clippy` checks deterministic.
     let target_dir = manifest_dir.join("target/tests/ui_lints_clippy");
     let output = Command::new("cargo")
         .current_dir(manifest_dir.as_std_path())
