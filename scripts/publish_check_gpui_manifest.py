@@ -124,10 +124,10 @@ gpui = {gpui_spec}
         edition=workspace_package["edition"],
         license=workspace_package["license"],
         authors=_toml_list(workspace_package["authors"]),
-        description=package["description"],
-        homepage=workspace_package["homepage"],
-        repository=workspace_package["repository"],
-        readme=package["readme"],
+        description=_escape_toml_string(package["description"]),
+        homepage=_escape_toml_string(workspace_package["homepage"]),
+        repository=_escape_toml_string(workspace_package["repository"]),
+        readme=_escape_toml_string(package["readme"]),
         keywords=_toml_list(workspace_package["keywords"]),
         categories=_toml_list(workspace_package["categories"]),
         rust_version=workspace_package["rust-version"],
@@ -170,33 +170,42 @@ fn upstream_gpui_attribute_runs(context: &gpui::TestAppContext) {
 
 def _toml_path(path: Path) -> str:
     """Return ``path`` as a POSIX string suitable for TOML manifests."""
-    return path.as_posix()
+    return _escape_toml_string(path.as_posix())
+
+
+def _escape_toml_string(value: str) -> str:
+    """Return ``value`` escaped for use in a TOML basic string."""
+    return value.replace("\\", "\\\\").replace('"', '\\"')
 
 
 def _toml_list(values: list[str]) -> str:
     """Return a TOML string-array literal for ``values``."""
-    escaped_values = (
-        value.replace("\\", "\\\\").replace('"', '\\"') for value in values
-    )
+    escaped_values = (_escape_toml_string(value) for value in values)
     quoted = ", ".join(f'"{value}"' for value in escaped_values)
     return f"[{quoted}]"
+
+
+def _render_inline_table_value(*, key: str, value: object) -> str:
+    """Return ``value`` rendered for a TOML inline table entry."""
+    match value:
+        case bool():
+            return str(value).lower()
+        case str():
+            escaped_value = _escape_toml_string(value)
+            return f'"{escaped_value}"'
+        case list():
+            casted_value = typ.cast("list[str]", value)
+            return _toml_list(casted_value)
+        case _:
+            message = f"unsupported TOML inline-table value for {key!r}: {value!r}"
+            raise SystemExit(message)
 
 
 def _toml_inline_table(values: dict[str, object]) -> str:
     """Return ``values`` rendered as a TOML inline table."""
     rendered_items: list[str] = []
     for key, value in values.items():
-        match value:
-            case bool():
-                rendered = str(value).lower()
-            case str():
-                escaped_value = value.replace("\\", "\\\\").replace('"', '\\"')
-                rendered = f'"{escaped_value}"'
-            case list():
-                casted_value = typ.cast("list[str]", value)
-                rendered = _toml_list(casted_value)
-            case _:
-                message = f"unsupported TOML inline-table value for {key!r}: {value!r}"
-                raise SystemExit(message)
-        rendered_items.append(f"{key} = {rendered}")
+        rendered_items.append(
+            f"{key} = {_render_inline_table_value(key=key, value=value)}"
+        )
     return "{ " + ", ".join(rendered_items) + " }"
