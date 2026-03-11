@@ -22,10 +22,11 @@ Examples
 
 from __future__ import annotations
 
+import collections.abc as cabc
 import contextlib
 import typing as typ
 
-RunCallable = typ.Callable[[list[str], int | None], tuple[int, str, str]]
+RunCallable = cabc.Callable[[list[str], int | None], tuple[int, str, str]]
 
 if typ.TYPE_CHECKING:
     from pathlib import Path
@@ -64,6 +65,7 @@ class FakeCargoInvocation:
         tuple[int, str, str]
             Exit status, stdout, and stderr from the fake runner callable.
         """
+        _ = retcode
         self._local.invocations.append((self._args, timeout))
         return self._local.run_callable(self._args, timeout)
 
@@ -94,11 +96,11 @@ class FakeCargo:
         FakeCargoInvocation
             Invocation wrapper that records calls to ``run``.
         """
-        extras = (
-            [str(arg) for arg in args]
-            if isinstance(args, (list, tuple))
-            else [str(args)]
-        )
+        match args:
+            case list() | tuple() as sequence:
+                extras = [str(arg) for arg in sequence]
+            case _:
+                extras = [str(args)]
         return FakeCargoInvocation(self._local, extras)
 
 
