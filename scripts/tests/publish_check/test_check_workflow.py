@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import dataclasses
 import typing as typ
 
 import pytest
@@ -148,6 +149,86 @@ def test_process_crates_for_check_runs_local_validation(
     ], f"expected strip/apply/package/gpui/check workflow steps, got {steps=}"
 
 
+@dataclasses.dataclass(frozen=True)
+class _GpuiHarnessTestContext:
+    workspace: Path
+    package_dir: Path
+    validator_dir: Path
+    timeout_secs: int
+
+
+def _assert_gpui_harness_artifact_steps(
+    patch_state: GpuiHarnessPatchState,
+    ctx: _GpuiHarnessTestContext,
+    mod: ModuleType,
+) -> None:
+    """Assert the full step sequence recorded by the gpui_harness_calls fixture."""
+    archive = (
+        ctx.workspace / "target" / "package" / "rstest-bdd-harness-gpui-1.2.3.crate"
+    )
+    steps = patch_state.steps
+
+    assert patch_state.workspace_version_args == [ctx.workspace / "Cargo.toml"], (
+        "expected workspace_version to read the workspace manifest "
+        f"from {ctx.workspace / 'Cargo.toml'=}, got "
+        f"{patch_state.workspace_version_args=}"
+    )
+    assert patch_state.packaged_archive_path_args == [
+        (ctx.workspace, "rstest-bdd-harness-gpui", "1.2.3")
+    ], (
+        "expected packaged_archive_path to receive workspace, crate, and version "
+        f"arguments, got {patch_state.packaged_archive_path_args=}"
+    )
+    assert len(steps) == 4, (
+        f"expected four recorded steps, got {len(steps)=} with {steps=}"
+    )
+    assert steps[0] == (
+        "archive",
+        (ctx.workspace, archive, "1.2.3", ctx.timeout_secs),
+    ), (
+        "expected steps[0] to archive "
+        f"{ctx.workspace=} with version 1.2.3 and timeout "
+        f"{ctx.timeout_secs}"
+    )
+    assert steps[1] == (
+        "extract",
+        (archive, ctx.workspace / ".gpui-package-check" / "package"),
+    ), f"expected steps[1] to extract archive into {ctx.workspace=}"
+    assert steps[2] == (
+        "validator",
+        (
+            ctx.workspace / ".gpui-package-check" / "validator",
+            ctx.package_dir,
+            ctx.workspace / "crates" / "rstest-bdd-harness",
+            "1.2.3",
+        ),
+    ), (
+        "expected steps[2] to write validator with "
+        f"{ctx.package_dir=} and {ctx.validator_dir=}"
+    )
+    assert steps[3][0] == "cargo", (
+        f"expected steps[3] to record cargo invocation, got {steps[3]=}"
+    )
+    cargo_context, cargo_command = typ.cast(
+        "tuple[object, list[str]]",
+        steps[3][1],
+    )
+    assert cargo_context.crate == mod.GPUI_VALIDATOR_CRATE, (  # type: ignore[union-attr]
+        "expected cargo_context.crate to target "
+        f"{mod.GPUI_VALIDATOR_CRATE} from {steps=}"
+    )
+    assert cargo_context.crate_dir == ctx.validator_dir, (  # type: ignore[union-attr]
+        f"expected cargo_context.crate_dir to match {ctx.validator_dir=} from {steps=}"
+    )
+    assert cargo_context.timeout_secs == ctx.timeout_secs, (  # type: ignore[union-attr]
+        "expected cargo_context.timeout_secs to be "
+        f"{ctx.timeout_secs} from {cargo_context=}"
+    )
+    assert cargo_command == ["cargo", "check", "--tests"], (
+        f"expected cargo_command to check tests with {cargo_command=}"
+    )
+
+
 def test_validate_packaged_gpui_harness_packages_and_tests_artifact(
     gpui_harness_calls: typ.Callable[[GpuiPackagePaths], GpuiHarnessPatchState],
     tmp_path: Path,
@@ -170,7 +251,6 @@ def test_validate_packaged_gpui_harness_packages_and_tests_artifact(
             validator_dir=validator_dir,
         )
     )
-    steps = patch_state.steps
 
     run_publish_check_module.validate_packaged_gpui_harness(
         "rstest-bdd-harness-gpui",
@@ -178,55 +258,15 @@ def test_validate_packaged_gpui_harness_packages_and_tests_artifact(
         timeout_secs=77,
     )
 
-    assert patch_state.workspace_version_args == [workspace / "Cargo.toml"], (
-        "expected workspace_version to read the workspace manifest "
-        f"from {workspace / 'Cargo.toml'=}, got {patch_state.workspace_version_args=}"
-    )
-    assert patch_state.packaged_archive_path_args == [
-        (workspace, "rstest-bdd-harness-gpui", "1.2.3")
-    ], (
-        "expected packaged_archive_path to receive workspace, crate, and version "
-        f"arguments, got {patch_state.packaged_archive_path_args=}"
-    )
-    assert len(steps) == 4, (
-        f"expected four recorded steps, got {len(steps)=} with {steps=}"
-    )
-    assert steps[0] == ("archive", (workspace, archive, "1.2.3", 77)), (
-        "expected steps[0] to archive "
-        f"{workspace=} {archive=} with version 1.2.3 and timeout 77"
-    )
-    assert steps[1] == (
-        "extract",
-        (archive, workspace / ".gpui-package-check" / "package"),
-    ), f"expected steps[1] to extract {archive=} into {workspace=}"
-    assert steps[2] == (
-        "validator",
-        (
-            workspace / ".gpui-package-check" / "validator",
-            package_dir,
-            workspace / "crates" / "rstest-bdd-harness",
-            "1.2.3",
+    _assert_gpui_harness_artifact_steps(
+        patch_state,
+        _GpuiHarnessTestContext(
+            workspace=workspace,
+            package_dir=package_dir,
+            validator_dir=validator_dir,
+            timeout_secs=77,
         ),
-    ), f"expected steps[2] to write validator with {package_dir=} and {validator_dir=}"
-    assert steps[3][0] == "cargo", (
-        f"expected steps[3] to record cargo invocation, got {steps[3]=}"
-    )
-    cargo_context, cargo_command = typ.cast(
-        "tuple[run_publish_check_module.CargoCommandContext, list[str]]",
-        steps[3][1],
-    )
-    assert cargo_context.crate == run_publish_check_module.GPUI_VALIDATOR_CRATE, (
-        "expected cargo_context.crate to target "
-        f"{run_publish_check_module.GPUI_VALIDATOR_CRATE} from {steps=}"
-    )
-    assert cargo_context.crate_dir == validator_dir, (
-        f"expected cargo_context.crate_dir to match {validator_dir=} from {steps=}"
-    )
-    assert cargo_context.timeout_secs == 77, (
-        f"expected cargo_context.timeout_secs to be 77 from {cargo_context=}"
-    )
-    assert cargo_command == ["cargo", "check", "--tests"], (
-        f"expected cargo_command to check tests with {cargo_command=}"
+        run_publish_check_module,
     )
 
 

@@ -40,12 +40,82 @@ if typ.TYPE_CHECKING:
     from pathlib import Path
 
 
+def _normalize_dependency_spec(name: str, value: object) -> str | dict[str, object]:
+    """Return ``value`` normalised to a dependency string or inline-table mapping."""
+    match value:
+        case str():
+            return {"version": value}
+        case dict():
+            return value
+        case _:
+            message = (
+                f"unsupported dependency spec for {name!r}: expected str or dict, "
+                f"got {value!r}"
+            )
+            raise SystemExit(message)
+
+
+def _sanitize_dependency_spec(
+    *,
+    name: str,
+    value: object,
+    workspace_dependencies: dict[str, object],
+) -> str | dict[str, object]:
+    """Return a publish-safe dependency spec for ``name``."""
+    normalized_value = _normalize_dependency_spec(name, value)
+    if isinstance(normalized_value, str):
+        return normalized_value
+
+    if normalized_value.get("workspace") is True:
+        if name not in workspace_dependencies:
+            message = f"workspace dependency {name!r} was not defined in Cargo.toml"
+            raise SystemExit(message)
+        return _sanitize_dependency_spec(
+            name=name,
+            value=workspace_dependencies[name],
+            workspace_dependencies=workspace_dependencies,
+        )
+
+    return {
+        key: item
+        for key, item in normalized_value.items()
+        if key not in {"path", "workspace"}
+    }
+
+
+def _render_dependency_line(
+    *,
+    name: str,
+    value: object,
+    workspace_dependencies: dict[str, object],
+) -> str:
+    """Return a dependency line for the packaged manifest."""
+    sanitized_value = _sanitize_dependency_spec(
+        name=name,
+        value=value,
+        workspace_dependencies=workspace_dependencies,
+    )
+    if isinstance(sanitized_value, str):
+        escaped_value = _escape_toml_string(sanitized_value)
+        return f'{name} = "{escaped_value}"'
+    if tuple(sanitized_value.keys()) == ("version",):
+        version = typ.cast("str", sanitized_value["version"])
+        escaped_value = _escape_toml_string(version)
+        return f'{name} = "{escaped_value}"'
+    return f"{name} = {_toml_inline_table(sanitized_value)}"
+
+
 def _workspace_gpui_spec(workspace_root: Path) -> str:
     """Return the workspace ``gpui`` dependency as an inline TOML table string."""
     workspace = tomllib.loads(
         (workspace_root / "Cargo.toml").read_text(encoding="utf-8")
     )
-    return _toml_inline_table(workspace["workspace"]["dependencies"]["gpui"])
+    gpui_dependency = _normalize_dependency_spec(
+        "gpui", workspace["workspace"]["dependencies"]["gpui"]
+    )
+    if isinstance(gpui_dependency, str):
+        return _toml_inline_table({"version": gpui_dependency})
+    return _toml_inline_table(gpui_dependency)
 
 
 def _validator_manifest(
@@ -93,8 +163,21 @@ def _packaged_manifest(workspace_root: Path, version: str, harness_crate: str) -
         )
     )
     workspace_package = workspace["workspace"]["package"]
+    workspace_dependencies = workspace["workspace"]["dependencies"]
     gpui_spec = _workspace_gpui_spec(workspace_root)
     package = crate["package"]
+    crate_dependencies = typ.cast("dict[str, object]", crate.get("dependencies", {}))
+    rendered_dependencies = [
+        _render_dependency_line(
+            name=dependency_name,
+            value=dependency_value,
+            workspace_dependencies=workspace_dependencies,
+        )
+        for dependency_name, dependency_value in crate_dependencies.items()
+        if dependency_name != "gpui"
+    ]
+    rendered_dependencies.append(f"gpui = {gpui_spec}")
+    dependencies_block = "\n".join(rendered_dependencies)
 
     return """[package]
 name = "{name}"
@@ -118,8 +201,7 @@ test = false
 native-gpui-tests = []
 
 [dependencies]
-rstest-bdd-harness = "{version}"
-gpui = {gpui_spec}
+{dependencies_block}
 """.format(
         name=_escape_toml_string(package["name"]),
         version=_escape_toml_string(version),
@@ -133,7 +215,7 @@ gpui = {gpui_spec}
         keywords=_toml_list(workspace_package["keywords"]),
         categories=_toml_list(workspace_package["categories"]),
         rust_version=_escape_toml_string(workspace_package["rust-version"]),
-        gpui_spec=gpui_spec,
+        dependencies_block=dependencies_block,
     )
 
 
@@ -196,11 +278,13 @@ def _render_inline_table_value(*, key: str, value: object) -> str:
             escaped_value = _escape_toml_string(value)
             return f'"{escaped_value}"'
         case list():
-            casted_value = typ.cast("list[str]", value)
-            return _toml_list(casted_value)
+            if all(isinstance(item, str) for item in value):
+                casted_value = typ.cast("list[str]", value)
+                return _toml_list(casted_value)
         case _:
-            message = f"unsupported TOML inline-table value for {key!r}: {value!r}"
-            raise SystemExit(message)
+            pass
+    message = f"unsupported TOML inline-table value for {key!r}: {value!r}"
+    raise SystemExit(message)
 
 
 def _toml_inline_table(values: dict[str, object]) -> str:

@@ -41,6 +41,9 @@ def test_build_packaged_archive_creates_standalone_gpui_harness_archive(
 name = "rstest-bdd-harness-gpui"
 description = "demo"
 readme = "README.md"
+
+[dependencies]
+rstest-bdd-harness = "1.2.3"
 """,
         encoding="utf-8",
     )
