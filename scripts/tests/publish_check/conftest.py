@@ -172,6 +172,24 @@ def gpui_harness_calls(
             packaged_archive_path_args.append((root, crate, version))
             return paths.archive
 
+        def fake_extract_packaged_archive(
+            archive_path: Path, destination: Path
+        ) -> Path:
+            steps.append(("extract", (archive_path, destination)))
+            return paths.package_dir
+
+        def fake_write_validator_workspace(
+            destination: Path,
+            *,
+            package_dir: Path,
+            harness_dir: Path,
+            version: str,
+        ) -> Path:
+            steps.append(
+                ("validator", (destination, package_dir, harness_dir, version))
+            )
+            return paths.validator_dir
+
         monkeypatch.setattr(
             run_publish_check_module, "workspace_version", record_workspace_version
         )
@@ -188,20 +206,12 @@ def gpui_harness_calls(
         monkeypatch.setattr(
             run_publish_check_module,
             "extract_packaged_archive",
-            lambda archive_path, destination: (
-                steps.append(("extract", (archive_path, destination)))
-                or paths.package_dir
-            ),
+            fake_extract_packaged_archive,
         )
         monkeypatch.setattr(
             run_publish_check_module,
             "write_validator_workspace",
-            lambda destination, *, package_dir, harness_dir, version: (
-                steps.append(
-                    ("validator", (destination, package_dir, harness_dir, version))
-                )
-                or paths.validator_dir
-            ),
+            fake_write_validator_workspace,
         )
         monkeypatch.setattr(
             run_publish_check_module,

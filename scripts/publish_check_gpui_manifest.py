@@ -58,12 +58,14 @@ def _validator_manifest(
     """Return the manifest for the validator crate."""
     package_path = _toml_path(package_dir)
     harness_path = _toml_path(harness_dir)
+    escaped_validator_crate = _escape_toml_string(validator_crate)
+    escaped_version = _escape_toml_string(version)
     packaged_manifest = tomllib.loads(
         (package_dir / "Cargo.toml").read_text(encoding="utf-8")
     )
     gpui_spec = _toml_inline_table(packaged_manifest["dependencies"]["gpui"])
     return f"""[package]
-name = "{validator_crate}"
+name = "{escaped_validator_crate}"
 version = "0.0.0"
 edition = "2024"
 publish = false
@@ -72,7 +74,7 @@ publish = false
 
 [dependencies]
 gpui = {gpui_spec}
-rstest-bdd-harness = "{version}"
+rstest-bdd-harness = "{escaped_version}"
 rstest-bdd-harness-gpui = {{ path = "{package_path}" }}
 
 [patch.crates-io]
@@ -119,10 +121,10 @@ native-gpui-tests = []
 rstest-bdd-harness = "{version}"
 gpui = {gpui_spec}
 """.format(
-        name=package["name"],
-        version=version,
-        edition=workspace_package["edition"],
-        license=workspace_package["license"],
+        name=_escape_toml_string(package["name"]),
+        version=_escape_toml_string(version),
+        edition=_escape_toml_string(workspace_package["edition"]),
+        license=_escape_toml_string(workspace_package["license"]),
         authors=_toml_list(workspace_package["authors"]),
         description=_escape_toml_string(package["description"]),
         homepage=_escape_toml_string(workspace_package["homepage"]),
@@ -130,7 +132,7 @@ gpui = {gpui_spec}
         readme=_escape_toml_string(package["readme"]),
         keywords=_toml_list(workspace_package["keywords"]),
         categories=_toml_list(workspace_package["categories"]),
-        rust_version=workspace_package["rust-version"],
+        rust_version=_escape_toml_string(workspace_package["rust-version"]),
         gpui_spec=gpui_spec,
     )
 
