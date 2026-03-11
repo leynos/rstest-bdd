@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import contextlib
 import dataclasses as dc
 import importlib.util
 import sys
@@ -11,14 +10,14 @@ from pathlib import Path
 
 import pytest
 
+from .fakes import FakeLocal, RunCallable
+
 if typ.TYPE_CHECKING:
     from types import ModuleType
 
 SCRIPTS_DIR = Path(__file__).resolve().parents[2]
 if str(SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPTS_DIR))
-
-RunCallable = typ.Callable[[list[str], int | None], tuple[int, str, str]]
 
 
 @dc.dataclass(frozen=True)
@@ -61,7 +60,12 @@ class WorkflowTestConfig:
 
 @dc.dataclass(frozen=True)
 class CrateActionCalls:
-    """Recorded invocations for crate-action dispatch helpers."""
+    """Record crate-action invocations.
+
+    Attributes
+    ----------
+    package, gpui, check : list[tuple[str, Path, int]]
+    """
 
     package: list[tuple[str, Path, int]]
     gpui: list[tuple[str, Path, int]]
@@ -70,7 +74,12 @@ class CrateActionCalls:
 
 @dc.dataclass(frozen=True)
 class GpuiPackagePaths:
-    """Filesystem layout used by GPUI harness packaging tests."""
+    """Describe GPUI package-check paths.
+
+    Attributes
+    ----------
+    archive, package_dir, validator_dir : Path
+    """
 
     archive: Path
     package_dir: Path
@@ -79,7 +88,14 @@ class GpuiPackagePaths:
 
 @dc.dataclass(frozen=True)
 class GpuiHarnessPatchState:
-    """Recorded invocations for GPUI harness packaging helpers."""
+    """Capture GPUI harness patch side effects.
+
+    Attributes
+    ----------
+    steps : list[tuple[str, object]]
+    workspace_version_args : list[Path]
+    packaged_archive_path_args : list[tuple[Path, str, str]]
+    """
 
     steps: list[tuple[str, object]]
     workspace_version_args: list[Path]
@@ -117,7 +133,17 @@ def crate_action_calls(
     monkeypatch: pytest.MonkeyPatch,
     run_publish_check_module: ModuleType,
 ) -> CrateActionCalls:
-    """Install crate-action monkeypatches and return the recorded calls."""
+    """Install crate-action recorders.
+
+    Parameters
+    ----------
+    monkeypatch : pytest.MonkeyPatch
+    run_publish_check_module : ModuleType
+
+    Returns
+    -------
+    CrateActionCalls
+    """
     calls = CrateActionCalls(package=[], gpui=[], check=[])
     monkeypatch.setattr(
         run_publish_check_module,
@@ -209,7 +235,17 @@ def gpui_harness_calls(
     monkeypatch: pytest.MonkeyPatch,
     run_publish_check_module: ModuleType,
 ) -> typ.Callable[[GpuiPackagePaths], GpuiHarnessPatchState]:
-    """Install GPUI harness monkeypatches for the provided package layout."""
+    """Install GPUI harness recorders.
+
+    Parameters
+    ----------
+    monkeypatch : pytest.MonkeyPatch
+    run_publish_check_module : ModuleType
+
+    Returns
+    -------
+    Callable[[GpuiPackagePaths], GpuiHarnessPatchState]
+    """
     return lambda paths: _build_gpui_patch_state(
         paths, monkeypatch, run_publish_check_module
     )
@@ -217,7 +253,16 @@ def gpui_harness_calls(
 
 @pytest.fixture
 def fake_workspace(tmp_path: Path) -> Path:
-    """Provision a fake workspace tree used by cargo command tests."""
+    """Provision a fake workspace tree.
+
+    Parameters
+    ----------
+    tmp_path : Path
+
+    Returns
+    -------
+    Path
+    """
     workspace = tmp_path / "workspace"
     (workspace / "crates" / "demo").mkdir(parents=True)
     return workspace
@@ -227,7 +272,17 @@ def fake_workspace(tmp_path: Path) -> Path:
 def mock_cargo_runner(
     monkeypatch: pytest.MonkeyPatch, run_publish_check_module: ModuleType
 ) -> list[tuple[object, list[str], typ.Callable[[str, object], bool] | None]]:
-    """Capture invocations made to ``run_cargo_command``."""
+    """Capture ``run_cargo_command`` invocations.
+
+    Parameters
+    ----------
+    monkeypatch : pytest.MonkeyPatch
+    run_publish_check_module : ModuleType
+
+    Returns
+    -------
+    list[tuple[object, list[str], Callable[[str, object], bool] | None]]
+    """
     calls: list[tuple[object, list[str], typ.Callable[[str, object], bool] | None]] = []
 
     def fake_run_cargo(
@@ -247,7 +302,17 @@ def mock_cargo_runner(
 def patch_local_runner(
     monkeypatch: pytest.MonkeyPatch, run_publish_check_module: ModuleType
 ) -> typ.Callable[[RunCallable], FakeLocal]:
-    """Install a ``FakeLocal`` around the provided callable."""
+    """Install ``FakeLocal`` wrappers.
+
+    Parameters
+    ----------
+    monkeypatch : pytest.MonkeyPatch
+    run_publish_check_module : ModuleType
+
+    Returns
+    -------
+    Callable[[RunCallable], FakeLocal]
+    """
 
     def _install(run_callable: RunCallable) -> FakeLocal:
         fake_local = FakeLocal(run_callable)
@@ -264,72 +329,25 @@ def cargo_test_context(
     caplog: pytest.LogCaptureFixture,
     run_publish_check_module: ModuleType,
 ) -> CargoTestContext:
-    """Bundle fixtures required for cargo command assertions."""
+    """Bundle fixtures for cargo command assertions.
+
+    Parameters
+    ----------
+    patch_local_runner : Callable[[RunCallable], FakeLocal]
+    fake_workspace : Path
+    caplog : pytest.LogCaptureFixture
+    run_publish_check_module : ModuleType
+
+    Returns
+    -------
+    CargoTestContext
+    """
     return CargoTestContext(
         patch_local_runner=patch_local_runner,
         fake_workspace=fake_workspace,
         caplog=caplog,
         run_publish_check_module=run_publish_check_module,
     )
-
-
-class FakeCargoInvocation:
-    """Record a cargo invocation and proxy execution to the fake runner."""
-
-    def __init__(self, local: FakeLocal, args: list[str]) -> None:
-        """Store the invocation context for later assertions."""
-        self._local = local
-        self._args = ["cargo", *args]
-
-    def run(
-        self, *, retcode: object | None, timeout: int | None
-    ) -> tuple[int, str, str]:
-        """Record an invocation and delegate to the configured callable."""
-        self._local.invocations.append((self._args, timeout))
-        return self._local.run_callable(self._args, timeout)
-
-
-class FakeCargo:
-    """Proxy indexing calls into ``FakeCargoInvocation`` instances."""
-
-    def __init__(self, local: FakeLocal) -> None:
-        """Initialise the cargo proxy for a fake local environment."""
-        self._local = local
-
-    def __getitem__(self, args: object) -> FakeCargoInvocation:
-        """Return an invocation wrapper for the provided command arguments."""
-        extras = list(args) if isinstance(args, (list, tuple)) else [str(args)]
-        return FakeCargoInvocation(self._local, extras)
-
-
-class FakeLocal:
-    """Mimic a fabric ``local`` helper for cargo orchestration tests."""
-
-    def __init__(self, run_callable: RunCallable) -> None:
-        """Store the callable that will service fake local invocations."""
-        self.run_callable = run_callable
-        self.cwd_calls: list[Path] = []
-        self.env_calls: list[dict[str, str]] = []
-        self.invocations: list[tuple[list[str], int | None]] = []
-
-    def __getitem__(self, command: str) -> FakeCargo:
-        """Return a ``FakeCargo`` proxy for the ``cargo`` command."""
-        if command != "cargo":
-            msg = (
-                f"FakeLocal only understands the 'cargo' command, received {command!r}"
-            )
-            raise RuntimeError(msg)
-        return FakeCargo(self)
-
-    def cwd(self, path: Path) -> contextlib.AbstractContextManager[None]:
-        """Record the working directory change for later assertions."""
-        self.cwd_calls.append(path)
-        return contextlib.nullcontext()
-
-    def env(self, **kwargs: str) -> contextlib.AbstractContextManager[None]:
-        """Record environment mutations for later assertions."""
-        self.env_calls.append(kwargs)
-        return contextlib.nullcontext()
 
 
 def _setup_basic_workflow_mocks(
