@@ -125,6 +125,13 @@ class FakeLocal:
         self.env_calls: list[dict[str, str]] = []
         self.invocations: list[tuple[list[str], int | None]] = []
 
+    def _record_call(
+        self, calls: list[object], value: object
+    ) -> contextlib.AbstractContextManager[None]:
+        """Append ``value`` to ``calls`` and return a null context manager."""
+        calls.append(value)
+        return contextlib.nullcontext()
+
     def __getitem__(self, command: str) -> FakeCargo:
         """Return a ``FakeCargo`` proxy for the ``cargo`` command.
 
@@ -143,12 +150,15 @@ class FakeLocal:
         RuntimeError
             Raised when a command other than ``"cargo"`` is requested.
         """
-        if command != "cargo":
-            msg = (
-                f"FakeLocal only understands the 'cargo' command, received {command!r}"
-            )
-            raise RuntimeError(msg)
-        return FakeCargo(self)
+        match command:
+            case "cargo":
+                return FakeCargo(self)
+            case _:
+                msg = (
+                    "FakeLocal only understands the 'cargo' command, "
+                    f"received {command!r}"
+                )
+                raise RuntimeError(msg)
 
     def cwd(self, path: Path) -> contextlib.AbstractContextManager[None]:
         """Record the working directory change for later assertions.
@@ -163,8 +173,7 @@ class FakeLocal:
         None
             Null context manager used only for structural compatibility.
         """
-        self.cwd_calls.append(path)
-        return contextlib.nullcontext()
+        return self._record_call(self.cwd_calls, path)  # type: ignore[arg-type]
 
     def env(self, **kwargs: str) -> contextlib.AbstractContextManager[None]:
         """Record environment mutations for later assertions.
@@ -179,5 +188,4 @@ class FakeLocal:
         None
             Null context manager used only for structural compatibility.
         """
-        self.env_calls.append(kwargs)
-        return contextlib.nullcontext()
+        return self._record_call(self.env_calls, kwargs)  # type: ignore[arg-type]
