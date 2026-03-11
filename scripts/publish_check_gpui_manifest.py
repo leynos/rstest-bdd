@@ -161,7 +161,8 @@ def _toml_inline_table(values: dict[str, object]) -> str:
             case bool():
                 rendered = str(value).lower()
             case str():
-                rendered = f'"{value}"'
+                escaped_value = value.replace("\\", "\\\\").replace('"', '\\"')
+                rendered = f'"{escaped_value}"'
             case list():
                 casted_value = typ.cast("list[str]", value)
                 rendered = _toml_list(casted_value)

@@ -269,6 +269,9 @@ def test_validate_packaged_gpui_harness_packages_and_tests_artifact(
         timeout_secs=77,
     )
 
+    assert len(steps) == 4, (
+        f"expected four recorded steps, got {len(steps)=} with {steps=}"
+    )
     assert steps[0] == ("archive", (workspace, archive, "1.2.3", 77)), (
         "expected steps[0] to archive "
         f"{workspace=} {archive=} with version 1.2.3 and timeout 77"
