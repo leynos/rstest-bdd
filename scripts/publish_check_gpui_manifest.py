@@ -1,5 +1,34 @@
 #!/usr/bin/env -S uv run python
-"""Manifest and TOML helpers for GPUI publish-check validation."""
+"""Helpers for GPUI publish-check manifest generation and TOML rendering.
+
+This module reads workspace and packaged crate metadata with ``tomllib`` and
+renders the standalone manifests used by the GPUI publish-check workflow. It
+accepts ``pathlib.Path`` inputs rooted in the workspace or extracted package
+tree and returns TOML strings suitable for validator crates and synthetic
+package archives. The helpers are pure string/manifest transforms and require
+Python 3.11+ for ``tomllib``.
+
+Example
+-------
+Import and call the helpers from the publish-check scripts:
+
+>>> from pathlib import Path
+>>> manifest = _packaged_manifest(
+...     Path("/tmp/workspace"),
+...     "0.5.0",
+...     "rstest-bdd-harness-gpui",
+... )
+>>> "[package]" in manifest
+True
+>>> validator = _validator_manifest(
+...     package_dir=Path("/tmp/package"),
+...     harness_dir=Path("/tmp/harness"),
+...     version="0.5.0",
+...     validator_crate="gpui-validator",
+... )
+>>> "[patch.crates-io]" in validator
+True
+"""
 
 from __future__ import annotations
 

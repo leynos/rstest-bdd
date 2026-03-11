@@ -188,13 +188,22 @@ class _GpuiPackagePaths:
     validator_dir: Path
 
 
+@dataclasses.dataclass(frozen=True)
+class _GpuiHarnessPatchState:
+    steps: list[tuple[str, object]]
+    workspace_version_args: list[Path]
+    packaged_archive_path_args: list[tuple[Path, str, str]]
+
+
 def _patch_gpui_harness_functions(
     monkeypatch: pytest.MonkeyPatch,
     mod: ModuleType,
     paths: _GpuiPackagePaths,
-) -> list[tuple[str, object]]:
+) -> _GpuiHarnessPatchState:
     """Register GPUI harness monkeypatches and return the recorded steps."""
     steps: list[tuple[str, object]] = []
+    workspace_version_args: list[Path] = []
+    packaged_archive_path_args: list[tuple[Path, str, str]] = []
 
     def record_build_packaged_archive(
         root: Path,
@@ -205,12 +214,20 @@ def _patch_gpui_harness_functions(
     ) -> None:
         steps.append(("archive", (root, archive_path, version, timeout_secs)))
 
-    monkeypatch.setattr(mod, "workspace_version", lambda _manifest: "1.2.3")
+    def record_workspace_version(manifest: Path) -> str:
+        workspace_version_args.append(manifest)
+        return "1.2.3"
+
+    def record_packaged_archive_path(root: Path, crate: str, version: str) -> Path:
+        packaged_archive_path_args.append((root, crate, version))
+        return paths.archive
+
+    monkeypatch.setattr(mod, "workspace_version", record_workspace_version)
     monkeypatch.setattr(mod, "build_packaged_archive", record_build_packaged_archive)
     monkeypatch.setattr(
         mod,
         "packaged_archive_path",
-        lambda _root, _crate, _version: paths.archive,
+        record_packaged_archive_path,
     )
     monkeypatch.setattr(
         mod,
@@ -235,7 +252,11 @@ def _patch_gpui_harness_functions(
         lambda context, command: steps.append(("cargo", (context, list(command)))),
     )
 
-    return steps
+    return _GpuiHarnessPatchState(
+        steps=steps,
+        workspace_version_args=workspace_version_args,
+        packaged_archive_path_args=packaged_archive_path_args,
+    )
 
 
 def test_validate_packaged_gpui_harness_packages_and_tests_artifact(
@@ -253,7 +274,7 @@ def test_validate_packaged_gpui_harness_packages_and_tests_artifact(
     package_dir = workspace / ".gpui-package-check" / "package" / "pkg"
     validator_dir = workspace / ".gpui-package-check" / "validator"
 
-    steps = _patch_gpui_harness_functions(
+    patch_state = _patch_gpui_harness_functions(
         monkeypatch,
         run_publish_check_module,
         _GpuiPackagePaths(
@@ -262,6 +283,7 @@ def test_validate_packaged_gpui_harness_packages_and_tests_artifact(
             validator_dir=validator_dir,
         ),
     )
+    steps = patch_state.steps
 
     run_publish_check_module.validate_packaged_gpui_harness(
         "rstest-bdd-harness-gpui",
@@ -269,6 +291,16 @@ def test_validate_packaged_gpui_harness_packages_and_tests_artifact(
         timeout_secs=77,
     )
 
+    assert patch_state.workspace_version_args == [workspace / "Cargo.toml"], (
+        "expected workspace_version to read the workspace manifest "
+        f"from {workspace / 'Cargo.toml'=}, got {patch_state.workspace_version_args=}"
+    )
+    assert patch_state.packaged_archive_path_args == [
+        (workspace, "rstest-bdd-harness-gpui", "1.2.3")
+    ], (
+        "expected packaged_archive_path to receive workspace, crate, and version "
+        f"arguments, got {patch_state.packaged_archive_path_args=}"
+    )
     assert len(steps) == 4, (
         f"expected four recorded steps, got {len(steps)=} with {steps=}"
     )
@@ -312,12 +344,26 @@ def test_validate_packaged_gpui_harness_packages_and_tests_artifact(
 
 
 def test_validate_packaged_gpui_harness_rejects_wrong_crate_name(
+    monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
     run_publish_check_module: ModuleType,
 ) -> None:
     """Refuse mismatched crate names before constructing a packaged archive."""
     workspace = tmp_path / "workspace"
     workspace.mkdir()
+
+    def fail_if_called(*_args: object, **_kwargs: object) -> typ.NoReturn:
+        pytest.fail("packaging helper ran")
+
+    monkeypatch.setattr(
+        run_publish_check_module, "build_packaged_archive", fail_if_called
+    )
+    monkeypatch.setattr(
+        run_publish_check_module, "extract_packaged_archive", fail_if_called
+    )
+    monkeypatch.setattr(
+        run_publish_check_module, "write_validator_workspace", fail_if_called
+    )
 
     with pytest.raises(SystemExit, match="validate_packaged_gpui_harness expected"):
         run_publish_check_module.validate_packaged_gpui_harness(
