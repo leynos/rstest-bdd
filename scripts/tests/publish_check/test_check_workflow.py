@@ -13,6 +13,11 @@ if typ.TYPE_CHECKING:
     from pathlib import Path
     from types import ModuleType
 
+    class _CargoContextLike(typ.Protocol):
+        crate: str
+        crate_dir: Path
+        timeout_secs: int
+
 
 def test_process_crates_for_check_delegates_configuration(
     monkeypatch: pytest.MonkeyPatch,
@@ -52,21 +57,17 @@ def test_process_crates_for_check_delegates_configuration(
         f"timeout mismatch: expected 17, got {observed['timeout']=}"
     )
     config = observed["config"]
-    assert isinstance(config, run_publish_check_module.CrateProcessingConfig), (
-        f"expected crate processing config type, got {type(config)=}"
-    )
-    assert config.strip_patch is True, (
-        f"expected {config.strip_patch=} for stripped patch configuration"
-    )
-    assert config.include_local_path is True, (
-        f"expected {config.include_local_path=} for local path inclusion"
-    )
-    assert config.apply_per_crate is False, (
-        f"expected {config.apply_per_crate=} for shared workspace processing"
-    )
-    assert config.per_crate_cleanup is None, (
-        f"expected {config.per_crate_cleanup=} cleanup hook"
-    )
+    match config:
+        case run_publish_check_module.CrateProcessingConfig(
+            strip_patch=True,
+            include_local_path=True,
+            apply_per_crate=False,
+            per_crate_cleanup=None,
+        ):
+            pass
+        case _:
+            message = f"expected stripped local-path shared config, got {config=!r}"
+            raise AssertionError(message)
     assert callable(observed["crate_action"]), (
         f"expected callable crate_action, got {observed['crate_action']=}"
     )
@@ -210,17 +211,17 @@ def _assert_gpui_harness_artifact_steps(
         f"expected steps[3] to record cargo invocation, got {steps[3]=}"
     )
     cargo_context, cargo_command = typ.cast(
-        "tuple[object, list[str]]",
+        "tuple[_CargoContextLike, list[str]]",
         steps[3][1],
     )
-    assert cargo_context.crate == mod.GPUI_VALIDATOR_CRATE, (  # type: ignore[union-attr]
+    assert cargo_context.crate == mod.GPUI_VALIDATOR_CRATE, (
         "expected cargo_context.crate to target "
         f"{mod.GPUI_VALIDATOR_CRATE} from {steps=}"
     )
-    assert cargo_context.crate_dir == ctx.validator_dir, (  # type: ignore[union-attr]
+    assert cargo_context.crate_dir == ctx.validator_dir, (
         f"expected cargo_context.crate_dir to match {ctx.validator_dir=} from {steps=}"
     )
-    assert cargo_context.timeout_secs == ctx.timeout_secs, (  # type: ignore[union-attr]
+    assert cargo_context.timeout_secs == ctx.timeout_secs, (
         "expected cargo_context.timeout_secs to be "
         f"{ctx.timeout_secs} from {cargo_context=}"
     )

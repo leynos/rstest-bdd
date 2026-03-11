@@ -40,8 +40,8 @@ if typ.TYPE_CHECKING:
     from pathlib import Path
 
 
-def _normalize_dependency_spec(name: str, value: object) -> str | dict[str, object]:
-    """Return ``value`` normalised to a dependency string or inline-table mapping."""
+def _normalize_dependency_spec(name: str, value: object) -> dict[str, object]:
+    """Return ``value`` normalised to an inline-table mapping."""
     match value:
         case str():
             return {"version": value}
@@ -60,11 +60,9 @@ def _sanitize_dependency_spec(
     name: str,
     value: object,
     workspace_dependencies: dict[str, object],
-) -> str | dict[str, object]:
+) -> dict[str, object]:
     """Return a publish-safe dependency spec for ``name``."""
     normalized_value = _normalize_dependency_spec(name, value)
-    if isinstance(normalized_value, str):
-        return normalized_value
 
     if normalized_value.get("workspace") is True:
         if name not in workspace_dependencies:
@@ -95,9 +93,6 @@ def _render_dependency_line(
         value=value,
         workspace_dependencies=workspace_dependencies,
     )
-    if isinstance(sanitized_value, str):
-        escaped_value = _escape_toml_string(sanitized_value)
-        return f'{name} = "{escaped_value}"'
     if tuple(sanitized_value.keys()) == ("version",):
         version = typ.cast("str", sanitized_value["version"])
         escaped_value = _escape_toml_string(version)
@@ -113,8 +108,6 @@ def _workspace_gpui_spec(workspace_root: Path) -> str:
     gpui_dependency = _normalize_dependency_spec(
         "gpui", workspace["workspace"]["dependencies"]["gpui"]
     )
-    if isinstance(gpui_dependency, str):
-        return _toml_inline_table({"version": gpui_dependency})
     return _toml_inline_table(gpui_dependency)
 
 
@@ -133,7 +126,10 @@ def _validator_manifest(
     packaged_manifest = tomllib.loads(
         (package_dir / "Cargo.toml").read_text(encoding="utf-8")
     )
-    gpui_spec = _toml_inline_table(packaged_manifest["dependencies"]["gpui"])
+    packaged_gpui_dependency = _normalize_dependency_spec(
+        "gpui", packaged_manifest["dependencies"]["gpui"]
+    )
+    gpui_spec = _toml_inline_table(packaged_gpui_dependency)
     return f"""[package]
 name = "{escaped_validator_crate}"
 version = "0.0.0"

@@ -143,89 +143,76 @@ def crate_action_calls(
     return calls
 
 
+def _build_gpui_patch_state(
+    paths: GpuiPackagePaths,
+    monkeypatch: pytest.MonkeyPatch,
+    mod: ModuleType,
+) -> GpuiHarnessPatchState:
+    """Initialise recorder state, register patches on ``mod``, and return the state."""
+    steps: list[tuple[str, object]] = []
+    workspace_version_args: list[Path] = []
+    packaged_archive_path_args: list[tuple[Path, str, str]] = []
+
+    def record_workspace_version(manifest: Path) -> str:
+        workspace_version_args.append(manifest)
+        return "1.2.3"
+
+    def record_build_packaged_archive(
+        root: Path,
+        archive_path: Path,
+        version: str,
+        *,
+        timeout_secs: int | None = None,
+    ) -> None:
+        steps.append(("archive", (root, archive_path, version, timeout_secs)))
+
+    def record_packaged_archive_path(root: Path, crate: str, version: str) -> Path:
+        packaged_archive_path_args.append((root, crate, version))
+        return paths.archive
+
+    def fake_extract_packaged_archive(archive_path: Path, destination: Path) -> Path:
+        steps.append(("extract", (archive_path, destination)))
+        return paths.package_dir
+
+    def fake_write_validator_workspace(
+        destination: Path,
+        *,
+        package_dir: Path,
+        harness_dir: Path,
+        version: str,
+    ) -> Path:
+        steps.append(("validator", (destination, package_dir, harness_dir, version)))
+        return paths.validator_dir
+
+    monkeypatch.setattr(mod, "workspace_version", record_workspace_version)
+    monkeypatch.setattr(mod, "build_packaged_archive", record_build_packaged_archive)
+    monkeypatch.setattr(mod, "packaged_archive_path", record_packaged_archive_path)
+    monkeypatch.setattr(mod, "extract_packaged_archive", fake_extract_packaged_archive)
+    monkeypatch.setattr(
+        mod, "write_validator_workspace", fake_write_validator_workspace
+    )
+    monkeypatch.setattr(
+        mod,
+        "run_cargo_command",
+        lambda context, command: steps.append(("cargo", (context, list(command)))),
+    )
+
+    return GpuiHarnessPatchState(
+        steps=steps,
+        workspace_version_args=workspace_version_args,
+        packaged_archive_path_args=packaged_archive_path_args,
+    )
+
+
 @pytest.fixture
 def gpui_harness_calls(
     monkeypatch: pytest.MonkeyPatch,
     run_publish_check_module: ModuleType,
 ) -> typ.Callable[[GpuiPackagePaths], GpuiHarnessPatchState]:
     """Install GPUI harness monkeypatches for the provided package layout."""
-
-    def _install(paths: GpuiPackagePaths) -> GpuiHarnessPatchState:
-        steps: list[tuple[str, object]] = []
-        workspace_version_args: list[Path] = []
-        packaged_archive_path_args: list[tuple[Path, str, str]] = []
-
-        def record_build_packaged_archive(
-            root: Path,
-            archive_path: Path,
-            version: str,
-            *,
-            timeout_secs: int | None = None,
-        ) -> None:
-            steps.append(("archive", (root, archive_path, version, timeout_secs)))
-
-        def record_workspace_version(manifest: Path) -> str:
-            workspace_version_args.append(manifest)
-            return "1.2.3"
-
-        def record_packaged_archive_path(root: Path, crate: str, version: str) -> Path:
-            packaged_archive_path_args.append((root, crate, version))
-            return paths.archive
-
-        def fake_extract_packaged_archive(
-            archive_path: Path, destination: Path
-        ) -> Path:
-            steps.append(("extract", (archive_path, destination)))
-            return paths.package_dir
-
-        def fake_write_validator_workspace(
-            destination: Path,
-            *,
-            package_dir: Path,
-            harness_dir: Path,
-            version: str,
-        ) -> Path:
-            steps.append(
-                ("validator", (destination, package_dir, harness_dir, version))
-            )
-            return paths.validator_dir
-
-        monkeypatch.setattr(
-            run_publish_check_module, "workspace_version", record_workspace_version
-        )
-        monkeypatch.setattr(
-            run_publish_check_module,
-            "build_packaged_archive",
-            record_build_packaged_archive,
-        )
-        monkeypatch.setattr(
-            run_publish_check_module,
-            "packaged_archive_path",
-            record_packaged_archive_path,
-        )
-        monkeypatch.setattr(
-            run_publish_check_module,
-            "extract_packaged_archive",
-            fake_extract_packaged_archive,
-        )
-        monkeypatch.setattr(
-            run_publish_check_module,
-            "write_validator_workspace",
-            fake_write_validator_workspace,
-        )
-        monkeypatch.setattr(
-            run_publish_check_module,
-            "run_cargo_command",
-            lambda context, command: steps.append(("cargo", (context, list(command)))),
-        )
-
-        return GpuiHarnessPatchState(
-            steps=steps,
-            workspace_version_args=workspace_version_args,
-            packaged_archive_path_args=packaged_archive_path_args,
-        )
-
-    return _install
+    return lambda paths: _build_gpui_patch_state(
+        paths, monkeypatch, run_publish_check_module
+    )
 
 
 @pytest.fixture
