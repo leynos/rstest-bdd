@@ -23,13 +23,13 @@ Examples
 from __future__ import annotations
 
 import contextlib
-from collections.abc import Callable  # noqa: ICN003 - direct import requested
-from typing import TYPE_CHECKING  # noqa: ICN003 - direct import requested
+import typing as typ
 
-RunCallable = Callable[[list[str], int | None], tuple[int, str, str]]
-
-if TYPE_CHECKING:
+if typ.TYPE_CHECKING:
+    import collections.abc as cabc
     from pathlib import Path
+
+type RunCallable = "cabc.Callable[[list[str], int | None], tuple[int, str, str]]"
 
 
 class FakeCargoInvocation:
