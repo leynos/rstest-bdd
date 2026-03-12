@@ -41,6 +41,13 @@ class DependencyConfig:
 
 
 REPLACEMENTS: dict[str, tuple[DependencyPatch, ...]] = {
+    "rstest-bdd-harness-gpui": (
+        DependencyPatch(
+            "dependencies",
+            "rstest-bdd-harness",
+            "../rstest-bdd-harness",
+        ),
+    ),
     "rstest-bdd-macros": (
         DependencyPatch(
             "dependencies", "rstest-bdd-patterns", "../rstest-bdd-patterns"

@@ -523,6 +523,14 @@ opt-in crates rather than the core runtime or macros.
   the expected compile-time error via a `trybuild` compile-fail fixture. Finish
   line: `trybuild` test asserts the diagnostic message; `make test` passes.
   Prerequisite: 9.3.2 delivered. Design Doc: §2.7.3, §2.7.4. (Doggylump)
+- [ ] 9.3.8. Add a simple Tokio async demonstration application and BDD test
+  suite under `examples/`, similar in scope to the existing demonstration
+  applications. The example should exercise `TokioHarness` and
+  `TokioAttributePolicy` in an end-to-end crate with asynchronous application
+  behaviour and feature scenarios. Finish line: a new example crate and its BDD
+  suite run successfully via `make test`, and the user guide links to it as the
+  canonical Tokio harness example. Prerequisite: 9.3.4 delivered. Design Doc:
+  §2.7.4. (Dinolump)
 
 ### 9.4. GPUI harness plugin crate
 
@@ -537,10 +545,18 @@ opt-in crates rather than the core runtime or macros.
   as a convention). Delivered via `docs/adr-007-harness-context-injection.md`.
   Prerequisite: 9.3.4 delivered (attribute wiring unblocks full policy
   integration). (Telefono)
-- [ ] 9.4.2. Create `rstest-bdd-harness-gpui`.
-- [ ] 9.4.3. Execute scenarios inside the GPUI test harness and inject fixtures
+- [x] 9.4.2. Create `rstest-bdd-harness-gpui`.
+- [x] 9.4.3. Execute scenarios inside the GPUI test harness and inject fixtures
   such as `TestAppContext`.
-- [ ] 9.4.4. Provide the matching GPUI test attribute policy plugin.
+- [x] 9.4.4. Provide the matching GPUI test attribute policy plugin.
+- [ ] 9.4.5. Add a simple GPUI demonstration application and BDD test suite
+  under `examples/`, similar in scope to the existing demonstration
+  applications. The example should exercise `GpuiHarness` and
+  `GpuiAttributePolicy` end-to-end and demonstrate step access to injected
+  `TestAppContext`. Finish line: a new example crate and its BDD suite run
+  successfully via `make test`, with any required native-library setup clearly
+  documented in the user guide. Prerequisite: 9.4.4 delivered. Design Doc:
+  §2.7.4. (Dinolump)
 
 ### 9.5. Context injection mechanism
 

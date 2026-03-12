@@ -1,0 +1,14 @@
+[package]
+name = "gpui"
+version = "0.2.2"
+edition = "2024"
+license = "Apache-2.0"
+description = "Stable-compatible GPUI test support shim for rstest-bdd."
+
+[features]
+default = []
+test-support = []
+
+[dependencies]
+futures = "0.3"
+gpui-macros = { path = "../gpui-macros", version = "0.2.2" }
