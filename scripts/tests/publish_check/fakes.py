@@ -22,13 +22,13 @@ Examples
 
 from __future__ import annotations
 
-import collections.abc as cabc
 import contextlib
-import typing as typ
+from collections.abc import Callable  # noqa: ICN003 - direct import requested
+from typing import TYPE_CHECKING  # noqa: ICN003 - direct import requested
 
-RunCallable = cabc.Callable[[list[str], int | None], tuple[int, str, str]]
+RunCallable = Callable[[list[str], int | None], tuple[int, str, str]]
 
-if typ.TYPE_CHECKING:
+if TYPE_CHECKING:
     from pathlib import Path
 
 
@@ -168,12 +168,12 @@ class FakeLocal:
         path : Path
             Working directory that the caller wants to enter.
 
-        Yields
-        ------
-        None
-            Null context manager used only for structural compatibility.
+        Returns
+        -------
+        contextlib.AbstractContextManager[None]
+            Null context manager returned for structural compatibility.
         """
-        return self._record_call(self.cwd_calls, path)  # type: ignore[arg-type]
+        return self._record_call(self.cwd_calls, path)  # type: ignore[arg-type]  # _record_call takes list[object], and cwd_calls stays invariant as list[Path].
 
     def env(self, **kwargs: str) -> contextlib.AbstractContextManager[None]:
         """Record environment mutations for later assertions.
@@ -183,9 +183,9 @@ class FakeLocal:
         **kwargs : str
             Environment updates requested by the caller.
 
-        Yields
-        ------
-        None
-            Null context manager used only for structural compatibility.
+        Returns
+        -------
+        contextlib.AbstractContextManager[None]
+            Null context manager returned for structural compatibility.
         """
-        return self._record_call(self.env_calls, kwargs)  # type: ignore[arg-type]
+        return self._record_call(self.env_calls, kwargs)  # type: ignore[arg-type]  # _record_call takes list[object], and env_calls stays invariant as list[dict[str, str]].
