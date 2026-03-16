@@ -1211,18 +1211,20 @@ use rstest_bdd_macros::{given, then, when, scenarios};
 scenarios!("tests/features/auto", runtime = "tokio-current-thread");
 ```
 
-When `runtime = "tokio-current-thread"` is specified:
-
-- Generated test functions are `async fn`.
-- Each test is annotated with `#[tokio::test(flavor = "current_thread")]`.
-- Steps execute sequentially within the single-threaded Tokio runtime.
-
-This `runtime` syntax is preserved as a compatibility alias for Tokio harness
-selection. Internally, macro argument resolution canonicalizes it to a Tokio
-harness compatibility alias. The dedicated `rstest-bdd-harness-tokio` crate is
-now available (phase 9.3); for new code, prefer the explicit
-`harness = TokioHarness` form described in
+**Deprecation notice:** The `runtime = "tokio-current-thread"` syntax is
+deprecated as of roadmap item 9.2.4. It now resolves to the explicit
+`harness = rstest_bdd_harness_tokio::TokioHarness` form and emits a compile-time
+warning. For new code, use the explicit harness form described in
 [Using the Tokio harness](#using-the-tokio-harness).
+
+When `runtime = "tokio-current-thread"` is specified (legacy compatibility):
+
+- Generated test functions are synchronous (not `async fn`).
+- The `TokioHarness` provides the Tokio current-thread runtime for step
+  execution.
+- Async step definitions (`async fn`) are rejected at runtime; use synchronous
+  steps that drive async work via `tokio::spawn_local` or similar, or migrate to
+  explicit `async fn` scenario tests with manual `#[tokio::test]` annotation.
 
 ### Recommended patterns for async work in steps
 
@@ -1261,9 +1263,10 @@ fn end_stream(stream_end: &StreamEnd) {
     stream_end.trigger();
 }
 
+// Note: runtime = "tokio-current-thread" is deprecated; prefer explicit harness form
 scenarios!(
     "tests/features/streams.feature",
-    runtime = "tokio-current-thread",
+    harness = rstest_bdd_harness_tokio::TokioHarness,
     fixtures = [stream_end]
 );
 ```

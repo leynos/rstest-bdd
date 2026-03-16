@@ -4,12 +4,7 @@ This ExecPlan is a living document. The sections `Constraints`, `Tolerances`,
 `Risks`, `Progress`, `Surprises & Discoveries`, `Decision Log`, and
 `Outcomes & Retrospective` must be kept up to date as work proceeds.
 
-Status: DRAFT
-
-`PLANS.md` is not present in this repository at the time of writing, so this
-ExecPlan is the governing plan for this task.
-
-Implementation must not begin until the user explicitly approves this draft.
+Status: COMPLETE (delivered 2026-03-16)
 
 ## Purpose / big picture
 
@@ -124,12 +119,30 @@ incidental follow-up.
       sections, current macro implementation, existing tests, and prior phase
       ExecPlans.
 - [x] (2026-03-12 00:00Z) Drafted this ExecPlan.
-- [ ] Stage A: lock post-activation semantics and express them in failing or
-      pending tests.
-- [ ] Stage B: activate alias resolution and keep explicit harness precedence.
-- [ ] Stage C: emit and snapshot the deprecation warning.
-- [ ] Stage D: align behavioural coverage and user-facing documentation.
-- [ ] Stage E: run final quality gates and mark roadmap item 9.2.4 done.
+- [x] (2026-03-16) Stage A: locked post-activation semantics and expressed them
+      in unit tests. Updated `resolve_harness_path_runtime_alias_resolves_to_tokio_harness`
+      test to assert the alias resolves. Documented decision that activated alias
+      behaves exactly like explicit `TokioHarness`.
+- [x] (2026-03-16) Stage B: activated alias resolution and preserved explicit
+      harness precedence. Updated `resolve_harness_path()` to return
+      `rstest_bdd_harness_tokio::TokioHarness` when alias is present. Added logic
+      to treat activated alias as synchronous runtime for code generation. Updated
+      `runtime_compat_alias.rs` behavioural test to use synchronous step functions.
+- [x] (2026-03-16) Stage C: emitted deprecation warning via `emit_warning!` in
+      `scenarios!` macro when `runtime = "tokio-current-thread"` is used without
+      explicit harness. Created trybuild fixture
+      `scenarios_runtime_alias_deprecated.rs` and registered it in
+      `trybuild_macros.rs`. Warning message recommends migrating to
+      `harness = rstest_bdd_harness_tokio::TokioHarness`.
+- [x] (2026-03-16) Stage D: aligned behavioural coverage and documentation.
+      Updated `rstest-bdd-design.md` sections §2.5.5 and §2.7.3 to reflect
+      activated alias semantics. Updated `users-guide.md` to document the
+      deprecation, explain the new behavior, and update code examples to use
+      explicit harness form.
+- [x] (2026-03-16) Stage E: ran final quality gates and marked roadmap item 9.2.4
+      done. All gates passed: `cargo fmt --check`, `cargo clippy`, `cargo test`,
+      and `cargo test -p rstest-bdd --test trybuild_macros`. Updated roadmap entry
+      to mark 9.2.4 complete.
 
 ## Surprises & Discoveries
 
@@ -172,16 +185,58 @@ incidental follow-up.
   behaviour can regress without being exercised. Date/Author: 2026-03-12 /
   Codex.
 
+- Decision: the `runtime = "tokio-current-thread"` alias, after activation,
+  behaves exactly like explicit `harness = TokioHarness`. This means: (1) the
+  alias resolves to `rstest_bdd_harness_tokio::TokioHarness` path, (2)
+  generated scenario test functions are synchronous (not `async fn`), (3) the
+  `TokioHarness` provides the Tokio runtime for step execution, (4) async step
+  definitions are rejected (via the sync wrapper runtime check), (5) a
+  deprecation warning is emitted. The `resolve_harness_path()` function now
+  returns `Option<syn::Path>` (owned) to enable creation of the TokioHarness
+  path at the call site. Date/Author: 2026-03-16 / DevBoxer.
+
 ## Outcomes & Retrospective
 
-Not started. This section must be rewritten at completion with:
+**Final semantics:** The `runtime = "tokio-current-thread"` compatibility alias
+now behaves exactly like explicit `harness = rstest_bdd_harness_tokio::TokioHarness`:
+- Generated scenario test functions are synchronous (not `async fn`)
+- `TokioHarness` provides the Tokio current-thread runtime for step execution
+- Async step definitions are rejected at runtime by the sync wrapper's runtime check
+- Explicit `harness` parameter takes precedence over the runtime alias
 
-- the final semantics chosen for legacy runtime alias execution;
-- the exact warning text that shipped;
-- the unit, behavioural, and trybuild coverage added or changed;
-- the documentation and roadmap updates made;
-- the final gate results, including any targeted macro-test commands needed in
-  addition to `make test`.
+**Warning text:** "the `runtime = \"tokio-current-thread\"` syntax is deprecated;
+use `harness = rstest_bdd_harness_tokio::TokioHarness` instead"
+
+**Test coverage changes:**
+- Unit test: renamed `resolve_harness_path_runtime_alias_does_not_force_harness_yet`
+  to `resolve_harness_path_runtime_alias_resolves_to_tokio_harness` and updated
+  assertions to verify the alias resolves to the TokioHarness path
+- Behavioural test `runtime_compat_alias.rs`: updated to use synchronous step
+  functions and updated feature file text from "asynchronous" to "synchronous"
+- Behavioural test `async_scenario.rs`: converted from `scenarios!` with
+  `runtime = "tokio-current-thread"` to manual `#[scenario]` tests with
+  `#[tokio::test]` to preserve async step coverage without using the deprecated alias
+- Trybuild fixture: added `scenarios_runtime_alias_deprecated.rs` with forced
+  compile error to capture the deprecation warning diagnostic
+
+**Documentation updates:**
+- `docs/rstest-bdd-design.md` §2.5.5: updated to describe activated alias semantics
+- `docs/rstest-bdd-design.md` §2.7.3: updated runtime compatibility alias section
+- `docs/users-guide.md`: added deprecation notice, updated behavior description,
+  and converted code example to use explicit harness form
+- `docs/roadmap.md`: marked item 9.2.4 as complete with delivery date 2026-03-16
+
+**Quality gates:** All gates passed successfully:
+- `cargo fmt --all --check`: passed
+- `cargo clippy --workspace --all-targets --all-features -- -D warnings`: passed
+- `cargo test --workspace`: passed (all 569 tests)
+- `cargo test -p rstest-bdd --test trybuild_macros`: passed (19 macro fixtures)
+
+**Implementation notes:** The key technical insight was that activating the alias
+required treating the runtime as synchronous for code generation purposes
+(`effective_runtime = RuntimeMode::Sync` when alias is activated) to avoid the
+async+harness rejection check. This ensures the generated test signature is `fn`
+rather than `async fn`, consistent with explicit `TokioHarness` usage.
 
 ## Context and orientation
 

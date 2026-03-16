@@ -1,14 +1,19 @@
-//! Tests for async scenario execution using `scenarios!` macro with Tokio runtime.
+//! Tests for async scenario execution using manual `#[scenario]` with `#[tokio::test]`.
 //!
 //! This test verifies that:
-//! - The `runtime = "tokio-current-thread"` argument generates async tests
+//! - Manual async scenario tests with `#[tokio::test]` work correctly
 //! - Async steps execute sequentially and can share state
 //! - The `skip!` macro works correctly in async context
+//!
+//! Note: The legacy `runtime = "tokio-current-thread"` syntax for `scenarios!` is
+//! deprecated and now resolves to synchronous scenarios with `TokioHarness`, which
+//! does not support async step definitions. For async step functions, use manual
+//! `#[scenario]` with `#[tokio::test]` instead.
 
 use std::cell::RefCell;
 
 use rstest_bdd::skip;
-use rstest_bdd_macros::{given, scenarios, then, when};
+use rstest_bdd_macros::{given, scenario, then, when};
 
 thread_local! {
     static ASYNC_COUNTER: RefCell<i32> = const { RefCell::new(0) };
@@ -43,8 +48,16 @@ fn async_counter_value(n: i32) {
     });
 }
 
-scenarios!(
-    "tests/features/async_scenario.feature",
-    tags = "@async",
-    runtime = "tokio-current-thread"
-);
+#[scenario(
+    path = "tests/features/async_scenario.feature",
+    name = "Async steps execute sequentially"
+)]
+#[tokio::test(flavor = "current_thread")]
+async fn async_steps_execute_sequentially() {}
+
+#[scenario(
+    path = "tests/features/async_scenario.feature",
+    name = "Skip works in async context"
+)]
+#[tokio::test(flavor = "current_thread")]
+async fn skip_works_in_async_context() {}

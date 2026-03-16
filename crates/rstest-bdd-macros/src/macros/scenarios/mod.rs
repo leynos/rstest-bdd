@@ -13,6 +13,7 @@ mod path_resolution;
 mod test_generation;
 
 use proc_macro::TokenStream;
+use proc_macro_error::emit_warning;
 use proc_macro2::{Span, TokenStream as TokenStream2};
 use quote::{format_ident, quote};
 use std::collections::HashSet;
@@ -184,6 +185,17 @@ pub(crate) fn scenarios(input: TokenStream) -> TokenStream {
         attributes,
     } = syn::parse_macro_input!(input as ScenariosArgs);
     let dir = PathBuf::from(dir_lit.value());
+
+    // Emit deprecation warning for runtime compatibility alias (roadmap 9.2.4).
+    // The `runtime = "tokio-current-thread"` syntax is legacy compatibility; users
+    // should migrate to the explicit harness form.
+    if runtime == RuntimeMode::TokioCurrentThread && harness.is_none() {
+        emit_warning!(
+            Span::call_site(),
+            "the `runtime = \"tokio-current-thread\"` syntax is deprecated; \
+             use `harness = rstest_bdd_harness_tokio::TokioHarness` instead"
+        );
+    }
 
     let tag_filter = match parse_tag_filter(tag_lit) {
         Ok(filter) => filter,

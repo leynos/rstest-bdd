@@ -46,10 +46,10 @@ pub(super) struct ScenarioTestContext<'a> {
 
 /// Resolves which harness path should be used for code generation.
 ///
-/// Runtime compatibility aliases are tracked so `runtime = "tokio-current-thread"`
-/// can be treated as a harness-selection alias internally. The Tokio harness
-/// plug-in crate shipped in phase 9.3; the alias is recognized but does not yet
-/// resolve to `TokioHarness` — activation is tracked as roadmap item 9.2.4.
+/// Runtime compatibility aliases map legacy runtime syntax to harness selection.
+/// The `runtime = "tokio-current-thread"` compatibility alias now resolves to
+/// `rstest_bdd_harness_tokio::TokioHarness` (activated in roadmap item 9.2.4).
+/// Explicit harness selection takes precedence over compatibility aliases.
 /// See design doc §2.5.5 and §2.7.3.
 ///
 /// # Examples
@@ -57,18 +57,18 @@ pub(super) struct ScenarioTestContext<'a> {
 /// # use syn::parse_quote;
 /// let explicit: syn::Path = parse_quote!(MyHarness);
 /// assert!(resolve_harness_path(Some(&explicit), None).is_some());
-/// assert!(resolve_harness_path(None, Some(RuntimeCompatibilityAlias::TokioHarnessAdapter)).is_none());
+/// let resolved = resolve_harness_path(None, Some(RuntimeCompatibilityAlias::TokioHarnessAdapter));
+/// assert!(resolved.is_some());
 /// ```
 fn resolve_harness_path(
     explicit_harness: Option<&syn::Path>,
     runtime_alias: Option<RuntimeCompatibilityAlias>,
-) -> Option<&syn::Path> {
-    if explicit_harness.is_some() {
-        return explicit_harness;
+) -> Option<syn::Path> {
+    if let Some(path) = explicit_harness {
+        return Some(path.clone());
     }
-    if runtime_alias.is_some() {
-        // Alias recognized but not yet resolved — activation tracked as 9.2.4.
-        return None;
+    if let Some(RuntimeCompatibilityAlias::TokioHarnessAdapter) = runtime_alias {
+        return Some(syn::parse_quote!(rstest_bdd_harness_tokio::TokioHarness));
     }
     None
 }
@@ -179,7 +179,23 @@ pub(super) fn generate_scenario_test(
     let attrs = build_lint_attributes(ctx.fixtures);
     let fixture_params = build_fixture_params(ctx.fixtures);
     let example_params = build_example_params(examples.as_ref());
-    let is_async = ctx.runtime.is_async();
+
+    let resolved_harness =
+        resolve_harness_path(ctx.harness, runtime_compatibility_alias(ctx.runtime));
+    let harness_ref = resolved_harness.as_ref();
+
+    // When the runtime compatibility alias is activated (resolves to a harness),
+    // treat the runtime as synchronous for code generation. The harness provides
+    // the runtime, so the test function signature should be `fn` not `async fn`.
+    let effective_runtime = if harness_ref.is_some() && ctx.harness.is_none() {
+        // Alias was activated: use sync mode
+        RuntimeMode::Sync
+    } else {
+        // Explicit harness or no harness: preserve original runtime
+        ctx.runtime
+    };
+
+    let is_async = effective_runtime.is_async();
     let mut sig = build_test_signature(&fn_ident, &fixture_params, &example_params, is_async);
 
     let (_args, fixture_setup) = match extract_function_fixtures(&mut sig) {
@@ -203,9 +219,9 @@ pub(super) fn generate_scenario_test(
         allow_skipped,
         line,
         tags: &tags,
-        runtime: ctx.runtime,
+        runtime: effective_runtime,
         return_kind: ScenarioReturnKind::Unit,
-        harness: resolve_harness_path(ctx.harness, runtime_compatibility_alias(ctx.runtime)),
+        harness: harness_ref,
         attributes: ctx.attributes,
     };
     TokenStream2::from(generate_scenario_code(

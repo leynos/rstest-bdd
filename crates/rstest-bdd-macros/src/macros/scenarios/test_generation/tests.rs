@@ -177,13 +177,20 @@ fn resolve_harness_path_prefers_explicit_harness() {
         Some(RuntimeCompatibilityAlias::TokioHarnessAdapter),
     );
     assert!(resolved.is_some(), "explicit harness should be preserved");
+    let path_str = quote!(#resolved).to_string();
+    assert!(path_str.contains("my") && path_str.contains("Harness"));
 }
 
 #[test]
-fn resolve_harness_path_runtime_alias_does_not_force_harness_yet() {
+fn resolve_harness_path_runtime_alias_resolves_to_tokio_harness() {
     let resolved = resolve_harness_path(None, Some(RuntimeCompatibilityAlias::TokioHarnessAdapter));
     assert!(
-        resolved.is_none(),
-        "tokio compatibility alias is recognized but not yet resolved (activation tracked as 9.2.4)"
+        resolved.is_some(),
+        "tokio compatibility alias should resolve to TokioHarness path"
+    );
+    let path_str = quote!(#resolved).to_string();
+    assert!(
+        path_str.contains("rstest_bdd_harness_tokio") && path_str.contains("TokioHarness"),
+        "resolved path should be rstest_bdd_harness_tokio::TokioHarness, got: {path_str}"
     );
 }
