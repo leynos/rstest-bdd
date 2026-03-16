@@ -897,6 +897,20 @@ fn my_gpui_scenario() {
 `gpui::TestAppContext`, and passes it through `HarnessAdapter::Context`.
 `GpuiAttributePolicy` emits `#[rstest::rstest]` and `#[gpui::test]`.
 
+For a complete working example, see the `examples/gpui-counter` crate, which
+models a simple counter application whose BDD suite exercises both
+`GpuiHarness` and `GpuiAttributePolicy` end-to-end. Step definitions in that
+example demonstrate accessing injected `TestAppContext` through the
+`#[from(rstest_bdd_harness_context)]` fixture key and recording
+harness-provided values (such as the dispatcher seed) in the domain model.
+
+> **Native-library setup:** this workspace uses a local GPUI test shim under
+> `vendor/gpui` that requires no additional native-library installation beyond
+> standard Rust toolchain components. Linux environments that link against the
+> full upstream GPUI crate may need X11 keyboard libraries (`libxcb1-dev`,
+> `libxkbcommon-dev`, `libxkbcommon-x11-dev` on Debian/Ubuntu), but the
+> workspace shim avoids that requirement.
+>
 > **Workspace note:** this repository patches `gpui` test support locally to
 > keep the dependency graph free of `async-trait`. The patched surface keeps
 > the `run_test`, `TestAppContext`, and `#[gpui::test]` APIs used by

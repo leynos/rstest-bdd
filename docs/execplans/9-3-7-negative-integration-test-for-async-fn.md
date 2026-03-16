@@ -317,7 +317,8 @@ Go/no-go: the trybuild test passes with the new fixture. Proceed.
 
 ### Stage E: update documentation
 
-Goal: keep roadmap, design doc, and user's guide aligned with delivered coverage.
+Goal: keep roadmap, design doc, and user's guide aligned with delivered
+coverage.
 
 **Roadmap** (`docs/roadmap.md`, line 521): change `- [ ]` to `- [x]`:
 
@@ -388,7 +389,8 @@ error message documented in the design doc §2.7.3.
 Quality criteria:
 
 - Tests: `make test` passes (`cargo test --workspace`). The trybuild test
-  `step_macros_compile` exercises all registered fixtures, including the new one.
+  `step_macros_compile` exercises all registered fixtures, including the new
+  one.
 - Lint: `make lint` passes
   (`cargo clippy --workspace --all-targets --all-features -- -D warnings`).
 - Format: `make check-fmt` passes (`cargo fmt --workspace -- --check`).

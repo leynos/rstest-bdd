@@ -5,7 +5,7 @@ This ExecPlan (execution plan) is a living document. The sections
 `Decision Log`, and `Outcomes & Retrospective` must be kept up to date as work
 proceeds.
 
-Status: DRAFT (2026-03-12)
+Status: DONE (2026-03-16)
 
 `PLANS.md` is not present in this repository at the time of writing, so this
 ExecPlan is the governing plan for roadmap item 9.4.5.
@@ -128,11 +128,13 @@ the example's BDD scenarios pass, and the full gate set passes: `make fmt`,
 - [x] (2026-03-12 00:00Z) Reviewed current GPUI harness integration tests and
       the workspace GPUI shim.
 - [x] (2026-03-12 00:00Z) Drafted this ExecPlan.
-- [ ] Stage A: confirm the final example topology and baseline command health.
-- [ ] Stage B: scaffold the new example crate and red tests.
-- [ ] Stage C: implement the example domain model and BDD steps.
-- [ ] Stage D: harden docs, native-setup guidance, and roadmap state.
-- [ ] Stage E: run full quality gates and capture logs.
+- [x] (2026-03-16) Stage A: confirm the final example topology and baseline
+      command health.
+- [x] (2026-03-16) Stage B: scaffold the new example crate and red tests.
+- [x] (2026-03-16) Stage C: implement the example domain model and BDD steps.
+- [x] (2026-03-16) Stage D: harden docs, native-setup guidance, and roadmap
+      state.
+- [x] (2026-03-16) Stage E: run full quality gates and capture logs.
 
 ## Surprises & Discoveries
 
@@ -155,6 +157,12 @@ the example's BDD scenarios pass, and the full gate set passes: `make fmt`,
   `vendor/gpui/src/lib.rs` and `vendor/gpui-macros/src/lib.rs`. Impact: the
   example should demonstrate harness and context usage, not upstream GPUI view
   APIs that the shim does not provide.
+
+- Observation: the `#[scenario]` macro requires `rstest-bdd-harness` in the
+  crate's `[dev-dependencies]`, even though the example itself never imports
+  from it directly. The macro's Cargo manifest lookup enforces this. Evidence:
+  compile error during Stage B on 2026-03-16. Impact: added
+  `rstest-bdd-harness.workspace = true` to the example's `Cargo.toml`.
 
 ## Decision Log
 
@@ -185,23 +193,30 @@ the example's BDD scenarios pass, and the full gate set passes: `make fmt`,
 
 ## Outcomes & Retrospective
 
-This work has not been implemented yet. Expected delivered outcomes are:
+Implementation completed on 2026-03-16. Delivered outcomes:
 
-- A new example crate under `examples/` that can be run by workspace test
-  commands.
-- Unit coverage for the example's own domain logic.
-- Behavioural coverage through `#[scenario]` bindings that demonstrate GPUI
-  harness context injection.
-- Users-guide and design-doc updates that explain the example and the native
-  setup story.
-- Roadmap item 9.4.5 marked complete after validation.
+- `examples/gpui-counter` crate added as a workspace member with 6 unit tests,
+  2 BDD scenarios, and 1 doctest.
+- BDD suite binds both `harness = GpuiHarness` and
+  `attributes = GpuiAttributePolicy` and demonstrates step access to injected
+  `gpui::TestAppContext` through `#[from(rstest_bdd_harness_context)]`.
+- `docs/users-guide.md` updated with a link to the example, a
+  native-library-setup note, and a reference to the `gpui-counter` crate.
+- `docs/rstest-bdd-design.md` §2.7.4 updated to describe the demonstration
+  crate.
+- `docs/roadmap.md` item 9.4.5 marked done after all gates passed.
 
-Retrospective placeholder:
+Retrospective:
 
-- Revisit whether the chosen example remained the smallest useful expression of
-  GPUI harness integration.
-- Record any friction encountered when moving from the repository's GPUI shim
-  to the user-facing example.
+- The example required `rstest-bdd-harness` as a dev-dependency; the scenario
+  macro's Cargo manifest lookup enforces this. This was discovered quickly and
+  resolved without friction.
+- The workspace GPUI shim required no additional native setup. Linux
+  environments linking against the full upstream GPUI crate need X11 keyboard
+  libraries, but the shim avoids that requirement. This is now explicitly
+  documented in the users' guide.
+- The chosen counter domain was the smallest useful expression of GPUI harness
+  integration, matching the existing example crate style.
 
 ## Context and orientation
 

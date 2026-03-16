@@ -736,6 +736,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "gpui-counter"
+version = "0.5.0"
+dependencies = [
+ "gpui",
+ "rstest",
+ "rstest-bdd",
+ "rstest-bdd-harness",
+ "rstest-bdd-harness-gpui",
+ "rstest-bdd-macros",
+]
+
+[[package]]
 name = "gpui-macros"
 version = "0.2.2"
 dependencies = [
