@@ -13,6 +13,7 @@ mod path_resolution;
 mod test_generation;
 
 use proc_macro::TokenStream;
+use proc_macro_error::emit_warning;
 use proc_macro2::{Span, TokenStream as TokenStream2};
 use quote::{format_ident, quote};
 use std::collections::HashSet;
@@ -174,6 +175,27 @@ fn check_empty_results(
     }
 }
 
+fn emit_runtime_deprecation_warning(runtime: RuntimeMode, harness: Option<&syn::Path>) {
+    if runtime != RuntimeMode::TokioCurrentThread {
+        return;
+    }
+    if harness.is_some() {
+        emit_warning!(
+            Span::call_site(),
+            "the `runtime = \"tokio-current-thread\"` argument is \
+             deprecated and redundant when an explicit `harness` is set; \
+             remove the `runtime` argument"
+        );
+    } else {
+        emit_warning!(
+            Span::call_site(),
+            "the `runtime = \"tokio-current-thread\"` syntax is \
+             deprecated; use \
+             `harness = rstest_bdd_harness_tokio::TokioHarness` instead"
+        );
+    }
+}
+
 pub(crate) fn scenarios(input: TokenStream) -> TokenStream {
     let ScenariosArgs {
         dir: dir_lit,
@@ -184,6 +206,8 @@ pub(crate) fn scenarios(input: TokenStream) -> TokenStream {
         attributes,
     } = syn::parse_macro_input!(input as ScenariosArgs);
     let dir = PathBuf::from(dir_lit.value());
+
+    emit_runtime_deprecation_warning(runtime, harness.as_ref());
 
     let tag_filter = match parse_tag_filter(tag_lit) {
         Ok(filter) => filter,

@@ -52,6 +52,7 @@ fn step_macros_compile() {
     );
     run_conditional_ordering_tests(&t);
     run_conditional_ambiguous_step_test(&t);
+    compile_fail_runtime_alias_deprecation_warning(&t);
 }
 
 fn run_passing_macro_tests(t: &trybuild::TestCases) {
@@ -211,6 +212,16 @@ fn compile_fail_missing_step_warning(t: &trybuild::TestCases) {
     compile_fail_with_normalised_output(
         t,
         macros_fixture(MacroFixtureCase::from("scenario_missing_step_warning.rs")),
+        &[strip_nightly_macro_backtrace_hint, normalise_fixture_paths],
+    );
+}
+
+fn compile_fail_runtime_alias_deprecation_warning(t: &trybuild::TestCases) {
+    compile_fail_with_normalised_output(
+        t,
+        macros_fixture(MacroFixtureCase::from(
+            "scenarios_runtime_alias_deprecated.rs",
+        )),
         &[strip_nightly_macro_backtrace_hint, normalise_fixture_paths],
     );
 }

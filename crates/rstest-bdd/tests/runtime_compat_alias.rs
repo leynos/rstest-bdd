@@ -1,8 +1,9 @@
 //! Behavioural tests for runtime compatibility alias resolution in `scenarios!`.
 //!
-//! These tests verify that `runtime = "tokio-current-thread"` remains usable
-//! for async scenario execution while internally being treated as a compatibility
-//! alias for Tokio harness selection.
+//! These tests verify that `runtime = "tokio-current-thread"` (roadmap item 9.2.4)
+//! now resolves to `TokioHarness`, providing a Tokio current-thread runtime for
+//! synchronous scenario functions. Async step definitions are not supported under
+//! the activated alias; use explicit `async fn` scenarios or manual async tests instead.
 
 use std::sync::atomic::{AtomicUsize, Ordering};
 
@@ -15,10 +16,9 @@ fn runtime_alias_counter_init() {
     RUNTIME_ALIAS_COUNTER.store(0, Ordering::SeqCst);
 }
 
-#[when("the runtime alias counter is incremented asynchronously")]
-async fn runtime_alias_counter_increment() {
+#[when("the runtime alias counter is incremented synchronously")]
+fn runtime_alias_counter_increment() {
     RUNTIME_ALIAS_COUNTER.fetch_add(1, Ordering::SeqCst);
-    tokio::task::yield_now().await;
 }
 
 #[then(expr = "the runtime alias counter value is {n}")]

@@ -21,6 +21,16 @@ pub(crate) fn rstest_bdd_harness_path() -> TokenStream2 {
     resolve_crate_path("rstest-bdd-harness", "rstest_bdd_harness")
 }
 
+/// Return a token stream pointing to the `rstest_bdd_harness_tokio` crate or
+/// its renamed form.
+///
+/// Used by the `runtime = "tokio-current-thread"` compatibility alias to
+/// resolve `TokioHarness` via proper crate lookup, supporting downstream
+/// crates that rename the dependency in their `Cargo.toml`.
+pub(crate) fn rstest_bdd_harness_tokio_path() -> TokenStream2 {
+    resolve_crate_path("rstest-bdd-harness-tokio", "rstest_bdd_harness_tokio")
+}
+
 fn resolve_crate_path(crate_name_str: &str, default_ident: &str) -> TokenStream2 {
     match crate_name(crate_name_str) {
         Ok(found) => {
@@ -71,5 +81,15 @@ mod tests {
         };
         let tokens = handle_missing_crate("rstest-bdd-harness", &error);
         assert_eq!(tokens.to_string(), ":: rstest_bdd_harness");
+    }
+
+    #[test]
+    fn returns_fallback_path_for_harness_tokio_crate() {
+        let error = Error::CrateNotFound {
+            crate_name: "rstest-bdd-harness-tokio".to_string(),
+            path: PathBuf::new(),
+        };
+        let tokens = handle_missing_crate("rstest-bdd-harness-tokio", &error);
+        assert_eq!(tokens.to_string(), ":: rstest_bdd_harness_tokio");
     }
 }

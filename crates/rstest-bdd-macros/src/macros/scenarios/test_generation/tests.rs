@@ -2,9 +2,11 @@
 
 use super::super::macro_args::FixtureSpec;
 use super::super::macro_args::RuntimeCompatibilityAlias;
+use super::super::macro_args::RuntimeMode;
+use super::super::macro_args::runtime_compatibility_alias;
 use super::{
     build_fixture_params, build_lint_attributes, build_test_signature, dedupe_name,
-    resolve_harness_path,
+    resolve_effective_runtime, resolve_harness_path,
 };
 use proc_macro2::TokenStream as TokenStream2;
 use quote::quote;
@@ -177,13 +179,120 @@ fn resolve_harness_path_prefers_explicit_harness() {
         Some(RuntimeCompatibilityAlias::TokioHarnessAdapter),
     );
     assert!(resolved.is_some(), "explicit harness should be preserved");
+    let path_str = quote!(#resolved).to_string();
+    assert!(path_str.contains("my") && path_str.contains("Harness"));
 }
 
 #[test]
-fn resolve_harness_path_runtime_alias_does_not_force_harness_yet() {
+fn resolve_harness_path_runtime_alias_resolves_to_tokio_harness() {
     let resolved = resolve_harness_path(None, Some(RuntimeCompatibilityAlias::TokioHarnessAdapter));
     assert!(
-        resolved.is_none(),
-        "tokio compatibility alias is recognized but not yet resolved (activation tracked as 9.2.4)"
+        resolved.is_some(),
+        "tokio compatibility alias should resolve to TokioHarness path"
+    );
+    let path_str = quote!(#resolved).to_string();
+    assert!(
+        path_str.contains("rstest_bdd_harness_tokio") && path_str.contains("TokioHarness"),
+        "resolved path should be rstest_bdd_harness_tokio::TokioHarness, got: {path_str}"
+    );
+}
+
+// -- Tests for the effective_runtime / harness / signature pipeline ---
+//
+// These tests verify the combined behaviour of resolve_harness_path,
+// resolve_effective_runtime, and build_test_signature, mirroring the
+// pipeline inside generate_scenario_test without crossing the
+// proc-macro API boundary.
+
+#[rstest::rstest]
+#[case::alias_without_explicit_harness(
+    RuntimeMode::TokioCurrentThread,
+    None,
+    RuntimeMode::Sync,
+    Some("rstest_bdd_harness_tokio"),
+    Some("TokioHarness"),
+    "fn "
+)]
+#[case::alias_with_explicit_harness(
+    RuntimeMode::TokioCurrentThread,
+    Some("my::ExplicitHarness"),
+    RuntimeMode::TokioCurrentThread,
+    Some("ExplicitHarness"),
+    None,
+    "async fn"
+)]
+#[case::sync_without_alias(RuntimeMode::Sync, None, RuntimeMode::Sync, None, None, "fn ")]
+fn runtime_harness_signature_pipeline(
+    #[case] runtime: RuntimeMode,
+    #[case] explicit_harness_str: Option<&str>,
+    #[case] expected_runtime: RuntimeMode,
+    #[case] expected_harness_contains: Option<&str>,
+    #[case] expected_harness_must_contain: Option<&str>,
+    #[case] expected_sig_prefix: &str,
+) {
+    // Given: runtime and optional explicit harness
+    let alias = runtime_compatibility_alias(runtime);
+    let explicit_path: Option<syn::Path> =
+        explicit_harness_str.map(|s| syn::parse_str(s).expect("valid path"));
+    let explicit_harness = explicit_path.as_ref();
+
+    // When: we resolve the harness and effective runtime
+    let resolved_harness = resolve_harness_path(explicit_harness, alias);
+    let effective_runtime = resolve_effective_runtime(runtime, alias, explicit_harness);
+
+    // Then: effective runtime matches expected
+    assert_eq!(effective_runtime, expected_runtime);
+
+    // And: resolved harness matches expected presence/contents
+    if let Some(must_contain) = expected_harness_must_contain {
+        let harness = resolved_harness
+            .as_ref()
+            .expect("harness should be present");
+        let harness_str = quote!(#harness).to_string();
+        assert!(
+            harness_str.contains(must_contain),
+            "harness should contain {must_contain}, got: {harness_str}"
+        );
+    }
+    if let Some(contains) = expected_harness_contains {
+        if contains == "ExplicitHarness" {
+            let harness = resolved_harness
+                .as_ref()
+                .expect("harness should be present");
+            let harness_str = quote!(#harness).to_string();
+            assert!(
+                harness_str.contains(contains),
+                "harness should contain {contains}, got: {harness_str}"
+            );
+            assert!(
+                !harness_str.contains("rstest_bdd_harness_tokio"),
+                "TokioHarness should not be injected with explicit harness"
+            );
+        } else if resolved_harness.is_none() {
+            assert!(
+                expected_harness_contains.is_none(),
+                "expected no harness but got contains requirement"
+            );
+        } else {
+            let harness = resolved_harness
+                .as_ref()
+                .expect("harness should be present");
+            let harness_str = quote!(#harness).to_string();
+            assert!(
+                harness_str.contains(contains),
+                "harness should contain {contains}, got: {harness_str}"
+            );
+        }
+    } else {
+        assert!(resolved_harness.is_none(), "expected no harness");
+    }
+
+    // And: the generated test signature starts with expected prefix
+    let fn_ident = syn::Ident::new("test_scenario", proc_macro2::Span::call_site());
+    let sig = build_test_signature(&fn_ident, &[], &[], effective_runtime.is_async());
+    let sig_str = sig_to_string(&sig);
+    assert!(
+        sig_str.starts_with(expected_sig_prefix),
+        "expected signature starting with {expected_sig_prefix}, got: {sig_str}"
     );
 }
