@@ -99,7 +99,7 @@ fn saturate_to_i32(value: i64) -> i32 {
 
 #[cfg(test)]
 mod tests {
-    //! Tests for `CounterApp` behavior.
+    //! Tests for `CounterApp` behaviour.
 
     use super::CounterApp;
     use rstest::{fixture, rstest};
