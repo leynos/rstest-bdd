@@ -5,7 +5,7 @@ Feature: Counter application with GPUI harness
     When I increment the counter by 3
     And I record the GPUI dispatcher seed
     Then the counter value is 3
-    And the recorded dispatcher seed is 0
+    And a dispatcher seed was recorded
 
   Scenario: Multiple increments and decrements
     Given a counter starting at 10

@@ -1,4 +1,4 @@
-# ExecPlan 9.4.5: add a GPUI demonstration application
+# ExecPlan 9.4.5: add a GPUI (Graphical Processing User Interface) demonstration application
 
 This ExecPlan (execution plan) is a living document. The sections
 `Constraints`, `Tolerances`, `Risks`, `Progress`, `Surprises & Discoveries`,
@@ -25,8 +25,9 @@ After this work:
 
 - A new workspace example crate exists under `examples/` with the same
   maintenance posture as the existing demonstration crates.
-- The example's BDD suite exercises `harness = GpuiHarness` and
-  `attributes = GpuiAttributePolicy` in generated `#[scenario]` bindings.
+- The example's behaviour-driven development (BDD) suite exercises
+  `harness = GpuiHarness` and `attributes = GpuiAttributePolicy` in generated
+  `#[scenario]` bindings.
 - Step definitions demonstrate direct access to injected
   `gpui::TestAppContext` through
   `#[from(rstest_bdd_harness_context)] context: &gpui::TestAppContext` and
@@ -48,10 +49,10 @@ the example's BDD scenarios pass, and the full gate set passes: `make fmt`,
 ## Constraints
 
 - Implement only roadmap item 9.4.5 from `docs/roadmap.md`.
-- Preserve ADR-005 boundaries: GPUI dependencies remain outside core crates.
-  The example may depend on `gpui` and `rstest-bdd-harness-gpui`, but
-  `rstest-bdd`, `rstest-bdd-macros`, and `rstest-bdd-harness` must not gain new
-  GPUI-specific responsibilities.
+- Preserve Architecture Decision Record (ADR) 005 boundaries: GPUI
+  dependencies remain outside core crates. The example may depend on `gpui` and
+  `rstest-bdd-harness-gpui`, but `rstest-bdd`, `rstest-bdd-macros`, and
+  `rstest-bdd-harness` must not gain new GPUI-specific responsibilities.
 - Preserve ADR-007 usage: step access to harness context must continue to flow
   through `rstest_bdd_harness_context`.
 - Keep the example aligned with the current workspace GPUI shim in
@@ -457,8 +458,7 @@ make fmt 2>&1 | tee /tmp/9-4-5-make-fmt.log
 
 ```bash
 set -o pipefail
-PATH=/root/.bun/bin:$PATH make markdownlint \
-  2>&1 | tee /tmp/9-4-5-markdownlint.log
+make markdownlint 2>&1 | tee /tmp/9-4-5-markdownlint.log
 ```
 
 ```bash

@@ -10,8 +10,11 @@ use std::cell::Cell;
 /// A simple counter that also records observations from the GPUI test
 /// harness context.
 ///
-/// The counter uses interior mutability so that step definitions can borrow
-/// it immutably while still modifying the count.
+/// All fields use [`Cell`] for interior mutability so that BDD step
+/// definitions can share a single `&CounterApp` across Given/When/Then
+/// steps without requiring `&mut` access.  This is safe because scenario
+/// execution is single-threaded; `CounterApp` intentionally does *not*
+/// implement `Sync`.
 ///
 /// # Examples
 ///
@@ -22,6 +25,11 @@ use std::cell::Cell;
 /// app.increment(5);
 /// app.decrement(2);
 /// assert_eq!(app.value(), 3);
+///
+/// // Amounts are unsigned (`u32`), so the direction is always unambiguous.
+/// app.set_value(-1);
+/// app.increment(3);
+/// assert_eq!(app.value(), 2);
 /// ```
 #[derive(Debug, Default)]
 pub struct CounterApp {
@@ -30,7 +38,7 @@ pub struct CounterApp {
 }
 
 impl CounterApp {
-    /// Creates a counter initialised to the given starting value.
+    /// Creates a counter initialized to the given starting value.
     #[must_use]
     pub fn new(start: i32) -> Self {
         Self {
@@ -45,14 +53,25 @@ impl CounterApp {
         self.value.get()
     }
 
+    /// Replaces the stored counter value with the provided amount.
+    pub fn set_value(&self, amount: i32) {
+        self.value.set(amount);
+    }
+
     /// Increases the counter by `amount`, saturating at `i32::MAX`.
-    pub fn increment(&self, amount: i32) {
-        self.value.set(self.value.get().saturating_add(amount));
+    ///
+    /// The amount is unsigned so the direction is always unambiguous.
+    pub fn increment(&self, amount: u32) {
+        let delta = i64::from(self.value.get()) + i64::from(amount);
+        self.value.set(saturate_to_i32(delta));
     }
 
     /// Decreases the counter by `amount`, saturating at `i32::MIN`.
-    pub fn decrement(&self, amount: i32) {
-        self.value.set(self.value.get().saturating_sub(amount));
+    ///
+    /// The amount is unsigned so the direction is always unambiguous.
+    pub fn decrement(&self, amount: u32) {
+        let delta = i64::from(self.value.get()) - i64::from(amount);
+        self.value.set(saturate_to_i32(delta));
     }
 
     /// Records an observed GPUI dispatcher seed.
@@ -64,6 +83,17 @@ impl CounterApp {
     #[must_use]
     pub fn dispatcher_seed(&self) -> Option<u64> {
         self.dispatcher_seed.get()
+    }
+}
+
+/// Clamps an `i64` value to the `i32` range.
+fn saturate_to_i32(value: i64) -> i32 {
+    #[expect(
+        clippy::cast_possible_truncation,
+        reason = "value is clamped to i32 range before truncation"
+    )]
+    {
+        value.clamp(i64::from(i32::MIN), i64::from(i32::MAX)) as i32
     }
 }
 
@@ -97,15 +127,15 @@ mod tests {
 
     #[rstest]
     fn saturates_on_overflow(counter: CounterApp) {
-        counter.increment(i32::MAX);
+        counter.increment(u32::MAX);
         counter.increment(1);
         assert_eq!(counter.value(), i32::MAX);
     }
 
     #[rstest]
     fn saturates_on_underflow(counter: CounterApp) {
-        counter.decrement(i32::MAX);
-        counter.decrement(i32::MAX);
+        counter.decrement(u32::MAX);
+        counter.decrement(u32::MAX);
         assert_eq!(counter.value(), i32::MIN);
     }
 

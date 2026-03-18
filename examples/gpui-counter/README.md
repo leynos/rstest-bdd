@@ -1,9 +1,10 @@
 # GPUI counter example
 
-This example crate demonstrates writing behaviour-driven tests that exercise
-the GPUI harness adapter and attribute policy from `rstest-bdd-harness-gpui`.
-The scenarios model a simple counter application while also observing
-GPUI-injected `TestAppContext` details from within step definitions.
+This example crate demonstrates writing behaviour-driven development (BDD)
+tests that exercise the GPUI harness adapter and attribute policy from
+`rstest-bdd-harness-gpui`. The scenarios model a simple counter application
+while also observing GPUI-injected `TestAppContext` details from within step
+definitions.
 
 ## Running the tests
 

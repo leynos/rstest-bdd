@@ -15,17 +15,16 @@ fn app() -> CounterApp {
 
 #[given("a counter starting at {start:i32}")]
 fn a_counter_starting_at(app: &CounterApp, start: i32) {
-    // Re-initialise the counter to the requested starting value.
-    app.increment(start.saturating_sub(app.value()));
+    app.set_value(start);
 }
 
-#[when("I increment the counter by {amount:i32}")]
-fn increment_counter(app: &CounterApp, amount: i32) {
+#[when("I increment the counter by {amount:u32}")]
+fn increment_counter(app: &CounterApp, amount: u32) {
     app.increment(amount);
 }
 
-#[when("I decrement the counter by {amount:i32}")]
-fn decrement_counter(app: &CounterApp, amount: i32) {
+#[when("I decrement the counter by {amount:u32}")]
+fn decrement_counter(app: &CounterApp, amount: u32) {
     app.decrement(amount);
 }
 
@@ -42,9 +41,15 @@ fn counter_value_is(app: &CounterApp, expected: i32) {
     assert_eq!(app.value(), expected);
 }
 
-#[then("the recorded dispatcher seed is {expected:u64}")]
-fn recorded_dispatcher_seed_is(app: &CounterApp, expected: u64) {
-    assert_eq!(app.dispatcher_seed(), Some(expected));
+#[then("a dispatcher seed was recorded")]
+fn a_dispatcher_seed_was_recorded(app: &CounterApp) {
+    // Assert that a seed exists rather than checking a specific value.
+    // The concrete seed depends on the SEED environment variable and harness
+    // configuration, so asserting existence keeps the scenario stable.
+    assert!(
+        app.dispatcher_seed().is_some(),
+        "expected the GPUI dispatcher seed to have been recorded"
+    );
 }
 
 #[scenario(
