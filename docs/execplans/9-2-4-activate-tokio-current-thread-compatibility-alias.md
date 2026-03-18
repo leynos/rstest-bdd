@@ -199,6 +199,7 @@ incidental follow-up.
 
 **Final semantics:** The `runtime = "tokio-current-thread"` compatibility alias
 now behaves exactly like explicit `harness = rstest_bdd_harness_tokio::TokioHarness`:
+
 - Generated scenario test functions are synchronous (not `async fn`)
 - `TokioHarness` provides the Tokio current-thread runtime for step execution
 - Async step definitions are rejected at runtime by the sync wrapper's runtime check
@@ -208,6 +209,7 @@ now behaves exactly like explicit `harness = rstest_bdd_harness_tokio::TokioHarn
 use `harness = rstest_bdd_harness_tokio::TokioHarness` instead"
 
 **Test coverage changes:**
+
 - Unit test: renamed `resolve_harness_path_runtime_alias_does_not_force_harness_yet`
   to `resolve_harness_path_runtime_alias_resolves_to_tokio_harness` and updated
   assertions to verify the alias resolves to the TokioHarness path
@@ -215,11 +217,13 @@ use `harness = rstest_bdd_harness_tokio::TokioHarness` instead"
   functions and updated feature file text from "asynchronous" to "synchronous"
 - Behavioural test `async_scenario.rs`: converted from `scenarios!` with
   `runtime = "tokio-current-thread"` to manual `#[scenario]` tests with
-  `#[tokio::test]` to preserve async step coverage without using the deprecated alias
+  `#[tokio::test]` to preserve async step coverage without using the
+  deprecated alias
 - Trybuild fixture: added `scenarios_runtime_alias_deprecated.rs` with forced
   compile error to capture the deprecation warning diagnostic
 
 **Documentation updates:**
+
 - `docs/rstest-bdd-design.md` §2.5.5: updated to describe activated alias semantics
 - `docs/rstest-bdd-design.md` §2.7.3: updated runtime compatibility alias section
 - `docs/users-guide.md`: added deprecation notice, updated behavior description,
@@ -227,6 +231,7 @@ use `harness = rstest_bdd_harness_tokio::TokioHarness` instead"
 - `docs/roadmap.md`: marked item 9.2.4 as complete with delivery date 2026-03-16
 
 **Quality gates:** All gates passed successfully:
+
 - `cargo fmt --all --check`: passed
 - `cargo clippy --workspace --all-targets --all-features -- -D warnings`: passed
 - `cargo test --workspace`: passed (all 569 tests)
