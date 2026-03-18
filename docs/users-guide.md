@@ -853,14 +853,12 @@ prefer explicit `.await`-based coordination when completion is required.
 > `tokio::task::spawn_local` without needing `async fn` signatures.
 >
 > For fully async scenarios (where the scenario function itself is
-> `async fn`), two approaches are available without a harness:
->
-> - **`#[scenario]`** with an explicit `#[tokio::test(flavor =
->   "current_thread")]` attribute — see [Using `#[scenario]` with
->   async](#using-scenario-with-async).
-> - **`scenarios!`** with `runtime = "tokio-current-thread"` for
->   auto-discovery — see [Using `scenarios!` with
->   async](#using-scenarios-with-async).
+> `async fn`), use **`#[scenario]`** with an explicit `#[tokio::test(flavor =
+> "current_thread")]` attribute — see [Using `#[scenario]` with
+> async](#using-scenario-with-async). For auto-discovered scenarios, use the
+> explicit harness form described in [Using the Tokio
+> harness](#using-the-tokio-harness), or annotate manual scenario tests with
+> `#[tokio::test]`.
 >
 > When `attributes` is specified, the macro resolves policy-backed test
 > attributes. `TokioAttributePolicy` emits
@@ -1198,33 +1196,18 @@ The macro generates `#[rstest::rstest]` without duplicating
 
 ### Using `scenarios!` with async
 
-The `scenarios!` macro accepts a `runtime` argument to generate async tests for
-all discovered scenarios:
-
-```rust,no_run
-use rstest_bdd_macros::{given, then, when, scenarios};
-
-#[given("a precondition")] fn precondition() {}
-#[when("an action occurs")] fn action() {}
-#[then("events are recorded")] fn events() {}
-
-scenarios!("tests/features/auto", runtime = "tokio-current-thread");
-```
-
-**Deprecation notice:** The `runtime = "tokio-current-thread"` syntax is
-deprecated as of roadmap item 9.2.4. It now resolves to the explicit
+**Deprecation notice:** The legacy `runtime = "tokio-current-thread"` argument
+is deprecated as of roadmap item 9.2.4. It now resolves to the explicit
 `harness = rstest_bdd_harness_tokio::TokioHarness` form and emits a
 compile-time warning. For new code, use the explicit harness form described in
 [Using the Tokio harness](#using-the-tokio-harness).
 
-When `runtime = "tokio-current-thread"` is specified (legacy compatibility):
-
-- Generated test functions are synchronous (not `async fn`).
-- The `TokioHarness` provides the Tokio current-thread runtime for step
-  execution.
-- Async step definitions (`async fn`) are rejected at runtime; use synchronous
-  steps that drive async work via `tokio::spawn_local` or similar, or migrate
-  to explicit `async fn` scenario tests with manual `#[tokio::test]` annotation.
+The deprecated `runtime = "tokio-current-thread"` syntax generates synchronous
+(not `async fn`) test functions executed via `TokioHarness`. Async step
+definitions (`async fn`) are not supported. For async scenario tests, use
+explicit `async fn` scenario tests with `#[tokio::test]` annotation, or use the
+explicit `harness = rstest_bdd_harness_tokio::TokioHarness` form with
+synchronous steps that drive async work via `tokio::spawn_local`.
 
 ### Recommended patterns for async work in steps
 

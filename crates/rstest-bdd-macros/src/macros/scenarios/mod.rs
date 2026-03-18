@@ -175,6 +175,27 @@ fn check_empty_results(
     }
 }
 
+fn emit_runtime_deprecation_warning(runtime: RuntimeMode, harness: Option<&syn::Path>) {
+    if runtime != RuntimeMode::TokioCurrentThread {
+        return;
+    }
+    if harness.is_some() {
+        emit_warning!(
+            Span::call_site(),
+            "the `runtime = \"tokio-current-thread\"` argument is \
+             deprecated and redundant when an explicit `harness` is set; \
+             remove the `runtime` argument"
+        );
+    } else {
+        emit_warning!(
+            Span::call_site(),
+            "the `runtime = \"tokio-current-thread\"` syntax is \
+             deprecated; use \
+             `harness = rstest_bdd_harness_tokio::TokioHarness` instead"
+        );
+    }
+}
+
 pub(crate) fn scenarios(input: TokenStream) -> TokenStream {
     let ScenariosArgs {
         dir: dir_lit,
@@ -186,28 +207,7 @@ pub(crate) fn scenarios(input: TokenStream) -> TokenStream {
     } = syn::parse_macro_input!(input as ScenariosArgs);
     let dir = PathBuf::from(dir_lit.value());
 
-    // Emit deprecation warning for runtime compatibility alias (roadmap 9.2.4).
-    // The `runtime = "tokio-current-thread"` syntax is legacy compatibility;
-    // users should migrate to the explicit harness form. Warn regardless of
-    // whether an explicit `harness` is also provided, so users are nudged to
-    // remove the legacy runtime argument entirely.
-    if runtime == RuntimeMode::TokioCurrentThread {
-        if harness.is_some() {
-            emit_warning!(
-                Span::call_site(),
-                "the `runtime = \"tokio-current-thread\"` argument is \
-                 deprecated and redundant when an explicit `harness` is set; \
-                 remove the `runtime` argument"
-            );
-        } else {
-            emit_warning!(
-                Span::call_site(),
-                "the `runtime = \"tokio-current-thread\"` syntax is \
-                 deprecated; use \
-                 `harness = rstest_bdd_harness_tokio::TokioHarness` instead"
-            );
-        }
-    }
+    emit_runtime_deprecation_warning(runtime, harness.as_ref());
 
     let tag_filter = match parse_tag_filter(tag_lit) {
         Ok(filter) => filter,

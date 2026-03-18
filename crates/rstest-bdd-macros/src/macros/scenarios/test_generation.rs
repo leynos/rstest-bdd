@@ -98,7 +98,9 @@ fn resolve_effective_runtime(
     alias: Option<RuntimeCompatibilityAlias>,
     explicit_harness: Option<&syn::Path>,
 ) -> RuntimeMode {
-    if alias.is_some() && explicit_harness.is_none() {
+    if matches!(alias, Some(RuntimeCompatibilityAlias::TokioHarnessAdapter))
+        && explicit_harness.is_none()
+    {
         RuntimeMode::Sync
     } else {
         runtime

@@ -1235,7 +1235,15 @@ is selected per scenario or per `scenarios!` invocation:
   backwards compatibility.
 - **Async pipeline (opt-in):** Step wrappers return futures that the scenario
   runner awaits sequentially. This mode is activated when a scenario test uses
-  `#[tokio::test]` or when the `scenarios!` macro specifies a runtime argument.
+  `#[tokio::test]` annotation with an explicit `async fn` scenario.
+
+The legacy `runtime = "tokio-current-thread"` argument to `scenarios!` is a
+compatibility alias (per ADR-005) that resolves to
+`harness = rstest_bdd_harness_tokio::TokioHarness`. This generates synchronous
+(not `async fn`) scenario test functions executed via `TokioHarness`, which
+provides the Tokio current-thread runtime. Async step functions are not
+supported under this alias; use explicit `async fn` scenarios with
+`#[tokio::test]` or the explicit harness form for async step support.
 
 Sync step definitions are normalised into the async interface by wrapping their
 result in an immediately ready future. This allows mixed sync and async step

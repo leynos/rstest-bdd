@@ -145,7 +145,7 @@ incidental follow-up.
       and `cargo test -p rstest-bdd --test trybuild_macros`. Updated roadmap entry
       to mark 9.2.4 complete.
 
-## Surprises & Discoveries
+## Surprises & discoveries
 
 - Observation: `resolve_harness_path()` is not an isolated helper. Its return
   value flows into `ScenarioConfig.harness`, so changing it from `None` to
@@ -168,7 +168,7 @@ incidental follow-up.
   snapshots. The repository note about `NEXTEST_RUN_ID` skipping compile-fail
   macro tests still applies.
 
-## Decision Log
+## Decision log
 
 - Decision: this plan treats the async/harness interaction as in scope for
   9.2.4. Rationale: activating the alias without resolving that interaction
@@ -196,7 +196,7 @@ incidental follow-up.
   returns `Option<syn::Path>` (owned) to enable creation of the TokioHarness
   path at the call site. Date/Author: 2026-03-16 / DevBoxer.
 
-## Outcomes & Retrospective
+## Outcomes & retrospective
 
 **Final semantics:** The `runtime = "tokio-current-thread"` compatibility alias
 now behaves exactly like explicit
