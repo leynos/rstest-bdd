@@ -1325,9 +1325,10 @@ function with `#[tokio::test]` and declaring it `async fn`.
 
 For auto-generated tests, ADR-005 introduces a harness adapter selection path.
 The legacy `runtime = "tokio-current-thread"` argument is retained as
-compatibility syntax and now resolves to `rstest_bdd_harness_tokio::TokioHarness`
-(activated in roadmap item 9.2.4). The macro emits a deprecation warning when
-this legacy syntax is used, recommending migration to the explicit form
+compatibility syntax and now resolves to
+`rstest_bdd_harness_tokio::TokioHarness` (activated in roadmap item 9.2.4). The
+macro emits a deprecation warning when this legacy syntax is used, recommending
+migration to the explicit form
 `harness = rstest_bdd_harness_tokio::TokioHarness`.
 
 When the runtime compatibility alias is activated, the generated scenario test
@@ -1637,8 +1638,8 @@ harness selection. The macro records this as a
 resolves it to `rstest_bdd_harness_tokio::TokioHarness` (activated in phase
 9.2.4). When the alias is activated, the generated scenario test function is
 synchronous (not `async fn`), and the `TokioHarness` provides the Tokio
-current-thread runtime for step execution. The macro emits a deprecation warning
-recommending migration to the explicit form
+current-thread runtime for step execution. The macro emits a deprecation
+warning recommending migration to the explicit form
 `harness = rstest_bdd_harness_tokio::TokioHarness`. Async step definitions are
 rejected at runtime under the activated alias; users requiring async steps
 should use explicit `async fn` scenario tests instead.

@@ -187,14 +187,26 @@ pub(crate) fn scenarios(input: TokenStream) -> TokenStream {
     let dir = PathBuf::from(dir_lit.value());
 
     // Emit deprecation warning for runtime compatibility alias (roadmap 9.2.4).
-    // The `runtime = "tokio-current-thread"` syntax is legacy compatibility; users
-    // should migrate to the explicit harness form.
-    if runtime == RuntimeMode::TokioCurrentThread && harness.is_none() {
-        emit_warning!(
-            Span::call_site(),
-            "the `runtime = \"tokio-current-thread\"` syntax is deprecated; \
-             use `harness = rstest_bdd_harness_tokio::TokioHarness` instead"
-        );
+    // The `runtime = "tokio-current-thread"` syntax is legacy compatibility;
+    // users should migrate to the explicit harness form. Warn regardless of
+    // whether an explicit `harness` is also provided, so users are nudged to
+    // remove the legacy runtime argument entirely.
+    if runtime == RuntimeMode::TokioCurrentThread {
+        if harness.is_some() {
+            emit_warning!(
+                Span::call_site(),
+                "the `runtime = \"tokio-current-thread\"` argument is \
+                 deprecated and redundant when an explicit `harness` is set; \
+                 remove the `runtime` argument"
+            );
+        } else {
+            emit_warning!(
+                Span::call_site(),
+                "the `runtime = \"tokio-current-thread\"` syntax is \
+                 deprecated; use \
+                 `harness = rstest_bdd_harness_tokio::TokioHarness` instead"
+            );
+        }
     }
 
     let tag_filter = match parse_tag_filter(tag_lit) {

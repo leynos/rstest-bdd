@@ -1213,8 +1213,8 @@ scenarios!("tests/features/auto", runtime = "tokio-current-thread");
 
 **Deprecation notice:** The `runtime = "tokio-current-thread"` syntax is
 deprecated as of roadmap item 9.2.4. It now resolves to the explicit
-`harness = rstest_bdd_harness_tokio::TokioHarness` form and emits a compile-time
-warning. For new code, use the explicit harness form described in
+`harness = rstest_bdd_harness_tokio::TokioHarness` form and emits a
+compile-time warning. For new code, use the explicit harness form described in
 [Using the Tokio harness](#using-the-tokio-harness).
 
 When `runtime = "tokio-current-thread"` is specified (legacy compatibility):
@@ -1223,8 +1223,8 @@ When `runtime = "tokio-current-thread"` is specified (legacy compatibility):
 - The `TokioHarness` provides the Tokio current-thread runtime for step
   execution.
 - Async step definitions (`async fn`) are rejected at runtime; use synchronous
-  steps that drive async work via `tokio::spawn_local` or similar, or migrate to
-  explicit `async fn` scenario tests with manual `#[tokio::test]` annotation.
+  steps that drive async work via `tokio::spawn_local` or similar, or migrate
+  to explicit `async fn` scenario tests with manual `#[tokio::test]` annotation.
 
 ### Recommended patterns for async work in steps
 

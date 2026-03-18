@@ -475,13 +475,13 @@ opt-in crates rather than the core runtime or macros.
   `resolve_harness_path` and the test
   `resolve_harness_path_runtime_alias_does_not_force_harness_yet` (which
   asserts `None` with the message "until phase 9.3") to reflect the new
-  resolved behaviour. Emit a deprecation warning recommending
+  resolved behaviour. Emit a deprecation warning, recommending
   `harness = TokioHarness` as the canonical form. Delivered 2026-03-16. The
   alias now resolves to `TokioHarness` path and generates synchronous scenario
-  test functions; the deprecated comment is updated; deprecation warning emitted
-  via `emit_warning!`; behavioural tests (`runtime_compat_alias.rs`,
-  `async_scenario.rs`) and documentation updated. Prerequisite: 9.3.2 delivered.
-  Design Doc: §2.5.5, §2.7.3. (Doggylump, DevBoxer)
+  test functions; the deprecated comment is updated; deprecation warning
+  emitted via `emit_warning!`; behavioural tests (`runtime_compat_alias.rs`,
+  `async_scenario.rs`) and documentation updated. Prerequisite: 9.3.2
+  delivered. Design Doc: §2.5.5, §2.7.3. (Doggylump, DevBoxer)
 
 ### 9.3. Tokio harness plugin crate
 

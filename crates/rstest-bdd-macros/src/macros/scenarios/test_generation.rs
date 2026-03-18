@@ -9,6 +9,7 @@ use quote::{format_ident, quote};
 use std::collections::HashSet;
 use std::path::Path;
 
+use crate::codegen::rstest_bdd_harness_tokio_path;
 use crate::codegen::scenario::{
     FeaturePath, ScenarioConfig, ScenarioName, ScenarioReturnKind, generate_scenario_code,
 };
@@ -48,16 +49,26 @@ pub(super) struct ScenarioTestContext<'a> {
 ///
 /// Runtime compatibility aliases map legacy runtime syntax to harness selection.
 /// The `runtime = "tokio-current-thread"` compatibility alias now resolves to
-/// `rstest_bdd_harness_tokio::TokioHarness` (activated in roadmap item 9.2.4).
-/// Explicit harness selection takes precedence over compatibility aliases.
-/// See design doc §2.5.5 and §2.7.3.
+/// `TokioHarness` from the `rstest-bdd-harness-tokio` crate (activated in roadmap
+/// item 9.2.4). The crate path is resolved via `proc_macro_crate` to support
+/// downstream crates that rename the dependency in their `Cargo.toml`. Explicit
+/// harness selection takes precedence over compatibility aliases. See design doc
+/// §2.5.5 and §2.7.3.
+///
+/// Returns an owned `syn::Path` because the alias branch constructs a new path
+/// at macro-expansion time. The explicit-harness branch clones the reference;
+/// this allocation is negligible during proc-macro expansion, which is not a
+/// hot path.
 ///
 /// # Examples
 /// ```rust,ignore
 /// # use syn::parse_quote;
 /// let explicit: syn::Path = parse_quote!(MyHarness);
 /// assert!(resolve_harness_path(Some(&explicit), None).is_some());
-/// let resolved = resolve_harness_path(None, Some(RuntimeCompatibilityAlias::TokioHarnessAdapter));
+/// let resolved = resolve_harness_path(
+///     None,
+///     Some(RuntimeCompatibilityAlias::TokioHarnessAdapter),
+/// );
 /// assert!(resolved.is_some());
 /// ```
 fn resolve_harness_path(
@@ -68,9 +79,30 @@ fn resolve_harness_path(
         return Some(path.clone());
     }
     if let Some(RuntimeCompatibilityAlias::TokioHarnessAdapter) = runtime_alias {
-        return Some(syn::parse_quote!(rstest_bdd_harness_tokio::TokioHarness));
+        // Resolve the crate path via proc_macro_crate, then append ::TokioHarness.
+        let crate_path = rstest_bdd_harness_tokio_path();
+        return Some(syn::parse_quote!(#crate_path::TokioHarness));
     }
     None
+}
+
+/// Determines the effective runtime mode for code generation.
+///
+/// When a concrete runtime compatibility alias is active and no explicit
+/// harness was provided, the alias drives the runtime mode to synchronous.
+/// Checking the alias variant directly (rather than the resolved harness
+/// presence) ensures future harness/alias combinations don't accidentally
+/// get forced to sync.
+fn resolve_effective_runtime(
+    runtime: RuntimeMode,
+    alias: Option<RuntimeCompatibilityAlias>,
+    explicit_harness: Option<&syn::Path>,
+) -> RuntimeMode {
+    if alias.is_some() && explicit_harness.is_none() {
+        RuntimeMode::Sync
+    } else {
+        runtime
+    }
 }
 
 pub(super) fn dedupe_name(base: &str, used: &mut HashSet<String>) -> String {
@@ -180,20 +212,10 @@ pub(super) fn generate_scenario_test(
     let fixture_params = build_fixture_params(ctx.fixtures);
     let example_params = build_example_params(examples.as_ref());
 
-    let resolved_harness =
-        resolve_harness_path(ctx.harness, runtime_compatibility_alias(ctx.runtime));
+    let alias = runtime_compatibility_alias(ctx.runtime);
+    let resolved_harness = resolve_harness_path(ctx.harness, alias);
     let harness_ref = resolved_harness.as_ref();
-
-    // When the runtime compatibility alias is activated (resolves to a harness),
-    // treat the runtime as synchronous for code generation. The harness provides
-    // the runtime, so the test function signature should be `fn` not `async fn`.
-    let effective_runtime = if harness_ref.is_some() && ctx.harness.is_none() {
-        // Alias was activated: use sync mode
-        RuntimeMode::Sync
-    } else {
-        // Explicit harness or no harness: preserve original runtime
-        ctx.runtime
-    };
+    let effective_runtime = resolve_effective_runtime(ctx.runtime, alias, ctx.harness);
 
     let is_async = effective_runtime.is_async();
     let mut sig = build_test_signature(&fn_ident, &fixture_params, &example_params, is_async);

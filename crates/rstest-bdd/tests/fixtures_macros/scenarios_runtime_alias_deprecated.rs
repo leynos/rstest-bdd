@@ -1,3 +1,11 @@
+//! Test fixture that exercises the deprecation warning for `runtime = "tokio-current-thread"`.
+//!
+//! This module intentionally uses the `scenarios!` macro with the deprecated
+//! `runtime = "tokio-current-thread"` compatibility alias, forcing a compile error
+//! via `compile_error!` so that `trybuild` can capture the deprecation warning
+//! emitted by the macro. The test verifies that the macro produces the expected
+//! deprecation diagnostics recommending `harness = TokioHarness` as the canonical form.
+
 use rstest_bdd_macros::{given, scenarios, then, when};
 
 #[given("a precondition")]

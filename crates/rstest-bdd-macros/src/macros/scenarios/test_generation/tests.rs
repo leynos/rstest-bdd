@@ -2,9 +2,11 @@
 
 use super::super::macro_args::FixtureSpec;
 use super::super::macro_args::RuntimeCompatibilityAlias;
+use super::super::macro_args::RuntimeMode;
+use super::super::macro_args::runtime_compatibility_alias;
 use super::{
     build_fixture_params, build_lint_attributes, build_test_signature, dedupe_name,
-    resolve_harness_path,
+    resolve_effective_runtime, resolve_harness_path,
 };
 use proc_macro2::TokenStream as TokenStream2;
 use quote::quote;
@@ -192,5 +194,125 @@ fn resolve_harness_path_runtime_alias_resolves_to_tokio_harness() {
     assert!(
         path_str.contains("rstest_bdd_harness_tokio") && path_str.contains("TokioHarness"),
         "resolved path should be rstest_bdd_harness_tokio::TokioHarness, got: {path_str}"
+    );
+}
+
+// -- Tests for the effective_runtime / harness / signature pipeline ---
+//
+// These tests verify the combined behaviour of resolve_harness_path,
+// resolve_effective_runtime, and build_test_signature, mirroring the
+// pipeline inside generate_scenario_test without crossing the
+// proc-macro API boundary.
+
+#[test]
+fn alias_active_without_explicit_harness_produces_sync_fn_with_tokio_harness() {
+    // Given: TokioCurrentThread runtime with no explicit harness
+    let runtime = RuntimeMode::TokioCurrentThread;
+    let alias = runtime_compatibility_alias(runtime);
+    let explicit_harness: Option<&syn::Path> = None;
+
+    // When: we resolve the harness and effective runtime
+    let resolved_harness = resolve_harness_path(explicit_harness, alias);
+    let effective_runtime = resolve_effective_runtime(runtime, alias, explicit_harness);
+
+    // Then: effective runtime should be Sync (alias drives sync mode)
+    assert_eq!(
+        effective_runtime,
+        RuntimeMode::Sync,
+        "alias should force sync runtime when no explicit harness is set"
+    );
+    assert!(
+        !effective_runtime.is_async(),
+        "effective runtime should not be async"
+    );
+
+    // And: resolved harness should be TokioHarness
+    let harness = resolved_harness.as_ref();
+    assert!(harness.is_some(), "alias should resolve to a harness path");
+    let harness_str = quote!(#harness).to_string();
+    assert!(
+        harness_str.contains("rstest_bdd_harness_tokio") && harness_str.contains("TokioHarness"),
+        "expected TokioHarness, got: {harness_str}"
+    );
+
+    // And: the generated test signature should be a sync fn
+    let fn_ident = syn::Ident::new("scenario_with_alias", proc_macro2::Span::call_site());
+    let sig = build_test_signature(&fn_ident, &[], &[], effective_runtime.is_async());
+    let sig_str = sig_to_string(&sig);
+    assert!(
+        sig_str.starts_with("fn "),
+        "expected sync fn signature, got: {sig_str}"
+    );
+    assert!(
+        !sig_str.starts_with("async fn"),
+        "should not produce async fn, got: {sig_str}"
+    );
+}
+
+#[test]
+fn alias_active_with_explicit_harness_preserves_original_runtime() {
+    // Given: TokioCurrentThread runtime with an explicit harness
+    let runtime = RuntimeMode::TokioCurrentThread;
+    let alias = runtime_compatibility_alias(runtime);
+    let explicit: syn::Path = syn::parse_str("my::ExplicitHarness").expect("valid path");
+    let explicit_harness: Option<&syn::Path> = Some(&explicit);
+
+    // When: we resolve the harness and effective runtime
+    let resolved_harness = resolve_harness_path(explicit_harness, alias);
+    let effective_runtime = resolve_effective_runtime(runtime, alias, explicit_harness);
+
+    // Then: effective runtime preserves the original (async) mode
+    assert_eq!(
+        effective_runtime,
+        RuntimeMode::TokioCurrentThread,
+        "explicit harness should preserve the original runtime mode"
+    );
+    assert!(
+        effective_runtime.is_async(),
+        "TokioCurrentThread should remain async"
+    );
+
+    // And: resolved harness is the explicit one, not TokioHarness
+    let harness = resolved_harness.as_ref();
+    assert!(harness.is_some(), "explicit harness should be preserved");
+    let harness_str = quote!(#harness).to_string();
+    assert!(
+        harness_str.contains("ExplicitHarness"),
+        "expected explicit harness path, got: {harness_str}"
+    );
+    assert!(
+        !harness_str.contains("rstest_bdd_harness_tokio"),
+        "TokioHarness should not be injected with explicit harness"
+    );
+
+    // And: the generated test signature should be async fn
+    let fn_ident = syn::Ident::new(
+        "scenario_with_explicit_harness",
+        proc_macro2::Span::call_site(),
+    );
+    let sig = build_test_signature(&fn_ident, &[], &[], effective_runtime.is_async());
+    let sig_str = sig_to_string(&sig);
+    assert!(
+        sig_str.starts_with("async fn"),
+        "expected async fn signature, got: {sig_str}"
+    );
+}
+
+#[test]
+fn sync_runtime_without_alias_produces_sync_fn_without_harness() {
+    // Given: Sync runtime with no harness and no alias
+    let runtime = RuntimeMode::Sync;
+    let alias = runtime_compatibility_alias(runtime);
+    let explicit_harness: Option<&syn::Path> = None;
+
+    // When: we resolve
+    let resolved_harness = resolve_harness_path(explicit_harness, alias);
+    let effective_runtime = resolve_effective_runtime(runtime, alias, explicit_harness);
+
+    // Then: everything stays sync and no harness is resolved
+    assert_eq!(effective_runtime, RuntimeMode::Sync);
+    assert!(
+        resolved_harness.is_none(),
+        "no harness expected for plain sync"
     );
 }

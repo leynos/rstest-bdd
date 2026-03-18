@@ -139,7 +139,8 @@ incidental follow-up.
       activated alias semantics. Updated `users-guide.md` to document the
       deprecation, explain the new behavior, and update code examples to use
       explicit harness form.
-- [x] (2026-03-16) Stage E: ran final quality gates and marked roadmap item 9.2.4
+- [x] (2026-03-16) Stage E: ran final quality gates and marked roadmap item
+      9.2.4
       done. All gates passed: `cargo fmt --check`, `cargo clippy`, `cargo test`,
       and `cargo test -p rstest-bdd --test trybuild_macros`. Updated roadmap entry
       to mark 9.2.4 complete.
@@ -198,34 +199,52 @@ incidental follow-up.
 ## Outcomes & Retrospective
 
 **Final semantics:** The `runtime = "tokio-current-thread"` compatibility alias
-now behaves exactly like explicit `harness = rstest_bdd_harness_tokio::TokioHarness`:
+now behaves exactly like explicit
+`harness = rstest_bdd_harness_tokio::TokioHarness`:
 
 - Generated scenario test functions are synchronous (not `async fn`)
 - `TokioHarness` provides the Tokio current-thread runtime for step execution
-- Async step definitions are rejected at runtime by the sync wrapper's runtime check
+- Async step definitions are rejected at runtime by the sync wrapper's runtime
+  check
 - Explicit `harness` parameter takes precedence over the runtime alias
 
-**Warning text:** "the `runtime = \"tokio-current-thread\"` syntax is deprecated;
-use `harness = rstest_bdd_harness_tokio::TokioHarness` instead"
+**Warning text:** Two deprecation messages are now emitted depending on context:
+
+- Without explicit harness: "the `runtime = \"tokio-current-thread\"`
+  syntax is deprecated; use `harness = rstest_bdd_harness_tokio::TokioHarness`
+  instead"
+- With explicit harness: "the `runtime = \"tokio-current-thread\"`
+  argument is deprecated and redundant when an explicit `harness` is set;
+  remove the `runtime` argument"
 
 **Test coverage changes:**
 
-- Unit test: renamed `resolve_harness_path_runtime_alias_does_not_force_harness_yet`
-  to `resolve_harness_path_runtime_alias_resolves_to_tokio_harness` and updated
+- Unit test: renamed
+  `resolve_harness_path_runtime_alias_does_not_force_harness_yet` to
+  `resolve_harness_path_runtime_alias_resolves_to_tokio_harness` and updated
   assertions to verify the alias resolves to the TokioHarness path
-- Behavioural test `runtime_compat_alias.rs`: updated to use synchronous step
-  functions and updated feature file text from "asynchronous" to "synchronous"
-- Behavioural test `async_scenario.rs`: converted from `scenarios!` with
-  `runtime = "tokio-current-thread"` to manual `#[scenario]` tests with
-  `#[tokio::test]` to preserve async step coverage without using the
-  deprecated alias
-- Trybuild fixture: added `scenarios_runtime_alias_deprecated.rs` with forced
-  compile error to capture the deprecation warning diagnostic
+- Unit tests: added pipeline tests
+  (`alias_active_without_explicit_harness_produces_sync_fn_with_tokio_harness`,
+  `alias_active_with_explicit_harness_preserves_original_runtime`,
+  `sync_runtime_without_alias_produces_sync_fn_without_harness`) exercising
+  `resolve_effective_runtime`, `resolve_harness_path`, and
+  `build_test_signature` together
+- Behavioural test `runtime_compat_alias.rs`: updated to use
+  synchronous step functions and updated feature file text from "asynchronous"
+  to "synchronous"
+- Behavioural test `async_scenario.rs`: converted from `scenarios!`
+  with `runtime = "tokio-current-thread"` to manual `#[scenario]` tests with
+  `#[tokio::test]` to preserve async step coverage without using the deprecated
+  alias
+- Trybuild fixture: added `scenarios_runtime_alias_deprecated.rs`
+  with forced compile error to capture the deprecation warning diagnostic
 
 **Documentation updates:**
 
-- `docs/rstest-bdd-design.md` §2.5.5: updated to describe activated alias semantics
-- `docs/rstest-bdd-design.md` §2.7.3: updated runtime compatibility alias section
+- `docs/rstest-bdd-design.md` §2.5.5: updated to describe activated alias
+  semantics
+- `docs/rstest-bdd-design.md` §2.7.3: updated runtime compatibility alias
+  section
 - `docs/users-guide.md`: added deprecation notice, updated behavior description,
   and converted code example to use explicit harness form
 - `docs/roadmap.md`: marked item 9.2.4 as complete with delivery date 2026-03-16
@@ -237,11 +256,27 @@ use `harness = rstest_bdd_harness_tokio::TokioHarness` instead"
 - `cargo test --workspace`: passed (all 569 tests)
 - `cargo test -p rstest-bdd --test trybuild_macros`: passed (19 macro fixtures)
 
-**Implementation notes:** The key technical insight was that activating the alias
-required treating the runtime as synchronous for code generation purposes
+**Implementation notes:** The key technical insight was that activating the
+alias required treating the runtime as synchronous for code generation purposes
 (`effective_runtime = RuntimeMode::Sync` when alias is activated) to avoid the
-async+harness rejection check. This ensures the generated test signature is `fn`
-rather than `async fn`, consistent with explicit `TokioHarness` usage.
+async+harness rejection check. This ensures the generated test signature is
+`fn` rather than `async fn`, consistent with explicit `TokioHarness` usage.
+
+**Post-review refinements (2026-03-18):**
+
+- Decoupled the sync/async decision from resolved harness presence;
+  the `effective_runtime` check now examines the concrete
+  `RuntimeCompatibilityAlias` variant via `resolve_effective_runtime` rather
+  than inferring from `harness_ref.is_some()`
+- Deprecation warning is now emitted whenever
+  `runtime = "tokio-current-thread"` is used, including when an explicit
+  `harness` is also provided (with a tailored message recommending removal of
+  the redundant `runtime` argument)
+- Documented that the `syn::Path` clone in `resolve_harness_path` is
+  acceptable for macro-expansion performance
+- Extracted `resolve_effective_runtime` as a standalone testable
+  helper and added unit tests verifying the full pipeline (harness resolution +
+  effective runtime + signature generation)
 
 ## Context and orientation
 
