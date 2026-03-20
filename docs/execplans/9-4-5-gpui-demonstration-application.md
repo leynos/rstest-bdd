@@ -406,84 +406,84 @@ Run all commands from the workspace root: `/home/user/project`.
 
 1. Baseline GPUI-focused checks:
 
-```bash
-set -o pipefail
-cargo test -p rstest-bdd-harness-gpui --features native-gpui-tests \
-  2>&1 | tee /tmp/9-4-5-gpui-plugin-baseline.log
-```
+   ```bash
+   set -o pipefail
+   cargo test -p rstest-bdd-harness-gpui --features native-gpui-tests \
+     2>&1 | tee /tmp/9-4-5-gpui-plugin-baseline.log
+   ```
 
-Expected signal:
+   Expected signal:
 
-```plaintext
-test result: ok
-```
+   ```plaintext
+   test result: ok
+   ```
 
-1. Baseline GPUI integration check:
+2. Baseline GPUI integration check:
 
-```bash
-set -o pipefail
-cargo test -p rstest-bdd --test scenario_harness_gpui \
-  --features gpui-harness-tests \
-  2>&1 | tee /tmp/9-4-5-gpui-integration-baseline.log
-```
+   ```bash
+   set -o pipefail
+   cargo test -p rstest-bdd --test scenario_harness_gpui \
+     --features gpui-harness-tests \
+     2>&1 | tee /tmp/9-4-5-gpui-integration-baseline.log
+   ```
 
-Expected signal:
+   Expected signal:
 
-```plaintext
-test result: ok
-```
+   ```plaintext
+   test result: ok
+   ```
 
-1. During Stage B and Stage C, iterate on the new example crate:
+3. During Stage B and Stage C, iterate on the new example crate:
 
-```bash
-set -o pipefail
-cargo test -p gpui-counter 2>&1 | tee /tmp/9-4-5-gpui-counter.log
-```
+   ```bash
+   set -o pipefail
+   cargo test -p gpui-counter 2>&1 | tee /tmp/9-4-5-gpui-counter.log
+   ```
 
-Expected red/green progression:
+   Expected red/green progression:
 
-```plaintext
-before implementation: one or more unit/BDD assertions fail
-after implementation: test result: ok
-```
+   ```plaintext
+   before implementation: one or more unit/BDD assertions fail
+   after implementation: test result: ok
+   ```
 
-1. Once the example passes locally, run the documentation formatting pass:
+4. Once the example passes locally, run the documentation formatting pass:
 
-```bash
-set -o pipefail
-make fmt 2>&1 | tee /tmp/9-4-5-make-fmt.log
-```
+   ```bash
+   set -o pipefail
+   make fmt 2>&1 | tee /tmp/9-4-5-make-fmt.log
+   ```
 
-1. Run documentation validation:
+5. Run documentation validation:
 
-```bash
-set -o pipefail
-make markdownlint 2>&1 | tee /tmp/9-4-5-markdownlint.log
-```
+   ```bash
+   set -o pipefail
+   make markdownlint 2>&1 | tee /tmp/9-4-5-markdownlint.log
+   ```
 
-```bash
-set -o pipefail
-make nixie 2>&1 | tee /tmp/9-4-5-nixie.log
-```
+   ```bash
+   set -o pipefail
+   make nixie 2>&1 | tee /tmp/9-4-5-nixie.log
+   ```
 
-1. Run the required Rust quality gates:
+6. Run the required Rust quality gates:
 
-```bash
-set -o pipefail
-make check-fmt 2>&1 | tee /tmp/9-4-5-check-fmt.log
-```
+   ```bash
+   set -o pipefail
+   make check-fmt 2>&1 | tee /tmp/9-4-5-check-fmt.log
+   ```
 
-```bash
-set -o pipefail
-make lint 2>&1 | tee /tmp/9-4-5-lint.log
-```
+   ```bash
+   set -o pipefail
+   make lint 2>&1 | tee /tmp/9-4-5-lint.log
+   ```
 
-```bash
-set -o pipefail
-make test 2>&1 | tee /tmp/9-4-5-test.log
-```
+   ```bash
+   set -o pipefail
+   make test 2>&1 | tee /tmp/9-4-5-test.log
+   ```
 
-1. If every command succeeds, update `docs/roadmap.md` to mark 9.4.5 done.
+7. If every command succeeds, update `docs/roadmap.md` to mark 9.4.5 done.
 
 ## Validation and acceptance
 
