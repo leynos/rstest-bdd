@@ -1,0 +1,16 @@
+[package]
+name = "gpui-counter"
+version = "0.5.0"
+edition.workspace = true
+publish = false
+rust-version.workspace = true
+
+[dependencies]
+
+[dev-dependencies]
+gpui.workspace = true
+rstest = { workspace = true }
+rstest-bdd.workspace = true
+rstest-bdd-harness.workspace = true
+rstest-bdd-harness-gpui.workspace = true
+rstest-bdd-macros.workspace = true

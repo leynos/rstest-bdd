@@ -551,14 +551,14 @@ opt-in crates rather than the core runtime or macros.
 - [x] 9.4.3. Execute scenarios inside the GPUI test harness and inject fixtures
   such as `TestAppContext`.
 - [x] 9.4.4. Provide the matching GPUI test attribute policy plugin.
-- [ ] 9.4.5. Add a simple GPUI demonstration application and BDD test suite
+- [x] 9.4.5. Add a simple GPUI demonstration application and BDD test suite
   under `examples/`, similar in scope to the existing demonstration
   applications. The example should exercise `GpuiHarness` and
   `GpuiAttributePolicy` end-to-end and demonstrate step access to injected
   `TestAppContext`. Finish line: a new example crate and its BDD suite run
   successfully via `make test`, with any required native-library setup clearly
   documented in the user guide. Prerequisite: 9.4.4 delivered. Design Doc:
-  §2.7.4. (Dinolump)
+  §2.7.4. Delivered via `examples/gpui-counter`. (Dinolump)
 
 ### 9.5. Context injection mechanism
 

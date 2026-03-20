@@ -1723,7 +1723,12 @@ The first official adapters and policies are:
   artifact for `rstest-bdd-harness-gpui` and compiles a generated validator
   crate against upstream `gpui`; GPUI behavioural and integration tests remain
   feature-gated (`native-gpui-tests` and `gpui-harness-tests`) as explicit
-  opt-in suites.
+  opt-in suites. A user-facing demonstration crate under
+  `examples/gpui-counter` models a simple counter application whose BDD suite
+  exercises both `GpuiHarness` and `GpuiAttributePolicy` end-to-end, with step
+  definitions that access injected `TestAppContext` through
+  `rstest_bdd_harness_context`. The example requires no native-library setup
+  beyond the workspace GPUI shim.
 
 Future adapters (for example, Bevy) are planned to follow the same pattern
 without requiring new dependencies in `rstest-bdd` or `rstest-bdd-macros`.

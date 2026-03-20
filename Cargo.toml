@@ -12,6 +12,7 @@ members = [
     "crates/cargo-bdd",
     "examples/todo-cli",
     "examples/japanese-ledger",
+    "examples/gpui-counter",
 ]
 
 [workspace.package]
