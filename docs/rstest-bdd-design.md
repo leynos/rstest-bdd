@@ -1701,15 +1701,21 @@ The first official adapters and policies are:
   `AttributePolicy` and emits `#[rstest::rstest]` followed by
   `#[tokio::test(flavor = "current_thread")]`. The crate depends only on
   `rstest-bdd-harness` (workspace) and `tokio` (version "1", features =
-  ["rt"]), keeping the dependency footprint minimal per ADR-005. Note: async
-  step *definitions* (`async fn` steps) are not supported inside `TokioHarness`
-  because the sync wrapper in `emit.rs` rejects when a Tokio runtime is already
-  active; users should write synchronous step functions and use `tokio::spawn`
-  / `tokio::spawn_local` inside them to drive async work. `TokioHarness::run`
+  ["rt"]), keeping the dependency footprint minimal per ADR-005.
+  Immediate-ready async step *definitions* (`async fn` steps) do work inside
+  `TokioHarness`, but the generated sync wrapper only polls them once when a
+  harness-provided Tokio runtime is already active. If such a step yields
+  `Pending`, execution fails with an informative runtime error rather than
+  silently blocking. Users should therefore reserve harness-driven async steps
+  for one-poll operations and prefer synchronous steps plus external async
+  validation when a scenario needs multi-poll coordination. `TokioHarness::run`
   currently performs one `tokio::task::yield_now()` tick after
   `request.run(())` returns; this advances simple queued local tasks but does
   not guarantee full `LocalSet` drain for multi-poll futures such as
-  timer-driven work.
+  timer-driven work. The user-facing demonstration crate under
+  `examples/tokio-reminders` models a local reminder queue whose BDD suite
+  exercises `TokioHarness` and `TokioAttributePolicy` end-to-end, while the
+  crate's unit tests cover the explicit `flush().await` coordination pattern.
 - `rstest-bdd-harness-gpui` (implemented, phase 9.4): provides `GpuiHarness`
   and `GpuiAttributePolicy`. `GpuiHarness` implements `HarnessAdapter` by
   running each `ScenarioRunRequest` inside `gpui::run_test`, building a

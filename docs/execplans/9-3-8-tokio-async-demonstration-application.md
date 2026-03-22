@@ -5,7 +5,7 @@ This ExecPlan (execution plan) is a living document. The sections
 `Decision Log`, and `Outcomes & Retrospective` must be kept up to date as work
 proceeds.
 
-Status: DRAFT
+Status: COMPLETE
 
 `PLANS.md` is not present in this repository at the time of writing, so this
 ExecPlan is the governing plan for roadmap item 9.3.8.
@@ -130,11 +130,17 @@ Success is observable when:
       doc wording, users-guide Tokio sections, and the GPUI demonstration
       example.
 - [x] (2026-03-22 00:00Z) Drafted this ExecPlan.
-- [ ] Stage A: reconcile Tokio async semantics and lock the example shape.
-- [ ] Stage B: scaffold the new example crate and establish red tests.
-- [ ] Stage C: implement the example domain model and BDD steps.
-- [ ] Stage D: update docs and roadmap state.
-- [ ] Stage E: run full quality gates and capture logs.
+- [x] (2026-03-22 00:35Z) Stage A: reconciled Tokio async semantics and locked
+      the example shape around immediate-ready `async fn` steps under
+      `TokioHarness`, with multi-poll async coordination covered by unit tests.
+- [x] (2026-03-22 00:50Z) Stage B: scaffolded the `examples/tokio-reminders`
+      crate with unit and BDD tests.
+- [x] (2026-03-22 00:50Z) Stage C: implemented the reminder queue domain model
+      and async step bindings.
+- [x] (2026-03-22 01:25Z) Stage D: updated the users' guide, design doc,
+      roadmap, README, and this ExecPlan for the delivered example.
+- [x] (2026-03-22 01:22Z) Stage E: ran `make fmt`, `make markdownlint`,
+      `make nixie`, `make check-fmt`, `make lint`, and `make test`.
 
 ## Surprises & Discoveries
 
@@ -155,6 +161,14 @@ Success is observable when:
   `docs/rust-doctest-dry-guide.md`. Impact: doctest guidance in this plan uses
   the real path under `docs/`.
 
+- Observation: the shipped integration test
+  `crates/rstest-bdd/tests/scenario_harness_tokio.rs` proves only that
+  immediate-ready `async fn` step definitions execute under `TokioHarness`.
+  Multi-poll async steps still fail with the runtime message "async step
+  yielded Pending inside a harness-provided runtime". Impact: the canonical
+  example should use immediate-ready async BDD steps while leaving multi-poll
+  coordination (`flush().await`) to unit tests and doctests.
+
 ## Decision Log
 
 - Decision: this plan treats the current Tokio semantic ambiguity as in scope
@@ -174,11 +188,37 @@ Success is observable when:
   bake the known `TokioHarness::run` limitation into the canonical example.
   Date/Author: 2026-03-22 / Codex.
 
+- Decision: the canonical Tokio example will use immediate-ready `async fn`
+  step definitions under `TokioHarness` and `TokioAttributePolicy`, because
+  that matches the shipped behaviour tests and runtime error path. The example
+  domain is a local reminder queue (`examples/tokio-reminders`) that schedules
+  work with `tokio::task::spawn_local`; the BDD suite observes queued state,
+  while unit tests and the doctest cover `flush().await`. Rationale: this
+  resolves the docs-vs-tests ambiguity without teaching unsupported multi-poll
+  async steps inside harness-driven scenarios. Date/Author: 2026-03-22 / Codex.
+
 ## Outcomes & Retrospective
 
-This section is intentionally incomplete until implementation finishes. It must
-be updated with the delivered crate name, final semantic decisions, changed
-files, validation commands, and any lessons worth carrying forward.
+- Delivered crate: `examples/tokio-reminders`.
+- Final semantic decision: `TokioHarness` supports immediate-ready `async fn`
+  steps, but harness-driven async steps that yield `Pending` are not supported.
+  The example therefore uses immediate-ready async BDD steps to exercise the
+  harness surface and keeps multi-poll coordination (`flush().await`) in unit
+  tests and the doctest.
+- Documentation updates: `docs/users-guide.md`, `docs/rstest-bdd-design.md`,
+  and `docs/roadmap.md` now point to `examples/tokio-reminders` and describe
+  the immediate-ready async-step boundary explicitly.
+- Validation commands:
+  - `set -o pipefail; cargo test -p tokio-reminders 2>&1 | tee /tmp/9-3-8-example-green.log`
+  - `set -o pipefail; make fmt 2>&1 | tee /tmp/9-3-8-make-fmt.log`
+  - `set -o pipefail; make markdownlint 2>&1 | tee /tmp/9-3-8-make-markdownlint.log`
+  - `set -o pipefail; make nixie 2>&1 | tee /tmp/9-3-8-make-nixie.log`
+  - `set -o pipefail; make check-fmt 2>&1 | tee /tmp/9-3-8-make-check-fmt.log`
+  - `set -o pipefail; make lint 2>&1 | tee /tmp/9-3-8-make-lint.log`
+  - `set -o pipefail; make test 2>&1 | tee /tmp/9-3-8-make-test.log`
+- Lesson carried forward: Tokio harness examples must distinguish between
+  immediate-ready async steps and multi-poll async workflows; otherwise the
+  example will teach a capability the harness does not actually provide.
 
 ## Context and orientation
 
