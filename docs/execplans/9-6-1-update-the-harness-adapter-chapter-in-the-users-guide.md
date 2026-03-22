@@ -152,7 +152,7 @@ quality gates pass: `make check-fmt`, `make lint`, and `make test`.
 
 - Decision: keep the main narrative centred in `docs/users-guide.md` and use
   `docs/rstest-bdd-design.md` for architecture, trade-offs, and trust-model
-  rationale. Rationale: this minimizes future drift by giving each document a
+  rationale. Rationale: this minimises future drift by giving each document a
   distinct purpose. Date/Author: 2026-03-18 / Codex.
 
 - Decision: preserve explicit mention of the canonical-path trust model for
