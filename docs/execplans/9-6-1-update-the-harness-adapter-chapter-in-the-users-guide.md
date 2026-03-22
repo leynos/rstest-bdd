@@ -4,7 +4,7 @@ This ExecPlan is a living document. The sections `Constraints`, `Tolerances`,
 `Risks`, `Progress`, `Surprises & Discoveries`, `Decision Log`, and
 `Outcomes & Retrospective` must be kept up to date as work proceeds.
 
-Status: DRAFT (2026-03-18)
+Status: COMPLETE (2026-03-22)
 
 `PLANS.md` is not present in this repository at the time of writing, so this
 ExecPlan is the governing plan for roadmap item 9.6.1.
@@ -12,8 +12,9 @@ ExecPlan is the governing plan for roadmap item 9.6.1.
 ## Purpose / big picture
 
 Roadmap item 9.6.1 closes the documentation gap left after phases 9.3, 9.4,
-and 9.5 delivered the harness adapter core, Tokio and GPUI opt-in crates,
-path-based attribute-policy wiring, and `HarnessAdapter::Context` injection.
+and 9.5 delivered the harness adapter core, Tokio and Graphical Processing
+User Interface (GPUI) opt-in crates, path-based attribute-policy wiring, and
+`HarnessAdapter::Context` injection.
 The current harness chapter in the user guide and the corresponding design-doc
 sections already mention parts of that work, but the narrative is split across
 multiple passages and does not yet present the delivered model as one coherent
@@ -25,8 +26,9 @@ After this work:
   harness selection, attribute-policy selection, path-based policy resolution,
   compatibility-alias behaviour, and `Context`-based fixture injection.
 - `docs/rstest-bdd-design.md` records the delivered architecture and any
-  design decisions taken while tightening the documentation around ADR-005,
-  ADR-007, and the 9.3.4 codegen trust model.
+  design decisions taken while tightening the documentation around
+  Architectural Decision Record (ADR) 005, ADR-007, and the 9.3.4 codegen
+  trust model.
 - Unit tests and behavioural tests validate any examples, emitted attributes,
   and end-to-end documentation claims introduced while updating the docs.
 - `docs/roadmap.md` marks 9.6.1 done only after the documentation, tests, and
@@ -111,13 +113,16 @@ quality gates pass: `make check-fmt`, `make lint`, and `make test`.
 - [x] (2026-03-18) Reviewed existing execplans for 9.3.4, 9.4.1, and 9.4.2 to
       match repository planning conventions.
 - [x] (2026-03-18) Drafted this ExecPlan.
-- [ ] Stage A: documentation inventory and gap analysis.
-- [ ] Stage B: tighten design-document architecture and decision record.
-- [ ] Stage C: rewrite the user-guide harness chapter and examples.
-- [ ] Stage D: add or adjust unit and behavioural validation for documented
-      behaviour.
-- [ ] Stage E: run documentation and Rust quality gates.
-- [ ] Stage F: mark roadmap item 9.6.1 done and capture outcomes.
+- [x] (2026-03-22) Stage A: documentation inventory and gap analysis.
+- [x] (2026-03-22) Stage B: tighten design-document architecture and decision
+      record.
+- [x] (2026-03-22) Stage C: rewrite the user-guide harness chapter and
+      examples.
+- [x] (2026-03-22) Stage D: confirm documented behaviour against the existing
+      unit and behavioural test surface.
+- [x] (2026-03-22) Stage E: run required Rust quality gates.
+- [x] (2026-03-22) Stage F: mark roadmap item 9.6.1 done and capture
+      outcomes.
 
 ## Surprises & Discoveries
 
@@ -127,8 +132,8 @@ quality gates pass: `make check-fmt`, `make lint`, and `make test`.
   chapter. Impact: 9.6.1 should primarily restructure and tighten existing
   content, with only limited new prose.
 
-- Observation: project-memory MCP resources are unavailable in this
-  environment (`list_mcp_resources` and
+- Observation: project-memory Model Context Protocol (MCP) resources are
+  unavailable in this environment (`list_mcp_resources` and
   `list_mcp_resource_templates` returned no entries). Impact: this plan relies
   on repository documents and source inspection only.
 
@@ -155,31 +160,48 @@ quality gates pass: `make check-fmt`, `make lint`, and `make test`.
   limitation would make the docs inaccurate and would mislead third-party
   harness authors. Date/Author: 2026-03-18 / Codex.
 
+- Decision: use existing harness and policy test coverage as the validation
+  surface for 9.6.1 instead of adding new documentation-only tests. Rationale:
+  the delivered behaviour is already covered by focused unit, behavioural, and
+  integration suites; this milestone is a documentation alignment pass rather
+  than a new runtime feature. Date/Author: 2026-03-22 / Codex.
+
 ## Outcomes & Retrospective
 
-Expected outcomes for 9.6.1:
+Delivered outcomes for 9.6.1:
 
-- A reworked harness-adapter chapter in `docs/users-guide.md` that covers:
-  - harness selection,
-  - attribute-policy selection and emitted attributes,
-  - Tokio and GPUI first-party examples,
-  - `Context` injection and the reserved fixture key,
-  - compatibility alias guidance,
-  - custom harness author notes.
-- Updated architecture sections in `docs/rstest-bdd-design.md` that reflect
-  delivered 9.3.4 and 9.5 behaviour without stale speculative wording.
-- Test updates proving any new documented examples or behavioural guarantees.
-- `docs/roadmap.md` updated to mark 9.6.1 complete after all gates pass.
+- Reworked the harness-adapter guidance in `docs/users-guide.md` so it now
+  presents explicit `harness = ...` and `attributes = ...` configuration as
+  the canonical path, documents the Tokio compatibility alias as deprecated
+  legacy syntax, and calls out the current first-party policy-resolution trust
+  model for Tokio and GPUI.
+- Updated `docs/users-guide.md` custom-harness material to explain
+  `HarnessAdapter::Context`, `rstest_bdd_harness_context`, and the current
+  limitation for third-party attribute-policy paths during macro expansion.
+- Updated `docs/rstest-bdd-design.md` §2.7 and §3.12 so the design document
+  reflects the delivered architecture, validation layers, and the distinction
+  between canonical configuration and legacy compatibility syntax.
+- Marked `docs/roadmap.md` item 9.6.1 complete.
+- Validated the documented behaviour against the existing unit, behavioural,
+  and integration suites that already cover:
+  - policy-path resolution,
+  - `StdHarness`, `TokioHarness`, and `GpuiHarness` contracts,
+  - `rstest_bdd_harness_context` injection,
+  - Tokio compatibility alias behaviour.
 
-Retrospective prompt for completion:
+Validation summary:
 
-- Did the rewritten docs reduce duplication between the user guide and design
-  doc?
-- Are the documented examples aligned with real compile-time and runtime
-  behaviour?
-- Did the validation surface stay proportional to a documentation-driven
-  change, or did it reveal deferred implementation work that belongs in a
-  separate roadmap item?
+- `make check-fmt` passed.
+- `make lint` passed.
+- `make test` passed.
+
+Retrospective:
+
+- The main gap was not missing content but fragmented content. Consolidating
+  the user-facing guidance and explicitly distinguishing first-party canonical
+  policy mapping from legacy compatibility behaviour removed the ambiguity.
+- Existing tests already covered the documented runtime semantics, so no new
+  test code was required for this documentation-alignment milestone.
 
 ## Context and orientation
 
