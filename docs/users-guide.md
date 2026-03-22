@@ -739,11 +739,11 @@ to any specific runtime.
 
 Use them in this order of preference:
 
-1. Omit both when the default synchronous `StdHarness` path is sufficient.
-2. Prefer explicit `harness = ...` and `attributes = ...` when opting into a
-   framework integration such as Tokio or GPUI.
-3. Treat `runtime = "tokio-current-thread"` as legacy compatibility syntax for
-   `scenarios!`, not as the canonical configuration surface.
+- Omit both when the default synchronous `StdHarness` path is sufficient.
+- Prefer explicit `harness = ...` and `attributes = ...` when opting into a
+  framework integration such as Tokio or GPUI.
+- Treat `runtime = "tokio-current-thread"` as legacy compatibility syntax for
+  `scenarios!`, not as the canonical configuration surface.
 
 When `harness` is specified, the generated test body delegates scenario
 execution through the harness adapter. The macro wraps the runtime portion of

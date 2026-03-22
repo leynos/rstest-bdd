@@ -600,14 +600,14 @@ opt-in crates rather than the core runtime or macros.
 ### 9.6. Documentation and validation
 
 - [x] 9.6.1. Update the harness adapter chapter in the user guide and design
-  docs to reflect delivered 9.3 work, the attribute policy wiring (9.3.4), and
-  the context injection mechanism (9.5). Finish line: `docs/users-guide.md`
-  now leads with explicit harness and attribute-policy configuration, documents
-  the Tokio compatibility alias as deprecated legacy syntax, records
-  `rstest_bdd_harness_context`-based context injection, and clarifies the
-  current first-party policy-resolution trust model for Tokio and GPUI.
-  `docs/rstest-bdd-design.md` records the delivered architecture and
-  validation surface, and `make check-fmt`, `make lint`, and `make test`
+  docs to reflect delivered 9.3 outcomes, the attribute policy wiring
+  (9.3.4), and the context injection mechanism (9.5). Finish line:
+  `docs/users-guide.md` now leads with explicit harness and attribute-policy
+  configuration, documents the Tokio compatibility alias as deprecated legacy
+  syntax, records `rstest_bdd_harness_context`-based context injection, and
+  clarifies the current first-party policy-resolution trust model for Tokio
+  and GPUI. `docs/rstest-bdd-design.md` records the delivered architecture
+  and validation surface, and `make check-fmt`, `make lint`, and `make test`
   pass. Prerequisite: 9.5.3. Delivered 2026-03-22. (Pandalump)
 - [ ] 9.6.2. Add integration tests covering attribute policy resolution for
   GPUI once 9.4 is delivered. Prerequisite: 9.4.3. (Pandalump)
