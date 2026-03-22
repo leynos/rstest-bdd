@@ -11,6 +11,12 @@ use std::{cell::RefCell, rc::Rc};
 use thiserror::Error;
 use tokio::task::JoinHandle;
 
+#[derive(Debug)]
+struct PendingReminder {
+    recipient: String,
+    handle: JoinHandle<()>,
+}
+
 /// Error produced when the reminder queue cannot finish scheduled work.
 #[derive(Debug, Error)]
 pub enum ReminderServiceError {
@@ -56,8 +62,7 @@ pub enum ReminderServiceError {
 #[derive(Debug, Clone, Default)]
 pub struct ReminderService {
     delivered: Rc<RefCell<Vec<String>>>,
-    pending: Rc<RefCell<Vec<JoinHandle<()>>>>,
-    pending_recipients: Rc<RefCell<Vec<String>>>,
+    pending: Rc<RefCell<Vec<PendingReminder>>>,
 }
 
 impl ReminderService {
@@ -71,27 +76,36 @@ impl ReminderService {
     pub fn schedule_reminder(&self, recipient: impl Into<String>) {
         let delivered = Rc::clone(&self.delivered);
         let recipient = recipient.into();
-        self.pending_recipients.borrow_mut().push(recipient.clone());
+        let task_recipient = recipient.clone();
         let handle = tokio::task::spawn_local(async move {
             delivered
                 .borrow_mut()
-                .push(format!("Reminder sent to {recipient}"));
+                .push(format!("Reminder sent to {task_recipient}"));
         });
 
-        self.pending.borrow_mut().push(handle);
+        self.pending
+            .borrow_mut()
+            .push(PendingReminder { recipient, handle });
     }
 
     /// Waits for all queued reminders to complete.
     pub async fn flush(&self) -> Result<(), ReminderServiceError> {
-        let pending = self.pending.take();
-        for handle in pending {
-            handle
-                .await
-                .map_err(|source| ReminderServiceError::Join { source })?;
-        }
-        self.pending_recipients.borrow_mut().clear();
+        let pending = std::mem::take(&mut *self.pending.borrow_mut());
+        let mut first_error = None;
 
-        Ok(())
+        for PendingReminder { handle, .. } in pending {
+            if let Err(source) = handle.await {
+                if first_error.is_none() {
+                    first_error = Some(ReminderServiceError::Join { source });
+                }
+            }
+        }
+
+        if let Some(error) = first_error {
+            Err(error)
+        } else {
+            Ok(())
+        }
     }
 
     /// Returns the delivered reminder messages in delivery order.
@@ -109,7 +123,11 @@ impl ReminderService {
     /// Returns the queued reminder recipients in scheduling order.
     #[must_use]
     pub fn pending_recipients(&self) -> Vec<String> {
-        self.pending_recipients.borrow().clone()
+        self.pending
+            .borrow()
+            .iter()
+            .map(|pending| pending.recipient.clone())
+            .collect()
     }
 }
 
@@ -117,83 +135,143 @@ impl ReminderService {
 mod tests {
     //! Unit tests for `ReminderService`.
 
-    use super::ReminderService;
+    use std::rc::Rc;
 
-    async fn run_local_test(test_fn: impl std::future::Future<Output = ()>) {
-        let local_set = tokio::task::LocalSet::new();
-        local_set.run_until(test_fn).await;
+    use super::{PendingReminder, ReminderService};
+    use rstest::{fixture, rstest};
+
+    #[fixture]
+    fn local_set() -> tokio::task::LocalSet {
+        tokio::task::LocalSet::new()
     }
 
-    #[tokio::test(flavor = "current_thread")]
-    async fn starts_with_no_pending_or_delivered_reminders() {
-        run_local_test(async {
-            let service = ReminderService::new();
-
-            assert_eq!(service.pending_reminder_count(), 0);
-            assert!(service.pending_recipients().is_empty());
-            assert!(service.delivered_reminders().is_empty());
-        })
-        .await;
+    #[fixture]
+    fn service() -> ReminderService {
+        ReminderService::new()
     }
 
+    #[rstest]
     #[tokio::test(flavor = "current_thread")]
-    async fn flush_delivers_scheduled_reminders_in_order() {
-        run_local_test(async {
-            let service = ReminderService::new();
-            service.schedule_reminder("Ada");
-            service.schedule_reminder("Grace");
-
-            assert_eq!(service.pending_reminder_count(), 2);
-            assert_eq!(
-                service.pending_recipients(),
-                vec!["Ada".to_string(), "Grace".to_string()]
-            );
-
-            let result = service.flush().await;
-            assert!(
-                result.is_ok(),
-                "flush should complete scheduled reminders: {result:?}"
-            );
-            assert_eq!(
-                service.delivered_reminders(),
-                vec![
-                    "Reminder sent to Ada".to_string(),
-                    "Reminder sent to Grace".to_string(),
-                ]
-            );
-            assert_eq!(service.pending_reminder_count(), 0);
-            assert!(service.pending_recipients().is_empty());
-        })
-        .await;
+    async fn starts_with_no_pending_or_delivered_reminders(
+        local_set: tokio::task::LocalSet,
+        service: ReminderService,
+    ) {
+        local_set
+            .run_until(async move {
+                assert_eq!(service.pending_reminder_count(), 0);
+                assert!(service.pending_recipients().is_empty());
+                assert!(service.delivered_reminders().is_empty());
+            })
+            .await;
     }
 
+    #[rstest]
     #[tokio::test(flavor = "current_thread")]
-    async fn flush_only_waits_for_the_current_batch() {
-        run_local_test(async {
-            let service = ReminderService::new();
-            service.schedule_reminder("Ada");
+    async fn flush_delivers_scheduled_reminders_in_order(
+        local_set: tokio::task::LocalSet,
+        service: ReminderService,
+    ) {
+        local_set
+            .run_until(async move {
+                service.schedule_reminder("Ada");
+                service.schedule_reminder("Grace");
 
-            let first = service.flush().await;
-            assert!(first.is_ok(), "first flush should succeed: {first:?}");
-            assert_eq!(
-                service.delivered_reminders(),
-                vec!["Reminder sent to Ada".to_string()]
-            );
-            assert!(service.pending_recipients().is_empty());
+                assert_eq!(service.pending_reminder_count(), 2);
+                assert_eq!(
+                    service.pending_recipients(),
+                    vec!["Ada".to_string(), "Grace".to_string()]
+                );
 
-            service.schedule_reminder("Linus");
-            assert_eq!(service.pending_recipients(), vec!["Linus".to_string()]);
+                let result = service.flush().await;
+                assert!(
+                    result.is_ok(),
+                    "flush should complete scheduled reminders: {result:?}"
+                );
+                assert_eq!(
+                    service.delivered_reminders(),
+                    vec![
+                        "Reminder sent to Ada".to_string(),
+                        "Reminder sent to Grace".to_string(),
+                    ]
+                );
+                assert_eq!(service.pending_reminder_count(), 0);
+                assert!(service.pending_recipients().is_empty());
+            })
+            .await;
+    }
 
-            let second = service.flush().await;
-            assert!(second.is_ok(), "second flush should succeed: {second:?}");
-            assert_eq!(
-                service.delivered_reminders(),
-                vec![
-                    "Reminder sent to Ada".to_string(),
-                    "Reminder sent to Linus".to_string(),
-                ]
-            );
-        })
-        .await;
+    #[rstest]
+    #[tokio::test(flavor = "current_thread")]
+    async fn flush_only_waits_for_the_current_batch(
+        local_set: tokio::task::LocalSet,
+        service: ReminderService,
+    ) {
+        local_set
+            .run_until(async move {
+                service.schedule_reminder("Ada");
+
+                let first = service.flush().await;
+                assert!(first.is_ok(), "first flush should succeed: {first:?}");
+                assert_eq!(
+                    service.delivered_reminders(),
+                    vec!["Reminder sent to Ada".to_string()]
+                );
+                assert!(service.pending_recipients().is_empty());
+
+                service.schedule_reminder("Linus");
+                assert_eq!(service.pending_recipients(), vec!["Linus".to_string()]);
+
+                let second = service.flush().await;
+                assert!(second.is_ok(), "second flush should succeed: {second:?}");
+                assert_eq!(
+                    service.delivered_reminders(),
+                    vec![
+                        "Reminder sent to Ada".to_string(),
+                        "Reminder sent to Linus".to_string(),
+                    ]
+                );
+            })
+            .await;
+    }
+
+    #[rstest]
+    #[tokio::test(flavor = "current_thread")]
+    async fn flush_awaits_every_pending_handle_before_returning_first_error(
+        local_set: tokio::task::LocalSet,
+        service: ReminderService,
+    ) {
+        local_set
+            .run_until(async move {
+                let delivered = Rc::clone(&service.delivered);
+                let failing_handle = tokio::task::spawn_local(async move {
+                    panic!("failing reminder task");
+                });
+                let succeeding_handle = tokio::task::spawn_local(async move {
+                    delivered
+                        .borrow_mut()
+                        .push("Reminder sent to Grace".to_string());
+                });
+
+                service.pending.borrow_mut().extend([
+                    PendingReminder {
+                        recipient: "Ada".to_string(),
+                        handle: failing_handle,
+                    },
+                    PendingReminder {
+                        recipient: "Grace".to_string(),
+                        handle: succeeding_handle,
+                    },
+                ]);
+
+                let result = service.flush().await;
+                assert!(result.is_err(), "flush should report the first join error");
+                assert_eq!(
+                    service.delivered_reminders(),
+                    vec!["Reminder sent to Grace".to_string()]
+                );
+                assert_eq!(service.pending_reminder_count(), 0);
+                assert!(service.pending_recipients().is_empty());
+            })
+            .await;
     }
 }

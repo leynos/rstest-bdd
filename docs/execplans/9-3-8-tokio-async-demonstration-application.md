@@ -17,7 +17,7 @@ The workspace already contains the Tokio plugin crate
 `crates/rstest-bdd-harness-tokio`, behavioural coverage for `TokioHarness` and
 `TokioAttributePolicy`, and macro support for policy-backed test attributes.
 What is still missing is the same kind of end-to-end example that now exists
-for GPUI under `examples/gpui-counter`.
+for Graphical Processing User Interface (GPUI) under `examples/gpui-counter`.
 
 After this work:
 
@@ -25,7 +25,7 @@ After this work:
   workspace.
 - The example demonstrates a small application with real asynchronous
   behaviour, not just a harness smoke test.
-- Its BDD suite binds scenarios with both
+- Its behaviour-driven development (BDD) suite binds scenarios with both
   `harness = rstest_bdd_harness_tokio::TokioHarness` and
   `attributes = rstest_bdd_harness_tokio::TokioAttributePolicy`.
 - The example also carries focused unit tests for its own domain model so the
@@ -370,7 +370,7 @@ Implementation details:
 - Update `docs/rstest-bdd-design.md` §2.7.4 to describe the delivered Tokio
   example and any semantic clarification uncovered in Stage A.
 - Update `docs/users-guide.md` to point to the example as the canonical Tokio
-  harness walkthrough and to summarise the pattern it demonstrates.
+  harness walkthrough and to summarize the pattern it demonstrates.
 - Update `docs/roadmap.md` to mark 9.3.8 done only after all gates in Stage E
   pass.
 - Ensure the example `README.md` explains how to run the focused crate tests
@@ -410,6 +410,6 @@ until all gates pass or a tolerance threshold is reached.
 
 ## Approval gate
 
-This document is the draft-phase ExecPlan required by the `execplans` skill.
-Implementation must not begin until the user explicitly approves the plan or
-requests revisions.
+This ExecPlan has been executed and the implementation work is complete.
+Remaining actions, if any, are limited to post-execution follow-up such as
+verification reruns, archival, or sign-off.
