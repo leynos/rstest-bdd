@@ -1677,6 +1677,12 @@ Tokio runtime mode resolves to Tokio current-thread attributes, while sync mode
 resolves to rstest-only. `#[tokio::test]` is omitted for synchronous test
 signatures because Tokio requires `async fn`.
 
+The user-facing guidance for this feature should lead with explicit
+`harness = ...` and `attributes = ...` configuration, then treat
+`runtime = "tokio-current-thread"` as deprecated compatibility syntax for
+`scenarios!`. This keeps the user guide aligned with the delivered API rather
+than with the historical migration path.
+
 **`rstest::rstest` is always emitted.** The `#[rstest::rstest]` attribute is
 unconditional because the framework fundamentally relies on rstest for fixture
 injection, regardless of the harness or attribute policy in use.
@@ -1732,6 +1738,16 @@ The first official adapters and policies are:
 
 Future adapters (for example, Bevy) are planned to follow the same pattern
 without requiring new dependencies in `rstest-bdd` or `rstest-bdd-macros`.
+
+Validation for the delivered model is intentionally split across layers:
+
+- unit tests in `rstest-bdd-policy`, `rstest-bdd-harness`,
+  `rstest-bdd-harness-tokio`, `rstest-bdd-harness-gpui`, and
+  `rstest-bdd-macros` verify policy resolution, emitted attributes, and
+  harness-runner contracts;
+- behavioural and integration tests in `rstest-bdd` verify custom harness
+  delegation, `rstest_bdd_harness_context` injection, Tokio runtime
+  compatibility, GPUI integration, and the deprecated runtime alias path.
 
 ## Part 3: Implementation and strategic analysis
 
@@ -2529,12 +2545,29 @@ All modules use en‑GB spelling and include `//!` module‑level documentation.
 
 ### 3.12 Harness adapters and attribute plugins (ADR-005)
 
-The harness adapter architecture introduces a small core harness crate, macro
-integration for selecting harnesses and attribute policies, and opt-in adapter
-crates for Tokio and GPUI. The detailed sequencing, milestones, and validation
-steps live in the roadmap to avoid duplication and drift; see
-[Phase 9](roadmap.md#phase-9-harness-adapters-and-attribute-plugins) for the
-current plan and acceptance criteria.
+The harness adapter architecture is now delivered as a small core harness
+crate, macro integration for selecting harnesses and attribute policies, and
+opt-in adapter crates for Tokio and GPUI.
+
+Delivered behaviour:
+
+- `rstest-bdd-harness` owns the shared `HarnessAdapter`,
+  `ScenarioRunner<'a, C, T>`, `ScenarioRunRequest<'a, C, T>`,
+  `AttributePolicy`, and `DefaultAttributePolicy` contracts.
+- `HarnessAdapter::Context` provides the typed fixture-injection boundary
+  selected by ADR-007. Harness-backed scenarios store that context in
+  `StepContext` under the reserved fixture key `rstest_bdd_harness_context`.
+- `rstest-bdd-macros` resolves first-party attribute policies by canonical
+  path. Tokio and GPUI integrations therefore stay in opt-in crates while the
+  core macros remain dependency-light.
+- `runtime = "tokio-current-thread"` remains supported as deprecated
+  compatibility syntax for `scenarios!`, but explicit `harness = ...` and
+  `attributes = ...` configuration is the canonical user-facing model.
+
+The roadmap continues to track follow-on work such as additional cookbook
+material and extra GPUI policy-resolution coverage; see
+[Phase 9](roadmap.md#9-harness-adapters-and-attribute-plugins) for the
+remaining items and acceptance criteria.
 
 ### Scenario state management design (2025-03-16)
 

@@ -1,5 +1,5 @@
 error: forced failure
-  --> tests/fixtures_macros/scenarios_runtime_alias_deprecated.rs:18:1
+  --> tests/fixtures_macros/scenarios_runtime_alias_deprecated.rs:26:1
    |
-18 | compile_error!("forced failure");
+26 | compile_error!("forced failure");
    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
