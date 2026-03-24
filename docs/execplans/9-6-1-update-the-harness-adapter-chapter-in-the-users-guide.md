@@ -261,7 +261,7 @@ Implementation details:
 - Re-read the harness sections in `docs/users-guide.md` and
   `docs/rstest-bdd-design.md` side by side.
 - Build a checklist from the roadmap wording:
-  - delivered 9.3 work,
+  - delivered 9.3 outcomes,
   - attribute-policy wiring from 9.3.4,
   - context injection from 9.5.
 - Cross-check each claim against the current code and behavioural tests so the
