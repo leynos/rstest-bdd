@@ -67,12 +67,42 @@ pub struct ReminderService {
 
 impl ReminderService {
     /// Creates an empty reminder service.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use tokio_reminders::ReminderService;
+    ///
+    /// let service = ReminderService::new();
+    /// assert_eq!(service.pending_reminder_count(), 0);
+    /// ```
     #[must_use]
     pub fn new() -> Self {
         Self::default()
     }
 
     /// Schedules a reminder for later delivery on Tokio's local task queue.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use tokio_reminders::ReminderService;
+    ///
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// # let runtime = tokio::runtime::Builder::new_current_thread()
+    /// #     .enable_all()
+    /// #     .build()?;
+    /// # let local_set = tokio::task::LocalSet::new();
+    /// # local_set.block_on(&runtime, async {
+    /// let service = ReminderService::new();
+    /// service.schedule_reminder("Ada");
+    /// assert_eq!(service.pending_reminder_count(), 1);
+    /// assert_eq!(service.pending_recipients(), vec!["Ada".to_string()]);
+    /// # Ok::<(), tokio_reminders::ReminderServiceError>(())
+    /// # })?;
+    /// # Ok(())
+    /// # }
+    /// ```
     pub fn schedule_reminder(&self, recipient: impl Into<String>) {
         let delivered = Rc::clone(&self.delivered);
         let recipient = recipient.into();
@@ -89,6 +119,27 @@ impl ReminderService {
     }
 
     /// Waits for all queued reminders to complete.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use tokio_reminders::ReminderService;
+    ///
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// # let runtime = tokio::runtime::Builder::new_current_thread()
+    /// #     .enable_all()
+    /// #     .build()?;
+    /// # let local_set = tokio::task::LocalSet::new();
+    /// # local_set.block_on(&runtime, async {
+    /// let service = ReminderService::new();
+    /// service.schedule_reminder("Ada");
+    /// service.flush().await?;
+    /// assert_eq!(service.pending_reminder_count(), 0);
+    /// # Ok::<(), tokio_reminders::ReminderServiceError>(())
+    /// # })?;
+    /// # Ok(())
+    /// # }
+    /// ```
     pub async fn flush(&self) -> Result<(), ReminderServiceError> {
         let pending = std::mem::take(&mut *self.pending.borrow_mut());
         let mut first_error = None;
@@ -109,18 +160,81 @@ impl ReminderService {
     }
 
     /// Returns the delivered reminder messages in delivery order.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use tokio_reminders::ReminderService;
+    ///
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// # let runtime = tokio::runtime::Builder::new_current_thread()
+    /// #     .enable_all()
+    /// #     .build()?;
+    /// # let local_set = tokio::task::LocalSet::new();
+    /// # local_set.block_on(&runtime, async {
+    /// let service = ReminderService::new();
+    /// service.schedule_reminder("Ada");
+    /// service.flush().await?;
+    /// assert_eq!(service.delivered_reminders(), vec!["Reminder sent to Ada".to_string()]);
+    /// # Ok::<(), tokio_reminders::ReminderServiceError>(())
+    /// # })?;
+    /// # Ok(())
+    /// # }
+    /// ```
     #[must_use]
     pub fn delivered_reminders(&self) -> Vec<String> {
         self.delivered.borrow().clone()
     }
 
     /// Returns the number of reminders still waiting to be flushed.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use tokio_reminders::ReminderService;
+    ///
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// # let runtime = tokio::runtime::Builder::new_current_thread()
+    /// #     .enable_all()
+    /// #     .build()?;
+    /// # let local_set = tokio::task::LocalSet::new();
+    /// # local_set.block_on(&runtime, async {
+    /// let service = ReminderService::new();
+    /// assert_eq!(service.pending_reminder_count(), 0);
+    /// service.schedule_reminder("Ada");
+    /// assert_eq!(service.pending_reminder_count(), 1);
+    /// # Ok::<(), tokio_reminders::ReminderServiceError>(())
+    /// # })?;
+    /// # Ok(())
+    /// # }
+    /// ```
     #[must_use]
     pub fn pending_reminder_count(&self) -> usize {
         self.pending.borrow().len()
     }
 
     /// Returns the queued reminder recipients in scheduling order.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use tokio_reminders::ReminderService;
+    ///
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// # let runtime = tokio::runtime::Builder::new_current_thread()
+    /// #     .enable_all()
+    /// #     .build()?;
+    /// # let local_set = tokio::task::LocalSet::new();
+    /// # local_set.block_on(&runtime, async {
+    /// let service = ReminderService::new();
+    /// service.schedule_reminder("Ada");
+    /// service.schedule_reminder("Grace");
+    /// assert_eq!(service.pending_recipients(), vec!["Ada".to_string(), "Grace".to_string()]);
+    /// # Ok::<(), tokio_reminders::ReminderServiceError>(())
+    /// # })?;
+    /// # Ok(())
+    /// # }
+    /// ```
     #[must_use]
     pub fn pending_recipients(&self) -> Vec<String> {
         self.pending
