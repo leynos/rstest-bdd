@@ -6,15 +6,15 @@
 //! an explicit flush. That makes the example deterministic while still showing
 //! real async application flow rather than a harness smoke test.
 
-use std::{cell::RefCell, rc::Rc};
+use std::{cell::RefCell, future::Future, pin::Pin, rc::Rc};
 
 use thiserror::Error;
-use tokio::task::JoinHandle;
 
-#[derive(Debug)]
+type ReminderTask = Pin<Box<dyn Future<Output = ()>>>;
+
 struct PendingReminder {
     recipient: String,
-    handle: JoinHandle<()>,
+    task: ReminderTask,
 }
 
 /// Error produced when the reminder queue cannot finish scheduled work.
@@ -59,7 +59,7 @@ pub enum ReminderServiceError {
 /// # Ok(())
 /// # }
 /// ```
-#[derive(Debug, Clone, Default)]
+#[derive(Clone, Default)]
 pub struct ReminderService {
     delivered: Rc<RefCell<Vec<String>>>,
     pending: Rc<RefCell<Vec<PendingReminder>>>,
@@ -107,7 +107,9 @@ impl ReminderService {
         let delivered = Rc::clone(&self.delivered);
         let recipient = recipient.into();
         let task_recipient = recipient.clone();
-        let handle = tokio::task::spawn_local(async move {
+
+        // Store the future without spawning it yet
+        let task: ReminderTask = Box::pin(async move {
             delivered
                 .borrow_mut()
                 .push(format!("Reminder sent to {task_recipient}"));
@@ -115,7 +117,7 @@ impl ReminderService {
 
         self.pending
             .borrow_mut()
-            .push(PendingReminder { recipient, handle });
+            .push(PendingReminder { recipient, task });
     }
 
     /// Waits for all queued reminders to complete.
@@ -144,7 +146,9 @@ impl ReminderService {
         let pending = std::mem::take(&mut *self.pending.borrow_mut());
         let mut first_error = None;
 
-        for PendingReminder { handle, .. } in pending {
+        for PendingReminder { task, .. } in pending {
+            // Spawn the task and await it
+            let handle = tokio::task::spawn_local(task);
             if let Err(source) = handle.await {
                 if first_error.is_none() {
                     first_error = Some(ReminderServiceError::Join { source });
@@ -251,7 +255,7 @@ mod tests {
 
     use std::rc::Rc;
 
-    use super::{PendingReminder, ReminderService};
+    use super::{PendingReminder, ReminderService, ReminderTask};
     use rstest::{fixture, rstest};
 
     #[fixture]
@@ -350,17 +354,17 @@ mod tests {
 
     #[rstest]
     #[tokio::test(flavor = "current_thread")]
-    async fn flush_awaits_every_pending_handle_before_returning_first_error(
+    async fn flush_awaits_every_pending_task_before_returning_first_error(
         local_set: tokio::task::LocalSet,
         service: ReminderService,
     ) {
         local_set
             .run_until(async move {
                 let delivered = Rc::clone(&service.delivered);
-                let failing_handle = tokio::task::spawn_local(async move {
+                let failing_task: ReminderTask = Box::pin(async move {
                     panic!("failing reminder task");
                 });
-                let succeeding_handle = tokio::task::spawn_local(async move {
+                let succeeding_task: ReminderTask = Box::pin(async move {
                     delivered
                         .borrow_mut()
                         .push("Reminder sent to Grace".to_string());
@@ -369,11 +373,11 @@ mod tests {
                 service.pending.borrow_mut().extend([
                     PendingReminder {
                         recipient: "Ada".to_string(),
-                        handle: failing_handle,
+                        task: failing_task,
                     },
                     PendingReminder {
                         recipient: "Grace".to_string(),
-                        handle: succeeding_handle,
+                        task: succeeding_task,
                     },
                 ]);
 
@@ -385,6 +389,46 @@ mod tests {
                 );
                 assert_eq!(service.pending_reminder_count(), 0);
                 assert!(service.pending_recipients().is_empty());
+            })
+            .await;
+    }
+
+    #[rstest]
+    #[tokio::test(flavor = "current_thread")]
+    async fn scheduled_reminders_do_not_deliver_until_flush(
+        local_set: tokio::task::LocalSet,
+        service: ReminderService,
+    ) {
+        local_set
+            .run_until(async move {
+                service.schedule_reminder("Ada");
+
+                // Yield to give any spawned tasks a chance to run
+                tokio::task::yield_now().await;
+
+                // Delivered should still be empty because flush hasn't been called
+                assert!(
+                    service.delivered_reminders().is_empty(),
+                    "delivered_reminders should be empty before flush"
+                );
+                assert_eq!(
+                    service.pending_reminder_count(),
+                    1,
+                    "pending count should be 1 before flush"
+                );
+
+                // Now flush and verify delivery
+                service.flush().await.expect("flush should succeed");
+                assert_eq!(
+                    service.delivered_reminders(),
+                    vec!["Reminder sent to Ada".to_string()],
+                    "delivered_reminders should contain Ada after flush"
+                );
+                assert_eq!(
+                    service.pending_reminder_count(),
+                    0,
+                    "pending count should be 0 after flush"
+                );
             })
             .await;
     }
