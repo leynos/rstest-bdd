@@ -122,6 +122,15 @@ impl ReminderService {
 
     /// Waits for all queued reminders to complete.
     ///
+    /// # Panics
+    ///
+    /// This method panics if called outside a [`tokio::task::LocalSet`]. The
+    /// implementation uses [`tokio::task::spawn_local`] to execute scheduled
+    /// reminders, which requires an active `LocalSet` context. Ensure you call
+    /// `flush` from within a `LocalSet` (e.g., via
+    /// [`LocalSet::run_until`](tokio::task::LocalSet::run_until) or
+    /// [`LocalSet::block_on`](tokio::task::LocalSet::block_on)).
+    ///
     /// # Examples
     ///
     /// ```
