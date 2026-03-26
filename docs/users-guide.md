@@ -871,12 +871,25 @@ it does not fully drain the `LocalSet`. Tasks requiring additional wakeups (for
 example timers) may still be pending when `run()` returns, so steps should
 prefer explicit `.await`-based coordination when completion is required.
 
+For a complete working example, see the `examples/tokio-reminders` crate. Its
+BDD suite uses `TokioHarness` and `TokioAttributePolicy` together to exercise
+queued reminder behaviour under a Tokio current-thread runtime, while the
+crate's unit tests and doctest show the explicit `flush().await` pattern for
+multi-poll work that must complete before assertions run.
+
 > **Note:** combining `harness` with `async fn` scenario signatures produces
 > a compile error because `TokioHarness` runs synchronous scenario closures
 > inside a Tokio runtime — the harness owns the runtime, so the scenario
 > function itself must be synchronous. Step functions still have access to
 > `tokio::runtime::Handle::current()`, `tokio::spawn`, and
 > `tokio::task::spawn_local` without needing `async fn` signatures.
+>
+> Immediate-ready `async fn` step definitions are supported under
+> `TokioHarness`, but a harness-driven step that yields `Pending` will fail
+> with a runtime error. Use harness-driven async steps only for work that can
+> complete in one poll. For multi-poll async coordination, prefer synchronous
+> step definitions that trigger work and validate the richer async flow in
+> unit tests or in explicit `#[tokio::test]`-backed scenarios.
 >
 > For fully async scenarios (where the scenario function itself is
 > `async fn`), use **`#[scenario]`** with an explicit `#[tokio::test(flavor =

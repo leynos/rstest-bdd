@@ -2019,6 +2019,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "tokio-reminders"
+version = "0.5.0"
+dependencies = [
+ "rstest",
+ "rstest-bdd",
+ "rstest-bdd-harness",
+ "rstest-bdd-harness-tokio",
+ "rstest-bdd-macros",
+ "thiserror 1.0.69",
+ "tokio",
+]
+
+[[package]]
 name = "tokio-util"
 version = "0.7.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"

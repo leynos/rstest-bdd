@@ -1,0 +1,17 @@
+[package]
+name = "tokio-reminders"
+version = "0.5.0"
+edition.workspace = true
+publish = false
+rust-version.workspace = true
+
+[dependencies]
+thiserror.workspace = true
+tokio.workspace = true
+
+[dev-dependencies]
+rstest.workspace = true
+rstest-bdd.workspace = true
+rstest-bdd-harness.workspace = true
+rstest-bdd-harness-tokio.workspace = true
+rstest-bdd-macros.workspace = true

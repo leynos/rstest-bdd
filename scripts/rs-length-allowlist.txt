@@ -8,3 +8,6 @@ crates/rstest-bdd-macros/src/codegen/scenario/runtime/generators/step.rs
 crates/rstest-bdd-server/src/handlers/diagnostics/compute.rs
 crates/rstest-bdd-server/src/handlers/diagnostics/mod.rs
 crates/rstest-bdd-server/src/indexing/rust.rs
+# Added during tokio-reminders example development (roadmap 9.3.8):
+# Comprehensive doctests for all public methods plus regression test for deferred execution
+examples/tokio-reminders/src/lib.rs

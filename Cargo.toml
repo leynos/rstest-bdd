@@ -13,6 +13,7 @@ members = [
     "examples/todo-cli",
     "examples/japanese-ledger",
     "examples/gpui-counter",
+    "examples/tokio-reminders",
 ]
 
 [workspace.package]

@@ -525,14 +525,14 @@ opt-in crates rather than the core runtime or macros.
   the expected compile-time error via a `trybuild` compile-fail fixture. Finish
   line: `trybuild` test asserts the diagnostic message; `make test` passes.
   Prerequisite: 9.3.2 delivered. Design Doc: §2.7.3, §2.7.4. (Doggylump)
-- [ ] 9.3.8. Add a simple Tokio async demonstration application and BDD test
+- [x] 9.3.8. Add a simple Tokio async demonstration application and BDD test
   suite under `examples/`, similar in scope to the existing demonstration
   applications. The example should exercise `TokioHarness` and
   `TokioAttributePolicy` in an end-to-end crate with asynchronous application
   behaviour and feature scenarios. Finish line: a new example crate and its BDD
   suite run successfully via `make test`, and the user guide links to it as the
-  canonical Tokio harness example. Prerequisite: 9.3.4 delivered. Design Doc:
-  §2.7.4. (Dinolump)
+  canonical Tokio harness example. Delivered via `examples/tokio-reminders`.
+  Prerequisite: 9.3.4 delivered. Design Doc: §2.7.4. (Dinolump)
 
 ### 9.4. GPUI harness plugin crate
 
