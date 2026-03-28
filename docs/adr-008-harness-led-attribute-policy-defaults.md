@@ -143,6 +143,20 @@ parameter:
 4. If `attributes = ...` is specified without `harness = ...`, preserve that
    configuration as a supported escape hatch.
 
+The exact precedence rules are:
+
+1. An explicit `attributes = ...` selection always wins.
+2. Otherwise, if an explicit `harness = ...` selection resolves to a known
+   first-party harness mapping, use that harness-led default policy.
+3. Otherwise, if the deprecated `runtime = "tokio-current-thread"`
+   compatibility alias is active, use its Tokio current-thread hint.
+4. Otherwise, fall back to the existing runtime-mode or synchronous default
+   behaviour.
+
+If both an explicit harness and the deprecated runtime alias are present, the
+explicit harness remains authoritative; the runtime alias contributes only its
+deprecation signal and does not change attribute selection.
+
 For first-party harnesses, the intended defaults are:
 
 - `StdHarness` -> `DefaultAttributePolicy`

@@ -618,26 +618,30 @@ opt-in crates rather than the core runtime or macros.
 
 ### 9.7. Harness-led attribute-policy defaults
 
+These items are gated on ADR-008 being accepted. While
+`docs/adr-008-harness-led-attribute-policy-defaults.md` remains in `Proposed`
+status, treat the tasks below as contingent planning items rather than active
+implementation commitments.
+
 - [ ] 9.7.1. Extend first-party policy hint resolution so known harness paths
   can imply default test-attribute hints when `attributes = ...` is omitted.
   Add canonical mappings for `StdHarness`, `TokioHarness`, and `GpuiHarness`,
-  and document precedence against explicit `attributes = ...` and the
-  deprecated `runtime = "tokio-current-thread"` compatibility alias. Finish
-  line: shared helpers resolve the same hint from either the first-party
-  harness path or the first-party attribute-policy path, with unit tests for
-  unknown third-party paths and precedence edge cases. Prerequisite: ADR-008
-  accepted; 9.3.4 and 9.4.4 delivered. Design Doc:
+  and implement the precedence rules defined in ADR-008. Finish line: shared
+  helpers resolve the same hint from either the first-party harness path or the
+  first-party attribute-policy path, with unit tests for unknown third-party
+  paths and precedence edge cases. Prerequisite: ADR-008 accepted; 9.3.4 and
+  9.4.4 delivered. Design Doc:
   `docs/adr-008-harness-led-attribute-policy-defaults.md`,
   `docs/rstest-bdd-design.md` §2.7.3. (Pandalump)
 - [ ] 9.7.2. Update `#[scenario]` and `scenarios!` code generation so
   first-party harnesses imply their default attribute policies when
   `attributes = ...` is omitted, while explicit `attributes = ...` remains
   authoritative. Preserve `attributes`-only configuration, harness-only
-  configuration, current attribute de-duplication rules, and the deprecated
-  Tokio runtime-alias semantics. Finish line: generated test attributes for
-  `StdHarness`, `TokioHarness`, and `GpuiHarness` match their first-party
-  defaults without requiring paired `attributes = ...`, and explicit override
-  scenarios still expand correctly. Prerequisite: 9.7.1. Design Doc:
+  configuration, current attribute de-duplication rules, and the ADR-008
+  precedence order. Finish line: generated test attributes for `StdHarness`,
+  `TokioHarness`, and `GpuiHarness` match their first-party defaults without
+  requiring paired `attributes = ...`, and explicit override scenarios still
+  expand correctly. Prerequisite: 9.7.1. Design Doc:
   `docs/adr-008-harness-led-attribute-policy-defaults.md`,
   `docs/rstest-bdd-design.md` §2.7.3. (Pandalump, Doggylump)
 - [ ] 9.7.3. Add unit, trybuild, and behavioural coverage for harness-led
