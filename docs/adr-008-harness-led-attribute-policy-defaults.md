@@ -149,6 +149,68 @@ For first-party harnesses, the intended defaults are:
 - `TokioHarness` -> `TokioAttributePolicy`
 - `GpuiHarness` -> `GpuiAttributePolicy`
 
+For screen readers: The following class diagram shows the separation between
+the `HarnessAdapter` and `AttributePolicy` traits, the first-party harness and
+policy implementations, and the way `ScenarioMacro` delegates default-policy
+selection to `PolicyResolver`.
+
+```mermaid
+classDiagram
+
+class HarnessAdapter {
+  <<trait>>
+  +Context Context
+}
+
+class AttributePolicy {
+  <<trait>>
+  +test_attributes() Result
+}
+
+class StdHarness {
+}
+class TokioHarness {
+}
+class GpuiHarness {
+}
+
+class DefaultAttributePolicy {
+}
+class TokioAttributePolicy {
+}
+class GpuiAttributePolicy {
+}
+
+class PolicyResolver {
+  +resolve(harness_path, attribute_policy_path) Result
+}
+
+class ScenarioMacro {
+  +expand(harness_path, attribute_policy_path) TokenStream
+  +generate_test_attrs(harness_path, attribute_policy_path) Result
+}
+
+HarnessAdapter <|.. StdHarness
+HarnessAdapter <|.. TokioHarness
+HarnessAdapter <|.. GpuiHarness
+
+AttributePolicy <|.. DefaultAttributePolicy
+AttributePolicy <|.. TokioAttributePolicy
+AttributePolicy <|.. GpuiAttributePolicy
+
+ScenarioMacro --> PolicyResolver : uses
+
+PolicyResolver --> AttributePolicy : selects_default
+PolicyResolver --> HarnessAdapter : reads_harness_type
+
+StdHarness --> DefaultAttributePolicy : default_policy
+TokioHarness --> TokioAttributePolicy : default_policy
+GpuiHarness --> GpuiAttributePolicy : default_policy
+```
+
+_Figure 1: Harness-led default policy resolution between the macro layer,
+resolver, harness types, and attribute-policy types._
+
 This means the common Tokio and GPUI configuration can become:
 
 ```rust,no_run
