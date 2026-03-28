@@ -5,7 +5,7 @@ This ExecPlan (execution plan) is a living document. The sections
 `Decision Log`, and `Outcomes & Retrospective` must be kept up to date as work
 proceeds.
 
-Status: DRAFT
+Status: DONE
 
 `PLANS.md` is not present in this repository at the time of writing, so this
 ExecPlan is the governing plan for roadmap item 9.6.2.
@@ -127,16 +127,22 @@ validation.
 - [x] (2026-03-26) Reviewed current GPUI unit, trybuild, and integration
       coverage to identify the remaining validation gap.
 - [x] (2026-03-26) Drafted this ExecPlan.
-- [ ] Stage A: confirm the missing GPUI policy-resolution matrix and capture a
-      red test.
-- [ ] Stage B: add GPUI compile-time integration fixtures to the `trybuild`
-      suite.
-- [ ] Stage C: add or extend GPUI runtime integration coverage in `rstest-bdd`
-      so generated GPUI tests execute through public macros.
-- [ ] Stage D: update design and user documentation for the delivered
-      validation surface.
-- [ ] Stage E: run focused GPUI validation plus repository-wide gates.
-- [ ] Stage F: mark roadmap item 9.6.2 done and record outcomes.
+- [x] (2026-03-28) Stage A: confirmed the missing GPUI policy-resolution
+      matrix. The missing integration cases were GPUI compile-pass fixtures for
+      `#[scenario]` canonical and absolute policy paths, GPUI compile-pass
+      coverage for `scenarios!`, and runtime `scenarios!` coverage.
+- [x] (2026-03-28) Stage B: added GPUI compile-time integration fixtures to
+      the `trybuild` suite.
+- [x] (2026-03-28) Stage C: extended GPUI runtime integration coverage in
+      `rstest-bdd` so generated GPUI tests execute through public macros,
+      including `scenarios!` and `#[scenario]` deduplication with an explicit
+      `#[gpui::test]`.
+- [x] (2026-03-28) Stage D: updated design and user documentation for the
+      delivered validation surface.
+- [x] (2026-03-28) Stage E: ran focused GPUI validation plus repository-wide
+      gates.
+- [x] (2026-03-28) Stage F: marked roadmap item 9.6.2 done and recorded
+      outcomes.
 
 ## Surprises & Discoveries
 
@@ -156,6 +162,11 @@ validation.
   attribute-policy cases but no GPUI counterparts in
   `crates/rstest-bdd/tests/fixtures_macros/`. Impact: 9.6.2 should almost
   certainly add GPUI fixtures there.
+
+- Observation: `scenario_harness_gpui.rs` can host both explicit `#[scenario]`
+  tests and generated `scenarios!` GPUI tests behind the existing
+  `gpui-harness-tests` feature gate. Impact: Stage C could stay within the
+  existing integration binary instead of adding a second GPUI test target.
 
 - Observation: `make test` is insufficient on its own for this milestone
   because `tests/trybuild_macros.rs` returns early when `NEXTEST_RUN_ID` is
@@ -192,15 +203,49 @@ validation.
   supported usage notes and validation references needed to keep the docs
   current with the stronger GPUI test surface. Date/Author: 2026-03-26 / Codex.
 
+- Decision: cover GPUI `#[scenario]` deduplication at runtime instead of
+  adding another compile-pass fixture that would duplicate the existing
+  unit-level dedup assertion. Rationale: the integration crate already depends
+  on `gpui`, so an explicit `#[gpui::test]` on a
+  `#[scenario(..., attributes = ...)]` function proves the public macro surface
+  does not emit a conflicting second GPUI test attribute. Date/Author:
+  2026-03-28 / Codex.
+
 ## Outcomes & Retrospective
 
-Pending implementation. This section must be updated after 9.6.2 lands with:
+- Added GPUI compile-pass fixtures in
+  `crates/rstest-bdd/tests/fixtures_macros/` for:
+  - canonical `rstest_bdd_harness_gpui::GpuiAttributePolicy` on `#[scenario]`;
+  - absolute `::rstest_bdd_harness_gpui::GpuiAttributePolicy` on `#[scenario]`;
+  - canonical `rstest_bdd_harness_gpui::GpuiAttributePolicy` on `scenarios!`.
+- Extended `crates/rstest-bdd/tests/scenario_harness_gpui.rs` with:
+  - a generated `scenarios!` GPUI policy runtime case; and
+  - an explicit `#[gpui::test]` plus `#[scenario(..., attributes = ...)]`
+    deduplication case.
+- Updated `docs/users-guide.md` and `docs/rstest-bdd-design.md` to record the
+  supported GPUI path forms and the strengthened validation layer.
+- Updated `docs/roadmap.md` only after the following commands passed:
 
-- the exact GPUI policy-resolution cases added,
-- the final validation commands and their outcomes,
-- any code changes required beyond tests,
-- the documentation updates made, and
-- confirmation that `docs/roadmap.md` was updated only after all gates passed.
+```bash
+set -o pipefail; cargo test -p rstest-bdd-policy 2>&1 | tee /tmp/9-6-2-policy.log
+set -o pipefail; cargo test -p rstest-bdd-macros --lib gpui_policy 2>&1 | \
+  tee /tmp/9-6-2-macros-gpui.log
+set -o pipefail; RUSTFLAGS="-D warnings" cargo test -p rstest-bdd \
+  --test trybuild_macros step_macros_compile -- --exact 2>&1 | \
+  tee /tmp/9-6-2-trybuild.log
+set -o pipefail; RUSTFLAGS="-D warnings" cargo test -p rstest-bdd \
+  --test scenario_harness_gpui --features gpui-harness-tests 2>&1 | \
+  tee /tmp/9-6-2-gpui-integration.log
+set -o pipefail; make fmt 2>&1 | tee /tmp/9-6-2-make-fmt.log
+set -o pipefail; make markdownlint 2>&1 | tee /tmp/9-6-2-make-markdownlint.log
+set -o pipefail; make nixie 2>&1 | tee /tmp/9-6-2-make-nixie.log
+set -o pipefail; make check-fmt 2>&1 | tee /tmp/9-6-2-make-check-fmt.log
+set -o pipefail; make lint 2>&1 | tee /tmp/9-6-2-make-lint.log
+set -o pipefail; make test 2>&1 | tee /tmp/9-6-2-make-test.log
+```
+
+- No macro or harness production code changes were required; the milestone was
+  closed by filling the missing integration coverage and updating the docs.
 
 ## Context and orientation
 

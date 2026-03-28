@@ -1745,8 +1745,11 @@ The first official adapters and policies are:
   `examples/gpui-counter` models a simple counter application whose BDD suite
   exercises both `GpuiHarness` and `GpuiAttributePolicy` end-to-end, with step
   definitions that access injected `TestAppContext` through
-  `rstest_bdd_harness_context`. The example requires no native-library setup
-  beyond the workspace GPUI shim.
+  `rstest_bdd_harness_context`. Focused `rstest-bdd` integration coverage also
+  verifies canonical GPUI policy resolution for `scenarios!`, canonical and
+  absolute first-party GPUI policy paths for `#[scenario]`, and deduplication
+  when a generated `#[scenario]` test already has `#[gpui::test]`. The example
+  requires no native-library setup beyond the workspace GPUI shim.
 
 Future adapters (for example, Bevy) are planned to follow the same pattern
 without requiring new dependencies in `rstest-bdd` or `rstest-bdd-macros`.
@@ -1759,7 +1762,8 @@ Validation for the delivered model is intentionally split across layers:
   harness-runner contracts;
 - behavioural and integration tests in `rstest-bdd` verify custom harness
   delegation, `rstest_bdd_harness_context` injection, Tokio runtime
-  compatibility, GPUI integration, and the deprecated runtime alias path.
+  compatibility, GPUI integration, GPUI attribute-policy resolution through
+  both `#[scenario]` and `scenarios!`, and the deprecated runtime alias path.
 
 ## Part 3: Implementation and strategic analysis
 
@@ -2577,7 +2581,7 @@ Delivered behaviour:
   `attributes = ...` configuration is the canonical user-facing model.
 
 The roadmap continues to track follow-on work such as additional cookbook
-material and extra GPUI policy-resolution coverage; see
+material and harness-led attribute-policy defaults; see
 [Phase 9](roadmap.md#9-harness-adapters-and-attribute-plugins) for the
 remaining items and acceptance criteria.
 

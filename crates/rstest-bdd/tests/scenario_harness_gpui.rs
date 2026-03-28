@@ -2,13 +2,14 @@
 //! adapter and attribute policy from `rstest-bdd-harness-gpui`.
 #![cfg(feature = "gpui-harness-tests")]
 
-use rstest_bdd_macros::{given, scenario, then, when};
+use rstest_bdd_macros::{given, scenario, scenarios, then, when};
 use serial_test::serial;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 
 static CONTEXT_POINTER: AtomicUsize = AtomicUsize::new(0);
 static CONTEXT_MUTATED: AtomicBool = AtomicBool::new(false);
 static GPUI_POLICY_RAN: AtomicBool = AtomicBool::new(false);
+static GPUI_SCENARIOS_MACRO_RAN: AtomicBool = AtomicBool::new(false);
 
 #[expect(
     clippy::unnecessary_wraps,
@@ -72,6 +73,20 @@ fn plain_gpui_policy_scenario_completed() {
     GPUI_POLICY_RAN.store(false, Ordering::SeqCst);
 }
 
+#[given("a GPUI scenarios macro policy run starts")]
+fn gpui_scenarios_macro_policy_run_starts() {
+    GPUI_SCENARIOS_MACRO_RAN.store(true, Ordering::SeqCst);
+}
+
+#[then("the GPUI scenarios macro policy run completed")]
+fn gpui_scenarios_macro_policy_run_completed() {
+    assert!(
+        GPUI_SCENARIOS_MACRO_RAN.load(Ordering::SeqCst),
+        "scenarios! should execute under the GPUI attribute policy"
+    );
+    GPUI_SCENARIOS_MACRO_RAN.store(false, Ordering::SeqCst);
+}
+
 #[scenario(
     path = "tests/features/gpui_harness.feature",
     name = "GPUI harness injects TestAppContext",
@@ -96,3 +111,17 @@ fn scenario_gpui_harness_with_attribute_policy() {}
 )]
 #[serial]
 fn scenario_gpui_attribute_policy_without_harness() {}
+
+#[scenario(
+    path = "tests/features/gpui_harness.feature",
+    name = "GPUI attribute policy runs without harness",
+    attributes = rstest_bdd_harness_gpui::GpuiAttributePolicy,
+)]
+#[gpui::test]
+#[serial]
+fn scenario_gpui_attribute_policy_dedup() {}
+
+scenarios!(
+    "tests/features/gpui_policy_scenarios",
+    attributes = rstest_bdd_harness_gpui::GpuiAttributePolicy,
+);

@@ -609,7 +609,7 @@ opt-in crates rather than the core runtime or macros.
   `docs/rstest-bdd-design.md` records the delivered architecture and validation
   surface, and `make check-fmt`, `make lint`, and `make test` pass.
   Prerequisite: 9.5.3. Delivered 2026-03-22. (Pandalump)
-- [ ] 9.6.2. Add integration tests covering attribute policy resolution for
+- [x] 9.6.2. Add integration tests covering attribute policy resolution for
   GPUI once 9.4 is delivered. Prerequisite: 9.4.3. (Pandalump)
 - [ ] 9.6.3. Add a third-party harness cookbook documenting how to write a
   custom `HarnessAdapter` (for example, `rstest-bdd-harness-bevy`), including
