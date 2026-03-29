@@ -178,7 +178,7 @@ class HarnessAdapter {
 
 class AttributePolicy {
   <<trait>>
-  +test_attributes() Result
+  +test_attributes() &'static [TestAttribute]
 }
 
 class StdHarness {
