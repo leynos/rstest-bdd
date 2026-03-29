@@ -196,12 +196,12 @@ class GpuiAttributePolicy {
 }
 
 class PolicyResolver {
-  +resolve(harness_path, attribute_policy_path) Result
+  +resolve(harness_path, attribute_policy_path) ResolvedAttributePolicy
 }
 
 class ScenarioMacro {
   +expand(harness_path, attribute_policy_path) TokenStream
-  +generate_test_attrs(harness_path, attribute_policy_path) Result
+  +generate_test_attrs(harness_path, attribute_policy_path) TokenStream2
 }
 
 HarnessAdapter <|.. StdHarness
