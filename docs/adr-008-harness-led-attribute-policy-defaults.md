@@ -2,11 +2,11 @@
 
 ## Status
 
-Proposed.
+Proposed
 
 ## Date
 
-2026-03-26.
+2026-03-26
 
 ## Context and problem statement
 
