@@ -11,14 +11,13 @@ ExecPlan is the governing plan for roadmap item 9.6.1.
 
 ## Purpose / big picture
 
-Roadmap item 9.6.1 closes the documentation gap left after phases 9.3, 9.4,
-and 9.5 delivered the harness adapter core, Tokio and Graphical Processing
-User Interface (GPUI) opt-in crates, path-based attribute-policy wiring, and
-`HarnessAdapter::Context` injection.
-The current harness chapter in the user guide and the corresponding design-doc
-sections already mention parts of that work, but the narrative is split across
-multiple passages and does not yet present the delivered model as one coherent
-story.
+Roadmap item 9.6.1 closes the documentation gap left after phases 9.3, 9.4, and
+9.5 delivered the harness adapter core, Tokio and Graphical Processing User
+Interface (GPUI) opt-in crates, path-based attribute-policy wiring, and
+`HarnessAdapter::Context` injection. The current harness chapter in the user
+guide and the corresponding design-doc sections already mention parts of that
+work, but the narrative is split across multiple passages and does not yet
+present the delivered model as one coherent story.
 
 After this work:
 
@@ -27,17 +26,17 @@ After this work:
   compatibility-alias behaviour, and `Context`-based fixture injection.
 - `docs/rstest-bdd-design.md` records the delivered architecture and any
   design decisions taken while tightening the documentation around
-  Architectural Decision Record (ADR) 005, ADR-007, and the 9.3.4 codegen
-  trust model.
+  Architectural Decision Record (ADR) 005, ADR-007, and the 9.3.4 codegen trust
+  model.
 - Unit tests and behavioural tests validate any examples, emitted attributes,
   and end-to-end documentation claims introduced while updating the docs.
 - `docs/roadmap.md` marks 9.6.1 done only after the documentation, tests, and
   required quality gates all pass.
 
-Success is observable when a reader can follow one authoritative chapter in
-the user guide from `harness = ...` and `attributes = ...` configuration
-through to context injection and framework-specific examples, and when the
-quality gates pass: `make check-fmt`, `make lint`, and `make test`.
+Success is observable when a reader can follow one authoritative chapter in the
+user guide from `harness = ...` and `attributes = ...` configuration through to
+context injection and framework-specific examples, and when the quality gates
+pass: `make check-fmt`, `make lint`, and `make test`.
 
 ## Constraints
 
@@ -46,8 +45,8 @@ quality gates pass: `make check-fmt`, `make lint`, and `make test`.
 - Treat 9.5.3 as delivered and document the current `HarnessAdapter::Context`
   contract, not speculative alternatives.
 - Keep ADR-005 boundaries intact: framework-specific details belong in opt-in
-  crates and documentation must not imply that Tokio or GPUI are built into
-  the core runtime.
+  crates and documentation must not imply that Tokio or GPUI are built into the
+  core runtime.
 - Preserve the documented 9.3.4 trust model: attribute-policy resolution is
   path-based during macro expansion, not arbitrary trait-method execution on
   user types.
@@ -74,8 +73,7 @@ quality gates pass: `make check-fmt`, `make lint`, and `make test`.
   public Rust API changes, stop and split that into a separate implementation
   task.
 - Validation: if `make check-fmt`, `make lint`, or `make test` fails for
-  unrelated reasons, capture logs and stop before marking the roadmap item
-  done.
+  unrelated reasons, capture logs and stop before marking the roadmap item done.
 - Iterations: if the same gate fails three consecutive fix attempts, stop and
   escalate with the recorded log path.
 - Ambiguity: if the user guide, design doc, ADRs, and implementation disagree
@@ -171,10 +169,10 @@ quality gates pass: `make check-fmt`, `make lint`, and `make test`.
 Delivered outcomes for 9.6.1:
 
 - Reworked the harness-adapter guidance in `docs/users-guide.md` so it now
-  presents explicit `harness = ...` and `attributes = ...` configuration as
-  the canonical path, documents the Tokio compatibility alias as deprecated
-  legacy syntax, and calls out the current first-party policy-resolution trust
-  model for Tokio and GPUI.
+  presents explicit `harness = ...` and `attributes = ...` configuration as the
+  canonical path, documents the Tokio compatibility alias as deprecated legacy
+  syntax, and calls out the current first-party policy-resolution trust model
+  for Tokio and GPUI.
 - Updated `docs/users-guide.md` custom-harness material to explain
   `HarnessAdapter::Context`, `rstest_bdd_harness_context`, and the current
   limitation for third-party attribute-policy paths during macro expansion.

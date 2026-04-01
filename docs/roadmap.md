@@ -600,18 +600,64 @@ opt-in crates rather than the core runtime or macros.
 ### 9.6. Documentation and validation
 
 - [x] 9.6.1. Update the harness adapter chapter in the user guide and design
-  docs to reflect delivered 9.3 outcomes, the attribute policy wiring
-  (9.3.4), and the context injection mechanism (9.5). Finish line:
-  `docs/users-guide.md` now leads with explicit harness and attribute-policy
-  configuration, documents the Tokio compatibility alias as deprecated legacy
-  syntax, records `rstest_bdd_harness_context`-based context injection, and
-  clarifies the current first-party policy-resolution trust model for Tokio
-  and GPUI. `docs/rstest-bdd-design.md` records the delivered architecture
-  and validation surface, and `make check-fmt`, `make lint`, and `make test`
-  pass. Prerequisite: 9.5.3. Delivered 2026-03-22. (Pandalump)
+  docs to reflect delivered 9.3 outcomes, the attribute policy wiring (9.3.4),
+  and the context injection mechanism (9.5). Finish line: `docs/users-guide.md`
+  now leads with explicit harness and attribute-policy configuration, documents
+  the Tokio compatibility alias as deprecated legacy syntax, records
+  `rstest_bdd_harness_context`-based context injection, and clarifies the
+  current first-party policy-resolution trust model for Tokio and GPUI.
+  `docs/rstest-bdd-design.md` records the delivered architecture and validation
+  surface, and `make check-fmt`, `make lint`, and `make test` pass.
+  Prerequisite: 9.5.3. Delivered 2026-03-22. (Pandalump)
 - [ ] 9.6.2. Add integration tests covering attribute policy resolution for
   GPUI once 9.4 is delivered. Prerequisite: 9.4.3. (Pandalump)
 - [ ] 9.6.3. Add a third-party harness cookbook documenting how to write a
   custom `HarnessAdapter` (for example, `rstest-bdd-harness-bevy`), including
   the `Context` type, attribute policy, and `Cargo.toml` configuration. Finish
   line: cookbook section in the user guide with a working example. (Dinolump)
+
+### 9.7. Harness-led attribute-policy defaults
+
+These items are gated on ADR-008 being accepted. While
+`docs/adr-008-harness-led-attribute-policy-defaults.md` remains in `Proposed`
+status, treat the tasks below as contingent planning items rather than active
+implementation commitments.
+
+- [ ] 9.7.1. Extend first-party policy hint resolution so known harness paths
+  can imply default test-attribute hints when `attributes = ...` is omitted.
+  Add canonical mappings for `StdHarness`, `TokioHarness`, and `GpuiHarness`,
+  and implement the precedence rules defined in ADR-008. Finish line: shared
+  helpers resolve the same hint from either the first-party harness path or the
+  first-party attribute-policy path, with unit tests for unknown third-party
+  paths and precedence edge cases. Prerequisite: ADR-008 accepted; 9.3.4 and
+  9.4.4 delivered. Design Doc:
+  `docs/adr-008-harness-led-attribute-policy-defaults.md`,
+  `docs/rstest-bdd-design.md` §2.7.3. (Pandalump)
+- [ ] 9.7.2. Update `#[scenario]` and `scenarios!` code generation so
+  first-party harnesses imply their default attribute policies when
+  `attributes = ...` is omitted, while explicit `attributes = ...` remains
+  authoritative. Preserve `attributes`-only configuration, harness-only
+  configuration, current attribute de-duplication rules, and the ADR-008
+  precedence order. Finish line: generated test attributes for `StdHarness`,
+  `TokioHarness`, and `GpuiHarness` match their first-party defaults without
+  requiring paired `attributes = ...`, and explicit override scenarios still
+  expand correctly. Prerequisite: 9.7.1. Design Doc:
+  `docs/adr-008-harness-led-attribute-policy-defaults.md`,
+  `docs/rstest-bdd-design.md` §2.7.3. (Pandalump, Doggylump)
+- [ ] 9.7.3. Add unit, trybuild, and behavioural coverage for harness-led
+  defaults and explicit overrides across the first-party harnesses. Cover
+  harness-only scenarios, explicit override scenarios, attributes-only
+  scenarios, and unknown third-party harness paths where relevant. Finish line:
+  tests prove that harness-only Tokio and GPUI scenarios receive their
+  first-party test attributes when the generated signature permits it, explicit
+  overrides win, and `attributes`-only behaviour remains unchanged.
+  Prerequisite: 9.7.2. Design Doc:
+  `docs/adr-008-harness-led-attribute-policy-defaults.md`. (Buzzy Bee)
+- [ ] 9.7.4. Update the user guide, design document, and first-party example
+  prose to lead with harness-only configuration once the default-inference
+  behaviour lands. Retain `attributes = ...` as an override pattern and keep
+  the current third-party caveats explicit. Finish line: `docs/users-guide.md`
+  and `docs/rstest-bdd-design.md` recommend harness-led defaults for the
+  first-party integrations, examples no longer require both parameters by
+  default, and `make markdownlint` passes. Prerequisite: 9.7.3. Design Doc:
+  `docs/adr-008-harness-led-attribute-policy-defaults.md`. (Dinolump)
