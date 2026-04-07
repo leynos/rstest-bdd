@@ -20,7 +20,9 @@ impl ResultWorld {
         clippy::unnecessary_wraps,
         reason = "returns Result to exercise the Result-unwrapping fixture codegen path"
     )]
-    fn try_new() -> Result<Self, String> { Ok(Self { value: 42 }) }
+    fn try_new() -> Result<Self, String> {
+        Ok(Self { value: 42 })
+    }
 
     fn try_new_failing() -> Result<Self, String> {
         Err("fixture initialisation failed".to_string())
