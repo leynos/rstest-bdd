@@ -95,28 +95,51 @@ fn gpui_scenarios_macro_policy_run_completed() {
     GPUI_SCENARIOS_MACRO_RAN.store(false, Ordering::SeqCst);
 }
 
-#[given("a GPUI test context can be accessed")]
-fn gpui_test_context_can_be_accessed(
+#[given("a GPUI test is running")]
+fn gpui_test_is_running() {
+    // This step simply establishes the precondition that we're in a GPUI test context.
+    // The actual verification happens in the When and Then steps.
+}
+
+#[when("I access the GPUI test context")]
+fn i_access_the_gpui_test_context(
     #[from(rstest_bdd_harness_context)] context: &gpui::TestAppContext,
 ) {
-    // This step verifies GPUI-specific behaviour: the harness must inject a TestAppContext,
-    // and the attribute policy must emit #[gpui::test] to provide the GPUI test infrastructure.
-    // If either were missing, this parameter injection would fail.
-    assert!(
-        context.dispatcher().seed() == 0,
-        "GPUI TestAppContext should be injected with default seed"
+    // This step performs the action of accessing the GPUI test context.
+    // The fact that this context parameter can be injected via #[from(rstest_bdd_harness_context)]
+    // proves that GpuiHarness is active. We verify GPUI-specific properties to ensure
+    // the infrastructure is working correctly.
+
+    // Access GPUI-specific API: dispatcher() is unique to GPUI's TestAppContext
+    let dispatcher = context.dispatcher();
+    assert_eq!(
+        dispatcher.seed(),
+        0,
+        "GPUI dispatcher should provide seed value"
     );
+
+    // Access another GPUI-specific API: executor() returns BackgroundExecutor
+    let _executor = context.executor();
 }
 
 #[then("the GPUI test context is valid")]
 fn gpui_test_context_is_valid(#[from(rstest_bdd_harness_context)] context: &gpui::TestAppContext) {
-    // Verify we can access GPUI-specific functionality. This assertion would fail
-    // if GpuiAttributePolicy were not correctly applied, because without #[gpui::test]
-    // the GPUI test infrastructure wouldn't be available to create the TestAppContext.
+    // Verify GPUI-specific behaviour by accessing APIs unique to gpui::TestAppContext.
+    // These assertions would fail at compile time if the context weren't a GPUI TestAppContext,
+    // proving that both the harness (which injects the context) and the attribute policy
+    // (which emits #[gpui::test] to provide GPUI infrastructure) are correctly applied.
+
+    // Verify the context has GPUI-specific properties
     assert_eq!(
         context.dispatcher().seed(),
         0,
-        "GPUI TestAppContext dispatcher should have expected seed value"
+        "GPUI TestAppContext should have default seed value"
+    );
+
+    // Verify we can access GPUI-specific methods
+    assert!(
+        !context.did_prompt_for_new_path(),
+        "GPUI-specific did_prompt_for_new_path() method should be accessible"
     );
 }
 

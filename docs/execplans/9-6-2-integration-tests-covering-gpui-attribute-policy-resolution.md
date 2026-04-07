@@ -144,7 +144,7 @@ validation.
 - [x] (2026-03-28) Stage F: marked roadmap item 9.6.2 done and recorded
       outcomes.
 
-## Surprises & Discoveries
+## Surprises & discoveries
 
 - Observation: `crates/rstest-bdd-macros` already has unit tests for GPUI
   policy-path handling, including canonical and absolute paths, in
@@ -177,7 +177,7 @@ validation.
   `docs/` prefix, but the repository file is `docs/rust-doctest-dry-guide.md`.
   Impact: this plan uses the real path under `docs/` as the source of truth.
 
-## Decision Log
+## Decision log
 
 - Decision: treat 9.6.2 as a validation milestone spanning both compile-time
   macro integration and runtime integration. Rationale: the roadmap item says
@@ -211,7 +211,7 @@ validation.
   does not emit a conflicting second GPUI test attribute. Date/Author:
   2026-03-28 / Codex.
 
-## Outcomes & Retrospective
+## Outcomes & retrospective
 
 - Added GPUI compile-pass fixtures in
   `crates/rstest-bdd/tests/fixtures_macros/` for:
