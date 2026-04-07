@@ -80,11 +80,44 @@ fn gpui_scenarios_macro_policy_run_starts() {
 
 #[then("the GPUI scenarios macro policy run completed")]
 fn gpui_scenarios_macro_policy_run_completed() {
+    // NOTE: This is a minimal runtime smoke test verifying that scenarios! with
+    // GPUI attribute policy can execute steps. The attribute-policy application itself
+    // is verified by the corresponding trybuild compile-pass fixture at
+    // crates/rstest-bdd/tests/fixtures_macros/scenarios_attributes_gpui.rs, which
+    // ensures the generated code compiles with #[gpui::test] attributes.
+    // A stronger runtime assertion would require accessing GPUI-specific state
+    // (e.g., TestAppContext), which is only available when using GpuiHarness,
+    // not when using GpuiAttributePolicy alone.
     assert!(
         GPUI_SCENARIOS_MACRO_RAN.load(Ordering::SeqCst),
         "scenarios! should execute under the GPUI attribute policy"
     );
     GPUI_SCENARIOS_MACRO_RAN.store(false, Ordering::SeqCst);
+}
+
+#[given("a GPUI test context can be accessed")]
+fn gpui_test_context_can_be_accessed(
+    #[from(rstest_bdd_harness_context)] context: &gpui::TestAppContext,
+) {
+    // This step verifies GPUI-specific behaviour: the harness must inject a TestAppContext,
+    // and the attribute policy must emit #[gpui::test] to provide the GPUI test infrastructure.
+    // If either were missing, this parameter injection would fail.
+    assert!(
+        context.dispatcher().seed() == 0,
+        "GPUI TestAppContext should be injected with default seed"
+    );
+}
+
+#[then("the GPUI test context is valid")]
+fn gpui_test_context_is_valid(#[from(rstest_bdd_harness_context)] context: &gpui::TestAppContext) {
+    // Verify we can access GPUI-specific functionality. This assertion would fail
+    // if GpuiAttributePolicy were not correctly applied, because without #[gpui::test]
+    // the GPUI test infrastructure wouldn't be available to create the TestAppContext.
+    assert_eq!(
+        context.dispatcher().seed(),
+        0,
+        "GPUI TestAppContext dispatcher should have expected seed value"
+    );
 }
 
 #[scenario(
@@ -123,5 +156,11 @@ fn scenario_gpui_attribute_policy_dedup() {}
 
 scenarios!(
     "tests/features/gpui_policy_scenarios",
+    attributes = rstest_bdd_harness_gpui::GpuiAttributePolicy,
+);
+
+scenarios!(
+    "tests/features/gpui_harness_policy_scenarios",
+    harness = rstest_bdd_harness_gpui::GpuiHarness,
     attributes = rstest_bdd_harness_gpui::GpuiAttributePolicy,
 );

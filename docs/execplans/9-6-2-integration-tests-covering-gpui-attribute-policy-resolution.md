@@ -215,13 +215,13 @@ validation.
 
 - Added GPUI compile-pass fixtures in
   `crates/rstest-bdd/tests/fixtures_macros/` for:
-  - canonical `rstest_bdd_harness_gpui::GpuiAttributePolicy` on `#[scenario]`;
-  - absolute `::rstest_bdd_harness_gpui::GpuiAttributePolicy` on `#[scenario]`;
-  - canonical `rstest_bdd_harness_gpui::GpuiAttributePolicy` on `scenarios!`.
+  - canonical `rstest_bdd_harness_gpui::GpuiAttributePolicy` on `#[scenario]`
+  - absolute `::rstest_bdd_harness_gpui::GpuiAttributePolicy` on `#[scenario]`
+  - canonical `rstest_bdd_harness_gpui::GpuiAttributePolicy` on `scenarios!`
 - Extended `crates/rstest-bdd/tests/scenario_harness_gpui.rs` with:
-  - a generated `scenarios!` GPUI policy runtime case; and
+  - a generated `scenarios!` GPUI policy runtime case
   - an explicit `#[gpui::test]` plus `#[scenario(..., attributes = ...)]`
-    deduplication case.
+    deduplication case
 - Updated `docs/users-guide.md` and `docs/rstest-bdd-design.md` to record the
   supported GPUI path forms and the strengthened validation layer.
 - Updated `docs/roadmap.md` only after the following commands passed:
@@ -433,10 +433,10 @@ set -o pipefail; make test 2>&1 | tee /tmp/9-6-2-make-test.log
 
 Expected signals:
 
-- the focused `trybuild` run reports the GPUI fixtures as passing,
-- the GPUI feature-gated runtime integration test passes,
-- `make check-fmt`, `make lint`, and `make test` all exit successfully, and
-- the documentation-only gates also pass because this milestone edits Markdown.
+- the focused `trybuild` run reports the GPUI fixtures as passing
+- the GPUI feature-gated runtime integration test passes
+- `make check-fmt`, `make lint`, and `make test` all exit successfully
+- the documentation-only gates also pass because this milestone edits Markdown
 
 ### Stage F: close the roadmap item
 
