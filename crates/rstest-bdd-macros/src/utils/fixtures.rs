@@ -3,13 +3,25 @@
 use proc_macro2::TokenStream as TokenStream2;
 use quote::{format_ident, quote};
 
+use crate::utils::result_type::try_extract_result_inner_type;
+
+/// Generated code for wiring scenario fixture parameters into `StepContext`.
 pub(crate) struct FixtureBindingCode {
     pub prelude: Vec<TokenStream2>,
     pub ctx_inserts: Vec<TokenStream2>,
     pub postlude: Vec<TokenStream2>,
+    /// `true` when at least one fixture parameter has a `Result<T, E>` type,
+    /// meaning the scenario must return `Result<(), E>` so the generated `?`
+    /// operator can propagate initialisation errors.
+    pub has_result_fixtures: bool,
 }
 
 /// Extract function argument identifiers and create insert statements.
+///
+/// When a fixture parameter has a `Result<T, E>` type, the generated prelude
+/// unwraps it with `?` and registers the inner `T` in the `StepContext`.
+/// The caller must ensure the scenario returns `Result<(), E>` so the `?`
+/// operator compiles.
 pub(crate) fn extract_function_fixtures(
     sig: &mut syn::Signature,
 ) -> syn::Result<(Vec<syn::Ident>, FixtureBindingCode)> {
@@ -18,6 +30,7 @@ pub(crate) fn extract_function_fixtures(
     let mut inserts = Vec::new();
     let mut prelude = Vec::new();
     let mut postlude = Vec::new();
+    let mut has_result_fixtures = false;
 
     for input in &mut sig.inputs {
         let syn::FnArg::Typed(pat_ty) = input else {
@@ -34,6 +47,15 @@ pub(crate) fn extract_function_fixtures(
         let ty = &*pat_ty.ty;
         if matches!(ty, syn::Type::Reference(_)) {
             inserts.push(quote! { ctx.insert(#name_lit, &#binding); });
+        } else if let Some(inner_ty) = try_extract_result_inner_type(ty) {
+            has_result_fixtures = true;
+            let unwrapped = format_ident!("__rstest_bdd_unwrapped_{cell_index}");
+            prelude.push(quote! { let #unwrapped = #binding?; });
+            let (pre, insert, post) =
+                build_non_ref_fixture_binding(&unwrapped, &inner_ty, &name_lit, cell_index);
+            prelude.push(pre);
+            inserts.push(insert);
+            postlude.push(post);
         } else {
             let (pre, insert, post) =
                 build_non_ref_fixture_binding(&binding, ty, &name_lit, cell_index);
@@ -49,6 +71,7 @@ pub(crate) fn extract_function_fixtures(
             prelude,
             ctx_inserts: inserts,
             postlude,
+            has_result_fixtures,
         },
     ))
 }
@@ -196,5 +219,80 @@ mod tests {
         };
         let name = resolve_fixture_name(pat_ty).expect("fixture name resolution should succeed");
         assert_eq!(name, "state", "#[from] attribute should take precedence");
+    }
+
+    #[test]
+    #[expect(clippy::expect_used, reason = "test asserts Result fixture extraction")]
+    fn result_fixture_sets_has_result_fixtures_flag() {
+        let mut sig: syn::Signature = parse_quote! {
+            fn scenario(world: Result<MyWorld, String>)
+        };
+        let (_idents, code) =
+            extract_function_fixtures(&mut sig).expect("fixture extraction should succeed");
+        assert!(
+            code.has_result_fixtures,
+            "has_result_fixtures should be true for Result-typed fixtures"
+        );
+    }
+
+    #[test]
+    #[expect(
+        clippy::expect_used,
+        reason = "test asserts Result fixture generates unwrap statement"
+    )]
+    fn result_fixture_generates_unwrap_in_prelude() {
+        let mut sig: syn::Signature = parse_quote! {
+            fn scenario(world: Result<MyWorld, String>)
+        };
+        let (_idents, code) =
+            extract_function_fixtures(&mut sig).expect("fixture extraction should succeed");
+        let prelude_str: String = code.prelude.iter().map(ToString::to_string).collect();
+        assert!(
+            prelude_str.contains("__rstest_bdd_unwrapped_0"),
+            "prelude should contain unwrap binding, got: {prelude_str}"
+        );
+        assert!(
+            prelude_str.contains('?'),
+            "prelude should contain ? operator for Result unwrap, got: {prelude_str}"
+        );
+    }
+
+    #[test]
+    #[expect(
+        clippy::expect_used,
+        reason = "test asserts Result fixture uses inner type for StepContext"
+    )]
+    fn result_fixture_uses_inner_type_for_context_insert() {
+        let mut sig: syn::Signature = parse_quote! {
+            fn scenario(world: Result<MyWorld, String>)
+        };
+        let (_idents, code) =
+            extract_function_fixtures(&mut sig).expect("fixture extraction should succeed");
+        let insert_str: String = code.ctx_inserts.iter().map(ToString::to_string).collect();
+        assert!(
+            insert_str.contains("MyWorld"),
+            "context insert should use inner type MyWorld, got: {insert_str}"
+        );
+        assert!(
+            !insert_str.contains("Result"),
+            "context insert should not reference Result wrapper, got: {insert_str}"
+        );
+    }
+
+    #[test]
+    #[expect(
+        clippy::expect_used,
+        reason = "test asserts non-Result fixture does not set flag"
+    )]
+    fn plain_fixture_does_not_set_has_result_fixtures() {
+        let mut sig: syn::Signature = parse_quote! {
+            fn scenario(world: MyWorld)
+        };
+        let (_idents, code) =
+            extract_function_fixtures(&mut sig).expect("fixture extraction should succeed");
+        assert!(
+            !code.has_result_fixtures,
+            "has_result_fixtures should be false for plain fixtures"
+        );
     }
 }

@@ -88,7 +88,7 @@ fn classify_result_like(ty: &Type) -> Option<ReturnKind> {
         _ => return None,
     };
 
-    if is_result_path(path) || is_step_result_path(path) {
+    if is_result_like_path(path) {
         let ok_ty = first_type_argument(path)?;
         return Some(if is_unit_type(ok_ty) {
             ReturnKind::ResultUnit
@@ -177,6 +177,12 @@ where
     })
 }
 
+/// Returns `true` when `path` matches a recognised `Result` or `StepResult`
+/// shape, combining both [`is_result_path`] and [`is_step_result_path`].
+pub(crate) fn is_result_like_path(path: &Path) -> bool {
+    is_result_path(path) || is_step_result_path(path)
+}
+
 fn is_result_path(path: &Path) -> bool {
     matches_type_path(path, "Result", |segments| {
         let segments: Vec<_> = segments.iter().map(String::as_str).collect();
@@ -194,7 +200,7 @@ fn is_step_result_path(path: &Path) -> bool {
     })
 }
 
-fn first_type_argument(path: &Path) -> Option<&Type> {
+pub(crate) fn first_type_argument(path: &Path) -> Option<&Type> {
     let segment = path.segments.last()?;
     let args = match &segment.arguments {
         syn::PathArguments::AngleBracketed(args) => &args.args,

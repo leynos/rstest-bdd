@@ -227,9 +227,24 @@ pub(super) fn generate_scenario_test(
         Err(err) => return err.to_compile_error(),
     };
 
+    // When fixtures return Result, the generated test must propagate
+    // initialisation errors, so we upgrade the return kind and signature.
+    let return_kind = if fixture_setup.has_result_fixtures {
+        sig.output = syn::parse_quote! {
+            -> ::std::result::Result<(), Box<dyn ::std::error::Error>>
+        };
+        ScenarioReturnKind::ResultUnit
+    } else {
+        ScenarioReturnKind::Unit
+    };
+
     let feature_path = ctx.manifest_dir.join(ctx.rel_path).display().to_string();
     let vis = syn::Visibility::Inherited;
-    let block: syn::Block = syn::parse_quote!({});
+    let block: syn::Block = if fixture_setup.has_result_fixtures {
+        syn::parse_quote!({ Ok(()) })
+    } else {
+        syn::parse_quote!({})
+    };
 
     let config = ScenarioConfig {
         attrs: &attrs,
@@ -244,7 +259,7 @@ pub(super) fn generate_scenario_test(
         line,
         tags: &tags,
         runtime: effective_runtime,
-        return_kind: ScenarioReturnKind::Unit,
+        return_kind,
         harness: harness_ref,
         attributes: ctx.attributes,
     };

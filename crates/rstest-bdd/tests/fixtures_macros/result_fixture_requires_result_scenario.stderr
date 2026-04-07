@@ -1,0 +1,7 @@
+error: scenarios with Result-returning fixtures must return `Result<(), E>` to propagate fixture initialisation errors
+ --> tests/fixtures_macros/result_fixture_requires_result_scenario.rs:6:1
+  |
+6 | #[scenario(path = "basic.feature")]
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  |
+  = note: this error originates in the attribute macro `scenario` (in Nightly builds, run with -Z macro-backtrace for more info)

@@ -100,6 +100,7 @@ fn run_failing_macro_tests(t: &trybuild::TestCases) {
         MacroFixtureCase::from("scenario_harness_not_default.rs"),
         MacroFixtureCase::from("scenario_harness_async_rejected.rs"),
         MacroFixtureCase::from("scenario_harness_tokio_async_rejected.rs"),
+        MacroFixtureCase::from("result_fixture_requires_result_scenario.rs"),
     ] {
         t.compile_fail(macros_fixture(case).as_std_path());
     }
