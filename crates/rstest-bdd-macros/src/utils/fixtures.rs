@@ -3,7 +3,7 @@
 use proc_macro2::TokenStream as TokenStream2;
 use quote::{format_ident, quote};
 
-use crate::utils::result_type::try_extract_result_inner_type;
+use crate::utils::result_type::{is_referenced_result_type, try_extract_result_inner_type};
 
 /// Generated code for wiring scenario fixture parameters into `StepContext`.
 pub(crate) struct FixtureBindingCode {
@@ -46,6 +46,16 @@ pub(crate) fn extract_function_fixtures(
         arg_idents.push(binding.clone());
         let ty = &*pat_ty.ty;
         if matches!(ty, syn::Type::Reference(_)) {
+            if is_referenced_result_type(ty) {
+                return Err(syn::Error::new_spanned(
+                    ty,
+                    concat!(
+                        "fixture parameter borrows a `Result<T, E>`; ",
+                        "use an owned `Result<T, E>` instead so the ",
+                        "scenario can unwrap it with `?`",
+                    ),
+                ));
+            }
             inserts.push(quote! { ctx.insert(#name_lit, &#binding); });
         } else if let Some(inner_ty) = try_extract_result_inner_type(ty) {
             has_result_fixtures = true;
@@ -293,6 +303,36 @@ mod tests {
         assert!(
             !code.has_result_fixtures,
             "has_result_fixtures should be false for plain fixtures"
+        );
+    }
+
+    #[test]
+    fn ref_result_fixture_emits_compile_error() {
+        let mut sig: syn::Signature = parse_quote! {
+            fn scenario(world: &Result<MyWorld, String>)
+        };
+        let Err(err) = extract_function_fixtures(&mut sig) else {
+            panic!("&Result fixture should be rejected")
+        };
+        let msg = err.to_string();
+        assert!(
+            msg.contains("borrows a `Result<T, E>`"),
+            "error should mention borrowed Result, got: {msg}"
+        );
+    }
+
+    #[test]
+    fn mut_ref_result_fixture_emits_compile_error() {
+        let mut sig: syn::Signature = parse_quote! {
+            fn scenario(world: &mut Result<MyWorld, String>)
+        };
+        let Err(err) = extract_function_fixtures(&mut sig) else {
+            panic!("&mut Result fixture should be rejected")
+        };
+        let msg = err.to_string();
+        assert!(
+            msg.contains("borrows a `Result<T, E>`"),
+            "error should mention borrowed Result, got: {msg}"
         );
     }
 }

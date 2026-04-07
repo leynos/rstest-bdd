@@ -6,7 +6,7 @@ use super::super::macro_args::RuntimeMode;
 use super::super::macro_args::runtime_compatibility_alias;
 use super::{
     build_fixture_params, build_lint_attributes, build_test_signature, dedupe_name,
-    resolve_effective_runtime, resolve_harness_path,
+    resolve_effective_runtime, resolve_fixture_error_type, resolve_harness_path,
 };
 use proc_macro2::TokenStream as TokenStream2;
 use quote::quote;
@@ -294,5 +294,79 @@ fn runtime_harness_signature_pipeline(
     assert!(
         sig_str.starts_with(expected_sig_prefix),
         "expected signature starting with {expected_sig_prefix}, got: {sig_str}"
+    );
+}
+
+// -- Tests for resolve_fixture_error_type ---
+
+#[test]
+fn resolve_fixture_error_type_single_result_uses_fixture_error() {
+    let fixtures = vec![make_fixture_spec("world", "Result<MyWorld, String>")];
+    let error_ty = resolve_fixture_error_type(&fixtures);
+    let error_str = quote!(#error_ty).to_string();
+    assert!(
+        error_str.contains("String"),
+        "single Result fixture should use its error type, got: {error_str}"
+    );
+    assert!(
+        !error_str.contains("Box"),
+        "single Result fixture should not use Box<dyn Error>, got: {error_str}"
+    );
+}
+
+#[test]
+fn resolve_fixture_error_type_multiple_same_error_uses_shared_type() {
+    let fixtures = vec![
+        make_fixture_spec("world", "Result<MyWorld, String>"),
+        make_fixture_spec("db", "Result<Database, String>"),
+    ];
+    let error_ty = resolve_fixture_error_type(&fixtures);
+    let error_str = quote!(#error_ty).to_string();
+    assert!(
+        error_str.contains("String"),
+        "fixtures sharing the same error type should use it directly, got: {error_str}"
+    );
+}
+
+#[test]
+fn resolve_fixture_error_type_different_errors_falls_back_to_box() {
+    let fixtures = vec![
+        make_fixture_spec("world", "Result<MyWorld, String>"),
+        make_fixture_spec("db", "Result<Database, std::io::Error>"),
+    ];
+    let error_ty = resolve_fixture_error_type(&fixtures);
+    let error_str = quote!(#error_ty).to_string();
+    assert!(
+        error_str.contains("Box"),
+        "different error types should fall back to Box<dyn Error>, got: {error_str}"
+    );
+}
+
+#[test]
+fn resolve_fixture_error_type_no_result_fixtures_falls_back_to_box() {
+    let fixtures = vec![make_fixture_spec("world", "MyWorld")];
+    let error_ty = resolve_fixture_error_type(&fixtures);
+    let error_str = quote!(#error_ty).to_string();
+    assert!(
+        error_str.contains("Box"),
+        "no Result fixtures should fall back to Box<dyn Error>, got: {error_str}"
+    );
+}
+
+#[test]
+fn resolve_fixture_error_type_mixed_plain_and_result_uses_result_error() {
+    let fixtures = vec![
+        make_fixture_spec("plain", "MyWorld"),
+        make_fixture_spec("fallible", "Result<Database, String>"),
+    ];
+    let error_ty = resolve_fixture_error_type(&fixtures);
+    let error_str = quote!(#error_ty).to_string();
+    assert!(
+        error_str.contains("String"),
+        concat!(
+            "mixed fixtures with one Result should use its error type, ",
+            "got: {}"
+        ),
+        error_str
     );
 }

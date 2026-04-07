@@ -201,21 +201,32 @@ fn is_step_result_path(path: &Path) -> bool {
 }
 
 pub(crate) fn first_type_argument(path: &Path) -> Option<&Type> {
+    nth_type_argument(path, 0)
+}
+
+/// Extracts the error type `E` from `Result<T, E>` or `StepResult<T, E>`.
+pub(crate) fn second_type_argument(path: &Path) -> Option<&Type> {
+    nth_type_argument(path, 1)
+}
+
+fn nth_type_argument(path: &Path, n: usize) -> Option<&Type> {
     let segment = path.segments.last()?;
     let args = match &segment.arguments {
         syn::PathArguments::AngleBracketed(args) => &args.args,
         _ => return None,
     };
 
-    args.iter().find_map(|arg| match arg {
-        syn::GenericArgument::Type(ty) => Some(ty),
-        _ => None,
-    })
+    args.iter()
+        .filter_map(|arg| match arg {
+            syn::GenericArgument::Type(ty) => Some(ty),
+            _ => None,
+        })
+        .nth(n)
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{ReturnKind, ReturnOverride, classify_return_type};
+    use super::{ReturnKind, ReturnOverride, classify_return_type, second_type_argument};
 
     /// Helper to assert that a given function signature classifies to the expected kind.
     fn assert_classifies_to(
@@ -342,6 +353,28 @@ mod tests {
             Some(ReturnOverride::Value),
             ReturnKind::Value,
         );
+    }
+
+    #[test]
+    fn second_type_argument_extracts_error_type() {
+        let ty: syn::Type = syn::parse_quote! { Result<u8, String> };
+        let syn::Type::Path(tp) = &ty else {
+            panic!("expected Type::Path")
+        };
+        let Some(second) = second_type_argument(&tp.path) else {
+            panic!("should extract second type argument");
+        };
+        let s = quote::quote!(#second).to_string();
+        assert!(s.contains("String"), "expected String, got: {s}");
+    }
+
+    #[test]
+    fn second_type_argument_returns_none_for_single_generic() {
+        let ty: syn::Type = syn::parse_quote! { Option<u8> };
+        let syn::Type::Path(tp) = &ty else {
+            panic!("expected Type::Path")
+        };
+        assert!(second_type_argument(&tp.path).is_none());
     }
 
     #[test]
