@@ -140,7 +140,8 @@ fn try_scenario(
             &sig.output,
             concat!(
                 "scenarios with Result-returning fixtures must return ",
-                "`Result<(), E>` to propagate fixture initialisation errors",
+                "`Result<(), E>` or `StepResult<(), E>` to propagate ",
+                "fixture initialisation errors",
             ),
         );
         return Err(proc_macro::TokenStream::from(err.into_compile_error()));

@@ -16,6 +16,39 @@ pub(crate) struct FixtureBindingCode {
     pub has_result_fixtures: bool,
 }
 
+/// Fixture processing outcome for a single parameter.
+enum FixtureProcessing {
+    /// Fixture is a reference and should be inserted by-reference.
+    Reference,
+    /// Fixture is a `Result<T, E>` or `StepResult<T, E>` and must be unwrapped.
+    ResultType { inner_ty: Box<syn::Type> },
+    /// Fixture is an owned value and should be boxed in a `RefCell`.
+    Owned,
+}
+
+/// Classify a fixture parameter type into its processing category.
+fn classify_fixture_type(ty: &syn::Type) -> syn::Result<FixtureProcessing> {
+    if matches!(ty, syn::Type::Reference(_)) {
+        if is_referenced_result_type(ty) {
+            return Err(syn::Error::new_spanned(
+                ty,
+                concat!(
+                    "fixture parameter borrows a `Result<T, E>`; ",
+                    "use an owned `Result<T, E>` instead so the ",
+                    "scenario can unwrap it with `?`",
+                ),
+            ));
+        }
+        Ok(FixtureProcessing::Reference)
+    } else if let Some(inner_ty) = try_extract_result_inner_type(ty) {
+        Ok(FixtureProcessing::ResultType {
+            inner_ty: Box::new(inner_ty),
+        })
+    } else {
+        Ok(FixtureProcessing::Owned)
+    }
+}
+
 /// Extract function argument identifiers and create insert statements.
 ///
 /// When a fixture parameter has a `Result<T, E>` type, the generated prelude
@@ -45,33 +78,28 @@ pub(crate) fn extract_function_fixtures(
         let name_lit = syn::LitStr::new(&fixture_name, proc_macro2::Span::call_site());
         arg_idents.push(binding.clone());
         let ty = &*pat_ty.ty;
-        if matches!(ty, syn::Type::Reference(_)) {
-            if is_referenced_result_type(ty) {
-                return Err(syn::Error::new_spanned(
-                    ty,
-                    concat!(
-                        "fixture parameter borrows a `Result<T, E>`; ",
-                        "use an owned `Result<T, E>` instead so the ",
-                        "scenario can unwrap it with `?`",
-                    ),
-                ));
+
+        match classify_fixture_type(ty)? {
+            FixtureProcessing::Reference => {
+                inserts.push(quote! { ctx.insert(#name_lit, &#binding); });
             }
-            inserts.push(quote! { ctx.insert(#name_lit, &#binding); });
-        } else if let Some(inner_ty) = try_extract_result_inner_type(ty) {
-            has_result_fixtures = true;
-            let unwrapped = format_ident!("__rstest_bdd_unwrapped_{cell_index}");
-            prelude.push(quote! { let #unwrapped = #binding?; });
-            let (pre, insert, post) =
-                build_non_ref_fixture_binding(&unwrapped, &inner_ty, &name_lit, cell_index);
-            prelude.push(pre);
-            inserts.push(insert);
-            postlude.push(post);
-        } else {
-            let (pre, insert, post) =
-                build_non_ref_fixture_binding(&binding, ty, &name_lit, cell_index);
-            prelude.push(pre);
-            inserts.push(insert);
-            postlude.push(post);
+            FixtureProcessing::ResultType { inner_ty } => {
+                has_result_fixtures = true;
+                let unwrapped = format_ident!("__rstest_bdd_unwrapped_{cell_index}");
+                prelude.push(quote! { let #unwrapped = #binding?; });
+                let (pre, insert, post) =
+                    build_non_ref_fixture_binding(&unwrapped, &inner_ty, &name_lit, cell_index);
+                prelude.push(pre);
+                inserts.push(insert);
+                postlude.push(post);
+            }
+            FixtureProcessing::Owned => {
+                let (pre, insert, post) =
+                    build_non_ref_fixture_binding(&binding, ty, &name_lit, cell_index);
+                prelude.push(pre);
+                inserts.push(insert);
+                postlude.push(post);
+            }
         }
     }
 
