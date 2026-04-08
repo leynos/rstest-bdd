@@ -1,8 +1,8 @@
 # ExecPlan 9.6.2: add GPUI attribute-policy resolution integration tests
 
 This ExecPlan (execution plan) is a living document. The sections
-`Constraints`, `Tolerances`, `Risks`, `Progress`, `Surprises & Discoveries`,
-`Decision Log`, and `Outcomes & Retrospective` must be kept up to date as work
+`Constraints`, `Tolerances`, `Risks`, `Progress`, `Surprises & discoveries`,
+`Decision log`, and `Outcomes & retrospective` must be kept up to date as work
 proceeds.
 
 Status: DONE

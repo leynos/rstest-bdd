@@ -9,7 +9,7 @@ use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 static CONTEXT_POINTER: AtomicUsize = AtomicUsize::new(0);
 static CONTEXT_MUTATED: AtomicBool = AtomicBool::new(false);
 static GPUI_POLICY_RAN: AtomicBool = AtomicBool::new(false);
-static GPUI_SCENARIOS_MACRO_RAN: AtomicBool = AtomicBool::new(false);
+static GPUI_SCENARIOS_MACRO_RUN_COUNT: AtomicUsize = AtomicUsize::new(0);
 
 #[expect(
     clippy::unnecessary_wraps,
@@ -75,11 +75,11 @@ fn plain_gpui_policy_scenario_completed() {
 
 #[given("a GPUI scenarios macro policy run starts")]
 fn gpui_scenarios_macro_policy_run_starts() {
-    GPUI_SCENARIOS_MACRO_RAN.store(true, Ordering::SeqCst);
+    GPUI_SCENARIOS_MACRO_RUN_COUNT.fetch_add(1, Ordering::SeqCst);
 }
 
-#[then("the GPUI scenarios macro policy run completed")]
-fn gpui_scenarios_macro_policy_run_completed() {
+#[then("the GPUI scenarios macro policy run completes")]
+fn gpui_scenarios_macro_policy_run_completes() {
     // NOTE: This is a minimal runtime smoke test verifying that scenarios! with
     // GPUI attribute policy can execute steps. The attribute-policy application itself
     // is verified by the corresponding trybuild compile-pass fixture at
@@ -89,10 +89,18 @@ fn gpui_scenarios_macro_policy_run_completed() {
     // (e.g., TestAppContext), which is only available when using GpuiHarness,
     // not when using GpuiAttributePolicy alone.
     assert!(
-        GPUI_SCENARIOS_MACRO_RAN.load(Ordering::SeqCst),
+        GPUI_SCENARIOS_MACRO_RUN_COUNT.load(Ordering::SeqCst) > 0,
         "scenarios! should execute under the GPUI attribute policy"
     );
-    GPUI_SCENARIOS_MACRO_RAN.store(false, Ordering::SeqCst);
+}
+
+/// Asserts that a GPUI `TestAppContext` has the expected default seed value.
+fn assert_gpui_context_seed_default(context: &gpui::TestAppContext) {
+    assert_eq!(
+        context.dispatcher().seed(),
+        0,
+        "GPUI TestAppContext should have default seed value"
+    );
 }
 
 #[given("a GPUI test is running")]
@@ -110,13 +118,8 @@ fn i_access_the_gpui_test_context(
     // proves that GpuiHarness is active. We verify GPUI-specific properties to ensure
     // the infrastructure is working correctly.
 
-    // Access GPUI-specific API: dispatcher() is unique to GPUI's TestAppContext
-    let dispatcher = context.dispatcher();
-    assert_eq!(
-        dispatcher.seed(),
-        0,
-        "GPUI dispatcher should provide seed value"
-    );
+    // Verify GPUI-specific invariant: default seed value
+    assert_gpui_context_seed_default(context);
 
     // Access another GPUI-specific API: executor() returns BackgroundExecutor
     let _executor = context.executor();
@@ -130,11 +133,7 @@ fn gpui_test_context_is_valid(#[from(rstest_bdd_harness_context)] context: &gpui
     // (which emits #[gpui::test] to provide GPUI infrastructure) are correctly applied.
 
     // Verify the context has GPUI-specific properties
-    assert_eq!(
-        context.dispatcher().seed(),
-        0,
-        "GPUI TestAppContext should have default seed value"
-    );
+    assert_gpui_context_seed_default(context);
 
     // Verify we can access GPUI-specific methods
     assert!(
