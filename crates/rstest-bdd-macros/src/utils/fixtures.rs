@@ -259,26 +259,28 @@ mod tests {
         assert_eq!(name, "state", "#[from] attribute should take precedence");
     }
 
-    #[test]
-    #[expect(clippy::expect_used, reason = "test asserts Result fixture extraction")]
-    fn result_fixture_sets_has_result_fixtures_flag() {
-        let mut sig: syn::Signature = parse_quote! {
-            fn scenario(world: Result<MyWorld, String>)
-        };
+    #[rstest]
+    #[case(parse_quote! { fn scenario(world: Result<MyWorld, String>) }, true)]
+    #[case(parse_quote! { fn scenario(world: MyWorld) }, false)]
+    fn result_fixture_flag_reflects_return_type(
+        #[case] mut sig: syn::Signature,
+        #[case] expected: bool,
+    ) {
+        #[expect(clippy::expect_used, reason = "test asserts fixture extraction")]
         let (_idents, code) =
             extract_function_fixtures(&mut sig).expect("fixture extraction should succeed");
-        assert!(
-            code.has_result_fixtures,
-            "has_result_fixtures should be true for Result-typed fixtures"
+        assert_eq!(
+            code.has_result_fixtures, expected,
+            "has_result_fixtures should be {expected}"
         );
     }
 
     #[test]
     #[expect(
         clippy::expect_used,
-        reason = "test asserts Result fixture generates unwrap statement"
+        reason = "test asserts Result fixture generates correct bindings"
     )]
-    fn result_fixture_generates_unwrap_in_prelude() {
+    fn result_fixture_extraction_generates_correct_bindings() {
         let mut sig: syn::Signature = parse_quote! {
             fn scenario(world: Result<MyWorld, String>)
         };
@@ -293,19 +295,6 @@ mod tests {
             prelude_str.contains('?'),
             "prelude should contain ? operator for Result unwrap, got: {prelude_str}"
         );
-    }
-
-    #[test]
-    #[expect(
-        clippy::expect_used,
-        reason = "test asserts Result fixture uses inner type for StepContext"
-    )]
-    fn result_fixture_uses_inner_type_for_context_insert() {
-        let mut sig: syn::Signature = parse_quote! {
-            fn scenario(world: Result<MyWorld, String>)
-        };
-        let (_idents, code) =
-            extract_function_fixtures(&mut sig).expect("fixture extraction should succeed");
         let insert_str: String = code.ctx_inserts.iter().map(ToString::to_string).collect();
         assert!(
             insert_str.contains("MyWorld"),
@@ -317,45 +306,15 @@ mod tests {
         );
     }
 
-    #[test]
-    #[expect(
-        clippy::expect_used,
-        reason = "test asserts non-Result fixture does not set flag"
-    )]
-    fn plain_fixture_does_not_set_has_result_fixtures() {
-        let mut sig: syn::Signature = parse_quote! {
-            fn scenario(world: MyWorld)
-        };
-        let (_idents, code) =
-            extract_function_fixtures(&mut sig).expect("fixture extraction should succeed");
-        assert!(
-            !code.has_result_fixtures,
-            "has_result_fixtures should be false for plain fixtures"
-        );
-    }
-
-    #[test]
-    fn ref_result_fixture_emits_compile_error() {
-        let mut sig: syn::Signature = parse_quote! {
-            fn scenario(world: &Result<MyWorld, String>)
-        };
+    #[rstest]
+    #[case(parse_quote! { fn scenario(world: &Result<MyWorld, String>) }, "& Result")]
+    #[case(parse_quote! { fn scenario(world: &mut Result<MyWorld, String>) }, "&mut Result")]
+    fn borrowed_result_fixture_emits_compile_error(
+        #[case] mut sig: syn::Signature,
+        #[case] label: &str,
+    ) {
         let Err(err) = extract_function_fixtures(&mut sig) else {
-            panic!("&Result fixture should be rejected")
-        };
-        let msg = err.to_string();
-        assert!(
-            msg.contains("borrows a `Result<T, E>`"),
-            "error should mention borrowed Result, got: {msg}"
-        );
-    }
-
-    #[test]
-    fn mut_ref_result_fixture_emits_compile_error() {
-        let mut sig: syn::Signature = parse_quote! {
-            fn scenario(world: &mut Result<MyWorld, String>)
-        };
-        let Err(err) = extract_function_fixtures(&mut sig) else {
-            panic!("&mut Result fixture should be rejected")
+            panic!("{label} fixture should be rejected")
         };
         let msg = err.to_string();
         assert!(

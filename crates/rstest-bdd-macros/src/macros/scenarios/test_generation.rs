@@ -207,6 +207,34 @@ fn resolve_fixture_error_type(fixtures: &[FixtureSpec]) -> syn::Type {
     }
 }
 
+/// Classifies the scenario return kind from the current signature output,
+/// upgrading to `ResultUnit` when Result-returning fixtures require error
+/// propagation and the signature is not already fallible.
+///
+/// When an upgrade is performed, `sig.output` is rewritten in-place to the
+/// resolved `Result<(), E>` type so the generated function signature stays
+/// consistent with the chosen `ScenarioReturnKind`.
+fn resolve_scenario_return_kind(
+    sig: &mut syn::Signature,
+    has_result_fixtures: bool,
+    fixtures: &[FixtureSpec],
+) -> ScenarioReturnKind {
+    let mut return_kind = classify_return_type(&sig.output, None)
+        .map(|rk| match rk {
+            crate::return_classifier::ReturnKind::Unit => ScenarioReturnKind::Unit,
+            _ => ScenarioReturnKind::ResultUnit,
+        })
+        .unwrap_or(ScenarioReturnKind::Unit);
+
+    if has_result_fixtures && !return_kind.is_fallible() {
+        let error_ty = resolve_fixture_error_type(fixtures);
+        sig.output = syn::parse_quote! { -> ::std::result::Result<(), #error_ty> };
+        return_kind = ScenarioReturnKind::ResultUnit;
+    }
+
+    return_kind
+}
+
 /// Generate an rstest-backed test for a single scenario within a feature.
 ///
 /// Derives a unique function using `ctx` to build stable identifiers and
@@ -248,21 +276,8 @@ pub(super) fn generate_scenario_test(
         Err(err) => return err.to_compile_error(),
     };
 
-    // Classify the return kind from the (possibly user-supplied) signature,
-    // then upgrade to ResultUnit only when Result-returning fixtures require
-    // error propagation and the signature is not already fallible.
-    let mut return_kind = classify_return_type(&sig.output, None)
-        .map(|rk| match rk {
-            crate::return_classifier::ReturnKind::Unit => ScenarioReturnKind::Unit,
-            _ => ScenarioReturnKind::ResultUnit,
-        })
-        .unwrap_or(ScenarioReturnKind::Unit);
-
-    if fixture_setup.has_result_fixtures && !return_kind.is_fallible() {
-        let error_ty = resolve_fixture_error_type(ctx.fixtures);
-        sig.output = syn::parse_quote! { -> ::std::result::Result<(), #error_ty> };
-        return_kind = ScenarioReturnKind::ResultUnit;
-    }
+    let return_kind =
+        resolve_scenario_return_kind(&mut sig, fixture_setup.has_result_fixtures, ctx.fixtures);
 
     let feature_path = ctx.manifest_dir.join(ctx.rel_path).display().to_string();
     let vis = syn::Visibility::Inherited;

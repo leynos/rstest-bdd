@@ -93,96 +93,56 @@ pub(crate) fn try_extract_result_error_type(ty: &Type) -> Option<Type> {
 }
 
 #[cfg(test)]
+#[expect(clippy::expect_used, reason = "test code uses infallible type parsing")]
 mod tests {
     use super::*;
+    use rstest::rstest;
     use syn::parse_quote;
 
-    #[test]
-    fn extracts_inner_type_from_bare_result() {
-        let ty: Type = parse_quote! { Result<MyWorld, String> };
+    #[rstest]
+    #[case("Result<MyWorld, String>", "MyWorld")]
+    #[case("std::result::Result<Config, std::io::Error>", "Config")]
+    #[case("StepResult<MyWorld, String>", "MyWorld")]
+    fn extracts_inner_type_from_result_like(#[case] input: &str, #[case] expected: &str) {
+        let ty = syn::parse_str::<Type>(input).expect("valid type");
         let inner = try_extract_result_inner_type(&ty);
-        assert!(inner.is_some(), "should extract inner type from Result");
+        assert!(inner.is_some(), "should extract inner type from {input}");
         let inner_str = quote::quote! { #inner }.to_string();
         assert!(
-            inner_str.contains("MyWorld"),
-            "inner type should be MyWorld, got: {inner_str}"
+            inner_str.contains(expected),
+            "inner type should contain {expected}, got: {inner_str}"
         );
     }
 
-    #[test]
-    fn extracts_inner_type_from_std_result() {
-        let ty: Type = parse_quote! { std::result::Result<Config, std::io::Error> };
-        let inner = try_extract_result_inner_type(&ty);
-        assert!(
-            inner.is_some(),
-            "should extract inner type from std::result::Result"
-        );
-    }
-
-    #[test]
-    fn extracts_inner_type_from_step_result() {
-        let ty: Type = parse_quote! { StepResult<MyWorld, String> };
-        let inner = try_extract_result_inner_type(&ty);
-        assert!(inner.is_some(), "should extract inner type from StepResult");
-    }
-
-    #[test]
-    fn returns_none_for_plain_type() {
-        let ty: Type = parse_quote! { MyWorld };
+    #[rstest]
+    #[case("MyWorld")]
+    #[case("&mut MyWorld")]
+    #[case("Option<MyWorld>")]
+    fn inner_type_returns_none_for_non_result(#[case] input: &str) {
+        let ty = syn::parse_str::<Type>(input).expect("valid type");
         assert!(
             try_extract_result_inner_type(&ty).is_none(),
-            "plain type should not be treated as Result"
+            "{input} should not be treated as Result"
         );
     }
 
-    #[test]
-    fn returns_none_for_reference_type() {
-        let ty: Type = parse_quote! { &mut MyWorld };
-        assert!(
-            try_extract_result_inner_type(&ty).is_none(),
-            "reference type should not be treated as Result"
-        );
-    }
-
-    #[test]
-    fn returns_none_for_option_type() {
-        let ty: Type = parse_quote! { Option<MyWorld> };
-        assert!(
-            try_extract_result_inner_type(&ty).is_none(),
-            "Option should not be treated as Result"
-        );
-    }
-
-    #[test]
-    fn extracts_error_type_from_bare_result() {
-        let ty: Type = parse_quote! { Result<MyWorld, String> };
+    #[rstest]
+    #[case("Result<MyWorld, String>", "String")]
+    #[case("std::result::Result<Config, std::io::Error>", "Error")]
+    fn extracts_error_type_from_result_like(#[case] input: &str, #[case] expected: &str) {
+        let ty = syn::parse_str::<Type>(input).expect("valid type");
         let error = try_extract_result_error_type(&ty);
-        assert!(error.is_some(), "should extract error type from Result");
+        assert!(error.is_some(), "should extract error type from {input}");
         let error_str = quote::quote! { #error }.to_string();
         assert!(
-            error_str.contains("String"),
-            "error type should be String, got: {error_str}"
-        );
-    }
-
-    #[test]
-    fn extracts_error_type_from_std_result() {
-        let ty: Type = parse_quote! { std::result::Result<Config, std::io::Error> };
-        let error = try_extract_result_error_type(&ty);
-        assert!(
-            error.is_some(),
-            "should extract error type from std::result::Result"
-        );
-        let error_str = quote::quote! { #error }.to_string();
-        assert!(
-            error_str.contains("Error"),
-            "error type should contain Error, got: {error_str}"
+            error_str.contains(expected),
+            "error type should contain {expected}, got: {error_str}"
         );
     }
 
     #[test]
     fn error_type_returns_none_for_plain_type() {
-        let ty: Type = parse_quote! { MyWorld };
+        let ty = syn::parse_str::<Type>("MyWorld").expect("valid type");
         assert!(
             try_extract_result_error_type(&ty).is_none(),
             "plain type should not yield an error type"
