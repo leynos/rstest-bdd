@@ -1245,7 +1245,7 @@ provides the Tokio current-thread runtime. Async step functions are not
 supported under this alias; use explicit `async fn` scenarios with
 `#[tokio::test]` or the explicit harness form for async step support.
 
-Sync step definitions are normalised into the async interface by wrapping their
+Sync step definitions are normalized into the async interface by wrapping their
 result in an immediately ready future. This allows mixed sync and async step
 definitions within a single scenario when async mode is enabled.
 
@@ -1277,7 +1277,7 @@ sequenceDiagram
     TokioRuntime-->>TestCode: await StepFuture => Result
 ```
 
-*Figure: Async execution of a sync-defined step via the normalised async
+*Figure: Async execution of a sync-defined step via the normalized async
 wrapper.*
 
 When a scenario runs in synchronous mode but references an `async fn` step
@@ -2386,7 +2386,7 @@ PlaceholderError: API shape and examples
 
 - Purpose: human‑readable diagnostics surfaced to callers and test failures.
 - Stability: message text is intended for human display, not machine parsing.
-  Programmes should branch on the enum variant rather than parsing strings.
+  Programs should branch on the enum variant rather than parsing strings.
 - Shape: a Rust enum with the following variants and display formats:
 
 ```rust,no_run
