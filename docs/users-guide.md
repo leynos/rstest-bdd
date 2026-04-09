@@ -935,7 +935,16 @@ fn my_gpui_scenario() {
 `GpuiAttributePolicy` emits `#[rstest::rstest]` and `#[gpui::test]`. The
 canonical `rstest_bdd_harness_gpui::GpuiAttributePolicy` path is recognized by
 the same path-based policy resolution used for Tokio, so the GPUI test
-attribute is available whether the scenario is synchronous or async.
+attribute is available whether the scenario is synchronous or async. For
+`#[scenario]`, the equivalent absolute path
+`::rstest_bdd_harness_gpui::GpuiAttributePolicy` is also supported.
+
+This contract is enforced by focused integration coverage in
+`crates/rstest-bdd/tests/trybuild_macros.rs` and
+`crates/rstest-bdd/tests/scenario_harness_gpui.rs`. Those suites verify GPUI
+attribute-policy resolution for `#[scenario]` and `scenarios!`, plus
+deduplication when a `#[scenario]` test already carries an explicit
+`#[gpui::test]`.
 
 For a complete working example, see the `examples/gpui-counter` crate, which
 models a simple counter application whose BDD suite exercises both
