@@ -3,7 +3,9 @@
 use proc_macro2::TokenStream as TokenStream2;
 use quote::{format_ident, quote};
 
-use crate::utils::result_type::{is_referenced_result_type, try_extract_result_inner_type};
+use crate::utils::result_type::{
+    is_referenced_result_type, try_extract_result_inner_type, ungroup_type,
+};
 
 /// Generated code for wiring scenario fixture parameters into `StepContext`.
 pub(crate) struct FixtureBindingCode {
@@ -29,8 +31,11 @@ enum FixtureProcessing {
 
 /// Classify a fixture parameter type into its processing category.
 fn classify_fixture_type(ty: &syn::Type) -> syn::Result<FixtureProcessing> {
-    if matches!(ty, syn::Type::Reference(_)) {
-        if is_referenced_result_type(ty) {
+    // Normalize the type by removing paren/group wrappers first
+    let normalized_ty = ungroup_type(ty);
+
+    if matches!(normalized_ty, syn::Type::Reference(_)) {
+        if is_referenced_result_type(normalized_ty) {
             return Err(syn::Error::new_spanned(
                 ty,
                 concat!(
@@ -41,7 +46,7 @@ fn classify_fixture_type(ty: &syn::Type) -> syn::Result<FixtureProcessing> {
             ));
         }
         Ok(FixtureProcessing::Reference)
-    } else if let Some(inner_ty) = try_extract_result_inner_type(ty) {
+    } else if let Some(inner_ty) = try_extract_result_inner_type(normalized_ty) {
         Ok(FixtureProcessing::ResultType {
             inner_ty: Box::new(inner_ty),
         })
@@ -277,6 +282,28 @@ mod tests {
         );
     }
 
+    #[rstest]
+    #[case(parse_quote! { fn scenario(world: (&MyWorld)) })]
+    #[case(parse_quote! { fn scenario(world: (&mut MyWorld)) })]
+    fn parenthesized_references_are_treated_as_references(#[case] mut sig: syn::Signature) {
+        #[expect(clippy::expect_used, reason = "test asserts fixture extraction")]
+        let (_idents, code) =
+            extract_function_fixtures(&mut sig).expect("fixture extraction should succeed");
+        // Parenthesized references should be treated as references, not owned
+        // This means they should NOT generate RefCell wrapping in the prelude
+        let prelude_str: String = code.prelude.iter().map(ToString::to_string).collect();
+        assert!(
+            !prelude_str.contains("RefCell"),
+            "parenthesized reference should not generate RefCell wrapping, got: {prelude_str}"
+        );
+        // References are inserted directly without unwrapping
+        let insert_str: String = code.ctx_inserts.iter().map(ToString::to_string).collect();
+        assert!(
+            !insert_str.contains("borrow"),
+            "parenthesized reference should not generate borrow calls, got: {insert_str}"
+        );
+    }
+
     #[test]
     #[expect(
         clippy::expect_used,
@@ -348,6 +375,10 @@ mod tests {
     #[case(parse_quote! { fn scenario(world: &mut Result<MyWorld, String>) }, "&mut Result")]
     #[case(parse_quote! { fn scenario(world: &StepResult<MyWorld, String>) }, "&StepResult")]
     #[case(parse_quote! { fn scenario(world: &mut StepResult<MyWorld, String>) }, "&mut StepResult")]
+    #[case(parse_quote! { fn scenario(world: (&Result<MyWorld, String>)) }, "(&Result)")]
+    #[case(parse_quote! { fn scenario(world: (&mut Result<MyWorld, String>)) }, "(&mut Result)")]
+    #[case(parse_quote! { fn scenario(world: (&StepResult<MyWorld, String>)) }, "(&StepResult)")]
+    #[case(parse_quote! { fn scenario(world: (&mut StepResult<MyWorld, String>)) }, "(&mut StepResult)")]
     fn borrowed_result_fixture_emits_compile_error(
         #[case] mut sig: syn::Signature,
         #[case] label: &str,

@@ -230,9 +230,12 @@ fn resolve_fixture_error_type(fixtures: &[FixtureSpec]) -> syn::Type {
 /// upgrading to `ResultUnit` when Result-returning fixtures require error
 /// propagation and the signature is not already fallible.
 ///
-/// When an upgrade is performed, `sig.output` is rewritten in-place to the
-/// resolved `Result<(), E>` type so the generated function signature stays
-/// consistent with the chosen `ScenarioReturnKind`.
+/// Uses [`classify_return_type`] to determine the initial [`ScenarioReturnKind`]:
+/// `Unit` for unit returns, `ResultUnit` for fallible returns. When
+/// `has_result_fixtures` is true and the return kind is not already fallible,
+/// this function **mutates** `sig.output` in-place via
+/// [`resolve_fixture_error_type`] to upgrade it to `Result<(), E>`, ensuring
+/// the generated function signature can propagate fixture initialization errors.
 fn resolve_scenario_return_kind(
     sig: &mut syn::Signature,
     has_result_fixtures: bool,

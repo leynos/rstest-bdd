@@ -14,7 +14,7 @@ use crate::return_classifier::{first_type_argument, is_result_like_path, second_
 ///
 /// Parenthesized types like `(Result<T, E>)` and grouped types are
 /// normalized to their inner form so Result detection works consistently.
-fn ungroup_type(ty: &Type) -> &Type {
+pub(crate) fn ungroup_type(ty: &Type) -> &Type {
     match ty {
         Type::Paren(paren) => ungroup_type(&paren.elem),
         Type::Group(group) => ungroup_type(&group.elem),
