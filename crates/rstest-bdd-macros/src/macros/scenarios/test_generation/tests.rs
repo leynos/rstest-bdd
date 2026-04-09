@@ -375,10 +375,6 @@ fn resolve_fixture_error_type_mixed_plain_and_result_uses_result_error(#[case] f
     let error_str = quote!(#error_ty).to_string();
     assert!(
         error_str.contains("String"),
-        concat!(
-            "mixed fixtures with one result-like type should use its error type, ",
-            "got: {}"
-        ),
-        error_str
+        "mixed fixtures with one result-like type should use its error type, got: {error_str}"
     );
 }

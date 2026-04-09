@@ -50,6 +50,21 @@ pub(crate) fn is_referenced_result_type(ty: &Type) -> bool {
     is_result_like_path(path)
 }
 
+/// Internal helper: resolve the type argument selected by `getter` from a
+/// recognised `Result` / `StepResult` type, or return `None` for any other
+/// input.
+fn extract_result_type_arg(ty: &Type, getter: fn(&syn::Path) -> Option<&Type>) -> Option<Type> {
+    let ty = ungroup_type(ty);
+    let path = match ty {
+        Type::Path(type_path) => &type_path.path,
+        _ => return None,
+    };
+    if !is_result_like_path(path) {
+        return None;
+    }
+    getter(path).cloned()
+}
+
 /// Attempt to extract the inner `Ok` type from a `Result`-typed fixture
 /// parameter.
 ///
@@ -66,17 +81,7 @@ pub(crate) fn is_referenced_result_type(ty: &Type) -> bool {
 /// // &mut MyWorld → None
 /// ```
 pub(crate) fn try_extract_result_inner_type(ty: &Type) -> Option<Type> {
-    let ty = ungroup_type(ty);
-    let path = match ty {
-        Type::Path(type_path) => &type_path.path,
-        _ => return None,
-    };
-
-    if !is_result_like_path(path) {
-        return None;
-    }
-
-    first_type_argument(path).cloned()
+    extract_result_type_arg(ty, first_type_argument)
 }
 
 /// Attempt to extract the error type `E` from a `Result<T, E>`-typed
@@ -95,17 +100,7 @@ pub(crate) fn try_extract_result_inner_type(ty: &Type) -> Option<Type> {
 /// // MyWorld → None
 /// ```
 pub(crate) fn try_extract_result_error_type(ty: &Type) -> Option<Type> {
-    let ty = ungroup_type(ty);
-    let path = match ty {
-        Type::Path(type_path) => &type_path.path,
-        _ => return None,
-    };
-
-    if !is_result_like_path(path) {
-        return None;
-    }
-
-    second_type_argument(path).cloned()
+    extract_result_type_arg(ty, second_type_argument)
 }
 
 #[cfg(test)]
@@ -143,27 +138,26 @@ mod tests {
     }
 
     #[rstest]
-    #[case("Result<MyWorld, String>", "String")]
-    #[case("std::result::Result<Config, std::io::Error>", "Error")]
-    #[case("StepResult<MyWorld, MyError>", "MyError")]
-    fn extracts_error_type_from_result_like(#[case] input: &str, #[case] expected: &str) {
+    #[case("Result<MyWorld, String>", Some("String"))]
+    #[case("std::result::Result<Config, std::io::Error>", Some("Error"))]
+    #[case("StepResult<MyWorld, MyError>", Some("MyError"))]
+    #[case("MyWorld", None)]
+    fn extracts_error_type_from_result_like(#[case] input: &str, #[case] expected: Option<&str>) {
         let ty = syn::parse_str::<Type>(input).expect("valid type");
         let error = try_extract_result_error_type(&ty);
-        assert!(error.is_some(), "should extract error type from {input}");
-        let error_str = quote::quote! { #error }.to_string();
-        assert!(
-            error_str.contains(expected),
-            "error type should contain {expected}, got: {error_str}"
-        );
-    }
-
-    #[test]
-    fn error_type_returns_none_for_plain_type() {
-        let ty = syn::parse_str::<Type>("MyWorld").expect("valid type");
-        assert!(
-            try_extract_result_error_type(&ty).is_none(),
-            "plain type should not yield an error type"
-        );
+        match expected {
+            Some(expected_str) => {
+                assert!(error.is_some(), "should extract error type from {input}");
+                let error_str = quote::quote! { #error }.to_string();
+                assert!(
+                    error_str.contains(expected_str),
+                    "error type should contain {expected_str}, got: {error_str}"
+                );
+            }
+            None => {
+                assert!(error.is_none(), "{input} should not yield an error type");
+            }
+        }
     }
 
     // -- is_referenced_result_type tests ---

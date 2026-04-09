@@ -13,7 +13,7 @@ pub(crate) struct FixtureBindingCode {
     /// `true` when at least one fixture parameter has a result-like type
     /// (`Result<T, E>` or `StepResult<T, E>`), meaning the scenario must
     /// return a fallible type so the generated `?` operator can propagate
-    /// initialisation errors.
+    /// initialization errors.
     pub has_result_fixtures: bool,
 }
 

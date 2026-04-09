@@ -141,7 +141,7 @@ fn try_scenario(
             concat!(
                 "scenarios with fallible fixtures (`Result<T, E>` or `StepResult<T, E>`) ",
                 "must return `Result<(), E>` or `StepResult<(), E>` to propagate ",
-                "fixture initialisation errors",
+                "fixture initialization errors",
             ),
         );
         return Err(proc_macro::TokenStream::from(err.into_compile_error()));
