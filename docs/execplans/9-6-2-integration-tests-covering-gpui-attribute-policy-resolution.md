@@ -446,8 +446,8 @@ complete.
 Implementation details:
 
 - Mark `docs/roadmap.md` item 9.6.2 as done.
-- Update this ExecPlan's `Progress`, `Decision Log`, and
-  `Outcomes & Retrospective` sections with the delivered facts.
+- Update this ExecPlan's `Progress`, `Decision log`, and
+  `Outcomes & retrospective` sections with the delivered facts.
 - Record any important new gotcha in project memory if the work uncovers one
   that future contributors are likely to hit again.
 
