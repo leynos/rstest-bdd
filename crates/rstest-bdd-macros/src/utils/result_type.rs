@@ -9,6 +9,19 @@ use syn::Type;
 
 use crate::return_classifier::{first_type_argument, is_result_like_path, second_type_argument};
 
+/// Recursively strips `Type::Paren` and `Type::Group` wrappers to reveal
+/// the underlying type.
+///
+/// Parenthesized types like `(Result<T, E>)` and grouped types are
+/// normalized to their inner form so Result detection works consistently.
+fn ungroup_type(ty: &Type) -> &Type {
+    match ty {
+        Type::Paren(paren) => ungroup_type(&paren.elem),
+        Type::Group(group) => ungroup_type(&group.elem),
+        _ => ty,
+    }
+}
+
 /// Returns `true` when the given type is a reference (`&` or `&mut`) whose
 /// referent is a recognised `Result` or `StepResult` shape.
 ///
@@ -25,8 +38,9 @@ use crate::return_classifier::{first_type_argument, is_result_like_path, second_
 /// // Result<MyWorld, String>       → false
 /// ```
 pub(crate) fn is_referenced_result_type(ty: &Type) -> bool {
+    let ty = ungroup_type(ty);
     let inner = match ty {
-        Type::Reference(ref_ty) => &*ref_ty.elem,
+        Type::Reference(ref_ty) => ungroup_type(&ref_ty.elem),
         _ => return false,
     };
     let path = match inner {
@@ -52,6 +66,7 @@ pub(crate) fn is_referenced_result_type(ty: &Type) -> bool {
 /// // &mut MyWorld → None
 /// ```
 pub(crate) fn try_extract_result_inner_type(ty: &Type) -> Option<Type> {
+    let ty = ungroup_type(ty);
     let path = match ty {
         Type::Path(type_path) => &type_path.path,
         _ => return None,
@@ -80,6 +95,7 @@ pub(crate) fn try_extract_result_inner_type(ty: &Type) -> Option<Type> {
 /// // MyWorld → None
 /// ```
 pub(crate) fn try_extract_result_error_type(ty: &Type) -> Option<Type> {
+    let ty = ungroup_type(ty);
     let path = match ty {
         Type::Path(type_path) => &type_path.path,
         _ => return None,
@@ -129,6 +145,7 @@ mod tests {
     #[rstest]
     #[case("Result<MyWorld, String>", "String")]
     #[case("std::result::Result<Config, std::io::Error>", "Error")]
+    #[case("StepResult<MyWorld, MyError>", "MyError")]
     fn extracts_error_type_from_result_like(#[case] input: &str, #[case] expected: &str) {
         let ty = syn::parse_str::<Type>(input).expect("valid type");
         let error = try_extract_result_error_type(&ty);
@@ -211,6 +228,42 @@ mod tests {
         assert!(
             !is_referenced_result_type(&ty),
             "plain type should not be detected as a referenced Result"
+        );
+    }
+
+    // -- Parenthesized and grouped type tests ---
+
+    #[test]
+    fn parenthesized_result_extracts_inner_type() {
+        let ty: Type = parse_quote! { (Result<MyWorld, String>) };
+        let inner = try_extract_result_inner_type(&ty);
+        assert!(
+            inner.is_some(),
+            "parenthesized Result should extract inner type"
+        );
+    }
+
+    #[test]
+    fn parenthesized_ref_result_is_detected() {
+        let ty: Type = parse_quote! { &(Result<MyWorld, String>) };
+        assert!(
+            is_referenced_result_type(&ty),
+            "parenthesized &Result should be detected as referenced Result"
+        );
+    }
+
+    #[test]
+    fn parenthesized_step_result_extracts_error() {
+        let ty: Type = parse_quote! { (StepResult<MyWorld, MyError>) };
+        let error = try_extract_result_error_type(&ty);
+        assert!(
+            error.is_some(),
+            "parenthesized StepResult should extract error type"
+        );
+        let error_str = quote::quote! { #error }.to_string();
+        assert!(
+            error_str.contains("MyError"),
+            "error type should be MyError, got: {error_str}"
         );
     }
 }

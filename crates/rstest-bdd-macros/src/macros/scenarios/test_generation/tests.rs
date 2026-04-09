@@ -1,5 +1,7 @@
 //! Unit tests for scenario test generation helpers.
 
+use rstest::rstest;
+
 use super::super::macro_args::FixtureSpec;
 use super::super::macro_args::RuntimeCompatibilityAlias;
 use super::super::macro_args::RuntimeMode;
@@ -299,26 +301,34 @@ fn runtime_harness_signature_pipeline(
 
 // -- Tests for resolve_fixture_error_type ---
 
-#[test]
-fn resolve_fixture_error_type_single_result_uses_fixture_error() {
-    let fixtures = vec![make_fixture_spec("world", "Result<MyWorld, String>")];
+#[rstest]
+#[case("Result<MyWorld, String>")]
+#[case("StepResult<MyWorld, String>")]
+fn resolve_fixture_error_type_single_result_uses_fixture_error(#[case] fixture_ty: &str) {
+    let fixtures = vec![make_fixture_spec("world", fixture_ty)];
     let error_ty = resolve_fixture_error_type(&fixtures);
     let error_str = quote!(#error_ty).to_string();
     assert!(
         error_str.contains("String"),
-        "single Result fixture should use its error type, got: {error_str}"
+        "single result-like fixture should use its error type, got: {error_str}"
     );
     assert!(
         !error_str.contains("Box"),
-        "single Result fixture should not use Box<dyn Error>, got: {error_str}"
+        "single result-like fixture should not use Box<dyn Error>, got: {error_str}"
     );
 }
 
-#[test]
-fn resolve_fixture_error_type_multiple_same_error_uses_shared_type() {
+#[rstest]
+#[case("Result<MyWorld, String>", "Result<Database, String>")]
+#[case("StepResult<MyWorld, String>", "StepResult<Database, String>")]
+#[case("Result<MyWorld, String>", "StepResult<Database, String>")]
+fn resolve_fixture_error_type_multiple_same_error_uses_shared_type(
+    #[case] fixture1_ty: &str,
+    #[case] fixture2_ty: &str,
+) {
     let fixtures = vec![
-        make_fixture_spec("world", "Result<MyWorld, String>"),
-        make_fixture_spec("db", "Result<Database, String>"),
+        make_fixture_spec("world", fixture1_ty),
+        make_fixture_spec("db", fixture2_ty),
     ];
     let error_ty = resolve_fixture_error_type(&fixtures);
     let error_str = quote!(#error_ty).to_string();
@@ -353,18 +363,20 @@ fn resolve_fixture_error_type_no_result_fixtures_falls_back_to_box() {
     );
 }
 
-#[test]
-fn resolve_fixture_error_type_mixed_plain_and_result_uses_result_error() {
+#[rstest]
+#[case("Result<Database, String>")]
+#[case("StepResult<Database, String>")]
+fn resolve_fixture_error_type_mixed_plain_and_result_uses_result_error(#[case] fallible_ty: &str) {
     let fixtures = vec![
         make_fixture_spec("plain", "MyWorld"),
-        make_fixture_spec("fallible", "Result<Database, String>"),
+        make_fixture_spec("fallible", fallible_ty),
     ];
     let error_ty = resolve_fixture_error_type(&fixtures);
     let error_str = quote!(#error_ty).to_string();
     assert!(
         error_str.contains("String"),
         concat!(
-            "mixed fixtures with one Result should use its error type, ",
+            "mixed fixtures with one result-like type should use its error type, ",
             "got: {}"
         ),
         error_str

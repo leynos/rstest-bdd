@@ -139,8 +139,8 @@ fn try_scenario(
         let err = syn::Error::new_spanned(
             &sig.output,
             concat!(
-                "scenarios with Result-returning fixtures must return ",
-                "`Result<(), E>` or `StepResult<(), E>` to propagate ",
+                "scenarios with fallible fixtures (`Result<T, E>` or `StepResult<T, E>`) ",
+                "must return `Result<(), E>` or `StepResult<(), E>` to propagate ",
                 "fixture initialisation errors",
             ),
         );

@@ -10,9 +10,10 @@ pub(crate) struct FixtureBindingCode {
     pub prelude: Vec<TokenStream2>,
     pub ctx_inserts: Vec<TokenStream2>,
     pub postlude: Vec<TokenStream2>,
-    /// `true` when at least one fixture parameter has a `Result<T, E>` type,
-    /// meaning the scenario must return `Result<(), E>` so the generated `?`
-    /// operator can propagate initialisation errors.
+    /// `true` when at least one fixture parameter has a result-like type
+    /// (`Result<T, E>` or `StepResult<T, E>`), meaning the scenario must
+    /// return a fallible type so the generated `?` operator can propagate
+    /// initialisation errors.
     pub has_result_fixtures: bool,
 }
 
@@ -33,9 +34,9 @@ fn classify_fixture_type(ty: &syn::Type) -> syn::Result<FixtureProcessing> {
             return Err(syn::Error::new_spanned(
                 ty,
                 concat!(
-                    "fixture parameter borrows a `Result<T, E>`; ",
-                    "use an owned `Result<T, E>` instead so the ",
-                    "scenario can unwrap it with `?`",
+                    "fixture parameter borrows a result-like type ",
+                    "(`Result<T, E>` or `StepResult<T, E>`); ",
+                    "use an owned value instead so the scenario can unwrap it with `?`",
                 ),
             ));
         }
@@ -51,10 +52,10 @@ fn classify_fixture_type(ty: &syn::Type) -> syn::Result<FixtureProcessing> {
 
 /// Extract function argument identifiers and create insert statements.
 ///
-/// When a fixture parameter has a `Result<T, E>` type, the generated prelude
-/// unwraps it with `?` and registers the inner `T` in the `StepContext`.
-/// The caller must ensure the scenario returns `Result<(), E>` so the `?`
-/// operator compiles.
+/// When a fixture parameter has a result-like type (`Result<T, E>` or
+/// `StepResult<T, E>`), the generated prelude unwraps it with `?` and
+/// registers the inner `T` in the `StepContext`. The caller must ensure
+/// the scenario returns a fallible type so the `?` operator compiles.
 pub(crate) fn extract_function_fixtures(
     sig: &mut syn::Signature,
 ) -> syn::Result<(Vec<syn::Ident>, FixtureBindingCode)> {
@@ -261,6 +262,7 @@ mod tests {
 
     #[rstest]
     #[case(parse_quote! { fn scenario(world: Result<MyWorld, String>) }, true)]
+    #[case(parse_quote! { fn scenario(world: StepResult<MyWorld, String>) }, true)]
     #[case(parse_quote! { fn scenario(world: MyWorld) }, false)]
     fn result_fixture_flag_reflects_return_type(
         #[case] mut sig: syn::Signature,
@@ -306,9 +308,46 @@ mod tests {
         );
     }
 
+    #[test]
+    #[expect(
+        clippy::expect_used,
+        reason = "test asserts StepResult fixture generates correct bindings"
+    )]
+    fn step_result_fixture_extraction_generates_correct_bindings() {
+        let mut sig: syn::Signature = parse_quote! {
+            fn scenario(world: StepResult<MyWorld, String>)
+        };
+        let (_idents, code) =
+            extract_function_fixtures(&mut sig).expect("fixture extraction should succeed");
+        assert!(
+            code.has_result_fixtures,
+            "StepResult fixture should set has_result_fixtures flag"
+        );
+        let prelude_str: String = code.prelude.iter().map(ToString::to_string).collect();
+        assert!(
+            prelude_str.contains("__rstest_bdd_unwrapped_0"),
+            "prelude should contain unwrap binding for StepResult, got: {prelude_str}"
+        );
+        assert!(
+            prelude_str.contains('?'),
+            "prelude should contain ? operator for StepResult unwrap, got: {prelude_str}"
+        );
+        let insert_str: String = code.ctx_inserts.iter().map(ToString::to_string).collect();
+        assert!(
+            insert_str.contains("MyWorld"),
+            "context insert should use inner type MyWorld, got: {insert_str}"
+        );
+        assert!(
+            !insert_str.contains("StepResult"),
+            "context insert should not reference StepResult wrapper, got: {insert_str}"
+        );
+    }
+
     #[rstest]
-    #[case(parse_quote! { fn scenario(world: &Result<MyWorld, String>) }, "& Result")]
+    #[case(parse_quote! { fn scenario(world: &Result<MyWorld, String>) }, "&Result")]
     #[case(parse_quote! { fn scenario(world: &mut Result<MyWorld, String>) }, "&mut Result")]
+    #[case(parse_quote! { fn scenario(world: &StepResult<MyWorld, String>) }, "&StepResult")]
+    #[case(parse_quote! { fn scenario(world: &mut StepResult<MyWorld, String>) }, "&mut StepResult")]
     fn borrowed_result_fixture_emits_compile_error(
         #[case] mut sig: syn::Signature,
         #[case] label: &str,
@@ -318,8 +357,8 @@ mod tests {
         };
         let msg = err.to_string();
         assert!(
-            msg.contains("borrows a `Result<T, E>`"),
-            "error should mention borrowed Result, got: {msg}"
+            msg.contains("borrows a result-like type"),
+            "error should mention borrowed result-like type, got: {msg}"
         );
     }
 }

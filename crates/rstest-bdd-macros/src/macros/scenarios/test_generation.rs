@@ -188,6 +188,25 @@ fn build_test_signature(
     }
 }
 
+/// Normalizes a type for structural comparison by converting it to a
+/// canonical string representation with consistent formatting.
+///
+/// This is used for deduplicating error types where `std::io::Error` and
+/// `Error` (when both refer to the same type via imports) should be
+/// considered distinct at the syntax level, but semantically equivalent
+/// paths like `::std::io::Error` and `std::io::Error` should match.
+fn normalize_type_key(ty: &syn::Type) -> String {
+    // Use quote! to get a consistent token representation, then normalize
+    // whitespace and remove leading :: for comparison
+    let rendered = quote!(#ty).to_string();
+    rendered
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
+        .trim_start_matches("::")
+        .to_string()
+}
+
 /// Resolves a unified error type from `Result`-typed fixture specifications.
 ///
 /// When all `Result<T, E>` fixtures share the same error type `E`, returns
@@ -199,7 +218,7 @@ fn resolve_fixture_error_type(fixtures: &[FixtureSpec]) -> syn::Type {
         .iter()
         .filter_map(|spec| try_extract_result_error_type(&spec.ty))
         .collect();
-    error_types.dedup_by(|a, b| quote!(#a).to_string() == quote!(#b).to_string());
+    error_types.dedup_by(|a, b| normalize_type_key(a) == normalize_type_key(b));
     if error_types.len() == 1 {
         error_types.remove(0)
     } else {
