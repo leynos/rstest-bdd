@@ -13,6 +13,17 @@ Before submitting a pull request:
 The CI pipeline runs the same commands and will fail if any step reports an
 error.
 
+## Testing Guidelines
+
+- Prefer semantic behaviour tests for scenario execution changes. Assert
+  runtime-observable outcomes such as skip propagation, step ordering, fixture
+  lifecycle, and panic metadata rather than relying only on generated code
+  shape.
+- Keep structural macro tests for compile errors, emitted attributes, and other
+  code generation details that are genuinely implementation-specific.
+- See [Testing Strategy](docs/testing-strategy.md) for the preferred patterns
+  and invariants to cover.
+
 ## Localisation guidelines
 
 - Keep feature files and step definitions in the same language. If you add a
