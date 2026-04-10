@@ -218,6 +218,8 @@ fn resolve_fixture_error_type(fixtures: &[FixtureSpec]) -> syn::Type {
         .iter()
         .filter_map(|spec| try_extract_result_error_type(&spec.ty))
         .collect();
+    // Sort by normalized key so identical types become adjacent, then dedup
+    error_types.sort_by_key(normalize_type_key);
     error_types.dedup_by(|a, b| normalize_type_key(a) == normalize_type_key(b));
     if error_types.len() == 1 {
         error_types.remove(0)

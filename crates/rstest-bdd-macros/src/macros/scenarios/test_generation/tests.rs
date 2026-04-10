@@ -378,3 +378,37 @@ fn resolve_fixture_error_type_mixed_plain_and_result_uses_result_error(#[case] f
         "mixed fixtures with one result-like type should use its error type, got: {error_str}"
     );
 }
+
+#[test]
+fn resolve_fixture_error_type_non_consecutive_duplicates_returns_shared_type() {
+    // Tests that non-consecutive duplicate error types are deduplicated correctly
+    // Pattern: Result<A, E>, Result<B, F>, Result<C, E>
+    let fixtures = vec![
+        make_fixture_spec("first", "Result<MyWorld, String>"),
+        make_fixture_spec("second", "Result<Database, std::io::Error>"),
+        make_fixture_spec("third", "Result<Config, String>"),
+    ];
+    let error_ty = resolve_fixture_error_type(&fixtures);
+    let error_str = quote!(#error_ty).to_string();
+    assert!(
+        error_str.contains("Box"),
+        "non-consecutive different error types should fall back to Box<dyn Error>, got: {error_str}"
+    );
+}
+
+#[test]
+fn resolve_fixture_error_type_all_same_non_consecutive_returns_shared_type() {
+    // Tests that when all error types are the same but non-consecutive, we return the shared type
+    // Pattern: Result<A, E>, Result<B, E>, Result<C, E>
+    let fixtures = vec![
+        make_fixture_spec("first", "Result<MyWorld, String>"),
+        make_fixture_spec("second", "Result<Database, String>"),
+        make_fixture_spec("third", "Result<Config, String>"),
+    ];
+    let error_ty = resolve_fixture_error_type(&fixtures);
+    let error_str = quote!(#error_ty).to_string();
+    assert!(
+        error_str.contains("String"),
+        "all same error types (even non-consecutive) should return shared type, got: {error_str}"
+    );
+}

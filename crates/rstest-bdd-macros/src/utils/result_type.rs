@@ -23,7 +23,7 @@ pub(crate) fn ungroup_type(ty: &Type) -> &Type {
 }
 
 /// Returns `true` when the given type is a reference (`&` or `&mut`) whose
-/// referent is a recognised `Result` or `StepResult` shape.
+/// referent is a recognized `Result` or `StepResult` shape.
 ///
 /// This detects `&Result<T, E>` and `&mut Result<T, E>` so that callers
 /// can reject or special-case referenced Result fixtures rather than
@@ -51,7 +51,7 @@ pub(crate) fn is_referenced_result_type(ty: &Type) -> bool {
 }
 
 /// Internal helper: resolve the type argument selected by `getter` from a
-/// recognised `Result` / `StepResult` type, or return `None` for any other
+/// recognized `Result` / `StepResult` type, or return `None` for any other
 /// input.
 fn extract_result_type_arg(ty: &Type, getter: fn(&syn::Path) -> Option<&Type>) -> Option<Type> {
     let ty = ungroup_type(ty);
@@ -68,7 +68,7 @@ fn extract_result_type_arg(ty: &Type, getter: fn(&syn::Path) -> Option<&Type>) -
 /// Attempt to extract the inner `Ok` type from a `Result`-typed fixture
 /// parameter.
 ///
-/// Returns `Some(inner_type)` when the given type matches a recognised
+/// Returns `Some(inner_type)` when the given type matches a recognized
 /// `Result` or `StepResult` path, and `None` otherwise. The caller uses
 /// the inner type to generate an unwrap statement and register the
 /// fixture under the unwrapped type in `StepContext`.
@@ -87,7 +87,7 @@ pub(crate) fn try_extract_result_inner_type(ty: &Type) -> Option<Type> {
 /// Attempt to extract the error type `E` from a `Result<T, E>`-typed
 /// fixture parameter.
 ///
-/// Returns `Some(error_type)` when the given type matches a recognised
+/// Returns `Some(error_type)` when the given type matches a recognized
 /// `Result` or `StepResult` path, and `None` otherwise. The caller uses
 /// the error type to build a matching return type for the generated
 /// scenario function (e.g. `-> Result<(), E>`).
