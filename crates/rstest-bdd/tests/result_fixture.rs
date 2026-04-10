@@ -78,14 +78,12 @@ fn result_fixture_error(
     Ok(())
 }
 
-#[test]
-#[serial]
-fn result_fixture_success_records_pass() {
+fn assert_scenario_passes<E: std::fmt::Debug>(run: impl FnOnce() -> Result<(), E>, label: &str) {
     let _ = drain_reports();
-    let result = result_fixture_success();
+    let result = run();
     assert!(
         result.is_ok(),
-        "scenario with successful Result fixture should return Ok"
+        "scenario '{label}' should return Ok, got {result:?}"
     );
     let records = drain_reports();
     let passed_count = records
@@ -94,21 +92,39 @@ fn result_fixture_success_records_pass() {
         .count();
     assert_eq!(
         1, passed_count,
-        "expected exactly one Passed record for successful Result fixture scenario"
+        "expected exactly one Passed record for '{label}'"
+    );
+}
+
+fn assert_scenario_error_propagates<E: std::fmt::Display>(
+    run: impl FnOnce() -> Result<(), E>,
+    expected_fragment: &str,
+    label: &str,
+) {
+    let _ = drain_reports();
+    let result = run();
+    let Err(err) = result else {
+        panic!("scenario '{label}' should return Err");
+    };
+    assert!(
+        err.to_string().contains(expected_fragment),
+        "error for '{label}' should contain '{expected_fragment}', got: {err}"
     );
 }
 
 #[test]
 #[serial]
+fn result_fixture_success_records_pass() {
+    assert_scenario_passes(result_fixture_success, "successful Result fixture");
+}
+
+#[test]
+#[serial]
 fn result_fixture_error_propagates() {
-    let _ = drain_reports();
-    let result = result_fixture_error();
-    let Err(err) = result else {
-        panic!("scenario with failing Result fixture should return Err");
-    };
-    assert!(
-        err.contains("fixture initialisation failed"),
-        "error should contain fixture failure message, got: {err}"
+    assert_scenario_error_propagates(
+        result_fixture_error,
+        "fixture initialisation failed",
+        "failing Result fixture",
     );
 }
 
@@ -173,33 +189,15 @@ fn step_result_fixture_error(
 #[test]
 #[serial]
 fn step_result_fixture_success_records_pass() {
-    let _ = drain_reports();
-    let result = step_result_fixture_success();
-    assert!(
-        result.is_ok(),
-        "scenario with successful StepResult fixture should return Ok"
-    );
-    let records = drain_reports();
-    let passed_count = records
-        .iter()
-        .filter(|r| matches!(r.status(), ScenarioStatus::Passed))
-        .count();
-    assert_eq!(
-        1, passed_count,
-        "expected exactly one Passed record for successful StepResult fixture scenario"
-    );
+    assert_scenario_passes(step_result_fixture_success, "successful StepResult fixture");
 }
 
 #[test]
 #[serial]
 fn step_result_fixture_error_propagates() {
-    let _ = drain_reports();
-    let result = step_result_fixture_error();
-    let Err(err) = result else {
-        panic!("scenario with failing StepResult fixture should return Err");
-    };
-    assert!(
-        err.contains("step-result fixture initialisation failed"),
-        "error should contain StepResult fixture failure message, got: {err}"
+    assert_scenario_error_propagates(
+        step_result_fixture_error,
+        "step-result fixture initialisation failed",
+        "failing StepResult fixture",
     );
 }
