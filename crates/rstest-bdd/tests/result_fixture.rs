@@ -1,8 +1,8 @@
 //! End-to-end behavioural tests for Result-returning fixture injection.
 //!
 //! Verifies that `#[scenario]` can accept fixture parameters typed as
-//! `Result<T, E>`, automatically unwrap them with `?`, and inject the
-//! inner `T` into step functions via `StepContext`.
+//! `Result<T, E>` or `StepResult<T, E>`, automatically unwrap them with `?`,
+//! and inject the inner `T` into step functions via `StepContext`.
 
 use rstest::fixture;
 use rstest_bdd::StepResult;
@@ -10,7 +10,7 @@ use rstest_bdd::reporting::{ScenarioStatus, drain as drain_reports};
 use rstest_bdd_macros::{given, scenario, then, when};
 use serial_test::serial;
 
-/// A simple world type initialised through a fallible constructor.
+/// A simple world type initialized through a fallible constructor.
 #[derive(Default)]
 struct ResultWorld {
     value: u32,
@@ -42,9 +42,9 @@ fn failing_world() -> Result<ResultWorld, String> {
     ResultWorld::try_new_failing()
 }
 
-#[given("a world initialised from a Result fixture")]
+#[given("a world initialized from a Result fixture")]
 fn given_world(world: &ResultWorld) {
-    assert_eq!(world.value, 42, "world should be initialised with value 42");
+    assert_eq!(world.value, 42, "world should be initialized with value 42");
 }
 
 #[when("the world is mutated")]
@@ -59,7 +59,7 @@ fn then_mutated(world: &ResultWorld) {
 
 #[scenario(
     path = "tests/features/result_fixture.feature",
-    name = "successful fixture initialisation"
+    name = "successful fixture initialization"
 )]
 #[serial]
 fn result_fixture_success(world: Result<ResultWorld, String>) -> Result<(), String> {
@@ -68,7 +68,7 @@ fn result_fixture_success(world: Result<ResultWorld, String>) -> Result<(), Stri
 
 #[scenario(
     path = "tests/features/result_fixture.feature",
-    name = "failing fixture initialisation"
+    name = "failing fixture initialization"
 )]
 #[serial]
 #[ignore = "exercised by result_fixture_error_propagates"]
@@ -149,11 +149,11 @@ fn failing_step_result_world() -> StepResult<ResultWorld, String> {
     Err("step-result fixture initialization failed".to_string())
 }
 
-#[given("a world initialised from a StepResult fixture")]
+#[given("a world initialized from a StepResult fixture")]
 fn given_step_result_world(step_result_world: &ResultWorld) {
     assert_eq!(
         step_result_world.value, 42,
-        "world from StepResult fixture should be initialised with value 42"
+        "world from StepResult fixture should be initialized with value 42"
     );
 }
 
