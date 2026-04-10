@@ -18,8 +18,8 @@ use serial_test::serial;
 use async_semantic_behaviour_support::assert_bypassed_step_recorded;
 use async_semantic_behaviour_support::{
     CleanupProbe, ERROR_SCENARIO_NAME, FEATURE_PATH, SKIP_SCENARIO_LINE, SKIP_SCENARIO_NAME,
-    SemanticValue, assert_feature_path_suffix, cleanup_drops, clear_events, push_event,
-    reset_cleanup_drops, snapshot_events,
+    SemanticValue, assert_feature_path_suffix, assert_message_mentions_feature_path, cleanup_drops,
+    clear_events, push_event, reset_cleanup_drops, snapshot_events,
 };
 
 #[fixture]
@@ -309,10 +309,7 @@ fn error_propagation_includes_step_and_scenario_context() {
         message.contains(ERROR_SCENARIO_NAME),
         "panic message should include the scenario name: {message}",
     );
-    assert!(
-        message.contains(FEATURE_PATH),
-        "panic message should include the feature path: {message}",
-    );
+    assert_message_mentions_feature_path(&message, FEATURE_PATH);
     assert_eq!(
         snapshot_events(),
         vec!["failure:given".to_string(), "failure:when".to_string()],
