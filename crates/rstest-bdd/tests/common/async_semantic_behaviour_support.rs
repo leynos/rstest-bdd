@@ -62,6 +62,14 @@ pub(crate) fn assert_feature_path_suffix(actual: &str, expected_suffix: &str) {
     );
 }
 
+pub(crate) fn assert_message_mentions_feature_path(message: &str, expected_suffix: &str) {
+    let normalized_message = message.replace('\\', "/");
+    assert!(
+        normalized_message.contains(expected_suffix),
+        "panic message should include the feature path {expected_suffix}: {message}",
+    );
+}
+
 #[cfg(feature = "diagnostics")]
 pub(crate) fn assert_bypassed_step_recorded(
     scenario_name: &str,
