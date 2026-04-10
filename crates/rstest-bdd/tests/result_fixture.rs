@@ -26,7 +26,7 @@ impl ResultWorld {
     }
 
     fn try_new_failing() -> Result<Self, String> {
-        Err("fixture initialisation failed".to_string())
+        Err("fixture initialization failed".to_string())
     }
 }
 
@@ -110,6 +110,13 @@ fn assert_scenario_error_propagates<E: std::fmt::Display>(
         err.to_string().contains(expected_fragment),
         "error for '{label}' should contain '{expected_fragment}', got: {err}"
     );
+    let records = drain_reports();
+    assert!(
+        records
+            .iter()
+            .all(|r| !matches!(r.status(), ScenarioStatus::Passed)),
+        "failing scenario '{label}' should not record Passed status"
+    );
 }
 
 #[test]
@@ -123,7 +130,7 @@ fn result_fixture_success_records_pass() {
 fn result_fixture_error_propagates() {
     assert_scenario_error_propagates(
         result_fixture_error,
-        "fixture initialisation failed",
+        "fixture initialization failed",
         "failing Result fixture",
     );
 }
@@ -139,7 +146,7 @@ fn step_result_world() -> StepResult<ResultWorld, String> {
 /// Fixture that always fails, for testing `StepResult` error propagation.
 #[fixture]
 fn failing_step_result_world() -> StepResult<ResultWorld, String> {
-    Err("step-result fixture initialisation failed".to_string())
+    Err("step-result fixture initialization failed".to_string())
 }
 
 #[given("a world initialised from a StepResult fixture")]
@@ -197,7 +204,7 @@ fn step_result_fixture_success_records_pass() {
 fn step_result_fixture_error_propagates() {
     assert_scenario_error_propagates(
         step_result_fixture_error,
-        "step-result fixture initialisation failed",
+        "step-result fixture initialization failed",
         "failing StepResult fixture",
     );
 }
