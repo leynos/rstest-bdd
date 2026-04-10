@@ -1,0 +1,14 @@
+//! Compile-fail fixture verifying that Result-typed fixtures require a
+//! Result-returning scenario.
+
+use rstest_bdd_macros::scenario;
+
+#[scenario(path = "basic.feature")]
+fn result_fixture_unit_return(world: Result<u32, String>) {}
+
+#[scenario(path = "basic.feature")]
+fn step_result_fixture_unit_return(world: rstest_bdd::StepResult<u32, String>) {}
+
+const _: &str = include_str!("basic.feature");
+
+fn main() {}

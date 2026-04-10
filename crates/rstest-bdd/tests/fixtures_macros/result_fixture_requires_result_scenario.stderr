@@ -1,0 +1,23 @@
+error: scenarios with Result-returning fixtures must return `Result<(), E>` or `StepResult<(), E>` to propagate fixture initialisation errors
+ --> tests/fixtures_macros/result_fixture_requires_result_scenario.rs:7:1
+  |
+7 | #[scenario(path = "basic.feature")]
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  |
+  = note: this error originates in the attribute macro `scenario` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: scenarios with Result-returning fixtures must return `Result<(), E>` or `StepResult<(), E>` to propagate fixture initialisation errors
+  --> tests/fixtures_macros/result_fixture_requires_result_scenario.rs:10:1
+   |
+10 | #[scenario(path = "basic.feature")]
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: this error originates in the attribute macro `scenario` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+warning: unused import: `rstest_bdd::StepResult`
+ --> tests/fixtures_macros/result_fixture_requires_result_scenario.rs:4:5
+  |
+4 | use rstest_bdd::StepResult;
+  |     ^^^^^^^^^^^^^^^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default

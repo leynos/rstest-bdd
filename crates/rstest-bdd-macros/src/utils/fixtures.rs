@@ -3,13 +3,64 @@
 use proc_macro2::TokenStream as TokenStream2;
 use quote::{format_ident, quote};
 
+use crate::utils::result_type::{
+    is_referenced_result_type, try_extract_result_inner_type, ungroup_type,
+};
+
+/// Generated code for wiring scenario fixture parameters into `StepContext`.
 pub(crate) struct FixtureBindingCode {
     pub prelude: Vec<TokenStream2>,
     pub ctx_inserts: Vec<TokenStream2>,
     pub postlude: Vec<TokenStream2>,
+    /// `true` when at least one fixture parameter has a result-like type
+    /// (`Result<T, E>` or `StepResult<T, E>`), meaning the scenario must
+    /// return a fallible type so the generated `?` operator can propagate
+    /// initialization errors.
+    pub has_result_fixtures: bool,
+}
+
+/// Fixture processing outcome for a single parameter.
+enum FixtureProcessing {
+    /// Fixture is a reference and should be inserted by-reference.
+    Reference,
+    /// Fixture is a `Result<T, E>` or `StepResult<T, E>` and must be unwrapped.
+    ResultType { inner_ty: Box<syn::Type> },
+    /// Fixture is an owned value and should be boxed in a `RefCell`.
+    Owned,
+}
+
+/// Classify a fixture parameter type into its processing category.
+fn classify_fixture_type(ty: &syn::Type) -> syn::Result<FixtureProcessing> {
+    // Normalize the type by removing paren/group wrappers first
+    let normalized_ty = ungroup_type(ty);
+
+    if matches!(normalized_ty, syn::Type::Reference(_)) {
+        if is_referenced_result_type(normalized_ty) {
+            return Err(syn::Error::new_spanned(
+                ty,
+                concat!(
+                    "fixture parameter borrows a result-like type ",
+                    "(`Result<T, E>` or `StepResult<T, E>`); ",
+                    "use an owned value instead so the scenario can unwrap it with `?`",
+                ),
+            ));
+        }
+        Ok(FixtureProcessing::Reference)
+    } else if let Some(inner_ty) = try_extract_result_inner_type(normalized_ty) {
+        Ok(FixtureProcessing::ResultType {
+            inner_ty: Box::new(inner_ty),
+        })
+    } else {
+        Ok(FixtureProcessing::Owned)
+    }
 }
 
 /// Extract function argument identifiers and create insert statements.
+///
+/// When a fixture parameter has a result-like type (`Result<T, E>` or
+/// `StepResult<T, E>`), the generated prelude unwraps it with `?` and
+/// registers the inner `T` in the `StepContext`. The caller must ensure
+/// the scenario returns a fallible type so the `?` operator compiles.
 pub(crate) fn extract_function_fixtures(
     sig: &mut syn::Signature,
 ) -> syn::Result<(Vec<syn::Ident>, FixtureBindingCode)> {
@@ -18,6 +69,7 @@ pub(crate) fn extract_function_fixtures(
     let mut inserts = Vec::new();
     let mut prelude = Vec::new();
     let mut postlude = Vec::new();
+    let mut has_result_fixtures = false;
 
     for input in &mut sig.inputs {
         let syn::FnArg::Typed(pat_ty) = input else {
@@ -32,14 +84,28 @@ pub(crate) fn extract_function_fixtures(
         let name_lit = syn::LitStr::new(&fixture_name, proc_macro2::Span::call_site());
         arg_idents.push(binding.clone());
         let ty = &*pat_ty.ty;
-        if matches!(ty, syn::Type::Reference(_)) {
-            inserts.push(quote! { ctx.insert(#name_lit, &#binding); });
-        } else {
-            let (pre, insert, post) =
-                build_non_ref_fixture_binding(&binding, ty, &name_lit, cell_index);
-            prelude.push(pre);
-            inserts.push(insert);
-            postlude.push(post);
+
+        match classify_fixture_type(ty)? {
+            FixtureProcessing::Reference => {
+                inserts.push(quote! { ctx.insert(#name_lit, &#binding); });
+            }
+            FixtureProcessing::ResultType { inner_ty } => {
+                has_result_fixtures = true;
+                let unwrapped = format_ident!("__rstest_bdd_unwrapped_{cell_index}");
+                prelude.push(quote! { let #unwrapped = #binding?; });
+                let (pre, insert, post) =
+                    build_non_ref_fixture_binding(&unwrapped, &inner_ty, &name_lit, cell_index);
+                prelude.push(pre);
+                inserts.push(insert);
+                postlude.push(post);
+            }
+            FixtureProcessing::Owned => {
+                let (pre, insert, post) =
+                    build_non_ref_fixture_binding(&binding, ty, &name_lit, cell_index);
+                prelude.push(pre);
+                inserts.push(insert);
+                postlude.push(post);
+            }
         }
     }
 
@@ -49,6 +115,7 @@ pub(crate) fn extract_function_fixtures(
             prelude,
             ctx_inserts: inserts,
             postlude,
+            has_result_fixtures,
         },
     ))
 }
@@ -196,5 +263,133 @@ mod tests {
         };
         let name = resolve_fixture_name(pat_ty).expect("fixture name resolution should succeed");
         assert_eq!(name, "state", "#[from] attribute should take precedence");
+    }
+
+    #[rstest]
+    #[case(parse_quote! { fn scenario(world: Result<MyWorld, String>) }, true)]
+    #[case(parse_quote! { fn scenario(world: StepResult<MyWorld, String>) }, true)]
+    #[case(parse_quote! { fn scenario(world: MyWorld) }, false)]
+    fn result_fixture_flag_reflects_return_type(
+        #[case] mut sig: syn::Signature,
+        #[case] expected: bool,
+    ) {
+        #[expect(clippy::expect_used, reason = "test asserts fixture extraction")]
+        let (_idents, code) =
+            extract_function_fixtures(&mut sig).expect("fixture extraction should succeed");
+        assert_eq!(
+            code.has_result_fixtures, expected,
+            "has_result_fixtures should be {expected}"
+        );
+    }
+
+    #[rstest]
+    #[case(parse_quote! { fn scenario(world: (&MyWorld)) })]
+    #[case(parse_quote! { fn scenario(world: (&mut MyWorld)) })]
+    fn parenthesized_references_are_treated_as_references(#[case] mut sig: syn::Signature) {
+        #[expect(clippy::expect_used, reason = "test asserts fixture extraction")]
+        let (_idents, code) =
+            extract_function_fixtures(&mut sig).expect("fixture extraction should succeed");
+        // Parenthesized references should be treated as references, not owned
+        // This means they should NOT generate RefCell wrapping in the prelude
+        let prelude_str: String = code.prelude.iter().map(ToString::to_string).collect();
+        assert!(
+            !prelude_str.contains("RefCell"),
+            "parenthesized reference should not generate RefCell wrapping, got: {prelude_str}"
+        );
+        // References are inserted directly without unwrapping
+        let insert_str: String = code.ctx_inserts.iter().map(ToString::to_string).collect();
+        assert!(
+            !insert_str.contains("borrow"),
+            "parenthesized reference should not generate borrow calls, got: {insert_str}"
+        );
+    }
+
+    #[test]
+    #[expect(
+        clippy::expect_used,
+        reason = "test asserts Result fixture generates correct bindings"
+    )]
+    fn result_fixture_extraction_generates_correct_bindings() {
+        let mut sig: syn::Signature = parse_quote! {
+            fn scenario(world: Result<MyWorld, String>)
+        };
+        let (_idents, code) =
+            extract_function_fixtures(&mut sig).expect("fixture extraction should succeed");
+        let prelude_str: String = code.prelude.iter().map(ToString::to_string).collect();
+        assert!(
+            prelude_str.contains("__rstest_bdd_unwrapped_0"),
+            "prelude should contain unwrap binding, got: {prelude_str}"
+        );
+        assert!(
+            prelude_str.contains('?'),
+            "prelude should contain ? operator for Result unwrap, got: {prelude_str}"
+        );
+        let insert_str: String = code.ctx_inserts.iter().map(ToString::to_string).collect();
+        assert!(
+            insert_str.contains("MyWorld"),
+            "context insert should use inner type MyWorld, got: {insert_str}"
+        );
+        assert!(
+            !insert_str.contains("Result"),
+            "context insert should not reference Result wrapper, got: {insert_str}"
+        );
+    }
+
+    #[test]
+    #[expect(
+        clippy::expect_used,
+        reason = "test asserts StepResult fixture generates correct bindings"
+    )]
+    fn step_result_fixture_extraction_generates_correct_bindings() {
+        let mut sig: syn::Signature = parse_quote! {
+            fn scenario(world: StepResult<MyWorld, String>)
+        };
+        let (_idents, code) =
+            extract_function_fixtures(&mut sig).expect("fixture extraction should succeed");
+        assert!(
+            code.has_result_fixtures,
+            "StepResult fixture should set has_result_fixtures flag"
+        );
+        let prelude_str: String = code.prelude.iter().map(ToString::to_string).collect();
+        assert!(
+            prelude_str.contains("__rstest_bdd_unwrapped_0"),
+            "prelude should contain unwrap binding for StepResult, got: {prelude_str}"
+        );
+        assert!(
+            prelude_str.contains('?'),
+            "prelude should contain ? operator for StepResult unwrap, got: {prelude_str}"
+        );
+        let insert_str: String = code.ctx_inserts.iter().map(ToString::to_string).collect();
+        assert!(
+            insert_str.contains("MyWorld"),
+            "context insert should use inner type MyWorld, got: {insert_str}"
+        );
+        assert!(
+            !insert_str.contains("StepResult"),
+            "context insert should not reference StepResult wrapper, got: {insert_str}"
+        );
+    }
+
+    #[rstest]
+    #[case(parse_quote! { fn scenario(world: &Result<MyWorld, String>) }, "&Result")]
+    #[case(parse_quote! { fn scenario(world: &mut Result<MyWorld, String>) }, "&mut Result")]
+    #[case(parse_quote! { fn scenario(world: &StepResult<MyWorld, String>) }, "&StepResult")]
+    #[case(parse_quote! { fn scenario(world: &mut StepResult<MyWorld, String>) }, "&mut StepResult")]
+    #[case(parse_quote! { fn scenario(world: (&Result<MyWorld, String>)) }, "(&Result)")]
+    #[case(parse_quote! { fn scenario(world: (&mut Result<MyWorld, String>)) }, "(&mut Result)")]
+    #[case(parse_quote! { fn scenario(world: (&StepResult<MyWorld, String>)) }, "(&StepResult)")]
+    #[case(parse_quote! { fn scenario(world: (&mut StepResult<MyWorld, String>)) }, "(&mut StepResult)")]
+    fn borrowed_result_fixture_emits_compile_error(
+        #[case] mut sig: syn::Signature,
+        #[case] label: &str,
+    ) {
+        let Err(err) = extract_function_fixtures(&mut sig) else {
+            panic!("{label} fixture should be rejected")
+        };
+        let msg = err.to_string();
+        assert!(
+            msg.contains("borrows a result-like type"),
+            "error should mention borrowed result-like type, got: {msg}"
+        );
     }
 }

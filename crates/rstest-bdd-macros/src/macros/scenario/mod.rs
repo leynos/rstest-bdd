@@ -134,6 +134,19 @@ fn try_scenario(
 
     let (_args, fixture_setup) = extract_function_fixtures(sig)
         .map_err(|err| proc_macro::TokenStream::from(err.into_compile_error()))?;
+
+    if fixture_setup.has_result_fixtures && !return_kind.is_fallible() {
+        let err = syn::Error::new_spanned(
+            &sig.output,
+            concat!(
+                "scenarios with fallible fixtures (`Result<T, E>` or `StepResult<T, E>`) ",
+                "must return `Result<(), E>` or `StepResult<(), E>` to propagate ",
+                "fixture initialization errors",
+            ),
+        );
+        return Err(proc_macro::TokenStream::from(err.into_compile_error()));
+    }
+
     let ctx_prelude = fixture_setup.prelude;
     let ctx_inserts = fixture_setup.ctx_inserts;
     let ctx_postlude = fixture_setup.postlude;

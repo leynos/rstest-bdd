@@ -16,8 +16,10 @@ use crate::codegen::scenario::{
 use crate::parsing::examples::ExampleTable;
 use crate::parsing::feature::ScenarioData;
 use crate::parsing::tags::TagExpression;
+use crate::return_classifier::classify_return_type;
 use crate::utils::fixtures::extract_function_fixtures;
 use crate::utils::ident::sanitize_ident;
+use crate::utils::result_type::try_extract_result_error_type;
 
 use super::macro_args::{
     FixtureSpec, RuntimeCompatibilityAlias, RuntimeMode, runtime_compatibility_alias,
@@ -186,6 +188,77 @@ fn build_test_signature(
     }
 }
 
+/// Normalizes a type for structural comparison by converting it to a
+/// canonical string representation with consistent formatting.
+///
+/// This is used for deduplicating error types where `std::io::Error` and
+/// `Error` (when both refer to the same type via imports) should be
+/// considered distinct at the syntax level, but semantically equivalent
+/// paths like `::std::io::Error` and `std::io::Error` should match.
+fn normalize_type_key(ty: &syn::Type) -> String {
+    // Use quote! to get a consistent token representation, then normalize
+    // whitespace and remove leading :: for comparison
+    let rendered = quote!(#ty).to_string();
+    rendered
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
+        .trim_start_matches("::")
+        .to_string()
+}
+
+/// Resolves a unified error type from `Result`-typed fixture specifications.
+///
+/// When all `Result<T, E>` fixtures share the same error type `E`, returns
+/// that type directly so the generated test signature uses it verbatim.
+/// When fixtures use different error types (or none are Result-typed), falls
+/// back to `Box<dyn ::std::error::Error>`.
+fn resolve_fixture_error_type(fixtures: &[FixtureSpec]) -> syn::Type {
+    let mut error_types: Vec<syn::Type> = fixtures
+        .iter()
+        .filter_map(|spec| try_extract_result_error_type(&spec.ty))
+        .collect();
+    // Sort by normalized key so identical types become adjacent, then dedup
+    error_types.sort_by_key(normalize_type_key);
+    error_types.dedup_by(|a, b| normalize_type_key(a) == normalize_type_key(b));
+    if error_types.len() == 1 {
+        error_types.remove(0)
+    } else {
+        syn::parse_quote! { Box<dyn ::std::error::Error> }
+    }
+}
+
+/// Classifies the scenario return kind from the current signature output,
+/// upgrading to `ResultUnit` when Result-returning fixtures require error
+/// propagation and the signature is not already fallible.
+///
+/// Uses [`classify_return_type`] to determine the initial [`ScenarioReturnKind`]:
+/// `Unit` for unit returns, `ResultUnit` for fallible returns. When
+/// `has_result_fixtures` is true and the return kind is not already fallible,
+/// this function **mutates** `sig.output` in-place via
+/// [`resolve_fixture_error_type`] to upgrade it to `Result<(), E>`, ensuring
+/// the generated function signature can propagate fixture initialization errors.
+fn resolve_scenario_return_kind(
+    sig: &mut syn::Signature,
+    has_result_fixtures: bool,
+    fixtures: &[FixtureSpec],
+) -> ScenarioReturnKind {
+    let mut return_kind = classify_return_type(&sig.output, None)
+        .map(|rk| match rk {
+            crate::return_classifier::ReturnKind::Unit => ScenarioReturnKind::Unit,
+            _ => ScenarioReturnKind::ResultUnit,
+        })
+        .unwrap_or(ScenarioReturnKind::Unit);
+
+    if has_result_fixtures && !return_kind.is_fallible() {
+        let error_ty = resolve_fixture_error_type(fixtures);
+        sig.output = syn::parse_quote! { -> ::std::result::Result<(), #error_ty> };
+        return_kind = ScenarioReturnKind::ResultUnit;
+    }
+
+    return_kind
+}
+
 /// Generate an rstest-backed test for a single scenario within a feature.
 ///
 /// Derives a unique function using `ctx` to build stable identifiers and
@@ -227,9 +300,16 @@ pub(super) fn generate_scenario_test(
         Err(err) => return err.to_compile_error(),
     };
 
+    let return_kind =
+        resolve_scenario_return_kind(&mut sig, fixture_setup.has_result_fixtures, ctx.fixtures);
+
     let feature_path = ctx.manifest_dir.join(ctx.rel_path).display().to_string();
     let vis = syn::Visibility::Inherited;
-    let block: syn::Block = syn::parse_quote!({});
+    let block: syn::Block = if return_kind.is_fallible() {
+        syn::parse_quote!({ Ok(()) })
+    } else {
+        syn::parse_quote!({})
+    };
 
     let config = ScenarioConfig {
         attrs: &attrs,
@@ -244,7 +324,7 @@ pub(super) fn generate_scenario_test(
         line,
         tags: &tags,
         runtime: effective_runtime,
-        return_kind: ScenarioReturnKind::Unit,
+        return_kind,
         harness: harness_ref,
         attributes: ctx.attributes,
     };
