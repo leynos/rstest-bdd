@@ -186,3 +186,8 @@ scenarios!(
     harness = rstest_bdd_harness_gpui::GpuiHarness,
     attributes = rstest_bdd_harness_gpui::GpuiAttributePolicy,
 );
+
+scenarios!(
+    "tests/features/gpui_harness_default_scenarios",
+    harness = rstest_bdd_harness_gpui::GpuiHarness,
+);

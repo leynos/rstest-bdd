@@ -151,6 +151,7 @@ fn try_scenario(
         line,
         tags: &tags,
         runtime,
+        attribute_runtime: runtime,
         return_kind,
         harness: harness.as_ref(),
         attributes: attributes.as_ref(),

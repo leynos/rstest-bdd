@@ -82,12 +82,21 @@ pub enum TestAttributeHint {
 pub const DEFAULT_ATTRIBUTE_POLICY_PATH: &[&str] =
     &["rstest_bdd_harness", "DefaultAttributePolicy"];
 
+/// Canonical path segments for `StdHarness`.
+pub const STD_HARNESS_PATH: &[&str] = &["rstest_bdd_harness", "StdHarness"];
+
 /// Canonical path segments for `TokioAttributePolicy`.
 pub const TOKIO_ATTRIBUTE_POLICY_PATH: &[&str] =
     &["rstest_bdd_harness_tokio", "TokioAttributePolicy"];
 
+/// Canonical path segments for `TokioHarness`.
+pub const TOKIO_HARNESS_PATH: &[&str] = &["rstest_bdd_harness_tokio", "TokioHarness"];
+
 /// Canonical path segments for `GpuiAttributePolicy`.
 pub const GPUI_ATTRIBUTE_POLICY_PATH: &[&str] = &["rstest_bdd_harness_gpui", "GpuiAttributePolicy"];
+
+/// Canonical path segments for `GpuiHarness`.
+pub const GPUI_HARNESS_PATH: &[&str] = &["rstest_bdd_harness_gpui", "GpuiHarness"];
 
 const KNOWN_ATTRIBUTE_POLICY_HINTS: [(&[&str], TestAttributeHint); 3] = [
     (DEFAULT_ATTRIBUTE_POLICY_PATH, TestAttributeHint::RstestOnly),
@@ -99,6 +108,15 @@ const KNOWN_ATTRIBUTE_POLICY_HINTS: [(&[&str], TestAttributeHint); 3] = [
         GPUI_ATTRIBUTE_POLICY_PATH,
         TestAttributeHint::RstestWithGpuiTest,
     ),
+];
+
+const KNOWN_HARNESS_HINTS: [(&[&str], TestAttributeHint); 3] = [
+    (STD_HARNESS_PATH, TestAttributeHint::RstestOnly),
+    (
+        TOKIO_HARNESS_PATH,
+        TestAttributeHint::RstestWithTokioCurrentThread,
+    ),
+    (GPUI_HARNESS_PATH, TestAttributeHint::RstestWithGpuiTest),
 ];
 
 /// Resolves a canonical attribute policy path into a test-attribute hint.
@@ -133,12 +151,44 @@ pub fn resolve_test_attribute_hint_for_policy_path(
         .find_map(|(known_path, hint)| (path_segments == *known_path).then_some(*hint))
 }
 
+/// Resolves a canonical harness path into a test-attribute hint.
+///
+/// Path segments should be provided without a leading `::`.
+///
+/// # Examples
+///
+/// ```
+/// use rstest_bdd_policy::{
+///     resolve_test_attribute_hint_for_harness_path, TestAttributeHint,
+/// };
+///
+/// assert_eq!(
+///     resolve_test_attribute_hint_for_harness_path(&[
+///         "rstest_bdd_harness_tokio",
+///         "TokioHarness",
+///     ]),
+///     Some(TestAttributeHint::RstestWithTokioCurrentThread)
+/// );
+/// assert_eq!(
+///     resolve_test_attribute_hint_for_harness_path(&["my", "Harness"]),
+///     None
+/// );
+/// ```
+#[must_use]
+pub fn resolve_test_attribute_hint_for_harness_path(
+    path_segments: &[&str],
+) -> Option<TestAttributeHint> {
+    KNOWN_HARNESS_HINTS
+        .iter()
+        .find_map(|(known_path, hint)| (path_segments == *known_path).then_some(*hint))
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
-        DEFAULT_ATTRIBUTE_POLICY_PATH, GPUI_ATTRIBUTE_POLICY_PATH, RuntimeMode,
-        TOKIO_ATTRIBUTE_POLICY_PATH, TestAttributeHint,
-        resolve_test_attribute_hint_for_policy_path,
+        DEFAULT_ATTRIBUTE_POLICY_PATH, GPUI_ATTRIBUTE_POLICY_PATH, GPUI_HARNESS_PATH, RuntimeMode,
+        STD_HARNESS_PATH, TOKIO_ATTRIBUTE_POLICY_PATH, TOKIO_HARNESS_PATH, TestAttributeHint,
+        resolve_test_attribute_hint_for_harness_path, resolve_test_attribute_hint_for_policy_path,
     };
 
     #[test]
@@ -208,6 +258,46 @@ mod tests {
     fn partial_attribute_policy_path_returns_none() {
         assert_eq!(
             resolve_test_attribute_hint_for_policy_path(&["TokioAttributePolicy"]),
+            None
+        );
+    }
+
+    #[test]
+    fn resolves_std_harness_path() {
+        assert_eq!(
+            resolve_test_attribute_hint_for_harness_path(STD_HARNESS_PATH),
+            Some(TestAttributeHint::RstestOnly)
+        );
+    }
+
+    #[test]
+    fn resolves_tokio_harness_path() {
+        assert_eq!(
+            resolve_test_attribute_hint_for_harness_path(TOKIO_HARNESS_PATH),
+            Some(TestAttributeHint::RstestWithTokioCurrentThread)
+        );
+    }
+
+    #[test]
+    fn resolves_gpui_harness_path() {
+        assert_eq!(
+            resolve_test_attribute_hint_for_harness_path(GPUI_HARNESS_PATH),
+            Some(TestAttributeHint::RstestWithGpuiTest)
+        );
+    }
+
+    #[test]
+    fn unknown_harness_path_returns_none() {
+        assert_eq!(
+            resolve_test_attribute_hint_for_harness_path(&["my", "Harness"]),
+            None
+        );
+    }
+
+    #[test]
+    fn partial_harness_path_returns_none() {
+        assert_eq!(
+            resolve_test_attribute_hint_for_harness_path(&["TokioHarness"]),
             None
         );
     }

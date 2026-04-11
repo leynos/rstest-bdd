@@ -244,6 +244,7 @@ pub(super) fn generate_scenario_test(
         line,
         tags: &tags,
         runtime: effective_runtime,
+        attribute_runtime: ctx.runtime,
         return_kind: ScenarioReturnKind::Unit,
         harness: harness_ref,
         attributes: ctx.attributes,

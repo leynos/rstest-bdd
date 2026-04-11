@@ -2,7 +2,9 @@
 
 use proc_macro2::TokenStream as TokenStream2;
 use quote::quote;
-use rstest_bdd_policy::resolve_test_attribute_hint_for_policy_path;
+use rstest_bdd_policy::{
+    resolve_test_attribute_hint_for_harness_path, resolve_test_attribute_hint_for_policy_path,
+};
 
 use super::{RuntimeMode, TestAttributeHint};
 
@@ -56,21 +58,41 @@ impl ResolvedAttributePolicy {
 }
 
 fn resolve_attribute_hint_from_policy_path(path: &syn::Path) -> Option<TestAttributeHint> {
+    resolve_attribute_hint_from_path(path, resolve_test_attribute_hint_for_policy_path)
+}
+
+fn resolve_attribute_hint_from_harness_path(path: &syn::Path) -> Option<TestAttributeHint> {
+    resolve_attribute_hint_from_path(path, resolve_test_attribute_hint_for_harness_path)
+}
+
+fn resolve_attribute_hint_from_path(
+    path: &syn::Path,
+    resolver: fn(&[&str]) -> Option<TestAttributeHint>,
+) -> Option<TestAttributeHint> {
     let segment_names: Vec<_> = path
         .segments
         .iter()
         .map(|segment| segment.ident.to_string())
         .collect();
     let segment_refs: Vec<_> = segment_names.iter().map(String::as_str).collect();
-    resolve_test_attribute_hint_for_policy_path(&segment_refs)
+    resolver(&segment_refs)
 }
 
 fn resolve_attribute_policy(
     runtime: RuntimeMode,
+    harness: Option<&syn::Path>,
     attributes: Option<&syn::Path>,
 ) -> ResolvedAttributePolicy {
     let hint = attributes.map_or_else(
-        || runtime.test_attribute_hint(),
+        || {
+            harness.map_or_else(
+                || runtime.test_attribute_hint(),
+                |path| {
+                    resolve_attribute_hint_from_harness_path(path)
+                        .unwrap_or_else(|| runtime.test_attribute_hint())
+                },
+            )
+        },
         |path| {
             resolve_attribute_hint_from_policy_path(path).unwrap_or(TestAttributeHint::RstestOnly)
         },
@@ -97,13 +119,14 @@ fn render_policy_attribute(attribute: PolicyAttribute) -> TokenStream2 {
 pub(super) fn generate_test_attrs(
     attrs: &[syn::Attribute],
     runtime: RuntimeMode,
+    harness: Option<&syn::Path>,
     attributes: Option<&syn::Path>,
     is_async: bool,
 ) -> TokenStream2 {
     // Match only tokio::test to avoid false positives like #[test] or #[test_case].
     let has_tokio_test = attrs.iter().any(is_tokio_test_attr);
     let has_gpui_test = attrs.iter().any(is_gpui_test_attr);
-    let resolved_policy = resolve_attribute_policy(runtime, attributes);
+    let resolved_policy = resolve_attribute_policy(runtime, harness, attributes);
 
     let generated_attrs: Vec<_> = resolved_policy
         .test_attributes()

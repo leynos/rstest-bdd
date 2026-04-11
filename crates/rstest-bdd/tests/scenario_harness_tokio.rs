@@ -8,7 +8,7 @@
 //! - `spawn_local` succeeds in step functions, confirming the `LocalSet` +
 //!   `current_thread` wiring.
 
-use rstest_bdd_macros::{given, scenario, then, when};
+use rstest_bdd_macros::{given, scenario, scenarios, then, when};
 
 #[given("the Tokio runtime is active")]
 fn tokio_runtime_is_active() {
@@ -83,3 +83,8 @@ async fn async_steps_completed() {
     harness = rstest_bdd_harness_tokio::TokioHarness,
 )]
 fn scenario_async_steps_under_tokio_harness() {}
+
+scenarios!(
+    "tests/features/tokio_harness_scenarios",
+    harness = rstest_bdd_harness_tokio::TokioHarness,
+);

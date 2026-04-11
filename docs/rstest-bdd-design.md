@@ -1678,16 +1678,30 @@ The canonical path-to-hint mapping lives in `rstest-bdd-policy`, so adding
 first-party policy mappings no longer requires editing macro-local resolution
 tables.
 
-If `attributes` is omitted, `RuntimeMode` remains the compatibility fallback:
-Tokio runtime mode resolves to Tokio current-thread attributes, while sync mode
-resolves to rstest-only. `#[tokio::test]` is omitted for synchronous test
-signatures because Tokio requires `async fn`.
+If `attributes` is omitted, resolution now follows the ADR-008 precedence order:
 
-The user-facing guidance for this feature should lead with explicit
-`harness = ...` and `attributes = ...` configuration, then treat
-`runtime = "tokio-current-thread"` as deprecated compatibility syntax for
-`scenarios!`. This keeps the user guide aligned with the delivered API rather
-than with the historical migration path.
+1. explicit `attributes = ...`
+2. known first-party `harness = ...` mapping
+3. deprecated `runtime = "tokio-current-thread"` compatibility alias
+4. existing runtime-mode or synchronous fallback
+
+The canonical first-party harness mappings also live in `rstest-bdd-policy`:
+
+- `rstest_bdd_harness::StdHarness` -> rstest-only
+- `rstest_bdd_harness_tokio::TokioHarness` -> Tokio current-thread
+- `rstest_bdd_harness_gpui::GpuiHarness` -> GPUI test
+
+Unknown harness paths still fall back to runtime compatibility behaviour
+because procedural macros do not evaluate arbitrary third-party
+`AttributePolicy::test_attributes()` implementations during expansion.
+`#[tokio::test]` is omitted for synchronous test signatures because Tokio
+requires `async fn`.
+
+The user-facing guidance for this feature should lead with harness-only
+first-party configuration, with explicit `attributes = ...` documented as the
+override and third-party escape hatch. The deprecated
+`runtime = "tokio-current-thread"` form remains compatibility syntax for
+`scenarios!`, not the primary configuration surface.
 
 **`rstest::rstest` is always emitted.** The `#[rstest::rstest]` attribute is
 unconditional because the framework fundamentally relies on rstest for fixture
@@ -1726,8 +1740,9 @@ The first official adapters and policies are:
   not guarantee full `LocalSet` drain for multi-poll futures such as
   timer-driven work. The user-facing demonstration crate under
   `examples/tokio-reminders` models a local reminder queue whose BDD suite
-  exercises `TokioHarness` and `TokioAttributePolicy` end-to-end, while the
-  crate's unit tests cover the explicit `flush().await` coordination pattern.
+  exercises `TokioHarness` with harness-led default attributes end-to-end,
+  while the crate's unit tests cover the explicit `flush().await` coordination
+  pattern.
 - `rstest-bdd-harness-gpui` (implemented, phase 9.4): provides `GpuiHarness`
   and `GpuiAttributePolicy`. `GpuiHarness` implements `HarnessAdapter` by
   running each `ScenarioRunRequest` inside `gpui::run_test`, building a
@@ -1743,12 +1758,13 @@ The first official adapters and policies are:
   feature-gated (`native-gpui-tests` and `gpui-harness-tests`) as explicit
   opt-in suites. A user-facing demonstration crate under
   `examples/gpui-counter` models a simple counter application whose BDD suite
-  exercises both `GpuiHarness` and `GpuiAttributePolicy` end-to-end, with step
-  definitions that access injected `TestAppContext` through
+  exercises `GpuiHarness` with harness-led default attributes end-to-end, with
+  step definitions that access injected `TestAppContext` through
   `rstest_bdd_harness_context`. Focused `rstest-bdd` integration coverage also
   verifies canonical GPUI policy resolution for `scenarios!`, canonical and
-  absolute first-party GPUI policy paths for `#[scenario]`, and deduplication
-  when a generated `#[scenario]` test already has `#[gpui::test]`. The example
+  absolute first-party GPUI policy paths for `#[scenario]`, harness-led
+  defaults for both `#[scenario]` and `scenarios!`, and deduplication when a
+  generated `#[scenario]` test already has `#[gpui::test]`. The example
   requires no native-library setup beyond the workspace GPUI shim.
 
 Future adapters (for example, Bevy) are planned to follow the same pattern

@@ -64,12 +64,15 @@ fn run_passing_macro_tests(t: &trybuild::TestCases) {
         MacroFixtureCase::from("scenarios_fixtures.rs"),
         MacroFixtureCase::from("scenarios_autodiscovery.rs"),
         MacroFixtureCase::from("scenario_harness_params.rs"),
+        MacroFixtureCase::from("scenario_harness_tokio_default.rs"),
+        MacroFixtureCase::from("scenario_harness_gpui_default.rs"),
         MacroFixtureCase::from("scenario_attributes_tokio.rs"),
         MacroFixtureCase::from("scenario_attributes_tokio_sync.rs"),
         MacroFixtureCase::from("scenario_attributes_tokio_dedup.rs"),
         MacroFixtureCase::from("scenario_attributes_gpui.rs"),
         MacroFixtureCase::from("scenario_attributes_gpui_absolute.rs"),
         MacroFixtureCase::from("scenarios_harness_params.rs"),
+        MacroFixtureCase::from("scenarios_harness_gpui_default.rs"),
         MacroFixtureCase::from("scenarios_attributes_gpui.rs"),
     ] {
         t.pass(macros_fixture(case).as_std_path());

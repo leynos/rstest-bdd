@@ -11,7 +11,7 @@ use super::{RuntimeMode, generate_test_attrs, parse_path};
 )))]
 fn generate_test_attrs_respects_gpui_policy_paths(#[case] policy_path: Option<syn::Path>) {
     let policy = policy_path.as_ref();
-    let tokens = generate_test_attrs(&[], RuntimeMode::TokioCurrentThread, policy, true);
+    let tokens = generate_test_attrs(&[], RuntimeMode::TokioCurrentThread, None, policy, true);
     let output = tokens.to_string();
 
     assert!(
@@ -31,7 +31,7 @@ fn generate_test_attrs_respects_gpui_policy_paths(#[case] policy_path: Option<sy
 #[test]
 fn generate_test_attrs_emits_gpui_for_sync_functions() {
     let policy_path = parse_path("rstest_bdd_harness_gpui::GpuiAttributePolicy");
-    let tokens = generate_test_attrs(&[], RuntimeMode::Sync, Some(&policy_path), false);
+    let tokens = generate_test_attrs(&[], RuntimeMode::Sync, None, Some(&policy_path), false);
     let output = tokens.to_string();
 
     assert!(
@@ -50,7 +50,8 @@ fn generate_test_attrs_dedupes_gpui_policy_and_user_attribute() {
     let attrs = vec![gpui_attr];
 
     let policy_path = parse_path("rstest_bdd_harness_gpui::GpuiAttributePolicy");
-    let generated_attrs = generate_test_attrs(&attrs, RuntimeMode::Sync, Some(&policy_path), false);
+    let generated_attrs =
+        generate_test_attrs(&attrs, RuntimeMode::Sync, None, Some(&policy_path), false);
     let output = quote::quote! { #(#attrs)* #generated_attrs }.to_string();
 
     assert!(
