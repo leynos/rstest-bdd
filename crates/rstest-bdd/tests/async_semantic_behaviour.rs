@@ -17,9 +17,9 @@ use serial_test::serial;
 #[cfg(feature = "diagnostics")]
 use async_semantic_behaviour_support::assert_bypassed_step_recorded;
 use async_semantic_behaviour_support::{
-    CleanupProbe, ERROR_SCENARIO_NAME, FEATURE_PATH, SKIP_SCENARIO_LINE, SKIP_SCENARIO_NAME,
-    SemanticValue, assert_feature_path_suffix, assert_message_mentions_feature_path, cleanup_drops,
-    clear_events, push_event, reset_cleanup_drops, snapshot_events,
+    CleanupProbe, ERROR_SCENARIO_NAME, FEATURE_PATH, SKIP_SCENARIO_NAME, SemanticValue,
+    assert_feature_path_suffix, assert_handler_failure_context, cleanup_drops, clear_events,
+    push_event, reset_cleanup_drops, scenario_line, snapshot_events,
 };
 
 #[fixture]
@@ -170,7 +170,6 @@ async fn semantic_async_skip_scenario() {
     path = "tests/features/async_semantic_behaviour.feature",
     name = "async steps preserve declaration order"
 )]
-#[serial]
 fn semantic_step_ordering_outline(
     #[from(semantic_order_fixture)] semantic_order_fixture: RefCell<Vec<String>>,
     item: String,
@@ -245,6 +244,7 @@ fn semantic_cleanup_failure_scenario(
 fn skip_propagation_preserves_message_and_bypass_metadata() {
     let _ = drain_reports();
     semantic_async_skip_scenario();
+    let skip_scenario_line = scenario_line(SKIP_SCENARIO_NAME);
 
     assert_eq!(
         snapshot_events(),
@@ -258,7 +258,7 @@ fn skip_propagation_preserves_message_and_bypass_metadata() {
     };
     assert_feature_path_suffix(record.feature_path(), FEATURE_PATH);
     assert_eq!(record.scenario_name(), SKIP_SCENARIO_NAME);
-    assert_eq!(record.line(), SKIP_SCENARIO_LINE);
+    assert_eq!(record.line(), skip_scenario_line);
     let details = assert_scenario_skipped!(
         record.status(),
         message = "semantic async skip message",
@@ -270,14 +270,13 @@ fn skip_propagation_preserves_message_and_bypass_metadata() {
     #[cfg(feature = "diagnostics")]
     assert_bypassed_step_recorded(
         SKIP_SCENARIO_NAME,
-        SKIP_SCENARIO_LINE,
+        skip_scenario_line,
         "semantic async trailing step should never run",
         "semantic async skip message",
     );
 }
 
 #[test]
-#[serial]
 fn error_propagation_includes_step_and_scenario_context() {
     let panic = match catch_unwind(semantic_async_error_scenario) {
         Ok(()) => panic!("expected async scenario to panic"),
@@ -285,31 +284,15 @@ fn error_propagation_includes_step_and_scenario_context() {
     };
     let message = panic_message(panic.as_ref());
 
-    assert!(
-        message.contains("Step failed at index"),
-        "panic message should include the failing step index label: {message}",
+    assert_handler_failure_context(
+        &message,
+        FEATURE_PATH,
+        ERROR_SCENARIO_NAME,
+        "When",
+        "semantic async failing step runs",
+        "semantic_async_failing_step",
+        "semantic async failure",
     );
-    assert!(
-        message.contains("When"),
-        "panic message should include the failing step keyword: {message}",
-    );
-    assert!(
-        message.contains("semantic async failing step runs"),
-        "panic message should include the failing step text: {message}",
-    );
-    assert!(
-        message.contains("semantic_async_failing_step"),
-        "panic message should include the failing step function: {message}",
-    );
-    assert!(
-        message.contains("semantic async failure"),
-        "panic message should preserve the handler error message: {message}",
-    );
-    assert!(
-        message.contains(ERROR_SCENARIO_NAME),
-        "panic message should include the scenario name: {message}",
-    );
-    assert_message_mentions_feature_path(&message, FEATURE_PATH);
     assert_eq!(
         snapshot_events(),
         vec!["failure:given".to_string(), "failure:when".to_string()],
@@ -318,7 +301,6 @@ fn error_propagation_includes_step_and_scenario_context() {
 }
 
 #[test]
-#[serial]
 fn cleanup_probe_drops_after_successful_scenario_completion() {
     reset_cleanup_drops();
     semantic_cleanup_success_scenario();
@@ -330,13 +312,13 @@ fn cleanup_probe_drops_after_successful_scenario_completion() {
 }
 
 #[test]
-#[serial]
 fn cleanup_probe_drops_after_failed_scenario_completion() {
     reset_cleanup_drops();
     let result = catch_unwind(semantic_cleanup_failure_scenario);
     assert!(result.is_err(), "expected cleanup scenario to fail");
-    assert!(
-        cleanup_drops() > 0,
-        "fixtures should be dropped even when scenario execution fails",
+    assert_eq!(
+        cleanup_drops(),
+        1,
+        "fixtures should be dropped exactly once even when scenario execution fails",
     );
 }

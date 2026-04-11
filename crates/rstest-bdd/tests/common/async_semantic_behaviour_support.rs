@@ -1,19 +1,25 @@
 //! Shared support for async semantic behaviour tests.
 
+use std::cell::RefCell;
 use std::path::Path;
-use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::{LazyLock, Mutex, MutexGuard};
 
+use regex::Regex;
 #[cfg(feature = "diagnostics")]
 use serde_json::Value;
 
 pub(crate) const FEATURE_PATH: &str = "tests/features/async_semantic_behaviour.feature";
 pub(crate) const SKIP_SCENARIO_NAME: &str = "async skip propagation preserves metadata";
-pub(crate) const SKIP_SCENARIO_LINE: u32 = 4;
 pub(crate) const ERROR_SCENARIO_NAME: &str = "async failure surfaces scenario metadata";
 
-static EVENTS: LazyLock<Mutex<Vec<String>>> = LazyLock::new(|| Mutex::new(Vec::new()));
-static CLEANUP_DROPS: AtomicUsize = AtomicUsize::new(0);
+#[derive(Default)]
+struct TestState {
+    events: Vec<String>,
+    cleanup_drops: usize,
+}
+
+thread_local! {
+    static TEST_STATE: RefCell<TestState> = RefCell::new(TestState::default());
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct SemanticValue(pub(crate) i32);
@@ -22,35 +28,36 @@ pub(crate) struct CleanupProbe;
 
 impl Drop for CleanupProbe {
     fn drop(&mut self) {
-        CLEANUP_DROPS.fetch_add(1, Ordering::SeqCst);
-    }
-}
-
-fn events_guard() -> MutexGuard<'static, Vec<String>> {
-    match EVENTS.lock() {
-        Ok(guard) => guard,
-        Err(poisoned) => poisoned.into_inner(),
+        TEST_STATE.with(|state| {
+            state.borrow_mut().cleanup_drops += 1;
+        });
     }
 }
 
 pub(crate) fn clear_events() {
-    events_guard().clear();
+    TEST_STATE.with(|state| {
+        state.borrow_mut().events.clear();
+    });
 }
 
 pub(crate) fn push_event(event: impl Into<String>) {
-    events_guard().push(event.into());
+    TEST_STATE.with(|state| {
+        state.borrow_mut().events.push(event.into());
+    });
 }
 
 pub(crate) fn snapshot_events() -> Vec<String> {
-    events_guard().clone()
+    TEST_STATE.with(|state| state.borrow().events.clone())
 }
 
 pub(crate) fn reset_cleanup_drops() {
-    CLEANUP_DROPS.store(0, Ordering::SeqCst);
+    TEST_STATE.with(|state| {
+        state.borrow_mut().cleanup_drops = 0;
+    });
 }
 
 pub(crate) fn cleanup_drops() -> usize {
-    CLEANUP_DROPS.load(Ordering::SeqCst)
+    TEST_STATE.with(|state| state.borrow().cleanup_drops)
 }
 
 pub(crate) fn assert_feature_path_suffix(actual: &str, expected_suffix: &str) {
@@ -62,12 +69,60 @@ pub(crate) fn assert_feature_path_suffix(actual: &str, expected_suffix: &str) {
     );
 }
 
-pub(crate) fn assert_message_mentions_feature_path(message: &str, expected_suffix: &str) {
-    let normalized_message = message.replace('\\', "/");
-    assert!(
-        normalized_message.contains(expected_suffix),
-        "panic message should include the feature path {expected_suffix}: {message}",
+pub(crate) fn assert_handler_failure_context(
+    message: &str,
+    expected_suffix: &str,
+    scenario_name: &str,
+    step_keyword: &str,
+    step_text: &str,
+    function_name: &str,
+    handler_error: &str,
+) {
+    let normalized_message = normalize_message(message);
+    let pattern = format!(
+        r"Step failed at index .*?: .*?{step_keyword}.*?{step_text}.*?{function_name}.*?{handler_error}.*?\(feature: .*?{expected_suffix}, scenario: .*?{scenario_name}\)",
+        step_keyword = regex::escape(step_keyword),
+        step_text = regex::escape(step_text),
+        function_name = regex::escape(function_name),
+        handler_error = regex::escape(handler_error),
+        expected_suffix = regex::escape(expected_suffix),
+        scenario_name = regex::escape(scenario_name),
     );
+    let matcher = Regex::new(&pattern)
+        .unwrap_or_else(|error| panic!("handler-failure matcher should compile: {error}"));
+    assert!(
+        matcher.is_match(&normalized_message),
+        "panic message should include the handler failure context: {message}",
+    );
+}
+
+pub(crate) fn scenario_line(scenario_name: &str) -> u32 {
+    let feature_path = Path::new(env!("CARGO_MANIFEST_DIR")).join(FEATURE_PATH);
+    let feature = std::fs::read_to_string(&feature_path)
+        .unwrap_or_else(|error| panic!("feature file should be readable: {error}"));
+    feature
+        .lines()
+        .enumerate()
+        .find_map(|(index, line)| {
+            parse_scenario_heading(line)
+                .filter(|name| *name == scenario_name)
+                .map(|_| index + 1)
+        })
+        .and_then(|line| u32::try_from(line).ok())
+        .unwrap_or_else(|| panic!("scenario '{scenario_name}' should exist in {FEATURE_PATH}"))
+}
+
+fn parse_scenario_heading(line: &str) -> Option<&str> {
+    let trimmed = line.trim_start();
+    trimmed
+        .strip_prefix("Scenario: ")
+        .or_else(|| trimmed.strip_prefix("Scenario Outline: "))
+}
+
+fn normalize_message(message: &str) -> String {
+    message
+        .replace('\\', "/")
+        .replace(['\u{2068}', '\u{2069}'], "")
 }
 
 #[cfg(feature = "diagnostics")]
