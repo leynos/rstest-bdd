@@ -67,6 +67,8 @@ pub(crate) struct ScenarioConfig<'a> {
     pub(crate) tags: &'a [String],
     /// Runtime mode for test execution (sync or async/Tokio).
     pub(crate) runtime: RuntimeMode,
+    /// Runtime mode used when resolving generated test attributes.
+    pub(crate) attribute_runtime: RuntimeMode,
     /// Return shape expected from the scenario body.
     pub(crate) return_kind: ScenarioReturnKind,
     /// Optional harness adapter type path for compile-time trait assertion.
@@ -211,7 +213,8 @@ where
     let body = generate_test_tokens(&test_config, ctx.prelude, ctx.inserts, ctx.postlude);
     let test_attrs = generate_test_attrs(
         config.attrs,
-        config.runtime,
+        config.attribute_runtime,
+        config.harness,
         config.attributes,
         config.runtime.is_async(),
     );
@@ -303,7 +306,8 @@ where
 
     let test_attrs = generate_test_attrs(
         config.attrs,
-        config.runtime,
+        config.attribute_runtime,
+        config.harness,
         config.attributes,
         config.runtime.is_async(),
     );

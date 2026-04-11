@@ -325,6 +325,7 @@ pub(super) fn generate_scenario_test(
         tags: &tags,
         runtime: effective_runtime,
         return_kind,
+        attribute_runtime: ctx.runtime,
         harness: harness_ref,
         attributes: ctx.attributes,
     };

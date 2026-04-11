@@ -5,7 +5,7 @@ This ExecPlan (execution plan) is a living document. The sections
 `Decision Log`, and `Outcomes & Retrospective` must be kept up to date as work
 proceeds.
 
-Status: DRAFT
+Status: IMPLEMENTED
 
 `PLANS.md` is not present in this repository at the time of writing, so this
 ExecPlan is the governing plan for ADR-008 delivery once the ADR is accepted
@@ -156,16 +156,15 @@ Success is observable in three ways:
       `rstest-bdd-policy`, `rstest-bdd-macros`, and the existing Tokio/GPUI
       test suites.
 - [x] (2026-04-09) Drafted this ExecPlan.
-- [ ] Stage A: add shared first-party harness-path hint resolution in
-      `rstest-bdd-policy`.
-- [ ] Stage B: refactor macro test-attribute resolution to honour ADR-008
-      precedence for both `#[scenario]` and `scenarios!`.
-- [ ] Stage C: add unit, trybuild, and behavioural coverage for harness-led
-      defaults and explicit overrides.
-- [ ] Stage D: update `docs/users-guide.md` and `docs/rstest-bdd-design.md`
-      to teach the delivered behaviour.
-- [ ] Stage E: run focused validation plus repository-wide gates and, if
-      allowed by ADR status, update roadmap state.
+- [x] (2026-04-11) Stage A: add shared first-party harness-path hint
+      resolution in `rstest-bdd-policy`.
+- [x] (2026-04-11) Stage B: refactor macro test-attribute resolution to honour
+      ADR-008 precedence for both `#[scenario]` and `scenarios!`.
+- [x] (2026-04-11) Stage C: add unit, trybuild, and behavioural coverage for
+      harness-led defaults and explicit overrides.
+- [x] (2026-04-11) Stage D: update `docs/users-guide.md` and
+      `docs/rstest-bdd-design.md` to teach the delivered behaviour.
+- [x] (2026-04-11) Stage E: run focused validation plus repository-wide gates.
 
 ## Surprises & Discoveries
 
@@ -193,6 +192,11 @@ Success is observable in three ways:
 - Observation: `make test` skips the trybuild macro suite under nextest.
   Impact: the implementation must always run a focused `cargo test` command for
   `trybuild_macros` in addition to the normal repository gates.
+- Observation: `scenarios!` lowers the deprecated Tokio runtime alias to a
+  synchronous effective runtime before `ScenarioConfig` reaches shared codegen.
+  Impact: preserving ADR-008 precedence required a second runtime field
+  dedicated to attribute resolution so the alias hint survives while the
+  generated function signature remains synchronous.
 
 ## Decision Log
 
@@ -218,9 +222,48 @@ Success is observable in three ways:
 
 ## Outcomes & Retrospective
 
-No implementation has started yet. When execution is complete, replace this
-placeholder with the shipped behaviour, the final validation transcript, and
-any follow-on work that should be split into a separate change.
+ADR-008 shipped on 2026-04-11 with the intended harness-led default behaviour.
+`rstest-bdd-policy` now owns both first-party policy-path and harness-path
+resolution, mapping:
+
+- `rstest_bdd_harness::StdHarness` -> rstest-only
+- `rstest_bdd_harness_tokio::TokioHarness` -> Tokio current-thread
+- `rstest_bdd_harness_gpui::GpuiHarness` -> GPUI test
+
+`rstest-bdd-macros` now resolves emitted test attributes in the documented
+precedence order:
+
+1. explicit `attributes = ...`
+2. known first-party `harness = ...` default mapping
+3. deprecated `runtime = "tokio-current-thread"` compatibility alias
+4. runtime-mode or synchronous fallback
+
+The macro layer gained focused unit coverage for the full precedence matrix, a
+separate test module to keep file sizes within repository limits, compile-pass
+fixtures for first-party harness-only forms, and behavioural integration
+coverage for harness-only `scenarios!` flows in both Tokio and GPUI suites. The
+user guide and design document now teach harness-only first-party configuration
+as the normal path while retaining explicit `attributes = ...` as the override
+and third-party escape hatch.
+
+Validation completed with:
+
+- `set -o pipefail; cargo test -p rstest-bdd-policy 2>&1 | tee /tmp/adr008-policy-test.log`
+- `set -o pipefail; cargo test -p rstest-bdd-macros --lib 2>&1 | tee /tmp/adr008-macros-lib-test.log`
+- `set -o pipefail; cargo test -p rstest-bdd --test scenario_harness_tokio`
+  `2>&1 | tee /tmp/adr008-tokio-int-test.log`
+- `set -o pipefail; cargo test -p rstest-bdd --test scenario_harness_gpui`
+  `--features gpui-harness-tests` `2>&1 | tee /tmp/adr008-gpui-int-test.log`
+- `set -o pipefail; cargo test -p rstest-bdd --test trybuild_macros`
+  `step_macros_compile -- --exact 2>&1 | tee /tmp/adr008-trybuild.log`
+- `set -o pipefail; make fmt 2>&1 | tee /tmp/adr008-make-fmt-2.log`
+- `set -o pipefail; make check-fmt 2>&1 | tee /tmp/adr008-make-check-fmt-2.log`
+- `set -o pipefail; make lint 2>&1 | tee /tmp/adr008-make-lint-3.log`
+- `set -o pipefail; make markdownlint 2>&1 | tee /tmp/adr008-make-markdownlint.log`
+- `set -o pipefail; make nixie 2>&1 | tee /tmp/adr008-make-nixie.log`
+- `set -o pipefail; make test 2>&1 | tee /tmp/adr008-make-test.log`
+
+No follow-on implementation was required to close this ADR scope.
 
 ## Context and orientation
 

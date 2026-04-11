@@ -740,8 +740,10 @@ to any specific runtime.
 Use them in this order of preference:
 
 - Omit both when the default synchronous `StdHarness` path is sufficient.
-- Prefer explicit `harness = ...` and `attributes = ...` when opting into a
-  framework integration such as Tokio or GPUI.
+- For first-party integrations, prefer `harness = ...` on its own and let the
+  macro infer the matching default attribute policy.
+- Add `attributes = ...` only when you need to override the inferred default
+  or select an attribute policy without harness delegation.
 - Treat `runtime = "tokio-current-thread"` as legacy compatibility syntax for
   `scenarios!`, not as the canonical configuration surface.
 
@@ -770,18 +772,26 @@ attributes. Currently this resolution is path-based:
   `#[gpui::test]` for synchronous and async scenario signatures, and
 - default and unknown policy paths emit `#[rstest::rstest]` only.
 
-When `attributes` is omitted, `RuntimeMode` compatibility behaviour remains in
-place. This keeps the first-party Tokio compatibility path working while
-leaving third-party policy resolution explicit about its current limitation:
-arbitrary user-defined `AttributePolicy::test_attributes()` implementations are
-not evaluated during macro expansion.
+When `attributes` is omitted, known first-party harnesses infer matching
+default attribute policies:
+
+- `rstest_bdd_harness::StdHarness` resolves to rstest-only emission,
+- `rstest_bdd_harness_tokio::TokioHarness` resolves to the Tokio
+  current-thread policy, and
+- `rstest_bdd_harness_gpui::GpuiHarness` resolves to the GPUI test policy.
+
+If the harness path is not one of those known first-party paths, the macro
+falls back to the existing `RuntimeMode` compatibility behaviour. This keeps
+the first-party Tokio compatibility path working while leaving third-party
+policy resolution explicit about its current limitation: arbitrary user-defined
+`AttributePolicy::test_attributes()` implementations are not evaluated during
+macro expansion.
 
 ```rust,no_run
 # use rstest_bdd_macros::scenario;
 #[scenario(
     path = "features/search.feature",
     harness = rstest_bdd_harness::StdHarness,
-    attributes = rstest_bdd_harness::DefaultAttributePolicy,
 )]
 fn test_with_harness() {}
 ```
@@ -793,7 +803,6 @@ Both parameters are also accepted by `scenarios!`:
 scenarios!(
     "tests/features/auto",
     harness = rstest_bdd_harness::StdHarness,
-    attributes = rstest_bdd_harness::DefaultAttributePolicy,
 );
 ```
 
@@ -841,14 +850,13 @@ It is available as a dev-dependency:
 rstest-bdd-harness-tokio = "0.5.0"
 ```
 
-`TokioHarness` and `TokioAttributePolicy` can then be used in scenarios:
+`TokioHarness` can then be used directly in scenarios:
 
 ```rust,no_run
 # use rstest_bdd_macros::scenario;
 #[scenario(
     path = "tests/features/my_async.feature",
     harness = rstest_bdd_harness_tokio::TokioHarness,
-    attributes = rstest_bdd_harness_tokio::TokioAttributePolicy,
 )]
 fn my_tokio_scenario() {
     // Steps execute inside a Tokio current-thread runtime.
@@ -857,9 +865,23 @@ fn my_tokio_scenario() {
 ```
 
 `TokioHarness` builds a single-threaded Tokio runtime with a `LocalSet` per
-scenario invocation and executes the scenario runner inside it.
-`TokioAttributePolicy` emits `#[rstest::rstest]` and
+scenario invocation and executes the scenario runner inside it. When
+`attributes` is omitted, the macro infers
+`rstest_bdd_harness_tokio::TokioAttributePolicy` for this first-party harness.
+That policy emits `#[rstest::rstest]` and
 `#[tokio::test(flavor = "current_thread")]`.
+
+If you need to override the default explicitly, `attributes =` still wins:
+
+```rust,no_run
+# use rstest_bdd_macros::scenario;
+#[scenario(
+    path = "tests/features/my_async.feature",
+    harness = rstest_bdd_harness_tokio::TokioHarness,
+    attributes = rstest_bdd_harness_tokio::TokioAttributePolicy,
+)]
+fn my_tokio_scenario_with_explicit_override() {}
+```
 
 The explicit harness form above is the preferred configuration for new suites.
 The older `runtime = "tokio-current-thread"` form remains available only as a
@@ -872,10 +894,10 @@ example timers) may still be pending when `run()` returns, so steps should
 prefer explicit `.await`-based coordination when completion is required.
 
 For a complete working example, see the `examples/tokio-reminders` crate. Its
-BDD suite uses `TokioHarness` and `TokioAttributePolicy` together to exercise
-queued reminder behaviour under a Tokio current-thread runtime, while the
-crate's unit tests and doctest show the explicit `flush().await` pattern for
-multi-poll work that must complete before assertions run.
+BDD suite uses `TokioHarness` to exercise queued reminder behaviour under a
+Tokio current-thread runtime, while the crate's unit tests and doctest show the
+explicit `flush().await` pattern for multi-poll work that must complete before
+assertions run.
 
 > **Note:** combining `harness` with `async fn` scenario signatures produces
 > a compile error because `TokioHarness` runs synchronous scenario closures
@@ -916,14 +938,13 @@ as a dev-dependency:
 rstest-bdd-harness-gpui = "0.5.0"
 ```
 
-`GpuiHarness` and `GpuiAttributePolicy` can then be used in scenarios:
+`GpuiHarness` can then be used directly in scenarios:
 
 ```rust,no_run
 # use rstest_bdd_macros::scenario;
 #[scenario(
     path = "tests/features/my_ui.feature",
     harness = rstest_bdd_harness_gpui::GpuiHarness,
-    attributes = rstest_bdd_harness_gpui::GpuiAttributePolicy,
 )]
 fn my_gpui_scenario() {
     // Steps execute with a gpui::TestAppContext injected by GpuiHarness.
@@ -931,13 +952,18 @@ fn my_gpui_scenario() {
 ```
 
 `GpuiHarness` delegates each scenario through `gpui::run_test`, constructs a
-`gpui::TestAppContext`, and passes it through `HarnessAdapter::Context`.
-`GpuiAttributePolicy` emits `#[rstest::rstest]` and `#[gpui::test]`. The
-canonical `rstest_bdd_harness_gpui::GpuiAttributePolicy` path is recognized by
-the same path-based policy resolution used for Tokio, so the GPUI test
-attribute is available whether the scenario is synchronous or async. For
-`#[scenario]`, the equivalent absolute path
-`::rstest_bdd_harness_gpui::GpuiAttributePolicy` is also supported.
+`gpui::TestAppContext`, and passes it through `HarnessAdapter::Context`. When
+`attributes` is omitted, the macro infers
+`rstest_bdd_harness_gpui::GpuiAttributePolicy`. That policy emits
+`#[rstest::rstest]` and `#[gpui::test]`. The canonical
+`rstest_bdd_harness_gpui::GpuiAttributePolicy` path is recognized by the same
+path-based policy resolution used for Tokio, so the GPUI test attribute is
+available whether the scenario is synchronous or async. For `#[scenario]`, the
+equivalent absolute path `::rstest_bdd_harness_gpui::GpuiAttributePolicy` is
+also supported.
+
+If you need to override the inferred default explicitly, keep using
+`attributes = rstest_bdd_harness_gpui::GpuiAttributePolicy`.
 
 This contract is enforced by focused integration coverage in
 `crates/rstest-bdd/tests/trybuild_macros.rs` and
