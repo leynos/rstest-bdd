@@ -1,4 +1,4 @@
-# Testing Strategy
+# Testing strategy
 
 This project uses both structural macro tests and semantic behaviour tests.
 They serve different purposes and should not be substituted for one another.
@@ -20,7 +20,7 @@ These assertions are more resilient to refactors in the generated step loop,
 because they validate the contract users observe rather than the exact tokens
 that happen to implement it.
 
-## Invariants to Prefer
+## Invariants to prefer
 
 When adding scenario execution coverage, prefer tests that enforce invariants
 like these:
@@ -35,7 +35,7 @@ like these:
   returned from one step should be available to later steps, and owned fixtures
   should still drop when a scenario fails.
 
-## Recommended Patterns
+## Recommended patterns
 
 - Use real feature files plus `#[scenario]` or `scenarios!` so the runtime path
   matches production behaviour.
@@ -48,7 +48,7 @@ like these:
 - For cleanup assertions, use lightweight RAII probes with `Drop` side effects
   rather than internal implementation hooks.
 
-## Good and Fragile Assertions
+## Good and fragile assertions
 
 Good semantic assertions:
 

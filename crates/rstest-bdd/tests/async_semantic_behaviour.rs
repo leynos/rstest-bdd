@@ -74,10 +74,11 @@ fn semantic_order_fixture_starts_clean(
 }
 
 #[when(expr = "semantic async order fixture records {item:string}")]
-fn semantic_order_fixture_records(
+async fn semantic_order_fixture_records(
     #[from(semantic_order_fixture)] order_fixture: &RefCell<Vec<String>>,
     item: String,
 ) {
+    tokio::task::yield_now().await;
     order_fixture.borrow_mut().push(format!("when:{item}"));
 }
 
@@ -162,6 +163,7 @@ fn semantic_cleanup_step_fails(
     path = "tests/features/async_semantic_behaviour.feature",
     name = "async skip propagation preserves metadata"
 )]
+#[serial]
 async fn semantic_async_skip_scenario() {
     panic!("scenario body should not execute after a skip request");
 }
@@ -224,6 +226,7 @@ async fn semantic_async_error_scenario() {
     path = "tests/features/async_semantic_behaviour.feature",
     name = "cleanup probe completes successfully"
 )]
+#[ignore = "exercised by cleanup_probe_drops_after_successful_scenario_completion"]
 fn semantic_cleanup_success_scenario(
     #[from(semantic_cleanup_probe)] _semantic_cleanup_probe: CleanupProbe,
 ) {
