@@ -118,7 +118,7 @@ _Table 1: Trade-offs for implicit fixture-name normalization._
 
 Adopt Option B.
 
-The normalisation rule becomes:
+The normalization rule becomes:
 
 1. If a fixture key is derived implicitly from a Rust parameter name, apply
    `normalize_param_name()`.
@@ -137,6 +137,45 @@ In practical terms:
 This keeps the naming policy in macro expansion, where fixture keys are already
 derived, and leaves runtime validation as an exact match over the generated
 keys.
+
+For screen readers: The following sequence diagram shows the proposed fixture
+key flow for three cases: scenario-side implicit fixture registration,
+step-side implicit fixture lookup, and an explicit `#[from(_world)]` override.
+In the first two cases, both macro paths call `normalize_param_name()` and use
+the normalized key `world` when interacting with `StepContext`. In the explicit
+override case, the step macro skips normalization and requests `_world` exactly.
+
+```mermaid
+sequenceDiagram
+    participant ScenarioMacro
+    participant StepMacro
+    participant NormalizeHelper as normalize_param_name
+    participant StepContext
+
+    rect rgb(235, 245, 255)
+        Note over ScenarioMacro,StepContext: Scenario-side registration of implicit fixture `_world: World`
+        ScenarioMacro->>NormalizeHelper: normalize_param_name("_world")
+        NormalizeHelper-->>ScenarioMacro: "world"
+        ScenarioMacro->>StepContext: register_fixture(key="world", value=World)
+    end
+
+    rect rgb(235, 255, 235)
+        Note over StepMacro,StepContext: Step-side implicit fixture lookup `_world: &World`
+        StepMacro->>NormalizeHelper: normalize_param_name("_world")
+        NormalizeHelper-->>StepMacro: "world"
+        StepMacro->>StepContext: request_fixture(key="world")
+        StepContext-->>StepMacro: provide_fixture(World)
+    end
+
+    rect rgb(255, 245, 235)
+        Note over StepMacro,StepContext: Explicit override with #[from(_world)]
+        StepMacro->>StepContext: request_fixture(key="_world")
+        StepContext-->>StepMacro: provide_fixture(World_for__world)
+    end
+```
+
+_Figure 1: Proposed fixture-key flow for implicit normalization and explicit
+override handling across scenario and step macro paths._
 
 ## Implementation guidance
 
@@ -176,6 +215,15 @@ keys.
    - explicit `#[from(...)]` precedence.
 3. Update the user guide and design document so implicit fixture injection
    documents the single-underscore rule and its limits.
+
+## Outstanding decisions
+
+- Should single-underscore normalization apply to every implicit fixture
+  context, or only to scenario and step parameter names?
+- Is preserving `__world` as `_world` sufficient, or do any prefix edge cases
+  need a stricter rule?
+- Should any runtime-facing exceptions or diagnostics be documented alongside
+  the compile-time normalization rule?
 
 ## Known risks and limitations
 
