@@ -5,7 +5,7 @@ This ExecPlan (execution plan) is a living document. The sections
 `Decision Log`, and `Outcomes & Retrospective` must be kept up to date as work
 proceeds.
 
-Status: DRAFT
+Status: COMPLETE
 
 `PLANS.md` is not present in this repository at the time of writing, so this
 ExecPlan is the governing plan for issue 397.
@@ -117,10 +117,20 @@ reintroduced locally in either crate.
 - [x] (2026-04-09 00:00Z) Identified stale documentation in
       `docs/rstest-bdd-design.md` and `docs/adr-004-policy-crate.md`.
 - [x] (2026-04-09 00:00Z) Drafted this ExecPlan.
-- [ ] Stage A: capture baseline evidence and confirm the exact closure scope.
-- [ ] Stage B: add focused regression tests for shared-type ownership.
-- [ ] Stage C: update docs and ADRs to describe the implemented architecture.
-- [ ] Stage D: run all required gates and record the results.
+- [x] (2026-04-12 00:00Z) Stage A: baseline evidence confirmed that
+      `RuntimeMode` and `TestAttributeHint` are defined only in
+      `crates/rstest-bdd-policy/src/lib.rs`, with the runtime crate re-exporting
+      them and the proc-macro crate importing them directly.
+- [x] (2026-04-12 00:00Z) Stage B: added focused regression tests in
+      `crates/rstest-bdd/src/execution/tests.rs` and
+      `crates/rstest-bdd-macros/src/macros/scenarios/macro_args/tests.rs`
+      proving those surfaces still use the shared `rstest-bdd-policy` types.
+- [x] (2026-04-12 00:00Z) Stage C: updated `docs/rstest-bdd-design.md` and
+      `docs/adr-004-policy-crate.md` to describe the implemented shared policy
+      crate architecture and marked ADR-004 as accepted.
+- [x] (2026-04-12 00:00Z) Stage D: ran `make fmt`,
+      `make markdownlint`, `make nixie`, `make check-fmt`, `make lint`, and
+      `make test`; all passed.
 
 ## Surprises & Discoveries
 
@@ -153,6 +163,13 @@ reintroduced locally in either crate.
   Impact: the ADR should likely move to `Accepted` or another repository-valid
   terminal status as part of this closure.
 
+- Observation: simple compile-time assignment tests were sufficient to prove
+  type origin without adding custom scripts or reflection helpers. Evidence:
+  the new runtime and macro tests assign local `RuntimeMode` and
+  `TestAttributeHint` values to `rstest_bdd_policy`-typed bindings, and vice
+  versa. Impact: the regression guard stays lightweight and lives inside the
+  existing unit suites.
+
 ## Decision Log
 
 - Decision: treat issue 397 as a stale architectural review item that should be
@@ -173,12 +190,35 @@ reintroduced locally in either crate.
   closed while the docs still describe the obsolete manual-sync architecture.
   Date/Author: 2026-04-09 / Codex.
 
+- Decision: mark ADR-004 as accepted in the same closure change. Rationale:
+  the repository already ships the policy crate, so leaving the ADR in a
+  proposed state would continue to misstate the architecture even after the
+  code and design doc were corrected. Date/Author: 2026-04-12 / Codex.
+
 ## Outcomes & Retrospective
 
-Pending. The intended outcome is not a new synchronization mechanism between
-duplicate enums. The intended outcome is a documented and test-backed
-confirmation that duplication has already been eliminated and will be caught if
-it returns.
+Issue 397 is closed out as a stale architectural review item rather than as a
+new implementation feature. The delivered change does three things:
+
+- It adds focused regression coverage showing that
+  `rstest_bdd::execution::{RuntimeMode, TestAttributeHint}` and the macro
+  parser's `RuntimeMode` and `TestAttributeHint` remain the exact shared types
+  from `rstest-bdd-policy`.
+- It updates the design document so section 2.6.2 no longer claims the
+  proc-macro crate keeps local enum copies.
+- It updates ADR-004 to describe the architecture as accepted and implemented,
+  rather than proposed.
+
+Validation results recorded for this closure:
+
+- `set -o pipefail; make fmt 2>&1 | tee /tmp/issue-397-make-fmt.log`
+- `set -o pipefail; make markdownlint 2>&1 | tee /tmp/issue-397-make-markdownlint.log`
+- `set -o pipefail; make nixie 2>&1 | tee /tmp/issue-397-make-nixie.log`
+- `set -o pipefail; make check-fmt 2>&1 | tee /tmp/issue-397-make-check-fmt.log`
+- `set -o pipefail; make lint 2>&1 | tee /tmp/issue-397-make-lint.log`
+- `set -o pipefail; make test 2>&1 | tee /tmp/issue-397-make-test.log`
+
+All listed gates passed on 2026-04-12.
 
 ## Context and orientation
 
@@ -461,8 +501,6 @@ The required architectural boundaries at the end of the work are:
 - Tests in the runtime and macro crates compile only if those boundaries
   remain true.
 
-Revision note: Initial draft created on 2026-04-09. The plan reframes issue 397
-around the current repository state, because ADR-004 and the
-`rstest-bdd-policy` crate have already eliminated the original duplicate-enum
-risk. The remaining work is to add regression tests and update stale
-documentation so the issue can be closed accurately.
+Revision note: Initial draft created on 2026-04-09. Completed on 2026-04-12
+after adding shared-type regression tests, correcting the stale design and ADR
+text, and validating the full required gate set.
