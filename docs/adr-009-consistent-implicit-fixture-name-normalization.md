@@ -66,9 +66,7 @@ Cons:
 - Requires users to learn an implementation detail rather than one coherent
   rule.
 
-### Option B: normalize implicitly derived fixture names consistently at macro
-
-expansion time (selected)
+### Option B: normalize implicitly derived fixture names consistently at macro expansion time (selected)
 
 Whenever a fixture key is derived implicitly from a Rust parameter name, apply
 `normalize_param_name()`. Keep explicit `#[from(...)]` selections unchanged.
