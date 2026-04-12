@@ -131,7 +131,7 @@ In practical terms:
 - `fn step(_world: &World) {}` should request `world` when `_world` is being
   treated as an implicit fixture rather than as a placeholder.
 - `fn step(#[from(_world)] state: &World) {}` should continue to request
-  `_world` exactly, because the user made an explicit naming choice.
+  `_world` exactly because the user made an explicit naming choice.
 
 This keeps the naming policy in macro expansion, where fixture keys are already
 derived, and leaves runtime validation as an exact match over the generated
