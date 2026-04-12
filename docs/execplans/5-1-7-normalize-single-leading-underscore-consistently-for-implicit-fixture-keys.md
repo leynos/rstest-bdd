@@ -4,7 +4,7 @@ This Execution Plan (ExecPlan) is a living document. The sections
 `Constraints`, `Tolerances`, `Risks`, `Progress`, `Decision log`, and
 `Outcomes & retrospective` must be kept up to date as work proceeds.
 
-Status: DRAFT
+Status: COMPLETE
 
 ## Objective
 
@@ -36,10 +36,9 @@ The implementation surface is already narrowed:
 - Existing behavioural coverage for underscore-prefixed fixtures lives in
   `crates/rstest-bdd/tests/underscore_fixture.rs`.
 
-ADR-009 defines the intended direction, but its current status is `Proposed`.
-The roadmap entry says implementation depends on ADR-009 being accepted, so the
-delivery work must either update that status first or stop for confirmation if
-acceptance has not happened elsewhere.
+ADR-009 now records the accepted direction for this change, so delivery can
+land the implementation and keep the documentation aligned with that accepted
+scope.
 
 ## Relevant documentation and skills
 
@@ -50,8 +49,9 @@ Documentation signposts:
   governing design decision and any follow-up decisions taken during delivery.
 - `docs/users-guide.md`, especially `### Fixtures and implicit injection`, for
   the user-facing rule and `#[from(...)]` escape hatch.
-- `docs/rstest-bdd-design.md`, especially `### 3.8 Fixture integration
-  implementation`, for the macro/runtime fixture flow.
+- `docs/rstest-bdd-design.md`, especially
+  `### 3.8 Fixture integration implementation`, for the macro/runtime fixture
+  flow.
 - `docs/rstest-bdd-language-server-design.md` for future tooling consistency if
   fixture-name inference or diagnostics are indexed there.
 - `docs/rust-testing-with-rstest-fixtures.md` for `rstest` fixture naming and
@@ -130,9 +130,28 @@ Skill signposts:
   current code/test touchpoints.
 - [x] 2026-04-12: Confirmed the likely implementation split between
   `resolve_fixture_name()` and `classify_fixture_or_step()`.
-- [ ] Draft and land the implementation.
-- [ ] Update ADR-009, users' guide, and roadmap entry.
-- [ ] Run formatting, lint, and test gates for the feature change.
+- [x] 2026-04-12: Confirmed ADR-009 is accepted and the scoped rule only
+  applies to scenario and step parameter names; preserving `__world` as
+  `_world` is sufficient.
+- [x] 2026-04-12: Updated step wrapper fallback so implicit fixture names reuse
+  `normalize_param_name()` while explicit `#[from(...)]` names remain exact.
+- [x] 2026-04-12: Added classifier regressions for implicit `_world`,
+  implicit `__world`, and explicit `#[from(_world)]`.
+- [x] 2026-04-12: Reworked the underscore behaviour scenario to prove implicit
+  normalization and explicit override precedence end to end.
+- [x] 2026-04-12: Updated ADR-009, the users' guide, the design document, and
+  the roadmap entry to reflect the accepted scope and landed behaviour.
+- [x] 2026-04-12: `make fmt` succeeded with a temporary `mdformat-all` shim;
+  `make check-fmt` and `make lint` succeeded.
+- [x] 2026-04-12: `make markdownlint` remained red because the repository
+  already contains widespread baseline violations unrelated to this feature,
+  though the new wrapper allowed the tool to run and report them.
+- [x] 2026-04-12: `make nixie` could not run in this environment because the
+  `nixie` binary is not installed.
+- [x] 2026-04-12: `make test` exercised the new underscore coverage and
+  progressed to the existing trybuild mismatch in
+  `tests/fixtures_macros/result_fixture_requires_result_scenario.rs`; no new
+  feature-specific test failures remained.
 
 ## Plan of work
 
@@ -197,21 +216,21 @@ Skill signposts:
 
 1. Confirm ADR-009 acceptance state and update the ADR if acceptance or an
    implementation clarification is required.
-2. Modify step fixture fallback in
+1. Modify step fixture fallback in
    `crates/rstest-bdd-macros/src/codegen/wrapper/args/classify.rs` so implicit
    fixture keys use `normalize_param_name()` unless `#[from(...)]` supplied the
    key.
-3. Keep `crates/rstest-bdd-macros/src/utils/fixtures.rs` aligned with the same
+1. Keep `crates/rstest-bdd-macros/src/utils/fixtures.rs` aligned with the same
    rule and refactor lightly only if that reduces duplicated naming logic.
-4. Add unit tests in
+1. Add unit tests in
    `crates/rstest-bdd-macros/src/codegen/wrapper/args/classify/tests.rs` for:
    implicit `_world`, implicit `__world`, and explicit `#[from(_world)]`.
-5. Extend behavioural coverage in `crates/rstest-bdd/tests/underscore_fixture.rs`
+1. Extend behavioural coverage in `crates/rstest-bdd/tests/underscore_fixture.rs`
    or a nearby integration test so scenario-side registration and step-side
    extraction agree in one executable scenario.
-6. Update `docs/users-guide.md` and ADR-009 with the final documented rule.
-7. Mark roadmap item 5.1.7 done in `docs/roadmap.md`.
-8. Run the full validation suite and inspect logs before considering the work
+1. Update `docs/users-guide.md` and ADR-009 with the final documented rule.
+1. Mark roadmap item 5.1.7 done in `docs/roadmap.md`.
+1. Run the full validation suite and inspect logs before considering the work
    complete.
 
 ## Validation
@@ -244,9 +263,30 @@ Implementation is complete only when all of the following are true:
   still says `Proposed`.
 - 2026-04-12 / Codex: recorded the lack of an installed `execplans` skill and
   used the repository's existing execplan documents as the fallback template.
+- 2026-04-12 / User: confirmed the accepted scope is narrower than the draft
+  ADR question: normalize only scenario and step parameter names, not every
+  implicit fixture context.
+- 2026-04-12 / User: confirmed preserving `__world` as `_world` is sufficient;
+  no stricter prefix rule is required for this change.
 
 ## Outcomes & retrospective
 
-To be completed after implementation. Capture the final code changes, test
-coverage added, any documentation follow-up, and any refactors deliberately
-deferred.
+- The feature landed as a macro-expansion change only: implicit fixture
+  fallback in `classify_fixture_or_step()` now normalizes parameter-derived
+  keys with `normalize_param_name()`, matching scenario-side registration while
+  leaving runtime lookup exact.
+- Regression coverage now proves the contract in both directions:
+  classifier tests cover implicit `_world`, implicit `__world`, and explicit
+  `#[from(...)]` precedence, while
+  `crates/rstest-bdd/tests/underscore_fixture.rs` exercises the end-to-end
+  interplay between normalized implicit injection and an explicit `_world`
+  override.
+- Documentation was updated in ADR-009, the users' guide, the design doc, and
+  the roadmap so the accepted scope is explicit: only scenario and step
+  parameter names are normalized, and only one leading underscore is stripped.
+- Validation outcome:
+  `make fmt`, `make check-fmt`, and `make lint` succeeded.
+  `make markdownlint` failed on pre-existing repository-wide violations.
+  `make nixie` was unavailable in this environment.
+  `make test` failed only on the pre-existing trybuild snapshot mismatch for
+  `result_fixture_requires_result_scenario.rs`.

@@ -2,11 +2,11 @@
 
 ## Status
 
-Proposed
+Accepted
 
 ## Date
 
-2026-04-11
+2026-04-12
 
 ## Context and problem statement
 
@@ -113,7 +113,7 @@ Cons:
 
 _Table 1: Trade-offs for implicit fixture-name normalization._
 
-## Decision outcome / proposed direction
+## Decision outcome
 
 Adopt Option B.
 
@@ -215,14 +215,15 @@ override handling across scenario and step macro paths._
 3. Update the user guide and design document so implicit fixture injection
    documents the single-underscore rule and its limits.
 
-## Outstanding decisions
+## Resolved scope and follow-up
 
-- Should single-underscore normalization apply to every implicit fixture
-  context, or only to scenario and step parameter names?
-- Is preserving `__world` as `_world` sufficient, or do any prefix edge cases
-  need a stricter rule?
-- Should any runtime-facing exceptions or diagnostics be documented alongside
-  the compile-time normalization rule?
+- Single-underscore normalization applies only to scenario and step parameter
+  names when they are being converted into implicit fixture keys.
+- Preserving `__world` as `_world` is sufficient for this rule; no broader
+  prefix canonicalization is introduced.
+- Runtime-facing exceptions or diagnostics should only be documented if the
+  implementation introduces any beyond the existing exact-match lookup
+  behaviour.
 
 ## Known risks and limitations
 

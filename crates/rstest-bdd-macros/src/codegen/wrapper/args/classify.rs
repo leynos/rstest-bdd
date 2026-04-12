@@ -329,7 +329,7 @@ fn classify_by_placeholder_match(
         Ok(())
     } else {
         validate_no_step_struct_conflict(ctx, &target_name, &pat)?;
-        let name = from_name.unwrap_or_else(|| pat.clone());
+        let name = from_name.unwrap_or_else(|| syn::Ident::new(normalized, pat.span()));
         ctx.extracted.push(Arg::Fixture { pat, name, ty });
         Ok(())
     }

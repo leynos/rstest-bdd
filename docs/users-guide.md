@@ -151,6 +151,12 @@ parameter name must differ from the fixture. Importing a symbol of the same
 name is not required; do not alias a function or item just to satisfy the
 compiler. Only the key stored in `StepContext` must match.
 
+Implicit fixture keys derived from scenario and step parameter names normalize
+at most one leading underscore. In practice, `world` and `_world` both resolve
+to the implicit fixture key `world`, while `__world` resolves to `_world`.
+Explicit `#[from(...)]` names remain exact and bypass this normalization, so
+`#[from(_world)]` still requests the literal `_world` fixture key.
+
 Internally, the step macros record the fixture names and generate wrapper code
 that, at runtime, retrieves references from a `StepContext`. This context is a
 key–value map of fixture names to type‑erased references. When a scenario runs,

@@ -2597,6 +2597,12 @@ pattern string, and any function parameter whose identifier matches a
 placeholder is treated as a typed step argument. Remaining parameters are
 assumed to be fixtures and are looked up in the [`StepContext`] at runtime.
 
+When a scenario or step parameter name is converted into an implicit fixture
+key, macro expansion applies the same single-leading-underscore normalization
+rule used by placeholder matching. That keeps `_world` aligned with `world`
+while preserving `__world` as `_world`. Explicit `#[from(...)]` names remain
+authoritative and are not normalized.
+
 For early feedback, each inferred fixture name is referenced in the generated
 wrapper. If no fixture with that name is in scope, the wrapper fails to
 compile, surfacing the missing dependency before tests run. Conversely, if the

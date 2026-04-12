@@ -265,7 +265,7 @@ experience by introducing more powerful and intuitive APIs.
 - [x] 5.1.6. Fallible scenario bodies: Allow `#[scenario]` functions to return
   `Result<(), E>` or `StepResult<(), E>`, returning `Ok(())` for skipped
   scenarios and ensuring `Err` outcomes do not record a pass.
-- [ ] 5.1.7. Normalize a single leading underscore consistently for implicit
+- [x] 5.1.7. Normalize a single leading underscore consistently for implicit
   fixture keys derived from parameter names across `#[scenario]` fixture
   registration and step wrapper extraction, while keeping `#[from(...)]`
   authoritative. Reuse the existing `normalize_param_name()` helper so `_world`

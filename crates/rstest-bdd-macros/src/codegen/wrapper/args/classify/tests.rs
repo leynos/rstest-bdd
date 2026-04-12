@@ -95,11 +95,14 @@ fn classify_fixture_or_step_falls_back_to_fixture() {
     let (extracted, handled, _) =
         execute_classify_fixture_or_step(HashSet::new(), quote!(dep: usize), "dep", quote!(usize));
     let pat = ident("dep");
+    let name = ident("dep");
 
     assert!(handled);
-    assert!(
-        matches!(extracted.args.as_slice(), [Arg::Fixture { pat: fixture_pat, .. }] if fixture_pat == &pat)
-    );
+    assert!(matches!(
+        extracted.args.as_slice(),
+        [Arg::Fixture { pat: fixture_pat, name: fixture_name, .. }]
+        if fixture_pat == &pat && fixture_name == &name
+    ));
 }
 
 #[test]
@@ -195,4 +198,59 @@ fn classify_fixture_or_step_double_underscore_does_not_match_plain_placeholder()
     assert!(matches!(extracted.args.as_slice(), [Arg::Fixture { .. }]));
     // "value" placeholder remains unconsumed
     assert!(placeholders.contains("value"));
+}
+
+#[test]
+fn classify_fixture_or_step_normalizes_implicit_fixture_name() {
+    let (extracted, handled, _) = execute_classify_fixture_or_step(
+        HashSet::new(),
+        quote!(_world: usize),
+        "_world",
+        quote!(usize),
+    );
+
+    assert!(handled);
+    assert!(matches!(
+        extracted.args.as_slice(),
+        [Arg::Fixture { pat, name, .. }]
+        if pat == &ident("_world") && name == &ident("world")
+    ));
+}
+
+#[test]
+fn classify_fixture_or_step_preserves_double_underscore_fixture_name() {
+    let (extracted, handled, _) = execute_classify_fixture_or_step(
+        HashSet::new(),
+        quote!(__world: usize),
+        "__world",
+        quote!(usize),
+    );
+
+    assert!(handled);
+    assert!(matches!(
+        extracted.args.as_slice(),
+        [Arg::Fixture { pat, name, .. }]
+        if pat == &ident("__world") && name == &ident("_world")
+    ));
+}
+
+#[test]
+fn classify_fixture_or_step_keeps_explicit_from_name_exact() {
+    let mut extracted = ExtractedArgs::default();
+    let mut placeholders = HashSet::new();
+    let mut arg: syn::PatType = parse_quote!(state: usize);
+    arg.attrs.push(parse_quote!(#[from(world_override)]));
+    let ty: syn::Type = parse_quote!(usize);
+    let mut ctx = ClassificationContext::new(&mut extracted, &mut placeholders);
+    let handled = match classify_fixture_or_step(&mut ctx, &mut arg, ident("state"), ty) {
+        Ok(handled) => handled,
+        Err(err) => panic!("classification should succeed: {err}"),
+    };
+
+    assert!(handled);
+    assert!(matches!(
+        extracted.args.as_slice(),
+        [Arg::Fixture { pat, name, .. }]
+        if pat == &ident("state") && name == &ident("world_override")
+    ));
 }
