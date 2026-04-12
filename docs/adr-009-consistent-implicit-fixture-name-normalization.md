@@ -61,7 +61,8 @@ Pros:
 
 Cons:
 
-- Same implicit fixture name behaves differently in scenario and step paths.
+- The same implicit fixture name behaves differently in scenario and step
+  paths.
 - Produces surprising runtime missing-fixture errors.
 - Requires users to learn an implementation detail rather than one coherent
   rule.
@@ -228,7 +229,7 @@ override handling across scenario and step macro paths._
 - Users who intentionally depended on the old mismatch for implicit step
   fixtures may see behaviour change, although explicit `#[from(...)]` remains
   available to preserve exact names.
-- Documentation must be kept precise so users do not assume that all forms of
+- Documentation must be kept precise, so users do not assume that all forms of
   punctuation or arbitrary prefixes are normalized.
 
 ## Architectural rationale
