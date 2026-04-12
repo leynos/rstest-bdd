@@ -265,6 +265,17 @@ experience by introducing more powerful and intuitive APIs.
 - [x] 5.1.6. Fallible scenario bodies: Allow `#[scenario]` functions to return
   `Result<(), E>` or `StepResult<(), E>`, returning `Ok(())` for skipped
   scenarios and ensuring `Err` outcomes do not record a pass.
+- [ ] 5.1.7. Normalize a single leading underscore consistently for implicit
+  fixture keys derived from parameter names across `#[scenario]` fixture
+  registration and step wrapper extraction, while keeping `#[from(...)]`
+  authoritative. Reuse the existing `normalize_param_name()` helper so `_world`
+  behaves like `world`, `__world` continues to mean `_world`, and the runtime
+  missing-fixture diagnostics no longer diverge between scenario and step macro
+  layers. Finish line: implicit fixture lookup follows one rule in both
+  directions, coverage proves the scenario and step paths agree, and the user
+  guide documents the rule and its `#[from(...)]` escape hatch. Design Doc:
+  `docs/adr-009-consistent-implicit-fixture-name-normalization.md`.
+  Prerequisite: ADR-009 accepted. (Telefono, Pandalump)
 
 ### 5.2. State management and data flow
 
