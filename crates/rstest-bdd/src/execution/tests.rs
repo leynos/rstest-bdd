@@ -49,6 +49,25 @@ fn runtime_mode_tokio_hint_is_rstest_with_tokio() {
     );
 }
 
+#[test]
+fn runtime_mode_is_reexported_from_policy_crate() {
+    let policy_mode: rstest_bdd_policy::RuntimeMode = RuntimeMode::TokioCurrentThread;
+    let public_mode: RuntimeMode = rstest_bdd_policy::RuntimeMode::Sync;
+
+    assert_eq!(policy_mode, RuntimeMode::TokioCurrentThread);
+    assert_eq!(public_mode, RuntimeMode::Sync);
+}
+
+#[test]
+fn test_attribute_hint_is_reexported_from_policy_crate() {
+    let policy_hint: rstest_bdd_policy::TestAttributeHint = TestAttributeHint::RstestOnly;
+    let public_hint: TestAttributeHint =
+        rstest_bdd_policy::TestAttributeHint::RstestWithTokioCurrentThread;
+
+    assert_eq!(policy_hint, TestAttributeHint::RstestOnly);
+    assert_eq!(public_hint, TestAttributeHint::RstestWithTokioCurrentThread);
+}
+
 /// Tests for deprecated skip encoding functions.
 ///
 /// FIXME: Remove this module when deprecated skip encoding functions are removed.

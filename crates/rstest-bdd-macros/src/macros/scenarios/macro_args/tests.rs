@@ -261,6 +261,25 @@ fn runtime_mode_returns_expected_hint(
     assert_eq!(mode.test_attribute_hint(), expected);
 }
 
+#[test]
+fn runtime_mode_is_imported_from_policy_crate() {
+    let policy_mode: rstest_bdd_policy::RuntimeMode = RuntimeMode::TokioCurrentThread;
+    let macro_mode: RuntimeMode = rstest_bdd_policy::RuntimeMode::Sync;
+
+    assert_eq!(policy_mode, RuntimeMode::TokioCurrentThread);
+    assert_eq!(macro_mode, RuntimeMode::Sync);
+}
+
+#[test]
+fn test_attribute_hint_is_imported_from_policy_crate() {
+    let policy_hint: rstest_bdd_policy::TestAttributeHint = TestAttributeHint::RstestOnly;
+    let macro_hint: TestAttributeHint =
+        rstest_bdd_policy::TestAttributeHint::RstestWithTokioCurrentThread;
+
+    assert_eq!(policy_hint, TestAttributeHint::RstestOnly);
+    assert_eq!(macro_hint, TestAttributeHint::RstestWithTokioCurrentThread);
+}
+
 // Extracts the harness or attributes field, renders it, and checks the other is None.
 #[expect(clippy::expect_used, reason = "test helper with descriptive failures")]
 fn assert_extension_param(args: &ScenariosArgs, expected_fragment: &str, is_harness: bool) {
