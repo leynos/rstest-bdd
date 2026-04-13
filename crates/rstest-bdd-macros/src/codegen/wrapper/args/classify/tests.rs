@@ -3,6 +3,7 @@
 use super::*;
 use proc_macro2::{Span, TokenStream as TokenStream2};
 use quote::quote;
+use rstest::rstest;
 use std::collections::HashSet;
 use syn::{FnArg, parse_quote};
 
@@ -200,37 +201,28 @@ fn classify_fixture_or_step_double_underscore_does_not_match_plain_placeholder()
     assert!(placeholders.contains("value"));
 }
 
-#[test]
-fn classify_fixture_or_step_normalizes_implicit_fixture_name() {
-    let (extracted, handled, _) = execute_classify_fixture_or_step(
-        HashSet::new(),
-        quote!(_world: usize),
-        "_world",
-        quote!(usize),
-    );
+#[rstest]
+#[case("_world: usize", "_world", "_world", "world")]
+#[case("__world: usize", "__world", "__world", "_world")]
+fn classify_fixture_or_step_normalises_implicit_fixture_name(
+    #[case] arg_str: &str,
+    #[case] param_name: &str,
+    #[case] expected_pat: &str,
+    #[case] expected_name: &str,
+) {
+    let arg_tokens: TokenStream2 = arg_str
+        .parse()
+        .expect("failed to parse token stream");
+    let (extracted, handled, _) =
+        execute_classify_fixture_or_step(HashSet::new(), arg_tokens, param_name, quote!(usize));
+    let expected_pat = ident(expected_pat);
+    let expected_name = ident(expected_name);
 
     assert!(handled);
     assert!(matches!(
         extracted.args.as_slice(),
         [Arg::Fixture { pat, name, .. }]
-        if pat == &ident("_world") && name == &ident("world")
-    ));
-}
-
-#[test]
-fn classify_fixture_or_step_preserves_double_underscore_fixture_name() {
-    let (extracted, handled, _) = execute_classify_fixture_or_step(
-        HashSet::new(),
-        quote!(__world: usize),
-        "__world",
-        quote!(usize),
-    );
-
-    assert!(handled);
-    assert!(matches!(
-        extracted.args.as_slice(),
-        [Arg::Fixture { pat, name, .. }]
-        if pat == &ident("__world") && name == &ident("_world")
+        if pat == &expected_pat && name == &expected_name
     ));
 }
 
