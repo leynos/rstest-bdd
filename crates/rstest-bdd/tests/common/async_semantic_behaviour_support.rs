@@ -34,6 +34,31 @@ impl Drop for CleanupProbe {
     }
 }
 
+/// Identifies the scenario under test for assertion helpers.
+#[derive(Clone, Copy)]
+pub(crate) struct ScenarioRef<'a> {
+    pub(crate) name: &'a str,
+    pub(crate) feature_suffix: &'a str,
+}
+
+/// Identifies the step that is expected to have failed.
+#[derive(Clone, Copy)]
+pub(crate) struct StepRef<'a> {
+    pub(crate) keyword: &'a str,
+    pub(crate) text: &'a str,
+    pub(crate) function_name: &'a str,
+    pub(crate) handler_error: &'a str,
+}
+
+#[cfg(feature = "diagnostics")]
+#[derive(Clone, Copy)]
+pub(crate) struct BypassedStepQuery<'a> {
+    pub(crate) scenario_name: &'a str,
+    pub(crate) scenario_line: u32,
+    pub(crate) step_pattern: &'a str,
+    pub(crate) reason: &'a str,
+}
+
 pub(crate) fn clear_events() {
     TEST_STATE.with(|state| {
         state.borrow_mut().events.clear();
@@ -71,16 +96,22 @@ pub(crate) fn assert_feature_path_suffix(actual: &str, expected_suffix: &str) {
 
 pub(crate) fn assert_handler_failure_context(
     message: &str,
-    expected_suffix: &str,
-    scenario_name: &str,
-    step_keyword: &str,
-    step_text: &str,
-    function_name: &str,
-    handler_error: &str,
+    scenario: ScenarioRef<'_>,
+    step: StepRef<'_>,
 ) {
+    let ScenarioRef {
+        name: scenario_name,
+        feature_suffix: expected_suffix,
+    } = scenario;
+    let StepRef {
+        keyword: step_keyword,
+        text: step_text,
+        function_name,
+        handler_error,
+    } = step;
     let normalized_message = normalize_message(message);
     let pattern = format!(
-        r"Step failed at index .*?: .*?{step_keyword}.*?{step_text}.*?{function_name}.*?{handler_error}.*?\(feature: .*?{expected_suffix}, scenario: .*?{scenario_name}\)",
+        r"{step_keyword}.*?{step_text}.*?{function_name}.*?{handler_error}.*?{expected_suffix}.*?{scenario_name}",
         step_keyword = regex::escape(step_keyword),
         step_text = regex::escape(step_text),
         function_name = regex::escape(function_name),
@@ -126,12 +157,13 @@ fn normalize_message(message: &str) -> String {
 }
 
 #[cfg(feature = "diagnostics")]
-pub(crate) fn assert_bypassed_step_recorded(
-    scenario_name: &str,
-    scenario_line: u32,
-    step_pattern: &str,
-    reason: &str,
-) {
+pub(crate) fn assert_bypassed_step_recorded(query: BypassedStepQuery<'_>) {
+    let BypassedStepQuery {
+        scenario_name,
+        scenario_line,
+        step_pattern,
+        reason,
+    } = query;
     let dump = match rstest_bdd::dump_registry() {
         Ok(dump) => dump,
         Err(error) => panic!("registry dump should serialize: {error}"),

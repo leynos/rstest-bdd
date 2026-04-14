@@ -16,7 +16,7 @@ Semantic behaviour tests assert runtime-observable outcomes instead:
 - whether panic and error messages preserve scenario context
 - whether cleanup still happens when execution exits early
 
-These assertions are more resilient to refactors in the generated step loop,
+These assertions are more resilient to refactors in the generated step loop
 because they validate the contract users observe rather than the exact tokens
 that happen to implement it.
 

@@ -15,11 +15,11 @@ use rstest_bdd_macros::{given, scenario, then, when};
 use serial_test::serial;
 
 #[cfg(feature = "diagnostics")]
-use async_semantic_behaviour_support::assert_bypassed_step_recorded;
+use async_semantic_behaviour_support::{BypassedStepQuery, assert_bypassed_step_recorded};
 use async_semantic_behaviour_support::{
-    CleanupProbe, ERROR_SCENARIO_NAME, FEATURE_PATH, SKIP_SCENARIO_NAME, SemanticValue,
-    assert_feature_path_suffix, assert_handler_failure_context, cleanup_drops, clear_events,
-    push_event, reset_cleanup_drops, scenario_line, snapshot_events,
+    CleanupProbe, ERROR_SCENARIO_NAME, FEATURE_PATH, SKIP_SCENARIO_NAME, ScenarioRef,
+    SemanticValue, StepRef, assert_feature_path_suffix, assert_handler_failure_context,
+    cleanup_drops, clear_events, push_event, reset_cleanup_drops, scenario_line, snapshot_events,
 };
 
 #[fixture]
@@ -163,6 +163,7 @@ fn semantic_cleanup_step_fails(
     path = "tests/features/async_semantic_behaviour.feature",
     name = "async skip propagation preserves metadata"
 )]
+#[ignore = "exercised by skip_propagation_preserves_message_and_bypass_metadata"]
 #[serial]
 async fn semantic_async_skip_scenario() {
     panic!("scenario body should not execute after a skip request");
@@ -271,12 +272,12 @@ fn skip_propagation_preserves_message_and_bypass_metadata() {
     assert_eq!(details.message(), Some("semantic async skip message"));
 
     #[cfg(feature = "diagnostics")]
-    assert_bypassed_step_recorded(
-        SKIP_SCENARIO_NAME,
-        skip_scenario_line,
-        "semantic async trailing step should never run",
-        "semantic async skip message",
-    );
+    assert_bypassed_step_recorded(BypassedStepQuery {
+        scenario_name: SKIP_SCENARIO_NAME,
+        scenario_line: skip_scenario_line,
+        step_pattern: "semantic async trailing step should never run",
+        reason: "semantic async skip message",
+    });
 }
 
 #[test]
@@ -289,12 +290,16 @@ fn error_propagation_includes_step_and_scenario_context() {
 
     assert_handler_failure_context(
         &message,
-        FEATURE_PATH,
-        ERROR_SCENARIO_NAME,
-        "When",
-        "semantic async failing step runs",
-        "semantic_async_failing_step",
-        "semantic async failure",
+        ScenarioRef {
+            name: ERROR_SCENARIO_NAME,
+            feature_suffix: FEATURE_PATH,
+        },
+        StepRef {
+            keyword: "When",
+            text: "semantic async failing step runs",
+            function_name: "semantic_async_failing_step",
+            handler_error: "semantic async failure",
+        },
     );
     assert_eq!(
         snapshot_events(),
