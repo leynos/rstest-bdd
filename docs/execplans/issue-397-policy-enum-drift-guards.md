@@ -139,8 +139,8 @@ reintroduced locally in either crate.
   `crates/rstest-bdd-macros/src/macros/scenarios/macro_args.rs`, but the
   current repository uses `crates/rstest-bdd/src/execution/mod.rs` and
   `crates/rstest-bdd-macros/src/macros/scenarios/macro_args/mod.rs`. Evidence:
-  `leta files` shows the module directories and `mod.rs` files. Impact: the
-  plan must target the current paths, not the historical ones.
+  `fd` output shows the module directories and `mod.rs` files. Impact: the plan
+  must target the current paths, not the historical ones.
 
 - Observation: `crates/rstest-bdd/src/execution/mod.rs` now re-exports
   `RuntimeMode` and `TestAttributeHint` from `rstest_bdd_policy`, and
@@ -444,7 +444,7 @@ and rerun only the failed step before rerunning the full gates. Do not mark the
 issue complete until the docs and tests agree on the shared policy-crate
 architecture.
 
-## Artifacts and notes
+## Artefacts and notes
 
 Expected logs:
 

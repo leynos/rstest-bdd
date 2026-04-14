@@ -69,6 +69,7 @@ fn run_passing_macro_tests(t: &trybuild::TestCases) {
         MacroFixtureCase::from("scenario_attributes_tokio_dedup.rs"),
         MacroFixtureCase::from("scenario_attributes_gpui.rs"),
         MacroFixtureCase::from("scenario_attributes_gpui_absolute.rs"),
+        MacroFixtureCase::from("execution_policy_reexports.rs"),
         MacroFixtureCase::from("scenarios_harness_params.rs"),
         MacroFixtureCase::from("scenarios_attributes_gpui.rs"),
     ] {
