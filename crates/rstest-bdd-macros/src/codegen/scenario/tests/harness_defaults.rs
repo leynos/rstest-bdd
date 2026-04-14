@@ -1,6 +1,6 @@
 //! Tests for harness-led default attribute-policy precedence.
 
-use super::{RuntimeMode, generate_test_attrs};
+use super::{RuntimeMode, TestAttrPolicy, generate_test_attrs};
 
 #[expect(clippy::expect_used, reason = "test helper with descriptive failures")]
 fn parse_path(s: &str) -> syn::Path {
@@ -59,7 +59,15 @@ fn generate_test_attrs_honours_harness_precedence(
 ) {
     let harness = harness_path.as_ref();
     let policy = policy_path.as_ref();
-    let tokens = generate_test_attrs(&[], runtime, harness, policy, true);
+    let tokens = generate_test_attrs(
+        &[],
+        &TestAttrPolicy {
+            runtime,
+            harness,
+            attributes: policy,
+        },
+        true,
+    );
     let output = tokens.to_string();
 
     assert!(

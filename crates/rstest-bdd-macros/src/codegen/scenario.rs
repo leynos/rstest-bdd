@@ -26,7 +26,7 @@ pub(crate) use crate::macros::scenarios::ScenariosRuntimeMode as RuntimeMode;
 use crate::macros::scenarios::ScenariosTestAttributeHint as TestAttributeHint;
 
 use crate::parsing::placeholder::contains_placeholders;
-use test_attrs::generate_test_attrs;
+use test_attrs::{TestAttrPolicy, generate_test_attrs};
 
 /// Return kinds supported by scenario bodies.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -213,9 +213,11 @@ where
     let body = generate_test_tokens(&test_config, ctx.prelude, ctx.inserts, ctx.postlude);
     let test_attrs = generate_test_attrs(
         config.attrs,
-        config.attribute_runtime,
-        config.harness,
-        config.attributes,
+        &TestAttrPolicy {
+            runtime: config.attribute_runtime,
+            harness: config.harness,
+            attributes: config.attributes,
+        },
         config.runtime.is_async(),
     );
     let trait_assertions = generate_trait_assertions(config.harness, config.attributes);
@@ -306,9 +308,11 @@ where
 
     let test_attrs = generate_test_attrs(
         config.attrs,
-        config.attribute_runtime,
-        config.harness,
-        config.attributes,
+        &TestAttrPolicy {
+            runtime: config.attribute_runtime,
+            harness: config.harness,
+            attributes: config.attributes,
+        },
         config.runtime.is_async(),
     );
     let trait_assertions = generate_trait_assertions(config.harness, config.attributes);

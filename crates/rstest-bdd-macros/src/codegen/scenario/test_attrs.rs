@@ -78,18 +78,21 @@ fn resolve_attribute_hint_from_path(
     resolver(&segment_refs)
 }
 
-fn resolve_attribute_policy(
-    runtime: RuntimeMode,
-    harness: Option<&syn::Path>,
-    attributes: Option<&syn::Path>,
-) -> ResolvedAttributePolicy {
-    let hint = attributes.map_or_else(
+/// Policy-resolution inputs bundled for ADR-008 precedence.
+pub(super) struct TestAttrPolicy<'a> {
+    pub(super) runtime: RuntimeMode,
+    pub(super) harness: Option<&'a syn::Path>,
+    pub(super) attributes: Option<&'a syn::Path>,
+}
+
+fn resolve_attribute_policy(policy: &TestAttrPolicy<'_>) -> ResolvedAttributePolicy {
+    let hint = policy.attributes.map_or_else(
         || {
-            harness.map_or_else(
-                || runtime.test_attribute_hint(),
+            policy.harness.map_or_else(
+                || policy.runtime.test_attribute_hint(),
                 |path| {
                     resolve_attribute_hint_from_harness_path(path)
-                        .unwrap_or_else(|| runtime.test_attribute_hint())
+                        .unwrap_or_else(|| policy.runtime.test_attribute_hint())
                 },
             )
         },
@@ -118,15 +121,13 @@ fn render_policy_attribute(attribute: PolicyAttribute) -> TokenStream2 {
 
 pub(super) fn generate_test_attrs(
     attrs: &[syn::Attribute],
-    runtime: RuntimeMode,
-    harness: Option<&syn::Path>,
-    attributes: Option<&syn::Path>,
+    policy: &TestAttrPolicy<'_>,
     is_async: bool,
 ) -> TokenStream2 {
     // Match only tokio::test to avoid false positives like #[test] or #[test_case].
     let has_tokio_test = attrs.iter().any(is_tokio_test_attr);
     let has_gpui_test = attrs.iter().any(is_gpui_test_attr);
-    let resolved_policy = resolve_attribute_policy(runtime, harness, attributes);
+    let resolved_policy = resolve_attribute_policy(policy);
 
     let generated_attrs: Vec<_> = resolved_policy
         .test_attributes()
