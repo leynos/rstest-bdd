@@ -1,3 +1,6 @@
+//! Compile-time fixture proving `rstest_bdd::execution` re-exports
+//! `RuntimeMode` and `TestAttributeHint` from `rstest_bdd_policy`.
+
 use rstest_bdd::execution::{
     RuntimeMode as PublicRuntimeMode, TestAttributeHint as PublicTestAttributeHint,
 };
