@@ -281,6 +281,7 @@ fn skip_propagation_preserves_message_and_bypass_metadata() {
 }
 
 #[test]
+#[serial]
 fn error_propagation_includes_step_and_scenario_context() {
     let panic = match catch_unwind(semantic_async_error_scenario) {
         Ok(()) => panic!("expected async scenario to panic"),
@@ -309,6 +310,7 @@ fn error_propagation_includes_step_and_scenario_context() {
 }
 
 #[test]
+#[serial]
 fn cleanup_probe_drops_after_successful_scenario_completion() {
     reset_cleanup_drops();
     semantic_cleanup_success_scenario();
@@ -320,6 +322,7 @@ fn cleanup_probe_drops_after_successful_scenario_completion() {
 }
 
 #[test]
+#[serial]
 fn cleanup_probe_drops_after_failed_scenario_completion() {
     reset_cleanup_drops();
     let result = catch_unwind(semantic_cleanup_failure_scenario);

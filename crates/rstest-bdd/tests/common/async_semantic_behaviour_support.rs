@@ -52,6 +52,7 @@ pub(crate) struct StepRef<'a> {
 
 #[cfg(feature = "diagnostics")]
 #[derive(Clone, Copy)]
+/// Identifies a bypassed step record expected in diagnostics output.
 pub(crate) struct BypassedStepQuery<'a> {
     pub(crate) scenario_name: &'a str,
     pub(crate) scenario_line: u32,
