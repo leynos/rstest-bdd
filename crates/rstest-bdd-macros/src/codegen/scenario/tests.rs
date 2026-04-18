@@ -5,6 +5,7 @@ use crate::parsing::feature::ParsedStep;
 
 mod gpui_policy;
 mod harness_defaults;
+mod runtime_split;
 
 #[expect(clippy::expect_used, reason = "test helper with descriptive failures")]
 fn kw(ts: &TokenStream2) -> crate::StepKeyword {

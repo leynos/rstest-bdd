@@ -871,7 +871,7 @@ scenario invocation and executes the scenario runner inside it. When
 That policy emits `#[rstest::rstest]` and
 `#[tokio::test(flavor = "current_thread")]`.
 
-If you need to override the default explicitly, `attributes =` still wins:
+If the default must be overridden explicitly, `attributes =` still wins:
 
 ```rust,no_run
 # use rstest_bdd_macros::scenario;
@@ -962,7 +962,7 @@ available whether the scenario is synchronous or async. For `#[scenario]`, the
 equivalent absolute path `::rstest_bdd_harness_gpui::GpuiAttributePolicy` is
 also supported.
 
-If you need to override the inferred default explicitly, keep using
+If the inferred default must be overridden explicitly, keep using
 `attributes = rstest_bdd_harness_gpui::GpuiAttributePolicy`.
 
 This contract is enforced by focused integration coverage in
