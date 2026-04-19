@@ -210,9 +210,7 @@ fn classify_fixture_or_step_normalises_implicit_fixture_name(
     #[case] expected_pat: &str,
     #[case] expected_name: &str,
 ) {
-    let arg_tokens: TokenStream2 = arg_str
-        .parse()
-        .expect("failed to parse token stream");
+    let arg_tokens: TokenStream2 = arg_str.parse().expect("failed to parse token stream");
     let (extracted, handled, _) =
         execute_classify_fixture_or_step(HashSet::new(), arg_tokens, param_name, quote!(usize));
     let expected_pat = ident(expected_pat);

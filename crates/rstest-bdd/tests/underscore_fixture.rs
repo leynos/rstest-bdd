@@ -31,7 +31,7 @@ fn parser_runs_again(_world: &mut StreamingState) {
 #[then("implicit underscore fixture lookup uses the world fixture")]
 #[expect(
     clippy::used_underscore_binding,
-    reason = "the test proves underscore-prefixed implicit fixture injection can be used directly",
+    reason = "the test proves underscore-prefixed implicit fixture injection can be used directly"
 )]
 fn implicit_lookup_uses_world_fixture(_world: &StreamingState) {
     assert_eq!(_world.parsed_events, 2);
