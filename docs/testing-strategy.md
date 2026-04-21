@@ -69,9 +69,9 @@ Semantic tests are the backstop that keeps those contracts aligned.
 ## Test support infrastructure
 
 Async semantic behaviour tests share a support module at
-`tests/common/async_semantic_behaviour_support.rs`. The types and helpers below
-should be used instead of raw strings wherever assertions require structured
-context.
+`crates/rstest-bdd/tests/common/async_semantic_behaviour_support.rs`. The types
+and helpers below should be used instead of raw strings wherever assertions
+require structured context.
 
 ### Parameter structs
 
@@ -102,7 +102,7 @@ assert_handler_failure_context(
 | Function                                                                        | What it checks                                                                                                                                                    |
 | ------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `assert_feature_path_suffix(actual, expected_suffix)`                           | Verifies that a file path ends with the expected suffix using `Path::ends_with`.                                                                                  |
-| `assert_handler_failure_context(message, ScenarioRef, StepRef)`                 | Normalises a panic message and asserts it matches a regex covering step keyword, step text, function name, handler error, feature path suffix, and scenario name. |
+| `assert_handler_failure_context(message, ScenarioRef, StepRef)`                 | Normalizes a panic message and asserts it matches a regex covering step keyword, step text, function name, handler error, feature path suffix, and scenario name. |
 | `assert_bypassed_step_recorded(BypassedStepQuery)` _(diagnostics feature only)_ | Parses the diagnostics registry JSON and asserts a matching bypassed-step entry exists.                                                                           |
 
 ### Event and cleanup utilities
