@@ -72,7 +72,7 @@ jobs:
 
       - name: Install Nixie
         if: ${{ matrix.tools }}
-        run: uv tool install --from git+https://github.com/leynos/nixie nixie
+        run: uv tool install nixie-cli==1.0.0
 
       - name: Nixie
         if: ${{ matrix.tools }}
