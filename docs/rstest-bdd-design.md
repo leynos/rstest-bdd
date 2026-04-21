@@ -1430,9 +1430,11 @@ pub enum TestAttributeHint {
 }
 ```
 
-Note: The macro crate maintains its own copies of these enums because
-proc-macro crates cannot depend on runtime crates at compile time. The runtime
-versions serve as the canonical definitions and documentation.
+These enums now live in `rstest-bdd-policy`, which acts as the shared source of
+truth for both the runtime crate and the proc-macro crate. The runtime module
+re-exports them from `rstest_bdd::execution` to preserve the public API, while
+the macro crate imports them directly from `rstest-bdd-policy`. That eliminates
+the manual synchronization risk that existed when each crate kept its own copy.
 
 ADR-005 supersedes these enums with harness adapters and attribute policy
 plugins. The harness adapter selects the execution strategy (sync, Tokio, GPUI,
@@ -1683,11 +1685,11 @@ Tokio runtime mode resolves to Tokio current-thread attributes, while sync mode
 resolves to rstest-only. `#[tokio::test]` is omitted for synchronous test
 signatures because Tokio requires `async fn`.
 
-The user-facing guidance for this feature should lead with explicit
-`harness = ...` and `attributes = ...` configuration, then treat
-`runtime = "tokio-current-thread"` as deprecated compatibility syntax for
-`scenarios!`. This keeps the user guide aligned with the delivered API rather
-than with the historical migration path.
+The user-facing guidance for this feature should lead with `harness = ...`
+configuration for first-party integrations, add `attributes = ...` only when a
+non-default policy is required, and treat `runtime = "tokio-current-thread"` as
+deprecated compatibility syntax for `scenarios!`. This keeps the user guide
+aligned with the delivered API rather than with the historical migration path.
 
 **`rstest::rstest` is always emitted.** The `#[rstest::rstest]` attribute is
 unconditional because the framework fundamentally relies on rstest for fixture

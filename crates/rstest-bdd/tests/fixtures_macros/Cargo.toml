@@ -7,3 +7,4 @@ publish = false
 [dependencies]
 rstest-bdd = { version = "0.1.0-alpha4", path = "../../../rstest-bdd" }
 rstest-bdd-macros = { version = "0.1.0-alpha4", path = "../../../rstest-bdd-macros" }
+rstest-bdd-policy = { version = "0.1.0-alpha4", path = "../../../rstest-bdd-policy" }

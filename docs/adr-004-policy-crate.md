@@ -2,7 +2,7 @@
 
 ## Status
 
-Proposed
+Accepted (2026-04-12)
 
 ## Date
 
@@ -10,11 +10,12 @@ Proposed
 
 ## Context and problem statement
 
-The runtime crate (`rstest-bdd`) defines `RuntimeMode` and `TestAttributeHint`
-in `rstest_bdd::execution`. The proc-macro crate (`rstest-bdd-macros`) cannot
-depend on the runtime crate, so it maintains a parallel copy of those enums for
-compile-time use. The duplication creates a manual synchronization burden and
-invites drift between the macro and runtime layers.
+The original runtime crate (`rstest-bdd`) defined `RuntimeMode` and
+`TestAttributeHint` in `rstest_bdd::execution`. The proc-macro crate
+(`rstest-bdd-macros`) could not depend on the runtime crate, so it maintained a
+parallel copy of those enums for compile-time use. The duplication created a
+manual synchronization burden and invited drift between the macro and runtime
+layers.
 
 The workspace needs a single source of truth for the runtime policy types that
 both crates can depend on, without introducing a new external dependency.
@@ -37,26 +38,27 @@ both crates can depend on, without introducing a new external dependency.
 
 Table: Options compared for policy type ownership.
 
-## Decision outcome / proposed direction
+## Decision outcome
 
-Introduce a new internal crate, `rstest-bdd-policy`, that owns `RuntimeMode`,
-`TestAttributeHint`, and their associated helpers.
+The workspace now uses the internal crate `rstest-bdd-policy` to own
+`RuntimeMode`, `TestAttributeHint`, and their associated helpers.
 
-- Adopt `rstest-bdd-policy` as the single source of truth for policy types
-  within the workspace, and re-export from `rstest_bdd::execution`.
-- The runtime crate will re-export these types from
-  `rstest_bdd::execution` to preserve the public API.
-- The macro crate will import the types directly from
-  `rstest-bdd-policy`, removing its local copies.
+- `rstest-bdd-policy` is the single source of truth for policy types within
+  the workspace.
+- The runtime crate re-exports these types from `rstest_bdd::execution` to
+  preserve the public API.
+- The macro crate imports the types directly from `rstest-bdd-policy`, so it
+  no longer defines local copies.
 
-## Outstanding decisions
+## Implementation status
 
-- Whether `rstest-bdd-policy` is published to crates.io or treated as a
-  workspace-only crate.
-- The naming and versioning policy for `rstest-bdd-policy` relative to the
-  rest of the workspace releases.
-- Whether future policy types should live in `rstest-bdd-policy` by default or
-  remain owned by the runtime crate when they are runtime-only concerns.
+- The crate exists at `crates/rstest-bdd-policy`.
+- `rstest_bdd::execution::{RuntimeMode, TestAttributeHint}` remain stable
+  public re-exports.
+- `rstest-bdd-macros` imports the shared policy enums directly from
+  `rstest-bdd-policy`.
+- Regression tests in the runtime and proc-macro crates assert that both
+  surfaces still use the shared types.
 
 ## Goals and non-goals
 
@@ -69,11 +71,18 @@ Introduce a new internal crate, `rstest-bdd-policy`, that owns `RuntimeMode`,
 ## Migration plan
 
 1. Phase 1: Introduce `rstest-bdd-policy` and migrate runtime/macro usage.
-2. Phase 2: Publish and document versioning policy.
+   Completed.
+2. Phase 2: Document the accepted architecture and keep regression coverage in
+   place so local enum copies are not reintroduced. Completed for the initial
+   policy types covered by this ADR.
 
 ## Known risks and limitations
 
-- Publishing order and versioning may affect downstream consumers.
+- Publishing order and versioning still affect downstream consumers because
+  `rstest-bdd-policy` is versioned alongside the rest of the workspace.
+- Future runtime-policy additions must continue to land in
+  `rstest-bdd-policy` when they are shared between runtime and proc-macro
+  layers, otherwise the original drift risk could return.
 
 ## Architectural rationale
 
