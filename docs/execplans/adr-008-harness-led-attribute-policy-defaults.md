@@ -7,9 +7,9 @@ proceeds.
 
 Status: IMPLEMENTED
 
-`PLANS.md` is not present in this repository at the time of writing, so this
-ExecPlan is the governing plan for ADR-008 delivery once the ADR is accepted
-and the user approves execution.
+`PLANS.md` is not present in this repository. This ExecPlan governed ADR-008
+delivery for this workstream and remains as the implementation record after
+completion.
 
 ## Purpose / big picture
 

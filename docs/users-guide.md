@@ -742,8 +742,8 @@ Use them in this order of preference:
 - Omit both when the default synchronous `StdHarness` path is sufficient.
 - For first-party integrations, prefer `harness = ...` on its own and let the
   macro infer the matching default attribute policy.
-- Add `attributes = ...` only when you need to override the inferred default
-  or select an attribute policy without harness delegation.
+- Add `attributes = ...` only when overriding the inferred default or
+  selecting an attribute policy without harness delegation.
 - Treat `runtime = "tokio-current-thread"` as legacy compatibility syntax for
   `scenarios!`, not as the canonical configuration surface.
 
