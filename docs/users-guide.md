@@ -871,14 +871,15 @@ scenario invocation and executes the scenario runner inside it. When
 That policy emits `#[rstest::rstest]` and
 `#[tokio::test(flavor = "current_thread")]`.
 
-If the default must be overridden explicitly, `attributes =` still wins:
+If the inferred Tokio default must be overridden explicitly, the
+`#[scenario(..., attributes = ...)]` attribute can select a different policy:
 
 ```rust,no_run
 # use rstest_bdd_macros::scenario;
 #[scenario(
     path = "tests/features/my_async.feature",
     harness = rstest_bdd_harness_tokio::TokioHarness,
-    attributes = rstest_bdd_harness_tokio::TokioAttributePolicy,
+    attributes = rstest_bdd_harness::DefaultAttributePolicy,
 )]
 fn my_tokio_scenario_with_explicit_override() {}
 ```
@@ -962,8 +963,18 @@ available whether the scenario is synchronous or async. For `#[scenario]`, the
 equivalent absolute path `::rstest_bdd_harness_gpui::GpuiAttributePolicy` is
 also supported.
 
-If the inferred default must be overridden explicitly, keep using
-`attributes = rstest_bdd_harness_gpui::GpuiAttributePolicy`.
+If the inferred GPUI default must be overridden explicitly, the
+`#[scenario(..., attributes = ...)]` attribute can select a different policy:
+
+```rust,no_run
+# use rstest_bdd_macros::scenario;
+#[scenario(
+    path = "tests/features/my_ui.feature",
+    harness = rstest_bdd_harness_gpui::GpuiHarness,
+    attributes = rstest_bdd_harness::DefaultAttributePolicy,
+)]
+fn my_gpui_scenario_with_explicit_override() {}
+```
 
 This contract is enforced by focused integration coverage in
 `crates/rstest-bdd/tests/trybuild_macros.rs` and
