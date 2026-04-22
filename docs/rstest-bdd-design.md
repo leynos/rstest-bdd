@@ -1714,7 +1714,7 @@ compile-time dependency on `rstest-bdd-harness` so it can emit fully-qualified
 trait paths in const assertions and harness delegation code. This is acceptable
 because `rstest-bdd-harness` is dependency-light per ADR-005.
 
-#### 2.7.5 ADR-008 codegen refactoring: harness-led attribute defaults
+#### 2.7.4 ADR-008 codegen refactoring: harness-led attribute defaults
 
 ADR-008 did not only change user-facing precedence; it also refactored the
 macro codegen path so that the implementation could express that precedence
@@ -1724,7 +1724,10 @@ without further stretching the `scenario` module. In
 `pub(super)` visibility, keeping it internal to the `scenario` codegen module
 while giving the grouping a name that matches ADR-008 terminology. The struct
 contains three policy-resolution inputs: `runtime: RuntimeMode`, which is the
-fallback execution mode when no harness or explicit attribute path is supplied;
+`TestAttrPolicy.runtime` field used for attribute-resolution fallback
+semantics, fed from `attribute_runtime` when no harness or explicit attribute
+path is supplied; execution behaviour belongs to `ScenarioConfig.runtime` and
+the async pipeline described in §2.7.3 Macro integration;
 `harness: Option<&'a syn::Path>`, which carries the user-provided harness type
 path such as `rstest_bdd_harness_tokio::TokioHarness`; and
 `attributes: Option<&'a syn::Path>`, which carries the explicit attribute
@@ -1785,7 +1788,7 @@ result would silently bypass the harness default. Keeping this mapping in
 layer independent of `syn` and `proc-macro2` and leaves the same
 `TestAttributeHint` lookup reusable for future non-macro consumers.
 
-#### 2.7.4 First-party plugin targets
+#### 2.7.5 First-party plugin targets
 
 The first official adapters and policies are:
 
