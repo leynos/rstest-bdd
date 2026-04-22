@@ -80,8 +80,14 @@ fn resolve_attribute_hint_from_path(
 
 /// Policy-resolution inputs bundled for ADR-008 precedence.
 pub(super) struct TestAttrPolicy<'a> {
+    /// Attribute-resolution fallback `RuntimeMode` used when no higher-priority
+    /// harness or explicit attribute policy path resolves a `TestAttributeHint`.
     pub(super) runtime: RuntimeMode,
+    /// User-supplied harness type path, such as
+    /// `rstest_bdd_harness_tokio::TokioHarness`.
     pub(super) harness: Option<&'a syn::Path>,
+    /// Explicit attribute policy path supplied by the macro caller; this has
+    /// the highest ADR-008 precedence when present.
     pub(super) attributes: Option<&'a syn::Path>,
 }
 
@@ -119,6 +125,30 @@ fn render_policy_attribute(attribute: PolicyAttribute) -> TokenStream2 {
     }
 }
 
+/// Generates framework test attributes according to the ADR-008 policy order.
+///
+/// The emitted `TokenStream2` always includes `#[rstest::rstest]`, then layers
+/// any Tokio or GPUI test attribute selected by explicit `attributes`,
+/// first-party `harness`, or `RuntimeMode` fallback precedence. Existing user
+/// attributes are inspected so generated output does not duplicate
+/// `#[tokio::test]` or `#[gpui::test]`, and Tokio attributes are omitted for
+/// synchronous test signatures.
+///
+/// # Examples
+///
+/// ```rust,ignore
+/// let tokens = generate_test_attrs(
+///     &[],
+///     &TestAttrPolicy {
+///         runtime: RuntimeMode::TokioCurrentThread,
+///         harness: None,
+///         attributes: None,
+///     },
+///     true,
+/// );
+///
+/// assert!(tokens.to_string().contains("tokio :: test"));
+/// ```
 pub(super) fn generate_test_attrs(
     attrs: &[syn::Attribute],
     policy: &TestAttrPolicy<'_>,

@@ -1724,10 +1724,11 @@ without further stretching the `scenario` module. In
 `pub(super)` visibility, keeping it internal to the `scenario` codegen module
 while giving the grouping a name that matches ADR-008 terminology. The struct
 contains three policy-resolution inputs: `runtime: RuntimeMode`, which is the
-`TestAttrPolicy.runtime` field used for attribute-resolution fallback
-semantics, fed from `attribute_runtime` when no harness or explicit attribute
-path is supplied; execution behaviour belongs to `ScenarioConfig.runtime` and
-the async pipeline described in §2.7.3 Macro integration;
+field that governs attribute-resolution fallback semantics when no harness or
+explicit attribute path is supplied, populated from
+`ScenarioConfig.attribute_runtime`; execution behaviour belongs to
+`ScenarioConfig.runtime` and the async pipeline described in §2.7.3 Macro
+integration;
 `harness: Option<&'a syn::Path>`, which carries the user-provided harness type
 path such as `rstest_bdd_harness_tokio::TokioHarness`; and
 `attributes: Option<&'a syn::Path>`, which carries the explicit attribute
