@@ -17,8 +17,17 @@ struct TestState {
     cleanup_drops: usize,
 }
 
+impl TestState {
+    const fn new() -> Self {
+        Self {
+            events: Vec::new(),
+            cleanup_drops: 0,
+        }
+    }
+}
+
 thread_local! {
-    static TEST_STATE: RefCell<TestState> = RefCell::new(TestState::default());
+    static TEST_STATE: RefCell<TestState> = const { RefCell::new(TestState::new()) };
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

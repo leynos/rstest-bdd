@@ -13,7 +13,7 @@ Before submitting a pull request:
 The CI pipeline runs the same commands and will fail if any step reports an
 error.
 
-## Testing Guidelines
+## Testing guidelines
 
 - Prefer semantic behaviour tests for scenario execution changes. Assert
   runtime-observable outcomes such as skip propagation, step ordering, fixture

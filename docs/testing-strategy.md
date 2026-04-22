@@ -119,7 +119,8 @@ assert_handler_failure_context(
 ### Thread-local state
 
 All mutable state (`events`, `cleanup_drops`) is held in a single
-`thread_local! { TestState }`. Isolation is therefore per-thread; any test that
-reads from shared state must call the corresponding reset helper before running
-its scenario. Tests that mutate shared state must be annotated with `#[serial]`
-to prevent interleaving with other tests on the same thread pool.
+`thread_local! { static TEST_STATE: RefCell<TestState> = ... }` binding.
+Isolation is therefore per-thread; any test that reads from shared state must
+call the corresponding reset helper before running its scenario. Tests that
+mutate shared state must be annotated with `#[serial]` to prevent interleaving
+with other tests on the same thread pool.
