@@ -1714,6 +1714,77 @@ compile-time dependency on `rstest-bdd-harness` so it can emit fully-qualified
 trait paths in const assertions and harness delegation code. This is acceptable
 because `rstest-bdd-harness` is dependency-light per ADR-005.
 
+#### 2.7.5 ADR-008 codegen refactoring: harness-led attribute defaults
+
+ADR-008 did not only change user-facing precedence; it also refactored the
+macro codegen path so that the implementation could express that precedence
+without further stretching the `scenario` module. In
+`crates/rstest-bdd-macros/src/codegen/scenario/test_attrs.rs`,
+`generate_test_attrs` now takes a `TestAttrPolicy<'a>` parameter object with
+`pub(super)` visibility, keeping it internal to the `scenario` codegen module
+while giving the grouping a name that matches ADR-008 terminology. The struct
+contains three policy-resolution inputs: `runtime: RuntimeMode`, which is the
+fallback execution mode when no harness or explicit attribute path is supplied;
+`harness: Option<&'a syn::Path>`, which carries the user-provided harness type
+path such as `rstest_bdd_harness_tokio::TokioHarness`; and
+`attributes: Option<&'a syn::Path>`, which carries the explicit attribute
+policy path and therefore has the highest precedence. This replaced the older
+five-argument `generate_test_attrs` signature with a three-parameter interface,
+bringing the function back under the project's four-argument cohesion
+threshold while making the policy inputs explicit as one coherent object.
+
+The resulting resolution logic in `resolve_attribute_policy` now mirrors the
+precedence described in §2.7.3 Macro integration and builds on the
+`RuntimeMode` and `TestAttributeHint` model from §2.6.2 RuntimeMode and
+TestAttributeHint. The waterfall has four levels. First, an explicit
+`attributes = ...` path is resolved through
+`resolve_attribute_hint_from_policy_path` and overrides everything else.
+Second, when `attributes` is `None`, a known first-party harness path is
+resolved via `resolve_test_attribute_hint_for_harness_path` in
+`rstest-bdd-policy`. Third, if no explicit path or known harness mapping is
+present, the deprecated `runtime = "tokio-current-thread"` alias still reaches
+Tokio behaviour through `RuntimeMode::test_attribute_hint()` when the runtime
+is `TokioCurrentThread`. Fourth, all remaining cases fall back to the sync or
+generic-async baseline, which emits `#[rstest::rstest]` only. This preserves
+ADR-008's "explicit policy beats harness default beats compatibility alias
+beats fallback" ordering while still producing `TokenStream2` output from one
+macro-local code path.
+
+ADR-008 also introduced a deliberate split inside `ScenarioConfig` between
+`runtime: RuntimeMode` and `attribute_runtime: RuntimeMode`. The `runtime`
+field governs execution: whether the generated test body is `async fn`, which
+executor drives the body, and how the surrounding scenario machinery treats the
+function. The `attribute_runtime` field governs emitted test attributes:
+whether the generated function receives rstest-only, Tokio current-thread, or
+GPUI annotations. The two values are usually identical, but they may diverge
+when execution and attribute selection are intentionally decoupled, such as
+when a synchronous attribute policy is paired with an async execution harness
+or when `scenarios!` receives the deprecated
+`runtime = "tokio-current-thread"` token and must still emit Tokio attributes
+without changing the execution model selected elsewhere. Accordingly,
+`generate_test_attrs` receives `config.attribute_runtime` through
+`TestAttrPolicy.runtime`, while `config.runtime.is_async()` is still passed
+separately as the `is_async` boolean. That split keeps attribute selection from
+accidentally collapsing back into execution scheduling.
+
+The harness-side lookup that makes the second precedence level work lives in
+`crates/rstest-bdd-policy/src/lib.rs` as
+`resolve_test_attribute_hint_for_harness_path`. It accepts a `&[&str]` of path
+segments and returns `Option<TestAttributeHint>`, with the canonical mappings
+held in the `KNOWN_HARNESS_HINTS` table:
+`STD_HARNESS_PATH` (`["rstest_bdd_harness", "StdHarness"]`) maps to
+`TestAttributeHint::RstestOnly`, `TOKIO_HARNESS_PATH`
+(`["rstest_bdd_harness_tokio", "TokioHarness"]`) maps to
+`TestAttributeHint::RstestWithTokioCurrentThread`, and `GPUI_HARNESS_PATH`
+(`["rstest_bdd_harness_gpui", "GpuiHarness"]`) maps to
+`TestAttributeHint::RstestWithGpuiTest`. Unknown third-party paths return
+`None`, causing `resolve_attribute_policy` to continue down to the runtime
+fallback. The helper is annotated `#[must_use]` because discarding a `Some`
+result would silently bypass the harness default. Keeping this mapping in
+`rstest-bdd-policy`, rather than in the macros crate, also keeps the policy
+layer independent of `syn` and `proc-macro2` and leaves the same
+`TestAttributeHint` lookup reusable for future non-macro consumers.
+
 #### 2.7.4 First-party plugin targets
 
 The first official adapters and policies are:
