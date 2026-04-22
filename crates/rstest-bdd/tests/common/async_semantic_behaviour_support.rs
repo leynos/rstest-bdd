@@ -7,8 +7,11 @@ use regex::Regex;
 #[cfg(feature = "diagnostics")]
 use serde_json::Value;
 
+/// Relative path from `CARGO_MANIFEST_DIR` to the async semantic behaviour feature file.
 pub(crate) const FEATURE_PATH: &str = "tests/features/async_semantic_behaviour.feature";
+/// Canonical name of the skip-propagation scenario in the feature file.
 pub(crate) const SKIP_SCENARIO_NAME: &str = "async skip propagation preserves metadata";
+/// Canonical name of the error-propagation scenario in the feature file.
 pub(crate) const ERROR_SCENARIO_NAME: &str = "async failure surfaces scenario metadata";
 
 #[derive(Default)]
@@ -30,9 +33,14 @@ thread_local! {
     static TEST_STATE: RefCell<TestState> = const { RefCell::new(TestState::new()) };
 }
 
+/// Newtype for an integer fixture value used to verify that async step handlers
+/// can return a value that is injected as a fixture into the next step.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct SemanticValue(pub(crate) i32);
 
+/// Marker struct whose [`Drop`] implementation increments the per-thread
+/// `cleanup_drops` counter, allowing tests to assert that fixtures are
+/// dropped exactly once on both success and failure paths.
 pub(crate) struct CleanupProbe;
 
 impl Drop for CleanupProbe {
@@ -69,32 +77,48 @@ pub(crate) struct BypassedStepQuery<'a> {
     pub(crate) reason: &'a str,
 }
 
+/// Resets the per-thread event log.
+///
+/// Call at the start of any test that asserts on event ordering.
 pub(crate) fn clear_events() {
     TEST_STATE.with(|state| {
         state.borrow_mut().events.clear();
     });
 }
 
+/// Appends `event` to the per-thread event log.
+///
+/// Call from within step handlers to record execution order.
 pub(crate) fn push_event(event: impl Into<String>) {
     TEST_STATE.with(|state| {
         state.borrow_mut().events.push(event.into());
     });
 }
 
+/// Returns a snapshot of the per-thread event log without clearing it.
 pub(crate) fn snapshot_events() -> Vec<String> {
     TEST_STATE.with(|state| state.borrow().events.clone())
 }
 
+/// Resets the per-thread [`CleanupProbe`] drop counter to zero.
+///
+/// Call before the scenario under test so that assertions start from a known state.
 pub(crate) fn reset_cleanup_drops() {
     TEST_STATE.with(|state| {
         state.borrow_mut().cleanup_drops = 0;
     });
 }
 
+/// Returns the number of times [`CleanupProbe`] has been dropped in this thread.
 pub(crate) fn cleanup_drops() -> usize {
     TEST_STATE.with(|state| state.borrow().cleanup_drops)
 }
 
+/// Asserts that `actual` ends with `expected_suffix` using [`Path::ends_with`].
+///
+/// # Panics
+///
+/// Panics with a descriptive message if `actual` does not end with `expected_suffix`.
 pub(crate) fn assert_feature_path_suffix(actual: &str, expected_suffix: &str) {
     let actual_path = Path::new(actual);
     let expected = Path::new(expected_suffix);
@@ -104,6 +128,14 @@ pub(crate) fn assert_feature_path_suffix(actual: &str, expected_suffix: &str) {
     );
 }
 
+/// Asserts that `message` contains the expected failure context for a step handler.
+///
+/// Normalises `message` (converts backslashes to `/`, strips Unicode directional marks)
+/// and verifies it matches a regex built from the supplied [`ScenarioRef`] and [`StepRef`].
+///
+/// # Panics
+///
+/// Panics if the regex fails to compile or if `message` does not match.
 pub(crate) fn assert_handler_failure_context(
     message: &str,
     scenario: ScenarioRef<'_>,
@@ -137,6 +169,14 @@ pub(crate) fn assert_handler_failure_context(
     );
 }
 
+/// Returns the 1-based line number of `scenario_name` in [`FEATURE_PATH`].
+///
+/// Reads the feature file relative to `CARGO_MANIFEST_DIR` and scans for
+/// a `Scenario:` or `Scenario Outline:` heading matching `scenario_name`.
+///
+/// # Panics
+///
+/// Panics if the feature file cannot be read or if no matching scenario is found.
 pub(crate) fn scenario_line(scenario_name: &str) -> u32 {
     let feature_path = Path::new(env!("CARGO_MANIFEST_DIR")).join(FEATURE_PATH);
     let feature = std::fs::read_to_string(&feature_path)
@@ -167,6 +207,16 @@ fn normalize_message(message: &str) -> String {
 }
 
 #[cfg(feature = "diagnostics")]
+/// Asserts that the diagnostics registry contains a bypassed-step record
+/// matching all fields of `query`.
+///
+/// Dumps the registry via `rstest_bdd::dump_registry`, parses the JSON, and
+/// searches `bypassed_steps` for an entry matching `scenario_name`,
+/// `scenario_line`, `step_pattern`, and a `reason` substring.
+///
+/// # Panics
+///
+/// Panics if the dump fails, the JSON is invalid, or no matching entry is found.
 pub(crate) fn assert_bypassed_step_recorded(query: BypassedStepQuery<'_>) {
     let BypassedStepQuery {
         scenario_name,
