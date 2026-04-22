@@ -1680,7 +1680,7 @@ The canonical path-to-hint mapping lives in `rstest-bdd-policy`, so adding
 first-party policy mappings no longer requires editing macro-local resolution
 tables.
 
-If `attributes` is omitted, resolution now follows the ADR-008 precedence order:
+Attribute resolution follows the ADR-008 precedence order:
 
 1. explicit `attributes = ...`
 2. known first-party `harness = ...` mapping
