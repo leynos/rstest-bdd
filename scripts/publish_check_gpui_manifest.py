@@ -238,7 +238,10 @@ fn packaged_gpui_harness_runs_against_upstream_gpui() {
         }),
     );
 
-    assert!(GpuiHarness::new().run(request));
+    let result = GpuiHarness::new()
+        .run(request)
+        .unwrap_or_else(|err| panic!("packaged GPUI harness should not fail: {err}"));
+    assert!(result);
 }
 
 #[gpui::test]
