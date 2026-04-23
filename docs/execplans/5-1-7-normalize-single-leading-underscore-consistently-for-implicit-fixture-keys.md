@@ -216,21 +216,21 @@ Skill signposts:
 
 1. Confirm ADR-009 acceptance state and update the ADR if acceptance or an
    implementation clarification is required.
-1. Modify step fixture fallback in
+2. Modify step fixture fallback in
    `crates/rstest-bdd-macros/src/codegen/wrapper/args/classify.rs` so implicit
    fixture keys use `normalize_param_name()` unless `#[from(...)]` supplied the
    key.
-1. Keep `crates/rstest-bdd-macros/src/utils/fixtures.rs` aligned with the same
+3. Keep `crates/rstest-bdd-macros/src/utils/fixtures.rs` aligned with the same
    rule and refactor lightly only if that reduces duplicated naming logic.
-1. Add unit tests in
+4. Add unit tests in
    `crates/rstest-bdd-macros/src/codegen/wrapper/args/classify/tests.rs` for:
    implicit `_world`, implicit `__world`, and explicit `#[from(_world)]`.
-1. Extend behavioural coverage in `crates/rstest-bdd/tests/underscore_fixture.rs`
+5. Extend behavioural coverage in `crates/rstest-bdd/tests/underscore_fixture.rs`
    or a nearby integration test so scenario-side registration and step-side
    extraction agree in one executable scenario.
-1. Update `docs/users-guide.md` and ADR-009 with the final documented rule.
-1. Mark roadmap item 5.1.7 done in `docs/roadmap.md`.
-1. Run the full validation suite and inspect logs before considering the work
+6. Update `docs/users-guide.md` and ADR-009 with the final documented rule.
+7. Mark roadmap item 5.1.7 done in `docs/roadmap.md`.
+8. Run the full validation suite and inspect logs before considering the work
    complete.
 
 ## Validation
