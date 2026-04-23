@@ -16,7 +16,7 @@ use crate::codegen::scenario::{
 use crate::parsing::examples::ExampleTable;
 use crate::parsing::feature::ScenarioData;
 use crate::parsing::tags::TagExpression;
-use crate::return_classifier::classify_return_type;
+use crate::return_classifier::{ReturnKind, classify_return_type};
 use crate::utils::fixtures::extract_function_fixtures;
 use crate::utils::ident::sanitize_ident;
 use crate::utils::result_type::try_extract_result_error_type;
@@ -233,7 +233,9 @@ fn resolve_fixture_error_type(fixtures: &[FixtureSpec]) -> syn::Type {
 /// propagation and the signature is not already fallible.
 ///
 /// Uses [`classify_return_type`] to determine the initial [`ScenarioReturnKind`]:
-/// `Unit` for unit returns, `ResultUnit` for fallible returns. When
+/// `Unit` only for [`ReturnKind::Unit`], and [`ScenarioReturnKind::ResultUnit`]
+/// for all other return kinds, including [`ReturnKind::Value`],
+/// `ReturnKind::ResultUnit`, and `ReturnKind::ResultValue`. When
 /// `has_result_fixtures` is true and the return kind is not already fallible,
 /// this function **mutates** `sig.output` in-place via
 /// [`resolve_fixture_error_type`] to upgrade it to `Result<(), E>`, ensuring
@@ -245,7 +247,7 @@ fn resolve_scenario_return_kind(
 ) -> ScenarioReturnKind {
     let mut return_kind =
         classify_return_type(&sig.output, None).map_or(ScenarioReturnKind::Unit, |rk| match rk {
-            crate::return_classifier::ReturnKind::Unit => ScenarioReturnKind::Unit,
+            ReturnKind::Unit => ScenarioReturnKind::Unit,
             _ => ScenarioReturnKind::ResultUnit,
         });
 
