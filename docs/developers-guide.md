@@ -1,4 +1,4 @@
-# Developer Guide
+# Developer guide
 
 ## Internal test infrastructure
 
@@ -81,7 +81,7 @@ Panics with a descriptive message on mismatch.
 
 #### `assert_handler_failure_context(message, ScenarioRef, StepRef)`
 
-Normalises `message` (converts backslashes to forward slashes, strips Unicode
+Normalizes `message` (converts backslashes to forward slashes, strips Unicode
 directional marks) and asserts it matches a regex covering the step keyword,
 step text, function name, handler error, feature path suffix, and scenario
 name. Panics on regex compile failure or mismatch.

@@ -130,7 +130,7 @@ pub(crate) fn assert_feature_path_suffix(actual: &str, expected_suffix: &str) {
 
 /// Asserts that `message` contains the expected failure context for a step handler.
 ///
-/// Normalises `message` (converts backslashes to `/`, strips Unicode directional marks)
+/// Normalizes `message` (converts backslashes to `/`, strips Unicode directional marks)
 /// and verifies it matches a regex built from the supplied [`ScenarioRef`] and [`StepRef`].
 ///
 /// # Panics
@@ -206,7 +206,6 @@ fn normalize_message(message: &str) -> String {
         .replace(['\u{2068}', '\u{2069}'], "")
 }
 
-#[cfg(feature = "diagnostics")]
 /// Asserts that the diagnostics registry contains a bypassed-step record
 /// matching all fields of `query`.
 ///
@@ -217,6 +216,7 @@ fn normalize_message(message: &str) -> String {
 /// # Panics
 ///
 /// Panics if the dump fails, the JSON is invalid, or no matching entry is found.
+#[cfg(feature = "diagnostics")]
 pub(crate) fn assert_bypassed_step_recorded(query: BypassedStepQuery<'_>) {
     let BypassedStepQuery {
         scenario_name,
