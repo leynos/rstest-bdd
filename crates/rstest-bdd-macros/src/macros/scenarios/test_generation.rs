@@ -243,12 +243,11 @@ fn resolve_scenario_return_kind(
     has_result_fixtures: bool,
     fixtures: &[FixtureSpec],
 ) -> ScenarioReturnKind {
-    let mut return_kind = classify_return_type(&sig.output, None)
-        .map(|rk| match rk {
+    let mut return_kind =
+        classify_return_type(&sig.output, None).map_or(ScenarioReturnKind::Unit, |rk| match rk {
             crate::return_classifier::ReturnKind::Unit => ScenarioReturnKind::Unit,
             _ => ScenarioReturnKind::ResultUnit,
-        })
-        .unwrap_or(ScenarioReturnKind::Unit);
+        });
 
     if has_result_fixtures && !return_kind.is_fallible() {
         let error_ty = resolve_fixture_error_type(fixtures);
@@ -325,6 +324,7 @@ pub(super) fn generate_scenario_test(
         tags: &tags,
         runtime: effective_runtime,
         return_kind,
+        attribute_runtime: ctx.runtime,
         harness: harness_ref,
         attributes: ctx.attributes,
     };

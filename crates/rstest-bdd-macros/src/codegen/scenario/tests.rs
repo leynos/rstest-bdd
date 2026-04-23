@@ -1,9 +1,11 @@
 //! Tests exercising scenario code-generation utilities.
-use super::test_attrs::generate_test_attrs;
+use super::test_attrs::{TestAttrPolicy, generate_test_attrs};
 use super::*;
 use crate::parsing::feature::ParsedStep;
 
 mod gpui_policy;
+mod harness_defaults;
+mod runtime_split;
 
 #[expect(clippy::expect_used, reason = "test helper with descriptive failures")]
 fn kw(ts: &TokenStream2) -> crate::StepKeyword {
@@ -103,7 +105,15 @@ fn has_tokio_test_detection(#[case] attr_str: &str, #[case] expected_tokio: bool
 
     // When runtime is TokioCurrentThread and tokio::test is already present,
     // we should NOT emit another tokio::test attribute.
-    let tokens = generate_test_attrs(&attrs, RuntimeMode::TokioCurrentThread, None, true);
+    let tokens = generate_test_attrs(
+        &attrs,
+        &TestAttrPolicy {
+            runtime: RuntimeMode::TokioCurrentThread,
+            harness: None,
+            attributes: None,
+        },
+        true,
+    );
     let has_tokio_in_output = tokens_contain(&tokens, "tokio :: test");
 
     if expected_tokio {
@@ -133,7 +143,15 @@ fn generate_test_attrs_output(
     #[case] expect_tokio_test: bool,
 ) {
     let attrs: Vec<syn::Attribute> = attr_strs.iter().map(|s| parse_attr(s)).collect();
-    let tokens = generate_test_attrs(&attrs, runtime, None, runtime.is_async());
+    let tokens = generate_test_attrs(
+        &attrs,
+        &TestAttrPolicy {
+            runtime,
+            harness: None,
+            attributes: None,
+        },
+        runtime.is_async(),
+    );
     let output = tokens.to_string();
 
     // All outputs should contain rstest::rstest
@@ -191,7 +209,15 @@ fn generate_test_attrs_respects_attributes_policy(
     #[case] expect_tokio_test: bool,
 ) {
     let policy = policy_path.as_ref();
-    let tokens = generate_test_attrs(&[], RuntimeMode::TokioCurrentThread, policy, true);
+    let tokens = generate_test_attrs(
+        &[],
+        &TestAttrPolicy {
+            runtime: RuntimeMode::TokioCurrentThread,
+            harness: None,
+            attributes: policy,
+        },
+        true,
+    );
     let output = tokens.to_string();
 
     assert!(
@@ -212,7 +238,15 @@ fn generate_test_attrs_respects_attributes_policy(
 #[case::runtime_tokio_on_sync_function(None)]
 fn generate_test_attrs_omits_tokio_for_sync_functions(#[case] policy_path: Option<syn::Path>) {
     let policy = policy_path.as_ref();
-    let tokens = generate_test_attrs(&[], RuntimeMode::TokioCurrentThread, policy, false);
+    let tokens = generate_test_attrs(
+        &[],
+        &TestAttrPolicy {
+            runtime: RuntimeMode::TokioCurrentThread,
+            harness: None,
+            attributes: policy,
+        },
+        false,
+    );
     let output = tokens.to_string();
 
     assert!(
@@ -233,8 +267,11 @@ fn generate_test_attrs_dedupes_tokio_policy_and_user_attribute() {
     let policy_path = parse_path("rstest_bdd_harness_tokio::TokioAttributePolicy");
     let generated_attrs = generate_test_attrs(
         &attrs,
-        RuntimeMode::TokioCurrentThread,
-        Some(&policy_path),
+        &TestAttrPolicy {
+            runtime: RuntimeMode::TokioCurrentThread,
+            harness: None,
+            attributes: Some(&policy_path),
+        },
         true,
     );
 

@@ -26,7 +26,7 @@ pub(crate) use crate::macros::scenarios::ScenariosRuntimeMode as RuntimeMode;
 use crate::macros::scenarios::ScenariosTestAttributeHint as TestAttributeHint;
 
 use crate::parsing::placeholder::contains_placeholders;
-use test_attrs::generate_test_attrs;
+use test_attrs::{TestAttrPolicy, generate_test_attrs};
 
 /// Return kinds supported by scenario bodies.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -67,6 +67,8 @@ pub(crate) struct ScenarioConfig<'a> {
     pub(crate) tags: &'a [String],
     /// Runtime mode for test execution (sync or async/Tokio).
     pub(crate) runtime: RuntimeMode,
+    /// Runtime mode used when resolving generated test attributes.
+    pub(crate) attribute_runtime: RuntimeMode,
     /// Return shape expected from the scenario body.
     pub(crate) return_kind: ScenarioReturnKind,
     /// Optional harness adapter type path for compile-time trait assertion.
@@ -211,8 +213,11 @@ where
     let body = generate_test_tokens(&test_config, ctx.prelude, ctx.inserts, ctx.postlude);
     let test_attrs = generate_test_attrs(
         config.attrs,
-        config.runtime,
-        config.attributes,
+        &TestAttrPolicy {
+            runtime: config.attribute_runtime,
+            harness: config.harness,
+            attributes: config.attributes,
+        },
         config.runtime.is_async(),
     );
     let trait_assertions = generate_trait_assertions(config.harness, config.attributes);
@@ -303,8 +308,11 @@ where
 
     let test_attrs = generate_test_attrs(
         config.attrs,
-        config.runtime,
-        config.attributes,
+        &TestAttrPolicy {
+            runtime: config.attribute_runtime,
+            harness: config.harness,
+            attributes: config.attributes,
+        },
         config.runtime.is_async(),
     );
     let trait_assertions = generate_trait_assertions(config.harness, config.attributes);
