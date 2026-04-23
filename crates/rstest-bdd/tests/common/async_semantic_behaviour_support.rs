@@ -54,26 +54,36 @@ impl Drop for CleanupProbe {
 /// Identifies the scenario under test for assertion helpers.
 #[derive(Clone, Copy)]
 pub(crate) struct ScenarioRef<'a> {
+    /// The scenario name as it appears in the feature file.
     pub(crate) name: &'a str,
+    /// The expected suffix of the feature file path.
     pub(crate) feature_suffix: &'a str,
 }
 
 /// Identifies the step that is expected to have failed.
 #[derive(Clone, Copy)]
 pub(crate) struct StepRef<'a> {
+    /// The Gherkin keyword of the step (e.g. `"When"`, `"Then"`).
     pub(crate) keyword: &'a str,
+    /// The step text as it appears in the feature file.
     pub(crate) text: &'a str,
+    /// The Rust function name of the step handler.
     pub(crate) function_name: &'a str,
+    /// The error message or substring expected in the handler failure.
     pub(crate) handler_error: &'a str,
 }
 
+/// Identifies a bypassed step record expected in diagnostics output.
 #[cfg(feature = "diagnostics")]
 #[derive(Clone, Copy)]
-/// Identifies a bypassed step record expected in diagnostics output.
 pub(crate) struct BypassedStepQuery<'a> {
+    /// The name of the scenario that owns the bypassed step.
     pub(crate) scenario_name: &'a str,
+    /// The 1-based line number of the scenario in the feature file.
     pub(crate) scenario_line: u32,
+    /// The step pattern as recorded in the diagnostics registry.
     pub(crate) step_pattern: &'a str,
+    /// A substring expected to appear in the bypass reason message.
     pub(crate) reason: &'a str,
 }
 
