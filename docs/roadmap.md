@@ -548,9 +548,10 @@ opt-in crates rather than the core runtime or macros.
 ### 9.4. GPUI harness plugin crate
 
 - [x] 9.4.1. Design the fixture injection mechanism for framework harnesses.
-  The current `HarnessAdapter::run` signature wraps a `FnOnce() -> T` closure
-  that is opaque to the harness — the harness cannot inject framework-specific
-  resources (e.g. `TestAppContext`, `bevy::ecs::World`) into step functions.
+  The original `HarnessAdapter::run` signature wrapped a `FnOnce() -> T`
+  closure that was opaque to the harness — the harness could not inject
+  framework-specific resources (e.g. `TestAppContext`, `bevy::ecs::World`)
+  into step functions.
   Produce an ADR evaluating approaches (thread-local convention, associated
   `Context` type on `HarnessAdapter`, or a `StepContext` extension trait) and
   select one that works for both GPUI and Bevy. Finish line: ADR is merged and

@@ -4,6 +4,7 @@
 //! runners and supplying test attributes through policy plug-ins.
 
 mod adapter;
+mod error;
 mod policy;
 mod runner;
 mod std_harness;
@@ -11,6 +12,7 @@ mod std_harness;
 pub(crate) mod test_utils;
 
 pub use adapter::HarnessAdapter;
+pub use error::HarnessError;
 pub use policy::{AttributePolicy, DefaultAttributePolicy, TestAttribute};
 pub use runner::{
     ScenarioMetadata, ScenarioRunRequest, ScenarioRunner, StdScenarioRunRequest, StdScenarioRunner,

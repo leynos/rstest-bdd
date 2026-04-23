@@ -11,10 +11,10 @@ and thread it through `ScenarioRunRequest` and `ScenarioRunner`.
 
 ## Context and problem statement
 
-`HarnessAdapter::run` currently receives `ScenarioRunRequest<'_, T>` where the
-runner is `FnOnce() -> T`. That closure is opaque to the harness. A harness can
-observe metadata, but it cannot provide framework-owned resources to scenario
-execution in a typed way.
+At the time of this ADR, `HarnessAdapter::run` received
+`ScenarioRunRequest<'_, T>` where the runner was `FnOnce() -> T`. That closure
+was opaque to the harness. A harness could observe metadata, but it could not
+provide framework-owned resources to scenario execution in a typed way.
 
 This blocks framework integrations that need to supply runtime resources at the
 harness boundary, such as GPUI's `TestAppContext` or Bevy's `bevy::ecs::World`.
@@ -53,7 +53,10 @@ Add an associated `Context` type and make runner/request generic over context:
 pub trait HarnessAdapter {
     type Context;
 
-    fn run<T>(&self, request: ScenarioRunRequest<'_, Self::Context, T>) -> T;
+    fn run<T>(
+        &self,
+        request: ScenarioRunRequest<'_, Self::Context, T>,
+    ) -> Result<T, HarnessError>;
 }
 ```
 
@@ -104,8 +107,9 @@ The harness contract is now:
 - `HarnessAdapter` defines `type Context`.
 - `ScenarioRunner<'a, C, T>` wraps `FnOnce(C) -> T`.
 - `ScenarioRunRequest<'a, C, T>` threads `C` through request execution.
-- `StdHarness` and `TokioHarness` use `Context = ()` and call
-  `request.run(())`.
+- `StdHarness` and `TokioHarness` use `Context = ()` and return
+  `Ok(request.run(()))`, reserving `HarnessError` for harness-level
+  infrastructure failures.
 
 Macro-generated harness delegation now builds a runner closure that accepts the
 harness context type:

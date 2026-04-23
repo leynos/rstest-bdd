@@ -1,7 +1,7 @@
 //! GPUI harness adapter for scenario execution.
 
 use gpui::TestAppContext;
-use rstest_bdd_harness::{HarnessAdapter, ScenarioRunRequest, ScenarioRunner};
+use rstest_bdd_harness::{HarnessAdapter, HarnessError, ScenarioRunRequest, ScenarioRunner};
 use std::sync::{Mutex, PoisonError};
 
 /// Executes scenario runners inside the GPUI test harness.
@@ -28,7 +28,7 @@ use std::sync::{Mutex, PoisonError};
 /// );
 ///
 /// let harness = GpuiHarness::new();
-/// assert!(harness.run(request));
+/// assert!(harness.run(request).expect("gpui harness should not fail"));
 /// ```
 #[derive(Debug, Clone, Copy, Default)]
 pub struct GpuiHarness;
@@ -121,14 +121,14 @@ impl GpuiHarness {
 impl HarnessAdapter for GpuiHarness {
     type Context = TestAppContext;
 
-    fn run<T>(&self, request: ScenarioRunRequest<'_, Self::Context, T>) -> T {
+    fn run<T>(&self, request: ScenarioRunRequest<'_, Self::Context, T>) -> Result<T, HarnessError> {
         let (metadata, runner) = request.into_parts();
         let scenario_name = metadata.scenario_name().to_owned();
         let runner = Mutex::new(Some(runner));
         let output = Mutex::new(None);
 
         Self::run_request_once(&runner, &output, &scenario_name);
-        Self::extract_output(output, &scenario_name)
+        Ok(Self::extract_output(output, &scenario_name))
     }
 }
 
@@ -158,7 +158,10 @@ mod tests {
             ),
             ScenarioRunner::new(|_context: gpui::TestAppContext| 21 * 2),
         );
-        assert_eq!(harness.run(request), 42);
+        let result = harness
+            .run(request)
+            .unwrap_or_else(|err| panic!("gpui harness should not fail: {err}"));
+        assert_eq!(result, 42);
     }
 
     #[rstest]
@@ -169,6 +172,9 @@ mod tests {
                 context.test_function_name().is_none()
             }),
         );
-        assert!(harness.run(request));
+        let result = harness
+            .run(request)
+            .unwrap_or_else(|err| panic!("gpui harness should not fail: {err}"));
+        assert!(result);
     }
 }

@@ -758,7 +758,10 @@ the test (context setup, step executor loop, skip handler, and user block) in a
 requirements and simply executes the closure directly. `StdHarness` behavioural
 tests cover three guarantees: metadata remains visible on the request passed to
 the harness boundary, the runner closure executes once, and runner panics
-propagate unchanged.
+propagate unchanged. If a harness cannot initialize its runtime or framework
+environment, it returns `HarnessError`; the generated test then fails with a
+clear panic message because harness initialization is a fatal infrastructure
+error in this context.
 
 When `harness` is omitted, the generated code executes steps inline without any
 delegation, preserving backward compatibility.
@@ -821,18 +824,22 @@ struct MyHarness;
 impl HarnessAdapter for MyHarness {
     type Context = ();
 
-    fn run<T>(&self, request: ScenarioRunRequest<'_, Self::Context, T>) -> T {
+    fn run<T>(
+        &self,
+        request: ScenarioRunRequest<'_, Self::Context, T>,
+    ) -> Result<T, rstest_bdd_harness::HarnessError> {
         // Custom pre-scenario setup using request.metadata()
         let result = request.run(());
         // Custom post-scenario teardown
-        result
+        Ok(result)
     }
 }
 ```
 
-Harness adapters must faithfully propagate the runner's return value. For
-fallible scenarios that return `Result<(), E>`, swallowing errors would cause
-tests to pass silently.
+Harness adapters must faithfully propagate the runner's return value inside
+`Ok(...)`. For fallible scenarios that return `Result<(), E>`, swallowing
+errors would cause tests to pass silently. Use `Err(HarnessError::...)` only
+for harness-level infrastructure failures, not for scenario assertion failures.
 
 If a custom harness also defines a custom attribute-policy type, document that
 policy separately for users. Today the generated macros only recognize the
@@ -1028,8 +1035,11 @@ struct AppHarness;
 impl HarnessAdapter for AppHarness {
     type Context = AppContext;
 
-    fn run<T>(&self, request: ScenarioRunRequest<'_, Self::Context, T>) -> T {
-        request.run(AppContext { counter: 7 })
+    fn run<T>(
+        &self,
+        request: ScenarioRunRequest<'_, Self::Context, T>,
+    ) -> Result<T, rstest_bdd_harness::HarnessError> {
+        Ok(request.run(AppContext { counter: 7 }))
     }
 }
 
@@ -1517,9 +1527,12 @@ struct MyHarness;
 impl HarnessAdapter for MyHarness {
     type Context = ();
 
-    fn run<T>(&self, request: ScenarioRunRequest<'_, Self::Context, T>) -> T {
+    fn run<T>(
+        &self,
+        request: ScenarioRunRequest<'_, Self::Context, T>,
+    ) -> Result<T, rstest_bdd_harness::HarnessError> {
         // Optional harness-specific setup using request.metadata().
-        request.run(())
+        Ok(request.run(()))
     }
 }
 
@@ -1534,7 +1547,7 @@ let request = ScenarioRunRequest::new(
 );
 
 let harness = MyHarness;
-assert_eq!(harness.run(request), "ok");
+assert_eq!(harness.run(request).expect("harness should not fail"), "ok");
 ```
 
 Harnesses that need framework resources can choose a non-unit context type and

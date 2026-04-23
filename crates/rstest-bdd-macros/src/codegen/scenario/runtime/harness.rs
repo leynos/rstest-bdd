@@ -161,5 +161,6 @@ pub(super) fn assemble_test_tokens_with_harness(
             &__rstest_bdd_harness,
             __rstest_bdd_request,
         )
+        .expect("harness failed to initialise scenario")
     }
 }

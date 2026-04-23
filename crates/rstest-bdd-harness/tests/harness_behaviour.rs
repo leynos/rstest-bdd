@@ -2,7 +2,7 @@
 
 use rstest::{fixture, rstest};
 use rstest_bdd_harness::{
-    HarnessAdapter, ScenarioMetadata, ScenarioRunRequest, ScenarioRunner, StdHarness,
+    HarnessAdapter, HarnessError, ScenarioMetadata, ScenarioRunRequest, ScenarioRunner, StdHarness,
     StdScenarioRunRequest, StdScenarioRunner,
 };
 use std::cell::Cell;
@@ -37,7 +37,7 @@ impl MetadataProbeHarness {
 impl HarnessAdapter for MetadataProbeHarness {
     type Context = ();
 
-    fn run<T>(&self, request: StdScenarioRunRequest<'_, T>) -> T {
+    fn run<T>(&self, request: StdScenarioRunRequest<'_, T>) -> Result<T, HarnessError> {
         let (metadata, runner) = request.into_parts();
         let metadata_for_assertions = metadata.clone();
         let expected_metadata = self.expected_metadata.clone();
@@ -65,7 +65,10 @@ fn std_harness_executes_runner_once(default_metadata: ScenarioMetadata) {
     );
 
     let harness = StdHarness::new();
-    assert_eq!(harness.run(request), "done");
+    let result = harness
+        .run(request)
+        .unwrap_or_else(|err| panic!("std harness should not fail: {err}"));
+    assert_eq!(result, "done");
     assert_eq!(call_count.get(), 1);
 }
 
@@ -82,7 +85,10 @@ fn std_harness_passes_metadata_through() {
         StdScenarioRunner::new_without_context(|| 200),
     );
     let harness = MetadataProbeHarness::new(expected_metadata);
-    assert_eq!(harness.run(request), 200);
+    let result = harness
+        .run(request)
+        .unwrap_or_else(|err| panic!("probe harness should not fail: {err}"));
+    assert_eq!(result, 200);
 }
 
 #[rstest]
@@ -97,7 +103,10 @@ fn std_harness_supports_non_static_runner_borrows(default_metadata: ScenarioMeta
     );
 
     let harness = StdHarness::new();
-    assert_eq!(harness.run(request), 1);
+    let result = harness
+        .run(request)
+        .unwrap_or_else(|err| panic!("std harness should not fail: {err}"));
+    assert_eq!(result, 1);
     assert_eq!(counter, 1);
 }
 
@@ -109,7 +118,9 @@ fn std_harness_propagates_runner_panics(default_metadata: ScenarioMetadata) {
     );
     let harness = StdHarness::new();
     let panic_result = catch_unwind(AssertUnwindSafe(|| harness.run(request)));
-    let payload = panic_result.expect_err("expected StdHarness to propagate runner panic");
+    let Err(payload) = panic_result else {
+        panic!("expected StdHarness to propagate runner panic");
+    };
     assert!(panic_payload_matches(&*payload, STD_HARNESS_PANIC_MESSAGE));
 }
 
@@ -119,8 +130,8 @@ struct ContextValueHarness;
 impl HarnessAdapter for ContextValueHarness {
     type Context = u32;
 
-    fn run<T>(&self, request: ScenarioRunRequest<'_, Self::Context, T>) -> T {
-        request.run(42)
+    fn run<T>(&self, request: ScenarioRunRequest<'_, Self::Context, T>) -> Result<T, HarnessError> {
+        Ok(request.run(42))
     }
 }
 
@@ -131,5 +142,8 @@ fn harness_can_supply_non_unit_context() {
         ScenarioRunner::new(|context: u32| context + 1),
     );
     let harness = ContextValueHarness;
-    assert_eq!(harness.run(request), 43);
+    let result = harness
+        .run(request)
+        .unwrap_or_else(|err| panic!("context value harness should not fail: {err}"));
+    assert_eq!(result, 43);
 }

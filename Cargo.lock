@@ -1438,6 +1438,7 @@ name = "rstest-bdd-harness"
 version = "0.5.0"
 dependencies = [
  "rstest",
+ "thiserror 1.0.69",
 ]
 
 [[package]]
