@@ -205,7 +205,7 @@ fn classify_fixture_or_step_double_underscore_does_not_match_plain_placeholder()
 #[case("world: usize", "world", "world", "world")]
 #[case("_world: usize", "_world", "_world", "world")]
 #[case("__world: usize", "__world", "__world", "_world")]
-fn classify_fixture_or_step_normalises_implicit_fixture_name(
+fn classify_fixture_or_step_normalizes_implicit_fixture_name(
     #[case] arg_str: &str,
     #[case] param_name: &str,
     #[case] expected_pat: &str,
@@ -232,7 +232,7 @@ fn classify_fixture_or_step_keeps_explicit_from_name_exact() {
     let mut extracted = ExtractedArgs::default();
     let mut placeholders = HashSet::new();
     let mut arg: syn::PatType = parse_quote!(state: usize);
-    arg.attrs.push(parse_quote!(#[from(world_override)]));
+    arg.attrs.push(parse_quote!(#[from(_world)]));
     let ty: syn::Type = parse_quote!(usize);
     let mut ctx = ClassificationContext::new(&mut extracted, &mut placeholders);
     let handled = match classify_fixture_or_step(&mut ctx, &mut arg, ident("state"), ty) {
@@ -244,6 +244,6 @@ fn classify_fixture_or_step_keeps_explicit_from_name_exact() {
     assert!(matches!(
         extracted.args.as_slice(),
         [Arg::Fixture { pat, name, .. }]
-        if pat == &ident("state") && name == &ident("world_override")
+        if pat == &ident("state") && name == &ident("_world")
     ));
 }

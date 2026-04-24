@@ -4,7 +4,7 @@ This Execution Plan (ExecPlan) is a living document. The sections
 `Constraints`, `Tolerances`, `Risks`, `Progress`, `Decision log`, and
 `Outcomes & retrospective` must be kept up to date as work proceeds.
 
-Status: COMPLETE
+Status: INCOMPLETE
 
 ## Objective
 
@@ -223,7 +223,7 @@ Skill signposts:
 3. Keep `crates/rstest-bdd-macros/src/utils/fixtures.rs` aligned with the same
    rule and refactor lightly only if that reduces duplicated naming logic.
 4. Add unit tests in
-   `crates/rstest-bdd-macros/src/codegen/wrapper/args/classify/tests.rs` for:
+   `crates/rstest-bdd-macros/src/codegen/wrapper/args/classify/tests.rs` for
    implicit `_world`, implicit `__world`, and explicit `#[from(_world)]`.
 5. Extend behavioural coverage in `crates/rstest-bdd/tests/underscore_fixture.rs`
    or a nearby integration test so scenario-side registration and step-side

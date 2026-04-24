@@ -1,6 +1,6 @@
 Feature: Underscore fixture support
 
-  Scenario: Implicit fixture names normalise one leading underscore
+  Scenario: Implicit fixture names normalize one leading underscore
     Given the streaming world is available
     When the parser runs once more
     Then implicit underscore fixture lookup uses the world fixture
