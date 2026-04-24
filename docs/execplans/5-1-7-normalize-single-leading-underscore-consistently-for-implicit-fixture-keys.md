@@ -36,9 +36,9 @@ The implementation surface is already narrowed:
 - Existing behavioural coverage for underscore-prefixed fixtures lives in
   `crates/rstest-bdd/tests/underscore_fixture.rs`.
 
-ADR-009 now records the accepted direction for this change, so delivery can
-land the implementation and keep the documentation aligned with that accepted
-scope.
+Architecture Decision Record (ADR-009) now records the accepted direction for
+this change, so delivery can land the implementation and keep the
+documentation aligned with that accepted scope.
 
 ## Relevant documentation and skills
 
@@ -189,8 +189,8 @@ Skill signposts:
   `crates/rstest-bdd/tests/underscore_fixture.rs` so the scenario and step
   paths meet in one end-to-end case and missing-fixture diagnostics no longer
   diverge.
-- Add a negative behavioural or UI-style regression if needed to lock down the
-  explicit `#[from(...)]` escape hatch.
+- Add a negative behavioural or user interface (UI)-style regression if needed
+  to lock down the explicit `#[from(...)]` escape hatch.
 
 ### Stage D: document and close the loop
 

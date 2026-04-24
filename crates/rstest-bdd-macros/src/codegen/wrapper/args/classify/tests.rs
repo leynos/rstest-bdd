@@ -202,6 +202,7 @@ fn classify_fixture_or_step_double_underscore_does_not_match_plain_placeholder()
 }
 
 #[rstest]
+#[case("world: usize", "world", "world", "world")]
 #[case("_world: usize", "_world", "_world", "world")]
 #[case("__world: usize", "__world", "__world", "_world")]
 fn classify_fixture_or_step_normalises_implicit_fixture_name(
