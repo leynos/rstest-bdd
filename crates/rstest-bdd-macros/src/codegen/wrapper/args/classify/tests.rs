@@ -209,8 +209,8 @@ fn classify_fixture_or_step_normalises_implicit_fixture_name(
     #[case] param_name: &str,
     #[case] expected_pat: &str,
     #[case] expected_name: &str,
-) {
-    let arg_tokens: TokenStream2 = arg_str.parse().expect("failed to parse token stream");
+) -> Result<(), Box<dyn std::error::Error>> {
+    let arg_tokens: TokenStream2 = arg_str.parse()?;
     let (extracted, handled, _) =
         execute_classify_fixture_or_step(HashSet::new(), arg_tokens, param_name, quote!(usize));
     let expected_pat = ident(expected_pat);
@@ -222,6 +222,8 @@ fn classify_fixture_or_step_normalises_implicit_fixture_name(
         [Arg::Fixture { pat, name, .. }]
         if pat == &expected_pat && name == &expected_name
     ));
+
+    Ok(())
 }
 
 #[test]
