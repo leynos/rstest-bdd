@@ -829,7 +829,7 @@ impl HarnessAdapter for MyHarness {
         request: ScenarioRunRequest<'_, Self::Context, T>,
     ) -> HarnessResult<T> {
         // Custom pre-scenario setup using request.metadata()
-        let result = request.run(());
+        let result = request.run_without_context();
         // Custom post-scenario teardown
         Ok(result)
     }
@@ -840,6 +840,11 @@ Harness adapters must faithfully propagate the runner's return value inside
 `Ok(...)`. For fallible scenarios that return `Result<(), E>`, swallowing
 errors would cause tests to pass silently. Use `Err(HarnessError::...)` only
 for harness-level infrastructure failures, not for scenario assertion failures.
+When migrating pre-ADR-007 harness code, update `type Context`, the
+`ScenarioRunner` constructor signature, and the request execution helper
+together: unit-context harnesses (`StdHarness`, `TokioHarness`, and similar
+adapters using `Context = ()`) should call `run_without_context()`, while
+non-unit context harnesses should continue to use `request.run(context)`.
 
 If a custom harness also defines a custom attribute-policy type, document that
 policy separately for users. Today the generated macros only recognize the
@@ -896,10 +901,11 @@ The older `runtime = "tokio-current-thread"` form remains available only as a
 deprecated compatibility alias for `scenarios!`.
 
 `TokioHarness::run` performs one `tokio::task::yield_now()` tick after
-`request.run(())` returns. This helps simple `spawn_local` tasks complete, but
-it does not fully drain the `LocalSet`. Tasks requiring additional wakeups (for
-example timers) may still be pending when `run()` returns, so steps should
-prefer explicit `.await`-based coordination when completion is required.
+`request.run_without_context()` returns. This helps simple `spawn_local` tasks
+complete, but it does not fully drain the `LocalSet`. Tasks requiring
+additional wakeups (for example timers) may still be pending when `run()`
+returns, so steps should prefer explicit `.await`-based coordination when
+completion is required.
 
 For a complete working example, see the `examples/tokio-reminders` crate. Its
 BDD suite uses `TokioHarness` to exercise queued reminder behaviour under a
@@ -1532,7 +1538,7 @@ impl HarnessAdapter for MyHarness {
         request: ScenarioRunRequest<'_, Self::Context, T>,
     ) -> HarnessResult<T> {
         // Optional harness-specific setup using request.metadata().
-        Ok(request.run(()))
+        Ok(request.run_without_context())
     }
 }
 
