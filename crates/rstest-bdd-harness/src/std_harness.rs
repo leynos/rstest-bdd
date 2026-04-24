@@ -1,7 +1,7 @@
 //! Default synchronous harness implementation.
 
 use crate::runner::StdScenarioRunRequest;
-use crate::{HarnessAdapter, HarnessError};
+use crate::{HarnessAdapter, HarnessResult};
 
 /// Framework-agnostic synchronous harness.
 ///
@@ -21,7 +21,7 @@ impl StdHarness {
 impl HarnessAdapter for StdHarness {
     type Context = ();
 
-    fn run<T>(&self, request: StdScenarioRunRequest<'_, T>) -> Result<T, HarnessError> {
+    fn run<T>(&self, request: StdScenarioRunRequest<'_, T>) -> HarnessResult<T> {
         Ok(request.run_without_context())
     }
 }

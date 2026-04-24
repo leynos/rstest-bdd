@@ -1,6 +1,6 @@
 //! Tokio current-thread harness adapter for scenario execution.
 
-use rstest_bdd_harness::{HarnessAdapter, HarnessError, StdScenarioRunRequest};
+use rstest_bdd_harness::{HarnessAdapter, HarnessError, HarnessResult, StdScenarioRunRequest};
 
 /// Executes scenario runners inside a Tokio current-thread runtime with a
 /// [`LocalSet`](tokio::task::LocalSet).
@@ -54,7 +54,7 @@ impl TokioHarness {
 impl HarnessAdapter for TokioHarness {
     type Context = ();
 
-    fn run<T>(&self, request: StdScenarioRunRequest<'_, T>) -> Result<T, HarnessError> {
+    fn run<T>(&self, request: StdScenarioRunRequest<'_, T>) -> HarnessResult<T> {
         let runtime = tokio::runtime::Builder::new_current_thread()
             .enable_all()
             .build()

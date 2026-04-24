@@ -56,7 +56,7 @@ pub trait HarnessAdapter {
     fn run<T>(
         &self,
         request: ScenarioRunRequest<'_, Self::Context, T>,
-    ) -> Result<T, HarnessError>;
+    ) -> HarnessResult<T>;
 }
 ```
 

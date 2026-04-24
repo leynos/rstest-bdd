@@ -759,9 +759,9 @@ requirements and simply executes the closure directly. `StdHarness` behavioural
 tests cover three guarantees: metadata remains visible on the request passed to
 the harness boundary, the runner closure executes once, and runner panics
 propagate unchanged. If a harness cannot initialize its runtime or framework
-environment, it returns `HarnessError`; the generated test then fails with a
-clear panic message because harness initialization is a fatal infrastructure
-error in this context.
+environment, it returns `HarnessResult::Err(HarnessError::...)`; the generated
+test then panics with the concrete error detail because harness initialization
+is a fatal infrastructure error in this context.
 
 When `harness` is omitted, the generated code executes steps inline without any
 delegation, preserving backward compatibility.
@@ -816,7 +816,7 @@ framework-specific setup and teardown. The harness type must implement both
 `HarnessAdapter` and `Default`:
 
 ```rust,no_run
-use rstest_bdd_harness::{HarnessAdapter, ScenarioRunRequest};
+use rstest_bdd_harness::{HarnessAdapter, HarnessResult, ScenarioRunRequest};
 
 #[derive(Default)]
 struct MyHarness;
@@ -827,7 +827,7 @@ impl HarnessAdapter for MyHarness {
     fn run<T>(
         &self,
         request: ScenarioRunRequest<'_, Self::Context, T>,
-    ) -> Result<T, rstest_bdd_harness::HarnessError> {
+    ) -> HarnessResult<T> {
         // Custom pre-scenario setup using request.metadata()
         let result = request.run(());
         // Custom post-scenario teardown
@@ -1021,7 +1021,7 @@ Use `#[from(rstest_bdd_harness_context)]` in step signatures to request the
 context with a domain-specific parameter name:
 
 ```rust,no_run
-use rstest_bdd_harness::{HarnessAdapter, ScenarioRunRequest};
+use rstest_bdd_harness::{HarnessAdapter, HarnessResult, ScenarioRunRequest};
 use rstest_bdd_macros::{given, scenario, then, when};
 
 #[derive(Debug)]
@@ -1038,7 +1038,7 @@ impl HarnessAdapter for AppHarness {
     fn run<T>(
         &self,
         request: ScenarioRunRequest<'_, Self::Context, T>,
-    ) -> Result<T, rstest_bdd_harness::HarnessError> {
+    ) -> HarnessResult<T> {
         Ok(request.run(AppContext { counter: 7 }))
     }
 }
@@ -1519,7 +1519,7 @@ environment. `C` is the harness-specific context type:
 
 ```rust,no_run
 use rstest_bdd_harness::{
-    HarnessAdapter, ScenarioMetadata, ScenarioRunRequest, ScenarioRunner,
+    HarnessAdapter, HarnessResult, ScenarioMetadata, ScenarioRunRequest, ScenarioRunner,
 };
 
 struct MyHarness;
@@ -1530,7 +1530,7 @@ impl HarnessAdapter for MyHarness {
     fn run<T>(
         &self,
         request: ScenarioRunRequest<'_, Self::Context, T>,
-    ) -> Result<T, rstest_bdd_harness::HarnessError> {
+    ) -> HarnessResult<T> {
         // Optional harness-specific setup using request.metadata().
         Ok(request.run(()))
     }

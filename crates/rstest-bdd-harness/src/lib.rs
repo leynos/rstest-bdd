@@ -12,7 +12,7 @@ mod std_harness;
 pub(crate) mod test_utils;
 
 pub use adapter::HarnessAdapter;
-pub use error::HarnessError;
+pub use error::{HarnessError, HarnessResult};
 pub use policy::{AttributePolicy, DefaultAttributePolicy, TestAttribute};
 pub use runner::{
     ScenarioMetadata, ScenarioRunRequest, ScenarioRunner, StdScenarioRunRequest, StdScenarioRunner,

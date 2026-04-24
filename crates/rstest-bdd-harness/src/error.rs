@@ -1,5 +1,8 @@
 //! Error types for harness adapter execution.
 
+/// Convenience alias for harness adapter results.
+pub type HarnessResult<T> = Result<T, HarnessError>;
+
 /// Errors returned by [`crate::HarnessAdapter`] implementations.
 ///
 /// Harness adapters use this enum to report infrastructure failures that occur

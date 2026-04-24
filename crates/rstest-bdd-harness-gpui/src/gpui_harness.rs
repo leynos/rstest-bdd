@@ -1,7 +1,7 @@
 //! GPUI harness adapter for scenario execution.
 
 use gpui::TestAppContext;
-use rstest_bdd_harness::{HarnessAdapter, HarnessError, ScenarioRunRequest, ScenarioRunner};
+use rstest_bdd_harness::{HarnessAdapter, HarnessResult, ScenarioRunRequest, ScenarioRunner};
 use std::sync::{Mutex, PoisonError};
 
 /// Executes scenario runners inside the GPUI test harness.
@@ -121,7 +121,7 @@ impl GpuiHarness {
 impl HarnessAdapter for GpuiHarness {
     type Context = TestAppContext;
 
-    fn run<T>(&self, request: ScenarioRunRequest<'_, Self::Context, T>) -> Result<T, HarnessError> {
+    fn run<T>(&self, request: ScenarioRunRequest<'_, Self::Context, T>) -> HarnessResult<T> {
         let (metadata, runner) = request.into_parts();
         let scenario_name = metadata.scenario_name().to_owned();
         let runner = Mutex::new(Some(runner));

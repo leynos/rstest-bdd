@@ -1604,12 +1604,12 @@ expressions at expansion time. `StdHarness` derives `Default`; third-party
 harness types must also implement `Default`.
 
 For fallible scenarios (`Result<(), E>` return type), the closure's return type
-is `Result<(), E>`. `HarnessAdapter::run` now returns
-`Result<T, HarnessError>`, so `T = Result<(), E>` composes naturally as
-`Result<Result<(), E>, HarnessError>`. Macro-generated tests call
-`.expect("harness failed to initialise scenario")` at the harness boundary,
-preserving scenario-level `Result<(), E>` behaviour while surfacing harness
-initialization failures as fatal test infrastructure errors.
+is `Result<(), E>`. `HarnessAdapter::run` now returns `HarnessResult<T>`, so
+`T = Result<(), E>` composes naturally as `HarnessResult<Result<(), E>>`.
+Macro-generated tests call `unwrap_or_else(|err| panic!(...))` at the harness
+boundary, preserving scenario-level `Result<(), E>` behaviour while surfacing
+harness initialization failures as fatal test infrastructure errors with the
+underlying `HarnessError` detail.
 
 **Context handoff (Phase 9.4.1 / ADR-007).** The harness contract now includes
 an associated context type:
@@ -1621,7 +1621,7 @@ pub trait HarnessAdapter {
     fn run<T>(
         &self,
         request: ScenarioRunRequest<'_, Self::Context, T>,
-    ) -> Result<T, HarnessError>;
+    ) -> HarnessResult<T>;
 }
 ```
 
