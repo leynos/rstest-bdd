@@ -107,8 +107,9 @@ The harness contract is now:
 - `HarnessAdapter` defines `type Context`.
 - `ScenarioRunner<'a, C, T>` wraps `FnOnce(C) -> T`.
 - `ScenarioRunRequest<'a, C, T>` threads `C` through request execution.
-- `StdHarness` and `TokioHarness` use `Context = ()` and return
-  `Ok(request.run(()))`, reserving `HarnessError` for harness-level
+- `StdHarness` and `TokioHarness` use `Context = ()` with
+  `StdScenarioRunRequest<'a, T>` and call `request.run_without_context()`,
+  returning `Ok(...)` on success and reserving `HarnessError` for harness-level
   infrastructure failures.
 
 Macro-generated harness delegation now builds a runner closure that accepts the
