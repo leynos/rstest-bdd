@@ -608,6 +608,13 @@ opt-in crates rather than the core runtime or macros.
   surface. Delivered with `TokioHarness` implementing
   `HarnessAdapter<Context = ()>` and updated behavioural coverage.
   Prerequisite: 9.5.2. (Buzzy Bee)
+- [x] 9.5.4. Make `HarnessAdapter::run` return
+  `Result<T, HarnessError>` so harness initialisation failures are propagated
+  rather than panicked. Finish line: `HarnessError` type in
+  `rstest-bdd-harness`, `HarnessResult` alias re-exported from crate root, all
+  first-party harnesses and macro-generated delegation updated,
+  `FailingHarness` integration test added, ADR-007 and user/developer guides
+  updated. Closes `#443`. (Pandalump)
 
 ### 9.6. Documentation and validation
 
