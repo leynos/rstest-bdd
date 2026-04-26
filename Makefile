@@ -4,12 +4,12 @@ VALE ?= vale
 
 SHELL := bash
 APP ?= cargo-bdd
-CARGO ?= cargo
+CARGO ?= $(or $(shell command -v cargo 2>/dev/null),$(HOME)/.cargo/bin/cargo)
 BUILD_JOBS ?=
 RUST_FLAGS ?= -D warnings
 CARGO_FLAGS ?= --workspace --all-targets --all-features
 CLIPPY_FLAGS ?= $(CARGO_FLAGS) -- $(RUST_FLAGS)
-MDLINT ?= markdownlint-cli2
+MDLINT ?= $(or $(shell command -v markdownlint-cli2 2>/dev/null),$(HOME)/.bun/bin/markdownlint-cli2)
 ACRONYM_SCRIPT ?= scripts/update_acronym_allowlist.py
 UV ?= uv
 
