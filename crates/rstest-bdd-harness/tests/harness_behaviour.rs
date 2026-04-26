@@ -72,6 +72,18 @@ fn std_harness_executes_runner_once(default_metadata: ScenarioMetadata) {
     assert_eq!(call_count.get(), 1);
 }
 
+#[rstest]
+fn std_harness_run_returns_ok(default_metadata: ScenarioMetadata) {
+    let request = StdScenarioRunRequest::new(
+        default_metadata,
+        StdScenarioRunner::new_without_context(|| "ok"),
+    );
+
+    let harness = StdHarness::new();
+    let result = harness.run(request);
+    assert!(result.is_ok(), "std harness should not fail: {result:?}");
+}
+
 #[test]
 fn std_harness_passes_metadata_through() {
     let expected_metadata = ScenarioMetadata::new(

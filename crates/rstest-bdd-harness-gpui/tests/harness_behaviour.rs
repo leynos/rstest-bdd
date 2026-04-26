@@ -33,6 +33,18 @@ fn gpui_harness_executes_runner_once(default_metadata: ScenarioMetadata) {
 }
 
 #[rstest]
+fn gpui_harness_run_returns_ok(default_metadata: ScenarioMetadata) {
+    let request = ScenarioRunRequest::new(
+        default_metadata,
+        ScenarioRunner::new(|_context: gpui::TestAppContext| "ok"),
+    );
+
+    let harness = GpuiHarness::new();
+    let result = harness.run(request);
+    assert!(result.is_ok(), "gpui harness should not fail: {result:?}");
+}
+
+#[rstest]
 fn gpui_harness_supports_non_static_runner_borrows(default_metadata: ScenarioMetadata) {
     let mut counter = 0u8;
     let request = ScenarioRunRequest::new(

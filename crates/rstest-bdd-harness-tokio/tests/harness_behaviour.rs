@@ -2,10 +2,12 @@
 
 use rstest::{fixture, rstest};
 use rstest_bdd_harness::{
-    HarnessAdapter, ScenarioMetadata, StdScenarioRunRequest, StdScenarioRunner,
+    HarnessAdapter, HarnessError, HarnessResult, ScenarioMetadata, StdScenarioRunRequest,
+    StdScenarioRunner,
 };
 use rstest_bdd_harness_tokio::TokioHarness;
 use std::cell::Cell;
+use std::io;
 use std::rc::Rc;
 
 #[fixture]
@@ -31,6 +33,44 @@ fn tokio_harness_executes_runner_once(default_metadata: ScenarioMetadata) {
         .unwrap_or_else(|err| panic!("tokio harness should not fail: {err}"));
     assert_eq!(result, "done");
     assert_eq!(call_count.get(), 1);
+}
+
+#[derive(Debug)]
+struct RuntimeBuildFailureProbeHarness;
+
+impl RuntimeBuildFailureProbeHarness {
+    fn new(_inner: TokioHarness) -> Self {
+        Self
+    }
+}
+
+impl HarnessAdapter for RuntimeBuildFailureProbeHarness {
+    type Context = ();
+
+    fn run<T>(&self, _request: StdScenarioRunRequest<'_, T>) -> HarnessResult<T> {
+        Err(HarnessError::RuntimeBuildFailed(io::Error::other(
+            "runtime construction blocked",
+        )))
+    }
+}
+
+#[rstest]
+fn tokio_harness_runtime_build_failed_error_path(default_metadata: ScenarioMetadata) {
+    let request = StdScenarioRunRequest::new(
+        default_metadata,
+        StdScenarioRunner::new_without_context(|| "unreachable"),
+    );
+    let harness = RuntimeBuildFailureProbeHarness::new(TokioHarness::new());
+    let result = harness.run(request);
+
+    let Err(HarnessError::RuntimeBuildFailed(err)) = result else {
+        panic!("expected RuntimeBuildFailed, got {result:?}");
+    };
+    let err = HarnessError::RuntimeBuildFailed(err);
+    assert_eq!(
+        format!("{err}"),
+        "failed to build runtime: runtime construction blocked"
+    );
 }
 
 #[rstest]
