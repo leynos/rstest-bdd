@@ -127,3 +127,80 @@ shared state must:
 1. Call `clear_events()` and/or `reset_cleanup_drops()` at the start.
 2. Be annotated with `#[serial]` to prevent interleaving with other
    tests on the same thread pool.
+
+## Implementing a HarnessAdapter
+
+### Overview
+
+`HarnessAdapter::run` returns `HarnessResult<T>`, which is an alias for
+`Result<T, HarnessError>`. Earlier versions returned `T` directly. The new
+return type is a breaking change that makes harness initialization failures
+explicit instead of forcing harness implementations to panic. This closes issue
+`#443`.
+
+### Return-type contract
+
+`Ok(value)` carries the scenario outcome produced by the runner. If the
+scenario itself returns a `Result`, that scenario-level result is nested inside
+the `Ok` arm:
+
+```rust
+HarnessResult<Result<(), StepError>>
+```
+
+`Err(HarnessError::RuntimeBuildFailed(_))` is reserved for harness
+infrastructure failures, such as failing to construct a Tokio runtime before
+the scenario can run.
+
+### Migration guidance
+
+Existing `HarnessAdapter` implementations should make the following changes:
+
+- Change the `run` return type to `HarnessResult<T>`.
+- Wrap previously direct return values in `Ok(...)`.
+- Replace `panic!` on runtime-build failure with
+  `Err(HarnessError::RuntimeBuildFailed(err))`. Prefer mapping the build error
+  and using `?` where possible:
+
+  ```rust
+  let runtime = tokio::runtime::Builder::new_current_thread()
+      .enable_all()
+      .build()
+      .map_err(HarnessError::RuntimeBuildFailed)?;
+  ```
+
+- For unit-context harnesses, switch from `request.run(())` to
+  `request.run_without_context()`.
+
+### Test-site guidance
+
+Generated tests unwrap harness execution with:
+
+```rust
+unwrap_or_else(|err| panic!("harness failed to initialize scenario: {err}"))
+```
+
+Use the same pattern in hand-written tests instead of bare `.unwrap()`. This
+keeps the concrete `HarnessError` visible in the panic message when a harness
+cannot initialize its infrastructure.
+
+### Observability guidance
+
+Harness implementations should emit a `tracing::error!` event before returning
+`Err` from `HarnessAdapter::run`. Use structured fields so downstream test
+runners and CI logs can filter by harness and scenario:
+
+- `harness_type`: `std::any::type_name::<H>()` for the harness adapter type.
+- `feature_path`: `request.metadata().feature_path()`.
+- `scenario_name`: `request.metadata().scenario_name()`.
+- `err`: the concrete `HarnessError`, formatted with `%err`.
+
+Generated scenario delegation emits the same event and attaches scenario
+context to the displayed error before panicking, so custom harnesses should use
+matching field names for consistency.
+
+### HarnessError extension
+
+`HarnessError` is marked `#[non_exhaustive]`, so downstream code that matches
+on it must include a `_` fallback arm. New variants may be added in minor
+releases as more harness infrastructure failures become typed and inspectable.

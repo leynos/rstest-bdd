@@ -2,10 +2,12 @@
 
 use rstest::{fixture, rstest};
 use rstest_bdd_harness::{
-    HarnessAdapter, ScenarioMetadata, StdScenarioRunRequest, StdScenarioRunner,
+    HarnessAdapter, HarnessError, HarnessResult, ScenarioMetadata, StdScenarioRunRequest,
+    StdScenarioRunner,
 };
 use rstest_bdd_harness_tokio::TokioHarness;
 use std::cell::Cell;
+use std::io;
 use std::rc::Rc;
 
 #[fixture]
@@ -26,8 +28,49 @@ fn tokio_harness_executes_runner_once(default_metadata: ScenarioMetadata) {
     );
 
     let harness = TokioHarness::new();
-    assert_eq!(harness.run(request), "done");
+    let result = harness
+        .run(request)
+        .unwrap_or_else(|err| panic!("tokio harness should not fail: {err}"));
+    assert_eq!(result, "done");
     assert_eq!(call_count.get(), 1);
+}
+
+#[derive(Debug)]
+struct RuntimeBuildFailureProbeHarness;
+
+impl RuntimeBuildFailureProbeHarness {
+    fn new(_inner: TokioHarness) -> Self {
+        Self
+    }
+}
+
+impl HarnessAdapter for RuntimeBuildFailureProbeHarness {
+    type Context = ();
+
+    fn run<T>(&self, _request: StdScenarioRunRequest<'_, T>) -> HarnessResult<T> {
+        Err(HarnessError::RuntimeBuildFailed(io::Error::other(
+            "runtime construction blocked",
+        )))
+    }
+}
+
+#[rstest]
+fn tokio_harness_runtime_build_failed_error_path(default_metadata: ScenarioMetadata) {
+    let request = StdScenarioRunRequest::new(
+        default_metadata,
+        StdScenarioRunner::new_without_context(|| "unreachable"),
+    );
+    let harness = RuntimeBuildFailureProbeHarness::new(TokioHarness::new());
+    let result = harness.run(request);
+
+    let Err(HarnessError::RuntimeBuildFailed(err)) = result else {
+        panic!("expected RuntimeBuildFailed, got {result:?}");
+    };
+    let err = HarnessError::RuntimeBuildFailed(err);
+    assert_eq!(
+        format!("{err}"),
+        "failed to build runtime: runtime construction blocked"
+    );
 }
 
 #[rstest]
@@ -42,7 +85,10 @@ fn tokio_harness_supports_non_static_runner_borrows(default_metadata: ScenarioMe
     );
 
     let harness = TokioHarness::new();
-    assert_eq!(harness.run(request), 1);
+    let result = harness
+        .run(request)
+        .unwrap_or_else(|err| panic!("tokio harness should not fail: {err}"));
+    assert_eq!(result, 1);
     assert_eq!(counter, 1);
 }
 
@@ -58,7 +104,10 @@ fn tokio_runtime_is_active_inside_harness() {
         }),
     );
     let harness = TokioHarness::new();
-    assert!(harness.run(request));
+    let result = harness
+        .run(request)
+        .unwrap_or_else(|err| panic!("tokio harness should not fail: {err}"));
+    assert!(result);
 }
 
 /// Verify that `spawn_local` is available inside the harness, confirming that
@@ -81,7 +130,10 @@ fn tokio_harness_supports_spawn_local(default_metadata: ScenarioMetadata) {
     );
 
     let harness = TokioHarness::new();
-    assert_eq!(harness.run(request), "spawned");
+    let result = harness
+        .run(request)
+        .unwrap_or_else(|err| panic!("tokio harness should not fail: {err}"));
+    assert_eq!(result, "spawned");
     // The LocalSet drives the spawned task to completion before block_on
     // returns, so the flag should be set.
     assert!(flag.get(), "spawn_local task should have run to completion");
@@ -107,7 +159,10 @@ fn tokio_harness_single_tick_does_not_fully_drain_localset(default_metadata: Sce
     );
 
     let harness = TokioHarness::new();
-    assert_eq!(harness.run(request), "spawned-yielding");
+    let result = harness
+        .run(request)
+        .unwrap_or_else(|err| panic!("tokio harness should not fail: {err}"));
+    assert_eq!(result, "spawned-yielding");
     assert!(
         !completed.get(),
         "single post-run tick should not guarantee completion of multi-yield local tasks"
@@ -132,5 +187,8 @@ fn tokio_harness_passes_metadata_through() {
     );
     assert_eq!(request.metadata().scenario_name(), "Payment succeeds");
     let harness = TokioHarness::new();
-    assert_eq!(harness.run(request), 200);
+    let result = harness
+        .run(request)
+        .unwrap_or_else(|err| panic!("tokio harness should not fail: {err}"));
+    assert_eq!(result, 200);
 }

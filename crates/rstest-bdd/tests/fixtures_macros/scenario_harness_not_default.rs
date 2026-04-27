@@ -6,8 +6,11 @@ struct NoDefaultHarness;
 impl rstest_bdd_harness::HarnessAdapter for NoDefaultHarness {
     type Context = ();
 
-    fn run<T>(&self, request: rstest_bdd_harness::ScenarioRunRequest<'_, Self::Context, T>) -> T {
-        request.run(())
+    fn run<T>(
+        &self,
+        request: rstest_bdd_harness::ScenarioRunRequest<'_, Self::Context, T>,
+    ) -> Result<T, rstest_bdd_harness::HarnessError> {
+        Ok(request.run(()))
     }
 }
 

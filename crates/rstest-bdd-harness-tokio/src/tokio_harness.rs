@@ -1,6 +1,6 @@
 //! Tokio current-thread harness adapter for scenario execution.
 
-use rstest_bdd_harness::{HarnessAdapter, StdScenarioRunRequest};
+use rstest_bdd_harness::{HarnessAdapter, HarnessError, HarnessResult, StdScenarioRunRequest};
 
 /// Executes scenario runners inside a Tokio current-thread runtime with a
 /// [`LocalSet`](tokio::task::LocalSet).
@@ -38,7 +38,7 @@ use rstest_bdd_harness::{HarnessAdapter, StdScenarioRunRequest};
 ///     || 2 + 2,
 /// );
 /// let harness = TokioHarness::new();
-/// assert_eq!(harness.run(request), 4);
+/// assert_eq!(harness.run(request).expect("tokio harness should not fail"), 4);
 /// ```
 #[derive(Debug, Clone, Copy, Default)]
 pub struct TokioHarness;
@@ -54,24 +54,20 @@ impl TokioHarness {
 impl HarnessAdapter for TokioHarness {
     type Context = ();
 
-    fn run<T>(&self, request: StdScenarioRunRequest<'_, T>) -> T {
-        // FIXME(#443): propagate runtime build errors via Result once
-        // HarnessAdapter::run returns Result<T, E>.
+    fn run<T>(&self, request: StdScenarioRunRequest<'_, T>) -> HarnessResult<T> {
         let runtime = tokio::runtime::Builder::new_current_thread()
             .enable_all()
             .build()
-            .unwrap_or_else(|err| {
-                panic!("rstest-bdd-harness-tokio: failed to build Tokio runtime: {err}")
-            });
+            .map_err(HarnessError::RuntimeBuildFailed)?;
         let local_set = tokio::task::LocalSet::new();
-        local_set.block_on(&runtime, async {
+        Ok(local_set.block_on(&runtime, async {
             let result = request.run_without_context();
             // Run one cooperative tick so tasks queued via `spawn_local` can
             // make progress. This is intentionally a single tick rather than a
             // full `LocalSet` drain.
             tokio::task::yield_now().await;
             result
-        })
+        }))
     }
 }
 
@@ -99,7 +95,10 @@ mod tests {
             ),
             || 21 * 2,
         );
-        assert_eq!(harness.run(request), 42);
+        let result = harness
+            .run(request)
+            .unwrap_or_else(|err| panic!("tokio harness should not fail: {err}"));
+        assert_eq!(result, 42);
     }
 
     #[rstest]
@@ -110,6 +109,9 @@ mod tests {
                 let _handle = tokio::runtime::Handle::current();
                 true
             });
-        assert!(harness.run(request));
+        let result = harness
+            .run(request)
+            .unwrap_or_else(|err| panic!("tokio harness should not fail: {err}"));
+        assert!(result);
     }
 }

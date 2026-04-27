@@ -161,5 +161,19 @@ pub(super) fn assemble_test_tokens_with_harness(
             &__rstest_bdd_harness,
             __rstest_bdd_request,
         )
+        .unwrap_or_else(|err| {
+            let feature_path = __RSTEST_BDD_FEATURE_PATH;
+            let scenario_name = __RSTEST_BDD_SCENARIO_NAME;
+            let harness_type = std::any::type_name::<#harness_path>();
+            let err = err.with_scenario_context(feature_path, scenario_name);
+            #harness_crate::tracing::error!(
+                %harness_type,
+                %feature_path,
+                %scenario_name,
+                %err,
+                "harness failed to initialize scenario"
+            );
+            panic!("harness failed to initialise scenario: {err}")
+        })
     }
 }

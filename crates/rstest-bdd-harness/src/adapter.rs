@@ -1,6 +1,6 @@
 //! Harness adapter trait for scenario execution.
 
-use crate::runner::ScenarioRunRequest;
+use crate::{HarnessResult, runner::ScenarioRunRequest};
 
 /// Runs scenario closures inside a harness-specific environment.
 ///
@@ -8,7 +8,8 @@ use crate::runner::ScenarioRunRequest;
 ///
 /// ```
 /// use rstest_bdd_harness::{
-///     HarnessAdapter, ScenarioMetadata, ScenarioRunRequest, ScenarioRunner, StdHarness,
+///     HarnessAdapter, HarnessResult, ScenarioMetadata, ScenarioRunRequest, ScenarioRunner,
+///     StdHarness,
 /// };
 ///
 /// let request = ScenarioRunRequest::new(
@@ -16,7 +17,20 @@ use crate::runner::ScenarioRunRequest;
 ///     ScenarioRunner::new_without_context(|| 5 + 5),
 /// );
 /// let harness = StdHarness::new();
-/// assert_eq!(harness.run(request), 10);
+/// let feature_path = request.metadata().feature_path().to_string();
+/// let scenario_name = request.metadata().scenario_name().to_string();
+/// let result: HarnessResult<i32> = harness.run(request).map_err(|err| {
+///     let err = err.with_scenario_context(feature_path.clone(), scenario_name.clone());
+///     tracing::error!(
+///         %harness_type = std::any::type_name::<StdHarness>(),
+///         %feature_path,
+///         %scenario_name,
+///         %err,
+///         "harness failed to initialize scenario"
+///     );
+///     err.into_error()
+/// });
+/// assert_eq!(result.expect("std harness should not fail"), 10);
 /// ```
 pub trait HarnessAdapter {
     /// Harness-provided context passed into one scenario run.
@@ -26,5 +40,10 @@ pub trait HarnessAdapter {
     type Context: std::any::Any;
 
     /// Executes one scenario request and returns the runner result.
-    fn run<T>(&self, request: ScenarioRunRequest<'_, Self::Context, T>) -> T;
+    ///
+    /// # Errors
+    ///
+    /// Returns [`crate::HarnessError`] when the harness cannot initialize the
+    /// environment required to execute the scenario.
+    fn run<T>(&self, request: ScenarioRunRequest<'_, Self::Context, T>) -> HarnessResult<T>;
 }

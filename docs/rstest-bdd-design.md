@@ -1509,7 +1509,7 @@ let request = ScenarioRunRequest::new(
 );
 
 let harness = StdHarness::new();
-assert_eq!(harness.run(request), "ok");
+assert_eq!(harness.run(request).expect("std harness should not fail"), "ok");
 ```
 
 `ScenarioMetadata`, `ScenarioRunner<'a, C, T>`, and
@@ -1604,8 +1604,12 @@ expressions at expansion time. `StdHarness` derives `Default`; third-party
 harness types must also implement `Default`.
 
 For fallible scenarios (`Result<(), E>` return type), the closure's return type
-is `Result<(), E>`. The `HarnessAdapter::run` method returns `T`, so
-`T = Result<(), E>` composes naturally.
+is `Result<(), E>`. `HarnessAdapter::run` now returns `HarnessResult<T>`, so
+`T = Result<(), E>` composes naturally as `HarnessResult<Result<(), E>>`.
+Macro-generated tests call `unwrap_or_else(|err| panic!(...))` at the harness
+boundary, preserving scenario-level `Result<(), E>` behaviour while surfacing
+harness initialization failures as fatal test infrastructure errors with the
+underlying `HarnessError` detail.
 
 **Context handoff (Phase 9.4.1 / ADR-007).** The harness contract now includes
 an associated context type:
@@ -1614,7 +1618,10 @@ an associated context type:
 pub trait HarnessAdapter {
     type Context;
 
-    fn run<T>(&self, request: ScenarioRunRequest<'_, Self::Context, T>) -> T;
+    fn run<T>(
+        &self,
+        request: ScenarioRunRequest<'_, Self::Context, T>,
+    ) -> HarnessResult<T>;
 }
 ```
 

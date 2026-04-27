@@ -758,7 +758,10 @@ the test (context setup, step executor loop, skip handler, and user block) in a
 requirements and simply executes the closure directly. `StdHarness` behavioural
 tests cover three guarantees: metadata remains visible on the request passed to
 the harness boundary, the runner closure executes once, and runner panics
-propagate unchanged.
+propagate unchanged. If a harness cannot initialize its runtime or framework
+environment, it returns `HarnessResult::Err(HarnessError::...)`; the generated
+test then panics with the concrete error detail because harness initialization
+is a fatal infrastructure error in this context.
 
 When `harness` is omitted, the generated code executes steps inline without any
 delegation, preserving backward compatibility.
@@ -813,7 +816,7 @@ framework-specific setup and teardown. The harness type must implement both
 `HarnessAdapter` and `Default`:
 
 ```rust,no_run
-use rstest_bdd_harness::{HarnessAdapter, ScenarioRunRequest};
+use rstest_bdd_harness::{HarnessAdapter, HarnessResult, ScenarioRunRequest};
 
 #[derive(Default)]
 struct MyHarness;
@@ -821,18 +824,27 @@ struct MyHarness;
 impl HarnessAdapter for MyHarness {
     type Context = ();
 
-    fn run<T>(&self, request: ScenarioRunRequest<'_, Self::Context, T>) -> T {
+    fn run<T>(
+        &self,
+        request: ScenarioRunRequest<'_, Self::Context, T>,
+    ) -> HarnessResult<T> {
         // Custom pre-scenario setup using request.metadata()
-        let result = request.run(());
+        let result = request.run_without_context();
         // Custom post-scenario teardown
-        result
+        Ok(result)
     }
 }
 ```
 
-Harness adapters must faithfully propagate the runner's return value. For
-fallible scenarios that return `Result<(), E>`, swallowing errors would cause
-tests to pass silently.
+Harness adapters must faithfully propagate the runner's return value inside
+`Ok(...)`. For fallible scenarios that return `Result<(), E>`, swallowing
+errors would cause tests to pass silently. Use `Err(HarnessError::...)` only
+for harness-level infrastructure failures, not for scenario assertion failures.
+When migrating pre-ADR-007 harness code, update `type Context`, the
+`ScenarioRunner` constructor signature, and the request execution helper
+together: unit-context harnesses (`StdHarness`, `TokioHarness`, and similar
+adapters using `Context = ()`) should call `run_without_context()`, while
+non-unit context harnesses should continue to use `request.run(context)`.
 
 If a custom harness also defines a custom attribute-policy type, document that
 policy separately for users. Today the generated macros only recognize the
@@ -889,10 +901,11 @@ The older `runtime = "tokio-current-thread"` form remains available only as a
 deprecated compatibility alias for `scenarios!`.
 
 `TokioHarness::run` performs one `tokio::task::yield_now()` tick after
-`request.run(())` returns. This helps simple `spawn_local` tasks complete, but
-it does not fully drain the `LocalSet`. Tasks requiring additional wakeups (for
-example timers) may still be pending when `run()` returns, so steps should
-prefer explicit `.await`-based coordination when completion is required.
+`request.run_without_context()` returns. This helps simple `spawn_local` tasks
+complete, but it does not fully drain the `LocalSet`. Tasks requiring
+additional wakeups (for example timers) may still be pending when `run()`
+returns, so steps should prefer explicit `.await`-based coordination when
+completion is required.
 
 For a complete working example, see the `examples/tokio-reminders` crate. Its
 BDD suite uses `TokioHarness` to exercise queued reminder behaviour under a
@@ -1014,7 +1027,7 @@ Use `#[from(rstest_bdd_harness_context)]` in step signatures to request the
 context with a domain-specific parameter name:
 
 ```rust,no_run
-use rstest_bdd_harness::{HarnessAdapter, ScenarioRunRequest};
+use rstest_bdd_harness::{HarnessAdapter, HarnessResult, ScenarioRunRequest};
 use rstest_bdd_macros::{given, scenario, then, when};
 
 #[derive(Debug)]
@@ -1028,8 +1041,11 @@ struct AppHarness;
 impl HarnessAdapter for AppHarness {
     type Context = AppContext;
 
-    fn run<T>(&self, request: ScenarioRunRequest<'_, Self::Context, T>) -> T {
-        request.run(AppContext { counter: 7 })
+    fn run<T>(
+        &self,
+        request: ScenarioRunRequest<'_, Self::Context, T>,
+    ) -> HarnessResult<T> {
+        Ok(request.run(AppContext { counter: 7 }))
     }
 }
 
@@ -1509,7 +1525,7 @@ environment. `C` is the harness-specific context type:
 
 ```rust,no_run
 use rstest_bdd_harness::{
-    HarnessAdapter, ScenarioMetadata, ScenarioRunRequest, ScenarioRunner,
+    HarnessAdapter, HarnessResult, ScenarioMetadata, ScenarioRunRequest, ScenarioRunner,
 };
 
 struct MyHarness;
@@ -1517,9 +1533,12 @@ struct MyHarness;
 impl HarnessAdapter for MyHarness {
     type Context = ();
 
-    fn run<T>(&self, request: ScenarioRunRequest<'_, Self::Context, T>) -> T {
+    fn run<T>(
+        &self,
+        request: ScenarioRunRequest<'_, Self::Context, T>,
+    ) -> HarnessResult<T> {
         // Optional harness-specific setup using request.metadata().
-        request.run(())
+        Ok(request.run_without_context())
     }
 }
 
@@ -1534,7 +1553,7 @@ let request = ScenarioRunRequest::new(
 );
 
 let harness = MyHarness;
-assert_eq!(harness.run(request), "ok");
+assert_eq!(harness.run(request).expect("harness should not fail"), "ok");
 ```
 
 Harnesses that need framework resources can choose a non-unit context type and

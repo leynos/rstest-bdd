@@ -4,14 +4,15 @@ VALE ?= vale
 
 SHELL := bash
 APP ?= cargo-bdd
-CARGO ?= cargo
+CARGO ?= $(or $(shell command -v cargo 2>/dev/null),$(HOME)/.cargo/bin/cargo)
 BUILD_JOBS ?=
 RUST_FLAGS ?= -D warnings
 CARGO_FLAGS ?= --workspace --all-targets --all-features
 CLIPPY_FLAGS ?= $(CARGO_FLAGS) -- $(RUST_FLAGS)
-MDLINT ?= markdownlint-cli2
+MDLINT ?= $(or $(shell command -v markdownlint-cli2 2>/dev/null),$(HOME)/.bun/bin/markdownlint-cli2)
 ACRONYM_SCRIPT ?= scripts/update_acronym_allowlist.py
-UV ?= uv
+UV ?= $(or $(shell command -v uv 2>/dev/null),$(HOME)/.local/bin/uv)
+UVX ?= $(or $(shell command -v uvx 2>/dev/null),$(HOME)/.local/bin/uvx)
 
 build: target/debug/$(APP) ## Build debug binary
 release: target/release/$(APP) ## Build release binary
@@ -36,7 +37,7 @@ target/%/$(APP): ## Build binary in debug or release mode
 
 lint: ## Run Clippy with warnings denied
 	$(CARGO) clippy $(CLIPPY_FLAGS)
-	find scripts -type f -name "*.py" -print0 | xargs -r -0 uvx ruff check
+	find scripts -type f -name "*.py" -print0 | xargs -r -0 $(UVX) ruff check
 	python3 scripts/check_rs_file_lengths.py
 
 typecheck: ## Run cargo check with warnings denied
@@ -51,7 +52,7 @@ fmt: ## Format Rust and Markdown sources
 
 check-fmt: ## Verify formatting
 	$(CARGO) fmt --all -- --check
-	find scripts -type f -name "*.py" -print0 | xargs -r -0 uvx ruff format --check
+	find scripts -type f -name "*.py" -print0 | xargs -r -0 $(UVX) ruff format --check
 
 markdownlint: ## Lint Markdown files
 	find . -type f -name '*.md' -not -path '*/target/*' -not -path '*/node_modules/*' -print0 | xargs -0 $(MDLINT)
@@ -71,5 +72,5 @@ help: ## Show available targets
 
 vale: ## Check prose
 	$(VALE) sync
-	uv run $(ACRONYM_SCRIPT)
+	$(UV) run $(ACRONYM_SCRIPT)
 	$(VALE) --no-global --output line .

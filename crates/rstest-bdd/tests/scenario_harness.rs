@@ -1,9 +1,13 @@
 //! Behavioural tests verifying that `#[scenario]` accepts the `harness` and
 //! `attributes` parameters and delegates execution through the harness adapter.
 
-use rstest_bdd_harness::{HarnessAdapter, ScenarioRunRequest, StdScenarioRunRequest};
+use rstest_bdd_harness::{
+    HarnessAdapter, HarnessError, ScenarioMetadata, ScenarioRunRequest, StdScenarioRunRequest,
+    StdScenarioRunner,
+};
 use rstest_bdd_macros::{given, scenario, then, when};
 use serial_test::serial;
+use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{LazyLock, Mutex, MutexGuard};
 
@@ -94,7 +98,7 @@ struct RecordingHarness;
 impl HarnessAdapter for RecordingHarness {
     type Context = ();
 
-    fn run<T>(&self, request: StdScenarioRunRequest<'_, T>) -> T {
+    fn run<T>(&self, request: StdScenarioRunRequest<'_, T>) -> Result<T, HarnessError> {
         HARNESS_INVOKED.store(true, Ordering::SeqCst);
         let meta = request.metadata();
         assert!(
@@ -105,7 +109,7 @@ impl HarnessAdapter for RecordingHarness {
             !meta.scenario_name().is_empty(),
             "harness should receive non-empty scenario name"
         );
-        request.run_without_context()
+        Ok(request.run_without_context())
     }
 }
 
@@ -133,7 +137,7 @@ struct MetadataCapturingHarness;
 impl HarnessAdapter for MetadataCapturingHarness {
     type Context = ();
 
-    fn run<T>(&self, request: StdScenarioRunRequest<'_, T>) -> T {
+    fn run<T>(&self, request: StdScenarioRunRequest<'_, T>) -> Result<T, HarnessError> {
         let meta = request.metadata();
         *CAPTURED_FEATURE
             .lock()
@@ -141,7 +145,7 @@ impl HarnessAdapter for MetadataCapturingHarness {
         *CAPTURED_SCENARIO
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner) = meta.scenario_name().to_string();
-        request.run_without_context()
+        Ok(request.run_without_context())
     }
 }
 
@@ -187,9 +191,9 @@ struct OutlineCountingHarness;
 impl HarnessAdapter for OutlineCountingHarness {
     type Context = ();
 
-    fn run<T>(&self, request: StdScenarioRunRequest<'_, T>) -> T {
+    fn run<T>(&self, request: StdScenarioRunRequest<'_, T>) -> Result<T, HarnessError> {
         OUTLINE_HARNESS_CALLS.fetch_add(1, Ordering::SeqCst);
-        request.run_without_context()
+        Ok(request.run_without_context())
     }
 }
 
@@ -203,10 +207,10 @@ struct ContextInjectingHarness;
 impl HarnessAdapter for ContextInjectingHarness {
     type Context = usize;
 
-    fn run<T>(&self, request: ScenarioRunRequest<'_, Self::Context, T>) -> T {
+    fn run<T>(&self, request: ScenarioRunRequest<'_, Self::Context, T>) -> Result<T, HarnessError> {
         CONTEXT_HARNESS_INVOKED.store(true, Ordering::SeqCst);
         CONTEXT_VALUE_USED.store(HARNESS_CONTEXT_SEED, Ordering::SeqCst);
-        request.run(HARNESS_CONTEXT_SEED)
+        Ok(request.run(HARNESS_CONTEXT_SEED))
     }
 }
 
@@ -263,10 +267,23 @@ struct StepContextInjectingHarness;
 impl HarnessAdapter for StepContextInjectingHarness {
     type Context = HarnessCounterContext;
 
-    fn run<T>(&self, request: ScenarioRunRequest<'_, Self::Context, T>) -> T {
-        request.run(HarnessCounterContext {
+    fn run<T>(&self, request: ScenarioRunRequest<'_, Self::Context, T>) -> Result<T, HarnessError> {
+        Ok(request.run(HarnessCounterContext {
             counter: HARNESS_CONTEXT_SEED,
-        })
+        }))
+    }
+}
+
+#[derive(Default)]
+struct FailingHarness;
+
+impl HarnessAdapter for FailingHarness {
+    type Context = ();
+
+    fn run<T>(&self, _request: StdScenarioRunRequest<'_, T>) -> Result<T, HarnessError> {
+        Err(HarnessError::RuntimeBuildFailed(std::io::Error::other(
+            "synthetic harness failure",
+        )))
     }
 }
 
@@ -306,3 +323,36 @@ fn harness_context_equals(
 )]
 #[serial]
 fn step_functions_can_access_harness_injected_context() {}
+
+#[scenario(
+    path = "tests/features/web_search.feature",
+    harness = FailingHarness,
+)]
+#[serial]
+#[should_panic(expected = "harness failed to initialise scenario")]
+fn scenario_panics_when_harness_initialization_fails() {}
+
+#[test]
+fn harness_initialization_panic_includes_error_context() {
+    let panic_result = catch_unwind(AssertUnwindSafe(|| {
+        let request = StdScenarioRunRequest::new(
+            ScenarioMetadata::default(),
+            StdScenarioRunner::new_without_context(|| ()),
+        );
+
+        FailingHarness.run(request).unwrap_or_else(|err| {
+            panic!("harness failed to initialise scenario: {err}");
+        });
+    }));
+
+    let Err(payload) = panic_result else {
+        panic!("expected FailingHarness to panic after unwrap_or_else");
+    };
+    let message = payload
+        .downcast_ref::<&str>()
+        .copied()
+        .or_else(|| payload.downcast_ref::<String>().map(String::as_str))
+        .unwrap_or_else(|| panic!("expected panic payload to be a string"));
+    assert!(message.contains("harness failed to initialise scenario"));
+    assert!(message.contains("synthetic harness failure"));
+}
