@@ -85,6 +85,11 @@ cargo test --features "rstest-bdd-macros/compile-time-validation"
 cargo test --features "rstest-bdd-macros/strict-compile-time-validation"
 ```
 
+> **Custom harness API note:** `HarnessAdapter::run` returns
+> `HarnessResult<T>`, so harness infrastructure failures surface as
+> `HarnessError` values. Custom harness implementations should follow the
+> [v0.6.0 migration guide](docs/v0-6-0-migration-guide.md).
+
 ______________________________________________________________________
 
 ## Quick start (end‑to‑end “Web search”)
