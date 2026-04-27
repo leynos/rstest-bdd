@@ -2,10 +2,11 @@
 
 use rstest::{fixture, rstest};
 use rstest_bdd_harness::{
-    HarnessAdapter, HarnessError, ScenarioMetadata, ScenarioRunRequest, ScenarioRunner, StdHarness,
-    StdScenarioRunRequest, StdScenarioRunner,
+    HarnessAdapter, HarnessError, HarnessResult, ScenarioMetadata, ScenarioRunRequest,
+    ScenarioRunner, StdHarness, StdScenarioRunRequest, StdScenarioRunner,
 };
 use std::cell::Cell;
+use std::io;
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::rc::Rc;
 
@@ -84,6 +85,38 @@ fn std_harness_run_returns_ok(default_metadata: ScenarioMetadata) {
         panic!("std harness should not fail");
     };
     assert_eq!(value, "ok");
+}
+
+#[derive(Debug)]
+struct StdRuntimeBuildFailureProbeHarness;
+
+impl HarnessAdapter for StdRuntimeBuildFailureProbeHarness {
+    type Context = ();
+
+    fn run<T>(&self, _request: StdScenarioRunRequest<'_, T>) -> HarnessResult<T> {
+        Err(HarnessError::RuntimeBuildFailed(io::Error::other(
+            "std probe failure",
+        )))
+    }
+}
+
+#[rstest]
+fn std_harness_error_path_propagates_runtime_build_failed(default_metadata: ScenarioMetadata) {
+    let request = StdScenarioRunRequest::new(
+        default_metadata,
+        StdScenarioRunner::new_without_context(|| "unreachable"),
+    );
+    let harness = StdRuntimeBuildFailureProbeHarness;
+    let result = harness.run(request);
+
+    let Err(HarnessError::RuntimeBuildFailed(err)) = result else {
+        panic!("expected RuntimeBuildFailed, got {result:?}");
+    };
+    let err = HarnessError::RuntimeBuildFailed(err);
+    assert_eq!(
+        format!("{err}"),
+        "failed to build runtime: std probe failure"
+    );
 }
 
 #[test]
