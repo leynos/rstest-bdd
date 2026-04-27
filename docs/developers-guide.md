@@ -184,6 +184,21 @@ Use the same pattern in hand-written tests instead of bare `.unwrap()`. This
 keeps the concrete `HarnessError` visible in the panic message when a harness
 cannot initialize its infrastructure.
 
+### Observability guidance
+
+Harness implementations should emit a `tracing::error!` event before returning
+`Err` from `HarnessAdapter::run`. Use structured fields so downstream test
+runners and CI logs can filter by harness and scenario:
+
+- `harness_type`: `std::any::type_name::<H>()` for the harness adapter type.
+- `feature_path`: `request.metadata().feature_path()`.
+- `scenario_name`: `request.metadata().scenario_name()`.
+- `err`: the concrete `HarnessError`, formatted with `%err`.
+
+Generated scenario delegation emits the same event and attaches scenario
+context to the displayed error before panicking, so custom harnesses should use
+matching field names for consistency.
+
 ### HarnessError extension
 
 `HarnessError` is marked `#[non_exhaustive]`, so downstream code that matches

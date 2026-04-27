@@ -17,7 +17,19 @@ use crate::{HarnessResult, runner::ScenarioRunRequest};
 ///     ScenarioRunner::new_without_context(|| 5 + 5),
 /// );
 /// let harness = StdHarness::new();
-/// let result: HarnessResult<i32> = harness.run(request);
+/// let feature_path = request.metadata().feature_path().to_string();
+/// let scenario_name = request.metadata().scenario_name().to_string();
+/// let result: HarnessResult<i32> = harness.run(request).map_err(|err| {
+///     let err = err.with_scenario_context(feature_path.clone(), scenario_name.clone());
+///     tracing::error!(
+///         %harness_type = std::any::type_name::<StdHarness>(),
+///         %feature_path,
+///         %scenario_name,
+///         %err,
+///         "harness failed to initialize scenario"
+///     );
+///     err.into_error()
+/// });
 /// assert_eq!(result.expect("std harness should not fail"), 10);
 /// ```
 pub trait HarnessAdapter {

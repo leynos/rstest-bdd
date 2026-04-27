@@ -18,3 +18,4 @@ pub use runner::{
     ScenarioMetadata, ScenarioRunRequest, ScenarioRunner, StdScenarioRunRequest, StdScenarioRunner,
 };
 pub use std_harness::StdHarness;
+pub use tracing;
