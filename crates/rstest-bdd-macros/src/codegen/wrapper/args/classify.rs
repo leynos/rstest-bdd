@@ -334,14 +334,16 @@ fn classify_by_placeholder_match(
         } else if normalized == target_name {
             pat.clone()
         } else {
-            syn::parse_str::<syn::Ident>(normalized).map_err(|_| {
+            let mut name = syn::parse_str::<syn::Ident>(normalized).map_err(|_| {
                 syn::Error::new(
                     pat.span(),
                     format!(
                         "normalized fixture name `{normalized}` is not a valid identifier; use #[from(...)] to specify the fixture name explicitly"
                     ),
                 )
-            })?
+            })?;
+            name.set_span(pat.span());
+            name
         };
         ctx.extracted.push(Arg::Fixture { pat, name, ty });
         Ok(())

@@ -19,6 +19,13 @@ fn pat_type(tokens: TokenStream2) -> syn::PatType {
     }
 }
 
+fn pat_ident(arg: &syn::PatType) -> syn::Ident {
+    match arg.pat.as_ref() {
+        syn::Pat::Ident(pat) => pat.ident.clone(),
+        other => panic!("expected identifier pattern, got {other:?}"),
+    }
+}
+
 /// Helper to execute `classify_fixture_or_step` and return the results for assertion.
 #[expect(
     clippy::expect_used,
@@ -225,6 +232,30 @@ fn classify_fixture_or_step_normalizes_implicit_fixture_name(
     ));
 
     Ok(())
+}
+
+#[test]
+fn classify_fixture_or_step_uses_parameter_span_for_normalized_fixture_name() {
+    let mut extracted = ExtractedArgs::default();
+    let mut placeholders = HashSet::new();
+    let mut arg = pat_type(quote!(_world: usize));
+    let pat = pat_ident(&arg);
+    let pat_span = pat.span();
+    let ty: syn::Type = parse_quote!(usize);
+    let mut ctx = ClassificationContext::new(&mut extracted, &mut placeholders);
+    let handled = match classify_fixture_or_step(&mut ctx, &mut arg, pat, ty) {
+        Ok(handled) => handled,
+        Err(err) => panic!("classification should succeed: {err}"),
+    };
+
+    assert!(handled);
+    assert!(matches!(
+        extracted.args.as_slice(),
+        [Arg::Fixture { name, .. }]
+        if name == &ident("world")
+            && name.span().start() == pat_span.start()
+            && name.span().end() == pat_span.end()
+    ));
 }
 
 #[test]
