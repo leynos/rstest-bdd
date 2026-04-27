@@ -134,7 +134,7 @@ shared state must:
 
 `HarnessAdapter::run` returns `HarnessResult<T>`, which is an alias for
 `Result<T, HarnessError>`. Earlier versions returned `T` directly. The new
-return type is a breaking change that makes harness initialisation failures
+return type is a breaking change that makes harness initialization failures
 explicit instead of forcing harness implementations to panic. This closes issue
 `#443`.
 
@@ -177,12 +177,12 @@ Existing `HarnessAdapter` implementations should make the following changes:
 Generated tests unwrap harness execution with:
 
 ```rust
-unwrap_or_else(|err| panic!("harness failed to initialise scenario: {err}"))
+unwrap_or_else(|err| panic!("harness failed to initialize scenario: {err}"))
 ```
 
 Use the same pattern in hand-written tests instead of bare `.unwrap()`. This
 keeps the concrete `HarnessError` visible in the panic message when a harness
-cannot initialise its infrastructure.
+cannot initialize its infrastructure.
 
 ### HarnessError extension
 

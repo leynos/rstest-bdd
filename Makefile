@@ -72,5 +72,5 @@ help: ## Show available targets
 
 vale: ## Check prose
 	$(VALE) sync
-	uv run $(ACRONYM_SCRIPT)
+	$(UV) run $(ACRONYM_SCRIPT)
 	$(VALE) --no-global --output line .
