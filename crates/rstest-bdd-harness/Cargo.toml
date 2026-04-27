@@ -19,4 +19,5 @@ workspace = true
 thiserror.workspace = true
 
 [dev-dependencies]
+insta.workspace = true
 rstest.workspace = true

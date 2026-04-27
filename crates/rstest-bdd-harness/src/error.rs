@@ -47,4 +47,11 @@ mod tests {
             "failed to build runtime: known build failure"
         );
     }
+
+    #[test]
+    fn runtime_build_failed_display_snapshot() {
+        let err = HarnessError::RuntimeBuildFailed(io::Error::other("build denied"));
+
+        insta::assert_snapshot!(format!("{err}"));
+    }
 }

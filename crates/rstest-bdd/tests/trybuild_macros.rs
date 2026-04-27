@@ -64,6 +64,7 @@ fn run_passing_macro_tests(t: &trybuild::TestCases) {
         MacroFixtureCase::from("scenarios_fixtures.rs"),
         MacroFixtureCase::from("scenarios_autodiscovery.rs"),
         MacroFixtureCase::from("scenario_harness_params.rs"),
+        MacroFixtureCase::from("scenario_harness_failing.rs"),
         MacroFixtureCase::from("scenario_harness_tokio_default.rs"),
         MacroFixtureCase::from("scenario_harness_gpui_default.rs"),
         MacroFixtureCase::from("scenario_attributes_tokio.rs"),

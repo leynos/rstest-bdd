@@ -1,0 +1,5 @@
+---
+source: crates/rstest-bdd-harness/src/error.rs
+expression: "format!(\"{err}\")"
+---
+failed to build runtime: build denied
