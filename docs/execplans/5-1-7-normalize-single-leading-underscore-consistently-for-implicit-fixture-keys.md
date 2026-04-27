@@ -4,7 +4,7 @@ This Execution Plan (ExecPlan) is a living document. The sections
 `Constraints`, `Tolerances`, `Risks`, `Progress`, `Decision log`, and
 `Outcomes & retrospective` must be kept up to date as work proceeds.
 
-Status: COMPLETED
+Status: INCOMPLETE
 
 ## Objective
 
@@ -89,8 +89,10 @@ Skill signposts:
   succeed.
 - Run repository quality gates with `tee` and `set -o pipefail`. At minimum,
   the feature turn must finish with successful `make check-fmt`, `make lint`,
-  and `make test`; documentation edits should also satisfy `make fmt`,
-  `make markdownlint`, and `make nixie`.
+  and `make test`; documentation edits should also satisfy `make markdownlint`
+  and `make nixie`. `make fmt` remains an open repository-wide documentation
+  cleanup because it currently fails on pre-existing Markdown line-length
+  findings outside this feature.
 
 ## Tolerances
 
@@ -251,7 +253,8 @@ Implementation is complete only when all of the following are true:
   longer left ambiguous relative to the roadmap prerequisite.
 - `docs/roadmap.md` marks item 5.1.7 done.
 - `make check-fmt`, `make lint`, and `make test` succeed. For documentation
-  edits, `make fmt`, `make markdownlint`, and `make nixie` also succeed.
+  edits, `make markdownlint` and `make nixie` also succeed. `make fmt` must be
+  run again after the repository-wide Markdown line-length cleanup is complete.
 
 ## Decision log
 
@@ -285,9 +288,9 @@ Implementation is complete only when all of the following are true:
   the roadmap so the accepted scope is explicit: only scenario and step
   parameter names are normalized, and only one leading underscore is stripped.
 - Validation outcome:
-  `make check-fmt`, `make lint`, `make markdownlint`, and `make test`
-  succeeded on branch
+  `make check-fmt`, `make lint`, `make markdownlint`, `make nixie`, and
+  `make test` succeeded on branch
   `normalize-implicit-fixture-keys-1a6r67` after the documentation and span
-  anchoring follow-ups. `make fmt` still reports pre-existing repository-wide
-  Markdown line-length findings, so formatter side effects outside this
-  ExecPlan were reverted rather than folded into the completed feature.
+  anchoring follow-ups. `make fmt` still fails on pre-existing repository-wide
+  Markdown line-length findings, so this ExecPlan remains incomplete until
+  that documentation formatting cleanup is done and `make fmt` passes.

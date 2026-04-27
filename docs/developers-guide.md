@@ -1,6 +1,6 @@
 # Developer guide
 
-## Macro Implementation: Fixture Classification and Normalization
+## Macro implementation: fixture classification and normalization
 
 Fixture name normalization happens during macro expansion, before generated
 wrappers ask the runtime context for fixture values. This keeps scenario-side
