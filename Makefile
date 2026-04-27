@@ -3,7 +3,7 @@ VALE ?= vale
 .PHONY: help all clean test build release lint typecheck fmt check-fmt markdownlint nixie publish-check forbid-async-trait vale
 
 SHELL := bash
-export PATH := $(HOME)/.cargo/bin:$(HOME)/.bun/bin:$(PATH)
+export PATH := $(HOME)/.cargo/bin:$(HOME)/.bun/bin:$(HOME)/.local/bin:$(PATH)
 APP ?= cargo-bdd
 CARGO ?= cargo
 BUILD_JOBS ?=
