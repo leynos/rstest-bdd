@@ -285,8 +285,9 @@ Implementation is complete only when all of the following are true:
   the roadmap so the accepted scope is explicit: only scenario and step
   parameter names are normalized, and only one leading underscore is stripped.
 - Validation outcome:
-  `make fmt`, `make check-fmt`, and `make lint` succeeded.
-  `make markdownlint` failed on pre-existing repository-wide violations.
-  `make nixie` was unavailable in this environment.
-  `make test` failed only on the pre-existing trybuild snapshot mismatch for
-  `result_fixture_requires_result_scenario.rs`.
+  `make check-fmt`, `make lint`, `make markdownlint`, and `make test`
+  succeeded on branch
+  `normalize-implicit-fixture-keys-1a6r67` after the documentation and span
+  anchoring follow-ups. `make fmt` still reports pre-existing repository-wide
+  Markdown line-length findings, so formatter side effects outside this
+  ExecPlan were reverted rather than folded into the completed feature.

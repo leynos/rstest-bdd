@@ -1,8 +1,8 @@
 # Developer guide
 
-## Macro Implementation: Fixture Classification and Normalisation
+## Macro Implementation: Fixture Classification and Normalization
 
-Fixture name normalisation happens during macro expansion, before generated
+Fixture name normalization happens during macro expansion, before generated
 wrappers ask the runtime context for fixture values. This keeps scenario-side
 fixture registration and step-side fixture lookup on the same key scheme, so an
 implicit parameter such as `_world` registers and resolves as `world`, while
@@ -10,20 +10,20 @@ implicit parameter such as `_world` registers and resolves as `world`, while
 
 The helper `normalize_param_name()` owns that rule. Use it whenever macro code
 derives a fixture key from a Rust parameter name without an explicit override.
-Keeping the rule centralised avoids one side of macro expansion stripping a
+Keeping the rule centralized avoids one side of macro expansion stripping a
 leading underscore while another side keeps it.
 
 Step wrapper argument classification is handled by
 `classify_by_placeholder_match()` in the macros crate. The function first
 checks whether the argument maps to a step placeholder. If it does not, the
 argument is classified as a fixture. For implicit fixture arguments, it records
-the normalised fixture name so the generated wrapper asks for the same key that
+the normalized fixture name so the generated wrapper asks for the same key that
 scenario fixture registration produced.
 
-Explicit `#[from(...)]` names are authoritative and bypass normalisation. Use
+Explicit `#[from(...)]` names are authoritative and bypass normalization. Use
 that escape hatch when the intended fixture name starts with an underscore or
 otherwise differs from the Rust parameter name. When the classifier must build
-a new identifier for a normalised implicit fixture name, preserve the original
+a new identifier for a normalized implicit fixture name, preserve the original
 parameter span so diagnostics still point at the user-written parameter.
 
 ## Internal test infrastructure
