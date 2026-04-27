@@ -1,9 +1,13 @@
 //! Behavioural tests verifying that `#[scenario]` accepts the `harness` and
 //! `attributes` parameters and delegates execution through the harness adapter.
 
-use rstest_bdd_harness::{HarnessAdapter, HarnessError, ScenarioRunRequest, StdScenarioRunRequest};
+use rstest_bdd_harness::{
+    HarnessAdapter, HarnessError, ScenarioMetadata, ScenarioRunRequest, StdScenarioRunRequest,
+    StdScenarioRunner,
+};
 use rstest_bdd_macros::{given, scenario, then, when};
 use serial_test::serial;
+use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{LazyLock, Mutex, MutexGuard};
 
@@ -327,3 +331,28 @@ fn step_functions_can_access_harness_injected_context() {}
 #[serial]
 #[should_panic(expected = "harness failed to initialise scenario")]
 fn scenario_panics_when_harness_initialization_fails() {}
+
+#[test]
+fn harness_initialization_panic_includes_error_context() {
+    let panic_result = catch_unwind(AssertUnwindSafe(|| {
+        let request = StdScenarioRunRequest::new(
+            ScenarioMetadata::default(),
+            StdScenarioRunner::new_without_context(|| ()),
+        );
+
+        FailingHarness.run(request).unwrap_or_else(|err| {
+            panic!("harness failed to initialise scenario: {err}");
+        });
+    }));
+
+    let Err(payload) = panic_result else {
+        panic!("expected FailingHarness to panic after unwrap_or_else");
+    };
+    let message = payload
+        .downcast_ref::<&str>()
+        .copied()
+        .or_else(|| payload.downcast_ref::<String>().map(String::as_str))
+        .unwrap_or_else(|| panic!("expected panic payload to be a string"));
+    assert!(message.contains("harness failed to initialise scenario"));
+    assert!(message.contains("synthetic harness failure"));
+}

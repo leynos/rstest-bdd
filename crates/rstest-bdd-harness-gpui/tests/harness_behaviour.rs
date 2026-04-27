@@ -40,8 +40,10 @@ fn gpui_harness_run_returns_ok(default_metadata: ScenarioMetadata) {
     );
 
     let harness = GpuiHarness::new();
-    let result = harness.run(request);
-    assert!(result.is_ok(), "gpui harness should not fail: {result:?}");
+    let Ok(value) = harness.run(request) else {
+        panic!("gpui harness should not fail");
+    };
+    assert_eq!(value, "ok");
 }
 
 #[rstest]

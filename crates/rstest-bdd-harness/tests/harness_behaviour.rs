@@ -80,8 +80,10 @@ fn std_harness_run_returns_ok(default_metadata: ScenarioMetadata) {
     );
 
     let harness = StdHarness::new();
-    let result = harness.run(request);
-    assert!(result.is_ok(), "std harness should not fail: {result:?}");
+    let Ok(value) = harness.run(request) else {
+        panic!("std harness should not fail");
+    };
+    assert_eq!(value, "ok");
 }
 
 #[test]
