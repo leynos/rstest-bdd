@@ -3,6 +3,7 @@
 use super::*;
 use proc_macro2::{Span, TokenStream as TokenStream2};
 use quote::quote;
+use rstest::rstest;
 use std::collections::HashSet;
 use syn::{FnArg, parse_quote};
 
@@ -15,6 +16,13 @@ fn pat_type(tokens: TokenStream2) -> syn::PatType {
         Ok(FnArg::Typed(arg)) => arg,
         Ok(FnArg::Receiver(_)) => panic!("expected typed argument"),
         Err(err) => panic!("failed to parse argument: {err}"),
+    }
+}
+
+fn pat_ident(arg: &syn::PatType) -> syn::Ident {
+    match arg.pat.as_ref() {
+        syn::Pat::Ident(pat) => pat.ident.clone(),
+        other => panic!("expected identifier pattern, got {other:?}"),
     }
 }
 
@@ -95,11 +103,14 @@ fn classify_fixture_or_step_falls_back_to_fixture() {
     let (extracted, handled, _) =
         execute_classify_fixture_or_step(HashSet::new(), quote!(dep: usize), "dep", quote!(usize));
     let pat = ident("dep");
+    let name = ident("dep");
 
     assert!(handled);
-    assert!(
-        matches!(extracted.args.as_slice(), [Arg::Fixture { pat: fixture_pat, .. }] if fixture_pat == &pat)
-    );
+    assert!(matches!(
+        extracted.args.as_slice(),
+        [Arg::Fixture { pat: fixture_pat, name: fixture_name, .. }]
+        if fixture_pat == &pat && fixture_name == &name
+    ));
 }
 
 #[test]
@@ -195,4 +206,75 @@ fn classify_fixture_or_step_double_underscore_does_not_match_plain_placeholder()
     assert!(matches!(extracted.args.as_slice(), [Arg::Fixture { .. }]));
     // "value" placeholder remains unconsumed
     assert!(placeholders.contains("value"));
+}
+
+#[rstest]
+#[case("world: usize", "world", "world", "world")]
+#[case("_world: usize", "_world", "_world", "world")]
+#[case("__world: usize", "__world", "__world", "_world")]
+fn classify_fixture_or_step_normalizes_implicit_fixture_name(
+    #[case] arg_str: &str,
+    #[case] param_name: &str,
+    #[case] expected_pat: &str,
+    #[case] expected_name: &str,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let arg_tokens: TokenStream2 = arg_str.parse()?;
+    let (extracted, handled, _) =
+        execute_classify_fixture_or_step(HashSet::new(), arg_tokens, param_name, quote!(usize));
+    let expected_pat = ident(expected_pat);
+    let expected_name = ident(expected_name);
+
+    assert!(handled);
+    assert!(matches!(
+        extracted.args.as_slice(),
+        [Arg::Fixture { pat, name, .. }]
+        if pat == &expected_pat && name == &expected_name
+    ));
+
+    Ok(())
+}
+
+#[test]
+fn classify_fixture_or_step_uses_parameter_span_for_normalized_fixture_name() {
+    let mut extracted = ExtractedArgs::default();
+    let mut placeholders = HashSet::new();
+    let mut arg = pat_type(quote!(_world: usize));
+    let pat = pat_ident(&arg);
+    let pat_span = pat.span();
+    let ty: syn::Type = parse_quote!(usize);
+    let mut ctx = ClassificationContext::new(&mut extracted, &mut placeholders);
+    let handled = match classify_fixture_or_step(&mut ctx, &mut arg, pat, ty) {
+        Ok(handled) => handled,
+        Err(err) => panic!("classification should succeed: {err}"),
+    };
+
+    assert!(handled);
+    assert!(matches!(
+        extracted.args.as_slice(),
+        [Arg::Fixture { name, .. }]
+        if name == &ident("world")
+            && name.span().start() == pat_span.start()
+            && name.span().end() == pat_span.end()
+    ));
+}
+
+#[test]
+fn classify_fixture_or_step_keeps_explicit_from_name_exact() {
+    let mut extracted = ExtractedArgs::default();
+    let mut placeholders = HashSet::new();
+    let mut arg: syn::PatType = parse_quote!(state: usize);
+    arg.attrs.push(parse_quote!(#[from(_world)]));
+    let ty: syn::Type = parse_quote!(usize);
+    let mut ctx = ClassificationContext::new(&mut extracted, &mut placeholders);
+    let handled = match classify_fixture_or_step(&mut ctx, &mut arg, ident("state"), ty) {
+        Ok(handled) => handled,
+        Err(err) => panic!("classification should succeed: {err}"),
+    };
+
+    assert!(handled);
+    assert!(matches!(
+        extracted.args.as_slice(),
+        [Arg::Fixture { pat, name, .. }]
+        if pat == &ident("state") && name == &ident("_world")
+    ));
 }

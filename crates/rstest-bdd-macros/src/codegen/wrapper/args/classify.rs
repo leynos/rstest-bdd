@@ -329,7 +329,22 @@ fn classify_by_placeholder_match(
         Ok(())
     } else {
         validate_no_step_struct_conflict(ctx, &target_name, &pat)?;
-        let name = from_name.unwrap_or_else(|| pat.clone());
+        let name = if let Some(name) = from_name {
+            name
+        } else if normalized == target_name {
+            pat.clone()
+        } else {
+            let mut name = syn::parse_str::<syn::Ident>(normalized).map_err(|_| {
+                syn::Error::new(
+                    pat.span(),
+                    format!(
+                        "normalized fixture name `{normalized}` is not a valid identifier; use #[from(...)] to specify the fixture name explicitly"
+                    ),
+                )
+            })?;
+            name.set_span(pat.span());
+            name
+        };
         ctx.extracted.push(Arg::Fixture { pat, name, ty });
         Ok(())
     }
