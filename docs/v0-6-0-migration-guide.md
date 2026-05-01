@@ -269,6 +269,17 @@ When `attributes = ...` is omitted, the macro infers
 path. Steps can request the injected `gpui::TestAppContext` with
 `#[from(rstest_bdd_harness_context)]`.
 
+## Further reading
+
+- [Developer guide](developers-guide.md) for macro expansion, fixture
+  registration, and harness implementation details.
+- [ADR 006: fallible scenario functions](adr-006-fallible-scenario-functions.md)
+  for the scenario `Result<(), E>` and `StepResult<(), E>` decision.
+- [ADR 007: harness context injection mechanism](adr-007-harness-context-injection.md)
+  for the `HarnessAdapter::Context` and `rstest_bdd_harness_context` design.
+- [ADR 009: consistent implicit fixture-name normalization](adr-009-consistent-implicit-fixture-name-normalization.md)
+  for the leading-underscore fixture-name normalization rule.
+
 ## Migration checklist
 
 - [ ] Review scenario and step parameters that start with `_`; add explicit

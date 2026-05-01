@@ -2686,6 +2686,11 @@ Delivered behaviour:
   compatibility syntax for `scenarios!`, but explicit `harness = ...` and
   `attributes = ...` configuration is the canonical user-facing model.
 
+The [v0.6.0 migration guide](v0-6-0-migration-guide.md) is the canonical
+user-facing upgrade path for these delivered changes. It translates the
+fallible scenario, fixture-name normalization, harness adapter, and harness
+context decisions into concrete migration checks.
+
 The roadmap continues to track follow-on work such as additional cookbook
 material and harness-led attribute-policy defaults; see
 [Phase 9](roadmap.md#9-harness-adapters-and-attribute-plugins) for the
