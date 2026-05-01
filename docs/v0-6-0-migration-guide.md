@@ -102,7 +102,7 @@ Harnesses selected by `#[scenario(..., harness = ...)]` or
 harness types used through the macros must implement both `HarnessAdapter` and
 `Default`.
 
-## New features you can adopt by extending existing practice
+## New features available by extending existing practice
 
 - `rstest-bdd-harness` provides shared harness adapter and attribute-policy
   interfaces. Suites that already use `#[scenario]` or `scenarios!` can keep
