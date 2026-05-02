@@ -225,7 +225,7 @@ dependencies = [
 
 [[package]]
 name = "cargo-bdd"
-version = "0.5.0"
+version = "0.6.0-beta1"
 dependencies = [
  "assert_cmd",
  "cargo_metadata",
@@ -754,7 +754,7 @@ dependencies = [
 
 [[package]]
 name = "gpui-counter"
-version = "0.5.0"
+version = "0.6.0-beta1"
 dependencies = [
  "gpui",
  "rstest",
@@ -1059,7 +1059,7 @@ checksum = "4a5f13b858c8d314ee3e8f639011f7ccefe71f97f96e50151fb991f267928e2c"
 
 [[package]]
 name = "japanese-ledger"
-version = "0.5.0"
+version = "0.6.0-beta1"
 dependencies = [
  "rstest",
  "rstest-bdd",
@@ -1430,7 +1430,7 @@ dependencies = [
 
 [[package]]
 name = "rstest-bdd"
-version = "0.5.0"
+version = "0.6.0-beta1"
 dependencies = [
  "camino",
  "cap-std",
@@ -1464,7 +1464,7 @@ dependencies = [
 
 [[package]]
 name = "rstest-bdd-harness"
-version = "0.5.0"
+version = "0.6.0-beta1"
 dependencies = [
  "insta",
  "rstest",
@@ -1474,7 +1474,7 @@ dependencies = [
 
 [[package]]
 name = "rstest-bdd-harness-gpui"
-version = "0.5.0"
+version = "0.6.0-beta1"
 dependencies = [
  "gpui",
  "rstest",
@@ -1483,7 +1483,7 @@ dependencies = [
 
 [[package]]
 name = "rstest-bdd-harness-tokio"
-version = "0.5.0"
+version = "0.6.0-beta1"
 dependencies = [
  "rstest",
  "rstest-bdd-harness",
@@ -1492,7 +1492,7 @@ dependencies = [
 
 [[package]]
 name = "rstest-bdd-macros"
-version = "0.5.0"
+version = "0.6.0-beta1"
 dependencies = [
  "camino",
  "cap-std",
@@ -1518,7 +1518,7 @@ dependencies = [
 
 [[package]]
 name = "rstest-bdd-patterns"
-version = "0.5.0"
+version = "0.6.0-beta1"
 dependencies = [
  "gherkin",
  "regex",
@@ -1528,14 +1528,14 @@ dependencies = [
 
 [[package]]
 name = "rstest-bdd-policy"
-version = "0.5.0"
+version = "0.6.0-beta1"
 dependencies = [
  "rstest",
 ]
 
 [[package]]
 name = "rstest-bdd-server"
-version = "0.5.0"
+version = "0.6.0-beta1"
 dependencies = [
  "async-lsp",
  "cargo_metadata",
@@ -2021,7 +2021,7 @@ dependencies = [
 
 [[package]]
 name = "todo-cli"
-version = "0.5.0"
+version = "0.6.0-beta1"
 dependencies = [
  "assert_cmd",
  "assert_fs",
@@ -2061,7 +2061,7 @@ dependencies = [
 
 [[package]]
 name = "tokio-reminders"
-version = "0.5.0"
+version = "0.6.0-beta1"
 dependencies = [
  "rstest",
  "rstest-bdd",
