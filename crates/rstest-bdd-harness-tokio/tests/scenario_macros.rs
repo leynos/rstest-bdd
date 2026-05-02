@@ -1,5 +1,5 @@
-//! Integration tests verifying that `#[scenario]` works with the Tokio harness
-//! adapter and attribute policy from `rstest-bdd-harness-tokio`.
+//! Integration tests verifying that `#[scenario]` works with this crate's
+//! Tokio harness adapter and attribute policy.
 //!
 //! These tests prove end-to-end that:
 //! - `TokioHarness` provides an active Tokio current-thread runtime during

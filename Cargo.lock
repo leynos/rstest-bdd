@@ -5091,7 +5091,6 @@ dependencies = [
  "derive_more",
  "fluent",
  "gherkin",
- "gpui",
  "hashbrown 0.16.0",
  "i18n-embed",
  "inventory",
@@ -5099,8 +5098,6 @@ dependencies = [
  "regex",
  "rstest",
  "rstest-bdd-harness",
- "rstest-bdd-harness-gpui",
- "rstest-bdd-harness-tokio",
  "rstest-bdd-macros",
  "rstest-bdd-patterns",
  "rstest-bdd-policy",
@@ -5129,18 +5126,27 @@ dependencies = [
 name = "rstest-bdd-harness-gpui"
 version = "0.6.0-beta1"
 dependencies = [
+ "cargo_metadata",
  "gpui",
  "rstest",
+ "rstest-bdd",
  "rstest-bdd-harness",
+ "rstest-bdd-macros",
+ "serial_test",
+ "trybuild",
 ]
 
 [[package]]
 name = "rstest-bdd-harness-tokio"
 version = "0.6.0-beta1"
 dependencies = [
+ "cargo_metadata",
  "rstest",
+ "rstest-bdd",
  "rstest-bdd-harness",
+ "rstest-bdd-macros",
  "tokio",
+ "trybuild",
 ]
 
 [[package]]

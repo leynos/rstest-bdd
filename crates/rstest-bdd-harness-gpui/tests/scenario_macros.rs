@@ -1,6 +1,6 @@
-//! Integration tests verifying that `#[scenario]` works with the GPUI harness
-//! adapter and attribute policy from `rstest-bdd-harness-gpui`.
-#![cfg(feature = "gpui-harness-tests")]
+//! Integration tests verifying that `#[scenario]` works with this crate's GPUI
+//! harness adapter and attribute policy.
+#![cfg(feature = "native-gpui-tests")]
 
 use rstest_bdd_macros::{given, scenario, scenarios, then, when};
 use serial_test::serial;
@@ -78,7 +78,7 @@ fn gpui_scenarios_macro_policy_run_completes() {
     // NOTE: This is a minimal runtime smoke test verifying that scenarios! with
     // GPUI attribute policy can execute steps. The attribute-policy application itself
     // is verified by the corresponding trybuild compile-pass fixture at
-    // crates/rstest-bdd/tests/fixtures_macros/scenarios_attributes_gpui.rs, which
+    // this crate's `scenarios_attributes_gpui.rs` trybuild fixture, which
     // ensures the generated code compiles with #[gpui::test] attributes.
     // A stronger runtime assertion would require accessing GPUI-specific state
     // (e.g., TestAppContext), which is only available when using GpuiHarness,
