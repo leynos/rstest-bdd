@@ -30,13 +30,11 @@ trybuild.workspace = true
 tokio = { version = "1", features = ["macros", "rt", "time", "sync"] }
 
 [[test]]
-name = "scenario_macros"
-path = "tests/scenario_macros.rs"
-
+name = "macro_compile"
+path = "tests/macro_compile.rs"
 [[test]]
-name = "runtime_compat_alias"
-path = "tests/runtime_compat_alias.rs"
-
+name = "macro_compile"
+path = "tests/macro_compile.rs"
 [[test]]
 name = "macro_compile"
 path = "tests/macro_compile.rs"

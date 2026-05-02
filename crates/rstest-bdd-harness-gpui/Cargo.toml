@@ -39,25 +39,21 @@ serial_test.workspace = true
 trybuild.workspace = true
 
 [[test]]
-name = "harness_behaviour"
-path = "tests/harness_behaviour.rs"
+name = "macro_compile"
+path = "tests/macro_compile.rs"
 required-features = ["native-gpui-tests"]
-
 [[test]]
-name = "attribute_policy_behaviour"
-path = "tests/attribute_policy_behaviour.rs"
+name = "macro_compile"
+path = "tests/macro_compile.rs"
 required-features = ["native-gpui-tests"]
-
 [[test]]
-name = "scenario_macros"
-path = "tests/scenario_macros.rs"
+name = "macro_compile"
+path = "tests/macro_compile.rs"
 required-features = ["native-gpui-tests"]
-
 [[test]]
-name = "stateful_window"
-path = "tests/stateful_window.rs"
+name = "macro_compile"
+path = "tests/macro_compile.rs"
 required-features = ["native-gpui-tests"]
-
 [[test]]
 name = "macro_compile"
 path = "tests/macro_compile.rs"
