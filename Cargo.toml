@@ -66,7 +66,8 @@ unic-langid = { version = "0.9", features = ["macros"] }
 async-lsp = { version = "0.2", features = ["tokio"] }
 lsp-types = "0.95"
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "io-std", "sync"] }
-gpui = { version = "0.2.2", default-features = false, features = ["test-support"] }
+gpui = { version = "0.2.2", path = "vendor/gpui", default-features = false, features = ["test-support"] }
+gpui-macros = { version = "0.2.2", path = "vendor/gpui-macros" }
 tracing = { version = "0.1", optional = false }
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 clap = { version = "4.5", features = ["derive"] }

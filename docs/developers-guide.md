@@ -1,5 +1,28 @@
 # Developer guide
 
+## Workspace dependency policy
+
+Keep workspace-local development and crates.io publication on the same
+manifest surface by declaring shared dependencies in the root
+`[workspace.dependencies]` table. First-party crates must use both `version`
+and `path` there, then consume the dependency with `.workspace = true` from
+member manifests. The `path` keeps local builds on the current checkout after a
+version has been published, while the `version` gives Cargo the crates.io
+requirement it needs when packaging a crate.
+
+Do not restore root-level `[patch.crates-io]` entries for normal development.
+Patches make local resolution differ from publish-time resolution and can hide
+registry-only failures. If a temporary patch is required for a one-off
+diagnostic, remove it before committing or teach the publish-check automation
+to strip it explicitly.
+
+The GPUI test shim follows the same pattern. The workspace dependency for
+`gpui` points at `vendor/gpui` with a matching crates.io version so local tests
+use the stable-compatible shim. The publish-check GPUI package validator strips
+that local path when it generates the standalone harness manifest, so
+`rstest-bdd-harness-gpui` is still checked against the upstream `gpui`
+dependency surface before publication.
+
 ## Macro implementation: fixture classification and normalization
 
 Fixture name normalization happens during macro expansion, before generated

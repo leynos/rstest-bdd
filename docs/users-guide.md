@@ -1016,13 +1016,14 @@ harness-provided values (such as the dispatcher seed) in the domain model.
 > `libxkbcommon-dev`, `libxkbcommon-x11-dev` on Debian/Ubuntu), but the
 > workspace shim avoids that requirement.
 >
-> **Workspace note:** this repository patches `gpui` test support locally to
-> keep the dependency graph free of `async-trait`. The patched surface keeps
-> the `run_test`, `TestAppContext`, and `#[gpui::test]` APIs used by
-> `rstest-bdd`, while publish-check automation compiles a generated packaged
-> harness validator against the upstream `gpui` crate. GPUI-specific
-> behavioural and integration suites remain feature-gated behind
-> `native-gpui-tests` and `gpui-harness-tests`.
+> **Workspace note:** this repository uses a `version` plus `path` workspace
+> dependency for `gpui`, pointing local development at the shim under
+> `vendor/gpui` while retaining the crates.io version requirement used for
+> publication. The shim keeps the `run_test`, `TestAppContext`, and
+> `#[gpui::test]` APIs used by `rstest-bdd`, while publish-check automation
+> compiles a generated packaged harness validator against the upstream `gpui`
+> crate. GPUI-specific behavioural and integration suites remain feature-gated
+> behind `native-gpui-tests` and `gpui-harness-tests`.
 
 Harness-backed scenarios also expose harness context to step functions through
 a reserved fixture key: `rstest_bdd_harness_context`. The generated harness
