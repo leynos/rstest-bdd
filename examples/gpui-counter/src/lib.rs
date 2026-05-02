@@ -1,8 +1,8 @@
 //! Example counter application for demonstrating GPUI harness integration
 //! with rstest-bdd.
 //!
-//! The library models a simple counter with an observation record for GPUI
-//! context details. Fixtures share the counter across steps via interior
+//! The library models a simple counter with an observation flag for GPUI test
+//! context injection. Fixtures share the counter across steps via interior
 //! mutability, following the same pattern as the `japanese-ledger` example.
 
 use std::cell::Cell;
@@ -34,7 +34,7 @@ use std::cell::Cell;
 #[derive(Debug, Default)]
 pub struct CounterApp {
     value: Cell<i32>,
-    dispatcher_seed: Cell<Option<u64>>,
+    has_observed_gpui_context: Cell<bool>,
 }
 
 impl CounterApp {
@@ -43,7 +43,7 @@ impl CounterApp {
     pub fn new(start: i32) -> Self {
         Self {
             value: Cell::new(start),
-            dispatcher_seed: Cell::new(None),
+            has_observed_gpui_context: Cell::new(false),
         }
     }
 
@@ -74,15 +74,15 @@ impl CounterApp {
         self.value.set(saturate_to_i32(delta));
     }
 
-    /// Records an observed GPUI dispatcher seed.
-    pub fn record_dispatcher_seed(&self, seed: u64) {
-        self.dispatcher_seed.set(Some(seed));
+    /// Records that a GPUI test context was observed.
+    pub fn record_gpui_context(&self) {
+        self.has_observed_gpui_context.set(true);
     }
 
-    /// Returns the last recorded dispatcher seed, if any.
+    /// Returns whether a GPUI test context has been observed.
     #[must_use]
-    pub fn dispatcher_seed(&self) -> Option<u64> {
-        self.dispatcher_seed.get()
+    pub fn has_observed_gpui_context(&self) -> bool {
+        self.has_observed_gpui_context.get()
     }
 }
 
@@ -142,9 +142,9 @@ mod tests {
     }
 
     #[rstest]
-    fn records_dispatcher_seed(counter: CounterApp) {
-        assert!(counter.dispatcher_seed().is_none());
-        counter.record_dispatcher_seed(42);
-        assert_eq!(counter.dispatcher_seed(), Some(42));
+    fn records_gpui_context_observation(counter: CounterApp) {
+        assert!(!counter.has_observed_gpui_context());
+        counter.record_gpui_context();
+        assert!(counter.has_observed_gpui_context());
     }
 }
