@@ -1,31 +1,56 @@
 # v0.6.0 migration guide
 
-This guide highlights breaking changes between `v0.5.x` and `v0.6.0` that
-affect day-to-day usage of `rstest-bdd`.
+This guide covers user-facing changes made after the `v0.5.0` tag and before
+`v0.6.0`. It groups the changes by the amount of migration work they require:
+breaking changes, additive features that extend existing practice, and features
+that need a new testing practice to be useful.
 
-## Summary of changes
+## Breaking changes
 
-- Custom harness adapters now report harness infrastructure failures through
-  `HarnessResult<T>` instead of returning `T` directly.
+- Implicit fixture names now normalize exactly one leading underscore.
+  Parameters named `world` and `_world` both resolve to the implicit fixture
+  key `world`; `__world` resolves to `_world`. Explicit `#[from(...)]` fixture
+  names remain exact.
+- The legacy `scenarios!(..., runtime = "tokio-current-thread")` form now acts
+  as a deprecated compatibility alias for
+  `harness = rstest_bdd_harness_tokio::TokioHarness`. Generated tests are
+  synchronous and run inside the Tokio harness.
+- Custom implementations of the unreleased `HarnessAdapter` development API
+  must return `HarnessResult<T>` from `run`. This affects projects that adopted
+  the harness API from the `v0.6.0` development branch before the final release.
 
-## Affected cases
+### Update underscore-prefixed implicit fixtures
 
-Projects are affected if they define a custom type that implements
-`rstest_bdd_harness::HarnessAdapter`.
+If a scenario or step parameter used a leading underscore only to silence the
+Rust unused-variable lint, no source change is needed:
 
-## Required changes
+```rust,no_run
+#[scenario(path = "tests/features/search.feature")]
+fn search_works(_world: SearchWorld) {}
+```
 
-### 7) Update custom `HarnessAdapter` implementations
+The parameter above now requests the `world` fixture key. If the code intended
+to request a literal `_world` fixture key, make that intent explicit:
 
-`HarnessAdapter::run` now returns `HarnessResult<T>`, which is an alias for
+```rust,no_run
+#[scenario(path = "tests/features/search.feature")]
+fn search_works(#[from(_world)] world: SearchWorld) {}
+```
+
+Use the same pattern in step functions when a literal underscore-prefixed key
+is required. This keeps unused-binding naming and fixture selection separate.
+
+### Update custom harness adapters
+
+`HarnessAdapter::run` now returns `HarnessResult<T>`, an alias for
 `Result<T, HarnessError>`, instead of returning `T` directly. This makes
 harness infrastructure failures explicit: runtime construction failures, for
 example, are propagated as `Err(HarnessError::RuntimeBuildFailed(_))` rather
 than surfacing as opaque panics.
 
-**Before:**
+Before:
 
-```rust
+```rust,no_run
 use rstest_bdd_harness::{HarnessAdapter, StdScenarioRunRequest};
 
 struct MyHarness;
@@ -39,9 +64,9 @@ impl HarnessAdapter for MyHarness {
 }
 ```
 
-**After:**
+After:
 
-```rust
+```rust,no_run
 use rstest_bdd_harness::{HarnessAdapter, HarnessResult, StdScenarioRunRequest};
 
 struct MyHarness;
@@ -49,7 +74,10 @@ struct MyHarness;
 impl HarnessAdapter for MyHarness {
     type Context = ();
 
-    fn run<T>(&self, request: StdScenarioRunRequest<'_, T>) -> HarnessResult<T> {
+    fn run<T>(
+        &self,
+        request: StdScenarioRunRequest<'_, T>,
+    ) -> HarnessResult<T> {
         Ok(request.run_without_context())
     }
 }
@@ -58,24 +86,223 @@ impl HarnessAdapter for MyHarness {
 Harnesses that build runtimes or other infrastructure should map construction
 errors into `HarnessError` and use `?`:
 
-```rust
+```rust,no_run
 use rstest_bdd_harness::{HarnessError, HarnessResult};
 
-# fn build_runtime() -> HarnessResult<tokio::runtime::Runtime> {
-let runtime = tokio::runtime::Builder::new_current_thread()
-    .enable_all()
-    .build()
-    .map_err(HarnessError::RuntimeBuildFailed)?;
-# Ok(runtime)
-# }
+fn build_runtime() -> HarnessResult<tokio::runtime::Runtime> {
+    tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .map_err(HarnessError::RuntimeBuildFailed)
+}
 ```
+
+Harnesses selected by `#[scenario(..., harness = ...)]` or
+`scenarios!(..., harness = ...)` are instantiated with `Default`, so custom
+harness types used through the macros must implement both `HarnessAdapter` and
+`Default`.
+
+## New features available by extending existing practice
+
+- `rstest-bdd-harness` provides shared harness adapter and attribute-policy
+  interfaces. Suites that already use `#[scenario]` or `scenarios!` can keep
+  their existing test shape and add harness configuration only where needed.
+- `#[scenario]` and `scenarios!` accept `harness = ...` and `attributes = ...`
+  arguments. These are additive macro arguments; existing scenario definitions
+  without them continue to run inline.
+- Known first-party harness paths infer their matching attribute policies when
+  `attributes = ...` is omitted: `rstest_bdd_harness::StdHarness`,
+  `rstest_bdd_harness_tokio::TokioHarness`, and
+  `rstest_bdd_harness_gpui::GpuiHarness`.
+- The language server accepts `--workspace-root` and
+  `RSTEST_BDD_LSP_WORKSPACE_ROOT` to override workspace discovery, and
+  `--debounce-ms` to tune file-change processing delay. Existing editor
+  integrations can adopt these as normal command-line or environment
+  configuration.
+- The `examples/tokio-reminders` and `examples/gpui-counter` crates provide
+  working examples for the new Tokio and GPUI harness integrations.
+
+## New features requiring new practices
+
+- Result-returning fixtures can now be passed to scenario functions as
+  `Result<T, E>` or `StepResult<T, E>`, but the scenario must also return a
+  fallible type so generated fixture unwrapping can use `?`.
+- Harness adapters can inject typed context through
+  `HarnessAdapter::Context`. Steps request that value with the reserved
+  `rstest_bdd_harness_context` fixture key.
+- Tokio integration should use the explicit
+  `rstest_bdd_harness_tokio::TokioHarness` form instead of the deprecated
+  `runtime = "tokio-current-thread"` compatibility syntax.
+- GPUI integration should use the opt-in `rstest-bdd-harness-gpui` crate and,
+  when native GPUI is used outside this workspace's shim, account for the
+  platform libraries required by upstream GPUI.
+- Third-party attribute policies still need explicit user documentation. The
+  macros trait-check user-provided policy types, but path-based code generation
+  only recognizes canonical first-party policy paths today.
+
+### Adopt fallible fixtures
+
+Use result-like fixture parameters when fixture construction can fail and the
+scenario should propagate that error directly:
+
+```rust,no_run
+use rstest::fixture;
+use rstest_bdd::StepResult;
+use rstest_bdd_macros::scenario;
+
+struct World;
+
+#[fixture]
+fn world() -> Result<World, String> {
+    Ok(World)
+}
+
+#[scenario(path = "tests/features/search.feature")]
+fn search_works(world: Result<World, String>) -> Result<(), String> {
+    Ok(())
+}
+```
+
+The generated scenario unwraps `world` with `?` before inserting the inner
+`World` value into `StepContext`. Borrowed result-like fixtures are rejected:
+use `Result<T, E>` or `StepResult<T, E>` by value rather than `&Result<T, E>`
+or `&StepResult<T, E>`.
+
+### Adopt harness context
+
+Harnesses that provide framework or application state should expose it through
+`HarnessAdapter::Context` and call `request.run(context)`:
+
+```rust,no_run
+use rstest_bdd_harness::{HarnessAdapter, HarnessResult, ScenarioRunRequest};
+
+#[derive(Default)]
+struct AppHarness;
+
+struct AppContext {
+    counter: usize,
+}
+
+impl HarnessAdapter for AppHarness {
+    type Context = AppContext;
+
+    fn run<T>(
+        &self,
+        request: ScenarioRunRequest<'_, Self::Context, T>,
+    ) -> HarnessResult<T> {
+        Ok(request.run(AppContext { counter: 7 }))
+    }
+}
+```
+
+Step functions request the harness-provided context with `#[from(...)]`:
+
+```rust,no_run
+use rstest_bdd_macros::given;
+
+#[given("the app counter starts at {n}")]
+fn starts_at(
+    #[from(rstest_bdd_harness_context)] app: &AppContext,
+    n: usize,
+) {
+    assert_eq!(app.counter, n);
+}
+```
+
+Harnesses that do not inject context should keep `type Context = ()` and call
+`request.run_without_context()`.
+
+### Migrate Tokio scenarios to explicit harness configuration
+
+Replace the deprecated `runtime = "tokio-current-thread"` syntax:
+
+```rust,no_run
+use rstest_bdd_macros::scenarios;
+
+scenarios!(
+    "tests/features/reminders",
+    runtime = "tokio-current-thread"
+);
+```
+
+with explicit harness selection:
+
+```rust,no_run
+use rstest_bdd_macros::scenarios;
+
+scenarios!(
+    "tests/features/reminders",
+    harness = rstest_bdd_harness_tokio::TokioHarness,
+);
+```
+
+`TokioHarness` runs synchronous scenario closures inside a Tokio current-thread
+runtime with a `LocalSet`. Step functions can use
+`tokio::runtime::Handle::current()` and `tokio::task::spawn_local`. Immediate
+`async fn` step definitions can complete under the harness, but multi-poll
+async steps that yield `Pending` are not supported in this mode. Use explicit
+`.await` coordination in the code under test, or use an async scenario with an
+external Tokio test attribute when the scenario itself must be asynchronous.
+
+### Adopt GPUI harness configuration
+
+Add the GPUI harness crate as a dev-dependency and select the first-party
+harness in scenarios that need GPUI test context injection:
+
+```toml
+[dev-dependencies]
+rstest-bdd-harness-gpui = "0.6.0"
+```
+
+```rust,no_run
+use rstest_bdd_macros::scenario;
+
+#[scenario(
+    path = "tests/features/counter.feature",
+    harness = rstest_bdd_harness_gpui::GpuiHarness,
+)]
+fn counter_updates() {}
+```
+
+When `attributes = ...` is omitted, the macro infers
+`rstest_bdd_harness_gpui::GpuiAttributePolicy` for the canonical `GpuiHarness`
+path. Steps can request the injected `gpui::TestAppContext` with
+`#[from(rstest_bdd_harness_context)]`.
 
 ## Migration checklist
 
-- [ ] Custom `HarnessAdapter` implementations updated to return
+- [ ] Review scenario and step parameters that start with `_`; add explicit
+  `#[from(_name)]` where the literal underscore-prefixed fixture key is
+  required.
+- [ ] Replace `scenarios!(..., runtime = "tokio-current-thread")` with
+  `harness = rstest_bdd_harness_tokio::TokioHarness`.
+- [ ] Update custom `HarnessAdapter` implementations to return
   `HarnessResult<T>` and wrap infallible paths in `Ok(...)`.
+- [ ] Use `request.run(context)` for harnesses with typed context and
+  `request.run_without_context()` for unit-context harnesses.
+- [ ] Make scenarios return `Result` or `StepResult` before passing
+  `Result<T, E>` or `StepResult<T, E>` fixtures by value.
+- [ ] Add `rstest-bdd-harness-tokio` or `rstest-bdd-harness-gpui` only to test
+  targets that need those framework integrations.
 
 ## Common errors and fixes
 
 - **Error:** type mismatch: expected `HarnessResult<T>`, found `T`
   - **Fix:** Wrap the return expression in `Ok(...)`.
+- **Error:** the trait bound `MyHarness: Default` is not satisfied
+  - **Fix:** Derive or implement `Default` for harness types selected by macro
+    `harness = ...` arguments.
+- **Error:** fixture parameter borrows a result-like type
+  - **Fix:** Pass the fixture as owned `Result<T, E>` or `StepResult<T, E>`,
+    and make the scenario return a compatible fallible type.
+- **Error:** an underscore-prefixed parameter no longer resolves to the
+  expected fixture
+  - **Fix:** Use `#[from(_fixture_name)]` when the literal fixture key starts
+    with an underscore.
+
+## Further reading
+
+- [Developer's guide](developers-guide.md)
+- [ADR 006 – Fallible scenario functions](adr-006-fallible-scenario-functions.md)
+- [ADR 007 – Harness context injection](adr-007-harness-context-injection.md)
+- [ADR 009 – Consistent implicit fixture-name normalisation](adr-009-consistent-implicit-fixture-name-normalization.md)

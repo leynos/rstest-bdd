@@ -2,7 +2,8 @@
 
 ## Status
 
-Accepted
+Accepted (2026-04-12): Normalize implicit fixture names with a single leading
+underscore at macro expansion time, while keeping `#[from(...)]` authoritative.
 
 ## Date
 
