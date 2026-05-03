@@ -25,21 +25,25 @@ jobs:
             features: ''
             with-default-features: true
             tools: true
+            use-nextest: true
           - os: ubuntu-latest
             coverage: true
             features: strict-compile-time-validation
             with-default-features: false
             tools: true
+            use-nextest: true
           - os: windows-latest
             coverage: true
             features: ''
             with-default-features: true
             tools: false
+            use-nextest: false   # trybuild + nextest deadlocks on Windows
           - os: windows-latest
             coverage: true
             features: strict-compile-time-validation
             with-default-features: false
             tools: false
+            use-nextest: false   # trybuild + nextest deadlocks on Windows
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v5
@@ -101,6 +105,7 @@ jobs:
           format: lcov
           features: rstest-bdd/diagnostics rstest-bdd-server/test-support ${{ matrix.features }}
           with-default-features: ${{ matrix.with-default-features }}
+          use-cargo-nextest: ${{ matrix.use-nextest }}
 
       - name: Test and Measure Coverage (no features)
         if: ${{ matrix.coverage && matrix.features == '' }}
@@ -111,6 +116,7 @@ jobs:
           format: lcov
           features: rstest-bdd/diagnostics rstest-bdd-macros/compile-time-validation rstest-bdd-server/test-support
           with-default-features: ${{ matrix.with-default-features }}
+          use-cargo-nextest: ${{ matrix.use-nextest }}
 
       - name: Verify coverage output exists
         if: ${{ matrix.coverage }}
