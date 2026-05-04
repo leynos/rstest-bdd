@@ -49,26 +49,35 @@ fn runtime_mode_tokio_hint_is_rstest_with_tokio() {
     );
 }
 
-#[test]
-fn runtime_mode_is_re_exported_from_policy_crate() {
-    let policy_mode: rstest_bdd_policy::RuntimeMode = RuntimeMode::TokioCurrentThread;
-    let execution_mode: RuntimeMode = rstest_bdd_policy::RuntimeMode::Sync;
-
-    assert_eq!(policy_mode, RuntimeMode::TokioCurrentThread);
-    assert_eq!(execution_mode, rstest_bdd_policy::RuntimeMode::Sync);
+#[derive(Debug, PartialEq, Eq)]
+enum ReExportPair {
+    RuntimeMode(RuntimeMode),
+    PolicyRuntimeMode(rstest_bdd_policy::RuntimeMode),
+    TestAttributeHint(TestAttributeHint),
+    PolicyTestAttributeHint(rstest_bdd_policy::TestAttributeHint),
 }
 
-#[test]
-fn test_attribute_hint_is_re_exported_from_policy_crate() {
-    let policy_hint: rstest_bdd_policy::TestAttributeHint = TestAttributeHint::RstestOnly;
-    let execution_hint: TestAttributeHint =
-        rstest_bdd_policy::TestAttributeHint::RstestWithTokioCurrentThread;
-
-    assert_eq!(policy_hint, TestAttributeHint::RstestOnly);
-    assert_eq!(
-        execution_hint,
+#[rstest]
+#[case(
+    ReExportPair::RuntimeMode(RuntimeMode::TokioCurrentThread),
+    ReExportPair::PolicyRuntimeMode(rstest_bdd_policy::RuntimeMode::TokioCurrentThread)
+)]
+#[case(
+    ReExportPair::PolicyRuntimeMode(rstest_bdd_policy::RuntimeMode::Sync),
+    ReExportPair::RuntimeMode(RuntimeMode::Sync)
+)]
+#[case(
+    ReExportPair::TestAttributeHint(TestAttributeHint::RstestOnly),
+    ReExportPair::PolicyTestAttributeHint(rstest_bdd_policy::TestAttributeHint::RstestOnly)
+)]
+#[case(
+    ReExportPair::PolicyTestAttributeHint(
         rstest_bdd_policy::TestAttributeHint::RstestWithTokioCurrentThread
-    );
+    ),
+    ReExportPair::TestAttributeHint(TestAttributeHint::RstestWithTokioCurrentThread)
+)]
+fn policy_types_are_re_exported(#[case] left: ReExportPair, #[case] right: ReExportPair) {
+    assert_eq!(left, right);
 }
 
 /// Tests for deprecated skip encoding functions.
