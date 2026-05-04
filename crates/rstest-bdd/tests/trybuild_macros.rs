@@ -150,7 +150,7 @@ fn run_lint_ui_case(bin: &str, lint_args: &[&str]) {
         .current_dir(manifest_dir.as_std_path())
         .env("CARGO_TARGET_DIR", target_dir.as_str())
         .arg("clippy")
-        .arg("--offline")
+        .arg("--locked")
         .arg("--manifest-path")
         .arg(manifest_path.as_str())
         .arg("--bin")
