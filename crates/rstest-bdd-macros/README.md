@@ -90,7 +90,8 @@ cargo test --features "rstest-bdd-macros/strict-compile-time-validation"
 > the runner outcome in `Ok(...)`. `Err(HarnessError::RuntimeBuildFailed(_))`
 > surfaces harness infrastructure failures, such as a Tokio runtime failing to
 > build, keeping them distinct from scenario assertion failures. See the
-> [v0.6.0 migration guide](docs/v0-6-0-migration-guide.md) for full upgrade
+> [v0.6.0 migration guide](../../docs/v0-6-0-migration-guide.md) for full
+> upgrade
 > steps from v0.5.x.
 
 ______________________________________________________________________

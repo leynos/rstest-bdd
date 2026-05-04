@@ -4,9 +4,9 @@
 //! package can be published without resolving GPUI-specific dev-dependencies.
 #![cfg(feature = "native-gpui-tests")]
 
-use std::fs;
-use std::io;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
+
+use rstest_bdd_harness::trybuild_staging::{copy_dir_tree, copy_file};
 
 #[test]
 fn gpui_macro_fixtures_compile() -> Result<(), Box<dyn std::error::Error>> {
@@ -31,7 +31,7 @@ fn stage_trybuild_support_files() -> Result<(), Box<dyn std::error::Error>> {
         &crate_root.join("tests/fixtures_macros/basic.feature"),
         &trybuild_root.join("basic.feature"),
     )?;
-    copy_dir(
+    copy_dir_tree(
         &crate_root.join("tests/features/auto"),
         &trybuild_root.join("tests/features/auto"),
     )?;
@@ -47,29 +47,4 @@ fn trybuild_crate_root() -> Result<PathBuf, Box<dyn std::error::Error>> {
         .target_directory
         .into_std_path_buf()
         .join("tests/trybuild/rstest-bdd-harness-gpui"))
-}
-
-fn copy_file(source: &Path, destination: &Path) -> io::Result<()> {
-    if let Some(parent) = destination.parent() {
-        fs::create_dir_all(parent)?;
-    }
-    fs::copy(source, destination).map(|_| ())
-}
-
-fn copy_dir(source: &Path, destination: &Path) -> io::Result<()> {
-    if destination.exists() {
-        fs::remove_dir_all(destination)?;
-    }
-    fs::create_dir_all(destination)?;
-    for entry in fs::read_dir(source)? {
-        let entry = entry?;
-        let source_path = entry.path();
-        let destination_path = destination.join(entry.file_name());
-        if source_path.is_dir() {
-            copy_dir(&source_path, &destination_path)?;
-        } else {
-            copy_file(&source_path, &destination_path)?;
-        }
-    }
-    Ok(())
 }

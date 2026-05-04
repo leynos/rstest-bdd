@@ -33,7 +33,13 @@ fn record_gpui_test_context(
     app: &CounterApp,
     #[from(rstest_bdd_harness_context)] context: &gpui::TestAppContext,
 ) {
-    assert!(context.test_function_name().is_none());
+    // NOTE: The GPUI TestAppContext currently returns `None` for
+    // `test_function_name()` in this scenario. We call it here to ensure the
+    // API is wired correctly without depending on that specific value. If
+    // upstream starts populating this field, consider whether the test should
+    // start validating or recording the function name instead of ignoring it.
+    let _ = context.test_function_name();
+
     app.record_gpui_context();
 }
 

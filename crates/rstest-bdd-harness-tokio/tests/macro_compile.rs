@@ -3,9 +3,9 @@
 //! These tests live with the Tokio harness crate so the core `rstest-bdd`
 //! package can be published without resolving Tokio harness dev-dependencies.
 
-use std::fs;
-use std::io;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
+
+use rstest_bdd_harness::trybuild_staging::copy_file;
 
 #[test]
 fn tokio_macro_fixtures_compile() -> Result<(), Box<dyn std::error::Error>> {
@@ -46,11 +46,4 @@ fn trybuild_crate_root() -> Result<PathBuf, Box<dyn std::error::Error>> {
         .target_directory
         .into_std_path_buf()
         .join("tests/trybuild/rstest-bdd-harness-tokio"))
-}
-
-fn copy_file(source: &Path, destination: &Path) -> io::Result<()> {
-    if let Some(parent) = destination.parent() {
-        fs::create_dir_all(parent)?;
-    }
-    fs::copy(source, destination).map(|_| ())
 }
