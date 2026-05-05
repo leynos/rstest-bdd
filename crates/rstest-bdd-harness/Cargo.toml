@@ -21,4 +21,5 @@ tracing.workspace = true
 
 [dev-dependencies]
 insta.workspace = true
+proptest.workspace = true
 rstest.workspace = true
