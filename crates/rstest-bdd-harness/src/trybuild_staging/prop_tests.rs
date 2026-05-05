@@ -103,16 +103,16 @@ proptest! {
         );
         let result = copy_dir_tree(&src, &dst);
         let _ = fs::remove_dir_all(&root);
-        prop_assert!(result.is_err());
         prop_assert_eq!(
             {
                 #[expect(
-                    clippy::unwrap_used,
+                    clippy::expect_used,
                     reason = "property-test temp-dir setup and err-kind extraction after explicit guards"
                 )]
-                result.unwrap_err()
-            }
-            .kind(),
+                result
+                    .expect_err("expected error from copy_dir_tree property test")
+                    .kind()
+            },
             std::io::ErrorKind::InvalidInput,
         );
     }
@@ -133,16 +133,16 @@ proptest! {
         );
         let result = copy_dir_tree(&src, &dst);
         let _ = fs::remove_dir_all(&root);
-        prop_assert!(result.is_err());
         prop_assert_eq!(
             {
                 #[expect(
-                    clippy::unwrap_used,
+                    clippy::expect_used,
                     reason = "property-test temp-dir setup and err-kind extraction after explicit guards"
                 )]
-                result.unwrap_err()
-            }
-            .kind(),
+                result
+                    .expect_err("expected error from copy_dir_tree property test")
+                    .kind()
+            },
             std::io::ErrorKind::InvalidInput,
         );
     }

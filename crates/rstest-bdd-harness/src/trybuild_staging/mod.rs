@@ -82,8 +82,8 @@ pub(super) fn copy_entry(entry: &fs::DirEntry, destination: &Path) -> io::Result
 
 /// Recursively copies a directory tree, replacing `destination` if it exists.
 ///
-/// Symlinks under `source` are rejected so a malicious or accidental link
-/// cannot escape the tree or create copy loops.
+/// The `source` path itself and any symlinks beneath it are rejected so a
+/// malicious or accidental link cannot escape the tree or create copy loops.
 ///
 /// ```
 /// use std::fs;
@@ -145,12 +145,22 @@ pub(super) fn copy_entry(entry: &fs::DirEntry, destination: &Path) -> io::Result
 /// fs::write(&target, b"secret").expect("failed to write target");
 /// std::os::unix::fs::symlink(&target, src.join("link.txt"))
 ///     .expect("failed to create symlink");
-/// let err = copy_dir_tree(&src, &dst).unwrap_err();
+/// let err = copy_dir_tree(&src, &dst).expect_err("copy_dir_tree should reject symlink");
 /// assert_eq!(err.kind(), std::io::ErrorKind::InvalidInput);
 /// let _ = fs::remove_dir_all(&root);
 /// # }
 /// ```
 pub fn copy_dir_tree(source: &Path, destination: &Path) -> io::Result<()> {
+    let source_meta = fs::symlink_metadata(source)?;
+    if source_meta.is_symlink() {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            format!(
+                "refusing to follow symlink while staging trybuild fixtures: {}",
+                source.display()
+            ),
+        ));
+    }
     remove_destination(destination)?;
     fs::create_dir_all(destination)?;
     for entry in fs::read_dir(source)? {
