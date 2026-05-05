@@ -155,19 +155,15 @@ pub fn copy_dir_tree(source: &Path, destination: &Path) -> io::Result<()> {
 
 #[cfg(test)]
 mod tests {
-    // Tests deliberately panic on setup failure; `expect`/`unwrap` keep failure
-    // messages local to the scenario under test.
-    #![allow(
-        clippy::expect_used,
-        clippy::unwrap_used,
-        reason = "integration-style tests panic on improbable temp-dir I/O setup failures"
-    )]
-
     use std::fs;
     use std::time::{SystemTime, UNIX_EPOCH};
 
     use super::{copy_dir_tree, copy_file};
 
+    #[expect(
+        clippy::expect_used,
+        reason = "integration-style tests panic on improbable temp-dir I/O setup failures"
+    )]
     fn unique_root(label: &str) -> std::path::PathBuf {
         std::env::temp_dir().join(format!(
             "rstest_bdd_trybuild_staging_{}_{}_{}_{}",
@@ -185,13 +181,25 @@ mod tests {
     fn copy_file_overwrites_existing_destination() {
         let root = unique_root("overwrite");
         let _ = fs::remove_dir_all(&root);
-        fs::create_dir_all(&root).expect("create root");
         let src = root.join("source.txt");
         let dst = root.join("dest.txt");
-        fs::write(&src, b"new").expect("write src");
-        fs::write(&dst, b"old").expect("write dst");
-        copy_file(&src, &dst).expect("copy_file");
-        assert_eq!(fs::read(&dst).expect("read dst"), b"new");
+        #[expect(
+            clippy::expect_used,
+            reason = "integration-style tests panic on improbable temp-dir I/O setup failures"
+        )]
+        {
+            fs::create_dir_all(&root).expect("create root");
+            fs::write(&src, b"new").expect("write src");
+            fs::write(&dst, b"old").expect("write dst");
+            copy_file(&src, &dst).expect("copy_file");
+        }
+        #[expect(
+            clippy::expect_used,
+            reason = "integration-style tests panic on improbable temp-dir I/O setup failures"
+        )]
+        {
+            assert_eq!(fs::read(&dst).expect("read dst"), b"new");
+        }
         let _ = fs::remove_dir_all(&root);
     }
 
@@ -201,12 +209,18 @@ mod tests {
         let _ = fs::remove_dir_all(&root);
         let src = root.join("src");
         let dst = root.join("dst");
-        fs::create_dir_all(src.join("sub")).expect("create src/sub");
-        fs::write(src.join("sub").join("a.txt"), b"a").expect("write a.txt");
-        // Pre-create destination with stale content.
-        fs::create_dir_all(dst.join("stale")).expect("create stale");
-        fs::write(dst.join("stale").join("old.txt"), b"old").expect("write old");
-        copy_dir_tree(&src, &dst).expect("copy_dir_tree");
+        #[expect(
+            clippy::expect_used,
+            reason = "integration-style tests panic on improbable temp-dir I/O setup failures"
+        )]
+        {
+            fs::create_dir_all(src.join("sub")).expect("create src/sub");
+            fs::write(src.join("sub").join("a.txt"), b"a").expect("write a.txt");
+            // Pre-create destination with stale content.
+            fs::create_dir_all(dst.join("stale")).expect("create stale");
+            fs::write(dst.join("stale").join("old.txt"), b"old").expect("write old");
+            copy_dir_tree(&src, &dst).expect("copy_dir_tree");
+        }
         assert!(dst.join("sub").join("a.txt").exists());
         // Stale directory must be gone.
         assert!(!dst.join("stale").exists());
@@ -219,12 +233,18 @@ mod tests {
         let _ = fs::remove_dir_all(&root);
         let src = root.join("src");
         let dst = root.join("dst");
-        fs::create_dir_all(&src).expect("create src");
-        fs::write(src.join("f.txt"), b"hello").expect("write f.txt");
-        // Destination is a plain file, not a directory.
-        fs::create_dir_all(&root).expect("ensure root exists");
-        fs::write(&dst, b"stale").expect("write stale dst");
-        copy_dir_tree(&src, &dst).expect("copy_dir_tree");
+        #[expect(
+            clippy::expect_used,
+            reason = "integration-style tests panic on improbable temp-dir I/O setup failures"
+        )]
+        {
+            fs::create_dir_all(&src).expect("create src");
+            fs::write(src.join("f.txt"), b"hello").expect("write f.txt");
+            // Destination is a plain file, not a directory.
+            fs::create_dir_all(&root).expect("ensure root exists");
+            fs::write(&dst, b"stale").expect("write stale dst");
+            copy_dir_tree(&src, &dst).expect("copy_dir_tree");
+        }
         assert!(dst.join("f.txt").exists());
         let _ = fs::remove_dir_all(&root);
     }
@@ -238,10 +258,20 @@ mod tests {
         let src = root.join("src");
         let dst = root.join("dst");
         let target = root.join("target.txt");
-        fs::create_dir_all(&src).expect("create src");
-        fs::write(&target, b"secret").expect("write target");
-        symlink(&target, src.join("link.txt")).expect("symlink");
-        let err = copy_dir_tree(&src, &dst).unwrap_err();
+        #[expect(
+            clippy::expect_used,
+            reason = "integration-style tests panic on improbable temp-dir I/O setup failures"
+        )]
+        {
+            fs::create_dir_all(&src).expect("create src");
+            fs::write(&target, b"secret").expect("write target");
+            symlink(&target, src.join("link.txt")).expect("symlink");
+        }
+        #[expect(
+            clippy::unwrap_used,
+            reason = "integration-style tests panic on improbable temp-dir I/O setup failures"
+        )]
+        let err = { copy_dir_tree(&src, &dst).unwrap_err() };
         assert_eq!(err.kind(), std::io::ErrorKind::InvalidInput);
         assert!(
             err.to_string().contains("refusing to follow symlink"),
@@ -253,14 +283,6 @@ mod tests {
 
 #[cfg(all(test, unix))]
 mod prop_tests {
-    // Proptest harness and temp-tree setup use `expect` for improbable I/O; the
-    // assertions under test use `unwrap_err` after `is_err` checks.
-    #![allow(
-        clippy::expect_used,
-        clippy::unwrap_used,
-        reason = "property-test temp-dir setup and err-kind extraction after explicit guards"
-    )]
-
     use std::fs;
     use std::os::unix::fs::symlink;
     use std::path::{Path, PathBuf};
@@ -270,6 +292,10 @@ mod prop_tests {
 
     use super::copy_dir_tree;
 
+    #[expect(
+        clippy::expect_used,
+        reason = "property-test temp-dir setup and err-kind extraction after explicit guards"
+    )]
     fn unique_root(label: &str) -> PathBuf {
         std::env::temp_dir().join(format!(
             "rstest_bdd_prop_{}_{}_{}_{}",
@@ -285,6 +311,10 @@ mod prop_tests {
 
     /// Creates `src/` containing plain files for each name in `file_names` and
     /// a symlink named `symlink_name` pointing at a file outside the tree.
+    #[expect(
+        clippy::expect_used,
+        reason = "property-test temp-dir setup and err-kind extraction after explicit guards"
+    )]
     fn build_flat_source_with_symlink(
         root: &Path,
         file_names: &[String],
@@ -304,6 +334,10 @@ mod prop_tests {
 
     /// Creates `src/` with a chain of subdirectories `depth` levels deep,
     /// placing the symlink at the innermost level.
+    #[expect(
+        clippy::expect_used,
+        reason = "property-test temp-dir setup and err-kind extraction after explicit guards"
+    )]
     fn build_nested_source_with_symlink(
         root: &Path,
         depth: usize,
@@ -345,7 +379,14 @@ mod prop_tests {
             let _ = fs::remove_dir_all(&root);
             prop_assert!(result.is_err());
             prop_assert_eq!(
-                result.unwrap_err().kind(),
+                {
+                    #[expect(
+                        clippy::unwrap_used,
+                        reason = "property-test temp-dir setup and err-kind extraction after explicit guards"
+                    )]
+                    result.unwrap_err()
+                }
+                .kind(),
                 std::io::ErrorKind::InvalidInput,
             );
         }
@@ -368,7 +409,14 @@ mod prop_tests {
             let _ = fs::remove_dir_all(&root);
             prop_assert!(result.is_err());
             prop_assert_eq!(
-                result.unwrap_err().kind(),
+                {
+                    #[expect(
+                        clippy::unwrap_used,
+                        reason = "property-test temp-dir setup and err-kind extraction after explicit guards"
+                    )]
+                    result.unwrap_err()
+                }
+                .kind(),
                 std::io::ErrorKind::InvalidInput,
             );
         }
