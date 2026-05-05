@@ -75,11 +75,31 @@ impl CounterApp {
     }
 
     /// Records that a GPUI test context was observed.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use gpui_counter::CounterApp;
+    ///
+    /// let app = CounterApp::new(0);
+    /// assert!(!app.has_observed_gpui_context());
+    /// app.record_gpui_context();
+    /// assert!(app.has_observed_gpui_context());
+    /// ```
     pub fn record_gpui_context(&self) {
         self.has_observed_gpui_context.set(true);
     }
 
     /// Returns whether a GPUI test context has been observed.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use gpui_counter::CounterApp;
+    ///
+    /// let app = CounterApp::new(0);
+    /// assert!(!app.has_observed_gpui_context());
+    /// ```
     #[must_use]
     pub fn has_observed_gpui_context(&self) -> bool {
         self.has_observed_gpui_context.get()
