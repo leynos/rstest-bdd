@@ -13,13 +13,18 @@ use std::path::Path;
 ///
 /// ```
 /// use std::fs;
+/// use std::time::{SystemTime, UNIX_EPOCH};
 ///
 /// use rstest_bdd_harness::trybuild_staging::copy_file;
 ///
-/// let root = std::env::temp_dir().join(concat!(
-///     "rstest_bdd_trybuild_staging_copy_file_doc",
-///     "_",
-///     env!("CARGO_PKG_NAME"),
+/// let root = std::env::temp_dir().join(format!(
+///     "{}_{}_{}",
+///     concat!("rstest_bdd_trybuild_staging_copy_file_doc_", env!("CARGO_PKG_NAME")),
+///     std::process::id(),
+///     SystemTime::now()
+///         .duration_since(UNIX_EPOCH)
+///         .expect("system clock before UNIX epoch")
+///         .as_nanos(),
 /// ));
 /// let _ = fs::remove_dir_all(&root);
 /// fs::create_dir_all(&root).expect("failed to create dir");
@@ -48,13 +53,18 @@ pub fn copy_file(source: &Path, destination: &Path) -> io::Result<()> {
 ///
 /// ```
 /// use std::fs;
+/// use std::time::{SystemTime, UNIX_EPOCH};
 ///
 /// use rstest_bdd_harness::trybuild_staging::copy_dir_tree;
 ///
-/// let root = std::env::temp_dir().join(concat!(
-///     "rstest_bdd_trybuild_staging_copy_dir_doc",
-///     "_",
-///     env!("CARGO_PKG_NAME"),
+/// let root = std::env::temp_dir().join(format!(
+///     "{}_{}_{}",
+///     concat!("rstest_bdd_trybuild_staging_copy_dir_doc_", env!("CARGO_PKG_NAME")),
+///     std::process::id(),
+///     SystemTime::now()
+///         .duration_since(UNIX_EPOCH)
+///         .expect("system clock before UNIX epoch")
+///         .as_nanos(),
 /// ));
 /// let _ = fs::remove_dir_all(&root);
 /// let src = root.join("src");
