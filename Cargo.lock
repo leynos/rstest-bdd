@@ -233,6 +233,7 @@ dependencies = [
  "eyre",
  "rstest",
  "rstest-bdd",
+ "rstest-bdd-harness",
  "serde",
  "serde_json",
  "serial_test",
@@ -1525,6 +1526,7 @@ dependencies = [
 name = "rstest-bdd-harness"
 version = "0.6.0-beta1"
 dependencies = [
+ "cargo_metadata",
  "insta",
  "proptest",
  "rstest",
@@ -2094,12 +2096,12 @@ version = "0.6.0-beta1"
 dependencies = [
  "assert_cmd",
  "assert_fs",
- "cargo_metadata",
  "clap",
  "eyre",
  "predicates",
  "rstest",
  "rstest-bdd",
+ "rstest-bdd-harness",
  "rstest-bdd-macros",
  "toml 0.9.7",
 ]

@@ -12,9 +12,9 @@ eyre = "0.6"
 [dev-dependencies]
 rstest = { workspace = true }
 rstest-bdd.workspace = true
+rstest-bdd-harness.workspace = true
 rstest-bdd-macros.workspace = true
 assert_cmd = "2"
 assert_fs = "1"
-cargo_metadata.workspace = true
 toml = "0.9"
 predicates = "3"

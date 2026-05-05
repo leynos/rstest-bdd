@@ -2,12 +2,13 @@
 
 use assert_cmd::Command;
 use eyre::{Context, Result};
+use rstest_bdd_harness::binary_test_support::{build_binary, workspace_binary_path};
 use serde::Deserialize;
 use serial_test::serial;
 use std::env;
 use std::fs;
 use std::path::PathBuf;
-use std::process::{Command as ProcessCommand, ExitStatus};
+use std::process::ExitStatus;
 use std::str;
 
 #[derive(Debug, Deserialize)]
@@ -53,51 +54,28 @@ fn run_cargo_bdd_raw(args: &[&str]) -> Result<std::process::Output> {
 fn locate_or_build_cargo_bdd_command() -> Result<Command> {
     match Command::cargo_bin("cargo-bdd") {
         Ok(command) => Ok(command),
-        Err(error) => {
-            let binary = cargo_bdd_binary_path()?;
+        Err(outer) => {
+            let root = workspace_root();
+            let binary = workspace_binary_path(&root.join("Cargo.toml"), "cargo-bdd")
+                .wrap_err("failed to resolve cargo-bdd binary path")?;
             if !binary.is_file() {
-                build_cargo_bdd_binary()?;
+                let output = build_binary(&root, "cargo-bdd")
+                    .wrap_err("failed to spawn cargo build for cargo-bdd")?;
+                if !output.status.success() {
+                    let stdout = String::from_utf8_lossy(&output.stdout);
+                    let stderr = String::from_utf8_lossy(&output.stderr);
+                    eyre::bail!(
+                        "cargo-bdd binary build failed with status {}\nstdout:\n{stdout}\nstderr:\n{stderr}",
+                        output.status,
+                    );
+                }
             }
             if binary.is_file() {
                 Ok(Command::new(binary))
             } else {
-                Err(error).wrap_err("cargo-bdd binary was not built")
+                Err(outer).wrap_err("cargo-bdd binary was not built")
             }
         }
-    }
-}
-
-fn cargo_bdd_binary_path() -> Result<PathBuf> {
-    let metadata = cargo_metadata::MetadataCommand::new()
-        .manifest_path(workspace_root().join("Cargo.toml"))
-        .no_deps()
-        .exec()
-        .wrap_err("failed to read workspace cargo metadata")?;
-    Ok(metadata
-        .target_directory
-        .into_std_path_buf()
-        .join("debug")
-        .join(format!("cargo-bdd{}", env::consts::EXE_SUFFIX)))
-}
-
-fn build_cargo_bdd_binary() -> Result<()> {
-    let cargo = option_env!("CARGO").unwrap_or("cargo");
-    let output = ProcessCommand::new(cargo)
-        .current_dir(workspace_root())
-        .args(["build", "--bin", "cargo-bdd"])
-        .output()
-        .wrap_err("failed to spawn cargo build for cargo-bdd")?;
-    if output.status.success() {
-        Ok(())
-    } else {
-        let stdout = String::from_utf8_lossy(&output.stdout);
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        eyre::bail!(
-            "cargo-bdd binary build failed with status {}\nstdout:\n{}\nstderr:\n{}",
-            output.status,
-            stdout,
-            stderr,
-        )
     }
 }
 

@@ -4,6 +4,8 @@
 //! runners and supplying test attributes through policy plug-ins.
 
 mod adapter;
+#[doc(hidden)]
+pub mod binary_test_support;
 mod error;
 mod policy;
 mod runner;
