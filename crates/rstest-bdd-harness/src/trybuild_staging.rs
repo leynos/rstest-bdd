@@ -81,40 +81,38 @@ pub fn copy_file(source: &Path, destination: &Path) -> io::Result<()> {
 /// let _ = fs::remove_dir_all(&root);
 /// ```
 pub fn copy_dir_tree(source: &Path, destination: &Path) -> io::Result<()> {
-    match fs::symlink_metadata(destination) {
-        Err(error) if error.kind() == io::ErrorKind::NotFound => {}
-        Err(error) => return Err(error),
-        Ok(metadata) => {
-            let file_type = metadata.file_type();
-            if file_type.is_symlink() {
-                fs::remove_file(destination)?;
-            } else if file_type.is_dir() {
-                fs::remove_dir_all(destination)?;
-            } else {
-                fs::remove_file(destination)?;
-            }
-        }
-    }
+    remove_destination(destination)?;
     fs::create_dir_all(destination)?;
     for entry in fs::read_dir(source)? {
-        let entry = entry?;
-        let file_type = entry.file_type()?;
-        if file_type.is_symlink() {
-            return Err(io::Error::new(
-                io::ErrorKind::InvalidInput,
-                format!(
-                    "refusing to follow symlink while staging trybuild fixtures: {}",
-                    entry.path().display()
-                ),
-            ));
-        }
-        let source_path = entry.path();
-        let destination_path = destination.join(entry.file_name());
-        if file_type.is_dir() {
-            copy_dir_tree(&source_path, &destination_path)?;
-        } else {
-            copy_file(&source_path, &destination_path)?;
-        }
+        copy_entry(&entry?, destination)?;
     }
     Ok(())
+}
+
+fn remove_destination(destination: &Path) -> io::Result<()> {
+    match fs::symlink_metadata(destination) {
+        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(()),
+        Err(error) => Err(error),
+        Ok(metadata) if metadata.is_dir() => fs::remove_dir_all(destination),
+        Ok(_) => fs::remove_file(destination),
+    }
+}
+
+fn copy_entry(entry: &fs::DirEntry, destination: &Path) -> io::Result<()> {
+    let file_type = entry.file_type()?;
+    if file_type.is_symlink() {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            format!(
+                "refusing to follow symlink while staging trybuild fixtures: {}",
+                entry.path().display()
+            ),
+        ));
+    }
+    let destination_path = destination.join(entry.file_name());
+    if file_type.is_dir() {
+        copy_dir_tree(&entry.path(), &destination_path)
+    } else {
+        copy_file(&entry.path(), &destination_path)
+    }
 }
