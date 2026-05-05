@@ -22,13 +22,16 @@ use std::path::Path;
 ///     env!("CARGO_PKG_NAME"),
 /// ));
 /// let _ = fs::remove_dir_all(&root);
-/// fs::create_dir_all(&root).unwrap();
+/// fs::create_dir_all(&root).expect("failed to create dir");
 /// let source = root.join("source.txt");
 /// let destination = root.join("nested").join("dest.txt");
-/// fs::write(&source, b"needle").unwrap();
-/// copy_file(&source, &destination).unwrap();
+/// fs::write(&source, b"needle").expect("failed to write source");
+/// copy_file(&source, &destination).expect("failed to copy file");
 /// assert!(destination.exists());
-/// assert_eq!(fs::read(&destination).unwrap(), b"needle");
+/// assert_eq!(
+///     fs::read(&destination).expect("failed to read destination"),
+///     b"needle"
+/// );
 /// let _ = fs::remove_dir_all(&root);
 /// ```
 pub fn copy_file(source: &Path, destination: &Path) -> io::Result<()> {
@@ -55,18 +58,32 @@ pub fn copy_file(source: &Path, destination: &Path) -> io::Result<()> {
 /// ));
 /// let _ = fs::remove_dir_all(&root);
 /// let src = root.join("src");
-/// fs::create_dir_all(src.join("inner")).unwrap();
-/// fs::write(src.join("inner").join("note.txt"), b"tree").unwrap();
+/// fs::create_dir_all(src.join("inner")).expect("failed to create dir");
+/// fs::write(src.join("inner").join("note.txt"), b"tree").expect("failed to write source");
 /// let dst = root.join("dst");
-/// copy_dir_tree(&src, &dst).unwrap();
+/// copy_dir_tree(&src, &dst).expect("failed to copy dir tree");
 /// let out = dst.join("inner").join("note.txt");
 /// assert!(out.exists());
-/// assert_eq!(fs::read(&out).unwrap(), b"tree");
+/// assert_eq!(
+///     fs::read(&out).expect("failed to read destination"),
+///     b"tree"
+/// );
 /// let _ = fs::remove_dir_all(&root);
 /// ```
 pub fn copy_dir_tree(source: &Path, destination: &Path) -> io::Result<()> {
-    if destination.exists() {
-        fs::remove_dir_all(destination)?;
+    match fs::symlink_metadata(destination) {
+        Err(error) if error.kind() == io::ErrorKind::NotFound => {}
+        Err(error) => return Err(error),
+        Ok(metadata) => {
+            let file_type = metadata.file_type();
+            if file_type.is_symlink() {
+                fs::remove_file(destination)?;
+            } else if file_type.is_dir() {
+                fs::remove_dir_all(destination)?;
+            } else {
+                fs::remove_file(destination)?;
+            }
+        }
     }
     fs::create_dir_all(destination)?;
     for entry in fs::read_dir(source)? {
