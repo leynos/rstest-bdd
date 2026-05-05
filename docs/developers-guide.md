@@ -23,6 +23,74 @@ that local path when it generates the standalone harness manifest, so
 `rstest-bdd-harness-gpui` is still checked against the upstream `gpui`
 dependency surface before publication.
 
+## Staging fixtures for trybuild tests
+
+The `rstest-bdd-harness` crate exposes a `#[doc(hidden)]` module
+`trybuild_staging` with two public helpers:
+
+- `copy_file(source, destination)` — copies a single file, creating parent
+  directories as needed.
+- `copy_dir_tree(source, destination)` — recursively copies a directory tree,
+  replacing `destination` if it already exists. Symlinks under `source` are
+  rejected with an `InvalidInput` error to prevent escape or copy loops.
+
+Both helpers are intended for use by `macro_compile` integration tests in the
+Tokio and GPUI harness crates to stage `.feature` files into the trybuild
+scratch directory before `TestCases::pass` / `compile_fail` are called.
+Do not use these helpers outside of test code.
+
+## nextest on Windows: trybuild deadlock
+
+nextest wraps test binaries in Windows Job Objects. Child `cargo` processes
+spawned by `trybuild` and `cargo_metadata` inherit the write end of nextest's
+capture pipe. Because Windows pipe semantics keep the read end open until all
+holders of the write end have closed it, and because rustc spawns many
+short-lived child processes that also inherit the handle, the pipe never
+closes and nextest waits until its slow-timeout fires.
+
+Mitigation:
+
+- CI sets `use-nextest: false` for all Windows matrix legs (see
+  `.github/workflows/ci.yml`). Windows coverage runs use `cargo llvm-cov test`
+  (libtest) instead.
+- `.cargo/nextest.toml` raises the `slow-timeout` for `binary(macro_compile)`
+  on Windows to 300 s as a local-development safety net. This does not fix the
+  deadlock; it only delays termination to allow the build to complete on fast
+  machines.
+- Do not add `macro_compile`-style tests (tests that spawn `cargo` via
+  `trybuild` or `cargo_metadata`) to nextest-managed binaries intended to run
+  on Windows.
+
+## Test organisation: harness-owned integration tests
+
+Tokio and GPUI harness integration tests are co-located with their respective
+harness crates:
+
+| Crate | Test binary | What it tests |
+| --- | --- | --- |
+| `rstest-bdd-harness-tokio` | `scenario_macros` | `#[scenario]` + Tokio adapter |
+| `rstest-bdd-harness-tokio` | `macro_compile` | trybuild compile-pass/fail for Tokio fixtures |
+| `rstest-bdd-harness-gpui` | `scenario_macros` | `#[scenario]` + GPUI adapter (feature-gated) |
+| `rstest-bdd-harness-gpui` | `macro_compile` | trybuild compile-pass for GPUI fixtures (feature-gated) |
+
+These tests were moved out of `rstest-bdd` in this release to decouple the
+core crate from Tokio and GPUI dev-dependencies, making it publishable to
+crates.io without carrying those dependencies.
+
+## Fallback binary build in integration tests
+
+`crates/cargo-bdd/tests/cli.rs` and `examples/todo-cli/tests/cli.rs` use a
+two-phase strategy to locate test binaries:
+
+1. Try `assert_cmd::Command::cargo_bin("binary-name")`.
+2. On failure, compute the expected debug binary path via `cargo_metadata`
+   and invoke `cargo build --bin <name>` if the binary is absent.
+
+This pattern (see `locate_or_build_cargo_bdd_command` and
+`locate_or_build_todo_cli_cmd`) ensures tests can run from a clean checkout
+where the binary has not yet been built, without requiring a separate
+pre-build step in every CI job.
+
 ## Macro implementation: fixture classification and normalization
 
 Fixture name normalization happens during macro expansion, before generated

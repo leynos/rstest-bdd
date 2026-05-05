@@ -41,7 +41,8 @@ fn run_cargo_bdd_raw(args: &[&str]) -> Result<std::process::Output> {
     let target_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../target");
     fs::create_dir_all(&target_dir)
         .with_context(|| format!("failed to create {}", target_dir.display()))?;
-    let mut cmd = cargo_bdd_command().wrap_err("failed to locate cargo-bdd binary")?;
+    let mut cmd =
+        locate_or_build_cargo_bdd_command().wrap_err("failed to locate cargo-bdd binary")?;
     cmd.current_dir(fixture_dir)
         .env("CARGO_TARGET_DIR", &target_dir)
         .args(args)
@@ -49,7 +50,7 @@ fn run_cargo_bdd_raw(args: &[&str]) -> Result<std::process::Output> {
         .wrap_err("failed to execute `cargo bdd`")
 }
 
-fn cargo_bdd_command() -> Result<Command> {
+fn locate_or_build_cargo_bdd_command() -> Result<Command> {
     match Command::cargo_bin("cargo-bdd") {
         Ok(command) => Ok(command),
         Err(error) => {
@@ -81,15 +82,22 @@ fn cargo_bdd_binary_path() -> Result<PathBuf> {
 
 fn build_cargo_bdd_binary() -> Result<()> {
     let cargo = option_env!("CARGO").unwrap_or("cargo");
-    let status = ProcessCommand::new(cargo)
+    let output = ProcessCommand::new(cargo)
         .current_dir(workspace_root())
         .args(["build", "--bin", "cargo-bdd"])
-        .status()
-        .wrap_err("failed to build cargo-bdd binary")?;
-    if status.success() {
+        .output()
+        .wrap_err("failed to spawn cargo build for cargo-bdd")?;
+    if output.status.success() {
         Ok(())
     } else {
-        eyre::bail!("cargo-bdd binary build failed with status {status}");
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        eyre::bail!(
+            "cargo-bdd binary build failed with status {}\nstdout:\n{}\nstderr:\n{}",
+            output.status,
+            stdout,
+            stderr,
+        )
     }
 }
 

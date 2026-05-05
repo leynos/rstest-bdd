@@ -2303,7 +2303,12 @@ now include:
 - `rstest-bdd` — the runtime library.
 - `rstest-bdd-macros` — the crate providing attribute macros.
 - `rstest-bdd-policy` — shared execution policy enums.
-- `rstest-bdd-harness` — harness adapter and attribute policy interfaces.
+- `rstest-bdd-harness` — framework-agnostic harness adapter traits and
+  attribute policy interfaces.
+- `rstest-bdd-harness-tokio` — Tokio runtime harness adapter; owns Tokio
+  scenario and compile tests.
+- `rstest-bdd-harness-gpui` — GPUI test harness adapter; owns GPUI scenario
+  and compile tests (feature-gated behind `native-gpui-tests`).
 
 This layout allows each crate to evolve independently while sharing common
 configuration and lints at the workspace level.
