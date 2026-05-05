@@ -1,6 +1,6 @@
 VALE ?= vale
 
-.PHONY: help all clean test build release lint typecheck fmt check-fmt markdownlint nixie publish-check forbid-async-trait vale
+.PHONY: help all clean test build release lint typecheck fmt check-fmt markdownlint nixie publish-check forbid-async-trait vale update-ui-lints-lock
 
 SHELL := bash
 export PATH := $(HOME)/.cargo/bin:$(HOME)/.bun/bin:$(HOME)/.local/bin:$(PATH)
@@ -67,6 +67,8 @@ nixie:
 publish-check: ## Package crates in release order to validate publish readiness
 	$(UV) run scripts/run_publish_check.py
 
+update-ui-lints-lock: ## Refresh ui_lints trybuild lockfile for `--locked` CI
+	$(CARGO) generate-lockfile --manifest-path crates/rstest-bdd/tests/ui_lints/Cargo.toml
 
 help: ## Show available targets
 	@grep -E '^[a-zA-Z_-]+:.*?##' $(MAKEFILE_LIST) | \

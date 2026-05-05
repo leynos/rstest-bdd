@@ -7,6 +7,12 @@ prepared. The workspace currently contains seven publishable libraries and the
 `cargo-bdd` support tool, so follow the sequence below to keep the dependency
 graph satisfied.
 
+After bumping workspace versions:
+
+- Run `make update-ui-lints-lock` and commit the updated
+  `crates/rstest-bdd/tests/ui_lints/Cargo.lock` to capture any new transitive
+  dependencies introduced since the last release.
+
 `rstest-bdd-harness-gpui` remains developed against the workspace-local GPUI
 shim through a `version` plus `path` workspace dependency, so the main
 repository stays free of `async-trait` during local development without
