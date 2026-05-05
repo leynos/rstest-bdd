@@ -309,6 +309,23 @@ mod prop_tests {
         ))
     }
 
+    /// Creates the shared directory scaffold for symlink-rejection property tests.
+    ///
+    /// Returns `(src, dst, target)` where `src/` exists on disk and `target.txt`
+    /// has been written; `dst` is the intended copy destination (not yet created).
+    #[expect(
+        clippy::expect_used,
+        reason = "property-test temp-dir setup and err-kind extraction after explicit guards"
+    )]
+    fn setup_source_scaffold(root: &Path) -> (PathBuf, PathBuf, PathBuf) {
+        let src = root.join("src");
+        let dst = root.join("dst");
+        let target = root.join("target.txt");
+        fs::create_dir_all(&src).expect("create src");
+        fs::write(&target, b"secret").expect("write target");
+        (src, dst, target)
+    }
+
     /// Creates `src/` containing plain files for each name in `file_names` and
     /// a symlink named `symlink_name` pointing at a file outside the tree.
     #[expect(
@@ -320,11 +337,7 @@ mod prop_tests {
         file_names: &[String],
         symlink_name: &str,
     ) -> (PathBuf, PathBuf) {
-        let src = root.join("src");
-        let dst = root.join("dst");
-        let target = root.join("target.txt");
-        fs::create_dir_all(&src).expect("create src");
-        fs::write(&target, b"secret").expect("write target");
+        let (src, dst, target) = setup_source_scaffold(root);
         for name in file_names {
             fs::write(src.join(name), b"data").expect("write file");
         }
@@ -343,11 +356,7 @@ mod prop_tests {
         depth: usize,
         symlink_name: &str,
     ) -> (PathBuf, PathBuf) {
-        let src = root.join("src");
-        let dst = root.join("dst");
-        let target = root.join("target.txt");
-        fs::create_dir_all(&src).expect("create src");
-        fs::write(&target, b"secret").expect("write target");
+        let (src, dst, target) = setup_source_scaffold(root);
         let mut sub = src.clone();
         for i in 0..depth {
             sub = sub.join(format!("level_{i}"));
