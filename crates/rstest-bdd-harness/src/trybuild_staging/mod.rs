@@ -98,15 +98,16 @@ fn canonical_destination_for_overlap(destination: &Path) -> io::Result<PathBuf> 
     }
 }
 
+fn paths_overlap(a: &Path, b: &Path) -> bool {
+    a == b || a.starts_with(b) || b.starts_with(a)
+}
+
 /// Rejects paths where `copy_dir_tree` would call `remove_destination` on a tree
 /// that still contains (or equals) the source directory.
 fn reject_overlapping_copy_dir_tree_paths(source: &Path, destination: &Path) -> io::Result<()> {
     let canonical_source = fs::canonicalize(source)?;
     let canonical_destination = canonical_destination_for_overlap(destination)?;
-    if canonical_source == canonical_destination
-        || canonical_source.starts_with(&canonical_destination)
-        || canonical_destination.starts_with(&canonical_source)
-    {
+    if paths_overlap(&canonical_source, &canonical_destination) {
         return Err(io::Error::new(
             io::ErrorKind::InvalidInput,
             format!(
