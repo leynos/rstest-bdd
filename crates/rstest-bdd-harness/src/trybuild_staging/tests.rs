@@ -55,28 +55,37 @@ fn copy_file_overwrites_existing_destination(copy_file_staging: CopyFileStaging)
     }
 }
 
-struct ReplaceDirStaging {
+struct ReplaceDstStaging {
     _root: TempDir,
     src: PathBuf,
     dst: PathBuf,
 }
 
+#[expect(
+    clippy::expect_used,
+    reason = "integration-style tests panic on improbable temp-dir I/O setup failures"
+)]
+fn make_src_dst_scaffold() -> (TempDir, PathBuf, PathBuf) {
+    let root = TempDir::new().expect("tempdir");
+    let src = root.path().join("src");
+    let dst = root.path().join("dst");
+    (root, src, dst)
+}
+
 #[fixture]
-fn replace_dir_staging() -> ReplaceDirStaging {
+fn replace_dir_staging() -> ReplaceDstStaging {
     #[expect(
         clippy::expect_used,
         reason = "integration-style tests panic on improbable temp-dir I/O setup failures"
     )]
     {
-        let root = TempDir::new().expect("tempdir");
-        let src = root.path().join("src");
-        let dst = root.path().join("dst");
+        let (root, src, dst) = make_src_dst_scaffold();
         fs::create_dir_all(src.join("sub")).expect("create src/sub");
         fs::write(src.join("sub").join("a.txt"), b"a").expect("write a.txt");
         // Pre-create destination with stale content.
         fs::create_dir_all(dst.join("stale")).expect("create stale");
         fs::write(dst.join("stale").join("old.txt"), b"old").expect("write old");
-        ReplaceDirStaging {
+        ReplaceDstStaging {
             _root: root,
             src,
             dst,
@@ -85,8 +94,8 @@ fn replace_dir_staging() -> ReplaceDirStaging {
 }
 
 #[rstest]
-fn copy_dir_tree_replaces_existing_directory(replace_dir_staging: ReplaceDirStaging) {
-    let ReplaceDirStaging { src, dst, .. } = replace_dir_staging;
+fn copy_dir_tree_replaces_existing_directory(replace_dir_staging: ReplaceDstStaging) {
+    let ReplaceDstStaging { src, dst, .. } = replace_dir_staging;
     #[expect(
         clippy::expect_used,
         reason = "integration-style tests panic on improbable temp-dir I/O setup failures"
@@ -99,28 +108,19 @@ fn copy_dir_tree_replaces_existing_directory(replace_dir_staging: ReplaceDirStag
     assert!(!dst.join("stale").exists());
 }
 
-struct ReplaceFileDestStaging {
-    _root: TempDir,
-    src: PathBuf,
-    dst: PathBuf,
-}
-
 #[fixture]
-fn replace_file_dest_staging() -> ReplaceFileDestStaging {
+fn replace_file_dest_staging() -> ReplaceDstStaging {
     #[expect(
         clippy::expect_used,
         reason = "integration-style tests panic on improbable temp-dir I/O setup failures"
     )]
     {
-        let root = TempDir::new().expect("tempdir");
-        let src = root.path().join("src");
-        let dst = root.path().join("dst");
+        let (root, src, dst) = make_src_dst_scaffold();
         fs::create_dir_all(&src).expect("create src");
         fs::write(src.join("f.txt"), b"hello").expect("write f.txt");
         // Destination is a plain file, not a directory.
-        fs::create_dir_all(root.path()).expect("ensure root exists");
         fs::write(&dst, b"stale").expect("write stale dst");
-        ReplaceFileDestStaging {
+        ReplaceDstStaging {
             _root: root,
             src,
             dst,
@@ -129,10 +129,8 @@ fn replace_file_dest_staging() -> ReplaceFileDestStaging {
 }
 
 #[rstest]
-fn copy_dir_tree_replaces_existing_file_destination(
-    replace_file_dest_staging: ReplaceFileDestStaging,
-) {
-    let ReplaceFileDestStaging { src, dst, .. } = replace_file_dest_staging;
+fn copy_dir_tree_replaces_existing_file_destination(replace_file_dest_staging: ReplaceDstStaging) {
+    let ReplaceDstStaging { src, dst, .. } = replace_file_dest_staging;
     #[expect(
         clippy::expect_used,
         reason = "integration-style tests panic on improbable temp-dir I/O setup failures"
