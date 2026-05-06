@@ -11,6 +11,39 @@ use std::process::{Command, ExitStatus, Output};
 
 use thiserror::Error;
 
+/// The name of a workspace binary as passed to `cargo build --bin`.
+///
+/// Wraps `&str` to distinguish binary names from arbitrary string arguments
+/// at the call site and to reduce primitive obsession on `&str`.
+#[derive(Debug, Clone, Copy)]
+pub struct BinaryName<'a>(&'a str);
+
+impl<'a> BinaryName<'a> {
+    /// Creates a `BinaryName` from the given string slice.
+    #[must_use]
+    pub const fn new(name: &'a str) -> Self {
+        Self(name)
+    }
+
+    /// Returns the binary name as a string slice.
+    #[must_use]
+    pub const fn as_str(self) -> &'a str {
+        self.0
+    }
+}
+
+impl<'a> From<&'a str> for BinaryName<'a> {
+    fn from(s: &'a str) -> Self {
+        Self(s)
+    }
+}
+
+impl std::fmt::Display for BinaryName<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.0)
+    }
+}
+
 /// Captured output from `cargo build --bin` when it exits unsuccessfully.
 #[derive(Debug)]
 pub struct BuildFailureCapture {
@@ -55,7 +88,7 @@ pub enum BinaryLocateError {
 
 // Adapted from assert_cmd's cargo helper: same `CARGO_BIN_EXE_<name>` convention
 // and `current_exe`-derived target-dir fallback.
-fn cargo_bin_path_for_integration_tests(binary_name: &str) -> PathBuf {
+fn cargo_bin_path_for_integration_tests(binary_name: BinaryName<'_>) -> PathBuf {
     let env_var = format!("CARGO_BIN_EXE_{binary_name}");
     env::var_os(&env_var).map_or_else(
         || {
@@ -76,7 +109,7 @@ fn target_dir_near_current_exe() -> Option<PathBuf> {
     Some(path)
 }
 
-fn try_command_from_cargo_test_bin_layout(binary_name: &str) -> Option<Command> {
+fn try_command_from_cargo_test_bin_layout(binary_name: BinaryName<'_>) -> Option<Command> {
     let path = cargo_bin_path_for_integration_tests(binary_name);
     path.is_file().then(|| Command::new(path))
 }
@@ -90,9 +123,9 @@ fn try_command_from_cargo_test_bin_layout(binary_name: &str) -> Option<Command> 
 ///
 /// ```
 /// use std::path::Path;
-/// use rstest_bdd_harness::binary_test_support::binary_path_in_target_dir;
+/// use rstest_bdd_harness::binary_test_support::{binary_path_in_target_dir, BinaryName};
 ///
-/// let path = binary_path_in_target_dir(Path::new("/tmp/ws/target"), "my-bin");
+/// let path = binary_path_in_target_dir(Path::new("/tmp/ws/target"), BinaryName::new("my-bin"));
 /// let suffix = std::env::consts::EXE_SUFFIX;
 /// assert_eq!(
 ///     path,
@@ -100,7 +133,7 @@ fn try_command_from_cargo_test_bin_layout(binary_name: &str) -> Option<Command> 
 /// );
 /// ```
 #[must_use]
-pub fn binary_path_in_target_dir(target_directory: &Path, binary_name: &str) -> PathBuf {
+pub fn binary_path_in_target_dir(target_directory: &Path, binary_name: BinaryName<'_>) -> PathBuf {
     target_directory
         .join("debug")
         .join(format!("{binary_name}{}", env::consts::EXE_SUFFIX))
@@ -137,9 +170,9 @@ pub fn target_directory_for_manifest(
 ///
 /// ```no_run
 /// use std::path::Path;
-/// use rstest_bdd_harness::binary_test_support::locate_or_build_binary;
+/// use rstest_bdd_harness::binary_test_support::{locate_or_build_binary, BinaryName};
 ///
-/// let cmd = locate_or_build_binary(Path::new("Cargo.toml"), Path::new("."), "my-bin")
+/// let cmd = locate_or_build_binary(Path::new("Cargo.toml"), Path::new("."), BinaryName::new("my-bin"))
 ///     .expect("locate binary");
 /// let _ = cmd;
 /// ```
@@ -155,7 +188,7 @@ pub fn target_directory_for_manifest(
 pub fn locate_or_build_binary(
     manifest_path: &Path,
     workspace_root: &Path,
-    binary_name: &str,
+    binary_name: BinaryName<'_>,
 ) -> Result<Command, BinaryLocateError> {
     if let Some(command) = try_command_from_cargo_test_bin_layout(binary_name) {
         return Ok(command);
@@ -189,16 +222,16 @@ pub fn locate_or_build_binary(
 ///
 /// ```no_run
 /// use std::path::Path;
-/// use rstest_bdd_harness::binary_test_support::build_binary;
+/// use rstest_bdd_harness::binary_test_support::{build_binary, BinaryName};
 ///
-/// let output = build_binary(Path::new("."), "some-bin").expect("spawn cargo");
+/// let output = build_binary(Path::new("."), BinaryName::new("some-bin")).expect("spawn cargo");
 /// assert!(output.status.success() || !output.stderr.is_empty());
 /// ```
-pub fn build_binary(workspace_root: &Path, binary_name: &str) -> std::io::Result<Output> {
+pub fn build_binary(workspace_root: &Path, binary_name: BinaryName<'_>) -> std::io::Result<Output> {
     let cargo = option_env!("CARGO").unwrap_or("cargo");
     Command::new(cargo)
         .current_dir(workspace_root)
-        .args(["build", "--bin", binary_name])
+        .args(["build", "--bin", binary_name.as_str()])
         .output()
 }
 
@@ -209,14 +242,14 @@ mod tests {
 
     use std::path::Path;
 
-    use super::binary_path_in_target_dir;
+    use super::{BinaryName, binary_path_in_target_dir};
 
     // ── binary_path_in_target_dir ──────────────────────────────────────────
 
     #[test]
     fn binary_path_appends_debug_and_exe_suffix() {
         let target = Path::new("/workspace/target");
-        let path = binary_path_in_target_dir(target, "my-tool");
+        let path = binary_path_in_target_dir(target, BinaryName::new("my-tool"));
         let expected_name = format!("my-tool{}", std::env::consts::EXE_SUFFIX);
         assert_eq!(path, target.join("debug").join(expected_name));
     }
@@ -224,7 +257,7 @@ mod tests {
     #[test]
     fn binary_path_uses_provided_target_directory() {
         let target = Path::new("/custom/target/dir");
-        let path = binary_path_in_target_dir(target, "tool");
+        let path = binary_path_in_target_dir(target, BinaryName::new("tool"));
         assert!(path.starts_with(target));
     }
 }

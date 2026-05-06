@@ -2,7 +2,7 @@
 
 use assert_cmd::Command;
 use eyre::{Context, Result};
-use rstest_bdd_harness::binary_test_support::locate_or_build_binary;
+use rstest_bdd_harness::binary_test_support::{BinaryName, locate_or_build_binary};
 use serde::Deserialize;
 use serial_test::serial;
 use std::env;
@@ -53,9 +53,13 @@ fn run_cargo_bdd_raw(args: &[&str]) -> Result<std::process::Output> {
 
 fn locate_or_build_cargo_bdd_command() -> Result<Command> {
     let root = workspace_root();
-    locate_or_build_binary(&root.join("Cargo.toml"), &root, "cargo-bdd")
-        .map(Command::from_std)
-        .map_err(|e| eyre::eyre!(e))
+    locate_or_build_binary(
+        &root.join("Cargo.toml"),
+        &root,
+        BinaryName::new("cargo-bdd"),
+    )
+    .map(Command::from_std)
+    .map_err(|e| eyre::eyre!(e))
 }
 
 fn workspace_root() -> PathBuf {

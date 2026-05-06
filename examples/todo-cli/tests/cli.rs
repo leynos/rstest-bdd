@@ -2,13 +2,13 @@
 
 use assert_cmd::Command;
 use predicates::prelude::*;
-use rstest_bdd_harness::binary_test_support::locate_or_build_binary;
+use rstest_bdd_harness::binary_test_support::{BinaryName, locate_or_build_binary};
 use std::env;
 use std::path::PathBuf;
 
 fn locate_or_build_todo_cli_cmd() -> Result<Command, Box<dyn std::error::Error>> {
     let root = workspace_root();
-    locate_or_build_binary(&root.join("Cargo.toml"), &root, "todo-cli")
+    locate_or_build_binary(&root.join("Cargo.toml"), &root, BinaryName::new("todo-cli"))
         .map(Command::from_std)
         .map_err(|e| -> Box<dyn std::error::Error> { Box::new(e) })
 }

@@ -8,7 +8,7 @@
 use std::path::Path;
 
 use rstest_bdd_harness::binary_test_support::{
-    build_binary, locate_or_build_binary, target_directory_for_manifest,
+    BinaryName, build_binary, locate_or_build_binary, target_directory_for_manifest,
 };
 
 #[test]
@@ -39,7 +39,10 @@ fn target_directory_for_workspace_manifest_returns_ok() {
 
 #[test]
 fn build_binary_returns_err_for_nonexistent_workspace() {
-    let result = build_binary(Path::new("/nonexistent/workspace"), "nonexistent-binary");
+    let result = build_binary(
+        Path::new("/nonexistent/workspace"),
+        BinaryName::new("nonexistent-binary"),
+    );
     match result {
         Err(_) => {}
         Ok(output) => assert!(
@@ -52,7 +55,10 @@ fn build_binary_returns_err_for_nonexistent_workspace() {
 #[test]
 fn build_binary_captures_output_on_failure() {
     let workspace_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../");
-    match build_binary(&workspace_root, "__nonexistent_binary_xyzzy__") {
+    match build_binary(
+        &workspace_root,
+        BinaryName::new("__nonexistent_binary_xyzzy__"),
+    ) {
         Err(_) => {}
         Ok(output) => {
             assert!(
@@ -75,7 +81,7 @@ fn locate_or_build_binary_returns_err_for_invalid_manifest() {
     let result = locate_or_build_binary(
         manifest,
         workspace,
-        "__rstest_bdd_harness_locate_invalid_manifest__",
+        BinaryName::new("__rstest_bdd_harness_locate_invalid_manifest__"),
     );
     assert!(
         result.is_err(),
