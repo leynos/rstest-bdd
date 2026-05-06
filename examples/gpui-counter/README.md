@@ -21,7 +21,7 @@ The BDD scenarios live in `tests/features/counter.feature`. Step definitions in
   `attributes = GpuiAttributePolicy`.
 - Accessing the injected `gpui::TestAppContext` through the
   `#[from(rstest_bdd_harness_context)]` fixture key.
-- Recording harness context observations (e.g. dispatcher seed) in the
-  example's own domain model.
+- Recording harness context observations (e.g. `TestAppContext` availability)
+  in the example's own domain model.
 
 Unit tests for the `CounterApp` domain model live in `src/lib.rs`.

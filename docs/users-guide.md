@@ -1006,8 +1006,8 @@ For a complete working example, see the `examples/gpui-counter` crate, which
 models a simple counter application whose BDD suite exercises both
 `GpuiHarness` and `GpuiAttributePolicy` end-to-end. Step definitions in that
 example demonstrate accessing injected `TestAppContext` through the
-`#[from(rstest_bdd_harness_context)]` fixture key and recording
-harness-provided values (such as the dispatcher seed) in the domain model.
+`#[from(rstest_bdd_harness_context)]` fixture key and recording harness context
+observations (such as `TestAppContext` availability) in the domain model.
 
 > **Native-library setup:** this workspace uses a local GPUI test shim under
 > `vendor/gpui` that requires no additional native-library installation beyond
