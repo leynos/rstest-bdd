@@ -219,3 +219,38 @@ fn copy_dir_tree_rejects_symlink_as_source_root() {
         );
     }
 }
+
+#[test]
+#[cfg(unix)]
+fn copy_dir_tree_symlink_source_does_not_remove_destination() {
+    use std::io;
+    use std::os::unix::fs::symlink;
+
+    #[expect(
+        clippy::expect_used,
+        reason = "integration-style tests panic on improbable temp-dir I/O setup failures"
+    )]
+    {
+        let root = TempDir::new().expect("tempdir");
+        let tree = root.path().join("tree");
+        let src = root.path().join("src");
+        let dst = root.path().join("dst");
+        fs::create_dir_all(&tree).expect("tree dir");
+        fs::write(tree.join("in-tree.txt"), b"inside-tree").expect("write tree file");
+        fs::create_dir_all(&dst).expect("dst dir");
+        fs::write(dst.join("marker.txt"), b"untouched").expect("write dst marker");
+        symlink(&tree, &src).expect("symlink src to tree");
+        let err = copy_dir_tree(&src, &dst).expect_err("symlink source must be rejected");
+        assert_eq!(err.kind(), io::ErrorKind::InvalidInput);
+        assert!(
+            err.to_string().contains("refusing to follow symlink"),
+            "unexpected error message: {err}"
+        );
+        assert!(dst.is_dir(), "destination directory must still exist");
+        assert_eq!(
+            fs::read_to_string(dst.join("marker.txt")).expect("read marker"),
+            "untouched",
+            "destination contents must be unchanged (remove_destination must not run)"
+        );
+    }
+}

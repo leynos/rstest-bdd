@@ -152,7 +152,7 @@ pub(super) fn copy_entry(entry: &fs::DirEntry, destination: &Path) -> io::Result
 /// ```
 pub fn copy_dir_tree(source: &Path, destination: &Path) -> io::Result<()> {
     let source_meta = fs::symlink_metadata(source)?;
-    if source_meta.is_symlink() {
+    if source_meta.file_type().is_symlink() {
         return Err(io::Error::new(
             io::ErrorKind::InvalidInput,
             format!(
