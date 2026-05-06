@@ -78,13 +78,10 @@ fn target_directory_for_workspace_manifest_returns_ok() {
 fn build_binary_returns_err_for_nonexistent_workspace() {
     let workspace = unique_absent_temp_dir("no_workspace");
     let result = build_binary(&workspace, BinaryName::new("nonexistent-binary"));
-    match result {
-        Err(_) => {}
-        Ok(output) => assert!(
-            !output.status.success(),
-            "build_binary should not succeed for a nonexistent workspace"
-        ),
-    }
+    assert!(
+        result.is_err(),
+        "expected build_binary to fail when the workspace directory does not exist, got: {result:?}"
+    );
 }
 
 #[expect(
