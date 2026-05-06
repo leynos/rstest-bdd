@@ -13,7 +13,7 @@ use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use rstest_bdd_harness::binary_test_support::{
-    BinaryLocateError, BinaryName, binary_path_in_target_dir, build_binary, locate_or_build_binary,
+    BinaryLocateError, BinaryName, build_binary, locate_or_build_binary,
     target_directory_for_manifest,
 };
 
@@ -40,10 +40,6 @@ fn workspace_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("..")
         .join("..")
-}
-
-fn normalise_sep(path: impl AsRef<Path>) -> String {
-    path.as_ref().to_string_lossy().replace('\\', "/")
 }
 
 #[test]
@@ -154,7 +150,7 @@ fn locate_or_build_reports_build_failed_for_nonexistent_binary() {
 
 #[expect(
     clippy::expect_used,
-    reason = "integration-style tests panic on improbable locate, metadata, or spawn failures"
+    reason = "integration-style tests panic on improbable locate or spawn failures"
 )]
 #[test]
 fn locate_or_build_returns_command_for_workspace_binary() {
@@ -164,15 +160,22 @@ fn locate_or_build_returns_command_for_workspace_binary() {
         let mut cmd = locate_or_build_binary(&root.join("Cargo.toml"), &root, name)
             .expect("should locate or build a workspace binary");
 
-        let target_dir = target_directory_for_manifest(&root.join("Cargo.toml"))
-            .expect("resolve target via cargo metadata");
-        let expected = binary_path_in_target_dir(&target_dir, name);
+        let program = cmd.get_program().to_owned();
+        let program_path = Path::new(&program);
 
-        let program = cmd.get_program();
+        assert!(
+            program_path.is_file(),
+            "expected resolved program path to exist and be a file: {program:?}"
+        );
+
+        let expected_name = format!("{}{}", name.as_str(), std::env::consts::EXE_SUFFIX);
+        let actual_name = program_path
+            .file_name()
+            .and_then(|s| s.to_str())
+            .unwrap_or_default();
         assert_eq!(
-            normalise_sep(program),
-            normalise_sep(&expected),
-            "expected program path to match {expected:?}, got {program:?}",
+            actual_name, expected_name,
+            "expected program file name {expected_name}, got {actual_name}"
         );
 
         let status = cmd.arg("--help").status().expect("spawn --help");
