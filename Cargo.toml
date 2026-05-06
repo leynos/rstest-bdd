@@ -59,6 +59,7 @@ rstest-bdd-macros = { version = "0.6.0-beta1", path = "crates/rstest-bdd-macros"
 rstest-bdd-policy = { version = "0.6.0-beta1", path = "crates/rstest-bdd-policy" }
 rstest-bdd-patterns = { version = "0.6.0-beta1", path = "crates/rstest-bdd-patterns" }
 log = "0.4"
+temp-env = "0.3.6"
 tempfile = "3.23"
 i18n-embed = { version = "0.16", features = ["fluent-system", "desktop-requester"] }
 rust-embed = "8.5.0"

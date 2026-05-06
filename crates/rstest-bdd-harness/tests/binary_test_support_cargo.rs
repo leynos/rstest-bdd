@@ -1,15 +1,29 @@
 //! Integration tests that spawn `cargo` via [`rstest_bdd_harness::binary_test_support`].
 //!
-//! These live outside the library test binary and are omitted on Windows, where
-//! nested `cargo` from tests is unreliable under nextest (see `.cargo/nextest.toml`).
+//! Unix-only: nested `cargo` from tests is unreliable on Windows under nextest
+//! (see `.cargo/nextest.toml`).
+//!
+//! `temp_env` scopes `CARGO_BIN_EXE_*` removal so we stay within the workspace
+//! `forbid(unsafe_code)` policy (Edition 2024 makes `remove_var` unsafe).
 
-#![cfg(not(windows))]
+#![cfg(unix)]
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use rstest_bdd_harness::binary_test_support::{
-    BinaryName, build_binary, locate_or_build_binary, target_directory_for_manifest,
+    BinaryLocateError, BinaryName, binary_path_in_target_dir, build_binary, locate_or_build_binary,
+    target_directory_for_manifest,
 };
+
+fn workspace_root() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("..")
+        .join("..")
+}
+
+fn normalise_sep(path: impl AsRef<Path>) -> String {
+    path.as_ref().to_string_lossy().replace('\\', "/")
+}
 
 #[test]
 fn target_directory_for_invalid_manifest_returns_err() {
@@ -54,7 +68,7 @@ fn build_binary_returns_err_for_nonexistent_workspace() {
 
 #[test]
 fn build_binary_captures_output_on_failure() {
-    let workspace_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../");
+    let workspace_root = workspace_root();
     match build_binary(
         &workspace_root,
         BinaryName::new("__nonexistent_binary_xyzzy__"),
@@ -87,4 +101,53 @@ fn locate_or_build_binary_returns_err_for_invalid_manifest() {
         result.is_err(),
         "expected error for invalid manifest, got: {result:?}"
     );
+}
+
+#[expect(
+    clippy::expect_used,
+    reason = "integration-style tests panic on improbable locate or cargo metadata failures"
+)]
+#[test]
+fn locate_or_build_reports_build_failed_for_nonexistent_binary() {
+    let root = workspace_root();
+    let name = BinaryName::new("__nonexistent_binary_xyzzy__");
+    temp_env::with_var_unset(format!("CARGO_BIN_EXE_{name}"), || {
+        let err = locate_or_build_binary(&root.join("Cargo.toml"), &root, name)
+            .expect_err("expected a build failure for a nonexistent binary");
+        match err {
+            BinaryLocateError::BuildFailed(_capture) => {}
+            other => panic!("expected BuildFailed, got: {other:?}"),
+        }
+    });
+}
+
+#[expect(
+    clippy::expect_used,
+    reason = "integration-style tests panic on improbable locate, metadata, or spawn failures"
+)]
+#[test]
+fn locate_or_build_returns_command_for_workspace_binary() {
+    let root = workspace_root();
+    let name = BinaryName::new("todo-cli");
+    temp_env::with_var_unset(format!("CARGO_BIN_EXE_{name}"), || {
+        let mut cmd = locate_or_build_binary(&root.join("Cargo.toml"), &root, name)
+            .expect("should locate or build a workspace binary");
+
+        let target_dir = target_directory_for_manifest(&root.join("Cargo.toml"))
+            .expect("resolve target via cargo metadata");
+        let expected = binary_path_in_target_dir(&target_dir, name);
+
+        let program = cmd.get_program();
+        assert_eq!(
+            normalise_sep(program),
+            normalise_sep(&expected),
+            "expected program path to match {expected:?}, got {program:?}",
+        );
+
+        let status = cmd.arg("--help").status().expect("spawn --help");
+        assert!(
+            status.success(),
+            "expected `todo-cli --help` to exit successfully, got {status:?}"
+        );
+    });
 }
