@@ -79,17 +79,72 @@ without carrying those dependencies.
 
 ## Fallback binary build in integration tests
 
-`crates/cargo-bdd/tests/cli.rs` and `examples/todo-cli/tests/cli.rs` use a
-two-phase strategy to locate test binaries:
+`crates/cargo-bdd/tests/cli.rs` and `examples/todo-cli/tests/cli.rs` use
+`rstest_bdd_harness::binary_test_support::locate_or_build_binary`, which
+implements a two-phase strategy:
 
-1. Try `assert_cmd::Command::cargo_bin("binary-name")`.
-2. On failure, compute the expected debug binary path via `cargo_metadata`
-   and invoke `cargo build --bin <name>` if the binary is absent.
+1. Resolve a candidate path the same way `assert_cmd::Command::cargo_bin` does:
+   read `CARGO_BIN_EXE_<binary_name>` when set, otherwise derive the `debug`
+   directory from `std::env::current_exe` (stepping out of `deps` when needed).
+   If that path is an existing file, return `std::process::Command::new` for it.
+2. Otherwise run `target_directory_for_manifest`, derive the debug artifact with
+   `binary_path_in_target_dir`, invoke `build_binary` when the file is still
+   absent, then return a command for the binary or surface `cargo` output
+   captured from the build.
 
-This pattern (see `locate_or_build_cargo_bdd_command` and
-`locate_or_build_todo_cli_cmd`) ensures tests can run from a clean checkout
-where the binary has not yet been built, without requiring a separate pre-build
-step in every CI job.
+This pattern ensures tests run from a clean checkout without a separate
+pre-build step in every CI job (see `locate_or_build_cargo_bdd_command` and
+`locate_or_build_todo_cli_cmd`).
+
+### `binary_test_support` API reference
+
+```rust
+use std::path::{Path, PathBuf};
+use std::process::{Command, Output};
+
+/// Returns the expected debug binary path for `binary_name` given a target
+/// directory root. Pure computation: no I/O.
+pub fn binary_path_in_target_dir(
+    target_directory: &Path,
+    binary_name: &str,
+) -> PathBuf;
+
+/// Resolves the workspace target directory by running `cargo metadata`.
+/// Performs I/O: spawns a `cargo metadata` subprocess.
+pub fn target_directory_for_manifest(
+    manifest_path: &Path,
+) -> Result<PathBuf, cargo_metadata::Error>;
+
+/// Locates `binary_name` or builds it if absent. Returns `std::process::Command`.
+/// Captures cargo stdout/stderr and surfaces them in the error on build failure.
+pub fn locate_or_build_binary(
+    manifest_path: &Path,
+    workspace_root: &Path,
+    binary_name: &str,
+) -> Result<Command, Box<dyn std::error::Error>>;
+
+/// Builds `binary_name` via `cargo build --bin <name>` in `workspace_root`.
+/// Returns the captured `Output`; returns `Err` only when the subprocess
+/// cannot be spawned.
+pub fn build_binary(
+    workspace_root: &Path,
+    binary_name: &str,
+) -> std::io::Result<Output>;
+```
+
+**Usage example** (from `examples/todo-cli/tests/cli.rs`; `Command` is
+`assert_cmd::Command`):
+
+```rust
+fn locate_or_build_todo_cli_cmd() -> Result<Command, Box<dyn std::error::Error>> {
+    let root = workspace_root();
+    locate_or_build_binary(&root.join("Cargo.toml"), &root, "todo-cli")
+        .map(Command::from_std)
+}
+```
+
+The module is `#[doc(hidden)]` and is not part of the supported public API.
+Do not use it outside test helpers.
 
 ## Macro implementation: fixture classification and normalization
 
