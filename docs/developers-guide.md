@@ -95,7 +95,7 @@ pre-build step in every CI job.
 
 ```rust
 use std::path::{Path, PathBuf};
-use std::process::Output;
+use std::process::{Command, Output};
 
 /// Returns the expected debug binary path for `binary_name` given a target
 /// directory root. Pure computation: no I/O.
@@ -116,7 +116,7 @@ pub fn locate_or_build_binary(
     manifest_path: &Path,
     workspace_root: &Path,
     binary_name: &str,
-) -> Result<std::process::Command, Box<dyn std::error::Error>>;
+) -> Result<Command, Box<dyn std::error::Error>>;
 
 /// Builds `binary_name` via `cargo build --bin <name>` in `workspace_root`.
 /// Returns the captured `Output`; returns `Err` only when the subprocess
@@ -127,14 +127,14 @@ pub fn build_binary(
 ) -> std::io::Result<Output>;
 ```
 
-**Usage example** (from `examples/todo-cli/tests/cli.rs`; `Command` is
-`assert_cmd::Command`):
+**Usage example** (from `examples/todo-cli/tests/cli.rs`):
 
 ```rust
+use assert_cmd::Command;
+
 fn locate_or_build_todo_cli_cmd() -> Result<Command, Box<dyn std::error::Error>> {
     let root = workspace_root();
-    locate_or_build_binary(&root.join("Cargo.toml"), &root, "todo-cli")
-        .map(Command::from_std)
+    locate_or_build_binary(&root.join("Cargo.toml"), &root, "todo-cli").map(Command::from_std)
 }
 ```
 
