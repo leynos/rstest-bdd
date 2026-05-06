@@ -148,17 +148,16 @@ current checkout through `version` plus `path` entries in
 `[workspace.dependencies]`, and member crates inherit those entries with
 `.workspace = true`.
 
-This means local development continues to use the latest in-tree
-`rstest-bdd-*` crates even after the same version exists on crates.io. During
-packaging, Cargo uses the version requirement for the published dependency
-surface. The GPUI shim uses the same approach: local builds use `vendor/gpui`,
-while the publish-check validator strips that path and checks
-`rstest-bdd-harness-gpui` against upstream `gpui`.
+This means local development continues to use the latest in-tree `rstest-bdd-*`
+crates even after the same version exists on crates.io. During packaging, Cargo
+uses the version requirement for the published dependency surface. The GPUI
+shim uses the same approach: local builds use `vendor/gpui`, while the
+publish-check validator strips that path and checks `rstest-bdd-harness-gpui`
+against upstream `gpui`.
 
 External users should not copy the workspace paths. Downstream projects should
 depend on published crates by version only, for example
-`rstest-bdd-harness-tokio = "0.6.0"` or
-`rstest-bdd-harness-gpui = "0.6.0"`.
+`rstest-bdd-harness-tokio = "0.6.0"` or `rstest-bdd-harness-gpui = "0.6.0"`.
 
 ### Adopt fallible fixtures
 

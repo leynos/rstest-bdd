@@ -37,8 +37,8 @@ The implementation surface is already narrowed:
   `crates/rstest-bdd/tests/underscore_fixture.rs`.
 
 Architecture Decision Record (ADR-009) now records the accepted direction for
-this change, so delivery can land the implementation and keep the
-documentation aligned with that accepted scope.
+this change, so delivery can land the implementation and keep the documentation
+aligned with that accepted scope.
 
 ## Relevant documentation and skills
 
@@ -108,23 +108,21 @@ Skill signposts:
 ## Risks
 
 - Risk: placeholder matching and implicit fixture fallback may drift apart
-  again if they normalize names in different places.
-  Mitigation: centralize use of `normalize_param_name()` in the existing
-  classifier flow and add regression tests that assert both paths agree.
+  again if they normalize names in different places. Mitigation: centralize use
+  of `normalize_param_name()` in the existing classifier flow and add
+  regression tests that assert both paths agree.
 
 - Risk: explicit `#[from(...)]` names could accidentally be normalized.
   Mitigation: preserve current parsing flow and add unit and behavioural tests
   that prove `#[from(_world)]` stays `_world`.
 
 - Risk: runtime diagnostics may still mention different keys if only one macro
-  layer is updated.
-  Mitigation: add behavioural coverage that exercises scenario-side fixture
-  registration and step-side extraction together.
+  layer is updated. Mitigation: add behavioural coverage that exercises
+  scenario-side fixture registration and step-side extraction together.
 
 - Risk: documentation could overstate the rule and imply broader name
-  canonicalization.
-  Mitigation: document the exact one-underscore rule and show the explicit
-  escape hatch.
+  canonicalization. Mitigation: document the exact one-underscore rule and show
+  the explicit escape hatch.
 
 ## Progress
 
@@ -173,8 +171,7 @@ Skill signposts:
   an argument falls back to fixture injection without `#[from(...)]`, the
   stored fixture key uses `normalize_param_name()`.
 - Keep placeholder matching behaviour unchanged, but make the fallback fixture
-  path use the same normalized key derivation rule as
-  `resolve_fixture_name()`.
+  path use the same normalized key derivation rule as `resolve_fixture_name()`.
 - Preserve raw parameter identifiers for Rust bindings and diagnostics where
   needed; only the implicit fixture key should be normalized.
 
@@ -200,8 +197,8 @@ Skill signposts:
   normalization rule and a short example showing when `#[from(...)]` is still
   required.
 - Update `docs/adr-009-consistent-implicit-fixture-name-normalization.md` with
-  any implementation-time decision, acceptance status, or resolved
-  outstanding question.
+  any implementation-time decision, acceptance status, or resolved outstanding
+  question.
 - Mark roadmap item 5.1.7 as done in `docs/roadmap.md` once the feature and
   gates are complete.
 
@@ -227,7 +224,8 @@ Skill signposts:
 4. Add unit tests in
    `crates/rstest-bdd-macros/src/codegen/wrapper/args/classify/tests.rs` for
    implicit `_world`, implicit `__world`, and explicit `#[from(_world)]`.
-5. Extend behavioural coverage in `crates/rstest-bdd/tests/underscore_fixture.rs`
+5. Extend behavioural coverage in
+   `crates/rstest-bdd/tests/underscore_fixture.rs`
    or a nearby integration test so scenario-side registration and step-side
    extraction agree in one executable scenario.
 6. Update `docs/users-guide.md` and ADR-009 with the final documented rule.
@@ -289,8 +287,8 @@ Implementation is complete only when all of the following are true:
   parameter names are normalized, and only one leading underscore is stripped.
 - Validation outcome:
   `make check-fmt`, `make lint`, `make markdownlint`, `make nixie`, and
-  `make test` succeeded on branch
-  `normalize-implicit-fixture-keys-1a6r67` after the documentation and span
-  anchoring follow-ups. `make fmt` still fails on pre-existing repository-wide
-  Markdown line-length findings, so this ExecPlan remains incomplete until
-  that documentation formatting cleanup is done and `make fmt` passes.
+  `make test` succeeded on branch `normalize-implicit-fixture-keys-1a6r67`
+  after the documentation and span anchoring follow-ups. `make fmt` still fails
+  on pre-existing repository-wide Markdown line-length findings, so this
+  ExecPlan remains incomplete until that documentation formatting cleanup is
+  done and `make fmt` passes.

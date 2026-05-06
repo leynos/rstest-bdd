@@ -2,13 +2,13 @@
 
 ## Workspace dependency policy
 
-Keep workspace-local development and crates.io publication on the same
-manifest surface by declaring shared dependencies in the root
-`[workspace.dependencies]` table. First-party crates must use both `version`
-and `path` there, then consume the dependency with `.workspace = true` from
-member manifests. The `path` keeps local builds on the current checkout after a
-version has been published, while the `version` gives Cargo the crates.io
-requirement it needs when packaging a crate.
+Keep workspace-local development and crates.io publication on the same manifest
+surface by declaring shared dependencies in the root `[workspace.dependencies]`
+table. First-party crates must use both `version` and `path` there, then
+consume the dependency with `.workspace = true` from member manifests. The
+`path` keeps local builds on the current checkout after a version has been
+published, while the `version` gives Cargo the crates.io requirement it needs
+when packaging a crate.
 
 Do not restore root-level `[patch.crates-io]` entries for normal development.
 Patches make local resolution differ from publish-time resolution and can hide
@@ -36,8 +36,8 @@ The `rstest-bdd-harness` crate exposes a `#[doc(hidden)]` module
 
 Both helpers are intended for use by `macro_compile` integration tests in the
 Tokio and GPUI harness crates to stage `.feature` files into the trybuild
-scratch directory before `TestCases::pass` / `compile_fail` are called.
-Do not use these helpers outside of test code.
+scratch directory before `TestCases::pass` / `compile_fail` are called. Do not
+use these helpers outside of test code.
 
 ## nextest on Windows: trybuild deadlock
 
@@ -45,8 +45,8 @@ nextest wraps test binaries in Windows Job Objects. Child `cargo` processes
 spawned by `trybuild` and `cargo_metadata` inherit the write end of nextest's
 capture pipe. Because Windows pipe semantics keep the read end open until all
 holders of the write end have closed it, and because rustc spawns many
-short-lived child processes that also inherit the handle, the pipe never
-closes and nextest waits until its slow-timeout fires.
+short-lived child processes that also inherit the handle, the pipe never closes
+and nextest waits until its slow-timeout fires.
 
 Mitigation:
 
@@ -61,21 +61,21 @@ Mitigation:
   `trybuild` or `cargo_metadata`) to nextest-managed binaries intended to run
   on Windows.
 
-## Test organisation: harness-owned integration tests
+## Test organization: harness-owned integration tests
 
 Tokio and GPUI harness integration tests are co-located with their respective
 harness crates:
 
-| Crate | Test binary | What it tests |
-| --- | --- | --- |
-| `rstest-bdd-harness-tokio` | `scenario_macros` | `#[scenario]` + Tokio adapter |
-| `rstest-bdd-harness-tokio` | `macro_compile` | trybuild compile-pass/fail for Tokio fixtures |
-| `rstest-bdd-harness-gpui` | `scenario_macros` | `#[scenario]` + GPUI adapter (feature-gated) |
-| `rstest-bdd-harness-gpui` | `macro_compile` | trybuild compile-pass for GPUI fixtures (feature-gated) |
+| Crate                      | Test binary       | What it tests                                           |
+| -------------------------- | ----------------- | ------------------------------------------------------- |
+| `rstest-bdd-harness-tokio` | `scenario_macros` | `#[scenario]` + Tokio adapter                           |
+| `rstest-bdd-harness-tokio` | `macro_compile`   | trybuild compile-pass/fail for Tokio fixtures           |
+| `rstest-bdd-harness-gpui`  | `scenario_macros` | `#[scenario]` + GPUI adapter (feature-gated)            |
+| `rstest-bdd-harness-gpui`  | `macro_compile`   | trybuild compile-pass for GPUI fixtures (feature-gated) |
 
-These tests were moved out of `rstest-bdd` in this release to decouple the
-core crate from Tokio and GPUI dev-dependencies, making it publishable to
-crates.io without carrying those dependencies.
+These tests were moved out of `rstest-bdd` in this release to decouple the core
+crate from Tokio and GPUI dev-dependencies, making it publishable to crates.io
+without carrying those dependencies.
 
 ## Fallback binary build in integration tests
 
@@ -88,8 +88,8 @@ two-phase strategy to locate test binaries:
 
 This pattern (see `locate_or_build_cargo_bdd_command` and
 `locate_or_build_todo_cli_cmd`) ensures tests can run from a clean checkout
-where the binary has not yet been built, without requiring a separate
-pre-build step in every CI job.
+where the binary has not yet been built, without requiring a separate pre-build
+step in every CI job.
 
 ## Macro implementation: fixture classification and normalization
 
