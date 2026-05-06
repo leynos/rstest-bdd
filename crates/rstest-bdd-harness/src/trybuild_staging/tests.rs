@@ -25,7 +25,6 @@ fn copy_file_staging() -> CopyFileStaging {
         let root = TempDir::new().expect("tempdir");
         let src = root.path().join("source.txt");
         let dst = root.path().join("dest.txt");
-        fs::create_dir_all(root.path()).expect("create root");
         fs::write(&src, b"new").expect("write src");
         fs::write(&dst, b"old").expect("write dst");
         CopyFileStaging {
