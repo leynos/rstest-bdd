@@ -21,9 +21,7 @@ fn gpui_macro_fixtures_compile() -> Result<(), Box<dyn std::error::Error>> {
     ] {
         tests.pass(case);
     }
-    for case in ["tests/fixtures_macros/scenario_harness_gpui_sync_rejected.rs"] {
-        tests.compile_fail(case);
-    }
+    tests.compile_fail("tests/fixtures_macros/scenario_harness_gpui_sync_rejected.rs");
     Ok(())
 }
 
