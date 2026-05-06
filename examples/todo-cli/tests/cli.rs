@@ -2,36 +2,13 @@
 
 use assert_cmd::Command;
 use predicates::prelude::*;
-use rstest_bdd_harness::binary_test_support::{build_binary, workspace_binary_path};
+use rstest_bdd_harness::binary_test_support::locate_or_build_binary;
 use std::env;
 use std::path::PathBuf;
 
 fn locate_or_build_todo_cli_cmd() -> Result<Command, Box<dyn std::error::Error>> {
-    match Command::cargo_bin("todo-cli") {
-        Ok(command) => Ok(command),
-        Err(outer) => {
-            let root = workspace_root();
-            let binary = workspace_binary_path(&root.join("Cargo.toml"), "todo-cli")?;
-            if !binary.is_file() {
-                let output = build_binary(&root, "todo-cli")
-                    .map_err(|e| format!("failed to spawn cargo build for todo-cli: {e}"))?;
-                if !output.status.success() {
-                    let stdout = String::from_utf8_lossy(&output.stdout);
-                    let stderr = String::from_utf8_lossy(&output.stderr);
-                    return Err(format!(
-                        "todo-cli binary build failed with status {}\nstdout:\n{stdout}\nstderr:\n{stderr}",
-                        output.status,
-                    )
-                    .into());
-                }
-            }
-            if binary.is_file() {
-                Ok(Command::new(binary))
-            } else {
-                Err(Box::new(outer))
-            }
-        }
-    }
+    let root = workspace_root();
+    locate_or_build_binary(&root.join("Cargo.toml"), &root, "todo-cli").map(Command::from_std)
 }
 
 fn workspace_root() -> PathBuf {

@@ -2,7 +2,7 @@
 
 use assert_cmd::Command;
 use eyre::{Context, Result};
-use rstest_bdd_harness::binary_test_support::{build_binary, workspace_binary_path};
+use rstest_bdd_harness::binary_test_support::locate_or_build_binary;
 use serde::Deserialize;
 use serial_test::serial;
 use std::env;
@@ -52,31 +52,10 @@ fn run_cargo_bdd_raw(args: &[&str]) -> Result<std::process::Output> {
 }
 
 fn locate_or_build_cargo_bdd_command() -> Result<Command> {
-    match Command::cargo_bin("cargo-bdd") {
-        Ok(command) => Ok(command),
-        Err(outer) => {
-            let root = workspace_root();
-            let binary = workspace_binary_path(&root.join("Cargo.toml"), "cargo-bdd")
-                .wrap_err("failed to resolve cargo-bdd binary path")?;
-            if !binary.is_file() {
-                let output = build_binary(&root, "cargo-bdd")
-                    .wrap_err("failed to spawn cargo build for cargo-bdd")?;
-                if !output.status.success() {
-                    let stdout = String::from_utf8_lossy(&output.stdout);
-                    let stderr = String::from_utf8_lossy(&output.stderr);
-                    eyre::bail!(
-                        "cargo-bdd binary build failed with status {}\nstdout:\n{stdout}\nstderr:\n{stderr}",
-                        output.status,
-                    );
-                }
-            }
-            if binary.is_file() {
-                Ok(Command::new(binary))
-            } else {
-                Err(outer).wrap_err("cargo-bdd binary was not built")
-            }
-        }
-    }
+    let root = workspace_root();
+    locate_or_build_binary(&root.join("Cargo.toml"), &root, "cargo-bdd")
+        .map(Command::from_std)
+        .map_err(|e| eyre::eyre!("{e}"))
 }
 
 fn workspace_root() -> PathBuf {
