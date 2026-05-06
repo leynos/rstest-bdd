@@ -254,3 +254,65 @@ fn copy_dir_tree_symlink_source_does_not_remove_destination() {
         );
     }
 }
+
+#[test]
+fn copy_dir_tree_rejects_identical_source_and_destination() {
+    #[expect(
+        clippy::expect_used,
+        reason = "integration-style tests panic on improbable temp-dir I/O setup failures"
+    )]
+    {
+        let root = TempDir::new().expect("tempdir");
+        let dir = root.path().join("tree");
+        fs::create_dir_all(&dir).expect("mkdir");
+        let err = copy_dir_tree(&dir, &dir).expect_err("identical source and destination");
+        assert_eq!(err.kind(), std::io::ErrorKind::InvalidInput);
+        assert!(
+            err.to_string().contains("refusing overlapping"),
+            "unexpected error message: {err}"
+        );
+    }
+}
+
+#[test]
+fn copy_dir_tree_rejects_destination_inside_source() {
+    #[expect(
+        clippy::expect_used,
+        reason = "integration-style tests panic on improbable temp-dir I/O setup failures"
+    )]
+    {
+        let root = TempDir::new().expect("tempdir");
+        let src = root.path().join("src");
+        fs::create_dir_all(&src).expect("src");
+        fs::write(src.join("f.txt"), b"x").expect("write");
+        let dst = src.join("nested_dst");
+        let err = copy_dir_tree(&src, &dst).expect_err("destination inside source");
+        assert_eq!(err.kind(), std::io::ErrorKind::InvalidInput);
+        assert!(
+            err.to_string().contains("refusing overlapping"),
+            "unexpected error message: {err}"
+        );
+    }
+}
+
+#[test]
+fn copy_dir_tree_rejects_source_inside_destination() {
+    #[expect(
+        clippy::expect_used,
+        reason = "integration-style tests panic on improbable temp-dir I/O setup failures"
+    )]
+    {
+        let root = TempDir::new().expect("tempdir");
+        let dst = root.path().join("dst");
+        fs::create_dir_all(&dst).expect("dst");
+        let src = dst.join("inner_src");
+        fs::create_dir_all(&src).expect("src");
+        fs::write(src.join("g.txt"), b"y").expect("write");
+        let err = copy_dir_tree(&src, &dst).expect_err("source inside destination");
+        assert_eq!(err.kind(), std::io::ErrorKind::InvalidInput);
+        assert!(
+            err.to_string().contains("refusing overlapping"),
+            "unexpected error message: {err}"
+        );
+    }
+}

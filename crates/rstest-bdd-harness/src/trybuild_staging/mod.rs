@@ -7,7 +7,7 @@
 
 use std::fs;
 use std::io;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 #[cfg(test)]
 mod tests;
@@ -78,6 +78,46 @@ pub(super) fn copy_entry(entry: &fs::DirEntry, destination: &Path) -> io::Result
     } else {
         copy_file(&entry.path(), &destination_path)
     }
+}
+
+fn canonical_destination_for_overlap(destination: &Path) -> io::Result<PathBuf> {
+    match fs::canonicalize(destination) {
+        Ok(path) => Ok(path),
+        Err(err) if err.kind() == io::ErrorKind::NotFound => {
+            let parent = destination.parent().filter(|p| !p.as_os_str().is_empty());
+            let base = match parent {
+                Some(p) => fs::canonicalize(p)?,
+                None => fs::canonicalize(std::env::current_dir()?)?,
+            };
+            Ok(match destination.file_name() {
+                Some(name) => base.join(name),
+                None => base,
+            })
+        }
+        Err(err) => Err(err),
+    }
+}
+
+/// Rejects paths where `copy_dir_tree` would call `remove_destination` on a tree
+/// that still contains (or equals) the source directory.
+fn reject_overlapping_copy_dir_tree_paths(source: &Path, destination: &Path) -> io::Result<()> {
+    let canonical_source = fs::canonicalize(source)?;
+    let canonical_destination = canonical_destination_for_overlap(destination)?;
+    if canonical_source == canonical_destination
+        || canonical_source.starts_with(&canonical_destination)
+        || canonical_destination.starts_with(&canonical_source)
+    {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            format!(
+                "refusing overlapping source {} and destination {} for copy_dir_tree: \
+                 remove_destination would delete paths still required by the source tree",
+                source.display(),
+                destination.display(),
+            ),
+        ));
+    }
+    Ok(())
 }
 
 /// Recursively copies a directory tree, replacing `destination` if it exists.
@@ -161,6 +201,7 @@ pub fn copy_dir_tree(source: &Path, destination: &Path) -> io::Result<()> {
             ),
         ));
     }
+    reject_overlapping_copy_dir_tree_paths(source, destination)?;
     let entries = fs::read_dir(source)?;
     remove_destination(destination)?;
     fs::create_dir_all(destination)?;
