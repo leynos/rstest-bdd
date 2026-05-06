@@ -121,3 +121,112 @@ pub fn build_binary(
         .args(["build", "--bin", binary_name])
         .output()
 }
+
+#[cfg(test)]
+mod tests {
+    //! Unit tests for [`super::binary_path_in_target_dir`],
+    //! [`super::target_directory_for_manifest`], [`super::build_binary`], and
+    //! [`super::locate_or_build_binary`].
+
+    use std::path::Path;
+
+    use super::{
+        binary_path_in_target_dir, build_binary, locate_or_build_binary,
+        target_directory_for_manifest,
+    };
+
+    // ── binary_path_in_target_dir ──────────────────────────────────────────
+
+    #[test]
+    fn binary_path_appends_debug_and_exe_suffix() {
+        let target = Path::new("/workspace/target");
+        let path = binary_path_in_target_dir(target, "my-tool");
+        let expected_name = format!("my-tool{}", std::env::consts::EXE_SUFFIX);
+        assert_eq!(path, target.join("debug").join(expected_name));
+    }
+
+    #[test]
+    fn binary_path_uses_provided_target_directory() {
+        let target = Path::new("/custom/target/dir");
+        let path = binary_path_in_target_dir(target, "tool");
+        assert!(path.starts_with(target));
+    }
+
+    // ── target_directory_for_manifest ────────────────────────────────────────
+
+    #[test]
+    fn target_directory_for_invalid_manifest_returns_err() {
+        let result = target_directory_for_manifest(Path::new("/nonexistent/Cargo.toml"));
+        assert!(
+            result.is_err(),
+            "expected error for non-existent manifest, got: {result:?}"
+        );
+    }
+
+    #[test]
+    fn target_directory_for_workspace_manifest_returns_ok() {
+        let manifest = Path::new(env!("CARGO_MANIFEST_DIR")).join("Cargo.toml");
+        let result = target_directory_for_manifest(&manifest);
+        let Ok(target_dir) = result else {
+            panic!("expected Ok for valid manifest, got: {result:?}");
+        };
+        assert!(
+            target_dir.ends_with("target")
+                || target_dir
+                    .components()
+                    .any(|component| component.as_os_str() == "target"),
+            "expected target directory to contain a `target` component, got: {}",
+            target_dir.display()
+        );
+    }
+
+    // ── build_binary ─────────────────────────────────────────────────────────
+
+    #[test]
+    fn build_binary_returns_err_for_nonexistent_workspace() {
+        let result = build_binary(Path::new("/nonexistent/workspace"), "nonexistent-binary");
+        match result {
+            Err(_) => {}
+            Ok(output) => assert!(
+                !output.status.success(),
+                "build_binary should not succeed for a nonexistent workspace"
+            ),
+        }
+    }
+
+    #[test]
+    fn build_binary_captures_output_on_failure() {
+        let workspace_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../");
+        match build_binary(&workspace_root, "__nonexistent_binary_xyzzy__") {
+            Err(_) => {}
+            Ok(output) => {
+                assert!(
+                    !output.status.success(),
+                    "should fail for nonexistent binary"
+                );
+                let stderr = String::from_utf8_lossy(&output.stderr);
+                assert!(
+                    !stderr.is_empty(),
+                    "expected cargo to emit diagnostic output to stderr"
+                );
+            }
+        }
+    }
+
+    // ── locate_or_build_binary ─────────────────────────────────────────────
+
+    #[test]
+    fn locate_or_build_binary_returns_err_for_invalid_manifest() {
+        let workspace = Path::new("/nonexistent/workspace");
+        let manifest = Path::new("/nonexistent/does-not-exist/Cargo.toml");
+        let result = locate_or_build_binary(
+            manifest,
+            workspace,
+            "__rstest_bdd_harness_locate_invalid_manifest__",
+        );
+        assert!(
+            result.is_err(),
+            "expected error for invalid manifest, got: {result:?}"
+        );
+    }
+}
