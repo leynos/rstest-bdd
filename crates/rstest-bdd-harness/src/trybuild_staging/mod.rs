@@ -161,9 +161,10 @@ pub fn copy_dir_tree(source: &Path, destination: &Path) -> io::Result<()> {
             ),
         ));
     }
+    let entries = fs::read_dir(source)?;
     remove_destination(destination)?;
     fs::create_dir_all(destination)?;
-    for entry in fs::read_dir(source)? {
+    for entry in entries {
         copy_entry(&entry?, destination)?;
     }
     Ok(())
