@@ -8,12 +8,33 @@
 
 #![cfg(unix)]
 
+use std::fs;
 use std::path::{Path, PathBuf};
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use rstest_bdd_harness::binary_test_support::{
     BinaryLocateError, BinaryName, binary_path_in_target_dir, build_binary, locate_or_build_binary,
     target_directory_for_manifest,
 };
+
+/// Directory under [`std::env::temp_dir()`] guaranteed absent before the test runs.
+#[expect(
+    clippy::expect_used,
+    reason = "test setup panics on improbable clock skew or temp-dir cleanup failures"
+)]
+fn unique_absent_temp_dir(label: &str) -> PathBuf {
+    let nanos = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("system clock before UNIX epoch")
+        .as_nanos();
+    let dir =
+        std::env::temp_dir().join(format!("rstest_bdd_{label}_{}_{nanos}", std::process::id()));
+    if dir.exists() {
+        fs::remove_dir_all(&dir).expect("remove stale temp dir for test");
+    }
+    assert!(!dir.exists(), "temp dir should be absent before test");
+    dir
+}
 
 fn workspace_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -27,7 +48,13 @@ fn normalise_sep(path: impl AsRef<Path>) -> String {
 
 #[test]
 fn target_directory_for_invalid_manifest_returns_err() {
-    let result = target_directory_for_manifest(Path::new("/nonexistent/Cargo.toml"));
+    let manifest = unique_absent_temp_dir("missing_manifest").join("Cargo.toml");
+    assert!(
+        !manifest.exists(),
+        "test setup: manifest path must not exist: {}",
+        manifest.display()
+    );
+    let result = target_directory_for_manifest(&manifest);
     assert!(
         result.is_err(),
         "expected error for non-existent manifest, got: {result:?}"
@@ -53,10 +80,8 @@ fn target_directory_for_workspace_manifest_returns_ok() {
 
 #[test]
 fn build_binary_returns_err_for_nonexistent_workspace() {
-    let result = build_binary(
-        Path::new("/nonexistent/workspace"),
-        BinaryName::new("nonexistent-binary"),
-    );
+    let workspace = unique_absent_temp_dir("no_workspace");
+    let result = build_binary(&workspace, BinaryName::new("nonexistent-binary"));
     match result {
         Err(_) => {}
         Ok(output) => assert!(
@@ -66,35 +91,41 @@ fn build_binary_returns_err_for_nonexistent_workspace() {
     }
 }
 
+#[expect(
+    clippy::expect_used,
+    reason = "integration-style tests panic if cargo cannot be spawned for the workspace root"
+)]
 #[test]
 fn build_binary_captures_output_on_failure() {
     let workspace_root = workspace_root();
-    match build_binary(
+    let output = build_binary(
         &workspace_root,
         BinaryName::new("__nonexistent_binary_xyzzy__"),
-    ) {
-        Err(_) => {}
-        Ok(output) => {
-            assert!(
-                !output.status.success(),
-                "should fail for nonexistent binary"
-            );
-            let stderr = String::from_utf8_lossy(&output.stderr);
-            assert!(
-                !stderr.is_empty(),
-                "expected cargo to emit diagnostic output to stderr"
-            );
-        }
-    }
+    )
+    .expect("should spawn cargo for an existing workspace");
+    assert!(
+        !output.status.success(),
+        "should fail for nonexistent binary"
+    );
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        !stderr.is_empty(),
+        "expected cargo to emit diagnostic output to stderr"
+    );
 }
 
 #[test]
 fn locate_or_build_binary_returns_err_for_invalid_manifest() {
-    let workspace = Path::new("/nonexistent/workspace");
-    let manifest = Path::new("/nonexistent/does-not-exist/Cargo.toml");
+    let workspace = unique_absent_temp_dir("locate_invalid_workspace");
+    let manifest = unique_absent_temp_dir("locate_invalid_manifest").join("Cargo.toml");
+    assert!(
+        !manifest.exists(),
+        "test setup: manifest path must not exist: {}",
+        manifest.display()
+    );
     let result = locate_or_build_binary(
-        manifest,
-        workspace,
+        &manifest,
+        &workspace,
         BinaryName::new("__rstest_bdd_harness_locate_invalid_manifest__"),
     );
     assert!(
