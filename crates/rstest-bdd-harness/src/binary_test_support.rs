@@ -5,9 +5,34 @@
 //! not part of the supported public API.
 
 use std::env;
-use std::error::Error;
 use std::path::{Path, PathBuf};
-use std::process::Command;
+use std::process::{Command, ExitStatus, Output};
+
+use thiserror::Error;
+
+/// Failure modes for [`locate_or_build_binary`].
+#[derive(Debug, Error)]
+pub enum BinaryLocateError {
+    /// `cargo metadata` could not resolve the workspace target directory.
+    #[error(transparent)]
+    ManifestLookup(#[from] cargo_metadata::Error),
+
+    /// The `cargo build` subprocess could not be spawned.
+    #[error(transparent)]
+    CargoSpawn(#[from] std::io::Error),
+
+    /// `cargo build --bin` ran but exited unsuccessfully.
+    #[error("`cargo build --bin` failed with status {status}")]
+    BuildFailed {
+        status: ExitStatus,
+        stdout: Vec<u8>,
+        stderr: Vec<u8>,
+    },
+
+    /// The expected binary path exists neither on disk nor after a build.
+    #[error("could not locate or build workspace binary at {}", .0.display())]
+    MissingBinary(PathBuf),
+}
 
 // Adapted from assert_cmd's cargo helper: same `CARGO_BIN_EXE_<name>` convention
 // and `current_exe`-derived target-dir fallback.
@@ -41,6 +66,20 @@ fn try_command_from_cargo_test_bin_layout(binary_name: &str) -> Option<Command> 
 /// directory root.
 ///
 /// Pure computation: does not invoke `cargo` or perform any I/O.
+///
+/// # Examples
+///
+/// ```
+/// use std::path::Path;
+/// use rstest_bdd_harness::binary_test_support::binary_path_in_target_dir;
+///
+/// let path = binary_path_in_target_dir(Path::new("/tmp/ws/target"), "my-bin");
+/// let suffix = std::env::consts::EXE_SUFFIX;
+/// assert_eq!(
+///     path,
+///     Path::new("/tmp/ws/target/debug").join(format!("my-bin{suffix}"))
+/// );
+/// ```
 #[must_use]
 pub fn binary_path_in_target_dir(target_directory: &Path, binary_name: &str) -> PathBuf {
     target_directory
@@ -52,6 +91,16 @@ pub fn binary_path_in_target_dir(target_directory: &Path, binary_name: &str) -> 
 /// given manifest path.
 ///
 /// Performs I/O: spawns a `cargo metadata` subprocess.
+///
+/// # Examples
+///
+/// ```no_run
+/// use std::path::Path;
+/// use rstest_bdd_harness::binary_test_support::target_directory_for_manifest;
+///
+/// let target = target_directory_for_manifest(Path::new("Cargo.toml")).expect("metadata");
+/// assert!(target.as_path().ends_with("target") || target.to_string_lossy().contains("target"));
+/// ```
 pub fn target_directory_for_manifest(
     manifest_path: &Path,
 ) -> Result<PathBuf, cargo_metadata::Error> {
@@ -65,6 +114,17 @@ pub fn target_directory_for_manifest(
 /// Locates `binary_name` or builds it via `cargo build --bin <name>` if
 /// absent. Returns a `std::process::Command` ready to execute the binary.
 ///
+/// # Examples
+///
+/// ```no_run
+/// use std::path::Path;
+/// use rstest_bdd_harness::binary_test_support::locate_or_build_binary;
+///
+/// let cmd = locate_or_build_binary(Path::new("Cargo.toml"), Path::new("."), "my-bin")
+///     .expect("locate binary");
+/// let _ = cmd;
+/// ```
+///
 /// Strategy:
 /// 1. Try the path implied by `CARGO_BIN_EXE_<binary_name>` (and the same
 ///    `current_exe` fallback used by `assert_cmd`'s `cargo_bin` helper).
@@ -77,33 +137,26 @@ pub fn locate_or_build_binary(
     manifest_path: &Path,
     workspace_root: &Path,
     binary_name: &str,
-) -> Result<Command, Box<dyn Error + Send + Sync>> {
+) -> Result<Command, BinaryLocateError> {
     if let Some(command) = try_command_from_cargo_test_bin_layout(binary_name) {
         return Ok(command);
     }
     let target_dir = target_directory_for_manifest(manifest_path)?;
     let binary = binary_path_in_target_dir(&target_dir, binary_name);
     if !binary.is_file() {
-        let output = build_binary(workspace_root, binary_name)
-            .map_err(|e| format!("failed to spawn `cargo build --bin {binary_name}`: {e}"))?;
+        let output = build_binary(workspace_root, binary_name)?;
         if !output.status.success() {
-            let stdout = String::from_utf8_lossy(&output.stdout);
-            let stderr = String::from_utf8_lossy(&output.stderr);
-            return Err(format!(
-                "`cargo build --bin {binary_name}` failed with status {}\nstdout:\n{stdout}\nstderr:\n{stderr}",
-                output.status,
-            )
-            .into());
+            return Err(BinaryLocateError::BuildFailed {
+                status: output.status,
+                stdout: output.stdout,
+                stderr: output.stderr,
+            });
         }
     }
     if binary.is_file() {
         Ok(Command::new(binary))
     } else {
-        Err(format!(
-            "could not locate or build workspace binary `{binary_name}` at {}",
-            binary.display(),
-        )
-        .into())
+        Err(BinaryLocateError::MissingBinary(binary))
     }
 }
 
@@ -111,10 +164,17 @@ pub fn locate_or_build_binary(
 ///
 /// Returns the captured `Output` so callers can include stdout/stderr in
 /// diagnostics. Returns `Err` only when the subprocess cannot be spawned.
-pub fn build_binary(
-    workspace_root: &Path,
-    binary_name: &str,
-) -> std::io::Result<std::process::Output> {
+///
+/// # Examples
+///
+/// ```no_run
+/// use std::path::Path;
+/// use rstest_bdd_harness::binary_test_support::build_binary;
+///
+/// let output = build_binary(Path::new("."), "some-bin").expect("spawn cargo");
+/// assert!(output.status.success() || !output.stderr.is_empty());
+/// ```
+pub fn build_binary(workspace_root: &Path, binary_name: &str) -> std::io::Result<Output> {
     let cargo = option_env!("CARGO").unwrap_or("cargo");
     Command::new(cargo)
         .current_dir(workspace_root)

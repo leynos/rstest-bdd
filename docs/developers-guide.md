@@ -2,13 +2,13 @@
 
 ## Workspace dependency policy
 
-Keep workspace-local development and crates.io publication on the same manifest
-surface by declaring shared dependencies in the root `[workspace.dependencies]`
-table. First-party crates must use both `version` and `path` there, then
-consume the dependency with `.workspace = true` from member manifests. The
-`path` keeps local builds on the current checkout after a version has been
-published, while the `version` gives Cargo the crates.io requirement it needs
-when packaging a crate.
+Keep workspace-local development and crates.io publication on the same
+manifest surface by declaring shared dependencies in the root
+`[workspace.dependencies]` table. First-party crates must use both `version`
+and `path` there, then consume the dependency with `.workspace = true` from
+member manifests. The `path` keeps local builds on the current checkout after a
+version has been published, while the `version` gives Cargo the crates.io
+requirement it needs when packaging a crate.
 
 Do not restore root-level `[patch.crates-io]` entries for normal development.
 Patches make local resolution differ from publish-time resolution and can hide
@@ -17,7 +17,7 @@ diagnostic, remove it before committing or teach the publish-check automation
 to strip it explicitly.
 
 The GPUI test shim follows the same pattern. The workspace dependency for
-`gpui` points at `vendor/gpui` with a matching crates.io version so local tests
+`gpui` points at `vendor/gpui` with a matching crates.io version, so local tests
 use the stable-compatible shim. The publish-check GPUI package validator strips
 that local path when it generates the standalone harness manifest, so
 `rstest-bdd-harness-gpui` is still checked against the upstream `gpui`
@@ -37,7 +37,7 @@ The `rstest-bdd-harness` crate exposes a `#[doc(hidden)]` module
 Both helpers are intended for use by `macro_compile` integration tests in the
 Tokio and GPUI harness crates to stage `.feature` files into the trybuild
 scratch directory before `TestCases::pass` / `compile_fail` are called. Do not
-use these helpers outside of test code.
+use these helpers outside test code.
 
 ## nextest on Windows: trybuild deadlock
 
@@ -97,6 +97,8 @@ pre-build step in every CI job.
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 
+use rstest_bdd_harness::binary_test_support::BinaryLocateError;
+
 /// Returns the expected debug binary path for `binary_name` given a target
 /// directory root. Pure computation: no I/O.
 pub fn binary_path_in_target_dir(
@@ -111,12 +113,13 @@ pub fn target_directory_for_manifest(
 ) -> Result<PathBuf, cargo_metadata::Error>;
 
 /// Locates `binary_name` or builds it if absent; returns a ready `Command`.
-/// Captures cargo stdout/stderr and surfaces them in the error on build failure.
+/// On failure, returns [`BinaryLocateError`] so callers can match on kind
+/// (metadata, spawn, build output, or missing binary).
 pub fn locate_or_build_binary(
     manifest_path: &Path,
     workspace_root: &Path,
     binary_name: &str,
-) -> Result<Command, Box<dyn std::error::Error + Send + Sync>>;
+) -> Result<Command, BinaryLocateError>;
 
 /// Builds `binary_name` via `cargo build --bin <name>` in `workspace_root`.
 /// Returns the captured `Output`; returns `Err` only when the subprocess
@@ -136,7 +139,7 @@ fn locate_or_build_todo_cli_cmd() -> Result<Command, Box<dyn std::error::Error>>
     let root = workspace_root();
     locate_or_build_binary(&root.join("Cargo.toml"), &root, "todo-cli")
         .map(Command::from_std)
-        .map_err(|e| -> Box<dyn std::error::Error> { e })
+        .map_err(|e| -> Box<dyn std::error::Error> { Box::new(e) })
 }
 ```
 
