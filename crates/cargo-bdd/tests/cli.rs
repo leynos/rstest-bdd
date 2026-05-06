@@ -55,7 +55,7 @@ fn locate_or_build_cargo_bdd_command() -> Result<Command> {
     let root = workspace_root();
     locate_or_build_binary(&root.join("Cargo.toml"), &root, "cargo-bdd")
         .map(Command::from_std)
-        .map_err(|e| eyre::eyre!("{e}"))
+        .map_err(|e| eyre::eyre!(e))
 }
 
 fn workspace_root() -> PathBuf {

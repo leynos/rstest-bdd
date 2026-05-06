@@ -77,7 +77,7 @@ pub fn locate_or_build_binary(
     manifest_path: &Path,
     workspace_root: &Path,
     binary_name: &str,
-) -> Result<Command, Box<dyn Error>> {
+) -> Result<Command, Box<dyn Error + Send + Sync>> {
     if let Some(command) = try_command_from_cargo_test_bin_layout(binary_name) {
         return Ok(command);
     }

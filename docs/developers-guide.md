@@ -50,9 +50,9 @@ and nextest waits until its slow-timeout fires.
 
 Mitigation:
 
-- CI sets `use-nextest: false` for all Windows matrix legs (see
-  `.github/workflows/ci.yml`). Windows coverage runs use `cargo llvm-cov test`
-  (libtest) instead.
+- Continuous Integration (CI) sets `use-nextest: false` for all Windows
+  matrix legs (see `.github/workflows/ci.yml`). Windows coverage runs use
+  `cargo llvm-cov test` (libtest) instead.
 - `.cargo/nextest.toml` raises the `slow-timeout` for `binary(macro_compile)`
   on Windows to 300 s as a local-development safety net. This does not fix the
   deadlock; it only delays termination to allow the build to complete on fast
@@ -116,7 +116,7 @@ pub fn locate_or_build_binary(
     manifest_path: &Path,
     workspace_root: &Path,
     binary_name: &str,
-) -> Result<Command, Box<dyn std::error::Error>>;
+) -> Result<Command, Box<dyn std::error::Error + Send + Sync>>;
 
 /// Builds `binary_name` via `cargo build --bin <name>` in `workspace_root`.
 /// Returns the captured `Output`; returns `Err` only when the subprocess
@@ -134,7 +134,9 @@ use assert_cmd::Command;
 
 fn locate_or_build_todo_cli_cmd() -> Result<Command, Box<dyn std::error::Error>> {
     let root = workspace_root();
-    locate_or_build_binary(&root.join("Cargo.toml"), &root, "todo-cli").map(Command::from_std)
+    locate_or_build_binary(&root.join("Cargo.toml"), &root, "todo-cli")
+        .map(Command::from_std)
+        .map_err(|e| -> Box<dyn std::error::Error> { e })
 }
 ```
 

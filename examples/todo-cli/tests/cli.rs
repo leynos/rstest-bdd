@@ -8,7 +8,9 @@ use std::path::PathBuf;
 
 fn locate_or_build_todo_cli_cmd() -> Result<Command, Box<dyn std::error::Error>> {
     let root = workspace_root();
-    locate_or_build_binary(&root.join("Cargo.toml"), &root, "todo-cli").map(Command::from_std)
+    locate_or_build_binary(&root.join("Cargo.toml"), &root, "todo-cli")
+        .map(Command::from_std)
+        .map_err(|e| -> Box<dyn std::error::Error> { e })
 }
 
 fn workspace_root() -> PathBuf {
