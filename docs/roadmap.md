@@ -702,40 +702,37 @@ changing the public trait contracts.
   inserted fixtures from `StepContext::available_fixtures()`, and, when
   `rstest_bdd_harness_context` is absent, suggest selecting the relevant
   harness. Design Doc: `docs/rstest-bdd-design.md` §2.7.6.3. (Telefono)
-- [ ] 10.1.3. Add a realistic GPUI harness regression that exercises the
-  downstream migration shape: create a window, store durable entity/window
-  handles, reconstruct visual context per step, and reset scenario state before
-  assigning it. Finish line: the feature-gated GPUI suite covers more than the
-  counter example and documents the reset protocol in comments. Prerequisite:
-  9.4.5. Design Doc: `docs/rstest-bdd-design.md` §2.7.6.2. (Doggylump)
-- [ ] 10.1.4. Pass scenario metadata into `GpuiHarness` where GPUI permits it,
-  or document why upstream `gpui::TestAppContext` cannot currently expose the
-  scenario name. Finish line: failing GPUI scenarios are easier to orientate in
-  logs, or the limitation is captured in the harness docs. Prerequisite: 9.4.3.
-  Design Doc: `docs/rstest-bdd-design.md` §2.7.5. (Buzzy Bee)
+- [ ] 10.1.3. The feature-gated GPUI test suite provides realistic harness
+  regression coverage beyond the counter example: it creates a window, persists
+  durable entity/window handles, reconstructs visual context per step, resets
+  scenario state before assignment, and documents the reset protocol in
+  comments. Prerequisite: 9.4.5. Design Doc: `docs/rstest-bdd-design.md`
+  §2.7.6.2. (Doggylump)
+- [ ] 10.1.4. Failing GPUI scenarios include the scenario name in logs where
+  `GpuiHarness` and `gpui::TestAppContext` permit it, or the harness docs
+  document the upstream limitation so developers can quickly orientate failing
+  scenarios. Prerequisite: 9.4.3. Design Doc: `docs/rstest-bdd-design.md`
+  §2.7.5. (Buzzy Bee)
 
 ### 10.2. Update adoption documentation before v0.6.0 final
 
-- [ ] 10.2.1. Add a GPUI migration playbook to the user guide and migration
-  guide. Cover `GpuiHarness`, the reserved harness-context fixture key, durable
+- [ ] 10.2.1. Users can migrate a stateful GPUI test without reading macro
+  expansion or GPUI harness source. The user guide and migration guide cover
+  `GpuiHarness`, the reserved harness-context fixture key, durable
   entity/window handles, `VisualTestContext` reconstruction, and the explicit
-  world-reset protocol. Finish line: users can migrate a stateful GPUI test
-  without reading macro expansion or GPUI harness source. Design Doc:
-  `docs/rstest-bdd-design.md` §2.7.6.2. (Dinolump)
-- [ ] 10.2.2. Add a "mutable harness context plus world state" troubleshooting
-  entry. Include the `E0499`/`E0502` symptom class, explain why two mutable
-  `StepContext` fixtures are difficult today, and point to sanctioned
-  workarounds. Finish line: the migration guide explains the failure before a
-  downstream user reaches compiler-error archaeology. Design Doc:
-  `docs/rstest-bdd-design.md` §2.7.6.1. (Telefono)
-- [ ] 10.2.3. Add a migration checklist reminder to run downstream tests through
-  the repository's CI-equivalent gate. Finish line: the v0.6.0 migration guide
-  explicitly warns that feature-gated test helpers may require
-  `cargo test --all-features` or a project `make test` target before API
-  diagnosis is meaningful. Design Doc: `docs/rstest-bdd-design.md` §2.7.6.3.
-  (Doggylump)
+  world-reset protocol. Design Doc: `docs/rstest-bdd-design.md` §2.7.6.2.
+  (Dinolump)
+- [ ] 10.2.2. The migration guide provides a troubleshooting entry explaining
+  the `E0499`/`E0502` symptoms for two mutable `StepContext` fixtures, why the
+  pattern fails, and recommended workarounds before downstream users reach
+  compiler-error archaeology. Design Doc: `docs/rstest-bdd-design.md` §2.7.6.1.
+  (Telefono)
+- [ ] 10.2.3. The v0.6.0 migration guide warns users to run downstream tests
+  through the repository's CI-equivalent gate and to run feature-gated tests,
+  such as `cargo test --all-features` or a project `make test`, before API
+  diagnosis. Design Doc: `docs/rstest-bdd-design.md` §2.7.6.3. (Doggylump)
 
-## 11. Early-life support: v0.6.1 additive hardening
+## 11. Early life support: v0.6.1 additive hardening
 
 The v0.6.1 line should stay semver-compatible. It can add helper APIs,
 diagnostics, examples, and generated-wrapper improvements, but it must not
@@ -743,53 +740,49 @@ remove the existing `StepContext`, harness, or macro surfaces.
 
 ### 11.1. Add borrow and state helpers without breaking callers
 
-- [ ] 11.1.1. Introduce a structured `FixtureBorrowError` for generated and
-  manual fixture extraction. Distinguish missing fixture, type mismatch,
-  immutable fixture requested mutably, and already-borrowed fixture cases.
-  Finish line: generated wrappers can produce targeted diagnostics instead of
+- [ ] 11.1.1. `FixtureBorrowError` provides a structured error surface for
+  generated and manual fixture extraction, with variants for missing fixture,
+  type mismatch, immutable fixture requested mutably, and already-borrowed
+  fixture cases, so generated wrappers produce targeted diagnostics instead of
   collapsing every extraction failure into `MissingFixture`. Design Doc:
   `docs/rstest-bdd-design.md` §2.7.6.4. (Telefono)
-- [ ] 11.1.2. Add an additive mutable-borrow helper for generated code that
-  reduces unnecessary `&mut StepContext` contention where possible. Preserve
-  the existing `borrow_mut(&mut self, ...)` API. Finish line: regression tests
-  cover mutable harness context plus scenario state, or document precisely why
-  the full fix must wait for v0.7.0. Design Doc: `docs/rstest-bdd-design.md`
-  §2.7.6.4. (Pandalump)
-- [ ] 11.1.3. Add a scenario-local state helper with explicit reset semantics
-  for complex adapters. The helper should support `set`, `with`, `with_mut`,
-  `take`, and `reset` without requiring users to hand-roll thread-local
-  `RefCell` boilerplate. Finish line: the helper is covered by unit tests and
-  documented as an additive alternative to ad-hoc GPUI world state. Design Doc:
-  `docs/rstest-bdd-design.md` §2.7.6.4. (Dinolump)
-- [ ] 11.1.4. Add an opt-in reset hook or reset marker for generated scenarios.
-  Finish line: users can register per-scenario cleanup for stateful adapters
-  without relying on every `#[given]` implementation to remember the reset
-  call. Prerequisite: 11.1.3. Design Doc: `docs/rstest-bdd-design.md`
-  §2.7.6.4.
-  (Doggylump)
+- [ ] 11.1.2. Generated code has an additive mutable-borrow helper that reduces
+  unnecessary `&mut StepContext` contention where possible while preserving the
+  existing `borrow_mut(&mut self, ...)` API. Regression tests cover mutable
+  harness context plus scenario state, or docs explain precisely why the full
+  fix must wait for v0.7.0. Design Doc: `docs/rstest-bdd-design.md` §2.7.6.4.
+  (Pandalump)
+- [ ] 11.1.3. The scenario-local state helper exposes `set`, `with`,
+  `with_mut`, `take`, and `reset` operations for complex adapters without
+  per-scenario thread-local `RefCell` boilerplate. Unit tests cover the helper,
+  and docs present it as an additive alternative to ad-hoc GPUI world state.
+  Design Doc: `docs/rstest-bdd-design.md` §2.7.6.4. (Dinolump)
+- [ ] 11.1.4. Users can register per-scenario cleanup for stateful adapters, so
+  scenarios can reset automatically without every `#[given]` implementation
+  remembering the reset call. Prerequisite: 11.1.3. Design Doc:
+  `docs/rstest-bdd-design.md` §2.7.6.4. (Doggylump)
 
 ### 11.2. Smooth integration ergonomics
 
-- [ ] 11.2.1. Add an explicit harness-context parameter marker, such as
-  `#[harness_context]`, while keeping `#[from(rstest_bdd_harness_context)]`
-  supported. Finish line: examples lead with the readable marker and generated
-  code continues to use the reserved fixture key internally. Design Doc:
-  `docs/rstest-bdd-design.md` §2.7.6.4. (Dinolump)
-- [ ] 11.2.2. Add a public prelude for common integration imports. Include
-  `StepResult`, `Slot`, `ScenarioState`, harness-context helpers, and any
-  marker attribute that lands in 11.2.1. Finish line: examples can use one
-  predictable import without hiding the underlying crates. Prerequisite:
-  11.2.1. Design Doc: `docs/rstest-bdd-design.md` §2.7.6.4. (Dinolump)
-- [ ] 11.2.3. Harden attribute-policy and harness-path diagnostics for renamed
-  or re-exported first-party paths. Finish line: users selecting a known
-  first-party harness through a non-canonical path get actionable guidance to
-  add `attributes = ...` explicitly. Design Doc: `docs/rstest-bdd-design.md`
-  §§2.7.3-2.7.6.4. (Telefono)
-- [ ] 11.2.4. Expand the compatibility matrix for downstream shapes: mutable
-  world, fallible fixture, Tokio harness, GPUI harness with shared context,
-  GPUI harness with mutable context and scenario state, and scenario outline.
-  Finish line: CI proves these shapes remain viable across v0.6.x patches.
-  Design Doc: `docs/rstest-bdd-design.md` §2.7.6.4. (Buzzy Bee)
+- [ ] 11.2.1. Developers can annotate parameters with `#[harness_context]`,
+  with backwards-compatible support for `#[from(rstest_bdd_harness_context)]`.
+  Examples use the readable marker, and generated code keeps the reserved
+  fixture key internally. Design Doc: `docs/rstest-bdd-design.md` §2.7.6.4.
+  (Dinolump)
+- [ ] 11.2.2. The public prelude exposes `StepResult`, `Slot`, `ScenarioState`,
+  harness-context helpers, and marker attributes from 11.2.1 so examples can
+  import one predictable module without hiding the underlying crates.
+  Prerequisite: 11.2.1. Design Doc: `docs/rstest-bdd-design.md` §2.7.6.4.
+  (Dinolump)
+- [ ] 11.2.3. Diagnostics detect non-canonical harness paths and missing or
+  ambiguous attribute-policy annotations, with actionable guidance such as
+  adding `attributes = ...` explicitly or using the canonical path. Design Doc:
+  `docs/rstest-bdd-design.md` §§2.7.3-2.7.6.4. (Telefono)
+- [ ] 11.2.4. The test suite demonstrates v0.6.x compatibility for mutable
+  world, fallible fixture, Tokio harness, GPUI harness with shared context, GPUI
+  harness with mutable context and scenario state, and scenario outline shapes.
+  CI proves these shapes remain viable across patches. Design Doc:
+  `docs/rstest-bdd-design.md` §2.7.6.4. (Buzzy Bee)
 
 ## 12. Pre-1.0.0 API consolidation: v0.7.0 ambitions
 
@@ -800,55 +793,49 @@ predictable.
 
 ### 12.1. Redesign state and context borrowing
 
-- [ ] 12.1.1. Redesign `StepContext` around guard-based interior borrowing so
-  distinct mutable fixtures can be borrowed concurrently. Replace
-  `Option`-based borrow APIs with `Result`-returning APIs that carry
-  `FixtureBorrowError`. Finish line: a step can legally borrow mutable harness
-  context and mutable world state when the fixture keys differ, with regression
-  coverage for generated wrappers. Design Doc: `docs/rstest-bdd-design.md`
-  §2.7.6.5. (Pandalump, Telefono)
-- [ ] 12.1.2. Make `FixtureRefMut` opaque if needed to support the redesigned
-  borrow internals. Finish line: public callers retain value access methods,
-  but enum variants no longer freeze the internal representation. Prerequisite:
-  12.1.1. Design Doc: `docs/rstest-bdd-design.md` §2.7.6.5. (Telefono)
-- [ ] 12.1.3. Introduce a first-class world lifecycle contract. Support
-  before-scenario reset, after-scenario cleanup, and cleanup on failure or
-  skip. Finish line: users can model scenario state without thread-local reset
-  conventions, and the migration guide explains how v0.6 workarounds map to the
-  v0.7 lifecycle. Prerequisite: 12.1.1. Design Doc: `docs/rstest-bdd-design.md`
-  §2.7.6.5. (Doggylump)
+- [ ] 12.1.1. `StepContext` supports guard-based interior borrowing, so callers
+  can concurrently borrow distinct mutable fixtures, including mutable harness
+  context and mutable world state when fixture keys differ. Previous
+  `Option`-based borrow APIs are replaced with `Result`-returning APIs carrying
+  `FixtureBorrowError`, with generated-wrapper regression coverage. Design Doc:
+  `docs/rstest-bdd-design.md` §2.7.6.5. (Pandalump, Telefono)
+- [ ] 12.1.2. `FixtureRefMut` exposes a stable, opaque public API that preserves
+  value-accessor methods while hiding internal enum and representation details.
+  Public callers retain value access methods, and internal variants are no
+  longer part of the public surface. Prerequisite: 12.1.1. Design Doc:
+  `docs/rstest-bdd-design.md` §2.7.6.5. (Telefono)
+- [ ] 12.1.3. A stable world lifecycle contract guarantees before-scenario
+  reset, after-scenario cleanup, and cleanup on failure or skip, so users can
+  model scenario state without thread-local reset conventions. The migration
+  guide explains how v0.6 workarounds map to the v0.7 lifecycle. Prerequisite:
+  12.1.1. Design Doc: `docs/rstest-bdd-design.md` §2.7.6.5. (Doggylump)
 
 ### 12.2. Simplify harness and generated-test APIs
 
-- [ ] 12.2.1. Replace the user-facing reserved harness fixture key with typed
-  extractors such as `Harness<T>` or `HarnessMut<T>`, or with a stable
-  attribute marker. Finish line: users no longer need to spell
-  `rstest_bdd_harness_context` in ordinary harness-backed steps. Requires
-  11.2.1 or equivalent design validation. Design Doc:
-  `docs/rstest-bdd-design.md` §2.7.6.5. (Dinolump, Telefono)
-- [ ] 12.2.2. Remove the macro-selected harness `Default` requirement by
-  supporting a factory expression or equivalent configuration contract. Finish
-  line: configurable harnesses no longer require zero-sized wrapper types
-  solely for macro instantiation. Design Doc: `docs/rstest-bdd-design.md`
-  §§2.7.3, 2.7.6.5. (Pandalump)
-- [ ] 12.2.3. Replace path-recognized attribute-policy inference with a
-  declarative extension model that third-party harness crates can participate
-  in. Finish line: first-party and third-party integrations use one explicit
-  metadata mechanism instead of macro-local path tables. Design Doc:
-  `docs/rstest-bdd-design.md` §§2.7.3-2.7.6.5. (Telefono)
-- [ ] 12.2.4. Unify generated tests for `#[scenario]`, `scenarios!`, scenarios,
-  and outline rows around a stable generated-test model. Finish line: each
-  generated Rust test has a readable name and isolated lifecycle, and failure
-  reports no longer depend on hidden loops over unrelated scenarios. Design
-  Doc: `docs/rstest-bdd-design.md` §2.7.6.5. (Doggylump)
-- [ ] 12.2.5. Decide the async harness trait surface before v1.0.0. Either keep
-  harnesses synchronous with documented async limitations, or introduce an
-  async harness trait and migration path. Finish line: Tokio and future async
-  adapters have a coherent v1 story for multi-poll steps, cancellation, and
-  runtime ownership. Design Doc: `docs/rstest-bdd-design.md` §§2.5, 2.7.6.5.
-  (Buzzy Bee)
-- [ ] 12.2.6. Rationalize crate topology for the v1 user experience. Evaluate
-  feature-gated first-party integrations on `rstest-bdd` versus the current
-  explicit adapter-crate model. Finish line: the v1 packaging decision is
-  recorded in an ADR and reflected in migration docs. Design Doc:
+- [ ] 12.2.1. Users can annotate steps with typed harness extractors such as
+  `Harness<T>` or `HarnessMut<T>`, or with a stable attribute marker, so
+  ordinary harness-backed steps receive harness fixtures automatically without
+  spelling `rstest_bdd_harness_context`. Requires 11.2.1 or equivalent design
+  validation. Design Doc: `docs/rstest-bdd-design.md` §2.7.6.5. (Dinolump,
+  Telefono)
+- [ ] 12.2.2. Harnesses can supply a factory expression or equivalent
+  configuration contract to instantiate configurable harnesses, so they no
+  longer require zero-sized wrapper types solely for macro instantiation.
+  Design Doc: `docs/rstest-bdd-design.md` §§2.7.3, 2.7.6.5. (Pandalump)
+- [ ] 12.2.3. A declarative extension model lets first-party and third-party
+  harness crates participate through one explicit metadata mechanism instead of
+  macro-local path tables. Design Doc: `docs/rstest-bdd-design.md`
+  §§2.7.3-2.7.6.5. (Telefono)
+- [ ] 12.2.4. The generated-test model gives each `#[scenario]`, `scenarios!`,
+  scenario, and outline row a readable Rust test name, isolated lifecycle, and
+  failure reports that no longer depend on hidden loops over unrelated
+  scenarios. Design Doc: `docs/rstest-bdd-design.md` §2.7.6.5. (Doggylump)
+- [ ] 12.2.5. The recorded async harness trait surface gives Tokio and future
+  async adapters coherent migration, multi-poll, cancellation, and runtime
+  ownership semantics, whether the v1 contract remains synchronous or moves to
+  an async harness trait. Design Doc: `docs/rstest-bdd-design.md` §§2.5,
+  2.7.6.5. (Buzzy Bee)
+- [ ] 12.2.6. The v1 packaging model records whether first-party integrations
+  are feature-gated on `rstest-bdd` or remain explicit adapter crates, and the
+  choice is captured in an ADR and migration guidance. Design Doc:
   `docs/rstest-bdd-design.md` §2.7.6.5. (Pandalump)
