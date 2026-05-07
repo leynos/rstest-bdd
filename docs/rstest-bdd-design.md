@@ -1872,6 +1872,8 @@ between the delivered harness architecture and stateful user-interface tests.
 The typed `HarnessAdapter::Context` handoff works, but the step-facing API
 still makes complex GPUI scenarios harder than the counter example suggests.
 
+##### 2.7.6.1 Borrow constraint exposed by GPUI adoption
+
 The important constraint is `StepContext::borrow_mut`. Its current signature
 takes `&mut self` and returns a guard whose lifetime is tied to that borrow.
 Generated step wrappers therefore cannot comfortably borrow two mutable
@@ -1880,6 +1882,28 @@ fixtures from the same `StepContext` at once. A step that requests both
 `world: &mut UiWorld` can fail with `E0499` or `E0502`, even when the fixtures
 are logically distinct. This is a design limitation of the current context API,
 not a GPUI-only behaviour.
+
+The problematic shape is ordinary-looking step code:
+
+```rust
+#[given("the shell is open")]
+fn given_shell_open(
+    #[from(rstest_bdd_harness_context)] cx: &mut gpui::TestAppContext,
+    world: &mut UiWorld,
+) -> StepResult<()> {
+    let (shell, visual_cx) = cx.add_window_view(|_, cx| Shell::new(cx));
+    world.shell = Some(shell);
+    world.visual_cx = Some(visual_cx);
+    Ok(())
+}
+```
+
+Generated wrappers must borrow mutable harness context and mutable world state
+from the same `StepContext` before calling that function. The current
+`borrow_mut(&mut self, ...)` contract makes that pair the troublesome part, not
+the step body itself.
+
+##### 2.7.6.2 Interim GPUI state pattern
 
 Until the borrow API is redesigned, GPUI guidance should recommend one of two
 state patterns:
@@ -1901,6 +1925,54 @@ BDD tests should store durable handles such as `Entity<T>` and
 and the harness-provided `TestAppContext` inside each step that needs visual
 interaction.
 
+The recommended v0.6-compatible shape keeps only durable handles in resettable
+scenario state. In schematic form:
+
+```rust
+thread_local! {
+    static WORLD: RefCell<UiWorld> = RefCell::new(UiWorld::default());
+}
+
+fn reset_world() {
+    WORLD.with(|world| *world.borrow_mut() = UiWorld::default());
+}
+
+#[given("the shell is open")]
+fn given_shell_open(
+    #[from(rstest_bdd_harness_context)] cx: &mut gpui::TestAppContext,
+) -> StepResult<()> {
+    reset_world();
+
+    let (shell, _visual_cx) = cx.add_window_view(|_, cx| Shell::new(cx));
+    let window = cx.windows().first().copied().ok_or("missing window")?;
+
+    WORLD.with(|world| {
+        let mut world = world.borrow_mut();
+        world.shell = Some(shell);
+        world.window = Some(window);
+    });
+
+    Ok(())
+}
+
+#[when("the user presses Tab")]
+fn press_tab(
+    #[from(rstest_bdd_harness_context)] cx: &mut gpui::TestAppContext,
+) -> StepResult<()> {
+    let window = WORLD.with(|world| world.borrow().window.ok_or("missing window"))?;
+    let mut visual_cx = gpui::VisualTestContext::from_window(window, cx);
+
+    visual_cx.simulate_keystrokes("tab");
+    Ok(())
+}
+```
+
+The reset must run before assigning new scenario state. The world stores the
+window handle, not `VisualTestContext`, so later steps can rebuild the visual
+context from the handle and the current harness context.
+
+##### 2.7.6.3 v0.6.0-beta2 quick wins
+
 The release strategy is therefore split by compatibility risk:
 
 - **v0.6.0-beta2 quick wins:** improve adoption diagnostics and examples
@@ -1909,11 +1981,17 @@ The release strategy is therefore split by compatibility risk:
   `StepContext::available_fixtures()`, a realistic GPUI smoke test that stores
   entity/window handles and resets world state, and migration-guide coverage
   for feature-gated downstream tests such as `cargo test --all-features`.
+
+##### 2.7.6.4 v0.6.1 early-life support helpers
+
 - **v0.6.1 early-life support:** add semver-compatible helper APIs. Candidate
   additions include an explicit harness-context parameter marker, a prelude for
   common integration imports, a typed borrow-error enum, a scenario-local state
   helper with reset semantics, and generated-wrapper coverage for mutable
   harness context plus scenario state.
+
+##### 2.7.6.5 v0.7.0 pre-1.0.0 redesign
+
 - **v0.7.0 / pre-1.0.0:** reserve breaking cleanups for a migration guide. The
   main target is a `StepContext` redesign where fixture borrowing is
   guard-based and can borrow distinct mutable fixtures concurrently. Other
