@@ -690,19 +690,18 @@ changing the public trait contracts.
 
 ### 10.1. Remove avoidable harness adoption friction
 
-- [ ] 10.1.1. Clarify or hide the base harness-crate dependency for
-  first-party adapters. Normal GPUI and Tokio users should either need only the
-  adapter crate in their `Cargo.toml`, or the migration guide must state
-  exactly when `rstest-bdd-harness` is required. Finish line: the dependency
-  matrix in `docs/v0-6-0-migration-guide.md` covers plain BDD, Tokio, GPUI, and
-  custom harnesses; generated-code behaviour is tested or documented. Design
-  Doc: `docs/rstest-bdd-design.md` §2.7.6.3. (Dinolump)
-- [ ] 10.1.2. Improve missing-fixture diagnostics for harness context and
-  mutable scenario state. Use `StepContext::available_fixtures()` in generated
-  error paths so users see the requested fixture, requested type, and fixtures
-  that were actually inserted. Finish line: diagnostics explain a missing
-  `rstest_bdd_harness_context` and suggest selecting the relevant harness.
-  Design Doc: `docs/rstest-bdd-design.md` §2.7.6.3. (Telefono)
+- [ ] 10.1.1. Users of first-party adapters can depend only on the adapter
+  crate in `Cargo.toml`; `rstest-bdd-harness` is required only for custom
+  harness implementations or explicit use of the base harness API. Finish line:
+  the dependency matrix in `docs/v0-6-0-migration-guide.md` covers plain BDD,
+  Tokio, GPUI, and custom harnesses; documented or generated-code behaviour
+  matches that dependency boundary. Design Doc: `docs/rstest-bdd-design.md`
+  §2.7.6.3. (Dinolump)
+- [ ] 10.1.2. Display detailed missing-fixture diagnostics for harness context
+  and mutable scenario state, showing the requested fixture name and type,
+  inserted fixtures from `StepContext::available_fixtures()`, and, when
+  `rstest_bdd_harness_context` is absent, suggest selecting the relevant
+  harness. Design Doc: `docs/rstest-bdd-design.md` §2.7.6.3. (Telefono)
 - [ ] 10.1.3. Add a realistic GPUI harness regression that exercises the
   downstream migration shape: create a window, store durable entity/window
   handles, reconstruct visual context per step, and reset scenario state before
