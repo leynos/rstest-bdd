@@ -2,14 +2,24 @@
 
 use assert_cmd::Command;
 use predicates::prelude::*;
+use rstest_bdd_harness::binary_test_support::{BinaryName, locate_or_build_binary};
+use std::env;
+use std::path::PathBuf;
 
-fn todo_cli_cmd() -> Result<Command, Box<dyn std::error::Error>> {
-    Ok(Command::cargo_bin("todo-cli")?)
+fn locate_or_build_todo_cli_cmd() -> Result<Command, Box<dyn std::error::Error>> {
+    let root = workspace_root();
+    locate_or_build_binary(&root.join("Cargo.toml"), &root, BinaryName::new("todo-cli"))
+        .map(Command::from_std)
+        .map_err(|e| -> Box<dyn std::error::Error> { Box::new(e) })
+}
+
+fn workspace_root() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..")
 }
 
 #[test]
 fn add_succeeds() -> Result<(), Box<dyn std::error::Error>> {
-    todo_cli_cmd()?
+    locate_or_build_todo_cli_cmd()?
         .args(["add", "Buy milk"])
         .assert()
         .success()
@@ -19,13 +29,17 @@ fn add_succeeds() -> Result<(), Box<dyn std::error::Error>> {
 
 #[test]
 fn list_is_empty_by_default() -> Result<(), Box<dyn std::error::Error>> {
-    todo_cli_cmd()?.arg("list").assert().success().stdout("\n");
+    locate_or_build_todo_cli_cmd()?
+        .arg("list")
+        .assert()
+        .success()
+        .stdout("\n");
     Ok(())
 }
 
 #[test]
 fn unknown_subcommand_fails() -> Result<(), Box<dyn std::error::Error>> {
-    todo_cli_cmd()?
+    locate_or_build_todo_cli_cmd()?
         .arg("bogus")
         .assert()
         .failure()
@@ -35,7 +49,7 @@ fn unknown_subcommand_fails() -> Result<(), Box<dyn std::error::Error>> {
 
 #[test]
 fn add_rejects_blank_description() -> Result<(), Box<dyn std::error::Error>> {
-    todo_cli_cmd()?
+    locate_or_build_todo_cli_cmd()?
         .args(["add", "   "])
         .assert()
         .failure()

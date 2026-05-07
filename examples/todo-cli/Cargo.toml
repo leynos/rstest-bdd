@@ -1,6 +1,6 @@
 [package]
 name = "todo-cli"
-version = "0.5.0"
+version = "0.6.0-beta1"
 edition.workspace = true
 publish = false
 rust-version.workspace = true
@@ -12,6 +12,7 @@ eyre = "0.6"
 [dev-dependencies]
 rstest = { workspace = true }
 rstest-bdd.workspace = true
+rstest-bdd-harness.workspace = true
 rstest-bdd-macros.workspace = true
 assert_cmd = "2"
 assert_fs = "1"

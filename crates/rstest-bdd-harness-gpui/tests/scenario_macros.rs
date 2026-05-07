@@ -1,6 +1,6 @@
-//! Integration tests verifying that `#[scenario]` works with the GPUI harness
-//! adapter and attribute policy from `rstest-bdd-harness-gpui`.
-#![cfg(feature = "gpui-harness-tests")]
+//! Integration tests verifying that `#[scenario]` works with this crate's GPUI
+//! harness adapter and attribute policy.
+#![cfg(feature = "native-gpui-tests")]
 
 use rstest_bdd_macros::{given, scenario, scenarios, then, when};
 use serial_test::serial;
@@ -11,17 +11,12 @@ static CONTEXT_MUTATED: AtomicBool = AtomicBool::new(false);
 static GPUI_POLICY_RAN: AtomicBool = AtomicBool::new(false);
 static GPUI_SCENARIOS_MACRO_RUN_COUNT: AtomicUsize = AtomicUsize::new(0);
 
-#[expect(
-    clippy::unnecessary_wraps,
-    reason = "exercise gpui::test termination handling for Result-returning tests"
-)]
 #[gpui::test]
-fn gpui_test_preserves_declared_name(context: &gpui::TestAppContext) -> Result<(), &'static str> {
+fn gpui_test_preserves_declared_name(context: &gpui::TestAppContext) {
     assert_eq!(
         context.test_function_name(),
         Some("gpui_test_preserves_declared_name")
     );
-    Ok(())
 }
 
 #[given("a GPUI test context is injected")]
@@ -83,7 +78,7 @@ fn gpui_scenarios_macro_policy_run_completes() {
     // NOTE: This is a minimal runtime smoke test verifying that scenarios! with
     // GPUI attribute policy can execute steps. The attribute-policy application itself
     // is verified by the corresponding trybuild compile-pass fixture at
-    // crates/rstest-bdd/tests/fixtures_macros/scenarios_attributes_gpui.rs, which
+    // this crate's `scenarios_attributes_gpui.rs` trybuild fixture, which
     // ensures the generated code compiles with #[gpui::test] attributes.
     // A stronger runtime assertion would require accessing GPUI-specific state
     // (e.g., TestAppContext), which is only available when using GpuiHarness,
@@ -94,13 +89,14 @@ fn gpui_scenarios_macro_policy_run_completes() {
     );
 }
 
-/// Asserts that a GPUI `TestAppContext` has the expected default seed value.
-fn assert_gpui_context_seed_default(context: &gpui::TestAppContext) {
-    assert_eq!(
-        context.dispatcher().seed(),
-        0,
-        "GPUI TestAppContext should have default seed value"
+/// Asserts that a GPUI `TestAppContext` exposes upstream GPUI test APIs.
+fn assert_gpui_context_uses_upstream_test_api(context: &gpui::TestAppContext) {
+    assert!(context.test_function_name().is_none());
+    assert!(
+        !context.did_prompt_for_new_path(),
+        "GPUI-specific did_prompt_for_new_path() method should be accessible"
     );
+    let _executor = context.executor();
 }
 
 #[given("a GPUI test is running")]
@@ -118,11 +114,7 @@ fn i_access_the_gpui_test_context(
     // proves that GpuiHarness is active. We verify GPUI-specific properties to ensure
     // the infrastructure is working correctly.
 
-    // Verify GPUI-specific invariant: default seed value
-    assert_gpui_context_seed_default(context);
-
-    // Access another GPUI-specific API: executor() returns BackgroundExecutor
-    let _executor = context.executor();
+    assert_gpui_context_uses_upstream_test_api(context);
 }
 
 #[then("the GPUI test context is valid")]
@@ -132,14 +124,7 @@ fn gpui_test_context_is_valid(#[from(rstest_bdd_harness_context)] context: &gpui
     // proving that both the harness (which injects the context) and the attribute policy
     // (which emits #[gpui::test] to provide GPUI infrastructure) are correctly applied.
 
-    // Verify the context has GPUI-specific properties
-    assert_gpui_context_seed_default(context);
-
-    // Verify we can access GPUI-specific methods
-    assert!(
-        !context.did_prompt_for_new_path(),
-        "GPUI-specific did_prompt_for_new_path() method should be accessible"
-    );
+    assert_gpui_context_uses_upstream_test_api(context);
 }
 
 #[scenario(

@@ -2,8 +2,10 @@
 
 use assert_cmd::Command;
 use eyre::{Context, Result};
+use rstest_bdd_harness::binary_test_support::{BinaryName, locate_or_build_binary};
 use serde::Deserialize;
 use serial_test::serial;
+use std::env;
 use std::fs;
 use std::path::PathBuf;
 use std::process::ExitStatus;
@@ -40,12 +42,28 @@ fn run_cargo_bdd_raw(args: &[&str]) -> Result<std::process::Output> {
     let target_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../target");
     fs::create_dir_all(&target_dir)
         .with_context(|| format!("failed to create {}", target_dir.display()))?;
-    let mut cmd = Command::cargo_bin("cargo-bdd").wrap_err("failed to locate cargo-bdd binary")?;
+    let mut cmd =
+        locate_or_build_cargo_bdd_command().wrap_err("failed to locate cargo-bdd binary")?;
     cmd.current_dir(fixture_dir)
         .env("CARGO_TARGET_DIR", &target_dir)
         .args(args)
         .output()
         .wrap_err("failed to execute `cargo bdd`")
+}
+
+fn locate_or_build_cargo_bdd_command() -> Result<Command> {
+    let root = workspace_root();
+    locate_or_build_binary(
+        &root.join("Cargo.toml"),
+        &root,
+        BinaryName::new("cargo-bdd"),
+    )
+    .map(Command::from_std)
+    .map_err(|e| eyre::eyre!(e))
+}
+
+fn workspace_root() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..")
 }
 
 fn run_cargo_bdd_captured(args: &[&str]) -> Result<(ExitStatus, String, String)> {

@@ -4,12 +4,16 @@
 //! runners and supplying test attributes through policy plug-ins.
 
 mod adapter;
+#[doc(hidden)]
+pub mod binary_test_support;
 mod error;
 mod policy;
 mod runner;
 mod std_harness;
 #[cfg(test)]
 pub(crate) mod test_utils;
+#[doc(hidden)]
+pub mod trybuild_staging;
 
 pub use adapter::HarnessAdapter;
 pub use error::{HarnessError, HarnessResult};

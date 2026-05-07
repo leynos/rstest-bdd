@@ -52,7 +52,6 @@ fn step_macros_compile() {
     );
     run_conditional_ordering_tests(&t);
     run_conditional_ambiguous_step_test(&t);
-    compile_fail_runtime_alias_deprecation_warning(&t);
 }
 
 fn run_passing_macro_tests(t: &trybuild::TestCases) {
@@ -65,17 +64,8 @@ fn run_passing_macro_tests(t: &trybuild::TestCases) {
         MacroFixtureCase::from("scenarios_autodiscovery.rs"),
         MacroFixtureCase::from("scenario_harness_params.rs"),
         MacroFixtureCase::from("scenario_harness_failing.rs"),
-        MacroFixtureCase::from("scenario_harness_tokio_default.rs"),
-        MacroFixtureCase::from("scenario_harness_gpui_default.rs"),
-        MacroFixtureCase::from("scenario_attributes_tokio.rs"),
-        MacroFixtureCase::from("scenario_attributes_tokio_sync.rs"),
-        MacroFixtureCase::from("scenario_attributes_tokio_dedup.rs"),
-        MacroFixtureCase::from("scenario_attributes_gpui.rs"),
-        MacroFixtureCase::from("scenario_attributes_gpui_absolute.rs"),
         MacroFixtureCase::from("execution_policy_reexports.rs"),
         MacroFixtureCase::from("scenarios_harness_params.rs"),
-        MacroFixtureCase::from("scenarios_harness_gpui_default.rs"),
-        MacroFixtureCase::from("scenarios_attributes_gpui.rs"),
     ] {
         t.pass(macros_fixture(case).as_std_path());
     }
@@ -107,7 +97,6 @@ fn run_failing_macro_tests(t: &trybuild::TestCases) {
         MacroFixtureCase::from("scenarios_attributes_invalid.rs"),
         MacroFixtureCase::from("scenario_harness_not_default.rs"),
         MacroFixtureCase::from("scenario_harness_async_rejected.rs"),
-        MacroFixtureCase::from("scenario_harness_tokio_async_rejected.rs"),
         MacroFixtureCase::from("result_fixture_requires_result_scenario.rs"),
     ] {
         t.compile_fail(macros_fixture(case).as_std_path());
@@ -221,16 +210,6 @@ fn compile_fail_missing_step_warning(t: &trybuild::TestCases) {
     compile_fail_with_normalised_output(
         t,
         macros_fixture(MacroFixtureCase::from("scenario_missing_step_warning.rs")),
-        &[strip_nightly_macro_backtrace_hint, normalise_fixture_paths],
-    );
-}
-
-fn compile_fail_runtime_alias_deprecation_warning(t: &trybuild::TestCases) {
-    compile_fail_with_normalised_output(
-        t,
-        macros_fixture(MacroFixtureCase::from(
-            "scenarios_runtime_alias_deprecated.rs",
-        )),
         &[strip_nightly_macro_backtrace_hint, normalise_fixture_paths],
     );
 }

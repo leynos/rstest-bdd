@@ -1735,14 +1735,13 @@ field that governs attribute-resolution fallback semantics when no harness or
 explicit attribute path is supplied, populated from
 `ScenarioConfig.attribute_runtime`; execution behaviour belongs to
 `ScenarioConfig.runtime` and the async pipeline described in §2.7.3 Macro
-integration;
-`harness: Option<&'a syn::Path>`, which carries the user-provided harness type
-path such as `rstest_bdd_harness_tokio::TokioHarness`; and
+integration; `harness: Option<&'a syn::Path>`, which carries the user-provided
+harness type path such as `rstest_bdd_harness_tokio::TokioHarness`; and
 `attributes: Option<&'a syn::Path>`, which carries the explicit attribute
 policy path and therefore has the highest precedence. This replaced the older
 five-argument `generate_test_attrs` signature with a three-parameter interface,
-bringing the function back under the project's four-argument cohesion
-threshold while making the policy inputs explicit as one coherent object.
+bringing the function back under the project's four-argument cohesion threshold
+while making the policy inputs explicit as one coherent object.
 
 The resulting resolution logic in `resolve_attribute_policy` now mirrors the
 precedence described in §2.7.3 Macro integration and builds on the
@@ -1770,20 +1769,20 @@ whether the generated function receives rstest-only, Tokio current-thread, or
 GPUI annotations. The two values are usually identical, but they may diverge
 when execution and attribute selection are intentionally decoupled, such as
 when a synchronous attribute policy is paired with an async execution harness
-or when `scenarios!` receives the deprecated
-`runtime = "tokio-current-thread"` token and must still emit Tokio attributes
-without changing the execution model selected elsewhere. Accordingly,
-`generate_test_attrs` receives `config.attribute_runtime` through
-`TestAttrPolicy.runtime`, while `config.runtime.is_async()` is still passed
-separately as the `is_async` boolean. That split keeps attribute selection from
-accidentally collapsing back into execution scheduling.
+or when `scenarios!` receives the deprecated `runtime = "tokio-current-thread"`
+token and must still emit Tokio attributes without changing the execution model
+selected elsewhere. Accordingly, `generate_test_attrs` receives
+`config.attribute_runtime` through `TestAttrPolicy.runtime`, while
+`config.runtime.is_async()` is still passed separately as the `is_async`
+boolean. That split keeps attribute selection from accidentally collapsing back
+into execution scheduling.
 
 The harness-side lookup that makes the second precedence level work lives in
 `crates/rstest-bdd-policy/src/lib.rs` as
 `resolve_test_attribute_hint_for_harness_path`. It accepts a `&[&str]` of path
 segments and returns `Option<TestAttributeHint>`, with the canonical mappings
-held in the `KNOWN_HARNESS_HINTS` table:
-`STD_HARNESS_PATH` (`["rstest_bdd_harness", "StdHarness"]`) maps to
+held in the `KNOWN_HARNESS_HINTS` table: `STD_HARNESS_PATH`
+(`["rstest_bdd_harness", "StdHarness"]`) maps to
 `TestAttributeHint::RstestOnly`, `TOKIO_HARNESS_PATH`
 (`["rstest_bdd_harness_tokio", "TokioHarness"]`) maps to
 `TestAttributeHint::RstestWithTokioCurrentThread`, and `GPUI_HARNESS_PATH`
@@ -1833,23 +1832,24 @@ The first official adapters and policies are:
   `gpui::TestAppContext`, and passing that context through `request.run(...)`
   so steps can access it via `#[from(rstest_bdd_harness_context)]`.
   `GpuiAttributePolicy` implements `AttributePolicy` and emits
-  `#[rstest::rstest]` followed by `#[gpui::test]`. The workspace patches GPUI
-  test support locally so the harness keeps the stable-compatible
-  `run_test`/`TestAppContext`/`#[gpui::test]` surface without reintroducing
-  `async-trait`. Publish-check automation synthesizes a standalone package
-  artifact for `rstest-bdd-harness-gpui` and compiles a generated validator
-  crate against upstream `gpui`; GPUI behavioural and integration tests remain
-  feature-gated (`native-gpui-tests` and `gpui-harness-tests`) as explicit
-  opt-in suites. A user-facing demonstration crate under
-  `examples/gpui-counter` models a simple counter application whose BDD suite
-  exercises `GpuiHarness` with harness-led default attributes end-to-end, with
-  step definitions that access injected `TestAppContext` through
-  `rstest_bdd_harness_context`. Focused `rstest-bdd` integration coverage also
-  verifies canonical GPUI policy resolution for `scenarios!`, canonical and
-  absolute first-party GPUI policy paths for `#[scenario]`, harness-led
-  defaults for both `#[scenario]` and `scenarios!`, and deduplication when a
-  generated `#[scenario]` test already has `#[gpui::test]`. The example
-  requires no native-library setup beyond the workspace GPUI shim.
+  `#[rstest::rstest]` followed by `#[gpui::test]`. The workspace uses a
+  `version` plus `path` dependency for local GPUI test support so the harness
+  keeps the stable-compatible `run_test`/`TestAppContext`/`#[gpui::test]`
+  surface without reintroducing `async-trait` or a root patch table.
+  Publish-check automation synthesizes a standalone package artifact for
+  `rstest-bdd-harness-gpui` and compiles a generated validator crate against
+  upstream `gpui`; GPUI behavioural and integration tests remain feature-gated
+  (`native-gpui-tests` and `gpui-harness-tests`) as explicit opt-in suites. A
+  user-facing demonstration crate under `examples/gpui-counter` models a simple
+  counter application whose BDD suite exercises `GpuiHarness` with harness-led
+  default attributes end-to-end, with step definitions that access injected
+  `TestAppContext` through `rstest_bdd_harness_context`. Focused `rstest-bdd`
+  integration coverage also verifies canonical GPUI policy resolution for
+  `scenarios!`, canonical and absolute first-party GPUI policy paths for
+  `#[scenario]`, harness-led defaults for both `#[scenario]` and `scenarios!`,
+  and deduplication when a generated `#[scenario]` test already has
+  `#[gpui::test]`. The example requires no native-library setup beyond the
+  workspace GPUI shim.
 
 Future adapters (for example, Bevy) are planned to follow the same pattern
 without requiring new dependencies in `rstest-bdd` or `rstest-bdd-macros`.
@@ -2302,7 +2302,12 @@ now include:
 - `rstest-bdd` — the runtime library.
 - `rstest-bdd-macros` — the crate providing attribute macros.
 - `rstest-bdd-policy` — shared execution policy enums.
-- `rstest-bdd-harness` — harness adapter and attribute policy interfaces.
+- `rstest-bdd-harness` — framework-agnostic harness adapter traits and
+  attribute policy interfaces.
+- `rstest-bdd-harness-tokio` — Tokio runtime harness adapter; owns Tokio
+  scenario and compile tests.
+- `rstest-bdd-harness-gpui` — GPUI test harness adapter; owns GPUI scenario
+  and compile tests (feature-gated behind `native-gpui-tests`).
 
 This layout allows each crate to evolve independently while sharing common
 configuration and lints at the workspace level.

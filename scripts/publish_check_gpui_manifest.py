@@ -101,14 +101,20 @@ def _render_dependency_line(
 
 
 def _workspace_gpui_spec(workspace_root: Path) -> str:
-    """Return the workspace ``gpui`` dependency as an inline TOML table string."""
+    """Return the publish-safe workspace ``gpui`` dependency as TOML."""
     workspace = tomllib.loads(
         (workspace_root / "Cargo.toml").read_text(encoding="utf-8")
     )
     gpui_dependency = _normalize_dependency_spec(
         "gpui", workspace["workspace"]["dependencies"]["gpui"]
     )
-    return _toml_inline_table(gpui_dependency)
+    return _toml_inline_table(
+        _sanitize_dependency_spec(
+            name="gpui",
+            value=gpui_dependency,
+            workspace_dependencies=workspace["workspace"]["dependencies"],
+        )
+    )
 
 
 def _validator_manifest(

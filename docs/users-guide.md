@@ -865,7 +865,7 @@ It is available as a dev-dependency:
 
 ```toml
 [dev-dependencies]
-rstest-bdd-harness-tokio = "0.5.0"
+rstest-bdd-harness-tokio = "0.6.0-beta1"
 ```
 
 `TokioHarness` can then be used directly in scenarios:
@@ -955,7 +955,7 @@ as a dev-dependency:
 
 ```toml
 [dev-dependencies]
-rstest-bdd-harness-gpui = "0.5.0"
+rstest-bdd-harness-gpui = "0.6.0-beta1"
 ```
 
 `GpuiHarness` can then be used directly in scenarios:
@@ -1006,8 +1006,8 @@ For a complete working example, see the `examples/gpui-counter` crate, which
 models a simple counter application whose BDD suite exercises both
 `GpuiHarness` and `GpuiAttributePolicy` end-to-end. Step definitions in that
 example demonstrate accessing injected `TestAppContext` through the
-`#[from(rstest_bdd_harness_context)]` fixture key and recording
-harness-provided values (such as the dispatcher seed) in the domain model.
+`#[from(rstest_bdd_harness_context)]` fixture key and recording harness context
+observations (such as `TestAppContext` availability) in the domain model.
 
 > **Native-library setup:** this workspace uses a local GPUI test shim under
 > `vendor/gpui` that requires no additional native-library installation beyond
@@ -1016,13 +1016,14 @@ harness-provided values (such as the dispatcher seed) in the domain model.
 > `libxkbcommon-dev`, `libxkbcommon-x11-dev` on Debian/Ubuntu), but the
 > workspace shim avoids that requirement.
 >
-> **Workspace note:** this repository patches `gpui` test support locally to
-> keep the dependency graph free of `async-trait`. The patched surface keeps
-> the `run_test`, `TestAppContext`, and `#[gpui::test]` APIs used by
-> `rstest-bdd`, while publish-check automation compiles a generated packaged
-> harness validator against the upstream `gpui` crate. GPUI-specific
-> behavioural and integration suites remain feature-gated behind
-> `native-gpui-tests` and `gpui-harness-tests`.
+> **Workspace note:** this repository uses a `version` plus `path` workspace
+> dependency for `gpui`, pointing local development at the shim under
+> `vendor/gpui` while retaining the crates.io version requirement used for
+> publication. The shim keeps the `run_test`, `TestAppContext`, and
+> `#[gpui::test]` APIs used by `rstest-bdd`, while publish-check automation
+> compiles a generated packaged harness validator against the upstream `gpui`
+> crate. GPUI-specific behavioural and integration suites remain feature-gated
+> behind `native-gpui-tests` and `gpui-harness-tests`.
 
 Harness-backed scenarios also expose harness context to step functions through
 a reserved fixture key: `rstest_bdd_harness_context`. The generated harness
@@ -1613,14 +1614,14 @@ To enable validation, pin a feature in the project's `dev-dependencies`:
 
 ```toml
 [dev-dependencies]
-rstest-bdd-macros = { version = "0.5.0", features = ["compile-time-validation"] }
+rstest-bdd-macros = { version = "0.6.0-beta1", features = ["compile-time-validation"] }
 ```
 
 For strict checking use:
 
 ```toml
 [dev-dependencies]
-rstest-bdd-macros = { version = "0.5.0", features = ["strict-compile-time-validation"] }
+rstest-bdd-macros = { version = "0.6.0-beta1", features = ["strict-compile-time-validation"] }
 ```
 
 Steps are only validated when one of these features is enabled.
@@ -2013,7 +2014,7 @@ Localization tooling can be added to `Cargo.toml` as follows:
 
 ```toml
 [dependencies]
-rstest-bdd = "0.5.0"
+rstest-bdd = "0.6.0-beta1"
 i18n-embed = { version = "0.16", features = ["fluent-system", "desktop-requester"] }
 unic-langid = "0.9"
 ```

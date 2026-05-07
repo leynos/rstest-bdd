@@ -1,6 +1,6 @@
 [package]
 name = "rstest-bdd-harness-tokio"
-version = "0.5.0"
+version = "0.6.0-beta1"
 edition.workspace = true
 license.workspace = true
 authors.workspace = true
@@ -21,4 +21,20 @@ tokio = { version = "1", features = ["rt"] }
 
 [dev-dependencies]
 rstest.workspace = true
-tokio = { version = "1", features = ["rt", "time", "sync"] }
+rstest-bdd.workspace = true
+rstest-bdd-macros.workspace = true
+cargo_metadata.workspace = true
+trybuild.workspace = true
+tokio = { version = "1", features = ["macros", "rt", "time", "sync"] }
+
+[[test]]
+name = "scenario_macros"
+path = "tests/scenario_macros.rs"
+
+[[test]]
+name = "runtime_compat_alias"
+path = "tests/runtime_compat_alias.rs"
+
+[[test]]
+name = "macro_compile"
+path = "tests/macro_compile.rs"

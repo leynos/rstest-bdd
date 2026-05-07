@@ -550,15 +550,14 @@ opt-in crates rather than the core runtime or macros.
 - [x] 9.4.1. Design the fixture injection mechanism for framework harnesses.
   The original `HarnessAdapter::run` signature wrapped a `FnOnce() -> T`
   closure that was opaque to the harness — the harness could not inject
-  framework-specific resources (e.g. `TestAppContext`, `bevy::ecs::World`)
-  into step functions.
-  Produce an ADR evaluating approaches (thread-local convention, associated
-  `Context` type on `HarnessAdapter`, or a `StepContext` extension trait) and
-  select one that works for both GPUI and Bevy. Finish line: ADR is merged and
-  the chosen approach is reflected in the `HarnessAdapter` trait (or documented
-  as a convention). Delivered via `docs/adr-007-harness-context-injection.md`.
-  Prerequisite: 9.3.4 delivered (attribute wiring unblocks full policy
-  integration). (Telefono)
+  framework-specific resources (e.g. `TestAppContext`, `bevy::ecs::World`) into
+  step functions. Produce an ADR evaluating approaches (thread-local
+  convention, associated `Context` type on `HarnessAdapter`, or a `StepContext`
+  extension trait) and select one that works for both GPUI and Bevy. Finish
+  line: ADR is merged and the chosen approach is reflected in the
+  `HarnessAdapter` trait (or documented as a convention). Delivered via
+  `docs/adr-007-harness-context-injection.md`. Prerequisite: 9.3.4 delivered
+  (attribute wiring unblocks full policy integration). (Telefono)
 - [x] 9.4.2. Create `rstest-bdd-harness-gpui`.
 - [x] 9.4.3. Execute scenarios inside the GPUI test harness and inject fixtures
   such as `TestAppContext`.

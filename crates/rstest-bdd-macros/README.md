@@ -53,7 +53,7 @@ Add the crates to your **dev‑dependencies**:
 # Cargo.toml
 [dev-dependencies]
 rstest = "0.26.1"
-rstest-bdd = "0.5.0"
+rstest-bdd = "0.6.0-beta1"
 ```
 
 Feature flags:
@@ -75,7 +75,7 @@ crate. Enable them in your `Cargo.toml` with:
 
 ```toml
 [dependencies]
-rstest-bdd-macros = { version = "0.5.0", features = ["compile-time-validation"] }
+rstest-bdd-macros = { version = "0.6.0-beta1", features = ["compile-time-validation"] }
 ```
 
 Or via CLI:
@@ -84,6 +84,15 @@ Or via CLI:
 cargo test --features "rstest-bdd-macros/compile-time-validation"
 cargo test --features "rstest-bdd-macros/strict-compile-time-validation"
 ```
+
+> **Custom harness API note:** `HarnessAdapter::run` returns
+> `HarnessResult<T>` (`Result<T, HarnessError>`), and successful paths wrap
+> the runner outcome in `Ok(...)`. `Err(HarnessError::RuntimeBuildFailed(_))`
+> surfaces harness infrastructure failures, such as a Tokio runtime failing to
+> build, keeping them distinct from scenario assertion failures. See the
+> [v0.6.0 migration guide][migration] for full upgrade steps from v0.5.x.
+
+[migration]: ../../docs/v0-6-0-migration-guide.md
 
 ______________________________________________________________________
 
@@ -472,7 +481,7 @@ ______________________________________________________________________
 | State management | `rstest` fixtures                           | `World` struct                    |
 | Step discovery   | Compile‑time registration + runtime match   | Runner‑driven collection          |
 | Scenario Outline | Maps to `rstest` parametrisation            | Built into runner                 |
-| Async            | Runtime‑agnostic via features               | Built‑in with specified runtime   |
+| Async            | Runtime‑agnostic via harness adapters       | Built‑in with specified runtime   |
 | Philosophy       | BDD as an **extension** of `rstest`         | Rust port of classic Cucumber     |
 
 ______________________________________________________________________
@@ -481,6 +490,7 @@ ______________________________________________________________________
 
 ```text
 rstest-bdd/             # Runtime crate (re-exports macros for convenience)
+rstest-bdd-harness/     # Harness adapters and attribute policy interfaces
 rstest-bdd-macros/      # Procedural macro crate
 rstest-bdd-policy/      # Shared execution policy enums
 ```

@@ -58,8 +58,11 @@ keywords = ["bdd"]
 categories = ["development-tools::testing"]
 rust-version = "1.85"
 
-[workspace.dependencies]
-gpui = { version = "0.2.2", default-features = false, features = ["test-support"] }
+[workspace.dependencies.gpui]
+version = "0.2.2"
+path = "vendor/gpui"
+default-features = false
+features = ["test-support"]
 """,
         encoding="utf-8",
     )
@@ -79,6 +82,9 @@ gpui = { version = "0.2.2", default-features = false, features = ["test-support"
     )
     assert expected_gpui_dependency in manifest, (
         "expected upstream gpui dependency in manifest"
+    )
+    assert 'path = "vendor/gpui"' not in manifest, (
+        "expected packaged manifest to omit the local GPUI shim path"
     )
 
 

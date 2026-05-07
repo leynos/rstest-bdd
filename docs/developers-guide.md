@@ -1,5 +1,151 @@
 # Developer guide
 
+## Workspace dependency policy
+
+Keep workspace-local development and crates.io publication on the same
+manifest surface by declaring shared dependencies in the root
+`[workspace.dependencies]` table. First-party crates must use both `version`
+and `path` there, then consume the dependency with `.workspace = true` from
+member manifests. The `path` keeps local builds on the current checkout after a
+version has been published, while the `version` gives Cargo the crates.io
+requirement it needs when packaging a crate.
+
+Do not restore root-level `[patch.crates-io]` entries for normal development.
+Patches make local resolution differ from publish-time resolution and can hide
+registry-only failures. If a temporary patch is required for a one-off
+diagnostic, remove it before committing or teach the publish-check automation
+to strip it explicitly.
+
+The GPUI test shim follows the same pattern. The workspace dependency for
+`gpui` points at `vendor/gpui` with a matching crates.io version, so local tests
+use the stable-compatible shim. The publish-check GPUI package validator strips
+that local path when it generates the standalone harness manifest, so
+`rstest-bdd-harness-gpui` is still checked against the upstream `gpui`
+dependency surface before publication.
+
+## Staging fixtures for trybuild tests
+
+The `rstest-bdd-harness` crate exposes a `#[doc(hidden)]` module
+`trybuild_staging` with two public helpers:
+
+- `copy_file(source, destination)` — copies a single file, creating parent
+  directories as needed.
+- `copy_dir_tree(source, destination)` — recursively copies a directory tree,
+  replacing `destination` if it already exists. Symlinks under `source` are
+  rejected with an `InvalidInput` error to prevent escape or copy loops.
+
+Both helpers are intended for use by `macro_compile` integration tests in the
+Tokio and GPUI harness crates to stage `.feature` files into the trybuild
+scratch directory before `TestCases::pass` / `compile_fail` are called. Do not
+use these helpers outside test code.
+
+## nextest on Windows: trybuild deadlock
+
+nextest wraps test binaries in Windows Job Objects. Child `cargo` processes
+spawned by `trybuild` and `cargo_metadata` inherit the write end of nextest's
+capture pipe. Because Windows pipe semantics keep the read end open until all
+holders of the write end have closed it, and because rustc spawns many
+short-lived child processes that also inherit the handle, the pipe never closes
+and nextest waits until its slow-timeout fires.
+
+Mitigation:
+
+- Continuous Integration (CI) sets `use-nextest: false` for all Windows
+  matrix legs (see `.github/workflows/ci.yml`). Windows coverage runs use
+  `cargo llvm-cov test` (libtest) instead.
+- `.cargo/nextest.toml` raises the `slow-timeout` for `binary(macro_compile)`
+  on Windows to 300 s as a local-development safety net. This does not fix the
+  deadlock; it only delays termination to allow the build to complete on fast
+  machines.
+- Do not add `macro_compile`-style tests (tests that spawn `cargo` via
+  `trybuild` or `cargo_metadata`) to nextest-managed binaries intended to run
+  on Windows.
+
+## Test organization: harness-owned integration tests
+
+Tokio and GPUI harness integration tests are co-located with their respective
+harness crates:
+
+| Crate                      | Test binary       | What it tests                                           |
+| -------------------------- | ----------------- | ------------------------------------------------------- |
+| `rstest-bdd-harness-tokio` | `scenario_macros` | `#[scenario]` + Tokio adapter                           |
+| `rstest-bdd-harness-tokio` | `macro_compile`   | trybuild compile-pass/fail for Tokio fixtures           |
+| `rstest-bdd-harness-gpui`  | `scenario_macros` | `#[scenario]` + GPUI adapter (feature-gated)            |
+| `rstest-bdd-harness-gpui`  | `macro_compile`   | trybuild compile-pass for GPUI fixtures (feature-gated) |
+
+These tests were moved out of `rstest-bdd` in this release to decouple the core
+crate from Tokio and GPUI dev-dependencies, making it publishable to crates.io
+without carrying those dependencies.
+
+## Fallback binary build in integration tests
+
+`crates/cargo-bdd/tests/cli.rs` and `examples/todo-cli/tests/cli.rs` use a
+two-phase strategy to locate test binaries, implemented by
+`rstest_bdd_harness::binary_test_support::locate_or_build_binary`:
+
+1. Try `assert_cmd::Command::cargo_bin("binary-name")`.
+2. On failure, compute the expected debug binary path via
+   `target_directory_for_manifest` and invoke `build_binary` if the binary is
+   absent.
+
+This pattern ensures tests run from a clean checkout without a separate
+pre-build step in every CI job.
+
+### `binary_test_support` API reference
+
+```rust
+use std::path::{Path, PathBuf};
+use std::process::{Command, Output};
+
+use rstest_bdd_harness::binary_test_support::BinaryLocateError;
+
+/// Returns the expected debug binary path for `binary_name` given a target
+/// directory root. Pure computation: no I/O.
+pub fn binary_path_in_target_dir(
+    target_directory: &Path,
+    binary_name: &str,
+) -> PathBuf;
+
+/// Resolves the workspace target directory by running `cargo metadata`.
+/// Performs I/O: spawns a `cargo metadata` subprocess.
+pub fn target_directory_for_manifest(
+    manifest_path: &Path,
+) -> Result<PathBuf, cargo_metadata::Error>;
+
+/// Locates `binary_name` or builds it if absent; returns a ready `Command`.
+/// On failure, returns [`BinaryLocateError`] so callers can match on kind
+/// (metadata, spawn, build output, or missing binary).
+pub fn locate_or_build_binary(
+    manifest_path: &Path,
+    workspace_root: &Path,
+    binary_name: &str,
+) -> Result<Command, BinaryLocateError>;
+
+/// Builds `binary_name` via `cargo build --bin <name>` in `workspace_root`.
+/// Returns the captured `Output`; returns `Err` only when the subprocess
+/// cannot be spawned.
+pub fn build_binary(
+    workspace_root: &Path,
+    binary_name: &str,
+) -> std::io::Result<Output>;
+```
+
+**Usage example** (from `examples/todo-cli/tests/cli.rs`):
+
+```rust
+use assert_cmd::Command;
+
+fn locate_or_build_todo_cli_cmd() -> Result<Command, Box<dyn std::error::Error>> {
+    let root = workspace_root();
+    locate_or_build_binary(&root.join("Cargo.toml"), &root, "todo-cli")
+        .map(Command::from_std)
+        .map_err(|e| -> Box<dyn std::error::Error> { Box::new(e) })
+}
+```
+
+The module is `#[doc(hidden)]` and is not part of the public crates.io API.
+Do not use it outside test helpers.
+
 ## Macro implementation: fixture classification and normalization
 
 Fixture name normalization happens during macro expansion, before generated

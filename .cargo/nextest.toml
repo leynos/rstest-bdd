@@ -1,0 +1,13 @@
+# .cargo/nextest.toml
+
+# On Windows, nextest's Job Object / pipe-handle inheritance causes trybuild
+# and cargo_metadata to deadlock when spawning child `cargo` processes inside a
+# test. The macro_compile binaries in rstest-bdd-harness-tokio and
+# rstest-bdd-harness-gpui rely on both crates.  In CI these binaries are run
+# with `cargo test` (libtest) rather than nextest on Windows (see ci.yml).
+# The override below is a local-development safety net only; it does not fix
+# the underlying deadlock.
+[[profile.default.overrides]]
+platform = 'cfg(target_os = "windows")'
+filter = 'binary(macro_compile)'
+slow-timeout = { period = "300s", terminate-after = 1 }

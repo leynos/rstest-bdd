@@ -28,12 +28,19 @@ fn decrement_counter(app: &CounterApp, amount: u32) {
     app.decrement(amount);
 }
 
-#[when("I record the GPUI dispatcher seed")]
-fn record_dispatcher_seed(
+#[when("I record the GPUI test context")]
+fn record_gpui_test_context(
     app: &CounterApp,
     #[from(rstest_bdd_harness_context)] context: &gpui::TestAppContext,
 ) {
-    app.record_dispatcher_seed(context.dispatcher().seed());
+    // NOTE: The GPUI TestAppContext currently returns `None` for
+    // `test_function_name()` in this scenario. We call it here to ensure the
+    // API is wired correctly without depending on that specific value. If
+    // upstream starts populating this field, consider whether the test should
+    // start validating or recording the function name instead of ignoring it.
+    let _ = context.test_function_name();
+
+    app.record_gpui_context();
 }
 
 #[then("the counter value is {expected:i32}")]
@@ -41,14 +48,11 @@ fn counter_value_is(app: &CounterApp, expected: i32) {
     assert_eq!(app.value(), expected);
 }
 
-#[then("a dispatcher seed was recorded")]
-fn a_dispatcher_seed_was_recorded(app: &CounterApp) {
-    // Assert that a seed exists rather than checking a specific value.
-    // The concrete seed depends on the SEED environment variable and harness
-    // configuration, so asserting existence keeps the scenario stable.
+#[then("a GPUI test context was recorded")]
+fn a_gpui_test_context_was_recorded(app: &CounterApp) {
     assert!(
-        app.dispatcher_seed().is_some(),
-        "expected the GPUI dispatcher seed to have been recorded"
+        app.has_observed_gpui_context(),
+        "expected the GPUI test context to have been recorded"
     );
 }
 

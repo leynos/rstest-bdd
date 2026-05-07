@@ -7,11 +7,19 @@ prepared. The workspace currently contains seven publishable libraries and the
 `cargo-bdd` support tool, so follow the sequence below to keep the dependency
 graph satisfied.
 
+After bumping workspace versions:
+
+- Run `make update-ui-lints-lock` and commit the updated
+  `crates/rstest-bdd/tests/ui_lints/Cargo.lock` to capture any new transitive
+  dependencies introduced since the last release.
+
 `rstest-bdd-harness-gpui` remains developed against the workspace-local GPUI
-shim, so the main repository stays free of `async-trait`. The publish-check
-automation now synthesizes a standalone package artifact for the crate and
-compiles a generated validator crate against the upstream `gpui` dependency, so
-the crates.io dependency surface is verified before publication.
+shim through a `version` plus `path` workspace dependency, so the main
+repository stays free of `async-trait` during local development without
+reintroducing a root `[patch.crates-io]` table. The publish-check automation
+synthesizes a standalone package artifact for the crate and compiles a
+generated validator crate against the upstream `gpui` dependency, so the
+crates.io dependency surface is verified before publication.
 
 1. **Run the full quality gate.** Execute `make fmt`, `make lint`,
    `make markdownlint`, and `make test` from the workspace root. Resolve any

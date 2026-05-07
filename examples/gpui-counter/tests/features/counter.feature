@@ -3,9 +3,9 @@ Feature: Counter application with GPUI harness
   Scenario: Increment a counter and observe GPUI context
     Given a counter starting at 0
     When I increment the counter by 3
-    And I record the GPUI dispatcher seed
+    And I record the GPUI test context
     Then the counter value is 3
-    And a dispatcher seed was recorded
+    And a GPUI test context was recorded
 
   Scenario: Multiple increments and decrements
     Given a counter starting at 10

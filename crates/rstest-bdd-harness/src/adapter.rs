@@ -22,10 +22,10 @@ use crate::{HarnessResult, runner::ScenarioRunRequest};
 /// let result: HarnessResult<i32> = harness.run(request).map_err(|err| {
 ///     let err = err.with_scenario_context(feature_path.clone(), scenario_name.clone());
 ///     tracing::error!(
-///         %harness_type = std::any::type_name::<StdHarness>(),
-///         %feature_path,
-///         %scenario_name,
-///         %err,
+///         harness_type = %std::any::type_name::<StdHarness>(),
+///         feature_path = %feature_path,
+///         scenario_name = %scenario_name,
+///         error = %err,
 ///         "harness failed to initialize scenario"
 ///     );
 ///     err.into_error()
