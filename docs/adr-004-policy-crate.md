@@ -57,8 +57,10 @@ The workspace now uses the internal crate `rstest-bdd-policy` to own
   public re-exports.
 - `rstest-bdd-macros` imports the shared policy enums directly from
   `rstest-bdd-policy`.
-- Regression tests in the runtime and proc-macro crates assert that both
-  surfaces still use the shared types.
+- Regression tests in `crates/rstest-bdd/src/execution/tests.rs`,
+  `crates/rstest-bdd-macros/src/macros/scenarios/macro_args/tests.rs`, and the
+  `execution_policy_reexports.rs` trybuild fixture assert that both surfaces
+  still use the shared types.
 
 ## Goals and non-goals
 

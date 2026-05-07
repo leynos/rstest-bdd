@@ -172,6 +172,49 @@ otherwise differs from the Rust parameter name. When the classifier must build
 a new identifier for a normalized implicit fixture name, preserve the original
 parameter span so diagnostics still point at the user-written parameter.
 
+## Shared policy crate (`rstest-bdd-policy`)
+
+The workspace owns policy type definitions in
+`rstest-bdd-policy`.[^1] That crate is the single source of truth for
+`RuntimeMode`, `TestAttributeHint`, and their helper behavior inside this
+workspace.
+
+`rstest-bdd` re-exports both shared policy types from the runtime API to preserve
+its public contract.[^2]
+
+```rust
+pub use rstest_bdd_policy::{RuntimeMode, TestAttributeHint};
+```
+
+The re-export lives in
+[`crates/rstest-bdd/src/execution/mod.rs`](../crates/rstest-bdd/src/execution/mod.rs),
+so downstream users can continue to depend on
+`rstest_bdd::execution::{RuntimeMode, TestAttributeHint}` without importing the
+policy crate directly.
+
+The macro layer imports both policy types directly from
+`rstest_bdd_policy`;[^3] it does not define local duplicates of those enums. Keep
+this boundary intact to avoid drift between macro parsing decisions and runtime
+execution behaviour.
+
+Add new shared policy types in `rstest-bdd-policy` when a type must be used by
+both the runtime and macro crates. Keep type definitions local to the crate that
+uses them when sharing is not needed.
+
+Regression tests enforce this boundary:
+
+- Runtime re-export assertions.[^4]
+- Macro import assertions.[^5]
+
+The architectural rationale explains this decision and its consequences.[^6]
+
+[^1]: ../crates/rstest-bdd-policy
+[^2]: ../crates/rstest-bdd/src/execution/mod.rs
+[^3]: ../crates/rstest-bdd-macros/src/macros/scenarios/macro_args/mod.rs
+[^4]: ../crates/rstest-bdd/src/execution/tests.rs
+[^5]: ../crates/rstest-bdd-macros/src/macros/scenarios/macro_args/tests.rs
+[^6]: adr-004-policy-crate.md
+
 ## Internal test infrastructure
 
 The async semantic behaviour tests use a shared support module at

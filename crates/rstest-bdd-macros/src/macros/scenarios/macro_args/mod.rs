@@ -7,6 +7,11 @@
 //! The parser enforces that each input appears at most once, mirroring both
 //! accepted spellings in duplicate and missing-argument diagnostics so users
 //! immediately see which synonym needs adjusting.
+//!
+//! `RuntimeMode` and `TestAttributeHint` are imported from
+//! `rstest_bdd_policy`, matching the runtime crate's public re-exports.
+//! Regression tests in this module and in `rstest-bdd::execution` guard that
+//! shared source of truth so macro/runtime policy semantics do not drift.
 
 pub(crate) use rstest_bdd_policy::{RuntimeMode, TestAttributeHint};
 use syn::LitStr;

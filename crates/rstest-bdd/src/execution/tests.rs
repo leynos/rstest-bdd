@@ -49,6 +49,44 @@ fn runtime_mode_tokio_hint_is_rstest_with_tokio() {
     );
 }
 
+#[rstest]
+#[case::sync(RuntimeMode::Sync)]
+#[case::tokio_current_thread(RuntimeMode::TokioCurrentThread)]
+fn runtime_mode_re_export_matches_policy_crate(#[case] mode: RuntimeMode) {
+    // Compile-time proof: assignment succeeds only when both types are identical.
+    let _: rstest_bdd_policy::RuntimeMode = mode;
+}
+
+#[rstest]
+#[case::rstest_only(TestAttributeHint::RstestOnly)]
+#[case::rstest_with_tokio_current_thread(TestAttributeHint::RstestWithTokioCurrentThread)]
+#[case::rstest_with_gpui_test(TestAttributeHint::RstestWithGpuiTest)]
+fn test_attribute_hint_re_export_matches_policy_crate(#[case] hint: TestAttributeHint) {
+    // Compile-time proof: assignment succeeds only when both types are identical.
+    let _: rstest_bdd_policy::TestAttributeHint = hint;
+}
+
+#[test]
+fn runtime_mode_exhaustive_variant_guard() {
+    // No wildcard: adding a variant to RuntimeMode breaks compilation here.
+    let probe = RuntimeMode::Sync;
+    let _: u8 = match probe {
+        RuntimeMode::Sync => 0,
+        RuntimeMode::TokioCurrentThread => 1,
+    };
+}
+
+#[test]
+fn test_attribute_hint_exhaustive_variant_guard() {
+    // No wildcard: adding a variant to TestAttributeHint breaks compilation here.
+    let probe = TestAttributeHint::RstestOnly;
+    let _: u8 = match probe {
+        TestAttributeHint::RstestOnly => 0,
+        TestAttributeHint::RstestWithTokioCurrentThread => 1,
+        TestAttributeHint::RstestWithGpuiTest => 2,
+    };
+}
+
 /// Tests for deprecated skip encoding functions.
 ///
 /// FIXME: Remove this module when deprecated skip encoding functions are removed.

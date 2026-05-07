@@ -13,6 +13,9 @@
 //!   hints, re-exported from `rstest_bdd_policy`.
 //! - [`StepExecutionRequest`]: Groups step data and diagnostic context for execution.
 //! - Helper functions for step execution, fixture validation, and skip encoding.
+//!   `RuntimeMode` and `TestAttributeHint` are re-exported from
+//!   `rstest_bdd_policy`, the shared source of truth used by the macro crate.
+//!   Runtime and macro tests guard that single-source policy boundary.
 
 mod error;
 
