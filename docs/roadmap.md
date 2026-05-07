@@ -715,7 +715,7 @@ changing the public trait contracts.
   Doc: `docs/rstest-bdd-design.md` §2.7.6.2. (Doggylump)
 - [ ] 10.1.4. Failing GPUI scenarios include the scenario name in logs where
   `GpuiHarness` and `gpui::TestAppContext` permit it, or the harness docs
-  document the upstream limitation so developers can quickly orientate failing
+  document the upstream limitation, so developers can quickly orientate failing
   scenarios. Finish line: a failing-harness regression asserts the scenario
   name appears in emitted diagnostics, or the GPUI harness docs state the
   upstream limitation and link the skipped test. Prerequisite: 9.4.3. Design
@@ -734,7 +734,7 @@ changing the public trait contracts.
   the `E0499`/`E0502` symptoms for two mutable `StepContext` fixtures, why the
   pattern fails, and recommended workarounds before downstream users reach
   compiler-error archaeology. Finish line: `docs/v0-6-0-migration-guide.md`
-  contains the troubleshooting entry and links the borrow-constraint design
+  contains the troubleshooting entry and links to the borrow-constraint design
   subsection. Design Doc: `docs/rstest-bdd-design.md` §2.7.6.1. (Telefono)
 - [ ] 10.2.3. The v0.6.0 migration guide warns users to run downstream tests
   through the repository's CI-equivalent gate and to run feature-gated tests,
@@ -756,7 +756,7 @@ remove the existing `StepContext`, harness, or macro surfaces.
   type mismatch, immutable fixture requested mutably, and already-borrowed
   fixture cases, so generated wrappers produce targeted diagnostics instead of
   collapsing every extraction failure into `MissingFixture`. Finish line: unit
-  tests cover every variant and generated-wrapper tests assert each variant maps
+  tests cover every variant, and generated-wrapper tests assert each variant maps
   to the expected diagnostic. Design Doc: `docs/rstest-bdd-design.md` §2.7.6.4.
   (Telefono)
 - [ ] 11.1.2. Generated code has an additive mutable-borrow helper that reduces
@@ -771,7 +771,7 @@ remove the existing `StepContext`, harness, or macro surfaces.
   `with_mut`, `take`, and `reset` operations for complex adapters without
   per-scenario thread-local `RefCell` boilerplate. Unit tests cover the helper,
   and docs present it as an additive alternative to ad-hoc GPUI world state.
-  Finish line: unit tests exercise all five operations and docs show a GPUI
+  Finish line: unit tests exercise all five operations, and docs show a GPUI
   world-state example using the helper. Design Doc: `docs/rstest-bdd-design.md`
   §2.7.6.4. (Dinolump)
 - [ ] 11.1.4. Users can register per-scenario cleanup for stateful adapters, so
@@ -790,7 +790,7 @@ remove the existing `StepContext`, harness, or macro surfaces.
   examples compile using `#[harness_context]`. Design Doc:
   `docs/rstest-bdd-design.md` §2.7.6.4. (Dinolump)
 - [ ] 11.2.2. The public prelude exposes `StepResult`, `Slot`, `ScenarioState`,
-  harness-context helpers, and marker attributes from 11.2.1 so examples can
+  harness-context helpers, and marker attributes from 11.2.1, so examples can
   import one predictable module without hiding the underlying crates.
   Finish line: compile tests prove examples import only the prelude plus their
   harness crate, and docs list the exported items. Prerequisite: 11.2.1. Design
@@ -830,7 +830,7 @@ predictable.
   Public callers retain value access methods, and internal variants are no
   longer part of the public surface. Prerequisite: 12.1.1. Design Doc:
   `docs/rstest-bdd-design.md` §2.7.6.5. Finish line: public API tests compile
-  against accessor methods and no downstream test can match internal variants.
+  against accessor methods, and no downstream test can match internal variants.
   (Telefono)
 - [ ] 12.1.3. A stable world lifecycle contract guarantees before-scenario
   reset, after-scenario cleanup, and cleanup on failure or skip, so users can
