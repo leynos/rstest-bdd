@@ -8,17 +8,23 @@ use rstest_bdd_harness::{
 };
 use rstest_bdd_macros::{given, scenario, then, when};
 
+/// Minimal stand-in for `bevy::ecs::world::World` in the cookbook example.
+///
+/// The fixture keeps this type local so the compile contract can exercise a
+/// typed harness context without adding Bevy as a workspace dependency.
 #[derive(Default)]
 pub struct World {
     entities: usize,
 }
 
 impl World {
+    /// Records one spawned entity for the cookbook's mutable context step.
     fn spawn_empty(&mut self) {
         self.entities += 1;
     }
 }
 
+/// Public harness type shaped like a third-party adapter crate export.
 #[derive(Default)]
 pub struct BevyHarness;
 
@@ -30,8 +36,10 @@ impl HarnessAdapter for BevyHarness {
     }
 }
 
+/// Public attribute policy type shaped like a third-party adapter export.
 pub struct BevyAttributePolicy;
 
+/// Attributes returned by the cookbook policy implementation.
 const BEVY_TEST_ATTRIBUTES: [TestAttribute; 1] = [TestAttribute::new("rstest::rstest")];
 
 impl AttributePolicy for BevyAttributePolicy {
@@ -40,21 +48,25 @@ impl AttributePolicy for BevyAttributePolicy {
     }
 }
 
+/// Verifies that the harness supplied a fresh cookbook world.
 #[given("a precondition")]
 fn precondition(#[from(rstest_bdd_harness_context)] world: &World) {
     assert_eq!(world.entities, 0);
 }
 
+/// Mutates the cookbook world through the reserved harness context fixture.
 #[when("an action occurs")]
 fn action(#[from(rstest_bdd_harness_context)] world: &mut World) {
     world.spawn_empty();
 }
 
+/// Confirms that the mutation from the `when` step remains visible.
 #[then("a result is produced")]
 fn result(#[from(rstest_bdd_harness_context)] world: &World) {
     assert_eq!(world.entities, 1);
 }
 
+/// Compile-checked scenario using the public cookbook harness and policy.
 #[scenario(
     path = "basic.feature",
     harness = BevyHarness,

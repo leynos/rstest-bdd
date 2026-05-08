@@ -399,6 +399,15 @@ Use the same pattern in hand-written tests instead of bare `.unwrap()`. This
 keeps the concrete `HarnessError` visible in the panic message when a harness
 cannot initialize its infrastructure.
 
+### Third-party adapter crates
+
+Third-party harness crates outside this workspace implement the same
+`HarnessAdapter` and `AttributePolicy` contracts described here. The worked
+example in the [third-party harness adapter cookbook](users-guide.md#third-party-harness-adapter-cookbook)
+shows the user-facing crate shape. Such crates should depend on
+`rstest-bdd-harness` for the adapter contracts, keeping framework integration
+decoupled from `rstest-bdd` and `rstest-bdd-macros`.
+
 ### Observability guidance
 
 Harness implementations should emit a `tracing::error!` event before returning
