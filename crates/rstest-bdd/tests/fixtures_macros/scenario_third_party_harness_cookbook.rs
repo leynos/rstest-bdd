@@ -28,9 +28,12 @@ impl World {
 #[derive(Default)]
 pub struct BevyHarness;
 
+/// Harness adapter implementation that supplies `World` to cookbook steps.
 impl HarnessAdapter for BevyHarness {
+    /// Scenario context type shared by the cookbook step functions.
     type Context = World;
 
+    /// Runs a scenario request with a fresh empty `World`.
     fn run<T>(&self, request: ScenarioRunRequest<'_, Self::Context, T>) -> HarnessResult<T> {
         Ok(request.run(World::default()))
     }
@@ -42,7 +45,9 @@ pub struct BevyAttributePolicy;
 /// Attributes returned by the cookbook policy implementation.
 const BEVY_TEST_ATTRIBUTES: [TestAttribute; 1] = [TestAttribute::new("rstest::rstest")];
 
+/// Attribute policy implementation used by the cookbook scenario macro.
 impl AttributePolicy for BevyAttributePolicy {
+    /// Returns the test attributes applied to generated cookbook tests.
     fn test_attributes() -> &'static [TestAttribute] {
         &BEVY_TEST_ATTRIBUTES
     }
@@ -74,7 +79,8 @@ fn result(#[from(rstest_bdd_harness_context)] world: &World) {
 )]
 fn third_party_harness_cookbook_example() {}
 
-// Compile-time guard: fail fast if the feature path changes.
+/// Compile-time guard that fails fast if the feature path changes.
 const _: &str = include_str!("basic.feature");
 
+/// Binary entry point required by the trybuild compile-pass fixture.
 fn main() {}
