@@ -817,18 +817,19 @@ scenarios!(
 
 #### Third-party harness adapter cookbook
 
-Use a separate harness crate when a framework needs setup, teardown, runtime
-ownership, or typed context that should not become a dependency of the core
-`rstest-bdd` crates. A Bevy integration, for example, should live in an opt-in
-crate such as `rstest-bdd-harness-bevy` and expose two public types:
+A separate harness crate is appropriate when a framework needs setup,
+teardown, runtime ownership, or typed context that should not become a
+dependency of the core `rstest-bdd` crates. A Bevy integration, for example,
+should live in an opt-in crate such as `rstest-bdd-harness-bevy` and expose two
+public types:
 
 - a harness adapter, such as `BevyHarness`, implementing `HarnessAdapter`; and
 - an optional attribute policy, such as `BevyAttributePolicy`, implementing
   `AttributePolicy`.
 
 The adapter crate depends on the shared harness contract and on the framework
-it integrates. In a real crate, choose the framework version used by your
-application and keep it out of `rstest-bdd` itself:
+it integrates. In a real crate, the framework version should match the
+application, and that configuration should stay out of `rstest-bdd` itself:
 
 ```toml
 [package]
@@ -890,8 +891,8 @@ Unit-context harnesses, where `type Context = ()`, should instead call
 the reserved fixture key.
 
 Step definitions request the harness context with
-`#[from(rstest_bdd_harness_context)]`. The parameter name is yours; the fixture
-key is fixed:
+`#[from(rstest_bdd_harness_context)]`. The parameter name is adapter-specific;
+the fixture key is fixed:
 
 ```rust,no_run
 use bevy::ecs::world::World;
@@ -940,13 +941,14 @@ impl AttributePolicy for BevyAttributePolicy {
 At present, custom policy paths are checked for the `AttributePolicy` trait,
 but their `test_attributes()` methods are not evaluated by the procedural
 macros. Unknown third-party policy paths therefore fall back to
-`#[rstest::rstest]` during code generation. Use `attributes = ...` anyway when
-you want the trait check and a forward-compatible configuration point. If your
-framework requires a native test attribute, add that attribute explicitly until
-the policy resolver supports your crate.
+`#[rstest::rstest]` during code generation. The `attributes = ...`
+configuration remains useful for the trait check and as a forward-compatible
+configuration point. If a framework requires a native test attribute, that
+attribute should be added explicitly until the policy resolver supports the
+adapter crate.
 
-Use the harness and policy from scenario tests like any other macro
-configuration:
+The harness and policy can then be used from scenario tests like any other
+macro configuration:
 
 ```rust,no_run
 use rstest_bdd_macros::scenario;
