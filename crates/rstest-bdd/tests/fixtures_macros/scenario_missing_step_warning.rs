@@ -1,3 +1,6 @@
+//! Trybuild fixture for the `#[scenario]` macro warning emitted when a feature
+//! file contains a step without a matching registered step definition.
+
 use rstest_bdd_macros::scenario;
 
 #[scenario(path = "../features/macros/unmatched.feature")]
