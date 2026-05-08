@@ -5,7 +5,7 @@ This ExecPlan (execution plan) is a living document. The sections
 `Decision Log`, and `Outcomes & Retrospective` must be kept up to date as work
 proceeds.
 
-Status: DRAFT - awaiting approval before implementation
+Status: COMPLETE - implemented and validated on 2026-05-08
 
 `PLANS.md` is not present in this repository at the time of writing, so this
 ExecPlan is the governing plan for roadmap item 9.6.3.
@@ -42,8 +42,8 @@ set -o pipefail; make lint 2>&1 | tee /tmp/lint-9-6-3-third-party-harness-cookbo
 set -o pipefail; make test 2>&1 | tee /tmp/test-9-6-3-third-party-harness-cookbook.out
 ```
 
-This plan itself is pre-implementation. Do not implement the cookbook until the
-plan is explicitly approved.
+Implementation was approved on 2026-05-08. Continue milestone by milestone
+within the tolerances in this plan.
 
 ## Constraints
 
@@ -145,13 +145,28 @@ plan is explicitly approved.
 - [x] (2026-05-08) Drafted this pre-implementation ExecPlan.
 - [x] (2026-05-08) Validated the draft plan with targeted Markdown linting
       and repository gates for the pre-implementation branch.
-- [ ] Await explicit approval to implement the cookbook.
-- [ ] Stage A: inventory existing harness documentation and tests.
-- [ ] Stage B: draft the user-guide cookbook.
-- [ ] Stage C: add or map validation for cookbook examples.
-- [ ] Stage D: update design documentation if any new decision is made.
-- [ ] Stage E: run focused validation plus repository gates.
-- [ ] Stage F: mark roadmap item 9.6.3 done and record outcomes.
+- [x] (2026-05-08) Received explicit approval to proceed with implementation.
+- [x] (2026-05-08) Stage A: inventoried existing harness documentation and
+      tests.
+- [x] (2026-05-08) Stage B: drafted the user-guide cookbook in
+      `docs/users-guide.md`.
+- [x] (2026-05-08) Stage C: added
+      `crates/rstest-bdd/tests/fixtures_macros/scenario_third_party_harness_cookbook.rs`
+      and wired it into `crates/rstest-bdd/tests/trybuild_macros.rs`.
+- [x] (2026-05-08) Stage C: validated the new fixture with
+      `RUSTFLAGS="-D warnings" cargo test -p rstest-bdd --test
+      trybuild_macros step_macros_compile -- --exact`.
+- [x] (2026-05-08) Stage C: validated the existing harness unit contract with
+      `RUSTFLAGS="-D warnings" cargo test -p rstest-bdd-harness`.
+- [x] (2026-05-08) Stage C: validated macro-generated custom harness
+      behaviour with `RUSTFLAGS="-D warnings" cargo test -p rstest-bdd --test
+      scenario_harness`.
+- [x] (2026-05-08) Stage D: confirmed no design-document update was required
+      because the implementation documents existing ADR-005 and ADR-007
+      contracts without changing them.
+- [x] (2026-05-08) Stage E: ran focused validation plus repository gates.
+- [x] (2026-05-08) Stage F: marked roadmap item 9.6.3 done and recorded
+      outcomes.
 
 ## Surprises & Discoveries
 
@@ -181,6 +196,30 @@ plan is explicitly approved.
   first creating the `tests/features` parent. Impact: the planning branch
   includes a small test-infrastructure fix so the required gate can complete.
 
+- Observation: Stage A found enough existing coverage for the harness
+  execution contract but not a single compile-pass fixture that looks like a
+  third-party adapter cookbook.
+  `crates/rstest-bdd-harness/tests/harness_behaviour.rs` proves
+  `ScenarioRunRequest` can carry non-unit context, and
+  `crates/rstest-bdd/tests/scenario_harness.rs` proves macro-generated
+  scenarios inject harness context into step functions. Impact: add one small
+  trybuild fixture that combines a Bevy-like adapter type, a custom
+  `AttributePolicy`, and `#[scenario(..., harness = ..., attributes = ...)]`
+  without adding a Bevy dependency.
+
+- Observation: the focused trybuild run passed with
+  `scenario_third_party_harness_cookbook.rs` in the compile-pass fixture list.
+  Impact: the cookbook's custom-harness, custom-policy macro shape now has a
+  direct compile check, while existing behavioural tests continue to cover
+  runtime context injection and unhappy paths.
+
+- Observation: `make fmt` still fails because its `mdformat-all` step invokes
+  `markdownlint --fix` in a way that reports many pre-existing MD013 line
+  length findings across unrelated documents. Impact: unrelated formatter
+  side effects were restored, the changed Markdown files were validated with
+  `markdownlint-cli2`, and the repository's actual `make markdownlint` gate
+  passed.
+
 ## Decision Log
 
 - Decision: keep this branch as a pre-implementation plan branch and leave the
@@ -209,16 +248,46 @@ plan is explicitly approved.
   `make test`, and the failure was in existing test support rather than the
   cookbook plan. Date/Author: 2026-05-08 / Codex.
 
+- Decision: validate the cookbook's "working example" shape with a local
+  trybuild compile-pass fixture rather than a new workspace adapter crate.
+  Rationale: the roadmap asks for third-party adapter documentation, not a
+  published Bevy integration, and a fixture can prove the macro contract while
+  preserving ADR-005's dependency boundary. Date/Author: 2026-05-08 / Codex.
+
 ## Outcomes & Retrospective
 
-This section is intentionally empty while the plan is in draft. During
-implementation, record:
+Implemented roadmap item 9.6.3 by replacing the short custom-harness passage in
+`docs/users-guide.md` with `Third-party harness adapter cookbook`. The cookbook
+documents a third-party adapter crate shape, `Cargo.toml` dependencies, a
+Bevy-like `HarnessAdapter` using `type Context = World`, step access through
+`#[from(rstest_bdd_harness_context)]`, an `AttributePolicy`, scenario macro
+configuration, and the current third-party policy fallback to
+`#[rstest::rstest]`.
 
-- the cookbook sections added to `docs/users-guide.md`;
-- any updates made to `docs/rstest-bdd-design.md` or other design documents;
-- the test files used or added to validate the working example;
-- the exact validation commands and results; and
-- the roadmap update that marks item 9.6.3 done.
+Added
+`crates/rstest-bdd/tests/fixtures_macros/scenario_third_party_harness_cookbook.rs`
+and wired it into `crates/rstest-bdd/tests/trybuild_macros.rs` so the cookbook
+shape has a compile-pass check without adding Bevy to the workspace. No design
+document change was required because no new architecture decision was made.
+`docs/roadmap.md` now marks 9.6.3 done.
+
+Validation completed successfully:
+
+```plaintext
+markdownlint-cli2 docs/users-guide.md docs/execplans/9-6-3-third-party-harness-cookbook.md
+RUSTFLAGS="-D warnings" cargo test -p rstest-bdd --test trybuild_macros step_macros_compile -- --exact
+RUSTFLAGS="-D warnings" cargo test -p rstest-bdd-harness
+RUSTFLAGS="-D warnings" cargo test -p rstest-bdd --test scenario_harness
+make check-fmt
+make lint
+make test
+make markdownlint
+make nixie
+```
+
+`make fmt` was attempted, but it failed on unrelated pre-existing Markdown
+line-length findings emitted by `markdownlint --fix`; the relevant changed
+files and repository Markdown gate passed afterwards.
 
 ## Context and orientation
 

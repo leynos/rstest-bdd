@@ -815,31 +815,160 @@ scenarios!(
 );
 ```
 
-#### Writing a custom harness adapter
+#### Third-party harness adapter cookbook
 
-A custom harness adapter can intercept scenario execution to inject
-framework-specific setup and teardown. The harness type must implement both
-`HarnessAdapter` and `Default`:
+Use a separate harness crate when a framework needs setup, teardown, runtime
+ownership, or typed context that should not become a dependency of the core
+`rstest-bdd` crates. A Bevy integration, for example, should live in an opt-in
+crate such as `rstest-bdd-harness-bevy` and expose two public types:
+
+- a harness adapter, such as `BevyHarness`, implementing `HarnessAdapter`; and
+- an optional attribute policy, such as `BevyAttributePolicy`, implementing
+  `AttributePolicy`.
+
+The adapter crate depends on the shared harness contract and on the framework
+it integrates. In a real crate, choose the framework version used by your
+application and keep it out of `rstest-bdd` itself:
+
+```toml
+[package]
+name = "rstest-bdd-harness-bevy"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+bevy = { version = "0.14", default-features = false }
+rstest-bdd-harness = "0.6.0-beta1"
+
+[dev-dependencies]
+rstest-bdd = "0.6.0-beta1"
+rstest-bdd-macros = "0.6.0-beta1"
+```
+
+The harness type must implement `Default` because generated scenario tests
+instantiate it with `<Harness as Default>::default()`. It must also set the
+associated `Context` type and run the scenario by passing a concrete context
+value into `request.run(context)`. For a Bevy-like harness, that context would
+normally be a `bevy::ecs::world::World` or a small wrapper around it:
 
 ```rust,no_run
+use bevy::ecs::world::World;
+use bevy::prelude::Resource;
 use rstest_bdd_harness::{HarnessAdapter, HarnessResult, ScenarioRunRequest};
 
 #[derive(Default)]
-struct MyHarness;
+pub struct BevyHarness;
 
-impl HarnessAdapter for MyHarness {
-    type Context = ();
+impl HarnessAdapter for BevyHarness {
+    type Context = World;
 
     fn run<T>(
         &self,
         request: ScenarioRunRequest<'_, Self::Context, T>,
     ) -> HarnessResult<T> {
-        // Custom pre-scenario setup using request.metadata()
-        let result = request.run_without_context();
-        // Custom post-scenario teardown
+        let mut world = World::new();
+
+        // Register test-only resources, plugins, or schedules before steps run.
+        world.insert_resource(TestClock::default());
+
+        let result = request.run(world);
+
+        // Run framework-specific cleanup here if the framework requires it.
         Ok(result)
     }
 }
+
+#[derive(Default, Resource)]
+struct TestClock {
+    ticks: u64,
+}
+```
+
+Unit-context harnesses, where `type Context = ()`, should instead call
+`request.run_without_context()`. Non-unit context harnesses must call
+`request.run(context)`, otherwise step functions cannot borrow the context via
+the reserved fixture key.
+
+Step definitions request the harness context with
+`#[from(rstest_bdd_harness_context)]`. The parameter name is yours; the fixture
+key is fixed:
+
+```rust,no_run
+use bevy::ecs::world::World;
+use rstest_bdd_macros::{given, then, when};
+
+#[given("the world starts empty")]
+fn world_starts_empty(#[from(rstest_bdd_harness_context)] world: &World) {
+    assert_eq!(world.entities().len(), 0);
+}
+
+#[when("the app spawns one entity")]
+fn app_spawns_one_entity(
+    #[from(rstest_bdd_harness_context)] world: &mut World,
+) {
+    world.spawn_empty();
+}
+
+#[then("the world contains one entity")]
+fn world_contains_one_entity(
+    #[from(rstest_bdd_harness_context)] world: &World,
+) {
+    assert_eq!(world.entities().len(), 1);
+}
+```
+
+The adapter may also publish an attribute policy. This keeps the framework's
+native test attribute beside the harness crate instead of teaching the macro
+crate about the framework dependency:
+
+```rust,no_run
+use rstest_bdd_harness::{AttributePolicy, TestAttribute};
+
+pub struct BevyAttributePolicy;
+
+const BEVY_TEST_ATTRIBUTES: [TestAttribute; 1] = [
+    TestAttribute::new("rstest::rstest"),
+];
+
+impl AttributePolicy for BevyAttributePolicy {
+    fn test_attributes() -> &'static [TestAttribute] {
+        &BEVY_TEST_ATTRIBUTES
+    }
+}
+```
+
+At present, custom policy paths are checked for the `AttributePolicy` trait,
+but their `test_attributes()` methods are not evaluated by the procedural
+macros. Unknown third-party policy paths therefore fall back to
+`#[rstest::rstest]` during code generation. Use `attributes = ...` anyway when
+you want the trait check and a forward-compatible configuration point. If your
+framework requires a native test attribute, add that attribute explicitly until
+the policy resolver supports your crate.
+
+Use the harness and policy from scenario tests like any other macro
+configuration:
+
+```rust,no_run
+use rstest_bdd_macros::scenario;
+use rstest_bdd_harness_bevy::{BevyAttributePolicy, BevyHarness};
+
+#[scenario(
+    path = "tests/features/bevy_world.feature",
+    harness = BevyHarness,
+    attributes = BevyAttributePolicy,
+)]
+fn bevy_world_scenario() {}
+```
+
+A minimal feature for the example above can stay framework-neutral:
+
+```gherkin
+Feature: Bevy world
+
+  Scenario: Spawn an entity
+    Given the world starts empty
+    When the app spawns one entity
+    Then the world contains one entity
 ```
 
 Harness adapters must faithfully propagate the runner's return value inside
@@ -850,13 +979,12 @@ When migrating pre-ADR-007 harness code, update `type Context`, the
 `ScenarioRunner` constructor signature, and the request execution helper
 together: unit-context harnesses (`StdHarness`, `TokioHarness`, and similar
 adapters using `Context = ()`) should call `run_without_context()`, while
-non-unit context harnesses should continue to use `request.run(context)`.
+non-unit context harnesses should use `request.run(context)`.
 
-If a custom harness also defines a custom attribute-policy type, document that
-policy separately for users. Today the generated macros only recognize the
-first-party canonical policy paths described above, so third-party policies
-still trait-check correctly but currently fall back to `#[rstest::rstest]`
-during code generation.
+For complete first-party examples, compare the `examples/tokio-reminders` and
+`examples/gpui-counter` crates. They are not third-party templates, but they
+show how an adapter crate keeps runtime or framework dependencies outside the
+core runtime and macro crates.
 
 ### Using the Tokio harness
 

@@ -629,10 +629,11 @@ opt-in crates rather than the core runtime or macros.
   Prerequisite: 9.5.3. Delivered 2026-03-22. (Pandalump)
 - [x] 9.6.2. Add integration tests covering attribute policy resolution for
   GPUI once 9.4 is delivered. Prerequisite: 9.4.3. (Pandalump)
-- [ ] 9.6.3. Add a third-party harness cookbook documenting how to write a
+- [x] 9.6.3. Add a third-party harness cookbook documenting how to write a
   custom `HarnessAdapter` (for example, `rstest-bdd-harness-bevy`), including
   the `Context` type, attribute policy, and `Cargo.toml` configuration. Finish
-  line: cookbook section in the user guide with a working example. (Dinolump)
+  line: cookbook section in the user guide with a working example. Delivered
+  2026-05-08. (Dinolump)
 
 ### 9.7. Harness-led attribute-policy defaults
 
