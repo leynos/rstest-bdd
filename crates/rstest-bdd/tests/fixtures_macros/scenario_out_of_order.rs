@@ -1,3 +1,6 @@
+//! Trybuild fixture for `#[scenario]` step discovery when the step definition
+//! macro is registered after the scenario binding.
+
 use rstest_bdd_macros::{given, scenario};
 
 #[scenario(path = "../features/macros/ambiguous.feature")]

@@ -1,3 +1,6 @@
+//! Trybuild fixture for the `ScenarioState` derive macro when the state type
+//! also derives `Default` and contains a resettable `Slot` field.
+
 use rstest_bdd::Slot;
 use rstest_bdd::ScenarioState as _;
 use rstest_bdd_macros::ScenarioState;
