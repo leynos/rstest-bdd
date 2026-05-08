@@ -760,7 +760,6 @@ dependencies = [
  "gpui",
  "rstest",
  "rstest-bdd",
- "rstest-bdd-harness",
  "rstest-bdd-harness-gpui",
  "rstest-bdd-macros",
 ]
@@ -2148,7 +2147,6 @@ version = "0.6.0-beta1"
 dependencies = [
  "rstest",
  "rstest-bdd",
- "rstest-bdd-harness",
  "rstest-bdd-harness-tokio",
  "rstest-bdd-macros",
  "thiserror 1.0.69",

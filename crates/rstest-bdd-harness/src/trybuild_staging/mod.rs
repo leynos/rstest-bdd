@@ -83,19 +83,19 @@ pub(super) fn copy_entry(entry: &fs::DirEntry, destination: &Path) -> io::Result
 fn canonical_destination_for_overlap(destination: &Path) -> io::Result<PathBuf> {
     match fs::canonicalize(destination) {
         Ok(path) => Ok(path),
-        Err(err) if err.kind() == io::ErrorKind::NotFound => {
-            let parent = destination.parent().filter(|p| !p.as_os_str().is_empty());
-            let base = match parent {
-                Some(p) => fs::canonicalize(p)?,
-                None => fs::canonicalize(std::env::current_dir()?)?,
-            };
-            Ok(match destination.file_name() {
-                Some(name) => base.join(name),
-                None => base,
-            })
-        }
+        Err(err) if err.kind() == io::ErrorKind::NotFound => canonical_missing_path(destination),
         Err(err) => Err(err),
     }
+}
+
+fn canonical_missing_path(path: &Path) -> io::Result<PathBuf> {
+    let Some(name) = path.file_name() else {
+        return fs::canonicalize(std::env::current_dir()?);
+    };
+    let Some(parent) = path.parent().filter(|p| !p.as_os_str().is_empty()) else {
+        return Ok(fs::canonicalize(std::env::current_dir()?)?.join(name));
+    };
+    Ok(canonical_destination_for_overlap(parent)?.join(name))
 }
 
 fn paths_overlap(a: &Path, b: &Path) -> bool {

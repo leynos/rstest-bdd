@@ -1982,6 +1982,15 @@ The release strategy is therefore split by compatibility risk:
   entity/window handles and resets world state, and migration-guide coverage
   for feature-gated downstream tests such as `cargo test --all-features`.
 
+  The first dependency-matrix quick win keeps the public harness traits in
+  `rstest-bdd-harness`, but lets first-party adapter users depend only on the
+  selected adapter crate. `rstest-bdd-harness-tokio` and
+  `rstest-bdd-harness-gpui` re-export the base API used by generated tests, and
+  the macro targets that adapter crate root when it can prove that the selected
+  harness or attribute policy is the canonical Tokio or GPUI first-party type.
+  Custom harnesses and explicit base API imports still require a direct
+  `rstest-bdd-harness` dependency.
+
 ##### 2.7.6.4 v0.6.1 early-life support helpers
 
 - **v0.6.1 early-life support:** add semver-compatible helper APIs. Candidate

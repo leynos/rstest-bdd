@@ -5,9 +5,9 @@ This ExecPlan (execution plan) is a living document. The sections
 `Decision Log`, and `Outcomes & Retrospective` must be kept up to date as work
 proceeds.
 
-Status: DRAFT
+Status: COMPLETE
 
-Implementation must not begin until this plan is explicitly approved.
+Implementation began after explicit user approval on 2026-05-08.
 
 ## Purpose / big picture
 
@@ -342,13 +342,34 @@ Acceptance is met when all of the following are true:
 - [x] 2026-05-08: Used Wyvern reconnaissance agents to inspect roadmap/design
   acceptance criteria, documentation signposts, test surfaces, and risks.
 - [x] 2026-05-08: Drafted this pre-implementation ExecPlan.
-- [ ] Await explicit approval before implementation.
-- [ ] Establish failing adapter-only dependency proof.
-- [ ] Implement the approved dependency-boundary change.
-- [ ] Update migration, user, design, and internal docs as required.
+- [x] 2026-05-08: Received explicit approval to proceed with implementation.
+- [x] 2026-05-08: Removed the direct base harness dev-dependency from the
+  Tokio and GPUI example manifests to establish example-level adapter-only
+  proof.
+- [x] 2026-05-08: Confirmed the pre-fix Tokio proof fails with
+  `rstest-bdd-harness crate not found` when running
+  `cargo check -p tokio-reminders --tests`.
+- [x] 2026-05-08: Implemented adapter-root code generation for canonical
+  Tokio and GPUI first-party harness and attribute policy paths, with adapter
+  crates re-exporting the base API used by generated tests.
+- [x] 2026-05-08: Confirmed `cargo check -p tokio-reminders --tests` and
+  `cargo check -p gpui-counter --tests` pass without direct base harness
+  entries in the example manifests.
+- [x] 2026-05-08: Updated the migration guide, users guide, design document,
+  and developers guide with the first-party adapter dependency boundary.
 - [ ] Run focused validation and full gates.
-- [ ] Mark roadmap item 10.1.1 done after validation.
-- [ ] Commit, push with upstream tracking, and open the required draft PR.
+- [x] 2026-05-08: Ran focused validation:
+  `cargo check -p tokio-reminders --tests`,
+  `cargo check -p gpui-counter --tests`,
+  `cargo test -p rstest-bdd-macros`,
+  `cargo test -p tokio-reminders`,
+  `cargo test -p gpui-counter`, and the GPUI macro compile test.
+- [x] 2026-05-08: Ran full gates successfully:
+  `make check-fmt`, `make lint`, `make test`, `make markdownlint`, and
+  `make nixie`.
+- [x] 2026-05-08: Marked roadmap item 10.1.1 done after validation.
+- [x] 2026-05-08: Prepared the implementation for commit after final diff
+  review.
 
 ## Surprises & Discoveries
 
@@ -369,6 +390,22 @@ Acceptance is met when all of the following are true:
 - `docs/v0-6-0-migration-guide.md` explains first-party harness adoption but
   does not yet contain the explicit plain BDD, Tokio, GPUI, and custom harness
   dependency matrix required by roadmap item 10.1.1.
+- `leta` could not start `rust-analyzer` for this workspace during the
+  implementation pass, reporting that the language server connection closed.
+  The implementation therefore used targeted `rg` and file inspection while
+  retaining the same symbol-focused search scope.
+- Removing `rstest-bdd-harness` from `examples/tokio-reminders/Cargo.toml`
+  reproduced the exact downstream failure: the scenario macro panicked while
+  resolving the base harness crate even though the example depends on
+  `rstest-bdd-harness-tokio`.
+- The trait assertion code was a second direct base-harness resolution point,
+  independent of runtime harness delegation. Both the harness assertion and the
+  attribute-policy assertion must resolve through the adapter crate for
+  canonical first-party paths.
+- The GPUI trybuild staging path exposed an existing helper edge case:
+  `copy_dir_tree` could not canonicalize nested missing destination parents.
+  The fix teaches overlap detection to canonicalize the nearest existing
+  ancestor and reconstruct the missing suffix before copying.
 
 ## Decision Log
 
@@ -387,9 +424,42 @@ Acceptance is met when all of the following are true:
   downstream failure mode and prevent regression. Date/Author: 2026-05-08 /
   ExecPlan draft.
 
+- Decision: move the plan to `IN PROGRESS` and begin with the adapter-only
+  proof milestone. Rationale: the user explicitly instructed implementation of
+  this approved plan and repeated that the ExecPlan must be kept current.
+  Date/Author: 2026-05-08 / Implementation pass.
+
+- Decision: use workspace examples as the primary adapter-only compile proof,
+  with existing trybuild fixtures as supporting macro coverage. Rationale:
+  trybuild cases inside the adapter crates inherit test-crate dev-dependencies,
+  while the example manifests are downstream-style crates whose direct
+  dependency lists can intentionally omit `rstest-bdd-harness`. Date/Author:
+  2026-05-08 / Implementation pass.
+
+- Decision: re-export the generated-code base API from the first-party adapter
+  crates and make macro codegen target the adapter crate root for canonical
+  first-party harness and attribute-policy paths. Rationale: this preserves the
+  existing public trait contracts and custom harness behaviour while removing
+  the direct base-harness dependency from first-party adapter consumers.
+  Date/Author: 2026-05-08 / Implementation pass.
+
+- Decision: include the `copy_dir_tree` nested-destination fix in this change.
+  Rationale: the required GPUI compile proof depends on staging a feature tree
+  under a nested trybuild directory, and the helper's existing overlap guard
+  failed before the actual adapter-only compile proof could run.
+  Date/Author: 2026-05-08 / Implementation pass.
+
 ## Outcomes & Retrospective
 
-No implementation has started. The intended outcome, after approval, is a gated
-implementation that lets first-party adapter users omit direct
-`rstest-bdd-harness` dependencies while preserving custom harness support and
-public trait contracts.
+Implementation is complete and validated. First-party Tokio and GPUI adapter
+users can omit a direct `rstest-bdd-harness` dependency when selecting the
+canonical adapter harnesses or attribute policies. Custom harnesses and direct
+base API imports still use `rstest-bdd-harness` explicitly. The implementation
+also fixed a `copy_dir_tree` staging edge case that blocked the GPUI
+adapter-only compile proof. Validation logs are available under
+`/tmp/check-fmt-rstest-bdd-10-1-1-first-party-adapters-compile-without-direct-base-harness-dependency-impl.out`,
+`/tmp/lint-rstest-bdd-10-1-1-first-party-adapters-compile-without-direct-base-harness-dependency-impl.out`,
+`/tmp/test-rstest-bdd-10-1-1-first-party-adapters-compile-without-direct-base-harness-dependency-impl.out`,
+`/tmp/markdownlint-rstest-bdd-10-1-1-first-party-adapters-compile-without-direct-base-harness-dependency-impl.out`,
+and
+`/tmp/nixie-rstest-bdd-10-1-1-first-party-adapters-compile-without-direct-base-harness-dependency-impl.out`.

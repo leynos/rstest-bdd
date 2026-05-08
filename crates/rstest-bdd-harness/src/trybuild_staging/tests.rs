@@ -107,6 +107,20 @@ fn copy_dir_tree_replaces_existing_directory(replace_dir_staging: ReplaceDstStag
     assert!(!dst.join("stale").exists());
 }
 
+#[rstest]
+fn copy_dir_tree_creates_missing_destination_parents(replace_dir_staging: ReplaceDstStaging) {
+    let ReplaceDstStaging { src, dst, .. } = replace_dir_staging;
+    let nested_dst = dst.join("nested").join("tree");
+    #[expect(
+        clippy::expect_used,
+        reason = "integration-style tests panic on improbable temp-dir I/O setup failures"
+    )]
+    {
+        copy_dir_tree(&src, &nested_dst).expect("copy_dir_tree");
+    }
+    assert!(nested_dst.join("sub").join("a.txt").exists());
+}
+
 #[fixture]
 fn replace_file_dest_staging() -> ReplaceDstStaging {
     #[expect(

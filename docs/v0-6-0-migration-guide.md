@@ -140,6 +140,33 @@ harness types used through the macros must implement both `HarnessAdapter` and
   macros trait-check user-provided policy types, but path-based code generation
   only recognizes canonical first-party policy paths today.
 
+### Harness dependency matrix
+
+Downstream `Cargo.toml` files should list the smallest crate set that matches
+the harness surface they use:
+
+- **Plain BDD scenarios:** add `rstest`, `rstest-bdd`, and
+  `rstest-bdd-macros`. Add `rstest-bdd-harness` directly only when test code
+  imports base harness API types.
+- **Tokio first-party harness:** add `rstest`, `rstest-bdd`,
+  `rstest-bdd-macros`, `rstest-bdd-harness-tokio`, and `tokio`. Add
+  `rstest-bdd-harness` directly only when implementing a custom harness or
+  importing base API types.
+- **GPUI first-party harness:** add `rstest`, `rstest-bdd`,
+  `rstest-bdd-macros`, `rstest-bdd-harness-gpui`, and `gpui`. Add
+  `rstest-bdd-harness` directly only when implementing a custom harness or
+  importing base API types.
+- **Custom harness implementation:** add `rstest`, `rstest-bdd`,
+  `rstest-bdd-macros`, and `rstest-bdd-harness`. Custom harnesses implement
+  `HarnessAdapter` and usually use `ScenarioRunRequest`.
+
+First-party adapter crates re-export the base harness API used by generated
+tests, so selecting `rstest_bdd_harness_tokio::TokioHarness` or
+`rstest_bdd_harness_gpui::GpuiHarness` does not require a separate direct
+`rstest-bdd-harness` entry in the consuming crate. The
+`examples/tokio-reminders` and `examples/gpui-counter` manifests intentionally
+omit that direct dependency and compile as workspace proof points.
+
 ### Workspace dependency migration for contributors
 
 Workspace contributors should not restore the old root `[patch.crates-io]`

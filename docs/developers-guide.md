@@ -77,6 +77,24 @@ These tests were moved out of `rstest-bdd` in this release to decouple the core
 crate from Tokio and GPUI dev-dependencies, making it publishable to crates.io
 without carrying those dependencies.
 
+## First-party adapter dependency boundary
+
+`rstest-bdd-harness` remains the owner of `HarnessAdapter`,
+`AttributePolicy`, `ScenarioRunRequest`, and related base API types. The Tokio
+and GPUI adapter crates re-export the subset of that API used by generated
+scenario code, so downstream users of first-party adapters do not need to list
+`rstest-bdd-harness` directly.
+
+When updating macro code generation, keep this boundary intact:
+
+- canonical Tokio harness and attribute policy paths should use the
+  `rstest-bdd-harness-tokio` crate root for generated base API references;
+- canonical GPUI harness and attribute policy paths should use the
+  `rstest-bdd-harness-gpui` crate root for generated base API references;
+- custom harnesses and custom attribute policies should continue to use the
+  direct `rstest-bdd-harness` crate path and therefore require that dependency
+  in the consuming crate.
+
 ## Fallback binary build in integration tests
 
 `crates/cargo-bdd/tests/cli.rs` and `examples/todo-cli/tests/cli.rs` use a
