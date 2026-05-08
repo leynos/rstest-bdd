@@ -9,7 +9,7 @@ use rstest_bdd_harness::{
 use rstest_bdd_macros::{given, scenario, then, when};
 
 #[derive(Default)]
-struct World {
+pub struct World {
     entities: usize,
 }
 
@@ -20,7 +20,7 @@ impl World {
 }
 
 #[derive(Default)]
-struct BevyHarness;
+pub struct BevyHarness;
 
 impl HarnessAdapter for BevyHarness {
     type Context = World;
@@ -30,7 +30,7 @@ impl HarnessAdapter for BevyHarness {
     }
 }
 
-struct BevyAttributePolicy;
+pub struct BevyAttributePolicy;
 
 const BEVY_TEST_ATTRIBUTES: [TestAttribute; 1] = [TestAttribute::new("rstest::rstest")];
 

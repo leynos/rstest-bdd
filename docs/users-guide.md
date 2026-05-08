@@ -973,6 +973,11 @@ Feature: Bevy world
     Then the world contains one entity
 ```
 
+The compile-checked mirror for this cookbook lives at
+`crates/rstest-bdd/tests/fixtures_macros/scenario_third_party_harness_cookbook.rs`.
+Maintainers should keep that fixture and the snippets above aligned when the
+third-party harness contract changes.
+
 Harness adapters must faithfully propagate the runner's return value inside
 `Ok(...)`. For fallible scenarios that return `Result<(), E>`, swallowing
 errors would cause tests to pass silently. Use `Err(HarnessError::...)` only
