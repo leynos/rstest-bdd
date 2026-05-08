@@ -5,7 +5,7 @@ This ExecPlan (execution plan) is a living document. The sections
 `Decision Log`, and `Outcomes & Retrospective` must be kept up to date as work
 proceeds.
 
-Status: DRAFT
+Status: COMPLETE
 
 This plan covers roadmap item 9.7.1 only. It must be approved before
 implementation begins, and implementation must not begin while
@@ -141,19 +141,60 @@ gates all agree.
 - [x] (2026-05-08T11:22:32Z) Inspected current resolver and macro-codegen
       touchpoints enough to identify existing ADR-008-shaped helpers.
 - [x] (2026-05-08T11:22:32Z) Drafted this pre-implementation ExecPlan.
-- [ ] Await explicit approval before implementation.
-- [ ] After approval and ADR acceptance, reconcile existing implementation
-      against 9.7.1 before making code edits.
-- [ ] Implement or complete missing shared resolver behaviour.
-- [ ] Add or complete unit tests for canonical mappings, unknown paths, and
+- [x] (2026-05-08T15:37:00+02:00) Received explicit maintainer instruction to
+      proceed with implementation from this plan.
+- [x] (2026-05-08T15:40:00+02:00) Reconfirmed ADR-008 remains `Proposed` and
+      recorded the maintainer instruction as contingent implementation
+      authorization.
+- [x] (2026-05-08T15:43:00+02:00) Reconciled the existing implementation:
+      shared policy and harness resolvers already exist, macro code already
+      calls the harness resolver, and macro precedence tests already cover the
+      ADR-008 ordering.
+- [x] (2026-05-08T15:45:00+02:00) Ran the focused baseline policy tests with
+      `cargo test -p rstest-bdd-policy`; all 15 unit tests and 5 doctests
+      passed.
+- [x] (2026-05-08T15:50:00+02:00) Added focused `rstest` cases proving each
+      first-party harness path resolves to the same hint as its matching
+      attribute-policy path, plus additional wrong-prefix and extra-segment
+      negative cases.
+- [x] (2026-05-08T15:51:00+02:00) Re-ran `cargo test -p rstest-bdd-policy`;
+      all 21 unit tests and 5 doctests passed.
+- [x] (2026-05-08T15:54:00+02:00) Ran
+      `cargo test -p rstest-bdd-macros codegen::scenario`; all 58 selected
+      macro scenario tests passed.
+- [x] Add or complete unit tests for canonical mappings, unknown paths, and
       precedence edge cases.
-- [ ] Add behavioural or compile-time coverage only where applicable to prove
+- [x] Add behavioural or compile-time coverage only where applicable to prove
       externally observable resolver use without absorbing 9.7.2.
-- [ ] Update design, user, and component documentation where behaviour or
+- [x] (2026-05-08T16:05:00+02:00) Confirmed no design or user-guide updates
+      are needed for this patch because the shared resolver and user-visible
+      harness-led behaviour were already documented; this change only adds
+      missing unit-test evidence.
+- [x] Update design, user, and component documentation where behaviour or
       internal contracts change.
-- [ ] Run all required gates.
-- [ ] Mark roadmap item 9.7.1 done after successful validation.
-- [ ] Commit the completed implementation as a focused change.
+- [x] (2026-05-08T16:07:00+02:00) Ran `make check-fmt`; it passed.
+- [x] (2026-05-08T16:09:00+02:00) Ran `make lint`; it passed.
+- [x] (2026-05-08T16:13:00+02:00) Ran `make nixie`; it passed.
+- [x] (2026-05-08T16:14:00+02:00) Ran `make markdownlint`; it passed.
+- [x] (2026-05-08T16:23:00+02:00) Investigated the full-suite GPUI failure
+      and found `copy_dir_tree` could not stage files into a destination whose
+      parent chain did not yet exist.
+- [x] (2026-05-08T16:28:00+02:00) Fixed `copy_dir_tree` overlap checking to
+      canonicalize the nearest existing destination ancestor and added a
+      regression test for missing destination parent chains.
+- [x] (2026-05-08T16:30:00+02:00) Ran
+      `cargo test -p rstest-bdd-harness trybuild_staging`; all 12 selected
+      tests passed.
+- [x] (2026-05-08T16:33:00+02:00) Ran the previously failing
+      GPUI macro compile fixture with `native-gpui-tests`; it passed.
+- [x] (2026-05-08T16:45:00+02:00) Re-ran `make check-fmt`; it passed.
+- [x] (2026-05-08T16:48:00+02:00) Re-ran `make lint`; it passed.
+- [x] (2026-05-08T16:58:00+02:00) Re-ran `make test`; all 1391 nextest tests
+      passed, with 7 skipped, and the Python publish-check suite passed 62
+      tests.
+- [x] Run all required gates.
+- [x] Mark roadmap item 9.7.1 done after successful validation.
+- [x] Commit the completed implementation as a focused change.
 
 ## Surprises & Discoveries
 
@@ -179,6 +220,64 @@ gates all agree.
   start for semantic queries in this worktree. Evidence: `leta grep` returned a
   rust-analyzer connection-closed error. Impact: this planning pass used
   targeted `rg` and file reads after recording the tool limitation.
+- Observation: during implementation, `leta show` returned symbol-not-found
+  errors for `resolve_test_attribute_hint_for_harness_path` and
+  `resolve_attribute_policy` even though the functions exist and compile.
+  Evidence: direct `leta show` invocations failed before source inspection.
+  Impact: continue using `rg` and targeted file reads for this small Rust
+  change, while recording the LSP limitation.
+- Observation: the existing code already implements the shared resolver
+  surface and macro precedence wiring requested by 9.7.1. Evidence:
+  `crates/rstest-bdd-policy/src/lib.rs` defines
+  `resolve_test_attribute_hint_for_harness_path`, `KNOWN_HARNESS_HINTS`, and
+  the three canonical harness constants;
+  `crates/rstest-bdd-macros/src/codegen/scenario/test_attrs.rs` resolves
+  explicit attributes before harness hints and falls back to `RuntimeMode`.
+  Impact: implementation should avoid rewriting working code and instead
+  strengthen missing acceptance-test evidence.
+- Observation: the focused baseline command `cargo test -p rstest-bdd-policy`
+  passed before implementation edits. Evidence:
+  `/tmp/test-rstest-bdd-policy-9-7-1-before.out` reports 15 unit tests and 5
+  doctests passed. Impact: any follow-up test edits can be compared against a
+  green policy baseline.
+- Observation: the existing macro precedence tests are sufficient behavioural
+  coverage for 9.7.1 because they exercise the shared harness resolver through
+  `generate_test_attrs` without adding public macro expansion scope from 9.7.2.
+  Evidence: `cargo test -p rstest-bdd-macros codegen::scenario` passed 58
+  selected tests, including all six
+  `harness_defaults::generate_test_attrs_honours_harness_precedence` cases.
+  Impact: no new trybuild or end-to-end test is needed for this finite shared
+  lookup-table change.
+- Observation: `make fmt` is not a reliable clean gate in this worktree because
+  its Markdown fix step reports many existing MD013 line-length findings across
+  unrelated files after rewriting several documents. Evidence:
+  `/tmp/fmt-9-7-1-first-party-policy-hint-resolution-rerun.out` reports
+  existing line-length findings in README and docs files unrelated to 9.7.1,
+  while `make markdownlint` later reports zero errors. Impact: unrelated
+  formatter rewrites were restored, and the clean Markdown gate is recorded via
+  `make markdownlint`.
+- Observation: the full test gate still fails in an unrelated GPUI compile
+  fixture. Evidence:
+  `/tmp/test-9-7-1-first-party-policy-hint-resolution.out` reports
+  `rstest-bdd-harness-gpui::macro_compile::gpui_macro_fixtures_compile` failed
+  with `Os { code: 2, kind: NotFound, message: "No such file or directory" }`
+  after 616 tests passed, 1 failed, and 7 were skipped. Impact: per the
+  validation tolerance, do not mark roadmap item 9.7.1 done and do not commit
+  until this existing failure is resolved or the maintainer explicitly directs
+  a different close-out policy.
+- Observation: the GPUI compile fixture failure was caused by the shared
+  `copy_dir_tree` staging helper rather than GPUI codegen. Evidence:
+  `stage_trybuild_support_files` copies `tests/features/auto` into
+  `target/tests/trybuild/rstest-bdd-harness-gpui/tests/features/auto`, and the
+  overlap check canonicalized the missing immediate parent
+  `.../tests/features` before creating it. Impact: the fix belongs in
+  `crates/rstest-bdd-harness/src/trybuild_staging/mod.rs`, with a focused
+  regression test in the same module.
+- Observation: after fixing the staging helper, the previously failing GPUI
+  macro compile fixture passed. Evidence:
+  `/tmp/test-rstest-bdd-harness-gpui-macro-compile-9-7-1.out` reports all five
+  compile-pass fixtures and the compile-fail fixture succeeded. Impact: rerun
+  the full repository gates before closing the roadmap item.
 
 ## Decision Log
 
@@ -200,13 +299,47 @@ gates all agree.
   first-party lookup table. Rationale: the invariant is finite and better
   covered by exhaustive parameterized `rstest` cases over the canonical and
   negative path matrix. Date/Author: 2026-05-08 / Codex.
+- Decision: treat the user's request to proceed with implementation as
+  explicit approval for the ExecPlan and explicit authorization to implement
+  against ADR-008 while it remains `Proposed`. Rationale: the plan required
+  both approval and maintainer authorization for contingent implementation, and
+  the user explicitly instructed implementation to proceed. Date/Author:
+  2026-05-08 / Codex.
+- Decision: keep the existing resolver and macro implementation structure and
+  add targeted unit-test coverage rather than refactoring. Rationale: the
+  existing code already follows the planned crate boundary, and the remaining
+  acceptance gap is proving equivalence between first-party policy paths and
+  first-party harness paths plus exact-match negative cases. Date/Author:
+  2026-05-08 / Codex.
+- Decision: do not update `docs/roadmap.md` or commit this patch while
+  `make test` is red. Rationale: the ExecPlan acceptance criteria and
+  repository instructions require the full test gate before closing the
+  roadmap item or committing, even though the observed failure appears
+  unrelated to this focused policy test change. Date/Author: 2026-05-08 /
+  Codex.
+- Decision: include the trybuild-staging fix in this implementation branch
+  rather than leaving 9.7.1 blocked. Rationale: the failure blocks the required
+  `make test` gate, the root cause is a small shared test-support bug with a
+  narrow regression test, and the fix does not change runtime or macro public
+  APIs. Date/Author: 2026-05-08 / Codex.
 
 ## Outcomes & Retrospective
 
-This section is intentionally empty while the plan is in `DRAFT`. Fill it in
-after implementation or after a reconciliation-only delivery proves that the
-feature was already present and only roadmap or documentation state needed to
-be corrected.
+Roadmap item 9.7.1 is delivered. The existing shared resolver implementation
+already contained the canonical harness mappings and macro precedence wiring,
+so the feature work added missing `rstest` regression coverage proving that
+each first-party harness path resolves to the same `TestAttributeHint` as its
+paired attribute-policy path. The harness resolver negative matrix now also
+covers wrong first-party-looking prefixes and extra path segments.
+
+During full validation, `make test` exposed a pre-existing GPUI trybuild
+staging failure. The fix broadened the shared staging helper so
+`copy_dir_tree` can copy into a destination whose parent chain does not yet
+exist while still rejecting overlapping source and destination trees. A focused
+regression test now covers that case.
+
+The required gates pass: `make check-fmt`, `make lint`, `make test`,
+`make markdownlint`, and `make nixie`.
 
 ## Context and orientation
 

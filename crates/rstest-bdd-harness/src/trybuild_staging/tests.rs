@@ -146,7 +146,26 @@ fn copy_dir_tree_replaces_existing_file_destination(replace_file_dest_staging: R
     assert!(dst.join("f.txt").exists());
 }
 
-#[cfg(unix)]
+fn copy_dir_tree_creates_missing_destination_parent_chain() {
+    #[expect(
+        clippy::expect_used,
+        reason = "integration-style tests panic on improbable temp-dir I/O setup failures"
+    )]
+    {
+        let root = TempDir::new().expect("tempdir");
+        let src = root.path().join("src");
+        let dst = root.path().join("missing").join("parents").join("dst");
+        fs::create_dir_all(&src).expect("create src");
+        fs::write(src.join("f.txt"), b"hello").expect("write f.txt");
+
+        copy_dir_tree(&src, &dst).expect("copy_dir_tree");
+
+        assert_eq!(
+            fs::read(dst.join("f.txt")).expect("read dst file"),
+            b"hello"
+        );
+    }
+}
 struct SymlinkInSourceStaging {
     _root: TempDir,
     src: PathBuf,

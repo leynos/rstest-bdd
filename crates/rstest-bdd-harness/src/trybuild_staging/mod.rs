@@ -83,19 +83,42 @@ pub(super) fn copy_entry(entry: &fs::DirEntry, destination: &Path) -> io::Result
 fn canonical_destination_for_overlap(destination: &Path) -> io::Result<PathBuf> {
     match fs::canonicalize(destination) {
         Ok(path) => Ok(path),
-        Err(err) if err.kind() == io::ErrorKind::NotFound => canonical_missing_path(destination),
+        Err(err) if err.kind() == io::ErrorKind::NotFound => {
+            canonical_missing_destination(destination)
+        }
         Err(err) => Err(err),
     }
 }
 
-fn canonical_missing_path(path: &Path) -> io::Result<PathBuf> {
-    let Some(name) = path.file_name() else {
-        return fs::canonicalize(std::env::current_dir()?);
-    };
-    let Some(parent) = path.parent().filter(|p| !p.as_os_str().is_empty()) else {
-        return Ok(fs::canonicalize(std::env::current_dir()?)?.join(name));
-    };
-    Ok(canonical_destination_for_overlap(parent)?.join(name))
+fn canonical_missing_destination(destination: &Path) -> io::Result<PathBuf> {
+    let mut missing_components = Vec::new();
+    let mut current = destination;
+
+    loop {
+        match fs::canonicalize(current) {
+            Ok(mut path) => {
+                for component in missing_components.iter().rev() {
+                    path.push(component);
+                }
+                return Ok(path);
+            }
+            Err(err) if err.kind() == io::ErrorKind::NotFound => {
+                if let Some(name) = current.file_name() {
+                    missing_components.push(name.to_os_string());
+                }
+                if let Some(parent) = current.parent().filter(|path| !path.as_os_str().is_empty()) {
+                    current = parent;
+                } else {
+                    let mut path = fs::canonicalize(std::env::current_dir()?)?;
+                    for component in missing_components.iter().rev() {
+                        path.push(component);
+                    }
+                    return Ok(path);
+                }
+            }
+            Err(err) => return Err(err),
+        }
+    }
 }
 
 fn paths_overlap(a: &Path, b: &Path) -> bool {
