@@ -90,35 +90,34 @@ fn canonical_destination_for_overlap(destination: &Path) -> io::Result<PathBuf> 
     }
 }
 
-fn canonical_missing_destination(destination: &Path) -> io::Result<PathBuf> {
-    let mut missing_components = Vec::new();
-    let mut current = destination;
+fn append_missing_components(mut base: PathBuf, missing: &[std::ffi::OsString]) -> PathBuf {
+    for component in missing.iter().rev() {
+        base.push(component);
+    }
+    base
+}
 
-    loop {
-        match fs::canonicalize(current) {
-            Ok(mut path) => {
-                for component in missing_components.iter().rev() {
-                    path.push(component);
-                }
-                return Ok(path);
-            }
+fn canonical_missing_destination(destination: &Path) -> io::Result<PathBuf> {
+    let mut missing_components: Vec<std::ffi::OsString> = Vec::new();
+
+    for ancestor in destination.ancestors() {
+        if ancestor.as_os_str().is_empty() {
+            break;
+        }
+        match fs::canonicalize(ancestor) {
+            Ok(base) => return Ok(append_missing_components(base, &missing_components)),
             Err(err) if err.kind() == io::ErrorKind::NotFound => {
-                if let Some(name) = current.file_name() {
+                if let Some(name) = ancestor.file_name() {
                     missing_components.push(name.to_os_string());
-                }
-                if let Some(parent) = current.parent().filter(|path| !path.as_os_str().is_empty()) {
-                    current = parent;
-                } else {
-                    let mut path = fs::canonicalize(std::env::current_dir()?)?;
-                    for component in missing_components.iter().rev() {
-                        path.push(component);
-                    }
-                    return Ok(path);
                 }
             }
             Err(err) => return Err(err),
         }
     }
+
+    // No existing ancestor found; resolve against the current working directory.
+    let base = fs::canonicalize(std::env::current_dir()?)?;
+    Ok(append_missing_components(base, &missing_components))
 }
 
 fn paths_overlap(a: &Path, b: &Path) -> bool {
