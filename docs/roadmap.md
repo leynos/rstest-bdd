@@ -697,14 +697,14 @@ changing the public trait contracts.
   custom harness dependency matrix, and fixture-generation tests or docs prove
   first-party adapters compile without a direct base-harness dependency. Design
   Doc: `docs/rstest-bdd-design.md` §2.7.6.3. (Dinolump)
-- [ ] 10.1.2. Display detailed missing-fixture diagnostics for harness context
-  and mutable scenario state, showing the requested fixture name and type,
-  inserted fixtures from `StepContext::available_fixtures()`, and, when
-  `rstest_bdd_harness_context` is absent, suggest selecting the relevant
-  harness. Finish line: a regression test reproduces a missing-fixture failure
-  and asserts the diagnostic contains the requested fixture name, requested
-  type, inserted fixture list, and harness suggestion. Design Doc:
-  `docs/rstest-bdd-design.md` §2.7.6.3. (Telefono)
+- [ ] 10.1.2. Provide detailed missing-fixture diagnostics that include the
+  requested fixture name and type, the list of inserted fixtures from
+  `StepContext::available_fixtures()`, and, when
+  `rstest_bdd_harness_context` is absent, a suggested harness to select. Finish
+  line: a regression test reproduces the missing-fixture failure and asserts
+  the diagnostic contains the requested fixture name, requested type, inserted
+  fixture list, and harness suggestion. Design Doc: `docs/rstest-bdd-design.md`
+  §2.7.6.3. (Telefono)
 - [ ] 10.1.3. The feature-gated GPUI test suite provides realistic harness
   regression coverage beyond the counter example: it creates a window, persists
   durable entity/window handles, reconstructs visual context per step, resets
