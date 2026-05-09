@@ -3,8 +3,8 @@
 //! This module emits fully-qualified paths (`::rstest_bdd::…`) so the macros crate
 //! does not depend on the runtime crate at compile-time.
 
+use proc_macro_crate::{FoundCrate, crate_name};
 use proc_macro2::{Ident, Span, TokenStream as TokenStream2};
-use proc_macro_crate::{crate_name, FoundCrate};
 use quote::quote;
 
 struct CrateSpec {
@@ -146,7 +146,7 @@ fn handle_missing_crate(spec: &CrateSpec, err: &proc_macro_crate::Error) -> Toke
 #[cfg(test)]
 mod tests {
     use super::{
-        handle_missing_crate, GPUI_HARNESS, RSTEST_BDD, RSTEST_BDD_HARNESS, TOKIO_HARNESS,
+        GPUI_HARNESS, RSTEST_BDD, RSTEST_BDD_HARNESS, TOKIO_HARNESS, handle_missing_crate,
     };
     use proc_macro_crate::Error;
     use std::path::PathBuf;
