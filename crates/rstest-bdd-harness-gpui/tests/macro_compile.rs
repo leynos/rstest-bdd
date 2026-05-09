@@ -4,6 +4,7 @@
 //! package can be published without resolving GPUI-specific dev-dependencies.
 #![cfg(feature = "native-gpui-tests")]
 
+use std::fs;
 use std::path::PathBuf;
 
 use rstest_bdd_harness::trybuild_staging::{copy_dir_tree, copy_file};
@@ -32,6 +33,7 @@ fn stage_trybuild_support_files() -> Result<(), Box<dyn std::error::Error>> {
         &crate_root.join("tests/fixtures_macros/basic.feature"),
         &trybuild_root.join("basic.feature"),
     )?;
+    fs::create_dir_all(trybuild_root.join("tests/features"))?;
     copy_dir_tree(
         &crate_root.join("tests/features/auto"),
         &trybuild_root.join("tests/features/auto"),
