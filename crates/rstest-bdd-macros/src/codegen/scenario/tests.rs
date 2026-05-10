@@ -6,6 +6,7 @@ use crate::parsing::feature::ParsedStep;
 mod gpui_policy;
 mod harness_defaults;
 mod runtime_split;
+mod trait_assertions;
 
 #[expect(clippy::expect_used, reason = "test helper with descriptive failures")]
 fn kw(ts: &TokenStream2) -> crate::StepKeyword {
@@ -275,126 +276,5 @@ fn generate_test_attrs_dedupes_tokio_policy_and_user_attribute() {
     assert_eq!(
         tokio_count, 1,
         "expected exactly one tokio::test when both user attribute and policy are present, got {tokio_count}: {output}"
-    );
-}
-
-#[derive(Clone, Copy)]
-enum ParamKind {
-    Harness,
-    Attributes,
-}
-
-fn assert_single_trait_assertion(
-    param_kind: ParamKind,
-    path_str: &str,
-    expected_trait: &str,
-    excluded_trait: &str,
-) {
-    let path = parse_path(path_str);
-    let (harness, attributes) = match param_kind {
-        ParamKind::Harness => (Some(&path), None),
-        ParamKind::Attributes => (None, Some(&path)),
-    };
-    let tokens = generate_trait_assertions(harness, attributes);
-    let output = tokens.to_string();
-
-    assert!(
-        output.contains(expected_trait),
-        "should contain {expected_trait} trait bound: {output}"
-    );
-    let spaced_path = path_str.replace("::", " :: ");
-    assert!(
-        output.contains(&spaced_path),
-        "should contain type path `{spaced_path}`: {output}"
-    );
-    assert!(
-        !output.contains(excluded_trait),
-        "should NOT contain {excluded_trait}: {output}"
-    );
-}
-
-#[rustfmt::skip]
-fn assert_trait_assertion_crate_path(param_kind: ParamKind, path_str: &str, expected_trait: &str, expected_crate_path: &str) {
-    let path = parse_path(path_str);
-    let (harness, attributes) = match param_kind { ParamKind::Harness => (Some(&path), None), ParamKind::Attributes => (None, Some(&path)) };
-    let tokens = generate_trait_assertions(harness, attributes);
-    let output = tokens.to_string();
-    assert!(output.contains(expected_trait), "should contain trait `{expected_trait}`: {output}");
-    assert!(output.contains(expected_crate_path), "should resolve through `{expected_crate_path}`: {output}");
-}
-
-#[rustfmt::skip]
-#[rstest::rstest]
-#[case::tokio_harness_uses_tokio_crate(ParamKind::Harness, "rstest_bdd_harness_tokio::TokioHarness", "HarnessAdapter", "rstest_bdd_harness_tokio")]
-#[case::tokio_policy_uses_tokio_crate(ParamKind::Attributes, "rstest_bdd_harness_tokio::TokioAttributePolicy", "AttributePolicy", "rstest_bdd_harness_tokio")]
-#[case::gpui_policy_uses_gpui_crate(ParamKind::Attributes, "rstest_bdd_harness_gpui::GpuiAttributePolicy", "AttributePolicy", "rstest_bdd_harness_gpui")]
-#[case::custom_harness_uses_base_harness_crate(ParamKind::Harness, "my_crate::MyHarness", "HarnessAdapter", "rstest_bdd_harness")]
-#[case::custom_policy_uses_base_harness_crate(ParamKind::Attributes, "my_crate::MyPolicy", "AttributePolicy", "rstest_bdd_harness")]
-fn trait_assertions_resolve_correct_crate_path(#[case] kind: ParamKind, #[case] path_str: &str, #[case] expected_trait: &str, #[case] expected_crate_path: &str) {
-    assert_trait_assertion_crate_path(kind, path_str, expected_trait, expected_crate_path);
-}
-
-#[rstest::rstest]
-#[case::harness(ParamKind::Harness, "my::Harness", "HarnessAdapter", "AttributePolicy")]
-#[case::attributes(
-    ParamKind::Attributes,
-    "my::Policy",
-    "AttributePolicy",
-    "HarnessAdapter"
-)]
-fn trait_assertions_single_param(
-    #[case] kind: ParamKind,
-    #[case] path_str: &str,
-    #[case] expected_trait: &str,
-    #[case] excluded_trait: &str,
-) {
-    assert_single_trait_assertion(kind, path_str, expected_trait, excluded_trait);
-}
-
-#[test]
-fn trait_assertions_with_both() {
-    let harness_path = parse_path("my::Harness");
-    let policy_path = parse_path("my::Policy");
-    let tokens = generate_trait_assertions(Some(&harness_path), Some(&policy_path));
-    let output = tokens.to_string();
-
-    assert!(
-        output.contains("HarnessAdapter"),
-        "should contain HarnessAdapter: {output}"
-    );
-    assert!(
-        output.contains("AttributePolicy"),
-        "should contain AttributePolicy: {output}"
-    );
-}
-
-#[test]
-fn trait_assertions_with_neither() {
-    let tokens = generate_trait_assertions(None, None);
-    let output = tokens.to_string();
-
-    assert!(
-        !output.contains("HarnessAdapter"),
-        "should NOT contain HarnessAdapter: {output}"
-    );
-    assert!(
-        !output.contains("AttributePolicy"),
-        "should NOT contain AttributePolicy: {output}"
-    );
-}
-
-#[test]
-fn trait_assertions_harness_includes_default_bound() {
-    let harness_path = parse_path("my::Harness");
-    let tokens = generate_trait_assertions(Some(&harness_path), None);
-    let output = tokens.to_string();
-
-    assert!(
-        output.contains("HarnessAdapter"),
-        "should contain HarnessAdapter: {output}"
-    );
-    assert!(
-        output.contains("Default"),
-        "should contain Default bound for harness delegation: {output}"
     );
 }
