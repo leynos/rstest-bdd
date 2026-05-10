@@ -146,6 +146,7 @@ fn copy_dir_tree_replaces_existing_file_destination(replace_file_dest_staging: R
     assert!(dst.join("f.txt").exists());
 }
 
+#[test]
 fn copy_dir_tree_creates_missing_destination_parent_chain() {
     #[expect(
         clippy::expect_used,
@@ -167,7 +168,13 @@ fn copy_dir_tree_creates_missing_destination_parent_chain() {
     }
 }
 
-fn copy_dir_tree_rejects_destination_inside_missing_parent_chain() {
+struct MissingTailOverlapStaging {
+    root: TempDir,
+    src: PathBuf,
+}
+
+#[fixture]
+fn missing_tail_overlap_staging() -> MissingTailOverlapStaging {
     #[expect(
         clippy::expect_used,
         reason = "integration-style tests panic on improbable temp-dir I/O setup failures"
@@ -176,17 +183,49 @@ fn copy_dir_tree_rejects_destination_inside_missing_parent_chain() {
         let (root, src, _) = make_src_dst_scaffold();
         fs::create_dir_all(&src).expect("create src");
         fs::write(src.join("f.txt"), b"x").expect("write f.txt");
-        // dst is a non-existent subtree of src - must be rejected as overlapping.
-        let dst = src.join("missing").join("child");
-        let err = copy_dir_tree(&src, &dst).expect_err("overlap inside missing parent chain");
+        MissingTailOverlapStaging { root, src }
+    }
+}
+
+enum MissingTailOverlapDestination {
+    InsideMissingParentChain,
+    ResolvedThroughMissingParentDir,
+}
+
+impl MissingTailOverlapDestination {
+    fn path(&self, root: &std::path::Path, src: &std::path::Path) -> PathBuf {
+        match self {
+            Self::InsideMissingParentChain => src.join("missing").join("child"),
+            Self::ResolvedThroughMissingParentDir => root.join("missing").join("..").join("src"),
+        }
+    }
+}
+
+#[rstest]
+#[case::inside_missing_parent_chain(MissingTailOverlapDestination::InsideMissingParentChain)]
+#[case::resolved_through_missing_parent_dir(
+    MissingTailOverlapDestination::ResolvedThroughMissingParentDir
+)]
+fn copy_dir_tree_rejects_missing_tail_overlap_destinations(
+    missing_tail_overlap_staging: MissingTailOverlapStaging,
+    #[case] destination: MissingTailOverlapDestination,
+) {
+    #[expect(
+        clippy::expect_used,
+        reason = "integration-style tests panic on improbable temp-dir I/O setup failures"
+    )]
+    {
+        let MissingTailOverlapStaging { root, src } = missing_tail_overlap_staging;
+        let dst = destination.path(root.path(), &src);
+        let err = copy_dir_tree(&src, &dst).expect_err("missing-tail destination overlaps source");
         assert_eq!(err.kind(), std::io::ErrorKind::InvalidInput);
         assert!(
             err.to_string().contains("refusing overlapping"),
             "unexpected error message: {err}"
         );
-        drop(root);
     }
 }
+
 struct SymlinkInSourceStaging {
     _root: TempDir,
     src: PathBuf,
@@ -319,27 +358,7 @@ fn copy_dir_tree_rejects_identical_source_and_destination() {
     }
 }
 
-fn copy_dir_tree_rejects_destination_resolved_through_missing_parent_dir() {
-    #[expect(
-        clippy::expect_used,
-        reason = "integration-style tests panic on improbable temp-dir I/O setup failures"
-    )]
-    {
-        let (root, src, _dst) = make_src_dst_scaffold();
-        fs::create_dir_all(&src).expect("src");
-        fs::write(src.join("f.txt"), b"x").expect("write");
-        // Destination resolves through a missing intermediate segment back to src.
-        let dst = root.path().join("missing").join("..").join("src");
-
-        let err = copy_dir_tree(&src, &dst).expect_err("resolved destination is source");
-
-        assert_eq!(err.kind(), std::io::ErrorKind::InvalidInput);
-        assert!(
-            err.to_string().contains("refusing overlapping"),
-            "unexpected error message: {err}"
-        );
-    }
-}
+#[test]
 fn copy_dir_tree_rejects_destination_inside_source() {
     #[expect(
         clippy::expect_used,

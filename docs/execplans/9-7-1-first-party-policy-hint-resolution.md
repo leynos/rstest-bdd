@@ -612,8 +612,9 @@ rewrite working code. Run the focused tests and gates, update only the missing
 documentation or roadmap state, and explain the reconciliation in the Decision
 Log and final commit message.
 
-If ADR-008 remains `Proposed`, stop cleanly with this plan in `DRAFT` and do
-not mark the roadmap item done.
+If ADR-008 remains `Proposed`, stop cleanly with this plan in `DRAFT` except
+for the maintainer-authorization exception recorded above, and do not mark the
+roadmap item done.
 
 ## Artifacts and notes
 

@@ -655,7 +655,7 @@ implementation commitments.
   resolver now has regression coverage proving first-party harness paths and
   their matching attribute-policy paths resolve to the same hints, with exact
   matching negative cases for unknown and wrong-prefix harness paths.
-  Delivered under maintainer authorisation while ADR-008 remains in Proposed
+  Delivered under maintainer authorization while ADR-008 remains in Proposed
   status; the prerequisite will be formally satisfied when ADR-008 is accepted.
   (Pandalump)
 - [ ] 9.7.2. Update `#[scenario]` and `scenarios!` code generation so
