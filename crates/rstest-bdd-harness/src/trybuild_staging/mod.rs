@@ -92,9 +92,24 @@ fn canonical_destination_for_overlap(destination: &Path) -> io::Result<PathBuf> 
 
 fn append_missing_components(mut base: PathBuf, missing: &[std::ffi::OsString]) -> PathBuf {
     for component in missing.iter().rev() {
-        base.push(component);
+        if component == std::ffi::OsStr::new("..") {
+            base.pop();
+        } else {
+            base.push(component);
+        }
     }
     base
+}
+
+fn missing_component_for(ancestor: &Path) -> Option<std::ffi::OsString> {
+    ancestor
+        .components()
+        .next_back()
+        .and_then(|component| match component {
+            std::path::Component::Normal(name) => Some(name.to_os_string()),
+            std::path::Component::ParentDir => Some(std::ffi::OsString::from("..")),
+            _ => None,
+        })
 }
 
 fn canonical_missing_destination(destination: &Path) -> io::Result<PathBuf> {
@@ -107,7 +122,7 @@ fn canonical_missing_destination(destination: &Path) -> io::Result<PathBuf> {
         match fs::canonicalize(ancestor) {
             Ok(base) => return Ok(append_missing_components(base, &missing_components)),
             Err(err) if err.kind() == io::ErrorKind::NotFound => {
-                missing_components.extend(ancestor.file_name().map(std::ffi::OsStr::to_os_string));
+                missing_components.extend(missing_component_for(ancestor));
             }
             Err(err) => return Err(err),
         }

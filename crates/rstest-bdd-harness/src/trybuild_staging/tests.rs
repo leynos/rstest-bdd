@@ -298,7 +298,27 @@ fn copy_dir_tree_rejects_identical_source_and_destination() {
     }
 }
 
-#[test]
+fn copy_dir_tree_rejects_destination_resolved_through_missing_parent_dir() {
+    #[expect(
+        clippy::expect_used,
+        reason = "integration-style tests panic on improbable temp-dir I/O setup failures"
+    )]
+    {
+        let root = TempDir::new().expect("tempdir");
+        let src = root.path().join("dst");
+        fs::create_dir_all(&src).expect("src");
+        fs::write(src.join("f.txt"), b"x").expect("write");
+        let dst = root.path().join("missing").join("..").join("dst");
+
+        let err = copy_dir_tree(&src, &dst).expect_err("resolved destination is source");
+
+        assert_eq!(err.kind(), std::io::ErrorKind::InvalidInput);
+        assert!(
+            err.to_string().contains("refusing overlapping"),
+            "unexpected error message: {err}"
+        );
+    }
+}
 fn copy_dir_tree_rejects_destination_inside_source() {
     #[expect(
         clippy::expect_used,
