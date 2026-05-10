@@ -783,6 +783,13 @@ attributes. Currently this resolution is path-based:
   scenario signatures, and
 - default and unknown policy paths emit `#[rstest::rstest]` only.
 
+Imported single-segment recognition only applies to unaliased first-party names.
+If the adapter crates are renamed or aliased, or the policy types are
+re-exported under different identifiers, use the canonical crate-root path
+(`rstest_bdd_harness_tokio::TokioAttributePolicy` or
+`rstest_bdd_harness_gpui::GpuiAttributePolicy`) or add a direct
+`rstest-bdd-harness` dependency to get the same attribute recognition.
+
 When `attributes` is omitted, known first-party harnesses infer matching
 default attribute policies:
 

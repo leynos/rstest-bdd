@@ -175,7 +175,7 @@ omit that direct dependency and compile as workspace proof points.
 > "rstest-bdd-harness-tokio", … }`) or the harness type is re-exported
 > under a different module path, the macro cannot identify it as a
 > first-party adapter and falls back to resolving base API types through
-> `rstest-bdd-harness`. In those cases add `rstest-bdd-harness` as a
+> `rstest-bdd-harness`. In those cases, add `rstest-bdd-harness` as a
 > direct dev-dependency.
 
 Adapter-only manifests work when macro arguments use first-party crate-root

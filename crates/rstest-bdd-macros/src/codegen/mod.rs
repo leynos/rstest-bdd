@@ -103,11 +103,11 @@ fn first_party_adapter_api_root(adapter_path: &syn::Path, spec: &CrateSpec) -> T
 fn first_party_adapter_path_matches(adapter_path: &syn::Path, spec: &CrateSpec) -> bool {
     path_last_ident_matches(adapter_path, spec.adapter_type_names)
         && (path_root_matches_crate(adapter_path, spec)
-            || is_imported_adapter_type_path(adapter_path))
+            || is_imported_adapter_type_path(adapter_path, spec))
 }
 
-fn is_imported_adapter_type_path(path: &syn::Path) -> bool {
-    path.segments.len() == 1
+fn is_imported_adapter_type_path(path: &syn::Path, spec: &CrateSpec) -> bool {
+    path.segments.len() == 1 && try_resolve_crate_path(spec).is_some()
 }
 
 fn path_last_ident_matches(path: &syn::Path, expected: &[&str]) -> bool {
@@ -224,18 +224,15 @@ mod tests {
         "rstest_bdd_harness_tokio::TokioHarness",
         ":: rstest_bdd_harness_tokio"
     )]
-    #[case::tokio_harness_imported("TokioHarness", ":: rstest_bdd_harness_tokio")]
-    #[case::tokio_policy_imported("TokioAttributePolicy", ":: rstest_bdd_harness_tokio")]
-    #[case::gpui_harness_imported("GpuiHarness", ":: rstest_bdd_harness_gpui")]
+    #[case::tokio_harness_imported("TokioHarness", ":: rstest_bdd_harness")]
+    #[case::tokio_policy_imported("TokioAttributePolicy", ":: rstest_bdd_harness")]
+    #[case::gpui_harness_imported("GpuiHarness", ":: rstest_bdd_harness")]
     #[case::gpui_policy_canonical(
         "rstest_bdd_harness_gpui::GpuiAttributePolicy",
         ":: rstest_bdd_harness_gpui"
     )]
-    #[case::gpui_policy_imported("GpuiAttributePolicy", ":: rstest_bdd_harness_gpui")]
-    fn first_party_adapter_api_path_uses_adapter_crate(
-        #[case] adapter_path: &str,
-        #[case] expected: &str,
-    ) {
+    #[case::gpui_policy_imported("GpuiAttributePolicy", ":: rstest_bdd_harness")]
+    fn adapter_api_path_uses_expected_crate(#[case] adapter_path: &str, #[case] expected: &str) {
         let adapter_path = parse_path(adapter_path);
         let tokens = super::rstest_bdd_harness_api_path_for(&adapter_path);
         assert_eq!(tokens.to_string(), expected);
@@ -305,7 +302,7 @@ mod tests {
             let renamed_path = parse_path(&format!("renamed_{suffix}::{known_type}"));
             let aliased_path = parse_path(&format!("{}::{unknown_type}", spec.default_crate_name));
 
-            prop_assert!(super::first_party_adapter_path_matches(&imported_path, spec));
+            prop_assert!(!super::first_party_adapter_path_matches(&imported_path, spec));
             prop_assert!(super::first_party_adapter_path_matches(&canonical_path, spec));
             prop_assert!(!super::first_party_adapter_path_matches(&renamed_path, spec));
             prop_assert!(!super::first_party_adapter_path_matches(&aliased_path, spec));

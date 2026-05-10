@@ -80,26 +80,27 @@ fn resolve_attribute_hint_from_path(
     resolver(&segment_refs)
 }
 
-fn resolve_imported_policy_hint(path: &syn::Path) -> Option<TestAttributeHint> {
+fn resolve_imported_hint(
+    path: &syn::Path,
+    tokio_name: &str,
+    gpui_name: &str,
+) -> Option<TestAttributeHint> {
     let ident = single_segment_ident(path)?;
-    if ident == "TokioAttributePolicy" {
+    if ident == tokio_name {
         Some(TestAttributeHint::RstestWithTokioCurrentThread)
-    } else if ident == "GpuiAttributePolicy" {
+    } else if ident == gpui_name {
         Some(TestAttributeHint::RstestWithGpuiTest)
     } else {
         None
     }
 }
 
+fn resolve_imported_policy_hint(path: &syn::Path) -> Option<TestAttributeHint> {
+    resolve_imported_hint(path, "TokioAttributePolicy", "GpuiAttributePolicy")
+}
+
 fn resolve_imported_harness_hint(path: &syn::Path) -> Option<TestAttributeHint> {
-    let ident = single_segment_ident(path)?;
-    if ident == "TokioHarness" {
-        Some(TestAttributeHint::RstestWithTokioCurrentThread)
-    } else if ident == "GpuiHarness" {
-        Some(TestAttributeHint::RstestWithGpuiTest)
-    } else {
-        None
-    }
+    resolve_imported_hint(path, "TokioHarness", "GpuiHarness")
 }
 
 fn single_segment_ident(path: &syn::Path) -> Option<&proc_macro2::Ident> {
