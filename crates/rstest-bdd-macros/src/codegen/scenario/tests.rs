@@ -72,10 +72,6 @@ fn detects_allow_skipped_tag(#[case] tags: Vec<String>, #[case] expected: bool) 
     assert_eq!(scenario_allows_skip(&tags), expected);
 }
 
-// -----------------------------------------------------------------------------
-// Tests for generate_test_attrs: has_tokio_test detection and attribute generation
-// -----------------------------------------------------------------------------
-
 #[expect(clippy::expect_used, reason = "test helper with descriptive failures")]
 fn parse_attr(s: &str) -> syn::Attribute {
     syn::parse_str::<syn::DeriveInput>(&format!("{s} struct S;"))
@@ -103,8 +99,6 @@ fn has_tokio_test_detection(#[case] attr_str: &str, #[case] expected_tokio: bool
     let attr = parse_attr(attr_str);
     let attrs = vec![attr];
 
-    // When runtime is TokioCurrentThread and tokio::test is already present,
-    // we should NOT emit another tokio::test attribute.
     let tokens = generate_test_attrs(
         &attrs,
         &TestAttrPolicy {
@@ -117,13 +111,11 @@ fn has_tokio_test_detection(#[case] attr_str: &str, #[case] expected_tokio: bool
     let has_tokio_in_output = tokens_contain(&tokens, "tokio :: test");
 
     if expected_tokio {
-        // tokio::test detected, so output should NOT include tokio::test
         assert!(
             !has_tokio_in_output,
             "expected no tokio::test in output when user already has one: {attr_str}"
         );
     } else {
-        // tokio::test NOT detected, so output SHOULD include tokio::test
         assert!(
             has_tokio_in_output,
             "expected tokio::test in output when user does not have one: {attr_str}"
@@ -154,7 +146,6 @@ fn generate_test_attrs_output(
     );
     let output = tokens.to_string();
 
-    // All outputs should contain rstest::rstest
     assert!(
         output.contains("rstest :: rstest"),
         "expected rstest::rstest in output: {output}"
@@ -166,7 +157,6 @@ fn generate_test_attrs_output(
         "tokio::test presence mismatch for runtime={runtime:?}, attrs={attr_strs:?}"
     );
 
-    // When tokio::test is emitted, it should specify current_thread flavor
     if expect_tokio_test {
         assert!(
             output.contains("current_thread"),
@@ -174,10 +164,6 @@ fn generate_test_attrs_output(
         );
     }
 }
-
-// -----------------------------------------------------------------------------
-// Tests for generate_test_attrs with attributes policy parameter
-// -----------------------------------------------------------------------------
 
 #[expect(clippy::expect_used, reason = "test helper with descriptive failures")]
 fn parse_path(s: &str) -> syn::Path {
@@ -292,19 +278,12 @@ fn generate_test_attrs_dedupes_tokio_policy_and_user_attribute() {
     );
 }
 
-// -----------------------------------------------------------------------------
-// Tests for generate_trait_assertions
-// -----------------------------------------------------------------------------
-
-// Discriminates which single-param variant to pass, avoiding two near-identical helpers.
 #[derive(Clone, Copy)]
 enum ParamKind {
     Harness,
     Attributes,
 }
 
-// Consolidates the repeated assert-contains / assert-not-contains pattern so
-// individual trait-assertion tests stay compact.
 fn assert_single_trait_assertion(
     param_kind: ParamKind,
     path_str: &str,
@@ -332,6 +311,27 @@ fn assert_single_trait_assertion(
         !output.contains(excluded_trait),
         "should NOT contain {excluded_trait}: {output}"
     );
+}
+
+#[rustfmt::skip]
+fn assert_trait_assertion_crate_path(param_kind: ParamKind, path_str: &str, expected_trait: &str, expected_crate_path: &str) {
+    let path = parse_path(path_str);
+    let (harness, attributes) = match param_kind { ParamKind::Harness => (Some(&path), None), ParamKind::Attributes => (None, Some(&path)) };
+    let tokens = generate_trait_assertions(harness, attributes);
+    let output = tokens.to_string();
+    assert!(output.contains(expected_trait), "should contain trait `{expected_trait}`: {output}");
+    assert!(output.contains(expected_crate_path), "should resolve through `{expected_crate_path}`: {output}");
+}
+
+#[rustfmt::skip]
+#[rstest::rstest]
+#[case::tokio_harness_uses_tokio_crate(ParamKind::Harness, "rstest_bdd_harness_tokio::TokioHarness", "HarnessAdapter", "rstest_bdd_harness_tokio")]
+#[case::tokio_policy_uses_tokio_crate(ParamKind::Attributes, "rstest_bdd_harness_tokio::TokioAttributePolicy", "AttributePolicy", "rstest_bdd_harness_tokio")]
+#[case::gpui_policy_uses_gpui_crate(ParamKind::Attributes, "rstest_bdd_harness_gpui::GpuiAttributePolicy", "AttributePolicy", "rstest_bdd_harness_gpui")]
+#[case::custom_harness_uses_base_harness_crate(ParamKind::Harness, "my_crate::MyHarness", "HarnessAdapter", "rstest_bdd_harness")]
+#[case::custom_policy_uses_base_harness_crate(ParamKind::Attributes, "my_crate::MyPolicy", "AttributePolicy", "rstest_bdd_harness")]
+fn trait_assertions_resolve_correct_crate_path(#[case] kind: ParamKind, #[case] path_str: &str, #[case] expected_trait: &str, #[case] expected_crate_path: &str) {
+    assert_trait_assertion_crate_path(kind, path_str, expected_trait, expected_crate_path);
 }
 
 #[rstest::rstest]
