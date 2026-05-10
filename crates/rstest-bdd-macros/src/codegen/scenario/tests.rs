@@ -198,7 +198,7 @@ fn parse_path(s: &str) -> syn::Path {
     Some(parse_path("::rstest_bdd_harness_tokio::TokioAttributePolicy")),
     true
 )]
-#[case::with_imported_tokio_policy_emits_tokio(Some(parse_path("TokioAttributePolicy")), true)]
+#[case::unresolved_tokio_policy(Some(parse_path("TokioAttributePolicy")), false)]
 #[case::with_unknown_prefix_tokio_name_skips_tokio(
     Some(parse_path("my::TokioAttributePolicy")),
     false

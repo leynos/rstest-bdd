@@ -6,6 +6,8 @@ use rstest_bdd_policy::{
     resolve_test_attribute_hint_for_harness_path, resolve_test_attribute_hint_for_policy_path,
 };
 
+use crate::codegen::first_party_adapter_attribute_hint;
+
 use super::{RuntimeMode, TestAttributeHint};
 
 /// Returns `true` when `attr` is exactly `<crate_name>::<fn_name>`.
@@ -59,12 +61,12 @@ impl ResolvedAttributePolicy {
 
 fn resolve_attribute_hint_from_policy_path(path: &syn::Path) -> Option<TestAttributeHint> {
     resolve_attribute_hint_from_path(path, resolve_test_attribute_hint_for_policy_path)
-        .or_else(|| resolve_imported_policy_hint(path))
+        .or_else(|| first_party_adapter_attribute_hint(path))
 }
 
 fn resolve_attribute_hint_from_harness_path(path: &syn::Path) -> Option<TestAttributeHint> {
     resolve_attribute_hint_from_path(path, resolve_test_attribute_hint_for_harness_path)
-        .or_else(|| resolve_imported_harness_hint(path))
+        .or_else(|| first_party_adapter_attribute_hint(path))
 }
 
 fn resolve_attribute_hint_from_path(
@@ -78,37 +80,6 @@ fn resolve_attribute_hint_from_path(
         .collect();
     let segment_refs: Vec<_> = segment_names.iter().map(String::as_str).collect();
     resolver(&segment_refs)
-}
-
-fn resolve_imported_hint(
-    path: &syn::Path,
-    tokio_name: &str,
-    gpui_name: &str,
-) -> Option<TestAttributeHint> {
-    let ident = single_segment_ident(path)?;
-    if ident == tokio_name {
-        Some(TestAttributeHint::RstestWithTokioCurrentThread)
-    } else if ident == gpui_name {
-        Some(TestAttributeHint::RstestWithGpuiTest)
-    } else {
-        None
-    }
-}
-
-fn resolve_imported_policy_hint(path: &syn::Path) -> Option<TestAttributeHint> {
-    resolve_imported_hint(path, "TokioAttributePolicy", "GpuiAttributePolicy")
-}
-
-fn resolve_imported_harness_hint(path: &syn::Path) -> Option<TestAttributeHint> {
-    resolve_imported_hint(path, "TokioHarness", "GpuiHarness")
-}
-
-fn single_segment_ident(path: &syn::Path) -> Option<&proc_macro2::Ident> {
-    if path.segments.len() == 1 {
-        path.segments.first().map(|segment| &segment.ident)
-    } else {
-        None
-    }
 }
 
 /// Policy-resolution inputs bundled for ADR-008 precedence.

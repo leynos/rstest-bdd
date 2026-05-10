@@ -6,6 +6,7 @@
 use proc_macro_crate::{FoundCrate, crate_name};
 use proc_macro2::{Ident, Span, TokenStream as TokenStream2};
 use quote::quote;
+use rstest_bdd_policy::TestAttributeHint;
 
 struct CrateSpec {
     package_name: &'static str,
@@ -76,6 +77,18 @@ pub(crate) fn rstest_bdd_harness_tokio_path() -> TokenStream2 {
 /// `rstest-bdd-harness` path.
 pub(crate) fn rstest_bdd_harness_api_path_for(adapter_path: &syn::Path) -> TokenStream2 {
     first_party_adapter_api_path(adapter_path).unwrap_or_else(rstest_bdd_harness_path)
+}
+
+pub(crate) fn first_party_adapter_attribute_hint(
+    adapter_path: &syn::Path,
+) -> Option<TestAttributeHint> {
+    if first_party_adapter_path_matches(adapter_path, &TOKIO_HARNESS) {
+        Some(TestAttributeHint::RstestWithTokioCurrentThread)
+    } else if first_party_adapter_path_matches(adapter_path, &GPUI_HARNESS) {
+        Some(TestAttributeHint::RstestWithGpuiTest)
+    } else {
+        None
+    }
 }
 
 fn first_party_adapter_api_path(adapter_path: &syn::Path) -> Option<TokenStream2> {
@@ -256,7 +269,7 @@ mod tests {
     }
 
     #[test]
-    fn renamed_root_with_known_type_falls_back_to_base_harness() {
+    fn renamed_root_with_known_type_uses_test_only_base_harness_fallback() {
         // Simulates: tok = { package = "rstest-bdd-harness-tokio" }
         // #[scenario(harness = tok::TokioHarness)]
         // In a test build try_resolve_crate_path returns None, so no root match.
