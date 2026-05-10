@@ -775,19 +775,22 @@ delegation, preserving backward compatibility.
 When `attributes` is specified, the macro resolves policy-backed test
 attributes. Currently this resolution is path-based:
 
-- the canonical `rstest_bdd_harness_tokio::TokioAttributePolicy` path emits
-  Tokio current-thread test attributes for async scenario signatures,
-- the canonical `rstest_bdd_harness_gpui::GpuiAttributePolicy` path emits
-  `#[gpui::test]` for synchronous and async scenario signatures, and
+- `rstest_bdd_harness_tokio::TokioAttributePolicy`, or an imported
+  `TokioAttributePolicy`, emits Tokio current-thread test attributes for async
+  scenario signatures,
+- `rstest_bdd_harness_gpui::GpuiAttributePolicy`, or an imported
+  `GpuiAttributePolicy`, emits `#[gpui::test]` for synchronous and async
+  scenario signatures, and
 - default and unknown policy paths emit `#[rstest::rstest]` only.
 
 When `attributes` is omitted, known first-party harnesses infer matching
 default attribute policies:
 
 - `rstest_bdd_harness::StdHarness` resolves to rstest-only emission,
-- `rstest_bdd_harness_tokio::TokioHarness` resolves to the Tokio
-  current-thread policy, and
-- `rstest_bdd_harness_gpui::GpuiHarness` resolves to the GPUI test policy.
+- `rstest_bdd_harness_tokio::TokioHarness`, or an imported `TokioHarness`,
+  resolves to the Tokio current-thread policy, and
+- `rstest_bdd_harness_gpui::GpuiHarness`, or an imported `GpuiHarness`,
+  resolves to the GPUI test policy.
 
 If the harness path is not one of those known first-party paths, the macro
 falls back to the existing `RuntimeMode` compatibility behaviour. This keeps

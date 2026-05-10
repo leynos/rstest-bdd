@@ -73,20 +73,35 @@ pub(crate) fn rstest_bdd_harness_api_path_for(adapter_path: &syn::Path) -> Token
 }
 
 fn first_party_adapter_api_path(adapter_path: &syn::Path) -> Option<TokenStream2> {
-    let root = adapter_path.segments.first()?;
-    if first_party_adapter_path_matches(adapter_path, &TOKIO_HARNESS)
-        || first_party_adapter_path_matches(adapter_path, &GPUI_HARNESS)
-    {
-        let root = &root.ident;
-        Some(quote! { ::#root })
+    first_party_adapter_spec(adapter_path)
+        .map(|spec| first_party_adapter_api_root(adapter_path, spec))
+}
+
+fn first_party_adapter_spec(adapter_path: &syn::Path) -> Option<&'static CrateSpec> {
+    [&TOKIO_HARNESS, &GPUI_HARNESS]
+        .into_iter()
+        .find(|spec| first_party_adapter_path_matches(adapter_path, spec))
+}
+
+fn first_party_adapter_api_root(adapter_path: &syn::Path, spec: &CrateSpec) -> TokenStream2 {
+    if path_root_matches_crate(adapter_path, spec) {
+        let Some(root) = adapter_path.segments.first().map(|segment| &segment.ident) else {
+            return resolve_crate_path(spec);
+        };
+        quote! { ::#root }
     } else {
-        None
+        resolve_crate_path(spec)
     }
 }
 
 fn first_party_adapter_path_matches(adapter_path: &syn::Path, spec: &CrateSpec) -> bool {
     path_last_ident_matches(adapter_path, spec.adapter_type_names)
-        && path_root_matches_crate(adapter_path, spec)
+        && (path_root_matches_crate(adapter_path, spec)
+            || is_imported_adapter_type_path(adapter_path))
+}
+
+fn is_imported_adapter_type_path(path: &syn::Path) -> bool {
+    path.segments.len() == 1
 }
 
 fn path_last_ident_matches(path: &syn::Path, expected: &[&str]) -> bool {
@@ -159,6 +174,11 @@ mod tests {
         }
     }
 
+    #[expect(clippy::expect_used, reason = "test path literals should parse")]
+    fn parse_path(path: &str) -> syn::Path {
+        syn::parse_str(path).expect("parse path")
+    }
+
     #[rstest]
     #[case::runtime(&RSTEST_BDD, "rstest-bdd", ":: rstest_bdd")]
     #[case::harness(
@@ -185,18 +205,33 @@ mod tests {
         assert_eq!(tokens.to_string(), expected_string);
     }
 
-    #[test]
-    fn first_party_harness_api_path_uses_adapter_crate() {
-        let harness_path = syn::parse_quote!(rstest_bdd_harness_tokio::TokioHarness);
-        let tokens = super::rstest_bdd_harness_api_path_for(&harness_path);
-        assert_eq!(tokens.to_string(), ":: rstest_bdd_harness_tokio");
+    #[rstest]
+    #[case::tokio_harness_canonical(
+        "rstest_bdd_harness_tokio::TokioHarness",
+        ":: rstest_bdd_harness_tokio"
+    )]
+    #[case::tokio_harness_imported("TokioHarness", ":: rstest_bdd_harness_tokio")]
+    #[case::tokio_policy_imported("TokioAttributePolicy", ":: rstest_bdd_harness_tokio")]
+    #[case::gpui_harness_imported("GpuiHarness", ":: rstest_bdd_harness_gpui")]
+    #[case::gpui_policy_canonical(
+        "rstest_bdd_harness_gpui::GpuiAttributePolicy",
+        ":: rstest_bdd_harness_gpui"
+    )]
+    #[case::gpui_policy_imported("GpuiAttributePolicy", ":: rstest_bdd_harness_gpui")]
+    fn first_party_adapter_api_path_uses_adapter_crate(
+        #[case] adapter_path: &str,
+        #[case] expected: &str,
+    ) {
+        let adapter_path = parse_path(adapter_path);
+        let tokens = super::rstest_bdd_harness_api_path_for(&adapter_path);
+        assert_eq!(tokens.to_string(), expected);
     }
 
     #[test]
-    fn first_party_attribute_api_path_uses_adapter_crate() {
-        let policy_path = syn::parse_quote!(rstest_bdd_harness_gpui::GpuiAttributePolicy);
-        let tokens = super::rstest_bdd_harness_api_path_for(&policy_path);
-        assert_eq!(tokens.to_string(), ":: rstest_bdd_harness_gpui");
+    fn matching_type_name_under_unknown_root_uses_base_harness_crate() {
+        let harness_path = syn::parse_quote!(my_harness::TokioHarness);
+        let tokens = super::rstest_bdd_harness_api_path_for(&harness_path);
+        assert_eq!(tokens.to_string(), ":: rstest_bdd_harness");
     }
 
     #[test]

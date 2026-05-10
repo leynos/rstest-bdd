@@ -9,6 +9,7 @@ use super::{RuntimeMode, TestAttrPolicy, generate_test_attrs, parse_path};
 #[case::with_absolute_gpui_policy_path_emits_gpui(Some(parse_path(
     "::rstest_bdd_harness_gpui::GpuiAttributePolicy"
 )))]
+#[case::with_imported_gpui_policy_emits_gpui(Some(parse_path("GpuiAttributePolicy")))]
 fn generate_test_attrs_respects_gpui_policy_paths(#[case] policy_path: Option<syn::Path>) {
     let policy = policy_path.as_ref();
     let tokens = generate_test_attrs(

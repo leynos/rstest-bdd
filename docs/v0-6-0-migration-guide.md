@@ -138,7 +138,8 @@ harness types used through the macros must implement both `HarnessAdapter` and
   platform libraries required by upstream GPUI.
 - Third-party attribute policies still need explicit user documentation. The
   macros trait-check user-provided policy types, but path-based code generation
-  only recognizes canonical first-party policy paths today.
+  only recognizes first-party policy paths and imported first-party policy type
+  names today.
 
 ### Harness dependency matrix
 
@@ -167,13 +168,16 @@ tests, so selecting `rstest_bdd_harness_tokio::TokioHarness` or
 `examples/tokio-reminders` and `examples/gpui-counter` manifests intentionally
 omit that direct dependency and compile as workspace proof points.
 
-Adapter-only manifests require macro arguments to use canonical first-party
-crate-root paths, such as `rstest_bdd_harness::StdHarness`,
+Adapter-only manifests work when macro arguments use first-party crate-root
+paths, such as `rstest_bdd_harness::StdHarness`,
 `rstest_bdd_harness_tokio::TokioHarness`, or
-`rstest_bdd_harness_gpui::GpuiHarness`. Imported aliases and local type aliases
-for those harness types are not recognized as first-party paths. When the macro
-call uses an alias, uses a local type alias, or omits `attributes = ...` while
-the harness argument is not canonical, generated code falls back to
+`rstest_bdd_harness_gpui::GpuiHarness`. They also work when the adapter type is
+imported directly and the macro argument is the single-segment first-party type
+name, such as `TokioHarness`, `TokioAttributePolicy`, `GpuiHarness`, or
+`GpuiAttributePolicy`. Local type aliases and matching type names under other
+module roots are not recognized as first-party paths. When the macro call uses
+one of those non-recognized forms, or omits `attributes = ...` while the harness
+argument is not recognized as first-party, generated code falls back to
 `rstest-bdd-harness` and therefore requires a direct base harness dependency.
 
 ### Workspace dependency migration for contributors

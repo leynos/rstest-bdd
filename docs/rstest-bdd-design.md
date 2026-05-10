@@ -1694,7 +1694,9 @@ Attribute resolution follows the ADR-008 precedence order:
 3. deprecated `runtime = "tokio-current-thread"` compatibility alias
 4. existing runtime-mode or synchronous fallback
 
-The canonical first-party harness mappings also live in `rstest-bdd-policy`:
+The first-party harness mappings also live in `rstest-bdd-policy` and the
+macro layer recognizes both canonical crate-root paths and imported
+single-segment adapter type names:
 
 - `rstest_bdd_harness::StdHarness` -> rstest-only
 - `rstest_bdd_harness_tokio::TokioHarness` -> Tokio current-thread
