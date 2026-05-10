@@ -100,16 +100,14 @@ fn append_missing_components(mut base: PathBuf, missing: &[std::ffi::OsString]) 
 fn canonical_missing_destination(destination: &Path) -> io::Result<PathBuf> {
     let mut missing_components: Vec<std::ffi::OsString> = Vec::new();
 
-    for ancestor in destination.ancestors() {
-        if ancestor.as_os_str().is_empty() {
-            break;
-        }
+    for ancestor in destination
+        .ancestors()
+        .take_while(|p| !p.as_os_str().is_empty())
+    {
         match fs::canonicalize(ancestor) {
             Ok(base) => return Ok(append_missing_components(base, &missing_components)),
             Err(err) if err.kind() == io::ErrorKind::NotFound => {
-                if let Some(name) = ancestor.file_name() {
-                    missing_components.push(name.to_os_string());
-                }
+                missing_components.extend(ancestor.file_name().map(std::ffi::OsStr::to_os_string));
             }
             Err(err) => return Err(err),
         }
