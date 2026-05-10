@@ -152,8 +152,8 @@ fn copy_dir_tree_creates_missing_destination_parent_chain() {
         reason = "integration-style tests panic on improbable temp-dir I/O setup failures"
     )]
     {
-        let (root, src, dst) = make_src_dst_scaffold();
-        let dst = dst.join("missing").join("parents").join("dst");
+        let (root, src, _) = make_src_dst_scaffold();
+        let dst = root.path().join("missing").join("parents").join("dst");
         std::fs::create_dir_all(&src).expect("create src");
         std::fs::write(src.join("f.txt"), b"hello").expect("write f.txt");
 
@@ -174,18 +174,18 @@ fn copy_dir_tree_rejects_destination_inside_missing_parent_chain() {
         reason = "integration-style tests panic on improbable temp-dir I/O setup failures"
     )]
     {
-        let root = TempDir::new().expect("tempdir");
-        let src = root.path().join("src");
+        let (root, src, _) = make_src_dst_scaffold();
         fs::create_dir_all(&src).expect("create src");
         fs::write(src.join("f.txt"), b"x").expect("write f.txt");
         // dst is a non-existent subtree of src - must be rejected as overlapping.
-        let dst = src.join("missing").join("nested_dst");
+        let dst = src.join("missing").join("child");
         let err = copy_dir_tree(&src, &dst).expect_err("overlap inside missing parent chain");
         assert_eq!(err.kind(), std::io::ErrorKind::InvalidInput);
         assert!(
             err.to_string().contains("refusing overlapping"),
             "unexpected error message: {err}"
         );
+        drop(root);
     }
 }
 struct SymlinkInSourceStaging {
