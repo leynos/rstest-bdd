@@ -149,6 +149,7 @@ mod tests {
         GPUI_HARNESS, RSTEST_BDD, RSTEST_BDD_HARNESS, TOKIO_HARNESS, handle_missing_crate,
     };
     use proc_macro_crate::Error;
+    use rstest::rstest;
     use std::path::PathBuf;
 
     fn not_found_error(crate_name: &str) -> Error {
@@ -158,31 +159,30 @@ mod tests {
         }
     }
 
-    #[test]
-    fn returns_fallback_path_for_runtime_crate() {
-        let tokens = handle_missing_crate(&RSTEST_BDD, &not_found_error("rstest-bdd"));
-        assert_eq!(tokens.to_string(), ":: rstest_bdd");
-    }
-
-    #[test]
-    fn returns_fallback_path_for_harness_crate() {
-        let tokens =
-            handle_missing_crate(&RSTEST_BDD_HARNESS, &not_found_error("rstest-bdd-harness"));
-        assert_eq!(tokens.to_string(), ":: rstest_bdd_harness");
-    }
-
-    #[test]
-    fn returns_fallback_path_for_harness_tokio_crate() {
-        let tokens =
-            handle_missing_crate(&TOKIO_HARNESS, &not_found_error("rstest-bdd-harness-tokio"));
-        assert_eq!(tokens.to_string(), ":: rstest_bdd_harness_tokio");
-    }
-
-    #[test]
-    fn returns_fallback_path_for_harness_gpui_crate() {
-        let tokens =
-            handle_missing_crate(&GPUI_HARNESS, &not_found_error("rstest-bdd-harness-gpui"));
-        assert_eq!(tokens.to_string(), ":: rstest_bdd_harness_gpui");
+    #[rstest]
+    #[case::runtime(&RSTEST_BDD, "rstest-bdd", ":: rstest_bdd")]
+    #[case::harness(
+        &RSTEST_BDD_HARNESS,
+        "rstest-bdd-harness",
+        ":: rstest_bdd_harness"
+    )]
+    #[case::tokio(
+        &TOKIO_HARNESS,
+        "rstest-bdd-harness-tokio",
+        ":: rstest_bdd_harness_tokio"
+    )]
+    #[case::gpui(
+        &GPUI_HARNESS,
+        "rstest-bdd-harness-gpui",
+        ":: rstest_bdd_harness_gpui"
+    )]
+    fn returns_fallback_path_for_known_crates(
+        #[case] crate_spec: &super::CrateSpec,
+        #[case] not_found_name: &str,
+        #[case] expected_string: &str,
+    ) {
+        let tokens = handle_missing_crate(crate_spec, &not_found_error(not_found_name));
+        assert_eq!(tokens.to_string(), expected_string);
     }
 
     #[test]

@@ -167,6 +167,15 @@ tests, so selecting `rstest_bdd_harness_tokio::TokioHarness` or
 `examples/tokio-reminders` and `examples/gpui-counter` manifests intentionally
 omit that direct dependency and compile as workspace proof points.
 
+Adapter-only manifests require macro arguments to use canonical first-party
+crate-root paths, such as `rstest_bdd_harness::StdHarness`,
+`rstest_bdd_harness_tokio::TokioHarness`, or
+`rstest_bdd_harness_gpui::GpuiHarness`. Imported aliases and local type aliases
+for those harness types are not recognized as first-party paths. When the macro
+call uses an alias, uses a local type alias, or omits `attributes = ...` while
+the harness argument is not canonical, generated code falls back to
+`rstest-bdd-harness` and therefore requires a direct base harness dependency.
+
 ### Workspace dependency migration for contributors
 
 Workspace contributors should not restore the old root `[patch.crates-io]`

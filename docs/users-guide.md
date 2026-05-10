@@ -868,10 +868,10 @@ It is available as a dev-dependency:
 rstest-bdd-harness-tokio = "0.6.0-beta1"
 ```
 
-You do not need to add `rstest-bdd-harness` separately when using
-`TokioHarness` through this first-party adapter crate. Add the base harness
-crate only when implementing a custom harness or directly importing base API
-types such as `HarnessAdapter` or `ScenarioRunRequest`.
+When using `TokioHarness` through this first-party adapter crate, adding
+`rstest-bdd-harness` separately is unnecessary. Include the base harness crate
+only when implementing a custom harness or directly importing base API types
+such as `HarnessAdapter` or `ScenarioRunRequest`.
 
 `TokioHarness` can then be used directly in scenarios:
 
@@ -963,10 +963,10 @@ as a dev-dependency:
 rstest-bdd-harness-gpui = "0.6.0-beta1"
 ```
 
-You do not need to add `rstest-bdd-harness` separately when using `GpuiHarness`
-through this first-party adapter crate. Add the base harness crate only when
-implementing a custom harness or directly importing base API types such as
-`HarnessAdapter` or `ScenarioRunRequest`.
+When using `GpuiHarness` through this first-party adapter crate, adding
+`rstest-bdd-harness` separately is unnecessary. Include the base harness crate
+only when implementing a custom harness or directly importing base API types
+such as `HarnessAdapter` or `ScenarioRunRequest`.
 
 `GpuiHarness` can then be used directly in scenarios:
 
