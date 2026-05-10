@@ -478,7 +478,7 @@ message must say that explicitly.
 Start in the repository root:
 
 ```bash
-cd /home/leynos/.lody/repos/github---leynos---rstest-bdd/worktrees/740747bd-ef6a-438d-a91e-d81f8120dbe2
+cd "$(git rev-parse --show-toplevel)"
 git branch --show-current
 ```
 

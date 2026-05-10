@@ -39,6 +39,14 @@ Tokio and GPUI harness crates to stage `.feature` files into the trybuild
 scratch directory before `TestCases::pass` / `compile_fail` are called. Do not
 use these helpers outside test code.
 
+`copy_dir_tree` rejects overlapping source and destination trees before it
+removes or creates the destination. The overlap check canonicalizes
+destinations whose final path does not exist yet by walking to the nearest
+existing ancestor and replaying the missing tail. Missing parent chains and
+parent-directory components such as `missing/../dst` must therefore preserve
+their logical meaning, so a destination that resolves back to the source tree
+is rejected even when part of the destination path is not yet present.
+
 ## nextest on Windows: trybuild deadlock
 
 nextest wraps test binaries in Windows Job Objects. Child `cargo` processes
@@ -223,6 +231,24 @@ Regression tests enforce this boundary:
 
 - Runtime re-export assertions.[^4]
 - Macro import assertions.[^5]
+
+Shared first-party path constants also live in `rstest-bdd-policy` so macro
+parsing, harness adapters, and documentation can agree on canonical policy
+locations:
+
+- `STD_HARNESS_PATH`
+- `TOKIO_HARNESS_PATH`
+- `GPUI_HARNESS_PATH`
+- `DEFAULT_ATTRIBUTE_POLICY_PATH`
+- `GPUI_ATTRIBUTE_POLICY_PATH`
+
+Use `resolve_test_attribute_hint_for_policy_path()` when macro arguments name
+an attribute-policy plugin path directly. Use
+`resolve_test_attribute_hint_for_harness_path()` when `attributes = ...` is
+omitted and a first-party harness path should imply its default
+`TestAttributeHint`. Both helpers deliberately require exact first-party paths;
+unknown third-party paths and paths with extra components return `None`, so
+external harnesses must still opt in with an explicit attribute policy.
 
 The architectural rationale explains this decision and its consequences.[^6]
 
