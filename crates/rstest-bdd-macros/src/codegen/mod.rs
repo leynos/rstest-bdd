@@ -68,6 +68,12 @@ pub(crate) fn rstest_bdd_harness_tokio_path() -> TokenStream2 {
 
 /// Return the crate root that provides base harness API for the given harness
 /// or attribute-policy path.
+///
+/// Adapter detection relies on the crate-root identifier in `adapter_path`
+/// matching either the default snake-case crate name or a resolved renamed
+/// dependency. Renamed dependencies that cannot be resolved at
+/// macro-expansion time (including test builds) fall back to the base
+/// `rstest-bdd-harness` path.
 pub(crate) fn rstest_bdd_harness_api_path_for(adapter_path: &syn::Path) -> TokenStream2 {
     first_party_adapter_api_path(adapter_path).unwrap_or_else(rstest_bdd_harness_path)
 }
@@ -180,29 +186,17 @@ mod tests {
     }
 
     #[rstest]
-    #[case::runtime(&RSTEST_BDD, "rstest-bdd", ":: rstest_bdd")]
-    #[case::harness(
-        &RSTEST_BDD_HARNESS,
-        "rstest-bdd-harness",
-        ":: rstest_bdd_harness"
-    )]
-    #[case::tokio(
-        &TOKIO_HARNESS,
-        "rstest-bdd-harness-tokio",
-        ":: rstest_bdd_harness_tokio"
-    )]
-    #[case::gpui(
-        &GPUI_HARNESS,
-        "rstest-bdd-harness-gpui",
-        ":: rstest_bdd_harness_gpui"
-    )]
-    fn returns_fallback_path_for_known_crates(
-        #[case] crate_spec: &super::CrateSpec,
-        #[case] not_found_name: &str,
-        #[case] expected_string: &str,
+    #[case(&RSTEST_BDD, "rstest-bdd", ":: rstest_bdd")]
+    #[case(&RSTEST_BDD_HARNESS, "rstest-bdd-harness", ":: rstest_bdd_harness")]
+    #[case(&TOKIO_HARNESS, "rstest-bdd-harness-tokio", ":: rstest_bdd_harness_tokio")]
+    #[case(&GPUI_HARNESS, "rstest-bdd-harness-gpui", ":: rstest_bdd_harness_gpui")]
+    fn returns_fallback_path(
+        #[case] spec: &super::CrateSpec,
+        #[case] pkg: &str,
+        #[case] expected: &str,
     ) {
-        let tokens = handle_missing_crate(crate_spec, &not_found_error(not_found_name));
-        assert_eq!(tokens.to_string(), expected_string);
+        let tokens = handle_missing_crate(spec, &not_found_error(pkg));
+        assert_eq!(tokens.to_string(), expected);
     }
 
     #[rstest]
@@ -230,6 +224,26 @@ mod tests {
     #[test]
     fn matching_type_name_under_unknown_root_uses_base_harness_crate() {
         let harness_path = syn::parse_quote!(my_harness::TokioHarness);
+        let tokens = super::rstest_bdd_harness_api_path_for(&harness_path);
+        assert_eq!(tokens.to_string(), ":: rstest_bdd_harness");
+    }
+
+    #[test]
+    fn aliased_import_falls_back_to_base_harness() {
+        // Simulates: use rstest_bdd_harness_tokio::TokioHarness as TH;
+        // #[scenario(harness = my_mod::TH)] - type alias not in known names.
+        let harness_path = syn::parse_quote!(rstest_bdd_harness_tokio::SomeAlias);
+        let tokens = super::rstest_bdd_harness_api_path_for(&harness_path);
+        // The type name is not in TOKIO_HARNESS.adapter_type_names, so fall back.
+        assert_eq!(tokens.to_string(), ":: rstest_bdd_harness");
+    }
+
+    #[test]
+    fn renamed_root_with_known_type_falls_back_to_base_harness() {
+        // Simulates: tok = { package = "rstest-bdd-harness-tokio" }
+        // #[scenario(harness = tok::TokioHarness)]
+        // In a test build try_resolve_crate_path returns None, so no root match.
+        let harness_path = syn::parse_quote!(tok::TokioHarness);
         let tokens = super::rstest_bdd_harness_api_path_for(&harness_path);
         assert_eq!(tokens.to_string(), ":: rstest_bdd_harness");
     }
