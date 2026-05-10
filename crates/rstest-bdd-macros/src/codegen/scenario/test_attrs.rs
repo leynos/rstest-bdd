@@ -1,4 +1,20 @@
 //! Test-attribute policy resolution for generated scenario tests.
+//!
+//! This module implements the ADR-008 precedence chain that selects which
+//! framework test attributes are emitted alongside `#[rstest::rstest]` for
+//! each generated test function:
+//!
+//! 1. An explicit `attributes = …` path supplied to the `#[scenario]` or
+//!    `#[scenarios]` macro takes highest precedence.
+//! 2. A `harness = …` path is consulted next; first-party adapter types
+//!    (`TokioHarness`, `GpuiHarness`) are recognised via
+//!    [`crate::codegen::first_party_adapter_attribute_hint`].
+//! 3. The `RuntimeMode` derived from `runtime = …` or the macro's defaults
+//!    provides the final fallback.
+//!
+//! The public surface is [`generate_test_attrs`] and [`TestAttrPolicy`].
+//! Existing user attributes (`#[tokio::test]`, `#[gpui::test]`) are
+//! detected so that generated output does not duplicate them.
 
 use proc_macro2::TokenStream as TokenStream2;
 use quote::quote;

@@ -1,4 +1,24 @@
 //! Code generation for scenario tests.
+//!
+//! This module coordinates the full code-generation pipeline for a single
+//! BDD scenario or scenario outline. The pipeline is partitioned across
+//! five focused sub-modules:
+//!
+//! - [`domain`] — domain types shared across the pipeline (`ScenarioConfig`,
+//!   `ScenarioReturnKind`).
+//! - [`helpers`] — step-processing utilities and case-attribute generators.
+//! - [`metadata`] — strongly-typed wrappers for feature-path and
+//!   scenario-name values used in generated code.
+//! - [`runtime`] — token generation for the async runtime wrapper and the
+//!   harness-orchestrated `ScenarioRunRequest`.
+//! - [`test_attrs`] — ADR-008 attribute-policy resolution, translating
+//!   harness and runtime-mode hints into the correct set of test attributes
+//!   (`#[rstest::rstest]`, `#[tokio::test]`, `#[gpui::test]`).
+//!
+//! Public entry points are [`generate_scenario`] and
+//! [`generate_scenario_outline`], which delegate to the internal helpers
+//! after resolving compile-time trait assertions via
+//! [`crate::codegen::rstest_bdd_harness_api_path_for`].
 
 use proc_macro::TokenStream;
 use proc_macro2::TokenStream as TokenStream2;
