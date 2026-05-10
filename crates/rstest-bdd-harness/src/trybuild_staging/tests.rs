@@ -152,10 +152,10 @@ fn copy_dir_tree_creates_missing_destination_parent_chain() {
         reason = "integration-style tests panic on improbable temp-dir I/O setup failures"
     )]
     {
-        let (root, src, _) = make_src_dst_scaffold();
-        let dst = root.path().join("missing").join("parents").join("dst");
-        std::fs::create_dir_all(&src).expect("create src");
-        std::fs::write(src.join("f.txt"), b"hello").expect("write f.txt");
+        let (root, src, dst) = make_src_dst_scaffold();
+        let dst = dst.join("missing").join("parents");
+        fs::create_dir_all(&src).expect("create src");
+        fs::write(src.join("f.txt"), b"hello").expect("write f.txt");
 
         copy_dir_tree(&src, &dst).expect("copy_dir_tree");
 
@@ -163,7 +163,6 @@ fn copy_dir_tree_creates_missing_destination_parent_chain() {
             fs::read(dst.join("f.txt")).expect("read dst file"),
             b"hello"
         );
-        // root must remain in scope to keep the tempdir alive.
         drop(root);
     }
 }
@@ -326,11 +325,11 @@ fn copy_dir_tree_rejects_destination_resolved_through_missing_parent_dir() {
         reason = "integration-style tests panic on improbable temp-dir I/O setup failures"
     )]
     {
-        let root = TempDir::new().expect("tempdir");
-        let src = root.path().join("dst");
+        let (root, src, _dst) = make_src_dst_scaffold();
         fs::create_dir_all(&src).expect("src");
         fs::write(src.join("f.txt"), b"x").expect("write");
-        let dst = root.path().join("missing").join("..").join("dst");
+        // Destination resolves through a missing intermediate segment back to src.
+        let dst = root.path().join("missing").join("..").join("src");
 
         let err = copy_dir_tree(&src, &dst).expect_err("resolved destination is source");
 
