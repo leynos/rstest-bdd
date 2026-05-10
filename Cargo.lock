@@ -1575,6 +1575,7 @@ dependencies = [
  "proc-macro-crate 3.4.0",
  "proc-macro-error",
  "proc-macro2",
+ "proptest",
  "quote",
  "regex",
  "rstest",

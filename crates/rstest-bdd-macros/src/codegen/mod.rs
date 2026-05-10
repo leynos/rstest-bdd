@@ -170,6 +170,7 @@ mod tests {
         GPUI_HARNESS, RSTEST_BDD, RSTEST_BDD_HARNESS, TOKIO_HARNESS, handle_missing_crate,
     };
     use proc_macro_crate::Error;
+    use proptest::prelude::*;
     use rstest::rstest;
     use std::path::PathBuf;
 
@@ -183,6 +184,25 @@ mod tests {
     #[expect(clippy::expect_used, reason = "test path literals should parse")]
     fn parse_path(path: &str) -> syn::Path {
         syn::parse_str(path).expect("parse path")
+    }
+
+    fn adapter_spec(is_tokio: bool) -> &'static super::CrateSpec {
+        if is_tokio {
+            &TOKIO_HARNESS
+        } else {
+            &GPUI_HARNESS
+        }
+    }
+
+    fn known_adapter_type(spec: &super::CrateSpec, use_policy_type: bool) -> &'static str {
+        let [harness_type, policy_type] = spec.adapter_type_names else {
+            panic!("first-party adapter specs have harness and policy type names");
+        };
+        if use_policy_type {
+            policy_type
+        } else {
+            harness_type
+        }
     }
 
     #[rstest]
@@ -253,5 +273,42 @@ mod tests {
         let harness_path = syn::parse_quote!(my_harness::Harness);
         let tokens = super::rstest_bdd_harness_api_path_for(&harness_path);
         assert_eq!(tokens.to_string(), ":: rstest_bdd_harness");
+    }
+
+    proptest! {
+        #[test]
+        fn path_root_matches_crate_depends_on_resolved_root(
+            is_tokio in any::<bool>(),
+            suffix in any::<u16>(),
+            use_policy_type in any::<bool>(),
+        ) {
+            let spec = adapter_spec(is_tokio);
+            let known_type = known_adapter_type(spec, use_policy_type);
+            let matching_path = parse_path(&format!("{}::{known_type}", spec.default_crate_name));
+            let renamed_path = parse_path(&format!("renamed_{suffix}::{known_type}"));
+
+            prop_assert!(super::path_root_matches_crate(&matching_path, spec));
+            prop_assert!(!super::path_root_matches_crate(&renamed_path, spec));
+        }
+
+        #[test]
+        fn first_party_adapter_path_matches_requires_known_type_and_valid_root(
+            is_tokio in any::<bool>(),
+            suffix in any::<u16>(),
+            use_policy_type in any::<bool>(),
+        ) {
+            let spec = adapter_spec(is_tokio);
+            let known_type = known_adapter_type(spec, use_policy_type);
+            let unknown_type = format!("Alias{suffix}");
+            let imported_path = parse_path(known_type);
+            let canonical_path = parse_path(&format!("{}::{known_type}", spec.default_crate_name));
+            let renamed_path = parse_path(&format!("renamed_{suffix}::{known_type}"));
+            let aliased_path = parse_path(&format!("{}::{unknown_type}", spec.default_crate_name));
+
+            prop_assert!(super::first_party_adapter_path_matches(&imported_path, spec));
+            prop_assert!(super::first_party_adapter_path_matches(&canonical_path, spec));
+            prop_assert!(!super::first_party_adapter_path_matches(&renamed_path, spec));
+            prop_assert!(!super::first_party_adapter_path_matches(&aliased_path, spec));
+        }
     }
 }
