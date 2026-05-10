@@ -168,6 +168,16 @@ tests, so selecting `rstest_bdd_harness_tokio::TokioHarness` or
 `examples/tokio-reminders` and `examples/gpui-counter` manifests intentionally
 omit that direct dependency and compile as workspace proof points.
 
+> **Canonical-path requirement:** the macro detects first-party adapters
+> by matching the crate-root identifier in the supplied path against the
+> known adapter crate names. When the Tokio or GPUI adapter crate is
+> renamed in `Cargo.toml` (for example `tok = { package =
+> "rstest-bdd-harness-tokio", … }`) or the harness type is re-exported
+> under a different module path, the macro cannot identify it as a
+> first-party adapter and falls back to resolving base API types through
+> `rstest-bdd-harness`. In those cases add `rstest-bdd-harness` as a
+> direct dev-dependency.
+
 Adapter-only manifests work when macro arguments use first-party crate-root
 paths, such as `rstest_bdd_harness::StdHarness`,
 `rstest_bdd_harness_tokio::TokioHarness`, or
