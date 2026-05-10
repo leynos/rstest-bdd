@@ -1702,6 +1702,13 @@ single-segment adapter type names:
 - `rstest_bdd_harness_tokio::TokioHarness` -> Tokio current-thread
 - `rstest_bdd_harness_gpui::GpuiHarness` -> GPUI test
 
+Imported single-segment recognition only applies to unaliased adapter type
+names. Renamed or aliased imports, such as
+`use rstest_bdd_harness_tokio::TokioHarness as MyHarness`, are not recognized
+by the macro; callers must use the full canonical crate-root path used in
+`rstest-bdd-policy`, add an explicit `rstest-bdd-harness` dependency, or expose
+the adapter under its original name for the macro to resolve it.
+
 Unknown harness paths still fall back to runtime compatibility behaviour
 because procedural macros do not evaluate arbitrary third-party
 `AttributePolicy::test_attributes()` implementations during expansion.
