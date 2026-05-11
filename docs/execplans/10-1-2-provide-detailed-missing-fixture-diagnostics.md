@@ -66,6 +66,8 @@ requested type, inserted fixture list, and harness suggestion.
   harness-adapter traits.
 - Registry metadata: stop and escalate if requested fixture type metadata
   cannot be added compatibly for both generated and manual step registrations.
+- Registry compatibility: stop and escalate if implementation would remove or
+  change the public name-only `Step::fixtures` field.
 - Dependencies: stop and escalate before adding any external crate.
 - Localization: stop and escalate if Fluent message changes cannot be kept
   compatible across the repository's existing locale files.
@@ -203,6 +205,14 @@ requested type, inserted fixture list, and harness suggestion.
   `World`, while owned `world: World` also reports `World`.
   Date/Author: 2026-05-10 / Codex.
 
+- Decision: keep `Step::fixtures` as the public name-only compatibility field
+  and add typed fixture metadata alongside it.
+  Rationale: `Step` is publicly re-exported, and the public `step!` macro
+  constructs `Step` with `fixtures: &'static [&'static str]`. Replacing that
+  field with `&'static [FixtureRequirement]` would be a breaking public API
+  change and would violate this plan's interface tolerance.
+  Date/Author: 2026-05-11 / Codex.
+
 ## Outcomes & retrospective
 
 No implementation has been performed. This plan is ready for review. After
@@ -319,8 +329,8 @@ Prefer borrowed `&'static str` fields because macro output can produce
 
 Extend `Step` so execution can access typed requirements. The preferred shape
 is to add `fixture_requirements: &'static [FixtureRequirement]` while keeping
-`fixtures` during the transition, or to replace `fixtures` only if all call
-sites can be updated without breaking public `step!` forms.
+the existing public `fixtures: &'static [&'static str]` field unchanged. Do not
+replace `fixtures` with typed metadata in this roadmap item.
 
 Update `step!` so existing manual registrations still compile. If manual
 registrations only pass names, synthesize requirements whose type renders as
@@ -574,22 +584,13 @@ pub struct FixtureRequirement {
 }
 ```
 
-`Step` should expose fixture requirements to `validate_required_fixtures`. The
-final shape may be one of:
+`Step` should expose fixture requirements to `validate_required_fixtures` by
+adding typed metadata alongside the existing compatibility field:
 
 ```rust
 pub struct Step {
     pub fixtures: &'static [&'static str],
     pub fixture_requirements: &'static [FixtureRequirement],
-    // existing fields omitted
-}
-```
-
-or, if compatibility and call-site churn remain small:
-
-```rust
-pub struct Step {
-    pub fixtures: &'static [FixtureRequirement],
     // existing fields omitted
 }
 ```
