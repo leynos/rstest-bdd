@@ -454,13 +454,13 @@ and then copies the contents of `src` into it.
 
 To prevent accidental self-copies, `copy_dir_tree` resolves the canonical
 paths of `src` and `dst` before copying and rejects any call where the
-resolved `dst` is a prefix of, or equal to, the resolved `src`. This check
-is performed even when `dst` does not yet exist: the function walks up to
-the nearest existing ancestor of `dst`, canonicalizes that ancestor, and
-re-appends the missing tail components to obtain the resolved destination.
-This means that paths such as `<src>/missing/../other` that traverse back
-into the source tree through a not-yet-existing intermediate segment are
-still detected and rejected with `io::ErrorKind::InvalidInput`.
+resolved `src` equals `dst`, `src` starts with `dst`, or `dst` starts with
+`src`. This check is performed even when `dst` does not yet exist: the
+function walks up to the nearest existing ancestor of `dst`, canonicalizes
+that ancestor, and re-appends the missing tail components to obtain the
+resolved destination. This means that paths such as `<src>/missing/../other`
+that traverse back into the source tree through a not-yet-existing intermediate
+segment are still detected and rejected with `io::ErrorKind::InvalidInput`.
 
 ### First-party policy path constants and resolver helpers
 
