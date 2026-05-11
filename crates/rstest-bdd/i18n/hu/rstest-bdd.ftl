@@ -26,5 +26,5 @@ execution-error-skip = Lépés kihagyva{ $has_message ->
     [yes] : { $message }
 }
 execution-error-step-not-found = A(z) { $index } indexű lépés nem található: { $keyword } { $text } (funkció: { $feature_path }, forgatókönyv: { $scenario_name })
-execution-error-missing-fixtures = A(z) „{ $step_pattern }” lépés ({ $step_location } helyen meghatározva) fixtúrákat igényel: { $required }, de a következők hiányoznak: { $missing }. Elérhető fixtúrák a forgatókönyvből: { $available } (funkció: { $feature_path }, forgatókönyv: { $scenario_name })
+execution-error-missing-fixtures = A(z) „{ $step_pattern }” lépés ({ $step_location } helyen meghatározva) fixtúrákat igényel: { $required }, de a következők hiányoznak: { $missing }. Requested fixture details: { $missing_requirements }. Elérhető fixtúrák a forgatókönyvből: { $available } (funkció: { $feature_path }, forgatókönyv: { $scenario_name })
 execution-error-handler-failed = A(z) { $index } indexű lépés sikertelen: { $keyword } { $text } - { $error } (funkció: { $feature_path }, forgatókönyv: { $scenario_name })

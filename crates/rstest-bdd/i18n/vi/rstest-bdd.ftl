@@ -26,5 +26,5 @@ execution-error-skip = Bước đã bỏ qua{ $has_message ->
     [yes] : { $message }
 }
 execution-error-step-not-found = Không tìm thấy bước tại chỉ mục { $index }: { $keyword } { $text } (tính năng: { $feature_path }, kịch bản: { $scenario_name })
-execution-error-missing-fixtures = Bước « { $step_pattern } » (định nghĩa tại { $step_location }) yêu cầu fixture { $required }, nhưng các fixture sau bị thiếu: { $missing }. Fixture có sẵn từ kịch bản: { $available } (tính năng: { $feature_path }, kịch bản: { $scenario_name })
+execution-error-missing-fixtures = Bước « { $step_pattern } » (định nghĩa tại { $step_location }) yêu cầu fixture { $required }, nhưng các fixture sau bị thiếu: { $missing }. Requested fixture details: { $missing_requirements }. Fixture có sẵn từ kịch bản: { $available } { $suggestion } (tính năng: { $feature_path }, kịch bản: { $scenario_name })
 execution-error-handler-failed = Bước thất bại tại chỉ mục { $index }: { $keyword } { $text } - { $error } (tính năng: { $feature_path }, kịch bản: { $scenario_name })

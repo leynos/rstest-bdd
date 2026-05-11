@@ -95,7 +95,25 @@
 
 use std::sync::Arc;
 
-use crate::{StepError, StepKeyword};
+use crate::{FixtureRequirement, StepError, StepKeyword};
+
+/// Diagnostic details for one missing fixture request.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct MissingFixtureDiagnostic {
+    /// Fixture name requested by the step.
+    pub name: &'static str,
+    /// Rust type requested by the step.
+    pub ty: &'static str,
+}
+
+impl From<FixtureRequirement> for MissingFixtureDiagnostic {
+    fn from(requirement: FixtureRequirement) -> Self {
+        Self {
+            name: requirement.name,
+            ty: requirement.ty,
+        }
+    }
+}
 
 /// Error type for step execution failures.
 ///
@@ -178,8 +196,12 @@ pub struct MissingFixturesDetails {
     pub required: Vec<&'static str>,
     /// List of missing fixture names.
     pub missing: Vec<&'static str>,
+    /// List of missing fixture requests with their expected Rust types.
+    pub missing_requirements: Vec<MissingFixtureDiagnostic>,
     /// List of available fixture names in the context.
     pub available: Vec<String>,
+    /// Suggested remediation for this missing fixture set, when one is known.
+    pub suggestion: Option<String>,
     /// Path to the feature file.
     pub feature_path: String,
     /// Name of the scenario.
@@ -313,7 +335,12 @@ impl ExecutionError {
                     args.set("step_location", details.step_location.clone());
                     args.set("required", details.required.join(", "));
                     args.set("missing", details.missing.join(", "));
+                    args.set(
+                        "missing_requirements",
+                        details.format_missing_requirements(),
+                    );
                     args.set("available", details.available.join(", "));
+                    args.set("suggestion", details.suggestion.clone().unwrap_or_default());
                     args.set("feature_path", details.feature_path.clone());
                     args.set("scenario_name", details.scenario_name.clone());
                 },
@@ -338,6 +365,16 @@ impl ExecutionError {
                 },
             ),
         }
+    }
+}
+
+impl MissingFixturesDetails {
+    fn format_missing_requirements(&self) -> String {
+        self.missing_requirements
+            .iter()
+            .map(|requirement| format!("{}: {}", requirement.name, requirement.ty))
+            .collect::<Vec<_>>()
+            .join(", ")
     }
 }
 

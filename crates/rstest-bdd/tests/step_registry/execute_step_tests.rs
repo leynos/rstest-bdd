@@ -2,7 +2,7 @@
 
 use rstest::{fixture, rstest};
 use rstest_bdd::execution::{ExecutionError, StepExecutionRequest, execute_step};
-use rstest_bdd::{StepContext, StepKeyword};
+use rstest_bdd::{RSTEST_BDD_HARNESS_CONTEXT_FIXTURE, StepContext, StepKeyword};
 
 /// Helper enum to represent expected error types for parameterized testing.
 enum ExpectedExecutionError {
@@ -235,6 +235,50 @@ fn execute_step_returns_missing_fixtures_error(mut ctx: StepContext<'static>) {
     assert!(
         details.missing.contains(&"missing"),
         "expected 'missing' in missing fixtures list"
+    );
+}
+
+#[rstest]
+fn execute_step_reports_detailed_missing_harness_fixture() {
+    let inserted = 7u32;
+    let mut ctx = StepContext::default();
+    ctx.insert("world", &inserted);
+    let request = make_request(0, StepKeyword::Then, "needs harness context");
+
+    let result = execute_step(&request, &mut ctx);
+
+    let Err(error) = result else {
+        panic!("execute_step should return Err");
+    };
+    let ExecutionError::MissingFixtures(details) = &error else {
+        panic!("expected MissingFixtures error, got: {error:?}");
+    };
+    assert_eq!(
+        details.missing,
+        vec![RSTEST_BDD_HARNESS_CONTEXT_FIXTURE],
+        "expected the reserved harness context fixture to be missing"
+    );
+    assert!(
+        details
+            .missing_requirements
+            .iter()
+            .any(
+                |requirement| requirement.name == RSTEST_BDD_HARNESS_CONTEXT_FIXTURE
+                    && requirement.ty == "u64"
+            ),
+        "expected requested harness fixture name and type in details: {details:?}"
+    );
+    assert_eq!(
+        details.available,
+        vec!["world".to_string()],
+        "expected inserted fixtures from StepContext::available_fixtures"
+    );
+    assert!(
+        details
+            .suggestion
+            .as_deref()
+            .is_some_and(|suggestion| suggestion.contains("harness-backed scenario")),
+        "expected harness suggestion when reserved context is absent: {details:?}"
     );
 }
 

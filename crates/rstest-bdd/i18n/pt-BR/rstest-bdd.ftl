@@ -26,5 +26,5 @@ execution-error-skip = Etapa ignorada{ $has_message ->
     [yes] : { $message }
 }
 execution-error-step-not-found = Etapa não encontrada no índice { $index }: { $keyword } { $text } (feature: { $feature_path }, cenário: { $scenario_name })
-execution-error-missing-fixtures = A etapa '{ $step_pattern }' (definida em { $step_location }) requer fixtures { $required }, mas as seguintes estão faltando: { $missing }. Fixtures disponíveis do cenário: { $available } (feature: { $feature_path }, cenário: { $scenario_name })
+execution-error-missing-fixtures = A etapa '{ $step_pattern }' (definida em { $step_location }) requer fixtures { $required }, mas as seguintes estão faltando: { $missing }. Requested fixture details: { $missing_requirements }. Fixtures disponíveis do cenário: { $available } { $suggestion } (feature: { $feature_path }, cenário: { $scenario_name })
 execution-error-handler-failed = Etapa falhou no índice { $index }: { $keyword } { $text } - { $error } (feature: { $feature_path }, cenário: { $scenario_name })

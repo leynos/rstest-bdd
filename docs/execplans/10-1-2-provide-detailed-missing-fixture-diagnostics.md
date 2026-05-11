@@ -5,9 +5,9 @@ This ExecPlan (execution plan) is a living document. The sections
 `Decision log`, and `Outcomes & retrospective` must be kept up to date as work
 proceeds.
 
-Status: DRAFT - awaiting explicit approval before implementation
+Status: IN PROGRESS - implementation approved on 2026-05-11
 
-Implementation must not begin until this draft is approved.
+Implementation began after explicit user approval on 2026-05-11.
 
 ## Purpose / big picture
 
@@ -79,45 +79,32 @@ requested type, inserted fixture list, and harness suggestion.
 ## Risks
 
 - Risk: `ExecutionError::MissingFixtures` currently knows fixture names but not
-  Rust types.
-  Severity: high.
-  Likelihood: high.
-  Mitigation: add compatible name-and-type step metadata and make macro output
-  populate it.
+  Rust types. Severity: high. Likelihood: high. Mitigation: add compatible
+  name-and-type step metadata and make macro output populate it.
 
 - Risk: manual uses of the public `step!` macro can only provide fixture names
-  today.
-  Severity: medium.
-  Likelihood: high.
-  Mitigation: keep existing `step!` forms working, and synthesize a name-only
-  or unknown-type requirement for manual registrations.
+  today. Severity: medium. Likelihood: high. Mitigation: keep existing `step!`
+  forms working, and synthesize a name-only or unknown-type requirement for
+  manual registrations.
 
 - Risk: harness suggestions could overpromise a specific adapter when runtime
-  metadata only proves that `rstest_bdd_harness_context` is absent.
-  Severity: medium.
-  Likelihood: medium.
-  Mitigation: phrase the suggestion generically unless generated metadata can
-  identify a concrete harness path.
+  metadata only proves that `rstest_bdd_harness_context` is absent. Severity:
+  medium. Likelihood: medium. Mitigation: phrase the suggestion generically
+  unless generated metadata can identify a concrete harness path.
 
 - Risk: changing localized messages can break exact-string tests.
-  Severity: medium.
-  Likelihood: high.
-  Mitigation: update exact display tests deliberately and add substring tests
-  for required diagnostic facts.
+  Severity: medium. Likelihood: high. Mitigation: update exact display tests
+  deliberately and add substring tests for required diagnostic facts.
 
 - Risk: adding type metadata to `Step` can ripple through registry tests,
-  macro-generated code, and manual registrations.
-  Severity: medium.
-  Likelihood: medium.
-  Mitigation: introduce a small `FixtureRequirement` type and preserve the old
-  name-only surface until call sites are bridged.
+  macro-generated code, and manual registrations. Severity: medium. Likelihood:
+  medium. Mitigation: introduce a small `FixtureRequirement` type and preserve
+  the old name-only surface until call sites are bridged.
 
 - Risk: documentation may imply this diagnostic fixes the current mutable
-  borrow limitation.
-  Severity: medium.
-  Likelihood: low.
-  Mitigation: document the diagnostic as observability only, and link the borrow
-  redesign to later roadmap work.
+  borrow limitation. Severity: medium. Likelihood: low. Mitigation: document
+  the diagnostic as observability only, and link the borrow redesign to later
+  roadmap work.
 
 ## Progress
 
@@ -134,84 +121,128 @@ requested type, inserted fixture list, and harness suggestion.
 - [x] (2026-05-10T20:19:39Z) Used Firecrawl to check prior art in Rust
   diagnostic reporting and Cucumber Rust's world/context model.
 - [x] (2026-05-10T20:19:39Z) Drafted this pre-implementation ExecPlan.
-- [ ] Await explicit user approval before implementation.
+- [x] (2026-05-11T00:00:00Z) Received explicit user approval to implement this
+  ExecPlan.
+- [x] (2026-05-11T00:00:00Z) Confirmed the branch is
+  `10-1-2-provide-detailed-missing-fixture-diagnostics`, tracking
+  `origin/10-1-2-provide-detailed-missing-fixture-diagnostics`, with a clean
+  worktree.
+- [x] (2026-05-11T00:00:00Z) Added failing regression tests for the requested
+  fixture name, requested type, inserted fixture list, and harness suggestion.
+- [x] (2026-05-11T00:00:00Z) Captured the expected red state: the focused tests
+  failed because `MissingFixtureDiagnostic`, `missing_requirements`, and
+  `suggestion` did not exist.
+- [x] (2026-05-11T00:00:00Z) Implemented typed fixture requirement metadata as
+  an inventory sidecar while preserving `Step::fixtures` and existing public
+  `step!` forms.
+- [x] (2026-05-11T00:00:00Z) Verified focused green runs for
+  `execution_error`, `step_registry`, and generated harness scenario coverage.
+- [x] (2026-05-11T00:00:00Z) Ran `coderabbit review --agent` after the code
+  milestone; it completed with zero findings.
+- [ ] Update user-facing and internal documentation for the richer diagnostic
+  and fixture-name convention.
+- [x] (2026-05-11T00:00:00Z) Ran commit gates for the first implementation
+  milestone: `make check-fmt`, `make lint`, and `make test` all passed.
 
 ## Surprises & discoveries
 
 - Observation: `StepContext::available_fixtures()` already exists and current
   execution-time validation already includes a sorted `available` fixture list.
   Evidence: `crates/rstest-bdd/src/context/mod.rs` and
-  `crates/rstest-bdd/src/execution/mod.rs`.
-  Impact: refine the existing diagnostic path instead of adding a parallel
-  availability mechanism.
+  `crates/rstest-bdd/src/execution/mod.rs`. Impact: refine the existing
+  diagnostic path instead of adding a parallel availability mechanism.
 
 - Observation: execution validation stores required and missing fixture names,
-  but not requested Rust types.
-  Evidence: `Step` in `crates/rstest-bdd/src/registry/mod.rs` has
-  `fixtures: &'static [&'static str]`.
-  Impact: satisfying the roadmap likely needs compatible registered fixture
-  requirement metadata.
+  but not requested Rust types. Evidence: `Step` in
+  `crates/rstest-bdd/src/registry/mod.rs` has
+  `fixtures: &'static [&'static str]`. Impact: satisfying the roadmap likely
+  needs compatible registered fixture requirement metadata.
 
 - Observation: generated wrapper code already knows the requested fixture type
-  and builds `StepError::MissingFixture { name, ty, step }`.
-  Evidence:
-  `crates/rstest-bdd-macros/src/codegen/wrapper/arguments/fixtures.rs`.
-  Impact: macro generation should reuse that source of truth when registering
-  typed fixture requirements.
+  and builds `StepError::MissingFixture { name, ty, step }`. Evidence:
+  `crates/rstest-bdd-macros/src/codegen/wrapper/arguments/fixtures.rs`. Impact:
+  macro generation should reuse that source of truth when registering typed
+  fixture requirements.
+
+- Observation: adding a new field to public `Step` would make downstream
+  literal `Step` construction source-incompatible, even if the existing
+  `fixtures` field stayed in place. Evidence: `Step` is publicly re-exported
+  from `crates/rstest-bdd/src/lib.rs`, and the public `step!` macro constructs
+  it directly. Impact: the implementation uses an `inventory` sidecar
+  `StepFixtureRequirements` keyed by keyword and pattern instead of extending
+  `Step`.
+
+- Observation: `make fmt` runs Markdown formatting after `cargo fmt` and then
+  fails on repository-wide pre-existing Markdown line-length findings.
+  Evidence: the run reported many MD013 failures outside files touched for
+  this task. Impact: keep Rust formatting via `cargo fmt --all`; run
+  task-scoped Markdown validation while preserving the final `make
+  markdownlint` evidence separately.
 
 - Observation: Firecrawl prior-art research found `miette`'s diagnostic model,
   where structured diagnostics can include help text while remaining ordinary
-  Rust errors.
-  Evidence: <https://docs.rs/miette/latest/miette/>.
-  Impact: keep the suggestion as structured error data rendered by the existing
-  localization system, without adding `miette`.
+  Rust errors. Evidence: <https://docs.rs/miette/latest/miette/>. Impact: keep
+  the suggestion as structured error data rendered by the existing localization
+  system, without adding `miette`.
 
 - Observation: Cucumber Rust centres shared scenario state in a per-scenario
-  `World`.
-  Evidence: <https://cucumber-rs.github.io/cucumber/main/> and
-  <https://docs.rs/cucumber/latest/cucumber/>.
-  Impact: user documentation can explain harness context as `rstest-bdd`'s
-  typed scenario context path while preserving the fixture-based design.
+  `World`. Evidence: <https://cucumber-rs.github.io/cucumber/main/> and
+  <https://docs.rs/cucumber/latest/cucumber/>. Impact: user documentation can
+  explain harness context as `rstest-bdd`'s typed scenario context path while
+  preserving the fixture-based design.
 
 ## Decision log
 
-- Decision: treat this document as a draft plan only and do not implement code
-  before approval.
-  Rationale: the user explicitly stated that the plan must be approved before
-  implementation.
-  Date/Author: 2026-05-10 / Codex.
+- Decision: treat the initial document as a draft plan only and do not
+  implement code before approval. Rationale: the user explicitly stated that
+  the plan must be approved before implementation. Date/Author: 2026-05-10 /
+  Codex.
 
 - Decision: plan for typed fixture requirement metadata instead of parsing
-  generated `StepError` strings.
-  Rationale: `rust-errors` and `rust-types-and-apis` guidance favours
-  inspectable typed data over string parsing.
-  Date/Author: 2026-05-10 / Codex.
+  generated `StepError` strings. Rationale: `rust-errors` and
+  `rust-types-and-apis` guidance favours inspectable typed data over string
+  parsing. Date/Author: 2026-05-10 / Codex.
 
 - Decision: keep the harness suggestion generic unless implementation finds
-  reliable generated metadata for a specific harness path.
-  Rationale: runtime execution can know that the reserved harness fixture is
-  missing, but it may not know which adapter was intended.
-  Date/Author: 2026-05-10 / Codex.
+  reliable generated metadata for a specific harness path. Rationale: runtime
+  execution can know that the reserved harness fixture is missing, but it may
+  not know which adapter was intended. Date/Author: 2026-05-10 / Codex.
 
 - Decision: avoid adding `miette`.
   Rationale: the project already has typed errors plus Fluent localization, and
-  the task is a small non-breaking beta quick win.
-  Date/Author: 2026-05-10 / Codex.
+  the task is a small non-breaking beta quick win. Date/Author: 2026-05-10 /
+  Codex.
 
 - Decision: render requested fixture types using the same effective type string
   that generated wrappers already use for `StepError::MissingFixture`.
   Rationale: this keeps execution-time validation and wrapper-time borrow
   errors aligned. In practice, `world: &World` and `world: &mut World` report
-  `World`, while owned `world: World` also reports `World`.
-  Date/Author: 2026-05-10 / Codex.
+  `World`, while owned `world: World` also reports `World`. Date/Author:
+  2026-05-10 / Codex.
 
 - Decision: keep `Step::fixtures` as the public name-only compatibility field
-  and add typed fixture metadata alongside it.
-  Rationale: `Step` is publicly re-exported, and the public `step!` macro
-  constructs `Step` with `fixtures: &'static [&'static str]`. Replacing that
-  field with `&'static [FixtureRequirement]` would be a breaking public API
-  change and would violate this plan's interface tolerance.
-  Date/Author: 2026-05-11 / Codex.
+  and add typed fixture metadata alongside it. Rationale: `Step` is publicly
+  re-exported, and the public `step!` macro constructs `Step` with
+  `fixtures: &'static [&'static str]`. Replacing that field with
+  `&'static [FixtureRequirement]` would be a breaking public API change and
+  would violate this plan's interface tolerance. Date/Author: 2026-05-11 /
+  Codex.
+
+- Decision: store generated typed fixture requirements in an inventory sidecar
+  rather than in `Step`. Rationale: this preserves external code that
+  constructs or inspects `Step::fixtures` while still giving execution-time
+  validation structured fixture names and Rust type strings for macro-generated
+  steps. Date/Author: 2026-05-11 / Codex.
+
+- Decision: manual `step!` registrations without sidecar metadata report the
+  requested type as `<unknown>`. Rationale: manual registrations currently
+  provide fixture names only; making callers provide types would break existing
+  public macro forms. Date/Author: 2026-05-11 / Codex.
+
+- Decision: replace stale branch-specific validation examples with
+  `PR_BRANCH=10-1-2-provide-detailed-missing-fixture-diagnostics`. Rationale:
+  log paths and commands must be reproducible on the actual implementation
+  branch. Date/Author: 2026-05-11 / Codex.
 
 ## Outcomes & retrospective
 
@@ -424,7 +455,7 @@ concern remains unresolved.
 Run the final gates sequentially:
 
 ```bash
-PR_BRANCH=4-1-1-kani-tooling-and-local-smoke-targets
+PR_BRANCH=10-1-2-provide-detailed-missing-fixture-diagnostics
 set -o pipefail; make check-fmt 2>&1 | tee "/tmp/check-fmt-rstest-bdd-${PR_BRANCH}.out"
 set -o pipefail; make lint 2>&1 | tee "/tmp/lint-rstest-bdd-${PR_BRANCH}.out"
 set -o pipefail; make test 2>&1 | tee "/tmp/test-rstest-bdd-${PR_BRANCH}.out"
@@ -433,18 +464,19 @@ set -o pipefail; make test 2>&1 | tee "/tmp/test-rstest-bdd-${PR_BRANCH}.out"
 For documentation changes, also run:
 
 ```bash
-PR_BRANCH=4-1-1-kani-tooling-and-local-smoke-targets
+PR_BRANCH=10-1-2-provide-detailed-missing-fixture-diagnostics
 set -o pipefail; make markdownlint 2>&1 | tee "/tmp/markdownlint-rstest-bdd-${PR_BRANCH}.out"
 set -o pipefail; make nixie 2>&1 | tee "/tmp/nixie-rstest-bdd-${PR_BRANCH}.out"
 ```
 
-After all gates pass, update `docs/roadmap.md` to mark item 10.1.2 done,
-update this ExecPlan's status and retrospective, run relevant documentation
-validation again, and commit the close-out as its own atomic commit.
+After all gates pass, update `docs/roadmap.md` to mark item 10.1.2 done, update
+this ExecPlan's status and retrospective, run relevant documentation validation
+again, and commit the close-out as its own atomic commit.
 
 ## Concrete steps
 
-- Step 1: Wait for explicit approval of this draft.
+- Step 1: Explicit approval has been received; continue implementing this
+  ExecPlan.
 - Step 2: Confirm the worktree is clean, and the branch is still
   `${PR_BRANCH}`.
 - Step 3: Inspect the current symbols with `leta`:
@@ -462,7 +494,7 @@ validation again, and commit the close-out as its own atomic commit.
   this plan:
 
   ```bash
-  PR_BRANCH=4-1-1-kani-tooling-and-local-smoke-targets
+  PR_BRANCH=10-1-2-provide-detailed-missing-fixture-diagnostics
   set -o pipefail
   RUSTFLAGS="-D warnings" cargo test -p rstest-bdd \
     --test execution_error missing_fixtures -- --nocapture 2>&1 \
@@ -518,7 +550,7 @@ The implementation is acceptable when all the following are true:
 - These final commands pass:
 
   ```bash
-  PR_BRANCH=4-1-1-kani-tooling-and-local-smoke-targets
+  PR_BRANCH=10-1-2-provide-detailed-missing-fixture-diagnostics
   set -o pipefail; make check-fmt 2>&1 | tee "/tmp/check-fmt-rstest-bdd-${PR_BRANCH}.out"
   set -o pipefail; make lint 2>&1 | tee "/tmp/lint-rstest-bdd-${PR_BRANCH}.out"
   set -o pipefail; make test 2>&1 | tee "/tmp/test-rstest-bdd-${PR_BRANCH}.out"
@@ -559,8 +591,26 @@ Cucumber Rust models scenario state through a per-scenario World.
 Expected red-test shape before implementation:
 
 ```plaintext
-assertion failed: diagnostic should contain requested type
-assertion failed: diagnostic should contain harness suggestion
+error[E0432]: unresolved import `rstest_bdd::execution::MissingFixtureDiagnostic`
+error[E0560]: struct `MissingFixturesDetails` has no field named `missing_requirements`
+error[E0560]: struct `MissingFixturesDetails` has no field named `suggestion`
+```
+
+Focused green evidence after the code milestone:
+
+```plaintext
+cargo test -p rstest-bdd --test execution_error missing_fixtures
+test result: ok. 3 passed; 0 failed; 10 filtered out
+
+cargo test -p rstest-bdd --test step_registry \
+  execute_step_reports_detailed_missing_harness_fixture
+test result: ok. 1 passed; 0 failed; 25 filtered out
+
+cargo test -p rstest-bdd --test scenario_harness harness_context
+test result: ok. 1 passed; 0 failed; 10 filtered out
+
+coderabbit review --agent
+{"type":"complete","status":"review_completed","findings":0}
 ```
 
 Expected final diagnostic facts:
@@ -584,16 +634,16 @@ pub struct FixtureRequirement {
 }
 ```
 
-`Step` should expose fixture requirements to `validate_required_fixtures` by
-adding typed metadata alongside the existing compatibility field:
+`Step` keeps its compatibility field unchanged:
 
 ```rust
-pub struct Step {
-    pub fixtures: &'static [&'static str],
-    pub fixture_requirements: &'static [FixtureRequirement],
-    // existing fields omitted
-}
+pub fixtures: &'static [&'static str],
 ```
+
+Generated wrappers submit typed fixture requirements through the hidden
+`StepFixtureRequirements` inventory sidecar. Execution looks up that sidecar by
+step keyword and pattern; manual registrations without sidecar metadata fall
+back to `<unknown>` for the requested type.
 
 `MissingFixturesDetails` should remain inspectable and may gain fields such as:
 

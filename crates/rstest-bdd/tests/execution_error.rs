@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use i18n_embed::fluent::fluent_language_loader;
 use rstest::rstest;
-use rstest_bdd::execution::{ExecutionError, MissingFixturesDetails};
+use rstest_bdd::execution::{ExecutionError, MissingFixtureDiagnostic, MissingFixturesDetails};
 use rstest_bdd::localization::{ScopedLocalization, strip_directional_isolates};
 use rstest_bdd::{Localizations, StepError, StepKeyword};
 use unic_langid::{LanguageIdentifier, langid};
@@ -39,7 +39,12 @@ fn missing_fixtures() -> ExecutionError {
         step_location: "tests/steps.rs:42".into(),
         required: vec!["db", "cache"],
         missing: vec!["db"],
+        missing_requirements: vec![MissingFixtureDiagnostic {
+            name: "db",
+            ty: "DbPool",
+        }],
         available: vec!["cache".into(), "config".into()],
+        suggestion: None,
         feature_path: "features/db.feature".into(),
         scenario_name: "Database query".into(),
     }))
@@ -73,7 +78,7 @@ fn handler_failed() -> ExecutionError {
 )]
 #[case::missing_fixtures(
     missing_fixtures(),
-    "Step 'a database connection' (defined at tests/steps.rs:42) requires fixtures db, cache, but the following are missing: db. Available fixtures from scenario: cache, config (feature: features/db.feature, scenario: Database query)"
+    "Step 'a database connection' (defined at tests/steps.rs:42) requires fixtures db, cache, but the following are missing: db. Requested fixture details: db: DbPool. Available fixtures from scenario: cache, config  (feature: features/db.feature, scenario: Database query)"
 )]
 #[case::handler_failed(
     handler_failed(),
@@ -153,6 +158,7 @@ fn assert_contains_all(formatted: &str, expected_substrings: &[(&str, &str)]) {
         ("a database connection", "step_pattern"),
         ("tests/steps.rs:42", "step_location"),
         ("db", "missing fixture"),
+        ("DbPool", "requested fixture type"),
         ("cache", "available fixture"),
         ("config", "available fixture"),
         ("features/db.feature", "feature_path"),
@@ -170,6 +176,38 @@ fn execution_error_format_with_loader_wires_i18n_and_context(
 
     let formatted = error.format_with_loader(&loader);
     assert_contains_all(&formatted, expected_substrings);
+}
+
+#[test]
+fn missing_fixtures_format_includes_typed_request_details_and_suggestion() {
+    let _guard = ScopedLocalization::new(&[langid!("en-US")])
+        .unwrap_or_else(|e| panic!("en-US locale should always be available: {e}"));
+    let error = ExecutionError::MissingFixtures(Arc::new(MissingFixturesDetails {
+        step_pattern: "uses harness context".into(),
+        step_location: "tests/steps.rs:9".into(),
+        required: vec!["rstest_bdd_harness_context"],
+        missing: vec!["rstest_bdd_harness_context"],
+        missing_requirements: vec![MissingFixtureDiagnostic {
+            name: "rstest_bdd_harness_context",
+            ty: "AppContext",
+        }],
+        available: vec!["world".into()],
+        suggestion: Some(
+            "select a harness-backed scenario so rstest_bdd_harness_context is inserted".into(),
+        ),
+        feature_path: "features/harness.feature".into(),
+        scenario_name: "Harness context".into(),
+    }));
+
+    assert_contains_all(
+        &error.to_string(),
+        &[
+            ("rstest_bdd_harness_context", "requested fixture name"),
+            ("AppContext", "requested fixture type"),
+            ("world", "available fixture"),
+            ("select a harness-backed scenario", "harness suggestion"),
+        ],
+    );
 }
 
 #[test]

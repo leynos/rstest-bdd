@@ -7,7 +7,9 @@
 use std::panic::{AssertUnwindSafe, catch_unwind};
 
 use rstest_bdd::{
-    StepContext, StepError, StepExecution, StepFuture, StepKeyword, panic_message, step,
+    FixtureRequirement, RSTEST_BDD_HARNESS_CONTEXT_FIXTURE, StepContext, StepError, StepExecution,
+    StepExecutionMode, StepFixtureRequirements, StepFuture, StepKeyword, StepPattern,
+    panic_message, step, submit,
 };
 
 use super::common::{StepInvocationParams, wrap_sync_step_as_async};
@@ -169,6 +171,56 @@ step!(
     needs_fixture_wrapper_async,
     &["missing"]
 );
+
+/// Step wrapper that requires the reserved harness context fixture.
+fn needs_harness_context_wrapper(
+    ctx: &mut StepContext<'_>,
+    _text: &str,
+    _docstring: Option<&str>,
+    _table: Option<&[&[&str]]>,
+) -> Result<StepExecution, StepError> {
+    if ctx
+        .borrow_ref::<u64>(RSTEST_BDD_HARNESS_CONTEXT_FIXTURE)
+        .is_some()
+    {
+        Ok(StepExecution::from_value(None))
+    } else {
+        Err(StepError::MissingFixture {
+            name: RSTEST_BDD_HARNESS_CONTEXT_FIXTURE.into(),
+            ty: "u64".into(),
+            step: "needs_harness_context".into(),
+        })
+    }
+}
+
+async_wrapper!(
+    needs_harness_context_wrapper_async,
+    needs_harness_context_wrapper
+);
+
+static NEEDS_HARNESS_CONTEXT_PATTERN: StepPattern = StepPattern::new("needs harness context");
+static NEEDS_HARNESS_CONTEXT_REQUIREMENTS: [FixtureRequirement; 1] = [FixtureRequirement {
+    name: RSTEST_BDD_HARNESS_CONTEXT_FIXTURE,
+    ty: "u64",
+}];
+
+step!(
+    @pattern
+    StepKeyword::Then,
+    &NEEDS_HARNESS_CONTEXT_PATTERN,
+    needs_harness_context_wrapper,
+    needs_harness_context_wrapper_async,
+    &[RSTEST_BDD_HARNESS_CONTEXT_FIXTURE],
+    StepExecutionMode::Both
+);
+
+submit! {
+    StepFixtureRequirements {
+        keyword: StepKeyword::Then,
+        pattern: &NEEDS_HARNESS_CONTEXT_PATTERN,
+        requirements: &NEEDS_HARNESS_CONTEXT_REQUIREMENTS,
+    }
+}
 
 /// Step wrapper used to test the `step!` macro's auto-generation of async handlers.
 ///

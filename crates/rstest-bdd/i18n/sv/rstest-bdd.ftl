@@ -26,5 +26,5 @@ execution-error-skip = Steget hoppades över{ $has_message ->
     [yes] : { $message }
 }
 execution-error-step-not-found = Steg hittades inte vid index { $index }: { $keyword } { $text } (feature: { $feature_path }, scenario: { $scenario_name })
-execution-error-missing-fixtures = Steget "{ $step_pattern }" (definierat vid { $step_location }) kräver fixturer { $required }, men följande saknas: { $missing }. Tillgängliga fixturer från scenariot: { $available } (feature: { $feature_path }, scenario: { $scenario_name })
+execution-error-missing-fixtures = Steget "{ $step_pattern }" (definierat vid { $step_location }) kräver fixturer { $required }, men följande saknas: { $missing }. Requested fixture details: { $missing_requirements }. Tillgängliga fixturer från scenariot: { $available } { $suggestion } (feature: { $feature_path }, scenario: { $scenario_name })
 execution-error-handler-failed = Steget misslyckades vid index { $index }: { $keyword } { $text } - { $error } (feature: { $feature_path }, scenario: { $scenario_name })

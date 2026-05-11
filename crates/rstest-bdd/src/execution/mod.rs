@@ -18,17 +18,18 @@
 //!   Runtime and macro tests guard that single-source policy boundary.
 
 mod error;
+mod fixtures;
 
 use std::any::Any;
-use std::collections::HashSet;
 use std::sync::Arc;
 
 use crate::context::StepContext;
 use crate::{
     Step, StepExecution, StepExecutionMode, StepKeyword, StepText, find_step_with_metadata,
 };
+use fixtures::validate_required_fixtures;
 
-pub use error::{ExecutionError, MissingFixturesDetails};
+pub use error::{ExecutionError, MissingFixtureDiagnostic, MissingFixturesDetails};
 
 /// Prefix character for encoded skip messages with no message content.
 pub(crate) const SKIP_NONE_PREFIX: char = '\u{0}';
@@ -48,56 +49,6 @@ pub use rstest_bdd_policy::RuntimeMode;
 /// This type is re-exported from `rstest_bdd_policy` to keep the public API in
 /// `rstest_bdd::execution` stable for downstream users.
 pub use rstest_bdd_policy::TestAttributeHint;
-
-/// Validate that all required fixtures are present in the context.
-///
-/// Returns an error if any required fixtures are missing from the context.
-///
-/// # Arguments
-///
-/// * `step` - The step definition containing fixture requirements
-/// * `ctx` - The scenario context with available fixtures
-/// * `request` - The step execution request for diagnostic context
-///
-/// # Errors
-///
-/// Returns [`ExecutionError::MissingFixtures`] if any fixture listed in
-/// `step.fixtures` is not available in `ctx`.
-fn validate_required_fixtures(
-    step: &Step,
-    ctx: &StepContext<'_>,
-    request: &StepExecutionRequest<'_>,
-) -> Result<(), ExecutionError> {
-    if step.fixtures.is_empty() {
-        return Ok(());
-    }
-
-    let available: HashSet<&str> = ctx.available_fixtures().collect();
-    let missing: Vec<_> = step
-        .fixtures
-        .iter()
-        .copied()
-        .filter(|f| !available.contains(f))
-        .collect();
-
-    if missing.is_empty() {
-        Ok(())
-    } else {
-        let mut available_list: Vec<_> = available.into_iter().map(String::from).collect();
-        available_list.sort_unstable();
-        Err(ExecutionError::MissingFixtures(Arc::new(
-            MissingFixturesDetails {
-                step_pattern: step.pattern.as_str().to_string(),
-                step_location: format!("{}:{}", step.file, step.line),
-                required: step.fixtures.to_vec(),
-                missing,
-                available: available_list,
-                feature_path: request.feature_path.to_string(),
-                scenario_name: request.scenario_name.to_string(),
-            },
-        )))
-    }
-}
 
 fn resolve_step_for_request(
     request: &StepExecutionRequest<'_>,

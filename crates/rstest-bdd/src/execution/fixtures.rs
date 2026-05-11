@@ -1,0 +1,91 @@
+//! Fixture validation helpers for step execution.
+//!
+//! This module keeps missing-fixture diagnostic assembly separate from the
+//! high-level step execution flow.
+
+use std::collections::HashSet;
+use std::sync::Arc;
+
+use crate::context::{RSTEST_BDD_HARNESS_CONTEXT_FIXTURE, StepContext};
+use crate::registry::fixture_requirements_for_step;
+use crate::{FixtureRequirement, Step};
+
+use super::StepExecutionRequest;
+use super::error::{ExecutionError, MissingFixtureDiagnostic, MissingFixturesDetails};
+
+/// Validate that all required fixtures are present in the context.
+///
+/// # Errors
+///
+/// Returns [`ExecutionError::MissingFixtures`] if any fixture listed in
+/// `step.fixtures` is not available in `ctx`.
+pub(super) fn validate_required_fixtures(
+    step: &Step,
+    ctx: &StepContext<'_>,
+    request: &StepExecutionRequest<'_>,
+) -> Result<(), ExecutionError> {
+    if step.fixtures.is_empty() {
+        return Ok(());
+    }
+
+    let available: HashSet<&str> = ctx.available_fixtures().collect();
+    let requirements = fixture_requirements_for_step(step);
+    let missing: Vec<_> = step
+        .fixtures
+        .iter()
+        .copied()
+        .filter(|fixture| !available.contains(fixture))
+        .collect();
+
+    if missing.is_empty() {
+        Ok(())
+    } else {
+        let mut available_list: Vec<_> = available.into_iter().map(String::from).collect();
+        available_list.sort_unstable();
+        let missing_requirements = missing_fixture_diagnostics(&missing, requirements);
+        let suggestion = harness_suggestion(&missing).map(String::from);
+        Err(ExecutionError::MissingFixtures(Arc::new(
+            MissingFixturesDetails {
+                step_pattern: step.pattern.as_str().to_string(),
+                step_location: format!("{}:{}", step.file, step.line),
+                required: step.fixtures.to_vec(),
+                missing,
+                missing_requirements,
+                available: available_list,
+                suggestion,
+                feature_path: request.feature_path.to_string(),
+                scenario_name: request.scenario_name.to_string(),
+            },
+        )))
+    }
+}
+
+fn missing_fixture_diagnostics(
+    missing: &[&'static str],
+    requirements: Option<&'static [FixtureRequirement]>,
+) -> Vec<MissingFixtureDiagnostic> {
+    missing
+        .iter()
+        .copied()
+        .map(|name| {
+            requirements
+                .and_then(|requirements| {
+                    requirements
+                        .iter()
+                        .copied()
+                        .find(|requirement| requirement.name == name)
+                })
+                .unwrap_or(FixtureRequirement {
+                    name,
+                    ty: "<unknown>",
+                })
+                .into()
+        })
+        .collect()
+}
+
+fn harness_suggestion(missing: &[&str]) -> Option<&'static str> {
+    missing
+        .contains(&RSTEST_BDD_HARNESS_CONTEXT_FIXTURE)
+        .then_some("select a harness-backed scenario so rstest_bdd_harness_context is inserted")
+}
