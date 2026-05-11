@@ -115,6 +115,16 @@ fn execution_error_display_uses_localized_messages_and_context(
     handler_failed(),
     "Krok zakończony błędem o indeksie 1: When the user clicks submit - Błąd wykonywania kroku « the user clicks submit » przez funkcję « click_submit »: button not found (feature: features/form.feature, scenariusz: Form submission)"
 )]
+#[case::zh_hans_step_not_found(
+    langid!("zh-Hans"),
+    step_not_found(),
+    "索引 3 处未找到步骤：Given a user named Alice（功能：features/auth.feature，场景：User login）"
+)]
+#[case::zh_hant_handler_failed(
+    langid!("zh-Hant"),
+    handler_failed(),
+    "步驟在索引 1 失敗：When the user clicks submit - 透過函式「click_submit」執行步驟「the user clicks submit」時發生錯誤：button not found（功能：features/form.feature，情境：Form submission）"
+)]
 fn execution_error_formats_in_locales(
     #[case] locale: LanguageIdentifier,
     #[case] error: ExecutionError,

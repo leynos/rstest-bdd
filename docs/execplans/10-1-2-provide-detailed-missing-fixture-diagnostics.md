@@ -150,6 +150,11 @@ requested type, inserted fixture list, and harness suggestion.
 - [x] (2026-05-11T00:00:00Z) Ran final documentation and Rust gates:
   `make markdownlint`, `make nixie`, `make check-fmt`, `make lint`, and
   `make test` all passed.
+- [x] (2026-05-11T00:00:00Z) Verified a post-review locale finding and removed
+  stray `{ $suggestion }` interpolations from Chinese step-not-found and
+  handler-failed messages; only missing-fixtures messages retain the argument.
+- [x] (2026-05-11T00:00:00Z) Added localized regression coverage for the
+  Chinese step-not-found and handler-failed rendering paths.
 
 ## Surprises & discoveries
 
@@ -652,6 +657,31 @@ All checks passed!
 make test
 Summary: 1387 tests run: 1387 passed, 7 skipped
 62 passed in scripts/tests/publish_check
+```
+
+Post-review locale fix validation:
+
+```plaintext
+rg -n "execution-error-(step-not-found|handler-failed).*suggestion" \
+  crates/rstest-bdd/i18n/zh-Hans crates/rstest-bdd/i18n/zh-Hant
+no matches
+
+cargo test -p rstest-bdd --test execution_error \
+  execution_error_formats_in_locales
+test result: ok. 6 passed; 0 failed
+
+make check-fmt
+30 files already formatted
+
+make lint
+All checks passed!
+
+make test
+Summary: 1389 tests run: 1389 passed, 7 skipped
+62 passed in scripts/tests/publish_check
+
+timeout 120s coderabbit review --agent
+timed out while preparing the sandbox
 ```
 
 Expected final diagnostic facts:
