@@ -456,7 +456,7 @@ To prevent accidental self-copies, `copy_dir_tree` resolves the canonical
 paths of `src` and `dst` before copying and rejects any call where the
 resolved `dst` is a prefix of, or equal to, the resolved `src`. This check
 is performed even when `dst` does not yet exist: the function walks up to
-the nearest existing ancestor of `dst`, canonicalises that ancestor, and
+the nearest existing ancestor of `dst`, canonicalizes that ancestor, and
 re-appends the missing tail components to obtain the resolved destination.
 This means that paths such as `<src>/missing/../other` that traverse back
 into the source tree through a not-yet-existing intermediate segment are
@@ -477,7 +477,7 @@ and attribute-policy types:
 | `STD_HARNESS_PATH` | `["rstest_bdd_harness", "StdHarness"]` |
 | `TOKIO_HARNESS_PATH` | `["rstest_bdd_harness_tokio", "TokioHarness"]` |
 | `GPUI_HARNESS_PATH` | `["rstest_bdd_harness_gpui", "GpuiHarness"]` |
-| `DEFAULT_ATTRIBUTE_POLICY_PATH` | tokio attribute-policy path (default) |
+| `DEFAULT_ATTRIBUTE_POLICY_PATH` | `["rstest_bdd_harness", "StdAttributePolicy"]` |
 | `TOKIO_ATTRIBUTE_POLICY_PATH` | tokio attribute-policy path |
 | `GPUI_ATTRIBUTE_POLICY_PATH` | `["rstest_bdd_harness_gpui", "GpuiAttributePolicy"]` |
 
