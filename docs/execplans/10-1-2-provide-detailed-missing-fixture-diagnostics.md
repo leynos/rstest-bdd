@@ -158,6 +158,14 @@ requested type, inserted fixture list, and harness suggestion.
 - [x] (2026-05-11T00:00:00Z) Verified a follow-up locale finding and added
   requested fixture details to Chinese missing-fixtures messages so they render
   the `{ $missing_requirements }` type diagnostics.
+- [x] (2026-05-11T00:00:00Z) Verified locale review findings across
+  non-English missing-fixtures messages, localized the inserted fixture-details
+  label, restored missing typed-details and suggestion placeholders, and added
+  coverage that every non-English bundle renders the runtime arguments.
+- [x] (2026-05-11T00:00:00Z) Re-ran local gates after the locale updates:
+  focused i18n regression, `make check-fmt`, `make lint`, `make test`, and
+  ExecPlan markdown lint all passed; a bounded CodeRabbit retry timed out while
+  preparing its sandbox.
 
 ## Surprises & discoveries
 
@@ -691,6 +699,28 @@ Follow-up Chinese missing-fixtures locale validation:
 cargo test -p rstest-bdd --test execution_error \
   execution_error_format_with_loader_wires_i18n_and_context
 test result: ok. 4 passed; 0 failed
+
+Non-English locale runtime-argument validation:
+
+cargo test -p rstest-bdd --test execution_error \
+  non_english_missing_fixture_diagnostics_include_runtime_arguments
+test result: ok. 30 passed; 0 failed
+
+rg -n "Requested fixture details" crates/rstest-bdd/i18n
+matches only en, en-GB, and en-US bundles
+
+make check-fmt
+30 files already formatted
+
+make lint
+All checks passed!
+
+make test
+Summary: 1421 tests run: 1421 passed, 7 skipped
+62 passed in scripts/tests/publish_check
+
+timeout 120s coderabbit review --agent
+timed out while preparing the sandbox
 ```
 
 Expected final diagnostic facts:

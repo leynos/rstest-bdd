@@ -50,6 +50,26 @@ fn missing_fixtures() -> ExecutionError {
     }))
 }
 
+/// Helper to create a `MissingFixtures` error with harness guidance.
+fn missing_harness_fixture() -> ExecutionError {
+    ExecutionError::MissingFixtures(Arc::new(MissingFixturesDetails {
+        step_pattern: "uses harness context".into(),
+        step_location: "tests/steps.rs:9".into(),
+        required: vec!["rstest_bdd_harness_context"],
+        missing: vec!["rstest_bdd_harness_context"],
+        missing_requirements: vec![MissingFixtureDiagnostic {
+            name: "rstest_bdd_harness_context",
+            ty: "AppContext",
+        }],
+        available: vec!["world".into()],
+        suggestion: Some(
+            "select a harness-backed scenario so rstest_bdd_harness_context is inserted".into(),
+        ),
+        feature_path: "features/harness.feature".into(),
+        scenario_name: "Harness context".into(),
+    }))
+}
+
 /// Helper to create a `HandlerFailed` error.
 fn handler_failed() -> ExecutionError {
     ExecutionError::HandlerFailed {
@@ -216,6 +236,62 @@ fn execution_error_format_with_loader_wires_i18n_and_context(
 
     let formatted = error.format_with_loader(&loader);
     assert_contains_all(&formatted, expected_substrings);
+}
+
+#[rstest]
+#[case::arabic(langid!("ar"))]
+#[case::czech(langid!("cs"))]
+#[case::danish(langid!("da"))]
+#[case::german(langid!("de"))]
+#[case::greek(langid!("el"))]
+#[case::latin_american_spanish(langid!("es-419"))]
+#[case::persian(langid!("fa"))]
+#[case::finnish(langid!("fi"))]
+#[case::french(langid!("fr"))]
+#[case::hebrew(langid!("he"))]
+#[case::hindi(langid!("hi"))]
+#[case::hungarian(langid!("hu"))]
+#[case::indonesian(langid!("id"))]
+#[case::italian(langid!("it"))]
+#[case::japanese(langid!("ja"))]
+#[case::korean(langid!("ko"))]
+#[case::norwegian_bokmal(langid!("nb"))]
+#[case::dutch(langid!("nl"))]
+#[case::polish(langid!("pl"))]
+#[case::brazilian_portuguese(langid!("pt-BR"))]
+#[case::portuguese(langid!("pt-PT"))]
+#[case::romanian(langid!("ro"))]
+#[case::russian(langid!("ru"))]
+#[case::swedish(langid!("sv"))]
+#[case::thai(langid!("th"))]
+#[case::turkish(langid!("tr"))]
+#[case::ukrainian(langid!("uk"))]
+#[case::vietnamese(langid!("vi"))]
+#[case::simplified_chinese(langid!("zh-Hans"))]
+#[case::traditional_chinese(langid!("zh-Hant"))]
+fn non_english_missing_fixture_diagnostics_include_runtime_arguments(
+    #[case] locale: LanguageIdentifier,
+) {
+    let loader = fluent_language_loader!();
+    i18n_embed::select(&loader, &Localizations, std::slice::from_ref(&locale))
+        .unwrap_or_else(|e| panic!("failed to load {locale} translations: {e}"));
+
+    let formatted =
+        strip_directional_isolates(&missing_harness_fixture().format_with_loader(&loader));
+
+    assert!(
+        !formatted.contains("Requested fixture details:"),
+        "expected localized fixture-details label for {locale}, got: {formatted}"
+    );
+    assert_contains_all(
+        &formatted,
+        &[
+            ("rstest_bdd_harness_context", "requested fixture name"),
+            ("AppContext", "requested fixture type"),
+            ("world", "available fixture"),
+            ("select a harness-backed scenario", "harness suggestion"),
+        ],
+    );
 }
 
 #[test]

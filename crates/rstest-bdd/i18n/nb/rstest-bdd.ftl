@@ -26,5 +26,5 @@ execution-error-skip = Trinn hoppet over{ $has_message ->
     [yes] : { $message }
 }
 execution-error-step-not-found = Trinn ikke funnet ved indeks { $index }: { $keyword } { $text } (funksjon: { $feature_path }, scenario: { $scenario_name })
-execution-error-missing-fixtures = Trinn "{ $step_pattern }" (definert ved { $step_location }) krever fiksturer { $required }, men følgende mangler: { $missing }. Requested fixture details: { $missing_requirements }. Tilgjengelige fiksturer fra scenario: { $available } { $suggestion } (funksjon: { $feature_path }, scenario: { $scenario_name })
+execution-error-missing-fixtures = Trinn "{ $step_pattern }" (definert ved { $step_location }) krever fiksturer { $required }, men følgende mangler: { $missing }. Detaljer om etterspurte fiksturer: { $missing_requirements }. Tilgjengelige fiksturer fra scenario: { $available } { $suggestion } (funksjon: { $feature_path }, scenario: { $scenario_name })
 execution-error-handler-failed = Trinn feilet ved indeks { $index }: { $keyword } { $text } - { $error } (funksjon: { $feature_path }, scenario: { $scenario_name })

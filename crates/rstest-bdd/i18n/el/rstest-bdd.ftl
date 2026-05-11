@@ -26,5 +26,5 @@ execution-error-skip = Το βήμα παρακάμφθηκε{ $has_message ->
     [yes] : { $message }
 }
 execution-error-step-not-found = Το βήμα δεν βρέθηκε στον δείκτη { $index }: { $keyword } { $text } (feature: { $feature_path }, σενάριο: { $scenario_name })
-execution-error-missing-fixtures = Το βήμα «{ $step_pattern }» (ορισμένο στο { $step_location }) απαιτεί fixtures { $required }, αλλά τα ακόλουθα λείπουν: { $missing }. Requested fixture details: { $missing_requirements }. Διαθέσιμα fixtures από το σενάριο: { $available } { $suggestion } (feature: { $feature_path }, σενάριο: { $scenario_name })
+execution-error-missing-fixtures = Το βήμα «{ $step_pattern }» (ορισμένο στο { $step_location }) απαιτεί fixtures { $required }, αλλά τα ακόλουθα λείπουν: { $missing }. Λεπτομέρειες ζητούμενων fixtures: { $missing_requirements }. Διαθέσιμα fixtures από το σενάριο: { $available } { $suggestion } (feature: { $feature_path }, σενάριο: { $scenario_name })
 execution-error-handler-failed = Το βήμα απέτυχε στον δείκτη { $index }: { $keyword } { $text } - { $error } (feature: { $feature_path }, σενάριο: { $scenario_name })

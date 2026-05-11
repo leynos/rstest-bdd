@@ -26,5 +26,5 @@ execution-error-skip = Paso omitido{ $has_message ->
     [yes] : { $message }
 }
 execution-error-step-not-found = Paso no encontrado en el índice { $index }: { $keyword } { $text } (feature: { $feature_path }, escenario: { $scenario_name })
-execution-error-missing-fixtures = El paso «{ $step_pattern }» (definido en { $step_location }) requiere fixtures { $required }, pero faltan los siguientes: { $missing }. Requested fixture details: { $missing_requirements }. Fixtures disponibles del escenario: { $available } { $suggestion } (feature: { $feature_path }, escenario: { $scenario_name })
+execution-error-missing-fixtures = El paso «{ $step_pattern }» (definido en { $step_location }) requiere fixtures { $required }, pero faltan los siguientes: { $missing }. Detalles solicitados de fixtures: { $missing_requirements }. Fixtures disponibles del escenario: { $available } { $suggestion } (feature: { $feature_path }, escenario: { $scenario_name })
 execution-error-handler-failed = Paso falló en el índice { $index }: { $keyword } { $text } - { $error } (feature: { $feature_path }, escenario: { $scenario_name })

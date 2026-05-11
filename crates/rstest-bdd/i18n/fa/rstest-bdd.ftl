@@ -26,5 +26,5 @@ execution-error-skip = گام رد شد{ $has_message ->
     [yes] : { $message }
 }
 execution-error-step-not-found = گام در شاخص { $index } یافت نشد: { $keyword } { $text } (feature: { $feature_path }، سناریو: { $scenario_name })
-execution-error-missing-fixtures = گام «{ $step_pattern }» (تعریف‌شده در { $step_location }) به فیکسچرهای { $required } نیاز دارد، اما موارد زیر وجود ندارند: { $missing }. Requested fixture details: { $missing_requirements }. فیکسچرهای موجود از سناریو: { $available } { $suggestion } (feature: { $feature_path }، سناریو: { $scenario_name })
+execution-error-missing-fixtures = گام «{ $step_pattern }» (تعریف‌شده در { $step_location }) به فیکسچرهای { $required } نیاز دارد، اما موارد زیر وجود ندارند: { $missing }. جزئیات فیکسچرهای درخواست‌شده: { $missing_requirements }. فیکسچرهای موجود از سناریو: { $available } { $suggestion } (feature: { $feature_path }، سناریو: { $scenario_name })
 execution-error-handler-failed = گام در شاخص { $index } ناموفق بود: { $keyword } { $text } - { $error } (feature: { $feature_path }، سناریو: { $scenario_name })
