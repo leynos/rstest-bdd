@@ -1,10 +1,28 @@
 //! Test-attribute policy resolution for generated scenario tests.
+//!
+//! This module implements the ADR-008 precedence chain that selects which
+//! framework test attributes are emitted alongside `#[rstest::rstest]` for
+//! each generated test function:
+//!
+//! 1. An explicit `attributes = …` path supplied to the `#[scenario]` or
+//!    `#[scenarios]` macro takes highest precedence.
+//! 2. A `harness = …` path is consulted next; first-party adapter types
+//!    (`TokioHarness`, `GpuiHarness`) are recognised via
+//!    [`crate::codegen::first_party_adapter_attribute_hint`].
+//! 3. The `RuntimeMode` derived from `runtime = …` or the macro's defaults
+//!    provides the final fallback.
+//!
+//! The public surface is [`generate_test_attrs`] and [`TestAttrPolicy`].
+//! Existing user attributes (`#[tokio::test]`, `#[gpui::test]`) are
+//! detected so that generated output does not duplicate them.
 
 use proc_macro2::TokenStream as TokenStream2;
 use quote::quote;
 use rstest_bdd_policy::{
     resolve_test_attribute_hint_for_harness_path, resolve_test_attribute_hint_for_policy_path,
 };
+
+use crate::codegen::first_party_adapter_attribute_hint;
 
 use super::{RuntimeMode, TestAttributeHint};
 
@@ -59,10 +77,12 @@ impl ResolvedAttributePolicy {
 
 fn resolve_attribute_hint_from_policy_path(path: &syn::Path) -> Option<TestAttributeHint> {
     resolve_attribute_hint_from_path(path, resolve_test_attribute_hint_for_policy_path)
+        .or_else(|| first_party_adapter_attribute_hint(path))
 }
 
 fn resolve_attribute_hint_from_harness_path(path: &syn::Path) -> Option<TestAttributeHint> {
     resolve_attribute_hint_from_path(path, resolve_test_attribute_hint_for_harness_path)
+        .or_else(|| first_party_adapter_attribute_hint(path))
 }
 
 fn resolve_attribute_hint_from_path(

@@ -138,7 +138,57 @@ harness types used through the macros must implement both `HarnessAdapter` and
   platform libraries required by upstream GPUI.
 - Third-party attribute policies still need explicit user documentation. The
   macros trait-check user-provided policy types, but path-based code generation
-  only recognizes canonical first-party policy paths today.
+  only recognizes first-party policy paths and imported first-party policy type
+  names today.
+
+### Harness dependency matrix
+
+Downstream `Cargo.toml` files should list the smallest crate set that matches
+the harness surface they use:
+
+- **Plain BDD scenarios:** add `rstest`, `rstest-bdd`, and
+  `rstest-bdd-macros`. Add `rstest-bdd-harness` directly only when test code
+  imports base harness API types.
+- **Tokio first-party harness:** add `rstest`, `rstest-bdd`,
+  `rstest-bdd-macros`, `rstest-bdd-harness-tokio`, and `tokio`. Add
+  `rstest-bdd-harness` directly only when implementing a custom harness or
+  importing base API types.
+- **GPUI first-party harness:** add `rstest`, `rstest-bdd`,
+  `rstest-bdd-macros`, `rstest-bdd-harness-gpui`, and `gpui`. Add
+  `rstest-bdd-harness` directly only when implementing a custom harness or
+  importing base API types.
+- **Custom harness implementation:** add `rstest`, `rstest-bdd`,
+  `rstest-bdd-macros`, and `rstest-bdd-harness`. Custom harnesses implement
+  `HarnessAdapter` and usually use `ScenarioRunRequest`.
+
+First-party adapter crates re-export the base harness API used by generated
+tests, so selecting `rstest_bdd_harness_tokio::TokioHarness` or
+`rstest_bdd_harness_gpui::GpuiHarness` does not require a separate direct
+`rstest-bdd-harness` entry in the consuming crate. The
+`examples/tokio-reminders` and `examples/gpui-counter` manifests intentionally
+omit that direct dependency and compile as workspace proof points.
+
+> **Canonical-path requirement:** the macro detects first-party adapters
+> by matching the crate-root identifier in the supplied path against the
+> known adapter crate names. When the Tokio or GPUI adapter crate is
+> renamed in `Cargo.toml` (for example `tok = { package =
+> "rstest-bdd-harness-tokio", … }`) or the harness type is re-exported
+> under a different module path, the macro cannot identify it as a
+> first-party adapter and falls back to resolving base API types through
+> `rstest-bdd-harness`. In those cases, add `rstest-bdd-harness` as a
+> direct dev-dependency.
+
+Adapter-only manifests work when macro arguments use first-party crate-root
+paths, such as `rstest_bdd_harness::StdHarness`,
+`rstest_bdd_harness_tokio::TokioHarness`, or
+`rstest_bdd_harness_gpui::GpuiHarness`. They also work when the adapter type is
+imported directly and the macro argument is the single-segment first-party type
+name, such as `TokioHarness`, `TokioAttributePolicy`, `GpuiHarness`, or
+`GpuiAttributePolicy`. Local type aliases and matching type names under other
+module roots are not recognized as first-party paths. When the macro call uses
+one of those non-recognized forms, or omits `attributes = ...` while the harness
+argument is not recognized as first-party, generated code falls back to
+`rstest-bdd-harness` and therefore requires a direct base harness dependency.
 
 ### Workspace dependency migration for contributors
 

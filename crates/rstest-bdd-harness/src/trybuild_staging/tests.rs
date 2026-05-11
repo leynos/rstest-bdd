@@ -1,13 +1,29 @@
 //! Unit tests for [`super::copy_file`] and [`super::copy_dir_tree`] staging helpers.
 
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use rstest::fixture;
 use rstest::rstest;
 use tempfile::TempDir;
 
 use super::{copy_dir_tree, copy_file};
+
+#[expect(
+    clippy::expect_used,
+    reason = "integration-style tests panic on improbable temp-dir I/O setup failures"
+)]
+fn copy_dir_tree_ok(src: &Path, dst: &Path) {
+    copy_dir_tree(src, dst).expect("copy_dir_tree");
+}
+
+#[expect(
+    clippy::expect_used,
+    reason = "integration-style tests panic on improbable temp-dir I/O setup failures"
+)]
+fn copy_file_ok(src: &Path, dst: &Path) {
+    copy_file(src, dst).expect("copy_file");
+}
 
 struct CopyFileStaging {
     _root: TempDir,
@@ -38,13 +54,7 @@ fn copy_file_staging() -> CopyFileStaging {
 #[rstest]
 fn copy_file_overwrites_existing_destination(copy_file_staging: CopyFileStaging) {
     let CopyFileStaging { src, dst, .. } = copy_file_staging;
-    #[expect(
-        clippy::expect_used,
-        reason = "integration-style tests panic on improbable temp-dir I/O setup failures"
-    )]
-    {
-        copy_file(&src, &dst).expect("copy_file");
-    }
+    copy_file_ok(&src, &dst);
     #[expect(
         clippy::expect_used,
         reason = "integration-style tests panic on improbable temp-dir I/O setup failures"
@@ -95,16 +105,18 @@ fn replace_dir_staging() -> ReplaceDstStaging {
 #[rstest]
 fn copy_dir_tree_replaces_existing_directory(replace_dir_staging: ReplaceDstStaging) {
     let ReplaceDstStaging { src, dst, .. } = replace_dir_staging;
-    #[expect(
-        clippy::expect_used,
-        reason = "integration-style tests panic on improbable temp-dir I/O setup failures"
-    )]
-    {
-        copy_dir_tree(&src, &dst).expect("copy_dir_tree");
-    }
+    copy_dir_tree_ok(&src, &dst);
     assert!(dst.join("sub").join("a.txt").exists());
     // Stale directory must be gone.
     assert!(!dst.join("stale").exists());
+}
+
+#[rstest]
+fn copy_dir_tree_creates_missing_destination_parents(replace_dir_staging: ReplaceDstStaging) {
+    let ReplaceDstStaging { src, dst, .. } = replace_dir_staging;
+    let nested_dst = dst.join("nested").join("tree");
+    copy_dir_tree_ok(&src, &nested_dst);
+    assert!(nested_dst.join("sub").join("a.txt").exists());
 }
 
 #[fixture]
@@ -130,13 +142,7 @@ fn replace_file_dest_staging() -> ReplaceDstStaging {
 #[rstest]
 fn copy_dir_tree_replaces_existing_file_destination(replace_file_dest_staging: ReplaceDstStaging) {
     let ReplaceDstStaging { src, dst, .. } = replace_file_dest_staging;
-    #[expect(
-        clippy::expect_used,
-        reason = "integration-style tests panic on improbable temp-dir I/O setup failures"
-    )]
-    {
-        copy_dir_tree(&src, &dst).expect("copy_dir_tree");
-    }
+    copy_dir_tree_ok(&src, &dst);
     assert!(dst.join("f.txt").exists());
 }
 

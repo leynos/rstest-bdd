@@ -3,13 +3,19 @@
 use super::{RuntimeMode, TestAttrPolicy, generate_test_attrs, parse_path};
 
 #[rstest::rstest]
-#[case::with_gpui_policy_emits_gpui(Some(parse_path(
-    "rstest_bdd_harness_gpui::GpuiAttributePolicy"
-)))]
-#[case::with_absolute_gpui_policy_path_emits_gpui(Some(parse_path(
-    "::rstest_bdd_harness_gpui::GpuiAttributePolicy"
-)))]
-fn generate_test_attrs_respects_gpui_policy_paths(#[case] policy_path: Option<syn::Path>) {
+#[case::with_gpui_policy_emits_gpui(
+    Some(parse_path("rstest_bdd_harness_gpui::GpuiAttributePolicy")),
+    true
+)]
+#[case::with_absolute_gpui_policy_path_emits_gpui(
+    Some(parse_path("::rstest_bdd_harness_gpui::GpuiAttributePolicy")),
+    true
+)]
+#[case::with_unresolved_gpui_policy_name_skips_gpui(Some(parse_path("GpuiAttributePolicy")), false)]
+fn generate_test_attrs_respects_gpui_policy_paths(
+    #[case] policy_path: Option<syn::Path>,
+    #[case] expect_gpui_test: bool,
+) {
     let policy = policy_path.as_ref();
     let tokens = generate_test_attrs(
         &[],
@@ -27,8 +33,8 @@ fn generate_test_attrs_respects_gpui_policy_paths(#[case] policy_path: Option<sy
         "should contain rstest::rstest: {output}"
     );
     assert!(
-        output.contains("gpui :: test"),
-        "should contain gpui::test when GPUI policy is selected: {output}"
+        output.contains("gpui :: test") == expect_gpui_test,
+        "gpui::test presence mismatch for policy={policy_path:?}: {output}"
     );
     assert!(
         !output.contains("tokio :: test"),

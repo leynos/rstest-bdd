@@ -6,6 +6,7 @@ use crate::parsing::feature::ParsedStep;
 mod gpui_policy;
 mod harness_defaults;
 mod runtime_split;
+mod trait_assertions;
 
 #[expect(clippy::expect_used, reason = "test helper with descriptive failures")]
 fn kw(ts: &TokenStream2) -> crate::StepKeyword {
@@ -72,10 +73,6 @@ fn detects_allow_skipped_tag(#[case] tags: Vec<String>, #[case] expected: bool) 
     assert_eq!(scenario_allows_skip(&tags), expected);
 }
 
-// -----------------------------------------------------------------------------
-// Tests for generate_test_attrs: has_tokio_test detection and attribute generation
-// -----------------------------------------------------------------------------
-
 #[expect(clippy::expect_used, reason = "test helper with descriptive failures")]
 fn parse_attr(s: &str) -> syn::Attribute {
     syn::parse_str::<syn::DeriveInput>(&format!("{s} struct S;"))
@@ -103,8 +100,6 @@ fn has_tokio_test_detection(#[case] attr_str: &str, #[case] expected_tokio: bool
     let attr = parse_attr(attr_str);
     let attrs = vec![attr];
 
-    // When runtime is TokioCurrentThread and tokio::test is already present,
-    // we should NOT emit another tokio::test attribute.
     let tokens = generate_test_attrs(
         &attrs,
         &TestAttrPolicy {
@@ -117,13 +112,11 @@ fn has_tokio_test_detection(#[case] attr_str: &str, #[case] expected_tokio: bool
     let has_tokio_in_output = tokens_contain(&tokens, "tokio :: test");
 
     if expected_tokio {
-        // tokio::test detected, so output should NOT include tokio::test
         assert!(
             !has_tokio_in_output,
             "expected no tokio::test in output when user already has one: {attr_str}"
         );
     } else {
-        // tokio::test NOT detected, so output SHOULD include tokio::test
         assert!(
             has_tokio_in_output,
             "expected tokio::test in output when user does not have one: {attr_str}"
@@ -154,7 +147,6 @@ fn generate_test_attrs_output(
     );
     let output = tokens.to_string();
 
-    // All outputs should contain rstest::rstest
     assert!(
         output.contains("rstest :: rstest"),
         "expected rstest::rstest in output: {output}"
@@ -166,7 +158,6 @@ fn generate_test_attrs_output(
         "tokio::test presence mismatch for runtime={runtime:?}, attrs={attr_strs:?}"
     );
 
-    // When tokio::test is emitted, it should specify current_thread flavor
     if expect_tokio_test {
         assert!(
             output.contains("current_thread"),
@@ -174,10 +165,6 @@ fn generate_test_attrs_output(
         );
     }
 }
-
-// -----------------------------------------------------------------------------
-// Tests for generate_test_attrs with attributes policy parameter
-// -----------------------------------------------------------------------------
 
 #[expect(clippy::expect_used, reason = "test helper with descriptive failures")]
 fn parse_path(s: &str) -> syn::Path {
@@ -198,7 +185,7 @@ fn parse_path(s: &str) -> syn::Path {
     Some(parse_path("::rstest_bdd_harness_tokio::TokioAttributePolicy")),
     true
 )]
-#[case::with_single_segment_tokio_name_skips_tokio(Some(parse_path("TokioAttributePolicy")), false)]
+#[case::unresolved_tokio_policy(Some(parse_path("TokioAttributePolicy")), false)]
 #[case::with_unknown_prefix_tokio_name_skips_tokio(
     Some(parse_path("my::TokioAttributePolicy")),
     false
@@ -289,112 +276,5 @@ fn generate_test_attrs_dedupes_tokio_policy_and_user_attribute() {
     assert_eq!(
         tokio_count, 1,
         "expected exactly one tokio::test when both user attribute and policy are present, got {tokio_count}: {output}"
-    );
-}
-
-// -----------------------------------------------------------------------------
-// Tests for generate_trait_assertions
-// -----------------------------------------------------------------------------
-
-// Discriminates which single-param variant to pass, avoiding two near-identical helpers.
-#[derive(Clone, Copy)]
-enum ParamKind {
-    Harness,
-    Attributes,
-}
-
-// Consolidates the repeated assert-contains / assert-not-contains pattern so
-// individual trait-assertion tests stay compact.
-fn assert_single_trait_assertion(
-    param_kind: ParamKind,
-    path_str: &str,
-    expected_trait: &str,
-    excluded_trait: &str,
-) {
-    let path = parse_path(path_str);
-    let (harness, attributes) = match param_kind {
-        ParamKind::Harness => (Some(&path), None),
-        ParamKind::Attributes => (None, Some(&path)),
-    };
-    let tokens = generate_trait_assertions(harness, attributes);
-    let output = tokens.to_string();
-
-    assert!(
-        output.contains(expected_trait),
-        "should contain {expected_trait} trait bound: {output}"
-    );
-    let spaced_path = path_str.replace("::", " :: ");
-    assert!(
-        output.contains(&spaced_path),
-        "should contain type path `{spaced_path}`: {output}"
-    );
-    assert!(
-        !output.contains(excluded_trait),
-        "should NOT contain {excluded_trait}: {output}"
-    );
-}
-
-#[rstest::rstest]
-#[case::harness(ParamKind::Harness, "my::Harness", "HarnessAdapter", "AttributePolicy")]
-#[case::attributes(
-    ParamKind::Attributes,
-    "my::Policy",
-    "AttributePolicy",
-    "HarnessAdapter"
-)]
-fn trait_assertions_single_param(
-    #[case] kind: ParamKind,
-    #[case] path_str: &str,
-    #[case] expected_trait: &str,
-    #[case] excluded_trait: &str,
-) {
-    assert_single_trait_assertion(kind, path_str, expected_trait, excluded_trait);
-}
-
-#[test]
-fn trait_assertions_with_both() {
-    let harness_path = parse_path("my::Harness");
-    let policy_path = parse_path("my::Policy");
-    let tokens = generate_trait_assertions(Some(&harness_path), Some(&policy_path));
-    let output = tokens.to_string();
-
-    assert!(
-        output.contains("HarnessAdapter"),
-        "should contain HarnessAdapter: {output}"
-    );
-    assert!(
-        output.contains("AttributePolicy"),
-        "should contain AttributePolicy: {output}"
-    );
-}
-
-#[test]
-fn trait_assertions_with_neither() {
-    let tokens = generate_trait_assertions(None, None);
-    let output = tokens.to_string();
-
-    assert!(
-        !output.contains("HarnessAdapter"),
-        "should NOT contain HarnessAdapter: {output}"
-    );
-    assert!(
-        !output.contains("AttributePolicy"),
-        "should NOT contain AttributePolicy: {output}"
-    );
-}
-
-#[test]
-fn trait_assertions_harness_includes_default_bound() {
-    let harness_path = parse_path("my::Harness");
-    let tokens = generate_trait_assertions(Some(&harness_path), None);
-    let output = tokens.to_string();
-
-    assert!(
-        output.contains("HarnessAdapter"),
-        "should contain HarnessAdapter: {output}"
-    );
-    assert!(
-        output.contains("Default"),
-        "should contain Default bound for harness delegation: {output}"
     );
 }

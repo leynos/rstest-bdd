@@ -1694,11 +1694,20 @@ Attribute resolution follows the ADR-008 precedence order:
 3. deprecated `runtime = "tokio-current-thread"` compatibility alias
 4. existing runtime-mode or synchronous fallback
 
-The canonical first-party harness mappings also live in `rstest-bdd-policy`:
+The first-party harness mappings also live in `rstest-bdd-policy` and the
+macro layer recognizes both canonical crate-root paths and imported
+single-segment adapter type names:
 
 - `rstest_bdd_harness::StdHarness` -> rstest-only
 - `rstest_bdd_harness_tokio::TokioHarness` -> Tokio current-thread
 - `rstest_bdd_harness_gpui::GpuiHarness` -> GPUI test
+
+Imported single-segment recognition only applies to unaliased adapter type
+names. Renamed or aliased imports, such as
+`use rstest_bdd_harness_tokio::TokioHarness as MyHarness`, are not recognized
+by the macro; callers must use the full canonical crate-root path used in
+`rstest-bdd-policy`, add an explicit `rstest-bdd-harness` dependency, or expose
+the adapter under its original name for the macro to resolve it.
 
 Unknown harness paths still fall back to runtime compatibility behaviour
 because procedural macros do not evaluate arbitrary third-party
@@ -1981,6 +1990,15 @@ The release strategy is therefore split by compatibility risk:
   `StepContext::available_fixtures()`, a realistic GPUI smoke test that stores
   entity/window handles and resets world state, and migration-guide coverage
   for feature-gated downstream tests such as `cargo test --all-features`.
+
+  The first dependency-matrix quick win keeps the public harness traits in
+  `rstest-bdd-harness`, but lets first-party adapter users depend only on the
+  selected adapter crate. `rstest-bdd-harness-tokio` and
+  `rstest-bdd-harness-gpui` re-export the base API used by generated tests, and
+  the macro targets that adapter crate root when it can prove that the selected
+  harness or attribute policy is the canonical Tokio or GPUI first-party type.
+  Custom harnesses and explicit base API imports still require a direct
+  `rstest-bdd-harness` dependency.
 
 ##### 2.7.6.4 v0.6.1 early-life support helpers
 

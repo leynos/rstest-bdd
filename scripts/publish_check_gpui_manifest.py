@@ -225,10 +225,10 @@ def _validator_test_source() -> str:
     """Return the smoke test source for the validator crate."""
     return """//! Smoke tests for the packaged GPUI harness artifact.
 
-use rstest_bdd_harness::{
-    HarnessAdapter, ScenarioMetadata, ScenarioRunRequest, ScenarioRunner,
+use rstest_bdd_harness_gpui::{
+    GpuiHarness, HarnessAdapter, ScenarioMetadata, ScenarioRunRequest,
+    ScenarioRunner,
 };
-use rstest_bdd_harness_gpui::GpuiHarness;
 
 #[test]
 fn packaged_gpui_harness_runs_against_upstream_gpui() {

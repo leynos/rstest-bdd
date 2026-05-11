@@ -691,7 +691,7 @@ changing the public trait contracts.
 
 ### 10.1. Remove avoidable harness adoption friction
 
-- [ ] 10.1.1. Users of first-party adapters can depend only on the adapter
+- [x] 10.1.1. Users of first-party adapters can depend only on the adapter
   crate in `Cargo.toml`; `rstest-bdd-harness` is required only for custom
   harness implementations or explicit use of the base harness API. Finish line:
   `docs/v0-6-0-migration-guide.md` contains the plain BDD, Tokio, GPUI, and

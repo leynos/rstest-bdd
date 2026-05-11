@@ -760,7 +760,6 @@ dependencies = [
  "gpui",
  "rstest",
  "rstest-bdd",
- "rstest-bdd-harness",
  "rstest-bdd-harness-gpui",
  "rstest-bdd-macros",
 ]
@@ -1576,6 +1575,7 @@ dependencies = [
  "proc-macro-crate 3.4.0",
  "proc-macro-error",
  "proc-macro2",
+ "proptest",
  "quote",
  "regex",
  "rstest",
@@ -2148,7 +2148,6 @@ version = "0.6.0-beta1"
 dependencies = [
  "rstest",
  "rstest-bdd",
- "rstest-bdd-harness",
  "rstest-bdd-harness-tokio",
  "rstest-bdd-macros",
  "thiserror 1.0.69",

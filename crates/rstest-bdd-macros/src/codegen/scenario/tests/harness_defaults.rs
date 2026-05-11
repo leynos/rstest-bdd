@@ -15,12 +15,26 @@ fn parse_path(s: &str) -> syn::Path {
     true,
     false
 )]
+#[case::unresolved_tokio_harness_name_keeps_sync_runtime(
+    RuntimeMode::Sync,
+    Some(parse_path("TokioHarness")),
+    None,
+    false,
+    false
+)]
 #[case::gpui_harness_beats_tokio_runtime(
     RuntimeMode::TokioCurrentThread,
     Some(parse_path("rstest_bdd_harness_gpui::GpuiHarness")),
     None,
     false,
     true
+)]
+#[case::unresolved_gpui_harness_name_keeps_tokio_runtime(
+    RuntimeMode::TokioCurrentThread,
+    Some(parse_path("GpuiHarness")),
+    None,
+    true,
+    false
 )]
 #[case::std_harness_beats_tokio_runtime(
     RuntimeMode::TokioCurrentThread,

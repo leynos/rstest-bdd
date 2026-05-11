@@ -11,6 +11,5 @@ rust-version.workspace = true
 gpui.workspace = true
 rstest = { workspace = true }
 rstest-bdd.workspace = true
-rstest-bdd-harness.workspace = true
 rstest-bdd-harness-gpui.workspace = true
 rstest-bdd-macros.workspace = true

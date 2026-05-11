@@ -775,19 +775,29 @@ delegation, preserving backward compatibility.
 When `attributes` is specified, the macro resolves policy-backed test
 attributes. Currently this resolution is path-based:
 
-- the canonical `rstest_bdd_harness_tokio::TokioAttributePolicy` path emits
-  Tokio current-thread test attributes for async scenario signatures,
-- the canonical `rstest_bdd_harness_gpui::GpuiAttributePolicy` path emits
-  `#[gpui::test]` for synchronous and async scenario signatures, and
+- `rstest_bdd_harness_tokio::TokioAttributePolicy`, or an imported
+  `TokioAttributePolicy`, emits Tokio current-thread test attributes for async
+  scenario signatures,
+- `rstest_bdd_harness_gpui::GpuiAttributePolicy`, or an imported
+  `GpuiAttributePolicy`, emits `#[gpui::test]` for synchronous and async
+  scenario signatures, and
 - default and unknown policy paths emit `#[rstest::rstest]` only.
+
+Imported single-segment recognition only applies to unaliased first-party names.
+If the adapter crates are renamed or aliased, or the policy types are
+re-exported under different identifiers, use the canonical crate-root path
+(`rstest_bdd_harness_tokio::TokioAttributePolicy` or
+`rstest_bdd_harness_gpui::GpuiAttributePolicy`) or add a direct
+`rstest-bdd-harness` dependency to get the same attribute recognition.
 
 When `attributes` is omitted, known first-party harnesses infer matching
 default attribute policies:
 
 - `rstest_bdd_harness::StdHarness` resolves to rstest-only emission,
-- `rstest_bdd_harness_tokio::TokioHarness` resolves to the Tokio
-  current-thread policy, and
-- `rstest_bdd_harness_gpui::GpuiHarness` resolves to the GPUI test policy.
+- `rstest_bdd_harness_tokio::TokioHarness`, or an imported `TokioHarness`,
+  resolves to the Tokio current-thread policy, and
+- `rstest_bdd_harness_gpui::GpuiHarness`, or an imported `GpuiHarness`,
+  resolves to the GPUI test policy.
 
 If the harness path is not one of those known first-party paths, the macro
 falls back to the existing `RuntimeMode` compatibility behaviour. This keeps
@@ -1003,6 +1013,11 @@ It is available as a dev-dependency:
 rstest-bdd-harness-tokio = "0.6.0-beta1"
 ```
 
+A direct `rstest-bdd-harness` dependency is not required when using
+`TokioHarness` through this first-party adapter crate. Add the base harness
+crate directly only when implementing a custom harness or importing base API
+types such as `HarnessAdapter` or `ScenarioRunRequest`.
+
 `TokioHarness` can then be used directly in scenarios:
 
 ```rust,no_run
@@ -1092,6 +1107,11 @@ as a dev-dependency:
 [dev-dependencies]
 rstest-bdd-harness-gpui = "0.6.0-beta1"
 ```
+
+A direct `rstest-bdd-harness` dependency is not required when using
+`GpuiHarness` through this first-party adapter crate. Add the base harness
+crate directly only when implementing a custom harness or importing base API
+types such as `HarnessAdapter` or `ScenarioRunRequest`.
 
 `GpuiHarness` can then be used directly in scenarios:
 
