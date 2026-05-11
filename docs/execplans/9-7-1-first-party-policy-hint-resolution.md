@@ -566,6 +566,9 @@ git diff -- \
   docs/roadmap.md \
   docs/rstest-bdd-design.md \
   docs/users-guide.md \
+  docs/developers-guide.md \
+  crates/rstest-bdd-harness/src/trybuild_staging/mod.rs \
+  crates/rstest-bdd-harness/src/trybuild_staging/tests.rs \
   crates/rstest-bdd-policy/src/lib.rs \
   crates/rstest-bdd-macros/src/codegen/scenario/test_attrs.rs
 ```

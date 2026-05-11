@@ -240,6 +240,7 @@ locations:
 - `TOKIO_HARNESS_PATH`
 - `GPUI_HARNESS_PATH`
 - `DEFAULT_ATTRIBUTE_POLICY_PATH`
+- `TOKIO_ATTRIBUTE_POLICY_PATH`
 - `GPUI_ATTRIBUTE_POLICY_PATH`
 
 Use `resolve_test_attribute_hint_for_policy_path()` when macro arguments name
