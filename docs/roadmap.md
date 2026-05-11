@@ -698,7 +698,7 @@ changing the public trait contracts.
   custom harness dependency matrix, and fixture-generation tests or docs prove
   first-party adapters compile without a direct base-harness dependency. Design
   Doc: `docs/rstest-bdd-design.md` §2.7.6.3. (Dinolump)
-- [ ] 10.1.2. Provide detailed missing-fixture diagnostics that include the
+- [x] 10.1.2. Provide detailed missing-fixture diagnostics that include the
   requested fixture name and type, the list of inserted fixtures from
   `StepContext::available_fixtures()`, and, when
   `rstest_bdd_harness_context` is absent, a suggested harness to select. Finish

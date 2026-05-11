@@ -570,6 +570,12 @@ fixture. The `#[from(original_fixture_name)]` attribute on an argument allows
 renaming. This is particularly useful when destructuring the result of a
 fixture.
 
+In `rstest-bdd` step and scenario macros, implicit fixture injection normalizes
+a single leading underscore before using a parameter name as a fixture key:
+`_world` requests `world`, while `__world` requests `_world`. Use
+`#[from(...)]` when the exact fixture key matters, including keys that really
+start with an underscore.
+
 ```rust,no_run
 use rstest::*;
 

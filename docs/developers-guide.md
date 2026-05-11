@@ -172,6 +172,13 @@ otherwise differs from the Rust parameter name. When the classifier must build
 a new identifier for a normalized implicit fixture name, preserve the original
 parameter span so diagnostics still point at the user-written parameter.
 
+Generated wrappers must also submit typed fixture requirement metadata for
+runtime missing-fixture diagnostics. Keep `Step::fixtures` as the public
+name-only compatibility field, and publish `FixtureRequirement { name, ty }`
+through the hidden `StepFixtureRequirements` inventory sidecar whenever macro
+code knows the requested Rust type. Manual `step!` registrations without that
+sidecar remain valid and report `<unknown>` as the requested fixture type.
+
 ## Shared policy crate (`rstest-bdd-policy`)
 
 The workspace owns policy type definitions in

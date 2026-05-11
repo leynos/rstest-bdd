@@ -1981,6 +1981,13 @@ The release strategy is therefore split by compatibility risk:
   `StepContext::available_fixtures()`, a realistic GPUI smoke test that stores
   entity/window handles and resets world state, and migration-guide coverage
   for feature-gated downstream tests such as `cargo test --all-features`.
+  Missing-fixture diagnostics are backed by typed fixture requirement metadata
+  emitted by generated step wrappers. The public `Step::fixtures` field remains
+  the compatibility surface for name-only fixture consumers; generated wrappers
+  publish `FixtureRequirement { name, ty }` records through a hidden inventory
+  sidecar so execution-time validation can report requested fixture names,
+  requested Rust types, available fixture keys, and a harness-context hint
+  without requiring a breaking `Step` layout change.
 
 ##### 2.7.6.4 v0.6.1 early-life support helpers
 
@@ -2750,6 +2757,14 @@ key, macro expansion applies the same single-leading-underscore normalization
 rule used by placeholder matching. That keeps `_world` aligned with `world`
 while preserving `__world` as `_world`. Explicit `#[from(...)]` names remain
 authoritative and are not normalized.
+
+Generated step registrations also publish typed fixture requirement metadata
+for runtime diagnostics. Name-only fixture requirements remain in
+`Step::fixtures` for compatibility, while generated wrappers submit
+`FixtureRequirement { name, ty }` records through a hidden inventory sidecar.
+Manual `step!` registrations that provide only fixture names continue to work;
+when no typed sidecar exists, diagnostics render the requested type as
+`<unknown>`.
 
 For early feedback, each inferred fixture name is referenced in the generated
 wrapper. If no fixture with that name is in scope, the wrapper fails to

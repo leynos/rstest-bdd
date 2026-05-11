@@ -5,7 +5,7 @@ This ExecPlan (execution plan) is a living document. The sections
 `Decision log`, and `Outcomes & retrospective` must be kept up to date as work
 proceeds.
 
-Status: IN PROGRESS - implementation approved on 2026-05-11
+Status: COMPLETE - implemented and validated on 2026-05-11
 
 Implementation began after explicit user approval on 2026-05-11.
 
@@ -139,10 +139,17 @@ requested type, inserted fixture list, and harness suggestion.
   `execution_error`, `step_registry`, and generated harness scenario coverage.
 - [x] (2026-05-11T00:00:00Z) Ran `coderabbit review --agent` after the code
   milestone; it completed with zero findings.
-- [ ] Update user-facing and internal documentation for the richer diagnostic
-  and fixture-name convention.
+- [x] (2026-05-11T00:00:00Z) Updated user-facing and internal documentation
+  for the richer diagnostic and fixture-name convention.
 - [x] (2026-05-11T00:00:00Z) Ran commit gates for the first implementation
   milestone: `make check-fmt`, `make lint`, and `make test` all passed.
+- [x] (2026-05-11T00:00:00Z) Ran `coderabbit review --agent` after the
+  documentation milestone; it completed with zero findings.
+- [x] (2026-05-11T00:00:00Z) Marked roadmap item 10.1.2 done in
+  `docs/roadmap.md`.
+- [x] (2026-05-11T00:00:00Z) Ran final documentation and Rust gates:
+  `make markdownlint`, `make nixie`, `make check-fmt`, `make lint`, and
+  `make test` all passed.
 
 ## Surprises & discoveries
 
@@ -246,9 +253,23 @@ requested type, inserted fixture list, and harness suggestion.
 
 ## Outcomes & retrospective
 
-No implementation has been performed. This plan is ready for review. After
-approval and implementation, update this section with the final behaviour,
-validation transcripts, CodeRabbit outcome, and any follow-up work.
+The missing-fixture path now reports structured requested fixture diagnostics.
+When fixture validation fails, `MissingFixturesDetails` includes the missing
+fixture names, the requested name-and-type pairs, the sorted available fixture
+list from `StepContext::available_fixtures()`, and an optional suggestion. When
+`rstest_bdd_harness_context` is required but absent, the rendered diagnostic
+includes a hint to select a harness-backed scenario.
+
+Generated step wrappers publish `FixtureRequirement { name, ty }` records
+through a hidden inventory sidecar. This preserves `Step::fixtures` and
+existing public `step!` forms while allowing generated registrations to provide
+exact Rust type strings for diagnostics. Manual name-only registrations remain
+compatible and report `<unknown>` when no typed sidecar exists.
+
+The main implementation lesson was that keeping `Step` layout-compatible
+matters as much as keeping the `fixtures` field itself. A sidecar record gave
+the runtime the metadata it needed without forcing downstream code to update
+manual `Step` construction.
 
 ## Context and orientation
 
@@ -611,6 +632,26 @@ test result: ok. 1 passed; 0 failed; 10 filtered out
 
 coderabbit review --agent
 {"type":"complete","status":"review_completed","findings":0}
+```
+
+Final validation evidence:
+
+```plaintext
+make markdownlint
+Summary: 0 error(s)
+
+make nixie
+All diagrams validated successfully!
+
+make check-fmt
+30 files already formatted
+
+make lint
+All checks passed!
+
+make test
+Summary: 1387 tests run: 1387 passed, 7 skipped
+62 passed in scripts/tests/publish_check
 ```
 
 Expected final diagnostic facts:
