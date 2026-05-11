@@ -81,7 +81,23 @@ fn make_src_dst_scaffold() -> (TempDir, PathBuf, PathBuf) {
     (root, src, dst)
 }
 
-#[fixture]
+struct OverlapCheckStaging {
+    root: TempDir,
+    src: PathBuf,
+}
+
+fn overlap_check_staging() -> OverlapCheckStaging {
+    #[expect(
+        clippy::expect_used,
+        reason = "integration-style tests panic on improbable temp-dir I/O setup failures"
+    )]
+    {
+        let (root, src, _dst) = make_src_dst_scaffold();
+        fs::create_dir_all(&src).expect("create src");
+        fs::write(src.join("f.txt"), b"x").expect("write f.txt");
+        OverlapCheckStaging { root, src }
+    }
+}
 fn replace_dir_staging() -> ReplaceDstStaging {
     #[expect(
         clippy::expect_used,
@@ -168,21 +184,35 @@ fn copy_dir_tree_creates_missing_destination_parent_chain() {
     }
 }
 
-#[test]
-fn copy_dir_tree_rejects_destination_resolved_through_missing_parent_dir() {
+fn copy_dir_tree_rejects_destination_inside_missing_parent_chain(
+    overlap_check_staging: OverlapCheckStaging,
+) {
     #[expect(
         clippy::expect_used,
         reason = "integration-style tests panic on improbable temp-dir I/O setup failures"
     )]
     {
-        let (root, src, _dst) = make_src_dst_scaffold();
-        fs::create_dir_all(&src).expect("create src");
-        fs::write(src.join("f.txt"), b"x").expect("write f.txt");
-        // Destination resolves through a missing intermediate segment back to src.
+        let OverlapCheckStaging { root: _root, src } = overlap_check_staging;
+        let dst = src.join("missing").join("child");
+        let err = copy_dir_tree(&src, &dst).expect_err("overlap inside missing parent chain");
+        assert_eq!(err.kind(), std::io::ErrorKind::InvalidInput);
+        assert!(
+            err.to_string().contains("refusing overlapping"),
+            "unexpected error message: {err}"
+        );
+    }
+}
+fn copy_dir_tree_rejects_destination_resolved_through_missing_parent_dir(
+    overlap_check_staging: OverlapCheckStaging,
+) {
+    #[expect(
+        clippy::expect_used,
+        reason = "integration-style tests panic on improbable temp-dir I/O setup failures"
+    )]
+    {
+        let OverlapCheckStaging { root, src } = overlap_check_staging;
         let dst = root.path().join("missing").join("..").join("src");
-
         let err = copy_dir_tree(&src, &dst).expect_err("resolved destination is source");
-
         assert_eq!(err.kind(), std::io::ErrorKind::InvalidInput);
         assert!(
             err.to_string().contains("refusing overlapping"),
