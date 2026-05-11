@@ -223,6 +223,7 @@ fn copy_dir_tree_rejects_missing_tail_overlap_destinations(
     }
 }
 
+#[cfg(unix)]
 struct SymlinkInSourceStaging {
     _root: TempDir,
     src: PathBuf,
