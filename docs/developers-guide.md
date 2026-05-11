@@ -478,7 +478,7 @@ and attribute-policy types:
 | `TOKIO_HARNESS_PATH` | `["rstest_bdd_harness_tokio", "TokioHarness"]` |
 | `GPUI_HARNESS_PATH` | `["rstest_bdd_harness_gpui", "GpuiHarness"]` |
 | `DEFAULT_ATTRIBUTE_POLICY_PATH` | `["rstest_bdd_harness", "StdAttributePolicy"]` |
-| `TOKIO_ATTRIBUTE_POLICY_PATH` | tokio attribute-policy path |
+| `TOKIO_ATTRIBUTE_POLICY_PATH` | `["rstest_bdd_harness_tokio", "TokioAttributePolicy"]` |
 | `GPUI_ATTRIBUTE_POLICY_PATH` | `["rstest_bdd_harness_gpui", "GpuiAttributePolicy"]` |
 
 Use these constants wherever a first-party path must be compared or
