@@ -443,6 +443,66 @@ Use the same pattern in hand-written tests instead of bare `.unwrap()`. This
 keeps the concrete `HarnessError` visible in the panic message when a harness
 cannot initialize its infrastructure.
 
+### Staging: `copy_dir_tree` and missing destination parent chains
+
+`trybuild_staging::copy_dir_tree(src, dst)` creates any missing parent
+directories in the `dst` path before copying, so callers do not need to
+pre-create the destination tree. For example, if `dst` is
+`tmp/a/b/c` and only `tmp` exists, `copy_dir_tree` creates `tmp/a/b/c`
+and then copies the contents of `src` into it.
+
+To prevent accidental self-copies, `copy_dir_tree` resolves the canonical
+paths of `src` and `dst` before copying and rejects any call where the
+resolved `dst` is a prefix of, or equal to, the resolved `src`. This check
+is performed even when `dst` does not yet exist: the function walks up to
+the nearest existing ancestor of `dst`, canonicalises that ancestor, and
+re-appends the missing tail components to obtain the resolved destination.
+This means that paths such as `<src>/missing/../other` that traverse back
+into the source tree through a not-yet-existing intermediate segment are
+still detected and rejected with `io::ErrorKind::InvalidInput`.
+
+### First-party policy path constants and resolver helpers
+
+The `rstest-bdd-policy` crate exposes path constants and two resolver
+functions that map a type-path to a `TestAttributeHint`.
+
+#### Path constants
+
+The following `&[&str]` constants identify the known first-party harness
+and attribute-policy types:
+
+| Constant | Path segments |
+| --- | --- |
+| `STD_HARNESS_PATH` | `["rstest_bdd_harness", "StdHarness"]` |
+| `TOKIO_HARNESS_PATH` | `["rstest_bdd_harness_tokio", "TokioHarness"]` |
+| `GPUI_HARNESS_PATH` | `["rstest_bdd_harness_gpui", "GpuiHarness"]` |
+| `DEFAULT_ATTRIBUTE_POLICY_PATH` | tokio attribute-policy path (default) |
+| `TOKIO_ATTRIBUTE_POLICY_PATH` | tokio attribute-policy path |
+| `GPUI_ATTRIBUTE_POLICY_PATH` | `["rstest_bdd_harness_gpui", "GpuiAttributePolicy"]` |
+
+Use these constants wherever a first-party path must be compared or
+matched; do not inline the string slices, as the constants are the
+canonical source of truth and may be updated in future releases.
+
+#### Resolver functions
+
+`resolve_test_attribute_hint_for_policy_path(path: &[&str]) -> Option<TestAttributeHint>`
+: Returns the hint for a known first-party attribute-policy type path.
+  Returns `None` for any path that is not an exact match for a known
+  first-party policy path. Do not use this function for harness paths.
+
+`resolve_test_attribute_hint_for_harness_path(path: &[&str]) -> Option<TestAttributeHint>`
+: Returns the hint for a known first-party harness type path, delegating
+  to the policy-path resolver for the corresponding attribute-policy type.
+  Returns `None` for any path that is not an exact match for a known
+  first-party harness path.
+
+Both functions require exact matches against first-party paths. Paths with
+wrong prefixes, extra segments, or partial matches all return `None`. Use
+`resolve_test_attribute_hint_for_harness_path` when the call site has a
+harness type path; use `resolve_test_attribute_hint_for_policy_path` when
+it has an attribute-policy type path.
+
 ### Third-party adapter crates
 
 Third-party harness crates outside this workspace implement the same
