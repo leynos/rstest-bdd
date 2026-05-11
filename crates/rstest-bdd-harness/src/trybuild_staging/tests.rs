@@ -86,6 +86,7 @@ struct OverlapCheckStaging {
     src: PathBuf,
 }
 
+#[fixture]
 fn overlap_check_staging() -> OverlapCheckStaging {
     #[expect(
         clippy::expect_used,
@@ -98,6 +99,8 @@ fn overlap_check_staging() -> OverlapCheckStaging {
         OverlapCheckStaging { root, src }
     }
 }
+
+#[fixture]
 fn replace_dir_staging() -> ReplaceDstStaging {
     #[expect(
         clippy::expect_used,
