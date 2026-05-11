@@ -123,7 +123,7 @@ requested type, inserted fixture list, and harness suggestion.
   `firecrawl-mcp`, `rust-router`, `rust-errors`, `rust-types-and-apis`, and
   `arch-crate-design` guidance for planning.
 - [x] (2026-05-10T20:19:39Z) Confirmed the working branch is
-  `feat/missing-fixture-plan`, not the main branch.
+  `${PR_BRANCH}`, not the main branch.
 - [x] (2026-05-10T20:19:39Z) Reviewed `AGENTS.md`, `docs/roadmap.md` item
   10.1.2, `docs/rstest-bdd-design.md` section 2.7.6.3, and nearby harness
   context documentation.
@@ -258,9 +258,12 @@ Documentation signposts:
   `docs/adr-007-harness-context-injection.md`, for the reserved harness context
   fixture convention.
 - `docs/users-guide.md` sections covering fixture injection, manual mutable
-  sharing, and harness adapters.
-- `docs/rust-testing-with-rstest-fixtures.md` for `rstest` fixture naming.
-- `docs/rust-doctest-dry-guide.md` for documentation example discipline.
+  sharing, harness adapters, single-leading-underscore normalization, and
+  `#[from(...)]` as the exact-name escape hatch.
+- `docs/rust-testing-with-rstest-fixtures.md` for `rstest` fixture naming,
+  single-leading-underscore normalization, and the `#[from(...)]` workaround.
+- `docs/rust-doctest-dry-guide.md` for documentation example discipline,
+  including examples that do not obscure the underscore-normalization rule.
 - `docs/complexity-antipatterns-and-refactoring-strategies.md` to keep any
   metadata changes small.
 - `docs/gherkin-syntax.md` for behavioural feature examples.
@@ -383,6 +386,12 @@ Update documentation:
 - `docs/rstest-bdd-design.md` section 2.7.6.3 with the final diagnostic
   behaviour and metadata source;
 - `docs/users-guide.md` near fixture and harness sections with a short example;
+- `docs/users-guide.md` and `docs/rust-testing-with-rstest-fixtures.md` with
+  the rule that implicit fixture injection normalizes one leading underscore;
+- `docs/users-guide.md` and `docs/rust-testing-with-rstest-fixtures.md` with
+  `#[from(...)]` documented as the escape hatch for exact fixture names;
+- `docs/rust-doctest-dry-guide.md` if examples need to show that distinction
+  without duplicating brittle snippets;
 - `docs/developers-guide.md` if a new internal convention is introduced;
 - an architecture decision record only if the final design makes a substantive
   public API or compatibility decision.
@@ -405,16 +414,18 @@ concern remains unresolved.
 Run the final gates sequentially:
 
 ```bash
-set -o pipefail; make check-fmt 2>&1 | tee /tmp/check-fmt-rstest-bdd-feat-missing-fixture-plan.out
-set -o pipefail; make lint 2>&1 | tee /tmp/lint-rstest-bdd-feat-missing-fixture-plan.out
-set -o pipefail; make test 2>&1 | tee /tmp/test-rstest-bdd-feat-missing-fixture-plan.out
+PR_BRANCH=4-1-1-kani-tooling-and-local-smoke-targets
+set -o pipefail; make check-fmt 2>&1 | tee "/tmp/check-fmt-rstest-bdd-${PR_BRANCH}.out"
+set -o pipefail; make lint 2>&1 | tee "/tmp/lint-rstest-bdd-${PR_BRANCH}.out"
+set -o pipefail; make test 2>&1 | tee "/tmp/test-rstest-bdd-${PR_BRANCH}.out"
 ```
 
 For documentation changes, also run:
 
 ```bash
-set -o pipefail; make markdownlint 2>&1 | tee /tmp/markdownlint-rstest-bdd-feat-missing-fixture-plan.out
-set -o pipefail; make nixie 2>&1 | tee /tmp/nixie-rstest-bdd-feat-missing-fixture-plan.out
+PR_BRANCH=4-1-1-kani-tooling-and-local-smoke-targets
+set -o pipefail; make markdownlint 2>&1 | tee "/tmp/markdownlint-rstest-bdd-${PR_BRANCH}.out"
+set -o pipefail; make nixie 2>&1 | tee "/tmp/nixie-rstest-bdd-${PR_BRANCH}.out"
 ```
 
 After all gates pass, update `docs/roadmap.md` to mark item 10.1.2 done,
@@ -425,7 +436,7 @@ validation again, and commit the close-out as its own atomic commit.
 
 - Step 1: Wait for explicit approval of this draft.
 - Step 2: Confirm the worktree is clean, and the branch is still
-  `feat/missing-fixture-plan`.
+  `${PR_BRANCH}`.
 - Step 3: Inspect the current symbols with `leta`:
 
   ```bash
@@ -441,14 +452,15 @@ validation again, and commit the close-out as its own atomic commit.
   this plan:
 
   ```bash
+  PR_BRANCH=4-1-1-kani-tooling-and-local-smoke-targets
   set -o pipefail
   RUSTFLAGS="-D warnings" cargo test -p rstest-bdd \
     --test execution_error missing_fixtures -- --nocapture 2>&1 \
-    | tee /tmp/test-red-execution-error-rstest-bdd-feat-missing-fixture-plan.out
+    | tee "/tmp/test-red-execution-error-rstest-bdd-${PR_BRANCH}.out"
   RUSTFLAGS="-D warnings" cargo test -p rstest-bdd \
     --test step_registry execute_step_returns_missing_fixtures_error \
     -- --nocapture 2>&1 \
-    | tee /tmp/test-red-step-registry-rstest-bdd-feat-missing-fixture-plan.out
+    | tee "/tmp/test-red-step-registry-rstest-bdd-${PR_BRANCH}.out"
   ```
 
 - Step 6: Implement typed fixture metadata in the registry and update manual
@@ -496,9 +508,10 @@ The implementation is acceptable when all the following are true:
 - These final commands pass:
 
   ```bash
-  set -o pipefail; make check-fmt 2>&1 | tee /tmp/check-fmt-rstest-bdd-feat-missing-fixture-plan.out
-  set -o pipefail; make lint 2>&1 | tee /tmp/lint-rstest-bdd-feat-missing-fixture-plan.out
-  set -o pipefail; make test 2>&1 | tee /tmp/test-rstest-bdd-feat-missing-fixture-plan.out
+  PR_BRANCH=4-1-1-kani-tooling-and-local-smoke-targets
+  set -o pipefail; make check-fmt 2>&1 | tee "/tmp/check-fmt-rstest-bdd-${PR_BRANCH}.out"
+  set -o pipefail; make lint 2>&1 | tee "/tmp/lint-rstest-bdd-${PR_BRANCH}.out"
+  set -o pipefail; make test 2>&1 | tee "/tmp/test-rstest-bdd-${PR_BRANCH}.out"
   ```
 
 ## Idempotence and recovery
@@ -525,7 +538,7 @@ this task, and ask for direction before committing.
 Planning evidence:
 
 ```plaintext
-Working branch: feat/missing-fixture-plan
+Working branch: ${PR_BRANCH}
 Wyvern sidecar: identified StepContext, Step, validate_required_fixtures,
 MissingFixturesDetails, macro wrapper fixture generation, and harness context
 insertion as the main implementation surfaces.
