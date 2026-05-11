@@ -89,7 +89,7 @@ requested type, inserted fixture list, and harness suggestion.
   today.
   Severity: medium.
   Likelihood: high.
-  Mitigation: keep existing `step!` forms working and synthesize a name-only
+  Mitigation: keep existing `step!` forms working, and synthesize a name-only
   or unknown-type requirement for manual registrations.
 
 - Risk: harness suggestions could overpromise a specific adapter when runtime
@@ -116,7 +116,7 @@ requested type, inserted fixture list, and harness suggestion.
   borrow limitation.
   Severity: medium.
   Likelihood: low.
-  Mitigation: document the diagnostic as observability only and link the borrow
+  Mitigation: document the diagnostic as observability only, and link the borrow
   redesign to later roadmap work.
 
 ## Progress
