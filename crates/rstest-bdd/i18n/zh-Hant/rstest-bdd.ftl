@@ -26,5 +26,5 @@ execution-error-skip = 步驟已略過{ $has_message ->
     [yes] ：{ $message }
 }
 execution-error-step-not-found = 在索引 { $index } 找不到步驟：{ $keyword } { $text }（功能：{ $feature_path }，情境：{ $scenario_name }）
-execution-error-missing-fixtures = 步驟「{ $step_pattern }」（定義於 { $step_location }）需要治具 { $required }，但以下治具缺失：{ $missing }。情境中可用的治具：{ $available }{ $suggestion }（功能：{ $feature_path }，情境：{ $scenario_name }）
+execution-error-missing-fixtures = 步驟「{ $step_pattern }」（定義於 { $step_location }）需要治具 { $required }，但以下治具缺失：{ $missing }。請求的治具詳情：{ $missing_requirements }。情境中可用的治具：{ $available }{ $suggestion }（功能：{ $feature_path }，情境：{ $scenario_name }）
 execution-error-handler-failed = 步驟在索引 { $index } 失敗：{ $keyword } { $text } - { $error }（功能：{ $feature_path }，情境：{ $scenario_name }）

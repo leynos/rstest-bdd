@@ -155,6 +155,9 @@ requested type, inserted fixture list, and harness suggestion.
   handler-failed messages; only missing-fixtures messages retain the argument.
 - [x] (2026-05-11T00:00:00Z) Added localized regression coverage for the
   Chinese step-not-found and handler-failed rendering paths.
+- [x] (2026-05-11T00:00:00Z) Verified a follow-up locale finding and added
+  requested fixture details to Chinese missing-fixtures messages so they render
+  the `{ $missing_requirements }` type diagnostics.
 
 ## Surprises & discoveries
 
@@ -682,6 +685,12 @@ Summary: 1389 tests run: 1389 passed, 7 skipped
 
 timeout 120s coderabbit review --agent
 timed out while preparing the sandbox
+
+Follow-up Chinese missing-fixtures locale validation:
+
+cargo test -p rstest-bdd --test execution_error \
+  execution_error_format_with_loader_wires_i18n_and_context
+test result: ok. 4 passed; 0 failed
 ```
 
 Expected final diagnostic facts:

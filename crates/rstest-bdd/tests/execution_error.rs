@@ -175,6 +175,36 @@ fn assert_contains_all(formatted: &str, expected_substrings: &[(&str, &str)]) {
         ("Database query", "scenario_name"),
     ]
 )]
+#[case::missing_fixtures_in_simplified_chinese(
+    langid!("zh-Hans"),
+    missing_fixtures(),
+    &[
+        ("a database connection", "step_pattern"),
+        ("tests/steps.rs:42", "step_location"),
+        ("db", "missing fixture"),
+        ("DbPool", "requested fixture type"),
+        ("请求的夹具详情", "requested fixture details label"),
+        ("cache", "available fixture"),
+        ("config", "available fixture"),
+        ("features/db.feature", "feature_path"),
+        ("Database query", "scenario_name"),
+    ]
+)]
+#[case::missing_fixtures_in_traditional_chinese(
+    langid!("zh-Hant"),
+    missing_fixtures(),
+    &[
+        ("a database connection", "step_pattern"),
+        ("tests/steps.rs:42", "step_location"),
+        ("db", "missing fixture"),
+        ("DbPool", "requested fixture type"),
+        ("請求的治具詳情", "requested fixture details label"),
+        ("cache", "available fixture"),
+        ("config", "available fixture"),
+        ("features/db.feature", "feature_path"),
+        ("Database query", "scenario_name"),
+    ]
+)]
 fn execution_error_format_with_loader_wires_i18n_and_context(
     #[case] locale: LanguageIdentifier,
     #[case] error: ExecutionError,
