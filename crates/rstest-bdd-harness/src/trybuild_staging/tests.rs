@@ -184,26 +184,20 @@ fn copy_dir_tree_creates_missing_destination_parent_chain() {
     }
 }
 
-fn copy_dir_tree_rejects_destination_inside_missing_parent_chain(
-    overlap_check_staging: OverlapCheckStaging,
-) {
-    #[expect(
-        clippy::expect_used,
-        reason = "integration-style tests panic on improbable temp-dir I/O setup failures"
-    )]
-    {
-        let OverlapCheckStaging { root: _root, src } = overlap_check_staging;
-        let dst = src.join("missing").join("child");
-        let err = copy_dir_tree(&src, &dst).expect_err("overlap inside missing parent chain");
-        assert_eq!(err.kind(), std::io::ErrorKind::InvalidInput);
-        assert!(
-            err.to_string().contains("refusing overlapping"),
-            "unexpected error message: {err}"
-        );
-    }
+#[derive(Clone)]
+enum MissingTailDestination {
+    /// dst = src / "missing" / "child" - direct descendant of source through a missing segment
+    InsideSource,
+    /// dst = root / "missing" / ".." / "src" - resolves via `..` back to source
+    ResolvedBackToSource,
 }
-fn copy_dir_tree_rejects_destination_resolved_through_missing_parent_dir(
+
+#[rstest]
+#[case::inside_source(MissingTailDestination::InsideSource)]
+#[case::resolved_back_to_source(MissingTailDestination::ResolvedBackToSource)]
+fn copy_dir_tree_rejects_missing_tail_overlap_destinations(
     overlap_check_staging: OverlapCheckStaging,
+    #[case] variant: MissingTailDestination,
 ) {
     #[expect(
         clippy::expect_used,
@@ -211,8 +205,13 @@ fn copy_dir_tree_rejects_destination_resolved_through_missing_parent_dir(
     )]
     {
         let OverlapCheckStaging { root, src } = overlap_check_staging;
-        let dst = root.path().join("missing").join("..").join("src");
-        let err = copy_dir_tree(&src, &dst).expect_err("resolved destination is source");
+        let dst = match variant {
+            MissingTailDestination::InsideSource => src.join("missing").join("child"),
+            MissingTailDestination::ResolvedBackToSource => {
+                root.path().join("missing").join("..").join("src")
+            }
+        };
+        let err = copy_dir_tree(&src, &dst).expect_err("expected overlap rejection");
         assert_eq!(err.kind(), std::io::ErrorKind::InvalidInput);
         assert!(
             err.to_string().contains("refusing overlapping"),
