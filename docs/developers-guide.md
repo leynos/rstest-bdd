@@ -487,16 +487,10 @@ canonical source of truth and may be updated in future releases.
 
 #### Resolver functions
 
-`resolve_test_attribute_hint_for_policy_path(path: &[&str]) -> Option<TestAttributeHint>`
-: Returns the hint for a known first-party attribute-policy type path.
-  Returns `None` for any path that is not an exact match for a known
-  first-party policy path. Do not use this function for harness paths.
-
-`resolve_test_attribute_hint_for_harness_path(path: &[&str]) -> Option<TestAttributeHint>`
-: Returns the hint for a known first-party harness type path, delegating
-  to the policy-path resolver for the corresponding attribute-policy type.
-  Returns `None` for any path that is not an exact match for a known
-  first-party harness path.
+| Function | Use |
+| --- | --- |
+| `resolve_test_attribute_hint_for_policy_path(path: &[&str]) -> Option<TestAttributeHint>` | Returns the hint for a known first-party attribute-policy type path. Returns `None` for any path that is not an exact match for a known first-party policy path. Do not use this function for harness paths. |
+| `resolve_test_attribute_hint_for_harness_path(path: &[&str]) -> Option<TestAttributeHint>` | Returns the hint for a known first-party harness type path, delegating to the policy-path resolver for the corresponding attribute-policy type. Returns `None` for any path that is not an exact match for a known first-party harness path. |
 
 Both functions require exact matches against first-party paths. Paths with
 wrong prefixes, extra segments, or partial matches all return `None`. Use
