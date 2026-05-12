@@ -10,8 +10,8 @@ Status: COMPLETE
 This plan covers roadmap item 9.7.1 only. It must be approved before
 implementation begins, and implementation must not begin while
 `docs/adr-008-harness-led-attribute-policy-defaults.md` remains in `Proposed`
-status unless a maintainer explicitly authorizes work against the proposed
-decision.
+status unless a maintainer explicitly authorizes work against Architecture
+Decision Record (ADR) 008.
 
 ## Purpose / big picture
 
@@ -176,12 +176,19 @@ gates all agree.
 - [x] (2026-05-08T16:09:00+02:00) Ran `make lint`; it passed.
 - [x] (2026-05-08T16:13:00+02:00) Ran `make nixie`; it passed.
 - [x] (2026-05-08T16:14:00+02:00) Ran `make markdownlint`; it passed.
-- [x] (2026-05-08T16:23:00+02:00) Investigated the full-suite GPUI failure
-      and found `copy_dir_tree` could not stage files into a destination whose
-      parent chain did not yet exist.
+- [x] (2026-05-08T16:23:00+02:00) Investigated the full-suite Graphical User
+      Interface (GPUI) failure and found `copy_dir_tree` could not stage files
+      into a destination whose parent chain did not yet exist.
 - [x] (2026-05-08T16:28:00+02:00) Fixed `copy_dir_tree` overlap checking to
       canonicalize the nearest existing destination ancestor and added a
       regression test for missing destination parent chains.
+- [x] (2026-05-12T00:00:00+02:00) Addressed review feedback by simplifying
+      missing destination reconstruction to apply a relative tail with
+      `std::path::Component`, and by checking rejected overlap destinations are
+      not created.
+- [x] (2026-05-12T00:00:00+02:00) Validated the review fixes with
+      `cargo test -p rstest-bdd-harness trybuild_staging`, `make check-fmt`,
+      `make lint`, `make markdownlint`, and `make test`; all passed.
 - [x] (2026-05-08T16:30:00+02:00) Ran
       `cargo test -p rstest-bdd-harness trybuild_staging`; all 12 selected
       tests passed.
@@ -225,7 +232,7 @@ gates all agree.
   `resolve_attribute_policy` even though the functions exist and compile.
   Evidence: direct `leta show` invocations failed before source inspection.
   Impact: continue using `rg` and targeted file reads for this small Rust
-  change, while recording the LSP limitation.
+  change, while recording the Language Server Protocol (LSP) limitation.
 - Observation: the existing code already implements the shared resolver
   surface and macro precedence wiring requested by 9.7.1. Evidence:
   `crates/rstest-bdd-policy/src/lib.rs` defines

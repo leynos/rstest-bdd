@@ -189,9 +189,7 @@ fn copy_dir_tree_creates_missing_destination_parent_chain() {
 
 #[derive(Clone)]
 enum MissingTailDestination {
-    /// dst = src / "missing" / "child" - direct descendant of source through a missing segment
     InsideSource,
-    /// dst = root / "missing" / ".." / "src" - resolves via `..` back to source
     ResolvedBackToSource,
 }
 
@@ -216,6 +214,7 @@ fn copy_dir_tree_rejects_missing_tail_overlap_destinations(
         };
         let err = copy_dir_tree(&src, &dst).expect_err("expected overlap rejection");
         assert_eq!(err.kind(), std::io::ErrorKind::InvalidInput);
+        assert!(!dst.exists(), "dst should not be created");
         assert!(
             err.to_string().contains("refusing overlapping"),
             "unexpected error message: {err}"

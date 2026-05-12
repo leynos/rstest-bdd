@@ -90,47 +90,39 @@ fn canonical_destination_for_overlap(destination: &Path) -> io::Result<PathBuf> 
     }
 }
 
-fn append_missing_components(mut base: PathBuf, missing: &[std::ffi::OsString]) -> PathBuf {
-    for component in missing.iter().rev() {
-        if component == std::ffi::OsStr::new("..") {
-            base.pop();
-        } else {
-            base.push(component);
+fn apply_missing_tail(mut base: PathBuf, tail: &Path) -> PathBuf {
+    for component in tail.components() {
+        match component {
+            std::path::Component::ParentDir => {
+                base.pop();
+            }
+            std::path::Component::Normal(name) => base.push(name),
+            _ => {}
         }
     }
     base
 }
 
-fn missing_component_for(ancestor: &Path) -> Option<std::ffi::OsString> {
-    ancestor
-        .components()
-        .next_back()
-        .and_then(|component| match component {
-            std::path::Component::Normal(name) => Some(name.to_os_string()),
-            std::path::Component::ParentDir => Some(std::ffi::OsString::from("..")),
-            _ => None,
-        })
-}
-
 fn canonical_missing_destination(destination: &Path) -> io::Result<PathBuf> {
-    let mut missing_components: Vec<std::ffi::OsString> = Vec::new();
-
     for ancestor in destination
         .ancestors()
         .take_while(|p| !p.as_os_str().is_empty())
     {
         match fs::canonicalize(ancestor) {
-            Ok(base) => return Ok(append_missing_components(base, &missing_components)),
-            Err(err) if err.kind() == io::ErrorKind::NotFound => {
-                missing_components.extend(missing_component_for(ancestor));
+            Ok(base) => {
+                let tail = destination
+                    .strip_prefix(ancestor)
+                    .unwrap_or_else(|_| Path::new(""));
+                return Ok(apply_missing_tail(base, tail));
             }
+            Err(err) if err.kind() == io::ErrorKind::NotFound => {}
             Err(err) => return Err(err),
         }
     }
 
     // No existing ancestor found; resolve against the current working directory.
     let base = fs::canonicalize(std::env::current_dir()?)?;
-    Ok(append_missing_components(base, &missing_components))
+    Ok(apply_missing_tail(base, destination))
 }
 
 fn paths_overlap(a: &Path, b: &Path) -> bool {
