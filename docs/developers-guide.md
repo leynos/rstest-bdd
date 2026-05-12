@@ -245,7 +245,7 @@ locations:
 
 Use `resolve_test_attribute_hint_for_policy_path()` when macro arguments name
 an attribute-policy plugin path directly. Use
-`resolve_test_attribute_hint_for_harness_path()` when `attributes = ...` is
+`resolve_test_attribute_hint_for_harness_path()` when `attributes = …` is
 omitted and a first-party harness path should imply its default
 `TestAttributeHint`. Both helpers deliberately require exact first-party paths;
 unknown third-party paths and paths with extra components return `None`, so
