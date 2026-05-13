@@ -462,11 +462,15 @@ Stage D adds only applicable behavioural or compile-time coverage. Because
 9.7.1 is a shared helper change, public-macro end-to-end expansion belongs
 primarily to 9.7.2 and 9.7.3. Add a behavioural, trybuild, or integration test
 in this stage only if the reconciliation step shows there is no existing test
-that exercises the helper through macro codegen. If such a test is needed,
-prefer existing suites such as `crates/rstest-bdd/tests/trybuild_macros.rs`,
+that exercises the helper through macro codegen. Do not add cargo-spawning
+macro-compile tests, including trybuild or `cargo_metadata` tests, to
+nextest-managed Windows binaries. Instead of adding coverage to
+`crates/rstest-bdd/tests/trybuild_macros.rs`,
 `crates/rstest-bdd-harness-tokio/tests/macro_compile.rs`, or
-`crates/rstest-bdd-harness-gpui/tests/macro_compile.rs`. Keep the test narrow
-and record why it belongs in 9.7.1 rather than 9.7.2.
+`crates/rstest-bdd-harness-gpui/tests/macro_compile.rs`, route any additional
+macro-codegen coverage into narrow unit or scenario tests inside the owning
+crate. Keep the test narrow and record why it belongs in 9.7.1 rather than
+9.7.2.
 
 Stage E updates documentation. If behaviour or implementation details change,
 update `docs/rstest-bdd-design.md` section 2.7.3 or the adjacent ADR-008

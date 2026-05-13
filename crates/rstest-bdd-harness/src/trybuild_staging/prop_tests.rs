@@ -1,4 +1,8 @@
-//! Property tests for symlink rejection in [`super::copy_dir_tree`].
+//! Property tests for [`super::copy_dir_tree`] staging invariants.
+//!
+//! These cover symlink rejection as well as verification that missing
+//! destination paths are canonicalized and destination overlaps are detected
+//! before a copy can create or remove the wrong tree.
 
 use std::fs;
 use std::os::unix::fs::symlink;
