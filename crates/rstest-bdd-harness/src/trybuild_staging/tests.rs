@@ -200,26 +200,25 @@ fn copy_dir_tree_rejects_missing_tail_overlap_destinations(
     overlap_check_staging: OverlapCheckStaging,
     #[case] variant: MissingTailDestination,
 ) {
-    #[expect(
-        clippy::expect_used,
-        reason = "integration-style tests panic on improbable temp-dir I/O setup failures"
-    )]
-    {
-        let OverlapCheckStaging { root, src } = overlap_check_staging;
-        let dst = match variant {
-            MissingTailDestination::InsideSource => src.join("missing").join("child"),
-            MissingTailDestination::ResolvedBackToSource => {
-                root.path().join("missing").join("..").join("src")
-            }
-        };
-        let err = copy_dir_tree(&src, &dst).expect_err("expected overlap rejection");
-        assert_eq!(err.kind(), std::io::ErrorKind::InvalidInput);
-        assert!(!dst.exists(), "dst should not be created");
-        assert!(
-            err.to_string().contains("refusing overlapping"),
-            "unexpected error message: {err}"
-        );
-    }
+    let OverlapCheckStaging { root, src } = overlap_check_staging;
+    let missing = root.path().join("missing");
+    let (dst, not_created) = match variant {
+        MissingTailDestination::InsideSource => {
+            let d = src.join("missing").join("child");
+            (d.clone(), d)
+        }
+        MissingTailDestination::ResolvedBackToSource => (missing.join("..").join("src"), missing),
+    };
+    let err = match copy_dir_tree(&src, &dst) {
+        Ok(()) => panic!("expected overlap rejection"),
+        Err(err) => err,
+    };
+    assert_eq!(err.kind(), std::io::ErrorKind::InvalidInput);
+    assert!(!not_created.exists(), "no new path should be created");
+    assert!(
+        err.to_string().contains("refusing overlapping"),
+        "unexpected error message: {err}"
+    );
 }
 
 #[cfg(unix)]
