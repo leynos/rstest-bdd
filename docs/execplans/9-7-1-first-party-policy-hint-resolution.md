@@ -547,8 +547,6 @@ Run the required gates sequentially:
 
 ```bash
 set -o pipefail && \
-  make fmt 2>&1 | tee /tmp/fmt-9-7-1.out
-set -o pipefail && \
   make check-fmt 2>&1 | tee /tmp/check-fmt-9-7-1.out
 set -o pipefail && \
   make lint 2>&1 | tee /tmp/lint-9-7-1.out
