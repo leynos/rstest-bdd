@@ -189,6 +189,10 @@ gates all agree.
 - [x] (2026-05-12T00:00:00+02:00) Validated the review fixes with
       `cargo test -p rstest-bdd-harness trybuild_staging`, `make check-fmt`,
       `make lint`, `make markdownlint`, and `make test`; all passed.
+- [x] (2026-05-13T00:00:00+02:00) Added `proptest` coverage for missing-tail
+      destination canonicalization and generated overlap rejection. Validated
+      with `cargo test -p rstest-bdd-harness trybuild_staging`,
+      `make check-fmt`, `make lint`, `make markdownlint`, and `make test`.
 - [x] (2026-05-08T16:30:00+02:00) Ran
       `cargo test -p rstest-bdd-harness trybuild_staging`; all 12 selected
       tests passed.
