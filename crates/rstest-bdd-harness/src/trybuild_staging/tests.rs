@@ -81,6 +81,25 @@ fn make_src_dst_scaffold() -> (TempDir, PathBuf, PathBuf) {
     (root, src, dst)
 }
 
+struct OverlapCheckStaging {
+    root: TempDir,
+    src: PathBuf,
+}
+
+#[fixture]
+fn overlap_check_staging() -> OverlapCheckStaging {
+    #[expect(
+        clippy::expect_used,
+        reason = "integration-style tests panic on improbable temp-dir I/O setup failures"
+    )]
+    {
+        let (root, src, _dst) = make_src_dst_scaffold();
+        fs::create_dir_all(&src).expect("create src");
+        fs::write(src.join("f.txt"), b"x").expect("write f.txt");
+        OverlapCheckStaging { root, src }
+    }
+}
+
 #[fixture]
 fn replace_dir_staging() -> ReplaceDstStaging {
     #[expect(
@@ -144,6 +163,62 @@ fn copy_dir_tree_replaces_existing_file_destination(replace_file_dest_staging: R
     let ReplaceDstStaging { src, dst, .. } = replace_file_dest_staging;
     copy_dir_tree_ok(&src, &dst);
     assert!(dst.join("f.txt").exists());
+}
+
+#[test]
+fn copy_dir_tree_creates_missing_destination_parent_chain() {
+    #[expect(
+        clippy::expect_used,
+        reason = "integration-style tests panic on improbable temp-dir I/O setup failures"
+    )]
+    {
+        let (root, src, dst) = make_src_dst_scaffold();
+        let dst = dst.join("missing").join("parents");
+        fs::create_dir_all(&src).expect("create src");
+        fs::write(src.join("f.txt"), b"hello").expect("write f.txt");
+
+        copy_dir_tree(&src, &dst).expect("copy_dir_tree");
+
+        assert_eq!(
+            fs::read(dst.join("f.txt")).expect("read dst file"),
+            b"hello"
+        );
+        drop(root);
+    }
+}
+
+#[derive(Clone)]
+enum MissingTailDestination {
+    InsideSource,
+    ResolvedBackToSource,
+}
+
+#[rstest]
+#[case::inside_source(MissingTailDestination::InsideSource)]
+#[case::resolved_back_to_source(MissingTailDestination::ResolvedBackToSource)]
+fn copy_dir_tree_rejects_missing_tail_overlap_destinations(
+    overlap_check_staging: OverlapCheckStaging,
+    #[case] variant: MissingTailDestination,
+) {
+    let OverlapCheckStaging { root, src } = overlap_check_staging;
+    let missing = root.path().join("missing");
+    let (dst, not_created) = match variant {
+        MissingTailDestination::InsideSource => {
+            let d = src.join("missing").join("child");
+            (d.clone(), d)
+        }
+        MissingTailDestination::ResolvedBackToSource => (missing.join("..").join("src"), missing),
+    };
+    let err = match copy_dir_tree(&src, &dst) {
+        Ok(()) => panic!("expected overlap rejection"),
+        Err(err) => err,
+    };
+    assert_eq!(err.kind(), std::io::ErrorKind::InvalidInput);
+    assert!(!not_created.exists(), "no new path should be created");
+    assert!(
+        err.to_string().contains("refusing overlapping"),
+        "unexpected error message: {err}"
+    );
 }
 
 #[cfg(unix)]

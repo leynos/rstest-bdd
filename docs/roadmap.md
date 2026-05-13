@@ -642,7 +642,7 @@ These items are gated on ADR-008 being accepted. While
 status, treat the tasks below as contingent planning items rather than active
 implementation commitments.
 
-- [ ] 9.7.1. Extend first-party policy hint resolution so known harness paths
+- [x] 9.7.1. Extend first-party policy hint resolution so known harness paths
   can imply default test-attribute hints when `attributes = ...` is omitted.
   Add canonical mappings for `StdHarness`, `TokioHarness`, and `GpuiHarness`,
   and implement the precedence rules defined in ADR-008. Finish line: shared
@@ -651,7 +651,13 @@ implementation commitments.
   paths and precedence edge cases. Prerequisite: ADR-008 accepted; 9.3.4 and
   9.4.4 delivered. Design Doc:
   `docs/adr-008-harness-led-attribute-policy-defaults.md`,
-  `docs/rstest-bdd-design.md` §2.7.3. (Pandalump)
+  `docs/rstest-bdd-design.md` §2.7.3. Delivered 2026-05-08. The shared policy
+  resolver now has regression coverage proving first-party harness paths and
+  their matching attribute-policy paths resolve to the same hints, with exact
+  matching negative cases for unknown and wrong-prefix harness paths.
+  Delivered under maintainer authorization while ADR-008 remains in Proposed
+  status; the prerequisite will be formally satisfied when ADR-008 is accepted.
+  (Pandalump)
 - [ ] 9.7.2. Update `#[scenario]` and `scenarios!` code generation so
   first-party harnesses imply their default attribute policies when
   `attributes = ...` is omitted, while explicit `attributes = ...` remains

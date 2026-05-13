@@ -1,4 +1,8 @@
-//! Property tests for symlink rejection in [`super::copy_dir_tree`].
+//! Property tests for [`super::copy_dir_tree`] staging invariants.
+//!
+//! These cover symlink rejection as well as verification that missing
+//! destination paths are canonicalized and destination overlaps are detected
+//! before a copy can create or remove the wrong tree.
 
 use std::fs;
 use std::os::unix::fs::symlink;
@@ -7,7 +11,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use proptest::prelude::*;
 
-use super::copy_dir_tree;
+use super::{canonical_missing_destination, copy_dir_tree, paths_overlap};
 
 #[expect(
     clippy::expect_used,
@@ -83,7 +87,118 @@ fn build_nested_source_with_symlink(
     (src, dst)
 }
 
+fn path_with_missing_parent_dirs(
+    root: &Path,
+    existing_depth: usize,
+    missing_depth: usize,
+) -> PathBuf {
+    let mut path = root.to_path_buf();
+    for index in 0..existing_depth {
+        path = path.join(format!("existing_{index}"));
+    }
+    for index in 0..missing_depth {
+        path = path.join(format!("missing_{index}"));
+    }
+    path.join("dst")
+}
+
+fn path_resolving_back_to_source(root: &Path, source_name: &str, missing_depth: usize) -> PathBuf {
+    let mut path = root.to_path_buf();
+    for index in 0..missing_depth {
+        path = path.join(format!("missing_{index}"));
+    }
+    for _ in 0..missing_depth {
+        path = path.join("..");
+    }
+    path.join(source_name)
+}
+
 proptest! {
+    /// Missing destination parent chains canonicalize to the same path as the
+    /// nearest existing ancestor plus the generated missing tail.
+    #[test]
+    fn missing_destination_parent_chains_resolve_from_existing_ancestor(
+        existing_depth in 0usize..5,
+        missing_depth in 1usize..6,
+    ) {
+        let root = unique_root("missing_parent_chain");
+        let _ = fs::remove_dir_all(&root);
+        let destination = path_with_missing_parent_dirs(&root, existing_depth, missing_depth);
+        let mut existing = root.clone();
+        for index in 0..existing_depth {
+            existing = existing.join(format!("existing_{index}"));
+        }
+        #[expect(
+            clippy::expect_used,
+            reason = "property-test temp-dir setup and canonicalization after explicit setup"
+        )]
+        {
+            fs::create_dir_all(&existing).expect("create existing ancestor");
+            let mut expected = fs::canonicalize(&existing).expect("canonicalize ancestor");
+            for index in 0..missing_depth {
+                expected = expected.join(format!("missing_{index}"));
+            }
+            expected = expected.join("dst");
+            let actual = canonical_missing_destination(&destination);
+            let _ = fs::remove_dir_all(&root);
+            prop_assert_eq!(actual.expect("canonical missing destination"), expected);
+        }
+    }
+
+    /// A destination with arbitrary missing components followed by matching
+    /// parent-directory components still resolves back to the source tree.
+    #[test]
+    fn missing_tail_parent_dirs_resolve_to_overlapping_source(
+        missing_depth in 1usize..6,
+    ) {
+        let root = unique_root("missing_tail_parent_dirs");
+        let _ = fs::remove_dir_all(&root);
+        let src = root.join("src");
+        let destination = path_resolving_back_to_source(&root, "src", missing_depth);
+        #[expect(
+            clippy::expect_used,
+            reason = "property-test temp-dir setup and canonicalization after explicit setup"
+        )]
+        {
+            fs::create_dir_all(&src).expect("create src");
+            let canonical_src = fs::canonicalize(&src).expect("canonicalize src");
+            let canonical_dst = canonical_missing_destination(&destination)
+                .expect("canonical missing destination");
+            prop_assert!(paths_overlap(&canonical_src, &canonical_dst));
+            prop_assert!(!root.join("missing_0").exists());
+        }
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    /// `copy_dir_tree` rejects overlap destinations that only become apparent
+    /// after resolving arbitrary missing components and `..` components.
+    #[test]
+    fn copy_dir_tree_rejects_generated_missing_tail_overlaps(
+        missing_depth in 1usize..6,
+    ) {
+        let root = unique_root("copy_dir_missing_tail_overlap");
+        let _ = fs::remove_dir_all(&root);
+        let src = root.join("src");
+        let dst = path_resolving_back_to_source(&root, "src", missing_depth);
+        #[expect(
+            clippy::expect_used,
+            reason = "property-test temp-dir setup and err-kind extraction after explicit guards"
+        )]
+        {
+            fs::create_dir_all(&src).expect("create src");
+            fs::write(src.join("f.txt"), b"x").expect("write f.txt");
+            let result = copy_dir_tree(&src, &dst);
+            prop_assert!(!root.join("missing_0").exists());
+            prop_assert_eq!(
+                result
+                    .expect_err("expected overlap rejection")
+                    .kind(),
+                std::io::ErrorKind::InvalidInput,
+            );
+        }
+        let _ = fs::remove_dir_all(&root);
+    }
+
     /// A symlink at the top level of the source tree is always rejected,
     /// regardless of how many regular files accompany it.
     #[test]

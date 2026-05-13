@@ -251,7 +251,24 @@ mod tests {
     #[case(GPUI_HARNESS_PATH, Some(TestAttributeHint::RstestWithGpuiTest))]
     #[case(&["my", "Harness"], None)]
     #[case(&["TokioHarness"], None)]
+    #[case(&["my", "TokioHarness"], None)]
+    #[case(&["rstest_bdd_harness", "TokioHarness"], None)]
+    #[case(&["rstest_bdd_harness_tokio", "TokioHarness", "Extra"], None)]
     fn resolves_harness_paths(#[case] path: &[&str], #[case] expected: Option<TestAttributeHint>) {
         assert_eq!(resolve_test_attribute_hint_for_harness_path(path), expected);
+    }
+
+    #[rstest]
+    #[case(DEFAULT_ATTRIBUTE_POLICY_PATH, STD_HARNESS_PATH)]
+    #[case(TOKIO_ATTRIBUTE_POLICY_PATH, TOKIO_HARNESS_PATH)]
+    #[case(GPUI_ATTRIBUTE_POLICY_PATH, GPUI_HARNESS_PATH)]
+    fn first_party_harness_paths_match_their_attribute_policy_hints(
+        #[case] policy_path: &[&str],
+        #[case] harness_path: &[&str],
+    ) {
+        assert_eq!(
+            resolve_test_attribute_hint_for_harness_path(harness_path),
+            resolve_test_attribute_hint_for_policy_path(policy_path)
+        );
     }
 }
