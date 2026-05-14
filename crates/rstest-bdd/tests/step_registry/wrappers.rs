@@ -141,7 +141,9 @@ step!(
     &[]
 );
 
-/// Converts fixture presence into the wrapper result expected by registry tests.
+/// Returns `Ok` when a fixture was found, otherwise constructs a typed
+/// `MissingFixture` error. Eliminates the repeated success/error branch
+/// shared by fixture-checking step wrappers.
 fn fixture_present_or_error(
     found: bool,
     name: &'static str,
