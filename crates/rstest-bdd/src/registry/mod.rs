@@ -14,6 +14,7 @@ mod async_lookup;
 mod bypassed;
 #[cfg(feature = "diagnostics")]
 pub(crate) mod diagnostics;
+/// Typed fixture requirement metadata for registered BDD steps.
 mod fixtures;
 
 pub use async_lookup::{

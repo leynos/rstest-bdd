@@ -13,3 +13,5 @@ crates/rstest-bdd-server/src/indexing/rust.rs
 examples/tokio-reminders/src/lib.rs
 # Added during Result fixture refactoring: comprehensive test coverage for error type resolution
 crates/rstest-bdd-macros/src/macros/scenarios/test_generation/tests.rs
+# Added during roadmap 10.1.2 diagnostics documentation: module docs push this just over the limit
+crates/rstest-bdd/src/registry/mod.rs

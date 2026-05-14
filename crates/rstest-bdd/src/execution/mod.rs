@@ -18,6 +18,7 @@
 //!   Runtime and macro tests guard that single-source policy boundary.
 
 mod error;
+/// Fixture validation helpers for step execution.
 mod fixtures;
 
 use std::any::Any;
