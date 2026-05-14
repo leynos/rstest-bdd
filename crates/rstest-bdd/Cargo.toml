@@ -36,6 +36,7 @@ unic-langid.workspace = true
 [dev-dependencies]
 camino.workspace = true
 cap-std.workspace = true
+insta.workspace = true
 rstest.workspace = true
 rstest-bdd-macros.workspace = true
 rstest-bdd-harness.workspace = true

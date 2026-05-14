@@ -1503,6 +1503,7 @@ dependencies = [
  "gherkin",
  "hashbrown 0.16.0",
  "i18n-embed",
+ "insta",
  "inventory",
  "log",
  "proptest",
@@ -1580,6 +1581,7 @@ dependencies = [
  "quote",
  "regex",
  "rstest",
+ "rstest-bdd",
  "rstest-bdd-harness",
  "rstest-bdd-patterns",
  "rstest-bdd-policy",
@@ -1587,6 +1589,7 @@ dependencies = [
  "syn 2.0.106",
  "tempfile",
  "thiserror 1.0.69",
+ "trybuild",
  "walkdir",
 ]
 

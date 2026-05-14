@@ -327,6 +327,28 @@ fn missing_fixtures_format_includes_typed_request_details_and_suggestion() {
 }
 
 #[test]
+fn missing_fixtures_snapshot() {
+    use rstest_bdd::{MissingFixtureDiagnostic, MissingFixturesDetails};
+    use std::sync::Arc;
+    let details = MissingFixturesDetails {
+        step_pattern: "needs fixture".to_string(),
+        step_location: "src/steps.rs:42".to_string(),
+        required: vec!["db"],
+        missing: vec!["db"],
+        missing_requirements: vec![MissingFixtureDiagnostic {
+            name: "db",
+            ty: "DbPool",
+        }],
+        available: vec!["world".to_string()],
+        suggestion: Some("select a harness-backed scenario".to_string()),
+        feature_path: "features/example.feature".to_string(),
+        scenario_name: "Example scenario".to_string(),
+    };
+    let error = rstest_bdd::execution::ExecutionError::MissingFixtures(Arc::new(details));
+    insta::assert_snapshot!(format!("{error}"));
+}
+
+#[test]
 fn execution_error_handler_failed_formats_nested_error_with_loader() {
     let loader = fluent_language_loader!();
     i18n_embed::select(&loader, &Localizations, &[langid!("pl")])
