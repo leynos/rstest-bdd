@@ -1772,7 +1772,7 @@ macro-local code path.
 ```mermaid
 flowchart TD
     A[TestAttrPolicy input] --> B[resolve_attribute_policy]
-    B --> C{attributes is set?}
+    B --> C{attributes are set?}
     C -- yes --> D[use explicit attributes]
     C -- no --> E{known first-party harness?}
     E -- yes --> F[resolve_test_attribute_hint_for_harness_path]

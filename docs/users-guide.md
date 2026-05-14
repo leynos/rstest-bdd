@@ -812,7 +812,8 @@ In simple terms, attribute selection works like this:
 2. Otherwise, if `harness = ...` names `StdHarness`, `TokioHarness`, or
    `GpuiHarness`, the macro uses that harness's first-party default policy.
 3. Otherwise, `scenarios!` keeps honouring the legacy
-   `runtime = "tokio-current-thread"` compatibility alias.
+   `runtime = "tokio-current-thread"` compatibility alias when no explicit
+   attributes or harness were selected.
 4. If none of those apply, the macro emits the normal synchronous
    `#[rstest::rstest]` attribute set.
 

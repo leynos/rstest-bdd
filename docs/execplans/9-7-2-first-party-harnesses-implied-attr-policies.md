@@ -32,10 +32,11 @@ and the generated test attributes behave as though the caller had also written
 caller supplies an explicit `attributes = ...` override. The same rule applies
 to `rstest_bdd_harness::StdHarness` and `rstest_bdd_harness_gpui::GpuiHarness`.
 
-This matters because ADR-008 makes `harness = ...` the lead user-facing
-configuration for first-party integrations while preserving the architectural
-split between `HarnessAdapter`, which controls runtime delegation, and
-`AttributePolicy`, which controls emitted test attributes.
+This matters because Architecture Decision Record (ADR) 008 makes
+`harness = ...` the lead user-facing configuration for first-party integrations
+while preserving the architectural split between `HarnessAdapter`, which
+controls runtime delegation, and `AttributePolicy`, which controls emitted test
+attributes.
 
 Success is observable when generated code for both `#[scenario]` and
 `scenarios!` emits the first-party default attributes from harness-only
@@ -151,22 +152,18 @@ attribute de-duplication still prevents duplicate `#[tokio::test]` and
 
 ## Progress
 
-- [x] (2026-05-14T00:00:00+02:00) Loaded and applied the `execplans`,
-      `leta`, `rust-router`, and `firecrawl-mcp` skills for this planning
-      task.
-- [x] (2026-05-14T00:00:00+02:00) Confirmed the current branch is
-      `feat/harness-attr-defaults`, not `main`.
-- [x] (2026-05-14T00:00:00+02:00) Reviewed `AGENTS.md`, `docs/roadmap.md`,
+- [x] Loaded and applied the `execplans`, `leta`, `rust-router`, and
+      `firecrawl-mcp` skills for this planning task.
+- [x] Confirmed the current branch is a task branch, not `main`.
+- [x] Reviewed `AGENTS.md`, `docs/roadmap.md`,
       `docs/adr-008-harness-led-attribute-policy-defaults.md`, and
       `docs/rstest-bdd-design.md` §§2.7.3-2.7.4.
-- [x] (2026-05-14T00:00:00+02:00) Used a Wyvern agent team for planning
-      reconnaissance over the roadmap, ADR, design document, existing
-      execplans, macro codegen path, and tests.
-- [x] (2026-05-14T00:00:00+02:00) Used Firecrawl to check prior art. The
-      directly relevant result was `rstest`'s documented default test
-      attribute behaviour, which confirms that default test attributes are a
-      known proc-macro ergonomics pattern.
-- [x] (2026-05-14T00:00:00+02:00) Drafted this pre-implementation ExecPlan.
+- [x] Used a Wyvern agent team for planning reconnaissance over the roadmap,
+      ADR, design document, existing execplans, macro codegen path, and tests.
+- [x] Used Firecrawl to check prior art. The directly relevant result was
+      `rstest`'s documented default test attribute behaviour, which confirms
+      that default test attributes are a known proc-macro ergonomics pattern.
+- [x] Drafted this pre-implementation ExecPlan.
 - [ ] Receive explicit approval to implement this plan.
 - [ ] Reconcile current code against the 9.7.2 acceptance criteria.
 - [ ] Add failing or missing tests that prove harness-led defaults through
