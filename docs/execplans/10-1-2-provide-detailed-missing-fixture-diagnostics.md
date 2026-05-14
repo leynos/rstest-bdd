@@ -5,9 +5,7 @@ This ExecPlan (execution plan) is a living document. The sections
 `Decision log`, and `Outcomes & retrospective` must be kept up to date as work
 proceeds.
 
-Status: COMPLETE - implemented and validated on 2026-05-11
-
-Implementation began after explicit user approval on 2026-05-11.
+Status: PENDING
 
 ## Purpose / big picture
 
@@ -121,51 +119,29 @@ requested type, inserted fixture list, and harness suggestion.
 - [x] (2026-05-10T20:19:39Z) Used Firecrawl to check prior art in Rust
   diagnostic reporting and Cucumber Rust's world/context model.
 - [x] (2026-05-10T20:19:39Z) Drafted this pre-implementation ExecPlan.
-- [x] (2026-05-11T00:00:00Z) Received explicit user approval to implement this
-  ExecPlan.
-- [x] (2026-05-11T00:00:00Z) Confirmed the branch is
-  `10-1-2-provide-detailed-missing-fixture-diagnostics`, tracking
-  `origin/10-1-2-provide-detailed-missing-fixture-diagnostics`, with a clean
-  worktree.
-- [x] (2026-05-11T00:00:00Z) Added failing regression tests for the requested
-  fixture name, requested type, inserted fixture list, and harness suggestion.
-- [x] (2026-05-11T00:00:00Z) Captured the expected red state: the focused tests
-  failed because `MissingFixtureDiagnostic`, `missing_requirements`, and
-  `suggestion` did not exist.
-- [x] (2026-05-11T00:00:00Z) Implemented typed fixture requirement metadata as
-  an inventory sidecar while preserving `Step::fixtures` and existing public
-  `step!` forms.
-- [x] (2026-05-11T00:00:00Z) Verified focused green runs for
-  `execution_error`, `step_registry`, and generated harness scenario coverage.
-- [x] (2026-05-11T00:00:00Z) Ran `coderabbit review --agent` after the code
-  milestone; it completed with zero findings.
-- [x] (2026-05-11T00:00:00Z) Updated user-facing and internal documentation
-  for the richer diagnostic and fixture-name convention.
-- [x] (2026-05-11T00:00:00Z) Ran commit gates for the first implementation
-  milestone: `make check-fmt`, `make lint`, and `make test` all passed.
-- [x] (2026-05-11T00:00:00Z) Ran `coderabbit review --agent` after the
-  documentation milestone; it completed with zero findings.
-- [x] (2026-05-11T00:00:00Z) Marked roadmap item 10.1.2 done in
-  `docs/roadmap.md`.
-- [x] (2026-05-11T00:00:00Z) Ran final documentation and Rust gates:
-  `make markdownlint`, `make nixie`, `make check-fmt`, `make lint`, and
-  `make test` all passed.
-- [x] (2026-05-11T00:00:00Z) Verified a post-review locale finding and removed
-  stray `{ $suggestion }` interpolations from Chinese step-not-found and
-  handler-failed messages; only missing-fixtures messages retain the argument.
-- [x] (2026-05-11T00:00:00Z) Added localized regression coverage for the
-  Chinese step-not-found and handler-failed rendering paths.
-- [x] (2026-05-11T00:00:00Z) Verified a follow-up locale finding and added
-  requested fixture details to Chinese missing-fixtures messages so they render
-  the `{ $missing_requirements }` type diagnostics.
-- [x] (2026-05-11T00:00:00Z) Verified locale review findings across
-  non-English missing-fixtures messages, localized the inserted fixture-details
-  label, restored missing typed-details and suggestion placeholders, and added
-  coverage that every non-English bundle renders the runtime arguments.
-- [x] (2026-05-11T00:00:00Z) Re-ran local gates after the locale updates:
-  focused i18n regression, `make check-fmt`, `make lint`, `make test`, and
-  ExecPlan markdown lint all passed; a bounded CodeRabbit retry timed out while
-  preparing its sandbox.
+- [ ] Receive explicit user approval to implement this ExecPlan.
+- [ ] Confirm the branch is `${PR_BRANCH}`, tracking
+  `origin/${PR_BRANCH}`, with a clean worktree.
+- [ ] Add failing regression tests for the requested fixture name, requested
+  type, inserted fixture list, and harness suggestion.
+- [ ] Capture the expected red state before implementing the diagnostic
+  fields.
+- [ ] Implement typed fixture requirement metadata while preserving
+  `Step::fixtures` and existing public `step!` forms.
+- [ ] Verify focused green runs for `execution_error`, `step_registry`, and
+  generated harness scenario coverage.
+- [ ] Run `coderabbit review --agent` after the code milestone and clear every
+  actionable finding.
+- [ ] Update user-facing and internal documentation for the richer diagnostic
+  and fixture-name convention.
+- [ ] Run commit gates for each implementation milestone: `make check-fmt`,
+  `make lint`, and `make test`.
+- [ ] Run `coderabbit review --agent` after the documentation milestone and
+  clear every actionable finding.
+- [ ] Mark roadmap item 10.1.2 done in `docs/roadmap.md` only after the
+  implementation PR is merged and validated.
+- [ ] Run final documentation and Rust gates: `make markdownlint`,
+  `make nixie`, `make check-fmt`, `make lint`, and `make test`.
 
 ## Surprises & discoveries
 
@@ -269,23 +245,8 @@ requested type, inserted fixture list, and harness suggestion.
 
 ## Outcomes & retrospective
 
-The missing-fixture path now reports structured requested fixture diagnostics.
-When fixture validation fails, `MissingFixturesDetails` includes the missing
-fixture names, the requested name-and-type pairs, the sorted available fixture
-list from `StepContext::available_fixtures()`, and an optional suggestion. When
-`rstest_bdd_harness_context` is required but absent, the rendered diagnostic
-includes a hint to select a harness-backed scenario.
-
-Generated step wrappers publish `FixtureRequirement { name, ty }` records
-through a hidden inventory sidecar. This preserves `Step::fixtures` and
-existing public `step!` forms while allowing generated registrations to provide
-exact Rust type strings for diagnostics. Manual name-only registrations remain
-compatible and report `<unknown>` when no typed sidecar exists.
-
-The main implementation lesson was that keeping `Step` layout-compatible
-matters as much as keeping the `fixtures` field itself. A sidecar record gave
-the runtime the metadata it needed without forcing downstream code to update
-manual `Step` construction.
+Pending. Fill this section only after the implementation PR is merged and the
+roadmap entry has been updated.
 
 ## Context and orientation
 
@@ -633,95 +594,9 @@ error[E0560]: struct `MissingFixturesDetails` has no field named `missing_requir
 error[E0560]: struct `MissingFixturesDetails` has no field named `suggestion`
 ```
 
-Focused green evidence after the code milestone:
-
-```plaintext
-cargo test -p rstest-bdd --test execution_error missing_fixtures
-test result: ok. 3 passed; 0 failed; 10 filtered out
-
-cargo test -p rstest-bdd --test step_registry \
-  execute_step_reports_detailed_missing_harness_fixture
-test result: ok. 1 passed; 0 failed; 25 filtered out
-
-cargo test -p rstest-bdd --test scenario_harness harness_context
-test result: ok. 1 passed; 0 failed; 10 filtered out
-
-coderabbit review --agent
-{"type":"complete","status":"review_completed","findings":0}
-```
-
-Final validation evidence:
-
-```plaintext
-make markdownlint
-Summary: 0 error(s)
-
-make nixie
-All diagrams validated successfully!
-
-make check-fmt
-30 files already formatted
-
-make lint
-All checks passed!
-
-make test
-Summary: 1387 tests run: 1387 passed, 7 skipped
-62 passed in scripts/tests/publish_check
-```
-
-Post-review locale fix validation:
-
-```plaintext
-rg -n "execution-error-(step-not-found|handler-failed).*suggestion" \
-  crates/rstest-bdd/i18n/zh-Hans crates/rstest-bdd/i18n/zh-Hant
-no matches
-
-cargo test -p rstest-bdd --test execution_error \
-  execution_error_formats_in_locales
-test result: ok. 6 passed; 0 failed
-
-make check-fmt
-30 files already formatted
-
-make lint
-All checks passed!
-
-make test
-Summary: 1389 tests run: 1389 passed, 7 skipped
-62 passed in scripts/tests/publish_check
-
-timeout 120s coderabbit review --agent
-timed out while preparing the sandbox
-
-Follow-up Chinese missing-fixtures locale validation:
-
-cargo test -p rstest-bdd --test execution_error \
-  execution_error_format_with_loader_wires_i18n_and_context
-test result: ok. 4 passed; 0 failed
-
-Non-English locale runtime-argument validation:
-
-cargo test -p rstest-bdd --test execution_error \
-  non_english_missing_fixture_diagnostics_include_runtime_arguments
-test result: ok. 30 passed; 0 failed
-
-rg -n "Requested fixture details" crates/rstest-bdd/i18n
-matches only en, en-GB, and en-US bundles
-
-make check-fmt
-30 files already formatted
-
-make lint
-All checks passed!
-
-make test
-Summary: 1421 tests run: 1421 passed, 7 skipped
-62 passed in scripts/tests/publish_check
-
-timeout 120s coderabbit review --agent
-timed out while preparing the sandbox
-```
+Record focused red and green evidence here as implementation proceeds. Keep
+log paths parameterized with `${PR_BRANCH}` so they are reproducible across
+worktrees.
 
 Expected final diagnostic facts:
 

@@ -298,22 +298,7 @@ fn non_english_missing_fixture_diagnostics_include_runtime_arguments(
 fn missing_fixtures_format_includes_typed_request_details_and_suggestion() {
     let _guard = ScopedLocalization::new(&[langid!("en-US")])
         .unwrap_or_else(|e| panic!("en-US locale should always be available: {e}"));
-    let error = ExecutionError::MissingFixtures(Arc::new(MissingFixturesDetails {
-        step_pattern: "uses harness context".into(),
-        step_location: "tests/steps.rs:9".into(),
-        required: vec!["rstest_bdd_harness_context"],
-        missing: vec!["rstest_bdd_harness_context"],
-        missing_requirements: vec![MissingFixtureDiagnostic {
-            name: "rstest_bdd_harness_context",
-            ty: "AppContext",
-        }],
-        available: vec!["world".into()],
-        suggestion: Some(
-            "select a harness-backed scenario so rstest_bdd_harness_context is inserted".into(),
-        ),
-        feature_path: "features/harness.feature".into(),
-        scenario_name: "Harness context".into(),
-    }));
+    let error = missing_harness_fixture();
 
     assert_contains_all(
         &error.to_string(),
