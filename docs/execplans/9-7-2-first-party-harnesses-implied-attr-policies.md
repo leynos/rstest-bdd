@@ -5,7 +5,7 @@ This ExecPlan (execution plan) is a living document. The sections
 `Decision Log`, and `Outcomes & Retrospective` must be kept up to date as work
 proceeds.
 
-Status: DRAFT
+Status: IN PROGRESS
 
 This plan covers roadmap item 9.7.2 only. It must be approved before
 implementation begins. While
@@ -47,7 +47,8 @@ attribute de-duplication still prevents duplicate `#[tokio::test]` and
 
 ## Constraints
 
-- Do not implement this plan before explicit approval.
+- Explicit approval was received in this thread on 2026-05-14; continue
+  implementation within the tolerances below.
 - Do not implement this plan while ADR-008 is still `Proposed` unless a
   maintainer explicitly authorizes contingent implementation.
 - Keep the scope to roadmap item 9.7.2. Do not complete roadmap items 9.7.3 or
@@ -164,15 +165,16 @@ attribute de-duplication still prevents duplicate `#[tokio::test]` and
       `rstest`'s documented default test attribute behaviour, which confirms
       that default test attributes are a known proc-macro ergonomics pattern.
 - [x] Drafted this pre-implementation ExecPlan.
-- [ ] Receive explicit approval to implement this plan.
-- [ ] Reconcile current code against the 9.7.2 acceptance criteria.
-- [ ] Add failing or missing tests that prove harness-led defaults through
+- [x] Received explicit approval to implement this plan.
+- [x] Reconcile current code against the 9.7.2 acceptance criteria.
+- [x] Add failing or missing tests that prove harness-led defaults through
       `#[scenario]` and `scenarios!`.
-- [ ] Implement or complete macro codegen changes.
+- [x] Implement or complete macro codegen changes.
 - [ ] Update user-facing and internal documentation where behaviour or
       conventions changed.
-- [ ] Run focused validation, CodeRabbit review, and commit the first
+- [x] Run focused validation and CodeRabbit review for the first
       behavioural milestone.
+- [ ] Commit the first behavioural milestone.
 - [ ] Run final repository gates and CodeRabbit review.
 - [ ] Mark roadmap item 9.7.2 done only after implementation, documentation,
       review, and gates pass.
@@ -197,9 +199,39 @@ attribute de-duplication still prevents duplicate `#[tokio::test]` and
   behaviour. This supports treating harness-led default attributes as prior
   art, but the implementation must still follow this repository's stricter
   ADR-008 precedence rules.
+- On 2026-05-14, `leta workspace add .` confirmed the workspace was already
+  registered, but `leta grep` could not start `rust-analyzer` through the LSP
+  bridge. Reconciliation therefore uses targeted `rg` searches and direct
+  symbol-oriented file reads until the local LSP daemon is healthy.
+- On 2026-05-14 at 21:13Z, focused reconciliation showed the production
+  ADR-008 resolver path was already present: `generate_test_attrs` receives
+  `TestAttrPolicy` from both regular and outline generation, and `scenarios!`
+  threads resolved harness paths while retaining the original runtime for
+  attribute fallback. The implementation milestone therefore adds missing
+  coverage rather than rewriting code.
+- The existing Tokio and GPUI adapter crates already had harness-only
+  behavioural coverage for `#[scenario]`; Tokio trybuild coverage was missing
+  the harness-only `scenarios!` compile-pass case, so this milestone adds that
+  fixture.
+- CodeRabbit's first pass found that the new Tokio `scenarios!` trybuild
+  fixture used only synchronous steps. The finding was valid; the fixture now
+  uses a local feature file with an async `Then` step so the harness-only
+  `scenarios!` case proves async step handling at compile time.
+- Validation after the first behavioural milestone:
+  `cargo test -p rstest-bdd-macros
+  codegen::scenario::tests::harness_defaults`,
+  `cargo test -p rstest-bdd-harness-tokio --test macro_compile`,
+  `make markdownlint`, `make nixie`, `make check-fmt`, `make lint`, and
+  `make test` passed. `make test` ran 1422 Rust tests with 1422 passed and
+  7 skipped, then 62 Python publish-check tests with 62 passed. `make fmt` was
+  also attempted and failed on pre-existing repository-wide Markdown MD013
+  line-length findings; unrelated formatter churn was restored.
 
 ## Decision Log
 
+- Decision: proceed with contingent implementation on 2026-05-14. Rationale:
+  the maintainer explicitly approved implementation in this thread despite the
+  plan's ADR-008 governance caveat.
 - Decision: make the first implementation milestone a reconciliation pass, not
   an immediate rewrite. Rationale: local code and docs already show the
   expected ADR-008 resolver shape, and rewriting a working path would increase
@@ -211,6 +243,15 @@ attribute de-duplication still prevents duplicate `#[tokio::test]` and
   reconciliation proves behaviour is missing. Rationale: the roadmap finish
   line is externally observable generated attributes; if code already provides
   them, missing acceptance evidence is the real gap.
+- Decision: do not change production macro code in the first milestone.
+  Rationale: focused tests prove the resolver already implements the requested
+  precedence order, so the minimal safe change is to strengthen regression
+  coverage around synchronous Tokio harness omission, de-duplication, and
+  harness-only `scenarios!` expansion.
+- Decision: keep the Tokio `scenarios!` trybuild feature local to
+  `tests/fixtures_macros`. Rationale: this makes the fixture self-contained and
+  lets `stage_trybuild_support_files` copy only the exact feature file needed
+  by the compile-pass case.
 - Decision: do not introduce `rust-rspec` unless the workspace already has a
   usable integration point or the maintainer approves the dependency.
   Rationale: the request asks for behavioural tests using `rust-rspec` where
