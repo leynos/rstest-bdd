@@ -141,35 +141,51 @@ mod tests {
         assert_eq!(diagnostic.ty, "<unknown>");
     }
 
-    /// Diagnostics fall back to `<unknown>` for a fixture absent from the requirement list.
-    #[test]
-    fn missing_fixture_diagnostics_falls_back_when_requirement_absent() {
-        let requirements: &[FixtureRequirement] = &[FixtureRequirement {
-            name: "other_fixture",
-            ty: "OtherType",
-        }];
-        let missing = &["my_fixture"];
+    /// Test helper: invokes `missing_fixture_diagnostics` with a single-entry
+    /// `Some` requirements slice and asserts the resulting single diagnostic
+    /// matches `expected_name` and `expected_ty`.
+    fn assert_single_missing_diagnostic(
+        requirements: &[FixtureRequirement],
+        missing_fixture: &'static str,
+        expected_name: &str,
+        expected_ty: &str,
+    ) {
+        let missing = &[missing_fixture];
+        let requirements = Box::leak(requirements.to_vec().into_boxed_slice());
         let diagnostics = missing_fixture_diagnostics(missing, Some(requirements));
         let Some(diagnostic) = diagnostics.first() else {
             panic!("diagnostics should include the missing fixture");
         };
-        assert_eq!(diagnostic.ty, "<unknown>");
+        assert_eq!(diagnostic.name, expected_name, "name mismatch");
+        assert_eq!(diagnostic.ty, expected_ty, "type mismatch");
+    }
+
+    /// Diagnostics fall back to `<unknown>` for a fixture absent from the requirement list.
+    #[test]
+    fn missing_fixture_diagnostics_falls_back_when_requirement_absent() {
+        assert_single_missing_diagnostic(
+            &[FixtureRequirement {
+                name: "other_fixture",
+                ty: "OtherType",
+            }],
+            "my_fixture",
+            "my_fixture",
+            "<unknown>",
+        );
     }
 
     /// Diagnostics use the typed requirement when present.
     #[test]
     fn missing_fixture_diagnostics_uses_typed_requirement_when_present() {
-        let requirements: &[FixtureRequirement] = &[FixtureRequirement {
-            name: "db",
-            ty: "DbPool",
-        }];
-        let missing = &["db"];
-        let diagnostics = missing_fixture_diagnostics(missing, Some(requirements));
-        let Some(diagnostic) = diagnostics.first() else {
-            panic!("diagnostics should include the missing fixture");
-        };
-        assert_eq!(diagnostic.name, "db");
-        assert_eq!(diagnostic.ty, "DbPool");
+        assert_single_missing_diagnostic(
+            &[FixtureRequirement {
+                name: "db",
+                ty: "DbPool",
+            }],
+            "db",
+            "db",
+            "DbPool",
+        );
     }
 
     /// No harness suggestion when the harness context fixture is not in the missing list.
