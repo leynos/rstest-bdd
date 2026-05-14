@@ -313,7 +313,6 @@ fn missing_fixtures_format_includes_typed_request_details_and_suggestion() {
 
 #[test]
 fn missing_fixtures_snapshot() {
-    use rstest_bdd::{MissingFixtureDiagnostic, MissingFixturesDetails};
     use std::sync::Arc;
     let details = MissingFixturesDetails {
         step_pattern: "needs fixture".to_string(),
