@@ -806,6 +806,19 @@ policy resolution explicit about its current limitation: arbitrary user-defined
 `AttributePolicy::test_attributes()` implementations are not evaluated during
 macro expansion.
 
+In simple terms, attribute selection works like this:
+
+1. If `attributes = ...` is present, that explicit policy wins.
+2. Otherwise, if `harness = ...` names `StdHarness`, `TokioHarness`, or
+   `GpuiHarness`, the macro uses that harness's first-party default policy.
+3. Otherwise, `scenarios!` keeps honouring the legacy
+   `runtime = "tokio-current-thread"` compatibility alias.
+4. If none of those apply, the macro emits the normal synchronous
+   `#[rstest::rstest]` attribute set.
+
+The macro still removes duplicate framework attributes. For example, if user
+code already has `#[gpui::test]`, the GPUI policy does not emit a second copy.
+
 ```rust,no_run
 # use rstest_bdd_macros::scenario;
 #[scenario(

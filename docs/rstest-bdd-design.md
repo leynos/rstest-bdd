@@ -1769,6 +1769,31 @@ ADR-008's "explicit policy beats harness default beats compatibility alias
 beats fallback" ordering while still producing `TokenStream2` output from one
 macro-local code path.
 
+```mermaid
+flowchart TD
+    A[TestAttrPolicy input] --> B[resolve_attribute_policy]
+    B --> C{attributes is set?}
+    C -- yes --> D[use explicit attributes]
+    C -- no --> E{known first-party harness?}
+    E -- yes --> F[resolve_test_attribute_hint_for_harness_path]
+    E -- no --> G{runtime is tokio-current-thread?}
+    G -- yes --> H[use runtime compatibility alias]
+    G -- no --> I[use attribute_runtime or synchronous fallback]
+
+    D --> J[generate_test_attrs]
+    F --> J
+    H --> J
+    I --> J
+
+    J --> K[emit framework test attributes with de-duplication]
+```
+
+*Figure 2: Attribute policy resolution starts from `TestAttrPolicy`, gives
+explicit `attributes = ...` first refusal, then checks known first-party
+harness defaults, then the Tokio compatibility runtime alias, and finally the
+attribute-runtime or synchronous fallback before `generate_test_attrs` emits
+de-duplicated framework test attributes.*
+
 ADR-008 also introduced a deliberate split inside `ScenarioConfig` between
 `runtime: RuntimeMode` and `attribute_runtime: RuntimeMode`. The `runtime`
 field governs execution: whether the generated test body is `async fn`, which
