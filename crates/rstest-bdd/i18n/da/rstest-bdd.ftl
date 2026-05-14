@@ -26,5 +26,5 @@ execution-error-skip = Trin sprunget over{ $has_message ->
     [yes] : { $message }
 }
 execution-error-step-not-found = Trin ikke fundet ved indeks { $index }: { $keyword } { $text } (feature: { $feature_path }, scenarie: { $scenario_name })
-execution-error-missing-fixtures = Trinnet '{ $step_pattern }' (defineret ved { $step_location }) kræver fixtures { $required }, men følgende mangler: { $missing }. Anmodede fixtureoplysninger: { $missing_requirements }. Tilgængelige fixtures fra scenariet: { $available } { $suggestion } (feature: { $feature_path }, scenarie: { $scenario_name })
+execution-error-missing-fixtures = Trinnet '{ $step_pattern }' (defineret ved { $step_location }) kræver fixtures { $required }, men følgende mangler: { $missing }. Detaljer om anmodede fixtures: { $missing_requirements }. Tilgængelige fixtures fra scenariet: { $available } { $suggestion } (feature: { $feature_path }, scenarie: { $scenario_name })
 execution-error-handler-failed = Trin fejlede ved indeks { $index }: { $keyword } { $text } - { $error } (feature: { $feature_path }, scenarie: { $scenario_name })

@@ -26,5 +26,5 @@ execution-error-skip = Krok pominięty{ $has_message ->
     [yes] : { $message }
 }
 execution-error-step-not-found = Nie znaleziono kroku o indeksie { $index }: { $keyword } { $text } (feature: { $feature_path }, scenariusz: { $scenario_name })
-execution-error-missing-fixtures = Krok « { $step_pattern } » (zdefiniowany w { $step_location }) wymaga fiksur { $required }, ale brakuje: { $missing }. Szczegóły wymaganych fiksur: { $missing_requirements }. Dostępne fiksury ze scenariusza: { $available } { $suggestion } (feature: { $feature_path }, scenariusz: { $scenario_name })
+execution-error-missing-fixtures = Krok « { $step_pattern } » (zdefiniowany w { $step_location }) wymaga fiksur { $required }, ale brakuje: { $missing }. Szczegóły żądanych fixtures: { $missing_requirements }. Dostępne fiksury ze scenariusza: { $available } { $suggestion } (feature: { $feature_path }, scenariusz: { $scenario_name })
 execution-error-handler-failed = Krok zakończony błędem o indeksie { $index }: { $keyword } { $text } - { $error } (feature: { $feature_path }, scenariusz: { $scenario_name })

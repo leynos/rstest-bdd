@@ -26,5 +26,5 @@ execution-error-skip = Askel ohitettu{ $has_message ->
     [yes] : { $message }
 }
 execution-error-step-not-found = Askelta ei löytynyt indeksistä { $index }: { $keyword } { $text } (feature: { $feature_path }, skenaario: { $scenario_name })
-execution-error-missing-fixtures = Askel '{ $step_pattern }' (määritelty kohdassa { $step_location }) vaatii fixtuurit { $required }, mutta seuraavat puuttuvat: { $missing }. Pyydetyt fixtuuritiedot: { $missing_requirements }. Käytettävissä olevat fixtuurit skenaariosta: { $available } { $suggestion } (feature: { $feature_path }, skenaario: { $scenario_name })
+execution-error-missing-fixtures = Askel '{ $step_pattern }' (määritelty kohdassa { $step_location }) vaatii fixtuurit { $required }, mutta seuraavat puuttuvat: { $missing }. Pyydettyjen fixture-tietojen tiedot: { $missing_requirements }. Käytettävissä olevat fixtuurit skenaariosta: { $available } { $suggestion } (feature: { $feature_path }, skenaario: { $scenario_name })
 execution-error-handler-failed = Askel epäonnistui indeksissä { $index }: { $keyword } { $text } - { $error } (feature: { $feature_path }, skenaario: { $scenario_name })

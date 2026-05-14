@@ -98,7 +98,7 @@ fn handler_failed() -> ExecutionError {
 )]
 #[case::missing_fixtures(
     missing_fixtures(),
-    "Step 'a database connection' (defined at tests/steps.rs:42) requires fixtures db, cache, but the following are missing: db. Requested fixture details: db: DbPool. Available fixtures from scenario: cache, config  (feature: features/db.feature, scenario: Database query)"
+    "Step 'a database connection' (defined at tests/steps.rs:42) requires fixtures db, cache, but the following are missing: db. Requested fixture information: db: DbPool. Available fixtures from scenario: cache, config  (feature: features/db.feature, scenario: Database query)"
 )]
 #[case::handler_failed(
     handler_failed(),

@@ -26,5 +26,5 @@ execution-error-skip = Adım atlandı{ $has_message ->
     [yes] : { $message }
 }
 execution-error-step-not-found = { $index } indeksinde adım bulunamadı: { $keyword } { $text } (özellik: { $feature_path }, senaryo: { $scenario_name })
-execution-error-missing-fixtures = « { $step_pattern } » adımı ({ $step_location } konumunda tanımlanmış) { $required } fikstürlerini gerektiriyor, ancak şunlar eksik: { $missing }. İstenen fikstür ayrıntıları: { $missing_requirements }. Senaryodan mevcut fikstürler: { $available } { $suggestion } (özellik: { $feature_path }, senaryo: { $scenario_name })
+execution-error-missing-fixtures = « { $step_pattern } » adımı ({ $step_location } konumunda tanımlanmış) { $required } fikstürlerini gerektiriyor, ancak şunlar eksik: { $missing }. İstenen fixture ayrıntıları: { $missing_requirements }. Senaryodan mevcut fikstürler: { $available } { $suggestion } (özellik: { $feature_path }, senaryo: { $scenario_name })
 execution-error-handler-failed = { $index } indeksinde adım başarısız oldu: { $keyword } { $text } - { $error } (özellik: { $feature_path }, senaryo: { $scenario_name })
