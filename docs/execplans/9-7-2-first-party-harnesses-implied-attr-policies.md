@@ -5,7 +5,7 @@ This ExecPlan (execution plan) is a living document. The sections
 `Decision Log`, and `Outcomes & Retrospective` must be kept up to date as work
 proceeds.
 
-Status: IN PROGRESS
+Status: COMPLETE
 
 This plan covers roadmap item 9.7.2 only. It must be approved before
 implementation begins. While
@@ -174,9 +174,9 @@ attribute de-duplication still prevents duplicate `#[tokio::test]` and
       conventions changed.
 - [x] Run focused validation and CodeRabbit review for the first
       behavioural milestone.
-- [ ] Commit the first behavioural milestone.
-- [ ] Run final repository gates and CodeRabbit review.
-- [ ] Mark roadmap item 9.7.2 done only after implementation, documentation,
+- [x] Commit the first behavioural milestone.
+- [x] Run final repository gates and CodeRabbit review.
+- [x] Mark roadmap item 9.7.2 done only after implementation, documentation,
       review, and gates pass.
 
 ## Surprises & Discoveries
@@ -218,14 +218,22 @@ attribute de-duplication still prevents duplicate `#[tokio::test]` and
   uses a local feature file with an async `Then` step so the harness-only
   `scenarios!` case proves async step handling at compile time.
 - Validation after the first behavioural milestone:
-  `cargo test -p rstest-bdd-macros
-  codegen::scenario::tests::harness_defaults`,
+  `cargo test -p rstest-bdd-macros codegen::scenario::tests::harness_defaults`,
   `cargo test -p rstest-bdd-harness-tokio --test macro_compile`,
   `make markdownlint`, `make nixie`, `make check-fmt`, `make lint`, and
-  `make test` passed. `make test` ran 1422 Rust tests with 1422 passed and
-  7 skipped, then 62 Python publish-check tests with 62 passed. `make fmt` was
+  `make test` passed. `make test` ran 1422 Rust tests with 1422 passed and 7
+  skipped, then 62 Python publish-check tests with 62 passed. `make fmt` was
   also attempted and failed on pre-existing repository-wide Markdown MD013
   line-length findings; unrelated formatter churn was restored.
+- The first behavioural milestone was committed as `5b8a17e` with message
+  `Cover harness-led attribute defaults`.
+- Roadmap item 9.7.2 is marked delivered after the first milestone passed
+  focused tests, CodeRabbit review, Markdown diagram/lint checks, and the full
+  `make check-fmt`, `make lint`, and `make test` gates.
+- Final validation on 2026-05-14 passed: `make markdownlint`, `make nixie`,
+  `make check-fmt`, `make lint`, `make test`, and `coderabbit review --agent`.
+  The final `make test` run reported 1422 Rust tests passed, 7 skipped, and
+  62 Python publish-check tests passed.
 
 ## Decision Log
 
@@ -522,7 +530,22 @@ Relevant skills for implementation:
 
 ## Outcomes & Retrospective
 
-This section is intentionally empty in the draft. During implementation, record
-what changed, what tests prove the behaviour, which CodeRabbit concerns were
-cleared, which commands passed, and any follow-up work left for roadmap items
-9.7.3 or 9.7.4.
+Roadmap item 9.7.2 is delivered as a coverage-and-documentation completion
+because reconciliation showed the production ADR-008 codegen path already
+implemented the requested precedence order. The branch adds regression tests
+for synchronous Tokio harness omission, first-party attribute de-duplication,
+and harness-only Tokio `scenarios!` expansion with an async step. The roadmap
+entry is marked done with the same "delivered under maintainer authorization
+while ADR-008 remains Proposed" caveat used for 9.7.1.
+
+CodeRabbit raised one valid concern during the first milestone: the new Tokio
+`scenarios!` trybuild fixture initially used only synchronous steps. That was
+fixed by adding `scenarios_harness_tokio_default.feature` with an async `Then`
+step and staging that file for trybuild. Subsequent CodeRabbit reviews reported
+zero findings.
+
+All required gates passed after the roadmap update: `make markdownlint`,
+`make nixie`, `make check-fmt`, `make lint`, and `make test`. `make fmt` was
+attempted, but it still fails on pre-existing repository-wide Markdown MD013
+line-length findings unrelated to this task; unrelated formatter churn was
+restored both times.
