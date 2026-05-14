@@ -814,7 +814,11 @@ In simple terms, attribute selection works like this:
 3. Otherwise, `scenarios!` keeps honouring the legacy
    `runtime = "tokio-current-thread"` compatibility alias when no explicit
    attributes or harness were selected.
-4. If none of those apply, the macro emits the normal synchronous
+4. Otherwise, if the `#[scenario]` function is `async fn`, the macro emits
+   `#[rstest::rstest]` and `#[tokio::test(flavor = "current_thread")]`
+   unless the user code already supplies a `#[tokio::test]` attribute, in
+   which case de-duplication suppresses the second copy.
+5. If none of those apply, the macro emits the normal synchronous
    `#[rstest::rstest]` attribute set.
 
 The macro still removes duplicate framework attributes. For example, if user
