@@ -376,6 +376,7 @@ If Markdown changed, run:
 
 ```bash
 set -o pipefail
+make fmt 2>&1 | tee /tmp/markdownfmt-rstest-bdd-9-7-2.out
 make markdownlint 2>&1 | tee /tmp/markdownlint-rstest-bdd-9-7-2.out
 make nixie 2>&1 | tee /tmp/nixie-rstest-bdd-9-7-2.out
 ```
@@ -403,6 +404,7 @@ documentation edits, also run:
 
 ```bash
 set -o pipefail
+make fmt 2>&1 | tee /tmp/markdownfmt-rstest-bdd-9-7-2-final.out
 make markdownlint 2>&1 | tee /tmp/markdownlint-rstest-bdd-9-7-2-final.out
 make nixie 2>&1 | tee /tmp/nixie-rstest-bdd-9-7-2-final.out
 ```

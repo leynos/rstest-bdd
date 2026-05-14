@@ -1769,6 +1769,9 @@ ADR-008's "explicit policy beats harness default beats compatibility alias
 beats fallback" ordering while still producing `TokenStream2` output from one
 macro-local code path.
 
+Diagram: Attribute policy resolution flow for `TestAttrPolicy` calling
+`resolve_attribute_policy` and ending at `generate_test_attrs`.
+
 ```mermaid
 flowchart TD
     A[TestAttrPolicy input] --> B[resolve_attribute_policy]
