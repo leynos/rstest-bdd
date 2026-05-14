@@ -89,3 +89,74 @@ fn harness_suggestion(missing: &[&str]) -> Option<&'static str> {
         .contains(&RSTEST_BDD_HARNESS_CONTEXT_FIXTURE)
         .then_some("select a harness-backed scenario so rstest_bdd_harness_context is inserted")
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::registry::FixtureRequirement;
+
+    /// Diagnostics fall back to `<unknown>` when no typed requirements are registered.
+    #[test]
+    fn missing_fixture_diagnostics_falls_back_to_unknown_when_no_requirements() {
+        let missing = &["my_fixture"];
+        let diagnostics = missing_fixture_diagnostics(missing, None);
+        assert_eq!(diagnostics.len(), 1);
+        let Some(diagnostic) = diagnostics.first() else {
+            panic!("diagnostics should include the missing fixture");
+        };
+        assert_eq!(diagnostic.name, "my_fixture");
+        assert_eq!(diagnostic.ty, "<unknown>");
+    }
+
+    /// Diagnostics fall back to `<unknown>` for a fixture absent from the requirement list.
+    #[test]
+    fn missing_fixture_diagnostics_falls_back_when_requirement_absent() {
+        let requirements: &[FixtureRequirement] = &[FixtureRequirement {
+            name: "other_fixture",
+            ty: "OtherType",
+        }];
+        let missing = &["my_fixture"];
+        let diagnostics = missing_fixture_diagnostics(missing, Some(requirements));
+        let Some(diagnostic) = diagnostics.first() else {
+            panic!("diagnostics should include the missing fixture");
+        };
+        assert_eq!(diagnostic.ty, "<unknown>");
+    }
+
+    /// Diagnostics use the typed requirement when present.
+    #[test]
+    fn missing_fixture_diagnostics_uses_typed_requirement_when_present() {
+        let requirements: &[FixtureRequirement] = &[FixtureRequirement {
+            name: "db",
+            ty: "DbPool",
+        }];
+        let missing = &["db"];
+        let diagnostics = missing_fixture_diagnostics(missing, Some(requirements));
+        let Some(diagnostic) = diagnostics.first() else {
+            panic!("diagnostics should include the missing fixture");
+        };
+        assert_eq!(diagnostic.name, "db");
+        assert_eq!(diagnostic.ty, "DbPool");
+    }
+
+    /// No harness suggestion when the harness context fixture is not in the missing list.
+    #[test]
+    fn harness_suggestion_absent_for_non_harness_fixture() {
+        let missing = &["some_other_fixture"];
+        assert!(harness_suggestion(missing).is_none());
+    }
+
+    /// Harness suggestion present when `rstest_bdd_harness_context` is missing.
+    #[test]
+    fn harness_suggestion_present_when_harness_context_missing() {
+        let missing = &[RSTEST_BDD_HARNESS_CONTEXT_FIXTURE];
+        assert!(harness_suggestion(missing).is_some());
+    }
+
+    /// No harness suggestion for an empty missing list.
+    #[test]
+    fn harness_suggestion_absent_for_empty_missing_list() {
+        let missing: &[&str] = &[];
+        assert!(harness_suggestion(missing).is_none());
+    }
+}

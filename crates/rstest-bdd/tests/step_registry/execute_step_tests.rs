@@ -236,6 +236,13 @@ fn execute_step_returns_missing_fixtures_error(mut ctx: StepContext<'static>) {
         details.missing.contains(&"missing"),
         "expected 'missing' in missing fixtures list"
     );
+    assert!(
+        details
+            .missing_requirements
+            .iter()
+            .any(|r| r.name == "missing"),
+        "missing_requirements should list 'missing' fixture"
+    );
 }
 
 #[rstest]
