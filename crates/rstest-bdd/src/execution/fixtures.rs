@@ -29,35 +29,49 @@ pub(super) fn validate_required_fixtures(
     }
 
     let available: HashSet<&str> = ctx.available_fixtures().collect();
-    let requirements = fixture_requirements_for_step(step);
-    let missing: Vec<_> = step
-        .fixtures
-        .iter()
+    let missing: Vec<_> = collect_missing(step.fixtures, &available)
+        .into_iter()
         .copied()
-        .filter(|fixture| !available.contains(fixture))
         .collect();
 
     if missing.is_empty() {
-        Ok(())
-    } else {
-        let mut available_list: Vec<_> = available.into_iter().map(String::from).collect();
-        available_list.sort_unstable();
-        let missing_requirements = missing_fixture_diagnostics(&missing, requirements);
-        let suggestion = harness_suggestion(&missing).map(String::from);
-        Err(ExecutionError::MissingFixtures(Arc::new(
-            MissingFixturesDetails {
-                step_pattern: step.pattern.as_str().to_string(),
-                step_location: format!("{}:{}", step.file, step.line),
-                required: step.fixtures.to_vec(),
-                missing,
-                missing_requirements,
-                available: available_list,
-                suggestion,
-                feature_path: request.feature_path.to_string(),
-                scenario_name: request.scenario_name.to_string(),
-            },
-        )))
+        return Ok(());
     }
+
+    let requirements = fixture_requirements_for_step(step);
+    let missing_requirements = missing_fixture_diagnostics(&missing, requirements);
+    let suggestion = harness_suggestion(&missing).map(String::from);
+    let available_list = sorted_available(ctx);
+
+    Err(ExecutionError::MissingFixtures(Arc::new(
+        MissingFixturesDetails {
+            step_pattern: step.pattern.as_str().to_string(),
+            step_location: format!("{}:{}", step.file, step.line),
+            required: step.fixtures.to_vec(),
+            missing,
+            missing_requirements,
+            available: available_list,
+            suggestion,
+            feature_path: request.feature_path.to_string(),
+            scenario_name: request.scenario_name.to_string(),
+        },
+    )))
+}
+
+fn collect_missing<'a>(
+    fixtures: &'a [&'static str],
+    available: &HashSet<&str>,
+) -> Vec<&'a &'static str> {
+    fixtures
+        .iter()
+        .filter(|fixture| !available.contains(*fixture as &str))
+        .collect()
+}
+
+fn sorted_available(ctx: &StepContext<'_>) -> Vec<String> {
+    let mut list: Vec<_> = ctx.available_fixtures().map(String::from).collect();
+    list.sort_unstable();
+    list
 }
 
 fn missing_fixture_diagnostics(
@@ -94,6 +108,25 @@ fn harness_suggestion(missing: &[&str]) -> Option<&'static str> {
 mod tests {
     use super::*;
     use crate::registry::FixtureRequirement;
+
+    #[test]
+    fn collect_missing_returns_absent_fixtures() {
+        let available: HashSet<&str> = ["a", "b"].into_iter().collect();
+        let fixtures: &[&'static str] = &["a", "c"];
+        let missing = collect_missing(fixtures, &available);
+        assert_eq!(missing, vec![&"c"]);
+    }
+
+    #[test]
+    fn sorted_available_returns_sorted_fixture_names() {
+        let mut ctx = StepContext::default();
+        let v1 = 1u32;
+        let v2 = 2u32;
+        ctx.insert("zebra", &v1);
+        ctx.insert("alpha", &v2);
+        let list = sorted_available(&ctx);
+        assert_eq!(list, vec!["alpha".to_string(), "zebra".to_string()]);
+    }
 
     /// Diagnostics fall back to `<unknown>` when no typed requirements are registered.
     #[test]
