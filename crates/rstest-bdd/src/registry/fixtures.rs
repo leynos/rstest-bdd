@@ -32,6 +32,12 @@ pub struct StepFixtureRequirements {
 }
 
 /// Return typed fixture requirements for a step when generated metadata exists.
+///
+/// # Global state
+///
+/// This function queries the `inventory`-based global registry populated at
+/// link time. It is intentionally not dependency-injected; the registry is the
+/// source of truth for the entire step-execution pipeline.
 #[must_use]
 pub fn fixture_requirements_for_step(step: &Step) -> Option<&'static [FixtureRequirement]> {
     iter::<StepFixtureRequirements>
