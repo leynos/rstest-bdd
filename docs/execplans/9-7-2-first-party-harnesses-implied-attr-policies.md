@@ -170,7 +170,7 @@ attribute de-duplication still prevents duplicate `#[tokio::test]` and
 - [x] Add failing or missing tests that prove harness-led defaults through
       `#[scenario]` and `scenarios!`.
 - [x] Implement or complete macro codegen changes.
-- [ ] Update user-facing and internal documentation where behaviour or
+- [x] Update user-facing and internal documentation where behaviour or
       conventions changed.
 - [x] Run focused validation and CodeRabbit review for the first
       behavioural milestone.
@@ -232,8 +232,16 @@ attribute de-duplication still prevents duplicate `#[tokio::test]` and
   `make check-fmt`, `make lint`, and `make test` gates.
 - Final validation on 2026-05-14 passed: `make markdownlint`, `make nixie`,
   `make check-fmt`, `make lint`, `make test`, and `coderabbit review --agent`.
-  The final `make test` run reported 1422 Rust tests passed, 7 skipped, and
-  62 Python publish-check tests passed.
+  The final `make test` run reported 1422 Rust tests passed, 7 skipped, and 62
+  Python publish-check tests passed.
+- On 2026-05-17, the user-facing documentation checklist item was reconciled
+  against the delivered state. `docs/users-guide.md` now documents the async
+  `#[scenario]` fallback as `#[rstest::rstest]` plus
+  `#[tokio::test(flavor = "current_thread")]`, while the internal design
+  flowchart in `docs/rstest-bdd-design.md` already shows the
+  `attribute_runtime` or synchronous fallback branch. The documentation
+  clarification was committed as `8a57cc3` with message
+  `Clarify async scenario attribute fallback`.
 
 ## Decision Log
 
@@ -265,6 +273,11 @@ attribute de-duplication still prevents duplicate `#[tokio::test]` and
   Rationale: the request asks for behavioural tests using `rust-rspec` where
   applicable, while existing project practice and 9.7.1 note that it is not
   currently present.
+- Decision: treat the documentation work item as complete after the
+  2026-05-17 reconciliation. Rationale: the user-facing guide now matches the
+  macro's async fallback behaviour, and the internal design flowchart and 9.7.2
+  ExecPlan evidence already describe the `attribute_runtime` split that
+  prevents attribute selection from collapsing into execution runtime.
 
 ## Implementation Plan
 
@@ -549,3 +562,9 @@ All required gates passed after the roadmap update: `make markdownlint`,
 attempted, but it still fails on pre-existing repository-wide Markdown MD013
 line-length findings unrelated to this task; unrelated formatter churn was
 restored both times.
+
+The documentation checklist was reconciled on 2026-05-17 after the user guide
+received the async fallback clarification. The follow-up validation passed
+`make markdownlint`, `make nixie`, `make check-fmt`, `make lint`, and
+`make test`; the final `make test` run reported 1422 Rust tests passed, 7
+skipped, and 62 Python publish-check tests passed.
