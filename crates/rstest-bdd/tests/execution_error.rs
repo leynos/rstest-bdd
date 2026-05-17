@@ -314,6 +314,8 @@ fn missing_fixtures_format_includes_typed_request_details_and_suggestion() {
 #[test]
 fn missing_fixtures_snapshot() {
     use std::sync::Arc;
+    let _guard = ScopedLocalization::new(&[langid!("en-US")])
+        .unwrap_or_else(|e| panic!("en-US locale should always be available: {e}"));
     let details = MissingFixturesDetails {
         step_pattern: "needs fixture".to_string(),
         step_location: "src/steps.rs:42".to_string(),

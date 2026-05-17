@@ -7,6 +7,10 @@ use rstest_bdd::execution::{ExecutionError, StepExecutionRequest, execute_step};
 use rstest_bdd::{StepContext, StepError, StepExecution, StepKeyword, step};
 
 const PROPERTY_STEP_TEXT: &str = "property missing fixture diagnostics";
+const FIXTURE_NAME_POOL: [&str; 12] = [
+    "alpha", "beta", "cache", "client", "config", "database", "driver", "logger", "metrics",
+    "session", "state", "world",
+];
 
 #[expect(
     clippy::unnecessary_wraps,
@@ -57,12 +61,9 @@ proptest! {
     /// Every fixture listed in `missing` appears in production `missing_requirements`.
     #[test]
     fn missing_requirements_covers_every_missing_fixture(
-        names in prop::collection::vec("[a-z_][a-z0-9_]{0,15}", 0..8usize)
+        names in prop::collection::vec(prop::sample::select(&FIXTURE_NAME_POOL), 0..8usize)
     ) {
-        let static_names: Vec<&'static str> = names
-            .iter()
-            .map(|s| Box::leak(s.clone().into_boxed_str()) as &'static str)
-            .collect();
+        let static_names: Vec<&'static str> = names.clone();
         let details = missing_fixture_details_for(&static_names);
 
         for name in &details.missing {
@@ -76,12 +77,9 @@ proptest! {
     /// Production validation always reports the available fixture list sorted.
     #[test]
     fn available_list_is_always_sorted(
-        names in prop::collection::vec("[a-z_][a-z0-9_]{0,15}", 0..16usize)
+        names in prop::collection::vec(prop::sample::select(&FIXTURE_NAME_POOL), 0..16usize)
     ) {
-        let static_names: Vec<&'static str> = names
-            .iter()
-            .map(|s| Box::leak(s.clone().into_boxed_str()) as &'static str)
-            .collect();
+        let static_names: Vec<&'static str> = names.clone();
         let details = missing_fixture_details_for(&static_names);
 
         let mut expected = details.available.clone();
