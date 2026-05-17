@@ -63,8 +63,7 @@ proptest! {
     fn missing_requirements_covers_every_missing_fixture(
         names in prop::collection::vec(prop::sample::select(&FIXTURE_NAME_POOL), 0..8usize)
     ) {
-        let static_names: Vec<&'static str> = names.clone();
-        let details = missing_fixture_details_for(&static_names);
+        let details = missing_fixture_details_for(&names);
 
         for name in &details.missing {
             prop_assert!(
@@ -79,8 +78,7 @@ proptest! {
     fn available_list_is_always_sorted(
         names in prop::collection::vec(prop::sample::select(&FIXTURE_NAME_POOL), 0..16usize)
     ) {
-        let static_names: Vec<&'static str> = names.clone();
-        let details = missing_fixture_details_for(&static_names);
+        let details = missing_fixture_details_for(&names);
 
         let mut expected = details.available.clone();
         expected.sort_unstable();
