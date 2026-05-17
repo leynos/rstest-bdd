@@ -2766,6 +2766,26 @@ Manual `step!` registrations that provide only fixture names continue to work;
 when no typed sidecar exists, diagnostics render the requested type as
 `<unknown>`.
 
+For screen readers: The following sequence diagram shows how step execution
+validates required fixtures, queries the typed requirement sidecar registry,
+and builds a structured missing-fixtures error.
+
+```mermaid
+sequenceDiagram
+    participant Client as execute_step
+    participant Validator as validate_required_fixtures
+    participant Registry as fixture_requirements_for_step
+    participant Error as ExecutionError::MissingFixtures
+    Client->>Validator: validate_required_fixtures(step, ctx, request)
+    Validator->>Registry: lookup typed FixtureRequirement sidecar
+    Registry-->>Validator: &'static [FixtureRequirement] or None
+    Validator->>Error: build MissingFixturesDetails
+    Validator-->>Client: return ExecutionError::MissingFixtures
+```
+
+*Figure: Missing-fixture diagnostics use typed sidecar metadata when generated
+requirements are available.*
+
 For early feedback, each inferred fixture name is referenced in the generated
 wrapper. If no fixture with that name is in scope, the wrapper fails to
 compile, surfacing the missing dependency before tests run. Conversely, if the
