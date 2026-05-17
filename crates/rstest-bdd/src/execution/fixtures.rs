@@ -25,37 +25,37 @@ pub(super) fn validate_required_fixtures(
     request: &StepExecutionRequest<'_>,
 ) -> Result<(), ExecutionError> {
     if step.fixtures.is_empty() {
-        return Ok(());
+        Ok(())
+    } else {
+        let available: HashSet<&str> = ctx.available_fixtures().collect();
+        let missing: Vec<_> = collect_missing(step.fixtures, &available)
+            .into_iter()
+            .copied()
+            .collect();
+
+        if missing.is_empty() {
+            Ok(())
+        } else {
+            let requirements = fixture_requirements_for_step(step);
+            let missing_requirements = missing_fixture_diagnostics(&missing, requirements);
+            let suggestion = harness_suggestion(&missing).map(String::from);
+            let available_list = sorted_available(ctx);
+
+            Err(ExecutionError::MissingFixtures(Arc::new(
+                MissingFixturesDetails {
+                    step_pattern: step.pattern.as_str().to_string(),
+                    step_location: format!("{}:{}", step.file, step.line),
+                    required: step.fixtures.to_vec(),
+                    missing,
+                    missing_requirements,
+                    available: available_list,
+                    suggestion,
+                    feature_path: request.feature_path.to_string(),
+                    scenario_name: request.scenario_name.to_string(),
+                },
+            )))
+        }
     }
-
-    let available: HashSet<&str> = ctx.available_fixtures().collect();
-    let missing: Vec<_> = collect_missing(step.fixtures, &available)
-        .into_iter()
-        .copied()
-        .collect();
-
-    if missing.is_empty() {
-        return Ok(());
-    }
-
-    let requirements = fixture_requirements_for_step(step);
-    let missing_requirements = missing_fixture_diagnostics(&missing, requirements);
-    let suggestion = harness_suggestion(&missing).map(String::from);
-    let available_list = sorted_available(ctx);
-
-    Err(ExecutionError::MissingFixtures(Arc::new(
-        MissingFixturesDetails {
-            step_pattern: step.pattern.as_str().to_string(),
-            step_location: format!("{}:{}", step.file, step.line),
-            required: step.fixtures.to_vec(),
-            missing,
-            missing_requirements,
-            available: available_list,
-            suggestion,
-            feature_path: request.feature_path.to_string(),
-            scenario_name: request.scenario_name.to_string(),
-        },
-    )))
 }
 
 fn collect_missing<'a>(
@@ -64,7 +64,7 @@ fn collect_missing<'a>(
 ) -> Vec<&'a &'static str> {
     fixtures
         .iter()
-        .filter(|fixture| !available.contains(*fixture as &str))
+        .filter(|fixture| !available.contains(*fixture))
         .collect()
 }
 
@@ -76,7 +76,7 @@ fn sorted_available(ctx: &StepContext<'_>) -> Vec<String> {
 
 fn missing_fixture_diagnostics(
     missing: &[&'static str],
-    requirements: Option<&'static [FixtureRequirement]>,
+    requirements: Option<&[FixtureRequirement]>,
 ) -> Vec<MissingFixtureDiagnostic> {
     missing
         .iter()
@@ -131,28 +131,20 @@ mod tests {
     /// Diagnostics fall back to `<unknown>` when no typed requirements are registered.
     #[test]
     fn missing_fixture_diagnostics_falls_back_to_unknown_when_no_requirements() {
-        let missing = &["my_fixture"];
-        let diagnostics = missing_fixture_diagnostics(missing, None);
-        assert_eq!(diagnostics.len(), 1);
-        let Some(diagnostic) = diagnostics.first() else {
-            panic!("diagnostics should include the missing fixture");
-        };
-        assert_eq!(diagnostic.name, "my_fixture");
-        assert_eq!(diagnostic.ty, "<unknown>");
+        assert_single_missing_diagnostic(None, "my_fixture", "my_fixture", "<unknown>");
     }
 
-    /// Test helper: invokes `missing_fixture_diagnostics` with a single-entry
-    /// `Some` requirements slice and asserts the resulting single diagnostic
-    /// matches `expected_name` and `expected_ty`.
+    /// Test helper: invokes `missing_fixture_diagnostics` and asserts the
+    /// resulting single diagnostic matches `expected_name` and `expected_ty`.
     fn assert_single_missing_diagnostic(
-        requirements: &[FixtureRequirement],
+        requirements: Option<&[FixtureRequirement]>,
         missing_fixture: &'static str,
         expected_name: &str,
         expected_ty: &str,
     ) {
         let missing = &[missing_fixture];
-        let requirements = Box::leak(requirements.to_vec().into_boxed_slice());
-        let diagnostics = missing_fixture_diagnostics(missing, Some(requirements));
+        let diagnostics = missing_fixture_diagnostics(missing, requirements);
+        assert_eq!(diagnostics.len(), 1);
         let Some(diagnostic) = diagnostics.first() else {
             panic!("diagnostics should include the missing fixture");
         };
@@ -164,10 +156,10 @@ mod tests {
     #[test]
     fn missing_fixture_diagnostics_falls_back_when_requirement_absent() {
         assert_single_missing_diagnostic(
-            &[FixtureRequirement {
+            Some(&[FixtureRequirement {
                 name: "other_fixture",
                 ty: "OtherType",
-            }],
+            }]),
             "my_fixture",
             "my_fixture",
             "<unknown>",
@@ -178,10 +170,10 @@ mod tests {
     #[test]
     fn missing_fixture_diagnostics_uses_typed_requirement_when_present() {
         assert_single_missing_diagnostic(
-            &[FixtureRequirement {
+            Some(&[FixtureRequirement {
                 name: "db",
                 ty: "DbPool",
-            }],
+            }]),
             "db",
             "db",
             "DbPool",
