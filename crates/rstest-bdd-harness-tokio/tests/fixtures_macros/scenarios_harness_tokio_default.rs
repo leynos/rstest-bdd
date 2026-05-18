@@ -8,9 +8,6 @@ fn precondition() {}
 #[when("an action occurs")]
 fn action() {}
 
-#[then("a result is produced")]
-fn result() {}
-
 #[then("an async result is produced")]
 async fn async_result() {}
 
