@@ -816,8 +816,8 @@ In simple terms, attribute selection works like this:
    attributes or harness were selected.
 4. Otherwise, if the `#[scenario]` function is `async fn`, the macro emits
    `#[rstest::rstest]` and `#[tokio::test(flavor = "current_thread")]`
-   (unless the user already supplies a `#[tokio::test]` attribute, in
-   which case deduplication suppresses the second copy).
+   (unless the user already supplies a `#[tokio::test]` attribute, in which
+   case deduplication suppresses the second copy).
 5. If none of those apply, the macro emits the normal synchronous
    `#[rstest::rstest]` attribute set.
 
