@@ -26,7 +26,7 @@ execution-error-skip = Askel ohitettu{ $has_message ->
     [yes] : { $message }
 }
 execution-error-step-not-found = Askelta ei löytynyt indeksistä { $index }: { $keyword } { $text } (feature: { $feature_path }, skenaario: { $scenario_name })
-execution-error-missing-fixtures = Askel '{ $step_pattern }' (määritelty kohdassa { $step_location }) vaatii fixtuurit { $required }, mutta seuraavat puuttuvat: { $missing }. Pyydettyjen fixture-tietojen tiedot: { $missing_requirements }. Käytettävissä olevat fixtuurit skenaariosta: { $available } { $has_suggestion ->
+execution-error-missing-fixtures = Askel '{ $step_pattern }' (määritelty kohdassa { $step_location }) vaatii fixtuurit { $required }, mutta seuraavat puuttuvat: { $missing }. Pyydettyjen fixtuurien tiedot: { $missing_requirements }. Käytettävissä olevat fixtuurit skenaariosta: { $available } { $has_suggestion ->
     [yes] Valitse harnessin tukema skenaario, jotta rstest_bdd_harness_context lisätään.
    *[no] {""}
 } (feature: { $feature_path }, skenaario: { $scenario_name })

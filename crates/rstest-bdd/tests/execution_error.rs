@@ -236,42 +236,27 @@ fn execution_error_format_with_loader_wires_i18n_and_context(
     assert_contains_all(&formatted, expected_substrings);
 }
 
-#[rstest]
-#[case::arabic(langid!("ar"))]
-#[case::czech(langid!("cs"))]
-#[case::danish(langid!("da"))]
-#[case::german(langid!("de"))]
-#[case::greek(langid!("el"))]
-#[case::latin_american_spanish(langid!("es-419"))]
-#[case::persian(langid!("fa"))]
-#[case::finnish(langid!("fi"))]
-#[case::french(langid!("fr"))]
-#[case::hebrew(langid!("he"))]
-#[case::hindi(langid!("hi"))]
-#[case::hungarian(langid!("hu"))]
-#[case::indonesian(langid!("id"))]
-#[case::italian(langid!("it"))]
-#[case::japanese(langid!("ja"))]
-#[case::korean(langid!("ko"))]
-#[case::norwegian_bokmal(langid!("nb"))]
-#[case::dutch(langid!("nl"))]
-#[case::polish(langid!("pl"))]
-#[case::brazilian_portuguese(langid!("pt-BR"))]
-#[case::portuguese(langid!("pt-PT"))]
-#[case::romanian(langid!("ro"))]
-#[case::russian(langid!("ru"))]
-#[case::swedish(langid!("sv"))]
-#[case::thai(langid!("th"))]
-#[case::turkish(langid!("tr"))]
-#[case::ukrainian(langid!("uk"))]
-#[case::vietnamese(langid!("vi"))]
-#[case::simplified_chinese(langid!("zh-Hans"))]
-#[case::traditional_chinese(langid!("zh-Hant"))]
-fn non_english_missing_fixture_diagnostics_include_runtime_arguments(
-    #[case] locale: LanguageIdentifier,
+const NON_ENGLISH_LOCALES: &[&str] = &[
+    "ar", "cs", "da", "de", "el", "es-419", "fa", "fi", "fr", "he", "hi", "hu", "id", "it", "ja",
+    "ko", "nb", "nl", "pl", "pt-BR", "pt-PT", "ro", "ru", "sv", "th", "tr", "uk", "vi", "zh-Hans",
+    "zh-Hant",
+];
+
+#[test]
+fn non_english_missing_fixture_diagnostics_include_runtime_arguments() {
+    for locale in NON_ENGLISH_LOCALES {
+        let locale = locale
+            .parse::<LanguageIdentifier>()
+            .unwrap_or_else(|e| panic!("invalid locale {locale}: {e}"));
+        assert_non_english_missing_fixture_diagnostics_include_runtime_arguments(&locale);
+    }
+}
+
+fn assert_non_english_missing_fixture_diagnostics_include_runtime_arguments(
+    locale: &LanguageIdentifier,
 ) {
     let loader = fluent_language_loader!();
-    i18n_embed::select(&loader, &Localizations, std::slice::from_ref(&locale))
+    i18n_embed::select(&loader, &Localizations, std::slice::from_ref(locale))
         .unwrap_or_else(|e| panic!("failed to load {locale} translations: {e}"));
 
     let formatted =
