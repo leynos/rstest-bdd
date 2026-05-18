@@ -44,7 +44,7 @@ fn missing_fixtures() -> ExecutionError {
             ty: "DbPool",
         }],
         available: vec!["cache".into(), "config".into()],
-        suggestion: None,
+        has_suggestion: false,
         feature_path: "features/db.feature".into(),
         scenario_name: "Database query".into(),
     }))
@@ -62,9 +62,7 @@ fn missing_harness_fixture() -> ExecutionError {
             ty: "AppContext",
         }],
         available: vec!["world".into()],
-        suggestion: Some(
-            "select a harness-backed scenario so rstest_bdd_harness_context is inserted".into(),
-        ),
+        has_suggestion: true,
         feature_path: "features/harness.feature".into(),
         scenario_name: "Harness context".into(),
     }))
@@ -283,13 +281,16 @@ fn non_english_missing_fixture_diagnostics_include_runtime_arguments(
         !formatted.contains("Requested fixture details:"),
         "expected localized fixture-details label for {locale}, got: {formatted}"
     );
+    assert!(
+        !formatted.contains("Select a harness-backed scenario"),
+        "expected localized harness suggestion for {locale}, got: {formatted}"
+    );
     assert_contains_all(
         &formatted,
         &[
             ("rstest_bdd_harness_context", "requested fixture name"),
             ("AppContext", "requested fixture type"),
             ("world", "available fixture"),
-            ("select a harness-backed scenario", "harness suggestion"),
         ],
     );
 }
@@ -306,7 +307,7 @@ fn missing_fixtures_format_includes_typed_request_details_and_suggestion() {
             ("rstest_bdd_harness_context", "requested fixture name"),
             ("AppContext", "requested fixture type"),
             ("world", "available fixture"),
-            ("select a harness-backed scenario", "harness suggestion"),
+            ("Select a harness-backed scenario", "harness suggestion"),
         ],
     );
 }
@@ -325,7 +326,7 @@ fn missing_fixtures_snapshot() {
             ty: "DbPool",
         }],
         available: vec!["world".to_string()],
-        suggestion: Some("select a harness-backed scenario".to_string()),
+        has_suggestion: true,
         feature_path: "features/example.feature".to_string(),
         scenario_name: "Example scenario".to_string(),
     };

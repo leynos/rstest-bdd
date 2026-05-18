@@ -26,5 +26,8 @@ execution-error-skip = הצעד דולג{ $has_message ->
     [yes] : { $message }
 }
 execution-error-step-not-found = הצעד לא נמצא באינדקס { $index }: { $keyword } { $text } (תכונה: { $feature_path }, תרחיש: { $scenario_name })
-execution-error-missing-fixtures = הצעד "{ $step_pattern }" (מוגדר ב-{ $step_location }) דורש קיבועים { $required }, אך הבאים חסרים: { $missing }. פרטי הקיבועים המבוקשים: { $missing_requirements }. קיבועים זמינים מהתרחיש: { $available } { $suggestion } (תכונה: { $feature_path }, תרחיש: { $scenario_name })
+execution-error-missing-fixtures = הצעד "{ $step_pattern }" (מוגדר ב-{ $step_location }) דורש קיבועים { $required }, אך הבאים חסרים: { $missing }. פרטי הקיבועים המבוקשים: { $missing_requirements }. קיבועים זמינים מהתרחיש: { $available } { $has_suggestion ->
+    [yes] בחרו תרחיש הנתמך על ידי harness כדי ש-rstest_bdd_harness_context יוכנס.
+   *[no] {""}
+} (תכונה: { $feature_path }, תרחיש: { $scenario_name })
 execution-error-handler-failed = הצעד נכשל באינדקס { $index }: { $keyword } { $text } - { $error } (תכונה: { $feature_path }, תרחיש: { $scenario_name })

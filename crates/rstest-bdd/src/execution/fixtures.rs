@@ -38,7 +38,7 @@ pub(super) fn validate_required_fixtures(
         } else {
             let requirements = fixture_requirements_for_step(step);
             let missing_requirements = missing_fixture_diagnostics(&missing, requirements);
-            let suggestion = harness_suggestion(&missing).map(String::from);
+            let has_suggestion = has_harness_suggestion(&missing);
             let available_list = sorted_available(ctx);
 
             Err(ExecutionError::MissingFixtures(Arc::new(
@@ -49,7 +49,7 @@ pub(super) fn validate_required_fixtures(
                     missing,
                     missing_requirements,
                     available: available_list,
-                    suggestion,
+                    has_suggestion,
                     feature_path: request.feature_path.to_string(),
                     scenario_name: request.scenario_name.to_string(),
                 },
@@ -98,10 +98,8 @@ fn missing_fixture_diagnostics(
         .collect()
 }
 
-fn harness_suggestion(missing: &[&str]) -> Option<&'static str> {
-    missing
-        .contains(&RSTEST_BDD_HARNESS_CONTEXT_FIXTURE)
-        .then_some("select a harness-backed scenario so rstest_bdd_harness_context is inserted")
+fn has_harness_suggestion(missing: &[&str]) -> bool {
+    missing.contains(&RSTEST_BDD_HARNESS_CONTEXT_FIXTURE)
 }
 
 #[cfg(test)]
@@ -182,22 +180,22 @@ mod tests {
 
     /// No harness suggestion when the harness context fixture is not in the missing list.
     #[test]
-    fn harness_suggestion_absent_for_non_harness_fixture() {
+    fn has_harness_suggestion_is_false_for_non_harness_fixture() {
         let missing = &["some_other_fixture"];
-        assert!(harness_suggestion(missing).is_none());
+        assert!(!has_harness_suggestion(missing));
     }
 
     /// Harness suggestion present when `rstest_bdd_harness_context` is missing.
     #[test]
-    fn harness_suggestion_present_when_harness_context_missing() {
+    fn has_harness_suggestion_is_true_when_harness_context_missing() {
         let missing = &[RSTEST_BDD_HARNESS_CONTEXT_FIXTURE];
-        assert!(harness_suggestion(missing).is_some());
+        assert!(has_harness_suggestion(missing));
     }
 
     /// No harness suggestion for an empty missing list.
     #[test]
-    fn harness_suggestion_absent_for_empty_missing_list() {
+    fn has_harness_suggestion_is_false_for_empty_missing_list() {
         let missing: &[&str] = &[];
-        assert!(harness_suggestion(missing).is_none());
+        assert!(!has_harness_suggestion(missing));
     }
 }

@@ -26,5 +26,8 @@ execution-error-skip = ขั้นตอนถูกข้าม{ $has_message 
     [yes] : { $message }
 }
 execution-error-step-not-found = ไม่พบขั้นตอนที่ดัชนี { $index }: { $keyword } { $text } (ฟีเจอร์: { $feature_path }, สถานการณ์: { $scenario_name })
-execution-error-missing-fixtures = ขั้นตอน « { $step_pattern } » (กำหนดที่ { $step_location }) ต้องการฟิกซ์เจอร์ { $required } แต่สิ่งต่อไปนี้หายไป: { $missing } รายละเอียดฟิกซ์เจอร์ที่ร้องขอ: { $missing_requirements } ฟิกซ์เจอร์ที่มีจากสถานการณ์: { $available } { $suggestion } (ฟีเจอร์: { $feature_path }, สถานการณ์: { $scenario_name })
+execution-error-missing-fixtures = ขั้นตอน « { $step_pattern } » (กำหนดที่ { $step_location }) ต้องการฟิกซ์เจอร์ { $required } แต่สิ่งต่อไปนี้หายไป: { $missing } รายละเอียดฟิกซ์เจอร์ที่ร้องขอ: { $missing_requirements } ฟิกซ์เจอร์ที่มีจากสถานการณ์: { $available } { $has_suggestion ->
+    [yes] เลือกสถานการณ์ที่รองรับ harness เพื่อให้แทรก rstest_bdd_harness_context
+   *[no] {""}
+} (ฟีเจอร์: { $feature_path }, สถานการณ์: { $scenario_name })
 execution-error-handler-failed = ขั้นตอนล้มเหลวที่ดัชนี { $index }: { $keyword } { $text } - { $error } (ฟีเจอร์: { $feature_path }, สถานการณ์: { $scenario_name })

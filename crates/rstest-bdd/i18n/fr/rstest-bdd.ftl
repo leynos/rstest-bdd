@@ -26,5 +26,8 @@ execution-error-skip = Étape ignorée{ $has_message ->
     [yes] : { $message }
 }
 execution-error-step-not-found = Étape introuvable à l'index { $index } : { $keyword } { $text } (feature : { $feature_path }, scénario : { $scenario_name })
-execution-error-missing-fixtures = L'étape « { $step_pattern } » (définie à { $step_location }) requiert les fixtures { $required }, mais les suivantes sont manquantes : { $missing }. Détails des fixtures demandées : { $missing_requirements }. Fixtures disponibles depuis le scénario : { $available } { $suggestion } (feature : { $feature_path }, scénario : { $scenario_name })
+execution-error-missing-fixtures = L'étape « { $step_pattern } » (définie à { $step_location }) requiert les fixtures { $required }, mais les suivantes sont manquantes : { $missing }. Détails des fixtures demandées : { $missing_requirements }. Fixtures disponibles depuis le scénario : { $available } { $has_suggestion ->
+    [yes] Sélectionnez un scénario pris en charge par le harness afin que rstest_bdd_harness_context soit inséré.
+   *[no] {""}
+} (feature : { $feature_path }, scénario : { $scenario_name })
 execution-error-handler-failed = Étape échouée à l'index { $index } : { $keyword } { $text } - { $error } (feature : { $feature_path }, scénario : { $scenario_name })

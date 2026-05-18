@@ -26,5 +26,8 @@ execution-error-skip = 스텝 건너뜀{ $has_message ->
     [yes] : { $message }
 }
 execution-error-step-not-found = 인덱스 { $index }에서 스텝을 찾을 수 없습니다: { $keyword } { $text } (기능: { $feature_path }, 시나리오: { $scenario_name })
-execution-error-missing-fixtures = 스텝 '{ $step_pattern }' ({ $step_location }에서 정의됨)은 픽스처 { $required }가 필요하지만 다음이 누락되었습니다: { $missing }. 요청된 픽스처 세부 정보: { $missing_requirements }. 시나리오에서 사용 가능한 픽스처: { $available } { $suggestion } (기능: { $feature_path }, 시나리오: { $scenario_name })
+execution-error-missing-fixtures = 스텝 '{ $step_pattern }' ({ $step_location }에서 정의됨)은 픽스처 { $required }가 필요하지만 다음이 누락되었습니다: { $missing }. 요청된 픽스처 세부 정보: { $missing_requirements }. 시나리오에서 사용 가능한 픽스처: { $available } { $has_suggestion ->
+    [yes] rstest_bdd_harness_context가 삽입되도록 harness 지원 시나리오를 선택하세요.
+   *[no] {""}
+} (기능: { $feature_path }, 시나리오: { $scenario_name })
 execution-error-handler-failed = 인덱스 { $index }에서 스텝 실패: { $keyword } { $text } - { $error } (기능: { $feature_path }, 시나리오: { $scenario_name })

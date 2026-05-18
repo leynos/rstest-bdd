@@ -26,5 +26,8 @@ execution-error-skip = ステップがスキップされました{ $has_message 
     [yes] : { $message }
 }
 execution-error-step-not-found = インデックス { $index } でステップが見つかりません: { $keyword } { $text } (フィーチャー: { $feature_path }, シナリオ: { $scenario_name })
-execution-error-missing-fixtures = ステップ「{ $step_pattern }」({ $step_location } で定義)はフィクスチャー { $required } を必要としますが、以下が不足しています: { $missing }。リクエストされたフィクスチャーの詳細: { $missing_requirements }。シナリオから利用可能なフィクスチャー: { $available } { $suggestion } (フィーチャー: { $feature_path }, シナリオ: { $scenario_name })
+execution-error-missing-fixtures = ステップ「{ $step_pattern }」({ $step_location } で定義)はフィクスチャー { $required } を必要としますが、以下が不足しています: { $missing }。リクエストされたフィクスチャーの詳細: { $missing_requirements }。シナリオから利用可能なフィクスチャー: { $available } { $has_suggestion ->
+    [yes] rstest_bdd_harness_context が挿入されるように、harness 対応のシナリオを選択してください。
+   *[no] {""}
+} (フィーチャー: { $feature_path }, シナリオ: { $scenario_name })
 execution-error-handler-failed = インデックス { $index } でステップが失敗しました: { $keyword } { $text } - { $error } (フィーチャー: { $feature_path }, シナリオ: { $scenario_name })

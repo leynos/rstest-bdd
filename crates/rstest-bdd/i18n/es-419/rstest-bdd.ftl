@@ -26,5 +26,8 @@ execution-error-skip = Paso omitido{ $has_message ->
     [yes] : { $message }
 }
 execution-error-step-not-found = Paso no encontrado en el índice { $index }: { $keyword } { $text } (feature: { $feature_path }, escenario: { $scenario_name })
-execution-error-missing-fixtures = El paso «{ $step_pattern }» (definido en { $step_location }) requiere fixtures { $required }, pero faltan los siguientes: { $missing }. Detalles de los fixtures solicitados: { $missing_requirements }. Fixtures disponibles del escenario: { $available } { $suggestion } (feature: { $feature_path }, escenario: { $scenario_name })
+execution-error-missing-fixtures = El paso «{ $step_pattern }» (definido en { $step_location }) requiere fixtures { $required }, pero faltan los siguientes: { $missing }. Detalles de los fixtures solicitados: { $missing_requirements }. Fixtures disponibles del escenario: { $available } { $has_suggestion ->
+    [yes] Seleccione un escenario respaldado por harness para que se inserte rstest_bdd_harness_context.
+   *[no] {""}
+} (feature: { $feature_path }, escenario: { $scenario_name })
 execution-error-handler-failed = Paso falló en el índice { $index }: { $keyword } { $text } - { $error } (feature: { $feature_path }, escenario: { $scenario_name })

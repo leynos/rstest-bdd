@@ -26,5 +26,8 @@ execution-error-skip = Langkah dilewati{ $has_message ->
     [yes] : { $message }
 }
 execution-error-step-not-found = Langkah tidak ditemukan pada indeks { $index }: { $keyword } { $text } (fitur: { $feature_path }, skenario: { $scenario_name })
-execution-error-missing-fixtures = Langkah « { $step_pattern } » (didefinisikan di { $step_location }) memerlukan fixture { $required }, tetapi yang berikut hilang: { $missing }. Detail fixture yang diminta: { $missing_requirements }. Fixture tersedia dari skenario: { $available } { $suggestion } (fitur: { $feature_path }, skenario: { $scenario_name })
+execution-error-missing-fixtures = Langkah « { $step_pattern } » (didefinisikan di { $step_location }) memerlukan fixture { $required }, tetapi yang berikut hilang: { $missing }. Detail fixture yang diminta: { $missing_requirements }. Fixture tersedia dari skenario: { $available } { $has_suggestion ->
+    [yes] Pilih skenario yang didukung harness agar rstest_bdd_harness_context disisipkan.
+   *[no] {""}
+} (fitur: { $feature_path }, skenario: { $scenario_name })
 execution-error-handler-failed = Langkah gagal pada indeks { $index }: { $keyword } { $text } - { $error } (fitur: { $feature_path }, skenario: { $scenario_name })

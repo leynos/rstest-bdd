@@ -281,10 +281,7 @@ fn execute_step_reports_detailed_missing_harness_fixture() {
         "expected inserted fixtures from StepContext::available_fixtures"
     );
     assert!(
-        details
-            .suggestion
-            .as_deref()
-            .is_some_and(|suggestion| suggestion.contains("harness-backed scenario")),
+        details.has_suggestion,
         "expected harness suggestion when reserved context is absent: {details:?}"
     );
 }

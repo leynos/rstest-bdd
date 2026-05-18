@@ -193,7 +193,7 @@ impl ExecutionErrorTestCase {
                     missing: vec!["fixture"],
                     missing_requirements: vec![],
                     available: vec![],
-                    suggestion: None,
+                    has_suggestion: false,
                     feature_path: "test.feature".into(),
                     scenario_name: "test".into(),
                 }))

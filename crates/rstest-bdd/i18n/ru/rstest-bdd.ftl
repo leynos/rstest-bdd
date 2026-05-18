@@ -26,5 +26,8 @@ execution-error-skip = Шаг пропущен{ $has_message ->
     [yes] : { $message }
 }
 execution-error-step-not-found = Шаг не найден по индексу { $index }: { $keyword } { $text } (feature: { $feature_path }, сценарий: { $scenario_name })
-execution-error-missing-fixtures = Шаг «{ $step_pattern }» (определён в { $step_location }) требует фикстуры { $required }, но следующие отсутствуют: { $missing }. Сведения о запрошенных фикстурах: { $missing_requirements }. Доступные фикстуры из сценария: { $available } { $suggestion } (feature: { $feature_path }, сценарий: { $scenario_name })
+execution-error-missing-fixtures = Шаг «{ $step_pattern }» (определён в { $step_location }) требует фикстуры { $required }, но следующие отсутствуют: { $missing }. Сведения о запрошенных фикстурах: { $missing_requirements }. Доступные фикстуры из сценария: { $available } { $has_suggestion ->
+    [yes] Выберите сценарий с поддержкой harness, чтобы был вставлен rstest_bdd_harness_context.
+   *[no] {""}
+} (feature: { $feature_path }, сценарий: { $scenario_name })
 execution-error-handler-failed = Шаг завершился ошибкой по индексу { $index }: { $keyword } { $text } - { $error } (feature: { $feature_path }, сценарий: { $scenario_name })

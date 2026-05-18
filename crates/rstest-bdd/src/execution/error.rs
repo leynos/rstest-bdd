@@ -200,8 +200,8 @@ pub struct MissingFixturesDetails {
     pub missing_requirements: Vec<MissingFixtureDiagnostic>,
     /// List of available fixture names in the context.
     pub available: Vec<String>,
-    /// Suggested remediation for this missing fixture set, when one is known.
-    pub suggestion: Option<String>,
+    /// Whether this missing fixture set should show harness-context guidance.
+    pub has_suggestion: bool,
     /// Path to the feature file.
     pub feature_path: String,
     /// Name of the scenario.
@@ -340,7 +340,10 @@ impl ExecutionError {
                         details.format_missing_requirements(),
                     );
                     args.set("available", details.available.join(", "));
-                    args.set("suggestion", details.suggestion.clone().unwrap_or_default());
+                    args.set(
+                        "has_suggestion",
+                        if details.has_suggestion { "yes" } else { "no" }.to_string(),
+                    );
                     args.set("feature_path", details.feature_path.clone());
                     args.set("scenario_name", details.scenario_name.clone());
                 },
