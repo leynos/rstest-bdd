@@ -658,7 +658,7 @@ implementation commitments.
   Delivered under maintainer authorization while ADR-008 remains in Proposed
   status; the prerequisite will be formally satisfied when ADR-008 is accepted.
   (Pandalump)
-- [ ] 9.7.2. Update `#[scenario]` and `scenarios!` code generation so
+- [x] 9.7.2. Update `#[scenario]` and `scenarios!` code generation so
   first-party harnesses imply their default attribute policies when
   `attributes = ...` is omitted, while explicit `attributes = ...` remains
   authoritative. Preserve `attributes`-only configuration, harness-only
@@ -668,7 +668,13 @@ implementation commitments.
   requiring paired `attributes = ...`, and explicit override scenarios still
   expand correctly. Prerequisite: 9.7.1. Design Doc:
   `docs/adr-008-harness-led-attribute-policy-defaults.md`,
-  `docs/rstest-bdd-design.md` §2.7.3. (Pandalump, Doggylump)
+  `docs/rstest-bdd-design.md` §2.7.3. Delivered 2026-05-14. The codegen path
+  already routed both `#[scenario]` and `scenarios!` through the ADR-008
+  resolver; this item adds regression coverage for synchronous Tokio harness
+  omission, first-party de-duplication, and harness-only Tokio `scenarios!`
+  expansion with an async step. Delivered under maintainer authorization while
+  ADR-008 remains in Proposed status; the prerequisite will be formally
+  satisfied when ADR-008 is accepted. (Pandalump, Doggylump)
 - [ ] 9.7.3. Add unit, trybuild, and behavioural coverage for harness-led
   defaults and explicit overrides across the first-party harnesses. Cover
   harness-only scenarios, explicit override scenarios, attributes-only

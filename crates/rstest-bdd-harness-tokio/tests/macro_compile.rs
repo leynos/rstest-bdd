@@ -16,6 +16,7 @@ fn tokio_macro_fixtures_compile() -> Result<(), Box<dyn std::error::Error>> {
         "tests/fixtures_macros/scenario_attributes_tokio_sync.rs",
         "tests/fixtures_macros/scenario_attributes_tokio_dedup.rs",
         "tests/fixtures_macros/scenario_harness_tokio_default.rs",
+        "tests/fixtures_macros/scenarios_harness_tokio_default.rs",
     ] {
         tests.pass(case);
     }
@@ -33,6 +34,10 @@ fn stage_trybuild_support_files() -> Result<(), Box<dyn std::error::Error>> {
     copy_file(
         &crate_root.join("tests/fixtures_macros/basic.feature"),
         &trybuild_crate_root()?.join("basic.feature"),
+    )?;
+    copy_file(
+        &crate_root.join("tests/fixtures_macros/scenarios_harness_tokio_default.feature"),
+        &trybuild_crate_root()?.join("scenarios_harness_tokio_default.feature"),
     )?;
     Ok(())
 }

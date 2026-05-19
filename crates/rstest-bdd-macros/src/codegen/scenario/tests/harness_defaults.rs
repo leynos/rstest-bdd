@@ -1,6 +1,7 @@
 //! Tests for harness-led default attribute-policy precedence.
 
 use super::{RuntimeMode, TestAttrPolicy, generate_test_attrs};
+use quote::quote;
 
 #[expect(clippy::expect_used, reason = "test helper with descriptive failures")]
 fn parse_path(s: &str) -> syn::Path {
@@ -98,4 +99,79 @@ fn generate_test_attrs_honours_harness_precedence(
         expect_gpui_test,
         "gpui::test presence mismatch for runtime={runtime:?}, harness={harness_path:?}, policy={policy_path:?}: {output}"
     );
+}
+
+#[test]
+fn tokio_harness_default_omits_tokio_for_sync_harness_function() {
+    let harness_path = parse_path("rstest_bdd_harness_tokio::TokioHarness");
+    let tokens = generate_test_attrs(
+        &[],
+        &TestAttrPolicy {
+            runtime: RuntimeMode::Sync,
+            harness: Some(&harness_path),
+            attributes: None,
+        },
+        false,
+    );
+    let output = tokens.to_string();
+
+    assert!(
+        output.contains("rstest :: rstest"),
+        "should contain rstest::rstest: {output}"
+    );
+    assert!(
+        !output.contains("tokio :: test"),
+        "Tokio harness defaults must not emit tokio::test for sync functions: {output}"
+    );
+}
+
+#[rstest::rstest]
+#[case::tokio(
+    "#[tokio::test]",
+    "rstest_bdd_harness_tokio::TokioHarness",
+    "tokio :: test"
+)]
+#[case::gpui(
+    "#[gpui::test]",
+    "rstest_bdd_harness_gpui::GpuiHarness",
+    "gpui :: test"
+)]
+fn generate_test_attrs_dedupes_harness_default_and_user_attribute(
+    #[case] attr_str: &str,
+    #[case] harness_path: &str,
+    #[case] expected_attr: &str,
+) {
+    let user_attr = parse_attr(attr_str);
+    let attrs = vec![user_attr];
+    let harness_path = parse_path(harness_path);
+    let generated_attrs = generate_test_attrs(
+        &attrs,
+        &TestAttrPolicy {
+            runtime: RuntimeMode::TokioCurrentThread,
+            harness: Some(&harness_path),
+            attributes: None,
+        },
+        true,
+    );
+    let output = quote! { #(#attrs)* #generated_attrs }.to_string();
+
+    assert!(
+        output.contains("rstest :: rstest"),
+        "should contain rstest::rstest: {output}"
+    );
+    assert_eq!(
+        output.match_indices(expected_attr).count(),
+        1,
+        "expected exactly one {expected_attr} attribute: {output}"
+    );
+}
+
+#[expect(clippy::expect_used, reason = "test helper with descriptive failures")]
+fn parse_attr(s: &str) -> syn::Attribute {
+    syn::parse_str::<syn::DeriveInput>(&format!("{s} struct S;"))
+        .expect("parse derive input")
+        .attrs
+        .into_iter()
+        .next()
+        .expect("at least one attribute")
 }
