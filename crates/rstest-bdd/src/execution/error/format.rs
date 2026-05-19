@@ -32,7 +32,7 @@ impl ExecutionError {
     #[must_use]
     pub fn format_with_loader(&self, loader: &crate::FluentLanguageLoader) -> String {
         match self {
-            Self::Skip { message } => format_skip(loader, message.as_ref()),
+            Self::Skip { message } => format_skip(loader, message.as_deref()),
             Self::StepNotFound { .. } => self.format_step_not_found(loader),
             Self::MissingFixtures(details) => format_missing_fixtures(loader, details),
             Self::HandlerFailed { .. } => self.format_handler_failed(loader),
@@ -84,13 +84,13 @@ impl ExecutionError {
     }
 }
 
-fn format_skip(loader: &crate::FluentLanguageLoader, message: Option<&String>) -> String {
+fn format_skip(loader: &crate::FluentLanguageLoader, message: Option<&str>) -> String {
     crate::localization::message_with_loader(loader, "execution-error-skip", |args| {
         args.set(
             "has_message",
             if message.is_some() { "yes" } else { "no" }.to_string(),
         );
-        args.set("message", message.cloned().unwrap_or_default());
+        args.set("message", message.unwrap_or("").to_string());
     })
 }
 
