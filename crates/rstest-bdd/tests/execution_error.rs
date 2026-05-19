@@ -32,71 +32,72 @@ fn step_not_found() -> ExecutionError {
     }
 }
 
+/// Parameter object for [`make_missing_fixtures`]; collects all
+/// `MissingFixturesDetails` fields in one place so the builder function
+/// stays under the argument-count threshold.
+struct MissingFixturesSpec {
+    pub step_pattern: &'static str,
+    pub step_location: &'static str,
+    pub required: Vec<&'static str>,
+    pub missing: Vec<&'static str>,
+    pub missing_requirements: Vec<MissingFixtureDiagnostic>,
+    pub available: Vec<String>,
+    pub has_suggestion: bool,
+    pub feature_path: &'static str,
+    pub scenario_name: &'static str,
+}
+
 /// Private builder: constructs a `MissingFixtures` `ExecutionError` from
-/// the provided field values, eliminating the repeated `Arc::new(...)` scaffold
-/// shared by the two fixture-error factory helpers.
-#[expect(
-    clippy::too_many_arguments,
-    reason = "test builder mirrors the diagnostic detail fields under test"
-)]
-fn make_missing_fixtures(
-    step_pattern: &str,
-    step_location: &str,
-    required: Vec<&'static str>,
-    missing: Vec<&'static str>,
-    missing_requirements: Vec<MissingFixtureDiagnostic>,
-    available: Vec<String>,
-    has_suggestion: bool,
-    feature_path: &str,
-    scenario_name: &str,
-) -> ExecutionError {
+/// the provided [`MissingFixturesSpec`], eliminating the repeated
+/// `Arc::new(...)` scaffold shared by the two fixture-error factory helpers.
+fn make_missing_fixtures(spec: MissingFixturesSpec) -> ExecutionError {
     ExecutionError::MissingFixtures(Arc::new(MissingFixturesDetails {
-        step_pattern: step_pattern.into(),
-        step_location: step_location.into(),
-        required,
-        missing,
-        missing_requirements,
-        available,
-        has_suggestion,
-        feature_path: feature_path.into(),
-        scenario_name: scenario_name.into(),
+        step_pattern: spec.step_pattern.into(),
+        step_location: spec.step_location.into(),
+        required: spec.required,
+        missing: spec.missing,
+        missing_requirements: spec.missing_requirements,
+        available: spec.available,
+        has_suggestion: spec.has_suggestion,
+        feature_path: spec.feature_path.into(),
+        scenario_name: spec.scenario_name.into(),
     }))
 }
 
 /// Helper to create a `MissingFixtures` error.
 fn missing_fixtures() -> ExecutionError {
-    make_missing_fixtures(
-        "a database connection",
-        "tests/steps.rs:42",
-        vec!["db", "cache"],
-        vec!["db"],
-        vec![MissingFixtureDiagnostic {
+    make_missing_fixtures(MissingFixturesSpec {
+        step_pattern: "a database connection",
+        step_location: "tests/steps.rs:42",
+        required: vec!["db", "cache"],
+        missing: vec!["db"],
+        missing_requirements: vec![MissingFixtureDiagnostic {
             name: "db",
             ty: "DbPool",
         }],
-        vec!["cache".into(), "config".into()],
-        false,
-        "features/db.feature",
-        "Database query",
-    )
+        available: vec!["cache".into(), "config".into()],
+        has_suggestion: false,
+        feature_path: "features/db.feature",
+        scenario_name: "Database query",
+    })
 }
 
 /// Helper to create a `MissingFixtures` error with harness guidance.
 fn missing_harness_fixture() -> ExecutionError {
-    make_missing_fixtures(
-        "uses harness context",
-        "tests/steps.rs:9",
-        vec!["rstest_bdd_harness_context"],
-        vec!["rstest_bdd_harness_context"],
-        vec![MissingFixtureDiagnostic {
+    make_missing_fixtures(MissingFixturesSpec {
+        step_pattern: "uses harness context",
+        step_location: "tests/steps.rs:9",
+        required: vec!["rstest_bdd_harness_context"],
+        missing: vec!["rstest_bdd_harness_context"],
+        missing_requirements: vec![MissingFixtureDiagnostic {
             name: "rstest_bdd_harness_context",
             ty: "AppContext",
         }],
-        vec!["world".into()],
-        true,
-        "features/harness.feature",
-        "Harness context",
-    )
+        available: vec!["world".into()],
+        has_suggestion: true,
+        feature_path: "features/harness.feature",
+        scenario_name: "Harness context",
+    })
 }
 
 /// Helper to create a `HandlerFailed` error.
