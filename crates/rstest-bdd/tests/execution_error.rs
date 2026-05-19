@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use i18n_embed::fluent::fluent_language_loader;
 use rstest::rstest;
-use rstest_bdd::execution::{ExecutionError, MissingFixturesDetails};
+use rstest_bdd::execution::{ExecutionError, MissingFixtureDiagnostic, MissingFixturesDetails};
 use rstest_bdd::localization::{ScopedLocalization, strip_directional_isolates};
 use rstest_bdd::{Localizations, StepError, StepKeyword};
 use unic_langid::{LanguageIdentifier, langid};
@@ -32,17 +32,72 @@ fn step_not_found() -> ExecutionError {
     }
 }
 
+/// Parameter object for [`make_missing_fixtures`]; collects all
+/// `MissingFixturesDetails` fields in one place so the builder function
+/// stays under the argument-count threshold.
+struct MissingFixturesSpec {
+    pub step_pattern: &'static str,
+    pub step_location: &'static str,
+    pub required: Vec<&'static str>,
+    pub missing: Vec<&'static str>,
+    pub missing_requirements: Vec<MissingFixtureDiagnostic>,
+    pub available: Vec<String>,
+    pub has_suggestion: bool,
+    pub feature_path: &'static str,
+    pub scenario_name: &'static str,
+}
+
+/// Private builder: constructs a `MissingFixtures` `ExecutionError` from
+/// the provided [`MissingFixturesSpec`], eliminating the repeated
+/// `Arc::new(...)` scaffold shared by the two fixture-error factory helpers.
+fn make_missing_fixtures(spec: MissingFixturesSpec) -> ExecutionError {
+    ExecutionError::MissingFixtures(Arc::new(MissingFixturesDetails {
+        step_pattern: spec.step_pattern.into(),
+        step_location: spec.step_location.into(),
+        required: spec.required,
+        missing: spec.missing,
+        missing_requirements: spec.missing_requirements,
+        available: spec.available,
+        has_suggestion: spec.has_suggestion,
+        feature_path: spec.feature_path.into(),
+        scenario_name: spec.scenario_name.into(),
+    }))
+}
+
 /// Helper to create a `MissingFixtures` error.
 fn missing_fixtures() -> ExecutionError {
-    ExecutionError::MissingFixtures(Arc::new(MissingFixturesDetails {
-        step_pattern: "a database connection".into(),
-        step_location: "tests/steps.rs:42".into(),
+    make_missing_fixtures(MissingFixturesSpec {
+        step_pattern: "a database connection",
+        step_location: "tests/steps.rs:42",
         required: vec!["db", "cache"],
         missing: vec!["db"],
+        missing_requirements: vec![MissingFixtureDiagnostic {
+            name: "db",
+            ty: "DbPool",
+        }],
         available: vec!["cache".into(), "config".into()],
-        feature_path: "features/db.feature".into(),
-        scenario_name: "Database query".into(),
-    }))
+        has_suggestion: false,
+        feature_path: "features/db.feature",
+        scenario_name: "Database query",
+    })
+}
+
+/// Helper to create a `MissingFixtures` error with harness guidance.
+fn missing_harness_fixture() -> ExecutionError {
+    make_missing_fixtures(MissingFixturesSpec {
+        step_pattern: "uses harness context",
+        step_location: "tests/steps.rs:9",
+        required: vec!["rstest_bdd_harness_context"],
+        missing: vec!["rstest_bdd_harness_context"],
+        missing_requirements: vec![MissingFixtureDiagnostic {
+            name: "rstest_bdd_harness_context",
+            ty: "AppContext",
+        }],
+        available: vec!["world".into()],
+        has_suggestion: true,
+        feature_path: "features/harness.feature",
+        scenario_name: "Harness context",
+    })
 }
 
 /// Helper to create a `HandlerFailed` error.
@@ -73,7 +128,7 @@ fn handler_failed() -> ExecutionError {
 )]
 #[case::missing_fixtures(
     missing_fixtures(),
-    "Step 'a database connection' (defined at tests/steps.rs:42) requires fixtures db, cache, but the following are missing: db. Available fixtures from scenario: cache, config (feature: features/db.feature, scenario: Database query)"
+    "Step 'a database connection' (defined at tests/steps.rs:42) requires fixtures db, cache, but the following are missing: db. Requested fixture information: db: DbPool. Available fixtures from scenario: cache, config  (feature: features/db.feature, scenario: Database query)"
 )]
 #[case::handler_failed(
     handler_failed(),
@@ -109,6 +164,16 @@ fn execution_error_display_uses_localized_messages_and_context(
     langid!("pl"),
     handler_failed(),
     "Krok zakończony błędem o indeksie 1: When the user clicks submit - Błąd wykonywania kroku « the user clicks submit » przez funkcję « click_submit »: button not found (feature: features/form.feature, scenariusz: Form submission)"
+)]
+#[case::zh_hans_step_not_found(
+    langid!("zh-Hans"),
+    step_not_found(),
+    "索引 3 处未找到步骤：Given a user named Alice（功能：features/auth.feature，场景：User login）"
+)]
+#[case::zh_hant_handler_failed(
+    langid!("zh-Hant"),
+    handler_failed(),
+    "步驟在索引 1 失敗：When the user clicks submit - 透過函式「click_submit」執行步驟「the user clicks submit」時發生錯誤：button not found（功能：features/form.feature，情境：Form submission）"
 )]
 fn execution_error_formats_in_locales(
     #[case] locale: LanguageIdentifier,
@@ -153,6 +218,37 @@ fn assert_contains_all(formatted: &str, expected_substrings: &[(&str, &str)]) {
         ("a database connection", "step_pattern"),
         ("tests/steps.rs:42", "step_location"),
         ("db", "missing fixture"),
+        ("DbPool", "requested fixture type"),
+        ("cache", "available fixture"),
+        ("config", "available fixture"),
+        ("features/db.feature", "feature_path"),
+        ("Database query", "scenario_name"),
+    ]
+)]
+#[case::missing_fixtures_in_simplified_chinese(
+    langid!("zh-Hans"),
+    missing_fixtures(),
+    &[
+        ("a database connection", "step_pattern"),
+        ("tests/steps.rs:42", "step_location"),
+        ("db", "missing fixture"),
+        ("DbPool", "requested fixture type"),
+        ("请求的夹具详情", "requested fixture details label"),
+        ("cache", "available fixture"),
+        ("config", "available fixture"),
+        ("features/db.feature", "feature_path"),
+        ("Database query", "scenario_name"),
+    ]
+)]
+#[case::missing_fixtures_in_traditional_chinese(
+    langid!("zh-Hant"),
+    missing_fixtures(),
+    &[
+        ("a database connection", "step_pattern"),
+        ("tests/steps.rs:42", "step_location"),
+        ("db", "missing fixture"),
+        ("DbPool", "requested fixture type"),
+        ("請求的治具詳情", "requested fixture details label"),
         ("cache", "available fixture"),
         ("config", "available fixture"),
         ("features/db.feature", "feature_path"),
@@ -170,6 +266,89 @@ fn execution_error_format_with_loader_wires_i18n_and_context(
 
     let formatted = error.format_with_loader(&loader);
     assert_contains_all(&formatted, expected_substrings);
+}
+
+const NON_ENGLISH_LOCALES: &[&str] = &[
+    "ar", "cs", "da", "de", "el", "es-419", "fa", "fi", "fr", "he", "hi", "hu", "id", "it", "ja",
+    "ko", "nb", "nl", "pl", "pt-BR", "pt-PT", "ro", "ru", "sv", "th", "tr", "uk", "vi", "zh-Hans",
+    "zh-Hant",
+];
+
+#[test]
+fn non_english_missing_fixture_diagnostics_include_runtime_arguments() {
+    for locale in NON_ENGLISH_LOCALES {
+        let locale = locale
+            .parse::<LanguageIdentifier>()
+            .unwrap_or_else(|e| panic!("invalid locale {locale}: {e}"));
+        assert_non_english_missing_fixture_diagnostics_include_runtime_arguments(&locale);
+    }
+}
+
+fn assert_non_english_missing_fixture_diagnostics_include_runtime_arguments(
+    locale: &LanguageIdentifier,
+) {
+    let loader = fluent_language_loader!();
+    i18n_embed::select(&loader, &Localizations, std::slice::from_ref(locale))
+        .unwrap_or_else(|e| panic!("failed to load {locale} translations: {e}"));
+
+    let formatted =
+        strip_directional_isolates(&missing_harness_fixture().format_with_loader(&loader));
+
+    assert!(
+        !formatted.contains("Requested fixture details:"),
+        "expected localized fixture-details label for {locale}, got: {formatted}"
+    );
+    assert!(
+        !formatted.contains("Select a harness-backed scenario"),
+        "expected localized harness suggestion for {locale}, got: {formatted}"
+    );
+    assert_contains_all(
+        &formatted,
+        &[
+            ("rstest_bdd_harness_context", "requested fixture name"),
+            ("AppContext", "requested fixture type"),
+            ("world", "available fixture"),
+        ],
+    );
+}
+
+#[test]
+fn missing_fixtures_format_includes_typed_request_details_and_suggestion() {
+    let _guard = ScopedLocalization::new(&[langid!("en-US")])
+        .unwrap_or_else(|e| panic!("en-US locale should always be available: {e}"));
+    let error = missing_harness_fixture();
+
+    assert_contains_all(
+        &error.to_string(),
+        &[
+            ("rstest_bdd_harness_context", "requested fixture name"),
+            ("AppContext", "requested fixture type"),
+            ("world", "available fixture"),
+            ("Select a harness-backed scenario", "harness suggestion"),
+        ],
+    );
+}
+
+#[test]
+fn missing_fixtures_snapshot() {
+    let _guard = ScopedLocalization::new(&[langid!("en-US")])
+        .unwrap_or_else(|e| panic!("en-US locale should always be available: {e}"));
+    let details = MissingFixturesDetails {
+        step_pattern: "needs fixture".to_string(),
+        step_location: "src/steps.rs:42".to_string(),
+        required: vec!["db"],
+        missing: vec!["db"],
+        missing_requirements: vec![MissingFixtureDiagnostic {
+            name: "db",
+            ty: "DbPool",
+        }],
+        available: vec!["world".to_string()],
+        has_suggestion: true,
+        feature_path: "features/example.feature".to_string(),
+        scenario_name: "Example scenario".to_string(),
+    };
+    let error = rstest_bdd::execution::ExecutionError::MissingFixtures(Arc::new(details));
+    insta::assert_snapshot!(format!("{error}"));
 }
 
 #[test]

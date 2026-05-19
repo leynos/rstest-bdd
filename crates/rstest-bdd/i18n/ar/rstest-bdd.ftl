@@ -26,5 +26,8 @@ execution-error-skip = تم تخطّي الخطوة{ $has_message ->
     [yes] : { $message }
 }
 execution-error-step-not-found = لم يتم العثور على الخطوة عند الفهرس { $index }: { $keyword } { $text } (الميزة: { $feature_path }، السيناريو: { $scenario_name })
-execution-error-missing-fixtures = الخطوة « { $step_pattern } » (المعرّفة في { $step_location }) تتطلب التجهيزات { $required }، لكن التالية مفقودة: { $missing }. التجهيزات المتاحة من السيناريو: { $available } (الميزة: { $feature_path }، السيناريو: { $scenario_name })
+execution-error-missing-fixtures = الخطوة « { $step_pattern } » (المعرّفة في { $step_location }) تتطلب التجهيزات { $required }، لكن التالية مفقودة: { $missing }. تفاصيل التثبيتات المطلوبة: { $missing_requirements }. التجهيزات المتاحة من السيناريو: { $available } { $has_suggestion ->
+    [yes] اختر سيناريو مدعومًا بالحزمة الاختبارية حتى يتم إدراج rstest_bdd_harness_context.
+   *[no] {""}
+} (الميزة: { $feature_path }، السيناريو: { $scenario_name })
 execution-error-handler-failed = فشلت الخطوة عند الفهرس { $index }: { $keyword } { $text } - { $error } (الميزة: { $feature_path }، السيناريو: { $scenario_name })

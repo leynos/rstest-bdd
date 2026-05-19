@@ -3,7 +3,7 @@
 use super::args::{Arg, ExtractedArgs};
 use crate::return_classifier::ReturnKind;
 use proc_macro2::TokenStream as TokenStream2;
-use quote::quote;
+use quote::{format_ident, quote};
 
 mod assembly;
 mod call_expr;
@@ -148,6 +148,7 @@ fn generate_registration_code(
     config: &WrapperConfig<'_>,
     wrapper_idents: &WrapperIdents,
 ) -> TokenStream2 {
+    let path = crate::codegen::rstest_bdd_path();
     let fixture_names: Vec<_> = config
         .args
         .fixtures()
@@ -159,31 +160,75 @@ fn generate_registration_code(
             quote! { #rendered }
         })
         .collect();
-    let fixture_len = fixture_names.len();
+    let fixture_metadata: Vec<_> = config
+        .args
+        .fixtures()
+        .map(|arg| {
+            let Arg::Fixture { name, ty, .. } = arg else {
+                unreachable!("fixture iterator must only yield fixtures");
+            };
+            let fixture_name = name.to_string();
+            let fixture_ty = effective_fixture_type(ty);
+            quote! {
+                #path::FixtureRequirement {
+                    name: #fixture_name,
+                    ty: stringify!(#fixture_ty),
+                }
+            }
+        })
+        .collect();
+    let fixture_len = fixture_metadata.len();
     let keyword = config.keyword;
-    let path = crate::codegen::rstest_bdd_path();
     let pattern_ident = &wrapper_idents.pattern_ident;
     let sync_wrapper_ident = &wrapper_idents.sync_wrapper;
     let async_wrapper_ident = &wrapper_idents.async_wrapper;
     let const_ident = &wrapper_idents.const_ident;
+    let fixture_names_ident = format_ident!("{const_ident}_NAMES");
     let execution_mode = if config.is_async_step {
         quote! { #path::StepExecutionMode::Async }
     } else {
         quote! { #path::StepExecutionMode::Both }
     };
     quote! {
-        const #const_ident: [&'static str; #fixture_len] = [#(#fixture_names),*];
+        const #const_ident: [#path::FixtureRequirement; #fixture_len] = [#(#fixture_metadata),*];
         const _: [(); #fixture_len] = [(); #const_ident.len()];
+        const #fixture_names_ident: [&'static str; #fixture_len] = [#(#fixture_names),*];
 
         #path::step!(
             @pattern #keyword,
             &#pattern_ident,
             #sync_wrapper_ident,
             #async_wrapper_ident,
-            &#const_ident,
+            &#fixture_names_ident,
             #execution_mode
         );
+        #path::submit! {
+            #path::StepFixtureRequirements {
+                keyword: #keyword,
+                pattern: &#pattern_ident,
+                requirements: &#const_ident,
+            }
+        }
     }
+}
+
+fn effective_fixture_type(ty: &syn::Type) -> &syn::Type {
+    match ty {
+        syn::Type::Reference(reference) if !is_unsized_reference_target(&reference.elem) => {
+            &reference.elem
+        }
+        _ => ty,
+    }
+}
+
+fn is_unsized_reference_target(ty: &syn::Type) -> bool {
+    matches!(
+        ty,
+        syn::Type::Slice(_) | syn::Type::TraitObject(_) | syn::Type::ImplTrait(_)
+    ) || matches!(
+        ty,
+        syn::Type::Path(path) if path.qself.is_none() && path.path.is_ident("str")
+    )
 }
 
 /// Generate the wrapper function and inventory registration.

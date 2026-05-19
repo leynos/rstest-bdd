@@ -7,7 +7,9 @@
 use std::panic::{AssertUnwindSafe, catch_unwind};
 
 use rstest_bdd::{
-    StepContext, StepError, StepExecution, StepFuture, StepKeyword, panic_message, step,
+    FixtureRequirement, RSTEST_BDD_HARNESS_CONTEXT_FIXTURE, StepContext, StepError, StepExecution,
+    StepExecutionMode, StepFixtureRequirements, StepFuture, StepKeyword, StepPattern,
+    panic_message, step, submit,
 };
 
 use super::common::{StepInvocationParams, wrap_sync_step_as_async};
@@ -139,6 +141,26 @@ step!(
     &[]
 );
 
+/// Returns `Ok` when a fixture was found, otherwise constructs a typed
+/// `MissingFixture` error. Eliminates the repeated success/error branch
+/// shared by fixture-checking step wrappers.
+fn fixture_present_or_error(
+    found: bool,
+    name: &'static str,
+    ty: &'static str,
+    step: &'static str,
+) -> Result<StepExecution, StepError> {
+    if found {
+        Ok(StepExecution::from_value(None))
+    } else {
+        Err(StepError::MissingFixture {
+            name: name.into(),
+            ty: ty.into(),
+            step: step.into(),
+        })
+    }
+}
+
 /// Step wrapper that requires a fixture named "missing" of type `u32`.
 ///
 /// Returns `MissingFixture` error when the fixture is not present, allowing
@@ -149,15 +171,12 @@ fn needs_fixture_wrapper(
     _docstring: Option<&str>,
     _table: Option<&[&[&str]]>,
 ) -> Result<StepExecution, StepError> {
-    if ctx.get::<u32>("missing").is_some() {
-        Ok(StepExecution::from_value(None))
-    } else {
-        Err(StepError::MissingFixture {
-            name: "missing".into(),
-            ty: "u32".into(),
-            step: "needs_fixture".into(),
-        })
-    }
+    fixture_present_or_error(
+        ctx.get::<u32>("missing").is_some(),
+        "missing",
+        "u32",
+        "needs_fixture",
+    )
 }
 
 async_wrapper!(needs_fixture_wrapper_async, needs_fixture_wrapper);
@@ -169,6 +188,51 @@ step!(
     needs_fixture_wrapper_async,
     &["missing"]
 );
+
+/// Step wrapper that requires the reserved harness context fixture.
+fn needs_harness_context_wrapper(
+    ctx: &mut StepContext<'_>,
+    _text: &str,
+    _docstring: Option<&str>,
+    _table: Option<&[&[&str]]>,
+) -> Result<StepExecution, StepError> {
+    fixture_present_or_error(
+        ctx.borrow_ref::<u64>(RSTEST_BDD_HARNESS_CONTEXT_FIXTURE)
+            .is_some(),
+        RSTEST_BDD_HARNESS_CONTEXT_FIXTURE,
+        "u64",
+        "needs_harness_context",
+    )
+}
+
+async_wrapper!(
+    needs_harness_context_wrapper_async,
+    needs_harness_context_wrapper
+);
+
+static NEEDS_HARNESS_CONTEXT_PATTERN: StepPattern = StepPattern::new("needs harness context");
+static NEEDS_HARNESS_CONTEXT_REQUIREMENTS: [FixtureRequirement; 1] = [FixtureRequirement {
+    name: RSTEST_BDD_HARNESS_CONTEXT_FIXTURE,
+    ty: "u64",
+}];
+
+step!(
+    @pattern
+    StepKeyword::Then,
+    &NEEDS_HARNESS_CONTEXT_PATTERN,
+    needs_harness_context_wrapper,
+    needs_harness_context_wrapper_async,
+    &[RSTEST_BDD_HARNESS_CONTEXT_FIXTURE],
+    StepExecutionMode::Both
+);
+
+submit! {
+    StepFixtureRequirements {
+        keyword: StepKeyword::Then,
+        pattern: &NEEDS_HARNESS_CONTEXT_PATTERN,
+        requirements: &NEEDS_HARNESS_CONTEXT_REQUIREMENTS,
+    }
+}
 
 /// Step wrapper used to test the `step!` macro's auto-generation of async handlers.
 ///

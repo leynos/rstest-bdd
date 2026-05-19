@@ -26,5 +26,8 @@ execution-error-skip = Stap overgeslagen{ $has_message ->
     [yes] : { $message }
 }
 execution-error-step-not-found = Stap niet gevonden op index { $index }: { $keyword } { $text } (feature: { $feature_path }, scenario: { $scenario_name })
-execution-error-missing-fixtures = Stap « { $step_pattern } » (gedefinieerd in { $step_location }) vereist fixtures { $required }, maar de volgende ontbreken: { $missing }. Beschikbare fixtures van scenario: { $available } (feature: { $feature_path }, scenario: { $scenario_name })
+execution-error-missing-fixtures = Stap « { $step_pattern } » (gedefinieerd in { $step_location }) vereist fixtures { $required }, maar de volgende ontbreken: { $missing }. Details van gevraagde fixtures: { $missing_requirements }. Beschikbare fixtures van scenario: { $available } { $has_suggestion ->
+    [yes] Selecteer een scenario met harness-ondersteuning zodat rstest_bdd_harness_context wordt ingevoegd.
+   *[no] {""}
+} (feature: { $feature_path }, scenario: { $scenario_name })
 execution-error-handler-failed = Stap gefaald op index { $index }: { $keyword } { $text } - { $error } (feature: { $feature_path }, scenario: { $scenario_name })

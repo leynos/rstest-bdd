@@ -57,9 +57,9 @@ pub use registry::dump_registry;
 pub use registry::record_bypassed_steps;
 pub use registry::record_bypassed_steps_with_tags;
 pub use registry::{
-    Step, duplicate_steps, find_step, find_step_async, find_step_async_with_mode,
-    find_step_with_metadata, find_step_with_mode, lookup_step, lookup_step_async,
-    lookup_step_async_with_mode, unused_steps,
+    FixtureRequirement, Step, StepFixtureRequirements, duplicate_steps, find_step, find_step_async,
+    find_step_async_with_mode, find_step_with_metadata, find_step_with_mode, lookup_step,
+    lookup_step_async, lookup_step_async_with_mode, unused_steps,
 };
 
 /// Whether the crate was built with the `diagnostics` feature enabled.
@@ -92,7 +92,7 @@ pub use types::{
     StepPatternError, StepTable, StepText, StepTextRef, UnsupportedStepType,
 };
 
-pub use execution::{ExecutionError, MissingFixturesDetails};
+pub use execution::{ExecutionError, MissingFixtureDiagnostic, MissingFixturesDetails};
 
 #[cfg(feature = "diagnostics")]
 #[ctor]

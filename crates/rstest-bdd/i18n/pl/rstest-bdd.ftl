@@ -26,5 +26,8 @@ execution-error-skip = Krok pominięty{ $has_message ->
     [yes] : { $message }
 }
 execution-error-step-not-found = Nie znaleziono kroku o indeksie { $index }: { $keyword } { $text } (feature: { $feature_path }, scenariusz: { $scenario_name })
-execution-error-missing-fixtures = Krok « { $step_pattern } » (zdefiniowany w { $step_location }) wymaga fiksur { $required }, ale brakuje: { $missing }. Dostępne fiksury ze scenariusza: { $available } (feature: { $feature_path }, scenariusz: { $scenario_name })
+execution-error-missing-fixtures = Krok « { $step_pattern } » (zdefiniowany w { $step_location }) wymaga fiksur { $required }, ale brakuje: { $missing }. Szczegóły żądanych fiksur: { $missing_requirements }. Dostępne fiksury ze scenariusza: { $available } { $has_suggestion ->
+    [yes] Wybierz scenariusz obsługiwany przez harness, aby wstawić rstest_bdd_harness_context.
+   *[no] {""}
+} (feature: { $feature_path }, scenariusz: { $scenario_name })
 execution-error-handler-failed = Krok zakończony błędem o indeksie { $index }: { $keyword } { $text } - { $error } (feature: { $feature_path }, scenariusz: { $scenario_name })

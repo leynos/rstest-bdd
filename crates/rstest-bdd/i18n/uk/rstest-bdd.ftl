@@ -26,5 +26,8 @@ execution-error-skip = Крок пропущено{ $has_message ->
     [yes] : { $message }
 }
 execution-error-step-not-found = Крок не знайдено за індексом { $index }: { $keyword } { $text } (feature: { $feature_path }, сценарій: { $scenario_name })
-execution-error-missing-fixtures = Крок « { $step_pattern } » (визначено у { $step_location }) потребує фікстури { $required }, але відсутні: { $missing }. Доступні фікстури зі сценарію: { $available } (feature: { $feature_path }, сценарій: { $scenario_name })
+execution-error-missing-fixtures = Крок « { $step_pattern } » (визначено у { $step_location }) потребує фікстури { $required }, але відсутні: { $missing }. Деталі запитаних фікстур: { $missing_requirements }. Доступні фікстури зі сценарію: { $available } { $has_suggestion ->
+    [yes] Виберіть сценарій із підтримкою harness, щоб було вставлено rstest_bdd_harness_context.
+   *[no] {""}
+} (feature: { $feature_path }, сценарій: { $scenario_name })
 execution-error-handler-failed = Крок завершився помилкою за індексом { $index }: { $keyword } { $text } - { $error } (feature: { $feature_path }, сценарій: { $scenario_name })

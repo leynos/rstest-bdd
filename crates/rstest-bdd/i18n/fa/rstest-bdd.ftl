@@ -26,5 +26,8 @@ execution-error-skip = گام رد شد{ $has_message ->
     [yes] : { $message }
 }
 execution-error-step-not-found = گام در شاخص { $index } یافت نشد: { $keyword } { $text } (feature: { $feature_path }، سناریو: { $scenario_name })
-execution-error-missing-fixtures = گام «{ $step_pattern }» (تعریف‌شده در { $step_location }) به فیکسچرهای { $required } نیاز دارد، اما موارد زیر وجود ندارند: { $missing }. فیکسچرهای موجود از سناریو: { $available } (feature: { $feature_path }، سناریو: { $scenario_name })
+execution-error-missing-fixtures = گام «{ $step_pattern }» (تعریف‌شده در { $step_location }) به فیکسچرهای { $required } نیاز دارد، اما موارد زیر وجود ندارند: { $missing }. جزئیات فیکسچر درخواست‌شده: { $missing_requirements }. فیکسچرهای موجود از سناریو: { $available } { $has_suggestion ->
+    [yes] یک سناریوی پشتیبانی‌شده توسط harness را انتخاب کنید تا rstest_bdd_harness_context درج شود.
+   *[no] {""}
+} (feature: { $feature_path }، سناریو: { $scenario_name })
 execution-error-handler-failed = گام در شاخص { $index } ناموفق بود: { $keyword } { $text } - { $error } (feature: { $feature_path }، سناریو: { $scenario_name })

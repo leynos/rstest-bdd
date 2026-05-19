@@ -26,5 +26,8 @@ execution-error-skip = Trin sprunget over{ $has_message ->
     [yes] : { $message }
 }
 execution-error-step-not-found = Trin ikke fundet ved indeks { $index }: { $keyword } { $text } (feature: { $feature_path }, scenarie: { $scenario_name })
-execution-error-missing-fixtures = Trinnet '{ $step_pattern }' (defineret ved { $step_location }) kræver fixtures { $required }, men følgende mangler: { $missing }. Tilgængelige fixtures fra scenariet: { $available } (feature: { $feature_path }, scenarie: { $scenario_name })
+execution-error-missing-fixtures = Trinnet '{ $step_pattern }' (defineret ved { $step_location }) kræver fixturer { $required }, men følgende mangler: { $missing }. Detaljer om anmodede fixturer: { $missing_requirements }. Tilgængelige fixturer fra scenariet: { $available } { $has_suggestion ->
+    [yes] Vælg et harness-understøttet scenarie, så rstest_bdd_harness_context indsættes.
+   *[no] {""}
+} (feature: { $feature_path }, scenarie: { $scenario_name })
 execution-error-handler-failed = Trin fejlede ved indeks { $index }: { $keyword } { $text } - { $error } (feature: { $feature_path }, scenarie: { $scenario_name })

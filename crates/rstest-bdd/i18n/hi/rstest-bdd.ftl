@@ -26,5 +26,8 @@ execution-error-skip = स्टेप छोड़ा गया{ $has_message -
     [yes] : { $message }
 }
 execution-error-step-not-found = इंडेक्स { $index } पर स्टेप नहीं मिला: { $keyword } { $text } (फ़ीचर: { $feature_path }, सिनेरियो: { $scenario_name })
-execution-error-missing-fixtures = स्टेप « { $step_pattern } » ({ $step_location } पर परिभाषित) को फ़िक्चर { $required } की आवश्यकता है, लेकिन निम्नलिखित अनुपस्थित हैं: { $missing }। सिनेरियो से उपलब्ध फ़िक्चर: { $available } (फ़ीचर: { $feature_path }, सिनेरियो: { $scenario_name })
+execution-error-missing-fixtures = स्टेप « { $step_pattern } » ({ $step_location } पर परिभाषित) को फ़िक्चर { $required } की आवश्यकता है, लेकिन निम्नलिखित अनुपस्थित हैं: { $missing }। अनुरोधित फ़िक्चर विवरण: { $missing_requirements }। सिनेरियो से उपलब्ध फ़िक्चर: { $available } { $has_suggestion ->
+    [yes] harness-समर्थित सिनेरियो चुनें ताकि rstest_bdd_harness_context जोड़ा जा सके।
+   *[no] {""}
+} (फ़ीचर: { $feature_path }, सिनेरियो: { $scenario_name })
 execution-error-handler-failed = इंडेक्स { $index } पर स्टेप विफल: { $keyword } { $text } - { $error } (फ़ीचर: { $feature_path }, सिनेरियो: { $scenario_name })

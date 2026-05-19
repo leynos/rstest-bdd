@@ -236,6 +236,12 @@ Choosing the correct attribute is critical for communicating the intent of an
 example and ensuring the test suite provides meaningful feedback. The following
 table provides a comparative reference for the most common doctest attributes.
 
+For `rstest-bdd` examples that show fixture naming, keep the naming rule visible
+instead of hiding it behind helper prose: implicit fixture injection normalizes
+one leading underscore, and `#[from(...)]` is the exact-name escape hatch. This
+matters most for doctests that demonstrate `_world`, `__world`, or harness
+context fixture keys.
+
 | Attribute    | Action                                                              | Test Outcome                                                   | Primary Use Case & Warnings                                                                                                                                                                                                           |
 | ------------ | ------------------------------------------------------------------- | -------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | ignore       | Skips both compilation and execution.                               | ignored                                                        | Use Case: For pseudocode, examples known to be broken, or to temporarily disable a test. Warning: Provides no guarantee that the code is even syntactically correct. Generally discouraged in favour of more specific attributes.[^3] |

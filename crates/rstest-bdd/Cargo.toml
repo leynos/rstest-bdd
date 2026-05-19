@@ -36,10 +36,12 @@ unic-langid.workspace = true
 [dev-dependencies]
 camino.workspace = true
 cap-std.workspace = true
+insta.workspace = true
 rstest.workspace = true
 rstest-bdd-macros.workspace = true
 rstest-bdd-harness.workspace = true
 trybuild.workspace = true
+proptest.workspace = true
 serial_test.workspace = true
 the-newtype = "0.1.1"
 tokio.workspace = true

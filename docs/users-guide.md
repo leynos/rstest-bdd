@@ -163,6 +163,12 @@ key–value map of fixture names to type‑erased references. When a scenario ru
 the generated test inserts its arguments (the `rstest` fixtures) into the
 `StepContext` before invoking each registered step.
 
+If a required fixture is not present, the runtime diagnostic lists the missing
+fixture name, the Rust type requested by the step, and the fixture keys already
+inserted into the scenario context. For harness context specifically, a missing
+`rstest_bdd_harness_context` fixture also includes a hint to select a
+harness-backed scenario so the reserved context fixture is inserted.
+
 ### Mutable world fixtures
 
 Each scenario owns its fixtures, so value fixtures are stored with exclusive
@@ -916,7 +922,10 @@ struct TestClock {
 Unit-context harnesses, where `type Context = ()`, should instead call
 `request.run_without_context()`. Non-unit context harnesses must call
 `request.run(context)`, otherwise step functions cannot borrow the context via
-the reserved fixture key.
+the reserved fixture key. If a step requests the reserved fixture but the
+scenario did not run through a context-providing harness, the missing-fixture
+error reports `rstest_bdd_harness_context`, the requested context type, the
+fixtures that were inserted, and a hint to use a harness-backed scenario.
 
 Step definitions request the harness context with
 `#[from(rstest_bdd_harness_context)]`. The parameter name is adapter-specific;

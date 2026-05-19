@@ -191,7 +191,9 @@ impl ExecutionErrorTestCase {
                     step_location: "test.rs:1".into(),
                     required: vec!["fixture"],
                     missing: vec!["fixture"],
+                    missing_requirements: vec![],
                     available: vec![],
+                    has_suggestion: false,
                     feature_path: "test.feature".into(),
                     scenario_name: "test".into(),
                 }))

@@ -1,7 +1,5 @@
-//! Step registration and lookup.
-//! This module defines the `Step` record, the `step!` macro for registration,
-//! and the global registry used to find steps by keyword and pattern or by
-//! placeholder matching.
+//! Step registration, lookup, and placeholder matching.
+//! Defines `Step`, the `step!` registration macro, and the global registry.
 
 use crate::pattern::StepPattern;
 use crate::placeholder::extract_placeholders;
@@ -16,11 +14,14 @@ mod async_lookup;
 mod bypassed;
 #[cfg(feature = "diagnostics")]
 pub(crate) mod diagnostics;
+/// Typed fixture requirement metadata for registered BDD steps.
+mod fixtures;
 
 pub use async_lookup::{
     find_step_async_with_mode, find_step_with_mode, lookup_step_async_with_mode,
 };
 pub use bypassed::{record_bypassed_steps, record_bypassed_steps_with_tags};
+pub use fixtures::{FixtureRequirement, StepFixtureRequirements, fixture_requirements_for_step};
 
 /// Represents a single step definition registered with the framework.
 #[derive(Debug)]
@@ -188,6 +189,7 @@ macro_rules! step {
 }
 
 inventory::collect!(Step);
+inventory::collect!(StepFixtureRequirements);
 
 type StepKey = (StepKeyword, &'static StepPattern);
 

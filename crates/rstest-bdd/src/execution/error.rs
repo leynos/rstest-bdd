@@ -95,7 +95,27 @@
 
 use std::sync::Arc;
 
-use crate::{StepError, StepKeyword};
+use crate::{FixtureRequirement, StepError, StepKeyword};
+
+mod format;
+
+/// Diagnostic details for one missing fixture request.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct MissingFixtureDiagnostic {
+    /// Fixture name requested by the step.
+    pub name: &'static str,
+    /// Rust type requested by the step.
+    pub ty: &'static str,
+}
+
+impl From<FixtureRequirement> for MissingFixtureDiagnostic {
+    fn from(requirement: FixtureRequirement) -> Self {
+        Self {
+            name: requirement.name,
+            ty: requirement.ty,
+        }
+    }
+}
 
 /// Error type for step execution failures.
 ///
@@ -178,8 +198,12 @@ pub struct MissingFixturesDetails {
     pub required: Vec<&'static str>,
     /// List of missing fixture names.
     pub missing: Vec<&'static str>,
+    /// List of missing fixture requests with their expected Rust types.
+    pub missing_requirements: Vec<MissingFixtureDiagnostic>,
     /// List of available fixture names in the context.
     pub available: Vec<String>,
+    /// Whether this missing fixture set should show harness-context guidance.
+    pub has_suggestion: bool,
     /// Path to the feature file.
     pub feature_path: String,
     /// Name of the scenario.
@@ -249,95 +273,13 @@ impl ExecutionError {
     }
 }
 
-impl ExecutionError {
-    /// Render the error message using the provided Fluent loader.
-    ///
-    /// This allows formatting the error using a specific locale loader rather than
-    /// the global default. This is useful when you need consistent locale handling
-    /// across nested error types.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use i18n_embed::fluent::fluent_language_loader;
-    /// use unic_langid::langid;
-    /// use rstest_bdd::execution::ExecutionError;
-    ///
-    /// let loader = {
-    ///     use i18n_embed::LanguageLoader;
-    ///     use rstest_bdd::Localizations;
-    ///     let loader = fluent_language_loader!();
-    ///     i18n_embed::select(&loader, &Localizations, &[langid!("en-US")])
-    ///         .expect("en-US locale should always be available");
-    ///     loader
-    /// };
-    /// let error = ExecutionError::Skip { message: Some("not implemented".into()) };
-    /// let message = error.format_with_loader(&loader);
-    /// assert!(message.contains("skipped"));
-    /// assert!(message.contains("not implemented"));
-    /// ```
-    #[must_use]
-    pub fn format_with_loader(&self, loader: &crate::FluentLanguageLoader) -> String {
-        match self {
-            Self::Skip { message } => {
-                crate::localization::message_with_loader(loader, "execution-error-skip", |args| {
-                    args.set(
-                        "has_message",
-                        if message.is_some() { "yes" } else { "no" }.to_string(),
-                    );
-                    args.set("message", message.clone().unwrap_or_default());
-                })
-            }
-            Self::StepNotFound {
-                index,
-                keyword,
-                text,
-                feature_path,
-                scenario_name,
-            } => crate::localization::message_with_loader(
-                loader,
-                "execution-error-step-not-found",
-                |args| {
-                    args.set("index", index.to_string());
-                    args.set("keyword", keyword.as_str().to_string());
-                    args.set("text", text.clone());
-                    args.set("feature_path", feature_path.clone());
-                    args.set("scenario_name", scenario_name.clone());
-                },
-            ),
-            Self::MissingFixtures(details) => crate::localization::message_with_loader(
-                loader,
-                "execution-error-missing-fixtures",
-                |args| {
-                    args.set("step_pattern", details.step_pattern.clone());
-                    args.set("step_location", details.step_location.clone());
-                    args.set("required", details.required.join(", "));
-                    args.set("missing", details.missing.join(", "));
-                    args.set("available", details.available.join(", "));
-                    args.set("feature_path", details.feature_path.clone());
-                    args.set("scenario_name", details.scenario_name.clone());
-                },
-            ),
-            Self::HandlerFailed {
-                index,
-                keyword,
-                text,
-                error,
-                feature_path,
-                scenario_name,
-            } => crate::localization::message_with_loader(
-                loader,
-                "execution-error-handler-failed",
-                |args| {
-                    args.set("index", index.to_string());
-                    args.set("keyword", keyword.as_str().to_string());
-                    args.set("text", text.clone());
-                    args.set("error", error.format_with_loader(loader));
-                    args.set("feature_path", feature_path.clone());
-                    args.set("scenario_name", scenario_name.clone());
-                },
-            ),
-        }
+impl MissingFixturesDetails {
+    fn format_missing_requirements(&self) -> String {
+        self.missing_requirements
+            .iter()
+            .map(|requirement| format!("{}: {}", requirement.name, requirement.ty))
+            .collect::<Vec<_>>()
+            .join(", ")
     }
 }
 

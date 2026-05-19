@@ -26,5 +26,8 @@ execution-error-skip = Pas omis{ $has_message ->
     [yes] : { $message }
 }
 execution-error-step-not-found = Pas negăsit la indexul { $index }: { $keyword } { $text } (feature: { $feature_path }, scenariu: { $scenario_name })
-execution-error-missing-fixtures = Pasul „{ $step_pattern }" (definit la { $step_location }) necesită fixturi { $required }, dar următoarele lipsesc: { $missing }. Fixturi disponibile din scenariu: { $available } (feature: { $feature_path }, scenariu: { $scenario_name })
+execution-error-missing-fixtures = Pasul „{ $step_pattern }” (definit la { $step_location }) necesită fixturi { $required }, dar următoarele lipsesc: { $missing }. Detalii despre fixturi solicitate: { $missing_requirements }. Fixturi disponibile din scenariu: { $available } { $has_suggestion ->
+    [yes] Selectați un scenariu susținut de harness pentru ca rstest_bdd_harness_context să fie inserat.
+   *[no] {""}
+} (feature: { $feature_path }, scenariu: { $scenario_name })
 execution-error-handler-failed = Pas eșuat la indexul { $index }: { $keyword } { $text } - { $error } (feature: { $feature_path }, scenariu: { $scenario_name })
