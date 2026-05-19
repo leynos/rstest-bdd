@@ -1,9 +1,6 @@
 //! Localized formatting helpers for execution errors.
 
-use std::sync::Arc;
-
 use super::{ExecutionError, MissingFixturesDetails};
-use crate::{StepError, StepKeyword};
 
 impl ExecutionError {
     /// Render the error message using the provided Fluent loader.
@@ -36,37 +33,9 @@ impl ExecutionError {
     pub fn format_with_loader(&self, loader: &crate::FluentLanguageLoader) -> String {
         match self {
             Self::Skip { message } => Self::format_skip(loader, message.as_deref()),
-            Self::StepNotFound {
-                index,
-                keyword,
-                text,
-                feature_path,
-                scenario_name,
-            } => Self::format_step_not_found(
-                loader,
-                *index,
-                *keyword,
-                text,
-                feature_path,
-                scenario_name,
-            ),
+            Self::StepNotFound { .. } => self.format_step_not_found(loader),
             Self::MissingFixtures(details) => Self::format_missing_fixtures(loader, details),
-            Self::HandlerFailed {
-                index,
-                keyword,
-                text,
-                error,
-                feature_path,
-                scenario_name,
-            } => Self::format_handler_failed(
-                loader,
-                *index,
-                *keyword,
-                text,
-                error,
-                feature_path,
-                scenario_name,
-            ),
+            Self::HandlerFailed { .. } => self.format_handler_failed(loader),
         }
     }
 
@@ -80,20 +49,23 @@ impl ExecutionError {
         })
     }
 
-    fn format_step_not_found(
-        loader: &crate::FluentLanguageLoader,
-        index: usize,
-        keyword: StepKeyword,
-        text: &str,
-        feature_path: &str,
-        scenario_name: &str,
-    ) -> String {
+    fn format_step_not_found(&self, loader: &crate::FluentLanguageLoader) -> String {
+        let Self::StepNotFound {
+            index,
+            keyword,
+            text,
+            feature_path,
+            scenario_name,
+        } = self
+        else {
+            unreachable!("format_step_not_found called on non-StepNotFound variant");
+        };
         crate::localization::message_with_loader(loader, "execution-error-step-not-found", |args| {
             args.set("index", index.to_string());
             args.set("keyword", keyword.as_str().to_string());
-            args.set("text", text.to_string());
-            args.set("feature_path", feature_path.to_string());
-            args.set("scenario_name", scenario_name.to_string());
+            args.set("text", text.clone());
+            args.set("feature_path", feature_path.clone());
+            args.set("scenario_name", scenario_name.clone());
         })
     }
 
@@ -124,22 +96,25 @@ impl ExecutionError {
         )
     }
 
-    fn format_handler_failed(
-        loader: &crate::FluentLanguageLoader,
-        index: usize,
-        keyword: StepKeyword,
-        text: &str,
-        error: &Arc<StepError>,
-        feature_path: &str,
-        scenario_name: &str,
-    ) -> String {
+    fn format_handler_failed(&self, loader: &crate::FluentLanguageLoader) -> String {
+        let Self::HandlerFailed {
+            index,
+            keyword,
+            text,
+            error,
+            feature_path,
+            scenario_name,
+        } = self
+        else {
+            unreachable!("format_handler_failed called on non-HandlerFailed variant");
+        };
         crate::localization::message_with_loader(loader, "execution-error-handler-failed", |args| {
             args.set("index", index.to_string());
             args.set("keyword", keyword.as_str().to_string());
-            args.set("text", text.to_string());
+            args.set("text", text.clone());
             args.set("error", error.format_with_loader(loader));
-            args.set("feature_path", feature_path.to_string());
-            args.set("scenario_name", scenario_name.to_string());
+            args.set("feature_path", feature_path.clone());
+            args.set("scenario_name", scenario_name.clone());
         })
     }
 }
