@@ -79,6 +79,8 @@ static ASYNC_WHEN_RAN: AtomicBool = AtomicBool::new(false);
 
 #[given("an async given step runs")]
 async fn async_given_step() {
+    ASYNC_GIVEN_RAN.store(false, Ordering::Release);
+    ASYNC_WHEN_RAN.store(false, Ordering::Release);
     ASYNC_GIVEN_RAN.store(true, Ordering::Release);
 }
 
@@ -90,11 +92,11 @@ async fn async_when_step() {
 #[then("the async steps completed")]
 async fn async_steps_completed() {
     assert!(
-        ASYNC_GIVEN_RAN.load(Ordering::Acquire),
+        ASYNC_GIVEN_RAN.swap(false, Ordering::AcqRel),
         "async given step should have executed"
     );
     assert!(
-        ASYNC_WHEN_RAN.load(Ordering::Acquire),
+        ASYNC_WHEN_RAN.swap(false, Ordering::AcqRel),
         "async when step should have executed"
     );
 }
