@@ -364,10 +364,15 @@ locking with an isolated Cargo cache. Wait for shared Cargo locks, naturally.
   violate `clippy::expect_used`; changing `windows()` away from `Vec` would
   diverge from the planned upstream-like shim API; deriving `thiserror::Error`
   would add a dependency to the local shim.
-- [ ] Update user-facing and internal documentation only where required.
+- [x] 2026-05-21T13:34:00+02:00 Updated the user guide, developer guide, and
+  design document for the new harness-owned GPUI `stateful_window` suite and
+  corrected stale GPUI test-path/feature references.
+- [x] 2026-05-21T13:40:00+02:00 Ran CodeRabbit for the documentation
+  milestone; it reported zero findings.
 - [ ] Run `make check-fmt`, `make lint`, `make test`, and Markdown gates where
   applicable.
-- [ ] Mark roadmap item 10.1.3 done after all implementation gates pass.
+- [x] 2026-05-21T13:34:00+02:00 Marked roadmap item 10.1.3 done after the
+  feature-gated suite and milestone gates passed.
 - [ ] Push the implementation branch and update the pull request.
 
 ## Surprises & discoveries

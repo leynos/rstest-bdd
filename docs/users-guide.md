@@ -1178,11 +1178,13 @@ fn my_gpui_scenario_with_explicit_override() {}
 ```
 
 This contract is enforced by focused integration coverage in
-`crates/rstest-bdd/tests/trybuild_macros.rs` and
-`crates/rstest-bdd/tests/scenario_harness_gpui.rs`. Those suites verify GPUI
-attribute-policy resolution for `#[scenario]` and `scenarios!`, plus
+`crates/rstest-bdd-harness-gpui/tests/macro_compile.rs`,
+`crates/rstest-bdd-harness-gpui/tests/scenario_macros.rs`, and
+`crates/rstest-bdd-harness-gpui/tests/stateful_window.rs`. Those suites verify
+GPUI attribute-policy resolution for `#[scenario]` and `scenarios!`,
 deduplication when a `#[scenario]` test already carries an explicit
-`#[gpui::test]`.
+`#[gpui::test]`, and stateful window scenarios that carry durable handles
+across steps.
 
 For a complete working example, see the `examples/gpui-counter` crate, which
 models a simple counter application whose BDD suite exercises both
@@ -1205,7 +1207,7 @@ observations (such as `TestAppContext` availability) in the domain model.
 > `#[gpui::test]` APIs used by `rstest-bdd`, while publish-check automation
 > compiles a generated packaged harness validator against the upstream `gpui`
 > crate. GPUI-specific behavioural and integration suites remain feature-gated
-> behind `native-gpui-tests` and `gpui-harness-tests`.
+> behind `native-gpui-tests`.
 
 Harness-backed scenarios also expose harness context to step functions through
 a reserved fixture key: `rstest_bdd_harness_context`. The generated harness

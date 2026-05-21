@@ -79,6 +79,7 @@ harness crates:
 | `rstest-bdd-harness-tokio` | `scenario_macros` | `#[scenario]` + Tokio adapter                           |
 | `rstest-bdd-harness-tokio` | `macro_compile`   | trybuild compile-pass/fail for Tokio fixtures           |
 | `rstest-bdd-harness-gpui`  | `scenario_macros` | `#[scenario]` + GPUI adapter (feature-gated)            |
+| `rstest-bdd-harness-gpui`  | `stateful_window` | durable GPUI handles + visual context reconstruction    |
 | `rstest-bdd-harness-gpui`  | `macro_compile`   | trybuild compile-pass for GPUI fixtures (feature-gated) |
 
 These tests were moved out of `rstest-bdd` in this release to decouple the core

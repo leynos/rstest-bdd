@@ -1876,7 +1876,7 @@ The first official adapters and policies are:
   Publish-check automation synthesizes a standalone package artifact for
   `rstest-bdd-harness-gpui` and compiles a generated validator crate against
   upstream `gpui`; GPUI behavioural and integration tests remain feature-gated
-  (`native-gpui-tests` and `gpui-harness-tests`) as explicit opt-in suites. A
+  behind `native-gpui-tests` as an explicit opt-in suite. A
   user-facing demonstration crate under `examples/gpui-counter` models a simple
   counter application whose BDD suite exercises `GpuiHarness` with harness-led
   default attributes end-to-end, with step definitions that access injected
@@ -2007,6 +2007,13 @@ fn press_tab(
 The reset must run before assigning new scenario state. The world stores the
 window handle, not `VisualTestContext`, so later steps can rebuild the visual
 context from the handle and the current harness context.
+
+The feature-gated GPUI harness regression suite under
+`crates/rstest-bdd-harness-gpui/tests/stateful_window.rs` exercises this
+interim pattern. It creates a window, stores durable `Entity<T>` and
+`AnyWindowHandle` values in resettable scenario state, reconstructs
+`VisualTestContext` from the window handle in later steps, and comments the
+reset-before-assignment protocol beside the reset helper.
 
 ##### 2.7.6.3 v0.6.0-beta2 quick wins
 
