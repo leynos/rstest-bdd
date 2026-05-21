@@ -373,7 +373,9 @@ locking with an isolated Cargo cache. Wait for shared Cargo locks, naturally.
   `make lint`, `make test`, and `make markdownlint` all passed.
 - [x] 2026-05-21T13:34:00+02:00 Marked roadmap item 10.1.3 done after the
   feature-gated suite and milestone gates passed.
-- [ ] Push the implementation branch and update the pull request.
+- [x] 2026-05-21T13:48:00+02:00 Pushed the implementation branch and updated
+  draft PR #495 with the implemented scope, validation results, and Lody
+  session reference.
 
 ## Surprises & discoveries
 
@@ -483,3 +485,6 @@ Validation passed:
   and zero findings for the documentation milestone. Later trivial suggestions
   to use `.expect()` were skipped because the workspace denies
   `clippy::expect_used`; this decision is recorded above.
+
+The branch was pushed to `origin/10-1-3-feature-gated-gpui-test-suite`, and
+draft PR #495 was updated for implementation review.
