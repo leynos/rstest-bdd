@@ -48,8 +48,9 @@ approval before changing production or test code.
   implementation must include comments explaining why that order matters.
 - Use `rstest` for unit-style helper tests and real `.feature` files plus
   `#[scenario]` or `scenarios!` for behavioural coverage.
-- Use `rust-rspec` only if there is already an applicable repository pattern
-  or dependency. Adding it solely to satisfy this task is not permitted.
+- Use `rstest-bdd` itself for behavioural tests, following the current
+  repository structure of `.feature` files driven by `#[scenario]` or
+  `scenarios!`. Do not add or use another BDD runner for this task.
 - New external dependencies require explicit approval before addition.
 - Avoid Kani or Verus unless implementation introduces a substantive
   invariant over ranges of inputs, state transitions, orderings, or business
@@ -161,10 +162,9 @@ Read these repository documents before implementation:
 External Firecrawl research found GPUI testing prior art that matches the local
 design: GPUI tests use `#[gpui::test]`, `TestAppContext` for basic test
 context, and `VisualTestContext::from_window(window.into(), cx)` for
-window-dependent assertions. The `rust-rspec` project provides BDD lifecycle
-prior art with explicit `before_each` / `after_each` hooks, but this repository
-should still implement reset through its existing scenario-state pattern rather
-than adding another BDD runner.
+window-dependent assertions. Behavioural regression coverage should still use
+`rstest-bdd` itself, following the current harness-owned integration test
+structure in this repository rather than introducing another BDD runner.
 
 ## Implementation plan
 
@@ -322,8 +322,10 @@ locking with an isolated Cargo cache. Wait for shared Cargo locks, naturally.
 - [x] 2026-05-19T18:24:55Z Used a Wyvern agent team for read-only planning
   reconnaissance on test placement, feature gating, documentation drift, and
   validation risks.
-- [x] 2026-05-19T18:24:55Z Used Firecrawl to check GPUI testing and Rust BDD
-  prior art.
+- [x] 2026-05-19T18:24:55Z Used Firecrawl to check GPUI testing prior art.
+- [x] 2026-05-21T09:41:04Z Removed erroneous `rust-rspec` planning guidance;
+  behavioural tests for this item should use `rstest-bdd` per current
+  repository structure.
 - [x] 2026-05-19T18:24:55Z Drafted this pre-implementation ExecPlan.
 - [ ] Receive explicit user approval to implement this ExecPlan.
 - [ ] Confirm the branch tracks
