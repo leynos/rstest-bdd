@@ -675,7 +675,7 @@ implementation commitments.
   expansion with an async step. Delivered under maintainer authorization while
   ADR-008 remains in Proposed status; the prerequisite will be formally
   satisfied when ADR-008 is accepted. (Pandalump, Doggylump)
-- [ ] 9.7.3. Add unit, trybuild, and behavioural coverage for harness-led
+- [x] 9.7.3. Add unit, trybuild, and behavioural coverage for harness-led
   defaults and explicit overrides across the first-party harnesses. Cover
   harness-only scenarios, explicit override scenarios, attributes-only
   scenarios, and unknown third-party harness paths where relevant. Finish line:
@@ -683,7 +683,10 @@ implementation commitments.
   first-party test attributes when the generated signature permits it, explicit
   overrides win, and `attributes`-only behaviour remains unchanged.
   Prerequisite: 9.7.2. Design Doc:
-  `docs/adr-008-harness-led-attribute-policy-defaults.md`. (Buzzy Bee)
+  `docs/adr-008-harness-led-attribute-policy-defaults.md`. Delivered
+  2026-05-21 with unit coverage for precedence and unknown-path negatives,
+  trybuild fixtures for first-party override and attributes-only expansion,
+  and behavioural Tokio and GPUI scenario coverage. (Buzzy Bee)
 - [ ] 9.7.4. Update the user guide, design document, and first-party example
   prose to lead with harness-only configuration once the default-inference
   behaviour lands. Retain `attributes = ...` as an override pattern and keep

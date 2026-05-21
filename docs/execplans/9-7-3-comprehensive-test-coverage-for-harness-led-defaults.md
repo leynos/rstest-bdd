@@ -4,7 +4,7 @@ This ExecPlan (execution plan) is a living document. The sections `Constraints`,
 `Tolerances`, `Risks`, `Progress`, `Surprises & Discoveries`, `Decision Log`,
 and `Outcomes & Retrospective` must be kept up to date as work proceeds.
 
-Status: IN PROGRESS
+Status: COMPLETE
 
 This plan covers roadmap item 9.7.3 only. It must be approved before
 implementation begins. While
@@ -175,12 +175,20 @@ uncovers an actual mismatch that would mislead an implementer.
       `cargo test -p rstest-bdd-harness-tokio --test scenario_macros` and
       `cargo test -p rstest-bdd-harness-gpui --features native-gpui-tests
       --test scenario_macros`.
-- [ ] Run focused validation and CodeRabbit review for the coverage milestone.
-- [ ] Update only the documentation that demonstrably mismatches tested
-      behaviour, if any.
-- [ ] Run final repository gates and CodeRabbit review.
-- [ ] Mark roadmap item 9.7.3 done only after implementation, review, and gates
-      pass.
+- [x] (2026-05-21) Ran focused validation and CodeRabbit review after the
+      unit, trybuild, and behavioural milestones. CodeRabbit reported no
+      concerns on those milestone reviews.
+- [x] (2026-05-21) Checked documentation impact and left user, developer,
+      design, and ADR prose unchanged because roadmap item 9.7.4 owns the
+      example-led prose update and no tested behaviour contradicted the
+      current documentation.
+- [x] (2026-05-21) Ran final repository gates:
+      `make markdownlint`, `make nixie`, `make check-fmt`, `make lint`, and
+      `make test`.
+- [x] (2026-05-21) Ran final `coderabbit review --agent --type uncommitted`;
+      it reported zero findings.
+- [x] (2026-05-21) Marked roadmap item 9.7.3 done after implementation,
+      focused reviews, and repository gates passed.
 
 ## Surprises & Discoveries
 
@@ -233,6 +241,10 @@ uncovers an actual mismatch that would mislead an implementer.
   availability. `TokioAttributePolicy` emits `#[tokio::test]`, which provides
   a Tokio runtime, while `TokioHarness` additionally provides the `LocalSet`
   needed by `tokio::task::spawn_local`.
+- `make fmt` was retried during implementation and still stopped on
+  pre-existing repository-wide Markdown line-length and footnote findings. The
+  unrelated formatter churn was restored, and the committed documentation was
+  validated with `make markdownlint`, `make nixie`, and `make check-fmt`.
 
 ## Decision Log
 
@@ -257,6 +269,14 @@ uncovers an actual mismatch that would mislead an implementer.
 - Decision: do not plan Kani or Verus work for the default coverage matrix.
   Rationale: the requirement concerns a finite, table-backed precedence rule
   rather than an unbounded state, ordering, transition, or proof obligation.
+- Decision: keep `docs/users-guide.md`, `docs/developers-guide.md`,
+  `docs/rstest-bdd-design.md`, and ADR prose unchanged in this milestone.
+  Rationale: 9.7.3 is a coverage milestone, 9.7.4 owns the harness-only prose
+  reorientation, and the new tests did not reveal a documentation mismatch.
+- Decision: make the Tokio attributes-only behavioural scenario assert runtime
+  availability rather than `spawn_local` support. Rationale:
+  `TokioAttributePolicy` supplies the Tokio test runtime, while `TokioHarness`
+  owns the additional `LocalSet` behaviour.
 
 ## Implementation Plan
 
@@ -393,6 +413,19 @@ Firecrawl was used to resolve tooling and prior-art gaps:
 
 ## Outcomes & Retrospective
 
-Not started. This section must be updated during and after implementation with
-what changed, which gates passed, any review findings, and whether the coverage
-matrix exposed gaps in the existing ADR-008 implementation.
+Implemented the 9.7.3 coverage matrix without production resolver changes.
+Unit coverage now proves first-party path recognition, explicit override
+precedence, attributes-only preservation, signature-permitted emission, and
+unknown harness-path negatives. Trybuild coverage now exercises explicit
+default-policy overrides and Tokio attributes-only expansion in the
+first-party harness crates. Behavioural coverage now proves Tokio
+attributes-only runtime availability plus explicit default-policy overrides for
+Tokio and GPUI harness-led scenarios.
+
+Focused validation passed for policy and macro unit tests, Tokio and GPUI
+trybuild suites, and Tokio and GPUI behavioural suites. Final repository gates
+passed with `make markdownlint`, `make nixie`, `make check-fmt`, `make lint`,
+and `make test`; the final `make test` run reported 1458 Rust tests passed, 7
+skipped, and 62 Python publish-check tests passed. CodeRabbit reviews after the
+unit, trybuild, behavioural, and final documentation milestones reported no
+concerns.
