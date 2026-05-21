@@ -30,6 +30,11 @@ fn handle_confirms_current_thread() {
     tokio::task::spawn_local(async {});
 }
 
+#[then("the Tokio runtime remains available")]
+fn tokio_runtime_remains_available() {
+    let _handle = tokio::runtime::Handle::current();
+}
+
 /// Tests `#[scenario]` with `harness = TokioHarness` only.
 #[scenario(
     path = "tests/features/tokio_harness.feature",
@@ -46,6 +51,24 @@ fn scenario_runs_inside_tokio_runtime() {}
     attributes = rstest_bdd_harness_tokio::TokioAttributePolicy,
 )]
 fn scenario_runs_with_harness_and_policy() {}
+
+/// Tests that an explicit default attribute policy can override harness-led
+/// Tokio test attributes while the selected harness still provides a runtime.
+#[scenario(
+    path = "tests/features/tokio_harness.feature",
+    name = "Tokio harness with default attribute override",
+    harness = rstest_bdd_harness_tokio::TokioHarness,
+    attributes = rstest_bdd_harness::DefaultAttributePolicy,
+)]
+fn scenario_runs_with_harness_and_default_policy_override() {}
+
+/// Tests `#[scenario]` with `TokioAttributePolicy` and no harness.
+#[scenario(
+    path = "tests/features/tokio_harness.feature",
+    name = "Tokio attribute policy without harness",
+    attributes = rstest_bdd_harness_tokio::TokioAttributePolicy,
+)]
+async fn scenario_runs_with_attribute_policy_only() {}
 
 // --- Async step definitions for TokioHarness ---
 

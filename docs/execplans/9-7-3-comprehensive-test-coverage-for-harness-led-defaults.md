@@ -168,7 +168,13 @@ uncovers an actual mismatch that would mislead an implementer.
       `cargo test -p rstest-bdd-harness-tokio --test macro_compile` and
       `cargo test -p rstest-bdd-harness-gpui --features native-gpui-tests
       --test macro_compile`.
-- [ ] Add or extend behavioural scenario tests for first-party harnesses.
+- [x] (2026-05-21) Added behavioural Tokio coverage for attributes-only use
+      and explicit default-policy override, plus GPUI coverage for explicit
+      default-policy override.
+- [x] (2026-05-21) Ran focused behavioural validation with
+      `cargo test -p rstest-bdd-harness-tokio --test scenario_macros` and
+      `cargo test -p rstest-bdd-harness-gpui --features native-gpui-tests
+      --test scenario_macros`.
 - [ ] Run focused validation and CodeRabbit review for the coverage milestone.
 - [ ] Update only the documentation that demonstrably mismatches tested
       behaviour, if any.
@@ -223,6 +229,10 @@ uncovers an actual mismatch that would mislead an implementer.
   `DefaultAttributePolicy` overrides on first-party Tokio and GPUI harnesses.
   These compile checks complement the unit tests that assert the exact
   attribute-precedence outcome.
+- Tokio attributes-only behavioural coverage cannot assert `spawn_local`
+  availability. `TokioAttributePolicy` emits `#[tokio::test]`, which provides
+  a Tokio runtime, while `TokioHarness` additionally provides the `LocalSet`
+  needed by `tokio::task::spawn_local`.
 
 ## Decision Log
 

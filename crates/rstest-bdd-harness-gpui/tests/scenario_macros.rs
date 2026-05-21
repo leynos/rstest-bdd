@@ -146,6 +146,15 @@ fn scenario_gpui_harness_with_attribute_policy() {}
 
 #[scenario(
     path = "tests/features/gpui_harness.feature",
+    name = "GPUI harness with default attribute override",
+    harness = rstest_bdd_harness_gpui::GpuiHarness,
+    attributes = rstest_bdd_harness::DefaultAttributePolicy,
+)]
+#[serial]
+fn scenario_gpui_harness_with_default_policy_override() {}
+
+#[scenario(
+    path = "tests/features/gpui_harness.feature",
     name = "GPUI attribute policy runs without harness",
     attributes = rstest_bdd_harness_gpui::GpuiAttributePolicy,
 )]
