@@ -55,7 +55,7 @@ impl WindowRegistry {
 
         let mut visual_context = VisualTestContext::new(window, Rc::clone(&self.inner));
         let view = build_view(&mut visual_context);
-        self.insert_entity(entity, view);
+        self.insert_entity(window, entity, view);
 
         (entity, visual_context)
     }
@@ -68,15 +68,24 @@ impl WindowRegistry {
         self.inner.borrow().windows.contains(&window)
     }
 
-    fn insert_entity<T>(&self, entity: Entity<T>, view: T)
+    fn insert_entity<T>(&self, window: AnyWindowHandle, entity: Entity<T>, view: T)
     where
         T: 'static,
     {
-        self.inner
-            .borrow_mut()
-            .entities
-            .insert(entity.id, Box::new(view));
+        self.inner.borrow_mut().entities.insert(
+            entity.id,
+            StoredEntity {
+                window,
+                value: Box::new(view),
+            },
+        );
     }
+}
+
+#[derive(Debug)]
+struct StoredEntity {
+    window: AnyWindowHandle,
+    value: Box<dyn Any>,
 }
 
 #[derive(Debug)]
@@ -85,7 +94,7 @@ struct WindowRegistryState {
     next_entity_id: u64,
     next_window_id: u64,
     windows: Vec<AnyWindowHandle>,
-    entities: HashMap<u64, Box<dyn Any>>,
+    entities: HashMap<u64, StoredEntity>,
 }
 
 impl WindowRegistryState {
@@ -208,7 +217,10 @@ impl VisualTestContext {
         registry
             .entities
             .get(&entity.id)
-            .and_then(|entity| entity.downcast_ref::<T>())
+            .filter(|stored_entity| {
+                entity.registry_id == registry.registry_id && stored_entity.window == self.window
+            })
+            .and_then(|stored_entity| stored_entity.value.downcast_ref::<T>())
             .map(read)
     }
 
@@ -220,6 +232,7 @@ impl VisualTestContext {
     where
         T: 'static,
     {
+        let window = self.window;
         RefMut::filter_map(self.registry.borrow_mut(), |registry| {
             if entity.registry_id != registry.registry_id {
                 return None;
@@ -227,7 +240,8 @@ impl VisualTestContext {
             registry
                 .entities
                 .get_mut(&entity.id)
-                .and_then(|entity| entity.downcast_mut::<T>())
+                .filter(|stored_entity| stored_entity.window == window)
+                .and_then(|stored_entity| stored_entity.value.downcast_mut::<T>())
         })
         .ok()
     }

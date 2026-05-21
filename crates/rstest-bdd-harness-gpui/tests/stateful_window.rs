@@ -1,6 +1,7 @@
 //! Behavioural coverage for stateful GPUI window scenarios.
 #![cfg(feature = "native-gpui-tests")]
 
+use rstest::fixture;
 use rstest_bdd_macros::{given, scenario, then, when};
 use serial_test::serial;
 use std::cell::RefCell;
@@ -25,7 +26,26 @@ thread_local! {
 fn reset_state_before_assignment() {
     // Reset before assigning the next scenario's handles so a reused serial
     // test thread cannot observe handles left by a failed or skipped scenario.
+    reset_state_after_scenario();
+}
+
+fn reset_state_after_scenario() {
     SCENARIO_STATE.with(|state| *state.borrow_mut() = ScenarioState::default());
+}
+
+#[derive(Clone, Debug)]
+struct ScenarioStateCleanup;
+
+impl Drop for ScenarioStateCleanup {
+    fn drop(&mut self) {
+        reset_state_after_scenario();
+    }
+}
+
+#[fixture]
+fn scenario_state_cleanup() -> ScenarioStateCleanup {
+    reset_state_before_assignment();
+    ScenarioStateCleanup
 }
 
 fn with_state<R>(operation: impl FnOnce(&mut ScenarioState) -> R) -> R {
@@ -156,13 +176,52 @@ fn visual_test_context_from_window_returns_none_for_foreign_handle() {
     );
 }
 
+#[test]
+fn entity_access_is_rejected_from_the_wrong_window() {
+    let mut context = gpui::TestAppContext::single();
+    let (first_entity, first_visual_context) =
+        context.add_window_view(|_context| CounterView::default());
+    let (_second_entity, second_visual_context) =
+        context.add_window_view(|_context| CounterView::default());
+
+    assert_eq!(
+        first_visual_context.read_entity(first_entity, |view| view.value),
+        Some(0),
+        "the owning visual context should be able to read its own entity"
+    );
+
+    let mut second_visual_context =
+        gpui::VisualTestContext::from_window(second_visual_context.window_handle(), &mut context)
+            .unwrap_or_else(|| panic!("second window handle should reconstruct visual context"));
+    let update_result = second_visual_context.update_entity(first_entity, |view| {
+        view.value += 1;
+        panic!("cross-window entity updates should not invoke the update closure");
+    });
+
+    assert_eq!(
+        update_result,
+        Err(gpui::EntityError::NotFound {
+            id: first_entity.id()
+        }),
+        "a visual context should reject entity handles owned by another window"
+    );
+    assert_eq!(
+        second_visual_context.read_entity(first_entity, |view| view.value),
+        None,
+        "a visual context should not read entity handles owned by another window"
+    );
+}
+
 #[scenario(
     path = "tests/features/stateful_window.feature",
     name = "Reconstruct visual context from durable handles",
     harness = rstest_bdd_harness_gpui::GpuiHarness,
 )]
 #[serial]
-fn scenario_reconstructs_visual_context_from_durable_handles() {}
+fn scenario_reconstructs_visual_context_from_durable_handles(
+    #[from(scenario_state_cleanup)] _cleanup: ScenarioStateCleanup,
+) {
+}
 
 #[scenario(
     path = "tests/features/stateful_window.feature",
@@ -170,4 +229,7 @@ fn scenario_reconstructs_visual_context_from_durable_handles() {}
     harness = rstest_bdd_harness_gpui::GpuiHarness,
 )]
 #[serial]
-fn scenario_opening_second_window_starts_from_reset_state() {}
+fn scenario_opening_second_window_starts_from_reset_state(
+    #[from(scenario_state_cleanup)] _cleanup: ScenarioStateCleanup,
+) {
+}
