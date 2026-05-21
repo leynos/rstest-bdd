@@ -161,7 +161,13 @@ uncovers an actual mismatch that would mislead an implementer.
       `cargo test -p rstest-bdd-policy` and
       `cargo test -p rstest-bdd-macros
       codegen::scenario::tests::harness_defaults`.
-- [ ] Add or extend trybuild fixtures in the Tokio and GPUI adapter crates.
+- [x] (2026-05-21) Added trybuild coverage for Tokio `scenarios!`
+      attributes-only use and explicit default-policy overrides for Tokio and
+      GPUI harness-led defaults.
+- [x] (2026-05-21) Ran focused trybuild validation with
+      `cargo test -p rstest-bdd-harness-tokio --test macro_compile` and
+      `cargo test -p rstest-bdd-harness-gpui --features native-gpui-tests
+      --test macro_compile`.
 - [ ] Add or extend behavioural scenario tests for first-party harnesses.
 - [ ] Run focused validation and CodeRabbit review for the coverage milestone.
 - [ ] Update only the documentation that demonstrably mismatches tested
@@ -209,6 +215,14 @@ uncovers an actual mismatch that would mislead an implementer.
 - The first unit milestone found the main gaps in negative policy-path
   coverage and in macro-level `attributes`-only and explicit-override matrix
   cases. No production resolver changes were needed.
+- The GPUI trybuild suite is intentionally behind the
+  `native-gpui-tests` feature declared by `rstest-bdd-harness-gpui`. Focused
+  GPUI validation therefore uses that feature explicitly, while `make test`
+  exercises the repository's configured all-feature gate later.
+- Trybuild coverage now includes compile-pass fixtures for explicit
+  `DefaultAttributePolicy` overrides on first-party Tokio and GPUI harnesses.
+  These compile checks complement the unit tests that assert the exact
+  attribute-precedence outcome.
 
 ## Decision Log
 

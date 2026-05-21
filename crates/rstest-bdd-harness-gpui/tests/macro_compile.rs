@@ -17,8 +17,10 @@ fn gpui_macro_fixtures_compile() -> Result<(), Box<dyn std::error::Error>> {
         "tests/fixtures_macros/scenario_attributes_gpui.rs",
         "tests/fixtures_macros/scenario_attributes_gpui_absolute.rs",
         "tests/fixtures_macros/scenario_harness_gpui_default.rs",
+        "tests/fixtures_macros/scenario_harness_gpui_override_default.rs",
         "tests/fixtures_macros/scenarios_attributes_gpui.rs",
         "tests/fixtures_macros/scenarios_harness_gpui_default.rs",
+        "tests/fixtures_macros/scenarios_harness_gpui_override_default.rs",
     ] {
         tests.pass(case);
     }

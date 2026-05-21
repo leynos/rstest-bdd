@@ -16,6 +16,8 @@ fn tokio_macro_fixtures_compile() -> Result<(), Box<dyn std::error::Error>> {
         "tests/fixtures_macros/scenario_attributes_tokio_sync.rs",
         "tests/fixtures_macros/scenario_attributes_tokio_dedup.rs",
         "tests/fixtures_macros/scenario_harness_tokio_default.rs",
+        "tests/fixtures_macros/scenario_harness_tokio_override_default.rs",
+        "tests/fixtures_macros/scenarios_attributes_tokio.rs",
         "tests/fixtures_macros/scenarios_harness_tokio_default.rs",
     ] {
         tests.pass(case);
