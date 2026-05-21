@@ -65,6 +65,48 @@ fn parse_path(s: &str) -> syn::Path {
     true,
     false
 )]
+#[case::explicit_gpui_attributes_override_tokio_harness(
+    RuntimeMode::Sync,
+    Some(parse_path("rstest_bdd_harness_tokio::TokioHarness")),
+    Some(parse_path("rstest_bdd_harness_gpui::GpuiAttributePolicy")),
+    false,
+    true
+)]
+#[case::explicit_default_attributes_override_tokio_harness(
+    RuntimeMode::TokioCurrentThread,
+    Some(parse_path("rstest_bdd_harness_tokio::TokioHarness")),
+    Some(parse_path("rstest_bdd_harness::DefaultAttributePolicy")),
+    false,
+    false
+)]
+#[case::tokio_attributes_only_use_tokio_policy(
+    RuntimeMode::Sync,
+    None,
+    Some(parse_path("rstest_bdd_harness_tokio::TokioAttributePolicy")),
+    true,
+    false
+)]
+#[case::gpui_attributes_only_use_gpui_policy(
+    RuntimeMode::TokioCurrentThread,
+    None,
+    Some(parse_path("rstest_bdd_harness_gpui::GpuiAttributePolicy")),
+    false,
+    true
+)]
+#[case::unknown_third_party_sync_harness_stays_rstest_only(
+    RuntimeMode::Sync,
+    Some(parse_path("third_party_harness::TokioHarness")),
+    None,
+    false,
+    false
+)]
+#[case::unknown_third_party_like_gpui_harness_uses_runtime_fallback(
+    RuntimeMode::TokioCurrentThread,
+    Some(parse_path("third_party_harness::GpuiHarness")),
+    None,
+    true,
+    false
+)]
 fn generate_test_attrs_honours_harness_precedence(
     #[case] runtime: RuntimeMode,
     #[case] harness_path: Option<syn::Path>,
@@ -122,6 +164,54 @@ fn tokio_harness_default_omits_tokio_for_sync_harness_function() {
     assert!(
         !output.contains("tokio :: test"),
         "Tokio harness defaults must not emit tokio::test for sync functions: {output}"
+    );
+}
+
+#[test]
+fn attributes_only_tokio_policy_emits_tokio_for_async_function() {
+    let policy_path = parse_path("rstest_bdd_harness_tokio::TokioAttributePolicy");
+    let tokens = generate_test_attrs(
+        &[],
+        &TestAttrPolicy {
+            runtime: RuntimeMode::Sync,
+            harness: None,
+            attributes: Some(&policy_path),
+        },
+        true,
+    );
+    let output = tokens.to_string();
+
+    assert!(
+        output.contains("rstest :: rstest"),
+        "should contain rstest::rstest: {output}"
+    );
+    assert!(
+        output.contains("tokio :: test"),
+        "Tokio attributes-only async functions should emit tokio::test: {output}"
+    );
+}
+
+#[test]
+fn attributes_only_tokio_policy_omits_tokio_for_sync_function() {
+    let policy_path = parse_path("rstest_bdd_harness_tokio::TokioAttributePolicy");
+    let tokens = generate_test_attrs(
+        &[],
+        &TestAttrPolicy {
+            runtime: RuntimeMode::Sync,
+            harness: None,
+            attributes: Some(&policy_path),
+        },
+        false,
+    );
+    let output = tokens.to_string();
+
+    assert!(
+        output.contains("rstest :: rstest"),
+        "should contain rstest::rstest: {output}"
+    );
+    assert!(
+        !output.contains("tokio :: test"),
+        "Tokio attributes-only sync functions must not emit tokio::test: {output}"
     );
 }
 

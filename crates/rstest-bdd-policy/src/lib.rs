@@ -235,6 +235,10 @@ mod tests {
     )]
     #[case(&["my", "Policy"], None)]
     #[case(&["TokioAttributePolicy"], None)]
+    #[case(&["my", "TokioAttributePolicy"], None)]
+    #[case(&["rstest_bdd_harness", "TokioAttributePolicy"], None)]
+    #[case(&["rstest_bdd_harness_tokio", "TokioAttributePolicy", "Extra"], None)]
+    #[case(&["third_party_harness", "GpuiAttributePolicy"], None)]
     fn resolves_attribute_policy_paths(
         #[case] path: &[&str],
         #[case] expected: Option<TestAttributeHint>,

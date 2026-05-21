@@ -4,7 +4,7 @@ This ExecPlan (execution plan) is a living document. The sections `Constraints`,
 `Tolerances`, `Risks`, `Progress`, `Surprises & Discoveries`, `Decision Log`,
 and `Outcomes & Retrospective` must be kept up to date as work proceeds.
 
-Status: DRAFT
+Status: IN PROGRESS
 
 This plan covers roadmap item 9.7.3 only. It must be approved before
 implementation begins. While
@@ -150,10 +150,17 @@ uncovers an actual mismatch that would mislead an implementer.
       `make nixie`, `make check-fmt`, `make lint`, and `make test`.
 - [x] (2026-05-19) Ran `coderabbit review --agent` on the draft and addressed
       its prose findings.
-- [ ] Await explicit maintainer approval before implementation.
-- [ ] Reconcile current tests against the 9.7.3 coverage matrix.
-- [ ] Add missing unit coverage for precedence, signature-permitted emission,
-      explicit overrides, `attributes`-only cases and unknown harness paths.
+- [x] (2026-05-21) Maintainer approved implementation and clarified that
+      `rust-rspec` was historical bootstrap context, not a requirement.
+- [x] (2026-05-21) Began execution and reconciled current tests against the
+      9.7.3 coverage matrix.
+- [x] (2026-05-21) Added missing unit coverage for precedence,
+      signature-permitted emission, explicit overrides, `attributes`-only
+      cases, and unknown harness paths.
+- [x] (2026-05-21) Ran focused unit validation with
+      `cargo test -p rstest-bdd-policy` and
+      `cargo test -p rstest-bdd-macros
+      codegen::scenario::tests::harness_defaults`.
 - [ ] Add or extend trybuild fixtures in the Tokio and GPUI adapter crates.
 - [ ] Add or extend behavioural scenario tests for first-party harnesses.
 - [ ] Run focused validation and CodeRabbit review for the coverage milestone.
@@ -193,6 +200,15 @@ uncovers an actual mismatch that would mislead an implementer.
   pre-existing Markdown line-length findings and touched unrelated tracked
   files. The unrelated formatter churn was restored, and the committed plan is
   validated with the configured documentation gates instead.
+- The repository already contains most of the target surfaces: macro unit
+  tests in `harness_defaults.rs`, policy path tests, Tokio and GPUI trybuild
+  fixtures, and behavioural `scenario_macros.rs` tests. The implementation
+  should fill matrix gaps rather than rewrite the resolver.
+- The `rust-rspec` mention is historical context only. Behavioural coverage for
+  this task should dogfood this workspace's own `rstest-bdd` scenario tests.
+- The first unit milestone found the main gaps in negative policy-path
+  coverage and in macro-level `attributes`-only and explicit-override matrix
+  cases. No production resolver changes were needed.
 
 ## Decision Log
 
@@ -210,6 +226,10 @@ uncovers an actual mismatch that would mislead an implementer.
   Rationale: the repository already has BDD scenario behavioural tests through
   its own macros, and adding a new testing framework would exceed a
   coverage-only milestone without explicit approval.
+- Decision: treat the 2026-05-21 maintainer clarification as superseding the
+  earlier `rust-rspec` request. Rationale: the maintainer confirmed `rspec`
+  was bootstrap history, and this repository now intentionally dogfoods its own
+  `rstest-bdd` behavioural tests.
 - Decision: do not plan Kani or Verus work for the default coverage matrix.
   Rationale: the requirement concerns a finite, table-backed precedence rule
   rather than an unbounded state, ordering, transition, or proof obligation.
