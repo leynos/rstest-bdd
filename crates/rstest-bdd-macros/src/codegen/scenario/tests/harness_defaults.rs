@@ -9,6 +9,14 @@ fn parse_path(s: &str) -> syn::Path {
 }
 
 #[rstest::rstest]
+// This table protects the ADR-008 precedence order:
+//
+// 1. explicit `attributes = ...` wins, even when it names another first-party
+//    policy or an unknown policy;
+// 2. fully qualified first-party harness paths imply their matching defaults;
+// 3. unresolved or third-party-like harness paths fall back to the runtime; and
+// 4. `attributes = ...` without `harness = ...` keeps the attributes-only
+//    behaviour that existed before harness-led defaults.
 #[case::tokio_harness_beats_sync_runtime(
     RuntimeMode::Sync,
     Some(parse_path("rstest_bdd_harness_tokio::TokioHarness")),
@@ -169,6 +177,7 @@ fn tokio_harness_default_omits_tokio_for_sync_harness_function() {
 
 #[test]
 fn attributes_only_tokio_policy_emits_tokio_for_async_function() {
+    // Attributes-only Tokio policy remains valid for generated async tests.
     let policy_path = parse_path("rstest_bdd_harness_tokio::TokioAttributePolicy");
     let tokens = generate_test_attrs(
         &[],
@@ -193,6 +202,8 @@ fn attributes_only_tokio_policy_emits_tokio_for_async_function() {
 
 #[test]
 fn attributes_only_tokio_policy_omits_tokio_for_sync_function() {
+    // The same explicit policy must not produce an invalid `#[tokio::test]`
+    // on generated synchronous test functions.
     let policy_path = parse_path("rstest_bdd_harness_tokio::TokioAttributePolicy");
     let tokens = generate_test_attrs(
         &[],
