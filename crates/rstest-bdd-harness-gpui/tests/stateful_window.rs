@@ -110,8 +110,6 @@ fn no_stale_handles_from_previous_scenario_remain() {
 #[test]
 fn update_entity_returns_not_found_for_unknown_handle() {
     let mut context_with_window = gpui::TestAppContext::single();
-    let (_first_entity, _visual_context) =
-        context_with_window.add_window_view(|_context| CounterView::default());
     let (stale_entity, _visual_context) =
         context_with_window.add_window_view(|_context| CounterView::default());
 
@@ -145,6 +143,13 @@ fn visual_test_context_from_window_returns_none_for_foreign_handle() {
     let foreign_window = visual_context.window_handle();
 
     let mut unrelated_context = gpui::TestAppContext::single();
+    let (_entity, unrelated_visual_context) =
+        unrelated_context.add_window_view(|_context| CounterView::default());
+    assert_eq!(
+        foreign_window.id(),
+        unrelated_visual_context.window_handle().id(),
+        "this regression must prove equal numeric ids from different contexts do not match"
+    );
     assert!(
         gpui::VisualTestContext::from_window(foreign_window, &mut unrelated_context).is_none(),
         "from_window should reject handles from a different TestAppContext"

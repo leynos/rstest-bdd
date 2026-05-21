@@ -9,11 +9,22 @@ use std::{
     fmt,
     marker::PhantomData,
     rc::Rc,
+    sync::atomic::{AtomicU64, Ordering},
 };
 
-#[derive(Clone, Debug, Default)]
+static NEXT_REGISTRY_ID: AtomicU64 = AtomicU64::new(1);
+
+#[derive(Clone, Debug)]
 pub(crate) struct WindowRegistry {
     inner: Rc<RefCell<WindowRegistryState>>,
+}
+
+impl Default for WindowRegistry {
+    fn default() -> Self {
+        Self {
+            inner: Rc::new(RefCell::new(WindowRegistryState::new())),
+        }
+    }
 }
 
 impl WindowRegistry {
@@ -30,9 +41,11 @@ impl WindowRegistry {
             state.next_entity_id += 1;
 
             let window = AnyWindowHandle {
+                registry_id: state.registry_id,
                 id: state.next_window_id,
             };
             let entity = Entity {
+                registry_id: state.registry_id,
                 id: state.next_entity_id,
                 _marker: PhantomData,
             };
@@ -66,17 +79,31 @@ impl WindowRegistry {
     }
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 struct WindowRegistryState {
+    registry_id: u64,
     next_entity_id: u64,
     next_window_id: u64,
     windows: Vec<AnyWindowHandle>,
     entities: HashMap<u64, Box<dyn Any>>,
 }
 
+impl WindowRegistryState {
+    fn new() -> Self {
+        Self {
+            registry_id: NEXT_REGISTRY_ID.fetch_add(1, Ordering::Relaxed),
+            next_entity_id: 0,
+            next_window_id: 0,
+            windows: Vec::new(),
+            entities: HashMap::new(),
+        }
+    }
+}
+
 /// Durable typed handle for an entity stored in a GPUI test window.
 #[derive(Debug)]
 pub struct Entity<T> {
+    registry_id: u64,
     id: u64,
     _marker: PhantomData<fn() -> T>,
 }
@@ -100,6 +127,7 @@ impl<T> Copy for Entity<T> {}
 /// Type-erased durable handle for a GPUI test window.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct AnyWindowHandle {
+    registry_id: u64,
     id: u64,
 }
 
@@ -193,6 +221,9 @@ impl VisualTestContext {
         T: 'static,
     {
         RefMut::filter_map(self.registry.borrow_mut(), |registry| {
+            if entity.registry_id != registry.registry_id {
+                return None;
+            }
             registry
                 .entities
                 .get_mut(&entity.id)
