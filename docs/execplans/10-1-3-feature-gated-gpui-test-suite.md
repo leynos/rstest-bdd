@@ -4,7 +4,7 @@ This ExecPlan (execution plan) is a living document. The sections `Constraints`,
  `Tolerances`, `Risks`, `Progress`, `Surprises & discoveries`, `Decision log`,
 and `Outcomes & retrospective` must be kept up to date as work proceeds.
 
-Status: IN PROGRESS
+Status: COMPLETE
 
 ## Purpose / big picture
 
@@ -369,8 +369,8 @@ locking with an isolated Cargo cache. Wait for shared Cargo locks, naturally.
   corrected stale GPUI test-path/feature references.
 - [x] 2026-05-21T13:40:00+02:00 Ran CodeRabbit for the documentation
   milestone; it reported zero findings.
-- [ ] Run `make check-fmt`, `make lint`, `make test`, and Markdown gates where
-  applicable.
+- [x] 2026-05-21T13:44:00+02:00 Ran final gates: `make check-fmt`,
+  `make lint`, `make test`, and `make markdownlint` all passed.
 - [x] 2026-05-21T13:34:00+02:00 Marked roadmap item 10.1.3 done after the
   feature-gated suite and milestone gates passed.
 - [ ] Push the implementation branch and update the pull request.
@@ -456,6 +456,30 @@ locking with an isolated Cargo cache. Wait for shared Cargo locks, naturally.
 
 ## Outcomes & retrospective
 
-Pending. Fill this in during implementation with the behaviour shipped, gates
-run, CodeRabbit findings, deviations from this plan, and any follow-up work
-left for 10.1.4 or 10.2.1.
+Complete. The feature-gated GPUI harness suite now includes
+`crates/rstest-bdd-harness-gpui/tests/stateful_window.rs`, driven by
+`tests/features/stateful_window.feature`. The suite creates a GPUI window,
+stores durable `Entity<T>` and `AnyWindowHandle` values in scenario state,
+reconstructs `VisualTestContext` per step, and comments the
+reset-before-assignment protocol next to the reset helper.
+
+The local GPUI shim gained only the window/entity test-support surface needed
+by the regression, split into `vendor/gpui/src/test_window.rs` to preserve the
+repository file-size convention. Documentation now points at the harness-owned
+GPUI test suite, removes stale `gpui-harness-tests` guidance, and marks roadmap
+item 10.1.3 complete.
+
+Validation passed:
+
+- `cargo test -p rstest-bdd-harness-gpui --features native-gpui-tests`
+  passed with 19 GPUI harness tests, including the two new stateful window
+  scenarios.
+- `make check-fmt` passed.
+- `make lint` passed.
+- `make test` passed with 1445 nextest tests passed, 7 skipped, and 62 Python
+  publish-check tests passed.
+- `make markdownlint` passed.
+- CodeRabbit reported two actionable behavioural findings, which were fixed,
+  and zero findings for the documentation milestone. Later trivial suggestions
+  to use `.expect()` were skipped because the workspace denies
+  `clippy::expect_used`; this decision is recorded above.
