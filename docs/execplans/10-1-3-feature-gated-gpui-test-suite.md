@@ -1,11 +1,10 @@
 # ExecPlan 10.1.3: add the feature-gated GPUI regression suite
 
-This ExecPlan (execution plan) is a living document. The sections
-`Constraints`, `Tolerances`, `Risks`, `Progress`, `Surprises & discoveries`,
-`Decision log`, and `Outcomes & retrospective` must be kept up to date as work
-proceeds.
+This ExecPlan (execution plan) is a living document. The sections `Constraints`,
+ `Tolerances`, `Risks`, `Progress`, `Surprises & discoveries`, `Decision log`,
+and `Outcomes & retrospective` must be kept up to date as work proceeds.
 
-Status: DRAFT
+Status: IN PROGRESS
 
 ## Purpose / big picture
 
@@ -327,15 +326,44 @@ locking with an isolated Cargo cache. Wait for shared Cargo locks, naturally.
   behavioural tests for this item should use `rstest-bdd` per current
   repository structure.
 - [x] 2026-05-19T18:24:55Z Drafted this pre-implementation ExecPlan.
-- [ ] Receive explicit user approval to implement this ExecPlan.
-- [ ] Confirm the branch tracks
+- [x] 2026-05-21T12:15:00+02:00 Received explicit user approval to
+  implement this ExecPlan.
+- [x] 2026-05-21T12:15:00+02:00 Confirmed the branch tracks
   `origin/10-1-3-feature-gated-gpui-test-suite`.
-- [ ] Capture the focused GPUI baseline.
-- [ ] Add the red stateful GPUI behavioural regression.
-- [ ] Add the minimal local GPUI shim support required by the regression.
-- [ ] Implement durable-handle state, reset-before-assignment, and per-step
+- [x] 2026-05-21T12:16:00+02:00 Captured the focused GPUI baseline with
+  `cargo test -p rstest-bdd-harness-gpui --features native-gpui-tests`; the
+  existing 17 GPUI tests passed.
+- [x] 2026-05-21T12:18:00+02:00 Added the red stateful GPUI behavioural
+  regression. The focused gate now fails because the local GPUI shim lacks
+  `Entity`, `AnyWindowHandle`, `VisualTestContext`,
+  `TestAppContext::add_window_view`, and `TestAppContext::windows`.
+- [x] 2026-05-21T12:24:00+02:00 Added the minimal local GPUI shim support
+  required by the regression: `Entity<T>`, `AnyWindowHandle`,
+  `VisualTestContext`, `TestAppContext::add_window_view`, and
+  `TestAppContext::windows`.
+- [x] 2026-05-21T12:24:00+02:00 Implemented durable-handle state,
+  reset-before-assignment, and per-step
   visual-context reconstruction in the GPUI harness test suite.
-- [ ] Run the focused GPUI gate and CodeRabbit review.
+- [x] 2026-05-21T12:27:00+02:00 Ran the focused GPUI gate after the
+  implementation; 19 GPUI harness tests passed, including the two new
+  `stateful_window` scenarios.
+- [x] 2026-05-21T12:36:00+02:00 Ran CodeRabbit review for the behavioural
+  milestone and received two findings.
+- [x] 2026-05-21T12:39:00+02:00 Cleared CodeRabbit's behavioural milestone
+  findings by extracting entity insertion and making invalid entity updates
+  report an error instead of being silently ignored.
+- [x] 2026-05-21T12:48:00+02:00 Reworked the Option diagnostics in the
+  behavioural test through a local `require_some` helper. This keeps
+  CodeRabbit's requested explicit diagnostics while preserving the workspace
+  `clippy::expect_used` policy.
+- [x] 2026-05-21T13:08:00+02:00 Removed the local diagnostics helper after
+  CodeRabbit's follow-up and used direct `unwrap_or_else` calls with the same
+  messages. Added a semantic `gpui::EntityError` for invalid entity updates.
+- [x] 2026-05-21T13:27:00+02:00 Re-ran CodeRabbit. Remaining findings were
+  skipped as non-actionable for this milestone: three `.expect()` suggestions
+  violate `clippy::expect_used`; changing `windows()` away from `Vec` would
+  diverge from the planned upstream-like shim API; deriving `thiserror::Error`
+  would add a dependency to the local shim.
 - [ ] Update user-facing and internal documentation only where required.
 - [ ] Run `make check-fmt`, `make lint`, `make test`, and Markdown gates where
   applicable.
@@ -357,6 +385,34 @@ locking with an isolated Cargo cache. Wait for shared Cargo locks, naturally.
 - 2026-05-19T18:24:55Z: Firecrawl prior art agrees with the local design that
   `VisualTestContext` is the window-dependent context and should be created
   from a window handle plus `TestAppContext` when needed.
+- 2026-05-21T12:18:00+02:00: The red regression failed for the expected shim
+  gap, not because of `rstest-bdd` macro wiring. The missing symbols are the
+  minimal upstream-like GPUI test surface identified by the plan.
+- 2026-05-21T12:24:00+02:00: Adding the shim directly to
+  `vendor/gpui/src/lib.rs` pushed that file over the repository's 400-line
+  code-file limit. The window/entity surface now lives in
+  `vendor/gpui/src/test_window.rs`, with `lib.rs` re-exporting the public
+  test-support types.
+- 2026-05-21T12:25:00+02:00: `make fmt` applied Rust formatting but its
+  Markdown phase reported pre-existing Markdown line-length and reference
+  issues across unrelated files. The unrelated formatter edits were restored,
+  and subsequent validation uses `make check-fmt` plus targeted Markdown
+  checks for files changed by this task.
+- 2026-05-21T12:36:00+02:00: CodeRabbit flagged silent invalid-handle updates
+  in the GPUI shim. The shim now returns `Result<(), String>` from
+  `VisualTestContext::update_entity`, keeping invalid durable handles visible
+  to tests.
+- 2026-05-21T12:48:00+02:00: CodeRabbit suggested `.expect()` for clearer
+  Option diagnostics, but the workspace denies `clippy::expect_used`. The
+  compatible fix is a small `require_some` helper using `unwrap_or_else` with
+  the same failure messages.
+- 2026-05-21T13:08:00+02:00: CodeRabbit's follow-up accepted the diagnostic
+  intent but preferred removing the helper. Direct `unwrap_or_else` calls keep
+  the lint policy intact while avoiding an extra abstraction.
+- 2026-05-21T13:27:00+02:00: CodeRabbit can prefer concise `.expect()` in
+  tests, but this repository denies `clippy::expect_used`; direct
+  `unwrap_or_else(|| panic!(...))` is the compatible local pattern for these
+  diagnostics.
 
 ## Decision log
 
@@ -376,6 +432,22 @@ locking with an isolated Cargo cache. Wait for shared Cargo locks, naturally.
   Rationale: the change should add regression coverage for a concrete harness
   scenario, not introduce a new algorithm or business invariant requiring
   exhaustive proof.
+- 2026-05-21T12:24:00+02:00: Split the local GPUI window/entity shim into
+  `vendor/gpui/src/test_window.rs`. Rationale: the shim is cohesive test
+  support and keeping it separate preserves the 400-line file-size convention
+  without changing the crate's external names.
+- 2026-05-21T12:39:00+02:00: Make `VisualTestContext::update_entity` return
+  `Result<(), String>` for invalid handles. Rationale: this is a local shim
+  test-support API and a failed reconstruction/update should be explicit
+  rather than silently ignored.
+- 2026-05-21T13:08:00+02:00: Replace the temporary `String` update error with
+  `gpui::EntityError`. Rationale: even in the local shim, a semantic error
+  keeps invalid-handle failures typed and easier to assert later.
+- 2026-05-21T13:27:00+02:00: Keep `TestAppContext::windows() -> Vec<_>` and a
+  manual `EntityError` implementation. Rationale: the plan intentionally
+  models the upstream-like `windows()` handle list, and adding `thiserror` to
+  the local GPUI shim would violate the no-new-dependency constraint for a
+  small test-support error.
 
 ## Outcomes & retrospective
 

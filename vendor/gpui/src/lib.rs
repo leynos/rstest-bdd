@@ -14,6 +14,9 @@ use std::{
 };
 
 pub use gpui_macros::test;
+pub use test_window::{AnyWindowHandle, Entity, EntityError, VisualTestContext};
+
+mod test_window;
 
 enum AttemptAction {
     Success,
@@ -90,6 +93,7 @@ pub struct TestAppContext {
     dispatcher: TestDispatcher,
     executor: BackgroundExecutor,
     fn_name: Option<&'static str>,
+    windows: test_window::WindowRegistry,
 }
 
 impl TestAppContext {
@@ -100,6 +104,7 @@ impl TestAppContext {
             dispatcher: dispatcher.clone(),
             executor: BackgroundExecutor::new(Arc::new(dispatcher)),
             fn_name,
+            windows: test_window::WindowRegistry::default(),
         }
     }
 
@@ -135,6 +140,23 @@ impl TestAppContext {
 
     /// Registers cleanup to run when the test context shuts down.
     pub fn on_quit(&mut self, _callback: impl FnOnce() + 'static) {}
+
+    /// Creates a test window containing the view returned by `build_view`.
+    pub fn add_window_view<T>(
+        &mut self,
+        build_view: impl FnOnce(&mut VisualTestContext) -> T,
+    ) -> (Entity<T>, VisualTestContext)
+    where
+        T: 'static,
+    {
+        self.windows.add_window_view(build_view)
+    }
+
+    /// Returns the window handles known to this test context.
+    #[must_use]
+    pub fn windows(&self) -> Vec<AnyWindowHandle> {
+        self.windows.handles()
+    }
 
     /// Tears down the test context. This shim has no extra cleanup.
     pub fn quit(&self) {}

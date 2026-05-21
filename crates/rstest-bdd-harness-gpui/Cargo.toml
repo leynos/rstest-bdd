@@ -50,6 +50,11 @@ path = "tests/scenario_macros.rs"
 required-features = ["native-gpui-tests"]
 
 [[test]]
+name = "stateful_window"
+path = "tests/stateful_window.rs"
+required-features = ["native-gpui-tests"]
+
+[[test]]
 name = "macro_compile"
 path = "tests/macro_compile.rs"
 required-features = ["native-gpui-tests"]
