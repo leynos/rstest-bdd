@@ -1,4 +1,14 @@
 //! Behavioural coverage for stateful GPUI window scenarios.
+//!
+//! These tests exercise the GPUI harness path used by generated BDD scenarios:
+//! a `GpuiHarness` scenario receives one `TestAppContext`, creates a window,
+//! stores durable `Entity<T>` and `AnyWindowHandle` values in scenario state,
+//! and reconstructs `VisualTestContext` from those handles in later steps.
+//!
+//! The module also documents the reset protocol expected by stateful scenarios.
+//! Thread-local scenario state is cleared before fresh handle assignment and by
+//! a fixture guard at scenario teardown, so success, failure, and skip paths do
+//! not leak stale handles into the next serial GPUI scenario.
 #![cfg(feature = "native-gpui-tests")]
 
 use rstest::fixture;
@@ -153,6 +163,13 @@ fn update_entity_returns_not_found_for_unknown_handle() {
             id: stale_entity.id()
         })
     );
+}
+
+#[test]
+fn entity_error_display_snapshot() {
+    let error = gpui::EntityError::NotFound { id: 42 };
+
+    insta::assert_snapshot!(format!("{error}"));
 }
 
 #[test]

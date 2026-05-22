@@ -1,4 +1,16 @@
 //! Window and entity handles for the local GPUI test support shim.
+//!
+//! This module models the subset of GPUI test-window behaviour that the
+//! rstest-bdd GPUI harness needs for stateful BDD scenarios. `TestAppContext`
+//! owns a `WindowRegistry`, creates windows through `add_window_view`, and
+//! hands step definitions durable `Entity<T>` and `AnyWindowHandle` values that
+//! can be carried between generated scenario steps.
+//!
+//! `VisualTestContext` is the window-bound access point reconstructed from an
+//! `AnyWindowHandle` when a later step needs to read or mutate a view. Entity
+//! operations validate both the originating test context and the owning window,
+//! so stale handles, foreign context handles, and cross-window entity access
+//! fail instead of mutating unrelated test state.
 
 use crate::TestAppContext;
 use std::{

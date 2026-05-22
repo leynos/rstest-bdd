@@ -1186,6 +1186,65 @@ deduplication when a `#[scenario]` test already carries an explicit
 `#[gpui::test]`, and stateful window scenarios that carry durable handles
 across steps.
 
+#### Stateful GPUI scenarios with durable handles
+
+Stateful GPUI scenarios should store handles, not borrowed visual contexts,
+between steps. `TestAppContext::add_window_view` creates a test window and
+returns `(Entity<T>, VisualTestContext)`: `Entity<T>` is the typed durable
+handle for the stored view, while `VisualTestContext::window_handle()` returns
+an `AnyWindowHandle` for the window itself.
+
+Later steps can reconstruct the window-bound context from the stored window
+handle:
+
+```rust,no_run
+# use rstest_bdd_macros::{given, then};
+# #[derive(Default)]
+# struct CounterView {
+#     value: usize,
+# }
+# thread_local! {
+#     static STATE: std::cell::RefCell<Option<(
+#         gpui::Entity<CounterView>,
+#         gpui::AnyWindowHandle,
+#     )>> = std::cell::RefCell::new(None);
+# }
+#[given("a GPUI counter window is open")]
+fn open_counter_window(
+    #[from(rstest_bdd_harness_context)] context: &mut gpui::TestAppContext,
+) {
+    // Reset before assigning fresh handles so reused serial test threads do
+    // not observe stale state from a failed or skipped scenario.
+    STATE.with(|state| *state.borrow_mut() = None);
+
+    let (entity, visual_context) =
+        context.add_window_view(|_context| CounterView::default());
+    let window = visual_context.window_handle();
+
+    STATE.with(|state| *state.borrow_mut() = Some((entity, window)));
+    assert_eq!(context.windows().len(), 1);
+}
+
+#[then("the counter can be read through the stored window")]
+fn counter_can_be_read(
+    #[from(rstest_bdd_harness_context)] context: &mut gpui::TestAppContext,
+) {
+    let (entity, window) =
+        STATE.with(|state| state.borrow().expect("scenario state is assigned"));
+    let visual_context = gpui::VisualTestContext::from_window(window, context)
+        .expect("stored window handle belongs to this GPUI test context");
+
+    assert_eq!(visual_context.read_entity(entity, |view| view.value), Some(0));
+}
+```
+
+`VisualTestContext::from_window` returns `None` when the window handle does not
+belong to the active `TestAppContext`. Entity operations similarly fail for
+stale or cross-window handles, so scenarios should reset state before assigning
+new handles and use teardown cleanup for state stored outside `StepContext`.
+`TestAppContext::windows()` exposes the current context's known window handles
+and is useful for asserting that a scenario started from a clean context.
+
 For a complete working example, see the `examples/gpui-counter` crate, which
 models a simple counter application whose BDD suite exercises both
 `GpuiHarness` and `GpuiAttributePolicy` end-to-end. Step definitions in that

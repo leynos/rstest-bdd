@@ -31,6 +31,7 @@ rstest.workspace = true
 rstest-bdd.workspace = true
 rstest-bdd-macros.workspace = true
 cargo_metadata.workspace = true
+insta.workspace = true
 serial_test.workspace = true
 trybuild.workspace = true
 
