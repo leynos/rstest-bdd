@@ -1544,6 +1544,7 @@ dependencies = [
  "cargo_metadata",
  "gpui",
  "insta",
+ "proptest",
  "rstest",
  "rstest-bdd",
  "rstest-bdd-harness",

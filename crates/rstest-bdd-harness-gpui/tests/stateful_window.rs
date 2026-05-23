@@ -11,6 +11,7 @@
 //! not leak stale handles into the next serial GPUI scenario.
 #![cfg(feature = "native-gpui-tests")]
 
+use proptest::prelude::*;
 use rstest::fixture;
 use rstest_bdd_macros::{given, scenario, then, when};
 use serial_test::serial;
@@ -72,6 +73,31 @@ fn current_handles() -> (gpui::Entity<CounterView>, gpui::AnyWindowHandle) {
             .unwrap_or_else(|| panic!("scenario should have stored a window handle"));
         (entity, window)
     })
+}
+
+fn add_counter_windows(
+    context: &mut gpui::TestAppContext,
+    count: usize,
+    first_value: usize,
+) -> Vec<(gpui::Entity<CounterView>, gpui::AnyWindowHandle)> {
+    (0..count)
+        .map(|offset| {
+            let (entity, visual_context) = context.add_window_view(|_context| CounterView {
+                value: first_value + offset,
+            });
+            (entity, visual_context.window_handle())
+        })
+        .collect()
+}
+
+fn read_counter_from_window(
+    context: &mut gpui::TestAppContext,
+    window: gpui::AnyWindowHandle,
+    entity: gpui::Entity<CounterView>,
+) -> Option<usize> {
+    gpui::VisualTestContext::from_window(window, context)
+        .unwrap_or_else(|| panic!("owned window handle should reconstruct visual context"))
+        .read_entity(entity, |view| view.value)
 }
 
 #[given("a fresh GPUI window is opened")]
@@ -227,6 +253,95 @@ fn entity_access_is_rejected_from_the_wrong_window() {
         None,
         "a visual context should not read entity handles owned by another window"
     );
+}
+
+proptest! {
+    #[test]
+    fn entity_access_respects_registry_and_window_ownership(
+        first_window_count in 1usize..5,
+        second_window_count in 1usize..5,
+        entity_context in 0usize..2,
+        visual_context in 0usize..2,
+        entity_index_seed in 0usize..5,
+        visual_index_seed in 0usize..5,
+        update_delta in 1usize..16,
+    ) {
+        let mut first_context = gpui::TestAppContext::single();
+        let first_handles = add_counter_windows(&mut first_context, first_window_count, 0);
+        let mut second_context = gpui::TestAppContext::single();
+        let second_handles = add_counter_windows(&mut second_context, second_window_count, 100);
+
+        let entity_handles = if entity_context == 0 {
+            &first_handles
+        } else {
+            &second_handles
+        };
+        let visual_handles = if visual_context == 0 {
+            &first_handles
+        } else {
+            &second_handles
+        };
+        let entity_index = entity_index_seed.min(entity_handles.len() - 1);
+        let visual_index = visual_index_seed.min(visual_handles.len() - 1);
+        let (entity, entity_window) = entity_handles
+            .get(entity_index)
+            .copied()
+            .unwrap_or_else(|| panic!("generated entity index should be in bounds"));
+        let visual_window = visual_handles
+            .get(visual_index)
+            .copied()
+            .unwrap_or_else(|| panic!("generated visual index should be in bounds"))
+            .1;
+        let original_value = if entity_context == 0 {
+            entity_index
+        } else {
+            100 + entity_index
+        };
+        let should_allow_access = entity_context == visual_context && entity_index == visual_index;
+
+        let (read_result, update_result) = if visual_context == 0 {
+            let mut visual = gpui::VisualTestContext::from_window(visual_window, &mut first_context)
+                .unwrap_or_else(|| panic!("visual window should belong to first context"));
+            let read_result = visual.read_entity(entity, |view| view.value);
+            let update_result =
+                visual.update_entity(entity, |view| view.value += update_delta);
+            (read_result, update_result)
+        } else {
+            let mut visual = gpui::VisualTestContext::from_window(visual_window, &mut second_context)
+                .unwrap_or_else(|| panic!("visual window should belong to second context"));
+            let read_result = visual.read_entity(entity, |view| view.value);
+            let update_result =
+                visual.update_entity(entity, |view| view.value += update_delta);
+            (read_result, update_result)
+        };
+
+        prop_assert_eq!(
+            read_result,
+            should_allow_access.then_some(original_value),
+            "read access must require both matching registry and matching window"
+        );
+        prop_assert_eq!(
+            update_result,
+            if should_allow_access {
+                Ok(())
+            } else {
+                Err(gpui::EntityError::NotFound { id: entity.id() })
+            },
+            "update access must require both matching registry and matching window"
+        );
+
+        let expected_owner_value = original_value + usize::from(should_allow_access) * update_delta;
+        let owner_value = if entity_context == 0 {
+            read_counter_from_window(&mut first_context, entity_window, entity)
+        } else {
+            read_counter_from_window(&mut second_context, entity_window, entity)
+        };
+        prop_assert_eq!(
+            owner_value,
+            Some(expected_owner_value),
+            "rejected access must not mutate the owning window"
+        );
+    }
 }
 
 #[scenario(
