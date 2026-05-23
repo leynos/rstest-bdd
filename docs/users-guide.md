@@ -773,9 +773,9 @@ Use them in this order of preference:
 - Treat `runtime = "tokio-current-thread"` as legacy compatibility syntax for
   `scenarios!`, not as the canonical configuration surface.
 
-Roadmap item 9.7.4 will revise the surrounding examples to lead with
-harness-only configuration. Until then, the examples below show the tested
-override and attributes-only forms explicitly.
+> **Note:** Roadmap item 9.7.4 will revise the surrounding examples to lead
+> with harness-only configuration. Until then, the examples below show the
+> tested override and attributes-only forms explicitly.
 
 When `harness` is specified, the generated test body delegates scenario
 execution through the harness adapter. The macro wraps the runtime portion of
