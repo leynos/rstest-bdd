@@ -18,6 +18,7 @@ fn result() {}
 )]
 fn with_tokio_harness_default_override() {}
 
+// Compile-time guard: fail fast if the feature path changes.
 const _: &str = include_str!("basic.feature");
 
 fn main() {}
