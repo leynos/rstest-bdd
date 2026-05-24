@@ -32,9 +32,3 @@ tokio = { version = "1", features = ["macros", "rt", "time", "sync"] }
 [[test]]
 name = "macro_compile"
 path = "tests/macro_compile.rs"
-[[test]]
-name = "macro_compile"
-path = "tests/macro_compile.rs"
-[[test]]
-name = "macro_compile"
-path = "tests/macro_compile.rs"
