@@ -31,6 +31,8 @@ rstest.workspace = true
 rstest-bdd.workspace = true
 rstest-bdd-macros.workspace = true
 cargo_metadata.workspace = true
+insta.workspace = true
+proptest.workspace = true
 serial_test.workspace = true
 trybuild.workspace = true
 
@@ -47,6 +49,11 @@ required-features = ["native-gpui-tests"]
 [[test]]
 name = "scenario_macros"
 path = "tests/scenario_macros.rs"
+required-features = ["native-gpui-tests"]
+
+[[test]]
+name = "stateful_window"
+path = "tests/stateful_window.rs"
 required-features = ["native-gpui-tests"]
 
 [[test]]

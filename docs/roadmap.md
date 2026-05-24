@@ -718,7 +718,7 @@ changing the public trait contracts.
   the diagnostic contains the requested fixture name, requested type, inserted
   fixture list, and harness suggestion. Design Doc: `docs/rstest-bdd-design.md`
   §2.7.6.3. (Telefono)
-- [ ] 10.1.3. The feature-gated GPUI test suite provides realistic harness
+- [x] 10.1.3. The feature-gated GPUI test suite provides realistic harness
   regression coverage beyond the counter example: it creates a window, persists
   durable entity/window handles, reconstructs visual context per step, resets
   scenario state before assignment, and documents the reset protocol in

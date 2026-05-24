@@ -1543,6 +1543,8 @@ version = "0.6.0-beta1"
 dependencies = [
  "cargo_metadata",
  "gpui",
+ "insta",
+ "proptest",
  "rstest",
  "rstest-bdd",
  "rstest-bdd-harness",
