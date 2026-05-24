@@ -31,19 +31,36 @@ fn handle_confirms_current_thread() {
     tokio::task::spawn_local(async {});
 }
 
-/// Asserts that `TokioHarness` provides the runtime via its `LocalSet` wrapper.
+#[given("a Tokio harness context is injected")]
+fn tokio_harness_context_is_injected(
+    #[from(rstest_bdd_harness_context)] context: &TokioTestContext,
+) {
+    let _handle = context.handle();
+}
+
+#[when("the Tokio harness context handle is accessed")]
+fn tokio_harness_context_handle_is_accessed(
+    #[from(rstest_bdd_harness_context)] context: &TokioTestContext,
+) {
+    assert_eq!(
+        context.handle().runtime_flavor(),
+        tokio::runtime::RuntimeFlavor::CurrentThread
+    );
+}
+
+/// Asserts that `TokioHarness`, not a test attribute, provides the runtime.
 ///
-/// `spawn_local` panics outside a `LocalSet` context; bare `#[tokio::test]`
-/// without an explicit `LocalSet::block_on` does not provide one. A successful
-/// call here proves that `TokioHarness::run` is the runtime provider, not a
-/// test attribute.
-#[then("the runtime is harness-provided not attribute-provided")]
-fn runtime_is_harness_provided_not_attribute_provided() {
-    // `spawn_local` requires an active LocalSet; TokioHarness always provides
-    // one. A bare #[tokio::test(flavor = "current_thread")] does not, so this
-    // step would panic if only the attribute provided the runtime.
-    tokio::task::spawn_local(async {});
-    let _handle = tokio::runtime::Handle::current();
+/// `#[tokio::test]` can provide a runtime, but it cannot inject the reserved
+/// `rstest_bdd_harness_context` fixture. Requiring `TokioTestContext` makes the
+/// override scenario fail if execution is attribute-only.
+#[then("the injected Tokio context proves harness ownership")]
+fn injected_tokio_context_proves_harness_ownership(
+    #[from(rstest_bdd_harness_context)] context: &TokioTestContext,
+) {
+    assert_eq!(
+        tokio::runtime::Handle::current().runtime_flavor(),
+        context.handle().runtime_flavor()
+    );
 }
 
 #[then("the Tokio runtime remains available")]

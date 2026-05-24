@@ -11,9 +11,9 @@ Feature: Tokio harness integration
     Then the handle confirms current-thread execution
 
   Scenario: Tokio harness with default attribute override
-    Given the Tokio runtime is active
-    When a Tokio handle is obtained
-    Then the runtime is harness-provided not attribute-provided
+    Given a Tokio harness context is injected
+    When the Tokio harness context handle is accessed
+    Then the injected Tokio context proves harness ownership
 
   Scenario: Tokio attribute policy without harness
     Given the Tokio runtime is active
