@@ -186,7 +186,8 @@ repository gates.
 - [x] (2026-05-24T16:36:48Z) Committed the duplicate `macro_compile` manifest
       cleanup as `5de9886`.
 - [x] (2026-05-24T16:36:48Z) Committed the draft ExecPlan for review.
-- [ ] Push the branch and open a draft pull request for plan review.
+- [x] (2026-05-24T16:36:48Z) Pushed the branch and opened draft pull request
+      <https://github.com/leynos/rstest-bdd/pull/497> for plan review.
 - [ ] Await explicit maintainer approval before implementation begins.
 
 ## Surprises & discoveries
