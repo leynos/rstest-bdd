@@ -829,32 +829,39 @@ First-party GPUI configuration normally needs only the harness:
 ```rust,no_run
 # use rstest_bdd_macros::scenario;
 #[scenario(
-    path = "tests/features/my_ui.feature",
+    path = "tests/features/counter.feature",
+    name = "Increment a counter and observe GPUI context",
     harness = rstest_bdd_harness_gpui::GpuiHarness,
 )]
-fn my_gpui_scenario() {}
-```
-
-Use `attributes = ...` only when the scenario intentionally overrides the
-inferred first-party policy:
-
-```rust,no_run
-# use rstest_bdd_macros::scenario;
-#[scenario(
-    path = "tests/features/my_ui.feature",
-    harness = rstest_bdd_harness_gpui::GpuiHarness,
-    attributes = rstest_bdd_harness::DefaultAttributePolicy,
-)]
-fn my_gpui_scenario_with_explicit_override() {}
+fn increment_and_observe_gpui_context() {}
 ```
 
 Focused integration coverage in
 `crates/rstest-bdd-harness-gpui/tests/macro_compile.rs`,
 `crates/rstest-bdd-harness-gpui/tests/scenario_macros.rs`, and
-`crates/rstest-bdd-harness-gpui/tests/stateful_window.rs` verifies GPUI
-attribute-policy resolution for `#[scenario]` and `scenarios!`, deduplication
-when a `#[scenario]` test already carries an explicit `#[gpui::test]`, and
-stateful window scenarios that carry durable handles across steps.
+`crates/rstest-bdd-harness-gpui/tests/stateful_window.rs`. Those suites verify
+GPUI attribute-policy resolution for `#[scenario]` and `scenarios!`,
+deduplication when a `#[scenario]` test already carries an explicit
+`#[gpui::test]`, and stateful window scenarios that carry durable handles
+across steps.
+
+# use rstest_bdd_macros::scenario;
+#[scenario(
+    path = "tests/features/counter.feature",
+    name = "Increment a counter and observe GPUI context",
+    harness = rstest_bdd_harness_gpui::GpuiHarness,
+)]
+fn increment_and_observe_gpui_context() {}
+```
+
+Focused integration coverage in
+`crates/rstest-bdd-harness-gpui/tests/macro_compile.rs`,
+`crates/rstest-bdd-harness-gpui/tests/scenario_macros.rs`, and
+`crates/rstest-bdd-harness-gpui/tests/stateful_window.rs`. Those suites verify
+GPUI attribute-policy resolution for `#[scenario]` and `scenarios!`,
+deduplication when a `#[scenario]` test already carries an explicit
+`#[gpui::test]`, and stateful window scenarios that carry durable handles
+across steps.
 
 #### Third-party harness adapter cookbook
 
@@ -1058,15 +1065,21 @@ path when `attributes = ...` is omitted:
 ```rust,no_run
 # use rstest_bdd_macros::scenario;
 #[scenario(
-    path = "tests/features/reminders.feature",
-    name = "Scheduling a reminder queues it for later delivery",
-    harness = rstest_bdd_harness_tokio::TokioHarness,
+    path = "tests/features/counter.feature",
+    name = "Increment a counter and observe GPUI context",
+    harness = rstest_bdd_harness_gpui::GpuiHarness,
 )]
-fn queues_a_scheduled_reminder() {}
+fn increment_and_observe_gpui_context() {}
 ```
 
-Keep explicit `attributes = ...` only for overrides, attributes-only tests, or
-unrecognized paths where the default cannot be inferred.
+Focused integration coverage in
+`crates/rstest-bdd-harness-gpui/tests/macro_compile.rs`,
+`crates/rstest-bdd-harness-gpui/tests/scenario_macros.rs`, and
+`crates/rstest-bdd-harness-gpui/tests/stateful_window.rs`. Those suites verify
+GPUI attribute-policy resolution for `#[scenario]` and `scenarios!`,
+deduplication when a `#[scenario]` test already carries an explicit
+`#[gpui::test]`, and stateful window scenarios that carry durable handles
+across steps.
 
 ### Using the GPUI harness
 
@@ -1125,6 +1138,17 @@ handle:
 #     value: usize,
 # }
 ```
+
+The selection function preserves the caller-supplied order, so applications can
+pass a list of preferred locales. The helper resolves to the best available
+translation and continues to fall back to English when a requested locale is
+not shipped with the crate. Procedural macro diagnostics remain in English so
+compile-time output stays deterministic regardless of the host machine’s
+language settings.
+
+[`Localizations`]: <https://docs.rs/rstest-bdd/latest/rstest_bdd/localization/>
+[`FluentLanguageLoader`]:
+<https://docs.rs/i18n-embed/latest/i18n_embed/fluent/struct.FluentLanguageLoader.html>
 
 ### Skipping scenarios
 
@@ -1852,6 +1876,17 @@ inspection of the row and column that triggered the failure:
 #     active: bool,
 # }
 ```
+
+The selection function preserves the caller-supplied order, so applications can
+pass a list of preferred locales. The helper resolves to the best available
+translation and continues to fall back to English when a requested locale is
+not shipped with the crate. Procedural macro diagnostics remain in English so
+compile-time output stays deterministic regardless of the host machine’s
+language settings.
+
+[`Localizations`]: <https://docs.rs/rstest-bdd/latest/rstest_bdd/localization/>
+[`FluentLanguageLoader`]:
+<https://docs.rs/i18n-embed/latest/i18n_embed/fluent/struct.FluentLanguageLoader.html>
 
 ## Limitations and roadmap
 
