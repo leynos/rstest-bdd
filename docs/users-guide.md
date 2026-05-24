@@ -755,6 +755,7 @@ deduplication when a `#[scenario]` test already carries an explicit
 `#[gpui::test]`, and stateful window scenarios that carry durable handles
 across steps.
 
+# use rstest_bdd_harness_tokio::TokioTestContext;
 ### Harness adapter and attribute policy
 
 The `harness` and `attributes` parameters accept Rust type paths pointing to

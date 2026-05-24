@@ -5,6 +5,7 @@
 //! `#[tokio::test(flavor = "current_thread")]` alongside `#[rstest::rstest]`.
 
 mod policy;
+mod tokio_context;
 mod tokio_harness;
 
 pub use policy::TokioAttributePolicy;
@@ -13,4 +14,5 @@ pub use rstest_bdd_harness::{
     ScenarioRunRequest, ScenarioRunner, StdScenarioRunRequest, StdScenarioRunner, TestAttribute,
     tracing,
 };
+pub use tokio_context::TokioTestContext;
 pub use tokio_harness::TokioHarness;

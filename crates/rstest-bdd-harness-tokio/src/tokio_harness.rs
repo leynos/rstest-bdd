@@ -1,6 +1,7 @@
 //! Tokio current-thread harness adapter for scenario execution.
 
-use rstest_bdd_harness::{HarnessAdapter, HarnessError, HarnessResult, StdScenarioRunRequest};
+use crate::tokio_context::TokioTestContext;
+use rstest_bdd_harness::{HarnessAdapter, HarnessError, HarnessResult, ScenarioRunRequest};
 
 /// Executes scenario runners inside a Tokio current-thread runtime with a
 /// [`LocalSet`](tokio::task::LocalSet).
@@ -24,18 +25,18 @@ use rstest_bdd_harness::{HarnessAdapter, HarnessError, HarnessResult, StdScenari
 ///
 /// ```
 /// use rstest_bdd_harness::{
-///     HarnessAdapter, ScenarioMetadata, StdScenarioRunRequest,
+///     HarnessAdapter, ScenarioMetadata, ScenarioRunRequest, ScenarioRunner,
 /// };
-/// use rstest_bdd_harness_tokio::TokioHarness;
+/// use rstest_bdd_harness_tokio::{TokioHarness, TokioTestContext};
 ///
-/// let request = StdScenarioRunRequest::new_without_context(
+/// let request = ScenarioRunRequest::new(
 ///     ScenarioMetadata::new(
 ///         "tests/features/demo.feature",
 ///         "Async scenario",
 ///         5,
 ///         vec![],
 ///     ),
-///     || 2 + 2,
+///     ScenarioRunner::new(|_context: TokioTestContext| 2 + 2),
 /// );
 /// let harness = TokioHarness::new();
 /// assert_eq!(harness.run(request).expect("tokio harness should not fail"), 4);
@@ -52,16 +53,17 @@ impl TokioHarness {
 }
 
 impl HarnessAdapter for TokioHarness {
-    type Context = ();
+    type Context = TokioTestContext;
 
-    fn run<T>(&self, request: StdScenarioRunRequest<'_, T>) -> HarnessResult<T> {
+    fn run<T>(&self, request: ScenarioRunRequest<'_, TokioTestContext, T>) -> HarnessResult<T> {
         let runtime = tokio::runtime::Builder::new_current_thread()
             .enable_all()
             .build()
             .map_err(HarnessError::RuntimeBuildFailed)?;
         let local_set = tokio::task::LocalSet::new();
         Ok(local_set.block_on(&runtime, async {
-            let result = request.run_without_context();
+            let context = TokioTestContext::from_current();
+            let result = request.run(context);
             // Run one cooperative tick so tasks queued via `spawn_local` can
             // make progress. This is intentionally a single tick rather than a
             // full `LocalSet` drain.
@@ -75,9 +77,11 @@ impl HarnessAdapter for TokioHarness {
 mod tests {
     //! Unit tests for the Tokio current-thread harness.
 
-    use super::TokioHarness;
+    use super::{TokioHarness, TokioTestContext};
     use rstest::{fixture, rstest};
-    use rstest_bdd_harness::{HarnessAdapter, ScenarioMetadata, StdScenarioRunRequest};
+    use rstest_bdd_harness::{
+        HarnessAdapter, ScenarioMetadata, ScenarioRunRequest, ScenarioRunner,
+    };
 
     #[fixture]
     fn harness() -> TokioHarness {
@@ -86,14 +90,14 @@ mod tests {
 
     #[rstest]
     fn tokio_harness_runs_request(harness: TokioHarness) {
-        let request = StdScenarioRunRequest::new_without_context(
+        let request = ScenarioRunRequest::new(
             ScenarioMetadata::new(
                 "tests/features/simple.feature",
                 "Runs in Tokio",
                 4,
                 vec!["@async".to_string()],
             ),
-            || 21 * 2,
+            ScenarioRunner::new(|_context: TokioTestContext| 21 * 2),
         );
         let result = harness
             .run(request)
@@ -103,12 +107,14 @@ mod tests {
 
     #[rstest]
     fn tokio_runtime_is_active_during_run(harness: TokioHarness) {
-        let request =
-            StdScenarioRunRequest::new_without_context(ScenarioMetadata::default(), || {
+        let request = ScenarioRunRequest::new(
+            ScenarioMetadata::default(),
+            ScenarioRunner::new(|_context: TokioTestContext| {
                 // Panics if no Tokio runtime is active on the current thread.
                 let _handle = tokio::runtime::Handle::current();
                 true
-            });
+            }),
+        );
         let result = harness
             .run(request)
             .unwrap_or_else(|err| panic!("tokio harness should not fail: {err}"));

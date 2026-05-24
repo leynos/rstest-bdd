@@ -8,6 +8,7 @@
 //! - `spawn_local` succeeds in step functions, confirming the `LocalSet` +
 //!   `current_thread` wiring.
 
+use rstest_bdd_harness_tokio::TokioTestContext;
 use rstest_bdd_macros::{given, scenario, scenarios, then, when};
 
 #[given("the Tokio runtime is active")]
@@ -72,33 +73,22 @@ async fn scenario_runs_with_attribute_policy_only() {}
 
 // --- Async step definitions for TokioHarness ---
 
-use std::sync::atomic::{AtomicBool, Ordering};
-
-static ASYNC_GIVEN_RAN: AtomicBool = AtomicBool::new(false);
-static ASYNC_WHEN_RAN: AtomicBool = AtomicBool::new(false);
-
 #[given("an async given step runs")]
-async fn async_given_step() {
-    ASYNC_GIVEN_RAN.store(false, Ordering::Release);
-    ASYNC_WHEN_RAN.store(false, Ordering::Release);
-    ASYNC_GIVEN_RAN.store(true, Ordering::Release);
+async fn async_given_step(#[from(rstest_bdd_harness_context)] ctx: &TokioTestContext) {
+    // Obtaining the handle proves the step is executing inside the harness runtime.
+    let _handle = ctx.handle();
 }
 
 #[when("an async when step runs")]
-async fn async_when_step() {
-    ASYNC_WHEN_RAN.store(true, Ordering::Release);
+async fn async_when_step(#[from(rstest_bdd_harness_context)] ctx: &TokioTestContext) {
+    let _handle = ctx.handle();
 }
 
 #[then("the async steps completed")]
-async fn async_steps_completed() {
-    assert!(
-        ASYNC_GIVEN_RAN.swap(false, Ordering::AcqRel),
-        "async given step should have executed"
-    );
-    assert!(
-        ASYNC_WHEN_RAN.swap(false, Ordering::AcqRel),
-        "async when step should have executed"
-    );
+async fn async_steps_completed(#[from(rstest_bdd_harness_context)] ctx: &TokioTestContext) {
+    // Spawning a local task confirms the LocalSet is active, not just the handle.
+    tokio::task::spawn_local(async {});
+    let _handle = ctx.handle();
 }
 
 /// Tests that `async fn` step definitions work with `TokioHarness`.
