@@ -4,7 +4,7 @@ This ExecPlan (execution plan) is a living document. The sections `Constraints`,
  `Tolerances`, `Risks`, `Progress`, `Surprises & discoveries`, `Decision log`,
 and `Outcomes & retrospective` must be kept up to date as work proceeds.
 
-Status: IN PROGRESS
+Status: COMPLETE
 
 ## Purpose / big picture
 
@@ -704,9 +704,9 @@ in Stage C and record the addition in `Decision log`.
   Markdown changed. `make fmt` again failed in the Markdown auto-fix phase on
   unrelated documents, so unrelated formatter churn was reverted. The
   required `make markdownlint` gate then passed with zero errors.
-- [x] (2026-05-24 18:06 CEST) Run CodeRabbit `--agent`; clear all actionable
+- [x] (2026-05-24 18:21 CEST) Run CodeRabbit `--agent`; clear all actionable
   findings; re-run gates if changes are made. CodeRabbit completed with
-  `findings: 0` for the behavioural milestone.
+  `findings: 0` for both the behavioural and documentation milestones.
 - [x] (2026-05-24 18:12 CEST) Mark `docs/roadmap.md` item 10.1.4 done.
 - [ ] (timestamp pending) Push branch and update draft PR with
   validation transcripts and the Lody session link.
@@ -760,6 +760,10 @@ in Stage C and record the addition in `Decision log`.
   `docs/rstest-bdd-design.md`, and `docs/roadmap.md`. `make fmt` still fails
   in its auto-fix path on unrelated Markdown files, but `make markdownlint`
   passes after reverting the unrelated formatter churn.
+
+- 2026-05-24 18:21 CEST: CodeRabbit review after the documentation milestone
+  completed successfully with zero findings. Transcript:
+  `/tmp/coderabbit-docs-rstest-bdd-10-1-4-failing-gpui-scenarios-include-scenario-name-in-logs.out`.
 
 ## Decision log
 
@@ -838,9 +842,16 @@ in Stage C and record the addition in `Decision log`.
 
 ## Outcomes & retrospective
 
-(Populate at completion. Compare against the purpose section: do failing GPUI
-scenarios now surface the scenario name without manual digging? What, if
-anything, would be done differently next time?)
+Roadmap item 10.1.4 is complete. Failing GPUI scenarios now surface the
+scenario name, feature path, feature-file line number, and original panic
+message through the resumed panic payload, `tracing::error!`, and stderr.
+
+The regression test `scenario_name_in_logs.rs` covers the success path, the
+augmented failing path, and fresh harness state after a caught panic. The full
+GPUI feature-gated suite, workspace format check, Clippy lint, workspace test
+suite, Markdown lint, and two CodeRabbit reviews passed. The only caveat is
+that `make fmt` currently fails in its Markdown auto-fix phase on unrelated
+documents even though `make markdownlint` passes after reverting that churn.
 
 ## Revision note
 
