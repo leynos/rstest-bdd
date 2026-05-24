@@ -408,9 +408,13 @@ explicit instead of forcing harness implementations to panic. This closes issue
 
 Custom harnesses should thread harness-specific state through
 `HarnessAdapter::Context`. Use `()` when no context is needed; otherwise,
-choose a concrete context type and pass it through `ScenarioRunRequest`.
+choose a concrete context type, construct it inside `run`, and pass it to
+`ScenarioRunRequest::run(context)`. Step functions request the harness context
+with the reserved fixture key `rstest_bdd_harness_context`, for example
+`#[from(rstest_bdd_harness_context)] context: &MyHarnessContext`.
 `rstest_bdd_harness_tokio::TokioTestContext` shows the first-party Tokio
-pattern to mirror for harness-provided context.
+pattern: `TokioHarness` sets `type Context = TokioTestContext`, captures the
+active runtime handle, and passes that per-scenario context to the runner.
 
 ### Return-type contract
 
