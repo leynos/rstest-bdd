@@ -2,10 +2,10 @@
 
 use rstest::{fixture, rstest};
 use rstest_bdd_harness::{
-    HarnessAdapter, HarnessError, HarnessResult, ScenarioMetadata, StdScenarioRunRequest,
-    StdScenarioRunner,
+    HarnessAdapter, HarnessError, HarnessResult, ScenarioMetadata, ScenarioRunRequest,
+    ScenarioRunner,
 };
-use rstest_bdd_harness_tokio::TokioHarness;
+use rstest_bdd_harness_tokio::{TokioHarness, TokioTestContext};
 use std::cell::Cell;
 use std::io;
 use std::rc::Rc;
@@ -19,9 +19,9 @@ fn default_metadata() -> ScenarioMetadata {
 fn tokio_harness_executes_runner_once(default_metadata: ScenarioMetadata) {
     let call_count = Rc::new(Cell::new(0u8));
     let call_count_clone = Rc::clone(&call_count);
-    let request = StdScenarioRunRequest::new(
+    let request = ScenarioRunRequest::new(
         default_metadata,
-        StdScenarioRunner::new_without_context(move || {
+        ScenarioRunner::new(move |_context: TokioTestContext| {
             call_count_clone.set(call_count_clone.get() + 1);
             "done"
         }),
@@ -47,7 +47,7 @@ impl RuntimeBuildFailureProbeHarness {
 impl HarnessAdapter for RuntimeBuildFailureProbeHarness {
     type Context = ();
 
-    fn run<T>(&self, _request: StdScenarioRunRequest<'_, T>) -> HarnessResult<T> {
+    fn run<T>(&self, _request: ScenarioRunRequest<'_, (), T>) -> HarnessResult<T> {
         Err(HarnessError::RuntimeBuildFailed(io::Error::other(
             "runtime construction blocked",
         )))
@@ -56,9 +56,9 @@ impl HarnessAdapter for RuntimeBuildFailureProbeHarness {
 
 #[rstest]
 fn tokio_harness_runtime_build_failed_error_path(default_metadata: ScenarioMetadata) {
-    let request = StdScenarioRunRequest::new(
+    let request = ScenarioRunRequest::new(
         default_metadata,
-        StdScenarioRunner::new_without_context(|| "unreachable"),
+        ScenarioRunner::new_without_context(|| "unreachable"),
     );
     let harness = RuntimeBuildFailureProbeHarness::new(TokioHarness::new());
     let result = harness.run(request);
@@ -76,9 +76,9 @@ fn tokio_harness_runtime_build_failed_error_path(default_metadata: ScenarioMetad
 #[rstest]
 fn tokio_harness_supports_non_static_runner_borrows(default_metadata: ScenarioMetadata) {
     let mut counter = 0u8;
-    let request = StdScenarioRunRequest::new(
+    let request = ScenarioRunRequest::new(
         default_metadata,
-        StdScenarioRunner::new_without_context(|| {
+        ScenarioRunner::new(|_context: TokioTestContext| {
             counter += 1;
             counter
         }),
@@ -95,11 +95,12 @@ fn tokio_harness_supports_non_static_runner_borrows(default_metadata: ScenarioMe
 /// Verify that a Tokio runtime is genuinely active inside the harness.
 #[test]
 fn tokio_runtime_is_active_inside_harness() {
-    let request = StdScenarioRunRequest::new(
+    let request = ScenarioRunRequest::new(
         ScenarioMetadata::default(),
-        StdScenarioRunner::new_without_context(|| {
+        ScenarioRunner::new(|context: TokioTestContext| {
             // Panics if no Tokio runtime is active on the current thread.
             let _handle = tokio::runtime::Handle::current();
+            let _context_handle = context.handle();
             true
         }),
     );
@@ -116,9 +117,9 @@ fn tokio_runtime_is_active_inside_harness() {
 fn tokio_harness_supports_spawn_local(default_metadata: ScenarioMetadata) {
     let flag = Rc::new(Cell::new(false));
     let flag_clone = Rc::clone(&flag);
-    let request = StdScenarioRunRequest::new(
+    let request = ScenarioRunRequest::new(
         default_metadata,
-        StdScenarioRunner::new_without_context(move || {
+        ScenarioRunner::new(move |_context: TokioTestContext| {
             // `spawn_local` panics if no `LocalSet` context is active.
             // Successfully calling it proves the current-thread + LocalSet
             // wiring provided by TokioHarness.
@@ -145,9 +146,9 @@ fn tokio_harness_supports_spawn_local(default_metadata: ScenarioMetadata) {
 fn tokio_harness_single_tick_does_not_fully_drain_localset(default_metadata: ScenarioMetadata) {
     let completed = Rc::new(Cell::new(false));
     let completed_clone = Rc::clone(&completed);
-    let request = StdScenarioRunRequest::new(
+    let request = ScenarioRunRequest::new(
         default_metadata,
-        StdScenarioRunner::new_without_context(move || {
+        ScenarioRunner::new(move |_context: TokioTestContext| {
             tokio::task::spawn_local(async move {
                 // Require more than one cooperative scheduler tick.
                 tokio::task::yield_now().await;
@@ -172,14 +173,14 @@ fn tokio_harness_single_tick_does_not_fully_drain_localset(default_metadata: Sce
 /// Verify that the harness can inspect metadata before executing the runner.
 #[test]
 fn tokio_harness_passes_metadata_through() {
-    let request = StdScenarioRunRequest::new(
+    let request = ScenarioRunRequest::new(
         ScenarioMetadata::new(
             "tests/features/payment.feature",
             "Payment succeeds",
             27,
             vec!["@smoke".to_string(), "@payments".to_string()],
         ),
-        StdScenarioRunner::new_without_context(|| 200),
+        ScenarioRunner::new(|_context: TokioTestContext| 200),
     );
     assert_eq!(
         request.metadata().feature_path(),

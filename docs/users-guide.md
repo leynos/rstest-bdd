@@ -759,6 +759,10 @@ Use them in this order of preference:
 - Treat `runtime = "tokio-current-thread"` as legacy compatibility syntax for
   `scenarios!`, not as the canonical configuration surface.
 
+> **Note:** Roadmap item 9.7.4 will revise the surrounding examples to lead
+> with harness-only configuration. Until then, the examples below show the
+> tested override and attributes-only forms explicitly.
+
 When `harness` is specified, the generated test body delegates scenario
 execution through the harness adapter. The macro wraps the runtime portion of
 the test (context setup, step executor loop, skip handler, and user block) in a
@@ -1056,6 +1060,21 @@ types such as `HarnessAdapter` or `ScenarioRunRequest`.
 fn my_tokio_scenario() {
     // Steps execute inside a Tokio current-thread runtime.
     // tokio::runtime::Handle::current() is available in step functions.
+}
+```
+
+`TokioHarness` also injects a typed `TokioTestContext` through the reserved
+`rstest_bdd_harness_context` fixture key. Step functions can request that
+context when they need the active runtime handle supplied by the harness:
+
+```rust,no_run
+# use rstest_bdd_harness_tokio::TokioTestContext;
+# use rstest_bdd_macros::given;
+#[given("the Tokio context is available")]
+async fn tokio_context_is_available(
+    #[from(rstest_bdd_harness_context)] context: &TokioTestContext,
+) {
+    let _handle = context.handle();
 }
 ```
 

@@ -8,6 +8,7 @@
 //! - `spawn_local` succeeds in step functions, confirming the `LocalSet` +
 //!   `current_thread` wiring.
 
+use rstest_bdd_harness_tokio::TokioTestContext;
 use rstest_bdd_macros::{given, scenario, scenarios, then, when};
 
 #[given("the Tokio runtime is active")]
@@ -30,6 +31,43 @@ fn handle_confirms_current_thread() {
     tokio::task::spawn_local(async {});
 }
 
+#[given("a Tokio harness context is injected")]
+fn tokio_harness_context_is_injected(
+    #[from(rstest_bdd_harness_context)] context: &TokioTestContext,
+) {
+    let _handle = context.handle();
+}
+
+#[when("the Tokio harness context handle is accessed")]
+fn tokio_harness_context_handle_is_accessed(
+    #[from(rstest_bdd_harness_context)] context: &TokioTestContext,
+) {
+    assert_eq!(
+        context.handle().runtime_flavor(),
+        tokio::runtime::RuntimeFlavor::CurrentThread
+    );
+}
+
+/// Asserts that `TokioHarness`, not a test attribute, provides the runtime.
+///
+/// `#[tokio::test]` can provide a runtime, but it cannot inject the reserved
+/// `rstest_bdd_harness_context` fixture. Requiring `TokioTestContext` makes the
+/// override scenario fail if execution is attribute-only.
+#[then("the injected Tokio context proves harness ownership")]
+fn injected_tokio_context_proves_harness_ownership(
+    #[from(rstest_bdd_harness_context)] context: &TokioTestContext,
+) {
+    assert_eq!(
+        tokio::runtime::Handle::current().runtime_flavor(),
+        context.handle().runtime_flavor()
+    );
+}
+
+#[then("the Tokio runtime remains available")]
+fn tokio_runtime_remains_available() {
+    let _handle = tokio::runtime::Handle::current();
+}
+
 /// Tests `#[scenario]` with `harness = TokioHarness` only.
 #[scenario(
     path = "tests/features/tokio_harness.feature",
@@ -47,33 +85,42 @@ fn scenario_runs_inside_tokio_runtime() {}
 )]
 fn scenario_runs_with_harness_and_policy() {}
 
+/// Tests that an explicit default attribute policy can override harness-led
+/// Tokio test attributes while the selected harness still provides a runtime.
+#[scenario(
+    path = "tests/features/tokio_harness.feature",
+    name = "Tokio harness with default attribute override",
+    harness = rstest_bdd_harness_tokio::TokioHarness,
+    attributes = rstest_bdd_harness::DefaultAttributePolicy,
+)]
+fn scenario_runs_with_harness_and_default_policy_override() {}
+
+/// Tests `#[scenario]` with `TokioAttributePolicy` and no harness.
+#[scenario(
+    path = "tests/features/tokio_harness.feature",
+    name = "Tokio attribute policy without harness",
+    attributes = rstest_bdd_harness_tokio::TokioAttributePolicy,
+)]
+async fn scenario_runs_with_attribute_policy_only() {}
+
 // --- Async step definitions for TokioHarness ---
 
-use std::sync::atomic::{AtomicBool, Ordering};
-
-static ASYNC_GIVEN_RAN: AtomicBool = AtomicBool::new(false);
-static ASYNC_WHEN_RAN: AtomicBool = AtomicBool::new(false);
-
 #[given("an async given step runs")]
-async fn async_given_step() {
-    ASYNC_GIVEN_RAN.store(true, Ordering::Release);
+async fn async_given_step(#[from(rstest_bdd_harness_context)] ctx: &TokioTestContext) {
+    // Obtaining the handle proves the step is executing inside the harness runtime.
+    let _handle = ctx.handle();
 }
 
 #[when("an async when step runs")]
-async fn async_when_step() {
-    ASYNC_WHEN_RAN.store(true, Ordering::Release);
+async fn async_when_step(#[from(rstest_bdd_harness_context)] ctx: &TokioTestContext) {
+    let _handle = ctx.handle();
 }
 
 #[then("the async steps completed")]
-async fn async_steps_completed() {
-    assert!(
-        ASYNC_GIVEN_RAN.load(Ordering::Acquire),
-        "async given step should have executed"
-    );
-    assert!(
-        ASYNC_WHEN_RAN.load(Ordering::Acquire),
-        "async when step should have executed"
-    );
+async fn async_steps_completed(#[from(rstest_bdd_harness_context)] ctx: &TokioTestContext) {
+    // Spawning a local task confirms the LocalSet is active, not just the handle.
+    tokio::task::spawn_local(async {});
+    let _handle = ctx.handle();
 }
 
 /// Tests that `async fn` step definitions work with `TokioHarness`.

@@ -233,8 +233,16 @@ mod tests {
         GPUI_ATTRIBUTE_POLICY_PATH,
         Some(TestAttributeHint::RstestWithGpuiTest)
     )]
+    // Unknown policies and unqualified names are third-party code to the
+    // macro, even when the terminal segment looks first-party.
     #[case(&["my", "Policy"], None)]
     #[case(&["TokioAttributePolicy"], None)]
+    #[case(&["my", "TokioAttributePolicy"], None)]
+    // Misqualified and overqualified first-party-looking paths must not be
+    // accepted, otherwise a third-party crate could be mistaken for an adapter.
+    #[case(&["rstest_bdd_harness", "TokioAttributePolicy"], None)]
+    #[case(&["rstest_bdd_harness_tokio", "TokioAttributePolicy", "Extra"], None)]
+    #[case(&["third_party_harness", "GpuiAttributePolicy"], None)]
     fn resolves_attribute_policy_paths(
         #[case] path: &[&str],
         #[case] expected: Option<TestAttributeHint>,

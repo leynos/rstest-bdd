@@ -54,6 +54,22 @@ fn same_gpui_context_remains_available(
     );
 }
 
+/// Asserts that the injected `TestAppContext` is harness-provided.
+///
+/// `GpuiAttributePolicy` alone does not inject a `TestAppContext`; only
+/// `GpuiHarness` does. This step can only be reached when the harness, not
+/// merely the attribute policy, is active.
+#[then("the GPUI context was harness-provided not attribute-provided")]
+fn gpui_context_was_harness_provided_not_attribute_provided(
+    #[from(rstest_bdd_harness_context)] context: &gpui::TestAppContext,
+) {
+    let _executor = context.executor();
+    assert!(
+        !context.did_prompt_for_new_path(),
+        "freshly-injected GPUI test context must not have prompted for a new path"
+    );
+}
+
 #[given("a plain GPUI policy scenario runs")]
 fn plain_gpui_policy_scenario_runs() {
     GPUI_POLICY_RAN.store(true, Ordering::SeqCst);
@@ -143,6 +159,15 @@ fn scenario_gpui_harness_injects_context() {}
 )]
 #[serial]
 fn scenario_gpui_harness_with_attribute_policy() {}
+
+#[scenario(
+    path = "tests/features/gpui_harness.feature",
+    name = "GPUI harness with default attribute override",
+    harness = rstest_bdd_harness_gpui::GpuiHarness,
+    attributes = rstest_bdd_harness::DefaultAttributePolicy,
+)]
+#[serial]
+fn scenario_gpui_harness_with_default_policy_override() {}
 
 #[scenario(
     path = "tests/features/gpui_harness.feature",
