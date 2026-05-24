@@ -698,13 +698,16 @@ in Stage C and record the addition in `Decision log`.
   sequentially; fix issues in the code, not by suppression. `make test` ran
   1453 nextest tests with 1453 passed and 7 skipped, then ran 62 Python release
   automation tests with 62 passed.
-- [ ] (timestamp pending) Update `users-guide.md`,
+- [x] (2026-05-24 18:12 CEST) Update `users-guide.md`,
   `developers-guide.md`, and (if needed) `rstest-bdd-design.md` §2.7.5.
-- [ ] (timestamp pending) Run `make fmt` and `make markdownlint` if
-  Markdown changed.
-- [ ] (timestamp pending) Run CodeRabbit `--agent`; clear all actionable
-  findings; re-run gates if changes are made.
-- [ ] (timestamp pending) Mark `docs/roadmap.md` item 10.1.4 done.
+- [x] (2026-05-24 18:13 CEST) Run `make fmt` and `make markdownlint` if
+  Markdown changed. `make fmt` again failed in the Markdown auto-fix phase on
+  unrelated documents, so unrelated formatter churn was reverted. The
+  required `make markdownlint` gate then passed with zero errors.
+- [x] (2026-05-24 18:06 CEST) Run CodeRabbit `--agent`; clear all actionable
+  findings; re-run gates if changes are made. CodeRabbit completed with
+  `findings: 0` for the behavioural milestone.
+- [x] (2026-05-24 18:12 CEST) Mark `docs/roadmap.md` item 10.1.4 done.
 - [ ] (timestamp pending) Push branch and update draft PR with
   validation transcripts and the Lody session link.
 
@@ -747,6 +750,16 @@ in Stage C and record the addition in `Decision log`.
 - 2026-05-24 18:01 CEST: `make markdownlint` passed after the unrelated
   formatter churn was reverted. The earlier `make fmt` failure came from the
   formatter's auto-fix path, not from the lint target.
+
+- 2026-05-24 18:06 CEST: CodeRabbit review for commit `bc6efa6` completed
+  successfully with zero findings. Transcript:
+  `/tmp/coderabbit-rstest-bdd-10-1-4-failing-gpui-scenarios-include-scenario-name-in-logs.out`.
+
+- 2026-05-24 18:13 CEST: The documentation milestone touched
+  `docs/users-guide.md`, `docs/developers-guide.md`,
+  `docs/rstest-bdd-design.md`, and `docs/roadmap.md`. `make fmt` still fails
+  in its auto-fix path on unrelated Markdown files, but `make markdownlint`
+  passes after reverting the unrelated formatter churn.
 
 ## Decision log
 

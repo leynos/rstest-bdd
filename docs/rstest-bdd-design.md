@@ -1886,8 +1886,11 @@ The first official adapters and policies are:
   `scenarios!`, canonical and absolute first-party GPUI policy paths for
   `#[scenario]`, harness-led defaults for both `#[scenario]` and `scenarios!`,
   and deduplication when a generated `#[scenario]` test already has
-  `#[gpui::test]`. The example requires no native-library setup beyond the
-  workspace GPUI shim.
+  `#[gpui::test]`. When a GPUI step panics, `GpuiHarness` augments the resumed
+  panic payload, `tracing::error!`, and stderr with the feature path, scenario
+  name, and feature-file line number without changing the public harness
+  contract. The example requires no native-library setup beyond the workspace
+  GPUI shim.
 
 Future adapters (for example, Bevy) are planned to follow the same pattern
 without requiring new dependencies in `rstest-bdd` or `rstest-bdd-macros`.

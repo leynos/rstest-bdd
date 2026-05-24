@@ -732,7 +732,7 @@ changing the public trait contracts.
   that creates a window, carries handles across steps, reconstructs visual
   context, and includes reset-protocol comments. Prerequisite: 9.4.5. Design
   Doc: `docs/rstest-bdd-design.md` §2.7.6.2. (Doggylump)
-- [ ] 10.1.4. Failing GPUI scenarios include the scenario name in logs where
+- [x] 10.1.4. Failing GPUI scenarios include the scenario name in logs where
   `GpuiHarness` and `gpui::TestAppContext` permit it, or the harness docs
   document the upstream limitation, so developers can quickly orientate failing
   scenarios. Finish line: a failing-harness regression asserts the scenario
