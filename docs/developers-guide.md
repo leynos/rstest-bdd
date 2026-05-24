@@ -406,6 +406,12 @@ return type is a breaking change that makes harness initialization failures
 explicit instead of forcing harness implementations to panic. This closes issue
 `#443`.
 
+Custom harnesses should thread harness-specific state through
+`HarnessAdapter::Context`. Use `()` when no context is needed; otherwise,
+choose a concrete context type and pass it through `ScenarioRunRequest`.
+`rstest_bdd_harness_tokio::TokioTestContext` shows the first-party Tokio
+pattern to mirror for harness-provided context.
+
 ### Return-type contract
 
 `Ok(value)` carries the scenario outcome produced by the runner. If the
