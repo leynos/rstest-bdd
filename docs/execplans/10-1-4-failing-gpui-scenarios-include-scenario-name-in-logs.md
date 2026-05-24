@@ -708,8 +708,9 @@ in Stage C and record the addition in `Decision log`.
   findings; re-run gates if changes are made. CodeRabbit completed with
   `findings: 0` for both the behavioural and documentation milestones.
 - [x] (2026-05-24 18:12 CEST) Mark `docs/roadmap.md` item 10.1.4 done.
-- [ ] (timestamp pending) Push branch and update draft PR with
-  validation transcripts and the Lody session link.
+- [x] (2026-05-24 18:26 CEST) Push branch and update draft PR with
+  validation transcripts and the Lody session link. PR #496 now describes the
+  implemented 10.1.4 scope and remains a draft.
 
 ## Surprises & discoveries
 
@@ -764,6 +765,11 @@ in Stage C and record the addition in `Decision log`.
 - 2026-05-24 18:21 CEST: CodeRabbit review after the documentation milestone
   completed successfully with zero findings. Transcript:
   `/tmp/coderabbit-docs-rstest-bdd-10-1-4-failing-gpui-scenarios-include-scenario-name-in-logs.out`.
+
+- 2026-05-24 18:26 CEST: The branch was pushed to
+  `origin/10-1-4-failing-gpui-scenarios-include-scenario-name-in-logs`, and
+  draft PR #496 was updated with the implemented scope, validation results,
+  CodeRabbit findings count, and Lody session link.
 
 ## Decision log
 
