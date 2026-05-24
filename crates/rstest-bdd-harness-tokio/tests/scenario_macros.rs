@@ -31,6 +31,21 @@ fn handle_confirms_current_thread() {
     tokio::task::spawn_local(async {});
 }
 
+/// Asserts that `TokioHarness` provides the runtime via its `LocalSet` wrapper.
+///
+/// `spawn_local` panics outside a `LocalSet` context; bare `#[tokio::test]`
+/// without an explicit `LocalSet::block_on` does not provide one. A successful
+/// call here proves that `TokioHarness::run` is the runtime provider, not a
+/// test attribute.
+#[then("the runtime is harness-provided not attribute-provided")]
+fn runtime_is_harness_provided_not_attribute_provided() {
+    // `spawn_local` requires an active LocalSet; TokioHarness always provides
+    // one. A bare #[tokio::test(flavor = "current_thread")] does not, so this
+    // step would panic if only the attribute provided the runtime.
+    tokio::task::spawn_local(async {});
+    let _handle = tokio::runtime::Handle::current();
+}
+
 #[then("the Tokio runtime remains available")]
 fn tokio_runtime_remains_available() {
     let _handle = tokio::runtime::Handle::current();

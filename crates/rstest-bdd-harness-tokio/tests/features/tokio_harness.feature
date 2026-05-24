@@ -13,7 +13,7 @@ Feature: Tokio harness integration
   Scenario: Tokio harness with default attribute override
     Given the Tokio runtime is active
     When a Tokio handle is obtained
-    Then the handle confirms current-thread execution
+    Then the runtime is harness-provided not attribute-provided
 
   Scenario: Tokio attribute policy without harness
     Given the Tokio runtime is active

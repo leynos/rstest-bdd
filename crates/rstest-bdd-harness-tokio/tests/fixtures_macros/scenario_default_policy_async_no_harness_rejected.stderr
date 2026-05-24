@@ -1,0 +1,5 @@
+error: async test requires either explicit `test_attr` or implicit (attribute path ends with `test`)
+  --> tests/fixtures_macros/scenario_default_policy_async_no_harness_rejected.rs:20:10
+   |
+20 | async fn with_default_policy_only_async() {}
+   |          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

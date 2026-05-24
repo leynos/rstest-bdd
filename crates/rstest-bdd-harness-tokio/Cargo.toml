@@ -24,6 +24,8 @@ rstest.workspace = true
 rstest-bdd.workspace = true
 rstest-bdd-macros.workspace = true
 cargo_metadata.workspace = true
+macrotest.workspace = true
+prettyplease.workspace = true
 trybuild.workspace = true
 tokio = { version = "1", features = ["macros", "rt", "time", "sync"] }
 
