@@ -1,7 +1,20 @@
 //! GPUI harness adapter for scenario execution.
+//!
+//! When a step running under `GpuiHarness` panics, the harness captures the
+//! panic payload, prepends the feature path, scenario name, and feature-file
+//! line, then re-raises the augmented message via `panic::resume_unwind`. The
+//! harness emits the same context to `tracing::error!` and to stderr so test
+//! runners that do not collect tracing events still surface the scenario name
+//! on failure.
 
 use gpui::TestAppContext;
-use rstest_bdd_harness::{HarnessAdapter, HarnessResult, ScenarioRunRequest, ScenarioRunner};
+use rstest_bdd::panic_message;
+use rstest_bdd_harness::{
+    HarnessAdapter, HarnessResult, ScenarioMetadata, ScenarioRunRequest, ScenarioRunner,
+};
+use std::any::Any;
+use std::io::{self, Write};
+use std::panic::{self, AssertUnwindSafe};
 use std::sync::{Mutex, PoisonError};
 
 /// Executes scenario runners inside the GPUI test harness.
@@ -43,7 +56,7 @@ impl GpuiHarness {
     fn run_request_once<T>(
         runner_slot: &Mutex<Option<ScenarioRunner<'_, TestAppContext, T>>>,
         output_slot: &Mutex<Option<T>>,
-        scenario_name: &str,
+        metadata: &ScenarioMetadata,
     ) {
         gpui::run_test(
             1,
@@ -57,8 +70,20 @@ impl GpuiHarness {
                 {
                     return;
                 }
-                let (context, result) =
-                    Self::run_scenario(dispatcher.clone(), runner_slot, scenario_name);
+                tracing::debug!(
+                    harness_type = "rstest_bdd_harness_gpui::GpuiHarness",
+                    feature_path = metadata.feature_path(),
+                    scenario_name = metadata.scenario_name(),
+                    scenario_line = metadata.scenario_line(),
+                    "starting GPUI scenario"
+                );
+                let result = panic::catch_unwind(AssertUnwindSafe(|| {
+                    Self::run_scenario(dispatcher.clone(), runner_slot, metadata.scenario_name())
+                }));
+                let (context, result) = result
+                    .unwrap_or_else(|payload| Self::resume_augmented_panic(payload, metadata));
+                // A teardown panic should point at the GPUI cleanup path itself, not
+                // at a scenario step that has already completed successfully.
                 Self::finish_context(&dispatcher, &context);
                 Self::store_output(output_slot, result);
             },
@@ -112,9 +137,46 @@ impl GpuiHarness {
             .unwrap_or_else(|| {
                 panic!(
                     "rstest-bdd-harness-gpui: test harness produced no scenario result: \
-                     {scenario_name}"
+                    {scenario_name}"
                 )
             })
+    }
+
+    fn resume_augmented_panic<T>(payload: Box<dyn Any + Send>, metadata: &ScenarioMetadata) -> T {
+        let message = Self::augmented_panic_message(payload.as_ref(), metadata);
+        drop(payload);
+        tracing::error!(
+            harness_type = "rstest_bdd_harness_gpui::GpuiHarness",
+            feature_path = metadata.feature_path(),
+            scenario_name = metadata.scenario_name(),
+            scenario_line = metadata.scenario_line(),
+            error = %message,
+            "GPUI scenario panicked"
+        );
+        Self::write_stderr_diagnostic(&message);
+        panic::resume_unwind(Box::new(message));
+    }
+
+    fn augmented_panic_message(payload: &(dyn Any + Send), metadata: &ScenarioMetadata) -> String {
+        let message = panic_message(payload);
+        format!(
+            "rstest-bdd-harness-gpui scenario panicked: feature={feature_path}:{scenario_line}, \
+             scenario={scenario_name:?}: {message}",
+            feature_path = metadata.feature_path(),
+            scenario_line = metadata.scenario_line(),
+            scenario_name = metadata.scenario_name(),
+        )
+    }
+
+    fn write_stderr_diagnostic(message: &str) {
+        let mut stderr = io::stderr().lock();
+        if let Err(error) = writeln!(stderr, "{message}") {
+            tracing::debug!(
+                harness_type = "rstest_bdd_harness_gpui::GpuiHarness",
+                error = %error,
+                "failed to write GPUI scenario panic diagnostic to stderr"
+            );
+        }
     }
 }
 
@@ -127,7 +189,7 @@ impl HarnessAdapter for GpuiHarness {
         let runner = Mutex::new(Some(runner));
         let output = Mutex::new(None);
 
-        Self::run_request_once(&runner, &output, &scenario_name);
+        Self::run_request_once(&runner, &output, &metadata);
         Ok(Self::extract_output(output, &scenario_name))
     }
 }

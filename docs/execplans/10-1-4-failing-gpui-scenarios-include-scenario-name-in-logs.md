@@ -4,7 +4,7 @@ This ExecPlan (execution plan) is a living document. The sections `Constraints`,
  `Tolerances`, `Risks`, `Progress`, `Surprises & discoveries`, `Decision log`,
 and `Outcomes & retrospective` must be kept up to date as work proceeds.
 
-Status: DRAFT
+Status: IN PROGRESS
 
 ## Purpose / big picture
 
@@ -28,18 +28,17 @@ regression" finish line.
 Success is observable when:
 
 1. Running the new feature-gated regression binary as
-   `cargo test -p rstest-bdd-harness-gpui --features native-gpui-tests
-   --test scenario_name_in_logs` passes. That binary captures the resumed
-   panic payload of a deliberately failing scenario and asserts that the
-   feature path, scenario name, and scenario line number all appear in the
-   augmented diagnostic.
+   `cargo test -p rstest-bdd-harness-gpui --features native-gpui-tests --test scenario_name_in_logs`
+   passes. That binary captures the resumed panic payload of a deliberately
+   failing scenario and asserts that the feature path, scenario name, and
+   scenario line number all appear in the augmented diagnostic.
 2. `make check-fmt`, `make lint`, `make test`, and `make markdownlint` all
    exit zero.
 3. `docs/roadmap.md` item 10.1.4 is checked off only after items 1 and 2
    pass and CodeRabbit review concerns are cleared.
 
-This draft does not authorize implementation; wait for explicit user approval
-before changing production or test code.
+Implementation was authorized by the user on 2026-05-24; proceed
+milestone-by-milestone within the tolerances below.
 
 ## Constraints
 
@@ -582,8 +581,8 @@ Quality criteria (what "done" means):
 - Tests: the focused feature-gated GPUI gate
   (`cargo test -p rstest-bdd-harness-gpui --features native-gpui-tests`)
   passes; the new binary `scenario_name_in_logs` contributes at least two
-  passing tests, including the failing-scenario diagnostic assertion. The
-  full workspace `make test` passes.
+  passing tests, including the failing-scenario diagnostic assertion. The full
+  workspace `make test` passes.
 - Lint/typecheck: `make check-fmt` exits 0, `make lint` exits 0,
   `make markdownlint` exits 0 when Markdown changed.
 - Behaviour: a deliberately panicking GPUI scenario produces a captured
@@ -675,22 +674,30 @@ in Stage C and record the addition in `Decision log`.
 
 ## Progress
 
-- [ ] (timestamp pending) Load `leta`, `rust-router`, and supporting
-  Rust skills. Create the `leta` workspace for this worktree.
-- [ ] (timestamp pending) Confirm and rename branch to
+- [x] (2026-05-24 17:48 CEST) Load `leta`, `rust-router`, and supporting
+  Rust skills. Create the `leta` workspace for this worktree. The workspace was
+  already registered, so no new Leta state was needed.
+- [x] (2026-05-24 17:48 CEST) Confirm and rename branch to
   `10-1-4-failing-gpui-scenarios-include-scenario-name-in-logs`, tracking
-  `origin/10-1-4-failing-gpui-scenarios-include-scenario-name-in-logs`.
-- [ ] (timestamp pending) Capture baseline `cargo test -p
-  rstest-bdd-harness-gpui --features native-gpui-tests`, `make check-fmt`, and `
-  make lint`; verify all pass; record test count.
-- [ ] (timestamp pending) Decide regression test channel (resumed panic
+  `origin/10-1-4-failing-gpui-scenarios-include-scenario-name-in-logs`. The
+  branch name was already correct; no rename was needed.
+- [x] (2026-05-24 17:50 CEST) Capture baseline `cargo test -p
+  rstest-bdd-harness-gpui --features native-gpui-tests`, `make check-fmt`, and
+  `make lint`; verify all pass; record test count. The focused GPUI baseline
+  passed with 24 tests: 2 attribute-policy tests, 6 harness-behaviour tests, 1
+  trybuild macro test, 8 scenario-macro tests, and 7 stateful-window tests.
+- [x] (2026-05-24 17:50 CEST) Decide regression test channel (resumed panic
   payload vs. tracing subscriber capture) and record decision.
-- [ ] (timestamp pending) Add the red regression test binary
+- [x] (2026-05-24 17:52 CEST) Add the red regression test binary
   `scenario_name_in_logs.rs` and confirm it fails for the expected reason.
-- [ ] (timestamp pending) Implement `augment_panic` and the closure-local
-  `catch_unwind`/`resume_unwind` in `gpui_harness.rs`. Run focused gate.
-- [ ] (timestamp pending) Run `make check-fmt`, `make lint`, `make test`
-  sequentially; fix issues in the code, not by suppression.
+- [x] (2026-05-24 17:55 CEST) Implement `augment_panic` and the closure-local
+  `catch_unwind`/`resume_unwind` in `gpui_harness.rs`. Run focused gate. The
+  focused binary passed with 3 tests, and the full GPUI feature-gated suite
+  passed with 27 tests.
+- [x] (2026-05-24 18:01 CEST) Run `make check-fmt`, `make lint`, `make test`
+  sequentially; fix issues in the code, not by suppression. `make test` ran
+  1453 nextest tests with 1453 passed and 7 skipped, then ran 62 Python release
+  automation tests with 62 passed.
 - [ ] (timestamp pending) Update `users-guide.md`,
   `developers-guide.md`, and (if needed) `rstest-bdd-design.md` §2.7.5.
 - [ ] (timestamp pending) Run `make fmt` and `make markdownlint` if
@@ -703,7 +710,43 @@ in Stage C and record the addition in `Decision log`.
 
 ## Surprises & discoveries
 
-(Empty at draft time. Populate as implementation proceeds.)
+- 2026-05-24 17:48 CEST: `leta workspace add` reported that this worktree was
+  already registered. Treat this as satisfying the workspace creation
+  requirement.
+
+- 2026-05-24 17:48 CEST: `rstest-bdd-harness-gpui` already lists
+  `rstest-bdd` as a dev-dependency, so the regression test can call
+  `rstest_bdd::panic_message` without dependency changes. Production code does
+  not yet have access to `panic_message`; Stage C must either add `rstest-bdd`
+  as a regular dependency or use a local rendering helper.
+
+- 2026-05-24 17:50 CEST: Stage A baselines passed. Logs:
+  `/tmp/baseline-gpui-rstest-bdd-10-1-4-failing-gpui-scenarios-include-scenario-name-in-logs.out`,
+  `/tmp/baseline-check-fmt-rstest-bdd-10-1-4-failing-gpui-scenarios-include-scenario-name-in-logs.out`,
+  and
+  `/tmp/baseline-lint-rstest-bdd-10-1-4-failing-gpui-scenarios-include-scenario-name-in-logs.out`.
+
+- 2026-05-24 17:51 CEST: The first red-regression attempt failed at compile
+  time because `HarnessError` intentionally does not implement `PartialEq`. The
+  success-path assertions now unwrap the harness result with a diagnostic
+  message before comparing the returned value.
+
+- 2026-05-24 17:52 CEST: The corrected red regression failed for the expected
+  reason: the captured panic payload contained only
+  `step panic without scenario context`. Because repository instructions forbid
+  committing failing quality gates, the red state was not committed; the
+  transcript remains in
+  `/tmp/red-scenario-name-rstest-bdd-10-1-4-failing-gpui-scenarios-include-scenario-name-in-logs.out`.
+
+- 2026-05-24 17:54 CEST: `make fmt` applied Rust formatting but then failed
+  on pre-existing Markdown lint issues across unrelated documents. The
+  formatter churn outside this task was reverted, preserving only task files.
+  Future documentation edits should be validated with focused inspection plus
+  `make markdownlint`, recording any unrelated baseline failures explicitly.
+
+- 2026-05-24 18:01 CEST: `make markdownlint` passed after the unrelated
+  formatter churn was reverted. The earlier `make fmt` failure came from the
+  formatter's auto-fix path, not from the lint target.
 
 ## Decision log
 
@@ -752,6 +795,33 @@ in Stage C and record the addition in `Decision log`.
   overhead and obscure the assertion target. Behavioural coverage for the wider
   GPUI workflow already exists in `stateful_window.rs`. Date/Author:
   2026-05-24, planning phase.
+
+- Decision: treat the user's 2026-05-24 implementation request as approval to
+  move the ExecPlan from draft to execution. Rationale: the plan was already
+  authored, the user explicitly asked to proceed with implementation, and the
+  request also requires the plan to stay current during the work. Date/Author:
+  2026-05-24, implementation phase.
+
+- Decision: assert the regression through the resumed panic payload, not a
+  tracing subscriber. Rationale: the plan requires deterministic pre-CodeRabbit
+  validation, and the panic payload is observable through `catch_unwind`
+  without relying on libtest or nextest stderr capture details. The harness can
+  still emit `tracing::error!` and stderr diagnostics in Stage C for human CI
+  logs. Date/Author: 2026-05-24, implementation phase.
+
+- Decision: add `rstest-bdd` and `tracing` as regular dependencies of
+  `rstest-bdd-harness-gpui`. Rationale: production augmentation uses
+  `rstest_bdd::panic_message` to render arbitrary panic payloads, and
+  `tracing::error!` is part of the required diagnostic channel. Both are
+  existing workspace dependencies, so this introduces no new external crate.
+  Date/Author: 2026-05-24, implementation phase.
+
+- Decision: re-raise an augmented `String` payload and explicitly drop the
+  original payload after rendering it. Rationale: libtest and nextest reliably
+  display string panic payloads, while the original payload's human-readable
+  content remains embedded in the augmented diagnostic. Clippy requires the
+  ownership handoff to be explicit because the original box is not resumed
+  directly. Date/Author: 2026-05-24, implementation phase.
 
 ## Outcomes & retrospective
 

@@ -23,8 +23,10 @@ test = false
 native-gpui-tests = []
 
 [dependencies]
-rstest-bdd-harness.workspace = true
 gpui.workspace = true
+rstest-bdd.workspace = true
+rstest-bdd-harness.workspace = true
+tracing.workspace = true
 
 [dev-dependencies]
 rstest.workspace = true
@@ -39,6 +41,6 @@ serial_test.workspace = true
 trybuild.workspace = true
 
 [[test]]
-name = "macro_compile"
-path = "tests/macro_compile.rs"
+name = "scenario_name_in_logs"
+path = "tests/scenario_name_in_logs.rs"
 required-features = ["native-gpui-tests"]
