@@ -80,8 +80,11 @@ impl GpuiHarness {
                 let result = panic::catch_unwind(AssertUnwindSafe(|| {
                     Self::run_scenario(dispatcher.clone(), runner_slot, metadata.scenario_name())
                 }));
-                let (context, result) = result
-                    .unwrap_or_else(|payload| Self::resume_augmented_panic(payload, metadata));
+                let (context, result) = result.unwrap_or_else(|payload| {
+                    let message = Self::augmented_panic_message(payload.as_ref(), metadata);
+                    Self::emit_augmented_panic_diagnostic(&message, metadata);
+                    panic::resume_unwind(Box::new(message));
+                });
                 // A teardown panic should point at the GPUI cleanup path itself, not
                 // at a scenario step that has already completed successfully.
                 Self::finish_context(&dispatcher, &context);
@@ -142,9 +145,7 @@ impl GpuiHarness {
             })
     }
 
-    fn resume_augmented_panic<T>(payload: Box<dyn Any + Send>, metadata: &ScenarioMetadata) -> T {
-        let message = Self::augmented_panic_message(payload.as_ref(), metadata);
-        drop(payload);
+    fn emit_augmented_panic_diagnostic(message: &str, metadata: &ScenarioMetadata) {
         tracing::error!(
             harness_type = "rstest_bdd_harness_gpui::GpuiHarness",
             feature_path = metadata.feature_path(),
@@ -153,8 +154,7 @@ impl GpuiHarness {
             error = %message,
             "GPUI scenario panicked"
         );
-        Self::write_stderr_diagnostic(&message);
-        panic::resume_unwind(Box::new(message));
+        Self::write_stderr_diagnostic(message);
     }
 
     fn augmented_panic_message(payload: &(dyn Any + Send), metadata: &ScenarioMetadata) -> String {
@@ -170,13 +170,17 @@ impl GpuiHarness {
 
     fn write_stderr_diagnostic(message: &str) {
         let mut stderr = io::stderr().lock();
-        if let Err(error) = writeln!(stderr, "{message}") {
+        if let Err(error) = Self::write_stderr_diagnostic_to(&mut stderr, message) {
             tracing::debug!(
                 harness_type = "rstest_bdd_harness_gpui::GpuiHarness",
                 error = %error,
                 "failed to write GPUI scenario panic diagnostic to stderr"
             );
         }
+    }
+
+    fn write_stderr_diagnostic_to(writer: &mut impl Write, message: &str) -> io::Result<()> {
+        writeln!(writer, "{message}")
     }
 }
 

@@ -570,7 +570,7 @@ D6. Mark `docs/roadmap.md` item 10.1.4 done (`- [x]`) and update this plan's
 and docs.
 
 D7. Push the branch (tracking
-`origin/10-1-4-failing-gpui-scenarios- include-scenario-name-in-logs`), update
+`origin/10-1-4-failing-gpui-scenarios-include-scenario-name-in-logs`), update
 the draft pull request with the final state, validation transcripts, and a link
 to the Lody session.
 
