@@ -59,7 +59,6 @@ async fn no_reminders_have_been_delivered_yet(service: &ReminderService) {
     path = "tests/features/reminders.feature",
     name = "Scheduling a reminder queues it for later delivery",
     harness = rstest_bdd_harness_tokio::TokioHarness,
-    attributes = rstest_bdd_harness_tokio::TokioAttributePolicy,
 )]
 fn queues_a_scheduled_reminder(#[from(service)] _: ReminderService) {}
 
@@ -67,6 +66,5 @@ fn queues_a_scheduled_reminder(#[from(service)] _: ReminderService) {}
     path = "tests/features/reminders.feature",
     name = "Scheduling multiple reminders preserves queue order",
     harness = rstest_bdd_harness_tokio::TokioHarness,
-    attributes = rstest_bdd_harness_tokio::TokioAttributePolicy,
 )]
 fn preserves_queue_order(#[from(service)] _: ReminderService) {}

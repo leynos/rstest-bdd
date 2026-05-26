@@ -1,11 +1,10 @@
 # Update harness-led defaults documentation and examples
 
-This ExecPlan (execution plan) is a living document. The sections
-`Constraints`, `Tolerances`, `Risks`, `Progress`, `Surprises & Discoveries`,
-`Decision Log`, and `Outcomes & Retrospective` must be kept up to date as work
-proceeds.
+This ExecPlan (execution plan) is a living document. The sections `Constraints`,
+ `Tolerances`, `Risks`, `Progress`, `Surprises & Discoveries`, `Decision Log`,
+and `Outcomes & Retrospective` must be kept up to date as work proceeds.
 
-Status: DRAFT
+Status: COMPLETE
 
 This plan covers roadmap item 9.7.4 only. It must be approved before
 implementation begins. While
@@ -16,13 +15,12 @@ authorizes it.
 ## Purpose / big picture
 
 Roadmap item 9.7.4 updates the user-facing documentation and first-party
-example prose after roadmap items 9.7.1, 9.7.2, and 9.7.3 delivered
-harness-led attribute-policy defaults. The user-visible behaviour is that
-first-party Tokio and Graphical Processing User Interface (GPUI) integrations
-can be configured with `harness = ...` alone. When the harness path is one of
-the recognized first-party paths, the macro infers the matching first-party
-attribute policy unless the caller supplies an explicit `attributes = ...`
-override.
+example prose after roadmap items 9.7.1, 9.7.2, and 9.7.3 delivered harness-led
+attribute-policy defaults. The user-visible behaviour is that first-party Tokio
+and Graphical Processing User Interface (GPUI) integrations can be configured
+with `harness = ...` alone. When the harness path is one of the recognized
+first-party paths, the macro infers the matching first-party attribute policy
+unless the caller supplies an explicit `attributes = ...` override.
 
 After this work is implemented, a reader can start in `docs/users-guide.md`,
 `docs/rstest-bdd-design.md`, `docs/v0-6-0-migration-guide.md`, or the
@@ -42,7 +40,8 @@ repository gates.
 
 ## Constraints
 
-- Do not implement this plan until the maintainer explicitly approves it.
+- The maintainer approved implementation on 2026-05-26 by asking Codex to
+  proceed with the planned functionality.
 - Treat implementation as contingent while ADR-008 remains `Proposed`, unless
   the maintainer explicitly authorizes contingent implementation.
 - Keep scope to roadmap item 9.7.4. Do not redesign the harness adapter layer,
@@ -55,10 +54,9 @@ repository gates.
   4. existing runtime-mode or synchronous fallback
 - Preserve support for `attributes`-only configuration.
 - Preserve the third-party caveat: arbitrary user-defined
-  `AttributePolicy::test_attributes()` implementations are not evaluated
-  during procedural macro expansion, so unknown third-party harnesses must
-  document explicit `attributes = ...` use where custom test attributes are
-  required.
+  `AttributePolicy::test_attributes()` implementations are not evaluated during
+  procedural macro expansion, so unknown third-party harnesses must document
+  explicit `attributes = ...` use where custom test attributes are required.
 - Preserve ADR-005 crate boundaries. Tokio and GPUI dependencies must remain
   in opt-in adapter crates, not in `rstest-bdd`, `rstest-bdd-macros`, or
   `rstest-bdd-harness`.
@@ -76,8 +74,7 @@ repository gates.
   sequentially before each CodeRabbit review and before committing the
   completed implementation.
 - Use `coderabbit review --agent` after each major implementation milestone.
-  CodeRabbit concerns must be addressed or explicitly recorded before moving
-  on.
+  CodeRabbit concerns must be addressed or explicitly recorded before moving on.
 - Commit focused changes after their gates pass. Use the commit-message skill
   and `git commit -F`, not `git commit -m`.
 - Do not mark roadmap item 9.7.4 done until the documentation/example update
@@ -92,8 +89,8 @@ repository gates.
 ## Tolerances (exception triggers)
 
 - Scope: if implementation requires more than 10 files changed or more than
-  700 net lines, stop and confirm whether the work has expanded beyond
-  roadmap item 9.7.4.
+  700 net lines, stop and confirm whether the work has expanded beyond roadmap
+  item 9.7.4.
 - Code scope: if any Rust source change is needed beyond removing redundant
   first-party `attributes = ...` arguments from example tests, stop and update
   this plan before proceeding.
@@ -112,16 +109,16 @@ repository gates.
   design decision rather than a mechanical documentation fix, record it in
   `Decision Log` and ask for direction.
 - Ambiguity: if `docs/users-guide.md`, `docs/rstest-bdd-design.md`,
-  `docs/v0-6-0-migration-guide.md`, ADR-008, and the implementation disagree
-  on first-party inference or third-party caveats, stop and present the
+  `docs/v0-6-0-migration-guide.md`, ADR-008, and the implementation disagree on
+  first-party inference or third-party caveats, stop and present the
   interpretations.
 
 ## Risks
 
 - Risk: documentation could overstate ADR-008 while the ADR remains
   `Proposed`. Severity: high. Likelihood: medium. Mitigation: keep the plan
-  contingent until approval and, during implementation, either wait for
-  ADR-008 acceptance or record explicit maintainer authorization.
+  contingent until approval and, during implementation, either wait for ADR-008
+  acceptance or record explicit maintainer authorization.
 - Risk: examples could imply all harnesses infer attribute policies.
   Severity: high. Likelihood: medium. Mitigation: keep first-party wording
   narrow and repeat that third-party harnesses need explicit policy guidance
@@ -142,8 +139,8 @@ repository gates.
   gates before review.
 - Risk: CodeRabbit review can take 7 to 30 or more minutes according to the
   current CodeRabbit CLI documentation. Severity: low. Likelihood: medium.
-  Mitigation: run reviews as explicit milestones and wait for completion
-  rather than treating a long-running review as a failure.
+  Mitigation: run reviews as explicit milestones and wait for completion rather
+  than treating a long-running review as a failure.
 - Risk: property tests, Kani, or Verus could be requested by the generic task
   template but are not justified by a prose-only update. Severity: low.
   Likelihood: low. Mitigation: record that no new invariant, state machine, or
@@ -188,112 +185,161 @@ repository gates.
 - [x] (2026-05-24T16:36:48Z) Committed the draft ExecPlan for review.
 - [x] (2026-05-24T16:36:48Z) Pushed the branch and opened draft pull request
       <https://github.com/leynos/rstest-bdd/pull/497> for plan review.
-- [ ] Await explicit maintainer approval before implementation begins.
+- [x] (2026-05-26T00:00:00+02:00) Received explicit maintainer approval to
+      proceed with implementation from this ExecPlan.
+- [x] (2026-05-26T00:00:00+02:00) Re-read the plan, current branch state, and
+      audited documentation/example occurrences of harness and attribute
+      policy guidance.
+- [x] (2026-05-26T00:00:00+02:00) Updated first-party Tokio and GPUI examples
+      to demonstrate harness-only defaults.
+- [x] (2026-05-26T00:00:00+02:00) Updated the user guide, migration guide, and
+      design document to lead with harness-only first-party configuration.
+- [x] (2026-05-26T00:00:00+02:00) Ran focused example tests for
+      `tokio-reminders` and `gpui-counter`; both passed.
+- [x] (2026-05-26T00:00:00+02:00) Ran `make markdownlint`; it now passes.
+- [x] (2026-05-26T00:00:00+02:00) Validated with `make nixie`,
+      `make check-fmt`, `make lint`, `make typecheck`, and `make test`.
+- [x] (2026-05-26T00:00:00+02:00) Ran `coderabbit review --agent` after the
+      documentation/example milestone; it reported zero findings.
+- [x] (2026-05-26T00:00:00+02:00) Marked roadmap item 9.7.4 done after
+      validation and CodeRabbit review.
+- [x] (2026-05-26T00:00:00+02:00) Re-ran final gates after the roadmap and
+      ExecPlan status updates.
+- [x] (2026-05-26T00:00:00+02:00) Ran final `coderabbit review --agent`; it
+      reported zero findings.
+- [x] (2026-05-26T00:00:00+02:00) Committed the completed implementation as
+      `4539cd8`.
+- [ ] Push the completed implementation.
 
 ## Surprises & discoveries
 
 - Observation: roadmap items 9.7.1, 9.7.2, and 9.7.3 are already marked
-  delivered while ADR-008 remains `Proposed`.
-  Evidence: `docs/roadmap.md` records the items as delivered under maintainer
-  authorization; `docs/adr-008-harness-led-attribute-policy-defaults.md` still
-  says `Status: Proposed`.
-  Impact: this plan keeps implementation contingent and avoids marking 9.7.4
-  done during plan drafting.
+  delivered while ADR-008 remains `Proposed`. Evidence: `docs/roadmap.md`
+  records the items as delivered under maintainer authorization;
+  `docs/adr-008-harness-led-attribute-policy-defaults.md` still says
+  `Status: Proposed`. Impact: this plan keeps implementation contingent and
+  avoids marking 9.7.4 done during plan drafting.
 - Observation: `docs/users-guide.md` already recommends harness-led defaults
   in one section but still carries forward-looking 9.7.4 notes and several
   paired or override examples that can be mistaken for canonical first-party
-  usage.
-  Evidence: the guide contains a note that 9.7.4 will revise examples, plus
-  repeated `GpuiHarness` examples paired with
-  `DefaultAttributePolicy`.
+  usage. Evidence: the guide contains a note that 9.7.4 will revise examples,
+  plus repeated `GpuiHarness` examples paired with `DefaultAttributePolicy`.
   Impact: implementation should audit the whole guide rather than only editing
   the first matching snippet.
 - Observation: the first-party example READMEs currently describe binding
-  scenarios with both `harness = ...` and `attributes = ...`.
-  Evidence: `examples/tokio-reminders/README.md` and
-  `examples/gpui-counter/README.md` both teach paired arguments.
-  Impact: first-party example prose is definitely in scope, and example test
-  source may also need to drop redundant `attributes = ...` arguments so the
-  prose and working examples match.
+  scenarios with both `harness = ...` and `attributes = ...`. Evidence:
+  `examples/tokio-reminders/README.md` and `examples/gpui-counter/README.md`
+  both teach paired arguments. Impact: first-party example prose is definitely
+  in scope, and example test source may also need to drop redundant
+  `attributes = ...` arguments so the prose and working examples match.
 - Observation: Firecrawl found the current CodeRabbit CLI documentation
-  describes `--agent` as structured JSON output for agent integrations and
-  says reviews can take 7 to 30 or more minutes depending on scope.
-  Evidence: Firecrawl search result for <https://docs.coderabbit.ai/cli>.
-  Impact: the plan treats CodeRabbit review as a long-running milestone that
-  must complete before moving on.
+  describes `--agent` as structured JSON output for agent integrations and says
+  reviews can take 7 to 30 or more minutes depending on scope. Evidence:
+  Firecrawl search result for <https://docs.coderabbit.ai/cli>. Impact: the
+  plan treats CodeRabbit review as a long-running milestone that must complete
+  before moving on.
 - Observation: the full `make markdownlint` gate currently fails before this
-  task changes any implementation docs.
-  Evidence: `/tmp/markdownlint-9-7-4-update-guides-design-docs-and-examples.out`
-  reports 93 errors in `docs/users-guide.md`; the focused lint command for
-  this ExecPlan reports zero errors.
-  Impact: this planning branch records the blocker honestly and does not
-  attempt the unapproved user-guide cleanup as part of the pre-implementation
-  plan.
+  task changes any implementation docs. Evidence:
+  `/tmp/markdownlint-9-7-4-update-guides-design-docs-and-examples.out` reports
+  93 errors in `docs/users-guide.md`; the focused lint command for this
+  ExecPlan reports zero errors. Impact: this planning branch records the
+  blocker honestly and does not attempt the unapproved user-guide cleanup as
+  part of the pre-implementation plan.
 - Observation: Cargo metadata initially failed because both first-party
-  harness manifests declared duplicate `macro_compile` test targets.
-  Evidence: `make check-fmt` failed first on
-  `crates/rstest-bdd-harness-gpui/Cargo.toml`, then on
-  `crates/rstest-bdd-harness-tokio/Cargo.toml`, with "found duplicate test
-  name macro_compile".
-  Impact: the plan branch includes a separate gate-unblocking manifest cleanup
-  so `make check-fmt`, `make lint`, `make typecheck`, and `make test` can run.
+  harness manifests declared duplicate `macro_compile` test targets. Evidence:
+  `make check-fmt` failed first on `crates/rstest-bdd-harness-gpui/Cargo.toml`,
+  then on `crates/rstest-bdd-harness-tokio/Cargo.toml`, with "found duplicate
+  test name macro_compile". Impact: the plan branch includes a separate
+  gate-unblocking manifest cleanup so `make check-fmt`, `make lint`,
+  `make typecheck`, and `make test` can run.
+- Observation: implementation approval arrived while ADR-008 still says
+  `Status: Proposed`. Evidence: the maintainer asked Codex on 2026-05-26 to
+  proceed with this ExecPlan;
+  `docs/adr-008-harness-led-attribute-policy-defaults.md` still has proposed
+  status. Impact: proceed under explicit maintainer authorization and record
+  that the canonical documentation change is still tied to ADR-008's staged
+  rollout.
+- Observation: `docs/users-guide.md` contains duplicated GPUI override snippets
+  inside the Tokio harness section and a forward-looking 9.7.4 note. Evidence:
+  the audit found repeated `my_gpui_scenario_with_explicit_override` examples
+  around the harness overview, Tokio section, and GPUI section. Impact: clean
+  up the duplicated snippets as part of the user-guide update so the guide
+  presents one normal first-party path and one explicit override pattern.
+- Observation: `make fmt` ran Rust formatting and Markdown fixers, but the
+  Markdown linting phase initially failed on repository-wide line-length
+  reports after the fixers completed. Evidence:
+  `/tmp/fmt-9-7-4-update-guides-design-docs-and-examples.out` contains the
+  failed `markdownlint --fix` output; unrelated formatter churn was restored
+  before continuing. Impact: keep only task-owned files in the worktree and use
+  `make markdownlint` plus the Rust formatting check as the authoritative
+  gates for the final branch state.
 
 ## Decision log
 
 - Decision: Keep this branch as a pre-implementation planning branch and do
-  not mark roadmap item 9.7.4 done.
-  Rationale: the user explicitly requested an ExecPlan and stated that the
-  plan must be approved before implementation.
+  not mark roadmap item 9.7.4 done. Rationale: the user explicitly requested an
+  ExecPlan and stated that the plan must be approved before implementation.
   Date/Author: 2026-05-24T16:36:48Z / Codex.
 - Decision: Treat example test-source edits as allowed only when needed to
-  keep first-party examples truthful and compiling.
-  Rationale: roadmap item 9.7.4 says examples should no longer require both
-  parameters by default. In this repository, the first-party examples include
-  both prose and Rust test files, so the implementation may need a small source
-  edit to make the examples lead with harness-only defaults.
-  Date/Author: 2026-05-24T16:36:48Z / Codex.
+  keep first-party examples truthful and compiling. Rationale: roadmap item
+  9.7.4 says examples should no longer require both parameters by default. In
+  this repository, the first-party examples include both prose and Rust test
+  files, so the implementation may need a small source edit to make the
+  examples lead with harness-only defaults. Date/Author: 2026-05-24T16:36:48Z /
+  Codex.
 - Decision: Do not plan property tests, Kani, or Verus for the default
-  implementation path.
-  Rationale: the requested work updates documentation and examples for already
-  delivered behaviour. It introduces no new resolver invariant, state
-  transition, unsafe code, or contractual business rule requiring proof.
-  Date/Author: 2026-05-24T16:36:48Z / Codex.
+  implementation path. Rationale: the requested work updates documentation and
+  examples for already delivered behaviour. It introduces no new resolver
+  invariant, state transition, unsafe code, or contractual business rule
+  requiring proof. Date/Author: 2026-05-24T16:36:48Z / Codex.
 - Decision: Use the exact pull request title task marker requested by the
   user, `(7.7.4)`, for the draft plan pull request even though the roadmap item
-  is 9.7.4.
-  Rationale: the pull request instruction is explicit and separate from the
-  roadmap numbering in the plan body.
-  Date/Author: 2026-05-24T16:36:48Z / Codex.
+  is 9.7.4. Rationale: the pull request instruction is explicit and separate
+  from the roadmap numbering in the plan body. Date/Author:
+  2026-05-24T16:36:48Z / Codex.
 - Decision: Fix duplicate first-party harness `macro_compile` test target
-  declarations in this planning branch.
-  Rationale: the duplicates prevented Cargo metadata from loading, which made
-  the repository gates impossible to run. The fix is a minimal manifest
-  cleanup and does not implement roadmap item 9.7.4.
-  Date/Author: 2026-05-24T16:36:48Z / Codex.
+  declarations in this planning branch. Rationale: the duplicates prevented
+  Cargo metadata from loading, which made the repository gates impossible to
+  run. The fix is a minimal manifest cleanup and does not implement roadmap
+  item 9.7.4. Date/Author: 2026-05-24T16:36:48Z / Codex.
 - Decision: Do not fix `docs/users-guide.md` Markdown lint failures in this
-  pre-implementation planning branch.
-  Rationale: those failures are outside the new ExecPlan and overlap the
-  documentation implementation area that must wait for plan approval.
-  Date/Author: 2026-05-24T16:36:48Z / Codex.
+  pre-implementation planning branch. Rationale: those failures are outside the
+  new ExecPlan and overlap the documentation implementation area that must wait
+  for plan approval. Date/Author: 2026-05-24T16:36:48Z / Codex.
+- Decision: Treat the user's 2026-05-26 "proceed with implementation" request
+  as the required approval gate for the plan and for contingent ADR-008
+  documentation work. Rationale: the request explicitly names this ExecPlan and
+  asks for implementation of the planned functionality. Date/Author:
+  2026-05-26T00:00:00+02:00 / Codex.
+- Decision: Remove redundant first-party `attributes = ...` arguments from the
+  Tokio reminders and GPUI counter scenario tests. Rationale: the roadmap item
+  requires first-party examples to no longer require both parameters by
+  default, and focused example tests prove that the delivered harness-led
+  defaults cover these examples. Date/Author: 2026-05-26T00:00:00+02:00 /
+  Codex.
 
 ## Outcomes & retrospective
 
-The pre-implementation draft now captures the approval gate, ADR-008
-contingency, documentation scope, example scope, validation strategy,
-CodeRabbit review loop, and pull request requirements. Implementation remains
-blocked until a maintainer explicitly approves this plan.
+The implementation aligns the user guide, design document, migration guide, and
+first-party example crates with harness-led defaults for recognized Tokio and
+GPUI harnesses. The examples now demonstrate `harness = ...` alone as the
+normal first-party path, while the guide and migration prose retain
+`attributes = ...` as an override, attributes-only, and third-party caveat
+surface. Focused Tokio and GPUI example tests passed, full deterministic gates
+passed twice, and both implementation CodeRabbit reviews reported zero
+findings. Roadmap item 9.7.4 is marked done.
 
 ## Context and orientation
 
 The harness adapter architecture comes from ADR-005 and is documented in
 `docs/adr-005-harness-adapter-crates-for-framework-specific-test-integration.md`.
-It keeps framework-specific runtime integration out of the core runtime and
-macro crates. The shared `rstest-bdd-harness` crate defines
-`HarnessAdapter`, `ScenarioRunRequest`, `ScenarioRunner`, `AttributePolicy`,
-and `DefaultAttributePolicy`.
+ It keeps framework-specific runtime integration out of the core runtime and
+macro crates. The shared `rstest-bdd-harness` crate defines `HarnessAdapter`,
+`ScenarioRunRequest`, `ScenarioRunner`, `AttributePolicy`, and
+`DefaultAttributePolicy`.
 
-ADR-008 proposes the harness-led default rule for first-party integrations.
-The rule keeps `HarnessAdapter` and `AttributePolicy` separate, but it makes
+ADR-008 proposes the harness-led default rule for first-party integrations. The
+rule keeps `HarnessAdapter` and `AttributePolicy` separate, but it makes
 `harness = ...` the lead user decision for known first-party harnesses. If the
 caller writes `harness = rstest_bdd_harness_tokio::TokioHarness` and omits
 `attributes = ...`, the macro infers the Tokio first-party attribute policy.
@@ -322,8 +368,7 @@ Important repository files:
   `examples/gpui-counter/README.md` are first-party example prose.
 - `examples/tokio-reminders/tests/reminders.rs` and
   `examples/gpui-counter/tests/counter.rs` are compiling first-party example
-  tests that may need to drop redundant explicit first-party attribute
-  policies.
+  tests that may need to drop redundant explicit first-party attribute policies.
 
 Relevant background documents to signpost during implementation:
 
@@ -340,39 +385,39 @@ Relevant background documents to signpost during implementation:
 ## Plan of work
 
 Stage A is the approval and readiness checkpoint. Confirm whether ADR-008 has
-been accepted. If it remains `Proposed`, record maintainer authorization
-before implementing documentation that presents harness-led defaults as
-canonical. Re-read `docs/roadmap.md` item 9.7.4, ADR-008, the 9.7.1 to 9.7.3
-execplans, and the current guide/design/migration/example surfaces. Do not
-edit files in this stage except for keeping this ExecPlan current.
+been accepted. If it remains `Proposed`, record maintainer authorization before
+implementing documentation that presents harness-led defaults as canonical.
+Re-read `docs/roadmap.md` item 9.7.4, ADR-008, the 9.7.1 to 9.7.3 execplans,
+and the current guide/design/migration/example surfaces. Do not edit files in
+this stage except for keeping this ExecPlan current.
 
 Stage B audits all documentation and example occurrences. Search for
 `harness =`, `attributes =`, `TokioHarness`, `TokioAttributePolicy`,
-`GpuiHarness`, `GpuiAttributePolicy`, `runtime = "tokio-current-thread"`,
-and `9.7.4` across `docs/`, `README.md`, `crates/*/README.md`, and
-`examples/`. Classify each occurrence as one of four cases: canonical
-first-party harness-only guidance, explicit override guidance,
-attributes-only guidance, or third-party caveat. The audit is complete when
-there are no unclassified paired first-party examples.
+`GpuiHarness`, `GpuiAttributePolicy`, `runtime = "tokio-current-thread"`, and
+`9.7.4` across `docs/`, `README.md`, `crates/*/README.md`, and `examples/`.
+Classify each occurrence as one of four cases: canonical first-party
+harness-only guidance, explicit override guidance, attributes-only guidance, or
+third-party caveat. The audit is complete when there are no unclassified paired
+first-party examples.
 
 Stage C updates the user guide and migration guide. In `docs/users-guide.md`,
-make harness-only first-party snippets the normal Tokio and GPUI examples,
-so the public guidance leads with the same default path. Remove stale
-forward-looking notes about 9.7.4, keep one explicit
-`attributes = ...` override example, and preserve the third-party limitation
-near custom harness guidance. In `docs/v0-6-0-migration-guide.md`, make the
-stage 9.7's impact explicit: first-party `StdHarness`, `TokioHarness`, and
-`GpuiHarness` infer matching defaults when named by recognized paths; explicit
-`attributes = ...` remains the override; renamed, aliased, re-exported, or
-third-party paths still need caveat-aware guidance.
+make harness-only first-party snippets the normal Tokio and GPUI examples, so
+the public guidance leads with the same default path. Remove stale
+forward-looking notes about 9.7.4, keep one explicit `attributes = ...`
+override example, and preserve the third-party limitation near custom harness
+guidance. In `docs/v0-6-0-migration-guide.md`, make the stage 9.7's impact
+explicit: first-party `StdHarness`, `TokioHarness`, and `GpuiHarness` infer
+matching defaults when named by recognized paths; explicit `attributes = ...`
+remains the override; renamed, aliased, re-exported, or third-party paths still
+need caveat-aware guidance.
 
 Stage D updates the design document. In `docs/rstest-bdd-design.md`, align the
 architecture summary and first-party plugin target sections with harness-led
 defaults as the recommended first-party user path. Keep internal details about
 path-based recognition, `TestAttrPolicy`, `resolve_attribute_policy`, and the
-ADR-008 precedence order. If the implementation work requires a substantive
-new design decision, update ADR-008 or create a new ADR before changing the
-design document; otherwise, cite ADR-008 as the governing decision.
+ADR-008 precedence order. If the implementation work requires a substantive new
+design decision, update ADR-008 or create a new ADR before changing the design
+document; otherwise, cite ADR-008 as the governing decision.
 
 Stage E updates first-party examples. In `examples/tokio-reminders/README.md`
 and `examples/gpui-counter/README.md`, replace prose that says examples bind
@@ -525,16 +570,16 @@ Wyvern reconnaissance identified these high-signal planning facts:
 - 9.7.1, 9.7.2, and 9.7.3 are already delivered, so implementation should not
   change resolver behaviour unless documentation exposes a real mismatch.
 - `docs/users-guide.md`, `docs/rstest-bdd-design.md`,
-  `docs/v0-6-0-migration-guide.md`, `examples/tokio-reminders/README.md`,
-  and `examples/gpui-counter/README.md` are the main documentation surfaces.
+  `docs/v0-6-0-migration-guide.md`, `examples/tokio-reminders/README.md`, and
+  `examples/gpui-counter/README.md` are the main documentation surfaces.
 - Example Rust files may need a narrow edit because they still pair first-party
   harnesses with explicit first-party attribute policies.
 
 Firecrawl resolved external tooling assumptions:
 
 - CodeRabbit CLI documentation at <https://docs.coderabbit.ai/cli> describes
-  `--agent` as structured output for agent integrations and recommends
-  letting reviews run in the background when they take several minutes.
+  `--agent` as structured output for agent integrations and recommends letting
+  reviews run in the background when they take several minutes.
 - CodeRabbit's Markdown tooling page identifies `markdownlint-cli2` as the
   Markdown linter, matching the repository `Makefile` target.
 

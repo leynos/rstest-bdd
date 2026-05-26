@@ -687,14 +687,17 @@ implementation commitments.
   2026-05-21 with unit coverage for precedence and unknown-path negatives,
   trybuild fixtures for first-party override and attributes-only expansion,
   and behavioural Tokio and GPUI scenario coverage. (Buzzy Bee)
-- [ ] 9.7.4. Update the user guide, design document, and first-party example
+- [x] 9.7.4. Update the user guide, design document, and first-party example
   prose to lead with harness-only configuration once the default-inference
   behaviour lands. Retain `attributes = ...` as an override pattern and keep
   the current third-party caveats explicit. Finish line: `docs/users-guide.md`
   and `docs/rstest-bdd-design.md` recommend harness-led defaults for the
   first-party integrations, examples no longer require both parameters by
   default, and `make markdownlint` passes. Prerequisite: 9.7.3. Design Doc:
-  `docs/adr-008-harness-led-attribute-policy-defaults.md`. (Dinolump)
+  `docs/adr-008-harness-led-attribute-policy-defaults.md`. Delivered
+  2026-05-26 with harness-only Tokio and GPUI example code, updated guide,
+  design, and migration prose, focused example tests, full repository gates,
+  and CodeRabbit review. (Dinolump)
 
 ## 10. First-cut beta feedback: v0.6.0-beta2 quick wins
 
