@@ -209,7 +209,8 @@ repository gates.
       reported zero findings.
 - [x] (2026-05-26T00:00:00+02:00) Committed the completed implementation as
       `4539cd8`.
-- [ ] Push the completed implementation.
+- [x] (2026-05-26T00:00:00+02:00) Pushed the completed implementation to
+      `origin/9-7-4-update-guides-design-docs-and-examples`.
 
 ## Surprises & discoveries
 
