@@ -65,9 +65,8 @@
   ensure it meets the following criteria:
   - New functionality or changes in behaviour are fully validated by relevant
     unit tests and behavioural tests.
-  - Where a bug is being fixed, a unittest has been provided demonstrating the
-    behaviour being corrected both to validate the fix and to guard against
-    regression.
+  - Where a bug is being fixed, a unit test has been provided to demonstrate
+    the behaviour being corrected and to guard against regression.
   - Passes all relevant unit and behavioural tests according to the guidelines
     above.
   - Passes lint checks
@@ -219,7 +218,7 @@ project:
   `newt-hype` for the common case, tuple structs for outliers, and
   `the-newtype` to unify behaviour when owning the trait definitions.
 - Use `cap_std` and `cap_std::fs_utf8` / `camino` in place of `std::fs` and
-  `std::path` for enhanced cross platform support and capabilities oriented
+  `std::path` for enhanced cross-platform support and capabilities oriented
   filesystem access.
 
 ### Testing
@@ -262,7 +261,7 @@ project:
 - In production code and shared fixtures, avoid `.expect()` entirely: return
   `Result` and use `?` to propagate errors instead of panicking.
 - Keep `expect_used` **strict**; do not suppress the lint.
-- Recognise that `allow-expect-in-tests = true` **doesn’t cover** helpers
+- Recognize that `allow-expect-in-tests = true` **doesn’t cover** helpers
   outside `#[cfg(test)]` or `#[test]`; avoid `expect` in such fixtures.
 - Use `anyhow`/`eyre` with `.context(...)` to **preserve backtraces** and
   provide clear, typed failure paths.
