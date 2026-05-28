@@ -2,13 +2,13 @@
 
 ## Workspace dependency policy
 
-Keep workspace-local development and crates.io publication on the same
-manifest surface by declaring shared dependencies in the root
-`[workspace.dependencies]` table. First-party crates must use both `version`
-and `path` there, then consume the dependency with `.workspace = true` from
-member manifests. The `path` keeps local builds on the current checkout after a
-version has been published, while the `version` gives Cargo the crates.io
-requirement it needs when packaging a crate.
+Keep workspace-local development and crates.io publication on the same manifest
+surface by declaring shared dependencies in the root `[workspace.dependencies]`
+table. First-party crates must use both `version` and `path` there, then
+consume the dependency with `.workspace = true` from member manifests. The
+`path` keeps local builds on the current checkout after a version has been
+published, while the `version` gives Cargo the crates.io requirement it needs
+when packaging a crate.
 
 Do not restore root-level `[patch.crates-io]` entries for normal development.
 Patches make local resolution differ from publish-time resolution and can hide
@@ -17,9 +17,9 @@ diagnostic, remove it before committing or teach the publish-check automation
 to strip it explicitly.
 
 The GPUI test shim follows the same pattern. The workspace dependency for
-`gpui` points at `vendor/gpui` with a matching crates.io version, so local tests
-use the stable-compatible shim. The publish-check GPUI package validator strips
-that local path when it generates the standalone harness manifest, so
+`gpui` points at `vendor/gpui` with a matching crates.io version, so local
+tests use the stable-compatible shim. The publish-check GPUI package validator
+strips that local path when it generates the standalone harness manifest, so
 `rstest-bdd-harness-gpui` is still checked against the upstream `gpui`
 dependency surface before publication.
 
@@ -113,14 +113,18 @@ Mitigation:
 Tokio and GPUI harness integration tests are co-located with their respective
 harness crates:
 
-| Crate                      | Test binary             | What it tests                                                        |
-| -------------------------- | ----------------------- | -------------------------------------------------------------------- |
-| `rstest-bdd-harness-tokio` | `scenario_macros`       | `#[scenario]` + Tokio adapter                                        |
-| `rstest-bdd-harness-tokio` | `macro_compile`         | trybuild compile-pass/fail for Tokio fixtures                        |
-| `rstest-bdd-harness-gpui`  | `scenario_macros`       | `#[scenario]` + GPUI adapter (feature-gated)                         |
-| `rstest-bdd-harness-gpui`  | `stateful_window`       | durable GPUI handles + visual context reconstruction (feature-gated) |
-| `rstest-bdd-harness-gpui`  | `scenario_name_in_logs` | GPUI step-panic diagnostics include scenario context (feature-gated) |
-| `rstest-bdd-harness-gpui`  | `macro_compile`         | trybuild compile-pass for GPUI fixtures (feature-gated)              |
+| Crate                      | Test binary                  | What it tests                                                        |
+| -------------------------- | ---------------------------- | -------------------------------------------------------------------- |
+| `rstest-bdd-harness-tokio` | `harness_behaviour`          | Tokio harness adapter execution semantics                            |
+| `rstest-bdd-harness-tokio` | `attribute_policy_behaviour` | Tokio attribute policy output                                        |
+| `rstest-bdd-harness-tokio` | `scenario_macros`            | `#[scenario]` + Tokio adapter                                        |
+| `rstest-bdd-harness-tokio` | `macro_compile`              | trybuild compile-pass/fail for Tokio fixtures                        |
+| `rstest-bdd-harness-gpui`  | `harness_behaviour`          | GPUI harness adapter execution semantics (feature-gated)             |
+| `rstest-bdd-harness-gpui`  | `attribute_policy_behaviour` | GPUI attribute policy output (feature-gated)                         |
+| `rstest-bdd-harness-gpui`  | `scenario_macros`            | `#[scenario]` + GPUI adapter (feature-gated)                         |
+| `rstest-bdd-harness-gpui`  | `stateful_window`            | durable GPUI handles + visual context reconstruction (feature-gated) |
+| `rstest-bdd-harness-gpui`  | `scenario_name_in_logs`      | GPUI step-panic diagnostics include scenario context (feature-gated) |
+| `rstest-bdd-harness-gpui`  | `macro_compile`              | trybuild compile-pass for GPUI fixtures (feature-gated)              |
 
 These tests were moved out of `rstest-bdd` in this release to decouple the core
 crate from Tokio and GPUI dev-dependencies, making it publishable to crates.io
@@ -128,10 +132,10 @@ without carrying those dependencies.
 
 ## First-party adapter dependency boundary
 
-`rstest-bdd-harness` remains the owner of `HarnessAdapter`,
-`AttributePolicy`, `ScenarioRunRequest`, and related base API types. The Tokio
-and GPUI adapter crates re-export the subset of that API used by generated
-scenario code, so downstream users of first-party adapters do not need to list
+`rstest-bdd-harness` remains the owner of `HarnessAdapter`, `AttributePolicy`,
+`ScenarioRunRequest`, and related base API types. The Tokio and GPUI adapter
+crates re-export the subset of that API used by generated scenario code, so
+downstream users of first-party adapters do not need to list
 `rstest-bdd-harness` directly.
 
 When updating macro code generation, keep this boundary intact:
@@ -210,8 +214,8 @@ fn locate_or_build_todo_cli_cmd() -> Result<Command, Box<dyn std::error::Error>>
 }
 ```
 
-The module is `#[doc(hidden)]` and is not part of the public crates.io API.
-Do not use it outside test helpers.
+The module is `#[doc(hidden)]` and is not part of the public crates.io API. Do
+not use it outside test helpers.
 
 ## Macro implementation: fixture classification and normalization
 
@@ -248,13 +252,12 @@ sidecar remain valid and report `<unknown>` as the requested fixture type.
 
 ## Shared policy crate (`rstest-bdd-policy`)
 
-The workspace owns policy type definitions in
-`rstest-bdd-policy`.[^1] That crate is the single source of truth for
-`RuntimeMode`, `TestAttributeHint`, and their helper behavior inside this
-workspace.
+The workspace owns policy type definitions in `rstest-bdd-policy`.[^1] That
+crate is the single source of truth for `RuntimeMode`, `TestAttributeHint`, and
+their helper behavior inside this workspace.
 
-`rstest-bdd` re-exports both shared policy types from the runtime API to preserve
-its public contract.[^2]
+`rstest-bdd` re-exports both shared policy types from the runtime API to
+preserve its public contract.[^2]
 
 ```rust
 pub use rstest_bdd_policy::{RuntimeMode, TestAttributeHint};
@@ -267,13 +270,13 @@ so downstream users can continue to depend on
 policy crate directly.
 
 The macro layer imports both policy types directly from
-`rstest_bdd_policy`;[^3] it does not define local duplicates of those enums. Keep
-this boundary intact to avoid drift between macro parsing decisions and runtime
-execution behaviour.
+`rstest_bdd_policy`;[^3] it does not define local duplicates of those enums.
+Keep this boundary intact to avoid drift between macro parsing decisions and
+runtime execution behaviour.
 
 Add new shared policy types in `rstest-bdd-policy` when a type must be used by
-both the runtime and macro crates. Keep type definitions local to the crate that
-uses them when sharing is not needed.
+both the runtime and macro crates. Keep type definitions local to the crate
+that uses them when sharing is not needed.
 
 Regression tests enforce this boundary:
 
@@ -362,8 +365,8 @@ Fields: `keyword: &'a str`, `text: &'a str`, `function_name: &'a str`,
 Bundles the four fields needed to look up a bypassed-step record in the
 diagnostics registry dump.
 
-Fields: `scenario_name: &'a str`, `scenario_line: u32`,
-`step_pattern: &'a str`, `reason: &'a str`.
+Fields: `scenario_name: &'a str`, `scenario_line: u32`, `step_pattern: &'a str`,
+`reason: &'a str`.
 
 ### Helper types
 
@@ -506,61 +509,62 @@ cannot initialize its infrastructure.
 
 `trybuild_staging::copy_dir_tree(src, dst)` creates any missing parent
 directories in the `dst` path before copying, so callers do not need to
-pre-create the destination tree. For example, if `dst` is
-`tmp/a/b/c` and only `tmp` exists, `copy_dir_tree` creates `tmp/a/b/c`
-and then copies the contents of `src` into it.
+pre-create the destination tree. For example, if `dst` is `tmp/a/b/c` and only
+`tmp` exists, `copy_dir_tree` creates `tmp/a/b/c` and then copies the contents
+of `src` into it.
 
-To prevent accidental self-copies, `copy_dir_tree` resolves the canonical
-paths of `src` and `dst` before copying and rejects any call where the
-resolved `src` equals `dst`, `src` starts with `dst`, or `dst` starts with
-`src`. This check is performed even when `dst` does not yet exist: the
-function walks up to the nearest existing ancestor of `dst`, canonicalizes
-that ancestor, and re-appends the missing tail components to obtain the
-resolved destination. This means that paths such as `<src>/missing/../other`
-that traverse back into the source tree through a not-yet-existing intermediate
-segment are still detected and rejected with `io::ErrorKind::InvalidInput`.
+To prevent accidental self-copies, `copy_dir_tree` resolves the canonical paths
+of `src` and `dst` before copying and rejects any call where the resolved `src`
+equals `dst`, `src` starts with `dst`, or `dst` starts with `src`. This check
+is performed even when `dst` does not yet exist: the function walks up to the
+nearest existing ancestor of `dst`, canonicalizes that ancestor, and re-appends
+the missing tail components to obtain the resolved destination. This means that
+paths such as `<src>/missing/../other` that traverse back into the source tree
+through a not-yet-existing intermediate segment are still detected and rejected
+with `io::ErrorKind::InvalidInput`.
 
 ### First-party policy path constants and resolver helpers
 
-The `rstest-bdd-policy` crate exposes path constants and two resolver
-functions that map a type-path to a `TestAttributeHint`.
+The `rstest-bdd-policy` crate exposes path constants and two resolver functions
+that map a type-path to a `TestAttributeHint`.
 
 #### Path constants
 
-The following `&[&str]` constants identify the known first-party harness
-and attribute-policy types:
+The following `&[&str]` constants identify the known first-party harness and
+attribute-policy types:
 
-| Constant | Path segments |
-| --- | --- |
-| `STD_HARNESS_PATH` | `["rstest_bdd_harness", "StdHarness"]` |
-| `TOKIO_HARNESS_PATH` | `["rstest_bdd_harness_tokio", "TokioHarness"]` |
-| `GPUI_HARNESS_PATH` | `["rstest_bdd_harness_gpui", "GpuiHarness"]` |
-| `DEFAULT_ATTRIBUTE_POLICY_PATH` | `["rstest_bdd_harness", "DefaultAttributePolicy"]` |
-| `TOKIO_ATTRIBUTE_POLICY_PATH` | `["rstest_bdd_harness_tokio", "TokioAttributePolicy"]` |
-| `GPUI_ATTRIBUTE_POLICY_PATH` | `["rstest_bdd_harness_gpui", "GpuiAttributePolicy"]` |
+| Constant                        | Path segments                                          |
+| ------------------------------- | ------------------------------------------------------ |
+| `STD_HARNESS_PATH`              | `["rstest_bdd_harness", "StdHarness"]`                 |
+| `TOKIO_HARNESS_PATH`            | `["rstest_bdd_harness_tokio", "TokioHarness"]`         |
+| `GPUI_HARNESS_PATH`             | `["rstest_bdd_harness_gpui", "GpuiHarness"]`           |
+| `DEFAULT_ATTRIBUTE_POLICY_PATH` | `["rstest_bdd_harness", "DefaultAttributePolicy"]`     |
+| `TOKIO_ATTRIBUTE_POLICY_PATH`   | `["rstest_bdd_harness_tokio", "TokioAttributePolicy"]` |
+| `GPUI_ATTRIBUTE_POLICY_PATH`    | `["rstest_bdd_harness_gpui", "GpuiAttributePolicy"]`   |
 
-Use these constants wherever a first-party path must be compared or
-matched; do not inline the string slices, as the constants are the
-canonical source of truth and may be updated in future releases.
+Use these constants wherever a first-party path must be compared or matched; do
+not inline the string slices, as the constants are the canonical source of
+truth and may be updated in future releases.
 
 #### Resolver functions
 
-| Function | Use |
-| --- | --- |
-| `resolve_test_attribute_hint_for_policy_path(path: &[&str]) -> Option<TestAttributeHint>` | Returns the hint for a known first-party attribute-policy type path. Returns `None` for any path that is not an exact match for a known first-party policy path. Do not use this function for harness paths. |
+| Function                                                                                   | Use                                                                                                                                                                                                                                          |
+| ------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `resolve_test_attribute_hint_for_policy_path(path: &[&str]) -> Option<TestAttributeHint>`  | Returns the hint for a known first-party attribute-policy type path. Returns `None` for any path that is not an exact match for a known first-party policy path. Do not use this function for harness paths.                                 |
 | `resolve_test_attribute_hint_for_harness_path(path: &[&str]) -> Option<TestAttributeHint>` | Returns the hint for a known first-party harness type path, delegating to the policy-path resolver for the corresponding attribute-policy type. Returns `None` for any path that is not an exact match for a known first-party harness path. |
 
 Both functions require exact matches against first-party paths. Paths with
 wrong prefixes, extra segments, or partial matches all return `None`. Use
-`resolve_test_attribute_hint_for_harness_path` when the call site has a
-harness type path; use `resolve_test_attribute_hint_for_policy_path` when
-it has an attribute-policy type path.
+`resolve_test_attribute_hint_for_harness_path` when the call site has a harness
+type path; use `resolve_test_attribute_hint_for_policy_path` when it has an
+attribute-policy type path.
 
 ### Third-party adapter crates
 
 Third-party harness crates outside this workspace implement the same
 `HarnessAdapter` and `AttributePolicy` contracts described here. The worked
-example in the [third-party harness adapter cookbook](users-guide.md#third-party-harness-adapter-cookbook)
+example in the
+[third-party harness adapter cookbook](users-guide.md#third-party-harness-adapter-cookbook)
 shows the user-facing crate shape. Such crates should depend on
 `rstest-bdd-harness` for the adapter contracts, keeping framework integration
 decoupled from `rstest-bdd` and `rstest-bdd-macros`.

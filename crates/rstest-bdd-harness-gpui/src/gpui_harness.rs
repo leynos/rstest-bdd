@@ -53,6 +53,12 @@ impl GpuiHarness {
         Self
     }
 
+    /// Runs a single GPUI scenario request, dispatching through `gpui::run_test`.
+    ///
+    /// The runner is taken from `runner_slot` exactly once. If the scenario
+    /// function panics, the panic payload is augmented with feature context
+    /// and re-raised via `panic::resume_unwind`. On success the result is
+    /// stored in `output_slot` for later extraction.
     fn run_request_once<T>(
         runner_slot: &Mutex<Option<ScenarioRunner<'_, TestAppContext, T>>>,
         output_slot: &Mutex<Option<T>>,
@@ -94,6 +100,11 @@ impl GpuiHarness {
         );
     }
 
+    /// Builds a [`TestAppContext`] and executes the scenario runner within it.
+    ///
+    /// Returns both the context and the runner output so the caller can
+    /// perform post-scenario cleanup (quitting the context) separately from
+    /// storing the result.
     fn run_scenario<T>(
         dispatcher: gpui::TestDispatcher,
         runner_slot: &Mutex<Option<ScenarioRunner<'_, TestAppContext, T>>>,
@@ -104,6 +115,12 @@ impl GpuiHarness {
         (context, result)
     }
 
+    /// Takes the runner from `runner_slot` and invokes it with the given context.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the runner has already been taken, which indicates the
+    /// scenario was invoked more than once.
     fn run_with_runner<T>(
         runner_slot: &Mutex<Option<ScenarioRunner<'_, TestAppContext, T>>>,
         context: TestAppContext,
@@ -122,6 +139,11 @@ impl GpuiHarness {
             .run(context)
     }
 
+    /// Drains the dispatcher, forbids further parking, and quits the context.
+    ///
+    /// This must be called after every successful scenario run so that the
+    /// GPUI event loop does not leak parked timers or background work into
+    /// subsequent scenarios.
     fn finish_context(dispatcher: &gpui::TestDispatcher, context: &TestAppContext) {
         dispatcher.run_until_parked();
         context.executor().forbid_parking();
@@ -129,10 +151,17 @@ impl GpuiHarness {
         dispatcher.run_until_parked();
     }
 
+    /// Stores the scenario result in `output_slot` for later extraction.
     fn store_output<T>(output_slot: &Mutex<Option<T>>, result: T) {
         *output_slot.lock().unwrap_or_else(PoisonError::into_inner) = Some(result);
     }
 
+    /// Extracts the scenario result from the output mutex.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the output slot is still `None`, which indicates the GPUI
+    /// test runner never produced a result.
     fn extract_output<T>(output: Mutex<Option<T>>, scenario_name: &str) -> T {
         output
             .into_inner()
@@ -145,6 +174,10 @@ impl GpuiHarness {
             })
     }
 
+    /// Emits the augmented panic message to both `tracing::error!` and stderr.
+    ///
+    /// This ensures the scenario context is visible in test logs even when
+    /// the test runner does not collect tracing events.
     fn emit_augmented_panic_diagnostic(message: &str, metadata: &ScenarioMetadata) {
         tracing::error!(
             harness_type = "rstest_bdd_harness_gpui::GpuiHarness",
@@ -157,7 +190,12 @@ impl GpuiHarness {
         Self::write_stderr_diagnostic(message);
     }
 
-    fn augmented_panic_message(payload: &(dyn Any + Send), metadata: &ScenarioMetadata) -> String {
+    /// Builds an augmented panic message that includes the feature path,
+    /// scenario name, and line number alongside the original panic payload text.
+    pub fn augmented_panic_message(
+        payload: &(dyn Any + Send),
+        metadata: &ScenarioMetadata,
+    ) -> String {
         let message = panic_message(payload);
         format!(
             "rstest-bdd-harness-gpui scenario panicked: feature={feature_path}:{scenario_line}, \
@@ -168,6 +206,8 @@ impl GpuiHarness {
         )
     }
 
+    /// Writes the diagnostic message to the locked stderr handle, logging
+    /// any I/O failure at debug level rather than panicking.
     fn write_stderr_diagnostic(message: &str) {
         let mut stderr = io::stderr().lock();
         if let Err(error) = Self::write_stderr_diagnostic_to(&mut stderr, message) {
@@ -179,7 +219,15 @@ impl GpuiHarness {
         }
     }
 
-    fn write_stderr_diagnostic_to(writer: &mut impl Write, message: &str) -> io::Result<()> {
+    /// Writes the diagnostic message to an arbitrary [`Write`] sink.
+    ///
+    /// Visible for testing so callers can inject a failing writer and assert
+    /// the function does not panic on I/O errors.
+    ///
+    /// # Errors
+    ///
+    /// Returns an I/O error if the underlying writer fails.
+    pub fn write_stderr_diagnostic_to(writer: &mut impl Write, message: &str) -> io::Result<()> {
         writeln!(writer, "{message}")
     }
 }

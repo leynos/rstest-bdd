@@ -1,0 +1,5 @@
+---
+source: crates/rstest-bdd-harness-gpui/tests/scenario_name_in_logs.rs
+expression: "&message"
+---
+rstest-bdd-harness-gpui scenario panicked: feature=[FEATURE_PATH]:[LINE], scenario="[SCENARIO_NAME]": <non-debug panic payload of type ⁨erased `Any` payload (TypeId(0xb657c0156b4af4b598de2455098a83eb)); panic with Display/Debug data for detail⁩>

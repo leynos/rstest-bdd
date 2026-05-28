@@ -1,0 +1,5 @@
+---
+source: crates/rstest-bdd-harness-gpui/tests/scenario_name_in_logs.rs
+expression: event
+---
+message=GPUI scenario panicked harness_type="rstest_bdd_harness_gpui::GpuiHarness" feature_path="[FEATURE_PATH]" scenario_name=[SCENARIO_NAME] panics with augmented diagnostic" scenario_line=[LINE] error=rstest-bdd-harness-gpui scenario panicked: feature=[FEATURE_PATH]:[LINE], scenario="[SCENARIO_NAME]": step panic without scenario context

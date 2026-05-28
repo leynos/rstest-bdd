@@ -1,0 +1,9 @@
+---
+source: crates/rstest-bdd-harness-gpui/tests/scenario_name_in_logs.rs
+expression: "&stderr"
+---
+
+thread 'failing_scenario_diagnostic_is_written_to_stderr' ([TID]) panicked at crates/rstest-bdd-harness-gpui/tests/scenario_name_in_logs.rs:[LINE]:[LINE]:
+step panic without scenario context
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+rstest-bdd-harness-gpui scenario panicked: feature=[FEATURE_PATH]:[LINE], scenario="[SCENARIO_NAME]": step panic without scenario context
