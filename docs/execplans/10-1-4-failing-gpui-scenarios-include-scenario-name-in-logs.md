@@ -1,7 +1,7 @@
 # ExecPlan 10.1.4: emit the scenario name when a GPUI scenario fails
 
 This ExecPlan (execution plan) is a living document. The sections `Constraints`,
- `Tolerances`, `Risks`, `Progress`, `Surprises & discoveries`, `Decision log`,
+`Tolerances`, `Risks`, `Progress`, `Surprises & discoveries`, `Decision log`,
 and `Outcomes & retrospective` must be kept up to date as work proceeds.
 
 Status: COMPLETE
@@ -19,8 +19,8 @@ with human-readable titles.
 After this work, any panic raised from a step running under `GpuiHarness` will
 also carry the originating feature path, scenario name, and feature-file line
 number into both standard error (stderr) and the resumed panic payload, so the
-scenario name appears next to libtest's "test ... FAILED" footer and in
-captured nextest output. A feature-gated regression test in the
+scenario name appears next to libtest's "test … FAILED" footer and in captured
+nextest output. A feature-gated regression test in the
 `rstest-bdd-harness-gpui` crate deliberately panics from inside a scenario and
 asserts the augmented diagnostic, satisfying the roadmap's "failing-harness
 regression" finish line.
@@ -47,7 +47,7 @@ milestone-by-milestone within the tolerances below.
   cross-references accurate.
 - Preserve public trait contracts. Do not change `HarnessAdapter`,
   `HarnessError`, `HarnessErrorContext`, `ScenarioRunRequest`, `ScenarioRunner`,
-   `ScenarioMetadata`, the `#[scenario]` or `scenarios!` attributes, or the
+  `ScenarioMetadata`, the `#[scenario]` or `scenarios!` attributes, or the
   `rstest_bdd_harness_context` reserved fixture key.
 - Keep GPUI integration tests feature-gated behind
   `rstest-bdd-harness-gpui/native-gpui-tests`, mirroring 10.1.3.
@@ -271,7 +271,7 @@ The baseline must pass before implementation. Record the existing test count in
 
 A3. Confirm by inspection that `crates/rstest-bdd-harness-gpui/Cargo.toml`
 declares a `dev-dependencies` entry for `rstest-bdd` (or otherwise has access to
- `rstest_bdd::panic_message`). If not, add one in Stage C against the workspace
+`rstest_bdd::panic_message`). If not, add one in Stage C against the workspace
 version (caret requirement, per `AGENTS.md`).
 
 A4. Decide on regression test shape. The roadmap entry mentions both a
@@ -299,7 +299,7 @@ This avoids depending on libtest stderr capture (which differs between
 
 If neither approach is available without new dependencies, fall back to
 **asserting on the resumed panic payload** by changing the harness to re-raise a
- `Box<String>` whose contents start with the scenario name. The constraint that
+`Box<String>` whose contents start with the scenario name. The constraint that
 the original payload type may change is acceptable for the GPUI harness
 specifically, because step panics are not part of the public contract — they
 are diagnostic artefacts. Record this decision in `Decision log` before Stage C.
@@ -451,7 +451,7 @@ Use `rstest_bdd::panic_message` to render the original payload. Reasoning:
 
 C2. Wrap the existing `Self::run_scenario(...)` call in `run_request_once` with
 `panic::catch_unwind(AssertUnwindSafe(...))`. Before invoking the runner, emit a
- `tracing::error!`-style "scenario starting" record via `tracing::debug!` (one
+`tracing::error!`-style "scenario starting" record via `tracing::debug!` (one
 line, `feature_path` and `scenario_name` fields). On `Err(payload)`:
 
 - Emit a `tracing::error!` record with the existing field names from the
@@ -485,7 +485,7 @@ augmentation:
 C4. Verify the file remains under 400 lines (per `AGENTS.md`). If the addition
 pushes it over, extract `augment_panic` and the new tests into a sibling module
 (e.g. `crates/rstest-bdd-harness-gpui/src/diagnostics.rs`) and re-export through
- `lib.rs`. Prefer in-place edits first.
+`lib.rs`. Prefer in-place edits first.
 
 C5. If `rstest-bdd-harness-gpui` does not already depend on `rstest-bdd`, add a
 `dev-dependencies = { path = "../rstest-bdd", version = "..." }` line matching
@@ -682,10 +682,11 @@ in Stage C and record the addition in `Decision log`.
   `origin/10-1-4-failing-gpui-scenarios-include-scenario-name-in-logs`. The
   branch name was already correct; no rename was needed.
 - [x] (2026-05-24 17:50 CEST) Capture baseline `cargo test -p
-  rstest-bdd-harness-gpui --features native-gpui-tests`, `make check-fmt`, and
-  `make lint`; verify all pass; record test count. The focused GPUI baseline
-  passed with 24 tests: 2 attribute-policy tests, 6 harness-behaviour tests, 1
-  trybuild macro test, 8 scenario-macro tests, and 7 stateful-window tests.
+  rstest-bdd-harness-gpui --features native-gpui-tests`, `make check-fmt`,
+  and `make lint`; verify all pass; record test count. The focused GPUI
+  baseline passed with 24 tests: 2 attribute-policy tests,
+  6 harness-behaviour tests, 1 trybuild macro test, 8 scenario-macro
+  tests, and 7 stateful-window tests.
 - [x] (2026-05-24 17:50 CEST) Decide regression test channel (resumed panic
   payload vs. tracing subscriber capture) and record decision.
 - [x] (2026-05-24 17:52 CEST) Add the red regression test binary
@@ -702,8 +703,8 @@ in Stage C and record the addition in `Decision log`.
   `developers-guide.md`, and (if needed) `rstest-bdd-design.md` §2.7.5.
 - [x] (2026-05-24 18:13 CEST) Run `make fmt` and `make markdownlint` if
   Markdown changed. `make fmt` again failed in the Markdown auto-fix phase on
-  unrelated documents, so unrelated formatter churn was reverted. The
-  required `make markdownlint` gate then passed with zero errors.
+  unrelated documents, so unrelated formatter churn was reverted. The required
+  `make markdownlint` gate then passed with zero errors.
 - [x] (2026-05-24 18:21 CEST) Run CodeRabbit `--agent`; clear all actionable
   findings; re-run gates if changes are made. CodeRabbit completed with
   `findings: 0` for both the behavioural and documentation milestones.
@@ -758,9 +759,9 @@ in Stage C and record the addition in `Decision log`.
 
 - 2026-05-24 18:13 CEST: The documentation milestone touched
   `docs/users-guide.md`, `docs/developers-guide.md`,
-  `docs/rstest-bdd-design.md`, and `docs/roadmap.md`. `make fmt` still fails
-  in its auto-fix path on unrelated Markdown files, but `make markdownlint`
-  passes after reverting the unrelated formatter churn.
+  `docs/rstest-bdd-design.md`, and `docs/roadmap.md`. `make fmt` still fails in
+  its auto-fix path on unrelated Markdown files, but `make markdownlint` passes
+  after reverting the unrelated formatter churn.
 
 - 2026-05-24 18:21 CEST: CodeRabbit review after the documentation milestone
   completed successfully with zero findings. Transcript:
@@ -855,8 +856,8 @@ message through the resumed panic payload, `tracing::error!`, and stderr.
 The regression test `scenario_name_in_logs.rs` covers the success path, the
 augmented failing path, and fresh harness state after a caught panic. The full
 GPUI feature-gated suite, workspace format check, Clippy lint, workspace test
-suite, Markdown lint, and two CodeRabbit reviews passed. The only caveat is
-that `make fmt` currently fails in its Markdown auto-fix phase on unrelated
+suite, Markdown lint, and two CodeRabbit reviews passed. The only caveat is that
+`make fmt` currently fails in its Markdown auto-fix phase on unrelated
 documents even though `make markdownlint` passes after reverting that churn.
 
 ## Revision note
