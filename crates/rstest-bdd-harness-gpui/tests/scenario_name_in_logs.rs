@@ -290,7 +290,8 @@ fn augmented_message_includes_scenario_name_for_opaque_any_payload() {
     #[derive(Debug)]
     #[expect(
         dead_code,
-        reason = "field only exists to produce an opaque Any payload"
+        reason = "field only exists to produce an opaque Any payload; \
+                  see ExecPlan 10.1.4"
     )]
     struct CustomPayload(u32);
 
