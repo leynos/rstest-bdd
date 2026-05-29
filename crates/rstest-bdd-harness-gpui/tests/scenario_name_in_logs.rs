@@ -295,7 +295,7 @@ fn augmented_message_includes_scenario_name_for_str_payload() {
     let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
         panic!("a &str panic");
     }));
-    let payload = result.unwrap_err();
+    let payload = result.expect_err("expected panic from catch_unwind");
     let message = GpuiHarness::augmented_panic_message(payload.as_ref(), &metadata);
     configured_snapshot_settings().bind(|| insta::assert_snapshot!(&message));
 }
