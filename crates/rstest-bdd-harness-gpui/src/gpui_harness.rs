@@ -134,10 +134,17 @@ impl GpuiHarness {
                         {
                             tracing::debug!(
                                 harness_type = "rstest_bdd_harness_gpui::GpuiHarness",
+                                feature_path = metadata.feature_path(),
+                                scenario_name = metadata.scenario_name(),
+                                scenario_line = metadata.scenario_line(),
                                 error = %error,
                                 "failed to write GPUI scenario panic diagnostic to stderr"
                             );
                         }
+                        // The original payload has been transcribed into `message`. Leak
+                        // it so an arbitrary `Drop` impl on the boxed `Any` cannot panic
+                        // during the new unwind and trigger a double-panic abort.
+                        std::mem::forget(payload);
                         panic::resume_unwind(Box::new(message));
                     }
                 }
