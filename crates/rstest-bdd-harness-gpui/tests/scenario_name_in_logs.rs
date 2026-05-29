@@ -248,39 +248,38 @@ fn special_characters_in_scenario_name_are_preserved_in_diagnostic() {
 /// Asserts that the augmented panic message includes the scenario name when
 /// the original panic payload is a `String`.
 ///
-/// `panic_any` carries an owned `String` so the harness's panic-message
-/// rendering is exercised against the owned-string downcast path.
-#[rstest]
-fn augmented_message_includes_scenario_name_for_string_payload() {
-    let request = ScenarioRunRequest::new(
-        scenario_metadata("String payload scenario"),
-        ScenarioRunner::new(|_context: gpui::TestAppContext| {
-            panic_any("a string panic".to_string());
-        }),
-    );
-
-    let message = catch_scenario_panic(request);
-
-    configured_snapshot_settings().bind(|| insta::assert_snapshot!(&message));
-}
-
-/// Asserts that the augmented panic message includes the scenario name when
-/// the original panic payload is a `&'static str`.
+/// Asserts that the augmented panic message includes the scenario name
+/// whether the original panic payload is an owned `String` or a `&str`.
 ///
-/// `panic!(literal)` with no format arguments produces a `&'static str`
-/// payload, so this exercises the borrowed-str downcast path.
+/// Each case exercises a distinct downcast path in
+/// `augmented_panic_message`:
+/// - `string_payload`: the owned-`String` downcast.
+/// - `str_payload`: the `&str` downcast.
 #[rstest]
-fn augmented_message_includes_scenario_name_for_str_payload() {
+#[case::string_payload(
+    "String payload scenario",
+    Box::new(|| -> () { panic_any("a string panic".to_string()); }) as Box<dyn Fn() + Send + 'static>,
+)]
+#[case::str_payload(
+    "&str payload scenario",
+    Box::new(|| -> () { panic!("a &str panic"); }) as Box<dyn Fn() + Send + 'static>,
+)]
+fn augmented_message_includes_scenario_name_for_payload_type(
+    #[case] scenario_name: &str,
+    #[case] panic_fn: Box<dyn Fn() + Send + 'static>,
+) {
     let request = ScenarioRunRequest::new(
-        scenario_metadata("&str payload scenario"),
-        ScenarioRunner::new(|_context: gpui::TestAppContext| {
-            panic!("a &str panic");
+        scenario_metadata(scenario_name),
+        ScenarioRunner::new(move |_context: gpui::TestAppContext| {
+            panic_fn();
         }),
     );
 
     let message = catch_scenario_panic(request);
 
-    configured_snapshot_settings().bind(|| insta::assert_snapshot!(&message));
+    let mut settings = configured_snapshot_settings();
+    settings.set_snapshot_suffix(scenario_name);
+    settings.bind(|| insta::assert_snapshot!(&message));
 }
 
 /// Asserts that the augmented panic message includes the scenario name when
