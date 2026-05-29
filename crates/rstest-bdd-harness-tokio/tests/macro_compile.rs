@@ -35,26 +35,28 @@ fn tokio_macro_fixtures_compile() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 #[test]
-fn tokio_override_macro_expansions_match_snapshots() {
+fn tokio_macro_expansions_match_snapshots() {
     if !macrotest_snapshot_refresh_is_enabled() {
         return;
     }
+    macrotest::expand_without_refresh("tests/fixtures_macros/scenario_harness_tokio_default.rs");
     macrotest::expand_without_refresh(
         "tests/fixtures_macros/scenario_harness_tokio_override_default.rs",
     );
+    macrotest::expand_without_refresh("tests/fixtures_macros/scenarios_harness_tokio_default.rs");
     macrotest::expand_without_refresh("tests/fixtures_macros/scenarios_attributes_tokio.rs");
 }
 
 #[test]
-fn tokio_override_snapshots_encode_attribute_boundaries() {
-    assert_snapshot_contains(
+fn tokio_snapshots_encode_attribute_boundaries() {
+    for path in [
+        "tests/fixtures_macros/scenario_harness_tokio_default.expanded.rs",
         "tests/fixtures_macros/scenario_harness_tokio_override_default.expanded.rs",
-        &["#[rstest::rstest]", "HarnessAdapter>::run"],
-    );
-    assert_snapshot_omits(
-        "tests/fixtures_macros/scenario_harness_tokio_override_default.expanded.rs",
-        "tokio::test",
-    );
+        "tests/fixtures_macros/scenarios_harness_tokio_default.expanded.rs",
+    ] {
+        assert_snapshot_contains(path, &["#[rstest::rstest]", "HarnessAdapter>::run"]);
+        assert_snapshot_omits(path, "tokio::test");
+    }
     assert_snapshot_contains(
         "tests/fixtures_macros/scenarios_attributes_tokio.expanded.rs",
         &["#[tokio::test", "async fn"],

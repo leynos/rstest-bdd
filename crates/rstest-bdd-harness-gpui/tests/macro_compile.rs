@@ -30,22 +30,26 @@ fn gpui_macro_fixtures_compile() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 #[test]
-fn gpui_override_macro_expansions_match_snapshots() {
+fn gpui_macro_expansions_match_snapshots() {
     if !macrotest_snapshot_refresh_is_enabled() {
         return;
     }
-    macrotest::expand_without_refresh(
+    for fixture in [
+        "tests/fixtures_macros/scenario_harness_gpui_default.rs",
         "tests/fixtures_macros/scenario_harness_gpui_override_default.rs",
-    );
-    macrotest::expand_without_refresh(
+        "tests/fixtures_macros/scenarios_harness_gpui_default.rs",
         "tests/fixtures_macros/scenarios_harness_gpui_override_default.rs",
-    );
+    ] {
+        macrotest::expand_without_refresh(fixture);
+    }
 }
 
 #[test]
-fn gpui_override_snapshots_encode_attribute_boundaries() {
+fn gpui_snapshots_encode_attribute_boundaries() {
     for path in [
+        "tests/fixtures_macros/scenario_harness_gpui_default.expanded.rs",
         "tests/fixtures_macros/scenario_harness_gpui_override_default.expanded.rs",
+        "tests/fixtures_macros/scenarios_harness_gpui_default.expanded.rs",
         "tests/fixtures_macros/scenarios_harness_gpui_override_default.expanded.rs",
     ] {
         assert_snapshot_contains(path, &["#[rstest::rstest]", "HarnessAdapter>::run"]);

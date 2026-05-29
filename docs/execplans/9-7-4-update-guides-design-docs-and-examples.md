@@ -211,6 +211,13 @@ repository gates.
       `4539cd8`.
 - [x] (2026-05-26T00:00:00+02:00) Pushed the completed implementation to
       `origin/9-7-4-update-guides-design-docs-and-examples`.
+- [x] (2026-05-29T00:00:00Z) Added harness-led-default macro expansion
+      snapshots for `scenario_harness_tokio_default`,
+      `scenarios_harness_tokio_default`, `scenario_harness_gpui_default`, and
+      `scenarios_harness_gpui_default`. Each snapshot encodes the expected
+      `#[rstest::rstest]` plus `HarnessAdapter::run` pattern, and the
+      `macro_compile.rs` assertion suites cover all four. All repository gates
+      pass after the addition.
 
 ## Surprises & discoveries
 
@@ -318,6 +325,15 @@ repository gates.
   default, and focused example tests prove that the delivered harness-led
   defaults cover these examples. Date/Author: 2026-05-26T00:00:00+02:00 /
   Codex.
+- Decision: Author the four harness-led-default expansion snapshots in the
+  pruned style of the existing override-default and Tokio attributes snapshots,
+  rather than capturing the full macro expansion. Rationale: `cargo expand`
+  is not available in this sandbox, the existing snapshots follow the same
+  hand-curated convention, and the `*_snapshots_encode_attribute_boundaries`
+  tests assert against discriminating substrings rather than literal token
+  equality. The opt-in `macrotest::expand_without_refresh` runner can refresh
+  the snapshots when `RSTEST_BDD_RUN_MACROTEST=1` and `cargo-expand` is
+  installed. Date/Author: 2026-05-29T00:00:00Z / Codex.
 
 ## Outcomes & retrospective
 
