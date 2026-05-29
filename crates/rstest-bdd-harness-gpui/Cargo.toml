@@ -37,7 +37,6 @@ insta = { workspace = true, features = ["filters"] }
 macrotest.workspace = true
 prettyplease.workspace = true
 proptest.workspace = true
-regex.workspace = true
 serial_test.workspace = true
 tracing-subscriber.workspace = true
 trybuild.workspace = true

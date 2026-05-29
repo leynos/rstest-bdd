@@ -2,4 +2,4 @@
 source: crates/rstest-bdd-harness-gpui/tests/scenario_name_in_logs.rs
 expression: "&message"
 ---
-rstest-bdd-harness-gpui scenario panicked: feature=[FEATURE_PATH]:[LINE], scenario="[SCENARIO_NAME]": a string panic
+rstest-bdd-harness-gpui scenario panicked: feature=tests/features/scenario_name_in_logs.feature:7, scenario="String payload scenario": a string panic

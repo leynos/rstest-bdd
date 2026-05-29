@@ -1581,7 +1581,6 @@ dependencies = [
  "macrotest",
  "prettyplease",
  "proptest",
- "regex",
  "rstest",
  "rstest-bdd",
  "rstest-bdd-harness",

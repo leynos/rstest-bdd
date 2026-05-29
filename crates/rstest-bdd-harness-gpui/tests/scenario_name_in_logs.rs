@@ -203,17 +203,19 @@ fn failing_scenario_request() -> ScenarioRunRequest<'static, gpui::TestAppContex
     )
 }
 
-/// Returns [`insta::Settings`] with redactions for feature path, scenario
-/// name, line numbers, and thread IDs that vary across test runs.
+/// Returns [`insta::Settings`] with redactions for nondeterministic data only.
+///
+/// Snapshot bodies must pin the exact feature path, scenario name, and feature
+/// line so that regressions in the scenario-name diagnostic are caught.  The
+/// only redactions applied here cover values that genuinely vary across runs:
+/// thread IDs in panic headers, the Rust source file line and column of the
+/// panic site, and the `TypeId` hex emitted for opaque payloads.
 fn configured_snapshot_settings() -> insta::Settings {
     let mut settings = insta::Settings::clone_current();
     for (pattern, replacement) in &[
-        (r"tests/features/[^ ]+\.feature", "[FEATURE_PATH]"),
-        (r"scenario_name=[^\s,}]+", "scenario_name=[SCENARIO_NAME]"),
-        (r#"scenario="[^"]+""#, "scenario=\"[SCENARIO_NAME]\""),
-        (r":\d+", ":[LINE]"),
-        (r"scenario_line=\d+", "scenario_line=[LINE]"),
         (r"\(\d+\)", "([TID])"),
+        (r"\.rs:\d+:\d+", ".rs:[LINE]:[COL]"),
+        (r"TypeId\(0x[0-9a-f]+\)", "TypeId([TYPEID])"),
     ] {
         settings.add_filter(pattern, *replacement);
     }
@@ -239,15 +241,7 @@ fn special_characters_in_scenario_name_are_preserved_in_diagnostic() {
 
     let message = catch_scenario_panic(request);
 
-    let mut settings = configured_snapshot_settings();
-    // The scenario name appears Debug-formatted (escaped) in the augmented
-    // payload, so redact the escaped form.
-    let escaped_debug_name = scenario_name.escape_debug().to_string();
-    let debug_pattern = format!(r#""{}""#, regex::escape(&escaped_debug_name));
-    settings.add_filter(&debug_pattern, "\"[SCENARIO_NAME]\"");
-    // Also redact the raw name for any non-Debug occurrences (e.g. tracing).
-    settings.add_filter(&regex::escape(scenario_name), "[SCENARIO_NAME]");
-    settings.bind(|| insta::assert_snapshot!(&message));
+    configured_snapshot_settings().bind(|| insta::assert_snapshot!(&message));
 }
 
 /// Verifies that a stderr write failure from `write_stderr_diagnostic_to`
@@ -320,9 +314,7 @@ fn augmented_message_includes_scenario_name_for_opaque_any_payload() {
     let metadata = scenario_metadata("Opaque Any payload scenario");
     let payload: Box<dyn std::any::Any + Send> = Box::new(CustomPayload(99));
     let message = GpuiHarness::augmented_panic_message(payload.as_ref(), &metadata);
-    let mut settings = configured_snapshot_settings();
-    settings.add_filter(r"Opaque Any payload scenario", "[SCENARIO_NAME]");
-    settings.bind(|| insta::assert_snapshot!(&message));
+    configured_snapshot_settings().bind(|| insta::assert_snapshot!(&message));
 }
 
 /// Verifies that a teardown panic does not suppress the original step panic
