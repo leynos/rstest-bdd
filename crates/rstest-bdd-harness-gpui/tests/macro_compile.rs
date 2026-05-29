@@ -12,6 +12,7 @@ use rstest_bdd_harness::macrotest_support::{
     trybuild_crate_root,
 };
 use rstest_bdd_harness::trybuild_staging::{copy_dir_tree, copy_file};
+use serial_test::serial;
 
 fn crate_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -22,6 +23,7 @@ fn fixture_path(relative: &str) -> PathBuf {
 }
 
 #[test]
+#[serial]
 fn gpui_macro_fixtures_compile() -> Result<(), Box<dyn std::error::Error>> {
     stage_trybuild_support_files()?;
     let tests = trybuild::TestCases::new();
