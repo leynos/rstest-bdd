@@ -32,8 +32,8 @@ edition.
 development via `rust-toolchain.toml` so contributors get consistent `rustfmt`
 and `clippy` behaviour.
 
-Step definitions may be synchronous functions (`fn`) or asynchronous functions
-(`async fn`). The framework no longer depends on the `async-trait` crate to
+Step definitions may be synchronous functions (`fn`) or asynchronous functions (
+`async fn`). The framework no longer depends on the `async-trait` crate to
 express async methods in traits. Projects that previously relied on
 `#[async_trait]` in helper traits should replace those methods with ordinary
 functions, and use async steps or async fixtures where appropriate. Step
@@ -735,25 +735,6 @@ include the leading `@`. When the filter is combined with `index` or `name`,
 the macro emits a compile error if the selected scenario does not satisfy the
 expression.
 
-```rust,no_run
-# use rstest_bdd_macros::scenario;
-#[scenario(
-    path = "tests/features/my_ui.feature",
-    harness = rstest_bdd_harness_gpui::GpuiHarness,
-    attributes = rstest_bdd_harness::DefaultAttributePolicy,
-)]
-fn my_gpui_scenario_with_explicit_override() {}
-```
-
-This contract is enforced by focused integration coverage in
-`crates/rstest-bdd-harness-gpui/tests/macro_compile.rs`,
-`crates/rstest-bdd-harness-gpui/tests/scenario_macros.rs`, and
-`crates/rstest-bdd-harness-gpui/tests/stateful_window.rs`. Those suites verify
-GPUI attribute-policy resolution for `#[scenario]` and `scenarios!`,
-deduplication when a `#[scenario]` test already carries an explicit
-`#[gpui::test]`, and stateful window scenarios that carry durable handles
-across steps.
-
 ### Harness adapter and attribute policy
 
 The `harness` and `attributes` parameters accept Rust type paths pointing to
@@ -771,10 +752,6 @@ Use them in this order of preference:
   selecting an attribute policy without harness delegation.
 - Treat `runtime = "tokio-current-thread"` as legacy compatibility syntax for
   `scenarios!`, not as the canonical configuration surface.
-
-> **Note:** Roadmap item 9.7.4 will revise the surrounding examples to lead
-> with harness-only configuration. Until then, the examples below show the
-> tested override and attributes-only forms explicitly.
 
 When `harness` is specified, the generated test body delegates scenario
 execution through the harness adapter. The macro wraps the runtime portion of
@@ -806,10 +783,10 @@ attributes. Currently this resolution is path-based:
   scenario signatures, and
 - default and unknown policy paths emit `#[rstest::rstest]` only.
 
-Imported single-segment recognition only applies to unaliased first-party names.
-If the adapter crates are renamed or aliased, or the policy types are
-re-exported under different identifiers, use the canonical crate-root path
-(`rstest_bdd_harness_tokio::TokioAttributePolicy` or
+Imported single-segment recognition only applies to unaliased first-party
+names. If the adapter crates are renamed or aliased, or the policy types are
+re-exported under different identifiers, use the canonical crate-root path (
+`rstest_bdd_harness_tokio::TokioAttributePolicy` or
 `rstest_bdd_harness_gpui::GpuiAttributePolicy`) or add a direct
 `rstest-bdd-harness` dependency to get the same attribute recognition.
 
@@ -838,14 +815,28 @@ In simple terms, attribute selection works like this:
    `runtime = "tokio-current-thread"` compatibility alias when no explicit
    attributes or harness were selected.
 4. Otherwise, if the `#[scenario]` function is `async fn`, the macro emits
-   `#[rstest::rstest]` and `#[tokio::test(flavor = "current_thread")]`
-   (unless the user already supplies a `#[tokio::test]` attribute, in which
-   case deduplication suppresses the second copy).
+   `#[rstest::rstest]` and `#[tokio::test(flavor = "current_thread")]` (unless
+   the user already supplies a `#[tokio::test]` attribute, in which case
+   deduplication suppresses the second copy).
 5. If none of those apply, the macro emits the normal synchronous
    `#[rstest::rstest]` attribute set.
 
 The macro still removes duplicate framework attributes. For example, if user
 code already has `#[gpui::test]`, the GPUI policy does not emit a second copy.
+
+First-party GPUI configuration normally needs only the harness:
+
+```rust,no_run
+# use rstest_bdd_macros::scenario;
+#[scenario(
+    path = "tests/features/my_ui.feature",
+    harness = rstest_bdd_harness_gpui::GpuiHarness,
+)]
+fn my_gpui_scenario() {}
+```
+
+Use `attributes = ...` only when the scenario intentionally overrides the
+inferred first-party policy:
 
 ```rust,no_run
 # use rstest_bdd_macros::scenario;
@@ -857,29 +848,20 @@ code already has `#[gpui::test]`, the GPUI policy does not emit a second copy.
 fn my_gpui_scenario_with_explicit_override() {}
 ```
 
-This contract is enforced by focused integration coverage in
+Focused integration coverage in
 `crates/rstest-bdd-harness-gpui/tests/macro_compile.rs`,
 `crates/rstest-bdd-harness-gpui/tests/scenario_macros.rs`, and
-`crates/rstest-bdd-harness-gpui/tests/stateful_window.rs`. Those suites verify
-GPUI attribute-policy resolution for `#[scenario]` and `scenarios!`,
-deduplication when a `#[scenario]` test already carries an explicit
-`#[gpui::test]`, and stateful window scenarios that carry durable handles
-across steps.
-
-# use rstest_bdd_macros::scenarios;
-scenarios!(
-    "tests/features/auto",
-    harness = rstest_bdd_harness::StdHarness,
-);
-```
+`crates/rstest-bdd-harness-gpui/tests/stateful_window.rs` verifies GPUI
+attribute-policy resolution for `#[scenario]` and `scenarios!`, deduplication
+when a `#[scenario]` test already carries an explicit `#[gpui::test]`, and
+stateful window scenarios that carry durable handles across steps.
 
 #### Third-party harness adapter cookbook
 
-A separate harness crate is appropriate when a framework needs setup,
-teardown, runtime ownership, or typed context that should not become a
-dependency of the core `rstest-bdd` crates. A Bevy integration, for example,
-should live in an opt-in crate such as `rstest-bdd-harness-bevy` and expose two
-public types:
+A separate harness crate is appropriate when a framework needs setup, teardown,
+runtime ownership, or typed context that should not become a dependency of the
+core `rstest-bdd` crates. A Bevy integration, for example, should live in an
+opt-in crate such as `rstest-bdd-harness-bevy` and expose two public types:
 
 - a harness adapter, such as `BevyHarness`, implementing `HarnessAdapter`; and
 - an optional attribute policy, such as `BevyAttributePolicy`, implementing
@@ -1036,7 +1018,7 @@ Feature: Bevy world
 
 The compile-checked mirror for this cookbook lives at
 `crates/rstest-bdd/tests/fixtures_macros/scenario_third_party_harness_cookbook.rs`.
-Maintainers should keep that fixture and the snippets above aligned when the
+ Maintainers should keep that fixture and the snippets above aligned when the
 third-party harness contract changes.
 
 Harness adapters must faithfully propagate the runner's return value inside
@@ -1069,80 +1051,22 @@ A direct `rstest-bdd-harness` dependency is not required when using
 crate directly only when implementing a custom harness or importing base API
 types such as `HarnessAdapter` or `ScenarioRunRequest`.
 
-`TokioHarness` can then be used directly in scenarios:
+`TokioHarness` can then be used directly in scenarios. For this first-party
+adapter, the macro infers `TokioAttributePolicy` from the canonical harness
+path when `attributes = ...` is omitted:
 
 ```rust,no_run
 # use rstest_bdd_macros::scenario;
 #[scenario(
-    path = "tests/features/my_ui.feature",
-    harness = rstest_bdd_harness_gpui::GpuiHarness,
-    attributes = rstest_bdd_harness::DefaultAttributePolicy,
+    path = "tests/features/reminders.feature",
+    name = "Scheduling a reminder queues it for later delivery",
+    harness = rstest_bdd_harness_tokio::TokioHarness,
 )]
-fn my_gpui_scenario_with_explicit_override() {}
+fn queues_a_scheduled_reminder() {}
 ```
 
-This contract is enforced by focused integration coverage in
-`crates/rstest-bdd-harness-gpui/tests/macro_compile.rs`,
-`crates/rstest-bdd-harness-gpui/tests/scenario_macros.rs`, and
-`crates/rstest-bdd-harness-gpui/tests/stateful_window.rs`. Those suites verify
-GPUI attribute-policy resolution for `#[scenario]` and `scenarios!`,
-deduplication when a `#[scenario]` test already carries an explicit
-`#[gpui::test]`, and stateful window scenarios that carry durable handles
-across steps.
-
-# use rstest_bdd_harness_tokio::TokioTestContext;
-# use rstest_bdd_macros::given;
-
-#[derive(Debug, PartialEq, Eq)]
-struct UserRow {
-    name: String,
-    email: String,
-    active: bool,
-}
-
-impl DataTableRow for UserRow {
-    const REQUIRES_HEADER: bool = true;
-
-    fn parse_row(mut row: RowSpec<'_>) -> Result<Self, DataTableError> {
-        let name = row.take_column("name")?;
-        let email = row.take_column("email")?;
-        let active = row.parse_column_with(
-            "active",
-            datatable::truthy_bool,
-        )?;
-        Ok(Self { name, email, active })
-    }
-}
-
-#[given("the following users exist:")]
-fn users_exist(#[datatable] rows: Rows<UserRow>) {
-    for row in rows {
-        assert!(row.active || row.name == "Bob");
-    }
-}
-```
-
-Projects that prefer to work with raw rows can declare the argument as
-`Vec<Vec<String>>` and handle parsing manually. Both forms can co-exist within
-the same project, allowing incremental adoption of typed tables.
-
-# use rstest_bdd_macros::scenario;
-#[scenario(
-    path = "tests/features/my_ui.feature",
-    harness = rstest_bdd_harness_gpui::GpuiHarness,
-    attributes = rstest_bdd_harness::DefaultAttributePolicy,
-)]
-fn my_gpui_scenario_with_explicit_override() {}
-```
-
-This contract is enforced by focused integration coverage in
-`crates/rstest-bdd-harness-gpui/tests/macro_compile.rs`,
-`crates/rstest-bdd-harness-gpui/tests/scenario_macros.rs`, and
-`crates/rstest-bdd-harness-gpui/tests/stateful_window.rs`. Those suites verify
-GPUI attribute-policy resolution for `#[scenario]` and `scenarios!`,
-deduplication when a `#[scenario]` test already carries an explicit
-`#[gpui::test]`, and stateful window scenarios that carry durable handles
-across steps.
+Keep explicit `attributes = ...` only for overrides, attributes-only tests, or
+unrecognized paths where the default cannot be inferred.
 
 ### Using the GPUI harness
 
@@ -1160,37 +1084,21 @@ A direct `rstest-bdd-harness` dependency is not required when using
 crate directly only when implementing a custom harness or importing base API
 types such as `HarnessAdapter` or `ScenarioRunRequest`.
 
-`GpuiHarness` can then be used directly in scenarios:
+`GpuiHarness` can then be used directly in scenarios. For this first-party
+adapter, the macro infers `GpuiAttributePolicy` from the canonical harness path
+when `attributes = ...` is omitted:
 
 ```rust,no_run
 # use rstest_bdd_macros::scenario;
 #[scenario(
-    path = "tests/features/my_ui.feature",
+    path = "tests/features/counter.feature",
+    name = "Increment a counter and observe GPUI context",
     harness = rstest_bdd_harness_gpui::GpuiHarness,
-    attributes = rstest_bdd_harness::DefaultAttributePolicy,
 )]
-fn my_gpui_scenario_with_explicit_override() {}
+fn increment_and_observe_gpui_context() {}
 ```
 
-This contract is enforced by focused integration coverage in
-`crates/rstest-bdd-harness-gpui/tests/macro_compile.rs`,
-`crates/rstest-bdd-harness-gpui/tests/scenario_macros.rs`, and
-`crates/rstest-bdd-harness-gpui/tests/stateful_window.rs`. Those suites verify
-GPUI attribute-policy resolution for `#[scenario]` and `scenarios!`,
-deduplication when a `#[scenario]` test already carries an explicit
-`#[gpui::test]`, and stateful window scenarios that carry durable handles
-across steps.
-
-# use rstest_bdd_macros::scenario;
-#[scenario(
-    path = "tests/features/my_ui.feature",
-    harness = rstest_bdd_harness_gpui::GpuiHarness,
-    attributes = rstest_bdd_harness::DefaultAttributePolicy,
-)]
-fn my_gpui_scenario_with_explicit_override() {}
-```
-
-This contract is enforced by focused integration coverage in
+Focused integration coverage in
 `crates/rstest-bdd-harness-gpui/tests/macro_compile.rs`,
 `crates/rstest-bdd-harness-gpui/tests/scenario_macros.rs`, and
 `crates/rstest-bdd-harness-gpui/tests/stateful_window.rs`. Those suites verify
@@ -1218,45 +1126,15 @@ handle:
 # }
 ```
 
-The selection function preserves the caller-supplied order, so applications can
-pass a list of preferred locales. The helper resolves to the best available
-translation and continues to fall back to English when a requested locale is
-not shipped with the crate. Procedural macro diagnostics remain in English so
-compile-time output stays deterministic regardless of the host machine’s
-language settings.
-
-[`Localizations`]: https://docs.rs/rstest-bdd/latest/rstest_bdd/localization/
-[`FluentLanguageLoader`]:
-https://docs.rs/i18n-embed/latest/i18n_embed/fluent/struct.FluentLanguageLoader.html
-
-# thread_local! {
-#     static STATE: std::cell::RefCell<Option<(
-#         gpui::Entity<CounterView>,
-#         gpui::AnyWindowHandle,
-#     )>> = std::cell::RefCell::new(None);
-# }
-```
-
-The selection function preserves the caller-supplied order, so applications can
-pass a list of preferred locales. The helper resolves to the best available
-translation and continues to fall back to English when a requested locale is
-not shipped with the crate. Procedural macro diagnostics remain in English so
-compile-time output stays deterministic regardless of the host machine’s
-language settings.
-
-[`Localizations`]: https://docs.rs/rstest-bdd/latest/rstest_bdd/localization/
-[`FluentLanguageLoader`]:
-https://docs.rs/i18n-embed/latest/i18n_embed/fluent/struct.FluentLanguageLoader.html
-
 ### Skipping scenarios
 
 Steps or hooks may call `rstest_bdd::skip!` to stop executing the remaining
 steps. The macro records a `Skipped` outcome and short-circuits the scenario so
-the generated test returns before evaluating the annotated function body.
-Invoke `skip!()` with no arguments to record a skipped outcome without a
-message. Pass an optional string to describe the reason, and use the standard
-`format!` syntax to interpolate values when needed. Set the
-`RSTEST_BDD_FAIL_ON_SKIPPED` environment variable to `1`, or call
+the generated test returns before evaluating the annotated function body. Invoke
+ `skip!()` with no arguments to record a skipped outcome without a message.
+Pass an optional string to describe the reason, and use the standard `format!`
+syntax to interpolate values when needed. Set the `RSTEST_BDD_FAIL_ON_SKIPPED`
+environment variable to `1`, or call
 `rstest_bdd::config::set_fail_on_skipped(true)`, to escalate skipped scenarios
 into test failures unless the feature or scenario carries an `@allow_skipped`
 tag. (Example-level tags are not yet evaluated.)
@@ -1312,9 +1190,9 @@ that a step or scenario stopped executing. Use
 `rstest_bdd::assert_step_skipped!` to unwrap a `StepExecution::Skipped`
 outcome, optionally constraining its message, and
 `rstest_bdd::assert_scenario_skipped!` to inspect
-[`ScenarioStatus`](crate::reporting::ScenarioStatus) records. Both macros
-accept `message_absent = true` to assert that no message was provided and
-substring matching to confirm that a message contains the expected reason.
+[`ScenarioStatus`][scenario-status] records. Both macros accept
+ `message_absent = true` to assert that no message was provided and substring
+matching to confirm that a message contains the expected reason.
 
 ```rust,no_run
 use rstest_bdd::{assert_scenario_skipped, assert_step_skipped, StepExecution};
@@ -1402,8 +1280,8 @@ consumed via `StepContext` rather than referenced directly in the test body.
 ## Async scenario execution
 
 Scenarios can run asynchronously under Tokio's current-thread runtime. This
-enables test code to `.await` async operations while preserving the
-`RefCell`-backed fixture model for mutable borrows across await points.
+enables test code to `.await` async operations while preserving the `RefCell`
+-backed fixture model for mutable borrows across await points.
 
 ### Using `#[scenario]` with async
 
@@ -1632,9 +1510,8 @@ fn async_wrapper_with_aliases<'ctx>(
 ### Current limitations
 
 - **Tokio current-thread mode only:** Multi-threaded Tokio mode would require
-  `Send` futures, which conflicts with the `RefCell`-backed fixture storage.
-  See [ADR-001](adr-001-async-fixtures-and-test.md) for the full design
-  rationale.
+  `Send` futures, which conflicts with the `RefCell`-backed fixture storage. See
+   [ADR-001](adr-001-async-fixtures-and-test.md) for the full design rationale.
 - **Nested runtime safeguards:** Async-only steps running in synchronous
   scenarios use a per-step runtime fallback, which refuses to run when a Tokio
   runtime is already active on the current thread.
@@ -1790,11 +1667,11 @@ Best practices for writing effective scenarios include:
   referring to `{u32}`), escape them as `{{` and `}}` rather than placing them
   inside `{name:type}`. The lexer closes the placeholder at the first `}` after
   the optional type hint; any characters between the `:type` and that first `}`
-  are ignored (for example, `{n:u32 extra}` parses as `name = n`,
-  `type = u32`). `name` must start with a letter or underscore and may contain
-  letters, digits, or underscores (`[A-Za-z_][A-Za-z0-9_]*`). Whitespace within
-  the type hint is ignored (for example, `{count: u32}` and `{count:u32}` are
-  both accepted), but whitespace is not allowed between the name and the colon.
+  are ignored (for example, `{n:u32 extra}` parses as `name = n`, `type = u32`).
+   `name` must start with a letter or underscore and may contain letters,
+  digits, or underscores (`[A-Za-z_][A-Za-z0-9_]*`). Whitespace within the type
+  hint is ignored (for example, `{count: u32}` and `{count:u32}` are both
+  accepted), but whitespace is not allowed between the name and the colon.
   Prefer the compact form `{count:u32}` in new code. When a pattern contains no
   placeholders, the step text must match exactly. Unknown type hints are
   treated as generic placeholders and capture any non-newline text using a
@@ -1976,39 +1853,6 @@ inspection of the row and column that triggered the failure:
 # }
 ```
 
-The selection function preserves the caller-supplied order, so applications can
-pass a list of preferred locales. The helper resolves to the best available
-translation and continues to fall back to English when a requested locale is
-not shipped with the crate. Procedural macro diagnostics remain in English so
-compile-time output stays deterministic regardless of the host machine’s
-language settings.
-
-[`Localizations`]: https://docs.rs/rstest-bdd/latest/rstest_bdd/localization/
-[`FluentLanguageLoader`]:
-https://docs.rs/i18n-embed/latest/i18n_embed/fluent/struct.FluentLanguageLoader.html
-
-# use rstest_bdd::datatable::{DataTableError, Rows};
-# use rstest_bdd_macros::DataTableRow;
-#
-# #[derive(Debug, PartialEq, Eq, DataTableRow)]
-# struct UserRow {
-#     name: String,
-#     #[datatable(truthy)]
-#     active: bool,
-# }
-```
-
-The selection function preserves the caller-supplied order, so applications can
-pass a list of preferred locales. The helper resolves to the best available
-translation and continues to fall back to English when a requested locale is
-not shipped with the crate. Procedural macro diagnostics remain in English so
-compile-time output stays deterministic regardless of the host machine’s
-language settings.
-
-[`Localizations`]: https://docs.rs/rstest-bdd/latest/rstest_bdd/localization/
-[`FluentLanguageLoader`]:
-https://docs.rs/i18n-embed/latest/i18n_embed/fluent/struct.FluentLanguageLoader.html
-
 ## Limitations and roadmap
 
 The `rstest‑bdd` project is evolving. Several features described in the design
@@ -2110,9 +1954,9 @@ not shipped with the crate. Procedural macro diagnostics remain in English so
 compile-time output stays deterministic regardless of the host machine’s
 language settings.
 
-[`Localizations`]: https://docs.rs/rstest-bdd/latest/rstest_bdd/localization/
+[`Localizations`]: <https://docs.rs/rstest-bdd/latest/rstest_bdd/localization/>
 [`FluentLanguageLoader`]:
-https://docs.rs/i18n-embed/latest/i18n_embed/fluent/struct.FluentLanguageLoader.html
+<https://docs.rs/i18n-embed/latest/i18n_embed/fluent/struct.FluentLanguageLoader.html>
 
 ## Diagnostic tooling
 
@@ -2178,9 +2022,8 @@ rstest_bdd::reporting::json::write_snapshot(&mut buffer)?;
 ```
 
 The companion `rstest_bdd::reporting::junit` module renders the same snapshot
-as JUnit XML. Each skipped scenario emits a `<skipped>` element with an
-optional `message` attribute so continuous integration (CI) servers surface the
-reason:
+as JUnit XML. Each skipped scenario emits a `<skipped>` element with an optional
+ `message` attribute so continuous integration (CI) servers surface the reason:
 
 ```rust,no_run
 let mut xml = String::new();
@@ -2465,3 +2308,5 @@ running any remaining test code. While advanced Gherkin constructs and
 parameterization remain on the horizon, this foundation allows teams to
 integrate acceptance criteria into their Rust test suites and to engage all
 three amigos in the specification process.
+
+[scenario-status]: https://docs.rs/rstest-bdd/latest/rstest_bdd/reporting/enum.ScenarioStatus.html

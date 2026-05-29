@@ -8,8 +8,8 @@ that need a new testing practice to be useful.
 ## Breaking changes
 
 - Implicit fixture names now normalize exactly one leading underscore.
-  Parameters named `world` and `_world` both resolve to the implicit fixture
-  key `world`; `__world` resolves to `_world`. Explicit `#[from(...)]` fixture
+  Parameters named `world` and `_world` both resolve to the implicit fixture key
+   `world`; `__world` resolves to `_world`. Explicit `#[from(...)]` fixture
   names remain exact.
 - The legacy `scenarios!(..., runtime = "tokio-current-thread")` form now acts
   as a deprecated compatibility alias for
@@ -132,10 +132,14 @@ harness types used through the macros must implement both `HarnessAdapter` and
   `rstest_bdd_harness_context` fixture key.
 - Tokio integration should use the explicit
   `rstest_bdd_harness_tokio::TokioHarness` form instead of the deprecated
-  `runtime = "tokio-current-thread"` compatibility syntax.
-- GPUI integration should use the opt-in `rstest-bdd-harness-gpui` crate and,
-  when native GPUI is used outside this workspace's shim, account for the
-  platform libraries required by upstream GPUI.
+  `runtime = "tokio-current-thread"` compatibility syntax. The first-party
+  Tokio attribute policy is inferred from the canonical harness path, so new
+  examples no longer need a paired `attributes = ...` argument by default.
+- GPUI integration should use the opt-in `rstest-bdd-harness-gpui` crate and
+  the canonical `rstest_bdd_harness_gpui::GpuiHarness` path. The first-party
+  GPUI attribute policy is inferred when `attributes = ...` is omitted. When
+  native GPUI is used outside this workspace's shim, account for the platform
+  libraries required by upstream GPUI.
 - Third-party attribute policies still need explicit user documentation. The
   macros trait-check user-provided policy types, but path-based code generation
   only recognizes first-party policy paths and imported first-party policy type
@@ -186,8 +190,8 @@ imported directly and the macro argument is the single-segment first-party type
 name, such as `TokioHarness`, `TokioAttributePolicy`, `GpuiHarness`, or
 `GpuiAttributePolicy`. Local type aliases and matching type names under other
 module roots are not recognized as first-party paths. When the macro call uses
-one of those non-recognized forms, or omits `attributes = ...` while the harness
-argument is not recognized as first-party, generated code falls back to
+one of those non-recognized forms, or omits `attributes = ...` while the
+harness argument is not recognized as first-party, generated code falls back to
 `rstest-bdd-harness` and therefore requires a direct base harness dependency.
 
 ### Workspace dependency migration for contributors
@@ -234,8 +238,8 @@ fn search_works(world: Result<World, String>) -> Result<(), String> {
 
 The generated scenario unwraps `world` with `?` before inserting the inner
 `World` value into `StepContext`. Borrowed result-like fixtures are rejected:
-use `Result<T, E>` or `StepResult<T, E>` by value rather than `&Result<T, E>`
-or `&StepResult<T, E>`.
+use `Result<T, E>` or `StepResult<T, E>` by value rather than `&Result<T, E>` or
+ `&StepResult<T, E>`.
 
 ### Adopt harness context
 
@@ -312,6 +316,10 @@ runtime with a `LocalSet`. Step functions can use
 async steps that yield `Pending` are not supported in this mode. Use explicit
 `.await` coordination in the code under test, or use an async scenario with an
 external Tokio test attribute when the scenario itself must be asynchronous.
+When `attributes = ...` is omitted, the macro infers
+`rstest_bdd_harness_tokio::TokioAttributePolicy` for the canonical
+`TokioHarness` path. Keep `attributes = ...` only for overrides,
+attributes-only configuration, or non-recognized harness paths.
 
 ### Adopt GPUI harness configuration
 
@@ -336,7 +344,8 @@ fn counter_updates() {}
 When `attributes = ...` is omitted, the macro infers
 `rstest_bdd_harness_gpui::GpuiAttributePolicy` for the canonical `GpuiHarness`
 path. Steps can request the injected `gpui::TestAppContext` with
-`#[from(rstest_bdd_harness_context)]`.
+`#[from(rstest_bdd_harness_context)]`. Keep `attributes = ...` only for
+overrides, attributes-only configuration, or non-recognized harness paths.
 
 ## Migration checklist
 
@@ -353,6 +362,9 @@ path. Steps can request the injected `gpui::TestAppContext` with
   `Result<T, E>` or `StepResult<T, E>` fixtures by value.
 - [ ] Add `rstest-bdd-harness-tokio` or `rstest-bdd-harness-gpui` only to test
   targets that need those framework integrations.
+- [ ] Remove redundant paired first-party `attributes = ...` arguments from
+  Tokio and GPUI examples unless the scenario is intentionally demonstrating an
+  override.
 
 ## Common errors and fixes
 

@@ -47,6 +47,45 @@ parent-directory components such as `missing/../dst` must therefore preserve
 their logical meaning, so a destination that resolves back to the source tree
 is rejected even when part of the destination path is not yet present.
 
+## Macro expansion snapshot helpers (`macrotest_support`)
+
+The `rstest-bdd-harness` crate exposes a `#[doc(hidden)]` module
+`macrotest_support` that provides shared helpers for the `macro_compile`
+integration suites in the Tokio and GPUI harness crates. Both suites run
+`macrotest` against committed `.expanded.rs` snapshots and need a common way
+to gate snapshot refresh, perform substring assertions over snapshot contents,
+and resolve per-crate trybuild scratch directories. The module is not part
+of the supported public surface of `rstest-bdd-harness`.
+
+### Snapshot refresh gating
+
+`snapshot_refresh_is_enabled()` returns `true` only when the
+`RSTEST_BDD_RUN_MACROTEST` environment variable is set and the
+`cargo expand` subcommand is available on `PATH`. It gates
+`macrotest::expand_without_refresh` calls so snapshot comparisons are
+skipped in ordinary CI and local development, and only exercised during
+deliberate snapshot-refresh workflows.
+
+### Snapshot substring assertions
+
+- `assert_snapshot_contains(path, needles)` — asserts that each needle
+  substring appears at least once in the snapshot file at `path`. Panics on
+  I/O failure or when any needle is absent from the snapshot contents.
+- `assert_snapshot_omits(path, needle)` — asserts that `needle` does not
+  appear anywhere in the snapshot file at `path`. Panics on I/O failure or
+  when the needle is found in the snapshot contents.
+
+Both functions read the full snapshot into memory and use substring matching,
+so they are intended for small, human-readable `.expanded.rs` snapshots.
+
+### Trybuild crate root resolution
+
+`trybuild_crate_root(manifest_path, target_subdir)` resolves the per-crate
+trybuild scratch directory by querying `cargo metadata` for the workspace
+`target` directory and appending `tests/trybuild/<target_subdir>`. It returns
+`Result<PathBuf, Box<dyn Error>>` and is consumed by `stage_trybuild_support_files`
+in each harness crate's `macro_compile.rs` test.
+
 ## nextest on Windows: trybuild deadlock
 
 nextest wraps test binaries in Windows Job Objects. Child `cargo` processes

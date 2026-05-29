@@ -42,19 +42,3 @@ trybuild.workspace = true
 name = "macro_compile"
 path = "tests/macro_compile.rs"
 required-features = ["native-gpui-tests"]
-[[test]]
-name = "macro_compile"
-path = "tests/macro_compile.rs"
-required-features = ["native-gpui-tests"]
-[[test]]
-name = "macro_compile"
-path = "tests/macro_compile.rs"
-required-features = ["native-gpui-tests"]
-[[test]]
-name = "macro_compile"
-path = "tests/macro_compile.rs"
-required-features = ["native-gpui-tests"]
-[[test]]
-name = "macro_compile"
-path = "tests/macro_compile.rs"
-required-features = ["native-gpui-tests"]

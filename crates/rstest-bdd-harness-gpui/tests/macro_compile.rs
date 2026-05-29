@@ -6,11 +6,24 @@
 
 use std::fs;
 use std::path::PathBuf;
-use std::process::Command;
 
+use rstest_bdd_harness::macrotest_support::{
+    assert_snapshot_contains, assert_snapshot_omits, snapshot_refresh_is_enabled,
+    trybuild_crate_root,
+};
 use rstest_bdd_harness::trybuild_staging::{copy_dir_tree, copy_file};
+use serial_test::serial;
+
+fn crate_root() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+}
+
+fn fixture_path(relative: &str) -> PathBuf {
+    crate_root().join(relative)
+}
 
 #[test]
+#[serial]
 fn gpui_macro_fixtures_compile() -> Result<(), Box<dyn std::error::Error>> {
     stage_trybuild_support_files()?;
     let tests = trybuild::TestCases::new();
@@ -30,66 +43,37 @@ fn gpui_macro_fixtures_compile() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 #[test]
-fn gpui_override_macro_expansions_match_snapshots() {
-    if !macrotest_snapshot_refresh_is_enabled() {
+fn gpui_macro_expansions_match_snapshots() {
+    if !snapshot_refresh_is_enabled() {
         return;
     }
-    macrotest::expand_without_refresh(
+    for fixture in [
+        "tests/fixtures_macros/scenario_harness_gpui_default.rs",
         "tests/fixtures_macros/scenario_harness_gpui_override_default.rs",
-    );
-    macrotest::expand_without_refresh(
+        "tests/fixtures_macros/scenarios_harness_gpui_default.rs",
         "tests/fixtures_macros/scenarios_harness_gpui_override_default.rs",
-    );
+    ] {
+        macrotest::expand_without_refresh(fixture);
+    }
 }
 
 #[test]
-fn gpui_override_snapshots_encode_attribute_boundaries() {
-    for path in [
+fn gpui_snapshots_encode_attribute_boundaries() {
+    for relative in [
+        "tests/fixtures_macros/scenario_harness_gpui_default.expanded.rs",
         "tests/fixtures_macros/scenario_harness_gpui_override_default.expanded.rs",
+        "tests/fixtures_macros/scenarios_harness_gpui_default.expanded.rs",
         "tests/fixtures_macros/scenarios_harness_gpui_override_default.expanded.rs",
     ] {
-        assert_snapshot_contains(path, &["#[rstest::rstest]", "HarnessAdapter>::run"]);
-        assert_snapshot_omits(path, "gpui::test");
+        let path = fixture_path(relative);
+        assert_snapshot_contains(&path, &["#[rstest::rstest]", "HarnessAdapter>::run"]);
+        assert_snapshot_omits(&path, "gpui::test");
     }
-}
-
-fn macrotest_snapshot_refresh_is_enabled() -> bool {
-    std::env::var_os("RSTEST_BDD_RUN_MACROTEST").is_some() && cargo_expand_is_available()
-}
-
-fn cargo_expand_is_available() -> bool {
-    Command::new("cargo")
-        .args(["expand", "--version"])
-        .output()
-        .is_ok_and(|output| output.status.success())
-}
-
-fn assert_snapshot_contains(path: &str, needles: &[&str]) {
-    let contents = read_snapshot(path);
-    for needle in needles {
-        assert!(
-            contents.contains(needle),
-            "expected {path} to contain {needle:?}"
-        );
-    }
-}
-
-fn assert_snapshot_omits(path: &str, needle: &str) {
-    let contents = read_snapshot(path);
-    assert!(
-        !contents.contains(needle),
-        "expected {path} to omit {needle:?}"
-    );
-}
-
-fn read_snapshot(path: &str) -> String {
-    fs::read_to_string(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(path))
-        .unwrap_or_else(|err| panic!("failed to read snapshot {path}: {err}"))
 }
 
 fn stage_trybuild_support_files() -> Result<(), Box<dyn std::error::Error>> {
-    let crate_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    let trybuild_root = trybuild_crate_root()?;
+    let crate_root = crate_root();
+    let trybuild_root = gpui_trybuild_crate_root()?;
     copy_file(
         &crate_root.join("tests/fixtures_macros/basic.feature"),
         &trybuild_root.join("basic.feature"),
@@ -102,13 +86,6 @@ fn stage_trybuild_support_files() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-fn trybuild_crate_root() -> Result<PathBuf, Box<dyn std::error::Error>> {
-    let metadata = cargo_metadata::MetadataCommand::new()
-        .manifest_path(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("Cargo.toml"))
-        .no_deps()
-        .exec()?;
-    Ok(metadata
-        .target_directory
-        .into_std_path_buf()
-        .join("tests/trybuild/rstest-bdd-harness-gpui"))
+fn gpui_trybuild_crate_root() -> Result<PathBuf, Box<dyn std::error::Error>> {
+    trybuild_crate_root(&crate_root().join("Cargo.toml"), "rstest-bdd-harness-gpui")
 }

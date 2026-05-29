@@ -69,6 +69,17 @@ fn tokio_runtime_remains_available() {
 }
 
 /// Tests `#[scenario]` with `harness = TokioHarness` only.
+///
+/// This is one of the runtime integration coverage points for the
+/// harness-led-default attribute-policy inference defined in ADR-008: the
+/// macro is called with `harness = TokioHarness` and no `attributes = ...`,
+/// so the macro infers `TokioAttributePolicy` and emits the Tokio test
+/// attributes (with `#[tokio::test]` filtered for sync signatures). The
+/// scenario steps reach into `tokio::runtime::Handle::current()` and
+/// `spawn_local`, which would panic if the harness had not stood up a
+/// current-thread Tokio runtime + `LocalSet`. See
+/// `tests/macro_compile.rs::tokio_snapshots_encode_attribute_boundaries`
+/// for the corresponding macro-output snapshot coverage.
 #[scenario(
     path = "tests/features/tokio_harness.feature",
     name = "Tokio runtime is active during step execution",
@@ -124,6 +135,12 @@ async fn async_steps_completed(#[from(rstest_bdd_harness_context)] ctx: &TokioTe
 }
 
 /// Tests that `async fn` step definitions work with `TokioHarness`.
+///
+/// Pairs with [`scenario_runs_inside_tokio_runtime`] as runtime integration
+/// coverage for the harness-led-default policy: the macro is invoked with
+/// `harness = TokioHarness` and no `attributes = ...`, async step bodies
+/// reach for `Handle::current()` and `spawn_local`, and the steps run only
+/// because `TokioHarness` supplied the inferred runtime contract.
 #[scenario(
     path = "tests/features/tokio_harness.feature",
     name = "Async step definitions execute under TokioHarness",
@@ -131,6 +148,11 @@ async fn async_steps_completed(#[from(rstest_bdd_harness_context)] ctx: &TokioTe
 )]
 fn scenario_async_steps_under_tokio_harness() {}
 
+// Runtime integration coverage for the `scenarios!` form of the
+// harness-led-default policy: no `attributes = ...` is supplied, so the macro
+// infers `TokioAttributePolicy` from the first-party `TokioHarness` path. The
+// generated tests run only when `TokioHarness` makes a current-thread runtime
+// available to each step body.
 scenarios!(
     "tests/features/tokio_harness_scenarios",
     harness = rstest_bdd_harness_tokio::TokioHarness,

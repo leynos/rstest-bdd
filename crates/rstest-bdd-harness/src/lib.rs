@@ -7,6 +7,8 @@ mod adapter;
 #[doc(hidden)]
 pub mod binary_test_support;
 mod error;
+#[doc(hidden)]
+pub mod macrotest_support;
 mod policy;
 mod runner;
 mod std_harness;

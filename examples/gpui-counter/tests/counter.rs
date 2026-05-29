@@ -1,7 +1,7 @@
 //! BDD acceptance tests for the GPUI counter example.
 //!
-//! These tests demonstrate `GpuiHarness` and `GpuiAttributePolicy` in a
-//! user-facing example crate, with step access to injected
+//! These tests demonstrate harness-led GPUI defaults in a user-facing example
+//! crate, with step access to injected
 //! `gpui::TestAppContext` via the `rstest_bdd_harness_context` fixture key.
 
 use gpui_counter::CounterApp;
@@ -60,7 +60,6 @@ fn a_gpui_test_context_was_recorded(app: &CounterApp) {
     path = "tests/features/counter.feature",
     name = "Increment a counter and observe GPUI context",
     harness = rstest_bdd_harness_gpui::GpuiHarness,
-    attributes = rstest_bdd_harness_gpui::GpuiAttributePolicy,
 )]
 fn increment_and_observe_gpui_context(#[from(app)] _: CounterApp) {}
 
@@ -68,6 +67,5 @@ fn increment_and_observe_gpui_context(#[from(app)] _: CounterApp) {}
     path = "tests/features/counter.feature",
     name = "Multiple increments and decrements",
     harness = rstest_bdd_harness_gpui::GpuiHarness,
-    attributes = rstest_bdd_harness_gpui::GpuiAttributePolicy,
 )]
 fn multiple_increments_and_decrements(#[from(app)] _: CounterApp) {}
