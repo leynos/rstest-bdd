@@ -67,6 +67,7 @@ fn failing_scenario_diagnostic_is_emitted_to_tracing_error() {
         run_child_assertion(
             "failing_scenario_diagnostic_is_emitted_to_tracing_error",
             TRACING_CHILD_ENV,
+            true,
         );
         return;
     }
@@ -104,6 +105,7 @@ fn failing_scenario_diagnostic_is_written_to_stderr() {
     let output = run_child_assertion(
         "failing_scenario_diagnostic_is_written_to_stderr",
         STDERR_CHILD_ENV,
+        true,
     );
     let stderr = String::from_utf8(output.stderr)
         .unwrap_or_else(|error| panic!("stderr should be UTF-8: {error}"));
@@ -113,9 +115,16 @@ fn failing_scenario_diagnostic_is_written_to_stderr() {
 /// Spawns a child process running the named test with the given environment
 /// marker, returning the process output.
 ///
+/// If `expect_success` is true, panics when the child exits non-zero. Set it
+/// to false for tests that exercise double-panics or deliberate aborts.
+///
 /// Used by tests that must inspect tracing events or stderr from a separate
 /// process to avoid interference with the test harness.
-fn run_child_assertion(test_name: &str, child_env: &str) -> std::process::Output {
+fn run_child_assertion(
+    test_name: &str,
+    child_env: &str,
+    expect_success: bool,
+) -> std::process::Output {
     let current_exe = std::env::current_exe()
         .unwrap_or_else(|error| panic!("test binary path is available: {error}"));
     let output = Command::new(current_exe)
@@ -126,10 +135,12 @@ fn run_child_assertion(test_name: &str, child_env: &str) -> std::process::Output
         .output()
         .unwrap_or_else(|error| panic!("child test process should run: {error}"));
 
-    assert!(
-        output.status.success(),
-        "child stderr assertion process failed: {output:?}",
-    );
+    if expect_success {
+        assert!(
+            output.status.success(),
+            "child stderr assertion process failed: {output:?}",
+        );
+    }
     output
 }
 
@@ -192,8 +203,8 @@ fn failing_scenario_request() -> ScenarioRunRequest<'static, gpui::TestAppContex
     )
 }
 
-/// Returns [`insta::Settings`] configured with redactions for the feature
-/// path, scenario name, and line-number fields that vary across test runs.
+/// Returns [`insta::Settings`] with redactions for feature path, scenario
+/// name, line numbers, and thread IDs that vary across test runs.
 fn configured_snapshot_settings() -> insta::Settings {
     let mut settings = insta::Settings::clone_current();
     for (pattern, replacement) in &[
@@ -314,31 +325,39 @@ fn augmented_message_includes_scenario_name_for_opaque_any_payload() {
     settings.bind(|| insta::assert_snapshot!(&message));
 }
 
-/// Verifies that a teardown panic in a child process does not suppress the
-/// original step panic diagnostic in stderr.
-///
-/// We construct a scenario whose step panics and whose tear-down path also
-/// panics (via a `Drop` guard), then run the whole thing in a child process
-/// and assert the stderr still carries the augmented diagnostic for the
-/// original step panic.
+/// Verifies that a teardown panic does not suppress the original step panic
+/// diagnostic.  A `Drop` guard panics during unwinding, triggering a
+/// double-panic (process abort).  The parent asserts the child exits non-zero
+/// and snapshots stderr to confirm the original diagnostic appeared first.
 #[rstest]
 fn teardown_panic_does_not_suppress_original_diagnostic() {
     const TEARDOWN_CHILD_ENV: &str = "RSTEST_BDD_GPUI_TEARDOWN_CHILD";
+
+    // Drop guard that panics during unwinding, triggering a double-panic.
+    struct TeardownGuard;
+    impl Drop for TeardownGuard {
+        fn drop(&mut self) {
+            panic!("teardown-panic ordering guard");
+        }
+    }
 
     if std::env::var_os(TEARDOWN_CHILD_ENV).is_none() {
         let output = run_child_assertion(
             "teardown_panic_does_not_suppress_original_diagnostic",
             TEARDOWN_CHILD_ENV,
+            false,
+        );
+        assert!(
+            !output.status.success(),
+            "expected child process to abort after double-panic, got success"
         );
         let stderr = String::from_utf8(output.stderr)
             .unwrap_or_else(|error| panic!("stderr should be UTF-8: {error}"));
-        // The child process double-panics (aborts), so success=false is
-        // expected. The snapshot proves the original diagnostic appeared
-        // on stderr before the abort.
         configured_snapshot_settings().bind(|| insta::assert_snapshot!(&stderr));
         return;
     }
 
+    let _guard = TeardownGuard;
     let request = ScenarioRunRequest::new(
         scenario_metadata("Teardown panic scenario"),
         ScenarioRunner::new(|_context: gpui::TestAppContext| {

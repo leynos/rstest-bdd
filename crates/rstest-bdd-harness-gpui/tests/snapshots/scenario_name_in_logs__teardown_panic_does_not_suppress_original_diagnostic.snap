@@ -7,3 +7,6 @@ thread 'teardown_panic_does_not_suppress_original_diagnostic' ([TID]) panicked a
 original step panic
 note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
 rstest-bdd-harness-gpui scenario panicked: feature=[FEATURE_PATH]:[LINE], scenario="[SCENARIO_NAME]": original step panic
+
+thread 'teardown_panic_does_not_suppress_original_diagnostic' ([TID]) panicked at crates/rstest-bdd-harness-gpui/tests/scenario_name_in_logs.rs:[LINE]:[LINE]:
+teardown-panic ordering guard

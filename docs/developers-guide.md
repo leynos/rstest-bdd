@@ -1,5 +1,9 @@
 # Developer guide
 
+For engineers and contributors working on the rstest-bdd codebase.  This
+guide covers workspace tooling, test infrastructure, macro internals, and
+the patterns used across crates — it is not a user-facing tutorial.
+
 ## Workspace dependency policy
 
 Keep workspace-local development and crates.io publication on the same manifest
@@ -112,6 +116,8 @@ Mitigation:
 
 Tokio and GPUI harness integration tests are co-located with their respective
 harness crates:
+
+Table: Test binaries for `rstest-bdd-harness-tokio` and `rstest-bdd-harness-gpui`
 
 | Crate                      | Test binary                  | What it tests                                                        |
 | -------------------------- | ---------------------------- | -------------------------------------------------------------------- |
