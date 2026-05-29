@@ -218,6 +218,13 @@ repository gates.
       `#[rstest::rstest]` plus `HarnessAdapter::run` pattern, and the
       `macro_compile.rs` assertion suites cover all four. All repository gates
       pass after the addition.
+- [x] (2026-05-29T00:00:00Z) Addressed reviewer follow-ups: extracted the
+      duplicated `macro_compile.rs` snapshot helpers into a shared
+      `rstest_bdd_harness::macrotest_support` hidden module, and added doc
+      comments to the existing `harness = TokioHarness` / `harness =
+      GpuiHarness` runtime integration tests in each crate's
+      `scenario_macros.rs` so their role as harness-led-default execution
+      coverage is unambiguous.
 
 ## Surprises & discoveries
 

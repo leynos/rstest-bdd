@@ -143,6 +143,14 @@ fn gpui_test_context_is_valid(#[from(rstest_bdd_harness_context)] context: &gpui
     assert_gpui_context_uses_upstream_test_api(context);
 }
 
+/// Runtime integration coverage for the harness-led-default policy in
+/// ADR-008: the macro is invoked with `harness = GpuiHarness` and no
+/// `attributes = ...`, so the macro infers `GpuiAttributePolicy` and the
+/// emitted `#[gpui::test]` is filtered (the function is sync, the GPUI
+/// runtime is supplied by the harness rather than the attribute). Reaching
+/// `TestAppContext` and `executor()` from steps proves the harness honoured
+/// the inferred contract at runtime. Pairs with the macro-output snapshot
+/// at `tests/macro_compile.rs::gpui_snapshots_encode_attribute_boundaries`.
 #[scenario(
     path = "tests/features/gpui_harness.feature",
     name = "GPUI harness injects TestAppContext",
@@ -197,6 +205,12 @@ scenarios!(
     attributes = rstest_bdd_harness_gpui::GpuiAttributePolicy,
 );
 
+// Runtime integration coverage for the `scenarios!` form of the
+// harness-led-default policy: no `attributes = ...` is supplied, so the macro
+// infers `GpuiAttributePolicy` from the first-party `GpuiHarness` path.
+// Scenario steps observe `TestAppContext`, which only `GpuiHarness` can
+// inject; the generated tests therefore exercise the inferred contract end
+// to end.
 scenarios!(
     "tests/features/gpui_harness_default_scenarios",
     harness = rstest_bdd_harness_gpui::GpuiHarness,
