@@ -3,9 +3,14 @@
 //! When a step running under `GpuiHarness` panics, the harness captures the
 //! panic payload, prepends the feature path, scenario name, and feature-file
 //! line, then re-raises the augmented message via `panic::resume_unwind`. The
-//! harness emits the same context to `tracing::error!` and to stderr so test
-//! runners that do not collect tracing events still surface the scenario name
-//! on failure.
+//! harness records the same context as a `tracing::error!` event and writes
+//! the augmented diagnostic to stderr so test runners that do not collect
+//! tracing events still surface the scenario name on failure.
+//!
+//! Per-scenario GPUI cleanup runs through a [`ContextCleanup`] RAII guard so
+//! `finish_context` executes on both the success and the panic paths,
+//! preventing parked timers or background work from leaking into subsequent
+//! scenarios.
 
 use gpui::TestAppContext;
 use rstest_bdd::panic_message;
@@ -46,6 +51,26 @@ use std::sync::{Mutex, PoisonError};
 #[derive(Debug, Clone, Copy, Default)]
 pub struct GpuiHarness;
 
+/// RAII guard that invokes [`GpuiHarness::finish_context`] when dropped.
+///
+/// Constructing the guard immediately after a scenario's [`TestAppContext`]
+/// is built ensures the GPUI cleanup contract is honoured whether the
+/// scenario returns normally or panics: on the success path the guard drops
+/// at the end of the closure body; on the panic path it drops while the
+/// stack unwinds toward `gpui::run_test`. Either way the dispatcher is run
+/// to quiescence, parking is forbidden, and the context is quit, so the
+/// next scenario starts from a clean GPUI event loop.
+struct ContextCleanup<'a> {
+    dispatcher: &'a gpui::TestDispatcher,
+    context: &'a TestAppContext,
+}
+
+impl Drop for ContextCleanup<'_> {
+    fn drop(&mut self) {
+        GpuiHarness::finish_context(self.dispatcher, self.context);
+    }
+}
+
 impl GpuiHarness {
     /// Creates a new GPUI harness instance.
     #[must_use]
@@ -55,10 +80,15 @@ impl GpuiHarness {
 
     /// Runs a single GPUI scenario request, dispatching through `gpui::run_test`.
     ///
-    /// The runner is taken from `runner_slot` exactly once. If the scenario
-    /// function panics, the panic payload is augmented with feature context
-    /// and re-raised via `panic::resume_unwind`. On success the result is
-    /// stored in `output_slot` for later extraction.
+    /// The runner is taken from `runner_slot` exactly once. The scenario's
+    /// [`TestAppContext`] is built before the runner is invoked so a
+    /// [`ContextCleanup`] guard can ensure `finish_context` runs on both the
+    /// success and the panic paths.
+    ///
+    /// If the scenario function panics, the panic payload is augmented with
+    /// feature context, recorded as a `tracing::error!` event, written to
+    /// stderr, and re-raised via `panic::resume_unwind`. On success the
+    /// result is stored in `output_slot` for later extraction.
     fn run_request_once<T>(
         runner_slot: &Mutex<Option<ScenarioRunner<'_, TestAppContext, T>>>,
         output_slot: &Mutex<Option<T>>,
@@ -83,36 +113,37 @@ impl GpuiHarness {
                     scenario_line = metadata.scenario_line(),
                     "starting GPUI scenario"
                 );
-                let result = panic::catch_unwind(AssertUnwindSafe(|| {
-                    Self::run_scenario(dispatcher.clone(), runner_slot, metadata.scenario_name())
+
+                let context = TestAppContext::build(dispatcher.clone(), None);
+                let _cleanup = ContextCleanup {
+                    dispatcher: &dispatcher,
+                    context: &context,
+                };
+
+                let runner_result = panic::catch_unwind(AssertUnwindSafe(|| {
+                    Self::run_with_runner(runner_slot, context.clone(), metadata.scenario_name())
                 }));
-                let (context, result) = result.unwrap_or_else(|payload| {
-                    let message = Self::augmented_panic_message(payload.as_ref(), metadata);
-                    Self::emit_augmented_panic_diagnostic(&message, metadata);
-                    panic::resume_unwind(Box::new(message));
-                });
-                // A teardown panic should point at the GPUI cleanup path itself, not
-                // at a scenario step that has already completed successfully.
-                Self::finish_context(&dispatcher, &context);
-                Self::store_output(output_slot, result);
+
+                match runner_result {
+                    Ok(value) => Self::store_output(output_slot, value),
+                    Err(payload) => {
+                        let message = Self::augmented_panic_message(payload.as_ref(), metadata);
+                        Self::record_panic_event(&message, metadata);
+                        let mut stderr = io::stderr().lock();
+                        if let Err(error) = Self::write_stderr_diagnostic_to(&mut stderr, &message)
+                        {
+                            tracing::debug!(
+                                harness_type = "rstest_bdd_harness_gpui::GpuiHarness",
+                                error = %error,
+                                "failed to write GPUI scenario panic diagnostic to stderr"
+                            );
+                        }
+                        panic::resume_unwind(Box::new(message));
+                    }
+                }
             },
             None,
         );
-    }
-
-    /// Builds a [`TestAppContext`] and executes the scenario runner within it.
-    ///
-    /// Returns both the context and the runner output so the caller can
-    /// perform post-scenario cleanup (quitting the context) separately from
-    /// storing the result.
-    fn run_scenario<T>(
-        dispatcher: gpui::TestDispatcher,
-        runner_slot: &Mutex<Option<ScenarioRunner<'_, TestAppContext, T>>>,
-        scenario_name: &str,
-    ) -> (TestAppContext, T) {
-        let context = TestAppContext::build(dispatcher, None);
-        let result = Self::run_with_runner(runner_slot, context.clone(), scenario_name);
-        (context, result)
     }
 
     /// Takes the runner from `runner_slot` and invokes it with the given context.
@@ -141,9 +172,12 @@ impl GpuiHarness {
 
     /// Drains the dispatcher, forbids further parking, and quits the context.
     ///
-    /// This must be called after every successful scenario run so that the
-    /// GPUI event loop does not leak parked timers or background work into
-    /// subsequent scenarios.
+    /// This must be called after every scenario run, on both the success and
+    /// the panic paths, so the GPUI event loop does not leak parked timers
+    /// or background work into subsequent scenarios. The [`ContextCleanup`]
+    /// guard enforces this contract from within [`run_request_once`].
+    ///
+    /// [`run_request_once`]: GpuiHarness::run_request_once
     fn finish_context(dispatcher: &gpui::TestDispatcher, context: &TestAppContext) {
         dispatcher.run_until_parked();
         context.executor().forbid_parking();
@@ -174,11 +208,15 @@ impl GpuiHarness {
             })
     }
 
-    /// Emits the augmented panic message to both `tracing::error!` and stderr.
+    /// Records the augmented panic message as a structured `tracing::error!`
+    /// event so subscribers can filter and correlate scenario failures by
+    /// harness, feature, and scenario fields.
     ///
-    /// This ensures the scenario context is visible in test logs even when
-    /// the test runner does not collect tracing events.
-    fn emit_augmented_panic_diagnostic(message: &str, metadata: &ScenarioMetadata) {
+    /// This function performs observability only: it does not touch stderr
+    /// or any other I/O sink. The caller is responsible for injecting an
+    /// explicit writer (typically [`io::stderr`]) when stderr surfacing is
+    /// also wanted.
+    fn record_panic_event(message: &str, metadata: &ScenarioMetadata) {
         tracing::error!(
             harness_type = "rstest_bdd_harness_gpui::GpuiHarness",
             feature_path = metadata.feature_path(),
@@ -187,7 +225,6 @@ impl GpuiHarness {
             error = %message,
             "GPUI scenario panicked"
         );
-        Self::write_stderr_diagnostic(message);
     }
 
     /// Builds an augmented panic message that includes the feature path,
@@ -206,23 +243,14 @@ impl GpuiHarness {
         )
     }
 
-    /// Writes the diagnostic message to the locked stderr handle, logging
-    /// any I/O failure at debug level rather than panicking.
-    fn write_stderr_diagnostic(message: &str) {
-        let mut stderr = io::stderr().lock();
-        if let Err(error) = Self::write_stderr_diagnostic_to(&mut stderr, message) {
-            tracing::debug!(
-                harness_type = "rstest_bdd_harness_gpui::GpuiHarness",
-                error = %error,
-                "failed to write GPUI scenario panic diagnostic to stderr"
-            );
-        }
-    }
-
     /// Writes the diagnostic message to an arbitrary [`Write`] sink.
     ///
-    /// Visible for testing so callers can inject a failing writer and assert
-    /// the function does not panic on I/O errors.
+    /// This is the injectable I/O primitive used by [`run_request_once`].
+    /// Callers select the writer explicitly (typically `io::stderr().lock()`)
+    /// and decide how to handle failures, keeping side-effects visible at
+    /// the call site rather than hidden behind a no-argument wrapper.
+    ///
+    /// [`run_request_once`]: GpuiHarness::run_request_once
     ///
     /// # Errors
     ///
