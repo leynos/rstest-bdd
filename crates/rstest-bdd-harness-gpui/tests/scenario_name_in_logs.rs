@@ -29,6 +29,8 @@ const STEP_PANIC: &str = "step panic without scenario context";
 const STDERR_CHILD_ENV: &str = "RSTEST_BDD_GPUI_ASSERT_STDERR_CHILD";
 const TRACING_CHILD_ENV: &str = "RSTEST_BDD_GPUI_ASSERT_TRACING_CHILD";
 
+/// Asserts that a successful scenario run returns its output value without
+/// any panic or error marker.
 #[rstest]
 fn successful_scenario_returns_without_failure_marker() {
     let request = ScenarioRunRequest::new(
@@ -42,6 +44,8 @@ fn successful_scenario_returns_without_failure_marker() {
     assert_eq!(result, "ok");
 }
 
+/// Asserts that the augmented panic message from a failing step includes
+/// the originating feature path, scenario name, and step line number.
 #[rstest]
 fn failing_scenario_diagnostic_includes_scenario_name() {
     let request = ScenarioRunRequest::new(
@@ -55,6 +59,8 @@ fn failing_scenario_diagnostic_includes_scenario_name() {
     configured_snapshot_settings().bind(|| insta::assert_snapshot!(&message));
 }
 
+/// Asserts that when a failing scenario is run in a child process, its
+/// augmented panic diagnostic appears in a `tracing::error!` event.
 #[rstest]
 fn failing_scenario_diagnostic_is_emitted_to_tracing_error() {
     if std::env::var_os(TRACING_CHILD_ENV).is_none() {
@@ -84,9 +90,10 @@ fn failing_scenario_diagnostic_is_emitted_to_tracing_error() {
         .find(|event| event.contains("GPUI scenario panicked"))
         .unwrap_or_else(|| panic!("expected GPUI panic tracing event, got: {events:?}"));
     configured_snapshot_settings().bind(|| insta::assert_snapshot!(event));
-    assert!(event.contains("rstest_bdd_harness_gpui::GpuiHarness"));
 }
 
+/// Asserts that when a failing scenario is run in a child process, its
+/// augmented panic diagnostic appears on stderr.
 #[rstest]
 fn failing_scenario_diagnostic_is_written_to_stderr() {
     if std::env::var_os(STDERR_CHILD_ENV).is_some() {
@@ -126,6 +133,8 @@ fn run_child_assertion(test_name: &str, child_env: &str) -> std::process::Output
     output
 }
 
+/// Verifies that after a scenario panics, a subsequent scenario executes
+/// with a fresh GPUI context and is not contaminated by the prior failure.
 #[rstest]
 fn second_scenario_after_failure_runs_with_fresh_context() {
     let failing_request = ScenarioRunRequest::new(
@@ -205,6 +214,8 @@ fn configured_snapshot_settings() -> insta::Settings {
 // and teardown-panic ordering.
 // ---------------------------------------------------------------------------
 
+/// Asserts that Unicode, newline, tab, and shell-special characters in a
+/// scenario name are preserved in the augmented panic diagnostic.
 #[rstest]
 fn special_characters_in_scenario_name_are_preserved_in_diagnostic() {
     let scenario_name = "Unicode 🐇 & newline\nand tab\t";
@@ -228,6 +239,8 @@ fn special_characters_in_scenario_name_are_preserved_in_diagnostic() {
     settings.bind(|| insta::assert_snapshot!(&message));
 }
 
+/// Verifies that a stderr write failure from `write_stderr_diagnostic_to`
+/// returns an `Err` rather than panicking.
 #[rstest]
 fn stderr_write_failure_is_non_fatal() {
     // A [`Write`] implementation that always returns `BrokenPipe`.
@@ -259,6 +272,8 @@ fn stderr_write_failure_is_non_fatal() {
     assert_eq!(err.kind(), io::ErrorKind::BrokenPipe);
 }
 
+/// Asserts that the augmented panic message includes the scenario name when
+/// the original panic payload is a `String`.
 #[rstest]
 fn augmented_message_includes_scenario_name_for_string_payload() {
     let metadata = scenario_metadata("String payload scenario");
@@ -267,6 +282,8 @@ fn augmented_message_includes_scenario_name_for_string_payload() {
     configured_snapshot_settings().bind(|| insta::assert_snapshot!(&message));
 }
 
+/// Asserts that the augmented panic message includes the scenario name when
+/// the original panic payload is a `&str`.
 #[rstest]
 fn augmented_message_includes_scenario_name_for_str_payload() {
     let metadata = scenario_metadata("&str payload scenario");
@@ -278,6 +295,8 @@ fn augmented_message_includes_scenario_name_for_str_payload() {
     configured_snapshot_settings().bind(|| insta::assert_snapshot!(&message));
 }
 
+/// Asserts that the augmented panic message includes the scenario name when
+/// the original panic payload is an opaque `Box<dyn Any + Send>`.
 #[rstest]
 fn augmented_message_includes_scenario_name_for_opaque_any_payload() {
     #[derive(Debug)]
@@ -293,8 +312,6 @@ fn augmented_message_includes_scenario_name_for_opaque_any_payload() {
     let mut settings = configured_snapshot_settings();
     settings.add_filter(r"Opaque Any payload scenario", "[SCENARIO_NAME]");
     settings.bind(|| insta::assert_snapshot!(&message));
-    assert!(message.contains("Opaque Any payload scenario"));
-    assert!(message.contains("erased `Any` payload"));
 }
 
 /// Verifies that a teardown panic in a child process does not suppress the
@@ -315,14 +332,10 @@ fn teardown_panic_does_not_suppress_original_diagnostic() {
         );
         let stderr = String::from_utf8(output.stderr)
             .unwrap_or_else(|error| panic!("stderr should be UTF-8: {error}"));
-        // The child process double-panics (aborts), so success=false is expected.
-        // The important thing is that the original diagnostic appears in stderr
-        // before the abort.
-        assert!(
-            stderr.contains("GPUI scenario panicked")
-                || stderr.contains("rstest-bdd-harness-gpui scenario panicked"),
-            "expected original augmented diagnostic in stderr before abort, got: {stderr}"
-        );
+        // The child process double-panics (aborts), so success=false is
+        // expected. The snapshot proves the original diagnostic appeared
+        // on stderr before the abort.
+        configured_snapshot_settings().bind(|| insta::assert_snapshot!(&stderr));
         return;
     }
 
@@ -343,6 +356,8 @@ impl<S> Layer<S> for RecordingLayer
 where
     S: Subscriber,
 {
+    /// Visits every tracing event, serialises its fields, and appends the
+    /// result to the shared event buffer for later inspection.
     fn on_event(&self, event: &Event<'_>, _context: Context<'_, S>) {
         let mut visitor = EventVisitor::default();
         event.record(&mut visitor);
@@ -361,6 +376,8 @@ struct EventVisitor {
 }
 
 impl Visit for EventVisitor {
+    /// Records the debug representation of a tracing field into the
+    /// accumulated field list.
     fn record_debug(&mut self, field: &Field, value: &dyn fmt::Debug) {
         self.fields.push(format!("{}={value:?}", field.name()));
     }
