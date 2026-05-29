@@ -18,6 +18,7 @@ use rstest_bdd_harness::{
     HarnessAdapter, HarnessResult, ScenarioMetadata, ScenarioRunRequest, ScenarioRunner,
 };
 use std::any::Any;
+use std::cell::RefCell;
 use std::io::{self, Write};
 use std::panic::{self, AssertUnwindSafe};
 use std::sync::{Mutex, PoisonError};
@@ -85,14 +86,20 @@ impl GpuiHarness {
     /// [`ContextCleanup`] guard can ensure `finish_context` runs on both the
     /// success and the panic paths.
     ///
+    /// The caller supplies `stderr_writer`, which receives the scenario
+    /// diagnostic when the step panics.  Selecting stderr (typically
+    /// `io::stderr().lock()`) is the caller's responsibility; the function
+    /// treats the writer opaquely and does not open any I/O sink on its own.
+    ///
     /// If the scenario function panics, the panic payload is augmented with
     /// feature context, recorded as a `tracing::error!` event, written to
-    /// stderr, and re-raised via `panic::resume_unwind`. On success the
-    /// result is stored in `output_slot` for later extraction.
-    fn run_request_once<T>(
+    /// `stderr_writer`, and re-raised via `panic::resume_unwind`. On success
+    /// the result is stored in `output_slot` for later extraction.
+    fn run_request_once<T, W: Write>(
         runner_slot: &Mutex<Option<ScenarioRunner<'_, TestAppContext, T>>>,
         output_slot: &Mutex<Option<T>>,
         metadata: &ScenarioMetadata,
+        stderr_writer: &AssertUnwindSafe<RefCell<W>>,
     ) {
         gpui::run_test(
             1,
@@ -128,19 +135,11 @@ impl GpuiHarness {
                     Ok(value) => Self::store_output(output_slot, value),
                     Err(payload) => {
                         let message = Self::augmented_panic_message(payload.as_ref(), metadata);
-                        Self::record_panic_event(&message, metadata);
-                        let mut stderr = io::stderr().lock();
-                        if let Err(error) = Self::write_stderr_diagnostic_to(&mut stderr, &message)
-                        {
-                            tracing::debug!(
-                                harness_type = "rstest_bdd_harness_gpui::GpuiHarness",
-                                feature_path = metadata.feature_path(),
-                                scenario_name = metadata.scenario_name(),
-                                scenario_line = metadata.scenario_line(),
-                                error = %error,
-                                "failed to write GPUI scenario panic diagnostic to stderr"
-                            );
-                        }
+                        Self::record_and_write_panic_diagnostic(
+                            &message,
+                            metadata,
+                            &mut *stderr_writer.borrow_mut(),
+                        );
                         // The original payload has been transcribed into `message`. Leak
                         // it so an arbitrary `Drop` impl on the boxed `Any` cannot panic
                         // during the new unwind and trigger a double-panic abort.
@@ -234,6 +233,28 @@ impl GpuiHarness {
         );
     }
 
+    /// Records the augmented diagnostic as a `tracing::error!` event and writes
+    /// it to `writer`.  Write failures are downgraded to a `tracing::debug!`
+    /// event; they never propagate as errors or panics so the caller's unwind
+    /// path is unaffected.
+    fn record_and_write_panic_diagnostic(
+        message: &str,
+        metadata: &ScenarioMetadata,
+        writer: &mut impl Write,
+    ) {
+        Self::record_panic_event(message, metadata);
+        if let Err(error) = Self::write_stderr_diagnostic_to(writer, message) {
+            tracing::debug!(
+                harness_type = "rstest_bdd_harness_gpui::GpuiHarness",
+                feature_path = metadata.feature_path(),
+                scenario_name = metadata.scenario_name(),
+                scenario_line = metadata.scenario_line(),
+                error = %error,
+                "failed to write GPUI scenario panic diagnostic to stderr"
+            );
+        }
+    }
+
     /// Builds an augmented panic message that includes the feature path,
     /// scenario name, and line number alongside the original panic payload text.
     fn augmented_panic_message(payload: &(dyn Any + Send), metadata: &ScenarioMetadata) -> String {
@@ -273,7 +294,9 @@ impl HarnessAdapter for GpuiHarness {
         let runner = Mutex::new(Some(runner));
         let output = Mutex::new(None);
 
-        Self::run_request_once(&runner, &output, &metadata);
+        let stderr = io::stderr().lock();
+        let stderr_writer = AssertUnwindSafe(RefCell::new(stderr));
+        Self::run_request_once(&runner, &output, &metadata, &stderr_writer);
         Ok(Self::extract_output(output, &scenario_name))
     }
 }
