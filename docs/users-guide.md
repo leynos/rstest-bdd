@@ -1190,7 +1190,7 @@ that a step or scenario stopped executing. Use
 `rstest_bdd::assert_step_skipped!` to unwrap a `StepExecution::Skipped`
 outcome, optionally constraining its message, and
 `rstest_bdd::assert_scenario_skipped!` to inspect
-[`ScenarioStatus`](crate::reporting::ScenarioStatus) records. Both macros accept
+[`ScenarioStatus`](https://docs.rs/rstest-bdd/latest/rstest_bdd/reporting/enum.ScenarioStatus.html) records. Both macros accept
  `message_absent = true` to assert that no message was provided and substring
 matching to confirm that a message contains the expected reason.
 

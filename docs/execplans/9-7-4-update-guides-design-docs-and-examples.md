@@ -449,7 +449,7 @@ the requested title marker `(7.7.4)`, and include the Lody session link in a
 Run commands from the repository root:
 
 ```bash
-cd /home/leynos/.lody/repos/github---leynos---rstest-bdd/worktrees/cf6a7d98-d416-4269-a866-1b7f701d1f2d
+cd "$(git rev-parse --show-toplevel)"
 ```
 
 During implementation, begin with status and audit commands:
