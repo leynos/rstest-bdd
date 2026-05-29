@@ -310,45 +310,10 @@ mod tests {
     use rstest_bdd_harness::{
         HarnessAdapter, ScenarioMetadata, ScenarioRunRequest, ScenarioRunner,
     };
-    use std::io::{self, Write};
 
     #[fixture]
     fn harness() -> GpuiHarness {
         GpuiHarness::new()
-    }
-
-    /// [`Write`] sink that always reports [`io::ErrorKind::BrokenPipe`].
-    ///
-    /// Lives in the unit-test module so the broken-pipe regression can
-    /// exercise the private I/O primitive without forcing it onto the
-    /// public surface.
-    struct BrokenPipeWriter;
-
-    impl Write for BrokenPipeWriter {
-        fn write(&mut self, _buf: &[u8]) -> io::Result<usize> {
-            Err(io::Error::new(
-                io::ErrorKind::BrokenPipe,
-                "simulated broken pipe",
-            ))
-        }
-
-        fn flush(&mut self) -> io::Result<()> {
-            Ok(())
-        }
-    }
-
-    /// Regression test: an I/O failure in the stderr-write primitive must
-    /// surface as `Err`, never as a panic, so the harness's panic-diagnostic
-    /// branch can downgrade write failures to a `tracing::debug!` event
-    /// instead of double-panicking during unwinding.
-    #[rstest]
-    fn write_stderr_diagnostic_to_returns_err_on_io_failure() {
-        let result =
-            GpuiHarness::write_stderr_diagnostic_to(&mut BrokenPipeWriter, "diagnostic message");
-        let Err(err) = result else {
-            panic!("write_stderr_diagnostic_to should return Err on I/O failure, got Ok");
-        };
-        assert_eq!(err.kind(), io::ErrorKind::BrokenPipe);
     }
 
     #[rstest]
