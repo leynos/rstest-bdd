@@ -236,10 +236,7 @@ impl GpuiHarness {
 
     /// Builds an augmented panic message that includes the feature path,
     /// scenario name, and line number alongside the original panic payload text.
-    pub fn augmented_panic_message(
-        payload: &(dyn Any + Send),
-        metadata: &ScenarioMetadata,
-    ) -> String {
+    fn augmented_panic_message(payload: &(dyn Any + Send), metadata: &ScenarioMetadata) -> String {
         let message = panic_message(payload);
         format!(
             "rstest-bdd-harness-gpui scenario panicked: feature={feature_path}:{scenario_line}, \
@@ -262,7 +259,7 @@ impl GpuiHarness {
     /// # Errors
     ///
     /// Returns an I/O error if the underlying writer fails.
-    pub fn write_stderr_diagnostic_to(writer: &mut impl Write, message: &str) -> io::Result<()> {
+    fn write_stderr_diagnostic_to(writer: &mut impl Write, message: &str) -> io::Result<()> {
         writeln!(writer, "{message}")
     }
 }
@@ -290,10 +287,45 @@ mod tests {
     use rstest_bdd_harness::{
         HarnessAdapter, ScenarioMetadata, ScenarioRunRequest, ScenarioRunner,
     };
+    use std::io::{self, Write};
 
     #[fixture]
     fn harness() -> GpuiHarness {
         GpuiHarness::new()
+    }
+
+    /// [`Write`] sink that always reports [`io::ErrorKind::BrokenPipe`].
+    ///
+    /// Lives in the unit-test module so the broken-pipe regression can
+    /// exercise the private I/O primitive without forcing it onto the
+    /// public surface.
+    struct BrokenPipeWriter;
+
+    impl Write for BrokenPipeWriter {
+        fn write(&mut self, _buf: &[u8]) -> io::Result<usize> {
+            Err(io::Error::new(
+                io::ErrorKind::BrokenPipe,
+                "simulated broken pipe",
+            ))
+        }
+
+        fn flush(&mut self) -> io::Result<()> {
+            Ok(())
+        }
+    }
+
+    /// Regression test: an I/O failure in the stderr-write primitive must
+    /// surface as `Err`, never as a panic, so the harness's panic-diagnostic
+    /// branch can downgrade write failures to a `tracing::debug!` event
+    /// instead of double-panicking during unwinding.
+    #[rstest]
+    fn write_stderr_diagnostic_to_returns_err_on_io_failure() {
+        let result =
+            GpuiHarness::write_stderr_diagnostic_to(&mut BrokenPipeWriter, "diagnostic message");
+        let Err(err) = result else {
+            panic!("write_stderr_diagnostic_to should return Err on I/O failure, got Ok");
+        };
+        assert_eq!(err.kind(), io::ErrorKind::BrokenPipe);
     }
 
     #[rstest]

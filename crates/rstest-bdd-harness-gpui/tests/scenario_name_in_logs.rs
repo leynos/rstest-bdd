@@ -12,8 +12,7 @@ use rstest_bdd_harness::{
 };
 use rstest_bdd_harness_gpui::GpuiHarness;
 use std::fmt;
-use std::io::{self, Write};
-use std::panic::{AssertUnwindSafe, catch_unwind};
+use std::panic::{AssertUnwindSafe, catch_unwind, panic_any};
 use std::process::Command;
 use std::sync::{Arc, Mutex};
 use tracing::field::{Field, Visit};
@@ -223,8 +222,10 @@ fn configured_snapshot_settings() -> insta::Settings {
 }
 
 // ---------------------------------------------------------------------------
-// Edge-case tests — special characters, write failure, payload invariants,
-// and teardown-panic ordering.
+// Edge-case tests — special characters, payload type coverage, and
+// teardown-panic ordering.  Each test routes through the harness so the
+// augmented diagnostic is exercised end-to-end without exposing private
+// helpers on the public API.
 // ---------------------------------------------------------------------------
 
 /// Asserts that Unicode, newline, tab, and shell-special characters in a
@@ -244,64 +245,47 @@ fn special_characters_in_scenario_name_are_preserved_in_diagnostic() {
     configured_snapshot_settings().bind(|| insta::assert_snapshot!(&message));
 }
 
-/// Verifies that a stderr write failure from `write_stderr_diagnostic_to`
-/// returns an `Err` rather than panicking.
-#[rstest]
-fn stderr_write_failure_is_non_fatal() {
-    // A [`Write`] implementation that always returns `BrokenPipe`.
-    struct BrokenPipeWriter;
-
-    impl Write for BrokenPipeWriter {
-        fn write(&mut self, _buf: &[u8]) -> io::Result<usize> {
-            Err(io::Error::new(
-                io::ErrorKind::BrokenPipe,
-                "simulated broken pipe",
-            ))
-        }
-
-        fn flush(&mut self) -> io::Result<()> {
-            Ok(())
-        }
-    }
-
-    let message = "diagnostic message for broken pipe test";
-    let result = GpuiHarness::write_stderr_diagnostic_to(&mut BrokenPipeWriter, message);
-
-    assert!(
-        result.is_err(),
-        "write_stderr_diagnostic_to should return Err on I/O failure, got: {result:?}"
-    );
-    let Err(err) = result else {
-        panic!("expected Err, got Ok");
-    };
-    assert_eq!(err.kind(), io::ErrorKind::BrokenPipe);
-}
-
 /// Asserts that the augmented panic message includes the scenario name when
 /// the original panic payload is a `String`.
+///
+/// `panic_any` carries an owned `String` so the harness's panic-message
+/// rendering is exercised against the owned-string downcast path.
 #[rstest]
 fn augmented_message_includes_scenario_name_for_string_payload() {
-    let metadata = scenario_metadata("String payload scenario");
-    let payload: Box<dyn std::any::Any + Send> = Box::new("a string panic".to_string());
-    let message = GpuiHarness::augmented_panic_message(payload.as_ref(), &metadata);
+    let request = ScenarioRunRequest::new(
+        scenario_metadata("String payload scenario"),
+        ScenarioRunner::new(|_context: gpui::TestAppContext| {
+            panic_any("a string panic".to_string());
+        }),
+    );
+
+    let message = catch_scenario_panic(request);
+
     configured_snapshot_settings().bind(|| insta::assert_snapshot!(&message));
 }
 
 /// Asserts that the augmented panic message includes the scenario name when
-/// the original panic payload is a `&str`.
+/// the original panic payload is a `&'static str`.
+///
+/// `panic!(literal)` with no format arguments produces a `&'static str`
+/// payload, so this exercises the borrowed-str downcast path.
 #[rstest]
 fn augmented_message_includes_scenario_name_for_str_payload() {
-    let metadata = scenario_metadata("&str payload scenario");
-    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        panic!("a &str panic");
-    }));
-    let payload = result.expect_err("expected panic from catch_unwind");
-    let message = GpuiHarness::augmented_panic_message(payload.as_ref(), &metadata);
+    let request = ScenarioRunRequest::new(
+        scenario_metadata("&str payload scenario"),
+        ScenarioRunner::new(|_context: gpui::TestAppContext| {
+            panic!("a &str panic");
+        }),
+    );
+
+    let message = catch_scenario_panic(request);
+
     configured_snapshot_settings().bind(|| insta::assert_snapshot!(&message));
 }
 
 /// Asserts that the augmented panic message includes the scenario name when
-/// the original panic payload is an opaque `Box<dyn Any + Send>`.
+/// the original panic payload is an opaque `Any` value that is neither
+/// `String` nor `&str`.
 #[rstest]
 fn augmented_message_includes_scenario_name_for_opaque_any_payload() {
     #[derive(Debug)]
@@ -311,9 +295,15 @@ fn augmented_message_includes_scenario_name_for_opaque_any_payload() {
     )]
     struct CustomPayload(u32);
 
-    let metadata = scenario_metadata("Opaque Any payload scenario");
-    let payload: Box<dyn std::any::Any + Send> = Box::new(CustomPayload(99));
-    let message = GpuiHarness::augmented_panic_message(payload.as_ref(), &metadata);
+    let request = ScenarioRunRequest::new(
+        scenario_metadata("Opaque Any payload scenario"),
+        ScenarioRunner::new(|_context: gpui::TestAppContext| {
+            panic_any(CustomPayload(99));
+        }),
+    );
+
+    let message = catch_scenario_panic(request);
+
     configured_snapshot_settings().bind(|| insta::assert_snapshot!(&message));
 }
 

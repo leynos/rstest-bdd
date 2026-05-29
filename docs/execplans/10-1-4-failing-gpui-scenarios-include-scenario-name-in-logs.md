@@ -636,20 +636,47 @@ make markdownlint: exits 0 when Markdown changed
 
 ## Interfaces and dependencies
 
-This change does not introduce any new public types, traits, or functions. The
-new helper, `augment_panic`, is a private function inside
-`crates/rstest-bdd-harness-gpui/src/gpui_harness.rs`:
+This change does not introduce any new public types, traits, or functions. As
+implemented in `crates/rstest-bdd-harness-gpui/src/gpui_harness.rs`, the
+augmentation is split across several private helpers on `impl GpuiHarness`
+and one module-private RAII guard, none of which are reachable outside the
+crate:
 
 ```rust
-fn augment_panic(
-    payload: Box<dyn std::any::Any + Send>,
+// Builds the augmented panic string from the original payload and metadata.
+fn augmented_panic_message(
+    payload: &(dyn std::any::Any + Send),
     metadata: &rstest_bdd_harness::ScenarioMetadata,
-) -> Box<dyn std::any::Any + Send>;
+) -> String;
+
+// Observability: emits a structured `tracing::error!` event only.
+fn record_panic_event(message: &str, metadata: &rstest_bdd_harness::ScenarioMetadata);
+
+// I/O primitive: injectable writer; callers select stderr at the call site.
+fn write_stderr_diagnostic_to(
+    writer: &mut impl std::io::Write,
+    message: &str,
+) -> std::io::Result<()>;
+
+// RAII guard that ensures `finish_context` runs on both the success and
+// the panic paths.
+struct ContextCleanup<'a> { /* dispatcher and context borrows */ }
 ```
 
-If a refactor moves it into
-`crates/rstest-bdd-harness-gpui/src/diagnostics.rs`, the visibility remains
-`pub(crate)` at most; do not export it.
+The earlier draft of this section described a single `augment_panic`
+helper that returned a re-boxed payload. The implementation diverged into
+the helpers above so observability (tracing) and I/O (stderr) are
+separable, the writer is an explicit dependency, and cleanup runs via
+`Drop` rather than by guarding a single point of return. All helpers
+remain private; integration tests exercise them end-to-end through
+`HarnessAdapter::run`, and the lone unit test that needs the I/O
+primitive directly (`write_stderr_diagnostic_to_returns_err_on_io_failure`)
+lives in the crate-internal `#[cfg(test)] mod tests` block alongside the
+implementation.
+
+If a future refactor moves any helper into
+`crates/rstest-bdd-harness-gpui/src/diagnostics.rs`, the visibility
+remains `pub(crate)` at most; do not export it.
 
 The change relies on the following existing public surfaces, which are not
 modified:
