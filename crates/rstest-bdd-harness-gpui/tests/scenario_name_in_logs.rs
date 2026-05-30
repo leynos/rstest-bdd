@@ -357,7 +357,7 @@ impl<S> Layer<S> for RecordingLayer
 where
     S: Subscriber,
 {
-    /// Visits every tracing event, serialises its fields, and appends the
+    /// Visits every tracing event, serializes its fields, and appends the
     /// result to the shared event buffer for later inspection.
     fn on_event(&self, event: &Event<'_>, _context: Context<'_, S>) {
         let mut visitor = EventVisitor::default();
