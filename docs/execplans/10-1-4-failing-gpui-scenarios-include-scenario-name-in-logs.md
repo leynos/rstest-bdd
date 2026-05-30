@@ -73,8 +73,8 @@ milestone-by-milestone within the tolerances below.
   behavioural coverage, and `proptest` only if a property emerges that warrants
   it. The roadmap entry expects a regression test, not a proof.
 - All step-panic diagnostics must use British English with Oxford spelling
-  in user-facing messages (e.g. "behaviour", "initialise" -> "initialise"), in
-  line with `en-gb-oxendict` policy.
+  in user-facing messages (Oxford `-ize`, e.g. "behaviour", "initialize",
+  "organize"), in line with `en-gb-oxendict` policy.
 - Run validation commands sequentially. Capture each command's output to
   `/tmp/<action>-rstest-bdd-${BRANCH}.out` via `tee`.
 - Commit each milestone only after its quality gates pass and any requested
@@ -164,7 +164,7 @@ Use these skills while implementing this plan:
 - `leta`: semantic Rust navigation. Already loaded.
 - `rust-router`: route Rust design issues. Already loaded.
 - `rust-errors`: when deciding what (if anything) belongs in `HarnessError`.
-  Expect to confirm "nothing": step panics are not harness initialisation
+  Expect to confirm "nothing": step panics are not harness initialization
   failures.
 - `rust-unused-code`: if a feature-gated test triggers `dead_code`/`unused`
   warnings, prefer `#[cfg(...)]` scoping over `#[allow(...)]`.
@@ -223,7 +223,7 @@ The reader is assumed to know nothing about this repository. Key paths:
   used by macro-generated harness calls. Step panics are *not* harness errors
   and must continue to propagate via the panic channel.
 - `crates/rstest-bdd-macros/src/codegen/scenario/runtime/harness.rs:169`
-  shows the existing `tracing::error!` pattern for harness initialisation
+  shows the existing `tracing::error!` pattern for harness initialization
   failures. The augmentation uses the same field names (`harness_type`,
   `feature_path`, `scenario_name`) to keep log output consistent.
 - `crates/rstest-bdd/src/panic_support.rs:24` exposes
@@ -526,11 +526,19 @@ line referencing 10.1.4.
 ### Stage D: documentation and hardening
 
 D1. Update `docs/users-guide.md` "Using the GPUI harness" with a short
-paragraph (max five sentences) explaining that `GpuiHarness` augments
-step-panic diagnostics with the scenario name, feature path, and line number,
-and that the augmented payload is available via the panic channel as well as
-through `tracing::error!` and stderr. Cross-reference the new regression test
-for readers who want a concrete example.
+paragraph (max five sentences) explaining that, when a step running under
+`GpuiHarness` panics, the harness prepends the feature path, scenario name,
+and feature-file line number to the panic message; mirrors those fields to
+`tracing::error!` using the existing `harness_type`, `feature_path`,
+`scenario_name`, and `scenario_line` field names; and writes a matching line
+to stderr so test runners that do not collect `tracing` events still surface
+the scenario name on failure. Cross-reference the new regression test
+(`crates/rstest-bdd-harness-gpui/tests/scenario_name_in_logs.rs`) for readers
+who want a concrete example. This users-guide update is a hard requirement
+of the 10.1.4 finish line: the implementation is not "done" until the user
+guide reflects the new diagnostic behaviour. Do **not** defer this to a
+later roadmap item; the v0.6.0-beta2 quick-wins scope demands that public
+guidance match the shipped behaviour.
 
 D2. Update `docs/developers-guide.md` "Test organization: harness-owned
 integration tests" table by adding a row for the new `scenario_name_in_logs`
@@ -827,7 +835,7 @@ in Stage C and record the addition in `Decision log`.
   advertise a capability the trait cannot deliver without a breaking signature
   change. The Wyvern Telefono persona explicitly flagged this as contract
   pollution. Documented step panics remain diagnostic artefacts; harness errors
-  remain reserved for harness initialisation failures. Date/Author: 2026-05-24,
+  remain reserved for harness initialization failures. Date/Author: 2026-05-24,
   planning phase.
 
 - Decision: place the regression in a new
