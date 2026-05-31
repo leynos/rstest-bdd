@@ -218,7 +218,11 @@ fn failing_scenario_request() -> ScenarioRunRequest<'static, gpui::TestAppContex
 fn configured_snapshot_settings() -> insta::Settings {
     let mut settings = insta::Settings::clone_current();
     for (pattern, replacement) in &[
-        (r"\(\d+\)", "([TID])"),
+        // Anchor the thread-id redaction to the Rust panic-header form
+        // `thread '<name>' (<id>) panicked at ...` so unrelated
+        // parenthesised integers in panic payloads (e.g. struct variants)
+        // are preserved in snapshots.
+        (r"(thread '[^']*') \(\d+\)", "$1 ([TID])"),
         (r"\.rs:\d+:\d+", ".rs:[LINE]:[COL]"),
         (r"TypeId\(0x[0-9a-f]+\)", "TypeId([TYPEID])"),
     ] {
@@ -252,9 +256,6 @@ fn special_characters_in_scenario_name_are_preserved_in_diagnostic() {
     configured_snapshot_settings().bind(|| insta::assert_snapshot!(&message));
 }
 
-/// Asserts that the augmented panic message includes the scenario name when
-/// the original panic payload is a `String`.
-///
 /// Asserts that the augmented panic message includes the scenario name
 /// whether the original panic payload is an owned `String` or a `&str`.
 ///
