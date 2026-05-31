@@ -15,6 +15,7 @@ fn harness() -> GpuiHarness {
 }
 
 #[rstest]
+#[serial_test::serial]
 fn gpui_harness_runs_request(harness: GpuiHarness) {
     let request = ScenarioRunRequest::new(
         ScenarioMetadata::new(
@@ -32,6 +33,7 @@ fn gpui_harness_runs_request(harness: GpuiHarness) {
 }
 
 #[rstest]
+#[serial_test::serial]
 fn gpui_test_context_is_available_during_run(harness: GpuiHarness) {
     let request = ScenarioRunRequest::new(
         ScenarioMetadata::default(),
