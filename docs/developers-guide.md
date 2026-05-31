@@ -545,6 +545,8 @@ that map a type-path to a `TestAttributeHint`.
 The following `&[&str]` constants identify the known first-party harness and
 attribute-policy types:
 
+Table: Path constants used for first-party policy and harness lookups
+
 | Constant                        | Path segments                                          |
 | ------------------------------- | ------------------------------------------------------ |
 | `STD_HARNESS_PATH`              | `["rstest_bdd_harness", "StdHarness"]`                 |
@@ -559,6 +561,8 @@ not inline the string slices, as the constants are the canonical source of
 truth and may be updated in future releases.
 
 #### Resolver functions
+
+Table: Resolver functions mapping a type path to a `TestAttributeHint`
 
 | Function                                                                                   | Use                                                                                                                                                                                                                                          |
 | ------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
