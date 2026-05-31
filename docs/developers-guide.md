@@ -605,3 +605,53 @@ matching field names for consistency.
 `HarnessError` is marked `#[non_exhaustive]`, so downstream code that matches
 on it must include a `_` fallback arm. New variants may be added in minor
 releases as more harness infrastructure failures become typed and inspectable.
+
+## GpuiHarness panic-handling internals
+
+The `rstest-bdd-harness-gpui` adapter wraps `gpui::run_test` in a thin
+panic-aware envelope so that failing scenarios surface the originating
+feature path, scenario name, and feature-file line in both the resumed
+panic payload and observability sinks. The internals are intentionally
+private but worth understanding when modifying the harness:
+
+- `GpuiHarness::run_request_once` is the single entry point that drives
+  `gpui::run_test`. It builds the per-scenario `TestAppContext`,
+  constructs a `ContextCleanup` RAII guard, and wraps the runner closure
+  in a `panic::catch_unwind(AssertUnwindSafe(..))` boundary. On the
+  success path the result is stored in an output mutex; on the panic
+  path the boxed `Any + Send` payload is rendered through
+  `augmented_panic_message`, recorded via
+  `record_and_write_panic_diagnostic`, leaked with `std::mem::forget`
+  to neutralise any user-defined `Drop` that could double-panic, and
+  finally re-raised as `Box<String>` through `panic::resume_unwind`.
+  The caller injects the stderr writer (`AssertUnwindSafe<RefCell<W>>`)
+  so I/O routing stays visible at the call site rather than hidden
+  behind a no-argument default.
+- `ContextCleanup` is an RAII guard that calls `finish_context` from
+  its `Drop` impl. It is constructed immediately after the
+  `TestAppContext` is built so the cleanup contract is honoured on
+  both the success and the panic paths. `finish_context` drains the
+  dispatcher with `run_until_parked`, calls `forbid_parking` on the
+  executor, and quits the context, so parked timers or background
+  work cannot leak into the next scenario.
+- `augmented_panic_message` renders the boxed `Any + Send` payload via
+  the workspace-shared `rstest_bdd::panic_message` downcast ladder
+  (handles `&str`, `String`, common scalars, and falls back to an
+  opaque `TypeId`-bearing description), then prepends the feature
+  path, scenario name, and line drawn from `ScenarioMetadata`.
+- `record_and_write_panic_diagnostic` calls `record_panic_event` to
+  emit a `tracing::error!` record (with the harness, feature path,
+  scenario name, scenario line, and rendered error as structured
+  fields) and then writes the same message to the injected writer via
+  `write_stderr_diagnostic_to`. Write errors are downgraded to
+  `tracing::debug!` so an uncooperative stderr never escalates into a
+  double panic.
+
+Because the runtime mutates an `Rc`-backed `TestAppContext`, every test
+that drives `GpuiHarness::run` from within the same process must be
+serialised under `#[serial_test::serial]`. The harness exposes that
+constraint in its module-level docs; both the in-module unit tests in
+`crates/rstest-bdd-harness-gpui/src/gpui_harness/tests.rs` and the
+feature-gated regression suite in
+`crates/rstest-bdd-harness-gpui/tests/scenario_name_in_logs.rs` apply
+the attribute to every `GpuiHarness::run`-driving test.

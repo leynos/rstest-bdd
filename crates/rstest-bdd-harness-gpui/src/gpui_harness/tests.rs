@@ -1,4 +1,27 @@
-//! Unit tests for the GPUI harness adapter.
+//! Unit tests for the GPUI harness adapter declared in
+//! [`super::GpuiHarness`].
+//!
+//! This sibling submodule of `gpui_harness` carries privileged `use super`
+//! access to the parent crate's private items, so it can exercise helpers
+//! that are intentionally not part of the public API. Coverage is grouped
+//! into two strands:
+//!
+//! - **Adapter behaviour:** [`gpui_harness_runs_request`] and
+//!   [`gpui_test_context_is_available_during_run`] drive
+//!   [`super::GpuiHarness::run`] end-to-end against `gpui::run_test`, so
+//!   they take a `#[serial_test::serial]` guard to honour the GPUI
+//!   single-thread requirement (see the parent module docs for the full
+//!   constraint).
+//! - **Panic-path helpers:**
+//!   [`augmented_panic_message_includes_scenario_name_for_payload_type`]
+//!   is an `rstest`-parametrised test that covers all three downcast arms
+//!   of [`super::GpuiHarness::augmented_panic_message`] (owned `String`,
+//!   `&'static str`, and an opaque `Debug`-only payload).
+//!   [`write_stderr_diagnostic_to_returns_err_on_broken_pipe`] asserts
+//!   that [`super::GpuiHarness::write_stderr_diagnostic_to`] surfaces an
+//!   `Err` rather than panicking when the writer reports `BrokenPipe`.
+//!   Neither helper test touches GPUI runtime state, so they run in
+//!   parallel without serialisation.
 
 /// An opaque panic-payload type that is neither `String` nor `&str`, used to
 /// exercise the fallback downcast arm of `augmented_panic_message`.

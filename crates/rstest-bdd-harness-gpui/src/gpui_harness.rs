@@ -11,6 +11,22 @@
 //! `finish_context` executes on both the success and the panic paths,
 //! preventing parked timers or background work from leaking into subsequent
 //! scenarios.
+//!
+//! # Single-threaded execution requirement
+//!
+//! Upstream Zed GPUI is a single-threaded UI runtime: `gpui::run_test`
+//! builds `TestAppContext`, `TestDispatcher`, and the surrounding executor
+//! around `Rc`-backed state that is neither `Send` nor `Sync`. Driving
+//! `GpuiHarness::run` from two threads in the same process therefore
+//! races on shared GPUI state and can manifest as flaky panics or
+//! incorrect test outcomes, not as a compile error (the harness is itself
+//! `Send` only because each `GpuiHarness::run` invocation owns a fresh
+//! context inside its own closure). Tests that exercise the harness must
+//! be serialised — both the feature-gated regression suite under
+//! `crates/rstest-bdd-harness-gpui/tests/scenario_name_in_logs.rs` and
+//! the in-module unit tests in `gpui_harness/tests.rs` mark every
+//! `GpuiHarness::run`-driving test with `#[serial_test::serial]` so
+//! libtest cannot interleave them on the same process.
 
 use gpui::TestAppContext;
 use rstest_bdd::panic_message;
