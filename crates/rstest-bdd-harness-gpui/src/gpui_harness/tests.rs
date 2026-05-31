@@ -1,14 +1,13 @@
 //! Unit tests for the GPUI harness adapter.
 
+/// An opaque panic-payload type that is neither `String` nor `&str`, used to
+/// exercise the fallback downcast arm of `augmented_panic_message`.
+#[derive(Debug)]
+struct OpaquePayload;
+
 use super::GpuiHarness;
 use rstest::{fixture, rstest};
 use rstest_bdd_harness::{HarnessAdapter, ScenarioMetadata, ScenarioRunRequest, ScenarioRunner};
-
-/// Opaque `Debug`-only payload used to exercise the fall-through branch of
-/// [`GpuiHarness::augmented_panic_message`] for payloads that are neither
-/// `String` nor `&str`.
-#[derive(Debug)]
-struct Opaque;
 
 #[fixture]
 fn harness() -> GpuiHarness {
@@ -45,28 +44,38 @@ fn gpui_test_context_is_available_during_run(harness: GpuiHarness) {
 }
 
 /// Asserts that `augmented_panic_message` embeds the scenario name in the
-/// returned string for every supported payload variant: owned `String`,
-/// `&'static str`, and an opaque `Debug`-only type that exercises the
-/// fall-through path in `panic_message`.
+/// returned string for all three panic-payload downcast paths:
+///
+/// - `string_payload`: the owned-`String` downcast arm.
+/// - `str_payload`: the `&'static str` downcast arm.
+/// - `opaque_payload`: the fallback arm for types that are neither.
 #[rstest]
 #[case::string_payload(
     "A string payload scenario",
+    7,
     Box::new("step panicked".to_string()) as Box<dyn std::any::Any + Send>,
 )]
 #[case::str_payload(
     "A str payload scenario",
+    12,
     Box::new("step panicked") as Box<dyn std::any::Any + Send>,
 )]
 #[case::opaque_payload(
     "An opaque payload scenario",
-    Box::new(Opaque) as Box<dyn std::any::Any + Send>,
+    17,
+    Box::new(OpaquePayload) as Box<dyn std::any::Any + Send>,
 )]
-fn augmented_panic_message_includes_scenario_name(
+fn augmented_panic_message_includes_scenario_name_for_payload_type(
     #[case] scenario_name: &str,
+    #[case] line: u32,
     #[case] payload: Box<dyn std::any::Any + Send>,
 ) {
-    let metadata =
-        ScenarioMetadata::new("tests/features/example.feature", scenario_name, 7, vec![]);
+    let metadata = ScenarioMetadata::new(
+        "tests/features/example.feature",
+        scenario_name,
+        line,
+        vec![],
+    );
     let message = GpuiHarness::augmented_panic_message(payload.as_ref(), &metadata);
     assert!(
         message.contains(scenario_name),
