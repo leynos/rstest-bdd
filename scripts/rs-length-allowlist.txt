@@ -15,3 +15,7 @@ examples/tokio-reminders/src/lib.rs
 crates/rstest-bdd-macros/src/macros/scenarios/test_generation/tests.rs
 # Added during roadmap 10.1.2 diagnostics documentation: module docs push this just over the limit.
 crates/rstest-bdd/src/registry/mod.rs
+# Added during roadmap 10.1.4 panic-path coverage: four #[cfg(test)] unit tests
+# for `augmented_panic_message` and `write_stderr_diagnostic_to` push the file
+# past the 400-line budget; tracked for a future split into a sibling tests.rs.
+crates/rstest-bdd-harness-gpui/src/gpui_harness.rs
