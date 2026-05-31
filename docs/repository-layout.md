@@ -1,0 +1,107 @@
+# Repository layout
+
+This document maps the main directories and files in the `rstest-bdd`
+workspace. Use it with [Documentation contents](contents.md) when deciding
+where to place code, tests, examples, documentation, and support automation.
+
+## Workspace root
+
+- [AGENTS.md](../AGENTS.md) defines the active instructions for agents working
+  in this repository.
+- [CRUSH.md](../CRUSH.md) mirrors the agent instructions for tools that read
+  that filename.
+- [Cargo.toml](../Cargo.toml) defines the Cargo workspace, shared dependency
+  versions, features, and member crates.
+- [Makefile](../Makefile) provides the canonical quality-gate targets. Prefer
+  these targets over running the underlying tools directly.
+- [README.md](../README.md) is the public project introduction and quick-start
+  reference.
+- [CONTRIBUTING.md](../CONTRIBUTING.md) explains contribution expectations for
+  external contributors.
+- [LICENSE](../LICENSE) contains the project licence.
+- [clippy.toml](../clippy.toml) configures repository-wide Clippy policy.
+
+## Crates
+
+The [crates](../crates/) directory contains all workspace crates.
+
+- [crates/rstest-bdd](../crates/rstest-bdd/) is the primary user-facing crate.
+  It exposes the behaviour-driven development macros, diagnostics, and
+  localisation assets.
+- [crates/rstest-bdd-macros](../crates/rstest-bdd-macros/) owns procedural
+  macro parsing and expansion.
+- [crates/rstest-bdd-patterns](../crates/rstest-bdd-patterns/) contains shared
+  step-pattern parsing and matching logic.
+- [crates/rstest-bdd-policy](../crates/rstest-bdd-policy/) contains policy
+  types shared across macro and harness crates.
+- [crates/rstest-bdd-harness](../crates/rstest-bdd-harness/) defines the base
+  harness adapter API, scenario execution contracts, and shared test support.
+- [crates/rstest-bdd-harness-tokio](../crates/rstest-bdd-harness-tokio/)
+  provides the first-party Tokio harness adapter.
+- [crates/rstest-bdd-harness-gpui](../crates/rstest-bdd-harness-gpui/)
+  provides the first-party GPUI harness adapter.
+- [crates/rstest-bdd-server](../crates/rstest-bdd-server/) contains server-side
+  and language-service support code.
+- [crates/cargo-bdd](../crates/cargo-bdd/) contains the command-line interface
+  for behaviour-driven test discovery and execution support.
+
+## Examples
+
+The [examples](../examples/) directory contains runnable workspace examples
+used as documentation and integration coverage.
+
+- [examples/todo-cli](../examples/todo-cli/) demonstrates command-line
+  behaviour-driven tests.
+- [examples/tokio-reminders](../examples/tokio-reminders/) demonstrates async
+  scenario execution with the Tokio adapter.
+- [examples/gpui-counter](../examples/gpui-counter/) demonstrates GPUI harness
+  integration.
+- [examples/japanese-ledger](../examples/japanese-ledger/) demonstrates
+  localised Gherkin and diagnostic behaviour.
+
+## Documentation
+
+The [docs](../docs/) directory is the repository knowledge base and source of
+truth for requirements, design rationale, process notes, and planning.
+
+- Use [docs/contents.md](contents.md) as the document index.
+- Use [docs/users-guide.md](users-guide.md) for user-facing behaviour.
+- Use [docs/developers-guide.md](developers-guide.md) for maintainer-facing
+  workflows and conventions.
+- Use [docs/rstest-bdd-design.md](rstest-bdd-design.md) and related design
+  documents for architecture and rationale.
+- Use [docs/adr-*.md](.) for accepted Architecture Decision Records (ADRs).
+- Use [docs/execplans](execplans/) for execution plans tied to implementation
+  work.
+
+## Automation and configuration
+
+- [.github/workflows](../.github/workflows/) contains Continuous Integration
+  (CI) workflows and GitHub automation.
+- [.cargo](../.cargo/) contains Cargo configuration, including nextest policy.
+- [.config](../.config/) contains tool configuration used by the local and CI
+  workflows.
+- [scripts](../scripts/) contains repository automation, release checks, and
+  policy-enforcement scripts. Tests for these scripts live in
+  [scripts/tests](../scripts/tests/).
+- [.markdownlint-cli2.jsonc](../.markdownlint-cli2.jsonc) configures Markdown
+  linting.
+- [.vale.ini](../.vale.ini) configures prose linting.
+- [codecov.yml](../codecov.yml) configures coverage reporting.
+
+## Vendored support code
+
+The [vendor](../vendor/) directory contains local compatibility shims used by
+tests and publish validation.
+
+- [vendor/gpui](../vendor/gpui/) provides the GPUI shim used by the first-party
+  GPUI harness during local builds.
+- [vendor/gpui-macros](../vendor/gpui-macros/) provides companion macro
+  support for the local GPUI shim.
+
+## Generated and ignored paths
+
+- [target](../target/) is Cargo's generated build output and must not be used
+  as a source location.
+- Tool caches, build products, and editor artefacts should remain ignored
+  unless they are intentionally promoted into repository configuration.
