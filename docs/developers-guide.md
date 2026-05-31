@@ -622,7 +622,7 @@ private but worth understanding when modifying the harness:
   path the boxed `Any + Send` payload is rendered through
   `augmented_panic_message`, recorded via
   `record_and_write_panic_diagnostic`, leaked with `std::mem::forget`
-  to neutralise any user-defined `Drop` that could double-panic, and
+  to neutralize any user-defined `Drop` that could double-panic, and
   finally re-raised as `Box<String>` through `panic::resume_unwind`.
   The caller injects the stderr writer (`AssertUnwindSafe<RefCell<W>>`)
   so I/O routing stays visible at the call site rather than hidden
@@ -649,7 +649,7 @@ private but worth understanding when modifying the harness:
 
 Because the runtime mutates an `Rc`-backed `TestAppContext`, every test
 that drives `GpuiHarness::run` from within the same process must be
-serialised under `#[serial_test::serial]`. The harness exposes that
+serialized under `#[serial_test::serial]`. The harness exposes that
 constraint in its module-level docs; both the in-module unit tests in
 `crates/rstest-bdd-harness-gpui/src/gpui_harness/tests.rs` and the
 feature-gated regression suite in

@@ -22,7 +22,7 @@
 //! incorrect test outcomes, not as a compile error (the harness is itself
 //! `Send` only because each `GpuiHarness::run` invocation owns a fresh
 //! context inside its own closure). Tests that exercise the harness must
-//! be serialised — both the feature-gated regression suite under
+//! be serialized — both the feature-gated regression suite under
 //! `crates/rstest-bdd-harness-gpui/tests/scenario_name_in_logs.rs` and
 //! the in-module unit tests in `gpui_harness/tests.rs` mark every
 //! `GpuiHarness::run`-driving test with `#[serial_test::serial]` so
