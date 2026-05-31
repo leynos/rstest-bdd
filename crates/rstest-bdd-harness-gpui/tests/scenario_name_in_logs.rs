@@ -11,6 +11,7 @@ use rstest_bdd_harness::{
     HarnessAdapter, HarnessResult, ScenarioMetadata, ScenarioRunRequest, ScenarioRunner,
 };
 use rstest_bdd_harness_gpui::GpuiHarness;
+use serial_test::serial;
 use std::fmt;
 use std::panic::{AssertUnwindSafe, catch_unwind, panic_any};
 use std::process::Command;
@@ -31,6 +32,7 @@ const TRACING_CHILD_ENV: &str = "RSTEST_BDD_GPUI_ASSERT_TRACING_CHILD";
 /// Asserts that a successful scenario run returns its output value without
 /// any panic or error marker.
 #[rstest]
+#[serial]
 fn successful_scenario_returns_without_failure_marker() {
     let request = ScenarioRunRequest::new(
         scenario_metadata("Successful scenario runs cleanly"),
@@ -46,6 +48,7 @@ fn successful_scenario_returns_without_failure_marker() {
 /// Asserts that the augmented panic message from a failing step includes
 /// the originating feature path, scenario name, and step line number.
 #[rstest]
+#[serial]
 fn failing_scenario_diagnostic_includes_scenario_name() {
     let request = ScenarioRunRequest::new(
         scenario_metadata(FAILING_SCENARIO),
@@ -61,6 +64,7 @@ fn failing_scenario_diagnostic_includes_scenario_name() {
 /// Asserts that when a failing scenario is run in a child process, its
 /// augmented panic diagnostic appears in a `tracing::error!` event.
 #[rstest]
+#[serial]
 fn failing_scenario_diagnostic_is_emitted_to_tracing_error() {
     if std::env::var_os(TRACING_CHILD_ENV).is_none() {
         run_child_assertion(
@@ -95,6 +99,7 @@ fn failing_scenario_diagnostic_is_emitted_to_tracing_error() {
 /// Asserts that when a failing scenario is run in a child process, its
 /// augmented panic diagnostic appears on stderr.
 #[rstest]
+#[serial]
 fn failing_scenario_diagnostic_is_written_to_stderr() {
     if std::env::var_os(STDERR_CHILD_ENV).is_some() {
         let _message = catch_scenario_panic(failing_scenario_request());
@@ -146,6 +151,7 @@ fn run_child_assertion(
 /// Verifies that after a scenario panics, a subsequent scenario executes
 /// with a fresh GPUI context and is not contaminated by the prior failure.
 #[rstest]
+#[serial]
 fn second_scenario_after_failure_runs_with_fresh_context() {
     let failing_request = ScenarioRunRequest::new(
         scenario_metadata(FAILING_SCENARIO),
@@ -231,6 +237,7 @@ fn configured_snapshot_settings() -> insta::Settings {
 /// Asserts that Unicode, newline, tab, and shell-special characters in a
 /// scenario name are preserved in the augmented panic diagnostic.
 #[rstest]
+#[serial]
 fn special_characters_in_scenario_name_are_preserved_in_diagnostic() {
     let scenario_name = "Unicode 🐇 & newline\nand tab\t";
     let request = ScenarioRunRequest::new(
@@ -264,6 +271,7 @@ fn special_characters_in_scenario_name_are_preserved_in_diagnostic() {
     "&str payload scenario",
     Box::new(|| -> () { panic!("a &str panic"); }) as Box<dyn Fn() + Send + 'static>,
 )]
+#[serial]
 fn augmented_message_includes_scenario_name_for_payload_type(
     #[case] scenario_name: &str,
     #[case] panic_fn: Box<dyn Fn() + Send + 'static>,
@@ -286,6 +294,7 @@ fn augmented_message_includes_scenario_name_for_payload_type(
 /// the original panic payload is an opaque `Any` value that is neither
 /// `String` nor `&str`.
 #[rstest]
+#[serial]
 fn augmented_message_includes_scenario_name_for_opaque_any_payload() {
     #[derive(Debug)]
     #[expect(
@@ -312,6 +321,7 @@ fn augmented_message_includes_scenario_name_for_opaque_any_payload() {
 /// double-panic (process abort).  The parent asserts the child exits non-zero
 /// and snapshots stderr to confirm the original diagnostic appeared first.
 #[rstest]
+#[serial]
 fn teardown_panic_does_not_suppress_original_diagnostic() {
     const TEARDOWN_CHILD_ENV: &str = "RSTEST_BDD_GPUI_TEARDOWN_CHILD";
 
