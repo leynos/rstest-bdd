@@ -326,6 +326,8 @@ helpers and types below when writing or extending semantic tests; do not access
 
 ### Constants
 
+Table: Async semantic behaviour support module constants
+
 | Constant              | Value / purpose                                                                                                                                                    |
 | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `FEATURE_PATH`        | Relative path (from `CARGO_MANIFEST_DIR`) to the async semantic behaviour feature file. Pass to `assert_feature_path_suffix` and as `ScenarioRef::feature_suffix`. |
@@ -411,6 +413,8 @@ Panics if no matching entry is found.
 
 ### Event utilities
 
+Table: Per-thread event log helpers for semantic behaviour tests
+
 | Function                           | Purpose                                                                           |
 | ---------------------------------- | --------------------------------------------------------------------------------- |
 | `clear_events()`                   | Resets the per-thread event log. Call at the start of any test that reads events. |
@@ -418,6 +422,8 @@ Panics if no matching entry is found.
 | `snapshot_events() -> Vec<String>` | Returns a clone of the current event log without clearing it.                     |
 
 ### Cleanup utilities
+
+Table: Per-thread cleanup-probe drop counter helpers
 
 | Function                   | Purpose                                                                          |
 | -------------------------- | -------------------------------------------------------------------------------- |

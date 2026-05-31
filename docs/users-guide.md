@@ -1072,6 +1072,19 @@ deduplication when a `#[scenario]` test already carries an explicit
 `#[gpui::test]`, and stateful window scenarios that carry durable handles
 across steps.
 
+#### GPUI panic diagnostics carry scenario context
+
+When a step running under `GpuiHarness` panics, the harness prepends the
+feature path, scenario name, and feature-file line number to the panic
+message before re-raising it through `panic::resume_unwind`. The same fields
+are emitted as a `tracing::error!` record (`harness_type`, `feature_path`,
+`scenario_name`, `scenario_line`) and as a matching `stderr` line, so test
+runners that do not collect `tracing` events still surface the scenario name
+on failure. This makes a failing GPUI scenario identifiable from the
+`cargo test` or `cargo nextest` output without cross-referencing libtest
+function names against feature files. For a concrete regression example, see
+`crates/rstest-bdd-harness-gpui/tests/scenario_name_in_logs.rs`.
+
 #### Stateful GPUI scenarios with durable handles
 
 Stateful GPUI scenarios should store handles, not borrowed visual contexts,
@@ -1165,8 +1178,9 @@ Tests that exercise skip-heavy flows no longer need to match on enums to verify
 that a step or scenario stopped executing. Use
 `rstest_bdd::assert_step_skipped!` to unwrap a `StepExecution::Skipped`
 outcome, optionally constraining its message, and
-`rstest_bdd::assert_scenario_skipped!` to inspect [`ScenarioStatus`][
-scenario-status] records. Both macros accept `message_absent = true` to assert
+`rstest_bdd::assert_scenario_skipped!` to inspect
+[`ScenarioStatus`][scenario-status] records. Both macros accept
+`message_absent = true` to assert
 that no message was provided and substring matching to confirm that a message
 contains the expected reason.
 

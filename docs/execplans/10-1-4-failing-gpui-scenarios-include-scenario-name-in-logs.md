@@ -73,8 +73,8 @@ milestone-by-milestone within the tolerances below.
   behavioural coverage, and `proptest` only if a property emerges that warrants
   it. The roadmap entry expects a regression test, not a proof.
 - All step-panic diagnostics must use British English with Oxford spelling
-  in user-facing messages (e.g. "behaviour", "initialise" -> "initialise"), in
-  line with `en-gb-oxendict` policy.
+  in user-facing messages (Oxford `-ize`, e.g. "behaviour", "initialize",
+  "organize"), in line with `en-gb-oxendict` policy.
 - Run validation commands sequentially. Capture each command's output to
   `/tmp/<action>-rstest-bdd-${BRANCH}.out` via `tee`.
 - Commit each milestone only after its quality gates pass and any requested
@@ -164,7 +164,7 @@ Use these skills while implementing this plan:
 - `leta`: semantic Rust navigation. Already loaded.
 - `rust-router`: route Rust design issues. Already loaded.
 - `rust-errors`: when deciding what (if anything) belongs in `HarnessError`.
-  Expect to confirm "nothing": step panics are not harness initialisation
+  Expect to confirm "nothing": step panics are not harness initialization
   failures.
 - `rust-unused-code`: if a feature-gated test triggers `dead_code`/`unused`
   warnings, prefer `#[cfg(...)]` scoping over `#[allow(...)]`.
@@ -223,7 +223,7 @@ The reader is assumed to know nothing about this repository. Key paths:
   used by macro-generated harness calls. Step panics are *not* harness errors
   and must continue to propagate via the panic channel.
 - `crates/rstest-bdd-macros/src/codegen/scenario/runtime/harness.rs:169`
-  shows the existing `tracing::error!` pattern for harness initialisation
+  shows the existing `tracing::error!` pattern for harness initialization
   failures. The augmentation uses the same field names (`harness_type`,
   `feature_path`, `scenario_name`) to keep log output consistent.
 - `crates/rstest-bdd/src/panic_support.rs:24` exposes
@@ -827,7 +827,7 @@ in Stage C and record the addition in `Decision log`.
   advertise a capability the trait cannot deliver without a breaking signature
   change. The Wyvern Telefono persona explicitly flagged this as contract
   pollution. Documented step panics remain diagnostic artefacts; harness errors
-  remain reserved for harness initialisation failures. Date/Author: 2026-05-24,
+  remain reserved for harness initialization failures. Date/Author: 2026-05-24,
   planning phase.
 
 - Decision: place the regression in a new
