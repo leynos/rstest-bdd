@@ -23,22 +23,25 @@ test = false
 native-gpui-tests = []
 
 [dependencies]
-rstest-bdd-harness.workspace = true
 gpui.workspace = true
+rstest-bdd.workspace = true
+rstest-bdd-harness.workspace = true
+tracing.workspace = true
 
 [dev-dependencies]
 rstest.workspace = true
 rstest-bdd.workspace = true
 rstest-bdd-macros.workspace = true
 cargo_metadata.workspace = true
-insta.workspace = true
+insta = { workspace = true, features = ["filters"] }
 macrotest.workspace = true
 prettyplease.workspace = true
 proptest.workspace = true
 serial_test.workspace = true
+tracing-subscriber.workspace = true
 trybuild.workspace = true
 
 [[test]]
-name = "macro_compile"
-path = "tests/macro_compile.rs"
+name = "scenario_name_in_logs"
+path = "tests/scenario_name_in_logs.rs"
 required-features = ["native-gpui-tests"]

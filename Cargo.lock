@@ -997,6 +997,7 @@ checksum = "7b4a6248eb93a4401ed2f37dfe8ea592d3cf05b7cf4f8efa867b6895af7e094e"
 dependencies = [
  "console",
  "once_cell",
+ "regex",
  "similar",
  "tempfile",
 ]
@@ -1585,6 +1586,8 @@ dependencies = [
  "rstest-bdd-harness",
  "rstest-bdd-macros",
  "serial_test 2.0.0",
+ "tracing",
+ "tracing-subscriber",
  "trybuild",
 ]
 

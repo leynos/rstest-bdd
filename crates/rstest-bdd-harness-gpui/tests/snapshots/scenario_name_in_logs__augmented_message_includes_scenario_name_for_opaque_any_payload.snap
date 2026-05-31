@@ -1,0 +1,5 @@
+---
+source: crates/rstest-bdd-harness-gpui/tests/scenario_name_in_logs.rs
+expression: "&message"
+---
+rstest-bdd-harness-gpui scenario panicked: feature=tests/features/scenario_name_in_logs.feature:7, scenario="Opaque Any payload scenario": <non-debug panic payload of type ⁨erased `Any` payload (TypeId([TYPEID])); panic with Display/Debug data for detail⁩>

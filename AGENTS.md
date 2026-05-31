@@ -29,37 +29,47 @@
   documentation should omit examples where the example serves only to reiterate
   the test logic.
 - **Keep file size manageable.** No single code file may be longer than 400
-  lines. Break up long switch statements, and colocate dispatch tables with
-  their targets, so each constituent stays near its feature. Large blocks of
-  test data should be moved to external data files.
+  lines.  Long switch statements or dispatch tables should be broken up by
+  feature and constituents colocated with targets. Large blocks of test data
+  should be moved to external data files.
 
 ## Documentation maintenance
 
 - **Reference:** Use the markdown files within the `docs/` directory as a
   knowledge base and source of truth for project requirements, dependency
-  choices, and architectural decisions.
+  choices, and architectural decisions. Start with
+  [documentation contents](docs/contents.md) and
+  [repository layout](docs/repository-layout.md) when orienting within the
+  project.
 - **Update:** When new decisions are made, requirements change, libraries are
   added/removed, or architectural patterns evolve, **proactively update** the
-  relevant file(s) in the `docs/` directory to reflect the latest state.
-  **Ensure the documentation remains accurate and current.**
-- Documentation must use en-GB-oxendict ("-ize" / "-yse" / "-our") spelling
-  and grammar. (Exception: the naming of the "LICENSE" file, which is to be
-  left unchanged for community consistency.)
+  relevant file(s) in the `docs/` directory to reflect the latest state. Ensure
+  the documentation remains accurate and current.
+- **Design decisions:** Record design decisions in the relevant design
+  document. When a decision is substantive, capture it in an Architectural
+  Decision Record (ADR) following the documentation style guide, and reference
+  that ADR from the design document.
+- **User-facing behaviour:** Update [users' guide](docs/users-guide.md) for
+  behaviour or user-interface changes that users should know about.
+- **Internal interfaces:** Document internally facing interfaces in the
+  relevant component architecture document. Document internally facing
+  conventions and practices in [developers' guide](docs/developers-guide.md).
+- **Style:** All documentation must adhere to the
+  [documentation style guide](docs/documentation-style-guide.md).
 
-## Change quality & committing
+## Change quality and committing
 
 - **Atomicity:** Aim for small, focused, atomic changes. Each change (and
   subsequent commit) should represent a single logical unit of work.
 - **Quality Gates:** Before considering a change complete or proposing a commit,
   ensure it meets the following criteria:
-  - New functionality, and any changes in observable system responses, must be
-    fully validated by relevant unit tests and scenario tests.
-  - Where a bug is being fixed, a unittest has been provided demonstrating the
-    scenario being corrected, both to validate the fix and to guard against
-    regression.
-  - Passes all relevant unit and scenario tests according to the guidelines
+  - New functionality or changes in behaviour are fully validated by relevant
+    unit tests and behavioural tests.
+  - Where a bug is being fixed, a unit test has been provided to demonstrate
+    the behaviour being corrected and to guard against regression.
+  - Passes all relevant unit and behavioural tests according to the guidelines
     above.
-  - Passes lint checks.
+  - Passes lint checks
   - Adheres to formatting standards tested using a formatting validator.
 - **Committing:**
   - Only changes that meet all the quality gates above should be committed.
@@ -68,7 +78,7 @@
     - **Imperative Mood:** Use the imperative mood in the subject line (e.g.,
       "Fix bug", "Add feature" instead of "Fixed bug", "Added feature").
     - **Subject Line:** The first line should be a concise summary of the change
-      (ideally 50 characters or less).
+      (ideally 50 characters or fewer).
     - **Body:** Separate the subject from the body with a blank line. Subsequent
       lines should explain the *what* and *why* of the change in more detail,
       including rationale, goals, and scope. Wrap the body at 72 characters.
@@ -76,14 +86,12 @@
       code snippets) within the commit message body.
   - Do not commit changes that fail any of the quality gates.
 
-## Refactoring heuristics & workflow
+## Refactoring heuristics and workflow
 
 - **Recognizing Refactoring Needs:** Regularly assess the codebase for potential
-  refactoring opportunities. Consider refactoring when the following indicators
-  appear:
-  - **Long Methods/Functions:** Functions or methods become refactoring
-    candidates when they are excessively long, or when they try to do too many
-    things.
+  refactoring opportunities. Perform refactoring when observing:
+  - **Long Methods/Functions:** Functions or methods that are excessively long
+    or try to do too many things.
   - **Duplicated Code:** Identical or very similar code blocks appearing in
     multiple places.
   - **Complex Conditionals:** Deeply nested or overly complex `if`/`else` or
@@ -105,7 +113,7 @@
 - **Separate Atomic Refactors:** If refactoring is deemed necessary:
   - Perform the refactoring as a **separate, atomic commit** *after* the
     functional change commit.
-  - Ensure the refactoring adheres to the testing guidelines (scenario tests
+  - Ensure refactoring adheres to the testing guidelines (behavioural tests
     pass before and after, unit tests added for new units).
   - Ensure the refactoring commit itself passes all quality gates.
 
@@ -116,18 +124,18 @@ management. Contributors should follow these best practices when working on the
 project:
 
 - Run `make check-fmt`, `make lint`, and `make test` before committing. These
-  targets wrap the following commands, so contributors understand the precise
-  semantics and policy enforced:
+  targets wrap the following commands, so contributors understand the exact
+  behaviour and policy enforced:
   - `make check-fmt` executes:
 
-    ```bash
+    ```sh
     cargo fmt --workspace -- --check
     ```
 
     validating formatting across the entire workspace without modifying files.
   - `make lint` executes:
 
-    ```bash
+    ```sh
     cargo clippy --workspace --all-targets --all-features -- -D warnings
     ```
 
@@ -135,100 +143,155 @@ project:
     warnings.
   - `make test` executes:
 
-    ```bash
+    ```sh
     cargo test --workspace
     ```
 
     running the full workspace test suite. Use `make fmt`
     (`cargo fmt --workspace`) to apply formatting fixes reported by the
     formatter check.
-- Clippy warnings must be disallowed.
+- Clippy warnings MUST be disallowed.
 - Fix any warnings emitted during tests in the code itself rather than
   silencing them.
 - Where a function is too long, extract meaningfully named helper functions
-  adhering to separation of concerns and the Command Query Responsibility
-  Segregation pattern.
+  adhering to separation of concerns and CQRS.
 - Where a function has too many parameters, group related parameters in
   meaningfully named structs.
 - Where a function is returning a large error, consider using `Arc` to reduce
   the amount of data returned.
-- Write unit and scenario tests for new functionality. Run both before and
-  after making any change.
+- Ensure that new features are validated with unit tests using `rstest` and
+  behavioural tests using `rstest-bdd` where applicable. Cover happy paths,
+  unhappy paths, and relevant edge cases.
+- Add end-to-end tests where a change affects externally observable workflows,
+  integration contracts, persistence, command-line behaviour, network
+  boundaries, UI flows, or other system-level behaviour.
+- Use property tests with `proptest` or a bounded model checker with `kani`
+  when a change introduces an invariant over a range of inputs, states,
+  orderings, or transitions. Use judgement to choose the appropriate level of
+  rigour.
+- Use an exhaustive proof with `verus` for introduced lemmas or contractual
+  business logic. Proofs must be substantive, rigorous, and well-founded, not
+  merely a restatement of the assumed property.
+- Run relevant unit, behavioural, property, model-checking, proof, and
+  end-to-end suites before and after making any change.
 - Every module **must** begin with a module level (`//!`) comment explaining the
   module's purpose and utility.
-- Document public APIs using Rustdoc comments (`///`), so documentation can be
+- Document public APIs using Rustdoc comments (`///`) so documentation can be
   generated with cargo doc.
 - Prefer immutable data and avoid unnecessary `mut` bindings.
-- Handle errors with the `Result` type instead of panicking where feasible.
 - Use explicit version ranges in `Cargo.toml` and keep dependencies up-to-date.
-- Avoid `unsafe` code unless absolutely necessary and document any usage
-  clearly.
+- Avoid `unsafe` code unless absolutely necessary, and document any usage
+  clearly with a "SAFETY" comment.
 - Place function attributes **after** doc comments.
 - Do not use `return` in single-line functions.
 - Use predicate functions for conditional criteria with more than two branches.
 - Lints must not be silenced except as a **last resort**.
 - Lint rule suppressions must be tightly scoped and include a clear reason.
-- Prefer `expect` over `allow`.
-- Use `rstest` fixtures for shared setup.
-- Replace duplicated tests with `#[rstest(…)]` parameterized cases.
-- Prefer `mockall` for mocks/stubs.
-- Prefer `.expect()` over `.unwrap()`.
 - Use `concat!()` to combine long string literals rather than escaping newlines
   with a backslash.
-- Prefer single line versions of functions where appropriate. For example,
+- Prefer single line versions of functions where appropriate. i.e.,
 
-  ```rust,no_run
+  ```rust
   pub fn new(id: u64) -> Self { Self(id) }
   ```
 
   Instead of:
 
-  ```rust,no_run
+  ```rust
   pub fn new(id: u64) -> Self {
       Self(id)
   }
   ```
 
 - Use NewTypes to model domain values and eliminate "integer soup". Reach for
-  `newt-hype` when introducing many homogeneous wrappers that share semantics;
+  `newt-hype` when introducing many homogeneous wrappers that share behaviour;
   add small shims such as `From<&str>` and `AsRef<str>` for string-backed
-  wrappers. For path-centric wrappers, implement `AsRef<Path>` alongside
-  `into_inner()` and `to_path_buf()`; avoid attempting
+  wrappers. For path-centric wrappers implement `AsRef<Path>` alongside
+  `into_inner()` and `to_path_buf()`, avoid attempting
   `impl From<Wrapper> for PathBuf` because of the orphan rule. Prefer explicit
-  tuple structs whenever bespoke validation is needed, or when the code
-  requires tailored trait surfaces, customizing `Deref`, `AsRef`, and `TryFrom`
-  per type. Use `the-newtype` when defining traits and needing blanket
-  implementations that apply across wrappers satisfying
-  `Newtype + AsRef/AsMut<Inner>`, or when establishing a coherent internal
-  convention that keeps trait forwarding consistent without per-type
-  boilerplate. Combine approaches: lean on `newt-hype` for the common case,
-  tuple structs for outliers, and `the-newtype` to unify semantics when the
-  maintainers own the trait definitions.
+  tuple structs whenever bespoke validation or tailored trait surfaces are
+  required, customizing `Deref`, `AsRef`, and `TryFrom` per type. Use
+  `the-newtype` when defining traits and needing blanket implementations that
+  apply across wrappers satisfying `Newtype + AsRef/AsMut<Inner>`, or when
+  establishing a coherent internal convention that keeps trait forwarding
+  consistent without per-type boilerplate. Combine approaches: lean on
+  `newt-hype` for the common case, tuple structs for outliers, and
+  `the-newtype` to unify behaviour when owning the trait definitions.
+- Use `cap_std` and `cap_std::fs_utf8` / `camino` in place of `std::fs` and
+  `std::path` for enhanced cross-platform support and capabilities oriented
+  filesystem access.
+
+### Testing
+
+- Use `rstest` fixtures for shared setup.
+- Replace duplicated tests with `#[rstest(...)]` parameterized cases.
+- Prefer `mockall` for ad hoc mocks/stubs.
+- For testing of functionality depending upon environment variables, dependency
+  injection and the `mockable` crate are the preferred option.
+- If mockable cannot be used, env mutations in tests MUST be wrapped in shared
+  guards and mutexes placed in a shared `test_utils` or `test_helpers` crate.
+  Direct environment mutation is FORBIDDEN in tests.
 
 ### Dependency management
 
 - **Mandate caret requirements for all dependencies.** All crate versions
-  specified in `Cargo.toml` must use SemVer-compatible caret requirements
-  (e.g., `some-crate = "1.2.3"`). This is Cargo's default and allows for safe,
+  specified in `Cargo.toml` must use SemVer-compatible caret requirements (e.g.,
+   `some-crate = "1.2.3"`). This is Cargo's default and allows for safe,
   non-breaking updates to minor and patch versions while preventing breaking
   changes from new major versions. This approach is critical for ensuring build
   stability and reproducibility.
 - **Prohibit unstable version specifiers.** The use of wildcard (`*`) or
   open-ended inequality (`>=`) version requirements is strictly forbidden as
-  they introduce unacceptable risk and unpredictability. Tilde requirements
-  (`~`) should only be used where a dependency must be locked to patch-level
+  they introduce unacceptable risk and unpredictability. Tilde requirements (
+  `~`) should only be used where a dependency must be locked to patch-level
   updates for a specific, documented reason.
 
 ### Error handling
 
 - **Prefer semantic error enums**. Derive `std::error::Error` (via the
-  `thiserror` crate), so callers can inspect, retry, or map the condition to an
-  HTTP status.
+  `thiserror` crate) for any condition the caller might inspect, retry, or map
+  to an HTTP status.
 - **Use an *opaque* error only at the app boundary**. Use `eyre::Report` for
   human-readable logs; these should not be exposed in public APIs.
 - **Never export the opaque type from a library**. Convert to domain enums at
   API boundaries, and to `eyre` only in the main `main()` entrypoint or
   top-level async task.
+- In tests, prefer `.expect(...)` over `.unwrap()` to surface clearer failure
+  diagnostics.
+- In production code and shared fixtures, avoid `.expect()` entirely: return
+  `Result` and use `?` to propagate errors instead of panicking.
+- Keep `expect_used` **strict**; do not suppress the lint.
+- Recognize that `allow-expect-in-tests = true` **doesn’t cover** helpers
+  outside `#[cfg(test)]` or `#[test]`; avoid `expect` in such fixtures.
+- Use `anyhow`/`eyre` with `.context(...)` to **preserve backtraces** and
+  provide clear, typed failure paths.
+- Update helpers (e.g., `set_dir`) to **return errors** rather than panicking.
+- Consume fallible fixtures in `rstest` by **making the test return `Result`**
+  and applying `?` to the fixture.
+
+### Observability
+
+- Use `tracing` for logging and diagnostics. Prefer structured
+  `tracing::{trace, debug, info, warn, error}` events and spans over `println!`,
+   `eprintln!`, or direct `log` macros. Add fields for identifiers, state, and
+  error context so downstream subscribers can filter and correlate events
+  without parsing message text.
+- Use `#[tracing::instrument]` or explicit spans around request handling,
+  command execution, retries, background jobs, and other meaningful units of
+  work. Do not hold `Span::enter()` guards across `.await`; use
+  `Instrument::instrument` or scoped synchronous spans instead.
+- Use the `metrics` crate for metric emission where usage, uptake, failure,
+  or mitigation metrics are required. Prefer `counter!` for cumulative events,
+  `gauge!` for values that rise and fall, and `histogram!` for distributions
+  such as latency or payload size.
+- Describe emitted metrics with `describe_counter!`, `describe_gauge!`, or
+  `describe_histogram!` where the unit or purpose is not obvious from the
+  metric name. Keep metric names stable and labels low-cardinality; do not put
+  user input, request IDs, paths with unbounded parameters, or raw error
+  strings into labels.
+- Libraries may emit `metrics` and `tracing` instrumentation, but must not
+  install global recorders or subscribers. Applications should initialise
+  exporters/subscribers once, as early as practical in startup.
 
 ## Markdown guidance
 
@@ -236,10 +299,9 @@ project:
 - Run `make fmt` after any documentation changes to format all Markdown
   files and fix table markup.
 - Validate Mermaid diagrams in Markdown files by running `make nixie`.
-- Markdown paragraphs must be wrapped at 80 columns, and bullet points need
-  the same limit.
+- Markdown paragraphs and bullet points must be wrapped at 80 columns.
 - Code blocks must be wrapped at 120 columns.
-- Tables must not be wrapped, and headings must remain unwrapped.
+- Tables and headings must not be wrapped.
 - Use dashes (`-`) for list bullets.
 - Use GitHub-flavoured Markdown footnotes (`[^1]`) for references and
   footnotes.
@@ -248,40 +310,39 @@ project:
 
 The following tooling is available in this environment:
 
-- `mbake` – A Makefile validator. Run using `mbake validate Makefile`.
-- `strace` – Traces system calls and signals made by a process; useful for
-  debugging runtime characteristics and syscalls.
-- `gdb` – The Gnu's Not Unix (GNU) Project debugger, for inspecting and
-  controlling programs as they execute (or post-mortem via core dumps).
-- `ripgrep` – Fast, recursive text search tool (`grep` alternative) that
+- `mbake` — A Makefile validator. Run using `mbake validate Makefile`.
+- `strace` — Traces system calls and signals made by a process; useful for
+  debugging runtime behaviour and syscalls.
+- `gdb` — The GNU Debugger, for inspecting and controlling programs as they
+  execute (or post-mortem via core dumps).
+- `ripgrep` — Fast, recursive text search tool (`grep` alternative) that
   respects `.gitignore` files.
-- `ltrace` – Traces calls to dynamic library functions made by a process.
-- `valgrind` – Suite for detecting memory leaks, profiling, and debugging
+- `ltrace` — Traces calls to dynamic library functions made by a process.
+- `valgrind` — Suite for detecting memory leaks, profiling, and debugging
   low-level memory errors.
-- `bpftrace` – High-level tracing tool for the Berkeley Packet Filter (BPF)
-  and its extended Berkeley Packet Filter (eBPF) variant, using a custom
-  scripting language for kernel and application tracing.
-- `lsof` – Lists open files and the processes using them.
-- `htop` – Interactive process viewer (visual upgrade to `top`).
-- `iotop` – Displays and monitors input/output usage by processes.
-- `ncdu` – NCurses-based disk usage viewer for finding large files/folders.
-- `tree` – Displays directory structure as a tree.
-- `bat` – `cat` clone with syntax highlighting, Git integration, and paging.
-- `delta` – Syntax-highlighted pager for Git and diff output.
-- `tcpdump` – Captures and analyses network traffic at the packet level.
-- `nmap` – Network scanner for host discovery, port scanning, and service
+- `bpftrace` — High-level tracing tool for eBPF, using a custom scripting
+  language for kernel and application tracing.
+- `lsof` — Lists open files and the processes using them.
+- `htop` — Interactive process viewer (visual upgrade to `top`).
+- `iotop` — Displays and monitors I/O usage by processes.
+- `ncdu` — NCurses-based disk usage viewer for finding large files/folders.
+- `tree` — Displays directory structure as a tree.
+- `bat` — `cat` clone with syntax highlighting, Git integration, and paging.
+- `delta` — Syntax-highlighted pager for Git and diff output.
+- `tcpdump` — Captures and analyses network traffic at the packet level.
+- `nmap` — Network scanner for host discovery, port scanning, and service
   identification.
-- `lldb` – The Low Level Virtual Machine debugger, alternative to `gdb`.
-- `eza` – Modern `ls` replacement with more features and better defaults.
-- `fzf` – Interactive fuzzy finder for selecting files, commands, etc.
-- `hyperfine` – Command-line benchmarking tool with statistical output.
-- `shellcheck` – Linter for shell scripts, identifying errors and bad practices.
-- `fd` – Fast, user-friendly `find` alternative with sensible defaults.
-- `checkmake` – Linter for `Makefile`s, ensuring they follow best practices and
+- `lldb` — LLVM debugger, alternative to `gdb`.
+- `eza` — Modern `ls` replacement with more features and better defaults.
+- `fzf` — Interactive fuzzy finder for selecting files, commands, etc.
+- `hyperfine` — Command-line benchmarking tool with statistical output.
+- `shellcheck` — Linter for shell scripts, identifying errors and bad practices.
+- `fd` — Fast, user-friendly `find` alternative with sensible defaults.
+- `checkmake` — Linter for `Makefile`s, ensuring they follow best practices and
   conventions.
-- `srgn` – [Structural grep](https://github.com/alexpovel/srgn), searches code
+- `srgn` — [Structural grep](https://github.com/alexpovel/srgn), searches code
   and enables editing by syntax tree patterns.
-- `difft` **(Difftastic)** – Semantic diff tool that compares code structure
+- `difft` **(Difftastic)** — Semantic diff tool that compares code structure
   rather than just text differences.
 
 ## Key takeaway

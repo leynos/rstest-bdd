@@ -1,0 +1,12 @@
+---
+source: crates/rstest-bdd-harness-gpui/tests/scenario_name_in_logs.rs
+expression: "&stderr"
+---
+
+thread 'teardown_panic_does_not_suppress_original_diagnostic' ([TID]) panicked at crates/rstest-bdd-harness-gpui/tests/scenario_name_in_logs.rs:[LINE]:[COL]:
+original step panic
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+rstest-bdd-harness-gpui scenario panicked: feature=tests/features/scenario_name_in_logs.feature:7, scenario="Teardown panic scenario": original step panic
+
+thread 'teardown_panic_does_not_suppress_original_diagnostic' ([TID]) panicked at crates/rstest-bdd-harness-gpui/tests/scenario_name_in_logs.rs:[LINE]:[COL]:
+teardown-panic ordering guard

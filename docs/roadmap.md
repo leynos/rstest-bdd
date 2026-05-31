@@ -654,7 +654,6 @@ implementation commitments.
   `docs/rstest-bdd-design.md` §2.7.3. Delivered 2026-05-08. The shared policy
   resolver now has regression coverage proving first-party harness paths and
   their matching attribute-policy paths resolve to the same hints, with exact
-  matching negative cases for unknown and wrong-prefix harness paths.
   Delivered under maintainer authorization while ADR-008 remains in Proposed
   status; the prerequisite will be formally satisfied when ADR-008 is accepted.
   (Pandalump)
@@ -718,12 +717,12 @@ changing the public trait contracts.
   Doc: `docs/rstest-bdd-design.md` §2.7.6.3. (Dinolump)
 - [x] 10.1.2. Provide detailed missing-fixture diagnostics that include the
   requested fixture name and type, the list of inserted fixtures from
-  `StepContext::available_fixtures()`, and, when
-  `rstest_bdd_harness_context` is absent, a suggested harness to select. Finish
-  line: a regression test reproduces the missing-fixture failure and asserts
-  the diagnostic contains the requested fixture name, requested type, inserted
-  fixture list, and harness suggestion. Design Doc: `docs/rstest-bdd-design.md`
-  §2.7.6.3. (Telefono)
+  `StepContext::available_fixtures()`, and, when `rstest_bdd_harness_context`
+  is absent, a suggested harness to select. Finish line: a regression test
+  reproduces the missing-fixture failure and asserts the diagnostic contains
+  the requested fixture name, requested type, inserted fixture list, and
+  harness suggestion. Design Doc: `docs/rstest-bdd-design.md` §2.7.6.3.
+  (Telefono)
 - [x] 10.1.3. The feature-gated GPUI test suite provides realistic harness
   regression coverage beyond the counter example: it creates a window, persists
   durable entity/window handles, reconstructs visual context per step, resets
@@ -732,7 +731,7 @@ changing the public trait contracts.
   that creates a window, carries handles across steps, reconstructs visual
   context, and includes reset-protocol comments. Prerequisite: 9.4.5. Design
   Doc: `docs/rstest-bdd-design.md` §2.7.6.2. (Doggylump)
-- [ ] 10.1.4. Failing GPUI scenarios include the scenario name in logs where
+- [x] 10.1.4. Failing GPUI scenarios include the scenario name in logs where
   `GpuiHarness` and `gpui::TestAppContext` permit it, or the harness docs
   document the upstream limitation, so developers can quickly orientate failing
   scenarios. Finish line: a failing-harness regression asserts the scenario
@@ -775,17 +774,17 @@ remove the existing `StepContext`, harness, or macro surfaces.
   type mismatch, immutable fixture requested mutably, and already-borrowed
   fixture cases, so generated wrappers produce targeted diagnostics instead of
   collapsing every extraction failure into `MissingFixture`. Finish line: unit
-  tests cover every variant, and generated-wrapper tests assert each variant maps
-  to the expected diagnostic. Design Doc: `docs/rstest-bdd-design.md` §2.7.6.4.
-  (Telefono)
+  tests cover every variant, and generated-wrapper tests assert each variant
+  maps to the expected diagnostic. Design Doc: `docs/rstest-bdd-design.md`
+  §2.7.6.4. (Telefono)
 - [ ] 11.1.2. Generated code has an additive mutable-borrow helper that reduces
   unnecessary `&mut StepContext` contention where possible while preserving the
   existing `borrow_mut(&mut self, ...)` API. Regression tests cover mutable
   harness context plus scenario state, or docs explain precisely why the full
   fix must wait for v0.7.0. Finish line: generated-code tests pass for the
   helper without breaking the existing `borrow_mut` API, or the documented
-  deferral includes a failing-shape test. Design Doc: `docs/rstest-bdd-design.md`
-  §2.7.6.4. (Pandalump)
+  deferral includes a failing-shape test. Design Doc:
+  `docs/rstest-bdd-design.md` §2.7.6.4. (Pandalump)
 - [ ] 11.1.3. The scenario-local state helper exposes `set`, `with`,
   `with_mut`, `take`, and `reset` operations for complex adapters without
   per-scenario thread-local `RefCell` boilerplate. Unit tests cover the helper,
@@ -810,10 +809,10 @@ remove the existing `StepContext`, harness, or macro surfaces.
   `docs/rstest-bdd-design.md` §2.7.6.4. (Dinolump)
 - [ ] 11.2.2. The public prelude exposes `StepResult`, `Slot`, `ScenarioState`,
   harness-context helpers, and marker attributes from 11.2.1, so examples can
-  import one predictable module without hiding the underlying crates.
-  Finish line: compile tests prove examples import only the prelude plus their
-  harness crate, and docs list the exported items. Prerequisite: 11.2.1. Design
-  Doc: `docs/rstest-bdd-design.md` §2.7.6.4. (Dinolump)
+  import one predictable module without hiding the underlying crates. Finish
+  line: compile tests prove examples import only the prelude plus their harness
+  crate, and docs list the exported items. Prerequisite: 11.2.1. Design Doc:
+  `docs/rstest-bdd-design.md` §2.7.6.4. (Dinolump)
 - [ ] 11.2.3. Diagnostics detect non-canonical harness paths and missing or
   ambiguous attribute-policy annotations, with actionable guidance such as
   adding `attributes = ...` explicitly or using the canonical path. Finish
@@ -821,10 +820,10 @@ remove the existing `StepContext`, harness, or macro surfaces.
   and assert the suggested fix text. Design Doc: `docs/rstest-bdd-design.md`
   §§2.7.3-2.7.6.4. (Telefono)
 - [ ] 11.2.4. The test suite demonstrates v0.6.x compatibility for mutable
-  world, fallible fixture, Tokio harness, GPUI harness with shared context, GPUI
-  harness with mutable context and scenario state, and scenario outline shapes.
-  Finish line: CI runs and passes one compatibility test for each listed shape.
-  Design Doc: `docs/rstest-bdd-design.md` §2.7.6.4. (Buzzy Bee)
+  world, fallible fixture, Tokio harness, GPUI harness with shared context,
+  GPUI harness with mutable context and scenario state, and scenario outline
+  shapes. Finish line: CI runs and passes one compatibility test for each
+  listed shape. Design Doc: `docs/rstest-bdd-design.md` §2.7.6.4. (Buzzy Bee)
 
 ## 12. Pre-1.0.0 API consolidation: v0.7.0 ambitions
 
@@ -837,12 +836,12 @@ predictable.
 
 - [ ] 12.1.1. `StepContext` supports guard-based interior borrowing, so callers
   can concurrently borrow distinct mutable fixtures, including mutable harness
-  context and mutable world state when fixture keys differ. Previous
-  `Option`-based borrow APIs are replaced with `Result`-returning APIs carrying
+  context and mutable world state when fixture keys differ. Previous `Option`
+  -based borrow APIs are replaced with `Result`-returning APIs carrying
   `FixtureBorrowError`, with generated-wrapper regression coverage. Finish
   line: runtime unit tests prove concurrent distinct mutable borrows succeed,
-  same-fixture conflicts fail, and generated-wrapper tests cover harness context
-  plus world state. Design Doc: `docs/rstest-bdd-design.md` §2.7.6.5.
+  same-fixture conflicts fail, and generated-wrapper tests cover harness
+  context plus world state. Design Doc: `docs/rstest-bdd-design.md` §2.7.6.5.
   (Pandalump, Telefono)
 - [ ] 12.1.2. `FixtureRefMut` exposes a stable, opaque public API that preserves
   value-accessor methods while hiding internal enum and representation details.
