@@ -65,9 +65,8 @@
   ensure it meets the following criteria:
   - New functionality or changes in behaviour are fully validated by relevant
     unit tests and behavioural tests.
-  - Where a bug is being fixed, a unittest has been provided demonstrating the
-    behaviour being corrected both to validate the fix and to guard against
-    regression.
+  - Where a bug is being fixed, a unit test must be provided that demonstrates
+    the corrected behaviour and validates the fix to guard against regression.
   - Passes all relevant unit and behavioural tests according to the guidelines
     above.
   - Passes lint checks

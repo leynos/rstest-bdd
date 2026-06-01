@@ -71,7 +71,7 @@
   split policy concerns into a dedicated crate.
 - [ADR 005: async step functions](adr-005-async-step-functions.md) records the
   async step-function design decision.
-- [ADR 005: harness adapter crates][adr-005-harness]
+- [ADR 005a: harness adapter crates][adr-005a-harness]
   records the harness-adapter crate decision.
 - [ADR 006: fallible scenario functions](adr-006-fallible-scenario-functions.md)
   records the scenario-function fallibility decision.
@@ -88,7 +88,7 @@
   tasks, issue work, and accepted follow-up changes.
 
 [adr-002]: adr-002-stable-step-return-classification.md
-[adr-005-harness]: adr-005-harness-adapter-crates-for-framework-specific-test-integration.md
+[adr-005a-harness]: adr-005-harness-adapter-crates-for-framework-specific-test-integration.md
 [adr-008]: adr-008-harness-led-attribute-policy-defaults.md
 [adr-009]: adr-009-consistent-implicit-fixture-name-normalization.md
 [complexity-guide]: complexity-antipatterns-and-refactoring-strategies.md

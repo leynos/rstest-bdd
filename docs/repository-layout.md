@@ -70,7 +70,8 @@ truth for requirements, design rationale, process notes, and planning.
   workflows and conventions.
 - Use [docs/rstest-bdd-design.md](rstest-bdd-design.md) and related design
   documents for architecture and rationale.
-- Use [docs/adr-*.md](.) for accepted Architecture Decision Records (ADRs).
+- Use [docs/adr-*.md](contents.md#decision-records) for accepted Architecture
+  Decision Records (ADRs).
 - Use [docs/execplans](execplans/) for execution plans tied to implementation
   work.
 
