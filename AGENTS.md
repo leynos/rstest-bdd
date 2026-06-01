@@ -57,7 +57,7 @@
 - **Style:** All documentation must adhere to the
   [documentation style guide](docs/documentation-style-guide.md).
 
-## Change quality and committing
+## Change quality & committing
 
 - **Atomicity:** Aim for small, focused, atomic changes. Each change (and
   subsequent commit) should represent a single logical unit of work.
@@ -65,8 +65,8 @@
   ensure it meets the following criteria:
   - New functionality or changes in behaviour are fully validated by relevant
     unit tests and behavioural tests.
-  - Where a bug is being fixed, a unit test has been provided to demonstrate
-    the behaviour being corrected and to guard against regression.
+  - Where a bug is being fixed, a unit test must be provided that demonstrates
+    the corrected behaviour and validates the fix to guard against regression.
   - Passes all relevant unit and behavioural tests according to the guidelines
     above.
   - Passes lint checks
@@ -86,7 +86,7 @@
       code snippets) within the commit message body.
   - Do not commit changes that fail any of the quality gates.
 
-## Refactoring heuristics and workflow
+## Refactoring heuristics & workflow
 
 - **Recognizing Refactoring Needs:** Regularly assess the codebase for potential
   refactoring opportunities. Perform refactoring when observing:
@@ -107,6 +107,15 @@
     class/object than their own.
   - **Shotgun Surgery:** A single change requiring small modifications in many
     different classes or functions.
+- **Abstraction / port / helper policy:** Before implementing an abstraction,
+  port, or extracted helper, the agent must:
+  1. Sweep the repository to confirm there is no existing equivalent helper,
+     port, or abstraction.
+  2. Document the new abstraction's intended scope and re-use policy
+     (ownership boundaries, permitted call-sites, and composition rules).
+  3. Record the decision in the appropriate architecture, design, or
+     developers-guide document using `docs/contents.md` as the index to select
+     the correct location.
 - **Post-Commit Review:** After committing a functional change or bug fix (that
   meets all quality gates), review the changed code and surrounding areas using
   the heuristics above.
@@ -162,6 +171,8 @@ project:
 - Ensure that new features are validated with unit tests using `rstest` and
   behavioural tests using `rstest-bdd` where applicable. Cover happy paths,
   unhappy paths, and relevant edge cases.
+- Add snapshot tests using `insta` where multivariant output format consistency
+  is relevant to the requirements.
 - Add end-to-end tests where a change affects externally observable workflows,
   integration contracts, persistence, command-line behaviour, network
   boundaries, UI flows, or other system-level behaviour.
@@ -236,12 +247,13 @@ project:
 
 - **Mandate caret requirements for all dependencies.** All crate versions
   specified in `Cargo.toml` must use SemVer-compatible caret requirements (e.g.,
-   `some-crate = "1.2.3"`). This is Cargo's default and allows for safe,
+   `some-crate = "1.2.3"` (equivalent to `^1.2.3`). This is Cargo's default and
+   allows for safe,
   non-breaking updates to minor and patch versions while preventing breaking
   changes from new major versions. This approach is critical for ensuring build
   stability and reproducibility.
 - **Prohibit unstable version specifiers.** The use of wildcard (`*`) or
-  open-ended inequality (`>=`) version requirements is strictly forbidden as
+  open-ended inequality (`>=`) version requirements is strictly forbidden, as
   they introduce unacceptable risk and unpredictability. Tilde requirements (
   `~`) should only be used where a dependency must be locked to patch-level
   updates for a specific, documented reason.
@@ -290,7 +302,7 @@ project:
   user input, request IDs, paths with unbounded parameters, or raw error
   strings into labels.
 - Libraries may emit `metrics` and `tracing` instrumentation, but must not
-  install global recorders or subscribers. Applications should initialise
+  install global recorders or subscribers. Applications should initialize
   exporters/subscribers once, as early as practical in startup.
 
 ## Markdown guidance
@@ -305,6 +317,17 @@ project:
 - Use dashes (`-`) for list bullets.
 - Use GitHub-flavoured Markdown footnotes (`[^1]`) for references and
   footnotes.
+
+## Project documentation
+
+Record design decisions in the design document. Where a decision is
+substantive, record it in an ADR document following the documentation style
+guide, then reference that ADR from the design document.
+
+Update `docs/users-guide.md` for any change to application behaviour or user
+interface that a user should know about. Document internally facing interfaces
+or practices in the relevant component architecture document. Document
+internally facing conventions or practices in `docs/developers-guide.md`.
 
 ## Additional tooling
 
