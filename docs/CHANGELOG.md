@@ -21,3 +21,7 @@
 - Steps can now request `&mut Fixture` when the fixture is provided by value in
   a `#[scenario]` test, eliminating the need for `Cell`/`RefCell` wrappers when
   modelling a mutable “world” object.
+- Documented the v0.6 interim playbook for stateful GPUI scenarios in the
+  user's guide and the v0.6.0 migration guide, covering durable
+  `Entity<T>`/`AnyWindowHandle` storage, `VisualTestContext` reconstruction,
+  and the two-sided thread-local reset protocol.

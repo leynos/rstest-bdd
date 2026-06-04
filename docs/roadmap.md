@@ -741,13 +741,20 @@ changing the public trait contracts.
 
 ### 10.2. Update adoption documentation before v0.6.0 final
 
-- [ ] 10.2.1. Users can migrate a stateful GPUI test without reading macro
+- [x] 10.2.1. Users can migrate a stateful GPUI test without reading macro
   expansion or GPUI harness source. The user guide and migration guide cover
   `GpuiHarness`, the reserved harness-context fixture key, durable
   entity/window handles, `VisualTestContext` reconstruction, and the explicit
   world-reset protocol. Finish line: `make markdownlint` passes and the user
   guide plus migration guide each include a GPUI playbook covering all listed
   topics. Design Doc: `docs/rstest-bdd-design.md` §2.7.6.2. (Dinolump)
+  Delivered 2026-06-04: the user guide carries a complete "Stateful GPUI
+  scenarios with durable handles" playbook that mirrors the regression suite
+  identifier-for-identifier, and the v0.6.0 migration guide carries a
+  matching "Migrate a stateful GPUI test" subsection inside "Adopt GPUI
+  harness configuration", with the design-document schematic at §2.7.6.2
+  realigned to the regression-suite shape in the same commit set. See
+  `docs/execplans/10-2-1-migration-guide-for-gpui-stateful-tests.md`.
 - [ ] 10.2.2. The migration guide provides a troubleshooting entry explaining
   the `E0499`/`E0502` symptoms for two mutable `StepContext` fixtures, why the
   pattern fails, and recommended workarounds before downstream users reach
