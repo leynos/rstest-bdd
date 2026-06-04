@@ -421,8 +421,12 @@ content was therefore name-aligned in one shot.
 
 Quality gates: `make check-fmt`, `make lint`, `make markdownlint`, and
 `make test` (1487 tests passed, 7 skipped) all exited zero on the final
-state. `coderabbit review --agent` returned zero findings after Stage B,
-Stage C, and the cumulative state.
+state. A final revalidation pass on 2026-06-04 reran the same gates on
+`6ab11ec`: `make check-fmt`, `make lint`, `make test` (1487 tests
+passed, 7 skipped, plus 62 Python release-automation tests passed), and
+`make markdownlint` all exited zero. `coderabbit review --agent`
+returned zero findings after Stage B, Stage C, the cumulative state, and
+the final revalidation run.
 
 Surprises encountered during delivery:
 
