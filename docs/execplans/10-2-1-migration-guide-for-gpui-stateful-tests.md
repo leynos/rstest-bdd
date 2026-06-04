@@ -240,9 +240,13 @@ revision before any user-visible commits are produced.
   had landed in the GPUI section were relocated to the localization section.
   §2.7.6.1's "problematic shape" closure was also aligned with the new
   schematic for cross-section consistency.
-- [ ] Stage C complete: migration guide playbook drafted in
+- [x] Stage C complete: migration guide playbook drafted in
   `docs/v0-6-0-migration-guide.md` with cross-references to the user guide
-  and the design document.
+  and the design document (closed 2026-06-04). Added the "Migrate a
+  stateful GPUI test" subsection inside "Adopt GPUI harness configuration"
+  with a set-off callout, a five-step migration list, and bidirectional
+  cross-links to the user-guide subsection. The migration checklist gained
+  a reset-protocol line item.
 - [ ] Stage D complete: `docs/CHANGELOG.md` updated to mention the GPUI
   playbook; `docs/contents.md` index refreshed only if existing entries
   undersell the playbook.

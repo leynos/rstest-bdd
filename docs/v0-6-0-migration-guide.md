@@ -347,6 +347,65 @@ path. Steps can request the injected `gpui::TestAppContext` with
 `#[from(rstest_bdd_harness_context)]`. Keep `attributes = ...` only for
 overrides, attributes-only configuration, or non-recognized harness paths.
 
+Stateful GPUI scenarios — those that share durable view and window handles
+across steps and need mutable access to `TestAppContext` — also need the
+v0.6 interim thread-local pattern documented under [Migrate a stateful
+GPUI test](#migrate-a-stateful-gpui-test) below.
+
+#### Migrate a stateful GPUI test
+
+> **Note: this is a v0.6 interim shape.**
+>
+> The thread-local scenario-state pattern below works around the current
+> `StepContext::borrow_mut` contract ([ADR-007][adr-007]); §2.7.6.5 of the
+> [rstest-bdd design](rstest-bdd-design.md) and roadmap items 12.1.x track
+> the v0.7.0 redesign that will replace it.
+
+Apply this migration when an existing scenario stored a `VisualTestContext`
+between steps or relied on a non-thread-local mutable world together with
+`#[from(rstest_bdd_harness_context)]`. The [Stateful GPUI scenarios with
+durable handles][users-guide-playbook] subsection of the user guide is the
+in-depth reference; the steps below mirror its outline:
+
+1. **Update the dev-dependency.** In `Cargo.toml`, depend on
+   `rstest-bdd-harness-gpui = "0.6.0"` and add `serial_test` and `rstest`
+   as dev-dependencies if they are not already present.
+2. **Introduce scenario state and reset helpers.** Add a `ScenarioState`
+   struct that stores `Option<gpui::Entity<T>>` and
+   `Option<gpui::AnyWindowHandle>` instead of a `VisualTestContext`, hold
+   it in a `thread_local!` `RefCell`, and define
+   `reset_state_before_assignment` and `reset_state_after_scenario`
+   helpers that clear the cell.
+3. **Wire a `Drop`-based cleanup fixture.** Add a
+   `ScenarioStateCleanup` value whose `Drop` impl calls
+   `reset_state_after_scenario`, and a `#[fixture] fn
+   scenario_state_cleanup() -> ScenarioStateCleanup` that calls
+   `reset_state_before_assignment` before returning the guard. Pull the
+   fixture into every stateful `#[scenario]` and apply `#[serial]` from
+   the `serial_test` crate.
+4. **Reset before assigning fresh handles.** In the `#[given]` that opens
+   a fresh window, call `reset_state_before_assignment` before the call
+   to `cx.add_window_view(...)`; both the constructor-side reset and the
+   `Drop`-side reset are required to cover panic, skip, and reused-thread
+   paths.
+5. **Rebuild `VisualTestContext` per step.** Replace any stored
+   `VisualTestContext` field with the durable handles, and in each
+   subsequent step reconstruct the visual context with
+   `gpui::VisualTestContext::from_window(window, cx)`. The return is
+   `Option<VisualTestContext>`; treat `None` as an invariant violation
+   (for example, with `.unwrap_or_else(|| panic!(...))`).
+
+For a worked-out example, see the regression suite at
+`crates/rstest-bdd-harness-gpui/tests/stateful_window.rs` and the user
+guide [Stateful GPUI scenarios with durable handles][users-guide-playbook]
+subsection. The pattern's rationale lives in §§2.7.6.1–2.7.6.2 of the
+[rstest-bdd design](rstest-bdd-design.md).
+
+[adr-007]: adr-007-harness-context-injection.md
+
+[users-guide-playbook]:
+users-guide.md#stateful-gpui-scenarios-with-durable-handles
+
 ## Migration checklist
 
 - [ ] Review scenario and step parameters that start with `_`; add explicit
@@ -365,6 +424,11 @@ overrides, attributes-only configuration, or non-recognized harness paths.
 - [ ] Remove redundant paired first-party `attributes = ...` arguments from
   Tokio and GPUI examples unless the scenario is intentionally demonstrating an
   override.
+- [ ] Before promoting any GPUI scenario from non-stateful to stateful, apply
+  the two-sided reset protocol from [Migrate a stateful GPUI
+  test](#migrate-a-stateful-gpui-test): wire `scenario_state_cleanup` into
+  every stateful `#[scenario]`, mark the scenario `#[serial]`, and reset the
+  thread-local state before assigning fresh handles.
 
 ## Common errors and fixes
 

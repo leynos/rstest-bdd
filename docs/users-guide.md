@@ -1339,12 +1339,13 @@ reader the binding name is part of the contract.
   still matches the regression coverage.
 - `crates/rstest-bdd-harness-gpui/tests/features/stateful_window.feature`
   shows the Gherkin shape the suite binds to.
-- The v0.6.0 migration guide carries a "Migrate a stateful GPUI test"
-  subsection inside [Adopt GPUI harness configuration][gpui-migration]
-  for readers moving an existing scenario to the playbook.
+- The v0.6.0 migration guide's [Migrate a stateful GPUI
+  test][gpui-migration] subsection (inside "Adopt GPUI harness
+  configuration") walks readers through moving an existing scenario to the
+  playbook.
 
 [gpui-migration]:
-v0-6-0-migration-guide.md#adopt-gpui-harness-configuration
+v0-6-0-migration-guide.md#migrate-a-stateful-gpui-test
 
 ### Skipping scenarios
 
