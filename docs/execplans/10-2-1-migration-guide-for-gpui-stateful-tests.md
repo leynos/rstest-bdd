@@ -5,7 +5,7 @@ This ExecPlan (execution plan) is a living document. The sections
 `Decision log`, and `Outcomes & retrospective` must be kept up to date as work
 proceeds.
 
-Status: DRAFT
+Status: APPROVED (implementation in progress, 2026-06-04)
 
 ## Purpose / big picture
 
@@ -229,19 +229,23 @@ revision before any user-visible commits are produced.
 
 ## Progress
 
-- [ ] Stage A complete: investigation, gap inventory, and community-of-experts
-  review captured here.
+- [x] Stage A complete: investigation, gap inventory, and community-of-experts
+  review captured here (signed off 2026-06-04).
 - [ ] Stage B complete: user guide playbook drafted in `docs/users-guide.md`
-  with doctests that mirror `crates/rstest-bdd-harness-gpui/tests/stateful_window.rs`.
+  with doctests that mirror `crates/rstest-bdd-harness-gpui/tests/stateful_window.rs`,
+  and the design-document schematic at §2.7.6.2 aligned with the regression
+  suite (`|_context|` closure, `Option`-returning `from_window`).
 - [ ] Stage C complete: migration guide playbook drafted in
   `docs/v0-6-0-migration-guide.md` with cross-references to the user guide
   and the design document.
-- [ ] Stage D complete: validation gates (`make check-fmt`, `make lint`,
-  `make test`, `make markdownlint`) pass sequentially, with logs in `/tmp/`.
-- [ ] Stage E complete: `coderabbit review --agent` returns no unresolved
-  concerns and the resulting commit ships.
+- [ ] Stage D complete: `docs/CHANGELOG.md` updated to mention the GPUI
+  playbook; `docs/contents.md` index refreshed only if existing entries
+  undersell the playbook.
+- [ ] Stage E complete: validation gates (`make check-fmt`, `make lint`,
+  `make test`, `make markdownlint`) pass sequentially with logs in `/tmp/`,
+  and `coderabbit review --agent` returns no unresolved concerns.
 - [ ] Stage F complete: roadmap entry 10.2.1 marked done in `docs/roadmap.md`
-  and `docs/CHANGELOG.md` updated to mention the GPUI playbook.
+  and the Outcomes section of this plan finalised.
 
 Use timestamps when the plan transitions to APPROVED status; the DRAFT status
 intentionally carries no per-step timestamps until implementation begins.
@@ -673,7 +677,9 @@ read the executable evidence locally:
 
 Initial DRAFT authored 2026-06-02 by the drafting agent. Revised the same
 day to reflect a Logisphere pre-implementation design review that returned a
-"Proceed with conditions" verdict. The revision resolved a placement
+"Proceed with conditions" verdict. Promoted to APPROVED on 2026-06-04
+following user sign-off; Stage A is closed and Stages B–F are now under
+implementation by the executing agent. The revision resolved a placement
 contradiction in the Purpose section, added `#[serial]` and the
 `Option`-returning `VisualTestContext::from_window` shape to the constraint
 list, required the playbook commit to update `docs/rstest-bdd-design.md`
