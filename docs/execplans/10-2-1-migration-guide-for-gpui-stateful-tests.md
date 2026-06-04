@@ -5,7 +5,7 @@ This ExecPlan (execution plan) is a living document. The sections
 `Decision log`, and `Outcomes & retrospective` must be kept up to date as work
 proceeds.
 
-Status: APPROVED (implementation in progress, 2026-06-04)
+Status: DELIVERED (2026-06-04)
 
 ## Purpose / big picture
 
@@ -253,11 +253,15 @@ revision before any user-visible commits are produced.
   documents in terms broad enough to subsume the new playbook subsection,
   so widening the index would add noise without surfacing anything a
   reader cannot already find by following the existing entries.
-- [ ] Stage E complete: validation gates (`make check-fmt`, `make lint`,
-  `make test`, `make markdownlint`) pass sequentially with logs in `/tmp/`,
-  and `coderabbit review --agent` returns no unresolved concerns.
-- [ ] Stage F complete: roadmap entry 10.2.1 marked done in `docs/roadmap.md`
-  and the Outcomes section of this plan finalised.
+- [x] Stage E complete: validation gates (`make check-fmt`, `make lint`,
+  `make test`, `make markdownlint`) passed sequentially on 2026-06-04 with
+  logs in `/tmp/check-fmt-…`, `/tmp/lint-…`, `/tmp/test-…`, and
+  `/tmp/markdownlint-…`. `make test` ran 1487 tests passed / 7 skipped.
+  `coderabbit review --agent` returned 0 findings on each milestone
+  commit (Stages B, C, and the cumulative state).
+- [x] Stage F complete: roadmap entry 10.2.1 marked done in `docs/roadmap.md`
+  with a delivery date and one-paragraph summary, and the Outcomes section
+  of this plan finalised. Closed 2026-06-04.
 
 Use timestamps when the plan transitions to APPROVED status; the DRAFT status
 intentionally carries no per-step timestamps until implementation begins.
@@ -370,11 +374,82 @@ intentionally carries no per-step timestamps until implementation begins.
 
 ## Outcomes & retrospective
 
-To be filled in at completion. Document, at minimum, the diff between the
-DRAFT playbook outline and what shipped, whether the doctests caught any
-regression-suite drift, and whether the playbook surfaces the v0.7.0
-lifecycle redesign promise prominently enough that a downstream reader would
-not assume thread-local state is the long-term recommendation.
+Delivered 2026-06-04 across four commits on the
+`10-2-1-migration-guide-for-gpui-stateful-tests` branch:
+
+1. `Promote 10.2.1 ExecPlan to APPROVED status` — closed Stage A.
+2. `Draft stateful GPUI playbook in the user guide (10.2.1)` —
+   replaced the truncated subsection in `docs/users-guide.md`, aligned
+   the §2.7.6.2 schematic (and the adjacent §2.7.6.1 problematic-shape
+   example) in `docs/rstest-bdd-design.md`, and relocated the dangling
+   localization link refs out of the GPUI subsection. Closed Stage B.
+3. `Add stateful GPUI migration playbook (10.2.1)` — inserted the
+   "Migrate a stateful GPUI test" subsection inside "Adopt GPUI harness
+   configuration" in `docs/v0-6-0-migration-guide.md` with a five-step
+   migration list, a v0.6-interim callout, and a checklist line item.
+   Updated the user-guide cross-link to the new anchor. Closed Stage C.
+4. `Note the GPUI stateful playbook in CHANGELOG (10.2.1)` — added one
+   Unreleased bullet; left `docs/contents.md` untouched. Closed Stage D.
+
+What landed against the DRAFT outline:
+
+- Playbook structure shipped exactly as agreed in Stage A. Section
+  ordering on the user-guide side matches the seven-item outline, with
+  the parameter-name-vs-fixture-key clarification kept as a short
+  subsection after the worked example so the worked example is the
+  reader's first contact with the contract.
+- Error-shape choice landed on `unwrap_or_else(|| panic!(...))` for
+  invariant-handling and `assert_eq!` for domain assertions, with a
+  one-sentence trade-off note pointing readers toward `StepResult<()>`
+  when a step needs to distinguish legitimate failures from invariant
+  violations.
+- Reset-protocol paragraph carries the worked `stale_window_count`
+  failure mirror and an explicit "deleting either reset call is a
+  correctness regression" caption, matching the Logisphere conditions.
+- The v0.6/v0.7 framing shipped as a `> **Note: this is a v0.6 interim
+  workaround.**` admonition on both guides, satisfying the set-off-
+  callout requirement that was promoted from a single-sentence opener
+  during the Logisphere revision.
+
+Drift signal status: as planned, this delivery anchored the playbook to
+the regression suite by name only. Compile-time drift detection through
+`#[doc = include_str!(...)]` scaffolding remains a deferred follow-up —
+see "Deferred follow-up" below. No drift was caught during delivery
+because no upstream changes had landed between the regression suite
+write-up (issue 9.4.5 era) and this documentation pass; the doctest
+content was therefore name-aligned in one shot.
+
+Quality gates: `make check-fmt`, `make lint`, `make markdownlint`, and
+`make test` (1487 tests passed, 7 skipped) all exited zero on the final
+state. `coderabbit review --agent` returned zero findings after Stage B,
+Stage C, and the cumulative state.
+
+Surprises encountered during delivery:
+
+- The dangling `[`Localizations`]` and `[`FluentLanguageLoader`]`
+  link reference definitions had been left behind inside the truncated
+  GPUI subsection in `docs/users-guide.md`. CommonMark resolves link
+  references globally, so the references at the actual localization
+  section were still working, but the definitions were misplaced. Moved
+  them to the localization section in the Stage B commit.
+- The §2.7.6.1 "problematic shape" example also used the old `|_, cx|`
+  closure form. Updating only §2.7.6.2 would have left the two
+  schematics visually divergent on the same API. Updated both in the
+  Stage B commit; the change is purely cosmetic on §2.7.6.1 because the
+  shape is presented as the broken case, not the recommended fix.
+
+### Deferred follow-up
+
+The drift-risk mitigation in the original risk register promised a
+tracked follow-up issue for `#[doc = include_str!(...)]` scaffolding so
+identifier drift between the user-guide playbook and the regression
+suite would become a compile error rather than a convention check. The
+follow-up has not yet been filed as a GitHub issue at delivery time and
+remains tracked here as the current source of record. When it is filed,
+add the issue number alongside this paragraph and close the loop in a
+later plan revision. The cost-benefit case favours absorbing the
+scaffolding into the v0.7.0 lifecycle redesign rather than landing it
+sooner; record any change to that calculus alongside the issue ID.
 
 ## Context and orientation
 
@@ -691,7 +766,11 @@ Initial DRAFT authored 2026-06-02 by the drafting agent. Revised the same
 day to reflect a Logisphere pre-implementation design review that returned a
 "Proceed with conditions" verdict. Promoted to APPROVED on 2026-06-04
 following user sign-off; Stage A is closed and Stages B–F are now under
-implementation by the executing agent. The revision resolved a placement
+implementation by the executing agent. Closed out to DELIVERED on
+2026-06-04 once Stages B–F shipped, validation gates passed, and the
+CodeRabbit pass cleared zero findings on the final state. Any further
+edit must reopen the status, append a note, and capture the rationale
+in the Decision log. The revision resolved a placement
 contradiction in the Purpose section, added `#[serial]` and the
 `Option`-returning `VisualTestContext::from_window` shape to the constraint
 list, required the playbook commit to update `docs/rstest-bdd-design.md`
