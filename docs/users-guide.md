@@ -1233,6 +1233,17 @@ fn scenario_reconstructs_visual_context_from_durable_handles(
     #[from(scenario_state_cleanup)] _cleanup: ScenarioStateCleanup,
 ) {
 }
+
+#[scenario(
+    path = "tests/features/stateful_window.feature",
+    name = "Opening a second GPUI window starts from reset state",
+    harness = rstest_bdd_harness_gpui::GpuiHarness,
+)]
+#[serial]
+fn scenario_opening_second_window_starts_from_reset_state(
+    #[from(scenario_state_cleanup)] _cleanup: ScenarioStateCleanup,
+) {
+}
 ```
 
 The second snippet shows the `#[given]` that opens a fresh window. It

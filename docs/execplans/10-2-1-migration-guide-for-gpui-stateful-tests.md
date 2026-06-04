@@ -262,6 +262,11 @@ revision before any user-visible commits are produced.
 - [x] Stage F complete: roadmap entry 10.2.1 marked done in `docs/roadmap.md`
   with a delivery date and one-paragraph summary, and the Outcomes section
   of this plan finalised. Closed 2026-06-04.
+- [x] Follow-up complete: the user-guide worked example now includes the
+  second stateful scenario binding,
+  "Opening a second GPUI window starts from reset state", with `#[serial]`
+  and the `scenario_state_cleanup` fixture so the snippet matches the
+  regression suite's reset-state coverage. Closed 2026-06-04.
 
 Use timestamps when the plan transitions to APPROVED status; the DRAFT status
 intentionally carries no per-step timestamps until implementation begins.
@@ -427,6 +432,14 @@ passed, 7 skipped, plus 62 Python release-automation tests passed), and
 `make markdownlint` all exited zero. `coderabbit review --agent`
 returned zero findings after Stage B, Stage C, the cumulative state, and
 the final revalidation run.
+
+Follow-up correction on 2026-06-04: the user-guide worked example said it
+bound both stateful scenarios, but the first doctest snippet only included
+`Reconstruct visual context from durable handles`. Added the missing
+`Opening a second GPUI window starts from reset state` binding with the same
+`scenario_state_cleanup` fixture and `#[serial]` attribute as
+`crates/rstest-bdd-harness-gpui/tests/stateful_window.rs`, so copying the
+snippet no longer drops the reset-state coverage that proves teardown.
 
 Surprises encountered during delivery:
 
