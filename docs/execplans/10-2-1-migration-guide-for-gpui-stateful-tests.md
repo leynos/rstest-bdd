@@ -247,9 +247,12 @@ revision before any user-visible commits are produced.
   with a set-off callout, a five-step migration list, and bidirectional
   cross-links to the user-guide subsection. The migration checklist gained
   a reset-protocol line item.
-- [ ] Stage D complete: `docs/CHANGELOG.md` updated to mention the GPUI
-  playbook; `docs/contents.md` index refreshed only if existing entries
-  undersell the playbook.
+- [x] Stage D complete: `docs/CHANGELOG.md` updated to mention the GPUI
+  playbook (closed 2026-06-04). `docs/contents.md` left untouched: the
+  user-guide and v0.6.0 migration-guide entries already describe their
+  documents in terms broad enough to subsume the new playbook subsection,
+  so widening the index would add noise without surfacing anything a
+  reader cannot already find by following the existing entries.
 - [ ] Stage E complete: validation gates (`make check-fmt`, `make lint`,
   `make test`, `make markdownlint`) pass sequentially with logs in `/tmp/`,
   and `coderabbit review --agent` returns no unresolved concerns.
