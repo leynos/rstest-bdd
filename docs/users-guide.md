@@ -1087,33 +1087,264 @@ function names against feature files. For a concrete regression example, see
 
 #### Stateful GPUI scenarios with durable handles
 
-Stateful GPUI scenarios should store handles, not borrowed visual contexts,
-between steps. `TestAppContext::add_window_view` creates a test window and
-returns `(Entity<T>, VisualTestContext)`: `Entity<T>` is the typed durable
-handle for the stored view, while `VisualTestContext::window_handle()` returns
-an `AnyWindowHandle` for the window itself.
+> **Note: this is a v0.6 interim workaround.**
+>
+> The thread-local scenario-state pattern below is the recommended way to
+> share mutable GPUI state across BDD steps in `rstest-bdd` 0.6.0, but it
+> exists to work around the current `StepContext::borrow_mut` contract
+> selected by [ADR-007](adr-007-harness-context-injection.md). Sections
+> 2.7.6.2 and 2.7.6.5 of the design document
+> ([rstest-bdd design](rstest-bdd-design.md)) and roadmap items 12.1.x track
+> the v0.7.0 redesign that will retire the thread-local approach in favour
+> of guard-based concurrent fixture borrowing and typed harness-context
+> extractors. New code adopted on 0.6 should expect to migrate when the
+> redesign lands; do not build wider abstractions on top of the thread-local
+> shape.
 
-Later steps can reconstruct the window-bound context from the stored window
-handle:
+##### When to reach for the stateful playbook
+
+Stateful GPUI scenarios are those whose steps share durable resources, such as
+a typed view entity and the window that owns it, and need mutable access to
+the harness-provided `gpui::TestAppContext` as well. Scenarios that only read
+the harness context, or that share state through ordinary
+[`rstest`](https://docs.rs/rstest/) fixtures without also borrowing
+`TestAppContext` mutably, should keep using plain fixtures and skip this
+playbook. The pattern below is needed precisely when a single step must
+borrow both `&mut TestAppContext` and shared mutable scenario state, which
+the v0.6 `StepContext` API cannot express in one borrow.
+
+##### Durable handles versus visual context
+
+`gpui::TestAppContext::add_window_view` creates a test window and returns
+`(Entity<T>, VisualTestContext)`. `Entity<T>` is the typed, durable handle
+to the stored view; `VisualTestContext::window_handle()` returns the
+`AnyWindowHandle` that identifies the window itself. Both are cheap to copy
+and remain valid across steps. `VisualTestContext`, by contrast, borrows
+from the `TestAppContext` it was created against and must not be stored
+across steps: a later step is handed a fresh `&mut TestAppContext` from the
+harness, so any saved `VisualTestContext` would be tied to a stale borrow.
+Stateful steps therefore store `Entity<T>` and `AnyWindowHandle` only, and
+rebuild a fresh `VisualTestContext` inside each step that needs visual
+interaction using
+`gpui::VisualTestContext::from_window(window, &mut cx)`.
+
+##### Reset protocol
+
+Thread-local scenario state outlives any single scenario, so each scenario
+must observe a two-sided reset protocol to prevent handle leakage across
+serial scenarios on the same test thread:
+
+- **Reset before assignment.** The first `#[given]` that opens a window
+  resets the thread-local state before storing fresh handles. This makes a
+  reused thread observe a clean slate even if the previous scenario aborted
+  in a way that bypassed unwinding.
+- **Reset after teardown.** A `Drop`-based fixture guard runs at scenario
+  exit. Threading the guard through a `#[fixture]` ensures the reset runs on
+  every unwind path: success, assertion failure, and panic alike.
+
+Neither half is redundant. The constructor-side reset on the
+`scenario_state_cleanup` fixture covers the case where a previous scenario
+short-circuited (for example through `skip!`) or panicked in a way that
+suppressed `Drop`. The `Drop` reset covers the symmetric case where the
+*current* scenario panics and the next scenario's fixture is not yet
+constructed when teardown happens. Deleting either call is a correctness
+regression: the regression suite at
+`crates/rstest-bdd-harness-gpui/tests/stateful_window.rs` asserts
+`stale_window_count == 0` after the constructor-side reset to make the
+ordering observable, and the second scenario in
+`tests/features/stateful_window.feature` ("Opening a second GPUI window
+starts from reset state") fails if the `Drop` reset is removed.
+
+Each `#[scenario]` that participates in this protocol must carry
+`#[serial]` from the [`serial_test`](https://docs.rs/serial_test/) crate.
+GPUI scenarios share a process-wide `TestAppContext` slot, and the
+thread-local reset protocol assumes sequential execution; running stateful
+GPUI scenarios in parallel breaks both invariants.
+
+##### Worked example
+
+The snippets below mirror the regression suite at
+`crates/rstest-bdd-harness-gpui/tests/stateful_window.rs` identifier for
+identifier. Treat that file as the executable reference: if a snippet here
+drifts from the suite, the suite wins and this section should be updated to
+match.
+
+The first snippet declares the scenario-state container, the two reset
+helpers, the `Drop`-based cleanup type, and the two `#[scenario]` functions
+that bind to the feature file. Each scenario carries `#[serial]` and pulls
+in the `scenario_state_cleanup` fixture so its constructor-side reset runs
+before any step:
 
 ```rust,no_run
-# use rstest_bdd_macros::{given, then};
-# #[derive(Default)]
-# struct CounterView {
-#     value: usize,
-# }
+# use rstest::fixture;
+# use rstest_bdd_macros::scenario;
+# use serial_test::serial;
+# use std::cell::RefCell;
+#[derive(Clone, Debug, Default)]
+struct CounterView {
+    value: usize,
+}
+
+#[derive(Clone, Debug, Default)]
+struct ScenarioState {
+    entity: Option<gpui::Entity<CounterView>>,
+    window: Option<gpui::AnyWindowHandle>,
+    opened_window_count: usize,
+}
+
+thread_local! {
+    static SCENARIO_STATE: RefCell<ScenarioState> =
+        RefCell::new(ScenarioState::default());
+}
+
+fn reset_state_before_assignment() {
+    // Reset before assigning the next scenario's handles so a reused
+    // serial test thread cannot observe handles left by a failed or
+    // skipped scenario.
+    reset_state_after_scenario();
+}
+
+fn reset_state_after_scenario() {
+    SCENARIO_STATE.with(|state| *state.borrow_mut() = ScenarioState::default());
+}
+
+#[derive(Clone, Debug)]
+struct ScenarioStateCleanup;
+
+impl Drop for ScenarioStateCleanup {
+    fn drop(&mut self) {
+        reset_state_after_scenario();
+    }
+}
+
+#[fixture]
+fn scenario_state_cleanup() -> ScenarioStateCleanup {
+    reset_state_before_assignment();
+    ScenarioStateCleanup
+}
+
+#[scenario(
+    path = "tests/features/stateful_window.feature",
+    name = "Reconstruct visual context from durable handles",
+    harness = rstest_bdd_harness_gpui::GpuiHarness,
+)]
+#[serial]
+fn scenario_reconstructs_visual_context_from_durable_handles(
+    #[from(scenario_state_cleanup)] _cleanup: ScenarioStateCleanup,
+) {
+}
 ```
 
-The selection function preserves the caller-supplied order, so applications can
-pass a list of preferred locales. The helper resolves to the best available
-translation and continues to fall back to English when a requested locale is
-not shipped with the crate. Procedural macro diagnostics remain in English so
-compile-time output stays deterministic regardless of the host machine’s
-language settings.
+The second snippet shows the `#[given]` that opens a fresh window. It
+defensively re-runs the reset before storing handles and observes the
+`stale_window_count` invariant that the regression suite encodes:
 
-[`Localizations`]: <https://docs.rs/rstest-bdd/latest/rstest_bdd/localization/>
-[`FluentLanguageLoader`]:
-<https://docs.rs/i18n-embed/latest/i18n_embed/fluent/struct.FluentLanguageLoader.html>
+```rust,no_run
+# use rstest_bdd_macros::given;
+# fn reset_state_before_assignment() {}
+# fn with_state<R>(_: impl FnOnce(&mut ()) -> R) -> R { unimplemented!() }
+#[given("a fresh GPUI window is opened")]
+fn fresh_gpui_window_is_opened(
+    #[from(rstest_bdd_harness_context)] context: &mut gpui::TestAppContext,
+) {
+    let stale_window_count = with_state(|state| usize::from(state.window.is_some()));
+    reset_state_before_assignment();
+
+    let (entity, visual_context) =
+        context.add_window_view(|_context| CounterView::default());
+    let window = visual_context.window_handle();
+
+    with_state(|state| {
+        state.entity = Some(entity);
+        state.window = Some(window);
+        state.opened_window_count = context.windows().len();
+    });
+
+    assert_eq!(
+        stale_window_count, 0,
+        "reset-before-assignment should remove stale scenario state"
+    );
+}
+```
+
+The third snippet shows a `#[when]` and a `#[then]` step that rebuild
+`VisualTestContext` from the stored window handle plus the
+harness-provided `TestAppContext`. `VisualTestContext::from_window`
+returns `Option<VisualTestContext>` because the window handle and the
+borrowed context must come from the same `TestAppContext`; the
+`unwrap_or_else(|| panic!(...))` shape is appropriate here because a
+`None` value means an invariant of the playbook has been violated, not a
+legitimate test outcome:
+
+```rust,no_run
+# use rstest_bdd_macros::{then, when};
+# fn current_handles() -> (gpui::Entity<()>, gpui::AnyWindowHandle) { unimplemented!() }
+#[when("the view is updated through a reconstructed visual context")]
+fn view_is_updated_through_reconstructed_visual_context(
+    #[from(rstest_bdd_harness_context)] context: &mut gpui::TestAppContext,
+) {
+    let (entity, window) = current_handles();
+    let mut visual_context = gpui::VisualTestContext::from_window(window, context)
+        .unwrap_or_else(|| panic!("stored window handle should reconstruct visual context"));
+    assert_eq!(
+        visual_context.update_entity(entity, |view| view.value += 1),
+        Ok(())
+    );
+}
+
+#[then("the durable handles still identify the updated view")]
+fn durable_handles_identify_the_updated_view(
+    #[from(rstest_bdd_harness_context)] context: &mut gpui::TestAppContext,
+) {
+    let (entity, window) = current_handles();
+    let visual_context = gpui::VisualTestContext::from_window(window, context)
+        .unwrap_or_else(|| panic!("stored window handle should reconstruct visual context"));
+
+    assert_eq!(
+        visual_context.read_entity(entity, |view| view.value),
+        Some(1)
+    );
+}
+```
+
+The error shape is consistent across all three snippets: surfaces of
+infrastructure invariants (handle reconstruction, fixture-stored handles)
+panic, and step-level domain assertions use `assert_eq!`. Steps that need to
+distinguish a legitimate failure mode from a programming invariant should
+return `StepResult<()>` and propagate the failure with `?`; mixing
+`unwrap_or_else(|| panic!(...))` and `StepResult` within the same playbook
+reads ambiguously, so pick one shape per scenario.
+
+##### Fixture key versus parameter name
+
+Steps request the GPUI context through the *reserved fixture key*
+`rstest_bdd_harness_context`. The key is part of the public contract: every
+first-party adapter (Tokio, GPUI, and any future harness) injects its
+typed context through the same key, so step authors can rely on it across
+adapters. The *parameter name* used on the receiving side (`context` in the
+snippets above and in the regression suite) is adapter-agnostic and chosen
+by the step author for readability. The `#[from(rstest_bdd_harness_context)]`
+attribute is what binds the key, so do not let parameter naming convince a
+reader the binding name is part of the contract.
+
+##### Where to read more
+
+- [rstest-bdd design](rstest-bdd-design.md) §2.7.6.1 and §2.7.6.2 explain
+  why the workaround takes this shape and what the borrow contract
+  currently allows.
+- [rstest-bdd design](rstest-bdd-design.md) §2.7.6.5 records the v0.7.0
+  redesign target that retires the thread-local approach.
+- `crates/rstest-bdd-harness-gpui/tests/stateful_window.rs` is the
+  executable reference suite. Read it to confirm that the snippet here
+  still matches the regression coverage.
+- `crates/rstest-bdd-harness-gpui/tests/features/stateful_window.feature`
+  shows the Gherkin shape the suite binds to.
+- The v0.6.0 migration guide carries a "Migrate a stateful GPUI test"
+  subsection inside [Adopt GPUI harness configuration][gpui-migration]
+  for readers moving an existing scenario to the playbook.
+
+[gpui-migration]:
+v0-6-0-migration-guide.md#adopt-gpui-harness-configuration
 
 ### Skipping scenarios
 
@@ -1933,6 +2164,10 @@ type implements `i18n_embed::I18nAssets`, allowing applications with existing
 Fluent infrastructure to load resources into their own
 [`FluentLanguageLoader`]. Libraries without a localization framework can rely
 on the built-in loader and request a different language at runtime:
+
+[`Localizations`]: <https://docs.rs/rstest-bdd/latest/rstest_bdd/localization/>
+[`FluentLanguageLoader`]:
+<https://docs.rs/i18n-embed/latest/i18n_embed/fluent/struct.FluentLanguageLoader.html>
 
 ```rust,no_run
 # fn scope_locale() -> Result<(), rstest_bdd::localization::LocalizationError> {

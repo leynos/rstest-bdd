@@ -1932,7 +1932,7 @@ fn given_shell_open(
     #[from(rstest_bdd_harness_context)] cx: &mut gpui::TestAppContext,
     world: &mut UiWorld,
 ) -> StepResult<()> {
-    let (shell, visual_cx) = cx.add_window_view(|_, cx| Shell::new(cx));
+    let (shell, visual_cx) = cx.add_window_view(|_context| Shell::default());
     world.shell = Some(shell);
     world.visual_cx = Some(visual_cx);
     Ok(())
@@ -1984,8 +1984,8 @@ fn given_shell_open(
 ) -> StepResult<()> {
     reset_world();
 
-    let (shell, _visual_cx) = cx.add_window_view(|_, cx| Shell::new(cx));
-    let window = cx.windows().first().copied().ok_or("missing window")?;
+    let (shell, visual_cx) = cx.add_window_view(|_context| Shell::default());
+    let window = visual_cx.window_handle();
 
     WORLD.with(|world| {
         let mut world = world.borrow_mut();
@@ -2001,7 +2001,8 @@ fn press_tab(
     #[from(rstest_bdd_harness_context)] cx: &mut gpui::TestAppContext,
 ) -> StepResult<()> {
     let window = WORLD.with(|world| world.borrow().window.ok_or("missing window"))?;
-    let mut visual_cx = gpui::VisualTestContext::from_window(window, cx);
+    let mut visual_cx = gpui::VisualTestContext::from_window(window, cx)
+        .ok_or("stored window handle should reconstruct visual context")?;
 
     visual_cx.simulate_keystrokes("tab");
     Ok(())

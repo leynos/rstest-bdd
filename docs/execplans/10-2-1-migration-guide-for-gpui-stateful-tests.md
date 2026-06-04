@@ -231,10 +231,15 @@ revision before any user-visible commits are produced.
 
 - [x] Stage A complete: investigation, gap inventory, and community-of-experts
   review captured here (signed off 2026-06-04).
-- [ ] Stage B complete: user guide playbook drafted in `docs/users-guide.md`
+- [x] Stage B complete: user guide playbook drafted in `docs/users-guide.md`
   with doctests that mirror `crates/rstest-bdd-harness-gpui/tests/stateful_window.rs`,
   and the design-document schematic at §2.7.6.2 aligned with the regression
-  suite (`|_context|` closure, `Option`-returning `from_window`).
+  suite (`|_context|` closure, `Option`-returning `from_window`). Closed
+  2026-06-04. The truncated "Stateful GPUI scenarios with durable handles"
+  subsection was replaced in place; the orphaned localization link refs that
+  had landed in the GPUI section were relocated to the localization section.
+  §2.7.6.1's "problematic shape" closure was also aligned with the new
+  schematic for cross-section consistency.
 - [ ] Stage C complete: migration guide playbook drafted in
   `docs/v0-6-0-migration-guide.md` with cross-references to the user guide
   and the design document.
