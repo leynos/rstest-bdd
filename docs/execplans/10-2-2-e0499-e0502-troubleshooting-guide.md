@@ -456,8 +456,11 @@ implementation on 2026-06-06 after explicit user approval.
   the step. Rationale: the most common shape that triggers the error in the
   field is the GPUI stateful one; the cheapest non-GPUI fix is second when it
   is semantically valid; splitting the step is last because it requires
-  reordering Gherkin. Date/author: 2026-06-04 (drafting agent; corrected
-  2026-06-06 during implementation to match the Logisphere review).
+  reordering Gherkin. This decision requires **both** fixture parameters to
+  become immutable; reshaping only one parameter leaves the mixed `&T` plus
+  `&mut T` shape and still produces `E0502`. Date/author: 2026-06-04 (drafting
+  agent; corrected 2026-06-06 during implementation to match the Logisphere
+  review; clarified 2026-06-06 after follow-up review).
 - Decision: cite the rustc canonical error pages once each in the
   rationale paragraph; do not cite the cucumber-rs book. Rationale: rustc
   citations help readers who arrive from a compiler diagnostic recognise the
