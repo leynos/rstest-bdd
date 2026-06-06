@@ -173,7 +173,7 @@ user-visible commits are produced.
 - Run formatting, linting, and tests sequentially. Capture each command's
   output with `tee` to `/tmp/<action>-rstest-bdd-${BRANCH}.out` where
   `${BRANCH}` is `10-2-2-e0499-e0502-troubleshooting-guide`, in line with the
-  agent instructions in `/home/leynos/.claude/CLAUDE.md`.
+  local agent instructions in `${HOME}/.claude/CLAUDE.md`.
 - Use `coderabbit review --agent` after each substantive documentation
   milestone. CodeRabbit concerns must be cleared or explicitly recorded before
   moving on. Do not request a CodeRabbit pass while deterministic gates fail.
@@ -826,8 +826,7 @@ committed. Update `Outcomes & retrospective` in this plan in the same commit.
 
 ## Concrete steps
 
-The exact command sequence inside the working tree at
-`/home/leynos/.lody/repos/github---leynos---rstest-bdd/worktrees/26ed0e2a-6f68-4d83-8fb8-187c63ad40a4`:
+The exact command sequence inside the working tree at `${WORKTREE_PATH}`:
 
 1. `git branch --show-current` to confirm the branch is
    `10-2-2-e0499-e0502-troubleshooting-guide` before any commit. If the branch
