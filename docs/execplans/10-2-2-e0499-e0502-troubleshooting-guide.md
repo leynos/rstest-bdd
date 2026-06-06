@@ -400,7 +400,7 @@ implementation on 2026-06-06 after explicit user approval.
   as a level-3 entry, with the bullet pair added at the head of the existing
   list, so there is one troubleshooting anchor namespace rather than two.
   (Buzzy Bee — drift) the failing snippet is tagged `rust,ignore` rather than
-  `rust,ignore` to avoid spurious CI red on a future codegen split;
+  `rust,compile_fail,ignore` to avoid spurious CI red on a future codegen split;
   compile-time drift detection becomes a deferred 11.x trybuild fixture under
   Outcomes. (Dinolump — anti-cargo-cult) the redirect escape carries an
   explicit "do not adopt for single-mutable scenarios" warning, in addition to
