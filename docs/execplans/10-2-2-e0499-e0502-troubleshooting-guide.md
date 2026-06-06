@@ -4,8 +4,9 @@ This ExecPlan (execution plan) is a living document. The sections `Constraints`,
 `Tolerances`, `Risks`, `Progress`, `Surprises & discoveries`, `Decision log`,
 and `Outcomes & retrospective` must be kept up to date as work proceeds.
 
-Status: IN PROGRESS (approved by the user on 2026-06-06; revised 2026-06-04 to
-absorb the Logisphere pre-implementation review — see "Surprises & discoveries")
+Status: COMPLETE (approved by the user on 2026-06-06; delivered 2026-06-06;
+revised 2026-06-04 to absorb the Logisphere pre-implementation review — see
+"Surprises & discoveries")
 
 ## Purpose / big picture
 
@@ -296,14 +297,14 @@ user-visible commits are produced.
   troubleshooting coverage. Completed 2026-06-06; `docs/contents.md` was left
   unchanged because the existing migration-guide index entry remains the
   canonical entry point.
-- [ ] Stage E: validation gates (`make check-fmt`, `make lint`,
+- [x] Stage E: validation gates (`make check-fmt`, `make lint`,
   `make test`, `make markdownlint`) and CodeRabbit review on the resulting
   commit. Acceptance: all gates exit zero sequentially; CodeRabbit returns no
   unresolved concerns. Deterministic gates passed 2026-06-06; CodeRabbit
-  review remains.
-- [ ] Stage F: roadmap close-out. Mark `docs/roadmap.md` item 10.2.2 as
+  review on `f918d5f` completed with zero findings.
+- [x] Stage F: roadmap close-out. Mark `docs/roadmap.md` item 10.2.2 as
   done with a delivery date and one-sentence summary; finalise Outcomes &
-  retrospective in this plan.
+  retrospective in this plan. Completed 2026-06-06.
 
 Use timestamps once the plan transitions to execution. The plan entered
 implementation on 2026-06-06 after explicit user approval.
@@ -527,17 +528,28 @@ implementation on 2026-06-06 after explicit user approval.
 
 ## Outcomes & retrospective
 
-To be completed at delivery. Record:
+Delivered 2026-06-06. Commit `f918d5f` landed the migration-guide entry,
+changelog note, and validated implementation plan updates; the follow-up
+close-out commit marks roadmap item 10.2.2 done and records this retrospective.
 
-- the delivery date and the commit set that landed the change;
-- the exact subsection heading and anchor that shipped;
-- the doctest tag chosen for the failing snippets (planned: `rust, ignore`) and
-  the reason for any deviation from the plan;
-- the `make test` count delta versus the pre-change baseline, so a
-  later maintainer can confirm no doctest fell off the run accidentally;
-- a one-paragraph note on how the entry has held up after the first
-  downstream consumer reads it (to be added in a later revision once beta
-  feedback returns).
+The shipped subsection is "Two mutable fixtures trigger E0499 or E0502" in
+`docs/v0-6-0-migration-guide.md`, reached by the generated anchor
+`#two-mutable-fixtures-trigger-e0499-or-e0502`. The failing snippets are tagged
+`rust,ignore`, matching the reviewed plan: the examples document code rejected
+by the v0.6 generated wrapper without asserting a brittle `compile_fail`
+doctest. The dedicated trybuild drift check remains deferred to 11.x.
+
+Validation on 2026-06-06 passed with `make check-fmt`, `make lint`,
+`make test`, and `make markdownlint`. The `make test` run reported 1,487
+nextest tests passed with 7 skipped, then 62 Python publish-check tests passed.
+The plan did not record a pre-change count baseline, so the count delta is
+recorded as unavailable rather than inferred. CodeRabbit reviewed `f918d5f`
+with zero findings.
+
+No downstream reader has consumed the entry yet. Keep the final feedback bullet
+under Deferred follow-ups open until the first beta consumer confirms whether
+the rustc-message search path, escape ordering, and thread-local warning land
+cleanly.
 
 ### Deferred follow-ups
 
