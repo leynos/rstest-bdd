@@ -9,7 +9,7 @@ that need a new testing practice to be useful.
 
 - Implicit fixture names now normalize exactly one leading underscore.
   Parameters named `world` and `_world` both resolve to the implicit fixture key
-   `world`; `__world` resolves to `_world`. Explicit `#[from(...)]` fixture
+  `world`; `__world` resolves to `_world`. Explicit `#[from(...)]` fixture
   names remain exact.
 - The legacy `scenarios!(..., runtime = "tokio-current-thread")` form now acts
   as a deprecated compatibility alias for
@@ -175,8 +175,9 @@ omit that direct dependency and compile as workspace proof points.
 > **Canonical-path requirement:** the macro detects first-party adapters
 > by matching the crate-root identifier in the supplied path against the
 > known adapter crate names. When the Tokio or GPUI adapter crate is
-> renamed in `Cargo.toml` (for example `tok = { package =
-> "rstest-bdd-harness-tokio", … }`) or the harness type is re-exported
+> renamed in `Cargo.toml` (for example
+> `tok = { package = "rstest-bdd-harness-tokio", … }`) or the harness type is
+> re-exported
 > under a different module path, the macro cannot identify it as a
 > first-party adapter and falls back to resolving base API types through
 > `rstest-bdd-harness`. In those cases, add `rstest-bdd-harness` as a
@@ -239,7 +240,7 @@ fn search_works(world: Result<World, String>) -> Result<(), String> {
 The generated scenario unwraps `world` with `?` before inserting the inner
 `World` value into `StepContext`. Borrowed result-like fixtures are rejected:
 use `Result<T, E>` or `StepResult<T, E>` by value rather than `&Result<T, E>` or
- `&StepResult<T, E>`.
+`&StepResult<T, E>`.
 
 ### Adopt harness context
 
@@ -348,9 +349,9 @@ path. Steps can request the injected `gpui::TestAppContext` with
 overrides, attributes-only configuration, or non-recognized harness paths.
 
 Stateful GPUI scenarios — those that share durable view and window handles
-across steps and need mutable access to `TestAppContext` — also need the
-v0.6 interim thread-local pattern documented under [Migrate a stateful
-GPUI test](#migrate-a-stateful-gpui-test) below.
+across steps and need mutable access to `TestAppContext` — also need the v0.6
+interim thread-local pattern documented under
+[Migrate a stateful GPUI test](#migrate-a-stateful-gpui-test) below.
 
 #### Migrate a stateful GPUI test
 
@@ -368,32 +369,30 @@ durable handles][users-guide-playbook] subsection of the user guide is the
 in-depth reference; the steps below mirror its outline:
 
 1. **Update the dev-dependency.** In `Cargo.toml`, depend on
-   `rstest-bdd-harness-gpui = "0.6.0"` and add `serial_test` and `rstest`
-   as dev-dependencies if they are not already present.
+   `rstest-bdd-harness-gpui = "0.6.0"` and add `serial_test` and `rstest` as
+   dev-dependencies if they are not already present.
 2. **Introduce scenario state and reset helpers.** Add a `ScenarioState`
    struct that stores `Option<gpui::Entity<T>>` and
-   `Option<gpui::AnyWindowHandle>` instead of a `VisualTestContext`, hold
-   it in a `thread_local!` `RefCell`, and define
-   `reset_state_before_assignment` and `reset_state_after_scenario`
-   helpers that clear the cell.
+   `Option<gpui::AnyWindowHandle>` instead of a `VisualTestContext`, hold it in
+   a `thread_local!` `RefCell`, and define `reset_state_before_assignment` and
+   `reset_state_after_scenario` helpers that clear the cell.
 3. **Wire a `Drop`-based cleanup fixture.** Add a
    `ScenarioStateCleanup` value whose `Drop` impl calls
-   `reset_state_after_scenario`, and a `#[fixture] fn
-   scenario_state_cleanup() -> ScenarioStateCleanup` that calls
-   `reset_state_before_assignment` before returning the guard. Pull the
-   fixture into every stateful `#[scenario]` and apply `#[serial]` from
-   the `serial_test` crate.
+   `reset_state_after_scenario`, and a
+   `#[fixture] fn scenario_state_cleanup() -> ScenarioStateCleanup` that calls
+   `reset_state_before_assignment` before returning the guard. Pull the fixture
+   into every stateful `#[scenario]` and apply `#[serial]` from the
+   `serial_test` crate.
 4. **Reset before assigning fresh handles.** In the `#[given]` that opens
-   a fresh window, call `reset_state_before_assignment` before the call
-   to `cx.add_window_view(...)`; both the constructor-side reset and the
-   `Drop`-side reset are required to cover panic, skip, and reused-thread
-   paths.
+   a fresh window, call `reset_state_before_assignment` before the call to
+   `cx.add_window_view(...)`; both the constructor-side reset and the
+   `Drop`-side reset are required to cover panic, skip, and reused-thread paths.
 5. **Rebuild `VisualTestContext` per step.** Replace any stored
-   `VisualTestContext` field with the durable handles, and in each
-   subsequent step reconstruct the visual context with
+   `VisualTestContext` field with the durable handles, and in each subsequent
+   step reconstruct the visual context with
    `gpui::VisualTestContext::from_window(window, cx)`. The return is
-   `Option<VisualTestContext>`; treat `None` as an invariant violation
-   (for example, with `.unwrap_or_else(|| panic!(...))`).
+   `Option<VisualTestContext>`; treat `None` as an invariant violation (for
+   example, with `.unwrap_or_else(|| panic!(...))`).
 
 For a worked-out example, see the regression suite at
 `crates/rstest-bdd-harness-gpui/tests/stateful_window.rs` and the user
@@ -402,6 +401,20 @@ subsection. The pattern's rationale lives in §§2.7.6.1–2.7.6.2 of the
 [rstest-bdd design](rstest-bdd-design.md).
 
 [adr-007]: adr-007-harness-context-injection.md
+
+[design-borrow-constraint]:
+rstest-bdd-design.md#2761-borrow-constraint-exposed-by-gpui-adoption
+
+[design-interim-gpui]: rstest-bdd-design.md#2762-interim-gpui-state-pattern
+
+[design-redesign]: rstest-bdd-design.md#2765-v070-pre-100-redesign
+
+[rustc-e0499]: https://doc.rust-lang.org/error_codes/E0499.html
+
+[rustc-e0502]: https://doc.rust-lang.org/error_codes/E0502.html
+
+[rustonomicon-splitting]:
+https://doc.rust-lang.org/nomicon/borrow-splitting.html
 
 [users-guide-playbook]:
 users-guide.md#stateful-gpui-scenarios-with-durable-handles
@@ -425,13 +438,19 @@ users-guide.md#stateful-gpui-scenarios-with-durable-handles
   Tokio and GPUI examples unless the scenario is intentionally demonstrating an
   override.
 - [ ] Before promoting any GPUI scenario from non-stateful to stateful, apply
-  the two-sided reset protocol from [Migrate a stateful GPUI
-  test](#migrate-a-stateful-gpui-test): wire `scenario_state_cleanup` into
-  every stateful `#[scenario]`, mark the scenario `#[serial]`, and reset the
-  thread-local state before assigning fresh handles.
+  the two-sided reset protocol from
+  [Migrate a stateful GPUI test](#migrate-a-stateful-gpui-test): wire
+  `scenario_state_cleanup` into every stateful `#[scenario]`, mark the scenario
+  `#[serial]`, and reset the thread-local state before assigning fresh handles.
 
 ## Common errors and fixes
 
+- **Error:**
+  ``cannot borrow `*ctx` as mutable more than once at a time (E0499)`` or
+  ``cannot borrow `*ctx` as mutable because it is also borrowed as immutable (E0502)``
+  in a generated step wrapper
+  - **Fix:** See [Two mutable fixtures trigger `E0499` or
+    `E0502`](#two-mutable-fixtures-trigger-e0499-or-e0502).
 - **Error:** type mismatch: expected `HarnessResult<T>`, found `T`
   - **Fix:** Wrap the return expression in `Ok(...)`.
 - **Error:** the trait bound `MyHarness: Default` is not satisfied
@@ -444,6 +463,108 @@ users-guide.md#stateful-gpui-scenarios-with-durable-handles
   expected fixture
   - **Fix:** Use `#[from(_fixture_name)]` when the literal fixture key starts
     with an underscore.
+
+### Two mutable fixtures trigger `E0499` or `E0502`
+
+> This is a v0.6 interim workaround. The limitation is recorded in
+> [rstest-bdd design §2.7.6.1][design-borrow-constraint]; the replacement
+> borrow model is tracked in [§2.7.6.5][design-redesign] and roadmap items
+> 12.1.x.
+
+The symptom is a rustc borrow-checker error in generated wrapper code, not in
+the step body itself. Two mutable fixture parameters usually produce
+[`E0499`][rustc-e0499], ``cannot borrow `*ctx` as mutable more than once at a
+time``. One mutable fixture plus one immutable fixture can produce
+[`E0502`][rustc-e0502], ``cannot borrow `*ctx` as mutable because it is also
+borrowed as immutable``.
+
+This GPUI-shaped snippet is intentionally rejected by the v0.6 generated
+wrapper; see *Why this happens* below.
+
+```rust,ignore
+#[given("the shell is open")]
+fn given_shell_open(
+    #[from(rstest_bdd_harness_context)] cx: &mut gpui::TestAppContext,
+    world: &mut UiWorld,
+) -> StepResult<()> {
+    let (shell, visual_cx) = cx.add_window_view(|_context| Shell::default());
+    world.shell = Some(shell);
+    world.visual_cx = Some(visual_cx);
+    Ok(())
+}
+```
+
+The same constraint is not GPUI-specific. This non-GPUI shape is also rejected
+when both parameters come from the same `StepContext`.
+
+```rust,ignore
+#[when("the account is saved")]
+fn save_account(pool: &mut SqlPool, world: &mut World) -> StepResult<()> {
+    pool.store(&world.account)?;
+    world.saved = true;
+    Ok(())
+}
+```
+
+#### Why this happens
+
+The wrapper has to borrow each requested fixture before it can call the step
+function. For two `&mut T` parameters, that means two sequential
+`ctx.borrow_mut::<T>(...)` calls while the first guard is still live.
+`StepContext::borrow_mut` takes `&mut self`, so the second call asks for a new
+exclusive borrow of `ctx` before the first one has ended. The mixed case is the
+same shape with different mutability: `borrow_ref` holds a shared `&ctx` guard
+while `borrow_mut` needs an exclusive `&mut ctx` guard.
+
+Design §2.7.6.1 names this as a current `StepContext` design limitation, not a
+GPUI-only behaviour. ADR-007 keeps harness context injection under the reserved
+`rstest_bdd_harness_context` fixture key, so the v0.6 answer is to change the
+step shape. At the Rust-language level, the borrow checker does not treat
+`HashMap` lookups at different keys as automatically disjoint; see the
+Rustonomicon's discussion of [splitting borrows][rustonomicon-splitting].
+
+#### Workarounds
+
+**Redirect to the stateful GPUI playbook** when the second mutable fixture is
+the harness context. Store durable handles in resettable scenario state, then
+let each step borrow only `&mut gpui::TestAppContext` from `StepContext`.
+Follow [Stateful GPUI scenarios with durable handles][users-guide-playbook] for
+the full pattern, or the migration guide's
+[Migrate a stateful GPUI test](#migrate-a-stateful-gpui-test) subsection for
+the upgrade sequence. Do not adopt this thread-local shape for scenarios that
+need only one mutable fixture; it is the v0.6 workaround for the two-mutable
+case alone.
+
+**Reshape both parameters to `&T`** when read-only access to both fixtures is
+enough. That turns the generated wrapper into two `borrow_ref` calls, both
+holding shared borrows of `ctx`, which the borrow checker accepts. Reshaping
+only one parameter does not fix the conflict: `&T` plus `&mut T` is the mixed
+case and still produces `E0502`.
+
+**Split the step** when neither escape fits. Write consecutive Gherkin steps
+where each step touches one fixture only, and pass durable state between them
+through ordinary scenario fixtures or through the stateful GPUI playbook:
+
+```gherkin
+When the account is saved
+Then the saved account is visible
+```
+
+If both halves still need both fixtures mutably, splitting has not changed the
+borrow shape; the same constraint resurfaces inside one of the new steps. Use
+the playbook redirect instead.
+
+#### Where to read more
+
+- [rstest-bdd design §2.7.6.1][design-borrow-constraint] explains the borrow
+  constraint.
+- [rstest-bdd design §2.7.6.2][design-interim-gpui] records the interim GPUI
+  state pattern.
+- [rstest-bdd design §2.7.6.5][design-redesign] tracks the v0.7.0 redesign
+  target.
+- [ADR-007][adr-007] records the harness-context injection contract.
+- [Stateful GPUI scenarios with durable handles][users-guide-playbook] is the
+  user-guide playbook.
 
 ## Further reading
 

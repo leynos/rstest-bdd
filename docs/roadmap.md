@@ -755,12 +755,17 @@ changing the public trait contracts.
   harness configuration", with the design-document schematic at §2.7.6.2
   realigned to the regression-suite shape in the same commit set. See
   `docs/execplans/10-2-1-migration-guide-for-gpui-stateful-tests.md`.
-- [ ] 10.2.2. The migration guide provides a troubleshooting entry explaining
+- [x] 10.2.2. The migration guide provides a troubleshooting entry explaining
   the `E0499`/`E0502` symptoms for two mutable `StepContext` fixtures, why the
   pattern fails, and recommended workarounds before downstream users reach
   compiler-error archaeology. Finish line: `docs/v0-6-0-migration-guide.md`
   contains the troubleshooting entry and links to the borrow-constraint design
   subsection. Design Doc: `docs/rstest-bdd-design.md` §2.7.6.1. (Telefono)
+  Delivered 2026-06-06: the v0.6.0 migration guide now includes "Two mutable
+  fixtures trigger `E0499` or `E0502`" inside "Common errors and fixes", with
+  failing GPUI and non-GPUI shapes, the generated-wrapper rationale, and the
+  three v0.6-compatible escape hatches. See
+  `docs/execplans/10-2-2-e0499-e0502-troubleshooting-guide.md`.
 - [ ] 10.2.3. The v0.6.0 migration guide warns users to run downstream tests
   through the repository's CI-equivalent gate and to run feature-gated tests,
   such as `cargo test --all-features` or a project `make test`, before API

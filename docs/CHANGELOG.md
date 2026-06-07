@@ -3,6 +3,9 @@
 ## Unreleased
 
 - Mandated `cap-std` and `camino` for cross-platform file system access.
+- Documented `E0499`/`E0502` troubleshooting for two mutable `StepContext`
+  fixtures in the v0.6.0 migration guide, with workarounds and a cross-link to
+  the stateful GPUI playbook.
 - Added `ExecutionError` enum for structured step execution failures, replacing
   string-encoded skip messages with proper error variants: `Skip`,
   `StepNotFound`, `MissingFixtures`, and `HandlerFailed`. The `ExecutionError`
@@ -22,6 +25,6 @@
   a `#[scenario]` test, eliminating the need for `Cell`/`RefCell` wrappers when
   modelling a mutable “world” object.
 - Documented the v0.6 interim playbook for stateful GPUI scenarios in the
-  user's guide and the v0.6.0 migration guide, covering durable
-  `Entity<T>`/`AnyWindowHandle` storage, `VisualTestContext` reconstruction,
-  and the two-sided thread-local reset protocol.
+  user's guide and the v0.6.0 migration guide, covering durable `Entity<T>`/
+  `AnyWindowHandle` storage, `VisualTestContext` reconstruction, and the
+  two-sided thread-local reset protocol.
