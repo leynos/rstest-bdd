@@ -5,8 +5,9 @@ This ExecPlan (execution plan) is a living document. The sections `Constraints`,
 and `Outcomes & retrospective` must be kept up to date as work proceeds.
 
 Status: COMPLETE (approved by the user on 2026-06-06; delivered 2026-06-06;
-revised 2026-06-04 to absorb the Logisphere pre-implementation review — see
-"Surprises & discoveries")
+revised 2026-06-04 to absorb the Logisphere pre-implementation review; revised
+2026-06-07 to add compile-time UI drift coverage — see "Surprises &
+discoveries")
 
 ## Purpose / big picture
 
@@ -75,9 +76,13 @@ macro codegen at
 or any harness implementation. The whole point of the entry is that the v0.6
 contract is what it is and the reader has to work around it; an entry that
 secretly demands an API change would be re-scoping the work into 11.x or 12.x.
+The exception added after review on 2026-06-07 is compile-time UI coverage
+under `crates/rstest-bdd-macros/tests/`, which pins the documented failure
+modes without changing the implementation surface.
 
-Implementation requires explicit approval before proceeding past the DRAFT
-status. The community-of-experts review attached to this plan (see "Surprises &
+Implementation required explicit approval before proceeding past the DRAFT
+status; the user granted that approval on 2026-06-06. The
+community-of-experts review attached to this plan (see "Surprises &
 discoveries") must also be reflected back into any later revision before any
 user-visible commits are produced.
 
@@ -111,9 +116,9 @@ user-visible commits are produced.
   operational: a future codegen change or rustc edition shift that legitimately
   resolves the conflict would flip a `compile_fail` doctest into a spurious
   "expected compile failure didn't fail" CI red, while a plain `ignore` decays
-  gracefully into a stale-but-quiet snippet. Compile-time drift detection
-  belongs in a dedicated trybuild fixture, deferred to 11.x — see the deferred
-  follow-up captured under Outcomes & retrospective.
+  gracefully into a stale-but-quiet snippet. Compile-time drift detection lives
+  in dedicated trybuild fixtures under `crates/rstest-bdd-macros/tests/ui/`, so
+  the user-facing snippet can stay `rust,ignore`.
 - The recommended-shape code samples must compile as `rust,no_run`
   doctests and must use the same identifiers as
   `crates/rstest-bdd-harness-gpui/tests/stateful_window.rs` and the user-guide
@@ -305,6 +310,12 @@ user-visible commits are produced.
 - [x] Stage F: roadmap close-out. Mark `docs/roadmap.md` item 10.2.2 as
   done with a delivery date and one-sentence summary; finalise Outcomes &
   retrospective in this plan. Completed 2026-06-06.
+- [x] Stage G: add compile-time UI drift coverage after review.
+  Acceptance: `crates/rstest-bdd-macros/tests/ui/` contains trybuild
+  compile-fail fixtures for the two-mutable `E0499` case and the mixed
+  immutable/mutable `E0502` case, and
+  `cargo test -p rstest-bdd-macros --test ui_tests` exits zero. Completed
+  2026-06-07.
 
 Use timestamps once the plan transitions to execution. The plan entered
 implementation on 2026-06-06 after explicit user approval.
@@ -401,8 +412,9 @@ implementation on 2026-06-06 after explicit user approval.
   list, so there is one troubleshooting anchor namespace rather than two.
   (Buzzy Bee — drift) the failing snippet is tagged `rust,ignore` rather than
   `rust,compile_fail,ignore` (rejected — see Constraints) to avoid spurious CI
-  red on a future codegen split; compile-time drift detection becomes a
-  deferred 11.x trybuild fixture under Outcomes. (Dinolump — anti-cargo-cult)
+  red on a future codegen split; compile-time drift detection was originally a
+  deferred 11.x trybuild fixture, superseded by the 2026-06-07 UI-test
+  revision recorded below. (Dinolump — anti-cargo-cult)
   the redirect escape carries an explicit "do not adopt for single-mutable
   scenarios" warning, in addition to the v0.6-interim callout. (Wafflecat —
   alternative)
@@ -415,6 +427,13 @@ implementation on 2026-06-06 after explicit user approval.
   the corrected escape ordering, the collapsed section structure, the
   `rust,ignore` choice, the Wafflecat deferral, and the inline anti-cargo-cult
   warning; Stage B and C steps were adjusted to match.
+- Observation: CodeRabbit's 2026-06-07 Testing (Compile-Time / UI)
+  warning rejected the earlier 11.x deferral for compile-time drift detection.
+  Evidence: the review requested trybuild fixtures under
+  `crates/rstest-bdd-macros/tests/` for the two-mutable and mixed-mutability
+  fixture cases. Impact: 10.2.2 now includes those UI fixtures and the
+  dedicated stderr baselines, while the migration-guide failing snippets remain
+  `rust,ignore` to avoid brittle doctest assertions.
 - Observation: the first `make markdownlint` pass on 2026-06-06 failed
   with MD033 on the explicit `<a id>` stub above the troubleshooting
   subsection. Evidence:
@@ -448,10 +467,11 @@ implementation on 2026-06-06 after explicit user approval.
   future codegen change or rustc edition shift that legitimately resolves the
   conflict would flip the doctest into a spurious "expected compile failure
   didn't fail" CI red.
-  `rust,ignore` decays gracefully into a stale-but-quiet snippet, and
-  compile-time drift detection lives in a deferred trybuild follow-up (see
-  Outcomes & retrospective). Date/author: 2026-06-04 (drafting agent, revised
-  after Logisphere review).
+  `rust,ignore` decays gracefully into a stale-but-quiet snippet. Compile-time
+  drift detection is covered separately by trybuild UI fixtures added under
+  `crates/rstest-bdd-macros/tests/ui/` after CodeRabbit review. Date/author:
+  2026-06-04 (drafting agent, revised after Logisphere review; corrected
+  2026-06-07 after CodeRabbit review).
 - Decision: name the escape hatches in the order (1) redirect to the
   GPUI playbook when the second mutable is harness context, (2) reshape both
   parameters to `&T` when read-only access suffices for both (one `&T` plus one
@@ -529,6 +549,13 @@ implementation on 2026-06-06 after explicit user approval.
   to `#two-mutable-fixtures-trigger-e0499-or-e0502`, so an HTML stub would add
   lint debt without improving navigation. Date/author: 2026-06-06
   (implementation agent).
+- Decision: add trybuild compile-fail fixtures now rather than defer
+  compile-time drift detection to 11.x. Rationale: the migration guide now
+  documents two generated-wrapper failure modes, so the macro crate should pin
+  those diagnostics directly. The trybuild tests do not change public APIs,
+  `StepContext`, or wrapper codegen; they only make the documented `E0499` and
+  `E0502` behaviour observable in CI. Date/author: 2026-06-07 (implementation
+  agent, after CodeRabbit review).
 
 ## Outcomes & retrospective
 
@@ -541,7 +568,10 @@ The shipped subsection is "Two mutable fixtures trigger E0499 or E0502" in
 `#two-mutable-fixtures-trigger-e0499-or-e0502`. The failing snippets are tagged
 `rust,ignore`, matching the reviewed plan: the examples document code rejected
 by the v0.6 generated wrapper without asserting a brittle `compile_fail`
-doctest. The dedicated trybuild drift check remains deferred to 11.x.
+doctest. Follow-up commit `c361697` corrected stale reshape wording after
+review. The 2026-06-07 UI-test revision added dedicated trybuild drift checks
+for the two-mutable `E0499` case and the mixed-mutability `E0502` case under
+`crates/rstest-bdd-macros/tests/ui/`.
 
 Validation on 2026-06-06 passed with `make check-fmt`, `make lint`,
 `make test`, and `make markdownlint`. The `make test` run reported 1,487
@@ -549,6 +579,12 @@ nextest tests passed with 7 skipped, then 62 Python publish-check tests passed.
 The plan did not record a pre-change count baseline, so the count delta is
 recorded as unavailable rather than inferred. CodeRabbit reviewed `f918d5f`
 with zero findings.
+
+Additional validation on 2026-06-07 passed with
+`cargo test -p rstest-bdd-macros --test ui_tests`, proving the new trybuild
+stderr baselines. The first focused run intentionally failed while trybuild
+wrote `wip/*.stderr`; moving those baselines into `tests/ui/` made the focused
+gate pass.
 
 No downstream reader has consumed the entry yet. Keep the final feedback bullet
 under Deferred follow-ups open until the first beta consumer confirms whether
@@ -561,14 +597,9 @@ These follow-ups are tracked here as the current source of record until GitHub
 issues are filed; add the issue numbers alongside each entry when they are
 opened, and close the loop in a later plan revision.
 
-1. **Compile-time drift detection via trybuild.** The Buzzy Bee
-   revision noted that `rust,ignore` documents intent but does not assert the
-   failure mode. A dedicated trybuild fixture under
-   `crates/rstest-bdd-macros/tests/` that pins the two-mutable wrapper case and
-   the mixed-mutability case to their rustc diagnostics would convert the
-   documentation claim into a compile-time check. Deferred to 11.x because
-   adding trybuild coverage is a development-time investment outside the
-   v0.6.0-final documentation cut.
+1. **Compile-time drift detection via trybuild.** Completed
+   2026-06-07 after CodeRabbit review. The macro crate now has compile-fail UI
+   fixtures for the two-mutable wrapper case and the mixed-mutability case.
 2. **Custom rustc diagnostic via `#[diagnostic::on_unimplemented]`.**
    The Wafflecat alternative, deferred to 11.x. A sealed marker trait emitted
    by the wrapper when it would produce two `borrow_mut` calls could surface a
@@ -958,13 +989,15 @@ reproduce the conflict inside one of the new steps (Doggylump); collapsed the
 proposed `## Troubleshooting` umbrella into a level-3 subsection of the existing
 `## Common errors and fixes` (Pandalump); switched the failing-snippet tag from
 `compile_fail,ignore` (rejected — see Constraints) to `rust,ignore` with an
-above-fence caption, and promised a trybuild follow-up for compile-time drift
-detection (Buzzy Bee);
+above-fence caption, and initially promised a trybuild follow-up for
+compile-time drift detection (Buzzy Bee);
 added an inline anti- cargo-cult warning under the playbook-redirect escape
 (Dinolump); recorded `#[diagnostic::on_unimplemented]` as the strongest
 alternative, deferred to 11.x (Wafflecat); and absorbed the non-GPUI
 failing-snippet improvement plus the anchor-stubs-upfront note (Buzzy Bee
-improvement, Pandalump green). Pending: user approval before the plan moves
-from DRAFT to APPROVED. Any later edit must update the Status field at the top
+improvement, Pandalump green). Approved and implemented on 2026-06-06. Revised
+2026-06-07 after CodeRabbit review to replace the trybuild deferral with
+concrete compile-fail UI fixtures for the two-mutable and mixed-mutability
+generated-wrapper cases. Any later edit must update the Status field at the top
 of the plan, append a brief note to this section, and keep the living sections
 current.
