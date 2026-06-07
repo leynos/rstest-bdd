@@ -1,6 +1,6 @@
 [package]
 name = "japanese-ledger"
-version = "0.6.0-beta1"
+version = "0.6.0-beta2"
 edition.workspace = true
 publish = false
 rust-version.workspace = true
