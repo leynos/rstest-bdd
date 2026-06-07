@@ -400,11 +400,12 @@ implementation on 2026-06-06 after explicit user approval.
   as a level-3 entry, with the bullet pair added at the head of the existing
   list, so there is one troubleshooting anchor namespace rather than two.
   (Buzzy Bee — drift) the failing snippet is tagged `rust,ignore` rather than
-  `rust,compile_fail,ignore` to avoid spurious CI red on a future codegen split;
-  compile-time drift detection becomes a deferred 11.x trybuild fixture under
-  Outcomes. (Dinolump — anti-cargo-cult) the redirect escape carries an
-  explicit "do not adopt for single-mutable scenarios" warning, in addition to
-  the v0.6-interim callout. (Wafflecat — alternative)
+  `rust,compile_fail,ignore` (rejected — see Constraints) to avoid spurious CI
+  red on a future codegen split; compile-time drift detection becomes a
+  deferred 11.x trybuild fixture under Outcomes. (Dinolump — anti-cargo-cult)
+  the redirect escape carries an explicit "do not adopt for single-mutable
+  scenarios" warning, in addition to the v0.6-interim callout. (Wafflecat —
+  alternative)
   `#[diagnostic::on_unimplemented]` on a sealed marker trait emitted by the
   wrapper is recorded as the strongest alternative and deferred to 11.x. The
   Buzzy Bee improvement to show a non-GPUI failing snippet alongside the GPUI
@@ -441,11 +442,12 @@ implementation on 2026-06-06 after explicit user approval.
   symptom-search index for their own long-form subsection. Date/author:
   2026-06-04 (drafting agent, revised after Logisphere review).
 - Decision: tag the failing-shape snippet `rust,ignore` rather than
-  `rust,compile_fail,ignore`, and carry the intent in a one-line caption
-  immediately above the fence. Rationale: `compile_fail` would assert a failure
-  mode that depends on the v0.6 generated wrapper. A future codegen change or
-  rustc edition shift that legitimately resolves the conflict would flip the
-  doctest into a spurious "expected compile failure didn't fail" CI red.
+  `rust,compile_fail,ignore` (rejected — see Constraints), and carry the intent
+  in a one-line caption immediately above the fence. Rationale: `compile_fail`
+  would assert a failure mode that depends on the v0.6 generated wrapper. A
+  future codegen change or rustc edition shift that legitimately resolves the
+  conflict would flip the doctest into a spurious "expected compile failure
+  didn't fail" CI red.
   `rust,ignore` decays gracefully into a stale-but-quiet snippet, and
   compile-time drift detection lives in a deferred trybuild follow-up (see
   Outcomes & retrospective). Date/author: 2026-06-04 (drafting agent, revised
@@ -956,8 +958,9 @@ sentence to the split-the- step escape so an ad-hoc shared mutable does not
 reproduce the conflict inside one of the new steps (Doggylump); collapsed the
 proposed `## Troubleshooting` umbrella into a level-3 subsection of the existing
 `## Common errors and fixes` (Pandalump); switched the failing-snippet tag from
-`compile_fail,ignore` to `rust,ignore` with an above-fence caption, and
-promised a trybuild follow-up for compile-time drift detection (Buzzy Bee);
+`compile_fail,ignore` (rejected — see Constraints) to `rust,ignore` with an
+above-fence caption, and promised a trybuild follow-up for compile-time drift
+detection (Buzzy Bee);
 added an inline anti- cargo-cult warning under the playbook-redirect escape
 (Dinolump); recorded `#[diagnostic::on_unimplemented]` as the strongest
 alternative, deferred to 11.x (Wafflecat); and absorbed the non-GPUI
