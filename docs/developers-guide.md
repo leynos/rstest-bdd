@@ -14,6 +14,23 @@ consume the dependency with `.workspace = true` from member manifests. The
 published, while the `version` gives Cargo the crates.io requirement it needs
 when packaging a crate.
 
+Publishable first-party crates must keep their package-time dependency graph
+acyclic across normal, build, and development dependencies. `cargo package`
+resolves development dependencies while preparing a crate, so a dev-dependency
+cycle can block a live release even when the runtime dependency graph is
+acyclic. When cross-crate tests need both the runtime API and procedural
+macros, place those tests in the crate that already depends downstream, or in
+an existing non-publishable example/test harness. Do not add a reverse
+dev-dependency to a lower-level crate to host integration coverage.
+
+Use the existing dependency-load-bearing crates before introducing or widening
+edges. `rstest-bdd-patterns` owns shared pattern parsing, `rstest-bdd-policy`
+owns shared runtime and attribute-policy classification, and
+`rstest-bdd-harness` owns adapter contracts and test-staging helpers. The
+procedural macro crate may depend on those shared crates, but it must not
+depend on `rstest-bdd`; macro/runtime integration tests live under
+`rstest-bdd` instead.
+
 Do not restore root-level `[patch.crates-io]` entries for normal development.
 Patches make local resolution differ from publish-time resolution and can hide
 registry-only failures. If a temporary patch is required for a one-off

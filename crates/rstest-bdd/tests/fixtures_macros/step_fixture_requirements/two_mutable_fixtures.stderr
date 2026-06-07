@@ -1,5 +1,5 @@
 error[E0499]: cannot borrow value as mutable more than once at a time
- --> tests/ui/two_mutable_fixtures.rs:5:1
+ --> tests/fixtures_macros/step_fixture_requirements/two_mutable_fixtures.rs:5:1
   |
 5 | #[given("two mutable fixtures")]
   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^-

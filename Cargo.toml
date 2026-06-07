@@ -18,7 +18,7 @@ members = [
 
 [workspace.package]
 edition = "2024"
-version = "0.6.0-beta1"
+version = "0.6.0-beta2"
 rust-version = "1.85"
 license = "ISC"
 authors = ["Payton McIntosh <pmcintosh@df12.net>"]
@@ -53,13 +53,13 @@ eyre = "0.6"
 ctor = "0.2"
 newt-hype = "0.2.0"
 proptest = { version = "1.9.0", default-features = false, features = ["std"] }
-rstest-bdd = { version = "0.6.0-beta1", path = "crates/rstest-bdd" }
-rstest-bdd-harness = { version = "0.6.0-beta1", path = "crates/rstest-bdd-harness" }
-rstest-bdd-harness-gpui = { version = "0.6.0-beta1", path = "crates/rstest-bdd-harness-gpui" }
-rstest-bdd-harness-tokio = { version = "0.6.0-beta1", path = "crates/rstest-bdd-harness-tokio" }
-rstest-bdd-macros = { version = "0.6.0-beta1", path = "crates/rstest-bdd-macros" }
-rstest-bdd-policy = { version = "0.6.0-beta1", path = "crates/rstest-bdd-policy" }
-rstest-bdd-patterns = { version = "0.6.0-beta1", path = "crates/rstest-bdd-patterns" }
+rstest-bdd = { version = "0.6.0-beta2", path = "crates/rstest-bdd" }
+rstest-bdd-harness = { version = "0.6.0-beta2", path = "crates/rstest-bdd-harness" }
+rstest-bdd-harness-gpui = { version = "0.6.0-beta2", path = "crates/rstest-bdd-harness-gpui" }
+rstest-bdd-harness-tokio = { version = "0.6.0-beta2", path = "crates/rstest-bdd-harness-tokio" }
+rstest-bdd-macros = { version = "0.6.0-beta2", path = "crates/rstest-bdd-macros" }
+rstest-bdd-policy = { version = "0.6.0-beta2", path = "crates/rstest-bdd-policy" }
+rstest-bdd-patterns = { version = "0.6.0-beta2", path = "crates/rstest-bdd-patterns" }
 log = "0.4"
 temp-env = "0.3.6"
 tempfile = "3.23"

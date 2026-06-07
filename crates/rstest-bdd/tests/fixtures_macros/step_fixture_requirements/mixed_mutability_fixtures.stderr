@@ -1,5 +1,5 @@
 error[E0502]: cannot borrow value as mutable because it is also borrowed as immutable
- --> tests/ui/mixed_mutability_fixtures.rs:5:1
+ --> tests/fixtures_macros/step_fixture_requirements/mixed_mutability_fixtures.rs:5:1
   |
 5 | #[given("mixed mutability fixtures")]
   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^-

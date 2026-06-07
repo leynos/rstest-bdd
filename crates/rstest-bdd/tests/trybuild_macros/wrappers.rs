@@ -2,6 +2,7 @@
 //! They centralise UTF-8 conversions so tests can work with camino paths and
 //! expose standard-path views when talking to trybuild.
 use camino::{Utf8Path, Utf8PathBuf};
+use std::env;
 use std::path::Path as StdPath;
 use the_newtype::Newtype;
 
@@ -98,7 +99,7 @@ borrowed_str_newtype!(FixtureStderr);
 /// Normalises fixture paths in trybuild error output by stripping directory
 /// prefixes, making assertions platform-independent.
 pub(crate) fn normalise_fixture_paths(input: NormaliserInput<'_>) -> String {
-    let text = input.as_ref();
+    let text = normalise_target_dir(input.as_ref());
     let mut normalised = text
         .lines()
         .map(|line| normalise_fixture_path_line(FixturePathLine::from(line)))
@@ -108,6 +109,15 @@ pub(crate) fn normalise_fixture_paths(input: NormaliserInput<'_>) -> String {
         normalised.push('\n');
     }
     normalised
+}
+
+fn normalise_target_dir(text: &str) -> String {
+    env::var_os("CARGO_TARGET_DIR")
+        .and_then(|value| value.into_string().ok())
+        .map_or_else(
+            || text.to_owned(),
+            |target_dir| text.replace(target_dir.as_str(), "$WORKSPACE/target"),
+        )
 }
 
 fn normalise_fixture_path_line(line: FixturePathLine<'_>) -> String {

@@ -28,18 +28,6 @@ builds on the excellent `rstest` fixture and parametrisation model:
 - **Pytest‑bdd vibes**: explicit `#[scenario]` binding from test code to a
   named scenario.
 
-  The attribute now requires a `path` argument pointing to the `.feature` file;
-  index-only usage is no longer supported.
-
-  Migration (since 0.1.0-alpha2):
-
-  ```rust,no_run
-  // Before
-  #[scenario(index = 0)]
-  // After
-  #[scenario(path = "tests/features/example.feature", index = 0)]
-  ```
-
 Think of it as *courgette‑driven* development: crisp, versatile, and it plays
 nicely with everything else on your plate.
 
@@ -53,7 +41,7 @@ Add the crates to your **dev‑dependencies**:
 # Cargo.toml
 [dev-dependencies]
 rstest = "0.26.1"
-rstest-bdd = "0.6.0-beta1"
+rstest-bdd = "0.6.0-beta2"
 ```
 
 Feature flags:
@@ -75,7 +63,7 @@ crate. Enable them in your `Cargo.toml` with:
 
 ```toml
 [dependencies]
-rstest-bdd-macros = { version = "0.6.0-beta1", features = ["compile-time-validation"] }
+rstest-bdd-macros = { version = "0.6.0-beta2", features = ["compile-time-validation"] }
 ```
 
 Or via CLI:
@@ -90,9 +78,8 @@ cargo test --features "rstest-bdd-macros/strict-compile-time-validation"
 > the runner outcome in `Ok(...)`. `Err(HarnessError::RuntimeBuildFailed(_))`
 > surfaces harness infrastructure failures, such as a Tokio runtime failing to
 > build, keeping them distinct from scenario assertion failures. See the
-> [v0.6.0 migration guide][migration] for full upgrade steps from v0.5.x.
-
-[migration]: ../../docs/v0-6-0-migration-guide.md
+> [v0.6.0 migration guide](docs/v0-6-0-migration-guide.md) for full upgrade
+> steps from v0.5.x.
 
 ______________________________________________________________________
 

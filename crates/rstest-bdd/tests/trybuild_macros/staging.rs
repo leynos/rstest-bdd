@@ -65,17 +65,17 @@ fn stage_trybuild_support_files() -> io::Result<()> {
         .and_then(Utf8Path::parent)
         .map(Utf8Path::to_owned)
         .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "workspace root must exist"))?;
-    let workspace_dir = Dir::open_ambient_dir(workspace_root.as_std_path(), ambient_authority())?;
+    let target_dir = target_directory(&workspace_root);
+    let target_dir_handle = Dir::open_ambient_dir(target_dir.as_std_path(), ambient_authority())?;
 
-    let target_tests_relative = Utf8Path::new("target/tests/trybuild");
-    let trybuild_crate_relative = target_tests_relative.join("rstest-bdd");
-    let workspace_features_relative = target_tests_relative.join("features");
+    let trybuild_crate_relative = Utf8Path::new("tests/trybuild/rstest-bdd");
+    let workspace_features_relative = Utf8Path::new("tests/trybuild/features");
 
-    remove_dir_if_exists(&workspace_dir, workspace_features_relative.as_path())?;
-    remove_dir_if_exists(&workspace_dir, trybuild_crate_relative.as_path())?;
+    remove_dir_if_exists(&target_dir_handle, workspace_features_relative)?;
+    remove_dir_if_exists(&target_dir_handle, trybuild_crate_relative)?;
 
-    workspace_dir.create_dir_all(workspace_features_relative.as_std_path())?;
-    workspace_dir.create_dir_all(trybuild_crate_relative.as_std_path())?;
+    target_dir_handle.create_dir_all(workspace_features_relative.as_std_path())?;
+    target_dir_handle.create_dir_all(trybuild_crate_relative.as_std_path())?;
 
     let crate_dir = Dir::open_ambient_dir(crate_root.as_std_path(), ambient_authority())?;
     let features_dir = crate_dir.open_dir(FEATURES_DIR)?;
@@ -89,12 +89,12 @@ fn stage_trybuild_support_files() -> io::Result<()> {
     fixture_features.sort_by(|a, b| a.0.cmp(&b.0));
 
     write_feature_files(
-        &workspace_dir,
+        &target_dir_handle,
         workspace_features_relative.as_std_path(),
         &features,
     )?;
     write_feature_files(
-        &workspace_dir,
+        &target_dir_handle,
         trybuild_crate_relative.as_std_path(),
         &fixture_features,
     )?;
@@ -116,11 +116,17 @@ fn stage_trybuild_support_files() -> io::Result<()> {
 
     if !auto_features.is_empty() {
         let auto_dest = trybuild_crate_relative.join(FEATURES_AUTO_DIR);
-        workspace_dir.create_dir_all(auto_dest.as_std_path())?;
-        write_feature_files(&workspace_dir, auto_dest.as_std_path(), &auto_features)?;
+        target_dir_handle.create_dir_all(auto_dest.as_std_path())?;
+        write_feature_files(&target_dir_handle, auto_dest.as_std_path(), &auto_features)?;
     }
 
     Ok(())
+}
+
+fn target_directory(workspace_root: &Utf8Path) -> Utf8PathBuf {
+    env::var_os("CARGO_TARGET_DIR")
+        .and_then(|value| Utf8PathBuf::from_path_buf(value.into()).ok())
+        .unwrap_or_else(|| workspace_root.join("target"))
 }
 
 fn write_feature_files(

@@ -1,6 +1,6 @@
 [package]
 name = "rstest-bdd-macros"
-version = "0.6.0-beta1"
+version = "0.6.0-beta2"
 edition.workspace = true
 license.workspace = true
 authors.workspace = true
@@ -48,8 +48,6 @@ proptest.workspace = true
 rstest.workspace = true
 serial_test.workspace = true
 tempfile.workspace = true
-trybuild.workspace = true
-rstest-bdd.workspace = true
 
 [package.metadata.docs.rs]
 all-features = true
