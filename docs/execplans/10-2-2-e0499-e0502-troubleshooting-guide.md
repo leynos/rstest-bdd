@@ -316,6 +316,12 @@ user-visible commits are produced.
   immutable/mutable `E0502` case, and
   `cargo test -p rstest-bdd-macros --test ui_tests` exits zero. Completed
   2026-06-07.
+- [x] Stage H: add compile-pass UI coverage for documented workarounds.
+  Acceptance: `crates/rstest-bdd-macros/tests/ui/` contains trybuild pass
+  fixtures for the single-mutable-fixture workaround and the all-immutable
+  reshape workaround, verifies their generated fixture requirements, and
+  `cargo test -p rstest-bdd-macros --test ui_tests` exits zero. Completed
+  2026-06-07.
 
 Use timestamps once the plan transitions to execution. The plan entered
 implementation on 2026-06-06 after explicit user approval.
@@ -556,6 +562,12 @@ implementation on 2026-06-06 after explicit user approval.
   `StepContext`, or wrapper codegen; they only make the documented `E0499` and
   `E0502` behaviour observable in CI. Date/author: 2026-06-07 (implementation
   agent, after CodeRabbit review).
+- Decision: add compile-pass trybuild fixtures for the documented
+  workarounds in the same UI harness as the failure cases. Rationale: pinning
+  only the failing shapes proves the diagnostics but not the migration advice.
+  The pass fixtures verify that one `&mut T` fixture and two `&T` fixtures both
+  compile and register the expected fixture metadata. Date/author: 2026-06-07
+  (implementation agent, after follow-up review).
 
 ## Outcomes & retrospective
 
@@ -571,7 +583,9 @@ by the v0.6 generated wrapper without asserting a brittle `compile_fail`
 doctest. Follow-up commit `c361697` corrected stale reshape wording after
 review. The 2026-06-07 UI-test revision added dedicated trybuild drift checks
 for the two-mutable `E0499` case and the mixed-mutability `E0502` case under
-`crates/rstest-bdd-macros/tests/ui/`.
+`crates/rstest-bdd-macros/tests/ui/`. The follow-up pass-test revision added
+matching compile-pass UI fixtures for the single-mutable and all-immutable
+workaround shapes, including fixture-requirement assertions.
 
 Validation on 2026-06-06 passed with `make check-fmt`, `make lint`,
 `make test`, and `make markdownlint`. The `make test` run reported 1,487
@@ -584,7 +598,8 @@ Additional validation on 2026-06-07 passed with
 `cargo test -p rstest-bdd-macros --test ui_tests`, proving the new trybuild
 stderr baselines. The first focused run intentionally failed while trybuild
 wrote `wip/*.stderr`; moving those baselines into `tests/ui/` made the focused
-gate pass.
+gate pass. A later 2026-06-07 focused run of the same command passed after the
+compile-pass workaround fixtures were added.
 
 No downstream reader has consumed the entry yet. Keep the final feedback bullet
 under Deferred follow-ups open until the first beta consumer confirms whether
@@ -998,6 +1013,7 @@ failing-snippet improvement plus the anchor-stubs-upfront note (Buzzy Bee
 improvement, Pandalump green). Approved and implemented on 2026-06-06. Revised
 2026-06-07 after CodeRabbit review to replace the trybuild deferral with
 concrete compile-fail UI fixtures for the two-mutable and mixed-mutability
-generated-wrapper cases. Any later edit must update the Status field at the top
-of the plan, append a brief note to this section, and keep the living sections
-current.
+generated-wrapper cases, then revised again to add compile-pass UI fixtures for
+the documented single-mutable and all-immutable workarounds. Any later edit
+must update the Status field at the top of the plan, append a brief note to
+this section, and keep the living sections current.
