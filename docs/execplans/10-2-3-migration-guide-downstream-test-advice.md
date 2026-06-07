@@ -5,7 +5,7 @@ This ExecPlan (execution plan) is a living document. The sections
 `Decision log`, and `Outcomes & retrospective` must be kept up to date as work
 proceeds.
 
-Status: DRAFT
+Status: COMPLETE
 
 ## Purpose / big picture
 
@@ -122,31 +122,46 @@ reading the design document or this ExecPlan.
 
 ## Progress
 
-- [ ] (DRAFT) Capture user approval for this plan (gate before
+- [x] (2026-06-07) Capture user approval for this plan (gate before
   implementation begins).
-- [ ] Stage A — locate insertion point and capture absence. Confirm the
-  new bullet will land between `docs/v0-6-0-migration-guide.md:444` and
-  `:446`, and run the red-stage grep that proves the advice is not yet
-  present.
-- [ ] Stage B — add the checklist bullet and the new label-style link.
-- [ ] Stage C — refactor for wrap width and link style; run
+- [x] (2026-06-07) Stage A — locate insertion point and capture absence.
+  Confirm the new bullet will land between
+  `docs/v0-6-0-migration-guide.md:444` and `:446`, and run the red-stage
+  grep that proves the advice is not yet present.
+- [x] (2026-06-07) Stage B — add the checklist bullet and the new
+  label-style link.
+- [x] (2026-06-07) Stage C — refactor for wrap width and link style; run
   `make markdownlint` as the substantive gate, then `make check-fmt`,
   `make lint`, and `make test` as sanity checks, capturing logs under
   `/tmp/<action>-rstest-bdd-${BRANCH}.out`.
-- [ ] Stage D — run `coderabbit review --agent` and clear concerns before
-  marking the roadmap entry done.
-- [ ] Update `docs/roadmap.md:769` to mark item 10.2.3 as delivered with
-  the date and a one-line summary, following the 10.2.1/10.2.2 pattern.
-- [ ] Update `docs/contents.md` only if the migration guide gains a new
-  top-level heading visible from the index (this plan does not currently
-  expect a new index entry).
+- [x] (2026-06-07) Stage D — run `coderabbit review --agent` and clear
+  concerns before marking the roadmap entry done.
+- [x] (2026-06-07) Update `docs/roadmap.md:769` to mark item 10.2.3 as
+  delivered with the date and a one-line summary, following the
+  10.2.1/10.2.2 pattern.
+- [x] (2026-06-07) Update `docs/contents.md` only if the migration guide
+  gains a new top-level heading visible from the index (this plan does not
+  currently expect a new index entry).
 
 ## Surprises & discoveries
 
-(None yet. Populate during implementation.)
+- Stage A found no overlapping existing prose in
+  `docs/v0-6-0-migration-guide.md` for `cargo test`, `make test`,
+  `--all-features`, `make markdownlint`, or `CI`; the planned bullet can be
+  inserted without reconciling duplicate guidance.
+- The first `make markdownlint` run failed only on a line-wrap issue in this
+  ExecPlan's updated Progress entry. Reflowing that entry fixed the failure;
+  the second run reported `Summary: 0 error(s)`.
 
 ## Decision log
 
+- Decision: treat the user's 2026-06-07 instruction to proceed with
+  implementation as approval of this ExecPlan and move the plan from
+  `DRAFT` to `IN PROGRESS`.
+  Rationale: the execplans skill requires an approval gate before
+  implementation, and the latest user request explicitly asks to implement
+  this named plan while keeping it current.
+  Date/Author: 2026-06-07, implementation agent.
 - Decision: confine the change to `docs/v0-6-0-migration-guide.md` (plus
   the roadmap tick) and skip `docs/users-guide.md`.
   Rationale: research (the "Survey CI gates and downstream commands"
@@ -201,10 +216,20 @@ reading the design document or this ExecPlan.
 
 ## Outcomes & retrospective
 
-(To be filled at completion. Record: did the new bullet land where planned;
-did downstream adopters self-diagnose feature-gate vs. API failures from
-the new prose alone; did `make markdownlint` pass on the first complete
-draft; what would be done differently.)
+The new migration-checklist bullet landed immediately before
+`## Common errors and fixes`, preserving the existing checklist shape while
+naming both required command forms:
+`cargo test --workspace --all-features` and `make test`. The roadmap entry
+10.2.3 is marked delivered with a dated note pointing back to this ExecPlan.
+`docs/contents.md` stayed unchanged because the migration guide did not gain
+a new top-level heading.
+
+Validation succeeded through `make markdownlint`, `make check-fmt`,
+`make lint`, `make test`, green-stage grep assertions, and two
+`coderabbit review --agent` passes with zero findings. The only correction
+needed during implementation was reflowing overlong lines in this ExecPlan's
+Progress entries after updates; the migration-guide and roadmap prose passed
+once wrapped.
 
 ## Context and orientation
 
@@ -366,7 +391,7 @@ roadmap tick is the final evidence that the work shipped.
 ## Concrete steps
 
 Working directory:
-`/home/leynos/.lody/repos/github---leynos---rstest-bdd/worktrees/c22911d1-e486-4f31-8225-2a3c97a06e98`.
+`/path/to/rstest-bdd-worktree`.
 All commands assume this is the current directory.
 
 1. Confirm clean state and current branch.
@@ -460,7 +485,47 @@ re-running the review tool.
 
 ## Artifacts and notes
 
-(Populate during implementation.)
+- Stage A absence assertion, first grep:
+
+  ```plaintext
+  <no output>
+  ```
+
+- Stage A absence assertion, exact portable command:
+
+  ```plaintext
+  advice not yet present
+  ```
+
+- Stage C green-stage assertions:
+
+  ```plaintext
+  448:  use `cargo test --workspace --all-features`, or the project's Continuous
+  449:  Integration (CI)-equivalent gate such as `make test` when a Make-based gate
+  405:[design-beta2-quick-wins]: rstest-bdd-design.md#2763-v060-beta2-quick-wins
+  451:  [v0.6.0-beta2 quick win][design-beta2-quick-wins].
+  ```
+
+- Stage C gate summaries:
+
+  ```plaintext
+  make markdownlint: Summary: 0 error(s)
+  make check-fmt: 30 files already formatted
+  make lint: All checks passed!
+  make test: 1487 passed, 7 skipped; 62 Python tests passed
+  ```
+
+- Stage D CodeRabbit review:
+
+  ```plaintext
+  {"type":"complete","status":"review_completed","findings":0}
+  ```
+
+- Final CodeRabbit review after the roadmap tick:
+
+  ```plaintext
+  {"type":"complete","status":"review_completed","findings":0}
+  ```
 
 - Expected Stage A absence-assertion output:
 

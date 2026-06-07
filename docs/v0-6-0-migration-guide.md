@@ -402,6 +402,8 @@ subsection. The pattern's rationale lives in §§2.7.6.1–2.7.6.2 of the
 
 [adr-007]: adr-007-harness-context-injection.md
 
+[design-beta2-quick-wins]: rstest-bdd-design.md#2763-v060-beta2-quick-wins
+
 [design-borrow-constraint]:
 rstest-bdd-design.md#2761-borrow-constraint-exposed-by-gpui-adoption
 
@@ -442,6 +444,11 @@ users-guide.md#stateful-gpui-scenarios-with-durable-handles
   [Migrate a stateful GPUI test](#migrate-a-stateful-gpui-test): wire
   `scenario_state_cleanup` into every stateful `#[scenario]`, mark the scenario
   `#[serial]`, and reset the thread-local state before assigning fresh handles.
+- [ ] Run feature-gated downstream tests before assuming v0.6.0 broke the API:
+  use `cargo test --workspace --all-features`, or the project's Continuous
+  Integration (CI)-equivalent gate such as `make test` when a Make-based gate
+  wraps the same feature set; the design note tracks this
+  [v0.6.0-beta2 quick win][design-beta2-quick-wins].
 
 ## Common errors and fixes
 

@@ -766,12 +766,17 @@ changing the public trait contracts.
   failing GPUI and non-GPUI shapes, the generated-wrapper rationale, and the
   three v0.6-compatible escape hatches. See
   `docs/execplans/10-2-2-e0499-e0502-troubleshooting-guide.md`.
-- [ ] 10.2.3. The v0.6.0 migration guide warns users to run downstream tests
+- [x] 10.2.3. The v0.6.0 migration guide warns users to run downstream tests
   through the repository's CI-equivalent gate and to run feature-gated tests,
   such as `cargo test --all-features` or a project `make test`, before API
   diagnosis. Finish line: the migration checklist names both command shapes and
   `make markdownlint` passes. Design Doc: `docs/rstest-bdd-design.md` §2.7.6.3.
   (Doggylump)
+  Delivered 2026-06-07: the v0.6.0 migration checklist now tells downstream
+  users to run `cargo test --workspace --all-features` or their Continuous
+  Integration (CI)-equivalent gate, such as `make test`, before assuming
+  v0.6.0 broke their API. See
+  `docs/execplans/10-2-3-migration-guide-downstream-test-advice.md`.
 
 ## 11. Early life support: v0.6.1 additive hardening
 
