@@ -348,12 +348,12 @@ implementation on 2026-06-06 after explicit user approval.
   that you don't have any other references to the variable before trying to
   access it with a different mutability"). This matches the migration guide's
   recommended escapes: redirect to the playbook (which uses a thread-local
-  `RefCell` *outside* `StepContext`, not inside it), reshape both parameters to
-  `&T`, or split the step. Evidence: Firecrawl research pass dated 2026-06-04.
-  Impact: cite the rustc pages once in the rationale paragraph so readers who
-  arrive via a rustc diagnostic recognise the page, but do not claim the rustc
-  pages recommend the rstest-bdd workaround shape — they don't, and they
-  shouldn't.
+  `RefCell` *outside* `StepContext`, not inside it), reshape **both**
+  parameters to `&T` (when read-only access suffices for both), or split the
+  step. Evidence: Firecrawl research pass dated 2026-06-04. Impact: cite the
+  rustc pages once in the rationale paragraph so readers who arrive via a rustc
+  diagnostic recognise the page, but do not claim the rustc pages recommend the
+  rstest-bdd workaround shape — they don't, and they shouldn't.
 - Observation: cucumber-rs (the closest Rust BDD peer) sidesteps the
   problem by passing `&mut World` to every step. There is therefore no
   borrow-conflict pattern equivalent to two mutable fixtures, and the
@@ -454,15 +454,14 @@ implementation on 2026-06-06 after explicit user approval.
   after Logisphere review).
 - Decision: name the escape hatches in the order (1) redirect to the
   GPUI playbook when the second mutable is harness context, (2) reshape both
-  parameters to `&T` when read-only access to both fixtures suffices, (3) split
-  the step. Rationale: the most common shape that triggers the error in the
-  field is the GPUI stateful one; the cheapest non-GPUI fix is second when it
-  is semantically valid; splitting the step is last because it requires
-  reordering Gherkin. This decision requires **both** fixture parameters to
-  become immutable; reshaping only one parameter leaves the mixed `&T` plus
-  `&mut T` shape and still produces `E0502`. Date/author: 2026-06-04 (drafting
-  agent; corrected 2026-06-06 during implementation to match the Logisphere
-  review; clarified 2026-06-06 after follow-up review).
+  parameters to `&T` when read-only access suffices for both (one `&T` plus one
+  `&mut T` reproduces `E0502` and is therefore **not** a fix), (3) split the
+  step. Rationale: the most common shape that triggers the error in the field
+  is the GPUI stateful one; reshaping both fixtures to `&T` is second because it
+  is the cheapest structural change; splitting the step is last because it
+  requires reordering Gherkin. Date/author: 2026-06-04 (drafting agent;
+  corrected 2026-06-06 during implementation to match the Logisphere review;
+  clarified 2026-06-06 after follow-up review; corrected after review).
 - Decision: cite the rustc canonical error pages once each in the
   rationale paragraph; do not cite the cucumber-rs book. Rationale: rustc
   citations help readers who arrive from a compiler diagnostic recognise the
