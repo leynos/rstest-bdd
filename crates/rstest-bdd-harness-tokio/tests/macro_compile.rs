@@ -38,6 +38,7 @@ fn tokio_macro_fixtures_compile() -> Result<(), Box<dyn std::error::Error>> {
     }
     for case in [
         "tests/fixtures_macros/scenario_default_policy_async_no_harness_rejected.rs",
+        "tests/fixtures_macros/scenario_harness_alias_fallback_warning.rs",
         "tests/fixtures_macros/scenario_harness_tokio_async_rejected.rs",
         "tests/fixtures_macros/scenarios_runtime_alias_deprecated.rs",
     ] {
