@@ -1635,6 +1635,7 @@ name = "rstest-bdd-patterns"
 version = "0.6.0-beta3"
 dependencies = [
  "gherkin",
+ "proptest",
  "regex",
  "rstest",
  "thiserror 2.0.18",
