@@ -215,7 +215,12 @@ Thresholds that trigger escalation when breached.
 - [x] (2026-06-10) Stage B complete: wrote `adr-010-feature-file-change-detection.md`,
   `adr-011-first-party-scenario-state-and-cleanup.md`, and
   `adr-012-guard-based-stepcontext-borrowing.md`; `make markdownlint` clean.
-- [ ] Stage C: apply the roadmap edits.
+- [x] (2026-06-10) Stage C complete: applied roadmap edits — clarified
+  10.1.4 (affirmative outcome + test reference), added 10.2.4–10.2.7
+  (documentation items) with dual-track maintenance note, re-scoped 11.1.3
+  and 11.1.4 (ScenarioStore naming + pull-forward notes), added Phase 11.3
+  (rebuild gap + ADR-008 follow-up note), and amended Phase 12 heading and
+  12.1.1 to reference ADR-012; `make markdownlint` clean.
 - [ ] Stage D: apply the design-document and adoption-guide edits.
 
 ## Surprises & discoveries
